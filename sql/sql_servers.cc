@@ -350,8 +350,8 @@ get_server_from_table_to_cache(TABLE *table)
   DBUG_PRINT("info", ("server->socket %s", server->socket));
   if (my_hash_insert(&servers_cache, (uchar*) server))
   {
-    DBUG_PRINT("info", ("had a problem inserting server %s at %lx",
-                        server->server_name, (long unsigned int) server));
+    DBUG_PRINT("info", ("had a problem inserting server %s at %p",
+                        server->server_name, server));
     // error handling needed here
     DBUG_RETURN(TRUE);
   }
@@ -431,13 +431,13 @@ insert_server_record_into_cache(FOREIGN_SERVER *server)
     We succeded in insertion of the server to the table, now insert
     the server to the cache
   */
-  DBUG_PRINT("info", ("inserting server %s at %lx, length %d",
-                        server->server_name, (long unsigned int) server,
+  DBUG_PRINT("info", ("inserting server %s at %p, length %d",
+                        server->server_name, server,
                         server->server_name_length));
   if (my_hash_insert(&servers_cache, (uchar*) server))
   {
-    DBUG_PRINT("info", ("had a problem inserting server %s at %lx",
-                        server->server_name, (long unsigned int) server));
+    DBUG_PRINT("info", ("had a problem inserting server %s at %p",
+                        server->server_name, server));
     // error handling needed here
     error= 1;
   }
@@ -804,8 +804,8 @@ int update_server_record_in_cache(FOREIGN_SERVER *existing,
   */
   if (my_hash_insert(&servers_cache, (uchar*)altered))
   {
-    DBUG_PRINT("info", ("had a problem inserting server %s at %lx",
-                        altered->server_name, (long unsigned int) altered));
+    DBUG_PRINT("info", ("had a problem inserting server %s at %p",
+                        altered->server_name,altered));
     error= ER_OUT_OF_RESOURCES;
   }
 

@@ -259,9 +259,9 @@ sql_create_definition_file(const LEX_CSTRING *dir,
   int path_end;
   File_option *param;
   DBUG_ENTER("sql_create_definition_file");
-  DBUG_PRINT("enter", ("Dir: %s, file: %s, base 0x%lx",
+  DBUG_PRINT("enter", ("Dir: %s, file: %s, base %p",
 		       dir ? dir->str : "",
-                       file_name->str, (ulong) base));
+                       file_name->str, base));
 
   if (dir)
   {
@@ -438,7 +438,7 @@ sql_parse_prepare(const LEX_CSTRING *file_name, MEM_ROOT *mem_root,
     DBUG_RETURN(0);
   }
   
-  if ((len= mysql_file_read(file, (uchar *)buff, stat_info.st_size,
+  if ((len= mysql_file_read(file, (uchar *)buff, (size_t)stat_info.st_size,
                             MYF(MY_WME))) == MY_FILE_ERROR)
   {
     mysql_file_close(file, MYF(MY_WME));

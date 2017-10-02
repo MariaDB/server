@@ -95,22 +95,10 @@ upd_field_set_field_no(
 	upd_field_t*	upd_field,	/*!< in: update vector field */
 	ulint		field_no,	/*!< in: field number in a clustered
 					index */
-	dict_index_t*	index,		/*!< in: index */
-	trx_t*		trx)		/*!< in: transaction */
+	dict_index_t*	index)		/*!< in: index */
 {
 	upd_field->field_no = unsigned(field_no);
 	upd_field->orig_len = 0;
-
-	if (UNIV_UNLIKELY(field_no >= dict_index_get_n_fields(index))) {
-		ib::error()
-			<< " trying to access field " << field_no
-			<< " in " << index->name
-			<< " of table " << index->table->name
-			<< " which contains only " << index->n_fields
-			<< " fields";
-		ut_ad(0);
-	}
-
 	dict_col_copy_type(dict_index_get_nth_col(index, field_no),
 			   dfield_get_type(&upd_field->new_val));
 }

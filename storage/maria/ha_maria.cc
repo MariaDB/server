@@ -405,7 +405,7 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
 {
   THD *thd= (THD *) param->thd;
   Protocol *protocol= thd->protocol;
-  uint length, msg_length;
+  size_t length, msg_length;
   char msgbuf[MYSQL_ERRMSG_SIZE];
   char name[NAME_LEN * 2 + 2];
 
@@ -442,10 +442,10 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
     push_warning).
   */
   protocol->prepare_for_resend();
-  protocol->store(name, length, system_charset_info);
+  protocol->store(name, (uint)length, system_charset_info);
   protocol->store(param->op_name, system_charset_info);
   protocol->store(msg_type, system_charset_info);
-  protocol->store(msgbuf, msg_length, system_charset_info);
+  protocol->store(msgbuf, (uint)msg_length, system_charset_info);
   if (protocol->write())
     sql_print_error("Failed on my_net_write, writing to stderr instead: %s.%s: %s\n",
                     param->db_name, param->table_name, msgbuf);
@@ -620,8 +620,8 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
         }
       }
     }
-    DBUG_PRINT("loop", ("found: 0x%lx  recpos: %d  minpos: %d  length: %d",
-                        (long) found, recpos, minpos, length));
+    DBUG_PRINT("loop", ("found: %p  recpos: %d  minpos: %d  length: %d",
+                        found, recpos, minpos, length));
     if (!found)
       break;
 
@@ -3435,7 +3435,7 @@ bool maria_show_status(handlerton *hton,
     {
       char *file;
       const char *status;
-      uint length, status_len;
+      size_t length, status_len;
       MY_STAT stat_buff, *stat;
       const char error[]= "can't stat";
       char object[SHOW_MSG_LEN];
@@ -3463,8 +3463,8 @@ bool maria_show_status(handlerton *hton,
           status= needed;
           status_len= sizeof(needed) - 1;
         }
-        length= my_snprintf(object, SHOW_MSG_LEN, "Size %12lu ; %s",
-                            (ulong) stat->st_size, file);
+        length= my_snprintf(object, SHOW_MSG_LEN, "Size %12llu ; %s",
+                            (ulonglong) stat->st_size, file);
       }
 
       print(thd, engine_name->str, engine_name->length,

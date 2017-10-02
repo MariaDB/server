@@ -1697,7 +1697,7 @@ rpl_parallel_thread::get_qev_common(Log_event *ev, ulonglong event_size)
   }
   qev->typ= rpl_parallel_thread::queued_event::QUEUED_EVENT;
   qev->ev= ev;
-  qev->event_size= event_size;
+  qev->event_size= (size_t)event_size;
   qev->next= NULL;
   return qev;
 }

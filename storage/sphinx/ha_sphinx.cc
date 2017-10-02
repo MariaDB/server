@@ -1735,7 +1735,7 @@ bool CSphSEQuery::ParseField ( char * sField )
 		}
 	} else if ( !strcmp ( sName, "override" ) ) // name,type,id:value,id:value,...
 	{
-		char * sName = NULL;
+		sName = NULL;
 		int iType = 0;
 		CSphSEQuery::Override_t * pOverride = NULL;
 
@@ -1790,7 +1790,7 @@ bool CSphSEQuery::ParseField ( char * sField )
 			if (!( sRest = strchr ( sRest, ':' ) )) break; *sRest++ = '\0';
 			if (!( sRest - sId )) break;
 
-			char * sValue = sRest;
+			sValue = sRest;
 			if ( ( sRest = strchr ( sRest, ',' ) )!=NULL )
 				*sRest++ = '\0';
 			if ( !*sValue )
@@ -2209,7 +2209,7 @@ int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 	}
 
 	char sError[512];
-	int iSocket = socket ( iDomain, SOCK_STREAM, 0 );
+	int iSocket = (int) socket ( iDomain, SOCK_STREAM, 0 );
 
 	if ( iSocket<0 )
 	{
@@ -2670,7 +2670,7 @@ bool ha_sphinx::UnpackStats ( CSphSEStats * pStats )
 	assert ( pStats );
 
 	char * pCurSave = m_pCur;
-	for ( uint i=0; i<m_iMatchesTotal && m_pCur<m_pResponseEnd-sizeof(uint32); i++ ) // NOLINT
+	for ( uint m=0; m<m_iMatchesTotal && m_pCur<m_pResponseEnd-sizeof(uint32); m++ ) // NOLINT
 	{
 		m_pCur += m_bId64 ? 12 : 8; // skip id+weight
 		for ( uint32 i=0; i<m_iAttrs && m_pCur<m_pResponseEnd-sizeof(uint32); i++ ) // NOLINT
@@ -3155,7 +3155,7 @@ int ha_sphinx::get_rec ( byte * buf, const byte *, uint )
 						}
 					}
 
-					af->store ( sBuf, pCur-sBuf, &my_charset_bin );
+					af->store ( sBuf, uint(pCur-sBuf), &my_charset_bin );
 				}
 				break;
 
@@ -3382,39 +3382,39 @@ ha_rows ha_sphinx::records_in_range ( uint, key_range *, key_range * )
 // currently provided for doing that.
 //
 // Called from handle.cc by ha_create_table().
-int ha_sphinx::create ( const char * name, TABLE * table, HA_CREATE_INFO * )
+int ha_sphinx::create ( const char * name, TABLE * table_arg, HA_CREATE_INFO * )
 {
 	SPH_ENTER_METHOD();
 	char sError[256];
 
 	CSphSEShare tInfo;
-	if ( !ParseUrl ( &tInfo, table, true ) )
+	if ( !ParseUrl ( &tInfo, table_arg, true ) )
 		SPH_RET(-1);
 
 	// check SphinxAPI table
 	for ( ; !tInfo.m_bSphinxQL; )
 	{
 		// check system fields (count and types)
-		if ( table->s->fields<SPHINXSE_SYSTEM_COLUMNS )
+		if ( table_arg->s->fields<SPHINXSE_SYSTEM_COLUMNS )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: there MUST be at least %d columns",
 				name, SPHINXSE_SYSTEM_COLUMNS );
 			break;
 		}
 
-		if ( !IsIDField ( table->field[0] ) )
+		if ( !IsIDField ( table_arg->field[0] ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: 1st column (docid) MUST be unsigned integer or bigint", name );
 			break;
 		}
 
-		if ( !IsIntegerFieldType ( table->field[1]->type() ) )
+		if ( !IsIntegerFieldType ( table_arg->field[1]->type() ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: 2nd column (weight) MUST be integer or bigint", name );
 			break;
 		}
 
-		enum_field_types f2 = table->field[2]->type();
+		enum_field_types f2 = table_arg->field[2]->type();
 		if ( f2!=MYSQL_TYPE_VARCHAR
 			&& f2!=MYSQL_TYPE_BLOB && f2!=MYSQL_TYPE_MEDIUM_BLOB && f2!=MYSQL_TYPE_LONG_BLOB && f2!=MYSQL_TYPE_TINY_BLOB )
 		{
@@ -3424,25 +3424,25 @@ int ha_sphinx::create ( const char * name, TABLE * table, HA_CREATE_INFO * )
 
 		// check attributes
 		int i;
-		for ( i=3; i<(int)table->s->fields; i++ )
+		for ( i=3; i<(int)table_arg->s->fields; i++ )
 		{
-			enum_field_types eType = table->field[i]->type();
+			enum_field_types eType = table_arg->field[i]->type();
 			if ( eType!=MYSQL_TYPE_TIMESTAMP && !IsIntegerFieldType(eType) && eType!=MYSQL_TYPE_VARCHAR && eType!=MYSQL_TYPE_FLOAT )
 			{
 				my_snprintf ( sError, sizeof(sError), "%s: %dth column (attribute %s) MUST be integer, bigint, timestamp, varchar, or float",
-					name, i+1, table->field[i]->field_name.str );
+					name, i+1, table_arg->field[i]->field_name.str );
 				break;
 			}
 		}
 
-		if ( i!=(int)table->s->fields )
+		if ( i!=(int)table_arg->s->fields )
 			break;
 
 		// check index
 		if (
-			table->s->keys!=1 ||
-			table->key_info[0].user_defined_key_parts!=1 ||
-			strcasecmp ( table->key_info[0].key_part[0].field->field_name.str, table->field[2]->field_name.str ) )
+			table_arg->s->keys!=1 ||
+			table_arg->key_info[0].user_defined_key_parts!=1 ||
+			strcasecmp ( table_arg->key_info[0].key_part[0].field->field_name.str, table->field[2]->field_name.str ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: there must be an index on '%s' column",
 				name, table->field[2]->field_name.str );
@@ -3460,13 +3460,13 @@ int ha_sphinx::create ( const char * name, TABLE * table, HA_CREATE_INFO * )
 		sError[0] = '\0';
 
 		// check that 1st column is id, is of int type, and has an index
-		if ( strcmp ( table->field[0]->field_name.str, "id" ) )
+		if ( strcmp ( table_arg->field[0]->field_name.str, "id" ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: 1st column must be called 'id'", name );
 			break;
 		}
 
-		if ( !IsIDField ( table->field[0] ) )
+		if ( !IsIDField ( table_arg->field[0] ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: 'id' column must be INT UNSIGNED or BIGINT", name );
 			break;
@@ -3474,22 +3474,22 @@ int ha_sphinx::create ( const char * name, TABLE * table, HA_CREATE_INFO * )
 
 		// check index
 		if (
-			table->s->keys!=1 ||
-			table->key_info[0].user_defined_key_parts!=1 ||
-			strcasecmp ( table->key_info[0].key_part[0].field->field_name.str, "id" ) )
+			table_arg->s->keys!=1 ||
+			table_arg->key_info[0].user_defined_key_parts!=1 ||
+			strcasecmp ( table_arg->key_info[0].key_part[0].field->field_name.str, "id" ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: 'id' column must be indexed", name );
 			break;
 		}
 
 		// check column types
-		for ( int i=1; i<(int)table->s->fields; i++ )
+		for ( int i=1; i<(int)table_arg->s->fields; i++ )
 		{
-			enum_field_types eType = table->field[i]->type();
+			enum_field_types eType = table_arg->field[i]->type();
 			if ( eType!=MYSQL_TYPE_TIMESTAMP && !IsIntegerFieldType(eType) && eType!=MYSQL_TYPE_VARCHAR && eType!=MYSQL_TYPE_FLOAT )
 			{
 				my_snprintf ( sError, sizeof(sError), "%s: column %d(%s) is of unsupported type (use int/bigint/timestamp/varchar/float)",
-					name, i+1, table->field[i]->field_name.str );
+					name, i+1, table_arg->field[i]->field_name.str );
 				break;
 			}
 		}
@@ -3504,7 +3504,7 @@ int ha_sphinx::create ( const char * name, TABLE * table, HA_CREATE_INFO * )
 	if ( sError[0] )
 	{
 		my_error ( ER_CANT_CREATE_TABLE, MYF(0),
-		table->s->db.str, table->s->table_name, sError );
+		table_arg->s->db.str, table_arg->s->table_name, sError );
 		SPH_RET(-1);
 	}
 

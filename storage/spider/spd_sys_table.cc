@@ -677,13 +677,13 @@ void spider_store_tables_name(
   }
   table->field[0]->store(
     ptr_db,
-    ptr_diff_table - 1,
+    (uint)(ptr_diff_table - 1),
     system_charset_info);
   DBUG_PRINT("info",("spider field[0]->null_bit = %d",
     table->field[0]->null_bit));
   table->field[1]->store(
     ptr_table,
-    name_length - ptr_diff_db - ptr_diff_table,
+    (uint)(name_length - ptr_diff_db - ptr_diff_table),
     system_charset_info);
   DBUG_PRINT("info",("spider field[1]->null_bit = %d",
     table->field[1]->null_bit));

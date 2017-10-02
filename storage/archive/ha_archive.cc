@@ -409,7 +409,7 @@ unsigned int ha_archive::pack_row_v1(uchar *record)
       pos+= length;
     }
   }
-  DBUG_RETURN(pos - record_buffer->buffer);
+  DBUG_RETURN((int)(pos - record_buffer->buffer));
 }
 
 /*

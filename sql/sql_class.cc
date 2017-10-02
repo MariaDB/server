@@ -569,8 +569,8 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   const char *proc_info= thd->proc_info;
 
   len= my_snprintf(header, sizeof(header),
-                   "MySQL thread id %lu, OS thread handle %p, query id %lu",
-                   (ulong) thd->thread_id, (void*) thd->real_id, (ulong) thd->query_id);
+                   "MySQL thread id %lu, OS thread handle %lu, query id %lu",
+                   (ulong) thd->thread_id, (ulong) thd->real_id, (ulong) thd->query_id);
   str.length(0);
   str.append(header, len);
 
@@ -936,7 +936,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
     by adding the address of the stack.
   */
   tmp= (ulong) (my_rnd(&sql_rand) * 0xffffffff);
-  my_rnd_init(&rand, tmp + (ulong) &rand, tmp + (ulong) ::global_query_id);
+  my_rnd_init(&rand, tmp + (ulong)((size_t) &rand), tmp + (ulong) ::global_query_id);
   substitute_null_with_insert_id = FALSE;
   lock_info.mysql_thd= (void *)this;
 
@@ -1177,13 +1177,13 @@ Sql_condition* THD::raise_condition(uint sql_errno,
 }
 
 extern "C"
-void *thd_alloc(MYSQL_THD thd, unsigned int size)
+void *thd_alloc(MYSQL_THD thd, size_t size)
 {
   return thd->alloc(size);
 }
 
 extern "C"
-void *thd_calloc(MYSQL_THD thd, unsigned int size)
+void *thd_calloc(MYSQL_THD thd, size_t size)
 {
   return thd->calloc(size);
 }
@@ -1195,14 +1195,14 @@ char *thd_strdup(MYSQL_THD thd, const char *str)
 }
 
 extern "C"
-char *thd_strmake(MYSQL_THD thd, const char *str, unsigned int size)
+char *thd_strmake(MYSQL_THD thd, const char *str, size_t size)
 {
   return thd->strmake(str, size);
 }
 
 extern "C"
 LEX_CSTRING *thd_make_lex_string(THD *thd, LEX_CSTRING *lex_str,
-                                const char *str, unsigned int size,
+                                const char *str, size_t size,
                                 int allocate_lex_string)
 {
   return allocate_lex_string ? thd->make_clex_string(str, size)
@@ -1210,7 +1210,7 @@ LEX_CSTRING *thd_make_lex_string(THD *thd, LEX_CSTRING *lex_str,
 }
 
 extern "C"
-void *thd_memdup(MYSQL_THD thd, const void* str, unsigned int size)
+void *thd_memdup(MYSQL_THD thd, const void* str, size_t size)
 {
   return thd->memdup(str, size);
 }
@@ -3617,7 +3617,7 @@ void Query_arena::free_items()
   {
     next= free_list->next;
     DBUG_ASSERT(free_list != next);
-    DBUG_PRINT("info", ("free item: 0x%lx", (ulong) free_list));
+    DBUG_PRINT("info", ("free item: %p", free_list));
     free_list->delete_self();
   }
   /* Postcondition: free_list is 0 */
@@ -4086,7 +4086,7 @@ int select_materialize_with_stats::send_data(List<Item> &items)
 void TMP_TABLE_PARAM::init()
 {
   DBUG_ENTER("TMP_TABLE_PARAM::init");
-  DBUG_PRINT("enter", ("this: 0x%lx", (ulong)this));
+  DBUG_PRINT("enter", ("this: %p", this));
   field_count= sum_func_count= func_count= hidden_field_count= 0;
   group_parts= group_length= group_null_parts= 0;
   quick_group= 1;
@@ -5334,9 +5334,9 @@ void THD::inc_status_sort_range()
 
 void THD::inc_status_sort_rows(ha_rows count)
 {
-  statistic_add(status_var.filesort_rows_, count, &LOCK_status);
+  statistic_add(status_var.filesort_rows_, (ulong)count, &LOCK_status);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_STATEMENT_CALL(inc_statement_sort_rows)(m_statement_psi, count);
+  PSI_STATEMENT_CALL(inc_statement_sort_rows)(m_statement_psi, (ulong)count);
 #endif
 }
 

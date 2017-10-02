@@ -641,7 +641,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   SELECT_LEX_UNIT *unit= derived->get_unit();
   DBUG_ENTER("mysql_derived_prepare");
   bool res= FALSE;
-  DBUG_PRINT("enter", ("unit 0x%lx", (ulong) unit));
+  DBUG_PRINT("enter", ("unit %p", unit));
 
   if (!unit)
     DBUG_RETURN(FALSE);

@@ -1180,7 +1180,7 @@ pars_process_assign_list(
 		upd_field_set_field_no(upd_field, dict_index_get_nth_col_pos(
 						clust_index, col_sym->col_no,
 						NULL),
-				       clust_index, NULL);
+				       clust_index);
 		upd_field->exp = assign_node->val;
 
 		if (!dict_col_get_fixed_size(

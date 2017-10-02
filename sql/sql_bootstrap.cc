@@ -24,8 +24,8 @@ int read_bootstrap_query(char *query, int *query_length,
 {
   char line_buffer[MAX_BOOTSTRAP_LINE_SIZE];
   const char *line;
-  int len;
-  int query_len= 0;
+  size_t len;
+  size_t query_len= 0;
   int fgets_error= 0;
   *error= 0;
 

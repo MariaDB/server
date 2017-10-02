@@ -1898,9 +1898,6 @@ innobase_start_or_create_for_mysql()
 		return(srv_init_abort(DB_ERROR));
 	}
 
-	compile_time_assert(ulonglong(ULINT_MAX) * UNIV_PAGE_SIZE_MIN
-			    >= 512ULL << 30);
-
 	os_normalize_path(srv_data_home);
 
 	/* Check if the data files exist or not. */

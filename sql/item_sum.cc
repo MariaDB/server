@@ -36,9 +36,9 @@
   used in Item_sum_*
 */
 
-ulonglong Item_sum::ram_limitation(THD *thd)
+size_t Item_sum::ram_limitation(THD *thd)
 {
-  return MY_MIN(thd->variables.tmp_memory_table_size,
+  return (size_t)MY_MIN(thd->variables.tmp_memory_table_size,
                 thd->variables.max_heap_table_size);
 }
 

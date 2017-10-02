@@ -1275,31 +1275,6 @@ dict_table_add_system_columns(
 #endif
 }
 
-/** Mark if table has big rows.
-@param[in,out]	table	table handler */
-void
-dict_table_set_big_rows(
-	dict_table_t*	table)
-{
-	ulint	row_len = 0;
-	for (ulint i = 0; i < table->n_def; i++) {
-		ulint	col_len = dict_col_get_max_size(
-			dict_table_get_nth_col(table, i));
-
-		row_len += col_len;
-
-		/* If we have a single unbounded field, or several gigantic
-		fields, mark the maximum row size as BIG_ROW_SIZE. */
-		if (row_len >= BIG_ROW_SIZE || col_len >= BIG_ROW_SIZE) {
-			row_len = BIG_ROW_SIZE;
-
-			break;
-		}
-	}
-
-	table->big_rows = (row_len >= BIG_ROW_SIZE) ? TRUE : FALSE;
-}
-
 /**********************************************************************//**
 Adds a table object to the dictionary cache. */
 void
@@ -1321,8 +1296,6 @@ dict_table_add_to_cache(
 
 	fold = ut_fold_string(table->name.m_name);
 	id_fold = ut_fold_ull(table->id);
-
-	dict_table_set_big_rows(table);
 
 	/* Look for a table with the same name: error if such exists */
 	{

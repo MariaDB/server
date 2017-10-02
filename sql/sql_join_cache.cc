@@ -695,7 +695,7 @@ void JOIN_CACHE::set_constants()
   pack_length_with_blob_ptrs= pack_length + blobs*sizeof(uchar *);
   min_buff_size= 0;
   min_records= 1;
-  buff_size= MY_MAX(join->thd->variables.join_buff_size,
+  buff_size= (size_t)MY_MAX(join->thd->variables.join_buff_size,
                  get_min_join_buffer_size());
   size_of_rec_ofs= offset_size(buff_size);
   size_of_rec_len= blobs ? size_of_rec_ofs : offset_size(len); 
@@ -840,7 +840,7 @@ ulong JOIN_CACHE::get_max_join_buffer_size(bool optimize_buff_size)
     len+= get_max_key_addon_space_per_record() + avg_aux_buffer_incr;
     space_per_record= len;
     
-    size_t limit_sz= join->thd->variables.join_buff_size;
+    size_t limit_sz= (size_t)join->thd->variables.join_buff_size;
     if (join_tab->join_buffer_size_limit)
       set_if_smaller(limit_sz, join_tab->join_buffer_size_limit);
     if (!optimize_buff_size)
@@ -3828,7 +3828,7 @@ uint JOIN_TAB_SCAN_MRR::aux_buffer_incr(ulong recno)
   set_if_bigger(rec_per_key, 1);
   if (recno == 1)
     incr=  ref->key_length + tab->file->ref_length;
-  incr+= tab->file->stats.mrr_length_per_rec * rec_per_key;
+  incr+= (uint)(tab->file->stats.mrr_length_per_rec * rec_per_key);
   return incr; 
 }
 

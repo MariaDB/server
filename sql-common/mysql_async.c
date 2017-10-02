@@ -128,7 +128,7 @@ my_connect_async(struct mysql_async_context *b, my_socket fd,
 #endif
 
 ssize_t
-my_recv_async(struct mysql_async_context *b, int fd,
+my_recv_async(struct mysql_async_context *b, my_socket fd,
               unsigned char *buf, size_t size, int timeout)
 {
   ssize_t res;
@@ -156,7 +156,7 @@ my_recv_async(struct mysql_async_context *b, int fd,
 
 
 ssize_t
-my_send_async(struct mysql_async_context *b, int fd,
+my_send_async(struct mysql_async_context *b, my_socket fd,
               const unsigned char *buf, size_t size, int timeout)
 {
   ssize_t res;

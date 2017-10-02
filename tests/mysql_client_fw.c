@@ -977,7 +977,7 @@ const char *query_arg)
 
  fetch->handle= mysql_stmt_init(mysql);
 
- rc= mysql_stmt_prepare(fetch->handle, fetch->query, strlen(fetch->query));
+ rc= mysql_stmt_prepare(fetch->handle, fetch->query, (ulong)strlen(fetch->query));
  check_execute(fetch->handle, rc);
 
  /*
@@ -1087,7 +1087,7 @@ enum fetch_type fetch_type)
  for (fetch= fetch_array; fetch < fetch_array + query_count; ++fetch)
  {
    /* Init will exit(1) in case of error */
-   stmt_fetch_init(fetch, fetch - fetch_array,
+   stmt_fetch_init(fetch, (uint)(fetch - fetch_array),
    query_list[fetch - fetch_array]);
  }
 
@@ -1187,19 +1187,19 @@ static char **defaults_argv;
 
 static struct my_option client_test_long_options[] =
 {
-  {"basedir", 'b', "Basedir for tests.", &opt_basedir,
-   &opt_basedir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"basedir", 'b', "Basedir for tests.",(void *)&opt_basedir,
+   (void *)&opt_basedir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", 'C',
-   "Directory for character set files.", &charsets_dir,
-   &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "Directory for character set files.", (void *)&charsets_dir,
+   (void *)&charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"count", 't', "Number of times test to be executed", &opt_count_read,
    &opt_count_read, 0, GET_UINT, REQUIRED_ARG, 1, 0, 0, 0, 0, 0},
   {"database", 'D', "Database to use", &opt_db, &opt_db,
    0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"do-not-drop-database", 'd', "Do not drop database while disconnecting",
     0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"debug", '#', "Output debug log", &default_dbug_option,
-   &default_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
+  {"debug", '#', "Output debug log", (void *)&default_dbug_option,
+   (void *)&default_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"help", '?', "Display this help and exit", 0, 0, 0, GET_NO_ARG, NO_ARG, 0,
    0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host", &opt_host, &opt_host,
@@ -1235,8 +1235,8 @@ static struct my_option client_test_long_options[] =
   {"user", 'u', "User for login if not current user", &opt_user,
    &opt_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"vardir", 'v', "Data dir for tests.", &opt_vardir,
-   &opt_vardir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"vardir", 'v', "Data dir for tests.", (void *)&opt_vardir,
+   (void *)&opt_vardir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"non-blocking-api", 'n',
    "Use the non-blocking client API for communication.",
    &non_blocking_api_enabled, &non_blocking_api_enabled, 0,

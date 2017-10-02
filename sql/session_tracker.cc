@@ -967,7 +967,7 @@ bool Current_schema_tracker::update(THD *thd, set_var *)
 
 bool Current_schema_tracker::store(THD *thd, String *buf)
 {
-  ulonglong db_length, length;
+  size_t db_length, length;
 
   /*
     Protocol made (by unknown reasons) redundant:
@@ -1320,16 +1320,16 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
     }
 
     {
-      ulonglong length= buf->length() - start;
+      size_t length= buf->length() - start;
       uchar *place= (uchar *)(buf->ptr() + (start - 2));
       DBUG_ASSERT(length < 249); // in fact < 110
       DBUG_ASSERT(start >= 3);
 
       DBUG_ASSERT((place - 1)[0] == SESSION_TRACK_TRANSACTION_CHARACTERISTICS);
       /* Length of the overall entity. */
-      place[0]= length + 1;
+      place[0]= (uchar)length + 1;
       /* Transaction characteristics (length-encoded string). */
-      place[1]= length;
+      place[1]= (uchar)length;
     }
   }
 

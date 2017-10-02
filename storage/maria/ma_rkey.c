@@ -36,8 +36,8 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
   MARIA_KEY key;
   ICP_RESULT icp_res= ICP_MATCH;
   DBUG_ENTER("maria_rkey");
-  DBUG_PRINT("enter", ("base: 0x%lx  buf: 0x%lx  inx: %d  search_flag: %d",
-                       (long) info, (long) buf, inx, search_flag));
+  DBUG_PRINT("enter", ("base:%p  buf:%p  inx: %d  search_flag: %d",
+                       info, buf, inx, search_flag));
 
   if ((inx = _ma_check_index(info,inx)) < 0)
     DBUG_RETURN(my_errno);

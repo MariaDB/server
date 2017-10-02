@@ -31,7 +31,7 @@ int ma_service_thread_control_init(MA_SERVICE_THREAD_CONTROL *control)
 {
   int res= 0;
   DBUG_ENTER("ma_service_thread_control_init");
-  DBUG_PRINT("init", ("control 0x%lx", (ulong) control));
+  DBUG_PRINT("init", ("control %p", control));
   control->inited= TRUE;
   control->killed= FALSE;
   res= (mysql_mutex_init(key_SERVICE_THREAD_CONTROL_lock,
@@ -57,7 +57,7 @@ int ma_service_thread_control_init(MA_SERVICE_THREAD_CONTROL *control)
 void ma_service_thread_control_end(MA_SERVICE_THREAD_CONTROL *control)
 {
   DBUG_ENTER("ma_service_thread_control_end");
-  DBUG_PRINT("init", ("control 0x%lx", (ulong) control));
+  DBUG_PRINT("init", ("control %p", control));
   DBUG_ASSERT(control->inited);
   mysql_mutex_lock(control->LOCK_control);
   if (!control->killed)
@@ -95,7 +95,7 @@ my_bool my_service_thread_sleep(MA_SERVICE_THREAD_CONTROL *control,
   struct timespec abstime;
   my_bool res= FALSE;
   DBUG_ENTER("my_service_thread_sleep");
-  DBUG_PRINT("init", ("control 0x%lx", (ulong) control));
+  DBUG_PRINT("init", ("control %p", control));
   mysql_mutex_lock(control->LOCK_control);
   if (control->killed)
   {

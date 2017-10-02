@@ -35,11 +35,11 @@ static int index_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
     index_name_length=  (index_stats->index_name_length - schema_name_length -
                          table_name_length - 3);
 
-    table->field[0]->store(tmp_table.db, schema_name_length,
+    table->field[0]->store(tmp_table.db, (uint)schema_name_length,
                            system_charset_info);
-    table->field[1]->store(tmp_table.table_name, table_name_length,
+    table->field[1]->store(tmp_table.table_name, (uint) table_name_length,
                            system_charset_info);
-    table->field[2]->store(index_name, index_name_length, system_charset_info);
+    table->field[2]->store(index_name, (uint) index_name_length, system_charset_info);
     table->field[3]->store((longlong)index_stats->rows_read, TRUE);
 
     if (schema_table_store_record(thd, table))

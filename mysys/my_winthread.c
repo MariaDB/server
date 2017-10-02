@@ -121,6 +121,15 @@ int pthread_join(pthread_t thread, void **value_ptr)
     goto error_return;
   }
 
+  if (!GetExitCodeThread(handle, &ret))
+  {
+    errno= EINVAL;
+    goto error_return;
+  }
+
+  if (value_ptr)
+    *value_ptr= (void *)(size_t)ret;
+
   CloseHandle(handle);
   return 0;
 

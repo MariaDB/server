@@ -500,10 +500,10 @@ static my_bool _ma_thr_find_all_keys_exec(MARIA_SORT_PARAM* sort_param)
                                (BUFFPEK *) alloc_dynamic(&sort_param->buffpek),
                                &sort_param->tempfile))
       goto err;
-    sort_param->keys= (sort_param->buffpek.elements - 1) * (keys - 1) + idx;
+    sort_param->keys= (uint)((sort_param->buffpek.elements - 1) * (keys - 1) + idx);
   }
   else
-    sort_param->keys= idx;
+    sort_param->keys= (uint)idx;
 
   DBUG_RETURN(FALSE);
 
@@ -627,7 +627,7 @@ int _ma_thr_write_keys(MARIA_SORT_PARAM *sort_param)
       uint maxbuffer=sinfo->buffpek.elements-1;
       if (!mergebuf)
       {
-        length=param->sort_buffer_length;
+        length=(size_t)param->sort_buffer_length;
         while (length >= MIN_SORT_MEMORY)
         {
           if ((mergebuf= my_malloc((size_t) length, MYF(0))))
@@ -919,13 +919,13 @@ static my_off_t read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
                                 uint sort_length)
 {
   register ha_keys count;
-  my_off_t length;
+  size_t length;
 
   if ((count= (ha_keys) MY_MIN((ha_rows) buffpek->max_keys,
                                (ha_rows) buffpek->count)))
   {
     if (my_b_pread(fromfile, (uchar*) buffpek->base,
-                   (length= sort_length * count), buffpek->file_pos))
+                   (length= sort_length * (size_t)count), buffpek->file_pos))
       return(HA_OFFSET_ERROR);               /* purecov: inspected */
     buffpek->key=buffpek->base;
     buffpek->file_pos+= length;                 /* New filepos */

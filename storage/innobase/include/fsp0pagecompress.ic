@@ -82,7 +82,7 @@ UNIV_INLINE
 const char*
 fil_get_compression_alg_name(
 /*=========================*/
-       ulint	comp_alg)	/*!<in: compression algorithm number */
+       ib_uint64_t	comp_alg)	/*!<in: compression algorithm number */
 {
 	switch(comp_alg) {
 	case PAGE_UNCOMPRESSED:

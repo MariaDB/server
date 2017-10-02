@@ -28,7 +28,7 @@
 static uint decode_bits;
 static char **default_argv;
 static const char *load_default_groups[]= { "myisamchk", 0 };
-static const char *set_collation_name, *opt_tmpdir;
+static char *set_collation_name, *opt_tmpdir;
 static CHARSET_INFO *set_collation;
 static long opt_myisam_block_size;
 static long opt_key_cache_block_size;
@@ -1116,7 +1116,7 @@ static int myisamchk(HA_CHECK *param, char * filename)
       {
 	if (param->testflag & (T_EXTEND | T_MEDIUM))
 	  (void) init_key_cache(dflt_key_cache,opt_key_cache_block_size,
-                                param->use_buffers, 0, 0, 0, 0);
+                                (size_t)param->use_buffers, 0, 0, 0, 0);
 	(void) init_io_cache(&param->read_cache,datafile,
 			   (uint) param->read_buffer_length,
 			   READ_CACHE,

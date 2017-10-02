@@ -45,7 +45,7 @@
                                                 // end_read_record
 #include "sql_partition.h"       // make_used_partitions_str
 
-#define MEM_STRIP_BUF_SIZE thd->variables.sortbuff_size
+#define MEM_STRIP_BUF_SIZE ((size_t) thd->variables.sortbuff_size)
 
 /*
   @brief

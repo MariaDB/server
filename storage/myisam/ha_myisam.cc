@@ -340,8 +340,8 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
         }
       }
     }
-    DBUG_PRINT("loop", ("found: 0x%lx  recpos: %d  minpos: %d  length: %d",
-                        (long) found, recpos, minpos, length));
+    DBUG_PRINT("loop", ("found: %p  recpos: %d  minpos: %d  length: %d",
+                        found, recpos, minpos, length));
     if (recpos != minpos)
     {
       /* reserve space for null bits */

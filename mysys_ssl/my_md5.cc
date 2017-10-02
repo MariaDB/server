@@ -90,7 +90,7 @@ void my_md5(uchar *digest, const char *buf, size_t len)
   char ctx_buf[EVP_MD_CTX_SIZE];
   EVP_MD_CTX * const ctx= (EVP_MD_CTX*)ctx_buf;
   md5_init(ctx);
-  md5_input(ctx, (const uchar *)buf, len);
+  md5_input(ctx, (const uchar *)buf, (uint) len);
   md5_result(ctx, digest);
 }
 
@@ -117,7 +117,7 @@ void my_md5_multi(uchar *digest, ...)
 
   md5_init(ctx);
   for (str= va_arg(args, const uchar*); str; str= va_arg(args, const uchar*))
-    md5_input(ctx, str, va_arg(args, size_t));
+    md5_input(ctx, str, (uint) va_arg(args, size_t));
 
   md5_result(ctx, digest);
   va_end(args);
@@ -135,7 +135,7 @@ void my_md5_init(void *context)
 
 void my_md5_input(void *context, const uchar *buf, size_t len)
 {
-  md5_input((EVP_MD_CTX *)context, buf, len);
+  md5_input((EVP_MD_CTX *)context, buf, (uint) len);
 }
 
 void my_md5_result(void *context, uchar *digest)

@@ -3302,7 +3302,7 @@ Create_udf_func Create_udf_func::s_singleton;
 Item*
 Create_udf_func::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
 {
-  udf_func *udf= find_udf(name->str, name->length);
+  udf_func *udf= find_udf(name->str, (uint) name->length);
   DBUG_ASSERT(udf);
   return create(thd, udf, item_list);
 }

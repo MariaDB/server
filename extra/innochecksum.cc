@@ -93,7 +93,7 @@ static bool			use_end_page;
 static bool			do_one_page;
 static my_bool do_leaf;
 static my_bool per_page_details;
-static ulong n_merge;
+static ulint n_merge;
 extern ulong			srv_checksum_algorithm;
 static ulong physical_page_size;  /* Page size in bytes on disk. */
 static ulong logical_page_size;   /* Page size when uncompressed. */
@@ -524,7 +524,7 @@ is_page_corrupted(
 	normal method. */
 	if (is_encrypted && key_version != 0) {
 		is_corrupted = !fil_space_verify_crypt_checksum(buf,
-			page_size, space_id, cur_page_num);
+			page_size, space_id, (ulint)cur_page_num);
 	} else {
 		is_corrupted = true;
 	}
@@ -1538,7 +1538,7 @@ int main(
 	byte*		buf = NULL;
 	byte*		xdes = NULL;
 	/* bytes read count */
-	ulong		bytes;
+	ulint		bytes;
 	/* current time */
 	time_t		now;
 	/* last time */
@@ -1675,7 +1675,7 @@ int main(
 		}
 
 		/* Read the minimum page size. */
-		bytes = ulong(fread(buf, 1, UNIV_ZIP_SIZE_MIN, fil_in));
+		bytes = fread(buf, 1, UNIV_ZIP_SIZE_MIN, fil_in);
 		partial_page_read = true;
 
 		if (bytes != UNIV_ZIP_SIZE_MIN) {
