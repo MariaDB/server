@@ -32,23 +32,7 @@ CREATE UNIQUE INDEX idxē ON corrupt_bit_test_ā(z, b);
 
 SELECT * FROM corrupt_bit_test_ā;
 
-select @@unique_checks;
-select @@innodb_change_buffering_debug;
-
-# Create enough rows for the table, so that the insert buffer will be
-# used for modifying the secondary index page. There must be multiple
-# index pages, because changes to the root page are never buffered.
-
 INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+1,z+1 FROM corrupt_bit_test_ā;
-INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+10,z+10 FROM corrupt_bit_test_ā;
-INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+20,z+20 FROM corrupt_bit_test_ā;
-INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+50,z+50 FROM corrupt_bit_test_ā;
-INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+100,z+100 FROM corrupt_bit_test_ā;
-INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+200,z+200 FROM corrupt_bit_test_ā;
-INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+400,z+400 FROM corrupt_bit_test_ā;
-INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+800,z+800 FROM corrupt_bit_test_ā;
-INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+1600,z+1600 FROM corrupt_bit_test_ā;
-INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+4000,z+4000 FROM corrupt_bit_test_ā;
 
 select count(*) from corrupt_bit_test_ā;
 
@@ -86,7 +70,6 @@ delete from corrupt_bit_test_ā where a = 10001;
 insert into corrupt_bit_test_ā values (10001, "a", 20001, 20001);
 rollback;
 
-# Drop one corrupted index before reboot
 drop index idxā on corrupt_bit_test_ā;
 
 check table corrupt_bit_test_ā;

@@ -47,19 +47,22 @@ select * from t1;
 --error ER_OPEN_AS_READONLY
 insert into t1 values(2, 3);
 
---error ER_INNODB_READ_ONLY
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
+--error ER_CANT_CREATE_TABLE
 alter table t1 add f3 int not null, algorithm=copy;
 
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t1 add f3 int not null, algorithm=inplace;
 
---error ER_INNODB_READ_ONLY
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
+--error ER_CANT_CREATE_TABLE
 drop index idx on t1;
 
 --error ER_OPEN_AS_READONLY
 update t1 set f1=3 where f2=2;
 
---error ER_INNODB_READ_ONLY
+--error ER_CANT_CREATE_TABLE
 create table t3(f1 int not null)engine=innodb;
 
 --error ER_BAD_TABLE_ERROR
@@ -107,19 +110,22 @@ select * from t2;
 --error ER_OPEN_AS_READONLY
 insert into t2 values(2, 3);
 
---error ER_INNODB_READ_ONLY
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
+--error ER_CANT_CREATE_TABLE
 alter table t2 add f3 int not null, algorithm=copy;
 
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t2 add f3 int not null, algorithm=inplace;
 
---error ER_INNODB_READ_ONLY
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
+--error ER_CANT_CREATE_TABLE
 drop index idx on t2;
 
 --error ER_OPEN_AS_READONLY
 update t2 set f1=3 where f2=2;
 
---error ER_INNODB_READ_ONLY
+--error ER_CANT_CREATE_TABLE
 create table t4(f1 int not null)engine=innodb;
 
 --error ER_BAD_TABLE_ERROR
@@ -131,7 +137,7 @@ rename table t2 to t3;
 --error ER_OPEN_AS_READONLY
 truncate table t2;
 
---error ER_BAD_TABLE_ERROR
+--error ER_OPEN_AS_READONLY
 drop table t2;
 show tables;
 
@@ -165,22 +171,22 @@ show tables;
 
 select * from t2;
 
---error ER_CANT_LOCK
+--error ER_OPEN_AS_READONLY
 insert into t2 values(2, 3);
 
---error ER_CANT_LOCK
+--error ER_OPEN_AS_READONLY
 alter table t2 add f3 int not null, algorithm=copy;
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t2 add f3 int not null, algorithm=inplace;
 
---error ER_CANT_LOCK
+--error ER_OPEN_AS_READONLY
 drop index idx on t2;
 
---error ER_CANT_LOCK
+--error ER_OPEN_AS_READONLY
 update t2 set f1=3 where f2=2;
 
---error ER_INNODB_READ_ONLY
+--error ER_CANT_CREATE_TABLE
 create table t4(f1 int not null)engine=innodb;
 
 --error ER_BAD_TABLE_ERROR
@@ -192,7 +198,7 @@ rename table t2 to t3;
 --error ER_OPEN_AS_READONLY
 truncate table t2;
 
---error ER_BAD_TABLE_ERROR
+--error ER_OPEN_AS_READONLY
 drop table t2;
 show tables;
 
