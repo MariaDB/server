@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -242,7 +243,6 @@ replacing what was there previously.
 @param[in]	flags	Tablespace flags
 @param[in]	path	Tablespace path
 @param[in]	trx	Transaction
-@param[in]	commit	If true, commit the transaction
 @return error code or DB_SUCCESS */
 dberr_t
 dict_replace_tablespace_in_dictionary(
@@ -250,8 +250,7 @@ dict_replace_tablespace_in_dictionary(
 	const char*	name,
 	ulint		flags,
 	const char*	path,
-	trx_t*		trx,
-	bool		commit);
+	trx_t*		trx);
 
 /** Delete records from SYS_TABLESPACES and SYS_DATAFILES associated
 with a particular tablespace ID.

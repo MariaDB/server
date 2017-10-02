@@ -11621,7 +11621,7 @@ err_col:
 	} else {
 		if (err == DB_SUCCESS) {
 			err = row_create_table_for_mysql(
-				table, m_trx, false,
+				table, m_trx,
 				(fil_encryption_t)options->encryption,
 				options->encryption_key_id);
 		}
