@@ -5215,6 +5215,8 @@ prepare_inplace_alter_table_dict(
 			ctx->new_table->fts->doc_col = fts_doc_id_col;
 		}
 
+		dict_table_add_system_columns(ctx->new_table, ctx->heap);
+
 		error = row_create_table_for_mysql(
 			ctx->new_table, ctx->trx, mode, key_id);
 

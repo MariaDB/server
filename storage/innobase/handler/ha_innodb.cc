@@ -11590,6 +11590,8 @@ err_col:
 		fts_add_doc_id_column(table, heap);
 	}
 
+	dict_table_add_system_columns(table, heap);
+
 	ut_ad(trx_state_eq(m_trx, TRX_STATE_NOT_STARTED));
 
 	/* If temp table, then we avoid creation of entries in SYSTEM TABLES.
@@ -11604,19 +11606,10 @@ err_col:
 		err = dict_build_tablespace_for_table(table, NULL);
 
 		if (err == DB_SUCCESS) {
-			/* Temp-table are maintained in memory and so
-			can_be_evicted is FALSE. */
-			mem_heap_t* temp_table_heap;
-
-			temp_table_heap = mem_heap_create(256);
-
-			dict_table_add_system_columns(table, temp_table_heap);
 			table->add_to_cache();
 
 			DBUG_EXECUTE_IF("ib_ddl_crash_during_create2",
 					DBUG_SUICIDE(););
-
-			mem_heap_free(temp_table_heap);
 		}
 	} else {
 		if (err == DB_SUCCESS) {

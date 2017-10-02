@@ -1747,7 +1747,7 @@ fts_create_in_mem_aux_table(
 @param[in]	table		Table that has FTS Index
 @param[in]	fts_table_name	FTS AUX table name
 @param[in]	fts_suffix	FTS AUX table suffix
-@param[in]	heap		heap
+@param[in,out]	heap		temporary memory heap
 @return table object if created, else NULL */
 static
 dict_table_t*
@@ -1784,6 +1784,7 @@ fts_create_one_common_table(
 			FTS_CONFIG_TABLE_VALUE_COL_LEN);
 	}
 
+	dict_table_add_system_columns(new_table, heap);
 	error = row_create_table_for_mysql(new_table, trx,
 		FIL_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 
@@ -1878,12 +1879,14 @@ fts_create_common_tables(
 		dict_table_t*	common_table = fts_create_one_common_table(
 			trx, table, full_name[i], fts_table.suffix, heap);
 
-		 if (common_table == NULL) {
+		if (common_table == NULL) {
 			error = DB_ERROR;
 			goto func_exit;
 		} else {
 			common_tables.push_back(common_table);
 		}
+
+		mem_heap_empty(heap);
 
 		DBUG_EXECUTE_IF("ib_fts_aux_table_error",
 			/* Return error after creating FTS_AUX_CONFIG table. */
@@ -1944,7 +1947,7 @@ func_exit:
 @param[in,out]	trx		transaction
 @param[in]	index		the index instance
 @param[in]	fts_table	fts_table structure
-@param[in,out]	heap		memory heap
+@param[in,out]	heap		temporary memory heap
 @see row_merge_create_fts_sort_index()
 @return DB_SUCCESS or error code */
 static
@@ -2001,6 +2004,7 @@ fts_create_one_index_table(
 		(DATA_MTYPE_MAX << 16) | DATA_UNSIGNED | DATA_NOT_NULL,
 		FTS_INDEX_ILIST_LEN);
 
+	dict_table_add_system_columns(new_table, heap);
 	error = row_create_table_for_mysql(new_table, trx,
 		FIL_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 
@@ -2075,6 +2079,8 @@ fts_create_index_tables_low(
 		} else {
 			aux_idx_tables.push_back(new_table);
 		}
+
+		mem_heap_empty(heap);
 
 		DBUG_EXECUTE_IF("ib_fts_index_table_error",
 			/* Return error after creating FTS_INDEX_5

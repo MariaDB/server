@@ -67,6 +67,7 @@ dict_create_sys_tables_tuple(
 
 	ut_ad(table);
 	ut_ad(heap);
+	ut_ad(table->n_cols >= DATA_N_SYS_COLS);
 
 	sys_tables = dict_sys->sys_tables;
 
@@ -100,7 +101,8 @@ dict_create_sys_tables_tuple(
 
 	/* If there is any virtual column, encode it in N_COLS */
 	mach_write_to_4(ptr, dict_table_encode_n_col(
-				static_cast<ulint>(table->n_def),
+				static_cast<ulint>(table->n_cols
+						   - DATA_N_SYS_COLS),
 				static_cast<ulint>(table->n_v_def))
 			| ((table->flags & DICT_TF_COMPACT) << 31));
 	dfield_set_data(dfield, ptr, 4);
@@ -478,21 +480,6 @@ dict_build_tablespace_for_table(
 	}
 
 	return(DB_SUCCESS);
-}
-
-/***************************************************************//**
-Builds a column definition to insert. */
-static
-void
-dict_build_col_def_step(
-/*====================*/
-	tab_node_t*	node)	/*!< in: table create node */
-{
-	dtuple_t*	row;
-
-	row = dict_create_sys_columns_tuple(node->table, node->col_no,
-					    node->heap);
-	ins_node_set_new_row(node->col_def, row);
 }
 
 /** Builds a SYS_VIRTUAL row definition to insert.
@@ -1356,12 +1343,19 @@ dict_create_table_step(
 
 	if (node->state == TABLE_BUILD_COL_DEF) {
 
-		if (node->col_no < (static_cast<ulint>(node->table->n_def)
-				    + static_cast<ulint>(node->table->n_v_def))) {
+		if (node->col_no + DATA_N_SYS_COLS
+		    < (static_cast<ulint>(node->table->n_def)
+		       + static_cast<ulint>(node->table->n_v_def))) {
 
-			dict_build_col_def_step(node);
+			ulint i = node->col_no++;
+			if (i + DATA_N_SYS_COLS >= node->table->n_def) {
+				i += DATA_N_SYS_COLS;
+			}
 
-			node->col_no++;
+			ins_node_set_new_row(
+				node->col_def,
+				dict_create_sys_columns_tuple(node->table, i,
+							      node->heap));
 
 			thr->run_node = node->col_def;
 
@@ -1419,7 +1413,6 @@ dict_create_table_step(
 	if (node->state == TABLE_ADD_TO_CACHE) {
 		DBUG_EXECUTE_IF("ib_ddl_crash_during_create", DBUG_SUICIDE(););
 
-		dict_table_add_system_columns(node->table, node->heap);
 		node->table->can_be_evicted = true;
 		node->table->add_to_cache();
 
