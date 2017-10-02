@@ -2,6 +2,7 @@
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3376,7 +3377,6 @@ btr_cur_pessimistic_delete(
 	ulint		n_reserved;
 	ibool		success;
 	ibool		ret		= FALSE;
-	ulint		level;
 	mem_heap_t*	heap;
 	ulint*		offsets;
 
@@ -3425,6 +3425,8 @@ btr_cur_pessimistic_delete(
 #endif /* UNIV_ZIP_DEBUG */
 	}
 
+	lock_update_delete(block, rec);
+
 	if (UNIV_UNLIKELY(page_get_n_recs(page) < 2)
 	    && UNIV_UNLIKELY(dict_index_get_page(index)
 			     != buf_block_get_page_no(block))) {
@@ -3440,10 +3442,7 @@ btr_cur_pessimistic_delete(
 		goto return_after_reservations;
 	}
 
-	lock_update_delete(block, rec);
-	level = btr_page_get_level(page, mtr);
-
-	if (level > 0
+	if (!page_is_leaf(page)
 	    && UNIV_UNLIKELY(rec == page_rec_get_next(
 				     page_get_infimum_rec(page)))) {
 
@@ -3466,6 +3465,7 @@ btr_cur_pessimistic_delete(
 			on a page, we have to change the father node pointer
 			so that it is equal to the new leftmost node pointer
 			on the page */
+			ulint level = btr_page_get_level(page, mtr);
 
 			btr_node_ptr_delete(index, block, mtr);
 
