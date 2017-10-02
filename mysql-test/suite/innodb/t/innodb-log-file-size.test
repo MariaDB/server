@@ -21,7 +21,7 @@ call mtr.add_suppression("InnoDB: The log sequence numbers [0-9]+ and [0-9]+ in 
 
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 
-SET DEBUG='+d,crash_commit_before';
+SET debug_dbug='+d,crash_commit_before';
 # Write file to make mysql-test-run.pl restart the server
 --exec echo "restart: --innodb-log-file-size=6M" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
@@ -35,7 +35,7 @@ SELECT * FROM t1;
 
 INSERT INTO t1 VALUES (42);
 
-SET DEBUG='+d,crash_commit_before';
+SET debug_dbug='+d,crash_commit_before';
 # Write file to make mysql-test-run.pl restart the server
 --exec echo "restart: --innodb-log-files-in-group=3 --innodb-log-file-size=5M" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
@@ -54,7 +54,7 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
 let $args=--loose-console --default-storage-engine=innodb > $SEARCH_FILE 2>&1;
 let crash=$args --innodb-force-recovery-crash;
 
-SET DEBUG='+d,crash_commit_before';
+SET debug_dbug='+d,crash_commit_before';
 # Write file to make mysql-test-run.pl restart the server
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
@@ -97,6 +97,8 @@ let SEARCH_PATTERN= InnoDB: Recovery skipped, --innodb-read-only set!;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN= InnoDB: Can.t initiate database recovery, running in read-only-mode;
 --source include/search_pattern_in_file.inc
+
+--exec cat $SEARCH_FILE
 --remove_file $SEARCH_FILE
 
 --echo --innodb-force-recovery-crash=4
@@ -106,7 +108,10 @@ let SEARCH_PATTERN= InnoDB: Starting an apply batch of log records;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN= InnoDB: Resizing redo log from 3\*[0-9]+ to 2\*[0-9]+ pages;
 --source include/search_pattern_in_file.inc
+
+--exec cat $SEARCH_FILE
 --remove_file $SEARCH_FILE
+
 --echo --innodb-force-recovery-crash=5
 --error 7
 --exec $MYSQLD_CMD $crash=5

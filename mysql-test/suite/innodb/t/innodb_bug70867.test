@@ -19,7 +19,7 @@
 #
 let $MYSQL_DATA_DIR = `select @@datadir`;
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/my_restart.err;
-let $args = --loose-console > $SEARCH_FILE 2>&1;
+let $args=--loose-console --default-storage-engine=innodb > $SEARCH_FILE 2>&1;
 
 #-----------------------------------------------------------------------------
 use test;
@@ -31,11 +31,12 @@ use test;
 --mkdir $MYSQL_DATA_DIR/tmpdata
 --chmod 0400 $MYSQL_DATA_DIR/tmpdata
 --error 1
---exec $MYSQLD_CMD --innodb_data_home_dir=$MYSQL_DATA_DIR/tmpdata $args
+--exec $MYSQLD_CMD $args --innodb_data_home_dir=$MYSQL_DATA_DIR/tmpdata 
 let SEARCH_PATTERN = returned OS error 113;
---source ./include/search_pattern.inc
+--source include/search_pattern_in_file.inc
 let SEARCH_PATTERN = The error means mysqld does not have the access rights to;
---source ./include/search_pattern.inc
+--source include/search_pattern_in_file.inc
+#--exec cat $SEARCH_FILE
 #
 --remove_file $SEARCH_FILE
 --chmod 0777 $MYSQL_DATA_DIR/tmpdata

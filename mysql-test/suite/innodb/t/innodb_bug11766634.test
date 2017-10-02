@@ -6,7 +6,7 @@
 # drop table t1.  create table t1.  Insert the same set of $recs
 # records.  The size of ibdata1 must not increase.
 #
-
+-- source include/restart_and_reinit.inc
 #Want to skip this test from daily Valgrind execution.
 --source include/no_valgrind_without_big.inc
 # Adding big test option for this test.
