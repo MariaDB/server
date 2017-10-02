@@ -5183,27 +5183,34 @@ end_with_restore_list:
      */
     ulong wsrep_trx_fragment_size_orig= thd->variables.wsrep_trx_fragment_size;
     ulong wsrep_trx_fragment_unit_orig= thd->variables.wsrep_trx_fragment_unit;
-    if (!wsrep_provider_is_SR_capable())
+    const bool wsrep_on= WSREP(thd);
+    if (wsrep_on)
     {
-      thd->variables.wsrep_trx_fragment_size= 0;
-    }
-    else if (wsrep_load_data_splitting)
-    {
-      thd->variables.wsrep_trx_fragment_size= 10000;
-      thd->variables.wsrep_trx_fragment_unit= WSREP_FRAG_ROWS;
-    }
-    else if (thd->variables.wsrep_trx_fragment_size == 0)
-    {
-      thd->variables.wsrep_trx_fragment_size= (1 << 20);
-      thd->variables.wsrep_trx_fragment_unit= WSREP_FRAG_BYTES;
+      if (!wsrep_provider_is_SR_capable())
+      {
+        thd->variables.wsrep_trx_fragment_size= 0;
+      }
+      else if (wsrep_load_data_splitting)
+      {
+        thd->variables.wsrep_trx_fragment_size= 10000;
+        thd->variables.wsrep_trx_fragment_unit= WSREP_FRAG_ROWS;
+      }
+      else if (thd->variables.wsrep_trx_fragment_size == 0)
+      {
+        thd->variables.wsrep_trx_fragment_size= (1 << 20);
+        thd->variables.wsrep_trx_fragment_unit= WSREP_FRAG_BYTES;
+      }
     }
 #endif /* WITH_WSREP */
     res= mysql_load(thd, lex->exchange, first_table, lex->field_list,
                     lex->update_list, lex->value_list, lex->duplicates,
                     lex->ignore, (bool) lex->local_file);
 #ifdef WITH_WSREP
-    thd->variables.wsrep_trx_fragment_size= wsrep_trx_fragment_size_orig;
-    thd->variables.wsrep_trx_fragment_unit= wsrep_trx_fragment_unit_orig;
+    if (wsrep_on)
+    {
+      thd->variables.wsrep_trx_fragment_size= wsrep_trx_fragment_size_orig;
+      thd->variables.wsrep_trx_fragment_unit= wsrep_trx_fragment_unit_orig;
+    }
 #endif /* WITH_WSREP */
     break;
   }

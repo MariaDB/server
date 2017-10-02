@@ -662,6 +662,14 @@ bool wsrep_trx_fragment_size_check (sys_var *self, THD* thd, set_var* var)
 
   const ulong new_trx_fragment_size = var->value->val_uint();
 
+  if (!WSREP(thd) && new_trx_fragment_size > 0) {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_trx_fragment_size' to a value other than "
+                  "0 because wsrep is switched off.");
+    return true;
+  }
+
   if (new_trx_fragment_size > 0 && !wsrep_provider_is_SR_capable()) {
     push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
                   ER_WRONG_VALUE_FOR_VAR,

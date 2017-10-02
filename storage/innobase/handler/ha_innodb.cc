@@ -8209,13 +8209,11 @@ ha_innobase::write_row(
 	sql_command = thd_sql_command(m_user_thd);
 
 #ifdef WITH_WSREP
-	const bool provider_is_SR_capable = wsrep_provider_is_SR_capable();
-
 	/* If this is true when we commit internally every N rows,
 	 * see `num_write_row >= 10000` below. */
 	const bool wsrep_commit_every_N_rows =
 		wsrep_on(m_user_thd) &&
-		!provider_is_SR_capable &&
+		!wsrep_provider_is_SR_capable() &&
 		wsrep_load_data_splitting &&
 		sql_command == SQLCOM_LOAD &&
 		!thd_test_options(m_user_thd,
@@ -8231,8 +8229,8 @@ ha_innobase::write_row(
 	     || sql_command == SQLCOM_DROP_INDEX)
 	    && m_num_write_row >= 10000) {
 #ifdef WITH_WSREP
-		if (!provider_is_SR_capable &&
-		    wsrep_on(m_user_thd) &&
+		if (wsrep_on(m_user_thd) &&
+		    !wsrep_provider_is_SR_capable() &&
 		    sql_command == SQLCOM_LOAD) {
 
 			WSREP_DEBUG("Forced trx split for LOAD: %s",
