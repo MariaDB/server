@@ -11610,8 +11610,8 @@ err_col:
 
 			temp_table_heap = mem_heap_create(256);
 
-			dict_table_add_to_cache(
-				table, FALSE, temp_table_heap);
+			dict_table_add_system_columns(table, temp_table_heap);
+			table->add_to_cache();
 
 			DBUG_EXECUTE_IF("ib_ddl_crash_during_create2",
 					DBUG_SUICIDE(););

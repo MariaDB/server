@@ -1265,41 +1265,31 @@ dict_table_add_system_columns(
 #endif
 }
 
-/**********************************************************************//**
-Adds a table object to the dictionary cache. */
+/** Add the table definition to the data dictionary cache */
 void
-dict_table_add_to_cache(
-/*====================*/
-	dict_table_t*	table,		/*!< in: table */
-	bool		can_be_evicted,	/*!< in: whether can be evicted */
-	mem_heap_t*	heap)		/*!< in: temporary heap */
+dict_table_t::add_to_cache()
 {
-	ulint	fold;
-	ulint	id_fold;
-
 	ut_ad(dict_lru_validate());
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	dict_table_add_system_columns(table, heap);
+	cached = TRUE;
 
-	table->cached = TRUE;
-
-	fold = ut_fold_string(table->name.m_name);
-	id_fold = ut_fold_ull(table->id);
+	ulint fold = ut_fold_string(name.m_name);
+	ulint id_fold = ut_fold_ull(id);
 
 	/* Look for a table with the same name: error if such exists */
 	{
 		dict_table_t*	table2;
 		HASH_SEARCH(name_hash, dict_sys->table_hash, fold,
 			    dict_table_t*, table2, ut_ad(table2->cached),
-			    !strcmp(table2->name.m_name, table->name.m_name));
+			    !strcmp(table2->name.m_name, name.m_name));
 		ut_a(table2 == NULL);
 
 #ifdef UNIV_DEBUG
 		/* Look for the same table pointer with a different name */
 		HASH_SEARCH_ALL(name_hash, dict_sys->table_hash,
 				dict_table_t*, table2, ut_ad(table2->cached),
-				table2 == table);
+				table2 == this);
 		ut_ad(table2 == NULL);
 #endif /* UNIV_DEBUG */
 	}
@@ -1309,32 +1299,30 @@ dict_table_add_to_cache(
 		dict_table_t*	table2;
 		HASH_SEARCH(id_hash, dict_sys->table_id_hash, id_fold,
 			    dict_table_t*, table2, ut_ad(table2->cached),
-			    table2->id == table->id);
+			    table2->id == id);
 		ut_a(table2 == NULL);
 
 #ifdef UNIV_DEBUG
 		/* Look for the same table pointer with a different id */
 		HASH_SEARCH_ALL(id_hash, dict_sys->table_id_hash,
 				dict_table_t*, table2, ut_ad(table2->cached),
-				table2 == table);
+				table2 == this);
 		ut_ad(table2 == NULL);
 #endif /* UNIV_DEBUG */
 	}
 
 	/* Add table to hash table of tables */
 	HASH_INSERT(dict_table_t, name_hash, dict_sys->table_hash, fold,
-		    table);
+		    this);
 
 	/* Add table to hash table of tables based on table id */
 	HASH_INSERT(dict_table_t, id_hash, dict_sys->table_id_hash, id_fold,
-		    table);
+		    this);
 
-	table->can_be_evicted = can_be_evicted;
-
-	if (table->can_be_evicted) {
-		UT_LIST_ADD_FIRST(dict_sys->table_LRU, table);
+	if (can_be_evicted) {
+		UT_LIST_ADD_FIRST(dict_sys->table_LRU, this);
 	} else {
-		UT_LIST_ADD_FIRST(dict_sys->table_non_LRU, table);
+		UT_LIST_ADD_FIRST(dict_sys->table_non_LRU, this);
 	}
 
 	ut_ad(dict_lru_validate());

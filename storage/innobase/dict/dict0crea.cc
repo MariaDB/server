@@ -1419,7 +1419,9 @@ dict_create_table_step(
 	if (node->state == TABLE_ADD_TO_CACHE) {
 		DBUG_EXECUTE_IF("ib_ddl_crash_during_create", DBUG_SUICIDE(););
 
-		dict_table_add_to_cache(node->table, TRUE, node->heap);
+		dict_table_add_system_columns(node->table, node->heap);
+		node->table->can_be_evicted = true;
+		node->table->add_to_cache();
 
 		err = DB_SUCCESS;
 	}

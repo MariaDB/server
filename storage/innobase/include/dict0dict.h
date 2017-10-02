@@ -387,15 +387,6 @@ dict_table_add_system_columns(
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
-Adds a table object to the dictionary cache. */
-void
-dict_table_add_to_cache(
-/*====================*/
-	dict_table_t*	table,		/*!< in: table */
-	bool		can_be_evicted,	/*!< in: whether can be evicted*/
-	mem_heap_t*	heap)		/*!< in: temporary heap */
-	MY_ATTRIBUTE((nonnull));
-/**********************************************************************//**
 Removes a table object from the dictionary cache. */
 void
 dict_table_remove_from_cache(

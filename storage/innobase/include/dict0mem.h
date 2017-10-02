@@ -1514,6 +1514,8 @@ struct dict_table_t {
 		return(!(flags & DICT_TF_MASK_ZIP_SSIZE));
 	}
 
+	/** Add the table definition to the data dictionary cache */
+	void add_to_cache();
 	/** When engaging instant ALTER TABLE, remove a table stub
 	from the data dictionary cache. */
 	void remove_stub_from_cache();

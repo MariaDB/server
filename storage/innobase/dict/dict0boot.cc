@@ -349,7 +349,8 @@ dict_boot(void)
 
 	table->id = DICT_TABLES_ID;
 
-	dict_table_add_to_cache(table, FALSE, heap);
+	dict_table_add_system_columns(table, heap);
+	table->add_to_cache();
 	dict_sys->sys_tables = table;
 	mem_heap_empty(heap);
 
@@ -398,7 +399,8 @@ dict_boot(void)
 
 	table->id = DICT_COLUMNS_ID;
 
-	dict_table_add_to_cache(table, FALSE, heap);
+	dict_table_add_system_columns(table, heap);
+	table->add_to_cache();
 	dict_sys->sys_columns = table;
 	mem_heap_empty(heap);
 
@@ -435,7 +437,8 @@ dict_boot(void)
 
 	table->id = DICT_INDEXES_ID;
 
-	dict_table_add_to_cache(table, FALSE, heap);
+	dict_table_add_system_columns(table, heap);
+	table->add_to_cache();
 	dict_sys->sys_indexes = table;
 	mem_heap_empty(heap);
 
@@ -466,7 +469,8 @@ dict_boot(void)
 
 	table->id = DICT_FIELDS_ID;
 
-	dict_table_add_to_cache(table, FALSE, heap);
+	dict_table_add_system_columns(table, heap);
+	table->add_to_cache();
 	dict_sys->sys_fields = table;
 	mem_heap_free(heap);
 
