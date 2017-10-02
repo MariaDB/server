@@ -5055,7 +5055,6 @@ btr_cur_pessimistic_delete(
 	ulint		n_reserved	= 0;
 	bool		success;
 	ibool		ret		= FALSE;
-	ulint		level;
 	mem_heap_t*	heap;
 	ulint*		offsets;
 #ifdef UNIV_DEBUG
@@ -5113,6 +5112,10 @@ btr_cur_pessimistic_delete(
 #endif /* UNIV_ZIP_DEBUG */
 	}
 
+	if (flags == 0) {
+		lock_update_delete(block, rec);
+	}
+
 	if (UNIV_UNLIKELY(page_get_n_recs(page) < 2)
 	    && UNIV_UNLIKELY(dict_index_get_page(index)
 			     != block->page.id.page_no())) {
@@ -5127,13 +5130,7 @@ btr_cur_pessimistic_delete(
 		goto return_after_reservations;
 	}
 
-	if (flags == 0) {
-		lock_update_delete(block, rec);
-	}
-
-	level = btr_page_get_level(page, mtr);
-
-	if (level == 0) {
+	if (page_is_leaf(page)) {
 		btr_search_update_hash_on_delete(cursor);
 	} else if (UNIV_UNLIKELY(page_rec_is_first(rec, page))) {
 		rec_t*	next_rec = page_rec_get_next(rec);
@@ -5188,6 +5185,7 @@ btr_cur_pessimistic_delete(
 			on a page, we have to change the parent node pointer
 			so that it is equal to the new leftmost node pointer
 			on the page */
+			ulint level = btr_page_get_level(page, mtr);
 
 			btr_node_ptr_delete(index, block, mtr);
 

@@ -1954,12 +1954,6 @@ public:
            create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS) :
            tmp_table_field_from_field_type(table, false, true);
   }
-  table_map used_tables() const
-  {
-    return used_tables_cache | RAND_TABLE_BIT;
-  }
-  bool const_item() const { return 0; }
-  bool is_expensive() { return 1; }
   void print(String *str, enum_query_type query_type);
   enum precedence precedence() const { return ASSIGN_PRECEDENCE; }
   void print_as_stmt(String *str, enum_query_type query_type);

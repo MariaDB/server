@@ -464,8 +464,8 @@ inline
 bool
 wsrep_must_process_fk(const upd_node_t* node, const trx_t* trx)
 {
-	if (que_node_get_type(node->common.parent) != QUE_NODE_UPDATE ||
-	    !wsrep_on(trx->mysql_thd)) {
+	if (que_node_get_type(node->common.parent) != QUE_NODE_UPDATE
+	    || !wsrep_on_trx(trx)) {
 		return false;
 	}
 

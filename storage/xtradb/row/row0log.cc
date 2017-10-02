@@ -182,7 +182,6 @@ struct row_log_t {
 	dict_table_t*	table;	/*!< table that is being rebuilt,
 				or NULL when this is a secondary
 				index that is being created online */
-	dict_index_t*	index;	/*!< index to be build */
 	bool		same_pk;/*!< whether the definition of the PRIMARY KEY
 				has remained the same */
 	const dtuple_t*	add_cols;
@@ -385,7 +384,7 @@ row_log_online_op(
 						   byte_offset,
 						   index->table->space)) {
 				log->error = DB_DECRYPTION_FAILED;
-				goto err_exit;
+				goto write_failed;
 			}
 
 			srv_stats.n_rowlog_blocks_encrypted.inc();
@@ -479,13 +478,15 @@ static MY_ATTRIBUTE((nonnull))
 void
 row_log_table_close_func(
 /*=====================*/
-	row_log_t*	log,	/*!< in/out: online rebuild log */
+	dict_index_t*	index,	/*!< in/out: online rebuilt index */
 #ifdef UNIV_DEBUG
 	const byte*	b,	/*!< in: end of log record */
 #endif /* UNIV_DEBUG */
 	ulint		size,	/*!< in: size of log record */
 	ulint		avail)	/*!< in: available size for log record */
 {
+	row_log_t*	log = index->online_log;
+
 	ut_ad(mutex_own(&log->mutex));
 
 	if (size >= avail) {
@@ -520,7 +521,7 @@ row_log_table_close_func(
 						   srv_sort_buf_size,
 						   log->crypt_tail,
 						   byte_offset,
-						   log->index->table->space)) {
+						   index->table->space)) {
 				log->error = DB_DECRYPTION_FAILED;
 				goto err_exit;
 			}
@@ -559,11 +560,11 @@ err_exit:
 }
 
 #ifdef UNIV_DEBUG
-# define row_log_table_close(log, b, size, avail)	\
-	row_log_table_close_func(log, b, size, avail)
+# define row_log_table_close(index, b, size, avail)	\
+	row_log_table_close_func(index, b, size, avail)
 #else /* UNIV_DEBUG */
 # define row_log_table_close(log, b, size, avail)	\
-	row_log_table_close_func(log, size, avail)
+	row_log_table_close_func(index, size, avail)
 #endif /* UNIV_DEBUG */
 
 /******************************************************//**
@@ -735,8 +736,7 @@ row_log_table_delete(
 			b += ext_size;
 		}
 
-		row_log_table_close(
-			index->online_log, b, mrec_size, avail_size);
+		row_log_table_close(index, b, mrec_size, avail_size);
 	}
 
 func_exit:
@@ -859,8 +859,7 @@ row_log_table_low_redundant(
 			b + extra_size, index, tuple->fields, tuple->n_fields);
 		b += size;
 
-		row_log_table_close(
-			index->online_log, b, mrec_size, avail_size);
+		row_log_table_close(index, b, mrec_size, avail_size);
 	}
 
 	mem_heap_free(heap);
@@ -969,8 +968,7 @@ row_log_table_low(
 		memcpy(b, rec, rec_offs_data_size(offsets));
 		b += rec_offs_data_size(offsets);
 
-		row_log_table_close(
-			index->online_log, b, mrec_size, avail_size);
+		row_log_table_close(index, b, mrec_size, avail_size);
 	}
 }
 
@@ -2675,7 +2673,7 @@ all_done:
 
 		/* If encryption is enabled decrypt buffer after reading it
 		from file system. */
-		if (log_tmp_is_encrypted()) {
+		if (success && log_tmp_is_encrypted()) {
 			if (!log_tmp_block_decrypt(buf,
 						   srv_sort_buf_size,
 						   index->online_log->crypt_head,
@@ -2996,7 +2994,6 @@ row_log_allocate(
 	log->head.total = 0;
 	log->path = path;
 	log->crypt_tail = log->crypt_head = NULL;
-	log->index = index;
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
 	index->online_log = log;
 
@@ -3542,7 +3539,7 @@ all_done:
 
 		/* If encryption is enabled decrypt buffer after reading it
 		from file system. */
-		if (log_tmp_is_encrypted()) {
+		if (success && log_tmp_is_encrypted()) {
 			if (!log_tmp_block_decrypt(buf,
 						   srv_sort_buf_size,
 						   index->online_log->crypt_head,
