@@ -16,6 +16,6 @@ a	b
 3	ghi
 "Unexpected count: 0"
 DROP TABLE t1;
-SET GLOBAL innodb_stats_persistent = default;
+SET GLOBAL innodb_stats_persistent = off;
 SET GLOBAL innodb_stats_auto_recalc = default;
 SET GLOBAL innodb_purge_run_now = ON;

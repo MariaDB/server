@@ -35,6 +35,6 @@ if ($diff != 3) {
 
 DROP TABLE t1;
 
-SET GLOBAL innodb_stats_persistent = default;
+SET GLOBAL innodb_stats_persistent = off;
 SET GLOBAL innodb_stats_auto_recalc = default;
 SET GLOBAL innodb_purge_run_now = ON;
