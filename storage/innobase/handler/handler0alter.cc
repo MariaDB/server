@@ -325,6 +325,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	{
 		DBUG_ASSERT(is_instant());
 		DBUG_ASSERT(!num_to_add_index);
+		DBUG_ASSERT(!instant_table->cached);
 
 		/* Swap the column names. */
 		const char* end = instant_table->col_names;
@@ -421,6 +422,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 			DBUG_ASSERT(idx || num_to_drop_index);
 		}
 
+		while (dict_index_t* index
+		       = UT_LIST_GET_LAST(instant_table->indexes)) {
+			UT_LIST_REMOVE(instant_table->indexes, index);
+			rw_lock_free(&index->lock);
+			dict_mem_index_free(index);
+		}
 		dict_mem_table_free(instant_table);
 		instant_table = NULL;
 		DBUG_ASSERT(!is_instant());
