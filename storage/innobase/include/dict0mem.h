@@ -664,6 +664,9 @@ struct dict_v_idx_t {
 
 	/** position in this index */
 	ulint		nth_field;
+
+	dict_v_idx_t(dict_index_t* index, ulint nth_field)
+		: index(index), nth_field(nth_field) {}
 };
 
 /** Index list to put in dict_v_col_t */
@@ -1048,6 +1051,7 @@ struct dict_index_t{
 		for (; n_prefix < n_fields; n_prefix++) {
 			const dict_col_t* col = fields[n_prefix].col;
 			DBUG_ASSERT(is_dummy || col->is_instant());
+			DBUG_ASSERT(!col->is_virtual());
 			n -= col->is_nullable();
 		}
 		DBUG_ASSERT(n < n_def);
@@ -1912,6 +1916,7 @@ inline void dict_index_t::commit_instant_copy(const dict_index_t& instant)
 {
 	/* We do not support renaming an index yet. */
 	DBUG_ASSERT(!strcmp(name, instant.name));
+	DBUG_ASSERT(is_clust() == instant.is_clust());
 
 	if (instant.is_clust()) {
 		/* We can have !instant.is_instant() if the table is
@@ -1943,10 +1948,23 @@ inline void dict_index_t::commit_instant_copy(const dict_index_t& instant)
 
 	for (unsigned i = 0; i < n_fields; i++) {
 		DBUG_ASSERT(fields[i].same(instant.fields[i]));
-		fields[i].col = &table->cols[instant.fields[i].col
-					     - instant.table->cols];
-		fields[i].name = fields[i].col->name(*table);
-		ut_d(n_null += fields[i].col->is_nullable());
+		const dict_col_t* icol = instant.fields[i].col;
+		if (icol->is_virtual()) {
+			DBUG_ASSERT(!is_clust());
+			ut_d(n_null++);
+			dict_v_col_t* vcol = &table->v_cols[
+				reinterpret_cast<const dict_v_col_t*>(icol)
+				- instant.table->v_cols];
+			dict_col_t* col = fields[i].col = &vcol->m_col;
+			fields[i].name = col->name(*table);
+			vcol->v_indexes->push_back(dict_v_idx_t(this, i));
+		} else {
+			dict_col_t* col = fields[i].col
+				= &table->cols[instant.fields[i].col
+					       - instant.table->cols];
+			fields[i].name = col->name(*table);
+			ut_d(n_null += col->is_nullable());
+		}
 	}
 
 	ut_ad(n_null == n_nullable);

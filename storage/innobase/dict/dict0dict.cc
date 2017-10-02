@@ -622,11 +622,22 @@ dict_table_has_column(
 @param[in]	table	table name */
 const char* dict_col_t::name(const dict_table_t& table) const
 {
-	size_t col_nr = this - table.cols;
-	ut_ad(col_nr < table.n_def);
 	ut_ad(table.magic_n == DICT_TABLE_MAGIC_N);
 
-	const char* s = table.col_names;
+	size_t col_nr;
+	const char *s;
+
+	if (is_virtual()) {
+		col_nr = reinterpret_cast<const dict_v_col_t*>(this)
+			- table.v_cols;
+		ut_ad(col_nr < table.n_v_def);
+		s = table.v_col_names;
+	} else {
+		col_nr = this - table.cols;
+		ut_ad(col_nr < table.n_def);
+		s = table.col_names;
+	}
+
 	if (s) {
 		for (size_t i = 0; i < col_nr; i++) {
 			s += strlen(s) + 1;
@@ -2807,11 +2818,8 @@ dict_index_add_col(
 		if (v_col->v_indexes != NULL) {
 			/* Register the index with the virtual column index
 			list */
-			struct dict_v_idx_t	new_idx
-				 = {index, index->n_def};
-
-			v_col->v_indexes->push_back(new_idx);
-
+			v_col->v_indexes->push_back(
+				dict_v_idx_t(index, index->n_def));
 		}
 
 		col_name = dict_table_get_v_col_name_mysql(

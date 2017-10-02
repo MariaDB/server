@@ -399,9 +399,18 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				mem_heap_dup(old_table->heap, v.base_col,
 					     v.num_base * sizeof *v.base_col));
 			for (ulint n = v.num_base; n--; ) {
-				v.base_col[n] -= instant_table->cols
-					- old_table->cols;
+				dict_col_t*& b = v.base_col[n];
+				if (b->is_virtual()) {
+					b = &old_table->v_cols[
+						reinterpret_cast
+						<dict_v_col_t*>(b)
+						- instant_table->v_cols].m_col;
+				} else {
+					b = &old_table->cols[
+						b - instant_table->cols];
+				}
 			}
+			v.v_indexes->clear();
 		}
 
 		dict_index_t* index = dict_table_get_first_index(old_table);
