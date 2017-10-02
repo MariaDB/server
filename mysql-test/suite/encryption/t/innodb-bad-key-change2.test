@@ -8,6 +8,7 @@
 # MDEV-8768: Server crash at file btr0btr.ic line 122 when checking encrypted table using incorrect keys
 # MDEV-8727: Server/InnoDB hangs on shutdown after trying to read an encrypted table with a wrong key
 #
+call mtr.add_suppression("InnoDB: Table `test`\\.`t1` (has an unreadable root page|is corrupted|does not exist.*is trying to rename)");
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t1(new)?\\.ibd' cannot be decrypted\\.");
 # Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
@@ -25,11 +26,11 @@ INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
---error ER_GET_ERRMSG
+--error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM t1;
 --replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
---error ER_GET_ERRMSG
+--error ER_NO_SUCH_TABLE_IN_ENGINE
 ALTER TABLE t1 ENGINE=InnoDB;
 --replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 SHOW WARNINGS;
@@ -56,8 +57,13 @@ UNLOCK TABLES;
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
-# Discard should pass even with incorrect keys
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+ALTER TABLE t1 DISCARD TABLESPACE;
+# Drop table will succeed.
+DROP TABLE t1;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(8)) ENGINE=InnoDB
+ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
 ALTER TABLE t1 DISCARD TABLESPACE;
 
 perl;
@@ -65,7 +71,6 @@ do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
-
 
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
@@ -76,13 +81,10 @@ SHOW CREATE TABLE t1;
 --let $restart_parameters= --innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
-# Rename table should pass even with incorrect keys
+--error ER_ERROR_ON_RENAME
 RENAME TABLE t1 TO t1new;
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
-
-# Alter table rename is not allowed with incorrect keys
---error ER_GET_ERRMSG
-ALTER TABLE t1new RENAME TO t2new;
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+ALTER TABLE t1 RENAME TO t1new;
 # Drop should pass even with incorrect keys
 --replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
-DROP TABLE t1new;
+DROP TABLE t1;
