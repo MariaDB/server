@@ -4709,7 +4709,7 @@ prepare_inplace_alter_table_dict(
 		}
 
 		error = row_create_table_for_mysql(
-			ctx->new_table, ctx->trx, false, mode, key_id);
+			ctx->new_table, ctx->trx, mode, key_id);
 
 		switch (error) {
 			dict_table_t*	temp_table;
