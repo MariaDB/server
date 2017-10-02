@@ -2896,48 +2896,6 @@ check_trx_exists(
 	return(trx);
 }
 
-#ifdef MYSQL_REPLACE_TRX_IN_THD
-/** InnoDB transaction object that is currently associated with THD is
-replaced with that of the 2nd argument. The previous value is
-returned through the 3rd argument's buffer, unless it's NULL.  When
-the buffer is not provided (value NULL) that should mean the caller
-restores previously saved association so the current trx has to be
-additionally freed from all association with MYSQL.
-
-@param[in,out]	thd		MySQL thread handle
-@param[in]	new_trx_arg	replacement trx_t
-@param[in,out]	ptr_trx_arg	pointer to a buffer to store old trx_t */
-static
-void
-innodb_replace_trx_in_thd(
-	THD*	thd,
-	void*	new_trx_arg,
-	void**	ptr_trx_arg)
-{
-	trx_t*& trx = thd_to_trx(thd);
-
-	ut_ad(new_trx_arg == NULL
-	      || (((trx_t*) new_trx_arg)->mysql_thd == thd
-		  && !((trx_t*) new_trx_arg)->is_recovered));
-
-	if (ptr_trx_arg) {
-		*ptr_trx_arg = trx;
-
-		ut_ad(trx == NULL
-		      || (trx->mysql_thd == thd && !trx->is_recovered));
-
-	} else if (trx->state == TRX_STATE_NOT_STARTED) {
-		ut_ad(thd == trx->mysql_thd);
-		trx_free_for_mysql(trx);
-	} else {
-		ut_ad(thd == trx->mysql_thd);
-		ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
-		trx_disconnect_prepared(trx);
-	}
-	trx = static_cast<trx_t*>(new_trx_arg);
-}
-#endif /* MYSQL_REPLACE_TRX_IN_THD */
-
 /*************************************************************************
 Gets current trx. */
 trx_t*
@@ -3838,11 +3796,6 @@ innobase_init(
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->flags =
 		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS;
-
-#ifdef MYSQL_REPLACE_TRX_IN_THD
-        innobase_hton->replace_native_transaction_in_thd =
-                innodb_replace_trx_in_thd;
-#endif
 
 #ifdef WITH_WSREP
         innobase_hton->abort_transaction=wsrep_abort_transaction;

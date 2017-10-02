@@ -41,7 +41,6 @@ class THD;
 #undef MYSQL_FT_INIT_EXT
 #undef MYSQL_PFS
 #undef MYSQL_RENAME_INDEX
-#undef MYSQL_REPLACE_TRX_IN_THD
 #undef MYSQL_STORE_FTS_DOC_ID
 
 /*******************************************************************//**
