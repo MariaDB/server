@@ -174,18 +174,24 @@ alter table t3 change x x bigint;
 alter table t3 change x x bigint after sys_trx_start;
 call check_vtmd('t3_vtmd');
 
-set versioning_hide = auto;
+# hide archive tables
+set versioning_hide= auto;
 call show_tables();
 
-set versioning_hide = implicit;
+set versioning_hide= implicit;
 call show_tables();
 
-set versioning_hide = full;
+set versioning_hide= full;
 call show_tables();
 
-set versioning_hide = never;
+set versioning_hide= never;
 --replace_regex /\d{8}_\d{6}_\d{6}/TIMESTAMP_SUFFIX/
 call show_tables();
+
+# wrong VTMD handling
+set versioning_hide= auto;
+create or replace table u0_vtmd (x int) with system versioning;
+show tables;
 
 drop database db0;
 drop database db1;

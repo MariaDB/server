@@ -8723,10 +8723,31 @@ open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup)
 
   if ((table= open_ltable(thd, one_table, one_table->lock_type, flags)))
   {
-    DBUG_ASSERT(table->s->table_category == TABLE_CATEGORY_LOG);
-    /* Make sure all columns get assigned to a default value */
-    table->use_all_columns();
-    DBUG_ASSERT(table->no_replicate);
+    if (table->s->table_category == TABLE_CATEGORY_LOG)
+    {
+      /* Make sure all columns get assigned to a default value */
+      table->use_all_columns();
+      DBUG_ASSERT(table->no_replicate);
+    }
+    else
+    {
+      my_error(ER_NOT_LOG_TABLE, MYF(0), table->s->db.str, table->s->table_name.str);
+      int error= 0;
+      if (table->current_lock != F_UNLCK)
+      {
+        table->current_lock= F_UNLCK;
+        error= table->file->ha_external_lock(thd, F_UNLCK);
+      }
+      if (error)
+        table->file->print_error(error, MYF(0));
+      else
+      {
+        tc_release_table(table);
+        thd->reset_open_tables_state(thd);
+        thd->restore_backup_open_tables_state(backup);
+        table= NULL;
+      }
+    }
   }
   else
     thd->restore_backup_open_tables_state(backup);

@@ -1530,6 +1530,12 @@ public:
     return s->versioned && file->native_versioned();
   }
 
+  bool vers_vtmd() const
+  {
+    DBUG_ASSERT(s);
+    return s->versioned && s->vtmd;
+  }
+
   Field *vers_start_field() const
   {
     DBUG_ASSERT(s && s->versioned);

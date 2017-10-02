@@ -281,7 +281,7 @@ A_start	B_end	name	C_archive_name
 1	0	t3	t3_
 1	0	t3	t3_
 1	1	t3	NULL
-set versioning_hide = auto;
+set versioning_hide= auto;
 call show_tables();
 Tables_in_test
 t2
@@ -293,7 +293,7 @@ t2	test
 t2_vtmd	test
 t3	test
 t3_vtmd	test
-set versioning_hide = implicit;
+set versioning_hide= implicit;
 call show_tables();
 Tables_in_test
 t2
@@ -305,7 +305,7 @@ t2	test
 t2_vtmd	test
 t3	test
 t3_vtmd	test
-set versioning_hide = full;
+set versioning_hide= full;
 call show_tables();
 Tables_in_test
 t2
@@ -317,7 +317,7 @@ t2	test
 t2_vtmd	test
 t3	test
 t3_vtmd	test
-set versioning_hide = never;
+set versioning_hide= never;
 call show_tables();
 Tables_in_test
 t0_TIMESTAMP_SUFFIX
@@ -342,6 +342,18 @@ t3	test
 t3_TIMESTAMP_SUFFIX	test
 t3_TIMESTAMP_SUFFIX	test
 t3_vtmd	test
+set versioning_hide= auto;
+create or replace table u0_vtmd (x int) with system versioning;
+show tables;
+Tables_in_test
+t2
+t2_vtmd
+t3
+t3_vtmd
+u0_vtmd
+u0_vtmd_vtmd
+Warnings:
+Warning	4088	Table `test.u0_vtmd` is not a VTMD table
 drop database db0;
 drop database db1;
 drop database test;

@@ -7581,10 +7581,13 @@ ER_VERS_NO_TRX_ID
         eng "TRX_ID %lu not found in VTQ"
 
 ER_WRONG_TABLESPACE_NAME 42000
-  eng "Incorrect tablespace name `%-.192s`"
+        eng "Incorrect tablespace name `%-.192s`"
 
 ER_VERS_ALTER_SYSTEM_FIELD
         eng "Can not change system versioning field '%s'"
 
 ER_VERS_SYS_FIELD_NOT_HIDDEN
-	eng "System versioning field '%s' is not hidden"
+        eng "System versioning field '%s' is not hidden"
+
+ER_NOT_LOG_TABLE
+        eng "Table `%s.%s` is not a log table"

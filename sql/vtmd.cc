@@ -593,6 +593,7 @@ VTMD_table::get_archive_tables(THD *thd, const char *db, size_t db_length,
   if (get_vtmd_tables(thd, db, db_length, vtmd_tables))
     return true;
 
+  Local_da local_da(thd, ER_VERS_VTMD_ERROR);
   for (uint i= 0; i < vtmd_tables.elements(); i++)
   {
     LEX_STRING table_name= *vtmd_tables.at(i);
@@ -603,8 +604,24 @@ VTMD_table::get_archive_tables(THD *thd, const char *db, size_t db_length,
                               table_name.str, TL_READ);
 
     TABLE *table= open_log_table(thd, &table_list, &open_tables_backup);
-    if (!table)
-      return true;
+    if (!table || !table->vers_vtmd())
+    {
+      if (table)
+        close_log_table(thd, &open_tables_backup);
+      else
+      {
+        if (local_da.is_error() && local_da.sql_errno() == ER_NOT_LOG_TABLE)
+          local_da.reset_diagnostics_area();
+        else
+          return true;
+      }
+      push_warning_printf(
+        thd, Sql_condition::WARN_LEVEL_WARN,
+        ER_VERS_VTMD_ERROR,
+        "Table `%s.%s` is not a VTMD table",
+        db, table_name.str);
+      continue;
+    }
 
     READ_RECORD read_record;
     int error= 0;
