@@ -4431,17 +4431,11 @@ set_not_null_default_from_sql:
 		non-updated off-page columns in case they are moved off
 		page as a result of the update. */
 		upd_t* update = upd_create(index->n_fields, ctx->heap);
-		update->n_fields = n + 2;
+		update->n_fields = n;
 		update->info_bits = REC_INFO_DEFAULT_ROW;
-		/* Add DB_TRX_ID, DB_ROLL_PTR */
-		for (unsigned i = 0; i < 2; i++) {
-			upd_field_t* uf = upd_get_nth_field(update, i);
-			uf->field_no = index->n_uniq + i;
-			uf->new_val = entry->fields[index->n_uniq + i];
-		}
 		/* Add the default values for instantly added columns */
 		for (unsigned i = 0; i < n; i++) {
-			upd_field_t* uf = upd_get_nth_field(update, i + 2);
+			upd_field_t* uf = upd_get_nth_field(update, i);
 			unsigned f = i + old_index->n_fields;
 			uf->field_no = f;
 			uf->new_val = entry->fields[f];
