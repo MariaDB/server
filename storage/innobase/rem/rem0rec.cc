@@ -341,7 +341,8 @@ ordinary:
 				       index->n_nullable));
 		break;
 	case REC_LEAF_COLUMNS_ADDED:
-		ut_ad(index->is_instant());
+		/* We would have !index->is_instant() when rolling back
+		an instant ADD COLUMN operation. */
 		nulls -= REC_N_NEW_EXTRA_BYTES;
 		if (rec_offs_n_fields(offsets) <= n_fields) {
 			goto ordinary;
@@ -1963,8 +1964,11 @@ rec_copy_prefix_to_buf(
 
 	switch (rec_get_status(rec)) {
 	case REC_STATUS_COLUMNS_ADDED:
-		ut_ad(index->is_instant());
+		/* We would have !index->is_instant() when rolling back
+		an instant ADD COLUMN operation. */
+		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
 		if (n_fields >= index->n_core_fields) {
+			ut_ad(index->is_instant());
 			ut_ad(n_fields <= index->n_fields);
 			nulls = &rec[-REC_N_NEW_EXTRA_BYTES];
 			const ulint n_rec = n_fields + 1

@@ -1515,6 +1515,7 @@ trx_undo_update_rec_get_update(
 		ulint		orig_len;
 		bool		is_virtual;
 
+		upd_field = upd_get_nth_field(update, i);
 		field_no = mach_read_next_compressed(&ptr);
 
 		is_virtual = (field_no >= REC_MAX_N_FIELDS);
@@ -1526,27 +1527,6 @@ trx_undo_update_rec_get_update(
 				index->table, ptr, first_v_col, &is_undo_log,
 				&field_no);
 			first_v_col = false;
-		} else if (field_no >= dict_index_get_n_fields(index)) {
-			ib::error() << "Trying to access update undo rec"
-				" field " << field_no
-				<< " in index " << index->name
-				<< " of table " << index->table->name
-				<< " but index has only "
-				<< dict_index_get_n_fields(index)
-				<< " fields " << BUG_REPORT_MSG
-				<< ". Run also CHECK TABLE "
-				<< index->table->name << "."
-				" n_fields = " << n_fields << ", i = " << i
-				<< ", ptr " << ptr;
-
-			ut_ad(0);
-			*upd = NULL;
-			return(NULL);
-		}
-
-		upd_field = upd_get_nth_field(update, i);
-
-		if (is_virtual) {
 			/* This column could be dropped or no longer indexed */
 			if (field_no == ULINT_UNDEFINED) {
 				/* Mark this is no longer needed */
@@ -1560,10 +1540,31 @@ trx_undo_update_rec_get_update(
 				continue;
 			}
 
-			upd_field_set_v_field_no(
-				upd_field, field_no, index);
+			upd_field_set_v_field_no(upd_field, field_no, index);
+		} else if (field_no < index->n_fields) {
+			upd_field_set_field_no(upd_field, field_no, index,trx);
+		} else if (update->info_bits == REC_INFO_MIN_REC_FLAG
+			   && index->is_instant() && trx->in_rollback) {
+			/* This must be a rollback of a subsequent
+			instant ADD COLUMN operation. This will be
+			detected and handled by btr_cur_trim(). */
+			upd_field->field_no = field_no;
+			upd_field->orig_len = 0;
 		} else {
-			upd_field_set_field_no(upd_field, field_no, index, trx);
+			ib::error() << "Trying to access update undo rec"
+				" field " << field_no
+				<< " in index " << index->name
+				<< " of table " << index->table->name
+				<< " but index has only "
+				<< dict_index_get_n_fields(index)
+				<< " fields " << BUG_REPORT_MSG
+				<< ". Run also CHECK TABLE "
+				<< index->table->name << "."
+				" n_fields = " << n_fields << ", i = " << i;
+
+			ut_ad(0);
+			*upd = NULL;
+			return(NULL);
 		}
 
 		ptr = trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);

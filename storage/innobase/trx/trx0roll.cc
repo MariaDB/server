@@ -1012,7 +1012,7 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 		if the transaction object is committed and reused
 		later, we will default to a full ROLLBACK. */
 		trx->roll_limit = 0;
-		ut_d(trx->in_rollback = false);
+		trx->in_rollback = false;
 		mutex_exit(&trx->undo_mutex);
 		return(NULL);
 	}
@@ -1129,7 +1129,7 @@ trx_rollback_start(
 	ut_ad(!trx->in_rollback);
 
 	trx->roll_limit = roll_limit;
-	ut_d(trx->in_rollback = true);
+	trx->in_rollback = true;
 
 	ut_a(trx->roll_limit <= trx->undo_no);
 

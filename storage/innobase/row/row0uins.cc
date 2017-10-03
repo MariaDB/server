@@ -117,7 +117,8 @@ row_undo_ins_remove_clust_rec(
 		mem_heap_free(heap);
 	}
 
-	if (node->table->id == DICT_INDEXES_ID) {
+	switch (node->table->id) {
+	case DICT_INDEXES_ID:
 
 		ut_ad(!online);
 		ut_ad(node->trx->dict_operation_lock_mode == RW_X_LATCH);
@@ -132,6 +133,82 @@ row_undo_ins_remove_clust_rec(
 		success = btr_pcur_restore_position(
 			BTR_MODIFY_LEAF, &node->pcur, &mtr);
 		ut_a(success);
+		break;
+	case DICT_COLUMNS_ID:
+		/* This is rolling back an INSERT into SYS_COLUMNS.
+		If it was part of an instant ADD COLUMN operation, we
+		must modify the table definition. At this point, any
+		corresponding operation to the 'default row' will have
+		been rolled back. */
+		ut_ad(!online);
+		ut_ad(node->trx->dict_operation_lock_mode == RW_X_LATCH);
+		const rec_t* rec = btr_pcur_get_rec(&node->pcur);
+		if (rec_get_n_fields_old(rec)
+		    != DICT_NUM_FIELDS__SYS_COLUMNS) {
+			break;
+		}
+		ulint len;
+		const byte* data = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_COLUMNS__TABLE_ID, &len);
+		if (len != 8) {
+			break;
+		}
+		const table_id_t table_id = mach_read_from_8(data);
+		data = rec_get_nth_field_old(rec, DICT_FLD__SYS_COLUMNS__POS,
+					     &len);
+		if (len != 4) {
+			break;
+		}
+		const unsigned pos = mach_read_from_4(data);
+		if (pos == 0 || pos >= (1U << 16)) {
+			break;
+		}
+		dict_table_t* table = dict_table_open_on_id(
+			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
+		if (!table) {
+			break;
+		}
+
+		dict_index_t* index = dict_table_get_first_index(table);
+
+		if (index && index->is_instant()
+		    && DATA_N_SYS_COLS + 1 + pos == table->n_cols) {
+			/* This is the rollback of an instant ADD COLUMN.
+			Remove the column from the dictionary cache,
+			but keep the system columns. */
+			char* names = const_cast<char*>(
+				dict_table_get_col_name(table, pos));
+			const char* sys = names + strlen(names) + 1;
+			static const char system[]
+				= "DB_ROW_ID\0DB_TRX_ID\0DB_ROLL_PTR";
+			ut_ad(!memcmp(sys, system, sizeof system));
+			index->n_nullable -= index->fields[--index->n_fields]
+				.col->is_nullable();
+			memmove(names, sys, sizeof system);
+			table->n_cols--;
+			memmove(table->cols + pos, table->cols + pos + 1,
+				DATA_N_SYS_COLS * sizeof *table->cols);
+			for (uint i = 3; i--; ) {
+				table->cols[table->n_cols - i].ind--;
+			}
+			if (dict_index_is_auto_gen_clust(index)) {
+				ut_ad(index->n_uniq == 1);
+				dict_field_t* field = index->fields;
+				field->name = sys;
+				field->col = dict_table_get_sys_col(
+					table, DATA_ROW_ID);
+			}
+			dict_field_t* field = &index->fields[index->n_uniq];
+			field->name = sys + sizeof "DB_ROW_ID";
+			field->col = dict_table_get_sys_col(table,
+							    DATA_TRX_ID);
+			field++;
+			field->name = sys + sizeof "DB_ROW_ID\0DB_TRX_ID";
+			field->col = dict_table_get_sys_col(table,
+							    DATA_ROLL_PTR);
+		}
+
+		dict_table_close(table, true, false);
 	}
 
 	if (btr_cur_optimistic_delete(btr_cur, 0, &mtr)) {
@@ -370,7 +447,7 @@ close_table:
 			} else {
 				ut_ad(type == TRX_UNDO_INSERT_DEFAULT);
 				static const dtuple_t min_rec = {
-					REC_INFO_MIN_REC_FLAG, 0, 0,
+					REC_INFO_DEFAULT_ROW, 0, 0,
 					NULL, 0, NULL,
 					UT_LIST_NODE_T(dtuple_t)()
 #ifdef UNIV_DEBUG

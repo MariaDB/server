@@ -9286,6 +9286,7 @@ ha_innobase::commit_inplace_alter_table(
 	}
 
 	/* Commit or roll back the changes to the data dictionary. */
+	DEBUG_SYNC(m_user_thd, "innodb_alter_inplace_before_commit");
 
 	if (fail) {
 		trx_rollback_for_mysql(trx);

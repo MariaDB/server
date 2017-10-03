@@ -1,0 +1,71 @@
+--source include/have_innodb.inc
+# The embedded server tests do not support restarting.
+--source include/not_embedded.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-11369: Instant ADD COLUMN for InnoDB
+--echo #
+
+CREATE TABLE t1(id INT PRIMARY KEY, c2 INT UNIQUE) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES(1,2);
+BEGIN;
+INSERT INTO t2 VALUES(2,1);
+ALTER TABLE t2 ADD COLUMN (c3 TEXT NOT NULL DEFAULT 'De finibus bonorum');
+
+connect ddl, localhost, root;
+SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
+--send
+ALTER TABLE t1 ADD COLUMN (c3 TEXT NOT NULL DEFAULT ' et malorum');
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR ddl';
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+COMMIT;
+
+--source include/kill_mysqld.inc
+disconnect ddl;
+--source include/start_mysqld.inc
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SELECT * FROM t1;
+SELECT * FROM t2;
+BEGIN;
+DELETE FROM t1;
+ROLLBACK;
+--source include/wait_all_purged.inc
+
+connect ddl, localhost, root;
+SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
+--send
+ALTER TABLE t2 ADD COLUMN (c4 TEXT NOT NULL DEFAULT ' et malorum');
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR ddl';
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t1;
+
+--source include/kill_mysqld.inc
+disconnect ddl;
+--source include/start_mysqld.inc
+
+SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+BEGIN;
+INSERT INTO t1 SET id=1;
+DELETE FROM t2;
+ROLLBACK;
+--source include/wait_all_purged.inc
+DELETE FROM t2;
+--source include/wait_all_purged.inc
+
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1,t2;
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@saved_frequency;

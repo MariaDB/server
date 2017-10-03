@@ -233,7 +233,8 @@ row_undo_search_clust_to_pcur(
 			row_upd_replace(node->undo_row, &node->undo_ext,
 					clust_index, node->update, node->heap);
 		} else {
-			ut_ad(!(node->row->info_bits & REC_INFO_MIN_REC_FLAG));
+			ut_ad((node->row->info_bits == REC_INFO_MIN_REC_FLAG)
+			      == (node->rec_type == TRX_UNDO_INSERT_DEFAULT));
 			node->undo_row = NULL;
 			node->undo_ext = NULL;
 		}
