@@ -15,6 +15,8 @@ connect analyze, localhost, root;
 connection default;
 SET timestamp = 42;
 SET time_zone='+03:00';
+SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 
 let $format= 3;
 while ($format) {
@@ -111,7 +113,6 @@ ALTER TABLE t1 DROP c3;
 
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
-DROP TABLE t1;
 
 eval CREATE TABLE t2
 (id INT primary key, c1 VARCHAR(4000),
@@ -165,7 +166,6 @@ connection default;
 ALTER TABLE t2 DROP p;
 --disable_info
 SELECT * FROM t2;
-DROP TABLE t2;
 
 # datetime
 eval CREATE TABLE t3
@@ -203,7 +203,6 @@ SELECT * FROM t3;
 ALTER TABLE t3 DROP c3, DROP c7;
 --disable_info
 SELECT * FROM t3;
-DROP TABLE t3;
 
 eval CREATE TABLE big
 (id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
@@ -247,7 +246,8 @@ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
 connection default;
 
-DROP TABLE big;
+--source include/wait_all_purged.inc
+DROP TABLE t1,t2,t3,big;
 
 dec $format;
 }
@@ -257,3 +257,4 @@ SET GLOBAL innodb_monitor_disable = module_ddl;
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;
 --enable_warnings
+SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
