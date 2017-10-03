@@ -1400,6 +1400,7 @@ static int mysql_test_update(Prepared_statement *stmt,
   int res;
   THD *thd= stmt->thd;
   uint table_count= 0;
+  TABLE_LIST *update_source_table;
   SELECT_LEX *select= &stmt->lex->select_lex;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   uint          want_privilege;
@@ -1413,9 +1414,11 @@ static int mysql_test_update(Prepared_statement *stmt,
   if (mysql_handle_derived(thd->lex, DT_INIT))
     goto error;
 
-  if (table_list->is_multitable())
+  if (((update_source_table= unique_table(thd, table_list,
+                                          table_list->next_global, 0)) ||
+        table_list->is_multitable()))
   {
-    DBUG_ASSERT(table_list->view != 0);
+    DBUG_ASSERT(update_source_table || table_list->view != 0);
     DBUG_PRINT("info", ("Switch to multi-update"));
     /* pass counter value */
     thd->lex->table_count= table_count;
