@@ -1313,6 +1313,12 @@ struct dict_table_t {
 	{
 		return !(~flags & DICT_TF_MASK_NO_ROLLBACK);
         }
+	/** @return whether this is a temporary table */
+	bool is_temporary() const
+	{
+		return flags2 & DICT_TF2_TEMPORARY;
+	}
+
 	/** @return whether this table is readable
 	@retval	true	normally
 	@retval	false	if this is a single-table tablespace

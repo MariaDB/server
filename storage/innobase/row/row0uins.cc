@@ -76,9 +76,12 @@ row_undo_ins_remove_clust_rec(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(node->trx->in_rollback);
 
-	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
-	dict_disable_redo_if_temporary(index->table, &mtr);
+	mtr.start();
+	if (index->table->is_temporary()) {
+		mtr.set_log_mode(MTR_LOG_NO_REDO);
+	} else {
+		mtr.set_named_space(index->space);
+	}
 
 	/* This is similar to row_undo_mod_clust(). The DDL thread may
 	already have copied this row from the log to the new table.
@@ -125,9 +128,9 @@ row_undo_ins_remove_clust_rec(
 		dict_drop_index_tree(
 			btr_pcur_get_rec(&node->pcur), &(node->pcur), &mtr);
 
-		mtr_commit(&mtr);
+		mtr.commit();
 
-		mtr_start(&mtr);
+		mtr.start();
 
 		success = btr_pcur_restore_position(
 			BTR_MODIFY_LEAF, &node->pcur, &mtr);
@@ -142,9 +145,12 @@ row_undo_ins_remove_clust_rec(
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
 retry:
 	/* If did not succeed, try pessimistic descent to tree */
-	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
-	dict_disable_redo_if_temporary(index->table, &mtr);
+	mtr.start();
+	if (index->table->is_temporary()) {
+		mtr.set_log_mode(MTR_LOG_NO_REDO);
+	} else {
+		mtr.set_named_space(index->space);
+	}
 
 	success = btr_pcur_restore_position(
 			BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
