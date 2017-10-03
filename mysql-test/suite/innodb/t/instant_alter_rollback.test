@@ -1,4 +1,4 @@
---source include/innodb_page_size.inc
+--source include/have_innodb.inc
 # The embedded server tests do not support restarting.
 --source include/not_embedded.inc
 
