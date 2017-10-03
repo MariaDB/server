@@ -489,8 +489,8 @@ public:
   bool get_date_from_date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
   {
     return date_op(ltime,
-                   fuzzydate |
-                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0));
+                   (uint)(fuzzydate |
+                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0)));
   }
 
   // Value methods that involve conversion

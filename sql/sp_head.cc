@@ -2343,8 +2343,8 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       if (bp->instr_type == GOTO)
       {
         DBUG_PRINT("info",
-                   ("backpatch_goto: (m_ip %d, label 0x%lx <%s>) to dest %d",
-                    bp->instr->m_ip, (ulong) lab, lab->name.str, dest));
+                   ("backpatch_goto: (m_ip %d, label %p <%s>) to dest %d",
+                    bp->instr->m_ip, lab, lab->name.str, dest));
         bp->instr->backpatch(dest, lab->ctx);
         // Jump resolved, remove from the list
         li.remove();
