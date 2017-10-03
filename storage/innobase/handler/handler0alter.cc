@@ -4416,6 +4416,8 @@ set_not_null_default_from_sql:
 	ut_ad(page_is_leaf(block->frame));
 	ut_ad(!buf_block_get_page_zip(block));
 	const rec_t* rec = btr_pcur_get_rec(&pcur);
+	que_thr_t* thr = pars_complete_graph_for_exec(
+		NULL, trx, ctx->heap, NULL);
 
 	if (rec_is_default_row(rec, old_index)) {
 		ut_ad(page_rec_is_user_rec(rec));
@@ -4451,8 +4453,7 @@ set_not_null_default_from_sql:
 			BTR_NO_LOCKING_FLAG, btr_pcur_get_btr_cur(&pcur),
 			&offsets, &offsets_heap, ctx->heap,
 			&big_rec, update, UPD_NODE_NO_ORD_CHANGE,
-			pars_complete_graph_for_exec(NULL, trx, ctx->heap,
-						     NULL), trx->id, &mtr);
+			thr, trx->id, &mtr);
 		if (big_rec) {
 			if (error == DB_SUCCESS) {
 				error = btr_store_big_rec_extern_fields(
@@ -4510,7 +4511,7 @@ empty_table:
 		mtr.set_named_space(index->space);
 		err = row_ins_clust_index_entry_low(
 			BTR_NO_LOCKING_FLAG, BTR_MODIFY_TREE, index,
-			index->n_uniq, entry, 0, ctx->thr, false);
+			index->n_uniq, entry, 0, thr, false);
 	} else {
 		err = DB_CORRUPTION;
 	}
