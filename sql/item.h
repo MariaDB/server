@@ -89,6 +89,7 @@ public:
 
 const char *dbug_print_item(Item *item);
 
+class Virtual_tmp_table;
 class sp_head;
 class Protocol;
 struct TABLE_LIST;
@@ -2093,16 +2094,12 @@ public:
 
 class Item_spvar_args: public Item_args
 {
-  TABLE *m_table;
+  Virtual_tmp_table *m_table;
 public:
   Item_spvar_args():Item_args(), m_table(NULL) { }
   ~Item_spvar_args();
   bool row_create_items(THD *thd, List<Spvar_definition> *list);
-  Field *get_row_field(uint i) const
-  {
-    DBUG_ASSERT(m_table);
-    return m_table->field[i];
-  }
+  Field *get_row_field(uint i) const;
 };
 
 
