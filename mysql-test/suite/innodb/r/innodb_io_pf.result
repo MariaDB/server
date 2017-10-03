@@ -15,6 +15,5 @@ EVENT_NAME	COUNT_STAR
 wait/io/file/innodb/innodb_data_file	5
 wait/io/file/innodb/innodb_log_file	5
 wait/io/file/innodb/innodb_temp_file	5
-wait/io/file/innodb/innodb_bmp_file	5
 USE test;
 DROP table t1;
