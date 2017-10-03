@@ -5464,14 +5464,7 @@ btr_cur_pessimistic_delete(
 
 		if (!page_is_root(page)) {
 			if (page_get_n_recs(page) < 2) {
-				ut_ad(page_get_n_recs(page) == 1);
-				/* If there is only one record, drop
-				the whole page. */
-
-				btr_discard_page(cursor, mtr);
-
-				ret = TRUE;
-				goto return_after_reservations;
+				goto discard_page;
 			}
 		} else if (page_get_n_recs(page) == 1 + index->is_instant()) {
 			/* The whole index (and table) becomes
@@ -5499,6 +5492,18 @@ btr_cur_pessimistic_delete(
 			btr_search_update_hash_on_delete(cursor);
 		}
 	} else if (UNIV_UNLIKELY(page_rec_is_first(rec, page))) {
+		if (page_rec_is_last(rec, page)) {
+discard_page:
+			ut_ad(page_get_n_recs(page) == 1);
+			/* If there is only one record, drop
+			the whole page. */
+
+			btr_discard_page(cursor, mtr);
+
+			ret = TRUE;
+			goto return_after_reservations;
+		}
+
 		rec_t*	next_rec = page_rec_get_next(rec);
 
 		if (btr_page_get_prev(page, mtr) == FIL_NULL) {
