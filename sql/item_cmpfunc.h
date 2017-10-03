@@ -995,7 +995,7 @@ public:
   longlong int_op();
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
-  bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
+  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
   void fix_length_and_dec()
   {
     if (!aggregate_for_result(func_name(), args, arg_count, true))
@@ -1067,7 +1067,7 @@ public:
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
-  bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
+  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
   void fix_length_and_dec()
   {
     Item_func_case_abbreviation2::fix_length_and_dec2(args);
@@ -1099,7 +1099,7 @@ public:
     :Item_func_case_abbreviation2(thd, a, b, c)
   { }
 
-  bool date_op(MYSQL_TIME *ltime, uint fuzzydate)
+  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
   {
     return get_date_with_conversion_from_item(find_item(), ltime, fuzzydate);
   }
@@ -1212,7 +1212,7 @@ public:
     Item_func_hybrid_field_type::cleanup();
     arg_count= 2; // See the comment to the constructor
   }
-  bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
+  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
   double real_op();
   longlong int_op();
   String *str_op(String *str);
@@ -2101,7 +2101,7 @@ public:
   longlong int_op();
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
-  bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
+  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool fix_fields(THD *thd, Item **ref);
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }

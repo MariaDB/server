@@ -489,7 +489,7 @@ public:
   bool get_date_from_date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
   {
     return date_op(ltime,
-                   (uint)(fuzzydate |
+                   (fuzzydate |
                    (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0)));
   }
 
@@ -610,7 +610,7 @@ public:
      field type is a temporal type.
      @return The result of the operation.
   */
-  virtual bool date_op(MYSQL_TIME *res, uint fuzzy_date)= 0;
+  virtual bool date_op(MYSQL_TIME *res, ulonglong fuzzy_date)= 0;
 
 };
 
@@ -669,7 +669,11 @@ public:
     Item_func_hybrid_field_type(thd, list)
   { }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
-  bool date_op(MYSQL_TIME *ltime, uint fuzzydate) { DBUG_ASSERT(0); return true; }
+  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
 };
 
 

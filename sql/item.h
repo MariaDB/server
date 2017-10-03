@@ -660,7 +660,8 @@ protected:
     return value;
   }
   bool get_date_with_conversion_from_item(Item *item,
-                                          MYSQL_TIME *ltime, uint fuzzydate)
+                                          MYSQL_TIME *ltime,
+                                          ulonglong fuzzydate)
   {
     DBUG_ASSERT(fixed == 1);
     return (null_value= item->get_date_with_conversion(ltime, fuzzydate));
@@ -1386,14 +1387,14 @@ public:
   virtual longlong val_datetime_packed()
   {
     MYSQL_TIME ltime;
-    uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
+    ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
     return get_date_with_conversion(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
   }
   // Get a TIME value in numeric packed format for comparison
   virtual longlong val_time_packed()
   {
     MYSQL_TIME ltime;
-    uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
+    ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
     return get_date(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
   }
   // Get a temporal value in packed DATE/DATETIME or TIME format
