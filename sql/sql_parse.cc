@@ -1484,8 +1484,8 @@ uint maria_multi_check(THD *thd, char *packet, uint packet_length)
     size_t subpacket_length= net_field_length((uchar **)&packet_start);
     size_t length_length= packet_start - packet;
     // length of command + 3 bytes where that length was stored
-    DBUG_PRINT("info", ("sub-packet length: %ld + %d  command: %x",
-                        (ulong)subpacket_length, length_length,
+    DBUG_PRINT("info", ("sub-packet length: %zu + %zu  command: %x",
+                        subpacket_length, length_length,
                         packet_start[3]));
 
     if (subpacket_length == 0 ||

@@ -217,7 +217,7 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
   {
     DBUG_PRINT("error", ("str_to_ipv4(%.*s): "
                          "invalid IPv4 address: too short.",
-                         str_length, str));
+                         (int)str_length, str));
     return false;
   }
 
@@ -225,7 +225,7 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
   {
     DBUG_PRINT("error", ("str_to_ipv4(%.*s): "
                          "invalid IPv4 address: too long.",
-                         str_length, str));
+                         (int)str_length, str));
     return false;
   }
 
@@ -248,7 +248,7 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
       {
         DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
                              "too many characters in a group.",
-                             str_length, str));
+                             (int)str_length, str));
         return false;
       }
 
@@ -258,7 +258,7 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
       {
         DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
                              "invalid byte value.",
-                             str_length, str));
+                             (int)str_length, str));
         return false;
       }
     }
@@ -268,7 +268,7 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
       {
         DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
                              "too few characters in a group.",
-                             str_length, str));
+                             (int)str_length, str));
         return false;
       }
 
@@ -281,7 +281,7 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
       if (dot_count > 3)
       {
         DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
-                             "too many dots.", str_length, str));
+                             "too many dots.", (int)str_length, str));
         return false;
       }
     }
@@ -289,7 +289,7 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
     {
       DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
                            "invalid character at pos %d.",
-                           str_length, str, (int) (p - str)));
+                           (int)str_length, str, (int) (p - str)));
       return false;
     }
   }
@@ -297,7 +297,7 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
   if (c == '.')
   {
     DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
-                         "ending at '.'.", str_length, str));
+                         "ending at '.'.",(int)str_length, str));
     return false;
   }
 
@@ -305,14 +305,14 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
   {
     DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
                          "too few groups.",
-                         str_length, str));
+                         (int)str_length, str));
     return false;
   }
 
   ipv4_bytes[3]= (unsigned char) byte_value;
 
   DBUG_PRINT("info", ("str_to_ipv4(%.*s): valid IPv4 address: %d.%d.%d.%d",
-                      str_length, str,
+                      (int)str_length, str,
                       ipv4_bytes[0], ipv4_bytes[1],
                       ipv4_bytes[2], ipv4_bytes[3]));
   return true;
