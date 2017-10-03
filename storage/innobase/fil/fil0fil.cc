@@ -1223,7 +1223,8 @@ fil_space_extend_must_retry(
 	default:
 		ut_ad(space->purpose == FIL_TYPE_TABLESPACE
 		      || space->purpose == FIL_TYPE_IMPORT);
-		if (space->purpose == FIL_TYPE_TABLESPACE) {
+		if (space->purpose == FIL_TYPE_TABLESPACE
+		    && !space->is_being_truncated) {
 			fil_flush_low(space);
 		}
 		return(false);
