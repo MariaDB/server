@@ -326,6 +326,9 @@ record */
 					storage fields: used by purge to
 					free the external storage */
 
+/** The search tuple corresponding to TRX_UNDO_INSERT_DEFAULT */
+extern const dtuple_t trx_undo_default_rec;
+
 #include "trx0rec.ic"
 
 #endif /* trx0rec_h */

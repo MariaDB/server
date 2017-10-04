@@ -452,15 +452,7 @@ close_table:
 					node->heap);
 			} else {
 				ut_ad(type == TRX_UNDO_INSERT_DEFAULT);
-				static const dtuple_t min_rec = {
-					REC_INFO_DEFAULT_ROW, 0, 0,
-					NULL, 0, NULL,
-					UT_LIST_NODE_T(dtuple_t)()
-#ifdef UNIV_DEBUG
-					, DATA_TUPLE_MAGIC_N
-#endif /* UNIV_DEBUG */
-				};
-				node->ref = &min_rec;
+				node->ref = &trx_undo_default_rec;
 			}
 
 			if (!row_undo_search_clust_to_pcur(node)) {

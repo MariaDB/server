@@ -981,12 +981,15 @@ err_exit:
 		return(false);
 	}
 
+	if (type == TRX_UNDO_INSERT_DEFAULT) {
+		node->ref = &trx_undo_default_rec;
+		return(true);
+	}
+
 	ptr = trx_undo_rec_get_row_ref(ptr, clust_index, &(node->ref),
 				       node->heap);
 
-	switch (type) {
-	case TRX_UNDO_INSERT_DEFAULT:
-	case TRX_UNDO_INSERT_REC:
+	if (type == TRX_UNDO_INSERT_REC) {
 		return(true);
 	}
 

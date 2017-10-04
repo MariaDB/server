@@ -41,6 +41,16 @@ Created 3/26/1996 Heikki Tuuri
 #include "fsp0sysspace.h"
 #include "row0mysql.h"
 
+/** The search tuple corresponding to TRX_UNDO_INSERT_DEFAULT */
+const dtuple_t trx_undo_default_rec = {
+	REC_INFO_DEFAULT_ROW, 0, 0,
+	NULL, 0, NULL,
+	UT_LIST_NODE_T(dtuple_t)()
+#ifdef UNIV_DEBUG
+	, DATA_TUPLE_MAGIC_N
+#endif /* UNIV_DEBUG */
+};
+
 /*=========== UNDO LOG RECORD CREATION AND DECODING ====================*/
 
 /**********************************************************************//**
