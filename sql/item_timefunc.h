@@ -33,8 +33,31 @@ enum date_time_format_types
 
 bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval);
 
+
+class Item_long_func_date_field: public Item_long_func
+{
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_date(func_name()); }
+public:
+  Item_long_func_date_field(THD *thd, Item *a)
+   :Item_long_func(thd, a) { }
+};
+
+
+class Item_long_func_time_field: public Item_long_func
+{
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_time(func_name()); }
+public:
+  Item_long_func_time_field(THD *thd, Item *a)
+   :Item_long_func(thd, a) { }
+};
+
+
 class Item_func_period_add :public Item_long_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, 2); }
 public:
   Item_func_period_add(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
   longlong val_int();
@@ -50,6 +73,8 @@ public:
 
 class Item_func_period_diff :public Item_long_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, 2); }
 public:
   Item_func_period_diff(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
   longlong val_int();
@@ -64,10 +89,10 @@ public:
 };
 
 
-class Item_func_to_days :public Item_long_func
+class Item_func_to_days :public Item_long_func_date_field
 {
 public:
-  Item_func_to_days(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_to_days(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "to_days"; }
   void fix_length_and_dec()
@@ -91,6 +116,8 @@ public:
 
 class Item_func_to_seconds :public Item_longlong_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_date(0, arg_count); }
 public:
   Item_func_to_seconds(THD *thd, Item *a): Item_longlong_func(thd, a) {}
   longlong val_int();
@@ -115,10 +142,10 @@ public:
 };
 
 
-class Item_func_dayofmonth :public Item_long_func
+class Item_func_dayofmonth :public Item_long_func_date_field
 {
 public:
-  Item_func_dayofmonth(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_dayofmonth(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "dayofmonth"; }
   void fix_length_and_dec()
@@ -195,10 +222,10 @@ public:
 };
 
 
-class Item_func_dayofyear :public Item_long_func
+class Item_func_dayofyear :public Item_long_func_date_field
 {
 public:
-  Item_func_dayofyear(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_dayofyear(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "dayofyear"; }
   void fix_length_and_dec()
@@ -218,10 +245,10 @@ public:
 };
 
 
-class Item_func_hour :public Item_long_func
+class Item_func_hour :public Item_long_func_time_field
 {
 public:
-  Item_func_hour(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_hour(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "hour"; }
   void fix_length_and_dec()
@@ -241,10 +268,10 @@ public:
 };
 
 
-class Item_func_minute :public Item_long_func
+class Item_func_minute :public Item_long_func_time_field
 {
 public:
-  Item_func_minute(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_minute(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "minute"; }
   void fix_length_and_dec()
@@ -264,10 +291,10 @@ public:
 };
 
 
-class Item_func_quarter :public Item_long_func
+class Item_func_quarter :public Item_long_func_date_field
 {
 public:
-  Item_func_quarter(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_quarter(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "quarter"; }
   void fix_length_and_dec()
@@ -287,10 +314,10 @@ public:
 };
 
 
-class Item_func_second :public Item_long_func
+class Item_func_second :public Item_long_func_time_field
 {
 public:
-  Item_func_second(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_second(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "second"; }
   void fix_length_and_dec()
@@ -312,6 +339,11 @@ public:
 
 class Item_func_week :public Item_long_func
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_can_return_date(func_name()) ||
+           (arg_count > 1 && args[1]->check_type_can_return_int(func_name()));
+  }
 public:
   Item_func_week(THD *thd, Item *a): Item_long_func(thd, a) {}
   Item_func_week(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
@@ -339,8 +371,14 @@ public:
 
 class Item_func_yearweek :public Item_long_func
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_can_return_date(func_name()) ||
+           args[1]->check_type_can_return_int(func_name());
+  }
 public:
-  Item_func_yearweek(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
+  Item_func_yearweek(THD *thd, Item *a, Item *b)
+   :Item_long_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "yearweek"; }
   void fix_length_and_dec()
@@ -360,10 +398,10 @@ public:
 };
 
 
-class Item_func_year :public Item_long_func
+class Item_func_year :public Item_long_func_date_field
 {
 public:
-  Item_func_year(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_year(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "year"; }
   enum_monotonicity_info get_monotonicity_info() const;
@@ -455,7 +493,11 @@ public:
   }
   double real_op() { DBUG_ASSERT(0); return 0; }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
-  bool date_op(MYSQL_TIME *ltime, uint fuzzydate) { DBUG_ASSERT(0); return true; }
+  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
 };
 
 
@@ -780,6 +822,8 @@ public:
 
 class Item_func_from_days :public Item_datefunc
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_int(func_name()); }
 public:
   Item_func_from_days(THD *thd, Item *a): Item_datefunc(thd, a) {}
   const char *func_name() const { return "from_days"; }
@@ -836,6 +880,8 @@ public:
 
 class Item_func_from_unixtime :public Item_datetimefunc
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_decimal(func_name()); }
   Time_zone *tz;
  public:
   Item_func_from_unixtime(THD *thd, Item *a): Item_datetimefunc(thd, a) {}
@@ -863,6 +909,11 @@ class Time_zone;
 */
 class Item_func_convert_tz :public Item_datetimefunc
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_can_return_date(func_name()) ||
+           check_argument_types_can_return_text(1, arg_count);
+  }
   /*
     If time zone parameters are constants we are caching objects that
     represent them (we use separate from_tz_cached/to_tz_cached members
@@ -889,6 +940,8 @@ class Item_func_convert_tz :public Item_datetimefunc
 
 class Item_func_sec_to_time :public Item_timefunc
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_decimal(func_name()); }
 public:
   Item_func_sec_to_time(THD *thd, Item *item): Item_timefunc(thd, item) {}
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
@@ -1128,6 +1181,8 @@ public:
 
 class Item_func_makedate :public Item_datefunc
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, arg_count); }
 public:
   Item_func_makedate(THD *thd, Item *a, Item *b):
     Item_datefunc(thd, a, b) {}
@@ -1157,6 +1212,8 @@ public:
 
 class Item_func_timediff :public Item_timefunc
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_time(0, arg_count); }
 public:
   Item_func_timediff(THD *thd, Item *a, Item *b): Item_timefunc(thd, a, b) {}
   const char *func_name() const { return "timediff"; }
@@ -1173,6 +1230,11 @@ public:
 
 class Item_func_maketime :public Item_timefunc
 {
+  bool check_arguments() const
+  {
+    return check_argument_types_can_return_int(0, 2) ||
+           args[2]->check_type_can_return_decimal(func_name());
+  }
 public:
   Item_func_maketime(THD *thd, Item *a, Item *b, Item *c):
     Item_timefunc(thd, a, b, c)
@@ -1189,10 +1251,10 @@ public:
 };
 
 
-class Item_func_microsecond :public Item_long_func
+class Item_func_microsecond :public Item_long_func_time_field
 {
 public:
-  Item_func_microsecond(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_microsecond(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "microsecond"; }
   void fix_length_and_dec()
@@ -1214,6 +1276,8 @@ public:
 
 class Item_func_timestamp_diff :public Item_longlong_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_date(0, arg_count); }
   const interval_type int_type;
 public:
   Item_func_timestamp_diff(THD *thd, Item *a, Item *b, interval_type type_arg):
@@ -1279,6 +1343,8 @@ public:
 
 class Item_func_last_day :public Item_datefunc
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_date(func_name()); }
 public:
   Item_func_last_day(THD *thd, Item *a): Item_datefunc(thd, a) {}
   const char *func_name() const { return "last_day"; }

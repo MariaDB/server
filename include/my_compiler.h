@@ -159,7 +159,7 @@ marked as unlikely by the branch prediction mechanism.  optimize a
 rarely invoked function for size instead for speed. */
 #  define ATTRIBUTE_COLD __attribute__((cold))
 # endif
-#elif defined _WIN32
+#elif defined _MSC_VER
 # define ATTRIBUTE_NORETURN __declspec(noreturn)
 #else
 # define ATTRIBUTE_NORETURN /* empty */

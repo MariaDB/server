@@ -152,7 +152,7 @@ static void set_setup_actor_key(PFS_setup_actor_key *key,
   ptr+= role_length;
   ptr[0]= 0;
   ptr++;
-  key->m_key_length= ptr - &key->m_hash_key[0];
+  key->m_key_length= (uint)(ptr - &key->m_hash_key[0]);
 }
 
 int insert_setup_actor(const String *user, const String *host, const String *role)

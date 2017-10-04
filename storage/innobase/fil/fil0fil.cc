@@ -1062,32 +1062,23 @@ fil_space_extend_must_retry(
 	const ulint		page_size = pageSize.physical();
 
 #ifdef _WIN32
-	/* Logically or physically extend the file with zero bytes,
-	depending on whether it is sparse. */
-
-	/* FIXME: Call DeviceIoControl(node->handle, FSCTL_SET_SPARSE, ...)
-	when opening a file when FSP_FLAGS_HAS_PAGE_COMPRESSION(). */
-	{
-		FILE_END_OF_FILE_INFO feof;
-		/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
-		fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.
-		Do not shrink short ROW_FORMAT=COMPRESSED files. */
-		feof.EndOfFile.QuadPart = std::max(
+	os_offset_t new_file_size =
+	std::max(
 			os_offset_t(size - file_start_page_no) * page_size,
-			os_offset_t(FIL_IBD_FILE_INITIAL_SIZE
-				    * UNIV_PAGE_SIZE));
-		*success = SetFileInformationByHandle(node->handle,
-						      FileEndOfFileInfo,
-						      &feof, sizeof feof);
-		if (!*success) {
-			ib::error() << "extending file '" << node->name
-				<< "' from "
-				<< os_offset_t(node->size) * page_size
-				<< " to " << feof.EndOfFile.QuadPart
-				<< " bytes failed with " << GetLastError();
-		} else {
-			last_page_no = size;
-		}
+			os_offset_t(FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE));
+
+	/* os_file_change_size_win32() handles both compressed(sparse)
+	and normal files correctly.
+	It allocates physical storage for normal files and "virtual"
+	storage for sparse ones.*/
+	*success = os_file_change_size_win32(node->name,
+		node->handle, new_file_size);
+
+	if (*success) {
+		last_page_no = size;
+	} else {
+		ib::error() << "extending file '" << node->name
+			<< " to size " << new_file_size << " failed";
 	}
 #else
 	/* We will logically extend the file with ftruncate() if
@@ -1232,7 +1223,8 @@ fil_space_extend_must_retry(
 	default:
 		ut_ad(space->purpose == FIL_TYPE_TABLESPACE
 		      || space->purpose == FIL_TYPE_IMPORT);
-		if (space->purpose == FIL_TYPE_TABLESPACE) {
+		if (space->purpose == FIL_TYPE_TABLESPACE
+		    && !space->is_being_truncated) {
 			fil_flush_low(space);
 		}
 		return(false);
@@ -3843,7 +3835,19 @@ fil_ibd_create(
 		return(DB_ERROR);
 	}
 
-        success= false;
+	bool punch_hole = false;
+
+#ifdef _WIN32
+
+	if (FSP_FLAGS_HAS_PAGE_COMPRESSION(flags)) {
+		punch_hole = os_file_set_sparse_win32(file);
+	}
+
+	success = os_file_change_size_win32(path, file, size * UNIV_PAGE_SIZE);
+
+#else
+
+	success= false;
 #ifdef HAVE_POSIX_FALLOCATE
 	/*
 	  Extend the file using posix_fallocate(). This is required by
@@ -3882,7 +3886,7 @@ fil_ibd_create(
 	be lost after this call, if it succeeds. In this case the file
 	should be full of NULs. */
 
-	bool	punch_hole = os_is_sparse_file_supported(path, file);
+	punch_hole = os_is_sparse_file_supported(file);
 
 	if (punch_hole) {
 
@@ -3894,6 +3898,7 @@ fil_ibd_create(
 			punch_hole = false;
 		}
 	}
+#endif
 
 	ulint block_size = os_file_get_block_size(file, path);
 

@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     fprintf(stderr, "Can't find any log\n");
     goto err;
   }
-  if (init_pagecache(maria_pagecache, opt_page_buffer_size, 0, 0,
+  if (init_pagecache(maria_pagecache, (size_t)opt_page_buffer_size, 0, 0,
                      maria_block_size, 0, MY_WME) == 0)
   {
     fprintf(stderr, "Got error in init_pagecache() (errno: %d)\n", errno);
@@ -109,11 +109,11 @@ int main(int argc, char **argv)
       last_checkpoint_lsn != LSN_IMPOSSIBLE)
   {
     lsn= LSN_IMPOSSIBLE;             /* LSN set in maria_apply_log() */
-    fprintf(stdout, "Starting from checkpoint (%lu,0x%lx)\n",
+    fprintf(stdout, "Starting from checkpoint " LSN_FMT "\n",
             LSN_IN_PARTS(last_checkpoint_lsn));
   }
   else
-    fprintf(stdout, "The transaction log starts from lsn (%lu,0x%lx)\n",
+    fprintf(stdout, "The transaction log starts from lsn " LSN_FMT "\n",
             LSN_IN_PARTS(lsn));
 
   if (opt_start_from_lsn)
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
       goto err;
     }
     lsn= (LSN) opt_start_from_lsn;
-    fprintf(stdout, "Starting reading log from lsn (%lu,0x%lx)\n",
+    fprintf(stdout, "Starting reading log from lsn " LSN_FMT "\n",
             LSN_IN_PARTS(lsn));
   }
 

@@ -767,7 +767,7 @@ public:
       if (show_from != buf)
       {
         // The last new line was found in this buf, adjust offset
-        show_offset+= (show_from - buf) + 1;
+        show_offset+= (int)(show_from - buf) + 1;
         DBUG_PRINT("info", ("adjusted offset to %d", show_offset));
       }
       DBUG_PRINT("info", ("show_offset: %d", show_offset));
@@ -835,6 +835,47 @@ void revert_properties();
 
 static void handle_no_active_connection(struct st_command* command, 
   struct st_connection *cn, DYNAMIC_STRING *ds);
+
+
+/* Wrapper for fgets.Strips \r off newlines on Windows.
+   Should be used with together with my_popen().
+*/
+static char *my_fgets(char * s, int n, FILE * stream, int *len)
+{
+  char *buf = fgets(s, n, stream);
+  if (!buf)
+  {
+    *len= 0;
+    return buf;
+  }
+
+  *len = (int)strlen(buf);
+#ifdef _WIN32
+  /* Strip '\r' off newlines. */
+  if (*len > 1 && buf[*len - 2] == '\r' && buf[*len - 1] == '\n')
+  {
+    buf[*len - 2]= '\n';
+    buf[*len - 1]= 0;
+    (*len)--;
+  }
+#endif
+  return buf;
+}
+
+/*
+  Wrapper for popen().
+  On Windows, uses binary mode to workaround
+  C runtime bug mentioned in MDEV-9409
+*/
+static FILE* my_popen(const char *cmd, const char *mode)
+{
+  FILE *f= popen(cmd, mode);
+#ifdef _WIN32
+  if (f)
+    _setmode(fileno(f), O_BINARY);
+#endif
+  return f;
+}
 
 #ifdef EMBEDDED_LIBRARY
 
@@ -1785,19 +1826,20 @@ static int run_command(char* cmd,
   DBUG_ENTER("run_command");
   DBUG_PRINT("enter", ("cmd: %s", cmd));
 
-  if (!(res_file= popen(cmd, "r")))
+  if (!(res_file= my_popen(cmd, "r")))
   {
     report_or_die("popen(\"%s\", \"r\") failed", cmd);
     DBUG_RETURN(-1);
   }
 
-  while (fgets(buf, sizeof(buf), res_file))
+  int len;
+  while (my_fgets(buf, sizeof(buf), res_file, &len))
   {
     DBUG_PRINT("info", ("buf: %s", buf));
     if(ds_res)
     {
       /* Save the output of this command in the supplied string */
-      dynstr_append(ds_res, buf);
+      dynstr_append_mem(ds_res, buf,len);
     }
     else
     {
@@ -1886,14 +1928,15 @@ static int diff_check(const char *diff_name)
 
   my_snprintf(buf, sizeof(buf), "%s -v", diff_name);
 
-  if (!(res_file= popen(buf, "r")))
+  if (!(res_file= my_popen(buf, "r")))
     die("popen(\"%s\", \"r\") failed", buf);
 
   /*
     if diff is not present, nothing will be in stdout to increment
     have_diff
   */
-  if (fgets(buf, sizeof(buf), res_file))
+  int len;
+  if (my_fgets(buf, sizeof(buf), res_file, &len))
     have_diff= 1;
 
   pclose(res_file);
@@ -2657,7 +2700,7 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
     DBUG_ASSERT(query_end);
     memset(&command, 0, sizeof(command));
     command.query= (char*)query;
-    command.first_word_len= (*query_end - query);
+    command.first_word_len= (int)(*query_end - query);
     command.first_argument= command.query + command.first_word_len;
     command.end= (char*)*query_end;
     command.abort_on_error= 1; /* avoid uninitialized variables */
@@ -3246,18 +3289,6 @@ void free_tmp_sh_file()
 #endif
 
 
-FILE* my_popen(DYNAMIC_STRING *ds_cmd, const char *mode)
-{
-#if defined _WIN32 && defined USE_CYGWIN
-  /* Dump the command into a sh script file and execute with popen */
-  str_to_file(tmp_sh_name, ds_cmd->str, ds_cmd->length);
-  return popen(tmp_sh_cmd, mode);
-#else
-  return popen(ds_cmd->str, mode);
-#endif
-}
-
-
 static void init_builtin_echo(void)
 {
 #ifdef _WIN32
@@ -3392,7 +3423,7 @@ void do_exec(struct st_command *command)
   DBUG_PRINT("info", ("Executing '%s' as '%s'",
                       command->first_argument, ds_cmd.str));
 
-  if (!(res_file= my_popen(&ds_cmd, "r")))
+  if (!(res_file= my_popen(ds_cmd.str, "r")))
   {
     dynstr_free(&ds_cmd);
     if (command->abort_on_error)
@@ -3406,24 +3437,9 @@ void do_exec(struct st_command *command)
     init_dynamic_string(&ds_sorted, "", 1024, 1024);
     ds_result= &ds_sorted;
   }
-
-#ifdef _WIN32
-   /* Workaround for CRT bug, MDEV-9409 */
-  _setmode(fileno(res_file), O_BINARY);
-#endif
-
-  while (fgets(buf, sizeof(buf), res_file))
+  int len;
+  while (my_fgets(buf, sizeof(buf), res_file,&len))
   {
-    int len = (int)strlen(buf);
-#ifdef _WIN32
-    /* Strip '\r' off newlines. */
-    if (len > 1 && buf[len-2] == '\r' && buf[len-1] == '\n')
-    {
-      buf[len-2] = '\n';
-      buf[len-1] = 0;
-      len--;
-    }
-#endif
     replace_dynstr_append_mem(ds_result, buf, len);
   }
   error= pclose(res_file);
@@ -4685,7 +4701,7 @@ void do_perl(struct st_command *command)
     /* Format the "perl <filename>" command */
     my_snprintf(buf, sizeof(buf), "perl %s", temp_file_path);
 
-    if (!(res_file= popen(buf, "r")))
+    if (!(res_file= my_popen(buf, "r")))
     {
       if (command->abort_on_error)
         die("popen(\"%s\", \"r\") failed", buf);
@@ -4693,16 +4709,17 @@ void do_perl(struct st_command *command)
       DBUG_VOID_RETURN;
     }
 
-    while (fgets(buf, sizeof(buf), res_file))
+    int len;
+    while (my_fgets(buf, sizeof(buf), res_file,&len))
     {
       if (disable_result_log)
       {
-	buf[strlen(buf)-1]=0;
-	DBUG_PRINT("exec_result",("%s", buf));
+        buf[len - 1] = 0;
+        DBUG_PRINT("exec_result", ("%s", buf));
       }
       else
       {
-	replace_dynstr_append(&ds_res, buf);
+        replace_dynstr_append_mem(&ds_res, buf, len);
       }
     }
     error= pclose(res_file);
@@ -6513,7 +6530,7 @@ void do_delimiter(struct st_command* command)
   if (!(*p))
     die("Can't set empty delimiter");
 
-  delimiter_length= strmake_buf(delimiter, p) - delimiter;
+  delimiter_length= (uint)(strmake_buf(delimiter, p) - delimiter);
 
   DBUG_PRINT("exit", ("delimiter: %s", delimiter));
   command->last_argument= p + delimiter_length;
@@ -6999,7 +7016,7 @@ int read_command(struct st_command** command_ptr)
   command->first_argument= p;
 
   command->end= strend(command->query);
-  command->query_len= (command->end - command->query);
+  command->query_len= (int)(command->end - command->query);
   parser.read_lines++;
   DBUG_RETURN(0);
 }
@@ -7544,7 +7561,7 @@ void fix_win_paths(char *val, size_t len)
       DBUG_PRINT("info", ("Converted \\ to /, p: %s", p));
     }
   }
-  DBUG_PRINT("exit", (" val: %s, len: %d", val, len));
+  DBUG_PRINT("exit", (" val: %s, len: %zu", val, len));
   DBUG_VOID_RETURN;
 #endif
 }
@@ -7556,7 +7573,7 @@ void fix_win_paths(char *val, size_t len)
 */
 
 void append_field(DYNAMIC_STRING *ds, uint col_idx, MYSQL_FIELD* field,
-                  char* val, ulonglong len, my_bool is_null)
+                  char* val, size_t len, my_bool is_null)
 {
   char null[]= "NULL";
 
@@ -8552,7 +8569,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     if (flags & QUERY_PRINT_ORIGINAL_FLAG)
     {
       print_query= command->query;
-      print_len= command->end - command->query;
+      print_len= (int)(command->end - command->query);
     }
     replace_dynstr_append_mem(ds, print_query, print_len);
     dynstr_append_mem(ds, delimiter, delimiter_length);
@@ -10249,7 +10266,7 @@ void free_replace_regex()
 */
 #define SECURE_REG_BUF   if (buf_len < need_buf_len)                    \
   {                                                                     \
-    int off= res_p - buf;                                               \
+    ssize_t off= res_p - buf;                                               \
     buf= (char*)my_realloc(buf,need_buf_len,MYF(MY_WME+MY_FAE));        \
     res_p= buf + off;                                                   \
     buf_len= need_buf_len;                                              \
@@ -10274,13 +10291,15 @@ int reg_replace(char** buf_p, int* buf_len_p, char *pattern,
   regmatch_t *subs;
   char *replace_end;
   char *buf= *buf_p;
-  int len;
-  int buf_len, need_buf_len;
+  size_t len;
+  size_t buf_len, need_buf_len;
   int cflags= REG_EXTENDED | REG_DOTALL;
   int err_code;
   char *res_p,*str_p,*str_end;
 
-  buf_len= *buf_len_p;
+  DBUG_ASSERT(*buf_len_p > 0);
+
+  buf_len= (size_t)*buf_len_p;
   len= strlen(string);
   str_end= string + len;
 
@@ -10423,7 +10442,7 @@ int reg_replace(char** buf_p, int* buf_len_p, char *pattern,
     }
     else /* no match this time, just copy the string as is */
     {
-      int left_in_str= str_end-str_p;
+      size_t left_in_str= str_end-str_p;
       need_buf_len= (res_p-buf) + left_in_str;
       SECURE_REG_BUF
         memcpy(res_p,str_p,left_in_str);

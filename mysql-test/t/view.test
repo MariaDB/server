@@ -865,74 +865,6 @@ create view v1 as select * from t1;
 create view v2 as select * from v1;
 create view v3 as select v2.col1 from v2,t2 where v2.col1 = t2.col1;
 -- error ER_VIEW_PREVENT_UPDATE
-update v2 set col1 = (select max(col1) from v1);
--- error ER_VIEW_PREVENT_UPDATE
-update v2 set col1 = (select max(col1) from t1);
--- error ER_UPDATE_TABLE_USED
-update v2 set col1 = (select max(col1) from v2);
--- error ER_VIEW_PREVENT_UPDATE
-update v2,t2 set v2.col1 = (select max(col1) from v1) where v2.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update t1,t2 set t1.col1 = (select max(col1) from v1) where t1.col1 = t2.col1;
--- error ER_UPDATE_TABLE_USED
-update v1,t2 set v1.col1 = (select max(col1) from v1) where v1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update t2,v2 set v2.col1 = (select max(col1) from v1) where v2.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update t2,t1 set t1.col1 = (select max(col1) from v1) where t1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update t2,v1 set v1.col1 = (select max(col1) from v1) where v1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update v2,t2 set v2.col1 = (select max(col1) from t1) where v2.col1 = t2.col1;
--- error ER_UPDATE_TABLE_USED
-update t1,t2 set t1.col1 = (select max(col1) from t1) where t1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update v1,t2 set v1.col1 = (select max(col1) from t1) where v1.col1 = t2.col1;
--- error ER_UPDATE_TABLE_USED
-update t2,v2 set v2.col1 = (select max(col1) from t1) where v2.col1 = t2.col1;
--- error ER_UPDATE_TABLE_USED
-update t2,t1 set t1.col1 = (select max(col1) from t1) where t1.col1 = t2.col1;
--- error ER_UPDATE_TABLE_USED
-update t2,v1 set v1.col1 = (select max(col1) from t1) where v1.col1 = t2.col1;
--- error ER_UPDATE_TABLE_USED
-update v2,t2 set v2.col1 = (select max(col1) from v2) where v2.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update t1,t2 set t1.col1 = (select max(col1) from v2) where t1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update v1,t2 set v1.col1 = (select max(col1) from v2) where v1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update t2,v2 set v2.col1 = (select max(col1) from v2) where v2.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update t2,t1 set t1.col1 = (select max(col1) from v2) where t1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update t2,v1 set v1.col1 = (select max(col1) from v2) where v1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-update v3 set v3.col1 = (select max(col1) from v1);
--- error ER_VIEW_PREVENT_UPDATE
-update v3 set v3.col1 = (select max(col1) from t1);
--- error ER_VIEW_PREVENT_UPDATE
-update v3 set v3.col1 = (select max(col1) from v2);
--- error ER_UPDATE_TABLE_USED
-update v3 set v3.col1 = (select max(col1) from v3);
--- error ER_VIEW_PREVENT_UPDATE
-delete v2 from v2,t2 where (select max(col1) from v1) > 0 and v2.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-delete t1 from t1,t2 where (select max(col1) from v1) > 0 and t1.col1 = t2.col1;
--- error ER_UPDATE_TABLE_USED
-delete v1 from v1,t2 where (select max(col1) from v1) > 0 and v1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-delete v2 from v2,t2 where (select max(col1) from t1) > 0 and v2.col1 = t2.col1;
--- error ER_UPDATE_TABLE_USED
-delete t1 from t1,t2 where (select max(col1) from t1) > 0 and t1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-delete v1 from v1,t2 where (select max(col1) from t1) > 0 and v1.col1 = t2.col1;
--- error ER_UPDATE_TABLE_USED
-delete v2 from v2,t2 where (select max(col1) from v2) > 0 and v2.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-delete t1 from t1,t2 where (select max(col1) from v2) > 0 and t1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
-delete v1 from v1,t2 where (select max(col1) from v2) > 0 and v1.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
 insert into v2 values ((select max(col1) from v1));
 -- error ER_VIEW_PREVENT_UPDATE
 insert into t1 values ((select max(col1) from v1));
@@ -1803,8 +1735,6 @@ create view v1 as select f59, f60 from t1 where f59 in
          (select f59 from t1);
 -- error ER_NON_UPDATABLE_TABLE
 update v1 set f60=2345;
--- error ER_VIEW_PREVENT_UPDATE
-update t1 set f60=(select max(f60) from v1);
 drop view v1;
 drop table t1;
 

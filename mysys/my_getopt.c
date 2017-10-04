@@ -1433,7 +1433,7 @@ static uint print_name(const struct my_option *optp)
 
   for (;*s;s++)
     putchar(*s == '_' ? '-' : *s);
-  return s - optp->name;
+  return (uint)(s - optp->name);
 }
 
 /** prints option comment with indentation and wrapping.
@@ -1474,7 +1474,7 @@ static uint print_comment(const char *comment,
       putchar(' ');
   }
   printf("%s", comment);
-  return curpos + (end - comment);
+  return curpos + (int)(end - comment);
 }
 
 

@@ -7540,7 +7540,7 @@ void _ma_print_block_info(MARIA_SHARE *share, uchar *buff)
 {
   LSN lsn= lsn_korr(buff);
 
-  printf("LSN: %lu,0x%lx  type: %u  dir_entries: %u  dir_free: %u  empty_space: %u\n",
+  printf("LSN:" LSN_FMT " type: %u  dir_entries: %u  dir_free: %u  empty_space: %u\n",
          LSN_IN_PARTS(lsn),
          (uint)buff[PAGE_TYPE_OFFSET],
          (uint)buff[DIR_COUNT_OFFSET],

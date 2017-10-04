@@ -278,6 +278,7 @@ int mysql_update(THD *thd,
   killed_state killed_status= NOT_KILLED;
   Update_plan query_plan(thd->mem_root);
   Explain_update *explain;
+  TABLE_LIST *update_source_table;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
   DBUG_ENTER("mysql_update");
@@ -290,9 +291,11 @@ int mysql_update(THD *thd,
   if (mysql_handle_derived(thd->lex, DT_INIT))
     DBUG_RETURN(1);
 
-  if (table_list->is_multitable())
+  if (((update_source_table=unique_table(thd, table_list,
+                                        table_list->next_global, 0)) ||
+        table_list->is_multitable()))
   {
-    DBUG_ASSERT(table_list->view != 0);
+    DBUG_ASSERT(update_source_table || table_list->view != 0);
     DBUG_PRINT("info", ("Switch to multi-update"));
     /* pass counter value */
     thd->lex->table_count= table_count;
@@ -1540,16 +1543,6 @@ int mysql_multi_update_prepare(THD *thd)
     }
     DBUG_PRINT("info", ("table: %s  want_privilege: %u", tl->alias,
                         (uint) table->grant.want_privilege));
-    if (tl->lock_type != TL_READ &&
-        tl->lock_type != TL_READ_NO_INSERT)
-    {
-      TABLE_LIST *duplicate;
-      if ((duplicate= unique_table(thd, tl, table_list, 0)))
-      {
-        update_non_unique_table_error(table_list, "UPDATE", duplicate);
-        DBUG_RETURN(TRUE);
-      }
-    }
   }
   /*
     Set exclude_from_table_unique_test value back to FALSE. It is needed for
@@ -1595,10 +1588,9 @@ bool mysql_multi_update(THD *thd,
   List<Item> total_list;
 
   res= mysql_select(thd,
-                    table_list, select_lex->with_wild,
-                    total_list,
-                    conds, 0, (ORDER *) NULL, (ORDER *)NULL, (Item *) NULL,
-                    (ORDER *)NULL,
+                    table_list, select_lex->with_wild, total_list, conds,
+                    select_lex->order_list.elements, select_lex->order_list.first,
+                    (ORDER *)NULL, (Item *) NULL, (ORDER *)NULL,
                     options | SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
                     OPTION_SETUP_TABLES_DONE,
                     *result, unit, select_lex);
@@ -1857,6 +1849,8 @@ static bool safe_update_on_fly(THD *thd, JOIN_TAB *join_tab,
   TABLE *table= join_tab->table;
   if (unique_table(thd, table_ref, all_tables, 0))
     return 0;
+  if (join_tab->join->order) // FIXME this is probably too strong
+    return 0;
   switch (join_tab->type) {
   case JT_SYSTEM:
   case JT_CONST:
@@ -1934,6 +1928,7 @@ multi_update::initialize_tables(JOIN *join)
       }
     }
     table->prepare_for_position();
+    join->map2table[table->tablenr]->keep_current_rowid= true;
 
     /*
       enable uncacheable flag if we update a view with check option
@@ -2001,6 +1996,7 @@ loop_end:
         that we need a position to be read first.
       */
       tbl->prepare_for_position();
+      join->map2table[tbl->tablenr]->keep_current_rowid= true;
 
       Field_string *field= new Field_string(tbl->file->ref_length, 0,
                                             &field_name,

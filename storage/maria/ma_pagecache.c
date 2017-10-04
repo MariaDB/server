@@ -97,10 +97,10 @@
 
 #define PCBLOCK_INFO(B) \
   DBUG_PRINT("info", \
-             ("block: 0x%lx  fd: %lu  page: %lu  status: 0x%x  " \
-              "hshL: 0x%lx  requests: %u/%u  wrlocks: %u  rdlocks: %u  " \
+             ("block: %p  fd: %lu  page: %lu  status: 0x%x  " \
+              "hshL: %p  requests: %u/%u  wrlocks: %u  rdlocks: %u  " \
               "rdlocks_q: %u  pins: %u  type: %s", \
-              (ulong)(B), \
+              (B), \
               (ulong)((B)->hash_link ? \
                       (B)->hash_link->file.file : \
                       0), \
@@ -108,7 +108,7 @@
                       (B)->hash_link->pageno : \
                       0), \
               (uint) (B)->status,    \
-              (ulong)(B)->hash_link, \
+              (B)->hash_link, \
               (uint) (B)->requests, \
               (uint)((B)->hash_link ? \
                      (B)->hash_link->requests : \
@@ -659,9 +659,9 @@ static my_bool pagecache_fwrite(PAGECACHE *pagecache,
   /* Todo: Integrate this with write_callback so we have only one callback */
   if ((*filedesc->flush_log_callback)(&args))
     DBUG_RETURN(1);
-  DBUG_PRINT("info", ("pre_write_hook: 0x%lx  data: 0x%lx",
-                      (ulong) filedesc->pre_write_hook,
-                      (ulong) filedesc->callback_data));
+  DBUG_PRINT("info", ("pre_write_hook:%p  data: %p",
+                      filedesc->pre_write_hook,
+                      filedesc->callback_data));
   if ((*filedesc->pre_write_hook)(&args))
   {
     DBUG_PRINT("error", ("write callback problem"));
@@ -2789,7 +2789,7 @@ static void check_and_set_lsn(PAGECACHE *pagecache,
   */
   DBUG_ASSERT((block->type == PAGECACHE_LSN_PAGE) || maria_in_recovery);
   old= lsn_korr(block->buffer);
-  DBUG_PRINT("info", ("old lsn: (%lu, 0x%lx)  new lsn: (%lu, 0x%lx)",
+  DBUG_PRINT("info", ("old lsn: " LSN_FMT "  new lsn: " LSN_FMT,
                       LSN_IN_PARTS(old), LSN_IN_PARTS(lsn)));
   if (cmp_translog_addr(lsn, old) > 0)
   {
@@ -3832,8 +3832,8 @@ restart:
     block= page_link->block;
     if (block->status & (PCBLOCK_REASSIGNED | PCBLOCK_IN_SWITCH))
     {
-      DBUG_PRINT("info", ("Block 0x%0lx already is %s",
-                          (ulong) block,
+      DBUG_PRINT("info", ("Block %p already is %s",
+                          block,
                           ((block->status & PCBLOCK_REASSIGNED) ?
                            "reassigned" : "in switch")));
       PCBLOCK_INFO(block);

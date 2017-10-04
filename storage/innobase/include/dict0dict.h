@@ -1923,15 +1923,6 @@ dict_table_is_discarded(
 
 #define dict_table_is_temporary(table) (table)->is_temporary()
 
-/********************************************************************//**
-Turn-off redo-logging if temporary table. */
-UNIV_INLINE
-void
-dict_disable_redo_if_temporary(
-/*===========================*/
-	const dict_table_t*	table,	/*!< in: table to check */
-	mtr_t*			mtr);	/*!< out: mini-transaction */
-
 /*********************************************************************//**
 This function should be called whenever a page is successfully
 compressed. Updates the compression padding information. */

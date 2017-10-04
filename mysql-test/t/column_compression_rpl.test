@@ -1,0 +1,16 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--let $engine_type= myisam
+--let $engine_type2= innodb
+--source include/column_compression_rpl.inc
+
+--let $engine_type= innodb
+--let $engine_type2= innodb
+--source include/column_compression_rpl.inc
+
+--let $engine_type= myisam
+--let $engine_type2= myisam
+--source include/column_compression_rpl.inc
+
+--source include/rpl_end.inc

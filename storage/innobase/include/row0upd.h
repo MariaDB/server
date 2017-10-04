@@ -87,8 +87,7 @@ upd_field_set_field_no(
 	upd_field_t*	upd_field,	/*!< in: update vector field */
 	ulint		field_no,	/*!< in: field number in a clustered
 					index */
-	dict_index_t*	index,		/*!< in: index */
-	trx_t*		trx);		/*!< in: transaction */
+	dict_index_t*	index);
 
 /** set field number to a update vector field, marks this field is updated
 @param[in,out]	upd_field	update vector field

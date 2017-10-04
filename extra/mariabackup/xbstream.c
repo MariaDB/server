@@ -531,8 +531,8 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 	ctxt.ds_ctxt = ds_ctxt;
 	ctxt.mutex = &mutex;
 
-	tids = malloc(sizeof(pthread_t) * n_threads);
-	retvals = malloc(sizeof(void*) * n_threads);
+	tids = calloc(n_threads, sizeof(pthread_t));
+	retvals = calloc(n_threads, sizeof(void*));
 
 	for (i = 0; i < n_threads; i++)
 		pthread_create(tids + i, NULL, extract_worker_thread_func,
@@ -542,7 +542,7 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 		pthread_join(tids[i], retvals + i);
 
 	for (i = 0; i < n_threads; i++) {
-		if ((ulong)retvals[i] == XB_STREAM_READ_ERROR) {
+		if ((size_t)retvals[i] == XB_STREAM_READ_ERROR) {
 			ret = 1;
 			goto exit;
 		}

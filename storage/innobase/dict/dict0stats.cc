@@ -887,7 +887,6 @@ dict_stats_update_transient_for_index(
 		ulint	size;
 
 		mtr_start(&mtr);
-		dict_disable_redo_if_temporary(index->table, &mtr);
 
 		mtr_s_lock(dict_index_get_lock(index), &mtr);
 

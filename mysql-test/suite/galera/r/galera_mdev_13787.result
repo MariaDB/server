@@ -1,0 +1,4 @@
+connection node_1;
+create table t(a int);
+insert into t select 1;
+DROP TABLE t;

@@ -1094,8 +1094,8 @@ row_merge_read(
 	const bool	success = os_file_read_no_error_handling_int_fd(
 		request, fd, buf, ofs, srv_sort_buf_size);
 
-	/* For encrypted tables, decrypt data after reading and copy data */
-	if (log_tmp_is_encrypted()) {
+	/* If encryption is enabled decrypt buffer */
+	if (success && log_tmp_is_encrypted()) {
 		if (!log_tmp_block_decrypt(buf, srv_sort_buf_size,
 					   crypt_buf, ofs, space)) {
 			return (FALSE);
@@ -4100,7 +4100,7 @@ row_merge_file_create(
 
 	if (merge_file->fd >= 0) {
 		if (srv_disable_sort_file_cache) {
-			os_file_set_nocache((os_file_t)merge_file->fd,
+			os_file_set_nocache(merge_file->fd,
 				"row0merge.cc", "sort");
 		}
 	}

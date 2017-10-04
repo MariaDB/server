@@ -2013,7 +2013,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
 class Virtual_tmp_table: public TABLE
 {
   /**
-    Destruct collected fields. This method is called on errors only,
+    Destruct collected fields. This method can be called on errors,
     when we could not make the virtual temporary table completely,
     e.g. when some of the fields could not be created or added.
 
@@ -2024,7 +2024,10 @@ class Virtual_tmp_table: public TABLE
   void destruct_fields()
   {
     for (uint i= 0; i < s->fields; i++)
+    {
+      field[i]->free();
       delete field[i];  // to invoke the field destructor
+    }
     s->fields= 0;       // safety
   }
 
@@ -2144,7 +2147,7 @@ public:
     TABLE object ready for read and write in case of success
 */
 
-inline TABLE *
+inline Virtual_tmp_table *
 create_virtual_tmp_table(THD *thd, List<Spvar_definition> &field_list)
 {
   Virtual_tmp_table *table;

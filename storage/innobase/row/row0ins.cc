@@ -2489,9 +2489,12 @@ row_ins_index_entry_big_rec(
 
 	DEBUG_SYNC_C_IF_THD(thd, "before_row_ins_extern_latch");
 
-	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
-	dict_disable_redo_if_temporary(index->table, &mtr);
+	mtr.start();
+	if (index->table->is_temporary()) {
+		mtr.set_log_mode(MTR_LOG_NO_REDO);
+	} else {
+		mtr.set_named_space(index->space);
+	}
 
 	btr_pcur_open(index, entry, PAGE_CUR_LE, BTR_MODIFY_TREE,
 		      &pcur, &mtr);
@@ -2510,7 +2513,7 @@ row_ins_index_entry_big_rec(
 				     index, offsets);
 	}
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	btr_pcur_close(&pcur);
 

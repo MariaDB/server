@@ -993,7 +993,6 @@ err_exit:
 	ptr = trx_undo_update_rec_get_update(ptr, clust_index, type,
 					     node->trx_id,
 					     roll_ptr, info_bits,
-					     thr_get_trx(thr),
 					     node->heap, &(node->update));
 
 	/* Read to the partial row the fields that occur in indexes */

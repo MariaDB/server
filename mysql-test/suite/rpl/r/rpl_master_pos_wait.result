@@ -45,4 +45,17 @@ master_pos_wait('master-bin.000001',1000000,1,"my_slave")
 STOP SLAVE 'my_slave';
 RESET SLAVE 'my_slave' ALL;
 change master to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-13965 Parameter data type control for Item_longlong_func
+#
+SELECT MASTER_POS_WAIT('x',1,ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'master_pos_wait'
+SELECT MASTER_POS_WAIT('x',1,1,ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'master_pos_wait'
+#
+# End of 10.3 tests
+#
 include/rpl_end.inc

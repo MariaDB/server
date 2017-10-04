@@ -2423,6 +2423,31 @@ Field *Type_handler_set::make_table_field(const LEX_CSTRING *name,
 
 /*************************************************************************/
 
+/*
+   If length is not specified for a varchar parameter, set length to the
+   maximum length of the actual argument. Goals are:
+   - avoid to allocate too much unused memory for m_var_table
+   - allow length check inside the callee rather than during copy of
+     returned values in output variables.
+   - allow varchar parameter size greater than 4000
+   Default length has been stored in "decimal" member during parse.
+*/
+bool Type_handler_varchar::adjust_spparam_type(Spvar_definition *def,
+                                               Item *from) const
+{
+  if (def->decimals)
+  {
+    uint def_max_char_length= MAX_FIELD_VARCHARLENGTH / def->charset->mbmaxlen;
+    uint arg_max_length= from->max_char_length();
+    set_if_smaller(arg_max_length, def_max_char_length);
+    def->length= arg_max_length > 0 ? arg_max_length : def->decimals;
+    def->create_length_to_internal_length_string();
+  }
+  return false;
+}
+
+/*************************************************************************/
+
 uint32 Type_handler_decimal_result::max_display_length(const Item *item) const
 {
   return item->max_length;

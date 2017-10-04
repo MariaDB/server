@@ -2975,8 +2975,6 @@ public:
 
   void start(THD *thd);
 
-  const char *substatement_query(THD *thd) const;
-
   inline bool is_ps_or_view_context_analysis()
   {
     return (context_analysis_only &
@@ -3207,22 +3205,16 @@ public:
   bool sp_open_cursor(THD *thd, const LEX_CSTRING *name,
                       List<sp_assignment_lex> *parameters);
   Item_splocal *create_item_for_sp_var(LEX_CSTRING *name, sp_variable *spvar,
-                                       const char *start_in_q,
-                                       const char *end_in_q);
+                                       const char *start, const char *end);
 
   Item *create_item_ident_nosp(THD *thd, LEX_CSTRING *name);
   Item *create_item_ident_sp(THD *thd, LEX_CSTRING *name,
-                             uint start_in_q,
-                             uint length_in_q);
-  Item *create_item_ident_sp(THD *thd, LEX_CSTRING *name,
-                             const char *start_in_q,
-                             const char *end_in_q);
+                             const char *start, const char *end);
   Item *create_item_ident(THD *thd, LEX_CSTRING *name,
-                          const char *start_in_q,
-                          const char *end_in_q)
+                          const char *start, const char *end)
   {
     return sphead ?
-           create_item_ident_sp(thd, name, start_in_q, end_in_q) :
+           create_item_ident_sp(thd, name, start, end) :
            create_item_ident_nosp(thd, name);
   }
 
@@ -3249,15 +3241,15 @@ public:
       @param field      - the ROW variable field name
       @param spvar      - the variable that was previously found by name
                           using "var_name".
-      @pos_in_q         - position in the query (for binary log)
-      @length_in_q      - length in the query (for binary log)
+      @param start      - position in the query (for binary log)
+      @param end        - end in the query (for binary log)
   */
   Item_splocal *create_item_spvar_row_field(THD *thd,
                                             const LEX_CSTRING *var,
                                             const LEX_CSTRING *field,
                                             sp_variable *spvar,
-                                            uint pos_in_q,
-                                            uint length_in_q);
+                                            const char *start,
+                                            const char *end);
   /*
     Create an item from its qualified name.
     Depending on context, it can be either a ROW variable field,
@@ -3267,15 +3259,15 @@ public:
       @param thd         - THD, for mem_root
       @param a           - the first name
       @param b           - the second name
-      @param pos_in_q    - position in the query (for binary log)
-      @param length_in_q - length in the query (for binary log)
+      @param start       - position in the query (for binary log)
+      @param end         - end in the query (for binary log)
       @retval            - NULL on error, or a pointer to a new Item.
   */
   Item *create_item_ident(THD *thd,
                           const LEX_CSTRING *a,
                           const LEX_CSTRING *b,
-                          uint pos_in_q, uint length_in_q);
-
+                          const char *start,
+                          const char *end);
   /*
     Create an item from its qualified name.
     Depending on context, it can be a table field, a table field reference,
@@ -3314,23 +3306,24 @@ public:
     Create an item for a name in LIMIT clause: LIMIT var
       @param THD         - THD, for mem_root
       @param var_name    - the variable name
-      @param pos_in_q    - position in the query (for binary log)
-      @param length_in_q - length in the query (for binary log)
+      @param start       - position in the query (for binary log)
+      @param end         - end in the query (for binary log)
       @retval            - a new Item corresponding to the SP variable,
                            or NULL on error
                            (non in SP, unknown variable, wrong data type).
   */
   Item *create_item_limit(THD *thd,
                           const LEX_CSTRING *var_name,
-                          uint pos_in_q, uint length_in_q);
+                          const char *start,
+                          const char *end);
 
   /*
     Create an item for a qualified name in LIMIT clause: LIMIT var.field
       @param THD         - THD, for mem_root
       @param var_name    - the variable name
       @param field_name  - the variable field name
-      @param pos_in_q    - position in the query (for binary log)
-      @param length_in_q - length in the query (for binary log)
+      @param start       - start in the query (for binary log)
+      @param end         - end in the query (for binary log)
       @retval            - a new Item corresponding to the SP variable,
                            or NULL on error
                            (non in SP, unknown variable, unknown ROW field,
@@ -3339,7 +3332,8 @@ public:
   Item *create_item_limit(THD *thd,
                           const LEX_CSTRING *var_name,
                           const LEX_CSTRING *field_name,
-                          uint pos_in_q, uint length_in_q);
+                          const char *start,
+                          const char *end);
 
   Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
 
@@ -3422,16 +3416,7 @@ public:
   bool sp_push_goto_label(THD *thd, const LEX_CSTRING *label_name);
 
   Item_param *add_placeholder(THD *thd, const LEX_CSTRING *name,
-                              uint pos_in_query, uint len_in_query);
-  Item_param *add_placeholder(THD *thd, const LEX_CSTRING *name,
-                              const char *start, const char *end)
-  {
-    size_t pos= start - substatement_query(thd);
-    size_t len= end - start;
-    DBUG_ASSERT(pos < UINT_MAX32);
-    DBUG_ASSERT(len < UINT_MAX32);
-    return add_placeholder(thd, name, (uint) pos, (uint) len);
-  }
+                              const char *start, const char *end);
 
   /* Integer range FOR LOOP methods */
   sp_variable *sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,

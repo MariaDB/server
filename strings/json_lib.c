@@ -399,7 +399,7 @@ static int read_strn(json_engine_t *j)
     return 1;
 
   j->state= j->stack[j->stack_p];
-  j->value_len= (j->s.c_str - j->value) - 1;
+  j->value_len= (int)(j->s.c_str - j->value) - 1;
   return 0;
 }
 
@@ -537,7 +537,7 @@ static int read_num(json_engine_t *j)
   if (skip_num_constant(j) == 0)
   {
     j->value_type= JSON_VALUE_NUMBER;
-    j->value_len= j->s.c_str - j->value_begin;
+    j->value_len= (int)(j->s.c_str - j->value_begin);
     return 0;
   }
   return 1;
@@ -1494,7 +1494,7 @@ int json_append_ascii(CHARSET_INFO *json_cs,
     return c_len;
   }
 
-  return json - json_start;
+  return (int)(json - json_start);
 }
 
 
@@ -1530,7 +1530,7 @@ int json_unescape(CHARSET_INFO *json_cs,
     return -1;
   }
 
-  return s.error==JE_EOS ? res - res_b : -1;
+  return s.error==JE_EOS ? (int)(res - res_b) : -1;
 }
 
 
@@ -1645,7 +1645,7 @@ int json_escape(CHARSET_INFO *str_cs,
     }
   }
 
-  return json - json_start;
+  return (int)(json - json_start);
 }
 
 

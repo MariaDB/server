@@ -121,7 +121,7 @@ int maria_begin(MARIA_HA *info)
     if (unlikely(!trn))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-    DBUG_PRINT("info", ("TRN set to 0x%lx", (ulong) trn));
+    DBUG_PRINT("info", ("TRN set to %p", trn));
     _ma_set_trn_for_table(info, trn);
   }
   DBUG_RETURN(0);

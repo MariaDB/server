@@ -27,8 +27,8 @@ int mi_close(register MI_INFO *info)
   int error=0,flag;
   MYISAM_SHARE *share=info->s;
   DBUG_ENTER("mi_close");
-  DBUG_PRINT("enter",("base: 0x%lx  reopen: %u  locks: %u",
-		      (long) info, (uint) share->reopen,
+  DBUG_PRINT("enter",("base: %p  reopen: %u  locks: %u",
+		      info, (uint) share->reopen,
                       (uint) share->tot_locks));
 
   if (info->open_list.data)

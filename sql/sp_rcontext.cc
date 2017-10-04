@@ -51,9 +51,7 @@ sp_rcontext::sp_rcontext(const sp_pcontext *root_parsing_ctx,
 
 sp_rcontext::~sp_rcontext()
 {
-  if (m_var_table)
-    free_blobs(m_var_table);
-
+  delete m_var_table;
   // Leave m_handlers, m_handler_call_stack, m_var_items, m_cstack
   // and m_case_expr_holders untouched.
   // They are allocated in mem roots and will be freed accordingly.
@@ -63,20 +61,15 @@ sp_rcontext::~sp_rcontext()
 sp_rcontext *sp_rcontext::create(THD *thd,
                                  const sp_pcontext *root_parsing_ctx,
                                  Field *return_value_fld,
-                                 bool resolve_type_refs)
+                                 Row_definition_list &field_def_lst)
 {
   sp_rcontext *ctx= new (thd->mem_root) sp_rcontext(root_parsing_ctx,
                                                     return_value_fld,
                                                     thd->in_sub_stmt);
-
   if (!ctx)
     return NULL;
 
-  List<Spvar_definition> field_def_lst;
-  ctx->m_root_parsing_ctx->retrieve_field_definitions(&field_def_lst);
-
   if (ctx->alloc_arrays(thd) ||
-      (resolve_type_refs && ctx->resolve_type_refs(thd, field_def_lst)) ||
       ctx->init_var_table(thd, field_def_lst) ||
       ctx->init_var_items(thd, field_def_lst))
   {
@@ -85,6 +78,39 @@ sp_rcontext *sp_rcontext::create(THD *thd,
   }
 
   return ctx;
+}
+
+
+bool Row_definition_list::
+       adjust_formal_params_to_actual_params(THD *thd, List<Item> *args)
+{
+  List_iterator<Spvar_definition> it(*this);
+  List_iterator<Item> it_args(*args);
+  DBUG_ASSERT(elements >= args->elements );
+  Spvar_definition *def;
+  Item *arg;
+  while ((def= it++) && (arg= it_args++))
+  {
+    if (def->type_handler()->adjust_spparam_type(def, arg))
+      return true;
+  }
+  return false;
+}
+
+
+bool Row_definition_list::
+       adjust_formal_params_to_actual_params(THD *thd,
+                                             Item **args, uint arg_count)
+{
+  List_iterator<Spvar_definition> it(*this);
+  DBUG_ASSERT(elements >= arg_count );
+  Spvar_definition *def;
+  for (uint i= 0; (def= it++) && (i < arg_count) ; i++)
+  {
+    if (def->type_handler()->adjust_spparam_type(def, args[i]))
+      return true;
+  }
+  return false;
 }
 
 
@@ -146,8 +172,7 @@ check_column_grant_for_type_ref(THD *thd, TABLE_LIST *table_list,
 /**
   This method implementation is very close to fill_schema_table_by_open().
 */
-bool sp_rcontext::resolve_type_ref(THD *thd, Column_definition *def,
-                                   Qualified_column_ident *ref)
+bool Qualified_column_ident::resolve_type_ref(THD *thd, Column_definition *def)
 {
   Open_tables_backup open_tables_state_backup;
   thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
@@ -164,18 +189,18 @@ bool sp_rcontext::resolve_type_ref(THD *thd, Column_definition *def,
   // Make %TYPE variables see temporary tables that shadow permanent tables
   thd->temporary_tables= open_tables_state_backup.temporary_tables;
 
-  if ((table_list= lex.select_lex.add_table_to_list(thd, ref, NULL, 0,
+  if ((table_list= lex.select_lex.add_table_to_list(thd, this, NULL, 0,
                                                     TL_READ_NO_INSERT,
                                                     MDL_SHARED_READ)) &&
       !check_table_access(thd, SELECT_ACL, table_list, TRUE, UINT_MAX, FALSE) &&
       !open_tables_only_view_structure(thd, table_list,
                                        thd->mdl_context.has_locks()))
   {
-    if ((src= lex.query_tables->table->find_field_by_name(&ref->m_column)))
+    if ((src= lex.query_tables->table->find_field_by_name(&m_column)))
     {
       if (!(rc= check_column_grant_for_type_ref(thd, table_list,
-                                                ref->m_column.str,
-                                                ref->m_column.length)))
+                                                m_column.str,
+                                                m_column.length)))
       {
         *def= Column_definition(thd, src, NULL/*No defaults,no constraints*/);
         def->flags&= (uint) ~NOT_NULL_FLAG;
@@ -183,7 +208,7 @@ bool sp_rcontext::resolve_type_ref(THD *thd, Column_definition *def,
       }
     }
     else
-      my_error(ER_BAD_FIELD_ERROR, MYF(0), ref->m_column.str, ref->table.str);
+      my_error(ER_BAD_FIELD_ERROR, MYF(0), m_column.str, table.str);
   }
 
   lex.unit.cleanup();
@@ -200,9 +225,8 @@ bool sp_rcontext::resolve_type_ref(THD *thd, Column_definition *def,
      rec t1%ROWTYPE;
   It opens the table "t1" and copies its structure to %ROWTYPE variable.
 */
-bool sp_rcontext::resolve_table_rowtype_ref(THD *thd,
-                                            Row_definition_list &defs,
-                                            Table_ident *ref)
+bool Table_ident::resolve_table_rowtype_ref(THD *thd,
+                                            Row_definition_list &defs)
 {
   Open_tables_backup open_tables_state_backup;
   thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
@@ -223,7 +247,7 @@ bool sp_rcontext::resolve_table_rowtype_ref(THD *thd,
   // Make %ROWTYPE variables see temporary tables that shadow permanent tables
   thd->temporary_tables= open_tables_state_backup.temporary_tables;
 
-  if ((table_list= lex.select_lex.add_table_to_list(thd, ref, NULL, 0,
+  if ((table_list= lex.select_lex.add_table_to_list(thd, this, NULL, 0,
                                                     TL_READ_NO_INSERT,
                                                     MDL_SHARED_READ)) &&
       !check_table_access(thd, SELECT_ACL, table_list, TRUE, UINT_MAX, FALSE) &&
@@ -261,14 +285,14 @@ bool sp_rcontext::resolve_table_rowtype_ref(THD *thd,
 }
 
 
-bool sp_rcontext::resolve_type_refs(THD *thd, List<Spvar_definition> &defs)
+bool Row_definition_list::resolve_type_refs(THD *thd)
 {
-  List_iterator<Spvar_definition> it(defs);
+  List_iterator<Spvar_definition> it(*this);
   Spvar_definition *def;
   while ((def= it++))
   {
     if (def->is_column_type_ref() &&
-        resolve_type_ref(thd, def, def->column_type_ref()))
+        def->column_type_ref()->resolve_type_ref(thd, def))
       return true;
   }
   return false;
@@ -300,7 +324,7 @@ bool sp_rcontext::init_var_items(THD *thd,
       Row_definition_list defs;
       Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
       if (!(m_var_items[idx]= item) ||
-          resolve_table_rowtype_ref(thd, defs, def->table_rowtype_ref()) ||
+          def->table_rowtype_ref()->resolve_table_rowtype_ref(thd, defs) ||
           item->row_create_items(thd, &defs))
         return true;
     }
@@ -349,10 +373,16 @@ bool Item_spvar_args::row_create_items(THD *thd, List<Spvar_definition> *list)
 }
 
 
+Field *Item_spvar_args::get_row_field(uint i) const
+{
+  DBUG_ASSERT(m_table);
+  return m_table->field[i];
+}
+
+
 Item_spvar_args::~Item_spvar_args()
 {
-  if (m_table)
-    free_blobs(m_table);
+  delete m_table;
 }
 
 

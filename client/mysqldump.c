@@ -247,8 +247,8 @@ static struct my_option my_long_options[] =
    &opt_slave_apply, &opt_slave_apply, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
-   "Directory for character set files.", &charsets_dir,
-   &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "Directory for character set files.", (char **)&charsets_dir,
+   (char **)&charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"comments", 'i', "Write additional information.",
    &opt_comments, &opt_comments, 0, GET_BOOL, NO_ARG,
    1, 0, 0, 0, 0, 0},
@@ -285,8 +285,8 @@ static struct my_option my_long_options[] =
   {"debug", '#', "This is a non-debug version. Catch this and exit.",
    0,0, 0, GET_DISABLED, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #else
-  {"debug", '#', "Output debug log.", &default_dbug_option,
-   &default_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
+  {"debug", '#', "Output debug log.", (char *)&default_dbug_option,
+   (char *)&default_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
   {"debug-check", OPT_DEBUG_CHECK, "Check memory and open file usage at exit.",
    &debug_check_flag, &debug_check_flag, 0,
@@ -5733,7 +5733,7 @@ static int replace(DYNAMIC_STRING *ds_str,
     return 1;
   init_dynamic_string_checked(&ds_tmp, "",
                       ds_str->length + replace_len, 256);
-  dynstr_append_mem_checked(&ds_tmp, ds_str->str, start - ds_str->str);
+  dynstr_append_mem_checked(&ds_tmp, ds_str->str, (uint)(start - ds_str->str));
   dynstr_append_mem_checked(&ds_tmp, replace_str, replace_len);
   dynstr_append_checked(&ds_tmp, start + search_len);
   dynstr_set_checked(ds_str, ds_tmp.str);

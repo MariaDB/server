@@ -559,9 +559,9 @@ static int del(MARIA_HA *info, MARIA_KEY *key,
   MARIA_KEY ret_key;
   MARIA_PAGE next_page;
   DBUG_ENTER("del");
-  DBUG_PRINT("enter",("leaf_page: %lu  keypos: 0x%lx",
+  DBUG_PRINT("enter",("leaf_page: %lu  keypos: %p",
                       (ulong) (leaf_page->pos / share->block_size),
-		      (ulong) keypos));
+		      keypos));
   DBUG_DUMP("leaf_buff", leaf_page->buff, leaf_page->size);
 
   page_flag=   leaf_page->flag;
@@ -773,9 +773,9 @@ static int underflow(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   MARIA_KEY tmp_key, anc_key, leaf_key;
   MARIA_PAGE next_page;
   DBUG_ENTER("underflow");
-  DBUG_PRINT("enter",("leaf_page: %lu  keypos: 0x%lx",
+  DBUG_PRINT("enter",("leaf_page: %lu  keypos: %p",
                       (ulong) (leaf_page->pos / share->block_size),
-		      (ulong) keypos));
+		      keypos));
   DBUG_DUMP("anc_buff", anc_page->buff,  anc_page->size);
   DBUG_DUMP("leaf_buff", leaf_page->buff, leaf_page->size);
 
@@ -918,8 +918,8 @@ static int underflow(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
 
       anc_end_pos= anc_buff + new_anc_length;
 
-      DBUG_PRINT("test",("anc_buff: 0x%lx  anc_end_pos: 0x%lx",
-                         (long) anc_buff, (long) anc_end_pos));
+      DBUG_PRINT("test",("anc_buff:%p anc_end_pos:%p",
+                         anc_buff, anc_end_pos));
 
       if (!first_key && !_ma_get_last_key(&anc_key, anc_page, keypos))
 	goto err;
@@ -1308,8 +1308,8 @@ static uint remove_key(MARIA_KEYDEF *keyinfo, uint page_flag, uint nod_flag,
   int s_length;
   uchar *start;
   DBUG_ENTER("remove_key");
-  DBUG_PRINT("enter", ("keypos: 0x%lx  page_end: 0x%lx",
-                       (long) keypos, (long) page_end));
+  DBUG_PRINT("enter", ("keypos:%p page_end: %p",
+                       keypos, page_end));
 
   start= s_temp->key_pos= keypos;
   s_temp->changed_length= 0;

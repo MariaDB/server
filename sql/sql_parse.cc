@@ -1482,10 +1482,10 @@ uint maria_multi_check(THD *thd, char *packet, uint packet_length)
   {
     char *packet_start= packet;
     size_t subpacket_length= net_field_length((uchar **)&packet_start);
-    uint length_length= packet_start - packet;
+    size_t length_length= packet_start - packet;
     // length of command + 3 bytes where that length was stored
-    DBUG_PRINT("info", ("sub-packet length: %ld + %d  command: %x",
-                        (ulong)subpacket_length, length_length,
+    DBUG_PRINT("info", ("sub-packet length: %zu + %zu  command: %x",
+                        subpacket_length, length_length,
                         packet_start[3]));
 
     if (subpacket_length == 0 ||
@@ -1939,7 +1939,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       (The packet is guaranteed to end with an end zero)
     */
     arg_end= strend(packet);
-    uint arg_length= arg_end - packet;
+    uint arg_length= (uint)(arg_end - packet);
 
     /* Check given table name length. */
     if (packet_length - arg_length > NAME_LEN + 1 || arg_length > SAFE_NAME_LEN)
@@ -2178,7 +2178,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
     length= my_snprintf(buff, buff_len - 1,
                         "Uptime: %lu  Threads: %d  Questions: %lu  "
-                        "Slow queries: %lu  Opens: %lu  Flush tables: %lu  "
+                        "Slow queries: %lu  Opens: %lu  Flush tables: %lld  "
                         "Open tables: %u  Queries per second avg: %u.%03u",
                         uptime,
                         (int) thread_count, (ulong) thd->query_id,
@@ -2267,7 +2267,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       char *packet_start= packet;
       /* We have to store next length because it will be destroyed by '\0' */
       size_t next_subpacket_length= net_field_length((uchar **)&packet_start);
-      uint next_length_length= packet_start - packet;
+      size_t next_length_length= packet_start - packet;
       unsigned char *readbuff= net->buff;
 
       if (net_allocate_new_packet(net, thd, MYF(0)))
@@ -2282,7 +2282,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       {
         current_com++;
         size_t subpacket_length= next_subpacket_length + next_length_length;
-        uint length_length= next_length_length;
+        size_t length_length= next_length_length;
         if (subpacket_length < packet_length)
         {
           packet_start= packet + subpacket_length;
@@ -4555,6 +4555,7 @@ end_with_restore_list:
     else
       res= 0;
 
+    unit->set_limit(select_lex);
     res= mysql_multi_update_prepare(thd);
 
 #ifdef HAVE_REPLICATION
@@ -7690,7 +7691,7 @@ void create_select_for_variable(THD *thd, LEX_CSTRING *var_name)
   if ((var= get_system_var(thd, OPT_SESSION, var_name, &null_clex_str)))
   {
     end= strxmov(buff, "@@session.", var_name->str, NullS);
-    var->set_name(thd, buff, end-buff, system_charset_info);
+    var->set_name(thd, buff, (uint)(end-buff), system_charset_info);
     add_item_to_list(thd, var);
   }
   DBUG_VOID_RETURN;
@@ -9083,7 +9084,6 @@ Item * all_any_subquery_creator(THD *thd, Item *left_expr,
 
 bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
 {
-  const char *msg= 0;
   TABLE_LIST *table;
   LEX *lex= thd->lex;
   SELECT_LEX *select_lex= &lex->select_lex;
@@ -9139,15 +9139,6 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
     }
   }
 
-  if (select_lex->order_list.elements)
-    msg= "ORDER BY";
-  else if (select_lex->select_limit)
-    msg= "LIMIT";
-  if (msg)
-  {
-    my_error(ER_WRONG_USAGE, MYF(0), "UPDATE", msg);
-    DBUG_RETURN(TRUE);
-  }
   DBUG_RETURN(FALSE);
 }
 

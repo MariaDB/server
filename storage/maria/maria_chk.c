@@ -1526,8 +1526,8 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
     }
     if (share->base.born_transactional)
     {
-      printf("LSNs:                create_rename (%lu,0x%lx),"
-             " state_horizon (%lu,0x%lx), skip_redo (%lu,0x%lx)\n",
+      printf("LSNs:                create_rename " LSN_FMT ","
+             " state_horizon " LSN_FMT ", skip_redo " LSN_FMT "\n",
              LSN_IN_PARTS(share->state.create_rename_lsn),
              LSN_IN_PARTS(share->state.is_of_horizon),
              LSN_IN_PARTS(share->state.skip_redo_lsn));

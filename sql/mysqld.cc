@@ -1593,8 +1593,8 @@ static void close_connections(void)
 
   /* kill connection thread */
 #if !defined(__WIN__)
-  DBUG_PRINT("quit", ("waiting for select thread: 0x%lx",
-                      (ulong) select_thread));
+  DBUG_PRINT("quit", ("waiting for select thread: %lu",
+                      (ulong)select_thread));
 
   mysql_mutex_lock(&LOCK_start_thread);
   while (select_thread_in_use)
@@ -2897,7 +2897,7 @@ void signal_thd_deleted()
 void unlink_thd(THD *thd)
 {
   DBUG_ENTER("unlink_thd");
-  DBUG_PRINT("enter", ("thd: 0x%lx", (long) thd));
+  DBUG_PRINT("enter", ("thd: %p", thd));
 
   /*
     Do not decrement when its wsrep system thread. wsrep_applier is set for
@@ -4432,21 +4432,6 @@ static int init_common_variables()
     SYSVAR_AUTOSIZE(threadpool_size, my_getncpus());
 #endif
 
-  /* Fix host_cache_size. */
-  if (IS_SYSVAR_AUTOSIZE(&host_cache_size))
-  {
-    if (max_connections <= 628 - 128)
-      SYSVAR_AUTOSIZE(host_cache_size, 128 + max_connections);
-    else if (max_connections <= ((ulong)(2000 - 628)) * 20 + 500)
-      SYSVAR_AUTOSIZE(host_cache_size, 628 + ((max_connections - 500) / 20));
-    else
-      SYSVAR_AUTOSIZE(host_cache_size, 2000);
-  }
-
-  /* Fix back_log (back_log == 0 added for MySQL compatibility) */
-  if (back_log == 0 || IS_SYSVAR_AUTOSIZE(&back_log))
-    SYSVAR_AUTOSIZE(back_log, MY_MIN(900, (50 + max_connections / 5)));
-
   /* connections and databases needs lots of files */
   {
     uint files, wanted_files, max_open_files;
@@ -4471,7 +4456,7 @@ static int init_common_variables()
 
     if (files < wanted_files)
     {
-      if (!open_files_limit)
+      if (!open_files_limit || IS_SYSVAR_AUTOSIZE(&open_files_limit))
       {
         /*
           If we have requested too much file handles than we bring
@@ -4500,6 +4485,36 @@ static int init_common_variables()
     }
     SYSVAR_AUTOSIZE(open_files_limit, files);
   }
+
+  /*
+    Max_connections is now set.
+    Now we can fix other variables depending on this variable.
+  */
+
+  /* Fix host_cache_size */
+  if (IS_SYSVAR_AUTOSIZE(&host_cache_size))
+  {
+    /*
+      The default value is 128.
+      The autoset value is 128, plus 1 for a value of max_connections
+      up to 500, plus 1 for every increment of 20 over 500 in the
+      max_connections value, capped at 2000.
+    */
+    uint size= (HOST_CACHE_SIZE + MY_MIN(max_connections, 500) +
+                MY_MAX(((long) max_connections)-500,0)/20);
+    SYSVAR_AUTOSIZE(host_cache_size, size);
+  }
+
+  /* Fix back_log (back_log == 0 added for MySQL compatibility) */
+  if (back_log == 0 || IS_SYSVAR_AUTOSIZE(&back_log))
+  {
+    /*
+      The default value is 150.
+      The autoset value is 50 + max_connections / 5 capped at 900
+    */
+    SYSVAR_AUTOSIZE(back_log, MY_MIN(900, (50 + max_connections / 5)));
+  }
+
   unireg_init(opt_specialflag); /* Set up extern variabels */
   if (!(my_default_lc_messages=
         my_locale_by_name(lc_messages)))
@@ -4865,7 +4880,7 @@ static void init_ssl()
 					  opt_ssl_ca, opt_ssl_capath,
 					  opt_ssl_cipher, &error,
                                           opt_ssl_crl, opt_ssl_crlpath);
-    DBUG_PRINT("info",("ssl_acceptor_fd: 0x%lx", (long) ssl_acceptor_fd));
+    DBUG_PRINT("info",("ssl_acceptor_fd: %p", ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
       sql_print_warning("Failed to setup SSL");
@@ -5016,7 +5031,8 @@ static int init_server_components()
     global_system_variables.query_cache_type= 1;
   }
   query_cache_init();
-  query_cache_resize(query_cache_size);
+  DBUG_ASSERT(query_cache_size < ULONG_MAX);
+  query_cache_resize((ulong)query_cache_size);
   my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
   setup_fpu();
   init_thr_lock();
@@ -5863,7 +5879,7 @@ int mysqld_main(int argc, char **argv)
 
   ulonglong new_thread_stack_size;
   new_thread_stack_size= my_setstacksize(&connection_attrib,
-                                         my_thread_stack_size);
+                                         (size_t)my_thread_stack_size);
   if (new_thread_stack_size != my_thread_stack_size)
     SYSVAR_AUTOSIZE(my_thread_stack_size, new_thread_stack_size);
 
@@ -7920,9 +7936,9 @@ static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff,
 static int show_flush_commands(THD *thd, SHOW_VAR *var, char *buff,
                                enum enum_var_type scope)
 {
-  var->type= SHOW_LONG;
+  var->type= SHOW_LONGLONG;
   var->value= buff;
-  *((long *) buff)= (long) tdc_refresh_version();
+  *((longlong *) buff)= (longlong)tdc_refresh_version();
   return 0;
 }
 

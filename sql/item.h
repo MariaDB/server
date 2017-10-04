@@ -89,6 +89,8 @@ public:
 
 const char *dbug_print_item(Item *item);
 
+class Virtual_tmp_table;
+class sp_head;
 class Protocol;
 struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
@@ -391,6 +393,31 @@ public:
   { return NULL; }
 };
 
+
+/*
+  A helper class to calculate offset and length of a query fragment
+  - outside of SP
+  - inside an SP
+  - inside a compound block
+*/
+class Query_fragment
+{
+  uint m_pos;
+  uint m_length;
+  void set(size_t pos, size_t length)
+  {
+    DBUG_ASSERT(pos < UINT_MAX32);
+    DBUG_ASSERT(length < UINT_MAX32);
+    m_pos= (uint) pos;
+    m_length= (uint) length;
+  }
+public:
+  Query_fragment(THD *thd, sp_head *sphead, const char *start, const char *end);
+  uint pos() const { return m_pos; }
+  uint length() const { return m_length; }
+};
+
+
 /**
   This is used for items in the query that needs to be rewritten
   before binlogging
@@ -633,7 +660,8 @@ protected:
     return value;
   }
   bool get_date_with_conversion_from_item(Item *item,
-                                          MYSQL_TIME *ltime, uint fuzzydate)
+                                          MYSQL_TIME *ltime,
+                                          ulonglong fuzzydate)
   {
     DBUG_ASSERT(fixed == 1);
     return (null_value= item->get_date_with_conversion(ltime, fuzzydate));
@@ -1359,14 +1387,14 @@ public:
   virtual longlong val_datetime_packed()
   {
     MYSQL_TIME ltime;
-    uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
+    ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
     return get_date_with_conversion(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
   }
   // Get a TIME value in numeric packed format for comparison
   virtual longlong val_time_packed()
   {
     MYSQL_TIME ltime;
-    uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
+    ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
     return get_date(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
   }
   // Get a temporal value in packed DATE/DATETIME or TIME format
@@ -1684,7 +1712,12 @@ public:
   bool check_type_or_binary(const char *opname, const Type_handler *handler) const;
   bool check_type_general_purpose_string(const char *opname) const;
   bool check_type_can_return_int(const char *opname) const;
+  bool check_type_can_return_decimal(const char *opname) const;
   bool check_type_can_return_real(const char *opname) const;
+  bool check_type_can_return_str(const char *opname) const;
+  bool check_type_can_return_text(const char *opname) const;
+  bool check_type_can_return_date(const char *opname) const;
+  bool check_type_can_return_time(const char *opname) const;
   // It is not row => null inside is impossible
   virtual bool null_inside() { return 0; }
   // used in row subselects to get value of elements
@@ -2062,16 +2095,12 @@ public:
 
 class Item_spvar_args: public Item_args
 {
-  TABLE *m_table;
+  Virtual_tmp_table *m_table;
 public:
   Item_spvar_args():Item_args(), m_table(NULL) { }
   ~Item_spvar_args();
   bool row_create_items(THD *thd, List<Spvar_definition> *list);
-  Field *get_row_field(uint i) const
-  {
-    DBUG_ASSERT(m_table);
-    return m_table->field[i];
-  }
+  Field *get_row_field(uint i) const;
 };
 
 
@@ -2100,7 +2129,6 @@ public:
   Field_enumerator() {}                       /* Remove gcc warning */
 };
 
-class sp_head;
 class Item_string;
 
 

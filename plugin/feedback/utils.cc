@@ -151,7 +151,7 @@ namespace feedback {
 */
 #define INSERT2(NAME,LEN,VALUE)                       \
   do {                                                \
-    table->field[0]->store(NAME, LEN, system_charset_info); \
+    table->field[0]->store(NAME, (uint) LEN, system_charset_info); \
     table->field[1]->store VALUE;                     \
     if (schema_table_store_record(thd, table))        \
       return 1;                                       \
@@ -159,7 +159,7 @@ namespace feedback {
 
 #define INSERT1(NAME,VALUE)                           \
   do {                                                \
-    table->field[0]->store(NAME, sizeof(NAME)-1, system_charset_info); \
+    table->field[0]->store(NAME, (uint) sizeof(NAME)-1, system_charset_info); \
     table->field[1]->store VALUE;                     \
     if (schema_table_store_record(thd, table))        \
       return 1;                                       \
@@ -186,7 +186,7 @@ static my_bool show_plugins(THD *thd, plugin_ref plugin, void *arg)
                            (plugin_decl(plugin)->version) & 0xff);
 
   INSERT2(name, name_len,
-          (version, version_len, system_charset_info));
+          (version, (uint)version_len, system_charset_info));
 
   name_len= my_snprintf(name, sizeof(name), "%s used",
                         plugin_name(plugin)->str); 
@@ -358,10 +358,10 @@ int fill_linux_info(THD *thd, TABLE_LIST *tables)
 #ifdef HAVE_SYS_UTSNAME_H
   if (have_ubuf)
   {
-    INSERT1("Uname_sysname", (ubuf.sysname, strlen(ubuf.sysname), cs));
-    INSERT1("Uname_release", (ubuf.release, strlen(ubuf.release), cs));
-    INSERT1("Uname_version", (ubuf.version, strlen(ubuf.version), cs));
-    INSERT1("Uname_machine", (ubuf.machine, strlen(ubuf.machine), cs));
+    INSERT1("Uname_sysname", (ubuf.sysname, (uint) strlen(ubuf.sysname), cs));
+    INSERT1("Uname_release", (ubuf.release, (uint) strlen(ubuf.release), cs));
+    INSERT1("Uname_version", (ubuf.version, (uint) strlen(ubuf.version), cs));
+    INSERT1("Uname_machine", (ubuf.machine, (uint) strlen(ubuf.machine), cs));
   }
 #endif
 

@@ -214,8 +214,12 @@ public:
     m_sp_cache_version= version_arg;
   }
 
-  sp_rcontext *rcontext_create(THD *thd, Field *retval);
-
+  sp_rcontext *rcontext_create(THD *thd, Field *retval, List<Item> *args);
+  sp_rcontext *rcontext_create(THD *thd, Field *retval,
+                               Item **args, uint arg_count);
+  sp_rcontext *rcontext_create(THD *thd, Field *retval,
+                               Row_definition_list *list,
+                               bool switch_security_ctx);
 private:
   /**
     Version of the stored routine cache at the moment when the

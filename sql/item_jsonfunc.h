@@ -295,6 +295,12 @@ public:
 
 class Item_func_json_length: public Item_long_func
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_can_return_text(func_name()) ||
+           (arg_count > 1 &&
+            args[1]->check_type_general_purpose_string(func_name()));
+  }
 protected:
   json_path_with_flags path;
   String tmp_js;
@@ -312,6 +318,8 @@ public:
 
 class Item_func_json_depth: public Item_long_func
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_text(func_name()); }
 protected:
   String tmp_js;
 public:

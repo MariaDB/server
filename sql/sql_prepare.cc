@@ -1400,6 +1400,7 @@ static int mysql_test_update(Prepared_statement *stmt,
   int res;
   THD *thd= stmt->thd;
   uint table_count= 0;
+  TABLE_LIST *update_source_table;
   SELECT_LEX *select= &stmt->lex->select_lex;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   uint          want_privilege;
@@ -1413,9 +1414,11 @@ static int mysql_test_update(Prepared_statement *stmt,
   if (mysql_handle_derived(thd->lex, DT_INIT))
     goto error;
 
-  if (table_list->is_multitable())
+  if (((update_source_table= unique_table(thd, table_list,
+                                          table_list->next_global, 0)) ||
+        table_list->is_multitable()))
   {
-    DBUG_ASSERT(table_list->view != 0);
+    DBUG_ASSERT(update_source_table || table_list->view != 0);
     DBUG_PRINT("info", ("Switch to multi-update"));
     /* pass counter value */
     thd->lex->table_count= table_count;
@@ -3227,7 +3230,7 @@ void mysql_sql_stmt_execute(THD *thd)
     DBUG_VOID_RETURN;
   }
 
-  DBUG_PRINT("info",("stmt: 0x%lx", (long) stmt));
+  DBUG_PRINT("info",("stmt: %p", stmt));
 
   if (lex->prepared_stmt_params_fix_fields(thd))
     DBUG_VOID_RETURN;
@@ -3754,8 +3757,8 @@ void Prepared_statement::setup_set_params()
 Prepared_statement::~Prepared_statement()
 {
   DBUG_ENTER("Prepared_statement::~Prepared_statement");
-  DBUG_PRINT("enter",("stmt: 0x%lx  cursor: 0x%lx",
-                      (long) this, (long) cursor));
+  DBUG_PRINT("enter",("stmt: %p  cursor: %p",
+                      this, cursor));
   delete cursor;
   /*
     We have to call free on the items even if cleanup is called as some items,
@@ -3782,7 +3785,7 @@ Query_arena::Type Prepared_statement::type() const
 void Prepared_statement::cleanup_stmt()
 {
   DBUG_ENTER("Prepared_statement::cleanup_stmt");
-  DBUG_PRINT("enter",("stmt: 0x%lx", (long) this));
+  DBUG_PRINT("enter",("stmt: %p", this));
   lex->restore_set_statement_var();
   cleanup_items(free_list);
   thd->cleanup_after_query();

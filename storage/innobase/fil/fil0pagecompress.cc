@@ -100,6 +100,9 @@ fil_compress_page(
 	int comp_level = int(level);
 	ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
 	ulint write_size = 0;
+#if HAVE_LZO
+	lzo_uint write_size_lzo = write_size;
+#endif
 	/* Cache to avoid change during function execution */
 	ulint comp_method = innodb_compression_algorithm;
 	bool allocated = false;
@@ -182,7 +185,9 @@ fil_compress_page(
 #ifdef HAVE_LZO
 	case PAGE_LZO_ALGORITHM:
 		err = lzo1x_1_15_compress(
-			buf, len, out_buf+header_len, &write_size, out_buf+UNIV_PAGE_SIZE);
+			buf, len, out_buf+header_len, &write_size_lzo, out_buf+UNIV_PAGE_SIZE);
+
+		write_size = write_size_lzo;
 
 		if (err != LZO_E_OK || write_size > UNIV_PAGE_SIZE-header_len) {
 			goto err_exit;
@@ -516,8 +521,11 @@ fil_decompress_page(
 #ifdef HAVE_LZO
 	case PAGE_LZO_ALGORITHM: {
 		ulint olen = 0;
+		lzo_uint olen_lzo = olen;
 		err = lzo1x_decompress((const unsigned char *)buf+header_len,
-			actual_size,(unsigned char *)in_buf, &olen, NULL);
+			actual_size,(unsigned char *)in_buf, &olen_lzo, NULL);
+
+		olen = olen_lzo;
 
 		if (err != LZO_E_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
 			len = olen;

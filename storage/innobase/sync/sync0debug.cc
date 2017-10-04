@@ -49,14 +49,7 @@ my_bool		srv_sync_debug;
 /** The global mutex which protects debug info lists of all rw-locks.
 To modify the debug info list of an rw-lock, this mutex has to be
 acquired in addition to the mutex protecting the lock. */
-static ib_mutex_t		rw_lock_debug_mutex;
-
-/** If deadlock detection does not get immediately the mutex,
-it may wait for this event */
-static os_event_t		rw_lock_debug_event;
-
-/** This is set to true, if there may be waiters for the event */
-static bool			rw_lock_debug_waiters;
+static SysMutex		rw_lock_debug_mutex;
 
 /** The latch held by a thread */
 struct Latched {
@@ -1240,13 +1233,7 @@ void
 LatchDebug::init()
 	UNIV_NOTHROW
 {
-	ut_a(rw_lock_debug_event == NULL);
-
 	mutex_create(LATCH_ID_RW_LOCK_DEBUG, &rw_lock_debug_mutex);
-
-	rw_lock_debug_event = os_event_create("rw_lock_debug_event");
-
-	rw_lock_debug_waiters = FALSE;
 }
 
 /** Shutdown the latch debug checking
@@ -1257,12 +1244,6 @@ void
 LatchDebug::shutdown()
 	UNIV_NOTHROW
 {
-	ut_a(rw_lock_debug_event != NULL);
-
-	os_event_destroy(rw_lock_debug_event);
-
-	rw_lock_debug_event = NULL;
-
 	mutex_free(&rw_lock_debug_mutex);
 
 	ut_a(s_initialized);
@@ -1282,22 +1263,7 @@ mutex. */
 void
 rw_lock_debug_mutex_enter()
 {
-	for (;;) {
-
-		if (0 == mutex_enter_nowait(&rw_lock_debug_mutex)) {
-			return;
-		}
-
-		os_event_reset(rw_lock_debug_event);
-
-		rw_lock_debug_waiters = TRUE;
-
-		if (0 == mutex_enter_nowait(&rw_lock_debug_mutex)) {
-			return;
-		}
-
-		os_event_wait(rw_lock_debug_event);
-	}
+	mutex_enter(&rw_lock_debug_mutex);
 }
 
 /** Releases the debug mutex. */
@@ -1305,11 +1271,6 @@ void
 rw_lock_debug_mutex_exit()
 {
 	mutex_exit(&rw_lock_debug_mutex);
-
-	if (rw_lock_debug_waiters) {
-		rw_lock_debug_waiters = FALSE;
-		os_event_set(rw_lock_debug_event);
-	}
 }
 #endif /* UNIV_DEBUG */
 

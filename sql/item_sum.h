@@ -382,7 +382,7 @@ protected:
   */
   Item **orig_args, *tmp_orig_args[2];
   
-  static ulonglong ram_limitation(THD *thd);
+  static size_t ram_limitation(THD *thd);
 
 public:  
 

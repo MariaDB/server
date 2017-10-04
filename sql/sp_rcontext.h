@@ -34,6 +34,7 @@ class sp_instr_cpush;
 class Query_arena;
 class sp_head;
 class Item_cache;
+class Virtual_tmp_table;
 
 
 /*
@@ -71,7 +72,7 @@ public:
   static sp_rcontext *create(THD *thd,
                              const sp_pcontext *root_parsing_ctx,
                              Field *return_value_fld,
-                             bool resolve_type_refs);
+                             Row_definition_list &defs);
 
   ~sp_rcontext();
 
@@ -337,12 +338,6 @@ private:
   /// @retval true on error.
   bool init_var_table(THD *thd, List<Spvar_definition> &defs);
 
-  bool resolve_type_refs(THD *, List<Spvar_definition> &defs);
-  bool resolve_type_ref(THD *thd, Column_definition *def,
-                                  Qualified_column_ident *ref);
-  bool resolve_table_rowtype_ref(THD *thd, Row_definition_list &defs,
-                                           Table_ident *ref);
-
   /// Create and initialize an Item-adapter (Item_field) for each SP-var field.
   ///
   /// param thd Thread handle.
@@ -369,7 +364,7 @@ private:
   const sp_pcontext *m_root_parsing_ctx;
 
   /// Virtual table for storing SP-variables.
-  TABLE *m_var_table;
+  Virtual_tmp_table *m_var_table;
 
   /// Collection of Item_field proxies, each of them points to the
   /// corresponding field in m_var_table.
