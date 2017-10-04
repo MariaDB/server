@@ -92,7 +92,7 @@ static int my_b_encr_read(IO_CACHE *info, uchar *Buffer, size_t Count)
       DBUG_RETURN(1);
     }
 
-    elength= wlength - (ebuffer - wbuffer);
+    elength= wlength - (uint)(ebuffer - wbuffer);
     set_iv(iv, pos_in_file, crypt_data->inbuf_counter);
 
     if (encryption_crypt(ebuffer, elength, info->buffer, &length,
@@ -184,7 +184,7 @@ static int my_b_encr_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
       my_errno= 1;
       DBUG_RETURN(info->error= -1);
     }
-    wlength= elength + ebuffer - wbuffer;
+    wlength= elength + (uint)(ebuffer - wbuffer);
 
     if (length == info->buffer_length)
     {

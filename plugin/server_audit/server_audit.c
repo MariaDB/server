@@ -24,6 +24,7 @@
 #include <time.h>
 #include <string.h>
 #include <fcntl.h>
+#include <assert.h>
 
 #ifndef _WIN32
 #include <syslog.h>
@@ -140,7 +141,7 @@ static size_t loc_write(File Filedes, const uchar *Buffer, size_t Count)
 {
   size_t writtenbytes;
 #ifdef _WIN32
-  writtenbytes= my_win_write(Filedes, Buffer, Count);
+  writtenbytes= (size_t)_write(Filedes, Buffer, (unsigned int)Count);
 #else
   writtenbytes= write(Filedes, Buffer, Count);
 #endif
@@ -154,10 +155,29 @@ static File loc_open(const char *FileName, int Flags)
 				/* Special flags */
 {
   File fd;
-#if defined(_WIN32)
-  fd= my_win_open(FileName, Flags);
+#ifdef _WIN32
+  HANDLE h;
+  /*
+    We could just use _open() here. but prefer to open in unix-similar way
+    just like my_open() does it on Windows.
+    This gives atomic multiprocess-safe appends, and possibility to rename
+    or even delete file while it is open, and CRT lacks this features.
+  */
+  assert(Flags == (O_APPEND | O_CREAT | O_WRONLY));
+  h= CreateFile(FileName, FILE_APPEND_DATA,
+    FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, NULL,
+    OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (h == INVALID_HANDLE_VALUE)
+  {
+    fd= -1;
+    my_osmaperr(GetLastError());
+  }
+  else
+  {
+    fd= _open_osfhandle((intptr)h, O_WRONLY|O_BINARY);
+  }
 #else
-  fd = open(FileName, Flags, my_umask);
+  fd= open(FileName, Flags, my_umask);
 #endif
   my_errno= errno;
   return fd;
@@ -173,7 +193,7 @@ static int loc_close(File fd)
     err= close(fd);
   } while (err == -1 && errno == EINTR);
 #else
-  err= my_win_close(fd);
+  err= close(fd);
 #endif
   my_errno=errno;
   return err;
@@ -203,32 +223,9 @@ static int loc_rename(const char *from, const char *to)
 }
 
 
-static my_off_t loc_seek(File fd, my_off_t pos, int whence)
-{
-  os_off_t newpos= -1;
-#ifdef _WIN32
-  newpos= my_win_lseek(fd, pos, whence);
-#else
-  newpos= lseek(fd, pos, whence);
-#endif
-  if (newpos == (os_off_t) -1)
-  {
-    my_errno= errno;
-    return MY_FILEPOS_ERROR;
-  }
-
-  return (my_off_t) newpos;
-}
-
-
 static my_off_t loc_tell(File fd)
 {
-  os_off_t pos;
-#if defined (HAVE_TELL) && !defined (_WIN32)
-  pos= tell(fd);
-#else
-  pos= loc_seek(fd, 0L, MY_SEEK_CUR);
-#endif
+  os_off_t pos= IF_WIN(_telli64(fd),lseek(fd, 0, SEEK_CUR));
   if (pos == (os_off_t) -1)
   {
     my_errno= errno;
@@ -992,7 +989,7 @@ static int start_logging()
   if (output_type == OUTPUT_FILE)
   {
     char alt_path_buffer[FN_REFLEN+1+DEFAULT_FILENAME_LEN];
-    MY_STAT *f_stat;
+    struct stat *f_stat= (struct stat *)alt_path_buffer;
     const char *alt_fname= file_path;
 
     while (*alt_fname == ' ')
@@ -1007,7 +1004,7 @@ static int start_logging()
     {
       /* See if the directory exists with the name of file_path.    */
       /* Log file name should be [file_path]/server_audit.log then. */
-      if ((f_stat= my_stat(file_path, (MY_STAT *)alt_path_buffer, MYF(0))) &&
+      if (stat(file_path, (struct stat *)alt_path_buffer) == 0 &&
           S_ISDIR(f_stat->st_mode))
       {
         size_t p_len= strlen(file_path);

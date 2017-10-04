@@ -52,13 +52,24 @@ SET @@SESSION.foreign_key_checks = @old_foreign_key_checks;
 --echo # Test that TRUNCATE resets auto-increment.
 --echo #
 
-CREATE TABLE t1 (a INT PRIMARY KEY NOT NULL AUTO_INCREMENT);
-INSERT INTO t1 VALUES (NULL), (NULL);
+CREATE TABLE t1 (a INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
+ b INT, c INT, d INT, e INT, f INT, g INT, h INT, i INT, j INT, k INT,
+ l INT, m INT, n INT, o INT, p INT, q INT, r INT, s INT, t INT, u INT,
+ KEY(b),KEY(c),KEY(d),KEY(e),KEY(f),KEY(g),KEY(h),KEY(i),KEY(j),KEY(k),
+ KEY(l),KEY(m),KEY(n),KEY(o),KEY(p),KEY(q),KEY(r),KEY(s),KEY(t),KEY(u),
+ KEY(c,b),KEY(d,b),KEY(e,b),KEY(f,b),KEY(g,b),KEY(h,b),KEY(i,b),KEY(j,b),
+ KEY(k,b),KEY(l,b),KEY(m,b),KEY(n,b),KEY(o,b),KEY(p,b),KEY(q,b),KEY(r,b),
+ KEY(s,b),KEY(t,b),KEY(u,b),
+ KEY(d,c),KEY(e,c),KEY(f,c),KEY(g,c),KEY(h,c),KEY(i,c),KEY(j,c),
+ KEY(k,c),KEY(l,c),KEY(m,c),KEY(n,c),KEY(o,c),KEY(p,c),KEY(q,c),KEY(r,c),
+ KEY(s,c),KEY(t,c),KEY(u,c),
+ KEY(e,d),KEY(f,d),KEY(g,d),KEY(h,d),KEY(i,d),KEY(j,d)
+) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES (), ();
 SELECT AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES WHERE table_name = 't1';
-SELECT * FROM t1 ORDER BY a;
+SELECT a FROM t1 ORDER BY a;
 TRUNCATE TABLE t1;
 SELECT AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES WHERE table_name = 't1';
-INSERT INTO t1 VALUES (NULL), (NULL);
-SELECT * FROM t1 ORDER BY a;
+INSERT INTO t1 () VALUES (), ();
+SELECT a FROM t1 ORDER BY a;
 DROP TABLE t1;
-
