@@ -1964,9 +1964,13 @@ page_parse_copy_rec_list_to_created_page(
 		return(rec_end);
 	}
 
-	/* This function is never invoked on the clustered index root page.
+	/* This function is never invoked on the clustered index root page,
+	except in the redo log apply of
+	page_copy_rec_list_end_to_created_page() which was logged by.
+	page_copy_rec_list_to_created_page_write_log().
 	For other pages, this field must be zero-initialized. */
-	ut_ad(!page_get_instant(block->frame));
+	ut_ad(!page_get_instant(block->frame)
+	      || (page_is_root(block->frame) && index->is_dummy));
 
 	while (ptr < rec_end) {
 		ptr = page_cur_parse_insert_rec(TRUE, ptr, end_ptr,
