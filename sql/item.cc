@@ -109,6 +109,19 @@ void Item::push_note_converted_to_positive_complement(THD *thd)
 }
 
 
+longlong Item::val_datetime_packed_result()
+{
+  MYSQL_TIME ltime, tmp;
+  if (get_date_result(&ltime, TIME_FUZZY_DATES | TIME_INVALID_DATES))
+    return 0;
+  if (ltime.time_type != MYSQL_TIMESTAMP_TIME)
+    return pack_time(&ltime);
+  if ((null_value= time_to_datetime_with_warn(current_thd, &ltime, &tmp, 0)))
+    return 0;
+  return pack_time(&tmp);
+}
+
+
 /**
   Get date/time/datetime.
   Optionally extend TIME result to DATETIME.
@@ -9676,14 +9689,19 @@ bool  Item_cache_temporal::cache_value()
 {
   if (!example)
     return false;
-
   value_cached= true;
- 
-  MYSQL_TIME ltime;
-  if (example->get_date_result(&ltime, 0))
-    value=0;
-  else
-    value= pack_time(&ltime);
+  value= example->val_datetime_packed_result();
+  null_value= example->null_value;
+  return true;
+}
+
+
+bool Item_cache_time::cache_value()
+{
+  if (!example)
+    return false;
+  value_cached= true;
+  value= example->val_time_packed_result();
   null_value= example->null_value;
   return true;
 }
@@ -9734,8 +9752,8 @@ void Item_cache_temporal::store_packed(longlong val_arg, Item *example_arg)
 
 Item *Item_cache_temporal::clone_item(THD *thd)
 {
-  Item_cache_temporal *item= new (thd->mem_root)
-    Item_cache_temporal(thd, Item_cache_temporal::type_handler());
+  Item_cache *tmp= type_handler()->Item_get_cache(thd, this);
+  Item_cache_temporal *item= static_cast<Item_cache_temporal*>(tmp);
   item->store_packed(value, example);
   return item;
 }

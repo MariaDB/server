@@ -569,18 +569,24 @@ bool Arg_comparator::set_cmp_func_string()
 
 bool Arg_comparator::set_cmp_func_time()
 {
+  THD *thd= current_thd;
   m_compare_collation= &my_charset_numeric;
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_time :
                                 &Arg_comparator::compare_time;
+  a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type_handler());
   return false;
 }
 
 
 bool Arg_comparator::set_cmp_func_datetime()
 {
+  THD *thd= current_thd;
   m_compare_collation= &my_charset_numeric;
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
                                 &Arg_comparator::compare_datetime;
+  a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type_handler());
   return false;
 }
 
@@ -683,17 +689,12 @@ Item** Arg_comparator::cache_converted_constant(THD *thd_arg, Item **value,
                                                 const Type_handler *handler)
 {
   /*
-    get_datetime_value creates Item_cache internally when comparing
-    values for the first row.
-    Arg_comparator::cache_converted_constant() is never called for TIME_RESULT.
-  */
-  DBUG_ASSERT(handler->cmp_type() != TIME_RESULT);
-  /*
     Don't need cache if doing context analysis only.
   */
   if (!thd_arg->lex->is_ps_or_view_context_analysis() &&
       (*value)->const_item() &&
-      handler->cmp_type() != (*value)->cmp_type())
+      handler->type_handler_for_comparison() !=
+      (*value)->type_handler_for_comparison())
   {
     Item_cache *cache= handler->Item_get_cache(thd_arg, *value);
     cache->setup(thd_arg, *value);
@@ -750,7 +751,8 @@ get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
     if (!thd)
       thd= current_thd;
     const Type_handler *h= Type_handler::get_handler_by_field_type(f_type);
-    Item_cache_temporal *cache= new (thd->mem_root) Item_cache_temporal(thd, h);
+    Item_cache *tmp_cache= h->Item_get_cache(thd, item);
+    Item_cache_temporal *cache= static_cast<Item_cache_temporal*>(tmp_cache);
     cache->store_packed(value, item);
     *cache_arg= cache;
     *item_arg= cache_arg;
@@ -759,62 +761,56 @@ get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
 }
 
 
-/*
-  Compare items values as dates.
-
-  SYNOPSIS
-    Arg_comparator::compare_datetime()
-
-  DESCRIPTION
-    Compare items values as DATE/DATETIME for both EQUAL_FUNC and from other
-    comparison functions. The correct DATETIME values are obtained
-    with help of the get_datetime_value() function.
-
-  RETURN
-      -1   a < b or at least one item is null
-       0   a == b
-       1   a > b
-*/
-
-int Arg_comparator::compare_temporal(enum_field_types type)
+int Arg_comparator::compare_time()
 {
-  bool a_is_null, b_is_null;
-  longlong a_value, b_value;
-
+  longlong val1= (*a)->val_time_packed();
+  if (!(*a)->null_value)
+  {
+    longlong val2= (*b)->val_time_packed();
+    if (!(*b)->null_value)
+      return compare_not_null_values(val1, val2);
+  }
   if (set_null)
-    owner->null_value= 1;
-
-  /* Get DATE/DATETIME/TIME value of the 'a' item. */
-  a_value= get_datetime_value(0, &a, &a_cache, type, &a_is_null);
-  if (a_is_null)
-    return -1;
-
-  /* Get DATE/DATETIME/TIME value of the 'b' item. */
-  b_value= get_datetime_value(0, &b, &b_cache, type, &b_is_null);
-  if (b_is_null)
-    return -1;
-
-  /* Here we have two not-NULL values. */
-  if (set_null)
-    owner->null_value= 0;
-
-  /* Compare values. */
-  return a_value < b_value ? -1 : a_value > b_value ? 1 : 0;
+    owner->null_value= true;
+  return -1;
 }
 
-int Arg_comparator::compare_e_temporal(enum_field_types type)
+
+int Arg_comparator::compare_e_time()
 {
-  bool a_is_null, b_is_null;
-  longlong a_value, b_value;
-
-  /* Get DATE/DATETIME/TIME value of the 'a' item. */
-  a_value= get_datetime_value(0, &a, &a_cache, type, &a_is_null);
-
-  /* Get DATE/DATETIME/TIME value of the 'b' item. */
-  b_value= get_datetime_value(0, &b, &b_cache, type, &b_is_null);
-  return a_is_null || b_is_null ? a_is_null == b_is_null
-                                : a_value == b_value;
+  longlong val1= (*a)->val_time_packed();
+  longlong val2= (*b)->val_time_packed();
+  if ((*a)->null_value || (*b)->null_value)
+    return MY_TEST((*a)->null_value && (*b)->null_value);
+  return MY_TEST(val1 == val2);
 }
+
+
+
+int Arg_comparator::compare_datetime()
+{
+  longlong val1= (*a)->val_datetime_packed();
+  if (!(*a)->null_value)
+  {
+    longlong val2= (*b)->val_datetime_packed();
+    if (!(*b)->null_value)
+      return compare_not_null_values(val1, val2);
+  }
+  if (set_null)
+    owner->null_value= true;
+  return -1;
+}
+
+
+int Arg_comparator::compare_e_datetime()
+{
+  longlong val1= (*a)->val_datetime_packed();
+  longlong val2= (*b)->val_datetime_packed();
+  if ((*a)->null_value || (*b)->null_value)
+    return MY_TEST((*a)->null_value && (*b)->null_value);
+  return MY_TEST(val1 == val2);
+}
+
 
 int Arg_comparator::compare_string()
 {
@@ -962,13 +958,7 @@ int Arg_comparator::compare_int_signed()
   {
     longlong val2= (*b)->val_int();
     if (!(*b)->null_value)
-    {
-      if (set_null)
-        owner->null_value= 0;
-      if (val1 < val2)	return -1;
-      if (val1 == val2)   return 0;
-      return 1;
-    }
+      return compare_not_null_values(val1, val2);
   }
   if (set_null)
     owner->null_value= 1;
@@ -2112,38 +2102,40 @@ bool Item_func_between::fix_length_and_dec_numeric(THD *thd)
 }
 
 
+bool Item_func_between::fix_length_and_dec_temporal(THD *thd)
+{
+  if (!thd->lex->is_ps_or_view_context_analysis())
+  {
+    for (uint i= 0; i < 3; i ++)
+    {
+      if (args[i]->const_item() &&
+          args[i]->type_handler_for_comparison() != m_comparator.type_handler())
+      {
+        Item_cache *cache= m_comparator.type_handler()->Item_get_cache(thd, args[i]);
+        if (!cache || cache->setup(thd, args[i]))
+          return true;
+        thd->change_item_tree(&args[i], cache);
+      }
+    }
+  }
+  return false;
+}
+
+
 longlong Item_func_between::val_int_cmp_temporal()
 {
-  THD *thd= current_thd;
-  longlong value, a, b;
-  Item *cache, **ptr;
-  bool value_is_null, a_is_null, b_is_null;
-
-  ptr= &args[0];
   enum_field_types f_type= m_comparator.type_handler()->field_type();
-  value= get_datetime_value(thd, &ptr, &cache, f_type, &value_is_null);
-  if (ptr != &args[0])
-    thd->change_item_tree(&args[0], *ptr);
-
-  if ((null_value= value_is_null))
+  longlong value= args[0]->val_temporal_packed(f_type), a, b;
+  if ((null_value= args[0]->null_value))
     return 0;
-
-  ptr= &args[1];
-  a= get_datetime_value(thd, &ptr, &cache, f_type, &a_is_null);
-  if (ptr != &args[1])
-    thd->change_item_tree(&args[1], *ptr);
-
-  ptr= &args[2];
-  b= get_datetime_value(thd, &ptr, &cache, f_type, &b_is_null);
-  if (ptr != &args[2])
-    thd->change_item_tree(&args[2], *ptr);
-
-  if (!a_is_null && !b_is_null)
+  a= args[1]->val_temporal_packed(f_type);
+  b= args[2]->val_temporal_packed(f_type);
+  if (!args[1]->null_value && !args[2]->null_value)
     return (longlong) ((value >= a && value <= b) != negated);
-  if (a_is_null && b_is_null)
+  if (args[1]->null_value && args[2]->null_value)
     null_value= true;
-  else if (a_is_null)
-    null_value= value <= b;			// not null if false range.
+  else if (args[1]->null_value)
+    null_value= value <= b;                    // not null if false range.
   else
     null_value= value >= a;
   return (longlong) (!null_value && negated);

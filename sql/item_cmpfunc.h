@@ -60,9 +60,14 @@ class Arg_comparator: public Sql_alloc
 
   int set_cmp_func(Item_func_or_sum *owner_arg, Item **a1, Item **a2);
 
-  int compare_temporal(enum_field_types type);
-  int compare_e_temporal(enum_field_types type);
-
+  int compare_not_null_values(longlong val1, longlong val2)
+  {
+    if (set_null)
+      owner->null_value= false;
+    if (val1 < val2) return -1;
+    if (val1 == val2) return 0;
+    return 1;
+  }
 public:
   /* Allow owner function to use string buffers. */
   String value1, value2;
@@ -112,10 +117,10 @@ public:
   int compare_e_row();           // compare args[0] & args[1]
   int compare_real_fixed();
   int compare_e_real_fixed();
-  int compare_datetime()   { return compare_temporal(MYSQL_TYPE_DATETIME); }
-  int compare_e_datetime() { return compare_e_temporal(MYSQL_TYPE_DATETIME); }
-  int compare_time()       { return compare_temporal(MYSQL_TYPE_TIME); }
-  int compare_e_time()     { return compare_e_temporal(MYSQL_TYPE_TIME); }
+  int compare_datetime();
+  int compare_e_datetime();
+  int compare_time();
+  int compare_e_time();
   int compare_json_str_basic(Item *j, Item *s);
   int compare_json_str();
   int compare_str_json();
@@ -899,6 +904,7 @@ public:
   {
     return agg_arg_charsets_for_comparison(cmp_collation, args, 3);
   }
+  bool fix_length_and_dec_temporal(THD *);
   bool fix_length_and_dec_numeric(THD *);
   virtual void print(String *str, enum_query_type query_type);
   bool eval_not_null_tables(void *opt_arg);

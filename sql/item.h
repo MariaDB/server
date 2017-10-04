@@ -1397,6 +1397,14 @@ public:
     ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
     return get_date(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
   }
+  longlong val_datetime_packed_result();
+  longlong val_time_packed_result()
+  {
+    MYSQL_TIME ltime;
+    ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
+    return get_date_result(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
+  }
+
   // Get a temporal value in packed DATE/DATETIME or TIME format
   longlong val_temporal_packed(enum_field_types f_type)
   {
@@ -5760,8 +5768,9 @@ public:
 
 class Item_cache_temporal: public Item_cache_int
 {
-public:
+protected:
   Item_cache_temporal(THD *thd, const Type_handler *handler);
+public:
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
   longlong val_int();
@@ -5779,8 +5788,37 @@ public:
   */
   Item *clone_item(THD *thd);
   Item *convert_to_basic_const_item(THD *thd);
+};
+
+
+class Item_cache_time: public Item_cache_temporal
+{
+public:
+  Item_cache_time(THD *thd)
+   :Item_cache_temporal(thd, &type_handler_time2) { }
+  bool cache_value();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_cache_temporal>(thd, mem_root, this); }
+  { return get_item_copy<Item_cache_time>(thd, mem_root, this); }
+};
+
+
+class Item_cache_datetime: public Item_cache_temporal
+{
+public:
+  Item_cache_datetime(THD *thd)
+   :Item_cache_temporal(thd, &type_handler_datetime2) { }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_cache_datetime>(thd, mem_root, this); }
+};
+
+
+class Item_cache_date: public Item_cache_temporal
+{
+public:
+  Item_cache_date(THD *thd)
+   :Item_cache_temporal(thd, &type_handler_newdate) { }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_cache_date>(thd, mem_root, this); }
 };
 
 
