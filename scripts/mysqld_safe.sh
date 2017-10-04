@@ -245,7 +245,7 @@ wsrep_recover_position() {
   local euid=$(id -u)
   local ret=0
 
-  local wr_logfile=$(mktemp wsrep_recovery.XXXXXX)
+  local wr_logfile=$(mktemp /tmp/wsrep_recovery.XXXXXX)
 
   # safety checks
   if [ -z $wr_logfile ]; then
@@ -267,7 +267,7 @@ wsrep_recover_position() {
 
   log_notice "WSREP: Running position recovery with $wr_options"
 
-  eval_log_error "$mysqld_cmd --wsrep_recover $wr_options 2> $wr_logfile"
+  eval "$mysqld_cmd --wsrep_recover $wr_options 2> $wr_logfile"
 
   local rp="$(grep 'WSREP: Recovered position:' $wr_logfile)"
   if [ -z "$rp" ]; then

@@ -247,7 +247,7 @@ ENDIF(CONNECT_WITH_ODBC)
 #
 # JDBC with MongoDB Java Driver included but disabled
 #
-#OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
+OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
 OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 
 IF(CONNECT_WITH_JDBC)
