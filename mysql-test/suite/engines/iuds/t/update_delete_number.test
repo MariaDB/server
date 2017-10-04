@@ -495,7 +495,6 @@ drop table mt1, mt2, mt3;
 # multi* unique updating table check
 create table mt1 (col1 int);
 create table mt2 (col1 int);
--- error ER_UPDATE_TABLE_USED
 update mt1,mt2 set mt1.col1 = (select max(col1) from mt1) where mt1.col1 = mt2.col1;
 -- error ER_UPDATE_TABLE_USED
 delete mt1 from mt1,mt2 where mt1.col1 < (select max(col1) from mt1) and mt1.col1 = mt2.col1;

@@ -15,8 +15,6 @@ ERROR 42000: This version of MariaDB doesn't yet support 'LIMIT & IN/ALL/ANY/SOM
 SELECT * FROM t1 WHERE c1 = (SELECT c1 FROM t2);
 ERROR 21000: Subquery returns more than 1 row
 UPDATE t1 SET c2 = (SELECT MAX(c1) FROM t2);
-UPDATE t1 SET c1 = (SELECT MAX(c1) FROM t1);
-ERROR HY000: Table 't1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 DROP TABLE t1;
 DROP TABLE t2;
 CREATE TABLE t1 (c1 INT, c2 VARCHAR(100),c3 FLOAT);
@@ -34,8 +32,6 @@ ERROR 42000: This version of MariaDB doesn't yet support 'LIMIT & IN/ALL/ANY/SOM
 SELECT * FROM t1 WHERE c1 = (SELECT c1 FROM t2);
 ERROR 21000: Subquery returns more than 1 row
 UPDATE t1 SET c2 = (SELECT MAX(c1) FROM t2);
-UPDATE t1 SET c1 = (SELECT MAX(c1) FROM t1);
-ERROR HY000: Table 't1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 DROP TABLE t1;
 DROP TABLE t2;
 CREATE TABLE t1 (c1 INT, c2 BINARY(100),c3 FLOAT);
@@ -53,8 +49,6 @@ ERROR 42000: This version of MariaDB doesn't yet support 'LIMIT & IN/ALL/ANY/SOM
 SELECT * FROM t1 WHERE c1 = (SELECT c1 FROM t2);
 ERROR 21000: Subquery returns more than 1 row
 UPDATE t1 SET c2 = (SELECT MAX(c1) FROM t2);
-UPDATE t1 SET c1 = (SELECT MAX(c1) FROM t1);
-ERROR HY000: Table 't1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 DROP TABLE t1;
 DROP TABLE t2;
 CREATE TABLE t1 (c1 INT, c2 VARBINARY(100),c3 FLOAT);
@@ -72,7 +66,5 @@ ERROR 42000: This version of MariaDB doesn't yet support 'LIMIT & IN/ALL/ANY/SOM
 SELECT * FROM t1 WHERE c1 = (SELECT c1 FROM t2);
 ERROR 21000: Subquery returns more than 1 row
 UPDATE t1 SET c2 = (SELECT MAX(c1) FROM t2);
-UPDATE t1 SET c1 = (SELECT MAX(c1) FROM t1);
-ERROR HY000: Table 't1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 DROP TABLE t1;
 DROP TABLE t2;
