@@ -3,7 +3,6 @@
 # Tests for setting innodb-page-size=16k; default value
 
 --source include/have_innodb.inc
---source include/have_innodb_16k.inc
 SET default_storage_engine=InnoDB;
 
 --disable_query_log
@@ -42,10 +41,7 @@ SELECT variable_value FROM information_schema.global_status
 --disable_query_log
 --let table_stats_id = `SELECT table_id FROM information_schema.innodb_sys_tables WHERE name = 'mysql/innodb_table_stats'`
 --let index_stats_id = `SELECT table_id FROM information_schema.innodb_sys_tables WHERE name = 'mysql/innodb_index_stats'`
---let $rep_table_1 = `SELECT table_id FROM information_schema.innodb_sys_tables WHERE name = 'mysql/slave_master_info'`
---let $rep_table_2 = `SELECT table_id FROM information_schema.innodb_sys_tables WHERE name = 'mysql/slave_relay_log_info'`
---let $rep_table_3 = `SELECT table_id FROM information_schema.innodb_sys_tables WHERE name = 'mysql/slave_worker_info'`
---eval SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE table_id NOT IN ($table_stats_id, $index_stats_id, $rep_table_1, $rep_table_2, $rep_table_3);
+--eval SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE table_id NOT IN ($table_stats_id, $index_stats_id);
 --enable_query_log
 CREATE TABLE t1 (a INT KEY, b TEXT) ROW_FORMAT=REDUNDANT ENGINE=innodb;
 CREATE TABLE t2 (a INT KEY, b TEXT) ROW_FORMAT=COMPACT ENGINE=innodb;
@@ -286,19 +282,19 @@ DROP TABLE t1;
 SET SESSION innodb_strict_mode = ON;
 SET GLOBAL innodb_file_per_table = OFF;
 SHOW VARIABLES LIKE 'innodb_file_per_table';
---error ER_ILLEGAL_HA
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE t4 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=8;
 SHOW WARNINGS;
---error ER_ILLEGAL_HA
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE t5 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=16;
 SHOW WARNINGS;
 SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_file_format = `Antelope`;
 SHOW VARIABLES LIKE 'innodb_file%';
---error ER_ILLEGAL_HA
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE t4 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=8;
 SHOW WARNINGS;
---error ER_ILLEGAL_HA
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE t5 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=16;
 SHOW WARNINGS;
 SET GLOBAL innodb_file_format = `Barracuda`;
