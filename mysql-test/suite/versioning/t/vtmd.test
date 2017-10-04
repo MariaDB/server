@@ -193,6 +193,10 @@ set versioning_hide= auto;
 create or replace table u0_vtmd (x int) with system versioning;
 show tables;
 
+set versioning_alter_history= survive;
+create or replace table t (x int) with system versioning;
+select * from t for system_time all;
+
 drop database db0;
 drop database db1;
 drop database test;

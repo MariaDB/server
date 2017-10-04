@@ -547,7 +547,7 @@ VTMD_table::find_archive_name(THD *thd, String &out)
 
   while (!(error= info.read_record(&info)) && !thd->killed && !thd->is_error())
   {
-    if (select->skip_record(thd) > 0)
+    if (!select || select->skip_record(thd) > 0)
     {
       vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
       break;
