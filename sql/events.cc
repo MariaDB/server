@@ -420,7 +420,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
   DBUG_RETURN(ret);
 #ifdef WITH_WSREP
  error:
-  DBUG_RETURN(true);
+  DBUG_RETURN(TRUE);
 #endif /* WITH_WSREP */
 }
 
