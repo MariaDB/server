@@ -2175,7 +2175,8 @@ page_copy_rec_list_end_to_created_page(
 
 	*reinterpret_cast<uint16_t*>(PAGE_HEADER + PAGE_LAST_INSERT + new_page)
 		= 0;
-	new_page[PAGE_HEADER + PAGE_DIRECTION_B] = PAGE_NO_DIRECTION;
+	page_ptr_set_direction(PAGE_HEADER + PAGE_DIRECTION_B + new_page,
+			       PAGE_NO_DIRECTION);
 	*reinterpret_cast<uint16_t*>(PAGE_HEADER + PAGE_N_DIRECTION + new_page)
 		= 0;
 }
