@@ -292,8 +292,8 @@ buf_read_ahead_random(
 			     node != NULL;
 			     node = UT_LIST_GET_NEXT(chain, node)) {
 
-				size += os_file_get_size(node->handle)
-					/ page_size.physical();
+				size += ulint(os_file_get_size(node->handle)
+					/ page_size.physical());
 			}
 
 			ut_ad(size == space->size);

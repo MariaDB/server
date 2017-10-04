@@ -2,12 +2,6 @@
 # Test of update statement that uses many tables.
 #
 
-# Requires grants, so won't work with embedded server test
-source include/not_embedded.inc;
-source include/have_log_bin.inc;
-
-CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
-
 create table t1(id1 int not null auto_increment primary key, t char(12));
 create table t2(id2 int not null, t char(12));
 create table t3(id3 int not null, t char(12), index(id3));
@@ -376,6 +370,7 @@ connection root;
 revoke all privileges on mysqltest.t1 from mysqltest_1@localhost;
 revoke all privileges on mysqltest.* from mysqltest_1@localhost;
 delete from mysql.user where user=_binary'mysqltest_1';
+flush privileges;
 drop database mysqltest;
 connection default;
 disconnect user1;
@@ -396,7 +391,6 @@ drop table t1, t2, t3;
 #
 create table t1 (col1 int);
 create table t2 (col1 int);
--- error ER_UPDATE_TABLE_USED
 update t1,t2 set t1.col1 = (select max(col1) from t1) where t1.col1 = t2.col1;
 -- error ER_UPDATE_TABLE_USED
 delete t1 from t1,t2 where t1.col1 < (select max(col1) from t1) and t1.col1 = t2.col1;
@@ -496,84 +490,6 @@ delete t1.*,t2.* from t1,t2 where t1.i2=t2.id;
 select * from t1 order by i1;
 select * from t2 order by id;
 drop table t1, t2;
-
-#
-# Bug#27716 multi-update did partially and has not binlogged
-#
-
-CREATE TABLE `t1` (
-  `a` int(11) NOT NULL auto_increment,
-  `b` int(11) default NULL,
-  PRIMARY KEY  (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 ;
-
-CREATE TABLE `t2` (
-  `a` int(11) NOT NULL auto_increment,
-  `b` int(11) default NULL,
-  PRIMARY KEY  (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 ;
-
-# as the test is about to see erroed queries in binlog
-set @sav_binlog_format=  @@session.binlog_format;
-set @@session.binlog_format= mixed;
-
-
-# A. testing multi_update::send_error() effective update
-insert into t1 values (1,1),(2,2);
-insert into t2 values (1,1),(4,4);
-reset master;
---error ER_DUP_ENTRY
-UPDATE t2,t1 SET t2.a=t1.a+2;
-# check
-select * from t2 /* must be (3,1), (4,4) */;
-source include/show_binlog_events.inc;
-
-# B. testing multi_update::send_error() ineffective update
-# (as there is a policy described at mysql_update() still go to binlog)
-delete from t1;
-delete from t2;
-insert into t1 values (1,2),(3,4),(4,4);
-insert into t2 values (1,2),(3,4),(4,4);
-reset master;
---error ER_DUP_ENTRY
-UPDATE t2,t1  SET t2.a=t2.b where t2.a=t1.a;
-source include/show_binlog_events.inc;
-
-# cleanup
-drop table t1, t2;
-set @@session.binlog_format= @sav_binlog_format;
-
-#
-# Bug#29136 erred multi-delete on trans table does not rollback
-#
-
-# prepare
-CREATE TABLE t1 (a int, PRIMARY KEY (a));
-CREATE TABLE t2 (a int, PRIMARY KEY (a));
-CREATE TABLE t3 (a int, PRIMARY KEY (a)) ENGINE=MyISAM;
-create trigger trg_del_t3 before  delete on t3 for each row insert into t1 values (1);
-
-insert into t2 values (1),(2);
-insert into t3 values (1),(2);
-reset master;
-
-# exec cases B, A - see innodb.test
-
-# B. send_eof() and send_error() afterward
-
---error ER_DUP_ENTRY
-delete t3.* from t2,t3 where t2.a=t3.a;
-
-# check
-select count(*) from t1 /* must be 1 */;
-select count(*) from t3 /* must be 1 */;
-
-# cleanup
-drop table t1, t2, t3;
-
-#
-# Add further tests from here
-#
 
 --echo #
 --echo # Bug#49534: multitable IGNORE update with sql_safe_updates error
@@ -984,3 +900,17 @@ deallocate prepare stmt1;
 drop view v3,v2,v1;
 drop table t1,t2,t3;
 --echo end of 5.5 tests
+
+#
+# MDEV-13911 Support ORDER BY and LIMIT in multi-table update
+#
+
+create table t1 (c1 int, c3 int);
+insert t1(c3) values (1), (2), (3), (4), (5), (6), (7), (8);
+create table t2 select * from t1;
+update t1, t2 set t1.c1=t2.c3 where t1.c3=t2.c3 order by t1.c3 limit 3;
+select * from t1;
+update t1 set c1=NULL;
+update t1, t2 set t1.c1=t2.c3 where t1.c3=t2.c3 order by t1.c3 desc limit 2;
+select * from t1;
+drop table t1, t2;

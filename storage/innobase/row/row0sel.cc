@@ -1657,8 +1657,7 @@ table_loop:
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (consistent_read && plan->unique_search && !plan->pcur_is_open
-	    && !plan->must_get_clust
-	    && !plan->table->big_rows) {
+	    && !plan->must_get_clust) {
 		if (!search_latch_locked) {
 			btr_search_s_lock(index);
 
@@ -2085,8 +2084,7 @@ skip_lock:
 	ut_ad(plan->pcur.latch_mode == BTR_SEARCH_LEAF);
 
 	if ((plan->n_rows_fetched <= SEL_PREFETCH_LIMIT)
-	    || plan->unique_search || plan->no_prefetch
-	    || plan->table->big_rows) {
+	    || plan->unique_search || plan->no_prefetch) {
 
 		/* No prefetch in operation: go to the next table */
 

@@ -80,7 +80,7 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
                      my_socket sd, uint flags)
 {
   DBUG_ENTER("vio_init");
-  DBUG_PRINT("enter", ("type: %d  sd: %d  flags: %d", type, sd, flags));
+  DBUG_PRINT("enter", ("type: %d  sd: %d  flags: %d", type, (int)sd, flags));
 
 #ifndef HAVE_VIO_READ_BUFF
   flags&= ~VIO_BUFFERED_READ;
@@ -249,7 +249,7 @@ Vio *mysql_socket_vio_new(MYSQL_SOCKET mysql_socket, enum enum_vio_type type, ui
   Vio *vio;
   my_socket sd= mysql_socket_getfd(mysql_socket);
   DBUG_ENTER("mysql_socket_vio_new");
-  DBUG_PRINT("enter", ("sd: %d", sd));
+  DBUG_PRINT("enter", ("sd: %d", (int)sd));
   if ((vio = (Vio*) my_malloc(sizeof(*vio),MYF(MY_WME))))
   {
     vio_init(vio, type, sd, flags);
@@ -266,7 +266,7 @@ Vio *vio_new(my_socket sd, enum enum_vio_type type, uint flags)
   Vio *vio;
   MYSQL_SOCKET mysql_socket= MYSQL_INVALID_SOCKET;
   DBUG_ENTER("vio_new");
-  DBUG_PRINT("enter", ("sd: %d", sd));
+  DBUG_PRINT("enter", ("sd: %d", (int)sd));
 
   mysql_socket_setfd(&mysql_socket, sd);
   vio = mysql_socket_vio_new(mysql_socket, type, flags);

@@ -145,9 +145,9 @@ size_t vio_read(Vio *vio, uchar *buf, size_t size)
   ssize_t ret;
   int flags= 0;
   DBUG_ENTER("vio_read");
-  DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %d",
-                       mysql_socket_getfd(vio->mysql_socket), buf,
-                       (int) size));
+  DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %zu",
+                       (int)mysql_socket_getfd(vio->mysql_socket), buf,
+                       size));
 
   /* Ensure nobody uses vio_read_buff and vio_read simultaneously. */
   DBUG_ASSERT(vio->read_end == vio->read_pos);
@@ -212,9 +212,9 @@ size_t vio_read_buff(Vio *vio, uchar* buf, size_t size)
   size_t rc;
 #define VIO_UNBUFFERED_READ_MIN_SIZE 2048
   DBUG_ENTER("vio_read_buff");
-  DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %d",
-                       mysql_socket_getfd(vio->mysql_socket),
-                       buf, (int) size));
+  DBUG_PRINT("enter", ("sd: %d  buf: %p  size:%zu",
+                       (int)mysql_socket_getfd(vio->mysql_socket),
+                       buf, size));
 
   if (vio->read_pos < vio->read_end)
   {
@@ -259,9 +259,9 @@ size_t vio_write(Vio *vio, const uchar* buf, size_t size)
   ssize_t ret;
   int flags= 0;
   DBUG_ENTER("vio_write");
-  DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %d",
-                       mysql_socket_getfd(vio->mysql_socket), buf,
-                       (int) size));
+  DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %zu",
+                       (int)mysql_socket_getfd(vio->mysql_socket), buf,
+                       size));
 
   /* If timeout is enabled, do not block. */
   if (vio->write_timeout >= 0)
@@ -509,7 +509,7 @@ int vio_keepalive(Vio* vio, my_bool set_keep_alive)
   uint opt = 0;
   DBUG_ENTER("vio_keepalive");
   DBUG_PRINT("enter", ("sd: %d  set_keep_alive: %d",
-                       mysql_socket_getfd(vio->mysql_socket),
+                       (int)mysql_socket_getfd(vio->mysql_socket),
                        (int)set_keep_alive));
 
   if (vio->type != VIO_TYPE_NAMEDPIPE && vio->type != VIO_TYPE_SHARED_MEMORY)
@@ -563,7 +563,7 @@ int vio_close(Vio *vio)
 {
   int r=0;
   DBUG_ENTER("vio_close");
-  DBUG_PRINT("enter", ("sd: %d", mysql_socket_getfd(vio->mysql_socket)));
+  DBUG_PRINT("enter", ("sd: %d", (int)mysql_socket_getfd(vio->mysql_socket)));
 
   if (vio->type != VIO_CLOSED)
   {

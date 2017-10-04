@@ -720,8 +720,8 @@ Sp_handler::db_find_and_cache_routine(THD *thd,
   if (rc == SP_OK)
   {
     sp_cache_insert(get_cache(thd), *sp);
-    DBUG_PRINT("info", ("added new: 0x%lx, level: %lu, flags %x",
-                        (ulong) sp[0], sp[0]->m_recursion_level,
+    DBUG_PRINT("info", ("added new: %p, level: %lu, flags %x",
+                        sp[0], sp[0]->m_recursion_level,
                         sp[0]->m_flags));
   }
   return rc;
@@ -1775,11 +1775,11 @@ Sp_handler::sp_clone_and_link_routine(THD *thd,
   String retstr(64);
   retstr.set_charset(sp->get_creation_ctx()->get_client_cs());
 
-  DBUG_PRINT("info", ("found: 0x%lx", (ulong)sp));
+  DBUG_PRINT("info", ("found: %p", sp));
   if (sp->m_first_free_instance)
   {
-    DBUG_PRINT("info", ("first free: 0x%lx  level: %lu  flags %x",
-                        (ulong)sp->m_first_free_instance,
+    DBUG_PRINT("info", ("first free: %p  level: %lu  flags %x",
+                        sp->m_first_free_instance,
                         sp->m_first_free_instance->m_recursion_level,
                         sp->m_first_free_instance->m_flags));
     DBUG_ASSERT(!(sp->m_first_free_instance->m_flags & sp_head::IS_INVOKED));
@@ -1819,8 +1819,8 @@ Sp_handler::sp_clone_and_link_routine(THD *thd,
     new_sp->m_recursion_level= level;
     new_sp->m_first_instance= sp;
     sp->m_last_cached_sp= sp->m_first_free_instance= new_sp;
-    DBUG_PRINT("info", ("added level: 0x%lx, level: %lu, flags %x",
-                        (ulong)new_sp, new_sp->m_recursion_level,
+    DBUG_PRINT("info", ("added level: %p, level: %lu, flags %x",
+                        new_sp, new_sp->m_recursion_level,
                         new_sp->m_flags));
     DBUG_RETURN(new_sp);
   }

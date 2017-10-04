@@ -253,8 +253,6 @@ void my_parameter_handler(const wchar_t * expression, const wchar_t * function,
                           const wchar_t * file, unsigned int line,
                           uintptr_t pReserved)
 {
-  DBUG_PRINT("my",("Expression: %s  function: %s  file: %s, line: %d",
-		   expression, function, file, line));
   __debugbreak();
 }
 

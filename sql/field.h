@@ -4071,15 +4071,16 @@ public:
   }
   void create_length_to_internal_length_simple()
   {
-    key_length= pack_length= type_handler()->calc_pack_length(length);
+    key_length= pack_length= type_handler()->calc_pack_length((uint32) length);
   }
   void create_length_to_internal_length_string()
   {
     length*= charset->mbmaxlen;
     if (real_field_type() == MYSQL_TYPE_VARCHAR && compression_method())
       length++;
-    key_length= length;
-    pack_length= type_handler()->calc_pack_length(length);
+    DBUG_ASSERT(length <= UINT_MAX32);
+    key_length= (uint) length;
+    pack_length= type_handler()->calc_pack_length((uint32) length);
   }
   void create_length_to_internal_length_typelib()
   {

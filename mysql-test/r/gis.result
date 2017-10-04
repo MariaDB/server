@@ -4668,5 +4668,255 @@ ERROR HY000: Illegal parameter data type varchar for operation 'st_touches'
 SELECT MBRTOUCHES(POINT(1,1), 'test');
 ERROR HY000: Illegal parameter data type varchar for operation 'st_touches'
 #
+# MDEV-13964 Parameter data type control for Item_real_func
+#
+SELECT EXP(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'exp'
+SELECT LN(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'ln'
+SELECT LOG2(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'log2'
+SELECT LOG10(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'log10'
+SELECT SQRT(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'sqrt'
+SELECT ACOS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'acos'
+SELECT ASIN(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'asin'
+SELECT COS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'cos'
+SELECT SIN(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'sin'
+SELECT TAN(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'tan'
+SELECT COT(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'cot'
+SELECT LOG(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'log'
+SELECT LOG(POINT(1,1),POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'log'
+SELECT LOG(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'log'
+SELECT ATAN(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'atan'
+SELECT ATAN(POINT(1,1),POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'atan'
+SELECT ATAN(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'atan'
+SELECT POW(POINT(1,1),POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'pow'
+SELECT RAND(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'rand'
+SELECT RADIANS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'radians'
+SELECT DEGREES(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'degrees'
+SELECT EXP(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'exp'
+SELECT LN(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'ln'
+SELECT LOG2(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'log2'
+SELECT LOG10(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'log10'
+SELECT SQRT(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'sqrt'
+SELECT ACOS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'acos'
+SELECT ASIN(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'asin'
+SELECT COS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'cos'
+SELECT SIN(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'sin'
+SELECT TAN(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'tan'
+SELECT COT(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'cot'
+SELECT LOG(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'log'
+SELECT LOG(ROW(1,1),ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'log'
+SELECT LOG(1, ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'log'
+SELECT ATAN(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'atan'
+SELECT ATAN(ROW(1,1),ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'atan'
+SELECT ATAN(1, ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'atan'
+SELECT POW(ROW(1,1),ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'pow'
+SELECT RAND(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'rand'
+SELECT RADIANS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'radians'
+SELECT DEGREES(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'degrees'
+#
+# MDEV-13965 Parameter data type control for Item_longlong_func
+#
+SELECT POINT(1,1) | 1;
+ERROR HY000: Illegal parameter data type geometry for operation '|'
+SELECT 1 | POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation '|'
+SELECT POINT(1,1) & 1;
+ERROR HY000: Illegal parameter data type geometry for operation '&'
+SELECT 1 & POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation '&'
+SELECT POINT(1,1) << 1;
+ERROR HY000: Illegal parameter data type geometry for operation '<<'
+SELECT 1 << POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation '<<'
+SELECT POINT(1,1) >> 1;
+ERROR HY000: Illegal parameter data type geometry for operation '>>'
+SELECT 1 >> POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation '>>'
+SELECT ~POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation '~'
+SELECT TO_SECONDS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'to_seconds'
+SELECT TIMESTAMPDIFF(SECOND,POINT(1,1), 1);
+ERROR HY000: Illegal parameter data type geometry for operation 'timestampdiff'
+SELECT TIMESTAMPDIFF(SECOND,1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'timestampdiff'
+SELECT INET_ATON(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'inet_aton'
+SELECT LAST_INSERT_ID(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'last_insert_id'
+#
+# MDEV-13966 Parameter data type control for Item_temporal_func
+#
+SELECT FROM_DAYS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'from_days'
+SELECT MAKEDATE(POINT(1,1),1);
+ERROR HY000: Illegal parameter data type geometry for operation 'makedate'
+SELECT MAKEDATE(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'makedate'
+SELECT LAST_DAY(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'last_day'
+SELECT SEC_TO_TIME(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'sec_to_time'
+SELECT TIMEDIFF(POINT(1,1),1);
+ERROR HY000: Illegal parameter data type geometry for operation 'timediff'
+SELECT TIMEDIFF(1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'timediff'
+SELECT MAKETIME(POINT(1,1),1,1);
+ERROR HY000: Illegal parameter data type geometry for operation 'maketime'
+SELECT MAKETIME(1, POINT(1,1), 1);
+ERROR HY000: Illegal parameter data type geometry for operation 'maketime'
+SELECT MAKETIME(1, 1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'maketime'
+SELECT FROM_UNIXTIME(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'from_unixtime'
+SELECT CONVERT_TZ(POINT(1,1),1,1);
+ERROR HY000: Illegal parameter data type geometry for operation 'convert_tz'
+SELECT CONVERT_TZ(1, POINT(1,1), 1);
+ERROR HY000: Illegal parameter data type geometry for operation 'convert_tz'
+SELECT CONVERT_TZ(1, 1, POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'convert_tz'
+#
+# MDEV-13967 Parameter data type control for Item_long_func
+#
+SELECT STRCMP(POINT(1,1),POINT(1,1));
+STRCMP(POINT(1,1),POINT(1,1))
+0
+SELECT CHAR_LENGTH(POINT(1,1));
+CHAR_LENGTH(POINT(1,1))
+25
+SELECT OCTET_LENGTH(POINT(1,1));
+OCTET_LENGTH(POINT(1,1))
+25
+SELECT UNCOMPRESSED_LENGTH(POINT(1,1));
+UNCOMPRESSED_LENGTH(POINT(1,1))
+0
+SELECT COERCIBILITY(POINT(1,1));
+COERCIBILITY(POINT(1,1))
+4
+SELECT ASCII(POINT(1,1));
+ASCII(POINT(1,1))
+0
+SELECT CRC32(POINT(1,1));
+CRC32(POINT(1,1))
+1349318989
+SELECT ORD(POINT(1,1));
+ORD(POINT(1,1))
+0
+SELECT SIGN(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'sign'
+SELECT LOCATE('a','a',POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'locate'
+SELECT LOCATE(POINT(1,1),POINT(1,1));
+LOCATE(POINT(1,1),POINT(1,1))
+1
+SELECT BIT_COUNT(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'bit_count'
+SELECT BENCHMARK(POINT(1,1),'');
+ERROR HY000: Illegal parameter data type geometry for operation 'benchmark'
+SELECT SLEEP(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'sleep'
+SELECT GET_LOCK('x', POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'get_lock'
+SELECT PERIOD_ADD(POINT(1,1),1);
+ERROR HY000: Illegal parameter data type geometry for operation 'period_add'
+SELECT PERIOD_ADD(1,POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'period_add'
+SELECT PERIOD_DIFF(POINT(1,1),1);
+ERROR HY000: Illegal parameter data type geometry for operation 'period_diff'
+SELECT PERIOD_DIFF(1,POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'period_diff'
+SELECT TO_DAYS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'to_days'
+SELECT DAYOFMONTH(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'dayofmonth'
+SELECT DAYOFYEAR(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'dayofyear'
+SELECT QUARTER(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'quarter'
+SELECT YEAR(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'year'
+SELECT YEARWEEK(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'yearweek'
+SELECT WEEK(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'week'
+SELECT WEEK(POINT(1,1),1);
+ERROR HY000: Illegal parameter data type geometry for operation 'week'
+SELECT WEEK(1,POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'week'
+SELECT HOUR(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'hour'
+SELECT MINUTE(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'minute'
+SELECT SECOND(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'second'
+SELECT MICROSECOND(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'microsecond'
+SELECT JSON_DEPTH(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'json_depth'
+SELECT JSON_LENGTH(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'json_length'
+SELECT JSON_LENGTH('json', POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'json_length'
+SELECT JSON_LENGTH(POINT(1,1), POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'json_length'
+SELECT REGEXP_INSTR(POINT(1,1),'');
+REGEXP_INSTR(POINT(1,1),'')
+1
+SELECT REGEXP_INSTR('',POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'regexp_instr'
+SELECT FIND_IN_SET(POINT(1,1),'');
+FIND_IN_SET(POINT(1,1),'')
+0
+SELECT FIND_IN_SET('',POINT(1,1));
+FIND_IN_SET('',POINT(1,1))
+0
+SELECT RELEASE_LOCK(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'release_lock'
+SELECT IS_FREE_LOCK(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'is_free_lock'
+SELECT IS_USED_LOCK(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'is_used_lock'
+#
 # End of 10.3 tests
 #

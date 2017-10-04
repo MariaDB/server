@@ -790,7 +790,7 @@ buf_page_is_checksum_valid_none(
 	    && srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_NONE) {
 		fprintf(log_file,
 			"page::%llu; none checksum: calculated"
-			" = " ULINTPF "; recorded checksum_field1 = " ULINTPF
+			" = %lu; recorded checksum_field1 = " ULINTPF
 			" recorded checksum_field2 = " ULINTPF "\n",
 			cur_page_num, BUF_NO_CHECKSUM_MAGIC,
 			checksum_field1, checksum_field2);

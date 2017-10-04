@@ -386,13 +386,6 @@ dict_table_add_system_columns(
 	dict_table_t*	table,	/*!< in/out: table */
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 	MY_ATTRIBUTE((nonnull));
-
-/** Mark if table has big rows.
-@param[in,out]	table	table handler */
-void
-dict_table_set_big_rows(
-	dict_table_t*	table)
-	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Adds a table object to the dictionary cache. */
 void
@@ -1943,24 +1936,7 @@ dict_table_is_discarded(
 	const dict_table_t*	table)	/*!< in: table to check */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/********************************************************************//**
-Check if it is a temporary table.
-@return true if temporary table flag is set. */
-UNIV_INLINE
-bool
-dict_table_is_temporary(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/********************************************************************//**
-Turn-off redo-logging if temporary table. */
-UNIV_INLINE
-void
-dict_disable_redo_if_temporary(
-/*===========================*/
-	const dict_table_t*	table,	/*!< in: table to check */
-	mtr_t*			mtr);	/*!< out: mini-transaction */
+#define dict_table_is_temporary(table) (table)->is_temporary()
 
 /*********************************************************************//**
 This function should be called whenever a page is successfully

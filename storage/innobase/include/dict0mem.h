@@ -1315,6 +1315,12 @@ struct dict_table_t {
 	{
 		return !(~flags & DICT_TF_MASK_NO_ROLLBACK);
         }
+	/** @return whether this is a temporary table */
+	bool is_temporary() const
+	{
+		return flags2 & DICT_TF2_TEMPORARY;
+	}
+
 	/** @return whether this table is readable
 	@retval	true	normally
 	@retval	false	if this is a single-table tablespace
@@ -1496,10 +1502,6 @@ struct dict_table_t {
 
 	/*!< set of foreign key constraints which refer to this table */
 	dict_foreign_set			referenced_set;
-
-	/** TRUE if the maximum length of a single row exceeds BIG_ROW_SIZE.
-	Initialized in dict_table_add_to_cache(). */
-	unsigned				big_rows:1;
 
 	/** Statistics for query optimization. @{ */
 

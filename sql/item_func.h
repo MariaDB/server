@@ -48,6 +48,10 @@ protected:
                                       uint start, uint end) const;
   bool check_argument_types_can_return_int(uint start, uint end) const;
   bool check_argument_types_can_return_real(uint start, uint end) const;
+  bool check_argument_types_can_return_str(uint start, uint end) const;
+  bool check_argument_types_can_return_text(uint start, uint end) const;
+  bool check_argument_types_can_return_date(uint start, uint end) const;
+  bool check_argument_types_can_return_time(uint start, uint end) const;
 public:
 
   table_map not_null_tables_cache;
@@ -485,8 +489,8 @@ public:
   bool get_date_from_date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
   {
     return date_op(ltime,
-                   fuzzydate |
-                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0));
+                   (fuzzydate |
+                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0)));
   }
 
   // Value methods that involve conversion
@@ -606,7 +610,7 @@ public:
      field type is a temporal type.
      @return The result of the operation.
   */
-  virtual bool date_op(MYSQL_TIME *res, uint fuzzy_date)= 0;
+  virtual bool date_op(MYSQL_TIME *res, ulonglong fuzzy_date)= 0;
 
 };
 
@@ -665,7 +669,11 @@ public:
     Item_func_hybrid_field_type(thd, list)
   { }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
-  bool date_op(MYSQL_TIME *ltime, uint fuzzydate) { DBUG_ASSERT(0); return true; }
+  bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
 };
 
 
@@ -1178,6 +1186,8 @@ public:
 
 class Item_dec_func :public Item_real_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_real(0, arg_count); }
  public:
   Item_dec_func(THD *thd, Item *a): Item_real_func(thd, a) {}
   Item_dec_func(THD *thd, Item *a, Item *b): Item_real_func(thd, a, b) {}
@@ -1403,6 +1413,8 @@ class Item_func_rand :public Item_real_func
 {
   struct my_rnd_struct *rand;
   bool first_eval; // TRUE if val_real() is called 1st time
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, arg_count); }
 public:
   Item_func_rand(THD *thd, Item *a):
     Item_real_func(thd, a), rand(0), first_eval(TRUE) {}
@@ -1426,6 +1438,8 @@ private:
 
 class Item_func_sign :public Item_long_func
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_real(func_name()); }
 public:
   Item_func_sign(THD *thd, Item *a): Item_long_func(thd, a) {}
   const char *func_name() const { return "sign"; }
@@ -1441,6 +1455,8 @@ class Item_func_units :public Item_real_func
 {
   char *name;
   double mul,add;
+  bool check_arguments() const
+  { return check_argument_types_can_return_real(0, arg_count); }
 public:
   Item_func_units(THD *thd, char *name_arg, Item *a, double mul_arg,
                   double add_arg):
@@ -1590,14 +1606,23 @@ public:
 };
 
 
-class Item_func_octet_length :public Item_long_func
+class Item_long_func_length: public Item_long_func
+{
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_str(func_name()); }
+public:
+  Item_long_func_length(THD *thd, Item *a): Item_long_func(thd, a) {}
+  void fix_length_and_dec() { max_length=10; }
+};
+
+
+class Item_func_octet_length :public Item_long_func_length
 {
   String value;
 public:
-  Item_func_octet_length(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_octet_length(THD *thd, Item *a): Item_long_func_length(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "octet_length"; }
-  void fix_length_and_dec() { max_length=10; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_octet_length>(thd, mem_root, this); }
 };
@@ -1617,20 +1642,21 @@ public:
   { return get_item_copy<Item_func_bit_length>(thd, mem_root, this); }
 };
 
-class Item_func_char_length :public Item_long_func
+class Item_func_char_length :public Item_long_func_length
 {
   String value;
 public:
-  Item_func_char_length(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_char_length(THD *thd, Item *a): Item_long_func_length(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "char_length"; }
-  void fix_length_and_dec() { max_length=10; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_char_length>(thd, mem_root, this); }
 };
 
 class Item_func_coercibility :public Item_long_func
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_str(func_name()); }
 public:
   Item_func_coercibility(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
@@ -1657,6 +1683,11 @@ public:
 */
 class Item_func_locate :public Item_long_func
 {
+  bool check_arguments() const
+  {
+    return check_argument_types_can_return_str(0, 2) ||
+           (arg_count > 2 && args[2]->check_type_can_return_int(func_name()));
+  }
   String value1,value2;
   DTCollation cmp_collation;
 public:
@@ -1694,6 +1725,8 @@ public:
 
 class Item_func_ascii :public Item_long_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_str(0, arg_count); }
   String value;
 public:
   Item_func_ascii(THD *thd, Item *a): Item_long_func(thd, a) {}
@@ -1706,6 +1739,8 @@ public:
 
 class Item_func_ord :public Item_long_func
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_str(func_name()); }
   String value;
 public:
   Item_func_ord(THD *thd, Item *a): Item_long_func(thd, a) {}
@@ -1718,6 +1753,8 @@ public:
 
 class Item_func_find_in_set :public Item_long_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_str(0, 2); }
   String value,value2;
   uint enum_value;
   ulonglong enum_bit;
@@ -1736,6 +1773,8 @@ public:
 
 class Item_func_bit: public Item_longlong_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, arg_count); }
 public:
   Item_func_bit(THD *thd, Item *a, Item *b): Item_longlong_func(thd, a, b) {}
   Item_func_bit(THD *thd, Item *a): Item_longlong_func(thd, a) {}
@@ -1772,6 +1811,8 @@ public:
 
 class Item_func_bit_count :public Item_long_func
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_int(func_name()); }
 public:
   Item_func_bit_count(THD *thd, Item *a): Item_long_func(thd, a) {}
   longlong val_int();
@@ -1822,6 +1863,8 @@ public:
 
 class Item_func_last_insert_id :public Item_longlong_func
 {
+  bool check_arguments() const
+  { return check_argument_types_can_return_int(0, arg_count); }
 public:
   Item_func_last_insert_id(THD *thd): Item_longlong_func(thd) {}
   Item_func_last_insert_id(THD *thd, Item *a): Item_longlong_func(thd, a) {}
@@ -1845,6 +1888,11 @@ public:
 
 class Item_func_benchmark :public Item_long_func
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_can_return_int(func_name()) ||
+           args[1]->check_type_scalar(func_name());
+  }
 public:
   Item_func_benchmark(THD *thd, Item *count_expr, Item *expr):
     Item_long_func(thd, count_expr, expr)
@@ -1867,6 +1915,8 @@ void item_func_sleep_free(void);
 
 class Item_func_sleep :public Item_long_func
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_real(func_name()); }
 public:
   Item_func_sleep(THD *thd, Item *a): Item_long_func(thd, a) {}
   void fix_length_and_dec() { fix_char_length(1); }
@@ -2147,6 +2197,11 @@ void mysql_ull_set_explicit_lock_duration(THD *thd);
 
 class Item_func_get_lock :public Item_long_func
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_general_purpose_string(func_name()) ||
+           args[1]->check_type_can_return_real(func_name());
+  }
   String value;
  public:
   Item_func_get_lock(THD *thd, Item *a, Item *b) :Item_long_func(thd, a, b) {}
@@ -2169,6 +2224,8 @@ class Item_func_get_lock :public Item_long_func
 
 class Item_func_release_lock :public Item_long_func
 {
+  bool check_arguments() const
+  { return args[0]->check_type_general_purpose_string(func_name()); }
   String value;
 public:
   Item_func_release_lock(THD *thd, Item *a): Item_long_func(thd, a) {}
@@ -2193,6 +2250,14 @@ public:
 
 class Item_master_pos_wait :public Item_longlong_func
 {
+  bool check_arguments() const
+  {
+    return
+      args[0]->check_type_general_purpose_string(func_name()) ||
+      args[1]->check_type_can_return_int(func_name()) ||
+      (arg_count > 2 && args[2]->check_type_can_return_int(func_name())) ||
+      (arg_count > 3 && args[3]->check_type_general_purpose_string(func_name()));
+  }
   String value;
 public:
   Item_master_pos_wait(THD *thd, Item *a, Item *b)
@@ -2215,6 +2280,11 @@ public:
 
 class Item_master_gtid_wait :public Item_long_func
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_general_purpose_string(func_name()) ||
+           (arg_count > 1 && args[1]->check_type_can_return_real(func_name()));
+  }
   String value;
 public:
   Item_master_gtid_wait(THD *thd, Item *a)
@@ -2319,12 +2389,6 @@ public:
   bool update();
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  table_map used_tables() const
-  {
-    return used_tables_cache | RAND_TABLE_BIT;
-  }
-  bool const_item() const { return 0; }
-  bool is_expensive() { return 1; }
   void print(String *str, enum_query_type query_type);
   enum precedence precedence() const { return ASSIGN_PRECEDENCE; }
   void print_as_stmt(String *str, enum_query_type query_type);
@@ -2578,6 +2642,8 @@ public:
 
 class Item_func_is_free_lock :public Item_long_func
 {
+  bool check_arguments() const
+  { return args[0]->check_type_general_purpose_string(func_name()); }
   String value;
 public:
   Item_func_is_free_lock(THD *thd, Item *a): Item_long_func(thd, a) {}
@@ -2594,6 +2660,8 @@ public:
 
 class Item_func_is_used_lock :public Item_long_func
 {
+  bool check_arguments() const
+  { return args[0]->check_type_general_purpose_string(func_name()); }
   String value;
 public:
   Item_func_is_used_lock(THD *thd, Item *a): Item_long_func(thd, a) {}

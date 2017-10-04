@@ -433,11 +433,11 @@ public:
   /// @return the current number of variables used in the parent contexts
   /// (from the root), including this context.
   uint current_var_count() const
-  { return m_var_offset + m_vars.elements(); }
+  { return m_var_offset + (uint)m_vars.elements(); }
 
   /// @return the number of variables in this context alone.
   uint context_var_count() const
-  { return m_vars.elements(); }
+  { return (uint)m_vars.elements(); }
 
   /// return the i-th variable on the current context
   sp_variable *get_context_variable(uint i) const
@@ -678,10 +678,10 @@ public:
   { return m_cursors.elements(); }
 
   uint max_cursor_index() const
-  { return m_max_cursor_index + m_cursors.elements(); }
+  { return m_max_cursor_index + (uint)m_cursors.elements(); }
 
   uint current_cursor_count() const
-  { return m_cursor_offset + m_cursors.elements(); }
+  { return m_cursor_offset + (uint)m_cursors.elements(); }
 
   void set_for_loop(const Lex_for_loop_st &for_loop)
   {

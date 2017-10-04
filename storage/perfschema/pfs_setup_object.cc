@@ -145,7 +145,7 @@ static void set_setup_object_key(PFS_setup_object_key *key,
   ptr+= object_length;
   ptr[0]= 0;
   ptr++;
-  key->m_key_length= ptr - &key->m_hash_key[0];
+  key->m_key_length= (uint)(ptr - &key->m_hash_key[0]);
 }
 
 int insert_setup_object(enum_object_type object_type, const String *schema,

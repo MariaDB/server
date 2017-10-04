@@ -449,7 +449,7 @@ static void set_table_share_key(PFS_table_share_key *key,
   ptr+= table_name_length;
   ptr[0]= 0;
   ptr++;
-  key->m_key_length= ptr - &key->m_hash_key[0];
+  key->m_key_length= (uint)(ptr - &key->m_hash_key[0]);
 
   if (lower_case_table_names)
   {

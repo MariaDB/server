@@ -775,7 +775,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, int report)
   if (global_system_variables.log_warnings > 2)
   {
     struct link_map *lm = (struct link_map*) plugin_dl.handle;
-    sql_print_information("Loaded '%s' with offset 0x%lx", dl->str, lm->l_addr);
+    sql_print_information("Loaded '%s' with offset 0x%zx", dl->str, (size_t)lm->l_addr);
   }
 #endif
 
@@ -983,8 +983,8 @@ static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref rc)
     *plugin= pi;
 #endif
     pi->ref_count++;
-    DBUG_PRINT("lock",("thd: 0x%lx  plugin: \"%s\" LOCK ref_count: %d",
-                       (long) current_thd, pi->name.str, pi->ref_count));
+    DBUG_PRINT("lock",("thd: %p  plugin: \"%s\" LOCK ref_count: %d",
+                       current_thd, pi->name.str, pi->ref_count));
 
     if (lex)
       insert_dynamic(&lex->plugins, (uchar*)&plugin);
@@ -1365,8 +1365,8 @@ static void intern_plugin_unlock(LEX *lex, plugin_ref plugin)
   DBUG_ASSERT(pi->ref_count);
   pi->ref_count--;
 
-  DBUG_PRINT("lock",("thd: 0x%lx  plugin: \"%s\" UNLOCK ref_count: %d",
-                     (long) current_thd, pi->name.str, pi->ref_count));
+  DBUG_PRINT("lock",("thd: %p  plugin: \"%s\" UNLOCK ref_count: %d",
+                     current_thd, pi->name.str, pi->ref_count));
 
   if (pi->state == PLUGIN_IS_DELETED && !pi->ref_count)
     reap_needed= true;
@@ -3280,8 +3280,8 @@ static void plugin_vars_free_values(sys_var *vars)
     {
       /* Free the string from global_system_variables. */
       char **valptr= (char**) piv->real_value_ptr(NULL, OPT_GLOBAL);
-      DBUG_PRINT("plugin", ("freeing value for: '%s'  addr: 0x%lx",
-                            var->name.str, (long) valptr));
+      DBUG_PRINT("plugin", ("freeing value for: '%s'  addr: %p",
+                            var->name.str, valptr));
       my_free(*valptr);
       *valptr= NULL;
     }
@@ -3344,14 +3344,14 @@ uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type)
   {
     switch (plugin_var->flags & PLUGIN_VAR_TYPEMASK) {
     case PLUGIN_VAR_BOOL:
-      thd->sys_var_tmp.my_bool_value= option.def_value;
+      thd->sys_var_tmp.my_bool_value= (my_bool)option.def_value;
       return (uchar*) &thd->sys_var_tmp.my_bool_value;
     case PLUGIN_VAR_INT:
-      thd->sys_var_tmp.int_value= option.def_value;
+      thd->sys_var_tmp.int_value= (int)option.def_value;
       return (uchar*) &thd->sys_var_tmp.int_value;
     case PLUGIN_VAR_LONG:
     case PLUGIN_VAR_ENUM:
-      thd->sys_var_tmp.long_value= option.def_value;
+      thd->sys_var_tmp.long_value= (long)option.def_value;
       return (uchar*) &thd->sys_var_tmp.long_value;
     case PLUGIN_VAR_LONGLONG:
     case PLUGIN_VAR_SET:

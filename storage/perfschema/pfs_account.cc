@@ -202,7 +202,7 @@ static void set_account_key(PFS_account_key *key,
   }
   ptr[0]= 0;
   ptr++;
-  key->m_key_length= ptr - &key->m_hash_key[0];
+  key->m_key_length= (uint)(ptr - &key->m_hash_key[0]);
 }
 
 PFS_account *

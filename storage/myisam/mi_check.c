@@ -2915,8 +2915,8 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
     */
     sort_param[i].read_cache= ((rep_quick || !i) ? param->read_cache :
                                new_data_cache);
-    DBUG_PRINT("io_cache_share", ("thread: %u  read_cache: 0x%lx",
-                                  i, (long) &sort_param[i].read_cache));
+    DBUG_PRINT("io_cache_share", ("thread: %u  read_cache: %p",
+                                  i, &sort_param[i].read_cache));
 
     /*
       two approaches: the same amount of memory for each thread
@@ -3967,7 +3967,7 @@ static int sort_ft_key_write(MI_SORT_PARAM *sort_param, const void *a)
       key_block++;
     sort_info->key_block=key_block;
     sort_param->keyinfo=& sort_info->info->s->ft2_keyinfo;
-    ft_buf->count=((uchar*) ft_buf->buf - p)/val_len;
+    ft_buf->count=(int)((uchar*) ft_buf->buf - p)/val_len;
 
     /* flushing buffer to second-level tree */
     for (error=0; !error && p < (uchar*) ft_buf->buf; p+= val_len)

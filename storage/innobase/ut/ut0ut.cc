@@ -834,12 +834,25 @@ error::~error()
 	sql_print_error("InnoDB: %s", m_oss.str().c_str());
 }
 
+#ifdef _MSC_VER
+/* disable warning
+  "ib::fatal::~fatal': destructor never returns, potential memory leak"
+   on Windows.
+*/
+#pragma warning (push)
+#pragma warning (disable : 4722)
+#endif
+
 ATTRIBUTE_NORETURN
 fatal::~fatal()
 {
 	sql_print_error("[FATAL] InnoDB: %s", m_oss.str().c_str());
 	abort();
 }
+
+#ifdef _MSC_VER
+#pragma warning (pop)
+#endif
 
 error_or_warn::~error_or_warn()
 {

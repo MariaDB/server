@@ -26,12 +26,14 @@ struct Share_free_tables
   char pad[CPU_LEVEL1_DCACHE_LINESIZE];
 };
 
+typedef int64 tdc_version_t;
+#define TDC_VERSION_MAX INT_MAX64
 
 struct TDC_element
 {
   uchar m_key[NAME_LEN + 1 + NAME_LEN + 1];
   uint m_key_length;
-  ulong version;
+  tdc_version_t version;
   bool flushed;
   TABLE_SHARE *share;
 
@@ -84,12 +86,14 @@ extern void tdc_release_share(TABLE_SHARE *share);
 extern bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
                              const char *db, const char *table_name,
                              bool kill_delayed_threads);
+
+
 extern int tdc_wait_for_old_version(THD *thd, const char *db,
                                     const char *table_name,
                                     ulong wait_timeout, uint deadlock_weight,
-                                    ulong refresh_version= ULONG_MAX);
-extern ulong tdc_refresh_version(void);
-extern ulong tdc_increment_refresh_version(void);
+                                    tdc_version_t refresh_version= TDC_VERSION_MAX);
+extern tdc_version_t tdc_refresh_version(void);
+extern tdc_version_t tdc_increment_refresh_version(void);
 extern int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
                        bool no_dups= false);
 

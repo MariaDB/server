@@ -1455,7 +1455,7 @@ lock_rec_other_has_conflicting(
 
 		if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
 #ifdef WITH_WSREP
-			if (wsrep_on(trx->mysql_thd)) {
+			if (wsrep_on_trx(trx)) {
 				trx_mutex_enter(lock->trx);
 				wsrep_kill_victim((trx_t *)trx, (lock_t *)lock);
 				trx_mutex_exit(lock->trx);
@@ -1985,8 +1985,7 @@ RecLock::create(
 	}
 
 #ifdef WITH_WSREP
-	if (c_lock                      &&
-	    wsrep_on(trx->mysql_thd)    &&
+	if (c_lock && wsrep_on_trx(trx) &&
 	    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		lock_t *hash	= (lock_t *)c_lock->hash;
 		lock_t *prev	= NULL;

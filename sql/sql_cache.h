@@ -560,8 +560,8 @@ struct Query_cache_query_flags
   ha_rows limit;
   Time_zone *time_zone;
   sql_mode_t sql_mode;
-  ulong max_sort_length;
-  ulong group_concat_max_len;
+  ulonglong max_sort_length;
+  ulonglong group_concat_max_len;
   ulong default_week_format;
   ulong div_precision_increment;
   MY_LOCALE *lc_time_names;

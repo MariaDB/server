@@ -30,7 +30,7 @@ class Unique :public Sql_alloc
 {
   DYNAMIC_ARRAY file_ptrs;
   ulong max_elements;
-  ulonglong max_in_memory_size;
+  size_t max_in_memory_size;
   IO_CACHE file;
   TREE tree;
   ulong filtered_out_elems;
@@ -46,7 +46,7 @@ public:
   ulong elements;
   SORT_INFO sort;
   Unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-	 uint size_arg, ulonglong max_in_memory_size_arg,
+	 uint size_arg, size_t max_in_memory_size_arg,
          uint min_dupl_count_arg= 0);
   ~Unique();
   ulong elements_in_tree() { return tree.elements_in_tree; }
@@ -72,12 +72,12 @@ public:
   }  
 
   static double get_use_cost(uint *buffer, size_t nkeys, uint key_size,
-                             ulonglong max_in_memory_size, uint compare_factor,
+                             size_t max_in_memory_size, uint compare_factor,
                              bool intersect_fl, bool *in_memory);
   inline static int get_cost_calc_buff_size(size_t nkeys, uint key_size,
-                                            ulonglong max_in_memory_size)
+                                            size_t max_in_memory_size)
   {
-    register ulonglong max_elems_in_tree=
+    register size_t max_elems_in_tree=
       max_in_memory_size / ALIGN_SIZE(sizeof(TREE_ELEMENT)+key_size);
     return (int) (sizeof(uint)*(1 + nkeys/max_elems_in_tree));
   }
@@ -86,7 +86,7 @@ public:
   bool walk(TABLE *table, tree_walk_action action, void *walk_action_arg);
 
   uint get_size() const { return size; }
-  ulonglong get_max_in_memory_size() const { return max_in_memory_size; }
+  size_t get_max_in_memory_size() const { return max_in_memory_size; }
 
   friend int unique_write_to_file(uchar* key, element_count count, Unique *unique);
   friend int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique);

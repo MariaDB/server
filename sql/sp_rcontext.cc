@@ -51,9 +51,7 @@ sp_rcontext::sp_rcontext(const sp_pcontext *root_parsing_ctx,
 
 sp_rcontext::~sp_rcontext()
 {
-  if (m_var_table)
-    free_blobs(m_var_table);
-
+  delete m_var_table;
   // Leave m_handlers, m_handler_call_stack, m_var_items, m_cstack
   // and m_case_expr_holders untouched.
   // They are allocated in mem roots and will be freed accordingly.
@@ -375,10 +373,16 @@ bool Item_spvar_args::row_create_items(THD *thd, List<Spvar_definition> *list)
 }
 
 
+Field *Item_spvar_args::get_row_field(uint i) const
+{
+  DBUG_ASSERT(m_table);
+  return m_table->field[i];
+}
+
+
 Item_spvar_args::~Item_spvar_args()
 {
-  if (m_table)
-    free_blobs(m_table);
+  delete m_table;
 }
 
 

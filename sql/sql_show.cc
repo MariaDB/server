@@ -2527,7 +2527,7 @@ public:
                               size_t size __attribute__((unused)))
   { TRASH(ptr, size); }
 
-  ulong thread_id;
+  my_thread_id thread_id;
   uint32 os_thread_id;
   ulonglong start_time;
   uint   command;
@@ -2701,7 +2701,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   while ((thd_info=thread_infos.get()))
   {
     protocol->prepare_for_resend();
-    protocol->store((ulonglong) thd_info->thread_id);
+    protocol->store(thd_info->thread_id);
     protocol->store(thd_info->user, system_charset_info);
     protocol->store(thd_info->host, system_charset_info);
     protocol->store(thd_info->db, system_charset_info);
@@ -6563,7 +6563,7 @@ static bool store_trigger(THD *thd, Trigger *trigger,
   {
     table->field[16]->set_notnull();
     thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
-                                              trigger->create_time/100);
+                                              (my_time_t)(trigger->create_time/100));
     /* timestamp is with 6 digits */
     timestamp.second_part= (trigger->create_time % 100) * 10000;
     ((Field_temporal_with_date*) table->field[16])->store_time_dec(&timestamp,
@@ -9590,7 +9590,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
   {
     MYSQL_TIME timestamp;
     thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
-                                              trigger->create_time/100);
+                                              (my_time_t)(trigger->create_time/100));
     timestamp.second_part= (trigger->create_time % 100) * 10000;
     p->store(&timestamp, 2);
   }

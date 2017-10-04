@@ -637,7 +637,7 @@ size_t my_strnxfrm_mb_internal(CHARSET_INFO *cs, uchar *dst, uchar *de,
     else
     {
       /* Multi-byte character */
-      int len= (dst + chlen <= de) ? chlen : de - dst;
+      size_t len= (dst + chlen <= de) ? chlen : de - dst;
       memcpy(dst, src, len);
       dst+= len;
       src+= len;

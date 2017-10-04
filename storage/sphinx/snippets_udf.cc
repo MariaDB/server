@@ -449,7 +449,7 @@ int CSphUrl::Connect()
 	char * pError = NULL;
 	do
 	{
-		iSocket = socket ( iDomain, SOCK_STREAM, 0 );
+		iSocket = (int)socket ( iDomain, SOCK_STREAM, 0 );
 		if ( iSocket==-1 )
 		{
 			pError = "Failed to create client socket";
@@ -641,7 +641,7 @@ struct CSphSnippets
 	}
 
 #define STRING CHECK_TYPE(STRING_RESULT)
-#define INT CHECK_TYPE(INT_RESULT); int iValue = *(long long *)pArgs->args[i]
+#define INT CHECK_TYPE(INT_RESULT); int iValue =(int)*(long long *)pArgs->args[i]
 
 my_bool sphinx_snippets_init ( UDF_INIT * pUDF, UDF_ARGS * pArgs, char * sMessage )
 {

@@ -1451,6 +1451,8 @@ public:
 
 class Item_func_crc32 :public Item_long_func
 {
+  bool check_arguments() const
+  { return args[0]->check_type_can_return_str(func_name()); }
   String value;
 public:
   Item_func_crc32(THD *thd, Item *a): Item_long_func(thd, a)
@@ -1462,11 +1464,12 @@ public:
   { return get_item_copy<Item_func_crc32>(thd, mem_root, this); }
 };
 
-class Item_func_uncompressed_length : public Item_long_func
+class Item_func_uncompressed_length : public Item_long_func_length
 {
   String value;
 public:
-  Item_func_uncompressed_length(THD *thd, Item *a): Item_long_func(thd, a) {}
+  Item_func_uncompressed_length(THD *thd, Item *a)
+   :Item_long_func_length(thd, a) {}
   const char *func_name() const{return "uncompressed_length";}
   void fix_length_and_dec() { max_length=10; maybe_null= true; }
   longlong val_int();

@@ -1324,7 +1324,7 @@ fil_crypt_realloc_iops(
 	if (10 * state->cnt_waited > state->batch) {
 		/* if we waited more than 10% re-estimate max_iops */
 		ulint avg_wait_time_us =
-			state->sum_waited_us / state->cnt_waited;
+			ulint(state->sum_waited_us / state->cnt_waited);
 
 		if (avg_wait_time_us == 0) {
 			avg_wait_time_us = 1; // prevent division by zero
@@ -1669,7 +1669,7 @@ fil_crypt_get_page_throttle_func(
 
 	/* average page load */
 	ulint add_sleeptime_ms = 0;
-	ulint avg_wait_time_us = state->sum_waited_us / state->cnt_waited;
+	ulint avg_wait_time_us =ulint(state->sum_waited_us / state->cnt_waited);
 	ulint alloc_wait_us = 1000000 / state->allocated_iops;
 
 	if (avg_wait_time_us < alloc_wait_us) {

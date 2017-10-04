@@ -544,8 +544,8 @@ my_bool _ma_compact_keypage(MARIA_PAGE *ma_page, TrID min_read_from)
   {
     if (!(page= (*ma_page->keyinfo->skip_key)(&key, 0, 0, page)))
     {
-      DBUG_PRINT("error",("Couldn't find last key:  page_pos: 0x%lx",
-                          (long) page));
+      DBUG_PRINT("error",("Couldn't find last key:  page_pos: %p",
+                          page));
       _ma_set_fatal_error(share, HA_ERR_CRASHED);
       DBUG_RETURN(1);
     }

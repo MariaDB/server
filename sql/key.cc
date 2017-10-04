@@ -374,7 +374,7 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
     {
       const char *tmp_end= tmp.ptr() + tmp.length();
       while (tmp_end > tmp.ptr() && !*--tmp_end) ;
-      tmp.length(tmp_end - tmp.ptr() + 1);
+      tmp.length((uint32)(tmp_end - tmp.ptr() + 1));
     }
     if (cs->mbmaxlen > 1 && prefix_key)
     {

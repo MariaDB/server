@@ -279,7 +279,7 @@ int table_events_waits_common::make_socket_object_columns(volatile PFS_events_wa
                                    safe_socket->m_addr_len);
 
     /* Convert port number to a string (length includes ':') */
-    int port_len= int10_to_str(port, (port_str+1), 10) - port_str + 1;
+    int port_len= (int)(int10_to_str(port, (port_str+1), 10) - port_str + 1);
 
     /* OBJECT NAME */
     m_row.m_object_name_length= ip_length + port_len;

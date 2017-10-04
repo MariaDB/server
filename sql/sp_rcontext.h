@@ -34,6 +34,7 @@ class sp_instr_cpush;
 class Query_arena;
 class sp_head;
 class Item_cache;
+class Virtual_tmp_table;
 
 
 /*
@@ -363,7 +364,7 @@ private:
   const sp_pcontext *m_root_parsing_ctx;
 
   /// Virtual table for storing SP-variables.
-  TABLE *m_var_table;
+  Virtual_tmp_table *m_var_table;
 
   /// Collection of Item_field proxies, each of them points to the
   /// corresponding field in m_var_table.

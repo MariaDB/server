@@ -561,7 +561,7 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
   }
   if ((ptr= get_field(&mem_root, table->field[ET_FIELD_ORIGINATOR])) == NullS)
     DBUG_RETURN(TRUE);
-  originator = table->field[ET_FIELD_ORIGINATOR]->val_int(); 
+  originator = (uint32) table->field[ET_FIELD_ORIGINATOR]->val_int(); 
 
   /* ToDo : Andrey . Find a way not to allocate ptr on event_mem_root */
   if ((ptr= get_field(&mem_root,
@@ -911,9 +911,9 @@ Event_queue_element::compute_next_execution_time()
 {
   my_time_t time_now;
   DBUG_ENTER("Event_queue_element::compute_next_execution_time");
-  DBUG_PRINT("enter", ("starts: %lu  ends: %lu  last_executed: %lu  this: 0x%lx",
+  DBUG_PRINT("enter", ("starts: %lu  ends: %lu  last_executed: %lu  this: %p",
                        (long) starts, (long) ends, (long) last_executed,
-                       (long) this));
+                       this));
 
   if (status != Event_parse_data::ENABLED)
   {

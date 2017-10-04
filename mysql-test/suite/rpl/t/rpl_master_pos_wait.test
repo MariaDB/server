@@ -56,5 +56,23 @@ eval change master to master_port=$MASTER_MYPORT, master_host='127.0.0.1', maste
 
 # End of 10.0 tests
 
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-13965 Parameter data type control for Item_longlong_func
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT MASTER_POS_WAIT('x',1,ROW(1,1));
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT MASTER_POS_WAIT('x',1,1,ROW(1,1));
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+
 --let $rpl_only_running_threads= 1
 --source include/rpl_end.inc
