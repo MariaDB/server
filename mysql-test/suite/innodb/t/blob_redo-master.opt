@@ -1,1 +1,3 @@
---innodb-log-files-in-group=12 --innodb-log-file-size=5M
+--innodb-log-files-in-group=12 
+--innodb-log-file-size=5M
+--innodb_page_size=16384  

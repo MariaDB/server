@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/have_innodb_16k.inc
 --source include/have_debug.inc
 
 SET @saved_debug_dbug = @@SESSION.debug_dbug;

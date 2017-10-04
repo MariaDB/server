@@ -1,7 +1,6 @@
 --source include/not_embedded.inc
 --source include/not_crashrep.inc
 --source include/have_innodb.inc
---source include/have_innodb_16k.inc
 
 --echo #
 --echo # Bug #19498877 LIMITATION ON BLOB SIZE IS TOO STRICT, BLOB CAN

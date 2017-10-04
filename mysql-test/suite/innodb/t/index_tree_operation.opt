@@ -1,1 +1,2 @@
 --innodb-sys-tablespaces
+--innodb_page_size=16384 

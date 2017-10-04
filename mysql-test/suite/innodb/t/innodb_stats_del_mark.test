@@ -3,7 +3,7 @@
 --echo #		TRANSACTION IS COMMITTED
 --echo #
 
---source include/big_test.inc
+#--source include/big_test.inc
 --source include/not_valgrind.inc
 
 --echo "Test 1:- Uncommited delete test"

@@ -1,6 +1,5 @@
 --source include/have_debug.inc
 --source include/have_innodb.inc
---source include/have_innodb_16k.inc 
 
 --echo #
 --echo # Bug #18010711	UNIQUE PREFIX INDEX ON BINARY COLUMN: FAILING

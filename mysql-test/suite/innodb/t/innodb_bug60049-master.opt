@@ -1,1 +1,2 @@
 --loose-innodb-fast-shutdown=0
+--innodb_page_size=16384 
