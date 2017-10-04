@@ -1138,6 +1138,7 @@ page_set_instant(page_t* page, unsigned n, mtr_t* mtr)
 	ut_ad(n > 0);
 	ut_ad(n < 1U << 10);
 	uint16_t i = page_header_get_field(page, PAGE_INSTANT);
+	ut_ad(i <= PAGE_NO_DIRECTION);
 	i |= n << 6;
 	mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT + page, i,
 			 MLOG_2BYTES, mtr);
