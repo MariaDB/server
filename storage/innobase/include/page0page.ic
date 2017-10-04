@@ -1082,7 +1082,7 @@ byte
 page_ptr_get_direction(const byte* ptr)
 {
 	ut_ad(page_offset(ptr) == PAGE_HEADER + PAGE_DIRECTION_B);
-	return *ptr & ((1U << 6) - 1);
+	return *ptr & ((1U << 3) - 1);
 }
 
 /** Set the PAGE_DIRECTION field.
@@ -1095,7 +1095,7 @@ page_ptr_set_direction(byte* ptr, byte dir)
 	ut_ad(page_offset(ptr) == PAGE_HEADER + PAGE_DIRECTION_B);
 	ut_ad(dir >= PAGE_LEFT);
 	ut_ad(dir <= PAGE_NO_DIRECTION);
-	*ptr = (*ptr & ~((1U << 6) - 1)) | dir;
+	*ptr = (*ptr & ~((1U << 3) - 1)) | dir;
 }
 
 /** Read the PAGE_INSTANT field.
@@ -1110,7 +1110,7 @@ page_get_instant(const page_t* page)
 	switch (fil_page_get_type(page)) {
 	case FIL_PAGE_TYPE_INSTANT:
 		ut_ad(page_get_direction(page) <= PAGE_NO_DIRECTION);
-		ut_ad(i >> 6);
+		ut_ad(i >> 3);
 		break;
 	case FIL_PAGE_INDEX:
 		ut_ad(i <= PAGE_NO_DIRECTION || !page_is_comp(page));
@@ -1123,7 +1123,7 @@ page_get_instant(const page_t* page)
 		break;
 	}
 #endif /* UNIV_DEBUG */
-	return(i >> 6);
+	return(i >> 3);
 }
 
 /** Assign the PAGE_INSTANT field.
@@ -1136,10 +1136,10 @@ page_set_instant(page_t* page, unsigned n, mtr_t* mtr)
 {
 	ut_ad(fil_page_get_type(page) == FIL_PAGE_TYPE_INSTANT);
 	ut_ad(n > 0);
-	ut_ad(n < 1U << 10);
+	ut_ad(n < REC_MAX_N_FIELDS);
 	uint16_t i = page_header_get_field(page, PAGE_INSTANT);
 	ut_ad(i <= PAGE_NO_DIRECTION);
-	i |= n << 6;
+	i |= n << 3;
 	mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT + page, i,
 			 MLOG_2BYTES, mtr);
 }

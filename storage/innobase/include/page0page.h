@@ -82,8 +82,8 @@ ADD COLUMN.
 Instant ADD COLUMN will change FIL_PAGE_TYPE to FIL_PAGE_TYPE_INSTANT
 and initialize the PAGE_INSTANT field to the original number of
 fields in the clustered index (dict_index_t::n_core_fields).  The most
-significant 8 bits are in the first byte, and the least significant 2
-bits are stored in the most significant 2 bits of PAGE_DIRECTION_B.
+significant bits are in the first byte, and the least significant 5
+bits are stored in the most significant 5 bits of PAGE_DIRECTION_B.
 
 These FIL_PAGE_TYPE_INSTANT and PAGE_INSTANT may be assigned even if
 instant ADD COLUMN was not committed. Changes to these page header fields
