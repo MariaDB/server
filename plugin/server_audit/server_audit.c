@@ -160,7 +160,7 @@ static File loc_open(const char *FileName, int Flags)
   /*
     We could just use _open() here. but prefer to open in unix-similar way
     just like my_open() does it on Windows.
-    This gives atomic multiprocess-safe´appends, and possibility to rename
+    This gives atomic multiprocess-safe appends, and possibility to rename
     or even delete file while it is open, and CRT lacks this features.
   */
   assert(Flags == (O_APPEND | O_CREAT | O_WRONLY));
