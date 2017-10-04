@@ -5262,6 +5262,8 @@ btr_cur_optimistic_delete_func(
 	      || dict_index_is_clust(cursor->index)
 	      || (flags & BTR_CREATE_FLAG));
 
+	rec = btr_cur_get_rec(cursor);
+
 	if (UNIV_UNLIKELY(page_is_root(block->frame)
 			  && page_get_n_recs(block->frame)
 			  == 1 + cursor->index->is_instant())) {
@@ -5273,7 +5275,17 @@ btr_cur_optimistic_delete_func(
 			      page_rec_get_next_const(
 				      page_get_infimum_rec(block->frame)),
 			      index));
-		lock_update_delete(block, btr_cur_get_rec(cursor));
+		if (UNIV_UNLIKELY(rec_get_info_bits(rec, page_rec_is_comp(rec))
+				  & REC_INFO_MIN_REC_FLAG)) {
+			/* This should be rolling back instant ADD COLUMN.
+			If this is a recovered transaction, then
+			index->is_instant() will hold until the
+			insert into SYS_COLUMNS is rolled back. */
+			ut_ad(index->table->supports_instant());
+			ut_ad(index->is_clust());
+		} else {
+			lock_update_delete(block, rec);
+		}
 		btr_page_empty(block, buf_block_get_page_zip(block),
 			       index, 0, mtr);
 		page_cur_set_after_last(block, btr_cur_get_page_cur(cursor));
@@ -5288,7 +5300,6 @@ btr_cur_optimistic_delete_func(
 		return true;
 	}
 
-	rec = btr_cur_get_rec(cursor);
 	offsets = rec_get_offsets(rec, cursor->index, offsets, true,
 				  ULINT_UNDEFINED, &heap);
 
@@ -5303,9 +5314,11 @@ btr_cur_optimistic_delete_func(
 
 		if (UNIV_UNLIKELY(rec_get_info_bits(rec, page_rec_is_comp(rec))
 				  & REC_INFO_MIN_REC_FLAG)) {
-			/* This should be rolling back instant ADD COLUMN. */
+			/* This should be rolling back instant ADD COLUMN.
+			If this is a recovered transaction, then
+			index->is_instant() will hold until the
+			insert into SYS_COLUMNS is rolled back. */
 			ut_ad(cursor->index->table->supports_instant());
-			ut_ad(!cursor->index->is_instant());
 			ut_ad(cursor->index->is_clust());
 		} else {
 			lock_update_delete(block, rec);
@@ -5456,10 +5469,12 @@ btr_cur_pessimistic_delete(
 		const bool is_default_row = rec_get_info_bits(
 			rec, page_rec_is_comp(rec)) & REC_INFO_MIN_REC_FLAG;
 		if (UNIV_UNLIKELY(is_default_row)) {
-			/* This should be rolling back instant ADD COLUMN. */
+			/* This should be rolling back instant ADD COLUMN.
+			If this is a recovered transaction, then
+			index->is_instant() will hold until the
+			insert into SYS_COLUMNS is rolled back. */
 			ut_ad(rollback);
 			ut_ad(index->table->supports_instant());
-			ut_ad(index->is_instant());
 			ut_ad(index->is_clust());
 		} else if (flags == 0) {
 			lock_update_delete(block, rec);
