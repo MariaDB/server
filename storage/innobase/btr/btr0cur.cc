@@ -404,7 +404,7 @@ static
 dberr_t
 btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 {
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_clust());
 	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
 	ut_ad(index->table->supports_instant());
 	ut_ad(index->table->is_readable());
@@ -534,8 +534,11 @@ dberr_t
 btr_cur_instant_init(dict_table_t* table)
 {
 	mtr_t		mtr;
+	dict_index_t*	index = dict_table_get_first_index(table);
 	mtr.start();
-	dberr_t	err = btr_cur_instant_init_low(table->indexes.start, &mtr);
+	dberr_t	err = index
+		? btr_cur_instant_init_low(index, &mtr)
+		: DB_CORRUPTION;
 	mtr.commit();
 	return(err);
 }
