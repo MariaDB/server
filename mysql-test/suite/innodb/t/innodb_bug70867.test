@@ -4,7 +4,6 @@
 
 --source include/have_innodb.inc
 
-
 # This test uses chmod, can't be run with root permissions
 --source include/not_as_root.inc
 # Embedded server does not support crashing
@@ -14,36 +13,38 @@
 # Aim of the TC is still being served by keep it enabled on other platforms.
 --source include/not_windows.inc
 
-
 #-----------------------------------------------------------------------------
-#
+
 let $MYSQL_DATA_DIR = `select @@datadir`;
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/my_restart.err;
 let $args=--loose-console --default-storage-engine=innodb > $SEARCH_FILE 2>&1;
 
 #-----------------------------------------------------------------------------
 use test;
-#
+#Shutdown the server
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---shutdown_server 60
+--shutdown_server
 --source include/wait_until_disconnected.inc
+
 #
 --mkdir $MYSQL_DATA_DIR/tmpdata
 --chmod 0400 $MYSQL_DATA_DIR/tmpdata
 --error 1
---exec $MYSQLD_CMD $args --innodb_data_home_dir=$MYSQL_DATA_DIR/tmpdata 
+--exec $MYSQLD_CMD --innodb_data_home_dir=$MYSQL_DATA_DIR/tmpdata $args
+
 let SEARCH_PATTERN = returned OS error 113;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN = The error means mysqld does not have the access rights to;
 --source include/search_pattern_in_file.inc
-#--exec cat $SEARCH_FILE
+
+--exec cat $SEARCH_FILE
+
 #
 --remove_file $SEARCH_FILE
 --chmod 0777 $MYSQL_DATA_DIR/tmpdata
 --rmdir $MYSQL_DATA_DIR/tmpdata
 #
 --echo "restarting server in normal mode"
---enable_reconnect
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --enable_reconnect
 --source include/wait_until_connected_again.inc
