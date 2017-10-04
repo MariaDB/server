@@ -1100,6 +1100,9 @@ static SHOW_VAR innodb_status_variables[]= {
   {"defragment_count",
   (char*) &export_vars.innodb_defragment_count, SHOW_LONG},
 
+  {"instant_alter_column",
+  (char*) &export_vars.innodb_instant_alter_column, SHOW_LONG},
+
   /* Online alter table status variables */
   {"onlineddl_rowlog_rows",
   (char*) &export_vars.innodb_onlineddl_rowlog_rows, SHOW_LONG},

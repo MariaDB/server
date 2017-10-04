@@ -50,6 +50,7 @@ Smart ALTER TABLE
 #include "trx0roll.h"
 #include "handler0alter.h"
 #include "srv0mon.h"
+#include "srv0srv.h"
 #include "fts0priv.h"
 #include "fts0plugin.h"
 #include "pars0pars.h"
@@ -304,6 +305,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		}
 
 		new_table = old_table;
+		export_vars.innodb_instant_alter_column++;
 	}
 
 	/** @return whether this is instant ALTER TABLE */

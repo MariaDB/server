@@ -18,6 +18,10 @@ SET time_zone='+03:00';
 SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 
+SET @old_instant=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column');
+
 let $format= 3;
 while ($format) {
 let $engine= `SELECT CONCAT('ENGINE=InnoDB ROW_FORMAT=',CASE $format
@@ -33,7 +37,6 @@ eval CREATE TABLE t1
 INSERT INTO t1 (id, c2) values(1,1);
 SELECT * FROM t1;
 
-SET GLOBAL innodb_monitor_enable = module_ddl;
 --enable_info
 ALTER TABLE t1 ADD COLUMN (
   d1 INT, d2 INT UNSIGNED DEFAULT 10, d3 VARCHAR(20) NOT NULL DEFAULT 'abcde',
@@ -252,9 +255,7 @@ DROP TABLE t1,t2,t3,big;
 dec $format;
 }
 disconnect analyze;
-SET GLOBAL innodb_monitor_disable = module_ddl;
---disable_warnings
-SET GLOBAL innodb_monitor_enable  = default;
-SET GLOBAL innodb_monitor_disable = default;
---enable_warnings
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
