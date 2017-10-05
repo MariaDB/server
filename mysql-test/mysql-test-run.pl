@@ -5044,9 +5044,9 @@ sub mysqld_start ($$) {
   }
 
 
-  # "Dynamic" version of MYSQLD_CMD is reevaluated with each mysqld_start.
-  # Use it to restart the server at testing a failing server start (e.g
-  # due to incompatible options).
+  # Command line for mysqld started for *this particular test*.
+  # Differs from "generic" MYSQLD_CMD by including all command line
+  # options from *.opt and *.combination files.
   $ENV{'MYSQLD_LAST_CMD'}= "$exe  @$args";
 
   if ( $opt_gdb || $opt_manual_gdb )

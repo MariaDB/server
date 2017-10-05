@@ -1,7 +1,6 @@
 call mtr.add_suppression("Can't init tc log");
 call mtr.add_suppression("Found 1 prepared transactions!");
 call mtr.add_suppression("Aborting");
-set debug_sync='RESET';
 CREATE TABLE t1 (i INT) ENGINE=InnoDB;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 FLUSH TABLES;

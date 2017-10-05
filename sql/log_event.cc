@@ -7672,7 +7672,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   char buf[21];
   char buf2[21];
 
-  if (!print_event_info->short_form & !is_flashback)
+  if (!print_event_info->short_form && !is_flashback)
   {
     print_header(&cache, print_event_info, FALSE);
     longlong10_to_str(seq_no, buf, 10);
