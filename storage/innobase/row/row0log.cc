@@ -2538,7 +2538,7 @@ row_log_table_apply_op(
 		rec_init_offsets_temp(mrec, dup->index, offsets,
 				      dup->index->is_instant()
 				      ? static_cast<rec_comp_status_t>(
-					      mrec[-extra_size])
+					      *(mrec - extra_size))
 				      : REC_STATUS_ORDINARY);
 
 		next_mrec = mrec + rec_offs_data_size(offsets);
@@ -2658,7 +2658,7 @@ row_log_table_apply_op(
 			rec_init_offsets_temp(mrec, dup->index, offsets,
 					      dup->index->is_instant()
 					      ? static_cast<rec_comp_status_t>(
-						      mrec[-extra_size])
+						      *(mrec - extra_size))
 					      : REC_STATUS_ORDINARY);
 
 			next_mrec = mrec + rec_offs_data_size(offsets);
@@ -2767,7 +2767,7 @@ row_log_table_apply_op(
 			rec_init_offsets_temp(mrec, dup->index, offsets,
 					      dup->index->is_instant()
 					      ? static_cast<rec_comp_status_t>(
-						      mrec[-extra_size])
+						      *(mrec - extra_size))
 					      : REC_STATUS_ORDINARY);
 
 			next_mrec = mrec + rec_offs_data_size(offsets);
