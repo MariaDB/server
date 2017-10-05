@@ -6,6 +6,16 @@
 #--source include/big_test.inc
 --source include/not_valgrind.inc
 
+let $seconddigit=`select SUBSTRING(version(),4,1)`;
+let $minordigits=`select SUBSTRING(version(),6,2)`;
+echo $seconddigit, $minordigits;
+
+if ($seconddigit < 2 || ($seconddigit == 2 && $minordigits<6))
+    {
+       --skip Test requires version >10.2.6
+    }
+
+
 --echo "Test 1:- Uncommited delete test"
 CREATE TABLE t1 (id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
 		 val INT UNSIGNED NOT NULL,
@@ -47,7 +57,8 @@ connection default;
 # To make test determinstic in case stats calculation is not
 # triggered we will call analyze table
 analyze table t1;
-let $row_count= query_get_value(EXPLAIN SELECT * FROM t1 WHERE val=4, rows,1);
+let $row_count= query_get_value(EXPLAIN SELECT * FROM t1 WHERE val=4, rows, 1);
+echo $row_count;
 if ($row_count > 20000)
 {
 --echo Test correctly estimates the number of rows as > 20000
