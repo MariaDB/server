@@ -15,7 +15,6 @@
 # compressed table in tests are with sizes KEY_BLOCK_SIZE 1,2,4,8,16 
 # Table creatation fails if KEY_BLOCK_SIZE > innodb-page-size,so 
 # allow test to run only when innodb-page-size=16  
---source include/have_innodb_16k.inc
 
 # Test intentionally crashes the server, corrupted pages possible
 call mtr.add_suppression("InnoDB: Page for tablespace .* ");

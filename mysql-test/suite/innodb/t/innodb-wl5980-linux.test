@@ -9,7 +9,6 @@
 # Prerequisite : portability_wl5980_linux.zip
 # should exist in "suite/innodb/t"
 
---source include/have_innodb_16k.inc
 --source include/not_embedded.inc
 
 --echo # Skip this test other platfoms and run only on Linux.
@@ -17,6 +16,8 @@ if (`select convert(@@version_compile_os using latin1) IN ("Linux") = 0`)
 {
   skip Need Linux;
 }
+
+--source include/have_innodb.inc
 
 --echo # Set the environmental variables
 let MYSQL_BASEDIR= `select @@basedir`;
@@ -101,9 +102,11 @@ EOF
 --echo # partition tables will be stored in mixed (Upper & Lower) format on Linux,
 --echo # but on Windows the partition table names are stored in lower case only.
 
--- exec echo "restart:--lower_case_table_names=1 --datadir=$MYSQL_TMP_DIR/mysqld.5980/data/ " > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- exec echo "restart:--lower_case_table_names=1 --innodb-sys-datafiles --innodb-sys-tablespaces --datadir=$MYSQL_TMP_DIR/mysqld.5980/data/ " > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 -- enable_reconnect
 -- source include/wait_until_connected_again.inc
+
+-- source include/have_partition.inc
 
 --echo # Check the DB & tables with DML statements.
 use test;
