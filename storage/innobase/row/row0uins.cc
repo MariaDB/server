@@ -181,36 +181,7 @@ row_undo_ins_remove_clust_rec(
 			/* This is the rollback of an instant ADD COLUMN.
 			Remove the column from the dictionary cache,
 			but keep the system columns. */
-			char* names = const_cast<char*>(
-				dict_table_get_col_name(table, pos));
-			const char* sys = names + strlen(names) + 1;
-			static const char system[]
-				= "DB_ROW_ID\0DB_TRX_ID\0DB_ROLL_PTR";
-			ut_ad(!memcmp(sys, system, sizeof system));
-			index->n_nullable -= index->fields[--index->n_fields]
-				.col->is_nullable();
-			memmove(names, sys, sizeof system);
-			table->n_cols--;
-			memmove(table->cols + pos, table->cols + pos + 1,
-				DATA_N_SYS_COLS * sizeof *table->cols);
-			for (uint i = 3; i--; ) {
-				table->cols[table->n_cols - i].ind--;
-			}
-			if (dict_index_is_auto_gen_clust(index)) {
-				ut_ad(index->n_uniq == 1);
-				dict_field_t* field = index->fields;
-				field->name = sys;
-				field->col = dict_table_get_sys_col(
-					table, DATA_ROW_ID);
-			}
-			dict_field_t* field = &index->fields[index->n_uniq];
-			field->name = sys + sizeof "DB_ROW_ID";
-			field->col = dict_table_get_sys_col(table,
-							    DATA_TRX_ID);
-			field++;
-			field->name = sys + sizeof "DB_ROW_ID\0DB_TRX_ID";
-			field->col = dict_table_get_sys_col(table,
-							    DATA_ROLL_PTR);
+			table->rollback_instant(pos);
 		}
 
 		dict_table_close(table, true, false);

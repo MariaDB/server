@@ -1131,3 +1131,47 @@ dict_mem_table_is_system(
 		return true;
 	}
 }
+
+/** Roll back the 'instant ADD' of some columns.
+@param[in]	n	number of surviving non-system columns */
+void dict_table_t::rollback_instant(unsigned n)
+{
+	dict_index_t* index = indexes.start;
+	DBUG_ASSERT(index->is_instant());
+	DBUG_ASSERT(n > index->n_uniq);
+	DBUG_ASSERT(n_cols > n + DATA_N_SYS_COLS);
+	const unsigned n_remove = n_cols - n - DATA_N_SYS_COLS;
+
+	char* names = const_cast<char*>(dict_table_get_col_name(this, n));
+	const char* sys = names;
+	for (unsigned i = n_remove; i--; ) {
+		sys += strlen(sys) + 1;
+	}
+	static const char system[] = "DB_ROW_ID\0DB_TRX_ID\0DB_ROLL_PTR";
+	DBUG_ASSERT(!memcmp(sys, system, sizeof system));
+	for (unsigned i = index->n_fields - n_remove; i < index->n_fields;
+	     i++) {
+		index->n_nullable -= index->fields[i].col->is_nullable();
+	}
+	index->n_fields -= n_remove;
+	memmove(names, sys, sizeof system);
+	memmove(cols + n, cols + n_cols - DATA_N_SYS_COLS,
+		DATA_N_SYS_COLS * sizeof *cols);
+	n_cols -= n_remove;
+	for (unsigned i = DATA_N_SYS_COLS; i--; ) {
+		cols[n_cols - i].ind--;
+	}
+
+	if (dict_index_is_auto_gen_clust(index)) {
+		DBUG_ASSERT(index->n_uniq == 1);
+		dict_field_t* field = index->fields;
+		field->name = sys;
+		field->col = dict_table_get_sys_col(this, DATA_ROW_ID);
+	}
+	dict_field_t* field = &index->fields[index->n_uniq];
+	field->name = sys + sizeof "DB_ROW_ID";
+	field->col = dict_table_get_sys_col(this, DATA_TRX_ID);
+	field++;
+	field->name = sys + sizeof "DB_ROW_ID\0DB_TRX_ID";
+	field->col = dict_table_get_sys_col(this, DATA_ROLL_PTR);
+}

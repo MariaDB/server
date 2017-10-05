@@ -1518,6 +1518,10 @@ struct dict_table_t {
 		return(!(flags & DICT_TF_MASK_ZIP_SSIZE));
 	}
 
+	/** Roll back the 'instant ADD' of some columns.
+	@param[in]	n	number of surviving non-system columns */
+	void rollback_instant(unsigned n);
+
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
 
