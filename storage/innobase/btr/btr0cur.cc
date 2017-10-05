@@ -5289,10 +5289,15 @@ btr_cur_optimistic_delete_func(
 	rec = btr_cur_get_rec(cursor);
 
 	if (UNIV_UNLIKELY(page_is_root(block->frame)
-			  && page_get_n_recs(block->frame)
-			  == 1 + cursor->index->is_instant())) {
+			  && page_get_n_recs(block->frame) == 1
+			  + (cursor->index->is_instant()
+			     && !rec_is_default_row(rec, cursor->index)))) {
 		/* The whole index (and table) becomes logically empty.
-		Empty the whole page, including the 'default row' record. */
+		Empty the whole page. That is, if we are deleting the
+		only user record, also delete the 'default row' record
+		if one exists (it exists if and only if is_instant()).
+		If we are deleting the 'default row' record and the
+		table becomes empty, clean up the whole page. */
 		dict_index_t* index = cursor->index;
 		ut_ad(!index->is_instant()
 		      || rec_is_default_row(
@@ -5519,10 +5524,15 @@ btr_cur_pessimistic_delete(
 			if (page_get_n_recs(page) < 2) {
 				goto discard_page;
 			}
-		} else if (page_get_n_recs(page) == 1 + index->is_instant()) {
-			/* The whole index (and table) becomes
-			logically empty.  Empty the whole page,
-			including any 'default row'. */
+		} else if (page_get_n_recs(page) == 1
+			   + (index->is_instant()
+			      && !rec_is_default_row(rec, index))) {
+			/* The whole index (and table) becomes logically empty.
+			Empty the whole page. That is, if we are deleting the
+			only user record, also delete the 'default row' record
+			if one exists (it exists if and only if is_instant()).
+			If we are deleting the 'default row' record and the
+			table becomes empty, clean up the whole page. */
 			ut_ad(!index->is_instant()
 			      || rec_is_default_row(
 				      page_rec_get_next_const(
