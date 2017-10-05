@@ -2575,7 +2575,16 @@ os_file_get_size(
 #endif /* __WIN__ */
 }
 
-/** Set the size of a newly created file.
+/** Extend a file.
+
+On Windows, extending a file allocates blocks for the file,
+unless the file is sparse.
+
+On Unix, we will extend the file with ftruncate(), if
+file needs to be sparse. Otherwise posix_fallocate() is used
+when available, and if not, binary zeroes are added to the end
+of file.
+
 @param[in]	name	file name
 @param[in]	file	file handle
 @param[in]	size	desired file size
@@ -2626,15 +2635,20 @@ os_file_set_size(
 				"file %s failed with error %d",
 				size, name, err);
 		}
+		/* Set errno because posix_fallocate() does not do it.*/
 		return(!err);
 	}
 # endif
 
+	os_offset_t	current_size = os_file_get_size(file);
+
+	if (current_size >= size) {
+		return true;
+	}
+
 	/* Write up to 1 megabyte at a time. */
 	ulint buf_size = ut_min(64, (ulint) (size / UNIV_PAGE_SIZE))
 		* UNIV_PAGE_SIZE;
-	os_offset_t	current_size = 0;
-
 	byte* buf2 = static_cast<byte*>(calloc(1, buf_size + UNIV_PAGE_SIZE));
 
 	if (!buf2) {

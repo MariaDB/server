@@ -1045,156 +1045,26 @@ fil_space_extend_must_retry(
 		page_size = UNIV_PAGE_SIZE;
 	}
 
-#ifdef _WIN32
-	const ulint	io_completion_type = OS_FILE_READ;
-	/* Logically or physically extend the file with zero bytes,
-	depending on whether it is sparse. */
+	/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
+	fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.*/
 
-	/* FIXME: Call DeviceIoControl(node->handle, FSCTL_SET_SPARSE, ...)
-	when opening a file when FSP_FLAGS_HAS_PAGE_COMPRESSION(). */
-	{
-		FILE_END_OF_FILE_INFO feof;
-		/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
-		fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.
-		Do not shrink short ROW_FORMAT=COMPRESSED files. */
-		feof.EndOfFile.QuadPart = std::max(
-			os_offset_t(size - file_start_page_no) * page_size,
-			os_offset_t(FIL_IBD_FILE_INITIAL_SIZE
-				    * UNIV_PAGE_SIZE));
-		*success = SetFileInformationByHandle(node->handle,
-						      FileEndOfFileInfo,
-						      &feof, sizeof feof);
-		if (!*success) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "extending file %s"
-				" from " INT64PF
-				" to " INT64PF " bytes failed with %u",
-				node->name,
-				os_offset_t(node->size) * page_size,
-				feof.EndOfFile.QuadPart, GetLastError());
-		} else {
-			start_page_no = size;
-		}
+	os_offset_t new_size = std::max(
+		os_offset_t(size - file_start_page_no) * page_size,
+		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE));
+
+	*success = os_file_set_size(node->name, node->handle, new_size,
+		FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
+
+
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+		*success = FALSE;
+		os_has_said_disk_full = TRUE;);
+
+	if (*success) {
+		os_has_said_disk_full = FALSE;
+		start_page_no = size;
 	}
-#else
-	/* We will logically extend the file with ftruncate() if
-	page_compression is enabled, because the file is expected to
-	be sparse in that case. Make sure that ftruncate() can deal
-	with large files. */
-	const bool is_sparse	= sizeof(off_t) >= 8
-		&& FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
 
-# ifdef HAVE_POSIX_FALLOCATE
-	/* We must complete the I/O request after invoking
-	posix_fallocate() to avoid an assertion failure at shutdown.
-	Because no actual writes were dispatched, a read operation
-	will suffice. */
-	const ulint	io_completion_type = srv_use_posix_fallocate
-		|| is_sparse ? OS_FILE_READ : OS_FILE_WRITE;
-
-	if (srv_use_posix_fallocate && !is_sparse) {
-		const os_offset_t	start_offset
-			= os_offset_t(start_page_no - file_start_page_no)
-			* page_size;
-		const ulint		n_pages = size - start_page_no;
-		const os_offset_t	len = os_offset_t(n_pages) * page_size;
-
-		int err;
-		do {
-			err = posix_fallocate(node->handle, start_offset, len);
-		} while (err == EINTR
-			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
-
-		*success = !err;
-		if (!*success) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "extending file %s"
-				" from " INT64PF " to " INT64PF " bytes"
-				" failed with error %d",
-				node->name, start_offset, len + start_offset,
-				err);
-		}
-
-		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-				*success = FALSE;
-				os_has_said_disk_full = TRUE;);
-
-		if (*success) {
-			os_has_said_disk_full = FALSE;
-			start_page_no = size;
-		}
-	} else
-# else
-	const ulint io_completion_type = is_sparse
-		? OS_FILE_READ : OS_FILE_WRITE;
-# endif
-	if (is_sparse) {
-		/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
-		fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.
-		Do not shrink short ROW_FORMAT=COMPRESSED files. */
-		off_t	s = std::max(off_t(size - file_start_page_no)
-				     * off_t(page_size),
-				     off_t(FIL_IBD_FILE_INITIAL_SIZE
-					   * UNIV_PAGE_SIZE));
-		*success = !ftruncate(node->handle, s);
-		if (!*success) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "ftruncate of file %s"
-				" from " INT64PF " to " INT64PF " bytes"
-				" failed with error %d",
-				node->name,
-				os_offset_t(start_page_no - file_start_page_no)
-				* page_size, os_offset_t(s), errno);
-		} else {
-			start_page_no = size;
-		}
-	} else {
-		/* Extend at most 64 pages at a time */
-		ulint	buf_size = ut_min(64, size - start_page_no)
-			* page_size;
-		byte*	buf2 = static_cast<byte*>(
-			calloc(1, buf_size + page_size));
-		*success = buf2 != NULL;
-		if (!buf2) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "Cannot allocate " ULINTPF
-				" bytes to extend file",
-				buf_size + page_size);
-		}
-		byte* const	buf = static_cast<byte*>(
-			ut_align(buf2, page_size));
-
-		while (*success && start_page_no < size) {
-			ulint		n_pages
-				= ut_min(buf_size / page_size,
-					 size - start_page_no);
-
-			os_offset_t	offset = static_cast<os_offset_t>(
-				start_page_no - file_start_page_no)
-				* page_size;
-
-			*success = os_aio(OS_FILE_WRITE, 0, OS_AIO_SYNC,
-					  node->name, node->handle, buf,
-					  offset, page_size * n_pages,
-					  page_size, node, NULL,
-					  space->id, NULL, 0);
-
-			DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-					*success = FALSE;
-					os_has_said_disk_full = TRUE;);
-
-			if (*success) {
-				os_has_said_disk_full = FALSE;
-			}
-			/* Let us measure the size of the file
-			to determine how much we were able to
-			extend it */
-			os_offset_t	fsize = os_file_get_size(node->handle);
-			ut_a(fsize != os_offset_t(-1));
-
-			start_page_no = ulint(fsize / page_size)
-				+ file_start_page_no;
-		}
-
-		free(buf2);
-	}
-#endif
 	mutex_enter(&fil_system->mutex);
 
 	ut_a(node->being_extended);
@@ -1204,7 +1074,7 @@ fil_space_extend_must_retry(
 	space->size += file_size - node->size;
 	node->size = file_size;
 
-	fil_node_complete_io(node, fil_system, io_completion_type);
+	fil_node_complete_io(node, fil_system, OS_FILE_READ);
 
 	node->being_extended = FALSE;
 
