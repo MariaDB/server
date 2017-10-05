@@ -2130,6 +2130,7 @@ longlong Item_func_json_length::val_int()
   json_engine_t je;
   uint length= 0;
   uint array_counters[JSON_DEPTH_LIMIT];
+  int err;
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -2171,7 +2172,7 @@ longlong Item_func_json_length::val_int()
   if (json_value_scalar(&je))
     return 1;
 
-  while (json_scan_next(&je) == 0 &&
+  while (!(err= json_scan_next(&je)) &&
          je.state != JST_OBJ_END && je.state != JST_ARRAY_END)
   {
     switch (je.state)
@@ -2188,6 +2189,12 @@ longlong Item_func_json_length::val_int()
     default:
       break;
     };
+  }
+
+  if (!err)
+  {
+    /* Parse to the end of the JSON just to check it's valid. */
+    while (json_scan_next(&je) == 0) {}
   }
 
   if (!je.s.error)

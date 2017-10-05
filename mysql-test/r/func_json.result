@@ -446,6 +446,11 @@ json_length('{"a": 1, "b": {"c": 30}}', '$.b')
 select json_length('{"a": 1, "b": {"c": 30}}');
 json_length('{"a": 1, "b": {"c": 30}}')
 2
+select json_length('{}{');
+json_length('{}{')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 3
 create table json (j INT);
 show create table json;
 Table	Create Table
