@@ -1011,6 +1011,8 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
   case JSON_VALUE_ARRAY:
     if (value->value_type != JSON_VALUE_ARRAY)
     {
+      loc_js= *value;
+      set_js= FALSE;
       while (json_scan_next(js) == 0 && js->state != JST_ARRAY_END)
       {
         int c_level, v_scalar;
@@ -1020,6 +1022,11 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
 
         if (!(v_scalar= json_value_scalar(js)))
           c_level= json_get_level(js);
+
+        if (set_js)
+          *value= loc_js;
+        else
+          set_js= TRUE;
 
         if (check_contains(js, value))
         {

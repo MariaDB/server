@@ -152,6 +152,9 @@ json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]')
 select json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]');
 json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]')
 1
+select json_contains('[{"a":"b"},{"c":"d"}]','{"c":"d"}');
+json_contains('[{"a":"b"},{"c":"d"}]','{"c":"d"}')
+1
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
 json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]")
 1
