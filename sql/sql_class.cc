@@ -1721,7 +1721,9 @@ THD::~THD()
   mysql_mutex_lock(&LOCK_wsrep_thd);
   mysql_mutex_unlock(&LOCK_wsrep_thd);
   mysql_mutex_destroy(&LOCK_wsrep_thd);
-  delete wsrep_rgi;
+  mysql_cond_destroy(&COND_wsrep_thd);
+  if (wsrep_rgi) delete wsrep_rgi;
+  if (wsrep_status_vars) wsrep->stats_free(wsrep, wsrep_status_vars);
 #endif
   mdl_context.destroy();
 
