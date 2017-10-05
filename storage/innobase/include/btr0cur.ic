@@ -28,7 +28,7 @@ Created 10/16/1994 Heikki Tuuri
 #ifdef UNIV_DEBUG
 # define LIMIT_OPTIMISTIC_INSERT_DEBUG(NREC, CODE)\
 if (btr_cur_limit_optimistic_insert_debug > 1\
-    && (NREC) >= (ulint)btr_cur_limit_optimistic_insert_debug) {\
+    && (NREC) >= btr_cur_limit_optimistic_insert_debug) {\
         CODE;\
 }
 #else
@@ -134,7 +134,7 @@ btr_cur_compress_recommendation(
 
 	page = btr_cur_get_page(cursor);
 
-	LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page) * 2,
+	LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page) * 2U,
 				      return(FALSE));
 
 	if ((page_get_data_size(page)
