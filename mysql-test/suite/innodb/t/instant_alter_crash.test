@@ -4,11 +4,15 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+
 --echo #
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
 --echo #
 
-CREATE TABLE t1(id INT PRIMARY KEY, c2 INT UNIQUE) ENGINE=InnoDB;
+CREATE TABLE t1(id INT PRIMARY KEY, c2 INT UNIQUE)
+ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t1 VALUES(1,2);
 BEGIN;
@@ -37,6 +41,8 @@ DELETE FROM t1;
 ROLLBACK;
 --source include/wait_all_purged.inc
 
+INSERT INTO t2 VALUES (64,42,'De finibus bonorum'), (347,33101,' et malorum');
+
 connect ddl, localhost, root;
 SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
 --send
@@ -61,6 +67,52 @@ INSERT INTO t1 SET id=1;
 DELETE FROM t2;
 ROLLBACK;
 --source include/wait_all_purged.inc
+
+FLUSH TABLE t1,t2 FOR EXPORT;
+
+# At this point, t1 is empty and t2 contains a 'default row'.
+
+# The following is based on innodb.table_flags and innodb.dml_purge:
+--perl
+use strict;
+my $ps= $ENV{INNODB_PAGE_SIZE};
+foreach my $table ('t1','t2') {
+my $file= "$ENV{MYSQLD_DATADIR}/test/$table.ibd";
+open(FILE, "<", $file) || die "Unable to open $file\n";
+my $page;
+sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+print "$table clustered index root page";
+print "(type ", unpack("n", substr($page,24,2)), "):\n";
+print "N_RECS=", unpack("n", substr($page,38+16,2));
+print "; LEVEL=", unpack("n", substr($page,38+26,2)), "\n";
+my @fields=("id","DB_TRX_ID","DB_ROLL_PTR", "c2","c3","c4");
+for (my $offset= 0x65; $offset;
+     $offset= unpack("n", substr($page,$offset-2,2)))
+{
+    print "header=0x", unpack("H*",substr($page,$offset-6,6)), " (";
+    my $n_fields= unpack("n", substr($page,$offset-4,2)) >> 1 & 0x3ff;
+    my $start= 0;
+    my $name;
+    for (my $i= 0; $i < $n_fields; $i++) {
+	my $end= unpack("C", substr($page, $offset-7-$i, 1));
+	print ",\n " if $i;
+	print "$fields[$i]=";
+	if ($end & 0x80) {
+	    print "NULL(", ($end & 0x7f) - $start, " bytes)"
+	} else {
+	    print "0x", unpack("H*", substr($page,$offset+$start,$end-$start))
+	}
+	$start= $end & 0x7f;
+    }
+    print ")\n";
+}
+close(FILE) || die "Unable to close $file\n";
+}
+EOF
+
+UNLOCK TABLES;
+
 DELETE FROM t2;
 --source include/wait_all_purged.inc
 
