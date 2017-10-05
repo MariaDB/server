@@ -1228,7 +1228,7 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 		for (ulint n = v.num_base; n--; ) {
 			dict_col_t*& base = v.base_col[n];
 			if (!base->is_virtual()) {
-				unsigned n = base - old_cols;
+				ptrdiff_t n = base - old_cols;
 				DBUG_ASSERT(n + DATA_N_SYS_COLS < old_n_cols);
 				base = &cols[n];
 			}
@@ -1246,7 +1246,7 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 			    || field.col >= old_cols_end) {
 				DBUG_ASSERT(field.col->is_virtual());
 			} else {
-				unsigned n = field.col - old_cols;
+				ptrdiff_t n = field.col - old_cols;
 				/* Secondary indexes may contain user
 				columns and DB_ROW_ID (if there is
 				GEN_CLUST_INDEX instead of PRIMARY KEY),
@@ -1324,7 +1324,7 @@ dict_table_t::rollback_instant(
 			    || field.col >= new_cols_end) {
 				DBUG_ASSERT(field.col->is_virtual());
 			} else {
-				unsigned n = field.col - new_cols;
+				ptrdiff_t n = field.col - new_cols;
 				if (n + DATA_N_SYS_COLS >= n_cols) {
 					n -= n_remove;
 				}
