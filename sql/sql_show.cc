@@ -3640,6 +3640,15 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table)
         return 0;
     }
   }
+  else if (item->type() == Item::ROW_ITEM)
+  {
+    Item_row *item_row= static_cast<Item_row*>(item);
+    for (uint i= 0; i < item_row->cols(); i++)
+    {
+      if (!uses_only_table_name_fields(item_row->element_index(i), table))
+        return 0;
+    }
+  }
   else if (item->type() == Item::FIELD_ITEM)
   {
     Item_field *item_field= (Item_field*)item;
@@ -3658,6 +3667,11 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table)
                                (uchar *) item_field->field_name,
                                strlen(item_field->field_name), 0)))
       return 0;
+  }
+  else if (item->type() == Item::EXPR_CACHE_ITEM)
+  {
+    Item_cache_wrapper *tmp= static_cast<Item_cache_wrapper*>(item);
+    return uses_only_table_name_fields(tmp->get_orig_item(), table);
   }
   else if (item->type() == Item::REF_ITEM)
     return uses_only_table_name_fields(item->real_item(), table);

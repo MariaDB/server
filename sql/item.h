@@ -4131,6 +4131,8 @@ public:
   bool fix_fields(THD *thd, Item **it);
   void cleanup();
 
+  Item *get_orig_item() const { return orig_item; }
+
   /* Methods of getting value which should be cached in the cache */
   void save_val(Field *to);
   double val_real();
