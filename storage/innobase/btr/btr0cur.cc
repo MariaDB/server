@@ -4004,11 +4004,11 @@ btr_cur_trim(
 			/* This rollback can occur either as part of
 			ha_innobase::commit_inplace_alter_table() rolling
 			back after a failed innobase_add_instant_try(),
-			or as part of crash recovery. The table would
-			be in the data dictionary cache only if we roll
-			back as part of crash recovery. */
-			ut_ad(index->table->cached
-			      == trx_is_recv(thr->graph->trx));
+			or as part of crash recovery. Either way, the
+			table will be in the data dictionary cache, with
+			the instantly added columns going to be removed
+			later in the rollback. */
+			ut_ad(index->table->cached);
 			/* The DB_TRX_ID,DB_ROLL_PTR are always last,
 			and there should be some change to roll back.
 			The first field in the update vector is the

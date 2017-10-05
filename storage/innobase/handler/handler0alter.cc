@@ -189,10 +189,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	const char**	drop_vcol_name;
 	/** ALTER TABLE stage progress recorder */
 	ut_stage_alter_t* m_stage;
-#ifdef UNIV_DEBUG
-	/** in prepare_instant(), the value of old_table->is_instant() */
-	bool		was_instant;
-#endif /* UNIV_DEBUG */
+	/** original number of user columns in the table */
+	const unsigned	old_n_cols;
+	/** original columns of the table */
+	dict_col_t* const old_cols;
+	/** original column names of the table */
+	const char* const old_col_names;
 
 	ha_innobase_inplace_ctx(row_prebuilt_t*& prebuilt_arg,
 				dict_index_t** drop_arg,
@@ -234,11 +236,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		num_to_drop_vcol(0),
 		drop_vcol(0),
 		drop_vcol_name(0),
-		m_stage(NULL)
-#ifdef UNIV_DEBUG
-		, was_instant(false)
-#endif
+		m_stage(NULL),
+		old_n_cols(prebuilt_arg->table->n_cols),
+		old_cols(prebuilt_arg->table->cols),
+		old_col_names(prebuilt_arg->table->col_names)
 	{
+		ut_ad(old_n_cols >= DATA_N_SYS_COLS);
 #ifdef UNIV_DEBUG
 		for (ulint i = 0; i < num_to_add_index; i++) {
 			ut_ad(!add_index[i]->to_be_dropped);
@@ -256,6 +259,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	{
 		UT_DELETE(m_stage);
 		if (instant_table) {
+			while (dict_index_t* index
+			       = UT_LIST_GET_LAST(instant_table->indexes)) {
+				UT_LIST_REMOVE(instant_table->indexes, index);
+				rw_lock_free(&index->lock);
+				dict_mem_index_free(index);
+			}
 			dict_mem_table_free(instant_table);
 		}
 		mem_heap_free(heap);
@@ -270,42 +279,22 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	{
 		DBUG_ASSERT(need_rebuild());
 		DBUG_ASSERT(!is_instant());
-		DBUG_ASSERT(num_to_add_index == 0);
+		DBUG_ASSERT(old_table->n_cols == old_table->n_def);
+		DBUG_ASSERT(new_table->n_cols == new_table->n_def);
+		DBUG_ASSERT(old_table->n_cols == old_n_cols);
 		DBUG_ASSERT(new_table->n_cols > old_table->n_cols);
-		DBUG_ASSERT(UT_LIST_GET_LEN(old_table->indexes)
-			    >= UT_LIST_GET_LEN(new_table->indexes));
-		DBUG_ASSERT(!new_table->cached);
-		ut_d(was_instant = old_table->is_instant());
 		instant_table = new_table;
-		instant_table->id = old_table->id;
-		instant_table->space = old_table->space;
-
-		const dict_index_t* old_index = dict_table_get_first_index(
-			old_table);
-		dict_index_t* index = dict_table_get_first_index(
-			instant_table);
-		DBUG_ASSERT(!index->is_instant());
-		/* We do not support renaming an index yet; it could
-		be implemented easily. */
-		DBUG_ASSERT(!strcmp(old_index->name, index->name));
-		DBUG_ASSERT(index->n_fields > old_index->n_fields);
-		index->prepare_instant_copy(*old_index, true);
-
-		while ((old_index = dict_table_get_next_index(old_index))) {
-			for (index = dict_table_get_first_index(instant_table);
-			     (index = dict_table_get_next_index(index)) != 0;
-			     ) {
-				if (!strcmp(old_index->name, index->name)) {
-					index->prepare_instant_copy(
-						*old_index);
-					break;
-				}
-			}
-			DBUG_ASSERT(index || num_to_drop_index);
-		}
 
 		new_table = old_table;
 		export_vars.innodb_instant_alter_column++;
+	}
+
+	/** Revert prepare_instant() if the transaction is rolled back. */
+	void rollback_instant()
+	{
+		if (!is_instant()) return;
+		old_table->rollback_instant(old_n_cols,
+					    old_cols, old_col_names);
 	}
 
 	/** @return whether this is instant ALTER TABLE */
@@ -313,130 +302,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	{
 		DBUG_ASSERT(!instant_table || !instant_table->can_be_evicted);
 		return instant_table;
-	}
-
-	/** Apply the instant ALTER changes to the table.
-	We will copy the metadata to the old_table, so that
-	there will be no need to drop any adaptive hash indexes. */
-	void commit_instant()
-	{
-		DBUG_ASSERT(is_instant());
-		DBUG_ASSERT(!num_to_add_index);
-		DBUG_ASSERT(!instant_table->cached);
-
-		/* Swap the column names. */
-		const char* end = instant_table->col_names;
-		unsigned i = instant_table->n_cols;
-		while (i--) end += strlen(end) + 1;
-
-		old_table->col_names = static_cast<char*>(
-			mem_heap_dup(old_table->heap, instant_table->col_names,
-				     end - instant_table->col_names));
-
-		end = instant_table->v_col_names;
-		i = instant_table->n_v_cols;
-		while (i--) end += strlen(end) + 1;
-
-		old_table->v_col_names = end ? static_cast<char*>(
-			mem_heap_dup(old_table->heap,
-				     instant_table->v_col_names,
-				     end - instant_table->v_col_names)) : NULL;
-
-		old_table->cols = static_cast<dict_col_t*>(
-			mem_heap_dup(old_table->heap, instant_table->cols,
-				     instant_table->n_cols
-				     * sizeof *old_table->cols));
-		if (instant_table->is_instant()) {
-			/* Copy the default values to the old_table->heap.
-			They were allocated in this->heap. */
-			for (int i = old_table->n_def - DATA_N_SYS_COLS;
-			     i < instant_table->n_def - DATA_N_SYS_COLS;
-			     i++) {
-				dict_col_t& c = old_table->cols[i];
-				DBUG_ASSERT(c.is_instant());
-				if (c.def_val.len == 0) {
-					c.def_val.data = field_ref_zero;
-				} else if (const void*& d = c.def_val.data) {
-					d = mem_heap_dup(old_table->heap, d,
-							 c.def_val.len);
-				} else {
-					ut_ad(c.def_val.len == UNIV_SQL_NULL);
-				}
-			}
-		}
-
-		for (uint i = old_table->n_v_def; i--; ) {
-			UT_DELETE(dict_table_get_nth_v_col(old_table, i)
-				  ->v_indexes);
-		}
-
-		if (old_table->n_v_cols < instant_table->n_v_cols) {
-			old_table->v_cols = static_cast<dict_v_col_t*>(
-				mem_heap_dup(old_table->heap,
-					     instant_table->v_cols,
-					     instant_table->n_v_cols
-					     * sizeof *old_table->v_cols));
-		} else {
-			memcpy(old_table->v_cols, instant_table->v_cols,
-			       instant_table->n_v_cols
-			       * sizeof *old_table->v_cols);
-		}
-
-		old_table->n_def = instant_table->n_def;
-		old_table->n_t_def = instant_table->n_t_def;
-		old_table->n_v_def = instant_table->n_v_def;
-		old_table->n_cols = instant_table->n_cols;
-		old_table->n_t_cols = instant_table->n_t_cols;
-		old_table->n_v_cols = instant_table->n_v_cols;
-		instant_table->n_v_def = 0;
-
-		for (uint i = old_table->n_v_def; i--; ) {
-			dict_v_col_t& v = old_table->v_cols[i];
-			v.base_col = static_cast<dict_col_t**>(
-				mem_heap_dup(old_table->heap, v.base_col,
-					     v.num_base * sizeof *v.base_col));
-			for (ulint n = v.num_base; n--; ) {
-				dict_col_t*& b = v.base_col[n];
-				if (b->is_virtual()) {
-					b = &old_table->v_cols[
-						reinterpret_cast
-						<dict_v_col_t*>(b)
-						- instant_table->v_cols].m_col;
-				} else {
-					b = &old_table->cols[
-						b - instant_table->cols];
-				}
-			}
-			v.v_indexes->clear();
-		}
-
-		dict_index_t* index = dict_table_get_first_index(old_table);
-		const dict_index_t* idx = dict_table_get_first_index(
-			instant_table);
-		DBUG_ASSERT(idx->same(*index, true));
-		index->commit_instant_copy(*idx);
-
-		while ((index = dict_table_get_next_index(index))) {
-			for (idx = dict_table_get_first_index(instant_table);
-			     (idx = dict_table_get_next_index(idx)) != NULL;
-			     ) {
-				if (!strcmp(index->name, idx->name)) {
-					index->commit_instant_copy(*idx);
-					break;
-				}
-			}
-			DBUG_ASSERT(idx || num_to_drop_index);
-		}
-
-		while (dict_index_t* index
-		       = UT_LIST_GET_LAST(instant_table->indexes)) {
-			UT_LIST_REMOVE(instant_table->indexes, index);
-			rw_lock_free(&index->lock);
-			dict_mem_index_free(index);
-		}
-		dict_mem_table_free(instant_table);
-		instant_table = NULL;
-		DBUG_ASSERT(!is_instant());
 	}
 
 private:
@@ -4186,142 +4051,60 @@ innobase_add_instant_try(
 	if (!ctx->is_instant()) return false;
 
 	DBUG_ASSERT(altered_table->s->fields > table->s->fields);
+	DBUG_ASSERT(ctx->old_table->n_cols == ctx->old_n_cols);
 
-	const dict_table_t* user_table = ctx->old_table;
-	dict_table_t* new_table = ctx->instant_table;
-	DBUG_ASSERT(new_table->n_cols > user_table->n_cols);
-
-	const dict_index_t* old_index = dict_table_get_first_index(user_table);
-	dict_index_t* index = dict_table_get_first_index(new_table);
-	DBUG_ASSERT(index->is_instant());
-	DBUG_ASSERT(ctx->was_instant || !old_index->is_instant());
-	DBUG_ASSERT(index->n_fields > old_index->n_fields);
-	/* If the table was emptied and lost previous 'instant-add-ness'
-	during this instant ADD COLUMN, then we could indeed have a smaller
-	number of core fields in the instant_table than in old_table. */
-	DBUG_ASSERT((ctx->was_instant && !old_index->is_instant())
-		    || index->n_core_fields == old_index->n_core_fields);
-	DBUG_ASSERT((ctx->was_instant && !old_index->is_instant())
-		    || index->n_core_null_bytes
-		    == old_index->n_core_null_bytes);
-	index->n_core_fields = old_index->n_core_fields;
-	index->n_core_null_bytes = old_index->n_core_null_bytes;
-	DBUG_ASSERT(index->same(*old_index, true));
-	index->id = old_index->id;
-	new_table->space = index->space = old_index->space;
-	DBUG_ASSERT(index->is_instant());
+	dict_table_t* user_table = ctx->old_table;
+	user_table->instant_add_column(*ctx->instant_table);
+	dict_index_t* index = dict_table_get_first_index(user_table);
+	/* The table may have been emptied and may have lost its
+	'instant-add-ness' during this instant ADD COLUMN. */
 
 	/* Construct a table row of default values for the stored columns. */
-	dtuple_t* row = dtuple_create(ctx->heap, new_table->n_cols);
-	dict_table_copy_types(row, new_table);
-	uint i = 0; /* index of stored columns in ctx->new_table->cols[] */
-	Field **af = altered_table->field;
+	dtuple_t* row = dtuple_create(ctx->heap, user_table->n_cols);
+	dict_table_copy_types(row, user_table);
+	Field** af = altered_table->field;
+	Field** const end = altered_table->field + altered_table->s->fields;
 
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
-
-	while (const Create_field* new_field = cf_it++) {
-		DBUG_ASSERT(!new_field->field
-			    || std::find(table->field,
-					 table->field + table->s->fields,
-					 new_field->field) !=
-			    table->field + table->s->fields);
-		DBUG_ASSERT(new_field->field
-			    || !strcmp(new_field->field_name.str,
-				       (*af)->field_name.str));
-
+	for (uint i = 0; af < end; af++) {
 		if (!(*af)->stored_in_db()) {
-			af++;
 			continue;
 		}
 
-		dict_col_t* col = dict_table_get_nth_col(new_table, i);
-		const dict_col_t* old_col = new_field->field
-			? dict_table_get_nth_col(user_table, i) : NULL;
-
+		dict_col_t* col = dict_table_get_nth_col(user_table, i);
 		DBUG_ASSERT(!strcmp((*af)->field_name.str,
-				    dict_table_get_col_name(new_table, i)));
-		DBUG_ASSERT(!col->is_instant());
+				    dict_table_get_col_name(user_table, i)));
 
-		dfield_t* dfield = dtuple_get_nth_field(row, i);
-		if (new_field->field) {
-			DBUG_ASSERT(col->mtype == old_col->mtype);
-			DBUG_ASSERT(col->prtype == old_col->prtype);
-			DBUG_ASSERT(col->mbminmaxlen == old_col->mbminmaxlen);
-			DBUG_ASSERT(col->len >= old_col->len);
-			DBUG_ASSERT(old_col->is_instant()
-				    == (dict_col_get_clust_pos(
-						old_col, old_index)
-					>= old_index->n_core_fields));
-			col->def_val = old_col->def_val;
+		dfield_t* d = dtuple_get_nth_field(row, i);
 
-			if (old_col->is_instant()) {
-				dfield_set_data(dfield, old_col->def_val.data,
-						old_col->def_val.len);
-			} else if ((*af)->real_maybe_null()) {
-				/* Store NULL for nullable 'core' columns. */
-				dfield_set_null(dfield);
-			} else {
-				switch ((*af)->type()) {
-				case MYSQL_TYPE_VARCHAR:
-				case MYSQL_TYPE_GEOMETRY:
-				case MYSQL_TYPE_TINY_BLOB:
-				case MYSQL_TYPE_MEDIUM_BLOB:
-				case MYSQL_TYPE_BLOB:
-				case MYSQL_TYPE_LONG_BLOB:
-					/* Store the empty string for 'core'
-					variable-length NOT NULL columns. */
-					dfield_set_data(dfield,
-							field_ref_zero, 0);
-					break;
-				default:
-					/* For fixed-length NOT NULL
-					'core' columns, get a dummy
-					default value from SQL. Note
-					that we should preserve the
-					old values of these columns
-					when updating the 'default
-					row' record, to avoid
-					unnecessary updates. */
-					goto set_not_null_default_from_sql;
-				}
-			}
-		} else if ((*af)->is_real_null()) {
-			/* Store NULL for added DEFAULT NULL columns. */
-			dfield_set_null(dfield);
-			col->def_val.len = UNIV_SQL_NULL;
+		if (col->is_instant()) {
+			dfield_set_data(d, col->def_val.data,
+					col->def_val.len);
+		} else if ((*af)->real_maybe_null()) {
+			/* Store NULL for nullable 'core' columns. */
+			dfield_set_null(d);
 		} else {
-set_not_null_default_from_sql:
 			switch ((*af)->type()) {
 			case MYSQL_TYPE_VARCHAR:
-				dfield_set_data(dfield,
-						reinterpret_cast
-						<const Field_varstring*>
-						((*af))->get_data(),
-						reinterpret_cast
-						<const Field_varstring*>
-						((*af))->get_length());
-				break;
 			case MYSQL_TYPE_GEOMETRY:
 			case MYSQL_TYPE_TINY_BLOB:
 			case MYSQL_TYPE_MEDIUM_BLOB:
 			case MYSQL_TYPE_BLOB:
 			case MYSQL_TYPE_LONG_BLOB:
-				dfield_set_data(dfield,
-						reinterpret_cast
-						<const Field_blob*>
-						((*af))->get_ptr(),
-						reinterpret_cast
-						<const Field_blob*>
-						((*af))->get_length());
+				/* Store the empty string for 'core'
+				variable-length NOT NULL columns. */
+				dfield_set_data(d, field_ref_zero, 0);
 				break;
 			default:
+				/* For fixed-length NOT NULL 'core' columns,
+				get a dummy default value from SQL. Note that
+				we will preserve the old values of these
+				columns when updating the 'default row'
+				record, to avoid unnecessary updates. */
 				ulint len = (*af)->pack_length();
-				DBUG_ASSERT(dfield->type.mtype != DATA_INT
+				DBUG_ASSERT(d->type.mtype != DATA_INT
 					    || len <= 8);
 				row_mysql_store_col_in_innobase_format(
-					dfield,
-					dfield->type.mtype == DATA_INT
+					d, d->type.mtype == DATA_INT
 					? static_cast<byte*>(
 						mem_heap_alloc(ctx->heap, len))
 					: NULL, true, (*af)->ptr, len,
@@ -4329,71 +4112,56 @@ set_not_null_default_from_sql:
 			}
 		}
 
-		if (!new_field->field) {
-			col->def_val.data = dfield_get_len(dfield)
-				? dfield_get_data(dfield) : field_ref_zero;
-			col->def_val.len = dfield_get_len(dfield);
+		if (i + DATA_N_SYS_COLS < ctx->old_n_cols) {
+			i++;
+			continue;
+		}
 
-			pars_info_t*    info = pars_info_create();
-			pars_info_add_ull_literal(info, "id", user_table->id);
-			pars_info_add_int4_literal(info, "pos", i);
-			pars_info_add_str_literal(info, "name",
-						  (*af)->field_name.str);
-			pars_info_add_int4_literal(info, "mtype",
-						   dfield->type.mtype);
-			pars_info_add_int4_literal(info, "prtype",
-						   dfield->type.prtype);
-			pars_info_add_int4_literal(info, "len",
-						   dfield->type.len);
+		pars_info_t*    info = pars_info_create();
+		pars_info_add_ull_literal(info, "id", user_table->id);
+		pars_info_add_int4_literal(info, "pos", i);
+		pars_info_add_str_literal(info, "name", (*af)->field_name.str);
+		pars_info_add_int4_literal(info, "mtype", d->type.mtype);
+		pars_info_add_int4_literal(info, "prtype", d->type.prtype);
+		pars_info_add_int4_literal(info, "len", d->type.len);
 
-			dberr_t err = que_eval_sql(
-				info,
-				"PROCEDURE ADD_COL () IS\n"
-				"BEGIN\n"
-				"INSERT INTO SYS_COLUMNS VALUES"
-				"(:id,:pos,:name,:mtype,:prtype,:len,0);\n"
-				"END;\n",
-				FALSE, trx);
-			if (err != DB_SUCCESS) {
-				my_error(ER_INTERNAL_ERROR, MYF(0),
-					 "InnoDB: Insert into SYS_COLUMNS"
-					 " failed");
-				return(true);
-			}
+		dberr_t err = que_eval_sql(
+			info,
+			"PROCEDURE ADD_COL () IS\n"
+			"BEGIN\n"
+			"INSERT INTO SYS_COLUMNS VALUES"
+			"(:id,:pos,:name,:mtype,:prtype,:len,0);\n"
+			"END;\n", FALSE, trx);
+		if (err != DB_SUCCESS) {
+			my_error(ER_INTERNAL_ERROR, MYF(0),
+				 "InnoDB: Insert into SYS_COLUMNS failed");
+			return(true);
 		}
 
 		i++;
-		af++;
 	}
 
-	DBUG_ASSERT(af == &altered_table->field[altered_table->s->fields]);
-	DBUG_ASSERT(new_table->n_cols == new_table->n_def);
-	/* There may exist a hidden FTS_DOC_ID column for FULLTEXT INDEX. */
-	DBUG_ASSERT(DATA_N_SYS_COLS + i == new_table->n_cols
-		    || (1 + DATA_N_SYS_COLS + i == new_table->n_cols
-			&& !strcmp(dict_table_get_col_name(new_table, i),
-				   FTS_DOC_ID_COL_NAME)));
-	i = new_table->n_cols - DATA_N_SYS_COLS;
+	if (innodb_update_n_cols(user_table, dict_table_encode_n_col(
+					 user_table->n_cols - DATA_N_SYS_COLS,
+					 user_table->n_v_cols)
+				 | (user_table->flags & DICT_TF_COMPACT) << 31,
+				 trx)) {
+		return true;
+	}
+
+	unsigned i = user_table->n_cols - DATA_N_SYS_COLS;
 	byte trx_id[DATA_TRX_ID_LEN], roll_ptr[DATA_ROLL_PTR_LEN];
 	dfield_set_data(dtuple_get_nth_field(row, i++), field_ref_zero,
 			DATA_ROW_ID_LEN);
 	dfield_set_data(dtuple_get_nth_field(row, i++), trx_id, sizeof trx_id);
 	dfield_set_data(dtuple_get_nth_field(row, i),roll_ptr,sizeof roll_ptr);
-	DBUG_ASSERT(i + 1 == new_table->n_cols);
+	DBUG_ASSERT(i + 1 == user_table->n_cols);
 
 	trx_write_trx_id(trx_id, trx->id);
 	/* The DB_ROLL_PTR will be assigned later, when allocating undo log.
 	Silence a Valgrind warning in dtuple_validate() when
 	row_ins_clust_index_entry_low() searches for the insert position. */
 	memset(roll_ptr, 0, sizeof roll_ptr);
-
-	if (innodb_update_n_cols(user_table, dict_table_encode_n_col(
-					 new_table->n_cols - DATA_N_SYS_COLS,
-					 new_table->n_v_cols)
-				 | (user_table->flags & DICT_TF_COMPACT) << 31,
-				 trx)) {
-		return true;
-	}
 
 	dtuple_t* entry = row_build_index_entry(row, NULL, index, ctx->heap);
 	entry->info_bits = REC_INFO_DEFAULT_ROW;
@@ -4414,14 +4182,13 @@ set_not_null_default_from_sql:
 	que_thr_t* thr = pars_complete_graph_for_exec(
 		NULL, trx, ctx->heap, NULL);
 
-	if (rec_is_default_row(rec, old_index)) {
+	if (rec_is_default_row(rec, index)) {
 		ut_ad(page_rec_is_user_rec(rec));
-		ut_ad(old_index->is_instant());
 		if (page_rec_is_last(rec, block->frame)) {
 			goto empty_table;
 		}
 		/* Extend the record with the instantly added columns. */
-		const unsigned n = index->n_fields - old_index->n_fields;
+		const unsigned n = user_table->n_cols - ctx->old_n_cols;
 		/* Reserve room for DB_TRX_ID,DB_ROLL_PTR and any
 		non-updated off-page columns in case they are moved off
 		page as a result of the update. */
@@ -4431,7 +4198,7 @@ set_not_null_default_from_sql:
 		/* Add the default values for instantly added columns */
 		for (unsigned i = 0; i < n; i++) {
 			upd_field_t* uf = upd_get_nth_field(update, i);
-			unsigned f = i + old_index->n_fields;
+			unsigned f = index->n_fields - n + i;
 			uf->field_no = f;
 			uf->new_val = entry->fields[f];
 		}
@@ -4459,7 +4226,6 @@ set_not_null_default_from_sql:
 		mtr.commit();
 		return error != DB_SUCCESS;
 	} else if (page_rec_is_supremum(rec)) {
-		ut_ad(!user_table->is_instant());
 empty_table:
 		/* The table is empty. */
 		ut_ad(page_is_root(block->frame));
@@ -4470,7 +4236,7 @@ empty_table:
 	}
 
 	/* Convert the table to the instant ADD COLUMN format. */
-	ut_ad(!user_table->is_instant());
+	ut_ad(user_table->is_instant());
 	mtr.commit();
 	mtr.start();
 	mtr.set_named_space(index->space);
@@ -5352,18 +5118,24 @@ new_clustered_failed:
 		DBUG_ASSERT(ctx->new_table->n_cols > ctx->old_table->n_cols);
 
 		if (ha_alter_info->handler_flags & INNOBASE_ONLINE_CREATE) {
-			/* We might want to allow ADD [UNIQUE] INDEX
+			/* At the moment, we disallow ADD [UNIQUE] INDEX
 			together with instant ADD COLUMN.
 
-			Or maybe it would make more sense for the user
-			to add the column first, then update the
-			column to get a better selectivity of the
-			index, and finally create the index.
+			The main reason is that the work of instant
+			ADD must be done in commit_inplace_alter_table().
+			For the rollback_instant() to work, we must
+			add the columns to dict_table_t beforehand,
+			and roll back those changes in case the
+			transaction is rolled back.
 
-			Note that if we allow concurrent ADD INDEX,
-			the index-name-matching in
-			ctx->prepare_instant() and ctx->commit_instant()
-			will have to be replaced as well! */
+			If we added the columns to the dictionary cache
+			already in the prepare_inplace_alter_table(),
+			we would have to deal with column number
+			mismatch in ha_innobase::open(), write_row()
+			and other functions. */
+
+			/* FIXME: allow instant ADD COLUMN together
+			with ADD INDEX on pre-existing columns. */
 			goto not_instant_add_column;
 		}
 
@@ -5373,13 +5145,122 @@ new_clustered_failed:
 				FIL_NULL, false);
 			ut_a(error == DB_SUCCESS);
 		}
-
 		DBUG_ASSERT(ha_alter_info->key_count
 			    + dict_index_is_auto_gen_clust(
 				    dict_table_get_first_index(ctx->new_table))
 			    == ctx->num_to_add_index);
 		ctx->num_to_add_index = 0;
 		ctx->add_index = NULL;
+
+		uint i = 0; // index of stored columns ctx->new_table->cols[]
+		Field **af = altered_table->field;
+
+		List_iterator_fast<Create_field> cf_it(
+			ha_alter_info->alter_info->create_list);
+
+		while (const Create_field* new_field = cf_it++) {
+			DBUG_ASSERT(!new_field->field
+				    || std::find(old_table->field,
+						 old_table->field
+						 + old_table->s->fields,
+						 new_field->field) !=
+				    old_table->field + old_table->s->fields);
+			DBUG_ASSERT(new_field->field
+				    || !strcmp(new_field->field_name.str,
+					       (*af)->field_name.str));
+
+			if (!(*af)->stored_in_db()) {
+				af++;
+				continue;
+			}
+
+			dict_col_t* col = dict_table_get_nth_col(
+				ctx->new_table, i);
+			DBUG_ASSERT(!strcmp((*af)->field_name.str,
+				    dict_table_get_col_name(ctx->new_table,
+							    i)));
+			DBUG_ASSERT(!col->is_instant());
+
+			if (new_field->field) {
+				ut_d(const dict_col_t* old_col
+				     = dict_table_get_nth_col(user_table, i));
+				ut_d(const dict_index_t* index
+				     = user_table->indexes.start);
+				DBUG_ASSERT(col->mtype == old_col->mtype);
+				DBUG_ASSERT(col->prtype == old_col->prtype);
+				DBUG_ASSERT(col->mbminmaxlen
+					    == old_col->mbminmaxlen);
+				DBUG_ASSERT(col->len >= old_col->len);
+				DBUG_ASSERT(old_col->is_instant()
+					    == (dict_col_get_clust_pos(
+							old_col, index)
+						>= index->n_core_fields));
+			} else if ((*af)->is_real_null()) {
+				/* DEFAULT NULL */
+				col->def_val.len = UNIV_SQL_NULL;
+			} else {
+				switch ((*af)->type()) {
+				case MYSQL_TYPE_VARCHAR:
+					col->def_val.len = reinterpret_cast
+						<const Field_varstring*>
+						((*af))->get_length();
+					col->def_val.data = reinterpret_cast
+						<const Field_varstring*>
+						((*af))->get_data();
+					break;
+				case MYSQL_TYPE_GEOMETRY:
+				case MYSQL_TYPE_TINY_BLOB:
+				case MYSQL_TYPE_MEDIUM_BLOB:
+				case MYSQL_TYPE_BLOB:
+				case MYSQL_TYPE_LONG_BLOB:
+					col->def_val.len = reinterpret_cast
+						<const Field_blob*>
+						((*af))->get_length();
+					col->def_val.data = reinterpret_cast
+						<const Field_blob*>
+						((*af))->get_ptr();
+					break;
+				default:
+					dfield_t d;
+					dict_col_copy_type(col, &d.type);
+					ulint len = (*af)->pack_length();
+					DBUG_ASSERT(len <= 8
+						    || d.type.mtype
+						    != DATA_INT);
+					row_mysql_store_col_in_innobase_format(
+						&d,
+						d.type.mtype == DATA_INT
+						? static_cast<byte*>(
+							mem_heap_alloc(
+								ctx->heap,
+								len))
+						: NULL,
+						true, (*af)->ptr, len,
+						dict_table_is_comp(
+							user_table));
+					col->def_val.len = d.len;
+					col->def_val.data = d.data;
+				}
+			}
+
+			i++;
+			af++;
+		}
+
+		DBUG_ASSERT(af == altered_table->field
+			    + altered_table->s->fields);
+		/* There might exist a hidden FTS_DOC_ID column for
+		FULLTEXT INDEX. If it exists, the columns should have
+		been implicitly added by ADD FULLTEXT INDEX together
+		with instant ADD COLUMN. (If a hidden FTS_DOC_ID pre-existed,
+		then the ctx->col_map[] check should have prevented
+		adding visible user columns after that.) */
+		DBUG_ASSERT(DATA_N_SYS_COLS + i == ctx->new_table->n_cols
+			    || (1 + DATA_N_SYS_COLS + i
+				== ctx->new_table->n_cols
+				&& !strcmp(dict_table_get_col_name(
+						   ctx->new_table, i),
+				   FTS_DOC_ID_COL_NAME)));
 
 		ctx->prepare_instant();
 	}
@@ -8848,15 +8729,14 @@ commit_cache_norebuild(
 		trx_commit_for_mysql(trx);
 	}
 
-	if (ctx->is_instant()) {
-		ctx->commit_instant();
-	} else {
+	if (!ctx->is_instant()) {
 		innobase_rename_or_enlarge_columns_cache(
 			ha_alter_info, table, ctx->new_table);
-#ifdef MYSQL_RENAME_INDEX
-		rename_indexes_in_cache(ctx, ha_alter_info);
-#endif
 	}
+
+#ifdef MYSQL_RENAME_INDEX
+	rename_indexes_in_cache(ctx, ha_alter_info);
+#endif
 
 	ctx->new_table->fts_doc_id_index
 		= ctx->new_table->fts
@@ -9285,6 +9165,12 @@ ha_innobase::commit_inplace_alter_table(
 
 	if (fail) {
 		trx_rollback_for_mysql(trx);
+		for (inplace_alter_handler_ctx** pctx = ctx_array;
+		     *pctx; pctx++) {
+			ha_innobase_inplace_ctx*	ctx
+				= static_cast<ha_innobase_inplace_ctx*>(*pctx);
+			ctx->rollback_instant();
+		}
 	} else if (!new_clustered) {
 		trx_commit_for_mysql(trx);
 	} else {

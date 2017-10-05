@@ -1071,6 +1071,10 @@ struct dict_index_t{
 		return fields[n].col->instant_value(len);
 	}
 
+	/** Adjust clustered index metadata for instant ADD COLUMN.
+	@param[in]	clustered index definition after instant ADD COLUMN */
+	void instant_add_field(const dict_index_t& instant);
+
 	/** Remove the 'instant ADD' status of a clustered index.
 	Protected by index root page x-latch or table X-lock. */
 	void remove_instant()
@@ -1085,66 +1089,6 @@ struct dict_index_t{
 		n_core_fields = n_fields;
 		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 	}
-
-	/** Check whether two indexes have the same metadata.
-	@param[in]	old	the other index
-	@param[in]	add	whether to ignore added fields in other
-	@return	whether the metadata is equivalent */
-	bool same_metadata(const dict_index_t& old, bool add = false) const
-	{
-		if (type != old.type
-		    || trx_id_offset != old.trx_id_offset
-		    || n_user_defined_cols != old.n_user_defined_cols
-		    || n_uniq != old.n_uniq) {
-			return false;
-		}
-
-		if (add) {
-			return(n_fields >= old.n_fields
-			       && n_def >= old.n_def
-			       && n_core_fields >= old.n_core_fields
-			       && n_nullable >= old.n_nullable
-			       && n_core_null_bytes >= old.n_core_null_bytes);
-		} else {
-			return(n_fields == old.n_fields
-			       && n_def == old.n_def
-			       && n_core_fields == old.n_core_fields
-			       && n_nullable == old.n_nullable
-			       && n_core_null_bytes == old.n_core_null_bytes);
-		}
-	}
-
-	/** Check whether two indexes are equivalent.
-	@param[in]	old	the other index
-	@param[in]	add	whether to ignore added fields
-	@return	whether the indexes are equivalent */
-	bool same(const dict_index_t& old, bool add = false) const
-	{
-		return(id == old.id && space == old.space && page == old.page
-		       && same_metadata(old, add));
-	}
-
-	/** Copy index metadata when preparing instant ALTER TABLE.
-	@param[in]	old	old index definition
-	@param[in]	add	whether we are adding fields */
-	void prepare_instant_copy(const dict_index_t& old, bool add = false)
-	{
-		DBUG_ASSERT(!is_instant());
-		DBUG_ASSERT(add || !old.is_instant());
-		DBUG_ASSERT(same_metadata(old, add));
-
-		n_core_fields = old.n_core_fields;
-		n_core_null_bytes = old.n_core_null_bytes;
-		id = old.id;
-		space = old.space;
-		page = old.page;
-		DBUG_ASSERT(add == is_instant());
-		DBUG_ASSERT(same(old, add));
-	}
-
-	/** Copy index metadata when committing instant ALTER TABLE.
-	@param[in]	instant	index definition after instant ALTER TABLE */
-	inline void commit_instant_copy(const dict_index_t& instant);
 };
 
 /** The status of online index creation */
@@ -1518,7 +1462,20 @@ struct dict_table_t {
 		return(!(flags & DICT_TF_MASK_ZIP_SSIZE));
 	}
 
-	/** Roll back the 'instant ADD' of some columns.
+	/** Adjust metadata for instant ADD COLUMN.
+	@param[in]	table	table definition after instant ADD COLUMN */
+	void instant_add_column(const dict_table_t& table);
+
+	/** Roll back instant_add_column().
+	@param[in]	old_n_cols	original n_cols
+	@param[in]	old_cols	original cols
+	@param[in]	old_col_names	original col_names */
+	void rollback_instant(
+		unsigned	old_n_cols,
+		dict_col_t*	old_cols,
+		const char*	old_col_names);
+
+	/** Roll back the 'instant ADD' of some columns during recovery.
 	@param[in]	n	number of surviving non-system columns */
 	void rollback_instant(unsigned n);
 
@@ -1914,64 +1871,6 @@ inline bool dict_index_t::is_instant() const
 	ut_ad(n_core_fields == n_fields || table->supports_instant());
 	ut_ad(n_core_fields == n_fields || !table->is_temporary());
 	return(n_core_fields != n_fields);
-}
-
-inline void dict_index_t::commit_instant_copy(const dict_index_t& instant)
-{
-	/* We do not support renaming an index yet. */
-	DBUG_ASSERT(!strcmp(name, instant.name));
-	DBUG_ASSERT(is_clust() == instant.is_clust());
-
-	if (instant.is_clust()) {
-		/* We can have !instant.is_instant() if the table is
-		empty and no ADD COLUMN metadata was added. */
-		DBUG_ASSERT(!instant.is_instant()
-			    || instant.n_core_fields == n_core_fields);
-		DBUG_ASSERT(!instant.is_instant()
-			    || instant.n_core_null_bytes == n_core_null_bytes);
-		DBUG_ASSERT(instant.is_instant()
-			    || instant.n_core_fields > n_core_fields);
-		DBUG_ASSERT(instant.is_instant()
-			    || instant.n_core_null_bytes >= n_core_null_bytes);
-		DBUG_ASSERT(instant.n_fields > n_fields);
-		DBUG_ASSERT(instant.n_def > n_def);
-		DBUG_ASSERT(instant.n_nullable >= n_nullable);
-		n_fields = instant.n_fields;
-		n_def = instant.n_def;
-		n_nullable = instant.n_nullable;
-		n_core_fields = instant.n_core_fields;
-		n_core_null_bytes = instant.n_core_null_bytes;
-		fields = static_cast<dict_field_t*>(
-			mem_heap_dup(heap, instant.fields,
-				     n_fields * sizeof *fields));
-	}
-
-	DBUG_ASSERT(n_core_fields == instant.n_core_fields);
-	DBUG_ASSERT(n_core_null_bytes == instant.n_core_null_bytes);
-	ut_d(unsigned n_null = 0);
-
-	for (unsigned i = 0; i < n_fields; i++) {
-		DBUG_ASSERT(fields[i].same(instant.fields[i]));
-		const dict_col_t* icol = instant.fields[i].col;
-		if (icol->is_virtual()) {
-			DBUG_ASSERT(!is_clust());
-			ut_d(n_null++);
-			dict_v_col_t* vcol = &table->v_cols[
-				reinterpret_cast<const dict_v_col_t*>(icol)
-				- instant.table->v_cols];
-			dict_col_t* col = fields[i].col = &vcol->m_col;
-			fields[i].name = col->name(*table);
-			vcol->v_indexes->push_back(dict_v_idx_t(this, i));
-		} else {
-			dict_col_t* col = fields[i].col
-				= &table->cols[instant.fields[i].col
-					       - instant.table->cols];
-			fields[i].name = col->name(*table);
-			ut_d(n_null += col->is_nullable());
-		}
-	}
-
-	ut_ad(n_null == n_nullable);
 }
 
 /*******************************************************************//**
