@@ -29,3 +29,7 @@ ROLLBACK;
 
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+let $datadir= `select @@datadir`;
+--list_files $datadir/test
+--remove_files_wildcard $datadir/test #sql*.frm
