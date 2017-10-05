@@ -186,7 +186,7 @@ struct Query_cache_query
   inline void set_results_ready()          { ready= 1; }
   inline bool is_results_ready()           { return ready; }
   inline void increment_hits() { hit_count++; }
-  inline ulong hits() { return hit_count; }
+  inline ulonglong hits() { return hit_count; }
   void lock_writing();
   void lock_reading();
   bool try_lock_writing();

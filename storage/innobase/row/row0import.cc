@@ -3616,10 +3616,6 @@ row_import_for_mysql(
 
 	if (err != DB_SUCCESS) {
 		return(row_import_error(prebuilt, trx, err));
-	}
-
-	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
 	} else if (cfg.requires_purge(index->name)) {
 
 		/* Purge any delete-marked records that couldn't be
