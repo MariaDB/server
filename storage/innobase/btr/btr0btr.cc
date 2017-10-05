@@ -1686,6 +1686,17 @@ func_exit:
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
+
+	if (!recovery && page_is_root(temp_page)
+	    && fil_page_get_type(temp_page) == FIL_PAGE_TYPE_INSTANT) {
+		/* Preserve the PAGE_INSTANT information. */
+		ut_ad(!page_zip);
+		ut_ad(index->is_instant());
+		memcpy(FIL_PAGE_TYPE + page, FIL_PAGE_TYPE + temp_page, 2);
+		memcpy(PAGE_HEADER + PAGE_INSTANT + page,
+		       PAGE_HEADER + PAGE_INSTANT + temp_page, 2);
+	}
+
 	buf_block_free(temp_block);
 
 	/* Restore logging mode */
@@ -1718,6 +1729,19 @@ func_exit:
 		}
 
 		MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
+	}
+
+	if (UNIV_UNLIKELY(fil_page_get_type(page) == FIL_PAGE_TYPE_INSTANT)) {
+		/* Log the PAGE_INSTANT information. */
+		ut_ad(!page_zip);
+		ut_ad(index->is_instant());
+		ut_ad(!recovery);
+		mlog_write_ulint(FIL_PAGE_TYPE + page, FIL_PAGE_TYPE_INSTANT,
+				 MLOG_2BYTES, mtr);
+		mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT + page,
+				 mach_read_from_2(PAGE_HEADER + PAGE_INSTANT
+						  + page),
+				 MLOG_2BYTES, mtr);
 	}
 
 	return(success);
