@@ -6423,16 +6423,27 @@ ha_innobase::open(const char* name, int, uint)
 
 	ib_table = open_dict_table(name, norm_name, is_part, ignore_err);
 
+	if (NULL == ib_table) {
+
+		if (is_part) {
+			sql_print_error("Failed to open table %s.\n",
+					norm_name);
+		}
+no_such_table:
+		free_share(m_share);
+		set_my_errno(ENOENT);
+
+		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+	}
+
 	uint n_fields = mysql_fields(table);
+	uint n_cols = dict_table_get_n_user_cols(ib_table)
+		+ dict_table_get_n_v_cols(ib_table)
+		- !!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID);
 
-	if (ib_table != NULL
-	    && ((!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
-		 && n_fields != dict_table_get_n_tot_u_cols(ib_table))
-		|| (DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
-		    && (n_fields != dict_table_get_n_tot_u_cols(ib_table) - 1)))) {
-
+	if (n_cols != n_fields) {
 		ib::warn() << "Table " << norm_name << " contains "
-			<< dict_table_get_n_tot_u_cols(ib_table) << " user"
+			<< n_cols << " user"
 			" defined columns in InnoDB, but " << n_fields
 			<< " columns in MariaDB. Please check"
 			" INFORMATION_SCHEMA.INNODB_SYS_COLUMNS and " REFMAN
@@ -6444,21 +6455,7 @@ ha_innobase::open(const char* name, int, uint)
 		ib_table->file_unreadable = true;
 		ib_table->corrupted = true;
 		dict_table_close(ib_table, FALSE, FALSE);
-		ib_table = NULL;
-		is_part = NULL;
-	}
-
-	if (NULL == ib_table) {
-
-		if (is_part) {
-			sql_print_error("Failed to open table %s.\n",
-					norm_name);
-		}
-
-		free_share(m_share);
-		set_my_errno(ENOENT);
-
-		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+		goto no_such_table;
 	}
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
