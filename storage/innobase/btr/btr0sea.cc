@@ -1899,7 +1899,7 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor)
 				     n_bytes, index->id);
 	}
 
-	if (!page_rec_is_infimum(rec)) {
+	if (!page_rec_is_infimum(rec) && !rec_is_default_row(rec, index)) {
 		offsets = rec_get_offsets(
 			rec, index, offsets, true,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);

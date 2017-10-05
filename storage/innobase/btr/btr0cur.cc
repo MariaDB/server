@@ -2182,6 +2182,10 @@ need_opposite_intention:
 			btr_pcur_restore_position(). */
 			ut_ad(tuple->info_bits == REC_INFO_DEFAULT_ROW
 			      || tuple->info_bits == REC_INFO_MIN_REC_FLAG);
+		} else if (rec_is_default_row(btr_cur_get_rec(cursor),
+					      index)) {
+			/* Only user records belong in the adaptive
+			hash index. */
 		} else {
 			btr_search_info_update(index, cursor);
 		}
