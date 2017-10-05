@@ -3860,10 +3860,7 @@ btr_cur_update_in_place(
 		  | BTR_CREATE_FLAG | BTR_KEEP_SYS_FLAG));
 	ut_ad(fil_page_index_page_check(btr_cur_get_page(cursor)));
 	ut_ad(btr_page_get_index_id(btr_cur_get_page(cursor)) == index->id);
-	ut_ad(!(update->info_bits & REC_INFO_MIN_REC_FLAG)
-	      || update->info_bits == REC_INFO_DEFAULT_ROW);
-	ut_ad(!(update->info_bits & REC_INFO_MIN_REC_FLAG)
-	      || index->is_instant());
+	ut_ad(!(update->info_bits & REC_INFO_MIN_REC_FLAG));
 
 	DBUG_LOG("ib_cur",
 		 "update-in-place " << index->name << " (" << index->id
@@ -4100,7 +4097,9 @@ btr_cur_optimistic_update(
 	     || trx_is_recv(thr_get_trx(thr)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
-	if (UNIV_LIKELY(update->info_bits != REC_INFO_DEFAULT_ROW)
+	const bool is_default_row = update->info_bits == REC_INFO_DEFAULT_ROW;
+
+	if (UNIV_LIKELY(!is_default_row)
 	    && !row_upd_changes_field_size_or_external(index, *offsets,
 						       update)) {
 
@@ -4260,7 +4259,7 @@ any_extern:
 		lock_rec_store_on_page_infimum(block, rec);
 	}
 
-	if (new_entry->info_bits & REC_INFO_MIN_REC_FLAG) {
+	if (UNIV_UNLIKELY(is_default_row)) {
 		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
@@ -4287,8 +4286,14 @@ any_extern:
 		cursor, new_entry, offsets, heap, 0/*n_ext*/, mtr);
 	ut_a(rec); /* <- We calculated above the insert would fit */
 
-	/* Restore the old explicit lock state on the record */
-	if (!dict_table_is_locking_disabled(index->table)) {
+	if (UNIV_UNLIKELY(is_default_row)) {
+		/* We must empty the PAGE_FREE list, because if this
+		was a rollback, the shortened 'default row' record
+		would have too many fields, and we would be unable to
+		know the size of the freed record. */
+		btr_page_reorganize(page_cursor, index, mtr);
+	} else if (!dict_table_is_locking_disabled(index->table)) {
+		/* Restore the old explicit lock state on the record */
 		lock_rec_restore_from_page_infimum(block, rec, block);
 	}
 
@@ -4488,6 +4493,9 @@ btr_cur_pessimistic_update(
 						     entry_heap);
 	btr_cur_trim(new_entry, index, update, thr);
 
+	const bool is_default_row = new_entry->info_bits
+		& REC_INFO_MIN_REC_FLAG;
+
 	/* We have to set appropriate extern storage bits in the new
 	record to be inserted: we have to remember which fields were such */
 
@@ -4583,19 +4591,7 @@ btr_cur_pessimistic_update(
 				page, 1);
 	}
 
-	/* Store state of explicit locks on rec on the page infimum record,
-	before deleting rec. The page infimum acts as a dummy carrier of the
-	locks, taking care also of lock releases, before we can move the locks
-	back on the actual record. There is a special case: if we are
-	inserting on the root page and the insert causes a call of
-	btr_root_raise_and_insert. Therefore we cannot in the lock system
-	delete the lock structs set on the root page even if the root
-	page carries just node pointers. */
-	if (!dict_table_is_locking_disabled(index->table)) {
-		lock_rec_store_on_page_infimum(block, rec);
-	}
-
-	if (new_entry->info_bits & REC_INFO_MIN_REC_FLAG) {
+	if (UNIV_UNLIKELY(is_default_row)) {
 		ut_ad(new_entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(index->is_instant());
 		/* This can be innobase_add_instant_try() performing a
@@ -4604,6 +4600,20 @@ btr_cur_pessimistic_update(
 		ut_ad(flags & BTR_NO_LOCKING_FLAG);
 	} else {
 		btr_search_update_hash_on_delete(cursor);
+
+		/* Store state of explicit locks on rec on the page
+		infimum record, before deleting rec. The page infimum
+		acts as a dummy carrier of the locks, taking care also
+		of lock releases, before we can move the locks back on
+		the actual record. There is a special case: if we are
+		inserting on the root page and the insert causes a
+		call of btr_root_raise_and_insert. Therefore we cannot
+		in the lock system delete the lock structs set on the
+		root page even if the root page carries just node
+		pointers. */
+		if (!dict_table_is_locking_disabled(index->table)) {
+			lock_rec_store_on_page_infimum(block, rec);
+		}
 	}
 
 #ifdef UNIV_ZIP_DEBUG
@@ -4621,7 +4631,14 @@ btr_cur_pessimistic_update(
 	if (rec) {
 		page_cursor->rec = rec;
 
-		if (!dict_table_is_locking_disabled(index->table)) {
+		if (UNIV_UNLIKELY(is_default_row)) {
+			/* We must empty the PAGE_FREE list, because if this
+			was a rollback, the shortened 'default row' record
+			would have too many fields, and we would be unable to
+			know the size of the freed record. */
+			btr_page_reorganize(page_cursor, index, mtr);
+			rec = page_cursor->rec;
+		} else if (!dict_table_is_locking_disabled(index->table)) {
 			lock_rec_restore_from_page_infimum(
 				btr_cur_get_block(cursor), rec, block);
 		}
@@ -4769,7 +4786,14 @@ btr_cur_pessimistic_update(
 		ut_ad(row_get_rec_trx_id(rec, index, *offsets));
 	}
 
-	if (!dict_table_is_locking_disabled(index->table)) {
+	if (UNIV_UNLIKELY(is_default_row)) {
+		/* We must empty the PAGE_FREE list, because if this
+		was a rollback, the shortened 'default row' record
+		would have too many fields, and we would be unable to
+		know the size of the freed record. */
+		btr_page_reorganize(page_cursor, index, mtr);
+		rec = page_cursor->rec;
+	} else if (!dict_table_is_locking_disabled(index->table)) {
 		lock_rec_restore_from_page_infimum(
 			btr_cur_get_block(cursor), rec, block);
 	}
@@ -5320,6 +5344,16 @@ btr_cur_optimistic_delete_func(
 			insert into SYS_COLUMNS is rolled back. */
 			ut_ad(cursor->index->table->supports_instant());
 			ut_ad(cursor->index->is_clust());
+			ut_ad(!page_zip);
+			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
+					    cursor->index, offsets, mtr);
+			/* We must empty the PAGE_FREE list, because
+			after rollback, this deleted 'default row' record
+			would have too many fields, and we would be
+			unable to know the size of the freed record. */
+			btr_page_reorganize(btr_cur_get_page_cur(cursor),
+					    cursor->index, mtr);
+			goto func_exit;
 		} else {
 			lock_update_delete(block, rec);
 
@@ -5364,6 +5398,7 @@ btr_cur_optimistic_delete_func(
 		btr_cur_prefetch_siblings(block);
 	}
 
+func_exit:
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
@@ -5508,6 +5543,17 @@ btr_cur_pessimistic_delete(
 
 		if (UNIV_LIKELY(!is_default_row)) {
 			btr_search_update_hash_on_delete(cursor);
+		} else {
+			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
+					    index, offsets, mtr);
+			/* We must empty the PAGE_FREE list, because
+			after rollback, this deleted 'default row' record
+			would carry too many fields, and we would be
+			unable to know the size of the freed record. */
+			btr_page_reorganize(btr_cur_get_page_cur(cursor),
+					    index, mtr);
+			ut_ad(!ret);
+			goto return_after_reservations;
 		}
 	} else if (UNIV_UNLIKELY(page_rec_is_first(rec, page))) {
 		if (page_rec_is_last(rec, page)) {
