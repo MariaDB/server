@@ -1,11 +1,14 @@
 CREATE TABLE t1(a INT PRIMARY KEY, b INT, KEY(b)) ENGINE=InnoDB
-PARTITION BY KEY() PARTITIONS 3;
+ROW_FORMAT=REDUNDANT PARTITION BY KEY() PARTITIONS 3;
 INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5);
 SET @saved_dbug= @@SESSION.debug_dbug;
 SET DEBUG_DBUG='+d,ib_commit_inplace_fail_2';
 ALTER TABLE t1 ADD COLUMN c CHAR(3) DEFAULT 'lie';
 ERROR HY000: Internal error: Injected error!
 SET DEBUG_DBUG= @saved_dbug;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
 BEGIN;
 UPDATE t1 SET b=a+1;
 INSERT INTO t1 VALUES (0,1);
@@ -22,6 +25,9 @@ SET DEBUG_DBUG='+d,ib_commit_inplace_fail_1';
 ALTER TABLE t1 ADD COLUMN d INT NOT NULL DEFAULT -42;
 ERROR HY000: Internal error: Injected error!
 SET DEBUG_DBUG= @saved_dbug;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
 BEGIN;
 DELETE FROM t1;
 INSERT INTO t1 VALUES (1,2,'foo');
@@ -34,7 +40,7 @@ t1	CREATE TABLE `t1` (
   `c` char(3) DEFAULT 'lie',
   PRIMARY KEY (`a`),
   KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
  PARTITION BY KEY ()
 PARTITIONS 3
 DROP TABLE t1;

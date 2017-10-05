@@ -4659,8 +4659,6 @@ btr_index_rec_validate(
 						and page on error */
 {
 	ulint		len;
-	ulint		n;
-	ulint		i;
 	const page_t*	page;
 	mem_heap_t*	heap	= NULL;
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
@@ -4691,31 +4689,34 @@ btr_index_rec_validate(
 		return(FALSE);
 	}
 
-	n = dict_index_get_n_fields(index);
+	if (!page_is_comp(page)) {
+		const ulint n_rec_fields = rec_get_n_fields_old(rec);
+		if (n_rec_fields == DICT_FLD__SYS_INDEXES__MERGE_THRESHOLD
+		    && index->id == DICT_INDEXES_ID) {
+			/* A record for older SYS_INDEXES table
+			(missing merge_threshold column) is acceptable. */
+		} else if (n_rec_fields < index->n_core_fields
+			   || n_rec_fields > index->n_fields) {
+			btr_index_rec_validate_report(page, rec, index);
 
-	if (!page_is_comp(page)
-	    && (rec_get_n_fields_old(rec) != n
-		/* a record for older SYS_INDEXES table
-		(missing merge_threshold column) is acceptable. */
-		&& !(index->id == DICT_INDEXES_ID
-		     && rec_get_n_fields_old(rec) == n - 1))) {
-		btr_index_rec_validate_report(page, rec, index);
+			ib::error() << "Has " << rec_get_n_fields_old(rec)
+				    << " fields, should have "
+				    << index->n_core_fields << ".."
+				    << index->n_fields;
 
-		ib::error() << "Has " << rec_get_n_fields_old(rec)
-			<< " fields, should have " << n;
-
-		if (dump_on_error) {
-			fputs("InnoDB: corrupt record ", stderr);
-			rec_print_old(stderr, rec);
-			putc('\n', stderr);
+			if (dump_on_error) {
+				fputs("InnoDB: corrupt record ", stderr);
+				rec_print_old(stderr, rec);
+				putc('\n', stderr);
+			}
+			return(FALSE);
 		}
-		return(FALSE);
 	}
 
 	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page),
 				  ULINT_UNDEFINED, &heap);
 
-	for (i = 0; i < n; i++) {
+	for (unsigned i = 0; i < index->n_fields; i++) {
 		dict_field_t*	field = dict_index_get_nth_field(index, i);
 		ulint		fixed_size = dict_col_get_fixed_size(
 						dict_field_get_col(field),
