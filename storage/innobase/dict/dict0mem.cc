@@ -1228,23 +1228,32 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 		for (ulint n = v.num_base; n--; ) {
 			dict_col_t*& base = v.base_col[n];
 			if (!base->is_virtual()) {
-				base = &cols[base - old_cols];
+				unsigned n = base - old_cols;
+				DBUG_ASSERT(n + DATA_N_SYS_COLS < old_n_cols);
+				base = &cols[n];
 			}
 		}
 	}
 
 	dict_index_t* index = dict_table_get_first_index(this);
-	const dict_index_t* idx = dict_table_get_first_index(&table);
-	index->instant_add_field(*idx);
+
+	index->instant_add_field(*dict_table_get_first_index(&table));
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
 		for (unsigned i = 0; i < index->n_fields; i++) {
 			dict_field_t& field = index->fields[i];
-			if (field.col < old_cols || field.col > old_cols_end) {
+			if (field.col < old_cols
+			    || field.col >= old_cols_end) {
 				DBUG_ASSERT(field.col->is_virtual());
 			} else {
 				unsigned n = field.col - old_cols;
+				/* Secondary indexes may contain user
+				columns and DB_ROW_ID (if there is
+				GEN_CLUST_INDEX instead of PRIMARY KEY),
+				but not DB_TRX_ID,DB_ROLL_PTR. */
+				DBUG_ASSERT(n + DATA_N_SYS_COLS <= old_n_cols);
 				if (n + DATA_N_SYS_COLS >= old_n_cols) {
+					/* Replace DB_ROW_ID */
 					n += n_add;
 				}
 				field.col = &cols[n];
@@ -1311,7 +1320,8 @@ dict_table_t::rollback_instant(
 	do {
 		for (unsigned i = 0; i < index->n_fields; i++) {
 			dict_field_t& field = index->fields[i];
-			if (field.col < new_cols || field.col > new_cols_end) {
+			if (field.col < new_cols
+			    || field.col >= new_cols_end) {
 				DBUG_ASSERT(field.col->is_virtual());
 			} else {
 				unsigned n = field.col - new_cols;
