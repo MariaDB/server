@@ -1202,6 +1202,50 @@ page_cur_parse_insert_rec(
 	return(const_cast<byte*>(ptr + end_seg_len));
 }
 
+/** Reset PAGE_DIRECTION and PAGE_N_DIRECTION.
+@param[in,out]	ptr		the PAGE_DIRECTION_B field
+@param[in,out]	page		index tree page frame
+@param[in]	page_zip	compressed page descriptor, or NULL */
+static inline
+void
+page_direction_reset(byte* ptr, page_t* page, page_zip_des_t* page_zip)
+{
+	ut_ad(ptr == PAGE_HEADER + PAGE_DIRECTION_B + page);
+	page_ptr_set_direction(ptr, PAGE_NO_DIRECTION);
+	if (page_zip) {
+		page_zip_write_header(page_zip, ptr, 1, NULL);
+	}
+	ptr = PAGE_HEADER + PAGE_N_DIRECTION + page;
+	*reinterpret_cast<uint16_t*>(ptr) = 0;
+	if (page_zip) {
+		page_zip_write_header(page_zip, ptr, 2, NULL);
+	}
+}
+
+/** Increment PAGE_N_DIRECTION.
+@param[in,out]	ptr		the PAGE_DIRECTION_B field
+@param[in,out]	page		index tree page frame
+@param[in]	page_zip	compressed page descriptor, or NULL
+@param[in]	dir		PAGE_RIGHT or PAGE_LEFT */
+static inline
+void
+page_direction_increment(
+	byte*		ptr,
+	page_t*		page,
+	page_zip_des_t*	page_zip,
+	uint		dir)
+{
+	ut_ad(ptr == PAGE_HEADER + PAGE_DIRECTION_B + page);
+	ut_ad(dir == PAGE_RIGHT || dir == PAGE_LEFT);
+	page_ptr_set_direction(ptr, dir);
+	if (page_zip) {
+		page_zip_write_header(page_zip, ptr, 1, NULL);
+	}
+	page_header_set_field(page, page_zip, PAGE_N_DIRECTION,
+			      page_header_get_field(page, PAGE_N_DIRECTION)
+			      + 1);
+}
+
 /***********************************************************//**
 Inserts a record next to page cursor on an uncompressed page.
 Returns pointer to inserted record if succeed, i.e., enough
@@ -1373,23 +1417,13 @@ use_heap:
 		byte* ptr = PAGE_HEADER + PAGE_DIRECTION_B + page;
 		if (UNIV_UNLIKELY(last_insert == NULL)) {
 no_direction:
-			page_ptr_set_direction(ptr, PAGE_NO_DIRECTION);
-			*reinterpret_cast<uint16_t*>(
-				PAGE_HEADER + PAGE_N_DIRECTION + page) = 0;
+			page_direction_reset(ptr, page, NULL);
 		} else if (last_insert == current_rec
 			   && page_ptr_get_direction(ptr) != PAGE_LEFT) {
-			page_ptr_set_direction(ptr, PAGE_RIGHT);
-			page_header_set_field(page, NULL, PAGE_N_DIRECTION,
-					      page_header_get_field(
-						page, PAGE_N_DIRECTION) + 1);
-
+			page_direction_increment(ptr, page, NULL, PAGE_RIGHT);
 		} else if (page_ptr_get_direction(ptr) != PAGE_RIGHT
 			   && page_rec_get_next(insert_rec) == last_insert) {
-
-			page_ptr_set_direction(ptr, PAGE_LEFT);
-			page_header_set_field(page, NULL, PAGE_N_DIRECTION,
-					      page_header_get_field(
-						page, PAGE_N_DIRECTION) + 1);
+			page_direction_increment(ptr, page, NULL, PAGE_LEFT);
 		} else {
 			goto no_direction;
 		}
@@ -1842,26 +1876,15 @@ use_heap:
 		byte* ptr = PAGE_HEADER + PAGE_DIRECTION_B + page;
 		if (UNIV_UNLIKELY(last_insert == NULL)) {
 no_direction:
-			page_ptr_set_direction(ptr, PAGE_NO_DIRECTION);
-			page_zip_write_header(page_zip, ptr, 1, NULL);
-			ptr = PAGE_HEADER + PAGE_N_DIRECTION + page;
-			*reinterpret_cast<uint16_t*>(ptr) = 0;
-			page_zip_write_header(page_zip, ptr, 2, NULL);
+			page_direction_reset(ptr, page, page_zip);
 		} else if (last_insert == cursor->rec
 			   && page_ptr_get_direction(ptr) != PAGE_LEFT) {
-			page_ptr_set_direction(ptr, PAGE_RIGHT);
-			page_zip_write_header(page_zip, ptr, 1, NULL);
-			page_header_set_field(page, page_zip, PAGE_N_DIRECTION,
-					      page_header_get_field(
-						page, PAGE_N_DIRECTION) + 1);
-
+			page_direction_increment(ptr, page, page_zip,
+						 PAGE_RIGHT);
 		} else if (page_ptr_get_direction(ptr) != PAGE_RIGHT
 			   && page_rec_get_next(insert_rec) == last_insert) {
-			page_ptr_set_direction(ptr, PAGE_LEFT);
-			page_zip_write_header(page_zip, ptr, 1, NULL);
-			page_header_set_field(page, page_zip, PAGE_N_DIRECTION,
-					      page_header_get_field(
-						page, PAGE_N_DIRECTION) + 1);
+			page_direction_increment(ptr, page, page_zip,
+						 PAGE_LEFT);
 		} else {
 			goto no_direction;
 		}
@@ -1985,15 +2008,8 @@ page_parse_copy_rec_list_to_created_page(
 	page_header_set_ptr(page, page_zip, PAGE_LAST_INSERT, NULL);
 
 	if (!dict_index_is_spatial(index)) {
-		byte* dir = PAGE_HEADER + PAGE_DIRECTION_B + page;
-		page_ptr_set_direction(dir, PAGE_NO_DIRECTION);
-		byte* n_dir = PAGE_HEADER + PAGE_N_DIRECTION + page;
-		*reinterpret_cast<uint16_t*>(n_dir) = 0;
-
-		if (page_zip) {
-			page_zip_write_header(page_zip, dir, 1, NULL);
-			page_zip_write_header(page_zip, n_dir, 2, NULL);
-		}
+		page_direction_reset(PAGE_HEADER + PAGE_DIRECTION_B + page,
+				     page, page_zip);
 	}
 
 	return(rec_end);
@@ -2179,10 +2195,8 @@ page_copy_rec_list_end_to_created_page(
 
 	*reinterpret_cast<uint16_t*>(PAGE_HEADER + PAGE_LAST_INSERT + new_page)
 		= 0;
-	page_ptr_set_direction(PAGE_HEADER + PAGE_DIRECTION_B + new_page,
-			       PAGE_NO_DIRECTION);
-	*reinterpret_cast<uint16_t*>(PAGE_HEADER + PAGE_N_DIRECTION + new_page)
-		= 0;
+	page_direction_reset(PAGE_HEADER + PAGE_DIRECTION_B + new_page,
+			     new_page, NULL);
 }
 
 /***********************************************************//**
