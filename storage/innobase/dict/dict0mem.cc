@@ -1215,12 +1215,13 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 		}
 	}
 
+	const unsigned old_n_cols = n_cols;
 	const unsigned n_add = table.n_cols - n_cols;
 
 	n_t_def += n_add;
 	n_t_cols += n_add;
-	n_def = table.n_def;
 	n_cols = table.n_cols;
+	n_def = n_cols;
 
 	for (unsigned i = n_v_def; i--; ) {
 		const dict_v_col_t& v = v_cols[i];
@@ -1242,7 +1243,11 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 			if (field.col < old_cols || field.col > old_cols_end) {
 				DBUG_ASSERT(field.col->is_virtual());
 			} else {
-				field.col = &cols[field.col - old_cols];
+				unsigned n = field.col - old_cols;
+				if (n + DATA_N_SYS_COLS >= old_n_cols) {
+					n += n_add;
+				}
+				field.col = &cols[n];
 				DBUG_ASSERT(!field.col->is_virtual());
 				field.name = field.col->name(*this);
 			}
