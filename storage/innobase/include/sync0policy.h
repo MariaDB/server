@@ -52,7 +52,7 @@ public:
 			m_line(),
 			m_thread_id(os_thread_id_t(ULINT_UNDEFINED))
 		{
-			m_thread_id_mutex.init();
+			/* No op */
 		}
 
 		/** Create the context for SyncDebug
@@ -61,15 +61,7 @@ public:
 			:
 			latch_t(id)
 		{
-			m_thread_id_mutex.init();
-
 			ut_ad(id != LATCH_ID_NONE);
-		}
-
-		/** Destructor */
-		~Context()
-		{
-			m_thread_id_mutex.destroy();
 		}
 
 		/** Set to locked state
@@ -139,23 +131,13 @@ public:
 		/** Synchronized m_thread_id getter */
 		os_thread_id_t get_thread_id() const
 		{
-			m_thread_id_mutex.enter();
-
-			os_thread_id_t thread_id = m_thread_id;
-
-			m_thread_id_mutex.exit();
-
-			return thread_id;
+			return my_atomic_loadlong(&m_thread_id);
 		}
 
 		/** Synchronized m_thread_id setter */
 		void set_thread_id(os_thread_id_t thread_id)
 		{
-			m_thread_id_mutex.enter();
-
-			m_thread_id = thread_id;
-
-			m_thread_id_mutex.exit();
+                        my_atomic_storelong(&m_thread_id, thread_id);
 		}
 
 		/** Mutex to check for lock order violation */
@@ -168,12 +150,8 @@ public:
 		unsigned	m_line;
 
 	private:
-		/** Thread ID of the thread that own(ed) the mutex
-		Guarded by m_thread_id_mutex */
-		os_thread_id_t	m_thread_id;
-
-		/** Mutex to m_thread_id */
-		mutable OSMutex m_thread_id_mutex;
+		/** Thread ID of the thread that own(ed) the mutex */
+		ulint		m_thread_id;
 	};
 
 	/** Constructor. */
