@@ -86,6 +86,73 @@ is then built on the page, assuming the global limit has been reached */
 before hash index building is started */
 #define BTR_SEARCH_BUILD_LIMIT		100
 
+/** Compute a hash value of a record in a page.
+@param[in]	rec		index record
+@param[in]	offsets		return value of rec_get_offsets()
+@param[in]	n_fields	number of complete fields to fold
+@param[in]	n_bytes		number of bytes to fold in the last field
+@param[in]	index_id	index tree ID
+@return the hash value */
+static inline
+ulint
+rec_fold(
+	const rec_t*	rec,
+	const ulint*	offsets,
+	ulint		n_fields,
+	ulint		n_bytes,
+	index_id_t	tree_id)
+{
+	ulint		i;
+	const byte*	data;
+	ulint		len;
+	ulint		fold;
+	ulint		n_fields_rec;
+
+	ut_ad(rec_offs_validate(rec, NULL, offsets));
+	ut_ad(rec_validate(rec, offsets));
+	ut_ad(page_rec_is_leaf(rec));
+	ut_ad(!page_rec_is_default_row(rec));
+	ut_ad(n_fields > 0 || n_bytes > 0);
+
+	n_fields_rec = rec_offs_n_fields(offsets);
+	ut_ad(n_fields <= n_fields_rec);
+	ut_ad(n_fields < n_fields_rec || n_bytes == 0);
+
+	if (n_fields > n_fields_rec) {
+		n_fields = n_fields_rec;
+	}
+
+	if (n_fields == n_fields_rec) {
+		n_bytes = 0;
+	}
+
+	fold = ut_fold_ull(tree_id);
+
+	for (i = 0; i < n_fields; i++) {
+		data = rec_get_nth_field(rec, offsets, i, &len);
+
+		if (len != UNIV_SQL_NULL) {
+			fold = ut_fold_ulint_pair(fold,
+						  ut_fold_binary(data, len));
+		}
+	}
+
+	if (n_bytes > 0) {
+		data = rec_get_nth_field(rec, offsets, i, &len);
+
+		if (len != UNIV_SQL_NULL) {
+			if (len > n_bytes) {
+				len = n_bytes;
+			}
+
+			fold = ut_fold_ulint_pair(fold,
+						  ut_fold_binary(data, len));
+		}
+	}
+
+	return(fold);
+}
+
 /** Determine the number of accessed key fields.
 @param[in]	n_fields	number of complete fields
 @param[in]	n_bytes		number of bytes in an incomplete last field
@@ -1223,6 +1290,9 @@ retry:
 
 	rec = page_get_infimum_rec(page);
 	rec = page_rec_get_next_low(rec, page_is_comp(page));
+	if (rec_is_default_row(rec, index)) {
+		rec = page_rec_get_next_low(rec, page_is_comp(page));
+	}
 
 	prev_fold = 0;
 
@@ -1370,14 +1440,14 @@ btr_search_build_page_hash_index(
 {
 	hash_table_t*	table;
 	page_t*		page;
-	rec_t*		rec;
-	rec_t*		next_rec;
+	const rec_t*	rec;
+	const rec_t*	next_rec;
 	ulint		fold;
 	ulint		next_fold;
 	ulint		n_cached;
 	ulint		n_recs;
 	ulint*		folds;
-	rec_t**		recs;
+	const rec_t**	recs;
 	ulint		i;
 	mem_heap_t*	heap		= NULL;
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
@@ -1438,14 +1508,19 @@ btr_search_build_page_hash_index(
 	/* Calculate and cache fold values and corresponding records into
 	an array for fast insertion to the hash index */
 
-	folds = (ulint*) ut_malloc_nokey(n_recs * sizeof(ulint));
-	recs = (rec_t**) ut_malloc_nokey(n_recs * sizeof(rec_t*));
+	folds = static_cast<ulint*>(ut_malloc_nokey(n_recs * sizeof *folds));
+	recs = static_cast<const rec_t**>(
+		ut_malloc_nokey(n_recs * sizeof *recs));
 
 	n_cached = 0;
 
 	ut_a(index->id == btr_page_get_index_id(page));
 
-	rec = page_rec_get_next(page_get_infimum_rec(page));
+	rec = page_rec_get_next_const(page_get_infimum_rec(page));
+
+	if (rec_is_default_row(rec, index)) {
+		rec = page_rec_get_next_const(rec);
+	}
 
 	offsets = rec_get_offsets(
 		rec, index, offsets, true,
@@ -1464,7 +1539,7 @@ btr_search_build_page_hash_index(
 	}
 
 	for (;;) {
-		next_rec = page_rec_get_next(rec);
+		next_rec = page_rec_get_next_const(rec);
 
 		if (page_rec_is_supremum(next_rec)) {
 

@@ -1337,5 +1337,4 @@ page_warn_strict_checksum(
 
 #include "page0page.ic"
 
-
 #endif
