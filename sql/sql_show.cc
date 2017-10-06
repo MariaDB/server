@@ -979,13 +979,20 @@ find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, LEX_STRING *db,
       if (tl.add_file(file->name))
         goto err;
     }
-    tl.sort();
   }
   else
   {
     if (ha_discover_table_names(thd, db, dirp, &tl, false))
       goto err;
   }
+#if MYSQL_VERSION_ID < 100300
+  /* incomplete optimization, but a less drastic change in GA version */
+  if (!thd->lex->select_lex.order_list.elements &&
+      !thd->lex->select_lex.group_list.elements)
+#else
+  if (is_show_command(thd))
+#endif
+    tl.sort();
 
   DBUG_PRINT("info",("found: %zu files", files->elements()));
   my_dirend(dirp);
