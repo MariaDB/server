@@ -581,7 +581,8 @@ String *Item_func_json_quote::val_str(String *str)
 
 void Item_func_json_unquote::fix_length_and_dec()
 {
-  collation.set(&my_charset_utf8_general_ci);
+  collation.set(&my_charset_utf8_general_ci,
+                DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_length;
   maybe_null= 1;
 }
@@ -1458,7 +1459,8 @@ void Item_func_json_array::fix_length_and_dec()
 
   if (arg_count == 0)
   {
-    collation.set(&my_charset_utf8_general_ci);
+    collation.set(&my_charset_utf8_general_ci,
+                  DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     tmp_val.set_charset(&my_charset_utf8_general_ci);
     max_length= 2;
     return;
