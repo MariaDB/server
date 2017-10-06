@@ -370,3 +370,11 @@ select json_array(5,json_query('[1,2]','$'));
 
 SELECT JSON_ARRAY('1. ě 2. š 3. č 4. ř 5. ž 6. ý 7. á 8. í 9. é 10. ů 11. ú') AS json_data;
 SELECT JSON_OBJECT("user","Jožko Mrkvičká") as json_data;
+
+
+#
+# MDEV-12312 JSON_CONTAINS_PATH does not detect invalid path and returns TRUE.
+#
+
+select json_contains_path('{"foo":"bar"}', 'one', '$[]');
+

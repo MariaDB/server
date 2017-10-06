@@ -720,3 +720,8 @@ json_data
 SELECT JSON_OBJECT("user","Jožko Mrkvičká") as json_data;
 json_data
 {"user": "Jožko Mrkvičká"}
+select json_contains_path('{"foo":"bar"}', 'one', '$[]');
+json_contains_path('{"foo":"bar"}', 'one', '$[]')
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 3 to function 'json_contains_path' at position 3
