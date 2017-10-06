@@ -301,3 +301,23 @@ create table t1 (
 );
 drop table t1;
 set sql_mode=default;
+
+--echo #
+--echo # MDEV-11819 NO_ZERO_IN_DATE: Incorrect generated column value
+--echo #
+
+SET sql_mode='NO_ZERO_IN_DATE';
+CREATE TABLE t1
+(
+  a datetime DEFAULT NULL,
+  b datetime DEFAULT NULL,
+  c time GENERATED ALWAYS AS (timediff(`a`,`b`)) VIRTUAL
+);
+INSERT INTO t1 VALUES ('2008-12-31 23:59:59.000001','2008-12-30 01:01:01.000002',DEFAULT);
+SELECT * FROM t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #

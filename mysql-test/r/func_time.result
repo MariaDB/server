@@ -2626,3 +2626,17 @@ DROP TABLE t1;
 SELECT 1 MOD ADDTIME( '13:58:57', '00:00:01' ) + 2;
 1 MOD ADDTIME( '13:58:57', '00:00:01' ) + 2
 3
+#
+# MDEV-11819 NO_ZERO_IN_DATE: Incorrect generated column value
+#
+SET sql_mode='NO_ZERO_IN_DATE';
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 SELECT timediff(timestamp'2008-12-31 23:59:59.000001',timestamp'2008-12-30 01:01:01.000002');
+SELECT * FROM t1;
+a
+46:58:57.999999
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# End of 5.5 tests
+#
