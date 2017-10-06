@@ -3005,10 +3005,11 @@ err_exit:
 
 	dict_load_virtual(table, heap);
 
+	dict_table_add_system_columns(table, heap);
+
 	if (cached) {
-		dict_table_add_to_cache(table, TRUE, heap);
-	} else {
-		dict_table_add_system_columns(table, heap);
+		table->can_be_evicted = true;
+		table->add_to_cache();
 	}
 
 	mem_heap_empty(heap);
@@ -3048,6 +3049,11 @@ err_exit:
 				table->corrupted = true;
 			}
 		}
+	}
+
+	if (err == DB_SUCCESS && cached && table->is_readable()
+	    && table->supports_instant()) {
+		err = btr_cur_instant_init(table);
 	}
 
 	/* Initialize table foreign_child value. Its value could be

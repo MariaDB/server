@@ -436,8 +436,9 @@ mlog_open_and_write_index(
 		log_end = log_ptr + 11 + size;
 	} else {
 		ulint	i;
+		bool	is_instant = index->is_instant();
 		ulint	n	= dict_index_get_n_fields(index);
-		ulint	total	= 11 + size + (n + 2) * 2;
+		ulint	total	= 11 + (is_instant ? 2 : 0) + size + (n + 2) * 2;
 		ulint	alloc	= total;
 
 		if (alloc > mtr_buf_t::MAX_DATA_SIZE) {
@@ -463,7 +464,18 @@ mlog_open_and_write_index(
 		log_ptr = mlog_write_initial_log_record_fast(
 			rec, type, log_ptr, mtr);
 
-		mach_write_to_2(log_ptr, n);
+		if (is_instant) {
+			// marked as instant index
+			mach_write_to_2(log_ptr, n | 0x8000);
+
+			log_ptr += 2;
+
+			// record the n_core_fields
+			mach_write_to_2(log_ptr, index->n_core_fields);
+		} else {
+			mach_write_to_2(log_ptr, n);
+		}
+
 		log_ptr += 2;
 
 		if (is_leaf) {
@@ -540,6 +552,7 @@ mlog_parse_index(
 	ulint		i, n, n_uniq;
 	dict_table_t*	table;
 	dict_index_t*	ind;
+	ulint		n_core_fields = 0;
 
 	ut_ad(comp == FALSE || comp == TRUE);
 
@@ -549,6 +562,23 @@ mlog_parse_index(
 		}
 		n = mach_read_from_2(ptr);
 		ptr += 2;
+		if (n & 0x8000) { /* record after instant ADD COLUMN */
+			n &= 0x7FFF;
+
+			n_core_fields = mach_read_from_2(ptr);
+
+			if (!n_core_fields || n_core_fields > n) {
+				recv_sys->found_corrupt_log = TRUE;
+				return(NULL);
+			}
+
+			ptr += 2;
+
+			if (end_ptr < ptr + 2) {
+				return(NULL);
+			}
+		}
+
 		n_uniq = mach_read_from_2(ptr);
 		ptr += 2;
 		ut_ad(n_uniq <= n);
@@ -599,6 +629,22 @@ mlog_parse_index(
 				= &table->cols[n + DATA_TRX_ID];
 			ind->fields[DATA_ROLL_PTR - 1 + n_uniq].col
 				= &table->cols[n + DATA_ROLL_PTR];
+		}
+
+		ut_ad(table->n_cols == table->n_def);
+
+		if (n_core_fields) {
+			for (i = n_core_fields; i < n; i++) {
+				ind->fields[i].col->def_val.len
+					= UNIV_SQL_NULL;
+			}
+			ind->n_core_fields = n_core_fields;
+			ind->n_core_null_bytes = UT_BITS_IN_BYTES(
+				ind->get_n_nullable(n_core_fields));
+		} else {
+			ind->n_core_null_bytes = UT_BITS_IN_BYTES(
+				ind->n_nullable);
+			ind->n_core_fields = ind->n_fields;
 		}
 	}
 	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */

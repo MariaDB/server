@@ -483,7 +483,7 @@ info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tab MODIFY COLUMN c2 GEOMETRY NOT NULL;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab add COLUMN c8 POINT NOT NULL, ALGORITHM = INPLACE, LOCK=NONE;
+ALTER TABLE tab add COLUMN c8 POINT NOT NULL AFTER c5, ALGORITHM = INPLACE, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
 SHOW CREATE TABLE tab;
 Table	Create Table

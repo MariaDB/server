@@ -379,7 +379,8 @@ page_create_low(
 
 	memset(page + PAGE_HEADER, 0, PAGE_HEADER_PRIV_END);
 	page[PAGE_HEADER + PAGE_N_DIR_SLOTS + 1] = 2;
-	page[PAGE_HEADER + PAGE_DIRECTION + 1] = PAGE_NO_DIRECTION;
+	page[PAGE_HEADER + PAGE_INSTANT] = 0;
+	page[PAGE_HEADER + PAGE_DIRECTION_B] = PAGE_NO_DIRECTION;
 
 	if (comp) {
 		page[PAGE_HEADER + PAGE_N_HEAP] = 0x80;/*page_is_comp()*/
@@ -598,7 +599,7 @@ page_copy_rec_list_end_no_locks(
 	ut_a(page_is_comp(new_page) == page_rec_is_comp(rec));
 	ut_a(mach_read_from_2(new_page + UNIV_PAGE_SIZE - 10) == (ulint)
 	     (page_is_comp(new_page) ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
-	ut_d(const bool is_leaf = page_is_leaf(block->frame));
+	const bool is_leaf = page_is_leaf(block->frame);
 
 	cur2 = page_get_infimum_rec(buf_block_get_frame(new_block));
 
@@ -768,9 +769,10 @@ page_copy_rec_list_end(
 
 	/* Update the lock table and possible hash index */
 
-	if (dict_index_is_spatial(index) && rec_move) {
+	if (dict_table_is_locking_disabled(index->table)) {
+	} else if (rec_move && dict_index_is_spatial(index)) {
 		lock_rtr_move_rec_list(new_block, block, rec_move, num_moved);
-	} else if (!dict_table_is_locking_disabled(index->table)) {
+	} else {
 		lock_move_rec_list_end(new_block, block, rec);
 	}
 
@@ -778,7 +780,7 @@ page_copy_rec_list_end(
 		mem_heap_free(heap);
 	}
 
-	btr_search_move_or_delete_hash_entries(new_block, block, index);
+	btr_search_move_or_delete_hash_entries(new_block, block);
 
 	return(ret);
 }
@@ -928,9 +930,10 @@ zip_reorganize:
 
 	/* Update the lock table and possible hash index */
 
-	if (dict_index_is_spatial(index)) {
+	if (dict_table_is_locking_disabled(index->table)) {
+	} else if (dict_index_is_spatial(index)) {
 		lock_rtr_move_rec_list(new_block, block, rec_move, num_moved);
-	} else if (!dict_table_is_locking_disabled(index->table)) {
+	} else {
 		lock_move_rec_list_start(new_block, block, rec, ret);
 	}
 
@@ -938,7 +941,7 @@ zip_reorganize:
 		mem_heap_free(heap);
 	}
 
-	btr_search_move_or_delete_hash_entries(new_block, block, index);
+	btr_search_move_or_delete_hash_entries(new_block, block);
 
 	return(ret);
 }
@@ -1106,7 +1109,7 @@ delete_all:
 				       ? MLOG_COMP_LIST_END_DELETE
 				       : MLOG_LIST_END_DELETE, mtr);
 
-	ut_d(const bool is_leaf = page_is_leaf(page));
+	const bool is_leaf = page_is_leaf(page);
 
 	if (page_zip) {
 		mtr_log_t	log_mode;
@@ -1297,7 +1300,7 @@ page_delete_rec_list_start(
 	/* Individual deletes are not logged */
 
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
-	ut_d(const bool is_leaf = page_rec_is_leaf(rec));
+	const bool	is_leaf = page_rec_is_leaf(rec);
 
 	while (page_cur_get_rec(&cur1) != rec) {
 		offsets = rec_get_offsets(page_cur_get_rec(&cur1), index,
@@ -1875,20 +1878,20 @@ page_header_print(
 	fprintf(stderr,
 		"--------------------------------\n"
 		"PAGE HEADER INFO\n"
-		"Page address %p, n records %lu (%s)\n"
-		"n dir slots %lu, heap top %lu\n"
-		"Page n heap %lu, free %lu, garbage %lu\n"
-		"Page last insert %lu, direction %lu, n direction %lu\n",
-		page, (ulong) page_header_get_field(page, PAGE_N_RECS),
+		"Page address %p, n records %u (%s)\n"
+		"n dir slots %u, heap top %u\n"
+		"Page n heap %u, free %u, garbage %u\n"
+		"Page last insert %u, direction %u, n direction %u\n",
+		page, page_header_get_field(page, PAGE_N_RECS),
 		page_is_comp(page) ? "compact format" : "original format",
-		(ulong) page_header_get_field(page, PAGE_N_DIR_SLOTS),
-		(ulong) page_header_get_field(page, PAGE_HEAP_TOP),
-		(ulong) page_dir_get_n_heap(page),
-		(ulong) page_header_get_field(page, PAGE_FREE),
-		(ulong) page_header_get_field(page, PAGE_GARBAGE),
-		(ulong) page_header_get_field(page, PAGE_LAST_INSERT),
-		(ulong) page_header_get_field(page, PAGE_DIRECTION),
-		(ulong) page_header_get_field(page, PAGE_N_DIRECTION));
+		page_header_get_field(page, PAGE_N_DIR_SLOTS),
+		page_header_get_field(page, PAGE_HEAP_TOP),
+		page_dir_get_n_heap(page),
+		page_header_get_field(page, PAGE_FREE),
+		page_header_get_field(page, PAGE_GARBAGE),
+		page_header_get_field(page, PAGE_LAST_INSERT),
+		page_get_direction(page),
+		page_header_get_field(page, PAGE_N_DIRECTION));
 }
 
 /***************************************************************//**
@@ -2806,19 +2809,26 @@ page_find_rec_max_not_deleted(
 	const rec_t*	rec = page_get_infimum_rec(page);
 	const rec_t*	prev_rec = NULL; // remove warning
 
-	/* Because the page infimum is never delete-marked,
+	/* Because the page infimum is never delete-marked
+	and never the 'default row' pseudo-record (MIN_REC_FLAG)),
 	prev_rec will always be assigned to it first. */
-	ut_ad(!rec_get_deleted_flag(rec, page_rec_is_comp(rec)));
+	ut_ad(!rec_get_info_bits(rec, page_rec_is_comp(rec)));
+	ut_ad(page_is_leaf(page));
+
 	if (page_is_comp(page)) {
 		do {
-			if (!rec_get_deleted_flag(rec, true)) {
+			if (!(rec[-REC_NEW_INFO_BITS]
+			      & (REC_INFO_DELETED_FLAG
+				 | REC_INFO_MIN_REC_FLAG))) {
 				prev_rec = rec;
 			}
 			rec = page_rec_get_next_low(rec, true);
 		} while (rec != page + PAGE_NEW_SUPREMUM);
 	} else {
 		do {
-			if (!rec_get_deleted_flag(rec, false)) {
+			if (!(rec[-REC_OLD_INFO_BITS]
+			      & (REC_INFO_DELETED_FLAG
+				 | REC_INFO_MIN_REC_FLAG))) {
 				prev_rec = rec;
 			}
 			rec = page_rec_get_next_low(rec, false);

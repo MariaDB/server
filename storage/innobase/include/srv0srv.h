@@ -1007,6 +1007,9 @@ struct export_var_t{
 	ulint innodb_defragment_count;		/*!< Number of defragment
 						operations*/
 
+	/** Number of instant ALTER TABLE operations that affect columns */
+	ulong innodb_instant_alter_column;
+
 	ulint innodb_onlineddl_rowlog_rows;	/*!< Online alter rows */
 	ulint innodb_onlineddl_rowlog_pct_used; /*!< Online alter percentage
 						of used row log buffer */

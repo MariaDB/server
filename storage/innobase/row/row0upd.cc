@@ -595,6 +595,7 @@ row_upd_changes_field_size_or_external(
 
 		new_val = &(upd_field->new_val);
 		new_len = dfield_get_len(new_val);
+		ut_ad(new_len != UNIV_SQL_DEFAULT);
 
 		if (dfield_is_null(new_val) && !rec_offs_comp(offsets)) {
 			/* A bug fixed on Dec 31st, 2004: we looked at the
@@ -697,6 +698,20 @@ row_upd_rec_in_place(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
 	if (rec_offs_comp(offsets)) {
+#ifdef UNIV_DEBUG
+		switch (rec_get_status(rec)) {
+		case REC_STATUS_ORDINARY:
+			break;
+		case REC_STATUS_COLUMNS_ADDED:
+			ut_ad(index->is_instant());
+			break;
+		case REC_STATUS_INFIMUM:
+		case REC_STATUS_SUPREMUM:
+		case REC_STATUS_NODE_PTR:
+			ut_ad(!"wrong record status in update");
+		}
+#endif /* UNIV_DEBUG */
+
 		rec_set_info_bits_new(rec, update->info_bits);
 	} else {
 		rec_set_info_bits_old(rec, update->info_bits);
@@ -978,6 +993,7 @@ row_upd_build_sec_rec_difference_binary(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_n_fields(offsets) == dtuple_get_n_fields(entry));
 	ut_ad(!rec_offs_any_extern(offsets));
+	ut_ad(!rec_offs_any_default(offsets));
 
 	update = upd_create(dtuple_get_n_fields(entry), heap);
 
@@ -1076,8 +1092,7 @@ row_upd_build_difference_binary(
 	}
 
 	for (i = 0; i < n_fld; i++) {
-
-		data = rec_get_nth_field(rec, offsets, i, &len);
+		data = rec_get_nth_cfield(rec, index, offsets, i, &len);
 
 		dfield = dtuple_get_nth_field(entry, i);
 
@@ -1308,41 +1323,25 @@ row_upd_index_replace_new_col_val(
 	}
 }
 
-/***********************************************************//**
-Replaces the new column values stored in the update vector to the index entry
-given. */
+/** Apply an update vector to an index entry.
+@param[in,out]	entry	index entry to be updated; the clustered index record
+			must be covered by a lock or a page latch to prevent
+			deletion (rollback or purge)
+@param[in]	index	index of the entry
+@param[in]	update	update vector built for the entry
+@param[in,out]	heap	memory heap for copying off-page columns */
 void
 row_upd_index_replace_new_col_vals_index_pos(
-/*=========================================*/
-	dtuple_t*	entry,	/*!< in/out: index entry where replaced;
-				the clustered index record must be
-				covered by a lock or a page latch to
-				prevent deletion (rollback or purge) */
-	dict_index_t*	index,	/*!< in: index; NOTE that this may also be a
-				non-clustered index */
-	const upd_t*	update,	/*!< in: an update vector built for the index so
-				that the field number in an upd_field is the
-				index position */
-	ibool		order_only,
-				/*!< in: if TRUE, limit the replacement to
-				ordering fields of index; note that this
-				does not work for non-clustered indexes. */
-	mem_heap_t*	heap)	/*!< in: memory heap for allocating and
-				copying the new values */
+	dtuple_t*		entry,
+	const dict_index_t*	index,
+	const upd_t*		update,
+	mem_heap_t*		heap)
 {
-	ulint		i;
-	ulint		n_fields;
 	const page_size_t&	page_size = dict_table_page_size(index->table);
 
 	dtuple_set_info_bits(entry, update->info_bits);
 
-	if (order_only) {
-		n_fields = dict_index_get_n_unique(index);
-	} else {
-		n_fields = dict_index_get_n_fields(index);
-	}
-
-	for (i = 0; i < n_fields; i++) {
+	for (unsigned i = index->n_fields; i--; ) {
 		const dict_field_t*	field;
 		const dict_col_t*	col;
 		const upd_field_t*	uf;
@@ -2045,16 +2044,19 @@ row_upd_copy_columns(
 /*=================*/
 	rec_t*		rec,	/*!< in: record in a clustered index */
 	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const dict_index_t*	index, /*!< in: index of rec */
 	sym_node_t*	column)	/*!< in: first column in a column list, or
 				NULL */
 {
-	byte*	data;
+	ut_ad(dict_index_is_clust(index));
+
+	const byte*	data;
 	ulint	len;
 
 	while (column) {
-		data = rec_get_nth_field(rec, offsets,
-					 column->field_nos[SYM_CLUST_FIELD_NO],
-					 &len);
+		data = rec_get_nth_cfield(
+			rec, index, offsets,
+			column->field_nos[SYM_CLUST_FIELD_NO], &len);
 		eval_node_copy_and_alloc_val(column, data, len);
 
 		column = UT_LIST_GET_NEXT(col_var_list, column);
@@ -2588,6 +2590,7 @@ row_upd_clust_rec_by_insert_inherit_func(
 
 #ifdef UNIV_DEBUG
 		if (UNIV_LIKELY(rec != NULL)) {
+			ut_ad(!rec_offs_nth_default(offsets, i));
 			const byte* rec_data
 				= rec_get_nth_field(rec, offsets, i, &len);
 			ut_ad(len == dfield_get_len(dfield));
@@ -2672,6 +2675,7 @@ row_upd_clust_rec_by_insert(
 
 	entry = row_build_index_entry_low(node->upd_row, node->upd_ext,
 					  index, heap, ROW_BUILD_FOR_INSERT);
+	if (index->is_instant()) entry->trim(*index);
 	ut_ad(dtuple_get_info_bits(entry) == 0);
 
 	row_upd_index_entry_sys_field(entry, index, DATA_TRX_ID, trx->id);
@@ -3170,7 +3174,7 @@ row_upd_clust_step(
 	if (UNIV_UNLIKELY(!node->in_mysql_interface)) {
 		/* Copy the necessary columns from clust_rec and calculate the
 		new values to set */
-		row_upd_copy_columns(rec, offsets,
+		row_upd_copy_columns(rec, offsets, index,
 				     UT_LIST_GET_FIRST(node->columns));
 		row_upd_eval_new_vals(node->update);
 	}

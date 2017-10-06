@@ -356,6 +356,9 @@ lock_report_trx_id_insanity(
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index) */
 	trx_id_t	max_trx_id)	/*!< in: trx_sys_get_max_trx_id() */
 {
+	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(!rec_is_default_row(rec, index));
+
 	ib::error()
 		<< "Transaction id " << trx_id
 		<< " associated with record" << rec_offsets_print(rec, offsets)
@@ -382,6 +385,7 @@ lock_check_trx_id_sanity(
 	const ulint*	offsets)	/*!< in: rec_get_offsets(rec, index) */
 {
 	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(!rec_is_default_row(rec, index));
 
 	trx_id_t	max_trx_id = trx_sys_get_max_trx_id();
 	bool		is_ok = trx_id < max_trx_id;
@@ -410,6 +414,7 @@ lock_clust_rec_cons_read_sees(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(page_rec_is_user_rec(rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(!rec_is_default_row(rec, index));
 
 	/* Temp-tables are not shared across connections and multiple
 	transactions from different connections cannot simultaneously
@@ -448,6 +453,8 @@ lock_sec_rec_cons_read_sees(
 	const ReadView*	view)	/*!< in: consistent read view */
 {
 	ut_ad(page_rec_is_user_rec(rec));
+	ut_ad(!index->is_clust());
+	ut_ad(!rec_is_default_row(rec, index));
 
 	/* NOTE that we might call this function while holding the search
 	system latch. */
@@ -1492,6 +1499,7 @@ lock_sec_rec_some_has_impl(
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(page_rec_is_user_rec(rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(!rec_is_default_row(rec, index));
 
 	max_trx_id = page_get_max_trx_id(page);
 
@@ -1539,6 +1547,8 @@ lock_rec_other_trx_holds_expl(
 	const buf_block_t*	block)		/*!< in: buffer block
 						containing the record */
 {
+	ut_ad(!page_rec_is_default_row(rec));
+
 	trx_t* holds = NULL;
 
 	lock_mutex_enter();
@@ -3574,6 +3584,9 @@ lock_move_reorganize_page(
 		for (;;) {
 			ulint	old_heap_no;
 			ulint	new_heap_no;
+			ut_d(const rec_t* const orec = rec1);
+			ut_ad(page_rec_is_default_row(rec1)
+			      == page_rec_is_default_row(rec2));
 
 			if (comp) {
 				old_heap_no = rec_get_heap_no_new(rec2);
@@ -3594,6 +3607,8 @@ lock_move_reorganize_page(
 			/* Clear the bit in old_lock. */
 			if (old_heap_no < lock->un_member.rec_lock.n_bits
 			    && lock_rec_reset_nth_bit(lock, old_heap_no)) {
+				ut_ad(!page_rec_is_default_row(orec));
+
 				/* NOTE that the old lock bitmap could be too
 				small for the new heap number! */
 
@@ -3673,6 +3688,10 @@ lock_move_rec_list_end(
 		reset the lock bits on the old */
 
 		for (;;) {
+			ut_ad(page_rec_is_default_row(rec1)
+			      == page_rec_is_default_row(rec2));
+			ut_d(const rec_t* const orec = rec1);
+
 			ulint	rec1_heap_no;
 			ulint	rec2_heap_no;
 
@@ -3695,8 +3714,11 @@ lock_move_rec_list_end(
 
 				rec2_heap_no = rec_get_heap_no_old(rec2);
 
+				ut_ad(rec_get_data_size_old(rec1)
+				      == rec_get_data_size_old(rec2));
+
 				ut_ad(!memcmp(rec1, rec2,
-					      rec_get_data_size_old(rec2)));
+					      rec_get_data_size_old(rec1)));
 
 				rec1 = page_rec_get_next_low(rec1, FALSE);
 				rec2 = page_rec_get_next_low(rec2, FALSE);
@@ -3704,6 +3726,8 @@ lock_move_rec_list_end(
 
 			if (rec1_heap_no < lock->un_member.rec_lock.n_bits
 			    && lock_rec_reset_nth_bit(lock, rec1_heap_no)) {
+				ut_ad(!page_rec_is_default_row(orec));
+
 				if (type_mode & LOCK_WAIT) {
 					lock_reset_lock_and_trx_wait(lock);
 				}
@@ -3747,6 +3771,7 @@ lock_move_rec_list_start(
 	ut_ad(block->frame == page_align(rec));
 	ut_ad(new_block->frame == page_align(old_end));
 	ut_ad(comp == page_rec_is_comp(old_end));
+	ut_ad(!page_rec_is_default_row(rec));
 
 	lock_mutex_enter();
 
@@ -3772,6 +3797,9 @@ lock_move_rec_list_start(
 		reset the lock bits on the old */
 
 		while (rec1 != rec) {
+			ut_ad(!page_rec_is_default_row(rec1));
+			ut_ad(!page_rec_is_default_row(rec2));
+
 			ulint	rec1_heap_no;
 			ulint	rec2_heap_no;
 
@@ -3872,6 +3900,8 @@ lock_rtr_move_rec_list(
 
 			rec1 = rec_move[moved].old_rec;
 			rec2 = rec_move[moved].new_rec;
+			ut_ad(!page_rec_is_default_row(rec1));
+			ut_ad(!page_rec_is_default_row(rec2));
 
 			if (comp) {
 				rec1_heap_no = rec_get_heap_no_new(rec1);
@@ -3950,6 +3980,8 @@ lock_update_merge_right(
 						page which will be
 						discarded */
 {
+	ut_ad(!page_rec_is_default_row(orig_succ));
+
 	lock_mutex_enter();
 
 	/* Inherit the locks from the supremum of the left page to the
@@ -4207,6 +4239,7 @@ lock_update_insert(
 	ulint	donator_heap_no;
 
 	ut_ad(block->frame == page_align(rec));
+	ut_ad(!page_rec_is_default_row(rec));
 
 	/* Inherit the gap-locking locks for rec, in gap mode, from the next
 	record */
@@ -4238,6 +4271,7 @@ lock_update_delete(
 	ulint		next_heap_no;
 
 	ut_ad(page == page_align(rec));
+	ut_ad(!page_rec_is_default_row(rec));
 
 	if (page_is_comp(page)) {
 		heap_no = rec_get_heap_no_new(rec);
@@ -5073,6 +5107,7 @@ lock_rec_unlock(
 	ut_ad(block->frame == page_align(rec));
 	ut_ad(!trx->lock.wait_lock);
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
+	ut_ad(!page_rec_is_default_row(rec));
 
 	heap_no = page_rec_get_heap_no(rec);
 
@@ -5599,6 +5634,7 @@ lock_rec_print(FILE* file, const lock_t* lock)
 
 			rec = page_find_rec_with_heap_no(
 				buf_block_get_frame(block), i);
+			ut_ad(!page_rec_is_default_row(rec));
 
 			offsets = rec_get_offsets(
 				rec, lock->index, offsets, true,
@@ -6228,6 +6264,7 @@ lock_rec_queue_validate(
 	ut_a(block->frame == page_align(rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!page_rec_is_comp(rec) == !rec_offs_comp(offsets));
+	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(lock_mutex_own() == locked_lock_trx_sys);
 	ut_ad(!index || dict_index_is_clust(index)
 	      || !dict_index_is_online_ddl(index));
@@ -6330,6 +6367,7 @@ lock_rec_queue_validate(
 	     lock = lock_rec_get_next_const(heap_no, lock)) {
 
 		ut_ad(!trx_is_ac_nl_ro(lock->trx));
+		ut_ad(!page_rec_is_default_row(rec));
 
 		if (index) {
 			ut_a(lock->index == index);
@@ -6672,6 +6710,7 @@ lock_rec_insert_check_and_lock(
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
 	ut_ad(mtr->is_named_space(index->space));
+	ut_ad(page_rec_is_leaf(rec));
 
 	if (flags & BTR_NO_LOCKING_FLAG) {
 
@@ -6686,6 +6725,7 @@ lock_rec_insert_check_and_lock(
 	trx_t*		trx = thr_get_trx(thr);
 	const rec_t*	next_rec = page_rec_get_next_const(rec);
 	ulint		heap_no = page_rec_get_heap_no(next_rec);
+	ut_ad(!rec_is_default_row(next_rec, index));
 
 	lock_mutex_enter();
 	/* Because this code is invoked for a running transaction by
@@ -6811,6 +6851,8 @@ lock_rec_convert_impl_to_expl_for_trx(
 	ulint			heap_no)/*!< in: rec heap number to lock */
 {
 	ut_ad(trx_is_referenced(trx));
+	ut_ad(page_rec_is_leaf(rec));
+	ut_ad(!rec_is_default_row(rec, index));
 
 	DEBUG_SYNC_C("before_lock_rec_convert_impl_to_expl_for_trx");
 
@@ -6855,6 +6897,8 @@ lock_rec_convert_impl_to_expl(
 	ut_ad(page_rec_is_user_rec(rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!page_rec_is_comp(rec) == !rec_offs_comp(offsets));
+	ut_ad(page_rec_is_leaf(rec));
+	ut_ad(!rec_is_default_row(rec, index));
 
 	if (dict_index_is_clust(index)) {
 		trx_id_t	trx_id;
@@ -6909,6 +6953,7 @@ lock_clust_rec_modify_check_and_lock(
 	ulint	heap_no;
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(block->frame == page_align(rec));
 
@@ -6916,6 +6961,7 @@ lock_clust_rec_modify_check_and_lock(
 
 		return(DB_SUCCESS);
 	}
+	ut_ad(!rec_is_default_row(rec, index));
 	ut_ad(!dict_table_is_temporary(index->table));
 
 	heap_no = rec_offs_comp(offsets)
@@ -6974,6 +7020,8 @@ lock_sec_rec_modify_check_and_lock(
 	ut_ad(!dict_index_is_online_ddl(index) || (flags & BTR_CREATE_FLAG));
 	ut_ad(block->frame == page_align(rec));
 	ut_ad(mtr->is_named_space(index->space));
+	ut_ad(page_rec_is_leaf(rec));
+	ut_ad(!rec_is_default_row(rec, index));
 
 	if (flags & BTR_NO_LOCKING_FLAG) {
 
@@ -7066,6 +7114,7 @@ lock_sec_rec_read_check_and_lock(
 	ut_ad(block->frame == page_align(rec));
 	ut_ad(page_rec_is_user_rec(rec) || page_rec_is_supremum(rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(mode == LOCK_X || mode == LOCK_S);
 
 	if ((flags & BTR_NO_LOCKING_FLAG)
@@ -7075,6 +7124,7 @@ lock_sec_rec_read_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
+	ut_ad(!rec_is_default_row(rec, index));
 	heap_no = page_rec_get_heap_no(rec);
 
 	/* Some transaction may have an implicit x-lock on the record only
@@ -7146,6 +7196,8 @@ lock_clust_rec_read_check_and_lock(
 	ut_ad(gap_mode == LOCK_ORDINARY || gap_mode == LOCK_GAP
 	      || gap_mode == LOCK_REC_NOT_GAP);
 	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(page_rec_is_leaf(rec));
+	ut_ad(!rec_is_default_row(rec, index));
 
 	if ((flags & BTR_NO_LOCKING_FLAG)
 	    || srv_read_only_mode
@@ -8559,12 +8611,14 @@ lock_update_split_and_merge(
 {
 	const rec_t* left_next_rec;
 
-	ut_a(left_block && right_block);
-	ut_a(orig_pred);
+	ut_ad(page_is_leaf(left_block->frame));
+	ut_ad(page_is_leaf(right_block->frame));
+	ut_ad(page_align(orig_pred) == left_block->frame);
 
 	lock_mutex_enter();
 
 	left_next_rec = page_rec_get_next_const(orig_pred);
+	ut_ad(!page_rec_is_default_row(left_next_rec));
 
 	/* Inherit the locks on the supremum of the left page to the
 	first record which was moved from the right page */

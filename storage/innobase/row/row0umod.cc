@@ -1175,6 +1175,21 @@ close_table:
 				       node->heap, &(node->update));
 	node->new_trx_id = trx_id;
 	node->cmpl_info = cmpl_info;
+	ut_ad(!node->ref->info_bits);
+
+	if (node->update->info_bits & REC_INFO_MIN_REC_FLAG) {
+		/* This must be an undo log record for a subsequent
+		instant ADD COLUMN on a table, extending the
+		'default value' record. */
+		ut_ad(clust_index->is_instant());
+		if (node->update->info_bits != REC_INFO_MIN_REC_FLAG) {
+			ut_ad(!"wrong info_bits in undo log record");
+			goto close_table;
+		}
+		node->update->info_bits = REC_INFO_DEFAULT_ROW;
+		const_cast<dtuple_t*>(node->ref)->info_bits
+			= REC_INFO_DEFAULT_ROW;
+	}
 
 	if (!row_undo_search_clust_to_pcur(node)) {
 		/* As long as this rolling-back transaction exists,
@@ -1236,6 +1251,12 @@ row_undo_mod(
 
 	node->index = dict_table_get_first_index(node->table);
 	ut_ad(dict_index_is_clust(node->index));
+
+	if (node->ref->info_bits) {
+		ut_ad(node->ref->info_bits == REC_INFO_DEFAULT_ROW);
+		goto rollback_clust;
+	}
+
 	/* Skip the clustered index (the first index) */
 	node->index = dict_table_get_next_index(node->index);
 
@@ -1258,6 +1279,7 @@ row_undo_mod(
 	}
 
 	if (err == DB_SUCCESS) {
+rollback_clust:
 		err = row_undo_mod_clust(node, thr);
 
 		bool update_statistics

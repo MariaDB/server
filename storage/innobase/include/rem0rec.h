@@ -33,6 +33,7 @@ Created 5/30/1994 Heikki Tuuri
 #include "rem0types.h"
 #include "mtr0types.h"
 #include "page0types.h"
+#include "dict0dict.h"
 #include "trx0types.h"
 #endif /*! UNIV_INNOCHECKSUM */
 #include <ostream>
@@ -54,11 +55,29 @@ in addition to the data and the offsets */
 in addition to the data and the offsets */
 #define REC_N_NEW_EXTRA_BYTES	5
 
-/* Record status values */
-#define REC_STATUS_ORDINARY	0
-#define REC_STATUS_NODE_PTR	1
-#define REC_STATUS_INFIMUM	2
-#define REC_STATUS_SUPREMUM	3
+/** Record status values for ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED */
+enum rec_comp_status_t {
+	/** User record (PAGE_LEVEL=0, heap>=PAGE_HEAP_NO_USER_LOW) */
+	REC_STATUS_ORDINARY = 0,
+	/** Node pointer record (PAGE_LEVEL>=0, heap>=PAGE_HEAP_NO_USER_LOW) */
+	REC_STATUS_NODE_PTR = 1,
+	/** The page infimum pseudo-record (heap=PAGE_HEAP_NO_INFIMUM) */
+	REC_STATUS_INFIMUM = 2,
+	/** The page supremum pseudo-record (heap=PAGE_HEAP_NO_SUPREMUM) */
+	REC_STATUS_SUPREMUM = 3,
+	/** Clustered index record that has been inserted or updated
+	after instant ADD COLUMN (more than dict_index_t::n_core_fields) */
+	REC_STATUS_COLUMNS_ADDED = 4
+};
+
+/** The dtuple_t::info_bits of the 'default row' record.
+@see rec_is_default_row() */
+static const byte REC_INFO_DEFAULT_ROW
+	= REC_INFO_MIN_REC_FLAG | REC_STATUS_COLUMNS_ADDED;
+
+#define REC_NEW_STATUS		3	/* This is single byte bit-field */
+#define REC_NEW_STATUS_MASK	0x7UL
+#define REC_NEW_STATUS_SHIFT	0
 
 /* The following four constants are needed in page0zip.cc in order to
 efficiently compress and decompress pages. */
@@ -93,6 +112,22 @@ significant bit denotes that the tail of a field is stored off-page. */
 offsets[] array, first passed to rec_get_offsets() */
 #define REC_OFFS_NORMAL_SIZE	OFFS_IN_REC_NORMAL_SIZE
 #define REC_OFFS_SMALL_SIZE	10
+
+/** Get the base address of offsets.  The extra_size is stored at
+this position, and following positions hold the end offsets of
+the fields. */
+#define rec_offs_base(offsets) (offsets + REC_OFFS_HEADER_SIZE)
+
+/** Compact flag ORed to the extra size returned by rec_get_offsets() */
+const ulint REC_OFFS_COMPACT = ~(ulint(~0) >> 1);
+/** SQL NULL flag in offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_SQL_NULL = REC_OFFS_COMPACT;
+/** External flag in offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_EXTERNAL = REC_OFFS_COMPACT >> 1;
+/** Default value flag in offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_DEFAULT = REC_OFFS_COMPACT >> 2;
+/** Mask for offsets returned by rec_get_offsets() */
+const ulint REC_OFFS_MASK = REC_OFFS_DEFAULT - 1;
 
 #ifndef UNIV_INNOCHECKSUM
 /******************************************************//**
@@ -252,25 +287,30 @@ rec_set_info_bits_new(
 	rec_t*	rec,	/*!< in/out: new-style physical record */
 	ulint	bits)	/*!< in: info bits */
 	MY_ATTRIBUTE((nonnull));
-/******************************************************//**
-The following function retrieves the status bits of a new-style record.
-@return status bits */
-UNIV_INLINE
-ulint
-rec_get_status(
-/*===========*/
-	const rec_t*	rec)	/*!< in: physical record */
-	MY_ATTRIBUTE((warn_unused_result));
 
-/******************************************************//**
-The following function is used to set the status bits of a new-style record. */
-UNIV_INLINE
+/** Determine the status bits of a non-REDUNDANT record.
+@param[in]	rec	ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED record
+@return status bits */
+inline
+rec_comp_status_t
+rec_get_status(const rec_t* rec)
+{
+	byte bits = rec[-REC_NEW_STATUS] & REC_NEW_STATUS_MASK;
+	ut_ad(bits <= REC_STATUS_COLUMNS_ADDED);
+	return static_cast<rec_comp_status_t>(bits);
+}
+
+/** Set the status bits of a non-REDUNDANT record.
+@param[in,out]	rec	ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED record
+@param[in]	bits	status bits */
+inline
 void
-rec_set_status(
-/*===========*/
-	rec_t*	rec,	/*!< in/out: physical record */
-	ulint	bits)	/*!< in: info bits */
-	MY_ATTRIBUTE((nonnull));
+rec_set_status(rec_t* rec, byte bits)
+{
+	ut_ad(bits <= REC_STATUS_COLUMNS_ADDED);
+	rec[-REC_NEW_STATUS] = (rec[-REC_NEW_STATUS] & ~REC_NEW_STATUS_MASK)
+		| bits;
+}
 
 /******************************************************//**
 The following function is used to retrieve the info and status
@@ -459,9 +499,7 @@ rec_get_offsets_func(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets,
-#ifdef UNIV_DEBUG
 	bool			leaf,
-#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 #ifdef UNIV_DEBUG
 	const char*		file,	/*!< in: file name where called */
@@ -471,7 +509,7 @@ rec_get_offsets_func(
 #ifdef UNIV_DEBUG
 	MY_ATTRIBUTE((nonnull(1,2,6,8),warn_unused_result));
 #else /* UNIV_DEBUG */
-	MY_ATTRIBUTE((nonnull(1,2,5),warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1,2,6),warn_unused_result));
 #endif /* UNIV_DEBUG */
 
 #ifdef UNIV_DEBUG
@@ -479,7 +517,7 @@ rec_get_offsets_func(
 	rec_get_offsets_func(rec,index,offsets,leaf,n,__FILE__,__LINE__,heap)
 #else /* UNIV_DEBUG */
 # define rec_get_offsets(rec, index, offsets, leaf, n, heap)		\
-	rec_get_offsets_func(rec, index, offsets, n, heap)
+	rec_get_offsets_func(rec, index, offsets, leaf, n, heap)
 #endif /* UNIV_DEBUG */
 
 /******************************************************//**
@@ -499,32 +537,31 @@ rec_get_offsets_reverse(
 					offsets[0] allocated elements */
 	MY_ATTRIBUTE((nonnull));
 #ifdef UNIV_DEBUG
-/************************************************************//**
-Validates offsets returned by rec_get_offsets().
-@return TRUE if valid */
-UNIV_INLINE
-ibool
+/** Validate offsets returned by rec_get_offsets().
+@param[in]	rec	record, or NULL
+@param[in]	index	the index that the record belongs in, or NULL
+@param[in,out]	offsets	the offsets of the record
+@return true */
+bool
 rec_offs_validate(
-/*==============*/
-	const rec_t*		rec,	/*!< in: record or NULL */
-	const dict_index_t*	index,	/*!< in: record descriptor or NULL */
-	const ulint*		offsets)/*!< in: array returned by
-					rec_get_offsets() */
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets)
 	MY_ATTRIBUTE((nonnull(3), warn_unused_result));
-/************************************************************//**
-Updates debug data in offsets, in order to avoid bogus
-rec_offs_validate() failures. */
-UNIV_INLINE
+/** Update debug data in offsets, in order to tame rec_offs_validate().
+@param[in]	rec	record
+@param[in]	index	the index that the record belongs in
+@param[in]	leaf	whether the record resides in a leaf page
+@param[in,out]	offsets	offsets from rec_get_offsets() to adjust */
 void
 rec_offs_make_valid(
-/*================*/
-	const rec_t*		rec,	/*!< in: record */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets)/*!< in: array returned by
-					rec_get_offsets() */
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	bool			leaf,
+	ulint*			offsets)
 	MY_ATTRIBUTE((nonnull));
 #else
-# define rec_offs_make_valid(rec, index, offsets) ((void) 0)
+# define rec_offs_make_valid(rec, index, leaf, offsets)
 #endif /* UNIV_DEBUG */
 
 /************************************************************//**
@@ -568,26 +605,7 @@ rec_get_nth_field_offs(
 	MY_ATTRIBUTE((nonnull));
 #define rec_get_nth_field(rec, offsets, n, len) \
 ((rec) + rec_get_nth_field_offs(offsets, n, len))
-/******************************************************//**
-Determine if the offsets are for a record in the new
-compact format.
-@return nonzero if compact format */
-UNIV_INLINE
-ulint
-rec_offs_comp(
-/*==========*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
-Determine if the offsets are for a record containing
-externally stored columns.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_any_extern(
-/*================*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-	MY_ATTRIBUTE((warn_unused_result));
+
 /******************************************************//**
 Determine if the offsets are for a record containing null BLOB pointers.
 @return first field containing a null BLOB pointer, or NULL if none found */
@@ -598,15 +616,16 @@ rec_offs_any_null_extern(
 	const rec_t*	rec,		/*!< in: record */
 	const ulint*	offsets)	/*!< in: rec_get_offsets(rec) */
 	MY_ATTRIBUTE((warn_unused_result));
+
 /******************************************************//**
 Returns nonzero if the extern bit is set in nth field of rec.
 @return nonzero if externally stored */
 UNIV_INLINE
 ulint
-rec_offs_nth_extern(
+rec_offs_nth_extern_old(
 /*================*/
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: nth field */
+	const rec_t*	rec,	/*!< in: record */
+	ulint		    n	/*!< in: index of the field */)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Mark the nth field as externally stored.
@@ -616,16 +635,179 @@ void
 rec_offs_make_nth_extern(
         ulint*		offsets,
         const ulint     n);
-/******************************************************//**
-Returns nonzero if the SQL NULL bit is set in nth field of rec.
-@return nonzero if SQL NULL */
-UNIV_INLINE
+
+/** Determine the number of allocated elements for an array of offsets.
+@param[in]	offsets		offsets after rec_offs_set_n_alloc()
+@return number of elements */
+inline
 ulint
-rec_offs_nth_sql_null(
-/*==================*/
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: nth field */
-	MY_ATTRIBUTE((warn_unused_result));
+rec_offs_get_n_alloc(const ulint* offsets)
+{
+	ulint	n_alloc;
+	ut_ad(offsets);
+	n_alloc = offsets[0];
+	ut_ad(n_alloc > REC_OFFS_HEADER_SIZE);
+	UNIV_MEM_ASSERT_W(offsets, n_alloc * sizeof *offsets);
+	return(n_alloc);
+}
+
+/** Determine the number of fields for which offsets have been initialized.
+@param[in]	offsets	rec_get_offsets()
+@return number of fields */
+inline
+ulint
+rec_offs_n_fields(const ulint* offsets)
+{
+	ulint	n_fields;
+	ut_ad(offsets);
+	n_fields = offsets[1];
+	ut_ad(n_fields > 0);
+	ut_ad(n_fields <= REC_MAX_N_FIELDS);
+	ut_ad(n_fields + REC_OFFS_HEADER_SIZE
+	      <= rec_offs_get_n_alloc(offsets));
+	return(n_fields);
+}
+
+/** Get a flag of a record field.
+@param[in]	offsets	rec_get_offsets()
+@param[in]	n	nth field
+@param[in]	flag	flag to extract
+@return	the flag of the record field */
+inline
+ulint
+rec_offs_nth_flag(const ulint* offsets, ulint n, ulint flag)
+{
+	ut_ad(rec_offs_validate(NULL, NULL, offsets));
+	ut_ad(n < rec_offs_n_fields(offsets));
+	/* The DEFAULT, NULL, EXTERNAL flags are mutually exclusive. */
+	ut_ad(ut_is_2pow(rec_offs_base(offsets)[1 + n]
+			 & (REC_OFFS_DEFAULT
+			    | REC_OFFS_SQL_NULL
+			    | REC_OFFS_EXTERNAL)));
+	return rec_offs_base(offsets)[1 + n] & flag;
+}
+
+/** Determine if a record field is missing
+(should be replaced by dict_index_t::instant_field_value()).
+@param[in]	offsets	rec_get_offsets()
+@param[in]	n	nth field
+@return	nonzero if default bit is set */
+inline
+ulint
+rec_offs_nth_default(const ulint* offsets, ulint n)
+{
+	return rec_offs_nth_flag(offsets, n, REC_OFFS_DEFAULT);
+}
+
+/** Determine if a record field is SQL NULL
+(should be replaced by dict_index_t::instant_field_value()).
+@param[in]	offsets	rec_get_offsets()
+@param[in]	n	nth field
+@return	nonzero if SQL NULL set */
+inline
+ulint
+rec_offs_nth_sql_null(const ulint* offsets, ulint n)
+{
+	return rec_offs_nth_flag(offsets, n, REC_OFFS_SQL_NULL);
+}
+
+/** Determine if a record field is stored off-page.
+@param[in]	offsets	rec_get_offsets()
+@param[in]	n	nth field
+Returns nonzero if the extern bit is set in nth field of rec.
+@return nonzero if externally stored */
+inline
+ulint
+rec_offs_nth_extern(const ulint* offsets, ulint n)
+{
+	return rec_offs_nth_flag(offsets, n, REC_OFFS_EXTERNAL);
+}
+
+/** Get a global flag of a record.
+@param[in]	offsets	rec_get_offsets()
+@param[in]	flag	flag to extract
+@return	the flag of the record field */
+inline
+ulint
+rec_offs_any_flag(const ulint* offsets, ulint flag)
+{
+	ut_ad(rec_offs_validate(NULL, NULL, offsets));
+	return *rec_offs_base(offsets) & flag;
+}
+
+/** Determine if the offsets are for a record containing off-page columns.
+@param[in]	offsets	rec_get_offsets()
+@return nonzero if any off-page columns exist */
+inline
+ulint
+rec_offs_any_extern(const ulint* offsets)
+{
+	return rec_offs_any_flag(offsets, REC_OFFS_EXTERNAL);
+}
+
+/** Determine if the offsets are for a record that is missing fields.
+@param[in]	offsets	rec_get_offsets()
+@return nonzero if any fields need to be replaced with
+		dict_index_t::instant_field_value() */
+inline
+ulint
+rec_offs_any_default(const ulint* offsets)
+{
+	return rec_offs_any_flag(offsets, REC_OFFS_DEFAULT);
+}
+
+/** Determine if the offsets are for other than ROW_FORMAT=REDUNDANT.
+@param[in]	offsets	rec_get_offsets()
+@return	nonzero	if ROW_FORMAT is COMPACT,DYNAMIC or COMPRESSED
+@retval	0	if ROW_FORMAT=REDUNDANT */
+inline
+ulint
+rec_offs_comp(const ulint* offsets)
+{
+	ut_ad(rec_offs_validate(NULL, NULL, offsets));
+	return(*rec_offs_base(offsets) & REC_OFFS_COMPACT);
+}
+
+/** Determine if the record is the 'default row' pseudo-record
+in the clustered index.
+@param[in]	rec	leaf page record
+@param[in]	index	index of the record
+@return	whether the record is the 'default row' pseudo-record */
+inline
+bool
+rec_is_default_row(const rec_t* rec, const dict_index_t* index)
+{
+	bool is = rec_get_info_bits(rec, dict_table_is_comp(index->table))
+		& REC_INFO_MIN_REC_FLAG;
+	ut_ad(!is || index->is_instant());
+	ut_ad(!is || !dict_table_is_comp(index->table)
+	      || rec_get_status(rec) == REC_STATUS_COLUMNS_ADDED);
+	return is;
+}
+
+/** Get the nth field from an index.
+@param[in]	rec	index record
+@param[in]	index	index
+@param[in]	offsets	rec_get_offsets(rec, index)
+@param[in]	n	field number
+@param[out]	len	length of the field in bytes, or UNIV_SQL_NULL
+@return a read-only copy of the index field */
+inline
+const byte*
+rec_get_nth_cfield(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const ulint*		offsets,
+	ulint			n,
+	ulint*			len)
+{
+	ut_ad(rec_offs_validate(rec, index, offsets));
+	if (!rec_offs_nth_default(offsets, n)) {
+		return rec_get_nth_field(rec, offsets, n, len);
+	}
+	return index->instant_field_value(n, len);
+}
+
 /******************************************************//**
 Gets the physical size of a field.
 @return length of field */
@@ -679,16 +861,6 @@ rec_get_data_size_old(
 	const rec_t*	rec)	/*!< in: physical record */
 	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************//**
-The following function returns the number of allocated elements
-for an array of offsets.
-@return number of elements */
-UNIV_INLINE
-ulint
-rec_offs_get_n_alloc(
-/*=================*/
-	const ulint*	offsets)/*!< in: array for rec_get_offsets() */
-	MY_ATTRIBUTE((warn_unused_result));
-/**********************************************************//**
 The following function sets the number of allocated elements
 for an array of offsets. */
 UNIV_INLINE
@@ -701,15 +873,6 @@ rec_offs_set_n_alloc(
 	MY_ATTRIBUTE((nonnull));
 #define rec_offs_init(offsets) \
 	rec_offs_set_n_alloc(offsets, (sizeof offsets) / sizeof *offsets)
-/**********************************************************//**
-The following function returns the number of fields in a record.
-@return number of fields */
-UNIV_INLINE
-ulint
-rec_offs_n_fields(
-/*==============*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************//**
 The following function returns the data size of a physical
 record, that is the sum of field lengths. SQL null fields
@@ -785,14 +948,46 @@ rec_copy(
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		record header size
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
 @return	total size, in bytes */
 ulint
 rec_get_converted_size_temp(
 	const dict_index_t*	index,
 	const dfield_t*		fields,
 	ulint			n_fields,
-	ulint*			extra)
-	MY_ATTRIBUTE((warn_unused_result, nonnull(1,2)));
+	ulint*			extra,
+	rec_comp_status_t	status = REC_STATUS_ORDINARY)
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
+/** Determine the offset to each field in temporary file.
+@param[in]	rec	temporary file record
+@param[in]	index	index of that the record belongs to
+@param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
+@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
+*/
+void
+rec_init_offsets_temp(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint*			offsets,
+	rec_comp_status_t	status = REC_STATUS_ORDINARY)
+	MY_ATTRIBUTE((nonnull));
+
+/** Convert a data tuple prefix to the temporary file format.
+@param[out]	rec		record in temporary file format
+@param[in]	index		clustered or secondary index
+@param[in]	fields		data fields
+@param[in]	n_fields	number of data fields
+@param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
+*/
+void
+rec_convert_dtuple_to_temp(
+	rec_t*			rec,
+	const dict_index_t*	index,
+	const dfield_t*		fields,
+	ulint			n_fields,
+	rec_comp_status_t	status = REC_STATUS_ORDINARY)
+	MY_ATTRIBUTE((nonnull));
 
 /** Determine the converted size of virtual column data in a temporary file.
 @see rec_convert_dtuple_to_temp_v()
@@ -817,29 +1012,6 @@ rec_convert_dtuple_to_temp_v(
 	const dtuple_t*		v_entry)
 	MY_ATTRIBUTE((nonnull));
 
-/******************************************************//**
-Determine the offset to each field in temporary file.
-@see rec_convert_dtuple_to_temp() */
-void
-rec_init_offsets_temp(
-/*==================*/
-	const rec_t*		rec,	/*!< in: temporary file record */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets)/*!< in/out: array of offsets;
-					in: n=rec_offs_n_fields(offsets) */
-	MY_ATTRIBUTE((nonnull));
-
-/*********************************************************//**
-Builds a temporary file record out of a data tuple.
-@see rec_init_offsets_temp() */
-void
-rec_convert_dtuple_to_temp(
-/*=======================*/
-	rec_t*			rec,		/*!< out: record */
-	const dict_index_t*	index,		/*!< in: record descriptor */
-	const dfield_t*		fields,		/*!< in: array of data fields */
-	ulint			n_fields);	/*!< in: number of fields */
-
 /**************************************************************//**
 Copies the first n fields of a physical record to a new physical record in
 a buffer.
@@ -856,22 +1028,6 @@ rec_copy_prefix_to_buf(
 						or NULL */
 	ulint*			buf_size)	/*!< in/out: buffer size */
 	MY_ATTRIBUTE((nonnull));
-/** Fold a prefix of a physical record.
-@param[in]	rec		index record
-@param[in]	offsets		return value of rec_get_offsets()
-@param[in]	n_fields	number of complete fields to fold
-@param[in]	n_bytes		number of bytes to fold in the last field
-@param[in]	index_id	index tree ID
-@return the folded value */
-UNIV_INLINE
-ulint
-rec_fold(
-	const rec_t*	rec,
-	const ulint*	offsets,
-	ulint		n_fields,
-	ulint		n_bytes,
-	index_id_t	tree_id)
-	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************//**
 Builds a physical record out of a data tuple and
 stores it into the given buffer.
@@ -919,7 +1075,7 @@ rec_get_converted_size_comp(
 					dict_table_is_comp() is
 					assumed to hold, even if
 					it does not */
-	ulint			status,	/*!< in: status bits of the record */
+	rec_comp_status_t	status,	/*!< in: status bits of the record */
 	const dfield_t*		fields,	/*!< in: array of data fields */
 	ulint			n_fields,/*!< in: number of data fields */
 	ulint*			extra)	/*!< out: extra size */
@@ -944,23 +1100,14 @@ The fields are copied into the memory heap.
 @param[in]	n_fields	number of fields to copy
 @param[in,out]	heap		memory heap */
 void
-rec_copy_prefix_to_dtuple_func(
+rec_copy_prefix_to_dtuple(
 	dtuple_t*		tuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-#ifdef UNIV_DEBUG
 	bool			is_leaf,
-#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull));
-#ifdef UNIV_DEBUG
-# define rec_copy_prefix_to_dtuple(tuple,rec,index,leaf,n_fields,heap)	\
-	rec_copy_prefix_to_dtuple_func(tuple,rec,index,leaf,n_fields,heap)
-#else /* UNIV_DEBUG */
-# define rec_copy_prefix_to_dtuple(tuple,rec,index,leaf,n_fields,heap)	\
-	rec_copy_prefix_to_dtuple_func(tuple,rec,index,n_fields,heap)
-#endif /* UNIV_DEBUG */
 /***************************************************************//**
 Validates the consistency of a physical record.
 @return TRUE if ok */

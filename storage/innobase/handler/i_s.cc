@@ -5041,13 +5041,15 @@ i_s_innodb_set_page_type(
 		in the i_s_page_type[] array is I_S_PAGE_TYPE_INDEX
 		(1) for index pages or I_S_PAGE_TYPE_IBUF for
 		change buffer index pages */
-		if (page_info->index_id
-		    == static_cast<index_id_t>(DICT_IBUF_ID_MIN
-					       + IBUF_SPACE_ID)) {
-			page_info->page_type = I_S_PAGE_TYPE_IBUF;
-		} else if (page_type == FIL_PAGE_RTREE) {
+		if (page_type == FIL_PAGE_RTREE) {
 			page_info->page_type = I_S_PAGE_TYPE_RTREE;
+		} else if (page_info->index_id
+			   == static_cast<index_id_t>(DICT_IBUF_ID_MIN
+						      + IBUF_SPACE_ID)) {
+			page_info->page_type = I_S_PAGE_TYPE_IBUF;
 		} else {
+			ut_ad(page_type == FIL_PAGE_INDEX
+			      || page_type == FIL_PAGE_TYPE_INSTANT);
 			page_info->page_type = I_S_PAGE_TYPE_INDEX;
 		}
 

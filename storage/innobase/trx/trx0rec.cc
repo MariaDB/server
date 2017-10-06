@@ -41,6 +41,16 @@ Created 3/26/1996 Heikki Tuuri
 #include "fsp0sysspace.h"
 #include "row0mysql.h"
 
+/** The search tuple corresponding to TRX_UNDO_INSERT_DEFAULT */
+const dtuple_t trx_undo_default_rec = {
+	REC_INFO_DEFAULT_ROW, 0, 0,
+	NULL, 0, NULL,
+	UT_LIST_NODE_T(dtuple_t)()
+#ifdef UNIV_DEBUG
+	, DATA_TUPLE_MAGIC_N
+#endif /* UNIV_DEBUG */
+};
+
 /*=========== UNDO LOG RECORD CREATION AND DECODING ====================*/
 
 /**********************************************************************//**
@@ -499,6 +509,13 @@ trx_undo_page_report_insert(
 	/*----------------------------------------*/
 	/* Store then the fields required to uniquely determine the record
 	to be inserted in the clustered index */
+	if (UNIV_UNLIKELY(clust_entry->info_bits)) {
+		ut_ad(clust_entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(index->is_instant());
+		ut_ad(undo_page[first_free + 2] == TRX_UNDO_INSERT_REC);
+		undo_page[first_free + 2] = TRX_UNDO_INSERT_DEFAULT;
+		goto done;
+	}
 
 	for (i = 0; i < dict_index_get_n_unique(index); i++) {
 
@@ -530,6 +547,7 @@ trx_undo_page_report_insert(
 		}
 	}
 
+done:
 	return(trx_undo_page_set_next_prev_and_add(undo_page, ptr, mtr));
 }
 
@@ -966,6 +984,8 @@ trx_undo_page_report_modify(
 
 	for (i = 0; i < dict_index_get_n_unique(index); i++) {
 
+		/* The ordering columns must not be instant added columns. */
+		ut_ad(!rec_offs_nth_default(offsets, i));
 		field = rec_get_nth_field(rec, offsets, i, &flen);
 
 		/* The ordering columns must not be stored externally. */
@@ -1081,8 +1101,8 @@ trx_undo_page_report_modify(
 						flen, max_v_log_len);
 				}
 			} else {
-				field = rec_get_nth_field(rec, offsets,
-							  pos, &flen);
+				field = rec_get_nth_cfield(
+					rec, index, offsets, pos, &flen);
 			}
 
 			if (trx_undo_left(undo_page, ptr) < 15) {
@@ -1222,8 +1242,8 @@ trx_undo_page_report_modify(
 				ptr += mach_write_compressed(ptr, pos);
 
 				/* Save the old value of field */
-				field = rec_get_nth_field(rec, offsets, pos,
-							  &flen);
+				field = rec_get_nth_cfield(
+					rec, index, offsets, pos, &flen);
 
 				if (rec_offs_nth_extern(offsets, pos)) {
 					const dict_col_t*	col =
@@ -1504,6 +1524,7 @@ trx_undo_update_rec_get_update(
 		ulint		orig_len;
 		bool		is_virtual;
 
+		upd_field = upd_get_nth_field(update, i);
 		field_no = mach_read_next_compressed(&ptr);
 
 		is_virtual = (field_no >= REC_MAX_N_FIELDS);
@@ -1515,27 +1536,6 @@ trx_undo_update_rec_get_update(
 				index->table, ptr, first_v_col, &is_undo_log,
 				&field_no);
 			first_v_col = false;
-		} else if (field_no >= dict_index_get_n_fields(index)) {
-			ib::error() << "Trying to access update undo rec"
-				" field " << field_no
-				<< " in index " << index->name
-				<< " of table " << index->table->name
-				<< " but index has only "
-				<< dict_index_get_n_fields(index)
-				<< " fields " << BUG_REPORT_MSG
-				<< ". Run also CHECK TABLE "
-				<< index->table->name << "."
-				" n_fields = " << n_fields << ", i = " << i
-				<< ", ptr " << ptr;
-
-			ut_ad(0);
-			*upd = NULL;
-			return(NULL);
-		}
-
-		upd_field = upd_get_nth_field(update, i);
-
-		if (is_virtual) {
 			/* This column could be dropped or no longer indexed */
 			if (field_no == ULINT_UNDEFINED) {
 				/* Mark this is no longer needed */
@@ -1549,10 +1549,31 @@ trx_undo_update_rec_get_update(
 				continue;
 			}
 
-			upd_field_set_v_field_no(
-				upd_field, field_no, index);
-		} else {
+			upd_field_set_v_field_no(upd_field, field_no, index);
+		} else if (field_no < index->n_fields) {
 			upd_field_set_field_no(upd_field, field_no, index);
+		} else if (update->info_bits == REC_INFO_MIN_REC_FLAG
+			   && index->is_instant()) {
+			/* This must be a rollback of a subsequent
+			instant ADD COLUMN operation. This will be
+			detected and handled by btr_cur_trim(). */
+			upd_field->field_no = field_no;
+			upd_field->orig_len = 0;
+		} else {
+			ib::error() << "Trying to access update undo rec"
+				" field " << field_no
+				<< " in index " << index->name
+				<< " of table " << index->table->name
+				<< " but index has only "
+				<< dict_index_get_n_fields(index)
+				<< " fields " << BUG_REPORT_MSG
+				<< ". Run also CHECK TABLE "
+				<< index->table->name << "."
+				" n_fields = " << n_fields << ", i = " << i;
+
+			ut_ad(0);
+			*upd = NULL;
+			return(NULL);
 		}
 
 		ptr = trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
@@ -1887,10 +1908,15 @@ trx_undo_report_row_operation(
 	} else {
 		ut_ad(!trx->read_only);
 		ut_ad(trx->id);
-		/* Keep INFORMATION_SCHEMA.TABLES.UPDATE_TIME
-		up-to-date for persistent tables. Temporary tables are
-		not listed there. */
-		trx->mod_tables.insert(index->table);
+		if (UNIV_LIKELY(!clust_entry || clust_entry->info_bits
+				!= REC_INFO_DEFAULT_ROW)) {
+			/* Keep INFORMATION_SCHEMA.TABLES.UPDATE_TIME
+			up-to-date for persistent tables outside
+			instant ADD COLUMN. */
+			trx->mod_tables.insert(index->table);
+		} else {
+			ut_ad(index->is_instant());
+		}
 
 		pundo = &trx->rsegs.m_redo.undo;
 		rseg = trx->rsegs.m_redo.rseg;
@@ -2291,7 +2317,7 @@ trx_undo_prev_version_build(
 			heap, rec_offs_size(offsets)));
 
 		*old_vers = rec_copy(buf, rec, offsets);
-		rec_offs_make_valid(*old_vers, index, offsets);
+		rec_offs_make_valid(*old_vers, index, true, offsets);
 		row_upd_rec_in_place(*old_vers, index, offsets, update, NULL);
 	}
 

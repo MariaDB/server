@@ -618,26 +618,28 @@ dict_table_has_column(
 	return(col_max);
 }
 
-/**********************************************************************//**
-Returns a column's name.
-@return column name. NOTE: not guaranteed to stay valid if table is
-modified in any way (columns added, etc.). */
-const char*
-dict_table_get_col_name(
-/*====================*/
-	const dict_table_t*	table,	/*!< in: table */
-	ulint			col_nr)	/*!< in: column number */
+/** Retrieve the column name.
+@param[in]	table	table name */
+const char* dict_col_t::name(const dict_table_t& table) const
 {
-	ulint		i;
-	const char*	s;
+	ut_ad(table.magic_n == DICT_TABLE_MAGIC_N);
 
-	ut_ad(table);
-	ut_ad(col_nr < table->n_def);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+	size_t col_nr;
+	const char *s;
 
-	s = table->col_names;
+	if (is_virtual()) {
+		col_nr = reinterpret_cast<const dict_v_col_t*>(this)
+			- table.v_cols;
+		ut_ad(col_nr < table.n_v_def);
+		s = table.v_col_names;
+	} else {
+		col_nr = this - table.cols;
+		ut_ad(col_nr < table.n_def);
+		s = table.col_names;
+	}
+
 	if (s) {
-		for (i = 0; i < col_nr; i++) {
+		for (size_t i = 0; i < col_nr; i++) {
 			s += strlen(s) + 1;
 		}
 	}
@@ -1274,41 +1276,31 @@ dict_table_add_system_columns(
 #endif
 }
 
-/**********************************************************************//**
-Adds a table object to the dictionary cache. */
+/** Add the table definition to the data dictionary cache */
 void
-dict_table_add_to_cache(
-/*====================*/
-	dict_table_t*	table,		/*!< in: table */
-	bool		can_be_evicted,	/*!< in: whether can be evicted */
-	mem_heap_t*	heap)		/*!< in: temporary heap */
+dict_table_t::add_to_cache()
 {
-	ulint	fold;
-	ulint	id_fold;
-
 	ut_ad(dict_lru_validate());
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	dict_table_add_system_columns(table, heap);
+	cached = TRUE;
 
-	table->cached = TRUE;
-
-	fold = ut_fold_string(table->name.m_name);
-	id_fold = ut_fold_ull(table->id);
+	ulint fold = ut_fold_string(name.m_name);
+	ulint id_fold = ut_fold_ull(id);
 
 	/* Look for a table with the same name: error if such exists */
 	{
 		dict_table_t*	table2;
 		HASH_SEARCH(name_hash, dict_sys->table_hash, fold,
 			    dict_table_t*, table2, ut_ad(table2->cached),
-			    !strcmp(table2->name.m_name, table->name.m_name));
+			    !strcmp(table2->name.m_name, name.m_name));
 		ut_a(table2 == NULL);
 
 #ifdef UNIV_DEBUG
 		/* Look for the same table pointer with a different name */
 		HASH_SEARCH_ALL(name_hash, dict_sys->table_hash,
 				dict_table_t*, table2, ut_ad(table2->cached),
-				table2 == table);
+				table2 == this);
 		ut_ad(table2 == NULL);
 #endif /* UNIV_DEBUG */
 	}
@@ -1318,32 +1310,30 @@ dict_table_add_to_cache(
 		dict_table_t*	table2;
 		HASH_SEARCH(id_hash, dict_sys->table_id_hash, id_fold,
 			    dict_table_t*, table2, ut_ad(table2->cached),
-			    table2->id == table->id);
+			    table2->id == id);
 		ut_a(table2 == NULL);
 
 #ifdef UNIV_DEBUG
 		/* Look for the same table pointer with a different id */
 		HASH_SEARCH_ALL(id_hash, dict_sys->table_id_hash,
 				dict_table_t*, table2, ut_ad(table2->cached),
-				table2 == table);
+				table2 == this);
 		ut_ad(table2 == NULL);
 #endif /* UNIV_DEBUG */
 	}
 
 	/* Add table to hash table of tables */
 	HASH_INSERT(dict_table_t, name_hash, dict_sys->table_hash, fold,
-		    table);
+		    this);
 
 	/* Add table to hash table of tables based on table id */
 	HASH_INSERT(dict_table_t, id_hash, dict_sys->table_id_hash, id_fold,
-		    table);
+		    this);
 
-	table->can_be_evicted = can_be_evicted;
-
-	if (table->can_be_evicted) {
-		UT_LIST_ADD_FIRST(dict_sys->table_LRU, table);
+	if (can_be_evicted) {
+		UT_LIST_ADD_FIRST(dict_sys->table_LRU, this);
 	} else {
-		UT_LIST_ADD_FIRST(dict_sys->table_non_LRU, table);
+		UT_LIST_ADD_FIRST(dict_sys->table_non_LRU, this);
 	}
 
 	ut_ad(dict_lru_validate());
@@ -2469,12 +2459,14 @@ dict_index_add_to_cache_w_vcol(
 	/* Build the cache internal representation of the index,
 	containing also the added system fields */
 
-	if (index->type == DICT_FTS) {
-		new_index = dict_index_build_internal_fts(table, index);
-	} else if (dict_index_is_clust(index)) {
+	if (dict_index_is_clust(index)) {
 		new_index = dict_index_build_internal_clust(table, index);
 	} else {
-		new_index = dict_index_build_internal_non_clust(table, index);
+		new_index = (index->type & DICT_FTS)
+			? dict_index_build_internal_fts(table, index)
+			: dict_index_build_internal_non_clust(table, index);
+		new_index->n_core_null_bytes = UT_BITS_IN_BYTES(
+			new_index->n_nullable);
 	}
 
 	/* Set the n_fields value in new_index to the actual defined
@@ -2569,6 +2561,8 @@ dict_index_add_to_cache_w_vcol(
 	new_index->page = unsigned(page_no);
 	rw_lock_create(index_tree_rw_lock_key, &new_index->lock,
 		       SYNC_INDEX_TREE);
+
+	new_index->n_core_fields = new_index->n_fields;
 
 	dict_mem_index_free(index);
 
@@ -2824,11 +2818,8 @@ dict_index_add_col(
 		if (v_col->v_indexes != NULL) {
 			/* Register the index with the virtual column index
 			list */
-			struct dict_v_idx_t	new_idx
-				 = {index, index->n_def};
-
-			v_col->v_indexes->push_back(new_idx);
-
+			v_col->v_indexes->push_back(
+				dict_v_idx_t(index, index->n_def));
 		}
 
 		col_name = dict_table_get_v_col_name_mysql(
@@ -3156,6 +3147,9 @@ dict_index_build_internal_clust(
 
 	ut_ad(UT_LIST_GET_LEN(table->indexes) == 0);
 
+	new_index->n_core_null_bytes = table->supports_instant()
+		? dict_index_t::NO_CORE_NULL_BYTES
+		: UT_BITS_IN_BYTES(new_index->n_nullable);
 	new_index->cached = TRUE;
 
 	return(new_index);
@@ -5682,21 +5676,14 @@ dict_index_copy_rec_order_prefix(
 @param[in,out]	heap		memory heap for allocation
 @return own: data tuple */
 dtuple_t*
-dict_index_build_data_tuple_func(
+dict_index_build_data_tuple(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-#ifdef UNIV_DEBUG
 	bool			leaf,
-#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
-	dtuple_t*	tuple;
-
-	ut_ad(dict_table_is_comp(index->table)
-	      || n_fields <= rec_get_n_fields_old(rec));
-
-	tuple = dtuple_create(heap, n_fields);
+	dtuple_t* tuple = dtuple_create(heap, n_fields);
 
 	dict_index_copy_types(tuple, index, n_fields);
 

@@ -619,6 +619,15 @@ struct dtuple_t {
 /** Value of dtuple_t::magic_n */
 # define		DATA_TUPLE_MAGIC_N	65478679
 #endif /* UNIV_DEBUG */
+
+	/** Trim the tail of an index tuple before insert or update.
+	After instant ADD COLUMN, if the last fields of a clustered index tuple
+	match the 'default row', there will be no need to store them.
+	NOTE: A page latch in the index must be held, so that the index
+	may not lose 'instantness' before the trimmed tuple has been
+	inserted or updated.
+	@param[in]	index	index possibly with instantly added columns */
+	void trim(const dict_index_t& index);
 };
 
 /** A slot for a field in a big rec vector */

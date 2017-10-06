@@ -170,13 +170,14 @@ PageBulk::insert(
 	ut_ad(m_heap != NULL);
 
 	rec_size = rec_offs_size(offsets);
+	ut_d(const bool is_leaf = page_rec_is_leaf(m_cur_rec));
 
 #ifdef UNIV_DEBUG
 	/* Check whether records are in order. */
 	if (!page_rec_is_infimum(m_cur_rec)) {
 		rec_t*	old_rec = m_cur_rec;
 		ulint*	old_offsets = rec_get_offsets(
-			old_rec, m_index, NULL,	page_rec_is_leaf(old_rec),
+			old_rec, m_index, NULL,	is_leaf,
 			ULINT_UNDEFINED, &m_heap);
 
 		ut_ad(cmp_rec_rec(rec, old_rec, offsets, old_offsets, m_index)
@@ -188,7 +189,7 @@ PageBulk::insert(
 
 	/* 1. Copy the record to page. */
 	rec_t*	insert_rec = rec_copy(m_heap_top, rec, offsets);
-	rec_offs_make_valid(insert_rec, m_index, offsets);
+	rec_offs_make_valid(insert_rec, m_index, is_leaf, offsets);
 
 	/* 2. Insert the record in the linked list. */
 	rec_t*	next_rec = page_rec_get_next(m_cur_rec);
@@ -291,12 +292,12 @@ PageBulk::finish()
 	page_dir_set_n_slots(m_page, NULL, 2 + slot_index);
 	page_header_set_ptr(m_page, NULL, PAGE_HEAP_TOP, m_heap_top);
 	page_dir_set_n_heap(m_page, NULL, PAGE_HEAP_NO_USER_LOW + m_rec_no);
-	page_header_set_field(m_page, NULL, PAGE_N_RECS, m_rec_no);
-
 	page_header_set_ptr(m_page, NULL, PAGE_LAST_INSERT, m_cur_rec);
-	page_header_set_field(m_page, NULL, PAGE_DIRECTION, PAGE_RIGHT);
-	page_header_set_field(m_page, NULL, PAGE_N_DIRECTION, 0);
-
+	mach_write_to_2(PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
+	ut_ad(!page_get_instant(m_page));
+	m_page[PAGE_HEADER + PAGE_DIRECTION_B] = PAGE_RIGHT;
+	*reinterpret_cast<uint16_t*>(PAGE_HEADER + PAGE_N_DIRECTION + m_page)
+		= 0;
 	m_block->skip_flush_check = false;
 }
 

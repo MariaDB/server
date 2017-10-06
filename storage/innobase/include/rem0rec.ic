@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,18 +26,8 @@ Created 5/30/1994 Heikki Tuuri
 
 #include "mach0data.h"
 #include "ut0byte.h"
-#include "dict0dict.h"
 #include "dict0boot.h"
 #include "btr0types.h"
-
-/* Compact flag ORed to the extra size returned by rec_get_offsets() */
-#define REC_OFFS_COMPACT	((ulint) 1 << 31)
-/* SQL NULL flag in offsets returned by rec_get_offsets() */
-#define REC_OFFS_SQL_NULL	((ulint) 1 << 31)
-/* External flag in offsets returned by rec_get_offsets() */
-#define REC_OFFS_EXTERNAL	((ulint) 1 << 30)
-/* Mask for offsets returned by rec_get_offsets() */
-#define REC_OFFS_MASK		(REC_OFFS_EXTERNAL - 1)
 
 /* Offsets of the bit-fields in an old-style record. NOTE! In the table the
 most significant bytes and bits are written below less significant.
@@ -72,10 +63,11 @@ most significant bytes and bits are written below less significant.
 				  relative_offset + offset_of_this_record
 				  mod UNIV_PAGE_SIZE
 			3	3 bits status:
-					000=conventional record
-					001=node pointer record (inside B-tree)
-					010=infimum record
-					011=supremum record
+					000=REC_STATUS_ORDINARY
+					001=REC_STATUS_NODE_PTR
+					010=REC_STATUS_INFIMUM
+					011=REC_STATUS_SUPREMUM
+					100=REC_STATUS_COLUMNS_ADDED
 					1xx=reserved
 				5 bits heap number
 			4	8 bits heap number
@@ -97,10 +89,6 @@ and the shift needed to obtain each bit-field of the record. */
 #define REC_OLD_N_FIELDS	4
 #define REC_OLD_N_FIELDS_MASK	0x7FEUL
 #define REC_OLD_N_FIELDS_SHIFT	1
-
-#define REC_NEW_STATUS		3	/* This is single byte bit-field */
-#define REC_NEW_STATUS_MASK	0x7UL
-#define REC_NEW_STATUS_SHIFT	0
 
 #define REC_OLD_HEAP_NO		5
 #define REC_HEAP_NO_MASK	0xFFF8UL
@@ -456,26 +444,6 @@ rec_set_n_fields_old(
 }
 
 /******************************************************//**
-The following function retrieves the status bits of a new-style record.
-@return status bits */
-UNIV_INLINE
-ulint
-rec_get_status(
-/*===========*/
-	const rec_t*	rec)	/*!< in: physical record */
-{
-	ulint	ret;
-
-	ut_ad(rec);
-
-	ret = rec_get_bit_field_1(rec, REC_NEW_STATUS,
-				  REC_NEW_STATUS_MASK, REC_NEW_STATUS_SHIFT);
-	ut_ad((ret & ~REC_NEW_STATUS_MASK) == 0);
-
-	return(ret);
-}
-
-/******************************************************//**
 The following function is used to get the number of fields
 in a record.
 @return number of data fields */
@@ -494,6 +462,7 @@ rec_get_n_fields(
 	}
 
 	switch (rec_get_status(rec)) {
+	case REC_STATUS_COLUMNS_ADDED:
 	case REC_STATUS_ORDINARY:
 		return(dict_index_get_n_fields(index));
 	case REC_STATUS_NODE_PTR:
@@ -501,10 +470,10 @@ rec_get_n_fields(
 	case REC_STATUS_INFIMUM:
 	case REC_STATUS_SUPREMUM:
 		return(1);
-	default:
-		ut_error;
-		return(ULINT_UNDEFINED);
 	}
+
+	ut_error;
+	return(ULINT_UNDEFINED);
 }
 
 /** Confirms the n_fields of the entry is sane with comparing the other
@@ -520,13 +489,15 @@ rec_n_fields_is_sane(
 	const rec_t*	rec,
 	const dtuple_t*	entry)
 {
-	return(rec_get_n_fields(rec, index)
-	       == dtuple_get_n_fields(entry)
+	const ulint n_fields = rec_get_n_fields(rec, index);
+
+	return(n_fields == dtuple_get_n_fields(entry)
+	       || (index->is_instant()
+		   && n_fields >= index->n_core_fields)
 	       /* a record for older SYS_INDEXES table
 	       (missing merge_threshold column) is acceptable. */
 	       || (index->table->id == DICT_INDEXES_ID
-		   && rec_get_n_fields(rec, index)
-		      == dtuple_get_n_fields(entry) - 1));
+		   && n_fields == dtuple_get_n_fields(entry) - 1));
 }
 
 /******************************************************//**
@@ -642,19 +613,6 @@ rec_set_info_bits_new(
 	ut_ad(rec_info_bits_valid(bits));
 	rec_set_bit_field_1(rec, bits, REC_NEW_INFO_BITS,
 			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
-}
-
-/******************************************************//**
-The following function is used to set the status bits of a new-style record. */
-UNIV_INLINE
-void
-rec_set_status(
-/*===========*/
-	rec_t*	rec,	/*!< in/out: physical record */
-	ulint	bits)	/*!< in: info bits */
-{
-	rec_set_bit_field_1(rec, bits, REC_NEW_STATUS,
-			    REC_NEW_STATUS_MASK, REC_NEW_STATUS_SHIFT);
 }
 
 /******************************************************//**
@@ -924,29 +882,6 @@ rec_2_is_field_extern(
 	return(rec_2_get_field_end_info(rec, n) & REC_2BYTE_EXTERN_MASK);
 }
 
-/* Get the base address of offsets.  The extra_size is stored at
-this position, and following positions hold the end offsets of
-the fields. */
-#define rec_offs_base(offsets) (offsets + REC_OFFS_HEADER_SIZE)
-
-/**********************************************************//**
-The following function returns the number of allocated elements
-for an array of offsets.
-@return number of elements */
-UNIV_INLINE
-ulint
-rec_offs_get_n_alloc(
-/*=================*/
-	const ulint*	offsets)/*!< in: array for rec_get_offsets() */
-{
-	ulint	n_alloc;
-	ut_ad(offsets);
-	n_alloc = offsets[0];
-	ut_ad(n_alloc > REC_OFFS_HEADER_SIZE);
-	UNIV_MEM_ASSERT_W(offsets, n_alloc * sizeof *offsets);
-	return(n_alloc);
-}
-
 /**********************************************************//**
 The following function sets the number of allocated elements
 for an array of offsets. */
@@ -964,102 +899,6 @@ rec_offs_set_n_alloc(
 	offsets[0] = n_alloc;
 }
 
-/**********************************************************//**
-The following function returns the number of fields in a record.
-@return number of fields */
-UNIV_INLINE
-ulint
-rec_offs_n_fields(
-/*==============*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-{
-	ulint	n_fields;
-	ut_ad(offsets);
-	n_fields = offsets[1];
-	ut_ad(n_fields > 0);
-	ut_ad(n_fields <= REC_MAX_N_FIELDS);
-	ut_ad(n_fields + REC_OFFS_HEADER_SIZE
-	      <= rec_offs_get_n_alloc(offsets));
-	return(n_fields);
-}
-
-/************************************************************//**
-Validates offsets returned by rec_get_offsets().
-@return TRUE if valid */
-UNIV_INLINE
-ibool
-rec_offs_validate(
-/*==============*/
-	const rec_t*		rec,	/*!< in: record or NULL */
-	const dict_index_t*	index,	/*!< in: record descriptor or NULL */
-	const ulint*		offsets)/*!< in: array returned by
-					rec_get_offsets() */
-{
-	ulint	i	= rec_offs_n_fields(offsets);
-	ulint	last	= ULINT_MAX;
-	ulint	comp	= *rec_offs_base(offsets) & REC_OFFS_COMPACT;
-
-	if (rec) {
-		ut_ad((ulint) rec == offsets[2]);
-		if (!comp) {
-			ut_a(rec_get_n_fields_old(rec) >= i);
-		}
-	}
-	if (index) {
-		ulint max_n_fields;
-		ut_ad((ulint) index == offsets[3]);
-		max_n_fields = ut_max(
-			dict_index_get_n_fields(index),
-			dict_index_get_n_unique_in_tree(index) + 1);
-		if (comp && rec) {
-			switch (rec_get_status(rec)) {
-			case REC_STATUS_ORDINARY:
-				break;
-			case REC_STATUS_NODE_PTR:
-				max_n_fields = dict_index_get_n_unique_in_tree(
-					index) + 1;
-				break;
-			case REC_STATUS_INFIMUM:
-			case REC_STATUS_SUPREMUM:
-				max_n_fields = 1;
-				break;
-			default:
-				ut_error;
-			}
-		}
-		/* index->n_def == 0 for dummy indexes if !comp */
-		ut_a(!comp || index->n_def);
-		ut_a(!index->n_def || i <= max_n_fields);
-	}
-	while (i--) {
-		ulint	curr = rec_offs_base(offsets)[1 + i] & REC_OFFS_MASK;
-		ut_a(curr <= last);
-		last = curr;
-	}
-	return(TRUE);
-}
-#ifdef UNIV_DEBUG
-/************************************************************//**
-Updates debug data in offsets, in order to avoid bogus
-rec_offs_validate() failures. */
-UNIV_INLINE
-void
-rec_offs_make_valid(
-/*================*/
-	const rec_t*		rec,	/*!< in: record */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets)/*!< in: array returned by
-					rec_get_offsets() */
-{
-	ut_ad(rec);
-	ut_ad(index);
-	ut_ad(offsets);
-	ut_ad(rec_get_n_fields(rec, index) >= rec_offs_n_fields(offsets));
-	offsets[2] = (ulint) rec;
-	offsets[3] = (ulint) index;
-}
-#endif /* UNIV_DEBUG */
-
 /************************************************************//**
 The following function is used to get an offset to the nth
 data field in a record.
@@ -1071,7 +910,7 @@ rec_get_nth_field_offs(
 	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		n,	/*!< in: index of the field */
 	ulint*		len)	/*!< out: length of the field; UNIV_SQL_NULL
-				if SQL null */
+				if SQL null; UNIV_SQL_DEFAULT is default value */
 {
 	ulint	offs;
 	ulint	length;
@@ -1088,6 +927,8 @@ rec_get_nth_field_offs(
 
 	if (length & REC_OFFS_SQL_NULL) {
 		length = UNIV_SQL_NULL;
+	} else if (length & REC_OFFS_DEFAULT) {
+		length = UNIV_SQL_DEFAULT;
 	} else {
 		length &= REC_OFFS_MASK;
 		length -= offs;
@@ -1095,34 +936,6 @@ rec_get_nth_field_offs(
 
 	*len = length;
 	return(offs);
-}
-
-/******************************************************//**
-Determine if the offsets are for a record in the new
-compact format.
-@return nonzero if compact format */
-UNIV_INLINE
-ulint
-rec_offs_comp(
-/*==========*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-{
-	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	return(*rec_offs_base(offsets) & REC_OFFS_COMPACT);
-}
-
-/******************************************************//**
-Determine if the offsets are for a record containing
-externally stored columns.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_any_extern(
-/*================*/
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
-{
-	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	return(*rec_offs_base(offsets) & REC_OFFS_EXTERNAL);
 }
 
 /******************************************************//**
@@ -1166,29 +979,14 @@ Returns nonzero if the extern bit is set in nth field of rec.
 @return nonzero if externally stored */
 UNIV_INLINE
 ulint
-rec_offs_nth_extern(
+rec_offs_nth_extern_old(
 /*================*/
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: nth field */
+	const rec_t*	rec,	/*!< in: record */
+	ulint		    n	/*!< in: index of the field */)
 {
-	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	ut_ad(n < rec_offs_n_fields(offsets));
-	return(rec_offs_base(offsets)[1 + n] & REC_OFFS_EXTERNAL);
-}
-
-/******************************************************//**
-Returns nonzero if the SQL NULL bit is set in nth field of rec.
-@return nonzero if SQL NULL */
-UNIV_INLINE
-ulint
-rec_offs_nth_sql_null(
-/*==================*/
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: nth field */
-{
-	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	ut_ad(n < rec_offs_n_fields(offsets));
-	return(rec_offs_base(offsets)[1 + n] & REC_OFFS_SQL_NULL);
+	if(rec_get_1byte_offs_flag(rec))
+		return 0;
+	return (rec_2_get_field_end_info(rec,n) & REC_2BYTE_EXTERN_MASK);
 }
 
 /******************************************************//**
@@ -1426,6 +1224,7 @@ rec_set_nth_field(
 
 	ut_ad(rec);
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
+	ut_ad(!rec_offs_nth_default(offsets, n));
 
 	if (len == UNIV_SQL_NULL) {
 		if (!rec_offs_nth_sql_null(offsets, n)) {
@@ -1436,7 +1235,7 @@ rec_set_nth_field(
 		return;
 	}
 
-	data2 = rec_get_nth_field(rec, offsets, n, &len2);
+	data2 = (byte*)rec_get_nth_field(rec, offsets, n, &len2);
 	if (len2 == UNIV_SQL_NULL) {
 		ut_ad(!rec_offs_comp(offsets));
 		rec_set_nth_field_null_bit(rec, n, FALSE);
@@ -1517,7 +1316,7 @@ rec_offs_extra_size(
 {
 	ulint	size;
 	ut_ad(rec_offs_validate(NULL, NULL, offsets));
-	size = *rec_offs_base(offsets) & ~(REC_OFFS_COMPACT | REC_OFFS_EXTERNAL);
+	size = *rec_offs_base(offsets) & REC_OFFS_MASK;
 	ut_ad(size < UNIV_PAGE_SIZE);
 	return(size);
 }
@@ -1630,27 +1429,34 @@ rec_get_converted_size(
 	ut_ad(index);
 	ut_ad(dtuple);
 	ut_ad(dtuple_check_typed(dtuple));
-
-	ut_ad(dict_index_is_ibuf(index)
-
-	      || dtuple_get_n_fields(dtuple)
-		 == (((dtuple_get_info_bits(dtuple) & REC_NEW_STATUS_MASK)
-		      == REC_STATUS_NODE_PTR)
-		     ? dict_index_get_n_unique_in_tree_nonleaf(index) + 1
-		     : dict_index_get_n_fields(index))
-
-	      /* a record for older SYS_INDEXES table
-	      (missing merge_threshold column) is acceptable. */
-	      || (index->table->id == DICT_INDEXES_ID
-		  && dtuple_get_n_fields(dtuple)
-		     == dict_index_get_n_fields(index) - 1));
+#ifdef UNIV_DEBUG
+	if (dict_index_is_ibuf(index)) {
+		ut_ad(dtuple->n_fields > 1);
+	} else if ((dtuple_get_info_bits(dtuple) & REC_NEW_STATUS_MASK)
+		   == REC_STATUS_NODE_PTR) {
+		ut_ad(dtuple->n_fields
+		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
+	} else if (index->table->id == DICT_INDEXES_ID) {
+		/* The column SYS_INDEXES.MERGE_THRESHOLD was
+		instantly added in MariaDB 10.2.2 (MySQL 5.7). */
+		ut_ad(index->n_fields == DICT_NUM_FIELDS__SYS_INDEXES);
+		ut_ad(dtuple->n_fields == DICT_NUM_FIELDS__SYS_INDEXES
+		      || dtuple->n_fields
+		      == DICT_FLD__SYS_INDEXES__MERGE_THRESHOLD);
+	} else {
+		ut_ad(dtuple->n_fields >= index->n_core_fields);
+		ut_ad(dtuple->n_fields <= index->n_fields);
+	}
+#endif
 
 	if (dict_table_is_comp(index->table)) {
-		return(rec_get_converted_size_comp(index,
-						   dtuple_get_info_bits(dtuple)
-						   & REC_NEW_STATUS_MASK,
-						   dtuple->fields,
-						   dtuple->n_fields, NULL));
+		return(rec_get_converted_size_comp(
+			       index,
+			       static_cast<rec_comp_status_t>(
+				       dtuple->info_bits
+				       & REC_NEW_STATUS_MASK),
+			       dtuple->fields,
+			       dtuple->n_fields, NULL));
 	}
 
 	data_size = dtuple_get_data_size(dtuple, 0);
@@ -1658,105 +1464,5 @@ rec_get_converted_size(
 	extra_size = rec_get_converted_extra_size(
 		data_size, dtuple_get_n_fields(dtuple), n_ext);
 
-#if 0
-	/* This code is inactive since it may be the wrong place to add
-	in the size of node pointers used in parent pages AND it is not
-	currently needed since ha_innobase::max_supported_key_length()
-	ensures that the key size limit for each page size is well below
-	the actual limit ((free space on page / 4) - record overhead).
-	But those limits will need to be raised when InnoDB can
-	support multiple page sizes.  At that time, we will need
-	to consider the node pointer on these universal btrees. */
-
-	if (dict_index_is_ibuf(index)) {
-		/* This is for the insert buffer B-tree.
-		All fields in the leaf tuple ascend to the
-		parent node plus the child page pointer. */
-
-		/* ibuf cannot contain externally stored fields */
-		ut_ad(n_ext == 0);
-
-		/* Add the data pointer and recompute extra_size
-		based on one more field. */
-		data_size += REC_NODE_PTR_SIZE;
-		extra_size = rec_get_converted_extra_size(
-			data_size,
-			dtuple_get_n_fields(dtuple) + 1,
-			0);
-
-		/* Be sure dtuple->n_fields has this node ptr
-		accounted for.  This function should correspond to
-		what rec_convert_dtuple_to_rec() needs in storage.
-		In optimistic insert or update-not-in-place, we will
-		have to ensure that if the record is converted to a
-		node pointer, it will not become too large.*/
-	}
-#endif
-
 	return(data_size + extra_size);
-}
-
-/** Fold a prefix of a physical record.
-@param[in]	rec		index record
-@param[in]	offsets		return value of rec_get_offsets()
-@param[in]	n_fields	number of complete fields to fold
-@param[in]	n_bytes		number of bytes to fold in the last field
-@param[in]	index_id	index tree ID
-@return the folded value */
-UNIV_INLINE
-ulint
-rec_fold(
-	const rec_t*	rec,
-	const ulint*	offsets,
-	ulint		n_fields,
-	ulint		n_bytes,
-	index_id_t	tree_id)
-{
-	ulint		i;
-	const byte*	data;
-	ulint		len;
-	ulint		fold;
-	ulint		n_fields_rec;
-
-	ut_ad(rec_offs_validate(rec, NULL, offsets));
-	ut_ad(rec_validate(rec, offsets));
-	ut_ad(n_fields > 0 || n_bytes > 0);
-
-	n_fields_rec = rec_offs_n_fields(offsets);
-	ut_ad(n_fields <= n_fields_rec);
-	ut_ad(n_fields < n_fields_rec || n_bytes == 0);
-
-	if (n_fields > n_fields_rec) {
-		n_fields = n_fields_rec;
-	}
-
-	if (n_fields == n_fields_rec) {
-		n_bytes = 0;
-	}
-
-	fold = ut_fold_ull(tree_id);
-
-	for (i = 0; i < n_fields; i++) {
-		data = rec_get_nth_field(rec, offsets, i, &len);
-
-		if (len != UNIV_SQL_NULL) {
-			fold = ut_fold_ulint_pair(fold,
-						  ut_fold_binary(data, len));
-		}
-	}
-
-	if (n_bytes > 0) {
-		data = rec_get_nth_field(rec, offsets, i, &len);
-
-		if (len != UNIV_SQL_NULL) {
-			if (len > n_bytes) {
-				len = n_bytes;
-			}
-
-			fold = ut_fold_ulint_pair(fold,
-						  ut_fold_binary(data, len));
-		}
-	}
-
-	return(fold);
 }

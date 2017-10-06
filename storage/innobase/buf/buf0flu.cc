@@ -928,6 +928,7 @@ buf_flush_init_for_writing(
 			default:
 				switch (page_type) {
 				case FIL_PAGE_INDEX:
+				case FIL_PAGE_TYPE_INSTANT:
 				case FIL_PAGE_RTREE:
 				case FIL_PAGE_UNDO_LOG:
 				case FIL_PAGE_INODE:

@@ -89,16 +89,6 @@ dict_col_copy_type(
 	type->len = col->len;
 	type->mbminmaxlen = col->mbminmaxlen;
 }
-/** Check if a column is a virtual column
-@param[in]      col     column
-@return true if it is a virtual column, false otherwise */
-UNIV_INLINE
-bool
-dict_col_is_virtual(
-	const dict_col_t*	col)
-{
-	return(col->prtype & DATA_VIRTUAL);
-}
 
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
@@ -296,8 +286,7 @@ dict_index_is_clust(
 	const dict_index_t*	index)	/*!< in: index */
 {
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(index->type & DICT_CLUSTERED);
+	return(index->is_clust());
 }
 
 /** Check if index is auto-generated clustered index.
@@ -547,8 +536,8 @@ dict_table_get_nth_v_col(
 	ut_ad(table);
 	ut_ad(pos < table->n_v_def);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	return(static_cast<dict_v_col_t*>(table->v_cols) + pos);
+	ut_ad(!table->v_cols[pos].m_col.is_instant());
+	return &table->v_cols[pos];
 }
 
 /********************************************************************//**

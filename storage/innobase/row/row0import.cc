@@ -1439,6 +1439,13 @@ IndexPurge::open() UNIV_NOTHROW
 
 	btr_pcur_open_at_index_side(
 		true, m_index, BTR_MODIFY_LEAF, &m_pcur, true, 0, &m_mtr);
+	btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
+	if (rec_is_default_row(btr_pcur_get_rec(&m_pcur), m_index)) {
+		ut_ad(btr_pcur_is_on_user_rec(&m_pcur));
+		/* Skip the 'default row' pseudo-record. */
+	} else {
+		btr_pcur_move_to_prev_on_page(&m_pcur);
+	}
 }
 
 /**
@@ -1815,6 +1822,13 @@ PageConverter::update_index_page(
 	if (dict_index_is_clust(m_index->m_srv_index)) {
 		if (page_is_root(page)) {
 			/* Preserve the PAGE_ROOT_AUTO_INC. */
+			if (m_index->m_srv_index->table->supports_instant()
+			    && btr_cur_instant_root_init(
+				    const_cast<dict_index_t*>(
+					    m_index->m_srv_index),
+				    page)) {
+				return(DB_CORRUPTION);
+			}
 		} else {
 			/* Clear PAGE_MAX_TRX_ID so that it can be
 			used for other purposes in the future. IMPORT
@@ -1907,6 +1921,8 @@ PageConverter::update_page(
 			return(DB_CORRUPTION);
 		}
 
+		/* fall through */
+	case FIL_PAGE_TYPE_INSTANT:
 		/* This is on every page in the tablespace. */
 		mach_write_to_4(
 			get_frame(block)
@@ -2309,7 +2325,14 @@ row_import_set_sys_max_row_id(
 	rec = btr_pcur_get_rec(&pcur);
 
 	/* Check for empty table. */
-	if (!page_rec_is_infimum(rec)) {
+	if (page_rec_is_infimum(rec)) {
+		/* The table is empty. */
+		err = DB_SUCCESS;
+	} else if (rec_is_default_row(rec, index)) {
+		/* The clustered index contains the 'default row',
+		that is, the table is empty. */
+		err = DB_SUCCESS;
+	} else {
 		ulint		len;
 		const byte*	field;
 		mem_heap_t*	heap = NULL;
@@ -2336,9 +2359,6 @@ row_import_set_sys_max_row_id(
 		if (heap != NULL) {
 			mem_heap_free(heap);
 		}
-	} else {
-		/* The table is empty. */
-		err = DB_SUCCESS;
 	}
 
 	btr_pcur_close(&pcur);

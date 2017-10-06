@@ -1775,6 +1775,10 @@ page_zip_fields_decode(
 		}
 	}
 
+	/* ROW_FORMAT=COMPRESSED does not support instant ADD COLUMN */
+	index->n_core_fields = index->n_fields;
+	index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
+
 	ut_ad(b == end);
 
 	if (is_spatial) {
@@ -2164,13 +2168,11 @@ page_zip_apply_log(
 			continue;
 		}
 
-#if REC_STATUS_NODE_PTR != TRUE
-# error "REC_STATUS_NODE_PTR != TRUE"
-#endif
+		compile_time_assert(REC_STATUS_NODE_PTR == TRUE);
 		rec_get_offsets_reverse(data, index,
 					hs & REC_STATUS_NODE_PTR,
 					offsets);
-		rec_offs_make_valid(rec, index, offsets);
+		rec_offs_make_valid(rec, index, is_leaf, offsets);
 
 		/* Copy the extra bytes (backwards). */
 		{

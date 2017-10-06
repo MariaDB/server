@@ -3014,15 +3014,6 @@ trx_start_for_ddl_low(
 		return;
 
 	case TRX_STATE_ACTIVE:
-
-		/* We have this start if not started idiom, therefore we
-		can't add stronger checks here. */
-		trx->ddl = true;
-
-		ut_ad(trx->dict_operation != TRX_DICT_OP_NONE);
-		ut_ad(trx->will_lock > 0);
-		return;
-
 	case TRX_STATE_PREPARED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;

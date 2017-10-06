@@ -853,6 +853,7 @@ buf_dblwr_check_block(
 
 	switch (fil_page_get_type(block->frame)) {
 	case FIL_PAGE_INDEX:
+	case FIL_PAGE_TYPE_INSTANT:
 	case FIL_PAGE_RTREE:
 		if (page_is_comp(block->frame)) {
 			if (page_simple_validate_new(block->frame)) {
@@ -885,7 +886,6 @@ buf_dblwr_check_block(
 	case FIL_PAGE_TYPE_ALLOCATED:
 		/* empty pages should never be flushed */
 		return;
-		break;
 	}
 
 	buf_dblwr_assert_on_corrupt_block(block);

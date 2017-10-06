@@ -85,7 +85,7 @@ rtr_page_split_initialize_nodes(
 	stop = task + n_recs;
 
 	rec = page_rec_get_next(page_get_infimum_rec(page));
-	ut_d(const bool is_leaf = page_is_leaf(page));
+	const bool is_leaf = page_is_leaf(page);
 	*offsets = rec_get_offsets(rec, cursor->index, *offsets, is_leaf,
 				   n_uniq, &heap);
 

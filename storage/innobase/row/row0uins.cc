@@ -78,6 +78,7 @@ row_undo_ins_remove_clust_rec(
 
 	mtr.start();
 	if (index->table->is_temporary()) {
+		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
 		mtr.set_named_space(index->space);
@@ -120,10 +121,11 @@ row_undo_ins_remove_clust_rec(
 		mem_heap_free(heap);
 	}
 
-	if (node->table->id == DICT_INDEXES_ID) {
-
+	switch (node->table->id) {
+	case DICT_INDEXES_ID:
 		ut_ad(!online);
 		ut_ad(node->trx->dict_operation_lock_mode == RW_X_LATCH);
+		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 
 		dict_drop_index_tree(
 			btr_pcur_get_rec(&node->pcur), &(node->pcur), &mtr);
@@ -135,6 +137,54 @@ row_undo_ins_remove_clust_rec(
 		success = btr_pcur_restore_position(
 			BTR_MODIFY_LEAF, &node->pcur, &mtr);
 		ut_a(success);
+		break;
+	case DICT_COLUMNS_ID:
+		/* This is rolling back an INSERT into SYS_COLUMNS.
+		If it was part of an instant ADD COLUMN operation, we
+		must modify the table definition. At this point, any
+		corresponding operation to the 'default row' will have
+		been rolled back. */
+		ut_ad(!online);
+		ut_ad(node->trx->dict_operation_lock_mode == RW_X_LATCH);
+		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
+		const rec_t* rec = btr_pcur_get_rec(&node->pcur);
+		if (rec_get_n_fields_old(rec)
+		    != DICT_NUM_FIELDS__SYS_COLUMNS) {
+			break;
+		}
+		ulint len;
+		const byte* data = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_COLUMNS__TABLE_ID, &len);
+		if (len != 8) {
+			break;
+		}
+		const table_id_t table_id = mach_read_from_8(data);
+		data = rec_get_nth_field_old(rec, DICT_FLD__SYS_COLUMNS__POS,
+					     &len);
+		if (len != 4) {
+			break;
+		}
+		const unsigned pos = mach_read_from_4(data);
+		if (pos == 0 || pos >= (1U << 16)) {
+			break;
+		}
+		dict_table_t* table = dict_table_open_on_id(
+			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
+		if (!table) {
+			break;
+		}
+
+		dict_index_t* index = dict_table_get_first_index(table);
+
+		if (index && index->is_instant()
+		    && DATA_N_SYS_COLS + 1 + pos == table->n_cols) {
+			/* This is the rollback of an instant ADD COLUMN.
+			Remove the column from the dictionary cache,
+			but keep the system columns. */
+			table->rollback_instant(pos);
+		}
+
+		dict_table_close(table, true, false);
 	}
 
 	if (btr_cur_optimistic_delete(btr_cur, 0, &mtr)) {
@@ -177,6 +227,27 @@ retry:
 
 func_exit:
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
+	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_DEFAULT) {
+		/* When rolling back the very first instant ADD COLUMN
+		operation, reset the root page to the basic state. */
+		ut_ad(!index->table->is_temporary());
+		mtr.start();
+		if (page_t* root = btr_root_get(index, &mtr)) {
+			byte* page_type = root + FIL_PAGE_TYPE;
+			ut_ad(mach_read_from_2(page_type)
+			      == FIL_PAGE_TYPE_INSTANT
+			      || mach_read_from_2(page_type)
+			      == FIL_PAGE_INDEX);
+			mtr.set_named_space(index->space);
+			mlog_write_ulint(page_type, FIL_PAGE_INDEX,
+					 MLOG_2BYTES, &mtr);
+			byte* instant = PAGE_INSTANT + PAGE_HEADER + root;
+			mlog_write_ulint(instant,
+					 page_ptr_get_direction(instant + 1),
+					 MLOG_2BYTES, &mtr);
+		}
+		mtr.commit();
+	}
 
 	return(err);
 }
@@ -340,7 +411,7 @@ row_undo_ins_parse_undo_rec(
 
 	ptr = trx_undo_rec_get_pars(node->undo_rec, &type, &dummy,
 				    &dummy_extern, &undo_no, &table_id);
-	ut_ad(type == TRX_UNDO_INSERT_REC);
+	ut_ad(type == TRX_UNDO_INSERT_REC || type == TRX_UNDO_INSERT_DEFAULT);
 	node->rec_type = type;
 
 	node->update = NULL;
@@ -369,8 +440,14 @@ close_table:
 		clust_index = dict_table_get_first_index(node->table);
 
 		if (clust_index != NULL) {
-			ptr = trx_undo_rec_get_row_ref(
-				ptr, clust_index, &node->ref, node->heap);
+			if (type == TRX_UNDO_INSERT_REC) {
+				ptr = trx_undo_rec_get_row_ref(
+					ptr, clust_index, &node->ref,
+					node->heap);
+			} else {
+				ut_ad(type == TRX_UNDO_INSERT_DEFAULT);
+				node->ref = &trx_undo_default_rec;
+			}
 
 			if (!row_undo_search_clust_to_pcur(node)) {
 				/* An error probably occurred during
@@ -484,18 +561,28 @@ row_undo_ins(
 
 	node->index = dict_table_get_first_index(node->table);
 	ut_ad(dict_index_is_clust(node->index));
-	/* Skip the clustered index (the first index) */
-	node->index = dict_table_get_next_index(node->index);
 
-	dict_table_skip_corrupt_index(node->index);
+	switch (node->rec_type) {
+	default:
+		ut_ad(!"wrong undo record type");
+	case TRX_UNDO_INSERT_REC:
+		/* Skip the clustered index (the first index) */
+		node->index = dict_table_get_next_index(node->index);
 
-	err = row_undo_ins_remove_sec_rec(node, thr);
+		dict_table_skip_corrupt_index(node->index);
 
-	if (err == DB_SUCCESS) {
+		err = row_undo_ins_remove_sec_rec(node, thr);
 
+		if (err != DB_SUCCESS) {
+			break;
+		}
+
+		/* fall through */
+	case TRX_UNDO_INSERT_DEFAULT:
 		log_free_check();
 
 		if (node->table->id == DICT_INDEXES_ID) {
+			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 
 			if (!dict_locked) {
 				mutex_enter(&dict_sys->mutex);

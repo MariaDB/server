@@ -1,0 +1,191 @@
+--- instant_alter.result
++++ instant_alter,4k.result
+@@ -181,7 +181,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++6
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -191,7 +191,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ BEGIN;
+ UPDATE t2 SET d1 = repeat(id, 200);
+@@ -202,7 +202,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -212,7 +212,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ALTER TABLE t2 DROP p;
+ affected rows: 0
+@@ -317,7 +317,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++8
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+@@ -340,7 +340,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++28
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -353,7 +353,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++8
+ connection default;
+ DROP TABLE big;
+ CREATE TABLE t1
+@@ -532,7 +532,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++6
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -542,7 +542,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ BEGIN;
+ UPDATE t2 SET d1 = repeat(id, 200);
+@@ -553,7 +553,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -563,7 +563,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ALTER TABLE t2 DROP p;
+ affected rows: 0
+@@ -668,7 +668,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++7
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+@@ -691,7 +691,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++23
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -704,7 +704,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++7
+ connection default;
+ DROP TABLE big;
+ CREATE TABLE t1
+@@ -883,7 +883,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++6
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -893,7 +893,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ BEGIN;
+ UPDATE t2 SET d1 = repeat(id, 200);
+@@ -904,7 +904,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -914,7 +914,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ALTER TABLE t2 DROP p;
+ affected rows: 0
+@@ -1019,7 +1019,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++7
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+@@ -1042,7 +1042,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++23
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -1055,7 +1055,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++7
+ connection default;
+ DROP TABLE big;
+ disconnect analyze;

@@ -63,9 +63,42 @@ typedef	byte		page_header_t;
 #define	PAGE_FREE	 6	/* pointer to start of page free record list */
 #define	PAGE_GARBAGE	 8	/* number of bytes in deleted records */
 #define	PAGE_LAST_INSERT 10	/* pointer to the last inserted record, or
-				NULL if this info has been reset by a delete,
+				0 if this info has been reset by a delete,
 				for example */
-#define	PAGE_DIRECTION	 12	/* last insert direction: PAGE_LEFT, ... */
+
+/** This 10-bit field is usually 0. In B-tree index pages of
+ROW_FORMAT=REDUNDANT tables, this byte can contain garbage if the .ibd
+file was created in MySQL 4.1.0 or if the table resides in the system
+tablespace and was created before MySQL 4.1.1 or MySQL 4.0.14.
+In this case, the FIL_PAGE_TYPE would be FIL_PAGE_INDEX.
+
+In ROW_FORMAT=COMPRESSED tables, this field is always 0, because
+instant ADD COLUMN is not supported.
+
+In ROW_FORMAT=COMPACT and ROW_FORMAT=DYNAMIC tables, this field is
+always 0, except in the root page of the clustered index after instant
+ADD COLUMN.
+
+Instant ADD COLUMN will change FIL_PAGE_TYPE to FIL_PAGE_TYPE_INSTANT
+and initialize the PAGE_INSTANT field to the original number of
+fields in the clustered index (dict_index_t::n_core_fields).  The most
+significant bits are in the first byte, and the least significant 5
+bits are stored in the most significant 5 bits of PAGE_DIRECTION_B.
+
+These FIL_PAGE_TYPE_INSTANT and PAGE_INSTANT may be assigned even if
+instant ADD COLUMN was not committed. Changes to these page header fields
+are not undo-logged, but changes to the 'default value record' are.
+If the server is killed and restarted, the page header fields could
+remain set even though no 'default value record' is present.
+
+When the table becomes empty, the PAGE_INSTANT field and the
+FIL_PAGE_TYPE can be reset and any 'default value record' be removed. */
+#define PAGE_INSTANT	12
+
+/** last insert direction: PAGE_LEFT, ....
+In ROW_FORMAT=REDUNDANT tables created before MySQL 4.1.1 or MySQL 4.0.14,
+this byte can be garbage. */
+#define	PAGE_DIRECTION_B 13
 #define	PAGE_N_DIRECTION 14	/* number of consecutive inserts to the same
 				direction */
 #define	PAGE_N_RECS	 16	/* number of user records on the page */
@@ -250,6 +283,20 @@ page_rec_is_comp(const byte* rec)
 {
 	return(page_is_comp(page_align(rec)));
 }
+
+# ifdef UNIV_DEBUG
+/** Determine if the record is the 'default row' pseudo-record
+in the clustered index.
+@param[in]	rec	leaf page record on an index page
+@return	whether the record is the 'default row' pseudo-record */
+inline
+bool
+page_rec_is_default_row(const rec_t* rec)
+{
+	return rec_get_info_bits(rec, page_rec_is_comp(rec))
+		& REC_INFO_MIN_REC_FLAG;
+}
+# endif /* UNIV_DEBUG */
 
 /** Determine the offset of the infimum record on the page.
 @param[in]	page	index page
@@ -457,7 +504,7 @@ page_header_set_field(
 Returns the offset stored in the given header field.
 @return offset from the start of the page, or 0 */
 UNIV_INLINE
-ulint
+uint16_t
 page_header_get_offs(
 /*=================*/
 	const page_t*	page,	/*!< in: page */
@@ -551,7 +598,7 @@ Gets the number of user records on page (the infimum and supremum records
 are not user records).
 @return number of user records */
 UNIV_INLINE
-ulint
+uint16_t
 page_get_n_recs(
 /*============*/
 	const page_t*	page);	/*!< in: index page */
@@ -569,7 +616,7 @@ page_rec_get_n_recs_before(
 Gets the number of records in the heap.
 @return number of user records */
 UNIV_INLINE
-ulint
+uint16_t
 page_dir_get_n_heap(
 /*================*/
 	const page_t*	page);	/*!< in: index page */
@@ -590,7 +637,7 @@ page_dir_set_n_heap(
 Gets the number of dir slots in directory.
 @return number of slots */
 UNIV_INLINE
-ulint
+uint16_t
 page_dir_get_n_slots(
 /*=================*/
 	const page_t*	page);	/*!< in: index page */
@@ -865,7 +912,7 @@ Returns the sum of the sizes of the records in the record list
 excluding the infimum and supremum records.
 @return data in bytes */
 UNIV_INLINE
-ulint
+uint16_t
 page_get_data_size(
 /*===============*/
 	const page_t*	page);	/*!< in: index page */
@@ -911,6 +958,45 @@ page_mem_free(
 	const dict_index_t*	index,	/*!< in: index of rec */
 	const ulint*		offsets);/*!< in: array returned by
 					 rec_get_offsets() */
+
+/** Read the PAGE_DIRECTION field from a byte.
+@param[in]	ptr	pointer to PAGE_DIRECTION_B
+@return	the value of the PAGE_DIRECTION field */
+inline
+byte
+page_ptr_get_direction(const byte* ptr);
+
+/** Set the PAGE_DIRECTION field.
+@param[in]	ptr	pointer to PAGE_DIRECTION_B
+@param[in]	dir	the value of the PAGE_DIRECTION field */
+inline
+void
+page_ptr_set_direction(byte* ptr, byte dir);
+
+/** Read the PAGE_DIRECTION field.
+@param[in]	page	index page
+@return	the value of the PAGE_DIRECTION field */
+inline
+byte
+page_get_direction(const page_t* page)
+{
+	return page_ptr_get_direction(PAGE_HEADER + PAGE_DIRECTION_B + page);
+}
+
+/** Read the PAGE_INSTANT field.
+@param[in]	page	index page
+@return the value of the PAGE_INSTANT field */
+inline
+uint16_t
+page_get_instant(const page_t* page);
+/** Assign the PAGE_INSTANT field.
+@param[in,out]	page	clustered index root page
+@param[in]	n	original number of clustered index fields
+@param[in,out]	mtr	mini-transaction */
+inline
+void
+page_set_instant(page_t* page, unsigned n, mtr_t* mtr);
+
 /**********************************************************//**
 Create an uncompressed B-tree index page.
 @return pointer to the page */
@@ -1250,6 +1336,5 @@ page_warn_strict_checksum(
 #endif /* !UNIV_INNOCHECKSUM */
 
 #include "page0page.ic"
-
 
 #endif

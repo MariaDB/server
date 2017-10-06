@@ -1,0 +1,70 @@
+--source include/have_innodb.inc
+# The embedded server tests do not support restarting.
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-11369: Instant ADD COLUMN for InnoDB
+--echo #
+
+connect to_be_killed, localhost, root;
+
+let $format= 3;
+while ($format) {
+let $fmt= `SELECT CASE $format WHEN 1 THEN 'DYNAMIC' WHEN 2 THEN 'COMPACT'
+ELSE 'REDUNDANT' END`;
+let $engine= ENGINE=InnoDB ROW_FORMAT=$fmt;
+
+eval CREATE TABLE empty_$fmt
+(id INT PRIMARY KEY, c2 INT UNIQUE) $engine;
+eval CREATE TABLE once_$fmt LIKE empty_$fmt;
+eval CREATE TABLE twice_$fmt LIKE empty_$fmt;
+eval INSERT INTO once_$fmt SET id=1,c2=1;
+eval INSERT INTO twice_$fmt SET id=1,c2=1;
+eval ALTER TABLE empty_$fmt ADD COLUMN (d1 INT DEFAULT 15);
+eval ALTER TABLE once_$fmt ADD COLUMN (d1 INT DEFAULT 20);
+eval ALTER TABLE twice_$fmt ADD COLUMN (d1 INT DEFAULT 20);
+eval ALTER TABLE twice_$fmt ADD COLUMN
+(d2 INT NOT NULL DEFAULT 10,
+ d3 VARCHAR(15) NOT NULL DEFAULT 'var och en char');
+dec $format;
+}
+
+BEGIN;
+
+let $format= 3;
+while ($format) {
+let $fmt= `SELECT CASE $format WHEN 1 THEN 'DYNAMIC' WHEN 2 THEN 'COMPACT'
+ELSE 'REDUNDANT' END`;
+
+eval INSERT INTO empty_$fmt set id=0,c2=42;
+eval UPDATE once_$fmt set c2=c2+1;
+eval UPDATE twice_$fmt set c2=c2+1;
+eval INSERT INTO twice_$fmt SET id=2,c2=0,d3='';
+dec $format;
+}
+
+connection default;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+CREATE TABLE foo(a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--source include/kill_mysqld.inc
+disconnect to_be_killed;
+--source include/start_mysqld.inc
+
+SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+DROP TABLE foo;
+--source include/wait_all_purged.inc
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@saved_frequency;
+
+let $format= 3;
+while ($format) {
+let $fmt= `SELECT CASE $format WHEN 1 THEN 'DYNAMIC' WHEN 2 THEN 'COMPACT'
+ELSE 'REDUNDANT' END`;
+
+eval SELECT * FROM empty_$fmt;
+eval SELECT * FROM once_$fmt;
+eval SELECT * FROM twice_$fmt;
+eval DROP TABLE empty_$fmt, once_$fmt, twice_$fmt;
+dec $format;
+}

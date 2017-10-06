@@ -387,15 +387,6 @@ dict_table_add_system_columns(
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
-Adds a table object to the dictionary cache. */
-void
-dict_table_add_to_cache(
-/*====================*/
-	dict_table_t*	table,		/*!< in: table */
-	bool		can_be_evicted,	/*!< in: whether can be evicted*/
-	mem_heap_t*	heap)		/*!< in: temporary heap */
-	MY_ATTRIBUTE((nonnull));
-/**********************************************************************//**
 Removes a table object from the dictionary cache. */
 void
 dict_table_remove_from_cache(
@@ -589,16 +580,6 @@ dict_foreign_find_index(
 					happened */
 
 	MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
-/**********************************************************************//**
-Returns a column's name.
-@return column name. NOTE: not guaranteed to stay valid if table is
-modified in any way (columns added, etc.). */
-const char*
-dict_table_get_col_name(
-/*====================*/
-	const dict_table_t*	table,	/*!< in: table */
-	ulint			col_nr)	/*!< in: column number */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Returns a virtual column's name.
 @param[in]	table		table object
@@ -920,6 +901,18 @@ dict_table_get_sys_col(
 /* Get nth virtual columns */
 #define dict_table_get_nth_v_col(table, pos)	(&(table)->v_cols[pos])
 #endif /* UNIV_DEBUG */
+/** Wrapper function.
+@see dict_col_t::name()
+@param[in]	table	table
+@param[in]	col_nr	column number in table
+@return	column name */
+inline
+const char*
+dict_table_get_col_name(const dict_table_t* table, ulint col_nr)
+{
+	return(dict_table_get_nth_col(table, col_nr)->name(*table));
+}
+
 /********************************************************************//**
 Gets the given system column number of a table.
 @return column number */
@@ -1163,6 +1156,7 @@ dict_index_get_n_fields(
 					representation of index (in
 					the dictionary cache) */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index
 that uniquely determine the position of an index entry in the index, if
@@ -1451,22 +1445,13 @@ dict_index_copy_rec_order_prefix(
 @param[in,out]	heap		memory heap for allocation
 @return own: data tuple */
 dtuple_t*
-dict_index_build_data_tuple_func(
+dict_index_build_data_tuple(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-#ifdef UNIV_DEBUG
 	bool			leaf,
-#endif /* UNIV_DEBUG */
 	ulint			n_fields,
 	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#ifdef UNIV_DEBUG
-# define dict_index_build_data_tuple(rec, index, leaf, n_fields, heap)	\
-	dict_index_build_data_tuple_func(rec, index, leaf, n_fields, heap)
-#else /* UNIV_DEBUG */
-# define dict_index_build_data_tuple(rec, index, leaf, n_fields, heap)	\
-	dict_index_build_data_tuple_func(rec, index, n_fields, heap)
-#endif /* UNIV_DEBUG */
 
 /*********************************************************************//**
 Gets the space id of the root of the index tree.
@@ -1978,13 +1963,7 @@ dict_index_node_ptr_max_size(
 /*=========================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((warn_unused_result));
-/** Check if a column is a virtual column
-@param[in]	col	column
-@return true if it is a virtual column, false otherwise */
-UNIV_INLINE
-bool
-dict_col_is_virtual(
-	const dict_col_t*	col);
+#define dict_col_is_virtual(col) (col)->is_virtual()
 
 /** encode number of columns and number of virtual columns in one
 4 bytes value. We could do this because the number of columns in

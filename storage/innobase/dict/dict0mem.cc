@@ -360,7 +360,7 @@ dict_mem_table_add_v_col(
 						       i, name, heap);
 	}
 
-	v_col = dict_table_get_nth_v_col(table, i);
+	v_col = &table->v_cols[i];
 
 	dict_mem_fill_column_struct(&v_col->m_col, pos, mtype, prtype, len);
 	v_col->v_pos = i;
@@ -621,6 +621,8 @@ dict_mem_fill_column_struct(
 	column->mtype = (unsigned int) mtype;
 	column->prtype = (unsigned int) prtype;
 	column->len = (unsigned int) col_len;
+	column->def_val.data = NULL;
+	column->def_val.len = UNIV_SQL_DEFAULT;
 
 	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
 	dict_col_set_mbminmaxlen(column, mbminlen, mbmaxlen);
@@ -1128,4 +1130,284 @@ dict_mem_table_is_system(
 	} else {
 		return true;
 	}
+}
+
+/** Adjust clustered index metadata for instant ADD COLUMN.
+@param[in]	clustered index definition after instant ADD COLUMN */
+inline void dict_index_t::instant_add_field(const dict_index_t& instant)
+{
+	DBUG_ASSERT(is_clust());
+	DBUG_ASSERT(instant.is_clust());
+	DBUG_ASSERT(!instant.is_instant());
+	DBUG_ASSERT(n_def == n_fields);
+	DBUG_ASSERT(instant.n_def == instant.n_fields);
+
+	DBUG_ASSERT(type == instant.type);
+	DBUG_ASSERT(trx_id_offset == instant.trx_id_offset);
+	DBUG_ASSERT(n_user_defined_cols == instant.n_user_defined_cols);
+	DBUG_ASSERT(n_uniq == instant.n_uniq);
+	DBUG_ASSERT(instant.n_fields > n_fields);
+	DBUG_ASSERT(instant.n_def > n_def);
+	DBUG_ASSERT(instant.n_nullable >= n_nullable);
+	DBUG_ASSERT(instant.n_core_fields >= n_core_fields);
+	DBUG_ASSERT(instant.n_core_null_bytes >= n_core_null_bytes);
+
+	n_fields = instant.n_fields;
+	n_def = instant.n_def;
+	n_nullable = instant.n_nullable;
+	fields = static_cast<dict_field_t*>(
+		mem_heap_dup(heap, instant.fields, n_fields * sizeof *fields));
+
+	ut_d(unsigned n_null = 0);
+
+	for (unsigned i = 0; i < n_fields; i++) {
+		DBUG_ASSERT(fields[i].same(instant.fields[i]));
+		const dict_col_t* icol = instant.fields[i].col;
+		DBUG_ASSERT(!icol->is_virtual());
+		dict_col_t* col = fields[i].col = &table->cols[
+			icol - instant.table->cols];
+		fields[i].name = col->name(*table);
+		ut_d(n_null += col->is_nullable());
+	}
+
+	ut_ad(n_null == n_nullable);
+}
+
+/** Adjust metadata for instant ADD COLUMN.
+@param[in]	table	table definition after instant ADD COLUMN */
+void dict_table_t::instant_add_column(const dict_table_t& table)
+{
+	DBUG_ASSERT(!table.cached);
+	DBUG_ASSERT(table.n_def == table.n_cols);
+	DBUG_ASSERT(table.n_t_def == table.n_t_cols);
+	DBUG_ASSERT(n_def == n_cols);
+	DBUG_ASSERT(n_t_def == n_t_cols);
+	DBUG_ASSERT(table.n_cols > n_cols);
+	ut_ad(mutex_own(&dict_sys->mutex));
+
+	const char* end = table.col_names;
+	for (unsigned i = table.n_cols; i--; ) end += strlen(end) + 1;
+
+	col_names = static_cast<char*>(mem_heap_dup(heap, table.col_names,
+						    end - table.col_names));
+	const dict_col_t* const old_cols = cols;
+	const dict_col_t* const old_cols_end = cols + n_cols;
+	cols = static_cast<dict_col_t*>(mem_heap_dup(heap, table.cols,
+						     table.n_cols
+						     * sizeof *cols));
+
+	/* Preserve the default values of previously instantly
+	added columns. */
+	for (unsigned i = n_cols - DATA_N_SYS_COLS; i--; ) {
+		cols[i].def_val = old_cols[i].def_val;
+	}
+
+	/* Copy the new default values to this->heap. */
+	for (unsigned i = n_cols; i < table.n_cols; i++) {
+		dict_col_t& c = cols[i - DATA_N_SYS_COLS];
+		DBUG_ASSERT(c.is_instant());
+		if (c.def_val.len == 0) {
+			c.def_val.data = field_ref_zero;
+		} else if (const void*& d = c.def_val.data) {
+			d = mem_heap_dup(heap, d, c.def_val.len);
+		} else {
+			DBUG_ASSERT(c.def_val.len == UNIV_SQL_NULL);
+		}
+	}
+
+	const unsigned old_n_cols = n_cols;
+	const unsigned n_add = table.n_cols - n_cols;
+
+	n_t_def += n_add;
+	n_t_cols += n_add;
+	n_cols = table.n_cols;
+	n_def = n_cols;
+
+	for (unsigned i = n_v_def; i--; ) {
+		const dict_v_col_t& v = v_cols[i];
+		for (ulint n = v.num_base; n--; ) {
+			dict_col_t*& base = v.base_col[n];
+			if (!base->is_virtual()) {
+				ptrdiff_t n = base - old_cols;
+				DBUG_ASSERT(n >= 0);
+				DBUG_ASSERT(n < old_n_cols - DATA_N_SYS_COLS);
+				base = &cols[n];
+			}
+		}
+	}
+
+	dict_index_t* index = dict_table_get_first_index(this);
+
+	index->instant_add_field(*dict_table_get_first_index(&table));
+
+	while ((index = dict_table_get_next_index(index)) != NULL) {
+		for (unsigned i = 0; i < index->n_fields; i++) {
+			dict_field_t& field = index->fields[i];
+			if (field.col < old_cols
+			    || field.col >= old_cols_end) {
+				DBUG_ASSERT(field.col->is_virtual());
+			} else {
+				ptrdiff_t n = field.col - old_cols;
+				/* Secondary indexes may contain user
+				columns and DB_ROW_ID (if there is
+				GEN_CLUST_INDEX instead of PRIMARY KEY),
+				but not DB_TRX_ID,DB_ROLL_PTR. */
+				DBUG_ASSERT(n >= 0);
+				DBUG_ASSERT(n <= old_n_cols - DATA_N_SYS_COLS);
+				if (n + DATA_N_SYS_COLS >= old_n_cols) {
+					/* Replace DB_ROW_ID */
+					n += n_add;
+				}
+				field.col = &cols[n];
+				DBUG_ASSERT(!field.col->is_virtual());
+				field.name = field.col->name(*this);
+			}
+		}
+	}
+}
+
+/** Roll back instant_add_column().
+@param[in]	old_n_cols	original n_cols
+@param[in]	old_cols	original cols
+@param[in]	old_col_names	original col_names */
+void
+dict_table_t::rollback_instant(
+	unsigned	old_n_cols,
+	dict_col_t*	old_cols,
+	const char*	old_col_names)
+{
+	ut_ad(mutex_own(&dict_sys->mutex));
+	dict_index_t* index = indexes.start;
+	/* index->is_instant() does not necessarily hold here, because
+	the table may have been emptied */
+	DBUG_ASSERT(old_n_cols >= DATA_N_SYS_COLS);
+	DBUG_ASSERT(n_cols >= old_n_cols);
+	DBUG_ASSERT(n_cols == n_def);
+	DBUG_ASSERT(index->n_def == index->n_fields);
+
+	const unsigned n_remove = n_cols - old_n_cols;
+
+	for (unsigned i = index->n_fields - n_remove; i < index->n_fields;
+	     i++) {
+		index->n_nullable -= index->fields[i].col->is_nullable();
+	}
+
+	index->n_fields -= n_remove;
+	index->n_def = index->n_fields;
+	if (index->n_core_fields > index->n_fields) {
+		index->n_core_fields = index->n_fields;
+		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
+	}
+
+	const dict_col_t* const new_cols = cols;
+	const dict_col_t* const new_cols_end = cols + n_cols;
+
+	cols = old_cols;
+	col_names = old_col_names;
+	n_cols = old_n_cols;
+	n_def = old_n_cols;
+	n_t_def -= n_remove;
+	n_t_cols -= n_remove;
+
+	for (unsigned i = n_v_def; i--; ) {
+		const dict_v_col_t& v = v_cols[i];
+		for (ulint n = v.num_base; n--; ) {
+			dict_col_t*& base = v.base_col[n];
+			if (!base->is_virtual()) {
+				base = &cols[base - new_cols];
+			}
+		}
+	}
+
+	do {
+		for (unsigned i = 0; i < index->n_fields; i++) {
+			dict_field_t& field = index->fields[i];
+			if (field.col < new_cols
+			    || field.col >= new_cols_end) {
+				DBUG_ASSERT(field.col->is_virtual());
+			} else {
+				ptrdiff_t n = field.col - new_cols;
+				DBUG_ASSERT(n >= 0);
+				DBUG_ASSERT(n <= n_cols);
+				if (n >= n_cols - DATA_N_SYS_COLS) {
+					n -= n_remove;
+				}
+				field.col = &cols[n];
+				DBUG_ASSERT(!field.col->is_virtual());
+				field.name = field.col->name(*this);
+			}
+		}
+	} while ((index = dict_table_get_next_index(index)) != NULL);
+}
+
+/** Trim the instantly added columns when an insert into SYS_COLUMNS
+is rolled back during ALTER TABLE or recovery.
+@param[in]	n	number of surviving non-system columns */
+void dict_table_t::rollback_instant(unsigned n)
+{
+	ut_ad(mutex_own(&dict_sys->mutex));
+	dict_index_t* index = indexes.start;
+	DBUG_ASSERT(index->is_instant());
+	DBUG_ASSERT(index->n_def == index->n_fields);
+	DBUG_ASSERT(n_cols == n_def);
+	DBUG_ASSERT(n >= index->n_uniq);
+	DBUG_ASSERT(n_cols > n + DATA_N_SYS_COLS);
+	const unsigned n_remove = n_cols - n - DATA_N_SYS_COLS;
+
+	char* names = const_cast<char*>(dict_table_get_col_name(this, n));
+	const char* sys = names;
+	for (unsigned i = n_remove; i--; ) {
+		sys += strlen(sys) + 1;
+	}
+	static const char system[] = "DB_ROW_ID\0DB_TRX_ID\0DB_ROLL_PTR";
+	DBUG_ASSERT(!memcmp(sys, system, sizeof system));
+	for (unsigned i = index->n_fields - n_remove; i < index->n_fields;
+	     i++) {
+		index->n_nullable -= index->fields[i].col->is_nullable();
+	}
+	index->n_fields -= n_remove;
+	index->n_def = index->n_fields;
+	memmove(names, sys, sizeof system);
+	memmove(cols + n, cols + n_cols - DATA_N_SYS_COLS,
+		DATA_N_SYS_COLS * sizeof *cols);
+	n_cols -= n_remove;
+	n_def = n_cols;
+	n_t_cols -= n_remove;
+	n_t_def -= n_remove;
+
+	for (unsigned i = DATA_N_SYS_COLS; i--; ) {
+		cols[n_cols - i].ind--;
+	}
+
+	if (dict_index_is_auto_gen_clust(index)) {
+		DBUG_ASSERT(index->n_uniq == 1);
+		dict_field_t* field = index->fields;
+		field->name = sys;
+		field->col = dict_table_get_sys_col(this, DATA_ROW_ID);
+		field++;
+		field->name = sys + sizeof "DB_ROW_ID";
+		field->col = dict_table_get_sys_col(this, DATA_TRX_ID);
+		field++;
+		field->name = sys + sizeof "DB_ROW_ID\0DB_TRX_ID";
+		field->col = dict_table_get_sys_col(this, DATA_ROLL_PTR);
+
+		/* Replace the DB_ROW_ID column in secondary indexes. */
+		while ((index = dict_table_get_next_index(index)) != NULL) {
+			field = &index->fields[index->n_fields - 1];
+			DBUG_ASSERT(field->col->mtype == DATA_SYS);
+			DBUG_ASSERT(field->col->prtype
+				    == DATA_NOT_NULL + DATA_TRX_ID);
+			field->col--;
+			field->name = sys;
+		}
+
+		return;
+	}
+
+	dict_field_t* field = &index->fields[index->n_uniq];
+	field->name = sys + sizeof "DB_ROW_ID";
+	field->col = dict_table_get_sys_col(this, DATA_TRX_ID);
+	field++;
+	field->name = sys + sizeof "DB_ROW_ID\0DB_TRX_ID";
+	field->col = dict_table_get_sys_col(this, DATA_ROLL_PTR);
 }

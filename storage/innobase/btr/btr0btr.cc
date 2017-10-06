@@ -1686,6 +1686,17 @@ func_exit:
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
+
+	if (!recovery && page_is_root(temp_page)
+	    && fil_page_get_type(temp_page) == FIL_PAGE_TYPE_INSTANT) {
+		/* Preserve the PAGE_INSTANT information. */
+		ut_ad(!page_zip);
+		ut_ad(index->is_instant());
+		memcpy(FIL_PAGE_TYPE + page, FIL_PAGE_TYPE + temp_page, 2);
+		memcpy(PAGE_HEADER + PAGE_INSTANT + page,
+		       PAGE_HEADER + PAGE_INSTANT + temp_page, 2);
+	}
+
 	buf_block_free(temp_block);
 
 	/* Restore logging mode */
@@ -1718,6 +1729,19 @@ func_exit:
 		}
 
 		MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
+	}
+
+	if (UNIV_UNLIKELY(fil_page_get_type(page) == FIL_PAGE_TYPE_INSTANT)) {
+		/* Log the PAGE_INSTANT information. */
+		ut_ad(!page_zip);
+		ut_ad(index->is_instant());
+		ut_ad(!recovery);
+		mlog_write_ulint(FIL_PAGE_TYPE + page, FIL_PAGE_TYPE_INSTANT,
+				 MLOG_2BYTES, mtr);
+		mlog_write_ulint(PAGE_HEADER + PAGE_INSTANT + page,
+				 mach_read_from_2(PAGE_HEADER + PAGE_INSTANT
+						  + page),
+				 MLOG_2BYTES, mtr);
 	}
 
 	return(success);
@@ -1818,17 +1842,19 @@ btr_parse_page_reorganize(
 	return(ptr);
 }
 
-/*************************************************************//**
-Empties an index page.  @see btr_page_create(). */
-static
+/** Empty an index page (possibly the root page). @see btr_page_create().
+@param[in,out]	block		page to be emptied
+@param[in,out]	page_zip	compressed page frame, or NULL
+@param[in]	index		index of the page
+@param[in]	level		B-tree level of the page (0=leaf)
+@param[in,out]	mtr		mini-transaction */
 void
 btr_page_empty(
-/*===========*/
-	buf_block_t*	block,	/*!< in: page to be emptied */
-	page_zip_des_t*	page_zip,/*!< out: compressed page, or NULL */
-	dict_index_t*	index,	/*!< in: index of the page */
-	ulint		level,	/*!< in: the B-tree level of the page */
-	mtr_t*		mtr)	/*!< in: mtr */
+	buf_block_t*	block,
+	page_zip_des_t*	page_zip,
+	dict_index_t*	index,
+	ulint		level,
+	mtr_t*		mtr)
 {
 	page_t*	page = buf_block_get_frame(block);
 
@@ -1903,6 +1929,7 @@ btr_root_raise_and_insert(
 	root_page_zip = buf_block_get_page_zip(root_block);
 	ut_ad(!page_is_empty(root));
 	index = btr_cur_get_index(cursor);
+	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!root_page_zip || page_zip_validate(root_page_zip, root, index));
 #endif /* UNIV_ZIP_DEBUG */
@@ -1965,19 +1992,16 @@ btr_root_raise_and_insert(
 				   root_page_zip, root, index, mtr);
 
 		/* Update the lock table and possible hash index. */
-
-		if (!dict_table_is_locking_disabled(index->table)) {
-			lock_move_rec_list_end(new_block, root_block,
-					       page_get_infimum_rec(root));
-		}
+		lock_move_rec_list_end(new_block, root_block,
+				       page_get_infimum_rec(root));
 
 		/* Move any existing predicate locks */
 		if (dict_index_is_spatial(index)) {
 			lock_prdt_rec_move(new_block, root_block);
+		} else {
+			btr_search_move_or_delete_hash_entries(
+				new_block, root_block);
 		}
-
-		btr_search_move_or_delete_hash_entries(new_block, root_block,
-						       index);
 	}
 
 	if (dict_index_is_sec_or_ibuf(index)) {
@@ -2046,6 +2070,17 @@ btr_root_raise_and_insert(
 
 	/* Rebuild the root page to get free space */
 	btr_page_empty(root_block, root_page_zip, index, level + 1, mtr);
+	/* btr_page_empty() is supposed to zero-initialize the field. */
+	ut_ad(!page_get_instant(root_block->frame));
+
+	if (index->is_instant()) {
+		ut_ad(!root_page_zip);
+		byte* page_type = root_block->frame + FIL_PAGE_TYPE;
+		ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
+		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
+				 MLOG_2BYTES, mtr);
+		page_set_instant(root_block->frame, index->n_core_fields, mtr);
+	}
 
 	/* Set the next node and previous node fields, although
 	they should already have been set.  The previous node field
@@ -3081,16 +3116,12 @@ insert_empty:
 						 ULINT_UNDEFINED, mtr);
 
 			/* Update the lock table and possible hash index. */
-
-			if (!dict_table_is_locking_disabled(
-				cursor->index->table)) {
-				lock_move_rec_list_start(
-					new_block, block, move_limit,
-					new_page + PAGE_NEW_INFIMUM);
-			}
+			lock_move_rec_list_start(
+				new_block, block, move_limit,
+				new_page + PAGE_NEW_INFIMUM);
 
 			btr_search_move_or_delete_hash_entries(
-				new_block, block, cursor->index);
+				new_block, block);
 
 			/* Delete the records from the source page. */
 
@@ -3127,16 +3158,12 @@ insert_empty:
 						   cursor->index, mtr);
 
 			/* Update the lock table and possible hash index. */
-			if (!dict_table_is_locking_disabled(
-				cursor->index->table)) {
-				lock_move_rec_list_end(
-					new_block, block, move_limit);
-			}
+			lock_move_rec_list_end(new_block, block, move_limit);
 
 			ut_ad(!dict_index_is_spatial(index));
 
 			btr_search_move_or_delete_hash_entries(
-				new_block, block, cursor->index);
+				new_block, block);
 
 			/* Delete the records from the source page. */
 
@@ -3537,6 +3564,19 @@ btr_lift_page_up(
 
 	/* Make the father empty */
 	btr_page_empty(father_block, father_page_zip, index, page_level, mtr);
+	/* btr_page_empty() is supposed to zero-initialize the field. */
+	ut_ad(!page_get_instant(father_block->frame));
+
+	if (page_level == 0 && index->is_instant()) {
+		ut_ad(!father_page_zip);
+		byte* page_type = father_block->frame + FIL_PAGE_TYPE;
+		ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
+		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
+				 MLOG_2BYTES, mtr);
+		page_set_instant(father_block->frame,
+				 index->n_core_fields, mtr);
+	}
+
 	page_level++;
 
 	/* Copy the records to the father page one by one. */
@@ -3558,18 +3598,16 @@ btr_lift_page_up(
 
 		/* Update the lock table and possible hash index. */
 
-		if (!dict_table_is_locking_disabled(index->table)) {
-			lock_move_rec_list_end(father_block, block,
-					       page_get_infimum_rec(page));
-		}
+		lock_move_rec_list_end(father_block, block,
+				       page_get_infimum_rec(page));
 
 		/* Also update the predicate locks */
 		if (dict_index_is_spatial(index)) {
 			lock_prdt_rec_move(father_block, block);
+		} else {
+			btr_search_move_or_delete_hash_entries(
+				father_block, block);
 		}
-
-		btr_search_move_or_delete_hash_entries(father_block, block,
-						       index);
 	}
 
 	if (!dict_table_is_locking_disabled(index->table)) {
@@ -4205,6 +4243,7 @@ btr_discard_only_page_on_level(
 
 	/* block is the root page, which must be empty, except
 	for the node pointer to the (now discarded) block(s). */
+	ut_ad(page_is_root(block->frame));
 
 #ifdef UNIV_BTR_DEBUG
 	if (!dict_index_is_ibuf(index)) {
@@ -4219,9 +4258,14 @@ btr_discard_only_page_on_level(
 
 	btr_page_empty(block, buf_block_get_page_zip(block), index, 0, mtr);
 	ut_ad(page_is_leaf(buf_block_get_frame(block)));
+	/* btr_page_empty() is supposed to zero-initialize the field. */
+	ut_ad(!page_get_instant(block->frame));
 
-	if (!dict_index_is_clust(index)
-	    && !dict_table_is_temporary(index->table)) {
+	if (index->is_clust()) {
+		/* Concurrent access is prevented by the root_block->lock
+		X-latch, so this should be safe. */
+		index->remove_instant();
+	} else if (!index->table->is_temporary()) {
 		/* We play it safe and reset the free bits for the root */
 		ibuf_reset_free_bits(block);
 
@@ -4615,8 +4659,6 @@ btr_index_rec_validate(
 						and page on error */
 {
 	ulint		len;
-	ulint		n;
-	ulint		i;
 	const page_t*	page;
 	mem_heap_t*	heap	= NULL;
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
@@ -4647,31 +4689,34 @@ btr_index_rec_validate(
 		return(FALSE);
 	}
 
-	n = dict_index_get_n_fields(index);
+	if (!page_is_comp(page)) {
+		const ulint n_rec_fields = rec_get_n_fields_old(rec);
+		if (n_rec_fields == DICT_FLD__SYS_INDEXES__MERGE_THRESHOLD
+		    && index->id == DICT_INDEXES_ID) {
+			/* A record for older SYS_INDEXES table
+			(missing merge_threshold column) is acceptable. */
+		} else if (n_rec_fields < index->n_core_fields
+			   || n_rec_fields > index->n_fields) {
+			btr_index_rec_validate_report(page, rec, index);
 
-	if (!page_is_comp(page)
-	    && (rec_get_n_fields_old(rec) != n
-		/* a record for older SYS_INDEXES table
-		(missing merge_threshold column) is acceptable. */
-		&& !(index->id == DICT_INDEXES_ID
-		     && rec_get_n_fields_old(rec) == n - 1))) {
-		btr_index_rec_validate_report(page, rec, index);
+			ib::error() << "Has " << rec_get_n_fields_old(rec)
+				    << " fields, should have "
+				    << index->n_core_fields << ".."
+				    << index->n_fields;
 
-		ib::error() << "Has " << rec_get_n_fields_old(rec)
-			<< " fields, should have " << n;
-
-		if (dump_on_error) {
-			fputs("InnoDB: corrupt record ", stderr);
-			rec_print_old(stderr, rec);
-			putc('\n', stderr);
+			if (dump_on_error) {
+				fputs("InnoDB: corrupt record ", stderr);
+				rec_print_old(stderr, rec);
+				putc('\n', stderr);
+			}
+			return(FALSE);
 		}
-		return(FALSE);
 	}
 
 	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page),
 				  ULINT_UNDEFINED, &heap);
 
-	for (i = 0; i < n; i++) {
+	for (unsigned i = 0; i < index->n_fields; i++) {
 		dict_field_t*	field = dict_index_get_nth_field(index, i);
 		ulint		fixed_size = dict_col_get_fixed_size(
 						dict_field_get_col(field),
@@ -4686,14 +4731,10 @@ btr_index_rec_validate(
 		length.  When fixed_size == 0, prefix_len is the maximum
 		length of the prefix index column. */
 
-		if ((field->prefix_len == 0
-		     && len != UNIV_SQL_NULL && fixed_size
-		     && len != fixed_size)
-		    || (field->prefix_len > 0
-			&& len != UNIV_SQL_NULL
-			&& len
-			> field->prefix_len)) {
-
+		if (len_is_stored(len)
+		    && (field->prefix_len
+			? len > field->prefix_len
+			: (fixed_size && len != fixed_size))) {
 			btr_index_rec_validate_report(page, rec, index);
 
 			ib::error	error;

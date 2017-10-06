@@ -39,6 +39,7 @@ fil_get_page_type_name(
 		return "PAGE_COMPRESSED_ENRYPTED";
 	case FIL_PAGE_PAGE_COMPRESSED:
 		return "PAGE_COMPRESSED";
+	case FIL_PAGE_TYPE_INSTANT:
 	case FIL_PAGE_INDEX:
 		return "INDEX";
 	case FIL_PAGE_RTREE:
@@ -89,6 +90,7 @@ fil_page_type_validate(
 	if (!((page_type == FIL_PAGE_PAGE_COMPRESSED ||
 		page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED ||
 		page_type == FIL_PAGE_INDEX ||
+		page_type == FIL_PAGE_TYPE_INSTANT ||
 		page_type == FIL_PAGE_RTREE ||
 		page_type == FIL_PAGE_UNDO_LOG ||
 		page_type == FIL_PAGE_INODE ||

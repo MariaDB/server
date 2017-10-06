@@ -29,6 +29,12 @@ Created 1/16/1996 Heikki Tuuri
 
 #include "univ.i"
 
+/** Special length indicating a missing instantly added column */
+#define UNIV_SQL_DEFAULT (UNIV_SQL_NULL - 1)
+
+/** @return whether a length is actually stored in a field */
+#define len_is_stored(len) (len != UNIV_SQL_NULL && len != UNIV_SQL_DEFAULT)
+
 extern ulint	data_mysql_default_charset_coll;
 #define DATA_MYSQL_BINARY_CHARSET_COLL 63
 

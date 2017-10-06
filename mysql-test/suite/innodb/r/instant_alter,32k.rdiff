@@ -1,0 +1,83 @@
+--- instant_alter.result
++++ instant_alter,32k.result
+@@ -317,7 +317,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+@@ -340,7 +340,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++5
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -353,7 +353,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ DROP TABLE big;
+ CREATE TABLE t1
+@@ -668,7 +668,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+@@ -691,7 +691,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++5
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -704,7 +704,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ DROP TABLE big;
+ CREATE TABLE t1
+@@ -1019,7 +1019,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+@@ -1042,7 +1042,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++5
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -1055,7 +1055,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ DROP TABLE big;
+ disconnect analyze;

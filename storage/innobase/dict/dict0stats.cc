@@ -1108,11 +1108,19 @@ dict_stats_analyze_index_level(
 	/* there should not be any pages on the left */
 	ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
 
-	/* check whether the first record on the leftmost page is marked
-	as such, if we are on a non-leaf level */
-	ut_a((level == 0)
-	     == !(REC_INFO_MIN_REC_FLAG & rec_get_info_bits(
-			  btr_pcur_get_rec(&pcur), page_is_comp(page))));
+	if (REC_INFO_MIN_REC_FLAG & rec_get_info_bits(
+		    btr_pcur_get_rec(&pcur), page_is_comp(page))) {
+		ut_ad(btr_pcur_is_on_user_rec(&pcur));
+		if (level == 0) {
+			/* Skip the 'default row' pseudo-record */
+			ut_ad(index->is_instant());
+			btr_pcur_move_to_next_user_rec(&pcur, mtr);
+		}
+	} else {
+		/* The first record on the leftmost page must be
+		marked as such on each level except the leaf level. */
+		ut_a(level == 0);
+	}
 
 	prev_rec = NULL;
 	prev_rec_is_copied = false;
