@@ -534,5 +534,20 @@ show create table t1;
 drop table if exists t1;
 
 --echo #
+--echo # MDEV-11586 UNION of FLOAT type results in erroneous precision
+--echo #
+
+CREATE TABLE t1 (f FLOAT);
+INSERT INTO t1 VALUES (1.1);
+SELECT f FROM t1 UNION SELECT 1;
+SELECT 1 UNION SELECT f FROM t1;
+SELECT f FROM t1 UNION SELECT 2147483647;
+SELECT 2147483647 UNION SELECT f FROM t1;
+SELECT CASE WHEN 0 THEN (SELECT f FROM t1) ELSE 2147483647 END AS c1,
+       CASE WHEN 1 THEN 2147483647 ELSE (SELECT f FROM t1) END AS c2;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
