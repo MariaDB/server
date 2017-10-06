@@ -1,7 +1,5 @@
 # Initialise
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
+source include/have_sequence.inc;
 
 --error 1054
 set @a := foo;
@@ -501,3 +499,9 @@ eval select $tmp < $tmp2;
 --enable_column_names
 --enable_query_log
 
+#
+# MDEV-13897 SELECT @a := MAX(col) FROM t requires full index scan
+#
+explain select @a:=max(seq) from seq_1_to_1000000;
+
+# End of 10.1 tests

@@ -69,6 +69,7 @@ class MYSQLDEF : public EXTDEF           {/* Logical table description */
 /***********************************************************************/
 class TDBMYSQL : public TDBEXT {
   friend class MYSQLCOL;
+	friend class TDBTBM;
  public:
   // Constructor
   TDBMYSQL(PMYDEF tdp);
@@ -134,7 +135,7 @@ class TDBMYSQL : public TDBEXT {
   int         m_Rc;           // Return code from command
 //int         AftRows;        // The number of affected rows
   int         N;              // The current table index
-  int         Port;           // MySQL port number (0 = default) 
+  unsigned    Port;          // MySQL port number (0 = default)
 //int         Nparm;          // The number of statement parameters
 //int         Quoted;         // The identifier quoting level
   }; // end of class TDBMYSQL

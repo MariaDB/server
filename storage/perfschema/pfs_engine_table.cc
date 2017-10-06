@@ -1359,7 +1359,7 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       break;
     }
 
-    buflen= longlong10_to_str(size, buf, 10) - buf;
+    buflen= (uint)(longlong10_to_str(size, buf, 10) - buf);
     if (print(thd,
               PERFORMANCE_SCHEMA_str.str, PERFORMANCE_SCHEMA_str.length,
               name, strlen(name),

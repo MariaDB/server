@@ -146,6 +146,8 @@ static CONTROL_FILE_ERROR create_control_file(const char *name,
 {
   uint32 sum;
   uchar buffer[CF_CREATE_TIME_TOTAL_SIZE];
+  ulong rnd1,rnd2;
+
   DBUG_ENTER("maria_create_control_file");
 
   if ((control_file_fd= mysql_file_create(key_file_control, name, 0,
@@ -157,7 +159,9 @@ static CONTROL_FILE_ERROR create_control_file(const char *name,
   cf_changeable_size=  CF_CHANGEABLE_TOTAL_SIZE;
 
   /* Create unique uuid for the control file */
-  my_uuid_init((ulong) &buffer, (ulong) &maria_uuid);
+  my_random_bytes((uchar *)&rnd1, sizeof (rnd1));
+  my_random_bytes((uchar *)&rnd2, sizeof (rnd2));
+  my_uuid_init(rnd1, rnd2);
   my_uuid(maria_uuid);
 
   /* Prepare and write the file header */

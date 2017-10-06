@@ -327,7 +327,7 @@ int compare_order_elements(ORDER *ord1, ORDER *ord2)
   Item *item2= (*ord2->item)->real_item();
   DBUG_ASSERT(item1->type() == Item::FIELD_ITEM &&
               item2->type() == Item::FIELD_ITEM); 
-  int cmp= ((Item_field *) item1)->field - ((Item_field *) item2)->field;
+  ptrdiff_t cmp= ((Item_field *) item1)->field - ((Item_field *) item2)->field;
   if (cmp == 0)
   {
     if (ord1->direction == ord2->direction)
@@ -1733,7 +1733,7 @@ public:
 private:
   void move_cursor_if_possible()
   {
-    int rows_difference= n_rows - n_rows_behind;
+    longlong rows_difference= n_rows - n_rows_behind;
     if (rows_difference > 0) /* We still have to wait. */
       return;
 

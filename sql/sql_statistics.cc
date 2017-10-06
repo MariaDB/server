@@ -3752,7 +3752,10 @@ double get_column_avg_frequency(Field * field)
   using the statistical data from the table column_stats.
 
   @retval
-  The required estimate of the rows in the column range
+  - The required estimate of the rows in the column range
+  - If there is some kind of error, this function should return DBL_MAX (and
+    not HA_POS_ERROR as that is an integer constant).
+
 */
 
 double get_column_range_cardinality(Field *field,

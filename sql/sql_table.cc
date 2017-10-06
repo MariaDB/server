@@ -1174,6 +1174,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
         action in the log entry by stepping up the phase.
       */
     }
+    /* fall through */
     case DDL_LOG_RENAME_ACTION:
     {
       error= TRUE;
@@ -2271,9 +2272,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     size_t db_length= table->db_length;
     handlerton *table_type= 0;
 
-    DBUG_PRINT("table", ("table_l: '%s'.'%s'  table: 0x%lx  s: 0x%lx",
-                         table->db, table->table_name, (long) table->table,
-                         table->table ? (long) table->table->s : (long) -1));
+    DBUG_PRINT("table", ("table_l: '%s'.'%s'  table: %p  s: %p",
+                         table->db, table->table_name,  table->table,
+                         table->table ?  table->table->s : NULL));
 
     /*
       If we are in locked tables mode and are dropping a temporary table,
@@ -2516,8 +2517,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       mysql_audit_drop_table(thd, table);
     }
 
-    DBUG_PRINT("table", ("table: 0x%lx  s: 0x%lx", (long) table->table,
-                         table->table ? (long) table->table->s : (long) -1));
+    DBUG_PRINT("table", ("table: %p  s: %p", table->table,
+                         table->table ?  table->table->s :  NULL));
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
   thd->thread_specific_used|= (trans_tmp_table_deleted ||
@@ -4351,7 +4352,7 @@ static bool prepare_blob_field(THD *thd, Column_definition *sql_field)
         sql_field->sql_type == FIELD_TYPE_MEDIUM_BLOB)
     {
       /* The user has given a length to the blob column */
-      sql_field->sql_type= get_blob_type_from_length(sql_field->length);
+      sql_field->sql_type= get_blob_type_from_length((ulong)sql_field->length);
       sql_field->pack_length= calc_pack_length(sql_field->sql_type, 0);
     }
     sql_field->length= 0;

@@ -47,7 +47,8 @@ Conflicts: mariadb-galera-server-10.0 (<< 10.0.5),
            mariadb-server-5.1,
            mariadb-server-5.2,
            mariadb-server-5.3,
-           mariadb-server-5.5 (<< 5.5.33)
+           mariadb-server-5.5 (<< 5.5.33),
+           libmariadbclient18 (<< 10.2.0)
 Replaces: libmysqlclient19,
           libmysqlclient20
 Provides: libmysqlclient19,

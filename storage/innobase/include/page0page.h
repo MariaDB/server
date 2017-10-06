@@ -167,25 +167,196 @@ directory. */
 #define	PAGE_DIR_SLOT_MIN_N_OWNED	4
 
 extern my_bool srv_immediate_scrub_data_uncompressed;
+#endif /* UNIV_INNOCHECKSUM */
 
-/************************************************************//**
-Gets the start of a page.
-@return start of the page */
-UNIV_INLINE
+/** Get the start of a page frame.
+@param[in]	ptr	pointer within a page frame
+@return start of the page frame */
+MY_ATTRIBUTE((const))
+inline
 page_t*
-page_align(
-/*=======*/
-	const void*	ptr)	/*!< in: pointer to page frame */
-		MY_ATTRIBUTE((const));
-/************************************************************//**
-Gets the offset within a page.
+page_align(const void* ptr)
+{
+	return(static_cast<page_t*>(ut_align_down(ptr, UNIV_PAGE_SIZE)));
+}
+
+/** Gets the byte offset within a page frame.
+@param[in]	ptr	pointer within a page frame
 @return offset from the start of the page */
-UNIV_INLINE
+MY_ATTRIBUTE((const))
+inline
 ulint
-page_offset(
-/*========*/
-	const void*	ptr)	/*!< in: pointer to page frame */
-		MY_ATTRIBUTE((const));
+page_offset(const void*	ptr)
+{
+	return(ut_align_offset(ptr, UNIV_PAGE_SIZE));
+}
+
+/** Determine whether an index page is not in ROW_FORMAT=REDUNDANT.
+@param[in]	page	index page
+@return	nonzero	if ROW_FORMAT is one of COMPACT,DYNAMIC,COMPRESSED
+@retval	0	if ROW_FORMAT=REDUNDANT */
+inline
+byte
+page_is_comp(const page_t* page)
+{
+	ut_ad(!ut_align_offset(page, UNIV_ZIP_SIZE_MIN));
+	return(page[PAGE_HEADER + PAGE_N_HEAP] & 0x80);
+}
+
+/** Determine whether an index page is empty.
+@param[in]	page	index page
+@return whether the page is empty (PAGE_N_RECS = 0) */
+inline
+bool
+page_is_empty(const page_t* page)
+{
+	ut_ad(!ut_align_offset(page, UNIV_ZIP_SIZE_MIN));
+	return !*reinterpret_cast<const uint16_t*>(PAGE_HEADER + PAGE_N_RECS
+						   + page);
+}
+
+/** Determine whether an index page contains garbage.
+@param[in]	page	index page
+@return whether the page contains garbage (PAGE_GARBAGE is not 0) */
+inline
+bool
+page_has_garbage(const page_t* page)
+{
+	ut_ad(!ut_align_offset(page, UNIV_ZIP_SIZE_MIN));
+	return *reinterpret_cast<const uint16_t*>(PAGE_HEADER + PAGE_GARBAGE
+						  + page);
+}
+
+/** Determine whether an B-tree or R-tree index page is a leaf page.
+@param[in]	page	index page
+@return true if the page is a leaf (PAGE_LEVEL = 0) */
+inline
+bool
+page_is_leaf(const page_t* page)
+{
+	ut_ad(!ut_align_offset(page, UNIV_ZIP_SIZE_MIN));
+	return !*reinterpret_cast<const uint16_t*>(PAGE_HEADER + PAGE_LEVEL
+						   + page);
+}
+
+#ifndef UNIV_INNOCHECKSUM
+/** Determine whether an index page record is not in ROW_FORMAT=REDUNDANT.
+@param[in]	rec	record in an index page frame (not a copy)
+@return	nonzero	if ROW_FORMAT is one of COMPACT,DYNAMIC,COMPRESSED
+@retval	0	if ROW_FORMAT=REDUNDANT */
+inline
+byte
+page_rec_is_comp(const byte* rec)
+{
+	return(page_is_comp(page_align(rec)));
+}
+
+/** Determine the offset of the infimum record on the page.
+@param[in]	page	index page
+@return offset of the infimum record in record list, relative from page */
+inline
+unsigned
+page_get_infimum_offset(const page_t* page)
+{
+	ut_ad(!page_offset(page));
+	return page_is_comp(page) ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM;
+}
+
+/** Determine the offset of the supremum record on the page.
+@param[in]	page	index page
+@return offset of the supremum record in record list, relative from page */
+inline
+unsigned
+page_get_supremum_offset(const page_t* page)
+{
+	ut_ad(!page_offset(page));
+	return page_is_comp(page) ? PAGE_NEW_SUPREMUM : PAGE_OLD_SUPREMUM;
+}
+
+/** Determine whether an index page record is a user record.
+@param[in]	offset	record offset in the page
+@retval true if a user record
+@retval	false if the infimum or supremum pseudo-record */
+inline
+bool
+page_rec_is_user_rec_low(ulint offset)
+{
+	compile_time_assert(PAGE_OLD_INFIMUM >= PAGE_NEW_INFIMUM);
+	compile_time_assert(PAGE_OLD_SUPREMUM >= PAGE_NEW_SUPREMUM);
+	compile_time_assert(PAGE_NEW_INFIMUM < PAGE_OLD_SUPREMUM);
+	compile_time_assert(PAGE_OLD_INFIMUM < PAGE_NEW_SUPREMUM);
+	compile_time_assert(PAGE_NEW_SUPREMUM < PAGE_OLD_SUPREMUM_END);
+	compile_time_assert(PAGE_OLD_SUPREMUM < PAGE_NEW_SUPREMUM_END);
+	ut_ad(offset >= PAGE_NEW_INFIMUM);
+	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+
+	return(offset != PAGE_NEW_SUPREMUM
+	       && offset != PAGE_NEW_INFIMUM
+	       && offset != PAGE_OLD_INFIMUM
+	       && offset != PAGE_OLD_SUPREMUM);
+}
+
+/** Determine if a record is the supremum record on an index page.
+@param[in]	offset	record offset in an index page
+@return true if the supremum record */
+inline
+bool
+page_rec_is_supremum_low(ulint offset)
+{
+	ut_ad(offset >= PAGE_NEW_INFIMUM);
+	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+	return(offset == PAGE_NEW_SUPREMUM || offset == PAGE_OLD_SUPREMUM);
+}
+
+/** Determine if a record is the infimum record on an index page.
+@param[in]	offset	record offset in an index page
+@return true if the infimum record */
+inline
+bool
+page_rec_is_infimum_low(ulint offset)
+{
+	ut_ad(offset >= PAGE_NEW_INFIMUM);
+	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+	return(offset == PAGE_NEW_INFIMUM || offset == PAGE_OLD_INFIMUM);
+}
+
+/** Determine whether an B-tree or R-tree index record is in a leaf page.
+@param[in]	rec	index record in an index page
+@return true if the record is in a leaf page */
+inline
+bool
+page_rec_is_leaf(const page_t* rec)
+{
+	const page_t* page = page_align(rec);
+	ut_ad(ulint(rec - page) >= page_get_infimum_offset(page));
+	bool leaf = page_is_leaf(page);
+	ut_ad(!page_rec_is_comp(rec)
+	      || !page_rec_is_user_rec_low(ulint(rec - page))
+	      || leaf == !rec_get_node_ptr_flag(rec));
+	return leaf;
+}
+
+/** Determine whether an index page record is a user record.
+@param[in]	rec	record in an index page
+@return true if a user record */
+inline
+bool
+page_rec_is_user_rec(const rec_t* rec);
+
+/** Determine whether an index page record is the supremum record.
+@param[in]	rec	record in an index page
+@return true if the supremum record */
+inline
+bool
+page_rec_is_supremum(const rec_t* rec);
+
+/** Determine whether an index page record is the infimum record.
+@param[in]	rec	record in an index page
+@return true if the infimum record */
+inline
+bool
+page_rec_is_infimum(const rec_t* rec);
+
 /*************************************************************//**
 Returns the max trx id field value. */
 UNIV_INLINE
@@ -321,22 +492,6 @@ page_header_reset_last_insert(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
 				uncompressed part will be updated, or NULL */
 	mtr_t*		mtr);	/*!< in: mtr */
-/************************************************************//**
-Gets the offset of the first record on the page.
-@return offset of the first record in record list, relative from page */
-UNIV_INLINE
-ulint
-page_get_infimum_offset(
-/*====================*/
-	const page_t*	page);	/*!< in: page which must have record(s) */
-/************************************************************//**
-Gets the offset of the last record on the page.
-@return offset of the last record in record list, relative from page */
-UNIV_INLINE
-ulint
-page_get_supremum_offset(
-/*=====================*/
-	const page_t*	page);	/*!< in: page which must have record(s) */
 #define page_get_infimum_rec(page) ((page) + page_get_infimum_offset(page))
 #define page_get_supremum_rec(page) ((page) + page_get_supremum_offset(page))
 
@@ -522,23 +677,7 @@ ulint
 page_dir_find_owner_slot(
 /*=====================*/
 	const rec_t*	rec);	/*!< in: the physical record */
-/************************************************************//**
-Determine whether the page is in new-style compact format.
-@return nonzero if the page is in compact format, zero if it is in
-old-style format */
-UNIV_INLINE
-ulint
-page_is_comp(
-/*=========*/
-	const page_t*	page);	/*!< in: index page */
-/************************************************************//**
-TRUE if the record is on a page in compact format.
-@return nonzero if in compact format */
-UNIV_INLINE
-ulint
-page_rec_is_comp(
-/*=============*/
-	const rec_t*	rec);	/*!< in: record */
+
 /***************************************************************//**
 Returns the heap number of a record.
 @return heap number */
@@ -547,24 +686,6 @@ ulint
 page_rec_get_heap_no(
 /*=================*/
 	const rec_t*	rec);	/*!< in: the physical record */
-/************************************************************//**
-Determine whether the page is a B-tree leaf.
-@return true if the page is a B-tree leaf (PAGE_LEVEL = 0) */
-UNIV_INLINE
-bool
-page_is_leaf(
-/*=========*/
-	const page_t*	page)	/*!< in: page */
-	MY_ATTRIBUTE((warn_unused_result));
-/************************************************************//**
-Determine whether the page is empty.
-@return true if the page is empty (PAGE_N_RECS = 0) */
-UNIV_INLINE
-bool
-page_is_empty(
-/*==========*/
-	const page_t*	page)	/*!< in: page */
-	MY_ATTRIBUTE((warn_unused_result));
 /** Determine whether a page is an index root page.
 @param[in]	page	page frame
 @return true if the page is a root page of an index */
@@ -572,15 +693,6 @@ UNIV_INLINE
 bool
 page_is_root(
 	const page_t*	page)
-	MY_ATTRIBUTE((warn_unused_result));
-/************************************************************//**
-Determine whether the page contains garbage.
-@return true if the page contains garbage (PAGE_GARBAGE is not 0) */
-UNIV_INLINE
-bool
-page_has_garbage(
-/*=============*/
-	const page_t*	page)	/*!< in: page */
 	MY_ATTRIBUTE((warn_unused_result));
 /************************************************************//**
 Gets the pointer to the next record on the page.
@@ -645,62 +757,6 @@ page_rec_get_prev(
 /*==============*/
 	rec_t*		rec);	/*!< in: pointer to record,
 				must not be page infimum */
-/************************************************************//**
-TRUE if the record is a user record on the page.
-@return TRUE if a user record */
-UNIV_INLINE
-ibool
-page_rec_is_user_rec_low(
-/*=====================*/
-	ulint	offset)	/*!< in: record offset on page */
-	MY_ATTRIBUTE((const));
-/************************************************************//**
-TRUE if the record is the supremum record on a page.
-@return TRUE if the supremum record */
-UNIV_INLINE
-ibool
-page_rec_is_supremum_low(
-/*=====================*/
-	ulint	offset)	/*!< in: record offset on page */
-	MY_ATTRIBUTE((const));
-/************************************************************//**
-TRUE if the record is the infimum record on a page.
-@return TRUE if the infimum record */
-UNIV_INLINE
-ibool
-page_rec_is_infimum_low(
-/*====================*/
-	ulint	offset)	/*!< in: record offset on page */
-	MY_ATTRIBUTE((const));
-
-/************************************************************//**
-TRUE if the record is a user record on the page.
-@return TRUE if a user record */
-UNIV_INLINE
-ibool
-page_rec_is_user_rec(
-/*=================*/
-	const rec_t*	rec)	/*!< in: record */
-	MY_ATTRIBUTE((warn_unused_result));
-/************************************************************//**
-TRUE if the record is the supremum record on a page.
-@return TRUE if the supremum record */
-UNIV_INLINE
-ibool
-page_rec_is_supremum(
-/*=================*/
-	const rec_t*	rec)	/*!< in: record */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/************************************************************//**
-TRUE if the record is the infimum record on a page.
-@return TRUE if the infimum record */
-UNIV_INLINE
-ibool
-page_rec_is_infimum(
-/*================*/
-	const rec_t*	rec)	/*!< in: record */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /************************************************************//**
 true if the record is the first user record on a page.

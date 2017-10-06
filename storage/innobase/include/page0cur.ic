@@ -280,7 +280,9 @@ page_cur_tuple_insert(
 	rec = rec_convert_dtuple_to_rec((byte*) mem_heap_alloc(*heap, size),
 					index, tuple, n_ext);
 
-	*offsets = rec_get_offsets(rec, index, *offsets, ULINT_UNDEFINED, heap);
+	*offsets = rec_get_offsets(rec, index, *offsets,
+				   page_is_leaf(cursor->block->frame),
+				   ULINT_UNDEFINED, heap);
 
 	if (buf_block_get_page_zip(cursor->block)) {
 		rec = page_cur_insert_rec_zip(

@@ -2053,9 +2053,9 @@ static my_bool store_param(MYSQL_STMT *stmt, MYSQL_BIND *param)
 {
   NET *net= &stmt->mysql->net;
   DBUG_ENTER("store_param");
-  DBUG_PRINT("enter",("type: %d  buffer: 0x%lx  length: %lu  is_null: %d",
+  DBUG_PRINT("enter",("type: %d  buffer:%p  length: %lu  is_null: %d",
 		      param->buffer_type,
-		      (long) (param->buffer ? param->buffer : NullS),
+		      param->buffer,
                       *param->length, *param->is_null));
 
   if (*param->is_null)
@@ -2979,8 +2979,8 @@ mysql_stmt_send_long_data(MYSQL_STMT *stmt, uint param_number,
   MYSQL_BIND *param;
   DBUG_ENTER("mysql_stmt_send_long_data");
   DBUG_ASSERT(stmt != 0);
-  DBUG_PRINT("enter",("param no: %d  data: 0x%lx, length : %ld",
-		      param_number, (long) data, length));
+  DBUG_PRINT("enter",("param no: %d  data: %p, length : %ld",
+		      param_number, data, length));
 
   /*
     We only need to check for stmt->param_count, if it's not null
@@ -3249,7 +3249,7 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value,
     ulong copy_length;
     if (start < end)
     {
-      copy_length= end - start;
+      copy_length= (ulong)(end - start);
       /* We've got some data beyond offset: copy up to buffer_length bytes */
       if (param->buffer_length)
         memcpy(buffer, start, MY_MIN(copy_length, param->buffer_length));

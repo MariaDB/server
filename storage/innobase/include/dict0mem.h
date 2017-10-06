@@ -66,8 +66,6 @@ combination of types */
 				auto-generated clustered indexes,
 				also DICT_UNIQUE will be set */
 #define DICT_UNIQUE	2	/*!< unique index */
-#define	DICT_UNIVERSAL	4	/*!< index which can contain records from any
-				other index */
 #define	DICT_IBUF	8	/*!< insert buffer tree */
 #define	DICT_CORRUPT	16	/*!< bit to store the corrupted flag
 				in SYS_INDEXES.TYPE */
@@ -865,6 +863,8 @@ struct dict_index_t{
 				data dictionary yet */
 
 #ifdef UNIV_DEBUG
+	/** whether this is a dummy index object */
+	bool		is_dummy;
 	uint32_t	magic_n;/*!< magic number */
 /** Value of dict_index_t::magic_n */
 # define DICT_INDEX_MAGIC_N	76789786
@@ -1311,6 +1311,12 @@ struct dict_table_t {
 	/** Release the table handle. */
 	inline void release();
 
+	/** @return whether this is a temporary table */
+	bool is_temporary() const
+	{
+		return flags2 & DICT_TF2_TEMPORARY;
+	}
+
 	/** @return whether this table is readable
 	@retval	true	normally
 	@retval	false	if this is a single-table tablespace
@@ -1492,10 +1498,6 @@ struct dict_table_t {
 
 	/*!< set of foreign key constraints which refer to this table */
 	dict_foreign_set			referenced_set;
-
-	/** TRUE if the maximum length of a single row exceeds BIG_ROW_SIZE.
-	Initialized in dict_table_add_to_cache(). */
-	unsigned				big_rows:1;
 
 	/** Statistics for query optimization. @{ */
 

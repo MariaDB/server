@@ -520,22 +520,25 @@ resolved:
 	}
 }
 
-/******************************************************//**
-The following function determines the offsets to each field
-in the record.	It can reuse a previously returned array.
+/** Determine the offsets to each field in an index record.
+@param[in]	rec		physical record
+@param[in]	index		the index that the record belongs to
+@param[in,out]	offsets		array comprising offsets[0] allocated elements,
+				or an array from rec_get_offsets(), or NULL
+@param[in]	leaf		whether this is a leaf-page record
+@param[in]	n_fields	maximum number of offsets to compute
+				(ULINT_UNDEFINED to compute all offsets)
+@param[in,out]	heap		memory heap
 @return the new offsets */
 ulint*
 rec_get_offsets_func(
-/*=================*/
-	const rec_t*		rec,	/*!< in: physical record */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets,/*!< in/out: array consisting of
-					offsets[0] allocated elements,
-					or an array from rec_get_offsets(),
-					or NULL */
-	ulint			n_fields,/*!< in: maximum number of
-					initialized fields
-					 (ULINT_UNDEFINED if all fields) */
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint*			offsets,
+#ifdef UNIV_DEBUG
+	bool			leaf,
+#endif /* UNIV_DEBUG */
+	ulint			n_fields,
 #ifdef UNIV_DEBUG
 	const char*		file,	/*!< in: file name where called */
 	unsigned		line,	/*!< in: line number where called */
@@ -553,17 +556,23 @@ rec_get_offsets_func(
 		switch (UNIV_EXPECT(rec_get_status(rec),
 				    REC_STATUS_ORDINARY)) {
 		case REC_STATUS_ORDINARY:
+			ut_ad(leaf);
 			n = dict_index_get_n_fields(index);
 			break;
 		case REC_STATUS_NODE_PTR:
 			/* Node pointer records consist of the
 			uniquely identifying fields of the record
 			followed by a child page number field. */
+			ut_ad(!leaf);
 			n = dict_index_get_n_unique_in_tree_nonleaf(index) + 1;
 			break;
 		case REC_STATUS_INFIMUM:
 		case REC_STATUS_SUPREMUM:
 			/* infimum or supremum record */
+			ut_ad(rec_get_heap_no_new(rec)
+			      == (rec_get_status(rec) == REC_STATUS_INFIMUM
+				  ? PAGE_HEAP_NO_INFIMUM
+				  : PAGE_HEAP_NO_SUPREMUM));
 			n = 1;
 			break;
 		default:
@@ -572,6 +581,26 @@ rec_get_offsets_func(
 		}
 	} else {
 		n = rec_get_n_fields_old(rec);
+		/* Here, rec can be allocated from the heap (copied
+		from an index page record), or it can be located in an
+		index page. If rec is not in an index page, then
+		page_rec_is_user_rec(rec) and similar predicates
+		cannot be evaluated. We can still distinguish the
+		infimum and supremum record based on the heap number. */
+		ut_d(const bool is_user_rec = rec_get_heap_no_old(rec)
+		     >= PAGE_HEAP_NO_USER_LOW);
+		/* The infimum and supremum records carry 1 field. */
+		ut_ad(is_user_rec || n == 1);
+		ut_ad(!is_user_rec || leaf || index->is_dummy
+		      || dict_index_is_ibuf(index)
+		      || n
+		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
+		ut_ad(!is_user_rec || !leaf || index->is_dummy
+		      || dict_index_is_ibuf(index)
+		      || n == n_fields /* btr_pcur_restore_position() */
+		      || n == index->n_fields
+		      || (index->id == DICT_INDEXES_ID
+			  && (n == DICT_NUM_FIELDS__SYS_INDEXES - 1)));
 	}
 
 	if (UNIV_UNLIKELY(n_fields < n)) {
@@ -1099,17 +1128,14 @@ rec_convert_dtuple_to_rec_old(
 	/* Calculate the offset of the origin in the physical record */
 
 	rec = buf + rec_get_converted_extra_size(data_size, n_fields, n_ext);
-#ifdef UNIV_DEBUG
-	/* Suppress Valgrind warnings of ut_ad()
-	in mach_write_to_1(), mach_write_to_2() et al. */
-	memset(buf, 0xff, rec - buf + data_size);
-#endif /* UNIV_DEBUG */
 	/* Store the number of fields */
 	rec_set_n_fields_old(rec, n_fields);
 
 	/* Set the info bits of the record */
 	rec_set_info_bits_old(rec, dtuple_get_info_bits(dtuple)
 			      & REC_INFO_BITS_MASK);
+	/* Make rec_get_offsets() and rec_offs_make_valid() happy. */
+	ut_d(rec_set_heap_no_old(rec, PAGE_HEAP_NO_USER_LOW));
 
 	/* Store the data and the offsets */
 
@@ -1223,6 +1249,8 @@ rec_convert_dtuple_to_rec_comp(
 			temp = false;
 		}
 	} else {
+		/* Make rec_get_offsets() and rec_offs_make_valid() happy. */
+		ut_d(rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW));
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 
 		switch (UNIV_EXPECT(status, REC_STATUS_ORDINARY)) {
@@ -1468,30 +1496,6 @@ rec_convert_dtuple_to_rec(
 		rec = rec_convert_dtuple_to_rec_old(buf, dtuple, n_ext);
 	}
 
-#ifdef UNIV_DEBUG
-	{
-		mem_heap_t*	heap	= NULL;
-		ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-		const ulint*	offsets;
-		ulint		i;
-		rec_offs_init(offsets_);
-
-		offsets = rec_get_offsets(rec, index,
-					  offsets_, ULINT_UNDEFINED, &heap);
-		ut_ad(rec_validate(rec, offsets));
-		ut_ad(dtuple_get_n_fields(dtuple)
-		      == rec_offs_n_fields(offsets));
-
-		for (i = 0; i < rec_offs_n_fields(offsets); i++) {
-			ut_ad(!dfield_is_ext(dtuple_get_nth_field(dtuple, i))
-			      == !rec_offs_nth_extern(offsets, i));
-		}
-
-		if (UNIV_LIKELY_NULL(heap)) {
-			mem_heap_free(heap);
-		}
-	}
-#endif /* UNIV_DEBUG */
 	return(rec);
 }
 
@@ -1541,25 +1545,33 @@ rec_convert_dtuple_to_temp(
 				       REC_STATUS_ORDINARY, true);
 }
 
-/**************************************************************//**
-Copies the first n fields of a physical record to a data tuple. The fields
-are copied to the memory heap. */
+/** Copy the first n fields of a (copy of a) physical record to a data tuple.
+The fields are copied into the memory heap.
+@param[out]	tuple		data tuple
+@param[in]	rec		index record, or a copy thereof
+@param[in]	is_leaf		whether rec is a leaf page record
+@param[in]	n_fields	number of fields to copy
+@param[in,out]	heap		memory heap */
 void
-rec_copy_prefix_to_dtuple(
-/*======================*/
-	dtuple_t*		tuple,		/*!< out: data tuple */
-	const rec_t*		rec,		/*!< in: physical record */
-	const dict_index_t*	index,		/*!< in: record descriptor */
-	ulint			n_fields,	/*!< in: number of fields
-						to copy */
-	mem_heap_t*		heap)		/*!< in: memory heap */
+rec_copy_prefix_to_dtuple_func(
+	dtuple_t*		tuple,
+	const rec_t*		rec,
+	const dict_index_t*	index,
+#ifdef UNIV_DEBUG
+	bool			is_leaf,
+#endif /* UNIV_DEBUG */
+	ulint			n_fields,
+	mem_heap_t*		heap)
 {
-	ulint	i;
 	ulint	offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*	offsets	= offsets_;
 	rec_offs_init(offsets_);
 
-	offsets = rec_get_offsets(rec, index, offsets, n_fields, &heap);
+	ut_ad(is_leaf || n_fields
+	      <= dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
+
+	offsets = rec_get_offsets(rec, index, offsets, is_leaf,
+				  n_fields, &heap);
 
 	ut_ad(rec_validate(rec, offsets));
 	ut_ad(dtuple_check_typed(tuple));
@@ -1567,7 +1579,7 @@ rec_copy_prefix_to_dtuple(
 	dtuple_set_info_bits(tuple, rec_get_info_bits(
 				     rec, dict_table_is_comp(index->table)));
 
-	for (i = 0; i < n_fields; i++) {
+	for (ulint i = 0; i < n_fields; i++) {
 		dfield_t*	field;
 		const byte*	data;
 		ulint		len;
@@ -2155,6 +2167,7 @@ rec_print(
 
 		rec_print_new(file, rec,
 			      rec_get_offsets(rec, index, offsets_,
+					      page_rec_is_leaf(rec),
 					      ULINT_UNDEFINED, &heap));
 		if (UNIV_LIKELY_NULL(heap)) {
 			mem_heap_free(heap);
@@ -2225,7 +2238,8 @@ operator<<(std::ostream& o, const rec_index_print& r)
 {
 	mem_heap_t*	heap	= NULL;
 	ulint*		offsets	= rec_get_offsets(
-		r.m_rec, r.m_index, NULL, ULINT_UNDEFINED, &heap);
+		r.m_rec, r.m_index, NULL, page_rec_is_leaf(r.m_rec),
+		ULINT_UNDEFINED, &heap);
 	rec_print(o, r.m_rec,
 		  rec_get_info_bits(r.m_rec, rec_offs_comp(offsets)),
 		  offsets);
@@ -2272,10 +2286,12 @@ rec_get_trx_id(
 	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID)
 	      == index->id);
 	ut_ad(dict_index_is_clust(index));
+	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(trx_id_col > 0);
 	ut_ad(trx_id_col != ULINT_UNDEFINED);
 
-	offsets = rec_get_offsets(rec, index, offsets, trx_id_col + 1, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, true,
+				  trx_id_col + 1, &heap);
 
 	trx_id = rec_get_nth_field(rec, offsets, trx_id_col, &len);
 
@@ -2323,7 +2339,7 @@ wsrep_rec_get_foreign_key(
 	ut_ad(index_ref);
 
         rec_offs_init(offsets_);
-	offsets = rec_get_offsets(rec, index_for, offsets_, 
+	offsets = rec_get_offsets(rec, index_for, offsets_, true,
 				  ULINT_UNDEFINED, &heap);
 
 	ut_ad(rec_offs_validate(rec, NULL, offsets));

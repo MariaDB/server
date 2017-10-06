@@ -124,8 +124,8 @@ static bool set_one_value(ha_create_table_option *opt,
                           MEM_ROOT *root)
 {
   DBUG_ENTER("set_one_value");
-  DBUG_PRINT("enter", ("opt: 0x%lx type: %u name '%s' value: '%s'",
-                       (ulong) opt,
+  DBUG_PRINT("enter", ("opt: %p type: %u name '%s' value: '%s'",
+                       opt,
                        opt->type, opt->name,
                        (value->str ? value->str : "<DEFAULT>")));
   switch (opt->type)

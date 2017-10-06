@@ -417,6 +417,13 @@ void Field::do_field_decimal(Copy_field *copy)
 }
 
 
+void Field::do_field_timestamp(Copy_field *copy)
+{
+  // XXX why couldn't we do it everywhere?
+  copy->from_field->save_in_field(copy->to_field);
+}
+
+
 void Field::do_field_temporal(Copy_field *copy)
 {
   MYSQL_TIME ltime;
@@ -703,6 +710,16 @@ void Copy_field::set(Field *to,Field *from,bool save)
     do_copy2= to->get_copy_func(from);
   if (!do_copy)					// Not null
     do_copy=do_copy2;
+}
+
+
+Field::Copy_func *Field_timestamp::get_copy_func(const Field *from) const
+{
+  Field::Copy_func *copy= Field_temporal::get_copy_func(from);
+  if (copy == do_field_temporal && from->type() == MYSQL_TYPE_TIMESTAMP)
+    return do_field_timestamp;
+  else
+    return copy;
 }
 
 

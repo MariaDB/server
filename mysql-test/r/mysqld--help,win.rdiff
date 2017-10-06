@@ -16,7 +16,7 @@
   --net-buffer-length=# 
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
-@@ -956,6 +956,9 @@
+@@ -957,6 +957,9 @@
   characteristics (isolation level, read only/read
   write,snapshot - but not any work done / data modified
   within the transaction).
@@ -26,7 +26,7 @@
   --show-slave-auth-info 
   Show user and password in SHOW SLAVE HOSTS on this
   master.
-@@ -1068,6 +1071,10 @@
+@@ -1069,6 +1072,10 @@
   Log slow queries to given log file. Defaults logging to
   'hostname'-slow.log. Must be enabled to activate other
   slow log options
@@ -37,7 +37,7 @@
   --socket=name       Socket file to use for connection
   --sort-buffer-size=# 
   Each thread that needs to do a sort allocates a buffer of
-@@ -1086,6 +1093,7 @@
+@@ -1087,6 +1094,7 @@
   NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
@@ -45,22 +45,19 @@
   --standard-compliant-cte 
   Allow only CTEs compliant to SQL standard
   (Defaults to on; use --skip-standard-compliant-cte to disable.)
-@@ -1134,8 +1142,12 @@
+@@ -1135,6 +1143,11 @@
   --thread-pool-max-threads=# 
   Maximum allowed number of worker threads in the thread
   pool
-- --thread-pool-oversubscribe=# 
-- How many additional active worker threads in a group are
 + --thread-pool-min-threads=# 
 + Minimum number of threads in the thread pool.
 + --thread-pool-mode=name 
 + Chose implementation of the threadpool. One of: windows, 
 + generic
-+ --thread-pool-oversubscribe=#  How many additional active worker threads in a group are
+  --thread-pool-oversubscribe=# 
+  How many additional active worker threads in a group are
   allowed.
-  --thread-pool-prio-kickup-timer=# 
-  The number of milliseconds before a dequeued low-priority
-@@ -1172,8 +1184,8 @@
+@@ -1173,8 +1186,8 @@
   automatically convert it to an on-disk MyISAM or Aria
   table.
   -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
@@ -71,7 +68,7 @@
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
-@@ -1298,7 +1310,6 @@
+@@ -1299,7 +1312,6 @@
  key-cache-division-limit 100
  key-cache-file-hash-size 512
  key-cache-segments 0
@@ -79,7 +76,7 @@
  lc-messages en_US
  lc-messages-dir MYSQL_SHAREDIR/
  lc-time-names en_US
-@@ -1368,6 +1379,7 @@
+@@ -1369,6 +1381,7 @@
  myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE
  mysql56-temporal-format TRUE
@@ -87,7 +84,7 @@
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -1469,6 +1481,8 @@
+@@ -1470,6 +1483,8 @@
  session-track-state-change FALSE
  session-track-system-variables 
  session-track-transaction-info OFF
@@ -96,7 +93,7 @@
  show-slave-auth-info FALSE
  silent-startup FALSE
  skip-grant-tables TRUE
-@@ -1493,6 +1507,7 @@
+@@ -1494,6 +1509,7 @@
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
@@ -104,7 +101,7 @@
  sort-buffer-size 2097152
  sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  stack-trace TRUE
-@@ -1506,14 +1521,16 @@
+@@ -1507,14 +1523,16 @@
  sync-relay-log 10000
  sync-relay-log-info 10000
  sysdate-is-now FALSE

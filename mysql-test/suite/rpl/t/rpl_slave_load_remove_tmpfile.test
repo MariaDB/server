@@ -20,9 +20,9 @@
 --source include/have_binlog_format_statement.inc
 --source include/have_innodb.inc
 --source include/have_debug.inc
---source include/master-slave.inc
 --source include/not_embedded.inc
 --source include/not_var_link.inc
+--source include/master-slave.inc
 
 ##########################################################################
 #                            Loading data

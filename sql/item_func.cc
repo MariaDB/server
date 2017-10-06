@@ -1040,8 +1040,8 @@ bool Item_func_hybrid_field_type::get_date(MYSQL_TIME *ltime,
   }
   case TIME_RESULT:
     return date_op(ltime,
-                   fuzzydate |
-                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0));
+                   (uint)(fuzzydate |
+                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0)));
   case STRING_RESULT:
   {
     char buff[40];

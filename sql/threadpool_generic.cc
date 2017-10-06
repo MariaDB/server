@@ -55,6 +55,9 @@ typedef OVERLAPPED_ENTRY native_event;
 #error threadpool is not available on this platform
 #endif
 
+#ifdef _MSC_VER
+#pragma warning (disable : 4312)
+#endif
 
 static void io_poll_close(int fd)
 {
@@ -447,10 +450,11 @@ static void* native_event_get_userdata(native_event *event)
 
 #elif defined(HAVE_IOCP)
 
+
 static int io_poll_create()
 {
   HANDLE h= CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
-  return (int)h;
+  return PtrToInt(h);
 }
 
 
@@ -476,7 +480,7 @@ int io_poll_start_read(int pollfd, int fd, void *, void *opt)
 
 static int io_poll_associate_fd(int pollfd, int fd, void *data, void *opt)
 {
-  HANDLE h= CreateIoCompletionPort((HANDLE)fd, (HANDLE)pollfd, (ULONG_PTR)data, 0);
+  HANDLE h= CreateIoCompletionPort(IntToPtr(fd), IntToPtr(pollfd), (ULONG_PTR)data, 0);
   if (!h) 
     return -1;
   return io_poll_start_read(pollfd,fd, 0, opt); 
@@ -504,7 +508,6 @@ static void* native_event_get_userdata(native_event *event)
 {
   return (void *)event->lpCompletionKey;
 }
-
 #endif
 
 
@@ -1483,7 +1486,7 @@ static int change_group(TP_connection_generic *c,
  thread_group_t *new_group)
 { 
   int ret= 0;
-  int fd= mysql_socket_getfd(c->thd->net.vio->mysql_socket);
+  int fd= (int)mysql_socket_getfd(c->thd->net.vio->mysql_socket);
 
   DBUG_ASSERT(c->thread_group == old_group);
 
@@ -1511,7 +1514,7 @@ static int change_group(TP_connection_generic *c,
 
 int TP_connection_generic::start_io()
 { 
-  int fd= mysql_socket_getfd(thd->net.vio->mysql_socket);
+  int fd= (int)mysql_socket_getfd(thd->net.vio->mysql_socket);
 
 #ifndef HAVE_IOCP
   /*

@@ -1343,8 +1343,8 @@ ulong _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
 
 err:
   _ma_set_fatal_error(info->s, HA_ERR_WRONG_IN_RECORD);
-  DBUG_PRINT("error",("to_end: 0x%lx -> 0x%lx  from_end: 0x%lx -> 0x%lx",
-		      (long) to, (long) to_end, (long) from, (long) from_end));
+  DBUG_PRINT("error",("to_end: %p -> %p  from_end: %p -> %p",
+		      to, to_end, from, from_end));
   DBUG_DUMP("from", info->rec_buff, info->s->base.min_pack_length);
   DBUG_RETURN(MY_FILE_ERROR);
 } /* _ma_rec_unpack */

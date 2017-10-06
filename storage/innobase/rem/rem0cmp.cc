@@ -797,7 +797,6 @@ cmp_dtuple_rec_with_match_bytes(
 
 	ut_ad(dtuple_check_typed(dtuple));
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	//ut_ad(page_is_leaf(page_align(rec)));
 	ut_ad(!(REC_INFO_MIN_REC_FLAG
 		& dtuple_get_info_bits(dtuple)));
 	ut_ad(!(REC_INFO_MIN_REC_FLAG

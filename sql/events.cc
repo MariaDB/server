@@ -1120,7 +1120,7 @@ Events::load_events_from_db(THD *thd)
   uint count= 0;
   ulong saved_master_access;
   DBUG_ENTER("Events::load_events_from_db");
-  DBUG_PRINT("enter", ("thd: 0x%lx", (long) thd));
+  DBUG_PRINT("enter", ("thd: %p", thd));
 
   /*
     NOTE: even if we run in read-only mode, we should be able to lock the

@@ -126,6 +126,7 @@ public:
 
 protected:
 	// Internal functions
+	virtual bool MakeSrcdef(PGLOBAL g);
 	virtual bool MakeSQL(PGLOBAL g, bool cnt);
 	//virtual bool MakeInsert(PGLOBAL g);
 	virtual bool MakeCommand(PGLOBAL g);

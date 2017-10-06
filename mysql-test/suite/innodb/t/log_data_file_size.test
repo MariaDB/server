@@ -64,6 +64,9 @@ truncate(FILE, $page_size * 4);
 close FILE;
 open(FILE, "+<", "$ENV{'MYSQLD_DATADIR'}test/ibd4f.ibd") or die;
 truncate(FILE, $page_size * 4 + 1234);
+# Work around MDEV-12699 and ensure that the truncated page is all-zero.
+sysseek(FILE, $page_size * 4, 0);
+syswrite(FILE, chr(0) x 1234);
 close FILE;
 open(FILE, "+<", "$ENV{'MYSQLD_DATADIR'}test/ibd5.ibd") or die;
 truncate(FILE, $page_size * 5);

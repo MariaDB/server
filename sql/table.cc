@@ -343,7 +343,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     */
     do
     {
-      share->table_map_id= my_atomic_add64_explicit(&last_table_id, 1,
+      share->table_map_id=(ulong) my_atomic_add64_explicit(&last_table_id, 1,
                                                     MY_MEMORY_ORDER_RELAXED);
     } while (unlikely(share->table_map_id == ~0UL));
   }
@@ -3001,8 +3001,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   Field **field_ptr;
   uint8 save_context_analysis_only= thd->lex->context_analysis_only;
   DBUG_ENTER("open_table_from_share");
-  DBUG_PRINT("enter",("name: '%s.%s'  form: 0x%lx", share->db.str,
-                      share->table_name.str, (long) outparam));
+  DBUG_PRINT("enter",("name: '%s.%s'  form: %p", share->db.str,
+                      share->table_name.str, outparam));
 
   thd->lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_VIEW; // not a view
 
@@ -3406,7 +3406,7 @@ int closefrm(register TABLE *table)
 {
   int error=0;
   DBUG_ENTER("closefrm");
-  DBUG_PRINT("enter", ("table: 0x%lx", (long) table));
+  DBUG_PRINT("enter", ("table: %p", table));
 
   if (table->db_stat)
     error=table->file->ha_close();
@@ -5066,17 +5066,26 @@ void TABLE_LIST::cleanup_items()
 
 int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
 {
-  /* VIEW's CHECK OPTION CLAUSE */
-  if (check_option && check_option->val_int() == 0)
+  if (check_option)
   {
-    TABLE_LIST *main_view= top_table();
-    const char *name_db= (main_view->view ? main_view->view_db.str :
-                          main_view->db);
-    const char *name_table= (main_view->view ? main_view->view_name.str :
-                             main_view->table_name);
-    my_error(ER_VIEW_CHECK_FAILED, MYF(ignore_failure ? ME_JUST_WARNING : 0),
-             name_db, name_table);
-    return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
+    /* VIEW's CHECK OPTION CLAUSE */
+    Counting_error_handler ceh;
+    thd->push_internal_handler(&ceh);
+    bool res= check_option->val_int() == 0;
+    thd->pop_internal_handler();
+    if (ceh.errors)
+      return(VIEW_CHECK_ERROR);
+    if (res)
+    {
+      TABLE_LIST *main_view= top_table();
+      const char *name_db= (main_view->view ? main_view->view_db.str :
+                            main_view->db);
+      const char *name_table= (main_view->view ? main_view->view_name.str :
+                               main_view->table_name);
+      my_error(ER_VIEW_CHECK_FAILED, MYF(ignore_failure ? ME_JUST_WARNING : 0),
+               name_db, name_table);
+      return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
+    }
   }
   return table->verify_constraints(ignore_failure);
 }
@@ -5100,7 +5109,7 @@ int TABLE::verify_constraints(bool ignore_failure)
       }
     }
   }
-  return VIEW_CHECK_OK;
+  return(VIEW_CHECK_OK);
 }
 
 
@@ -5766,9 +5775,10 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
+  Name_resolution_context *context= view->view ? &view->view->select_lex.context :
+                                    &thd->lex->select_lex.context;
   Item *item= (new (thd->mem_root)
-               Item_direct_view_ref(thd, &view->view->select_lex.context,
-                                    field_ref, view->alias,
+               Item_direct_view_ref(thd, context, field_ref, view->alias,
                                     name, view));
   /*
     Force creation of nullable item for the result tmp table for outer joined

@@ -3744,7 +3744,7 @@ uchar *in_row::get_value(Item *item)
 void in_row::set(uint pos, Item *item)
 {
   DBUG_ENTER("in_row::set");
-  DBUG_PRINT("enter", ("pos: %u  item: 0x%lx", pos, (ulong) item));
+  DBUG_PRINT("enter", ("pos: %u  item: %p", pos,item));
   ((cmp_item_row*) base)[pos].store_value_by_template(current_thd, &tmp, item);
   DBUG_VOID_RETURN;
 }
@@ -3909,7 +3909,7 @@ cmp_item* cmp_item_row::make_same()
 cmp_item_row::~cmp_item_row()
 {
   DBUG_ENTER("~cmp_item_row");
-  DBUG_PRINT("enter",("this: 0x%lx", (long) this));
+  DBUG_PRINT("enter",("this: %p", this));
   if (comparators)
   {
     for (uint i= 0; i < n; i++)
@@ -4635,11 +4635,11 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       const_item_cache= FALSE;
     } 
   
-    with_sum_func=	    with_sum_func || item->with_sum_func;
-    with_field=             with_field || item->with_field;
-    with_subselect|=        item->has_subquery();
-    if (item->maybe_null)
-      maybe_null=1;
+    with_sum_func|=    item->with_sum_func;
+    with_field|=       item->with_field;
+    with_subselect|=   item->has_subquery();
+    with_window_func|= item->with_window_func;
+    maybe_null|=       item->maybe_null;
   }
   fix_length_and_dec();
   fixed= 1;
@@ -5404,7 +5404,7 @@ void Regexp_processor_pcre::set_recursion_limit(THD *thd)
   DBUG_ASSERT(thd == current_thd);
   stack_used= available_stack_size(thd->thread_stack, &stack_used);
   m_pcre_extra.match_limit_recursion=
-    (my_thread_stack_size - STACK_MIN_SIZE - stack_used)/my_pcre_frame_size;
+    (ulong)((my_thread_stack_size - STACK_MIN_SIZE - stack_used)/my_pcre_frame_size);
 }
 
 

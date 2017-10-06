@@ -30,9 +30,9 @@ int maria_close(register MARIA_HA *info)
   MARIA_SHARE *share= info->s;
   my_bool internal_table= share->internal_table;
   DBUG_ENTER("maria_close");
-  DBUG_PRINT("enter",("name: '%s'  base: 0x%lx  reopen: %u  locks: %u",
+  DBUG_PRINT("enter",("name: '%s'  base: %p reopen: %u  locks: %u",
                       share->open_file_name.str,
-		      (long) info, (uint) share->reopen,
+		      info, (uint) share->reopen,
                       (uint) share->tot_locks));
 
   /* Check that we have unlocked key delete-links properly */

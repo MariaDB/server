@@ -211,7 +211,7 @@ protected:
                              CHARSET_INFO *cs, const char *str, size_t length,
                              my_decimal *buf)
     {
-      m_error= str2my_decimal(mask, str, length, cs,
+      m_error= str2my_decimal(mask, str,(uint) length, cs,
                               buf, (const char **) &m_end_of_num);
       // E_DEC_TRUNCATED means a very minor truncation: '1e-100' -> 0
       m_edom= m_error && m_error != E_DEC_TRUNCATED;
@@ -699,6 +699,7 @@ protected:
   static void do_field_real(Copy_field *copy);
   static void do_field_string(Copy_field *copy);
   static void do_field_temporal(Copy_field *copy);
+  static void do_field_timestamp(Copy_field *copy);
   static void do_field_decimal(Copy_field *copy);
 public:
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
@@ -841,12 +842,13 @@ public:
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
   virtual int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  virtual int  store_timestamp(my_time_t timestamp, ulong sec_part);
   int store_time(MYSQL_TIME *ltime)
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, uint length, CHARSET_INFO *cs,
             enum_check_fields check_level);
   int store(const LEX_STRING *ls, CHARSET_INFO *cs)
-  { return store(ls->str, ls->length, cs); }
+  { return store(ls->str, (uint32) ls->length, cs); }
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
   virtual bool val_bool(void)= 0;
@@ -975,7 +977,7 @@ public:
   {
     return bitmap_is_set(&table->has_value_set, field_index);
   }
-  virtual bool set_explicit_default(Item *value);
+  bool set_explicit_default(Item *value);
 
   /**
      Evaluates the @c UPDATE default function, if one exists, and stores the
@@ -2388,11 +2390,14 @@ public:
 		  TABLE_SHARE *share);
   enum_field_types type() const { return MYSQL_TYPE_TIMESTAMP;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
+  Copy_func *get_copy_func(const Field *from) const;
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
   int  store_time_dec(MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
+  int  store_timestamp(my_time_t timestamp, ulong sec_part);
+  int  save_in_field(Field *to);
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
@@ -2403,7 +2408,6 @@ public:
   void sql_type(String &str) const;
   bool zero_pack() const { return 0; }
   int set_time();
-  bool set_explicit_default(Item *value);
   int evaluate_update_default_function()
   {
     int res= 0;

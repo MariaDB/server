@@ -803,14 +803,11 @@ big_rec_t::alloc(
 	return(rec);
 }
 
-/** Create a deep copy of this object
-@param[in]	heap	the memory heap in which the clone will be
-			created.
-
-@return	the cloned object. */
+/** Create a deep copy of this object.
+@param[in,out]	heap	memory heap in which the clone will be created
+@return	the cloned object */
 dfield_t*
-dfield_t::clone(
-	mem_heap_t*	heap)
+dfield_t::clone(mem_heap_t* heap) const
 {
 	const ulint size = len == UNIV_SQL_NULL ? 0 : len;
 	dfield_t* obj = static_cast<dfield_t*>(

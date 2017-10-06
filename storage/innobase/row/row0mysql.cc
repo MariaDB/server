@@ -2242,7 +2242,7 @@ row_unlock_for_mysql(
 			ulint*	offsets				= offsets_;
 
 			rec_offs_init(offsets_);
-			offsets = rec_get_offsets(rec, index, offsets,
+			offsets = rec_get_offsets(rec, index, offsets, true,
 						  ULINT_UNDEFINED, &heap);
 
 			rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
@@ -2368,7 +2368,6 @@ row_create_table_for_mysql(
 				(will be freed, or on DB_SUCCESS
 				added to the data dictionary cache) */
 	trx_t*		trx,	/*!< in/out: transaction */
-	bool		commit,	/*!< in: if true, commit the transaction */
 	fil_encryption_t mode,	/*!< in: encryption mode */
 	uint32_t	key_id)	/*!< in: encryption key_id */
 {
@@ -2397,10 +2396,6 @@ row_create_table_for_mysql(
 err_exit:
 #endif /* !DBUG_OFF */
 		dict_mem_table_free(table);
-
-		if (commit) {
-			trx_commit_for_mysql(trx);
-		}
 
 		trx->op_info = "";
 
@@ -2446,7 +2441,7 @@ err_exit:
 		err = dict_replace_tablespace_in_dictionary(
 			table->space, table->name.m_name,
 			fil_space_get_flags(table->space),
-			path, trx, commit);
+			path, trx);
 
 			ut_free(path);
 
@@ -2472,10 +2467,6 @@ err_exit:
 					    DICT_ERR_IGNORE_NONE)) {
 
 			dict_table_close_and_drop(trx, table);
-
-			if (commit) {
-				trx_commit_for_mysql(trx);
-			}
 		} else {
 			dict_mem_table_free(table);
 		}
@@ -5066,7 +5057,7 @@ func_exit:
 
 	rec = buf + mach_read_from_4(buf);
 
-	offsets = rec_get_offsets(rec, index, offsets_,
+	offsets = rec_get_offsets(rec, index, offsets_, true,
 				  ULINT_UNDEFINED, &heap);
 
 	if (prev_entry != NULL) {

@@ -1455,7 +1455,7 @@ lock_rec_other_has_conflicting(
 
 		if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
 #ifdef WITH_WSREP
-			if (wsrep_on(trx->mysql_thd)) {
+			if (wsrep_on_trx(trx)) {
 				trx_mutex_enter(lock->trx);
 				wsrep_kill_victim((trx_t *)trx, (lock_t *)lock);
 				trx_mutex_exit(lock->trx);
@@ -1985,8 +1985,7 @@ RecLock::create(
 	}
 
 #ifdef WITH_WSREP
-	if (c_lock                      &&
-	    wsrep_on(trx->mysql_thd)    &&
+	if (c_lock && wsrep_on_trx(trx) &&
 	    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		lock_t *hash	= (lock_t *)c_lock->hash;
 		lock_t *prev	= NULL;
@@ -5590,13 +5589,14 @@ lock_rec_print(FILE* file, const lock_t* lock)
 		fprintf(file, "Record lock, heap no %lu", (ulong) i);
 
 		if (block) {
+			ut_ad(page_is_leaf(block->frame));
 			const rec_t*	rec;
 
 			rec = page_find_rec_with_heap_no(
 				buf_block_get_frame(block), i);
 
 			offsets = rec_get_offsets(
-				rec, lock->index, offsets,
+				rec, lock->index, offsets, true,
 				ULINT_UNDEFINED, &heap);
 
 			putc(' ', file);
@@ -6428,8 +6428,10 @@ loop:
 
 			rec = page_find_rec_with_heap_no(block->frame, i);
 			ut_a(rec);
+			ut_ad(page_rec_is_leaf(rec));
 			offsets = rec_get_offsets(rec, lock->index, offsets,
-						  ULINT_UNDEFINED, &heap);
+						  true, ULINT_UNDEFINED,
+						  &heap);
 
 			/* If this thread is holding the file space
 			latch (fil_space_t::latch), the following
@@ -6772,7 +6774,7 @@ lock_rec_insert_check_and_lock(
 		const ulint*	offsets;
 		rec_offs_init(offsets_);
 
-		offsets = rec_get_offsets(next_rec, index, offsets_,
+		offsets = rec_get_offsets(next_rec, index, offsets_, true,
 					  ULINT_UNDEFINED, &heap);
 
 		ut_ad(lock_rec_queue_validate(
@@ -6999,7 +7001,7 @@ lock_sec_rec_modify_check_and_lock(
 		const ulint*	offsets;
 		rec_offs_init(offsets_);
 
-		offsets = rec_get_offsets(rec, index, offsets_,
+		offsets = rec_get_offsets(rec, index, offsets_, true,
 					  ULINT_UNDEFINED, &heap);
 
 		ut_ad(lock_rec_queue_validate(
@@ -7209,7 +7211,8 @@ lock_clust_rec_read_check_and_lock_alt(
 	dberr_t		err;
 	rec_offs_init(offsets_);
 
-	offsets = rec_get_offsets(rec, index, offsets,
+	ut_ad(page_rec_is_leaf(rec));
+	offsets = rec_get_offsets(rec, index, offsets, true,
 				  ULINT_UNDEFINED, &tmp_heap);
 	err = lock_clust_rec_read_check_and_lock(flags, block, rec, index,
 						 offsets, mode, gap_mode, thr);

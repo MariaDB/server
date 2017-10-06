@@ -49,9 +49,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <sql_class.h>
 #include <sql_show.h>
 #include <sql_table.h>
-#include <sql_tablespace.h>
-// MySQL 5.7 Header */
-// #include <sql_thd_internal_api.h>
 #include <table_cache.h>
 #include <my_check_opt.h>
 #include <my_bitmap.h>
@@ -151,12 +148,6 @@ innodb_check_deprecated(void);
 
 #include <string>
 #include <sstream>
-
-/* for ha_innopart, Native InnoDB Partitioning. */
-/* JAN: TODO: MySQL 5.7 Native InnoDB Partitioning */
-#ifdef HAVE_HA_INNOPART_H
-#include "ha_innopart.h"
-#endif
 
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>
@@ -1360,16 +1351,6 @@ innobase_release_savepoint(
 
 static void innobase_checkpoint_request(handlerton *hton, void *cookie);
 
-/************************************************************************//**
-Function for constructing an InnoDB table handler instance. */
-static
-handler*
-innobase_create_handler(
-/*====================*/
-	handlerton*	hton,		/*!< in/out: handlerton for InnoDB */
-	TABLE_SHARE*	table,
-	MEM_ROOT*	mem_root);
-
 /** @brief Initialize the default value of innodb_commit_concurrency.
 
 Once InnoDB is running, the innodb_commit_concurrency must not change
@@ -1636,26 +1617,6 @@ innobase_create_handler(
 	TABLE_SHARE*	table,
 	MEM_ROOT*	mem_root)
 {
-#ifdef MYSQL_INNODB_PARTITIONING
-	/* If the table:
-	1) have type InnoDB (not the generic partition handlerton)
-	2) have partitioning defined
-	Then return the native partitioning handler ha_innopart
-	else return normal ha_innobase handler. */
-	if (table
-	    && table->db_type() == innodb_hton_ptr // 1)
-	    && table->partition_info_str           // 2)
-	    && table->partition_info_str_len) {    // 2)
-		ha_innopart* file = new (mem_root) ha_innopart(hton, table);
-		if (file && file->init_partitioning(mem_root))
-		{
-			delete file;
-			return(NULL);
-		}
-		return(file);
-	}
-#endif
-
 	return(new (mem_root) ha_innobase(hton, table));
 }
 
@@ -2181,7 +2142,7 @@ convert_error_code_to_mysql(
 		bool comp = !!(flags & DICT_TF_COMPACT);
 		ulint free_space = page_get_free_space_of_empty(comp) / 2;
 
-		if (free_space >= (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
+		if (free_space >= ulint(comp ? COMPRESSED_REC_MAX_DATA_SIZE :
 				          REDUNDANT_REC_MAX_DATA_SIZE)) {
 			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
 				REDUNDANT_REC_MAX_DATA_SIZE) - 1;
@@ -2934,48 +2895,6 @@ check_trx_exists(
 
 	return(trx);
 }
-
-#ifdef MYSQL_REPLACE_TRX_IN_THD
-/** InnoDB transaction object that is currently associated with THD is
-replaced with that of the 2nd argument. The previous value is
-returned through the 3rd argument's buffer, unless it's NULL.  When
-the buffer is not provided (value NULL) that should mean the caller
-restores previously saved association so the current trx has to be
-additionally freed from all association with MYSQL.
-
-@param[in,out]	thd		MySQL thread handle
-@param[in]	new_trx_arg	replacement trx_t
-@param[in,out]	ptr_trx_arg	pointer to a buffer to store old trx_t */
-static
-void
-innodb_replace_trx_in_thd(
-	THD*	thd,
-	void*	new_trx_arg,
-	void**	ptr_trx_arg)
-{
-	trx_t*& trx = thd_to_trx(thd);
-
-	ut_ad(new_trx_arg == NULL
-	      || (((trx_t*) new_trx_arg)->mysql_thd == thd
-		  && !((trx_t*) new_trx_arg)->is_recovered));
-
-	if (ptr_trx_arg) {
-		*ptr_trx_arg = trx;
-
-		ut_ad(trx == NULL
-		      || (trx->mysql_thd == thd && !trx->is_recovered));
-
-	} else if (trx->state == TRX_STATE_NOT_STARTED) {
-		ut_ad(thd == trx->mysql_thd);
-		trx_free_for_mysql(trx);
-	} else {
-		ut_ad(thd == trx->mysql_thd);
-		ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
-		trx_disconnect_prepared(trx);
-	}
-	trx = static_cast<trx_t*>(new_trx_arg);
-}
-#endif /* MYSQL_REPLACE_TRX_IN_THD */
 
 /*************************************************************************
 Gets current trx. */
@@ -3878,11 +3797,6 @@ innobase_init(
 	innobase_hton->flags =
 		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS;
 
-#ifdef MYSQL_REPLACE_TRX_IN_THD
-        innobase_hton->replace_native_transaction_in_thd =
-                innodb_replace_trx_in_thd;
-#endif
-
 #ifdef WITH_WSREP
         innobase_hton->abort_transaction=wsrep_abort_transaction;
         innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
@@ -4611,7 +4525,7 @@ innobase_commit_low(
 	}
 	trx->will_lock = 0;
 #ifdef WITH_WSREP
-	if (wsrep_on(thd)) { thd_proc_info(thd, tmp); }
+	if (thd && wsrep_on(thd)) { thd_proc_info(thd, tmp); }
 #endif /* WITH_WSREP */
 }
 
@@ -5501,19 +5415,6 @@ ha_innobase::table_flags() const
 {
 	THD*			thd = ha_thd();
 	handler::Table_flags	flags = m_int_table_flags;
-
-	/* If querying the table flags when no table_share is given,
-	then we must check if the table to be created/checked is partitioned.
-	*/
-	if (table_share == NULL) {
-	  /* JAN: TODO: MySQL 5.7 Partitioning && thd_get_work_part_info(thd) != NULL) { */
-		/* Currently ha_innopart does not support
-		all InnoDB features such as GEOMETRY, FULLTEXT etc. */
-		/* JAN: TODO: MySQL 5.7
-		flags &= ~(HA_INNOPART_DISABLED_TABLE_FLAGS);
-                }
-		*/
-	}
 
 	/* Need to use tx_isolation here since table flags is (also)
 	called before prebuilt is inited. */
@@ -6522,16 +6423,27 @@ ha_innobase::open(const char* name, int, uint)
 
 	ib_table = open_dict_table(name, norm_name, is_part, ignore_err);
 
+	if (NULL == ib_table) {
+
+		if (is_part) {
+			sql_print_error("Failed to open table %s.\n",
+					norm_name);
+		}
+no_such_table:
+		free_share(m_share);
+		set_my_errno(ENOENT);
+
+		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+	}
+
 	uint n_fields = mysql_fields(table);
+	uint n_cols = dict_table_get_n_user_cols(ib_table)
+		+ dict_table_get_n_v_cols(ib_table)
+		- !!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID);
 
-	if (ib_table != NULL
-	    && ((!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
-		 && n_fields != dict_table_get_n_tot_u_cols(ib_table))
-		|| (DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
-		    && (n_fields != dict_table_get_n_tot_u_cols(ib_table) - 1)))) {
-
+	if (n_cols != n_fields) {
 		ib::warn() << "Table " << norm_name << " contains "
-			<< dict_table_get_n_tot_u_cols(ib_table) << " user"
+			<< n_cols << " user"
 			" defined columns in InnoDB, but " << n_fields
 			<< " columns in MariaDB. Please check"
 			" INFORMATION_SCHEMA.INNODB_SYS_COLUMNS and " REFMAN
@@ -6543,21 +6455,7 @@ ha_innobase::open(const char* name, int, uint)
 		ib_table->file_unreadable = true;
 		ib_table->corrupted = true;
 		dict_table_close(ib_table, FALSE, FALSE);
-		ib_table = NULL;
-		is_part = NULL;
-	}
-
-	if (NULL == ib_table) {
-
-		if (is_part) {
-			sql_print_error("Failed to open table %s.\n",
-					norm_name);
-		}
-
-		free_share(m_share);
-		set_my_errno(ENOENT);
-
-		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+		goto no_such_table;
 	}
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
@@ -11848,9 +11746,9 @@ err_col:
 	} else {
 		if (err == DB_SUCCESS) {
 			err = row_create_table_for_mysql(
-				table, m_trx, false,
+				table, m_trx,
 				(fil_encryption_t)options->encryption,
-				options->encryption_key_id);
+				(uint32_t)options->encryption_key_id);
 		}
 
 		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",
@@ -15472,7 +15370,7 @@ ha_innobase::update_table_comment(
 {
 	uint	length = (uint) strlen(comment);
 	char*	str=0;
-	long	flen;
+	size_t	flen;
 	std::string fk_str;
 
 	/* We do not know if MySQL can call this function before calling
@@ -15500,9 +15398,7 @@ ha_innobase::update_table_comment(
 
 	flen = fk_str.length();
 
-	if (flen < 0) {
-		flen = 0;
-	} else if (length + flen + 3 > 64000) {
+	if (length + flen + 3 > 64000) {
 		flen = 64000 - 3 - length;
 	}
 	/* allocate buffer for the full string */
@@ -15591,7 +15487,7 @@ get_foreign_key_info(
 
 	ptr = dict_remove_db_name(foreign->id);
 	f_key_info.foreign_id = thd_make_lex_string(
-		thd, 0, ptr, (uint) strlen(ptr), 1);
+		thd, 0, ptr, strlen(ptr), 1);
 
 	/* Name format: database name, '/', table name, '\0' */
 
@@ -15603,13 +15499,13 @@ get_foreign_key_info(
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
 	f_key_info.referenced_db = thd_make_lex_string(
-		thd, 0, name_buff, static_cast<unsigned int>(len), 1);
+		thd, 0, name_buff, len, 1);
 
 	/* Referenced (parent) table name */
 	ptr = dict_remove_db_name(foreign->referenced_table_name);
 	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff));
 	f_key_info.referenced_table = thd_make_lex_string(
-		thd, 0, name_buff, static_cast<unsigned int>(len), 1);
+		thd, 0, name_buff, len, 1);
 
 	/* Dependent (child) database name */
 	len = dict_get_db_name_len(foreign->foreign_table_name);
@@ -15619,22 +15515,22 @@ get_foreign_key_info(
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
 	f_key_info.foreign_db = thd_make_lex_string(
-		thd, 0, name_buff, static_cast<unsigned int>(len), 1);
+		thd, 0, name_buff, len, 1);
 
 	/* Dependent (child) table name */
 	ptr = dict_remove_db_name(foreign->foreign_table_name);
 	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff));
 	f_key_info.foreign_table = thd_make_lex_string(
-		thd, 0, name_buff, static_cast<unsigned int>(len), 1);
+		thd, 0, name_buff, len, 1);
 
 	do {
 		ptr = foreign->foreign_col_names[i];
 		name = thd_make_lex_string(thd, name, ptr,
-					   (uint) strlen(ptr), 1);
+					   strlen(ptr), 1);
 		f_key_info.foreign_fields.push_back(name);
 		ptr = foreign->referenced_col_names[i];
 		name = thd_make_lex_string(thd, name, ptr,
-					   (uint) strlen(ptr), 1);
+					   strlen(ptr), 1);
 		f_key_info.referenced_fields.push_back(name);
 	} while (++i < foreign->n_fields);
 
@@ -15691,7 +15587,7 @@ get_foreign_key_info(
 			thd,
 			f_key_info.referenced_key_name,
 			foreign->referenced_index->name,
-			(uint) strlen(foreign->referenced_index->name),
+			strlen(foreign->referenced_index->name),
 			1);
 	} else {
 		referenced_key_name = NULL;
@@ -22139,8 +22035,8 @@ innobase_find_mysql_table_for_vc(
 	char	dbname[MAX_DATABASE_NAME_LEN + 1];
 	char	tbname[MAX_TABLE_NAME_LEN + 1];
 	char*	name = table->name.m_name;
-	uint	dbnamelen = dict_get_db_name_len(name);
-	uint	tbnamelen = strlen(name) - dbnamelen - 1;
+	uint	dbnamelen = (uint) dict_get_db_name_len(name);
+	uint	tbnamelen = (uint) strlen(name) - dbnamelen - 1;
 	char	t_dbname[MAX_DATABASE_NAME_LEN + 1];
 	char	t_tbname[MAX_TABLE_NAME_LEN + 1];
 
@@ -22155,7 +22051,6 @@ innobase_find_mysql_table_for_vc(
 
 	if (is_part != NULL) {
 		*is_part = '\0';
-		tbnamelen = is_part - tbname;
 	}
 
 	dbnamelen = filename_to_tablename(dbname, t_dbname,
@@ -22665,7 +22560,7 @@ innobase_convert_to_filename_charset(
 
 	return(static_cast<uint>(strconvert(
 				cs_from, from, strlen(from),
-				cs_to, to, static_cast<size_t>(len), &errors)));
+				cs_to, to, static_cast<uint>(len), &errors)));
 }
 
 /**********************************************************************
@@ -22684,7 +22579,7 @@ innobase_convert_to_system_charset(
 
 	return(static_cast<uint>(strconvert(
 				cs1, from, strlen(from),
-				cs2, to, static_cast<size_t>(len), errors)));
+				cs2, to, static_cast<uint>(len), errors)));
 }
 
 /**********************************************************************

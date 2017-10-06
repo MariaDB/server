@@ -141,7 +141,8 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
                     table_map first_table_bit)
 {
   int error;
-  size_t memory_available= thd->variables.sortbuff_size;
+  DBUG_ASSERT(thd->variables.sortbuff_size <= SIZE_T_MAX);
+  size_t memory_available= (size_t)thd->variables.sortbuff_size;
   uint maxbuffer;
   BUFFPEK *buffpek;
   ha_rows num_rows= HA_POS_ERROR;
@@ -1803,7 +1804,7 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
     if (flag == 0)
     {
       if (my_b_write(to_file, (uchar*) buffpek->key,
-                     (rec_length*buffpek->mem_count)))
+                     (size_t)(rec_length*buffpek->mem_count)))
       {
         error= 1; goto err;                        /* purecov: inspected */
       }

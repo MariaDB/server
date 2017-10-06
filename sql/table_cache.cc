@@ -68,7 +68,7 @@ I_P_List <TDC_element,
           I_P_List_null_counter,
           I_P_List_fast_push_back<TDC_element> > unused_shares;
 
-static int64 tdc_version;  /* Increments on each reload */
+static tdc_version_t tdc_version;  /* Increments on each reload */
 static bool tdc_inited;
 
 
@@ -913,8 +913,8 @@ retry:
   }
 
 end:
-  DBUG_PRINT("exit", ("share: 0x%lx  ref_count: %u",
-                      (ulong) share, share->tdc->ref_count));
+  DBUG_PRINT("exit", ("share: %p  ref_count: %u",
+                      share, share->tdc->ref_count));
   if (flags & GTS_NOLOCK)
   {
     tdc_release_share(share);
@@ -945,8 +945,8 @@ void tdc_release_share(TABLE_SHARE *share)
 
   mysql_mutex_lock(&share->tdc->LOCK_table_share);
   DBUG_PRINT("enter",
-             ("share: 0x%lx  table: %s.%s  ref_count: %u  version: %lu",
-              (ulong) share, share->db.str, share->table_name.str,
+             ("share: %p  table: %s.%s  ref_count: %u  version: %lld",
+              share, share->db.str, share->table_name.str,
               share->tdc->ref_count, share->tdc->version));
   DBUG_ASSERT(share->tdc->ref_count);
 
@@ -1181,8 +1181,7 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
 */
 
 int tdc_wait_for_old_version(THD *thd, const char *db, const char *table_name,
-                             ulong wait_timeout, uint deadlock_weight,
-                             ulong refresh_version)
+                             ulong wait_timeout, uint deadlock_weight, tdc_version_t refresh_version)
 {
   TDC_element *element;
 
@@ -1201,16 +1200,16 @@ int tdc_wait_for_old_version(THD *thd, const char *db, const char *table_name,
 }
 
 
-ulong tdc_refresh_version(void)
+tdc_version_t tdc_refresh_version(void)
 {
-  return my_atomic_load64_explicit(&tdc_version, MY_MEMORY_ORDER_RELAXED);
+  return (tdc_version_t)my_atomic_load64_explicit(&tdc_version, MY_MEMORY_ORDER_RELAXED);
 }
 
 
-ulong tdc_increment_refresh_version(void)
+tdc_version_t tdc_increment_refresh_version(void)
 {
-  ulong v= my_atomic_add64_explicit(&tdc_version, 1, MY_MEMORY_ORDER_RELAXED);
-  DBUG_PRINT("tcache", ("incremented global refresh_version to: %lu", v));
+  tdc_version_t v= (tdc_version_t)my_atomic_add64_explicit(&tdc_version, 1, MY_MEMORY_ORDER_RELAXED);
+  DBUG_PRINT("tcache", ("incremented global refresh_version to: %lld", v));
   return v + 1;
 }
 

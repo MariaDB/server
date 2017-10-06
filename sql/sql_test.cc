@@ -432,7 +432,7 @@ static void push_locks_into_array(DYNAMIC_ARRAY *ar, THR_LOCK_DATA *data,
     if (table && table->s->tmp_table == NO_TMP_TABLE)
     {
       TABLE_LOCK_INFO table_lock_info;
-      table_lock_info.thread_id= table->in_use->thread_id;
+      table_lock_info.thread_id= (ulong)table->in_use->thread_id;
       memcpy(table_lock_info.table_name, table->s->table_cache_key.str,
 	     table->s->table_cache_key.length);
       table_lock_info.table_name[strlen(table_lock_info.table_name)]='.';

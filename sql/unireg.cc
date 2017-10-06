@@ -452,9 +452,9 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
     int2store(pos+6, key->block_size);
     pos+=8;
     key_parts+=key->user_defined_key_parts;
-    DBUG_PRINT("loop", ("flags: %lu  key_parts: %d  key_part: 0x%lx",
+    DBUG_PRINT("loop", ("flags: %lu  key_parts: %d  key_part: %p",
                         key->flags, key->user_defined_key_parts,
-                        (long) key->key_part));
+                        key->key_part));
     for (key_part=key->key_part,key_part_end=key_part+key->user_defined_key_parts ;
 	 key_part != key_part_end ;
 	 key_part++)
@@ -619,7 +619,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
                                 ER_TOO_LONG_FIELD_COMMENT, field->field_name))
        DBUG_RETURN(1);
 
-    totlength+= field->length;
+    totlength+= (size_t)field->length;
     com_length+= field->comment.length;
     /*
       We mark first TIMESTAMP field with NOW() in DEFAULT or ON UPDATE
@@ -949,7 +949,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     /* regfield don't have to be deleted as it's allocated on THD::mem_root */
     Field *regfield= make_field(&share, thd->mem_root,
                                 buff+field->offset + data_offset,
-                                field->length,
+                                (uint32)field->length,
                                 null_pos + null_count / 8,
                                 null_count & 7,
                                 field->pack_flag,

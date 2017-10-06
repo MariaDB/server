@@ -726,8 +726,7 @@ fill_lock_data(
 	ut_a(n_fields > 0);
 
 	heap = NULL;
-	offsets = rec_get_offsets(rec, index, offsets, n_fields,
-				  &heap);
+	offsets = rec_get_offsets(rec, index, offsets, true, n_fields, &heap);
 
 	/* format and store the data */
 

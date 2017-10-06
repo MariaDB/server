@@ -234,7 +234,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     mysql_mutex_lock(log_lock);
     if (relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
         relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
-                       max_relay_log_size, 1, TRUE))
+                       (ulong)max_relay_log_size, 1, TRUE))
     {
       mysql_mutex_unlock(log_lock);
       mysql_mutex_unlock(&data_lock);
@@ -1175,7 +1175,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
       }
       mysql_mutex_lock(rli->relay_log.get_log_lock());
       if (rli->relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
-                             (rli->max_relay_log_size ? rli->max_relay_log_size :
+                             (ulong)(rli->max_relay_log_size ? rli->max_relay_log_size :
                               max_binlog_size), 1, TRUE))
       {
         sql_print_error("Unable to purge relay log files. Failed to open relay "
@@ -1577,9 +1577,9 @@ rpl_load_gtid_slave_state(THD *thd)
         goto end;
       }
     }
-    domain_id= (ulonglong)table->field[0]->val_int();
+    domain_id= (uint32)table->field[0]->val_int();
     sub_id= (ulonglong)table->field[1]->val_int();
-    server_id= (ulonglong)table->field[2]->val_int();
+    server_id= (uint32)table->field[2]->val_int();
     seq_no= (ulonglong)table->field[3]->val_int();
     DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu\n",
                         (unsigned)domain_id, (unsigned)server_id,

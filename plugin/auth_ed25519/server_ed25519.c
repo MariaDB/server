@@ -33,7 +33,6 @@ static int loaded= 0;
 
 static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
-  unsigned int i;
   int pkt_len;
   unsigned long nonce[CRYPTO_LONGS + NONCE_LONGS];
   unsigned char *pkt, *reply= (unsigned char*)nonce;
@@ -51,8 +50,8 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   info->password_used= PASSWORD_USED_YES;
 
   /* prepare random nonce */
-  for (i=CRYPTO_LONGS; i < CRYPTO_LONGS + NONCE_LONGS; i++)
-    nonce[i]= thd_rnd(info->thd) * ~0UL;
+  if (my_random_bytes((unsigned char *)nonce, (int)sizeof(nonce)))
+    return CR_AUTH_USER_CREDENTIALS;
 
   /* send it */
   if (vio->write_packet(vio, reply + CRYPTO_BYTES, NONCE_BYTES))

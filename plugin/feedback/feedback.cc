@@ -112,7 +112,7 @@ static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_STRING *filter)
     Item_field  *fld= new (thd->mem_root) Item_field(thd, &nrc, db, table,
                                                      field);
     Item_string *pattern= new (thd->mem_root) Item_string(thd, filter->str,
-                                                          filter->length, cs);
+                                                          (uint) filter->length, cs);
     Item_string *escape= new (thd->mem_root) Item_string(thd, "\\", 1, cs);
 
     if (!fld || !pattern || !escape)

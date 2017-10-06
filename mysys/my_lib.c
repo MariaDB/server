@@ -221,7 +221,7 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   long		handle;
 #endif
   DBUG_ENTER("my_dir");
-  DBUG_PRINT("my",("path: '%s' stat: %d  MyFlags: %d",path,MyFlags));
+  DBUG_PRINT("my",("path: '%s' MyFlags: %d",path,MyFlags));
 
   /* Put LIB-CHAR as last path-character if not there */
   tmp_file=tmp_path;
@@ -347,8 +347,8 @@ MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags)
 {
   int m_used;
   DBUG_ENTER("my_stat");
-  DBUG_PRINT("my", ("path: '%s'  stat_area: 0x%lx  MyFlags: %lu", path,
-                    (long) stat_area, my_flags));
+  DBUG_PRINT("my", ("path: '%s'  stat_area: %p  MyFlags: %lu", path,
+                    stat_area, my_flags));
 
   if ((m_used= (stat_area == NULL)))
     if (!(stat_area= (MY_STAT *) my_malloc(sizeof(MY_STAT), my_flags)))

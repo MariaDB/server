@@ -231,7 +231,7 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
   //MYSQL_TYPE_NULL         MYSQL_TYPE_TIMESTAMP
     MYSQL_TYPE_FLOAT,       MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_LONGLONG     MYSQL_TYPE_INT24
-    MYSQL_TYPE_FLOAT,       MYSQL_TYPE_FLOAT,
+    MYSQL_TYPE_DOUBLE,      MYSQL_TYPE_FLOAT,
   //MYSQL_TYPE_DATE         MYSQL_TYPE_TIME
     MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_DATETIME     MYSQL_TYPE_YEAR
@@ -1807,6 +1807,33 @@ int Field::store(const char *to, uint length, CHARSET_INFO *cs,
   return res;
 }
 
+
+static int timestamp_to_TIME(THD *thd, MYSQL_TIME *ltime, my_time_t ts,
+                             ulong sec_part, ulonglong fuzzydate)
+{
+  thd->time_zone_used= 1;
+  if (ts == 0 && sec_part == 0)
+  {
+    if (fuzzydate & TIME_NO_ZERO_DATE)
+      return 1;
+    set_zero_time(ltime, MYSQL_TIMESTAMP_DATETIME);
+  }
+  else
+  {
+    thd->variables.time_zone->gmt_sec_to_TIME(ltime, ts);
+    ltime->second_part= sec_part;
+  }
+  return 0;
+}
+
+
+int Field::store_timestamp(my_time_t ts, ulong sec_part)
+{
+  MYSQL_TIME ltime;
+  THD *thd= get_thd();
+  timestamp_to_TIME(thd, &ltime, ts, sec_part, 0);
+  return store_time_dec(&ltime, decimals());
+}
 
 /**
    Pack the field into a format suitable for storage and transfer.
@@ -4966,6 +4993,13 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
 }
 
 
+int Field_timestamp::save_in_field(Field *to)
+{
+  ulong sec_part;
+  my_time_t ts= get_timestamp(&sec_part);
+  return to->store_timestamp(ts, sec_part);
+}
+
 my_time_t Field_timestamp::get_timestamp(const uchar *pos,
                                          ulong *sec_part) const
 {
@@ -5092,6 +5126,22 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
 }
 
 
+int Field_timestamp::store_timestamp(my_time_t ts, ulong sec_part)
+{
+  store_TIME(ts, sec_part);
+  if (ts == 0 && sec_part == 0 &&
+      get_thd()->variables.sql_mode & TIME_NO_ZERO_DATE)
+  {
+    ErrConvString s(
+      STRING_WITH_LEN("0000-00-00 00:00:00.000000") - (decimals() ? 6 - decimals() : 7),
+      system_charset_info);
+    set_datetime_warning(WARN_DATA_TRUNCATED, &s, MYSQL_TIMESTAMP_DATETIME, 1);
+    return 1;
+  }
+  return 0;
+}
+
+
 double Field_timestamp::val_real(void)
 {
   return (double) Field_timestamp::val_int();
@@ -5195,22 +5245,9 @@ Field_timestamp::validate_value_in_record(THD *thd, const uchar *record) const
 
 bool Field_timestamp::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
-  THD *thd= get_thd();
-  thd->time_zone_used= 1;
   ulong sec_part;
-  my_time_t temp= get_timestamp(&sec_part);
-  if (temp == 0 && sec_part == 0)
-  {				      /* Zero time is "000000" */
-    if (fuzzydate & TIME_NO_ZERO_DATE)
-      return 1;
-    set_zero_time(ltime, MYSQL_TIMESTAMP_DATETIME);
-  }
-  else
-  {
-    thd->variables.time_zone->gmt_sec_to_TIME(ltime, (my_time_t)temp);
-    ltime->second_part= sec_part;
-  }
-  return 0;
+  my_time_t ts= get_timestamp(&sec_part);
+  return timestamp_to_TIME(get_thd(), ltime, ts, sec_part, fuzzydate);
 }
 
 
@@ -5258,36 +5295,6 @@ int Field_timestamp::set_time()
   set_notnull();
   store_TIME(get_thd()->query_start(), 0);
   return 0;
-}
-
-/**
-  Mark the field as having an explicit default value.
-
-  @param value  if available, the value that the field is being set to
-  @returns whether the explicit default bit was set
-
-  @note
-    Fields that have an explicit default value should not be updated
-    automatically via the DEFAULT or ON UPDATE functions. The functions
-    that deal with data change functionality (INSERT/UPDATE/LOAD),
-    determine if there is an explicit value for each field before performing
-    the data change, and call this method to mark the field.
-
-    For timestamp columns, the only case where a column is not marked
-    as been given a value are:
-    - It's explicitly assigned with DEFAULT
-    - We assign NULL to a timestamp field that is defined as NOT NULL.
-      This is how MySQL has worked since it's start.
-*/
-
-bool Field_timestamp::set_explicit_default(Item *value)
-{
-  if (((value->type() == Item::DEFAULT_VALUE_ITEM &&
-        !((Item_default_value*)value)->arg) ||
-       (!maybe_null() && value->null_value)))
-    return false;
-  set_has_explicit_value();
-  return true;
 }
 
 #ifdef NOT_USED
@@ -5588,7 +5595,7 @@ int Field_temporal_with_date::store(double nr)
   ErrConvDouble str(nr);
 
   longlong tmp= double_to_datetime(nr, &ltime,
-                                    sql_mode_for_dates(thd), &error);
+                                    (uint) sql_mode_for_dates(thd), &error);
   return store_TIME_with_warning(&ltime, &str, error, tmp != -1);
 }
 
@@ -7942,7 +7949,7 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
     DBUG_ASSERT(length <= max_data_length());
     
     new_length= length;
-    copy_length= table->in_use->variables.group_concat_max_len;
+    copy_length= (uint)MY_MIN(UINT_MAX,table->in_use->variables.group_concat_max_len);
     if (new_length > copy_length)
     {
       new_length= Well_formed_prefix(cs,
@@ -8354,8 +8361,8 @@ const uchar *Field_blob::unpack(uchar *to, const uchar *from,
                                 const uchar *from_end, uint param_data)
 {
   DBUG_ENTER("Field_blob::unpack");
-  DBUG_PRINT("enter", ("to: 0x%lx; from: 0x%lx; param_data: %u",
-                       (ulong) to, (ulong) from, param_data));
+  DBUG_PRINT("enter", ("to: %p; from: %p; param_data: %u",
+                       to, from, param_data));
   uint const master_packlength=
     param_data > 0 ? param_data & 0xFF : packlength;
   if (from + master_packlength > from_end)
@@ -8489,7 +8496,7 @@ uint gis_field_options_read(const uchar *buf, uint buf_len,
   }
 
 end_of_record:
-  return cbuf - buf;
+  return (uint)(cbuf - buf);
 }
 
 
@@ -9209,8 +9216,8 @@ Field_bit::do_last_null_byte() const
     bits. On systems with CHAR_BIT > 8 (not very common), the storage
     will lose the extra bits.
   */
-  DBUG_PRINT("test", ("bit_ofs: %d, bit_len: %d  bit_ptr: 0x%lx",
-                      bit_ofs, bit_len, (long) bit_ptr));
+  DBUG_PRINT("test", ("bit_ofs: %d, bit_len: %d  bit_ptr: %p",
+                      bit_ofs, bit_len, bit_ptr));
   uchar *result;
   if (bit_len == 0)
     result= null_ptr;
@@ -9743,8 +9750,9 @@ void Column_definition::create_length_to_internal_length(void)
   case MYSQL_TYPE_STRING:
   case MYSQL_TYPE_VARCHAR:
     length*= charset->mbmaxlen;
-    key_length= length;
-    pack_length= calc_pack_length(sql_type, length);
+    DBUG_ASSERT(length <= UINT_MAX32);
+    key_length= (uint32)length;
+    pack_length= calc_pack_length(sql_type, key_length);
     break;
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
@@ -9759,21 +9767,21 @@ void Column_definition::create_length_to_internal_length(void)
     }
     else
     {
-      pack_length= length / 8;
+      pack_length= (uint)(length / 8);
       /* We need one extra byte to store the bits we save among the null bits */
       key_length= pack_length + MY_TEST(length & 7);
     }
     break;
   case MYSQL_TYPE_NEWDECIMAL:
     key_length= pack_length=
-      my_decimal_get_binary_size(my_decimal_length_to_precision(length,
+      my_decimal_get_binary_size(my_decimal_length_to_precision((uint)length,
 								decimals,
 								flags &
 								UNSIGNED_FLAG),
 				 decimals);
     break;
   default:
-    key_length= pack_length= calc_pack_length(sql_type, length);
+    key_length= pack_length= calc_pack_length(sql_type, (uint)length);
     break;
   }
 }
@@ -9946,9 +9954,9 @@ bool Column_definition::check(THD *thd)
       DBUG_RETURN(TRUE);
     }
     length=
-      my_decimal_precision_to_length(length, decimals, flags & UNSIGNED_FLAG);
+      my_decimal_precision_to_length((uint)length, decimals, flags & UNSIGNED_FLAG);
     pack_length=
-      my_decimal_get_binary_size(length, decimals);
+      my_decimal_get_binary_size((uint)length, decimals);
     break;
   case MYSQL_TYPE_VARCHAR:
     /*
@@ -10070,14 +10078,14 @@ bool Column_definition::check(THD *thd)
                  static_cast<ulong>(MAX_BIT_FIELD_LENGTH));
         DBUG_RETURN(TRUE);
       }
-      pack_length= (length + 7) / 8;
+      pack_length= ((uint)length + 7) / 8;
       break;
     }
   case MYSQL_TYPE_DECIMAL:
     DBUG_ASSERT(0); /* Was obsolete */
   }
   /* Remember the value of length */
-  char_length= length;
+  char_length= (uint)length;
 
   /*
     Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
@@ -10539,7 +10547,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     interval= ((Field_enum*) old_field)->typelib;
   else
     interval=0;
-  char_length= length;
+  char_length= (uint)length;
 
   /*
     Copy the default (constant/function) from the column object orig_field, if
@@ -10832,7 +10840,7 @@ bool Field::save_in_field_default_value(bool view_error_processing)
     {
       my_message(ER_CANT_CREATE_GEOMETRY_OBJECT,
                  ER_THD(thd, ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
-      return -1;
+      return true;
     }
 
     if (view_error_processing)
@@ -10851,13 +10859,13 @@ bool Field::save_in_field_default_value(bool view_error_processing)
                           ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
                           field_name);
     }
-    return 1;
+    return true;
   }
   set_default();
   return
     !is_null() &&
     validate_value_in_record_with_warn(thd, table->record[0]) &&
-    thd->is_error() ? -1 : 0;
+    thd->is_error();
 }
 
 

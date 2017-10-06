@@ -464,8 +464,8 @@ inline
 bool
 wsrep_must_process_fk(const upd_node_t* node, const trx_t* trx)
 {
-	if (que_node_get_type(node->common.parent) != QUE_NODE_UPDATE ||
-	    !wsrep_on(trx->mysql_thd)) {
+	if (que_node_get_type(node->common.parent) != QUE_NODE_UPDATE
+	    || !wsrep_on_trx(trx)) {
 		return false;
 	}
 
@@ -1006,7 +1006,7 @@ row_upd_build_sec_rec_difference_binary(
 
 			dfield_copy(&(upd_field->new_val), dfield);
 
-			upd_field_set_field_no(upd_field, i, index, NULL);
+			upd_field_set_field_no(upd_field, i, index);
 
 			n_diff++;
 		}
@@ -1069,7 +1069,7 @@ row_upd_build_difference_binary(
 	      == trx_id_pos + 1);
 
 	if (!offsets) {
-		offsets = rec_get_offsets(rec, index, offsets_,
+		offsets = rec_get_offsets(rec, index, offsets_, true,
 					  ULINT_UNDEFINED, &heap);
 	} else {
 		ut_ad(rec_offs_validate(rec, index, offsets));
@@ -1103,7 +1103,7 @@ row_upd_build_difference_binary(
 
 			dfield_copy(&(upd_field->new_val), dfield);
 
-			upd_field_set_field_no(upd_field, i, index, trx);
+			upd_field_set_field_no(upd_field, i, index);
 
 			n_diff++;
 		}
@@ -2196,7 +2196,7 @@ row_upd_store_row(
 
 	rec = btr_pcur_get_rec(node->pcur);
 
-	offsets = rec_get_offsets(rec, clust_index, offsets_,
+	offsets = rec_get_offsets(rec, clust_index, offsets_, true,
 				  ULINT_UNDEFINED, &heap);
 
 	if (dict_table_get_format(node->table) >= UNIV_FORMAT_B) {
@@ -2444,8 +2444,8 @@ row_upd_sec_index_entry(
 			    && !wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 
 				ulint*	offsets = rec_get_offsets(
-					rec, index, NULL, ULINT_UNDEFINED,
-					&heap);
+					rec, index, NULL, true,
+					ULINT_UNDEFINED, &heap);
 
 				err = wsrep_row_upd_check_foreign_constraints(
 					node, &pcur, index->table,
@@ -2481,7 +2481,7 @@ row_upd_sec_index_entry(
 			ulint*	offsets;
 
 			offsets = rec_get_offsets(
-				rec, index, NULL, ULINT_UNDEFINED,
+				rec, index, NULL, true, ULINT_UNDEFINED,
 				&heap);
 
 			/* NOTE that the following call loses
@@ -2691,7 +2691,7 @@ row_upd_clust_rec_by_insert(
 		we update the primary key.  Delete-mark the old record
 		in the clustered index and prepare to insert a new entry. */
 		rec = btr_cur_get_rec(btr_cur);
-		offsets = rec_get_offsets(rec, index, NULL,
+		offsets = rec_get_offsets(rec, index, NULL, true,
 					  ULINT_UNDEFINED, &heap);
 		ut_ad(page_rec_is_user_rec(rec));
 
@@ -3130,7 +3130,7 @@ row_upd_clust_step(
 	}
 
 	rec = btr_pcur_get_rec(pcur);
-	offsets = rec_get_offsets(rec, index, offsets_,
+	offsets = rec_get_offsets(rec, index, offsets_, true,
 				  ULINT_UNDEFINED, &heap);
 
 	if (!flags && !node->has_clust_rec_x_lock) {

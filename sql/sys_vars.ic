@@ -234,25 +234,25 @@ typedef Sys_var_integer<long, GET_LONG, SHOW_SLONG> Sys_var_long;
 
 template<> uchar *Sys_var_int::default_value_ptr(THD *thd)
 {
-  thd->sys_var_tmp.int_value= option.def_value;
+  thd->sys_var_tmp.int_value= (int)option.def_value;
   return (uchar*) &thd->sys_var_tmp.int_value;
 }
 
 template<> uchar *Sys_var_uint::default_value_ptr(THD *thd)
 {
-  thd->sys_var_tmp.uint_value= option.def_value;
+  thd->sys_var_tmp.uint_value= (uint)option.def_value;
   return (uchar*) &thd->sys_var_tmp.uint_value;
 }
 
 template<> uchar *Sys_var_long::default_value_ptr(THD *thd)
 {
-  thd->sys_var_tmp.long_value= option.def_value;
+  thd->sys_var_tmp.long_value= (long)option.def_value;
   return (uchar*) &thd->sys_var_tmp.long_value;
 }
 
 template<> uchar *Sys_var_ulong::default_value_ptr(THD *thd)
 {
-  thd->sys_var_tmp.ulong_value= option.def_value;
+  thd->sys_var_tmp.ulong_value= (ulong)option.def_value;
   return (uchar*) &thd->sys_var_tmp.ulong_value;
 }
 
@@ -369,7 +369,7 @@ public:
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
   { return valptr(thd, global_var(ulong)); }
   uchar *default_value_ptr(THD *thd)
-  { return valptr(thd, option.def_value); }
+  { return valptr(thd, (ulong)option.def_value); }
 };
 
 /**
@@ -416,7 +416,7 @@ public:
   { var->save_result.ulonglong_value= option.def_value; }
   uchar *default_value_ptr(THD *thd)
   {
-    thd->sys_var_tmp.my_bool_value= option.def_value;
+    thd->sys_var_tmp.my_bool_value=(my_bool) option.def_value;
     return (uchar*) &thd->sys_var_tmp.my_bool_value;
   }
 };

@@ -539,7 +539,7 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 				SetJsonValue(g, MulVal, jvp, n);
 
 			if (!MulVal->IsNull()) {
-					switch (op) {
+				switch (op) {
 					case OP_CNC:
 						if (Nodes[n].CncVal) {
 							val[0] = Nodes[n].CncVal;
@@ -1563,7 +1563,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 				n = strlen(s);
 
 			if (IsJson(args, i))
-				j = strchr(s, '_') - s + 1;
+				j = (int)(strchr(s, '_') - s + 1);
 
 			if (j && n > j) {
 				s += j;

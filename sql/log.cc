@@ -1292,7 +1292,7 @@ bool LOGGER::slow_log_print(THD *thd, const char *query, uint query_length,
     }
 
     /* fill in user_host value: the format is "%s[%s] @ %s [%s]" */
-    user_host_len= (strxnmov(user_host_buff, MAX_USER_HOST_SIZE,
+    user_host_len= (uint)(strxnmov(user_host_buff, MAX_USER_HOST_SIZE,
                              sctx->priv_user, "[",
                              sctx->user ? sctx->user : (thd->slave_thread ? "SQL_SLAVE" : ""), "] @ ",
                              sctx->host ? sctx->host : "", " [",
@@ -5254,7 +5254,7 @@ bool MYSQL_BIN_LOG::write_event_buffer(uchar* buf, uint len)
     if (!ebuf)
       goto err;
 
-    crypto.set_iv(iv, my_b_append_tell(&log_file));
+    crypto.set_iv(iv, (uint32)my_b_append_tell(&log_file));
 
     /*
       we want to encrypt everything, excluding the event length:
@@ -5480,9 +5480,9 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
   cache_mngr= (binlog_cache_mngr*) my_malloc(sizeof(binlog_cache_mngr), MYF(MY_ZEROFILL));
   if (!cache_mngr ||
       open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, binlog_stmt_cache_size, MYF(MY_WME)) ||
+                       LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)) ||
       open_cached_file(&cache_mngr->trx_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, binlog_cache_size, MYF(MY_WME)))
+                       LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
   {
     my_free(cache_mngr);
     DBUG_RETURN(0);                      // Didn't manage to set it up
@@ -5611,8 +5611,8 @@ int THD::binlog_write_table_map(TABLE *table, bool is_transactional,
 {
   int error;
   DBUG_ENTER("THD::binlog_write_table_map");
-  DBUG_PRINT("enter", ("table: 0x%lx  (%s: #%lu)",
-                       (long) table, table->s->table_name.str,
+  DBUG_PRINT("enter", ("table: %p  (%s: #%lu)",
+                       table, table->s->table_name.str,
                        table->s->table_map_id));
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -5763,7 +5763,7 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
 {
   DBUG_ENTER("MYSQL_BIN_LOG::flush_and_set_pending_rows_event(event)");
   DBUG_ASSERT(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open());
-  DBUG_PRINT("enter", ("event: 0x%lx", (long) event));
+  DBUG_PRINT("enter", ("event: %p", event));
 
   int error= 0;
   binlog_cache_mngr *const cache_mngr=
@@ -5774,7 +5774,7 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
   binlog_cache_data *cache_data=
     cache_mngr->get_binlog_cache_data(use_trans_cache(thd, is_transactional));
 
-  DBUG_PRINT("info", ("cache_mngr->pending(): 0x%lx", (long) cache_data->pending()));
+  DBUG_PRINT("info", ("cache_mngr->pending(): %p", cache_data->pending()));
 
   if (Rows_log_event* pending= cache_data->pending())
   {

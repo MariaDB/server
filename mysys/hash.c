@@ -84,7 +84,7 @@ my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
 {
   my_bool res;
   DBUG_ENTER("my_hash_init");
-  DBUG_PRINT("enter",("hash: 0x%lx  size: %u", (long) hash, (uint) size));
+  DBUG_PRINT("enter",("hash:%p  size: %u", hash, (uint) size));
 
   hash->records=0;
   hash->key_offset=key_offset;
@@ -144,8 +144,8 @@ static inline void my_hash_free_elements(HASH *hash)
 void my_hash_free(HASH *hash)
 {
   DBUG_ENTER("my_hash_free");
-  DBUG_PRINT("enter",("hash: 0x%lx  elements: %ld",
-                      (long) hash, hash->records));
+  DBUG_PRINT("enter",("hash:%p  elements: %ld",
+                      hash, hash->records));
 
   my_hash_free_elements(hash);
   hash->free= 0;
@@ -166,7 +166,7 @@ void my_hash_free(HASH *hash)
 void my_hash_reset(HASH *hash)
 {
   DBUG_ENTER("my_hash_reset");
-  DBUG_PRINT("enter",("hash: 0x%lxd", (long) hash));
+  DBUG_PRINT("enter",("hash:%p", hash));
 
   my_hash_free_elements(hash);
   reset_dynamic(&hash->array);
@@ -844,8 +844,8 @@ my_bool my_hash_check(HASH *hash)
                                         blength, records)) != i)
 	{
           DBUG_PRINT("error", ("Record in wrong link at %d: Start %d  "
-                               "Record: 0x%lx  Record-link %d",
-                               idx, i, (long) hash_info->data, rec_link));
+                               "Record:%p  Record-link %d",
+                               idx, i, hash_info->data, rec_link));
 	  error=1;
 	}
 	else

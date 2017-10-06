@@ -190,7 +190,7 @@ static void set_host_key(PFS_host_key *key,
   }
   ptr[0]= 0;
   ptr++;
-  key->m_key_length= ptr - &key->m_hash_key[0];
+  key->m_key_length= (uint)(ptr - &key->m_hash_key[0]);
 }
 
 PFS_host *find_or_create_host(PFS_thread *thread,

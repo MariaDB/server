@@ -16547,7 +16547,7 @@ view_select:
           opt_with_clause query_expression_body_view view_check_option
           {
             LEX *lex= Lex;
-            uint len= YYLIP->get_cpp_ptr() - lex->create_view_select.str;
+            size_t len= YYLIP->get_cpp_ptr() - lex->create_view_select.str;
             uint not_used;
             void *create_view_select= thd->memdup(lex->create_view_select.str, len);
             lex->create_view_select.length= len;

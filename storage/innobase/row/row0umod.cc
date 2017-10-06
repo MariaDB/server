@@ -196,7 +196,7 @@ row_undo_mod_remove_clust_low(
 
 		offsets = rec_get_offsets(
 			btr_cur_get_rec(btr_cur), btr_cur_get_index(btr_cur),
-			NULL, trx_id_col + 1, &heap);
+			NULL, true, trx_id_col + 1, &heap);
 
 		trx_id_offset = rec_get_nth_field_offs(
 			offsets, trx_id_col, &len);
@@ -272,9 +272,12 @@ row_undo_mod_clust(
 	pcur = &node->pcur;
 	index = btr_cur_get_index(btr_pcur_get_btr_cur(pcur));
 
-	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
-	dict_disable_redo_if_temporary(index->table, &mtr);
+	mtr.start();
+	if (index->table->is_temporary()) {
+		mtr.set_log_mode(MTR_LOG_NO_REDO);
+	} else {
+		mtr.set_named_space(index->space);
+	}
 
 	online = dict_index_is_online_ddl(index);
 	if (online) {
@@ -304,8 +307,11 @@ row_undo_mod_clust(
 		descent down the index tree */
 
 		mtr_start_trx(&mtr, thr_get_trx(thr));
-		mtr.set_named_space(index->space);
-		dict_disable_redo_if_temporary(index->table, &mtr);
+		if (index->table->is_temporary()) {
+			mtr.set_log_mode(MTR_LOG_NO_REDO);
+		} else {
+			mtr.set_named_space(index->space);
+		}
 
 		err = row_undo_mod_clust_low(
 			node, &offsets, &offsets_heap,
@@ -363,8 +369,11 @@ row_undo_mod_clust(
 	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_UPD_DEL_REC) {
 
 		mtr_start_trx(&mtr, thr_get_trx(thr));
-		mtr.set_named_space(index->space);
-		dict_disable_redo_if_temporary(index->table, &mtr);
+		if (index->table->is_temporary()) {
+			mtr.set_log_mode(MTR_LOG_NO_REDO);
+		} else {
+			mtr.set_named_space(index->space);
+		}
 
 		/* It is not necessary to call row_log_table,
 		because the record is delete-marked and would thus
@@ -378,8 +387,11 @@ row_undo_mod_clust(
 			pessimistic descent down the index tree */
 
 			mtr_start_trx(&mtr, thr_get_trx(thr));
-			mtr.set_named_space(index->space);
-			dict_disable_redo_if_temporary(index->table, &mtr);
+			if (index->table->is_temporary()) {
+				mtr.set_log_mode(MTR_LOG_NO_REDO);
+			} else {
+				mtr.set_named_space(index->space);
+			}
 
 			err = row_undo_mod_remove_clust_low(
 				node, &mtr,
@@ -751,7 +763,7 @@ try_again:
 		offsets_heap = NULL;
 		offsets = rec_get_offsets(
 			btr_cur_get_rec(btr_cur),
-			index, NULL, ULINT_UNDEFINED, &offsets_heap);
+			index, NULL, true, ULINT_UNDEFINED, &offsets_heap);
 		update = row_upd_build_sec_rec_difference_binary(
 			btr_cur_get_rec(btr_cur), index, offsets, entry, heap);
 		if (upd_get_n_fields(update) == 0) {
@@ -1160,7 +1172,7 @@ close_table:
 				       node->heap);
 
 	ptr = trx_undo_update_rec_get_update(ptr, clust_index, type, trx_id,
-				       roll_ptr, info_bits, node->trx,
+				       roll_ptr, info_bits,
 				       node->heap, &(node->update));
 	node->new_trx_id = trx_id;
 	node->cmpl_info = cmpl_info;

@@ -12298,7 +12298,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 static bool
 read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
 {
-  size_t length;
+  ulonglong length;
   char *ptr_save= *ptr;
 
   /* not enough bytes to hold the length */
@@ -12320,10 +12320,10 @@ read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
     return true;
 
 #ifdef HAVE_PSI_THREAD_INTERFACE
-  if (PSI_THREAD_CALL(set_thread_connect_attrs)(*ptr, length, from_cs) &&
+  if (PSI_THREAD_CALL(set_thread_connect_attrs)(*ptr, (size_t)length, from_cs) &&
       current_thd->variables.log_warnings)
-    sql_print_warning("Connection attributes of length %lu were truncated",
-                      (unsigned long) length);
+    sql_print_warning("Connection attributes of length %llu were truncated",
+                      length);
 #endif
   return false;
 }
@@ -12580,7 +12580,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   char *user= end;
   char *passwd= strend(user)+1;
-  uint user_len= passwd - user - 1, db_len;
+  uint user_len= (uint)(passwd - user - 1), db_len;
   char *db= passwd;
   char user_buff[USERNAME_LENGTH + 1];	// buffer to store user in utf8
   uint dummy_errors;
@@ -12595,15 +12595,22 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     Cast *passwd to an unsigned char, so that it doesn't extend the sign for
     *passwd > 127 and become 2**32-127+ after casting to uint.
   */
-  uint passwd_len;
+  ulonglong len;
+  size_t passwd_len;
+
   if (!(thd->client_capabilities & CLIENT_SECURE_CONNECTION))
-    passwd_len= strlen(passwd);
+    len= strlen(passwd);
   else if (!(thd->client_capabilities & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA))
-    passwd_len= (uchar)(*passwd++);
+    len= (uchar)(*passwd++);
   else
-    passwd_len= safe_net_field_length_ll((uchar**)&passwd,
+  {
+    len= safe_net_field_length_ll((uchar**)&passwd,
                                       net->read_pos + pkt_len - (uchar*)passwd);
-  
+    if (len > pkt_len)
+      return packet_error;
+  }
+
+  passwd_len= (size_t)len;
   db= thd->client_capabilities & CLIENT_CONNECT_WITH_DB ?
     db + passwd_len + 1 : 0;
 

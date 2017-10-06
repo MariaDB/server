@@ -1898,9 +1898,6 @@ innobase_start_or_create_for_mysql()
 		return(srv_init_abort(DB_ERROR));
 	}
 
-	compile_time_assert(ulonglong(ULINT_MAX) * UNIV_PAGE_SIZE_MIN
-			    >= 512ULL << 30);
-
 	os_normalize_path(srv_data_home);
 
 	/* Check if the data files exist or not. */
@@ -2139,7 +2136,7 @@ files_checked:
 		compile_time_assert(IBUF_SPACE_ID == 0);
 
 		ulint ibuf_root = btr_create(
-			DICT_CLUSTERED | DICT_UNIVERSAL | DICT_IBUF,
+			DICT_CLUSTERED | DICT_IBUF,
 			0, univ_page_size, DICT_IBUF_ID_MIN,
 			dict_ind_redundant, NULL, &mtr);
 

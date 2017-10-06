@@ -2569,6 +2569,14 @@ OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 DROP TABLE t1;
+CREATE TABLE t1(a INT, b CHAR(10), KEY(a), KEY(b)) engine=myisam;
+INSERT INTO t1 VALUES(1,'0'),(2,'0'),(3,'0'),(4,'0'),(5,'0'),
+(6,'0'),(7,'0');
+flush tables test.t1 for export;
+insert into t1 values (8,'0');
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+unlock tables;
+drop table t1;
 show variables like 'myisam_block_size';
 Variable_name	Value
 myisam_block_size	1024

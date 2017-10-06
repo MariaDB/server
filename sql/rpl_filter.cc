@@ -239,7 +239,7 @@ Rpl_filter::db_ok_with_wild_table(const char *db)
   int len;
   end= strmov(hash_key, db);
   *end++= '.';
-  len= end - hash_key ;
+  len= (int)(end - hash_key);
   if (wild_do_table_inited && find_wild(&wild_do_table, hash_key, len))
   {
     DBUG_PRINT("return",("1"));

@@ -105,7 +105,7 @@ static int maria_rtree_find_req(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
                                             level + 1)))
         {
           case 0: /* found - exit from recursion */
-            *saved_key= k - page_buf;
+            *saved_key= (uint) (k - page_buf);
             goto ok;
           case 1: /* not found - continue searching */
             info->maria_rtree_recursion_depth= level;
@@ -140,7 +140,7 @@ static int maria_rtree_find_req(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
         memcpy(info->last_key.data, k,
                info->last_key.data_length + info->last_key.ref_length);
         info->maria_rtree_recursion_depth= level;
-        *saved_key= last - page_buf;
+        *saved_key= (uint) (last - page_buf);
 
         if (after_key < last)
         {
@@ -366,7 +366,7 @@ static int maria_rtree_get_req(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
                                          _ma_kpos(nod_flag, k), level + 1)))
       {
         case 0: /* found - exit from recursion */
-          *saved_key= k - page.buff;
+          *saved_key= (uint) (k - page.buff);
           goto ok;
         case 1: /* not found - continue searching */
           info->maria_rtree_recursion_depth= level;
@@ -398,7 +398,7 @@ static int maria_rtree_get_req(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
              info->last_key.data_length + info->last_key.ref_length);
 
       info->maria_rtree_recursion_depth= level;
-      *saved_key= k - page.buff;
+      *saved_key= (uint) (k - page.buff);
 
       if (after_key < last)
       {

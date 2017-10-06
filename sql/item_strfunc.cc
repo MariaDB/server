@@ -257,7 +257,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
   str->realloc((uint) digest_length*2 + 1); /* Each byte as two nybbles */
 
   /* Convert the large number to a string-hex representation. */
-  array_to_hex((char *) str->ptr(), digest_buf, digest_length);
+  array_to_hex((char *) str->ptr(), digest_buf, (uint)digest_length);
 
   /* We poked raw bytes in.  We must inform the the String of its length. */
   str->length((uint) digest_length*2); /* Each byte as two nybbles */
@@ -272,7 +272,7 @@ void Item_func_sha2::fix_length_and_dec()
   maybe_null= 1;
   max_length = 0;
 
-  int sha_variant= args[1]->const_item() ? args[1]->val_int() : 512;
+  int sha_variant= (int)(args[1]->const_item() ? args[1]->val_int() : 512);
 
   switch (sha_variant) {
   case 0: // SHA-256 is the default
@@ -3694,12 +3694,12 @@ String *Item_func_like_range::val_str(String *str)
 
   if (!res || args[0]->null_value || args[1]->null_value ||
       nbytes < 0 || nbytes > MAX_BLOB_WIDTH ||
-      min_str.alloc(nbytes) || max_str.alloc(nbytes))
+      min_str.alloc((size_t)nbytes) || max_str.alloc((size_t)nbytes))
     goto err;
   null_value=0;
 
   if (cs->coll->like_range(cs, res->ptr(), res->length(),
-                           '\\', '_', '%', nbytes,
+                           '\\', '_', '%', (size_t)nbytes,
                            (char*) min_str.ptr(), (char*) max_str.ptr(),
                            &min_len, &max_len))
     goto err;
@@ -3776,7 +3776,7 @@ String *Item_load_file::val_str(String *str)
   if ((file= mysql_file_open(key_file_loadfile,
                              file_name->ptr(), O_RDONLY, MYF(0))) < 0)
     goto err;
-  if (mysql_file_read(file, (uchar*) tmp_value.ptr(), stat_info.st_size,
+  if (mysql_file_read(file, (uchar*) tmp_value.ptr(), (size_t)stat_info.st_size,
                       MYF(MY_NABP)))
   {
     mysql_file_close(file, MYF(0));
@@ -4002,7 +4002,7 @@ String *Item_func_quote::val_str(String *str)
     if ((mblen= cs->cset->wc_mb(cs, '\'', (uchar *) to, to_end)) <= 0)
       goto toolong;
     to+= mblen;
-    new_length= to - str->ptr();
+    new_length= (uint)(to - str->ptr());
     goto ret;
   }
 

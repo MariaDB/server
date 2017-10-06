@@ -221,7 +221,7 @@ public:
         print_time(total, sizeof(total), TOTAL_STRING_FORMAT, this->total(i));
       }
       fields[0]->store(time,strlen(time),system_charset_info);
-      fields[1]->store(this->count(i));
+      fields[1]->store((longlong)this->count(i),true);
       fields[2]->store(total,strlen(total),system_charset_info);
       if (schema_table_store_record(thd, table))
       {

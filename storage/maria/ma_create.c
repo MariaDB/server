@@ -33,6 +33,27 @@
 
 static int compare_columns(MARIA_COLUMNDEF **a, MARIA_COLUMNDEF **b);
 
+
+static ulonglong update_tot_length(ulonglong tot_length, ulonglong max_rows, uint length)
+{
+  ulonglong tot_length_part;
+
+  if (tot_length == ULONGLONG_MAX)
+    return ULONGLONG_MAX;
+
+  tot_length_part= (max_rows/(ulong) ((maria_block_size -
+                    MAX_KEYPAGE_HEADER_SIZE - KEYPAGE_CHECKSUM_SIZE)/
+                    (length*2)));
+  if (tot_length_part >=  ULONGLONG_MAX / maria_block_size)
+    return ULONGLONG_MAX;
+
+  if (tot_length > ULONGLONG_MAX - tot_length_part * maria_block_size)
+    return ULONGLONG_MAX;
+
+  return tot_length + tot_length_part * maria_block_size;
+}
+
+
 /*
   Old options is used when recreating database, from maria_chk
 */
@@ -660,11 +681,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
 
     if (length > max_key_length)
       max_key_length= length;
-    tot_length+= ((max_rows/(ulong) (((uint) maria_block_size -
-                                      MAX_KEYPAGE_HEADER_SIZE -
-                                      KEYPAGE_CHECKSUM_SIZE)/
-                                     (length*2))) *
-                  maria_block_size);
+
+    tot_length= update_tot_length(tot_length, max_rows, length);
   }
 
   unique_key_parts=0;
@@ -673,11 +691,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     uniquedef->key=keys+i;
     unique_key_parts+=uniquedef->keysegs;
     share.state.key_root[keys+i]= HA_OFFSET_ERROR;
-    tot_length+= (max_rows/(ulong) (((uint) maria_block_size -
-                                     MAX_KEYPAGE_HEADER_SIZE -
-                                     KEYPAGE_CHECKSUM_SIZE) /
-                         ((MARIA_UNIQUE_HASH_LENGTH + pointer)*2)))*
-                         (ulong) maria_block_size;
+
+    tot_length= update_tot_length(tot_length, max_rows, MARIA_UNIQUE_HASH_LENGTH + pointer);
   }
   keys+=uniques;				/* Each unique has 1 key */
   key_segs+=uniques;				/* Each unique has 1 key seg */
@@ -746,8 +761,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     Get estimate for index file length (this may be wrong for FT keys)
     This is used for pointers to other key pages.
   */
-  tmp= (tot_length + maria_block_size * keys *
-	MARIA_INDEX_BLOCK_MARGIN) / maria_block_size;
+  tmp= (tot_length / maria_block_size + keys * MARIA_INDEX_BLOCK_MARGIN);
 
   /*
     use maximum of key_file_length we calculated and key_file_length value we

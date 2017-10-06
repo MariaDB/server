@@ -794,7 +794,7 @@ l
   Delete multiple tables from join 
 ***************************************************************************/
 
-#define MEM_STRIP_BUF_SIZE current_thd->variables.sortbuff_size
+#define MEM_STRIP_BUF_SIZE (size_t)(current_thd->variables.sortbuff_size)
 
 extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b)
 {

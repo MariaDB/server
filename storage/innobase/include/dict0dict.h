@@ -386,13 +386,6 @@ dict_table_add_system_columns(
 	dict_table_t*	table,	/*!< in/out: table */
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 	MY_ATTRIBUTE((nonnull));
-
-/** Mark if table has big rows.
-@param[in,out]	table	table handler */
-void
-dict_table_set_big_rows(
-	dict_table_t*	table)
-	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Adds a table object to the dictionary cache. */
 void
@@ -815,14 +808,6 @@ dict_table_get_n_user_cols(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
 	MY_ATTRIBUTE((warn_unused_result));
-/** Gets the number of user-defined virtual and non-virtual columns in a table
-in the dictionary cache.
-@param[in]	table	table
-@return number of user-defined (e.g., not ROW_ID) columns of a table */
-UNIV_INLINE
-ulint
-dict_table_get_n_tot_u_cols(
-	const dict_table_t*	table);
 /********************************************************************//**
 Gets the number of all non-virtual columns (also system) in a table
 in the dictionary cache.
@@ -1460,17 +1445,31 @@ dict_index_copy_rec_order_prefix(
 					copied prefix, or NULL */
 	ulint*			buf_size)/*!< in/out: buffer size */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/**********************************************************************//**
-Builds a typed data tuple out of a physical record.
+/** Convert a physical record into a search tuple.
+@param[in]	rec		index record (not necessarily in an index page)
+@param[in]	index		index
+@param[in]	leaf		whether rec is in a leaf page
+@param[in]	n_fields	number of data fields
+@param[in,out]	heap		memory heap for allocation
 @return own: data tuple */
 dtuple_t*
-dict_index_build_data_tuple(
-/*========================*/
-	dict_index_t*	index,	/*!< in: index */
-	rec_t*		rec,	/*!< in: record for which to build data tuple */
-	ulint		n_fields,/*!< in: number of data fields */
-	mem_heap_t*	heap)	/*!< in: memory heap where tuple created */
+dict_index_build_data_tuple_func(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+#ifdef UNIV_DEBUG
+	bool			leaf,
+#endif /* UNIV_DEBUG */
+	ulint			n_fields,
+	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+#ifdef UNIV_DEBUG
+# define dict_index_build_data_tuple(rec, index, leaf, n_fields, heap)	\
+	dict_index_build_data_tuple_func(rec, index, leaf, n_fields, heap)
+#else /* UNIV_DEBUG */
+# define dict_index_build_data_tuple(rec, index, leaf, n_fields, heap)	\
+	dict_index_build_data_tuple_func(rec, index, n_fields, heap)
+#endif /* UNIV_DEBUG */
+
 /*********************************************************************//**
 Gets the space id of the root of the index tree.
 @return space id */
@@ -1939,24 +1938,7 @@ dict_table_is_discarded(
 	const dict_table_t*	table)	/*!< in: table to check */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/********************************************************************//**
-Check if it is a temporary table.
-@return true if temporary table flag is set. */
-UNIV_INLINE
-bool
-dict_table_is_temporary(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/********************************************************************//**
-Turn-off redo-logging if temporary table. */
-UNIV_INLINE
-void
-dict_disable_redo_if_temporary(
-/*===========================*/
-	const dict_table_t*	table,	/*!< in: table to check */
-	mtr_t*			mtr);	/*!< out: mini-transaction */
+#define dict_table_is_temporary(table) (table)->is_temporary()
 
 /*********************************************************************//**
 This function should be called whenever a page is successfully

@@ -735,7 +735,7 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
   {
-    max_length= (username_char_length +
+    max_length= (uint32) (username_char_length +
                  HOSTNAME_LENGTH + 1) * SYSTEM_CHARSET_MBMAXLEN;
   }
   const char *func_name() const { return "user"; }
@@ -777,7 +777,7 @@ public:
     Item_func_sysconst(thd), context(context_arg) {}
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
-  { max_length= username_char_length * SYSTEM_CHARSET_MBMAXLEN; }
+  { max_length= (uint32) username_char_length * SYSTEM_CHARSET_MBMAXLEN; }
   int save_in_field(Field *field, bool no_conversions)
   { return save_str_value_in_field(field, &str_value); }
   const char *func_name() const { return "current_role"; }

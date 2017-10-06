@@ -25,8 +25,8 @@
 # IO thread does not do it in an uncontrolled manner.
 
 --source include/have_binlog_format_statement.inc
---source include/master-slave.inc
 --source include/have_innodb.inc
+--source include/master-slave.inc
 
 --disable_query_log
 CREATE TABLE t1 (c1 TEXT) engine=InnoDB;

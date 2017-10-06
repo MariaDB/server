@@ -1453,7 +1453,6 @@ trx_undo_update_rec_get_update(
 	trx_id_t	trx_id,	/*!< in: transaction id from this undo record */
 	roll_ptr_t	roll_ptr,/*!< in: roll pointer from this undo record */
 	ulint		info_bits,/*!< in: info bits from this undo record */
-	trx_t*		trx,	/*!< in: transaction */
 	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
 				needed is allocated */
 	upd_t**		upd)	/*!< out, own: update vector */
@@ -1489,7 +1488,7 @@ trx_undo_update_rec_get_update(
 
 	upd_field_set_field_no(upd_field,
 			       dict_index_get_sys_col_pos(index, DATA_TRX_ID),
-			       index, trx);
+			       index);
 	dfield_set_data(&(upd_field->new_val), buf, DATA_TRX_ID_LEN);
 
 	upd_field = upd_get_nth_field(update, n_fields + 1);
@@ -1500,7 +1499,7 @@ trx_undo_update_rec_get_update(
 
 	upd_field_set_field_no(
 		upd_field, dict_index_get_sys_col_pos(index, DATA_ROLL_PTR),
-		index, trx);
+		index);
 	dfield_set_data(&(upd_field->new_val), buf, DATA_ROLL_PTR_LEN);
 
 	/* Store then the updated ordinary columns to the update vector */
@@ -1561,7 +1560,7 @@ trx_undo_update_rec_get_update(
 			upd_field_set_v_field_no(
 				upd_field, field_no, index);
 		} else {
-			upd_field_set_field_no(upd_field, field_no, index, trx);
+			upd_field_set_field_no(upd_field, field_no, index);
 		}
 
 		ptr = trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
@@ -2247,7 +2246,7 @@ trx_undo_prev_version_build(
 
 	ptr = trx_undo_update_rec_get_update(ptr, index, type, trx_id,
 					     roll_ptr, info_bits,
-					     NULL, heap, &update);
+					     heap, &update);
 	ut_a(ptr);
 
 	if (row_upd_changes_field_size_or_external(index, offsets, update)) {
@@ -2324,8 +2323,8 @@ trx_undo_prev_version_build(
 
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 	ut_a(!rec_offs_any_null_extern(
-		*old_vers, rec_get_offsets(
-			*old_vers, index, NULL, ULINT_UNDEFINED, &heap)));
+		*old_vers, rec_get_offsets(*old_vers, index, NULL, true,
+					   ULINT_UNDEFINED, &heap)));
 #endif // defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 
 	if (vrow && !(cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {

@@ -1716,16 +1716,12 @@ PageConverter::update_records(
 
 	m_rec_iter.open(block);
 
+	if (!page_is_leaf(block->frame)) {
+		return DB_SUCCESS;
+	}
+
 	while (!m_rec_iter.end()) {
-
 		rec_t*	rec = m_rec_iter.current();
-
-		/* FIXME: Move out of the loop */
-
-		if (rec_get_status(rec) == REC_STATUS_NODE_PTR) {
-			break;
-		}
-
 		ibool	deleted = rec_get_deleted_flag(rec, comp);
 
 		/* For the clustered index we have to adjust the BLOB
@@ -1735,7 +1731,7 @@ PageConverter::update_records(
 
 		if (deleted || clust_index) {
 			m_offsets = rec_get_offsets(
-				rec, m_index->m_srv_index, m_offsets,
+				rec, m_index->m_srv_index, m_offsets, true,
 				ULINT_UNDEFINED, &m_heap);
 		}
 
@@ -2323,7 +2319,7 @@ row_import_set_sys_max_row_id(
 		rec_offs_init(offsets_);
 
 		offsets = rec_get_offsets(
-			rec, index, offsets_, ULINT_UNDEFINED, &heap);
+			rec, index, offsets_, true, ULINT_UNDEFINED, &heap);
 
 		field = rec_get_nth_field(
 			rec, offsets,
@@ -3598,10 +3594,6 @@ row_import_for_mysql(
 
 	DBUG_EXECUTE_IF("ib_import_cluster_root_adjust_failure",
 			err = DB_CORRUPTION;);
-
-	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
-	}
 
 	if (err != DB_SUCCESS) {
 		return(row_import_error(prebuilt, trx, err));

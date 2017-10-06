@@ -853,7 +853,7 @@ row_log_table_low_redundant(
 
 	size = rec_get_converted_size_temp(
 		index, tuple->fields, tuple->n_fields, &extra_size);
-	ulint v_size = ventry
+	ulint v_size = num_v
 		? rec_get_converted_size_temp_v(index, ventry) : 0;
 
 	mrec_size = ROW_LOG_HEADER_SIZE + size + v_size + (extra_size >= 0x80);
@@ -909,12 +909,10 @@ row_log_table_low_redundant(
 		rec_convert_dtuple_to_temp(
 			b + extra_size, index, tuple->fields, tuple->n_fields);
 		b += size;
-		if (ventry) {
+		ut_ad(!num_v == !v_size);
+		if (num_v) {
                         rec_convert_dtuple_to_temp_v(b, new_index, ventry);
 			b += v_size;
-		}
-
-		if (num_v) {
 			if (o_ventry) {
 				rec_convert_dtuple_to_temp_v(
 					b, new_index, o_ventry);
@@ -972,7 +970,7 @@ row_log_table_low(
 			&index->lock,
 			RW_LOCK_FLAG_S | RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
 	ut_ad(fil_page_get_type(page_align(rec)) == FIL_PAGE_INDEX);
-	ut_ad(page_is_leaf(page_align(rec)));
+	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(!page_is_comp(page_align(rec)) == !rec_offs_comp(offsets));
 	/* old_pk=row_log_table_get_pk() [not needed in INSERT] is a prefix
 	of the clustered index record (PRIMARY KEY,DB_TRX_ID,DB_ROLL_PTR),
@@ -1236,8 +1234,8 @@ row_log_table_get_pk(
 
 				if (!offsets) {
 					offsets = rec_get_offsets(
-						rec, index, NULL, pos + 1,
-						heap);
+						rec, index, NULL, true,
+						pos + 1, heap);
 				}
 
 				trx_id_offs = rec_get_nth_field_offs(
@@ -1281,7 +1279,7 @@ row_log_table_get_pk(
 		}
 
 		if (!offsets) {
-			offsets = rec_get_offsets(rec, index, NULL,
+			offsets = rec_get_offsets(rec, index, NULL, true,
 						  ULINT_UNDEFINED, heap);
 		}
 
@@ -1962,7 +1960,7 @@ all_done:
 		return(DB_SUCCESS);
 	}
 
-	offsets = rec_get_offsets(btr_pcur_get_rec(&pcur), index, NULL,
+	offsets = rec_get_offsets(btr_pcur_get_rec(&pcur), index, NULL, true,
 				  ULINT_UNDEFINED, &offsets_heap);
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 	ut_a(!rec_offs_any_null_extern(btr_pcur_get_rec(&pcur), offsets));
@@ -2167,8 +2165,8 @@ func_exit_committed:
 
 	/* Prepare to update (or delete) the record. */
 	ulint*		cur_offsets	= rec_get_offsets(
-		btr_pcur_get_rec(&pcur),
-		index, NULL, ULINT_UNDEFINED, &offsets_heap);
+		btr_pcur_get_rec(&pcur), index, NULL, true,
+		ULINT_UNDEFINED, &offsets_heap);
 
 	if (!log->same_pk) {
 		/* Only update the record if DB_TRX_ID,DB_ROLL_PTR match what

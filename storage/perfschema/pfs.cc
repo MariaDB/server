@@ -1265,7 +1265,7 @@ static int build_prefix(const LEX_STRING *prefix, const char *category,
   out_ptr+= len;
   *out_ptr= '/';
   out_ptr++;
-  *output_length= out_ptr - output;
+  *output_length= (int)(out_ptr - output);
 
   return 0;
 }
@@ -1942,7 +1942,7 @@ static void set_thread_id_v1(PSI_thread *thread, ulonglong processlist_id)
   PFS_thread *pfs= reinterpret_cast<PFS_thread*> (thread);
   if (unlikely(pfs == NULL))
     return;
-  pfs->m_processlist_id= processlist_id;
+  pfs->m_processlist_id= (ulong)processlist_id;
 }
 
 /**
@@ -5121,7 +5121,7 @@ static void set_socket_info_v1(PSI_socket *socket,
 
   /** Set socket descriptor */
   if (fd != NULL)
-    pfs->m_fd= *fd;
+    pfs->m_fd= (uint)*fd;
 
   /** Set raw socket address and length */
   if (likely(addr != NULL && addr_len > 0))

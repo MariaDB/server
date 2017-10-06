@@ -1321,7 +1321,7 @@ QUICK_RANGE_SELECT::~QUICK_RANGE_SELECT()
       file->ha_end_keyread();
       if (free_file)
       {
-        DBUG_PRINT("info", ("Freeing separate handler 0x%lx (free: %d)", (long) file,
+        DBUG_PRINT("info", ("Freeing separate handler %p (free: %d)", file,
                             free_file));
         file->ha_external_lock(current_thd, F_UNLCK);
         file->ha_close();
@@ -1483,7 +1483,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
   in_ror_merged_scan= 1;
   if (reuse_handler)
   {
-    DBUG_PRINT("info", ("Reusing handler 0x%lx", (long) file));
+    DBUG_PRINT("info", ("Reusing handler %p", file));
     if (init())
     {
       DBUG_RETURN(1);
@@ -2827,7 +2827,7 @@ double records_in_column_ranges(PARAM *param, uint idx,
   
   /* Handle cases when we don't have a valid non-empty list of range */
   if (!tree)
-    return HA_POS_ERROR;
+    return DBL_MAX;
   if (tree->type == SEL_ARG::IMPOSSIBLE)
     return (0L);
 
@@ -2847,9 +2847,9 @@ double records_in_column_ranges(PARAM *param, uint idx,
     max_endp= range.end_key.length? &range.end_key : NULL;
     rows= get_column_range_cardinality(field, min_endp, max_endp,
                                        range.range_flag);
-    if (HA_POS_ERROR == rows)
+    if (DBL_MAX == rows)
     {
-      total_rows= HA_POS_ERROR;
+      total_rows= DBL_MAX;
       break;
     }
     total_rows += rows;
@@ -3083,7 +3083,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
         else
         {
           rows= records_in_column_ranges(&param, idx, key);
-          if (rows != HA_POS_ERROR)
+          if (rows != DBL_MAX)
             key->field->cond_selectivity= rows/table_records;
         }
       }
@@ -4756,7 +4756,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   unique_calc_buff_size=
     Unique::get_cost_calc_buff_size((ulong)non_cpk_scan_records,
                                     param->table->file->ref_length,
-                                    param->thd->variables.sortbuff_size);
+                                    (size_t)param->thd->variables.sortbuff_size);
   if (param->imerge_cost_buff_size < unique_calc_buff_size)
   {
     if (!(param->imerge_cost_buff= (uint*)alloc_root(param->mem_root,
@@ -4768,7 +4768,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   imerge_cost +=
     Unique::get_use_cost(param->imerge_cost_buff, (uint)non_cpk_scan_records,
                          param->table->file->ref_length,
-                         param->thd->variables.sortbuff_size,
+                         (size_t)param->thd->variables.sortbuff_size,
                          TIME_FOR_COMPARE_ROWID,
                          FALSE, NULL);
   DBUG_PRINT("info",("index_merge total cost: %g (wanted: less then %g)",
@@ -5021,7 +5021,7 @@ typedef struct st_common_index_intersect_info
   PARAM *param;           /* context info for range optimizations            */
   uint key_size;          /* size of a ROWID element stored in Unique object */
   uint compare_factor;         /* 1/compare - cost to compare two ROWIDs     */
-  ulonglong max_memory_size;   /* maximum space allowed for Unique objects   */   
+  size_t max_memory_size;   /* maximum space allowed for Unique objects   */   
   ha_rows table_cardinality;   /* estimate of the number of records in table */
   double cutoff_cost;        /* discard index intersects with greater costs  */ 
   INDEX_SCAN_INFO *cpk_scan;  /* clustered primary key used in intersection  */
@@ -5216,7 +5216,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   common->param= param;
   common->key_size= table->file->ref_length;
   common->compare_factor= TIME_FOR_COMPARE_ROWID;
-  common->max_memory_size= param->thd->variables.sortbuff_size;
+  common->max_memory_size= (size_t)param->thd->variables.sortbuff_size;
   common->cutoff_cost= cutoff_cost;
   common->cpk_scan= NULL;
   common->table_cardinality= 
@@ -5652,7 +5652,7 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
     uint *buff_elems= common_info->buff_elems;
     uint key_size= common_info->key_size;
     uint compare_factor= common_info->compare_factor;         
-    ulonglong max_memory_size= common_info->max_memory_size; 
+    size_t max_memory_size= common_info->max_memory_size; 
     
     records_sent_to_unique+= ext_index_scan_records;
     cost= Unique::get_use_cost(buff_elems, (size_t) records_sent_to_unique, key_size,
@@ -10217,7 +10217,7 @@ void SEL_ARG::test_use_count(SEL_ARG *root)
       ulong count=count_key_part_usage(root,pos->next_key_part);
       if (count > pos->next_key_part->use_count)
       {
-        sql_print_information("Use_count: Wrong count for key at 0x%lx, %lu "
+        sql_print_information("Use_count: Wrong count for key at %p, %lu "
                               "should be %lu", (long unsigned int)pos,
                               pos->next_key_part->use_count, count);
 	return;
@@ -10226,7 +10226,7 @@ void SEL_ARG::test_use_count(SEL_ARG *root)
     }
   }
   if (e_count != elements)
-    sql_print_warning("Wrong use count: %u (should be %u) for tree at 0x%lx",
+    sql_print_warning("Wrong use count: %u (should be %u) for tree at %p",
                       e_count, elements, (long unsigned int) this);
 }
 #endif
@@ -10912,7 +10912,7 @@ int read_keys_and_merge_scans(THD *thd,
 
     unique= new Unique(refpos_order_cmp, (void *)file,
                        file->ref_length,
-                       thd->variables.sortbuff_size,
+                       (size_t)thd->variables.sortbuff_size,
 		       intersection ? quick_selects.elements : 0);                     
     if (!unique)
       goto err;
@@ -14612,7 +14612,7 @@ static void print_sel_tree(PARAM *param, SEL_TREE *tree, key_map *tree_map,
   if (!tmp.length())
     tmp.append(STRING_WITH_LEN("(empty)"));
 
-  DBUG_PRINT("info", ("SEL_TREE: 0x%lx (%s)  scans: %s", (long) tree, msg,
+  DBUG_PRINT("info", ("SEL_TREE: %p (%s)  scans: %s", tree, msg,
                       tmp.c_ptr_safe()));
 
   DBUG_VOID_RETURN;

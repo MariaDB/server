@@ -172,7 +172,6 @@ row_undo_search_clust_to_pcur(
 	rec_offs_init(offsets_);
 
 	mtr_start(&mtr);
-	dict_disable_redo_if_temporary(node->table, &mtr);
 
 	clust_index = dict_table_get_first_index(node->table);
 
@@ -185,7 +184,7 @@ row_undo_search_clust_to_pcur(
 
 	rec = btr_pcur_get_rec(&node->pcur);
 
-	offsets = rec_get_offsets(rec, clust_index, offsets,
+	offsets = rec_get_offsets(rec, clust_index, offsets, true,
 				  ULINT_UNDEFINED, &heap);
 
 	found = row_get_rec_roll_ptr(rec, clust_index, offsets)

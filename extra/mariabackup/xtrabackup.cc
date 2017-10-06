@@ -1859,9 +1859,9 @@ xb_write_delta_metadata(const char *filename, const xb_delta_info_t *info)
 	MY_STAT		mystat;
 
 	snprintf(buf, sizeof(buf),
-		 "page_size = %lu\n"
-		 "zip_size = %lu\n"
-		 "space_id = %lu\n",
+		 "page_size = " ULINTPF "\n"
+		 "zip_size = " ULINTPF " \n"
+		 "space_id = " ULINTPF "\n",
 		 info->page_size.logical(),
 		 info->page_size.is_compressed()
 		 ? info->page_size.physical() : 0,
@@ -4174,7 +4174,7 @@ exit:
 
 			char	tmpname[FN_REFLEN];
 
-			snprintf(tmpname, FN_REFLEN, "%s/xtrabackup_tmp_#%lu",
+			snprintf(tmpname, FN_REFLEN, "%s/xtrabackup_tmp_#" ULINTPF,
 				 dbname, fil_space->id);
 
 			msg("xtrabackup: Renaming %s to %s.ibd\n",

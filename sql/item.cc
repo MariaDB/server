@@ -1051,7 +1051,7 @@ void Item::set_name(THD *thd, const char *str, uint length, CHARSET_INFO *cs)
   if (!cs->ctype || cs->mbminlen > 1)
   {
     str+= cs->cset->scan(cs, str, str + length, MY_SEQ_SPACES);
-    length-= str - str_start;
+    length-= (uint)(str - str_start);
   }
   else
   {
@@ -1828,7 +1828,10 @@ bool Item_name_const::fix_fields(THD *thd, Item **ref)
     set_name(thd, item_name->ptr(), (uint) item_name->length(),
              system_charset_info);
   }
-  collation.set(value_item->collation.collation, DERIVATION_IMPLICIT);
+  if (value_item->collation.derivation == DERIVATION_NUMERIC)
+    collation.set_numeric();
+  else
+    collation.set(value_item->collation.collation, DERIVATION_IMPLICIT);
   max_length= value_item->max_length;
   decimals= value_item->decimals;
   fixed= 1;
@@ -6290,8 +6293,8 @@ void Item_field::save_org_in_field(Field *to,
                                    fast_field_copier fast_field_copier_func)
 {
   DBUG_ENTER("Item_field::save_org_in_field");
-  DBUG_PRINT("enter", ("setup: 0x%lx  data: 0x%lx",
-                       (ulong) to, (ulong) fast_field_copier_func));
+  DBUG_PRINT("enter", ("setup: %p  data: %p",
+                       to, fast_field_copier_func));
   if (fast_field_copier_func)
   {
     if (field->is_null())
