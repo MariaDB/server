@@ -161,7 +161,7 @@ public:
 
 		m_magic_n = 0;
 
-		my_atomic_storelint(&m_context.m_thread_id, 0);
+		m_context.m_thread_id = 0;
 	}
 
 	/** Called when the mutex is "created". Note: Not from the constructor
