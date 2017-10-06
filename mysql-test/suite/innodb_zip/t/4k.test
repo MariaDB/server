@@ -11,6 +11,7 @@ let $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
 call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is");
 --enable_query_log
 
+let $innodb_file_format_orig=`select @@innodb_file_format`;
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 
@@ -445,4 +446,4 @@ CREATE TABLE t1(c text, PRIMARY KEY (c(438)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
 INSERT INTO t1 VALUES(REPEAT('A',512)),(REPEAT('B',512));
 DROP TABLE t1;
-SET GLOBAL innodb_file_format = default;
+eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;

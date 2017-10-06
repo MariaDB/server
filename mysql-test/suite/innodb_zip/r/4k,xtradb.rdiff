@@ -1,0 +1,11 @@
+--- /home/alice/aliska/10.0/mysql-test/suite/innodb_zip/r/4k,xtradb.result~	2017-10-06 16:01:54.358825216 +0200
++++ /home/alice/aliska/10.0/mysql-test/suite/innodb_zip/r/4k,xtradb.reject	2017-10-06 16:01:55.186824847 +0200
+@@ -10,7 +10,7 @@
+ SELECT variable_value FROM information_schema.global_status
+ WHERE LOWER(variable_name) = 'innodb_buffer_pool_pages_total';
+ variable_value
+-2048
++2047
+ # Test 3) Query some information_shema tables that are dependent upon
+ #         the page size.
+ 

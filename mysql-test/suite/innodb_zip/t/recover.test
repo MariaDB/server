@@ -1,0 +1,31 @@
+--source include/have_innodb.inc
+--source include/have_innodb_max_16k.inc
+--source include/not_embedded.inc
+
+--disable_query_log
+# This test kills the server, which could corrupt some mysql.* tables
+# that are not created with ENGINE=InnoDB.
+# Flush any non-InnoDB tables to prevent that from happening.
+FLUSH TABLES;
+--enable_query_log
+
+--echo #
+--echo # MDEV-12720 recovery fails with "Generic error"
+--echo # for ROW_FORMAT=compressed
+--echo #
+CREATE TABLE a(i INT PRIMARY KEY AUTO_INCREMENT, s VARCHAR(255)) ENGINE=InnoDB
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+
+BEGIN;
+insert into a(i) select null;
+insert into a select null, uuid() from a a, a b, a c;
+insert into a select null, uuid() from a a, a b, a c;
+insert into a select null, uuid() from a a, a b, a c;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+COMMIT;
+
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+
+SELECT COUNT(*) from a;
+DROP TABLE a;
