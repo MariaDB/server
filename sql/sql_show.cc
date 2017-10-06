@@ -126,6 +126,12 @@ bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *)
 ** List all table types supported
 ***************************************************************************/
 
+
+static bool is_show_command(THD *thd)
+{
+  return sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND;
+}
+
 static int make_version_string(char *buf, int buf_length, uint version)
 {
   return my_snprintf(buf, buf_length, "%d.%d", version>>8,version&0xff);
@@ -4065,7 +4071,7 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
     */
     if (res == FIND_FILES_DIR)
     {
-      if (sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND)
+      if (is_show_command(thd))
         return 1;
       thd->clear_error();
       return 2;
@@ -5885,13 +5891,13 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
                                 val_int() == TYPE_ENUM_PROCEDURE))
     return 0;
 
-  if ((lex->sql_command == SQLCOM_SHOW_STATUS_PROC &&
+  if (!is_show_command(thd) ||
+      (lex->sql_command == SQLCOM_SHOW_STATUS_PROC &&
       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->val_int() ==
       TYPE_ENUM_PROCEDURE) ||
       (lex->sql_command == SQLCOM_SHOW_STATUS_FUNC &&
       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->val_int() ==
-      TYPE_ENUM_FUNCTION) ||
-      (sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND) == 0)
+      TYPE_ENUM_FUNCTION))
   {
     restore_record(table, s->default_values);
     if (!wild || !wild[0] || !wild_case_compare(system_charset_info,
@@ -7640,7 +7646,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   tmp_table_param->field_count= field_count;
   tmp_table_param->schema_table= 1;
   SELECT_LEX *select_lex= thd->lex->current_select;
-  bool keep_row_order= sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND;
+  bool keep_row_order= is_show_command(thd);
   if (!(table= create_tmp_table(thd, tmp_table_param,
                                 field_list, (ORDER*) 0, 0, 0, 
                                 (select_lex->options | thd->variables.option_bits |
