@@ -1047,7 +1047,6 @@ fil_space_extend_must_retry(
 
 	/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
 	fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.*/
-
 	os_offset_t new_size = std::max(
 		os_offset_t(size - file_start_page_no) * page_size,
 		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE));
@@ -1064,7 +1063,6 @@ fil_space_extend_must_retry(
 		os_has_said_disk_full = FALSE;
 		start_page_no = size;
 	}
-
 	mutex_enter(&fil_system->mutex);
 
 	ut_a(node->being_extended);

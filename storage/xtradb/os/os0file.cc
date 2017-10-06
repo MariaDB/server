@@ -2636,6 +2636,7 @@ os_file_set_size(
 				size, name, err);
 		}
 		/* Set errno because posix_fallocate() does not do it.*/
+		errno = err;
 		return(!err);
 	}
 # endif
