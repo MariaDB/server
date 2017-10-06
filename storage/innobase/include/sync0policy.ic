@@ -80,7 +80,7 @@ void MutexDebug<Mutex>::locked(
 	UNIV_NOTHROW
 {
 	ut_ad(!is_owned());
-	ut_ad(m_context.m_thread_id == os_thread_id_t(ULINT_UNDEFINED));
+	ut_ad(m_context.m_thread_id == ULINT_UNDEFINED);
 
 	m_context.locked(mutex, name, line);
 
