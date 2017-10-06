@@ -899,7 +899,7 @@ struct dict_index_t{
 	unsigned	n_nullable:10;/*!< number of nullable fields */
 	unsigned	n_core_fields:10;/*!< number of fields in the index
 				(before the first time of instant add columns) */
-	/** number of null bits in ROW_FORMAT!=REDUNDANT node pointer
+	/** number of bytes of null bits in ROW_FORMAT!=REDUNDANT node pointer
 	records; usually equal to UT_BITS_IN_BYTES(n_nullable), but
 	can be less in clustered indexes with instant ADD COLUMN */
 	unsigned	n_core_null_bytes:8;
