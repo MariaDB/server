@@ -4953,12 +4953,17 @@ xtrabackup_apply_delta(
 			if (offset_on_page == 0xFFFFFFFFUL)
 				break;
 
-			success = os_file_write(dst_path, dst_file,
-						incremental_buffer +
-						page_in_buffer * page_size,
-						(offset_on_page <<
-						 page_size_shift),
-						page_size);
+			uchar *buf = incremental_buffer + page_in_buffer * page_size;
+			const os_offset_t off = os_offset_t(offset_on_page)*page_size;
+
+			if (off == 0) {
+				/* Fix tablespace size. */
+				os_offset_t n_pages = fsp_get_size_low(static_cast<ib_page_t *>(buf));
+				if (!os_file_set_size(dst_path, dst_file, n_pages*page_size))
+					goto error;
+			}
+
+			success = os_file_write(dst_path, dst_file, buf, off, page_size);
 			if (!success) {
 				goto error;
 			}
@@ -5789,52 +5794,6 @@ skip_check:
 
 	if(innodb_init())
 		goto error_cleanup;
-
-	if (xtrabackup_incremental) {
-
-	it = datafiles_iter_new(fil_system);
-	if (it == NULL) {
-		msg("xtrabackup: Error: datafiles_iter_new() failed.\n");
-		exit(EXIT_FAILURE);
-	}
-
-	while ((node = datafiles_iter_next(it)) != NULL) {
-		byte		*header;
-		ulint		 size;
-		ulint		 actual_size;
-		mtr_t		 mtr;
-		buf_block_t	*block;
-		ulint		 flags;
-
-		space = node->space;
-
-		/* Align space sizes along with fsp header. We want to process
-		each space once, so skip all nodes except the first one in a
-		multi-node space. */
-		if (UT_LIST_GET_PREV(chain, node) != NULL) {
-			continue;
-		}
-
-		mtr_start(&mtr);
-
-		mtr_s_lock(fil_space_get_latch(space->id, &flags), &mtr);
-
-		block = buf_page_get(space->id,
-				     dict_tf_get_zip_size(flags),
-				     0, RW_S_LATCH, &mtr);
-		header = FSP_HEADER_OFFSET + buf_block_get_frame(block);
-
-		size = mtr_read_ulint(header + FSP_SIZE, MLOG_4BYTES,
-				      &mtr);
-
-		mtr_commit(&mtr);
-
-		fil_extend_space_to_desired_size(&actual_size, space->id, size);
-	}
-
-	datafiles_iter_free(it);
-
-	} /* if (xtrabackup_incremental) */
 
 	if (xtrabackup_export) {
 		msg("xtrabackup: export option is specified.\n");
