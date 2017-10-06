@@ -1777,7 +1777,7 @@ String *Item_func_substr::val_str(String *str)
   DBUG_ASSERT(fixed == 1);
   String *res  = args[0]->val_str(str);
   /* must be longlong to avoid truncation */
-  longlong start= args[1]->val_int();
+  longlong start= get_position();
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Limit so that code sees out-of-bound value properly. */
   longlong length= arg_count == 3 ? args[2]->val_int() : INT_MAX32;
@@ -1827,7 +1827,7 @@ void Item_func_substr::fix_length_and_dec()
   DBUG_ASSERT(collation.collation != NULL);
   if (args[1]->const_item())
   {
-    int32 start= (int32) args[1]->val_int();
+    int32 start= (int32) get_position();
     if (args[1]->null_value)
       max_length= 0;
     else if (start < 0)

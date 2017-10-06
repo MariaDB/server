@@ -3355,7 +3355,8 @@ public:
                           const char *end);
 
   Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
-
+  Item *make_item_func_substr(THD *thd, Item *a, Item *b, Item *c);
+  Item *make_item_func_substr(THD *thd, Item *a, Item *b);
   /*
     Create a my_var instance for a ROW field variable that was used
     as an OUT SP parameter: CALL p1(var.field);

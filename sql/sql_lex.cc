@@ -7182,6 +7182,22 @@ bool LEX::add_grant_command(THD *thd, enum_sql_command sql_command_arg,
 }
 
 
+Item *LEX::make_item_func_substr(THD *thd, Item *a, Item *b, Item *c)
+{
+  return (thd->variables.sql_mode & MODE_ORACLE) ?
+    new (thd->mem_root) Item_func_substr_oracle(thd, a, b, c) :
+    new (thd->mem_root) Item_func_substr(thd, a, b, c);
+}
+
+
+Item *LEX::make_item_func_substr(THD *thd, Item *a, Item *b)
+{
+  return (thd->variables.sql_mode & MODE_ORACLE) ?
+    new (thd->mem_root) Item_func_substr_oracle(thd, a, b) :
+    new (thd->mem_root) Item_func_substr(thd, a, b);
+}
+
+
 Item *LEX::make_item_func_replace(THD *thd,
                                   Item *org,
                                   Item *find,
