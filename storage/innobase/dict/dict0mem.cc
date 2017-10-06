@@ -1229,7 +1229,8 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 			dict_col_t*& base = v.base_col[n];
 			if (!base->is_virtual()) {
 				ptrdiff_t n = base - old_cols;
-				DBUG_ASSERT(n + DATA_N_SYS_COLS < old_n_cols);
+				DBUG_ASSERT(n >= 0);
+				DBUG_ASSERT(n < old_n_cols - DATA_N_SYS_COLS);
 				base = &cols[n];
 			}
 		}
@@ -1251,7 +1252,8 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 				columns and DB_ROW_ID (if there is
 				GEN_CLUST_INDEX instead of PRIMARY KEY),
 				but not DB_TRX_ID,DB_ROLL_PTR. */
-				DBUG_ASSERT(n + DATA_N_SYS_COLS <= old_n_cols);
+				DBUG_ASSERT(n >= 0);
+				DBUG_ASSERT(n <= old_n_cols - DATA_N_SYS_COLS);
 				if (n + DATA_N_SYS_COLS >= old_n_cols) {
 					/* Replace DB_ROW_ID */
 					n += n_add;
@@ -1325,7 +1327,9 @@ dict_table_t::rollback_instant(
 				DBUG_ASSERT(field.col->is_virtual());
 			} else {
 				ptrdiff_t n = field.col - new_cols;
-				if (n + DATA_N_SYS_COLS >= n_cols) {
+				DBUG_ASSERT(n >= 0);
+				DBUG_ASSERT(n <= n_cols);
+				if (n >= n_cols - DATA_N_SYS_COLS) {
 					n -= n_remove;
 				}
 				field.col = &cols[n];
@@ -1336,7 +1340,8 @@ dict_table_t::rollback_instant(
 	} while ((index = dict_table_get_next_index(index)) != NULL);
 }
 
-/** Roll back the 'instant ADD' of some columns during recovery.
+/** Trim the instantly added columns when an insert into SYS_COLUMNS
+is rolled back during ALTER TABLE or recovery.
 @param[in]	n	number of surviving non-system columns */
 void dict_table_t::rollback_instant(unsigned n)
 {
@@ -1345,7 +1350,7 @@ void dict_table_t::rollback_instant(unsigned n)
 	DBUG_ASSERT(index->is_instant());
 	DBUG_ASSERT(index->n_def == index->n_fields);
 	DBUG_ASSERT(n_cols == n_def);
-	DBUG_ASSERT(n > index->n_uniq);
+	DBUG_ASSERT(n >= index->n_uniq);
 	DBUG_ASSERT(n_cols > n + DATA_N_SYS_COLS);
 	const unsigned n_remove = n_cols - n - DATA_N_SYS_COLS;
 
@@ -1379,7 +1384,26 @@ void dict_table_t::rollback_instant(unsigned n)
 		dict_field_t* field = index->fields;
 		field->name = sys;
 		field->col = dict_table_get_sys_col(this, DATA_ROW_ID);
+		field++;
+		field->name = sys + sizeof "DB_ROW_ID";
+		field->col = dict_table_get_sys_col(this, DATA_TRX_ID);
+		field++;
+		field->name = sys + sizeof "DB_ROW_ID\0DB_TRX_ID";
+		field->col = dict_table_get_sys_col(this, DATA_ROLL_PTR);
+
+		/* Replace the DB_ROW_ID column in secondary indexes. */
+		while ((index = dict_table_get_next_index(index)) != NULL) {
+			field = &index->fields[index->n_fields - 1];
+			DBUG_ASSERT(field->col->mtype == DATA_SYS);
+			DBUG_ASSERT(field->col->prtype
+				    == DATA_NOT_NULL + DATA_TRX_ID);
+			field->col--;
+			field->name = sys;
+		}
+
+		return;
 	}
+
 	dict_field_t* field = &index->fields[index->n_uniq];
 	field->name = sys + sizeof "DB_ROW_ID";
 	field->col = dict_table_get_sys_col(this, DATA_TRX_ID);

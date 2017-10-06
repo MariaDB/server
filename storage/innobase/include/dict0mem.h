@@ -1475,7 +1475,8 @@ struct dict_table_t {
 		dict_col_t*	old_cols,
 		const char*	old_col_names);
 
-	/** Roll back the 'instant ADD' of some columns during recovery.
+	/** Trim the instantly added columns when an insert into SYS_COLUMNS
+	is rolled back during ALTER TABLE or recovery.
 	@param[in]	n	number of surviving non-system columns */
 	void rollback_instant(unsigned n);
 
