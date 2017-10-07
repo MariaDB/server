@@ -505,9 +505,12 @@ public:
 class Item_func_substr :public Item_str_func
 {
   String tmp_value;
+protected:
+  virtual longlong get_position() { return args[1]->val_int(); }
 public:
   Item_func_substr(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
-  Item_func_substr(THD *thd, Item *a, Item *b, Item *c): Item_str_func(thd, a, b, c) {}
+  Item_func_substr(THD *thd, Item *a, Item *b, Item *c):
+    Item_str_func(thd, a, b, c) {}
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "substr"; }
@@ -515,6 +518,20 @@ public:
   { return get_item_copy<Item_func_substr>(thd, mem_root, this); }
 };
 
+class Item_func_substr_oracle :public Item_func_substr
+{
+protected:
+  longlong get_position()
+  { longlong pos= args[1]->val_int(); return pos == 0 ? 1 : pos; }
+public:
+  Item_func_substr_oracle(THD *thd, Item *a, Item *b):
+    Item_func_substr(thd, a, b) {}
+  Item_func_substr_oracle(THD *thd, Item *a, Item *b, Item *c):
+    Item_func_substr(thd, a, b, c) {}
+  const char *func_name() const { return "substr_oracle"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_substr_oracle>(thd, mem_root, this); }
+};
 
 class Item_func_substr_index :public Item_str_func
 {
