@@ -4944,5 +4944,23 @@ E05B
 DROP TABLE t1;
 # Start of ctype_E05C.inc
 #
+# MDEV-9886 Illegal mix of collations with a view comparing a field to a binary constant
+#
+SET NAMES latin1;
+CREATE TABLE t1 (a TEXT CHARACTER SET gbk);
+INSERT INTO t1 VALUES (0xEE5D);
+SELECT a<>0xEE5D AS a FROM t1;
+a
+0
+CREATE VIEW v1 AS SELECT a<>0xEE5D AS a FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select (`t1`.`a` <> 0xee5d) AS `a` from `t1`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+a
+0
+DROP VIEW v1;
+DROP TABLE t1;
+#
 # End of 10.0 tests
 #

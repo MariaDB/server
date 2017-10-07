@@ -2162,6 +2162,9 @@ bool agg_item_collations_for_comparison(DTCollation &c, const char *fname,
 bool agg_item_set_converter(DTCollation &coll, const char *fname,
                             Item **args, uint nargs, uint flags, int item_sep)
 {
+  THD *thd= current_thd;
+  if (thd->lex->is_ps_or_view_context_analysis())
+    return false;
   Item **arg, *safe_args[2]= {NULL, NULL};
 
   /*
@@ -2177,7 +2180,6 @@ bool agg_item_set_converter(DTCollation &coll, const char *fname,
     safe_args[1]= args[item_sep];
   }
 
-  THD *thd= current_thd;
   bool res= FALSE;
   uint i;
 
