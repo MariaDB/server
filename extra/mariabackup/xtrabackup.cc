@@ -4974,8 +4974,11 @@ xtrabackup_apply_delta(
 
 	if (incremental_buffer_base)
 		ut_free(incremental_buffer_base);
-	if (src_file != XB_FILE_UNDEFINED)
+	if (src_file != XB_FILE_UNDEFINED) {
 		os_file_close(src_file);
+		/* Remove .delta file after it was successfully applied.*/
+		os_file_delete(0,src_path);
+	}
 	if (dst_file != XB_FILE_UNDEFINED)
 		os_file_close(dst_file);
 	return TRUE;
