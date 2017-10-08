@@ -5716,6 +5716,10 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
     DBUG_RETURN(1);
   }
 
+  /* Disable padding temporarily so it doesn't break the query */
+  ulonglong sql_mode_was = thd->variables.sql_mode;
+  thd->variables.sql_mode &= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+
   if (proc_table->file->ha_index_init(0, 1))
   {
     res= 1;
@@ -5751,6 +5755,7 @@ err:
     (void) proc_table->file->ha_index_end();
 
   close_system_tables(thd, &open_tables_state_backup);
+  thd->variables.sql_mode = sql_mode_was;
   DBUG_RETURN(res);
 }
 
