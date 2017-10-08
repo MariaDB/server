@@ -15,15 +15,14 @@ In Red Hat distributions, you should run the script as user "mysql".
 The user is created with nologin shell, so the best bet is something like
   # su -
   # cd /usr/share/mysql-test
-  # su -s /bin/bash mysql -c "./mysql-test-run --skip-test-list=rh-skipped-tests.list"
+  # su -s /bin/bash mysql -c "./mysql-test-run --skip-test-list=unstable-tests"
 
-This will use the installed MariaDB executables, but will run a private copy
-of the server process (using data files within /usr/share/mysql-test),
+This will use the installed MariaDB executables, but will run a private
+copy of the server process (using data files within /usr/share/mysql-test),
 so you need not start the mysqld service beforehand.
 
-"rh-skipped-tests.list" is Red Hat version of unstable-tests list, it
-additionally includes tests known to fail specifically on Red Hat builds.
-You can omit it if you want to check whether such failures occur for you.
+You can omit --skip-test-list option if you want to check whether
+the listed failures occur for you.
 
 To clean up afterwards, remove the created "var" subdirectory, e.g.
   # su -s /bin/bash - mysql -c "rm -rf /usr/share/mysql-test/var"
