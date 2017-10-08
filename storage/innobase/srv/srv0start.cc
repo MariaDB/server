@@ -378,8 +378,7 @@ create_log_file(
 	ib::info() << "Setting log file " << name << " size to "
 		<< srv_log_file_size << " bytes";
 
-	ret = os_file_set_size(name, *file, srv_log_file_size,
-			       srv_read_only_mode);
+	ret = os_file_set_size(name, *file, srv_log_file_size);
 	if (!ret) {
 		ib::error() << "Cannot set log file " << name << " size to "
 			<< srv_log_file_size << " bytes";
@@ -658,8 +657,7 @@ srv_undo_tablespace_create(
 			<< "wait...";
 
 		ret = os_file_set_size(
-			name, fh, size << UNIV_PAGE_SIZE_SHIFT,
-			srv_read_only_mode);
+			name, fh, os_offset_t(size) << UNIV_PAGE_SIZE_SHIFT);
 
 		if (!ret) {
 			ib::info() << "Error in creating " << name

@@ -5319,23 +5319,56 @@ short_warning:
 
 #endif /* _WIN32 */
 
-/** Write the specified number of zeros to a newly created file.
-@param[in]	name		name of the file or path as a null-terminated
-				string
-@param[in]	file		handle to a file
-@param[in]	size		file size
-@param[in]	read_only	Enable read-only checks if true
-@return true if success */
+/** Extend a file.
+
+On Windows, extending a file allocates blocks for the file,
+unless the file is sparse.
+
+On Unix, we will extend the file with ftruncate(), if
+file needs to be sparse. Otherwise posix_fallocate() is used
+when available, and if not, binary zeroes are added to the end
+of file.
+
+@param[in]	name	file name
+@param[in]	file	file handle
+@param[in]	size	desired file size
+@param[in]	sparse	whether to create a sparse file (no preallocating)
+@return	whether the operation succeeded */
 bool
 os_file_set_size(
 	const char*	name,
 	os_file_t	file,
 	os_offset_t	size,
-	bool		read_only)
+	bool	is_sparse)
 {
 #ifdef _WIN32
 	return os_file_change_size_win32(name, file, size);
-#endif
+#else
+	if (is_sparse) {
+		bool success = !ftruncate(file, size);
+		if (!success) {
+			ib::error() << "ftruncate of file " << name <<
+				" to " << size << " bytes failed with error " << errno;
+		}
+		return(success);
+	}
+
+# ifdef HAVE_POSIX_FALLOCATE
+	int err;
+	do {
+		err = posix_fallocate(file, 0, size);
+	} while (err == EINTR
+		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
+
+	if (err) {
+		ib::error() <<
+			"preallocating " << size << " bytes for" <<
+			"file " << name << "failed with error " << err;
+	}
+	errno = err;
+	return(!err);
+# endif /* HAVE_POSIX_ALLOCATE */
+
 	/* Write up to 1 megabyte at a time. */
 	ulint	buf_size = ut_min(
 		static_cast<ulint>(64),
@@ -5358,7 +5391,7 @@ os_file_set_size(
 		ib::info() << "Progress in MB:";
 	}
 
-	os_offset_t	current_size = 0;
+	os_offset_t	current_size = os_file_get_size(file);
 
 	while (current_size < size) {
 		ulint	n_bytes;
@@ -5401,6 +5434,7 @@ os_file_set_size(
 	ut_free(buf2);
 
 	return(os_file_flush(file));
+#endif /* !WIN32 */
 }
 
 /** Truncates a file to a specified size in bytes.
