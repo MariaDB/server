@@ -75,3 +75,7 @@ type_float       : MDEV-12474 - Fails in fulltest
 
 native_procedure : Not supported in MariaDB
 
+ddl_high_priority: Needs fractional @@lock_wait_timeout
+deadlock_tracking : Needs SHOW ENGINE ROCKSDB TRANSACTION STATUS
+bytes_written: Needs I_S.TABLE_STATISTICS.IO_WRITE_BYTES
+
