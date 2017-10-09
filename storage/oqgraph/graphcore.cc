@@ -891,7 +891,7 @@ namespace open_query
           boost::unordered_map<Vertex, Vertex> p;
           boost::unordered_map<Vertex, EdgeWeight> d;
           boost::queue<Vertex> Q;
-          reverse_graph<Graph> r(share->g);
+          const reverse_graph<Graph> r(share->g);
           p[ *dest ]= *dest;
           d[ *dest ] = EdgeWeight();
           switch (ALGORITHM & op)
