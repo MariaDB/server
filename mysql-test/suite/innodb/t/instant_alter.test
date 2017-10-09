@@ -4,12 +4,29 @@
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
 --echo #
 
-# FIXME: Test that instant ADD is not allowed on ROW_FORMAT=COMPRESSED
-# (create a table with SPATIAL INDEX, ROW_FORMAT=COMPACT, and
-# show that ALTER TABLE…ADD COLUMN…LOCK=NONE is refused.
-# This does not work yet for any table, because
-# check_if_supported_inplace_alter()
-# does not check if instant ADD is possible.)
+let $format= `SELECT CASE WHEN @@GLOBAL.innodb_page_size>16384
+THEN 'DYNAMIC' ELSE 'COMPRESSED' END`;
+eval CREATE TABLE t(a INT UNIQUE)ENGINE=InnoDB ROW_FORMAT=$format;
+INSERT INTO t VALUES(1);
+SET @old_instant=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column');
+--enable_info
+ALTER TABLE t ADD b INT NOT NULL, ALGORITHM=COPY;
+ALTER TABLE t ADD c INT NOT NULL, FORCE;
+--disable_info
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+--enable_info
+ALTER TABLE t ADD d INT NOT NULL;
+--disable_info
+SELECT * FROM t;
+SHOW CREATE TABLE t;
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+DROP TABLE t;
 
 connect analyze, localhost, root;
 connection default;
