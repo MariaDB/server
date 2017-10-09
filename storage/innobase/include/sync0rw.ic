@@ -213,7 +213,7 @@ rw_lock_lock_word_decr(
 {
 	lint local_lock_word;
 
-	local_lock_word = lock->lock_word;
+	local_lock_word = my_atomic_loadlint(&lock->lock_word);
 	while (local_lock_word > threshold) {
 		if (my_atomic_caslint(&lock->lock_word,
 				      &local_lock_word,
