@@ -5639,10 +5639,11 @@ os_is_sparse_file_supported(os_file_t fh)
 	);
 
 #ifdef _WIN32
-	BY_HANDLE_FILE_INFORMATION info;
-	if (GetFileInformationByHandle(fh,&info)) {
-		if (info.dwFileAttributes != INVALID_FILE_ATTRIBUTES) {
-			return (info.dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0;
+	FILE_ATTRIBUTE_TAG_INFO info;
+	if (GetFileInformationByHandleEx(fh, FileAttributeTagInfo,
+		&info, (DWORD)sizeof(info))) {
+		if (info.FileAttributes != INVALID_FILE_ATTRIBUTES) {
+			return (info.FileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0;
 		}
 	}
 	return false;
