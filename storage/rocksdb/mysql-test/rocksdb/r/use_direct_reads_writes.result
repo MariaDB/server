@@ -9,7 +9,6 @@ select plugin_name, plugin_type from information_schema.plugins where plugin_nam
 plugin_name	plugin_type
 # Check that MyRocks has printed an error message into server error log:
 FOUND 1 /enable both use_direct_reads/ in mysqld.1.err
-FOUND 1 /enable both use_direct_io_for_flush_and_compaction/ in mysqld.1.err
 # Now, restart the server back with regular settings
 select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
 plugin_name	plugin_type
