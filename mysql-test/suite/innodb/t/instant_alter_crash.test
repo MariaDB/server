@@ -120,4 +120,7 @@ SHOW CREATE TABLE t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t1,t2;
 
+--remove_files_wildcard $MYSQLD_DATADIR/test #sql*.frm
+--list_files $MYSQLD_DATADIR/test
+
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@saved_frequency;
