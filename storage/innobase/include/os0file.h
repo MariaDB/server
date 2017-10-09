@@ -1583,8 +1583,10 @@ os_file_set_umask(ulint umask);
 Make file sparse, on Windows.
 
 @param[in]	file  file handle
+@param[in]	is_sparse if true, make file sparse,
+			otherwise "unsparse" the file
 @return true on success, false on error */
-bool os_file_set_sparse_win32(os_file_t file);
+bool os_file_set_sparse_win32(os_file_t file, bool is_sparse = true);
 
 /**
 Changes file size on Windows
