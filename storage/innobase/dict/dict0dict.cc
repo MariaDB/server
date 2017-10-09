@@ -912,8 +912,7 @@ dict_index_contains_col_or_prefix(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	if (dict_index_is_clust(index)) {
-
-		return(TRUE);
+		return(!is_virtual);
 	}
 
 	if (is_virtual) {
