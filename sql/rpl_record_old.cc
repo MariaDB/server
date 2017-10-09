@@ -134,7 +134,7 @@ unpack_row_old(rpl_group_info *rgi,
   {
     Field *const f= *field_ptr;
 
-    if (bitmap_is_set(cols, field_ptr -  begin_ptr))
+    if (bitmap_is_set(cols, (uint)(field_ptr -  begin_ptr)))
     {
       f->move_field_offset(offset);
       ptr= f->unpack(f->ptr, ptr, row_buffer_end, 0);
@@ -149,14 +149,14 @@ unpack_row_old(rpl_group_info *rgi,
       }
     }
     else
-      bitmap_clear_bit(rw_set, field_ptr - begin_ptr);
+      bitmap_clear_bit(rw_set, (uint)(field_ptr - begin_ptr));
   }
 
   *row_end = ptr;
   if (master_reclength)
   {
     if (*field_ptr)
-      *master_reclength = (*field_ptr)->ptr - table->record[0];
+      *master_reclength = (ulong)((*field_ptr)->ptr - table->record[0]);
     else
       *master_reclength = table->s->reclength;
   }

@@ -848,7 +848,7 @@ bool check_func_dependency(JOIN *join,
   */
   uint and_level=0;
   build_eq_mods_for_cond(join->thd, &dac, &last_eq_mod, &and_level, cond);
-  if (!(dac.n_equality_mods= last_eq_mod - dac.equality_mods))
+  if (!(dac.n_equality_mods= (uint)(last_eq_mod - dac.equality_mods)))
     return FALSE;  /* No useful conditions */
 
   List<Dep_module> bound_modules;
@@ -1061,7 +1061,7 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
        eq_mod < equality_mods + n_equality_mods;
        eq_mod++)
   {
-    deps_recorder.expr_offset= eq_mod - equality_mods;
+    deps_recorder.expr_offset= (uint)(eq_mod - equality_mods);
     deps_recorder.visited_other_tables= FALSE;
     eq_mod->unbound_args= 0;
     
@@ -1079,7 +1079,7 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
       Dep_value_field* field_val;
       while ((field_val= it++))
       {
-        uint offs= field_val->bitmap_offset + eq_mod - equality_mods;
+        uint offs= (uint)(field_val->bitmap_offset + eq_mod - equality_mods);
         bitmap_set_bit(&expr_deps, offs);
       }
     }
@@ -1158,7 +1158,7 @@ void build_eq_mods_for_cond(THD *thd, Dep_analysis_context *ctx,
   if (cond->type() == Item_func::COND_ITEM)
   {
     List_iterator_fast<Item> li(*((Item_cond*) cond)->argument_list());
-    uint orig_offset= *eq_mod - ctx->equality_mods;
+    size_t orig_offset= *eq_mod - ctx->equality_mods;
     
     /* AND/OR */
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)

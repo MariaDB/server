@@ -4286,7 +4286,7 @@ my_bool Query_cache::move_by_type(uchar **border,
 		      *pprev = block->pprev,
 		      *pnext = block->pnext,
 		      *new_block =(Query_cache_block *) *border;
-    uint tablename_offset = block->table()->table() - block->table()->db();
+    size_t tablename_offset = block->table()->table() - block->table()->db();
     char *data = (char*) block->data();
     uchar *key;
     size_t key_length;
@@ -4595,7 +4595,7 @@ uint Query_cache::filename_2_table_key (char *key, const char *path,
   filename=  tablename + dirname_length(tablename + 2) + 2;
   /* Find start of databasename */
   for (dbname= filename - 2 ; dbname[-1] != FN_LIBCHAR ; dbname--) ;
-  *db_length= (filename - dbname) - 1;
+  *db_length= (uint32)(filename - dbname) - 1;
   DBUG_PRINT("qcache", ("table '%-.*s.%s'", *db_length, dbname, filename));
 
   DBUG_RETURN((uint) (strmake(strmake(key, dbname,

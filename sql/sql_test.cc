@@ -171,7 +171,7 @@ TEST_join(JOIN *join)
       in order not to garble the tabular output below.
     */
     String ref_key_parts[MAX_TABLES];
-    int tables_in_range= jt_range->end - jt_range->start;
+    int tables_in_range= (int)(jt_range->end - jt_range->start);
     for (i= 0; i < tables_in_range; i++)
     {
       JOIN_TAB *tab= jt_range->start + i;

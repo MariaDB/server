@@ -843,7 +843,7 @@ public:
     else
     {
       stat_field->set_notnull();
-      stat_field->store(table->collected_stats->cardinality);
+      stat_field->store(table->collected_stats->cardinality,true);
     }
   }
 
@@ -1055,7 +1055,7 @@ public:
         switch (i) {
         case COLUMN_STAT_MIN_VALUE:
           if (table_field->type() == MYSQL_TYPE_BIT)
-            stat_field->store(table_field->collected_stats->min_value->val_int());
+            stat_field->store(table_field->collected_stats->min_value->val_int(),true);
           else
           {
             table_field->collected_stats->min_value->val_str(&val);
@@ -1064,7 +1064,7 @@ public:
           break;
         case COLUMN_STAT_MAX_VALUE:
           if (table_field->type() == MYSQL_TYPE_BIT)
-            stat_field->store(table_field->collected_stats->max_value->val_int());
+            stat_field->store(table_field->collected_stats->max_value->val_int(),true);
           else
           {
             table_field->collected_stats->max_value->val_str(&val);
@@ -1631,7 +1631,7 @@ public:
     of the parameters to be passed to the constructor of the Unique object. 
   */  
 
-  Count_distinct_field(Field *field, uint max_heap_table_size)
+  Count_distinct_field(Field *field, size_t max_heap_table_size)
   {
     table_field= field;
     tree_key_length= field->pack_length();
@@ -1729,7 +1729,7 @@ class Count_distinct_field_bit: public Count_distinct_field
 {
 public:
 
-  Count_distinct_field_bit(Field *field, uint max_heap_table_size)
+  Count_distinct_field_bit(Field *field, size_t max_heap_table_size)
   {
     table_field= field;
     tree_key_length= sizeof(ulonglong);
@@ -1825,7 +1825,7 @@ public:
     if ((calc_state=
          (Prefix_calc_state *) thd->alloc(sizeof(Prefix_calc_state)*key_parts)))
     {
-      uint keyno= key_info-table->key_info;
+      uint keyno= (uint)(key_info-table->key_info);
       for (i= 0, state= calc_state; i < key_parts; i++, state++)
       {
         /* 
@@ -2439,7 +2439,7 @@ int alloc_histograms_for_table_share(THD* thd, TABLE_SHARE *table_share,
 inline
 void Column_statistics_collected::init(THD *thd, Field *table_field)
 {
-  uint max_heap_table_size= thd->variables.max_heap_table_size;
+  size_t max_heap_table_size= (size_t)thd->variables.max_heap_table_size;
   TABLE *table= table_field->table;
   uint pk= table->s->primary_key;
   
@@ -3720,14 +3720,14 @@ double get_column_avg_frequency(Field * field)
   */
   if (!table->s->field)
   {
-    res= table->stat_records();
+    res= (double)table->stat_records();
     return res;
   }
  
   Column_statistics *col_stats= field->read_stats;
 
   if (!col_stats)
-    res= table->stat_records();
+    res= (double)table->stat_records();
   else
     res= col_stats->get_avg_frequency();
   return res;
@@ -3766,7 +3766,7 @@ double get_column_range_cardinality(Field *field,
   double res;
   TABLE *table= field->table;
   Column_statistics *col_stats= field->read_stats;
-  double tab_records= table->stat_records();
+  double tab_records= (double)table->stat_records();
 
   if (!col_stats)
     return tab_records;

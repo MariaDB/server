@@ -8799,8 +8799,8 @@ static int mysql_init_variables(void)
 
   /* Set directory paths */
   mysql_real_data_home_len=
-    strmake_buf(mysql_real_data_home,
-                get_relative_path(MYSQL_DATADIR)) - mysql_real_data_home;
+    (uint)(strmake_buf(mysql_real_data_home,
+                get_relative_path(MYSQL_DATADIR)) - mysql_real_data_home);
   /* Replication parameters */
   master_info_file= (char*) "master.info",
     relay_log_info_file= (char*) "relay-log.info";

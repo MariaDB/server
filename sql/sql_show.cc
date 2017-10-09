@@ -3369,7 +3369,7 @@ static bool show_status_array(THD *thd, const char *wild,
   prefix_end=strnmov(name_buffer, prefix, sizeof(name_buffer)-1);
   if (*prefix)
     *prefix_end++= '_';
-  len=name_buffer + sizeof(name_buffer) - prefix_end;
+  len=(int)(name_buffer + sizeof(name_buffer) - prefix_end);
 
 #ifdef WITH_WSREP
   bool is_wsrep_var= FALSE;
@@ -5363,7 +5363,7 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
     */
     tmp_buff= strchr(column_type.c_ptr_safe(), ' ');
   table->field[offset]->store(column_type.ptr(),
-                              (tmp_buff ? tmp_buff - column_type.ptr() :
+                              (tmp_buff ? (uint)(tmp_buff - column_type.ptr()) :
                                column_type.length()), cs);
 
   is_blob= (field->type() == MYSQL_TYPE_BLOB);
@@ -6345,7 +6345,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
         table->field[5]->store(STRING_WITH_LEN("NO"), cs);
     }
 
-    definer_len= (strxmov(definer, tables->definer.user.str, "@",
+    definer_len= (uint)(strxmov(definer, tables->definer.user.str, "@",
                           tables->definer.host.str, NullS) - definer);
     table->field[6]->store(definer, definer_len, cs);
     if (tables->view_suid)

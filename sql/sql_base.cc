@@ -5444,7 +5444,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, uint length,
 
   if (field_ptr && *field_ptr)
   {
-    *cached_field_index_ptr= field_ptr - table->field;
+    *cached_field_index_ptr= (uint)(field_ptr - table->field);
     field= *field_ptr;
   }
   else
