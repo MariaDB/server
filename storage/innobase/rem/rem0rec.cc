@@ -515,7 +515,8 @@ rec_offs_validate(
 			ut_ad(is_user_rec || n == 1);
 			ut_ad(is_user_rec || i == 1);
 			ut_ad(!is_user_rec || n >= i || !index
-			      || n >= index->n_core_fields);
+			      || (n + (index->id == DICT_INDEXES_ID))
+			      >= index->n_core_fields);
 			for (; n < i; n++) {
 				ut_ad(rec_offs_base(offsets)[1 + n]
 				      & REC_OFFS_DEFAULT);
@@ -842,7 +843,8 @@ rec_get_offsets_func(
 		ut_ad(!is_user_rec || !leaf || index->is_dummy
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* btr_pcur_restore_position() */
-		      || (n >= index->n_core_fields && n <= index->n_fields));
+		      || (n + (index->id == DICT_INDEXES_ID)
+			  >= index->n_core_fields && n <= index->n_fields));
 
 		if (is_user_rec && leaf && n < index->n_fields) {
 			ut_ad(!index->is_dummy);
