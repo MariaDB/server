@@ -145,6 +145,8 @@ trx_init(
 
 	trx->check_unique_secondary = true;
 
+	trx->vtq_notify_on_commit = false;
+
 	trx->lock.n_rec_locks = 0;
 
 	trx->dict_operation = TRX_DICT_OP_NONE;
@@ -1363,7 +1365,6 @@ trx_start_low(
 		trx->start_time_micro += trx->start_time * 1000000;
 	}
 
-	trx->vtq_notify_on_commit = false;
 	ut_a(trx->error_state == DB_SUCCESS);
 
 	MONITOR_INC(MONITOR_TRX_ACTIVE);
