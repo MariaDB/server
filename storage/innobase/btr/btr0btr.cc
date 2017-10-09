@@ -1041,7 +1041,8 @@ btr_free_root(
 {
 	fseg_header_t*	header;
 
-	ut_ad(mtr_memo_contains_flagged(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr_memo_contains_flagged(mtr, block, MTR_MEMO_PAGE_X_FIX
+					| MTR_MEMO_PAGE_SX_FIX));
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 
 	btr_search_drop_page_hash_index(block);
