@@ -620,6 +620,7 @@ trx_free_prepared(
 		 && trx->is_recovered
 		 && (!srv_was_started
 		     || srv_operation == SRV_OPERATION_RESTORE
+		     || srv_operation == SRV_OPERATION_RESTORE_EXPORT
 		     || srv_read_only_mode
 		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)));
 	ut_a(trx->magic_n == TRX_MAGIC_N);

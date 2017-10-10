@@ -4793,7 +4793,8 @@ xtrabackup_prepare_func(char** argv)
 		if (!ok) goto error_cleanup;
 	}
 
-	srv_operation = SRV_OPERATION_RESTORE;
+	srv_operation = xtrabackup_export
+		? SRV_OPERATION_RESTORE_EXPORT : SRV_OPERATION_RESTORE;
 
 	if (innodb_init_param()) {
 		goto error_cleanup;
