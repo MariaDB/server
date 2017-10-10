@@ -71,7 +71,7 @@ check_pid_and_port()
             grep '[[:space:]]\+rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)"
         ;;
     *)
-        if ! which lsof > /dev/null; then
+        if ! command -v lsof > /dev/null; then
           wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
           exit 2 # ENOENT
         fi
@@ -102,10 +102,10 @@ check_pid_and_port()
 is_local_ip()
 {
   local address="$1"
-  local get_addr_bin=`which ifconfig`
-  if [ -z "$get_addr_bin" ]
+  local get_addr_bin
+  if ! command -v ifconfig > /dev/null
   then
-    get_addr_bin=`which ip`
+    get_addr_bin=ip
     get_addr_bin="$get_addr_bin address show"
     # Add an slash at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
     # ip output format is "X.X.X.X/mask"
@@ -113,6 +113,7 @@ is_local_ip()
   else
     # Add an space at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
     # ifconfig output format is "X.X.X.X "
+    get_addr_bin=ifconfig
     address="$address "
   fi
 

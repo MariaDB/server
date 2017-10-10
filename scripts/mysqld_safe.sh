@@ -103,35 +103,6 @@ EOF
         exit 1
 }
 
-my_which ()
-{
-  save_ifs="${IFS-UNSET}"
-  IFS=:
-  ret=0
-  for file
-  do
-    for dir in $PATH
-    do
-      if [ -f "$dir/$file" ]
-      then
-        echo "$dir/$file"
-        continue 2
-      fi
-    done
-
-	ret=1  #signal an error
-	break
-  done
-
-  if [ "$save_ifs" = UNSET ]
-  then
-    unset IFS
-  else
-    IFS="$save_ifs"
-  fi
-  return $ret  # Success
-}
-
 find_in_bin() {
   if test -x "$MY_BASEDIR_VERSION/bin/$1"
   then
@@ -220,7 +191,8 @@ wsrep_pick_url() {
 
   log_error "WSREP: 'wsrep_urls' is DEPRECATED! Use wsrep_cluster_address to specify multiple addresses instead."
 
-  if ! which nc >/dev/null; then
+  if ! command -v nc >/dev/null
+  then
     log_error "ERROR: nc tool not found in PATH! Make sure you have it installed."
     return 1
   fi
@@ -646,8 +618,7 @@ plugin_dir="${plugin_dir}${PLUGIN_VARIANT}"
 # Ensure that 'logger' exists, if it's requested
 if [ $want_syslog -eq 1 ]
 then
-  my_which logger > /dev/null 2>&1
-  if [ $? -ne 0 ]
+  if ! command -v logger > /dev/null
   then
     log_error "--syslog requested, but no 'logger' program found.  Please ensure that 'logger' is in your PATH, or do not specify the --syslog option to mysqld_safe."
     exit 1
@@ -878,7 +849,7 @@ fi
 if @TARGET_LINUX@ && test $flush_caches -eq 1
 then
   # Locate sync, ensure it exists.
-  if ! my_which sync > /dev/null 2>&1
+  if ! command -v sync > /dev/null
   then
     log_error "sync command not found, required for --flush-caches"
     exit 1
@@ -890,7 +861,7 @@ then
   fi
 
   # Locate sysctl, ensure it exists.
-  if ! my_which sysctl > /dev/null 2>&1
+  if ! command -v sysctl > /dev/null
   then
     log_error "sysctl command not found, required for --flush-caches"
     exit 1
@@ -934,7 +905,7 @@ cmd="`mysqld_ld_preload_text`$NOHUP_NICENESS"
 if @TARGET_LINUX@ && test $numa_interleave -eq 1
 then
   # Locate numactl, ensure it exists.
-  if ! my_which numactl > /dev/null 2>&1
+  if ! command -v numactl > /dev/null
   then
     log_error "numactl command not found, required for --numa-interleave"
     exit 1
