@@ -1,0 +1,22 @@
+DROP DATABASE IF EXISTS `db-1`;
+CREATE DATABASE `db-1`;
+USE `db-1`;
+SET NAMES UTF8;
+CREATE TABLE diaries (
+title TEXT,
+FULLTEXT KEY (title)
+) DEFAULT CHARSET=utf8;
+SELECT mroonga_command('dump --dump_plugins no');
+mroonga_command('dump --dump_plugins no')
+table_create diaries TABLE_NO_KEY
+column_create diaries title COLUMN_SCALAR LongText
+
+table_create diaries#title TABLE_PAT_KEY ShortText --default_tokenizer TokenBigram --normalizer NormalizerMySQLGeneralCI
+
+table_create mroonga_operations TABLE_NO_KEY
+column_create mroonga_operations record COLUMN_SCALAR UInt32
+column_create mroonga_operations table COLUMN_SCALAR ShortText
+column_create mroonga_operations type COLUMN_SCALAR ShortText
+
+column_create diaries#title index COLUMN_INDEX|WITH_POSITION diaries title
+DROP TABLE diaries;

@@ -4,14 +4,6 @@ id INT PRIMARY KEY AUTO_INCREMENT,
 name TEXT,
 FULLTEXT INDEX (name) COMMENT 'tokenizer "off"'
 ) DEFAULT CHARSET=utf8;
-SHOW CREATE TABLE variables;
-Table	Create Table
-variables	CREATE TABLE `variables` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `name` (`name`) COMMENT 'tokenizer "off"'
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO variables (name) VALUES ("mroonga_database_path_prefix");
 INSERT INTO variables (name) VALUES ("mroonga_default_tokenizer");
 INSERT INTO variables (name) VALUES ("mroonga_default_wrapper_engine");

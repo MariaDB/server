@@ -28,13 +28,6 @@
 #include "grn_output.h"
 #include <groonga/plugin.h>
 
-#ifdef HAVE__STRNICMP
-# ifdef strncasecmp
-#  undef strncasecmp
-# endif /* strcasecmp */
-# define strncasecmp(s1,s2,n) _strnicmp(s1,s2,n)
-#endif /* HAVE__STRNICMP */
-
 #define VAR GRN_PROC_GET_VAR_BY_OFFSET
 #define CONST_STR_LEN(x) x, x ? sizeof(x) - 1 : 0
 #define TEXT_VALUE_LEN(x) GRN_TEXT_VALUE(x), GRN_TEXT_LEN(x)
@@ -166,7 +159,7 @@ cooccurrence_search(grn_ctx *ctx, grn_obj *items, grn_obj *items_boost, grn_id i
     }
     if ((c = grn_ii_cursor_open(ctx, (grn_ii *)co, id, GRN_ID_NIL, GRN_ID_MAX,
                                 ((grn_ii *)co)->n_elements - 1, 0))) {
-      grn_ii_posting *p;
+      grn_posting *p;
       grn_obj post, pair_freq, item_freq, item_freq2, item_boost;
       GRN_RECORD_INIT(&post, 0, grn_obj_id(ctx, items));
       GRN_INT32_INIT(&pair_freq, 0);
@@ -330,7 +323,7 @@ complete(grn_ctx *ctx, grn_obj *items, grn_obj *items_boost, grn_obj *col,
             grn_ii_cursor *icur;
             if ((icur = grn_ii_cursor_open(ctx, (grn_ii *)index, id,
                                            GRN_ID_NIL, GRN_ID_MAX, 1, 0))) {
-              grn_ii_posting *p;
+              grn_posting *p;
               while ((p = grn_ii_cursor_next(ctx, icur))) {
                 complete_add_item(ctx, p->rid, res, frequency_threshold,
                                   items_freq, items_boost,
@@ -536,10 +529,10 @@ parse_search_mode(grn_ctx *ctx, grn_obj *mode_text)
 
   mode_length = GRN_TEXT_LEN(mode_text);
   if (mode_length == 3 &&
-      strncasecmp("yes", GRN_TEXT_VALUE(mode_text), 3) == 0) {
+      grn_strncasecmp("yes", GRN_TEXT_VALUE(mode_text), 3) == 0) {
     mode = GRN_SUGGEST_SEARCH_YES;
   } else if (mode_length == 2 &&
-             strncasecmp("no", GRN_TEXT_VALUE(mode_text), 2) == 0) {
+             grn_strncasecmp("no", GRN_TEXT_VALUE(mode_text), 2) == 0) {
     mode = GRN_SUGGEST_SEARCH_NO;
   } else {
     mode = GRN_SUGGEST_SEARCH_AUTO;
@@ -923,10 +916,10 @@ learner_learn_for_suggest(grn_ctx *ctx, grn_suggest_learner *learner)
       pair_id = grn_table_add(ctx, learner->pairs, &key, sizeof(uint64_t),
                               &added);
       if (added) {
-	GRN_RECORD_SET(ctx, pre_item, tid);
-	grn_obj_set_value(ctx, learner->pairs_pre, pair_id,
+        GRN_RECORD_SET(ctx, pre_item, tid);
+        grn_obj_set_value(ctx, learner->pairs_pre, pair_id,
                           pre_item, GRN_OBJ_SET);
-	grn_obj_set_value(ctx, learner->pairs_post, pair_id,
+        grn_obj_set_value(ctx, learner->pairs_post, pair_id,
                           post_item, GRN_OBJ_SET);
       }
       if (!token_ids) {

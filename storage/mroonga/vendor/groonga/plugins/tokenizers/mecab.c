@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2015 Brazil
+/*
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -64,14 +65,14 @@ mecab_global_error_message(void)
 static grn_encoding
 translate_mecab_charset_to_grn_encoding(const char *charset)
 {
-  if (strcasecmp(charset, "euc-jp") == 0) {
+  if (grn_strcasecmp(charset, "euc-jp") == 0) {
     return GRN_ENC_EUC_JP;
-  } else if (strcasecmp(charset, "utf-8") == 0 ||
-             strcasecmp(charset, "utf8") == 0) {
+  } else if (grn_strcasecmp(charset, "utf-8") == 0 ||
+             grn_strcasecmp(charset, "utf8") == 0) {
     return GRN_ENC_UTF8;
-  } else if (strcasecmp(charset, "shift_jis") == 0 ||
-             strcasecmp(charset, "shift-jis") == 0 ||
-             strcasecmp(charset, "sjis") == 0) {
+  } else if (grn_strcasecmp(charset, "shift_jis") == 0 ||
+             grn_strcasecmp(charset, "shift-jis") == 0 ||
+             grn_strcasecmp(charset, "sjis") == 0) {
     return GRN_ENC_SJIS;
   }
   return GRN_ENC_NONE;
@@ -169,7 +170,7 @@ chunked_tokenize_utf8_chunk(grn_ctx *ctx,
 
   tokenized_chunk_length = strlen(tokenized_chunk);
   if (tokenized_chunk_length >= 1 &&
-      isspace(tokenized_chunk[tokenized_chunk_length - 1])) {
+      isspace((unsigned char)tokenized_chunk[tokenized_chunk_length - 1])) {
     GRN_TEXT_PUT(ctx, &(tokenizer->buf),
                  tokenized_chunk, tokenized_chunk_length - 1);
   } else {
@@ -271,6 +272,65 @@ chunked_tokenize_utf8(grn_ctx *ctx,
   }
 }
 
+static mecab_t *
+mecab_create(grn_ctx *ctx)
+{
+  mecab_t *mecab;
+  int argc = 0;
+  const char *argv[4];
+
+  argv[argc++] = "Groonga";
+  argv[argc++] = "-Owakati";
+#ifdef GRN_WITH_BUNDLED_MECAB
+  argv[argc++] = "--rcfile";
+# ifdef WIN32
+  {
+    static char windows_mecab_rc_file[PATH_MAX];
+
+    grn_strcpy(windows_mecab_rc_file,
+               PATH_MAX,
+               grn_plugin_windows_base_dir());
+    grn_strcat(windows_mecab_rc_file,
+               PATH_MAX,
+               "/");
+    grn_strcat(windows_mecab_rc_file,
+               PATH_MAX,
+               GRN_BUNDLED_MECAB_RELATIVE_RC_PATH);
+    {
+      char *c;
+      for (c = windows_mecab_rc_file; *c != '\0'; c++) {
+        if (*c == '/') {
+          *c = '\\';
+        }
+      }
+    }
+    argv[argc++] = windows_mecab_rc_file;
+  }
+# else /* WIN32 */
+  argv[argc++] = GRN_BUNDLED_MECAB_RC_PATH;
+# endif /* WIN32 */
+#endif /* GRN_WITH_BUNDLED_MECAB */
+  mecab = mecab_new(argc, (char **)argv);
+
+  if (!mecab) {
+#ifdef GRN_WITH_BUNDLED_MECAB
+    GRN_PLUGIN_ERROR(ctx, GRN_TOKENIZER_ERROR,
+                     "[tokenizer][mecab] failed to create mecab_t: %s: "
+                     "mecab_new(\"%s\", \"%s\", \"%s\", \"%s\")",
+                     mecab_global_error_message(),
+                     argv[0], argv[1], argv[2], argv[3]);
+#else /* GRN_WITH_BUNDLED_MECAB */
+    GRN_PLUGIN_ERROR(ctx, GRN_TOKENIZER_ERROR,
+                     "[tokenizer][mecab] failed to create mecab_t: %s: "
+                     "mecab_new(\"%s\", \"%s\")",
+                     mecab_global_error_message(),
+                     argv[0], argv[1]);
+#endif /* GRN_WITH_BUNDLED_MECAB */
+  }
+
+  return mecab;
+}
+
 /*
   This function is called for a full text search query or a document to be
   indexed. This means that both short/long strings are given.
@@ -294,13 +354,8 @@ mecab_init(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
   if (!sole_mecab) {
     grn_plugin_mutex_lock(ctx, sole_mecab_mutex);
     if (!sole_mecab) {
-      sole_mecab = mecab_new2("-Owakati");
-      if (!sole_mecab) {
-        GRN_PLUGIN_ERROR(ctx, GRN_TOKENIZER_ERROR,
-                         "[tokenizer][mecab] "
-                         "mecab_new2() failed on mecab_init(): %s",
-                         mecab_global_error_message());
-      } else {
+      sole_mecab = mecab_create(ctx);
+      if (sole_mecab) {
         sole_mecab_encoding = get_mecab_encoding(sole_mecab);
       }
     }
@@ -479,28 +534,24 @@ check_mecab_dictionary_encoding(grn_ctx *ctx)
 {
 #ifdef HAVE_MECAB_DICTIONARY_INFO_T
   mecab_t *mecab;
+  grn_encoding encoding;
+  grn_bool have_same_encoding_dictionary;
 
-  mecab = mecab_new2("-Owakati");
-  if (mecab) {
-    grn_encoding encoding;
-    grn_bool have_same_encoding_dictionary;
+  mecab = mecab_create(ctx);
+  if (!mecab) {
+    return;
+  }
 
-    encoding = GRN_CTX_GET_ENCODING(ctx);
-    have_same_encoding_dictionary = (encoding == get_mecab_encoding(mecab));
-    mecab_destroy(mecab);
+  encoding = GRN_CTX_GET_ENCODING(ctx);
+  have_same_encoding_dictionary = (encoding == get_mecab_encoding(mecab));
+  mecab_destroy(mecab);
 
-    if (!have_same_encoding_dictionary) {
-      GRN_PLUGIN_ERROR(ctx, GRN_TOKENIZER_ERROR,
-                       "[tokenizer][mecab] "
-                       "MeCab has no dictionary that uses the context encoding"
-                       ": <%s>",
-                       grn_encoding_to_string(encoding));
-    }
-  } else {
+  if (!have_same_encoding_dictionary) {
     GRN_PLUGIN_ERROR(ctx, GRN_TOKENIZER_ERROR,
                      "[tokenizer][mecab] "
-                     "mecab_new2 failed in check_mecab_dictionary_encoding: %s",
-                     mecab_global_error_message());
+                     "MeCab has no dictionary that uses the context encoding"
+                     ": <%s>",
+                     grn_encoding_to_string(encoding));
   }
 #endif
 }
@@ -549,6 +600,11 @@ GRN_PLUGIN_INIT(grn_ctx *ctx)
   }
 
   check_mecab_dictionary_encoding(ctx);
+  if (ctx->rc != GRN_SUCCESS) {
+    grn_plugin_mutex_close(ctx, sole_mecab_mutex);
+    sole_mecab_mutex = NULL;
+  }
+
   return ctx->rc;
 }
 

@@ -10,19 +10,6 @@ content TEXT,
 FULLTEXT INDEX(content),
 KEY(day)
 ) DEFAULT CHARSET UTF8 COMMENT = 'engine "innodb"';
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `year` int(10) unsigned DEFAULT NULL,
-  `month` int(10) unsigned DEFAULT NULL,
-  `day` int(10) unsigned DEFAULT NULL,
-  `title` varchar(255) DEFAULT NULL,
-  `content` text,
-  PRIMARY KEY (`id`),
-  KEY `day` (`day`),
-  FULLTEXT KEY `content` (`content`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='engine "innodb"'
 INSERT INTO diaries VALUES(1, 2011, 11, 9, "Hello", "今日からはじめました。");
 INSERT INTO diaries VALUES(2, 2011, 11, 10, "天気", "明日の富士山の天気について");
 INSERT INTO diaries VALUES(3, 2011, 11, 11, "富士山", "今日も天気がよくてきれいに見える。");

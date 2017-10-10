@@ -1,0 +1,25 @@
+DROP TABLE IF EXISTS memos;
+FLUSH STATUS;
+SET NAMES utf8;
+CREATE TABLE memos (
+id int PRIMARY KEY,
+tag ENUM('Groonga', 'Mroonga'),
+content TEXT,
+FULLTEXT INDEX(content),
+KEY(tag),
+KEY(id)
+) DEFAULT CHARSET=utf8;
+INSERT INTO memos VALUES(1, 'Groonga', 'Groonga is great!');
+INSERT INTO memos VALUES(2, 'Mroonga', 'Mroonga is great!');
+INSERT INTO memos VALUES(3, 'Mroonga', 'Mroonga is a MySQL storage engine.');
+INSERT INTO memos VALUES(4, 'Mroonga', 'Mroonga is based on Groonga.');
+SELECT * FROM memos
+WHERE MATCH(content) AGAINST("+Groonga" IN BOOLEAN MODE) AND
+tag = 2
+ORDER BY id LIMIT 1;
+id	tag	content
+4	Mroonga	Mroonga is based on Groonga.
+SHOW STATUS LIKE 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	1
+DROP TABLE memos;

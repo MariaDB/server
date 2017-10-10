@@ -3,13 +3,6 @@ CREATE TABLE running_records (
 time TIME(6) PRIMARY KEY,
 title TEXT
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE running_records;
-Table	Create Table
-running_records	CREATE TABLE `running_records` (
-  `time` time(6) NOT NULL,
-  `title` text,
-  PRIMARY KEY (`time`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO running_records (time, title)
 VALUES ("01:00:00.000001", "normal condition");
 INSERT INTO running_records (time, title)

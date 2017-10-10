@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source ../../include/mroonga/have_mroonga.inc
 
@@ -31,7 +31,6 @@ CREATE TABLE diaries (
   FULLTEXT INDEX(content),
   KEY(day)
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE diaries;
 
 INSERT INTO diaries VALUES(1, 2011, 11, 9, "Hello", "今日からはじめました。");
 INSERT INTO diaries VALUES(2, 2011, 11, 10, "天気", "明日の富士山の天気について");

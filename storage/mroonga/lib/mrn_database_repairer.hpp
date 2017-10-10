@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2015 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2015-2017 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -28,6 +28,7 @@ namespace mrn {
     DatabaseRepairer(grn_ctx *ctx, THD *thd);
     ~DatabaseRepairer(void);
     bool is_crashed(void);
+    bool is_corrupt(void);
     bool repair(void);
 
   private:
@@ -40,18 +41,26 @@ namespace mrn {
     size_t path_prefix_length_;
     size_t mrn_db_file_suffix_length_;
 
-    typedef void (DatabaseRepairer::*EachBodyFunc)(grn_obj *db,
+    typedef void (DatabaseRepairer::*EachBodyFunc)(grn_ctx *ctx,
+                                                   grn_obj *db,
                                                    const char *db_path,
                                                    void *user_data);
 
     void each_database(EachBodyFunc each_body_func, void *user_data);
     void each_database_body(const char *base_path,
+                            grn_ctx *ctx,
                             EachBodyFunc each_body_func,
                             void *user_data);
     void detect_paths(void);
 
-    void is_crashed_body(grn_obj *db, const char *db_path, void *user_data);
-    void repair_body(grn_obj *db, const char *db_path, void *user_data);
+    void check_body(grn_ctx *ctx,
+                    grn_obj *db,
+                    const char *db_path,
+                    void *user_data);
+    void repair_body(grn_ctx *ctx,
+                     grn_obj *db,
+                     const char *db_path,
+                     void *user_data);
   };
 }
 

@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013-2015 Brazil
+  Copyright(C) 2013-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -29,7 +29,22 @@
 #include "mrb_ctx.h"
 #include "mrb_object.h"
 #include "mrb_operator.h"
+#include "mrb_options.h"
 #include "mrb_converter.h"
+
+static mrb_value
+object_remove_force(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  char *name;
+  mrb_int name_size;
+
+  mrb_get_args(mrb, "s", &name, &name_size);
+  grn_obj_remove_force(ctx, name, name_size);
+  grn_mrb_ctx_check(mrb);
+
+  return mrb_nil_value();
+}
 
 mrb_value
 grn_mrb_object_inspect(mrb_state *mrb, mrb_value self)
@@ -82,39 +97,27 @@ object_get_name(mrb_state *mrb, mrb_value self)
   object = DATA_PTR(self);
   name_length = grn_obj_name(ctx, object, name, GRN_TABLE_MAX_KEY_SIZE);
 
-  return mrb_str_new(mrb, name, name_length);
+  if (name_length == 0) {
+    return mrb_nil_value();
+  } else {
+    return mrb_str_new(mrb, name, name_length);
+  }
 }
 
 static mrb_value
-object_find_index(mrb_state *mrb, mrb_value self)
+object_get_path(mrb_state *mrb, mrb_value self)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   grn_obj *object;
-  mrb_value mrb_operator;
-  grn_operator operator;
-  grn_index_datum index_datum;
-  int n_index_data;
+  const char *path;
 
-  mrb_get_args(mrb, "o", &mrb_operator);
   object = DATA_PTR(self);
-  operator = grn_mrb_value_to_operator(mrb, mrb_operator);
-  n_index_data = grn_column_find_index_data(ctx,
-                                         object,
-                                         operator,
-                                         &index_datum,
-                                         1);
-  if (n_index_data == 0) {
-    return mrb_nil_value();
-  } else {
-    grn_mrb_data *data;
-    struct RClass *klass;
-    mrb_value args[2];
+  path = grn_obj_path(ctx, object);
 
-    data = &(ctx->impl->mrb);
-    klass = mrb_class_get_under(mrb, data->module, "IndexInfo");
-    args[0] = grn_mrb_value_from_grn_obj(mrb, index_datum.index);
-    args[1] = mrb_fixnum_value(index_datum.section);
-    return mrb_obj_new(mrb, klass, 2, args);
+  if (path) {
+    return mrb_str_new_cstr(mrb, path);
+  } else {
+    return mrb_nil_value();
   }
 }
 
@@ -146,11 +149,16 @@ object_equal(mrb_state *mrb, mrb_value self)
 
   object = DATA_PTR(self);
   other_object = DATA_PTR(mrb_other);
-  if (object == other_object) {
-    return mrb_true_value();
-  } else {
-    return mrb_false_value();
-  }
+  return mrb_bool_value(object == other_object);
+}
+
+static mrb_value
+object_hash(mrb_state *mrb, mrb_value self)
+{
+  grn_obj *object;
+
+  object = DATA_PTR(self);
+  return mrb_fixnum_value((mrb_int)((uint64_t)object));
 }
 
 static mrb_value
@@ -174,15 +182,37 @@ static mrb_value
 object_remove(mrb_state *mrb, mrb_value self)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  mrb_value mrb_options = mrb_nil_value();
+  grn_bool dependent = GRN_FALSE;
   grn_obj *object;
 
+  mrb_get_args(mrb, "|H", &mrb_options);
+  if (!mrb_nil_p(mrb_options)) {
+    mrb_value mrb_dependent;
+    mrb_dependent = grn_mrb_options_get_lit(mrb, mrb_options, "dependent");
+    dependent = mrb_test(mrb_dependent);
+  }
+
   object = DATA_PTR(self);
-  grn_obj_remove(ctx, object);
+  if (dependent) {
+    grn_obj_remove_dependent(ctx, object);
+  } else {
+    grn_obj_remove(ctx, object);
+  }
   grn_mrb_ctx_check(mrb);
 
   DATA_PTR(self) = NULL;
 
   return mrb_nil_value();
+}
+
+static mrb_value
+object_is_closed(mrb_state *mrb, mrb_value self)
+{
+  grn_obj *object;
+
+  object = DATA_PTR(self);
+  return mrb_bool_value(object == NULL);
 }
 
 static mrb_value
@@ -240,6 +270,29 @@ object_is_persistent(mrb_state *mrb, mrb_value self)
   return mrb_bool_value((flags & GRN_OBJ_PERSISTENT) == GRN_OBJ_PERSISTENT);
 }
 
+static mrb_value
+object_is_true(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *object;
+
+  object = DATA_PTR(self);
+  return mrb_bool_value(grn_obj_is_true(ctx, object));
+}
+
+static mrb_value
+object_check_corrupt(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *object;
+  grn_bool is_corrupt;
+
+  object = DATA_PTR(self);
+  is_corrupt = grn_obj_is_corrupt(ctx, object);
+  grn_mrb_ctx_check(mrb);
+  return mrb_bool_value(is_corrupt);
+}
+
 void
 grn_mrb_object_init(grn_ctx *ctx)
 {
@@ -252,18 +305,26 @@ grn_mrb_object_init(grn_ctx *ctx)
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
   data->object_class = klass;
 
+  mrb_define_class_method(mrb,
+                          klass,
+                          "remove_force",
+                          object_remove_force,
+                          MRB_ARGS_REQ(1));
+
   mrb_define_method(mrb, klass, "inspect",
                     grn_mrb_object_inspect, MRB_ARGS_NONE());
 
   mrb_define_method(mrb, klass, "id", object_get_id, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "name", object_get_name, MRB_ARGS_NONE());
-  mrb_define_method(mrb, klass, "find_index",
-                    object_find_index, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, klass, "path", object_get_path, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "grn_inspect",
                     object_grn_inspect, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "==", object_equal, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, klass, "eql?", object_equal, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, klass, "hash", object_hash, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "close", object_close, MRB_ARGS_NONE());
-  mrb_define_method(mrb, klass, "remove", object_remove, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "remove", object_remove, MRB_ARGS_OPT(1));
+  mrb_define_method(mrb, klass, "closed?", object_is_closed, MRB_ARGS_NONE());
 
   mrb_define_method(mrb, klass, "domain_id", object_get_domain_id,
                     MRB_ARGS_NONE());
@@ -273,6 +334,11 @@ grn_mrb_object_init(grn_ctx *ctx)
   mrb_define_method(mrb, klass, "temporary?", object_is_temporary,
                     MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "persistent?", object_is_persistent,
+                    MRB_ARGS_NONE());
+
+  mrb_define_method(mrb, klass, "true?", object_is_true, MRB_ARGS_NONE());
+
+  mrb_define_method(mrb, klass, "check_corrupt", object_check_corrupt,
                     MRB_ARGS_NONE());
 
   grn_mrb_load(ctx, "index_info.rb");

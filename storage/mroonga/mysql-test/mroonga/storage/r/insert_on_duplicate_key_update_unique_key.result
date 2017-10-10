@@ -5,15 +5,6 @@ day DATE,
 title TEXT,
 UNIQUE KEY day (day)
 ) DEFAULT CHARSET=UTF8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `day` date DEFAULT NULL,
-  `title` text,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `day` (`day`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (day, title)
 VALUES ("2012-02-14", "clear day1")
 ON DUPLICATE KEY UPDATE title = "clear day1 (duplicated)";

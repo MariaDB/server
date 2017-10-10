@@ -1,7 +1,7 @@
 DROP TABLE IF EXISTS diaries;
 CREATE TABLE diaries (
 id INT PRIMARY KEY AUTO_INCREMENT,
-title TEXT,
+title VARCHAR(40),
 created_at DATE,
 KEY (created_at)
 ) DEFAULT CHARSET UTF8;
@@ -9,7 +9,7 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
+  `title` varchar(40) DEFAULT NULL,
   `created_at` date DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `created_at` (`created_at`)

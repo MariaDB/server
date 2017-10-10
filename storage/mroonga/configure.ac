@@ -8,6 +8,7 @@ m4_define([mrn_version_in_hex], m4_include(version_in_hex))
 m4_define([mrn_plugin_version], m4_include(plugin_version))
 
 AC_INIT([mroonga], [mrn_version], [groonga-talk@lists.sourceforge.net])
+AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
 
 AM_INIT_AUTOMAKE([tar-pax foreign subdir-objects])
@@ -173,18 +174,27 @@ AC_DEFUN([CONFIG_OPTION_MYSQL],[
   MYSQL_INCLUDES=""
   MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_build_dir/include"
   MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_source_dir/sql"
+  if test -d "$ac_mysql_source_dir/sql/auth"; then
+    MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_source_dir/sql/auth"
+  fi
   MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_source_dir/include"
   if test -d "$ac_mysql_source_dir/extra/rapidjson"; then
     mysql_rapidjson_include_dir="$ac_mysql_source_dir/extra/rapidjson/include"
     MYSQL_INCLUDES="$MYSQL_INCLUDES -I$mysql_rapidjson_include_dir"
   fi
-  if test -d "$ac_mysql_source_dir/pcre"; then
-    mysql_regex_include_dir="$ac_mysql_source_dir/pcre"
+  if test -d "$ac_mysql_source_dir/extra/regex"; then
+    mysql_regex_include_dir="$ac_mysql_source_dir/extra/regex"
+    MYSQL_INCLUDES="$MYSQL_INCLUDES -I$mysql_regex_include_dir"
   else
-    mysql_regex_include_dir="$ac_mysql_source_dir/regex"
+    if test -d "$ac_mysql_source_dir/pcre"; then
+      mysql_regex_include_dir="$ac_mysql_source_dir/pcre"
+    else
+      mysql_regex_include_dir="$ac_mysql_source_dir/regex"
+    fi
+    MYSQL_INCLUDES="$MYSQL_INCLUDES -I$mysql_regex_include_dir"
   fi
-  MYSQL_INCLUDES="$MYSQL_INCLUDES -I$mysql_regex_include_dir"
   if test -d "$ac_mysql_source_dir/libbinlogevents"; then
+    MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_build_dir/libbinlogevents/include"
     MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_source_dir/libbinlogevents/export"
     MYSQL_INCLUDES="$MYSQL_INCLUDES -I$ac_mysql_source_dir/libbinlogevents/include"
   fi
@@ -199,7 +209,7 @@ AC_DEFUN([CONFIG_OPTION_MYSQL],[
 
   MYSQL_CXXFLAGS="-fno-implicit-templates -felide-constructors"
   case "$MYSQL_MAJOR_MINOR_VERSION" in
-  5.7)
+  5.7|8.*)
       :
       ;;
   *)
@@ -381,6 +391,13 @@ AC_ARG_WITH(rsync-path,
             [RSYNC_PATH="packages@packages.groonga.org:public"])
 AC_SUBST(RSYNC_PATH)
 
+AC_ARG_WITH(launchpad-ppa,
+            [AS_HELP_STRING([--with-launchpad-ppa=PPA],
+            [specify Launchpad Personal Package Archive. [default=groonga-ppa]])],
+            [LAUNCHPAD_PPA="$withval"],
+            [LAUNCHPAD_PPA="groonga-ppa"])
+AC_SUBST(LAUNCHPAD_PPA)
+
 AC_ARG_WITH(launchpad-uploader-pgp-key,
             [AS_HELP_STRING([--with-launchpad-uploader-pgp-key=KEY],
             [specify PGP key UID to upload Groonga packages to Launchpad.])],
@@ -429,7 +446,7 @@ if test x"$enable_document" != x"no"; then
     AC_PATH_PROG(SPHINX_BUILD, sphinx-build, [])
     if test -n "$SPHINX_BUILD"; then
       sphinx_build_version=`"$SPHINX_BUILD" --version`
-      if ! echo "$sphinx_build_version" | grep -q ' 1\.[[23]]'; then
+      if ! echo "$sphinx_build_version" | grep -q ' 1\.[[2-6]]'; then
 	AC_MSG_ERROR([
 sphinx-build is old: $sphinx_build_version
 Sphinx 1.2 or later is required.])
@@ -509,12 +526,19 @@ AC_OUTPUT([
   mrn_version.h
   mysql-test/mroonga/storage/information_schema/r/plugins.result
   mysql-test/mroonga/storage/variable/r/version.result
-  packages/debian/control
+  packages/debian-5.5/control
+  packages/debian-5.6/control
+  packages/debian-5.7/control
+  packages/debian-mariadb-10.0/control
   packages/apt/env.sh
   packages/rpm/centos/mysql55-mroonga.spec
   packages/rpm/centos/mysql56-community-mroonga.spec
+  packages/rpm/centos/mysql57-community-mroonga.spec
   packages/rpm/centos/mariadb-mroonga.spec
+  packages/rpm/centos/mariadb-10.1-mroonga.spec
+  packages/rpm/centos/mariadb-10.2-mroonga.spec
   packages/rpm/centos/percona-server-56-mroonga.spec
+  packages/rpm/centos/percona-server-57-mroonga.spec
   packages/yum/env.sh
   data/install.sql
 ])

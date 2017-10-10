@@ -146,7 +146,7 @@ struct job {
   long long int max;
   long long int min;
   FILE *outputlog;
-  FILE *inputlog;
+  grn_file_reader *inputlog;
   char logfile[BUF_LEN];
 };
 
@@ -802,12 +802,12 @@ do_load_command(grn_ctx *ctx, char *command, int type, int task_id,
       }
       if (test_p(grntest_task[task_id].jobtype)) {
         grn_obj log;
-        FILE *input;
+        grn_file_reader *input;
         FILE *output;
         GRN_TEXT_INIT(&log, 0);
         input = grntest_job[grntest_task[task_id].job_id].inputlog;
         output = grntest_job[grntest_task[task_id].job_id].outputlog;
-        if (grn_text_fgets(ctx, &log, input) != GRN_SUCCESS) {
+        if (grn_file_reader_read_line(ctx, input, &log) != GRN_SUCCESS) {
           GRN_LOG(ctx, GRN_ERROR, "Cannot get input-log");
           error_exit_in_thread(55);
         }
@@ -888,12 +888,12 @@ do_command(grn_ctx *ctx, char *command, int type, int task_id)
       }
       if (test_p(grntest_task[task_id].jobtype)) {
         grn_obj log;
-        FILE *input;
+        grn_file_reader *input;
         FILE *output;
         GRN_TEXT_INIT(&log, 0);
         input = grntest_job[grntest_task[task_id].job_id].inputlog;
         output = grntest_job[grntest_task[task_id].job_id].outputlog;
-        if (grn_text_fgets(ctx, &log, input) != GRN_SUCCESS) {
+        if (grn_file_reader_read_line(ctx, input, &log) != GRN_SUCCESS) {
           GRN_LOG(ctx, GRN_ERROR, "Cannot get input-log");
           error_exit_in_thread(55);
         }
@@ -971,10 +971,10 @@ worker_sub(grn_ctx *ctx, grn_obj *log, int task_id)
 
   for (i = 0; i < task->ntimes; i++) {
     if (task->file != NULL) {
-      FILE *fp;
+      grn_file_reader *reader;
       grn_obj line;
-      fp = fopen(task->file, "r");
-      if (!fp) {
+      reader = grn_file_reader_open(ctx, task->file);
+      if (!reader) {
         fprintf(stderr, "Cannot open %s\n",grntest_task[task_id].file);
         error_exit_in_thread(1);
       }
@@ -982,7 +982,7 @@ worker_sub(grn_ctx *ctx, grn_obj *log, int task_id)
       load_count = 0;
       load_start = 0LL;
       GRN_TEXT_INIT(&line, 0);
-      while (grn_text_fgets(ctx, &line, fp) == GRN_SUCCESS) {
+      while (grn_file_reader_read_line(ctx, reader, &line) == GRN_SUCCESS) {
         if (GRN_TEXT_VALUE(&line)[GRN_TEXT_LEN(&line) - 1] == '\n') {
           grn_bulk_truncate(ctx, &line, GRN_TEXT_LEN(&line) - 1);
         }
@@ -1022,7 +1022,7 @@ worker_sub(grn_ctx *ctx, grn_obj *log, int task_id)
         }
       }
       GRN_OBJ_FIN(ctx, &line);
-      fclose(fp);
+      grn_file_reader_close(ctx, reader);
     } else {
       int i, n_commands;
       grn_obj *commands;
@@ -1602,7 +1602,7 @@ start_server(const char *dbpath, int r)
 }
 
 static int
-parse_line(char *buf, int start, int end, int num)
+parse_line(grn_ctx *ctx, char *buf, int start, int end, int num)
 {
   int i, j, error_flag = 0, out_or_test = 0;
   char tmpbuf[BUF_LEN];
@@ -1758,7 +1758,7 @@ parse_line(char *buf, int start, int end, int num)
       }
     } else {
       char outlog[BUF_LEN];
-      grntest_job[num].inputlog = fopen(tmpbuf, "rb");
+      grntest_job[num].inputlog = grn_file_reader_open(ctx, tmpbuf);
       if (grntest_job[num].inputlog == NULL) {
         fprintf(stderr, "Cannot open %s\n", tmpbuf);
         return 14;
@@ -1840,7 +1840,7 @@ get_jobs(grn_ctx *ctx, char *buf, int line)
   while (i < len) {
     if (buf[i] == ';') {
       end = i;
-      ret = parse_line(buf, start, end, jnum);
+      ret = parse_line(ctx, buf, start, end, jnum);
       if (ret) {
         if (ret > 1) {
           fprintf(stderr, "Syntax error:line=%d:ret=%d:%s\n", line, ret, buf);
@@ -1854,7 +1854,7 @@ get_jobs(grn_ctx *ctx, char *buf, int line)
     i++;
   }
   end = len;
-  ret = parse_line(buf, start, end, jnum);
+  ret = parse_line(ctx, buf, start, end, jnum);
   if (ret) {
     if (ret > 1) {
       fprintf(stderr, "Syntax error:line=%d:ret=%d:%s\n", line, ret, buf);
@@ -1871,7 +1871,6 @@ make_task_table(grn_ctx *ctx, int jobnum)
 {
   int i, j;
   int tid = 0;
-  FILE *fp;
   grn_obj *commands = NULL;
 
   for (i = 0; i < jobnum; i++) {
@@ -1886,6 +1885,7 @@ make_task_table(grn_ctx *ctx, int jobnum)
     }
     for (j = 0; j < grntest_job[i].concurrency; j++) {
       if (j == 0) {
+        grn_file_reader *reader;
         grn_obj line;
         GRN_TEXT_INIT(&line, 0);
         commands = grn_obj_open(ctx, GRN_PVECTOR, 0, GRN_VOID);
@@ -1893,13 +1893,13 @@ make_task_table(grn_ctx *ctx, int jobnum)
           fprintf(stderr, "Cannot alloc commands\n");
           error_exit(ctx, 1);
         }
-        fp = fopen(grntest_job[i].commandfile, "r");
-        if (!fp) {
+        reader = grn_file_reader_open(ctx, grntest_job[i].commandfile);
+        if (!reader) {
           fprintf(stderr, "Cannot alloc commandfile:%s\n",
                    grntest_job[i].commandfile);
           error_exit(ctx, 1);
         }
-        while (grn_text_fgets(ctx, &line, fp) == GRN_SUCCESS) {
+        while (grn_file_reader_read_line(ctx, reader, &line) == GRN_SUCCESS) {
           grn_obj *command;
           if (GRN_TEXT_VALUE(&line)[GRN_TEXT_LEN(&line) - 1] == '\n') {
             grn_bulk_truncate(ctx, &line, GRN_TEXT_LEN(&line) - 1);
@@ -1924,6 +1924,7 @@ make_task_table(grn_ctx *ctx, int jobnum)
           GRN_PTR_PUT(ctx, commands, command);
           GRN_BULK_REWIND(&line);
         }
+        grn_file_reader_close(ctx, reader);
         GRN_OBJ_FIN(ctx, &line);
       }
       grntest_task[tid].file = NULL;
@@ -2063,12 +2064,7 @@ printf("%d:type =%d:file=%s:con=%d:ntimes=%d\n", i, grntest_job[i].jobtype,
       }
     }
     if (grntest_job[i].inputlog) {
-      int ret;
-      ret = fclose(grntest_job[i].inputlog);
-      if (ret) {
-        fprintf(stderr, "Cannot close %s\n", grntest_job[i].logfile);
-        exit(1);
-      }
+      grn_file_reader_close(ctx, grntest_job[i].inputlog);
     }
   }
   return qnum;
@@ -2081,17 +2077,17 @@ do_script(grn_ctx *ctx, const char *script_file_path)
   int n_lines = 0;
   int n_jobs;
   int n_queries, total_n_queries = 0;
-  FILE *script_file;
+  grn_file_reader *script_file;
   grn_obj line;
 
-  script_file = fopen(script_file_path, "r");
+  script_file = grn_file_reader_open(ctx, script_file_path);
   if (script_file == NULL) {
     fprintf(stderr, "Cannot open script file: <%s>\n", script_file_path);
     error_exit(ctx, 1);
   }
 
   GRN_TEXT_INIT(&line, 0);
-  while (grn_text_fgets(ctx, &line, script_file) == GRN_SUCCESS) {
+  while (grn_file_reader_read_line(ctx, script_file, &line) == GRN_SUCCESS) {
     if (grntest_sigint) {
       break;
     }
@@ -2126,7 +2122,7 @@ do_script(grn_ctx *ctx, const char *script_file_path)
   }
   grn_obj_unlink(ctx, &line);
 
-  fclose(script_file);
+  grn_file_reader_close(ctx, script_file);
 
   return total_n_queries;
 }
@@ -2861,20 +2857,20 @@ get_token(char *line, char *token, int maxlen, char **next)
 static grn_bool
 check_script(grn_ctx *ctx, const char *script_file_path)
 {
-  FILE *script_file;
+  grn_file_reader *script_file;
   grn_obj line;
   char token[BUF_LEN];
   char prev[BUF_LEN];
   char *next = NULL;
 
-  script_file = fopen(script_file_path, "r");
+  script_file = grn_file_reader_open(ctx, script_file_path);
   if (!script_file) {
     fprintf(stderr, "Cannot open script file: <%s>\n", script_file_path);
     return GRN_FALSE;
   }
 
   GRN_TEXT_INIT(&line, 0);
-  while (grn_text_fgets(ctx, &line, script_file) == GRN_SUCCESS) {
+  while (grn_file_reader_read_line(ctx, script_file, &line) == GRN_SUCCESS) {
     GRN_TEXT_VALUE(&line)[GRN_TEXT_LEN(&line) - 1] = '\0';
     get_token(GRN_TEXT_VALUE(&line), token, BUF_LEN, &next);
     grn_strcpy(prev, BUF_LEN, token);
@@ -2893,7 +2889,7 @@ check_script(grn_ctx *ctx, const char *script_file_path)
   }
   grn_obj_unlink(ctx, &line);
 
-  fclose(script_file);
+  grn_file_reader_close(ctx, script_file);
   return GRN_TRUE;
 }
 
@@ -3008,7 +3004,7 @@ main(int argc, char **argv)
     FILE *pid_file;
     pid_file = fopen(pid_path, "w");
     if (pid_file) {
-      fprintf(pid_file, "%d", getpid());
+      fprintf(pid_file, "%d", grn_getpid());
       fclose(pid_file);
     } else {
       fprintf(stderr,

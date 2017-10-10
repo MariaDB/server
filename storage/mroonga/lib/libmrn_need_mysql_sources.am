@@ -28,4 +28,23 @@ libmrn_need_mysql_la_SOURCES =			\
 	mrn_value_decoder.cpp			\
 	mrn_value_decoder.hpp			\
 	mrn_database_repairer.cpp		\
-	mrn_database_repairer.hpp
+	mrn_database_repairer.hpp		\
+	mrn_context_pool.cpp			\
+	mrn_context_pool.hpp			\
+	mrn_operations.cpp			\
+	mrn_operations.hpp			\
+	mrn_operation.cpp			\
+	mrn_operation.hpp			\
+	mrn_database.cpp			\
+	mrn_database.hpp			\
+	mrn_column_name.cpp			\
+	mrn_column_name.hpp			\
+	mrn_count_skip_checker.cpp		\
+	mrn_count_skip_checker.hpp		\
+	mrn_query_parser.cpp			\
+	mrn_query_parser.hpp			\
+	mrn_current_thread.hpp			\
+	mrn_smart_bitmap.cpp			\
+	mrn_smart_bitmap.hpp			\
+	mrn_table_fields_offset_mover.cpp	\
+	mrn_table_fields_offset_mover.hpp

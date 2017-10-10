@@ -1,0 +1,12 @@
+SET GLOBAL mroonga_enable_operations_recording = true;
+FLUSH TABLES;
+CREATE TABLE diaries (
+title TEXT
+) DEFAULT CHARSET=utf8;
+INSERT INTO diaries VALUES("Research for Mroonga");
+SELECT * FROM diaries;
+title
+Research for Mroonga
+DROP TABLE diaries;
+SET GLOBAL mroonga_enable_operations_recording = false;
+FLUSH TABLES;

@@ -3,13 +3,6 @@ CREATE TABLE releases (
 version DECIMAL PRIMARY KEY,
 message TEXT
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE releases;
-Table	Create Table
-releases	CREATE TABLE `releases` (
-  `version` decimal(10,0) NOT NULL,
-  `message` text,
-  PRIMARY KEY (`version`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO releases (version, message) VALUES (1, "the first release!!!");
 INSERT INTO releases (version, message) VALUES (10, "10th release!");
 INSERT INTO releases (version, message) VALUES (999, "the last release!");

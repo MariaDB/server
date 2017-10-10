@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011-2015 Brazil
+/*
+  Copyright(C) 2011-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,13 +15,10 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_DAT_H
-#define GRN_DAT_H
 
-#ifndef GRN_H
-# include "grn.h"
-#endif /* GRN_H */
+#pragma once
 
+#include "grn.h"
 #include "grn_db.h"
 
 #ifdef __cplusplus
@@ -39,6 +37,7 @@ struct _grn_dat {
   grn_obj *normalizer;
   grn_obj token_filters;
   grn_critical_section lock;
+  grn_bool is_dirty;
 };
 
 struct grn_dat_header {
@@ -47,7 +46,8 @@ struct grn_dat_header {
   grn_id tokenizer;
   uint32_t file_id;
   grn_id normalizer;
-  uint32_t reserved[235];
+  uint32_t n_dirty_opens;
+  uint32_t reserved[234];
 };
 
 struct _grn_dat_cursor {
@@ -81,8 +81,15 @@ GRN_API grn_rc grn_dat_repair(grn_ctx *ctx, grn_dat *dat);
 
 GRN_API grn_rc grn_dat_flush(grn_ctx *ctx, grn_dat *dat);
 
+grn_rc grn_dat_dirty(grn_ctx *ctx, grn_dat *dat);
+grn_bool grn_dat_is_dirty(grn_ctx *ctx, grn_dat *dat);
+grn_rc grn_dat_clean(grn_ctx *ctx, grn_dat *dat);
+grn_rc grn_dat_clear_dirty(grn_ctx *ctx, grn_dat *dat);
+
+grn_bool grn_dat_is_corrupt(grn_ctx *ctx, grn_dat *dat);
+
+size_t grn_dat_get_disk_usage(grn_ctx *ctx, grn_dat *dat);
+
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_DAT_H */

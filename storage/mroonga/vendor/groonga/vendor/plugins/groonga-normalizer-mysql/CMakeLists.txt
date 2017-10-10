@@ -16,7 +16,8 @@
 # MA 02110-1301, USA
 
 cmake_minimum_required(VERSION 2.6)
-project(groonga-normalizer-mysql)
+set(GROONGA_NORMALIZER_MYSQL_PROJECT_NAME "groonga-normalizer-mysql")
+project("${GROONGA_NORMALIZER_MYSQL_PROJECT_NAME}")
 
 if(DEFINED GROONGA_NORMALIZER_MYSQL_EMBED)
   set(GROONGA_NORMALIZER_MYSQL_EMBED_DEFAULT
@@ -72,3 +73,8 @@ if(NOT GROONGA_NORMALIZER_MYSQL_EMBED)
     FILES "${CMAKE_CURRENT_BINARY_DIR}/groonga-normalizer-mysql.pc"
     DESTINATION "lib/pkgconfig/")
 endif()
+
+install(FILES
+  "README.md"
+  "doc/text/lgpl-2.0.txt"
+  DESTINATION "share/${GROONGA_NORMALIZER_MYSQL_PROJECT_NAME}")

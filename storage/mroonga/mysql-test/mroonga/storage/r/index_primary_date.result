@@ -3,13 +3,6 @@ CREATE TABLE diaries (
 day DATE PRIMARY KEY,
 title TEXT
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `day` date NOT NULL,
-  `title` text,
-  PRIMARY KEY (`day`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (day, title) VALUES ("2012-01-29", "clear day");
 INSERT INTO diaries (day, title) VALUES ("2012-01-30", "rainy day");
 INSERT INTO diaries (day, title) VALUES ("2012-01-31", "cloudy day");

@@ -4,14 +4,6 @@ id INT PRIMARY KEY AUTO_INCREMENT,
 title TEXT,
 created_at DATETIME(6)
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `created_at` datetime(6) DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (title, created_at)
 VALUES ("clear day", "2012-01-29 21:51:01.111111");
 INSERT INTO diaries (title, created_at)

@@ -1,4 +1,4 @@
-# Copyright(C) 2012-2015 Brazil
+# Copyright(C) 2012-2016 Brazil
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -18,6 +18,7 @@
 cmake_minimum_required(VERSION 2.6.2)
 # cmake_minimum_required(VERSION 2.6.4) # CentOS 5
 set(GRN_PROJECT_NAME "groonga")
+set(GRN_PROJECT_LABEL "Groonga")
 project("${GRN_PROJECT_NAME}")
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -39,7 +40,7 @@ if(MSVC)
 endif()
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-  set(CMAKE_COMPILER_IS_CLANGC ON)
+  set(CMAKE_COMPILER_IS_CLANGCC ON)
 endif()
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   set(CMAKE_COMPILER_IS_CLANGCXX ON)
@@ -59,6 +60,8 @@ else()
   endif()
 endif()
 string(REGEX REPLACE "(^.*=|\n)" "" GRN_VERSION "${GRN_VERSION}")
+string(REGEX REPLACE "\\." "," GRN_VERSION_RC "${GRN_VERSION}")
+string(REGEX REPLACE "-.*$" "" GRN_VERSION_RC "${GRN_VERSION_RC}")
 
 include(CheckIncludeFile)
 include(CheckFunctionExists)
@@ -97,25 +100,25 @@ set(GRN_DEFAULT_ENCODING
   CACHE STRING "Groonga's default encoding")
 set(GRN_DEFAULT_MATCH_ESCALATION_THRESHOLD
   0
-  CACHE STRING "groonga default match escalation threshold")
+  CACHE STRING "Groonga's default match escalation threshold")
 set(GRN_DEFAULT_DOCUMENT_ROOT_BASE
   "html/admin"
-  CACHE PATH "groonga default document root base path")
+  CACHE PATH "Groonga's default document root base path")
 set(GRN_DEFAULT_RELATIVE_DOCUMENT_ROOT
   "share/${GRN_PROJECT_NAME}/${GRN_DEFAULT_DOCUMENT_ROOT_BASE}"
-  CACHE PATH "groonga default relative document root")
+  CACHE PATH "Groonga's default relative document root")
 set(GRN_DEFAULT_DOCUMENT_ROOT
   "${CMAKE_INSTALL_PREFIX}/${GRN_DATA_DIR}/${GRN_DEFAULT_DOCUMENT_ROOT_BASE}"
-  CACHE PATH "groonga default document root")
+  CACHE PATH "Groonga's default document root")
 set(GRN_DEFAULT_DB_KEY
   "auto"
   CACHE STRING "Groonga's default DB key management algorithm")
 set(GRN_STACK_SIZE
   1024
   CACHE STRING
-  "DANGER!!! groonga stack size. Normarlly, you should not change this variable.")
+  "DANGER!!! Groonga's stack size. Normarlly, you should not change this variable.")
 set(GRN_LOCK_TIMEOUT
-  10000000
+  900000
   CACHE STRING
   "timeout to acquire a lock.")
 set(GRN_LOCK_WAIT_TIME_NANOSECOND
@@ -129,42 +132,39 @@ set(GRN_PLUGINS_DIR
 set(GRN_PLUGIN_SUFFIX "${CMAKE_SHARED_MODULE_SUFFIX}")
 set(GRN_DLL_FILENAME
   "${CMAKE_SHARED_LIBRARY_PREFIX}groonga${CMAKE_SHARED_LIBRARY_SUFFIX}")
-set(GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE "synonyms.tsv")
+set(GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE
+  "${GRN_CONFIG_DIR}/synonyms.tsv")
 set(GRN_QUERY_EXPANDER_TSV_SYNONYMS_FILE
-  "${CMAKE_INSTALL_PREFIX}/${GRN_DATA_DIR}/${GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE}")
+  "${CMAKE_INSTALL_PREFIX}/${GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE}")
 set(GRN_RELATIVE_RUBY_SCRIPTS_DIR
   "${LIB_DIR}/${GRN_PROJECT_NAME}/scripts/ruby")
 set(GRN_RUBY_SCRIPTS_DIR
   "${CMAKE_INSTALL_PREFIX}/${GRN_RELATIVE_RUBY_SCRIPTS_DIR}")
 
 
-if(CMAKE_COMPILER_IS_GNUCC)
+if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
   set(GRN_C_COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS} -std=gnu99")
 endif()
 
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANGCXX)
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wall")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wextra")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-but-set-variable")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-parameter")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-sign-compare")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-pointer-sign")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-missing-field-initializers")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wformat=2")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wformat")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wstrict-aliasing=2")
   MY_CHECK_AND_SET_COMPILER_FLAG("-fno-strict-aliasing")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wdisabled-optimization")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wfloat-equal")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wpointer-arith")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wdeclaration-after-statement")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wbad-function-cast")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wcast-align")
-  #MY_CHECK_AND_SET_COMPILER_FLAG("-Wredundant-decls")
+  if(NOT CMAKE_COMPILER_IS_CLANGCXX)
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wcast-align")
+  endif()
+  # MY_CHECK_AND_SET_COMPILER_FLAG("-Wredundant-decls")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wwrite-strings")
   MY_CHECK_AND_SET_COMPILER_FLAG("-fexceptions")
   MY_CHECK_AND_SET_COMPILER_FLAG("-fimplicit-templates")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-clobbered")
 endif()
 
 if(NOT DEFINED CMAKE_C_COMPILE_OPTIONS_PIC)
@@ -303,7 +303,7 @@ else()
     endif()
 
     if(NOT USE_KQUEUE)
-      ac_check_headers(sys/poll.h)
+      ac_check_headers(poll.h)
       if(${HAVE_SYS_POLL_H})
         ac_check_funcs(poll)
         if(${HAVE_POLL})
@@ -338,54 +338,92 @@ if(NOT ${GRN_WITH_ZLIB} STREQUAL "no")
   endif()
 endif()
 
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/bundled_lz4_version"
+  GRN_BUNDLED_LZ4_VERSION)
+string(STRIP
+  "${GRN_BUNDLED_LZ4_VERSION}"
+  GRN_BUNDLED_LZ4_VERSION)
+option(GRN_WITH_BUNDLED_LZ4 "use bundled LZ4" OFF)
+
 set(GRN_WITH_LZ4 "auto"
   CACHE STRING "Support data compression by LZ4.")
 if(NOT ${GRN_WITH_LZ4} STREQUAL "no")
-  if(NOT DEFINED LIBLZ4_FOUND)
-    pkg_check_modules(LIBLZ4 liblz4)
-  endif()
-  if(LIBLZ4_FOUND)
-    set(GRN_WITH_LZ4 TRUE)
+  if(GRN_WITH_BUNDLED_LZ4)
+    set(LIBLZ4_INCLUDE_DIRS
+      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lz4-${GRN_BUNDLED_LZ4_VERSION}/lib")
+    set(LIBLZ4_LIBS liblz4)
   else()
-    if(${GRN_WITH_LZ4} STREQUAL "yes")
-      message(FATAL_ERROR "No LZ4 found")
+    if(NOT DEFINED LIBLZ4_FOUND)
+      pkg_check_modules(LIBLZ4 liblz4)
     endif()
-    set(GRN_WITH_LZ4 FALSE)
+    if(LIBLZ4_FOUND)
+      find_library(LIBLZ4_LIBS
+	NAMES ${LIBLZ4_LIBRARIES}
+	PATHS ${LIBLZ4_LIBRARY_DIRS}
+	NO_DEFAULT_PATH)
+      set(GRN_WITH_LZ4 TRUE)
+    else()
+      if(${GRN_WITH_LZ4} STREQUAL "yes")
+	message(FATAL_ERROR "No LZ4 found")
+      endif()
+      set(GRN_WITH_LZ4 FALSE)
+    endif()
   endif()
 endif()
+
+
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/bundled_mecab_version"
+  GRN_BUNDLED_MECAB_VERSION)
+string(STRIP
+  "${GRN_BUNDLED_MECAB_VERSION}"
+  GRN_BUNDLED_MECAB_VERSION)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/bundled_mecab_naist_jdic_version"
+  GRN_BUNDLED_MECAB_NAIST_JDIC_VERSION)
+string(STRIP
+  "${GRN_BUNDLED_MECAB_NAIST_JDIC_VERSION}"
+  GRN_BUNDLED_MECAB_NAIST_JDIC_VERSION)
+option(GRN_WITH_BUNDLED_MECAB "use bundled MeCab" OFF)
 
 set(GRN_WITH_MECAB "auto"
   CACHE STRING "use MeCab for morphological analysis")
 if(NOT ${GRN_WITH_MECAB} STREQUAL "no")
-  set(GRN_MECAB_CONFIG "mecab-config" CACHE FILEPATH "mecab-config path")
-  if(NOT CMAKE_CROSSCOMPILING)
-    find_program(GRN_MECAB_CONFIG_ABSOLUTE_PATH "${GRN_MECAB_CONFIG}")
-  endif()
-  if(EXISTS "${GRN_MECAB_CONFIG_ABSOLUTE_PATH}")
-    execute_process(COMMAND "${GRN_MECAB_CONFIG_ABSOLUTE_PATH}" --inc-dir
-      OUTPUT_VARIABLE MECAB_INCLUDE_DIRS
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
-    execute_process(COMMAND "${GRN_MECAB_CONFIG_ABSOLUTE_PATH}" --libs-only-L
-      OUTPUT_VARIABLE MECAB_LIBRARY_DIRS
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
-    set(MECAB_LIBRARIES "mecab")
-    ac_check_lib(${MECAB_LIBRARIES} mecab_new)
-    if(HAVE_LIBMECAB)
-      set(GRN_WITH_MECAB TRUE)
+  if(GRN_WITH_BUNDLED_MECAB)
+    set(MECAB_INCLUDE_DIRS
+      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/mecab-${GRN_BUNDLED_MECAB_VERSION}/src")
+    set(MECAB_LIBRARY_DIRS
+      "${CMAKE_CURRENT_BUILD_DIR}/vendor/mecab")
+    set(MECAB_LIBRARIES libmecab)
+  else()
+    set(GRN_MECAB_CONFIG "mecab-config" CACHE FILEPATH "mecab-config path")
+    if(NOT CMAKE_CROSSCOMPILING)
+      find_program(GRN_MECAB_CONFIG_ABSOLUTE_PATH "${GRN_MECAB_CONFIG}")
+    endif()
+    if(EXISTS "${GRN_MECAB_CONFIG_ABSOLUTE_PATH}")
+      execute_process(COMMAND "${GRN_MECAB_CONFIG_ABSOLUTE_PATH}" --inc-dir
+	OUTPUT_VARIABLE MECAB_INCLUDE_DIRS
+	OUTPUT_STRIP_TRAILING_WHITESPACE)
+      execute_process(COMMAND "${GRN_MECAB_CONFIG_ABSOLUTE_PATH}" --libs-only-L
+	OUTPUT_VARIABLE MECAB_LIBRARY_DIRS
+	OUTPUT_STRIP_TRAILING_WHITESPACE)
+      set(MECAB_LIBRARIES "mecab")
+      ac_check_lib(${MECAB_LIBRARIES} mecab_new)
+      if(HAVE_LIBMECAB)
+	set(GRN_WITH_MECAB TRUE)
+      else()
+	if(${GRN_WITH_MECAB} STREQUAL "yes")
+	  message(FATAL_ERROR
+	    "No MeCab library found: "
+	    "include directories: <${MECAB_INCLUDE_DIRS}>, "
+	    "library directories: <${MECAB_LIBRARY_DIRS}>")
+	endif()
+	set(GRN_WITH_MECAB FALSE)
+      endif()
     else()
       if(${GRN_WITH_MECAB} STREQUAL "yes")
-	message(FATAL_ERROR
-	  "No MeCab library found: "
-	  "include directories: <${MECAB_INCLUDE_DIRS}>, "
-	  "library directories: <${MECAB_LIBRARY_DIRS}>")
+	message(FATAL_ERROR "No mecab-config found: <${GRN_MECAB_CONFIG}>")
       endif()
       set(GRN_WITH_MECAB FALSE)
     endif()
-  else()
-    if(${GRN_WITH_MECAB} STREQUAL "yes")
-      message(FATAL_ERROR "No mecab-config found: <${GRN_MECAB_CONFIG}>")
-    endif()
-    set(GRN_WITH_MECAB FALSE)
   endif()
 else()
   set(GRN_WITH_MECAB FALSE)
@@ -486,41 +524,65 @@ else()
   set(GRN_WITH_LIBEVENT FALSE)
 endif()
 
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/bundled_message_pack_version"
+  GRN_BUNDLED_MESSAGE_PACK_VERSION)
+string(STRIP
+  "${GRN_BUNDLED_MESSAGE_PACK_VERSION}"
+  GRN_BUNDLED_MESSAGE_PACK_VERSION)
+option(GRN_WITH_BUNDLED_MESSAGE_PACK "use bundled MessagePack" OFF)
+
 set(GRN_WITH_MESSAGE_PACK "auto"
   CACHE STRING "use MessagePack for suggestion")
 if(NOT ${GRN_WITH_MESSAGE_PACK} STREQUAL "no")
-  if(NOT DEFINED MESSAGE_PACK_FOUND)
-    pkg_check_modules(MESSAGE_PACK msgpack)
-  endif()
-  if(MESSAGE_PACK_FOUND)
-    set(GRN_WITH_MESSAGE_PACK TRUE)
+  if(GRN_WITH_BUNDLED_MESSAGE_PACK)
+    set(MESSAGE_PACK_INCLUDE_DIRS
+      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/msgpack-${GRN_BUNDLED_MESSAGE_PACK_VERSION}/include")
+    set(MESSAGE_PACK_LIBS msgpackc)
   else()
-    if("${GRN_WITH_MESSAGE_PACK}" STREQUAL "yes" OR
-	"${GRN_WITH_MESSAGE_PACK}" STREQUAL "auto")
-      set(MESSAGE_PACK_INCLUDE_DIRS "")
-      set(MESSAGE_PACK_LIBRARY_DIRS "")
-    else()
-      set(MESSAGE_PACK_INCLUDE_DIRS "${GRN_WITH_MESSAGE_PACK}/include")
-      set(MESSAGE_PACK_LIBRARY_DIRS "${GRN_WITH_MESSAGE_PACK}/lib")
+    if(NOT DEFINED MESSAGE_PACK_FOUND)
+      pkg_check_modules(MESSAGE_PACK msgpack)
     endif()
-    set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
-    ac_check_lib(msgpack msgpack_version "${MESSAGE_PACK_LIBRARY_DIRS}")
-    set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
-    if(HAVE_LIBMSGPACK)
-      set(MESSAGE_PACK_LIBRARIES "msgpack")
+    if(MESSAGE_PACK_FOUND)
+      find_library(MESSAGE_PACK_LIBS
+	NAMES ${MESSAGE_PACK_LIBRARIES}
+	PATHS ${MESSAGE_PACK_LIBRARY_DIRS}
+	NO_DEFAULT_PATH)
       set(GRN_WITH_MESSAGE_PACK TRUE)
     else()
-      if(${GRN_WITH_MESSAGE_PACK} STREQUAL "yes")
-	message(FATAL_ERROR "No MessagePack found")
+      if("${GRN_WITH_MESSAGE_PACK}" STREQUAL "yes" OR
+	  "${GRN_WITH_MESSAGE_PACK}" STREQUAL "auto")
+	set(MESSAGE_PACK_INCLUDE_DIRS "")
+	set(MESSAGE_PACK_LIBRARY_DIRS "")
+      else()
+	set(MESSAGE_PACK_INCLUDE_DIRS "${GRN_WITH_MESSAGE_PACK}/include")
+	set(MESSAGE_PACK_LIBRARY_DIRS "${GRN_WITH_MESSAGE_PACK}/lib")
       endif()
-      set(GRN_WITH_MESSAGE_PACK FALSE)
+      set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
+      ac_check_lib(msgpack msgpack_version "${MESSAGE_PACK_LIBRARY_DIRS}")
+      set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
+      if(HAVE_LIBMSGPACK)
+	find_library(MESSAGE_PACK_LIBS
+	  NAMES "msgpack"
+	  PATHS ${MESSAGE_PACK_LIBRARY_DIRS}
+	  NO_DEFAULT_PATH)
+	set(GRN_WITH_MESSAGE_PACK TRUE)
+      else()
+	if(${GRN_WITH_MESSAGE_PACK} STREQUAL "yes")
+	  message(FATAL_ERROR "No MessagePack found")
+	endif()
+	set(GRN_WITH_MESSAGE_PACK FALSE)
+      endif()
     endif()
   endif()
 else()
   set(GRN_WITH_MESSAGE_PACK FALSE)
 endif()
 
-find_program(RUBY NAMES "ruby2.1" "ruby21" "ruby")
+find_program(RUBY NAMES
+  "ruby2.3" "ruby23"
+  "ruby2.2" "ruby22"
+  "ruby2.1" "ruby21"
+  "ruby")
 
 option(GRN_WITH_MRUBY "use mruby" OFF)
 if(GRN_WITH_MRUBY)
@@ -531,6 +593,7 @@ else()
   set(MRUBY_INCLUDE_DIRS "")
   set(MRUBY_LIBS "")
 endif()
+set(MRUBY_DEFINITIONS "MRB_INT64" "HAVE_ONIGMO_H")
 
 # TODO: Support using system Onigmo instead of bundled Onigmo.
 # set(GRN_WITH_ONIGMO ON)
@@ -579,5 +642,10 @@ if(NOT GRN_EMBED)
     FILES "${CMAKE_CURRENT_BINARY_DIR}/groonga.pc"
     DESTINATION "${LIB_DIR}/pkgconfig/")
 endif()
+
+install(FILES
+  "COPYING"
+  "README.md"
+  DESTINATION "${GRN_DATA_DIR}")
 
 add_subdirectory(vendor/plugins)

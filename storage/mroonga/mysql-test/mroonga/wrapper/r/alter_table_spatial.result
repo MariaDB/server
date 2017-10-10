@@ -119,13 +119,4 @@ id	name	location_text
 14	tetsuji	POINT(139.76857 35.680912)
 19	daruma	POINT(139.770599 35.681461)
 26	kazuya	POINT(139.760895 35.673508)
-SHOW CREATE TABLE shops;
-Table	Create Table
-shops	CREATE TABLE `shops` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` text,
-  `location` geometry NOT NULL,
-  PRIMARY KEY (`id`),
-  SPATIAL KEY `location_index` (`location`)
-) ENGINE=Mroonga AUTO_INCREMENT=37 DEFAULT CHARSET=latin1 COMMENT='ENGINE "InnoDB"'
 DROP TABLE shops;

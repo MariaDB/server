@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2015 Brazil
+/*
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_HASH_H
-#define GRN_HASH_H
+
+#pragma once
 
 #include "grn.h"
 #include "grn_ctx.h"
@@ -156,7 +157,14 @@ struct _grn_array_cursor {
   int dir;
 };
 
-#define GRN_ARRAY_SIZE(array) (*((array)->n_entries))
+/*
+ * grn_array_size() returns the number of entries in an array.
+ * If the array was truncated by another process but `array` still refers to
+ * the old one, this function returns 0.
+ */
+uint32_t grn_array_size(grn_ctx *ctx, grn_array *array);
+
+uint32_t grn_array_get_flags(grn_ctx *ctx, grn_array *array);
 
 grn_rc grn_array_truncate(grn_ctx *ctx, grn_array *array);
 grn_rc grn_array_copy_sort_key(grn_ctx *ctx, grn_array *array,
@@ -186,7 +194,6 @@ GRN_API grn_id grn_table_queue_tail(grn_table_queue *queue);
 
 /**** grn_hash ****/
 
-#define GRN_HASH_TINY         (0x01<<6)
 #define GRN_HASH_MAX_KEY_SIZE_NORMAL GRN_TABLE_MAX_KEY_SIZE
 #define GRN_HASH_MAX_KEY_SIZE_LARGE  (0xffff)
 
@@ -249,7 +256,7 @@ struct _grn_hash {
   uint32_t value_size;\
   grn_id tokenizer;\
   uint32_t curr_rec;\
-  int32_t curr_key;\
+  uint32_t curr_key_normal;\
   uint32_t idx_offset;\
   uint32_t entry_size;\
   uint32_t max_offset;\
@@ -257,7 +264,9 @@ struct _grn_hash {
   uint32_t n_garbages;\
   uint32_t lock;\
   grn_id normalizer;\
-  uint32_t reserved[15]
+  uint32_t truncated;\
+  uint64_t curr_key_large;\
+  uint32_t reserved[12]
 
 struct _grn_hash_header_common {
   GRN_HASH_HEADER_COMMON_FIELDS;
@@ -359,8 +368,11 @@ grn_id grn_array_at(grn_ctx *ctx, grn_array *array, grn_id id);
 
 void grn_hash_check(grn_ctx *ctx, grn_hash *hash);
 
+grn_bool grn_hash_is_large_total_key_size(grn_ctx *ctx, grn_hash *hash);
+
+uint64_t grn_hash_total_key_size(grn_ctx *ctx, grn_hash *hash);
+uint64_t grn_hash_max_total_key_size(grn_ctx *ctx, grn_hash *hash);
+
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_HASH_H */

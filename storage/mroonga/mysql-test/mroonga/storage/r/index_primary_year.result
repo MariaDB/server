@@ -3,13 +3,6 @@ CREATE TABLE aniversary_memos (
 party_year YEAR PRIMARY KEY,
 title TEXT
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE aniversary_memos;
-Table	Create Table
-aniversary_memos	CREATE TABLE `aniversary_memos` (
-  `party_year` year(4) NOT NULL,
-  `title` text,
-  PRIMARY KEY (`party_year`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO aniversary_memos (party_year, title)
 VALUES ("11", "We need a big cake!");
 INSERT INTO aniversary_memos (party_year, title)

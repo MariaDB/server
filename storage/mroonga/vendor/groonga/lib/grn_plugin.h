@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2010-2013 Brazil
+/*
+  Copyright(C) 2010-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_PLUGIN_H
-#define GRN_PLUGIN_H
+
+#pragma once
 
 #include "grn.h"
 #include "grn_ctx.h"
@@ -59,5 +60,3 @@ void grn_plugin_ensure_registered(grn_ctx *ctx, grn_obj *proc);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_PLUGIN_H */

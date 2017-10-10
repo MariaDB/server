@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2009-2015 Brazil
+  Copyright(C) 2009-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -237,6 +237,8 @@ delimit_null_init(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_d
 
 /* ngram tokenizer */
 
+static grn_bool grn_ngram_tokenizer_remove_blank_disable = GRN_FALSE;
+
 typedef struct {
   grn_tokenizer_token token;
   grn_tokenizer_query *query;
@@ -268,6 +270,9 @@ ngram_init(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data, ui
   unsigned int normalized_length_in_bytes;
   grn_ngram_tokenizer *tokenizer;
 
+  if (grn_ngram_tokenizer_remove_blank_disable) {
+    normalize_flags &= ~GRN_STRING_REMOVE_BLANK;
+  }
   query = grn_tokenizer_query_open(ctx, nargs, args, normalize_flags);
   if (!query) {
     return NULL;
@@ -544,7 +549,7 @@ regexp_next(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
   grn_obj *buffer = &(tokenizer->buffer);
   const char *current = tokenizer->next;
   const char *end = tokenizer->end;
-  const const uint_least8_t *char_types = tokenizer->char_types;
+  const uint_least8_t *char_types = tokenizer->char_types;
   grn_tokenize_mode mode = tokenizer->query->tokenize_mode;
   grn_bool is_begin = tokenizer->is_begin;
   grn_bool is_start_token = tokenizer->is_start_token;
@@ -598,6 +603,7 @@ regexp_next(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
     if (is_begin &&
         char_len == GRN_TOKENIZER_BEGIN_MARK_UTF8_LEN &&
         memcmp(current, GRN_TOKENIZER_BEGIN_MARK_UTF8, char_len) == 0) {
+      tokenizer->is_start_token = GRN_TRUE;
       n_characters++;
       GRN_TEXT_PUT(ctx, buffer, current, char_len);
       current += char_len;
@@ -807,6 +813,17 @@ grn_db_init_builtin_tokenizers(grn_ctx *ctx)
   GRN_TEXT_INIT(&vars[0].value, 0);
   GRN_TEXT_INIT(&vars[1].value, 0);
   GRN_UINT32_INIT(&vars[2].value, 0);
+
+  {
+    char grn_ngram_tokenizer_remove_blank_disable_env[GRN_ENV_BUFFER_SIZE];
+
+    grn_getenv("GRN_NGRAM_TOKENIZER_REMOVE_BLANK_DISABLE",
+               grn_ngram_tokenizer_remove_blank_disable_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (grn_ngram_tokenizer_remove_blank_disable_env[0]) {
+      grn_ngram_tokenizer_remove_blank_disable = GRN_TRUE;
+    }
+  }
 
   obj = DEF_TOKENIZER("TokenDelimit",
                       delimit_init, delimited_next, delimited_fin, vars);

@@ -6,16 +6,11 @@ body TEXT,
 FULLTEXT INDEX title_index (title),
 FULLTEXT INDEX body_index (body)
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `title_index` (`title`),
-  FULLTEXT KEY `body_index` (`body`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
+SELECT table_name, engine
+FROM information_schema.tables
+WHERE table_name = 'diaries';
+table_name	engine
+diaries	Mroonga
 INSERT INTO diaries (title, body) VALUES ("survey", "will start groonga!");
 SELECT * FROM diaries;
 id	title	body
@@ -32,14 +27,9 @@ SELECT * FROM memos
 WHERE MATCH(title) AGAINST("groonga") AND
 MATCH(body) AGAINST("starting");
 id	title	body
-SHOW CREATE TABLE memos;
-Table	Create Table
-memos	CREATE TABLE `memos` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `title_index` (`title`),
-  FULLTEXT KEY `body_index` (`body`)
-) ENGINE=Mroonga AUTO_INCREMENT=2 DEFAULT CHARSET=utf8
+SELECT table_name, engine
+FROM information_schema.tables
+WHERE table_name = 'memos';
+table_name	engine
+memos	Mroonga
 DROP TABLE memos;

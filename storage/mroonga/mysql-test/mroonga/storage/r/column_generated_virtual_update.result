@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS logs;
+CREATE TABLE logs (
+id INT,
+record JSON,
+message VARCHAR(255) GENERATED ALWAYS AS (json_extract(`record`, '$.message')) VIRTUAL
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4;
+INSERT INTO logs(id, record) VALUES (1, '{"level": "info", "message": "start"}');
+INSERT INTO logs(id, record) VALUES (2, '{"level": "info", "message": "restart"}');
+INSERT INTO logs(id, record) VALUES (3, '{"level": "warn", "message": "abort"}');
+UPDATE logs SET record = '{"level": "info", "message": "shutdown"}' WHERE id = 2;
+SELECT * FROM logs;
+id	record	message
+1	{"level": "info", "message": "start"}	"start"
+2	{"level": "info", "message": "shutdown"}	"shutdown"
+3	{"level": "warn", "message": "abort"}	"abort"
+DROP TABLE logs;

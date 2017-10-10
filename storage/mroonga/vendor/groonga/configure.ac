@@ -1,13 +1,18 @@
 AC_PREREQ(2.59)
 m4_define([groonga_version], m4_include(base_version))
 AC_INIT([groonga], groonga_version, [groonga@razil.jp])
+AC_CONFIG_MACRO_DIR([m4])
 AM_CONFIG_HEADER(config.h)
+
+GRN_VERSION_RC=`echo groonga_version | sed -e 's/\./,/g'`
+AC_SUBST(GRN_VERSION_RC)
 
 AM_INIT_AUTOMAKE([foreign tar-pax subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
-PACKAGE_TITLE=Groonga
-AC_SUBST(PACKAGE_TITLE)
+PACKAGE_LABEL=Groonga
+AC_SUBST(PACKAGE_LABEL)
+AC_DEFINE_UNQUOTED(PACKAGE_LABEL, ["$PACKAGE_LABEL"], [Label of package])
 
 # for Autoconf 2.60 or earlier.
 if test -z "${datarootdir}"; then
@@ -74,6 +79,8 @@ AC_MSG_RESULT([$solaris])
 
 AC_C_BIGENDIAN
 AC_PROG_CXX
+m4_ifdef([AX_CXX_COMPILE_STDCXX_11],
+         [AX_CXX_COMPILE_STDCXX_11([ext], [optional])])
 AC_PROG_CC
 m4_ifdef([AC_PROG_CC_C99],
          [AC_PROG_CC_C99])
@@ -142,19 +149,17 @@ TEST_CFLAGS=""
 TEST_CXXFLAGS=""
 NO_STRICT_ALIASING_CFLAGS=""
 NO_FLOAT_EQUAL_CFLAGS=""
+NO_BAD_FUNCTION_CAST_CFLAGS=""
 if test "$GCC" = "yes"; then
   CHECK_BUILD_FLAG([-Wall])
-  CHECK_BUILD_FLAG([-Wextra])
   if test "x$check_cflag" = "xno"; then
     CHECK_BUILD_FLAG([-W])
   fi
   CHECK_BUILD_FLAG([-Wno-unused-but-set-variable]) # FIXME: enable it.
-  CHECK_BUILD_FLAG([-Wno-unused-parameter])
-  CHECK_BUILD_FLAG([-Wno-sign-compare])
   CHECK_CFLAG([-Wno-pointer-sign])
-  CHECK_BUILD_FLAG([-Wno-missing-field-initializers])
+  CHECK_CFLAG([-Wno-declaration-after-statement])
 
-  CHECK_BUILD_FLAG([-Wformat=2])
+  CHECK_BUILD_FLAG([-Wformat])
   CHECK_BUILD_FLAG([-Wstrict-aliasing=2])
   if test "x$check_cflag" = "xyes"; then
     NO_STRICT_ALIASING_CFLAGS="-fno-strict-aliasing"
@@ -166,6 +171,9 @@ if test "$GCC" = "yes"; then
   fi
   CHECK_BUILD_FLAG([-Wpointer-arith])
   CHECK_CFLAG([-Wbad-function-cast])
+  if test "x$check_cflag" = "xyes"; then
+    NO_BAD_FUNCTION_CAST_CFLAGS="-Wno-bad-function-cast"
+  fi
   if test "$CLANG" = "no"; then
     CHECK_BUILD_FLAG([-Wcast-align])
   fi
@@ -180,27 +188,16 @@ if test "$GCC" = "yes"; then
 
   CHECK_CXXFLAG([-fexceptions])
   CHECK_CXXFLAG([-fimplicit-templates])
-
-  CFLAGS_for_source="$CFLAGS"
-  CXXFLAGS_for_source="$CXXFLAGS"
-  CHECK_BUILD_FLAG([-Wno-clobbered])
-  if test "x$check_cflag" = "xyes"; then
-    TEST_CFLAGS="-Wno-clobbered"
-  fi
-  if test "x$check_cxxflag" = "xyes"; then
-    TEST_CXXFLAGS="-Wno-clobbered"
-  fi
-  CFLAGS="$CFLAGS_for_source"
-  CXXFLAGS="$CXXFLAGS_for_source"
 fi
 AC_SUBST(TEST_CFLAGS)
 AC_SUBST(TEST_CXXFLAGS)
 AC_SUBST(NO_STRICT_ALIASING_CFLAGS)
 AC_SUBST(NO_FLOAT_EQUAL_CFLAGS)
+AC_SUBST(NO_BAD_FUNCTION_CAST_CFLAGS)
 
-AC_LIBTOOL_WIN32_DLL
-AM_PROG_LIBTOOL
-m4_ifdef([LT_OUTPUT], [LT_OUTPUT])
+LT_INIT([dlopen win32-dll])
+LT_LANG([Windows Resource])
+LT_OUTPUT
 
 LT_CURRENT=0
 LT_REVISION=0
@@ -233,19 +230,23 @@ AC_CONFIG_FILES([
   lib/mrb/scripts/Makefile
   lib/mrb/scripts/command_line/Makefile
   lib/mrb/scripts/context/Makefile
+  lib/mrb/scripts/expression_tree/Makefile
   lib/mrb/scripts/initialize/Makefile
   lib/mrb/scripts/logger/Makefile
+  lib/mrb/scripts/query_logger/Makefile
+  lib/proc/Makefile
+  lib/ts/Makefile
   include/Makefile
   include/groonga/Makefile
   plugins/Makefile
   plugins/tokenizers/Makefile
   plugins/suggest/Makefile
-  plugins/table/Makefile
   plugins/query_expanders/Makefile
   plugins/ruby/Makefile
   plugins/token_filters/Makefile
   plugins/sharding/Makefile
   plugins/functions/Makefile
+  plugins/expression_rewriters/Makefile
   examples/Makefile
   examples/dictionary/Makefile
   examples/dictionary/edict/Makefile
@@ -264,19 +265,18 @@ AC_CONFIG_FILES([
   packages/windows/language-files/Makefile
   packages/windows/setup-x64.nsi
   data/Makefile
-  data/images/Makefile
-  data/images/logo/Makefile
   data/html/Makefile
   data/munin/Makefile
   data/init.d/Makefile
-  data/init.d/redhat/Makefile
-  data/init.d/redhat/sysconfig/Makefile
+  data/init.d/centos/Makefile
+  data/init.d/centos/sysconfig/Makefile
   data/logrotate.d/Makefile
-  data/logrotate.d/redhat/Makefile
+  data/logrotate.d/centos/Makefile
   data/systemd/Makefile
-  data/systemd/fedora/Makefile
-  data/systemd/fedora/sysconfig/Makefile
+  data/systemd/centos/Makefile
+  data/systemd/centos/sysconfig/Makefile
   data/scripts/Makefile
+  data/tmpfiles.d/Makefile
   tools/Makefile
   doc/Makefile
   doc/locale/Makefile
@@ -304,7 +304,10 @@ AC_CONFIG_FILES([
   benchmark/fixtures/geo-select/Makefile
   benchmark/lib/Makefile
   vendor/Makefile
+  vendor/lz4/Makefile
   vendor/onigmo/Makefile
+  vendor/mecab/Makefile
+  vendor/message_pack/Makefile
   vendor/mruby/Makefile
 ])
 
@@ -355,14 +358,14 @@ AC_LINK_IFELSE(
   [
     AC_LINK_IFELSE(
       [AC_LANG_PROGRAM(
-	[#define _ISOC99_SOURCE
+        [#define _ISOC99_SOURCE
          #include <math.h>],
-	[if (fpclassify(0.0)) {return 0;}]
+        [if (fpclassify(0.0)) {return 0;}]
        )],
       [
         AC_DEFINE(_ISOC99_SOURCE, [1], [Define to 1 for fpclassify])
-	AC_DEFINE(HAVE_FPCLASSIFY, [1], [use fpclassify with _ISOC99_SOURCE])
-	AC_MSG_RESULT(yes)
+        AC_DEFINE(HAVE_FPCLASSIFY, [1], [use fpclassify with _ISOC99_SOURCE])
+        AC_MSG_RESULT(yes)
       ],
       [
         AC_MSG_RESULT(no)
@@ -454,7 +457,7 @@ AC_ARG_WITH(stack_size,
 AC_DEFINE_UNQUOTED(GRN_STACK_SIZE, [$GRN_STACK_SIZE], [stack size])
 
 # lock timeout
-GRN_LOCK_TIMEOUT=10000000
+GRN_LOCK_TIMEOUT=900000
 AC_ARG_WITH(lock_timeout,
   [AS_HELP_STRING([--with-lock-timeout=N],
     [This option specifies how many times Groonga tries to acquire a lock.
@@ -609,7 +612,7 @@ if test "x$have_epoll" != "xyes"; then
     ])
   ])
   if test "x$have_kqueue" != "xyes"; then
-    AC_CHECK_HEADER(sys/poll.h, [
+    AC_CHECK_HEADER(poll.h, [
       AC_CHECK_FUNC(poll, [
         have_poll="yes"
         AC_DEFINE(USE_POLL, [1], [use poll])
@@ -617,7 +620,7 @@ if test "x$have_epoll" != "xyes"; then
     ])
     if test "x$have_poll" != "xyes"; then
       if test "$os_win32" = "yes"; then
-	AC_CHECK_HEADER(winsock2.h, [have_select="yes"])
+        AC_CHECK_HEADER(winsock2.h, [have_select="yes"])
       else
         AC_CHECK_FUNC(select, [
           have_select="yes"
@@ -750,18 +753,23 @@ if test "x$RUBY" = "xno"; then
 else
   if test "x$RUBY" = "xyes"; then
     AC_PATH_PROGS(RUBY,
-                  [ruby2.1 ruby21 ruby2.0 ruby20 ruby1.9 ruby19 ruby1.9.1 ruby],
+                  [ dnl
+                    ruby2.3 ruby23 dnl
+                    ruby2.2 ruby22 dnl
+                    ruby2.1 ruby21 dnl
+                    ruby dnl
+                  ],
                   ruby-not-found)
     if test "$RUBY" != "ruby-not-found"; then
       ruby_version="`$RUBY --version`"
-      if echo "$ruby_version" | grep -q -- 'ruby \(1\.9\|2\.\)'; then
+      if echo "$ruby_version" | grep -q -- 'ruby \(2\.\)'; then
         ac_cv_ruby_available="yes"
       else
-        AC_MSG_WARN([$RUBY isn't Ruby 1.9 or later ($ruby_version)])
+        AC_MSG_WARN([$RUBY isn't Ruby 2.0 or later ($ruby_version)])
       fi
     fi
   else
-    ruby_not_found_warning_message="$RUBY is not found. Disable HTTP test."
+    ruby_not_found_warning_message="$RUBY is not found."
     case "$RUBY" in
     /*)
       AC_CHECK_FILE([$RUBY],
@@ -791,39 +799,13 @@ AM_CONDITIONAL([WITH_UNIT_TEST],
 AM_CONDITIONAL([WITH_COMMAND_TEST],
                [test "$ac_cv_ruby_available" = "yes"])
 
-# check Inkscape for generating PNG images
-inkscape_available="no"
-AC_ARG_WITH([inkscape],
-            AS_HELP_STRING([--with-inkscape=PATH],
-                           [Inkscape path (default: auto)]),
-            [INKSCAPE="$withval"],
-            [INKSCAPE="yes"])
-
-if test "x$INKSCAPE" = "xno"; then
-  INKSCAPE=
-else
-  if test "x$INKSCAPE" = "xyes"; then
-    AC_PATH_PROGS(INKSCAPE, [inkscape], none)
-    if test "$INKSCAPE" != "none"; then
-      inkscape_available="yes"
-    fi
-  else
-    AC_CHECK_FILE([$INKSCAPE],
-		  [inkscape_available="yes"],
-		  [AC_MSG_WARN([$INKSCAPE is not found.
-                                Disable PNG image generation.])])
-  fi
-fi
-AC_SUBST(INKSCAPE)
-AM_CONDITIONAL([WITH_INKSCAPE], [test "$inkscape_available" = "yes"])
-
 # check Lemon for generating .c and .h files from .y file
 lemon_available="no"
 AC_ARG_WITH([lemon],
             AS_HELP_STRING([--with-lemon=PATH],
                            [Lemon path (default: auto)]),
             [LEMON="$withval"],
-	    [: ${LEMON:=auto}])
+            [: ${LEMON:=auto}])
 
 if test "$LEMON" = "no"; then
   LEMON=
@@ -842,8 +824,8 @@ else
     fi
   else
     AC_CHECK_FILE([$LEMON],
-		  [lemon_available="yes"],
-		  [AC_MSG_WARN([$LEMON is not found. Disable .y compilation.])])
+                  [lemon_available="yes"],
+                  [AC_MSG_WARN([$LEMON is not found. Disable .y compilation.])])
   fi
 fi
 AC_SUBST(LEMON)
@@ -925,6 +907,30 @@ if test "x$with_lz4" != "xno"; then
   fi
 fi
 
+# Zstandard
+AC_ARG_WITH(zstd,
+  [AS_HELP_STRING([--with-zstd],
+    [Support data compression by Zstandard. [default=auto]])],
+  [with_zstd="$withval"],
+  [with_zstd="auto"])
+if test "x$with_zstd" != "xno"; then
+  m4_ifdef([PKG_CHECK_MODULES], [
+    PKG_CHECK_MODULES([LIBZSTD],
+                      [libzstd],
+                      [GRN_WITH_ZSTD=yes],
+                      [GRN_WITH_ZSTD=no])
+  ],
+  [GRN_WITH_ZSTD=no])
+  if test "$GRN_WITH_ZSTD" = "yes"; then
+    AC_DEFINE(GRN_WITH_ZSTD, [1],
+              [Support data compression by Zstandard.])
+  else
+    if test "x$with_zstd" != "xauto"; then
+      AC_MSG_ERROR("No libzstd found")
+    fi
+  fi
+fi
+
 # jemalloc
 AC_ARG_WITH(jemalloc,
   [AS_HELP_STRING([--with-jemalloc],
@@ -941,8 +947,38 @@ if test "x$with_jemalloc" != "xno"; then
                  [AC_MSG_ERROR("No libjemalloc found")])
 fi
 
+# Apache Arrow
+AC_ARG_ENABLE(arrow,
+  [AS_HELP_STRING([--disable-arrow],
+    [enable Apache Arrow support. [default=auto-detect]])],
+  [enable_arrow="$enableval"],
+  [enable_arrow="auto"])
+if test "x$enable_arrow" != "xno"; then
+  m4_ifdef([PKG_CHECK_MODULES], [
+    PKG_CHECK_MODULES([ARROW],
+                      [arrow >= 0.5.0],
+                      [arrow_available=yes],
+                      [arrow_available=no])
+  ],
+  [arrow_available=no])
+  if test "x$arrow_available" = "xyes"; then
+    AC_DEFINE(GRN_WITH_ARROW, [1], [Enable Apache Arrow support.])
+  else
+    if test "x$enable_arrow" = "xyes"; then
+      AC_MSG_ERROR("No Apache Arrow found")
+    fi
+  fi
+fi
+AM_CONDITIONAL([GRN_WITH_ARROW], [test "$arrow_available" = "yes"])
+
 # MeCab
 # NOTE: MUST be checked last
+
+BUNDLED_MECAB_VERSION=m4_include([bundled_mecab_version])
+AC_SUBST(BUNDLED_MECAB_VERSION)
+BUNDLED_MECAB_NAIST_JDIC_VERSION=m4_include([bundled_mecab_naist_jdic_version])
+AC_SUBST(BUNDLED_MECAB_NAIST_JDIC_VERSION)
+
 AC_ARG_WITH(mecab,
   [AS_HELP_STRING([--with-mecab],
     [use MeCab for morphological analysis. [default=yes]])],
@@ -1170,6 +1206,9 @@ AC_SUBST(LIBEVENT_CFLAGS)
 AC_SUBST(LIBEVENT_LIBS)
 
 # MessagePack
+BUNDLED_MESSAGE_PACK_VERSION=m4_include([bundled_message_pack_version])
+AC_SUBST(BUNDLED_MESSAGE_PACK_VERSION)
+
 AC_ARG_ENABLE(message-pack,
   [AS_HELP_STRING([--disable-message-pack],
     [Disable MessagePack support. [default=auto-detect]])],
@@ -1203,7 +1242,7 @@ if test "x$enable_message_pack" != "xno"; then
 
     if test "x$message_pack_available" = "xyes"; then
       MESSAGE_PACK_CFLAGS="-I$with_message_pack/include"
-      MESSAGE_PACK_LIBS="-L$with_message_pack/lib -lmsgpack"
+      MESSAGE_PACK_LIBS="-L$with_message_pack/lib -lmsgpackc"
     fi
   fi
 
@@ -1223,6 +1262,17 @@ AM_CONDITIONAL([ENABLE_SUGGEST_LEARNER],
                [test "$zeromq_available" = "yes" -a \
                      "$libevent_available" = "yes" -a \
                      "$message_pack_available" = "yes"])
+
+# Check built-in atomic
+case "$host" in
+  i*86*|x86_64*)
+    ;;
+  *)
+    AC_MSG_CHECKING([for platform which requires libatomic])
+    AC_CHECK_LIB(atomic, __atomic_store_8, [ATOMIC_LIBS="-latomic"])
+    AC_SUBST(ATOMIC_LIBS)
+    ;;
+esac
 
 # Document
 AC_MSG_CHECKING([whether enable document])
@@ -1246,10 +1296,10 @@ if test x"$enable_document" != x"no"; then
     AC_PATH_PROG(SPHINX_BUILD, sphinx-build, [])
     if test -n "$SPHINX_BUILD"; then
       sphinx_build_version=`"$SPHINX_BUILD" --version`
-      if ! echo "$sphinx_build_version" | grep -q ' 1\.[[23]]'; then
-	AC_MSG_ERROR([
+      if ! echo "$sphinx_build_version" | grep -q ' 1\.[[3-6]]'; then
+        AC_MSG_ERROR([
 sphinx-build is old: $sphinx_build_version
-Sphinx 1.2 or later is required.])
+Sphinx 1.3 or later is required.])
       fi
       document_available=yes
       document_buildable=yes
@@ -1281,8 +1331,8 @@ fi
 AC_ARG_WITH([cutter-source-path],
             AS_HELP_STRING([--with-cutter-source-path=PATH],
                            [Specify Cutter source path for
-			    groonga's release manager.]),
-			   [CUTTER_SOURCE_PATH="$withval"])
+                            groonga's release manager.]),
+                           [CUTTER_SOURCE_PATH="$withval"])
 case "$CUTTER_SOURCE_PATH" in
   ""|/*)
     : # do nothing
@@ -1330,15 +1380,29 @@ AC_MSG_CHECKING([whether package platform])
 AC_ARG_WITH(package-platform,
   [AS_HELP_STRING([--with-package-platform=PLATFORM],
     [install package platform related files. [default=no]
-     (supported package platforms: redhat, fedora)])],
+     (supported package platforms: centos, centos5, centos6, centos7, fedora)])],
   [package_platform="$withval"],
   [package_platform="no"])
+if test "$package_platform" = "centos"; then
+  distribution=$(cut -d " " -f 1 /etc/redhat-release | tr "A-Z" "a-z")
+  if grep -q Linux /etc/redhat-release; then
+    distribution_version=$(cut -d " " -f 4 /etc/redhat-release)
+  else
+    distribution_version=$(cut -d " " -f 3 /etc/redhat-release)
+  fi
+  distribution_version=$(echo ${distribution_version} | sed -e 's/\..*$//g')
+  package_platform="${package_platform}${distribution_version}"
+fi
 AC_MSG_RESULT($package_platform)
 
-AM_CONDITIONAL([REDHAT_PLATFORM],
-               [test "${package_platform}" = "redhat"])
-AM_CONDITIONAL([FEDORA_PLATFORM],
-               [test "${package_platform}" = "fedora"])
+AM_CONDITIONAL([CENTOS_PLATFORM],
+               [test "${package_platform}" != "no"])
+AM_CONDITIONAL([CENTOS_INIT_PLATFORM],
+               [test "${package_platform}" = "centos5" ||
+                test "${package_platform}" = "centos6"])
+AM_CONDITIONAL([CENTOS_SYSTEMD_PLATFORM],
+               [test "${package_platform}" = "centos7" ||
+                test "${package_platform}" = "fedora"])
 
 # plugins check
 relative_pluginsdir_base="\$(PACKAGE)/plugins"
@@ -1354,17 +1418,14 @@ AC_SUBST(pluginsdir)
 expanded_pluginsdir="\${libdir}/${expanded_relative_pluginsdir_base}"
 AC_SUBST(expanded_pluginsdir)
 
-tokenizers_pluginsdir="\${pluginsdir}/tokenizers"
-AC_SUBST(tokenizers_pluginsdir)
+tokenizer_pluginsdir="\${pluginsdir}/tokenizers"
+AC_SUBST(tokenizer_pluginsdir)
 
-query_expanders_pluginsdir="\${pluginsdir}/query_expanders"
-AC_SUBST(query_expanders_pluginsdir)
+query_expander_pluginsdir="\${pluginsdir}/query_expanders"
+AC_SUBST(query_expander_pluginsdir)
 
 suggest_pluginsdir="\${pluginsdir}/suggest"
 AC_SUBST(suggest_pluginsdir)
-
-table_pluginsdir="\${pluginsdir}/table"
-AC_SUBST(table_pluginsdir)
 
 ruby_pluginsdir="\${pluginsdir}/ruby"
 AC_SUBST(ruby_pluginsdir)
@@ -1378,6 +1439,9 @@ AC_SUBST(sharding_pluginsdir)
 function_pluginsdir="\${pluginsdir}/functions"
 AC_SUBST(function_pluginsdir)
 
+expression_rewriter_pluginsdir="\${pluginsdir}/expression_rewriters"
+AC_SUBST(expression_rewriter_pluginsdir)
+
 AC_MSG_CHECKING(for the suffix of plugin shared libraries)
 shrext_cmds=$(./libtool --config | grep '^shrext_cmds=')
 eval $shrext_cmds
@@ -1389,12 +1453,13 @@ fi
 AC_DEFINE_UNQUOTED(GRN_PLUGIN_SUFFIX, ["$suffix"], "plugin suffix")
 
 # for query expanders
-GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE="synonyms.tsv"
+GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE_BASE="synonyms.tsv"
+GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE="etc/${PACKAGE}/${GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE_BASE}"
 AC_DEFINE_UNQUOTED(GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE,
                    ["$GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE"],
                    "The relative synonyms file for TSV query expander")
 GRN_QUERY_EXPANDER_TSV_SYNONYMS_PATH="`
-  eval echo ${sysconfdir}/${PACKAGE}/${GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE}
+  eval echo ${sysconfdir}/${PACKAGE}/${GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE_BASE}
 `"
 AC_DEFINE_UNQUOTED(GRN_QUERY_EXPANDER_TSV_SYNONYMS_FILE,
                    ["$GRN_QUERY_EXPANDER_TSV_SYNONYMS_PATH"],
@@ -1451,8 +1516,7 @@ AC_ARG_WITH(groonga-org-path,
 AC_SUBST(GROONGA_ORG_PATH)
 
 # groonga-httpd
-m4_define([nginx_version], m4_include(nginx_version))
-NGINX_VERSION=nginx_version
+NGINX_VERSION=m4_include([nginx_version])
 AC_SUBST(NGINX_VERSION)
 
 # groonga-httpd binary path
@@ -1471,6 +1535,12 @@ else
   enable_groonga_httpd="no"
 fi
 AM_CONDITIONAL(WITH_GROONGA_HTTPD, test "$enable_groonga_httpd" = "yes")
+
+GROONGA_HTTPD_PID_PATH="`
+  test \"$prefix\" = NONE && prefix=/usr/local
+  eval echo ${localstatedir}/run/groonga/groonga-httpd.pid
+`"
+AC_SUBST(GROONGA_HTTPD_PID_PATH)
 
 # mruby
 AC_ARG_ENABLE(mruby,
@@ -1492,11 +1562,16 @@ if test "$enable_mruby" = "yes"; then
   fi
   AC_DEFINE(GRN_WITH_MRUBY, [1], [Define to 1 if mruby is enabled.])
   MRUBY_CFLAGS="-I\$(top_srcdir)/vendor/mruby-source/include"
+  GRN_WITH_MRUBY="yes"
 else
   MRUBY_CFLAGS=""
 fi
+AC_SUBST(GRN_WITH_MRUBY)
 AC_SUBST(MRUBY_CFLAGS)
 AM_CONDITIONAL(WITH_MRUBY, test "$enable_mruby" = "yes")
+
+MRUBY_CPPFLAGS="-DMRB_INT64"
+AC_SUBST(MRUBY_CPPFLAGS)
 
 # This option is used in vendor/onigmo/configure
 AC_ARG_ENABLE(shared-onigmo,
@@ -1506,16 +1581,37 @@ AC_ARG_ENABLE(shared-onigmo,
   [enable_shared_onigmo="no"])
 AM_CONDITIONAL(WITH_SHARED_ONIGMO, test "$enable_shared_onigmo" = "yes")
 
-# TODO: Support using system Onigmo instead of bundled Onigmo.
-AC_DEFINE(GRN_WITH_ONIGMO, [1], [Use Onigmo.])
-GRN_WITH_ONIGMO="yes"
+AC_ARG_WITH(onigmo,
+  [AS_HELP_STRING([--without-onigmo],
+    [Don't Use Onigmo. [default=bundled]])],
+  [with_onigmo="$withval"],
+  [with_onigmo="bundled"])
+if test "x$with_onigmo" != "xno"; then
+  GRN_WITH_ONIGMO="yes"
+  if test "x$with_onigmo" != "xbundled"; then
+    m4_ifdef([PKG_CHECK_MODULES], [
+      PKG_CHECK_MODULES([ONIGMO], [onigmo],
+        [have_onigmo=yes],
+        [have_onigmo=no])
+      ],
+      [have_onigmo=no])
+  fi
+  if test "x$with_onigmo" = "xsystem" -a "$have_onigmo" = "no"; then
+    AC_MSG_ERROR("No Onigmo found")
+  fi
+  if test "x$with_onigmo" = "xbundled" -o "$have_onigmo" = "no"; then
+    AC_CONFIG_SUBDIRS([vendor/onigmo])
+    ONIGMO_CFLAGS="-I\$(top_srcdir)/vendor/onigmo-source"
+    ONIGMO_LIBS="\$(top_builddir)/vendor/onigmo-source/libonigmo.la"
+  fi
+  AC_DEFINE(GRN_WITH_ONIGMO, [1], [Use Onigmo.])
+else
+  GRN_WITH_ONIGMO="no"
+fi
 AC_SUBST(GRN_WITH_ONIGMO)
-AC_CONFIG_SUBDIRS([vendor/onigmo])
-
-ONIGMO_CFLAGS="-I\$(top_srcdir)/vendor/onigmo-source"
-ONIGMO_LIBS="\$(top_builddir)/vendor/onigmo-source/libonig.la"
 AC_SUBST(ONIGMO_CFLAGS)
 AC_SUBST(ONIGMO_LIBS)
+AM_CONDITIONAL(WITH_BUNDLED_ONIGMO, test "$with_onigmo" != "no" -a "x$have_onigmo" != "xyes")
 
 # PCRE
 GRN_WITH_PCRE=no
@@ -1541,6 +1637,30 @@ AC_SUBST(GRN_WITH_PCRE)
 AC_SUBST(PCRE_CFLAGS)
 AC_SUBST(PCRE_LIBS_ONLY_L)
 
+# SSL
+GRN_WITH_SSL=no
+AC_ARG_WITH(ssl,
+  [AS_HELP_STRING([--without-ssl],
+    [Don't use SSL module for groonga-httpd. [default=auto-detect]])],
+  [with_ssl="$withval"],
+  [with_ssl="auto"])
+if test "x$with_ssl" != "xno"; then
+  m4_ifdef([PKG_CHECK_MODULES], [
+    PKG_CHECK_MODULES([SSL], [libssl],
+      [_PKG_CONFIG(SSL_LIBS_ONLY_L, [libs-only-L], [libssl])
+       SSL_LIBS_ONLY_L="$pkg_cv_SSL_LIBS_ONLY_L"
+       GRN_WITH_SSL=yes],
+      [GRN_WITH_SSL=no])
+    ],
+    [GRN_WITH_SSL=no])
+  if test "x$with_ssl" = "xyes" -a "$GRN_WITH_SSL" != "yes"; then
+    AC_MSG_ERROR("No SSL found")
+  fi
+fi
+AC_SUBST(GRN_WITH_SSL)
+AC_SUBST(SSL_CFLAGS)
+AC_SUBST(SSL_LIBS_ONLY_L)
+
 # For package
 AC_ARG_WITH(rsync-path,
             [AS_HELP_STRING([--with-rsync-path=PATH],
@@ -1548,6 +1668,13 @@ AC_ARG_WITH(rsync-path,
             [RSYNC_PATH="$withval"],
             [RSYNC_PATH="packages@packages.groonga.org:public"])
 AC_SUBST(RSYNC_PATH)
+
+AC_ARG_WITH(launchpad-ppa,
+            [AS_HELP_STRING([--with-launchpad-ppa=PPA],
+            [specify Launchpad Personal Package Archive. [default=groonga-ppa]])],
+            [LAUNCHPAD_PPA="$withval"],
+            [LAUNCHPAD_PPA="groonga-ppa"])
+AC_SUBST(LAUNCHPAD_PPA)
 
 AC_ARG_WITH(launchpad-uploader-pgp-key,
             [AS_HELP_STRING([--with-launchpad-uploader-pgp-key=KEY],
@@ -1582,15 +1709,19 @@ GROONGA_HTTPD_DEFAULT_DATABASE_PATH="`
 AC_SUBST(GROONGA_HTTPD_DEFAULT_DATABASE_PATH)
 
 AC_OUTPUT([
+  lib/metadata.rc
   packages/rpm/centos/groonga.spec
   packages/apt/debian/groonga-keyring.postrm
   packages/apt/env.sh
   packages/yum/env.sh
   groonga.pc
+  groonga-arrow.pc
   config.sh
   groonga-httpd-conf.sh
   data/groonga-httpd.conf
+  data/logrotate.d/centos/groonga-httpd
   data/scripts/groonga-httpd-restart
+  data/systemd/centos/groonga-httpd.service
   ])
 
 echo "$PACKAGE_NAME $PACKAGE_VERSION configuration:"
@@ -1657,10 +1788,15 @@ echo "groonga-httpd:"
 echo "  enable:                $enable_groonga_httpd"
 if test "$enable_groonga_httpd" = "yes"; then
   echo "  default database path: $GROONGA_HTTPD_DEFAULT_DATABASE_PATH"
-  echo "  PCRE:                  $WITH_PCRE"
-  if test "$WITH_PCRE" = "yes"; then
+  echo "  PCRE:                  $GRN_WITH_PCRE"
+  if test "$GRN_WITH_PCRE" = "yes"; then
     echo "    CFLAGS:              $PCRE_CFLAGS"
     echo "    LIBS only -L:        $PCRE_LIBS_ONLY_L"
+  fi
+  echo "   SSL:                  $GRN_WITH_SSL"
+  if test "$GRN_WITH_SSL" = "yes"; then
+    echo "    CFLAGS:              $SSL_CFLAGS"
+    echo "    LIBS only -L:        $SSL_LIBS_ONLY_L"
   fi
 fi
 echo
