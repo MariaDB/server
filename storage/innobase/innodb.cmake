@@ -245,8 +245,8 @@ ENDIF()
 # Avoid generating Hardware Capabilities due to crc32 instructions
 IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
   INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
-  MY_CHECK_CXX_COMPILER_FLAG("-Wa,-nH" HAVE_WA_NH)
-  IF(HAVE_WA_NH)
+  MY_CHECK_CXX_COMPILER_FLAG("-Wa,-nH" hava_CXX__Wa__nH)
+  IF(hava_CXX__Wa__nH)
     ADD_COMPILE_FLAGS(
       ut/ut0crc32.cc
       COMPILE_FLAGS "-Wa,-nH"
