@@ -16,6 +16,7 @@
 #pragma once
 
 /* C++ standard header files */
+#include <cstdlib>
 #include <algorithm>
 #include <atomic>
 #include <map>
