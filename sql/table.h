@@ -695,7 +695,6 @@ struct TABLE_SHARE
   bool system;                          /* Set if system table (one record) */
   bool not_usable_by_query_cache;
   bool no_replicate;
-  bool crypted;                         /* If .frm file is crypted */
   bool crashed;
   bool is_view;
   bool can_cmp_whole_record;
