@@ -4367,5 +4367,13 @@ NO_ENGINE_SUBSTITUTION
 SET sql_mode=DEFAULT;
 SET NAMES utf8;
 #
+# MDEV-13972 crash in Item_func_sec_to_time::get_date
+#
+SELECT SEC_TO_TIME(CONVERT(900*24*60*60 USING ucs2));
+SEC_TO_TIME(CONVERT(900*24*60*60 USING ucs2))
+838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '77760000'
+#
 # End of 5.5 tests
 #

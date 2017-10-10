@@ -863,5 +863,12 @@ SET sql_mode=DEFAULT;
 SET NAMES utf8;
 
 --echo #
+--echo # MDEV-13972 crash in Item_func_sec_to_time::get_date
+--echo #
+
+SELECT SEC_TO_TIME(CONVERT(900*24*60*60 USING ucs2));
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
