@@ -1468,23 +1468,35 @@ end:
       thd->security_ctx->master_access |= SUPER_ACL;
 
 #ifdef WITH_WSREP
-      if (WSREP(thd)) {
-          // sql_print_information("sizeof(LEX) = %d", sizeof(struct LEX));
-          // sizeof(LEX) = 4512, so it's relatively safe to allocate it on stack.
-          LEX lex;
-          lex.sql_command = SQLCOM_DROP_EVENT;
-          LEX* saved = thd->lex;
-          thd->lex = &lex;
-          WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
-          thd->lex = saved;
+      /*
+         This code is processing event execution and does not have client
+         connection. Here, event execution will now execute a prepared
+         DROP EVENT statement, but thd->lex->sql_command is set to
+         SQLCOM_CREATE_PROCEDURE
+         DROP EVENT will be logged in binlog, and we have to
+         replicate it to make all nodes have consistent event definitions
+         Wsrep DDL replication is triggered inside Events::drop_event(),
+         and here we need to prepare the THD so that DDL replication is
+         possible, essentially it requires setting sql_command to
+         SQLCOMM_DROP_EVENT, we will switch sql_command for the duration
+         of DDL replication only.
+      */
+      const enum_sql_command sql_command_save= thd->lex->sql_command;
+      const bool sql_command_set= WSREP(thd);
+      if (WSREP(thd))
+      {
+        thd->lex->sql_command = SQLCOM_DROP_EVENT;
       }
 #endif
      
       ret= Events::drop_event(thd, dbname, name, FALSE);
 
 #ifdef WITH_WSREP
-      WSREP_TO_ISOLATION_END;
-  error:
+      if (sql_command_set)
+      {
+        WSREP_TO_ISOLATION_END;
+        thd->lex->sql_command = sql_command_save;
+      }
 #endif
       thd->security_ctx->master_access= saved_master_access;
     }
