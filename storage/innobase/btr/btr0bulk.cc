@@ -564,8 +564,7 @@ PageBulk::storeExt(
 	page_cur->block = m_block;
 
 	dberr_t	err = btr_store_big_rec_extern_fields(
-		&btr_pcur, NULL, offsets, big_rec, m_mtr,
-		BTR_STORE_INSERT_BULK);
+		&btr_pcur, offsets, big_rec, m_mtr, BTR_STORE_INSERT_BULK);
 
 	ut_ad(page_offset(m_cur_rec) == page_offset(page_cur->rec));
 
