@@ -884,7 +884,7 @@ rw_lock_validate(
 						MY_MEMORY_ORDER_RELAXED);
 
 	ut_ad(lock->magic_n == RW_LOCK_MAGIC_N);
-	ut_ad(my_atomic_load32_explicit(&lock->waiters,
+	ut_ad(my_atomic_load32_explicit((int32*) &lock->waiters,
 					MY_MEMORY_ORDER_RELAXED) < 2);
 	ut_ad(lock_word > -(2 * X_LOCK_DECR));
 	ut_ad(lock_word <= X_LOCK_DECR);
