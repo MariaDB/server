@@ -979,13 +979,17 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
       null_count+= field->length & 7;
 
     if (field->default_value && !field->default_value->flags &&
-        !(field->flags & BLOB_FLAG))
+        (!(field->flags & BLOB_FLAG) || field->sql_type == MYSQL_TYPE_GEOMETRY))
     {
       Item *expr= field->default_value->expr;
+
       int res= !expr->fixed && // may be already fixed if ALTER TABLE
                 expr->fix_fields(thd, &expr);
       if (!res)
         res= expr->save_in_field(regfield, 1);
+      if (!res && (field->flags & BLOB_FLAG))
+        regfield->reset();
+
       /* If not ok or warning of level 'note' */
       if (res != 0 && res != 3)
       {
@@ -994,6 +998,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
         delete regfield; //To avoid memory leak
         goto err;
       }
+      delete regfield; //To avoid memory leak
     }
     else if (regfield->real_type() == MYSQL_TYPE_ENUM &&
 	     (field->flags & NOT_NULL_FLAG))

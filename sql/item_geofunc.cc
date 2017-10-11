@@ -75,9 +75,9 @@ String *Item_func_geometry_from_text::val_str(String *str)
     srid= (uint32)args[1]->val_int();
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     return 0;
-  str->length(0);
   str->q_append(srid);
   if ((null_value= !Geometry::create_from_wkt(&buffer, &trs, str, 0)))
     return 0;
