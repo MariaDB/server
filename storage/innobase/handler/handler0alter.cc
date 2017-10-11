@@ -1076,8 +1076,15 @@ ha_innobase::check_if_supported_inplace_alter(
 
 			/* Compute the DEFAULT values of non-constant columns
 			(VCOL_SESSION_FUNC | VCOL_TIME_FUNC). */
-			(*af)->set_default();
-			goto next_column;
+			switch ((*af)->set_default()) {
+			case 0: /* OK */
+			case 3: /* DATETIME to TIME or DATE conversion */
+				goto next_column;
+			case -1: /* OOM, or GEOMETRY type mismatch */
+			case 1:  /* A number adjusted to the min/max value */
+			case 2:  /* String truncation, or conversion problem */
+				break;
+			}
 		}
 
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);

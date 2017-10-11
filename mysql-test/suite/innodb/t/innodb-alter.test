@@ -494,6 +494,34 @@ eval ALTER TABLE $source_db.t1 DROP INDEX index2, algorithm=inplace;
 eval DROP TABLE $source_db.t1;
 eval DROP DATABASE $source_db;
 eval DROP DATABASE $dest_db;
+USE test;
 
 
+--echo #
+--echo # MDEV-14038 ALTER TABLE does not exit on error with InnoDB + bad default function
+--echo #
 
+CREATE TABLE t1 (a INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
+iNSERT INTO t1 VALUES (10);
+--error ER_WARN_DATA_OUT_OF_RANGE
+ALTER TABLE t1 ADD b TINYINT NOT NULL DEFAULT if(unix_timestamp()>1,1000,0);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# DATETIME-to-DATE truncation is OK
+CREATE TABLE t1 (a INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
+iNSERT INTO t1 VALUES (10);
+--enable_info
+ALTER TABLE t1 ADD b DATE NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0);
+--disable_info
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# DATETIME-to-TIME truncation is OK
+CREATE TABLE t1 (a INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
+iNSERT INTO t1 VALUES (10);
+--enable_info
+ALTER TABLE t1 ADD b TIME NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0);
+--disable_info
+SELECT * FROM t1;
+DROP TABLE t1;
