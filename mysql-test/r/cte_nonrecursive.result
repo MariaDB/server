@@ -86,7 +86,7 @@ select * from t2,t where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
-2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 explain
 select * from t2, (select a, count(*) from t1 where b >= 'c' group by a) as t 
 where t2.c=t.a;
@@ -176,7 +176,7 @@ select * from t2 where c in (select c from t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	8	test.t2.c	2	Using where; FirstMatch(t2)
-2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 explain
 select * from t2
 where c in (select c from (select count(*) as c from t1
@@ -245,8 +245,8 @@ select * from t as r1, t as r2 where r1.a=r2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	8	Using where
 1	PRIMARY	<derived3>	ref	key0	key0	5	r1.a	2	
-3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
-2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
 explain
 select * from (select distinct a from t1 where b >= 'c') as r1,
 (select distinct a from t1 where b >= 'c') as r2 
@@ -370,7 +370,7 @@ select * from t2,t where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
-2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
 explain
@@ -598,7 +598,7 @@ select * from v2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.c	2	
-3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # with clause in the specification of a view that whose definition
 # table alias for a with table
 create view v3 as
@@ -1055,3 +1055,27 @@ deallocate prepare stmt1;
 deallocate prepare stmt2;
 drop view v1,v2;
 drop table t1,t2;
+#
+# MDEV-13796: UNION of two materialized CTEs
+#
+CREATE TABLE t1 (id int, k int);
+CREATE TABLE t2 (id int);
+INSERT INTO t1 VALUES (3,5), (1,7), (4,3);
+INSERT INTO t2 VALUES (4), (3), (2);
+WITH d1 AS (SELECT SUM(k) FROM t1, t2 as t2 WHERE t1.id = t2.id),
+d2 AS (SELECT SUM(k) FROM t1, t2 as t2 WHERE t1.id = t2.id)
+SELECT * FROM d1 UNION  SELECT * FROM d2;
+SUM(k)
+8
+explain WITH d1 AS (SELECT SUM(k) FROM t1, t2 as t2 WHERE t1.id = t2.id),
+d2 AS (SELECT SUM(k) FROM t1, t2 as t2 WHERE t1.id = t2.id)
+SELECT * FROM d1 UNION  SELECT * FROM d2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+4	UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	9	
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union1,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+DROP TABLE t1,t2;
