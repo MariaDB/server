@@ -429,10 +429,10 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   if ((res= create_view_precheck(thd, tables, view, mode)))
     goto err;
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   if (open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
   {
