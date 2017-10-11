@@ -1,3 +1,8 @@
+##
+##  See also: storage/rocksdb/mysql-test/rocksdb/suite.pm - tests on
+##  platforms and under valgrind are disabled from there.
+##
+
 cons_snapshot_serializable : Consistent read does not work on serializable
 level_read_uncommitted : Not supported
 level_serializable: Not supported
