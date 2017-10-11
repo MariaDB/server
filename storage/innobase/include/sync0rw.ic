@@ -356,9 +356,13 @@ rw_lock_s_unlock_func(
 #endif /* UNIV_DEBUG */
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-	ut_ad(lock->lock_word > -X_LOCK_DECR);
-	ut_ad(lock->lock_word != 0);
-	ut_ad(lock->lock_word < X_LOCK_DECR);
+#ifdef UNIV_DEBUG
+	lint	dbg_lock_word = my_atomic_loadlint_explicit(
+			&lock->lock_word, MY_MEMORY_ORDER_RELAXED);
+	ut_ad(dbg_lock_word > -X_LOCK_DECR);
+	ut_ad(dbg_lock_word != 0);
+	ut_ad(dbg_lock_word < X_LOCK_DECR);
+#endif
 
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_S));
 
@@ -411,7 +415,8 @@ rw_lock_x_unlock_func(
 		We need to signal read/write waiters.
 		We do not need to signal wait_ex waiters, since they cannot
 		exist when there is a writer. */
-		if (lock->waiters) {
+		if (my_atomic_load32_explicit(&lock->waiters,
+					      MY_MEMORY_ORDER_RELAXED)) {
 			my_atomic_store32((int32*) &lock->waiters, 0);
 			os_event_set(lock->event);
 			sync_array_object_signalled();
