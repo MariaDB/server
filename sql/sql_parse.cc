@@ -5186,7 +5186,8 @@ end_with_restore_list:
     const bool wsrep_on= WSREP(thd);
     if (wsrep_on)
     {
-      if (!wsrep_provider_is_SR_capable())
+      if (!wsrep_provider_is_SR_capable() ||
+          !thd->is_current_stmt_binlog_format_row())
       {
         thd->variables.wsrep_trx_fragment_size= 0;
       }
