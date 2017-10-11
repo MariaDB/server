@@ -359,10 +359,10 @@ rw_lock_s_unlock_func(
 #ifdef UNIV_DEBUG
 	lint	dbg_lock_word = my_atomic_loadlint_explicit(
 			&lock->lock_word, MY_MEMORY_ORDER_RELAXED);
-#endif
 	ut_ad(dbg_lock_word > -X_LOCK_DECR);
 	ut_ad(dbg_lock_word != 0);
 	ut_ad(dbg_lock_word < X_LOCK_DECR);
+#endif
 
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_S));
 
