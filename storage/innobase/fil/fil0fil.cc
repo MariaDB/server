@@ -3721,7 +3721,7 @@ fil_ibd_create(
 		return(DB_ERROR);
 	}
 
-	bool is_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
+	const bool is_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
 
 #ifdef _WIN32
 	if (is_compressed) {
@@ -3729,10 +3729,9 @@ fil_ibd_create(
 	}
 #endif
 
-	success = os_file_set_size(path, file,
-		os_offset_t(size)*UNIV_PAGE_SIZE,
-		FSP_FLAGS_HAS_PAGE_COMPRESSION(flags));
-
+	success = os_file_set_size(
+		path, file,
+		os_offset_t(size) << UNIV_PAGE_SIZE_SHIFT, is_compressed);
 
 	if (!success) {
 		os_file_close(file);
