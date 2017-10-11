@@ -169,7 +169,7 @@ IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   #  (also had to add -frtti above, because something that event_listener.cc
   #  includes requires it. So, now everything in MariaRocks is compiled with
   #  -frtti)
-  set_source_files_properties(event_listener.cc rdb_cf_options.cc
+  set_source_files_properties(event_listener.cc rdb_cf_options.cc rdb_sst_info.cc
     PROPERTIES COMPILE_FLAGS -frtti)
 ENDIF()
 
