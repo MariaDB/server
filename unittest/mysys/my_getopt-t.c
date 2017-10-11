@@ -72,7 +72,7 @@ void run(const char *arg, ...)
     arg= va_arg(ap, char*);
   }
   va_end(ap);
-  arg_c= arg_v - arg_s;
+  arg_c= (int)(arg_v - arg_s);
   arg_v= arg_s;
   res= handle_options(&arg_c, &arg_v, mopts_options, 0);
 }
