@@ -748,7 +748,7 @@ UNZFAM::UNZFAM(PUNZFAM txfp) : MAPFAM(txfp)
 /***********************************************************************/
 int UNZFAM::GetFileLength(PGLOBAL g)
 {
-	int len = (zutp && zutp->entryopen) ? Top - Memory
+	int len = (zutp && zutp->entryopen) ? (int)(Top - Memory)
 		                                  : TXTFAM::GetFileLength(g) * 3;
 
 	if (trace)
@@ -1088,7 +1088,7 @@ int ZIPFAM::WriteBuffer(PGLOBAL g)
 
 	//  Prepare to write the new line
 	strcat(strcpy(To_Buf, Tdbp->GetLine()), (Bin) ? CrLf : "\n");
-	len = strchr(To_Buf, '\n') - To_Buf + 1;
+	len = (int)(strchr(To_Buf, '\n') - To_Buf + 1);
 	return zutp->writeEntry(g, To_Buf, len);
 } // end of WriteBuffer
 
