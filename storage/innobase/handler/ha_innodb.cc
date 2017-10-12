@@ -15066,7 +15066,7 @@ ha_innobase::optimize(
 	calls to OPTIMIZE, which is undesirable. */
 
 	/* TODO: Defragment is disabled for now */
-	if (0) {
+	if (srv_defragment) {
 		int err;
 
 		err = defragment_table(m_prebuilt->table->name.m_name, NULL, false);
