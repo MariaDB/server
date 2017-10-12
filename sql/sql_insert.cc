@@ -4481,7 +4481,7 @@ bool select_create::send_eof()
                   thd->wsrep_trx_id(), thd->thread_id, thd->query_id);
 
       /*
-         append table level exclusive key for CTAS
+        append table level exclusive key for CTAS
       */
       wsrep_key_arr_t key_arr= {0, 0};
       wsrep_prepare_keys_for_isolation(thd,
@@ -4489,15 +4489,15 @@ bool select_create::send_eof()
                                        create_table->table_name,
                                        table_list,
                                        &key_arr);
-      int rcode = wsrep->append_key(
-                                wsrep,
-                                &thd->wsrep_ws_handle,
-                                key_arr.keys, //&wkey,
-                                key_arr.keys_len,
-                                WSREP_KEY_EXCLUSIVE,
-                                false);
+      int rcode = wsrep->append_key(wsrep,
+                                    &thd->wsrep_ws_handle,
+                                    key_arr.keys, //&wkey,
+                                    key_arr.keys_len,
+                                    WSREP_KEY_EXCLUSIVE,
+                                    false);
       wsrep_keys_free(&key_arr);
-      if (rcode) {
+      if (rcode)
+      {
         DBUG_PRINT("wsrep", ("row key failed: %d", rcode));
         WSREP_ERROR("Appending table key for CTAS failed: %s, %d",
                     (wsrep_thd_query(thd)) ?
@@ -4513,12 +4513,13 @@ bool select_create::send_eof()
 #ifdef WITH_WSREP
     if (WSREP_ON)
     {
+      thd->get_stmt_da()->set_overwrite_status(false);
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       if (thd->wsrep_conflict_state() != NO_CONFLICT)
       {
-        WSREP_DEBUG("select_create commit failed, thd: %lld  err: %d %s",
-                    (longlong) thd->thread_id, thd->wsrep_conflict_state(),
-                    thd->query());
+        WSREP_DEBUG("select_create commit failed, thd: %lld err: %d %s",
+                    thd->thread_id, thd->wsrep_conflict_state(),
+                    WSREP_QUERY(thd));
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
         abort_result_set();
         DBUG_RETURN(true);
