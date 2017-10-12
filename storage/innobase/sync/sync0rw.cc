@@ -310,7 +310,9 @@ lock_loop:
 
 	/* Spin waiting for the writer field to become free */
 	HMT_low();
-	while (i < srv_n_spin_wait_rounds && lock->lock_word <= 0) {
+	while (i < srv_n_spin_wait_rounds &&
+	       my_atomic_loadlint_explicit(&lock->lock_word,
+					   MY_MEMORY_ORDER_RELAXED) <= 0) {
 		if (srv_spin_wait_delay) {
 			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
 		}

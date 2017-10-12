@@ -393,17 +393,21 @@ rw_lock_x_unlock_func(
 #endif /* UNIV_DEBUG */
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-	ut_ad(lock->lock_word == 0 || lock->lock_word == -X_LOCK_HALF_DECR
-	      || lock->lock_word <= -X_LOCK_DECR);
+	lint	lock_word;
+	lock_word = my_atomic_loadlint_explicit(&lock->lock_word,
+						MY_MEMORY_ORDER_RELAXED);
 
-	if (lock->lock_word == 0) {
+	ut_ad(lock_word == 0 || lock_word == -X_LOCK_HALF_DECR
+	      || lock_word <= -X_LOCK_DECR);
+
+	if (lock_word == 0) {
 		/* Last caller in a possible recursive chain. */
 		lock->writer_thread = 0;
 	}
 
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_X));
 
-	if (lock->lock_word == 0 || lock->lock_word == -X_LOCK_HALF_DECR) {
+	if (lock_word == 0 || lock_word == -X_LOCK_HALF_DECR) {
 		/* There is 1 x-lock */
 		/* atomic increment is needed, because it is last */
 		if (my_atomic_addlint(&lock->lock_word, X_LOCK_DECR) <= -X_LOCK_DECR) {
@@ -421,13 +425,13 @@ rw_lock_x_unlock_func(
 			os_event_set(lock->event);
 			sync_array_object_signalled();
 		}
-	} else if (lock->lock_word == -X_LOCK_DECR
-		   || lock->lock_word == -(X_LOCK_DECR + X_LOCK_HALF_DECR)) {
+	} else if (lock_word == -X_LOCK_DECR
+		   || lock_word == -(X_LOCK_DECR + X_LOCK_HALF_DECR)) {
 		/* There are 2 x-locks */
 		lock->lock_word += X_LOCK_DECR;
 	} else {
 		/* There are more than 2 x-locks. */
-		ut_ad(lock->lock_word < -X_LOCK_DECR);
+		ut_ad(lock_word < -X_LOCK_DECR);
 		lock->lock_word += 1;
 	}
 
