@@ -1103,7 +1103,7 @@ The following options may be given as the first argument:
  Should slave thread do foreign key constraint checks
  (Defaults to on; use --skip-wsrep-slave-FK-checks to disable.)
  --wsrep-slave-UK-checks 
- Should slave thread do secondary index uniqueness chesks
+ Should slave thread do secondary index uniqueness checks
  --wsrep-slave-threads=# 
  Number of slave appliers to launch
  --wsrep-sst-auth=name 
@@ -1125,11 +1125,11 @@ The following options may be given as the first argument:
  READ(includes SELECT, SHOW and BEGIN/START TRANSACTION);
  2 - UPDATE and DELETE; 4 - INSERT and REPLACE
  --wsrep-trx-fragment-size=# 
- size (in bytes) for transaction fragments for streaming
- replication
+ Size of transaction fragments for streaming replication
+ (measured in units of 'wsrep_trx_fragment_unit')
  --wsrep-trx-fragment-unit=name 
- unit for fragments size: (bytes, events, rows,
- statements)
+ Unit for streaming replication transaction fragments'
+ size: bytes, events, rows, statements
 
 Variables (--variable-name=value)
 abort-slave-event-count 0
