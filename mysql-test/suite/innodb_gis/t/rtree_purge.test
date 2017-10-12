@@ -45,7 +45,7 @@ delimiter ;|
 
 call p(200);
 
---source include/wait_innodb_all_purged.inc
+--source include/wait_all_purged.inc
 
 # Clean up.
 drop procedure p;

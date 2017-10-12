@@ -6,7 +6,10 @@
 --echo # Bug #21899444	INNODB: ASSERT FAILURE (COL->ORD_PART)
 --echo #	IN DICT_COL_GET_SPATIAL_STATUS()
 
-set global innodb_purge_stop_now = on;
+connect  purge_control,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
 CREATE TABLE t1 (
   p     INT NOT NULL AUTO_INCREMENT,
   g     LINESTRING NOT NULL,
@@ -19,7 +22,12 @@ INSERT INTO t1(g) VALUES (ST_linefromtext(concat('linestring','(20 110, 21 110, 
 UPDATE t1 SET g = ST_linefromtext('linestring(-5 -576,0 -576,0 -571,0 -571,5 -568,6 -564,6 -565,6 -563)') WHERE p = 2;
 
 alter table t1 drop index `si`;
-set global innodb_purge_run_now=on;
+
+connection purge_control;
+COMMIT;
+disconnect purge_control;
+connection default;
+
 set global innodb_fast_shutdown = 0;
 --source include/restart_mysqld.inc
 drop table t1;

@@ -49,7 +49,8 @@ truncate table t1;
 # Test crash recovery.
 #
 #
-call mtr.add_suppression("InnoDB: page [0-9]+ in the doublewrite buffer is not within space bounds.*");
+
+call mtr.add_suppression("InnoDB: A copy of page \[page id: space=[0-9]+, page number=[0-9]+\] in the doublewrite buffer slot [0-9]+ is not within space bounds");
 
 # Test rtree enlarge recovery.
 START TRANSACTION;

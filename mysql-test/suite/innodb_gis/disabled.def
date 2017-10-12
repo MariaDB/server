@@ -1,0 +1,26 @@
+##############################################################################
+#
+#  List the test cases that are to be disabled temporarily.
+#
+#  Separate the test case name and the comment with ':'.
+#
+#    <testcasename> : BUG#<xxxx> <date disabled> <disabler> <comment>
+#
+#  Do not use any TAB characters for whitespace.
+#
+##############################################################################
+
+gis_split_inf : MDEV-14057 InnoDB GIS tests fail
+row_format : MDEV-14057 InnoDB GIS tests fail
+rtree_estimate : MDEV-14057 InnoDB GIS tests fail
+rtree_multi_pk : MDEV-14057 InnoDB GIS tests fail
+rtree_recovery : MDEV-14058 InnoDB Assertion failure !leaf on rem0rec.cc line 566 on test innodb_gis.rtree_recovery
+tree_search : MDEV-14057 InnoDB GIS tests fail
+rtree_concurrent_srch: MDEV-14059 InnoDB assertion failure offset >= ((38U + 36 + 2 * 10) + 5) at page0page.h line 318
+point_big : MDEV-14057 InnoDB GIS tests fail
+geometry : MDEV-14057 InnoDB GIS tests fail
+bug17057168 : MDEV-14057 InnoDB GIS tests fail
+bug16236208 : MDEV-14057 InnoDB GIS tests fail
+bug16266012 : MDEV-14057 InnoDB GIS tests fail
+rtree_search : MDEV-14057 InnoDB GIS tests fail
+rtree_old : MDEV-14057 InnoDB GIS tests fail

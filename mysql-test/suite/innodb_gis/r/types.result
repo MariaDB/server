@@ -1,4 +1,6 @@
 SET SESSION debug="+d,row_print_geometry_data";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 CREATE TABLE t_wl6455 ( i INT, g GEOMETRY NOT NULL) ENGINE=InnoDB;
 SHOW CREATE TABLE t_wl6455;
 Table	Create Table
@@ -24,7 +26,7 @@ SELECT ST_AsText(g) FROM t_wl6455;
 ST_AsText(g)
 POINT(1 1)
 POINT(2 2)
-MULTIPOINT((0 0),(20 20),(60 60))
+MULTIPOINT(0 0,20 20,60 60)
 LINESTRING(1 1,4 4)
 LINESTRING(2 2,5 5)
 MULTILINESTRING((1 1,2 2,3 3),(4 4,5 5))
@@ -33,10 +35,8 @@ MULTIPOLYGON(((0 0,0 3,3 3,3 0,0 0),(1 1,1 2,2 2,2 1,1 1)))
 GEOMETRYCOLLECTION(POINT(1 1),LINESTRING(2 2,3 3))
 CREATE INDEX i_p ON t_wl6455 (g(10));
 EXPLAIN SELECT ST_AsText(g) FROM t_wl6455 WHERE g = POINT(2,2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t_wl6455	NULL	ref	i_p	i_p	12	const	#	100.00	Using where
-Warnings:
-Note	1003	/* select#1 */ select st_astext(`test`.`t_wl6455`.`g`) AS `ST_AsText(g)` from `test`.`t_wl6455` where (`test`.`t_wl6455`.`g` = <cache>(point(2,2)))
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t_wl6455	ref	i_p	i_p	12	const	2	#
 SELECT ST_AsText(g) FROM t_wl6455 WHERE g = POINT(2,2);
 ST_AsText(g)
 POINT(2 2)
@@ -61,7 +61,7 @@ SELECT ST_AsText(g) FROM t_wl6455;
 ST_AsText(g)
 POINT(1 1)
 POINT(2 2)
-MULTIPOINT((0 0),(20 20),(60 60))
+MULTIPOINT(0 0,20 20,60 60)
 LINESTRING(1 1,4 4)
 LINESTRING(2 2,5 5)
 MULTILINESTRING((1 1,2 2,3 3),(4 4,5 5))

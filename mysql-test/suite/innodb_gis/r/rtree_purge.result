@@ -19,5 +19,6 @@ set n:=n+1;
 until n >= i end repeat;
 end|
 call p(200);
+InnoDB		0 transactions not purged
 drop procedure p;
 drop table t;

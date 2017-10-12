@@ -24,10 +24,8 @@ INSERT INTO gis_point VALUES
 (ST_PointFromText('POINT(100.32374832 101.23741821)'), ST_PointFromText('POINT(200.32247328 101.86728201)')),
 (ST_PointFromText('POINT(100.32374832 101.23741821)'), ST_PointFromText('POINT(100.32374832 101.98527111)'));
 EXPLAIN SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point GROUP BY p1, p2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	gis_point	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using temporary; Using filesort
-Warnings:
-Note	1003	/* select#1 */ select st_astext(`test`.`gis_point`.`p1`) AS `ST_AsText(p1)`,st_astext(`test`.`gis_point`.`p2`) AS `ST_AsText(p2)` from `test`.`gis_point` group by `test`.`gis_point`.`p1`,`test`.`gis_point`.`p2`
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	4	#
 SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point GROUP BY p1, p2;
 ST_AsText(p1)	ST_AsText(p2)
 POINT(100.32374832 101.23741821)	POINT(100.32374832 101.98527111)
@@ -146,10 +144,11 @@ POINT(1 0)	POINT(10 20)
 POINT(0 0)	POINT(10 20)
 SELECT ST_AsText(p), ST_AsText(p1) FROM t1 WHERE MBRWithin(p, ST_GeomFromText('POLYGON((-1 0.5, -1 -0.5, 1 -0.5, 1 0.5, -1 0.5))'));
 ST_AsText(p)	ST_AsText(p1)
+POINT(1 0)	POINT(10 20)
 POINT(0 0)	POINT(10 20)
 # Drop spatial keys on the table
 ALTER TABLE t1 DROP KEY p, DROP KEY p1;
-ERROR 42000: Can't DROP 'p1'; check that column/key exists
+ERROR 42000: Can't DROP INDEX `p1`; check that it exists
 SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' OR name = 'p1';
 name	mtype	prtype	len
 p	14	1535	12
@@ -171,6 +170,7 @@ POINT(1 0)	POINT(10 20)
 POINT(0 0)	POINT(10 20)
 SELECT ST_AsText(p), ST_AsText(p1) FROM t1 WHERE MBRWithin(p, ST_GeomFromText('POLYGON((-1 0.5, -1 -0.5, 1 -0.5, 1 0.5, -1 0.5))'));
 ST_AsText(p)	ST_AsText(p1)
+POINT(1 0)	POINT(10 20)
 POINT(0 0)	POINT(10 20)
 TRUNCATE t1;
 ALTER TABLE t1 DROP COLUMN p, DROP COLUMN p1;
@@ -203,8 +203,10 @@ SELECT ST_AsText(p), ST_AsText(p1) FROM t1 WHERE MBRWithin(p1, ST_GeomFromText('
 ST_AsText(p)	ST_AsText(p1)
 POINT(0 1)	POINT(10 19)
 POINT(1 1)	POINT(10 20)
+POINT(1 0)	POINT(10 21)
 SELECT ST_AsText(p), ST_AsText(p1) FROM t1 WHERE MBRWithin(p, ST_GeomFromText('POLYGON((-1 0.5, -1 -0.5, 1 -0.5, 1 0.5, -1 0.5))'));
 ST_AsText(p)	ST_AsText(p1)
+POINT(1 0)	POINT(10 21)
 POINT(0 0)	POINT(10 22)
 ALTER TABLE t1 DROP COLUMN p1, ADD COLUMN p1 POINT, CHANGE COLUMN p pp POINT AFTER p1;
 SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'pp' OR name = 'g' OR name = 'p1';
@@ -232,9 +234,14 @@ SELECT ST_AsText(pp), ST_AsText(p1) FROM t1 WHERE p1 = ST_PointFromText('POINT(1
 ST_AsText(pp)	ST_AsText(p1)
 SELECT ST_AsText(pp), ST_AsText(p1) FROM t1 WHERE MBRWithin(p1, ST_GeomFromText('POLYGON((5 5, 20 5, 20 21, 5 21, 5 5))')) ORDER BY pp;
 ST_AsText(pp)	ST_AsText(p1)
+POINT(0 0)	POINT(5 5)
+POINT(0 1)	POINT(5 5)
+POINT(1 0)	POINT(5 5)
+POINT(1 1)	POINT(5 5)
 SELECT ST_AsText(pp), ST_AsText(p1) FROM t1 WHERE MBRWithin(pp, ST_GeomFromText('POLYGON((-1 0.5, -1 -0.5, 1 -0.5, 1 0.5, -1 0.5))')) ORDER BY pp;
 ST_AsText(pp)	ST_AsText(p1)
 POINT(0 0)	POINT(5 5)
+POINT(1 0)	POINT(5 5)
 DROP TABLE t1;
 #
 # Test when the POINT is on B-TREE
@@ -263,10 +270,8 @@ INSERT INTO gis_point VALUES
 (206, ST_PointFromWKB(ST_AsWKB(ST_PointFromText('POINT(103.43718640 105.248206478)'))));
 'The ORDER BY will use filesort'
 EXPLAIN SELECT ST_AsText(p) FROM gis_point ORDER BY p;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	gis_point	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using filesort
-Warnings:
-Note	1003	/* select#1 */ select st_astext(`test`.`gis_point`.`p`) AS `ST_AsText(p)` from `test`.`gis_point` order by `test`.`gis_point`.`p`
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	10	#
 SELECT ST_AsText(p) FROM gis_point ORDER BY p;
 ST_AsText(p)
 POINT(10 10)
@@ -418,7 +423,6 @@ CREATE TABLE t2 AS SELECT * FROM t1;
 DROP TABLE t1;
 SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' AND name='t2';
 name	mtype	prtype	len
-p	14	1535	12
 DROP table t2;
 #
 # Test when POINT is used in spatial index
@@ -453,8 +457,6 @@ SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE
 name	mtype	prtype	len
 p1	14	1535	12
 p2	14	1535	12
-p1	14	1535	12
-p2	14	1535	12
 SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point1;
 ST_AsText(p1)	ST_AsText(p2)
 POINT(1 2)	POINT(-1 -3)
@@ -475,14 +477,18 @@ ST_AsText(p1)
 POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point1 WHERE MBRWithin(p1, @poly1);
 ST_AsText(p1)
+POINT(2 4)
 POINT(3 6)
 POINT(4 8)
+POINT(5 10)
 SELECT ST_AsText(p2) FROM gis_point1 WHERE ST_Contains(@poly2, p2);
 ST_AsText(p2)
 POINT(-1 -3)
 POINT(-2 -6)
 POINT(-3 -9)
 POINT(-4 -12)
+POINT(-5 -15)
+POINT(0 0)
 POINT(-1 -1)
 SELECT ST_AsText(p2) FROM gis_point1 WHERE ST_Equals(p2, @p1);
 ST_AsText(p2)
@@ -493,10 +499,13 @@ POINT(20.5 41)
 POINT(32.1234 64.2468)
 SELECT ST_AsText(p1) FROM gis_point1 WHERE ST_Contains(@mpoly, p1);
 ST_AsText(p1)
+POINT(3 6)
 POINT(4 8)
 POINT(5 10)
 POINT(6 12)
 POINT(7 14)
+POINT(8 16)
+POINT(10 21)
 POINT(20.5 41)
 SELECT ST_AsText(p1) FROM gis_point1 WHERE ST_Contains(@mpoly, p1) AND NOT MBRWithin(p1, @mpoly);
 ST_AsText(p1)
@@ -549,8 +558,10 @@ POINT(4 8)
 POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point1 WHERE MBRWithin(p1, @poly1);
 ST_AsText(p1)
+POINT(2 4)
 POINT(3 6)
 POINT(4 8)
+POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point1 WHERE ST_Touches(p1, @poly1);
 ST_AsText(p1)
 POINT(2 4)
@@ -673,8 +684,10 @@ POINT(4 8)
 POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point1 WHERE MBRWithin(p1, @poly1);
 ST_AsText(p1)
+POINT(2 4)
 POINT(3 6)
 POINT(4 8)
+POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point1 WHERE ST_Touches(p1, @poly1);
 ST_AsText(p1)
 POINT(2 4)
@@ -756,14 +769,18 @@ ST_AsText(p1)
 POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point WHERE MBRWithin(p1, @poly1);
 ST_AsText(p1)
+POINT(2 4)
 POINT(3 6)
 POINT(4 8)
+POINT(5 10)
 SELECT ST_AsText(p2) FROM gis_point WHERE ST_Contains(@poly2, p2);
 ST_AsText(p2)
 POINT(-1 -3)
 POINT(-2 -6)
 POINT(-3 -9)
 POINT(-4 -12)
+POINT(-5 -15)
+POINT(0 0)
 POINT(-1 -1)
 SELECT ST_AsText(p2) FROM gis_point WHERE ST_Equals(p2, @p1);
 ST_AsText(p2)
@@ -774,10 +791,13 @@ POINT(20.5 41)
 POINT(32.1234 64.2468)
 SELECT ST_AsText(p1) FROM gis_point WHERE ST_Contains(@mpoly, p1);
 ST_AsText(p1)
+POINT(3 6)
 POINT(4 8)
 POINT(5 10)
 POINT(6 12)
 POINT(7 14)
+POINT(8 16)
+POINT(10 21)
 POINT(20.5 41)
 SELECT ST_AsText(p1) FROM gis_point WHERE ST_Contains(@mpoly, p1) AND NOT MBRWithin(p1, @mpoly);
 ST_AsText(p1)
@@ -830,8 +850,10 @@ POINT(4 8)
 POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point WHERE MBRWithin(p1, @poly1);
 ST_AsText(p1)
+POINT(2 4)
 POINT(3 6)
 POINT(4 8)
+POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point WHERE ST_Touches(p1, @poly1);
 ST_AsText(p1)
 POINT(2 4)
@@ -954,8 +976,10 @@ POINT(4 8)
 POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point WHERE MBRWithin(p1, @poly1);
 ST_AsText(p1)
+POINT(2 4)
 POINT(3 6)
 POINT(4 8)
+POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point WHERE ST_Touches(p1, @poly1);
 ST_AsText(p1)
 POINT(2 4)
@@ -1067,8 +1091,10 @@ POINT(4 8)
 POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point WHERE MBRWithin(p1, @poly1);
 ST_AsText(p1)
+POINT(2 4)
 POINT(3 6)
 POINT(4 8)
+POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point WHERE ST_Touches(p1, @poly1);
 ST_AsText(p1)
 POINT(2 4)
@@ -1191,8 +1217,10 @@ POINT(4 8)
 POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point WHERE MBRWithin(p1, @poly1);
 ST_AsText(p1)
+POINT(2 4)
 POINT(3 6)
 POINT(4 8)
+POINT(5 10)
 SELECT ST_AsText(p1) FROM gis_point WHERE ST_Touches(p1, @poly1);
 ST_AsText(p1)
 POINT(2 4)
@@ -1260,10 +1288,8 @@ Table	Op	Msg_type	Msg_text
 test.gis_point	check	status	OK
 The ORDER BY for spatial index will use filesort
 EXPLAIN SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	gis_point	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using filesort
-Warnings:
-Note	1003	/* select#1 */ select st_astext(`test`.`gis_point`.`p1`) AS `ST_AsText(p1)`,st_astext(`test`.`gis_point`.`p2`) AS `ST_AsText(p2)` from `test`.`gis_point` order by `test`.`gis_point`.`p1`,`test`.`gis_point`.`p2`
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	13	#
 SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
 ST_AsText(p1)	ST_AsText(p2)
 POINT(2 4)	POINT(-2 -6)
@@ -1423,8 +1449,8 @@ a	ST_AsText(p)	ST_AsText(l)	ST_AsText(g)
 1	POINT(10 10)	LINESTRING(1 1,5 5,10 10)	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
 2	POINT(20 20)	LINESTRING(2 3,7 8,9 10,15 16)	POLYGON((10 30,30 40,40 50,40 30,30 20,10 30))
 EXPLAIN UPDATE t1 SET p = ST_GeomFromText('POINT(30 30)') WHERE p = ST_GeomFromText('POINT(20 20)');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	UPDATE	t1	NULL	range	PRIMARY	PRIMARY	27	const	#	100.00	Using where
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	27	NULL	1	#
 UPDATE t1 SET p = ST_GeomFromText('POINT(30 30)') WHERE p = ST_GeomFromText('POINT(20 20)');
 SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
 a	ST_AsText(p)	ST_AsText(l)	ST_AsText(g)
@@ -1461,10 +1487,8 @@ a	ST_AsText(p)	ST_AsText(l)	ST_AsText(g)
 ALTER TABLE t1 DROP PRIMARY KEY;
 ALTER TABLE t1 ADD PRIMARY KEY(p);
 EXPLAIN SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(30 30)');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	NULL	const	PRIMARY,idx2	PRIMARY	27	const	#	100.00	NULL
-Warnings:
-Note	1003	/* select#1 */ select '2' AS `a`,st_astext('
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	PRIMARY,idx2	PRIMARY	27	const	1	#
 SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(30 30)');
 a	ST_AsText(p)
 2	POINT(30 30)
@@ -1497,13 +1521,28 @@ child	CREATE TABLE `child` (
   SPATIAL KEY `idx2` (`p`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
-ERROR HY000: Cannot add foreign key constraint
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+show warnings;
+Level	Code	Message
+Warning	150	Alter  table '`test`.`child`' with foreign key constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns near 'FOREIGN KEY(p) REFERENCES parent(p)'.
+Error	1005	Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+Warning	1215	Cannot add foreign key constraint
 ALTER TABLE parent DROP INDEX idx1;
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
-ERROR HY000: Cannot add foreign key constraint
+Got one of the listed errors
+show warnings;
+Level	Code	Message
+Warning	150	Alter  table '`test`.`child`' with foreign key constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns near 'FOREIGN KEY(p) REFERENCES parent(p)'.
+Error	1005	Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+Warning	1215	Cannot add foreign key constraint
 ALTER TABLE child DROP INDEX idx2;
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
-ERROR HY000: Cannot add foreign key constraint
+Got one of the listed errors
+show warnings;
+Level	Code	Message
+Warning	150	Alter  table '`test`.`child`' with foreign key constraint failed. There is only prefix index in the referenced table where the referenced columns appear as the first columns near 'FOREIGN KEY(p) REFERENCES parent(p)'.
+Error	1005	Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+Warning	1215	Cannot add foreign key constraint
 DROP TABLE child, parent;
 #
 # Bug#28763: Selecting geometry fields in UNION caused server crash.

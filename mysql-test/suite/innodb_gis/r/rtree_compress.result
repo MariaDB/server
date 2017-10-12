@@ -40,8 +40,12 @@ select count(*) from t1 where MBRWithin(t1.c2, @g1);
 count(*)
 0
 SET DEBUG='+d,page_copy_rec_list_start_compress_fail';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 delete from t1;
 SET DEBUG='-d,page_copy_rec_list_start_compress_fail';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 select count(*) from t1 where MBRWithin(t1.c2, @g1);
 count(*)
 0
