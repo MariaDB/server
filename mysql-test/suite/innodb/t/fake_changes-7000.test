@@ -1,0 +1,9 @@
+--source include/have_log_bin.inc
+--source include/have_xtradb.inc
+
+create table t1 (i int) engine=InnoDB;
+set innodb_fake_changes = 1;
+--disable_abort_on_error
+insert into t1 values (1);
+set innodb_fake_changes = 0;
+drop table t1;

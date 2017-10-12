@@ -1,4 +1,6 @@
---source include/have_innodb.inc
+-- source include/innodb_page_size_small.inc
+# lazy eviction might not be lazy enough when key rotation
+# scans through pages
 
 let $per_table=`select @@innodb_file_per_table`;
 let $format=`select @@innodb_file_format`;
@@ -8,7 +10,7 @@ let $format=`select @@innodb_file_format`;
 set global innodb_file_per_table=on;
 set global innodb_file_format=`1`;
  
-create table t1(a text) engine=innodb key_block_size=8;
+create table t1(a text) engine=innodb key_block_size=4;
 
 -- disable_query_log
 
@@ -21,13 +23,13 @@ while ($i)
 }
 -- enable_query_log
 
-# we should be using some 8K pages
+# we should be using some 4K pages
 -- eval $query_i_s
 
 drop table t1;
 
-# because of lazy eviction at drop table in 5.5 there should be some
-# used 8K pages
+# because of lazy eviction at drop table there should still be some
+# used 4K pages
 -- eval $query_i_s
 
 # create a non-compressed table and insert enough into it to evict
@@ -36,7 +38,7 @@ create table t2(a text) engine=innodb;
 
 -- disable_query_log
 
--- let $i = 400
+-- let $i = 500
 while ($i)
 {
   insert into t2 values(repeat('abcdefghijklmnopqrstuvwxyz',1000));
@@ -45,7 +47,7 @@ while ($i)
 
 -- enable_query_log
 
-# now there should be no 8K pages in the buffer pool
+# now there should be no 4K pages in the buffer pool
 -- eval $query_i_s
 
 drop table t2;

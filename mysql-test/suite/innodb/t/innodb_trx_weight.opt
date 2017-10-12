@@ -1,0 +1,1 @@
+--loose-innodb-lock-schedule-algorithm=FCFS

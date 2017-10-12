@@ -13,9 +13,10 @@
 
 SET GLOBAL Innodb_file_per_table=on;
 SET @save_innodb_compression_level = @@global.innodb_compression_level;
+let $innodb_file_format_orig=`select @@innodb_file_format`;
 
 SET global innodb_compression_level=0;
-
+set global innodb_file_format="Barracuda";
 -- echo #create table with 1K block size
 CREATE TABLE tab5 (col_1 CHAR (255) ,
 col_2 VARCHAR (255), col_3 longtext,
@@ -106,3 +107,4 @@ SELECT @size >= 0;
 DROP TABLE tab5, tab6;
 
 SET GLOBAL innodb_compression_level = @save_innodb_compression_level;
+eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;

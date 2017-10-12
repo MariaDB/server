@@ -67,19 +67,19 @@ COMMIT;
 
 ALTER TABLE t DROP INDEX c;
 
-#skipping this test as in xtradb SELECT * FROM information_schema.innodb_cmp_per_index succeed
-#GRANT USAGE ON *.* TO 'tuser01'@'localhost' IDENTIFIED BY 'cDJvI9s_Uq';
-#FLUSH PRIVILEGES;
+GRANT USAGE ON *.* TO 'tuser01'@'localhost' IDENTIFIED BY 'cDJvI9s_Uq';
+FLUSH PRIVILEGES;
 
-#-- connect (con1,localhost,tuser01,cDJvI9s_Uq,)
-#-- connection con1
+-- connect (con1,localhost,tuser01,cDJvI9s_Uq,)
+-- connection con1
 
-#-- error ER_SPECIFIC_ACCESS_DENIED_ERROR
-#SELECT * FROM information_schema.innodb_cmp_per_index;
+-- error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SELECT * FROM information_schema.innodb_cmp_per_index;
 
-#-- connection default
-#-- disconnect con1
-#DROP USER 'tuser01'@'localhost';
+-- connection default
+-- disconnect con1
+
+DROP USER 'tuser01'@'localhost';
 
 SELECT
 database_name,

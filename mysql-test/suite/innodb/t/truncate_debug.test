@@ -1,0 +1,127 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--source include/count_sessions.inc
+
+--echo #
+--echo # Bug #23070734	CONCURRENT TRUNCATE TABLES CAUSE STALLS
+--echo #
+
+SET @ahi= @@global.innodb_adaptive_hash_index;
+# Ensure that there is no adaptive hash index on any system tables,
+# or any other tables than the ones that we are creating below.
+SET GLOBAL innodb_adaptive_hash_index=OFF;
+SET GLOBAL innodb_adaptive_hash_index=ON;
+
+--echo Test_1 :- Check if DDL operations are possible on
+--echo		 table being truncated. Also check if
+--echo		 DDL operations on other tables succeed.
+
+create table t1 (f1 int,f2 int,key(f2),f3 int) engine=innodb;
+create index idx1 on t1(f3);
+create table t2 (f1 int,f2 int,key(f2),f3 int) engine=innodb;
+create table t3 (f1 int,f2 int,key(f2)) engine=innodb;
+
+insert into t1 values (10,20,30),(30,40,50),(50,60,70);
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t2 values (10,20,30),(30,40,50),(50,60,70);
+
+insert into t2 select * from t2;
+insert into t2 select * from t2;
+insert into t2 select * from t2;
+
+insert into t3 values (10,20),(30,40),(50,50);
+insert into t3 select * from t3;
+insert into t3 select * from t3;
+
+SET session lock_wait_timeout = 1;
+
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC= 'buffer_pool_scan SIGNAL started WAIT_FOR finish_scan';
+send truncate table t1;
+
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR started';
+
+--echo Check Analyze table. Gives lock time out error.
+analyze table t1;
+
+--echo Check if we can turn off auto recalculation.
+--error ER_LOCK_WAIT_TIMEOUT
+alter table t1 STATS_AUTO_RECALC=0;
+
+--echo Check if we can turn off persistent stats on the table
+--error ER_LOCK_WAIT_TIMEOUT
+alter table t1 STATS_PERSISTENT=0;
+
+--echo Check if DML is possible on table being truncated
+--error ER_LOCK_WAIT_TIMEOUT
+insert into t1 values (10,89,99);
+
+--echo Check if DDL is possible on table being truncated
+--error ER_LOCK_WAIT_TIMEOUT
+alter table t1 add column f4 int;
+
+--echo check if table can be created with the same name
+--error ER_TABLE_EXISTS_ERROR,ER_LOCK_WAIT_TIMEOUT
+create table t1 (bd int) engine=innodb;
+
+--echo check if index can be created on table being truncated
+--error ER_LOCK_WAIT_TIMEOUT
+create index idx1 on t1(f1);
+
+--echo Check if DROP of table is possible during truncate
+--error ER_LOCK_WAIT_TIMEOUT
+drop table t1;
+
+--echo Check if select is possible during truncate
+--error ER_LOCK_WAIT_TIMEOUT
+select * from t1;
+
+--error ER_BAD_FIELD_ERROR
+select * from t2 where t2.f1=t1.f1;
+
+--echo Check concurrent truncate operation on table;
+--error ER_LOCK_WAIT_TIMEOUT
+truncate table t1;
+
+--echo Check concurrent selects  and inserts on the other table
+insert into t3 values (10,20),(30,40),(50,50);
+select * from t3 where f1=40;
+
+--echo Concurrent truncate on other tables
+truncate table t2;
+
+--echo Concurrent alters on the other tables
+alter table t2 add column f4 int;
+
+--echo check if index can be created on the other table
+create index idx1 on t2(f3);
+
+--echo Check if we can turn off persistent stats off entire instance
+SET GLOBAL innodb_stats_persistent=off;
+
+connect (con2,localhost,root,,);
+send set global innodb_adaptive_hash_index=off;
+
+connection default;
+SET DEBUG_SYNC= 'now SIGNAL finish_scan';
+
+connection con1;
+reap;
+disconnect con1;
+
+connection con2;
+reap;
+disconnect con2;
+
+connection default;
+SET DEBUG_SYNC= 'RESET';
+
+SET GLOBAL innodb_adaptive_hash_index=@ahi;
+
+drop table t1,t2,t3;
+--source include/wait_until_count_sessions.inc

@@ -1,7 +1,10 @@
---source include/innodb_page_size_small.inc
+#Want to skip this test from daily Valgrind execution
+--source include/no_valgrind_without_big.inc
 #
 # Bug #56680 InnoDB may return wrong results from a case-insensitive index
 #
+-- source include/innodb_page_size_small.inc
+
 -- disable_query_log
 SET @tx_isolation_orig = @@tx_isolation;
 SET @innodb_file_per_table_orig = @@innodb_file_per_table;
@@ -24,7 +27,7 @@ CREATE TABLE bug56680(
        b CHAR(1),
        c INT,
        INDEX(b))
-ENGINE=InnoDB;
+ENGINE=InnoDB STATS_PERSISTENT=0;
 
 INSERT INTO bug56680 VALUES(0,'x',1);
 BEGIN;
@@ -102,7 +105,7 @@ CREATE TABLE bug56680_2(
        b VARCHAR(2) CHARSET latin1 COLLATE latin1_german2_ci,
        c INT,
        INDEX(b))
-ENGINE=InnoDB;
+ENGINE=InnoDB STATS_PERSISTENT=0;
 
 INSERT INTO bug56680_2 SELECT 0,_latin1 0xdf,c FROM bug56680;
 

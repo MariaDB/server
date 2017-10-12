@@ -1,1 +1,5 @@
-SET storage_engine=InnoDB;
+set @file_per_table=@@global.innodb_file_per_table;
+SET GLOBAL innodb_file_per_table=on;
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
+SET GLOBAL innodb_file_format=Antelope;
+SET GLOBAL innodb_file_per_table=1;

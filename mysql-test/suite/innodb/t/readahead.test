@@ -1,0 +1,22 @@
+--source include/have_innodb.inc
+--source include/have_innodb_max_16k.inc
+# Embedded server tests do not support restarting
+--source include/not_embedded.inc
+
+--echo # Bug#25330449 ASSERT SIZE==SPACE->SIZE DURING BUF_READ_AHEAD_RANDOM
+
+let $MYSQLD_DATADIR=`SELECT @@datadir`;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=INNODB ROW_FORMAT=COMPRESSED;
+
+--source include/shutdown_mysqld.inc
+--remove_file $MYSQLD_DATADIR/ib_buffer_pool
+
+--write_file $MYSQLD_DATADIR/ib_buffer_pool
+EOF
+
+--source include/start_mysqld.inc
+SET @saved = @@GLOBAL.innodb_random_read_ahead;
+SET GLOBAL innodb_random_read_ahead = 1;
+
+DROP TABLE t1;
+SET GLOBAL innodb_random_read_ahead = @saved;
