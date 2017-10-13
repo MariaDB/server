@@ -480,7 +480,8 @@ rec_offs_make_valid(
 	/* The infimum and supremum records carry 1 field. */
 	ut_ad(is_user_rec || n == 1);
 	ut_ad(is_user_rec || rec_offs_n_fields(offsets) == 1);
-	ut_ad(!is_user_rec || n >= index->n_core_fields
+	ut_ad(!is_user_rec
+	      || (n + (index->id == DICT_INDEXES_ID)) >= index->n_core_fields
 	      || n >= rec_offs_n_fields(offsets));
 	for (; n < rec_offs_n_fields(offsets); n++) {
 		ut_ad(leaf);

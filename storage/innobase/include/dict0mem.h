@@ -906,6 +906,8 @@ struct dict_index_t{
 	/** magic value signalling that n_core_null_bytes was not
 	initialized yet */
 	static const unsigned NO_CORE_NULL_BYTES = 0xff;
+	/** The clustered index ID of the hard-coded SYS_INDEXES table. */
+	static const unsigned DICT_INDEXES_ID = 3;
 	unsigned	cached:1;/*!< TRUE if the index object is in the
 				dictionary cache */
 	unsigned	to_be_dropped:1;
@@ -1065,8 +1067,8 @@ struct dict_index_t{
 	@retval	NULL	if the default value is SQL NULL (len=UNIV_SQL_NULL) */
 	const byte* instant_field_value(uint n, ulint* len) const
 	{
-		DBUG_ASSERT(is_instant());
-		DBUG_ASSERT(n >= n_core_fields);
+		DBUG_ASSERT(is_instant() || id == DICT_INDEXES_ID);
+		DBUG_ASSERT(n + (id == DICT_INDEXES_ID) >= n_core_fields);
 		DBUG_ASSERT(n < n_fields);
 		return fields[n].col->instant_value(len);
 	}

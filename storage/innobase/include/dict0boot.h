@@ -122,7 +122,7 @@ dict_is_sys_table(
 /* The ids for the basic system tables and their indexes */
 #define DICT_TABLES_ID		1
 #define DICT_COLUMNS_ID		2
-#define DICT_INDEXES_ID		3
+#define DICT_INDEXES_ID		dict_index_t::DICT_INDEXES_ID /* 3 */
 #define DICT_FIELDS_ID		4
 /* The following is a secondary index on SYS_TABLES */
 #define DICT_TABLE_IDS_ID	5

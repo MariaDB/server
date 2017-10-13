@@ -440,6 +440,13 @@ dict_boot(void)
 	table->id = DICT_INDEXES_ID;
 
 	dict_table_add_system_columns(table, heap);
+	/* The column SYS_INDEXES.MERGE_THRESHOLD was "instantly"
+	added in MySQL 5.7 and MariaDB 10.2.2. Assign it DEFAULT NULL.
+	Because of file format compatibility, we must treat SYS_INDEXES
+	as a special case, relaxing some debug assertions
+	for DICT_INDEXES_ID. */
+	dict_table_get_nth_col(table, DICT_COL__SYS_INDEXES__MERGE_THRESHOLD)
+		->def_val.len = UNIV_SQL_NULL;
 	table->add_to_cache();
 	dict_sys->sys_indexes = table;
 	mem_heap_empty(heap);
