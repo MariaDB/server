@@ -2460,7 +2460,7 @@ static os_thread_ret_t log_copying_thread(void*)
 
 	log_copying_running = false;
 	my_thread_end();
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	return(0);
 }
@@ -2483,7 +2483,7 @@ static os_thread_ret_t io_watching_thread(void*)
 
 	io_watching_thread_running = false;
 
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	return(0);
 }
@@ -2523,7 +2523,7 @@ data_copy_thread_func(
 	pthread_mutex_unlock(&ctxt->count_mutex);
 
 	my_thread_end();
-	os_thread_exit(NULL);
+	os_thread_exit();
 	OS_THREAD_DUMMY_RETURN;
 }
 
