@@ -139,6 +139,7 @@ enum enum_binlog_row_image {
 #define MODE_HIGH_NOT_PRECEDENCE        (1ULL << 29)
 #define MODE_NO_ENGINE_SUBSTITUTION     (1ULL << 30)
 #define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
+#define MODE_EMPTY_STRING_IS_NULL       (1ULL << 32)
 
 /* Bits for different old style modes */
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
@@ -3473,14 +3474,17 @@ public:
     @param length     - length of the string
     @param repertoire - the repertoire of the string
   */
-  Item_string *make_string_literal(const char *str, size_t length,
-                                   uint repertoire);
-  Item_string *make_string_literal(const Lex_string_with_metadata_st &str)
+  Item *make_string_literal(const char *str, size_t length,
+                            uint repertoire);
+  Item *make_string_literal(const Lex_string_with_metadata_st &str)
   {
     uint repertoire= str.repertoire(variables.character_set_client);
     return make_string_literal(str.str, str.length, repertoire);
   }
-
+  Item *make_string_literal_nchar(const Lex_string_with_metadata_st &str);
+  Item *make_string_literal_charset(const Lex_string_with_metadata_st &str,
+                                    CHARSET_INFO *cs);
+  Item *make_string_literal_concat(Item *item1, const LEX_CSTRING &str);
   void add_changed_table(TABLE *table);
   void add_changed_table(const char *key, long key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
