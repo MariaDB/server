@@ -1,0 +1,12 @@
+--loose-enable-rocksdb
+--loose-enable-rocksdb_global_info
+--loose-enable-rocksdb_ddl
+--loose-enable-rocksdb_cf_options
+--loose-enable_rocksdb_perf_context
+--loose-enable_rocksdb_perf_context_global
+--loose-enable-rocksdb_index_file_map
+--loose-enable-rocksdb_dbstats
+--loose-enable-rocksdb_cfstats
+--loose-enable-rocksdb_lock_info
+--loose-enable-rocksdb_trx
+--loose-enable-rocksdb_locks

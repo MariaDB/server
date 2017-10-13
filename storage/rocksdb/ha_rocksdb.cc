@@ -1791,8 +1791,11 @@ protected:
 public:
   const char *m_mysql_log_file_name;
   my_off_t m_mysql_log_offset;
+#ifdef MARIAROCKS_NOT_YET
+  // TODO: MariaDB probably doesn't need these at all:
   const char *m_mysql_gtid;
   const char *m_mysql_max_gtid;
+#endif
   String m_detailed_error;
   int64_t m_snapshot_timestamp = 0;
   bool m_ddl_transaction;
@@ -1986,13 +1989,10 @@ public:
       rollback();
       return true;
     } else {
-#ifdef MARIAROCKS_NOT_YET
-      my_core::thd_binlog_pos(m_thd, &m_mysql_log_file_name,
-                              &m_mysql_log_offset, &m_mysql_gtid,
-                              &m_mysql_max_gtid);
+      mysql_bin_log_commit_pos(m_thd, &m_mysql_log_offset,
+                               &m_mysql_log_file_name);
       binlog_manager.update(m_mysql_log_file_name, m_mysql_log_offset,
-                            m_mysql_max_gtid, get_write_batch());
-#endif
+                            get_write_batch());
       return commit_no_binlog();
     }
   }
@@ -2831,26 +2831,25 @@ static bool rocksdb_flush_wal(handlerton* hton __attribute__((__unused__)))
 */
 static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
 {
-#ifdef MARIAROCKS_NOT_YET
 // This is "ASYNC_COMMIT" feature which is only in webscalesql
   bool async=false;
-#endif
 
   Rdb_transaction *&tx = get_tx_from_thd(thd);
   if (!tx->can_prepare()) {
     return HA_EXIT_FAILURE;
   }
-#ifdef MARIAROCKS_NOT_YET // disable prepare/commit
   if (prepare_tx ||
       (!my_core::thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
     /* We were instructed to prepare the whole transaction, or
     this is an SQL statement end and autocommit is on */
+#ifdef MARIAROCKS_NOT_YET // disable prepare/commit
     std::vector<st_slave_gtid_info> slave_gtid_info;
     my_core::thd_slave_gtid_info(thd, &slave_gtid_info);
     for (const auto &it : slave_gtid_info) {
       rocksdb::WriteBatchBase *const write_batch = tx->get_blind_write_batch();
       binlog_manager.update_slave_gtid_info(it.id, it.db, it.gtid, write_batch);
     }
+#endif
 
     if (tx->is_two_phase()) {
       if (thd->durability_property == HA_IGNORE_DURABILITY || async) {
@@ -2865,7 +2864,7 @@ static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
 #ifdef MARIAROCKS_NOT_YET      
           (rocksdb_flush_log_at_trx_commit != FLUSH_LOG_NEVER)) {
           &&
-          THDVAR(thd, flush_log_at_trx_commit)) {
+          THDVAR(thd, flush_log_at_trx_commit)) 
 #endif          
       {
 #ifdef MARIAROCKS_NOT_YET
@@ -2882,7 +2881,6 @@ static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
 
     DEBUG_SYNC(thd, "rocksdb.prepared");
   }
-#endif
   return HA_EXIT_SUCCESS;
 }
 
@@ -3379,11 +3377,7 @@ public:
 
       const auto state_it = state_map.find(rdb_trx->GetState());
       DBUG_ASSERT(state_it != state_map.end());
-#ifdef MARIAROCKS_NOT_YET
-      const int is_replication = (thd->rli_slave != nullptr);
-#else
-      const int is_replication= false;
-#endif
+      const int is_replication = (thd->rgi_slave != nullptr);
       uint32_t waiting_cf_id;
       std::string waiting_key;
       rdb_trx->GetWaitingTxns(&waiting_cf_id, &waiting_key),
@@ -4094,8 +4088,6 @@ static int rocksdb_init_func(void *const p) {
   rocksdb::Options main_opts(*rocksdb_db_options,
                              cf_options_map->get_defaults());
 
-#ifdef MARIAROCKS_NOT_YET  
-#endif 
   rocksdb::TransactionDBOptions tx_db_options;
   tx_db_options.transaction_lock_timeout = 2; // 2 seconds
   tx_db_options.custom_mutex_factory = std::make_shared<Rdb_mutex_factory>();
