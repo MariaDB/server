@@ -725,13 +725,36 @@ void set_param_date(Item_param *param, uchar **pos, ulong len)
 #endif /*!EMBEDDED_LIBRARY*/
 
 
-static void set_param_str(Item_param *param, uchar **pos, ulong len)
+static void set_param_str_or_null(Item_param *param, uchar **pos, ulong len,
+                                  bool empty_string_is_null)
 {
   ulong length= get_param_length(pos, len);
-  if (length > len)
-    length= len;
-  param->set_str((const char *)*pos, length);
-  *pos+= length;
+  if (length == 0 && empty_string_is_null)
+    param->set_null();
+  else
+  {
+    if (length > len)
+      length= len;
+    param->set_str((const char *) *pos, length);
+    *pos+= length;
+  }
+}
+
+
+static void set_param_str(Item_param *param, uchar **pos, ulong len)
+{
+  set_param_str_or_null(param, pos, len, false);
+}
+
+
+/*
+  set_param_str_empty_is_null : bind empty string as null value
+  when sql_mode=MODE_EMPTY_STRING_IS_NULL
+*/
+static void set_param_str_empty_is_null(Item_param *param, uchar **pos,
+                                        ulong len)
+{
+  set_param_str_or_null(param, pos, len, true);
 }
 
 
@@ -806,7 +829,10 @@ static void setup_one_conversion_function(THD *thd, Item_param *param,
       param->value.cs_info.final_character_set_of_str_value=
         String::needs_conversion(0, fromcs, tocs, &dummy_offset) ?
         tocs : fromcs;
-      param->set_param_func= set_param_str;
+
+      param->set_param_func=
+        (thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL) ?
+        set_param_str_empty_is_null : set_param_str;
       /*
         Exact value of max_length is not known unless data is converted to
         charset of connection, so we have to set it later.
