@@ -3,13 +3,12 @@
 # scans through pages
 
 let $per_table=`select @@innodb_file_per_table`;
-let $format=`select @@innodb_file_format`;
+let $innodb_file_format_orig=`select @@innodb_file_format`;
+SET GLOBAL innodb_file_format=Barracuda;
 
 -- let $query_i_s = SELECT page_size FROM information_schema.innodb_cmpmem WHERE pages_used > 0
 
 set global innodb_file_per_table=on;
-set global innodb_file_format=`1`;
- 
 create table t1(a text) engine=innodb key_block_size=4;
 
 -- disable_query_log
@@ -57,5 +56,5 @@ drop table t2;
 #
 
 -- disable_query_log
-eval set global innodb_file_format=$format;
 eval set global innodb_file_per_table=$per_table;
+eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;

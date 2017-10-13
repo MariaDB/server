@@ -21,6 +21,7 @@ if (`SELECT @@innodb_log_compressed_pages = 0`)
 -- vertical_results
 
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
+let $innodb_file_format_orig=`select @@innodb_file_format`;
 SET GLOBAL innodb_file_format=Barracuda;
 
 # reset any leftover stats from previous tests
@@ -116,4 +117,4 @@ ORDER BY 1, 2, 3;
 DROP TABLE t;
 
 SET GLOBAL innodb_cmp_per_index_enabled=default;
-SET GLOBAL innodb_file_format=default;
+eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;

@@ -9,6 +9,7 @@
 #******************************************************************
 # set the flags
 SET GLOBAL innodb_file_per_table=on;
+SET GLOBAL innodb_file_format='barracuda';
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_level=0;
 #******************************************************************
@@ -16,10 +17,12 @@ SET GLOBAL innodb_compression_level=0;
 #******************************************************************
 # create a table with page size=1K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -32,8 +35,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -43,10 +48,12 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # for deterministic reasons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -259,8 +266,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -283,8 +292,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -308,8 +319,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -320,10 +333,12 @@ AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
 The size of the tab5.ibd file: 5242880
+# Restarting server
 # set the flag on (default off)
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # set the flags
 SET GLOBAL innodb_file_per_table=on;
+SET GLOBAL innodb_file_format='barracuda';
 SET GLOBAL innodb_compression_level=0;
 # fetch the compressed page and check the stats
 # The stats figure may be different/same for each restart.
@@ -361,10 +376,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=0;
 SET GLOBAL innodb_cmp_per_index_enabled=1;
 # create a table with page size=2K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -377,8 +394,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -391,7 +410,9 @@ compress_stat	1
 The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -604,8 +625,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -628,8 +651,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -653,8 +678,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -665,10 +692,12 @@ AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
 The size of the tab5.ibd file: 2097152
+# Restarting server
 # set the flag on (default off)
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # set the flags
 SET GLOBAL innodb_file_per_table=on;
+SET GLOBAL innodb_file_format='barracuda';
 SET GLOBAL innodb_compression_level=0;
 # fetch the compressed page and check the stats
 # The stats figure may be different/same for each restart.
@@ -706,10 +735,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=0;
 SET GLOBAL innodb_cmp_per_index_enabled=1;
 # create a table with page size=4K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -722,8 +753,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -736,7 +769,9 @@ compress_stat	1
 The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -949,8 +984,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -960,7 +997,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 159744
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -973,8 +1010,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -984,7 +1023,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 159744
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -998,8 +1037,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1009,7 +1050,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 159744
 DROP TABLE tab5;
 #******************************************************************
 # Test 1-8K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=0 with page size 8K
@@ -1019,10 +1060,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=0;
 SET GLOBAL innodb_cmp_per_index_enabled=1;
 # create a table with page size=8K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -1035,8 +1078,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1049,7 +1094,9 @@ compress_stat	1
 The size of the tab5.ibd file: 122880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -1262,8 +1309,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1286,8 +1335,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1311,8 +1362,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1332,10 +1385,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=0;
 SET GLOBAL innodb_cmp_per_index_enabled=1;
 # create a table with page size=16K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -1348,8 +1403,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1362,7 +1419,9 @@ compress_stat	1
 The size of the tab5.ibd file: 245760
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -1575,8 +1634,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1599,8 +1660,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1624,8 +1687,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1650,16 +1715,19 @@ SET GLOBAL innodb_cmp_per_index_enabled=0;
 SET GLOBAL innodb_cmp_per_index_enabled=1;
 # set the flags
 SET GLOBAL innodb_file_per_table=on;
+SET GLOBAL innodb_file_format='barracuda';
 SET GLOBAL innodb_compression_level=9;
 #******************************************************************
 # Test 2-1K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=9 with page size 1K
 #******************************************************************
 # create a table with page size=1K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -1673,8 +1741,10 @@ CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 65536
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1684,10 +1754,12 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -1901,8 +1973,10 @@ commit;
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 2097152
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1912,7 +1986,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -1925,8 +1999,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1936,7 +2012,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -1950,8 +2026,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -1961,11 +2039,13 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
+# Restarting server
 # set the flag on (default off)
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # set the flags
 SET GLOBAL innodb_file_per_table=on;
+SET GLOBAL innodb_file_format='barracuda';
 SET GLOBAL innodb_compression_level=9;
 # fetch the compressed page and check the stats
 # The stats figure may be different/same for each restart.
@@ -2003,10 +2083,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # create a table with page size=2K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -2020,8 +2102,10 @@ CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 65536
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2034,7 +2118,9 @@ compress_stat	1
 The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -2248,8 +2334,10 @@ commit;
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 2097152
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2272,8 +2360,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2297,8 +2387,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2309,10 +2401,12 @@ AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
 The size of the tab5.ibd file: 65536
+# Restarting server
 # set the flag on (default off)
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # set the flags
 SET GLOBAL innodb_file_per_table=on;
+SET GLOBAL innodb_file_format='barracuda';
 SET GLOBAL innodb_compression_level=9;
 # fetch the compressed page and check the stats
 # The stats figure may be different/same for each restart.
@@ -2342,18 +2436,17 @@ AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
 DROP TABLE tab5;
-#******************************************************************
-# Test 2-4K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=9 with page size 4K
-#******************************************************************
-# reset the stat table before starting next testcase
+#reset the stat table before starting next testcase
 SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # create a table with page size=4K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -2367,8 +2460,10 @@ CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 65536
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2380,8 +2475,10 @@ AND index_name like 'idx%' ;
 compress_stat	1
 The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
-# insert some 100 records
-# Load the data
+#insert some 100 records
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -2595,8 +2692,10 @@ commit;
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 159744
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2619,8 +2718,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2644,8 +2745,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2657,18 +2760,17 @@ AND index_name like 'idx%' ;
 compress_stat	1
 The size of the tab5.ibd file: 81920
 DROP TABLE tab5;
-#******************************************************************
-# Test 2-8K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=9 with page size 8K
-#******************************************************************
-# reset the stat table before starting next testcase
+#reset the stat table before starting next testcase
 SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # create a table with page size=8K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -2682,8 +2784,10 @@ CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 122880
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2695,8 +2799,10 @@ AND index_name like 'idx%' ;
 compress_stat	1
 The size of the tab5.ibd file: 122880
 # for determintic resons simple data should be inserted.
-# insert some 100 records
-# Load the data
+#insert some 100 records
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -2909,8 +3015,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2934,8 +3042,10 @@ col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 212992
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2959,8 +3069,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -2980,10 +3092,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # create a table with page size=16K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -2997,8 +3111,10 @@ CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 245760
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3011,7 +3127,9 @@ compress_stat	1
 The size of the tab5.ibd file: 245760
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -3224,8 +3342,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3249,8 +3369,10 @@ col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 344064
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3274,8 +3396,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3305,10 +3429,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_level=default;
 # create a table with page size=1K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -3322,8 +3448,10 @@ CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 65536
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3333,10 +3461,12 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -3550,8 +3680,10 @@ commit;
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 65536
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3561,7 +3693,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -3574,8 +3706,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3585,7 +3719,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -3599,8 +3733,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3610,7 +3746,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 DROP TABLE tab5;
 #******************************************************************
 # Test 3-2K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=Def with page size 2K
@@ -3621,10 +3757,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_level=default;
 # create a table with page size=2K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -3638,8 +3776,10 @@ CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 65536
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3652,7 +3792,9 @@ compress_stat	1
 The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -3866,8 +4008,10 @@ commit;
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 86016
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3890,8 +4034,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3912,10 +4058,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_level=default;
 # create a table with page size=4K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -3929,8 +4077,10 @@ CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 65536
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -3943,7 +4093,9 @@ compress_stat	1
 The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -4157,8 +4309,10 @@ commit;
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 86016
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -4181,8 +4335,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -4203,10 +4359,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_level=default;
 # create a table with page size=8K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -4220,8 +4378,10 @@ CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 122880
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -4234,7 +4394,9 @@ compress_stat	1
 The size of the tab5.ibd file: 122880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -4448,8 +4610,10 @@ commit;
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 172032
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -4472,8 +4636,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -4494,10 +4660,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_level=default;
 # create a table with page size=16K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -4511,8 +4679,10 @@ CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 245760
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -4524,8 +4694,10 @@ AND index_name like 'idx%' ;
 compress_stat	1
 The size of the tab5.ibd file: 245760
 # for determintic resons simple data should be inserted.
-# insert some 100 records
-# Load the data
+#insert some 100 records
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -4739,8 +4911,10 @@ commit;
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 344064
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -4763,8 +4937,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -4796,6 +4972,8 @@ SELECT @@innodb_cmp_per_index_enabled;
 @@innodb_cmp_per_index_enabled	1
 SELECT @@innodb_compression_failure_threshold_pct;
 @@innodb_compression_failure_threshold_pct	0
+SELECT @@innodb_file_format;
+@@innodb_file_format	Barracuda
 SELECT @@innodb_file_per_table;
 @@innodb_file_per_table	1
 SELECT @@innodb_compression_level;
@@ -4805,10 +4983,12 @@ SELECT @@innodb_compression_level;
 #******************************************************************
 # create a table with page size=1K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -4821,8 +5001,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -4832,10 +5014,12 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # for determintic resons simple data should be inserted.
-# insert some 100 records
-# Load the data
+#insert some 100 records
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -5048,8 +5232,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5059,7 +5245,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -5072,8 +5258,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5083,7 +5271,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -5097,8 +5285,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5108,12 +5298,14 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
+# Restarting server
 # set the flag on (default off)
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # set the flags
 SET GLOBAL innodb_compression_failure_threshold_pct=0;
 SET GLOBAL innodb_file_per_table=on;
+SET GLOBAL innodb_file_format='barracuda';
 # fetch the compressed page and check the stats
 # The stats figure may be different/same for each restart.
 ===============
@@ -5150,10 +5342,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # create a table with page size=2K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -5166,8 +5360,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5180,7 +5376,9 @@ compress_stat	1
 The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -5393,8 +5591,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5417,8 +5617,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5442,8 +5644,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5463,10 +5667,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # create a table with page size=4K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -5479,8 +5685,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5493,7 +5701,9 @@ compress_stat	1
 The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -5706,8 +5916,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5730,8 +5942,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5755,8 +5969,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5776,10 +5992,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # create a table with page size=8K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -5792,8 +6010,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -5806,7 +6026,9 @@ compress_stat	1
 The size of the tab5.ibd file: 122880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -6019,8 +6241,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6043,8 +6267,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6068,8 +6294,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6089,10 +6317,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # create a table with page size=16K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -6105,8 +6335,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6119,7 +6351,9 @@ compress_stat	1
 The size of the tab5.ibd file: 245760
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -6332,8 +6566,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6356,8 +6592,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6381,8 +6619,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6408,6 +6648,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # set the flags
 SET GLOBAL innodb_file_per_table=on;
+SET GLOBAL innodb_file_format='barracuda';
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_failure_threshold_pct=10;
 SET GLOBAL innodb_compression_level=Default;
@@ -6416,6 +6657,8 @@ SELECT @@innodb_cmp_per_index_enabled;
 @@innodb_cmp_per_index_enabled	1
 SELECT @@innodb_compression_failure_threshold_pct;
 @@innodb_compression_failure_threshold_pct	10
+SELECT @@innodb_file_format;
+@@innodb_file_format	Barracuda
 SELECT @@innodb_file_per_table;
 @@innodb_file_per_table	1
 SELECT @@innodb_compression_level;
@@ -6425,10 +6668,12 @@ SELECT @@innodb_compression_level;
 #******************************************************************
 # create a table with page size=1K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -6441,8 +6686,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6452,10 +6699,12 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -6668,8 +6917,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6679,7 +6930,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -6692,8 +6943,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6703,7 +6956,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -6717,8 +6970,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6728,12 +6983,14 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 65536
+The size of the tab5.ibd file: 5242880
+# Restarting server
 # set the flag on (default off)
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # set the flags
 SET GLOBAL innodb_compression_failure_threshold_pct=10;
 SET GLOBAL innodb_file_per_table=on;
+SET GLOBAL innodb_file_format='barracuda';
 SET GLOBAL innodb_compression_failure_threshold_pct=10;
 # fetch the compressed page and check the stats
 # The stats figure may be different/same for each restart.
@@ -6772,10 +7029,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_failure_threshold_pct=10;
 # create a table with page size=2K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -6788,8 +7047,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -6802,7 +7063,9 @@ compress_stat	1
 The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -7015,8 +7278,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7039,8 +7304,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7064,8 +7331,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7085,10 +7354,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # create a table with page size=4K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -7101,8 +7372,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7115,7 +7388,9 @@ compress_stat	1
 The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -7328,8 +7603,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7352,8 +7629,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7377,8 +7656,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7399,10 +7680,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_failure_threshold_pct=10;
 # create a table with page size=8K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -7415,8 +7698,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7429,7 +7714,9 @@ compress_stat	1
 The size of the tab5.ibd file: 122880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -7642,8 +7929,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7666,8 +7955,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7691,8 +7982,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7712,10 +8005,12 @@ SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # create a table with page size=16K
 # create indexes on each column.(total 9 indexes)
-# Create table & Index
+===============
+create table & Index
+===============
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255)) 
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -7728,8 +8023,10 @@ CREATE INDEX  idx2 ON tab5(col_2(10));
 CREATE INDEX  idx1 ON tab5(col_1(10));
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7742,7 +8039,9 @@ compress_stat	1
 The size of the tab5.ibd file: 245760
 # for determintic resons simple data should be inserted.
 # insert some 100 records
-# Load the data
+===============
+Load the data
+===============
 SET @col_1 = repeat('a', 100);
 SET @col_2 = repeat('b', 100);
 SET @col_3 = repeat('c', 100);
@@ -7955,8 +8254,10 @@ VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 commit;
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -7979,8 +8280,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -8004,8 +8307,10 @@ col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
 col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
-# Check the stats of the table
-# Check the size of the ibd file
+===============
+Check the stats of the table
+Check the size of the ibd file
+===============
 # testcase : pass = 1 fail = 0
 SELECT count(*) > 0 as "compress_stat"
 FROM information_schema.innodb_cmp_per_index
@@ -8025,6 +8330,7 @@ DROP TABLE tab5;
 SET GLOBAL innodb_cmp_per_index_enabled=0;
 SET GLOBAL innodb_cmp_per_index_enabled=1;
 SET GLOBAL innodb_file_per_table=ON;
+SET GLOBAL innodb_file_format='Barracuda';
 SET GLOBAL innodb_compression_level=default;
 SET GLOBAL innodb_compression_failure_threshold_pct=default;
 # create a table page size=1K
@@ -8074,5 +8380,6 @@ DROP TABLE tab5, test.tab5;
 DROP DATABASE sb;
 # reset the flags
 SET GLOBAL innodb_file_per_table=default;
+SET GLOBAL innodb_file_format=default;
 SET GLOBAL innodb_cmp_per_index_enabled=default;
 SET GLOBAL innodb_compression_failure_threshold_pct=default;
