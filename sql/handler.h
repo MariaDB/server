@@ -268,11 +268,14 @@ enum enum_alter_inplace_result {
  */
 #define HA_BINLOG_FLAGS (HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE)
 
-/* The following is for partition handler */
-#define HA_CAN_MULTISTEP_MERGE (1LL << 47)
+/* The following is for the partition handler */
+#define HA_CAN_MULTISTEP_MERGE  (1ULL << 47)
 
 /* calling cmp_ref() on the engine is expensive */
 #define HA_CMP_REF_IS_EXPENSIVE (1ULL << 48)
+
+/* The following is for bulk access by the partition handler */
+#define HA_CAN_BULK_ACCESS      (1ULL << 49)
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -421,6 +424,11 @@ static const uint MYSQL_START_TRANS_OPT_READ_WRITE         = 4;
 #define HA_CHECK_FK_ERROR 4U
 #define HA_CHECK_DUP (HA_CHECK_DUP_KEY + HA_CHECK_DUP_UNIQUE)
 #define HA_CHECK_ALL (~0U)
+
+/* Options for info_push() */
+#define INFO_KIND_BULK_ACCESS_BEGIN   105
+#define INFO_KIND_BULK_ACCESS_CURRENT 106
+#define INFO_KIND_BULK_ACCESS_END     107
 
 enum legacy_db_type
 {
@@ -2682,7 +2690,9 @@ public:
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
   FT_INFO *ft_handler;
-  enum {NONE=0, INDEX, RND} inited;
+  enum init_stat { NONE=0, INDEX, RND };
+  init_stat inited;
+  init_stat pre_inited;
 
   const COND *pushed_cond;
   /**
@@ -2780,7 +2790,7 @@ public:
     key_used_on_scan(MAX_KEY),
     active_index(MAX_KEY), keyread(MAX_KEY),
     ref_length(sizeof(my_off_t)),
-    ft_handler(0), inited(NONE),
+    ft_handler(0), inited(NONE), pre_inited(NONE),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
     tracker(NULL),
     pushed_idx_cond(NULL),
@@ -2799,6 +2809,7 @@ public:
   {
     DBUG_ASSERT(m_lock_type == F_UNLCK);
     DBUG_ASSERT(inited == NONE);
+    DBUG_ASSERT(pre_inited == NONE);
   }
   virtual handler *clone(const char *name, MEM_ROOT *mem_root);
   /** This is called after create to allow us to set up cached variables */
@@ -2823,6 +2834,15 @@ public:
     }
     DBUG_RETURN(result);
   }
+  int ha_pre_index_init(uint idx, bool sorted)
+  {
+    int result;
+    DBUG_ENTER("ha_pre_index_init");
+    DBUG_ASSERT(pre_inited==NONE);
+    if (!(result= pre_index_init(idx, sorted)))
+      pre_inited=INDEX;
+    DBUG_RETURN(result);
+  }
   int ha_index_end()
   {
     DBUG_ENTER("ha_index_end");
@@ -2831,6 +2851,13 @@ public:
     active_index= MAX_KEY;
     end_range=    NULL;
     DBUG_RETURN(index_end());
+  }
+  int ha_pre_index_end()
+  {
+    DBUG_ENTER("ha_pre_index_end");
+    DBUG_ASSERT(pre_inited==INDEX);
+    pre_inited=NONE;
+    DBUG_RETURN(pre_index_end());
   }
   /* This is called after index_init() if we need to do a index scan */
   virtual int prepare_index_scan() { return 0; }
@@ -2854,6 +2881,14 @@ public:
     end_range= NULL;
     DBUG_RETURN(result);
   }
+  int ha_pre_rnd_init(bool scan)
+  {
+    int result;
+    DBUG_ENTER("ha_pre_rnd_init");
+    DBUG_ASSERT(pre_inited==NONE || (pre_inited==RND && scan));
+    pre_inited= (result= pre_rnd_init(scan)) ? NONE: RND;
+    DBUG_RETURN(result);
+  }
   int ha_rnd_end()
   {
     DBUG_ENTER("ha_rnd_end");
@@ -2862,12 +2897,25 @@ public:
     end_range= NULL;
     DBUG_RETURN(rnd_end());
   }
+  int ha_pre_rnd_end()
+  {
+    DBUG_ENTER("ha_pre_rnd_end");
+    DBUG_ASSERT(pre_inited==RND);
+    pre_inited=NONE;
+    DBUG_RETURN(pre_rnd_end());
+  }
   int ha_rnd_init_with_error(bool scan) __attribute__ ((warn_unused_result));
   int ha_reset();
   /* this is necessary in many places, e.g. in HANDLER command */
   int ha_index_or_rnd_end()
   {
     return inited == INDEX ? ha_index_end() : inited == RND ? ha_rnd_end() : 0;
+  }
+  int ha_pre_index_or_rnd_end()
+  {
+    return pre_inited == INDEX ? ha_pre_index_end()
+                               : pre_inited == RND ?
+                                 ha_pre_rnd_end() : 0;
   }
   /**
     The cached_table_flags is set at ha_open and ha_external_lock
@@ -2883,6 +2931,7 @@ public:
   int ha_write_row(uchar * buf);
   int ha_update_row(const uchar * old_data, uchar * new_data);
   int ha_delete_row(const uchar * buf);
+  virtual void bulk_req_exec() {}
   void ha_release_auto_increment();
 
   bool keyread_enabled() { return keyread < MAX_KEY; }
@@ -3132,17 +3181,6 @@ public:
    { return 0; }
   virtual int pre_index_last(bool use_parallel)
    { return 0; }
-  virtual int pre_index_read_last_map(const uchar *key,
-                                      key_part_map keypart_map,
-                                      bool use_parallel)
-   { return 0; }
-/*
-  virtual int pre_read_multi_range_first(KEY_MULTI_RANGE **found_range_p,
-                                         KEY_MULTI_RANGE *ranges,
-                                         uint range_count,
-                                         bool sorted, HANDLER_BUFFER *buffer,
-                                         bool use_parallel);
-*/
   virtual int pre_multi_range_read_next(bool use_parallel)
   { return 0; }
   virtual int pre_read_range_first(const key_range *start_key,
@@ -3659,6 +3697,11 @@ public:
  virtual void cond_pop() { return; };
 
  /**
+   Push metadata for the current operation down to the table handler.
+ */
+ virtual int info_push(uint info_type, void *info) { return 0; };
+
+ /**
     This function is used to get correlating of a parent (table/column)
     and children (table/column). When conditions are pushed down to child
     table (like child of myisam_merge), child table needs to know about
@@ -4069,7 +4112,9 @@ private:
   virtual int open(const char *name, int mode, uint test_if_locked)=0;
   /* Note: ha_index_read_idx_map() may bypass index_init() */
   virtual int index_init(uint idx, bool sorted) { return 0; }
+  virtual int pre_index_init(uint idx, bool sorted) { return 0; }
   virtual int index_end() { return 0; }
+  virtual int pre_index_end() { return 0; }
   /**
     rnd_init() can be called two times without rnd_end() in between
     (it only makes sense if scan=1).
@@ -4078,8 +4123,14 @@ private:
     to the start of the table, no need to deallocate and allocate it again
   */
   virtual int rnd_init(bool scan)= 0;
+  virtual int pre_rnd_init(bool scan) { return 0; }
   virtual int rnd_end() { return 0; }
+  virtual int pre_rnd_end() { return 0; }
   virtual int write_row(uchar *buf __attribute__((unused)))
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+  virtual int pre_write_row(uchar *buf __attribute__((unused)))
   {
     return HA_ERR_WRONG_COMMAND;
   }

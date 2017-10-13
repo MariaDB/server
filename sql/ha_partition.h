@@ -24,6 +24,17 @@
 #define PARTITION_BYTES_IN_POS 2
 
 
+/* Bulk access request info */
+typedef struct st_partition_bulk_access_info
+{
+  uint                          sequence_num;
+  bool                          used;
+  bool                          called;
+  void                          **info;
+  st_partition_bulk_access_info *next;
+} PARTITION_BULK_ACCESS_INFO;
+
+
 /** Struct used for partition_name_hash */
 typedef struct st_part_name_def
 {
@@ -303,7 +314,13 @@ private:
   bool                m_pre_calling;
   bool                m_pre_call_use_parallel;
   /* Keep track of bulk access requests */
+  bool                bulk_access_started;
   bool                bulk_access_executing;
+  bool                bulk_access_pre_called;
+  PARTITION_BULK_ACCESS_INFO *bulk_access_info_first;
+  PARTITION_BULK_ACCESS_INFO *bulk_access_info_current;
+  PARTITION_BULK_ACCESS_INFO *bulk_access_info_exec_tgt;
+  MY_BITMAP           bulk_access_exec_bitmap;
 
   /** keep track of locked partitions */
   MY_BITMAP m_locked_partitions;
@@ -532,6 +549,7 @@ public:
     start_bulk_insert and end_bulk_insert is called before and after a
     number of calls to write_row.
   */
+  virtual int pre_write_row(uchar *buf);
   virtual int write_row(uchar * buf);
   virtual int update_row(const uchar * old_data, uchar * new_data);
   virtual int delete_row(const uchar * buf);
@@ -589,7 +607,9 @@ public:
     position it to the start of the table, no need to deallocate
     and allocate it again
   */
+  virtual int pre_rnd_init(bool scan);
   virtual int rnd_init(bool scan);
+  virtual int pre_rnd_end();
   virtual int rnd_end();
   virtual int rnd_next(uchar * buf);
   virtual int rnd_pos(uchar * buf, uchar * pos);
@@ -628,10 +648,24 @@ public:
     index_init initializes an index before using it and index_end does
     any end processing needed.
   */
+  virtual int pre_index_read_map(const uchar *key,
+                                 key_part_map keypart_map,
+                                 enum ha_rkey_function find_flag,
+                                 bool use_parallel);
+  virtual int pre_index_first(bool use_parallel);
+  virtual int pre_index_last(bool use_parallel);
+  virtual int pre_multi_range_read_next(bool use_parallel);
+  virtual int pre_read_range_first(const key_range *start_key,
+                                   const key_range *end_key,
+                                   bool eq_range, bool sorted,
+                                   bool use_parallel);
+  virtual int pre_rnd_next(bool use_parallel);
   virtual int index_read_map(uchar * buf, const uchar * key,
                              key_part_map keypart_map,
                              enum ha_rkey_function find_flag);
+  virtual int pre_index_init(uint idx, bool sorted);
   virtual int index_init(uint idx, bool sorted);
+  virtual int pre_index_end();
   virtual int index_end();
 
   /**
@@ -811,6 +845,7 @@ public:
     The next method will never be called if you do not implement indexes.
   */
   virtual double read_time(uint index, uint ranges, ha_rows rows);
+  virtual void bulk_req_exec();
   /*
     For the given range how many records are estimated to be in this range.
     Used by optimiser to calculate cost of using a particular index.
@@ -1303,6 +1338,7 @@ public:
   */
     virtual const COND *cond_push(const COND *cond);
     virtual void cond_pop();
+    virtual int info_push(uint info_type, void *info);
     virtual void clear_top_table_fields();
 
     private:
@@ -1378,6 +1414,10 @@ public:
       DBUG_ASSERT(h == m_file[i]->ht);
     return h;
   }
+
+  virtual PARTITION_BULK_ACCESS_INFO *create_bulk_access_info();
+  virtual void delete_bulk_access_info(
+    PARTITION_BULK_ACCESS_INFO *bulk_access_info);
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
   friend int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
