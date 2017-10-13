@@ -25,6 +25,7 @@ SET(INSTALL_ARGS
 IF (WIN32)
   MYSQL_ADD_EXECUTABLE(my_safe_process safe_process_win.cc ${INSTALL_ARGS})
   MYSQL_ADD_EXECUTABLE(my_safe_kill safe_kill_win.cc ${INSTALL_ARGS})
+  TARGET_LINK_LIBRARIES(my_safe_kill dbghelp psapi)
 ELSE()
   MYSQL_ADD_EXECUTABLE(my_safe_process safe_process.cc ${INSTALL_ARGS})
 ENDIF()
