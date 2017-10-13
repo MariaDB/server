@@ -392,8 +392,9 @@ static bool open_only_one_table(THD* thd, TABLE_LIST* table,
     open_error= (thd->open_temporary_tables(table) ||
                  open_and_lock_tables(thd, table, TRUE, 0));
   }
-
+#ifndef DBUG_OFF
 dbug_err:
+#endif
 
   thd->prepare_derived_at_open= FALSE;
 

@@ -124,7 +124,7 @@ void test_value_single_double(double num, const char *name)
   if (mariadb_dyncol_get_num(&str, 1, &res))
     goto err;
   rc= (res.type == DYN_COL_DOUBLE) && (res.x.double_value == num);
-  num= res.x.ulong_value;
+  num= res.x.double_value;
 err:
   ok(rc, "%s - %lf", name, num);
   /* cleanup */

@@ -8204,13 +8204,16 @@ no_icp:
 			} else {
 				ibool	contain;
 
-				if (innobase_is_v_fld(table->field[i])) {
-					contain = dict_index_contains_col_or_prefix(
-						index, num_v, true);
-				} else {
+				if (!innobase_is_v_fld(table->field[i])) {
 					contain = dict_index_contains_col_or_prefix(
 						index, i - num_v,
 						false);
+				} else if (dict_index_is_clust(index)) {
+					num_v++;
+					continue;
+				} else {
+					contain = dict_index_contains_col_or_prefix(
+						index, num_v, true);
 				}
 
 				field = build_template_needs_field(
@@ -15063,7 +15066,7 @@ ha_innobase::optimize(
 	calls to OPTIMIZE, which is undesirable. */
 
 	/* TODO: Defragment is disabled for now */
-	if (0) {
+	if (srv_defragment) {
 		int err;
 
 		err = defragment_table(m_prebuilt->table->name.m_name, NULL, false);

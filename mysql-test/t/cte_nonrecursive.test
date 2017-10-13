@@ -724,3 +724,22 @@ deallocate prepare stmt2;
 
 drop view v1,v2;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-13796: UNION of two materialized CTEs
+--echo #
+
+CREATE TABLE t1 (id int, k int);
+CREATE TABLE t2 (id int);
+INSERT INTO t1 VALUES (3,5), (1,7), (4,3);
+INSERT INTO t2 VALUES (4), (3), (2);
+
+let $q=
+WITH d1 AS (SELECT SUM(k) FROM t1, t2 as t2 WHERE t1.id = t2.id),
+     d2 AS (SELECT SUM(k) FROM t1, t2 as t2 WHERE t1.id = t2.id)
+SELECT * FROM d1 UNION  SELECT * FROM d2;
+
+eval $q;
+eval explain $q;
+
+DROP TABLE t1,t2;

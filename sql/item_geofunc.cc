@@ -75,9 +75,9 @@ String *Item_func_geometry_from_text::val_str(String *str)
     srid= (uint32)args[1]->val_int();
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     return 0;
-  str->length(0);
   str->q_append(srid);
   if ((null_value= !Geometry::create_from_wkt(&buffer, &trs, str, 0)))
     return 0;
@@ -1332,6 +1332,8 @@ static int setup_relate_func(Geometry *g1, Geometry *g2,
     }
     else
       func->repeat_expression(shape_a);
+    if (func->reserve_op_buffer(1))
+      return 1;
     func->add_operation(op_matrix(nc%3), 1);
     if (do_store_shapes)
     {
@@ -1502,11 +1504,13 @@ longlong Item_func_spatial_precise_rel::val_int()
                          Gcalc_function::op_intersection, 2);
       func.add_operation(Gcalc_function::op_internals, 1);
       shape_a= func.get_next_expression_pos();
-      if ((null_value= g1.store_shapes(&trn)))
+      if ((null_value= g1.store_shapes(&trn)) ||
+          func.reserve_op_buffer(1))
         break;
       func.add_operation(Gcalc_function::op_internals, 1);
       shape_b= func.get_next_expression_pos();
-      if ((null_value= g2.store_shapes(&trn)))
+      if ((null_value= g2.store_shapes(&trn)) ||
+          func.reserve_op_buffer(1))
         break;
       func.add_operation(Gcalc_function::v_find_t |
                          Gcalc_function::op_intersection, 2);
@@ -1741,6 +1745,8 @@ int Item_func_buffer::Transporter::single_point(double x, double y)
 {
   if (buffer_op == Gcalc_function::op_difference)
   {
+    if (m_fn->reserve_op_buffer(1))
+      return 1;
     m_fn->add_operation(Gcalc_function::op_false, 0);
     return 0;
   }

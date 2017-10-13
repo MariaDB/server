@@ -199,9 +199,9 @@ walk_right_n_up:
   {
     {
       RANGE_SEQ_ENTRY *cur= &seq->stack[seq->i];
-      uint min_key_length= cur->min_key - seq->param->min_key;
-      uint max_key_length= cur->max_key - seq->param->max_key;
-      uint len= cur->min_key - cur[-1].min_key;
+      size_t min_key_length= cur->min_key - seq->param->min_key;
+      size_t max_key_length= cur->max_key - seq->param->max_key;
+      size_t len= cur->min_key - cur[-1].min_key;
       if (!(min_key_length == max_key_length &&
             !memcmp(cur[-1].min_key, cur[-1].max_key, len) &&
             !key_tree->min_flag && !key_tree->max_flag))
@@ -238,7 +238,7 @@ walk_up_n_right:
 
   /* Ok got a tuple */
   RANGE_SEQ_ENTRY *cur= &seq->stack[seq->i];
-  uint min_key_length= cur->min_key - seq->param->min_key;
+  uint min_key_length= (uint)(cur->min_key - seq->param->min_key);
   
   range->ptr= (char*)(intptr)(key_tree->part);
   if (cur->min_key_flag & GEOM_FLAG)
@@ -256,13 +256,13 @@ walk_up_n_right:
     range->range_flag= cur->min_key_flag | cur->max_key_flag;
     
     range->start_key.key=    seq->param->min_key;
-    range->start_key.length= cur->min_key - seq->param->min_key;
+    range->start_key.length= (uint)(cur->min_key - seq->param->min_key);
     range->start_key.keypart_map= make_prev_keypart_map(cur->min_key_parts);
     range->start_key.flag= (cur->min_key_flag & NEAR_MIN ? HA_READ_AFTER_KEY : 
                                                            HA_READ_KEY_EXACT);
 
     range->end_key.key=    seq->param->max_key;
-    range->end_key.length= cur->max_key - seq->param->max_key;
+    range->end_key.length= (uint)(cur->max_key - seq->param->max_key);
     range->end_key.flag= (cur->max_key_flag & NEAR_MAX ? HA_READ_BEFORE_KEY : 
                                                          HA_READ_AFTER_KEY);
     range->end_key.keypart_map= make_prev_keypart_map(cur->max_key_parts);

@@ -4022,8 +4022,7 @@ xb_space_create_file(
 	}
 
 	ret = os_file_set_size(path, *file,
-			       FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE,
-			       false);
+			       FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE);
 	if (!ret) {
 		msg("xtrabackup: cannot set size for file %s\n", path);
 		os_file_close(*file);
@@ -4414,13 +4413,20 @@ xtrabackup_apply_delta(
 			if (offset_on_page == 0xFFFFFFFFUL)
 				break;
 
+			uchar *buf = incremental_buffer + page_in_buffer * page_size;
+			const os_offset_t off = os_offset_t(offset_on_page)*page_size;
+
+			if (off == 0) {
+				/* Read tablespace size from page 0,
+				and extend the file to specified size.*/
+				os_offset_t n_pages = mach_read_from_4(buf + FSP_HEADER_OFFSET + FSP_SIZE);
+				success = os_file_set_size(dst_path, dst_file, n_pages*page_size);
+				if (!success)
+					goto error;
+			}
+
 			success = os_file_write(IORequestWrite,
-						dst_path, dst_file,
-						incremental_buffer +
-						page_in_buffer * page_size,
-						(offset_on_page <<
-						 page_size_shift),
-						page_size);
+						dst_path, dst_file, buf, off, page_size);
 			if (!success) {
 				goto error;
 			}
@@ -4430,8 +4436,10 @@ xtrabackup_apply_delta(
 	}
 
 	free(incremental_buffer_base);
-	if (src_file != OS_FILE_CLOSED)
+	if (src_file != OS_FILE_CLOSED) {
 		os_file_close(src_file);
+		os_file_delete(0,src_path);
+	}
 	if (dst_file != OS_FILE_CLOSED)
 		os_file_close(dst_file);
 	return TRUE;
@@ -4785,7 +4793,8 @@ xtrabackup_prepare_func(char** argv)
 		if (!ok) goto error_cleanup;
 	}
 
-	srv_operation = SRV_OPERATION_RESTORE;
+	srv_operation = xtrabackup_export
+		? SRV_OPERATION_RESTORE_EXPORT : SRV_OPERATION_RESTORE;
 
 	if (innodb_init_param()) {
 		goto error_cleanup;

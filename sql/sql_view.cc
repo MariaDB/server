@@ -430,6 +430,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
 
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+
   if (check_dependencies_in_with_clauses(lex->with_clauses_list))
   {
     res= TRUE;
@@ -702,6 +704,10 @@ err:
   lex->link_first_table_back(view, link_to_local);
   unit->cleanup();
   DBUG_RETURN(res || thd->is_error());
+#ifdef WITH_WSREP
+ error:
+  DBUG_RETURN(true);
+#endif /* WITH_WSREP */
 }
 
 

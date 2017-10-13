@@ -12341,7 +12341,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   char *end= user + packet_length;
   /* Safe because there is always a trailing \0 at the end of the packet */
   char *passwd= strend(user) + 1;
-  uint user_len= passwd - user - 1;
+  uint user_len= (uint)(passwd - user - 1);
   char *db= passwd;
   char db_buff[SAFE_NAME_LEN + 1];            // buffer to store db in utf8
   char user_buff[USERNAME_LENGTH + 1];	      // buffer to store user in utf8

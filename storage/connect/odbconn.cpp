@@ -2427,7 +2427,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 				else if (vlen[n] == SQL_NULL_DATA)
           pval[n]->SetNull(true);
         else if (crp->Type == TYPE_STRING/* && vlen[n] != SQL_NULL_DATA*/)
-          pval[n]->SetValue_char(pbuf[n], vlen[n]);
+          pval[n]->SetValue_char(pbuf[n], (int)vlen[n]);
         else
           pval[n]->SetNull(false);
 

@@ -2140,3 +2140,35 @@ drop database db1;
 connection default;
 disconnect con1;
 set global sql_mode=default;
+USE test;
+#
+# End of 10.0 tests
+#
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-13242 Wrong results for queries with row constructors and information_schema
+#
+CREATE TABLE tt1(c1 INT);
+CREATE TABLE tt2(c2 INT);
+SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (table_name, column_name) IN (('tt1', 'c1'));
+count(*)
+1
+SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (table_name, column_name) IN (('tt2', 'c2'));
+count(*)
+1
+SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (table_name, column_name) IN (('tt1','c1'),('tt2', 'c2'));
+count(*)
+2
+SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (table_name, column_name) IN (SELECT 'tt1','c1' FROM dual UNION SELECT 'tt2', 'c2' FROM dual);
+count(*)
+2
+SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (table_name='tt1' AND column_name='c1') OR (table_name='tt2' AND column_name='c2');
+count(*)
+2
+SELECT column_name FROM information_schema.columns WHERE (table_name, column_name) IN (('tt1','c1'),('tt2', 'c2')) ORDER BY column_name;
+column_name
+c1
+c2
+DROP TABLE tt1, tt2;

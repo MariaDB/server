@@ -398,7 +398,7 @@ row_ins_clust_index_entry_by_modify(
 
 			DEBUG_SYNC_C("before_row_ins_upd_extern");
 			err = btr_store_big_rec_extern_fields(
-				pcur, update, *offsets, big_rec, mtr,
+				pcur, *offsets, big_rec, mtr,
 				BTR_STORE_INSERT_UPDATE);
 			DEBUG_SYNC_C("after_row_ins_upd_extern");
 			dtuple_big_rec_free(big_rec);
@@ -2502,7 +2502,7 @@ row_ins_index_entry_big_rec(
 
 	DEBUG_SYNC_C_IF_THD(thd, "before_row_ins_extern");
 	error = btr_store_big_rec_extern_fields(
-		&pcur, 0, offsets, big_rec, &mtr, BTR_STORE_INSERT);
+		&pcur, offsets, big_rec, &mtr, BTR_STORE_INSERT);
 	DEBUG_SYNC_C_IF_THD(thd, "after_row_ins_extern");
 
 	if (error == DB_SUCCESS

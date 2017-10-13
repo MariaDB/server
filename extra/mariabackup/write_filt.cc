@@ -79,7 +79,7 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 	cp->delta_buf_base = static_cast<byte *>(malloc(buf_size));
 	memset(cp->delta_buf_base, 0, buf_size);
 	cp->delta_buf = static_cast<byte *>
-		(ut_align(cp->delta_buf_base, UNIV_PAGE_SIZE_MAX));
+		(ut_align(cp->delta_buf_base, cursor->page_size.physical()));
 
 	/* write delta meta info */
 	snprintf(meta_name, sizeof(meta_name), "%s%s", dst_name,

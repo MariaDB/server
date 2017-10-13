@@ -378,8 +378,7 @@ create_log_file(
 	ib::info() << "Setting log file " << name << " size to "
 		<< srv_log_file_size << " bytes";
 
-	ret = os_file_set_size(name, *file, srv_log_file_size,
-			       srv_read_only_mode);
+	ret = os_file_set_size(name, *file, srv_log_file_size);
 	if (!ret) {
 		ib::error() << "Cannot set log file " << name << " size to "
 			<< srv_log_file_size << " bytes";
@@ -398,13 +397,14 @@ create_log_file(
 /** Delete all log files.
 @param[in,out]	logfilename	buffer for log file name
 @param[in]	dirnamelen	length of the directory path
-@param[in]	n_files		number of files to delete */
+@param[in]	n_files		number of files to delete
+@param[in]	i		first file to delete */
 static
 void
-delete_log_files(char* logfilename, size_t dirnamelen, unsigned n_files)
+delete_log_files(char* logfilename, size_t dirnamelen, uint n_files, uint i=0)
 {
 	/* Remove any old log files. */
-	for (unsigned i = 0; i < n_files; i++) {
+	for (; i < n_files; i++) {
 		sprintf(logfilename + dirnamelen, "ib_logfile%u", i);
 
 		/* Ignore errors about non-existent files or files
@@ -658,8 +658,7 @@ srv_undo_tablespace_create(
 			<< "wait...";
 
 		ret = os_file_set_size(
-			name, fh, size << UNIV_PAGE_SIZE_SHIFT,
-			srv_read_only_mode);
+			name, fh, os_offset_t(size) << UNIV_PAGE_SIZE_SHIFT);
 
 		if (!ret) {
 			ib::info() << "Error in creating " << name
@@ -913,6 +912,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 		}
 		/* fall through */
 	case SRV_OPERATION_RESTORE:
+	case SRV_OPERATION_RESTORE_EXPORT:
 		ut_ad(!create_new_db);
 
 		/* Check if any of the UNDO tablespace needs fix-up because
@@ -1323,6 +1323,7 @@ srv_shutdown_all_bg_threads()
 			break;
 		case SRV_OPERATION_NORMAL:
 		case SRV_OPERATION_RESTORE:
+		case SRV_OPERATION_RESTORE_EXPORT:
 			if (!buf_page_cleaner_is_active
 			    && os_aio_all_slots_free()) {
 				os_aio_wake_all_threads_at_shutdown();
@@ -1494,7 +1495,8 @@ innobase_start_or_create_for_mysql()
 	unsigned	i = 0;
 
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE);
+	      || srv_operation == SRV_OPERATION_RESTORE
+	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
 	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
 		srv_read_only_mode = true;
@@ -1984,7 +1986,9 @@ innobase_start_or_create_for_mysql()
 			if (err == DB_NOT_FOUND) {
 				if (i == 0) {
 					if (srv_operation
-					    == SRV_OPERATION_RESTORE) {
+					    == SRV_OPERATION_RESTORE
+					    || srv_operation
+					    == SRV_OPERATION_RESTORE_EXPORT) {
 						return(DB_SUCCESS);
 					}
 					if (flushed_lsn
@@ -2048,6 +2052,26 @@ innobase_start_or_create_for_mysql()
 			}
 
 			if (i == 0) {
+				if (size == 0
+				    && (srv_operation
+					== SRV_OPERATION_RESTORE
+					|| srv_operation
+					== SRV_OPERATION_RESTORE_EXPORT)) {
+					/* Tolerate an empty ib_logfile0
+					from a previous run of
+					mariabackup --prepare. */
+					return(DB_SUCCESS);
+				}
+				/* The first log file must consist of
+				at least the following 512-byte pages:
+				header, checkpoint page 1, empty,
+				checkpoint page 2, redo log page(s) */
+				if (size <= OS_FILE_LOG_BLOCK_SIZE * 4) {
+					ib::error() << "Log file "
+						<< logfilename << " size "
+						<< size << " is too small";
+					return(srv_init_abort(DB_ERROR));
+				}
 				srv_log_file_size = size;
 			} else if (size != srv_log_file_size) {
 
@@ -2314,11 +2338,13 @@ files_checked:
 
 		recv_recovery_from_checkpoint_finish();
 
-		if (srv_operation == SRV_OPERATION_RESTORE) {
+		if (srv_operation == SRV_OPERATION_RESTORE
+		    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
 			/* After applying the redo log from
 			SRV_OPERATION_BACKUP, flush the changes
-			to the data files and delete the log file.
-			No further change to InnoDB files is needed. */
+			to the data files and truncate or delete the log.
+			Unless --export is specified, no further change to
+			InnoDB files is needed. */
 			ut_ad(!srv_force_recovery);
 			ut_ad(srv_n_log_files_found <= 1);
 			ut_ad(recv_no_log_write);
@@ -2328,8 +2354,18 @@ files_checked:
 			fil_close_log_files(true);
 			log_group_close_all();
 			if (err == DB_SUCCESS) {
+				bool trunc = srv_operation
+					== SRV_OPERATION_RESTORE;
+				/* Delete subsequent log files. */
 				delete_log_files(logfilename, dirnamelen,
-						 srv_n_log_files_found);
+						 srv_n_log_files_found, trunc);
+				if (trunc) {
+					/* Truncate the first log file. */
+					strcpy(logfilename + dirnamelen,
+					       "ib_logfile0");
+					FILE* f = fopen(logfilename, "w");
+					fclose(f);
+				}
 			}
 			return(err);
 		}
@@ -2794,6 +2830,7 @@ innodb_shutdown()
 	case SRV_OPERATION_BACKUP:
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_DELTA:
+	case SRV_OPERATION_RESTORE_EXPORT:
 		fil_close_all_files();
 		break;
 	case SRV_OPERATION_NORMAL:

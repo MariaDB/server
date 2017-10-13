@@ -231,7 +231,7 @@ uint explain_filename(THD* thd,
   {
     db_name= table_name;
     /* calculate the length */
-    db_name_len= tmp_p - db_name;
+    db_name_len= (int)(tmp_p - db_name);
     tmp_p++;
     table_name= tmp_p;
   }
@@ -253,7 +253,7 @@ uint explain_filename(THD* thd,
     case 's':
       if ((tmp_p[1] == 'P' || tmp_p[1] == 'p') && tmp_p[2] == '#')
       {
-        part_name_len= tmp_p - part_name - 1;
+        part_name_len= (int)(tmp_p - part_name - 1);
         subpart_name= tmp_p + 3;
 	tmp_p+= 3;
       }
@@ -285,7 +285,7 @@ uint explain_filename(THD* thd,
   }
   if (part_name)
   {
-    table_name_len= part_name - table_name - 3;
+    table_name_len= (int)(part_name - table_name - 3);
     if (subpart_name)
       subpart_name_len= strlen(subpart_name);
     else
@@ -358,7 +358,7 @@ uint explain_filename(THD* thd,
       to_p= strnmov(to_p, " */", end_p - to_p);
   }
   DBUG_PRINT("exit", ("to '%s'", to));
-  DBUG_RETURN(to_p - to);
+  DBUG_RETURN((uint)(to_p - to));
 }
 
 
@@ -554,7 +554,7 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
   pos= strxnmov(pos, end - pos, tbbuff, ext, NullS);
 
   DBUG_PRINT("exit", ("buff: '%s'", buff));
-  DBUG_RETURN(pos - buff);
+  DBUG_RETURN((uint)(pos - buff));
 }
 
 
@@ -2133,7 +2133,7 @@ static uint32 comment_length(THD *thd, uint32 comment_pos,
   for (query+= 3; query < query_end; query++)
   {
     if (query[-1] == '*' && query[0] == '/')
-      return (char*) query - *comment_start + 1;
+      return (uint32)((char*) query - *comment_start + 1);
   }
   return 0;
 }
@@ -2711,7 +2711,7 @@ bool quick_rm_table(THD *thd, handlerton *base, const char *db,
   bool error= 0;
   DBUG_ENTER("quick_rm_table");
 
-  uint path_length= table_path ?
+  size_t path_length= table_path ?
     (strxnmov(path, sizeof(path) - 1, table_path, reg_ext, NullS) - path) :
     build_table_filename(path, sizeof(path)-1, db, table_name, reg_ext, flags);
   if (mysql_file_delete(key_file_frm, path, MYF(0)))
@@ -6690,7 +6690,7 @@ static bool fill_alter_inplace_info(THD *thd,
       table_key;
     ha_alter_info->index_add_buffer
       [ha_alter_info->index_add_count++]=
-      new_key - ha_alter_info->key_info_buffer;
+      (uint)(new_key - ha_alter_info->key_info_buffer);
     /* Mark all old fields which are used in newly created index. */
     DBUG_PRINT("info", ("index changed: '%s'", table_key->name));
   }
@@ -6714,7 +6714,7 @@ static bool fill_alter_inplace_info(THD *thd,
       /* Key not found. Add the offset of the key to the add buffer. */
       ha_alter_info->index_add_buffer
         [ha_alter_info->index_add_count++]=
-        new_key - ha_alter_info->key_info_buffer;
+        (uint)(new_key - ha_alter_info->key_info_buffer);
       DBUG_PRINT("info", ("index added: '%s'", new_key->name));
     }
     else

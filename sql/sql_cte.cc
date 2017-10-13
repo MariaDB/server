@@ -991,7 +991,7 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
       been done yet.
     */
     if (with_elem && sl->master_unit() == with_elem->spec)
-      break;      
+      break;
     With_clause *with_clause=sl->get_with_clause();
     if (with_clause)
     {
@@ -1039,13 +1039,21 @@ bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
   }
   with= with_elem;
   if (!with_elem->is_referenced() || with_elem->is_recursive)
+  {
     derived= with_elem->spec;
+    if (derived->get_master() != select_lex &&
+        !is_with_table_recursive_reference())
+    {
+       derived->move_as_slave(select_lex);
+    }
+  }
   else 
   {
     if(!(derived= with_elem->clone_parsed_spec(thd, this)))
       return true;
     derived->with_element= with_elem;
   }
+  derived->first_select()->linkage= DERIVED_TABLE_TYPE;
   with_elem->inc_references();
   return false;
 }

@@ -77,22 +77,85 @@ btr_corruption_report(
 /*
 Latching strategy of the InnoDB B-tree
 --------------------------------------
-A tree latch protects all non-leaf nodes of the tree. Each node of a tree
-also has a latch of its own.
 
-A B-tree operation normally first acquires an S-latch on the tree. It
-searches down the tree and releases the tree latch when it has the
-leaf node latch. To save CPU time we do not acquire any latch on
-non-leaf nodes of the tree during a search, those pages are only bufferfixed.
+Node pointer page latches acquisition is protected by index->lock latch.
 
-If an operation needs to restructure the tree, it acquires an X-latch on
-the tree before searching to a leaf node. If it needs, for example, to
-split a leaf,
-(1) InnoDB decides the split point in the leaf,
-(2) allocates a new page,
-(3) inserts the appropriate node pointer to the first non-leaf level,
-(4) releases the tree X-latch,
-(5) and then moves records from the leaf to the new allocated page.
+Before MariaDB 10.2.2, all node pointer pages were protected by index->lock
+either in S (shared) or X (exclusive) mode and block->lock was not acquired on
+node pointer pages.
+
+After MariaDB 10.2.2, block->lock S-latch or X-latch is used to protect
+node pointer pages and obtaiment of node pointer page latches is protected by
+index->lock.
+
+(0) Definition: B-tree level.
+
+(0.1) The leaf pages of the B-tree are at level 0.
+
+(0.2) The parent of a page at level L has level L+1. (The level of the
+root page is equal to the tree height.)
+
+(0.3) The B-tree lock (index->lock) is the parent of the root page and
+has a level = tree height + 1.
+
+Index->lock has 3 possible locking modes:
+
+(1) S-latch:
+
+(1.1) All latches for pages must be obtained in descending order of tree level.
+
+(1.2) Before obtaining the first node pointer page latch at a given B-tree
+level, parent latch must be held (at level +1 ).
+
+(1.3) If a node pointer page is already latched at the same level
+we can only obtain latch to its right sibling page latch at the same level.
+
+(1.4) Release of the node pointer page latches must be done in
+child-to-parent order. (Prevents deadlocks when obtained index->lock
+in SX mode).
+
+(1.4.1) Level L node pointer page latch can be released only when
+no latches at children level i.e. level < L are hold.
+
+(1.4.2) All latches from node pointer pages must be released so
+that no latches are obtained between.
+
+(1.5) [implied by (1.1), (1.2)] Root page latch must be first node pointer
+latch obtained.
+
+(2) SX-latch:
+
+In this case rules (1.2) and (1.3) from S-latch case are relaxed and
+merged into (2.2) and rule (1.4) is removed. Thus, latch acquisition
+can be skipped at some tree levels and latches can be obtained in
+a less restricted order.
+
+(2.1) [identical to (1.1)]: All latches for pages must be obtained in descending
+order of tree level.
+
+(2.2) When a node pointer latch at level L is obtained,
+the left sibling page latch in the same level or some ancestor
+page latch (at level > L) must be hold.
+
+(2.3) [implied by (2.1), (2.2)] The first node pointer page latch obtained can
+be any node pointer page.
+
+(3) X-latch:
+
+Node pointer latches can be obtained in any order.
+
+NOTE: New rules after MariaDB 10.2.2 does not affect the latching rules of leaf pages:
+
+index->lock S-latch is needed in read for the node pointer traversal. When the leaf
+level is reached, index-lock can be released (and with the MariaDB 10.2.2 changes, all
+node pointer latches). Left to right index travelsal in leaf page level can be safely done
+by obtaining right sibling leaf page latch and then releasing the old page latch.
+
+Single leaf page modifications (BTR_MODIFY_LEAF) are protected by index->lock
+S-latch.
+
+B-tree operations involving page splits or merges (BTR_MODIFY_TREE) and page
+allocations are protected by index->lock X-latch.
 
 Node pointers
 -------------
@@ -1041,7 +1104,8 @@ btr_free_root(
 {
 	fseg_header_t*	header;
 
-	ut_ad(mtr_memo_contains_flagged(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr_memo_contains_flagged(mtr, block, MTR_MEMO_PAGE_X_FIX
+					| MTR_MEMO_PAGE_SX_FIX));
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 
 	btr_search_drop_page_hash_index(block);

@@ -16,7 +16,26 @@ select @@global.innodb_stats_persistent;
 set global innodb_defragment_stats_accuracy = 80;
 
 # Create table.
-CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), c INT, KEY second(a, b),KEY third(c)) ENGINE=INNODB;
+#
+# TODO: Currently we do not defragment  spatial indexes,
+# because doing it properly would require
+# appropriate logic around the SSN (split
+# sequence number).
+#
+# Also do not defragment auxiliary tables related to FULLTEXT INDEX.
+#
+# Both types added to this test to make sure they do not cause
+# problems.
+#
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+b VARCHAR(256),
+c INT,
+g GEOMETRY NOT NULL,
+t VARCHAR(256),
+KEY second(a, b),
+KEY third(c),
+SPATIAL gk(g),
+FULLTEXT INDEX fti(t)) ENGINE=INNODB;
 
 connect (con1,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
 connect (con2,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
@@ -36,7 +55,7 @@ let $i = $data_size;
 while ($i)
 {
   eval
-    INSERT INTO t1 VALUES ($data_size + 1 - $i, REPEAT('A', 256), $i);
+    INSERT INTO t1 VALUES ($data_size + 1 - $i, REPEAT('A', 256), $i, Point($i,$i), 'This is a test message.');
   dec $i;
 }
 --enable_query_log
@@ -69,10 +88,10 @@ connection con1;
 --send optimize table t1;
 
 connection default;
---send INSERT INTO t1 VALUES (400000, REPEAT('A', 256),300000);
+--send INSERT INTO t1 VALUES (400000, REPEAT('A', 256),300000, Point(1,1),'More like a test but different.');
 
 connection con2;
---send INSERT INTO t1 VALUES (500000, REPEAT('A', 256),400000);
+--send INSERT INTO t1 VALUES (500000, REPEAT('A', 256),400000, Point(1,1),'Totally different text book.');
 
 connection con3;
 --send DELETE FROM t1 where a between 1 and 100;
@@ -103,6 +122,7 @@ disconnect con3;
 disconnect con4;
 
 optimize table t1;
+check table t1 extended;
 
 select count(*) from t1;
 select count(*) from t1 force index (second);

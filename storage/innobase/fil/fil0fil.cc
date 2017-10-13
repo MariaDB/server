@@ -1061,139 +1061,28 @@ fil_space_extend_must_retry(
 	const page_size_t	pageSize(space->flags);
 	const ulint		page_size = pageSize.physical();
 
-#ifdef _WIN32
-	os_offset_t new_file_size =
-	std::max(
-			os_offset_t(size - file_start_page_no) * page_size,
-			os_offset_t(FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE));
+	/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
+	fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.*/
+	os_offset_t new_size = std::max(
+		os_offset_t(size - file_start_page_no) * page_size,
+		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE));
 
-	/* os_file_change_size_win32() handles both compressed(sparse)
-	and normal files correctly.
-	It allocates physical storage for normal files and "virtual"
-	storage for sparse ones.*/
-	*success = os_file_change_size_win32(node->name,
-		node->handle, new_file_size);
+	*success = os_file_set_size(node->name, node->handle, new_size,
+		FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
 
+	os_has_said_disk_full = *success;
 	if (*success) {
 		last_page_no = size;
 	} else {
-		ib::error() << "extending file '" << node->name
-			<< " to size " << new_file_size << " failed";
+		/* Let us measure the size of the file
+		to determine how much we were able to
+		extend it */
+		os_offset_t	fsize = os_file_get_size(node->handle);
+		ut_a(fsize != os_offset_t(-1));
+
+		last_page_no = ulint(fsize / page_size)
+			+ file_start_page_no;
 	}
-#else
-	/* We will logically extend the file with ftruncate() if
-	page_compression is enabled, because the file is expected to
-	be sparse in that case. Make sure that ftruncate() can deal
-	with large files. */
-	const bool is_sparse	= sizeof(off_t) >= 8
-		&& FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
-
-	if (is_sparse) {
-		/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
-		fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.
-		Do not shrink short ROW_FORMAT=COMPRESSED files. */
-		off_t	s = std::max(off_t(size - file_start_page_no)
-				     * off_t(page_size),
-				     off_t(FIL_IBD_FILE_INITIAL_SIZE
-					   * UNIV_PAGE_SIZE));
-		*success = !ftruncate(node->handle, s);
-		if (!*success) {
-			ib::error() << "ftruncate of file '" << node->name
-				<< "' from "
-				<< os_offset_t(last_page_no
-					       - file_start_page_no)
-				* page_size << " to " << os_offset_t(s)
-				<< " bytes failed with " << errno;
-		} else {
-			last_page_no = size;
-		}
-	} else {
-		const os_offset_t	start_offset
-			= os_offset_t(last_page_no - file_start_page_no)
-			* page_size;
-		const ulint		n_pages = size - last_page_no;
-		const os_offset_t	len = os_offset_t(n_pages) * page_size;
-# ifdef HAVE_POSIX_FALLOCATE
-		int err;
-		do {
-			err = posix_fallocate(node->handle, start_offset, len);
-		} while (err == EINTR
-			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
-
-		if (err != EINVAL) {
-
-			*success = !err;
-			if (!*success) {
-				ib::error() << "extending file '" << node->name
-					<< "' from "
-					<< start_offset
-					<< " to " << len + start_offset
-					<< " bytes failed with: " << err;
-			}
-		} else
-# endif /* HAVE_POSIX_FALLOCATE */
-		{
-			/* Extend at most 1 megabyte pages at a time */
-			ulint	n_bytes = std::min(ulint(1) << 20, n_pages)
-				* page_size;
-			byte*	buf2 = static_cast<byte*>(
-				calloc(1, n_bytes + page_size));
-			*success = buf2 != NULL;
-			if (!buf2) {
-				ib::error() << "Cannot allocate "
-					<< n_bytes + page_size
-					<< " bytes to extend file";
-			}
-			byte* const	buf = static_cast<byte*>(
-				ut_align(buf2, page_size));
-			IORequest	request(IORequest::WRITE);
-
-
-			os_offset_t		offset = start_offset;
-			const os_offset_t	end = start_offset + len;
-			const bool		read_only_mode = space->purpose
-				== FIL_TYPE_TEMPORARY && srv_read_only_mode;
-
-			while (*success && offset < end) {
-				dberr_t	err = os_aio(
-					request, OS_AIO_SYNC, node->name,
-					node->handle, buf, offset, n_bytes,
-					read_only_mode, NULL, NULL);
-
-				if (err != DB_SUCCESS) {
-					*success = false;
-					ib::error() << "writing zeroes to file '"
-						<< node->name << "' from "
-						<< offset << " to " << offset + n_bytes
-						<< " bytes failed with: "
-						<< ut_strerr(err);
-					break;
-				}
-
-				offset += n_bytes;
-
-				n_bytes = std::min(n_bytes,
-						   static_cast<ulint>(end - offset));
-			}
-
-			free(buf2);
-		}
-
-		os_has_said_disk_full = *success;
-		if (*success) {
-			last_page_no = size;
-		} else {
-			/* Let us measure the size of the file
-			to determine how much we were able to
-			extend it */
-			os_offset_t	fsize = os_file_get_size(node->handle);
-			ut_a(fsize != os_offset_t(-1));
-
-			last_page_no = ulint(fsize / page_size)
-				+ file_start_page_no;
-		}
-	}
-#endif
 	mutex_enter(&fil_system->mutex);
 
 	ut_a(node->being_extended);
@@ -1206,11 +1095,7 @@ fil_space_extend_must_retry(
 	const ulint pages_in_MiB = node->size
 		& ~((1 << (20 - UNIV_PAGE_SIZE_SHIFT)) - 1);
 
-	fil_node_complete_io(node,
-#ifndef _WIN32
-			     !is_sparse ? IORequestWrite :
-#endif /* _WIN32 */
-			     IORequestRead);
+	fil_node_complete_io(node,IORequestRead);
 
 	/* Keep the last data file size info up to date, rounded to
 	full megabytes */
@@ -3237,10 +3122,11 @@ fil_truncate_tablespace(
 	bool success = os_file_truncate(node->name, node->handle, 0);
 	if (success) {
 
-		os_offset_t	size = size_in_pages * UNIV_PAGE_SIZE;
+		os_offset_t	size = os_offset_t(size_in_pages) * UNIV_PAGE_SIZE;
 
 		success = os_file_set_size(
-			node->name, node->handle, size, srv_read_only_mode);
+			node->name, node->handle, size,
+			FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
 
 		if (success) {
 			space->stop_new_ops = false;
@@ -3835,78 +3721,27 @@ fil_ibd_create(
 		return(DB_ERROR);
 	}
 
-	bool punch_hole = false;
+	const bool is_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
 
 #ifdef _WIN32
-
-	if (FSP_FLAGS_HAS_PAGE_COMPRESSION(flags)) {
-		punch_hole = os_file_set_sparse_win32(file);
-	}
-
-	success = os_file_change_size_win32(path, file, size * UNIV_PAGE_SIZE);
-
-#else
-
-	success= false;
-#ifdef HAVE_POSIX_FALLOCATE
-	/*
-	  Extend the file using posix_fallocate(). This is required by
-	  FusionIO HW/Firmware but should also be the prefered way to extend
-	  a file.
-	*/
-	int	ret;
-	do {
-		ret = posix_fallocate(file, 0, size * UNIV_PAGE_SIZE);
-	} while (ret == EINTR
-		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
-
-	if (ret == 0) {
-		success = true;
-	} else if (ret != EINVAL) {
-		ib::error() <<
-			"posix_fallocate(): Failed to preallocate"
-			" data for file " << path
-			<< ", desired size "
-			<< size * UNIV_PAGE_SIZE
-			<< " Operating system error number " << ret
-			<< ". Check"
-			" that the disk is not full or a disk quota"
-			" exceeded. Some operating system error"
-			" numbers are described at " REFMAN
-			"operating-system-error-codes.html";
-	}
-#endif /* HAVE_POSIX_FALLOCATE */
-
-	if (!success) {
-		success = os_file_set_size(
-			path, file, size * UNIV_PAGE_SIZE, srv_read_only_mode);
-	}
-
-	/* Note: We are actually punching a hole, previous contents will
-	be lost after this call, if it succeeds. In this case the file
-	should be full of NULs. */
-
-	punch_hole = os_is_sparse_file_supported(file);
-
-	if (punch_hole) {
-
-		dberr_t	punch_err;
-
-		punch_err = os_file_punch_hole(file, 0, size * UNIV_PAGE_SIZE);
-
-		if (punch_err != DB_SUCCESS) {
-			punch_hole = false;
-		}
+	if (is_compressed) {
+		os_file_set_sparse_win32(file);
 	}
 #endif
 
-	ulint block_size = os_file_get_block_size(file, path);
+	success = os_file_set_size(
+		path, file,
+		os_offset_t(size) << UNIV_PAGE_SIZE_SHIFT, is_compressed);
 
 	if (!success) {
 		os_file_close(file);
 		os_file_delete(innodb_data_file_key, path);
 		return(DB_OUT_OF_FILE_SPACE);
 	}
+
+	bool punch_hole = os_is_sparse_file_supported(file);
+
+	ulint block_size = os_file_get_block_size(file, path);
 
 	/* We have to write the space id to the file immediately and flush the
 	file to disk. This is because in crash recovery we must be aware what
