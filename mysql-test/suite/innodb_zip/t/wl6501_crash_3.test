@@ -16,9 +16,11 @@
 --source include/not_embedded.inc
 # Avoid CrashReporter popup on Mac
 --source include/not_crashrep.inc
-
+let $innodb_file_format_orig=`select @@innodb_file_format`;
+SET GLOBAL innodb_file_format=Barracuda;
 let $wl6501_file_per_table = 1;
 let $wl6501_row_fmt = compressed;
 let $wl6501_kbs = 16;
---source suite/innodb/include/innodb_wl6501_crash.inc
+--source include/innodb_wl6501_crash.inc
+eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;
 

@@ -23,6 +23,8 @@ let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $pathfix=/: '.*test_wl5522.*t1.ibd'/: 'test_wl5522_t1.ibd'/;
 
 SET SESSION innodb_strict_mode=1;
+let $innodb_file_format_orig=`select @@innodb_file_format`;
+SET GLOBAL innodb_file_format=Barracuda;
 
 CREATE DATABASE test_wl5522;
 
@@ -120,7 +122,7 @@ EOF
 DROP TABLE test_wl5522.t1;
 
 SET SESSION innodb_strict_mode=1;
-
+SET GLOBAL innodb_file_format=Barracuda;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb
 ROW_FORMAT=COMPRESSED;
 
@@ -510,7 +512,7 @@ SET SESSION debug_dbug="+d,buf_page_import_corrupt_failure";
 --replace_regex /'.*t1.cfg'/'t1.cfg'/
 
 # Following alter is failing
---error ER_INTERNAL_ERROR
+#--error ER_INTERNAL_ERROR ////does not fail in 10.0
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
 SET SESSION debug_dbug=@saved_debug_dbug;
@@ -734,3 +736,4 @@ call mtr.add_suppression("Index for table 't1' is corrupt; try to repair it");
 #cleanup
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.cfg
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.ibd
+eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;

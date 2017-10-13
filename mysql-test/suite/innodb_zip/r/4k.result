@@ -1,16 +1,14 @@
 SET default_storage_engine=InnoDB;
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_page_size';
 variable_value
 4096
 # Test 2) The number of buffer pool pages is dependent upon the page size.
-SELECT variable_value FROM information_schema.global_status
+SELECT variable_value in (2047, 2048) FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_buffer_pool_pages_total';
-variable_value
-2048
+variable_value in (2047, 2048)
+1
 # Test 3) Query some information_shema tables that are dependent upon
 #         the page size.
 SELECT	t.name table_name, t.n_cols, t.flag table_flags,
@@ -41,6 +39,12 @@ test/t1	5	0	PRIMARY	3	3	1
 test/t2	5	1	PRIMARY	3	3	1
 test/t3	5	37	PRIMARY	3	3	1
 test/t4	5	33	PRIMARY	3	3	1
+=== information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
+Space_Name	Page_Size	Zip_Size	Formats_Permitted	Path
+test/t1	DEFAULT	0	Compact or Redundant	MYSQLD_DATADIR/test/t1.ibd
+test/t2	DEFAULT	0	Compact or Redundant	MYSQLD_DATADIR/test/t2.ibd
+test/t3	DEFAULT	2048	Compressed	MYSQLD_DATADIR/test/t3.ibd
+test/t4	DEFAULT	0	Dynamic	MYSQLD_DATADIR/test/t4.ibd
 DROP TABLE t1, t2, t3, t4;
 # Test 4) The maximum row size is dependent upon the page size.
 #         Redundant: 1979, Compact: 1982.
@@ -408,4 +412,4 @@ CREATE TABLE t1(c text, PRIMARY KEY (c(438)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
 INSERT INTO t1 VALUES(REPEAT('A',512)),(REPEAT('B',512));
 DROP TABLE t1;
-SET GLOBAL innodb_file_format = `Antelope`;
+SET GLOBAL innodb_file_format=Antelope;

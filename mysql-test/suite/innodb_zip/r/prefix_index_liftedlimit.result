@@ -1,4 +1,6 @@
+set global innodb_file_format="Barracuda";
 set global innodb_file_per_table=1;
+set global innodb_large_prefix=1;
 DROP TABLE IF EXISTS worklog5743;
 CREATE TABLE worklog5743 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
@@ -674,26 +676,7 @@ CREATE TABLE worklog5743 (col_1_varchar VARCHAR (4000) CHARACTER SET 'utf8',
 col_2_varchar VARCHAR (4000) CHARACTER SET 'utf8' ,
 PRIMARY KEY (col_1_varchar(1024))
 ) ROW_FORMAT=DYNAMIC, engine = innodb;
-INSERT INTO worklog5743 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
-CREATE INDEX prefix_idx ON worklog5743(col_1_varchar (1024));
-INSERT INTO worklog5743 VALUES(REPEAT("b", 4000) , REPEAT("p", 4000));
-SELECT col_1_varchar = REPEAT("a", 4000) , col_2_varchar = REPEAT("o", 4000) FROM worklog5743;
-col_1_varchar = REPEAT("a", 4000)	col_2_varchar = REPEAT("o", 4000)
-1	1
-0	0
-UPDATE worklog5743 SET col_1_varchar = REPEAT("c", 4000)
-WHERE col_1_varchar = REPEAT("a", 4000) AND col_2_varchar = REPEAT("o", 4000);
-SELECT col_1_varchar = REPEAT("c", 4000) FROM worklog5743
-WHERE col_1_varchar = REPEAT("c", 4000) AND col_2_varchar = REPEAT("o", 4000);
-col_1_varchar = REPEAT("c", 4000)
-1
-INSERT INTO worklog5743 VALUES(REPEAT("a", 4000),REPEAT("o", 4000));
-DELETE FROM worklog5743 WHERE col_1_varchar = REPEAT("b", 4000);
-SELECT col_1_varchar = REPEAT("c", 4000) FROM worklog5743;
-col_1_varchar = REPEAT("c", 4000)
-0
-1
-DROP TABLE worklog5743;
+ERROR 42000: Row size too large (> max_row_size). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 CREATE TABLE worklog5743 (
 col_1_varbinary VARBINARY (4000) ,
 col_2_varchar VARCHAR (4000) CHARACTER SET 'utf8',
@@ -1214,13 +1197,9 @@ WHERE col_1_varbinary = REPEAT("c", 4000)
 AND col_2_varbinary = REPEAT("o", 4000);
 col_1_varbinary = REPEAT("c", 4000)
 DROP INDEX prefix_idx ON worklog5743;
-SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 CREATE INDEX prefix_idx ON worklog5743(col_1_varbinary (4000));
 Warnings:
 Warning	1071	Specified key was too long; max key length is 3072 bytes
-SET sql_mode = default;
 INSERT INTO worklog5743 VALUES(REPEAT("a", 4000),REPEAT("o", 4000));
 SELECT col_1_varbinary = REPEAT("a", 4000) FROM worklog5743;
 col_1_varbinary = REPEAT("a", 4000)
@@ -1276,8 +1255,8 @@ WHERE col_1_text = REPEAT("c", 4000) AND col_2_text = REPEAT("o", 4000);
 col_1_text = REPEAT("c", 4000)
 DROP INDEX prefix_idx ON worklog5743;
 CREATE INDEX prefix_idx ON worklog5743(col_1_text (4000));
-ERROR 42000: Specified key was too long; max key length is 3072 bytes
-CREATE INDEX prefix_idx ON worklog5743(col_1_text (3072));
+Warnings:
+Warning	1071	Specified key was too long; max key length is 3072 bytes
 INSERT INTO worklog5743 VALUES(REPEAT("a", 4000),REPEAT("o", 4000));
 SELECT col_1_text = REPEAT("a", 4000) FROM worklog5743;
 col_1_text = REPEAT("a", 4000)
@@ -1380,38 +1359,32 @@ ALTER TABLE worklog5743 ADD PRIMARY KEY `pk_idx` (col_1_varchar(3000));
 ERROR 23000: Duplicate entry 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' for key 'PRIMARY'
 DROP TABLE worklog5743;
 set global innodb_large_prefix=0;
-Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 CREATE TABLE worklog5743 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
 PRIMARY KEY (col_1_varchar(3072))
 ) ROW_FORMAT=DYNAMIC, engine = innodb;
 ERROR 42000: Specified key was too long; max key length is 767 bytes
 set global innodb_large_prefix=0;
-Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 CREATE TABLE worklog5743 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
 PRIMARY KEY (col_1_varchar(767))
 ) engine = innodb;
 INSERT INTO worklog5743 VALUES(REPEAT('a',4000),REPEAT('b',4000));
 CREATE INDEX prefix_idx ON worklog5743(col_1_varchar (1000));
-ERROR 42000: Specified key was too long; max key length is 767 bytes
-CREATE INDEX prefix_idx ON worklog5743(col_1_varchar (767));
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1071	Specified key was too long; max key length is 767 bytes
 ALTER TABLE worklog5743 ROW_FORMAT=REDUNDANT;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 SHOW CREATE TABLE worklog5743;
 Table	Create Table
 worklog5743	CREATE TABLE `worklog5743` (
-  `col_1_varchar` varchar(4000) NOT NULL,
+  `col_1_varchar` varchar(4000) NOT NULL DEFAULT '',
   `col_2_varchar` varchar(4000) DEFAULT NULL,
   PRIMARY KEY (`col_1_varchar`(767)),
   KEY `prefix_idx` (`col_1_varchar`(767))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
 DROP TABLE worklog5743;
-Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 "Disconnect the connection 1"

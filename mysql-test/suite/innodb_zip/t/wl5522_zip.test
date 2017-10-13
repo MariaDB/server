@@ -9,6 +9,8 @@ SET SESSION innodb_strict_mode=1;
 
 let $MYSQLD_TMPDIR = `SELECT @@tmpdir`;
 let $MYSQLD_DATADIR = `SELECT @@datadir`;
+let $innodb_file_format_orig=`select @@innodb_file_format`;
+SET GLOBAL innodb_file_format=Barracuda;
 
 CREATE TABLE t1
 (a INT AUTO_INCREMENT PRIMARY KEY,
@@ -72,7 +74,7 @@ DROP TABLE t1;
 SET SESSION innodb_strict_mode=1;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
-
+SET GLOBAL innodb_file_format=Barracuda;
 # Try importing when tablespace already exists
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -517,3 +519,4 @@ call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tabl
 # cleanup
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.cfg
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.ibd
+eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;

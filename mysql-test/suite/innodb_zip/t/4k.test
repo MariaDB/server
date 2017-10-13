@@ -6,6 +6,8 @@ SET default_storage_engine=InnoDB;
 --disable_query_log
 let $MYSQLD_DATADIR = `select @@datadir`;
 let $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
+let $innodb_file_format_orig=`select @@innodb_file_format`;
+SET GLOBAL innodb_file_format=Barracuda;
 
 call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is");
 --enable_query_log
@@ -19,7 +21,7 @@ SELECT variable_value FROM information_schema.global_status
 --echo # Test 2) The number of buffer pool pages is dependent upon the page size.
 --disable_warnings
 --replace_result 6144 {checked_valid}
-SELECT variable_value FROM information_schema.global_status
+SELECT variable_value in (2047, 2048) FROM information_schema.global_status
        WHERE LOWER(variable_name) = 'innodb_buffer_pool_pages_total';
 --enable_warnings
 
@@ -36,7 +38,7 @@ SELECT variable_value FROM information_schema.global_status
 # since they are created consistently during bootstrap.
 SELECT	t.name table_name, t.n_cols, t.flag table_flags,
 	i.name index_name, i.page_no root_page, i.type,
-	i.n_fields, i.merge_threshold
+	i.n_fields
 	FROM	INFORMATION_SCHEMA.INNODB_SYS_TABLES  t,
 		INFORMATION_SCHEMA.INNODB_SYS_INDEXES i
 	WHERE	t.table_id = i.table_id
@@ -54,7 +56,7 @@ CREATE TABLE t4 (a INT KEY, b TEXT) ROW_FORMAT=DYNAMIC ENGINE=innodb;
 # within a file-per-table tablespace.
 SELECT	t.name table_name, t.n_cols, t.flag table_flags,
 	i.name index_name, i.page_no root_page, i.type,
-	i.n_fields, i.merge_threshold
+	i.n_fields
 	FROM	INFORMATION_SCHEMA.INNODB_SYS_TABLES  t,
 		INFORMATION_SCHEMA.INNODB_SYS_INDEXES i
 	WHERE	t.table_id = i.table_id
@@ -305,6 +307,7 @@ CREATE INDEX t1d ON t1 (d(767));
 UPDATE t1 SET d=@e;
 
 --replace_regex /> [0-9]*/> max_row_size/
+--error 1118
 CREATE INDEX t1e ON t1 (e(767));
 
 SHOW CREATE TABLE t1;
@@ -414,11 +417,12 @@ DROP TABLE t1;
 # (The fix of Bug #50945 only affects REDUNDANT and COMPACT tables.)
 SET SESSION innodb_strict_mode = off;
 --replace_regex /> [0-9]*/> max_row_size/
+--error 1118
 CREATE TABLE t1(
 	c text NOT NULL, d text NOT NULL,
 	PRIMARY KEY (c(767)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
-DROP TABLE t1;
+#DROP TABLE t1;
 CREATE TABLE t1(
 	c text NOT NULL, d text NOT NULL,
 	PRIMARY KEY (c(767)))
@@ -430,10 +434,12 @@ CREATE TABLE t1(
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4 CHARSET=ASCII;
 drop table t1;
 --replace_regex /> [0-9]*/> max_row_size/
+--error 1118
 CREATE TABLE t1(c text, PRIMARY KEY (c(440)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
-DROP TABLE t1;
+#DROP TABLE t1;
 CREATE TABLE t1(c text, PRIMARY KEY (c(438)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
 INSERT INTO t1 VALUES(REPEAT('A',512)),(REPEAT('B',512));
 DROP TABLE t1;
+eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;

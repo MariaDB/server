@@ -1,3 +1,5 @@
+Warnings:
+Note	1051	Unknown table 'test.a'
 #
 # MDEV-12720 recovery fails with "Generic error"
 # for ROW_FORMAT=compressed
@@ -15,3 +17,4 @@ SELECT COUNT(*) from a;
 COUNT(*)
 1010
 DROP TABLE a;
+SET GLOBAL innodb_file_format=Antelope;
