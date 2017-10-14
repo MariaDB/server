@@ -4161,7 +4161,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (!sql_field->def &&
         !sql_field->has_default_function() &&
         (sql_field->flags & NOT_NULL_FLAG) &&
-        !is_timestamp_type(sql_field->sql_type))
+        (!is_timestamp_type(sql_field->sql_type) ||
+         opt_explicit_defaults_for_timestamp))
     {
       sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
       sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
@@ -4170,6 +4171,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
         !sql_field->def && !sql_field->vcol_info &&
         is_timestamp_type(sql_field->sql_type) &&
+        !opt_explicit_defaults_for_timestamp &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
     {
