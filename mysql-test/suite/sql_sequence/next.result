@@ -512,3 +512,10 @@ def					PREVIOUS VALUE FOR s1	8	20	1	Y	32896	0	63
 NEXT VALUE FOR s1	PREVIOUS VALUE FOR s1
 1	1
 DROP SEQUENCE s1;
+#
+# MDEV-13720 ER_NOT_SEQUENCE for temporary table
+#
+create temporary table tmp (i int);
+select next value for tmp;
+ERROR 42S02: 'test.tmp' is not a SEQUENCE
+drop table tmp;

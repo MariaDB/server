@@ -260,3 +260,12 @@ SELECT
 DROP SEQUENCE s1;
 --enable_ps_protocol
 --disable_metadata
+
+--echo #
+--echo # MDEV-13720 ER_NOT_SEQUENCE for temporary table
+--echo #
+
+create temporary table tmp (i int);
+--error ER_NOT_SEQUENCE
+select next value for tmp;
+drop table tmp;

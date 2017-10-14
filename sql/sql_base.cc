@@ -3341,6 +3341,11 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
       temporary table or SEQUENCE (see sequence_insert()).
     */
     DBUG_ASSERT(is_temporary_table(tables) || tables->table->s->sequence);
+    if (tables->sequence && tables->table->s->table_type != TABLE_TYPE_SEQUENCE)
+    {
+        my_error(ER_NOT_SEQUENCE, MYF(0), tables->db, tables->alias);
+        DBUG_RETURN(true);
+    }
   }
   else if (tables->open_type == OT_TEMPORARY_ONLY)
   {
