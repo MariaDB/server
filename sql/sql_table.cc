@@ -5739,9 +5739,25 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   {
     if (def->change && ! def->field)
     {
-      my_error(ER_BAD_FIELD_ERROR, MYF(0), def->change,
-               table->s->table_name.str);
-      goto err;
+      /*
+        Check if there is modify for newly added field.
+      */
+      Create_field *find;
+      find_it.rewind();
+      while((find=find_it++))
+      {
+        if (!my_strcasecmp(system_charset_info,find->field_name, def->field_name))
+          break;
+      }
+
+      if (find && !find->field)
+	find_it.remove();
+      else
+      {
+        my_error(ER_BAD_FIELD_ERROR, MYF(0), def->change,
+                 table->s->table_name.str);
+        goto err;
+      }
     }
     /*
       Check that the DATE/DATETIME not null field we are going to add is
@@ -5792,6 +5808,29 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         as it always changes table data.
       */
       alter_info->change_level= ALTER_TABLE_DATA_CHANGED;
+    }
+    /*
+      Check if there is alter for newly added field.
+    */
+    alter_it.rewind();
+    Alter_column *alter;
+    while ((alter=alter_it++))
+    {
+      if (!my_strcasecmp(system_charset_info,def->field_name, alter->name))
+        break;
+    }
+    if (alter)
+    {
+      if (def->sql_type == MYSQL_TYPE_BLOB)
+      {
+        my_error(ER_BLOB_CANT_HAVE_DEFAULT, MYF(0), def->change);
+        goto err;
+      }
+      if ((def->def=alter->def))              // Use new default
+        def->flags&= ~NO_DEFAULT_VALUE_FLAG;
+      else
+        def->flags|= NO_DEFAULT_VALUE_FLAG;
+      alter_it.remove();
     }
   }
   if (alter_info->alter_list.elements)
