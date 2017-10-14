@@ -3320,9 +3320,9 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     /*
       If this TABLE_LIST object has an associated open TABLE object
       (TABLE_LIST::table is not NULL), that TABLE object must be a pre-opened
-      temporary table.
+      temporary table or SEQUENCE (see sequence_insert()).
     */
-    DBUG_ASSERT(is_temporary_table(tables));
+    DBUG_ASSERT(is_temporary_table(tables) || tables->table->s->sequence);
   }
   else if (tables->open_type == OT_TEMPORARY_ONLY)
   {

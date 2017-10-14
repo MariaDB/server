@@ -499,6 +499,27 @@ drop sequence t1;
 create table t1 (a int) engine=sql_sequence;
 ERROR 42000: Unknown storage engine 'sql_sequence'
 #
+# MDEV-13711 assertion on CREATE LIKE fix
+#
+create sequence s;
+create table t like s;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+show create sequence t;
+Table	Create Table
+t	CREATE SEQUENCE `t` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+drop tables t, s;
+#
 # MDEV-13714 SEQUENCE option fix
 #
 create or replace table s (

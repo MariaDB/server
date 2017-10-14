@@ -335,7 +335,6 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
   trans_commit_implicit(thd);
   if (!temporary_table)
     close_thread_tables(thd);
-  thd->mdl_context.release_transactional_locks();
   DBUG_RETURN(error);
 }
 
