@@ -6628,6 +6628,58 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
   DBUG_RETURN(bitmap_updated);
 }
 
+
+/**
+   Check if a virtual not stored column field is in read set
+
+   @retval FALSE  No virtual not stored column is used
+   @retval TRUE   At least one virtual not stored column is used
+*/
+
+bool TABLE::check_virtual_columns_marked_for_read()
+{
+  if (vfield)
+  {
+    Field **vfield_ptr;
+    for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
+    {
+      Field *tmp_vfield= *vfield_ptr;
+      if (bitmap_is_set(read_set, tmp_vfield->field_index) &&
+          !tmp_vfield->vcol_info->stored_in_db)
+        return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+/**
+   Check if a stored virtual column field is marked for write
+
+   This can be used to check if any column that is part of a virtual
+   stored column is changed
+
+   @retval FALSE  No stored virtual column is used
+   @retval TRUE   At least one stored virtual column is used
+*/
+
+bool TABLE::check_virtual_columns_marked_for_write()
+{
+  if (vfield)
+  {
+    Field **vfield_ptr;
+    for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
+    {
+      Field *tmp_vfield= *vfield_ptr;
+      if (bitmap_is_set(write_set, tmp_vfield->field_index) &&
+                        tmp_vfield->vcol_info->stored_in_db)
+        return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
 /*
   Mark fields used by check constraints.
   This is done once for the TABLE_SHARE the first time the table is opened.
@@ -6684,6 +6736,7 @@ void TABLE::mark_default_fields_for_write(bool is_insert)
   }
   DBUG_VOID_RETURN;
 }
+
 
 void TABLE::move_fields(Field **ptr, const uchar *to, const uchar *from)
 {

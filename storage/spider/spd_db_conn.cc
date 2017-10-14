@@ -1011,7 +1011,7 @@ int spider_db_query_for_bulk_update(
   ha_spider *spider,
   SPIDER_CONN *conn,
   int link_idx,
-  uint *dup_key_found
+  ha_rows *dup_key_found
 ) {
   int error_num;
   SPIDER_SHARE *share = spider->share;
@@ -6096,7 +6096,7 @@ int spider_db_bulk_update_size_limit(
   SPIDER_SHARE *share = spider->share;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   SPIDER_CONN *conn;
-  uint dup_key_found = 0;
+  ha_rows dup_key_found = 0;
   DBUG_ENTER("spider_db_bulk_update_size_limit");
 
   if (result_list->bulk_update_mode == 1)
@@ -6159,7 +6159,7 @@ error_mk_table:
 
 int spider_db_bulk_update_end(
   ha_spider *spider,
-  uint *dup_key_found
+  ha_rows *dup_key_found
 ) {
   int error_num = 0, error_num2, roop_count;
   THD *thd = spider->trx->thd;
@@ -6492,7 +6492,7 @@ int spider_db_direct_update(
   TABLE *table,
   KEY_MULTI_RANGE *ranges,
   uint range_count,
-  uint *update_rows
+  ha_rows *update_rows
 ) {
   int error_num, roop_count;
   SPIDER_SHARE *share = spider->share;
@@ -6762,7 +6762,7 @@ int spider_db_direct_update(
         if (!counted)
         {
           *update_rows = spider->conns[roop_count]->db_conn->affected_rows();
-          DBUG_PRINT("info", ("spider update_rows = %u", *update_rows));
+          DBUG_PRINT("info", ("spider update_rows = %llu", *update_rows));
           counted = TRUE;
         }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -6783,7 +6783,7 @@ int spider_db_direct_update(
           if (!counted)
           {
             *update_rows = conn->db_conn->affected_rows();
-            DBUG_PRINT("info", ("spider update_rows = %u", *update_rows));
+            DBUG_PRINT("info", ("spider update_rows = %llu", *update_rows));
             counted = TRUE;
           }
           result->free_result();
@@ -6822,7 +6822,7 @@ int spider_db_direct_update(
 #ifdef HA_CAN_BULK_ACCESS
 int spider_db_bulk_direct_update(
   ha_spider *spider,
-  uint *update_rows
+  ha_rows *update_rows
 ) {
   int error_num = 0, roop_count, tmp_error_num;
   SPIDER_SHARE *share = spider->share;
@@ -6866,7 +6866,7 @@ int spider_db_bulk_direct_update(
       if (!counted)
       {
         *update_rows = spider->conns[roop_count]->db_conn->affected_rows();
-        DBUG_PRINT("info", ("spider update_rows = %u", *update_rows));
+        DBUG_PRINT("info", ("spider update_rows = %llu", *update_rows));
         counted = TRUE;
       }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -6887,7 +6887,7 @@ int spider_db_bulk_direct_update(
         if (!counted)
         {
           *update_rows = conn->db_conn->affected_rows();
-          DBUG_PRINT("info", ("spider update_rows = %u", *update_rows));
+          DBUG_PRINT("info", ("spider update_rows = %llu", *update_rows));
           counted = TRUE;
         }
         result->free_result();
@@ -6996,7 +6996,7 @@ int spider_db_direct_delete(
   TABLE *table,
   KEY_MULTI_RANGE *ranges,
   uint range_count,
-  uint *delete_rows
+  ha_rows *delete_rows
 ) {
   int error_num, roop_count;
   SPIDER_SHARE *share = spider->share;
@@ -7186,7 +7186,7 @@ int spider_db_direct_delete(
         if (!counted)
         {
           *delete_rows = spider->conns[roop_count]->db_conn->affected_rows();
-          DBUG_PRINT("info", ("spider delete_rows = %u", *delete_rows));
+          DBUG_PRINT("info", ("spider delete_rows = %llu", *delete_rows));
           counted = TRUE;
         }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)

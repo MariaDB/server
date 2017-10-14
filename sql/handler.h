@@ -277,6 +277,10 @@ enum enum_alter_inplace_result {
 /* The following is for bulk access by the partition handler */
 #define HA_CAN_BULK_ACCESS      (1ULL << 49)
 
+/* The following are used by Spider */
+#define HA_CAN_FORCE_BULK_UPDATE (1ULL << 50)
+#define HA_CAN_FORCE_BULK_DELETE (1ULL << 51)
+
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
 #define HA_READ_PREV            2       /* supports ::index_prev */
@@ -426,6 +430,10 @@ static const uint MYSQL_START_TRANS_OPT_READ_WRITE         = 4;
 #define HA_CHECK_ALL (~0U)
 
 /* Options for info_push() */
+#define INFO_KIND_UPDATE_FIELDS       101
+#define INFO_KIND_UPDATE_VALUES       102
+#define INFO_KIND_FORCE_LIMIT_BEGIN   103
+#define INFO_KIND_FORCE_LIMIT_END     104
 #define INFO_KIND_BULK_ACCESS_BEGIN   105
 #define INFO_KIND_BULK_ACCESS_CURRENT 106
 #define INFO_KIND_BULK_ACCESS_END     107
@@ -1405,9 +1413,6 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 #define HTON_TEMPORARY_NOT_SUPPORTED (1 << 6) //Having temporary tables not supported
 #define HTON_SUPPORT_LOG_TABLES      (1 << 7) //Engine supports log tables
 #define HTON_NO_PARTITION            (1 << 8) //Not partition of these tables
-#define HTON_CAN_MULTISTEP_MERGE     (1 << 9) //You can merge mearged tables
-// Engine needs to access the main connect string in partitions
-#define HTON_CAN_READ_CONNECT_STRING_IN_PARTITION (1 << 10)
 
 /*
   This flag should be set when deciding that the engine does not allow
@@ -1427,6 +1432,10 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 
 // MySQL compatibility. Unused.
 #define HTON_SUPPORTS_FOREIGN_KEYS   (1 << 0) //Foreign key constraint supported.
+
+#define HTON_CAN_MERGE               (1 <<11) //Merge type table
+// Engine needs to access the main connect string in partitions
+#define HTON_CAN_READ_CONNECT_STRING_IN_PARTITION (1 <<12)
 
 class Ha_trx_info;
 
@@ -2834,15 +2843,6 @@ public:
     }
     DBUG_RETURN(result);
   }
-  int ha_pre_index_init(uint idx, bool sorted)
-  {
-    int result;
-    DBUG_ENTER("ha_pre_index_init");
-    DBUG_ASSERT(pre_inited==NONE);
-    if (!(result= pre_index_init(idx, sorted)))
-      pre_inited=INDEX;
-    DBUG_RETURN(result);
-  }
   int ha_index_end()
   {
     DBUG_ENTER("ha_index_end");
@@ -2851,13 +2851,6 @@ public:
     active_index= MAX_KEY;
     end_range=    NULL;
     DBUG_RETURN(index_end());
-  }
-  int ha_pre_index_end()
-  {
-    DBUG_ENTER("ha_pre_index_end");
-    DBUG_ASSERT(pre_inited==INDEX);
-    pre_inited=NONE;
-    DBUG_RETURN(pre_index_end());
   }
   /* This is called after index_init() if we need to do a index scan */
   virtual int prepare_index_scan() { return 0; }
@@ -2881,14 +2874,6 @@ public:
     end_range= NULL;
     DBUG_RETURN(result);
   }
-  int ha_pre_rnd_init(bool scan)
-  {
-    int result;
-    DBUG_ENTER("ha_pre_rnd_init");
-    DBUG_ASSERT(pre_inited==NONE || (pre_inited==RND && scan));
-    pre_inited= (result= pre_rnd_init(scan)) ? NONE: RND;
-    DBUG_RETURN(result);
-  }
   int ha_rnd_end()
   {
     DBUG_ENTER("ha_rnd_end");
@@ -2897,25 +2882,12 @@ public:
     end_range= NULL;
     DBUG_RETURN(rnd_end());
   }
-  int ha_pre_rnd_end()
-  {
-    DBUG_ENTER("ha_pre_rnd_end");
-    DBUG_ASSERT(pre_inited==RND);
-    pre_inited=NONE;
-    DBUG_RETURN(pre_rnd_end());
-  }
   int ha_rnd_init_with_error(bool scan) __attribute__ ((warn_unused_result));
   int ha_reset();
   /* this is necessary in many places, e.g. in HANDLER command */
   int ha_index_or_rnd_end()
   {
     return inited == INDEX ? ha_index_end() : inited == RND ? ha_rnd_end() : 0;
-  }
-  int ha_pre_index_or_rnd_end()
-  {
-    return pre_inited == INDEX ? ha_pre_index_end()
-                               : pre_inited == RND ?
-                                 ha_pre_rnd_end() : 0;
   }
   /**
     The cached_table_flags is set at ha_open and ha_external_lock
@@ -2969,7 +2941,7 @@ public:
     DBUG_RETURN(ret);
   }
   int ha_bulk_update_row(const uchar *old_data, uchar *new_data,
-                         uint *dup_key_found);
+                         ha_rows *dup_key_found);
   int ha_delete_all_rows();
   int ha_truncate();
   int ha_reset_auto_increment(ulonglong value);
@@ -3151,7 +3123,7 @@ public:
     @retval  0           Success
     @retval  >0          Error code
   */
-  virtual int exec_bulk_update(uint *dup_key_found)
+  virtual int exec_bulk_update(ha_rows *dup_key_found)
   {
     DBUG_ASSERT(FALSE);
     return HA_ERR_WRONG_COMMAND;
@@ -3160,7 +3132,7 @@ public:
     Perform any needed clean-up, no outstanding updates are there at the
     moment.
   */
-  virtual void end_bulk_update() { return; }
+  virtual int end_bulk_update() { return 0; }
   /**
     Execute all outstanding deletes and close down the bulk delete.
 
@@ -3192,6 +3164,48 @@ public:
    { return 0; }
   virtual int pre_rnd_next(bool use_parallel)
    { return 0; }
+  int ha_pre_rnd_init(bool scan)
+  {
+    int result;
+    DBUG_ENTER("ha_pre_rnd_init");
+    DBUG_ASSERT(pre_inited==NONE || (pre_inited==RND && scan));
+    pre_inited= (result= pre_rnd_init(scan)) ? NONE: RND;
+    DBUG_RETURN(result);
+  }
+  int ha_pre_rnd_end()
+  {
+    DBUG_ENTER("ha_pre_rnd_end");
+    DBUG_ASSERT(pre_inited==RND);
+    pre_inited=NONE;
+    DBUG_RETURN(pre_rnd_end());
+  }
+  virtual int pre_rnd_init(bool scan) { return 0; }
+  virtual int pre_rnd_end() { return 0; }
+  virtual int pre_index_init(uint idx, bool sorted) { return 0; }
+  virtual int pre_index_end() { return 0; }
+  int ha_pre_index_init(uint idx, bool sorted)
+  {
+    int result;
+    DBUG_ENTER("ha_pre_index_init");
+    DBUG_ASSERT(pre_inited==NONE);
+    if (!(result= pre_index_init(idx, sorted)))
+      pre_inited=INDEX;
+    DBUG_RETURN(result);
+  }
+  int ha_pre_index_end()
+  {
+    DBUG_ENTER("ha_pre_index_end");
+    DBUG_ASSERT(pre_inited==INDEX);
+    pre_inited=NONE;
+    DBUG_RETURN(pre_index_end());
+  }
+  int ha_pre_index_or_rnd_end()
+  {
+    return (pre_inited == INDEX ?
+            ha_pre_index_end() :
+            pre_inited == RND ? ha_pre_rnd_end() : 0 );
+  }
+
   /**
      @brief
      Positions an index cursor to the index specified in the
@@ -4112,9 +4126,7 @@ private:
   virtual int open(const char *name, int mode, uint test_if_locked)=0;
   /* Note: ha_index_read_idx_map() may bypass index_init() */
   virtual int index_init(uint idx, bool sorted) { return 0; }
-  virtual int pre_index_init(uint idx, bool sorted) { return 0; }
   virtual int index_end() { return 0; }
-  virtual int pre_index_end() { return 0; }
   /**
     rnd_init() can be called two times without rnd_end() in between
     (it only makes sense if scan=1).
@@ -4123,9 +4135,7 @@ private:
     to the start of the table, no need to deallocate and allocate it again
   */
   virtual int rnd_init(bool scan)= 0;
-  virtual int pre_rnd_init(bool scan) { return 0; }
   virtual int rnd_end() { return 0; }
-  virtual int pre_rnd_end() { return 0; }
   virtual int write_row(uchar *buf __attribute__((unused)))
   {
     return HA_ERR_WRONG_COMMAND;
@@ -4153,6 +4163,60 @@ private:
   {
     return HA_ERR_WRONG_COMMAND;
   }
+
+  /* Perform initialization for a direct update request */
+public:
+  int ha_direct_update_rows(ha_rows *update_rows);
+  int ha_pre_direct_update_rows()
+  {
+    return pre_direct_update_rows();
+  }
+  int ha_direct_update_row_binlog(const uchar *old_data,
+                                  uchar *new_data);
+  virtual int direct_update_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+private:
+  virtual int pre_direct_update_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+  virtual int direct_update_rows(ha_rows *update_rows __attribute__((unused)))
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+  virtual int pre_direct_update_rows()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
+  /* Perform initialization for a direct delete request */
+public:
+  int ha_direct_delete_rows(ha_rows *delete_rows);
+  int ha_pre_direct_delete_rows()
+  {
+    return pre_direct_delete_rows();
+  }
+  int ha_direct_delete_row_binlog(const uchar *buf);
+  virtual int direct_delete_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+private:
+  virtual int pre_direct_delete_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+  virtual int direct_delete_rows(ha_rows *delete_rows __attribute__((unused)))
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+  virtual int pre_direct_delete_rows()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
   /**
     Reset state of file to after 'open'.
     This function is called after every statement for all tables used
@@ -4226,7 +4290,7 @@ public:
     @retval  1   Bulk delete not used, normal operation used
   */
   virtual int bulk_update_row(const uchar *old_data, uchar *new_data,
-                              uint *dup_key_found)
+                              ha_rows *dup_key_found)
   {
     DBUG_ASSERT(FALSE);
     return HA_ERR_WRONG_COMMAND;

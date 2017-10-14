@@ -325,7 +325,7 @@ int spider_db_query_for_bulk_update(
   ha_spider *spider,
   SPIDER_CONN *conn,
   int link_idx,
-  uint *dup_key_found
+  ha_rows *dup_key_found
 );
 
 size_t spider_db_real_escape_string(
@@ -713,7 +713,7 @@ int spider_db_bulk_update_size_limit(
 
 int spider_db_bulk_update_end(
   ha_spider *spider,
-  uint *dup_key_found
+  ha_rows *dup_key_found
 );
 
 int spider_db_bulk_update(
@@ -734,14 +734,14 @@ int spider_db_direct_update(
   TABLE *table,
   KEY_MULTI_RANGE *ranges,
   uint range_count,
-  uint *update_rows
+  ha_rows *update_rows
 );
 #endif
 
 #ifdef HA_CAN_BULK_ACCESS
 int spider_db_bulk_direct_update(
   ha_spider *spider,
-  uint *update_rows
+  ha_rows *update_rows
 );
 #endif
 
@@ -763,7 +763,7 @@ int spider_db_direct_delete(
   TABLE *table,
   KEY_MULTI_RANGE *ranges,
   uint range_count,
-  uint *delete_rows
+  ha_rows *delete_rows
 );
 #endif
 

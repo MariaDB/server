@@ -308,9 +308,11 @@ private:
   bool auto_increment_safe_stmt_log_lock;
   /** For optimizing ha_start_bulk_insert calls */
   MY_BITMAP m_bulk_insert_started;
+  MY_BITMAP bulk_access_exec_bitmap;
   ha_rows   m_bulk_inserted_rows;
   /** used for prediction of start_bulk_insert rows */
   enum_monotonicity_info m_part_func_monotonicity_info;
+  part_id_range m_direct_update_part_spec;
   bool                m_pre_calling;
   bool                m_pre_call_use_parallel;
   /* Keep track of bulk access requests */
@@ -320,7 +322,6 @@ private:
   PARTITION_BULK_ACCESS_INFO *bulk_access_info_first;
   PARTITION_BULK_ACCESS_INFO *bulk_access_info_current;
   PARTITION_BULK_ACCESS_INFO *bulk_access_info_exec_tgt;
-  MY_BITMAP           bulk_access_exec_bitmap;
 
   /** keep track of locked partitions */
   MY_BITMAP m_locked_partitions;
@@ -551,8 +552,26 @@ public:
   */
   virtual int pre_write_row(uchar *buf);
   virtual int write_row(uchar * buf);
+  virtual bool start_bulk_update();
+  virtual int exec_bulk_update(ha_rows *dup_key_found);
+  virtual int end_bulk_update();
+  virtual int bulk_update_row(const uchar *old_data, uchar *new_data,
+                              ha_rows *dup_key_found);
   virtual int update_row(const uchar * old_data, uchar * new_data);
+  virtual int direct_update_rows_init();
+  virtual int pre_direct_update_rows_init();
+  virtual int direct_update_rows(ha_rows *update_rows);
+  virtual int pre_direct_update_rows();
+#if defined(HS_HAS_SQLCOM)
+  virtual bool check_hs_update_overlapping(key_range *key);
+#endif
+  virtual bool start_bulk_delete();
+  virtual int end_bulk_delete();
   virtual int delete_row(const uchar * buf);
+  virtual int direct_delete_rows_init();
+  virtual int pre_direct_delete_rows_init();
+  virtual int direct_delete_rows(ha_rows *delete_rows);
+  virtual int pre_direct_delete_rows();
   virtual int delete_all_rows(void);
   virtual int truncate();
   virtual void start_bulk_insert(ha_rows rows, uint flags);

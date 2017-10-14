@@ -7231,6 +7231,7 @@ FT_INFO *ha_partition::ft_init_ext(uint flags, uint inx, String *key)
   DBUG_RETURN((FT_INFO*)ft_target);
 }
 
+
 /**
   Return the next record from the FT result set during an ordered index
   pre-scan
@@ -7245,7 +7246,7 @@ int ha_partition::pre_ft_read(bool use_parallel)
 {
   int error;
   DBUG_ENTER("ha_partition::pre_ft_read");
-  DBUG_PRINT("info", ("partition this=%p", this));
+  DBUG_PRINT("info", ("partition this: %p", this));
   m_pre_calling= TRUE;
   m_pre_call_use_parallel= use_parallel;
   error= ft_read(table->record[0]);
@@ -11220,6 +11221,659 @@ void ha_partition::cond_pop()
     (*file)->cond_pop();
   } while (*(++file));
   DBUG_VOID_RETURN;
+}
+
+
+/**
+  Perform bulk update preparation on each partition.
+
+  SYNOPSIS
+    start_bulk_update()
+
+  RETURN VALUE
+    TRUE                      Error
+    FALSE                     Success
+*/
+
+bool ha_partition::start_bulk_update()
+{
+  handler **file= m_file;
+  DBUG_ENTER("ha_partition::start_bulk_update");
+
+  if (bitmap_is_overlapping(&m_part_info->full_part_field_set,
+                            table->write_set))
+    DBUG_RETURN(TRUE);
+
+  do
+  {
+    if ((*file)->start_bulk_update())
+      DBUG_RETURN(TRUE);
+  } while (*(++file));
+  DBUG_RETURN(FALSE);
+}
+
+
+/**
+  Perform bulk update execution on each partition.  A bulk update allows
+  a handler to batch the updated rows instead of performing the updates
+  one row at a time.
+
+  SYNOPSIS
+    exec_bulk_update()
+
+  RETURN VALUE
+    TRUE                      Error
+    FALSE                     Success
+*/
+
+int ha_partition::exec_bulk_update(ha_rows *dup_key_found)
+{
+  int error;
+  handler **file= m_file;
+  DBUG_ENTER("ha_partition::exec_bulk_update");
+
+  do
+  {
+    if ((error= (*file)->exec_bulk_update(dup_key_found)))
+      DBUG_RETURN(error);
+  } while (*(++file));
+  DBUG_RETURN(0);
+}
+
+
+/**
+  Perform bulk update cleanup on each partition.
+
+  SYNOPSIS
+    end_bulk_update()
+
+  RETURN VALUE
+    NONE
+*/
+
+int ha_partition::end_bulk_update()
+{
+  int error= 0;
+  handler **file= m_file;
+  DBUG_ENTER("ha_partition::end_bulk_update");
+
+  do
+  {
+    int tmp;
+    if ((tmp= (*file)->end_bulk_update()))
+      error= tmp;
+  } while (*(++file));
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Add the row to the bulk update on the partition on which the row is stored.
+  A bulk update allows a handler to batch the updated rows instead of
+  performing the updates one row at a time.
+
+  SYNOPSIS
+    bulk_update_row()
+    old_data                  Old record
+    new_data                  New record
+    dup_key_found             Number of duplicate keys found
+
+  RETURN VALUE
+    >1                        Error
+    1                         Bulk update not used, normal operation used
+    0                         Bulk update used by handler
+*/
+
+int ha_partition::bulk_update_row(const uchar *old_data, uchar *new_data,
+                                  ha_rows *dup_key_found)
+{
+  int error= 0;
+  uint32 part_id;
+  longlong func_value;
+  my_bitmap_map *old_map;
+  DBUG_ENTER("ha_partition::bulk_update_row");
+
+  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  error= m_part_info->get_partition_id(m_part_info, &part_id,
+                                       &func_value);
+  dbug_tmp_restore_column_map(table->read_set, old_map);
+  if (unlikely(error))
+  {
+    m_part_info->err_value= func_value;
+    goto end;
+  }
+
+  error= m_file[part_id]->ha_bulk_update_row(old_data, new_data,
+                                             dup_key_found);
+
+end:
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Perform bulk delete preparation on each partition.
+
+  SYNOPSIS
+    start_bulk_delete()
+
+  RETURN VALUE
+    TRUE                      Error
+    FALSE                     Success
+*/
+
+bool ha_partition::start_bulk_delete()
+{
+  handler **file= m_file;
+  DBUG_ENTER("ha_partition::start_bulk_delete");
+
+  do
+  {
+    if ((*file)->start_bulk_delete())
+      DBUG_RETURN(TRUE);
+  } while (*(++file));
+  DBUG_RETURN(FALSE);
+}
+
+
+/**
+  Perform bulk delete cleanup on each partition.
+
+  SYNOPSIS
+    end_bulk_delete()
+
+  RETURN VALUE
+    >0                        Error
+    0                         Success
+*/
+
+int ha_partition::end_bulk_delete()
+{
+  int error= 0;
+  handler **file= m_file;
+  DBUG_ENTER("ha_partition::end_bulk_delete");
+
+  do
+  {
+    int tmp;
+    if ((tmp= (*file)->end_bulk_delete()))
+      error= tmp;
+  } while (*(++file));
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Perform initialization for a direct update request.
+
+  SYNOPSIS
+    direct_update_rows_init()
+
+  RETURN VALUE
+    >0                        Error
+    0                         Success
+*/
+
+int ha_partition::direct_update_rows_init()
+{
+  int error;
+  uint i, j;
+  handler *file;
+  DBUG_ENTER("ha_partition::direct_update_rows_init");
+
+  if (bitmap_is_overlapping(&m_part_info->full_part_field_set,
+                            table->write_set)
+#if defined(HS_HAS_SQLCOM)
+      && (thd_sql_command(ha_thd()) != SQLCOM_HS_UPDATE ||
+          check_hs_update_overlapping(&ranges->start_key))
+#endif
+     )
+  {
+    DBUG_PRINT("info", ("partition FALSE by updating part_key"));
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  }
+
+  m_part_spec.start_part= 0;
+  m_part_spec.end_part= m_tot_parts - 1;
+  m_direct_update_part_spec= m_part_spec;
+
+  j= 0;
+  for (i= m_part_spec.start_part; i <= m_part_spec.end_part; i++)
+  {
+    if (bitmap_is_set(&(m_part_info->read_partitions), i) &&
+        bitmap_is_set(&(m_part_info->lock_partitions), i))
+    {
+      file= m_file[i];
+      if ((error= (m_pre_calling ?
+                   file->pre_direct_update_rows_init() :
+                   file->direct_update_rows_init())))
+      {
+        DBUG_PRINT("info", ("partition FALSE by storage engine"));
+        DBUG_RETURN(error);
+      }
+      j++;
+    }
+  }
+
+  TABLE_LIST *table_list= table->pos_in_table_list;
+  if (j != 1 && table_list)
+  {
+    while (table_list->parent_l)
+      table_list= table_list->parent_l;
+    st_select_lex *select_lex= table_list->select_lex;
+    DBUG_PRINT("info", ("partition select_lex=%p", select_lex));
+    if (select_lex && select_lex->explicit_limit)
+    {
+      DBUG_PRINT("info", ("partition explicit_limit=TRUE"));
+      DBUG_PRINT("info", ("partition offset_limit=%p",
+                          select_lex->offset_limit));
+      DBUG_PRINT("info", ("partition select_limit=%p",
+                          select_lex->select_limit));
+      DBUG_PRINT("info", ("partition FALSE by select_lex"));
+      DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    }
+  }
+  DBUG_PRINT("info", ("partition OK"));
+  DBUG_RETURN(0);
+}
+
+
+/**
+  Do initialization for performing parallel direct update
+  for a handlersocket update request.
+
+  SYNOPSIS
+    pre_direct_update_rows_init()
+
+  RETURN VALUE
+    >0                        Error
+    0                         Success
+*/
+
+int ha_partition::pre_direct_update_rows_init()
+{
+  int error;
+  DBUG_ENTER("ha_partition::pre_direct_update_rows_init");
+  m_pre_calling= TRUE;
+  error= direct_update_rows_init();
+  m_pre_calling= FALSE;
+  if (!error && bulk_access_started)
+    bulk_access_info_current->called= TRUE;
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Execute a direct update request.  A direct update request updates all
+  qualified rows in a single operation, rather than one row at a time.
+  The direct update operation is pushed down to each individual
+  partition.
+
+  SYNOPSIS
+    direct_update_rows()
+    update_rows               Number of updated rows
+
+  RETURN VALUE
+    >0                        Error
+    0                         Success
+*/
+
+int ha_partition::direct_update_rows(ha_rows *update_rows_result)
+{
+  int error;
+  bool rnd_seq= FALSE;
+  ha_rows update_rows= 0;
+  uint32 i;
+  handler *file;
+  DBUG_ENTER("ha_partition::direct_update_rows");
+
+  /* If first call to direct_update_rows with RND scan */
+  if ((m_pre_calling ? pre_inited : inited) == RND && m_scan_value == 1)
+  {
+    rnd_seq= TRUE;
+    m_scan_value= 2;
+  }
+
+  *update_rows_result= 0;
+  for (i= m_part_spec.start_part; i <= m_part_spec.end_part; i++)
+  {
+    file= m_file[i];
+    if (bitmap_is_set(&(m_part_info->read_partitions), i) &&
+        bitmap_is_set(&(m_part_info->lock_partitions), i))
+    {
+      if (rnd_seq && (m_pre_calling ? file->pre_inited : file->inited) == NONE)
+      {
+        if ((error= (m_pre_calling ?
+                     file->ha_pre_rnd_init(TRUE) :
+                     file->ha_rnd_init(TRUE))))
+          DBUG_RETURN(error);
+      }
+      if ((error= (m_pre_calling ?
+                   (file)->ha_pre_direct_update_rows() :
+                   (file)->ha_direct_update_rows(&update_rows))))
+      {
+        if (rnd_seq)
+        {
+          if (m_pre_calling)
+            file->ha_pre_rnd_end();
+          else
+            file->ha_rnd_end();
+        }
+        DBUG_RETURN(error);
+      }
+      *update_rows_result+= update_rows;
+      if (m_pre_calling)
+        bitmap_set_bit(&bulk_access_exec_bitmap, i);
+    }
+    if (rnd_seq)
+    {
+      if ((error= (m_pre_calling ?
+                   file->ha_pre_index_or_rnd_end() :
+                   file->ha_index_or_rnd_end())))
+        DBUG_RETURN(error);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+
+/**
+  Start parallel execution of a direct update for a handlersocket update
+  request.  A direct update request updates all qualified rows in a single
+  operation, rather than one row at a time.  The direct update operation
+  is pushed down to each individual partition.
+
+  SYNOPSIS
+    pre_direct_update_rows()
+
+  RETURN VALUE
+    >0                        Error
+    0                         Success
+*/
+
+int ha_partition::pre_direct_update_rows()
+{
+  int error;
+  ha_rows not_used= 0;
+  DBUG_ENTER("ha_partition::pre_direct_update_rows");
+  m_pre_calling= TRUE;
+  error= direct_update_rows(&not_used);
+  m_pre_calling= FALSE;
+  DBUG_RETURN(error);
+}
+
+
+#if defined(HS_HAS_SQLCOM)
+/**
+  Determine whether a key value being updated includes partition columns
+  when using handlersocket
+
+  SYNOPSIS
+    check_hs_update_overlapping()
+    key                       Key value
+
+  RETURN VALUE
+    TRUE                      The key value being updated does not include
+                              partition columns
+    FALSE                     The key value being updated does include
+                              partition columns
+*/
+
+bool ha_partition::check_hs_update_overlapping(key_range *key)
+{
+  Field *field;
+  uint store_length, length, var_len, field_index;
+  const uchar *ptr;
+  bool key_eq;
+  KEY *key_info;
+  KEY_PART_INFO *key_part;
+  key_part_map tgt_key_part_map= key->keypart_map;
+  char buf[MAX_FIELD_WIDTH], buf2[MAX_FIELD_WIDTH];
+  String tmp_str(buf, MAX_FIELD_WIDTH, &my_charset_bin), *str,
+         tmp_str2(buf2, MAX_FIELD_WIDTH, &my_charset_bin), *str2;
+  DBUG_ENTER("ha_partition::check_hs_update_overlapping");
+
+  key_info= &table->key_info[active_index];
+  for (key_part= key_info->key_part,
+       store_length= key_part->store_length, length= 0;
+       tgt_key_part_map;
+       length += store_length, tgt_key_part_map >>= 1, key_part++,
+       store_length= key_part->store_length)
+  {
+    field= key_part->field;
+    field_index= field->field_index;
+    if (bitmap_is_set(&m_part_info->full_part_field_set, field_index) &&
+        bitmap_is_set(table->write_set, field_index))
+    {
+      ptr= key->key + length;
+      key_eq= (tgt_key_part_map > 1);
+      if (key_part->null_bit && *ptr++)
+      {
+        if (key->flag != HA_READ_KEY_EXACT || !field->is_null())
+        {
+          DBUG_PRINT("info", ("spider flag=%u is_null=%s",
+                     key->flag,
+                     field->is_null() ? "TRUE" : "FALSE"));
+          DBUG_RETURN(TRUE);
+        }
+      }
+      else
+      {
+        if (field->type() == MYSQL_TYPE_BLOB ||
+            field->real_type() == MYSQL_TYPE_VARCHAR ||
+            field->type() == MYSQL_TYPE_GEOMETRY)
+        {
+          var_len= uint2korr(ptr);
+          tmp_str.set_quick((char *)ptr + HA_KEY_BLOB_LENGTH, var_len,
+                            &my_charset_bin);
+          str= &tmp_str;
+        }
+        else
+          str= field->val_str(&tmp_str, ptr);
+        str2= field->val_str(&tmp_str2);
+        if (str->length() != str2->length() ||
+            memcmp(str->ptr(), str2->ptr(), str->length()))
+        {
+          DBUG_PRINT("info", ("spider length=%u %u",
+                              str->length(), str2->length()));
+          DBUG_PRINT("info", ("spider length=%s %s",
+                              str->c_ptr_safe(), str2->c_ptr_safe()));
+          DBUG_RETURN(TRUE);
+        }
+      }
+    }
+  }
+
+  DBUG_PRINT("info", ("partition return FALSE"));
+  DBUG_RETURN(FALSE);
+}
+#endif
+
+
+/**
+  Perform initialization for a direct delete request.
+
+  SYNOPSIS
+    direct_delete_rows_init()
+
+  RETURN VALUE
+    >0                        Error
+    0                         Success
+*/
+
+int ha_partition::direct_delete_rows_init()
+{
+  int error;
+  uint i, j;
+  handler *file;
+  DBUG_ENTER("ha_partition::direct_delete_rows_init");
+
+  m_part_spec.start_part= 0;
+  m_part_spec.end_part= m_tot_parts - 1;
+  m_direct_update_part_spec= m_part_spec;
+
+  j= 0;
+  for (i= m_part_spec.start_part; i <= m_part_spec.end_part; i++)
+  {
+    if (bitmap_is_set(&(m_part_info->read_partitions), i) &&
+        bitmap_is_set(&(m_part_info->lock_partitions), i))
+    {
+      file= m_file[i];
+      if ((error= (m_pre_calling ?
+                   file->pre_direct_delete_rows_init() :
+                   file->direct_delete_rows_init())))
+      {
+        DBUG_PRINT("info", ("partition FALSE by storage engine"));
+        DBUG_RETURN(error);
+      }
+      j++;
+    }
+  }
+
+  TABLE_LIST *table_list= table->pos_in_table_list;
+  if (j != 1 && table_list)
+  {
+    while (table_list->parent_l)
+      table_list= table_list->parent_l;
+    st_select_lex *select_lex= table_list->select_lex;
+    DBUG_PRINT("info", ("partition select_lex=%p", select_lex));
+    if (select_lex && select_lex->explicit_limit)
+    {
+      DBUG_PRINT("info", ("partition explicit_limit=TRUE"));
+      DBUG_PRINT("info", ("partition offset_limit=%p",
+                          select_lex->offset_limit));
+      DBUG_PRINT("info", ("partition select_limit=%p",
+                          select_lex->select_limit));
+      DBUG_PRINT("info", ("partition FALSE by select_lex"));
+      DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    }
+  }
+  DBUG_PRINT("info", ("partition OK"));
+  DBUG_RETURN(0);
+}
+
+
+/**
+  Do initialization for performing parallel direct delete
+  for a handlersocket delete request.
+
+  SYNOPSIS
+    pre_direct_delete_rows_init()
+
+  RETURN VALUE
+    >0                        Error
+    0                         Success
+*/
+
+int ha_partition::pre_direct_delete_rows_init()
+{
+  int error;
+  DBUG_ENTER("ha_partition::pre_direct_delete_rows_init");
+  m_pre_calling= TRUE;
+  error= direct_delete_rows_init();
+  m_pre_calling= FALSE;
+  if (bulk_access_started)
+    bulk_access_info_current->called= TRUE;
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Execute a direct delete request.  A direct delete request deletes all
+  qualified rows in a single operation, rather than one row at a time.
+  The direct delete operation is pushed down to each individual
+  partition.
+
+  SYNOPSIS
+    direct_delete_rows()
+    delete_rows               Number of deleted rows
+
+  RETURN VALUE
+    >0                        Error
+    0                         Success
+*/
+
+int ha_partition::direct_delete_rows(ha_rows *delete_rows_result)
+{
+  int error;
+  bool rnd_seq= FALSE;
+  ha_rows delete_rows= 0;
+  uint32 i;
+  handler *file;
+  DBUG_ENTER("ha_partition::direct_delete_rows");
+
+  if ((m_pre_calling ? pre_inited : inited) == RND && m_scan_value == 1)
+  {
+    rnd_seq= TRUE;
+    m_scan_value= 2;
+  }
+
+  *delete_rows_result= 0;
+  m_part_spec= m_direct_update_part_spec;
+  for (i= m_part_spec.start_part; i <= m_part_spec.end_part; i++)
+  {
+    file= m_file[i];
+    if (bitmap_is_set(&(m_part_info->read_partitions), i) &&
+        bitmap_is_set(&(m_part_info->lock_partitions), i))
+    {
+      if (rnd_seq && (m_pre_calling ? file->pre_inited : file->inited) == NONE)
+      {
+        if ((error= (m_pre_calling ?
+                     file->ha_pre_rnd_init(TRUE) :
+                     file->ha_rnd_init(TRUE))))
+          DBUG_RETURN(error);
+      }
+      if ((error= (m_pre_calling ?
+                   file->ha_pre_direct_delete_rows() :
+                   file->ha_direct_delete_rows(&delete_rows))))
+      {
+        if (m_pre_calling)
+          file->ha_pre_rnd_end();
+        else
+          file->ha_rnd_end();
+        DBUG_RETURN(error);
+      }
+      delete_rows_result+= delete_rows;
+      if (m_pre_calling)
+        bitmap_set_bit(&bulk_access_exec_bitmap, i);
+    }
+    if (rnd_seq)
+    {
+      if ((error= (m_pre_calling ?
+                   file->ha_pre_index_or_rnd_end() :
+                   file->ha_index_or_rnd_end())))
+        DBUG_RETURN(error);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+
+/**
+  Start parallel execution of a direct delete for a handlersocket delete
+  request.  A direct delete request deletes all qualified rows in a single
+  operation, rather than one row at a time.  The direct delete operation
+  is pushed down to each individual partition.
+
+  SYNOPSIS
+    pre_direct_delete_rows()
+
+  RETURN VALUE
+    >0                        Error
+    0                         Success
+*/
+
+int ha_partition::pre_direct_delete_rows()
+{
+  int error;
+  ha_rows not_used;
+  DBUG_ENTER("ha_partition::pre_direct_delete_rows");
+  m_pre_calling= TRUE;
+  error= direct_delete_rows(&not_used);
+  m_pre_calling= FALSE;
+  if (!error && bulk_access_started)
+    bulk_access_info_current->called= TRUE;
+  DBUG_RETURN(error);
 }
 
 
