@@ -498,3 +498,31 @@ previous value for t1
 drop sequence t1;
 create table t1 (a int) engine=sql_sequence;
 ERROR 42000: Unknown storage engine 'sql_sequence'
+#
+# MDEV-13714 SEQUENCE option fix
+#
+create or replace table s (
+`next_value` bigint(21) not null,
+`min_value` bigint(21) not null,
+`max_value` bigint(21) not null,
+`start` bigint(21) not null,
+`increment` bigint(21) not null,
+`cache` bigint(21) not null,
+`cycle` tinyint(1) unsigned not null,
+`round` bigint(21) not null)
+sequence=0;
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_value` bigint(21) NOT NULL,
+  `min_value` bigint(21) NOT NULL,
+  `max_value` bigint(21) NOT NULL,
+  `start` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache` bigint(21) NOT NULL,
+  `cycle` tinyint(1) unsigned NOT NULL,
+  `round` bigint(21) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show create sequence s;
+ERROR 42S02: 'test.s' is not a SEQUENCE
+drop table s;
