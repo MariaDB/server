@@ -405,3 +405,20 @@ show create table s;
 --error ER_NOT_SEQUENCE
 show create sequence s;
 drop table s;
+
+--echo #
+--echo # MDEV-13721 drop sequence when temporary non-sequence fix
+--echo #
+
+create or replace sequence s;
+create temporary table s (i int);
+drop sequence s;
+show create table s;
+drop table s;
+
+create or replace sequence s;
+create temporary sequence s;
+show create table s;
+drop sequence s;
+show create table s;
+drop table s;
