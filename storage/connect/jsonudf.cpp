@@ -497,28 +497,26 @@ PVAL JSNX::ExpandArray(PGLOBAL g, PJAR arp, int n)
 /*********************************************************************************/
 PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 {
-//int     i, ars, nv = 0, nextsame = Tjp->NextSame;
-	int     i, nv = 0, nextsame = 0;
-	my_bool err;
+	int     i, ars = arp->size(), nv = 0, nextsame = 0;
+	bool    err;
 	OPVAL   op = Nodes[n].Op;
 	PVAL    val[2], vp = Nodes[n].Valp;
 	PJVAL   jvrp, jvp;
 	JVALUE  jval;
 
 	vp->Reset();
-//ars = arp->size();
 
 	if (trace)
-		htrc("CalculateArray size=%d\n", arp->size());
-//	htrc("CalculateArray size=%d\n", ars);
+		htrc("CalculateArray size=%d\n", ars);
+	else // This is temporary until we find a better way to fix the compiler
+		htrc("");	// bug sometime causing the next loop to be executed only once.
 
-	for (i = 0; i < arp->size(); i++) {
-//for (i = 0; i < ars; i++) {			 because compiler bug
+	for (i = 0; i < ars; i++) {
 		jvrp = arp->GetValue(i);
 
 		if (trace)
-			htrc("Value %s null=%d nv=%d\n",
-				jvrp->GetString(g), jvrp->IsNull() ? 1 : 0, nv);
+			htrc("i=%d Value %s null=%d nv=%d\n",
+				i, jvrp->GetString(g), jvrp->IsNull() ? 1 : 0, nv);
 
 		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) {
 			if (jvrp->IsNull()) {

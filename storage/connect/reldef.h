@@ -11,7 +11,7 @@
 
 #include "block.h"
 #include "catalog.h"
-#include "my_sys.h"
+//#include "my_sys.h"
 #include "mycat.h"
 
 typedef class  INDEXDEF *PIXDEF;
@@ -114,7 +114,7 @@ public:
   int     Sort;                 /* Table already sorted ???            */
   int     Multiple;             /* 0: No 1: DIR 2: Section 3: filelist */
   int     Degree;               /* Number of columns in the table      */
-  int     Pseudo;               /* Bit: 1 ROWID }Ok, 2 FILEID Ok        */
+  int     Pseudo;               /* Bit: 1 ROWID }Ok, 2 FILEID Ok       */
   bool    Read_Only;            /* true for read only tables           */
   const CHARSET_INFO *m_data_charset;
   const char *csname;           /* Table charset name                  */

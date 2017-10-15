@@ -654,7 +654,7 @@ bool JDBConn::Connect(PJPARM sop)
 	if (gmID(g, typid, "ColumnType", "(ILjava/lang/String;)I"))
 		return true;
 	else
-		m_Opened = true;
+		m_Connected = true;
 
 	return false;
 } // end of Connect

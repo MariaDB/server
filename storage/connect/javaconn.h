@@ -54,12 +54,12 @@ typedef jint(JNICALL *GETJVM) (JavaVM **, jsize, jsize *);
 typedef jint(JNICALL *GETDEF) (void *);
 #endif   // _DEBUG
 
-class JAVAConn;
+//class JAVAConn;
 
 /***********************************************************************/
 /*  JAVAConn class.                                                    */
 /***********************************************************************/
-class JAVAConn : public BLOCK {
+class DllExport JAVAConn : public BLOCK {
 	friend class TDBJMG;
 	friend class JMGDISC;
 private:

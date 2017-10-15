@@ -178,7 +178,7 @@ TDBJMG::TDBJMG(PMGODEF tdp) : TDBEXT(tdp)
 	Ops.User = NULL;
 	Ops.Pwd = NULL;
 	Ops.Scrollable = false;
-	Ops.Fsize = Ops.CheckSize(Rows);
+	Ops.Fsize = 0;
 	Fpos = -1;
 	N = 0;
 	Done = false;
