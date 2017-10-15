@@ -1592,9 +1592,9 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
 	ars = MY_MIN(Tjp->Limit, arp->size());
 
 	if (trace)
-		htrc("CalculateArray size=%d\n", ars);
-	else // This is temporary until we find a better way to fix the compiler
-		htrc("");	// bug sometime causing the next loop to be executed only once.
+		htrc("CalculateArray size=%d op=%d nextsame=%d\n", ars, op, nextsame);
+	else // This seems to prevent a bug in zip.test
+		htrc("");
 
 	for (i = 0; i < ars; i++) {
 		jvrp = arp->GetValue(i);
@@ -1614,7 +1614,11 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
       } else
         jvp = jvrp;
   
-      if (!nv++) {
+			if (trace)
+				htrc("jvp=%s null=%d\n",
+					jvp->GetString(g), jvp->IsNull() ? 1 : 0);
+
+			if (!nv++) {
         SetJsonValue(g, vp, jvp, n);
         continue;
       } else
@@ -1630,7 +1634,7 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
   
             val[0] = MulVal;
             err = vp->Compute(g, val, 1, op);
-            break;
+						break;
 //        case OP_NUM:
           case OP_SEP:
             val[0] = Nodes[n].Valp;
@@ -1646,7 +1650,14 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
         if (err)
           vp->Reset();
     
-        } // endif Null
+				if (trace) {
+					char buf(32);
+
+					htrc("vp='%s' err=%d\n",
+						vp->GetCharString(&buf), err ? 1 : 0);
+				} // endif trace
+
+			} // endif Null
 
       } while (Tjp->NextSame > nextsame);
 
