@@ -7043,8 +7043,15 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
     mode. Also, do not write the cached updates to binlog if binary logging is
     disabled (log-bin/sql_log_bin).
   */
-  if (wsrep_emulate_bin_log || !(thd->variables.option_bits & OPTION_BIN_LOG))
+  if (wsrep_emulate_bin_log)
+  {
     DBUG_RETURN(0);
+  }
+  else if (!(thd->variables.option_bits & OPTION_BIN_LOG))
+  {
+    cache_mngr->need_unlog= false;
+    DBUG_RETURN(0);
+  }
 
   entry.thd= thd;
   entry.cache_mngr= cache_mngr;
@@ -9367,11 +9374,19 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
 
   if (err)
     DBUG_RETURN(0);
+
+  bool need_unlog= cache_mngr->need_unlog;
+  /*
+    The transaction won't need the flag anymore.
+    Todo/fixme: consider to move the statement into cache_mngr->reset()
+                relocated to the current or later point.
+  */
+  cache_mngr->need_unlog= false;
   /*
     If using explicit user XA, we will not have XID. We must still return a
     non-zero cookie (as zero cookie signals error).
   */
-  if (!xid || !cache_mngr->need_unlog)
+  if (!xid || !need_unlog)
     DBUG_RETURN(BINLOG_COOKIE_DUMMY(cache_mngr->delayed_error));
   else
     DBUG_RETURN(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
@@ -9444,6 +9459,9 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
     if (b->binlog_id == binlog_id)
     {
       --b->xid_count;
+
+      DBUG_ASSERT(b->xid_count > 0); // catch unmatched (++) decrement
+
       break;
     }
     first= false;
