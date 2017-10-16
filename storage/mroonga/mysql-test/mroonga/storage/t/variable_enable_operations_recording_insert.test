@@ -1,4 +1,5 @@
 # Copyright(C) 2017 Naoya Murakami <naoya@createfield.com>
+# Copyright(C) 2017 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -14,23 +15,36 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
+--source include/not_embedded.inc
 --source ../../include/mroonga/have_mroonga.inc
---source ../../include/mroonga/have_mroonga_helper.inc
+--source ../../include/mroonga/load_mroonga_functions.inc
 
-SET GLOBAL mroonga_enable_operations_recording = true;
-FLUSH TABLES;
+--disable_warnings
+DROP TABLE IF EXISTS diaries;
+--enable_warnings
 
 CREATE TABLE diaries (
   title TEXT
 ) DEFAULT CHARSET=utf8;
 
-INSERT INTO diaries VALUES("Research for Mroonga");
-
-SELECT * FROM diaries;
-
-DROP TABLE diaries;
+SELECT mroonga_command('truncate mroonga_operations');
+INSERT INTO diaries VALUES("Unlogged: Research for Mroonga");
+SELECT mroonga_command('load --table mroonga_operations --values "[{}]"');
+SELECT mroonga_command('select mroonga_operations --output_columns _id');
 
 SET GLOBAL mroonga_enable_operations_recording = false;
 FLUSH TABLES;
 
+SELECT mroonga_command('truncate mroonga_operations');
+INSERT INTO diaries VALUES("Logged: Research for Mroonga");
+SELECT mroonga_command('load --table mroonga_operations --values "[{}]"');
+SELECT mroonga_command('select mroonga_operations --output_columns _id');
+
+DROP TABLE diaries;
+SELECT mroonga_command('truncate mroonga_operations');
+
+SET GLOBAL mroonga_enable_operations_recording = default;
+FLUSH TABLES;
+
+--source ../../include/mroonga/unload_mroonga_functions.inc
 --source ../../include/mroonga/have_mroonga_deinit.inc

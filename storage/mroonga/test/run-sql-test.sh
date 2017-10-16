@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Copyright(C) 2010  Tetsuro IKEDA
-# Copyright(C) 2010-2015  Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2010-2017  Kouhei Sutou <kou@clear-code.com>
 # Copyright(C) 2011  Kazuhiko
 #
 # This library is free software; you can redistribute it and/or
@@ -228,7 +228,6 @@ mysql_test_run_args=""
 if [ "${percona}" != "yes" ]; then
   mysql_test_run_args="${mysql_test_run_args} --mem"
 fi
-mysql_test_run_args="${mysql_test_run_args} --no-check-testcases"
 mysql_test_run_args="${mysql_test_run_args} --parallel=${n_processors}"
 mysql_test_run_args="${mysql_test_run_args} --retry=1"
 mysql_test_run_args="${mysql_test_run_args} --suite=${test_suite_names}"

@@ -36,7 +36,11 @@ DEFAULT_INCLUDES =				\
 
 DEFS += -D_REENTRANT $(GRN_DEFS) -DGRN_DAT_EXPORT
 
-include sources.am
+include c_sources.am
+include cpp_sources.am
+libgroonga_la_SOURCES =				\
+	$(libgroonga_c_sources)			\
+	$(libgroonga_cpp_source)
 
 #nfkc.c:
 #	$(RUBY) nfkc.rb --impl=table

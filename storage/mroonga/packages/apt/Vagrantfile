@@ -16,7 +16,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     },
     {
       :id => "debian-stretch-i386",
-      :box_url => "http://packages.groonga.org/tmp/debian-9.0-i386.virtualbox.box",
+      :box => "bento/debian-9.1-i386",
     },
     {
       :id => "debian-stretch-amd64",

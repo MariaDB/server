@@ -16,6 +16,7 @@
 
 --source ../../include/mroonga/skip_mysql_5_5.inc
 --source ../../include/mroonga/skip_mariadb_5_5.inc
+--source ../../include/mroonga/skip_mariadb_10_1.inc
 --source include/have_innodb.inc
 --source ../../include/mroonga/have_mroonga.inc
 

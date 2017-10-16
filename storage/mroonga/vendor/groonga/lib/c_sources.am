@@ -1,7 +1,6 @@
-libgroonga_la_SOURCES =				\
+libgroonga_c_sources =				\
 	alloc.c					\
 	grn_alloc.h				\
-	arrow.cpp				\
 	cache.c					\
 	grn_cache.h				\
 	column.c				\
@@ -15,7 +14,6 @@ libgroonga_la_SOURCES =				\
 	grn_ctx_impl.h				\
 	ctx_impl_mrb.c				\
 	grn_ctx_impl_mrb.h			\
-	dat.cpp					\
 	grn_dat.h				\
 	db.c					\
 	grn_db.h				\
