@@ -117,7 +117,7 @@ GTID_BINLOG_STATE=$(echo "SHOW GLOBAL VARIABLES LIKE 'gtid_binlog_state'" |\
 $MYSQL_CLIENT $AUTH -S$WSREP_SST_OPT_SOCKET --disable-reconnect --connect_timeout=10 |\
 tail -1 | awk -F ' ' '{ print $2 }')
 
-MYSQL="$MYSQL_CLIENT --defaults-extra-file=$WSREP_SST_OPT_CONF "\
+MYSQL="$MYSQL_CLIENT $WSREP_SST_OPT_CONF "\
 "$AUTH -h${WSREP_SST_OPT_HOST_UNESCAPED:-$WSREP_SST_OPT_HOST} "\
 "-P$WSREP_SST_OPT_PORT --disable-reconnect --connect_timeout=10"
 
