@@ -1,5 +1,13 @@
 # Test to check the behavior of galera cluster with sql_log_bin=ON|OFF & binary
 # logging is disabled. sql_bin_log should not affect galera replication.
+#
+# The following bugfixes are tested:
+#
+# MDEV-9510: Segmentation fault in binlog thread.
+#   A scenario otherwise causing a similar segfault is replayed.
+#   The test must pass having no crashes.
+#   The sequence of sql statements is provided by original
+#   sql_log_bin.test augmented with a FLUSH BINLOG LOGS, below.
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
@@ -15,6 +23,10 @@ INSERT INTO t1 VALUES (1);
 --echo # Disable binary logging for current session
 SET SQL_LOG_BIN=OFF;
 INSERT INTO t1 VALUES (2);
+
+# MDEV-9510: the following binlog rotation due to FLUSH segfaults wo/  the fixes
+FLUSH BINARY LOGS;
+
 CREATE TABLE t2(c1 INT PRIMARY KEY) ENGINE=INNODB;
 INSERT INTO t2 VALUES (1);
 CREATE TABLE test.t3 AS SELECT * from t1;
