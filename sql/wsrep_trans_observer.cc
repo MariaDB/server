@@ -1007,7 +1007,8 @@ static int wsrep_after_commit(Trans_param *param)
   }
 
   DBUG_ASSERT(thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID ||
-              thd->wsrep_exec_mode == LOCAL_COMMIT);
+              thd->wsrep_exec_mode == LOCAL_COMMIT ||
+              thd->wsrep_exec_mode == LOCAL_ROLLBACK);
   DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT ||
               thd->wsrep_conflict_state() == MUST_ABORT);
 
