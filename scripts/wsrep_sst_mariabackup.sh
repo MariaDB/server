@@ -22,6 +22,7 @@
 
 . $(dirname $0)/wsrep_sst_common
 
+OS=$(uname)
 ealgo=""
 ekey=""
 ekeyfile=""
@@ -320,6 +321,7 @@ read_cnf()
     rebuild=$(parse_cnf sst rebuild 0)
     ttime=$(parse_cnf sst time 0)
     cpat=$(parse_cnf sst cpat '.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
+    [ $OS == "FreeBSD" ] && cpat=$(parse_cnf sst cpat '.*galera\.cache$|.*sst_in_progress$|.*\.sst$|.*gvwstate\.dat$|.*grastate\.dat$|.*\.err$|.*\.log$|.*RPM_UPGRADE_MARKER$|.*RPM_UPGRADE_HISTORY$')
     ealgo=$(parse_cnf xtrabackup encrypt "")
     ekey=$(parse_cnf xtrabackup encrypt-key "")
     ekeyfile=$(parse_cnf xtrabackup encrypt-key-file "")
@@ -900,7 +902,11 @@ then
 
 
         wsrep_log_info "Cleaning the existing datadir and innodb-data/log directories"
-        find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1  -regex $cpat  -prune  -o -exec rm -rfv {} 1>&2 \+
+        if [ $OS == "FreeBSD ]; then
+            find -E $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1  -regex $cpat  -prune  -o -exec rm -rfv {} 1>&2 \+
+        else
+            find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1  -regex $cpat  -prune  -o -exec rm -rfv {} 1>&2 \+
+        fi
 
         tempdir=$(parse_cnf mysqld log-bin "")
         if [[ -n ${tempdir:-} ]];then
