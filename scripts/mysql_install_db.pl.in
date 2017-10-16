@@ -320,7 +320,7 @@ elsif ( $opt->{basedir} )
                     find_in_basedir($opt,"file","mysqld-nt",
                                   "bin");  # ,"sql"
   $srcpkgdatadir  = find_in_basedir($opt,"dir","fill_help_tables.sql",
-                                    "share","share/mysql");  # ,"scripts"
+                                    "share","@INSTALL_MYSQLSHAREDIR@");  # ,"scripts"
   $buildpkgdir    = $srcpkgdatadir;
   $scriptdir      = "$opt->{basedir}/scripts";
 }
