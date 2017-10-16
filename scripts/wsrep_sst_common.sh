@@ -129,6 +129,17 @@ done
 readonly WSREP_SST_OPT_BYPASS
 readonly WSREP_SST_OPT_BINLOG
 
+if [ -n "$WSREP_SST_OPT_ADDR_PORT" ]; then
+  if [ -n "$WSREP_SST_OPT_PORT" ]; then
+    if [ "$WSREP_SST_OPT_PORT" != "$WSREP_SST_OPT_ADDR_PORT" ]; then
+      wsrep_log_error "port in --port=$WSREP_SST_OPT_PORT differs from port in --address=$WSREP_SST_OPT_ADDR"
+      exit 2
+    fi
+  else
+    readonly WSREP_SST_OPT_PORT="$WSREP_SST_OPT_ADDR_PORT"
+  fi
+fi
+
 # try to use my_print_defaults, mysql and mysqldump that come with the sources
 # (for MTR suite)
 SCRIPTS_DIR="$(cd $(dirname "$0"); pwd -P)"
