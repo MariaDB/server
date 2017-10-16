@@ -29,6 +29,13 @@ static my_bool verbose, print_all_codes;
 
 #include <my_base.h>
 #include <my_handler_errors.h>
+#include <mysqld_error.h>
+
+#define MAX_ROWS  2000
+#define HEADER_LENGTH 32                /* Length of header in errmsg.sys */
+#define INFILE "errmsg.sys"
+#define DATADIRECTORY "../sql/share/"
+#define LANGUAGE "english/"
 
 static struct my_option my_long_options[] =
 {
@@ -176,22 +183,63 @@ static st_error global_error_names[] =
 */
 int get_ER_error_msg(uint code, const char **name_ptr, const char **msg_ptr)
 {
-  st_error *tmp_error;
+  char errfile[FN_REFLEN];
+  FILE *from;
+  uchar buf[1024];
+  size_t length = 0;
+  size_t count = 0;
+  size_t file_pos[MAX_ROWS+1];
+  int i;
+  uint offset = 0;
 
-  tmp_error= & global_error_names[0];
+  DBUG_ENTER("get_ER_error_msg");
 
-  while (tmp_error->name != NULL)
+  if (code < ER_ERROR_FIRST || code > ER_ERROR_LAST)
+    DBUG_RETURN(0);
+
+  *name_ptr= "";
+  *msg_ptr = "";
+
+  strxmov(errfile, DATADIRECTORY, LANGUAGE, FN_ROOTDIR, INFILE, NullS);
+
+  if (!(from= my_fopen(errfile, O_RDONLY | FILE_BINARY, MYF(MY_WME))))
+    DBUG_RETURN(0);
+
+  if (my_fread(from, buf, HEADER_LENGTH, MYF(MY_WME)) != HEADER_LENGTH)
   {
-    if (tmp_error->code == code)
-    {
-      *name_ptr= tmp_error->name;
-      *msg_ptr= tmp_error->text;
-      return 1;
-    }
-    tmp_error++;
+    my_fclose(from, MYF(MY_WME));
+    DBUG_RETURN(0);
   }
 
-  return 0;
+  length= uint4korr(buf+6);
+  count= uint2korr(buf+10);
+  size_t start_pos= (size_t) (HEADER_LENGTH + count * 2);
+
+  file_pos[0]= start_pos;
+  for (i= 1; i <= count; i++)
+  {
+    if (my_fread(from, buf, 2, MYF(MY_WME)) != 2)
+    {
+      my_fclose(from, MYF(MY_WME));
+      DBUG_RETURN(0);
+    }
+    file_pos[i]= file_pos[i-1] + uint2korr(buf);
+  }
+
+  size_t msg_pos = code - ER_ERROR_FIRST;
+  my_fseek(from, file_pos[msg_pos], MY_SEEK_SET, MYF(MY_WME));
+
+  size_t msg_size = file_pos[msg_pos+1] - file_pos[msg_pos];
+  if (my_fread(from, buf, msg_size, MYF(MY_WME)) != msg_size)
+  {
+    my_fclose(from, MYF(MY_WME));
+    DBUG_RETURN(0);
+  }
+  buf[msg_size+1] = '\0';
+  *msg_ptr= buf;
+
+  my_fclose(from, MYF(MY_WME));
+  DBUG_RETURN(1);
 }
 
 #if defined(__WIN__)
@@ -336,7 +384,7 @@ int main(int argc,char *argv[])
       {
         found= 1;
         if (verbose)
-          printf("MySQL error code %3d (%s): %s\n", code, name, msg);
+          printf("MySQL error code %3d: %s\n", code, msg);
         else
           puts(msg);
       }
