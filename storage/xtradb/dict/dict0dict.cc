@@ -570,15 +570,14 @@ dict_table_close(
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_a(table->n_ref_count > 0);
 
-	--table->n_ref_count;
+	const bool last_handle = !--table->n_ref_count;
 
 	/* Force persistent stats re-read upon next open of the table
 	so that FLUSH TABLE can be used to forcibly fetch stats from disk
 	if they have been manually modified. We reset table->stat_initialized
 	only if table reference count is 0 because we do not want too frequent
 	stats re-reads (e.g. in other cases than FLUSH TABLE). */
-	if (strchr(table->name, '/') != NULL
-	    && table->n_ref_count == 0
+	if (last_handle && strchr(table->name, '/') != NULL
 	    && dict_stats_is_persistent_enabled(table)) {
 
 		dict_stats_deinit(table);
@@ -598,11 +597,8 @@ dict_table_close(
 
 	if (!dict_locked) {
 		table_id_t	table_id	= table->id;
-		ibool		drop_aborted;
-
-		drop_aborted = try_drop
+		const bool	drop_aborted	= last_handle && try_drop
 			&& table->drop_aborted
-			&& table->n_ref_count == 1
 			&& dict_table_get_first_index(table);
 
 		mutex_exit(&dict_sys->mutex);
@@ -2096,8 +2092,9 @@ dict_table_remove_from_cache_low(
 	}
 
 	if (lru_evict && table->drop_aborted) {
-		/* Do as dict_table_try_drop_aborted() does. */
-
+		/* When evicting the table definition,
+		drop the orphan indexes from the data dictionary
+		and free the index pages. */
 		trx_t* trx = trx_allocate_for_background();
 
 		ut_ad(mutex_own(&dict_sys->mutex));
@@ -2108,12 +2105,8 @@ dict_table_remove_from_cache_low(
 		trx->dict_operation_lock_mode = RW_X_LATCH;
 
 		trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
+		row_merge_drop_indexes_dict(trx, table->id);
 
-		/* Silence a debug assertion in row_merge_drop_indexes(). */
-		ut_d(table->n_ref_count++);
-		row_merge_drop_indexes(trx, table, TRUE);
-		ut_d(table->n_ref_count--);
-		ut_ad(table->n_ref_count == 0);
 		trx_commit_for_mysql(trx);
 		trx->dict_operation_lock_mode = 0;
 		trx_free_for_background(trx);
