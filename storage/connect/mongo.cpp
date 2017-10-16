@@ -33,6 +33,7 @@
 #define MAXCOL          200        /* Default max column nb in result  */
 #define TYPE_UNKNOWN     12        /* Must be greater than other types */
 
+bool MakeSelector(PGLOBAL g, PFIL fp, PSTRG s);
 bool IsNum(PSZ s);
 
 /***********************************************************************/
@@ -130,7 +131,7 @@ PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info)
 	int      i, n = 0;
 	PCSZ     drv;
 	PBCOL    bcp;
-	MGODISC *cmgd;
+	MGODISC *cmgd = NULL;
 	PQRYRES  qrp;
 	PCOLRES  crp;
 
@@ -223,7 +224,7 @@ skipit:
 	return qrp;
 
 err:
-	if (cmgd->tmgp)
+	if (cmgd && cmgd->tmgp)
 		cmgd->tmgp->CloseDB(g);
 
 	return NULL;

@@ -1592,16 +1592,14 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
 	ars = MY_MIN(Tjp->Limit, arp->size());
 
 	if (trace)
-		htrc("CalculateArray size=%d op=%d nextsame=%d\n", ars, op, nextsame);
-	else // This seems to prevent a bug in zip.test
-		htrc("");
+		htrc("CalculateArray: size=%d op=%d nextsame=%d\n",
+			ars, op, nextsame);
 
 	for (i = 0; i < ars; i++) {
 		jvrp = arp->GetValue(i);
 
 		if (trace)
-			htrc("i=%d Value %s null=%d nv=%d\n",
-				i, jvrp->GetString(g), jvrp->IsNull() ? 1 : 0, nv);
+			htrc("i=%d nv=%d\n", i, nv);
 
 		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) do {
 			if (jvrp->IsNull()) {
@@ -1623,7 +1621,7 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
         continue;
       } else
         SetJsonValue(g, MulVal, jvp, n);
-  
+
 			if (!MulVal->IsNull()) {
 				switch (op) {
           case OP_CNC:
@@ -1655,6 +1653,7 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
 
 					htrc("vp='%s' err=%d\n",
 						vp->GetCharString(&buf), err ? 1 : 0);
+
 				} // endif trace
 
 			} // endif Null

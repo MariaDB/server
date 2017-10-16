@@ -512,6 +512,9 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 	for (i = 0; i < ars; i++) {
 		jvrp = arp->GetValue(i);
 
+		if (trace)
+			htrc("i=%d nv=%d\n", i, nv);
+
 		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) {
 			if (jvrp->IsNull()) {
 				jvrp->Value = AllocateValue(g, GetJsonNull(), TYPE_STRING);

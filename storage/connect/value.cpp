@@ -1656,10 +1656,18 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
   char *p[2], val[2][32];
   int   i;
 
-  for (i = 0; i < np; i++)
-    p[i] = vp[i]->IsNull() ? NULL : vp[i]->GetCharString(val[i]);
+	if (trace)
+		htrc("Compute: np=%d op=%d\n", np, op);
 
-	if (p[i]) {
+	for (i = 0; i < np; i++) {
+		p[i] = vp[i]->IsNull() ? NULL : vp[i]->GetCharString(val[i]);
+
+		if (trace)
+			htrc("p[%d]=%s\n", i, p[i]);
+
+	} // endfor i
+
+	if (p[0] && p[np - 1]) {
 		switch (op) {
 			case OP_CNC:
 				assert(np == 1 || np == 2);
@@ -1669,6 +1677,9 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 
 				if ((i = Len - (signed)strlen(Strp)) > 0)
 					strncat(Strp, p[np - 1], i);
+
+				if (trace)
+					htrc("Strp=%s\n", Strp);
 
 				break;
 			case OP_MIN:
