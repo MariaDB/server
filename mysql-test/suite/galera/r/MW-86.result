@@ -1,8 +1,15 @@
+connection node_2;
+connection node_1;
+connection node_2;
 SET SESSION wsrep_sync_wait = 1;
 SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+connection node_1;
 CREATE DATABASE db1;
 CREATE TABLE bar (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO bar VALUES (1);
+connection node_2;
 SHOW BINARY LOGS;
 SHOW BINLOG EVENTS;
 SHOW COLUMNS FROM t1;
@@ -33,11 +40,14 @@ SET GLOBAL DEBUG = "";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 SET SESSION wsrep_sync_wait = 8;
 DROP DATABASE db1;
+connection node_2;
 SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT0.1S";
 SET SESSION wsrep_sync_wait = 8;
 SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+connection node_1;
 CREATE TABLE q (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO q VALUES (1);
+connection node_2;
 SHOW BINARY LOGS;
 SHOW BINLOG EVENTS;
 SHOW COLUMNS FROM t1;
