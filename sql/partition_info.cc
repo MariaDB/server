@@ -3383,6 +3383,7 @@ static bool has_same_column_order(List<Create_field> *create_list,
 
 bool partition_info::vers_trx_id_to_ts(THD* thd, Field* in_trx_id, Field_timestamp& out_ts)
 {
+  DBUG_ASSERT(table);
   handlerton *hton= plugin_hton(table->s->db_plugin);
   DBUG_ASSERT(hton);
   ulonglong trx_id= in_trx_id->val_int();
