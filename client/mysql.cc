@@ -1067,8 +1067,7 @@ static void fix_history(String *final_command);
 
 static COMMANDS *find_command(char *name);
 static COMMANDS *find_command(char cmd_name);
-static bool add_line(String &buffer, char *line, ulong line_length,
-                     char *in_string, bool *ml_comment, bool truncated);
+static bool add_line(String &, char *, ulong, char *, bool *, bool);
 static void remove_cntrl(String &buffer);
 static void print_table_data(MYSQL_RES *result);
 static void print_table_data_html(MYSQL_RES *result);
