@@ -8264,41 +8264,6 @@ static int check_role_is_granted_callback(ACL_USER_BASE *grantee, void *data)
   return 0;
 }
 
-/* Check if a role is granted to a user/role. We traverse the role graph
-   and return true if we find a match.
-
-   hostname == NULL means we are looking for a role as a starting point,
-   otherwise a user.
-*/
-bool check_role_is_granted(const char *username,
-                           const char *hostname,
-                           const char *rolename)
-{
-  DBUG_ENTER("check_role_is_granted");
-  ACL_USER_BASE *root;
-  bool result= false;
-  mysql_mutex_lock(&acl_cache->lock);
-  if (hostname)
-    root= find_user_exact(username, hostname);
-  else
-    root= find_acl_role(username);
-
-  LEX_CSTRING role_lex;
-  role_lex.str= rolename;
-  role_lex.length= strlen(rolename);
-
-  if (root && /* No grantee, nothing to search. */
-      traverse_role_graph_down(root, &role_lex, check_role_is_granted_callback,
-                               NULL) == -1)
-  {
-    /* We have found the role during our search. */
-    result= true;
-  }
-
-  /* We haven't found the role or we had no initial grantee to start from. */
-  mysql_mutex_unlock(&acl_cache->lock);
-  DBUG_RETURN(result);
-}
 /*
   Open the grant tables.
 
@@ -10212,6 +10177,45 @@ applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
 }
 
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
+
+/* Check if a role is granted to a user/role. We traverse the role graph
+   and return true if we find a match.
+
+   hostname == NULL means we are looking for a role as a starting point,
+   otherwise a user.
+*/
+bool check_role_is_granted(const char *username,
+                           const char *hostname,
+                           const char *rolename)
+{
+  DBUG_ENTER("check_role_is_granted");
+  bool result= false;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  ACL_USER_BASE *root;
+  mysql_mutex_lock(&acl_cache->lock);
+  if (hostname)
+    root= find_user_exact(username, hostname);
+  else
+    root= find_acl_role(username);
+
+  LEX_CSTRING role_lex;
+  role_lex.str= rolename;
+  role_lex.length= strlen(rolename);
+
+  if (root && /* No grantee, nothing to search. */
+      traverse_role_graph_down(root, &role_lex, check_role_is_granted_callback,
+                               NULL) == -1)
+  {
+    /* We have found the role during our search. */
+    result= true;
+  }
+
+  /* We haven't found the role or we had no initial grantee to start from. */
+  mysql_mutex_unlock(&acl_cache->lock);
+#endif
+  DBUG_RETURN(result);
+}
+
 
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 {
