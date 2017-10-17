@@ -10,7 +10,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#include "sql_class.h"
+//#include "sql_class.h"
 //#include "sql_time.h"
 
 #if defined(__WIN__)
@@ -35,9 +35,6 @@
 #include "array.h"
 #include "filter.h"
 #include "xindex.h"
-#if defined(MONGO_SUPPORT) || defined(JDBC_SUPPORT)
-#include "tabext.h"
-#endif   // MONGO_SUPPORT  || JDBC_SUPPORT
 
 /***********************************************************************/
 /*  Utility routines.                                                  */
@@ -1405,86 +1402,6 @@ PFIL FILTER::Copy(PTABS t)
   return newfilchain;
   } // end of Copy
 #endif // 0
-
-#if defined(MONGO_SUPPORT)
-/***********************************************************************/
-/*  Make selector json representation for Mongo tables.                */
-/***********************************************************************/
-bool FILTER::MakeSelector(PGLOBAL g, PSTRG s)
-{
-	s->Append('{');
-
-	if (Opc == OP_AND || Opc == OP_OR) {
-		if (GetArgType(0) != TYPE_FILTER || GetArgType(1) != TYPE_FILTER)
-			return true;
-
-		s->Append("\"$");
-		s->Append(Opc == OP_AND ? "and" : "or");
-		s->Append("\":[");
-
-		if (((PFIL)Arg(0))->MakeSelector(g, s))
-			return true;
-
-		s->Append(',');
-
-		if (((PFIL)Arg(1))->MakeSelector(g, s))
-			return true;
-
-		s->Append(']');
-	} else {
-		if (GetArgType(0) != TYPE_COLBLK)
-			return true;
-
-		s->Append('"');
-		s->Append(((PCOL)Arg(0))->GetJpath(g, false));
-		s->Append("\":{\"$");
-
-		switch (Opc) {
-			case OP_EQ:
-				s->Append("eq");
-				break;
-			case OP_NE:
-				s->Append("ne");
-				break;
-			case OP_GT:
-				s->Append("gt");
-				break;
-			case OP_GE:
-				s->Append("gte");
-				break;
-			case OP_LT:
-				s->Append("lt");
-				break;
-			case OP_LE:
-				s->Append("lte");
-				break;
-			case OP_NULL:
-			case OP_LIKE:
-			case OP_EXIST:
-			default:
-				return true;
-		} // endswitch Opc
-
-		s->Append("\":");
-
-		if (GetArgType(1) == TYPE_COLBLK) {
-			s->Append("\"$");
-			s->Append(((PEXTCOL)Arg(1))->GetJpath(g, false));
-			s->Append('"');
-		} else {
-			char buf[501];
-
-			Arg(1)->Prints(g, buf, 500);
-			s->Append(buf);
-		} // endif Type
-
-		s->Append('}');
-	} // endif Opc
-
-	s->Append('}');
-	return false;
-} // end of MakeSelector
-#endif   // MONGO_SUPPORT
 
 /*********************************************************************/
 /*  Make file output of FILTER contents.                             */

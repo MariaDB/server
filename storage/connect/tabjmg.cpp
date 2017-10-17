@@ -73,9 +73,10 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 											int ncol, int k)
 {
 	const char *key;
-	char colname[65];
-	char fmt[129];
-	bool rc = true;
+	char    colname[65];
+	char    fmt[129];
+	bool    rc = true;
+	size_t  z;
 	jint   *n = nullptr;
 	jstring jkey;
 	jobject jres;
@@ -105,14 +106,16 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 		if (pcn) {
 			strncpy(colname, pcn, 64);
 			colname[64] = 0;
-			strncat(strncat(colname, "_", 65), key, 65);
+			z = 65 - strlen(colname);
+			strncat(strncat(colname, "_", z), key, z - 1);
 		} else
 			strcpy(colname, key);
 
 		if (pfmt) {
 			strncpy(fmt, pfmt, 128);
 			fmt[128] = 0;
-			strncat(strncat(fmt, ".", 129), key, 129);
+			z = 129 - strlen(fmt);
+			strncat(strncat(fmt, ".", z), key, z - 1);
 		} else
 			strcpy(fmt, key);
 
@@ -178,7 +181,7 @@ TDBJMG::TDBJMG(PMGODEF tdp) : TDBEXT(tdp)
 	Ops.User = NULL;
 	Ops.Pwd = NULL;
 	Ops.Scrollable = false;
-	Ops.Fsize = Ops.CheckSize(Rows);
+	Ops.Fsize = 0;
 	Fpos = -1;
 	N = 0;
 	Done = false;
