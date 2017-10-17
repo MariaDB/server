@@ -1218,6 +1218,7 @@ fil_mutex_enter_and_prepare_for_io(
 					fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 
 					count++;
+					mutex_enter(&fil_system->mutex);
 					continue;
 				}
 			}
