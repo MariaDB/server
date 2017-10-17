@@ -7,7 +7,10 @@
 --source include/galera_cluster.inc
 
 --connection node_1
+SEt GLOBAL wsrep_on=OFF;
 RESET MASTER;
+SEt GLOBAL wsrep_on=ON;
+FLUSH BINARY LOGS;
 
 SET SESSION binlog_format = 'STATEMENT';
 
@@ -40,6 +43,6 @@ REVOKE ALL PRIVILEGES, GRANT OPTION FROM dummy@localhost;
 DROP USER dummy@localhost;
 DROP DATABASE testdb_9401;
 
---source include/galera_end.inc
+#--source include/galera_end.inc
 --echo # End of tests
 
