@@ -1,5 +1,6 @@
 set @@session.time_zone='+00:00';
 select ifnull(max(transaction_id), 0) into @start_trx_id from information_schema.innodb_vtq;
+set @test_start=now(6);
 create procedure if not exists verify_vtq()
 begin
 set @i= 0;
@@ -7,7 +8,7 @@ select
 @i:= @i + 1 as No,
 transaction_id > 0 as A,
 commit_id > transaction_id as B,
-begin_timestamp > '1-1-1 0:0:0' as C,
+begin_timestamp > @test_start as C,
 commit_timestamp >= begin_timestamp as D
 from information_schema.innodb_vtq
 where transaction_id > @start_trx_id;
