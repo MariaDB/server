@@ -4,10 +4,6 @@
 
 --source include/have_innodb.inc
 
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
-
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b)) ENGINE = InnoDB;
 INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
                        ('Full-text indexes', 'are called collections'),
@@ -679,3 +675,20 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo End of 5.1 tests
+
+create table t (
+  FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY, t TEXT, FULLTEXT KEY (t)
+) ENGINE=InnoDB;
+
+INSERT INTO t values (1, 'foo bar'), (2, 'foo bar'), (3, 'foo');
+let $limit=0;
+let $N=6;
+while ($N)
+{
+ eval SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+ LIMIT $limit;
+ inc $limit;
+ dec $N;
+}
+
+DROP TABLE t;

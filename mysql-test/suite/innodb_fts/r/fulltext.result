@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3;
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b)) ENGINE = InnoDB;
 INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
 ('Full-text indexes', 'are called collections'),
@@ -637,3 +636,38 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 End of 5.1 tests
+create table t (
+FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY, t TEXT, FULLTEXT KEY (t)
+) ENGINE=InnoDB;
+INSERT INTO t values (1, 'foo bar'), (2, 'foo bar'), (3, 'foo');
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 0;
+FTS_DOC_ID	t
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 1;
+FTS_DOC_ID	t
+1	foo bar
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 2;
+FTS_DOC_ID	t
+1	foo bar
+2	foo bar
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 3;
+FTS_DOC_ID	t
+1	foo bar
+2	foo bar
+3	foo
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 4;
+FTS_DOC_ID	t
+1	foo bar
+2	foo bar
+3	foo
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 5;
+FTS_DOC_ID	t
+1	foo bar
+2	foo bar
+3	foo
+DROP TABLE t;
