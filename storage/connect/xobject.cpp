@@ -204,7 +204,7 @@ STRING::STRING(PGLOBAL g, uint n, PCSZ str)
       *Strp = 0;
 
     Next = GetNext();
-    Size = Next - Strp;
+    Size = (int)(Next - Strp);
 		Trc = false;
   } else {
     // This should normally never happen
@@ -239,7 +239,7 @@ char *STRING::Realloc(uint len)
     p = Strp;
 
   Next = GetNext();
-  Size = Next - p;
+  Size = (int)(Next - p);
   return p;
 } // end of Realloc
 

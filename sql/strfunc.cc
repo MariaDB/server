@@ -339,7 +339,7 @@ int find_string_in_array(LEX_CSTRING * const haystack, LEX_CSTRING * const needl
     if (!cs->coll->strnncollsp(cs, (uchar *) pos->str, pos->length,
                                (uchar *) needle->str, needle->length))
     {
-      return (pos - haystack);
+      return (int)(pos - haystack);
     }
   return -1;
 }

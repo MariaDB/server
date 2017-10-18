@@ -392,8 +392,8 @@ LEX::create_item_for_sp_var(LEX_CSTRING *name, sp_variable *spvar,
   DBUG_ASSERT(spcont && spvar);
 
   /* Position and length of the SP variable name in the query. */
-  pos_in_q= start_in_q - sphead->m_tmp_query;
-  len_in_q= end_in_q - start_in_q;
+  pos_in_q= (uint)(start_in_q - sphead->m_tmp_query);
+  len_in_q= (uint)(end_in_q - start_in_q);
 
   item= new (thd->mem_root)
     Item_splocal(thd, name, spvar->offset, spvar->sql_type(),

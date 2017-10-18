@@ -4743,11 +4743,20 @@ Sets a sparse flag on Windows file.
 @param[in]	file  file handle
 @return true on success, false on error
 */
-bool os_file_set_sparse_win32(os_file_t file)
+#include <versionhelpers.h>
+bool os_file_set_sparse_win32(os_file_t file, bool is_sparse)
 {
-
+	if (!is_sparse && !IsWindows8OrGreater()) {
+		/* Cannot  unset sparse flag on older Windows.
+		Until Windows8 it is documented to produce unpredictable results,
+		if there are unallocated ranges in file.*/
+		return false;
+	}
 	DWORD temp;
-	return os_win32_device_io_control(file, FSCTL_SET_SPARSE, 0, 0, 0, 0,&temp);
+	FILE_SET_SPARSE_BUFFER sparse_buffer;
+	sparse_buffer.SetSparse = is_sparse;
+	return os_win32_device_io_control(file,
+		FSCTL_SET_SPARSE, &sparse_buffer, sizeof(sparse_buffer), 0, 0,&temp);
 }
 
 
@@ -5319,23 +5328,73 @@ short_warning:
 
 #endif /* _WIN32 */
 
-/** Write the specified number of zeros to a newly created file.
-@param[in]	name		name of the file or path as a null-terminated
-				string
-@param[in]	file		handle to a file
-@param[in]	size		file size
-@param[in]	read_only	Enable read-only checks if true
-@return true if success */
+/** Extend a file.
+
+On Windows, extending a file allocates blocks for the file,
+unless the file is sparse.
+
+On Unix, we will extend the file with ftruncate(), if
+file needs to be sparse. Otherwise posix_fallocate() is used
+when available, and if not, binary zeroes are added to the end
+of file.
+
+@param[in]	name	file name
+@param[in]	file	file handle
+@param[in]	size	desired file size
+@param[in]	sparse	whether to create a sparse file (no preallocating)
+@return	whether the operation succeeded */
 bool
 os_file_set_size(
 	const char*	name,
 	os_file_t	file,
 	os_offset_t	size,
-	bool		read_only)
+	bool	is_sparse)
 {
 #ifdef _WIN32
+	/* On Windows, changing file size works well and as expected for both
+	sparse and normal files.
+
+	However, 10.2 up until 10.2.9 made every file sparse in innodb,
+	causing NTFS fragmentation issues(MDEV-13941). We try to undo
+	the damage, and unsparse the file.*/
+
+	if (!is_sparse && os_is_sparse_file_supported(file)) {
+		if (!os_file_set_sparse_win32(file, false))
+			/* Unsparsing file failed. Fallback to writing binary
+			zeros, to avoid even higher fragmentation.*/
+			goto fallback;
+	}
+
 	return os_file_change_size_win32(name, file, size);
-#endif
+
+fallback:
+#else
+	if (is_sparse) {
+		bool success = !ftruncate(file, size);
+		if (!success) {
+			ib::error() << "ftruncate of file " << name <<
+				" to " << size << " bytes failed with error " << errno;
+		}
+		return(success);
+	}
+
+# ifdef HAVE_POSIX_FALLOCATE
+	int err;
+	do {
+		err = posix_fallocate(file, 0, size);
+	} while (err == EINTR
+		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
+
+	if (err) {
+		ib::error() <<
+			"preallocating " << size << " bytes for" <<
+			"file " << name << "failed with error " << err;
+	}
+	errno = err;
+	return(!err);
+# endif /* HAVE_POSIX_ALLOCATE */
+#endif /* _WIN32*/
+
 	/* Write up to 1 megabyte at a time. */
 	ulint	buf_size = ut_min(
 		static_cast<ulint>(64),
@@ -5353,12 +5412,13 @@ os_file_set_size(
 	/* Write buffer full of zeros */
 	memset(buf, 0, buf_size);
 
-	if (size >= (os_offset_t) 100 << 20) {
+	os_offset_t	current_size = os_file_get_size(file);
+	bool write_progress_info =
+		(size - current_size >= (os_offset_t) 100 << 20);
 
+	if (write_progress_info) {
 		ib::info() << "Progress in MB:";
 	}
-
-	os_offset_t	current_size = 0;
 
 	while (current_size < size) {
 		ulint	n_bytes;
@@ -5382,8 +5442,9 @@ os_file_set_size(
 		}
 
 		/* Print about progress for each 100 MB written */
-		if ((current_size + n_bytes) / (100 << 20)
-		    != current_size / (100 << 20)) {
+		if (write_progress_info &&
+			((current_size + n_bytes) / (100 << 20)
+				!= current_size / (100 << 20))) {
 
 			fprintf(stderr, " %lu00",
 				(ulong) ((current_size + n_bytes)
@@ -5393,7 +5454,7 @@ os_file_set_size(
 		current_size += n_bytes;
 	}
 
-	if (size >= (os_offset_t) 100 << 20) {
+	if (write_progress_info) {
 
 		fprintf(stderr, "\n");
 	}
@@ -5578,10 +5639,11 @@ os_is_sparse_file_supported(os_file_t fh)
 	);
 
 #ifdef _WIN32
-	BY_HANDLE_FILE_INFORMATION info;
-	if (GetFileInformationByHandle(fh,&info)) {
-		if (info.dwFileAttributes != INVALID_FILE_ATTRIBUTES) {
-			return (info.dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0;
+	FILE_ATTRIBUTE_TAG_INFO info;
+	if (GetFileInformationByHandleEx(fh, FileAttributeTagInfo,
+		&info, (DWORD)sizeof(info))) {
+		if (info.FileAttributes != INVALID_FILE_ATTRIBUTES) {
+			return (info.FileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0;
 		}
 	}
 	return false;

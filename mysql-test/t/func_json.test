@@ -56,6 +56,7 @@ select json_contains('[1, {"a":1}]', '{}');
 select json_contains('[1, {"a":1}]', '{"a":1}');
 select json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]');
 select json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]');
+select json_contains('[{"a":"b"},{"c":"d"}]','{"c":"d"}');
 
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]");
@@ -163,6 +164,14 @@ drop table t1;
 
 select json_unquote('"abc"');
 select json_unquote('abc');
+#
+# MDEV-13703 Illegal mix of collations for operation 'json_object' on using JSON_UNQUOTE as an argument.
+#
+create table t1 (c VARCHAR(8)) DEFAULT CHARSET=latin1;
+insert into t1 values ('abc'),('def');
+ 
+select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld from t1;
+drop table t1;
 
 select json_object("a", json_object("b", "abcd"));
 select json_object("a", '{"b": "abcd"}');
@@ -179,6 +188,7 @@ select json_length('{}');
 select json_length('[1, 2, {"a": 3}]');
 select json_length('{"a": 1, "b": {"c": 30}}', '$.b');
 select json_length('{"a": 1, "b": {"c": 30}}');
+select json_length('{}{');
 
 create table json (j INT);
 show create table json;
@@ -360,6 +370,12 @@ select json_array(5,json_query('[1,2]','$'));
 
 SELECT JSON_ARRAY('1. ě 2. š 3. č 4. ř 5. ž 6. ý 7. á 8. í 9. é 10. ů 11. ú') AS json_data;
 SELECT JSON_OBJECT("user","Jožko Mrkvičká") as json_data;
+
+#
+# MDEV-12312 JSON_CONTAINS_PATH does not detect invalid path and returns TRUE.
+#
+
+select json_contains_path('{"foo":"bar"}', 'one', '$[]');
 
 --echo #
 --echo # Start of 10.3 tests

@@ -336,9 +336,14 @@ sub start_kill {
 
 sub dump_core {
   my ($self)= @_;
-  return if IS_WINDOWS;
   my $pid= $self->{SAFE_PID};
   die "Can't get core from not started process" unless defined $pid;
+
+  if (IS_WINDOWS) {
+    system("$safe_kill $pid dump");
+    return 1;
+  }
+
   _verbose("Sending ABRT to $self");
   kill ("ABRT", $pid);
   return 1;

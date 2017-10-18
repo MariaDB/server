@@ -1232,19 +1232,27 @@ os_file_get_size(
 	os_file_t	file)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Write the specified number of zeros to a newly created file.
-@param[in]	name		name of the file or path as a null-terminated
-				string
-@param[in]	file		handle to a file
-@param[in]	size		file size
-@param[in]	read_only	Enable read-only checks if true
-@return true if success */
+/** Extend a file.
+
+On Windows, extending a file allocates blocks for the file,
+unless the file is sparse.
+
+On Unix, we will extend the file with ftruncate(), if
+file needs to be sparse. Otherwise posix_fallocate() is used
+when available, and if not, binary zeroes are added to the end
+of file.
+
+@param[in]	name	file name
+@param[in]	file	file handle
+@param[in]	size	desired file size
+@param[in]	sparse	whether to create a sparse file (no preallocating)
+@return	whether the operation succeeded */
 bool
 os_file_set_size(
 	const char*	name,
 	os_file_t	file,
 	os_offset_t	size,
-	bool		read_only)
+	bool		is_sparse = false)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Truncates a file at its current position.
@@ -1575,8 +1583,10 @@ os_file_set_umask(ulint umask);
 Make file sparse, on Windows.
 
 @param[in]	file  file handle
+@param[in]	is_sparse if true, make file sparse,
+			otherwise "unsparse" the file
 @return true on success, false on error */
-bool os_file_set_sparse_win32(os_file_t file);
+bool os_file_set_sparse_win32(os_file_t file, bool is_sparse = true);
 
 /**
 Changes file size on Windows

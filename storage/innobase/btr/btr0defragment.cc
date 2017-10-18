@@ -564,7 +564,7 @@ btr_defragment_merge_pages(
 				page_get_infimum_rec(from_page));
 			node_ptr = dict_index_build_node_ptr(
 				index, rec, page_get_page_no(from_page),
-				heap, level + 1);
+				heap, level);
 			btr_insert_on_non_leaf_level(0, index, level+1,
 						     node_ptr, mtr);
 		}
@@ -797,11 +797,16 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 
 		now = ut_timer_now();
 		mtr_start(&mtr);
-		btr_pcur_restore_position(BTR_MODIFY_TREE, pcur, &mtr);
 		cursor = btr_pcur_get_btr_cur(pcur);
 		index = btr_cur_get_index(cursor);
-		first_block = btr_cur_get_block(cursor);
 		mtr.set_named_space(index->space);
+		/* To follow the latching order defined in WL#6326, acquire index->lock X-latch.
+		This entitles us to acquire page latches in any order for the index. */
+		mtr_x_lock(&index->lock, &mtr);
+		/* This will acquire index->lock SX-latch, which per WL#6363 is allowed
+		when we are already holding the X-latch. */
+		btr_pcur_restore_position(BTR_MODIFY_TREE, pcur, &mtr);
+		first_block = btr_cur_get_block(cursor);
 
 		last_block = btr_defragment_n_pages(first_block, index,
 						    srv_defragment_n_pages,

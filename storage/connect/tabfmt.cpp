@@ -934,7 +934,7 @@ int TDBCSV::ReadBuffer(PGLOBAL g)
 
         if (p) {
           //len = p++ - p2;
-					len = p - p2 - 1;;
+					len = (int)(p - p2 - 1);
 
 //        if (Sep != ' ')
 //          for (; *p == ' '; p++) ;          // Skip blanks
@@ -978,7 +978,7 @@ int TDBCSV::ReadBuffer(PGLOBAL g)
           return RC_NF;
 
       } else if ((p = strchr(p2, Sep)))
-        len = p - p2;
+        len = (int)(p - p2);
       else if (i == Fields - 1)
         len = strlen(p2);
       else if (Accept && Maxerr == 0) {
@@ -996,7 +996,7 @@ int TDBCSV::ReadBuffer(PGLOBAL g)
     } else
       len = 0;
 
-    Offset[i] = p2 - To_Line;
+    Offset[i] = (int)(p2 - To_Line);
 
     if (Mode != MODE_UPDATE)
       Fldlen[i] = len;

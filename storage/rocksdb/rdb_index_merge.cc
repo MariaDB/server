@@ -31,17 +31,38 @@ namespace myrocks {
 Rdb_index_merge::Rdb_index_merge(const char *const tmpfile_path,
                                  const ulonglong &merge_buf_size,
                                  const ulonglong &merge_combine_read_size,
-                                 const rocksdb::Comparator *const comparator)
+                                 const ulonglong &merge_tmp_file_removal_delay,
+                                 rocksdb::ColumnFamilyHandle *cf)
     : m_tmpfile_path(tmpfile_path), m_merge_buf_size(merge_buf_size),
       m_merge_combine_read_size(merge_combine_read_size),
-      m_comparator(comparator), m_rec_buf_unsorted(nullptr),
-      m_output_buf(nullptr) {}
+      m_merge_tmp_file_removal_delay(merge_tmp_file_removal_delay),
+      m_cf_handle(cf), m_rec_buf_unsorted(nullptr), m_output_buf(nullptr) {}
 
 Rdb_index_merge::~Rdb_index_merge() {
   /*
-    Close tmp file, we don't need to worry about deletion, mysql handles it.
+    If merge_tmp_file_removal_delay is set, sleep between calls to chsize.
+
+    This helps mitigate potential trim stalls on flash when large files are
+    being deleted too quickly.
   */
-  my_close(m_merge_file.fd, MYF(MY_WME));
+  if (m_merge_tmp_file_removal_delay > 0) {
+    uint64 curr_size = m_merge_buf_size * m_merge_file.m_num_sort_buffers;
+    for (uint i = 0; i < m_merge_file.m_num_sort_buffers; i++) {
+      if (my_chsize(m_merge_file.m_fd, curr_size, 0, MYF(MY_WME))) {
+        // NO_LINT_DEBUG
+        sql_print_error("Error truncating file during fast index creation.");
+      }
+
+      my_sleep(m_merge_tmp_file_removal_delay * 1000);
+      curr_size -= m_merge_buf_size;
+    }
+  }
+
+  /*
+    Close file descriptor, we don't need to worry about deletion,
+    mysql handles it.
+  */
+  my_close(m_merge_file.m_fd, MYF(MY_WME));
 }
 
 int Rdb_index_merge::init() {
@@ -75,7 +96,7 @@ int Rdb_index_merge::init() {
   Create a merge file in the given location.
 */
 int Rdb_index_merge::merge_file_create() {
-  DBUG_ASSERT(m_merge_file.fd == -1);
+  DBUG_ASSERT(m_merge_file.m_fd == -1);
 
   int fd;
 #ifdef MARIAROCKS_NOT_YET // mysql_tmpfile_path use 
@@ -89,11 +110,13 @@ int Rdb_index_merge::merge_file_create() {
   fd = mysql_tmpfile("myrocks");
 #endif
   if (fd < 0) {
+    // NO_LINT_DEBUG
+    sql_print_error("Failed to create temp file during fast index creation.");
     return HA_ERR_ROCKSDB_MERGE_FILE_ERR;
   }
 
-  m_merge_file.fd = fd;
-  m_merge_file.num_sort_buffers = 0;
+  m_merge_file.m_fd = fd;
+  m_merge_file.m_num_sort_buffers = 0;
 
   return HA_EXIT_SUCCESS;
 }
@@ -114,10 +137,10 @@ int Rdb_index_merge::add(const rocksdb::Slice &key, const rocksdb::Slice &val) {
     out to disk in sorted order using offset tree.
   */
   const uint total_offset = RDB_MERGE_CHUNK_LEN +
-                            m_rec_buf_unsorted->curr_offset +
+                            m_rec_buf_unsorted->m_curr_offset +
                             RDB_MERGE_KEY_DELIMITER + RDB_MERGE_VAL_DELIMITER +
                             key.size() + val.size();
-  if (total_offset >= m_rec_buf_unsorted->total_size) {
+  if (total_offset >= m_rec_buf_unsorted->m_total_size) {
     /*
       If the offset tree is empty here, that means that the proposed key to
       add is too large for the buffer.
@@ -136,7 +159,7 @@ int Rdb_index_merge::add(const rocksdb::Slice &key, const rocksdb::Slice &val) {
     }
   }
 
-  const ulonglong rec_offset = m_rec_buf_unsorted->curr_offset;
+  const ulonglong rec_offset = m_rec_buf_unsorted->m_curr_offset;
 
   /*
     Store key and value in temporary unsorted in memory buffer pointed to by
@@ -145,8 +168,15 @@ int Rdb_index_merge::add(const rocksdb::Slice &key, const rocksdb::Slice &val) {
   m_rec_buf_unsorted->store_key_value(key, val);
 
   /* Find sort order of the new record */
-  m_offset_tree.emplace(m_rec_buf_unsorted->block.get() + rec_offset,
-                        m_comparator);
+  auto res =
+      m_offset_tree.emplace(m_rec_buf_unsorted->m_block.get() + rec_offset,
+                            m_cf_handle->GetComparator());
+  if (!res.second) {
+    my_printf_error(ER_DUP_ENTRY,
+                    "Failed to insert the record: the key already exists",
+                    MYF(0));
+    return ER_DUP_ENTRY;
+  }
 
   return HA_EXIT_SUCCESS;
 }
@@ -155,33 +185,33 @@ int Rdb_index_merge::add(const rocksdb::Slice &key, const rocksdb::Slice &val) {
   Sort + write merge buffer chunk out to disk.
 */
 int Rdb_index_merge::merge_buf_write() {
-  DBUG_ASSERT(m_merge_file.fd != -1);
+  DBUG_ASSERT(m_merge_file.m_fd != -1);
   DBUG_ASSERT(m_rec_buf_unsorted != nullptr);
   DBUG_ASSERT(m_output_buf != nullptr);
   DBUG_ASSERT(!m_offset_tree.empty());
 
   /* Write actual chunk size to first 8 bytes of the merge buffer */
-  merge_store_uint64(m_output_buf->block.get(),
-                     m_rec_buf_unsorted->curr_offset + RDB_MERGE_CHUNK_LEN);
-  m_output_buf->curr_offset += RDB_MERGE_CHUNK_LEN;
+  merge_store_uint64(m_output_buf->m_block.get(),
+                     m_rec_buf_unsorted->m_curr_offset + RDB_MERGE_CHUNK_LEN);
+  m_output_buf->m_curr_offset += RDB_MERGE_CHUNK_LEN;
 
   /*
     Iterate through the offset tree.  Should be ordered by the secondary key
     at this point.
   */
   for (const auto &rec : m_offset_tree) {
-    DBUG_ASSERT(m_output_buf->curr_offset <= m_merge_buf_size);
+    DBUG_ASSERT(m_output_buf->m_curr_offset <= m_merge_buf_size);
 
     /* Read record from offset (should never fail) */
     rocksdb::Slice key;
     rocksdb::Slice val;
-    merge_read_rec(rec.block, &key, &val);
+    merge_read_rec(rec.m_block, &key, &val);
 
     /* Store key and value into sorted output buffer */
     m_output_buf->store_key_value(key, val);
   }
 
-  DBUG_ASSERT(m_output_buf->curr_offset <= m_output_buf->total_size);
+  DBUG_ASSERT(m_output_buf->m_curr_offset <= m_output_buf->m_total_size);
 
   /*
     Write output buffer to disk.
@@ -189,8 +219,9 @@ int Rdb_index_merge::merge_buf_write() {
     Need to position cursor to the chunk it needs to be at on filesystem
     then write into the respective merge buffer.
   */
-  if (my_seek(m_merge_file.fd, m_merge_file.num_sort_buffers * m_merge_buf_size,
-              SEEK_SET, MYF(0)) == MY_FILEPOS_ERROR) {
+  if (my_seek(m_merge_file.m_fd,
+              m_merge_file.m_num_sort_buffers * m_merge_buf_size, SEEK_SET,
+              MYF(0)) == MY_FILEPOS_ERROR) {
     // NO_LINT_DEBUG
     sql_print_error("Error seeking to location in merge file on disk.");
     return HA_ERR_ROCKSDB_MERGE_FILE_ERR;
@@ -201,16 +232,16 @@ int Rdb_index_merge::merge_buf_write() {
     cache can flush out all of the files at the same time, causing a write
     burst.
   */
-  if (my_write(m_merge_file.fd, m_output_buf->block.get(),
-               m_output_buf->total_size, MYF(MY_WME | MY_NABP)) ||
-      mysql_file_sync(m_merge_file.fd, MYF(MY_WME))) {
+  if (my_write(m_merge_file.m_fd, m_output_buf->m_block.get(),
+               m_output_buf->m_total_size, MYF(MY_WME | MY_NABP)) ||
+      mysql_file_sync(m_merge_file.m_fd, MYF(MY_WME))) {
     // NO_LINT_DEBUG
     sql_print_error("Error writing sorted merge buffer to disk.");
     return HA_ERR_ROCKSDB_MERGE_FILE_ERR;
   }
 
   /* Increment merge file offset to track number of merge buffers written */
-  m_merge_file.num_sort_buffers += 1;
+  m_merge_file.m_num_sort_buffers += 1;
 
   /* Reset everything for next run */
   merge_reset();
@@ -233,28 +264,29 @@ int Rdb_index_merge::merge_heap_prepare() {
     return HA_ERR_ROCKSDB_MERGE_FILE_ERR;
   }
 
-  DBUG_ASSERT(m_merge_file.num_sort_buffers > 0);
+  DBUG_ASSERT(m_merge_file.m_num_sort_buffers > 0);
 
   /*
     For an n-way merge, we need to read chunks of each merge file
     simultaneously.
   */
   ulonglong chunk_size =
-      m_merge_combine_read_size / m_merge_file.num_sort_buffers;
+      m_merge_combine_read_size / m_merge_file.m_num_sort_buffers;
   if (chunk_size >= m_merge_buf_size) {
     chunk_size = m_merge_buf_size;
   }
 
   /* Allocate buffers for each chunk */
-  for (ulonglong i = 0; i < m_merge_file.num_sort_buffers; i++) {
-    const auto entry = std::make_shared<merge_heap_entry>(m_comparator);
+  for (ulonglong i = 0; i < m_merge_file.m_num_sort_buffers; i++) {
+    const auto entry =
+        std::make_shared<merge_heap_entry>(m_cf_handle->GetComparator());
 
     /*
       Read chunk_size bytes from each chunk on disk, and place inside
       respective chunk buffer.
     */
     const size_t total_size =
-        entry->prepare(m_merge_file.fd, i * m_merge_buf_size, chunk_size);
+        entry->prepare(m_merge_file.m_fd, i * m_merge_buf_size, chunk_size);
 
     if (total_size == (size_t)-1) {
       return HA_ERR_ROCKSDB_MERGE_FILE_ERR;
@@ -266,7 +298,7 @@ int Rdb_index_merge::merge_heap_prepare() {
     }
 
     /* Read the first record from each buffer to initially populate the heap */
-    if (entry->read_rec(&entry->key, &entry->val)) {
+    if (entry->read_rec(&entry->m_key, &entry->m_val)) {
       // NO_LINT_DEBUG
       sql_print_error("Chunk size is too small to process merge.");
       return HA_ERR_ROCKSDB_MERGE_FILE_ERR;
@@ -291,7 +323,7 @@ int Rdb_index_merge::next(rocksdb::Slice *const key,
     If there are no sort buffer records (alters on empty tables),
     also exit here.
   */
-  if (m_merge_file.num_sort_buffers == 0) {
+  if (m_merge_file.m_num_sort_buffers == 0) {
     if (m_offset_tree.empty()) {
       return -1;
     }
@@ -299,7 +331,7 @@ int Rdb_index_merge::next(rocksdb::Slice *const key,
     const auto rec = m_offset_tree.begin();
 
     /* Read record from offset */
-    merge_read_rec(rec->block, key, val);
+    merge_read_rec(rec->m_block, key, val);
 
     m_offset_tree.erase(rec);
     return HA_EXIT_SUCCESS;
@@ -339,8 +371,8 @@ void Rdb_index_merge::merge_heap_top(rocksdb::Slice *const key,
   DBUG_ASSERT(!m_merge_min_heap.empty());
 
   const std::shared_ptr<merge_heap_entry> &entry = m_merge_min_heap.top();
-  *key = entry->key;
-  *val = entry->val;
+  *key = entry->m_key;
+  *val = entry->m_val;
 }
 
 /**
@@ -360,12 +392,12 @@ int Rdb_index_merge::merge_heap_pop_and_get_next(rocksdb::Slice *const key,
 
   /*
     We are finished w/ current chunk if:
-    current_offset + disk_offset == total_size
+    current_offset + disk_offset == m_total_size
 
     Return without adding entry back onto heap.
     If heap is also empty, we must be finished with merge.
   */
-  if (entry->chunk_info->is_chunk_finished()) {
+  if (entry->m_chunk_info->is_chunk_finished()) {
     if (m_merge_min_heap.empty()) {
       return -1;
     }
@@ -377,19 +409,19 @@ int Rdb_index_merge::merge_heap_pop_and_get_next(rocksdb::Slice *const key,
   /*
     Make sure we haven't reached the end of the chunk.
   */
-  DBUG_ASSERT(!entry->chunk_info->is_chunk_finished());
+  DBUG_ASSERT(!entry->m_chunk_info->is_chunk_finished());
 
   /*
     If merge_read_rec fails, it means the either the chunk was cut off
     or we've reached the end of the respective chunk.
   */
-  if (entry->read_rec(&entry->key, &entry->val)) {
-    if (entry->read_next_chunk_from_disk(m_merge_file.fd)) {
+  if (entry->read_rec(&entry->m_key, &entry->m_val)) {
+    if (entry->read_next_chunk_from_disk(m_merge_file.m_fd)) {
       return HA_ERR_ROCKSDB_MERGE_FILE_ERR;
     }
 
     /* Try reading record again, should never fail. */
-    if (entry->read_rec(&entry->key, &entry->val)) {
+    if (entry->read_rec(&entry->m_key, &entry->m_val)) {
       return HA_ERR_ROCKSDB_MERGE_FILE_ERR;
     }
   }
@@ -403,32 +435,33 @@ int Rdb_index_merge::merge_heap_pop_and_get_next(rocksdb::Slice *const key,
 }
 
 int Rdb_index_merge::merge_heap_entry::read_next_chunk_from_disk(File fd) {
-  if (chunk_info->read_next_chunk_from_disk(fd)) {
+  if (m_chunk_info->read_next_chunk_from_disk(fd)) {
     return HA_EXIT_FAILURE;
   }
 
-  block = chunk_info->block.get();
+  m_block = m_chunk_info->m_block.get();
   return HA_EXIT_SUCCESS;
 }
 
 int Rdb_index_merge::merge_buf_info::read_next_chunk_from_disk(File fd) {
-  disk_curr_offset += curr_offset;
+  m_disk_curr_offset += m_curr_offset;
 
-  if (my_seek(fd, disk_curr_offset, SEEK_SET, MYF(0)) == MY_FILEPOS_ERROR) {
+  if (my_seek(fd, m_disk_curr_offset, SEEK_SET, MYF(0)) == MY_FILEPOS_ERROR) {
     // NO_LINT_DEBUG
     sql_print_error("Error seeking to location in merge file on disk.");
     return HA_EXIT_FAILURE;
   }
 
   /* Overwrite the old block */
-  const size_t bytes_read = my_read(fd, block.get(), block_len, MYF(MY_WME));
+  const size_t bytes_read =
+      my_read(fd, m_block.get(), m_block_len, MYF(MY_WME));
   if (bytes_read == (size_t)-1) {
     // NO_LINT_DEBUG
     sql_print_error("Error reading merge file from disk.");
     return HA_EXIT_FAILURE;
   }
 
-  curr_offset = 0;
+  m_curr_offset = 0;
   return HA_EXIT_SUCCESS;
 }
 
@@ -464,39 +497,39 @@ void Rdb_index_merge::read_slice(rocksdb::Slice *slice,
 
 int Rdb_index_merge::merge_heap_entry::read_rec(rocksdb::Slice *const key,
                                                 rocksdb::Slice *const val) {
-  const uchar *block_ptr = block;
-  const auto orig_offset = chunk_info->curr_offset;
-  const auto orig_block = block;
+  const uchar *block_ptr = m_block;
+  const auto orig_offset = m_chunk_info->m_curr_offset;
+  const auto orig_block = m_block;
 
   /* Read key at block offset into key slice and the value into value slice*/
   if (read_slice(key, &block_ptr) != 0) {
     return HA_EXIT_FAILURE;
   }
 
-  chunk_info->curr_offset += (uintptr_t)block_ptr - (uintptr_t)block;
-  block += (uintptr_t)block_ptr - (uintptr_t)block;
+  m_chunk_info->m_curr_offset += (uintptr_t)block_ptr - (uintptr_t)m_block;
+  m_block += (uintptr_t)block_ptr - (uintptr_t)m_block;
 
   if (read_slice(val, &block_ptr) != 0) {
-    chunk_info->curr_offset = orig_offset;
-    block = orig_block;
+    m_chunk_info->m_curr_offset = orig_offset;
+    m_block = orig_block;
     return HA_EXIT_FAILURE;
   }
 
-  chunk_info->curr_offset += (uintptr_t)block_ptr - (uintptr_t)block;
-  block += (uintptr_t)block_ptr - (uintptr_t)block;
+  m_chunk_info->m_curr_offset += (uintptr_t)block_ptr - (uintptr_t)m_block;
+  m_block += (uintptr_t)block_ptr - (uintptr_t)m_block;
 
   return HA_EXIT_SUCCESS;
 }
 
 int Rdb_index_merge::merge_heap_entry::read_slice(rocksdb::Slice *const slice,
                                                   const uchar **block_ptr) {
-  if (!chunk_info->has_space(RDB_MERGE_REC_DELIMITER)) {
+  if (!m_chunk_info->has_space(RDB_MERGE_REC_DELIMITER)) {
     return HA_EXIT_FAILURE;
   }
 
   uint64 slice_len;
   merge_read_uint64(block_ptr, &slice_len);
-  if (!chunk_info->has_space(RDB_MERGE_REC_DELIMITER + slice_len)) {
+  if (!m_chunk_info->has_space(RDB_MERGE_REC_DELIMITER + slice_len)) {
     return HA_EXIT_FAILURE;
   }
 
@@ -508,18 +541,18 @@ int Rdb_index_merge::merge_heap_entry::read_slice(rocksdb::Slice *const slice,
 
 size_t Rdb_index_merge::merge_heap_entry::prepare(File fd, ulonglong f_offset,
                                                   ulonglong chunk_size) {
-  chunk_info = std::make_shared<merge_buf_info>(chunk_size);
-  const size_t res = chunk_info->prepare(fd, f_offset);
+  m_chunk_info = std::make_shared<merge_buf_info>(chunk_size);
+  const size_t res = m_chunk_info->prepare(fd, f_offset);
   if (res != (size_t)-1) {
-    block = chunk_info->block.get() + RDB_MERGE_CHUNK_LEN;
+    m_block = m_chunk_info->m_block.get() + RDB_MERGE_CHUNK_LEN;
   }
 
   return res;
 }
 
 size_t Rdb_index_merge::merge_buf_info::prepare(File fd, ulonglong f_offset) {
-  disk_start_offset = f_offset;
-  disk_curr_offset = f_offset;
+  m_disk_start_offset = f_offset;
+  m_disk_curr_offset = f_offset;
 
   /*
     Need to position cursor to the chunk it needs to be at on filesystem
@@ -531,7 +564,8 @@ size_t Rdb_index_merge::merge_buf_info::prepare(File fd, ulonglong f_offset) {
     return (size_t)-1;
   }
 
-  const size_t bytes_read = my_read(fd, block.get(), total_size, MYF(MY_WME));
+  const size_t bytes_read =
+      my_read(fd, m_block.get(), m_total_size, MYF(MY_WME));
   if (bytes_read == (size_t)-1) {
     // NO_LINT_DEBUG
     sql_print_error("Error reading merge file from disk.");
@@ -542,10 +576,10 @@ size_t Rdb_index_merge::merge_buf_info::prepare(File fd, ulonglong f_offset) {
     Read the first 8 bytes of each chunk, this gives us the actual
     size of each chunk.
   */
-  const uchar *block_ptr = block.get();
-  merge_read_uint64(&block_ptr, &total_size);
-  curr_offset += RDB_MERGE_CHUNK_LEN;
-  return total_size;
+  const uchar *block_ptr = m_block.get();
+  merge_read_uint64(&block_ptr, &m_total_size);
+  m_curr_offset += RDB_MERGE_CHUNK_LEN;
+  return m_total_size;
 }
 
 /* Store key and value w/ their respective delimiters at the given offset */
@@ -557,13 +591,13 @@ void Rdb_index_merge::merge_buf_info::store_key_value(
 
 void Rdb_index_merge::merge_buf_info::store_slice(const rocksdb::Slice &slice) {
   /* Store length delimiter */
-  merge_store_uint64(&block[curr_offset], slice.size());
+  merge_store_uint64(&m_block[m_curr_offset], slice.size());
 
   /* Store slice data */
-  memcpy(&block[curr_offset + RDB_MERGE_REC_DELIMITER], slice.data(),
+  memcpy(&m_block[m_curr_offset + RDB_MERGE_REC_DELIMITER], slice.data(),
          slice.size());
 
-  curr_offset += slice.size() + RDB_MERGE_REC_DELIMITER;
+  m_curr_offset += slice.size() + RDB_MERGE_REC_DELIMITER;
 }
 
 void Rdb_index_merge::merge_reset() {
@@ -574,13 +608,13 @@ void Rdb_index_merge::merge_reset() {
   m_offset_tree.clear();
 
   /* Reset sort buffer block */
-  if (m_rec_buf_unsorted && m_rec_buf_unsorted->block) {
-    m_rec_buf_unsorted->curr_offset = 0;
+  if (m_rec_buf_unsorted && m_rec_buf_unsorted->m_block) {
+    m_rec_buf_unsorted->m_curr_offset = 0;
   }
 
   /* Reset output buf */
-  if (m_output_buf && m_output_buf->block) {
-    m_output_buf->curr_offset = 0;
+  if (m_output_buf && m_output_buf->m_block) {
+    m_output_buf->m_curr_offset = 0;
   }
 }
 

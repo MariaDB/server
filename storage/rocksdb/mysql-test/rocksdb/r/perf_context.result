@@ -127,6 +127,8 @@ AND STAT_TYPE in ('INTERNAL_KEY_SKIPPED_COUNT', 'INTERNAL_DELETE_SKIPPED_COUNT')
 TABLE_SCHEMA	TABLE_NAME	PARTITION_NAME	STAT_TYPE	VALUE
 test	t1	NULL	INTERNAL_KEY_SKIPPED_COUNT	10
 test	t1	NULL	INTERNAL_DELETE_SKIPPED_COUNT	0
+set @tmp_flush_log= @@rocksdb_flush_log_at_trx_commit;
+set global rocksdb_flush_log_at_trx_commit=1;
 BEGIN;
 INSERT INTO t2 VALUES (1), (2);
 INSERT INTO t2 VALUES (3), (4);
@@ -158,3 +160,4 @@ true
 DROP TABLE t1;
 DROP TABLE t2;
 SET GLOBAL rocksdb_perf_context_level = @prior_rocksdb_perf_context_level;
+set global rocksdb_flush_log_at_trx_commit= @tmp_flush_log;

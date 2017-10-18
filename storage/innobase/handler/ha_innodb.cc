@@ -6425,16 +6425,27 @@ ha_innobase::open(const char* name, int, uint)
 
 	ib_table = open_dict_table(name, norm_name, is_part, ignore_err);
 
+	if (NULL == ib_table) {
+
+		if (is_part) {
+			sql_print_error("Failed to open table %s.\n",
+					norm_name);
+		}
+no_such_table:
+		free_share(m_share);
+		set_my_errno(ENOENT);
+
+		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+	}
+
 	uint n_fields = mysql_fields(table);
+	uint n_cols = dict_table_get_n_user_cols(ib_table)
+		+ dict_table_get_n_v_cols(ib_table)
+		- !!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID);
 
-	if (ib_table != NULL
-	    && ((!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
-		 && n_fields != dict_table_get_n_tot_u_cols(ib_table))
-		|| (DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
-		    && (n_fields != dict_table_get_n_tot_u_cols(ib_table) - 1)))) {
-
+	if (n_cols != n_fields) {
 		ib::warn() << "Table " << norm_name << " contains "
-			<< dict_table_get_n_tot_u_cols(ib_table) << " user"
+			<< n_cols << " user"
 			" defined columns in InnoDB, but " << n_fields
 			<< " columns in MariaDB. Please check"
 			" INFORMATION_SCHEMA.INNODB_SYS_COLUMNS and " REFMAN
@@ -6446,21 +6457,7 @@ ha_innobase::open(const char* name, int, uint)
 		ib_table->file_unreadable = true;
 		ib_table->corrupted = true;
 		dict_table_close(ib_table, FALSE, FALSE);
-		ib_table = NULL;
-		is_part = NULL;
-	}
-
-	if (NULL == ib_table) {
-
-		if (is_part) {
-			sql_print_error("Failed to open table %s.\n",
-					norm_name);
-		}
-
-		free_share(m_share);
-		set_my_errno(ENOENT);
-
-		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+		goto no_such_table;
 	}
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
@@ -8210,13 +8207,16 @@ no_icp:
 			} else {
 				ibool	contain;
 
-				if (innobase_is_v_fld(table->field[i])) {
-					contain = dict_index_contains_col_or_prefix(
-						index, num_v, true);
-				} else {
+				if (!innobase_is_v_fld(table->field[i])) {
 					contain = dict_index_contains_col_or_prefix(
 						index, i - num_v,
 						false);
+				} else if (dict_index_is_clust(index)) {
+					num_v++;
+					continue;
+				} else {
+					contain = dict_index_contains_col_or_prefix(
+						index, num_v, true);
 				}
 
 				field = build_template_needs_field(
@@ -10540,10 +10540,8 @@ ha_innobase::ft_init_ext(
 	const byte*	q = reinterpret_cast<const byte*>(
 		const_cast<char*>(query));
 
-	// JAN: TODO: support for ft_init_ext_with_hints(), remove the line below
-	m_prebuilt->m_fts_limit= ULONG_UNDEFINED;
-	dberr_t	error = fts_query(trx, index, flags, q, query_len, &result,
-				  m_prebuilt->m_fts_limit);
+	// FIXME: support ft_init_ext_with_hints(), pass LIMIT
+	dberr_t	error = fts_query(trx, index, flags, q, query_len, &result);
 
 	if (error != DB_SUCCESS) {
 		my_error(convert_error_code_to_mysql(error, 0, NULL), MYF(0));
@@ -15077,7 +15075,7 @@ ha_innobase::optimize(
 	calls to OPTIMIZE, which is undesirable. */
 
 	/* TODO: Defragment is disabled for now */
-	if (0) {
+	if (srv_defragment) {
 		int err;
 
 		err = defragment_table(m_prebuilt->table->name.m_name, NULL, false);

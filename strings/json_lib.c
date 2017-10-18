@@ -1043,7 +1043,7 @@ static int json_path_transitions[N_PATH_STATES][N_PATH_CLASSES]=
 /* PT */  { PS_OK,  JE_SYN, PS_AST, PS_AR,  JE_SYN, PS_KEY, JE_SYN, JE_SYN,
             JE_SYN, JE_SYN, JE_SYN, JE_SYN, JE_SYN, JE_SYN,
             JE_NOT_JSON_CHR, JE_BAD_CHR},
-/* AR */  { JE_EOS, JE_SYN, PS_AWD, JE_SYN, PS_PT,  JE_SYN, PS_Z,
+/* AR */  { JE_EOS, JE_SYN, PS_AWD, JE_SYN, JE_SYN, JE_SYN, PS_Z,
             PS_INT, JE_SYN, JE_SYN, PS_SAR, JE_SYN, JE_SYN, JE_SYN,
             JE_NOT_JSON_CHR, JE_BAD_CHR},
 /* SAR */ { JE_EOS, JE_SYN, PS_AWD, JE_SYN, PS_PT,  JE_SYN, PS_Z,

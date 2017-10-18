@@ -581,7 +581,8 @@ String *Item_func_json_quote::val_str(String *str)
 
 void Item_func_json_unquote::fix_length_and_dec()
 {
-  collation.set(&my_charset_utf8_general_ci);
+  collation.set(&my_charset_utf8_general_ci,
+                DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_length;
   maybe_null= 1;
 }
@@ -1011,6 +1012,8 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
   case JSON_VALUE_ARRAY:
     if (value->value_type != JSON_VALUE_ARRAY)
     {
+      loc_js= *value;
+      set_js= FALSE;
       while (json_scan_next(js) == 0 && js->state != JST_ARRAY_END)
       {
         int c_level, v_scalar;
@@ -1020,6 +1023,11 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
 
         if (!(v_scalar= json_value_scalar(js)))
           c_level= json_get_level(js);
+
+        if (set_js)
+          *value= loc_js;
+        else
+          set_js= TRUE;
 
         if (check_contains(js, value))
         {
@@ -1452,7 +1460,8 @@ void Item_func_json_array::fix_length_and_dec()
 
   if (arg_count == 0)
   {
-    collation.set(&my_charset_utf8_general_ci);
+    collation.set(&my_charset_utf8_general_ci,
+                  DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     tmp_val.set_charset(&my_charset_utf8_general_ci);
     max_length= 2;
     return;
@@ -2126,6 +2135,7 @@ longlong Item_func_json_length::val_int()
   json_engine_t je;
   uint length= 0;
   uint array_counters[JSON_DEPTH_LIMIT];
+  int err;
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -2167,7 +2177,7 @@ longlong Item_func_json_length::val_int()
   if (json_value_scalar(&je))
     return 1;
 
-  while (json_scan_next(&je) == 0 &&
+  while (!(err= json_scan_next(&je)) &&
          je.state != JST_OBJ_END && je.state != JST_ARRAY_END)
   {
     switch (je.state)
@@ -2184,6 +2194,12 @@ longlong Item_func_json_length::val_int()
     default:
       break;
     };
+  }
+
+  if (!err)
+  {
+    /* Parse to the end of the JSON just to check it's valid. */
+    while (json_scan_next(&je) == 0) {}
   }
 
   if (!je.s.error)

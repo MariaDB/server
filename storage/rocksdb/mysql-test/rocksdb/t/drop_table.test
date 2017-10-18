@@ -10,6 +10,10 @@ DROP TABLE IF EXISTS t4;
 DROP TABLE IF EXISTS t5;
 --enable_warnings
 
+call mtr.add_suppression("Column family 'cf1' not found");
+call mtr.add_suppression("Column family 'rev:cf2' not found");
+call mtr.add_suppression("LibRocksDB");
+
 # Start from clean slate
 set global rocksdb_compact_cf = 'cf1';
 set global rocksdb_compact_cf = 'rev:cf2';
@@ -107,5 +111,8 @@ let $wait_condition = select count(*) = 0
                       where TYPE = 'DDL_DROP_INDEX_ONGOING';
 --source include/wait_condition.inc
 
+## Upstream has removed the following:
+--disable_parsing
+--enable_parsing
 # Cleanup
 drop table t1;

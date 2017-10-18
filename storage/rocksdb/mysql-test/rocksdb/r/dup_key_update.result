@@ -178,16 +178,20 @@ id1	id2	id3
 9	17	9
 DROP TABLE t1;
 DROP TABLE t2;
+set global rocksdb_large_prefix=1;
 CREATE TABLE t1 (id1 varchar(128) CHARACTER SET latin1 COLLATE latin1_bin,
 id2 varchar(256) CHARACTER SET utf8 COLLATE utf8_bin,
 id3 varchar(200) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
 PRIMARY KEY (id1, id2, id3),
 UNIQUE KEY (id3, id1)) ENGINE=ROCKSDB;
+set global rocksdb_large_prefix=DEFAULT;
+set global rocksdb_large_prefix=1;
 CREATE TABLE t2 (id1 varchar(128) CHARACTER SET latin1 COLLATE latin1_bin,
 id2 varchar(256) CHARACTER SET utf8 COLLATE utf8_bin,
 id3 varchar(200) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
 PRIMARY KEY (id1, id2, id3),
 UNIQUE KEY (id3, id1) COMMENT 'rev:cf') ENGINE=ROCKSDB;
+set global rocksdb_large_prefix=DEFAULT;
 INSERT INTO t1 VALUES (1, 1, 1) ON DUPLICATE KEY UPDATE id2 = 9;
 SELECT * FROM t1 WHERE id1 = 1;
 id1	id2	id3

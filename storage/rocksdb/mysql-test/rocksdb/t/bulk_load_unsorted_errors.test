@@ -1,0 +1,8 @@
+--source include/have_rocksdb.inc
+--source include/not_debug.inc
+
+# Cannot change unsorted input preference during bulk load
+SET rocksdb_bulk_load=1;
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
+SET rocksdb_bulk_load_allow_unsorted=1;
+SET rocksdb_bulk_load=0;

@@ -808,14 +808,6 @@ dict_table_get_n_user_cols(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
 	MY_ATTRIBUTE((warn_unused_result));
-/** Gets the number of user-defined virtual and non-virtual columns in a table
-in the dictionary cache.
-@param[in]	table	table
-@return number of user-defined (e.g., not ROW_ID) columns of a table */
-UNIV_INLINE
-ulint
-dict_table_get_n_tot_u_cols(
-	const dict_table_t*	table);
 /********************************************************************//**
 Gets the number of all non-virtual columns (also system) in a table
 in the dictionary cache.

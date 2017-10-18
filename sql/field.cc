@@ -240,7 +240,7 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
   //MYSQL_TYPE_NULL         MYSQL_TYPE_TIMESTAMP
     MYSQL_TYPE_FLOAT,       MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_LONGLONG     MYSQL_TYPE_INT24
-    MYSQL_TYPE_FLOAT,       MYSQL_TYPE_FLOAT,
+    MYSQL_TYPE_DOUBLE,      MYSQL_TYPE_FLOAT,
   //MYSQL_TYPE_DATE         MYSQL_TYPE_TIME
     MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_DATETIME     MYSQL_TYPE_YEAR
@@ -2240,15 +2240,15 @@ Field *Field::clone(MEM_ROOT *root, my_ptrdiff_t diff)
   return tmp;
 }
 
-void Field::set_default()
+int Field::set_default()
 {
   if (default_value)
   {
     Query_arena backup_arena;
     table->in_use->set_n_backup_active_arena(table->expr_arena, &backup_arena);
-    (void) default_value->expr->save_in_field(this, 0);
+    int rc= default_value->expr->save_in_field(this, 0);
     table->in_use->restore_active_arena(table->expr_arena, &backup_arena);
-    return;
+    return rc;
   }
   /* Copy constant value stored in s->default_values */
   my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
@@ -2257,6 +2257,7 @@ void Field::set_default()
   if (maybe_null_in_table())
     *null_ptr= ((*null_ptr & (uchar) ~null_bit) |
                 (null_ptr[l_offset] & null_bit));
+  return 0;
 }
 
 
@@ -9558,7 +9559,7 @@ Field_bit::unpack(uchar *to, const uchar *from, const uchar *from_end,
 }
 
 
-void Field_bit::set_default()
+int Field_bit::set_default()
 {
   if (bit_len > 0)
   {
@@ -9566,7 +9567,7 @@ void Field_bit::set_default()
     uchar bits= get_rec_bits(bit_ptr + col_offset, bit_ofs, bit_len);
     set_rec_bits(bits, bit_ptr, bit_ofs, bit_len);
   }
-  Field::set_default();
+  return Field::set_default();
 }
 
 /*

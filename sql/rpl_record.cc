@@ -80,7 +80,7 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
   unsigned int null_mask= 1U;
   for ( ; (field= *p_field) ; p_field++)
   {
-    if (bitmap_is_set(cols, p_field - table->field))
+    if (bitmap_is_set(cols, (uint)(p_field - table->field)))
     {
       my_ptrdiff_t offset;
       if (field->is_null(rec_offset))
@@ -262,7 +262,7 @@ unpack_row(rpl_group_info *rgi,
       No need to bother about columns that does not exist: they have
       gotten default values when being emptied above.
      */
-    if (bitmap_is_set(cols, field_ptr -  begin_ptr))
+    if (bitmap_is_set(cols, (uint)(field_ptr -  begin_ptr)))
     {
       if ((null_mask & 0xFF) == 0)
       {
@@ -434,7 +434,7 @@ unpack_row(rpl_group_info *rgi,
   if (master_reclength)
   {
     if (*field_ptr)
-      *master_reclength = (*field_ptr)->ptr - table->record[0];
+      *master_reclength = (ulong)((*field_ptr)->ptr - table->record[0]);
     else
       *master_reclength = table->s->reclength;
   }

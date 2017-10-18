@@ -1006,7 +1006,7 @@ update_binlog:
           These DDL methods and logging are protected with the exclusive
           metadata lock on the schema.
         */
-        if (write_to_binlog(thd, query, query_pos -1 - query, db, db_len))
+        if (write_to_binlog(thd, query, (uint)(query_pos -1 - query), db, db_len))
         {
           error= true;
           goto exit;
@@ -1024,7 +1024,7 @@ update_binlog:
         These DDL methods and logging are protected with the exclusive
         metadata lock on the schema.
       */
-      if (write_to_binlog(thd, query, query_pos -1 - query, db, db_len))
+      if (write_to_binlog(thd, query, (uint)(query_pos -1 - query), db, db_len))
       {
         error= true;
         goto exit;

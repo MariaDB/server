@@ -56,6 +56,8 @@ AND STAT_TYPE in ('INTERNAL_KEY_SKIPPED_COUNT', 'INTERNAL_DELETE_SKIPPED_COUNT')
 
 # Statistics for multi-statement transactions cannot be attributed to
 # individual tables but should show up in global perf context stats
+set @tmp_flush_log= @@rocksdb_flush_log_at_trx_commit;
+set global rocksdb_flush_log_at_trx_commit=1;
 
 BEGIN;
 INSERT INTO t2 VALUES (1), (2);
@@ -90,3 +92,5 @@ SELECT CASE WHEN @b - @a > 0 THEN 'true' ELSE 'false' END;
 DROP TABLE t1;
 DROP TABLE t2;
 SET GLOBAL rocksdb_perf_context_level = @prior_rocksdb_perf_context_level;
+set global rocksdb_flush_log_at_trx_commit= @tmp_flush_log;
+

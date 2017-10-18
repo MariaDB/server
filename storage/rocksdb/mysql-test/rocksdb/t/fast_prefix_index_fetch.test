@@ -1,0 +1,120 @@
+# Disable until covered unpack_info format enabled in prod
+--source include/have_debug.inc
+--source include/not_debug.inc
+
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (
+  id INT,
+  fake_id INT,
+  bigfield VARCHAR(4096),
+  PRIMARY KEY (id),
+  KEY bf (bigfield(32)),
+  KEY fid (fake_id, bigfield(32))
+) ENGINE=rocksdb;
+
+INSERT INTO t1 VALUES (1, 1001, REPEAT('a', 1)),
+                      (8, 1008, REPEAT('b', 8)),
+                      (24, 1024, REPEAT('c', 24)),
+                      (31, 1031, REPEAT('d', 31)),
+                      (32, 1032, REPEAT('x', 32)),
+                      (33, 1033, REPEAT('y', 33)),
+                      (128, 1128, REPEAT('z', 128));
+
+SELECT * FROM t1;
+
+--disable_query_log
+
+--let $prefix_index_check_title= Baseline sanity check
+--let $prefix_index_check_read_avoided_delta= 0
+--let $prefix_index_check_query= SELECT "no-op query"
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+--let $prefix_index_check_title= Eligible for optimization.
+--let $prefix_index_check_read_avoided_delta= 2
+--let $prefix_index_check_query= SELECT id, bigfield FROM t1 FORCE INDEX(bf) WHERE bigfield = REPEAT('d', 31)
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+--let $prefix_index_check_title= Eligible for optimization, access via fake_id only
+--let $prefix_index_check_read_avoided_delta= 2
+--let $prefix_index_check_query= SELECT id, bigfield FROM t1 FORCE INDEX(fid) WHERE fake_id = 1031
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+--let $prefix_index_check_title= Not eligible for optimization, access via fake_id of big row.
+--let $prefix_index_check_read_avoided_delta= 0
+--let $prefix_index_check_query= SELECT id, bigfield FROM t1 FORCE INDEX(fid) WHERE fake_id = 1033
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+# The secondary_index_read call isn't covered because the next record in the
+# index has a bigfield value of length 33, so only one of two lookups are
+# covered here.
+--let $prefix_index_check_title= Eligible for optimization.
+--let $prefix_index_check_read_avoided_delta= 1
+--let $prefix_index_check_query= SELECT id, bigfield FROM t1 FORCE INDEX(bf) WHERE bigfield = REPEAT('x', 32)
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+--let $prefix_index_check_title= Not eligible for optimization.
+--let $prefix_index_check_read_avoided_delta= 0
+--let $prefix_index_check_query= SELECT id, bigfield FROM t1 FORCE INDEX(bf) WHERE bigfield = REPEAT('y', 33)
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+--let $prefix_index_check_title= Eligible for optimization.
+--let $prefix_index_check_read_avoided_delta= 2
+--let $prefix_index_check_query= SELECT id, bigfield FROM t1 FORCE INDEX(bf) WHERE bigfield = REPEAT('b', 8)
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+--let $prefix_index_check_title= Eligible for optimization.
+--let $prefix_index_check_read_avoided_delta= 2
+--let $prefix_index_check_query= SELECT id, bigfield FROM t1 FORCE INDEX(bf) WHERE bigfield = REPEAT('c', 24)
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+--let $prefix_index_check_title= Not eligible for optimization.
+--let $prefix_index_check_read_avoided_delta= 0
+--let $prefix_index_check_query= SELECT id, bigfield FROM t1 FORCE INDEX(bf) WHERE bigfield = REPEAT('z', 128)
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test that multi-byte charsets are handled correctly
+--echo #
+
+SET NAMES utf8;
+
+CREATE TABLE t1 (
+  a INT PRIMARY KEY,
+  b VARCHAR(30) CHARACTER SET utf8 collate utf8_bin,
+  KEY k (b(2))
+) ENGINE=rocksdb;
+
+INSERT INTO t1 VALUES
+  (1, 'a'),
+  (2, 'cc'),
+  (3, 'ŽŽ'),
+  (4, 'žžžž');
+
+--let $prefix_index_check_title= Charset record obviously shorter than the prefix
+--let $prefix_index_check_query= SELECT * FROM t1 FORCE INDEX(k) WHERE b = "a"
+--let $prefix_index_check_read_avoided_delta= 2
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+--let $prefix_index_check_title= Charset record shorter than prefix
+--let $prefix_index_check_query= SELECT * FROM t1 FORCE INDEX(k) WHERE b = "cc"
+--let $prefix_index_check_read_avoided_delta= 2
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+--let $prefix_index_check_title= Charset record with glyphs shorter than prefix
+--let $prefix_index_check_query= SELECT * FROM t1 FORCE INDEX(k) WHERE b = "ŽŽ"
+--let $prefix_index_check_read_avoided_delta= 1
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+--let $prefix_index_check_title= Charset record longer than prefix
+--let $prefix_index_check_query= SELECT * FROM t1 FORCE INDEX(k) WHERE b = "žžžž"
+--let $prefix_index_check_read_avoided_delta= 0
+--source suite/rocksdb/include/prefix_index_only_query_check.inc
+
+DROP TABLE t1;

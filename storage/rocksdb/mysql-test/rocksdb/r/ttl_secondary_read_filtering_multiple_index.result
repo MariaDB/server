@@ -1,0 +1,82 @@
+CREATE TABLE t1 (
+a int NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b) COMMENT 'kb',
+KEY kc (c) COMMENT 'kc'
+) ENGINE=ROCKSDB
+COMMENT='ttl_duration=1';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 1, 1);
+INSERT INTO t1 values (2, 2, 2);
+set global rocksdb_debug_ttl_rec_ts = 100;
+INSERT INTO t1 values (3, 3, 3);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='kb';
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b	c
+3	3	3
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b	c
+3	3	3
+SELECT * FROM t1 FORCE INDEX (kc);
+a	b	c
+3	3	3
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b) COMMENT 'kb',
+KEY kc (c) COMMENT 'kc'
+) ENGINE=ROCKSDB
+COMMENT='ttl_duration=1';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 1, 1);
+INSERT INTO t1 values (2, 2, 2);
+set global rocksdb_debug_ttl_rec_ts = 100;
+INSERT INTO t1 values (3, 3, 3);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b	c
+3	3	3
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b	c
+3	3	3
+SELECT * FROM t1 FORCE INDEX (kc);
+a	b	c
+3	3	3
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int NOT NULL,
+b int NOT NULL,
+c int NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b) COMMENT 'kb',
+KEY kc (c) COMMENT 'kc'
+) ENGINE=ROCKSDB
+COMMENT='ttl_duration=1';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 1, 1);
+INSERT INTO t1 values (2, 2, 2);
+set global rocksdb_debug_ttl_rec_ts = 100;
+INSERT INTO t1 values (3, 3, 3);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_compact_cf='kb';
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b	c
+3	3	3
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b	c
+3	3	3
+SELECT * FROM t1 FORCE INDEX (kc);
+a	b	c
+3	3	3
+DROP TABLE t1;

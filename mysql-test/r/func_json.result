@@ -152,6 +152,9 @@ json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]')
 select json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]');
 json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]')
 1
+select json_contains('[{"a":"b"},{"c":"d"}]','{"c":"d"}');
+json_contains('[{"a":"b"},{"c":"d"}]','{"c":"d"}')
+1
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
 json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]")
 1
@@ -402,6 +405,13 @@ abc
 select json_unquote('abc');
 json_unquote('abc')
 abc
+create table t1 (c VARCHAR(8)) DEFAULT CHARSET=latin1;
+insert into t1 values ('abc'),('def');
+select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld from t1;
+fld
+{"foo": "{\"bar\": \"abc\"}", "qux": "abc"}
+{"foo": "{\"bar\": \"def\"}", "qux": "def"}
+drop table t1;
 select json_object("a", json_object("b", "abcd"));
 json_object("a", json_object("b", "abcd"))
 {"a": {"b": "abcd"}}
@@ -443,6 +453,11 @@ json_length('{"a": 1, "b": {"c": 30}}', '$.b')
 select json_length('{"a": 1, "b": {"c": 30}}');
 json_length('{"a": 1, "b": {"c": 30}}')
 2
+select json_length('{}{');
+json_length('{}{')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 3
 create table json (j INT);
 show create table json;
 Table	Create Table
@@ -705,6 +720,11 @@ json_data
 SELECT JSON_OBJECT("user","Jožko Mrkvičká") as json_data;
 json_data
 {"user": "Jožko Mrkvičká"}
+select json_contains_path('{"foo":"bar"}', 'one', '$[]');
+json_contains_path('{"foo":"bar"}', 'one', '$[]')
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 3 to function 'json_contains_path' at position 3
 #
 # Start of 10.3 tests
 #

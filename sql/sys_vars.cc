@@ -1469,7 +1469,7 @@ static Sys_var_ulonglong Sys_max_heap_table_size(
        "max_heap_table_size",
        "Don't allow creation of heap tables bigger than this",
        SESSION_VAR(max_heap_table_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(16384, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
+       VALID_RANGE(16384, SIZE_T_MAX), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1024));
 
 static ulong mdl_locks_cache_size;

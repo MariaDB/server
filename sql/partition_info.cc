@@ -1674,7 +1674,7 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
 bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
                                    char *end_token, bool is_subpart)
 {
-  uint expr_len= end_token - start_token;
+  size_t expr_len= end_token - start_token;
   char *func_string= (char*) thd->memdup(start_token, expr_len);
 
   if (!func_string)

@@ -367,13 +367,13 @@ void MACCOL::ReadColumn(PGLOBAL g)
     case 11:                    // Description
       if ((p = strstr(adp->Description, " - Packet Scheduler Miniport"))) {
         strncpy(buf, adp->Description, p - adp->Description);
-        i = p - adp->Description;
+        i = (int)(p - adp->Description);
         strncpy(buf, adp->Description, i);
         buf[i] = 0;
         p = buf;
       } else if ((p = strstr(adp->Description,
                   " - Miniport d'ordonnancement de paquets"))) {
-        i = p - adp->Description;
+        i = (int)(p - adp->Description);
         strncpy(buf, adp->Description, i);
         buf[i] = 0;
         p = buf;

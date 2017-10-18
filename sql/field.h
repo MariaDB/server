@@ -958,7 +958,7 @@ public:
     my_ptrdiff_t l_offset= (my_ptrdiff_t) (record -  table->record[0]);
     return ptr + l_offset;
   }
-  virtual void set_default();
+  virtual int set_default();
 
   bool has_update_default_function() const
   {
@@ -3762,7 +3762,7 @@ public:
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,
                               const uchar *from_end, uint param_data);
-  virtual void set_default();
+  virtual int set_default();
 
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,

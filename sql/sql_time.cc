@@ -274,7 +274,7 @@ to_ascii(CHARSET_INFO *cs,
     *dst++= static_cast<char>(wc);
   }
   *dst= '\0';
-  return dst - dst0;
+  return (uint)(dst - dst0);
 }
 
 

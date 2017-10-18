@@ -158,13 +158,13 @@ set(ROCKSDB_SOURCES
         db/convenience.cc
         db/db_filesnapshot.cc
         db/db_impl.cc
-        db/db_impl_write.cc
         db/db_impl_compaction_flush.cc
-        db/db_impl_files.cc
-        db/db_impl_open.cc
         db/db_impl_debug.cc
         db/db_impl_experimental.cc
+        db/db_impl_files.cc
+        db/db_impl_open.cc
         db/db_impl_readonly.cc
+        db/db_impl_write.cc
         db/db_info_dumper.cc
         db/db_iter.cc
         db/dbformat.cc
@@ -204,9 +204,14 @@ set(ROCKSDB_SOURCES
         env/mock_env.cc
         memtable/alloc_tracker.cc
         memtable/hash_cuckoo_rep.cc
+        memtable/hash_cuckoo_rep.cc
+        memtable/hash_linklist_rep.cc
         memtable/hash_linklist_rep.cc
         memtable/hash_skiplist_rep.cc
+        memtable/hash_skiplist_rep.cc
         memtable/skiplistrep.cc
+        memtable/skiplistrep.cc
+        memtable/vectorrep.cc
         memtable/vectorrep.cc
         memtable/write_buffer_manager.cc
         monitoring/histogram.cc
@@ -218,7 +223,6 @@ set(ROCKSDB_SOURCES
         monitoring/statistics.cc
         monitoring/thread_status_impl.cc
         monitoring/thread_status_updater.cc
-        monitoring/thread_status_updater_debug.cc
         monitoring/thread_status_util.cc
         monitoring/thread_status_util_debug.cc
         options/cf_options.cc
@@ -248,7 +252,6 @@ set(ROCKSDB_SOURCES
         table/iterator.cc
         table/merging_iterator.cc
         table/meta_blocks.cc
-        table/mock_table.cc
         table/partitioned_filter_block.cc
         table/persistent_cache_helper.cc
         table/plain_table_builder.cc
@@ -297,13 +300,6 @@ set(ROCKSDB_SOURCES
         util/xxhash.cc
         utilities/backupable/backupable_db.cc
         utilities/blob_db/blob_db.cc
-        utilities/blob_db/blob_db_impl.cc
-        utilities/blob_db/blob_db_options_impl.cc
-        utilities/blob_db/blob_dump_tool.cc
-        utilities/blob_db/blob_file.cc
-        utilities/blob_db/blob_log_format.cc
-        utilities/blob_db/blob_log_reader.cc
-        utilities/blob_db/blob_log_writer.cc
         utilities/checkpoint/checkpoint_impl.cc
         utilities/col_buf_decoder.cc
         utilities/col_buf_encoder.cc
@@ -315,7 +311,6 @@ set(ROCKSDB_SOURCES
         utilities/document/json_document.cc
         utilities/document/json_document_builder.cc
         utilities/env_mirror.cc
-        utilities/env_timed.cc
         utilities/geodb/geodb_impl.cc
         utilities/leveldb_options/leveldb_options.cc
         utilities/lua/rocks_lua_compaction_filter.cc
@@ -337,16 +332,17 @@ set(ROCKSDB_SOURCES
         utilities/spatialdb/spatial_db.cc
         utilities/table_properties_collectors/compact_on_deletion_collector.cc
         utilities/transactions/optimistic_transaction_db_impl.cc
-        utilities/transactions/optimistic_transaction_impl.cc
+        utilities/transactions/pessimistic_transaction.cc
+        utilities/transactions/pessimistic_transaction_db.cc
         utilities/transactions/transaction_base.cc
-        utilities/transactions/transaction_db_impl.cc
         utilities/transactions/transaction_db_mutex_impl.cc
-        utilities/transactions/transaction_impl.cc
         utilities/transactions/transaction_lock_mgr.cc
         utilities/transactions/transaction_util.cc
+        utilities/transactions/write_prepared_txn.cc
         utilities/ttl/db_ttl_impl.cc
         utilities/write_batch_with_index/write_batch_with_index.cc
         utilities/write_batch_with_index/write_batch_with_index_internal.cc
+
 )
 
 if(WIN32)
@@ -382,3 +378,4 @@ target_link_libraries(rocksdblib ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set_target_properties(rocksdblib PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp -frtti")
 endif()
+

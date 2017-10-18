@@ -6142,7 +6142,7 @@ double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
   {
     TABLE *table= s->table;
     double sel= table->cond_selectivity;
-    double table_records= table->stat_records();
+    double table_records= (double)table->stat_records();
     dbl_records= table_records * sel;
     return dbl_records;
   }
@@ -6168,7 +6168,7 @@ double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
   if (s->table->quick_condition_rows != s->found_records)
     records= s->table->quick_condition_rows;
 
-  dbl_records= records;
+  dbl_records= (double)records;
   return dbl_records;
 }
 
@@ -6859,7 +6859,7 @@ static void choose_initial_table_order(JOIN *join)
     if ((emb_subq= get_emb_subq(*tab)))
       break;
   }
-  uint n_subquery_tabs= tabs_end - tab;
+  uint n_subquery_tabs= (uint)(tabs_end - tab);
 
   if (!n_subquery_tabs)
     DBUG_VOID_RETURN;
@@ -6887,7 +6887,7 @@ static void choose_initial_table_order(JOIN *join)
            last_tab_for_subq < subq_tabs_end && 
            get_emb_subq(*last_tab_for_subq) == cur_subq_nest;
            last_tab_for_subq++) {}
-      uint n_subquery_tables= last_tab_for_subq - subq_tab;
+      uint n_subquery_tables= (uint)(last_tab_for_subq - subq_tab);
 
       /* 
         Walk the original array and find where this subquery would have been
@@ -6905,7 +6905,7 @@ static void choose_initial_table_order(JOIN *join)
         if (!need_tables)
         {
           /* Move away the top-level tables that are after top_level_tab */
-          uint top_tail_len= last_top_level_tab - top_level_tab - 1;
+          size_t top_tail_len= last_top_level_tab - top_level_tab - 1;
           memmove(top_level_tab + 1 + n_subquery_tables, top_level_tab + 1,
                   sizeof(JOIN_TAB*)*top_tail_len);
           last_top_level_tab += n_subquery_tables;
@@ -7651,7 +7651,7 @@ double JOIN::get_examined_rows()
   JOIN_TAB *tab= first_breadth_first_tab();
   JOIN_TAB *prev_tab= tab;
 
-  examined_rows= tab->get_examined_rows();
+  examined_rows= (double)tab->get_examined_rows();
 
   while ((tab= next_breadth_first_tab(first_breadth_first_tab(),
                                       top_join_tab_count, tab)))
@@ -7949,7 +7949,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
             }
             if (keyparts > 1)
 	    {
-              ref_keyuse_steps[keyparts-2]= keyuse - prev_ref_keyuse;
+              ref_keyuse_steps[keyparts-2]= (uint16)(keyuse - prev_ref_keyuse);
               prev_ref_keyuse= keyuse;
             }
           }
@@ -9311,8 +9311,8 @@ bool JOIN::get_best_combination()
       j= j->bush_root_tab;
   }
  
-  top_join_tab_count= join_tab_ranges.head()->end - 
-                      join_tab_ranges.head()->start;
+  top_join_tab_count= (uint)(join_tab_ranges.head()->end - 
+                      join_tab_ranges.head()->start);
 
   update_depend_map(this);
   DBUG_RETURN(0);
@@ -10888,7 +10888,7 @@ static uint make_join_orderinfo(JOIN *join)
   if (join->need_tmp)
     return join->table_count;
   tab= join->get_sort_by_join_tab();
-  return tab ? tab-join->join_tab : join->table_count;
+  return tab ? (uint)(tab-join->join_tab) : join->table_count;
 }
 
 /*
@@ -11905,8 +11905,8 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
                  str.append(" final_pushdown_cond");
                  print_where(tab->select_cond, str.c_ptr_safe(), QT_ORDINARY););
   }
-  uint n_top_tables= join->join_tab_ranges.head()->end -  
-                     join->join_tab_ranges.head()->start;
+  uint n_top_tables= (uint)(join->join_tab_ranges.head()->end -  
+                     join->join_tab_ranges.head()->start);
 
   join->join_tab[n_top_tables - 1].next_select=0;  /* Set by do_select */
   
@@ -12130,7 +12130,7 @@ ha_rows JOIN_TAB::get_examined_rows()
   SQL_SELECT *sel= filesort? filesort->select : this->select;
 
   if (sel && sel->quick && use_quick != 2)
-    examined_rows= sel->quick->records;
+    examined_rows= (double)sel->quick->records;
   else if (type == JT_NEXT || type == JT_ALL ||
            type == JT_HASH || type ==JT_HASH_NEXT)
   {
@@ -12140,19 +12140,19 @@ ha_rows JOIN_TAB::get_examined_rows()
         @todo This estimate is wrong, a LIMIT query may examine much more rows
         than the LIMIT itself.
       */
-      examined_rows= limit;
+      examined_rows= (double)limit;
     }
     else
     {
       if (table->is_filled_at_execution())
-        examined_rows= records;
+        examined_rows= (double)records;
       else
       {
         /*
           handler->info(HA_STATUS_VARIABLE) has been called in
           make_join_statistics()
         */
-        examined_rows= table->stat_records();
+        examined_rows= (double)table->stat_records();
       }
     }
   }
@@ -13981,7 +13981,7 @@ static int compare_fields_by_table_order(Item *field1,
       tab2= tab2->bush_root_tab;
   }
   
-  cmp= tab1 - tab2;
+  cmp= (int)(tab1 - tab2);
 
   if (!cmp)
   {
@@ -17145,7 +17145,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     share->default_values= table->record[1]+alloc_length;
   }
   copy_func[0]=0;				// End marker
-  param->func_count= copy_func - param->items_to_copy; 
+  param->func_count= (uint)(copy_func - param->items_to_copy); 
 
   setup_tmp_table_column_bitmaps(table, bitmaps);
 
@@ -17829,7 +17829,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
           Emulate behaviour by making column not-nullable when creating the
           table.
         */
-        uint cols= (*recinfo-start_recinfo);
+        uint cols= (uint)(*recinfo-start_recinfo);
         start_recinfo[cols-1].null_bit= 0;
       }
     }
@@ -21047,7 +21047,7 @@ static int test_if_order_by_key(JOIN *join,
        (1) this is an extended key
        (2) we've reached its end
     */
-    key_parts= (key_part - table->key_info[idx].key_part);
+    key_parts= (uint)(key_part - table->key_info[idx].key_part);
     if (have_pk_suffix &&
         reverse == 0 && // all were =const so far
         key_parts == table->key_info[idx].ext_key_parts && 
@@ -24688,7 +24688,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
   }
   else
   {
-    double examined_rows= get_examined_rows();
+    double examined_rows= (double)get_examined_rows();
 
     eta->rows_set= true;
     eta->rows= (ha_rows) examined_rows;
@@ -26073,8 +26073,8 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
       Start from quick select's rows and cost. These are always cheaper than
       full index scan/cost.
     */
-    double best_rows= table->quick_rows[keynr];
-    double best_cost= table->quick_costs[keynr];
+    double best_rows= (double)table->quick_rows[keynr];
+    double best_cost= (double)table->quick_costs[keynr];
     
     /*
       Check if ref(const) access was possible on this index. 
@@ -26108,7 +26108,7 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
 
         if (ref_rows > 0)
         {
-          double tmp= ref_rows;
+          double tmp= (double)ref_rows;
           /* Reuse the cost formula from best_access_path: */
           set_if_smaller(tmp, (double) tab->join->thd->variables.max_seeks_for_key);
           if (table->covering_keys.is_set(keynr))
@@ -26119,7 +26119,7 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
           if (tmp < best_cost)
           {
             best_cost= tmp;
-            best_rows= ref_rows;
+            best_rows= (double)ref_rows;
           }
         }
       }
@@ -26232,7 +26232,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
 
   if (join)
   {
-    uint tablenr= tab - join->join_tab;
+    uint tablenr= (uint)(tab - join->join_tab);
     read_time= join->best_positions[tablenr].read_time;
     for (uint i= tablenr+1; i < join->table_count; i++)
       fanout*= join->best_positions[i].records_read; // fanout is always >= 1

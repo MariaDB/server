@@ -499,9 +499,9 @@ int SEL_IMERGE::or_sel_tree(RANGE_OPT_PARAM *param, SEL_TREE *tree)
   if (trees_next == trees_end)
   {
     const int realloc_ratio= 2;		/* Double size for next round */
-    uint old_elements= (trees_end - trees);
-    uint old_size= sizeof(SEL_TREE**) * old_elements;
-    uint new_size= old_size * realloc_ratio;
+    size_t old_elements= (trees_end - trees);
+    size_t old_size= sizeof(SEL_TREE**) * old_elements;
+    size_t new_size= old_size * realloc_ratio;
     SEL_TREE **new_trees;
     if (!(new_trees= (SEL_TREE**)alloc_root(param->mem_root, new_size)))
       return -1;
@@ -846,10 +846,10 @@ SEL_TREE::SEL_TREE(SEL_TREE *arg, bool without_merges,
 SEL_IMERGE::SEL_IMERGE(SEL_IMERGE *arg, uint cnt,
                        RANGE_OPT_PARAM *param) : Sql_alloc()
 {
-  uint elements= (arg->trees_end - arg->trees);
+  size_t elements= (arg->trees_end - arg->trees);
   if (elements > PREALLOCED_TREES)
   {
-    uint size= elements * sizeof (SEL_TREE **);
+    size_t size= elements * sizeof (SEL_TREE **);
     if (!(trees= (SEL_TREE **)alloc_root(param->mem_root, size)))
       goto mem_err;
   }
@@ -951,7 +951,7 @@ int imerge_list_or_list(RANGE_OPT_PARAM *param,
   uint rc;
   bool is_last_check_pass= FALSE;
   SEL_IMERGE *imerge= im1->head();
-  uint elems= imerge->trees_next-imerge->trees;
+  uint elems= (uint)(imerge->trees_next-imerge->trees);
   MEM_ROOT *mem_root= current_thd->mem_root;
 
   im1->empty();
@@ -1051,7 +1051,7 @@ int imerge_list_or_tree(RANGE_OPT_PARAM *param,
     SEL_TREE *or_tree= new (mem_root) SEL_TREE (tree, FALSE, param);
     if (or_tree)
     {
-      uint elems= imerge->trees_next-imerge->trees;
+      uint elems= (uint)(imerge->trees_next-imerge->trees);
       rc= imerge->or_sel_tree_with_checks(param, elems, or_tree,
                                           TRUE, &is_last_check_pass);
       if (!is_last_check_pass)
@@ -2897,7 +2897,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   uint keynr;
   uint max_quick_key_parts= 0;
   MY_BITMAP *used_fields= &table->cond_set;
-  double table_records= table->stat_records(); 
+  double table_records= (double)table->stat_records(); 
   DBUG_ENTER("calculate_cond_selectivity_for_table");
 
   table->cond_selectivity= 1.0;
@@ -3994,8 +3994,8 @@ int find_used_partitions(PART_PRUNE_PARAM *ppar, SEL_ARG *key_tree)
                                         store_length_array,
                                         range_par->min_key,
                                         range_par->max_key,
-                                        tmp_min_key - range_par->min_key,
-                                        tmp_max_key - range_par->max_key,
+                                        (uint)(tmp_min_key - range_par->min_key),
+                                        (uint)(tmp_max_key - range_par->max_key),
                                         flag,
                                         &ppar->part_iter);
         if (!res)
@@ -4659,7 +4659,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     }
   }
 
-  uint n_child_scans= imerge->trees_next - imerge->trees;
+  size_t n_child_scans= imerge->trees_next - imerge->trees;
   
   if (!n_child_scans)
     DBUG_RETURN(NULL);
@@ -5203,7 +5203,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   INDEX_SCAN_INFO **scan_ptr;
   INDEX_SCAN_INFO *cpk_scan= NULL;
   TABLE *table= param->table;
-  uint n_index_scans= tree->index_scans_end - tree->index_scans;
+  uint n_index_scans= (uint)(tree->index_scans_end - tree->index_scans);
 
   if (!n_index_scans)
     return 1;
@@ -5846,7 +5846,7 @@ TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
     }
   }
   
-  count= tree->index_scans_end - tree->index_scans;
+  count= (uint)(tree->index_scans_end - tree->index_scans);
   for (i= 0; i < count; i++)
   {
     index_scan= tree->index_scans[i]; 
@@ -6506,7 +6506,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
                                           intersect_scans_best););
 
   *are_all_covering= intersect->is_covering;
-  uint best_num= intersect_scans_best - intersect_scans;
+  uint best_num= (uint)(intersect_scans_best - intersect_scans);
   ror_intersect_cpy(intersect, intersect_best);
 
   /*
@@ -6688,7 +6688,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
   TRP_ROR_INTERSECT *trp;
   if (!(trp= new (param->mem_root) TRP_ROR_INTERSECT))
     DBUG_RETURN(trp);
-  uint best_num= (ror_scan_mark - tree->ror_scans);
+  uint best_num= (uint)(ror_scan_mark - tree->ror_scans);
   if (!(trp->first_scan= (ROR_SCAN_INFO**)alloc_root(param->mem_root,
                                                      sizeof(ROR_SCAN_INFO*)*
                                                      best_num)))
@@ -11476,7 +11476,7 @@ int QUICK_RANGE_SELECT::get_next_prefix(uint prefix_length,
         DBUG_RETURN(0);
     }
 
-    uint count= ranges.elements - (cur_range - (QUICK_RANGE**) ranges.buffer);
+    uint count= ranges.elements - (uint)(cur_range - (QUICK_RANGE**) ranges.buffer);
     if (count == 0)
     {
       /* Ranges have already been used up before. None is left for read. */
@@ -11521,7 +11521,7 @@ int QUICK_RANGE_SELECT_GEOM::get_next()
 	DBUG_RETURN(result);
     }
 
-    uint count= ranges.elements - (cur_range - (QUICK_RANGE**) ranges.buffer);
+    uint count= ranges.elements - (uint)(cur_range - (QUICK_RANGE**) ranges.buffer);
     if (count == 0)
     {
       /* Ranges have already been used up before. None is left for read. */
@@ -11975,7 +11975,7 @@ void QUICK_SELECT_I::add_key_and_length(String *key_names,
                                         bool *first)
 {
   char buf[64];
-  uint length;
+  size_t length;
   KEY *key_info= head->key_info + index;
 
   if (*first)
@@ -12529,7 +12529,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         {
           cur_group_prefix_len+= cur_part->store_length;
           ++cur_group_key_parts;
-          max_key_part= cur_part - cur_index_info->key_part + 1;
+          max_key_part= (uint)(cur_part - cur_index_info->key_part) + 1;
           used_key_parts_map.set_bit(max_key_part);
         }
         else
@@ -13252,7 +13252,7 @@ get_field_keypart(KEY *index, Field *field)
        part < end; part++)
   {
     if (field->eq(part->field))
-      return part - index->key_part + 1;
+      return (uint)(part - index->key_part + 1);
   }
   return 0;
 }

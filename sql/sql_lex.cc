@@ -2392,6 +2392,30 @@ st_select_lex_node *st_select_lex_node:: insert_chain_before(
   return this;
 }
 
+
+/*
+  Detach the node from its master and attach it to a new master
+*/
+
+void st_select_lex_node::move_as_slave(st_select_lex_node *new_master)
+{
+  exclude_from_tree();
+  if (new_master->slave)
+  {
+    st_select_lex_node *curr= new_master->slave;
+    for ( ; curr->next ; curr= curr->next) ;
+    prev= &curr->next;
+  }
+  else
+  {
+    prev= &new_master->slave;
+    new_master->slave= this;
+  }
+  next= 0;
+  master= new_master;
+}
+
+
 /*
   Exclude a node from the tree lex structure, but leave it in the global
   list of nodes.
@@ -4521,7 +4545,8 @@ void st_select_lex::set_explain_type(bool on_the_fly)
                 pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
               */
               if (tab->table && tab->table->pos_in_table_list &&
-                  tab->table->pos_in_table_list->with)
+                  tab->table->pos_in_table_list->with &&
+                  tab->table->pos_in_table_list->with->is_recursive)
               {
                 uses_cte= true;
                 break;

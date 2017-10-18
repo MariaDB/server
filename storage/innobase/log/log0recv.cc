@@ -1922,7 +1922,8 @@ void
 recv_apply_hashed_log_recs(bool last_batch)
 {
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE);
+	      || srv_operation == SRV_OPERATION_RESTORE
+	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
 	mutex_enter(&recv_sys->mutex);
 
@@ -1941,7 +1942,8 @@ recv_apply_hashed_log_recs(bool last_batch)
 	ut_ad(!last_batch == log_mutex_own());
 
 	recv_no_ibuf_operations = !last_batch
-		|| srv_operation == SRV_OPERATION_RESTORE;
+		|| srv_operation == SRV_OPERATION_RESTORE
+		|| srv_operation == SRV_OPERATION_RESTORE_EXPORT;
 
 	ut_d(recv_no_log_write = recv_no_ibuf_operations);
 
@@ -2960,7 +2962,8 @@ static
 dberr_t
 recv_init_missing_space(dberr_t err, const recv_spaces_t::const_iterator& i)
 {
-	if (srv_operation == SRV_OPERATION_RESTORE) {
+	if (srv_operation == SRV_OPERATION_RESTORE
+	    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
 		ib::warn() << "Tablespace " << i->first << " was not"
 			" found at " << i->second.name << " when"
 			" restoring a (partial?) backup. All redo log"
@@ -3118,7 +3121,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	dberr_t		err = DB_SUCCESS;
 
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
-	      || srv_operation == SRV_OPERATION_RESTORE);
+	      || srv_operation == SRV_OPERATION_RESTORE
+	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
 	/* Initialize red-black tree for fast insertions into the
 	flush_list during recovery process. */
