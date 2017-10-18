@@ -6403,6 +6403,7 @@ i_s_sys_tables_fill_table_stats(
 	}
 
 	heap = mem_heap_create(1000);
+	rw_lock_s_lock(&dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 	mtr_start(&mtr);
 
@@ -6429,9 +6430,11 @@ i_s_sys_tables_fill_table_stats(
 					    err_msg);
 		}
 
+		rw_lock_s_unlock(&dict_operation_lock);
 		mem_heap_empty(heap);
 
 		/* Get the next record */
+		rw_lock_s_lock(&dict_operation_lock);
 		mutex_enter(&dict_sys->mutex);
 		mtr_start(&mtr);
 		rec = dict_getnext_system(&pcur, &mtr);
@@ -6439,6 +6442,7 @@ i_s_sys_tables_fill_table_stats(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys->mutex);
+	rw_lock_s_unlock(&dict_operation_lock);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
