@@ -4850,7 +4850,7 @@ new_clustered_failed:
 
 		ctx->add_index[a] = row_merge_create_index(
 			ctx->trx, ctx->new_table,
-			&index_defs[a], add_v, ctx->col_names);
+			&index_defs[a], add_v);
 
 		add_key_nums[a] = index_defs[a].key_number;
 
