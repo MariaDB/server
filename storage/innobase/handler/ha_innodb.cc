@@ -10537,10 +10537,8 @@ ha_innobase::ft_init_ext(
 	const byte*	q = reinterpret_cast<const byte*>(
 		const_cast<char*>(query));
 
-	// JAN: TODO: support for ft_init_ext_with_hints(), remove the line below
-	m_prebuilt->m_fts_limit= ULONG_UNDEFINED;
-	dberr_t	error = fts_query(trx, index, flags, q, query_len, &result,
-				  m_prebuilt->m_fts_limit);
+	// FIXME: support ft_init_ext_with_hints(), pass LIMIT
+	dberr_t	error = fts_query(trx, index, flags, q, query_len, &result);
 
 	if (error != DB_SUCCESS) {
 		my_error(convert_error_code_to_mysql(error, 0, NULL), MYF(0));
