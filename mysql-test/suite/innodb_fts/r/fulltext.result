@@ -636,6 +636,26 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 End of 5.1 tests
+CREATE TABLE z(a INTEGER) engine=innodb;
+CREATE TABLE q(b TEXT CHARSET latin1, fulltext(b)) engine=innodb;
+EXPLAIN SELECT 1 FROM q WHERE (SELECT MATCH(b) AGAINST ('*') FROM z);
+ERROR 42000: syntax error, unexpected $end, expecting FTS_TERM or FTS_NUMB or '*'
+SELECT 1 FROM q WHERE (SELECT MATCH(b) AGAINST ('*') FROM z);
+ERROR 42000: syntax error, unexpected $end, expecting FTS_TERM or FTS_NUMB or '*'
+EXPLAIN SELECT MATCH(b) AGAINST ('*') FROM z;
+ERROR 42S22: Unknown column 'b' in 'field list'
+SELECT MATCH(b) AGAINST ('*') FROM z;
+ERROR 42S22: Unknown column 'b' in 'field list'
+EXPLAIN SELECT MATCH(a) AGAINST ('*') FROM z;
+ERROR HY000: Can't find FULLTEXT index matching the column list
+SELECT MATCH(a) AGAINST ('*') FROM z;
+ERROR HY000: Can't find FULLTEXT index matching the column list
+EXPLAIN SELECT MATCH(b) AGAINST ('*') FROM q;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	q	ALL	NULL	NULL	NULL	NULL	1	
+SELECT MATCH(b) AGAINST ('*') FROM q;
+ERROR 42000: syntax error, unexpected $end, expecting FTS_TERM or FTS_NUMB or '*'
+DROP TABLE z, q;
 create table t (
 FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY, t TEXT, FULLTEXT KEY (t)
 ) ENGINE=InnoDB;
