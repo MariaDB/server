@@ -4724,7 +4724,7 @@ extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
   of the current query. */
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)
 {
-  return thd->start_utime;
+  return thd->start_time * 1000000 + thd->start_time_sec_part;
 }
 
 
