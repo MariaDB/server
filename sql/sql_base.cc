@@ -5689,6 +5689,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
         if (field_to_set)
         {
           TABLE *table= field_to_set->table;
+          DBUG_ASSERT(table);
           if (thd->mark_used_columns == MARK_COLUMNS_READ)
             bitmap_set_bit(table->read_set, field_to_set->field_index);
           else
@@ -6366,6 +6367,19 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     bool is_using_column_1;
     if (!(nj_col_1= it_1.get_or_create_column_ref(thd, leaf_1)))
       goto err;
+
+    if (nj_col_1->field() && nj_col_1->field()->vers_sys_field())
+      continue;
+
+    if (table_ref_1->is_view() && table_ref_1->table->versioned())
+    {
+      Item *item= nj_col_1->view_field->item;
+      DBUG_ASSERT(item->type() == Item::FIELD_ITEM);
+      Item_field *item_field= (Item_field *)item;
+      if (item_field->field->vers_sys_field())
+        continue;
+    }
+
     field_name_1= nj_col_1->name();
     is_using_column_1= using_fields && 
       test_if_string_in_list(field_name_1->str, using_fields);
@@ -7058,7 +7072,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->lex->current_select->is_item_list_lookup= 0;
 
   /*
-    To prevent fail on forward lookup we fill it with zerows,
+    To prevent fail on forward lookup we fill it with zeroes,
     then if we got pointer on zero after find_item_in_list we will know
     that it is forward lookup.
 
@@ -7455,6 +7469,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
   Field_iterator_table_ref field_iterator;
   bool found;
   char name_buff[SAFE_NAME_LEN+1];
+  ulong vers_hide= thd->variables.vers_hide;
   DBUG_ENTER("insert_fields");
   DBUG_PRINT("arena", ("stmt arena: %p",thd->stmt_arena));
 
@@ -7557,6 +7572,52 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
       if (!(item= field_iterator.create_item(thd)))
         DBUG_RETURN(TRUE);
+
+      if (item->type() == Item::FIELD_ITEM)
+      {
+        Item_field *f= static_cast<Item_field *>(item);
+        DBUG_ASSERT(f->field);
+        uint32 fl= f->field->flags;
+        bool sys_field= fl & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+        SELECT_LEX *slex= thd->lex->current_select;
+        TABLE *table= f->field->table;
+        DBUG_ASSERT(table && table->pos_in_table_list);
+        TABLE_LIST *tl= table->pos_in_table_list;
+        vers_range_type_t vers_type= tl->vers_conditions.type;
+
+        enum_sql_command sql_command= thd->lex->sql_command;
+        unsigned int create_options= thd->lex->create_info.options;
+
+        if (
+          sql_command == SQLCOM_CREATE_TABLE ?
+            sys_field && !(create_options & HA_VERSIONED_TABLE) : (
+            sys_field ?
+              (sql_command == SQLCOM_CREATE_VIEW ||
+              slex->nest_level > 0 ||
+              vers_hide == VERS_HIDE_FULL ||
+              ((fl & HIDDEN_FLAG) && (
+                vers_hide == VERS_HIDE_IMPLICIT ||
+                  (vers_hide == VERS_HIDE_AUTO && (
+                    vers_type == FOR_SYSTEM_TIME_UNSPECIFIED ||
+                    vers_type == FOR_SYSTEM_TIME_AS_OF))))) :
+            (fl & HIDDEN_FLAG)))
+        {
+          continue;
+        }
+      }
+      else if (item->type() == Item::REF_ITEM)
+      {
+        Item *i= item;
+        while (i->type() == Item::REF_ITEM)
+          i= *((Item_ref *)i)->ref;
+        if (i->type() == Item::FIELD_ITEM)
+        {
+          Item_field *f= (Item_field *)i;
+          DBUG_ASSERT(f->field);
+          if (f->field->flags & HIDDEN_FLAG)
+            continue;
+        }
+      }
 
       /* cache the table for the Item_fields inserted by expanding stars */
       if (item->type() == Item::FIELD_ITEM && tables->cacheable_table)
@@ -7952,6 +8013,13 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
                           ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           rfield->field_name.str, table->s->table_name.str);
     }
+    if (table->versioned() && rfield->vers_sys_field() &&
+        !ignore_errors)
+    {
+      my_error(ER_VERS_READONLY_FIELD, MYF(0), rfield->field_name);
+      goto err;
+    }
+
     if (rfield->stored_in_db() &&
         (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
     {
@@ -7992,7 +8060,7 @@ void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *table)
   Field** field= table->field_to_fill();
 
  /* True if we have NOT NULL fields and BEFORE triggers */
-  if (field != table->field)
+  if (field != table->field && field != table->non_generated_field)
   {
     List_iterator_fast<Item> it(items);
     Item *item;
@@ -8197,6 +8265,13 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
                             ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                             field->field_name.str, table->s->table_name.str);
       }
+    }
+
+    if (table->versioned() && field->vers_sys_field() &&
+        !ignore_errors)
+    {
+      my_error(ER_VERS_READONLY_FIELD, MYF(0), field->field_name);
+      goto err;
     }
 
     if (use_value)
@@ -8450,7 +8525,6 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
   {
     List_iterator<Item_func_match> li(*(select_lex->ftfunc_list));
     Item_func_match *ifm;
-    DBUG_PRINT("info",("Performing FULLTEXT search"));
 
     while ((ifm=li++))
       ifm->init_search(thd, no_order);
@@ -8639,10 +8713,31 @@ open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup)
 
   if ((table= open_ltable(thd, one_table, one_table->lock_type, flags)))
   {
-    DBUG_ASSERT(table->s->table_category == TABLE_CATEGORY_LOG);
-    /* Make sure all columns get assigned to a default value */
-    table->use_all_columns();
-    DBUG_ASSERT(table->s->no_replicate);
+    if (table->s->table_category == TABLE_CATEGORY_LOG)
+    {
+      /* Make sure all columns get assigned to a default value */
+      table->use_all_columns();
+      DBUG_ASSERT(table->no_replicate);
+    }
+    else
+    {
+      my_error(ER_NOT_LOG_TABLE, MYF(0), table->s->db.str, table->s->table_name.str);
+      int error= 0;
+      if (table->current_lock != F_UNLCK)
+      {
+        table->current_lock= F_UNLCK;
+        error= table->file->ha_external_lock(thd, F_UNLCK);
+      }
+      if (error)
+        table->file->print_error(error, MYF(0));
+      else
+      {
+        tc_release_table(table);
+        thd->reset_open_tables_state(thd);
+        thd->restore_backup_open_tables_state(backup);
+        table= NULL;
+      }
+    }
   }
   else
     thd->restore_backup_open_tables_state(backup);

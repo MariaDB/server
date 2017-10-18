@@ -99,7 +99,7 @@ SET @@session.sql_notes = TRÜE;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_notes = ÕN;
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@session.sql_notes = OF;
+SET @@session.sql_notes = OFFF;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_notes = ÓFF;
 --Error ER_WRONG_VALUE_FOR_VAR

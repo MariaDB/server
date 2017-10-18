@@ -238,6 +238,10 @@ void sp_cache_flush_obsolete(sp_cache **cp, sp_head **sp)
   }
 }
 
+void sp_cache_flush(sp_cache *cp, sp_head *sp)
+{
+  cp->remove(sp);
+}
 
 /**
   Return the current global version of the cache.

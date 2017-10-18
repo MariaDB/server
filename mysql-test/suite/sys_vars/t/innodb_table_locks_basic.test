@@ -119,7 +119,7 @@ SET @@session.innodb_table_locks = TRÜE;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.innodb_table_locks = ÕN;
 
-SET @@session.innodb_table_locks = OF;
+SET @@session.innodb_table_locks = OFF;
 SELECT @@session.innodb_table_locks;
 
 --Error ER_WRONG_VALUE_FOR_VAR
@@ -141,7 +141,7 @@ SET @@global.innodb_table_locks = TRÜE;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.innodb_table_locks = QN;
 
-SET @@global.innodb_table_locks = OF;
+SET @@global.innodb_table_locks = OFF;
 SELECT @@global.innodb_table_locks;
 
 --Error ER_WRONG_TYPE_FOR_VAR

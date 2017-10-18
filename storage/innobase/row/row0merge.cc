@@ -1707,7 +1707,8 @@ row_merge_read_clustered_index(
 	ut_stage_alter_t*	stage,
 	double 			pct_cost,
 	row_merge_block_t*	crypt_block,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			drop_historical)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
 	mem_heap_t*		row_heap;	/* Heap memory to create
@@ -1741,6 +1742,7 @@ row_merge_read_clustered_index(
 	double 			curr_progress = 0.0;
 	ib_uint64_t		read_rows = 0;
 	ib_uint64_t		table_total_rows = 0;
+	ulonglong		historic_auto_decrement = 0xffffffffffffffff;
 
 	DBUG_ENTER("row_merge_read_clustered_index");
 
@@ -2238,6 +2240,18 @@ end_of_index:
 			ut_ad(add_autoinc
 			      < dict_table_get_n_user_cols(new_table));
 
+			bool historical_row = false;
+			if (DICT_TF2_FLAG_IS_SET(
+				    new_table, DICT_TF2_VERSIONED)) {
+				const dfield_t *dfield = dtuple_get_nth_field(
+					row, new_table->vers_row_end);
+				const byte *data = static_cast<const byte *>(
+					dfield_get_data(dfield));
+				ut_ad(dfield_get_len(dfield) == 8);
+				historical_row =
+					mach_read_from_8(data) != TRX_ID_MAX;
+			}
+
 			const dfield_t*	dfield;
 
 			dfield = dtuple_get_nth_field(row, add_autoinc);
@@ -2258,7 +2272,11 @@ end_of_index:
 				goto func_exit;
 			}
 
-			ulonglong	value = sequence++;
+			ulonglong value;
+			if (likely(!historical_row))
+				value = sequence++;
+                        else
+				value = historic_auto_decrement--;
 
 			switch (dtype_get_mtype(dtype)) {
 			case DATA_INT: {
@@ -2284,6 +2302,49 @@ end_of_index:
 			default:
 				ut_ad(0);
 			}
+		}
+
+		if (DICT_TF2_FLAG_IS_SET(old_table, DICT_TF2_VERSIONED)) {
+			if (DICT_TF2_FLAG_IS_SET(new_table,
+						 DICT_TF2_VERSIONED) &&
+			    !drop_historical) {
+				dfield_t *end = dtuple_get_nth_field(
+					row, new_table->vers_row_end);
+				byte *data = static_cast<byte *>(
+					dfield_get_data(end));
+				ut_ad(data);
+				if (mach_read_from_8(data) == TRX_ID_MAX) {
+					dfield_t *start = dtuple_get_nth_field(
+						row, new_table->vers_row_start);
+					void *data = dfield_get_data(start);
+					ut_ad(data);
+					mach_write_to_8(data, trx->id);
+				}
+			} else {
+				const dict_col_t *col =
+					&old_table->cols
+						 [old_table->vers_row_end];
+				const ulint nfield = dict_col_get_clust_pos(
+					col, clust_index);
+				ulint len = 0;
+				const rec_t *sys_trx_end = rec_get_nth_field(
+					rec, offsets, nfield, &len);
+				ut_ad(len == 8);
+				if (mach_read_from_8(sys_trx_end) != TRX_ID_MAX)
+					continue;
+			}
+		} else if (DICT_TF2_FLAG_IS_SET(
+				   new_table, DICT_TF2_VERSIONED)) {
+			void *sys_trx_start = mem_heap_alloc(row_heap, 8);
+			void *sys_trx_end = mem_heap_alloc(row_heap, 8);
+			mach_write_to_8(sys_trx_start, trx->id);
+			mach_write_to_8(sys_trx_end, TRX_ID_MAX);
+			dfield_t *start = dtuple_get_nth_field(
+				row, new_table->vers_row_start);
+			dfield_t *end = dtuple_get_nth_field(
+				row, new_table->vers_row_end);
+			dfield_set_data(start, sys_trx_start, 8);
+			dfield_set_data(end, sys_trx_end, 8);
 		}
 
 write_buffers:
@@ -4580,7 +4641,8 @@ row_merge_build_indexes(
 	bool			skip_pk_sort,
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			drop_historical)
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
@@ -4740,7 +4802,7 @@ row_merge_build_indexes(
 		fts_sort_idx, psort_info, merge_files, key_numbers,
 		n_indexes, add_cols, add_v, col_map, add_autoinc,
 		sequence, block, skip_pk_sort, &tmpfd, stage,
-		pct_cost, crypt_block, eval_table);
+		pct_cost, crypt_block, eval_table, drop_historical);
 
 	stage->end_phase_read_pk();
 

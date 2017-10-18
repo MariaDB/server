@@ -48,8 +48,8 @@ SET @@session.sql_log_bin = TRÜE;
 ERROR 42000: Variable 'sql_log_bin' can't be set to the value of 'TRÜE'
 SET @@session.sql_log_bin = ÕN;
 ERROR 42000: Variable 'sql_log_bin' can't be set to the value of 'ÕN'
-SET @@session.sql_log_bin = OF;
-ERROR 42000: Variable 'sql_log_bin' can't be set to the value of 'OF'
+SET @@session.sql_log_bin = OFFF;
+ERROR 42000: Variable 'sql_log_bin' can't be set to the value of 'OFFF'
 SET @@session.sql_log_bin = ÓFF;
 ERROR 42000: Variable 'sql_log_bin' can't be set to the value of 'ÓFF'
 SET @@session.sql_log_bin = '¹';

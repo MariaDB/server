@@ -541,7 +541,6 @@ public:
   String_copier_for_item(THD *thd): m_thd(thd) { }
 };
 
-
 class Item: public Value_source,
             public Type_all_attributes
 {
@@ -775,6 +774,10 @@ public:
     return type_handler()->field_type();
   }
   virtual const Type_handler *type_handler() const= 0;
+  virtual uint field_flags() const
+  {
+    return 0;
+  }
   const Type_handler *type_handler_for_comparison() const
   {
     return type_handler()->type_handler_for_comparison();
@@ -1735,6 +1738,10 @@ public:
 
   virtual Item_field *field_for_view_update() { return 0; }
 
+  virtual Item *vers_optimized_fields_transformer(THD *thd, uchar *)
+  { return this; }
+  virtual bool vers_trx_id() const
+  { return false; }
   virtual Item *neg_transformer(THD *thd) { return NULL; }
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg)
   { return this; }
@@ -1925,8 +1932,10 @@ public:
   {
     marker &= ~EXTRACTION_MASK;
   }
-};
 
+  /* System versioning */
+  virtual vtq_record_t *vtq_cached_result() { return NULL; }
+};
 
 template <class T>
 inline Item* get_item_copy (THD *thd, MEM_ROOT *mem_root, T* item)
@@ -2800,6 +2809,10 @@ public:
     return field->type_handler();
   }
   TYPELIB *get_typelib() const { return field->get_typelib(); }
+  uint32 field_flags() const
+  {
+    return field->flags;
+  }
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
@@ -2896,6 +2909,8 @@ public:
   uint32 max_display_length() const { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
+  virtual Item *vers_optimized_fields_transformer(THD *thd, uchar *);
+  virtual bool vers_trx_id() const;
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
@@ -3335,6 +3350,14 @@ public:
       max_length=length;
       name.str= str_arg; name.length= safe_strlen(name.str);
       fixed= 1;
+    }
+  Item_int(THD *thd, const char *str_arg,longlong i,uint length, bool flag):
+    Item_num(thd), value(i)
+    {
+      max_length=length;
+      name.str= str_arg; name.length= safe_strlen(name.str);
+      fixed= 1;
+      unsigned_flag= flag;
     }
   Item_int(THD *thd, const char *str_arg, uint length=64);
   enum Type type() const { return INT_ITEM; }
@@ -3786,10 +3809,10 @@ class Item_return_date_time :public Item_partition_func_safe_string
   enum_field_types date_time_field_type;
 public:
   Item_return_date_time(THD *thd, const char *name_arg, uint length_arg,
-                        enum_field_types field_type_arg):
+                        enum_field_types field_type_arg, uint dec_arg= 0):
     Item_partition_func_safe_string(thd, name_arg, length_arg, &my_charset_bin),
     date_time_field_type(field_type_arg)
-  { decimals= 0; }
+  { decimals= dec_arg; }
   const Type_handler *type_handler() const
   {
     return Type_handler::get_handler_by_field_type(date_time_field_type);
@@ -4030,6 +4053,13 @@ public:
   { return  val_decimal_from_date(decimal_value); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field, no_conversions); }
+  void set_time(MYSQL_TIME *ltime)
+  {
+    cached_time= *ltime;
+  }
+  bool operator>(const MYSQL_TIME &ltime) const;
+  bool operator<(const MYSQL_TIME &ltime) const;
+  bool operator==(const MYSQL_TIME &ltime) const;
 };
 
 
@@ -4089,7 +4119,7 @@ public:
 class Item_datetime_literal: public Item_temporal_literal
 {
 public:
-  Item_datetime_literal(THD *thd, MYSQL_TIME *ltime, uint dec_arg):
+  Item_datetime_literal(THD *thd, MYSQL_TIME *ltime, uint dec_arg= 0):
     Item_temporal_literal(thd, ltime, dec_arg)
   {
     max_length= MAX_DATETIME_WIDTH + (decimals ? decimals + 1 : 0);
@@ -5070,6 +5100,7 @@ public:
 #include "item_xmlfunc.h"
 #include "item_jsonfunc.h"
 #include "item_create.h"
+#include "item_vers.h"
 #endif
 
 /**
@@ -5987,6 +6018,12 @@ public:
   {
     DBUG_ASSERT(item->fixed);
     maybe_null= item->maybe_null;
+    if (item->real_type() == Item::FIELD_ITEM)
+    {
+      Item_field *item_field= (Item_field *)item->real_item();
+      flags|= (item_field->field->flags &
+               (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG));
+    }
   }
   Item_type_holder(THD *thd,
                    const LEX_CSTRING *name_arg,
@@ -6034,6 +6071,12 @@ public:
     Type_geometry_attributes::set_geometry_type(type);
   }
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+
+  uint flags;
+  uint32 field_flags() const
+  {
+    return flags;
+  }
 };
 
 

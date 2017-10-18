@@ -1987,6 +1987,41 @@ bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
+bool Field_vers_trx_id::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  DBUG_ASSERT(ltime);
+  if (!table || !table->s)
+    return true;
+  DBUG_ASSERT(table->versioned_by_engine() ||
+    (table->versioned() && table->s->table_category == TABLE_CATEGORY_TEMPORARY));
+  if (!trx_id)
+    return true;
+  if (trx_id == ULONGLONG_MAX)
+  {
+    get_thd()->variables.time_zone->gmt_sec_to_TIME(ltime, TIMESTAMP_MAX_VALUE);
+    ltime->second_part= TIME_MAX_SECOND_PART;
+    return false;
+  }
+  if (cached == trx_id)
+  {
+    *ltime= cache;
+    return false;
+  }
+  handlerton *hton= table->file->partition_ht();
+  DBUG_ASSERT(hton);
+  DBUG_ASSERT(hton->vers_query_trx_id);
+  bool found= hton->vers_query_trx_id(get_thd(), &cache, trx_id, VTQ_COMMIT_TS);
+  if (found)
+  {
+    *ltime= cache;
+    cached= trx_id;
+    return false;
+  }
+  return true;
+}
+
+
 Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
                      const LEX_CSTRING *field_name_arg,
@@ -4284,6 +4319,26 @@ void Field_longlong::sql_type(String &res) const
   add_zerofill_and_unsigned(res);
 }
 
+void Field_longlong::set_max()
+{
+  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  set_notnull();
+  int8store(ptr, unsigned_flag ? ULONGLONG_MAX : LONGLONG_MAX);
+}
+
+bool Field_longlong::is_max()
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  if (unsigned_flag)
+  {
+    ulonglong j;
+    j= uint8korr(ptr);
+    return j == ULONGLONG_MAX;
+  }
+  longlong j;
+  j= sint8korr(ptr);
+  return j == LONGLONG_MAX;
+}
 
 /*
   Floating-point numbers
@@ -5296,13 +5351,41 @@ void Field_timestampf::store_TIME(my_time_t timestamp, ulong sec_part)
   my_timestamp_to_binary(&tm, ptr, dec);
 }
 
+void Field_timestampf::set_max()
+{
+  DBUG_ENTER("Field_timestampf::set_max");
+  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  DBUG_ASSERT(dec == TIME_SECOND_PART_DIGITS);
+
+  set_notnull();
+  mi_int4store(ptr, TIMESTAMP_MAX_VALUE);
+  mi_int3store(ptr + 4, TIME_MAX_SECOND_PART);
+
+  DBUG_VOID_RETURN;
+}
+
+bool Field_timestampf::is_max()
+{
+  DBUG_ENTER("Field_timestampf::is_max");
+  ASSERT_COLUMN_MARKED_FOR_READ;
+
+  DBUG_RETURN(mi_sint4korr(ptr) == TIMESTAMP_MAX_VALUE &&
+              mi_sint3korr(ptr + 4) == TIME_MAX_SECOND_PART);
+}
 
 my_time_t Field_timestampf::get_timestamp(const uchar *pos,
                                           ulong *sec_part) const
 {
   struct timeval tm;
-  my_timestamp_from_binary(&tm, pos, dec);
-  *sec_part= tm.tv_usec;
+  if (sec_part)
+  {
+    my_timestamp_from_binary(&tm, pos ? pos : ptr, dec);
+    *sec_part= tm.tv_usec;
+  }
+  else
+  {
+    my_timestamp_from_binary(&tm, pos ? pos : ptr, 0);
+  }
   return tm.tv_sec;
 }
 
@@ -10296,7 +10379,8 @@ Field *make_field(TABLE_SHARE *share,
 		  Field::geometry_type geom_type, uint srid,
 		  Field::utype unireg_check,
 		  TYPELIB *interval,
-		  const LEX_CSTRING *field_name)
+		  const LEX_CSTRING *field_name,
+		  uint32 flags)
 {
   uchar *UNINIT_VAR(bit_ptr);
   uchar UNINIT_VAR(bit_offset);
@@ -10473,11 +10557,22 @@ Field *make_field(TABLE_SHARE *share,
                  f_is_zerofill(pack_flag) != 0,
                  f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_LONGLONG:
-    return new (mem_root)
-      Field_longlong(ptr,field_length,null_pos,null_bit,
-                     unireg_check, field_name,
-                     f_is_zerofill(pack_flag) != 0,
-                     f_is_dec(pack_flag) == 0);
+    if (flags & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+    {
+      return new (mem_root)
+        Field_vers_trx_id(ptr, field_length, null_pos, null_bit,
+                      unireg_check, field_name,
+                      f_is_zerofill(pack_flag) != 0,
+                      f_is_dec(pack_flag) == 0);
+    }
+    else
+    {
+      return new (mem_root)
+        Field_longlong(ptr,field_length,null_pos,null_bit,
+                      unireg_check, field_name,
+                      f_is_zerofill(pack_flag) != 0,
+                      f_is_dec(pack_flag) == 0);
+    }
   case MYSQL_TYPE_TIMESTAMP:
   {
     uint dec= field_length > MAX_DATETIME_WIDTH ?
@@ -10554,6 +10649,11 @@ Field *make_field(TABLE_SHARE *share,
   return 0;
 }
 
+bool Field_vers_trx_id::test_if_equality_guarantees_uniqueness(const Item* item) const
+{
+  return item->type() == Item::DATE_ITEM;
+}
+
 
 /** Create a field suitable for create of table. */
 
@@ -10575,6 +10675,8 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   option_list= old_field->option_list;
   pack_flag= 0;
   compression_method_ptr= 0;
+  versioning= VERSIONING_NOT_SET;
+  implicit_not_null= false;
 
   if (orig_field)
   {

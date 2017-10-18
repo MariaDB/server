@@ -573,6 +573,8 @@ struct upd_node_t{
 				compilation; speeds up execution:
 				UPD_NODE_NO_ORD_CHANGE and
 				UPD_NODE_NO_SIZE_CHANGE, ORed */
+	bool		versioned;/* update is versioned */
+	bool		vers_delete;/* versioned delete */
 	/*----------------------*/
 	/* Local storage for this graph node */
 	ulint		state;	/*!< node execution state */

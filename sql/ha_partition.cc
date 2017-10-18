@@ -160,9 +160,6 @@ static int partition_initialize(void *p)
 bool Partition_share::init(uint num_parts)
 {
   DBUG_ENTER("Partition_share::init");
-  mysql_mutex_init(key_partition_auto_inc_mutex,
-                   &auto_inc_mutex,
-                   MY_MUTEX_INIT_FAST);
   auto_inc_initialized= false;
   partition_name_hash_initialized= false;
   next_auto_inc_val= 0;
@@ -1265,12 +1262,12 @@ int ha_partition::handle_opt_part(THD *thd, HA_CHECK_OPT *check_opt,
    (modelled after mi_check_print_msg)
    TODO: move this into the handler, or rewrite mysql_admin_table.
 */
-static bool print_admin_msg(THD* thd, uint len,
+bool print_admin_msg(THD* thd, uint len,
                             const char* msg_type,
                             const char* db_name, String &table_name,
                             const char* op_name, const char *fmt, ...)
   ATTRIBUTE_FORMAT(printf, 7, 8);
-static bool print_admin_msg(THD* thd, uint len,
+bool print_admin_msg(THD* thd, uint len,
                             const char* msg_type,
                             const char* db_name, String &table_name,
                             const char* op_name, const char *fmt, ...)
@@ -3588,7 +3585,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
                             m_part_info->part_expr->get_monotonicity_info();
   else if (m_part_info->list_of_part_fields)
     m_part_func_monotonicity_info= MONOTONIC_STRICT_INCREASING;
-  info(HA_STATUS_VARIABLE | HA_STATUS_CONST);
+  info(HA_STATUS_OPEN | HA_STATUS_VARIABLE | HA_STATUS_CONST);
   DBUG_RETURN(0);
 
 err_handler:
@@ -4320,6 +4317,15 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     table->next_number_field= saved_next_number_field;
     if (error)
       goto exit;
+
+    if (m_part_info->part_type == VERSIONING_PARTITION)
+    {
+      uint sub_factor= m_part_info->num_subparts ? m_part_info->num_subparts : 1;
+      DBUG_ASSERT(m_tot_parts == m_part_info->num_parts * sub_factor);
+      uint lpart_id= new_part_id / sub_factor;
+      // lpart_id is VERSIONING partition because new_part_id != old_part_id
+      m_part_info->vers_update_stats(thd, lpart_id);
+    }
 
     tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
     error= m_file[old_part_id]->ha_delete_row(old_data);
@@ -5754,6 +5760,22 @@ int ha_partition::index_next_same(uchar *buf, const uchar *key, uint keylen)
 }
 
 
+int ha_partition::index_read_last_map(uchar *buf,
+                                          const uchar *key,
+                                          key_part_map keypart_map)
+{
+  DBUG_ENTER("ha_partition::index_read_last_map");
+
+  m_ordered= true;                              // Safety measure
+  end_range= NULL;
+  m_index_scan_type= partition_index_read_last;
+  m_start_key.key= key;
+  m_start_key.keypart_map= keypart_map;
+  m_start_key.flag= HA_READ_PREFIX_LAST;
+  DBUG_RETURN(common_index_read(buf, true));
+}
+
+
 /*
   Read next record when performing index scan backwards
 
@@ -6563,6 +6585,7 @@ int ha_partition::info(uint flag)
 {
   uint no_lock_flag= flag & HA_STATUS_NO_LOCK;
   uint extra_var_flag= flag & HA_STATUS_VARIABLE_EXTRA;
+  uint open_flag= flag & HA_STATUS_OPEN;
   DBUG_ENTER("ha_partition::info");
 
 #ifndef DBUG_OFF
@@ -6603,7 +6626,7 @@ int ha_partition::info(uint flag)
         do
         {
           file= *file_array;
-          file->info(HA_STATUS_AUTO | no_lock_flag);
+          file->info(HA_STATUS_AUTO | no_lock_flag | open_flag);
           set_if_bigger(auto_increment_value,
                         file->stats.auto_increment_value);
         } while (*(++file_array));
@@ -6657,7 +6680,7 @@ int ha_partition::info(uint flag)
          i= bitmap_get_next_set(&m_part_info->read_partitions, i))
     {
       file= m_file[i];
-      file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag);
+      file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag | open_flag);
       stats.records+= file->stats.records;
       stats.deleted+= file->stats.deleted;
       stats.data_file_length+= file->stats.data_file_length;
@@ -6738,7 +6761,7 @@ int ha_partition::info(uint flag)
       if (!(flag & HA_STATUS_VARIABLE) ||
           !bitmap_is_set(&(m_part_info->read_partitions),
                          (uint)(file_array - m_file)))
-        file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag);
+        file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag | open_flag);
       if (file->stats.records > max_records)
       {
         max_records= file->stats.records;
@@ -6757,7 +6780,7 @@ int ha_partition::info(uint flag)
               this);
 
     file= m_file[handler_instance];
-    file->info(HA_STATUS_CONST | no_lock_flag);
+    file->info(HA_STATUS_CONST | no_lock_flag | open_flag);
     stats.block_size= file->stats.block_size;
     stats.create_time= file->stats.create_time;
     ref_length= m_ref_length;
@@ -6773,7 +6796,7 @@ int ha_partition::info(uint flag)
       Note: all engines does not support HA_STATUS_ERRKEY, so set errkey.
     */
     file->errkey= errkey;
-    file->info(HA_STATUS_ERRKEY | no_lock_flag);
+    file->info(HA_STATUS_ERRKEY | no_lock_flag | open_flag);
     errkey= file->errkey;
   }
   if (flag & HA_STATUS_TIME)
@@ -6790,7 +6813,7 @@ int ha_partition::info(uint flag)
     do
     {
       file= *file_array;
-      file->info(HA_STATUS_TIME | no_lock_flag);
+      file->info(HA_STATUS_TIME | no_lock_flag | open_flag);
       if (file->stats.update_time > stats.update_time)
 	stats.update_time= file->stats.update_time;
     } while (*(++file_array));

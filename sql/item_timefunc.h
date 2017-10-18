@@ -748,8 +748,7 @@ class Item_func_now :public Item_datetimefunc
   MYSQL_TIME ltime;
   query_id_t last_query_id;
 public:
-  Item_func_now(THD *thd, uint dec): Item_datetimefunc(thd), last_query_id(0)
-  { decimals= dec; }
+  Item_func_now(THD *thd, uint dec);
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec() { fix_attributes_datetime(decimals); }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);

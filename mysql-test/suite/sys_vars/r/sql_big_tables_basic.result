@@ -48,7 +48,7 @@ SET @@session.sql_big_tables = TRÜE;
 ERROR 42000: Variable 'sql_big_tables' can't be set to the value of 'TRÜE'
 SET @@session.sql_big_tables = ÕN;
 ERROR 42000: Variable 'sql_big_tables' can't be set to the value of 'ÕN'
-SET @@session.sql_big_tables = OF;
+SET @@session.sql_big_tables = OFFF;
 ERROR 42000: Variable 'sql_big_tables' can't be set to the value of 'OF'
 SET @@session.sql_big_tables = ÓFF;
 ERROR 42000: Variable 'sql_big_tables' can't be set to the value of 'ÓFF'

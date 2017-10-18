@@ -40,6 +40,7 @@ typedef struct st_key_range key_range;
 #define HA_CAN_UPDATE_PARTITION_KEY (1 << 1)
 #define HA_CAN_PARTITION_UNIQUE (1 << 2)
 #define HA_USE_AUTO_PARTITION (1 << 3)
+#define HA_ONLY_VERS_PARTITION (1 << 4)
 
 #define NORMAL_PART_NAME 0
 #define TEMP_PART_NAME 1
@@ -127,6 +128,14 @@ uint32 get_partition_id_range_for_endpoint(partition_info *part_info,
 bool check_part_func_fields(Field **ptr, bool ok_with_charsets);
 bool field_is_partition_charset(Field *field);
 Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs);
+/**
+  Append all fields in read_set to string
+
+  @param[in,out] str   String to append to.
+  @param[in]     row   Row to append.
+  @param[in]     table Table containing read_set and fields for the row.
+*/
+void append_row_to_str(String &str, const uchar *row, TABLE *table);
 void mem_alloc_error(size_t size);
 void truncate_partition_filename(char *path);
 
@@ -290,4 +299,30 @@ int __attribute__((warn_unused_result))
 void set_key_field_ptr(KEY *key_info, const uchar *new_buf,
                        const uchar *old_buf);
 
+/** Set up table for creating a partition.
+Copy info from partition to the table share so the created partition
+has the correct info.
+  @param thd               THD object
+  @param share             Table share to be updated.
+  @param info              Create info to be updated.
+  @param part_elem         partition_element containing the info.
+
+  @return    status
+    @retval  TRUE  Error
+    @retval  FALSE Success
+
+  @details
+    Set up
+    1) Comment on partition
+    2) MAX_ROWS, MIN_ROWS on partition
+    3) Index file name on partition
+    4) Data file name on partition
+*/
+bool set_up_table_before_create(THD *thd,
+                                TABLE_SHARE *share,
+                                const char *partition_name_with_path,
+                                HA_CREATE_INFO *info,
+                                partition_element *part_elem);
+
 #endif /* SQL_PARTITION_INCLUDED */
+

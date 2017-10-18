@@ -116,7 +116,7 @@ SET @@session.tx_read_only = ONN;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.tx_read_only = ONF;
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@session.tx_read_only = OF;
+SET @@session.tx_read_only = OFFF;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.tx_read_only = 'OFN';
 --Error ER_WRONG_VALUE_FOR_VAR

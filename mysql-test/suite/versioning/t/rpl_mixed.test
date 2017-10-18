@@ -1,0 +1,7 @@
+-- source include/have_binlog_format_mixed.inc
+-- source include/master-slave.inc
+-- source include/have_innodb.inc
+
+-- source rpl_test.inc
+
+-- source include/rpl_end.inc

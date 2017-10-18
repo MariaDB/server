@@ -5774,6 +5774,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
       expression to 'reference', i.e. it substitute that expression instead
       of this Item_field
     */
+    DBUG_ASSERT(context);
     if ((from_field= find_field_in_tables(thd, this,
                                           context->first_name_resolution_table,
                                           context->last_name_resolution_table,
@@ -6628,7 +6629,7 @@ int Item_int::save_in_field(Field *field, bool no_conversions)
 
 Item *Item_int::clone_item(THD *thd)
 {
-  return new (thd->mem_root) Item_int(thd, name.str, value, max_length);
+  return new (thd->mem_root) Item_int(thd, name.str, value, max_length, unsigned_flag);
 }
 
 
@@ -6958,6 +6959,26 @@ bool Item_temporal_literal::eq(const Item *item, bool binary_cmp) const
                      &((Item_temporal_literal *) item)->cached_time);
 }
 
+bool Item_temporal_literal::operator<(const MYSQL_TIME &ltime) const
+{
+  if (my_time_compare(&cached_time, &ltime) < 0)
+    return true;
+  return false;
+}
+
+bool Item_temporal_literal::operator>(const MYSQL_TIME &ltime) const
+{
+  if (my_time_compare(&cached_time, &ltime) > 0)
+    return true;
+  return false;
+}
+
+bool Item_temporal_literal::operator==(const MYSQL_TIME &ltime) const
+{
+  if (my_time_compare(&cached_time, &ltime) == 0)
+    return true;
+  return false;
+}
 
 void Item_date_literal::print(String *str, enum_query_type query_type)
 {
@@ -10305,6 +10326,35 @@ bool
 Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
   return find_matching_grouping_field(this, sel) != NULL;
+}
+
+Item *Item_field::vers_optimized_fields_transformer(THD *thd, uchar *)
+{
+  if (!field)
+    return this;
+
+  if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context &&
+      field->table->pos_in_table_list &&
+      field->table->pos_in_table_list->vers_conditions)
+  {
+    push_warning_printf(
+        current_thd, Sql_condition::WARN_LEVEL_WARN,
+        ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY,
+        ER_THD(current_thd, ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY),
+        field_name);
+
+    Item *null_item= new (thd->mem_root) Item_null(thd);
+    if (null_item)
+      return null_item;
+  }
+
+  return this;
+}
+
+bool Item_field::vers_trx_id() const
+{
+  DBUG_ASSERT(field);
+  return field->vers_trx_id();
 }
 
 void Item::register_in(THD *thd)

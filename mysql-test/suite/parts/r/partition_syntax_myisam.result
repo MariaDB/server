@@ -510,7 +510,7 @@ f_charbig VARCHAR(1000)
 )
 PARTITION BY RANGE(f_int1)
 ( PARTITION part1 VALUES LESS THAN (1000) (SUBPARTITION subpart11));
-ERROR HY000: It is only possible to mix RANGE/LIST partitioning with HASH/KEY partitioning for subpartitioning
+ERROR HY000: It is only possible to mix RANGE/LIST/SYSTEM_TIME partitioning with HASH/KEY partitioning for subpartitioning
 #------------------------------------------------------------------------
 #  2.2 Every partition must have the same number of subpartitions.
 #      This is a limitation of MySQL 5.1, which could be removed in

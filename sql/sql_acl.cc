@@ -170,6 +170,11 @@ TABLE_FIELD_TYPE mysql_db_table_fields[MYSQL_DB_FIELD_COUNT] = {
     { C_STRING_WITH_LEN("Trigger_priv") },
     { C_STRING_WITH_LEN("enum('N','Y')") },
     { C_STRING_WITH_LEN("utf8") }
+  },
+  {
+    { C_STRING_WITH_LEN("Delete_versioning_rows_priv") },
+    { C_STRING_WITH_LEN("enum('N','Y')") },
+    { C_STRING_WITH_LEN("utf8") }
   }
 };
 
@@ -695,9 +700,9 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
 #define NORMAL_HANDSHAKE_SIZE   6
 
-#define ROLE_ASSIGN_COLUMN_IDX  43
-#define DEFAULT_ROLE_COLUMN_IDX 44
-#define MAX_STATEMENT_TIME_COLUMN_IDX 45
+#define ROLE_ASSIGN_COLUMN_IDX  44
+#define DEFAULT_ROLE_COLUMN_IDX 45
+#define MAX_STATEMENT_TIME_COLUMN_IDX 46
 
 /* various flags valid for ACL_USER */
 #define IS_ROLE                 (1L << 0)
@@ -2012,6 +2017,9 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       */
       if (user_table.num_fields() <= 38 && (user.access & SUPER_ACL))
         user.access|= TRIGGER_ACL;
+
+      if (user_table.num_fields() <= 46 && (user.access & DELETE_ACL))
+        user.access|= DELETE_VERSIONING_ROWS_ACL;
 
       user.sort= get_sort(2, user.host.hostname, user.user.str);
       user.hostname_length= safe_strlen(user.host.hostname);
@@ -8465,13 +8473,14 @@ static const char *command_array[]=
   "ALTER", "SHOW DATABASES", "SUPER", "CREATE TEMPORARY TABLES",
   "LOCK TABLES", "EXECUTE", "REPLICATION SLAVE", "REPLICATION CLIENT",
   "CREATE VIEW", "SHOW VIEW", "CREATE ROUTINE", "ALTER ROUTINE",
-  "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE"
+  "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE",
+  "DELETE VERSIONING ROWS"
 };
 
 static uint command_lengths[]=
 {
   6, 6, 6, 6, 6, 4, 6, 8, 7, 4, 5, 10, 5, 5, 14, 5, 23, 11, 7, 17, 18, 11, 9,
-  14, 13, 11, 5, 7, 17
+  14, 13, 11, 5, 7, 17, 22,
 };
 
 

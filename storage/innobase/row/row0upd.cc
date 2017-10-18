@@ -272,6 +272,7 @@ row_upd_check_references_constraints(
 
 		if (foreign->referenced_index == index
 		    && (node->is_delete
+			|| node->vers_delete
 			|| row_upd_changes_first_fields_binary(
 				entry, index, node->update,
 				foreign->n_fields))) {
@@ -412,6 +413,7 @@ wsrep_row_upd_check_foreign_constraints(
 
 		if (foreign->foreign_index == index
 		    && (node->is_delete
+			|| node->vers_delete
 			|| row_upd_changes_first_fields_binary(
 				entry, index, node->update,
 				foreign->n_fields))) {
@@ -491,6 +493,8 @@ upd_node_create(
 	node->common.type = QUE_NODE_UPDATE;
 	node->state = UPD_NODE_UPDATE_CLUSTERED;
 	node->heap = mem_heap_create(128);
+	node->cmpl_info = 0;
+	node->versioned = false;
 	node->magic_n = UPD_NODE_MAGIC_N;
 
 	return(node);

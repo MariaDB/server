@@ -94,7 +94,7 @@ SET @@session.sql_big_selects = TRÜE;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_big_selects = ÕN;
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@session.sql_big_selects = OF;
+SET @@session.sql_big_selects = OFFF;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_big_selects = ÓFF;
 --Error ER_WRONG_VALUE_FOR_VAR

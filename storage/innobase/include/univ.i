@@ -454,6 +454,8 @@ typedef uint32_t ib_uint32_t;
 #define UINT64PF	"%" UINT64scan
 #define IB_ID_FMT	UINT64PF
 
+typedef ib_uint64_t		ullong;
+
 /** Log sequence number (also used for redo log byte arithmetics) */
 typedef	ib_uint64_t		lsn_t;
 

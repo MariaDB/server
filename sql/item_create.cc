@@ -7168,8 +7168,6 @@ get_native_fct_hash_key(const uchar *buff, size_t *length,
 
 int item_create_init()
 {
-  Native_func_registry *func;
-
   DBUG_ENTER("item_create_init");
 
   if (my_hash_init(& native_functions_hash,
@@ -7182,7 +7180,16 @@ int item_create_init()
                    MYF(0)))
     DBUG_RETURN(1);
 
-  for (func= func_array; func->builder != NULL; func++)
+  DBUG_RETURN(item_create_append(func_array));
+}
+
+int item_create_append(Native_func_registry array[])
+{
+  Native_func_registry *func;
+
+  DBUG_ENTER("item_create_append");
+
+  for (func= array; func->builder != NULL; func++)
   {
     if (my_hash_insert(& native_functions_hash, (uchar*) func))
       DBUG_RETURN(1);

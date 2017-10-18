@@ -177,8 +177,7 @@ public:
   /// of the client/server protocol.
   bool end_partial_result_set;
 
-  /// The stored program for which this runtime context is created. Used for
-  /// checking if correct runtime context is used for variable handling.
+  /// The stored program for which this runtime context is created.
   sp_head *sp;
 
   /////////////////////////////////////////////////////////////////////////

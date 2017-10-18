@@ -373,6 +373,14 @@ IF(WITH_UNIT_TESTS)
  ENDIF()
 ENDIF()
 
+IF(WITH_INNOBASE_STORAGE_ENGINE)
+  SET(PLUGIN_INNOBASE STATIC CACHE STRING "" FORCE)
+  SET(PLUGIN_XTRADB NO CACHE STRING "" FORCE)
+ELSE()
+  SET(PLUGIN_INNOBASE DYNAMIC CACHE STRING "" FORCE)
+  SET(PLUGIN_XTRADB STATIC CACHE STRING "" FORCE)
+ENDIF()
+
 SET (MYSQLD_STATIC_PLUGIN_LIBS "" CACHE INTERNAL "")
 
 INCLUDE(submodules)
@@ -503,3 +511,5 @@ IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
 You have linked MariaDB with GPLv3 libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with Free Software Foundation.")
 ENDIF()
+
+INCLUDE(${CMAKE_SOURCE_DIR}/cmake/print_warnings.cmake)

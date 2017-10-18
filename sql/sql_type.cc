@@ -658,7 +658,9 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 
   Item_result a= cmp_type();
   Item_result b= h->cmp_type();
-  if (a == STRING_RESULT && b == STRING_RESULT)
+  if (m_vers_trx_id && (a == STRING_RESULT || b == STRING_RESULT))
+    m_type_handler= &type_handler_datetime;
+  else if (a == STRING_RESULT && b == STRING_RESULT)
     m_type_handler= &type_handler_long_blob;
   else if (a == INT_RESULT && b == INT_RESULT)
     m_type_handler= &type_handler_longlong;

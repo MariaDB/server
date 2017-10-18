@@ -310,7 +310,7 @@ private:
 inline Field **TABLE::field_to_fill()
 {
   return triggers && triggers->nullable_fields() ? triggers->nullable_fields()
-                                                 : field;
+    : non_generated_field ? non_generated_field : field;
 }
 
 

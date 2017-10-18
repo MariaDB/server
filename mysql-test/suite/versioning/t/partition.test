@@ -1,0 +1,242 @@
+-- source suite/versioning/common.inc
+
+### check System Versioning and conventional partitioning
+
+create table t1 (x int)
+with system versioning
+partition by range columns (x) (
+    partition p0 values less than (100),
+    partition p1 values less than (1000));
+
+insert into t1 values (3), (300);
+select * from t1;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+
+delete from t1;
+select * from t1;
+select * from t1 for system_time all;
+select * from t1 partition (p0) for system_time all;
+select * from t1 partition (p1) for system_time all;
+
+### check server-level partitioning
+
+# create errors
+--error ER_VERSIONING_REQUIRED
+create or replace table t1 (x int)
+partition by system_time (
+    partition p0 versioning,
+    partition pn as of now);
+
+create or replace table t1 (x int);
+--error ER_VERSIONING_REQUIRED,ER_VERSIONING_REQUIRED
+alter table t1
+partition by system_time (
+    partition p0 versioning,
+    partition pn as of now);
+
+--error ER_VERS_WRONG_PARTS
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+    partition p0 as of now);
+
+--error ER_VERS_WRONG_PARTS
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+    partition p0 as of now,
+    partition p1 as of now);
+
+--error ER_VERS_WRONG_PARTS
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+    partition p0 versioning,
+    partition p1 versioning);
+
+--error ER_VERS_WRONG_PARTS
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+    partition pn as of now,
+    partition p0 versioning);
+
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+    partition p0 versioning,
+    partition pn as of now);
+
+# alter table
+--error ER_VERS_WRONG_PARTS
+alter table t1 add partition (
+    partition p1 as of now);
+
+alter table t1 add partition (
+    partition p1 versioning);
+
+--replace_result InnoDB ${INNODB_OR_MYISAM} MyISAM ${INNODB_OR_MYISAM} "bigint(20) unsigned" ${SYS_TRX_TYPE} timestamp(6) ${SYS_TRX_TYPE}
+show create table t1;
+
+insert into t1 values (1), (2);
+
+--error ER_VERS_WRONG_PARTS
+alter table t1 drop partition pn;
+alter table t1 drop partition p1;
+--error ER_VERS_WRONG_PARTS
+alter table t1 drop partition p0;
+
+select x from t1;
+
+# Bug #260: incorrect IB partitioning warning
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 1 (
+    partition p0 versioning,
+    partition pn as of now);
+alter table t1 change x big int;
+
+# insert, delete, update
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+    partition p0 versioning,
+    partition pn as of now);
+
+set @now= now(6);
+insert into t1 values (1);
+set @ts_start= sys_commit_ts('sys_trx_start');
+set @ts_end= sys_commit_ts('sys_trx_end');
+set @str= concat('select x, ', @ts_start, ' < @now as A, ', @ts_end, ' > @now as B from t1 partition (p0) for system_time all');
+prepare select_p0 from @str;
+set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn) for system_time all');
+prepare select_pn from @str;
+
+execute select_p0;
+execute select_pn;
+
+# pruning check
+--replace_result ALL system "Using where" ""
+explain partitions select * from t1;
+
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+
+set @now= now(6);
+delete from t1;
+execute select_p0;
+execute select_pn;
+
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all into @ts1');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+
+select @ts0 = @ts1;
+
+set @now= now(6);
+insert into t1 values (2);
+execute select_p0;
+execute select_pn;
+
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+
+set @now= now(6);
+update t1 set x = x + 1;
+execute select_p0;
+execute select_pn;
+
+drop prepare select_p0;
+drop prepare select_pn;
+
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all where x = 2 into @ts1');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+set @str= concat('select ', @ts_end, ' from t1 partition (p0) for system_time all where x = 2 into @ts2');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts3');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+
+select @ts0 = @ts1;
+select @ts2 = @ts3;
+
+# rotation by LIMIT
+--error ER_VERS_WRONG_PARAMS
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 0 (
+    partition p0 versioning,
+    partition p1 versioning,
+    partition pn as of now);
+
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 1 (
+    partition p0 versioning,
+    partition p1 versioning,
+    partition pn as of now);
+
+--replace_result InnoDB ${INNODB_OR_MYISAM} MyISAM ${INNODB_OR_MYISAM} "bigint(20) unsigned" ${SYS_TRX_TYPE} timestamp(6) ${SYS_TRX_TYPE}
+show create table t1;
+
+--error ER_DROP_PARTITION_NON_EXISTENT
+alter table t1 drop partition non_existent;
+
+insert into t1 values (1), (2);
+select * from t1 partition (pn);
+delete from t1;
+select * from t1 partition (p0) for system_time all;
+select * from t1 partition (p1) for system_time all;
+
+insert into t1 values (3);
+delete from t1;
+select * from t1 partition (p1) for system_time all;
+
+# rotation by INTERVAL
+--error ER_VERS_WRONG_PARAMS
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 0 second (
+    partition p0 versioning,
+    partition p1 versioning,
+    partition pn as of now);
+
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 1 second (
+    partition p0 versioning,
+    partition p1 versioning,
+    partition pn as of now);
+
+insert into t1 values (1), (2), (3);
+select * from t1 partition (pn);
+delete from t1;
+select * from t1 partition (p0) for system_time all;
+
+--sleep 2
+insert into t1 values (4);
+delete from t1;
+select * from t1 partition (p1) for system_time all;
+
+# Subpartitions
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 1
+subpartition by key (x)
+subpartitions 2 (
+    partition p0 versioning,
+    partition p1 versioning,
+    partition pn as of now);
+
+insert into t1 (x) values (1), (2), (3);
+select * from t1 partition (pnsp0);
+select * from t1 partition (pnsp1);
+
+delete from t1;
+select * from t1 partition (p0sp0) for system_time all;
+select * from t1 partition (p0sp1) for system_time all;
+select * from t1 partition (p1sp0) for system_time all;
+select * from t1 partition (p1sp1) for system_time all;
+
+drop table t1;
+
+-- source suite/versioning/common_finish.inc

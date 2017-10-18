@@ -67,4 +67,4 @@ https://github.com/MariaDB/server
 Code status:
 ------------
 
-* [![tests status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.2)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.2 branch)
+* [![tests status](https://travis-ci.org/tempesta-tech/mariadb.svg?branch=natsys%2Ftrunk)](https://travis-ci.org/tempesta-tech/mariadb) travis-ci.org (natsys/trunk)

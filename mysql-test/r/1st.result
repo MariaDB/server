@@ -37,3 +37,4 @@ time_zone_name
 time_zone_transition
 time_zone_transition_type
 user
+vtmd_template

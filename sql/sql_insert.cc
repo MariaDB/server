@@ -222,7 +222,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
                table_list->view_db.str, table_list->view_name.str);
       DBUG_RETURN(-1);
     }
-    if (values.elements != table->s->fields)
+    if (values.elements != table->vers_user_fields())
     {
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
@@ -1031,6 +1031,9 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         }
       }
 
+      if (table->versioned_by_sql())
+        table->vers_update_fields();
+
       if ((res= table_list->view_check_option(thd,
                                               (values_list.elements == 1 ?
                                                0 :
@@ -1136,8 +1139,10 @@ values_loop_end:
 	}
         else
           errcode= query_error_code(thd, thd->killed == NOT_KILLED);
-        
-	/* bug#22725:
+
+        ScopedStatementReplication scoped_stmt_rpl(
+            table->versioned_by_engine() ? thd : NULL);
+       /* bug#22725:
 
 	A query which per-row-loop can not be interrupted with
 	KILLED, like INSERT, and that does not invoke stored
@@ -1557,6 +1562,13 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   if (!table)
     table= table_list->table;
 
+  if (table->versioned_by_sql() && duplic == DUP_REPLACE)
+  {
+    // Additional memory may be required to create historical items.
+    if (table_list->set_insert_values(thd->mem_root))
+      DBUG_RETURN(TRUE);
+  }
+
   if (!select_insert)
   {
     Item *fake_conds= 0;
@@ -1606,6 +1618,25 @@ static int last_uniq_key(TABLE *table,uint keynr)
   return 1;
 }
 
+
+/*
+ Inserts one historical row to a table.
+
+ Copies content of the row from table->record[1] to table->record[0],
+ sets Sys_end to now() and calls ha_write_row() .
+*/
+
+int vers_insert_history_row(TABLE *table)
+{
+  DBUG_ASSERT(table->versioned_by_sql());
+  restore_record(table,record[1]);
+
+  // Set Sys_end to now()
+  if (table->vers_end_field()->set_time())
+    DBUG_ASSERT(0);
+
+  return table->file->ha_write_row(table->record[0]);
+}
 
 /*
   Write a record to table with optional deleting of conflicting records,
@@ -1811,7 +1842,23 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           }
 
           if (error != HA_ERR_RECORD_IS_THE_SAME)
+          {
             info->updated++;
+            if (table->versioned())
+            {
+              if (table->versioned_by_sql())
+              {
+                store_record(table, record[2]);
+                if ((error= vers_insert_history_row(table)))
+                {
+                  restore_record(table, record[2]);
+                  goto err;
+                }
+                restore_record(table, record[2]);
+              }
+              info->copied++;
+            }
+          }
           else
             error= 0;
           /*
@@ -1863,13 +1910,16 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           tables which have ON UPDATE but have no ON DELETE triggers,
           we just should not expose this fact to users by invoking
           ON UPDATE triggers.
-	*/
-	if (last_uniq_key(table,key_nr) &&
-	    !table->file->referenced_by_foreign_key() &&
-            (!table->triggers || !table->triggers->has_delete_triggers()))
+          For system versioning wa also use path through delete since we would
+          save nothing through this cheating.
+        */
+        if (last_uniq_key(table,key_nr) &&
+            !table->file->referenced_by_foreign_key() &&
+            (!table->triggers || !table->triggers->has_delete_triggers()) &&
+            !table->versioned_by_sql())
         {
           if ((error=table->file->ha_update_row(table->record[1],
-					        table->record[0])) &&
+                                                table->record[0])) &&
               error != HA_ERR_RECORD_IS_THE_SAME)
             goto err;
           if (error != HA_ERR_RECORD_IS_THE_SAME)
@@ -1889,9 +1939,29 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
               table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                                 TRG_ACTION_BEFORE, TRUE))
             goto before_trg_err;
-          if ((error=table->file->ha_delete_row(table->record[1])))
+
+          if (!table->versioned_by_sql())
+            error= table->file->ha_delete_row(table->record[1]);
+          else
+          {
+            DBUG_ASSERT(table->insert_values);
+            store_record(table,insert_values);
+            restore_record(table,record[1]);
+            if (table->vers_end_field()->set_time())
+            {
+              error= 1;
+              goto err;
+            }
+            error= table->file->ha_update_row(table->record[1],
+                                              table->record[0]);
+            restore_record(table,insert_values);
+          }
+          if (error)
             goto err;
-          info->deleted++;
+          if (!table->versioned_by_sql())
+            info->deleted++;
+          else
+            info->updated++;
           if (!table->file->has_transactions())
             thd->transaction.stmt.modified_non_trans_table= TRUE;
           if (table->triggers &&
@@ -1979,7 +2049,9 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry, TABLE_LIST *t
   for (Field **field=entry->field ; *field ; field++)
   {
     if (!bitmap_is_set(write_set, (*field)->field_index) &&
-        has_no_default_value(thd, *field, table_list))
+        !(*field)->vers_sys_field() &&
+        has_no_default_value(thd, *field, table_list) &&
+        ((*field)->real_type() != MYSQL_TYPE_ENUM))
       err=1;
   }
   return thd->abort_on_warning ? err : 0;
@@ -3734,6 +3806,8 @@ int select_insert::send_data(List<Item> &values)
     DBUG_RETURN(0);
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
+  if (table->versioned_by_sql())
+    table->vers_update_fields();
   store_values(values);
   if (table->default_field && table->update_default_fields(0, info.ignore))
     DBUG_RETURN(1);
@@ -3792,12 +3866,16 @@ int select_insert::send_data(List<Item> &values)
 
 void select_insert::store_values(List<Item> &values)
 {
+  DBUG_ENTER("select_insert::store_values");
+
   if (fields->elements)
     fill_record_n_invoke_before_triggers(thd, table, *fields, values, 1,
                                          TRG_EVENT_INSERT);
   else
     fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
                                          values, 1, TRG_EVENT_INSERT);
+
+  DBUG_VOID_RETURN;
 }
 
 bool select_insert::prepare_eof()
@@ -4085,6 +4163,12 @@ static TABLE *create_table_from_items(THD *thd,
     if (item->maybe_null)
       cr_field->flags &= ~NOT_NULL_FLAG;
     alter_info->create_list.push_back(cr_field, thd->mem_root);
+  }
+
+  if (create_info->vers_info.check_and_fix_implicit(
+        thd, alter_info, create_info, create_table->table_name))
+  {
+    DBUG_RETURN(NULL);
   }
 
   DEBUG_SYNC(thd,"create_table_select_before_create");
