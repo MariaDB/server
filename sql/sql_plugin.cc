@@ -194,7 +194,6 @@ static DYNAMIC_ARRAY plugin_array;
 static HASH plugin_hash[MYSQL_MAX_PLUGIN_TYPE_NUM];
 static MEM_ROOT plugin_mem_root;
 static bool reap_needed= false;
-static int plugin_array_version=0;
 
 static bool initialized= 0;
 ulong dlopen_count;
@@ -302,7 +301,6 @@ static void unlock_variables(THD *thd, struct system_variables *vars);
 static void cleanup_variables(THD *thd, struct system_variables *vars);
 static void plugin_vars_free_values(sys_var *vars);
 static void restore_ptr_backup(uint n, st_ptr_backup *backup);
-static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref plugin);
 static void intern_plugin_unlock(LEX *lex, plugin_ref plugin);
 static void reap_plugins(void);
 
@@ -923,15 +921,17 @@ SHOW_COMP_OPTION plugin_status(const char *name, size_t len, int type)
 }
 
 
-static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref rc)
+static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref rc,
+                                     uint state_mask= PLUGIN_IS_READY |
+                                                      PLUGIN_IS_UNINITIALIZED |
+                                                      PLUGIN_IS_DELETED)
 {
   st_plugin_int *pi= plugin_ref_to_int(rc);
   DBUG_ENTER("intern_plugin_lock");
 
   mysql_mutex_assert_owner(&LOCK_plugin);
 
-  if (pi->state & (PLUGIN_IS_READY | PLUGIN_IS_UNINITIALIZED |
-                   PLUGIN_IS_DELETED))
+  if (pi->state & state_mask)
   {
     plugin_ref plugin;
 #ifdef DBUG_OFF
@@ -1121,7 +1121,6 @@ static bool plugin_add(MEM_ROOT *tmp_root,
 
     if (!(tmp_plugin_ptr= plugin_insert_or_reuse(&tmp)))
       goto err;
-    plugin_array_version++;
     if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
       tmp_plugin_ptr->state= PLUGIN_IS_FREED;
     init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096, MYF(0));
@@ -1217,7 +1216,6 @@ static void plugin_del(struct st_plugin_int *plugin)
   my_hash_delete(&plugin_hash[plugin->plugin->type], (uchar*)plugin);
   plugin_dl_del(plugin->plugin_dl);
   plugin->state= PLUGIN_IS_FREED;
-  plugin_array_version++;
   free_root(&plugin->mem_root, MYF(0));
   DBUG_VOID_RETURN;
 }
@@ -1821,11 +1819,11 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
     switch ((*(p++)= *(list++))) {
     case '\0':
       list= NULL; /* terminate the loop */
-#ifndef __WIN__
       /* fall through */
+    case ';':
+#ifndef __WIN__
     case ':':     /* can't use this as delimiter as it may be drive letter */
 #endif
-    case ';':
       str->str[str->length]= '\0';
       if (str == &name)  // load all plugins in named module
       {
@@ -2284,64 +2282,55 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
 bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
                        int type, uint state_mask, void *arg)
 {
-  uint idx, total;
-  struct st_plugin_int *plugin, **plugins;
-  int version=plugin_array_version;
+  uint idx, total= 0;
+  struct st_plugin_int *plugin;
+  plugin_ref *plugins;
+  my_bool res= FALSE;
   DBUG_ENTER("plugin_foreach_with_mask");
 
   if (!initialized)
     DBUG_RETURN(FALSE);
 
-  state_mask= ~state_mask; // do it only once
-
   mysql_mutex_lock(&LOCK_plugin);
-  total= type == MYSQL_ANY_PLUGIN ? plugin_array.elements
-                                  : plugin_hash[type].records;
   /*
     Do the alloca out here in case we do have a working alloca:
-        leaving the nested stack frame invalidates alloca allocation.
+    leaving the nested stack frame invalidates alloca allocation.
   */
-  plugins=(struct st_plugin_int **)my_alloca(total*sizeof(plugin));
   if (type == MYSQL_ANY_PLUGIN)
   {
-    for (idx= 0; idx < total; idx++)
+    plugins= (plugin_ref*) my_alloca(plugin_array.elements * sizeof(plugin_ref));
+    for (idx= 0; idx < plugin_array.elements; idx++)
     {
       plugin= *dynamic_element(&plugin_array, idx, struct st_plugin_int **);
-      plugins[idx]= !(plugin->state & state_mask) ? plugin : NULL;
+      if ((plugins[total]= intern_plugin_lock(0, plugin_int_to_ref(plugin),
+                                              state_mask)))
+        total++;
     }
   }
   else
   {
     HASH *hash= plugin_hash + type;
-    for (idx= 0; idx < total; idx++)
+    plugins= (plugin_ref*) my_alloca(hash->records * sizeof(plugin_ref));
+    for (idx= 0; idx < hash->records; idx++)
     {
       plugin= (struct st_plugin_int *) my_hash_element(hash, idx);
-      plugins[idx]= !(plugin->state & state_mask) ? plugin : NULL;
+      if ((plugins[total]= intern_plugin_lock(0, plugin_int_to_ref(plugin),
+                                              state_mask)))
+        total++;
     }
   }
   mysql_mutex_unlock(&LOCK_plugin);
 
   for (idx= 0; idx < total; idx++)
   {
-    if (unlikely(version != plugin_array_version))
-    {
-      mysql_mutex_lock(&LOCK_plugin);
-      for (uint i=idx; i < total; i++)
-        if (plugins[i] && plugins[i]->state & state_mask)
-          plugins[i]=0;
-      mysql_mutex_unlock(&LOCK_plugin);
-    }
-    plugin= plugins[idx];
     /* It will stop iterating on first engine error when "func" returns TRUE */
-    if (plugin && func(thd, plugin_int_to_ref(plugin), arg))
-        goto err;
+    if ((res= func(thd, plugins[idx], arg)))
+        break;
   }
 
+  plugin_unlock_list(0, plugins, total);
   my_afree(plugins);
-  DBUG_RETURN(FALSE);
-err:
-  my_afree(plugins);
-  DBUG_RETURN(TRUE);
+  DBUG_RETURN(res);
 }
 
 
@@ -3385,7 +3374,6 @@ bool sys_var_pluginvar::global_update(THD *thd, set_var *var)
   options->max_value= getopt_double2ulonglong((opt)->max_val); \
   options->block_size= (long) (opt)->blk_sz;
 
-
 void plugin_opt_set_limits(struct my_option *options,
                            const struct st_mysql_sys_var *opt)
 {
@@ -4067,4 +4055,3 @@ static void restore_ptr_backup(uint n, st_ptr_backup *backup)
   while (n--)
     (backup++)->restore();
 }
-

@@ -511,7 +511,76 @@ Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 's               '
 DROP TABLE t1;
 #
-# Start of 10.0 tests
+# MDEV-13530 VARBINARY doesn't convert to to BLOB for sizes 65533, 65534 and 65535
+#
+CREATE TABLE t1 (c1 VARBINARY(65532));
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	varbinary(65532)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARBINARY(65533));
+Warnings:
+Note	1246	Converting column 'c1' from VARBINARY to BLOB
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	blob	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARBINARY(65534));
+Warnings:
+Note	1246	Converting column 'c1' from VARBINARY to BLOB
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	blob	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARBINARY(65535));
+Warnings:
+Note	1246	Converting column 'c1' from VARBINARY to BLOB
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	blob	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARBINARY(65536));
+Warnings:
+Note	1246	Converting column 'c1' from VARBINARY to BLOB
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	mediumblob	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(65532));
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	varchar(65532)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(65533));
+Warnings:
+Note	1246	Converting column 'c1' from VARCHAR to TEXT
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	text	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(65534));
+Warnings:
+Note	1246	Converting column 'c1' from VARCHAR to TEXT
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	text	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(65535));
+Warnings:
+Note	1246	Converting column 'c1' from VARCHAR to TEXT
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	text	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(65536));
+Warnings:
+Note	1246	Converting column 'c1' from VARCHAR to TEXT
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	mediumtext	YES		NULL	
+DROP TABLE t1;
+#
+# End of 5.5 tests
 #
 #
 # MDEV-6950 Bad results with joins comparing DATE and INT/ENUM/VARCHAR columns

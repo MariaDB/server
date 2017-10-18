@@ -1,6 +1,6 @@
 /*
-  Copyright (c) 2005, 2013, Oracle and/or its affiliates.
-  Copyright (c) 2009, 2013, Monty Program Ab & SkySQL Ab
+  Copyright (c) 2005, 2017, Oracle and/or its affiliates.
+  Copyright (c) 2009, 2017, MariaDB
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1928,7 +1928,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
           cleanup_new_partition(part_count);
           DBUG_RETURN(error);
         }
-        
+
         DBUG_PRINT("info", ("Add partition %s", part_name_buff));
         if ((error= prepare_new_partition(table, create_info,
                                           new_file_array[i],

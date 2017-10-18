@@ -112,6 +112,7 @@ endmacro(append_cflags_if_supported)
 
 set_cflags_if_supported(-Wno-missing-field-initializers)
 append_cflags_if_supported(-Wno-vla)
+append_cflags_if_supported(-Wno-implicit-fallthrough)
 
 IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/PerconaFT/")
     IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ft-index/")

@@ -4536,4 +4536,3 @@ void binlog_unsafe_map_init()
      BINLOG_DIRECT_OFF & TRX_CACHE_NOT_EMPTY);
 }
 #endif
-

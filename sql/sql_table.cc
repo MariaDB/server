@@ -6851,7 +6851,6 @@ bool alter_table_manage_keys(TABLE *table, int indexes_were_disabled,
   case Alter_info::LEAVE_AS_IS:
     if (!indexes_were_disabled)
       break;
-    /* disabled indexes */
     /* fall through */
   case Alter_info::DISABLE:
     error= table->file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);

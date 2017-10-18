@@ -696,6 +696,7 @@ public:
   Group_list_ptrs        *group_list_ptrs;
 
   List<Item>          item_list;  /* list of fields & expressions */
+  List<Item>          pre_fix; /* above list before fix_fields */
   List<String>        interval_list;
   bool	              is_item_list_lookup;
   /* 

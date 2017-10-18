@@ -724,7 +724,7 @@ exit_without_my_ok:
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
   if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num)) ||
-      setup_fields(thd, NULL, field_list, MARK_COLUMNS_READ, NULL, 0) ||
+      setup_fields(thd, NULL, field_list, MARK_COLUMNS_READ, NULL, NULL, 0) ||
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||
       setup_ftfuncs(select_lex))
     DBUG_RETURN(TRUE);

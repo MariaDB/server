@@ -302,7 +302,7 @@ int fill_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
   TABLE *table= tables->table;
 
   if (plugin_foreach_with_mask(thd, show_plugins, MYSQL_ANY_PLUGIN,
-                               ~PLUGIN_IS_FREED, table))
+                               ~(PLUGIN_IS_FREED | PLUGIN_IS_DYING), table))
     DBUG_RETURN(1);
 
   DBUG_RETURN(0);
@@ -5768,7 +5768,8 @@ int fill_schema_engines(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_ENTER("fill_schema_engines");
   if (plugin_foreach_with_mask(thd, iter_schema_engines,
                                MYSQL_STORAGE_ENGINE_PLUGIN,
-                               ~PLUGIN_IS_FREED, tables->table))
+                               ~(PLUGIN_IS_FREED | PLUGIN_IS_DYING),
+                               tables->table))
     DBUG_RETURN(1);
   DBUG_RETURN(0);
 }
@@ -6190,6 +6191,10 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
     DBUG_RETURN(1);
   }
 
+  /* Disable padding temporarily so it doesn't break the query */
+  ulonglong sql_mode_was = thd->variables.sql_mode;
+  thd->variables.sql_mode &= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+
   if (proc_table->file->ha_index_init(0, 1))
   {
     res= 1;
@@ -6225,6 +6230,7 @@ err:
     (void) proc_table->file->ha_index_end();
 
   close_system_tables(thd, &open_tables_state_backup);
+  thd->variables.sql_mode = sql_mode_was;
   DBUG_RETURN(res);
 }
 

@@ -1789,9 +1789,18 @@ overflow:
 
   ltime->hour= TIME_MAX_HOUR+1;
   check_time_range(ltime, decimals, &unused);
-  make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                               err->ptr(), err->length(),
-                               MYSQL_TIMESTAMP_TIME, NullS);
+  if (!err)
+  {
+    ErrConvInteger err2(sec, unsigned_flag);
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                                 &err2, MYSQL_TIMESTAMP_TIME, NullS);
+  }
+  else
+  {
+    ErrConvString err2(err);
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                                 &err2, MYSQL_TIMESTAMP_TIME, NullS);
+  }
   return 0;
 }
 

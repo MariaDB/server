@@ -2986,7 +2986,6 @@ static int init_slave_thread(THD* thd, Master_info *mi,
   thd->enable_slow_log= opt_log_slow_slave_statements;
   thd->variables.log_slow_filter= global_system_variables.log_slow_filter;
   set_slave_thread_options(thd);
-  thd->client_capabilities = CLIENT_LOCAL_FILES;
   mysql_mutex_lock(&LOCK_thread_count);
   thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
   mysql_mutex_unlock(&LOCK_thread_count);

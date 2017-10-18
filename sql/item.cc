@@ -5939,7 +5939,7 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table, bool fixed_length)
                               collation.collation);
       break;
     }
-    /* Fall through */
+    /* fall through */
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
   case MYSQL_TYPE_VAR_STRING:
@@ -6704,6 +6704,7 @@ bool Item::cache_const_expr_analyzer(uchar **arg)
     */
     if (const_item() &&
         !(basic_const_item() || item->basic_const_item() ||
+          item->type() == Item::NULL_ITEM || /* Item_name_const hack */
           item->type() == Item::FIELD_ITEM ||
           item->type() == SUBSELECT_ITEM ||
            /*
@@ -6861,7 +6862,11 @@ public:
     // Find which select the field is in. This is achieved by walking up 
     // the select tree and looking for the table of interest.
     st_select_lex *sel;
-    for (sel= current_select; sel; sel= sel->outer_select())
+    for (sel= current_select;
+         sel ;
+         sel= (sel->context.outer_context ?
+               sel->context.outer_context->select_lex:
+               NULL))
     {
       List_iterator<TABLE_LIST> li(sel->leaf_tables);
       TABLE_LIST *tbl;
@@ -8043,7 +8048,6 @@ bool Item_direct_view_ref::send(Protocol *protocol, String *buffer)
 
 bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
 {
-  DBUG_ASSERT(1);
   /* view fild reference must be defined */
   DBUG_ASSERT(*ref);
   /* (*ref)->check_cols() will be made in Item_direct_ref::fix_fields */
@@ -9933,7 +9937,7 @@ void Item_direct_view_ref::update_used_tables()
 
 table_map Item_direct_view_ref::used_tables() const
 {
-  DBUG_ASSERT(null_ref_table);
+  DBUG_ASSERT(fixed);
 
   if (get_depended_from())
     return OUTER_REF_TABLE_BIT;

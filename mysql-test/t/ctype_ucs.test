@@ -821,6 +821,29 @@ SET sql_mode=DEFAULT;
 SET NAMES utf8;
 
 --echo #
+--echo # MDEV-13972 crash in Item_func_sec_to_time::get_date
+--echo #
+
+SELECT SEC_TO_TIME(CONVERT(900*24*60*60 USING ucs2));
+
+--echo #
+--echo # MDEV-13530 VARBINARY doesn't convert to to BLOB for sizes 65533, 65534 and 65535
+--echo #
+
+CREATE TABLE t1 (c1 VARCHAR(32766) CHARACTER SET ucs2);
+DESCRIBE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(32767) CHARACTER SET ucs2);
+DESCRIBE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(32768) CHARACTER SET ucs2);
+DESCRIBE t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 

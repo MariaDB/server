@@ -141,7 +141,6 @@ sp_get_item_value(THD *thd, Item *item, String *str)
   case DECIMAL_RESULT:
     if (item->field_type() != MYSQL_TYPE_BIT)
       return item->val_str(str);
-    else {/* Bit type is handled as binary string */}
     /* fall through */
   case STRING_RESULT:
     {
@@ -4297,4 +4296,3 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
   lex->add_to_query_tables(table);
   return table;
 }
-

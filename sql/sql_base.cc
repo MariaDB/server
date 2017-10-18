@@ -7806,13 +7806,15 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 
 bool setup_fields(THD *thd, Item **ref_pointer_array,
                   List<Item> &fields, enum_mark_columns mark_used_columns,
-                  List<Item> *sum_func_list, bool allow_sum_func)
+                  List<Item> *sum_func_list, List<Item> *pre_fix,
+                  bool allow_sum_func)
 {
   reg2 Item *item;
   enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
   nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
   List_iterator<Item> it(fields);
   bool save_is_item_list_lookup;
+  bool make_pre_fix= (pre_fix && (pre_fix->elements == 0));
   DBUG_ENTER("setup_fields");
   DBUG_PRINT("enter", ("ref_pointer_array: %p", ref_pointer_array));
 
@@ -7859,6 +7861,9 @@ bool setup_fields(THD *thd, Item **ref_pointer_array,
   thd->lex->current_select->cur_pos_in_select_list= 0;
   while ((item= it++))
   {
+    if (make_pre_fix)
+      pre_fix->push_back(item, thd->stmt_arena->mem_root);
+
     if ((!item->fixed && item->fix_fields(thd, it.ref())) ||
 	(item= *(it.ref()))->check_cols(1))
     {

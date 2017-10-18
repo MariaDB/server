@@ -115,6 +115,11 @@ drop table t1;
 insert into t1 values(1);
 
 #
+# MDEV-14056 DROP TEMPORARY TABLE IF EXISTS causes error 1290 with read_only option
+#
+drop temporary table if exists t1;
+
+#
 # Bug#11733 COMMITs should not happen if read-only is set
 #
 

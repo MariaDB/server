@@ -1254,6 +1254,48 @@ execute stmt1;
 deallocate prepare stmt1;
 drop table t2;
 
+--echo #
+--echo # MDEV-8960 Can't refer the same column twice in one ALTER TABLE
+--echo #
+
+CREATE TABLE t1 (
+  `a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL,
+ALTER COLUMN `consultant_id` DROP DEFAULT;
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  `a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL,
+ALTER COLUMN `consultant_id` SET DEFAULT 2;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  `a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL DEFAULT 2,
+ALTER COLUMN `consultant_id` DROP DEFAULT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  `a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL DEFAULT 2,
+ALTER COLUMN `consultant_id` DROP DEFAULT,
+MODIFY COLUMN `consultant_id` BIGINT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
 #
 # Test of ALTER TABLE IF [NOT] EXISTS
 #
@@ -1765,47 +1807,5 @@ CREATE TABLE t1 (id int(11) NOT NULL, a int(11) NOT NULL, b int(11))
   ENGINE=InnoDB DEFAULT CHARSET=latin1;
 SHOW CREATE TABLE t1;
 ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
-
---echo #
---echo # MDEV-8960 Can't refer the same column twice in one ALTER TABLE
---echo #
-
-CREATE TABLE t1 (
-  `a` int(11) DEFAULT NULL
-) DEFAULT CHARSET=utf8;
-
-ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL,
-ALTER COLUMN `consultant_id` DROP DEFAULT;
-
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
-
-CREATE TABLE t1 (
-  `a` int(11) DEFAULT NULL
-) DEFAULT CHARSET=utf8;
-
-ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL,
-ALTER COLUMN `consultant_id` SET DEFAULT 2;
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
-
-CREATE TABLE t1 (
-  `a` int(11) DEFAULT NULL
-) DEFAULT CHARSET=utf8;
-
-ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL DEFAULT 2,
-ALTER COLUMN `consultant_id` DROP DEFAULT;
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
-
-CREATE TABLE t1 (
-  `a` int(11) DEFAULT NULL
-) DEFAULT CHARSET=utf8;
-
-ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL DEFAULT 2,
-ALTER COLUMN `consultant_id` DROP DEFAULT,
-MODIFY COLUMN `consultant_id` BIGINT;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;

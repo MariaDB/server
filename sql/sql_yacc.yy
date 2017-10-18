@@ -4679,17 +4679,11 @@ size_number:
               switch (end_ptr[0])
               {
                 case 'g':
-                case 'G':
-                  text_shift_number+=10;
-                  /* fall through */
+                case 'G': text_shift_number+=30; break;
                 case 'm':
-                case 'M':
-                  text_shift_number+=10;
-                  /* fall through */
+                case 'M': text_shift_number+=20; break;
                 case 'k':
-                case 'K':
-                  text_shift_number+=10;
-                  break;
+                case 'K': text_shift_number+=10; break;
                 default:
                 {
                   my_error(ER_WRONG_SIZE_NUMBER, MYF(0));

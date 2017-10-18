@@ -174,7 +174,8 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 	       List<Item> *sum_func_list, uint wild_num);
 bool setup_fields(THD *thd, Item** ref_pointer_array,
                   List<Item> &item, enum_mark_columns mark_used_columns,
-                  List<Item> *sum_func_list, bool allow_sum_func);
+                  List<Item> *sum_func_list, List<Item> *pre_fix,
+                  bool allow_sum_func);
 void unfix_fields(List<Item> &items);
 bool fill_record(THD * thd, TABLE *table_arg, List<Item> &fields,
                  List<Item> &values, bool ignore_errors);
@@ -381,7 +382,7 @@ inline bool setup_fields_with_no_wrap(THD *thd, Item **ref_pointer_array,
   bool res;
   thd->lex->select_lex.no_wrap_view_item= TRUE;
   res= setup_fields(thd, ref_pointer_array, item, mark_used_columns,
-                    sum_func_list, allow_sum_func);
+                    sum_func_list, NULL,  allow_sum_func);
   thd->lex->select_lex.no_wrap_view_item= FALSE;
   return res;
 }

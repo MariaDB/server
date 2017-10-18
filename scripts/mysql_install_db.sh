@@ -159,7 +159,7 @@ parse_arguments()
 
 # Try to find a specific file within --basedir which can either be a binary
 # release or installed source directory and return the path.
-find_in_basedir()
+find_in_dirs()
 {
   case "$1" in
     --dir)
@@ -171,13 +171,13 @@ find_in_basedir()
 
   for dir in "$@"
   do
-    if test -f "$basedir/$dir/$file"
+    if test -f "$dir/$file"
     then
       if test -n "$return_dir"
       then
-        echo "$basedir/$dir"
+        echo "$dir"
       else
-        echo "$basedir/$dir/$file"
+        echo "$dir/$file"
       fi
       break
     fi
@@ -241,7 +241,7 @@ then
   print_defaults="$builddir/extra/my_print_defaults"
 elif test -n "$basedir"
 then
-  print_defaults=`find_in_basedir my_print_defaults bin extra`
+  print_defaults=`find_in_dirs my_print_defaults $basedir/bin $basedir/extra`
   if test -z "$print_defaults"
   then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
@@ -267,41 +267,43 @@ if test -n "$srcdir"
 then
   basedir="$builddir"
   bindir="$basedir/client"
-  extra_bindir="$basedir/extra"
+  resolveip="$basedir/extra/resolveip"
   mysqld="$basedir/sql/mysqld"
   langdir="$basedir/sql/share/english"
   pkgdatadir="$srcdir/scripts"
-  scriptdir="$srcdir/scripts"
 elif test -n "$basedir"
 then
-  bindir="$basedir/bin"
-  extra_bindir="$bindir"
-  mysqld=`find_in_basedir mysqld libexec sbin bin`
+  bindir="$basedir/bin" # only used in the help text
+  resolveip=`find_in_dirs resolveip @resolveip_locations@`
+  if test -z "$resolveip"
+  then
+    cannot_find_file resolveip @resolveip_locations@
+    exit 1
+  fi
+  mysqld=`find_in_dirs mysqld @mysqld_locations@`
   if test -z "$mysqld"
   then
-    cannot_find_file mysqld $basedir/libexec $basedir/sbin $basedir/bin
+    cannot_find_file mysqld @mysqld_locations@
     exit 1
   fi
-  langdir=`find_in_basedir --dir errmsg.sys share/english share/mysql/english`
+  langdir=`find_in_dirs --dir errmsg.sys @errmsg_locations@`
   if test -z "$langdir"
   then
-    cannot_find_file errmsg.sys $basedir/share/english $basedir/share/mysql/english
+    cannot_find_file errmsg.sys @errmsg_locations@
     exit 1
   fi
-  pkgdatadir=`find_in_basedir --dir fill_help_tables.sql share share/mysql`
+  pkgdatadir=`find_in_dirs --dir fill_help_tables.sql @pkgdata_locations@`
   if test -z "$pkgdatadir"
   then
-    cannot_find_file fill_help_tables.sql $basedir/share $basedir/share/mysql
+    cannot_find_file fill_help_tables.sql @pkgdata_locations@
     exit 1
   fi
-  scriptdir="$basedir/scripts"
 else
   basedir="@prefix@"
   bindir="@bindir@"
-  extra_bindir="$bindir"
+  resolveip="$bindir/resolveip"
   mysqld="@libexecdir@/mysqld"
   pkgdatadir="@pkgdatadir@"
-  scriptdir="@scriptdir@"
 fi
 
 # Set up paths to SQL scripts required for bootstrap
@@ -344,14 +346,14 @@ hostname=`@HOSTNAME@`
 # Check if hostname is valid
 if test "$cross_bootstrap" -eq 0 -a "$in_rpm" -eq 0 -a "$force" -eq 0
 then
-  resolved=`"$extra_bindir/resolveip" $hostname 2>&1`
+  resolved=`"$resolveip" $hostname 2>&1`
   if test $? -ne 0
   then
-    resolved=`"$extra_bindir/resolveip" localhost 2>&1`
+    resolved=`"$resolveip" localhost 2>&1`
     if test $? -ne 0
     then
       echo "Neither host '$hostname' nor 'localhost' could be looked up with"
-      echo "'$extra_bindir/resolveip'"
+      echo "'$resolveip'"
       echo "Please configure the 'hostname' command to return a correct"
       echo "hostname."
       echo "If you want to solve this at a later stage, restart this script"
@@ -359,7 +361,7 @@ then
       link_to_help
       exit 1
     fi
-    echo "WARNING: The host '$hostname' could not be looked up with resolveip."
+    echo "WARNING: The host '$hostname' could not be looked up with $resolveip."
     echo "This probably means that your libc libraries are not 100 % compatible"
     echo "with this binary MariaDB version. The MariaDB daemon, mysqld, should work"
     echo "normally with the exception that host name resolving will not work."
@@ -437,7 +439,7 @@ else
   echo "The problem could be conflicting information in an external"
   echo "my.cnf files. You can ignore these by doing:"
   echo
-  echo "    shell> $scriptdir/scripts/mysql_install_db --defaults-file=~/.my.cnf"
+  echo "    shell> $0 --defaults-file=~/.my.cnf"
   echo
   echo "You can also try to start the mysqld daemon with:"
   echo
