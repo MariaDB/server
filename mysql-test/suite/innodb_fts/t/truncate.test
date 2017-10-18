@@ -1,4 +1,4 @@
---source include/have_innodb_64k.inc
+--source include/have_innodb.inc
 --source include/have_debug.inc
 
 --echo #
@@ -35,16 +35,16 @@ delimiter ;|
 
 CALL insert_t2(15);
 
-SET SESSION debug="+d,innodb_invalid_read_after_truncate";
+SET @save_dbug = @@SESSION.DEBUG_DBUG;
+SET DEBUG_DBUG = '+d,innodb_invalid_read_after_truncate';
 
 INSERT INTO t1 (a,d,b,c) VALUES (
 '7795','6',repeat('uololoaroolccaaruolraloouuoocorrcorurlu','1'),
 repeat('orouculcaocuocloooolooloooaorlroclouulrrucclulalouaulrluorooaclllluuorc
 cuullucocraloracurooulrooauuar','1'));
 
-SET SESSION debug="-d,innodb_invalid_read_after_truncate";
+SET DEBUG_DBUG = @save_dbug;
 
 DROP PROCEDURE insert_t2;
 
-DROP TABLE t1;
-DROP TABLE t2;
+DROP TABLE t1,t2;

@@ -1,10 +1,8 @@
 --source include/have_innodb.inc
-#
-# MDEV-11995 ALTER TABLE proceeds despite reporting ER_TOO_LONG_KEY error
-#
-set @@sql_mode=strict_trans_tables;
-create table t1(a text not null) row_format=dynamic engine=innodb;
-create index idx1 on t1(a(3073));
-show create table t1;
-drop table t1;
-set @@sql_mode=default;
+CREATE TABLE t1 (
+  id1 INT AUTO_INCREMENT PRIMARY KEY, id2 VARCHAR(30) NOT NULL UNIQUE,
+  id3 DATETIME
+) ENGINE=InnoDB;
+ALTER TABLE t1 CHANGE COLUMN id2 id4 VARCHAR(40) NOT NULL;
+SELECT * FROM t1 WHERE id4 LIKE 'a';
+DROP TABLE t1;
