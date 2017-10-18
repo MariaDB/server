@@ -1459,7 +1459,7 @@ int BLKFAM::ReadBuffer(PGLOBAL g)
   // Read the entire next block
   n = fread(To_Buf, 1, (size_t)BlkLen, Stream);
 
-  if (n == BlkLen) {
+  if ((size_t) n == (size_t) BlkLen) {
 //  ReadBlks++;
     num_read++;
     Rbuf = (CurBlk == Block - 1) ? Last : Nrec;

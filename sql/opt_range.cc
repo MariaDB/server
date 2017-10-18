@@ -4643,6 +4643,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   double roru_index_costs;
   ha_rows roru_total_records;
   double roru_intersect_part= 1.0;
+  ulong n_child_scans;
   DBUG_ENTER("get_best_disjunct_quick");
   DBUG_PRINT("info", ("Full table scan cost: %g", read_time));
 
@@ -4659,7 +4660,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     }
   }
 
-  size_t n_child_scans= imerge->trees_next - imerge->trees;
+  n_child_scans= imerge->trees_next - imerge->trees;
   
   if (!n_child_scans)
     DBUG_RETURN(NULL);
@@ -4877,8 +4878,8 @@ skip_to_ror_scan:
                    (TIME_FOR_COMPARE_ROWID * M_LN2) +
                    get_sweep_read_cost(param, roru_total_records);
 
-  DBUG_PRINT("info", ("ROR-union: cost %g, %d members", roru_total_cost,
-                      n_child_scans));
+  DBUG_PRINT("info", ("ROR-union: cost %g, %lu members",
+                      roru_total_cost, n_child_scans));
   TRP_ROR_UNION* roru;
   if (roru_total_cost < read_time)
   {
