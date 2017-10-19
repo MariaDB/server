@@ -12,7 +12,9 @@
 --source include/galera_cluster.inc
 
 --connection node_1
+SET GLOBAL wsrep_on=OFF;
 RESET MASTER;
+SET GLOBAL wsrep_on=ON;
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3

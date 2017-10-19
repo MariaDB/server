@@ -9,7 +9,8 @@
 binlog-format=row
 
 [mysqld.1]
-log-bin
+log-bin=master-bin
+log-bin-index=master-bin
 server-id=1
 
 [mysqld.2]
@@ -19,7 +20,8 @@ server-id=1
 
 wsrep-on=1
 
-log-bin
+log-bin=master-bin
+log-bin-index=master-bin
 log-slave-updates
 
 innodb-autoinc-lock-mode=2
@@ -43,7 +45,8 @@ server-id=2
 
 wsrep-on=1
 
-log-bin
+log-bin=master-bin
+log-bin-index=master-bin
 log-slave-updates
 
 innodb-autoinc-lock-mode=2

@@ -10,7 +10,9 @@
 --source include/galera_cluster.inc
 
 --connection node_1
+SET GLOBAL wsrep_on=OFF;
 RESET MASTER;
+SET GLOBAL wsrep_on=ON;
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
@@ -23,9 +25,9 @@ SET global wsrep_on=OFF;
 RESET MASTER;
 SET global wsrep_on=ON;
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_1;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_1, MASTER_USER='root';
 --enable_query_log
-START SLAVE USER='root';
+START SLAVE;
 
 --connection node_1
 CREATE SCHEMA test1;
@@ -93,22 +95,22 @@ COMMIT;
 
 --sleep 2
 --connection node_2
---let $effective_uuid = `SELECT LEFT(@@global.gtid_executed, 36)`
---let $gtid_executed_node2 = `SELECT @@global.gtid_executed;`
+--let $effective_uuid = `SELECT LEFT(@@global.gtid_current_pos, 36)`
+--let $gtid_executed_node2 = `SELECT @@global.gtid_current_pos;`
 
 --replace_result $effective_uuid <effective_uuid>
 --replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
-SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 120;
+SHOW BINLOG EVENTS IN 'master-bin.000001' FROM 256;
 
 --connection node_3
 
 --disable_query_log
---eval SELECT '$gtid_executed_node2' = @@global.gtid_executed AS gtid_executed_equal;
+--eval SELECT '$gtid_executed_node2' = @@global.gtid_current_pos AS gtid_executed_equal;
 --enable_query_log
 
 --replace_result $effective_uuid <effective_uuid>
 --replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
-SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 120;
+SHOW BINLOG EVENTS IN 'master-bin.000001' FROM 256;
 
 #
 # Final consistency checks

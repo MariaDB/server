@@ -93,4 +93,6 @@ CALL mtr.add_suppression("Slave SQL: Node has dropped from cluster, Error_code: 
 
 
 --connection node_1
+SET GLOBAL wsrep_on=OFF;
 RESET MASTER;
+SET GLOBAL wsrep_on=ON;
