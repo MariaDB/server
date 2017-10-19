@@ -870,10 +870,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 116 shift/reduce conflicts.
+  Currently there are 115 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 116
+%expect 115
 
 /*
    Comments for TOKENS.
