@@ -2172,13 +2172,14 @@ class Field_vers_trx_id :public Field_longlong {
   ulonglong cached;
 public:
   Field_vers_trx_id(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
-	      uchar null_bit_arg,
-	      enum utype unireg_check_arg, const char *field_name_arg,
-	      bool zero_arg, bool unsigned_arg)
-    :Field_longlong(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg, zero_arg,unsigned_arg),
-    cached(0)
-    {}
+                    uchar null_bit_arg, enum utype unireg_check_arg,
+                    const LEX_CSTRING *field_name_arg, bool zero_arg,
+                    bool unsigned_arg)
+      : Field_longlong(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                       unireg_check_arg, field_name_arg, zero_arg,
+                       unsigned_arg),
+        cached(0)
+  {}
   enum_field_types real_type() const { return MYSQL_TYPE_LONGLONG; }
   enum_field_types type() const { return MYSQL_TYPE_LONGLONG;}
   uint size_of() const { return sizeof(*this); }
@@ -4132,9 +4133,11 @@ public:
   enum_column_versioning versioning;
   bool implicit_not_null;
 
-  Column_definition():
-    comment(null_lex_str),
-    on_update(NULL), sql_type(MYSQL_TYPE_NULL), length(0), decimals(0),
+  Column_definition()
+   :Type_handler_hybrid_field_type(&type_handler_null),
+    compression_method_ptr(0),
+    comment(null_clex_str),
+    on_update(NULL), length(0), decimals(0),
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
@@ -4146,18 +4149,6 @@ public:
     interval_list.empty();
   }
 
-  Column_definition(const char *name, enum_field_types type):
-    field_name(name),
-    comment(null_lex_str),
-    on_update(NULL), sql_type(type), length(0), decimals(0),
-    flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
-    interval(0), charset(&my_charset_bin),
-    srid(0), geom_type(Field::GEOM_GEOMETRY),
-    option_list(NULL), pack_flag(0),
-    vcol_info(0), default_value(0), check_constraint(0)
-  {
-    interval_list.empty();
-  }
   Column_definition(THD *thd, Field *field, Field *orig_field);
   void set_attributes(const Lex_field_type_st &type, CHARSET_INFO *cs);
   void create_length_to_internal_length_null()
@@ -4571,7 +4562,6 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
 
 #define FIELDFLAG_TREAT_BIT_AS_CHAR     4096U   /* use Field_bit_as_char */
 #define FIELDFLAG_LONG_DECIMAL          8192U
-#define FIELDFLAG_WITHOUT_SYSTEM_VERSIONING 8192U
 #define FIELDFLAG_NO_DEFAULT		16384U  /* sql */
 #define FIELDFLAG_MAYBE_NULL		32768U	// sql
 #define FIELDFLAG_HEX_ESCAPE		0x10000U
