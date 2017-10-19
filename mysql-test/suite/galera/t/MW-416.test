@@ -1,6 +1,8 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--source include/wait_until_ready.inc
+
 CREATE USER 'userMW416'@'localhost';
 GRANT SELECT, INSERT, UPDATE ON test.* TO 'userMW416'@'localhost';
 
@@ -67,7 +69,7 @@ DROP EVENT ev;
 DROP FUNCTION fun1;
 --error 1044,1142,1227,1370
 DROP INDEX idx ON t0;
---error 1044,1142,1227,1370
+--error 1044,1142,1227,1370,1064
 DROP LOGFILE GROUP lfg;
 --error 1044,1142,1227,1370
 DROP PROCEDURE proc1;
@@ -75,7 +77,7 @@ DROP PROCEDURE proc1;
 DROP SERVEr srv;
 --error 1044,1142,1227,1370
 DROP TABLE t0;
---error 1044,1142,1227,1370
+--error 1044,1142,1227,1370,1064
 DROP TABLESPACE tblspc;
 --error 1044,1142,1227,1360,1370
 DROP TRIGGER trg;
@@ -91,7 +93,7 @@ TRUNCATE TABLE t0;
 # DCL
 
 # account management
---error 1044,1142,1227,1370
+--error 1044,1142,1227,1370,1064
 ALTER USER myuser PASSWORD EXPIRE;
 --error 1044,1142,1227,1370
 CREATE USER myuser IDENTIFIED BY 'pass';

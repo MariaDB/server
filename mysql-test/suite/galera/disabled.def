@@ -1,2 +1,4 @@
 galera_var_dirty_reads :  MDEV-12539
 query_cache : MDEV-12539
+MW-421 : MDEV-12539
+galera_concurrent_ctas : MDEV-12539
