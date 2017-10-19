@@ -35,10 +35,14 @@
 ///////////////////////////////////////////////////////////////////////////
 
 
-sp_rcontext::sp_rcontext(const sp_pcontext *root_parsing_ctx,
+sp_rcontext::sp_rcontext(const sp_head *owner,
+                         const sp_pcontext *root_parsing_ctx,
                          Field *return_value_fld,
                          bool in_sub_stmt)
   :end_partial_result_set(false),
+#ifndef DBUG_OFF
+   m_sp(owner),
+#endif
    m_root_parsing_ctx(root_parsing_ctx),
    m_var_table(NULL),
    m_return_value_fld(return_value_fld),
@@ -59,11 +63,13 @@ sp_rcontext::~sp_rcontext()
 
 
 sp_rcontext *sp_rcontext::create(THD *thd,
+                                 const sp_head *owner,
                                  const sp_pcontext *root_parsing_ctx,
                                  Field *return_value_fld,
                                  Row_definition_list &field_def_lst)
 {
-  sp_rcontext *ctx= new (thd->mem_root) sp_rcontext(root_parsing_ctx,
+  sp_rcontext *ctx= new (thd->mem_root) sp_rcontext(owner,
+                                                    root_parsing_ctx,
                                                     return_value_fld,
                                                     thd->in_sub_stmt);
   if (!ctx)

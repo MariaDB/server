@@ -70,6 +70,7 @@ public:
   ///
   /// @return valid sp_rcontext object or NULL in case of OOM-error.
   static sp_rcontext *create(THD *thd,
+                             const sp_head *owner,
                              const sp_pcontext *root_parsing_ctx,
                              Field *return_value_fld,
                              Row_definition_list &defs);
@@ -77,7 +78,8 @@ public:
   ~sp_rcontext();
 
 private:
-  sp_rcontext(const sp_pcontext *root_parsing_ctx,
+  sp_rcontext(const sp_head *owner,
+              const sp_pcontext *root_parsing_ctx,
               Field *return_value_fld,
               bool in_sub_stmt);
 
@@ -180,7 +182,7 @@ public:
 #ifndef DBUG_OFF
   /// The stored program for which this runtime context is created. Used for
   /// checking if correct runtime context is used for variable handling.
-  sp_head *sp;
+  const sp_head *m_sp;
 #endif
 
   /////////////////////////////////////////////////////////////////////////
