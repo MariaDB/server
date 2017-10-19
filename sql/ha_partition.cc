@@ -1,5 +1,6 @@
 /*
-  Copyright (c) 2005, 2013, Oracle and/or its affiliates.
+  Copyright (c) 2005, 2017, Oracle and/or its affiliates.
+  Copyright (c) 2009, 2017, MariaDB
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1753,7 +1754,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
           cleanup_new_partition(part_count);
           DBUG_RETURN(error);
         }
-        
+
         DBUG_PRINT("info", ("Add partition %s", part_name_buff));
         if ((error= prepare_new_partition(table, create_info,
                                           new_file_array[i],
@@ -7337,6 +7338,7 @@ void ha_partition::print_error(int error, myf errflag)
         m_err_rec= NULL;
         DBUG_VOID_RETURN;
       }
+      /* fall through */
     default:
       {
         if (!(thd->lex->alter_info.flags & ALTER_TRUNCATE_PARTITION))

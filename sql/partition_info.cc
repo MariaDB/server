@@ -34,8 +34,6 @@
 
 partition_info *partition_info::get_clone()
 {
-  if (!this)
-    return 0;
   List_iterator<partition_element> part_it(partitions);
   partition_element *part;
   partition_info *clone= new partition_info();

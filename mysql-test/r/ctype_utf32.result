@@ -1283,5 +1283,20 @@ NO_ENGINE_SUBSTITUTION
 SET sql_mode=DEFAULT;
 SET NAMES utf8;
 #
+# MDEV-13530 VARBINARY doesn't convert to to BLOB for sizes 65533, 65534 and 65535
+#
+CREATE TABLE t1 (c1 VARCHAR(16383) CHARACTER SET utf32);
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	varchar(16383)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(16384) CHARACTER SET utf32);
+Warnings:
+Note	1246	Converting column 'c1' from VARCHAR to TEXT
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	mediumtext	YES		NULL	
+DROP TABLE t1;
+#
 # End of 5.5 tests
 #

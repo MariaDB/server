@@ -2626,3 +2626,37 @@ DROP TABLE t1;
 SELECT 1 MOD ADDTIME( '13:58:57', '00:00:01' ) + 2;
 1 MOD ADDTIME( '13:58:57', '00:00:01' ) + 2
 3
+#
+# MDEV-11819 NO_ZERO_IN_DATE: Incorrect generated column value
+#
+SET sql_mode='NO_ZERO_IN_DATE';
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 SELECT timediff(timestamp'2008-12-31 23:59:59.000001',timestamp'2008-12-30 01:01:01.000002');
+SELECT * FROM t1;
+a
+46:58:57.999999
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-13972 crash in Item_func_sec_to_time::get_date
+#
+DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
+DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect time value: '20000101'
+SELECT TO_DAYS(SEC_TO_TIME(MAKEDATE(0,RAND(~0))));
+TO_DAYS(SEC_TO_TIME(MAKEDATE(0,RAND(~0))))
+0
+Warnings:
+Warning	1292	Truncated incorrect time value: '20000101'
+SELECT SEC_TO_TIME(MAKEDATE(0,RAND(~0)));
+SEC_TO_TIME(MAKEDATE(0,RAND(~0)))
+838:59:59
+Warnings:
+Warning	1292	Truncated incorrect time value: '20000101'
+#
+# End of 5.5 tests
+#

@@ -500,8 +500,16 @@ public:
   { return  val_decimal_from_date(decimal_value); }
   Field *tmp_table_field(TABLE *table)
   { return tmp_table_field_from_field_type(table, 0); }
+#if MARIADB_VERSION_ID > 100300
+#error This code should be removed in 10.3, to use the derived save_in_field()
+#else
   int save_in_field(Field *field, bool no_conversions)
-  { return save_date_in_field(field); }
+  {
+    return field_type() == MYSQL_TYPE_TIME ?
+           save_time_in_field(field) :
+           save_date_in_field(field);
+  }
+#endif
   void fix_length_and_dec();
 };
 

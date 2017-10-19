@@ -606,3 +606,11 @@ EXECUTE s;
 DROP TABLE t1;
 
 --echo # End of 5.3 tests
+
+#
+# Bug#26361149 MYSQL SERVER CRASHES AT: COL IN(IFNULL(CONST, COL), NAME_CONST('NAME', NULL))
+#
+create table t1 (a int);
+insert t1 values (1),(2),(3);
+select * from t1 where 1 in (a, name_const('a', null));
+drop table t1;

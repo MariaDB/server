@@ -47,6 +47,9 @@ delete t1 from t1,t3 where t1.a=t3.a;
 drop table t1;
 insert into t1 values(1);
 ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+drop temporary table if exists t1;
+Warnings:
+Note	1051	Unknown table 't1'
 connection default;
 set global read_only=0;
 lock table t1 write;

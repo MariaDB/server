@@ -1697,7 +1697,14 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (v varchar(65535));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 65535. You have to change some columns to TEXT or BLOBs
+Warnings:
+Note	1246	Converting column 'v' from VARCHAR to TEXT
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `v` text
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
 set storage_engine=MyISAM;
 set @save_concurrent_insert=@@concurrent_insert;
 set global concurrent_insert=1;

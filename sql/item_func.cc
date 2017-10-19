@@ -863,6 +863,7 @@ void Item_func_num1::fix_length_and_dec()
     break;
   case TIME_RESULT:
     cached_result_type= DECIMAL_RESULT;
+    /* fall through */
   case DECIMAL_RESULT:
     decimals= args[0]->decimal_scale(); // Do not preserve NOT_FIXED_DEC
     max_length= args[0]->max_length;
@@ -2038,6 +2039,7 @@ my_decimal *Item_func_mod::decimal_op(my_decimal *decimal_value)
     return decimal_value;
   case E_DEC_DIV_ZERO:
     signal_divide_by_null();
+    /* fall through */
   default:
     null_value= 1;
     return 0;

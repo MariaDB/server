@@ -194,7 +194,6 @@ static DYNAMIC_ARRAY plugin_array;
 static HASH plugin_hash[MYSQL_MAX_PLUGIN_TYPE_NUM];
 static MEM_ROOT plugin_mem_root;
 static bool reap_needed= false;
-static int plugin_array_version=0;
 
 static bool initialized= 0;
 
@@ -312,7 +311,6 @@ static void plugin_vars_free_values(sys_var *vars);
 static void restore_pluginvar_names(sys_var *first);
 static void plugin_opt_set_limits(struct my_option *,
                                   const struct st_mysql_sys_var *);
-static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref plugin);
 static void intern_plugin_unlock(LEX *lex, plugin_ref plugin);
 static void reap_plugins(void);
 
@@ -924,14 +922,16 @@ SHOW_COMP_OPTION plugin_status(const char *name, size_t len, int type)
 }
 
 
-static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref rc)
+static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref rc,
+                                     uint state_mask= PLUGIN_IS_READY |
+                                                      PLUGIN_IS_UNINITIALIZED)
 {
   st_plugin_int *pi= plugin_ref_to_int(rc);
   DBUG_ENTER("intern_plugin_lock");
 
   mysql_mutex_assert_owner(&LOCK_plugin);
 
-  if (pi->state & (PLUGIN_IS_READY | PLUGIN_IS_UNINITIALIZED))
+  if (pi->state & state_mask)
   {
     plugin_ref plugin;
 #ifdef DBUG_OFF
@@ -1078,43 +1078,42 @@ static bool plugin_add(MEM_ROOT *tmp_root,
     if (!name->str && plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN))
       continue; // already installed
 
-      struct st_plugin_int *tmp_plugin_ptr;
-      if (*(int*)plugin->info <
-          min_plugin_info_interface_version[plugin->type] ||
-          ((*(int*)plugin->info) >> 8) >
-          (cur_plugin_info_interface_version[plugin->type] >> 8))
-      {
-        char buf[256];
-        strxnmov(buf, sizeof(buf) - 1, "API version for ",
-                 plugin_type_names[plugin->type].str,
-                 " plugin ", tmp.name.str,
-                 " not supported by this version of the server", NullS);
-        report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, ENOEXEC, buf);
-        goto err;
-      }
-      if (plugin_maturity_map[plugin->maturity] < plugin_maturity)
-      {
-        char buf[256];
-        strxnmov(buf, sizeof(buf) - 1, "Loading of ",
-                 plugin_maturity_names[plugin->maturity],
-                 " plugin ", tmp.name.str,
-                 " is prohibited by --plugin-maturity=",
-                 plugin_maturity_names[plugin_maturity],
-                 NullS);
-        report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, EPERM, buf);
-        goto err;
-      }
-      tmp.plugin= plugin;
-      tmp.ref_count= 0;
-      tmp.state= PLUGIN_IS_UNINITIALIZED;
-      tmp.load_option= PLUGIN_ON;
+    struct st_plugin_int *tmp_plugin_ptr;
+    if (*(int*)plugin->info <
+        min_plugin_info_interface_version[plugin->type] ||
+        ((*(int*)plugin->info) >> 8) >
+        (cur_plugin_info_interface_version[plugin->type] >> 8))
+    {
+      char buf[256];
+      strxnmov(buf, sizeof(buf) - 1, "API version for ",
+               plugin_type_names[plugin->type].str,
+               " plugin ", tmp.name.str,
+               " not supported by this version of the server", NullS);
+      report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, ENOEXEC, buf);
+      goto err;
+    }
+    if (plugin_maturity_map[plugin->maturity] < plugin_maturity)
+    {
+      char buf[256];
+      strxnmov(buf, sizeof(buf) - 1, "Loading of ",
+               plugin_maturity_names[plugin->maturity],
+               " plugin ", tmp.name.str,
+               " is prohibited by --plugin-maturity=",
+               plugin_maturity_names[plugin_maturity],
+               NullS);
+      report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, EPERM, buf);
+      goto err;
+    }
+    tmp.plugin= plugin;
+    tmp.ref_count= 0;
+    tmp.state= PLUGIN_IS_UNINITIALIZED;
+    tmp.load_option= PLUGIN_ON;
 
-      if (!(tmp_plugin_ptr= plugin_insert_or_reuse(&tmp)))
-        goto err;
-      plugin_array_version++;
-      if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
-        tmp_plugin_ptr->state= PLUGIN_IS_FREED;
-      init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096);
+    if (!(tmp_plugin_ptr= plugin_insert_or_reuse(&tmp)))
+      goto err;
+    if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
+      tmp_plugin_ptr->state= PLUGIN_IS_FREED;
+    init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096);
 
     if (name->str)
       DBUG_RETURN(FALSE); // all done
@@ -1210,7 +1209,6 @@ static void plugin_del(struct st_plugin_int *plugin)
   if (plugin->plugin_dl)
     plugin_dl_del(&plugin->plugin_dl->dl);
   plugin->state= PLUGIN_IS_FREED;
-  plugin_array_version++;
   free_root(&plugin->mem_root, MYF(0));
   DBUG_VOID_RETURN;
 }
@@ -1824,10 +1822,10 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
     case '\0':
       list= NULL; /* terminate the loop */
       /* fall through */
+    case ';':
 #ifndef __WIN__
     case ':':     /* can't use this as delimiter as it may be drive letter */
 #endif
-    case ';':
       str->str[str->length]= '\0';
       if (str == &name)  // load all plugins in named module
       {
@@ -1865,6 +1863,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
         str->str= p;
         continue;
       }
+      /* fall through */
     default:
       str->length++;
       continue;
@@ -2297,64 +2296,55 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
 bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
                        int type, uint state_mask, void *arg)
 {
-  uint idx, total;
-  struct st_plugin_int *plugin, **plugins;
-  int version=plugin_array_version;
+  uint idx, total= 0;
+  struct st_plugin_int *plugin;
+  plugin_ref *plugins;
+  my_bool res= FALSE;
   DBUG_ENTER("plugin_foreach_with_mask");
 
   if (!initialized)
     DBUG_RETURN(FALSE);
 
-  state_mask= ~state_mask; // do it only once
-
   mysql_mutex_lock(&LOCK_plugin);
-  total= type == MYSQL_ANY_PLUGIN ? plugin_array.elements
-                                  : plugin_hash[type].records;
   /*
     Do the alloca out here in case we do have a working alloca:
-        leaving the nested stack frame invalidates alloca allocation.
+    leaving the nested stack frame invalidates alloca allocation.
   */
-  plugins=(struct st_plugin_int **)my_alloca(total*sizeof(plugin));
   if (type == MYSQL_ANY_PLUGIN)
   {
-    for (idx= 0; idx < total; idx++)
+    plugins= (plugin_ref*) my_alloca(plugin_array.elements * sizeof(plugin_ref));
+    for (idx= 0; idx < plugin_array.elements; idx++)
     {
       plugin= *dynamic_element(&plugin_array, idx, struct st_plugin_int **);
-      plugins[idx]= !(plugin->state & state_mask) ? plugin : NULL;
+      if ((plugins[total]= intern_plugin_lock(0, plugin_int_to_ref(plugin),
+                                              state_mask)))
+        total++;
     }
   }
   else
   {
     HASH *hash= plugin_hash + type;
-    for (idx= 0; idx < total; idx++)
+    plugins= (plugin_ref*) my_alloca(hash->records * sizeof(plugin_ref));
+    for (idx= 0; idx < hash->records; idx++)
     {
       plugin= (struct st_plugin_int *) my_hash_element(hash, idx);
-      plugins[idx]= !(plugin->state & state_mask) ? plugin : NULL;
+      if ((plugins[total]= intern_plugin_lock(0, plugin_int_to_ref(plugin),
+                                              state_mask)))
+        total++;
     }
   }
   mysql_mutex_unlock(&LOCK_plugin);
 
   for (idx= 0; idx < total; idx++)
   {
-    if (unlikely(version != plugin_array_version))
-    {
-      mysql_mutex_lock(&LOCK_plugin);
-      for (uint i=idx; i < total; i++)
-        if (plugins[i] && plugins[i]->state & state_mask)
-          plugins[i]=0;
-      mysql_mutex_unlock(&LOCK_plugin);
-    }
-    plugin= plugins[idx];
     /* It will stop iterating on first engine error when "func" returns TRUE */
-    if (plugin && func(thd, plugin_int_to_ref(plugin), arg))
-        goto err;
+    if ((res= func(thd, plugins[idx], arg)))
+        break;
   }
 
+  plugin_unlock_list(0, plugins, total);
   my_afree(plugins);
-  DBUG_RETURN(FALSE);
-err:
-  my_afree(plugins);
-  DBUG_RETURN(TRUE);
+  DBUG_RETURN(res);
 }
 
 
@@ -3964,4 +3954,3 @@ void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root)
         insert_dynamic(options, (uchar*) opt);
   }
 }
-

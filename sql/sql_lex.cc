@@ -1147,12 +1147,14 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 	state= MY_LEX_HEX_NUMBER;
 	break;
       }
+      /* fall through */
     case MY_LEX_IDENT_OR_BIN:
       if (lip->yyPeek() == '\'')
       {                                 // Found b'bin-number'
         state= MY_LEX_BIN_NUMBER;
         break;
       }
+      /* fall through */
     case MY_LEX_IDENT:
       const char *start;
 #if defined(USE_MB) && defined(USE_MB_IDENT)
@@ -1499,7 +1501,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 	state= MY_LEX_USER_VARIABLE_DELIMITER;
 	break;
       }
-      /* " used for strings */
+      /* fall through */ /* " used for strings */
     case MY_LEX_STRING:			// Incomplete text string
       if (!(yylval->lex_str.str = get_text(lip, 1, 1)))
       {

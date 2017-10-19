@@ -4173,4 +4173,147 @@ Warnings:
 Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`c` AS `c` from `test`.`t1` where 0
 deallocate prepare stmt2;
 drop table t1;
+#
+# MDEV-9208: Function->Function->View = Mysqld segfault
+# (Server crashes in Dependency_marker::visit_field on 2nd
+# execution with merged subquery)
+#
+CREATE TABLE t1 (i1 INT);
+insert into t1 values(1),(2);
+CREATE TABLE t2 (i2 INT);
+insert into t2 values(1),(2);
+prepare stmt from "
+  select 1 from (
+    select
+      if (i1<0, 0, 0) as f1,
+      (select f1) as f2
+    from t1, t2
+  ) sq
+";
+execute stmt;
+1
+1
+1
+1
+1
+execute stmt;
+1
+1
+1
+1
+1
+drop table t1,t2;
+#
+# MDEV-9619: Assertion `null_ref_table' failed in virtual
+# table_map Item_direct_view_ref::used_tables() const on 2nd
+# execution of PS
+#
+CREATE TABLE t1 (f1 VARCHAR(10)) ENGINE=MyISAM;
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES ('a'),('b');
+CREATE TABLE t2 (f2 VARCHAR(10)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('c'),('d');
+PREPARE stmt FROM "SELECT * FROM v1 WHERE f1 = SOME ( SELECT f2 FROM t2 )";
+EXECUTE stmt;
+f1
+EXECUTE stmt;
+f1
+insert into t1 values ('c');
+EXECUTE stmt;
+f1
+c
+EXECUTE stmt;
+f1
+c
+deallocate prepare stmt;
+drop view v1;
+drop table t1,t2;
+CREATE TABLE t1 (f1 VARCHAR(10)) ENGINE=MyISAM;
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES ('a'),('b');
+CREATE TABLE t2 (f2 VARCHAR(10)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('c'),('d');
+PREPARE stmt FROM "SELECT * FROM v1 WHERE (f1,f1) = SOME ( SELECT f2,f2 FROM t2 )";
+EXECUTE stmt;
+f1
+EXECUTE stmt;
+f1
+insert into t1 values ('c');
+EXECUTE stmt;
+f1
+c
+EXECUTE stmt;
+f1
+c
+deallocate prepare stmt;
+drop view v1;
+drop table t1,t2;
+CREATE TABLE t1 (column1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (3),(9);
+CREATE TABLE t2 (column2 INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(4);
+CREATE TABLE t3 (column3 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (6),(8);
+CREATE TABLE t4 (column4 INT) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (2),(5);
+PREPARE stmt FROM "
+SELECT ( 
+  SELECT MAX( table1.column1 ) AS field1 
+  FROM t1 AS table1
+  WHERE (111,table3.column3) IN ( SELECT 111,table2.column2 AS field2 FROM t2 AS table2 ) 
+) AS sq
+FROM t3 AS table3, t4 AS table4 GROUP BY sq
+";
+EXECUTE stmt;
+sq
+NULL
+EXECUTE stmt;
+sq
+NULL
+deallocate prepare stmt;
+drop table t1,t2,t3,t4;
+create table t1 (a int, b int, c int);
+create table t2 (x int, y int, z int);
+create table t3 as select * from t1;
+insert into t1 values (1,2,3),(4,5,6),(100,200,300),(400,500,600);
+insert into t2 values (1,2,3),(7,8,9),(100,200,300),(400,500,600);
+insert into t3 values (1,2,3),(11,12,13),(100,0,0),(400,500,600);
+set @optimizer_switch_save=@@optimizer_switch;
+set @join_cache_level_save=@@join_cache_level;
+set optimizer_switch='materialization=off';
+set join_cache_level=0;
+select * from t1 where (select a,b from t3 where t3.c=t1.c) in (select x,y from t2 where t1.c= t2.z);
+a	b	c
+1	2	3
+400	500	600
+prepare stmt from "select * from t1 where (select a,b from t3 where t3.c=t1.c) in (select x,y from t2 where t1.c= t2.z)";
+EXECUTE stmt;
+a	b	c
+1	2	3
+400	500	600
+EXECUTE stmt;
+a	b	c
+1	2	3
+400	500	600
+create view v1 as select * from t1;
+create view v2 as select * from t2;
+create view v3 as select * from t3;
+select * from v1 where (select a,b from v3 where v3.c=v1.c) in (select x,y from v2 where v1.c= v2.z);
+a	b	c
+1	2	3
+400	500	600
+prepare stmt from "select * from v1 where (select a,b from v3 where v3.c=v1.c) in (select x,y from v2 where v1.c= v2.z)";
+EXECUTE stmt;
+a	b	c
+1	2	3
+400	500	600
+EXECUTE stmt;
+a	b	c
+1	2	3
+400	500	600
+set optimizer_switch=@optimizer_switch_save;
+set join_cache_level=@join_cache_level_save;
+deallocate prepare stmt;
+drop view v1,v2,v3;
+drop table t1,t2,t3;
 # End of 5.5 tests

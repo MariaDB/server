@@ -15,7 +15,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.1"
+#define PLUGIN_STR_VERSION "1.4.2"
 
 #define _my_thread_var loc_thread_var
 
@@ -1090,6 +1090,7 @@ static void setup_connection_connect(struct connection_info *cn,
     const struct mysql_event_connection *event)
 {
   cn->query_id= 0;
+  cn->query_length= 0;
   cn->log_always= 0;
   cn->thread_id= event->thread_id;
   get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
@@ -1131,6 +1132,7 @@ static void setup_connection_initdb(struct connection_info *cn,
 
   cn->thread_id= event->general_thread_id;
   cn->query_id= 0;
+  cn->query_length= 0;
   cn->log_always= 0;
   get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
             event->general_query, event->general_query_length);
@@ -1163,6 +1165,7 @@ static void setup_connection_table(struct connection_info *cn,
   cn->thread_id= event->thread_id;
   cn->query_id= query_counter++;
   cn->log_always= 0;
+  cn->query_length= 0;
   get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
             event->database, event->database_length);
   get_str_n(cn->user, &cn->user_length, sizeof(cn->db),
@@ -1184,6 +1187,7 @@ static void setup_connection_query(struct connection_info *cn,
   cn->thread_id= event->general_thread_id;
   cn->query_id= query_counter++;
   cn->log_always= 0;
+  cn->query_length= 0;
   get_str_n(cn->db, &cn->db_length, sizeof(cn->db), "", 0);
 
   if (get_user_host(event->general_user, event->general_user_length,
@@ -2008,6 +2012,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
         event_query_command(event))
     {
       log_statement(cn, event, "QUERY");
+      cn->query_length= 0; /* So the log_current_query() won't log this again. */
     }
   }
   else if (event_class == MYSQL_AUDIT_TABLE_CLASS && FILTER(EVENT_TABLE) && cn)
@@ -2523,7 +2528,8 @@ static void log_current_query(MYSQL_THD thd)
   if (!thd)
     return;
   cn= get_loc_info(thd);
-  if (!ci_needs_setup(cn) && FILTER(EVENT_QUERY) && do_log_user(cn->user))
+  if (!ci_needs_setup(cn) && cn->query_length &&
+      FILTER(EVENT_QUERY) && do_log_user(cn->user))
   {
     log_statement_ex(cn, cn->query_time, thd_get_thread_id(thd),
         cn->query, cn->query_length, 0, "QUERY");

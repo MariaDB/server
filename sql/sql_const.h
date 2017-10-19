@@ -41,7 +41,18 @@
 
 #define MAX_MBWIDTH		3		/* Max multibyte sequence */
 #define MAX_FIELD_CHARLENGTH	255
-#define MAX_FIELD_VARCHARLENGTH	65535
+/*
+  In MAX_FIELD_VARCHARLENGTH we reserve extra bytes for the overhead:
+  - 2 bytes for the length
+  - 1 byte for NULL bits
+  to avoid the "Row size too large" error for these three corner definitions:
+    CREATE TABLE t1 (c VARBINARY(65533));
+    CREATE TABLE t1 (c VARBINARY(65534));
+    CREATE TABLE t1 (c VARBINARY(65535));
+  Like VARCHAR(65536), they will be converted to BLOB automatically
+  in non-sctict mode.
+*/
+#define MAX_FIELD_VARCHARLENGTH	(65535-2-1)
 #define MAX_FIELD_BLOBLENGTH UINT_MAX32         /* cf field_blob::get_length() */
 #define CONVERT_IF_BIGGER_TO_BLOB 512           /* Threshold *in characters*   */
 
