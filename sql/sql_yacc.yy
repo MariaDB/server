@@ -6880,7 +6880,6 @@ asrow_attribute:
             lex->last_field->flags|= PRI_KEY_FLAG | NOT_NULL_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
-        | vcol_attribute
         | UNIQUE_SYM
           {
             LEX *lex=Lex;
