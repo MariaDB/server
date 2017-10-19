@@ -12707,7 +12707,7 @@ int Rows_log_event::update_sequence()
     longlong round= table->field[ROUND_FIELD_NO]->val_int();
     dbug_tmp_restore_column_map(table->read_set, old_map);
 
-    return table->s->sequence->set_value(table, nextval, round, 0);
+    return table->s->sequence->set_value(table, nextval, round, 0) > 0;
   }
 
   /*
@@ -12726,6 +12726,7 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
   DBUG_ASSERT(m_table != NULL);
   const char *tmp= thd->get_proc_info();
   const char *message= "Write_rows_log_event::write_row()";
+  int error;
 
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
@@ -12735,7 +12736,7 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
-  int error= write_row(rgi, slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT);
+  error= write_row(rgi, slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT);
   thd_proc_info(thd, tmp);
 
   if (error && !thd->is_error())

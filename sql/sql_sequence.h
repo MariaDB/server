@@ -105,8 +105,8 @@ public:
     all_values_used= 0;
   }
   longlong next_value(TABLE *table, bool second_round, int *error);
-  bool set_value(TABLE *table, longlong next_value, ulonglong round_arg,
-                 bool is_used);
+  int set_value(TABLE *table, longlong next_value, ulonglong round_arg,
+                bool is_used);
   longlong increment_value(longlong value)
   {
     if (real_increment > 0)
