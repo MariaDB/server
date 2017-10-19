@@ -2814,7 +2814,9 @@ public:
 class Type_handler_hybrid_field_type
 {
   const Type_handler *m_type_handler;
+  bool m_vers_trx_id;
   bool aggregate_for_min_max(const Type_handler *other);
+
 public:
   Type_handler_hybrid_field_type();
   Type_handler_hybrid_field_type(const Type_handler *handler)
