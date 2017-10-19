@@ -56,10 +56,11 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_vtq_ts>(thd, mem_root, this); }
+  void fix_length_and_dec() { fix_attributes_datetime(decimals); }
 };
 
 class Item_func_vtq_id :
-  public VTQ_common<Item_int_func>
+  public VTQ_common<Item_longlong_func>
 {
   vtq_field_t vtq_field;
   vtq_record_t cached_result;

@@ -91,7 +91,6 @@ public:
     : auto_inc_initialized(false),
     next_auto_inc_val(0),
     partition_name_hash_initialized(false),
-    partitions_share_refs(NULL),
     partition_names(NULL)
   {
     mysql_mutex_init(key_partition_auto_inc_mutex,
@@ -110,33 +109,9 @@ public:
     {
       my_hash_free(&partition_name_hash);
     }
-    if (partitions_share_refs)
-      delete partitions_share_refs;
-    DBUG_VOID_RETURN;
   }
   
   bool init(uint num_parts);
-
-  /** Set if auto increment is used an initialized. */
-  bool auto_inc_initialized;
-  /**
-    Mutex protecting next_auto_inc_val.
-    Initialized if table uses auto increment.
-  */
-  mysql_mutex_t auto_inc_mutex;
-  /** First non reserved auto increment value. */
-  ulonglong next_auto_inc_val;
-  /**
-    Hash of partition names. Initialized by the first handler instance of a
-    table_share calling populate_partition_name_hash().
-    After that it is read-only, i.e. no locking required for reading.
-  */
-  HASH partition_name_hash;
-  /** flag that the name hash is initialized, so it only will do it once. */
-  bool partition_name_hash_initialized;
-  
-  /** Storage for each partitions Handler_share */
-  Parts_share_refs *partitions_share_refs;
 
   /**
     Release reserved auto increment values not used.

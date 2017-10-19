@@ -1420,12 +1420,6 @@ struct handlerton
     @return                   FALSE if there is no trx_id1 in VTQ, otherwise TRUE */
    bool (*vers_trx_sees)(THD *thd, bool &result, ulonglong trx_id1, ulonglong trx_id0,
                          ulonglong commit_id1, uchar iso_level1, ulonglong commit_id0);
-
-  /** Upgrade InnoDB table handler to InnoDB partitioning handler.
-    @param[in]    hnd         InnoDB table handler
-    @param[in]    mem_root    mem_root for resulting handler
-    @return                   InnoDB partitioning handler or NULL on error */
-   handler *(*vers_upgrade_handler)(handler *hnd, MEM_ROOT *mem_root);
 };
 
 

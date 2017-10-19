@@ -144,9 +144,6 @@ TABLE *get_purge_table(THD *thd);
 #include <string>
 #include <sstream>
 
-/* for ha_innopart, Native InnoDB Partitioning. */
-#include "ha_innopart.h"
-
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>
 
@@ -1549,22 +1546,6 @@ innobase_create_handler(
 	MEM_ROOT*	mem_root)
 {
 	return(new (mem_root) ha_innobase(hton, table));
-}
-
-static
-handler*
-innobase_upgrade_handler(
-	handler*	hnd,
-	MEM_ROOT*	mem_root)
-{
-	ha_innopart* file = new (mem_root) ha_innopart(
-		static_cast<ha_innobase *>(hnd));
-	if (file && file->init_partitioning(mem_root))
-	{
-		delete file;
-		return(NULL);
-	}
-	return file;
 }
 
 /* General functions */
@@ -3591,7 +3572,10 @@ innobase_init_abort()
 /** Return partitioning flags. */
 static uint innobase_partition_flags()
 {
-	return(HA_ONLY_VERS_PARTITION);
+	/* JAN: TODO: MYSQL 5.7
+	return(HA_CAN_EXCHANGE_PARTITION | HA_CANNOT_PARTITION_FK);
+	*/
+	return (0);
 }
 
 /** Update log_checksum_algorithm_ptr with a pointer to the function
@@ -3713,7 +3697,6 @@ innobase_init(
 	innobase_hton->vers_query_trx_id = vtq_query_trx_id;
 	innobase_hton->vers_query_commit_ts = vtq_query_commit_ts;
 	innobase_hton->vers_trx_sees = vtq_trx_sees;
-	innobase_hton->vers_upgrade_handler = innobase_upgrade_handler;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -13859,113 +13842,6 @@ ha_innobase::rename_table(
 	}
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
-}
-
-/*********************************************************************//**
-Returns the exact number of records that this client can see using this
-handler object.
-@return Error code in case something goes wrong.
-These errors will abort the current query:
-      case HA_ERR_LOCK_DEADLOCK:
-      case HA_ERR_LOCK_TABLE_FULL:
-      case HA_ERR_LOCK_WAIT_TIMEOUT:
-      case HA_ERR_QUERY_INTERRUPTED:
-For other error codes, the server will fall back to counting records. */
-
-ha_rows
-ha_innobase::records_new() /*!< out: number of rows */
-{
-	DBUG_ENTER("ha_innobase::records()");
-
-	dberr_t		ret;
-	ulint		n_rows = 0;	/* Record count in this view */
-	ha_rows    	num_rows;
-
-	update_thd();
-
-	if (dict_table_is_discarded(m_prebuilt->table)) {
-		ib_senderrf(
-			m_user_thd,
-			IB_LOG_LEVEL_ERROR,
-			ER_TABLESPACE_DISCARDED,
-			table->s->table_name.str);
-
-		num_rows = HA_POS_ERROR;
-		DBUG_RETURN(num_rows);
-
-	} else if (m_prebuilt->table->ibd_file_missing) {
-		ib_senderrf(
-			m_user_thd, IB_LOG_LEVEL_ERROR,
-			ER_TABLESPACE_MISSING,
-			table->s->table_name.str);
-
-		num_rows = HA_POS_ERROR;
-		DBUG_RETURN(num_rows);
-
-	} else if (m_prebuilt->table->corrupted) {
-		ib_errf(m_user_thd, IB_LOG_LEVEL_WARN,
-			ER_INNODB_INDEX_CORRUPT,
-			"Table '%s' is corrupt.",
-			table->s->table_name.str);
-
-		num_rows = HA_POS_ERROR;
-		DBUG_RETURN(num_rows);
-	}
-
-	TrxInInnoDB	trx_in_innodb(m_prebuilt->trx);
-
-	m_prebuilt->trx->op_info = "counting records";
-
-	dict_index_t*	index = dict_table_get_first_index(m_prebuilt->table);
-
-	ut_ad(dict_index_is_clust(index));
-
-	m_prebuilt->index_usable = row_merge_is_index_usable(
-		m_prebuilt->trx, index);
-
-	if (!m_prebuilt->index_usable) {
-		num_rows = HA_POS_ERROR;
-		DBUG_RETURN(num_rows);
-	}
-
-	/* (Re)Build the m_prebuilt->mysql_template if it is null to use
-	the clustered index and just the key, no off-record data. */
-	m_prebuilt->index = index;
-	dtuple_set_n_fields(m_prebuilt->search_tuple, 0);
-	m_prebuilt->read_just_key = 1;
-	build_template(false);
-
-	/* Count the records in the clustered index */
-	ret = row_scan_index_for_mysql(m_prebuilt, index, false, &n_rows);
-	reset_template();
-	switch (ret) {
-	case DB_SUCCESS:
-		break;
-	case DB_DEADLOCK:
-	case DB_LOCK_TABLE_FULL:
-	case DB_LOCK_WAIT_TIMEOUT:
-		num_rows = HA_POS_ERROR;
-		DBUG_RETURN(num_rows);
-	case DB_INTERRUPTED:
-		num_rows = HA_POS_ERROR;
-		DBUG_RETURN(num_rows);
-	default:
-		/* No other error besides the three below is returned from
-		row_scan_index_for_mysql(). Make a debug catch. */
-		num_rows = HA_POS_ERROR;
-		ut_ad(0);
-		DBUG_RETURN(num_rows);
-	}
-
-	m_prebuilt->trx->op_info = "";
-
-	if (thd_killed(m_user_thd)) {
-		num_rows = HA_POS_ERROR;
-		DBUG_RETURN(num_rows);
-	}
-
-	num_rows= n_rows;
-	DBUG_RETURN(num_rows);
 }
 
 /*********************************************************************//**

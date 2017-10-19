@@ -102,7 +102,7 @@ class Vers_min_max_stats : public Sql_alloc
   mysql_rwlock_t lock;
 
 public:
-  Vers_min_max_stats(const char *field_name, TABLE_SHARE *share) :
+  Vers_min_max_stats(const LEX_CSTRING *field_name, TABLE_SHARE *share) :
     min_value(min_buf, NULL, 0, Field::NONE, field_name, share, 6),
     max_value(max_buf, NULL, 0, Field::NONE, field_name, share, 6)
   {

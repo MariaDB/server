@@ -518,7 +518,7 @@ public:
       my_time_t end_ts= my_time(0);
 
       uchar buf[8];
-      Field_timestampf fld(buf, NULL, 0, Field::NONE, table->vers_end_field()->field_name, NULL, 6);
+      Field_timestampf fld(buf, NULL, 0, Field::NONE, &table->vers_end_field()->field_name, NULL, 6);
       fld.store_TIME(end_ts, 0);
       updated=
         vers_stat_trx(STAT_TRX_END, el->id).update(&fld);

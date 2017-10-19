@@ -43,8 +43,6 @@ class THD;
 #undef MYSQL_RENAME_INDEX
 #undef MYSQL_STORE_FTS_DOC_ID
 
-#define MYSQL_INNODB_PARTITIONING
-
 /*******************************************************************//**
 Formats the raw data in "data" (in InnoDB on-disk format) that is of
 type DATA_(CHAR|VARCHAR|MYSQL|VARMYSQL) using "charset_coll" and writes
