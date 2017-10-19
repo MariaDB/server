@@ -3046,6 +3046,46 @@ thr_lock_type read_lock_type_for_table(THD *thd,
 
 
 /*
+  Extend the prelocking set with tables and routines used by a routine.
+
+  @param[in]  thd                   Thread context.
+  @param[in]  rt                    Element of prelocking set to be processed.
+  @param[in]  ot_ctx                Context of open_table used to recover from
+                                    locking failures.
+  @retval false  Success.
+  @retval true   Failure (Conflicting metadata lock, OOM, other errors).
+*/
+static bool
+sp_acquire_mdl(THD *thd, Sroutine_hash_entry *rt, Open_table_context *ot_ctx)
+{
+  DBUG_ENTER("sp_acquire_mdl");
+  /*
+    Since we acquire only shared lock on routines we don't
+    need to care about global intention exclusive locks.
+  */
+  DBUG_ASSERT(rt->mdl_request.type == MDL_SHARED);
+
+  /*
+    Waiting for a conflicting metadata lock to go away may
+    lead to a deadlock, detected by MDL subsystem.
+    If possible, we try to resolve such deadlocks by releasing all
+    metadata locks and restarting the pre-locking process.
+    To prevent the error from polluting the diagnostics area
+    in case of successful resolution, install a special error
+    handler for ER_LOCK_DEADLOCK error.
+  */
+  MDL_deadlock_handler mdl_deadlock_handler(ot_ctx);
+
+  thd->push_internal_handler(&mdl_deadlock_handler);
+  bool result= thd->mdl_context.acquire_lock(&rt->mdl_request,
+                                             ot_ctx->get_timeout());
+  thd->pop_internal_handler();
+
+  DBUG_RETURN(result);
+}
+
+
+/*
   Handle element of prelocking set other than table. E.g. cache routine
   and, if prelocking strategy prescribes so, extend the prelocking set
   with tables and routines used by it.
@@ -3099,29 +3139,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
       if (rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first ||
           mdl_type != MDL_key::PROCEDURE)
       {
-        /*
-          Since we acquire only shared lock on routines we don't
-          need to care about global intention exclusive locks.
-        */
-        DBUG_ASSERT(rt->mdl_request.type == MDL_SHARED);
-
-        /*
-          Waiting for a conflicting metadata lock to go away may
-          lead to a deadlock, detected by MDL subsystem.
-          If possible, we try to resolve such deadlocks by releasing all
-          metadata locks and restarting the pre-locking process.
-          To prevent the error from polluting the diagnostics area
-          in case of successful resolution, install a special error
-          handler for ER_LOCK_DEADLOCK error.
-        */
-        MDL_deadlock_handler mdl_deadlock_handler(ot_ctx);
-
-        thd->push_internal_handler(&mdl_deadlock_handler);
-        bool result= thd->mdl_context.acquire_lock(&rt->mdl_request,
-                                                   ot_ctx->get_timeout());
-        thd->pop_internal_handler();
-
-        if (result)
+        if (sp_acquire_mdl(thd, rt, ot_ctx))
           DBUG_RETURN(TRUE);
 
         DEBUG_SYNC(thd, "after_shared_lock_pname");
