@@ -23,7 +23,6 @@
 #include <mysys_err.h>
 #include <my_getopt.h>
 #include <errno.h>
-#include <m_string.h>
 
 typedef void (*init_func_p)(const struct my_option *option, void *variable,
                             longlong value);
