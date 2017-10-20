@@ -1625,8 +1625,8 @@ row_ins_search_sys_trx_end(
         if (!clust_rec)
 		goto not_found;
 
-	offsets = rec_get_offsets(clust_rec, clust_index, offsets,
-					ULINT_UNDEFINED, &heap);
+	offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
+				  ULINT_UNDEFINED, &heap);
 
 	*end_trx_id = row_ins_get_sys_trx_end(clust_rec, offsets, clust_index);
 	found = true;
