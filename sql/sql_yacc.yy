@@ -5906,7 +5906,7 @@ create_table_option:
         | SEQUENCE_SYM opt_equal choice
           {
 	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
-            Lex->create_info.sequence= $3;
+            Lex->create_info.sequence= ($3 != HA_CHOICE_NO);
           }
         ;
 

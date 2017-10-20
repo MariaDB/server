@@ -139,3 +139,13 @@ select next value for t1;
 alter sequence t1 restart with 90;
 select next value for t1;
 drop sequence t1;
+
+--echo #
+--echo # MDEV-13715 ha_partition::engine_name() segfault fix
+--echo #
+
+--source include/have_partition.inc
+create sequence s;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+alter table s partition by hash(start_value) partitions 2;
+drop sequence s;

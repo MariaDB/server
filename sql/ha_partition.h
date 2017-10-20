@@ -423,7 +423,14 @@ public:
 				     enum thr_lock_type lock_type);
   virtual int external_lock(THD * thd, int lock_type);
   LEX_CSTRING *engine_name()
-  { return hton_name(table->part_info->default_engine_type); }
+  {
+    if (table)
+    {
+      DBUG_ASSERT(table->part_info);
+      return hton_name(table->part_info->default_engine_type);
+    }
+    return handler::engine_name();
+  }
   /*
     When table is locked a statement is started by calling start_stmt
     instead of external_lock

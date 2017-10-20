@@ -2038,6 +2038,18 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
 
     if (!thd->locked_tables_mode)
     {
+      if (drop_sequence)
+      {
+        for (table= tables; table; table= table->next_global)
+        {
+          if (table->open_type == OT_TEMPORARY_OR_BASE &&
+            is_temporary_table(table) && !table->table->s->sequence)
+          {
+            thd->mark_tmp_table_as_free_for_reuse(table->table);
+            table->table= NULL;
+          }
+        }
+      }
       if (lock_table_names(thd, tables, NULL,
                            thd->variables.lock_wait_timeout, 0))
         DBUG_RETURN(true);
