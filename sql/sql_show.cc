@@ -6031,10 +6031,7 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
       check_some_routine_access(thd, db.str, name.str, sph))
     return 0;
 
-  if ((lex->sql_command == SQLCOM_SHOW_STATUS_PROC &&
-      sph->type() == TYPE_ENUM_PROCEDURE) ||
-      (lex->sql_command == SQLCOM_SHOW_STATUS_FUNC &&
-      sph->type() == TYPE_ENUM_FUNCTION) ||
+  if (sph == Sp_handler::handler(lex->sql_command)||
       (sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND) == 0)
   {
     restore_record(table, s->default_values);
