@@ -7098,17 +7098,18 @@ bool Vers_parse_info::check_generated_type(const char *table_name,
         if (f->type_handler() != &type_handler_longlong || !(f->flags & UNSIGNED_FLAG) ||
             f->length != (MY_INT64_NUM_DECIMAL_DIGITS - 1))
         {
-          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name,
+          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
                    "BIGINT(20) UNSIGNED", table_name);
           return true;
         }
       }
       else
       {
-        if (f->type_handler() != &type_handler_datetime2 ||
+        if (!(f->type_handler() == &type_handler_datetime2 ||
+              f->type_handler() == &type_handler_timestamp2) ||
             f->length != MAX_DATETIME_FULL_WIDTH)
         {
-          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name,
+          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
                    "TIMESTAMP(6)", table_name);
           return true;
         }
