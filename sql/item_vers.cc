@@ -44,7 +44,7 @@ VTQ_common<Item_func_X>::check_hton()
   DBUG_ASSERT(hton);
   if (!(hton->flags & HTON_NATIVE_SYS_VERSIONING) && hton->db_type != DB_TYPE_HEAP)
   {
-    my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), Item::name ? Item::name : this->func_name());
+    my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), Item::name.str ? Item::name.str : this->func_name());
     hton= NULL;
   }
 }
@@ -88,7 +88,7 @@ Item_func_vtq_id::Item_func_vtq_id(
     Item* a,
     vtq_field_t _vtq_field,
     bool _backwards) :
-  VTQ_common<Item_int_func>(thd, hton, a),
+  VTQ_common<Item_longlong_func>(thd, hton, a),
   vtq_field(_vtq_field),
   backwards(_backwards)
 {
@@ -106,7 +106,7 @@ Item_func_vtq_id::Item_func_vtq_id(
     Item* a,
     Item* b,
     vtq_field_t _vtq_field) :
-  VTQ_common<Item_int_func>(thd, hton, a, b),
+  VTQ_common<Item_longlong_func>(thd, hton, a, b),
   vtq_field(_vtq_field),
   backwards(false)
 {

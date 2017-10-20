@@ -545,7 +545,7 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   if (error)
     goto loc_err;
 
-  while (!(error= info.read_record(&info)) && !thd->killed && !thd->is_error())
+  while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
   {
     if (!select || select->skip_record(thd) > 0)
     {
@@ -572,14 +572,12 @@ err:
 static
 bool
 get_vtmd_tables(THD *thd, const char *db,
-                size_t db_length, Dynamic_array<LEX_STRING *> &table_names)
+                size_t db_length, Dynamic_array<LEX_CSTRING *> &table_names)
 {
   LOOKUP_FIELD_VALUES lookup_field_values= {
-      *thd->make_lex_string(db, db_length),
-      *thd->make_lex_string(C_STRING_WITH_LEN("%_vtmd")), false, true};
+    {db, db_length}, {C_STRING_WITH_LEN("%_vtmd")}, false, true};
 
-  int res=
-      make_table_name_list(thd, &table_names, thd->lex, &lookup_field_values,
+  int res= make_table_name_list(thd, &table_names, thd->lex, &lookup_field_values,
                            &lookup_field_values.db_value);
 
   return res;
@@ -589,14 +587,14 @@ bool
 VTMD_table::get_archive_tables(THD *thd, const char *db, size_t db_length,
                                Dynamic_array<String> &result)
 {
-  Dynamic_array<LEX_STRING *> vtmd_tables;
+  Dynamic_array<LEX_CSTRING *> vtmd_tables;
   if (get_vtmd_tables(thd, db, db_length, vtmd_tables))
     return true;
 
   Local_da local_da(thd, ER_VERS_VTMD_ERROR);
   for (uint i= 0; i < vtmd_tables.elements(); i++)
   {
-    LEX_STRING table_name= *vtmd_tables.at(i);
+    LEX_CSTRING table_name= *vtmd_tables.at(i);
 
     Open_tables_backup open_tables_backup;
     TABLE_LIST table_list;
@@ -639,7 +637,7 @@ VTMD_table::get_archive_tables(THD *thd, const char *db, size_t db_length,
       return true;
     }
 
-    while (!(error= read_record.read_record(&read_record)))
+    while (!(error= read_record.read_record()))
     {
       Field *field= table->field[FLD_ARCHIVE_NAME];
       if (field->is_null())

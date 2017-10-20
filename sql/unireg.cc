@@ -99,15 +99,13 @@ vers_get_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields, b
   List_iterator<Create_field> it(create_fields);
   Create_field *sql_field = NULL;
 
-  const char *row_field= row_start ? create_info->vers_info.as_row.start
+  const LString_i row_field= row_start ? create_info->vers_info.as_row.start
                                    : create_info->vers_info.as_row.end;
   DBUG_ASSERT(row_field);
 
   for (unsigned field_no = 0; (sql_field = it++); ++field_no)
   {
-    if (!my_strcasecmp(system_charset_info,
-                       row_field,
-                       sql_field->field_name))
+    if (row_field == sql_field->field_name)
     {
       DBUG_ASSERT(field_no <= uint16(~0U));
       return uint16(field_no);

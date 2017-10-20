@@ -118,7 +118,7 @@ SET (SQL_SOURCE
                rpl_tblmap.cc sql_binlog.cc event_scheduler.cc event_data_objects.cc
                event_queue.cc event_db_repository.cc 
                sql_tablespace.cc events.cc ../sql-common/my_user.c 
-               partition_info.cc partitioning/partition_handler.cc rpl_utility.cc rpl_injector.cc sql_locale.cc
+               partition_info.cc rpl_utility.cc rpl_injector.cc sql_locale.cc
                rpl_rli.cc rpl_mi.cc sql_servers.cc sql_audit.cc
                sql_connect.cc scheduler.cc sql_partition_admin.cc
                sql_profile.cc event_parse_data.cc sql_alter.cc
@@ -164,7 +164,7 @@ IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR
 
 ENDIF()
 
-MYSQL_ADD_PLUGIN(partition ha_partition.cc partitioning/partition_handler.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
+MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
 RECOMPILE_FOR_EMBEDDED)
 MYSQL_ADD_PLUGIN(sql_sequence ha_sequence.cc STORAGE_ENGINE MANDATORY STATIC_ONLY
 RECOMPILE_FOR_EMBEDDED)

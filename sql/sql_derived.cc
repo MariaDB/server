@@ -746,7 +746,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       // Leading versioning table specified explicitly
       // (i.e. if at least one system field is selected)
       TABLE_LIST *expli_table= NULL;
-      const char *impli_start, *impli_end;
+      const LString_i *impli_start, *impli_end;
       Item_field *expli_start= NULL, *expli_end= NULL;
 
       for (TABLE_LIST *table= sl->table_list.first; table; table= table->next_local)
@@ -754,13 +754,13 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
         if (!table->table || !table->table->versioned())
           continue;
 
-        const char *table_start= table->table->vers_start_field()->field_name;
-        const char *table_end= table->table->vers_end_field()->field_name;
+        const LString_i table_start= table->table->vers_start_field()->field_name;
+        const LString_i table_end= table->table->vers_end_field()->field_name;
         if (!impli_table)
         {
           impli_table= table;
-          impli_start= table_start;
-          impli_end= table_end;
+          impli_start= &table_start;
+          impli_end= &table_end;
         }
 
         /* Implicitly add versioning fields if needed */
@@ -775,8 +775,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
           Item_field *fld= (Item_field*) (item->real_item());
           if (fld->table_name && 0 != my_strcasecmp(table_alias_charset, table->alias, fld->table_name))
             continue;
-          DBUG_ASSERT(fld->field_name);
-          if (0 == my_strcasecmp(system_charset_info, table_start, fld->field_name))
+          DBUG_ASSERT(fld->field_name.str);
+          if (table_start == fld->field_name)
           {
             if (expli_start)
             {
@@ -784,9 +784,9 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                 ER_VERS_DERIVED_PROHIBITED,
                 "Derived table is prohibited: multiple start system fields `%s.%s`, `%s.%s` in query!", MYF(0),
                 expli_table->alias,
-                expli_start->field_name,
+                expli_start->field_name.str,
                 table->alias,
-                fld->field_name);
+                fld->field_name.str);
               res= true;
               goto exit;
             }
@@ -807,9 +807,9 @@ expli_table_err:
             else
               expli_table= table;
             expli_start= fld;
-            impli_end= table_end;
+            impli_end= &table_end;
           }
-          else if (0 == my_strcasecmp(system_charset_info, table_end, fld->field_name))
+          else if (table_end == fld->field_name)
           {
             if (expli_end)
             {
@@ -817,9 +817,9 @@ expli_table_err:
                 ER_VERS_DERIVED_PROHIBITED,
                 "Derived table is prohibited: multiple end system fields `%s.%s`, `%s.%s` in query!", MYF(0),
                 expli_table->alias,
-                expli_end->field_name,
+                expli_end->field_name.str,
                 table->alias,
-                fld->field_name);
+                fld->field_name.str);
               res= true;
               goto exit;
             }
@@ -831,7 +831,7 @@ expli_table_err:
             else
               expli_table= table;
             expli_end= fld;
-            impli_start= table_start;
+            impli_start= &table_start;
           }
         } // while ((item= it++))
       } // for (TABLE_LIST *table)
@@ -842,9 +842,9 @@ expli_table_err:
       if (impli_table)
       {
         Query_arena_stmt on_stmt_arena(thd);
-        if (!expli_start && (res= sl->vers_push_field(thd, impli_table, impli_start)))
+        if (!expli_start && (res= sl->vers_push_field(thd, impli_table, *impli_start)))
           goto exit;
-        if (!expli_end && (res= sl->vers_push_field(thd, impli_table, impli_end)))
+        if (!expli_end && (res= sl->vers_push_field(thd, impli_table, *impli_end)))
           goto exit;
 
         if (impli_table->vers_conditions)

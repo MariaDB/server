@@ -7782,3 +7782,110 @@ ER_COMPRESSED_COLUMN_USED_AS_KEY
   eng "Compressed column '%-.192s' can't be used in key specification"
 ER_UNKNOWN_COMPRESSION_METHOD
   eng "Unknown compression method: %s"
+
+# MariaDB error numbers related to System Versioning
+
+ER_VERSIONING_REQUIRED
+        eng "System Versioning required: %s"
+
+ER_VERS_READONLY_FIELD
+        eng "System field %`s is read-only"
+
+ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING
+        eng "Rows matched: %ld  Changed: %ld  Inserted: %ld  Warnings: %ld"
+
+ER_VERS_FIELD_WRONG_TYPE
+        eng "%`s must be of type %`s for versioned table %`s"
+
+ER_VERS_WRONG_PARAMS
+        eng "Wrong parameters %s"
+
+ER_VERS_ENGINE_UNSUPPORTED
+        eng "Engine does not support System Versioning for %`s"
+
+ER_VERS_RANGE_UNITS_MISMATCH
+        eng "Range units mismatch"
+
+ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY
+        eng "Attempt to read unversioned field %`s in historical query"
+
+ER_PARTITION_WRONG_TYPE
+        eng "Wrong partition type, expected type: %`s"
+
+WARN_VERS_PART_FULL
+        eng "Using full partition %`s, need more VERSIONING partitions!"
+
+WARN_VERS_PARAMETERS
+        eng "Maybe missing parameters: %s"
+
+WARN_VERS_PART_ROTATION
+        eng "Switching from partition %`s to %`s"
+
+WARN_VERS_TRX_MISSING
+        eng "VTQ missing transaction ID %lu"
+
+WARN_VERS_PART_NON_HISTORICAL
+        eng "Partition %`s contains non-historical data"
+
+ER_VERS_NOT_ALLOWED
+        eng "%`s is not allowed for versioned table"
+
+ER_VERS_RANGE_PROHIBITED
+        eng "SYSTEM_TIME range selector is prohibited"
+
+ER_VERS_VIEW_PROHIBITED
+        eng "Creating VIEW %`s is prohibited!"
+
+ER_VERS_DERIVED_PROHIBITED
+        eng "Derived table is prohibited!"
+
+ER_VERS_UNUSED_CLAUSE
+        eng "Unused clause: '%s'"
+
+WARN_VERS_ALIAS_TOO_LONG
+        eng "Auto generated alias for `%s.%s` is too long; using `%s`"
+
+ER_VERS_VTMD_ERROR
+        eng "VTMD error: %s"
+
+ER_NOT_ALLOWED
+        eng "for %`s: not allowed '%s'"
+
+ER_VERS_DIFFERENT_TABLES
+        eng "for %`s: system fields selected from different tables"
+
+ER_VERS_NO_COLS_DEFINED
+        eng "for %`s: no columns defined '%s'"
+
+ER_VERS_NOT_VERSIONED
+        eng "for %`s: table is not versioned"
+
+ER_MISSING
+        eng "for %`s: missing '%s'"
+
+ER_MISMATCH
+        eng "for %`s: mismatch '%s' and '%s'"
+
+ER_PART_WRONG_VALUE
+        eng "for partitioned %`s: wrong value for '%s'"
+
+ER_VERS_WRONG_PARTS
+        eng "Wrong partitions consistency for %`s: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'"
+
+ER_VERS_HISTORY_LOCK
+        eng "Versioned SELECT write-locking of history rows"
+
+ER_VERS_NO_TRX_ID
+        eng "TRX_ID %lu not found in VTQ"
+
+ER_WRONG_TABLESPACE_NAME 42000
+        eng "Incorrect tablespace name `%-.192s`"
+
+ER_VERS_ALTER_SYSTEM_FIELD
+        eng "Can not change system versioning field '%s'"
+
+ER_VERS_SYS_FIELD_NOT_HIDDEN
+        eng "System versioning field '%s' is not hidden"
+
+ER_NOT_LOG_TABLE
+        eng "Table `%s.%s` is not a log table"

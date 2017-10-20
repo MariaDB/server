@@ -969,7 +969,7 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
   {
     /* Prepare part_field_list */
     Field *sys_trx_end= table->vers_end_field();
-    part_field_list.push_back(const_cast<char *>(sys_trx_end->field_name), thd->mem_root);
+    part_field_list.push_back(sys_trx_end->field_name.str, thd->mem_root);
     DBUG_ASSERT(part_field_list.elements == num_columns);
     // needed in handle_list_of_fields()
     sys_trx_end->flags|= GET_FIXED_FIELDS_FLAG;
@@ -998,7 +998,7 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
       {
         DBUG_ASSERT(table && table->s);
         Vers_min_max_stats *stat_trx_end= new (&table->s->mem_root)
-          Vers_min_max_stats(table->s->vers_end_field()->field_name, table->s);
+          Vers_min_max_stats(&table->s->vers_end_field()->field_name, table->s);
         table->s->stat_trx[id * num_columns + STAT_TRX_END]= stat_trx_end;
         el->id= id++;
         if (el->type() == partition_element::AS_OF_NOW)
@@ -1084,7 +1084,7 @@ bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
         if (table->versioned_by_engine())
         {
           uchar buf[8];
-          Field_timestampf fld(buf, NULL, 0, Field::NONE, table->vers_end_field()->field_name, NULL, 6);
+          Field_timestampf fld(buf, NULL, 0, Field::NONE, &table->vers_end_field()->field_name, NULL, 6);
           if (!vers_trx_id_to_ts(thd, table->vers_end_field(), fld))
           {
             vers_stat_trx(STAT_TRX_END, part).update_unguarded(&fld);
@@ -1206,7 +1206,7 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
 
       {
         Vers_min_max_stats *stat_trx_end= new (&table->s->mem_root)
-          Vers_min_max_stats(table->s->vers_end_field()->field_name, table->s);
+          Vers_min_max_stats(&table->s->vers_end_field()->field_name, table->s);
         table->s->stat_trx[el->id * num_columns + STAT_TRX_END]= stat_trx_end;
       }
 
@@ -1215,7 +1215,7 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
         if (el->type() == partition_element::AS_OF_NOW)
         {
           uchar buf[8];
-          Field_timestampf fld(buf, NULL, 0, Field::NONE, table->vers_end_field()->field_name, NULL, 6);
+          Field_timestampf fld(buf, NULL, 0, Field::NONE, &table->vers_end_field()->field_name, NULL, 6);
           fld.set_max();
           vers_stat_trx(STAT_TRX_END, el).update_unguarded(&fld);
           el->empty= false;

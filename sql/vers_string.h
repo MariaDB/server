@@ -75,19 +75,17 @@ public:
     Storage(_str, _len, Compare::charset())
   {
   }
-  XString(LEX_STRING& src) :
+  XString(const LEX_STRING src) :
+    Storage(src.str, src.length, Compare::charset())
+  {
+  }
+  XString(const LEX_CSTRING src) :
     Storage(src.str, src.length, Compare::charset())
   {
   }
   XString(const char *_str) :
     Storage(_str, strlen(_str), Compare::charset())
   {
-  }
-  XString& operator= (const char *_str)
-  {
-    DBUG_ASSERT(_str);
-    Storage::set(_str, strlen(_str), Compare::charset());
-    return *this;
   }
   bool operator== (const XString& b) const
   {

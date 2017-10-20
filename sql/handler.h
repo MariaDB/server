@@ -1728,7 +1728,7 @@ struct Vers_parse_info
   {
     start_end_t()
     {}
-    start_end_t(const char* _start, const char* _end) :
+    start_end_t(LEX_CSTRING _start, LEX_CSTRING _end) :
       start(_start),
       end(_end) {}
     LString_i start;
@@ -1740,8 +1740,8 @@ struct Vers_parse_info
 
   void set_period_for_system_time(LString start, LString end)
   {
-    system_time.start = start;
-    system_time.end = end;
+    system_time.start= start;
+    system_time.end= end;
   }
 
 private:

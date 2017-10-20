@@ -844,8 +844,8 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           dst_cond= &t->on_expr;
       }
 
-      const char *fstart= table->table->vers_start_field()->field_name;
-      const char *fend= table->table->vers_end_field()->field_name;
+      const LEX_CSTRING *fstart= &table->table->vers_start_field()->field_name;
+      const LEX_CSTRING *fend= &table->table->vers_end_field()->field_name;
 
       Item *row_start=
           newx Item_field(thd, &slex->context, table->db, table->alias, fstart);

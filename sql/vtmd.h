@@ -1,10 +1,10 @@
 #ifndef VTMD_INCLUDED
 #define VTMD_INCLUDED
 
-#include "table.h"
 #include "unireg.h"
 #include <mysqld_error.h>
 #include "my_sys.h"
+#include "table.h"
 
 #include "vers_utils.h"
 

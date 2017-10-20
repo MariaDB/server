@@ -6368,7 +6368,7 @@ field_def:
           {
             LEX *lex= Lex;
             Vers_parse_info &info= lex->vers_get_info();
-            const char *field_name= lex->last_field->field_name;
+            const LEX_CSTRING &field_name= lex->last_field->field_name;
 
             LString_i *p;
             const char* clause;

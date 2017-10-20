@@ -7237,10 +7237,10 @@ Item *LEX::make_item_func_replace(THD *thd,
 }
 
 
-bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const char* field_name)
+bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name)
 {
   Item_field *fld= new (thd->mem_root) Item_field(thd, &context,
-                                      table->db, table->alias, field_name);
+                                      table->db, table->alias, &field_name);
   if (!fld)
     return true;
 
@@ -7248,7 +7248,7 @@ bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const char* field_
 
   if (thd->lex->view_list.elements)
   {
-    if (LEX_STRING *l= thd->make_lex_string(field_name, strlen(field_name)))
+    if (LEX_STRING *l= thd->make_lex_string(field_name.str, field_name.length))
       thd->lex->view_list.push_back(l);
     else
       return true;

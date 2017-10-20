@@ -4340,7 +4340,7 @@ vers_prepare_keys(THD *thd,
       continue; // Key already contains Sys_start or Sys_end
 
     Key_part_spec *key_part_sys_end_col=
-        new (thd->mem_root) Key_part_spec(create_info->vers_info.as_row.end, 0);
+        new (thd->mem_root) Key_part_spec(&create_info->vers_info.as_row.end, 0);
     key->columns.push_back(key_part_sys_end_col);
   }
 
@@ -5208,7 +5208,7 @@ static bool vers_reset_alter_copy(THD *thd, TABLE *table)
 
   will_batch= !table->file->start_bulk_update();
 
-  while (!(error= info.read_record(&info)))
+  while (!(error= info.read_record()))
   {
     MYSQL_TIME current;
     if (table->vers_end_field()->get_date(&current, 0))

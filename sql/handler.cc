@@ -6652,18 +6652,19 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name,
     return NULL;
 
   memset(f, 0, sizeof(*f));
-  f->field_name= field_name;
+  f->field_name.str= field_name;
+  f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;
   f->flags= flags | HIDDEN_FLAG;
   if (integer_fields)
   {
-    f->sql_type= MYSQL_TYPE_LONGLONG;
+    f->set_handler(&type_handler_longlong);
     f->flags|= UNSIGNED_FLAG;
     f->length= MY_INT64_NUM_DECIMAL_DIGITS - 1;
   }
   else
   {
-    f->sql_type= MYSQL_TYPE_TIMESTAMP2;
+    f->set_handler(&type_handler_timestamp2);
     f->length= MAX_DATETIME_PRECISION;
   }
 
@@ -6695,7 +6696,8 @@ static bool vers_change_sys_field(THD *thd, const char *field_name,
   if (!f)
     return true;
 
-  f->change= change;
+  f->change.str= change;
+  f->change.length= strlen(change);
 
   alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
   alter_info->create_list.push_back(f);
@@ -6879,10 +6881,10 @@ static bool add_field_to_drop_list(THD *thd, Alter_info *alter_info,
                                    Field *field)
 {
   DBUG_ASSERT(field);
-  DBUG_ASSERT(field->field_name);
+  DBUG_ASSERT(field->field_name.str);
   alter_info->flags|= Alter_info::ALTER_DROP_COLUMN;
   Alter_drop *ad= new (thd->mem_root)
-      Alter_drop(Alter_drop::COLUMN, field->field_name, false);
+      Alter_drop(Alter_drop::COLUMN, field->field_name.str, false);
   return !ad || alter_info->drop_list.push_back(ad, thd->mem_root);
 }
 
@@ -6937,9 +6939,9 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
     create_info->options|= HA_VERSIONED_TABLE;
 
     DBUG_ASSERT(share->vers_start_field() && share->vers_end_field());
-    const char *start= share->vers_start_field()->field_name;
-    const char *end= share->vers_end_field()->field_name;
-    DBUG_ASSERT(start && end);
+    LString start(share->vers_start_field()->field_name);
+    LString end(share->vers_end_field()->field_name);
+    DBUG_ASSERT(start.ptr() && end.ptr());
 
     as_row= start_end_t(start, end);
     system_time= as_row;
@@ -6952,7 +6954,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
         if (f->versioning == Column_definition::WITHOUT_VERSIONING)
           f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
 
-        if (f->change && (!strcmp(f->change, start) || !strcmp(f->change, end)))
+        if (f->change.str && (start == f->change || end == f->change))
         {
           my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->change);
           return true;
@@ -7093,7 +7095,7 @@ bool Vers_parse_info::check_generated_type(const char *table_name,
     {
       if (integer_fields)
       {
-        if (f->sql_type != MYSQL_TYPE_LONGLONG || !(f->flags & UNSIGNED_FLAG) ||
+        if (f->type_handler() != &type_handler_longlong || !(f->flags & UNSIGNED_FLAG) ||
             f->length != (MY_INT64_NUM_DECIMAL_DIGITS - 1))
         {
           my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name,
@@ -7103,7 +7105,7 @@ bool Vers_parse_info::check_generated_type(const char *table_name,
       }
       else
       {
-        if (f->sql_type != MYSQL_TYPE_TIMESTAMP2 ||
+        if (f->type_handler() != &type_handler_datetime2 ||
             f->length != MAX_DATETIME_FULL_WIDTH)
         {
           my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name,

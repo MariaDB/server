@@ -1692,7 +1692,7 @@ bool fix_partition_func(THD *thd, TABLE *table,
     }
     else if (part_info->part_type == VERSIONING_PARTITION)
     {
-      error_str= partition_keywords[PKW_SYSTEM_TIME].str;
+      error_str= "SYSTEM_TIME";
       if (unlikely(part_info->check_range_constants(thd)))
         goto end;
     }
@@ -2221,10 +2221,10 @@ static int add_partition_values(String *str, partition_info *part_info,
     switch (p_elem->type())
     {
     case partition_element::AS_OF_NOW:
-      err+= add_string(fptr, " AS OF NOW");
+      err+= str->append(STRING_WITH_LEN(" AS OF NOW"));
       break;
     case partition_element::VERSIONING:
-      err+= add_string(fptr, " VERSIONING");
+      err+= str->append(STRING_WITH_LEN(" VERSIONING"));
       break;
     default:
       DBUG_ASSERT(0 && "wrong p_elem->type");
@@ -2324,7 +2324,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
         err+= str.append(STRING_WITH_LEN("HASH "));
       break;
     case VERSIONING_PARTITION:
-      err+= add_part_key_word(fptr, partition_keywords[PKW_SYSTEM_TIME].str);
+      err+= str.append(STRING_WITH_LEN("SYSTEM_TIME"));
       break;
     default:
       DBUG_ASSERT(0);
@@ -2338,14 +2338,14 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
     DBUG_ASSERT(vers_info);
     if (vers_info->interval)
     {
-      err+= add_string(fptr, "INTERVAL ");
-      err+= add_int(fptr, vers_info->interval);
-      err+= add_string(fptr, " SECOND ");
+      err+= str.append(STRING_WITH_LEN("INTERVAL "));
+      err+= str.append_ulonglong(vers_info->interval);
+      err+= str.append(STRING_WITH_LEN(" SECOND "));
     }
     if (vers_info->limit)
     {
-      err+= add_string(fptr, "LIMIT ");
-      err+= add_int(fptr, vers_info->limit);
+      err+= str.append(STRING_WITH_LEN("LIMIT "));
+      err+= str.append_ulonglong(vers_info->limit);
     }
   }
   else if (part_info->part_expr)

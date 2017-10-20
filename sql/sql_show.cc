@@ -2266,9 +2266,9 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     const Field *fs = table->vers_start_field();
     const Field *fe = table->vers_end_field();
     packet->append(STRING_WITH_LEN(",\n  PERIOD FOR SYSTEM_TIME ("));
-    append_identifier(thd,packet,fs->field_name, strlen(fs->field_name));
+    append_identifier(thd,packet,fs->field_name.str, fs->field_name.length);
     packet->append(STRING_WITH_LEN(", "));
-    append_identifier(thd,packet,fe->field_name, strlen(fe->field_name));
+    append_identifier(thd,packet,fe->field_name.str, fe->field_name.length);
     packet->append(STRING_WITH_LEN(")"));
   }
 
@@ -4869,16 +4869,16 @@ static bool get_all_archive_tables(THD *thd,
   if (thd->variables.vers_hide == VERS_HIDE_NEVER)
     return false;
 
-  Dynamic_array<LEX_STRING *> all_db;
+  Dynamic_array<LEX_CSTRING *> all_db;
   LOOKUP_FIELD_VALUES lookup_field_values= {
-      *thd->make_lex_string(C_STRING_WITH_LEN("%")), {NULL, 0}, true, false};
+    {C_STRING_WITH_LEN("%")}, {NULL, 0}, true, false};
   if (make_db_list(thd, &all_db, &lookup_field_values))
     return true;
 
   LEX_STRING information_schema= {C_STRING_WITH_LEN("information_schema")};
   for (size_t i= 0; i < all_db.elements(); i++)
   {
-    LEX_STRING db= *all_db.at(i);
+    LEX_CSTRING db= *all_db.at(i);
     if (db.length == information_schema.length &&
         !memcmp(db.str, information_schema.str, db.length))
     {
@@ -4889,7 +4889,7 @@ static bool get_all_archive_tables(THD *thd,
 
   for (size_t i= 0; i < all_db.elements(); i++)
   {
-    LEX_STRING db_name= *all_db.at(i);
+    LEX_CSTRING db_name= *all_db.at(i);
     Dynamic_array<String> archive_tables;
     if (VTMD_table::get_archive_tables(thd, db_name.str, db_name.length,
                                        archive_tables))
@@ -4903,7 +4903,7 @@ static bool get_all_archive_tables(THD *thd,
 }
 
 static bool is_archive_table(const Dynamic_array<String> &all_archive_tables,
-                             LEX_STRING candidate)
+                             const LEX_CSTRING candidate)
 {
   for (size_t i= 0; i < all_archive_tables.elements(); i++)
   {
@@ -7113,8 +7113,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
       break;
     case VERSIONING_PARTITION:
       tmp_res.length(0);
-      tmp_res.append(partition_keywords[PKW_SYSTEM_TIME].str,
-                    partition_keywords[PKW_SYSTEM_TIME].length);
+      tmp_res.append(STRING_WITH_LEN("SYSTEM_TIME"));
       break;
     default:
       DBUG_ASSERT(0);

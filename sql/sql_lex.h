@@ -1021,7 +1021,7 @@ public:
   vers_select_conds_t vers_export_outer;
   bool vers_import_outer;
   /* push new Item_field into item_list */
-  bool vers_push_field(THD *thd, TABLE_LIST *table, const char* field_name);
+  bool vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name);
 
   void init_query();
   void init_select();
