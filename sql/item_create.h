@@ -79,7 +79,8 @@ protected:
 class Create_native_func : public Create_func
 {
 public:
-  virtual Item *create_func(THD *thd, LEX_STRING name, List<Item> *item_list);
+  virtual Item *create_func(THD *thd, LEX_CSTRING *name,
+                            List<Item> *item_list);
 
   /**
     Builder method, with no arguments.
@@ -88,7 +89,7 @@ public:
     @param item_list The function parameters, none of which are named
     @return An item representing the function call
   */
-  virtual Item *create_native(THD *thd, LEX_STRING name,
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
                               List<Item> *item_list) = 0;
 
 protected:

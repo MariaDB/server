@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
 #define MYSQL_SERVER 1
+#include <my_global.h>
 #include <mysql_version.h>
 #include <mysqld.h>
 #include <mysql/plugin.h>
@@ -32,7 +33,7 @@ template <vtq_field_t VTQ_FIELD>
 class Create_func_vtq : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_STRING name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
 
   static Create_func_vtq<VTQ_FIELD> s_singleton;
 
@@ -46,7 +47,7 @@ Create_func_vtq<VTQ_FIELD> Create_func_vtq<VTQ_FIELD>::s_singleton;
 
 template <vtq_field_t VTQ_FIELD>
 Item*
-Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_STRING name,
+Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_CSTRING *name,
   List<Item> *item_list)
 {
   Item *func= NULL;
@@ -93,7 +94,7 @@ Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_STRING name,
   error:
   default:
   {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
     break;
   }
   }
@@ -105,7 +106,7 @@ template <class Item_func_vtq_trx_seesX>
 class Create_func_vtq_trx_sees : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_STRING name, List<Item> *item_list)
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
   {
     Item *func= NULL;
     int arg_count= 0;
@@ -122,7 +123,7 @@ public:
       break;
     }
     default:
-      my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+      my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
       break;
     }
 
@@ -174,7 +175,7 @@ static int versioning_plugin_init(void *p __attribute__ ((unused)))
     DBUG_RETURN(res);
   }
 
-  innodb_plugin= ha_resolve_by_name(NULL, &InnoDB.lex_string(), false);
+  innodb_plugin= ha_resolve_by_name(NULL, &InnoDB.lex_cstring(), false);
   if (!innodb_plugin)
   {
     my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), InnoDB.ptr());
