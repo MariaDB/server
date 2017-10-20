@@ -4,6 +4,7 @@
 consistent_snapshot_mixed_engines : Didn't try with MariaDB, yet
 multiclient_2pc : Didn't try with MariaDB, yet
 rpl_crash_safe_wal_corrupt : Didn't try with MariaDB, yet
+rpl_ddl_high_priority : Didn't try with MariaDB, yet
 rpl_gtid_crash_safe : Didn't try with MariaDB, yet
 rpl_gtid_crash_safe_wal_corrupt : Didn't try with MariaDB, yet
 rpl_gtid_rocksdb_sys_header : Didn't try with MariaDB, yet
