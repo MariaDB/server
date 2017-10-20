@@ -8016,7 +8016,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     if (table->versioned() && rfield->vers_sys_field() &&
         !ignore_errors)
     {
-      my_error(ER_VERS_READONLY_FIELD, MYF(0), rfield->field_name);
+      my_error(ER_VERS_READONLY_FIELD, MYF(0), rfield->field_name.str);
       goto err;
     }
 
@@ -8270,7 +8270,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     if (table->versioned() && field->vers_sys_field() &&
         !ignore_errors)
     {
-      my_error(ER_VERS_READONLY_FIELD, MYF(0), field->field_name);
+      my_error(ER_VERS_READONLY_FIELD, MYF(0), field->field_name.str);
       goto err;
     }
 
