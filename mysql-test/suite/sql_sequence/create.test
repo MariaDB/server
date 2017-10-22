@@ -377,6 +377,16 @@ drop sequence t1;
 create table t1 (a int) engine=sql_sequence;
 
 --echo #
+--echo # MDEV-13711 assertion on CREATE LIKE fix
+--echo #
+
+create sequence s;
+create table t like s;
+show create table t;
+show create sequence t;
+drop tables t, s;
+
+--echo #
 --echo # MDEV-13714 SEQUENCE option fix
 --echo #
 
