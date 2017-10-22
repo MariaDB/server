@@ -1737,3 +1737,34 @@
    ...
 }
 
+#
+# OpenSSL 1.0.1k problems
+#
+
+{
+   OPENSSL 1.0.1k crypto leak
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:CRYPTO_malloc
+   fun:ENGINE_ADD
+}
+{
+   OPENSSL 1.0.1k crypto leak
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:CRYPTO_malloc
+   fun:ENGINE_new
+}
+
+{
+   OPENSSL 1.0.1k crypto leak2
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:CRYPTO_malloc
+   fun:sk_new
+   obj:/lib64/libcrypto.so*
+   fun:ENGINE_ADD
+}

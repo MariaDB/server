@@ -6066,7 +6066,7 @@ int handler::update_first_row(uchar *new_data)
       /*
         We have to do the memcmp as otherwise we may get error 169 from InnoDB
       */
-      if (memcmp(table->record[0], table->record[1], table->s->reclength))
+      if (memcmp(new_data, table->record[1], table->s->reclength))
         error= update_row(table->record[1], new_data);
     }
     end_error= ha_rnd_end();
