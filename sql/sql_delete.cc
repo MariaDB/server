@@ -220,7 +220,12 @@ static bool record_should_be_deleted(THD *thd, TABLE *table, SQL_SELECT *sel,
   if (table->versioned())
   {
     bool row_is_alive= table->vers_end_field()->is_max();
-    if (table->pos_in_table_list->vers_conditions ? row_is_alive : !row_is_alive)
+    /* If we are doing TRUNCATE TABLE with SYSTEM_TIME condition then historical
+       record is deleted and current record is kept. Otherwise alive record is
+       deleted and historical record is kept. */
+    if ((thd->lex->sql_command == SQLCOM_TRUNCATE && table->pos_in_table_list->vers_conditions)
+      ? row_is_alive
+      : !row_is_alive)
       return false;
   }
 
