@@ -32,14 +32,18 @@ begin
   and timestamp '2038-01-19 04:14:07'");
   prepare stmt from @str; execute stmt;
   delete from t1 where XNo = 0;
+  select "Deleted 0";
   execute stmt;
   delete from t1 where XNo = 1;
+  select "Deleted 1";
   execute stmt;
   delete from t1 where XNo > 5;
+  select "Deleted >5";
   create view vt1 as select XNo from t1;
-  select XNo from vt1;
+  select XNo as XNo_vt1 from vt1;
   delete from vt1 where XNo = 3;
-  select XNo from vt1;
+  select "Deleted from VIEW 3";
+  select XNo as XNo_vt1 from vt1;
   execute stmt; drop prepare stmt;
   drop view vt1;
   drop table t1;
@@ -114,8 +118,12 @@ call test_03('timestamp(6)', 'myisam', 'sys_end');
 call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 call verify_vtq;
 
-drop procedure test_01;
-drop procedure test_02;
-drop procedure test_03;
+--echo # Update + delete
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+update t1 set x= 2;
+delete from t1;
+select x from t1 for system_time all;
 
--- source suite/versioning/common_finish.inc
+drop database test;
+create database test;

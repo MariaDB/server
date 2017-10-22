@@ -104,14 +104,18 @@ fields, " < '2038-01-19 03:14:07'
   and timestamp '2038-01-19 04:14:07'");
 prepare stmt from @str; execute stmt;
 delete from t1 where XNo = 0;
+select "Deleted 0";
 execute stmt;
 delete from t1 where XNo = 1;
+select "Deleted 1";
 execute stmt;
 delete from t1 where XNo > 5;
+select "Deleted >5";
 create view vt1 as select XNo from t1;
-select XNo from vt1;
+select XNo as XNo_vt1 from vt1;
 delete from vt1 where XNo = 3;
-select XNo from vt1;
+select "Deleted from VIEW 3";
+select XNo as XNo_vt1 from vt1;
 execute stmt; drop prepare stmt;
 drop view vt1;
 drop table t1;
@@ -180,6 +184,8 @@ XNo	sys_end < '2038-01-19 03:14:07'
 7	0
 8	0
 9	0
+Deleted 0
+Deleted 0
 XNo	sys_end < '2038-01-19 03:14:07'
 0	1
 1	0
@@ -191,6 +197,8 @@ XNo	sys_end < '2038-01-19 03:14:07'
 7	0
 8	0
 9	0
+Deleted 1
+Deleted 1
 XNo	sys_end < '2038-01-19 03:14:07'
 0	1
 1	1
@@ -202,12 +210,16 @@ XNo	sys_end < '2038-01-19 03:14:07'
 7	0
 8	0
 9	0
-XNo
+Deleted >5
+Deleted >5
+XNo_vt1
 2
 3
 4
 5
-XNo
+Deleted from VIEW 3
+Deleted from VIEW 3
+XNo_vt1
 2
 4
 5
@@ -234,6 +246,8 @@ XNo	vtq_commit_ts(sys_end) < '2038-01-19 03:14:07'
 7	0
 8	0
 9	0
+Deleted 0
+Deleted 0
 XNo	vtq_commit_ts(sys_end) < '2038-01-19 03:14:07'
 0	1
 1	0
@@ -245,6 +259,8 @@ XNo	vtq_commit_ts(sys_end) < '2038-01-19 03:14:07'
 7	0
 8	0
 9	0
+Deleted 1
+Deleted 1
 XNo	vtq_commit_ts(sys_end) < '2038-01-19 03:14:07'
 0	1
 1	1
@@ -256,12 +272,16 @@ XNo	vtq_commit_ts(sys_end) < '2038-01-19 03:14:07'
 7	0
 8	0
 9	0
-XNo
+Deleted >5
+Deleted >5
+XNo_vt1
 2
 3
 4
 5
-XNo
+Deleted from VIEW 3
+Deleted from VIEW 3
+XNo_vt1
 2
 4
 5
@@ -362,13 +382,14 @@ No	A	B	C	D
 2	1	1	1	1
 3	1	1	1	1
 4	1	1	1	1
-drop procedure test_01;
-drop procedure test_02;
-drop procedure test_03;
-drop procedure verify_vtq;
-drop procedure innodb_verify_vtq;
-drop function default_engine;
-drop function sys_commit_ts;
-drop function sys_datatype;
-drop procedure concat_exec2;
-drop procedure concat_exec3;
+# Update + delete
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+update t1 set x= 2;
+delete from t1;
+select x from t1 for system_time all;
+x
+2
+1
+drop database test;
+create database test;
