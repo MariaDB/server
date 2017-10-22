@@ -927,8 +927,9 @@ show create table t1;
 drop table t1;
 
 # ARIA specific varchar tests
---error 1118
 create table t1 (v varchar(65535));
+show create table t1;
+drop table t1;
 
 #
 # Test concurrent insert

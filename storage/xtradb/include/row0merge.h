@@ -108,7 +108,6 @@ struct index_field_t {
 	ulint		col_no;		/*!< column offset */
 	ulint		prefix_len;	/*!< column prefix length, or 0
 					if indexing the whole column */
-	const char*	col_name;	/*!< column name or NULL */
 };
 
 /** Definition of an index being created */
@@ -265,11 +264,7 @@ row_merge_create_index(
 /*===================*/
 	trx_t*			trx,	/*!< in/out: trx (sets error_state) */
 	dict_table_t*		table,	/*!< in: the index is on this table */
-	const index_def_t*	index_def,
-					/*!< in: the index definition */
-	const char**		col_names);
-					/*! in: column names if columns are
-					renamed or NULL */
+	const index_def_t*	index_def); /*!< in: the index definition */
 /*********************************************************************//**
 Check if a transaction can use an index.
 @return	TRUE if index can be used by the transaction else FALSE */

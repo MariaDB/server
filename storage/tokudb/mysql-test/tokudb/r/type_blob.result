@@ -38,7 +38,7 @@ ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT 
 CREATE TABLE t2 (a char(256));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE t1 (a varchar(70000) default "hello");
-ERROR 42000: Column length too big for column 'a' (max = 65535); use BLOB or TEXT instead
+ERROR 42000: Column length too big for column 'a' (max = 65532); use BLOB or TEXT instead
 CREATE TABLE t2 (a blob default "hello");
 ERROR 42000: BLOB/TEXT column 'a' can't have a default value
 drop table if exists t1,t2;

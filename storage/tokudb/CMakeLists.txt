@@ -34,6 +34,7 @@ IF(NOT LIBJEMALLOC)
 ENDIF()
 
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
 
 ############################################
 SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump" PARENT_SCOPE)

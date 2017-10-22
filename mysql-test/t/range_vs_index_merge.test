@@ -1241,6 +1241,59 @@ WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND id != 9
 
 DROP TABLE t1;
 
+--echo #
+--echo # mdev-11574: do not build index merge of two indexes when
+--echo #             one index is an infix of the other index
+--echo #
+
+set names utf8;
+
+CREATE DATABASE world;
+
+use world;
+
+--source include/world_schema.inc
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/world.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+DROP INDEX Country ON City;
+CREATE INDEX CountryName ON City(Country,Name);
+CREATE INDEX Name ON City(Name);
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+ANALYZE TABLE City;
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+let $q=
+select * from City
+where
+ Country='FIN' AND Name IN ('Lahti','Imatra') OR
+ Country='RUS' AND Name IN ('St Petersburg', 'Moscow') OR
+ Country='SWE' AND Name IN ('Stockholm', 'Uppsala') OR
+ Country='DEU' AND Name IN ('Berlin', 'Bonn') OR
+ Country='BEL' AND Name IN ('Antwerpen', 'Gent') OR
+ Country='PRT' AND Name IN ('Braga', 'Porto') OR
+ Country='FRA' AND Name IN ('Paris', 'Marcel') OR
+ Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
+ Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
+ Country='ITA' AND Name IN ('Napoli', 'Venezia');
+
+eval $q;
+eval explain $q;
+
+
+DROP DATABASE world;
+
 #the following command must be the last one in the file
 set session optimizer_switch='index_merge_sort_intersection=default';
 

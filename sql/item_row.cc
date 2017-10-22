@@ -24,7 +24,6 @@
 #include "sql_class.h"                          // THD, set_var.h: THD
 #include "set_var.h"
 
-
 void Item_row::illegal_method_call(const char *method)
 {
   DBUG_ENTER("Item_row::illegal_method_call");
