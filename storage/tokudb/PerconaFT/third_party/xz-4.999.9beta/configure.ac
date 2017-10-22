@@ -569,63 +569,6 @@ if test -n "$CFLAG_VISIBILITY" && test "$is_w32" = no; then
 	AM_CFLAGS="$AM_CFLAGS $CFLAG_VISIBILITY"
 fi
 
-if test "$GCC" = yes ; then
-	# Enable as much warnings as possible. These commented warnings won't
-	# work for this package though:
-	#   * -Wunreachable-code breaks several assert(0) cases, which are
-	#     backed up with "return LZMA_PROG_ERROR".
-	#   * -Wcast-qual would break various things where we need a non-const
-	#     pointer although we don't modify anything through it.
-	#   * -Wcast-align breaks optimized CRC32 and CRC64 implementation
-	#     on some architectures (not on x86), where this warning is bogus,
-	#     because we take care of correct alignment.
-	#   * -Winline, -Wdisabled-optimization, -Wunsafe-loop-optimizations
-	#     don't seem so useful here; at least the last one gives some
-	#     warnings which are not bugs.
-	for NEW_FLAG in \
-			-Wall \
-			-Wextra \
-			-Wformat=2 \
-			-Winit-self \
-			-Wmissing-include-dirs \
-			-Wstrict-aliasing \
-			-Wfloat-equal \
-			-Wundef \
-			-Wshadow \
-			-Wpointer-arith \
-			-Wbad-function-cast \
-			-Wwrite-strings \
-			-Wlogical-op \
-			-Waggregate-return \
-			-Wstrict-prototypes \
-			-Wold-style-definition \
-			-Wmissing-prototypes \
-			-Wmissing-declarations \
-			-Wmissing-noreturn \
-			-Wredundant-decls
-	do
-		AC_MSG_CHECKING([if $CC accepts $NEW_FLAG])
-		OLD_CFLAGS="$CFLAGS"
-		CFLAGS="$CFLAGS $NEW_FLAG"
-		AC_COMPILE_IFELSE([void foo(void) { }], [
-			AM_CFLAGS="$AM_CFLAGS $NEW_FLAG"
-			AC_MSG_RESULT([yes])
-		], [
-			AC_MSG_RESULT([no])
-		])
-		CFLAGS="$OLD_CFLAGS"
-	done
-
-	AC_ARG_ENABLE([werror],
-		AC_HELP_STRING([--enable-werror], [Enable -Werror to abort
-			compilation on all compiler warnings.]),
-		[], [enable_werror=no])
-	if test "x$enable_werror" = "xyes"; then
-		AM_CFLAGS="$AM_CFLAGS -Werror"
-	fi
-fi
-
-
 ###############################################################################
 # Create the makefiles and config.h
 ###############################################################################

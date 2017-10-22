@@ -2469,8 +2469,8 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
     case 2:
       {
         strmake(typestr, "ENUM(2 bytes)", typestr_length);
-      if (!ptr)
-        goto return_null;
+        if (!ptr)
+          goto return_null;
 
         int32 i32= uint2korr(ptr);
         my_b_printf(file, "%d", i32);

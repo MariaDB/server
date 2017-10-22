@@ -1374,7 +1374,7 @@ bool TYPVAL<PSZ>::SetValue_char(const char *cp, int n)
 	} else if (cp != Strp) {
 		const char *p = cp + n - 1;
 
-		for (p; p >= cp; p--, n--)
+		for (; p >= cp; p--, n--)
 			if (*p && *p != ' ')
 				break;
 

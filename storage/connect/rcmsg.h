@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-char *GetMsgid(int id);
+const char *GetMsgid(int id);
 int GetRcString(int id, char *buf, int bufsize);
 
 #ifdef __cplusplus

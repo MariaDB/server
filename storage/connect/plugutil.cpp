@@ -162,7 +162,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
 	/*******************************************************************/
 	if (worksize && !(g->Sarea = PlugAllocMem(g, worksize))) {
 		char errmsg[MAX_STR];
-		sprintf(errmsg, MSG(WORK_AREA), g->Message);
+		snprintf(errmsg, sizeof(errmsg) - 1, MSG(WORK_AREA), g->Message);
 		strcpy(g->Message, errmsg);
 		g->Sarea_Size = 0;
 	} else

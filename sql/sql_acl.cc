@@ -634,9 +634,6 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, char *username,
                            char *hostname, char *rolename,
                            bool with_admin_option)
 {
-  if (!this)
-    return true;
-
   size_t uname_l = safe_strlen(username);
   size_t hname_l = safe_strlen(hostname);
   size_t rname_l = safe_strlen(rolename);
@@ -10515,7 +10512,6 @@ bool check_role_is_granted(const char *username,
 #endif
   DBUG_RETURN(result);
 }
-
 
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 {

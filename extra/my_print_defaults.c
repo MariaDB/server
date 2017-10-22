@@ -98,7 +98,8 @@ static struct my_option my_long_options[] =
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
-void cleanup_and_exit(int exit_code)
+static void cleanup_and_exit(int exit_code) __attribute__ ((noreturn));
+static void cleanup_and_exit(int exit_code)
 {
   my_end(0);
   exit(exit_code);

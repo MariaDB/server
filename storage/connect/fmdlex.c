@@ -417,10 +417,10 @@ static PDTP pp;
 static void MakeParm(int n);
 static void MakeMMDD(int n);
 static void MakeAMPM(int n);
-static void MakeIn(char *);
-static void MakeOut(char *);
-static void Quotin(char *);
-static void Quotout(char *);
+static void MakeIn(const char *);
+static void MakeOut(const char *);
+static void Quotin(const char *);
+static void Quotout(const char *);
 
 /* Macros after this point can all be overridden by user definitions in
  * section 1.
@@ -1492,7 +1492,7 @@ void MakeAMPM(int n)
 
   } /* end of MakeAMPM */
 
-void MakeIn(char *text)
+void MakeIn(const char *text)
   {
   if (!pp->InFmt)
     return;
@@ -1500,14 +1500,14 @@ void MakeIn(char *text)
   strncat(pp->InFmt, text, (pp->Outsize - 1) - strlen(pp->InFmt));
   } /* end of MakeIn */
 
-void MakeOut(char *text)
+void MakeOut(const char *text)
   {
   if (!pp->OutFmt) return;
 
   strncat(pp->OutFmt, text, (pp->Outsize - 1) - strlen(pp->OutFmt));
   } /* end of MakeOut */
 
-void Quotin(char *text)
+void Quotin(const char *text)
   {
   if (!pp->InFmt)
     return;
@@ -1516,7 +1516,7 @@ void Quotin(char *text)
   pp->InFmt[strlen(pp->InFmt)-1] = '\0';
   } /* end of Quotin */
 
-void Quotout(char *text)
+void Quotout(const char *text)
   {
   if (!pp->OutFmt)
     return;

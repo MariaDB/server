@@ -5054,7 +5054,7 @@ xb_process_datadir(
 						callback */
 {
 	ulint		ret;
-	char		dbpath[FN_REFLEN];
+	char		dbpath[OS_FILE_MAX_PATH];
 	os_file_dir_t	dir;
 	os_file_dir_t	dbdir;
 	os_file_stat_t	dbinfo;
@@ -5120,8 +5120,7 @@ next_file_item_1:
 		        goto next_datadir_item;
 		}
 
-		sprintf(dbpath, "%s/%s", path,
-								dbinfo.name);
+		snprintf(dbpath, sizeof(dbpath), "%s/%s", path, dbinfo.name);
 		srv_normalize_path_for_win(dbpath);
 
 		dbdir = os_file_opendir(dbpath, FALSE);
