@@ -3311,7 +3311,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   {
     if (!(file->ha_table_flags() & HA_CAN_TABLES_WITHOUT_ROLLBACK))
     {
-      my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), file->engine_name()->str,
+      my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), file->table_type(),
                "SEQUENCE");
       DBUG_RETURN(TRUE);
     }
