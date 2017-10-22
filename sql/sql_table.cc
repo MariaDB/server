@@ -1990,7 +1990,7 @@ int write_bin_log(THD *thd, bool clear_error,
    tables		List of tables to delete
    if_exists		If 1, don't give error if one table doesn't exists
    drop_temporary       1 if DROP TEMPORARY
-   drop_seqeunce        1 if DROP SEQUENCE
+   drop_sequence        1 if DROP SEQUENCE
 
   NOTES
     Will delete all tables that can be deleted and give a compact error
@@ -2038,6 +2038,25 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
 
     if (!thd->locked_tables_mode)
     {
+      if (drop_sequence)
+      {
+        /* We are trying to drop a sequence.
+           Change all temporary tables that are not sequences to
+           normal tables so that we can try to drop them instead.
+           If we don't do this, we will get an error 'not a sequence'
+           when trying to drop a sequence that is hidden by a temporary
+           table.
+        */
+        for (table= tables; table; table= table->next_global)
+        {
+          if (table->open_type == OT_TEMPORARY_OR_BASE &&
+            is_temporary_table(table) && !table->table->s->sequence)
+          {
+            thd->mark_tmp_table_as_free_for_reuse(table->table);
+            table->table= NULL;
+          }
+        }
+      }
       if (lock_table_names(thd, tables, NULL,
                            thd->variables.lock_wait_timeout, 0))
         DBUG_RETURN(true);

@@ -419,3 +419,33 @@ show create sequence s;
 --error ER_NOT_SEQUENCE
 show create sequence s2;
 drop table s,s2;
+
+--echo #
+--echo # MDEV-13721 Assertion is_lock_owner() failed in mysql_rm_table_no_locks
+--echo #
+
+create or replace sequence s;
+create temporary table s (i int);
+drop sequence s;
+show create table s;
+drop table s;
+
+create or replace sequence s;
+create temporary sequence s;
+show create table s;
+drop sequence s;
+show create table s;
+drop table s;
+
+create or replace sequence s;
+create temporary sequence s;
+drop temporary sequence s;
+show create table s;
+drop table s;
+
+create temporary sequence s;
+drop temporary table s;
+create temporary table s (i int);
+--error ER_UNKNOWN_SEQUENCES
+drop temporary sequence s;
+drop table s;

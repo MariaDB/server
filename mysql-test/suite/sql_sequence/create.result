@@ -571,3 +571,65 @@ ERROR 42S02: 'test.s' is not a SEQUENCE
 show create sequence s2;
 ERROR 42S02: 'test.s2' is not a SEQUENCE
 drop table s,s2;
+#
+# MDEV-13721 Assertion is_lock_owner() failed in mysql_rm_table_no_locks
+#
+create or replace sequence s;
+create temporary table s (i int);
+drop sequence s;
+show create table s;
+Table	Create Table
+s	CREATE TEMPORARY TABLE `s` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table s;
+create or replace sequence s;
+create temporary sequence s;
+show create table s;
+Table	Create Table
+s	CREATE TEMPORARY TABLE `s` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+drop sequence s;
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+drop table s;
+create or replace sequence s;
+create temporary sequence s;
+drop temporary sequence s;
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+drop table s;
+create temporary sequence s;
+drop temporary table s;
+create temporary table s (i int);
+drop temporary sequence s;
+ERROR 42S02: Unknown SEQUENCE: 'test.s'
+drop table s;
