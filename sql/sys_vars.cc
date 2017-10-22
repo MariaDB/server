@@ -382,23 +382,25 @@ static Sys_var_charptr Sys_basedir(
        READ_ONLY GLOBAL_VAR(mysql_home_ptr), CMD_LINE(REQUIRED_ARG, 'b'),
        IN_FS_CHARSET, DEFAULT(0));
 
-static Sys_var_vers_asof Sys_vers_current_time(
-       "versioning_current_timestamp", "Default AS OF value for versioned tables",
-       SESSION_VAR(vers_current_time), CMD_LINE(REQUIRED_ARG, OPT_VERS_CURRENT_TIME),
-       IN_FS_CHARSET, DEFAULT("now"));
+const char *Sys_var_vers_asof::asof_keywords[]= {"CURRENT", "ALL", NULL};
+static Sys_var_vers_asof Sys_vers_asof_timestamp(
+       "versioning_asof_timestamp", "Default AS OF value for versioned queries",
+       SESSION_VAR(vers_asof_timestamp.getopt_value), CMD_LINE(REQUIRED_ARG, OPT_VERS_ASOF_TIMESTAMP),
+       Sys_var_vers_asof::asof_keywords, DEFAULT(FOR_SYSTEM_TIME_UNSPECIFIED));
 
 static Sys_var_mybool Sys_vers_force(
        "versioning_force", "Force system versioning for all created tables",
        SESSION_VAR(vers_force), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-static const char *vers_hide_keywords[]= {"AUTO", "IMPLICIT", "FULL", "NEVER", NullS};
+static const char *vers_hide_keywords[]= {"AUTO", "IMPLICIT", "FULL", "NEVER", NULL};
 static Sys_var_enum Sys_vers_hide(
        "versioning_hide", "Hide system versioning from being displayed in table info. "
        "AUTO: hide implicit system fields only in non-versioned and AS OF queries; "
        "IMPLICIT: hide implicit system fields in all queries; "
        "FULL: hide any system fields in all queries and hide versioning info in SHOW commands; "
        "NEVER: don't hide system fields",
-       SESSION_VAR(vers_hide), CMD_LINE(OPT_ARG), vers_hide_keywords, DEFAULT(VERS_HIDE_AUTO));
+       SESSION_VAR(vers_hide), CMD_LINE(REQUIRED_ARG),
+       vers_hide_keywords, DEFAULT(VERS_HIDE_AUTO));
 
 static Sys_var_mybool Sys_vers_innodb_algorithm_simple(
        "versioning_innodb_algorithm_simple",
@@ -406,14 +408,13 @@ static Sys_var_mybool Sys_vers_innodb_algorithm_simple(
        SESSION_VAR(vers_innodb_algorithm_simple), CMD_LINE(OPT_ARG),
        DEFAULT(TRUE));
 
-static const char *vers_alter_history_keywords[]= {"KEEP", "SURVIVE", "DROP",
-                                                   NULL};
+static const char *vers_alter_history_keywords[]= {"KEEP", "SURVIVE", "DROP", NULL};
 static Sys_var_enum Sys_vers_alter_history(
        "versioning_alter_history", "Versioning ALTER TABLE mode. "
        "KEEP: leave historical system rows as is on ALTER TABLE; "
        "SURVIVE: use DDL survival feature; "
        "DROP: delete historical system rows on ALTER TABLE",
-       SESSION_VAR(vers_alter_history), CMD_LINE(OPT_ARG),
+       SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_KEEP));
 
 static Sys_var_ulonglong Sys_binlog_cache_size(

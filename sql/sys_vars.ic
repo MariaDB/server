@@ -2604,129 +2604,85 @@ public:
 };
 
 
-class Sys_var_vers_asof: public sys_var
+class Sys_var_vers_asof: public Sys_var_enum
 {
 public:
-  Sys_var_vers_asof(const char *name_arg, const char *comment, int flag_args,
-    ptrdiff_t off, size_t size, CMD_LINE getopt, enum charset_enum is_os_charset_arg,
-    const char *def_val, on_check_function on_check_func=0, on_update_function on_update_func=0) :
-  sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id, getopt.arg_type,
-    SHOW_CHAR, (intptr) def_val, 0, VARIABLE_NOT_IN_BINLOG, on_check_func, on_update_func, 0)
+  static const char *asof_keywords[];
+
+public:
+  Sys_var_vers_asof(const char *name_arg,
+          const char *comment, int flag_args, ptrdiff_t off, size_t size,
+          CMD_LINE getopt, const char *values[],
+          uint def_val)
+    : Sys_var_enum(name_arg, comment, flag_args, off, size,
+                   getopt, values, def_val)
   {
-    option.var_type|= GET_STR;
-    if (global_update(def_val))
+    // setval() accepts string rather enum
+    option.var_type= GET_STR;
+  }
+  virtual bool do_check(THD *thd, set_var *var)
+  {
+    if (!Sys_var_enum::do_check(thd, var))
+      return false;
+    MYSQL_TIME ltime;
+    bool res= var->value->get_date(&ltime, 0);
+    if (!res)
     {
-      DBUG_ASSERT(false);
+      var->save_result.ulonglong_value= FOR_SYSTEM_TIME_AS_OF;
     }
+    return res;
   }
 
-  bool do_check(THD *thd, set_var *var)
-  { return false; }
+private:
+  bool update(set_var *var, st_vers_asof_timestamp &out)
+  {
+    bool res= false;
+    out.type= var->save_result.ulonglong_value;
+    if (out.type == FOR_SYSTEM_TIME_AS_OF)
+    {
+      res= var->value->get_date(&out.ltime, 0);
+    }
+    return res;
+  }
 
-  bool update(String &in, st_vers_current_time &out)
+public:
+  virtual bool global_update(THD *thd, set_var *var)
   {
-    if (in.length() == 3 && 0 == my_strcasecmp(in.charset(), "ALL", in.ptr()))
-    {
-      out.type= FOR_SYSTEM_TIME_ALL;
-    }
-    else if (in.length() == 3 && 0 == my_strcasecmp(in.charset(), "NOW", in.ptr()))
-    {
-      out.type= FOR_SYSTEM_TIME_UNSPECIFIED;
-    }
-    else
-    {
-      MYSQL_TIME_STATUS status;
-      if (str_to_datetime(in.ptr(), in.length(), &out.ltime, flags, &status) ||
-          out.ltime.time_type != MYSQL_TIMESTAMP_DATETIME ||
-          (status.warnings & ~MYSQL_TIME_NOTE_TRUNCATED) != 0)
-      {
-        return true;
-      }
-      out.type= FOR_SYSTEM_TIME_AS_OF;
-    }
-    return false;
+    return update(var, global_var(st_vers_asof_timestamp));
   }
-  bool update(THD *thd, set_var *var, st_vers_current_time &out)
+  virtual bool session_update(THD *thd, set_var *var)
   {
-    Item *item= var->value;
+    return update(var, session_var(thd, st_vers_asof_timestamp));
+  }
 
-    switch (item->result_type())
-    {
-    case TIME_RESULT:
-      {
-        if (item->get_date(&out.ltime, 0))
-          break;
-        out.type= FOR_SYSTEM_TIME_AS_OF;
-        return false;
-      }
-
-    case STRING_RESULT:
-      {
-        String *str= item->val_str();
-        if (!str || update(*str, out))
-          break;
-        return false;
-      }
-    default:
-      break;
-    }
-    String *str= item->val_str();
-    const char *cstr= str ? str->c_ptr_safe() : "NULL";
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str, cstr);
-    return true;
-  }
-  bool global_update(const char *in)
-  {
-    String s(in, &my_charset_utf8_general_ci);
-    return update(s, global_var(st_vers_current_time));
-  }
-  bool option_updated()
-  {
-    return global_update(global_var(st_vers_current_time).str_value);
-  }
-  bool global_update(THD *thd, set_var *var)
-  {
-    return update(thd, var, global_var(st_vers_current_time));
-  }
-  bool session_update(THD *thd, set_var *var)
-  {
-    return update(thd, var, session_var(thd, st_vers_current_time));
-  }
-  uchar *valptr(THD *thd, st_vers_current_time &val)
+private:
+  uchar *value_ptr(THD *thd, st_vers_asof_timestamp &val)
   {
     switch (val.type)
     {
     case FOR_SYSTEM_TIME_UNSPECIFIED:
-      return (uchar*) thd->strdup("NOW");
     case FOR_SYSTEM_TIME_ALL:
-      return (uchar*) thd->strdup("ALL");
+      return (uchar*) thd->strdup(asof_keywords[val.type]);
     case FOR_SYSTEM_TIME_AS_OF:
+    {
+      uchar *buf= (uchar*) thd->alloc(MAX_DATE_STRING_REP_LENGTH);
+      if (buf &&!my_datetime_to_str(&val.ltime, (char*) buf, 6))
       {
-        uchar *buf= (uchar*) thd->alloc(MAX_DATE_STRING_REP_LENGTH);
-        if (buf)
-        {
-          if (!my_datetime_to_str(&val.ltime, (char*) buf, 6))
-          {
-            my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "vers_current_time", "NULL (wrong datetime)");
-            return (uchar*) thd->strdup("Error: wrong datetime");
-          }
-        }
-        return buf;
+        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "versioning_asof_timestamp", "NULL (wrong datetime)");
+        return (uchar*) thd->strdup("Error: wrong datetime");
       }
+      return buf;
+    }
     default:
       break;
     }
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "vers_current_time", "NULL (wrong range type)");
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "versioning_asof_timestamp", "NULL (wrong range type)");
     return (uchar*) thd->strdup("Error: wrong range type");
   }
-  void session_save_default(THD *thd, set_var *var)
-  { DBUG_ASSERT(false);  }
-  void global_save_default(THD *thd, set_var *var)
-  { DBUG_ASSERT(false); }
-  uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
-  { return valptr(thd, session_var(thd, st_vers_current_time)); }
-  uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
-  { return valptr(thd, global_var(st_vers_current_time)); }
-  uchar *default_value_ptr(THD *thd)
-  { return (uchar *)option.def_value; }
+
+public:
+  virtual uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  { return value_ptr(thd, session_var(thd, st_vers_asof_timestamp)); }
+  virtual uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  { return value_ptr(thd, global_var(st_vers_asof_timestamp)); }
 };

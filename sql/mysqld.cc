@@ -9442,15 +9442,27 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
               WSREP_SYNC_WAIT_BEFORE_READ);
     break;
 #endif /* WITH_WSREP */
-  case OPT_VERS_CURRENT_TIME:
-    sys_var *var= static_cast<sys_var*>(opt->app_type);
-    DBUG_ASSERT(var);
-    if (var->option_updated())
+  case OPT_VERS_ASOF_TIMESTAMP:
+    int type= find_type(argument, opt->typelib, FIND_TYPE_BASIC);
+    st_vers_asof_timestamp &out= global_system_variables.vers_asof_timestamp;
+    if (type)
     {
-      sql_print_error("Can't start server: "
-                      "cannot process --vers-current-time=%.*s",
-                      FN_REFLEN, argument);
-      return 1;
+      out.type= type - 1;
+      DBUG_ASSERT(out.type < FOR_SYSTEM_TIME_AS_OF);
+    }
+    else
+    {
+      out.type= FOR_SYSTEM_TIME_AS_OF;
+      MYSQL_TIME_STATUS status;
+      bool err= str_to_datetime(argument, strlen(argument), &out.ltime, 0, &status);
+      if (err || (status.warnings & ~MYSQL_TIME_NOTE_TRUNCATED))
+      {
+        sql_print_error("Can't start server: "
+                        "cannot process --%s=%.*s",
+                        opt->name,
+                        FN_REFLEN, argument);
+        return 1;
+      }
     }
     break;
   }
