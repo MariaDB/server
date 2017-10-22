@@ -673,8 +673,8 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
 
 bool vers_select_conds_t::init_from_sysvar(THD *thd)
 {
-  st_vers_current_time &in= thd->variables.vers_current_time;
-  type= in.type;
+  st_vers_asof_timestamp &in= thd->variables.vers_asof_timestamp;
+  type= (vers_range_type_t) in.type;
   unit_start= UNIT_TIMESTAMP;
   if (type != FOR_SYSTEM_TIME_UNSPECIFIED && type != FOR_SYSTEM_TIME_ALL)
   {

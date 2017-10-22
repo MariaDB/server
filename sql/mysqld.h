@@ -184,25 +184,24 @@ extern const char *log_backup_output_str;
 enum vers_range_type_t
 {
   FOR_SYSTEM_TIME_UNSPECIFIED = 0,
+  FOR_SYSTEM_TIME_ALL,
   FOR_SYSTEM_TIME_AS_OF,
   FOR_SYSTEM_TIME_FROM_TO,
   FOR_SYSTEM_TIME_BETWEEN,
-  FOR_SYSTEM_TIME_ALL,
   FOR_SYSTEM_TIME_BEFORE
 };
 
-/* Used only for @@versioning_current_time sysvar. This struct must be POD
- * because of str_value, which is used as interface to user.
- * So no virtual-anything! */
-struct st_vers_current_time
+struct st_vers_asof_timestamp
 {
-  char *str_value; // must be first
-  vers_range_type_t type;
+  const char *getopt_value;
+  ulong type;
   MYSQL_TIME ltime;
-  st_vers_current_time() :
-    str_value(NULL),
+  st_vers_asof_timestamp() :
+    getopt_value(NULL),
     type(FOR_SYSTEM_TIME_UNSPECIFIED)
-  {}
+  {
+    DBUG_ASSERT((void *)this == &this->getopt_value);
+  }
 };
 
 enum vers_hide_enum
@@ -702,7 +701,7 @@ enum options_mysqld
   OPT_SSL_KEY,
   OPT_THREAD_CONCURRENCY,
   OPT_WANT_CORE,
-  OPT_VERS_CURRENT_TIME,
+  OPT_VERS_ASOF_TIMESTAMP,
 #ifdef WITH_WSREP
   OPT_WSREP_CAUSAL_READS,
   OPT_WSREP_SYNC_WAIT,

@@ -1,32 +1,32 @@
 create table t (a int) with system versioning;
 insert into t values (1);
 update t set a= 2;
-show global variables like 'versioning_current_timestamp';
+show global variables like 'versioning_asof_timestamp';
 Variable_name	Value
-versioning_current_timestamp	NOW
-show variables like 'versioning_current_timestamp';
+versioning_asof_timestamp	CURRENT
+show variables like 'versioning_asof_timestamp';
 Variable_name	Value
-versioning_current_timestamp	NOW
+versioning_asof_timestamp	CURRENT
 select * from t;
 a
 2
-set versioning_current_timestamp = '2031-1-1 0:0:0';
-show variables like 'versioning_current_timestamp';
+set versioning_asof_timestamp= '2031-1-1 0:0:0';
+show variables like 'versioning_asof_timestamp';
 Variable_name	Value
-versioning_current_timestamp	2031-01-01 00:00:00.000000
+versioning_asof_timestamp	2031-01-01 00:00:00.000000
 select * from t;
 a
 2
-set versioning_current_timestamp = '2011-1-1 0:0:0';
-show variables like 'versioning_current_timestamp';
+set versioning_asof_timestamp= '2011-1-1 0:0:0';
+show variables like 'versioning_asof_timestamp';
 Variable_name	Value
-versioning_current_timestamp	2011-01-01 00:00:00.000000
+versioning_asof_timestamp	2011-01-01 00:00:00.000000
 select * from t;
 a
-set versioning_current_timestamp = 'all';
-show variables like 'versioning_current_timestamp';
+set versioning_asof_timestamp= ALL;
+show variables like 'versioning_asof_timestamp';
 Variable_name	Value
-versioning_current_timestamp	ALL
+versioning_asof_timestamp	ALL
 select * from t;
 a
 2
@@ -41,62 +41,68 @@ select * from (select * from t) as tt;
 a
 2
 1
-set global versioning_current_timestamp= 'alley';
-ERROR 42000: Variable 'versioning_current_timestamp' can't be set to the value of 'alley'
-set global versioning_current_timestamp= null;
-ERROR 42000: Variable 'versioning_current_timestamp' can't be set to the value of 'NULL'
-set global versioning_current_timestamp= 1;
-ERROR 42000: Incorrect argument type to variable 'versioning_current_timestamp'
-set global versioning_current_timestamp= 1.1;
-ERROR 42000: Incorrect argument type to variable 'versioning_current_timestamp'
-set versioning_current_timestamp= 'alley';
-ERROR 42000: Variable 'versioning_current_timestamp' can't be set to the value of 'alley'
-set versioning_current_timestamp= null;
-ERROR 42000: Variable 'versioning_current_timestamp' can't be set to the value of 'NULL'
-set versioning_current_timestamp= 1;
-ERROR 42000: Incorrect argument type to variable 'versioning_current_timestamp'
-set versioning_current_timestamp= 1.1;
-ERROR 42000: Incorrect argument type to variable 'versioning_current_timestamp'
-set global versioning_current_timestamp= '1911-11-11 11:11:11.1111119';
-show global variables like 'versioning_current_timestamp';
-Variable_name	Value
-versioning_current_timestamp	1911-11-11 11:11:11.111111
-set global versioning_current_timestamp= '1900-01-01 00:00:00';
-show global variables like 'versioning_current_timestamp';
-Variable_name	Value
-versioning_current_timestamp	1900-01-01 00:00:00.000000
-set global versioning_current_timestamp= timestamp'1911-11-11 11:11:11.1111119';
+set global versioning_asof_timestamp= 'alley';
+ERROR 42000: Variable 'versioning_asof_timestamp' can't be set to the value of 'alley'
+set global versioning_asof_timestamp= null;
+ERROR 42000: Variable 'versioning_asof_timestamp' can't be set to the value of 'NULL'
+set global versioning_asof_timestamp= 1;
+ERROR 42000: Incorrect argument type to variable 'versioning_asof_timestamp'
+set global versioning_asof_timestamp= 1.1;
+ERROR 42000: Incorrect argument type to variable 'versioning_asof_timestamp'
+set versioning_asof_timestamp= 'alley';
+ERROR 42000: Variable 'versioning_asof_timestamp' can't be set to the value of 'alley'
+set versioning_asof_timestamp= null;
+ERROR 42000: Variable 'versioning_asof_timestamp' can't be set to the value of 'NULL'
+set versioning_asof_timestamp= 1;
+ERROR 42000: Incorrect argument type to variable 'versioning_asof_timestamp'
+set versioning_asof_timestamp= 1.1;
+ERROR 42000: Incorrect argument type to variable 'versioning_asof_timestamp'
+set global versioning_asof_timestamp= '1911-11-11 11:11:11.1111119';
 Warnings:
 Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
-show global variables like 'versioning_current_timestamp';
+Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
+show global variables like 'versioning_asof_timestamp';
 Variable_name	Value
-versioning_current_timestamp	1911-11-11 11:11:11.111111
-set @ts= timestamp'1900-01-01 00:00:00';
-set global versioning_current_timestamp= @ts;
-show global variables like 'versioning_current_timestamp';
+versioning_asof_timestamp	1911-11-11 11:11:11.111111
+set global versioning_asof_timestamp= '1900-01-01 00:00:00';
+show global variables like 'versioning_asof_timestamp';
 Variable_name	Value
-versioning_current_timestamp	1900-01-01 00:00:00.000000
-set versioning_current_timestamp= '1911-11-11 11:11:11.1111119';
-show variables like 'versioning_current_timestamp';
-Variable_name	Value
-versioning_current_timestamp	1911-11-11 11:11:11.111111
-set versioning_current_timestamp= '1900-01-01 00:00:00';
-show variables like 'versioning_current_timestamp';
-Variable_name	Value
-versioning_current_timestamp	1900-01-01 00:00:00.000000
-set versioning_current_timestamp= timestamp'1911-11-11 11:11:11.1111119';
+versioning_asof_timestamp	1900-01-01 00:00:00.000000
+set global versioning_asof_timestamp= timestamp'1911-11-11 11:11:11.1111119';
 Warnings:
 Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
-show variables like 'versioning_current_timestamp';
+show global variables like 'versioning_asof_timestamp';
 Variable_name	Value
-versioning_current_timestamp	1911-11-11 11:11:11.111111
+versioning_asof_timestamp	1911-11-11 11:11:11.111111
 set @ts= timestamp'1900-01-01 00:00:00';
-set versioning_current_timestamp= @ts;
-show variables like 'versioning_current_timestamp';
+set global versioning_asof_timestamp= @ts;
+show global variables like 'versioning_asof_timestamp';
 Variable_name	Value
-versioning_current_timestamp	1900-01-01 00:00:00.000000
-set global versioning_current_timestamp= 'now';
-set versioning_current_timestamp= 'now';
+versioning_asof_timestamp	1900-01-01 00:00:00.000000
+set versioning_asof_timestamp= '1911-11-11 11:11:11.1111119';
+Warnings:
+Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
+Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
+show variables like 'versioning_asof_timestamp';
+Variable_name	Value
+versioning_asof_timestamp	1911-11-11 11:11:11.111111
+set versioning_asof_timestamp= '1900-01-01 00:00:00';
+show variables like 'versioning_asof_timestamp';
+Variable_name	Value
+versioning_asof_timestamp	1900-01-01 00:00:00.000000
+set versioning_asof_timestamp= timestamp'1911-11-11 11:11:11.1111119';
+Warnings:
+Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
+show variables like 'versioning_asof_timestamp';
+Variable_name	Value
+versioning_asof_timestamp	1911-11-11 11:11:11.111111
+set @ts= timestamp'1900-01-01 00:00:00';
+set versioning_asof_timestamp= @ts;
+show variables like 'versioning_asof_timestamp';
+Variable_name	Value
+versioning_asof_timestamp	1900-01-01 00:00:00.000000
+set global versioning_asof_timestamp= CURRENT;
+set versioning_asof_timestamp= CURRENT;
 show variables where variable_name = "versioning_hide";
 Variable_name	Value
 versioning_hide	IMPLICIT

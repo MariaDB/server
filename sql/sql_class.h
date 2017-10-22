@@ -703,7 +703,7 @@ typedef struct system_variables
   uint column_compression_zlib_level;
   ulong in_subquery_conversion_threshold;
 
-  st_vers_current_time vers_current_time;
+  st_vers_asof_timestamp vers_asof_timestamp;
   my_bool vers_force;
   ulong vers_hide;
   my_bool vers_innodb_algorithm_simple;
