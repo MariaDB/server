@@ -691,13 +691,13 @@ int sp_rcontext::set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
 int sp_rcontext::set_variable_row(THD *thd, uint var_idx, List<Item> &items)
 {
   DBUG_ENTER("sp_rcontext::set_variable_row");
-  DBUG_ASSERT(thd->spcont->get_item(var_idx)->cols() == items.elements);
+  DBUG_ASSERT(get_item(var_idx)->cols() == items.elements);
   List_iterator<Item> it(items);
   Item *item;
   for (uint i= 0 ; (item= it++) ; i++)
   {
     int rc;
-    if ((rc= thd->spcont->set_variable_row_field(thd, var_idx, i, &item)))
+    if ((rc= set_variable_row_field(thd, var_idx, i, &item)))
       DBUG_RETURN(rc);
   }
   DBUG_RETURN(0);
