@@ -3088,6 +3088,16 @@ static void rocksdb_commit_ordered(handlerton *hton, THD* thd, bool all)
   DBUG_ASSERT(all || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT |
                                              OPTION_BEGIN)));
   Rdb_transaction *&tx = get_tx_from_thd(thd);
+  if (!tx->is_two_phase()) {
+    /*
+      ordered_commit is supposedly slower as it is done sequentially
+      in order to preserve commit order.
+
+      if we are not required do 2-phase commit with the binlog, do not do
+      anything here.
+    */
+    return;
+  }
 
   tx->set_sync(false);
 
