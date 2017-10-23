@@ -241,7 +241,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
     /* Error's in 'new' will be detected after loop */
     Item_type_holder *new_holder= new (thd->mem_root)
                       Item_type_holder(thd,
-                                       &item->name,
+                                       item,
                                        holders[pos].type_handler(),
                                        &holders[pos]/*Type_all_attributes*/,
                                        holders[pos].get_maybe_null());

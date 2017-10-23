@@ -73,17 +73,17 @@ prepare stmt from concat(a, b, c);
 execute stmt;
 deallocate prepare stmt;
 end~~
-create table t1 (x int) with system versioning engine innodb;
+create or replace table t1 (x int) with system versioning engine innodb;
 insert into t1 values (1);
 select now(6) into @t1;
 update t1 set x= 2;
 select now(6) into @t2;
 delete from t1;
-set @vt1= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t1, "'");
+set @vt1= concat("create or replace view vt1 as select * from t1 for system_time as of timestamp '", @t1, "'");
 prepare stmt from @vt1;
 execute stmt;
 drop prepare stmt;
-set @vt2= concat("create view vt2 as select *, sys_trx_end from t1 for system_time as of timestamp '", @t2, "'");
+set @vt2= concat("create or replace view vt2 as select *, sys_trx_end from t1 for system_time as of timestamp '", @t2, "'");
 prepare stmt from @vt2;
 execute stmt;
 drop prepare stmt;
@@ -170,8 +170,10 @@ select * from vt1 for system_time all;
 x
 1
 2
+# VIEW with parameters [#151]
 create or replace table t1 (x int) with system versioning;
 create or replace view vt1(c) as select x from t1;
+# VIEW over JOIN of versioned tables [#153]
 create or replace table t1 (a int) with system versioning engine innodb;
 create or replace table t2 (b int) with system versioning engine innodb;
 insert into t1 values (1);
@@ -183,6 +185,7 @@ a	b
 create or replace view vt12 as select * from t1 for system_time as of timestamp '0-0-0' cross join t2;
 select * from vt12;
 a	b
+# VIEW improvements [#183]
 create or replace view vt1 as select a, t1.sys_trx_start, t2.sys_trx_end from t1, t2;
 ERROR HY000: Creating VIEW `vt1` is prohibited: system fields from multiple tables `t1`, `t2` in query!
 create or replace view vt1 as select a, t1.sys_trx_end, t2.sys_trx_end from t1, t2;
@@ -200,6 +203,7 @@ create or replace view vt1 as select a, t2.sys_trx_end as endo from t3, t1, t2;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
 vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`sys_trx_end` AS `endo`,`t2`.`sys_trx_start` AS `sys_trx_start` from ((`t3` join `t1` FOR SYSTEM_TIME ALL) join `t2` FOR SYSTEM_TIME ALL) where `t1`.`sys_trx_end` = 18446744073709551615 and `t2`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+# VIEW over UNION [#269]
 create or replace view vt1 as select * from t1 union select * from t1;
 select * from vt1;
 a
