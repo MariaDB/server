@@ -73,7 +73,7 @@ prepare stmt from concat(a, b, c);
 execute stmt;
 deallocate prepare stmt;
 end~~
-create or replace table t1 (x int) with system versioning engine innodb;
+create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
 select now(6) into @t1;
 update t1 set x= 2;
@@ -98,7 +98,7 @@ x
 create or replace view vt1 as select * from t1;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from `t1` FOR SYSTEM_TIME ALL where `t1`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from `t1` FOR SYSTEM_TIME ALL where `t1`.`sys_trx_end` = MAX_RESULT	latin1	latin1_swedish_ci
 drop view vt1;
 drop view vt2;
 create view vt1 as select * from t1 for system_time all;
@@ -173,9 +173,12 @@ x
 # VIEW with parameters [#151]
 create or replace table t1 (x int) with system versioning;
 create or replace view vt1(c) as select x from t1;
+show create view vt1;
+View	Create View	character_set_client	collation_connection
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `c`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from `t1` FOR SYSTEM_TIME ALL where `t1`.`sys_trx_end` = MAX_RESULT	latin1	latin1_swedish_ci
 # VIEW over JOIN of versioned tables [#153]
-create or replace table t1 (a int) with system versioning engine innodb;
-create or replace table t2 (b int) with system versioning engine innodb;
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (b int) with system versioning;
 insert into t1 values (1);
 insert into t2 values (2);
 create or replace view vt12 as select * from t1 cross join t2;
@@ -194,15 +197,15 @@ create or replace table t3 (x int);
 create or replace view vt1 as select * from t1, t2, t3;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`b` AS `b`,`t3`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from ((`t1` FOR SYSTEM_TIME ALL join `t2` FOR SYSTEM_TIME ALL) join `t3`) where `t1`.`sys_trx_end` = 18446744073709551615 and `t2`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`b` AS `b`,`t3`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from ((`t1` FOR SYSTEM_TIME ALL join `t2` FOR SYSTEM_TIME ALL) join `t3`) where `t1`.`sys_trx_end` = MAX_RESULT and `t2`.`sys_trx_end` = MAX_RESULT	latin1	latin1_swedish_ci
 create or replace view vt1 as select * from t3, t2, t1;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t3`.`x` AS `x`,`t2`.`b` AS `b`,`t1`.`a` AS `a`,`t2`.`sys_trx_start` AS `sys_trx_start`,`t2`.`sys_trx_end` AS `sys_trx_end` from ((`t3` join `t2` FOR SYSTEM_TIME ALL) join `t1` FOR SYSTEM_TIME ALL) where `t2`.`sys_trx_end` = 18446744073709551615 and `t1`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t3`.`x` AS `x`,`t2`.`b` AS `b`,`t1`.`a` AS `a`,`t2`.`sys_trx_start` AS `sys_trx_start`,`t2`.`sys_trx_end` AS `sys_trx_end` from ((`t3` join `t2` FOR SYSTEM_TIME ALL) join `t1` FOR SYSTEM_TIME ALL) where `t2`.`sys_trx_end` = MAX_RESULT and `t1`.`sys_trx_end` = MAX_RESULT	latin1	latin1_swedish_ci
 create or replace view vt1 as select a, t2.sys_trx_end as endo from t3, t1, t2;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`sys_trx_end` AS `endo`,`t2`.`sys_trx_start` AS `sys_trx_start` from ((`t3` join `t1` FOR SYSTEM_TIME ALL) join `t2` FOR SYSTEM_TIME ALL) where `t1`.`sys_trx_end` = 18446744073709551615 and `t2`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`sys_trx_end` AS `endo`,`t2`.`sys_trx_start` AS `sys_trx_start` from ((`t3` join `t1` FOR SYSTEM_TIME ALL) join `t2` FOR SYSTEM_TIME ALL) where `t1`.`sys_trx_end` = MAX_RESULT and `t2`.`sys_trx_end` = MAX_RESULT	latin1	latin1_swedish_ci
 # VIEW over UNION [#269]
 create or replace view vt1 as select * from t1 union select * from t1;
 select * from vt1;
@@ -210,12 +213,5 @@ a
 1
 create or replace view vvt1 as select * from t1, t2, vt1;
 ERROR HY000: Creating VIEW `vvt1` is prohibited: versioned VIEW `vt1` in query!
-drop view vt1, vt12;
-drop table t1, t2, t3;
-drop procedure verify_vtq;
-drop procedure innodb_verify_vtq;
-drop function default_engine;
-drop function sys_commit_ts;
-drop function sys_datatype;
-drop procedure concat_exec2;
-drop procedure concat_exec3;
+drop database test;
+create database test;
