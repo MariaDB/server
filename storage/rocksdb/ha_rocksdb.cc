@@ -7162,12 +7162,9 @@ int ha_rocksdb::read_range_first(const key_range *const start_key,
   int result;
 
   eq_range = eq_range_arg;
-#ifdef MARIAROCKS_NOT_YET
-  // Range scan direction is used to get ICP to work for backwards scans
-  set_end_range(end_key, RANGE_SCAN_ASC);
-#else
+
+  /* MariaDB: Pass RANGE_SCAN_ASC when we support ICP on backwards scans */
   set_end_range(end_key);
-#endif
 
   range_key_part = table->key_info[active_index].key_part;
 
