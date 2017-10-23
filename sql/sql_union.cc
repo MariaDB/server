@@ -866,7 +866,7 @@ bool st_select_lex_unit::join_union_item_types(THD *thd_arg,
     /* Error's in 'new' will be detected after loop */
     types.push_back(new (thd_arg->mem_root)
                     Item_type_holder(thd_arg,
-                                     &item_tmp->name,
+                                     item_tmp,
                                      holders[pos].type_handler(),
                                      &holders[pos]/*Type_all_attributes*/,
                                      holders[pos].get_maybe_null()));

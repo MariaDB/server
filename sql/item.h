@@ -6010,14 +6010,9 @@ class Item_type_holder: public Item,
 {
 protected:
   TYPELIB *enum_set_typelib;
-public:
-  Item_type_holder(THD *thd, Item *item)
-   :Item(thd, item),
-    Type_handler_hybrid_field_type(item->real_type_handler()),
-    enum_set_typelib(0)
+private:
+  void init_flags(Item *item)
   {
-    DBUG_ASSERT(item->fixed);
-    maybe_null= item->maybe_null;
     if (item->real_type() == Item::FIELD_ITEM)
     {
       Item_field *item_field= (Item_field *)item->real_item();
@@ -6025,19 +6020,32 @@ public:
                (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG));
     }
   }
+public:
+  Item_type_holder(THD *thd, Item *item)
+   :Item(thd, item),
+    Type_handler_hybrid_field_type(item->real_type_handler()),
+    enum_set_typelib(0),
+    flags(0)
+  {
+    DBUG_ASSERT(item->fixed);
+    maybe_null= item->maybe_null;
+    init_flags(item);
+  }
   Item_type_holder(THD *thd,
-                   const LEX_CSTRING *name_arg,
+                   Item *item,
                    const Type_handler *handler,
                    const Type_all_attributes *attr,
                    bool maybe_null_arg)
    :Item(thd),
     Type_handler_hybrid_field_type(handler),
     Type_geometry_attributes(handler, attr),
-    enum_set_typelib(attr->get_typelib())
+    enum_set_typelib(attr->get_typelib()),
+    flags(0)
   {
-    name= *name_arg;
+    name= item->name;
     Type_std_attributes::set(*attr);
     maybe_null= maybe_null_arg;
+    init_flags(item);
   }
 
   const Type_handler *type_handler() const
