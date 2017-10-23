@@ -579,7 +579,6 @@ fts_commit(
 @param[in]	query_str	FTS query
 @param[in]	query_len	FTS query string len in bytes
 @param[in,out]	result		result doc ids
-@param[in]	limit		limit value
 @return DB_SUCCESS if successful otherwise error code */
 dberr_t
 fts_query(
@@ -588,8 +587,7 @@ fts_query(
 	uint		flags,
 	const byte*	query_str,
 	ulint		query_len,
-	fts_result_t**	result,
-	ulonglong	limit)
+	fts_result_t**	result)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************************//**

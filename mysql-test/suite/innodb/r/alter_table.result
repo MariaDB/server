@@ -11,3 +11,14 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 drop table t1;
 set @@sql_mode=default;
+create table t1 (
+id1    int(11)      not null auto_increment,
+id2    varchar(30)  not null,
+id3    datetime     not null default current_timestamp,
+primary key (id1),
+unique key unique_id2 (id2)
+) engine=innodb;
+alter table t1 change column id2 id4 varchar(100) not null;
+select * from t1 where id4 like 'a';
+id1	id4	id3
+drop table t1;

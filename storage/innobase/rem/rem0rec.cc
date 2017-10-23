@@ -570,9 +570,10 @@ rec_get_offsets_func(
 		case REC_STATUS_SUPREMUM:
 			/* infimum or supremum record */
 			ut_ad(rec_get_heap_no_new(rec)
-			      == (rec_get_status(rec) == REC_STATUS_INFIMUM
-				  ? PAGE_HEAP_NO_INFIMUM
-				  : PAGE_HEAP_NO_SUPREMUM));
+			      == ulint(rec_get_status(rec)
+                                       == REC_STATUS_INFIMUM
+                                       ? PAGE_HEAP_NO_INFIMUM
+                                       : PAGE_HEAP_NO_SUPREMUM));
 			n = 1;
 			break;
 		default:

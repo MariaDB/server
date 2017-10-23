@@ -8,3 +8,17 @@ create index idx1 on t1(a(3073));
 show create table t1;
 drop table t1;
 set @@sql_mode=default;
+
+#
+# MDEV-14081 ALTER TABLE CHANGE COLUMN Corrupts Index Leading to Crashes in 10.2
+#
+create table t1 (
+  id1    int(11)      not null auto_increment,
+  id2    varchar(30)  not null,
+  id3    datetime     not null default current_timestamp,
+  primary key (id1),
+  unique key unique_id2 (id2)
+) engine=innodb;
+alter table t1 change column id2 id4 varchar(100) not null;
+select * from t1 where id4 like 'a';
+drop table t1;

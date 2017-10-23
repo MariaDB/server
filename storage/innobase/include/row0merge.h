@@ -265,16 +265,13 @@ row_merge_rename_index_to_drop(
 @param[in]	index_def	the index definition
 @param[in]	add_v		new virtual columns added along with add
 				index call
-@param[in]	col_names	column names if columns are renamed
-				or NULL
 @return index, or NULL on error */
 dict_index_t*
 row_merge_create_index(
 	trx_t*			trx,
 	dict_table_t*		table,
 	const index_def_t*	index_def,
-	const dict_add_v_col_t*	add_v,
-	const char**		col_names)
+	const dict_add_v_col_t*	add_v)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**

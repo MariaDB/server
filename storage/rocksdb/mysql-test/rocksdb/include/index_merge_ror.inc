@@ -125,6 +125,7 @@ analyze table t1;
 -- enable_query_log
 
 # One row results tests for cases where a single row matches all conditions
+--replace_column 9 #
 explain select key1,key2 from t1 where key1=100 and key2=100;
 select key1,key2 from t1 where key1=100 and key2=100;
 if (!$skip_ror_EXPLAIN_for_MyRocks)

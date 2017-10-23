@@ -114,6 +114,17 @@ if [ "$basedir" != "/usr" ]; then
 fi
 cflags="$include @CFLAGS_FOR_CLIENTS@"
 
+mariadb_config="$basedir/bin/mariadb_config"
+if test -x "$basedir/bin/mariadb_config"; then
+  cflags=`"$mariadb_config" --cflags`
+  include=`"$mariadb_config" --include`
+  libs=`"$mariadb_config" --libs`
+  plugindir=`"$mariadb_config" --plugindir`
+  socket=`"$mariadb_config" --socket`
+  port=`"$mariadb_config" --port`
+  version=`"$mariadb_config" --version`
+fi
+
 usage () {
         cat <<EOF
 Usage: $0 [OPTIONS]

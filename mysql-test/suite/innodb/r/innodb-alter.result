@@ -640,10 +640,8 @@ CHANGE foo_id FTS_DOC_ID BIGINT UNSIGNED NOT NULL;
 ALTER TABLE t1o DROP INDEX ct, DROP INDEX FTS_DOC_ID_INDEX,
 CHANGE FTS_DOC_ID foo_id BIGINT UNSIGNED NOT NULL;
 ALTER TABLE t1o ADD UNIQUE INDEX FTS_DOC_ID_INDEX(foo_id);
-call mtr.add_suppression("InnoDB: No matching column for `FTS_DOC_ID` in index `ct` of table `test`\\.`t1o`");
 ALTER TABLE t1o CHANGE foo_id FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
 ADD FULLTEXT INDEX(ct);
-ERROR HY000: Index for table 't1o' is corrupt; try to repair it
 DROP TABLE sys_indexes;
 CREATE TABLE sys_indexes SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES i
 INNER JOIN sys_tables st ON i.TABLE_ID=st.TABLE_ID;
