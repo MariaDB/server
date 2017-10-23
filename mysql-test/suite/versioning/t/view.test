@@ -1,7 +1,6 @@
--- source include/have_innodb.inc
 -- source suite/versioning/common.inc
 
-create or replace table t1 (x int) with system versioning engine innodb;
+create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
 
 select now(6) into @t1;
@@ -21,6 +20,7 @@ select * from vt2 for system_time all;
 select * from t1;
 
 create or replace view vt1 as select * from t1;
+--replace_result 18446744073709551615 MAX_RESULT "TIMESTAMP'2038-01-19 03:14:07.999999'" MAX_RESULT
 show create view vt1;
 
 drop view vt1;
@@ -63,10 +63,12 @@ select * from vt1 for system_time all;
 --echo # VIEW with parameters [#151]
 create or replace table t1 (x int) with system versioning;
 create or replace view vt1(c) as select x from t1;
+--replace_result 18446744073709551615 MAX_RESULT "TIMESTAMP'2038-01-19 03:14:07.999999'" MAX_RESULT
+show create view vt1;
 
 --echo # VIEW over JOIN of versioned tables [#153]
-create or replace table t1 (a int) with system versioning engine innodb;
-create or replace table t2 (b int) with system versioning engine innodb;
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (b int) with system versioning;
 insert into t1 values (1);
 insert into t2 values (2);
 create or replace view vt12 as select * from t1 cross join t2;
@@ -82,10 +84,13 @@ create or replace view vt1 as select a, t1.sys_trx_end, t2.sys_trx_end from t1, 
 
 create or replace table t3 (x int);
 create or replace view vt1 as select * from t1, t2, t3;
+--replace_result 18446744073709551615 MAX_RESULT "TIMESTAMP'2038-01-19 03:14:07.999999'" MAX_RESULT
 show create view vt1;
 create or replace view vt1 as select * from t3, t2, t1;
+--replace_result 18446744073709551615 MAX_RESULT "TIMESTAMP'2038-01-19 03:14:07.999999'" MAX_RESULT
 show create view vt1;
 create or replace view vt1 as select a, t2.sys_trx_end as endo from t3, t1, t2;
+--replace_result 18446744073709551615 MAX_RESULT "TIMESTAMP'2038-01-19 03:14:07.999999'" MAX_RESULT
 show create view vt1;
 
 --echo # VIEW over UNION [#269]
@@ -95,7 +100,5 @@ select * from vt1;
 --error ER_VERS_VIEW_PROHIBITED
 create or replace view vvt1 as select * from t1, t2, vt1;
 
-drop view vt1, vt12;
-drop table t1, t2, t3;
-
--- source suite/versioning/common_finish.inc
+drop database test;
+create database test;
