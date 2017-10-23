@@ -5097,6 +5097,10 @@ new_clustered_failed:
 	}
 
 	if (ctx->need_rebuild() && ctx->new_table->supports_instant()) {
+		if (ha_alter_info->create_info->vers_info
+			.with_system_versioning)
+			goto not_instant_add_column;
+
 		if (~ha_alter_info->handler_flags
 		    & Alter_inplace_info::ADD_STORED_BASE_COLUMN) {
 			goto not_instant_add_column;
