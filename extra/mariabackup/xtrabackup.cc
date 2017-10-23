@@ -837,6 +837,11 @@ struct my_option xb_client_options[] =
    (uchar*) &opt_incremental_history_uuid, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
+  {"remove-original", OPT_REMOVE_ORIGINAL, "Remove .qp files after decompression.",
+   (uchar *) &opt_remove_original,
+   (uchar *) &opt_remove_original,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
   {"ftwrl-wait-query-type", OPT_LOCK_WAIT_QUERY_TYPE,
    "This option specifies which types of queries are allowed to complete "
    "before innobackupex will issue the global lock. Default is all.",
