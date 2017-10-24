@@ -1309,7 +1309,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           goto err;
         share->vtmd= *extra2;
         if (share->vtmd)
+        {
           share->table_category= TABLE_CATEGORY_LOG;
+          share->no_replicate= true;
+        }
         vtmd_used= true;
         break;
       default:
