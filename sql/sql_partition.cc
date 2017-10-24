@@ -2324,7 +2324,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
         err+= str.append(STRING_WITH_LEN("HASH "));
       break;
     case VERSIONING_PARTITION:
-      err+= str.append(STRING_WITH_LEN("SYSTEM_TIME"));
+      err+= str.append(STRING_WITH_LEN("SYSTEM_TIME "));
       break;
     default:
       DBUG_ASSERT(0);
