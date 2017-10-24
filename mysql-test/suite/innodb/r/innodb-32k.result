@@ -228,13 +228,14 @@ aa=@c,ba=@c,ca=@c,da=@c,ea=@c,fa=@c,ga=@c,ha=@c,ia=@c,ja=@c,
 ka=@c,la=@c,ma=@c,na=@c,oa=@c,pa=@c,qa=@c,ra=@c,sa=@c,ta=@c,ua=@c,
 va=@c,wa=@c,xa=@c,ya=@c,za=@c;
 CREATE INDEX t1f17 ON t1 (v(767));
+BEGIN;
 UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d,f=@d,g=@d,h=@d,i=@d,j=@d,
 k=@d,l=@d,m=@d,n=@d,o=@d,p=@d,q=@d,r=@d,s=@d,t=@d,u=@d,
 v=@d,w=@d,x=@d,y=@d,z=@d,
 aa=@d,ba=@d,ca=@d,da=@d,ea=@d,fa=@d,ga=@d,ha=@d,ia=@d,ja=@d,
 ka=@d,la=@d,ma=@d,na=@d,oa=@d,pa=@d,qa=@d,ra=@d,sa=@d,ta=@d,ua=@d,
 va=@d,wa=@d,xa=@d,ya=@d,za=@d;
-ERROR HY000: Undo log record is too big.
+ROLLBACK;
 BEGIN;
 UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d;
 UPDATE t1 SET f=@d,g=@d,h=@d,i=@d,j=@d;
