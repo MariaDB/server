@@ -1046,8 +1046,9 @@ PRIMARY KEY (b(10), a), INDEX (c(767)), INDEX(b(767))
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
 INSERT INTO bug12547647 VALUES (5,repeat('khdfo5AlOq',1900),repeat('g',7751));
 COMMIT;
+BEGIN;
 UPDATE bug12547647 SET c = REPEAT('b',16928);
-ERROR HY000: Undo log record is too big.
+ROLLBACK;
 DROP TABLE bug12547647;
 set global innodb_file_per_table=0;
 set global innodb_file_format=Antelope;
