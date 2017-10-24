@@ -534,10 +534,11 @@ REPEAT("a", 4000) ,  REPEAT("a", 255)
 CREATE INDEX prefix_idx3 ON worklog5743(col_3_text (3072));
 CREATE INDEX prefix_idx4 ON worklog5743(col_4_blob (3072));
 CREATE INDEX prefix_idx5 ON worklog5743(col_5_text (3072));
---error ER_UNDO_RECORD_TOO_BIG
+BEGIN;
 UPDATE worklog5743 SET col_1_varbinary = REPEAT("c", 4000)
 WHERE col_1_varbinary = REPEAT("a", 4000) AND col_2_varchar = REPEAT("o", 4000);
 SHOW WARNINGS;
+ROLLBACK;
 DROP TABLE worklog5743;
 
 #------------------------------------------------------------------------------
@@ -583,13 +584,12 @@ REPEAT("a", 4000) , REPEAT("o", 4000), REPEAT("a", 4000),
 REPEAT("a", 4000) , REPEAT("a", 255)
 );
 ROLLBACK;
-# Bug#12547647 - UPDATE LOGGING COULD EXCEED LOG PAGE SIZE
-# Instead of this error, it would hang before this fix.
---error ER_UNDO_RECORD_TOO_BIG
+BEGIN;
 UPDATE worklog5743 SET col_1_varbinary = REPEAT("c", 4000)
 WHERE col_1_varbinary = REPEAT("a", 4000)
 AND col_2_varchar = REPEAT("o", 4000);
 SHOW WARNINGS;
+ROLLBACK;
 SELECT col_1_varbinary = REPEAT("c", 4000) FROM worklog5743
 WHERE col_1_varbinary = REPEAT("c", 4000) AND col_2_varchar = REPEAT("o", 4000);
 INSERT INTO worklog5743 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000),

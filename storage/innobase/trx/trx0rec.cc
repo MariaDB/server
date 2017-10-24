@@ -772,7 +772,25 @@ trx_undo_page_report_modify(
 			const dict_col_t*	col
 				= dict_table_get_nth_col(table, col_no);
 
-			if (col->ord_part) {
+			if (!col->ord_part) {
+				continue;
+			}
+
+			if (update) {
+				for (i = 0; i < update->n_fields; i++) {
+					const dict_field_t* f
+						= dict_index_get_nth_field(
+							index,
+							upd_get_nth_field(
+								update, i)
+							->field_no);
+					if (f->col == col) {
+						goto already_logged;
+					}
+				}
+			}
+
+			if (TRUE) {
 				ulint	pos;
 
 				/* Write field number to undo log */
@@ -822,6 +840,9 @@ trx_undo_page_report_modify(
 					ptr += flen;
 				}
 			}
+
+already_logged:
+			continue;
 		}
 
 		mach_write_to_2(old_ptr, ptr - old_ptr);
