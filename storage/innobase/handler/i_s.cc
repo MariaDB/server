@@ -6433,7 +6433,6 @@ i_s_sys_tables_fill_table_stats(
 	while (rec) {
 		const char*	err_msg;
 		dict_table_t*	table_rec;
-		ulint		ref_count;
 
 		/* Fetch the dict_table_t structure corresponding to
 		this SYS_TABLES record */
@@ -6441,16 +6440,7 @@ i_s_sys_tables_fill_table_stats(
 			heap, rec, &table_rec,
 			DICT_TABLE_LOAD_FROM_CACHE, &mtr);
 
-		if (table_rec != NULL) {
-			ut_ad(err_msg == NULL);
-
-			ref_count = table_rec->get_ref_count();
-
-			/* Protect the dict_table_t object by incrementing
-			the reference count. */
-			table_rec->acquire();
-		}
-
+		ulint ref_count = table_rec ? table_rec->get_ref_count() : 0;
 		mutex_exit(&dict_sys->mutex);
 
 		DBUG_EXECUTE_IF("test_sys_tablestats", {
@@ -6459,9 +6449,11 @@ i_s_sys_tables_fill_table_stats(
 			}});
 
 		if (table_rec != NULL) {
+			ut_ad(err_msg == NULL);
 			i_s_dict_fill_sys_tablestats(thd, table_rec, ref_count,
 						     tables->table);
 		} else {
+			ut_ad(err_msg != NULL);
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
 					    err_msg);
@@ -6473,10 +6465,6 @@ i_s_sys_tables_fill_table_stats(
 		/* Get the next record */
 		rw_lock_s_lock(dict_operation_lock);
 		mutex_enter(&dict_sys->mutex);
-
-		if (table_rec != NULL) {
-			table_rec->release();
-		}
 
 		mtr_start(&mtr);
 		rec = dict_getnext_system(&pcur, &mtr);
