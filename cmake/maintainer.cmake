@@ -20,6 +20,11 @@ IF(have_C__Wvla)
   SET(MY_WARNING_FLAGS "${MY_WARNING_FLAGS} -Wvla")
 ENDIF()
 
+MY_CHECK_C_COMPILER_FLAG("-Wno-format-truncation")
+IF(HAVE_C__Wno_format_truncation)
+  SET(MY_WARNING_FLAGS "${MY_WARNING_FLAGS} -Wno-format-truncation")
+ENDIF()
+
 # Common warning flags for GCC and Clang
 SET(MY_C_WARNING_FLAGS
     "${MY_WARNING_FLAGS} -Wwrite-strings -Wdeclaration-after-statement")

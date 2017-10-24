@@ -906,6 +906,21 @@ SET sql_mode=DEFAULT;
 SET NAMES utf8;
 
 --echo #
+--echo # MDEV-13530 VARBINARY doesn't convert to to BLOB for sizes 65533, 65534 and 65535
+--echo #
+
+set sql_mode='';
+CREATE TABLE t1 (c1 VARCHAR(16383) CHARACTER SET utf32);
+DESCRIBE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(16384) CHARACTER SET utf32);
+DESCRIBE t1;
+DROP TABLE t1;
+set sql_mode=default;
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 

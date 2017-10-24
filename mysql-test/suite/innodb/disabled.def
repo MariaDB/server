@@ -10,5 +10,4 @@
 #
 ##############################################################################
 
-innodb-wl5980-alter : MDEV-9469 / MDEV-13668 extra crash in 10.2
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails

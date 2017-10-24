@@ -6424,6 +6424,7 @@ i_s_sys_tables_fill_table_stats(
 	}
 
 	heap = mem_heap_create(1000);
+	rw_lock_s_lock(dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 	mtr_start(&mtr);
 
@@ -6466,9 +6467,11 @@ i_s_sys_tables_fill_table_stats(
 					    err_msg);
 		}
 
+		rw_lock_s_unlock(dict_operation_lock);
 		mem_heap_empty(heap);
 
 		/* Get the next record */
+		rw_lock_s_lock(dict_operation_lock);
 		mutex_enter(&dict_sys->mutex);
 
 		if (table_rec != NULL) {
@@ -6481,6 +6484,7 @@ i_s_sys_tables_fill_table_stats(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys->mutex);
+	rw_lock_s_unlock(dict_operation_lock);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -8045,31 +8049,22 @@ i_s_dict_fill_sys_tablespaces(
 	ulint		flags,		/*!< in: tablespace flags */
 	TABLE*		table_to_fill)	/*!< in/out: fill this table */
 {
-	Field**		fields;
-	ulint		atomic_blobs = FSP_FLAGS_HAS_ATOMIC_BLOBS(flags);
-	bool		is_compressed = FSP_FLAGS_GET_ZIP_SSIZE(flags);
-	const char*	file_format;
-	const char*	row_format;
-	const page_size_t	page_size(flags);
-	const char*	space_type;
+	Field**	fields;
+	ulint	atomic_blobs	= FSP_FLAGS_HAS_ATOMIC_BLOBS(flags);
+	const char* file_format;
+	const char* row_format;
 
 	DBUG_ENTER("i_s_dict_fill_sys_tablespaces");
 
 	file_format = trx_sys_file_format_id_to_name(atomic_blobs);
 	if (is_system_tablespace(space)) {
-		row_format = "Compact or Redundant";
-	} else if (is_compressed) {
+		row_format = "Compact, Redundant or Dynamic";
+	} else if (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
 		row_format = "Compressed";
 	} else if (atomic_blobs) {
 		row_format = "Dynamic";
 	} else {
 		row_format = "Compact or Redundant";
-	}
-
-	if (is_system_tablespace(space)) {
-		space_type = "System";
-	} else  {
-		space_type = "Single";
 	}
 
 	fields = table_to_fill->field;
@@ -8085,19 +8080,32 @@ i_s_dict_fill_sys_tablespaces(
 
 	OK(field_store_string(fields[SYS_TABLESPACES_ROW_FORMAT], row_format));
 
+	OK(field_store_string(fields[SYS_TABLESPACES_SPACE_TYPE],
+			      is_system_tablespace(space)
+			      ? "System" : "Single"));
+
+	ulint cflags = fsp_flags_is_valid(flags, space)
+		? flags : fsp_flags_convert_from_101(flags);
+	if (cflags == ULINT_UNDEFINED) {
+		fields[SYS_TABLESPACES_PAGE_SIZE]->set_null();
+		fields[SYS_TABLESPACES_ZIP_PAGE_SIZE]->set_null();
+		fields[SYS_TABLESPACES_FS_BLOCK_SIZE]->set_null();
+		fields[SYS_TABLESPACES_FILE_SIZE]->set_null();
+		fields[SYS_TABLESPACES_ALLOC_SIZE]->set_null();
+		OK(schema_table_store_record(thd, table_to_fill));
+		DBUG_RETURN(0);
+	}
+
+	const page_size_t page_size(cflags);
+
 	OK(fields[SYS_TABLESPACES_PAGE_SIZE]->store(
-			univ_page_size.physical(), true));
+		   page_size.logical(), true));
 
 	OK(fields[SYS_TABLESPACES_ZIP_PAGE_SIZE]->store(
-				page_size.is_compressed()
-				? page_size.physical()
-				: 0, true));
-
-	OK(field_store_string(fields[SYS_TABLESPACES_SPACE_TYPE],
-			      space_type));
+		   page_size.physical(), true));
 
 	char*	filepath = NULL;
-	if (FSP_FLAGS_HAS_DATA_DIR(flags)) {
+	if (FSP_FLAGS_HAS_DATA_DIR(cflags)) {
 		mutex_enter(&dict_sys->mutex);
 		filepath = dict_get_first_path(space);
 		mutex_exit(&dict_sys->mutex);

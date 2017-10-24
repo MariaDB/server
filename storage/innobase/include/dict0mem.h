@@ -1308,8 +1308,9 @@ struct dict_table_t {
 	/** Acquire the table handle. */
 	inline void acquire();
 
-	/** Release the table handle. */
-	inline void release();
+	/** Release the table handle.
+	@return	whether the last handle was released */
+	inline bool release();
 
 	/** @return whether this is a temporary table */
 	bool is_temporary() const

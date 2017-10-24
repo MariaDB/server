@@ -1512,7 +1512,7 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 				if (!(g->Sarea = PlugAllocMem(g, ml))) {
 					char errmsg[MAX_STR];
 
-					sprintf(errmsg, MSG(WORK_AREA), g->Message);
+					snprintf(errmsg, sizeof(errmsg)-1, MSG(WORK_AREA), g->Message);
 					strcpy(g->Message, errmsg);
 					g->Sarea_Size = 0;
 					return true;

@@ -416,34 +416,6 @@ innobase_need_rebuild(
 		return(false);
 	}
 
-	/* If alter table changes column name and adds a new
-	index, we need to check is this new index created
-	to new column name. This is because column name
-	changes are done normally after creating indexes. */
-	if ((ha_alter_info->handler_flags
-			& Alter_inplace_info::ALTER_COLUMN_NAME) &&
-	    ((ha_alter_info->handler_flags
-		    & Alter_inplace_info::ADD_INDEX) ||
-	     (ha_alter_info->handler_flags
-		     & Alter_inplace_info::ADD_FOREIGN_KEY))) {
-		for (ulint i = 0; i < ha_alter_info->index_add_count; i++) {
-			const KEY* key = &ha_alter_info->key_info_buffer[
-				ha_alter_info->index_add_buffer[i]];
-
-			for (ulint j = 0; j < key->user_defined_key_parts; j++) {
-				const KEY_PART_INFO*	key_part = &(key->key_part[j]);
-				const Field* field = altered_table->field[key_part->fieldnr];
-
-				/* Field used on added index is renamed on
-				this same alter table. We need table
-				rebuild. */
-				if (field && field->flags & FIELD_IS_RENAMED) {
-					return (true);
-				}
-			}
-		}
-	}
-
 	return(!!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD));
 }
 
@@ -2131,19 +2103,18 @@ name_ok:
 }
 
 /** Create index field definition for key part
-@param[in]	altered_table		MySQL table that is being altered,
-					or NULL if a new clustered index
-					is not being created
-@param[in]	key_part		MySQL key definition
-@param[in,out]	index_field		index field
-@param[in]	new_clustered		new cluster */
-static
+@param[in]	new_clustered	true if alter is generating a new clustered
+index
+@param[in]	altered_table	MySQL table that is being altered
+@param[in]	key_part	MySQL key definition
+@param[out]	index_field	index field defition for key_part */
+static MY_ATTRIBUTE((nonnull(2,3)))
 void
 innobase_create_index_field_def(
+	bool			new_clustered,
 	const TABLE*		altered_table,
 	const KEY_PART_INFO*	key_part,
-	index_field_t*		index_field,
-	bool			new_clustered)
+	index_field_t*		index_field)
 {
 	const Field*	field;
 	ibool		is_unsigned;
@@ -2154,11 +2125,11 @@ innobase_create_index_field_def(
 
 	ut_ad(key_part);
 	ut_ad(index_field);
+	ut_ad(altered_table);
 
 	field = new_clustered
 		? altered_table->field[key_part->fieldnr]
 		: key_part->field;
-	ut_a(field);
 
 	for (ulint i = 0; i < key_part->fieldnr; i++) {
 		if (innobase_is_v_fld(altered_table->field[i])) {
@@ -2219,9 +2190,10 @@ innobase_create_index_def(
 	DBUG_ENTER("innobase_create_index_def");
 	DBUG_ASSERT(!key_clustered || new_clustered);
 
+	ut_ad(altered_table);
+
 	index->fields = static_cast<index_field_t*>(
 		mem_heap_alloc(heap, n_fields * sizeof *index->fields));
-	memset(index->fields, 0, n_fields * sizeof *index->fields);
 
 	index->parser = NULL;
 	index->key_number = key_number;
@@ -2299,8 +2271,8 @@ innobase_create_index_def(
 	if (!(key->flags & HA_SPATIAL)) {
 		for (i = 0; i < n_fields; i++) {
 			innobase_create_index_field_def(
-				altered_table, &key->key_part[i],
-				&index->fields[i], new_clustered);
+				new_clustered, altered_table,
+				&key->key_part[i], &index->fields[i]);
 
 			if (index->fields[i].is_v_col) {
 				index->ind_type |= DICT_VIRTUAL;
@@ -2713,7 +2685,6 @@ created_clustered:
 
 		index->fields = static_cast<index_field_t*>(
 			mem_heap_alloc(heap, sizeof *index->fields));
-		memset(index->fields, 0, sizeof *index->fields);
 		index->n_fields = 1;
 		index->fields->col_no = fts_doc_id_col;
 		index->fields->prefix_len = 0;
@@ -4849,8 +4820,7 @@ new_clustered_failed:
 		}
 
 		ctx->add_index[a] = row_merge_create_index(
-			ctx->trx, ctx->new_table,
-			&index_defs[a], add_v);
+			ctx->trx, ctx->new_table, &index_defs[a], add_v);
 
 		add_key_nums[a] = index_defs[a].key_number;
 

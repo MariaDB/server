@@ -2629,8 +2629,9 @@ fts_get_next_doc_id(
 		return(DB_SUCCESS);
 	}
 
+	DEBUG_SYNC_C("get_next_FTS_DOC_ID");
 	mutex_enter(&cache->doc_id_lock);
-	*doc_id = ++cache->next_doc_id;
+	*doc_id = cache->next_doc_id++;
 	mutex_exit(&cache->doc_id_lock);
 
 	return(DB_SUCCESS);
@@ -3007,52 +3008,6 @@ fts_modify(
 
 	if (error == DB_SUCCESS) {
 		fts_add(ftt, row);
-	}
-
-	return(error);
-}
-
-/*********************************************************************//**
-Create a new document id.
-@return DB_SUCCESS if all went well else error */
-dberr_t
-fts_create_doc_id(
-/*==============*/
-	dict_table_t*	table,		/*!< in: row is of this table. */
-	dtuple_t*	row,		/* in/out: add doc id value to this
-					row. This is the current row that is
-					being inserted. */
-	mem_heap_t*	heap)		/*!< in: heap */
-{
-	doc_id_t	doc_id;
-	dberr_t		error = DB_SUCCESS;
-
-	ut_a(table->fts->doc_col != ULINT_UNDEFINED);
-
-	if (!DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID)) {
-		if (table->fts->cache->first_doc_id == FTS_NULL_DOC_ID) {
-			error = fts_get_next_doc_id(table, &doc_id);
-		}
-		return(error);
-	}
-
-	error = fts_get_next_doc_id(table, &doc_id);
-
-	if (error == DB_SUCCESS) {
-		dfield_t*	dfield;
-		doc_id_t*	write_doc_id;
-
-		ut_a(doc_id > 0);
-
-		dfield = dtuple_get_nth_field(row, table->fts->doc_col);
-		write_doc_id = static_cast<doc_id_t*>(
-			mem_heap_alloc(heap, sizeof(*write_doc_id)));
-
-		ut_a(doc_id != FTS_NULL_DOC_ID);
-		ut_a(sizeof(doc_id) == dfield->type.len);
-		fts_write_doc_id((byte*) write_doc_id, doc_id);
-
-		dfield_set_data(dfield, write_doc_id, sizeof(*write_doc_id));
 	}
 
 	return(error);

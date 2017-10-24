@@ -1560,14 +1560,15 @@ dict_table_t::acquire()
 	++n_ref_count;
 }
 
-/** Release the table handle. */
+/** Release the table handle.
+@return	whether the last handle was released */
 inline
-void
+bool
 dict_table_t::release()
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(n_ref_count > 0);
-	--n_ref_count;
+	return !--n_ref_count;
 }
 
 /** Encode the number of columns and number of virtual columns in a

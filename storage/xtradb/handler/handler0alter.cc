@@ -237,34 +237,6 @@ innobase_need_rebuild(
 		return(false);
 	}
 
-	/* If alter table changes column name and adds a new
-	index, we need to check is this new index created
-	to new column name. This is because column name
-	changes are done normally after creating indexes. */
-	if ((ha_alter_info->handler_flags
-			& Alter_inplace_info::ALTER_COLUMN_NAME) &&
-	    ((ha_alter_info->handler_flags
-		    & Alter_inplace_info::ADD_INDEX) ||
-	     (ha_alter_info->handler_flags
-		     & Alter_inplace_info::ADD_FOREIGN_KEY))) {
-		for (ulint i = 0; i < ha_alter_info->index_add_count; i++) {
-			const KEY* key = &ha_alter_info->key_info_buffer[
-				ha_alter_info->index_add_buffer[i]];
-
-			for (ulint j = 0; j < key->user_defined_key_parts; j++) {
-				const KEY_PART_INFO*	key_part = &(key->key_part[j]);
-				const Field* field = altered_table->field[key_part->fieldnr];
-
-				/* Field used on added index is renamed on
-				this same alter table. We need table
-				rebuild. */
-				if (field && field->flags & FIELD_IS_RENAMED) {
-					return (true);
-				}
-			}
-		}
-	}
-
 	return(!!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD));
 }
 
@@ -1551,38 +1523,49 @@ name_ok:
 	return(0);
 }
 
-/*******************************************************************//**
-Create index field definition for key part */
+/** Create index field definition for key part
+@param[in]	new_clustered	true if alter is generating a new clustered
+index
+@param[in]	altered_table	MySQL table that is being altered
+@param[in]	key_part	MySQL key definition
+@param[out]	index_field	index field defition for key_part */
 static MY_ATTRIBUTE((nonnull(2,3)))
 void
 innobase_create_index_field_def(
-/*============================*/
-	const TABLE*		altered_table,	/*!< in: MySQL table that is
-						being altered, or NULL
-						if a new clustered index is
-						not being created */
-	const KEY_PART_INFO*	key_part,	/*!< in: MySQL key definition */
-	index_field_t*		index_field,	/*!< out: index field
-						definition for key_part */
-	const Field**		fields)		/*!< in: MySQL table fields */
+	bool			new_clustered,
+	const TABLE*		altered_table,
+	const KEY_PART_INFO*	key_part,
+	index_field_t*		index_field)
 {
 	const Field*	field;
 	ibool		is_unsigned;
 	ulint		col_type;
+	ulint		innodb_fieldnr=0;
 
 	DBUG_ENTER("innobase_create_index_field_def");
 
 	ut_ad(key_part);
 	ut_ad(index_field);
+	ut_ad(altered_table);
 
-	field = altered_table
-		? altered_table->field[key_part->fieldnr]
+	/* Virtual columns are not stored in InnoDB data dictionary, thus
+	if there is virtual columns we need to skip them to find the
+	correct field. */
+	for(ulint i = 0; i < key_part->fieldnr; i++) {
+		const Field* table_field = altered_table->field[i];
+		if (!table_field->stored_in_db) {
+			continue;
+		}
+		innodb_fieldnr++;
+	}
+
+	field = new_clustered ?
+		altered_table->field[key_part->fieldnr]
 		: key_part->field;
+
 	ut_a(field);
 
-	index_field->col_no = key_part->fieldnr;
-	index_field->col_name = altered_table ? field->field_name : fields[key_part->fieldnr]->field_name;
-
+	index_field->col_no = innodb_fieldnr;
 	col_type = get_innobase_type_from_mysql_type(&is_unsigned, field);
 
 	if (DATA_BLOB == col_type
@@ -1616,10 +1599,8 @@ innobase_create_index_def(
 	bool			key_clustered,	/*!< in: true if this is
 						the new clustered index */
 	index_def_t*		index,		/*!< out: index definition */
-	mem_heap_t*		heap,		/*!< in: heap where memory
+	mem_heap_t*		heap)		/*!< in: heap where memory
 						is allocated */
-	const Field**		fields)		/*!< in: MySQL table fields
-						*/
 {
 	const KEY*	key = &keys[key_number];
 	ulint		i;
@@ -1630,11 +1611,10 @@ innobase_create_index_def(
 	DBUG_ENTER("innobase_create_index_def");
 	DBUG_ASSERT(!key_clustered || new_clustered);
 
+	ut_ad(altered_table);
+
 	index->fields = static_cast<index_field_t*>(
 		mem_heap_alloc(heap, n_fields * sizeof *index->fields));
-
-	memset(index->fields, 0, n_fields * sizeof *index->fields);
-
 	index->ind_type = 0;
 	index->key_number = key_number;
 	index->n_fields = n_fields;
@@ -1665,13 +1645,12 @@ innobase_create_index_def(
 		index->ind_type |= DICT_FTS;
 	}
 
-	if (!new_clustered) {
-		altered_table = NULL;
-	}
-
 	for (i = 0; i < n_fields; i++) {
 		innobase_create_index_field_def(
-			altered_table, &key->key_part[i], &index->fields[i], fields);
+				new_clustered,
+				altered_table,
+				&key->key_part[i],
+				&index->fields[i]);
 	}
 
 	DBUG_VOID_RETURN;
@@ -1997,7 +1976,7 @@ innobase_create_key_defs(
 		/* Create the PRIMARY key index definition */
 		innobase_create_index_def(
 			altered_table, key_info, primary_key_number,
-			TRUE, TRUE, indexdef++, heap, (const Field **)altered_table->field);
+			TRUE, TRUE, indexdef++, heap);
 
 created_clustered:
 		n_add = 1;
@@ -2009,7 +1988,7 @@ created_clustered:
 			/* Copy the index definitions. */
 			innobase_create_index_def(
 				altered_table, key_info, i, TRUE, FALSE,
-				indexdef, heap, (const Field **)altered_table->field);
+				indexdef, heap);
 
 			if (indexdef->ind_type & DICT_FTS) {
 				n_fts_add++;
@@ -2054,7 +2033,7 @@ created_clustered:
 		for (ulint i = 0; i < n_add; i++) {
 			innobase_create_index_def(
 				altered_table, key_info, add[i], FALSE, FALSE,
-				indexdef, heap, (const Field **)altered_table->field);
+				indexdef, heap);
 
 			if (indexdef->ind_type & DICT_FTS) {
 				n_fts_add++;
@@ -2071,7 +2050,6 @@ created_clustered:
 
 		index->fields = static_cast<index_field_t*>(
 			mem_heap_alloc(heap, sizeof *index->fields));
-		memset(index->fields, 0, sizeof *index->fields);
 		index->n_fields = 1;
 		index->fields->col_no = fts_doc_id_col;
 		index->fields->prefix_len = 0;
@@ -2161,7 +2139,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	/** mapping of old column numbers to new ones, or NULL */
 	const ulint*	col_map;
 	/** new column names, or NULL if nothing was renamed */
-	const char**	col_names;
+	const char**    col_names;
 	/** added AUTO_INCREMENT column position, or ULINT_UNDEFINED */
 	const ulint	add_autoinc;
 	/** default values of ADD COLUMN, or NULL */
@@ -3122,8 +3100,7 @@ prepare_inplace_alter_table_dict(
 	for (ulint a = 0; a < ctx->num_to_add_index; a++) {
 
 		ctx->add_index[a] = row_merge_create_index(
-			ctx->trx, ctx->new_table,
-			&index_defs[a], ctx->col_names);
+			ctx->trx, ctx->new_table, &index_defs[a]);
 
 		add_key_nums[a] = index_defs[a].key_number;
 

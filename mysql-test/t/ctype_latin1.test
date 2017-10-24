@@ -247,6 +247,22 @@ DROP TABLE t1;
 --echo #
 SELECT _latin1 0x7E, _latin1 X'7E', _latin1 B'01111110';
 
+
+--echo #
+--echo # MDEV-9886 Illegal mix of collations with a view comparing a field to a binary constant
+--echo #
+
+SET NAMES latin1;
+CREATE TABLE t1 (a TEXT CHARACTER SET latin1);
+INSERT INTO t1 VALUES (0xC0);
+SELECT a<>0xEE5D AS a FROM t1;
+CREATE VIEW v1 AS SELECT a<>0xC0 AS a FROM t1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
 --echo #
 --echo # End of 10.0 tests
 --echo #

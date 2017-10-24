@@ -436,19 +436,19 @@ SELECT 1 FROM dual WHERE ('Alpha,Bravo,Charlie,Delta,Echo,Foxtrot,StrataCentral,
 #
 # MDEV-13173 An RLIKE that previously worked on 10.0 now returns "Got error 'pcre_exec: recursion limit of 100 exceeded' from regexp"
 #
-SELECT CONCAT(REPEAT('100,',133),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
+SELECT CONCAT(REPEAT('100,',60),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
 --replace_regex /[0-9]+ exceeded/NUM exceeded/
 SELECT CONCAT(REPEAT('100,',200),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
 
-SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',133),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
+SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
 --replace_regex /[0-9]+ exceeded/NUM exceeded/
 SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
 
-SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',133),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
+SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
 --replace_regex /[0-9]+ exceeded/NUM exceeded/
 SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
 
-SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',133),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
+SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
 --replace_regex /[0-9]+ exceeded/NUM exceeded/
 SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
 

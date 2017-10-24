@@ -674,9 +674,7 @@ SELECT ExtractValue('<a><b>xxx</c></a>','/a/b');
 --echo # Bug#58175 xml functions read initialized bytes when conversions happen
 --echo #
 SET NAMES latin1;
---enable_prepare_warnings
 SELECT UPDATEXML(CONVERT('' USING swe7), TRUNCATE('',1), 0);
---disable_prepare_warnings
 
 --echo #
 --echo # Bug#12375190: UPDATEXML CRASHES ON SIMPLE INPUTS

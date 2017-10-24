@@ -343,6 +343,7 @@ else()
     MY_CHECK_AND_SET_COMPILER_FLAG("-fno-exceptions")
     MY_CHECK_AND_SET_COMPILER_FLAG("-fno-rtti")
     MY_CHECK_AND_SET_COMPILER_FLAG("-felide-constructors")
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
   endif()
   set_source_files_properties(${MRN_SOURCES} PROPERTIES
     COMPILE_FLAGS "${MYSQL_CFLAGS} ${MRN_CXX_COMPILE_FLAGS}")
