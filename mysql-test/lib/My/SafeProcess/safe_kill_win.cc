@@ -26,7 +26,30 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <psapi.h>
-#include <DbgHelp.h>
+#include <dbghelp.h>
+#include <tlhelp32.h>
+
+static DWORD find_child(DWORD pid)
+{
+  HANDLE h= NULL;
+  PROCESSENTRY32 pe={ 0 };
+  DWORD child_pid = 0;
+  pe.dwSize = sizeof(PROCESSENTRY32);
+  h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if(h == INVALID_HANDLE_VALUE)
+    return 0;
+
+  for (BOOL ret = Process32First(h, &pe); ret; ret = Process32Next(h, &pe))
+  {
+    if (pe.th32ParentProcessID == pid)
+    {
+      child_pid = pe.th32ProcessID;
+      break;
+    }
+  }
+  CloseHandle(h);
+  return (child_pid);
+}
 
 static int create_dump(DWORD pid)
 {
@@ -37,23 +60,46 @@ static int create_dump(DWORD pid)
   HANDLE file= INVALID_HANDLE_VALUE;
   char *p;
 
-  process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, (DWORD)pid);
-  if (!process)
+  for(;;)
   {
-    fprintf(stderr,"safe_kill : cannot open process pid=%u to create dump, last error %u\n",
-      pid, GetLastError());
-    goto exit;
+    process= OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, (DWORD)pid);
+    if (!process)
+    {
+      fprintf(stderr,"safe_kill : cannot open process pid=%u to create dump, last error %u\n",
+        pid, GetLastError());
+      goto exit;
+    }
+
+    DWORD size= MAX_PATH;
+    if (QueryFullProcessImageName(process, 0, path, &size) == 0)
+    {
+      fprintf(stderr,"safe_kill : cannot read process path for pid %u, last error %u\n",
+        pid, GetLastError());
+      goto exit;
+    }
+    const char *filename= strrchr(path, '\\');
+    if (filename)
+    {
+      filename++;
+      // We are not interested in my_safe_process.exe,
+      // since it is only used to start up other programs.
+      // We're interested however in my_safe_processes' child.
+      if (strcmp(filename, "my_safe_process.exe") == 0)
+      {
+        pid= find_child(pid);
+        if (!pid)
+        {
+          fprintf(stderr,"safe_kill : can't find child process for safe_process.exe\n");
+          goto exit;
+        }
+        CloseHandle(process);
+      }
+      else
+        break;
+    }
   }
 
-  DWORD size = MAX_PATH;
-  if (QueryFullProcessImageName(process, 0, path, &size) == 0)
-  {
-    fprintf(stderr,"safe_kill : cannot read process path for pid %u, last error %u\n",
-      pid, GetLastError());
-    goto exit;
-  }
-
-  if ((p = strrchr(path, '.')) == 0)
+  if ((p= strrchr(path, '.')) == 0)
     p= path + strlen(path);
 
   strncpy(p, ".dmp", path + MAX_PATH - p);
@@ -61,7 +107,7 @@ static int create_dump(DWORD pid)
   /* Create dump in current directory.*/
   const char *filename= strrchr(path, '\\');
   if (filename == 0)
-    filename = path;
+    filename= path;
   else
     filename++;
 
@@ -71,7 +117,7 @@ static int create_dump(DWORD pid)
     goto exit;
   }
 
-  file = CreateFile(filename, GENERIC_READ | GENERIC_WRITE,
+  file= CreateFile(filename, GENERIC_READ | GENERIC_WRITE,
     0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
 
   if (file == INVALID_HANDLE_VALUE)
@@ -88,7 +134,7 @@ static int create_dump(DWORD pid)
     goto exit;
   }
 
-  ret = 0;
+  ret= 0;
   fprintf(stderr, "Minidump written to %s, directory %s\n", filename, working_dir);
 
 exit:
@@ -99,6 +145,7 @@ exit:
     CloseHandle(file);
   return ret;
 }
+
 
 int main(int argc, const char** argv )
 {
