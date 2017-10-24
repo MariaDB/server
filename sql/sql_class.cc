@@ -1647,7 +1647,11 @@ THD::~THD()
   mysql_mutex_lock(&LOCK_wsrep_thd);
   mysql_mutex_unlock(&LOCK_wsrep_thd);
   mysql_mutex_destroy(&LOCK_wsrep_thd);
-  if (wsrep_rgi) delete wsrep_rgi;
+  if (wsrep_rgi)
+  {
+	  delete wsrep_rgi;
+	  wsrep_rgi= NULL;
+  }
 #endif
   /* Close connection */
 #ifndef EMBEDDED_LIBRARY
