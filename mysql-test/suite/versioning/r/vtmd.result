@@ -150,7 +150,7 @@ x0_vtmd
 drop table x0_vtmd;
 rename table x0 to d0;
 Warnings:
-Warning	4088	`test.d0_vtmd` table already exists!
+Warning	4115	`test.d0_vtmd` table already exists!
 show tables;
 Tables_in_test
 d0
@@ -353,7 +353,7 @@ t3_vtmd
 u0_vtmd
 u0_vtmd_vtmd
 Warnings:
-Warning	4088	Table `test.u0_vtmd` is not a VTMD table
+Warning	4115	Table `test.u0_vtmd` is not a VTMD table
 set versioning_alter_history= survive;
 create or replace table t (x int) with system versioning;
 select * from t for system_time all;
