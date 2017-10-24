@@ -9639,47 +9639,6 @@ foreign_fail:
 }
 
 
-/** Helper class for in-place alter, see handler.h */
-class ha_innopart_inplace_ctx : public inplace_alter_handler_ctx
-{
-/* Only used locally in this file, so have everything public for
-conveniance. */
-public:
-	/** Total number of partitions. */
-	uint				m_tot_parts;
-	/** Array of inplace contexts for all partitions. */
-	inplace_alter_handler_ctx**	ctx_array;
-	/** Array of prebuilt for all partitions. */
-	row_prebuilt_t**		prebuilt_array;
-
-	ha_innopart_inplace_ctx(THD *thd, uint tot_parts)
-		: inplace_alter_handler_ctx(),
-		m_tot_parts(tot_parts),
-		ctx_array(),
-		prebuilt_array()
-	{}
-
-	~ha_innopart_inplace_ctx()
-	{
-		if (ctx_array) {
-			for (uint i = 0; i < m_tot_parts; i++) {
-				delete ctx_array[i];
-			}
-			ut_free(ctx_array);
-		}
-		if (prebuilt_array) {
-			/* First entry is the original prebuilt! */
-			for (uint i = 1; i < m_tot_parts; i++) {
-				/* Don't close the tables. */
-				prebuilt_array[i]->table = NULL;
-				row_prebuilt_free(prebuilt_array[i], false);
-			}
-			ut_free(prebuilt_array);
-		}
-	}
-};
-
-
 /**
 @param thd the session
 @param start_value the lower bound

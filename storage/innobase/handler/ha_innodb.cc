@@ -8361,7 +8361,7 @@ no_commit:
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	vers_set_fields = (table->versioned() && !is_innopart() &&
+	vers_set_fields = (table->versioned() &&
 		(sql_command != SQLCOM_CREATE_TABLE || table->s->vtmd))
 		?
 		ROW_INS_VERSIONED :
@@ -9173,7 +9173,7 @@ ha_innobase::update_row(
 	if (!table->versioned())
 		m_prebuilt->upd_node->versioned = false;
 
-	if (m_prebuilt->upd_node->versioned && !is_innopart()) {
+	if (m_prebuilt->upd_node->versioned) {
 		vers_set_fields = true;
 		if (thd_sql_command(m_user_thd) == SQLCOM_ALTER_TABLE && !table->s->vtmd)
 		{
@@ -9306,7 +9306,6 @@ ha_innobase::delete_row(
 
 	bool vers_set_fields =
 		table->versioned() &&
-		!is_innopart() &&
 		table->vers_end_field()->is_max();
 
 	error = row_update_for_mysql(m_prebuilt, vers_set_fields);
