@@ -1,6 +1,6 @@
-[innodb]
-partition
-default-storage-engine=innodb
+# [innodb]
+# partition
+# default-storage-engine=innodb
 
 [myisam]
 partition
