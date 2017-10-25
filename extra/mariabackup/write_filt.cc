@@ -1,5 +1,5 @@
 /******************************************************
-XtraBackup: hot backup tool for InnoDB
+MariaBackup: hot backup tool for InnoDB
 (c) 2009-2013 Percona LLC and/or its affiliates.
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
@@ -88,7 +88,7 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 	info.zip_size = cursor->zip_size;
 	info.space_id = cursor->space_id;
 	if (!xb_write_delta_metadata(meta_name, &info)) {
-		msg("[%02u] xtrabackup: Error: "
+		msg("[%02u] mariabackup: Error: "
 		    "failed to write meta info for %s\n",
 		    cursor->thread_n, cursor->rel_path);
 		return(FALSE);

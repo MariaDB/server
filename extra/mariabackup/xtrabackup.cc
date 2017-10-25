@@ -1,5 +1,5 @@
 /******************************************************
-XtraBackup: hot backup tool for InnoDB
+MariaBackup: hot backup tool for InnoDB
 (c) 2009-2017 Percona LLC and/or its affiliates
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
@@ -2370,14 +2370,14 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n)
 
 	if (write_filter->init != NULL &&
 	    !write_filter->init(&write_filt_ctxt, dst_name, &cursor)) {
-		msg("[%02u] xtrabackup: error: "
+		msg("[%02u] mariabackup: error: "
 		    "failed to initialize page write filter.\n", thread_n);
 		goto error;
 	}
 
 	dstfile = ds_open(ds_data, dst_name, &cursor.statinfo);
 	if (dstfile == NULL) {
-		msg("[%02u] xtrabackup: error: "
+		msg("[%02u] mariabackup: error: "
 		    "cannot open the destination stream for %s\n",
 		    thread_n, dst_name);
 		goto error;
@@ -2427,7 +2427,7 @@ error:
 	if (write_filter && write_filter->deinit) {
 		write_filter->deinit(&write_filt_ctxt);;
 	}
-	msg("[%02u] xtrabackup: Error: "
+	msg("[%02u] mariabackup: Error: "
 	    "xtrabackup_copy_datafile() failed.\n", thread_n);
 	return(TRUE); /*ERROR*/
 
@@ -2439,10 +2439,10 @@ skip:
 	if (write_filter && write_filter->deinit) {
 		write_filter->deinit(&write_filt_ctxt);
 	}
-	msg("[%02u] xtrabackup: Warning: We assume the "
+	msg("[%02u] mariabackup: Warning: We assume the "
 	    "table was dropped during xtrabackup execution "
 	    "and ignore the file.\n", thread_n);
-	msg("[%02u] xtrabackup: Warning: skipping tablespace %s.\n",
+	msg("[%02u] mariabackup: Warning: skipping tablespace %s.\n",
 	    thread_n, node_name);
 	return(FALSE);
 }
@@ -2916,7 +2916,7 @@ data_copy_thread_func(
 
 		/* copy the datafile */
 		if(xtrabackup_copy_datafile(node, num)) {
-			msg("[%02u] xtrabackup: Error: "
+			msg("[%02u] mariabackup: Error: "
 			    "failed to copy datafile.\n", num);
 			exit(EXIT_FAILURE);
 		}
@@ -4276,7 +4276,7 @@ retry:
 								   &success,0);
 		if (!success) {
 			os_file_get_last_error(TRUE);
-			msg("  xtrabackup: Fatal error: cannot find %s.\n",
+			msg("mariabackup: Fatal error: cannot find %s.\n",
 			    src_path);
 
 			goto error;
@@ -4290,7 +4290,7 @@ retry:
 
 		if ( ut_memcmp(log_buf + LOG_FILE_WAS_CREATED_BY_HOT_BACKUP,
 				(byte*)"xtrabkup", (sizeof "xtrabkup") - 1) == 0) {
-			msg("  xtrabackup: 'ib_logfile0' seems to be "
+			msg("mariabackup: 'ib_logfile0' seems to be "
 			    "'xtrabackup_logfile'. will retry.\n");
 
 			os_file_close(src_file);
@@ -4305,8 +4305,7 @@ retry:
 			goto retry;
 		}
 
-		msg("  xtrabackup: Fatal error: cannot find %s.\n",
-		src_path);
+		msg("mariabackup: Fatal error: cannot find %s.\n", src_path);
 
 		os_file_close(src_file);
 		src_file = XB_FILE_UNDEFINED;
@@ -6467,7 +6466,7 @@ int main(int argc, char **argv)
 	if ((!xtrabackup_print_param) && (!xtrabackup_prepare) && (strcmp(mysql_data_home, "./") == 0)) {
 		if (!xtrabackup_print_param)
 			usage();
-		msg("\nxtrabackup: Error: Please set parameter 'datadir'\n");
+		msg("\nmariabackup: Error: Please set parameter 'datadir'\n");
 		exit(EXIT_FAILURE);
 	}
 
