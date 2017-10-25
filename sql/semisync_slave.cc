@@ -17,9 +17,20 @@
 
 #include "semisync_slave.h"
 
-char rpl_semi_sync_slave_enabled;
-char rpl_semi_sync_slave_status= 0;
-unsigned long rpl_semi_sync_slave_trace_level;
+my_bool rpl_semi_sync_slave_enabled;
+my_bool rpl_semi_sync_slave_status= 0;
+ulong rpl_semi_sync_slave_trace_level;
+ReplSemiSyncSlave repl_semisync_slave;
+
+/*
+  indicate whether or not the slave should send a reply to the master.
+
+  This is set to true in repl_semi_slave_read_event if the current
+  event read is the last event of a transaction. And the value is
+  checked in repl_semi_slave_queue_event.
+*/
+bool semi_sync_need_reply= false;
+
 
 int ReplSemiSyncSlave::initObject()
 {
@@ -72,7 +83,7 @@ int ReplSemiSyncSlave::slaveReadSyncHeader(const char *header,
 int ReplSemiSyncSlave::slaveStart(Binlog_relay_IO_param *param)
 {
   bool semi_sync= getSlaveEnabled();
-  
+
   sql_print_information("Slave I/O thread: Start %s replication to\
  master '%s@%s:%d' in log '%s' at position %lu",
 			semi_sync ? "semi-sync" : "asynchronous",
@@ -136,4 +147,141 @@ int ReplSemiSyncSlave::slaveReply(MYSQL *mysql,
   }
 
   return function_exit(kWho, reply_res);
+}
+
+/***************************************************************************
+ Semisync slave interface setup and deinit
+***************************************************************************/
+
+C_MODE_START
+
+int repl_semi_reset_slave(Binlog_relay_IO_param *param)
+{
+  // TODO: reset semi-sync slave status here
+  return 0;
+}
+
+int repl_semi_slave_request_dump(Binlog_relay_IO_param *param,
+				 uint32 flags)
+{
+  MYSQL *mysql= param->mysql;
+  MYSQL_RES *res= 0;
+  MYSQL_ROW row;
+  const char *query;
+
+  if (!repl_semisync_slave.getSlaveEnabled())
+    return 0;
+
+  /* Check if master server has semi-sync plugin installed */
+  query= "SHOW VARIABLES LIKE 'rpl_semi_sync_master_enabled'";
+  if (mysql_real_query(mysql, query, strlen(query)) ||
+      !(res= mysql_store_result(mysql)))
+  {
+    sql_print_error("Execution failed on master: %s", query);
+    return 1;
+  }
+
+  row= mysql_fetch_row(res);
+  if (!row)
+  {
+    /* Master does not support semi-sync */
+    sql_print_warning("Master server does not support semi-sync, "
+                      "fallback to asynchronous replication");
+    rpl_semi_sync_slave_status= 0;
+    mysql_free_result(res);
+    return 0;
+  }
+  mysql_free_result(res);
+
+  /*
+    Tell master dump thread that we want to do semi-sync
+    replication
+  */
+  query= "SET @rpl_semi_sync_slave= 1";
+  if (mysql_real_query(mysql, query, strlen(query)))
+  {
+    sql_print_error("Set 'rpl_semi_sync_slave=1' on master failed");
+    return 1;
+  }
+  mysql_free_result(mysql_store_result(mysql));
+  rpl_semi_sync_slave_status= 1;
+  return 0;
+}
+
+int repl_semi_slave_read_event(Binlog_relay_IO_param *param,
+			       const char *packet, unsigned long len,
+			       const char **event_buf, unsigned long *event_len)
+{
+  if (rpl_semi_sync_slave_status)
+    return repl_semisync_slave.slaveReadSyncHeader(packet, len,
+                                                   &semi_sync_need_reply,
+                                                   event_buf, event_len);
+  *event_buf= packet;
+  *event_len= len;
+  return 0;
+}
+
+int repl_semi_slave_queue_event(Binlog_relay_IO_param *param,
+				const char *event_buf,
+				unsigned long event_len,
+				uint32 flags)
+{
+  if (rpl_semi_sync_slave_status && semi_sync_need_reply)
+  {
+    /*
+      We deliberately ignore the error in slaveReply, such error
+      should not cause the slave IO thread to stop, and the error
+      messages are already reported.
+    */
+    (void) repl_semisync_slave.slaveReply(param->mysql,
+                                    param->master_log_name,
+                                    param->master_log_pos);
+  }
+  return 0;
+}
+
+int repl_semi_slave_io_start(Binlog_relay_IO_param *param)
+{
+  return repl_semisync_slave.slaveStart(param);
+}
+
+int repl_semi_slave_io_end(Binlog_relay_IO_param *param)
+{
+  return repl_semisync_slave.slaveStop(param);
+}
+
+C_MODE_END
+
+Binlog_relay_IO_observer relay_io_observer=
+{
+  sizeof(Binlog_relay_IO_observer), // len
+
+  repl_semi_slave_io_start,	// start
+  repl_semi_slave_io_end,	// stop
+  repl_semi_slave_request_dump,	// request_transmit
+  repl_semi_slave_read_event,	// after_read_event
+  repl_semi_slave_queue_event,	// after_queue_event
+  repl_semi_reset_slave,	// reset
+};
+
+static bool semi_sync_slave_inited= 0;
+
+int semi_sync_slave_init()
+{
+  void *p= 0;
+  if (repl_semisync_slave.initObject())
+    return 1;
+  if (register_binlog_relay_io_observer(&relay_io_observer, p))
+    return 1;
+  semi_sync_slave_inited= 1;
+  return 0;
+}
+
+void semi_sync_slave_deinit()
+{
+  void *p= 0;
+  if (!semi_sync_slave_inited)
+    return;
+  unregister_binlog_relay_io_observer(&relay_io_observer, p);
+  semi_sync_slave_inited= 0;
 }
