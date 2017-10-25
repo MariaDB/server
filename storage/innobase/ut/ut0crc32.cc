@@ -86,6 +86,10 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "univ.i"
 #include "ut0crc32.h"
 
+#if _WIN64
+#include <intrin.h>
+#endif
+
 /** Pointer to CRC32 calculation function. */
 ut_crc32_func_t	ut_crc32;
 
@@ -210,7 +214,43 @@ ut_crc32_64_low_hw(
 
 	return(static_cast<uint32_t>(crc_64bit));
 }
+#elif (_WIN64)
+/** Calculate CRC32 over 8-bit data using a hardware/CPU instruction.
+@param[in,out]	crc	crc32 checksum so far when this function is called,
+when the function ends it will contain the new checksum
+@param[in,out]	data	data to be checksummed, the pointer will be advanced
+with 1 byte
+@param[in,out]	len	remaining bytes, it will be decremented with 1 */
+inline
+void
+ut_crc32_8_hw(
+	uint32_t*	crc,
+	const byte**	data,
+	ulint*		len)
+{
+	*crc = _mm_crc32_u8(*crc, (*data)[0]);
+	(*data)++;
+	(*len)--;
+}
 
+/** Calculate CRC32 over a 64-bit integer using a hardware/CPU instruction.
+@param[in]	crc	crc32 checksum so far
+@param[in]	data	data to be checksummed
+@return resulting checksum of crc + crc(data) */
+inline
+uint32_t
+ut_crc32_64_low_hw(
+	uint32_t	crc,
+	uint64_t	data)
+{
+	unsigned __int64 local_crc = crc;
+	local_crc = _mm_crc32_u64(local_crc, data);
+	return(static_cast<uint32_t>(local_crc));
+}
+
+#endif /* defined(__GNUC__) && defined(__x86_64__) */
+
+#if (defined(__GNUC__) && defined(__x86_64__)) || (_WIN64)
 /** Calculate CRC32 over 64-bit byte string using a hardware/CPU instruction.
 @param[in,out]	crc	crc32 checksum so far when this function is called,
 when the function ends it will contain the new checksum
@@ -429,7 +469,7 @@ ut_crc32_byte_by_byte_hw(
 
 	return(~crc);
 }
-#endif /* defined(__GNUC__) && defined(__x86_64__) */
+#endif /* defined(__GNUC__) && defined(__x86_64__) || (_WIN64)*/
 
 /* CRC32 software implementation. */
 
@@ -733,6 +773,16 @@ ut_crc32_init()
 	*/
 
 	if (features_ecx & 1 << 20) {
+		ut_crc32 = ut_crc32_hw;
+		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
+		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_hw;
+		ut_crc32_implementation = "Using SSE2 crc32 instructions";
+	}
+
+#elif (_WIN64)
+	int features[4];
+	__cpuid(features, 1);
+	if (features[2] & 1 << 20) {
 		ut_crc32 = ut_crc32_hw;
 		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
 		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_hw;
