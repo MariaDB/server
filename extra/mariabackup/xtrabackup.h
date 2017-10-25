@@ -109,6 +109,7 @@ extern my_bool		opt_force_non_empty_dirs;
 extern my_bool		opt_noversioncheck;
 extern my_bool		opt_no_backup_locks;
 extern my_bool		opt_decompress;
+extern my_bool		opt_remove_original;
 
 extern char		*opt_incremental_history_name;
 extern char		*opt_incremental_history_uuid;

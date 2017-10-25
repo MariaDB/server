@@ -139,11 +139,11 @@ create table worklog5743_8(a1 int, a2 TEXT, a3 TEXT) KEY_BLOCK_SIZE=8;
 
 # Test edge cases for indexes using key_block_size=1
 set global innodb_large_prefix=0;
--- error ER_TOO_LONG_KEY
+-- error ER_TOO_BIG_ROWSIZE
 create index idx1 on worklog5743_1(a2(4000));
 show warnings;
 set global innodb_large_prefix=1;
--- error ER_TOO_LONG_KEY
+-- error ER_TOO_BIG_ROWSIZE
 create index idx2 on worklog5743_1(a2(4000));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE

@@ -1202,7 +1202,25 @@ trx_undo_page_report_modify(
 			const char* col_name = dict_table_get_col_name(table,
 				col_no);
 
-			if (col->ord_part) {
+			if (!col->ord_part) {
+				continue;
+			}
+
+			if (update) {
+				for (i = 0; i < update->n_fields; i++) {
+					const ulint field_no
+						= upd_get_nth_field(update, i)
+						->field_no;
+					if (field_no >= index->n_fields
+					    || dict_index_get_nth_field(
+						    index, field_no)->col
+					    == col) {
+						goto already_logged;
+					}
+				}
+			}
+
+			if (true) {
 				ulint			pos;
 				spatial_status_t	spatial_status;
 
@@ -1299,6 +1317,9 @@ trx_undo_page_report_modify(
 					}
 				}
 			}
+
+already_logged:
+			continue;
 		}
 
 		for (col_no = 0; col_no < dict_table_get_n_v_cols(table);

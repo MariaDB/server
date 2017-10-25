@@ -535,7 +535,7 @@ xb_msg_missing_lsn_data(
 	lsn_t	missing_interval_start,	/*!<in: interval start */
 	lsn_t	missing_interval_end)	/*!<in: interval end */
 {
-	msg("xtrabackup: warning: changed page data missing for LSNs between "
+	msg("mariabackup: warning: changed page data missing for LSNs between "
 	    LSN_PF " and " LSN_PF "\n", missing_interval_start,
 	    missing_interval_end);
 }
@@ -612,7 +612,7 @@ xb_page_bitmap_init(void)
 
 	if (UNIV_UNLIKELY(bmp_start_lsn > bmp_end_lsn)) {
 
-		msg("xtrabackup: incremental backup LSN " LSN_PF
+		msg("mariabackup: incremental backup LSN " LSN_PF
 		    " is larger than than the last checkpoint LSN " LSN_PF
 		    "\n", bmp_start_lsn, bmp_end_lsn);
 		return NULL;
@@ -697,7 +697,7 @@ xb_page_bitmap_init(void)
 						      &current_page_end_lsn,
 						      bmp_start_lsn))) {
 
-		msg("xtrabackup: Warning: changed page bitmap file "
+		msg("mariabackup: Warning: changed page bitmap file "
 		    "\'%s\' corrupted\n", bitmap_file.name);
 		rbt_free(result);
 		free(bitmap_files.files);
@@ -802,7 +802,7 @@ xb_page_bitmap_init(void)
 
 		if (UNIV_UNLIKELY(!last_page_ok)) {
 
-			msg("xtrabackup: warning: changed page bitmap file "
+			msg("mariabackup: warning: changed page bitmap file "
 			    "\'%s\' corrupted.\n", bitmap_file.name);
 			rbt_free(result);
 			free(bitmap_files.files);
