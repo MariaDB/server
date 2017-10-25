@@ -1,6 +1,5 @@
 /* Copyright (C) 2007 Google Inc.
    Copyright (C) 2008 MySQL AB
-   Use is subject to license terms
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,18 +18,9 @@
 #ifndef SEMISYNC_H
 #define SEMISYNC_H
 
-#define MYSQL_SERVER
-#define HAVE_REPLICATION
-#include <my_pthread.h>
-#include <sql_priv.h>
-#include <sql_class.h>
-#include "unireg.h"
-#include <replication.h>
-#include "log.h"                                /* sql_print_information */
-
-typedef struct st_mysql_show_var SHOW_VAR;
-typedef struct st_mysql_sys_var SYS_VAR;
-
+#include "mysqld.h"
+#include "log_event.h"
+#include "replication.h"
 
 /**
    This class is used to trace function calls and other process

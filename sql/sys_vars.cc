@@ -61,6 +61,8 @@
 #include "sql_repl.h"
 #include "opt_range.h"
 #include "rpl_parallel.h"
+#include "semisync_master.h"
+#include "semisync_slave.h"
 #include <ssl_compat.h>
 
 /*
@@ -3039,8 +3041,188 @@ static Sys_var_replicate_events_marked_for_skip Replicate_events_marked_for_skip
    "the slave).",
    GLOBAL_VAR(opt_replicate_events_marked_for_skip), CMD_LINE(REQUIRED_ARG),
    replicate_events_marked_for_skip_names, DEFAULT(RPL_SKIP_REPLICATE));
+
+/* new options for semisync */
+
+static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
+                                             enum_var_type type)
+{
+  if (rpl_semi_sync_master_enabled)
+  {
+    if (repl_semisync_master.enableMaster() != 0)
+      rpl_semi_sync_master_enabled= false;
+#ifdef HAVE_ACC_RECEIVER
+    else if (ack_receiver.start())
+    {
+      repl_semisync_master.disableMaster();
+      rpl_semi_sync_master_enabled= false;
+    }
+#endif
+  }
+  else
+  {
+    if (repl_semisync_master.disableMaster() != 0)
+      rpl_semi_sync_master_enabled= true;
+#ifdef HAVE_ACC_RECEIVER
+    if (!rpl_semi_sync_master_enabled)
+      ack_receiver.stop();
+#endif
+  }
+  return false;
+}
+
+static bool fix_rpl_semi_sync_master_timeout(sys_var *self, THD *thd,
+                                             enum_var_type type)
+{
+  repl_semisync_master.setWaitTimeout(rpl_semi_sync_master_timeout);
+  return false;
+}
+
+static bool fix_rpl_semi_sync_master_trace_level(sys_var *self, THD *thd,
+                                                 enum_var_type type)
+{
+  repl_semisync_master.setTraceLevel(rpl_semi_sync_master_trace_level);
+#ifdef HAVE_ACC_RECEIVER
+  ack_receiver.setTraceLevel(rpl_semi_sync_master_trace_level);
+#endif
+  return false;
+}
+
+static bool fix_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
+                                                enum_var_type type)
+{
+#ifdef HAVE_ACC_RECEIVER
+  repl_semisync_master.setWaitPoint(rpl_semi_sync_master_wait_point);
+#endif
+  return false;
+}
+
+static bool fix_rpl_semi_sync_master_wait_no_slave(sys_var *self, THD *thd,
+                                                   enum_var_type type)
+{
+#ifdef HAVE_ACC_RECEIVER
+  repl_semisync_master.checkAndSwitch();
+#endif
+  return false;
+}
+
+static Sys_var_mybool Sys_semisync_master_enabled(
+       "rpl_semi_sync_master_enabled",
+       "Enable semi-synchronous replication master (disabled by default).",
+       GLOBAL_VAR(rpl_semi_sync_master_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_master_enabled));
+
+static Sys_var_ulong Sys_semisync_master_timeout(
+       "rpl_semi_sync_master_timeout",
+       "The timeout value (in ms) for semi-synchronous replication in the "
+       "master",
+       GLOBAL_VAR(rpl_semi_sync_master_timeout),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,~0L),DEFAULT(10000),BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_master_timeout));
+
+static Sys_var_mybool Sys_semisync_master_wait_no_slave(
+       "rpl_semi_sync_master_wait_no_slave",
+       "Wait until timeout when no semi-synchronous replication slave "
+       "available (enabled by default).",
+       GLOBAL_VAR(rpl_semi_sync_master_wait_no_slave),
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_master_wait_no_slave));
+
+static Sys_var_ulong Sys_semisync_master_trace_level(
+       "rpl_semi_sync_master_trace_level",
+       "The tracing level for semi-sync replication.",
+       GLOBAL_VAR(rpl_semi_sync_master_trace_level),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,~0L),DEFAULT(32),BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_master_trace_level));
+
+static const char *repl_semisync_wait_point[]=
+{"AFTER_SYNC", "AFTER_COMMIT", NullS};
+
+static Sys_var_enum Sys_semisync_master_wait_point(
+       "rpl_semi_sync_master_wait_point",
+       "Should transaction wait for semi-sync ack after having synced binlog, "
+       "or after having committed in storage engine.",
+       GLOBAL_VAR(rpl_semi_sync_master_wait_point), CMD_LINE(REQUIRED_ARG),
+       repl_semisync_wait_point, DEFAULT(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_master_wait_point));
+
+static bool fix_rpl_semi_sync_slave_enabled(sys_var *self, THD *thd,
+                                            enum_var_type type)
+{
+  repl_semisync_slave.setSlaveEnabled(rpl_semi_sync_slave_enabled != 0);
+  return false;
+}
+
+static bool fix_rpl_semi_sync_slave_trace_level(sys_var *self, THD *thd,
+                                                enum_var_type type)
+{
+  repl_semisync_slave.setTraceLevel(rpl_semi_sync_slave_trace_level);
+  return false;
+}
+
+#ifdef HAVE_ACC_RECEIVER
+static bool fix_rpl_semi_sync_slave_delay_master(sys_var *self, THD *thd,
+                                                 enum_var_type type)
+{
+  repl_semisync_slave.setDelayMaster(rpl_semi_sync_slave_delay_master);
+  return false;
+}
+
+static bool fix_rpl_semi_sync_slave_kill_conn_timeout(sys_var *self, THD *thd,
+                                                      enum_var_type type)
+{
+  repl_semisync_slave.setKillConnTimeout(rpl_semi_sync_slave_kill_conn_timeout);
+  return false;
+}
 #endif
 
+
+static Sys_var_mybool Sys_semisync_slave_enabled(
+       "rpl_semi_sync_slave_enabled",
+       "Enable semi-synchronous replication slave (disabled by default).",
+       GLOBAL_VAR(rpl_semi_sync_slave_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_slave_enabled));
+
+static Sys_var_ulong Sys_semisync_slave_trace_level(
+       "rpl_semi_sync_slave_trace_level",
+       "The tracing level for semi-sync replication.",
+       GLOBAL_VAR(rpl_semi_sync_slave_trace_level),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,~0L),DEFAULT(32),BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_slave_trace_level));
+
+#ifdef HAVE_ACC_RECEIVER
+static Sys_var_mybool Sys_semisync_slave_delay_master(
+       "rpl_semi_sync_slave_delay_master",
+       "Only write master info file when ack is needed.",
+       GLOBAL_VAR(rpl_semi_sync_slave_delay_master),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_slave_delay_master));
+
+static Sys_var_uint  Sys_semisync_slave_kill_conn_timeout(
+       "rpl_semi_sync_slave_kill_conn_timeout",
+       "Timeout for the mysql connection used to kill the slave io_thread's "
+       "connection on master. This timeout comes into play when stop slave "
+       "is executed.",
+       GLOBAL_VAR(rpl_semi_sync_slave_kill_conn_timeout),
+       CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(5), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_slave_kill_conn_timeout));
+#endif
+#endif /* HAVE_REPLICATION */
 
 static Sys_var_ulong Sys_slow_launch_time(
        "slow_launch_time",

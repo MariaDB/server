@@ -4,7 +4,6 @@
 # Please check all dependent tests after modifying it
 #
 
-source include/have_semisync.inc;
 source include/not_embedded.inc;
 source include/have_innodb.inc;
 source include/master-slave.inc;

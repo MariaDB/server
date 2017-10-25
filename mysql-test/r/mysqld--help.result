@@ -998,6 +998,27 @@ The following options may be given as the first argument:
  --rowid-merge-buff-size=# 
  The size of the buffers used [NOT] IN evaluation via
  partial matching
+ --rpl-semi-sync-master-enabled 
+ Enable semi-synchronous replication master (disabled by
+ default).
+ --rpl-semi-sync-master-timeout=# 
+ The timeout value (in ms) for semi-synchronous
+ replication in the master
+ --rpl-semi-sync-master-trace-level=# 
+ The tracing level for semi-sync replication.
+ --rpl-semi-sync-master-wait-no-slave 
+ Wait until timeout when no semi-synchronous replication
+ slave available (enabled by default).
+ (Defaults to on; use --skip-rpl-semi-sync-master-wait-no-slave to disable.)
+ --rpl-semi-sync-master-wait-point=name 
+ Should transaction wait for semi-sync ack after having
+ synced binlog, or after having committed in storage
+ engine.. One of: AFTER_SYNC, AFTER_COMMIT
+ --rpl-semi-sync-slave-enabled 
+ Enable semi-synchronous replication slave (disabled by
+ default).
+ --rpl-semi-sync-slave-trace-level=# 
+ The tracing level for semi-sync replication.
  --safe-mode         Skip some optimize stages (for testing). Deprecated.
  --safe-user-create  Don't allow new user creation by the user who has no
  write privileges to the mysql.user table.
@@ -1569,6 +1590,13 @@ report-password (No default value)
 report-port 0
 report-user (No default value)
 rowid-merge-buff-size 8388608
+rpl-semi-sync-master-enabled FALSE
+rpl-semi-sync-master-timeout 10000
+rpl-semi-sync-master-trace-level 32
+rpl-semi-sync-master-wait-no-slave TRUE
+rpl-semi-sync-master-wait-point AFTER_COMMIT
+rpl-semi-sync-slave-enabled FALSE
+rpl-semi-sync-slave-trace-level 32
 safe-user-create FALSE
 secure-auth TRUE
 secure-file-priv (No default value)

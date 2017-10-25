@@ -97,8 +97,9 @@
 #include "set_var.h"
 
 #include "rpl_injector.h"
-
 #include "rpl_handler.h"
+#include "semisync_master.h"
+#include "semisync_slave.h"
 
 #ifdef HAVE_SYS_PRCTL_H
 #include <sys/prctl.h>
@@ -934,6 +935,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
 PSI_mutex_key key_RELAYLOG_LOCK_index;
 PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
   key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
+PSI_mutex_key key_LOCK_binlog;
 
 PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
@@ -1021,7 +1023,8 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_binlog_state, "LOCK_binlog_state", 0},
   { &key_LOCK_rpl_thread, "LOCK_rpl_thread", 0},
   { &key_LOCK_rpl_thread_pool, "LOCK_rpl_thread_pool", 0},
-  { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0}
+  { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0},
+  { &key_LOCK_binlog, "LOCK_binlog", 0}
 };
 
 PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
@@ -1062,7 +1065,7 @@ PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_rpl_group_info_sleep_cond,
   key_TABLE_SHARE_cond, key_user_level_lock_cond,
   key_COND_thread_count, key_COND_thread_cache, key_COND_flush_thread_cache,
-  key_COND_start_thread,
+  key_COND_start_thread, key_COND_binlog_send,
   key_BINLOG_COND_queue_busy;
 PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
   key_COND_wait_commit;
@@ -1124,7 +1127,8 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_slave_background, "COND_slave_background", 0},
   { &key_COND_start_thread, "COND_start_thread", PSI_FLAG_GLOBAL},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0},
-  { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0}
+  { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0},
+  { &key_COND_binlog_send, "COND_binlog_send", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
@@ -2217,6 +2221,10 @@ void clean_up(bool print_message)
   ha_end();
   if (tc_log)
     tc_log->close();
+#ifdef HAVE_REPLICATION
+  semi_sync_master_deinit();
+  semi_sync_slave_deinit();
+#endif
   delegates_destroy();
   xid_cache_free();
   tdc_deinit();
@@ -5170,6 +5178,9 @@ static int init_server_components()
                         "this server. However this will be ignored as the "
                         "--log-bin option is not defined.");
   }
+
+  semi_sync_master_init();
+  semi_sync_slave_init();
 #endif
 
   if (opt_bin_log)
@@ -8230,6 +8241,27 @@ static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
+#define SHOW_FNAME(name)                        \
+    rpl_semi_sync_master_show_##name
+
+#define DEF_SHOW_FUNC(name, show_type)                                       \
+    static  int SHOW_FNAME(name)(MYSQL_THD thd, SHOW_VAR *var, char *buff)   \
+    {                                                                        \
+      repl_semisync_master.setExportStats();                                 \
+      var->type= show_type;                                                  \
+      var->value= (char *)&rpl_semi_sync_master_##name;                      \
+      return 0;                                                              \
+    }
+
+DEF_SHOW_FUNC(status, SHOW_BOOL)
+DEF_SHOW_FUNC(clients, SHOW_LONG)
+DEF_SHOW_FUNC(wait_sessions, SHOW_LONG)
+DEF_SHOW_FUNC(trx_wait_time, SHOW_LONGLONG)
+DEF_SHOW_FUNC(trx_wait_num, SHOW_LONGLONG)
+DEF_SHOW_FUNC(net_wait_time, SHOW_LONGLONG)
+DEF_SHOW_FUNC(net_wait_num, SHOW_LONGLONG)
+DEF_SHOW_FUNC(avg_net_wait_time, SHOW_LONG)
+DEF_SHOW_FUNC(avg_trx_wait_time, SHOW_LONG)
 
 #ifdef HAVE_YASSL
 
@@ -8548,6 +8580,30 @@ SHOW_VAR status_vars[]= {
   {"Rows_sent",                (char*) offsetof(STATUS_VAR, rows_sent), SHOW_LONGLONG_STATUS},
   {"Rows_read",                (char*) offsetof(STATUS_VAR, rows_read), SHOW_LONGLONG_STATUS},
   {"Rows_tmp_read",            (char*) offsetof(STATUS_VAR, rows_tmp_read), SHOW_LONGLONG_STATUS},
+#ifdef HAVE_REPLICATION
+  {"Rpl_semi_sync_master_status", (char*) &SHOW_FNAME(status), SHOW_FUNC},
+  {"Rpl_semi_sync_master_clients", (char*) &SHOW_FNAME(clients), SHOW_FUNC},
+  {"Rpl_semi_sync_master_yes_tx", (char*) &rpl_semi_sync_master_yes_transactions, SHOW_LONG},
+  {"Rpl_semi_sync_master_no_tx", (char*) &rpl_semi_sync_master_no_transactions, SHOW_LONG},
+  {"Rpl_semi_sync_master_wait_sessions", (char*) &SHOW_FNAME(wait_sessions), SHOW_FUNC},
+  {"Rpl_semi_sync_master_no_times", (char*) &rpl_semi_sync_master_off_times, SHOW_LONG},
+  {"Rpl_semi_sync_master_timefunc_failures", (char*) &rpl_semi_sync_master_timefunc_fails, SHOW_LONG},
+  {"Rpl_semi_sync_master_wait_pos_backtraverse", (char*) &rpl_semi_sync_master_wait_pos_backtraverse, SHOW_LONG},
+  {"Rpl_semi_sync_master_tx_wait_time", (char*) &SHOW_FNAME(trx_wait_time), SHOW_FUNC},
+  {"Rpl_semi_sync_master_tx_waits", (char*) &SHOW_FNAME(trx_wait_num), SHOW_FUNC},
+  {"Rpl_semi_sync_master_tx_avg_wait_time", (char*) &SHOW_FNAME(avg_trx_wait_time), SHOW_FUNC},
+  {"Rpl_semi_sync_master_net_wait_time", (char*) &SHOW_FNAME(net_wait_time), SHOW_FUNC},
+  {"Rpl_semi_sync_master_net_waits", (char*) &SHOW_FNAME(net_wait_num), SHOW_FUNC},
+  {"Rpl_semi_sync_master_net_avg_wait_time", (char*) &SHOW_FNAME(avg_net_wait_time), SHOW_FUNC},
+#ifdef HAVE_ACC_RECEIVER
+  {"Rpl_semi_sync_master_request_ack", (char*) &rpl_semi_sync_master_request_ack, SHOW_LONGLONG},
+  {"Rpl_semi_sync_master_get_ack", (char*)&rpl_semi_sync_master_get_ack, SHOW_LONGLONG},
+#endif
+  {"Rpl_semi_sync_slave_status", (char*) &rpl_semi_sync_slave_status, SHOW_BOOL},
+#ifdef HAVE_ACC_RECEIVER
+  {"Rpl_semi_sync_slave_send_ack", (char*) &rpl_semi_sync_slave_send_ack, SHOW_LONGLONG},
+#endif
+#endif /* HAVE_REPLICATION */
 #ifdef HAVE_QUERY_CACHE
   {"Qcache_free_blocks",       (char*) &query_cache.free_memory_blocks, SHOW_LONG_NOFLUSH},
   {"Qcache_free_memory",       (char*) &query_cache.free_memory, SHOW_LONG_NOFLUSH},
@@ -10285,6 +10341,8 @@ PSI_stage_info stage_waiting_for_insert= { 0, "Waiting for INSERT", 0};
 PSI_stage_info stage_waiting_for_master_to_send_event= { 0, "Waiting for master to send event", 0};
 PSI_stage_info stage_waiting_for_master_update= { 0, "Waiting for master update", 0};
 PSI_stage_info stage_waiting_for_relay_log_space= { 0, "Waiting for the slave SQL thread to free enough relay log space", 0};
+PSI_stage_info stage_waiting_for_semi_sync_ack_from_slave=
+{ 0, "Waiting for semi-sync ACK from slave", 0};
 PSI_stage_info stage_waiting_for_slave_mutex_on_exit= { 0, "Waiting for slave mutex on exit", 0};
 PSI_stage_info stage_waiting_for_slave_thread_to_start= { 0, "Waiting for slave thread to start", 0};
 PSI_stage_info stage_waiting_for_table_flush= { 0, "Waiting for table flush", 0};
