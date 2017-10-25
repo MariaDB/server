@@ -4587,6 +4587,12 @@ public:
       return 0;
     return cleanup_processor(arg);
   }
+  virtual bool vers_trx_id() const
+  {
+    DBUG_ASSERT(ref);
+    DBUG_ASSERT(*ref);
+    return (*ref)->vers_trx_id();
+  }
 };
 
 
@@ -6047,8 +6053,10 @@ private:
     if (item->real_type() == Item::FIELD_ITEM)
     {
       Item_field *item_field= (Item_field *)item->real_item();
-      flags|= (item_field->field->flags &
+      m_flags|= (item_field->field->flags &
                (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG));
+      // TODO: additional field flag?
+      m_vers_trx_id= item_field->field->vers_trx_id();
     }
   }
 public:
@@ -6056,7 +6064,8 @@ public:
    :Item(thd, item),
     Type_handler_hybrid_field_type(item->real_type_handler()),
     enum_set_typelib(0),
-    flags(0)
+    m_flags(0),
+    m_vers_trx_id(false)
   {
     DBUG_ASSERT(item->fixed);
     maybe_null= item->maybe_null;
@@ -6071,7 +6080,8 @@ public:
     Type_handler_hybrid_field_type(handler),
     Type_geometry_attributes(handler, attr),
     enum_set_typelib(attr->get_typelib()),
-    flags(0)
+    m_flags(0),
+    m_vers_trx_id(false)
   {
     name= item->name;
     Type_std_attributes::set(*attr);
@@ -6081,11 +6091,15 @@ public:
 
   const Type_handler *type_handler() const
   {
-    const Type_handler *handler= Type_handler_hybrid_field_type::type_handler();
+    const Type_handler *handler= m_vers_trx_id ?
+      &type_handler_vers_trx_id :
+      Type_handler_hybrid_field_type::type_handler();
     return handler->type_handler_for_item_field();
   }
   const Type_handler *real_type_handler() const
   {
+    if (m_vers_trx_id)
+      return &type_handler_vers_trx_id;
     return Type_handler_hybrid_field_type::type_handler();
   }
 
@@ -6111,10 +6125,17 @@ public:
   }
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 
-  uint flags;
+private:
+  uint m_flags;
+  bool m_vers_trx_id;
+public:
   uint32 field_flags() const
   {
-    return flags;
+    return m_flags;
+  }
+  virtual bool vers_trx_id() const
+  {
+    return m_vers_trx_id;
   }
 };
 
