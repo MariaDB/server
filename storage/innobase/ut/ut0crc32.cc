@@ -86,6 +86,10 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "univ.i"
 #include "ut0crc32.h"
 
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
+
 /** Pointer to CRC32 calculation function. */
 ut_crc32_func_t	ut_crc32;
 
@@ -135,7 +139,7 @@ ut_crc32_power8(
 }
 #endif
 
-#if defined(__GNUC__) && defined(__x86_64__)
+#if (defined(__GNUC__) && defined(__x86_64__)) || defined(_MSC_VER)
 /********************************************************************//**
 Fetches CPU info */
 static
@@ -150,10 +154,29 @@ ut_cpuid(
 	uint32_t*	features_edx)	/*!< out: CPU features edx */
 {
 	uint32_t	sig;
+#ifdef _MSC_VER
+	int data[4];
+	__cpuid(data, 0);
+	/* ebx */
+	vend[0] = data[1];
+	/* edx */
+	vend[1] = data[3];
+	/* ecx */
+	vend[2] = data[2];
+
+	__cpuid(data, 1);
+	/* eax */
+	sig = data[0];
+	/* ecx */
+	*features_ecx = data[2];
+	/* edx */
+	*features_edx = data[3];
+#else
 	asm("cpuid" : "=b" (vend[0]), "=c" (vend[2]), "=d" (vend[1]) : "a" (0));
 	asm("cpuid" : "=a" (sig), "=c" (*features_ecx), "=d" (*features_edx)
 	    : "a" (1)
 	    : "ebx");
+#endif
 
 	*model = ((sig >> 4) & 0xF);
 	*family = ((sig >> 8) & 0xF);
@@ -180,11 +203,15 @@ ut_crc32_8_hw(
 	const byte**	data,
 	ulint*		len)
 {
+#ifdef _MSC_VER
+	*crc = _mm_crc32_u8(*crc, (*data)[0]);
+#else
 	asm("crc32b %1, %0"
 	    /* output operands */
 	    : "+r" (*crc)
 	    /* input operands */
 	    : "rm" ((*data)[0]));
+#endif
 
 	(*data)++;
 	(*len)--;
@@ -201,12 +228,22 @@ ut_crc32_64_low_hw(
 	uint64_t	data)
 {
 	uint64_t	crc_64bit = crc;
-
+#ifdef _MSC_VER
+#ifdef _M_X64
+	crc_64bit = _mm_crc32_u64(crc_64bit, data);
+#elif defined(_M_IX86)
+	crc = _mm_crc32_u32(crc, static_cast<uint32_t>(data));
+	crc_64bit = _mm_crc32_u32(crc, static_cast<uint32_t>(data >> 32));
+#else
+#error Not Supported processors type.
+#endif
+#else
 	asm("crc32q %1, %0"
 	    /* output operands */
 	    : "+r" (crc_64bit)
 	    /* input operands */
 	    : "rm" (data));
+#endif
 
 	return(static_cast<uint32_t>(crc_64bit));
 }
@@ -429,7 +466,7 @@ ut_crc32_byte_by_byte_hw(
 
 	return(~crc);
 }
-#endif /* defined(__GNUC__) && defined(__x86_64__) */
+#endif /* defined(__GNUC__) && defined(__x86_64__) || (_WIN64) */
 
 /* CRC32 software implementation. */
 
@@ -704,7 +741,7 @@ ut_crc32_init()
 	ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_sw;
 	ut_crc32_implementation = "Using generic crc32 instructions";
 
-#if defined(__GNUC__) && defined(__x86_64__)
+#if (defined(__GNUC__) && defined(__x86_64__)) || defined(_MSC_VER)
 	uint32_t	vend[3];
 	uint32_t	model;
 	uint32_t	family;
