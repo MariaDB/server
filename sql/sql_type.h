@@ -1882,6 +1882,17 @@ public:
 };
 
 
+class Type_handler_vers_trx_id: public Type_handler_longlong
+{
+public:
+  virtual ~Type_handler_vers_trx_id() {}
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
+};
+
+
 class Type_handler_int24: public Type_handler_general_purpose_int
 {
   static const Name m_name_mediumint;
@@ -2908,6 +2919,7 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_int24       type_handler_int24;
 extern MYSQL_PLUGIN_IMPORT Type_handler_long        type_handler_long;
 extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_longlong;
 extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_ulonglong;
+extern MYSQL_PLUGIN_IMPORT Type_handler_vers_trx_id type_handler_vers_trx_id;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_newdecimal  type_handler_newdecimal;
 extern MYSQL_PLUGIN_IMPORT Type_handler_olddecimal  type_handler_olddecimal;

@@ -861,52 +861,11 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       if (vers_conditions)
       {
         vers_conditions.resolve_units(timestamps_only);
-        if (timestamps_only)
+        if (timestamps_only && (vers_conditions.unit_start == UNIT_TRX_ID ||
+          vers_conditions.unit_end == UNIT_TRX_ID))
         {
-          if (vers_conditions.unit_start == UNIT_TRX_ID || vers_conditions.unit_end == UNIT_TRX_ID)
-          {
-            my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name);
-            DBUG_RETURN(-1);
-          }
-        }
-        else if (thd->variables.vers_innodb_algorithm_simple)
-        {
-          DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
-          handlerton *hton= plugin_hton(table->table->s->db_plugin);
-          DBUG_ASSERT(hton);
-          bool convert_start= false;
-          bool convert_end= false;
-          switch (vers_conditions.type)
-          {
-          case FOR_SYSTEM_TIME_AS_OF:
-            if (vers_conditions.unit_start == UNIT_TIMESTAMP)
-              convert_start= convert_end= true;
-            break;
-          case FOR_SYSTEM_TIME_BEFORE:
-            if (vers_conditions.unit_start == UNIT_TIMESTAMP)
-              convert_end= true;
-            break;
-          case FOR_SYSTEM_TIME_FROM_TO:
-          case FOR_SYSTEM_TIME_BETWEEN:
-            if (vers_conditions.unit_start == UNIT_TIMESTAMP)
-              convert_end= true;
-            if (vers_conditions.unit_end == UNIT_TIMESTAMP)
-              convert_start= true;
-          default:
-            break;
-          }
-          if (convert_start)
-            row_start= newx Item_func_vtq_ts(
-              thd,
-              hton,
-              row_start,
-              VTQ_COMMIT_TS);
-          if (convert_end)
-            row_end= newx Item_func_vtq_ts(
-              thd,
-              hton,
-              row_end,
-              VTQ_COMMIT_TS);
+          my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name);
+          DBUG_RETURN(-1);
         }
       }
 
@@ -17430,9 +17389,9 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       if (type == Item::TYPE_HOLDER)
       {
         Item_type_holder *ith= (Item_type_holder*)item;
-        if (ith->flags & VERS_SYS_START_FLAG)
+        if (ith->field_flags() & VERS_SYS_START_FLAG)
           sys_trx_start= new_field;
-        else if (ith->flags & VERS_SYS_END_FLAG)
+        else if (ith->field_flags() & VERS_SYS_END_FLAG)
           sys_trx_end= new_field;
       }
       if (type == Item::SUM_FUNC_ITEM)

@@ -32,6 +32,7 @@ Type_handler_long        type_handler_long;
 Type_handler_int24       type_handler_int24;
 Type_handler_longlong    type_handler_longlong;
 Type_handler_longlong    type_handler_ulonglong; // Only used for CAST() for now
+Type_handler_vers_trx_id type_handler_vers_trx_id;
 Type_handler_float       type_handler_float;
 Type_handler_double      type_handler_double;
 Type_handler_bit         type_handler_bit;
@@ -2048,6 +2049,19 @@ Field *Type_handler_longlong::make_table_field(const LEX_CSTRING *name,
 {
   return new (table->in_use->mem_root)
          Field_longlong(addr.ptr, attr.max_char_length(),
+                        addr.null_ptr, addr.null_bit,
+                        Field::NONE, name,
+                        0/*zerofill*/, attr.unsigned_flag);
+}
+
+
+Field *Type_handler_vers_trx_id::make_table_field(const LEX_CSTRING *name,
+                                               const Record_addr &addr,
+                                               const Type_all_attributes &attr,
+                                               TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_vers_trx_id(addr.ptr, attr.max_char_length(),
                         addr.null_ptr, addr.null_bit,
                         Field::NONE, name,
                         0/*zerofill*/, attr.unsigned_flag);
