@@ -739,12 +739,15 @@ static int wsrep_run_hook(Trans_param *param, bool for_real_trans)
 {
   THD *thd= param->thd;
 
-  return (thd &&         /* THD is non NULL */
-          WSREP(thd) &&  /* wsrep is enabled for thd and is client thread */
+  return (WSREP(thd) &&  /* THD is non NULL, wsrep is enabled for thd and is client thread */
           thd->wsrep_exec_mode != TOTAL_ORDER && /* not TOI execution */
           thd->wsrep_exec_mode != REPL_RECV &&   /* not applier or replayer */
-          (for_real_trans == false || param->flags == TRANS_IS_REAL_TRANS)
-          );
+          (for_real_trans == false || param->flags == TRANS_IS_REAL_TRANS) &&
+          !(for_real_trans && /* CTAS SELECT phase */
+            WSREP_BINLOG_FORMAT(thd->variables.binlog_format) == BINLOG_FORMAT_STMT &&
+            thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+            thd->lex->select_lex.item_list.elements)
+    );
 }
 
 static inline
