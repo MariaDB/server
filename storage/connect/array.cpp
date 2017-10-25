@@ -520,7 +520,7 @@ bool ARRAY::FilTest(PGLOBAL g, PVAL valp, OPVAL opc, int opm)
 
   } else if (opc != OP_EXIST) {
 		sprintf(g->Message, MSG(MISSING_ARG), opc);
-		throw (int)TYPE_ARRAY;
+		throw	(int)TYPE_ARRAY;
   } else    // OP_EXIST
     return Nval > 0;
 

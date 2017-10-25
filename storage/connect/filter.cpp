@@ -10,7 +10,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#include "sql_class.h"
+//#include "sql_class.h"
 //#include "sql_time.h"
 
 #if defined(__WIN__)
