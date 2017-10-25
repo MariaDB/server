@@ -28,92 +28,91 @@
 #include <psapi.h>
 #include <dbghelp.h>
 #include <tlhelp32.h>
+#include <vector>
 
-static DWORD find_child(DWORD pid)
+
+static std::vector<DWORD> find_children(DWORD pid)
 {
   HANDLE h= NULL;
   PROCESSENTRY32 pe={ 0 };
-  DWORD child_pid = 0;
+  std::vector<DWORD> children;
+
   pe.dwSize = sizeof(PROCESSENTRY32);
   h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
   if(h == INVALID_HANDLE_VALUE)
-    return 0;
+    return children;
 
   for (BOOL ret = Process32First(h, &pe); ret; ret = Process32Next(h, &pe))
   {
     if (pe.th32ParentProcessID == pid)
-    {
-      child_pid = pe.th32ProcessID;
-      break;
-    }
+      children.push_back(pe.th32ProcessID);
   }
   CloseHandle(h);
-  return (child_pid);
+  return children;
 }
 
-static int create_dump(DWORD pid)
+void dump_single_process(DWORD pid)
 {
+  HANDLE file = 0;
+  HANDLE process= 0;
+  DWORD size= MAX_PATH;
   char path[MAX_PATH];
   char working_dir[MAX_PATH];
-  int ret= -1;
-  HANDLE process= INVALID_HANDLE_VALUE;
-  HANDLE file= INVALID_HANDLE_VALUE;
-  char *p;
+  char tmpname[MAX_PATH];
 
-  for(;;)
+  process= OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+  if (!process)
   {
-    process= OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, (DWORD)pid);
-    if (!process)
-    {
-      fprintf(stderr,"safe_kill : cannot open process pid=%u to create dump, last error %u\n",
-        pid, GetLastError());
-      goto exit;
-    }
-
-    DWORD size= MAX_PATH;
-    if (QueryFullProcessImageName(process, 0, path, &size) == 0)
-    {
-      fprintf(stderr,"safe_kill : cannot read process path for pid %u, last error %u\n",
-        pid, GetLastError());
-      goto exit;
-    }
-    const char *filename= strrchr(path, '\\');
-    if (filename)
-    {
-      filename++;
-      // We are not interested in my_safe_process.exe,
-      // since it is only used to start up other programs.
-      // We're interested however in my_safe_processes' child.
-      if (strcmp(filename, "my_safe_process.exe") == 0)
-      {
-        pid= find_child(pid);
-        if (!pid)
-        {
-          fprintf(stderr,"safe_kill : can't find child process for safe_process.exe\n");
-          goto exit;
-        }
-        CloseHandle(process);
-      }
-      else
-        break;
-    }
+    fprintf(stderr, "safe_kill : cannot open process pid=%u to create dump, last error %u\n",
+      pid, GetLastError());
+    goto exit;
   }
 
-  if ((p= strrchr(path, '.')) == 0)
-    p= path + strlen(path);
+  if (QueryFullProcessImageName(process, 0, path, &size) == 0)
+  {
+    fprintf(stderr, "safe_kill : cannot read process path for pid %u, last error %u\n",
+      pid, GetLastError());
+    goto exit;
+  }
+
+  char *filename= strrchr(path, '\\');
+  if (filename)
+  {
+    filename++;
+    // We are not interested in dump of some proceses (my_safe_process.exe,cmd.exe)
+    // since they are only used to start up other programs.
+    // We're interested however in their children;
+    const char *exclude_programs[] = {"my_safe_process.exe","cmd.exe", 0};
+    for(size_t i=0; exclude_programs[i]; i++)
+      if (_stricmp(filename, exclude_programs[i]) == 0)
+        goto exit;
+  }
+  else
+    filename= path;
+
+  // Add .dmp extension
+  char *p;
+  if ((p= strrchr(filename, '.')) == 0)
+    p= filename + strlen(filename);
 
   strncpy(p, ".dmp", path + MAX_PATH - p);
 
-  /* Create dump in current directory.*/
-  const char *filename= strrchr(path, '\\');
-  if (filename == 0)
-    filename= path;
-  else
-    filename++;
+  // Íf file with this name exist, generate unique name with .dmp extension
+  if (GetFileAttributes(filename) != INVALID_FILE_ATTRIBUTES)
+  {
+    if (!GetTempFileName(".", filename, 0, tmpname))
+    {
+      fprintf(stderr, "GetTempFileName failed, last error %u", GetLastError());
+      goto exit;
+    }
+    strncat(tmpname, ".dmp", sizeof(tmpname));
+    filename= tmpname;
+  }
 
+  
   if (!GetCurrentDirectory(MAX_PATH, working_dir))
   {
-    fprintf(stderr, "GetCurrentDirectory failed, last error %u",GetLastError());
+    fprintf(stderr, "GetCurrentDirectory failed, last error %u", GetLastError());
     goto exit;
   }
 
@@ -122,28 +121,39 @@ static int create_dump(DWORD pid)
 
   if (file == INVALID_HANDLE_VALUE)
   {
-    fprintf(stderr,"safe_kill : CreateFile() failed for file %s, working dir %s, last error = %u\n",
+    fprintf(stderr, "safe_kill : CreateFile() failed for file %s, working dir %s, last error = %u\n",
       filename, working_dir, GetLastError());
     goto exit;
   }
 
-  if (!MiniDumpWriteDump(process, pid, file, MiniDumpNormal, 0,0,0))
+  if (!MiniDumpWriteDump(process, pid, file, MiniDumpNormal, 0, 0, 0))
   {
     fprintf(stderr, "Failed to write minidump to %s, working dir %s, last error %u\n",
       filename, working_dir, GetLastError());
     goto exit;
   }
 
-  ret= 0;
   fprintf(stderr, "Minidump written to %s, directory %s\n", filename, working_dir);
 
 exit:
-  if(process!= 0 && process != INVALID_HANDLE_VALUE)
+  if (process != 0 && process != INVALID_HANDLE_VALUE)
     CloseHandle(process);
 
   if (file != 0 && file != INVALID_HANDLE_VALUE)
     CloseHandle(file);
-  return ret;
+}
+
+
+static int create_dump(DWORD pid, int recursion_depth= 5)
+{
+  if (recursion_depth < 0)
+    return 0;
+
+  dump_single_process(pid);
+  std::vector<DWORD> children= find_children(pid);
+  for(size_t i=0; i < children.size(); i++)
+    create_dump(children[i], recursion_depth -1);
+  return 0;
 }
 
 
