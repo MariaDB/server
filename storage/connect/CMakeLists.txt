@@ -38,7 +38,7 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 # Definitions that are shared for all OSes
 #
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
-add_definitions( -DNEW_MAR -DHUGE_SUPPORT -DGZ_SUPPORT -DPIVOT_SUPPORT )
+add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT )
 
 
 #
@@ -228,7 +228,7 @@ int main() {
 ENDIF(CONNECT_WITH_ODBC)
 
 #
-# JDBC with MongoDB Java Driver included but disabled
+# JDBC with MongoDB Java Driver included but disabled if without MONGO
 #
 OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
 OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
@@ -243,17 +243,16 @@ IF(CONNECT_WITH_JDBC)
     # SET(JDBC_LIBRARY ${JAVA_JVM_LIBRARY}) will be dynamically linked
     SET(CONNECT_SOURCES ${CONNECT_SOURCES}
     javaconn.cpp jdbconn.cpp tabjdbc.cpp
+    jmgfam.cpp jmgoconn.cpp mongo.cpp tabjmg.cpp
     jdbccat.h javaconn.h jdbconn.h tabjdbc.h
+    jmgfam.h jmgoconn.h mongo.h tabjmg.h
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java
+    Mongo2Interface.java Mongo3Interface.java
     JavaWrappers.jar)
-    add_definitions(-DJDBC_SUPPORT)
+    add_definitions(-DJAVA_SUPPORT)
     IF(CONNECT_WITH_MONGO)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-      jmgfam.cpp jmgoconn.cpp mongo.cpp tabjmg.cpp
-      jmgfam.h jmgoconn.h mongo.h tabjmg.h
-      Mongo2Interface.java Mongo3Interface.java)
-      add_definitions(-DMONGO_SUPPORT -DMONGO_ENABLED=0)
+      add_definitions(-DMONGO_SUPPORT)
     ENDIF()
   ELSE()
     SET(JDBC_LIBRARY "")
@@ -296,10 +295,7 @@ IF(CONNECT_WITH_MONGO)
     add_definitions(-DCMGO_SUPPORT)
     IF (NOT JAVA_FOUND AND JNI_FOUND)
       SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongo.cpp mongo.h)
-      add_definitions(-DMONGO_SUPPORT -DMONGO_ENABLED=1)
-    ELSE ()
-      remove_definitions(-DMONGO_ENABLED=0)
-      add_definitions(-DMONGO_ENABLED=1)
+      add_definitions(-DMONGO_SUPPORT)
     ENDIF (NOT JAVA_FOUND AND JNI_FOUND)
   ENDIF(libmongoc-1.0_FOUND)
 ENDIF(CONNECT_WITH_MONGO)

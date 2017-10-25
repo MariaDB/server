@@ -36,14 +36,12 @@ class DllExport JSONDEF : public DOSDEF {         /* Table description */
   friend class TDBJSON;
   friend class TDBJSN;
   friend class TDBJCL;
-#if defined(MONGO_SUPPORT)
 #if defined(CMGO_SUPPORT)
 	friend class CMGFAM;
 #endif   // CMGO_SUPPORT
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 	friend class JMGFAM;
-#endif   // JDBC_SUPPORT
-#endif   // MONGO_SUPPORT
+#endif   // JAVA_SUPPORT
 	friend PQRYRES JSONColumns(PGLOBAL, PCSZ, PCSZ, PTOS, bool);
 public:
   // Constructor
@@ -68,17 +66,13 @@ public:
   bool  Strict;                 /* Strict syntax checking              */
 	char  Sep;                    /* The Jpath separator                 */
 	const char *Uri;							/* MongoDB connection URI              */
-#if defined(MONGO_SUPPORT)
 	PCSZ  Collname;               /* External collection name            */
 	PSZ   Options;                /* Colist ; Pipe                       */
 	PSZ   Filter;                 /* Filter                              */
 	PSZ   Driver;									/* MongoDB Driver (C or JAVA)          */
 	bool  Pipe;							      /* True if Colist is a pipeline        */
 	int   Version;							  /* Driver version                      */
-#if defined(JDBC_SUPPORT)
 	PSZ   Wrapname;								/* MongoDB java wrapper name           */
-#endif   // JDBC_SUPPORT
-#endif   // MONGO_SUPPORT
   }; // end of JSONDEF
 
 /* -------------------------- TDBJSN class --------------------------- */
@@ -90,14 +84,12 @@ public:
 class DllExport TDBJSN : public TDBDOS {
   friend class JSONCOL;
 	friend class JSONDEF;
-#if defined(MONGO_SUPPORT)
 #if defined(CMGO_SUPPORT)
 	friend class CMGFAM;
 #endif   // CMGO_SUPPORT
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 	friend class JMGFAM;
-#endif   // JDBC_SUPPORT
-#endif   // MONGO_SUPPORT
+#endif   // JAVA_SUPPORT
 public:
   // Constructor
    TDBJSN(PJDEF tdp, PTXF txfp);
@@ -162,14 +154,12 @@ public:
 class DllExport JSONCOL : public DOSCOL {
   friend class TDBJSN;
   friend class TDBJSON;
-#if defined(MONGO_SUPPORT)
 #if defined(CMGO_SUPPORT)
 	friend class CMGFAM;
 #endif   // CMGO_SUPPORT
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 	friend class JMGFAM;
-#endif   // JDBC_SUPPORT
-#endif   // MONGO_SUPPORT
+#endif   // JAVA_SUPPORT
 public:
   // Constructors
   JSONCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);

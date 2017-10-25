@@ -499,28 +499,23 @@ PVAL JSNX::ExpandArray(PGLOBAL g, PJAR arp, int n)
 /*********************************************************************************/
 PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 {
-//int     i, ars, nv = 0, nextsame = Tjp->NextSame;
-	int     i, nv = 0, nextsame = 0;
-	my_bool err;
+	int     i, ars = arp->size(), nv = 0;
+	bool    err;
 	OPVAL   op = Nodes[n].Op;
 	PVAL    val[2], vp = Nodes[n].Valp;
 	PJVAL   jvrp, jvp;
 	JVALUE  jval;
 
 	vp->Reset();
-//ars = arp->size();
 
 	if (trace)
-		htrc("CalculateArray size=%d\n", arp->size());
-//	htrc("CalculateArray size=%d\n", ars);
+		htrc("CalculateArray size=%d op=%d\n", ars, op);
 
-	for (i = 0; i < arp->size(); i++) {
-//for (i = 0; i < ars; i++) {			 because compiler bug
+	for (i = 0; i < ars; i++) {
 		jvrp = arp->GetValue(i);
 
 		if (trace)
-			htrc("Value %s null=%d nv=%d\n",
-				jvrp->GetString(g), jvrp->IsNull() ? 1 : 0, nv);
+			htrc("i=%d nv=%d\n", i, nv);
 
 		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) {
 			if (jvrp->IsNull()) {
@@ -531,6 +526,10 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 				jvp = &jval;
 			} else
 				jvp = jvrp;
+
+			if (trace)
+				htrc("jvp=%s null=%d\n",
+					jvp->GetString(g), jvp->IsNull() ? 1 : 0);
 
 			if (!nv++) {
 				SetJsonValue(g, vp, jvp, n);
@@ -564,6 +563,13 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 				if (err)
 					vp->Reset();
 
+				if (trace) {
+					char buf(32);
+
+					htrc("vp='%s' err=%d\n",
+						vp->GetCharString(&buf), err ? 1 : 0);
+				} // endif trace
+
 			} // endif Zero
 
 		}	// endif jvrp
@@ -581,7 +587,6 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 
 	} // endif Op
 
-//Tjp->NextSame = nextsame;
 	return vp;
 } // end of CalculateArray
 

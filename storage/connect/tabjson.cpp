@@ -31,14 +31,12 @@
 #if defined(ZIP_SUPPORT)
 #include "filamzip.h"
 #endif   // ZIP_SUPPORT
-#if defined(MONGO_SUPPORT)
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 #include "jmgfam.h"
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
 #if defined(CMGO_SUPPORT)
 #include "cmgfam.h"
 #endif   // CMGO_SUPPORT
-#endif   // MONGO_SUPPORT
 #include "tabmul.h"
 #include "checklvl.h"
 #include "resource.h"
@@ -149,7 +147,7 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
           tdp->Fn, tdp->Objname, tdp->Pretty, lvl);
 
 	if (tdp->Uri) {
-#if defined(MONGO_SUPPORT)
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 		tdp->Collname = GetStringTableOption(g, topt, "Name", NULL);
 		tdp->Collname = GetStringTableOption(g, topt, "Tabname", tdp->Collname);
 		tdp->Schema = GetStringTableOption(g, topt, "Dbname", "test");
@@ -157,10 +155,8 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 		tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);
 		tdp->Driver = (PSZ)GetStringTableOption(g, topt, "Driver", NULL);
 		tdp->Version = GetIntegerTableOption(g, topt, "Version", 3);
-#if defined(JDBC_SUPPORT)
 		tdp->Wrapname = (PSZ)GetStringTableOption(g, topt, "Wrapper",
 			(tdp->Version == 2) ? "Mongo2Interface" : "Mongo3Interface");
-#endif   // JDBC_SUPPORT
 		tdp->Pretty = 0;
 #else   // !MONGO_SUPPORT
 		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
@@ -201,7 +197,6 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 			return NULL;
 #endif  // !ZIP_SUPPORT
 		} else if (tdp->Uri) {
-#if defined(MONGO_SUPPORT)
 			if (tdp->Driver && toupper(*tdp->Driver) == 'C') {
 #if defined(CMGO_SUPPORT)
 				tjnp = new(g) TDBJSN(tdp, new(g) CMGFAM(tdp));
@@ -210,7 +205,7 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 				return NULL;
 #endif
 			} else if (tdp->Driver && toupper(*tdp->Driver) == 'J') {
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 				tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
 #else
 				sprintf(g->Message, "Mongo %s Driver not available", "Java");
@@ -219,14 +214,14 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 			} else {						 // Driver not specified
 #if defined(CMGO_SUPPORT)
 				tjnp = new(g) TDBJSN(tdp, new(g) CMGFAM(tdp));
-#else
+#elif defined(JAVA_SUPPORT)
 				tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
+#else
+				sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+				return NULL;
 #endif
 			}	// endif Driver
-#else
-			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
-			return NULL;
-#endif   // MONGO_SUPPORT
+
 		} else
 			tjnp = new(g) TDBJSN(tdp, new(g) DOSFAM(tdp));
 
@@ -497,16 +492,12 @@ JSONDEF::JSONDEF(void)
   Base = 0;
   Strict = false;
 	Sep = '.';
-#if defined(MONGO_SUPPORT)
 	Uri = NULL;
 	Collname = Options = Filter = NULL;
 	Pipe = false;
 	Driver = NULL;
 	Version = 0;
-#if defined(JDBC_SUPPORT)
 	Wrapname = NULL;
-#endif   // JDBC_SUPPORT
-#endif   // MONGO_SUPPORT
 } // end of JSONDEF constructor
 
 /***********************************************************************/
@@ -524,7 +515,7 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 	Sep = *GetStringCatInfo(g, "Separator", ".");
 
 	if (Uri = GetStringCatInfo(g, "Connect", NULL)) {
-#if defined(MONGO_SUPPORT)
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 		Collname = GetStringCatInfo(g, "Name",
 			(Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
 		Collname = GetStringCatInfo(g, "Tabname", Collname);
@@ -534,12 +525,12 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 		Driver = GetStringCatInfo(g, "Driver", NULL);
 		Version = GetIntCatInfo("Version", 3);
 		Pretty = 0;
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 		if (Version == 2)
 			Wrapname = GetStringCatInfo(g, "Wrapper", "Mongo2Interface");
 		else
 			Wrapname = GetStringCatInfo(g, "Wrapper", "Mongo3Interface");
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
 #else   // !MONGO_SUPPORT
 		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
 		return true;
@@ -569,7 +560,6 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
                 (m == MODE_UPDATE || m == MODE_DELETE));
 
 		if (Uri) {
-#if defined(MONGO_SUPPORT)
 			if (Driver && toupper(*Driver) == 'C') {
 #if defined(CMGO_SUPPORT)
 			txfp = new(g) CMGFAM(this);
@@ -578,7 +568,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 			return NULL;
 #endif
 			} else if (Driver && toupper(*Driver) == 'J') {
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 				txfp = new(g) JMGFAM(this);
 #else
 				sprintf(g->Message, "Mongo %s Driver not available", "Java");
@@ -587,14 +577,14 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 			} else {						 // Driver not specified
 #if defined(CMGO_SUPPORT)
 				txfp = new(g) CMGFAM(this);
-#else
+#elif defined(JAVA_SUPPORT)
 				txfp = new(g) JMGFAM(this);
-#endif
+#else		// !MONGO_SUPPORT
+				sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+				return NULL;
+#endif  // !MONGO_SUPPORT
 			}	// endif Driver
-#else
-			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
-			return NULL;
-#endif   // MONGO_SUPPORT
+
 		} else if (Zipped) {
 #if defined(ZIP_SUPPORT)
 			if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
@@ -1591,8 +1581,7 @@ PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
 /***********************************************************************/
 PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
   {
-//int    i, ars, nv = 0, nextsame = Tjp->NextSame;
-	int    i, nv = 0, nextsame = Tjp->NextSame;
+	int    i, ars, nv = 0, nextsame = Tjp->NextSame;
 	bool   err;
   OPVAL  op = Nodes[n].Op;
   PVAL   val[2], vp = Nodes[n].Valp;
@@ -1600,11 +1589,17 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
   JVALUE jval;
 
   vp->Reset();
-//ars = MY_MIN(Tjp->Limit, arp->size());
+	ars = MY_MIN(Tjp->Limit, arp->size());
 
-//for (i = 0; i < ars; i++) {
-	for (i = 0; i < arp->size(); i++) {
+	if (trace)
+		htrc("CalculateArray: size=%d op=%d nextsame=%d\n",
+			ars, op, nextsame);
+
+	for (i = 0; i < ars; i++) {
 		jvrp = arp->GetValue(i);
+
+		if (trace)
+			htrc("i=%d nv=%d\n", i, nv);
 
 		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) do {
 			if (jvrp->IsNull()) {
@@ -1617,13 +1612,16 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
       } else
         jvp = jvrp;
   
-      if (!nv++) {
+			if (trace)
+				htrc("jvp=%s null=%d\n",
+					jvp->GetString(g), jvp->IsNull() ? 1 : 0);
+
+			if (!nv++) {
         SetJsonValue(g, vp, jvp, n);
         continue;
       } else
         SetJsonValue(g, MulVal, jvp, n);
-  
-//    if (!MulVal->IsZero()) {
+
 			if (!MulVal->IsNull()) {
 				switch (op) {
           case OP_CNC:
@@ -1634,7 +1632,7 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
   
             val[0] = MulVal;
             err = vp->Compute(g, val, 1, op);
-            break;
+						break;
 //        case OP_NUM:
           case OP_SEP:
             val[0] = Nodes[n].Valp;
@@ -1650,7 +1648,15 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
         if (err)
           vp->Reset();
     
-        } // endif Null
+				if (trace) {
+					char buf(32);
+
+					htrc("vp='%s' err=%d\n",
+						vp->GetCharString(&buf), err ? 1 : 0);
+
+				} // endif trace
+
+			} // endif Null
 
       } while (Tjp->NextSame > nextsame);
 

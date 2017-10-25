@@ -1656,39 +1656,48 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
   char *p[2], val[2][32];
   int   i;
 
-  for (i = 0; i < np; i++)
-    p[i] = vp[i]->IsNull() ? NULL : vp[i]->GetCharString(val[i]);
+	if (trace)
+		htrc("Compute: np=%d op=%d\n", np, op);
 
-	if (p[i-1]) {
-		switch (op) {
-			case OP_CNC:
-				assert(np == 1 || np == 2);
+	for (i = 0; i < np; i++)
+		if (!vp[i]->IsNull()) {
+			p[i] = vp[i]->GetCharString(val[i]);
 
-				if (np == 2)
-					SetValue_psz(p[0]);
+			if (trace)
+				htrc("p[%d]=%s\n", i, p[i]);
 
-				if ((i = Len - (signed)strlen(Strp)) > 0)
-					strncat(Strp, p[np - 1], i);
+		} else
+			return false;
 
-				break;
-			case OP_MIN:
-				assert(np == 2);
-				SetValue_psz((strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
-				break;
-			case OP_MAX:
-				assert(np == 2);
-				SetValue_psz((strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
-				break;
-			default:
-				//    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
-				strcpy(g->Message, "Function not supported");
-				return true;
-		} // endswitch op
+	switch (op) {
+		case OP_CNC:
+			assert(np == 1 || np == 2);
 
-		Null = false;
-	} // endif p[i]
+			if (np == 2)
+				SetValue_psz(p[0]);
 
-  Null = false;
+			if ((i = Len - (signed)strlen(Strp)) > 0)
+				strncat(Strp, p[np - 1], i);
+
+			if (trace)
+				htrc("Strp=%s\n", Strp);
+
+			break;
+		case OP_MIN:
+			assert(np == 2);
+			SetValue_psz((strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
+			break;
+		case OP_MAX:
+			assert(np == 2);
+			SetValue_psz((strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
+			break;
+		default:
+			//    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
+			strcpy(g->Message, "Function not supported");
+			return true;
+	} // endswitch op
+
+	Null = false;
   return false;
   } // end of Compute
 

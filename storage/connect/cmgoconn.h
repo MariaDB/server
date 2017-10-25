@@ -93,6 +93,7 @@ public:
 	PSZ  Mini(PGLOBAL g, PCOL colp, const bson_t *bson, bool b);
 	void GetColumnValue(PGLOBAL g, PCOL colp);
 	bool AddValue(PGLOBAL g, PCOL colp, bson_t *doc, char *key, bool upd);
+	static void mongo_init(bool init);
 
 protected:
 	// Members
@@ -112,4 +113,5 @@ protected:
 	PINCOL                Fpc;				// To insert INCOL classes
 	PFBLOCK               fp;
 	bool                  m_Connected;
+	static bool           IsInit;
 }; // end of class CMgoConn

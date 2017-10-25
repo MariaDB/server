@@ -18,12 +18,13 @@
 #include "plgdbsem.h"
 #include "xtable.h"
 #include "tabext.h"
+#include "filter.h"
 #if defined(CMGO_SUPPORT)
 #include "tabcmg.h"
-#endif   // MONGO_SUPPORT
-#if defined(JDBC_SUPPORT)
+#endif   // CMGO_SUPPORT
+#if defined(JAVA_SUPPORT)
 #include "tabjmg.h"
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
 #include "resource.h"
 
 /***********************************************************************/
@@ -32,7 +33,88 @@
 #define MAXCOL          200        /* Default max column nb in result  */
 #define TYPE_UNKNOWN     12        /* Must be greater than other types */
 
+bool MakeSelector(PGLOBAL g, PFIL fp, PSTRG s);
 bool IsNum(PSZ s);
+
+/***********************************************************************/
+/*  Make selector json representation for Mongo tables.                */
+/***********************************************************************/
+bool MakeSelector(PGLOBAL g, PFIL fp, PSTRG s)
+{
+	OPVAL opc = fp->GetOpc();
+
+	s->Append('{');
+
+	if (opc == OP_AND || opc == OP_OR) {
+		if (fp->GetArgType(0) != TYPE_FILTER || fp->GetArgType(1) != TYPE_FILTER)
+			return true;
+
+		s->Append("\"$");
+		s->Append(opc == OP_AND ? "and" : "or");
+		s->Append("\":[");
+
+		if (MakeSelector(g, (PFIL)fp->Arg(0), s))
+			return true;
+
+		s->Append(',');
+
+		if (MakeSelector(g, (PFIL)fp->Arg(1), s))
+			return true;
+
+		s->Append(']');
+	} else {
+		if (fp->GetArgType(0) != TYPE_COLBLK)
+			return true;
+
+		s->Append('"');
+		s->Append(((PCOL)fp->Arg(0))->GetJpath(g, false));
+		s->Append("\":{\"$");
+
+		switch (opc) {
+			case OP_EQ:
+				s->Append("eq");
+				break;
+			case OP_NE:
+				s->Append("ne");
+				break;
+			case OP_GT:
+				s->Append("gt");
+				break;
+			case OP_GE:
+				s->Append("gte");
+				break;
+			case OP_LT:
+				s->Append("lt");
+				break;
+			case OP_LE:
+				s->Append("lte");
+				break;
+			case OP_NULL:
+			case OP_LIKE:
+			case OP_EXIST:
+			default:
+				return true;
+		} // endswitch Opc
+
+		s->Append("\":");
+
+		if (fp->GetArgType(1) == TYPE_COLBLK) {
+			s->Append("\"$");
+			s->Append(((PEXTCOL)fp->Arg(1))->GetJpath(g, false));
+			s->Append('"');
+		} else {
+			char buf[501];
+
+			fp->Arg(1)->Prints(g, buf, 500);
+			s->Append(buf);
+		} // endif Type
+
+		s->Append('}');
+	} // endif opc
+
+	s->Append('}');
+	return false;
+} // end of MakeSelector
 
 /***********************************************************************/
 /*  MGOColumns: construct the result blocks containing the description */
@@ -49,7 +131,7 @@ PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info)
 	int      i, n = 0;
 	PCSZ     drv;
 	PBCOL    bcp;
-	MGODISC *cmgd;
+	MGODISC *cmgd = NULL;
 	PQRYRES  qrp;
 	PCOLRES  crp;
 
@@ -72,7 +154,7 @@ PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info)
 		goto err;
 #endif
 	} else if (drv && toupper(*drv) == 'J') {
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 		cmgd = new(g) JMGDISC(g, (int*)length);
 #else
 		sprintf(g->Message, "Mongo %s Driver not available", "Java");
@@ -142,7 +224,7 @@ skipit:
 	return qrp;
 
 err:
-	if (cmgd->tmgp)
+	if (cmgd && cmgd->tmgp)
 		cmgd->tmgp->CloseDB(g);
 
 	return NULL;
@@ -181,7 +263,7 @@ int MGODISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt)
 	/*  Open the MongoDB collection.                                     */
 	/*********************************************************************/
 	tdp = new(g) MGODEF;
-	tdp->Uri = uri;
+	tdp->Uri = (uri && *uri) ? uri : "mongodb://localhost:27017";
 	tdp->Driver = drv;
 	tdp->Tabname = GetStringTableOption(g, topt, "Name", NULL);
 	tdp->Tabname = GetStringTableOption(g, topt, "Tabname", tdp->Tabname);
@@ -346,7 +428,7 @@ PTDB MGODEF::GetTable(PGLOBAL g, MODE m)
 		return NULL;
 #endif
 	} else if (Driver && toupper(*Driver) == 'J') {
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 		if (Catfunc == FNC_COL)
 			return new(g) TDBJGL(this);
 		else

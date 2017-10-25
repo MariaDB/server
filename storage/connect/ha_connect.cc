@@ -129,10 +129,13 @@
 #if defined(ODBC_SUPPORT)
 #include "odbccat.h"
 #endif   // ODBC_SUPPORT
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 #include "tabjdbc.h"
 #include "jdbconn.h"
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
+#if defined(CMGO_SUPPORT)
+#include "cmgoconn.h"
+#endif   // CMGO_SUPPORT
 #include "tabmysql.h"
 #include "filamdbf.h"
 #include "tabxcl.h"
@@ -171,18 +174,18 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0004 September 03, 2017";
+       char version[]= "Version 1.06.0005 October 14, 2017";
 #if defined(__WIN__)
-       char compver[]= "Version 1.06.0004 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.06.0005 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
 #endif  // !__WIN__
 } // extern "C"
 
-#if defined(NEW_MAR)
+#if MYSQL_VERSION_ID > 100200
 #define stored_in_db stored_in_db()
-#endif   // NEW_MAR)
+#endif   // MYSQL_VERSION_ID
 
 #if defined(XMAP)
        my_bool xmap= false;
@@ -196,10 +199,10 @@ extern "C" {
 } // extern "C"
 #endif   // XMSG
 
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 	     char *JvmPath;
 			 char *ClassPath;
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
 
 pthread_mutex_t parmut;
 pthread_mutex_t usrmut;
@@ -212,9 +215,9 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
 PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
-#if defined(MONGO_SUPPORT)
+#if defined(JAVA_SUPPORT)
 PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ url, PTOS topt, bool info);
-#endif   // MONGO_SUPPORT
+#endif   // JAVA_SUPPORT
 int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host, PCSZ db,
@@ -222,7 +225,7 @@ bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host, PCSZ db,
 bool    ZipLoadFile(PGLOBAL, PCSZ, PCSZ, PCSZ, bool, bool);
 bool    ExactInfo(void);
 #if defined(CMGO_SUPPORT)
-void    mongo_init(bool);
+//void    mongo_init(bool);
 #endif   // CMGO_SUPPORT
 USETEMP UseTemp(void);
 int     GetConvSize(void);
@@ -233,6 +236,8 @@ char   *GetJavaWrapper(void);
 uint    GetWorkSize(void);
 void    SetWorkSize(uint);
 extern "C" const char *msglang(void);
+
+static char *strz(PGLOBAL g, LEX_STRING &ls);
 
 static void PopUser(PCONNECT xp);
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
@@ -350,21 +355,21 @@ static MYSQL_THDVAR_UINT(json_grp_size,
        "max number of rows for JSON aggregate functions.",
        NULL, NULL, JSONMAX, 1, INT_MAX, 1);
 
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 // Default java wrapper to use with JDBC tables
 static MYSQL_THDVAR_STR(java_wrapper,
 	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
 	"Java wrapper class name",
 	//     check_java_wrapper, update_java_wrapper,
 	NULL, NULL, "wrappers/JdbcInterface");
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
 
-#if defined(MONGO_SUPPORT)
+#if 0 // This is apparently not acceptable for a plugin
 // Enabling MONGO table type
 static MYSQL_THDVAR_BOOL(enable_mongo, PLUGIN_VAR_RQCMDARG,
 	"Enabling the MongoDB access",
 	NULL, NULL, MONGO_ENABLED);
-#endif   // MONGO_SUPPORT
+#endif   // 0
 
 #if defined(XMSG) || defined(NEWMSG)
 const char *language_names[]=
@@ -421,14 +426,14 @@ extern "C" const char *msglang(void)
 } // end of msglang
 #else   // !XMSG && !NEWMSG
 
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 char *GetJavaWrapper(void)
 {return connect_hton ? THDVAR(current_thd, java_wrapper) : (char*)"wrappers/JdbcInterface";}
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
 
-#if defined(MONGO_SUPPORT)
-bool MongoEnabled(void) { return THDVAR(current_thd, enable_mongo); }
-#endif   // MONGO_SUPPORT
+#if defined(JAVA_SUPPORT)
+//bool MongoEnabled(void) { return THDVAR(current_thd, enable_mongo); }
+#endif   // JAVA_SUPPORT
 
 extern "C" const char *msglang(void)
 {
@@ -705,7 +710,7 @@ static int connect_init_func(void *p)
   XmlInitParserLib();
 #endif   // LIBXML2_SUPPORT
 
-#if defined(CMGO_SUPPORT)
+#if 0  //defined(CMGO_SUPPORT)
 	mongo_init(true);
 #endif   // CMGO_SUPPORT
 
@@ -726,9 +731,9 @@ static int connect_init_func(void *p)
 
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
   BINCOL::SetEndian();        // Initialize host endian setting
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 	JAVAConn::SetJVM();
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
   DBUG_RETURN(0);
 } // end of connect_init_func
 
@@ -748,12 +753,12 @@ static int connect_done_func(void *)
 #endif // LIBXML2_SUPPORT
 
 #if defined(CMGO_SUPPORT)
-	mongo_init(false);
+	CMgoConn::mongo_init(false);
 #endif   // CMGO_SUPPORT
 
-#ifdef JDBC_SUPPORT
+#ifdef JAVA_SUPPORT
 	JAVAConn::ResetJVM();
-#endif // JDBC_SUPPORT
+#endif // JAVA_SUPPORT
 
 #if	!defined(__WIN__)
 	PROFILE_End();
@@ -1758,7 +1763,7 @@ bool ha_connect::IsPartitioned(void)
 
 } // end of IsPartitioned
 
-const char *ha_connect::GetDBName(const char* name)
+PCSZ ha_connect::GetDBName(PCSZ name)
 {
   return (name) ? name : table->s->db.str;
 } // end of GetDBName
@@ -1821,7 +1826,7 @@ void ha_connect::AddColName(char *cp, Field *fp)
 /***********************************************************************/
 /*  This function sets the current database path.                      */
 /***********************************************************************/
-bool ha_connect::SetDataPath(PGLOBAL g, const char *path) 
+bool ha_connect::SetDataPath(PGLOBAL g, PCSZ path) 
 {
   return (!(datapath= SetPath(g, path)));
 } // end of SetDataPath
@@ -2181,7 +2186,7 @@ int ha_connect::MakeRecord(char *buf)
 /***********************************************************************/
 /*  Set row values from a MySQL pseudo record. Specific to MySQL.      */
 /***********************************************************************/
-int ha_connect::ScanRecord(PGLOBAL g, uchar *)
+int ha_connect::ScanRecord(PGLOBAL g, const uchar *)
 {
   char    attr_buffer[1024];
   char    data_buffer[1024];
@@ -2324,7 +2329,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
 /*  Check change in index column. Specific to MySQL.                   */
 /*  Should be elaborated to check for real changes.                    */
 /***********************************************************************/
-int ha_connect::CheckRecord(PGLOBAL g, const uchar *, uchar *newbuf)
+int ha_connect::CheckRecord(PGLOBAL g, const uchar *, const uchar *newbuf)
 {
 	return ScanRecord(g, newbuf);
 } // end of dummy CheckRecord
@@ -2517,7 +2522,7 @@ const char *ha_connect::GetValStr(OPVAL vop, bool neg)
       val= (neg) ? " IS NOT NULL" : " IS NULL";
       break;
     case OP_LIKE:
-      val= " LIKE ";
+      val= (neg) ? " NOT LIKE " : " LIKE ";
       break;
     case OP_XX:
       val= (neg) ? " NOT BETWEEN " : " BETWEEN ";
@@ -2886,7 +2891,10 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 			case Item_func::LE_FUNC:     vop= OP_LE;   break;
 			case Item_func::GE_FUNC:     vop= OP_GE;   break;
 			case Item_func::GT_FUNC:     vop= OP_GT;   break;
-			case Item_func::LIKE_FUNC:   vop= OP_LIKE; break;
+			case Item_func::LIKE_FUNC:
+				vop= OP_LIKE; 
+				neg = ((Item_func_opt_neg *)condf)->negated;
+				break;
 			case Item_func::ISNOTNULL_FUNC:
 				neg = true;	
 				// fall through
@@ -4417,8 +4425,8 @@ bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
   return b;
 } // end of IsSameIndex
 
-MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
-                           MODE newmode, bool *chk, bool *cras)
+MODE ha_connect::CheckMode(PGLOBAL g, THD *thd, 
+	                         MODE newmode, bool *chk, bool *cras)
 {
 #if defined(DEVELOPMENT)
 	if (true) {
@@ -5386,13 +5394,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	bool     cnc= false;
   int      cto= -1, qto= -1;
 #endif   // ODBC_SUPPORT
-#if defined(JDBC_SUPPORT) || defined(MONGO_SUPPORT)
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 	PJPARM   sjp= NULL;
-#endif   // JDBC_SUPPORT
 	PCSZ     driver= NULL;
 	char    *url= NULL;
-#endif   // JDBC_SUPPORT || MONGO_SUPPORT
+#endif   // JAVA_SUPPORT
   uint     tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool     bif, ok= false, dbf= false;
   TABTYPE  ttp= TAB_UNDEF;
@@ -5453,9 +5459,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     if ((ucnc= GetListOption(g, "UseDSN", topt->oplist)))
       cnc= (!*ucnc || *ucnc == 'y' || *ucnc == 'Y' || atoi(ucnc) != 0);
 #endif
-#if defined(JDBC_SUPPORT) || defined(MONGO_SUPPORT)
+#if defined(JAVA_SUPPORT)
 		driver= GetListOption(g, "Driver", topt->oplist, NULL);
-#endif   // JDBC_SUPPORT  || MONGO_SUPPORT
+#endif   // JAVA_SUPPORT
 #if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));
 #endif   // PROMPT_OK
@@ -5542,7 +5548,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				supfnc |= (FNC_TABLE | FNC_DSN | FNC_DRIVER);
 				break;
 #endif   // ODBC_SUPPORT
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 			case TAB_JDBC:
 				if (fnc & FNC_DRIVER) {
 					ok = true;
@@ -5576,7 +5582,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 				supfnc |= (FNC_DRIVER | FNC_TABLE);
 				break;
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
 			case TAB_DBF:
 				dbf = true;
 				// fall through
@@ -5633,10 +5639,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				ok = true;
 				break;
 #endif   // __WIN__
-#if defined(PIVOT_SUPPORT)
 			case TAB_PIVOT:
 				supfnc = FNC_NO;
-#endif   // PIVOT_SUPPORT
 			case TAB_PRX:
 			case TAB_TBL:
 			case TAB_XCL:
@@ -5667,14 +5671,14 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					ok = true;
 
 				break;
-#if defined(MONGO_SUPPORT)
+#if defined(JAVA_SUPPORT)
 			case TAB_MONGO:
 				if (!topt->tabname)
 					topt->tabname = tab;
 
 				ok = true;
 				break;
-#endif   // MONGO_SUPPORT
+#endif   // JAVA_SUPPORT
 			case TAB_VIR:
 				ok = true;
 				break;
@@ -5747,7 +5751,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 					break;
 #endif   // ODBC_SUPPORT
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 				case TAB_JDBC:
 					switch (fnc) {
 						case FNC_NO:
@@ -5776,7 +5780,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					} // endswitch info
 
 					break;
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
 				case TAB_MYSQL:
 					qrp = MyColumns(g, thd, host, db, user, pwd, tab,
 						NULL, port, fnc == FNC_COL);
@@ -5806,25 +5810,21 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 						} // endif OcrColumns
 
 					break;
-#if defined(PIVOT_SUPPORT)
 				case TAB_PIVOT:
 					qrp = PivotColumns(g, tab, src, pic, fcl, skc, host, db, user, pwd, port);
 					break;
-#endif   // PIVOT_SUPPORT
 				case TAB_VIR:
 					qrp = VirColumns(g, fnc == FNC_COL);
 					break;
 				case TAB_JSON:
 					qrp = JSONColumns(g, db, dsn, topt, fnc == FNC_COL);
 					break;
-#if defined(MONGO_SUPPORT)
+#if defined(JAVA_SUPPORT)
 				case TAB_MONGO:
-					if (!(url = strz(g, create_info->connect_string)) || !*url)
-						url = "mongodb://localhost:27017";
-
+					url = strz(g, create_info->connect_string);
 					qrp = MGOColumns(g, db, url, topt, fnc == FNC_COL);
 					break;
-#endif   // MONGO_SUPPORT
+#endif   // JAVA_SUPPORT
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
 				case TAB_XML:
 					qrp = XMLColumns(g, (char*)db, tab, topt, fnc == FNC_COL);
@@ -5949,7 +5949,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 								break;
 							case FLD_SCHEM:
-#if defined(ODBC_SUPPORT) || defined(JDBC_SUPPORT)
+#if defined(ODBC_SUPPORT) || defined(JAVA_SUPPORT)
 								if ((ttp == TAB_ODBC || ttp == TAB_JDBC) && crp->Kdata) {
 									if (schem && stricmp(schem, crp->Kdata->GetCharValue(i))) {
 										sprintf(g->Message,
@@ -5960,7 +5960,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 										schem = crp->Kdata->GetCharValue(i);
 
 								} // endif ttp
-#endif   // ODBC_SUPPORT	||				 JDBC_SUPPORT
+#endif   // ODBC_SUPPORT	||				 JAVA_SUPPORT
 							default:
 								break;                 // Ignore
 						} // endswitch Fld
@@ -6008,7 +6008,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 					} else
 #endif   // ODBC_SUPPORT
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 						if (ttp == TAB_JDBC) {
 							int  plgtyp;
 
@@ -7151,7 +7151,7 @@ static MYSQL_SYSVAR_STR(errmsg_dir_path, msg_path,
        "../../../../storage/connect/");     // for testing
 #endif   // XMSG
 
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 static MYSQL_SYSVAR_STR(jvm_path, JvmPath,
 	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
 	"Path to the directory where is the JVM lib",
@@ -7163,7 +7163,7 @@ static MYSQL_SYSVAR_STR(class_path, ClassPath,
 	"Java class path",
 	//     check_class_path, update_class_path,
 	NULL, NULL, NULL);
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
 
 
 static struct st_mysql_sys_var* connect_system_variables[]= {
@@ -7184,14 +7184,14 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 #endif   // XMSG
 	MYSQL_SYSVAR(json_null),
   MYSQL_SYSVAR(json_grp_size),
-#if defined(JDBC_SUPPORT)
+#if defined(JAVA_SUPPORT)
 	MYSQL_SYSVAR(jvm_path),
 	MYSQL_SYSVAR(class_path),
 	MYSQL_SYSVAR(java_wrapper),
-#endif   // JDBC_SUPPORT
-#if defined(MONGO_SUPPORT)
-	MYSQL_SYSVAR(enable_mongo),
-#endif   // MONGO_SUPPORT
+#endif   // JAVA_SUPPORT
+#if defined(JAVA_SUPPORT)
+//MYSQL_SYSVAR(enable_mongo),
+#endif   // JAVA_SUPPORT
 NULL
 };
 
@@ -7208,7 +7208,7 @@ maria_declare_plugin(connect)
   0x0106,                                       /* version number (1.05) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.06.0004",                                  /* string version */
+  "1.06.0005",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;

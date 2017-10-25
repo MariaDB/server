@@ -63,7 +63,7 @@ class DllExport MGODEF : public EXTDEF {          /* Table description */
 	friend class TDBJGL;
 	friend class CMGFAM;
 	friend class MGODISC;
-	friend PQRYRES MGOColumns(PGLOBAL, PCSZ, PCSZ, PTOS, bool);
+	friend DllExport PQRYRES MGOColumns(PGLOBAL, PCSZ, PCSZ, PTOS, bool);
 public:
 	// Constructor
 	MGODEF(void);
