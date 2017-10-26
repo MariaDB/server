@@ -27,11 +27,11 @@ env:
 #    - GCC_VERSION=4.8 TYPE=Debug          MYSQL_TEST_SUITES=rpl
 #    - GCC_VERSION=5   TYPE=Debug          MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
 #    - GCC_VERSION=6   TYPE=Debug          MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
-#    - GCC_VERSION=6   TYPE=Debug          MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+#    - GCC_VERSION=6   TYPE=Debug          MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
     - GCC_VERSION=4.8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
     - GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
     - GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
-    - GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+    - GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
 
 matrix:
   exclude:
@@ -99,7 +99,7 @@ matrix:
       env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
     - os: osx
       compiler: clang
-      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
 
 # Matrix include for coverity
 #    - env:
