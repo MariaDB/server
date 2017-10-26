@@ -10765,8 +10765,10 @@ inverse_distribution_function_def:
         ;
 
 order_by_single_element_list:
-          ORDER_SYM BY order_list
+          ORDER_SYM BY order_ident order_dir
+          { if (add_order_to_list(thd, $3,(bool) $4)) MYSQL_YYABORT; }
         ;
+
 
 window_name:
           ident
