@@ -9751,7 +9751,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   for (;;)
   {
     while ((ev= Log_event::read_log_event(first_round ? first_log : &log,
-                                          0, fdle, opt_master_verify_checksum))
+                                          fdle, opt_master_verify_checksum))
            && ev->is_valid())
     {
       enum Log_event_type typ= ev->get_type_code();
@@ -9992,7 +9992,7 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
     return 1;
   }
 
-  if ((ev= Log_event::read_log_event(&log, 0, &fdle,
+  if ((ev= Log_event::read_log_event(&log, &fdle,
                                      opt_master_verify_checksum)) &&
       ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
   {

@@ -896,7 +896,7 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
 
   *out_gtid_list= NULL;
 
-  if (!(ev= Log_event::read_log_event(cache, 0, &init_fdle,
+  if (!(ev= Log_event::read_log_event(cache, &init_fdle,
                                       opt_master_verify_checksum)) ||
       ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
   {
@@ -912,7 +912,7 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
   {
     Log_event_type typ;
 
-    ev= Log_event::read_log_event(cache, 0, fdle, opt_master_verify_checksum);
+    ev= Log_event::read_log_event(cache, fdle, opt_master_verify_checksum);
     if (!ev)
     {
       errormsg= "Could not read GTID list event while looking for GTID "
@@ -3997,7 +3997,7 @@ bool mysql_show_binlog_events(THD* thd)
     my_off_t scan_pos = BIN_LOG_HEADER_SIZE;
     while (scan_pos < pos)
     {
-      ev= Log_event::read_log_event(&log, (mysql_mutex_t*)0, description_event,
+      ev= Log_event::read_log_event(&log, description_event,
                                     opt_master_verify_checksum);
       scan_pos = my_b_tell(&log);
       if (ev == NULL || !ev->is_valid())
@@ -4031,7 +4031,7 @@ bool mysql_show_binlog_events(THD* thd)
     my_b_seek(&log, pos);
 
     for (event_count = 0;
-         (ev = Log_event::read_log_event(&log, (mysql_mutex_t*) 0,
+         (ev = Log_event::read_log_event(&log,
                                          description_event,
                                          opt_master_verify_checksum)); )
     {
