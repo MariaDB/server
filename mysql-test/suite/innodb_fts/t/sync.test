@@ -7,8 +7,6 @@
 --source include/not_valgrind.inc
 --source include/not_embedded.inc
 --source include/not_crashrep.inc
---source include/not_log_bin.inc
---source include/count_sessions.inc
 
 connect (con1,localhost,root,,);
 connection default;
@@ -25,7 +23,8 @@ INSERT INTO t1(title) VALUES('database');
 
 connection con1;
 
-SET SESSION debug="+d,fts_instrument_sync_debug";
+SET @old_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d,fts_instrument_sync_debug';
 
 SET DEBUG_SYNC= 'fts_write_node SIGNAL written WAIT_FOR selected';
 
@@ -45,10 +44,9 @@ SELECT * FROM t1 WHERE MATCH(title) AGAINST('mysql database');
 SET DEBUG_SYNC= 'now SIGNAL selected';
 
 connection con1;
---echo /* connection con1 */ INSERT INTO t1(title) VALUES('mysql database');
 --reap
 
-SET SESSION debug="-d,fts_instrument_sync_debug";
+SET @old_dbug = @@SESSION.debug_dbug;
 
 SET GLOBAL innodb_ft_aux_table="test/t1";
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
@@ -73,7 +71,7 @@ INSERT INTO t1(title) VALUES('database');
 
 connection con1;
 
-SET SESSION debug="+d,fts_instrument_sync_debug";
+SET debug_dbug = '+d,fts_instrument_sync_debug';
 
 SET DEBUG_SYNC= 'fts_write_node SIGNAL written WAIT_FOR inserted';
 
@@ -88,10 +86,9 @@ INSERT INTO t1(title) VALUES('mysql database');
 SET DEBUG_SYNC= 'now SIGNAL inserted';
 
 connection con1;
---echo /* connection con1 */ INSERT INTO t1(title) VALUES('mysql database');
 --reap
 
-SET SESSION debug="-d,fts_instrument_sync_debug";
+SET debug_dbug = @old_dbug;
 
 SET GLOBAL innodb_ft_aux_table="test/t1";
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
@@ -118,7 +115,7 @@ INSERT INTO t1(title) VALUES('database');
 
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
-SET SESSION debug="+d,fts_instrument_sync_debug,fts_write_node_crash";
+SET debug_dbug = '+d,fts_instrument_sync_debug,fts_write_node_crash';
 
 --error 2013
 INSERT INTO t1(title) VALUES('mysql');
@@ -128,11 +125,13 @@ INSERT INTO t1(title) VALUES('mysql');
 -- echo After restart
 SELECT * FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
 
-SET SESSION debug="+d,fts_instrument_sync_debug";
+SET @old_dbug = @@SESSION.debug_dbug;
+
+SET debug_dbug = '+d,fts_instrument_sync_debug';
 
 INSERT INTO t1(title) VALUES('mysql');
 
-SET SESSION debug="-d,fts_instrument_sync_debug";
+SET debug_dbug = @old_dbug;
 
 SELECT * FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
 
@@ -145,19 +144,21 @@ CREATE TABLE t1(
         FULLTEXT(title),
         PRIMARY KEY(id)) ENGINE=InnoDB;
 
-SET SESSION debug="+d,fts_instrument_sync";
+SET debug_dbug = '+d,fts_instrument_sync';
 INSERT INTO t1(title) VALUES('mysql');
-SET SESSION debug="-d,fts_instrument_sync";
+SET debug_dbug = @old_dbug;
 
 --source include/restart_mysqld.inc
 
-SET GLOBAL debug="+d,fts_instrument_sync,fts_instrument_sync_interrupted";
+SET @old_global_dbug = @@GLOBAL.debug_dbug;
+SET @old_dbug = @@SESSION.debug_dbug;
+SET GLOBAL debug_dbug='+d,fts_instrument_sync,fts_instrument_sync_interrupted';
 INSERT INTO t1(title) VALUES('database');
-SET GLOBAL debug="-d,fts_instrument_sync,fts_instrument_sync_interrupted";
+SET GLOBAL debug_dbug = @old_global_dbug;
 
-SET SESSION debug="+d,fts_instrument_sync_debug";
+SET debug_dbug = '+d,fts_instrument_sync_debug';
 INSERT INTO t1(title) VALUES('good');
-SET SESSION debug="-d,fts_instrument_sync_debug";
+SET debug_dbug = @old_dbug;
 
 SET GLOBAL innodb_ft_aux_table="test/t1";
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE;
@@ -167,5 +168,3 @@ SET GLOBAL innodb_ft_aux_table=default;
 SELECT * FROM t1 WHERE MATCH(title) AGAINST ('mysql database good');
 
 DROP TABLE t1;
-
---source include/wait_until_count_sessions.inc
