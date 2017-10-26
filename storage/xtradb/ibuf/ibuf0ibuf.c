@@ -3952,7 +3952,7 @@ ibuf_insert_to_index_page_low(
 		(ulong) zip_size, (ulong) old_bits);
 
 	fputs("InnoDB: Submit a detailed bug report"
-	      " to http://bugs.mysql.com\n", stderr);
+	      " to https://jira.mariadb.org/\n", stderr);
 	ut_ad(0);
 	DBUG_RETURN(NULL);
 }
@@ -4017,7 +4017,7 @@ dump:
 		      " Please run CHECK TABLE on\n"
 		      "InnoDB: your tables.\n"
 		      "InnoDB: Submit a detailed bug report to"
-		      " http://bugs.mysql.com!\n", stderr);
+		      " https://jira.mariadb.org/\n", stderr);
 
 		DBUG_VOID_RETURN;
 	}
@@ -4190,7 +4190,7 @@ ibuf_set_del_mark(
 		fprintf(stderr, "\nspace %u offset %u"
 			" (%u records, index id %llu)\n"
 			"InnoDB: Submit a detailed bug report"
-			" to http://bugs.mysql.com\n",
+			" to https://jira.mariadb.org/\n",
 			(unsigned) buf_block_get_space(block),
 			(unsigned) buf_block_get_page_no(block),
 			(unsigned) page_get_n_recs(page),
@@ -4254,7 +4254,7 @@ ibuf_delete(
 			fprintf(stderr, "\nspace %u offset %u"
 				" (%u records, index id %llu)\n"
 				"InnoDB: Submit a detailed bug report"
-				" to http://bugs.mysql.com\n",
+				" to https://jira.mariadb.org/\n",
 				(unsigned) buf_block_get_space(block),
 				(unsigned) buf_block_get_page_no(block),
 				(unsigned) page_get_n_recs(page),
@@ -4325,7 +4325,7 @@ ibuf_restore_pos(
 	} else {
 		fprintf(stderr,
 			"InnoDB: ERROR: Submit the output to"
-			" http://bugs.mysql.com\n"
+			" https://jira.mariadb.org/\n"
 			"InnoDB: ibuf cursor restoration fails!\n"
 			"InnoDB: ibuf record inserted to page %lu:%lu\n",
 			(ulong) space, (ulong) page_no);
@@ -4649,7 +4649,7 @@ ibuf_merge_or_delete_for_page(
 				"InnoDB: to determine if they are corrupt"
 				" after this.\n\n"
 				"InnoDB: Please submit a detailed bug report"
-				" to http://bugs.mysql.com\n\n",
+				" to https://jira.mariadb.org/\n\n",
 				(ulong) page_no,
 				(ulong)
 				fil_page_get_type(block->frame));

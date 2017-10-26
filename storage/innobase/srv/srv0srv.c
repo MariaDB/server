@@ -2480,7 +2480,7 @@ loop:
 				" was greater\n"
 				"InnoDB: than the new log sequence number %llu!\n"
 				"InnoDB: Please submit a bug report"
-				" to http://bugs.mysql.com\n",
+				" to https://jira.mariadb.org/\n",
 				old_lsn, new_lsn);
 			ut_ad(0);
 		}

@@ -1019,7 +1019,7 @@ trx_undo_update_rec_get_update(
 			fprintf(stderr, "\n"
 				"InnoDB: but index has only %lu fields\n"
 				"InnoDB: Submit a detailed bug report"
-				" to http://bugs.mysql.com\n"
+				" to https://jira.mariadb.org/\n"
 				"InnoDB: Run also CHECK TABLE ",
 				(ulong) dict_index_get_n_fields(index));
 			ut_print_name(stderr, trx, TRUE, index->table_name);
@@ -1533,7 +1533,7 @@ trx_undo_prev_version_build(
 		fprintf(stderr, "InnoDB: Error: trying to access"
 			" update undo rec for non-clustered index %s\n"
 			"InnoDB: Submit a detailed bug report to"
-			" http://bugs.mysql.com\n"
+			" https://jira.mariadb.org/\n"
 			"InnoDB: index record ", index->name);
 		rec_print(stderr, index_rec, index);
 		fputs("\n"
@@ -1610,7 +1610,7 @@ trx_undo_prev_version_build(
 			"InnoDB: but the table id in the"
 			" undo record is wrong\n"
 			"InnoDB: Submit a detailed bug report"
-			" to http://bugs.mysql.com\n"
+			" to https://jira.mariadb.org/\n"
 			"InnoDB: Run also CHECK TABLE %s\n",
 			index->table_name, index->table_name);
 	}

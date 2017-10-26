@@ -2021,7 +2021,7 @@ err_exit:
 			"InnoDB: and recreate the foreign key table"
 			" or the referenced table.\n"
 			"InnoDB: Submit a detailed bug report"
-			" to http://bugs.mysql.com\n"
+			" to https://jira.mariadb.org/\n"
 			"InnoDB: Latest foreign key error printout:\n%s\n",
 			dict_foreign_err_buf);
 

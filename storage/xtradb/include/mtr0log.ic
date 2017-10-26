@@ -215,7 +215,7 @@ mlog_write_initial_log_record_fast(
 				"%d on page %lu of space %lu in the "
 				"doublewrite buffer, continuing anyway.\n"
 				"Please post a bug report to "
-				"bugs.mysql.com.\n",
+				"https://jira.mariadb.org/\n",
 				type, offset, space);
 			ut_ad(0);
 		}
