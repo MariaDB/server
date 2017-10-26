@@ -7791,8 +7791,8 @@ ER_NOT_SINGLE_ELEMENT_ORDER_LIST
 ER_WRONG_TYPE_FOR_PERCENTILE_FUNC
         eng "Numeric datatype is required for %s function"
 ER_ARGUMENT_NOT_CONSTANT
-        eng "Argument to the percentile functions is not a constant"
+        eng "Argument to the %s function is not a constant for a partition"
 ER_ARGUMENT_OUT_OF_RANGE
-        eng "Argument to the percentile functions does not belong to the range [0,1]"
+        eng "Argument to the %s function does not belong to the range [0,1]"
 ER_WRONG_TYPE_OF_ARGUMENT
-        eng "Numeric values are only allowed as arguments to percentile functions"
+        eng "%s function only accepts arguments that can be converted to numerical types"

@@ -766,7 +766,7 @@ public:
       prev_value= arg->val_real();
       if (prev_value > 1 || prev_value < 0)
       {
-        my_error(ER_ARGUMENT_OUT_OF_RANGE, MYF(0));
+        my_error(ER_ARGUMENT_OUT_OF_RANGE, MYF(0), func_name());
         return true;
       }
       first_call= false;
@@ -776,7 +776,7 @@ public:
 
     if (prev_value != arg_val)
     {
-      my_error(ER_ARGUMENT_NOT_CONSTANT, MYF(0));
+      my_error(ER_ARGUMENT_NOT_CONSTANT, MYF(0), func_name());
       return true;
     }
 
@@ -887,7 +887,7 @@ public:
       prev_value= arg->val_real();
       if (prev_value > 1 || prev_value < 0)
       {
-        my_error(ER_ARGUMENT_OUT_OF_RANGE, MYF(0));
+        my_error(ER_ARGUMENT_OUT_OF_RANGE, MYF(0), func_name());
         return true;
       }
     }
@@ -895,7 +895,7 @@ public:
     double arg_val= arg->val_real();
     if (prev_value != arg_val)
     {
-      my_error(ER_ARGUMENT_NOT_CONSTANT, MYF(0));
+      my_error(ER_ARGUMENT_NOT_CONSTANT, MYF(0), func_name());
       return true;
     }
 
