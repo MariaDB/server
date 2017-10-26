@@ -5,23 +5,16 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 
---disable_query_log
-# record the file format in order to restore in the end.
---let $file_format_save = `SELECT @@innodb_file_format`
---let $file_format_max_save = `SELECT @@innodb_file_format_max`
 --let $simulate_comp_failures_save = `SELECT @@innodb_simulate_comp_failures`
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
-SET GLOBAL INNODB_FILE_FORMAT='Barracuda';
---enable_warnings
-
-# since this test generates lot of errors in log, suppress checking errors
-call mtr.add_suppression(".*");
+--disable_query_log
+call mtr.add_suppression("InnoDB: Simulating a compression failure for table `test`\\.`t1`");
 --enable_query_log
 
 # create the table with compressed pages of size 8K.
 CREATE TABLE t1(id INT AUTO_INCREMENT PRIMARY KEY, msg VARCHAR(255), KEY msg_i(msg)) ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+
+SHOW CREATE TABLE t1;
 
 # percentage of compressions that will be forced to fail
 SET GLOBAL innodb_simulate_comp_failures = 25;
@@ -30,25 +23,30 @@ SET GLOBAL innodb_simulate_comp_failures = 25;
 --disable_result_log
 
 let $num_inserts_ind = $num_inserts;
+let $commit_iterations=50;
+
 while ($num_inserts_ind)
 {
   let $repeat = `select floor(rand() * 10)`;
-  eval
-INSERT INTO t1(id, msg)
-VALUES ($num_inserts_ind, REPEAT('abcdefghijklmnopqrstuvwxyz', $repeat));
+  eval INSERT INTO t1(id, msg)
+       VALUES ($num_inserts_ind, REPEAT('abcdefghijklmnopqrstuvwxyz', $repeat));
   dec $num_inserts_ind;
 }
 
 --enable_query_log
 --enable_result_log
 
-SELECT COUNT(*) FROM t1;
+COMMIT;
+SELECT COUNT(id) FROM t1;
 
 --disable_query_log
 --disable_result_log
 
 # do random ops, making sure that some pages will get fragmented and reorganized.
 let $num_ops_ind = $num_ops;
+let $commit_count= $commit_iterations;
+
+BEGIN;
 
 while($num_ops_ind)
 {
@@ -133,15 +131,22 @@ while($num_ops_ind)
     }
   }
 
+  dec $commit_count;
+  if (!$commit_count)
+  {
+    let $commit_count= $commit_iterations;
+    COMMIT;
+    BEGIN;
+  }
+
   dec $num_ops_ind;
 }
+
+COMMIT;
 
 # final cleanup
 DROP TABLE t1;
 
-# restore innodb_file_format and innodb_file_format_max
-eval SET GLOBAL innodb_file_format = \"$file_format_save\";
-eval SET GLOBAL innodb_file_format_max = \"$file_format_max_save\";
 eval SET GLOBAL innodb_simulate_comp_failures = $simulate_comp_failures_save;
 
 --enable_query_log

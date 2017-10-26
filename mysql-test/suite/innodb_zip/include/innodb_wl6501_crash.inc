@@ -65,7 +65,7 @@ check table t;
 #
 set session debug_dbug = "+d,ib_trunc_crash_while_writing_redo_log";
 --source include/expect_crash.inc
-#--error 2013
+--error 2013
 truncate table t;
 #
 --source include/start_mysqld.inc
@@ -96,7 +96,7 @@ check table t;
 #
 set session debug_dbug = "+d,ib_trunc_crash_after_redo_log_write_complete";
 --source include/expect_crash.inc
-#--error 2013
+--error 2013
 truncate table t;
 
 --source include/start_mysqld.inc
@@ -128,7 +128,7 @@ check table t;
 #
 set session debug_dbug = "+d,ib_trunc_crash_on_drop_of_clust_index";
 --source include/expect_crash.inc
-#--error 2013
+--error 2013
 truncate table t;
 #
 --source include/start_mysqld.inc
@@ -156,7 +156,7 @@ check table t;
 #
 set session debug_dbug = "+d,ib_trunc_crash_on_drop_of_uniq_index";
 --source include/expect_crash.inc
-#--error 2013
+--error 2013
 truncate table t;
 #
 --source include/start_mysqld.inc
@@ -185,7 +185,7 @@ check table t;
 #
 set session debug_dbug = "+d,ib_trunc_crash_on_drop_of_sec_index";
 --source include/expect_crash.inc
-#--error 2013
+--error 2013
 truncate table t;
 #
 --source include/start_mysqld.inc
