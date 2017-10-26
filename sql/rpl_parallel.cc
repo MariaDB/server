@@ -823,7 +823,7 @@ do_retry:
     for (;;)
     {
       old_offset= cur_offset;
-      ev= Log_event::read_log_event(&rlog, 0, description_event,
+      ev= Log_event::read_log_event(&rlog, description_event,
                                     opt_slave_sql_verify_checksum);
       cur_offset= my_b_tell(&rlog);
 

@@ -7308,7 +7308,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       MYSQL_BIN_LOG::open() will write the buffered description event.
     */
     old_pos= rli->event_relay_log_pos;
-    if ((ev= Log_event::read_log_event(cur_log,0,
+    if ((ev= Log_event::read_log_event(cur_log,
                                        rli->relay_log.description_event_for_exec,
                                        opt_slave_sql_verify_checksum)))
 

@@ -1854,7 +1854,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   DBUG_RETURN(0);
 }
 
-Log_event* Log_event::read_log_event(IO_CACHE* file, mysql_mutex_t* log_lock,
+Log_event* Log_event::read_log_event(IO_CACHE* file,
                                      const Format_description_log_event *fdle,
                                      my_bool crc_check)
 {
@@ -1863,9 +1863,6 @@ Log_event* Log_event::read_log_event(IO_CACHE* file, mysql_mutex_t* log_lock,
   String event;
   const char *error= 0;
   Log_event *res= 0;
-
-  if (log_lock)
-    mysql_mutex_lock(log_lock);
 
   switch (read_log_event(file, &event, fdle, BINLOG_CHECKSUM_ALG_OFF))
   {
@@ -1903,8 +1900,6 @@ Log_event* Log_event::read_log_event(IO_CACHE* file, mysql_mutex_t* log_lock,
     res->register_temp_buf(event.release(), true);
 
 err:
-  if (log_lock)
-    mysql_mutex_unlock(log_lock);
   if (error)
   {
     DBUG_ASSERT(!res);
@@ -9735,7 +9730,6 @@ int Execute_load_log_event::do_apply_event(rpl_group_info *rgi)
   }
   if (!(lev= (Load_log_event*)
         Log_event::read_log_event(&file,
-                                  (mysql_mutex_t*)0,
                                   rli->relay_log.description_event_for_exec,
                                   opt_slave_sql_verify_checksum)) ||
       lev->get_type_code() != NEW_LOAD_EVENT)

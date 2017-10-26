@@ -1300,7 +1300,6 @@ public:
     constructor and pass description_event as an argument.
   */
   static Log_event* read_log_event(IO_CACHE* file,
-                                   mysql_mutex_t* log_lock,
                                    const Format_description_log_event
                                    *description_event,
                                    my_bool crc_check);
