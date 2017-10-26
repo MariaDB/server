@@ -72,12 +72,6 @@ bloomfilter : MDEV-12474 Regularly fails on buildbot
 
 compact_deletes: MDEV-12663 : rocksdb.compact_deletes times out and causes other tests to fail
 
-col_opt_not_null : MDEV-12474 - Fails in fulltest
-col_opt_null :   : MDEV-12474 - Fails in fulltest
-col_opt_unsigned : MDEV-12474 - Fails in fulltest
-col_opt_zerofill : MDEV-12474 - Fails in fulltest
-type_float       : MDEV-12474 - Fails in fulltest
-
 native_procedure : Not supported in MariaDB
 
 ddl_high_priority: Needs fractional @@lock_wait_timeout
