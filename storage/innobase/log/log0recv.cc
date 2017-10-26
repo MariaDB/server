@@ -452,35 +452,6 @@ recv_sys_close()
 	recv_spaces.clear();
 }
 
-/********************************************************//**
-Frees the recovery system memory. */
-void
-recv_sys_mem_free(void)
-/*===================*/
-{
-	if (recv_sys != NULL) {
-		if (recv_sys->addr_hash != NULL) {
-			hash_table_free(recv_sys->addr_hash);
-		}
-
-		if (recv_sys->heap != NULL) {
-			mem_heap_free(recv_sys->heap);
-		}
-
-		if (recv_sys->flush_start != NULL) {
-			os_event_destroy(recv_sys->flush_start);
-		}
-
-		if (recv_sys->flush_end != NULL) {
-			os_event_destroy(recv_sys->flush_end);
-		}
-
-		ut_free(recv_sys->buf);
-		ut_free(recv_sys);
-		recv_sys = NULL;
-	}
-}
-
 /************************************************************
 Reset the state of the recovery system variables. */
 void
