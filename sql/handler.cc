@@ -1480,7 +1480,7 @@ done:
   mysql_mutex_assert_not_owner(mysql_bin_log.get_log_lock());
   mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
-  RUN_HOOK(transaction, after_commit, (thd, FALSE));
+  (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
   goto end;
 
   /* Come here if error and we need to rollback. */

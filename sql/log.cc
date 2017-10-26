@@ -6324,11 +6324,9 @@ err:
           mysql_mutex_assert_owner(&LOCK_log);
           mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
           mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
-          bool first= true;
-          bool last= true;
           if ((error= RUN_HOOK(binlog_storage, after_flush,
                                (thd, log_file_name, file->pos_in_file,
-                                synced, first, last))))
+                                synced, true, true))))
           {
             sql_print_error("Failed to run 'after_flush' hooks");
             error= 1;
@@ -6359,11 +6357,9 @@ err:
       mysql_mutex_assert_not_owner(&LOCK_log);
       mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
       mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
-      bool first= true;
-      bool last= true;
       if (RUN_HOOK(binlog_storage, after_sync,
                    (thd, log_file_name, file->pos_in_file,
-                    first, last)))
+                    true, true)))
       {
         error=1;
         /* error is already printed inside hook */
@@ -7660,7 +7656,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       mysql_mutex_assert_owner(&LOCK_log);
       mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
       mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
-      bool first= true, last;
+      bool first __attribute__((unused))= true;
+      bool last __attribute__((unused));
       for (current= queue; current != NULL; current= current->next)
       {
         last= current->next == NULL;
@@ -7746,7 +7743,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
     mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 
-    bool first= true, last;
+    bool first __attribute__((unused))= true;
+    bool last __attribute__((unused));
     for (current= queue; current != NULL; current= current->next)
     {
       last= current->next == NULL;
