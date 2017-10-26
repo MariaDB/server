@@ -653,7 +653,7 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 			trx_print(stderr, trx, 0);
 			fputs("\n"
 			      "InnoDB: Submit a detailed bug report"
-			      " to http://bugs.mysql.com\n", stderr);
+			      " to https://jira.mariadb.org/\n", stderr);
 
 			ib_logf(IB_LOG_LEVEL_WARN,
 				"record in index %s was not found"

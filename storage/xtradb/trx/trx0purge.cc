@@ -603,7 +603,7 @@ trx_purge_rseg_get_next_history_log(
 				"InnoDB: but its length is still"
 				" reported as %lu! Make a detailed bug\n"
 				"InnoDB: report, and submit it"
-				" to http://bugs.mysql.com\n",
+				" to https://jira.mariadb.org/\n",
 				(ulong) trx_sys->rseg_history_len);
 			ut_ad(0);
 		}

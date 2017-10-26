@@ -102,7 +102,7 @@ class DllExport VALUE : public BLOCK {
   virtual bool   SetValue_pval(PVAL valp, bool chktype = false) = 0;
   virtual bool   SetValue_char(const char *p, int n) = 0;
   virtual void   SetValue_psz(PCSZ s) = 0;
-  virtual void   SetValue_bool(bool) {assert(FALSE);}
+  virtual void   SetValue_bool(bool) {assert(false);}
   virtual int    CompareValue(PVAL vp) = 0;
   virtual BYTE   TestValue(PVAL vp);
   virtual void   SetValue(char) {assert(false);}

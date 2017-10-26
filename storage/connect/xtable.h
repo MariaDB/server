@@ -16,7 +16,7 @@
 #include "assert.h"
 #include "block.h"
 #include "colblk.h"
-#include "m_ctype.h"
+//#include "m_ctype.h"
 #include "reldef.h"
 
 typedef class CMD *PCMD;

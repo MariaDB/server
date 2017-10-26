@@ -38,6 +38,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
+#include "my_pthread.h"
 #if defined(__WIN__)
 #include <io.h>
 #include <fcntl.h>
@@ -71,12 +72,12 @@
 #ifdef ZIP_SUPPORT
 #include "filamzip.h"
 #endif // ZIP_SUPPORT
-#ifdef JDBC_SUPPORT
+#ifdef JAVA_SUPPORT
 #include "javaconn.h"
-#endif // JDBC_SUPPORT
+#endif // JAVA_SUPPORT
 #ifdef CMGO_SUPPORT
 #include "cmgoconn.h"
-#endif // MONGO_SUPPORT
+#endif // JAVA_SUPPORT
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -952,20 +953,20 @@ int PlugCloseFile(PGLOBAL g, PFBLOCK fp, bool all)
 			fp->File = NULL;
 			break;
 #endif   // ZIP_SUPPORT
-#ifdef JDBC_SUPPORT
+#ifdef JAVA_SUPPORT
 		case TYPE_FB_JAVA:
 			((JAVAConn*)fp->File)->Close();
 			fp->Count = 0;
 			fp->File = NULL;
 			break;
-#endif   // JDBC_SUPPORT
+#endif   // JAVA_SUPPORT
 #ifdef CMGO_SUPPORT
 		case TYPE_FB_MONGO:
 			((CMgoConn*)fp->File)->Close();
 			fp->Count = 0;
 			fp->File = NULL;
 			break;
-#endif   // MONGO_SUPPORT
+#endif   // JAVA_SUPPORT
 		default:
       rc = RC_FX;
     } // endswitch Type

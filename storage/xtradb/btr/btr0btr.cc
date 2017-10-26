@@ -2086,7 +2086,7 @@ btr_page_reorganize_low(
 			"InnoDB: Error: page old max ins size %lu"
 			" new max ins size %lu\n"
 			"InnoDB: Submit a detailed bug report"
-			" to http://bugs.mysql.com\n",
+			" to https://jira.mariadb.org/\n",
 			(unsigned long) data_size1, (unsigned long) data_size2,
 			(unsigned long) max_ins_size1,
 			(unsigned long) max_ins_size2);

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -59,6 +59,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "btr0defragment.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
+#include "srv0srv.h"
 #include "ibuf0ibuf.h"
 #include "fts0fts.h"
 #include "fts0types.h"
@@ -4026,6 +4027,16 @@ row_drop_table_for_mysql(
 			ut_ad(!table->fts->add_wq);
 			ut_ad(lock_trx_has_sys_table_locks(trx) == 0);
 
+			for (;;) {
+				bool retry = false;
+				if (dict_fts_index_syncing(table)) {
+					retry = true;
+				}
+				if (!retry) {
+					break;
+				}
+				DICT_BG_YIELD(trx);
+			}
 			row_mysql_unlock_data_dictionary(trx);
 			fts_optimize_remove_table(table);
 			row_mysql_lock_data_dictionary(trx);
