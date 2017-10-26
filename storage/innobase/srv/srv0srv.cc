@@ -1791,7 +1791,7 @@ loop:
 				" was greater\n"
 				"InnoDB: than the new log sequence number " LSN_PF "!\n"
 				"InnoDB: Please submit a bug report"
-				" to https://jira.mariadb.org\n",
+				" to http://bugs.mysql.com\n",
 				old_lsn, new_lsn);
 			ut_ad(0);
 		}
