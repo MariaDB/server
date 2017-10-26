@@ -2437,7 +2437,7 @@ static int wait_new_events(binlog_send_info *info,         /* in */
   PSI_stage_info old_stage;
 
   mysql_bin_log.lock_binlog_end_pos();
-  info->thd->ENTER_COND(mysql_bin_log.get_log_cond(),
+  info->thd->ENTER_COND(mysql_bin_log.get_bin_log_cond(),
                         mysql_bin_log.get_binlog_end_pos_lock(),
                         &stage_master_has_sent_all_binlog_to_slave,
                         &old_stage);

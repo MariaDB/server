@@ -6253,7 +6253,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
         mysql_mutex_unlock(log_lock);
         goto err;
       }
-      rli->relay_log.signal_update();
+      rli->relay_log.signal_relay_log_update();
       mysql_mutex_unlock(log_lock);
 
       mi->gtid_reconnect_event_skip_count= 0;
@@ -6798,7 +6798,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       if (got_gtid_event)
         rli->ign_gtids.update(&event_gtid);
     }
-    rli->relay_log.signal_update(); // the slave SQL thread needs to re-check
+    // the slave SQL thread needs to re-check
+    rli->relay_log.signal_relay_log_update();
     DBUG_PRINT("info", ("master_log_pos: %lu, event originating from %u server, ignored",
                         (ulong) mi->master_log_pos, uint4korr(buf + SERVER_ID_OFFSET)));
   }
