@@ -1240,7 +1240,7 @@ row_ins_foreign_check_on_constraint(
 			rec_print(stderr, clust_rec, clust_index);
 			fputs("\n"
 			      "InnoDB: Submit a detailed bug report to"
-			      " http://bugs.mysql.com\n", stderr);
+			      " https://jira.mariadb.org/\n", stderr);
 			ut_ad(0);
 			err = DB_SUCCESS;
 

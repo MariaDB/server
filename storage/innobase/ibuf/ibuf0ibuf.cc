@@ -4210,7 +4210,7 @@ ibuf_delete(
 			fprintf(stderr, "\nspace " UINT32PF " offset " UINT32PF
 				" (%u records, index id %llu)\n"
 				"InnoDB: Submit a detailed bug report"
-				" to http://bugs.mysql.com\n",
+				" to https://jira.mariadb.org/\n",
 				block->page.id.space(),
 				block->page.id.page_no(),
 				(unsigned) page_get_n_recs(page),
