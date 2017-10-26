@@ -58,8 +58,12 @@ SELECT * FROM t1;
 ALTER TABLE t1 ADD COLUMN (
   d1 INT, d2 INT UNSIGNED DEFAULT 10, d3 VARCHAR(20) NOT NULL DEFAULT 'abcde',
   d4 TIMESTAMP NOT NULL DEFAULT current_timestamp());
+ALTER TABLE t1 ADD INDEX(d3);
 --disable_info
 
+BEGIN;
+UPDATE t1 SET d3='';
+ROLLBACK;
 SELECT * FROM t1;
 INSERT INTO t1 (id) VALUES(2),(3),(4),(5),(6);
 
@@ -69,8 +73,11 @@ CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'fghij',
 CHANGE d4 dfour TIMESTAMP NOT NULL DEFAULT now();
 --disable_info
 
+UPDATE t1 SET d3='foo' WHERE id = 2;
+UPDATE t1 SET d3=DEFAULT WHERE id = 4;
 INSERT INTO t1 SET id = 7;
 SELECT * FROM t1;
+CHECK TABLE t1;
 
 # add virtual columns
 --enable_info
@@ -80,7 +87,8 @@ ALTER TABLE t1 ADD COLUMN e3 INT AS (id * 2);
 
 # instant alter
 ALTER TABLE t1 CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'foobar',
-ADD COLUMN (d5 CHAR(20) DEFAULT 'hijkl', d6 INT DEFAULT -12345, d7 INT);
+ADD COLUMN (d5 CHAR(20) DEFAULT 'hijkl', d6 INT DEFAULT -12345, d7 INT),
+DROP INDEX d3;
 --disable_info
 
 INSERT INTO t1 SET id = 8;

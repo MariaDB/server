@@ -594,6 +594,9 @@ row_upd_changes_field_size_or_external(
 		}
 
 		new_val = &(upd_field->new_val);
+		if (dfield_is_ext(new_val)) {
+			return(TRUE);
+		}
 		new_len = dfield_get_len(new_val);
 		ut_ad(new_len != UNIV_SQL_DEFAULT);
 
@@ -609,11 +612,14 @@ row_upd_changes_field_size_or_external(
 				0);
 		}
 
-		old_len = rec_offs_nth_size(offsets, upd_field->field_no);
+		if (rec_offs_nth_default(offsets, upd_field->field_no)) {
+			/* This is an instantly added column that is
+			at the initial default value. */
+			return(TRUE);
+		}
 
 		if (rec_offs_comp(offsets)
-		    && rec_offs_nth_sql_null(offsets,
-					     upd_field->field_no)) {
+		    && rec_offs_nth_sql_null(offsets, upd_field->field_no)) {
 			/* Note that in the compact table format, for a
 			variable length field, an SQL NULL will use zero
 			bytes in the offset array at the start of the physical
@@ -622,9 +628,12 @@ row_upd_changes_field_size_or_external(
 			if we update an SQL NULL varchar to an empty string! */
 
 			old_len = UNIV_SQL_NULL;
+		} else {
+			old_len = rec_offs_nth_size(offsets,
+						    upd_field->field_no);
 		}
 
-		if (dfield_is_ext(new_val) || old_len != new_len
+		if (old_len != new_len
 		    || rec_offs_nth_extern(offsets, upd_field->field_no)) {
 
 			return(TRUE);
