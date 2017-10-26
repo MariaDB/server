@@ -11,7 +11,7 @@
 # This test case needs InnoDB.
 -- source include/have_innodb.inc
 -- source include/not_embedded.inc
--- source include/not_valgrind.inc
+-- source include/big_test.inc
 
 -- vertical_results
 
