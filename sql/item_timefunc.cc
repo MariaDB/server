@@ -1692,7 +1692,8 @@ Item_func_now::Item_func_now(THD *thd, uint dec) :
   Item_datetimefunc(thd, new (thd->mem_root) Item_decimal(thd, dec, TRUE)),
   last_query_id(0)
 {
-    decimals = dec;
+    decimals= dec;
+    maybe_null= true;
 }
 
 

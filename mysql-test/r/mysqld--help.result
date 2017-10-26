@@ -1266,6 +1266,25 @@ The following options may be given as the first argument:
  -v, --verbose       Used with --help option for detailed help.
  -V, --version[=name] 
  Output version information and exit.
+ --versioning-alter-history=name 
+ Versioning ALTER TABLE mode. KEEP: leave historical
+ system rows as is on ALTER TABLE; SURVIVE: use DDL
+ survival feature; DROP: delete historical system rows on
+ ALTER TABLE
+ --versioning-asof-timestamp=name 
+ Default AS OF value for versioned queries
+ --versioning-force  Force system versioning for all created tables
+ --versioning-hide=name 
+ Hide system versioning from being displayed in table
+ info. AUTO: hide implicit system fields only in
+ non-versioned and AS OF queries; IMPLICIT: hide implicit
+ system fields in all queries; FULL: hide any system
+ fields in all queries and hide versioning info in SHOW
+ commands; NEVER: don't hide system fields
+ --versioning-innodb-algorithm-simple 
+ Use simple algorithm of timestamp handling in InnoDB
+ instead of TRX_SEES
+ (Defaults to on; use --skip-versioning-innodb-algorithm-simple to disable.)
  --wait-timeout=#    The number of seconds the server waits for activity on a
  connection before closing it
 

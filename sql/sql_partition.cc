@@ -5104,7 +5104,8 @@ that are reorganised.
         if (is_name_in_list(part_elem->partition_name,
                             alter_info->partition_names))
         {
-          if (part_elem->type() == partition_element::AS_OF_NOW)
+          if (tab_part_info->part_type == VERSIONING_PARTITION &&
+            part_elem->type() == partition_element::AS_OF_NOW)
           {
             DBUG_ASSERT(table && table->s && table->s->table_name.str);
             my_error(ER_VERS_WRONG_PARTS, MYF(0), table->s->table_name.str);
