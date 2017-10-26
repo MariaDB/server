@@ -737,6 +737,7 @@ static SYMBOL sql_functions[] = {
   { "LAG",              SYM(LAG_SYM)},
   { "LEAD",             SYM(LEAD_SYM)},
   { "MAX",		SYM(MAX_SYM)},
+  { "MEDIAN", SYM(MEDIAN_SYM)},
   { "MID",		SYM(SUBSTRING)},	/* unireg function */
   { "MIN",		SYM(MIN_SYM)},
   { "NOW",		SYM(NOW_SYM)},
