@@ -3146,7 +3146,7 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    group_commit_trigger_lock_wait(0),
    sync_period_ptr(sync_period), sync_counter(0),
    state_file_deleted(false), binlog_state_recover_done(false),
-   is_relay_log(0), signal_cnt(0),
+   is_relay_log(0), relay_signal_cnt(0),
    checksum_alg_reset(BINLOG_CHECKSUM_ALG_UNDEF),
    relay_log_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
    description_event_for_exec(0), description_event_for_queue(0),
@@ -3216,7 +3216,8 @@ void MYSQL_BIN_LOG::cleanup()
     mysql_mutex_destroy(&LOCK_xid_list);
     mysql_mutex_destroy(&LOCK_binlog_background_thread);
     mysql_mutex_destroy(&LOCK_binlog_end_pos);
-    mysql_cond_destroy(&update_cond);
+    mysql_cond_destroy(&COND_relay_log_updated);
+    mysql_cond_destroy(&COND_bin_log_updated);
     mysql_cond_destroy(&COND_queue_busy);
     mysql_cond_destroy(&COND_xid_list);
     mysql_cond_destroy(&COND_binlog_background_thread);
@@ -3251,7 +3252,8 @@ void MYSQL_BIN_LOG::init_pthread_objects()
   mysql_mutex_setflags(&LOCK_index, MYF_NO_DEADLOCK_DETECTION);
   mysql_mutex_init(key_BINLOG_LOCK_xid_list,
                    &LOCK_xid_list, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(m_key_update_cond, &update_cond, 0);
+  mysql_cond_init(m_key_relay_log_update, &COND_relay_log_updated, 0);
+  mysql_cond_init(m_key_bin_log_update, &COND_bin_log_updated, 0);
   mysql_cond_init(m_key_COND_queue_busy, &COND_queue_busy, 0);
   mysql_cond_init(key_BINLOG_COND_xid_list, &COND_xid_list, 0);
 
@@ -3262,7 +3264,7 @@ void MYSQL_BIN_LOG::init_pthread_objects()
   mysql_cond_init(key_BINLOG_COND_binlog_background_thread_end,
                   &COND_binlog_background_thread_end, 0);
 
-  mysql_mutex_init(m_key_LOCK_binlog_end_pos, &LOCK_binlog_end_pos,
+  mysql_mutex_init(key_LOCK_binlog_end_pos, &LOCK_binlog_end_pos,
                    MY_MUTEX_INIT_SLOW);
 }
 
@@ -3737,6 +3739,11 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
   close_purge_index_file();
 #endif
 
+  /* Notify the io thread that binlog is rotated to a new file */
+  if (is_relay_log)
+    signal_relay_log_update();
+  else
+    update_binlog_end_pos();
   DBUG_RETURN(0);
 
 err:
@@ -5058,7 +5065,12 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
     new file name in the current binary log file.
   */
   if ((error= generate_new_name(new_name, name, 0)))
+  {
+#ifdef ENABLE_AND_FIX_HANG
+    close_on_error= TRUE;
+#endif
     goto end;
+  }
   new_name_ptr=new_name;
 
   if (log_type == LOG_BIN)
@@ -5089,13 +5101,20 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
       }
       bytes_written += r.data_written;
     }
-    /*
-      Update needs to be signalled even if there is no rotate event
-      log rotation should give the waiting thread a signal to
-      discover EOF and move on to the next log.
-    */
-    signal_update();
   }
+
+  /*
+    Update needs to be signalled even if there is no rotate event
+    log rotation should give the waiting thread a signal to
+    discover EOF and move on to the next log.
+  */
+  if ((error= flush_io_cache(&log_file)))
+  {
+    close_on_error= TRUE;
+    goto end;
+  }
+  update_binlog_end_pos();
+
   old_name=name;
   name=0;				// Don't free name
   close_flag= LOG_CLOSE_TO_BE_OPENED | LOG_CLOSE_INDEX;
@@ -5182,7 +5201,6 @@ end:
                      "server and restart it.", 
                      new_name_ptr, errno);
   }
-
   mysql_mutex_unlock(&LOCK_index);
   if (need_lock)
     mysql_mutex_unlock(&LOCK_log);
@@ -5229,7 +5247,7 @@ bool MYSQL_BIN_LOG::append_no_lock(Log_event* ev)
   if (my_b_append_tell(&log_file) > max_size)
     error= new_file_without_locking();
 err:
-  signal_update();				// Safe as we don't call close
+  update_binlog_end_pos();
   DBUG_RETURN(error);
 }
 
@@ -5290,7 +5308,7 @@ bool MYSQL_BIN_LOG::write_event_buffer(uchar* buf, uint len)
 err:
   my_safe_afree(ebuf, len);
   if (!error)
-    signal_update();
+    update_binlog_end_pos();
   DBUG_RETURN(error);
 }
 
@@ -6291,6 +6309,7 @@ err:
     {
       my_off_t offset= my_b_tell(file);
       bool check_purge= false;
+      DBUG_ASSERT(!is_relay_log);
 
       if (!error)
       {
@@ -6316,15 +6335,14 @@ err:
           }
           else
           {
-            /* update binlog_end_pos so it can be read by dump thread
-             *
-             * note: must be _after_ the RUN_HOOK(after_flush) or else
-             * semi-sync-plugin might not have put the transaction into
-             * it's list before dump-thread tries to send it
-             */
-            update_binlog_end_pos(offset);
+            /*
+              update binlog_end_pos so it can be read by dump thread
 
-            signal_update();
+              note: must be _after_ the RUN_HOOK(after_flush) or else
+              semi-sync might not have put the transaction into
+              it's list before dump-thread tries to send it
+            */
+            update_binlog_end_pos(offset);
             if ((error= rotate(false, &check_purge)))
               check_purge= false;
           }
@@ -6928,7 +6946,7 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
     if (!(error= write_incident_already_locked(thd)) &&
         !(error= flush_and_sync(0)))
     {
-      signal_update();
+      update_binlog_end_pos();
       if ((error= rotate(false, &check_purge)))
         check_purge= false;
     }
@@ -6969,7 +6987,7 @@ MYSQL_BIN_LOG::write_binlog_checkpoint_event_already_locked(const char *name_arg
   */
   if (!write_event(&ev) && !flush_and_sync(0))
   {
-    signal_update();
+    update_binlog_end_pos();
   }
   else
   {
@@ -7637,7 +7655,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     else
     {
       bool any_error= false;
-      bool all_error= true;
 
       mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
       mysql_mutex_assert_owner(&LOCK_log);
@@ -7659,23 +7676,19 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
           current->error_cache= NULL;
           any_error= true;
         }
-        else
-          all_error= false;
         first= false;
       }
 
-      /* update binlog_end_pos so it can be read by dump thread
-       *
-       * note: must be _after_ the RUN_HOOK(after_flush) or else
-       * semi-sync-plugin might not have put the transaction into
-       * it's list before dump-thread tries to send it
-       */
+      /*
+        update binlog_end_pos so it can be read by dump thread
+        Note: must be _after_ the RUN_HOOK(after_flush) or else
+        semi-sync might not have put the transaction into
+        it's list before dump-thread tries to send it
+      */
       update_binlog_end_pos(commit_offset);
 
       if (any_error)
         sql_print_error("Failed to run 'after_flush' hooks");
-      if (!all_error)
-        signal_update();
     }
 
     /*
@@ -8055,10 +8068,10 @@ void MYSQL_BIN_LOG::wait_for_update_relay_log(THD* thd)
   DBUG_ENTER("wait_for_update_relay_log");
 
   mysql_mutex_assert_owner(&LOCK_log);
-  thd->ENTER_COND(&update_cond, &LOCK_log,
+  thd->ENTER_COND(&COND_relay_log_updated, &LOCK_log,
                   &stage_slave_has_read_all_relay_log,
                   &old_stage);
-  mysql_cond_wait(&update_cond, &LOCK_log);
+  mysql_cond_wait(&COND_relay_log_updated, &LOCK_log);
   thd->EXIT_COND(&old_stage);
   DBUG_VOID_RETURN;
 }
@@ -8086,11 +8099,11 @@ int MYSQL_BIN_LOG::wait_for_update_bin_log(THD* thd,
   DBUG_ENTER("wait_for_update_bin_log");
 
   thd_wait_begin(thd, THD_WAIT_BINLOG);
-  mysql_mutex_assert_owner(&LOCK_log);
+  mysql_mutex_assert_owner(&LOCK_binlog_end_pos);
   if (!timeout)
-    mysql_cond_wait(&update_cond, &LOCK_log);
+    mysql_cond_wait(&COND_bin_log_updated, &LOCK_binlog_end_pos);
   else
-    ret= mysql_cond_timedwait(&update_cond, &LOCK_log,
+    ret= mysql_cond_timedwait(&COND_bin_log_updated, &LOCK_binlog_end_pos,
                               const_cast<struct timespec *>(timeout));
   thd_wait_end(thd);
   DBUG_RETURN(ret);
@@ -8105,9 +8118,9 @@ int MYSQL_BIN_LOG::wait_for_update_binlog_end_pos(THD* thd,
   thd_wait_begin(thd, THD_WAIT_BINLOG);
   mysql_mutex_assert_owner(get_binlog_end_pos_lock());
   if (!timeout)
-    mysql_cond_wait(&update_cond, get_binlog_end_pos_lock());
+    mysql_cond_wait(&COND_bin_log_updated, get_binlog_end_pos_lock());
   else
-    ret= mysql_cond_timedwait(&update_cond, get_binlog_end_pos_lock(),
+    ret= mysql_cond_timedwait(&COND_bin_log_updated, get_binlog_end_pos_lock(),
                               timeout);
   thd_wait_end(thd);
   DBUG_RETURN(ret);
@@ -8152,7 +8165,8 @@ void MYSQL_BIN_LOG::close(uint exiting)
                   relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
       write_event(&s);
       bytes_written+= s.data_written;
-      signal_update();
+      flush_io_cache(&log_file);
+      update_binlog_end_pos();
 
       /*
         When we shut down server, write out the binlog state to a separate
@@ -8369,14 +8383,6 @@ bool flush_error_log()
     mysql_mutex_unlock(&LOCK_error_log);
   }
   return result;
-}
-
-void MYSQL_BIN_LOG::signal_update()
-{
-  DBUG_ENTER("MYSQL_BIN_LOG::signal_update");
-  signal_cnt++;
-  mysql_cond_broadcast(&update_cond);
-  DBUG_VOID_RETURN;
 }
 
 #ifdef _WIN32
