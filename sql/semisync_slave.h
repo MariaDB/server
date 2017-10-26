@@ -44,6 +44,7 @@ public:
     return slave_enabled_;
   }
   void setSlaveEnabled(bool enabled) {
+    run_hooks_enabled|= enabled;
     slave_enabled_ = enabled;
   }
 

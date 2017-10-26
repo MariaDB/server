@@ -390,7 +390,7 @@ static longlong start_memory_used;
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
-bool opt_bin_log_compress;
+bool opt_bin_log_compress, run_hooks_enabled;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
 my_bool debug_assert_on_not_freed_memory= 0;
@@ -8950,6 +8950,7 @@ static int mysql_init_variables(void)
   transactions_multi_engine= 0;
   rpl_transactions_multi_engine= 0;
   transactions_gtid_foreign_engine= 0;
+  run_hooks_enabled= 0;
   log_bin_basename= NULL;
   log_bin_index= NULL;
 
