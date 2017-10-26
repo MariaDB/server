@@ -176,10 +176,9 @@ bool Item_window_func::check_result_type_of_order_item()
     Item_result rtype= window_spec->order_list->first->item[0]->cmp_type();
     // TODO (varun) : support date type in percentile_cont function 
     if (rtype != REAL_RESULT && rtype != INT_RESULT &&
-        rtype != DECIMAL_RESULT && rtype != TIME_RESULT &&
-        window_func()->sum_func() == Item_sum::PERCENTILE_CONT_FUNC)
+        rtype != DECIMAL_RESULT && rtype != TIME_RESULT)
     {
-      my_error(ER_WRONG_TYPE_FOR_PERCENTILE_CONT, MYF(0));
+      my_error(ER_WRONG_TYPE_FOR_PERCENTILE_FUNC, MYF(0));
       return TRUE;
     }
     setting_handler_for_percentile_functions(rtype);
