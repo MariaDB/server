@@ -1767,7 +1767,7 @@ public:
     option.var_type|= GET_BIT;
     reverse_semantics= my_count_bits(bitmask_arg) > 1;
     bitmask= reverse_semantics ? ~bitmask_arg : bitmask_arg;
-    option.block_size= reverse_semantics ? -(long) bitmask : bitmask;
+    option.block_size= reverse_semantics ? -(long) bitmask : (long)bitmask;
     set(global_var_ptr(), def_val);
     SYSVAR_ASSERT(def_val < 2);
     SYSVAR_ASSERT(size == sizeof(ulonglong));

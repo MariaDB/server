@@ -199,7 +199,7 @@ public:
 	bool is_owned() const UNIV_NOTHROW
 	{
 		return(os_thread_eq(
-				my_atomic_loadlint(&m_context.m_thread_id),
+				(os_thread_id_t)my_atomic_loadlint(&m_context.m_thread_id),
 				os_thread_get_curr_id()));
 	}
 
@@ -221,7 +221,7 @@ public:
 	os_thread_id_t get_thread_id() const
 		UNIV_NOTHROW
 	{
-		return(my_atomic_loadlint(&m_context.m_thread_id));
+		return((os_thread_id_t)my_atomic_loadlint(&m_context.m_thread_id));
 	}
 
 	/** Magic number to check for memory corruption. */

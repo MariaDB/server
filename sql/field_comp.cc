@@ -62,6 +62,7 @@ static int uncompress_zlib(String *to, const uchar *from, uint from_length,
   z_stream stream;
   uchar original_pack_length;
   int wbits;
+  ulonglong avail_out;
 
   original_pack_length= *from & 0x07;
   wbits= *from & 8 ? -MAX_WBITS : MAX_WBITS;
@@ -75,14 +76,15 @@ static int uncompress_zlib(String *to, const uchar *from, uint from_length,
     return 1;
   }
 
-  stream.avail_out= read_bigendian(from, original_pack_length);
+  avail_out= (ulonglong)read_bigendian(from, original_pack_length);
 
-  if (stream.avail_out > field_length)
+  if (avail_out > field_length)
   {
     my_error(ER_ZLIB_Z_DATA_ERROR, MYF(0));
     return 1;
   }
 
+  stream.avail_out= (uint)avail_out;
   if (to->alloc(stream.avail_out))
     return 1;
 
