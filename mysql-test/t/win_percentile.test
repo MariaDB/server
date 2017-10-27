@@ -5,50 +5,77 @@ INSERT INTO t1 VALUES
 ('Kaolin', 0.5, 4),
 ('Tatiana', 0.8, 4), ('Tata', 0.8, 4);
 
-select name, percentile_cont(0.5)  within group(order by score) over (partition by name) as c from t1;
+--echo #
+--echo # Test invalid syntax
+--echo #
 
---echo no partition clause
-select name, percentile_disc(0.5) within group(order by score)  over ()  from t1;
-select name, percentile_cont(0.5) within group(order by score)  over ()  from t1;
-
---echo argument set to null
---error ER_WRONG_TYPE_OF_ARGUMENT
-select name, percentile_cont(null)  within group(order by score) over (partition by name) from t1;
---error ER_WRONG_TYPE_OF_ARGUMENT
-select name, percentile_disc(null)  within group(order by score) over (partition by name) from t1;
-
---echo subqueries having percentile functions
-select * from ( select name , percentile_cont(0.5) within group ( order by score) over (partition by name ) from t1 ) as t;
-select * from ( select name , percentile_disc(0.5) within group ( order by score) over (partition by name ) from t1 ) as t;
-select name from t1 a where (select  percentile_disc(0.5) within group (order by score) over (partition by name) from t1 b limit 1) >= 0.5;
-
---echo disallowed fields in order by
---error ER_WRONG_TYPE_FOR_PERCENTILE_CONT
-select score,  percentile_cont(0.5)  within group(order by name) over (partition by score) from t1;
-select score,  percentile_disc(0.5)  within group(order by name) over (partition by score) from t1;
-
---echo order by clause has more than one element
+--echo # Order by clause has more than one element
 --error ER_PARSE_ERROR
 select percentile_disc(0.5) within group(order by score,test) over (partition by name) from t1;
 --error ER_PARSE_ERROR
 select percentile_cont(0.5) within group(order by score,test) over (partition by name) from t1;
 
---echo parameter value should be in the range of [0,1]
+--echo # Order by clause has no element
+--error ER_PARSE_ERROR
+select percentile_disc(0.5) within group() over (partition by name) from t1;
+--error ER_PARSE_ERROR
+select percentile_cont(0.5) within group() over (partition by name) from t1;
+
+--echo # No parameters to the percentile functions
+--error ER_PARSE_ERROR
+select percentile_disc() within group() over (partition by name) from t1;
+--error ER_PARSE_ERROR
+select percentile_cont() within group() over (partition by name) from t1;
+
+
+
+--echo #
+--echo # Test simple syntax
+--echo #
+
+select name, percentile_cont(0.5)  within group(order by score) over (partition by name) as c from t1;
+select name, percentile_disc(0.5)  within group(order by score) over (partition by name) as c from t1;
+
+--echo # no partition clause
+select name, percentile_disc(0.5) within group(order by score)  over ()  from t1;
+select name, percentile_cont(0.5) within group(order by score)  over ()  from t1;
+
+--echo # argument set to null
+--error ER_WRONG_TYPE_OF_ARGUMENT
+select name, percentile_cont(null)  within group(order by score) over (partition by name) from t1;
+--error ER_WRONG_TYPE_OF_ARGUMENT
+select name, percentile_disc(null)  within group(order by score) over (partition by name) from t1;
+
+--echo #subqueries having percentile functions
+select * from ( select name , percentile_cont(0.5) within group ( order by score) over (partition by name ) from t1 ) as t;
+select * from ( select name , percentile_disc(0.5) within group ( order by score) over (partition by name ) from t1 ) as t;
+select name from t1 a where (select  percentile_disc(0.5) within group (order by score) over (partition by name) from t1 b limit 1) >= 0.5;
+
+--echo #disallowed fields in order by
+--error ER_WRONG_TYPE_FOR_PERCENTILE_FUNC
+select score,  percentile_cont(0.5)  within group(order by name) over (partition by score) from t1;
+--error ER_WRONG_TYPE_FOR_PERCENTILE_FUNC
+select score,  percentile_disc(0.5)  within group(order by name) over (partition by score) from t1;
+
+--echo #parameter value should be in the range of [0,1]
 --error ER_ARGUMENT_OUT_OF_RANGE
 select percentile_disc(1.5) within group(order by score) over (partition by name) from t1;
 --error ER_ARGUMENT_OUT_OF_RANGE
 select percentile_cont(1.5) within group(order by score) over (partition by name) from t1;
 
+--echo #Argument should remain constant for the entire partition
 --error ER_ARGUMENT_NOT_CONSTANT
 select name,percentile_cont(test) within group(order by score) over (partition by name) from t1;
 --error ER_ARGUMENT_NOT_CONSTANT
 select name, percentile_disc(test) within group(order by score) over (partition by name) from t1;
 
---echo only numerical types are allowed as argument to percentile functions
+--echo #only numerical types are allowed as argument to percentile functions
 --error ER_WRONG_TYPE_OF_ARGUMENT
 select name, percentile_cont(name) within group(order by score) over (partition by name) from t1;
+--error ER_WRONG_TYPE_OF_ARGUMENT
+select name, percentile_disc(name) within group(order by score) over (partition by name) from t1;
 
---echo complete query with partition column
+--echo #complete query with partition column
 select name,cume_dist() over (partition by name order by score), percentile_disc(0.5)  within group(order by score) over (partition by name) as c from t1;
 select name, percentile_cont(0.5)  within group(order by score) over (partition by name) as c from t1;
 

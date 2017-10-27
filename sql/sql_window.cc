@@ -1765,7 +1765,7 @@ protected:
   }
 };
 
-class Frame_unbounded_following_set_count_no_nulls: 
+class Frame_unbounded_following_set_count_no_nulls:
             public Frame_unbounded_following_set_count
 {
 

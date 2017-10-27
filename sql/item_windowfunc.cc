@@ -174,11 +174,11 @@ bool Item_window_func::check_result_type_of_order_item()
   if (only_single_element_order_list())
   {
     Item_result rtype= window_spec->order_list->first->item[0]->cmp_type();
-    // TODO (varun) : support date type in percentile_cont function 
+    // TODO (varun) : support date type in percentile_cont function
     if (rtype != REAL_RESULT && rtype != INT_RESULT &&
         rtype != DECIMAL_RESULT && rtype != TIME_RESULT)
     {
-      my_error(ER_WRONG_TYPE_FOR_PERCENTILE_FUNC, MYF(0));
+      my_error(ER_WRONG_TYPE_FOR_PERCENTILE_FUNC, MYF(0), window_func()->func_name());
       return TRUE;
     }
     setting_handler_for_percentile_functions(rtype);
@@ -249,7 +249,7 @@ bool Item_sum_percentile_cont::fix_fields(THD *thd, Item **ref)
     case INT_RESULT:
       break;
     default:
-      my_error(ER_WRONG_TYPE_OF_ARGUMENT, MYF(0));
+      my_error(ER_WRONG_TYPE_OF_ARGUMENT, MYF(0), func_name());
       return TRUE;
   }
   return res;
@@ -268,7 +268,7 @@ bool Item_sum_percentile_disc::fix_fields(THD *thd, Item **ref)
     case INT_RESULT:
       break;
     default:
-      my_error(ER_WRONG_TYPE_OF_ARGUMENT, MYF(0));
+      my_error(ER_WRONG_TYPE_OF_ARGUMENT, MYF(0), func_name());
       return TRUE;
   }
   return res;

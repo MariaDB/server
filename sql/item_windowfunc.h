@@ -786,7 +786,7 @@ public:
     value->store(order_item);
     value->cache_value();
     if (value->null_value)
-       return false;
+      return false;
 
     Item_sum_cume_dist::add();
     double val= Item_sum_cume_dist::val_real();
@@ -821,7 +821,7 @@ public:
 
   void fix_length_and_dec()
   {
-    decimals = 5;  // TODO-cvicentiu find out how many decimals the standard
+    decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
   }
 
@@ -904,24 +904,24 @@ public:
       floor_value->store(order_item);
       floor_value->cache_value();
       if (floor_value->null_value)
-       return false;
+        return false;
     }
     if (floor_val_calculated && !ceil_val_calculated)
     {
       ceil_value->store(order_item);
       ceil_value->cache_value();
       if (ceil_value->null_value)
-       return false;
+        return false;
     }
 
     Item_sum_cume_dist::add();
     double val= 1 + prev_value * (get_row_count()-1);
 
     if (!floor_val_calculated && get_row_number() == floor(val))
-       floor_val_calculated= true;
+      floor_val_calculated= true;
 
     if (!ceil_val_calculated && get_row_number() == ceil(val))
-       ceil_val_calculated= true;
+      ceil_val_calculated= true;
     return false;
   }
 
@@ -951,7 +951,7 @@ public:
 
   void fix_length_and_dec()
   {
-    decimals = 5;  // TODO-cvicentiu find out how many decimals the standard
+    decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
   }
 
