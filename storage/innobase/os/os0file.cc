@@ -5381,7 +5381,8 @@ fallback:
 # ifdef HAVE_POSIX_FALLOCATE
 	int err;
 	do {
-		err = posix_fallocate(file, 0, size);
+		os_offset_t current_size = os_file_get_size(file);
+		err = posix_fallocate(file, current_size, size - current_size);
 	} while (err == EINTR
 		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
