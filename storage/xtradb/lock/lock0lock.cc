@@ -2478,7 +2478,7 @@ lock_rec_enqueue_waiting(
 		dict_index_name_print(stderr, trx, index);
 		fputs(".\n"
 		      "InnoDB: Submit a detailed bug report"
-		      " to http://bugs.mysql.com\n",
+		      " to https://jira.mariadb.org/\n",
 		      stderr);
 		ut_ad(0);
 	}
@@ -5226,7 +5226,7 @@ lock_table_enqueue_waiting(
 		ut_print_name(stderr, trx, TRUE, table->name);
 		fputs(".\n"
 		      "InnoDB: Submit a detailed bug report"
-		      " to http://bugs.mysql.com\n",
+		      " to https://jira.mariadb.org/\n",
 		      stderr);
 		ut_ad(0);
 	}

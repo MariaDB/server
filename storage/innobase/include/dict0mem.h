@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
@@ -875,6 +875,9 @@ struct dict_index_t{
 	bool		has_new_v_col;
 				/*!< whether it has a newly added virtual
 				column in ALTER */
+	bool            index_fts_syncing;/*!< Whether the fts index is
+					still syncing in the background;
+					FIXME: remove this and use MDL */
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
 #ifdef BTR_CUR_ADAPT

@@ -1022,7 +1022,7 @@ trx_undo_update_rec_get_update(
 			fprintf(stderr, "\n"
 				"InnoDB: but index has only %lu fields\n"
 				"InnoDB: Submit a detailed bug report"
-				" to http://bugs.mysql.com\n"
+				" to https://jira.mariadb.org/\n"
 				"InnoDB: Run also CHECK TABLE ",
 				(ulong) dict_index_get_n_fields(index));
 			ut_print_name(stderr, trx, TRUE, index->table_name);

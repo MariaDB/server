@@ -3639,6 +3639,16 @@ row_drop_table_for_mysql(
 			ut_ad(!table->fts->add_wq);
 			ut_ad(lock_trx_has_sys_table_locks(trx) == 0);
 
+			for (;;) {
+				bool retry = false;
+				if (dict_fts_index_syncing(table)) {
+					retry = true;
+				}
+				if (!retry) {
+					break;
+				}
+				DICT_BG_YIELD(trx);
+			}
 			row_mysql_unlock_data_dictionary(trx);
 			fts_optimize_remove_table(table);
 			row_mysql_lock_data_dictionary(trx);
