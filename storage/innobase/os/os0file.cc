@@ -5382,14 +5382,16 @@ fallback:
 	int err;
 	do {
 		os_offset_t current_size = os_file_get_size(file);
-		err = posix_fallocate(file, current_size, size - current_size);
+		err = current_size >= size
+			? 0 : posix_fallocate(file, current_size,
+					      size - current_size);
 	} while (err == EINTR
 		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
 	if (err) {
 		ib::error() <<
 			"preallocating " << size << " bytes for" <<
-			"file " << name << "failed with error " << err;
+			"file " << name << " failed with error " << err;
 	}
 	errno = err;
 	return(!err);
