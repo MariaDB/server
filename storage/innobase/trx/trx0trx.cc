@@ -616,8 +616,9 @@ trx_free_prepared(
 	trx_t*	trx)	/*!< in, own: trx object */
 {
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
-	     || (trx_state_eq(trx, TRX_STATE_ACTIVE)
-		 && trx->is_recovered
+	     || (trx->is_recovered
+		 && (trx_state_eq(trx, TRX_STATE_ACTIVE)
+		     || trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY))
 		 && (!srv_was_started
 		     || srv_operation == SRV_OPERATION_RESTORE
 		     || srv_operation == SRV_OPERATION_RESTORE_EXPORT
