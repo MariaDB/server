@@ -464,7 +464,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     // Leading versioning table specified explicitly
     // (i.e. if at least one system field is selected)
     TABLE_LIST *expli_table= NULL;
-    const LString_i *impli_start, *impli_end;
+    LEX_CSTRING impli_start, impli_end;
     Item_field *expli_start= NULL, *expli_end= NULL;
 
     for (TABLE_LIST *table= tables; table; table= table->next_local)
@@ -494,8 +494,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       if (!impli_table)
       {
         impli_table= table;
-        impli_start= &table_start;
-        impli_end= &table_end;
+        impli_start= table_start;
+        impli_end= table_end;
       }
 
       /* Implicitly add versioning fields if needed */
@@ -544,7 +544,7 @@ expli_table_err:
           else
             expli_table= table;
           expli_start= fld;
-          impli_end= &table_end;
+          impli_end= table_end;
         }
         else if (table_end == fld->field_name)
         {
@@ -569,7 +569,7 @@ expli_table_err:
           else
             expli_table= table;
           expli_end= fld;
-          impli_start= &table_start;
+          impli_start= table_start;
         }
       } // while ((item= it++))
     } // for (TABLE_LIST *table)
@@ -579,9 +579,9 @@ expli_table_err:
 
     if (impli_table)
     {
-      if (!expli_start && sl->vers_push_field(thd, impli_table, *impli_start))
+      if (!expli_start && sl->vers_push_field(thd, impli_table, impli_start))
         goto err;
-      if (!expli_end && sl->vers_push_field(thd, impli_table, *impli_end))
+      if (!expli_end && sl->vers_push_field(thd, impli_table, impli_end))
         goto err;
     }
 #pragma GCC diagnostic pop

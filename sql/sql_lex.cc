@@ -7239,6 +7239,7 @@ Item *LEX::make_item_func_replace(THD *thd,
 
 bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name)
 {
+  DBUG_ASSERT(field_name.str);
   Item_field *fld= new (thd->mem_root) Item_field(thd, &context,
                                       table->db, table->alias, &field_name);
   if (!fld)
