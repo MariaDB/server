@@ -775,9 +775,9 @@ os_win32_device_io_control(
 	OVERLAPPED overlapped = { 0 };
 	overlapped.hEvent = win_get_syncio_event();
 	BOOL result = DeviceIoControl(handle, code, inbuf, inbuf_size, outbuf,
-		outbuf_size, bytes_returned, &overlapped);
+		outbuf_size,  NULL, &overlapped);
 
-	if (!result && (GetLastError() == ERROR_IO_PENDING)) {
+	if (result || (GetLastError() == ERROR_IO_PENDING)) {
 		/* Wait for async io to complete */
 		result = GetOverlappedResult(handle, &overlapped, bytes_returned, TRUE);
 	}
@@ -3451,14 +3451,14 @@ SyncFileIO::execute(const IORequest& request)
 
 	if (request.is_read()) {
 		ret = ReadFile(m_fh, m_buf,
-			static_cast<DWORD>(m_n), &n_bytes, &seek);
+			static_cast<DWORD>(m_n), NULL, &seek);
 
 	} else {
 		ut_ad(request.is_write());
 		ret = WriteFile(m_fh, m_buf,
-			static_cast<DWORD>(m_n), &n_bytes, &seek);
+			static_cast<DWORD>(m_n), NULL, &seek);
 	}
-	if (!ret && (GetLastError() == ERROR_IO_PENDING)) {
+	if (ret || (GetLastError() == ERROR_IO_PENDING)) {
 		/* Wait for async io to complete */
 		ret = GetOverlappedResult(m_fh, &seek, &n_bytes, TRUE);
 	}
@@ -3478,17 +3478,17 @@ SyncFileIO::execute(Slot* slot)
 
 		ret = ReadFile(
 			slot->file, slot->ptr, slot->len,
-			&slot->n_bytes, &slot->control);
+			NULL, &slot->control);
 
 	} else {
 		ut_ad(slot->type.is_write());
 
 		ret = WriteFile(
 			slot->file, slot->ptr, slot->len,
-			&slot->n_bytes, &slot->control);
+			NULL, &slot->control);
 
 	}
-	if (!ret && (GetLastError() == ERROR_IO_PENDING)) {
+	if (ret || (GetLastError() == ERROR_IO_PENDING)) {
 		/* Wait for async io to complete */
 		ret = GetOverlappedResult(slot->file, &slot->control, &slot->n_bytes, TRUE);
 	}
@@ -6725,7 +6725,7 @@ try_again:
 #ifdef WIN_ASYNC_IO
 			ret = ReadFile(
 				file, slot->ptr, slot->len,
-				&slot->n_bytes, &slot->control);
+				NULL, &slot->control);
 #elif defined(LINUX_NATIVE_AIO)
 			if (!array->linux_dispatch(slot)) {
 				goto err_exit;
@@ -6743,7 +6743,7 @@ try_again:
 #ifdef WIN_ASYNC_IO
 			ret = WriteFile(
 				file, slot->ptr, slot->len,
-				&slot->n_bytes, &slot->control);
+				NULL, &slot->control);
 #elif defined(LINUX_NATIVE_AIO)
 			if (!array->linux_dispatch(slot)) {
 				goto err_exit;
@@ -6759,8 +6759,7 @@ try_again:
 	}
 
 #ifdef WIN_ASYNC_IO
-	if ((ret && slot->len == slot->n_bytes)
-		|| (!ret && GetLastError() == ERROR_IO_PENDING)) {
+	if (ret || (GetLastError() == ERROR_IO_PENDING)) {
 		/* aio completed or was queued successfully! */
 		return(DB_SUCCESS);
 	}
