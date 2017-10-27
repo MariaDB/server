@@ -1818,6 +1818,12 @@ trx_undo_free_prepared(
 		switch (trx->rsegs.m_redo.update_undo->state) {
 		case TRX_UNDO_PREPARED:
 			break;
+		case TRX_UNDO_CACHED:
+		case TRX_UNDO_TO_FREE:
+		case TRX_UNDO_TO_PURGE:
+			ut_ad(trx_state_eq(trx,
+					   TRX_STATE_COMMITTED_IN_MEMORY));
+			/* fall through */
 		case TRX_UNDO_ACTIVE:
 			/* lock_trx_release_locks() assigns
 			trx->is_recovered=false */
@@ -1840,6 +1846,12 @@ trx_undo_free_prepared(
 		switch (trx->rsegs.m_redo.insert_undo->state) {
 		case TRX_UNDO_PREPARED:
 			break;
+		case TRX_UNDO_CACHED:
+		case TRX_UNDO_TO_FREE:
+		case TRX_UNDO_TO_PURGE:
+			ut_ad(trx_state_eq(trx,
+					   TRX_STATE_COMMITTED_IN_MEMORY));
+			/* fall through */
 		case TRX_UNDO_ACTIVE:
 			/* lock_trx_release_locks() assigns
 			trx->is_recovered=false */
