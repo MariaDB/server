@@ -675,3 +675,88 @@ DROP TABLE t1;
 --echo #
 --echo # End of MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
 --echo #
+
+--echo #
+--echo # MDEV-14139 Anchored data types for variables
+--echo #
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+BEGIN NOT ATOMIC
+  DECLARE a TYPE OF a;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE int11 INT;
+  DECLARE dec103 DECIMAL(10,3);
+  DECLARE flt0 FLOAT;
+  DECLARE dbl0 DOUBLE;
+  DECLARE enum0 ENUM('a','b');
+  DECLARE bit3 BIT(3);
+
+  DECLARE varchar10 VARCHAR(10);
+  DECLARE text1 TEXT;
+  DECLARE tinytext1 TINYTEXT;
+  DECLARE mediumtext1 MEDIUMTEXT;
+  DECLARE longtext1 LONGTEXT;
+
+  DECLARE time3 TIME(3);
+  DECLARE datetime4 DATETIME(4);
+  DECLARE timestamp5 TIMESTAMP(5);
+  DECLARE date0 DATE;
+
+  DECLARE a_int11 TYPE OF int11;
+  DECLARE a_dec103 TYPE OF dec103;
+  DECLARE a_flt0 TYPE OF flt0;
+  DECLARE a_dbl0 TYPE OF dbl0;
+  DECLARE a_bit3 TYPE OF bit3;
+  DECLARE a_enum0 TYPE OF enum0;
+  DECLARE a_varchar10 TYPE OF varchar10;
+  DECLARE a_text1 TYPE OF text1;
+  DECLARE a_tinytext1 TYPE OF tinytext1;
+  DECLARE a_mediumtext1 TYPE OF mediumtext1;
+  DECLARE a_longtext1 TYPE OF longtext1;
+  DECLARE a_time3 TYPE OF time3;
+  DECLARE a_datetime4 TYPE OF datetime4;
+  DECLARE a_timestamp5 TYPE OF timestamp5;
+  DECLARE a_date0 TYPE OF date0;
+
+  DECLARE aa_int11 TYPE OF a_int11;
+  DECLARE aa_dec103 TYPE OF a_dec103;
+  DECLARE aa_flt0 TYPE OF a_flt0;
+  DECLARE aa_dbl0 TYPE OF a_dbl0;
+  DECLARE aa_bit3 TYPE OF a_bit3;
+  DECLARE aa_enum0 TYPE OF a_enum0;
+  DECLARE aa_varchar10 TYPE OF a_varchar10;
+  DECLARE aa_text1 TYPE OF a_text1;
+  DECLARE aa_tinytext1 TYPE OF a_tinytext1;
+  DECLARE aa_mediumtext1 TYPE OF a_mediumtext1;
+  DECLARE aa_longtext1 TYPE OF a_longtext1;
+  DECLARE aa_time3 TYPE OF a_time3;
+  DECLARE aa_datetime4 TYPE OF a_datetime4;
+  DECLARE aa_timestamp5 TYPE OF a_timestamp5;
+  DECLARE aa_date0 TYPE OF a_date0;
+
+  CREATE TABLE t1 AS
+    SELECT a_int11,a_dec103,a_flt0,a_dbl0,a_bit3,
+           a_enum0,a_varchar10,
+           a_text1,a_tinytext1,a_mediumtext1,a_longtext1,
+           a_time3,a_datetime4,a_timestamp5,a_date0;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+
+  CREATE TABLE t1 AS
+    SELECT aa_int11,aa_dec103,aa_flt0,aa_dbl0,aa_bit3,
+           aa_enum0,aa_varchar10,
+           aa_text1,aa_tinytext1,aa_mediumtext1,aa_longtext1,
+           aa_time3,aa_datetime4,aa_timestamp5,aa_date0;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+
+END;
+$$
+DELIMITER ;$$

@@ -1330,3 +1330,32 @@ rec2.a	rec2.b
 2012	bbbb3
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# MDEV-14139 Anchored data types for variables
+#
+DECLARE
+CURSOR c1 IS SELECT 10 AS a, 'bbb' AS b, TIME'10:20:30' AS c;
+row1 c1%ROWTYPE;
+a_row1 row1%TYPE;
+aa_row1 a_row1%TYPE;
+BEGIN
+CREATE TABLE t2 AS SELECT a_row1.a AS a, a_row1.b AS b, a_row1.c AS c;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT aa_row1.a AS a, aa_row1.b AS b, aa_row1.c AS c;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" int(11) DEFAULT NULL,
+  "b" varchar(3) DEFAULT NULL,
+  "c" time DEFAULT NULL
+)
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" int(11) DEFAULT NULL,
+  "b" varchar(3) DEFAULT NULL,
+  "c" time DEFAULT NULL
+)

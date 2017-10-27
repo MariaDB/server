@@ -2146,3 +2146,90 @@ CREATE VIEW v1 AS SELECT c1 exception FROM t1;
 SELECT exception FROM v1;
 DROP VIEW v1;
 DROP TABLE t1;
+
+
+
+--echo #
+--echo # MDEV-14139 Anchored data types for variables
+--echo #
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+BEGIN NOT ATOMIC
+  DECLARE a a%TYPE;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+DECLARE
+  int11 INT;
+  dec103 DECIMAL(10,3);
+  flt0 FLOAT;
+  dbl0 DOUBLE;
+  enum0 ENUM('a','b');
+  bit3 BIT(3);
+
+  varchar10 VARCHAR(10);
+  text1 TEXT;
+  tinytext1 TINYTEXT;
+  mediumtext1 MEDIUMTEXT;
+  longtext1 LONGTEXT;
+
+  time3 TIME(3);
+  datetime4 DATETIME(4);
+  timestamp5 TIMESTAMP(5);
+  date0 DATE;
+
+  a_int11 int11%TYPE;
+  a_dec103 dec103%TYPE;
+  a_flt0 flt0%TYPE;
+  a_dbl0 dbl0%TYPE;
+  a_bit3 bit3%TYPE;
+  a_enum0 enum0%TYPE;
+  a_varchar10 varchar10%TYPE;
+  a_text1 text1%TYPE;
+  a_tinytext1 tinytext1%TYPE;
+  a_mediumtext1 mediumtext1%TYPE;
+  a_longtext1 longtext1%TYPE;
+  a_time3 time3%TYPE;
+  a_datetime4 datetime4%TYPE;
+  a_timestamp5 timestamp5%TYPE;
+  a_date0 date0%TYPE;
+
+  aa_int11 a_int11%TYPE;
+  aa_dec103 a_dec103%TYPE;
+  aa_flt0 a_flt0%TYPE;
+  aa_dbl0 a_dbl0%TYPE;
+  aa_bit3 a_bit3%TYPE;
+  aa_enum0 a_enum0%TYPE;
+  aa_varchar10 a_varchar10%TYPE;
+  aa_text1 a_text1%TYPE;
+  aa_tinytext1 a_tinytext1%TYPE;
+  aa_mediumtext1 a_mediumtext1%TYPE;
+  aa_longtext1 a_longtext1%TYPE;
+  aa_time3 a_time3%TYPE;
+  aa_datetime4 a_datetime4%TYPE;
+  aa_timestamp5 a_timestamp5%TYPE;
+  aa_date0 a_date0%TYPE;
+BEGIN
+  CREATE TABLE t1 AS
+    SELECT a_int11,a_dec103,a_flt0,a_dbl0,a_bit3,
+           a_enum0,a_varchar10,
+           a_text1,a_tinytext1,a_mediumtext1,a_longtext1,
+           a_time3,a_datetime4,a_timestamp5,a_date0;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+
+  CREATE TABLE t1 AS
+    SELECT aa_int11,aa_dec103,aa_flt0,aa_dbl0,aa_bit3,
+           aa_enum0,aa_varchar10,
+           aa_text1,aa_tinytext1,aa_mediumtext1,aa_longtext1,
+           aa_time3,aa_datetime4,aa_timestamp5,aa_date0;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+
+END;
+$$
+DELIMITER ;$$

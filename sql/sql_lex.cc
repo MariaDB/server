@@ -5259,15 +5259,69 @@ void LEX::sp_variable_declarations_init(THD *thd, int nvars)
                             thd->variables.collation_database);
 }
 
-bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
-                                            const Column_definition *cdef,
-                                            Row_definition_list *row,
-                                            Item *dflt_value_item)
+
+bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
+                                               Item *dflt_value_item)
 {
   if (!dflt_value_item &&
       !(dflt_value_item= new (thd->mem_root) Item_null(thd)))
     return true;
 
+  for (uint i= 0 ; i < (uint) nvars ; i++)
+  {
+    sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
+    bool last= i + 1 == (uint) nvars;
+    spvar->default_value= dflt_value_item;
+    /* The last instruction is responsible for freeing LEX. */
+    sp_instr_set *is= new (this->thd->mem_root)
+                      sp_instr_set(sphead->instructions(),
+                                   spcont, spvar->offset, dflt_value_item,
+                                   this, last);
+    if (is == NULL || sphead->add_instr(is))
+      return true;
+  }
+  return false;
+}
+
+
+bool
+LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
+                                                 const Column_definition &ref,
+                                                 Row_definition_list *fields,
+                                                 Item *default_value)
+{
+  for (uint i= 0 ; i < (uint) nvars; i++)
+  {
+    sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
+    spvar->field_def.set_type(ref);
+    spvar->field_def.set_row_field_definitions(fields);
+    spvar->field_def.field_name= spvar->name;
+  }
+  if (sp_variable_declarations_set_default(thd, nvars, default_value))
+    return true;
+  spcont->declare_var_boundary(0);
+  return sphead->restore_lex(thd);
+}
+
+
+bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
+                                            const Column_definition *cdef,
+                                            Item *dflt_value_item)
+{
+  DBUG_ASSERT(cdef);
+  Column_definition tmp(*cdef);
+  if (sphead->fill_spvar_definition(thd, &tmp))
+    return true;
+  return sp_variable_declarations_copy_type_finalize(thd, nvars, tmp, NULL,
+                                                     dflt_value_item);
+}
+
+
+bool LEX::sp_variable_declarations_row_finalize(THD *thd, int nvars,
+                                                Row_definition_list *row,
+                                                Item *dflt_value_item)
+{
+  DBUG_ASSERT(row);
   /*
     Prepare all row fields.
     Note, we do it only one time outside of the below loop.
@@ -5280,37 +5334,19 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
         ...
       END;
   */
-  if (row && sphead->row_fill_field_definitions(thd, row))
+  if (sphead->row_fill_field_definitions(thd, row))
     return true;
 
   for (uint i= 0 ; i < (uint) nvars ; i++)
   {
     sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
-    bool last= i + 1 == (uint) nvars;
-
-    if (!spvar)
-      return true;
-
-    spvar->default_value= dflt_value_item;
-
-    if (cdef)
-    {
-      if (!last)
-        spvar->field_def.set_column_definition(cdef);
-    }
     if (sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name))
       return true;
     spvar->field_def.set_row_field_definitions(row);
-
-    /* The last instruction is responsible for freeing LEX. */
-    sp_instr_set *is= new (this->thd->mem_root)
-                      sp_instr_set(sphead->instructions(),
-                                   spcont, spvar->offset, dflt_value_item,
-                                   this, last);
-    if (is == NULL || sphead->add_instr(is))
-      return true;
   }
 
+  if (sp_variable_declarations_set_default(thd, nvars, dflt_value_item))
+    return true;
   spcont->declare_var_boundary(0);
   return sphead->restore_lex(thd);
 }
@@ -5334,57 +5370,45 @@ LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
   const sp_pcursor *pcursor= ref->table.str && ref->db.str ? NULL :
                              spcont->find_cursor(&ref->m_column, &coffp,
                                                  false);
+  if (pcursor)
+    return sp_variable_declarations_cursor_rowtype_finalize(thd, nvars,
+                                                            coffp, def);
+  /*
+    When parsing a qualified identifier chain, the parser does not know yet
+    if it's going to be a qualified column name (for %TYPE),
+    or a qualified table name (for %ROWTYPE). So it collects the chain
+    into Qualified_column_ident.
+    Now we know that it was actually a qualified table name (%ROWTYPE).
+    Create a new Table_ident from Qualified_column_ident,
+    shifting fields as follows:
+    - ref->m_column becomes table_ref->table
+    - ref->table    becomes table_ref->db
+  */
+  return sp_variable_declarations_table_rowtype_finalize(thd, nvars,
+                                                         ref->table,
+                                                         ref->m_column,
+                                                         def);
+}
 
-  if (!def && !(def= new (thd->mem_root) Item_null(thd)))
+
+bool
+LEX::sp_variable_declarations_table_rowtype_finalize(THD *thd, int nvars,
+                                                     const LEX_CSTRING &db,
+                                                     const LEX_CSTRING &table,
+                                                     Item *def)
+{
+  Table_ident *table_ref;
+  if (!(table_ref= new (thd->mem_root) Table_ident(thd, &db, &table, false)))
     return true;
-
   // Loop through all variables in the same declaration
   for (uint i= 0 ; i < (uint) nvars; i++)
   {
-    bool last= i + 1 == (uint) nvars;
     sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
-
-    if (pcursor)
-    {
-      spvar->field_def.set_cursor_rowtype_ref(true);
-      sp_instr_cursor_copy_struct *instr=
-        new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
-                                                        spcont, pcursor->lex(),
-                                                        spvar->offset);
-      if (instr == NULL || sphead->add_instr(instr))
-       return true;
-    }
-    else
-    {
-      /*
-        When parsing a qualified identifier chain, the parser does not know yet
-        if it's going to be a qualified column name (for %TYPE),
-        or a qualified table name (for %ROWTYPE). So it collects the chain
-        into Qualified_column_ident.
-        Now we know that it was actually a qualified table name (%ROWTYPE).
-        Create a new Table_ident from Qualified_column_ident,
-        shifting fields as follows:
-        - ref->m_column becomes table_ref->table
-        - ref->table    becomes table_ref->db
-      */
-      Table_ident *table_ref;
-      if (!(table_ref= new (thd->mem_root) Table_ident(thd,
-                                                       &ref->table,
-                                                       &ref->m_column,
-                                                       false)))
-        return true;
-      spvar->field_def.set_table_rowtype_ref(table_ref);
-    }
+    spvar->field_def.set_table_rowtype_ref(table_ref);
     sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name);
-    spvar->default_value= def;
-    /* The last instruction is responsible for freeing LEX. */
-    sp_instr_set *is= new (this->thd->mem_root)
-                      sp_instr_set(sphead->instructions(),
-                                   spcont, spvar->offset, def,
-                                   this, last);
-    if (is == NULL || sphead->add_instr(is))
-      return true;
   }
+  if (sp_variable_declarations_set_default(thd, nvars, def))
+    return true;
   // Make sure sp_rcontext is created using the invoker security context:
   sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
   spcont->declare_var_boundary(0);
@@ -5393,9 +5417,57 @@ LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
 
 
 bool
+LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
+                                                      uint offset,
+                                                      Item *def)
+{
+  const sp_pcursor *pcursor= spcont->find_cursor(offset);
+
+  // Loop through all variables in the same declaration
+  for (uint i= 0 ; i < (uint) nvars; i++)
+  {
+    sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
+
+    spvar->field_def.set_cursor_rowtype_ref(true, offset);
+    sp_instr_cursor_copy_struct *instr=
+      new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
+                                                      spcont, pcursor->lex(),
+                                                      spvar->offset);
+    if (instr == NULL || sphead->add_instr(instr))
+     return true;
+
+    sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name);
+  }
+  if (sp_variable_declarations_set_default(thd, nvars, def))
+    return true;
+  // Make sure sp_rcontext is created using the invoker security context:
+  sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+  spcont->declare_var_boundary(0);
+  return sphead->restore_lex(thd);
+}
+
+
+/*
+  Add declarations for table column and SP variable anchor types:
+  - DECLARE spvar1 TYPE OF db1.table1.column1;
+  - DECLARE spvar1 TYPE OF table1.column1;
+  - DECLARE spvar1 TYPE OF spvar0;
+*/
+bool
 LEX::sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
                                                 Qualified_column_ident *ref,
                                                 Item *def)
+{
+  return ref->db.length == 0 && ref->table.length == 0 ?
+    sp_variable_declarations_vartype_finalize(thd, nvars, ref->m_column, def) :
+    sp_variable_declarations_column_type_finalize(thd, nvars, ref, def);
+}
+
+
+bool
+LEX::sp_variable_declarations_column_type_finalize(THD *thd, int nvars,
+                                                   Qualified_column_ident *ref,
+                                                   Item *def)
 {
   for (uint i= 0 ; i < (uint) nvars; i++)
   {
@@ -5404,7 +5476,55 @@ LEX::sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
     spvar->field_def.field_name= spvar->name;
   }
   sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
-  return sp_variable_declarations_finalize(thd, nvars, NULL, NULL, def);
+  if (sp_variable_declarations_set_default(thd, nvars, def))
+    return true;
+  spcont->declare_var_boundary(0);
+  return sphead->restore_lex(thd);
+}
+
+
+bool
+LEX::sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
+                                               const LEX_CSTRING &ref,
+                                               Item *default_value)
+{
+  sp_variable *t;
+  if (!spcont || !(t= spcont->find_variable(&ref, false)))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), ref.str);
+    return true;
+  }
+
+  if (t->field_def.is_cursor_rowtype_ref())
+  {
+    uint offset= t->field_def.cursor_rowtype_offset();
+    return sp_variable_declarations_cursor_rowtype_finalize(thd, nvars,
+                                                            offset,
+                                                            default_value);
+  }
+
+  if (t->field_def.is_column_type_ref())
+  {
+    Qualified_column_ident *tmp= t->field_def.column_type_ref();
+    return sp_variable_declarations_column_type_finalize(thd, nvars, tmp,
+                                                         default_value);
+  }
+
+  if (t->field_def.is_table_rowtype_ref())
+  {
+    const Table_ident *tmp= t->field_def.table_rowtype_ref();
+    return sp_variable_declarations_table_rowtype_finalize(thd, nvars,
+                                                           tmp->db,
+                                                           tmp->table,
+                                                           default_value);
+  }
+
+  // A reference to a scalar or a row variable with an explicit data type
+  return sp_variable_declarations_copy_type_finalize(thd, nvars,
+                                                     t->field_def,
+                                                     t->field_def.
+                                                       row_field_definitions(),
+                                                     default_value);
 }
 
 
@@ -5472,7 +5592,7 @@ LEX::sp_add_for_loop_cursor_variable(THD *thd,
   if (!(spvar->default_value= new (thd->mem_root) Item_null(thd)))
     return NULL;
 
-  spvar->field_def.set_cursor_rowtype_ref(true);
+  spvar->field_def.set_cursor_rowtype_ref(true, coffset);
 
   if (sphead->add_for_loop_open_cursor(thd, spcont, spvar, pcursor, coffset,
                                        param_lex, parameters))

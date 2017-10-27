@@ -3195,26 +3195,34 @@ public:
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
                                          const Column_definition *cdef,
-                                         Row_definition_list *row,
                                          Item *def);
-  bool sp_variable_declarations_finalize(THD *thd, int nvars,
-                                         const Column_definition *cdef,
-                                         Item *def)
-  {
-    return sp_variable_declarations_finalize(thd, nvars, cdef, NULL, def);
-  }
+  bool sp_variable_declarations_set_default(THD *thd, int nvars, Item *def);
   bool sp_variable_declarations_row_finalize(THD *thd, int nvars,
                                              Row_definition_list *row,
-                                             Item *def)
-  {
-    return sp_variable_declarations_finalize(thd, nvars, NULL, row, def);
-  }
+                                             Item *def);
   bool sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
                                                   Qualified_column_ident *col,
                                                   Item *def);
   bool sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
                                                  Qualified_column_ident *,
                                                  Item *def);
+  bool sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
+                                                        uint offset,
+                                                        Item *def);
+  bool sp_variable_declarations_table_rowtype_finalize(THD *thd, int nvars,
+                                                       const LEX_CSTRING &db,
+                                                       const LEX_CSTRING &table,
+                                                       Item *def);
+  bool sp_variable_declarations_column_type_finalize(THD *thd, int nvars,
+                                                     Qualified_column_ident *ref,
+                                                     Item *def);
+  bool sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
+                                                 const LEX_CSTRING &name,
+                                                 Item *def);
+  bool sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
+                                                   const Column_definition &ref,
+                                                   Row_definition_list *fields,
+                                                   Item *def);
   bool sp_handler_declaration_init(THD *thd, int type);
   bool sp_handler_declaration_finalize(THD *thd, int type);
 

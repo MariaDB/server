@@ -4061,6 +4061,23 @@ public:
         || unireg_check == Field::TIMESTAMP_DNUN_FIELD;
   }
 
+  void set_type(const Column_definition &other)
+  {
+    set_handler(other.type_handler());
+    length= other.length;
+    char_length= other.char_length;
+    decimals= other.decimals;
+    flags= other.flags;
+    pack_length= other.pack_length;
+    key_length= other.key_length;
+    unireg_check= other.unireg_check;
+    interval= other.interval;
+    charset= other.charset;
+    srid= other.srid;
+    geom_type= other.geom_type;
+    pack_flag= other.pack_flag;
+  }
+
   // Replace the entire value by another definition
   void set_column_definition(const Column_definition *def)
   {
@@ -4127,12 +4144,14 @@ class Spvar_definition: public Column_definition
   class Qualified_column_ident *m_column_type_ref; // for %TYPE
   class Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
   bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
+  uint m_cursor_rowtype_offset;                    // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
 public:
   Spvar_definition()
    :m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
+    m_cursor_rowtype_offset(0),
     m_row_field_definitions(NULL)
   { }
   Spvar_definition(THD *thd, Field *field)
@@ -4140,6 +4159,7 @@ public:
     m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
+    m_cursor_rowtype_offset(0),
     m_row_field_definitions(NULL)
   { }
   const Type_handler *type_handler() const
@@ -4168,9 +4188,15 @@ public:
   {
     m_table_rowtype_ref= ref;
   }
-  void set_cursor_rowtype_ref(bool ref)
+
+  uint cursor_rowtype_offset() const
+  {
+    return m_cursor_rowtype_offset;
+  }
+  void set_cursor_rowtype_ref(bool ref, uint offset)
   {
     m_cursor_rowtype_ref= ref;
+    m_cursor_rowtype_offset= offset;
   }
 
   /*
