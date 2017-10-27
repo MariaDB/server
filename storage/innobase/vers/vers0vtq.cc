@@ -228,7 +228,7 @@ operator< (const timeval &a, const timeval &b)
 static
 trx_id_t
 read_trx_id(const rec_t *rec) {
-	ulong len = 0;
+	ulint len = 0;
 	const rec_t *field = rec_get_nth_field_old(rec, 1, &len);
 	DBUG_ASSERT(len == 8);
 	return mach_read_from_8(field);

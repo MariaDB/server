@@ -867,9 +867,7 @@ trx_resurrect_insert(
 	if (trx->state == TRX_STATE_ACTIVE
 	    || trx->state == TRX_STATE_PREPARED) {
 
-		ut_usectime((ulong *)&trx->start_time,
-			(ulong *)&trx->start_time_micro);
-		trx->start_time_micro += trx->start_time * 1000000;
+		trx->init_start_time();
 	}
 
 	if (undo->dict_operation) {
@@ -959,9 +957,7 @@ trx_resurrect_update(
 	start time here.*/
 	if (trx->state == TRX_STATE_ACTIVE
 	    || trx->state == TRX_STATE_PREPARED) {
-		ut_usectime((ulong *)&trx->start_time,
-			(ulong *)&trx->start_time_micro);
-		trx->start_time_micro += trx->start_time * 1000000;
+		trx->init_start_time();
 	}
 
 	if (undo->dict_operation) {
@@ -1337,9 +1333,7 @@ trx_start_low(
 		trx->start_time = trx->start_time_micro / 1000000;
 
 	} else {
-		ut_usectime((ulong *)&trx->start_time,
-			(ulong *)&trx->start_time_micro);
-		trx->start_time_micro += trx->start_time * 1000000;
+		trx->init_start_time();
 	}
 
 	ut_a(trx->error_state == DB_SUCCESS);
