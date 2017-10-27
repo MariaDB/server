@@ -3238,17 +3238,10 @@ os_file_close_func(
 @param[in]	file		handle to an open file
 @return file size, or (os_offset_t) -1 on failure */
 os_offset_t
-os_file_get_size(
-	os_file_t	file)
+os_file_get_size(os_file_t file)
 {
-	/* Store current position */
-	os_offset_t	pos = lseek(file, 0, SEEK_CUR);
-	os_offset_t	file_size = lseek(file, 0, SEEK_END);
-
-	/* Restore current position as the function should not change it */
-	lseek(file, pos, SEEK_SET);
-
-	return(file_size);
+	struct stat statbuf;
+	return fstat(file, &statbuf) ? os_offset_t(-1) : statbuf.st_size;
 }
 
 /** Gets a file size.
