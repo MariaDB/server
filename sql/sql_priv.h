@@ -349,6 +349,8 @@ enum enum_parsing_place
   IN_ON,
   IN_GROUP_BY,
   IN_ORDER_BY,
+  IN_UPDATE_ON_DUP_KEY,
+  IN_PARTITIONING,
   PARSING_PLACE_SIZE /* always should be the last */
 };
 

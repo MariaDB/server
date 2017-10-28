@@ -1306,7 +1306,7 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
 {
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
   int token;
-
+  
   if (lip->lookahead_token >= 0)
   {
     /*
@@ -1347,6 +1347,25 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       lip->yylval= NULL;
       lip->lookahead_token= token;
       return WITH;
+    }
+    break;
+  case VALUES:
+    if (thd->lex->current_select->parsing_place == IN_UPDATE_ON_DUP_KEY
+       // || thd->lex->current_select->parsing_place == IN_PARTITIONING
+    )
+      return VALUE_SYM;
+    token= lex_one_token(yylval, thd);
+    lip->add_digest_token(token, yylval);
+    switch(token) {
+    case LESS_SYM:
+      return VALUES_LESS_SYM;
+    case IN_SYM:
+      return VALUES_IN_SYM;
+    default:
+      lip->lookahead_yylval= lip->yylval;
+      lip->yylval= NULL;
+      lip->lookahead_token= token;
+      return VALUES;
     }
     break;
   default:
@@ -2225,6 +2244,7 @@ void st_select_lex::init_query()
   window_specs.empty();
   window_funcs.empty();
   tvc= 0;
+  in_tvc= false;
 }
 
 void st_select_lex::init_select()
@@ -2266,6 +2286,7 @@ void st_select_lex::init_select()
   tvc= 0;
   in_funcs.empty();
   curr_tvc_name= 0;
+  in_tvc= false;
 }
 
 /*
@@ -2810,10 +2831,7 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
     }
     if (sl->braces)
       str->append('(');
-    if (sl->tvc)
-      sl->tvc->print(thd, str, query_type);
-    else
-      sl->print(thd, str, query_type);
+    sl->print(thd, str, query_type);
     if (sl->braces)
       str->append(')');
   }

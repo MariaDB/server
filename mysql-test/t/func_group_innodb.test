@@ -168,7 +168,7 @@ set storage_engine=innodb;
 
 create table y select 1 b;
 select 1 from y group by b;
-select 1 from y group by values(b);
+select 1 from y group by value(b);
 drop table y;
 SET storage_engine=@old_engine;
 

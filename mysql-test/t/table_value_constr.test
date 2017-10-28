@@ -554,6 +554,181 @@ create view v1 as
 eval $select_view;
 eval $drop_view;
 
+--echo # IN-subquery with VALUES structure(s) : simple case
+let $query= 
+select * from t1
+where a in (values (1));
+let $subst_query= 
+select * from t1
+where a in (select * from (values (1)) as tvc_0);
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # IN-subquery with VALUES structure(s) : UNION with VALUES on the first place
+let $query=
+select * from t1
+where a in (values (1) union select 2);
+let $subst_query=
+select * from t1
+where a in (select * from (values (1)) as tvc_0 union 
+	    select 2);
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # IN-subquery with VALUES structure(s) : UNION with VALUES on the second place
+let $query= 
+select * from t1
+where a in (select 2 union values (1));
+let $subst_query= 
+select * from t1
+where a in (select 2 union 
+            select * from (values (1)) tvc_0);
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # IN-subquery with VALUES structure(s) : UNION ALL
+let $query=
+select * from t1
+where a in (values (1) union all select b from t1);
+let $subst_query=
+select * from t1
+where a in (select * from (values (1)) as tvc_0 union all 
+            select b from t1);
+
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # NOT IN subquery with VALUES structure(s) : simple case
+let $query=
+select * from t1 
+where a not in (values (1),(2));
+let $subst_query=
+select * from t1 
+where a not in (select * from (values (1),(2)) as tvc_0);
+
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # NOT IN subquery with VALUES structure(s) : UNION with VALUES on the first place
+let $query=
+select * from t1
+where a not in (values (1) union select 2);
+let $subst_query=
+select * from t1
+where a not in (select * from (values (1)) as tvc_0 union 
+                select 2);
+                
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # NOT IN subquery with VALUES structure(s) : UNION with VALUES on the second place
+let $query=
+select * from t1
+where a not in (select 2 union values (1));
+let $subst_query=
+select * from t1
+where a not in (select 2 union 
+		select * from (values (1)) as tvc_0);
+		
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ANY-subquery with VALUES structure(s) : simple case
+let $query=
+select * from t1 
+where a = any (values (1),(2));
+let $subst_query=
+select * from t1 
+where a = any (select * from (values (1),(2)) as tvc_0);
+
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ANY-subquery with VALUES structure(s) : UNION with VALUES on the first place
+let $query=
+select * from t1 
+where a = any (values (1) union select 2);
+let $subst_query=
+select * from t1
+where a = any (select * from (values (1)) as tvc_0 union 
+               select 2);
+                
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ANY-subquery with VALUES structure(s) : UNION with VALUES on the second place
+let $query=
+select * from t1
+where a = any (select 2 union values (1));
+let $subst_query=
+select * from t1
+where a = any (select 2 union 
+	       select * from (values (1)) as tvc_0);
+		
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ALL-subquery with VALUES structure(s) : simple case
+let $query=
+select * from t1 
+where a = all (values (1));
+let $subst_query=
+select * from t1 
+where a = all (select * from (values (1)) as tvc_0);
+
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ALL-subquery with VALUES structure(s) : UNION with VALUES on the first place
+let $query=
+select * from t1 
+where a = all (values (1) union select 1);
+let $subst_query=
+select * from t1
+where a = all (select * from (values (1)) as tvc_0 union 
+               select 1);
+                
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ALL-subquery with VALUES structure(s) : UNION with VALUES on the second place
+let $query=
+select * from t1
+where a = any (select 1 union values (1));
+let $subst_query=
+select * from t1
+where a = any (select 1 union 
+	       select * from (values (1)) as tvc_0);
+		
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
 --echo # prepare statement that uses VALUES structure(s): single VALUES structure
 
 prepare stmt1 from "
@@ -856,21 +1031,16 @@ values (1,2);
 --error ER_WRONG_NUMBER_OF_VALUES_IN_TVC
 values (1,2),(3,4,5);
 
---echo # subquery that uses VALUES structure(s)
---error ER_TVC_IN_SUBQUERY
-select * from t1
-where a in (values (1));
---error ER_TVC_IN_SUBQUERY
-select * from t1
-where a in (select 2 union values (1));
---error ER_TVC_IN_SUBQUERY
-select * from t1
-where a in (values (1) union select 2);
-
 --echo # illegal parameter data types in TVC
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 values (1,point(1,1)),(1,1);
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 values (1,point(1,1)+1);
+
+--echo # field reference in TVC
+--error ER_FIELD_REFERENCE_IN_TVC
+select * from (values (1), (b), (2)) as new_tvc;
+--error ER_FIELD_REFERENCE_IN_TVC
+select * from (values (1), (t1.b), (2)) as new_tvc;
 
 drop table t1;

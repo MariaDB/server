@@ -5683,6 +5683,13 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   DBUG_ASSERT(fixed == 0);
   Field *from_field= (Field *)not_found_field;
   bool outer_fixed= false;
+  
+  if (thd->lex->current_select->in_tvc)
+  {
+    my_error(ER_FIELD_REFERENCE_IN_TVC, MYF(0),
+             full_name(), thd->where);
+    return(1);
+  }
 
   if (!field)					// If field is not checked
   {
@@ -9010,7 +9017,7 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
 
 void Item_insert_value::print(String *str, enum_query_type query_type)
 {
-  str->append(STRING_WITH_LEN("values("));
+  str->append(STRING_WITH_LEN("value("));
   arg->print(str, query_type);
   str->append(')');
 }

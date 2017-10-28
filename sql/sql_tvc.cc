@@ -195,6 +195,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
 				 st_select_lex_unit *unit_arg)
 {
   DBUG_ENTER("table_value_constr::prepare");
+  select_lex->in_tvc= true;
   List_iterator_fast<List_item> li(lists_of_values);
   
   List_item *first_elem= li++;
@@ -237,6 +238,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
   if (result && result->prepare(sl->item_list, unit_arg))
     DBUG_RETURN(true);
 
+  select_lex->in_tvc= false;
   DBUG_RETURN(false);
 }
 
@@ -496,6 +498,94 @@ static bool create_tvc_name(THD *thd, st_select_lex *parent_select,
 }
 
 
+bool Item_subselect::wrap_tvc_in_derived_table(THD *thd,
+					       st_select_lex *tvc_sl)
+{
+  LEX *lex= thd->lex;
+  /* SELECT_LEX object where the transformation is performed */
+  SELECT_LEX *parent_select= lex->current_select;
+  uint8 save_derived_tables= lex->derived_tables;
+
+  Query_arena backup;
+  Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  /*
+    Create SELECT_LEX of the subquery SQ used in the result of transformation
+  */
+  lex->current_select= tvc_sl;
+  if (mysql_new_select(lex, 0, NULL))
+    goto err;
+  mysql_init_select(lex);
+  /* Create item list as '*' for the subquery SQ */
+  Item *item;
+  SELECT_LEX *sq_select; // select for IN subquery;
+  sq_select= lex->current_select;
+  sq_select->linkage= tvc_sl->linkage;
+  sq_select->parsing_place= SELECT_LIST;
+  item= new (thd->mem_root) Item_field(thd, &sq_select->context,
+                                       NULL, NULL, &star_clex_str);
+  if (item == NULL || add_item_to_list(thd, item))
+    goto err;
+  (sq_select->with_wild)++;
+  
+  /* Exclude SELECT with TVC */
+  tvc_sl->exclude();
+  /*
+    Create derived table DT that will wrap TVC in the result of transformation
+  */
+  SELECT_LEX *tvc_select; // select for tvc
+  SELECT_LEX_UNIT *derived_unit; // unit for tvc_select
+  if (mysql_new_select(lex, 1, tvc_sl))
+    goto err;
+  tvc_select= lex->current_select;
+  derived_unit= tvc_select->master_unit();
+  tvc_select->linkage= DERIVED_TABLE_TYPE;
+
+  lex->current_select= sq_select;
+
+  /*
+    Create the name of the wrapping derived table and
+    add it to the FROM list of the subquery SQ
+   */
+  Table_ident *ti;
+  LEX_CSTRING alias;
+  TABLE_LIST *derived_tab;
+  if (!(ti= new (thd->mem_root) Table_ident(derived_unit)) ||
+      create_tvc_name(thd, parent_select, &alias))
+    goto err;
+  if (!(derived_tab=
+          sq_select->add_table_to_list(thd,
+				       ti, &alias, 0,
+                                       TL_READ, MDL_SHARED_READ)))
+    goto err;
+  sq_select->add_joined_table(derived_tab);
+  sq_select->add_where_field(derived_unit->first_select());
+  sq_select->context.table_list= sq_select->table_list.first;
+  sq_select->context.first_name_resolution_table= sq_select->table_list.first;
+  sq_select->table_list.first->derived_type= DTYPE_TABLE | DTYPE_MATERIALIZE;
+  lex->derived_tables|= DERIVED_SUBQUERY;
+
+  sq_select->where= 0;
+  sq_select->set_braces(false);
+  derived_unit->set_with_clause(0);
+
+  if (engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE)
+    ((subselect_single_select_engine *) engine)->change_select(sq_select);
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  lex->current_select= sq_select;
+  return false;
+
+err:
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  lex->derived_tables= save_derived_tables;
+  lex->current_select= parent_select;
+  return true;
+}
+
+
 /**
   @brief
     Transform IN predicate into IN subquery
@@ -532,6 +622,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   if (!transform_into_subq)
     return this;
 
+  
   transform_into_subq= false;
 
   List<List_item> values;
@@ -540,6 +631,12 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   /* SELECT_LEX object where the transformation is performed */
   SELECT_LEX *parent_select= lex->current_select;
   uint8 save_derived_tables= lex->derived_tables;
+  
+  for (uint i=1; i < arg_count; i++)
+  {
+    if (!args[i]->const_item())
+      return this;
+  }
 
   Query_arena backup;
   Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);

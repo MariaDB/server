@@ -25182,6 +25182,12 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 {
   DBUG_ASSERT(thd);
+  
+  if (tvc)
+  {
+    tvc->print(thd, str, query_type);
+    return;
+  }
 
   if ((query_type & QT_SHOW_SELECT_NUMBER) &&
       thd->lex->all_selects_list &&

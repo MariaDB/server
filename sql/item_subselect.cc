@@ -119,7 +119,7 @@ void Item_subselect::init(st_select_lex *select_lex,
     parsing_place= (outer_select->in_sum_expr ?
                     NO_MATTER :
                     outer_select->parsing_place);
-    if (unit->is_unit_op())
+    if (unit->is_unit_op() && unit->first_select()->next_select())
       engine= new subselect_union_engine(unit, result, this);
     else
       engine= new subselect_single_select_engine(select_lex, result, this);
@@ -269,9 +269,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   {
     if (sl->tvc)
     {
-      my_error(ER_TVC_IN_SUBQUERY, MYF(0));
-      res= 1;
-      goto end;
+      wrap_tvc_in_derived_table(thd, sl);
     }
   }
   

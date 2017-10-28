@@ -1012,6 +1012,7 @@ public:
   thr_lock_type lock_type;
   
   table_value_constr *tvc;
+  bool in_tvc;
 
   void init_query();
   void init_select();

@@ -7492,5 +7492,5 @@ ER_SP_STACK_TRACE
         eng "At line %u in %s"
 ER_WRONG_NUMBER_OF_VALUES_IN_TVC
         eng "The used table value constructor has a different number of values"
-ER_TVC_IN_SUBQUERY
-	eng "Table value constructor can't be used as specification of subquery isn't implemented yet"
+ER_FIELD_REFERENCE_IN_TVC
+	eng "Field reference '%-.192s' can't be used in table value constructor"
