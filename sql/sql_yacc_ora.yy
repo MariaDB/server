@@ -645,6 +645,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  MAX_STATEMENT_TIME_SYM
 %token  MAX_USER_CONNECTIONS_SYM
 %token  MAXVALUE_SYM                 /* SQL-2003-N */
+%token  MEDIAN_SYM
 %token  MEDIUMBLOB
 %token  MEDIUMINT
 %token  MEDIUMTEXT
@@ -1151,6 +1152,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         window_func
         simple_window_func
         inverse_distribution_function
+        percentile_function
         inverse_distribution_function_def
         explicit_cursor_attr
         function_call_keyword
@@ -10723,13 +10725,9 @@ simple_window_func:
               MYSQL_YYABORT;
           }
         ;
-
 inverse_distribution_function:
-          inverse_distribution_function_def WITHIN GROUP_SYM
-          '('
-           { Select->prepare_add_window_spec(thd); }
-           order_by_single_element_list ')' OVER_SYM
-          '(' opt_window_ref opt_window_partition_clause ')'
+          percentile_function OVER_SYM
+          '(' opt_window_partition_clause ')'
           {
             LEX *lex= Lex;
             if (Select->add_window_spec(thd, lex->win_ref,
@@ -10742,6 +10740,29 @@ inverse_distribution_function:
             if ($$ == NULL)
               MYSQL_YYABORT;
             if (Select->add_window_func((Item_window_func *) $$))
+              MYSQL_YYABORT;
+          }
+        ;
+
+percentile_function:
+          inverse_distribution_function_def  WITHIN GROUP_SYM '('
+           { Select->prepare_add_window_spec(thd); }
+           order_by_single_element_list ')'
+           {
+             $$= $1;
+           }
+        | MEDIAN_SYM '(' expr ')'
+          {
+            Item *args= new (thd->mem_root) Item_decimal(thd, "0.5", 3,
+                                                   thd->charset());
+            if (($$ == NULL) || (thd->is_error()))
+            {
+              MYSQL_YYABORT;
+            }
+            if (add_order_to_list(thd, $3,FALSE)) MYSQL_YYABORT;
+
+            $$= new (thd->mem_root) Item_sum_percentile_cont(thd, args);
+            if ($$ == NULL)
               MYSQL_YYABORT;
           }
         ;
@@ -10762,7 +10783,8 @@ inverse_distribution_function_def:
         ;
 
 order_by_single_element_list:
-          ORDER_SYM BY order_list
+          ORDER_SYM BY order_ident order_dir
+          { if (add_order_to_list(thd, $3,(bool) $4)) MYSQL_YYABORT; }
         ;
 
 window_name:
