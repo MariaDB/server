@@ -1350,9 +1350,8 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
     }
     break;
   case VALUES:
-    if (thd->lex->current_select->parsing_place == IN_UPDATE_ON_DUP_KEY
-       // || thd->lex->current_select->parsing_place == IN_PARTITIONING
-    )
+    if (thd->lex->current_select->parsing_place == IN_UPDATE_ON_DUP_KEY ||
+        thd->lex->current_select->parsing_place == IN_PART_FUNC)
       return VALUE_SYM;
     token= lex_one_token(yylval, thd);
     lip->add_digest_token(token, yylval);
