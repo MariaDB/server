@@ -3050,7 +3050,7 @@ int handler::update_auto_increment()
         int2store(ptr, vers_auto_decrement--);
         break;
       case 1:
-        *ptr= vers_auto_decrement--;
+        *ptr= static_cast<uchar>(vers_auto_decrement--);
         break;
       default:
         DBUG_ASSERT(false);

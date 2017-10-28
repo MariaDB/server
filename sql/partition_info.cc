@@ -860,13 +860,13 @@ bool partition_info::vers_set_interval(const INTERVAL & i)
   DBUG_ASSERT(vers_info);
 
   // TODO: INTERVAL conversion to seconds leads to mismatch with calendar intervals (MONTH and YEAR)
-  vers_info->interval=
+  vers_info->interval= static_cast<my_time_t>(
     i.second +
     i.minute * 60 +
     i.hour * 60 * 60 +
     i.day * 24 * 60 * 60 +
     i.month * 30 * 24 * 60 * 60 +
-    i.year * 365 * 30 * 24 * 60 * 60;
+    i.year * 365 * 30 * 24 * 60 * 60);
 
   if (vers_info->interval == 0)
     return true;

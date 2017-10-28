@@ -457,9 +457,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   for (SELECT_LEX *sl= select_lex; sl; sl= sl->next_select())
   { /* System Versioning: fix system fields of versioned view */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat"
-#pragma GCC diagnostic ignored "-Wformat-extra-args"
     // Similar logic as in mysql_derived_prepare()
     // Leading versioning table detected implicitly (first one selected)
     TABLE_LIST *impli_table= NULL;
@@ -480,7 +477,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       {
         my_printf_error(
           ER_VERS_VIEW_PROHIBITED,
-          "Creating VIEW %`s is prohibited: versioned VIEW %`s in query!", MYF(0),
+          "Creating VIEW `%s` is prohibited: versioned VIEW `%s` in query!", MYF(0),
           view->table_name,
           table->table_name);
         res= true;
@@ -519,7 +516,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
           {
             my_printf_error(
               ER_VERS_VIEW_PROHIBITED,
-              "Creating VIEW %`s is prohibited: multiple start system fields `%s.%s`, `%s.%s` in query!", MYF(0),
+              "Creating VIEW `%s` is prohibited: multiple start system fields `%s.%s`, `%s.%s` in query!", MYF(0),
               view->table_name,
               expli_table->alias,
               expli_start->field_name.str,
@@ -535,7 +532,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 expli_table_err:
               my_printf_error(
                 ER_VERS_VIEW_PROHIBITED,
-                "Creating VIEW %`s is prohibited: system fields from multiple tables %`s, %`s in query!", MYF(0),
+                "Creating VIEW `%s` is prohibited: system fields from multiple tables `%s`, `%s` in query!", MYF(0),
                 view->table_name,
                 expli_table->alias,
                 table->alias);
@@ -554,7 +551,7 @@ expli_table_err:
           {
             my_printf_error(
               ER_VERS_VIEW_PROHIBITED,
-              "Creating VIEW %`s is prohibited: multiple end system fields `%s.%s`, `%s.%s` in query!", MYF(0),
+              "Creating VIEW `%s` is prohibited: multiple end system fields `%s.%s`, `%s.%s` in query!", MYF(0),
               view->table_name,
               expli_table->alias,
               expli_end->field_name.str,
@@ -586,7 +583,6 @@ expli_table_err:
       if (!expli_end && sl->vers_push_field(thd, impli_table, impli_end))
         goto err;
     }
-#pragma GCC diagnostic pop
   } /* System Versioning end */
 
   view= lex->unlink_first_table(&link_to_local);

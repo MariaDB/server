@@ -2637,7 +2637,7 @@ private:
   bool update(set_var *var, st_vers_asof_timestamp &out)
   {
     bool res= false;
-    out.type= var->save_result.ulonglong_value;
+    out.type= static_cast<enum_var_type>(var->save_result.ulonglong_value);
     if (out.type == FOR_SYSTEM_TIME_AS_OF)
     {
       res= var->value->get_date(&out.ltime, 0);

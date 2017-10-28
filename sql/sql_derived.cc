@@ -736,9 +736,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     }
 
     // System Versioning: fix system fields of versioned derived table
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat"
-#pragma GCC diagnostic ignored "-Wformat-extra-args"
     if ((thd->stmt_arena->is_stmt_prepare() || !thd->stmt_arena->is_stmt_execute())
       && sl->table_list.elements > 0)
     {
@@ -799,7 +796,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 expli_table_err:
                 my_printf_error(
                   ER_VERS_DERIVED_PROHIBITED,
-                  "Derived table is prohibited: system fields from multiple tables %`s, %`s in query!", MYF(0),
+                  "Derived table is prohibited: system fields from multiple tables `%s`, `%s` in query!", MYF(0),
                   expli_table->alias,
                   table->alias);
                 res= true;
@@ -857,7 +854,6 @@ expli_table_err:
           sl->vers_import_outer= true; // FIXME: is needed?
       }
     } // if (sl->table_list.elements > 0)
-#pragma GCC diagnostic pop
     // System Versioning end
   }
 

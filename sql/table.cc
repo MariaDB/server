@@ -4766,7 +4766,8 @@ bool TABLE_LIST::create_field_translation(THD *thd)
     if (is_view() && get_unit()->prepared && !field_translation_updated)
     {
       field_translation_updated= TRUE;
-      if (field_translation_end - field_translation < select->item_list.elements)
+      if (static_cast<uint>(field_translation_end - field_translation) <
+          select->item_list.elements)
         goto allocate;
       while ((item= it++))
       {

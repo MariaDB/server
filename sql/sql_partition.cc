@@ -3207,7 +3207,7 @@ int vers_get_partition_id(partition_info *part_info,
         mysql_mutex_unlock(&table->s->LOCK_rotation);
         // transaction is not yet pushed to VTQ, so we use now-time
         my_time_t end_ts= sys_trx_end->table->versioned_by_engine() ?
-          my_time(0) : sys_trx_end->get_timestamp();
+          my_time_t(0) : sys_trx_end->get_timestamp();
         if (part_info->vers_limit_exceed() || part_info->vers_interval_exceed(end_ts))
         {
           part_info->vers_part_rotate(thd);
