@@ -1,5 +1,4 @@
 --source include/not_embedded.inc
---source include/have_xtradb.inc
 
 select * from information_schema.innodb_trx;
 select * from information_schema.innodb_locks;

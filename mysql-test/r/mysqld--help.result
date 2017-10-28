@@ -1277,8 +1277,6 @@ The following options may be given as the first argument:
  system rows as is on ALTER TABLE; SURVIVE: use DDL
  survival feature; DROP: delete historical system rows on
  ALTER TABLE
- --versioning-asof-timestamp=name 
- Default AS OF value for versioned queries
  --versioning-force  Force system versioning for all created tables
  --versioning-hide=name 
  Hide system versioning from being displayed in table

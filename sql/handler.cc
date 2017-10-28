@@ -2435,12 +2435,6 @@ LEX_CSTRING *handler::engine_name()
 }
 
 
-void handler::ha_statistic_increment(ulong SSV::*offset) const
-{
-  (table->in_use->status_var.*offset)++;
-}
-
-
 double handler::keyread_time(uint index, uint ranges, ha_rows rows)
 {
   /*
