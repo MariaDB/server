@@ -1228,9 +1228,9 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 		for (ulint n = v.num_base; n--; ) {
 			dict_col_t*& base = v.base_col[n];
 			if (!base->is_virtual()) {
-				ptrdiff_t n = base - old_cols;
-				DBUG_ASSERT(n >= 0);
-				DBUG_ASSERT(n < old_n_cols - DATA_N_SYS_COLS);
+				DBUG_ASSERT(base >= old_cols);
+				size_t n = size_t(base - old_cols);
+				DBUG_ASSERT(n + DATA_N_SYS_COLS < old_n_cols);
 				base = &cols[n];
 			}
 		}
@@ -1247,13 +1247,13 @@ void dict_table_t::instant_add_column(const dict_table_t& table)
 			    || field.col >= old_cols_end) {
 				DBUG_ASSERT(field.col->is_virtual());
 			} else {
-				ptrdiff_t n = field.col - old_cols;
 				/* Secondary indexes may contain user
 				columns and DB_ROW_ID (if there is
 				GEN_CLUST_INDEX instead of PRIMARY KEY),
 				but not DB_TRX_ID,DB_ROLL_PTR. */
-				DBUG_ASSERT(n >= 0);
-				DBUG_ASSERT(n <= old_n_cols - DATA_N_SYS_COLS);
+				DBUG_ASSERT(field.col >= old_cols);
+				size_t n = size_t(field.col - old_cols);
+				DBUG_ASSERT(n + DATA_N_SYS_COLS <= old_n_cols);
 				if (n + DATA_N_SYS_COLS >= old_n_cols) {
 					/* Replace DB_ROW_ID */
 					n += n_add;
@@ -1326,10 +1326,10 @@ dict_table_t::rollback_instant(
 			    || field.col >= new_cols_end) {
 				DBUG_ASSERT(field.col->is_virtual());
 			} else {
-				ptrdiff_t n = field.col - new_cols;
-				DBUG_ASSERT(n >= 0);
+				DBUG_ASSERT(field.col >= new_cols);
+				size_t n = size_t(field.col - new_cols);
 				DBUG_ASSERT(n <= n_cols);
-				if (n >= n_cols - DATA_N_SYS_COLS) {
+				if (n + DATA_N_SYS_COLS >= n_cols) {
 					n -= n_remove;
 				}
 				field.col = &cols[n];
