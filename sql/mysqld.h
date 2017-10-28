@@ -193,15 +193,11 @@ enum vers_range_type_t
 
 struct st_vers_asof_timestamp
 {
-  const char *getopt_value;
   ulong type;
   MYSQL_TIME ltime;
   st_vers_asof_timestamp() :
-    getopt_value(NULL),
     type(FOR_SYSTEM_TIME_UNSPECIFIED)
-  {
-    DBUG_ASSERT((void *)this == &this->getopt_value);
-  }
+  {}
 };
 
 enum vers_hide_enum
@@ -701,7 +697,6 @@ enum options_mysqld
   OPT_SSL_KEY,
   OPT_THREAD_CONCURRENCY,
   OPT_WANT_CORE,
-  OPT_VERS_ASOF_TIMESTAMP,
 #ifdef WITH_WSREP
   OPT_WSREP_CAUSAL_READS,
   OPT_WSREP_SYNC_WAIT,

@@ -390,7 +390,7 @@ static Sys_var_charptr Sys_my_bind_addr(
 const char *Sys_var_vers_asof::asof_keywords[]= {"CURRENT", "ALL", NULL};
 static Sys_var_vers_asof Sys_vers_asof_timestamp(
        "versioning_asof_timestamp", "Default AS OF value for versioned queries",
-       SESSION_VAR(vers_asof_timestamp.getopt_value), CMD_LINE(REQUIRED_ARG, OPT_VERS_ASOF_TIMESTAMP),
+       SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
        Sys_var_vers_asof::asof_keywords, DEFAULT(FOR_SYSTEM_TIME_UNSPECIFIED));
 
 static Sys_var_mybool Sys_vers_force(
