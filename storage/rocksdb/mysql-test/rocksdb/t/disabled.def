@@ -54,7 +54,6 @@ blind_delete_without_tx_api: MDEV-12286: rocksdb.blind_delete_without_tx_api tes
 persistent_cache: Upstream RocksDB bug https://github.com/facebook/mysql-5.6/issues/579
 
 collation: Fails on gcc 4.8 and before,  MDEV-12433
-rocksdb  : Intermittent failures in BB
 unique_sec : Intermittent failures in BB  
 
 # See also storage/rocksdb/mysql-test/rocksdb/suite.pm
