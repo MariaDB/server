@@ -54,7 +54,6 @@ blind_delete_without_tx_api: MDEV-12286: rocksdb.blind_delete_without_tx_api tes
 persistent_cache: Upstream RocksDB bug https://github.com/facebook/mysql-5.6/issues/579
 
 collation: Fails on gcc 4.8 and before,  MDEV-12433
-unique_sec : Intermittent failures in BB  
 
 # See also storage/rocksdb/mysql-test/rocksdb/suite.pm
 # Running tests under valgrind is disabled there.
@@ -64,9 +63,11 @@ rocksdb_deadlock_stress_rc: stress test
 rocksdb_deadlock_stress_rr: stress test
 
 # MDEV-12474 Regularly failing tests on Buildbot
-autoinc_vars_thread : MDEV-12474 Regularly fails on buildbot
-unique_check : MDEV-12474 Regularly fails on buildbot
-bloomfilter : MDEV-12474 Regularly fails on buildbot
+# Enabling these didn't seem to cause any trouble:
+# autoinc_vars_thread : MDEV-12474 Regularly fails on buildbot
+# unique_check : MDEV-12474 Regularly fails on buildbot
+# bloomfilter : MDEV-12474 Regularly fails on buildbot
+# unique_sec : Intermittent failures in BB
 
 compact_deletes: MDEV-12663 : rocksdb.compact_deletes times out and causes other tests to fail
 
