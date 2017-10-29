@@ -1,18 +1,18 @@
 drop table if exists t1;
 CREATE TABLE t1(pk CHAR(5) PRIMARY KEY, a char(30), b char(30)) COLLATE 'latin1_bin';
 set rocksdb_bulk_load=1;
-set rocksdb_bulk_load_size=100000;
+set rocksdb_bulk_load_size=10000;
 LOAD DATA INFILE <input_file> INTO TABLE t1;
 set rocksdb_bulk_load=0;
 select count(pk) from t1;
 count(pk)
-3000000
+300000
 select count(a) from t1;
 count(a)
-3000000
+300000
 select count(b) from t1;
 count(b)
-3000000
+300000
 ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
 ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
 SELECT COUNT(*) as c FROM
@@ -25,22 +25,22 @@ c
 1
 select count(*) from t1 FORCE INDEX(kb);
 count(*)
-3000000
+300000
 select count(*) from t1 FORCE INDEX(kb_copy);
 count(*)
-3000000
+300000
 select count(*) from t1 FORCE INDEX(PRIMARY);
 count(*)
-3000000
+300000
 ALTER TABLE t1 DROP INDEX kb, ALGORITHM=INPLACE;
 ALTER TABLE t1 DROP INDEX kb_copy, ALGORITHM=INPLACE;
 ALTER TABLE t1 ADD INDEX kb(b), ADD INDEX kab(a,b), ALGORITHM=INPLACE;
 SELECT COUNT(*) FROM t1 FORCE INDEX(kab);
 COUNT(*)
-3000000
+300000
 SELECT COUNT(*) FROM t1 FORCE INDEX(kb);
 COUNT(*)
-3000000
+300000
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

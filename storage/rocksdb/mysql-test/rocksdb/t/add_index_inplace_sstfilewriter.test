@@ -19,7 +19,7 @@ CREATE TABLE t1(pk CHAR(5) PRIMARY KEY, a char(30), b char(30)) COLLATE 'latin1_
 perl;
 my $fn = $ENV{'ROCKSDB_INFILE'};
 open(my $fh, '>>', $fn) || die "perl open($fn): $!";
-my $max = 3000000;
+my $max = 300000;
 my @chars = ("A".."Z", "a".."z", "0".."9");
 my @lowerchars = ("a".."z");
 my @powers_of_26 = (26 * 26 * 26 * 26, 26 * 26 * 26, 26 * 26, 26, 1);
@@ -48,7 +48,7 @@ EOF
 --file_exists $file
 
 set rocksdb_bulk_load=1;
-set rocksdb_bulk_load_size=100000;
+set rocksdb_bulk_load_size=10000;
 --disable_query_log
 --echo LOAD DATA INFILE <input_file> INTO TABLE t1;
 eval LOAD DATA INFILE '$file' INTO TABLE t1;
