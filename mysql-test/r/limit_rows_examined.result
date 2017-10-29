@@ -417,20 +417,17 @@ select * from v1 LIMIT ROWS EXAMINED 17;
 c1
 bb
 cc
-dd
 Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 18 rows, which exceeds LIMIT ROWS EXAMINED (17). The query result may be incomplete
 select * from v1 LIMIT ROWS EXAMINED 16;
 c1
 bb
-cc
 Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 18 rows, which exceeds LIMIT ROWS EXAMINED (16). The query result may be incomplete
 select * from v1 LIMIT ROWS EXAMINED 11;
 c1
-bb
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 12 rows, which exceeds LIMIT ROWS EXAMINED (11). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query examined at least 14 rows, which exceeds LIMIT ROWS EXAMINED (11). The query result may be incomplete
 drop view v1;
 explain
 select *
@@ -445,9 +442,8 @@ from (select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)) as tmp
 LIMIT ROWS EXAMINED 11;
 c1
-bb
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 12 rows, which exceeds LIMIT ROWS EXAMINED (11). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query examined at least 14 rows, which exceeds LIMIT ROWS EXAMINED (11). The query result may be incomplete
 =========================================================================
 Aggregation
 =========================================================================

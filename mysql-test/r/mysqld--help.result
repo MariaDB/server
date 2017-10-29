@@ -288,7 +288,7 @@ The following options may be given as the first argument:
  argument to reset the list accumulated so far.
  --in-subquery-conversion-threshold[=#] 
  The minimum number of scalar elements in the value list
- ofIN predicate that triggers its conversion to IN
+ of IN predicate that triggers its conversion to IN
  subquery
  --init-connect=name Command(s) that are executed for each new connection
  (unless the user has SUPER privilege)
