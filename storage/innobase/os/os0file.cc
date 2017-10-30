@@ -775,9 +775,9 @@ os_win32_device_io_control(
 	OVERLAPPED overlapped = { 0 };
 	overlapped.hEvent = win_get_syncio_event();
 	BOOL result = DeviceIoControl(handle, code, inbuf, inbuf_size, outbuf,
-		outbuf_size, bytes_returned, &overlapped);
+		outbuf_size,  NULL, &overlapped);
 
-	if (!result && (GetLastError() == ERROR_IO_PENDING)) {
+	if (result || (GetLastError() == ERROR_IO_PENDING)) {
 		/* Wait for async io to complete */
 		result = GetOverlappedResult(handle, &overlapped, bytes_returned, TRUE);
 	}
@@ -3238,17 +3238,10 @@ os_file_close_func(
 @param[in]	file		handle to an open file
 @return file size, or (os_offset_t) -1 on failure */
 os_offset_t
-os_file_get_size(
-	os_file_t	file)
+os_file_get_size(os_file_t file)
 {
-	/* Store current position */
-	os_offset_t	pos = lseek(file, 0, SEEK_CUR);
-	os_offset_t	file_size = lseek(file, 0, SEEK_END);
-
-	/* Restore current position as the function should not change it */
-	lseek(file, pos, SEEK_SET);
-
-	return(file_size);
+	struct stat statbuf;
+	return fstat(file, &statbuf) ? os_offset_t(-1) : statbuf.st_size;
 }
 
 /** Gets a file size.
@@ -3458,14 +3451,14 @@ SyncFileIO::execute(const IORequest& request)
 
 	if (request.is_read()) {
 		ret = ReadFile(m_fh, m_buf,
-			static_cast<DWORD>(m_n), &n_bytes, &seek);
+			static_cast<DWORD>(m_n), NULL, &seek);
 
 	} else {
 		ut_ad(request.is_write());
 		ret = WriteFile(m_fh, m_buf,
-			static_cast<DWORD>(m_n), &n_bytes, &seek);
+			static_cast<DWORD>(m_n), NULL, &seek);
 	}
-	if (!ret && (GetLastError() == ERROR_IO_PENDING)) {
+	if (ret || (GetLastError() == ERROR_IO_PENDING)) {
 		/* Wait for async io to complete */
 		ret = GetOverlappedResult(m_fh, &seek, &n_bytes, TRUE);
 	}
@@ -3485,17 +3478,17 @@ SyncFileIO::execute(Slot* slot)
 
 		ret = ReadFile(
 			slot->file, slot->ptr, slot->len,
-			&slot->n_bytes, &slot->control);
+			NULL, &slot->control);
 
 	} else {
 		ut_ad(slot->type.is_write());
 
 		ret = WriteFile(
 			slot->file, slot->ptr, slot->len,
-			&slot->n_bytes, &slot->control);
+			NULL, &slot->control);
 
 	}
-	if (!ret && (GetLastError() == ERROR_IO_PENDING)) {
+	if (ret || (GetLastError() == ERROR_IO_PENDING)) {
 		/* Wait for async io to complete */
 		ret = GetOverlappedResult(slot->file, &slot->control, &slot->n_bytes, TRUE);
 	}
@@ -5372,8 +5365,9 @@ fallback:
 	if (is_sparse) {
 		bool success = !ftruncate(file, size);
 		if (!success) {
-			ib::error() << "ftruncate of file " << name <<
-				" to " << size << " bytes failed with error " << errno;
+			ib::error() << "ftruncate of file " << name << " to "
+				    << size << " bytes failed with error "
+				    << errno;
 		}
 		return(success);
 	}
@@ -5381,14 +5375,17 @@ fallback:
 # ifdef HAVE_POSIX_FALLOCATE
 	int err;
 	do {
-		err = posix_fallocate(file, 0, size);
+		os_offset_t current_size = os_file_get_size(file);
+		err = current_size >= size
+			? 0 : posix_fallocate(file, current_size,
+					      size - current_size);
 	} while (err == EINTR
 		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
 	if (err) {
-		ib::error() <<
-			"preallocating " << size << " bytes for" <<
-			"file " << name << "failed with error " << err;
+		ib::error() << "preallocating "
+			    << size << " bytes for file " << name
+			    << " failed with error " << err;
 	}
 	errno = err;
 	return(!err);
@@ -6729,7 +6726,7 @@ try_again:
 #ifdef WIN_ASYNC_IO
 			ret = ReadFile(
 				file, slot->ptr, slot->len,
-				&slot->n_bytes, &slot->control);
+				NULL, &slot->control);
 #elif defined(LINUX_NATIVE_AIO)
 			if (!array->linux_dispatch(slot)) {
 				goto err_exit;
@@ -6747,7 +6744,7 @@ try_again:
 #ifdef WIN_ASYNC_IO
 			ret = WriteFile(
 				file, slot->ptr, slot->len,
-				&slot->n_bytes, &slot->control);
+				NULL, &slot->control);
 #elif defined(LINUX_NATIVE_AIO)
 			if (!array->linux_dispatch(slot)) {
 				goto err_exit;
@@ -6763,8 +6760,7 @@ try_again:
 	}
 
 #ifdef WIN_ASYNC_IO
-	if ((ret && slot->len == slot->n_bytes)
-		|| (!ret && GetLastError() == ERROR_IO_PENDING)) {
+	if (ret || (GetLastError() == ERROR_IO_PENDING)) {
 		/* aio completed or was queued successfully! */
 		return(DB_SUCCESS);
 	}

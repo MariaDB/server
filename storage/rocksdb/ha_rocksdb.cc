@@ -1791,8 +1791,11 @@ protected:
 public:
   const char *m_mysql_log_file_name;
   my_off_t m_mysql_log_offset;
+#ifdef MARIAROCKS_NOT_YET
+  // TODO: MariaDB probably doesn't need these at all:
   const char *m_mysql_gtid;
   const char *m_mysql_max_gtid;
+#endif
   String m_detailed_error;
   int64_t m_snapshot_timestamp = 0;
   bool m_ddl_transaction;
@@ -1802,6 +1805,12 @@ public:
     This should not be reset during start_tx().
   */
   int64_t m_n_mysql_tables_in_use = 0;
+
+  /*
+    MariaDB's group commit:
+  */
+  bool commit_ordered_done;
+  bool commit_ordered_res;
 
   /*
     for distinction between rdb_transaction_impl and rdb_writebatch_impl
@@ -1986,13 +1995,10 @@ public:
       rollback();
       return true;
     } else {
-#ifdef MARIAROCKS_NOT_YET
-      my_core::thd_binlog_pos(m_thd, &m_mysql_log_file_name,
-                              &m_mysql_log_offset, &m_mysql_gtid,
-                              &m_mysql_max_gtid);
+      mysql_bin_log_commit_pos(m_thd, &m_mysql_log_offset,
+                               &m_mysql_log_file_name);
       binlog_manager.update(m_mysql_log_file_name, m_mysql_log_offset,
-                            m_mysql_max_gtid, get_write_batch());
-#endif
+                            get_write_batch());
       return commit_no_binlog();
     }
   }
@@ -2431,6 +2437,8 @@ public:
         THDVAR(m_thd, write_ignore_missing_column_families);
     m_is_two_phase = rocksdb_enable_2pc;
 
+    commit_ordered_done= false;
+
     /*
       If m_rocksdb_reuse_tx is null this will create a new transaction object.
       Otherwise it will reuse the existing one.
@@ -2643,6 +2651,7 @@ public:
   bool is_tx_started() const override { return (m_batch != nullptr); }
 
   void start_tx() override {
+    commit_ordered_done= false; // Do we need this here?
     reset();
     write_opts.sync = (rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC);
     write_opts.disableWAL = THDVAR(m_thd, write_disable_wal);
@@ -2831,44 +2840,62 @@ static bool rocksdb_flush_wal(handlerton* hton __attribute__((__unused__)))
 */
 static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
 {
-#ifdef MARIAROCKS_NOT_YET
-// This is "ASYNC_COMMIT" feature which is only in webscalesql
-  bool async=false;
-#endif
+  bool async=false; // This is "ASYNC_COMMIT" feature which is only present in webscalesql
 
   Rdb_transaction *&tx = get_tx_from_thd(thd);
   if (!tx->can_prepare()) {
     return HA_EXIT_FAILURE;
   }
-#ifdef MARIAROCKS_NOT_YET // disable prepare/commit
   if (prepare_tx ||
       (!my_core::thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
     /* We were instructed to prepare the whole transaction, or
     this is an SQL statement end and autocommit is on */
+
+#ifdef MARIAROCKS_NOT_YET // Crash-safe slave does not work yet
     std::vector<st_slave_gtid_info> slave_gtid_info;
     my_core::thd_slave_gtid_info(thd, &slave_gtid_info);
     for (const auto &it : slave_gtid_info) {
       rocksdb::WriteBatchBase *const write_batch = tx->get_blind_write_batch();
       binlog_manager.update_slave_gtid_info(it.id, it.db, it.gtid, write_batch);
     }
+#endif
 
     if (tx->is_two_phase()) {
+
+      /*
+        MariaDB: the following branch is never taken.
+        We always flush at Prepare and rely on RocksDB's internal Group Commit
+        to do some grouping.
+      */
       if (thd->durability_property == HA_IGNORE_DURABILITY || async) {
         tx->set_sync(false);
       }
+
+      /*
+        MariaDB: do not flush logs if we are running in a non-crash-safe mode.
+      */
+      if (!rocksdb_flush_log_at_trx_commit)
+        tx->set_sync(false);
+
       XID xid;
       thd_get_xid(thd, reinterpret_cast<MYSQL_XID *>(&xid));
       if (!tx->prepare(rdb_xid_to_string(xid))) {
         return HA_EXIT_FAILURE;
       }
-      if (thd->durability_property == HA_IGNORE_DURABILITY )
+
+      /*
+        MariaDB: our Group Commit implementation does not use the
+        hton->flush_logs call (at least currently) so the following is not
+        needed (TODO: will we need this for binlog rotation?)
+      */
 #ifdef MARIAROCKS_NOT_YET      
-          (rocksdb_flush_log_at_trx_commit != FLUSH_LOG_NEVER)) {
+      if (thd->durability_property == HA_IGNORE_DURABILITY )
+          (rocksdb_flush_log_at_trx_commit != FLUSH_LOG_NEVER))
           &&
-          THDVAR(thd, flush_log_at_trx_commit)) {
+          THDVAR(thd, flush_log_at_trx_commit)) 
 #endif          
-      {
 #ifdef MARIAROCKS_NOT_YET
+      {
         // MariaRocks: disable the
         //   "write/sync redo log before flushing binlog cache to file"
         //  feature. See a869c56d361bb44f46c0efeb11a8f03561676247
@@ -2876,13 +2903,12 @@ static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
           we set the log sequence as '1' just to trigger hton->flush_logs
         */
         thd_store_lsn(thd, 1, DB_TYPE_ROCKSDB);
-#endif        
       }
+#endif
     }
 
     DEBUG_SYNC(thd, "rocksdb.prepared");
   }
-#endif
   return HA_EXIT_SUCCESS;
 }
 
@@ -3028,6 +3054,60 @@ static int rocksdb_recover(handlerton* hton, XID* xid_list, uint len)
   return count;
 }
 
+
+/*
+  Handle a commit checkpoint request from server layer.
+
+  InnoDB does this:
+    We put the request in a queue, so that we can notify upper layer about
+    checkpoint complete when we have flushed the redo log.
+    If we have already flushed all relevant redo log, we notify immediately.
+
+  MariaRocks just flushes everything right away ATM
+*/
+
+static void rocksdb_checkpoint_request(handlerton *hton,
+                                       void *cookie)
+{
+  const rocksdb::Status s= rdb->SyncWAL();
+  //TODO: what to do on error?
+  if (s.ok())
+  {
+    rocksdb_wal_group_syncs++;
+    commit_checkpoint_notify_ha(hton, cookie);
+  }
+}
+
+/*
+  @param all:   TRUE - commit the transaction
+                FALSE - SQL statement ended
+*/
+static void rocksdb_commit_ordered(handlerton *hton, THD* thd, bool all)
+{
+  // Same assert as InnoDB has
+  DBUG_ASSERT(all || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT |
+                                             OPTION_BEGIN)));
+  Rdb_transaction *&tx = get_tx_from_thd(thd);
+  if (!tx->is_two_phase()) {
+    /*
+      ordered_commit is supposedly slower as it is done sequentially
+      in order to preserve commit order.
+
+      if we are not required do 2-phase commit with the binlog, do not do
+      anything here.
+    */
+    return;
+  }
+
+  tx->set_sync(false);
+
+  /* This will note the master position also */
+  tx->commit_ordered_res= tx->commit();
+  tx->commit_ordered_done= true;
+
+}
+
+
 static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
 {
   DBUG_ENTER_FUNC();
@@ -3048,6 +3128,16 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
     if (commit_tx || (!my_core::thd_test_options(thd, OPTION_NOT_AUTOCOMMIT |
                                                           OPTION_BEGIN))) {
       /*
+        This will not add anything to commit_latency_stats, and this is correct
+        right?
+      */
+      if (tx->commit_ordered_done)
+      {
+        thd_wakeup_subsequent_commits(thd, 0);
+        DBUG_RETURN((tx->commit_ordered_res? HA_ERR_INTERNAL_ERROR: 0));
+      }
+
+      /*
         We get here
          - For a COMMIT statement that finishes a multi-statement transaction
          - For a statement that has its own transaction
@@ -3055,6 +3145,7 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
       if (tx->commit()) {
         DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
       }
+      thd_wakeup_subsequent_commits(thd, 0);
     } else {
       /*
         We get here when committing a statement within a transaction.
@@ -3077,6 +3168,7 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
 
   DBUG_RETURN(HA_EXIT_SUCCESS);
 }
+
 
 static int rocksdb_rollback(handlerton *const hton, THD *const thd,
                             bool rollback_tx) {
@@ -3379,11 +3471,7 @@ public:
 
       const auto state_it = state_map.find(rdb_trx->GetState());
       DBUG_ASSERT(state_it != state_map.end());
-#ifdef MARIAROCKS_NOT_YET
-      const int is_replication = (thd->rli_slave != nullptr);
-#else
-      const int is_replication= false;
-#endif
+      const int is_replication = (thd->rgi_slave != nullptr);
       uint32_t waiting_cf_id;
       std::string waiting_key;
       rdb_trx->GetWaitingTxns(&waiting_cf_id, &waiting_key),
@@ -3888,11 +3976,19 @@ static int rocksdb_init_func(void *const p) {
   rocksdb_hton->state = SHOW_OPTION_YES;
   rocksdb_hton->create = rocksdb_create_handler;
   rocksdb_hton->close_connection = rocksdb_close_connection;
+
   rocksdb_hton->prepare = rocksdb_prepare;
+  rocksdb_hton->prepare_ordered = NULL; // Do not need it
+
   rocksdb_hton->commit_by_xid = rocksdb_commit_by_xid;
   rocksdb_hton->rollback_by_xid = rocksdb_rollback_by_xid;
   rocksdb_hton->recover = rocksdb_recover;
+
+  rocksdb_hton->commit_ordered= rocksdb_commit_ordered;
   rocksdb_hton->commit = rocksdb_commit;
+
+  rocksdb_hton->commit_checkpoint_request= rocksdb_checkpoint_request;
+
   rocksdb_hton->rollback = rocksdb_rollback;
   rocksdb_hton->show_status = rocksdb_show_status;
   rocksdb_hton->start_consistent_snapshot =
@@ -4094,8 +4190,6 @@ static int rocksdb_init_func(void *const p) {
   rocksdb::Options main_opts(*rocksdb_db_options,
                              cf_options_map->get_defaults());
 
-#ifdef MARIAROCKS_NOT_YET  
-#endif 
   rocksdb::TransactionDBOptions tx_db_options;
   tx_db_options.transaction_lock_timeout = 2; // 2 seconds
   tx_db_options.custom_mutex_factory = std::make_shared<Rdb_mutex_factory>();
@@ -7068,12 +7162,9 @@ int ha_rocksdb::read_range_first(const key_range *const start_key,
   int result;
 
   eq_range = eq_range_arg;
-#ifdef MARIAROCKS_NOT_YET
-  // Range scan direction is used to get ICP to work for backwards scans
-  set_end_range(end_key, RANGE_SCAN_ASC);
-#else
+
+  /* MariaDB: Pass RANGE_SCAN_ASC when we support ICP on backwards scans */
   set_end_range(end_key);
-#endif
 
   range_key_part = table->key_info[active_index].key_part;
 

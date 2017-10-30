@@ -1351,6 +1351,7 @@ insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables
 set @tmp1= @@rocksdb_max_row_locks;
 set rocksdb_max_row_locks= 20;
 update t1 set a=a+10;
+ERROR HY000: Status error 10 received from RocksDB: Operation aborted: Failed to acquire lock due to max_num_locks limit
 DROP TABLE t1;
 # 
 # Test AUTO_INCREMENT behavior problem,
@@ -1461,21 +1462,22 @@ Rocksdb_rows_inserted	#
 Rocksdb_rows_read	#
 Rocksdb_rows_updated	#
 Rocksdb_rows_deleted_blind	#
-rocksdb_rows_expired	#
+Rocksdb_rows_expired	#
+Rocksdb_system_rows_deleted	#
 Rocksdb_system_rows_inserted	#
 Rocksdb_system_rows_read	#
 Rocksdb_system_rows_updated	#
+Rocksdb_memtable_total	#
+Rocksdb_memtable_unflushed	#
+Rocksdb_queries_point	#
+Rocksdb_queries_range	#
+Rocksdb_covered_secondary_key_lookups	#
 Rocksdb_block_cache_add	#
-rocksdb_memtable_total	#
-rocksdb_memtable_unflushed	#
-rocksdb_queries_point	#
-rocksdb_queries_range	#
+Rocksdb_block_cache_data_hit	#
+Rocksdb_block_cache_data_miss	#
+Rocksdb_block_cache_filter_hit	#
+Rocksdb_block_cache_filter_miss	#
 Rocksdb_block_cache_hit	#
-rocksdb_memtable_total	#
-rocksdb_memtable_unflushed	#
-rocksdb_queries_point	#
-rocksdb_queries_range	#
-rocksdb_covered_secondary_key_lookups	#
 Rocksdb_block_cache_index_hit	#
 Rocksdb_block_cache_index_miss	#
 Rocksdb_block_cache_miss	#
@@ -1493,13 +1495,13 @@ Rocksdb_compaction_key_drop_obsolete	#
 Rocksdb_compaction_key_drop_user	#
 Rocksdb_flush_write_bytes	#
 Rocksdb_getupdatessince_calls	#
-Rocksdb_l0_num_files_stall_micros	#
-Rocksdb_l0_slowdown_micros	#
-Rocksdb_memtable_compaction_micros	#
 Rocksdb_memtable_hit	#
 Rocksdb_memtable_miss	#
 Rocksdb_no_file_closes	#
 Rocksdb_no_file_errors	#
+Rocksdb_no_file_opens	#
+Rocksdb_num_iterators	#
+Rocksdb_number_block_not_compressed	#
 Rocksdb_number_deletes_filtered	#
 Rocksdb_number_keys_read	#
 Rocksdb_number_keys_updated	#
@@ -1520,6 +1522,17 @@ Rocksdb_number_superversion_cleanups	#
 Rocksdb_number_superversion_releases	#
 Rocksdb_rate_limit_delay_millis	#
 Rocksdb_snapshot_conflict_errors	#
+Rocksdb_stall_l0_file_count_limit_slowdowns	#
+Rocksdb_stall_locked_l0_file_count_limit_slowdowns	#
+Rocksdb_stall_l0_file_count_limit_stops	#
+Rocksdb_stall_locked_l0_file_count_limit_stops	#
+Rocksdb_stall_pending_compaction_limit_stops	#
+Rocksdb_stall_pending_compaction_limit_slowdowns	#
+Rocksdb_stall_memtable_limit_stops	#
+Rocksdb_stall_memtable_limit_slowdowns	#
+Rocksdb_stall_total_stops	#
+Rocksdb_stall_total_slowdowns	#
+Rocksdb_stall_micros	#
 Rocksdb_wal_bytes	#
 Rocksdb_wal_group_syncs	#
 Rocksdb_wal_synced	#
@@ -1527,17 +1540,6 @@ Rocksdb_write_other	#
 Rocksdb_write_self	#
 Rocksdb_write_timedout	#
 Rocksdb_write_wal	#
-rocksdb_stall_l0_file_count_limit_slowdowns	#
-rocksdb_stall_locked_l0_file_count_limit_slowdowns	#
-rocksdb_stall_l0_file_count_limit_stops	#
-rocksdb_stall_locked_l0_file_count_limit_stops	#
-rocksdb_stall_pending_compaction_limit_stops	#
-rocksdb_stall_pending_compaction_limit_slowdowns	#
-rocksdb_stall_memtable_limit_stops	#
-rocksdb_stall_memtable_limit_slowdowns	#
-rocksdb_stall_total_stops	#
-rocksdb_stall_total_slowdowns	#
-rocksdb_stall_micros	#
 select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%';
 VARIABLE_NAME
 ROCKSDB_ROWS_DELETED
@@ -2225,7 +2227,7 @@ a	b	c
 drop table t1;
 create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(b(2255))) engine=rocksdb;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 2048 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 drop table t1;
 SET sql_mode = @old_mode;
 drop table t0;

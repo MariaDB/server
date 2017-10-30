@@ -37,7 +37,6 @@ REMOTEIP=""
 REMOTEHOST=""
 tca=""
 tcert=""
-tpem=""
 tkey=""
 sockopt=""
 progress=""
@@ -358,8 +357,7 @@ get_transfer()
             if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
                 wsrep_log_info "Decrypting with CERT: $tcert, KEY: $tkey"
                 tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tcert},key=${tkey},verify=0${joiner_extra}${sockopt} stdio"
-                    tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tpem},key=${tkey},verify=0${sockopt} stdio"
-                else
+            else
                 wsrep_log_info "Encrypting with CERT: $tcert, KEY: $tkey"
                 tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tcert},key=${tkey},verify=0${sockopt}"
             fi

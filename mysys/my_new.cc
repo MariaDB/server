@@ -47,12 +47,22 @@ void* operator new[](std::size_t sz, const std::nothrow_t&) throw()
   return (void *) my_malloc (sz ? sz : 1, MYF(0));
 }
 
+void operator delete (void *ptr, std::size_t)
+{
+  my_free(ptr);
+}
+
 void operator delete (void *ptr)
 {
   my_free(ptr);
 }
 
 void operator delete[] (void *ptr) throw ()
+{
+  my_free(ptr);
+}
+
+void operator delete[] (void *ptr, std::size_t) throw ()
 {
   my_free(ptr);
 }

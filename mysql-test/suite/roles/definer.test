@@ -336,3 +336,125 @@ execute stmt1;
 show grants for utest;
 drop role utest;
 
+--echo #
+--echo # MDEV-13676: Field "create Procedure" is NULL, even if the the user
+--echo # has role which is the definer. (SHOW CREATE PROCEDURE)
+--echo #
+
+create database rtest;
+create role r1;
+create role r2;
+create role r3;
+grant all privileges  on rtest.*  to r1;
+
+create user user1;
+grant r1 to user1;
+grant r1 to r2;
+grant r2 to user1;
+grant r3 to user1;
+
+connect (user1, localhost,user1,,,,,);
+set role r2;
+use rtest;
+
+DELIMITER //;
+CREATE DEFINER=current_role() PROCEDURE user1_proc() SQL SECURITY INVOKER
+    BEGIN
+        SELECT NOW(), VERSION();
+    END;//
+DELIMITER ;//
+
+set role r2;
+show create procedure user1_proc;
+
+--echo #
+--echo # Currently one can not use as definer any role except CURRENT_ROLE
+--echo #
+DELIMITER //;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE DEFINER='r1' PROCEDURE user1_proc2() SQL SECURITY INVOKER
+    BEGIN
+        SELECT NOW(), VERSION();
+    END;//
+DELIMITER ;//
+
+set role r1;
+DELIMITER //;
+CREATE DEFINER='r1' PROCEDURE user1_proc2() SQL SECURITY INVOKER
+    BEGIN
+        SELECT NOW(), VERSION();
+    END;//
+DELIMITER ;//
+
+show create procedure user1_proc2;
+--echo #
+--echo # Test to see if the user can still see the procedure code if the
+--echo # role that owns it is granted to him indirectly.
+--echo #
+set role r2;
+show create procedure user1_proc2;
+
+--echo #
+--echo # One should not be able to see the procedure code if the role that owns
+--echo # the procedure is not set by the user or is not in the subgraph of the
+--echo # currently active role.
+--echo #
+set role r3;
+--error ER_SP_DOES_NOT_EXIST
+show create procedure user1_proc2;
+
+connection default;
+
+use rtest;
+
+--echo #
+--echo # Try a few edge cases, with usernames identical to role name;
+--echo #
+
+create user user_like_role;
+create user foo;
+create role user_like_role;
+grant select on rtest.* to user_like_role;
+grant select on rtest.* to foo;
+grant select on rtest.* to user_like_role@'%';
+
+grant user_like_role to foo;
+
+--echo #
+--echo # Here we have a procedure that is owned by user_like_role USER
+--echo # We don't want user_like_role ROLE to have access to its code.
+--echo #
+DELIMITER //;
+CREATE DEFINER=`user_like_role`@`%` PROCEDURE sensitive_proc() SQL SECURITY INVOKER
+    BEGIN
+        SELECT NOW(), VERSION();
+    END;//
+DELIMITER ;//
+
+connect (user_like_role, localhost, user_like_role,,,,,);
+use rtest;
+show create procedure sensitive_proc;
+
+connect (foo, localhost, foo,,,,,);
+set role user_like_role;
+use rtest;
+
+--echo #
+--echo # Foo has the set rolename identical to the procedure's definer's username.
+--echo # Foo should not have access to this procedure.
+--echo #
+--error ER_SP_DOES_NOT_EXIST
+show create procedure sensitive_proc;
+
+connection default;
+drop role r1;
+drop role r2;
+drop role r3;
+drop role user_like_role;
+drop user user1;
+drop user foo;
+drop user user_like_role;
+drop procedure user1_proc;
+drop procedure user1_proc2;
+drop procedure sensitive_proc;
+drop database rtest;

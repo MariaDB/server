@@ -6,7 +6,7 @@
 #define DEFAULT_QUERY_TIMEOUT -1                  // means do not set
 
 typedef struct jdbc_parms {
-	int   CheckSize(int rows);
+	int CheckSize(int rows);
 	PCSZ  Driver;               // JDBC driver
 	PCSZ  Url;                  // Driver URL
 	PCSZ  User;                 // User connect info

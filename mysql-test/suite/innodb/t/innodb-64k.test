@@ -292,7 +292,7 @@ COMMIT;
 
 CREATE INDEX tg1f2 ON t1 (ia(767),ja(767));
 
---error 1713
+BEGIN;
 UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d,f=@d,g=@d,h=@d,i=@d,j=@d,
               k=@d,l=@d,m=@d,n=@d,o=@d,p=@d,q=@d,r=@d,s=@d,t=@d,u=@d,
 	      v=@d,w=@d,x=@d,y=@d,z=@d,
@@ -305,6 +305,7 @@ UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d,f=@d,g=@d,h=@d,i=@d,j=@d,
 	      ac=@d,bc=@d,cc=@d,dc=@d,ec=@d,fc=@d,gc=@d,hc=@d,ic=@d,jc=@d,
               kc=@d,lc=@d,mc=@d,nc=@d,oc=@d,pc=@d,qc=@d,rc=@d,sc=@d,tc=@d,uc=@d,
 	      vc=@d,wc=@d,xc=@d,yc=@d,zc=@d;
+ROLLBACK;
 
 BEGIN;
 UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d;

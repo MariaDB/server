@@ -32,8 +32,6 @@
 /****************************************************************************/
 #include "mycat.h"
 
-static char *strz(PGLOBAL g, LEX_STRING &ls);
-
 /****************************************************************************/
 /*  Structures used to pass info between CONNECT and ha_connect.            */
 /****************************************************************************/
@@ -213,7 +211,7 @@ public:
 	bool     IsIndexed(Field *fp);
   bool     MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL op, char q,
                                    const key_range *kr);
-  inline char *Strz(LEX_STRING &ls);
+//inline char *Strz(LEX_STRING &ls);
 	key_range start_key;
 
 
@@ -231,7 +229,7 @@ public:
   /** @brief
     The file extensions.
    */
-  const char **bas_ext() const;
+//const char **bas_ext() const;
 
  /**
     Check if a storage engine supports a particular alter table in-place

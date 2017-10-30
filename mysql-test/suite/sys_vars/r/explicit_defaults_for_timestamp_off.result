@@ -173,3 +173,16 @@ t1	CREATE TABLE `t1` (
   `b` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-10802 TIMESTAMP NOT NULL field with explicit_defaults_for_timestamp and NO_ZERO_DATE shouldn't throw error
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+SET sql_mode='ANSI,NO_ZERO_DATE';
+CREATE TABLE t1 (a TIMESTAMP NOT NULL);
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+a
+2001-01-01 10:20:30
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+SET timestamp=DEFAULT;

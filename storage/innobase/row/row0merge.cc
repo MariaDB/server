@@ -4362,16 +4362,13 @@ row_merge_create_index_graph(
 @param[in]	index_def	the index definition
 @param[in]	add_v		new virtual columns added along with add
 				index call
-@param[in]	col_names	column names if columns are renamed
-				or NULL
 @return index, or NULL on error */
 dict_index_t*
 row_merge_create_index(
 	trx_t*			trx,
 	dict_table_t*		table,
 	const index_def_t*	index_def,
-	const dict_add_v_col_t*	add_v,
-	const char**		col_names)
+	const dict_add_v_col_t*	add_v)
 {
 	dict_index_t*	index;
 	dberr_t		err;
@@ -4411,20 +4408,7 @@ row_merge_create_index(
 					table, ifield->col_no);
 			}
 		} else {
-			/*
-			Alter table renaming a column and then adding a index
-			to this new name e.g ALTER TABLE t
-			CHANGE COLUMN b c INT NOT NULL, ADD UNIQUE INDEX (c);
-			requires additional check as column names are not yet
-			changed when new index definitions are created. Table's
-			new column names are on a array of column name pointers
-			if any of the column names are changed. */
-
-			if (col_names && col_names[i]) {
-				name = col_names[i];
-			} else {
-				name = dict_table_get_col_name(table, ifield->col_no);
-			}
+			name = dict_table_get_col_name(table, ifield->col_no);
 		}
 
 		dict_mem_index_add_field(index, name, ifield->prefix_len);

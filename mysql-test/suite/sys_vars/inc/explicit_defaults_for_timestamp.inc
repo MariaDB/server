@@ -97,3 +97,16 @@ CREATE TABLE t1 (a INT);
 ALTER TABLE t1 ADD b TIMESTAMP;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10802 TIMESTAMP NOT NULL field with explicit_defaults_for_timestamp and NO_ZERO_DATE shouldn't throw error
+--echo #
+
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+SET sql_mode='ANSI,NO_ZERO_DATE';
+CREATE TABLE t1 (a TIMESTAMP NOT NULL);
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+SET timestamp=DEFAULT;

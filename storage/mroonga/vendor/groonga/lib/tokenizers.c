@@ -544,7 +544,7 @@ regexp_next(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
   grn_obj *buffer = &(tokenizer->buffer);
   const char *current = tokenizer->next;
   const char *end = tokenizer->end;
-  const const uint_least8_t *char_types = tokenizer->char_types;
+  const uint_least8_t *char_types = tokenizer->char_types;
   grn_tokenize_mode mode = tokenizer->query->tokenize_mode;
   grn_bool is_begin = tokenizer->is_begin;
   grn_bool is_start_token = tokenizer->is_start_token;

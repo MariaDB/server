@@ -574,8 +574,6 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date) { DBUG_ASSERT(0); return 1; }
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
-  int save_in_field(Field *field, bool no_conversions)
-  { return save_date_in_field(field, no_conversions); }
 };
 
 

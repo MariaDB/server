@@ -259,10 +259,12 @@ END;
 /
 CALL p2(65535);
 LENGTH(f1(str,padlen))
-65535
+65532
+Warnings:
+Warning	1265	Data truncated for column 'pin' at row 1
 CALL p2(65536);
 LENGTH(f1(str,padlen))
-65535
+65532
 Warnings:
 Warning	1265	Data truncated for column 'pin' at row 1
 DROP PROCEDURE p2;
@@ -288,8 +290,7 @@ CALL p2(21844);
 length(pout)
 21844
 CALL p2(21845);
-length(pout)
-21845
+ERROR 22001: Data too long for column 'pin' at row 1
 CALL p2(21846);
 ERROR 22001: Data too long for column 'pin' at row 1
 DROP PROCEDURE p2;
@@ -311,9 +312,11 @@ p1(pout,str);
 SELECT length(pout);
 END;
 /
-CALL p2(21845);
+CALL p2(21844);
 length(pout)
-21845
+21844
+CALL p2(21845);
+ERROR 22001: Data too long for column 'pin' at row 1
 CALL p2(21846);
 ERROR 22001: Data too long for column 'pin' at row 1
 DROP PROCEDURE p2;
@@ -332,9 +335,15 @@ BEGIN
 SELECT LENGTH(f1(str,padlen));
 END;
 /
-CALL p2(65535);
+CALL p2(65532);
 LENGTH(f1(str,padlen))
-65535
+65532
+CALL p2(65533);
+ERROR 22001: Data too long for column 'pin' at row 1
+CALL p2(65534);
+ERROR 22001: Data too long for column 'pin' at row 1
+CALL p2(65535);
+ERROR 22001: Data too long for column 'pin' at row 1
 CALL p2(65536);
 ERROR 22001: Data too long for column 'pin' at row 1
 DROP PROCEDURE p2;
@@ -353,9 +362,11 @@ BEGIN
 SELECT LENGTH(f1(str,padlen));
 END;
 /
-CALL p2(21845);
+CALL p2(21844);
 LENGTH(f1(str,padlen))
-21845
+21844
+CALL p2(21845);
+ERROR 22001: Data too long for column 'pin' at row 1
 CALL p2(21846);
 ERROR 22001: Data too long for column 'pin' at row 1
 DROP PROCEDURE p2;
@@ -374,9 +385,11 @@ BEGIN
 SELECT LENGTH(f1(str,padlen));
 END;
 /
-CALL p2(21845);
+CALL p2(21844);
 LENGTH(f1(str,padlen))
-21845
+21844
+CALL p2(21845);
+ERROR 22001: Data too long for column 'pin' at row 1
 CALL p2(21846);
 ERROR 22001: Data too long for column 'pin' at row 1
 DROP PROCEDURE p2;
@@ -395,9 +408,15 @@ BEGIN
 SELECT LENGTH(f1(str,padlen));
 END;
 /
-CALL p2(65535);
+CALL p2(65532);
 LENGTH(f1(str,padlen))
-65535
+65532
+CALL p2(65533);
+ERROR 22001: Data too long for column 'pin' at row 1
+CALL p2(65534);
+ERROR 22001: Data too long for column 'pin' at row 1
+CALL p2(65535);
+ERROR 22001: Data too long for column 'pin' at row 1
 CALL p2(65536);
 ERROR 22001: Data too long for column 'pin' at row 1
 DROP PROCEDURE p2;

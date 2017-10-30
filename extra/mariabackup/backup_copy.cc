@@ -1896,6 +1896,13 @@ decrypt_decompress_file(const char *filepath, uint thread_n)
 	 	if (system(cmd.str().c_str()) != 0) {
 	 		return(false);
 	 	}
+
+		if (opt_remove_original) {
+			msg_ts("[%02u] removing %s\n", thread_n, filepath);
+			if (my_delete(filepath, MYF(MY_WME)) != 0) {
+				return(false);
+			}
+		}
 	 }
 
  	return(true);

@@ -19854,7 +19854,7 @@ buffer_pool_load_now(
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
-	if (*(my_bool*) save) {
+	if (*(my_bool*) save && !srv_read_only_mode) {
 		buf_load_start();
 	}
 }
@@ -19877,7 +19877,7 @@ buffer_pool_load_abort(
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
-	if (*(my_bool*) save) {
+	if (*(my_bool*) save && !srv_read_only_mode) {
 		buf_load_abort();
 	}
 }
@@ -22538,7 +22538,7 @@ const char*	TROUBLESHOOT_DATADICT_MSG =
 	" for how to resolve the issue.";
 
 const char*	BUG_REPORT_MSG =
-	"Submit a detailed bug report to http://bugs.mysql.com";
+	"Submit a detailed bug report to https://jira.mariadb.org/";
 
 const char*	FORCE_RECOVERY_MSG =
 	"Please refer to " REFMAN "forcing-innodb-recovery.html"

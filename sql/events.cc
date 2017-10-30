@@ -189,8 +189,8 @@ common_1_lev_code:
 
     expr= tmp_expr - (tmp_expr/60)*60;
     /* the code after the switch will finish */
-  }
     break;
+  }
   case INTERVAL_HOUR_SECOND:
   {
     ulonglong tmp_expr= expr;
@@ -206,8 +206,8 @@ common_1_lev_code:
 
     expr= tmp_expr - (tmp_expr/60)*60;
     /* the code after the switch will finish */
-  }
     break;
+  }
   case INTERVAL_DAY_SECOND:
   {
     ulonglong tmp_expr= expr;
@@ -229,8 +229,8 @@ common_1_lev_code:
 
     expr= tmp_expr - (tmp_expr/60)*60;
     /* the code after the switch will finish */
-  }
     break;
+  }
   case INTERVAL_DAY_MICROSECOND:
   case INTERVAL_HOUR_MICROSECOND:
   case INTERVAL_MINUTE_MICROSECOND:
@@ -244,7 +244,8 @@ common_1_lev_code:
     break;
   case INTERVAL_WEEK:
     expr/= 7;
-    /* fall through */
+    close_quote= FALSE;
+    break;
   default:
     close_quote= FALSE;
     break;

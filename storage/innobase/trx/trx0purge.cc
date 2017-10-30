@@ -1177,7 +1177,7 @@ trx_purge_rseg_get_next_history_log(
 				" list, but its length is still reported as "
 				<< trx_sys->rseg_history_len << "! Make"
 				" a detailed bug report, and submit it to"
-				" http://bugs.mysql.com";
+				" https://jira.mariadb.org/";
 			ut_ad(0);
 		}
 

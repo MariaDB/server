@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -414,34 +414,6 @@ innobase_need_rebuild(
 		ROW_FORMAT or KEY_BLOCK_SIZE can be done without
 		rebuilding the table. */
 		return(false);
-	}
-
-	/* If alter table changes column name and adds a new
-	index, we need to check is this new index created
-	to new column name. This is because column name
-	changes are done normally after creating indexes. */
-	if ((ha_alter_info->handler_flags
-			& Alter_inplace_info::ALTER_COLUMN_NAME) &&
-	    ((ha_alter_info->handler_flags
-		    & Alter_inplace_info::ADD_INDEX) ||
-	     (ha_alter_info->handler_flags
-		     & Alter_inplace_info::ADD_FOREIGN_KEY))) {
-		for (ulint i = 0; i < ha_alter_info->index_add_count; i++) {
-			const KEY* key = &ha_alter_info->key_info_buffer[
-				ha_alter_info->index_add_buffer[i]];
-
-			for (ulint j = 0; j < key->user_defined_key_parts; j++) {
-				const KEY_PART_INFO*	key_part = &(key->key_part[j]);
-				const Field* field = altered_table->field[key_part->fieldnr];
-
-				/* Field used on added index is renamed on
-				this same alter table. We need table
-				rebuild. */
-				if (field && field->flags & FIELD_IS_RENAMED) {
-					return (true);
-				}
-			}
-		}
 	}
 
 	return(!!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD));
@@ -2131,19 +2103,18 @@ name_ok:
 }
 
 /** Create index field definition for key part
-@param[in]	altered_table		MySQL table that is being altered,
-					or NULL if a new clustered index
-					is not being created
-@param[in]	key_part		MySQL key definition
-@param[in,out]	index_field		index field
-@param[in]	new_clustered		new cluster */
-static
+@param[in]	new_clustered	true if alter is generating a new clustered
+index
+@param[in]	altered_table	MySQL table that is being altered
+@param[in]	key_part	MySQL key definition
+@param[out]	index_field	index field defition for key_part */
+static MY_ATTRIBUTE((nonnull(2,3)))
 void
 innobase_create_index_field_def(
+	bool			new_clustered,
 	const TABLE*		altered_table,
 	const KEY_PART_INFO*	key_part,
-	index_field_t*		index_field,
-	bool			new_clustered)
+	index_field_t*		index_field)
 {
 	const Field*	field;
 	ibool		is_unsigned;
@@ -2154,11 +2125,11 @@ innobase_create_index_field_def(
 
 	ut_ad(key_part);
 	ut_ad(index_field);
+	ut_ad(altered_table);
 
 	field = new_clustered
 		? altered_table->field[key_part->fieldnr]
 		: key_part->field;
-	ut_a(field);
 
 	for (ulint i = 0; i < key_part->fieldnr; i++) {
 		if (innobase_is_v_fld(altered_table->field[i])) {
@@ -2219,9 +2190,10 @@ innobase_create_index_def(
 	DBUG_ENTER("innobase_create_index_def");
 	DBUG_ASSERT(!key_clustered || new_clustered);
 
+	ut_ad(altered_table);
+
 	index->fields = static_cast<index_field_t*>(
 		mem_heap_alloc(heap, n_fields * sizeof *index->fields));
-	memset(index->fields, 0, n_fields * sizeof *index->fields);
 
 	index->parser = NULL;
 	index->key_number = key_number;
@@ -2299,8 +2271,8 @@ innobase_create_index_def(
 	if (!(key->flags & HA_SPATIAL)) {
 		for (i = 0; i < n_fields; i++) {
 			innobase_create_index_field_def(
-				altered_table, &key->key_part[i],
-				&index->fields[i], new_clustered);
+				new_clustered, altered_table,
+				&key->key_part[i], &index->fields[i]);
 
 			if (index->fields[i].is_v_col) {
 				index->ind_type |= DICT_VIRTUAL;
@@ -2713,7 +2685,6 @@ created_clustered:
 
 		index->fields = static_cast<index_field_t*>(
 			mem_heap_alloc(heap, sizeof *index->fields));
-		memset(index->fields, 0, sizeof *index->fields);
 		index->n_fields = 1;
 		index->fields->col_no = fts_doc_id_col;
 		index->fields->prefix_len = 0;
@@ -4849,8 +4820,7 @@ new_clustered_failed:
 		}
 
 		ctx->add_index[a] = row_merge_create_index(
-			ctx->trx, ctx->new_table,
-			&index_defs[a], add_v, ctx->col_names);
+			ctx->trx, ctx->new_table, &index_defs[a], add_v);
 
 		add_key_nums[a] = index_defs[a].key_number;
 
@@ -8576,7 +8546,47 @@ ha_innobase::commit_inplace_alter_table(
 			break;
 		}
 
-		DICT_STATS_BG_YIELD(trx);
+		DICT_BG_YIELD(trx);
+	}
+
+	/* Make a concurrent Drop fts Index to wait until sync of that
+	fts index is happening in the background */
+	for (;;) {
+		bool    retry = false;
+
+		for (inplace_alter_handler_ctx** pctx = ctx_array;
+		    *pctx; pctx++) {
+			int count =0;
+			ha_innobase_inplace_ctx*        ctx
+				= static_cast<ha_innobase_inplace_ctx*>(*pctx);
+			DBUG_ASSERT(new_clustered == ctx->need_rebuild());
+
+			if (dict_fts_index_syncing(ctx->old_table)) {
+				count++;
+				if (count == 100) {
+					fprintf(stderr,
+					"Drop index waiting for background sync"
+					"to finish\n");
+				}
+				retry = true;
+			}
+
+			if (new_clustered && dict_fts_index_syncing(ctx->new_table)) {
+				count++;
+				if (count == 100) {
+					fprintf(stderr,
+                                        "Drop index waiting for background sync"
+                                        "to finish\n");
+				}
+				retry = true;
+			}
+		}
+
+		 if (!retry) {
+			 break;
+		}
+
+		DICT_BG_YIELD(trx);
 	}
 
 	/* Apply the changes to the data dictionary tables, for all
@@ -8949,8 +8959,13 @@ foreign_fail:
 
 		ut_d(dict_table_check_for_dup_indexes(
 			     ctx->new_table, CHECK_ABORTED_OK));
-		ut_a(fts_check_cached_index(ctx->new_table));
 
+#ifdef UNIV_DEBUG
+		if (!(ctx->new_table->fts != NULL
+			&& ctx->new_table->fts->cache->sync->in_progress)) {
+			ut_a(fts_check_cached_index(ctx->new_table));
+		}
+#endif
 		if (new_clustered) {
 			/* Since the table has been rebuilt, we remove
 			all persistent statistics corresponding to the

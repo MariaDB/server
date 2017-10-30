@@ -27,9 +27,9 @@
 
 char *msglang(void);
 
-char *GetMsgid(int id)
+const char *GetMsgid(int id)
   {
-  char *p = NULL;
+  const char *p = NULL;
 
   // This conditional until a real fix is found for MDEV-7304
 #if defined(FRENCH)
@@ -55,7 +55,8 @@ char *GetMsgid(int id)
 
 int GetRcString(int id, char *buf, int bufsize)
   {
-  char *p = NULL, msg[32];
+  const char *p = NULL;
+  char msg[32];
 
   if (!(p = GetMsgid(id))) {
     sprintf(msg, "ID=%d unknown", id);

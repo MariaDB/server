@@ -1133,8 +1133,6 @@ btr_free_root_invalidate(
 	buf_block_t*	block,
 	mtr_t*		mtr)
 {
-	ut_ad(page_is_root(block->frame));
-
 	btr_page_set_index_id(
 		buf_block_get_frame(block),
 		buf_block_get_page_zip(block),
@@ -1435,6 +1433,7 @@ btr_free_if_exists(
 		return;
 	}
 
+	ut_ad(page_is_root(root->frame));
 	btr_free_but_not_root(root, mtr->get_log_mode());
 	mtr->set_named_space(page_id.space());
 	btr_free_root(root, mtr);

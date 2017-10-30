@@ -332,8 +332,8 @@ int ma_checkpoint_init(ulong interval)
     res= 1;
   else if (interval > 0)
   {
-    compile_time_assert(sizeof(void *) >= sizeof(ulong));
     size_t intv= interval;
+    compile_time_assert(sizeof(void *) >= sizeof(ulong));
     if ((res= mysql_thread_create(key_thread_checkpoint,
                                   &checkpoint_control.thread, NULL,
                                   ma_checkpoint_background,

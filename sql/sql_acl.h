@@ -409,6 +409,14 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
 
 extern SHOW_VAR acl_statistics[];
 
+/* Check if a role is granted to a user/role.
+
+   If hostname == NULL, search for a role as the starting grantee.
+*/
+bool check_role_is_granted(const char *username,
+                           const char *hostname,
+                           const char *rolename);
+
 #ifndef DBUG_OFF
 extern ulong role_global_merges, role_db_merges, role_table_merges,
              role_column_merges, role_routine_merges;
