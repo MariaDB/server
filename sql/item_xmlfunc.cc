@@ -2621,7 +2621,7 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
         (spv= spc->find_variable(&name, false)))
     {
       Item_splocal *splocal= new (thd->mem_root)
-        Item_splocal(thd, &name, spv->offset, spv->sql_type(), 0);
+        Item_splocal(thd, &name, spv->offset, spv->type_handler(), 0);
 #ifndef DBUG_OFF
       if (splocal)
         splocal->m_sp= lex->sphead;

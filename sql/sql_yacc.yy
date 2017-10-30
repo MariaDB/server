@@ -396,7 +396,7 @@ LEX::create_item_for_sp_var(LEX_CSTRING *name, sp_variable *spvar,
   len_in_q= (uint)(end_in_q - start_in_q);
 
   item= new (thd->mem_root)
-    Item_splocal(thd, name, spvar->offset, spvar->sql_type(),
+    Item_splocal(thd, name, spvar->offset, spvar->type_handler(),
                  pos_in_q, len_in_q);
 
 #ifndef DBUG_OFF

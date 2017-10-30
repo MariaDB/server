@@ -1753,17 +1753,15 @@ void Item_sp_variable::make_field(THD *thd, Send_field *field)
 
 Item_splocal::Item_splocal(THD *thd, const LEX_CSTRING *sp_var_name,
                            uint sp_var_idx,
-                           enum_field_types sp_var_type,
+                           const Type_handler *handler,
                            uint pos_in_q, uint len_in_q):
   Item_sp_variable(thd, sp_var_name),
   Rewritable_query_parameter(pos_in_q, len_in_q),
+  Type_handler_hybrid_field_type(handler),
   m_var_idx(sp_var_idx)
 {
   maybe_null= TRUE;
-
-  sp_var_type= real_type_to_type(sp_var_type);
-  m_type= sp_map_item_type(sp_var_type);
-  set_handler_by_field_type(sp_var_type);
+  m_type= sp_map_item_type(handler);
 }
 
 

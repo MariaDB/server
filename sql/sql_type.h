@@ -1046,18 +1046,13 @@ public:
   }
   bool Column_definition_fix_attributes(Column_definition *c) const
   {
-    DBUG_ASSERT(0);
-    return true;
+    return false;
   }
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
                                         handler *file,
-                                        ulonglong table_flags) const
-  {
-    DBUG_ASSERT(0);
-    return true;
-  }
+                                        ulonglong table_flags) const;
   bool Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
                                          const handler *file,
@@ -1071,8 +1066,7 @@ public:
                                         handler *file,
                                         ulonglong table_flags) const
   {
-    DBUG_ASSERT(0);
-    return true;
+    return false;
   }
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,

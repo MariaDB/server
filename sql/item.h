@@ -2093,17 +2093,6 @@ public:
 };
 
 
-class Item_spvar_args: public Item_args
-{
-  Virtual_tmp_table *m_table;
-public:
-  Item_spvar_args():Item_args(), m_table(NULL) { }
-  ~Item_spvar_args();
-  bool row_create_items(THD *thd, List<Spvar_definition> *list);
-  Field *get_row_field(uint i) const;
-};
-
-
 /*
   Class to be used to enumerate all field references in an item tree. This
   includes references to outside but not fields of the tables within a
@@ -2337,7 +2326,7 @@ protected:
   bool append_value_for_log(THD *thd, String *str);
 public:
   Item_splocal(THD *thd, const LEX_CSTRING *sp_var_name, uint sp_var_idx,
-               enum_field_types sp_var_type,
+               const Type_handler *handler,
                uint pos_in_q= 0, uint len_in_q= 0);
 
   bool fix_fields(THD *, Item **);
@@ -2390,20 +2379,6 @@ public:
 };
 
 
-class Item_splocal_row: public Item_splocal
-{
-public:
-  Item_splocal_row(THD *thd, const LEX_CSTRING *sp_var_name,
-                   uint sp_var_idx, uint pos_in_q, uint len_in_q)
-   :Item_splocal(thd, sp_var_name, sp_var_idx, MYSQL_TYPE_NULL,
-                 pos_in_q, len_in_q)
-  {
-    set_handler(&type_handler_row);
-  }
-  enum Type type() const { return ROW_ITEM; }
-};
-
-
 /**
   An Item_splocal variant whose data type becomes known only at
   sp_rcontext creation time, e.g. "DECLARE var1 t1.col1%TYPE".
@@ -2415,7 +2390,7 @@ public:
                                       const LEX_CSTRING *sp_var_name,
                                       uint sp_var_idx,
                                       uint pos_in_q, uint len_in_q)
-   :Item_splocal(thd, sp_var_name, sp_var_idx, MYSQL_TYPE_NULL,
+   :Item_splocal(thd, sp_var_name, sp_var_idx, &type_handler_null,
                  pos_in_q, len_in_q)
   { }
 };
@@ -2437,9 +2412,9 @@ public:
                          const LEX_CSTRING *sp_var_name,
                          const LEX_CSTRING *sp_field_name,
                          uint sp_var_idx, uint sp_field_idx,
-                         enum_field_types sp_var_type,
+                         const Type_handler *handler,
                          uint pos_in_q= 0, uint len_in_q= 0)
-   :Item_splocal(thd, sp_var_name, sp_var_idx, sp_var_type,
+   :Item_splocal(thd, sp_var_name, sp_var_idx, handler,
                  pos_in_q, len_in_q),
     m_field_name(*sp_field_name),
     m_field_idx(sp_field_idx)
@@ -2461,11 +2436,11 @@ public:
                                  const LEX_CSTRING *sp_var_name,
                                  const LEX_CSTRING *sp_field_name,
                                  uint sp_var_idx,
-                                 enum_field_types sp_var_type,
+                                 const Type_handler *handler,
                                  uint pos_in_q= 0, uint len_in_q= 0)
    :Item_splocal_row_field(thd, sp_var_name, sp_field_name,
                            sp_var_idx, 0 /* field index will be set later */,
-                           sp_var_type, pos_in_q, len_in_q)
+                           handler, pos_in_q, len_in_q)
   { }
   bool fix_fields(THD *thd, Item **it);
   void print(String *str, enum_query_type query_type);
@@ -2930,14 +2905,13 @@ public:
   Item_field for the ROW data type
 */
 class Item_field_row: public Item_field,
-                      public Item_spvar_args
+                      public Item_args
 {
 public:
   Item_field_row(THD *thd, Field *field)
    :Item_field(thd, field),
-    Item_spvar_args()
+    Item_args()
   { }
-
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_field_row>(thd, mem_root, this); }
 
@@ -2955,6 +2929,8 @@ public:
     }
     return false;
   }
+  bool row_create_items(THD *thd, List<Spvar_definition> *list);
+  Field *get_row_field(uint i) const;
 };
 
 

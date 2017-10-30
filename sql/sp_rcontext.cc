@@ -358,10 +358,13 @@ bool sp_rcontext::init_var_items(THD *thd,
 }
 
 
-bool Item_spvar_args::row_create_items(THD *thd, List<Spvar_definition> *list)
+bool Item_field_row::row_create_items(THD *thd, List<Spvar_definition> *list)
 {
   DBUG_ASSERT(list);
-  if (!(m_table= create_virtual_tmp_table(thd, *list)))
+  DBUG_ASSERT(field);
+  Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
+  DBUG_ASSERT(ptable);
+  if (!(ptable[0]= create_virtual_tmp_table(thd, *list)))
     return true;
 
   if (alloc_arguments(thd, list->elements))
@@ -372,23 +375,19 @@ bool Item_spvar_args::row_create_items(THD *thd, List<Spvar_definition> *list)
   for (arg_count= 0; (def= it++); arg_count++)
   {
     if (!(args[arg_count]= new (thd->mem_root)
-                           Item_field(thd, m_table->field[arg_count])))
+                           Item_field(thd, ptable[0]->field[arg_count])))
       return true;
   }
   return false;
 }
 
 
-Field *Item_spvar_args::get_row_field(uint i) const
+Field *Item_field_row::get_row_field(uint i) const
 {
-  DBUG_ASSERT(m_table);
-  return m_table->field[i];
-}
-
-
-Item_spvar_args::~Item_spvar_args()
-{
-  delete m_table;
+  DBUG_ASSERT(field);
+  Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
+  DBUG_ASSERT(ptable);
+  return ptable[0]->field[i];
 }
 
 

@@ -70,8 +70,12 @@ static void reset_start_time_for_sp(THD *thd)
 
 
 Item::Type
-sp_map_item_type(enum enum_field_types type)
+sp_map_item_type(const Type_handler *handler)
 {
+  if (handler == &type_handler_row)
+    return Item::ROW_ITEM;
+  enum_field_types type= real_type_to_type(handler->real_field_type());
+
   switch (type) {
   case MYSQL_TYPE_BIT:
   case MYSQL_TYPE_TINY:
@@ -4757,11 +4761,11 @@ bool sp_head::spvar_fill_row(THD *thd,
                              sp_variable *spvar,
                              Row_definition_list *defs)
 {
+  spvar->field_def.set_row_field_definitions(defs);
   spvar->field_def.field_name= spvar->name;
   if (fill_spvar_definition(thd, &spvar->field_def))
     return true;
   row_fill_field_definitions(thd, defs);
-  spvar->field_def.set_row_field_definitions(defs);
   return false;
 }
 

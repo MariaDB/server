@@ -44,6 +44,7 @@ class Column_statistics_collected;
 class Item_func;
 class Item_bool_func;
 class Item_equal;
+class Virtual_tmp_table;
 
 enum enum_check_fields
 {
@@ -1509,6 +1510,11 @@ public:
 
   /* Mark field in read map. Updates also virtual fields */
   void register_field_in_read_map();
+
+  virtual Virtual_tmp_table **virtual_tmp_table_addr()
+  {
+    return NULL;
+  }
 
   friend int cre_myisam(char * name, register TABLE *form, uint options,
 			ulonglong auto_increment_value);
@@ -3814,6 +3820,19 @@ public:
 };
 
 
+class Field_row: public Field_null
+{
+  class Virtual_tmp_table *m_table;
+public:
+  Field_row(uchar *ptr_arg, const LEX_CSTRING *field_name_arg)
+    :Field_null(ptr_arg, 0, Field::NONE, field_name_arg, &my_charset_bin),
+     m_table(NULL)
+    {}
+  ~Field_row();
+  Virtual_tmp_table **virtual_tmp_table_addr() { return &m_table; }
+};
+
+
 extern const LEX_CSTRING null_clex_str;
 
 Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
@@ -4164,9 +4183,7 @@ public:
   { }
   const Type_handler *type_handler() const
   {
-    return is_row() || is_table_rowtype_ref() || is_cursor_rowtype_ref() ?
-           &type_handler_row :
-           Type_handler_hybrid_field_type::type_handler();
+    return Type_handler_hybrid_field_type::type_handler();
   }
   bool is_column_type_ref() const { return m_column_type_ref != 0; }
   bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }
@@ -4186,6 +4203,8 @@ public:
   }
   void set_table_rowtype_ref(class Table_ident *ref)
   {
+    DBUG_ASSERT(ref);
+    set_handler(&type_handler_row);
     m_table_rowtype_ref= ref;
   }
 
@@ -4193,9 +4212,10 @@ public:
   {
     return m_cursor_rowtype_offset;
   }
-  void set_cursor_rowtype_ref(bool ref, uint offset)
+  void set_cursor_rowtype_ref(uint offset)
   {
-    m_cursor_rowtype_ref= ref;
+    set_handler(&type_handler_row);
+    m_cursor_rowtype_ref= true;
     m_cursor_rowtype_offset= offset;
   }
 
@@ -4224,6 +4244,8 @@ public:
   }
   void set_row_field_definitions(Row_definition_list *list)
   {
+    DBUG_ASSERT(list);
+    set_handler(&type_handler_row);
     m_row_field_definitions= list;
   }
 

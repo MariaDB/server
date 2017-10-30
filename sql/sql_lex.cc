@@ -5294,7 +5294,11 @@ LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
   {
     sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
     spvar->field_def.set_type(ref);
-    spvar->field_def.set_row_field_definitions(fields);
+    if (fields)
+    {
+      DBUG_ASSERT(ref.type_handler() == &type_handler_row);
+      spvar->field_def.set_row_field_definitions(fields);
+    }
     spvar->field_def.field_name= spvar->name;
   }
   if (sp_variable_declarations_set_default(thd, nvars, default_value))
@@ -5340,9 +5344,9 @@ bool LEX::sp_variable_declarations_row_finalize(THD *thd, int nvars,
   for (uint i= 0 ; i < (uint) nvars ; i++)
   {
     sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
+    spvar->field_def.set_row_field_definitions(row);
     if (sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name))
       return true;
-    spvar->field_def.set_row_field_definitions(row);
   }
 
   if (sp_variable_declarations_set_default(thd, nvars, dflt_value_item))
@@ -5428,7 +5432,7 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
   {
     sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
 
-    spvar->field_def.set_cursor_rowtype_ref(true, offset);
+    spvar->field_def.set_cursor_rowtype_ref(offset);
     sp_instr_cursor_copy_struct *instr=
       new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
                                                       spcont, pcursor->lex(),
@@ -5592,7 +5596,7 @@ LEX::sp_add_for_loop_cursor_variable(THD *thd,
   if (!(spvar->default_value= new (thd->mem_root) Item_null(thd)))
     return NULL;
 
-  spvar->field_def.set_cursor_rowtype_ref(true, coffset);
+  spvar->field_def.set_cursor_rowtype_ref(coffset);
 
   if (sphead->add_for_loop_open_cursor(thd, spcont, spvar, pcursor, coffset,
                                        param_lex, parameters))
@@ -5616,7 +5620,7 @@ bool LEX::sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop)
   {
     sp_variable *src= i == 0 ? loop.m_index : loop.m_upper_bound;
     args[i]= new (thd->mem_root)
-              Item_splocal(thd, &src->name, src->offset, src->sql_type());
+              Item_splocal(thd, &src->name, src->offset, src->type_handler());
     if (args[i] == NULL)
       return true;
 #ifndef DBUG_OFF
@@ -5750,7 +5754,7 @@ bool LEX::sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop)
 {
   Item_splocal *splocal= new (thd->mem_root)
     Item_splocal(thd, &loop.m_index->name, loop.m_index->offset,
-                      loop.m_index->sql_type());
+                      loop.m_index->type_handler());
   if (splocal == NULL)
     return true;
 #ifndef DBUG_OFF
@@ -6521,7 +6525,7 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
   {
     if (!(item= new (thd->mem_root)
                 Item_splocal_row_field_by_name(thd, a, b, spv->offset,
-                                               MYSQL_TYPE_NULL,
+                                               &type_handler_null,
                                                pos.pos(), pos.length())))
       return NULL;
   }
@@ -6535,7 +6539,7 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
     if (!(item= new (thd->mem_root)
                 Item_splocal_row_field(thd, a, b,
                                        spv->offset, row_field_offset,
-                                       def->real_field_type(),
+                                       def->type_handler(),
                                        pos.pos(), pos.length())))
       return NULL;
   }
@@ -6704,7 +6708,7 @@ Item *LEX::create_item_limit(THD *thd,
   Query_fragment pos(thd, sphead, start, end);
   Item_splocal *item;
   if (!(item= new (thd->mem_root) Item_splocal(thd, a,
-                                               spv->offset, spv->sql_type(),
+                                               spv->offset, spv->type_handler(),
                                                pos.pos(), pos.length())))
     return NULL;
 #ifndef DBUG_OFF
@@ -6823,11 +6827,8 @@ Item *LEX::create_item_ident_sp(THD *thd, LEX_CSTRING *name,
                                                               spv->offset,
                                                               pos.pos(),
                                                               pos.length()) :
-      spv->field_def.is_row() || spv->field_def.is_table_rowtype_ref() ?
-      new (thd->mem_root) Item_splocal_row(thd, name, spv->offset,
-                                           pos.pos(), pos.length()) :
       new (thd->mem_root) Item_splocal(thd, name,
-                                       spv->offset, spv->sql_type(),
+                                       spv->offset, spv->type_handler(),
                                        pos.pos(), pos.length());
     if (splocal == NULL)
       return NULL;
