@@ -34,11 +34,11 @@ t4	CREATE TABLE `t4` (
 /*!50100 PARTITION BY HASH (a)
 PARTITIONS 2 */
 alter table t1 encrypted=no;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTED'
 alter table t2 encrypted=yes;
 alter table t3 encrypted=default;
 alter table t4 encrypted=no;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTED'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

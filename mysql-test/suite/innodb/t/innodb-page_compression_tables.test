@@ -32,10 +32,8 @@ create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row
 show warnings;
 create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant;
 show create table innodb_redundant;
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error 1005
+--error ER_ILLEGAL_HA_CREATE_OPTION
 alter table innodb_redundant page_compressed=1;
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
 show create table innodb_redundant;
 alter table innodb_redundant row_format=compact page_compressed=1;

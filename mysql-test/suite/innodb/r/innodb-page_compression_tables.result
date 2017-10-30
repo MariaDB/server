@@ -38,12 +38,11 @@ innodb_redundant	CREATE TABLE `innodb_redundant` (
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
 alter table innodb_redundant page_compressed=1;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'PAGE_COMPRESSED'
 show warnings;
 Level	Code	Message
 Warning	140	InnoDB: PAGE_COMPRESSED table can't have ROW_TYPE=REDUNDANT
-Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
-Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'PAGE_COMPRESSED'
 show create table innodb_redundant;
 Table	Create Table
 innodb_redundant	CREATE TABLE `innodb_redundant` (
