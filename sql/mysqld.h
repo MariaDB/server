@@ -152,6 +152,7 @@ extern my_bool opt_enable_shared_memory;
 extern ulong opt_replicate_events_marked_for_skip;
 extern char *default_tz_name;
 extern Time_zone *default_tz;
+extern char *my_bind_addr_str;
 extern char *default_storage_engine, *default_tmp_storage_engine;
 extern char *enforced_storage_engine;
 extern char *gtid_pos_auto_engines;
