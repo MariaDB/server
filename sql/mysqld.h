@@ -214,7 +214,7 @@ extern volatile ulong cached_thread_count;
 extern ulong what_to_log,flush_time;
 extern ulong max_prepared_stmt_count, prepared_stmt_count;
 extern ulong open_files_limit;
-extern ulonglong binlog_cache_size, binlog_stmt_cache_size;
+extern ulonglong binlog_cache_size, binlog_stmt_cache_size, binlog_file_cache_size;
 extern ulonglong max_binlog_cache_size, max_binlog_stmt_cache_size;
 extern ulong max_binlog_size;
 extern ulong slave_max_allowed_packet;

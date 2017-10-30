@@ -67,6 +67,8 @@ The following options may be given as the first argument:
  --binlog-do-db=name Tells the master it should log updates for the specified
  database, and exclude all others not explicitly
  mentioned.
+ --binlog-file-cache-size=# 
+ The size of file cache for the binary log
  --binlog-format=name 
  What form of binary logging the master will use: either
  ROW for row-based binary logging, STATEMENT for
@@ -1290,6 +1292,7 @@ binlog-checksum CRC32
 binlog-commit-wait-count 0
 binlog-commit-wait-usec 100000
 binlog-direct-non-transactional-updates FALSE
+binlog-file-cache-size 16384
 binlog-format MIXED
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192

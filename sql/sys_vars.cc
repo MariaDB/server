@@ -396,6 +396,13 @@ static Sys_var_ulonglong Sys_binlog_cache_size(
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE, SIZE_T_MAX), DEFAULT(32768), BLOCK_SIZE(IO_SIZE));
 
+static Sys_var_ulonglong  Sys_binlog_file_cache_size(
+       "binlog_file_cache_size", 
+       "The size of file cache for the binary log", 
+       GLOBAL_VAR(binlog_file_cache_size),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(IO_SIZE*2, SIZE_T_MAX), DEFAULT(IO_SIZE*4), BLOCK_SIZE(IO_SIZE));
+
 static Sys_var_ulonglong Sys_binlog_stmt_cache_size(
        "binlog_stmt_cache_size", "The size of the statement cache for "
        "updates to non-transactional engines for the binary log. "
