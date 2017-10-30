@@ -1,0 +1,11 @@
+CREATE TABLE t1(a VARCHAR(5),FULLTEXT KEY(a)) ENGINE=InnoDB;
+SET DEBUG_SYNC = 'get_next_FTS_DOC_ID SIGNAL prepared WAIT_FOR race';
+REPLACE INTO t1(a) values('aaa');
+connect dml, localhost, root, ,;
+SET DEBUG_SYNC = 'now WAIT_FOR prepared';
+REPLACE INTO t1(a) VALUES('aaa');
+SET DEBUG_SYNC = 'now SIGNAL race';
+disconnect dml;
+connection default;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;

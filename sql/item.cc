@@ -109,6 +109,19 @@ void Item::push_note_converted_to_positive_complement(THD *thd)
 }
 
 
+longlong Item::val_datetime_packed_result()
+{
+  MYSQL_TIME ltime, tmp;
+  if (get_date_result(&ltime, TIME_FUZZY_DATES | TIME_INVALID_DATES))
+    return 0;
+  if (ltime.time_type != MYSQL_TIMESTAMP_TIME)
+    return pack_time(&ltime);
+  if ((null_value= time_to_datetime_with_warn(current_thd, &ltime, &tmp, 0)))
+    return 0;
+  return pack_time(&tmp);
+}
+
+
 /**
   Get date/time/datetime.
   Optionally extend TIME result to DATETIME.
@@ -1752,17 +1765,15 @@ void Item_sp_variable::make_field(THD *thd, Send_field *field)
 
 Item_splocal::Item_splocal(THD *thd, const LEX_CSTRING *sp_var_name,
                            uint sp_var_idx,
-                           enum_field_types sp_var_type,
+                           const Type_handler *handler,
                            uint pos_in_q, uint len_in_q):
   Item_sp_variable(thd, sp_var_name),
   Rewritable_query_parameter(pos_in_q, len_in_q),
+  Type_handler_hybrid_field_type(handler),
   m_var_idx(sp_var_idx)
 {
   maybe_null= TRUE;
-
-  sp_var_type= real_type_to_type(sp_var_type);
-  m_type= sp_map_item_type(sp_var_type);
-  set_handler_by_field_type(sp_var_type);
+  m_type= sp_map_item_type(handler);
 }
 
 
@@ -1777,7 +1788,7 @@ bool Item_splocal::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
   return m_thd->spcont->get_item(m_var_idx);
 }
@@ -1785,7 +1796,7 @@ Item_splocal::this_item()
 const Item *
 Item_splocal::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
   return m_thd->spcont->get_item(m_var_idx);
 }
@@ -1794,7 +1805,7 @@ Item_splocal::this_item() const
 Item **
 Item_splocal::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->sp);
+  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
   return thd->spcont->get_item_addr(m_var_idx);
 }
@@ -1901,7 +1912,7 @@ bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal_row_field::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
   return m_thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
 }
@@ -1910,7 +1921,7 @@ Item_splocal_row_field::this_item()
 const Item *
 Item_splocal_row_field::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
   return m_thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
 }
@@ -1919,7 +1930,7 @@ Item_splocal_row_field::this_item() const
 Item **
 Item_splocal_row_field::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->sp);
+  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
   return thd->spcont->get_item(m_var_idx)->addr(m_field_idx);
 }
@@ -2007,7 +2018,7 @@ bool Item_case_expr::fix_fields(THD *thd, Item **ref)
 Item *
 Item_case_expr::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
 
   return m_thd->spcont->get_case_expr(m_case_expr_id);
 }
@@ -2017,7 +2028,7 @@ Item_case_expr::this_item()
 const Item *
 Item_case_expr::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
 
   return m_thd->spcont->get_case_expr(m_case_expr_id);
 }
@@ -2026,7 +2037,7 @@ Item_case_expr::this_item() const
 Item **
 Item_case_expr::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->sp);
+  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
 
   return thd->spcont->get_case_expr_addr(m_case_expr_id);
 }
@@ -2595,6 +2606,9 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
                                                  Item **args, uint nargs,
                                                  uint flags, int item_sep)
 {
+  THD *thd= current_thd;
+  if (thd->lex->is_ps_or_view_context_analysis())
+    return false;
   Item **arg, *safe_args[2]= {NULL, NULL};
 
   /*
@@ -2610,7 +2624,6 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
     safe_args[1]= args[item_sep];
   }
 
-  THD *thd= current_thd;
   bool res= FALSE;
   uint i;
 
@@ -7070,6 +7083,7 @@ bool Item::cache_const_expr_analyzer(uchar **arg)
     */
     if (const_item() &&
         !(basic_const_item() || item->basic_const_item() ||
+          item->type() == Item::NULL_ITEM || /* Item_name_const hack */
           item->type() == Item::FIELD_ITEM ||
           item->type() == SUBSELECT_ITEM ||
           item->type() == CACHE_ITEM ||
@@ -7445,7 +7459,11 @@ public:
     // Find which select the field is in. This is achieved by walking up 
     // the select tree and looking for the table of interest.
     st_select_lex *sel;
-    for (sel= current_select; sel; sel= sel->outer_select())
+    for (sel= current_select;
+         sel ;
+         sel= (sel->context.outer_context ?
+               sel->context.outer_context->select_lex:
+               NULL))
     {
       List_iterator<TABLE_LIST> li(sel->leaf_tables);
       TABLE_LIST *tbl;
@@ -8619,7 +8637,6 @@ bool Item_direct_view_ref::send(Protocol *protocol, st_value *buffer)
 
 bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
 {
-  DBUG_ASSERT(1);
   /* view fild reference must be defined */
   DBUG_ASSERT(*ref);
   /* (*ref)->check_cols() will be made in Item_direct_ref::fix_fields */
@@ -9677,14 +9694,19 @@ bool  Item_cache_temporal::cache_value()
 {
   if (!example)
     return false;
-
   value_cached= true;
- 
-  MYSQL_TIME ltime;
-  if (example->get_date_result(&ltime, 0))
-    value=0;
-  else
-    value= pack_time(&ltime);
+  value= example->val_datetime_packed_result();
+  null_value= example->null_value;
+  return true;
+}
+
+
+bool Item_cache_time::cache_value()
+{
+  if (!example)
+    return false;
+  value_cached= true;
+  value= example->val_time_packed_result();
   null_value= example->null_value;
   return true;
 }
@@ -9735,8 +9757,8 @@ void Item_cache_temporal::store_packed(longlong val_arg, Item *example_arg)
 
 Item *Item_cache_temporal::clone_item(THD *thd)
 {
-  Item_cache_temporal *item= new (thd->mem_root)
-    Item_cache_temporal(thd, Item_cache_temporal::type_handler());
+  Item_cache *tmp= type_handler()->Item_get_cache(thd, this);
+  Item_cache_temporal *item= static_cast<Item_cache_temporal*>(tmp);
   item->store_packed(value, example);
   return item;
 }
@@ -10184,7 +10206,7 @@ void Item_direct_view_ref::update_used_tables()
 
 table_map Item_direct_view_ref::used_tables() const
 {
-  DBUG_ASSERT(null_ref_table);
+  DBUG_ASSERT(fixed);
 
   if (get_depended_from())
     return OUTER_REF_TABLE_BIT;

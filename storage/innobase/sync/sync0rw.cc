@@ -84,10 +84,15 @@ lock_word < -(X_LOCK_DECR + X_LOCK_HALF_DECR):
 				2 - (lock_word + X_LOCK_DECR + X_LOCK_HALF_DECR)
 
  LOCK COMPATIBILITY MATRIX
-    S SX  X
- S  +  +  -
- SX +  -  -
- X  -  -  -
+
+      | S|SX| X|
+    --+--+--+--+
+     S| +| +| -|
+    --+--+--+--+
+    SX| +| -| -|
+    --+--+--+--+
+     X| -| -| -|
+    --+--+--+--+
 
 The lock_word is always read and updated atomically and consistently, so that
 it always represents the state of the lock, and the state of the lock changes

@@ -410,8 +410,7 @@ SysTablespace::set_size(
 
 	bool	success = os_file_set_size(
 		file.m_filepath, file.m_handle,
-		static_cast<os_offset_t>(file.m_size << UNIV_PAGE_SIZE_SHIFT),
-		m_ignore_read_only ? false : srv_read_only_mode);
+		static_cast<os_offset_t>(file.m_size) << UNIV_PAGE_SIZE_SHIFT);
 
 	if (success) {
 		ib::info() << "File '" << file.filepath() << "' size is now "

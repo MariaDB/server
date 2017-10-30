@@ -40,7 +40,7 @@
 */
 
 Item::Type
-sp_map_item_type(enum enum_field_types type);
+sp_map_item_type(const Type_handler *handler);
 
 uint
 sp_get_flags_for_command(LEX *lex);

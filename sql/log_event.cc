@@ -1131,7 +1131,7 @@ int append_query_string(CHARSET_INFO *csinfo, String *to,
 
     *ptr++= '\'';
   }
-  to->length(orig_len + ptr - beg);
+  to->length((uint32)(orig_len + ptr - beg));
   return 0;
 }
 #endif
@@ -8681,21 +8681,6 @@ User_var_log_event(const char* buf, uint event_len,
       we keep the flags set to UNDEF_F.
     */
     size_t bytes_read= ((val + val_len) - buf_start);
-#ifdef DBUG_ASSERT_EXISTS
-    bool old_pre_checksum_fd= description_event->is_version_before_checksum(
-        &description_event->server_version_split);
-#endif
-    DBUG_ASSERT((bytes_read == data_written -
-                 (old_pre_checksum_fd ||
-                  (description_event->checksum_alg ==
-                   BINLOG_CHECKSUM_ALG_OFF)) ?
-                 0 : BINLOG_CHECKSUM_LEN)
-                ||
-                (bytes_read == data_written -1 -
-                 (old_pre_checksum_fd ||
-                  (description_event->checksum_alg ==
-                   BINLOG_CHECKSUM_ALG_OFF)) ?
-                 0 : BINLOG_CHECKSUM_LEN));
     if ((data_written - bytes_read) > 0)
     {
       flags= (uint) *(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
@@ -10041,7 +10026,7 @@ Execute_load_query_log_event::do_apply_event(rpl_group_info *rgi)
   p= strmake(p, STRING_WITH_LEN(" INTO "));
   p= strmake(p, query+fn_pos_end, q_len-fn_pos_end);
 
-  error= Query_log_event::do_apply_event(rgi, buf, p-buf);
+  error= Query_log_event::do_apply_event(rgi, buf, (uint32)(p-buf));
 
   /* Forging file name for deletion in same buffer */
   *fname_end= 0;
@@ -10493,7 +10478,7 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
   if (static_cast<size_t>(m_rows_end - m_rows_cur) <= length)
   {
     size_t const block_size= 1024;
-    ulong cur_size= m_rows_cur - m_rows_buf;
+    size_t cur_size= m_rows_cur - m_rows_buf;
     DBUG_EXECUTE_IF("simulate_too_big_row_case1",
                      cur_size= UINT_MAX32 - (block_size * 10);
                      length= UINT_MAX32 - (block_size * 10););
@@ -10506,21 +10491,21 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
     DBUG_EXECUTE_IF("simulate_too_big_row_case4",
                      cur_size= UINT_MAX32 - (block_size * 10);
                      length= (block_size * 10) - block_size + 1;);
-    ulong remaining_space= UINT_MAX32 - cur_size;
+    size_t remaining_space= UINT_MAX32 - cur_size;
     /* Check that the new data fits within remaining space and we can add
        block_size without wrapping.
      */
-    if (length > remaining_space ||
+    if (cur_size > UINT_MAX32 || length > remaining_space ||
         ((length + block_size) > remaining_space))
     {
       sql_print_error("The row data is greater than 4GB, which is too big to "
                       "write to the binary log.");
       DBUG_RETURN(ER_BINLOG_ROW_LOGGING_FAILED);
     }
-    ulong const new_alloc= 
+    size_t const new_alloc= 
         block_size * ((cur_size + length + block_size - 1) / block_size);
 
-    uchar* const new_buf= (uchar*)my_realloc((uchar*)m_rows_buf, (uint) new_alloc,
+    uchar* const new_buf= (uchar*)my_realloc((uchar*)m_rows_buf, new_alloc,
                                            MYF(MY_ALLOW_ZERO_PTR|MY_WME));
     if (unlikely(!new_buf))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -11253,11 +11238,11 @@ bool Rows_log_event::write_compressed()
   uchar *m_rows_cur_tmp = m_rows_cur;
   bool ret = true;
   uint32 comlen, alloc_size;
-  comlen= alloc_size= binlog_get_compress_len(m_rows_cur_tmp - m_rows_buf_tmp);
+  comlen= alloc_size= binlog_get_compress_len((uint32)(m_rows_cur_tmp - m_rows_buf_tmp));
   m_rows_buf = (uchar *)my_safe_alloca(alloc_size);
   if(m_rows_buf &&
      !binlog_buf_compress((const char *)m_rows_buf_tmp, (char *)m_rows_buf,
-                          m_rows_cur_tmp - m_rows_buf_tmp, &comlen))
+                          (uint32)(m_rows_cur_tmp - m_rows_buf_tmp), &comlen))
   {
     m_rows_cur= comlen + m_rows_buf;
     ret= Log_event::write();
@@ -12493,7 +12478,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
        the size of the first row and use that value to initialize
        storage engine for bulk insertion */
     DBUG_ASSERT(!(m_curr_row > m_curr_row_end));
-    ulong estimated_rows= 0;
+    ha_rows estimated_rows= 0;
     if (m_curr_row < m_curr_row_end)
       estimated_rows= (m_rows_end - m_curr_row) / (m_curr_row_end - m_curr_row);
     else if (m_curr_row == m_curr_row_end)
@@ -12712,7 +12697,7 @@ int Rows_log_event::update_sequence()
     longlong round= table->field[ROUND_FIELD_NO]->val_int();
     dbug_tmp_restore_column_map(table->read_set, old_map);
 
-    return table->s->sequence->set_value(table, nextval, round, 0);
+    return table->s->sequence->set_value(table, nextval, round, 0) > 0;
   }
 
   /*
@@ -12731,6 +12716,7 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
   DBUG_ASSERT(m_table != NULL);
   const char *tmp= thd->get_proc_info();
   const char *message= "Write_rows_log_event::write_row()";
+  int error;
 
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
@@ -12740,7 +12726,7 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
-  int error= write_row(rgi, slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT);
+  error= write_row(rgi, slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT);
   thd_proc_info(thd, tmp);
 
   if (error && !thd->is_error())

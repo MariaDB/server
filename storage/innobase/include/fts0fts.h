@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation. All Rights reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -456,20 +456,6 @@ fts_update_next_doc_id(
 	doc_id_t		doc_id);	/*!< in: DOC ID to set */
 
 /******************************************************************//**
-Create a new document id .
-@return DB_SUCCESS if all went well else error */
-dberr_t
-fts_create_doc_id(
-/*==============*/
-	dict_table_t*	table,			/*!< in: row is of this
-						table. */
-	dtuple_t*	row,			/*!< in/out: add doc id
-						value to this row. This is the
-						current row that is being
-						inserted. */
-	mem_heap_t*	heap);			/*!< in: heap */
-
-/******************************************************************//**
 Create a new fts_doc_ids_t.
 @return new fts_doc_ids_t. */
 fts_doc_ids_t*
@@ -579,7 +565,6 @@ fts_commit(
 @param[in]	query_str	FTS query
 @param[in]	query_len	FTS query string len in bytes
 @param[in,out]	result		result doc ids
-@param[in]	limit		limit value
 @return DB_SUCCESS if successful otherwise error code */
 dberr_t
 fts_query(
@@ -588,8 +573,7 @@ fts_query(
 	uint		flags,
 	const byte*	query_str,
 	ulint		query_len,
-	fts_result_t**	result,
-	ulonglong	limit)
+	fts_result_t**	result)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************************//**
@@ -1033,4 +1017,3 @@ fts_check_corrupt(
 
 
 #endif /*!< fts0fts.h */
-

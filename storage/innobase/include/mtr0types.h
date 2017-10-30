@@ -109,9 +109,6 @@ enum mlog_id_t {
 	/** initialize a page in an undo log */
 	MLOG_UNDO_INIT = 22,
 
-	/** discard an update undo log header */
-	MLOG_UNDO_HDR_DISCARD = 23,
-
 	/** create an undo log header */
 	MLOG_UNDO_HDR_CREATE = 25,
 

@@ -99,3 +99,26 @@ DROP PROCEDURE p1;
 DROP FUNCTION f2;
 DROP FUNCTION f1;
 DROP DATABASE db1;
+
+
+--echo #
+--echo # MDEV-14139 Anchored data types for variables
+--echo #
+
+CREATE TABLE t1 (int11 INT, text0 TEXT);
+DELIMITER $$;
+DECLARE
+  row1 t1%ROWTYPE;
+  a_row1 row1%TYPE;
+  aa_row1 a_row1%TYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT a_row1.int11 AS int11, a_row1.text0 AS text0;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+  CREATE TABLE t2 AS SELECT aa_row1.int11 AS int11, aa_row1.text0 AS text0;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;

@@ -2876,6 +2876,20 @@ protected:
 };
 
 
+class Create_func_substr_oracle : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
+                              List<Item> *item_list);
+
+  static Create_func_substr_oracle s_singleton;
+
+protected:
+  Create_func_substr_oracle() {}
+  virtual ~Create_func_substr_oracle() {}
+};
+
+
 class Create_func_subtime : public Create_func_arg2
 {
 public:
@@ -6466,6 +6480,40 @@ Create_func_substr_index::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *a
 }
 
 
+Create_func_substr_oracle Create_func_substr_oracle::s_singleton;
+
+Item*
+Create_func_substr_oracle::create_native(THD *thd, LEX_CSTRING *name,
+                                List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= item_list ? item_list->elements : 0;
+
+  switch (arg_count) {
+  case 2:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    func= new (thd->mem_root) Item_func_substr_oracle(thd, param_1, param_2);
+    break;
+  }
+  case 3:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    Item *param_3= item_list->pop();
+    func= new (thd->mem_root) Item_func_substr_oracle(thd, param_1, param_2, param_3);
+    break;
+  }
+  default:
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+
+  return func;
+}
+
+
 Create_func_subtime Create_func_subtime::s_singleton;
 
 Item*
@@ -7119,6 +7167,8 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("ST_WITHIN") }, GEOM_BUILDER(Create_func_within)},
   { { C_STRING_WITH_LEN("ST_X") }, GEOM_BUILDER(Create_func_x)},
   { { C_STRING_WITH_LEN("ST_Y") }, GEOM_BUILDER(Create_func_y)},
+  { { C_STRING_WITH_LEN("SUBSTR_ORACLE") },
+      BUILDER(Create_func_substr_oracle)},
   { { C_STRING_WITH_LEN("SUBSTRING_INDEX") }, BUILDER(Create_func_substr_index)},
   { { C_STRING_WITH_LEN("SUBTIME") }, BUILDER(Create_func_subtime)},
   { { C_STRING_WITH_LEN("TAN") }, BUILDER(Create_func_tan)},

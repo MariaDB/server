@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab.
+   Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -240,7 +240,7 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
   //MYSQL_TYPE_NULL         MYSQL_TYPE_TIMESTAMP
     MYSQL_TYPE_FLOAT,       MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_LONGLONG     MYSQL_TYPE_INT24
-    MYSQL_TYPE_FLOAT,       MYSQL_TYPE_FLOAT,
+    MYSQL_TYPE_DOUBLE,      MYSQL_TYPE_FLOAT,
   //MYSQL_TYPE_DATE         MYSQL_TYPE_TIME
     MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_DATETIME     MYSQL_TYPE_YEAR
@@ -2240,15 +2240,15 @@ Field *Field::clone(MEM_ROOT *root, my_ptrdiff_t diff)
   return tmp;
 }
 
-void Field::set_default()
+int Field::set_default()
 {
   if (default_value)
   {
     Query_arena backup_arena;
     table->in_use->set_n_backup_active_arena(table->expr_arena, &backup_arena);
-    (void) default_value->expr->save_in_field(this, 0);
+    int rc= default_value->expr->save_in_field(this, 0);
     table->in_use->restore_active_arena(table->expr_arena, &backup_arena);
-    return;
+    return rc;
   }
   /* Copy constant value stored in s->default_values */
   my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
@@ -2257,6 +2257,7 @@ void Field::set_default()
   if (maybe_null_in_table())
     *null_ptr= ((*null_ptr & (uchar) ~null_bit) |
                 (null_ptr[l_offset] & null_bit));
+  return 0;
 }
 
 
@@ -2267,6 +2268,16 @@ void Field::set_default()
 void Field_null::sql_type(String &res) const
 {
   res.set_ascii(STRING_WITH_LEN("null"));
+}
+
+
+/****************************************************************************
+  Field_row, e.g. for ROW-type SP variables
+****************************************************************************/
+
+Field_row::~Field_row()
+{
+  delete m_table;
 }
 
 
@@ -9005,13 +9016,13 @@ String *Field_set::val_str(String *val_buffer,
   ulonglong tmp=(ulonglong) Field_enum::val_int();
   uint bitnr=0;
 
+  /*
+    Some callers expect *val_buffer to contain the result,
+    so we assign to it, rather than doing 'return &empty_set_string.
+  */
+  *val_buffer= empty_set_string;
   if (tmp == 0)
   {
-    /*
-      Some callers expect *val_buffer to contain the result,
-      so we assign to it, rather than doing 'return &empty_set_string.
-     */
-    *val_buffer= empty_set_string;
     return val_buffer;
   }
 
@@ -9764,7 +9775,7 @@ Field_bit::unpack(uchar *to, const uchar *from, const uchar *from_end,
 }
 
 
-void Field_bit::set_default()
+int Field_bit::set_default()
 {
   if (bit_len > 0)
   {
@@ -9772,7 +9783,7 @@ void Field_bit::set_default()
     uchar bits= get_rec_bits(bit_ptr + col_offset, bit_ofs, bit_len);
     set_rec_bits(bits, bit_ptr, bit_ofs, bit_len);
   }
-  Field::set_default();
+  return Field::set_default();
 }
 
 /*
@@ -10301,6 +10312,21 @@ Field *make_field(TABLE_SHARE *share,
   uchar *UNINIT_VAR(bit_ptr);
   uchar UNINIT_VAR(bit_offset);
 
+  DBUG_PRINT("debug", ("field_type: %s, field_length: %u, interval: %p, pack_flag: %s%s%s%s%s",
+                       handler->name().ptr(), field_length, interval,
+                       FLAGSTR(pack_flag, FIELDFLAG_BINARY),
+                       FLAGSTR(pack_flag, FIELDFLAG_INTERVAL),
+                       FLAGSTR(pack_flag, FIELDFLAG_NUMBER),
+                       FLAGSTR(pack_flag, FIELDFLAG_PACK),
+                       FLAGSTR(pack_flag, FIELDFLAG_BLOB)));
+
+  if (handler == &type_handler_row)
+  {
+    DBUG_ASSERT(field_length == 0);
+    DBUG_ASSERT(f_maybe_null(pack_flag));
+    return new (mem_root) Field_row(ptr, field_name);
+  }
+
   if (handler->real_field_type() == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
   {
     bit_ptr= null_pos;
@@ -10322,13 +10348,6 @@ Field *make_field(TABLE_SHARE *share,
     null_bit= ((uchar) 1) << null_bit;
   }
 
-  DBUG_PRINT("debug", ("field_type: %s, field_length: %u, interval: %p, pack_flag: %s%s%s%s%s",
-                       handler->name().ptr(), field_length, interval,
-                       FLAGSTR(pack_flag, FIELDFLAG_BINARY),
-                       FLAGSTR(pack_flag, FIELDFLAG_INTERVAL),
-                       FLAGSTR(pack_flag, FIELDFLAG_NUMBER),
-                       FLAGSTR(pack_flag, FIELDFLAG_PACK),
-                       FLAGSTR(pack_flag, FIELDFLAG_BLOB)));
 
   if (f_is_alpha(pack_flag))
   {

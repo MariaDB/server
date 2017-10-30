@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS stats_test_table;
+CREATE TABLE stats_test_table (a INT, b INT, PRIMARY KEY (a)) ENGINE=ROCKSDB;
+SET GLOBAL rocksdb_perf_context_level=3;
+INSERT INTO stats_test_table VALUES (7,1);
+INSERT INTO stats_test_table VALUES (2,2);
+SELECT io_write_bytes > 0 FROM INFORMATION_SCHEMA.TABLE_STATISTICS WHERE TABLE_NAME = "stats_test_table";
+io_write_bytes > 0
+1
+DROP TABLE stats_test_table;
+SET GLOBAL rocksdb_perf_context_level=DEFAULT;

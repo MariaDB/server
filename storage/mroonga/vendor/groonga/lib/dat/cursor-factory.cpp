@@ -32,7 +32,6 @@ Cursor *CursorFactory::open(const Trie &trie,
                             UInt32 offset,
                             UInt32 limit,
                             UInt32 flags) {
-  GRN_DAT_THROW_IF(PARAM_ERROR, &trie == NULL);
 
   const UInt32 cursor_type = flags & CURSOR_TYPE_MASK;
   switch (cursor_type) {

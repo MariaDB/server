@@ -1001,3 +1001,33 @@ t1	CREATE TABLE `t1` (
   `rec1.a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP PROCEDURE p1;
+#
+# MDEV-14139 Anchored data types for variables
+#
+BEGIN NOT ATOMIC
+DECLARE c1 CURSOR FOR SELECT 10 AS a, 'bbb' AS b, TIME'10:20:30' AS c;
+BEGIN
+DECLARE row1 ROW TYPE OF c1;
+DECLARE a_row1 TYPE OF row1;
+DECLARE aa_row1 TYPE OF a_row1;
+CREATE TABLE t2 AS SELECT a_row1.a AS a, a_row1.b AS b, a_row1.c AS c;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT aa_row1.a AS a, aa_row1.b AS b, aa_row1.c AS c;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+END;
+$$
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(3) DEFAULT NULL,
+  `c` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(3) DEFAULT NULL,
+  `c` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1

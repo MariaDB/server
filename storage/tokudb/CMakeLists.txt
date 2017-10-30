@@ -38,6 +38,7 @@ IF(NOT LIBJEMALLOC)
 ENDIF()
 
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
 
 ############################################
 MARK_AS_ADVANCED(BUILDNAME)

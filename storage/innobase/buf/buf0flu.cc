@@ -825,7 +825,6 @@ buf_flush_update_zip_checksum(
 		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm));
 
 	mach_write_to_8(page + FIL_PAGE_LSN, lsn);
-	memset(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 	mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 }
 
@@ -1079,7 +1078,6 @@ buf_flush_write_block_low(
 				bpage->newest_modification);
 
 		ut_a(page_zip_verify_checksum(frame, bpage->size.physical()));
-		memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		frame = bpage->zip.data;

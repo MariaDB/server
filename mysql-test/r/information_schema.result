@@ -659,7 +659,7 @@ proc	body	longblob
 proc	definer	char(141)
 proc	created	timestamp
 proc	modified	timestamp
-proc	sql_mode	set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH')
+proc	sql_mode	set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL')
 proc	comment	text
 proc	character_set_client	char(32)
 proc	collation_connection	char(32)
@@ -2140,3 +2140,35 @@ drop database db1;
 connection default;
 disconnect con1;
 set global sql_mode=default;
+USE test;
+#
+# End of 10.0 tests
+#
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-13242 Wrong results for queries with row constructors and information_schema
+#
+CREATE TABLE tt1(c1 INT);
+CREATE TABLE tt2(c2 INT);
+SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (table_name, column_name) IN (('tt1', 'c1'));
+count(*)
+1
+SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (table_name, column_name) IN (('tt2', 'c2'));
+count(*)
+1
+SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (table_name, column_name) IN (('tt1','c1'),('tt2', 'c2'));
+count(*)
+2
+SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (table_name, column_name) IN (SELECT 'tt1','c1' FROM dual UNION SELECT 'tt2', 'c2' FROM dual);
+count(*)
+2
+SELECT count(*) FROM information_schema.columns WHERE table_schema='test' AND (table_name='tt1' AND column_name='c1') OR (table_name='tt2' AND column_name='c2');
+count(*)
+2
+SELECT column_name FROM information_schema.columns WHERE (table_name, column_name) IN (('tt1','c1'),('tt2', 'c2')) ORDER BY column_name;
+column_name
+c1
+c2
+DROP TABLE tt1, tt2;

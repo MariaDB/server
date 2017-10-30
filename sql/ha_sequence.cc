@@ -112,6 +112,12 @@ int ha_sequence::open(const char *name, int mode, uint flags)
     }
     else
       table->m_needs_reopen= true;
+
+    /*
+      The following is needed to fix comparison of rows in
+      ha_update_first_row() for InnoDB
+    */
+    memcpy(table->record[1], table->s->default_values, table->s->reclength);
   }
   DBUG_RETURN(error);
 }

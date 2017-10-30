@@ -16,6 +16,7 @@
 #pragma once
 
 /* C++ standard header files */
+#include <cstdlib>
 #include <algorithm>
 #include <atomic>
 #include <map>
@@ -109,13 +110,24 @@ const size_t RDB_CHECKSUM_CHUNK_SIZE = 2 * RDB_CHECKSUM_SIZE + 1;
 const char RDB_CHECKSUM_DATA_TAG = 0x01;
 
 /*
-  Unpack data is variable length. It is a 1 tag-byte plus a
-  two byte length field. The length field includes the header as well.
+  Unpack data is variable length. The header is 1 tag-byte plus a two byte
+  length field. The length field includes the header as well.
 */
 const char RDB_UNPACK_DATA_TAG = 0x02;
 const size_t RDB_UNPACK_DATA_LEN_SIZE = sizeof(uint16_t);
 const size_t RDB_UNPACK_HEADER_SIZE =
     sizeof(RDB_UNPACK_DATA_TAG) + RDB_UNPACK_DATA_LEN_SIZE;
+
+/*
+  This header format is 1 tag-byte plus a two byte length field plus a two byte
+  covered bitmap. The length field includes the header size.
+*/
+const char RDB_UNPACK_COVERED_DATA_TAG = 0x03;
+const size_t RDB_UNPACK_COVERED_DATA_LEN_SIZE = sizeof(uint16_t);
+const size_t RDB_COVERED_BITMAP_SIZE = sizeof(uint16_t);
+const size_t RDB_UNPACK_COVERED_HEADER_SIZE =
+    sizeof(RDB_UNPACK_COVERED_DATA_TAG) + RDB_UNPACK_COVERED_DATA_LEN_SIZE +
+    RDB_COVERED_BITMAP_SIZE;
 
 /*
   Data dictionary index info field sizes.
@@ -190,7 +202,8 @@ public:
                    const bool &should_store_row_debug_checksums,
                    const longlong &hidden_pk_id = 0, uint n_key_parts = 0,
                    uint *const n_null_fields = nullptr,
-                   uint *const ttl_pk_offset = nullptr) const;
+                   uint *const ttl_pk_offset = nullptr,
+                   const char *const ttl_bytes = nullptr) const;
   /* Pack the hidden primary key into mem-comparable form. */
   uint pack_hidden_pk(const longlong &hidden_pk_id,
                       uchar *const packed_tuple) const;
@@ -246,6 +259,17 @@ public:
       return false;
 
     return true;
+  }
+
+  void get_lookup_bitmap(const TABLE *table, MY_BITMAP *map) const;
+
+  bool covers_lookup(TABLE *const table,
+                     const rocksdb::Slice *const unpack_info,
+                     const MY_BITMAP *const map) const;
+
+  inline bool use_covered_bitmap_format() const {
+    return m_index_type == INDEX_TYPE_SECONDARY &&
+           m_kv_format_version >= SECONDARY_FORMAT_VERSION_UPDATE3;
   }
 
   /*
@@ -304,6 +328,8 @@ public:
   const rocksdb::SliceTransform *get_extractor() const {
     return m_prefix_extractor.get();
   }
+
+  static size_t get_unpack_header_size(char tag);
 
   Rdb_key_def &operator=(const Rdb_key_def &) = delete;
   Rdb_key_def(const Rdb_key_def &k);
@@ -428,7 +454,16 @@ public:
     //    an inefficient where data that was a multiple of 8 bytes in length
     //    had an extra 9 bytes of encoded data.
     SECONDARY_FORMAT_VERSION_UPDATE2 = 12,
-    SECONDARY_FORMAT_VERSION_LATEST = SECONDARY_FORMAT_VERSION_UPDATE2,
+    // This change includes support for TTL
+    //  - This means that when TTL is specified for the table an 8-byte TTL
+    //    field is prepended in front of each value.
+    SECONDARY_FORMAT_VERSION_TTL = 13,
+    SECONDARY_FORMAT_VERSION_LATEST = SECONDARY_FORMAT_VERSION_TTL,
+    // This change includes support for covering SK lookups for varchars.  A
+    // 2-byte bitmap is added after the tag-byte to unpack_info only for
+    // records which have covered varchar columns. Currently waiting before
+    // enabling in prod.
+    SECONDARY_FORMAT_VERSION_UPDATE3 = 65535,
   };
 
   void setup(const TABLE *const table, const Rdb_tbl_def *const tbl_def);
@@ -444,7 +479,11 @@ public:
 
   static bool has_index_flag(uint32 index_flags, enum INDEX_FLAG flag);
   static uint32 calculate_index_flag_offset(uint32 index_flags,
-                                            enum INDEX_FLAG flag);
+                                            enum INDEX_FLAG flag,
+                                            uint *const field_length = nullptr);
+  void write_index_flag_field(Rdb_string_writer *const buf,
+                              const uchar *const val,
+                              enum INDEX_FLAG flag) const;
 
   static const std::string
   gen_qualifier_for_table(const char *const qualifier,
@@ -597,6 +636,10 @@ public:
                                    SECONDARY_FORMAT_VERSION_UPDATE2);
   }
 
+  static inline bool is_unpack_data_tag(char c) {
+    return c == RDB_UNPACK_DATA_TAG || c == RDB_UNPACK_COVERED_DATA_TAG;
+  }
+
  private:
 #ifndef DBUG_OFF
   inline bool is_storage_available(const int &offset, const int &needed) const {
@@ -645,6 +688,11 @@ public:
     are enabled for the given index.
   */
   uint32 m_index_flags_bitmap;
+
+  /*
+    How much space in bytes the index flag fields occupy.
+  */
+  uint32 m_total_index_flags_length;
 
   /*
     Offset in the records where the 8-byte TTL is stored (UINT_MAX if no TTL)
@@ -763,6 +811,13 @@ public:
   // number of bytes used to store number of trimmed (or added)
   // spaces in the upack_info
   bool m_unpack_info_uses_two_bytes;
+
+  /*
+    True implies that an index-only read is always possible for this field.
+    False means an index-only read may be possible depending on the record and
+    field type.
+  */
+  bool m_covered;
 
   const std::vector<uchar> *space_xfrm;
   size_t space_xfrm_len;
@@ -1041,6 +1096,8 @@ public:
     return m_sequence.get_and_update_next_number(dict);
   }
 
+  const std::string safe_get_table_name(const GL_INDEX_ID &gl_index_id);
+
   /* Walk the data dictionary */
   int scan_for_tables(Rdb_tables_scanner *tables_scanner);
 
@@ -1086,7 +1143,6 @@ public:
   bool init(Rdb_dict_manager *const dict);
   void cleanup();
   void update(const char *const binlog_name, const my_off_t binlog_pos,
-              const char *const binlog_max_gtid,
               rocksdb::WriteBatchBase *const batch);
   bool read(char *const binlog_name, my_off_t *const binlog_pos,
             char *const binlog_gtid) const;

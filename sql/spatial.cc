@@ -2565,7 +2565,7 @@ uint Gis_multi_polygon::init_from_opresult(String *bin,
     n_poly++;
   }
   bin->write_at_position(np_pos, n_poly);
-  return opres - opres_orig;
+  return (uint)(opres - opres_orig);
 }
 
 

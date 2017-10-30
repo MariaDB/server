@@ -230,7 +230,7 @@ uint explain_filename(THD* thd,
   {
     db_name= table_name;
     /* calculate the length */
-    db_name_len= tmp_p - db_name;
+    db_name_len= (int)(tmp_p - db_name);
     tmp_p++;
     table_name= tmp_p;
   }
@@ -252,7 +252,7 @@ uint explain_filename(THD* thd,
     case 's':
       if ((tmp_p[1] == 'P' || tmp_p[1] == 'p') && tmp_p[2] == '#')
       {
-        part_name_len= tmp_p - part_name - 1;
+        part_name_len= (int)(tmp_p - part_name - 1);
         subpart_name= tmp_p + 3;
 	tmp_p+= 3;
       }
@@ -284,7 +284,7 @@ uint explain_filename(THD* thd,
   }
   if (part_name)
   {
-    table_name_len= part_name - table_name - 3;
+    table_name_len= (int)(part_name - table_name - 3);
     if (subpart_name)
       subpart_name_len= strlen(subpart_name);
     else
@@ -357,7 +357,7 @@ uint explain_filename(THD* thd,
       to_p= strnmov(to_p, " */", end_p - to_p);
   }
   DBUG_PRINT("exit", ("to '%s'", to));
-  DBUG_RETURN(to_p - to);
+  DBUG_RETURN((uint)(to_p - to));
 }
 
 
@@ -553,7 +553,7 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
   pos= strxnmov(pos, end - pos, tbbuff, ext, NullS);
 
   DBUG_PRINT("exit", ("buff: '%s'", buff));
-  DBUG_RETURN(pos - buff);
+  DBUG_RETURN((uint)(pos - buff));
 }
 
 
@@ -1990,7 +1990,7 @@ int write_bin_log(THD *thd, bool clear_error,
    tables		List of tables to delete
    if_exists		If 1, don't give error if one table doesn't exists
    drop_temporary       1 if DROP TEMPORARY
-   drop_seqeunce        1 if DROP SEQUENCE
+   drop_sequence        1 if DROP SEQUENCE
 
   NOTES
     Will delete all tables that can be deleted and give a compact error
@@ -2038,6 +2038,25 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
 
     if (!thd->locked_tables_mode)
     {
+      if (drop_sequence)
+      {
+        /* We are trying to drop a sequence.
+           Change all temporary tables that are not sequences to
+           normal tables so that we can try to drop them instead.
+           If we don't do this, we will get an error 'not a sequence'
+           when trying to drop a sequence that is hidden by a temporary
+           table.
+        */
+        for (table= tables; table; table= table->next_global)
+        {
+          if (table->open_type == OT_TEMPORARY_OR_BASE &&
+            is_temporary_table(table) && !table->table->s->sequence)
+          {
+            thd->mark_tmp_table_as_free_for_reuse(table->table);
+            table->table= NULL;
+          }
+        }
+      }
       if (lock_table_names(thd, tables, NULL,
                            thd->variables.lock_wait_timeout, 0))
         DBUG_RETURN(true);
@@ -2134,7 +2153,7 @@ static uint32 comment_length(THD *thd, uint32 comment_pos,
   for (query+= 3; query < query_end; query++)
   {
     if (query[-1] == '*' && query[0] == '/')
-      return (char*) query - *comment_start + 1;
+      return (uint32)((char*) query - *comment_start + 1);
   }
   return 0;
 }
@@ -2724,7 +2743,7 @@ bool quick_rm_table(THD *thd, handlerton *base, const char *db,
   bool error= 0;
   DBUG_ENTER("quick_rm_table");
 
-  uint path_length= table_path ?
+  size_t path_length= table_path ?
     (strxnmov(path, sizeof(path) - 1, table_path, reg_ext, NullS) - path) :
     build_table_filename(path, sizeof(path)-1, db, table_name, reg_ext, flags);
   if (mysql_file_delete(key_file_frm, path, MYF(0)))
@@ -3306,7 +3325,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   {
     if (!(file->ha_table_flags() & HA_CAN_TABLES_WITHOUT_ROLLBACK))
     {
-      my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), file->engine_name()->str,
+      my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), file->table_type(),
                "SEQUENCE");
       DBUG_RETURN(TRUE);
     }
@@ -4022,7 +4041,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (!sql_field->default_value &&
         !sql_field->has_default_function() &&
         (sql_field->flags & NOT_NULL_FLAG) &&
-        !sql_field->is_timestamp_type())
+        (!sql_field->is_timestamp_type() ||
+         opt_explicit_defaults_for_timestamp))
     {
       sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
       sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
@@ -4031,6 +4051,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
         !sql_field->default_value && !sql_field->vcol_info &&
         sql_field->is_timestamp_type() &&
+        !opt_explicit_defaults_for_timestamp &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
     {
@@ -6558,7 +6579,7 @@ static bool fill_alter_inplace_info(THD *thd,
       table_key;
     ha_alter_info->index_add_buffer
       [ha_alter_info->index_add_count++]=
-      new_key - ha_alter_info->key_info_buffer;
+      (uint)(new_key - ha_alter_info->key_info_buffer);
     /* Mark all old fields which are used in newly created index. */
     DBUG_PRINT("info", ("index changed: '%s'", table_key->name.str));
   }
@@ -6583,7 +6604,7 @@ static bool fill_alter_inplace_info(THD *thd,
       /* Key not found. Add the offset of the key to the add buffer. */
       ha_alter_info->index_add_buffer
         [ha_alter_info->index_add_count++]=
-        new_key - ha_alter_info->key_info_buffer;
+        (uint)(new_key - ha_alter_info->key_info_buffer);
       DBUG_PRINT("info", ("index added: '%s'", new_key->name.str));
     }
     else
@@ -6923,7 +6944,6 @@ bool alter_table_manage_keys(TABLE *table, int indexes_were_disabled,
   case Alter_info::LEAVE_AS_IS:
     if (!indexes_were_disabled)
       break;
-    /* disabled indexes */
     /* fall through */
   case Alter_info::DISABLE:
     error= table->file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);

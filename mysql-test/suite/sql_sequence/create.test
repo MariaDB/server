@@ -375,3 +375,77 @@ drop sequence t1;
 
 --error ER_UNKNOWN_STORAGE_ENGINE
 create table t1 (a int) engine=sql_sequence;
+
+--echo #
+--echo # MDEV-13711 assertion on CREATE LIKE fix
+--echo #
+
+create sequence s;
+create table t like s;
+show create table t;
+show create sequence t;
+drop tables t, s;
+
+--echo #
+--echo # MDEV-13714 SEQUENCE option fix
+--echo #
+
+create or replace table s (
+  `next_value` bigint(21) not null,
+  `min_value` bigint(21) not null,
+  `max_value` bigint(21) not null,
+  `start` bigint(21) not null,
+  `increment` bigint(21) not null,
+  `cache` bigint(21) not null,
+  `cycle` tinyint(1) unsigned not null,
+  `round` bigint(21) not null)
+sequence=0;
+
+create or replace table s2 (
+  `next_value` bigint(21) not null,
+  `min_value` bigint(21) not null,
+  `max_value` bigint(21) not null,
+  `start` bigint(21) not null,
+  `increment` bigint(21) not null,
+  `cache` bigint(21) not null,
+  `cycle` tinyint(1) unsigned not null,
+  `round` bigint(21) not null)
+sequence=default;
+
+show create table s;
+show create table s2;
+--error ER_NOT_SEQUENCE
+show create sequence s;
+--error ER_NOT_SEQUENCE
+show create sequence s2;
+drop table s,s2;
+
+--echo #
+--echo # MDEV-13721 Assertion is_lock_owner() failed in mysql_rm_table_no_locks
+--echo #
+
+create or replace sequence s;
+create temporary table s (i int);
+drop sequence s;
+show create table s;
+drop table s;
+
+create or replace sequence s;
+create temporary sequence s;
+show create table s;
+drop sequence s;
+show create table s;
+drop table s;
+
+create or replace sequence s;
+create temporary sequence s;
+drop temporary sequence s;
+show create table s;
+drop table s;
+
+create temporary sequence s;
+drop temporary table s;
+create temporary table s (i int);
+--error ER_UNKNOWN_SEQUENCES
+drop temporary sequence s;
+drop table s;

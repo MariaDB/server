@@ -70,4 +70,7 @@ class Regex_list_handler
 void warn_about_bad_patterns(const Regex_list_handler* regex_list_handler,
                              const char *name);
 
+void print_keydup_error(TABLE *table, KEY *key, myf errflag,
+                        const THD *thd, const char *org_table_name=NULL);
+
 #endif

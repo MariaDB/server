@@ -247,7 +247,7 @@ int MAPFAM::GetRowID(void)
 /***********************************************************************/
 int MAPFAM::GetPos(void)
   {
-  return Fpos - Memory;
+  return (int)(Fpos - Memory);
   } // end of GetPos
 
 /***********************************************************************/
@@ -255,7 +255,7 @@ int MAPFAM::GetPos(void)
 /***********************************************************************/
 int MAPFAM::GetNextPos(void)
   {
-  return Mempos - Memory;
+  return (int)(Mempos - Memory);
   } // end of GetNextPos
 
 /***********************************************************************/
@@ -368,7 +368,7 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
 		}	// endif Mempos
 
   // Set caller line buffer
-  len = (Mempos - Fpos) - n;
+  len = (int)(Mempos - Fpos) - n;
 
   // Don't rely on ENDING setting
   if (len > 0 && *(Mempos - 2) == '\r')
@@ -428,7 +428,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  not required here, just setting of future Spos and Tpos.       */
     /*******************************************************************/
     Tpos = Spos = Fpos;
-  } else if ((n = Fpos - Spos) > 0) {
+  } else if ((n = (int)(Fpos - Spos)) > 0) {
     /*******************************************************************/
     /*  Non consecutive line to delete. Move intermediate lines.       */
     /*******************************************************************/
@@ -461,7 +461,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       /*  Remove extra records.                                        */
       /*****************************************************************/
-      n = Tpos - Memory;
+      n = (int)(Tpos - Memory);
 
 #if defined(__WIN__)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
@@ -627,7 +627,7 @@ int MBKFAM::ReadBuffer(PGLOBAL g)
 			break;
 
   // Set caller line buffer
-  len = (Mempos - Fpos) - Ending;
+  len = (int)(Mempos - Fpos) - Ending;
   memcpy(Tdbp->GetLine(), Fpos, len);
   Tdbp->GetLine()[len] = '\0';
   return RC_OK;

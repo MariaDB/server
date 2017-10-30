@@ -1107,6 +1107,10 @@ set autocommit = 1;
 update t1 set a = sleep(100) where pk = 1;
 
 --connect (con1,localhost,root,,)
+
+let $wait_condition= select State='User sleep' from information_schema.processlist where id=$con_id;
+--source include/wait_condition.inc
+
 --echo kill query \$con_id;
 --disable_query_log
 eval kill query $con_id;
@@ -1663,7 +1667,9 @@ SET @old_mode = @@sql_mode;
 SET sql_mode = 'strict_all_tables';
 create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(c, b(255))) engine=rocksdb;
 drop table t1;
+set global rocksdb_large_prefix=1;
 create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(b(1255))) engine=rocksdb;
+set global rocksdb_large_prefix=0;
 insert into t1 values (1, '1abcde', '1abcde'), (2, '2abcde', '2abcde'), (3, '3abcde', '3abcde');
 select * from t1;
 --replace_column 9 #

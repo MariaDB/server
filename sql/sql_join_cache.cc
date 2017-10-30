@@ -407,7 +407,7 @@ void JOIN_CACHE::create_flag_fields()
   }
 
   /* Theoretically the new value of flag_fields can be less than the old one */   
-  flag_fields= copy-field_descr;
+  flag_fields= (uint)(copy-field_descr);
 }
 
 
@@ -1375,7 +1375,7 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
     }
     /* Save the offset of the field to put it later at the end of the record */ 
     if (copy->referenced_field_no)
-      copy->offset= cp-curr_rec_pos;
+      copy->offset= (uint)(cp-curr_rec_pos);
 
     switch (copy->type) {
     case CACHE_BLOB:
@@ -1779,7 +1779,7 @@ uint JOIN_CACHE::read_flag_fields()
     memcpy(copy->str, pos, copy->length);
     pos+= copy->length;
   }
-  return (pos-init_pos);
+  return (uint)(pos-init_pos);
 }
 
 

@@ -3081,3 +3081,29 @@ END;
 $$
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+#
+# MDEV-14139 Anchored data types for variables
+#
+DECLARE
+row1 ROW(int11 INT,text1 TEXT);
+a_row1 row1%TYPE;
+aa_row1 a_row1%TYPE;
+BEGIN
+CREATE TABLE t1 AS SELECT a_row1.int11 AS int11, a_row1.text1 AS text1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT aa_row1.int11 AS int11, aa_row1.text1 AS text1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "int11" int(11) DEFAULT NULL,
+  "text1" text DEFAULT NULL
+)
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "int11" int(11) DEFAULT NULL,
+  "text1" text DEFAULT NULL
+)

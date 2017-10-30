@@ -1,0 +1,22 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS stats_test_table;
+--enable_warnings
+
+# Create the table
+CREATE TABLE stats_test_table (a INT, b INT, PRIMARY KEY (a)) ENGINE=ROCKSDB;
+
+# Ensure appropriate perf_context_level is set
+SET GLOBAL rocksdb_perf_context_level=3;
+
+# Insert some values
+INSERT INTO stats_test_table VALUES (7,1);
+INSERT INTO stats_test_table VALUES (2,2);
+
+# Verify the bytes written are updated in the table stats
+SELECT io_write_bytes > 0 FROM INFORMATION_SCHEMA.TABLE_STATISTICS WHERE TABLE_NAME = "stats_test_table";
+
+# Cleanup
+DROP TABLE stats_test_table;
+SET GLOBAL rocksdb_perf_context_level=DEFAULT;

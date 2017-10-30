@@ -119,3 +119,37 @@ DROP TABLE t1;
 
 --enable_parsing
 
+#
+# Test index prefix length limits.
+#
+set global rocksdb_large_prefix=0;
+
+CREATE TABLE t1 (
+  a BLOB(1024),
+  KEY (a(767))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+
+# Should display warning
+CREATE TABLE t1 (
+  a BLOB(1024),
+  KEY (a(768))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+
+set global rocksdb_large_prefix=1;
+
+CREATE TABLE t1 (
+  a BLOB(4096),
+  KEY (a(3072))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+
+# Should display warning
+CREATE TABLE t1 (
+  a BLOB(4096),
+  KEY (a(3073))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+
+set global rocksdb_large_prefix=DEFAULT;

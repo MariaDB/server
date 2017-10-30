@@ -3044,7 +3044,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
 
     if (thd->spcont)
       if (my_b_printf(&log_file, "# Stored_routine: %s\n",
-                      ErrConvDQName(thd->spcont->sp).ptr()) == (uint) -1)
+                      ErrConvDQName(thd->spcont->m_sp).ptr()) == (uint) -1)
         tmp_errno= errno;
 
      if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&

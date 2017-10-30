@@ -612,6 +612,7 @@ public:
   }
   st_select_lex_node *insert_chain_before(st_select_lex_node **ptr_pos_to_insert,
                                           st_select_lex_node *end_chain_node);
+  void move_as_slave(st_select_lex_node *new_master);
   friend class st_select_lex_unit;
   friend bool mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *sel);
   friend bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
@@ -848,6 +849,7 @@ public:
   Group_list_ptrs        *group_list_ptrs;
 
   List<Item>          item_list;  /* list of fields & expressions */
+  List<Item>          pre_fix; /* above list before fix_fields */
   bool	              is_item_list_lookup;
   /* 
     Usualy it is pointer to ftfunc_list_alloc, but in union used to create fake
@@ -3175,26 +3177,34 @@ public:
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
                                          const Column_definition *cdef,
-                                         Row_definition_list *row,
                                          Item *def);
-  bool sp_variable_declarations_finalize(THD *thd, int nvars,
-                                         const Column_definition *cdef,
-                                         Item *def)
-  {
-    return sp_variable_declarations_finalize(thd, nvars, cdef, NULL, def);
-  }
+  bool sp_variable_declarations_set_default(THD *thd, int nvars, Item *def);
   bool sp_variable_declarations_row_finalize(THD *thd, int nvars,
                                              Row_definition_list *row,
-                                             Item *def)
-  {
-    return sp_variable_declarations_finalize(thd, nvars, NULL, row, def);
-  }
+                                             Item *def);
   bool sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
                                                   Qualified_column_ident *col,
                                                   Item *def);
   bool sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
                                                  Qualified_column_ident *,
                                                  Item *def);
+  bool sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
+                                                        uint offset,
+                                                        Item *def);
+  bool sp_variable_declarations_table_rowtype_finalize(THD *thd, int nvars,
+                                                       const LEX_CSTRING &db,
+                                                       const LEX_CSTRING &table,
+                                                       Item *def);
+  bool sp_variable_declarations_column_type_finalize(THD *thd, int nvars,
+                                                     Qualified_column_ident *ref,
+                                                     Item *def);
+  bool sp_variable_declarations_vartype_finalize(THD *thd, int nvars,
+                                                 const LEX_CSTRING &name,
+                                                 Item *def);
+  bool sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
+                                                   const Column_definition &ref,
+                                                   Row_definition_list *fields,
+                                                   Item *def);
   bool sp_handler_declaration_init(THD *thd, int type);
   bool sp_handler_declaration_finalize(THD *thd, int type);
 
@@ -3336,7 +3346,8 @@ public:
                           const char *end);
 
   Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
-
+  Item *make_item_func_substr(THD *thd, Item *a, Item *b, Item *c);
+  Item *make_item_func_substr(THD *thd, Item *a, Item *b);
   /*
     Create a my_var instance for a ROW field variable that was used
     as an OUT SP parameter: CALL p1(var.field);

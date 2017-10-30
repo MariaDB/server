@@ -13,6 +13,7 @@
 #elif defined(MSX4)
 #import "msxml4.dll"  //Causes error C2872: DOMNodeType: ambiguous symbol  ??
 #elif defined(MSX6)
+#pragma warning(suppress : 4192)
 #import "msxml6.dll"  //Causes error C2872: DOMNodeType: ambiguous symbol  ??
 #else       // MSX4
 #error MSX? is not defined
@@ -540,7 +541,7 @@ PXNODE DOMNODE::AddChildNode(PGLOBAL g, PCSZ name, PXNODE np)
 
   // If name has the format m[n] only m is taken as node name
   if ((p = strchr(name, '[')))
-    pn = BufAlloc(g, name, p - name);
+    pn = BufAlloc(g, name, (int)(p - name));
   else
     pn = name;
 

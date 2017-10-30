@@ -2406,9 +2406,11 @@ bool THD::convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
 }
 
 
-Item_string *THD::make_string_literal(const char *str, size_t length,
-                                      uint repertoire)
+Item *THD::make_string_literal(const char *str, size_t length,
+                               uint repertoire)
 {
+  if (!length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
+    return new (mem_root) Item_null(this, 0, variables.collation_connection);
   if (!charset_is_collation_connection &&
       (repertoire != MY_REPERTOIRE_ASCII ||
        !my_charset_is_ascii_based(variables.collation_connection)))
@@ -2423,6 +2425,57 @@ Item_string *THD::make_string_literal(const char *str, size_t length,
   return new (mem_root) Item_string(this, str, length,
                                     variables.collation_connection,
                                     DERIVATION_COERCIBLE, repertoire);
+}
+
+
+Item *THD::make_string_literal_nchar(const Lex_string_with_metadata_st &str)
+{
+  DBUG_ASSERT(my_charset_is_ascii_based(national_charset_info));
+  if (!str.length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
+    return new (mem_root) Item_null(this, 0, national_charset_info);
+
+  return new (mem_root) Item_string(this, str.str, str.length,
+                                    national_charset_info,
+                                    DERIVATION_COERCIBLE,
+                                    str.repertoire());
+}
+
+
+Item *THD::make_string_literal_charset(const Lex_string_with_metadata_st &str,
+                                       CHARSET_INFO *cs)
+{
+  if (!str.length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
+    return new (mem_root) Item_null(this, 0, cs);
+  return new (mem_root) Item_string_with_introducer(this,
+                                                    str.str, str.length, cs);
+}
+
+
+Item *THD::make_string_literal_concat(Item *item, const LEX_CSTRING &str)
+{
+  if (item->type() == Item::NULL_ITEM)
+  {
+    DBUG_ASSERT(variables.sql_mode & MODE_EMPTY_STRING_IS_NULL);
+    if (str.length)
+    {
+      CHARSET_INFO *cs= variables.collation_connection;
+      uint repertoire= my_string_repertoire(cs, str.str, str.length);
+      return new (mem_root) Item_string(this, str.str, str.length, cs,
+                                        DERIVATION_COERCIBLE, repertoire);
+    }
+    return item;
+  }
+
+  DBUG_ASSERT(item->type() == Item::STRING_ITEM);
+  DBUG_ASSERT(item->basic_const_item());
+  static_cast<Item_string*>(item)->append(str.str, str.length);
+  if (!(item->collation.repertoire & MY_REPERTOIRE_EXTENDED))
+  {
+    // If the string has been pure ASCII so far, check the new part.
+    CHARSET_INFO *cs= variables.collation_connection;
+    item->collation.repertoire|= my_string_repertoire(cs, str.str, str.length);
+  }
+  return item;
 }
 
 

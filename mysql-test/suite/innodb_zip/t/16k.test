@@ -439,9 +439,10 @@ UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
 # But a single transaction can update the columns in separate statements.
 # because the UNDO records will be smaller.
 CREATE INDEX t1f ON t1 (f(767));
---error ER_UNDO_RECORD_TOO_BIG
+BEGIN;
 UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d,f=@d,g=@d,h=@d,i=@d,j=@d,
               k=@d,l=@d,m=@d,n=@d,o=@d,p=@d,q=@d,r=@d,s=@d,t=@d,u=@d;
+ROLLBACK;
 BEGIN;
 UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d;
 UPDATE t1 SET f=@d,g=@d,h=@d,i=@d,j=@d,k=@d,l=@d,m=@d,
@@ -480,8 +481,9 @@ UPDATE t1 SET s=@e;
 # This is a problem.  It means that the DDL is allowed to create a table
 # that CANNOT be updated.  See bug#12953735.
 CREATE INDEX t1t ON t1 (t(767));
---error ER_UNDO_RECORD_TOO_BIG
+BEGIN;
 UPDATE t1 SET t=@e;
+ROLLBACK;
 
 CREATE INDEX t1u ON t1 (u(767));
 CREATE INDEX t1ut ON t1 (u(767), t(767));
@@ -618,9 +620,10 @@ PRIMARY KEY (b(10), a), INDEX (c(767)), INDEX(b(767))
 INSERT INTO bug12547647 VALUES (5,REPEAT('khdfo5AlOq',1900),REPEAT('g',7751));
 COMMIT;
 # The following used to cause a hang while doing infinite undo log allocation.
---error ER_UNDO_RECORD_TOO_BIG
+BEGIN;
 UPDATE bug12547647 SET c = REPEAT('b',16928);
 SHOW WARNINGS;
+ROLLBACK;
 DROP TABLE bug12547647;
 
 # The following should fail in non-strict mode too.

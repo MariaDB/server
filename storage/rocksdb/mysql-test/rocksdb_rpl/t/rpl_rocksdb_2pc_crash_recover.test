@@ -10,7 +10,7 @@ create table t1 (a int primary key, msg varchar(255)) engine=rocksdb;
 
 SET GLOBAL ROCKSDB_ENABLE_2PC = ON;
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-SET SESSION debug="d,crash_commit_after_prepare";
+SET SESSION debug_dbug="d,crash_commit_after_prepare";
 --error 0,2013
 insert into t1 values (1, 'dogz');
 --enable_reconnect
@@ -19,7 +19,7 @@ select * from t1;
 
 SET GLOBAL ROCKSDB_ENABLE_2PC = ON;
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-SET SESSION debug="d,crash_commit_after_log";
+SET SESSION debug_dbug="d,crash_commit_after_log";
 --error 0,2013
 insert into t1 values (2, 'catz'), (3, 'men');
 --enable_reconnect
@@ -28,7 +28,7 @@ select * from t1;
 
 SET GLOBAL ROCKSDB_ENABLE_2PC = ON;
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-SET SESSION debug="d,crash_commit_after";
+SET SESSION debug_dbug="d,crash_commit_after";
 --error 0,2013
 insert into t1 values (4, 'cars'), (5, 'foo');
 --enable_reconnect
@@ -37,7 +37,7 @@ select * from t1;
 
 SET GLOBAL ROCKSDB_ENABLE_2PC = OFF;
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-SET SESSION debug="d,crash_commit_after_log";
+SET SESSION debug_dbug="d,crash_commit_after_log";
 --error 0,2013
 insert into t1 values (6, 'shipz'), (7, 'tankz');
 --enable_reconnect
@@ -46,7 +46,7 @@ select * from t1;
 
 SET GLOBAL ROCKSDB_ENABLE_2PC = OFF;
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-SET SESSION debug="d,crash_commit_after";
+SET SESSION debug_dbug="d,crash_commit_after";
 --error 0,2013
 insert into t1 values (8, 'space'), (9, 'time');
 --enable_reconnect

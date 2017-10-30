@@ -813,9 +813,17 @@ PREPARE s FROM "SELECT 1 FROM t1 WHERE 1 < ALL (SELECT @:= (1 IN (SELECT 1 FROM 
 EXECUTE s;
 1
 DROP TABLE t1;
+#
 # End of 5.3 tests
 #
-# Start of 10.0 tests
+create table t1 (a int);
+insert t1 values (1),(2),(3);
+select * from t1 where 1 in (a, name_const('a', null));
+a
+1
+drop table t1;
+#
+# End of 5.5 tests
 #
 #
 # MDEV-10020 InnoDB NOT IN Query Crash When One Item Is NULL
@@ -831,7 +839,7 @@ SELECT * FROM t1 WHERE b NOT IN (NULL, '', 'A');
 a	b
 DROP TABLE t1;
 #
-# Start of 10.1 tests
+# End of 10.0 tests
 #
 #
 # MDEV-8755 Equal field propagation is not performed any longer for the IN list when multiple comparison types

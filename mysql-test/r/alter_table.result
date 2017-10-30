@@ -1359,6 +1359,58 @@ rename table t2 to t1;
 execute stmt1;
 deallocate prepare stmt1;
 drop table t2;
+#
+# MDEV-8960 Can't refer the same column twice in one ALTER TABLE
+#
+CREATE TABLE t1 (
+`a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL,
+ALTER COLUMN `consultant_id` DROP DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `consultant_id` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL,
+ALTER COLUMN `consultant_id` SET DEFAULT 2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `consultant_id` int(11) NOT NULL DEFAULT 2
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL DEFAULT 2,
+ALTER COLUMN `consultant_id` DROP DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `consultant_id` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL DEFAULT 2,
+ALTER COLUMN `consultant_id` DROP DEFAULT,
+MODIFY COLUMN `consultant_id` BIGINT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `consultant_id` bigint(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+DROP TABLE t1;
 CREATE TABLE t1 (
 id INT(11) NOT NULL,
 x_param INT(11) DEFAULT NULL,
@@ -2125,59 +2177,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 DROP TABLE t1;
 #
-# MDEV-8960 Can't refer the same column twice in one ALTER TABLE
-#
-CREATE TABLE t1 (
-`a` int(11) DEFAULT NULL
-) DEFAULT CHARSET=utf8;
-ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL,
-ALTER COLUMN `consultant_id` DROP DEFAULT;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `consultant_id` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
-DROP TABLE t1;
-CREATE TABLE t1 (
-`a` int(11) DEFAULT NULL
-) DEFAULT CHARSET=utf8;
-ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL,
-ALTER COLUMN `consultant_id` SET DEFAULT 2;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `consultant_id` int(11) NOT NULL DEFAULT 2
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
-DROP TABLE t1;
-CREATE TABLE t1 (
-`a` int(11) DEFAULT NULL
-) DEFAULT CHARSET=utf8;
-ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL DEFAULT 2,
-ALTER COLUMN `consultant_id` DROP DEFAULT;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `consultant_id` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
-DROP TABLE t1;
-CREATE TABLE t1 (
-`a` int(11) DEFAULT NULL
-) DEFAULT CHARSET=utf8;
-ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL DEFAULT 2,
-ALTER COLUMN `consultant_id` DROP DEFAULT,
-MODIFY COLUMN `consultant_id` BIGINT;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `consultant_id` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
-DROP TABLE t1;
-#
-# Start of 10.1 tests
+# End of 10.0 tests
 #
 #
 # MDEV-7374 : Losing connection to MySQL while running ALTER TABLE
@@ -2200,6 +2200,9 @@ t1	CREATE TABLE `t1` (
   KEY `i1` (`a`) COMMENT 'comment2'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# End of 10.1 tests
+#
 #
 # MDEV-10421 duplicate CHECK CONSTRAINTs
 #
@@ -2272,3 +2275,6 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+#
+# End of 10.2 tests
+#

@@ -23,14 +23,33 @@ call mtr.add_suppression("InnoDB: Log file .*ib_logfile[01].* size");
 call mtr.add_suppression("InnoDB: Unable to open .*ib_logfile0. to check native AIO read support");
 FLUSH TABLES;
 --enable_query_log
+let MYSQLD_DATADIR= `select @@datadir`;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--source include/shutdown_mysqld.inc
+--move_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile.old
+write_file $MYSQLD_DATADIR/ib_logfile0;
+EOF
+let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
 --let $restart_parameters= --innodb-thread-concurrency=1 --innodb-log-file-size=1m --innodb-log-files-in-group=2
---source include/restart_mysqld.inc
+--source include/start_mysqld.inc
+
+eval $check_no_innodb;
+--remove_file $MYSQLD_DATADIR/ib_logfile0
+--move_file $MYSQLD_DATADIR/ib_logfile.old $MYSQLD_DATADIR/ib_logfile.0
+--source include/shutdown_mysqld.inc
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= InnoDB: Log file .*ib_logfile0 size 0 is too small;
+--source include/search_pattern_in_file.inc
+--source include/start_mysqld.inc
+CHECK TABLE t1;
 
 --let $restart_parameters= --innodb-thread-concurrency=100 --innodb-log-file-size=10M --innodb-log-files-in-group=2
 --source include/restart_mysqld.inc
 
-CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 BEGIN;
 INSERT INTO t1 VALUES (42);
 
@@ -52,9 +71,7 @@ SELECT * FROM t1;
 
 INSERT INTO t1 VALUES (0),(123);
 
-let MYSQLD_DATADIR= `select @@datadir`;
 let SEARCH_ABORT = NOT FOUND;
-let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
 BEGIN;
 DELETE FROM t1 WHERE a>0;

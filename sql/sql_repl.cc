@@ -2680,7 +2680,7 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
       Gtid_list_log_event glev(&info->until_binlog_state, 0);
 
       if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg) ||
-          fake_gtid_list_event(info, &glev, &info->errmsg, my_b_tell(log)))
+          fake_gtid_list_event(info, &glev, &info->errmsg, (uint32)my_b_tell(log)))
       {
         info->error= ER_UNKNOWN_ERROR;
         return 1;
@@ -2690,7 +2690,7 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
 
     if (info->until_gtid_state &&
         is_until_reached(info, &ev_offset, event_type, &info->errmsg,
-                         my_b_tell(log)))
+                         (uint32)my_b_tell(log)))
     {
       if (info->errmsg)
       {
@@ -2745,7 +2745,7 @@ static int send_one_binlog_file(binlog_send_info *info,
     if (end_pos <= 1)
     {
       /** end of file or error */
-      return end_pos;
+      return (int)end_pos;
     }
 
     /**

@@ -45,6 +45,7 @@ class Column_statistics_collected;
 class Item_func;
 class Item_bool_func;
 class Item_equal;
+class Virtual_tmp_table;
 
 enum enum_check_fields
 {
@@ -973,7 +974,7 @@ public:
     my_ptrdiff_t l_offset= (my_ptrdiff_t) (record -  table->record[0]);
     return ptr + l_offset;
   }
-  virtual void set_default();
+  virtual int set_default();
 
   bool has_update_default_function() const
   {
@@ -1526,6 +1527,11 @@ public:
   void register_field_in_read_map();
 
   virtual Compression_method *compression_method() const { return 0; }
+
+  virtual Virtual_tmp_table **virtual_tmp_table_addr()
+  {
+    return NULL;
+  }
 
   friend int cre_myisam(char * name, register TABLE *form, uint options,
 			ulonglong auto_increment_value);
@@ -3902,7 +3908,7 @@ public:
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,
                               const uchar *from_end, uint param_data);
-  virtual void set_default();
+  virtual int set_default();
 
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
@@ -3951,6 +3957,19 @@ public:
   int store(longlong nr, bool unsigned_val)
   { return Field_bit::store(nr, unsigned_val); }
   void sql_type(String &str) const;
+};
+
+
+class Field_row: public Field_null
+{
+  class Virtual_tmp_table *m_table;
+public:
+  Field_row(uchar *ptr_arg, const LEX_CSTRING *field_name_arg)
+    :Field_null(ptr_arg, 0, Field::NONE, field_name_arg, &my_charset_bin),
+     m_table(NULL)
+    {}
+  ~Field_row();
+  Virtual_tmp_table **virtual_tmp_table_addr() { return &m_table; }
 };
 
 
@@ -4205,6 +4224,23 @@ public:
         || unireg_check == Field::TIMESTAMP_DNUN_FIELD;
   }
 
+  void set_type(const Column_definition &other)
+  {
+    set_handler(other.type_handler());
+    length= other.length;
+    char_length= other.char_length;
+    decimals= other.decimals;
+    flags= other.flags;
+    pack_length= other.pack_length;
+    key_length= other.key_length;
+    unireg_check= other.unireg_check;
+    interval= other.interval;
+    charset= other.charset;
+    srid= other.srid;
+    geom_type= other.geom_type;
+    pack_flag= other.pack_flag;
+  }
+
   // Replace the entire value by another definition
   void set_column_definition(const Column_definition *def)
   {
@@ -4276,12 +4312,14 @@ class Spvar_definition: public Column_definition
   class Qualified_column_ident *m_column_type_ref; // for %TYPE
   class Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
   bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
+  uint m_cursor_rowtype_offset;                    // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
 public:
   Spvar_definition()
    :m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
+    m_cursor_rowtype_offset(0),
     m_row_field_definitions(NULL)
   { }
   Spvar_definition(THD *thd, Field *field)
@@ -4289,13 +4327,12 @@ public:
     m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
+    m_cursor_rowtype_offset(0),
     m_row_field_definitions(NULL)
   { }
   const Type_handler *type_handler() const
   {
-    return is_row() || is_table_rowtype_ref() || is_cursor_rowtype_ref() ?
-           &type_handler_row :
-           Type_handler_hybrid_field_type::type_handler();
+    return Type_handler_hybrid_field_type::type_handler();
   }
   bool is_column_type_ref() const { return m_column_type_ref != 0; }
   bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }
@@ -4315,11 +4352,20 @@ public:
   }
   void set_table_rowtype_ref(class Table_ident *ref)
   {
+    DBUG_ASSERT(ref);
+    set_handler(&type_handler_row);
     m_table_rowtype_ref= ref;
   }
-  void set_cursor_rowtype_ref(bool ref)
+
+  uint cursor_rowtype_offset() const
   {
-    m_cursor_rowtype_ref= ref;
+    return m_cursor_rowtype_offset;
+  }
+  void set_cursor_rowtype_ref(uint offset)
+  {
+    set_handler(&type_handler_row);
+    m_cursor_rowtype_ref= true;
+    m_cursor_rowtype_offset= offset;
   }
 
   /*
@@ -4347,6 +4393,8 @@ public:
   }
   void set_row_field_definitions(Row_definition_list *list)
   {
+    DBUG_ASSERT(list);
+    set_handler(&type_handler_row);
     m_row_field_definitions= list;
   }
 

@@ -603,7 +603,7 @@ count(*)
 64801
 explain select key1,key2 from t1 where key1=100 and key2=100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	key1,key2	key2,key1	5,5	NULL	2	Using intersect(key2,key1); Using where; Using index
+1	SIMPLE	t1	index_merge	key1,key2	key2,key1	5,5	NULL	#	Using intersect(key2,key1); Using where; Using index
 select key1,key2 from t1 where key1=100 and key2=100;
 key1	key2
 100	100

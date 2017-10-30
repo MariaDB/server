@@ -392,11 +392,11 @@ LEX::create_item_for_sp_var(LEX_CSTRING *name, sp_variable *spvar,
   DBUG_ASSERT(spcont && spvar);
 
   /* Position and length of the SP variable name in the query. */
-  pos_in_q= start_in_q - sphead->m_tmp_query;
-  len_in_q= end_in_q - start_in_q;
+  pos_in_q= (uint)(start_in_q - sphead->m_tmp_query);
+  len_in_q= (uint)(end_in_q - start_in_q);
 
   item= new (thd->mem_root)
-    Item_splocal(thd, name, spvar->offset, spvar->sql_type(),
+    Item_splocal(thd, name, spvar->offset, spvar->type_handler(),
                  pos_in_q, len_in_q);
 
 #ifdef DBUG_ASSERT_EXISTS
@@ -4762,17 +4762,11 @@ size_number:
               switch (end_ptr[0])
               {
                 case 'g':
-                case 'G':
-                  text_shift_number+=10;
-                  /* fall through */
+                case 'G': text_shift_number+=30; break;
                 case 'm':
-                case 'M':
-                  text_shift_number+=10;
-                  /* fall through */
+                case 'M': text_shift_number+=20; break;
                 case 'k':
-                case 'K':
-                  text_shift_number+=10;
-                  break;
+                case 'K': text_shift_number+=10; break;
                 default:
                   my_yyabort_error((ER_WRONG_SIZE_NUMBER, MYF(0)));
               }
@@ -5906,7 +5900,7 @@ create_table_option:
         | SEQUENCE_SYM opt_equal choice
           {
 	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
-            Lex->create_info.sequence= $3;
+            Lex->create_info.sequence= ($3 == HA_CHOICE_YES);
           }
         ;
 
@@ -9877,26 +9871,22 @@ function_call_nonkeyword:
           }
         | SUBSTRING '(' expr ',' expr ',' expr ')'
           {
-            $$= new (thd->mem_root) Item_func_substr(thd, $3, $5, $7);
-            if ($$ == NULL)
+            if (!($$= Lex->make_item_func_substr(thd, $3, $5, $7)))
               MYSQL_YYABORT;
           }
         | SUBSTRING '(' expr ',' expr ')'
           {
-            $$= new (thd->mem_root) Item_func_substr(thd, $3, $5);
-            if ($$ == NULL)
+            if (!($$= Lex->make_item_func_substr(thd, $3, $5)))
               MYSQL_YYABORT;
           }
         | SUBSTRING '(' expr FROM expr FOR_SYM expr ')'
           {
-            $$= new (thd->mem_root) Item_func_substr(thd, $3, $5, $7);
-            if ($$ == NULL)
+            if (!($$= Lex->make_item_func_substr(thd, $3, $5, $7)))
               MYSQL_YYABORT;
           }
         | SUBSTRING '(' expr FROM expr ')'
           {
-            $$= new (thd->mem_root) Item_func_substr(thd, $3, $5);
-            if ($$ == NULL)
+            if (!($$= Lex->make_item_func_substr(thd, $3, $5)))
               MYSQL_YYABORT;
           }
         | SYSDATE opt_time_precision
@@ -13872,36 +13862,18 @@ text_literal:
           }
         | NCHAR_STRING
           {
-            DBUG_ASSERT(my_charset_is_ascii_based(national_charset_info));
-            $$= new (thd->mem_root) Item_string(thd, $1.str, $1.length,
-                                                  national_charset_info,
-                                                  DERIVATION_COERCIBLE,
-                                                  $1.repertoire());
-            if ($$ == NULL)
+            if (!($$= thd->make_string_literal_nchar($1)))
               MYSQL_YYABORT;
           }
         | UNDERSCORE_CHARSET TEXT_STRING
           {
-            $$= new (thd->mem_root) Item_string_with_introducer(thd, $2.str,
-                                                                $2.length, $1);
-            if ($$ == NULL)
+            if (!($$= thd->make_string_literal_charset($2, $1)))
               MYSQL_YYABORT;
           }
         | text_literal TEXT_STRING_literal
           {
-            Item_string* item= (Item_string*) $1;
-            item->append($2.str, $2.length);
-            if (!(item->collation.repertoire & MY_REPERTOIRE_EXTENDED))
-            {
-              /*
-                 If the string has been pure ASCII so far,
-                 check the new part.
-              */
-              CHARSET_INFO *cs= thd->variables.collation_connection;
-              item->collation.repertoire|= my_string_repertoire(cs,
-                                                                $2.str,
-                                                                $2.length);
-            }
+            if (!($$= thd->make_string_literal_concat($1, $2)))
+              MYSQL_YYABORT;
           }
         ;
 

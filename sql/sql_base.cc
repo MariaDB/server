@@ -3046,6 +3046,46 @@ thr_lock_type read_lock_type_for_table(THD *thd,
 
 
 /*
+  Extend the prelocking set with tables and routines used by a routine.
+
+  @param[in]  thd                   Thread context.
+  @param[in]  rt                    Element of prelocking set to be processed.
+  @param[in]  ot_ctx                Context of open_table used to recover from
+                                    locking failures.
+  @retval false  Success.
+  @retval true   Failure (Conflicting metadata lock, OOM, other errors).
+*/
+static bool
+sp_acquire_mdl(THD *thd, Sroutine_hash_entry *rt, Open_table_context *ot_ctx)
+{
+  DBUG_ENTER("sp_acquire_mdl");
+  /*
+    Since we acquire only shared lock on routines we don't
+    need to care about global intention exclusive locks.
+  */
+  DBUG_ASSERT(rt->mdl_request.type == MDL_SHARED);
+
+  /*
+    Waiting for a conflicting metadata lock to go away may
+    lead to a deadlock, detected by MDL subsystem.
+    If possible, we try to resolve such deadlocks by releasing all
+    metadata locks and restarting the pre-locking process.
+    To prevent the error from polluting the diagnostics area
+    in case of successful resolution, install a special error
+    handler for ER_LOCK_DEADLOCK error.
+  */
+  MDL_deadlock_handler mdl_deadlock_handler(ot_ctx);
+
+  thd->push_internal_handler(&mdl_deadlock_handler);
+  bool result= thd->mdl_context.acquire_lock(&rt->mdl_request,
+                                             ot_ctx->get_timeout());
+  thd->pop_internal_handler();
+
+  DBUG_RETURN(result);
+}
+
+
+/*
   Handle element of prelocking set other than table. E.g. cache routine
   and, if prelocking strategy prescribes so, extend the prelocking set
   with tables and routines used by it.
@@ -3099,29 +3139,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
       if (rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first ||
           mdl_type != MDL_key::PROCEDURE)
       {
-        /*
-          Since we acquire only shared lock on routines we don't
-          need to care about global intention exclusive locks.
-        */
-        DBUG_ASSERT(rt->mdl_request.type == MDL_SHARED);
-
-        /*
-          Waiting for a conflicting metadata lock to go away may
-          lead to a deadlock, detected by MDL subsystem.
-          If possible, we try to resolve such deadlocks by releasing all
-          metadata locks and restarting the pre-locking process.
-          To prevent the error from polluting the diagnostics area
-          in case of successful resolution, install a special error
-          handler for ER_LOCK_DEADLOCK error.
-        */
-        MDL_deadlock_handler mdl_deadlock_handler(ot_ctx);
-
-        thd->push_internal_handler(&mdl_deadlock_handler);
-        bool result= thd->mdl_context.acquire_lock(&rt->mdl_request,
-                                                   ot_ctx->get_timeout());
-        thd->pop_internal_handler();
-
-        if (result)
+        if (sp_acquire_mdl(thd, rt, ot_ctx))
           DBUG_RETURN(TRUE);
 
         DEBUG_SYNC(thd, "after_shared_lock_pname");
@@ -3320,9 +3338,14 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     /*
       If this TABLE_LIST object has an associated open TABLE object
       (TABLE_LIST::table is not NULL), that TABLE object must be a pre-opened
-      temporary table.
+      temporary table or SEQUENCE (see sequence_insert()).
     */
-    DBUG_ASSERT(is_temporary_table(tables));
+    DBUG_ASSERT(is_temporary_table(tables) || tables->table->s->sequence);
+    if (tables->sequence && tables->table->s->table_type != TABLE_TYPE_SEQUENCE)
+    {
+        my_error(ER_NOT_SEQUENCE, MYF(0), tables->db, tables->alias);
+        DBUG_RETURN(true);
+    }
   }
   else if (tables->open_type == OT_TEMPORARY_ONLY)
   {
@@ -5479,7 +5502,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, uint length,
 
   if (field_ptr && *field_ptr)
   {
-    *cached_field_index_ptr= field_ptr - table->field;
+    *cached_field_index_ptr= (uint)(field_ptr - table->field);
     field= *field_ptr;
   }
   else
@@ -7038,13 +7061,15 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &fields, enum_mark_columns mark_used_columns,
-                  List<Item> *sum_func_list, bool allow_sum_func)
+                  List<Item> *sum_func_list, List<Item> *pre_fix,
+                  bool allow_sum_func)
 {
   reg2 Item *item;
   enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
   nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
   List_iterator<Item> it(fields);
   bool save_is_item_list_lookup;
+  bool make_pre_fix= (pre_fix && (pre_fix->elements == 0));
   DBUG_ENTER("setup_fields");
   DBUG_PRINT("enter", ("ref_pointer_array: %p", ref_pointer_array.array()));
 
@@ -7094,6 +7119,9 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->lex->current_select->cur_pos_in_select_list= 0;
   while ((item= it++))
   {
+    if (make_pre_fix)
+      pre_fix->push_back(item, thd->stmt_arena->mem_root);
+
     if ((!item->fixed && item->fix_fields(thd, it.ref())) ||
 	(item= *(it.ref()))->check_cols(1))
     {

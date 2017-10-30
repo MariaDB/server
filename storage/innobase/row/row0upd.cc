@@ -2907,8 +2907,7 @@ row_upd_clust_rec(
 
 		DEBUG_SYNC_C("before_row_upd_extern");
 		err = btr_store_big_rec_extern_fields(
-			pcur, node->update, offsets, big_rec, mtr,
-			BTR_STORE_UPDATE);
+			pcur, offsets, big_rec, mtr, BTR_STORE_UPDATE);
 		DEBUG_SYNC_C("after_row_upd_extern");
 	}
 

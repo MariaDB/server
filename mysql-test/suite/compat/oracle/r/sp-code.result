@@ -1030,8 +1030,8 @@ Pos	Instruction
 0	cpush cur1@0
 1	cpush cur2@1
 2	cursor_copy_struct cur1 rec1@0
-3	set rec1@0 NULL
-4	cursor_copy_struct cur1 rec2@1
+3	cursor_copy_struct cur1 rec2@1
+4	set rec1@0 NULL
 5	set rec2@1 NULL
 6	cursor_copy_struct cur2 rec3@2
 7	set rec3@2 NULL

@@ -35,10 +35,12 @@
 ///////////////////////////////////////////////////////////////////////////
 
 
-sp_rcontext::sp_rcontext(const sp_pcontext *root_parsing_ctx,
+sp_rcontext::sp_rcontext(const sp_head *owner,
+                         const sp_pcontext *root_parsing_ctx,
                          Field *return_value_fld,
                          bool in_sub_stmt)
   :end_partial_result_set(false),
+   m_sp(owner),
    m_root_parsing_ctx(root_parsing_ctx),
    m_var_table(NULL),
    m_return_value_fld(return_value_fld),
@@ -59,11 +61,13 @@ sp_rcontext::~sp_rcontext()
 
 
 sp_rcontext *sp_rcontext::create(THD *thd,
+                                 const sp_head *owner,
                                  const sp_pcontext *root_parsing_ctx,
                                  Field *return_value_fld,
                                  Row_definition_list &field_def_lst)
 {
-  sp_rcontext *ctx= new (thd->mem_root) sp_rcontext(root_parsing_ctx,
+  sp_rcontext *ctx= new (thd->mem_root) sp_rcontext(owner,
+                                                    root_parsing_ctx,
                                                     return_value_fld,
                                                     thd->in_sub_stmt);
   if (!ctx)
@@ -352,10 +356,13 @@ bool sp_rcontext::init_var_items(THD *thd,
 }
 
 
-bool Item_spvar_args::row_create_items(THD *thd, List<Spvar_definition> *list)
+bool Item_field_row::row_create_items(THD *thd, List<Spvar_definition> *list)
 {
   DBUG_ASSERT(list);
-  if (!(m_table= create_virtual_tmp_table(thd, *list)))
+  DBUG_ASSERT(field);
+  Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
+  DBUG_ASSERT(ptable);
+  if (!(ptable[0]= create_virtual_tmp_table(thd, *list)))
     return true;
 
   if (alloc_arguments(thd, list->elements))
@@ -366,23 +373,19 @@ bool Item_spvar_args::row_create_items(THD *thd, List<Spvar_definition> *list)
   for (arg_count= 0; (def= it++); arg_count++)
   {
     if (!(args[arg_count]= new (thd->mem_root)
-                           Item_field(thd, m_table->field[arg_count])))
+                           Item_field(thd, ptable[0]->field[arg_count])))
       return true;
   }
   return false;
 }
 
 
-Field *Item_spvar_args::get_row_field(uint i) const
+Field *Item_field_row::get_row_field(uint i) const
 {
-  DBUG_ASSERT(m_table);
-  return m_table->field[i];
-}
-
-
-Item_spvar_args::~Item_spvar_args()
-{
-  delete m_table;
+  DBUG_ASSERT(field);
+  Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
+  DBUG_ASSERT(ptable);
+  return ptable[0]->field[i];
 }
 
 
@@ -685,13 +688,13 @@ int sp_rcontext::set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
 int sp_rcontext::set_variable_row(THD *thd, uint var_idx, List<Item> &items)
 {
   DBUG_ENTER("sp_rcontext::set_variable_row");
-  DBUG_ASSERT(thd->spcont->get_item(var_idx)->cols() == items.elements);
+  DBUG_ASSERT(get_item(var_idx)->cols() == items.elements);
   List_iterator<Item> it(items);
   Item *item;
   for (uint i= 0 ; (item= it++) ; i++)
   {
     int rc;
-    if ((rc= thd->spcont->set_variable_row_field(thd, var_idx, i, &item)))
+    if ((rc= set_variable_row_field(thd, var_idx, i, &item)))
       DBUG_RETURN(rc);
   }
   DBUG_RETURN(0);

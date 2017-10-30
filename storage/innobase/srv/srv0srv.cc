@@ -1891,7 +1891,7 @@ loop:
 		ib::error() << "Old log sequence number " << old_lsn << " was"
 			<< " greater than the new log sequence number "
 			<< new_lsn << ". Please submit a bug report to"
-			" http://bugs.mysql.com";
+			" https://jira.mariadb.org/";
 			ut_ad(0);
 		}
 

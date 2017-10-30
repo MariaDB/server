@@ -173,7 +173,8 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     "'ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES',"
     "'STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES',"
     "'ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER',"
-    "'HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH')") },
+    "'HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH',"
+    "'EMPTY_STRING_IS_NULL')") },
     { NULL, 0 }
   },
   {
@@ -688,7 +689,7 @@ Sp_handler::db_find_routine(THD *thd,
   // Get additional information
   modified= table->field[MYSQL_PROC_FIELD_MODIFIED]->val_int();
   created= table->field[MYSQL_PROC_FIELD_CREATED]->val_int();
-  sql_mode= (ulong) table->field[MYSQL_PROC_FIELD_SQL_MODE]->val_int();
+  sql_mode= (sql_mode_t) table->field[MYSQL_PROC_FIELD_SQL_MODE]->val_int();
 
   creation_ctx= Stored_routine_creation_ctx::load_from_db(thd, name, table);
 

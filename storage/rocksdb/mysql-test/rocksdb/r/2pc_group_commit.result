@@ -3,42 +3,87 @@ DROP DATABASE IF EXISTS mysqlslap;
 CREATE DATABASE mysqlslap;
 USE mysqlslap;
 CREATE TABLE t1(id BIGINT AUTO_INCREMENT, value BIGINT, PRIMARY KEY(id)) ENGINE=rocksdb;
+SET @save_rocksdb_enable_2pc= @@rocksdb_enable_2pc;
+SET @save_rocksdb_flush_log_at_trx_commit= @@rocksdb_flush_log_at_trx_commit;
 # 2PC enabled, MyRocks durability enabled
-SET GLOBAL rocksdb_enable_2pc=0;
+SET GLOBAL rocksdb_enable_2pc=1;
 SET GLOBAL rocksdb_flush_log_at_trx_commit=1;
+## 
 ## 2PC + durability + single thread
-select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-select case when variable_value-@c = 1000 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-case when variable_value-@c = 1000 then 'true' else 'false' end
-false
+## 
+select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
+select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
+select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+select IF(variable_value - @b1 = 1000, 'OK', 'FAIL') as Binlog_commits 
+from information_schema.global_status where variable_name='Binlog_commits';
+Binlog_commits
+OK
+select IF(variable_value - @b2 = 1000, 'OK', 'FAIL') as Binlog_group_commits 
+from information_schema.global_status where variable_name='Binlog_group_commits';
+Binlog_group_commits
+OK
+# Prepare operations sync, commits don't. We expect slightly more than 1K syncs:
+select IF(variable_value - @b3 between 1000 and 1500, 'OK', 'FAIL') as Rocksdb_wal_synced 
+from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+Rocksdb_wal_synced
+OK
+## 
 ## 2PC + durability + group commit
-select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-select case when variable_value-@c > 0 and variable_value-@c < 10000 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-case when variable_value-@c > 0 and variable_value-@c < 10000 then 'true' else 'false' end
-false
-# 2PC enabled, MyRocks durability disabled
-SET GLOBAL rocksdb_enable_2pc=0;
+## 
+select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
+select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
+select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+select IF(variable_value - @b1 = 10000, 'OK', 'FAIL') as Binlog_commits 
+from information_schema.global_status where variable_name='Binlog_commits';
+Binlog_commits
+OK
+select IF(variable_value - @b2 between 100 and 5000, 'OK', 'FAIL') as Binlog_group_commits 
+from information_schema.global_status where variable_name='Binlog_group_commits';
+Binlog_group_commits
+OK
+select IF(variable_value - @b3 between 1 and 9000, 'OK', 'FAIL')
+from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+IF(variable_value - @b3 between 1 and 9000, 'OK', 'FAIL')
+OK
+## 
+# 2PC enabled, MyRocks durability disabled, single thread
+## 
+SET GLOBAL rocksdb_enable_2pc=1;
 SET GLOBAL rocksdb_flush_log_at_trx_commit=0;
-select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-case when variable_value-@c = 0 then 'true' else 'false' end
-true
-select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-case when variable_value-@c = 0 then 'true' else 'false' end
-true
-# 2PC disabled, MyRocks durability enabled
-SET GLOBAL rocksdb_enable_2pc=1;
-SET GLOBAL rocksdb_flush_log_at_trx_commit=1;
-select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-case when variable_value-@c = 0 then 'true' else 'false' end
-false
-select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
-case when variable_value-@c = 0 then 'true' else 'false' end
-false
-SET GLOBAL rocksdb_enable_2pc=1;
-SET GLOBAL rocksdb_flush_log_at_trx_commit=1;
+select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
+select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
+select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+select IF(variable_value - @b1 = 1000, 'OK', 'FAIL') as Binlog_commits 
+from information_schema.global_status where variable_name='Binlog_commits';
+Binlog_commits
+OK
+select IF(variable_value - @b2 = 1000, 'OK', 'FAIL') as Binlog_group_commits 
+from information_schema.global_status where variable_name='Binlog_group_commits';
+Binlog_group_commits
+OK
+select IF(variable_value - @b3 < 10, 'OK', 'FAIL')
+from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+IF(variable_value - @b3 < 10, 'OK', 'FAIL')
+OK
+## 
+# 2PC enabled, MyRocks durability disabled, concurrent workload
+## 
+select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
+select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
+select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+select IF(variable_value - @b1 = 10000, 'OK', 'FAIL') as Binlog_commits 
+from information_schema.global_status where variable_name='Binlog_commits';
+Binlog_commits
+OK
+select IF(variable_value - @b2 < 8000, 'OK', 'FAIL') as Binlog_group_commits 
+from information_schema.global_status where variable_name='Binlog_group_commits';
+Binlog_group_commits
+OK
+select IF(variable_value - @b3 < 10, 'OK', 'FAIL')
+from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+IF(variable_value - @b3 < 10, 'OK', 'FAIL')
+OK
+SET GLOBAL rocksdb_enable_2pc= @save_rocksdb_enable_2pc;
+SET GLOBAL rocksdb_flush_log_at_trx_commit= @save_rocksdb_flush_log_at_trx_commit;
 DROP TABLE t1;
 DROP DATABASE mysqlslap;

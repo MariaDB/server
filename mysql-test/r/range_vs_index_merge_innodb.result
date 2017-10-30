@@ -1808,5 +1808,86 @@ id	state	capital
 7	Pennsylvania	Harrisburg
 8	Virginia	Richmond
 DROP TABLE t1;
+#
+# mdev-11574: do not build index merge of two indexes when
+#             one index is an infix of the other index
+#
+set names utf8;
+CREATE DATABASE world;
+use world;
+CREATE TABLE Country (
+Code char(3) NOT NULL default '',
+Name char(52) NOT NULL default '',
+SurfaceArea float(10,2) NOT NULL default '0.00',
+Population int(11) NOT NULL default '0',
+Capital int(11) default NULL,
+PRIMARY KEY  (Code),
+UNIQUE INDEX (Name)
+);
+CREATE TABLE City (
+ID int(11) NOT NULL auto_increment,
+Name char(35) NOT NULL default '',
+Country char(3) NOT NULL default '',
+Population int(11) NOT NULL default '0',
+PRIMARY KEY  (ID),
+INDEX (Population),
+INDEX (Country) 
+);
+CREATE TABLE CountryLanguage (
+Country char(3) NOT NULL default '',
+Language char(30) NOT NULL default '',
+Percentage float(3,1) NOT NULL default '0.0',
+PRIMARY KEY  (Country, Language),
+INDEX (Percentage)
+);
+DROP INDEX Country ON City;
+CREATE INDEX CountryName ON City(Country,Name);
+CREATE INDEX Name ON City(Name);
+select * from City
+where
+Country='FIN' AND Name IN ('Lahti','Imatra') OR
+Country='RUS' AND Name IN ('St Petersburg', 'Moscow') OR
+Country='SWE' AND Name IN ('Stockholm', 'Uppsala') OR
+Country='DEU' AND Name IN ('Berlin', 'Bonn') OR
+Country='BEL' AND Name IN ('Antwerpen', 'Gent') OR
+Country='PRT' AND Name IN ('Braga', 'Porto') OR
+Country='FRA' AND Name IN ('Paris', 'Marcel') OR
+Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
+Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
+Country='ITA' AND Name IN ('Napoli', 'Venezia');
+ID	Name	Country	Population
+175	Antwerpen	BEL	446525
+176	Gent	BEL	224180
+3068	Berlin	DEU	3386667
+3087	Bonn	DEU	301048
+3242	Lahti	FIN	96921
+2974	Paris	FRA	2125246
+1466	Napoli	ITA	1002619
+1474	Venezia	ITA	277305
+2808	Bergen	NOR	230948
+2807	Oslo	NOR	508726
+2928	Warszawa	POL	1615369
+2931	Wroclaw	POL	636765
+2918	Braga	PRT	90535
+2915	Porto	PRT	273060
+3580	Moscow	RUS	8389200
+3581	St Petersburg	RUS	4694000
+3048	Stockholm	SWE	750348
+3051	Uppsala	SWE	189569
+explain select * from City
+where
+Country='FIN' AND Name IN ('Lahti','Imatra') OR
+Country='RUS' AND Name IN ('St Petersburg', 'Moscow') OR
+Country='SWE' AND Name IN ('Stockholm', 'Uppsala') OR
+Country='DEU' AND Name IN ('Berlin', 'Bonn') OR
+Country='BEL' AND Name IN ('Antwerpen', 'Gent') OR
+Country='PRT' AND Name IN ('Braga', 'Porto') OR
+Country='FRA' AND Name IN ('Paris', 'Marcel') OR
+Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
+Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
+Country='ITA' AND Name IN ('Napoli', 'Venezia');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	City	range	CountryName,Name	CountryName	38	NULL	20	Using index condition; Using where
+DROP DATABASE world;
 set session optimizer_switch='index_merge_sort_intersection=default';
 SET SESSION STORAGE_ENGINE=DEFAULT;

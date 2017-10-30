@@ -405,7 +405,7 @@ static int ha_finish_errors(void)
 }
 
 static volatile int32 need_full_discover_for_existence= 0;
-static volatile int32 engines_with_discover_table_names= 0;
+static volatile int32 engines_with_discover_file_names= 0;
 static volatile int32 engines_with_discover= 0;
 
 static int full_discover_for_existence(handlerton *, const char *, const char *)
@@ -430,8 +430,8 @@ static void update_discovery_counters(handlerton *hton, int val)
   if (hton->discover_table_existence == full_discover_for_existence)
     my_atomic_add32(&need_full_discover_for_existence,  val);
 
-  if (hton->discover_table_names)
-    my_atomic_add32(&engines_with_discover_table_names, val);
+  if (hton->discover_table_names && hton->tablefile_extensions[0])
+    my_atomic_add32(&engines_with_discover_file_names, val);
 
   if (hton->discover_table)
     my_atomic_add32(&engines_with_discover, val);
@@ -5229,6 +5229,7 @@ void Discovered_table_list::remove_duplicates()
 {
   LEX_CSTRING **src= tables->front();
   LEX_CSTRING **dst= src;
+  sort();
   while (++dst <= tables->back())
   {
     LEX_CSTRING *s= *src, *d= *dst;
@@ -5296,10 +5297,12 @@ int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
   int error;
   DBUG_ENTER("ha_discover_table_names");
 
-  if (engines_with_discover_table_names == 0 && !reusable)
+  if (engines_with_discover_file_names == 0 && !reusable)
   {
-    error= ext_table_discovery_simple(dirp, result);
-    result->sort();
+    st_discover_names_args args= {db, NULL, result, 0};
+    error= ext_table_discovery_simple(dirp, result) ||
+           plugin_foreach(thd, discover_names,
+                            MYSQL_STORAGE_ENGINE_PLUGIN, &args);
   }
   else
   {
@@ -5312,8 +5315,6 @@ int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
     error= extension_based_table_discovery(dirp, reg_ext, result) ||
            plugin_foreach(thd, discover_names,
                             MYSQL_STORAGE_ENGINE_PLUGIN, &args);
-    result->sort();
-
     if (args.possible_duplicates > 0)
       result->remove_duplicates();
   }
@@ -6078,7 +6079,7 @@ int handler::update_first_row(uchar *new_data)
       /*
         We have to do the memcmp as otherwise we may get error 169 from InnoDB
       */
-      if (memcmp(table->record[0], table->record[1], table->s->reclength))
+      if (memcmp(new_data, table->record[1], table->s->reclength))
         error= update_row(table->record[1], new_data);
     }
     end_error= ha_rnd_end();

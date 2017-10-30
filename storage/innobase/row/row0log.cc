@@ -2393,7 +2393,7 @@ func_exit_committed:
 	if (big_rec) {
 		if (error == DB_SUCCESS) {
 			error = btr_store_big_rec_extern_fields(
-				&pcur, update, cur_offsets, big_rec, &mtr,
+				&pcur, cur_offsets, big_rec, &mtr,
 				BTR_STORE_UPDATE);
 		}
 

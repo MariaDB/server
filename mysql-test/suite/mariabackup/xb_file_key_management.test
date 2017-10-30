@@ -24,6 +24,7 @@ exec $XTRABACKUP  --prepare --target-dir=$targetdir;
 --enable_result_log
 
 --list_files $targetdir ib_logfile*
+--cat_file $targetdir/ib_logfile0
 
 SELECT * FROM t;
 DROP TABLE t;

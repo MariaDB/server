@@ -19637,6 +19637,229 @@ static void test_mdev12579()
   myquery(rc);
 }
 
+/* Test test_mdev14013 sql_mode=EMPTY_STRING_IS_NULL */
+
+static void test_mdev14013()
+{
+  MYSQL *lmysql;
+  MYSQL_STMT *stmt1;
+  MYSQL_BIND  my_bind[2];
+  MYSQL_RES   *result;
+  char       str_data[20];
+  unsigned int  count;
+  int   rc;
+  char query[MAX_TEST_QUERY_LENGTH];
+
+  myheader("test_mdev14013");
+
+  if (!opt_silent)
+    fprintf(stdout, "\n Establishing a test connection ...");
+  if (!(lmysql= mysql_client_init(NULL)))
+  {
+    myerror("mysql_client_init() failed");
+    exit(1);
+  }
+  if (!(mysql_real_connect(lmysql, opt_host, opt_user,
+                           opt_password, current_db, opt_port,
+                           opt_unix_socket, 0)))
+  {
+    myerror("connection failed");
+    exit(1);
+  }
+  mysql_options(lmysql, MYSQL_OPT_RECONNECT, &my_true);
+  if (!opt_silent)
+    fprintf(stdout, "OK");
+
+  /* set AUTOCOMMIT to ON*/
+  mysql_autocommit(lmysql, TRUE);
+
+  strmov(query, "SET SQL_MODE= \"EMPTY_STRING_IS_NULL\"");
+  if (!opt_silent)
+    fprintf(stdout, "\n With %s", query);
+  rc= mysql_query(mysql, query);
+  myquery(rc);
+
+  rc= mysql_query(lmysql, "DROP TABLE IF EXISTS test_mdev14013");
+  myquery(rc);
+
+  rc= mysql_query(lmysql, "CREATE TABLE test_mdev14013(id int, val varchar(10))");
+  myquery(rc);
+
+  strmov(query, "INSERT INTO test_mdev14013(id,val) VALUES(?,?)");
+  stmt1= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt1);
+
+  verify_param_count(stmt1, 2);
+
+  /*
+    We need to bzero bind structure because mysql_stmt_bind_param checks all
+    its members.
+  */
+  bzero((char*) my_bind, sizeof(my_bind));
+
+  my_bind[0].buffer= (void *)&count;
+  my_bind[0].buffer_type= MYSQL_TYPE_LONG;
+  count= 100;
+
+  strcpy(str_data,"");
+  my_bind[1].buffer_type= MYSQL_TYPE_STRING;
+  my_bind[1].buffer= (char *) str_data;
+  my_bind[1].buffer_length= strlen(str_data);
+
+  rc= mysql_stmt_bind_param(stmt1, my_bind);
+
+  rc= mysql_stmt_execute(stmt1);
+  check_execute(stmt1, rc);
+
+  verify_st_affected_rows(stmt1, 1);
+
+  rc= mysql_stmt_close(stmt1);
+
+  strmov(query, "SET SQL_MODE= default");
+  if (!opt_silent)
+    fprintf(stdout, "\n With %s\n", query);
+  rc= mysql_query(mysql, query);
+  myquery(rc);
+
+  strmov(query, "INSERT INTO test_mdev14013(id,val) VALUES(?,?)");
+  stmt1= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt1);
+
+  count= 200;
+  rc= mysql_stmt_bind_param(stmt1, my_bind);
+
+  rc= mysql_stmt_execute(stmt1);
+  check_execute(stmt1, rc);
+
+  verify_st_affected_rows(stmt1, 1);
+
+  rc= mysql_stmt_close(stmt1);
+  if (!opt_silent)
+    fprintf(stdout, "\n test_mdev14013(x) returned: %d", rc);
+  DIE_UNLESS( rc == 0);
+
+  rc= mysql_query(mysql, "SELECT id, val FROM test_mdev14013 order by id");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  rc= my_process_result_set(result);
+  DIE_UNLESS(rc == 2);
+  mysql_free_result(result);
+
+  rc= mysql_query(mysql, "SELECT id, val FROM test_mdev14013 where val is null");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  rc= my_process_result_set(result);
+  DIE_UNLESS(rc == 1);
+  mysql_free_result(result);
+
+  myquery(mysql_query(mysql, "drop table test_mdev14013"));
+  mysql_close(lmysql);
+}
+
+static void test_mdev14013_1()
+{
+  MYSQL *lmysql;
+  MYSQL_STMT *stmt1;
+  MYSQL_BIND  my_bind[3];
+  char       str_data[3][255];
+  int  rc;
+  char query[MAX_TEST_QUERY_LENGTH];
+
+  myheader("test_mdev14013_1");
+
+  if (!opt_silent)
+    fprintf(stdout, "\n Establishing a test connection ...");
+  if (!(lmysql= mysql_client_init(NULL)))
+  {
+    myerror("mysql_client_init() failed");
+    exit(1);
+  }
+  if (!(mysql_real_connect(lmysql, opt_host, opt_user,
+                           opt_password, current_db, opt_port,
+                           opt_unix_socket, 0)))
+  {
+    myerror("connection failed");
+    exit(1);
+  }
+  mysql_options(lmysql, MYSQL_OPT_RECONNECT, &my_true);
+  if (!opt_silent)
+    fprintf(stdout, "OK");
+
+  /* set AUTOCOMMIT to ON*/
+  mysql_autocommit(lmysql, TRUE);
+
+  strmov(query, "SET SQL_MODE= \"EMPTY_STRING_IS_NULL\"");
+  if (!opt_silent)
+    fprintf(stdout, "\n With %s", query);
+  rc= mysql_query(mysql, query);
+  myquery(rc);
+
+  rc= mysql_query(mysql,
+    "CREATE OR REPLACE PROCEDURE test_mdev14013_p1("
+    "   IN i1 VARCHAR(255) , "
+    "   INOUT io1 VARCHAR(255), "
+    "   OUT o2 VARBINARY(255)) "
+    "BEGIN "
+    "   SET o2 = concat(concat(coalesce(i1,'i1 is null'),' - '),coalesce(i1,'io1 is null')); "
+    "END");
+  myquery(rc);
+
+  strmov(query, "CALL test_mdev14013_p1(?, ?, ?)");
+  stmt1= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt1);
+
+  /* Init PS-parameters. */
+
+  bzero((char *) my_bind, sizeof (my_bind));
+
+  strcpy(str_data[0],"");
+  my_bind[0].buffer_type= MYSQL_TYPE_STRING;
+  my_bind[0].buffer= (char *) str_data[0];
+  my_bind[0].buffer_length= strlen(str_data[0]);
+
+  strcpy(str_data[1],"");
+  my_bind[1].buffer_type= MYSQL_TYPE_STRING;
+  my_bind[1].buffer= (char *) str_data[1];
+  my_bind[1].buffer_length= strlen(str_data[1]);
+
+  strcpy(str_data[2],"");
+  my_bind[2].buffer_type= MYSQL_TYPE_STRING;
+  my_bind[2].buffer= (char *) str_data[2];
+  my_bind[2].buffer_length= strlen(str_data[2]);
+
+  /* Bind parameters. */
+
+  rc= mysql_stmt_bind_param(stmt1, my_bind);
+  check_execute(stmt1, rc);
+  /* Execute */
+
+  rc= mysql_stmt_execute(stmt1);
+  check_execute(stmt1, rc);
+
+  my_bind[0].buffer_length= sizeof(str_data[0]);
+  my_bind[1].buffer_length= sizeof(str_data[1]);
+
+  mysql_stmt_bind_result(stmt1, my_bind);
+  rc= mysql_stmt_fetch(stmt1);
+
+  if (!opt_silent)
+    fprintf(stdout,"\nstr_data[1]=%s\n",str_data[1]);
+
+  DIE_UNLESS(strcmp(str_data[1], "i1 is null - io1 is null") == 0);
+
+  rc= mysql_stmt_close(stmt1);
+  DIE_UNLESS( rc == 0);
+
+  myquery(mysql_query(mysql, "drop procedure test_mdev14013_p1"));
+  mysql_close(lmysql);
+}
+
 
 typedef struct {
   char sig[12];
@@ -20093,6 +20316,8 @@ static struct my_tests_st my_tests[]= {
   { "test_big_packet", test_big_packet },
   { "test_prepare_analyze", test_prepare_analyze },
   { "test_mdev12579", test_mdev12579 },
+  { "test_mdev14013", test_mdev14013 },
+  { "test_mdev14013_1", test_mdev14013_1 },
 #ifndef EMBEDDED_LIBRARY
   { "test_proxy_header", test_proxy_header},
 #endif

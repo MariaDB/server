@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -149,13 +149,6 @@ struct fts_query_t {
 	bool		multi_exist;	/*!< multiple FTS_EXIST oper */
 
 	st_mysql_ftparser*	parser;	/*!< fts plugin parser */
-
-	/** limit value for the fts query */
-	ulonglong		limit;
-
-	/** number of docs fetched by query. This is to restrict the
-	result with limit value */
-	ulonglong		n_docs;
 };
 
 /** For phrase matching, first we collect the documents and the positions
@@ -3228,11 +3221,6 @@ fts_query_filter_doc_ids(
 	ulint		decoded = 0;
 	ib_rbt_t*	doc_freqs = word_freq->doc_freqs;
 
-	if (query->limit != ULONG_UNDEFINED
-	    && query->n_docs >= query->limit) {
-		return(DB_SUCCESS);
-	}
-
 	/* Decode the ilist and add the doc ids to the query doc_id set. */
 	while (decoded < len) {
 		ulint		freq = 0;
@@ -3320,17 +3308,11 @@ fts_query_filter_doc_ids(
 			/* Add the word to the document's matched RB tree. */
 			fts_query_add_word_to_document(query, doc_id, word);
 		}
-
-		if (query->limit != ULONG_UNDEFINED
-		    && query->limit <= ++query->n_docs) {
-			goto func_exit;
-		}
 	}
 
 	/* Some sanity checks. */
 	ut_a(doc_id == node->last_doc_id);
 
-func_exit:
 	if (query->total_size > fts_result_cache_limit) {
 		return(DB_FTS_EXCEED_RESULT_CACHE_LIMIT);
 	} else {
@@ -3813,6 +3795,10 @@ fts_query_free(
 		fts_doc_ids_free(query->deleted);
 	}
 
+	if (query->intersection) {
+		fts_query_free_doc_ids(query, query->intersection);
+	}
+
 	if (query->doc_ids) {
 		fts_query_free_doc_ids(query, query->doc_ids);
 	}
@@ -3941,7 +3927,6 @@ fts_query_can_optimize(
 @param[in]	query_str	FTS query
 @param[in]	query_len	FTS query string len in bytes
 @param[in,out]	result		result doc ids
-@param[in]	limit		limit value
 @return DB_SUCCESS if successful otherwise error code */
 dberr_t
 fts_query(
@@ -3950,8 +3935,7 @@ fts_query(
 	uint		flags,
 	const byte*	query_str,
 	ulint		query_len,
-	fts_result_t**	result,
-	ulonglong	limit)
+	fts_result_t**	result)
 {
 	fts_query_t	query;
 	dberr_t		error = DB_SUCCESS;
@@ -4013,10 +3997,6 @@ fts_query(
 
 	query.total_docs = dict_table_get_n_rows(index->table);
 
-	query.limit = limit;
-
-	query.n_docs = 0;
-
 	query.fts_common_table.suffix = "DELETED";
 
 	/* Read the deleted doc_ids, we need these for filtering. */
@@ -4076,19 +4056,6 @@ fts_query(
 
 		DBUG_EXECUTE_IF("fts_instrument_result_cache_limit",
 			        fts_result_cache_limit = 2048;
-		);
-
-		/* Optimisation is allowed for limit value
-		when
-		i)  No ranking involved
-		ii) Only FTS Union operations involved. */
-		if (query.limit != ULONG_UNDEFINED
-		    && !fts_ast_node_check_union(ast)) {
-			query.limit = ULONG_UNDEFINED;
-		}
-
-		DBUG_EXECUTE_IF("fts_union_limit_off",
-			query.limit = ULONG_UNDEFINED;
 		);
 
 		/* Traverse the Abstract Syntax Tree (AST) and execute

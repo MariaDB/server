@@ -527,7 +527,7 @@ dtype_get_fixed_size_low(
 			}
 		}
 		/* Treat as variable-length. */
-		/* Fall through */
+		/* fall through */
 	case DATA_VARCHAR:
 	case DATA_BINARY:
 	case DATA_DECIMAL:

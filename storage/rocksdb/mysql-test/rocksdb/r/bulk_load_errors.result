@@ -26,4 +26,30 @@ select @@rocksdb_bulk_load;
 @@rocksdb_bulk_load
 0
 call mtr.add_suppression('finalizing last SST file while setting bulk loading variable');
+TRUNCATE TABLE t1;
+SET rocksdb_bulk_load_allow_unsorted=1;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(100);
+INSERT INTO t1 VALUES(101);
+INSERT INTO t1 VALUES(99);
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1;
+pk
+99
+100
+101
+TRUNCATE TABLE t1;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(201);
+INSERT INTO t1 VALUES(200);
+INSERT INTO t1 VALUES(202);
+INSERT INTO t1 VALUES(201);
+ERROR 23000: Failed to insert the record: the key already exists
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1;
+pk
+200
+201
+202
+SET rocksdb_bulk_load_allow_unsorted=DEFAULT;
 DROP TABLE t1;

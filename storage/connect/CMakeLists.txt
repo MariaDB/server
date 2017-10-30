@@ -38,41 +38,24 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 # Definitions that are shared for all OSes
 #
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
-add_definitions( -DNEW_MAR -DHUGE_SUPPORT -DGZ_SUPPORT -DPIVOT_SUPPORT )
+add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT )
 
 
 #
 # OS specific C flags, definitions and source files.
 #
 IF(UNIX)
-  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  # Bar: -Wfatal-errors removed (does not present in gcc on solaris10)
-  if(WITH_WARNINGS)
-    add_definitions(-Wall -Wextra -Wmissing-declarations)
-    #message(STATUS "CONNECT: GCC: All warnings enabled")
-  else()
-    add_definitions(-Wall -Wmissing-declarations)
-    add_definitions(-Wno-write-strings)
-    add_definitions(-Wno-unused-variable)
-    # Bar: -Wno-unused-but-set-variables commented (does not present on sol10)
-    # add_definitions(-Wno-unused-but-set-variable)
-    add_definitions(-Wno-unused-value)
-    add_definitions(-Wno-unused-function)
-    add_definitions(-Wno-parentheses)
-    #add_definitions(-Wno-missing-declarations)
-    # Bar: -Wno-int-to-pointer-cast commended (does not present in gcc on sol10)
-    # add_definitions(-Wno-int-to-pointer-cast)
-    # Bar: -Wno-narrowing commented (does not present in gcc on solaris10)
-    # add_definitions(-Wno-narrowing)
-
-# This switch is for pure C only:
-#   add_definitions(-Wno-implicit-function-declaration)
-# These switches are for C++ only
-#   add_definitions(-Wno-reorder)
-
-    #message(STATUS "CONNECT: GCC: Some warnings disabled")
-  endif(WITH_WARNINGS)
-  endif()
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wall -Wmissing-declarations")
+  if(NOT WITH_WARNINGS)
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-function")
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-variable")
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-value")
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-parentheses")
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-strict-aliasing")
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-misleading-indentation")
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-format-truncation")
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
+  endif(NOT WITH_WARNINGS)
 
   add_definitions( -DUNIX -DLINUX -DUBUNTU )
 
@@ -245,7 +228,7 @@ int main() {
 ENDIF(CONNECT_WITH_ODBC)
 
 #
-# JDBC with MongoDB Java Driver included but disabled
+# JDBC with MongoDB Java Driver included but disabled if without MONGO
 #
 OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
 OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
@@ -260,17 +243,16 @@ IF(CONNECT_WITH_JDBC)
     # SET(JDBC_LIBRARY ${JAVA_JVM_LIBRARY}) will be dynamically linked
     SET(CONNECT_SOURCES ${CONNECT_SOURCES}
     javaconn.cpp jdbconn.cpp tabjdbc.cpp
+    jmgfam.cpp jmgoconn.cpp mongo.cpp tabjmg.cpp
     jdbccat.h javaconn.h jdbconn.h tabjdbc.h
+    jmgfam.h jmgoconn.h mongo.h tabjmg.h
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java
+    Mongo2Interface.java Mongo3Interface.java
     JavaWrappers.jar)
-    add_definitions(-DJDBC_SUPPORT)
+    add_definitions(-DJAVA_SUPPORT)
     IF(CONNECT_WITH_MONGO)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-      jmgfam.cpp jmgoconn.cpp mongo.cpp tabjmg.cpp
-      jmgfam.h jmgoconn.h mongo.h tabjmg.h
-      Mongo2Interface.java Mongo3Interface.java)
-      add_definitions(-DMONGO_SUPPORT -DMONGO_ENABLED=0)
+      add_definitions(-DMONGO_SUPPORT)
     ENDIF()
   ELSE()
     SET(JDBC_LIBRARY "")
@@ -313,10 +295,7 @@ IF(CONNECT_WITH_MONGO)
     add_definitions(-DCMGO_SUPPORT)
     IF (NOT JAVA_FOUND AND JNI_FOUND)
       SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongo.cpp mongo.h)
-      add_definitions(-DMONGO_SUPPORT -DMONGO_ENABLED=1)
-    ELSE ()
-      remove_definitions(-DMONGO_ENABLED=0)
-      add_definitions(-DMONGO_ENABLED=1)
+      add_definitions(-DMONGO_SUPPORT)
     ENDIF (NOT JAVA_FOUND AND JNI_FOUND)
   ENDIF(libmongoc-1.0_FOUND)
 ENDIF(CONNECT_WITH_MONGO)

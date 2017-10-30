@@ -881,6 +881,7 @@ rocksdb_block_restart_interval	16
 rocksdb_block_size	4096
 rocksdb_block_size_deviation	10
 rocksdb_bulk_load	OFF
+rocksdb_bulk_load_allow_unsorted	OFF
 rocksdb_bulk_load_size	1000
 rocksdb_bytes_per_sync	0
 rocksdb_cache_index_and_filter_blocks	ON
@@ -893,13 +894,16 @@ rocksdb_compaction_sequential_deletes	0
 rocksdb_compaction_sequential_deletes_count_sd	OFF
 rocksdb_compaction_sequential_deletes_file_size	0
 rocksdb_compaction_sequential_deletes_window	0
+rocksdb_concurrent_prepare	ON
 rocksdb_create_checkpoint	
 rocksdb_create_if_missing	ON
 rocksdb_create_missing_column_families	OFF
 rocksdb_datadir	./.rocksdb
 rocksdb_db_write_buffer_size	0
 rocksdb_deadlock_detect	OFF
+rocksdb_deadlock_detect_depth	50
 rocksdb_debug_optimizer_no_zero_cardinality	ON
+rocksdb_debug_ttl_ignore_pk	OFF
 rocksdb_debug_ttl_read_filter_ts	0
 rocksdb_debug_ttl_rec_ts	0
 rocksdb_debug_ttl_snapshot_ts	0
@@ -916,6 +920,7 @@ rocksdb_error_if_exists	OFF
 rocksdb_flush_log_at_trx_commit	0
 rocksdb_flush_memtable_on_analyze	ON
 rocksdb_force_compute_memtable_stats	ON
+rocksdb_force_compute_memtable_stats_cachetime	0
 rocksdb_force_flush_memtable_and_lzero_now	OFF
 rocksdb_force_flush_memtable_now	OFF
 rocksdb_force_index_records_in_range	0
@@ -925,12 +930,15 @@ rocksdb_info_log_level	error_level
 rocksdb_io_write_timeout	0
 rocksdb_is_fd_close_on_exec	ON
 rocksdb_keep_log_file_num	1000
+rocksdb_large_prefix	OFF
 rocksdb_lock_scanned_rows	OFF
 rocksdb_lock_wait_timeout	1
 rocksdb_log_file_time_to_roll	0
 rocksdb_manifest_preallocation_size	4194304
+rocksdb_manual_wal_flush	ON
 rocksdb_master_skip_tx_api	OFF
 rocksdb_max_background_jobs	2
+rocksdb_max_latest_deadlocks	5
 rocksdb_max_log_file_size	0
 rocksdb_max_manifest_file_size	18446744073709551615
 rocksdb_max_open_files	-1
@@ -939,6 +947,7 @@ rocksdb_max_subcompactions	1
 rocksdb_max_total_wal_size	0
 rocksdb_merge_buf_size	67108864
 rocksdb_merge_combine_read_size	1073741824
+rocksdb_merge_tmp_file_removal_delay_ms	0
 rocksdb_new_table_reader_for_compaction_inputs	OFF
 rocksdb_no_block_cache	OFF
 rocksdb_override_cf_options	
@@ -955,6 +964,7 @@ rocksdb_records_in_range	50
 rocksdb_reset_stats	OFF
 rocksdb_seconds_between_stat_computes	3600
 rocksdb_signal_drop_index_thread	OFF
+rocksdb_sim_cache_size	0
 rocksdb_skip_bloom_filter_on_read	OFF
 rocksdb_skip_fill_cache	OFF
 rocksdb_skip_unique_check_tables	.*
@@ -970,6 +980,7 @@ rocksdb_trace_sst_api	OFF
 rocksdb_unsafe_for_binlog	OFF
 rocksdb_update_cf_options	
 rocksdb_use_adaptive_mutex	OFF
+rocksdb_use_clock_cache	OFF
 rocksdb_use_direct_io_for_flush_and_compaction	OFF
 rocksdb_use_direct_reads	OFF
 rocksdb_use_fsync	OFF
@@ -1451,16 +1462,21 @@ Rocksdb_rows_inserted	#
 Rocksdb_rows_read	#
 Rocksdb_rows_updated	#
 Rocksdb_rows_deleted_blind	#
-rocksdb_rows_expired	#
+Rocksdb_rows_expired	#
 Rocksdb_system_rows_deleted	#
 Rocksdb_system_rows_inserted	#
 Rocksdb_system_rows_read	#
 Rocksdb_system_rows_updated	#
+Rocksdb_memtable_total	#
+Rocksdb_memtable_unflushed	#
+Rocksdb_queries_point	#
+Rocksdb_queries_range	#
+Rocksdb_covered_secondary_key_lookups	#
 Rocksdb_block_cache_add	#
-rocksdb_memtable_total	#
-rocksdb_memtable_unflushed	#
-rocksdb_queries_point	#
-rocksdb_queries_range	#
+Rocksdb_block_cache_data_hit	#
+Rocksdb_block_cache_data_miss	#
+Rocksdb_block_cache_filter_hit	#
+Rocksdb_block_cache_filter_miss	#
 Rocksdb_block_cache_hit	#
 Rocksdb_block_cache_index_hit	#
 Rocksdb_block_cache_index_miss	#
@@ -1479,13 +1495,13 @@ Rocksdb_compaction_key_drop_obsolete	#
 Rocksdb_compaction_key_drop_user	#
 Rocksdb_flush_write_bytes	#
 Rocksdb_getupdatessince_calls	#
-Rocksdb_l0_num_files_stall_micros	#
-Rocksdb_l0_slowdown_micros	#
-Rocksdb_memtable_compaction_micros	#
 Rocksdb_memtable_hit	#
 Rocksdb_memtable_miss	#
 Rocksdb_no_file_closes	#
 Rocksdb_no_file_errors	#
+Rocksdb_no_file_opens	#
+Rocksdb_num_iterators	#
+Rocksdb_number_block_not_compressed	#
 Rocksdb_number_deletes_filtered	#
 Rocksdb_number_keys_read	#
 Rocksdb_number_keys_updated	#
@@ -1506,6 +1522,17 @@ Rocksdb_number_superversion_cleanups	#
 Rocksdb_number_superversion_releases	#
 Rocksdb_rate_limit_delay_millis	#
 Rocksdb_snapshot_conflict_errors	#
+Rocksdb_stall_l0_file_count_limit_slowdowns	#
+Rocksdb_stall_locked_l0_file_count_limit_slowdowns	#
+Rocksdb_stall_l0_file_count_limit_stops	#
+Rocksdb_stall_locked_l0_file_count_limit_stops	#
+Rocksdb_stall_pending_compaction_limit_stops	#
+Rocksdb_stall_pending_compaction_limit_slowdowns	#
+Rocksdb_stall_memtable_limit_stops	#
+Rocksdb_stall_memtable_limit_slowdowns	#
+Rocksdb_stall_total_stops	#
+Rocksdb_stall_total_slowdowns	#
+Rocksdb_stall_micros	#
 Rocksdb_wal_bytes	#
 Rocksdb_wal_group_syncs	#
 Rocksdb_wal_synced	#
@@ -1513,7 +1540,6 @@ Rocksdb_write_other	#
 Rocksdb_write_self	#
 Rocksdb_write_timedout	#
 Rocksdb_write_wal	#
-rocksdb_stall_micros	#
 select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%';
 VARIABLE_NAME
 ROCKSDB_ROWS_DELETED
@@ -1530,6 +1556,7 @@ ROCKSDB_MEMTABLE_TOTAL
 ROCKSDB_MEMTABLE_UNFLUSHED
 ROCKSDB_QUERIES_POINT
 ROCKSDB_QUERIES_RANGE
+ROCKSDB_COVERED_SECONDARY_KEY_LOOKUPS
 ROCKSDB_BLOCK_CACHE_ADD
 ROCKSDB_BLOCK_CACHE_DATA_HIT
 ROCKSDB_BLOCK_CACHE_DATA_MISS
@@ -1580,6 +1607,16 @@ ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
 ROCKSDB_NUMBER_SUPERVERSION_RELEASES
 ROCKSDB_RATE_LIMIT_DELAY_MILLIS
 ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_MEMTABLE_LIMIT_STOPS
+ROCKSDB_STALL_MEMTABLE_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_TOTAL_STOPS
+ROCKSDB_STALL_TOTAL_SLOWDOWNS
 ROCKSDB_STALL_MICROS
 ROCKSDB_WAL_BYTES
 ROCKSDB_WAL_GROUP_SYNCS
@@ -1606,6 +1643,7 @@ ROCKSDB_MEMTABLE_TOTAL
 ROCKSDB_MEMTABLE_UNFLUSHED
 ROCKSDB_QUERIES_POINT
 ROCKSDB_QUERIES_RANGE
+ROCKSDB_COVERED_SECONDARY_KEY_LOOKUPS
 ROCKSDB_BLOCK_CACHE_ADD
 ROCKSDB_BLOCK_CACHE_DATA_HIT
 ROCKSDB_BLOCK_CACHE_DATA_MISS
@@ -1656,6 +1694,16 @@ ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
 ROCKSDB_NUMBER_SUPERVERSION_RELEASES
 ROCKSDB_RATE_LIMIT_DELAY_MILLIS
 ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_MEMTABLE_LIMIT_STOPS
+ROCKSDB_STALL_MEMTABLE_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_TOTAL_STOPS
+ROCKSDB_STALL_TOTAL_SLOWDOWNS
 ROCKSDB_STALL_MICROS
 ROCKSDB_WAL_BYTES
 ROCKSDB_WAL_GROUP_SYNCS
@@ -2155,7 +2203,9 @@ SET @old_mode = @@sql_mode;
 SET sql_mode = 'strict_all_tables';
 create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(c, b(255))) engine=rocksdb;
 drop table t1;
+set global rocksdb_large_prefix=1;
 create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(b(1255))) engine=rocksdb;
+set global rocksdb_large_prefix=0;
 insert into t1 values (1, '1abcde', '1abcde'), (2, '2abcde', '2abcde'), (3, '3abcde', '3abcde');
 select * from t1;
 a	b	c
@@ -2177,7 +2227,7 @@ a	b	c
 drop table t1;
 create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(b(2255))) engine=rocksdb;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 2048 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 drop table t1;
 SET sql_mode = @old_mode;
 drop table t0;

@@ -448,7 +448,8 @@ ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
                             'NO_AUTO_CREATE_USER',
                             'HIGH_NOT_PRECEDENCE',
                             'NO_ENGINE_SUBSTITUTION',
-                            'PAD_CHAR_TO_FULL_LENGTH'
+                            'PAD_CHAR_TO_FULL_LENGTH',
+                            'EMPTY_STRING_IS_NULL'
                             ) DEFAULT '' NOT NULL,
                  DEFAULT CHARACTER SET utf8;
 
@@ -572,7 +573,8 @@ ALTER TABLE event MODIFY sql_mode
                             'NO_AUTO_CREATE_USER',
                             'HIGH_NOT_PRECEDENCE',
                             'NO_ENGINE_SUBSTITUTION',
-                            'PAD_CHAR_TO_FULL_LENGTH'
+                            'PAD_CHAR_TO_FULL_LENGTH',
+                            'EMPTY_STRING_IS_NULL'
                             ) DEFAULT '' NOT NULL AFTER on_completion;
 ALTER TABLE event MODIFY name char(64) CHARACTER SET utf8 NOT NULL default '';
 

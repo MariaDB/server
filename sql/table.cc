@@ -2516,7 +2516,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     the correct null_bytes can now be set, since bitfields have been taken
     into account
   */
-  share->null_bytes= (null_pos - (uchar*) null_flags +
+  share->null_bytes= (uint)(null_pos - (uchar*) null_flags +
                       (null_bit_pos + 7) / 8);
   share->last_null_bit_pos= null_bit_pos;
   share->null_bytes_for_compare= null_bits_are_used ? share->null_bytes : 0;
@@ -5721,7 +5721,8 @@ Item *Field_iterator_table::create_item(THD *thd)
   Item_field *item= new (thd->mem_root) Item_field(thd, &select->context, *ptr);
   DBUG_ASSERT(strlen(item->name.str) == item->name.length);
   if (item && thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      !thd->lex->in_sum_func && select->cur_pos_in_select_list != UNDEF_POS)
+      !thd->lex->in_sum_func && select->cur_pos_in_select_list != UNDEF_POS &&
+      select->join)
   {
     select->join->non_agg_fields.push_back(item);
     item->marker= select->cur_pos_in_select_list;
@@ -6002,8 +6003,8 @@ Field_iterator_table_ref::get_or_create_column_ref(THD *thd, TABLE_LIST *parent_
     /* The field belongs to a merge view or information schema table. */
     Field_translator *translated_field= view_field_it.field_translator();
     nj_col= new Natural_join_column(translated_field, table_ref);
-    field_count= table_ref->field_translation_end -
-                 table_ref->field_translation;
+    field_count= (uint)(table_ref->field_translation_end -
+                 table_ref->field_translation);
   }
   else
   {

@@ -335,7 +335,6 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
   trans_commit_implicit(thd);
   if (!temporary_table)
     close_thread_tables(thd);
-  thd->mdl_context.release_transactional_locks();
   DBUG_RETURN(error);
 }
 
@@ -596,12 +595,6 @@ int sequence_definition::write(TABLE *table, bool all_fields)
   else
     table->rpl_write_set= &table->s->all_set;
 
-  /*
-    The following is needed to fix comparison of rows in
-    ha_update_first_row() for InnoDB
-  */
-  memcpy(table->record[1],table->s->default_values, table->s->reclength);
-
   /* Update table */
   save_write_set= table->write_set;
   save_read_set=  table->read_set;
@@ -759,12 +752,12 @@ void SEQUENCE_LAST_VALUE::set_version(TABLE *table)
 
    @param in   table       Sequence table
    @param in   next_val    Next free value
-   @param in   next_round  Round for 'next_value' (in cace of cycles)
+   @param in   next_round  Round for 'next_value' (in case of cycles)
    @param in   is_used     1 if next_val is already used
 
    @retval     0      ok, value adjusted
-               1      value was less than current value or
-                      error when storing value
+               -1     value was less than current value
+               1      error when storing value
 
    @comment
    A new value is set only if "nextval,next_round" is less than
@@ -774,10 +767,10 @@ void SEQUENCE_LAST_VALUE::set_version(TABLE *table)
    contain the highest used value when the slave is promoted to a master.
 */
 
-bool SEQUENCE::set_value(TABLE *table, longlong next_val, ulonglong next_round,
+int SEQUENCE::set_value(TABLE *table, longlong next_val, ulonglong next_round,
                          bool is_used)
 {
-  bool error= 1;
+  int error= -1;
   bool needs_to_be_stored= 0;
   longlong org_reserved_until=  reserved_until;
   longlong org_next_free_value= next_free_value;
@@ -789,13 +782,13 @@ bool SEQUENCE::set_value(TABLE *table, longlong next_val, ulonglong next_round,
     next_val= increment_value(next_val);
 
   if (round > next_round)
-    goto end;
+    goto end;                                   // error = -1
   if (round == next_round)
   {
     if (real_increment > 0  ?
         next_val < next_free_value :
         next_val > next_free_value)
-      goto end;
+      goto end;                                 // error = -1
     if (next_val == next_free_value)
     {
       error= 0;
@@ -803,7 +796,13 @@ bool SEQUENCE::set_value(TABLE *table, longlong next_val, ulonglong next_round,
     }
   }
   else if (cycle == 0)
-    goto end;                       // round < next_round && no cycles
+  {
+    // round < next_round && no cycles, which is impossible
+    my_error(ER_SEQUENCE_RUN_OUT, MYF(0), table->s->db.str,
+             table->s->table_name.str);
+    error= 1;
+    goto end;
+  }
   else
     needs_to_be_stored= 1;
 
@@ -820,6 +819,7 @@ bool SEQUENCE::set_value(TABLE *table, longlong next_val, ulonglong next_round,
       reserved_until=  org_reserved_until;
       next_free_value= org_next_free_value;
       round= org_round;
+      error= 1;
       goto end;
     }
   }

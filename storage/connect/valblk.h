@@ -40,7 +40,7 @@ class MBVALS : public BLOCK {
   // Methods
   void  *GetMemp(void) {return Mblk.Memp;}
   PVBLK  Allocate(PGLOBAL g, int type, int len, int prec,
-                             int n, bool sub = FALSE);
+                             int n, bool sub = false);
   bool   ReAllocate(PGLOBAL g, int n);
   void   Free(void);
 

@@ -179,6 +179,16 @@ bool Rdb_io_perf::start(const uint32_t perf_context_level) {
   return true;
 }
 
+void Rdb_io_perf::update_bytes_written(const uint32_t perf_context_level,
+                                       ulonglong bytes_written) {
+  const rocksdb::PerfLevel perf_level =
+      static_cast<rocksdb::PerfLevel>(perf_context_level);
+  if (perf_level != rocksdb::kDisable && m_shared_io_perf_write) {
+    io_write_bytes += bytes_written;
+    io_write_requests += 1;
+  }
+}
+
 void Rdb_io_perf::end_and_record(const uint32_t perf_context_level) {
   const rocksdb::PerfLevel perf_level =
       static_cast<rocksdb::PerfLevel>(perf_context_level);
@@ -217,6 +227,18 @@ void Rdb_io_perf::end_and_record(const uint32_t perf_context_level) {
   }
 
 #ifdef MARIAROCKS_NOT_YET
+  if (m_shared_io_perf_write &&
+      (io_write_bytes != 0 || io_write_requests != 0)) {
+    my_io_perf_t io_perf_write;
+    io_perf_write.init();
+    io_perf_write.bytes = io_write_bytes;
+    io_perf_write.requests = io_write_requests;
+    m_shared_io_perf_write->sum(io_perf_write);
+    m_stats->table_io_perf_write.sum(io_perf_write);
+    io_write_bytes = 0;
+    io_write_requests = 0;
+  }
+
   if (m_stats) {
     if (rocksdb::get_perf_context()->internal_key_skipped_count != 0) {
       m_stats->key_skipped +=

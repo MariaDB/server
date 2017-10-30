@@ -80,7 +80,7 @@ bool compare_record(const TABLE *table)
       {
         if (field->real_maybe_null())
         {
-          uchar null_byte_index= field->null_ptr - table->record[0];
+          uchar null_byte_index= (uchar)(field->null_ptr - table->record[0]);
           
           if (((table->record[0][null_byte_index]) & field->null_bit) !=
               ((table->record[1][null_byte_index]) & field->null_bit))
@@ -362,7 +362,7 @@ int mysql_update(THD *thd,
   table_list->grant.want_privilege= table->grant.want_privilege=
     (SELECT_ACL & ~table->grant.privilege);
 #endif
-  if (setup_fields(thd, Ref_ptr_array(), values, MARK_COLUMNS_READ, 0, 0))
+  if (setup_fields(thd, Ref_ptr_array(), values, MARK_COLUMNS_READ, 0, NULL, 0))
   {
     free_underlaid_joins(thd, select_lex);
     DBUG_RETURN(1);				/* purecov: inspected */
@@ -1683,7 +1683,7 @@ int multi_update::prepare(List<Item> &not_used_values,
   */
 
   int error= setup_fields(thd, Ref_ptr_array(),
-                          *values, MARK_COLUMNS_READ, 0, 0);
+                          *values, MARK_COLUMNS_READ, 0, NULL, 0);
 
   ti.rewind();
   while ((table_ref= ti++))

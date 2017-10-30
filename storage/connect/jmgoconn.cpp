@@ -25,6 +25,7 @@
 #define nullptr 0
 
 bool IsNum(PSZ s);
+bool MakeSelector(PGLOBAL g, PFIL fp, PSTRG s);
 
 /* --------------------------- Class JNCOL --------------------------- */
 
@@ -123,12 +124,13 @@ void JMgoConn::AddJars(PSTRG jpop, char sep)
 #if defined(DEVELOPMENT)
 	if (m_Version == 2) {
 		jpop->Append(sep);
-		jpop->Append("C:/Eclipse/workspace/MongoWrap2/bin");
+//	jpop->Append("C:/Eclipse/workspace/MongoWrap2/bin");
 		jpop->Append(sep);
 		jpop->Append("C:/mongo-java-driver/mongo-java-driver-2.13.3.jar");
 	} else {
 		jpop->Append(sep);
-		jpop->Append("C:/Eclipse/workspace/MongoWrap3/bin");
+//	jpop->Append("C:/Eclipse/workspace/MongoWrap3/bin");
+//	jpop->Append("C:/Program Files/MariaDB 10.1/lib/plugin/JavaWrappers.jar");
 		jpop->Append(sep);
 		jpop->Append("C:/mongo-java-driver/mongo-java-driver-3.4.2.jar");
 	} // endif m_Version
@@ -238,6 +240,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 	PSZ   jp;
 	PCSZ  op = NULL, sf = NULL, Options = options;
 	PSTRG s = NULL;
+	PFIL  filp = tdbp->GetFilter();
 
 	if (Options && !stricmp(Options, "all")) {
 		Options = NULL;
@@ -264,10 +267,10 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 
 		s = new(g) STRING(g, 1023, (PSZ)Options);
 
-		if (tdbp->GetFilter()) {
+		if (filp) {
 			s->Append(",{\"$match\":");
 
-			if (tdbp->GetFilter()->MakeSelector(g, s)) {
+			if (MakeSelector(g, filp, s)) {
 				strcpy(g->Message, "Failed making selector");
 				return NULL;
 			} else
@@ -314,15 +317,15 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 
 		return AggregateCollection(p);
 	} else {
-		if (filter || tdbp->GetFilter()) {
+		if (filter || filp) {
 			if (trace) {
 				if (filter)
 					htrc("Filter: %s\n", filter);
 
-				if (tdbp->GetFilter()) {
+				if (filp) {
 					char buf[512];
 
-					tdbp->GetFilter()->Prints(g, buf, 511);
+					filp->Prints(g, buf, 511);
 					htrc("To_Filter: %s\n", buf);
 				} // endif To_Filter
 
@@ -331,11 +334,11 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 			s = new(g) STRING(g, 1023, (PSZ)filter);
 			len = s->GetLength();
 
-			if (tdbp->GetFilter()) {
+			if (filp) {
 				if (filter)
 					s->Append(',');
 
-				if (tdbp->GetFilter()->MakeSelector(g, s)) {
+				if (MakeSelector(g, filp, s)) {
 					strcpy(g->Message, "Failed making selector");
 					return NULL;
 				}	// endif Selector

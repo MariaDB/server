@@ -6657,15 +6657,15 @@ lock_validate()
 	Release both mutexes during the validation check. */
 
 	for (ulint i = 0; i < hash_get_n_cells(lock_sys->rec_hash); i++) {
-		const lock_t*	lock;
 		ib_uint64_t	limit = 0;
 
-		while ((lock = lock_rec_validate(i, &limit)) != 0) {
-
-			ulint	space = lock->un_member.rec_lock.space;
-			ulint	page_no = lock->un_member.rec_lock.page_no;
-
-			pages.insert(std::make_pair(space, page_no));
+		while (const lock_t* lock = lock_rec_validate(i, &limit)) {
+			if (lock_rec_find_set_bit(lock) == ULINT_UNDEFINED) {
+				/* The lock bitmap is empty; ignore it. */
+				continue;
+			}
+			const lock_rec_t& l = lock->un_member.rec_lock;
+			pages.insert(std::make_pair(l.space, l.page_no));
 		}
 	}
 

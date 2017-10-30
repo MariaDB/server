@@ -203,12 +203,12 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
       // Data files can be imported from Windows (having CRLF)
       if (*p == '\n' || *p == '\r') {
         // is this enough for Unix ???
-        *p--;          // Eliminate ending CR or LF character
+        p--;          // Eliminate ending CR or LF character
 
         if (p >= filename)
           // is this enough for Unix ???
           if (*p == '\n' || *p == '\r')
-            *p--;    // Eliminate ending CR or LF character
+            p--;    // Eliminate ending CR or LF character
 
         } // endif p
 

@@ -1523,7 +1523,7 @@ static Sys_var_ulonglong Sys_max_heap_table_size(
        "max_heap_table_size",
        "Don't allow creation of heap tables bigger than this",
        SESSION_VAR(max_heap_table_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(16384, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
+       VALID_RANGE(16384, SIZE_T_MAX), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1024));
 
 static ulong mdl_locks_cache_size;
@@ -3138,7 +3138,7 @@ static const char *sql_mode_names[]=
   "STRICT_ALL_TABLES", "NO_ZERO_IN_DATE", "NO_ZERO_DATE",
   "ALLOW_INVALID_DATES", "ERROR_FOR_DIVISION_BY_ZERO", "TRADITIONAL",
   "NO_AUTO_CREATE_USER", "HIGH_NOT_PRECEDENCE", "NO_ENGINE_SUBSTITUTION",
-  "PAD_CHAR_TO_FULL_LENGTH",
+  "PAD_CHAR_TO_FULL_LENGTH", "EMPTY_STRING_IS_NULL",
   0
 };
 

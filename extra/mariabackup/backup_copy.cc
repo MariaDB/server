@@ -1707,7 +1707,8 @@ copy_back()
 	if it exists. */
 
 	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
-	if (!file_exists("ib_logfile0")) {
+	MY_STAT stat_arg;
+	if (!my_stat("ib_logfile0", &stat_arg, MYF(0)) || !stat_arg.st_size) {
 		/* After completed --prepare, redo log files are redundant.
 		We must delete any redo logs at the destination, so that
 		the database will not jump to a different log sequence number
@@ -1895,6 +1896,13 @@ decrypt_decompress_file(const char *filepath, uint thread_n)
 	 	if (system(cmd.str().c_str()) != 0) {
 	 		return(false);
 	 	}
+
+		if (opt_remove_original) {
+			msg_ts("[%02u] removing %s\n", thread_n, filepath);
+			if (my_delete(filepath, MYF(MY_WME)) != 0) {
+				return(false);
+			}
+		}
 	 }
 
  	return(true);

@@ -7675,8 +7675,11 @@ ER_SLAVE_SAME_ID
 ER_FLASHBACK_NOT_SUPPORTED
         eng "Flashback does not support %s %s"
 
-# MARIAROCKS-TODO: Should we add RocksDB error messages here or use some other
-# solution?
+
+
+# 
+# MyRocks error messages
+#
 ER_KEYS_OUT_OF_ORDER
   eng "Keys are out order during bulk load"
 
@@ -7710,38 +7713,39 @@ ER_UNSUPPORTED_COLLATION
 ER_METADATA_INCONSISTENCY
   eng "Table '%s' does not exist, but metadata information exists inside MyRocks. This is a sign of data inconsistency. Please check if '%s.frm' exists, and try to restore it if it does not exist."
 
+ER_CF_DIFFERENT
+  eng "Column family ('%s') flag (%d) is different from an existing flag (%d). Assign a new CF flag, or do not change existing CF flag."
+
+ER_RDB_TTL_DURATION_FORMAT
+  eng "TTL duration (%s) in MyRocks must be an unsigned non-null 64-bit integer."
+
+ER_RDB_STATUS_GENERAL
+        eng "Status error %d received from RocksDB: %s"
+
+ER_RDB_STATUS_MSG
+        eng "%s, Status error %d received from RocksDB: %s"
+
+ER_RDB_TTL_UNSUPPORTED
+  eng "TTL support is currently disabled when table has a hidden PK."
+
+ER_RDB_TTL_COL_FORMAT
+  eng "TTL column (%s) in MyRocks must be an unsigned non-null 64-bit integer, exist inside the table, and have an accompanying ttl duration."
+
+ER_PER_INDEX_CF_DEPRECATED
+  eng "The per-index column family option has been deprecated"
+
 ER_KEY_CREATE_DURING_ALTER
   eng "MyRocks failed creating new key definitions during alter."
 
 ER_SK_POPULATE_DURING_ALTER
   eng "MyRocks failed populating secondary key during alter."
 
-ER_CF_DIFFERENT
-  eng "Column family ('%s') flag (%d) is different from an existing flag (%d). Assign a new CF flag, or do not change existing CF flag."
-
-ER_RDB_STATUS_GENERAL
-  eng "Status error %d received from RocksDB: %s"
-
-ER_RDB_STATUS_MSG
-  eng "%s, Status error %d received from RocksDB: %s"
+# MyRocks messages end
+ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+  eng "Window functions can not be used as arguments to group functions."
 
 ER_NET_OK_PACKET_TOO_LARGE
   eng "OK packet too large"
-
-ER_RDB_TTL_UNSUPPORTED
-  eng "TTL support is currently disabled when table has secondary indexes or hidden PK."
-
-ER_RDB_TTL_COL_FORMAT
-  eng "TTL column (%s) in MyRocks must be an unsigned non-null 64-bit integer, exist inside the table, and have an accompanying ttl duration."
-
-ER_RDB_TTL_DURATION_FORMAT
-  eng "TTL duration (%s) in MyRocks must be an unsigned non-null 64-bit integer."
-
-ER_PER_INDEX_CF_DEPRECATED
-  eng "The per-index column family option has been deprecated"
-
-ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
-  eng "Window functions can not be used as arguments to group functions."
 
 ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
         eng "Illegal parameter data types %s and %s for operation '%s'"

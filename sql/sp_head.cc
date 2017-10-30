@@ -70,8 +70,12 @@ static void reset_start_time_for_sp(THD *thd)
 
 
 Item::Type
-sp_map_item_type(enum enum_field_types type)
+sp_map_item_type(const Type_handler *handler)
 {
+  if (handler == &type_handler_row)
+    return Item::ROW_ITEM;
+  enum_field_types type= real_type_to_type(handler->real_field_type());
+
   switch (type) {
   case MYSQL_TYPE_BIT:
   case MYSQL_TYPE_TINY:
@@ -994,7 +998,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   sp_rcontext *ctx= thd->spcont;
   bool err_status= FALSE;
   uint ip= 0;
-  ulonglong save_sql_mode;
+  sql_mode_t save_sql_mode;
   bool save_abort_on_warning;
   Query_arena *old_arena;
   /* per-instruction arena */
@@ -1444,7 +1448,7 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
                                       bool switch_security_ctx)
 {
   if (!(m_flags & HAS_COLUMN_TYPE_REFS))
-    return sp_rcontext::create(thd, m_pcont, ret_value, *defs);
+    return sp_rcontext::create(thd, this, m_pcont, ret_value, *defs);
   sp_rcontext *res= NULL;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx;
@@ -1453,7 +1457,7 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
     return NULL;
 #endif
   if (!defs->resolve_type_refs(thd))
-    res= sp_rcontext::create(thd, m_pcont, ret_value, *defs);
+    res= sp_rcontext::create(thd, this, m_pcont, ret_value, *defs);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (switch_security_ctx)
     m_security_ctx.restore_security_context(thd, save_security_ctx);
@@ -1590,9 +1594,6 @@ sp_head::execute_trigger(THD *thd,
     goto err_with_cleanup;
   }
 
-  /* Needed by slow log */
-  nctx->sp= this;
-
   thd->spcont= nctx;
 
   err_status= execute(thd, FALSE);
@@ -1712,9 +1713,6 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     this function call will be finished (e.g. in Item::cleanup()).
   */
   thd->restore_active_arena(&call_arena, &backup_arena);
-
-  /* Needed by slow log */
-  nctx->sp= this;
 
   /* Pass arguments. */
   for (arg_no= 0; arg_no < argcount; arg_no++)
@@ -1918,7 +1916,6 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       DBUG_RETURN(TRUE);
     }
 
-    octx->sp= 0;
     thd->spcont= octx;
 
     /* set callers_arena to thd, for upper-level function to work */
@@ -1931,7 +1928,6 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     thd->spcont= save_spcont;
     DBUG_RETURN(TRUE);
   }
-  nctx->sp= this;
 
   if (params > 0)
   {
@@ -2566,10 +2562,18 @@ bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access)
   *full_access= ((!check_table_access(thd, SELECT_ACL, &tables, FALSE,
                                      1, TRUE) &&
                   (tables.grant.privilege & SELECT_ACL) != 0) ||
+                 /* Check if user owns the routine. */
                  (!strcmp(sp->m_definer.user.str,
                           thd->security_ctx->priv_user) &&
                   !strcmp(sp->m_definer.host.str,
-                          thd->security_ctx->priv_host)));
+                          thd->security_ctx->priv_host)) ||
+                 /* Check if current role or any of the sub-granted roles
+                    own the routine. */
+                 (sp->m_definer.host.length == 0 &&
+                  (!strcmp(sp->m_definer.user.str,
+                           thd->security_ctx->priv_role) ||
+                   check_role_is_granted(thd->security_ctx->priv_role, NULL,
+                                         sp->m_definer.user.str))));
   if (!*full_access)
     return check_some_routine_access(thd, sp->m_db.str, sp->m_name.str,
                                      sp->m_handler);
@@ -4812,11 +4816,11 @@ bool sp_head::spvar_fill_row(THD *thd,
                              sp_variable *spvar,
                              Row_definition_list *defs)
 {
+  spvar->field_def.set_row_field_definitions(defs);
   spvar->field_def.field_name= spvar->name;
   if (fill_spvar_definition(thd, &spvar->field_def))
     return true;
   row_fill_field_definitions(thd, defs);
-  spvar->field_def.set_row_field_definitions(defs);
   return false;
 }
 

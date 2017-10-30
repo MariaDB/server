@@ -14,6 +14,9 @@ wsrep-causal-reads=ON
 wsrep-sync-wait=15
 
 [mysqld.1]
+#galera_port=@OPT.port
+#ist_port=@OPT.port
+#sst_port=@OPT.port
 wsrep-cluster-address='gcomm://'
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S'
 
