@@ -5365,8 +5365,9 @@ fallback:
 	if (is_sparse) {
 		bool success = !ftruncate(file, size);
 		if (!success) {
-			ib::error() << "ftruncate of file " << name <<
-				" to " << size << " bytes failed with error " << errno;
+			ib::error() << "ftruncate of file " << name << " to "
+				    << size << " bytes failed with error "
+				    << errno;
 		}
 		return(success);
 	}
@@ -5382,9 +5383,9 @@ fallback:
 		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
 	if (err) {
-		ib::error() <<
-			"preallocating " << size << " bytes for" <<
-			"file " << name << " failed with error " << err;
+		ib::error() << "preallocating "
+			    << size << " bytes for file " << name
+			    << " failed with error " << err;
 	}
 	errno = err;
 	return(!err);
