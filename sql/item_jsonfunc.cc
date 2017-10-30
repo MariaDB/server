@@ -1352,6 +1352,8 @@ longlong Item_func_json_contains_path::val_int()
     bzero(p_found, (arg_count-2) * sizeof(bool));
     n_found= arg_count - 2;
   }
+  else
+    n_found= 0; /* Jost to prevent 'uninitialized value' warnings */
 
   result= 0;
   while (json_get_path_next(&je, &p) == 0)
@@ -2058,7 +2060,7 @@ String *Item_func_json_merge::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   json_engine_t je1, je2;
-  String *js1= args[0]->val_json(&tmp_js1), *js2;
+  String *js1= args[0]->val_json(&tmp_js1), *js2=NULL;
   uint n_arg;
 
   if (args[0]->null_value)
