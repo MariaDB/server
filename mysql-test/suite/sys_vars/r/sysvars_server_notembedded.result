@@ -1962,7 +1962,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	10.000000
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Log all queries that have taken more than long_query_time seconds to execute to file. The argument will be treated as a decimal value with microsecond precision
+VARIABLE_COMMENT	Log all queries that have taken more than long_query_time seconds to execute to the slow query log file. The argument will be treated as a decimal value with microsecond precision
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	31536000
 NUMERIC_BLOCK_SIZE	NULL
