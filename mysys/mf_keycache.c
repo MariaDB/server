@@ -748,7 +748,6 @@ finish:
   SYNOPSIS
     finish_resize_simple_key_cache()
     keycache                pointer to the control block of a simple key cache		
-    acquire_lock            <=> acquire the key cache lock at start
 
   DESCRIPTION
     This function performs finalizing actions for the operation of 
@@ -756,8 +755,6 @@ finish:
     keycache as a pointer to the control block structure of the type
     SIMPLE_KEY_CACHE_CB for this key cache. The function sets the flag
     in_resize in this structure to FALSE.
-    The parameter acquire_lock says whether the key cache lock must be
-    acquired at the start of the function.
 
   RETURN VALUE
     none
@@ -791,17 +788,6 @@ void finish_resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache)
   DBUG_VOID_RETURN;
 }
 
-static
-void finish_resize_simple_key_cache_acquire(SIMPLE_KEY_CACHE_CB *keycache)
-{
-  DBUG_ENTER("finish_resize_simple_key_cache_acquire");
-
-  keycache_pthread_mutex_lock(&keycache->cache_lock);
-
-  finish_resize_simple_key_cache(keycache);
-
-  DBUG_VOID_RETURN;
-}
 
 /*
   Resize a simple key cache
@@ -2635,8 +2621,8 @@ restart:
 */
 
 static void read_block_primary(SIMPLE_KEY_CACHE_CB *keycache,
-                       BLOCK_LINK *block, uint read_length,
-                       uint min_length)
+                               BLOCK_LINK *block, uint read_length,
+                               uint min_length)
 {
   size_t got_length;
 
@@ -2703,7 +2689,7 @@ static void read_block_primary(SIMPLE_KEY_CACHE_CB *keycache,
 }
 
 static void read_block_secondary(SIMPLE_KEY_CACHE_CB *keycache,
-                       BLOCK_LINK *block)
+                                 BLOCK_LINK *block)
 {
   KEYCACHE_THREAD_TRACE("read_block_secondary");
 
@@ -2717,21 +2703,14 @@ static void read_block_secondary(SIMPLE_KEY_CACHE_CB *keycache,
     to assert this in the caller.
   */
   KEYCACHE_DBUG_PRINT("read_block_secondary",
-                    ("secondary request waiting for new page to be read"));
+                      ("secondary request waiting for new page to be read"));
+
   wait_on_queue(&block->wqueue[COND_FOR_REQUESTED], &keycache->cache_lock);
+
   KEYCACHE_DBUG_PRINT("read_block_secondary",
                       ("secondary request: new page in cache"));
 }
 
-static inline void read_block(SIMPLE_KEY_CACHE_CB *keycache,
-                       BLOCK_LINK *block, uint read_length,
-                       uint min_length, my_bool primary)
-{
-  if (primary)
-    read_block_primary(keycache, block, read_length, min_length);
-  else
-    read_block_secondary(keycache, block);
-}
 
 /*
   Read a block of data from a simple key cache into a buffer
@@ -2874,17 +2853,21 @@ uchar *simple_key_cache_read(SIMPLE_KEY_CACHE_CB *keycache,
       }
       if (!(block->status & BLOCK_ERROR))
       {
-        if (page_st != PAGE_READ)
+        if (page_st == PAGE_TO_BE_READ)
+        {
+          MYSQL_KEYCACHE_READ_MISS();
+          read_block_primary(keycache, block,
+                     keycache->key_cache_block_size, read_length+offset);
+        }
+        else if (page_st != PAGE_READ)
         {
           MYSQL_KEYCACHE_READ_MISS();
           /* The requested page is to be read into the block buffer */
-          read_block(keycache, block,
-                     keycache->key_cache_block_size, read_length+offset,
-                     (my_bool)(page_st == PAGE_TO_BE_READ));
+          read_block_secondary(keycache, block);
+
           /*
             A secondary request must now have the block assigned to the
-            requested file block. It does not hurt to check it for
-            primary requests too.
+            requested file block.
           */
           DBUG_ASSERT(keycache->can_be_used);
           DBUG_ASSERT(block->hash_link->file == file);
@@ -3093,23 +3076,32 @@ int simple_key_cache_insert(SIMPLE_KEY_CACHE_CB *keycache,
       }
       if (!(block->status & BLOCK_ERROR))
       {
-        if ((page_st == PAGE_WAIT_TO_BE_READ) ||
-            ((page_st == PAGE_TO_BE_READ) &&
-             (offset || (read_length < keycache->key_cache_block_size))))
+        if (page_st == PAGE_WAIT_TO_BE_READ)
         {
           /*
-            Either
-
             this is a secondary request for a block to be read into the
             cache. The block is in eviction. It is not yet assigned to
             the requested file block (It does not point to the right
             hash_link). So we cannot call remove_reader() on the block.
             And we cannot access the hash_link directly here. We need to
-            wait until the assignment is complete. read_block() executes
-            the correct wait when called with primary == FALSE.
+            wait until the assignment is complete. read_block_secondary()
+            executes the correct wait.
+          */
+          read_block_secondary(keycache, block);
 
-            Or
-
+          /*
+            A secondary request must now have the block assigned to the
+            requested file block.
+          */
+          DBUG_ASSERT(keycache->can_be_used);
+          DBUG_ASSERT(block->hash_link->file == file);
+          DBUG_ASSERT(block->hash_link->diskpos == filepos);
+          DBUG_ASSERT(block->status & (BLOCK_READ | BLOCK_IN_USE));
+        }
+        else if (page_st == PAGE_TO_BE_READ &&
+                 (offset || (read_length < keycache->key_cache_block_size)))
+        {
+          /*
             this is a primary request for a block to be read into the
             cache and the supplied data does not fill the whole block.
 
@@ -3124,17 +3116,8 @@ int simple_key_cache_insert(SIMPLE_KEY_CACHE_CB *keycache,
             Though reading again what the caller did read already is an
             expensive operation, we need to do this for correctness.
           */
-          read_block(keycache, block, keycache->key_cache_block_size,
-                     read_length + offset, (page_st == PAGE_TO_BE_READ));
-          /*
-            A secondary request must now have the block assigned to the
-            requested file block. It does not hurt to check it for
-            primary requests too.
-          */
-          DBUG_ASSERT(keycache->can_be_used);
-          DBUG_ASSERT(block->hash_link->file == file);
-          DBUG_ASSERT(block->hash_link->diskpos == filepos);
-          DBUG_ASSERT(block->status & (BLOCK_READ | BLOCK_IN_USE));
+          read_block_primary(keycache, block, keycache->key_cache_block_size,
+                             read_length + offset);
         }
         else if (page_st == PAGE_TO_BE_READ)
         {
@@ -3429,25 +3412,35 @@ int simple_key_cache_write(SIMPLE_KEY_CACHE_CB *keycache,
         reading the file block. If the read completes after us, it
         overwrites our new contents with the old contents. So we have to
         wait for the other thread to complete the read of this block.
-        read_block() takes care for the wait.
+        read_block_primary|secondary() takes care for the wait.
       */
-      if (!(block->status & BLOCK_ERROR) &&
-          ((page_st == PAGE_TO_BE_READ &&
-            (offset || read_length < keycache->key_cache_block_size)) ||
-           (page_st == PAGE_WAIT_TO_BE_READ)))
+      if (!(block->status & BLOCK_ERROR))
       {
-        read_block(keycache, block,
-                   offset + read_length >= keycache->key_cache_block_size?
-                   offset : keycache->key_cache_block_size,
-                   offset, (page_st == PAGE_TO_BE_READ));
-        DBUG_ASSERT(keycache->can_be_used);
-        DBUG_ASSERT(block->status & (BLOCK_READ | BLOCK_IN_USE));
-        /*
-          Prevent block from flushing and from being selected for to be
-          freed. This must be set when we release the cache_lock.
-          Here we set it in case we could not set it above.
-        */
-        block->status|= BLOCK_FOR_UPDATE;
+        if (page_st == PAGE_TO_BE_READ &&
+            (offset || read_length < keycache->key_cache_block_size))
+        {
+          read_block_primary(keycache, block,
+                             offset + read_length >= keycache->key_cache_block_size?
+                             offset : keycache->key_cache_block_size,
+                             offset);
+          /*
+            Prevent block from flushing and from being selected for to be
+            freed. This must be set when we release the cache_lock.
+            Here we set it in case we could not set it above.
+          */
+          block->status|= BLOCK_FOR_UPDATE;
+
+          DBUG_ASSERT(keycache->can_be_used);
+          DBUG_ASSERT(block->status & (BLOCK_READ | BLOCK_IN_USE));
+        }
+        else if (page_st == PAGE_WAIT_TO_BE_READ)
+        {
+          read_block_secondary(keycache, block);
+          block->status|= BLOCK_FOR_UPDATE;
+
+          DBUG_ASSERT(keycache->can_be_used);
+          DBUG_ASSERT(block->status & (BLOCK_READ | BLOCK_IN_USE));
+        }
       }
       /*
         The block should always be assigned to the requested file block
@@ -5293,7 +5286,8 @@ int resize_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
   {
     for (i= 0; i < partitions; i++)
     {
-      finish_resize_simple_key_cache_acquire(keycache->partition_array[i]);
+      keycache_pthread_mutex_lock(&keycache->partition_array[i]->cache_lock);
+      finish_resize_simple_key_cache(keycache->partition_array[i]);
     }
   }
   DBUG_RETURN(blocks);
