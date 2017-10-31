@@ -1,0 +1,1 @@
+innodb_virtual_debug_purge : MDEV-13568 should purge yield to LOCK TABLES?
