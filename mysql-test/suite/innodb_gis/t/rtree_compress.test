@@ -3,9 +3,8 @@
 
 # Not supported in embedded
 --source include/not_embedded.inc
+--source include/innodb_page_size_small.inc
 
---source include/have_innodb.inc
---source include/have_innodb_zip.inc
 --source include/have_debug.inc
 --source include/big_test.inc
 # Valgrind takes too much time on PB2 even in the --big-test runs.
