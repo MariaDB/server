@@ -7,6 +7,8 @@
 --source include/not_valgrind.inc
 --source include/not_embedded.inc
 --source include/not_crashrep.inc
+--source include/not_log_bin.inc
+--source include/count_sessions.inc
 
 connect (con1,localhost,root,,);
 connection default;
@@ -44,6 +46,7 @@ SELECT * FROM t1 WHERE MATCH(title) AGAINST('mysql database');
 SET DEBUG_SYNC= 'now SIGNAL selected';
 
 connection con1;
+--echo /* connection con1 */ INSERT INTO t1(title) VALUES('mysql database');
 --reap
 
 SET @old_dbug = @@SESSION.debug_dbug;

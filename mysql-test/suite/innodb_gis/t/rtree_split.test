@@ -95,6 +95,7 @@ select count(*) from t1 where MBRWithin(t1.c2, @g1);
 set @g1 = ST_GeomFromText('Polygon((2 2,2 800,800 800,800 2,2 2))');
 select count(*) from t1 where MBRWithin(t1.c2, @g1);
 
+# Here we are unsetting all previous options
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 
