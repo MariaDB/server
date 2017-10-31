@@ -138,7 +138,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
 
 	if (trace > 1)
 		htrc("PlugInit: Language='%s'\n",
-		((!Language) ? "Null" : (char*)Language));
+			((!Language) ? "Null" : (char*)Language));
 
 	try {
 		g = new GLOBAL;
@@ -160,13 +160,11 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
 	/*******************************************************************/
 	/*  Allocate the main work segment.                                */
 	/*******************************************************************/
-	if (worksize && !(g->Sarea = PlugAllocMem(g, worksize))) {
+	if (worksize && AllocSarea(g, worksize)) {
 		char errmsg[MAX_STR];
 		sprintf(errmsg, MSG(WORK_AREA), g->Message);
 		strcpy(g->Message, errmsg);
-		g->Sarea_Size = 0;
-	} else
-		g->Sarea_Size = worksize;
+	} // endif Sarea
 
 	g->jump_level = -1;   /* New setting to allow recursive call of Plug */
 	return(g);
@@ -183,15 +181,7 @@ int PlugExit(PGLOBAL g)
 		if (dup)
 			free(dup);
 
-		if (g->Sarea) {
-#if !defined(DEVELOPMENT)
-			if (trace)
-#endif
-				htrc("Freeing Sarea at %p size=%d\n", g->Sarea, g->Sarea_Size);
-
-			free(g->Sarea);
-		}	// endif Sarea
-
+		FreeSarea(g);
 		delete g;
 	}	// endif g
 
@@ -459,30 +449,65 @@ short GetLineLength(PGLOBAL g)
 /***********************************************************************/
 /*  Program for memory allocation of work and language areas.          */
 /***********************************************************************/
-void *PlugAllocMem(PGLOBAL g, uint size)
+bool AllocSarea(PGLOBAL g, uint size)
 {
-  void *areap;                     /* Pointer to allocated area        */
-
   /*********************************************************************/
   /*  This is the allocation routine for the WIN32/UNIX/AIX version.   */
   /*********************************************************************/
-  if (!(areap = malloc(size)))
-    sprintf(g->Message, MSG(MALLOC_ERROR), "malloc");
+#if defined(__WIN__)
+	if (size >= 1048576)			 // 1M
+		g->Sarea = VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	else
+#endif
+		g->Sarea = malloc(size);
+
+	if (!g->Sarea) {
+		sprintf(g->Message, MSG(MALLOC_ERROR), "malloc");
+		g->Sarea_Size = 0;
+	}	else
+		g->Sarea_Size = size;
 
 #if defined(DEVELOPMENT)
 	if (true) {
 #else
 	if (trace) {
 #endif
-    if (areap)
-      htrc("Memory of %u allocated at %p\n", size, areap);
+    if (g->Sarea)
+      htrc("Work area of %u allocated at %p\n", size, g->Sarea);
     else
-      htrc("PlugAllocMem: %s\n", g->Message);
+      htrc("SareaAlloc: %s\n", g->Message);
 
   } // endif trace
 
-  return (areap);
-} // end of PlugAllocMem
+  return (!g->Sarea);
+} // end of AllocSarea
+
+/***********************************************************************/
+/*  Program for memory freeing the work area.                          */
+/***********************************************************************/
+void FreeSarea(PGLOBAL g)
+{
+	if (g->Sarea) {
+#if defined(__WIN__)
+		if (g->Sarea_Size >= 1048576)			 // 1M
+			VirtualFree(g->Sarea, 0, MEM_RELEASE);
+		else
+#endif
+			free(g->Sarea);
+
+#if defined(DEVELOPMENT)
+		if (true)
+#else
+		if (trace)
+#endif
+			htrc("Freeing Sarea at %p size = %d\n", g->Sarea, g->Sarea_Size);
+
+		g->Sarea = NULL;
+		g->Sarea_Size = 0;
+	} // endif Sarea
+
+	return;
+} // end of FreeSarea
 
 /***********************************************************************/
 /*  Program for SubSet initialization of memory pools.                 */
