@@ -1693,7 +1693,6 @@ Item_func_now::Item_func_now(THD *thd, uint dec) :
   last_query_id(0)
 {
     decimals= dec;
-    maybe_null= true;
 }
 
 
