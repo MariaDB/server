@@ -134,7 +134,7 @@ SET @create_innodb_index_stats="CREATE TABLE IF NOT EXISTS innodb_index_stats (
 SET @create_vtmd_template="CREATE OR REPLACE TABLE vtmd_template (
 	start		BIGINT UNSIGNED GENERATED ALWAYS AS ROW START	COMMENT 'TRX_ID of table lifetime start',
 	end		BIGINT UNSIGNED GENERATED ALWAYS AS ROW END	COMMENT 'TRX_ID of table lifetime end',
-	name		VARCHAR(64) NOT NULL				COMMENT 'Table name during period [start, end)',
+	name		VARCHAR(64) NOT NULL				COMMENT 'Table name during current lifetime period',
 	archive_name	VARCHAR(64) NULL				COMMENT 'Name of archive table',
 	col_renames	BLOB						COMMENT 'Column name mappings from previous lifetime',
 	PERIOD FOR SYSTEM_TIME(start, end),

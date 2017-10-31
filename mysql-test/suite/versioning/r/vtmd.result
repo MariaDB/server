@@ -66,7 +66,7 @@ Table	Create Table
 t0_vtmd	CREATE TABLE `t0_vtmd` (
   `start` bigint(20) unsigned GENERATED ALWAYS AS ROW START COMMENT 'TRX_ID of table lifetime start',
   `end` bigint(20) unsigned GENERATED ALWAYS AS ROW END NOT NULL COMMENT 'TRX_ID of table lifetime end',
-  `name` varchar(64) COLLATE utf8_bin NOT NULL COMMENT 'Table name during period [start, end)',
+  `name` varchar(64) COLLATE utf8_bin NOT NULL COMMENT 'Table name during current lifetime period',
   `archive_name` varchar(64) COLLATE utf8_bin DEFAULT NULL COMMENT 'Name of archive table',
   `col_renames` blob DEFAULT NULL COMMENT 'Column name mappings from previous lifetime',
   PRIMARY KEY (`end`),
