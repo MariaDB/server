@@ -1,3 +1,4 @@
+#
 if (`select plugin_auth_version < "5.6.26" from information_schema.plugins where plugin_name='innodb'`)
 {
   --skip Not fixed in XtraDB below 5.6.26
