@@ -2167,7 +2167,7 @@ row_ins_scan_sec_index_for_duplicate(
 	bool		s_latch,/*!< in: whether index->lock is being held */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
 	mem_heap_t*	offsets_heap,
-	trx_t*		trx = 0)
+	trx_t*		trx)
 				/*!< in/out: memory heap that can be emptied */
 {
 	ulint		n_unique;
@@ -2179,13 +2179,8 @@ row_ins_scan_sec_index_for_duplicate(
 	ulint*		offsets		= NULL;
 	DBUG_ENTER("row_ins_scan_sec_index_for_duplicate");
 
-
-	ut_ad(thr || (trx && flags & BTR_NO_LOCKING_FLAG));
-	if (!trx)
-		trx = thr_get_trx(thr);
-
 	ut_ad(s_latch == rw_lock_own_flagged(
-			&index->lock, RW_LOCK_FLAG_S | RW_LOCK_FLAG_SX));
+		      &index->lock, RW_LOCK_FLAG_S | RW_LOCK_FLAG_SX));
 
 	n_unique = dict_index_get_n_unique(index);
 
@@ -3016,7 +3011,8 @@ row_ins_sec_index_entry_low(
 
 	cursor.thr = thr;
 	cursor.rtr_info = NULL;
-	ut_ad(trx && trx->id != 0 || thr_get_trx(thr)->id != 0);
+	ut_ad(trx);
+	ut_ad(trx->id != 0);
 
 	mtr_start(&mtr);
 	mtr.set_named_space(index->space);
