@@ -902,7 +902,7 @@ then
 
 
         wsrep_log_info "Cleaning the existing datadir and innodb-data/log directories"
-        if [[ $OS == "FreeBSD ]]; then
+        if [[ $OS == "FreeBSD" ]]; then
             find -E $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1  -regex $cpat  -prune  -o -exec rm -rfv {} 1>&2 \+
         else
             find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1  -regex $cpat  -prune  -o -exec rm -rfv {} 1>&2 \+
