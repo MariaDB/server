@@ -1001,7 +1001,7 @@ find_files(THD *thd, Dynamic_array<LEX_CSTRING*> *files, LEX_CSTRING *db,
     if (ha_discover_table_names(thd, db, dirp, &tl, false))
       goto err;
   }
-#if 1 // TODO: MDEV-13049: #if MYSQL_VERSION_ID < 100300
+#if MYSQL_VERSION_ID < 100300
   /* incomplete optimization, but a less drastic change in GA version */
   if (!thd->lex->select_lex.order_list.elements &&
       !thd->lex->select_lex.group_list.elements)
@@ -1009,6 +1009,17 @@ find_files(THD *thd, Dynamic_array<LEX_CSTRING*> *files, LEX_CSTRING *db,
   if (is_show_command(thd))
 #endif
     tl.sort();
+#ifndef DBUG_OFF
+  else
+  {
+    /*
+      sort_desc() is used to find easier unstable mtr tests that query
+      INFORMATION_SCHEMA.{SCHEMATA|TABLES} without a proper ORDER BY.
+      This can be removed in some release after 10.3 (e.g. in 10.4).
+    */
+    tl.sort_desc();
+  }
+#endif
 
   DBUG_PRINT("info",("found: %zu files", files->elements()));
   my_dirend(dirp);

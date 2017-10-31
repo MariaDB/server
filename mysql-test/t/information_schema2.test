@@ -15,5 +15,5 @@ create table t2 (x int);
 create table t3 (x int);
 create table t4 AS select table_name from information_schema.TABLES where table_schema = database() and table_type = 'BASE TABLE' ;
 delete from t4 where table_name not in (select table_name from information_schema.TABLES where table_schema = database() and table_type = 'BASE TABLE');
-select * from t4;
+select * from t4 order by table_name;
 drop table t1, t2, t3, t4;

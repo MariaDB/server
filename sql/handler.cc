@@ -5173,6 +5173,13 @@ static int cmp_table_names(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
                                        (uchar*)((*b)->str), (*b)->length);
 }
 
+#ifndef DBUG_OFF
+static int cmp_table_names_desc(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
+{
+  return -cmp_table_names(a, b);
+}
+#endif
+
 }
 
 Discovered_table_list::Discovered_table_list(THD *thd_arg,
@@ -5224,6 +5231,15 @@ void Discovered_table_list::sort()
 {
   tables->sort(cmp_table_names);
 }
+
+
+#ifndef DBUG_OFF
+void Discovered_table_list::sort_desc()
+{
+  tables->sort(cmp_table_names_desc);
+}
+#endif
+
 
 void Discovered_table_list::remove_duplicates()
 {

@@ -1491,6 +1491,7 @@ SHOW CREATE TABLE information_schema.spatial_ref_sys;
 
 create table t1(g GEOMETRY, pt POINT);
 create table t2(g LINESTRING, pl POLYGON);
+--sorted_result
 select * from information_schema.geometry_columns where f_table_schema='test';
 drop table t1, t2;
 

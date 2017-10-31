@@ -2,7 +2,7 @@ install soname 'ha_blackhole';
 install soname 'ha_archive';
 create table t1 (a int) engine=blackhole;
 create table t2 (a int) engine=archive;
-select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test';
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
 table_catalog	def
 table_schema	test
 table_name	t1
@@ -12,6 +12,7 @@ row_format	Fixed
 table_rows	0
 data_length	0
 table_comment	
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
 table_catalog	def
 table_schema	test
 table_name	t2
@@ -24,7 +25,7 @@ table_comment
 flush tables;
 uninstall plugin blackhole;
 uninstall plugin archive;
-select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test';
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
 table_catalog	def
 table_schema	test
 table_name	t1
@@ -34,6 +35,11 @@ row_format	NULL
 table_rows	NULL
 data_length	NULL
 table_comment	Unknown storage engine 'BLACKHOLE'
+Warnings:
+Level	Warning
+Code	1286
+Message	Unknown storage engine 'BLACKHOLE'
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
 table_catalog	def
 table_schema	test
 table_name	t2
@@ -44,9 +50,6 @@ table_rows	NULL
 data_length	NULL
 table_comment	Unknown storage engine 'ARCHIVE'
 Warnings:
-Level	Warning
-Code	1286
-Message	Unknown storage engine 'BLACKHOLE'
 Level	Warning
 Code	1286
 Message	Unknown storage engine 'ARCHIVE'
@@ -109,7 +112,7 @@ Error    : Unknown storage engine 'ARCHIVE'
 error    : Corrupt
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
-select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test';
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
 table_catalog	def
 table_schema	test
 table_name	t1
@@ -119,6 +122,11 @@ row_format	NULL
 table_rows	NULL
 data_length	NULL
 table_comment	Unknown storage engine 'BLACKHOLE'
+Warnings:
+Level	Warning
+Code	1286
+Message	Unknown storage engine 'BLACKHOLE'
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
 table_catalog	def
 table_schema	test
 table_name	t2
@@ -129,9 +137,6 @@ table_rows	NULL
 data_length	NULL
 table_comment	Unknown storage engine 'ARCHIVE'
 Warnings:
-Level	Warning
-Code	1286
-Message	Unknown storage engine 'BLACKHOLE'
 Level	Warning
 Code	1286
 Message	Unknown storage engine 'ARCHIVE'
@@ -195,7 +200,7 @@ Error    : Unknown storage engine 'ARCHIVE'
 error    : Corrupt
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
-select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test';
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
 table_catalog	def
 table_schema	test
 table_name	t1
@@ -205,6 +210,11 @@ row_format	NULL
 table_rows	NULL
 data_length	NULL
 table_comment	Unknown storage engine 'BLACKHOLE'
+Warnings:
+Level	Warning
+Code	1286
+Message	Unknown storage engine 'BLACKHOLE'
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
 table_catalog	def
 table_schema	test
 table_name	t2
@@ -215,9 +225,6 @@ table_rows	NULL
 data_length	NULL
 table_comment	Unknown storage engine 'ARCHIVE'
 Warnings:
-Level	Warning
-Code	1286
-Message	Unknown storage engine 'BLACKHOLE'
 Level	Warning
 Code	1286
 Message	Unknown storage engine 'ARCHIVE'
@@ -256,8 +263,8 @@ mysql.user                                         OK
 Upgrading from a version before MariaDB-10.1
 Phase 2/7: Installing used storage engines
 Checking for tables with unknown storage engine
-installing plugin for 'blackhole' storage engine
 installing plugin for 'archive' storage engine
+installing plugin for 'blackhole' storage engine
 Phase 3/7: Fixing views
 Phase 4/7: Running 'mysql_fix_privilege_tables'
 Phase 5/7: Fixing table and database names
@@ -273,7 +280,7 @@ test.t1                                            OK
 test.t2                                            OK
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
-select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test';
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
 table_catalog	def
 table_schema	test
 table_name	t1
@@ -283,6 +290,7 @@ row_format	Fixed
 table_rows	0
 data_length	0
 table_comment	
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
 table_catalog	def
 table_schema	test
 table_name	t2

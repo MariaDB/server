@@ -2800,8 +2800,8 @@ CREATE TABLE t1 (db VARCHAR(64) DEFAULT NULL);
 INSERT INTO t1 VALUES ('mysql'),('information_schema');
 SELECT * FROM t1 WHERE db IN (SELECT `SCHEMA_NAME` FROM information_schema.SCHEMATA);
 db
-mysql
 information_schema
+mysql
 DROP TABLE t1;
 #
 # MDEV-5581: Server crashes in in JOIN::prepare on 2nd execution of PS with materialization+semijoin

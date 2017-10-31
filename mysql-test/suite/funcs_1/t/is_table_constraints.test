@@ -68,8 +68,8 @@ eval SHOW COLUMNS FROM information_schema.$is_table;
 SELECT constraint_catalog, constraint_schema, constraint_name,
        table_schema, table_name
 FROM information_schema.table_constraints
-WHERE constraint_catalog IS NOT NULL;
-
+WHERE constraint_catalog IS NOT NULL
+ORDER BY constraint_schema, table_name, constraint_name;
 
 --echo #########################################################################################
 --echo # Testcase 3.2.7.2 + 3.2.7.3: INFORMATION_SCHEMA.TABLE_CONSTRAINTS accessible information

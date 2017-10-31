@@ -72,14 +72,14 @@ create function f2 () returns int return (select max(i) from t2);
 create view v2 as select f2();
 drop table t2;
 select table_name, table_type, table_comment from information_schema.tables
-where table_schema='test';
+where table_schema='test' order by table_name;
 table_name	table_type	table_comment
 t1	BASE TABLE	
 v1	VIEW	VIEW
 v2	VIEW	VIEW
 drop table t1;
 select table_name, table_type, table_comment from information_schema.tables
-where table_schema='test';
+where table_schema='test' order by table_name;
 table_name	table_type	table_comment
 v1	VIEW	VIEW
 v2	VIEW	VIEW

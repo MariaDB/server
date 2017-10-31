@@ -16,7 +16,7 @@ test
 show create database db;
 ERROR 42000: Access denied for user 'beep'@'localhost' to database 'db'
 select table_schema, table_name from information_schema.tables
-where table_schema = 'db';
+where table_schema = 'db' order by table_name;
 table_schema	table_name
 set role r1;
 show databases;
@@ -28,7 +28,7 @@ show create database db;
 Database	Create Database
 db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 */
 select table_schema, table_name from information_schema.tables
-where table_schema = 'db';
+where table_schema = 'db' order by table_name;
 table_schema	table_name
 db	t1
 db	t2
@@ -45,7 +45,7 @@ test
 show create database db;
 ERROR 42000: Access denied for user 'beep2'@'localhost' to database 'db'
 select table_schema, table_name from information_schema.tables
-where table_schema = 'db';
+where table_schema = 'db' order by table_name;
 table_schema	table_name
 set role r2;
 show databases;
@@ -57,7 +57,7 @@ show create database db;
 Database	Create Database
 db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 */
 select table_schema, table_name from information_schema.tables
-where table_schema = 'db';
+where table_schema = 'db' order by table_name;
 table_schema	table_name
 db	t1
 db	t2

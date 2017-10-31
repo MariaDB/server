@@ -128,13 +128,15 @@ ENGINE = <engine_type>;
 DROP   USER 'testuser1'@'localhost';
 CREATE USER 'testuser1'@'localhost';
 SELECT * FROM information_schema.views
-WHERE table_name LIKE 't1_%';
+WHERE table_name LIKE 't1_%'
+ORDER BY table_schema, table_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
 CREATE VIEW test.t1_view AS SELECT DISTINCT f1 FROM test.t1_table;
 CREATE ALGORITHM=MERGE VIEW test.t1_view1 AS SELECT f1 FROM test.t1_table;
 CREATE ALGORITHM=TEMPTABLE VIEW test.t1_view2 AS SELECT f1 FROM test.t1_table;
 SELECT * FROM information_schema.views
-WHERE table_name LIKE 't1_%';
+WHERE table_name LIKE 't1_%'
+ORDER BY table_schema, table_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
 def	test	t1_view	select distinct `test`.`t1_table`.`f1` AS `f1` from `test`.`t1_table`	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
 def	test	t1_view1	select `test`.`t1_table`.`f1` AS `f1` from `test`.`t1_table`	NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	MERGE

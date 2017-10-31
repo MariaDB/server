@@ -286,9 +286,11 @@ CREATE VIEW db_datadict.v2 AS
 SELECT TABLE_SCHEMA,TABLE_NAME,TABLE_TYPE
 FROM information_schema.tables WHERE table_schema = 'db_datadict';
 SELECT TABLE_SCHEMA,TABLE_NAME,TABLE_TYPE
-FROM db_datadict.v2;
+FROM db_datadict.v2
+ORDER BY TABLE_NAME;
 SELECT TABLE_SCHEMA,TABLE_NAME,TABLE_TYPE
-FROM information_schema.tables WHERE table_schema = 'db_datadict';
+FROM information_schema.tables WHERE table_schema = 'db_datadict'
+ORDER BY TABLE_NAME;
 GRANT SELECT ON db_datadict.v2 to testuser2@localhost;
 #
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK

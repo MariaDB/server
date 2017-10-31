@@ -32,7 +32,9 @@ create user mysqltest_3@localhost;
 create user mysqltest_3;
 
 
+--sorted_result
 select * from information_schema.SCHEMATA where schema_name > 'm';
+--sorted_result
 select schema_name from information_schema.schemata;
 show databases like 't%';
 show databases;
@@ -71,6 +73,7 @@ select c, v2.table_name from v1
 right join information_schema.TABLES v2 on (v1.c=v2.table_name)
 where v1.c like "t%";
 
+--sorted_result
 select table_name from information_schema.TABLES
 where table_schema = "mysqltest" and table_name like "t%";
 
@@ -206,6 +209,7 @@ show create procedure sel2;
 # Test for views
 #
 create view v0 (c) as select schema_name from information_schema.schemata;
+--sorted_result
 select * from v0;
 --replace_column 3 #
 explain select * from v0;
@@ -222,6 +226,7 @@ create view v4 (c) as select COLLATION_NAME from information_schema.collations
 where COLLATION_NAME like "latin1%";
 select * from v4;
 show keys from v4;
+--sorted_result
 select * from information_schema.views where TABLE_NAME like "v%";
 drop view v0, v1, v2, v3, v4;
 
@@ -273,6 +278,7 @@ create table t1(a int);
 create view v1 (c) as select a from t1 with check option;
 create view v2 (c) as select a from t1 WITH LOCAL CHECK OPTION;
 create view v3 (c) as select a from t1 WITH CASCADED CHECK OPTION;
+--sorted_result
 select * from information_schema.views;
 grant select (a) on test.t1 to joe@localhost with grant option;
 select * from INFORMATION_SCHEMA.COLUMN_PRIVILEGES;
@@ -316,6 +322,7 @@ drop table t1;
 
 create table t1 (s1 int);
 insert into t1 values (0),(9),(0);
+--sorted_result
 select s1 from t1 where s1 in (select version from
 information_schema.tables) union select version from
 information_schema.tables;
@@ -408,12 +415,18 @@ create view v3 (c) as select sub1(1);
 create table t4(f1 int, KEY f1_key (f1));
 drop table t1;
 drop function sub1;
+--sorted_result
 select table_name from information_schema.views
 where table_schema='test';
+--sorted_result
 select table_name from information_schema.views
 where table_schema='test';
 select column_name from information_schema.columns
-where table_schema='test';
+where table_schema='test' and table_name='t4';
+select column_name from information_schema.columns
+where table_schema='test' and table_name='v2';
+select column_name from information_schema.columns
+where table_schema='test' and table_name='v3';
 select index_name from information_schema.statistics where table_schema='test';
 select constraint_name from information_schema.table_constraints
 where table_schema='test';
@@ -503,9 +516,11 @@ drop table t_crashme;
 #
 select table_schema,table_name, column_name from
 information_schema.columns
-where data_type = 'longtext' and table_schema != 'performance_schema';
+where data_type = 'longtext' and table_schema != 'performance_schema'
+order by binary table_name, ordinal_position;
 select table_name, column_name, data_type from information_schema.columns
-where data_type = 'datetime' and table_name not like 'innodb_%';
+where data_type = 'datetime' and table_name not like 'innodb_%'
+order by binary table_name, ordinal_position;
 
 #
 # Bug#8164 subquery with INFORMATION_SCHEMA.COLUMNS, 100 % CPU
@@ -870,7 +885,7 @@ connect (con16681,localhost,mysqltest_1,,test);
 connection con16681;
 
 select * from information_schema.views
-where table_name='v1' or table_name='v2';
+where table_name='v1' or table_name='v2' order by table_name;
 connection default;
 disconnect con16681;
 drop view v1, v2;
@@ -884,7 +899,7 @@ set @a:= '.';
 create table t1(f1 char(5));
 create table t2(f1 char(5));
 select concat(@a, table_name), @a, table_name
-from information_schema.tables where table_schema = 'test';
+from information_schema.tables where table_schema = 'test' order by table_name;
 drop table t1,t2;
 
 
@@ -996,7 +1011,8 @@ create table t2 (f1 int(11), f2 int(11));
 select table_name from information_schema.tables
 where table_schema = 'test' and table_name not in
 (select table_name from information_schema.columns
- where table_schema = 'test' and column_name = 'f3');
+ where table_schema = 'test' and column_name = 'f3')
+order by table_name;
 drop table t1,t2;
 
 
@@ -1007,7 +1023,7 @@ create table t1(f1 int);
 create view v1 as select f1+1 as a from t1;
 create table t2 (f1 int, f2 int);
 create view v2 as select f1+1 as a, f2 as b from t2;
-select table_name, is_updatable from information_schema.views;
+select table_name, is_updatable from information_schema.views order by table_name;
 #
 # Note: we can perform 'delete' for non updatable view.
 #
@@ -1507,9 +1523,9 @@ let $wait_condition=
 --source include/wait_condition.inc
 --echo # These statements should not be blocked by pending lock requests
 select table_name, column_name, data_type from information_schema.columns
-  where table_schema = 'test' and table_name in ('t1', 't2');
+  where table_schema = 'test' and table_name in ('t1', 't2') order by table_name, column_name;
 select table_name, auto_increment from information_schema.tables
-  where table_schema = 'test' and table_name in ('t1', 't2');
+  where table_schema = 'test' and table_name in ('t1', 't2') order by table_name;
 connection con3726_1;
 unlock tables;
 connection con3726_2;
@@ -1671,14 +1687,14 @@ let $wait_condition=
 
 --echo # Issue query to I_S which will open 't0' and get
 --echo # blocked on 't1' because of RENAME.
---send select table_name, auto_increment from information_schema.tables where table_schema='mysqltest'
+--send select table_name, auto_increment from information_schema.tables where table_schema='mysqltest' and table_name='t0' union select table_name, auto_increment from information_schema.tables where table_schema='mysqltest' and table_name<>'t0' order by table_name
 
 connect (con12828477_3, localhost, root,,mysqltest);
 --echo # Wait while the above SELECT is blocked.
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = "Waiting for table metadata lock" and
-        info = "select table_name, auto_increment from information_schema.tables where table_schema='mysqltest'";
+        info like '%t0%union%t0%';
 --source include/wait_condition.inc
 
 --echo #
