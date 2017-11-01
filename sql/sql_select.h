@@ -1464,6 +1464,8 @@ public:
     ordered_index_usage= ordered_index_void;
     need_distinct= 0;
     skip_sort_order= 0;
+    with_two_phase_optimization= 0;
+    is_for_splittable_grouping_derived= 0;
     need_tmp= 0;
     hidden_group_fields= 0; /*safety*/
     error= 0;
