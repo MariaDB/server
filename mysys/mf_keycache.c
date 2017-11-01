@@ -2686,6 +2686,7 @@ static void read_block_primary(SIMPLE_KEY_CACHE_CB *keycache,
   /* Signal that all pending requests for this page now can be processed */
   release_whole_queue(&block->wqueue[COND_FOR_REQUESTED]);
 
+  DBUG_ASSERT(keycache->can_be_used);
 }
 
 static void read_block_secondary(SIMPLE_KEY_CACHE_CB *keycache,
@@ -2709,6 +2710,9 @@ static void read_block_secondary(SIMPLE_KEY_CACHE_CB *keycache,
 
   KEYCACHE_DBUG_PRINT("read_block_secondary",
                       ("secondary request: new page in cache"));
+
+  DBUG_ASSERT(keycache->can_be_used);
+  DBUG_ASSERT(block->status & (BLOCK_READ | BLOCK_IN_USE));
 }
 
 
@@ -3429,17 +3433,11 @@ int simple_key_cache_write(SIMPLE_KEY_CACHE_CB *keycache,
             Here we set it in case we could not set it above.
           */
           block->status|= BLOCK_FOR_UPDATE;
-
-          DBUG_ASSERT(keycache->can_be_used);
-          DBUG_ASSERT(block->status & (BLOCK_READ | BLOCK_IN_USE));
         }
         else if (page_st == PAGE_WAIT_TO_BE_READ)
         {
           read_block_secondary(keycache, block);
           block->status|= BLOCK_FOR_UPDATE;
-
-          DBUG_ASSERT(keycache->can_be_used);
-          DBUG_ASSERT(block->status & (BLOCK_READ | BLOCK_IN_USE));
         }
       }
       /*
