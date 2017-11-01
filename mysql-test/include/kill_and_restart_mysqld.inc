@@ -1,6 +1,6 @@
 if (!$restart_parameters)
 {
-  let $restart_parameters = restart;
+  let $restart_parameters = 
 }
 
 --let $_server_id= `SELECT @@server_id`

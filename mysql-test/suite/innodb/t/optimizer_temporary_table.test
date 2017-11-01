@@ -30,7 +30,7 @@ let $wl6737_auto_inc = auto_increment;
 #
 # Workload in non-read-only mode.
 #
-let $restart_parameters = restart: --big-tables=1;
+let $restart_parameters = : --big-tables=1;
 --source include/restart_mysqld.inc
 
 --source suite/innodb/include/query_workload_itt.inc
@@ -39,12 +39,12 @@ let $restart_parameters = restart: --big-tables=1;
 #
 # Workload in read-only mode.
 #
-let $restart_parameters = restart: --innodb-read-only --big-tables=1;
+let $restart_parameters = : --innodb-read-only --big-tables=1;
 --source include/restart_mysqld.inc
 
 --source suite/innodb/include/query_workload_itt.inc
 
-let $restart_parameters = restart;
+let $restart_parameters = 
 --source include/restart_mysqld.inc
 
 #-----------------------------------------------------------------------------

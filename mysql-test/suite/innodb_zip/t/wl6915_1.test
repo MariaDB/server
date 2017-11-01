@@ -1,5 +1,4 @@
---source include/have_innodb.inc
---source include/have_innodb_zip.inc
+--source include/innodb_page_size_small.inc
 --source include/have_no_undo_tablespaces.inc
 --source include/big_test.inc
 
@@ -517,7 +516,7 @@ connection default;
 #
 ## trying with VALUES innodb_undo_tablespaces, innodb_rollback_segments, innodb_log_files_in_group
 ##
-let $restart_parameters = restart: --innodb_undo_tablespaces=0 --innodb_rollback_segments=20 --innodb_rollback_segments=20 --innodb_log_files_in_group=4;
+let $restart_parameters = : --innodb_undo_tablespaces=0 --innodb_rollback_segments=20 --innodb_rollback_segments=20 --innodb_log_files_in_group=4;
 --source include/restart_mysqld.inc
 
 # Create two client for concurrent execution
@@ -574,7 +573,7 @@ disconnect con2;
 
 connection default;
 # innodb_rollback_segments > non redo rsegment
-let $restart_parameters = restart: --innodb_undo_tablespaces=0 --innodb_rollback_segments=30 --innodb_rollback_segments=20 --innodb_log_files_in_group=4;
+let $restart_parameters = : --innodb_undo_tablespaces=0 --innodb_rollback_segments=30 --innodb_rollback_segments=20 --innodb_log_files_in_group=4;
 --source include/restart_mysqld.inc
 
 connect (con1,localhost,root,,);

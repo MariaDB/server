@@ -67,7 +67,7 @@ CREATE TABLE t2 (
 ALTER TABLE t2 ADD FULLTEXT INDEX ft_title (title) WITH PARSER ngram;
 
 # Restart without ngram.
-let $restart_parameters = restart: --ngram=OFF;
+let $restart_parameters = : --ngram=OFF;
 --source include/restart_mysqld.inc
 
 # t1
@@ -133,7 +133,7 @@ SELECT * FROM t2 WHERE MATCH(title) AGAINST('中国上海');
 DROP TABLE t2;
 
 # Restart with ngram.
-let $restart_parameters = restart;
+let $restart_parameters = 
 --source include/restart_mysqld.inc
 
 CHECK TABLE t1;

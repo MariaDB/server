@@ -7,7 +7,7 @@
 
 CREATE TABLESPACE s1 ADD DATAFILE 's1.ibd' ENGINE InnoDB;
 
-let $restart_parameters = restart: --innodb_read_only;
+let $restart_parameters = : --innodb_read_only;
 --source include/restart_mysqld.inc
 --error ER_CREATE_FILEGROUP_FAILED
 CREATE TABLESPACE s2 ADD DATAFILE 's2.ibd' ENGINE InnoDB;
@@ -17,7 +17,7 @@ DROP TABLESPACE s1;
 SHOW WARNINGS;
 
 --echo # Restart in normal mode for cleanup.
-let $restart_parameters = restart;
+let $restart_parameters = 
 --source include/restart_mysqld.inc
 DROP TABLESPACE s1;
 

@@ -1,4 +1,4 @@
-let $restart_parameters = restart: --ngram_token_size=$ngram_token_size;
+let $restart_parameters = : --ngram_token_size=$ngram_token_size;
 -- source include/restart_mysqld.inc
 
 SELECT  @@ngram_token_size;
