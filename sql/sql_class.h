@@ -815,6 +815,7 @@ typedef struct system_status_var
   double cpu_time, busy_time;
   /* Don't initialize */
   /* Memory used for thread local storage */
+  int64 max_local_memory_used;
   volatile int64 local_memory_used;
   /* Memory allocated for global usage */
   volatile int64 global_memory_used;
@@ -4513,7 +4514,6 @@ public:
     See also sp_head::merge_lex().
   */
   bool restore_from_local_lex_to_old_lex(LEX *oldlex);
-
 };
 
 inline void add_to_active_threads(THD *thd)
