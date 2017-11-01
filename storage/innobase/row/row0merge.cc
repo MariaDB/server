@@ -2243,7 +2243,7 @@ end_of_index:
 			bool historical_row = false;
 			if (new_table->with_versioning()) {
 				const dfield_t *dfield = dtuple_get_nth_field(
-					row, new_table->vers_row_end);
+					row, new_table->vers_end);
 				const byte *data = static_cast<const byte *>(
 					dfield_get_data(dfield));
 				ut_ad(dfield_get_len(dfield) == 8);
@@ -2306,13 +2306,13 @@ end_of_index:
 		if (old_table->with_versioning()) {
 			if (new_table->with_versioning() && !drop_historical) {
 				dfield_t *end = dtuple_get_nth_field(
-					row, new_table->vers_row_end);
+					row, new_table->vers_end);
 				byte *data = static_cast<byte *>(
 					dfield_get_data(end));
 				ut_ad(data);
 				if (mach_read_from_8(data) == TRX_ID_MAX) {
 					dfield_t *start = dtuple_get_nth_field(
-						row, new_table->vers_row_start);
+						row, new_table->vers_start);
 					void *data = dfield_get_data(start);
 					ut_ad(data);
 					mach_write_to_8(data, trx->id);
@@ -2320,7 +2320,7 @@ end_of_index:
 			} else {
 				const dict_col_t *col =
 					&old_table->cols
-						 [old_table->vers_row_end];
+						 [old_table->vers_end];
 				const ulint nfield = dict_col_get_clust_pos(
 					col, clust_index);
 				ulint len = 0;
@@ -2336,9 +2336,9 @@ end_of_index:
 			mach_write_to_8(sys_trx_start, trx->id);
 			mach_write_to_8(sys_trx_end, TRX_ID_MAX);
 			dfield_t *start = dtuple_get_nth_field(
-				row, new_table->vers_row_start);
+				row, new_table->vers_start);
 			dfield_t *end = dtuple_get_nth_field(
-				row, new_table->vers_row_end);
+				row, new_table->vers_end);
 			dfield_set_data(start, sys_trx_start, 8);
 			dfield_set_data(end, sys_trx_end, 8);
 		}

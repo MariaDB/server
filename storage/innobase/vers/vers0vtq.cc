@@ -19,7 +19,7 @@
 #include "btr0pcur.h"
 #include "dict0load.h"
 #include "ha_innodb.h"
-#include "row0ins.ic"
+#include "row0ins.h"
 #include "row0row.h"
 #include "trx0trx.h"
 #include "trx0types.h"
@@ -347,7 +347,7 @@ vtq_query_commit_ts(
 	tuple = dtuple_create(heap, 1);
 	dict_index_copy_types(tuple, index, 1);
 	dtuple_get_nth_field(tuple, 0)->len = UNIV_SQL_NULL;
-	set_tuple_col_8(tuple, 0, commit_ts, heap);
+	row_ins_set_tuple_col_8(tuple, 0, commit_ts, heap);
 
 	mtr_start_trx(&mtr, trx);
 	btr_pcur_open_on_user_rec(index, tuple, mode,

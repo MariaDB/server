@@ -235,8 +235,57 @@ struct ins_node_t{
 #define	INS_NODE_INSERT_ENTRIES 3	/* index entries should be built and
 					inserted */
 
-#ifndef UNIV_NONINL
-#include "row0ins.ic"
-#endif
+UNIV_INLINE
+void row_ins_set_tuple_col_8(
+	dtuple_t* tuple,
+	int col,
+	ib_uint64_t data,
+	mem_heap_t* heap)
+{
+	static const ulint fsize = sizeof(data);
+	dfield_t* dfield = dtuple_get_nth_field(tuple, col);
+	ut_ad(dfield->type.len == fsize);
+	if (dfield->len == UNIV_SQL_NULL) {
+		byte* buf = reinterpret_cast<byte*>(mem_heap_alloc(heap, fsize));
+		dfield_set_data(dfield, buf, fsize);
+	}
+	ut_ad(dfield->len == dfield->type.len && dfield->data);
+	mach_write_to_8(dfield->data, data);
+}
+
+UNIV_INLINE
+void row_ins_set_tuple_col_8(
+	dtuple_t* tuple,
+	int col,
+	timeval& data,
+	mem_heap_t* heap)
+{
+	dfield_t* dfield = dtuple_get_nth_field(tuple, col);
+	ut_ad(dfield->type.len == 8);
+	if (dfield->len == UNIV_SQL_NULL) {
+		byte* buf = reinterpret_cast<byte*>(mem_heap_alloc(heap, 8));
+		dfield_set_data(dfield, buf, 8);
+	}
+	ut_ad(dfield->len == dfield->type.len && dfield->data);
+	mach_write_to_4(reinterpret_cast<byte*>(dfield->data), (ulint) data.tv_sec);
+	mach_write_to_4(reinterpret_cast<byte*>(dfield->data) + 4, (ulint) data.tv_usec);
+}
+
+UNIV_INLINE
+void row_ins_set_tuple_col_1(
+	dtuple_t* tuple,
+	int col,
+	byte data,
+	mem_heap_t* heap)
+{
+	dfield_t* dfield = dtuple_get_nth_field(tuple, col);
+	ut_ad(dfield->type.len == 1);
+	if (dfield->len == UNIV_SQL_NULL) {
+		byte* buf = reinterpret_cast<byte*>(mem_heap_alloc(heap, 1));
+		dfield_set_data(dfield, buf, 1);
+	}
+	ut_ad(dfield->len == dfield->type.len && dfield->data);
+	*(byte*)(dfield->data) = data;
+}
 
 #endif

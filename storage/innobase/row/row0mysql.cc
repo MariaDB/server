@@ -1497,21 +1497,21 @@ row_insert_for_mysql(
 
 	if (ins_mode != ROW_INS_NORMAL)
 	{
-		ut_ad(table->vers_row_start != table->vers_row_end);
+		ut_ad(table->vers_start != table->vers_end);
 		/* Return back modified fields into mysql_rec, so that
 		   upper logic may benefit from it (f.ex. 'on duplicate key'). */
-		const mysql_row_templ_t* t = &prebuilt->mysql_template[table->vers_row_end];
+		const mysql_row_templ_t* t = &prebuilt->mysql_template[table->vers_end];
 		ut_ad(t->mysql_col_len == 8);
 
 		if (ins_mode == ROW_INS_HISTORICAL) {
-			set_tuple_col_8(node->row, table->vers_row_end, trx->id, node->entry_sys_heap);
+			row_ins_set_tuple_col_8(node->row, table->vers_end, trx->id, node->entry_sys_heap);
 		}
 		else /* ROW_INS_VERSIONED */ {
-			set_tuple_col_8(node->row, table->vers_row_end, IB_UINT64_MAX, node->entry_sys_heap);
+			row_ins_set_tuple_col_8(node->row, table->vers_end, IB_UINT64_MAX, node->entry_sys_heap);
 			int8store(&mysql_rec[t->mysql_col_offset], IB_UINT64_MAX);
-			t = &prebuilt->mysql_template[table->vers_row_start];
+			t = &prebuilt->mysql_template[table->vers_start];
 			ut_ad(t->mysql_col_len == 8);
-			set_tuple_col_8(node->row, table->vers_row_start, trx->id, node->entry_sys_heap);
+			row_ins_set_tuple_col_8(node->row, table->vers_start, trx->id, node->entry_sys_heap);
 			int8store(&mysql_rec[t->mysql_col_offset], trx->id);
 		}
 	}
@@ -1865,7 +1865,7 @@ public:
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
 @return error code or DB_SUCCESS */
 dberr_t
-row_update_for_mysql_using_upd_graph(
+row_update_for_mysql(
 	row_prebuilt_t*	prebuilt,
 	bool		vers_set_fields)
 {
@@ -2008,11 +2008,11 @@ run_again:
 			uvect->n_fields = 0;
 			node->is_delete = false;
 			node->vers_delete = true;
-			col_idx = table->vers_row_end;
+			col_idx = table->vers_end;
 		} else {
 			ut_ad(uvect->n_fields < table->n_cols);
 			ufield = &uvect->fields[uvect->n_fields];
-			col_idx = table->vers_row_start;
+			col_idx = table->vers_start;
 		}
 		col = &table->cols[col_idx];
 		UNIV_MEM_INVALID(ufield, sizeof *ufield);
@@ -2050,6 +2050,7 @@ run_again:
 	err = trx->error_state;
 
 	if (err != DB_SUCCESS) {
+
 		que_thr_stop_for_mysql(thr);
 
 		if (err == DB_RECORD_NOT_FOUND) {
@@ -2258,20 +2259,6 @@ error:
 		      que_graph_free_recursive);
 
 	DBUG_RETURN(err);
-}
-
-/** Does an update or delete of a row for MySQL.
-@param[in]	mysql_rec	row in the MySQL format
-@param[in,out]	prebuilt	prebuilt struct in MySQL handle
-@return error code or DB_SUCCESS */
-dberr_t
-row_update_for_mysql(
-	row_prebuilt_t*		prebuilt,
-	bool			vers_set_fields)
-{
-	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
-	return (row_update_for_mysql_using_upd_graph(
-		prebuilt, vers_set_fields));
 }
 
 /** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this

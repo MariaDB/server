@@ -11400,9 +11400,9 @@ create_table_info_t::create_table_def()
 
 		if (m_form->versioned()) {
 			if (i == m_form->s->row_start_field) {
-				vers_row_start = DATA_VERS_ROW_START;
+				vers_row_start = DATA_VERS_START;
 			} else if (i == m_form->s->row_end_field) {
-				vers_row_end = DATA_VERS_ROW_END;
+				vers_row_end = DATA_VERS_END;
 			}
 		}
 

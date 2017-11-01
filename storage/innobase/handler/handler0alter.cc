@@ -4971,10 +4971,10 @@ new_clustered_failed:
 
 			if (altered_table->versioned()) {
 				if (i == altered_table->s->row_start_field) {
-					field_type |= DATA_VERS_ROW_START;
+					field_type |= DATA_VERS_START;
 				} else if (i ==
 					   altered_table->s->row_end_field) {
-					field_type |= DATA_VERS_ROW_END;
+					field_type |= DATA_VERS_END;
 				}
 			}
 

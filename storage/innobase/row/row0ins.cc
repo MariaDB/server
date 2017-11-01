@@ -27,11 +27,6 @@ Created 4/20/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "row0ins.h"
-
-#ifdef UNIV_NONINL
-#include "row0ins.ic"
-#endif
-
 #include "dict0dict.h"
 #include "dict0boot.h"
 #include "trx0rec.h"
@@ -1593,7 +1588,7 @@ row_ins_get_sys_trx_end(
 
 	ulint len;
 	ulint nfield = dict_col_get_clust_pos(
-		&index->table->cols[index->table->vers_row_end], index);
+		&index->table->cols[index->table->vers_end], index);
 	const byte *field = rec_get_nth_field(rec, offsets, nfield, &len);
 	ut_a(len == 8);
 	return(mach_read_from_8(field));
@@ -1706,7 +1701,7 @@ row_ins_check_foreign_constraint(
 		/* System Versioning: if sys_trx_end != Inf, we
 		suppress the foreign key check */
 		if (table->with_versioning() &&
-		    dfield_get_type(field)->prtype & DATA_VERS_ROW_END) {
+		    dfield_get_type(field)->prtype & DATA_VERS_END) {
 			byte* data = static_cast<byte*>(dfield_get_data(field));
 			ut_ad(data);
 			trx_id_t end_trx_id = mach_read_from_8(data);
@@ -4064,12 +4059,12 @@ void vers_notify_vtq(trx_t* trx)
 	mutex_exit(&trx_sys->mutex);
 
 	dict_table_copy_types(tuple, dict_sys->sys_vtq);
-	set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__TRX_ID, trx->id, heap);
-	set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__COMMIT_ID, commit_id, heap);
-	set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__BEGIN_TS, begin_ts, heap);
-	set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__COMMIT_TS, commit_ts, heap);
+	row_ins_set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__TRX_ID, trx->id, heap);
+	row_ins_set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__COMMIT_ID, commit_id, heap);
+	row_ins_set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__BEGIN_TS, begin_ts, heap);
+	row_ins_set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__COMMIT_TS, commit_ts, heap);
 	ut_ad(trx->isolation_level < 256);
-	set_tuple_col_1(tuple, DICT_COL__SYS_VTQ__ISOLATION_LEVEL, trx->isolation_level, heap);
+	row_ins_set_tuple_col_1(tuple, DICT_COL__SYS_VTQ__ISOLATION_LEVEL, trx->isolation_level, heap);
 
 	err = vers_row_ins_vtq_low(trx, heap, tuple);
 	if (DB_SUCCESS != err)
