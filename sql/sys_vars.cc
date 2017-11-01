@@ -3558,6 +3558,9 @@ static Sys_var_charptr Sys_version_compile_os(
        IN_SYSTEM_CHARSET, DEFAULT(SYSTEM_TYPE));
 
 #include <source_revision.h>
+#ifndef SOURCE_REVISION
+#define SOURCE_REVISION "Unknown"
+#endif
 static char *server_version_source_revision;
 static Sys_var_charptr Sys_version_source_revision(
        "version_source_revision", "Source control revision id for MariaDB source code",

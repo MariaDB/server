@@ -1717,9 +1717,12 @@ static void usage(int version)
   printf("%s  Ver %s Distrib %s, for %s (%s) using %s %s\n",
 	 my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE,
          readline, rl_library_version);
-#else
+#elif defined(SOURCE_REVISION)
   printf("%s  Ver %s Distrib %s, for %s (%s), source revision %s\n", my_progname, VER,
 	MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE,SOURCE_REVISION);
+#else
+  printf("%s  Ver %s Distrib %s, for %s (%s)\n", my_progname, VER,
+	MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
 #endif
 
   if (version)
