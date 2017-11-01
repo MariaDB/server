@@ -8870,9 +8870,8 @@ calc_row_difference(
 			n_changed++;
 
 			if (!prebuilt->upd_node->versioned &&
-				DICT_TF2_FLAG_IS_SET(prebuilt->table, DICT_TF2_VERSIONED) &&
-				!(field->flags & VERS_OPTIMIZED_UPDATE_FLAG))
-			{
+			    prebuilt->table->with_versioning() &&
+			    !(field->flags & VERS_OPTIMIZED_UPDATE_FLAG)) {
 				prebuilt->upd_node->versioned = true;
 			}
 
@@ -8982,9 +8981,8 @@ calc_row_difference(
 		++n_changed;
 
 		if (!prebuilt->upd_node->versioned &&
-			DICT_TF2_FLAG_IS_SET(prebuilt->table, DICT_TF2_VERSIONED) &&
-			!(field->flags & VERS_OPTIMIZED_UPDATE_FLAG))
-		{
+		    prebuilt->table->with_versioning() &&
+		    !(field->flags & VERS_OPTIMIZED_UPDATE_FLAG)) {
 			prebuilt->upd_node->versioned = true;
 		}
 	} else {
@@ -11400,7 +11398,7 @@ create_table_info_t::create_table_def()
 		ulint vers_row_start = 0;
 		ulint vers_row_end = 0;
 
-		if (m_flags2 & DICT_TF2_VERSIONED) {
+		if (m_form->versioned()) {
 			if (i == m_form->s->row_start_field) {
 				vers_row_start = DATA_VERS_ROW_START;
 			} else if (i == m_form->s->row_end_field) {
@@ -12521,10 +12519,6 @@ index_bad:
 	m_flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
 	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
 			m_flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
-
-	if (m_create_info->options & HA_VERSIONED_TABLE) {
-		m_flags2 |= DICT_TF2_VERSIONED;
-	}
 
 	DBUG_RETURN(true);
 }

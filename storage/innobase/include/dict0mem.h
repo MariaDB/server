@@ -245,7 +245,7 @@ ROW_FORMAT=REDUNDANT.  InnoDB engines do not check these flags
 for unknown bits in order to protect backward incompatibility. */
 /* @{ */
 /** Total number of bits in table->flags2. */
-#define DICT_TF2_BITS			8
+#define DICT_TF2_BITS			7
 #define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS)
 #define DICT_TF2_BIT_MASK		~DICT_TF2_UNUSED_BIT_MASK
 
@@ -272,9 +272,6 @@ use its own tablespace instead of the system tablespace. */
 /** This bit is set if all aux table names (both common tables and
 index tables) of a FTS table are in HEX format. */
 #define DICT_TF2_FTS_AUX_HEX_NAME	64U
-
-/** System Versioning bit. */
-#define DICT_TF2_VERSIONED		128U
 
 /* @} */
 
@@ -1491,6 +1488,8 @@ struct dict_table_t {
 
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
+
+	bool with_versioning() const { return vers_row_start || vers_row_end; }
 
 	/** Id of the table. */
 	table_id_t				id;
