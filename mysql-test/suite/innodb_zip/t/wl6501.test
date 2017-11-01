@@ -2,8 +2,7 @@
 # WL#6501: make truncate table atomic
 #
 
---source include/have_innodb.inc
---source include/have_innodb_zip.inc
+--source include/innodb_page_size_small.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/not_windows.inc

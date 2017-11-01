@@ -3,8 +3,7 @@
 # (innodb_buffer_pool_chunk_size used case)
 #
 
---source include/have_innodb.inc
---source include/have_innodb_zip.inc
+--source include/innodb_page_size_small.inc
 --source include/big_test.inc
 
 let $wait_timeout = 180;

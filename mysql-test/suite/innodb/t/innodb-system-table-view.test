@@ -2,8 +2,7 @@
 # that displays the InnoDB system table content through
 # information schema tables.
 
---source include/have_innodb.inc
---source include/have_innodb_zip.inc
+--source include/innodb_page_size_small.inc
 --source include/have_no_undo_tablespaces.inc
 
 --disable_query_log

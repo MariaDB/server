@@ -2,8 +2,7 @@
 # WL#6469: Optimizing CREATE/DROP performance for temporary tables
 #
 --source include/no_valgrind_without_big.inc
---source include/have_innodb.inc
---source include/have_innodb_zip.inc
+--source include/innodb_page_size_small.inc
 
 #########################################################################
 #									#
@@ -30,7 +29,6 @@ set global innodb_file_per_table = 0;
 # 1. Create/Drop of temp-table. (with and w/o explicit pk)		#
 #
 create temporary table t1 (i int) engine = innodb;
-select count(*) from information_schema.innodb_temp_table_info;
 insert into t1 values (1), (2), (3), (4);
 select * from t1;
 select * from t1 where i = 4;
@@ -38,7 +36,7 @@ drop table t1;
 #
 # recreate table wih same name to ensure entries are removed.
 create temporary table t1 (i int) engine = innodb;
-select count(*) from information_schema.innodb_temp_table_info;
+
 insert into t1 values (1), (2), (3), (4);
 select * from t1;
 select * from t1 where i = 4;
@@ -48,7 +46,7 @@ create temporary table t2 (i int) engine = innodb;
 insert into t2 values (1), (2), (3), (4);
 select * from t2;
 select * from t2 where i = 4;
-select count(*) from information_schema.innodb_temp_table_info;
+
 drop table t2;
 #
 create temporary table t1 (i int, primary key pk(i)) engine = innodb;
@@ -59,11 +57,11 @@ insert into t2 values (1), (2), (3), (4);
 insert into t3 values (1), (2), (3), (4);
 select * from t1;
 select * from t1 where i = 4;
-select count(*) from information_schema.innodb_temp_table_info;
+
 drop table t1;
-select count(*) from information_schema.innodb_temp_table_info;
+
 drop table t2;
-select count(*) from information_schema.innodb_temp_table_info;
+
 drop table t3;
 
 #-------------------------------------------------------------
@@ -104,7 +102,7 @@ set global innodb_file_per_table = 1;
 create temporary table t1
 	(keyc int, c1 char(100), c2 char(100),
 	 primary key(keyc))
-	engine = innodb key_block_size = 4 row_format = compressed;
+	engine = innodb;
 begin;
 select * from t1;
 call populate_t1();
@@ -152,7 +150,7 @@ select * from t1 where t1_f > 2.2;
 #
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table t1 add index sec_index2(t1_c), algorithm=inplace;
-select count(*) from information_schema.innodb_temp_table_info;
+
 #
 drop table t1;
 
@@ -274,13 +272,10 @@ set global innodb_file_per_table = 1;
 
 CREATE TABLE t6469_1 ( i INT ) ENGINE = Innodb;
 CREATE TEMPORARY TABLE t6469_2 ( i INT ) ENGINE = Innodb;
-CREATE TEMPORARY table t6469_3 ( i INT ) ENGINE = Innodb ROW_FORMAT=compressed;
-SELECT count(*) FROM information_schema.files WHERE file_name LIKE '%t6469%';
 SELECT count(*) FROM information_schema.INNODB_SYS_DATAFILES WHERE PATH LIKE '%t6469%';
 SELECT count(*) FROM information_schema.INNODB_SYS_TABLES WHERE NAME LIKE '%t6469%';
 
-DROP TABLE t6469_1,t6469_2,t6469_3;
-SELECT * FROM information_schema.files WHERE file_name LIKE '%t6469%';
+DROP TABLE t6469_1,t6469_2;
 SELECT * FROM information_schema.INNODB_SYS_DATAFILES WHERE PATH LIKE '%t6469%';
 SELECT * FROM information_schema.INNODB_SYS_TABLES WHERE NAME LIKE '%t6469%';
 

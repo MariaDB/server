@@ -2,8 +2,7 @@
 --source include/not_crashrep.inc
 --source include/not_valgrind.inc
 --source include/have_debug.inc
---source include/have_innodb.inc
---source include/have_innodb_zip.inc
+--source include/innodb_page_size_small.inc
 
 --echo #
 --echo # Bug #16963396 INNODB: USE OF LARGE EXTERNALLY-STORED FIELDS MAKES
