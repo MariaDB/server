@@ -602,6 +602,49 @@ check_v_col_in_order(
 	return(true);
 }
 
+/** Determine if an instant operation is possible for altering columns.
+@param[in]	ha_alter_info	the ALTER TABLE operation
+@param[in]	table		table definition before ALTER TABLE */
+static
+bool
+instant_alter_column_possible(
+	const Alter_inplace_info*	ha_alter_info,
+	const TABLE*			table)
+{
+	if (~ha_alter_info->handler_flags
+	    & Alter_inplace_info::ADD_STORED_BASE_COLUMN) {
+		return false;
+	}
+
+	/* At the moment, we disallow ADD [UNIQUE] INDEX together with
+	instant ADD COLUMN.
+
+	The main reason is that the work of instant ADD must be done
+	in commit_inplace_alter_table().  For the rollback_instant()
+	to work, we must add the columns to dict_table_t beforehand,
+	and roll back those changes in case the transaction is rolled
+	back.
+
+	If we added the columns to the dictionary cache already in the
+	prepare_inplace_alter_table(), we would have to deal with
+	column number mismatch in ha_innobase::open(), write_row() and
+	other functions. */
+
+	/* FIXME: allow instant ADD COLUMN together with
+	INNOBASE_ONLINE_CREATE (ADD [UNIQUE] INDEX) on pre-existing
+	columns. */
+	if (ha_alter_info->handler_flags
+	    & ((INNOBASE_ALTER_REBUILD | INNOBASE_ONLINE_CREATE)
+	       & ~Alter_inplace_info::ADD_STORED_BASE_COLUMN
+	       & ~Alter_inplace_info::CHANGE_CREATE_OPTION)) {
+		return false;
+	}
+
+	return !(ha_alter_info->handler_flags
+		 & Alter_inplace_info::CHANGE_CREATE_OPTION)
+		|| !create_option_need_rebuild(ha_alter_info, table);
+}
+
 /** Check if InnoDB supports a particular alter table in-place
 @param altered_table TABLE object for new version of table.
 @param ha_alter_info Structure describing changes to be done
@@ -653,11 +696,6 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	update_thd();
-
-	// FIXME: Construct ha_innobase_inplace_ctx here and determine
-	// if instant ALTER TABLE is possible. If yes, we will be able to
-	// allow ADD COLUMN even if SPATIAL INDEX, FULLTEXT INDEX or
-	// virtual columns exist, also together with adding virtual columns.
 
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
@@ -973,6 +1011,122 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	m_prebuilt->trx->will_lock++;
 
+	/* When changing a NULL column to NOT NULL and specifying a
+	DEFAULT value, ensure that the DEFAULT expression is a constant.
+	Also, in ADD COLUMN, for now we only support a
+	constant DEFAULT expression. */
+	cf_it.rewind();
+	Field **af = altered_table->field;
+	bool add_column_not_last = false;
+	uint n_stored_cols = 0, n_add_cols = 0;
+
+	while (Create_field* cf = cf_it++) {
+		DBUG_ASSERT(cf->field
+			    || (ha_alter_info->handler_flags
+				& Alter_inplace_info::ADD_COLUMN));
+
+		if (const Field* f = cf->field) {
+			/* This could be changing an existing column
+			from NULL to NOT NULL. */
+			switch ((*af)->type()) {
+			case MYSQL_TYPE_TIMESTAMP:
+			case MYSQL_TYPE_TIMESTAMP2:
+				/* Inserting NULL into a TIMESTAMP column
+				would cause the DEFAULT value to be
+				replaced. Ensure that the DEFAULT
+				expression is not changing during
+				ALTER TABLE. */
+				if (!f->real_maybe_null()
+				    || (*af)->real_maybe_null()) {
+					/* The column was NOT NULL, or it
+					will allow NULL after ALTER TABLE. */
+					goto next_column;
+				}
+
+				if (!(*af)->default_value
+				    && (*af)->is_real_null()) {
+					/* No DEFAULT value is
+					specified. We can report
+					errors for any NULL values for
+					the TIMESTAMP.
+
+					FIXME: Allow any DEFAULT
+					expression whose value does
+					not change during ALTER TABLE.
+					This would require a fix in
+					row_merge_read_clustered_index()
+					to try to replace the DEFAULT
+					value before reporting
+					DB_INVALID_NULL. */
+					goto next_column;
+				}
+				break;
+			default:
+				/* For any other data type, NULL
+				values are not converted.
+				(An AUTO_INCREMENT attribute cannot
+				be introduced to a column with
+				ALGORITHM=INPLACE.) */
+				ut_ad((MTYP_TYPENR((*af)->unireg_check)
+				       == Field::NEXT_NUMBER)
+				      == (MTYP_TYPENR(f->unireg_check)
+					  == Field::NEXT_NUMBER));
+				goto next_column;
+			}
+
+			ha_alter_info->unsupported_reason
+				= innobase_get_err_msg(
+					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
+		} else if (!(*af)->default_value
+			   || !((*af)->default_value->flags
+				& ~(VCOL_SESSION_FUNC | VCOL_TIME_FUNC))) {
+			n_add_cols++;
+
+			if (af < &altered_table->field[table_share->fields]) {
+				add_column_not_last = true;
+			}
+			/* The added NOT NULL column lacks a DEFAULT value,
+			or the DEFAULT is the same for all rows.
+			(Time functions, such as CURRENT_TIMESTAMP(),
+			are evaluated from a timestamp that is assigned
+			at the start of the statement. Session
+			functions, such as USER(), always evaluate the
+			same within a statement.) */
+
+			/* Compute the DEFAULT values of non-constant columns
+			(VCOL_SESSION_FUNC | VCOL_TIME_FUNC). */
+			switch ((*af)->set_default()) {
+			case 0: /* OK */
+			case 3: /* DATETIME to TIME or DATE conversion */
+				goto next_column;
+			case -1: /* OOM, or GEOMETRY type mismatch */
+			case 1:  /* A number adjusted to the min/max value */
+			case 2:  /* String truncation, or conversion problem */
+				break;
+			}
+		}
+
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+
+next_column:
+		n_stored_cols += (*af++)->stored_in_db();
+	}
+
+	if (!add_column_not_last
+	    && uint(m_prebuilt->table->n_cols) - DATA_N_SYS_COLS + n_add_cols
+	    == n_stored_cols
+	    && m_prebuilt->table->supports_instant()
+	    && instant_alter_column_possible(ha_alter_info, table)) {
+		/* We can perform instant ADD COLUMN, because all
+		columns are going to be added after existing ones
+		(and not after hidden InnoDB columns, such as FTS_DOC_ID). */
+
+		/* MDEV-14246 FIXME: return HA_ALTER_INPLACE_NO_LOCK and
+		perform all work in ha_innobase::commit_inplace_alter_table(),
+		to avoid an unnecessary MDL upgrade/downgrade cycle. */
+		DBUG_RETURN(HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE);
+	}
+
 	if (!online) {
 		/* We already determined that only a non-locking
 		operation is possible. */
@@ -1036,102 +1190,6 @@ ha_innobase::check_if_supported_inplace_alter(
 			}
 		}
 	}
-
-	/* When changing a NULL column to NOT NULL and specifying a
-	DEFAULT value, ensure that the DEFAULT expression is a constant.
-	Also, in ADD COLUMN, for now we only support a
-	constant DEFAULT expression. */
-	cf_it.rewind();
-	Field **af = altered_table->field;
-
-	while (Create_field* cf = cf_it++) {
-		DBUG_ASSERT(cf->field
-			    || (ha_alter_info->handler_flags
-				& Alter_inplace_info::ADD_COLUMN));
-
-		if (const Field* f = cf->field) {
-			/* This could be changing an existing column
-			from NULL to NOT NULL. */
-			switch ((*af)->type()) {
-			case MYSQL_TYPE_TIMESTAMP:
-			case MYSQL_TYPE_TIMESTAMP2:
-				/* Inserting NULL into a TIMESTAMP column
-				would cause the DEFAULT value to be
-				replaced. Ensure that the DEFAULT
-				expression is not changing during
-				ALTER TABLE. */
-				if (!f->real_maybe_null()
-				    || (*af)->real_maybe_null()) {
-					/* The column was NOT NULL, or it
-					will allow NULL after ALTER TABLE. */
-					goto next_column;
-				}
-
-				if (!(*af)->default_value
-				    && (*af)->is_real_null()) {
-					/* No DEFAULT value is
-					specified. We can report
-					errors for any NULL values for
-					the TIMESTAMP.
-
-					FIXME: Allow any DEFAULT
-					expression whose value does
-					not change during ALTER TABLE.
-					This would require a fix in
-					row_merge_read_clustered_index()
-					to try to replace the DEFAULT
-					value before reporting
-					DB_INVALID_NULL. */
-					goto next_column;
-				}
-				break;
-			default:
-				/* For any other data type, NULL
-				values are not converted.
-				(An AUTO_INCREMENT attribute cannot
-				be introduced to a column with
-				ALGORITHM=INPLACE.) */
-				ut_ad((MTYP_TYPENR((*af)->unireg_check)
-				       == Field::NEXT_NUMBER)
-				      == (MTYP_TYPENR(f->unireg_check)
-					  == Field::NEXT_NUMBER));
-				goto next_column;
-			}
-
-			ha_alter_info->unsupported_reason
-				= innobase_get_err_msg(
-					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
-		} else if (!(*af)->default_value
-			   || !((*af)->default_value->flags
-				& ~(VCOL_SESSION_FUNC | VCOL_TIME_FUNC))) {
-			/* The added NOT NULL column lacks a DEFAULT value,
-			or the DEFAULT is the same for all rows.
-			(Time functions, such as CURRENT_TIMESTAMP(),
-			are evaluated from a timestamp that is assigned
-			at the start of the statement. Session
-			functions, such as USER(), always evaluate the
-			same within a statement.) */
-
-			/* Compute the DEFAULT values of non-constant columns
-			(VCOL_SESSION_FUNC | VCOL_TIME_FUNC). */
-			switch ((*af)->set_default()) {
-			case 0: /* OK */
-			case 3: /* DATETIME to TIME or DATE conversion */
-				goto next_column;
-			case -1: /* OOM, or GEOMETRY type mismatch */
-			case 1:  /* A number adjusted to the min/max value */
-			case 2:  /* String truncation, or conversion problem */
-				break;
-			}
-		}
-
-		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-
-next_column:
-		af++;
-	}
-
-	cf_it.rewind();
 
 	DBUG_RETURN(online
 		    ? HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE
@@ -4711,29 +4769,6 @@ prepare_inplace_alter_table_dict(
 
 	new_clustered = DICT_CLUSTERED & index_defs[0].ind_type;
 
-	if (num_fts_index > 1) {
-		my_error(ER_INNODB_FT_LIMIT, MYF(0));
-		goto error_handled;
-	}
-
-	if (!ctx->online) {
-		/* This is not an online operation (LOCK=NONE). */
-	} else if (ctx->add_autoinc == ULINT_UNDEFINED
-		   && num_fts_index == 0
-		   && (!innobase_need_rebuild(ha_alter_info, old_table)
-		       || !innobase_fulltext_exist(altered_table))) {
-		/* InnoDB can perform an online operation (LOCK=NONE). */
-	} else {
-		size_t query_length;
-		/* This should have been blocked in
-		check_if_supported_inplace_alter(). */
-		ut_ad(0);
-		my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-			 innobase_get_stmt_unsafe(ctx->prebuilt->trx->mysql_thd,
-						  &query_length));
-		goto error_handled;
-	}
-
 	/* The primary index would be rebuilt if a FTS Doc ID
 	column is to be added, and the primary index definition
 	is just copied from old table and stored in indexdefs[0] */
@@ -5077,22 +5112,8 @@ new_clustered_failed:
 			    == !!new_clustered);
 	}
 
-	if (ctx->need_rebuild() && ctx->new_table->supports_instant()) {
-		if (~ha_alter_info->handler_flags
-		    & Alter_inplace_info::ADD_STORED_BASE_COLUMN) {
-			goto not_instant_add_column;
-		}
-
-		if (ha_alter_info->handler_flags
-		    & (INNOBASE_ALTER_REBUILD
-		       & ~Alter_inplace_info::ADD_STORED_BASE_COLUMN
-		       & ~Alter_inplace_info::CHANGE_CREATE_OPTION)) {
-			goto not_instant_add_column;
-		}
-
-		if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
-		    == Alter_inplace_info::CHANGE_CREATE_OPTION
-		    && create_option_need_rebuild(ha_alter_info, old_table)) {
+	if (ctx->need_rebuild() && user_table->supports_instant()) {
+		if (!instant_alter_column_possible(ha_alter_info, old_table)) {
 			goto not_instant_add_column;
 		}
 
@@ -5105,28 +5126,6 @@ new_clustered_failed:
 
 		DBUG_ASSERT(ctx->new_table->n_cols > ctx->old_table->n_cols);
 
-		if (ha_alter_info->handler_flags & INNOBASE_ONLINE_CREATE) {
-			/* At the moment, we disallow ADD [UNIQUE] INDEX
-			together with instant ADD COLUMN.
-
-			The main reason is that the work of instant
-			ADD must be done in commit_inplace_alter_table().
-			For the rollback_instant() to work, we must
-			add the columns to dict_table_t beforehand,
-			and roll back those changes in case the
-			transaction is rolled back.
-
-			If we added the columns to the dictionary cache
-			already in the prepare_inplace_alter_table(),
-			we would have to deal with column number
-			mismatch in ha_innobase::open(), write_row()
-			and other functions. */
-
-			/* FIXME: allow instant ADD COLUMN together
-			with ADD INDEX on pre-existing columns. */
-			goto not_instant_add_column;
-		}
-
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
 			error = dict_index_add_to_cache_w_vcol(
 				ctx->new_table, ctx->add_index[a], add_v,
@@ -5134,8 +5133,15 @@ new_clustered_failed:
 			ut_a(error == DB_SUCCESS);
 		}
 		DBUG_ASSERT(ha_alter_info->key_count
+			    /* hidden GEN_CLUST_INDEX in InnoDB */
 			    + dict_index_is_auto_gen_clust(
 				    dict_table_get_first_index(ctx->new_table))
+			    /* hidden FTS_DOC_ID_INDEX in InnoDB */
+			    + (ctx->old_table->fts_doc_id_index
+			       && innobase_fts_check_doc_id_index_in_def(
+				       altered_table->s->keys,
+				       altered_table->key_info)
+			       != FTS_EXIST_DOC_ID_INDEX)
 			    == ctx->num_to_add_index);
 		ctx->num_to_add_index = 0;
 		ctx->add_index = NULL;
@@ -5251,6 +5257,33 @@ new_clustered_failed:
 				   FTS_DOC_ID_COL_NAME)));
 
 		ctx->prepare_instant();
+	}
+
+	if (!ctx->is_instant()) {
+		if (num_fts_index > 1) {
+			my_error(ER_INNODB_FT_LIMIT, MYF(0));
+			goto error_handled;
+		}
+
+		if (!ctx->online) {
+			/* This is not an online operation (LOCK=NONE). */
+		} else if (ctx->add_autoinc == ULINT_UNDEFINED
+			   && num_fts_index == 0
+			   && (!innobase_need_rebuild(ha_alter_info, old_table)
+			       || !innobase_fulltext_exist(altered_table))) {
+			/* InnoDB can perform an online operation
+			(LOCK=NONE). */
+		} else {
+			size_t query_length;
+			/* This should have been blocked in
+			check_if_supported_inplace_alter(). */
+			ut_ad(0);
+			my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+				 innobase_get_stmt_unsafe(
+					 ctx->prebuilt->trx->mysql_thd,
+					 &query_length));
+			goto error_handled;
+		}
 	}
 
 	if (ctx->need_rebuild()) {

@@ -483,16 +483,55 @@ info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tab MODIFY COLUMN c2 GEOMETRY NOT NULL;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab add COLUMN c8 POINT NOT NULL AFTER c5, ALGORITHM = INPLACE, LOCK=NONE;
+ALTER TABLE tab MODIFY COLUMN c3 POLYGON NOT NULL;
+affected rows: 10
+info: Records: 10  Duplicates: 0  Warnings: 0
+ALTER TABLE tab add COLUMN c7 POINT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tab add COLUMN c8 POINT NOT NULL, ALGORITHM = INPLACE, LOCK=NONE;
+SELECT HEX(c8) FROM tab;
+HEX(c8)
+
+
+
+
+
+
+
+
+
+
+BEGIN;
+INSERT INTO tab SELECT 0,c2,c3,c4,c5,
+ST_GeomFromText('POINT(67 89)'),ST_GeomFromText('POINT(67 89)')
+FROM tab LIMIT 1;
+SELECT HEX(c8) FROM tab;
+HEX(c8)
+0000000001010000000000000000C050400000000000405640
+
+
+
+
+
+
+
+
+
+
+ROLLBACK;
+ALTER TABLE tab add COLUMN c9 POINT NOT NULL AFTER c5, ALGORITHM = INPLACE, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
 SHOW CREATE TABLE tab;
 Table	Create Table
 tab	CREATE TABLE `tab` (
   `c1` int(11) NOT NULL,
   `c2` geometry NOT NULL,
-  `c3` linestring NOT NULL,
+  `c3` polygon NOT NULL,
   `c4` polygon NOT NULL,
   `c5` geometry NOT NULL,
+  `c7` point NOT NULL,
+  `c8` point NOT NULL,
   PRIMARY KEY (`c1`),
   SPATIAL KEY `idx2` (`c2`),
   SPATIAL KEY `idx3` (`c3`),
@@ -525,9 +564,11 @@ Table	Create Table
 tab	CREATE TABLE `tab` (
   `c1` int(11) NOT NULL,
   `c2` geometry NOT NULL,
-  `c3` linestring NOT NULL,
+  `c3` polygon NOT NULL,
   `c4` geometry NOT NULL,
   `c5` geometry NOT NULL,
+  `c7` point NOT NULL,
+  `c8` point NOT NULL,
   PRIMARY KEY (`c1`),
   SPATIAL KEY `idx2` (`c2`),
   SPATIAL KEY `idx3` (`c3`),
@@ -571,8 +612,8 @@ ALTER TABLE tab MODIFY COLUMN c2 POINT NOT NULL;
 affected rows: 8
 info: Records: 8  Duplicates: 0  Warnings: 0
 ALTER TABLE tab MODIFY COLUMN c3 LINESTRING NOT NULL;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+affected rows: 8
+info: Records: 8  Duplicates: 0  Warnings: 0
 ALTER TABLE tab MODIFY COLUMN c4 POLYGON NOT NULL;
 affected rows: 8
 info: Records: 8  Duplicates: 0  Warnings: 0
@@ -584,6 +625,8 @@ tab	CREATE TABLE `tab` (
   `c3` linestring NOT NULL,
   `c4` polygon NOT NULL,
   `c5` geometry NOT NULL,
+  `c7` point NOT NULL,
+  `c8` point NOT NULL,
   PRIMARY KEY (`c1`),
   SPATIAL KEY `idx2` (`c2`),
   SPATIAL KEY `idx3` (`c3`),
