@@ -1,3 +1,4 @@
 --loose-innodb-sys-indexes
 --loose-innodb-sys-tablespaces
 --loose-innodb-sys-datafiles
+--innodb_page_size=4096
