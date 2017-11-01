@@ -4056,7 +4056,7 @@ void vers_notify_vtq(trx_t* trx)
 	dtuple_t* tuple = dtuple_create(heap, dict_table_get_n_cols(dict_sys->sys_vtq));
 
 	timeval begin_ts, commit_ts;
-	begin_ts.tv_sec = static_cast<long>(trx->start_time);
+	begin_ts.tv_sec = static_cast<my_time_t>(trx->start_time);
 	begin_ts.tv_usec = trx->start_time_micro % 1000000;
 
 	mutex_enter(&trx_sys->mutex);

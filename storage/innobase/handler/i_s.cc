@@ -354,10 +354,10 @@ Auxiliary function to store ulint value in MYSQL_TYPE_LONGLONG field.
 If the value is UINT64_UNDEFINED then the field it set to NULL.
 @return	0 on success */
 int
-field_store_ullong(
+field_store_uint64_t(
 /*==============*/
 	Field*	field,	/*!< in/out: target field for storage */
-	ullong	n)	/*!< in: value to store */
+	uint64_t	n)	/*!< in: value to store */
 {
 	int	ret;
 
@@ -9734,8 +9734,8 @@ i_s_dict_fill_vtq(
 
 	iso_level = i_s_isolation_name(vtq.iso_level);
 
-	OK(field_store_ullong(fields[SYS_VTQ_TRX_ID], vtq.trx_id));
-	OK(field_store_ullong(fields[SYS_VTQ_COMMIT_ID], vtq.commit_id));
+	OK(field_store_uint64_t(fields[SYS_VTQ_TRX_ID], vtq.trx_id));
+	OK(field_store_uint64_t(fields[SYS_VTQ_COMMIT_ID], vtq.commit_id));
 	OK(field_store_timeval(fields[SYS_VTQ_BEGIN_TS], vtq.begin_ts, thd));
 	OK(field_store_timeval(fields[SYS_VTQ_COMMIT_TS], vtq.commit_ts, thd));
 	OK(field_store_string(fields[SYS_VTQ_ISO_LEVEL], iso_level));

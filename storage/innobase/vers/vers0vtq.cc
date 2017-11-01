@@ -174,7 +174,7 @@ void rec_get_timeval(const rec_t* rec, ulint nfield, timeval& out)
 	field = rec_get_nth_field_old(
 		rec, nfield, &len);
 
-	ut_ad(len == sizeof(ullong));
+	ut_ad(len == sizeof(uint64_t));
 
 	out.tv_sec = mach_read_from_4(field);
 	out.tv_usec = mach_read_from_4(field + 4);

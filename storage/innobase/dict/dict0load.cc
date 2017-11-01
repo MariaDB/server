@@ -867,8 +867,8 @@ vtq_record_t&	out		/*!< out: field values */
 	field = rec_get_nth_field_old(
 		rec, (nfld = DICT_FLD__SYS_VTQ__BEGIN_TS), &len);
 
-	if (len != sizeof(ullong))
-		return dict_print_error(heap, nfld, len, sizeof(ullong));
+	if (len != sizeof(uint64_t))
+		return dict_print_error(heap, nfld, len, sizeof(uint64_t));
 
 	out.begin_ts.tv_sec = mach_read_from_4(field);
 	out.begin_ts.tv_usec = mach_read_from_4(field + 4);
@@ -876,8 +876,8 @@ vtq_record_t&	out		/*!< out: field values */
 	field = rec_get_nth_field_old(
 		rec, (nfld = DICT_FLD__SYS_VTQ__COMMIT_TS), &len);
 
-	if (len != sizeof(ullong))
-		return dict_print_error(heap, nfld, len, sizeof(ullong));
+	if (len != sizeof(uint64_t))
+		return dict_print_error(heap, nfld, len, sizeof(uint64_t));
 
 	out.commit_ts.tv_sec = mach_read_from_4(field);
 	out.commit_ts.tv_usec = mach_read_from_4(field + 4);
