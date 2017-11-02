@@ -756,7 +756,7 @@ public:
   {
     return reinterpret_cast<st_select_lex*>(slave);
   }
-  void set_with_clause(With_clause *with_cl);
+  inline void set_with_clause(With_clause *with_cl);
   st_select_lex_unit* next_unit()
   {
     return reinterpret_cast<st_select_lex_unit*>(next);
@@ -1208,7 +1208,7 @@ public:
 
   void set_non_agg_field_used(bool val) { m_non_agg_field_used= val; }
   void set_agg_func_used(bool val)      { m_agg_func_used= val; }
-  void set_with_clause(With_clause *with_clause);
+  inline void set_with_clause(With_clause *with_clause);
   With_clause *get_with_clause()
   {
     return master_unit()->with_clause;
