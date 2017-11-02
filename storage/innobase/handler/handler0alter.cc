@@ -77,7 +77,7 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_REBUILD
 	= Alter_inplace_info::ADD_PK_INDEX
 	| Alter_inplace_info::DROP_PK_INDEX
 	| Alter_inplace_info::CHANGE_CREATE_OPTION
-	/* CHANGE_CREATE_OPTION needs to check innobase_need_rebuild() */
+	/* CHANGE_CREATE_OPTION needs to check create_option_need_rebuild() */
 	| Alter_inplace_info::ALTER_COLUMN_NULLABLE
 	| Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE
 	| Alter_inplace_info::ALTER_STORED_COLUMN_ORDER
@@ -445,33 +445,61 @@ innobase_spatial_exist(
 	return(false);
 }
 
-/*******************************************************************//**
-Determine if ALTER TABLE needs to rebuild the table.
-@param ha_alter_info the DDL operation
-@param altered_table		MySQL original table
-@return whether it is necessary to rebuild the table */
+/** Determine if CHANGE_CREATE_OPTION requires rebuilding the table.
+@param[in] ha_alter_info	the ALTER TABLE operation
+@param[in] table		metadata before ALTER TABLE
+@return whether it is mandatory to rebuild the table */
+static bool create_option_need_rebuild(
+	const Alter_inplace_info*	ha_alter_info,
+	const TABLE*			table)
+{
+	DBUG_ASSERT((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
+		    == Alter_inplace_info::CHANGE_CREATE_OPTION);
+
+	if (ha_alter_info->create_info->used_fields
+	    & (HA_CREATE_USED_ROW_FORMAT
+	       | HA_CREATE_USED_KEY_BLOCK_SIZE)) {
+		/* Specifying ROW_FORMAT or KEY_BLOCK_SIZE requires
+		rebuilding the table. (These attributes in the .frm
+		file may disagree with the InnoDB data dictionary, and
+		the interpretation of thse attributes depends on
+		InnoDB parameters. That is why we for now always
+		require a rebuild when these attributes are specified.) */
+		return true;
+	}
+
+	const ha_table_option_struct& alt_opt=
+		*ha_alter_info->create_info->option_struct;
+	const ha_table_option_struct& opt= *table->s->option_struct;
+
+	if (alt_opt.page_compressed != opt.page_compressed
+	    || alt_opt.page_compression_level
+	    != opt.page_compression_level
+	    || alt_opt.encryption != opt.encryption
+	    || alt_opt.encryption_key_id != opt.encryption_key_id) {
+		return(true);
+	}
+
+	return false;
+}
+
+/** Determine if ALTER TABLE needs to rebuild the table
+(or perform instant operation).
+@param[in] ha_alter_info	the ALTER TABLE operation
+@param[in] table		metadata before ALTER TABLE
+@return whether it is necessary to rebuild the table or to alter columns */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
 innobase_need_rebuild(
-/*==================*/
 	const Alter_inplace_info*	ha_alter_info,
-	const TABLE*			altered_table)
+	const TABLE*			table)
 {
-	Alter_inplace_info::HA_ALTER_FLAGS alter_inplace_flags =
-		ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE);
-
-	if (alter_inplace_flags
-	    == Alter_inplace_info::CHANGE_CREATE_OPTION
-	    && !(ha_alter_info->create_info->used_fields
-		 & (HA_CREATE_USED_ROW_FORMAT
-		    | HA_CREATE_USED_KEY_BLOCK_SIZE))) {
-		/* Any other CHANGE_CREATE_OPTION than changing
-		ROW_FORMAT or KEY_BLOCK_SIZE can be done without
-		rebuilding the table. */
-		return(false);
+	if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
+	    == Alter_inplace_info::CHANGE_CREATE_OPTION) {
+		return create_option_need_rebuild(ha_alter_info, table);
 	}
 
-	return(!!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD));
+	return !!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD);
 }
 
 /** Check if virtual column in old and new table are in order, excluding
@@ -630,28 +658,6 @@ ha_innobase::check_if_supported_inplace_alter(
 	// if instant ALTER TABLE is possible. If yes, we will be able to
 	// allow ADD COLUMN even if SPATIAL INDEX, FULLTEXT INDEX or
 	// virtual columns exist, also together with adding virtual columns.
-
-	/* Change on engine specific table options require rebuild of the
-	table */
-	if (ha_alter_info->handler_flags
-		& Alter_inplace_info::CHANGE_CREATE_OPTION) {
-		ha_table_option_struct *new_options= ha_alter_info->create_info->option_struct;
-		ha_table_option_struct *old_options= table->s->option_struct;
-
-		if (new_options->page_compressed != old_options->page_compressed ||
-		    new_options->page_compression_level != old_options->page_compression_level) {
-			ha_alter_info->unsupported_reason = innobase_get_err_msg(
-				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
-			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-		}
-
-		if (new_options->encryption != old_options->encryption ||
-			new_options->encryption_key_id != old_options->encryption_key_id) {
-			ha_alter_info->unsupported_reason = innobase_get_err_msg(
-				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
-			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-		}
-	}
 
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
@@ -5084,11 +5090,9 @@ new_clustered_failed:
 			goto not_instant_add_column;
 		}
 
-		if ((ha_alter_info->handler_flags
-		     & Alter_inplace_info::CHANGE_CREATE_OPTION)
-		    && (ha_alter_info->create_info->used_fields
-			& (HA_CREATE_USED_ROW_FORMAT
-			   | HA_CREATE_USED_KEY_BLOCK_SIZE))) {
+		if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
+		    == Alter_inplace_info::CHANGE_CREATE_OPTION
+		    && create_option_need_rebuild(ha_alter_info, old_table)) {
 			goto not_instant_add_column;
 		}
 
@@ -5260,6 +5264,20 @@ not_instant_add_column:
 				mode = c->encryption;
 			}
 			fil_space_release(s);
+		}
+
+		if (ha_alter_info->handler_flags
+		    & Alter_inplace_info::CHANGE_CREATE_OPTION) {
+			const ha_table_option_struct& alt_opt=
+				*ha_alter_info->create_info->option_struct;
+			const ha_table_option_struct& opt=
+				*old_table->s->option_struct;
+			if (alt_opt.encryption != opt.encryption
+			    || alt_opt.encryption_key_id
+			    != opt.encryption_key_id) {
+				key_id = alt_opt.encryption_key_id;
+				mode = fil_encryption_t(alt_opt.encryption);
+			}
 		}
 
 		if (dict_table_get_low(ctx->new_table->name.m_name)) {
@@ -6607,7 +6625,7 @@ err_exit:
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 	    || ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
 		== Alter_inplace_info::CHANGE_CREATE_OPTION
-		&& !innobase_need_rebuild(ha_alter_info, table))) {
+		&& !create_option_need_rebuild(ha_alter_info, table))) {
 
 		if (heap) {
 			ha_alter_info->handler_ctx
@@ -6892,7 +6910,7 @@ ok_exit:
 
 	if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
-	    && !innobase_need_rebuild(ha_alter_info, table)) {
+	    && !create_option_need_rebuild(ha_alter_info, table)) {
 		goto ok_exit;
 	}
 
