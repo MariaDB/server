@@ -93,7 +93,7 @@ count(*)
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_during_drop_index_temp_table";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_during_drop_index_temp_table";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_during_drop_index_temp_table point---"
@@ -119,7 +119,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_on_drop_of_sec_index";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_drop_of_sec_index point---"
@@ -145,7 +145,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_on_drop_of_sec_index";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_drop_of_sec_index point---"
@@ -171,7 +171,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_on_drop_of_sec_index";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_drop_of_sec_index point---"
@@ -197,7 +197,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_on_drop_of_sec_index";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_drop_of_sec_index point---"
@@ -309,7 +309,7 @@ count(*)
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_drop_reinit_done_create_to_start";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_drop_reinit_done_create_to_start";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_drop_reinit_done_create_to_start---"
@@ -335,7 +335,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_on_create_of_sec_index";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_create_of_sec_index---"
@@ -361,7 +361,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_on_create_of_sec_index";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_create_of_sec_index---"
@@ -387,7 +387,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_on_create_of_sec_index";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_create_of_sec_index---"
@@ -413,7 +413,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_on_create_of_sec_index";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_create_of_sec_index---"
@@ -525,7 +525,7 @@ count(*)
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_before_log_removal";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_before_log_removal point---"
@@ -551,7 +551,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_before_log_removal";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_before_log_removal point---"
@@ -577,7 +577,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_before_log_removal";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_before_log_removal point---"
@@ -603,7 +603,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_before_log_removal";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_before_log_removal point---"
@@ -715,7 +715,7 @@ count(*)
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
@@ -741,7 +741,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
@@ -767,7 +767,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
@@ -793,7 +793,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
@@ -905,7 +905,7 @@ count(*)
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
@@ -931,7 +931,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
@@ -957,7 +957,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
@@ -983,7 +983,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
@@ -1095,7 +1095,7 @@ count(*)
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_redo_log_write_complete";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_redo_log_write_complete point---"
@@ -1121,7 +1121,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_redo_log_write_complete";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_redo_log_write_complete point---"
@@ -1147,7 +1147,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_redo_log_write_complete";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_redo_log_write_complete point---"
@@ -1173,7 +1173,7 @@ ERROR 42S02: Table 'test.t5' doesn't exist
 select count(*) from t6;
 count(*)
 3
-set session debug="+d,ib_trunc_crash_after_redo_log_write_complete";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_redo_log_write_complete point---"

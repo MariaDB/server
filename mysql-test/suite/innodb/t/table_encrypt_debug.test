@@ -65,7 +65,7 @@ let $MYSQLD_DATADIR = `SELECT @@datadir`;
 
 # Write file to make mysql-test-run.pl start up the server again
 --exec echo "restart:--early-plugin-load="keyring_file=$KEYRING_PLUGIN" --loose-keyring_file_data=$MYSQL_TMP_DIR/mysecret_keyring $KEYRING_PLUGIN_OPT" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-SET SESSION debug="+d,ib_crash_during_rotation_for_encryption";
+SET SESSION DEBUG_DBUG="+d,ib_crash_during_rotation_for_encryption";
 # Execute the statement that causes the crash
 CREATE TABLE tde_db.t2(c1 INT, c2 char(20)) ENCRYPTION="Y" ENGINE = InnoDB;
 
@@ -78,7 +78,7 @@ ALTER INSTANCE ROTATE INNODB MASTER KEY;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
-SET SESSION debug="-d,ib_crash_during_rotation_for_encryption";
+SET SESSION DEBUG_DBUG="-d,ib_crash_during_rotation_for_encryption";
 SELECT * FROM tde_db.t1 ORDER BY c1 LIMIT 5;
 INSERT INTO tde_db.t1 VALUES(12, "mmmmm");
 SELECT * FROM tde_db.t1 ORDER BY c1 ;
@@ -91,14 +91,14 @@ DROP TABLE tde_db.t2;
 
 # Write file to make mysql-test-run.pl start up the server again
 --exec echo "restart:--early-plugin-load="keyring_file=$KEYRING_PLUGIN" --loose-keyring_file_data=$MYSQL_TMP_DIR/mysecret_keyring $KEYRING_PLUGIN_OPT" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-SET SESSION debug="+d,ib_crash_during_create_for_encryption";
+SET SESSION DEBUG_DBUG="+d,ib_crash_during_create_for_encryption";
 # Execute the statement that causes the crash
 --error 2013
 CREATE TABLE tde_db.t2(c1 INT, c2 char(20)) ENCRYPTION="Y" ENGINE = InnoDB;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
-SET SESSION debug="-d,ib_crash_during_create_for_encryption";
+SET SESSION DEBUG_DBUG="-d,ib_crash_during_create_for_encryption";
 SELECT * FROM tde_db.t1 ORDER BY c1 LIMIT 5;
 INSERT INTO tde_db.t1 VALUES(13, "nnnnn");
 SELECT * FROM tde_db.t1 ORDER BY c1 ;
@@ -119,14 +119,14 @@ ALTER TABLE tde_db.t1 DISCARD TABLESPACE;
 --copy_file $MYSQLD_DATADIR/t1.cfg_back $MYSQLD_DATADIR/tde_db/t1.cfg
 --copy_file $MYSQLD_DATADIR/t1.cfp_back $MYSQLD_DATADIR/tde_db/t1.cfp
 --copy_file $MYSQLD_DATADIR/t1.ibd_back $MYSQLD_DATADIR/tde_db/t1.ibd
-SET SESSION debug="+d,ib_crash_during_decrypt_page";
+SET SESSION DEBUG_DBUG="+d,ib_crash_during_decrypt_page";
 # Execute the statement that causes the crash
 --error 2013
 eval ALTER TABLE tde_db.t1 IMPORT TABLESPACE;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
-SET SESSION debug="-d,ib_crash_during_decrypt_page";
+SET SESSION DEBUG_DBUG="-d,ib_crash_during_decrypt_page";
 --error ER_TABLESPACE_DISCARDED
 INSERT INTO tde_db.t1 VALUES(11, "lllll");
 --error ER_TABLESPACE_DISCARDED

@@ -89,7 +89,7 @@ DROP TABLE articles;
 -- echo # Test Part 3 END
 
 # Use default parser
-SET SESSION debug="+d,fts_instrument_use_default_parser";
+SET SESSION DEBUG_DBUG="+d,fts_instrument_use_default_parser";
 
 -- echo # Test Part 4: Create Index Test with Default/Internal Parser
 CREATE TABLE articles (
@@ -274,7 +274,7 @@ DROP TABLE articles;
 eval SET GLOBAL innodb_ft_enable_diag_print = $innodb_ft_enable_diag_print_orig;
 
 # Disable use default parser
-SET SESSION debug="-d,fts_instrument_use_default_parser";
+SET SESSION DEBUG_DBUG="-d,fts_instrument_use_default_parser";
 
 -- echo # Test Part 9:# Abort the operation in dict_create_index_step
 # by setting return status of dict_create_index_tree_step() to DB_OUT_OF_MEMORY
@@ -287,10 +287,10 @@ CREATE TABLE articles (
        FULLTEXT (title, body) WITH PARSER simple_parser
 ) ENGINE=InnoDB;
 #
-SET SESSION debug="+d,ib_dict_create_index_tree_fail";
+SET SESSION DEBUG_DBUG="+d,ib_dict_create_index_tree_fail";
 --error ER_OUT_OF_RESOURCES
 CREATE FULLTEXT INDEX idx ON articles(body);
-SET SESSION debug="-d,ib_dict_create_index_tree_fail";
+SET SESSION DEBUG_DBUG="-d,ib_dict_create_index_tree_fail";
 #
 DROP TABLE articles;
 

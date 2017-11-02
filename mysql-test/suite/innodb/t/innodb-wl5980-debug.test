@@ -41,12 +41,12 @@ SELECT * FROM t1;
 --echo # Test the first injection point in fil_rename_tablespace().
 --echo # Make sure the table is useable after this failure.
 --echo #
-SET SESSION debug="+d,fil_rename_tablespace_failure_1";
+SET SESSION DEBUG_DBUG="+d,fil_rename_tablespace_failure_1";
 --disable_result_log
 --error ER_ERROR_ON_RENAME
 RENAME TABLE t1 TO t2;
 --enable_result_log
-SET SESSION debug="-d,fil_rename_tablespace_failure_1";
+SET SESSION DEBUG_DBUG="-d,fil_rename_tablespace_failure_1";
 INSERT INTO t1 VALUES (2, "tablespace");
 SELECT * FROM t1;
 
@@ -54,12 +54,12 @@ SELECT * FROM t1;
 --echo # Test the second injection point in fil_rename_tablespace().
 --echo # Make sure the table is useable after this failure.
 --echo #
-SET SESSION debug="+d,fil_rename_tablespace_failure_2";
+SET SESSION DEBUG_DBUG="+d,fil_rename_tablespace_failure_2";
 --disable_result_log
 --error ER_ERROR_ON_RENAME
 RENAME TABLE t1 TO t2;
 --enable_result_log
-SET SESSION debug="-d,fil_rename_tablespace_failure_2";
+SET SESSION DEBUG_DBUG="-d,fil_rename_tablespace_failure_2";
 INSERT INTO t1 VALUES (3, "tablespace");
 SELECT * FROM t1;
 
@@ -67,12 +67,12 @@ SELECT * FROM t1;
 --echo # Test the injection point in dict_table_rename_in_cache().
 --echo # Make sure the table is useable after this failure.
 --echo #
-SET SESSION debug="+d,dict_table_rename_in_cache_failure";
+SET SESSION DEBUG_DBUG="+d,dict_table_rename_in_cache_failure";
 --disable_result_log
 --error ER_ERROR_ON_RENAME
 RENAME TABLE t1 TO t2;
 --enable_result_log
-SET SESSION debug="-d,dict_table_rename_in_cache_failure";
+SET SESSION DEBUG_DBUG="-d,dict_table_rename_in_cache_failure";
 INSERT INTO t1 VALUES (4, "tablespace");
 SELECT * FROM t1;
 

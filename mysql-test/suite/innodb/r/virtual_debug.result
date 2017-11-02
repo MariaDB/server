@@ -8,13 +8,13 @@ CREATE TABLE `t` (
 INSERT INTO t VALUES (REPEAT('g', 100), REPEAT('x', 10), DEFAULT, "kk", 1);
 INSERT INTO t VALUES (REPEAT('a', 100), REPEAT('b', 100), DEFAULT, "mm", 2);
 CREATE INDEX idx ON t(c(100));
-SET session debug="+d,ib_alter_add_virtual_fail";
+SET SESSION DEBUG_DBUG="+d,ib_alter_add_virtual_fail";
 ALTER TABLE t ADD COLUMN x VARCHAR(200) GENERATED ALWAYS AS (a) VIRTUAL,
 ALGORITHM = INPLACE;
 ERROR 42000: The used storage engine can't index column 'x'
 ALTER TABLE t DROP COLUMN c, ALGORITHM = INPLACE;
 ERROR 42000: The used storage engine can't index column 'c'
-SET session debug="-d,ib_alter_add_virtual_fail";
+SET SESSION DEBUG_DBUG="-d,ib_alter_add_virtual_fail";
 DROP TABLE t;
 CREATE TABLE t (a INT, b INT, c INT GENERATED ALWAYS AS(a+b), h VARCHAR(10));
 INSERT INTO t VALUES (11, 3, DEFAULT, 'mm');
@@ -81,10 +81,10 @@ INSERT INTO t VALUES (18, 1, DEFAULT, 'mm');
 INSERT INTO t VALUES (28, 1, DEFAULT, 'mm');
 INSERT INTO t VALUES (null, null, DEFAULT, 'mm');
 CREATE INDEX idx_1 on t(c);
-SET SESSION debug="+d,create_index_fail";
+SET SESSION DEBUG_DBUG="+d,create_index_fail";
 ALTER TABLE t ADD COLUMN x INT GENERATED ALWAYS AS(a+b), ADD INDEX idx (x);
 ERROR 23000: Duplicate entry '' for key '*UNKNOWN*'
-SET SESSION debug="-d,create_index_fail";
+SET SESSION DEBUG_DBUG="-d,create_index_fail";
 affected rows: 0
 SHOW CREATE TABLE t;
 Table	Create Table

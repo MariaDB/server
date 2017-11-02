@@ -62,7 +62,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_while_writing_redo_log";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_while_writing_redo_log";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -92,7 +92,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_after_redo_log_write_complete";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_after_redo_log_write_complete";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -124,7 +124,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_on_drop_of_clust_index";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_drop_of_clust_index";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -152,7 +152,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_on_drop_of_uniq_index";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_drop_of_uniq_index";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -181,7 +181,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_on_drop_of_sec_index";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_drop_of_sec_index";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -215,7 +215,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_drop_reinit_done_create_to_start";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_drop_reinit_done_create_to_start";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -247,7 +247,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_on_create_of_clust_index";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_create_of_clust_index";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -275,7 +275,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_on_create_of_uniq_index";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_create_of_uniq_index";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -303,7 +303,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_on_create_of_sec_index";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_create_of_sec_index";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -336,7 +336,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_on_updating_dict_sys_info";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_updating_dict_sys_info";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -368,7 +368,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_before_log_removal";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_before_log_removal";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -395,7 +395,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_after_truncate_done";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;

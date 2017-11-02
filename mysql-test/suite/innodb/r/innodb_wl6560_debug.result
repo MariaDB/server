@@ -20,7 +20,7 @@ drop table t1;
 "try hitting crash-point during table creation"
 # files in MYSQL_DATA_DIR
 ibtmp1
-set session debug="+d,ib_ddl_crash_during_create2";
+SET SESSION DEBUG_DBUG="+d,ib_ddl_crash_during_create2";
 create temporary table t1
 (a int, b int, primary key(a), index(b)) engine = innodb;
 ERROR HY000: Lost connection to MySQL server during query
@@ -33,7 +33,7 @@ select * from t1;
 a	b
 1	2
 drop table t1;
-set session debug="-d,ib_ddl_crash_during_create";
+SET SESSION DEBUG_DBUG="-d,ib_ddl_crash_during_create";
 use test;
 create temporary table t1
 (a int, b char(100), c char(100)) engine = innodb;
@@ -50,7 +50,7 @@ end while;
 end|
 set autocommit = 0;
 # set debug point ib_crash_during_tablespace_extension
-set session debug="+d,ib_crash_during_tablespace_extension";
+SET SESSION DEBUG_DBUG="+d,ib_crash_during_tablespace_extension";
 select count(*) from t1;
 count(*)
 5000
@@ -109,7 +109,7 @@ a	b	c
 select * from t2;
 a	b	c
 1	a	b
-set session debug="+d,crash_commit_after";
+SET SESSION DEBUG_DBUG="+d,crash_commit_after";
 insert into t2 values (2, 'a', 'b');
 ERROR HY000: Lost connection to MySQL server during query
 use test;

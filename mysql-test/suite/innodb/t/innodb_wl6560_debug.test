@@ -78,7 +78,7 @@ drop table t1;
 --echo # files in MYSQL_DATA_DIR
 --list_files $MYSQL_DATA_DIR/ ibtmp*
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-set session debug="+d,ib_ddl_crash_during_create2";
+SET SESSION DEBUG_DBUG="+d,ib_ddl_crash_during_create2";
 --error 2013
 create temporary table t1
 	(a int, b int, primary key(a), index(b)) engine = innodb;
@@ -97,7 +97,7 @@ drop table t1;
 #
 # 3.  hit a crash point during tablespace expansion.
 #
-set session debug="-d,ib_ddl_crash_during_create";
+SET SESSION DEBUG_DBUG="-d,ib_ddl_crash_during_create";
 use test;
 create temporary table t1
 	(a int, b char(100), c char(100)) engine = innodb;
@@ -119,7 +119,7 @@ set autocommit = 0;
 call populate_t1_t2();
 --echo # set debug point ib_crash_during_tablespace_extension
 --enable_query_log
-set session debug="+d,ib_crash_during_tablespace_extension";
+SET SESSION DEBUG_DBUG="+d,ib_crash_during_tablespace_extension";
 select count(*) from t1;
 select count(*) from t2;
 commit;
@@ -161,7 +161,7 @@ insert into t1 values (1, 'a', 'b');
 insert into t2 values (1, 'a', 'b');
 select * from t1;
 select * from t2;
-set session debug="+d,crash_commit_after";
+SET SESSION DEBUG_DBUG="+d,crash_commit_after";
 --exec echo "restart " > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 insert into t2 values (2, 'a', 'b');

@@ -16,10 +16,10 @@ LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
 --echo #
 --echo # If CREATE TABLESPACE fails after the file is created, it should not remain.
 --echo #
-SET SESSION DEBUG='+d,innodb_fail_to_update_tablespace_dict';
+SET SESSION DEBUG_DBUG='+d,innodb_fail_to_update_tablespace_dict';
 --error ER_CREATE_FILEGROUP_FAILED
 CREATE TABLESPACE s_def ADD DATAFILE 's_def.ibd' ENGINE=InnoDB;
-SET SESSION DEBUG='-d,innodb_fail_to_update_tablespace_dict';
+SET SESSION DEBUG_DBUG='-d,innodb_fail_to_update_tablespace_dict';
 --source suite/innodb/include/show_i_s_tablespaces.inc
 --echo # MYSQLD_DATADIR/
 --list_files $MYSQLD_DATADIR/ *.ibd

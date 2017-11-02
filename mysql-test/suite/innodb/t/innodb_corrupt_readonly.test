@@ -38,9 +38,9 @@ let $restart_parameters = : --innodb-read-only;
 
 # This will flag all secondary indexes corrupted. It should just mark
 # in-memory metadata as corrupted, as this is a read-only server
-SET SESSION debug="+d,dict_set_index_corrupted";
+SET SESSION DEBUG_DBUG="+d,dict_set_index_corrupted";
 check table t;
-SET SESSION debug="-d,dict_set_index_corrupted";
+SET SESSION DEBUG_DBUG="-d,dict_set_index_corrupted";
 
 -- error ER_INDEX_CORRUPT
 select c from t;

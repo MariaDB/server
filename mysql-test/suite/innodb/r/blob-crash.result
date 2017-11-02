@@ -67,7 +67,7 @@ update t2 set f3 = '&';
 select f1, right(f2, 20), right(f3, 20) from t2;
 f1	right(f2, 20)	right(f3, 20)
 10	=	&
-set session debug='d,ib_blob_update_rollback';
+SET SESSION DEBUG_DBUG='d,ib_blob_update_rollback';
 rollback;
 ERROR HY000: Lost connection to MySQL server during query
 select f1, right(f2, 20), right(f3, 20) from t2;

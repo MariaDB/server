@@ -18,7 +18,7 @@ i
 202
 303
 xa end 'tx2';
-set session debug="+d,ib_trx_crash_during_xa_prepare_step";
+SET SESSION DEBUG_DBUG="+d,ib_trx_crash_during_xa_prepare_step";
 xa prepare 'tx2';
 ERROR HY000: Lost connection to MySQL server during query
 select * from t2;
@@ -50,7 +50,7 @@ count(*)
 select count(*) from t2;
 count(*)
 100
-set session debug="+d,ib_trx_crash_during_commit";
+SET SESSION DEBUG_DBUG="+d,ib_trx_crash_during_commit";
 commit;
 ERROR HY000: Lost connection to MySQL server during query
 select count(*) from t2;

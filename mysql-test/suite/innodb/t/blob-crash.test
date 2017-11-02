@@ -90,7 +90,7 @@ select f1, right(f2, 20), right(f3, 20) from t2;
 update t2 set f3 = '&';
 select f1, right(f2, 20), right(f3, 20) from t2;
 
-set session debug='d,ib_blob_update_rollback';
+SET SESSION DEBUG_DBUG='d,ib_blob_update_rollback';
 # We expect a restart.
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013

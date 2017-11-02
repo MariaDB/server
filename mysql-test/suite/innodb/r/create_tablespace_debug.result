@@ -2,10 +2,10 @@ SET DEFAULT_STORAGE_ENGINE=InnoDB;
 #
 # If CREATE TABLESPACE fails after the file is created, it should not remain.
 #
-SET SESSION DEBUG='+d,innodb_fail_to_update_tablespace_dict';
+SET SESSION DEBUG_DBUG='+d,innodb_fail_to_update_tablespace_dict';
 CREATE TABLESPACE s_def ADD DATAFILE 's_def.ibd' ENGINE=InnoDB;
 ERROR HY000: Failed to create TABLESPACE s_def
-SET SESSION DEBUG='-d,innodb_fail_to_update_tablespace_dict';
+SET SESSION DEBUG_DBUG='-d,innodb_fail_to_update_tablespace_dict';
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
 === information_schema.files ===

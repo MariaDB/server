@@ -58,7 +58,7 @@ table_name='records_in_range_test' AND stat_name = 'size';
 
 # We exploit the warning mechanism here to display the return value from
 # btr_estimate_n_rows_in_range()
-SET SESSION DEBUG='+d,print_btr_estimate_n_rows_in_range_return_value';
+SET SESSION DEBUG_DBUG='+d,print_btr_estimate_n_rows_in_range_return_value';
 
 -- echo
 -- echo In all SELECTs below the number of the records in the range returned
@@ -426,6 +426,6 @@ SELECT COUNT(*) FROM records_in_range_test WHERE c1 >= 'zzz' AND c1 <= 'qqq';
 SELECT COUNT(*) FROM records_in_range_test WHERE c1 >= 'zzz' AND c1 <= 'xxx';
 SELECT COUNT(*) FROM records_in_range_test WHERE c1 >= 'zzz' AND c1 <= 'zzz';
 
-SET SESSION DEBUG='-d,print_btr_estimate_n_rows_in_range_return_value';
+SET SESSION DEBUG_DBUG='-d,print_btr_estimate_n_rows_in_range_return_value';
 
 DROP TABLE records_in_range_test;

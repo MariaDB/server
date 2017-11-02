@@ -92,7 +92,7 @@ MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 id	title	body
 DROP TABLE articles;
 # Test Part 3 END
-SET SESSION debug="+d,fts_instrument_use_default_parser";
+SET SESSION DEBUG_DBUG="+d,fts_instrument_use_default_parser";
 # Test Part 4: Create Index Test with Default/Internal Parser
 CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -301,7 +301,7 @@ id	title	body
 3	要 想 将 数据 添加 到 数据库	或 访问、处理 计算机 数据库 中 保存 的 数据
 DROP TABLE articles;
 SET GLOBAL innodb_ft_enable_diag_print = 0;
-SET SESSION debug="-d,fts_instrument_use_default_parser";
+SET SESSION DEBUG_DBUG="-d,fts_instrument_use_default_parser";
 # Test Part 9:# Abort the operation in dict_create_index_step
 CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -309,9 +309,9 @@ title VARCHAR(200),
 body TEXT,
 FULLTEXT (title, body) WITH PARSER simple_parser
 ) ENGINE=InnoDB;
-SET SESSION debug="+d,ib_dict_create_index_tree_fail";
+SET SESSION DEBUG_DBUG="+d,ib_dict_create_index_tree_fail";
 CREATE FULLTEXT INDEX idx ON articles(body);
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION debug="-d,ib_dict_create_index_tree_fail";
+SET SESSION DEBUG_DBUG="-d,ib_dict_create_index_tree_fail";
 DROP TABLE articles;
 UNINSTALL PLUGIN simple_parser;

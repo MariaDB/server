@@ -24,7 +24,7 @@ INSERT INTO tde_db.t1 VALUES(6, "ggggg");
 INSERT INTO tde_db.t1 VALUES(7, "hhhhh");
 INSERT INTO tde_db.t1 VALUES(8, "iiiii");
 INSERT INTO tde_db.t1 VALUES(9, "jjjjj");
-SET SESSION debug="+d,ib_crash_during_rotation_for_encryption";
+SET SESSION DEBUG_DBUG="+d,ib_crash_during_rotation_for_encryption";
 CREATE TABLE tde_db.t2(c1 INT, c2 char(20)) ENCRYPTION="Y" ENGINE = InnoDB;
 SHOW CREATE TABLE tde_db.t2;
 Table	Create Table
@@ -36,7 +36,7 @@ INSERT INTO tde_db.t2 VALUES(0, "aaaaa");
 INSERT INTO tde_db.t2 VALUES(1, "bbbbb");
 ALTER INSTANCE ROTATE INNODB MASTER KEY;
 ERROR HY000: Lost connection to MySQL server during query
-SET SESSION debug="-d,ib_crash_during_rotation_for_encryption";
+SET SESSION DEBUG_DBUG="-d,ib_crash_during_rotation_for_encryption";
 SELECT * FROM tde_db.t1 ORDER BY c1 LIMIT 5;
 c1	c2
 0	aaaaa
@@ -77,10 +77,10 @@ c1	c2
 9	jjjjj
 12	mmmmm
 DROP TABLE tde_db.t2;
-SET SESSION debug="+d,ib_crash_during_create_for_encryption";
+SET SESSION DEBUG_DBUG="+d,ib_crash_during_create_for_encryption";
 CREATE TABLE tde_db.t2(c1 INT, c2 char(20)) ENCRYPTION="Y" ENGINE = InnoDB;
 ERROR HY000: Lost connection to MySQL server during query
-SET SESSION debug="-d,ib_crash_during_create_for_encryption";
+SET SESSION DEBUG_DBUG="-d,ib_crash_during_create_for_encryption";
 SELECT * FROM tde_db.t1 ORDER BY c1 LIMIT 5;
 c1	c2
 0	aaaaa
@@ -108,10 +108,10 @@ ERROR 42S02: Table 'tde_db.t2' doesn't exist
 FLUSH TABLE tde_db.t1 FOR EXPORT;
 UNLOCK TABLES;
 ALTER TABLE tde_db.t1 DISCARD TABLESPACE;
-SET SESSION debug="+d,ib_crash_during_decrypt_page";
+SET SESSION DEBUG_DBUG="+d,ib_crash_during_decrypt_page";
 ALTER TABLE tde_db.t1 IMPORT TABLESPACE;
 ERROR HY000: Lost connection to MySQL server during query
-SET SESSION debug="-d,ib_crash_during_decrypt_page";
+SET SESSION DEBUG_DBUG="-d,ib_crash_during_decrypt_page";
 INSERT INTO tde_db.t1 VALUES(11, "lllll");
 ERROR HY000: Tablespace has been discarded for table 't1'
 SELECT * FROM tde_db.t1 ORDER BY c1 ;

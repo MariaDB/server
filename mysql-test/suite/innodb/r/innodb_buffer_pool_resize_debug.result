@@ -14,7 +14,7 @@ create database test2;
 create table test2.t7 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
 insert into test2.t7 (c1, c2) values (1, 1);
 drop table test2.t7;
-set global DEBUG="+d,ib_buf_pool_resize_wait_before_resize";
+SET GLOBAL DEBUG_DBUG="+d,ib_buf_pool_resize_wait_before_resize";
 set global innodb_buffer_pool_size = 12*1024*1024;
 set global innodb_buffer_pool_size = 8*1024*1024;
 ERROR HY000: Another buffer pool resize is already in progress.
@@ -40,15 +40,15 @@ drop table t5;
 alter table t6 discard tablespace;
 drop database test2;
 select count(*) > 0 from information_schema.innodb_buffer_page;
-set global DEBUG="-d,ib_buf_pool_resize_wait_before_resize";
+SET GLOBAL DEBUG_DBUG="-d,ib_buf_pool_resize_wait_before_resize";
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	OK
 count(*) > 0
 1
 call mtr.add_suppression("\\[ERROR\\] InnoDB: buffer pool 0 : failed to allocate new memory.");
-set global DEBUG="+d,ib_buf_chunk_init_fails";
+SET GLOBAL DEBUG_DBUG="+d,ib_buf_chunk_init_fails";
 set global innodb_buffer_pool_size = 16*1024*1024;
-set global DEBUG="-d,ib_buf_chunk_init_fails";
+SET GLOBAL DEBUG_DBUG="-d,ib_buf_chunk_init_fails";
 create table t8 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
 insert into t8 (c1, c2) values (1, 1);
 drop table t8;

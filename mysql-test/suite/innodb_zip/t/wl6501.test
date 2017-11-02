@@ -178,7 +178,7 @@ create table t1 (a int not null, d int not null, b blob not null, c text,
 call populate_t1();
 select count(*) from t1;
 #
-set session debug = "+d,ib_trunc_crash_before_log_removal";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_before_log_removal";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 truncate table t1;
@@ -204,7 +204,7 @@ set innodb_strict_mode=default;
 call populate_t1();
 select count(*) from t1;
 #
-set session debug = "+d,ib_trunc_crash_before_log_removal";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_before_log_removal";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 truncate table t1;
@@ -252,7 +252,7 @@ commit;
 select count(*) from t1;
 SET sql_mode = default;
 #
-set session debug = "+d,ib_trunc_crash_before_log_removal";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_before_log_removal";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 truncate table t1;
@@ -282,7 +282,7 @@ call populate_t1();
 commit;
 select count(*) from t1;
 #
-set session debug = "+d,ib_trunc_crash_before_log_removal";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_before_log_removal";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 truncate table t1;
@@ -347,7 +347,7 @@ insert into t1 values
         (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c'),
         (4, 4.4, 'd'), (5, 5.5, 'e');
 select * from t1;
-set session debug = "+d,ib_trunc_crash_after_logging_complete";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_after_logging_complete";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 truncate table t1;
@@ -378,7 +378,7 @@ insert into t1 values
         (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c'),
         (4, 4.4, 'd'), (5, 5.5, 'e');
 select * from t1;
-set session debug = "+d,ib_trunc_crash_with_intermediate_log_checkpoint";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_with_intermediate_log_checkpoint";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 truncate table t1;
@@ -398,14 +398,14 @@ use test;
 create table t (i int, j int) engine=innodb;
 insert into t values (1,1), (2,2), (3,3);
 select * from t;
-set session debug="+d,ib_err_trunc_oom_logging";
+SET SESSION DEBUG_DBUG="+d,ib_err_trunc_oom_logging";
 --error ER_GET_ERRNO
 truncate table t;
-set session debug="-d,ib_err_trunc_oom_logging";
+SET SESSION DEBUG_DBUG="-d,ib_err_trunc_oom_logging";
 select * from t;
 #
 select * from t;
-set session debug="+d,ib_err_trunc_writing_magic_number";
+SET SESSION DEBUG_DBUG="+d,ib_err_trunc_writing_magic_number";
 truncate table t;
 select * from t;
 insert into t values (1,1), (2,2), (3,3);
@@ -425,7 +425,7 @@ use test;
 create table t (i int, j int, primary key pk(i), index idx(j)) engine=innodb;
 insert into t values (1,1), (2,2), (3,3);
 select * from t;
-set session debug="+d,ib_trunc_crash_after_updating_magic_no";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_updating_magic_no";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 truncate table t;
@@ -504,7 +504,7 @@ end|
 delimiter ;|
 begin; call populate_t1(); commit;
 #
-set session debug="+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 begin; update t1 set a = a + 1000; commit;
 # Statement above will generate redo and for crash post truncate
 # recovery should avoid applying these redo records.
@@ -568,7 +568,7 @@ truncate table t2;
 select count(*) from t2;
 select count(*) from t3;
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-set session debug="+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 --error 2013
 truncate table t3;
 #
@@ -588,7 +588,7 @@ select count(*) from t3;
 truncate table t1;
 truncate table t1;
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-set session debug="+d,ib_trunc_crash_after_truncate_done";
+SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 --error 2013
 truncate table t1;
 #
@@ -624,7 +624,7 @@ repeat('0.0836047279001129oaalolrllcoulaoococrolooullocuaacocoaoloclouallruaalol
 select count(*) from ibstd_33;
 #
 --source include/expect_crash.inc
-set session debug = "+d,ib_truncate_crash_while_fts_cleanup";
+SET SESSION DEBUG_DBUG= "+d,ib_truncate_crash_while_fts_cleanup";
 --error 2013
 truncate table ibstd_33;
 #
@@ -649,7 +649,7 @@ select * from t1 where MATCH(a,b) AGAINST ("only");
 
 ALTER TABLE t1 DROP INDEX ft1;
 --source include/expect_crash.inc
-set session debug = "+d,ib_truncate_crash_while_fts_cleanup";
+SET SESSION DEBUG_DBUG= "+d,ib_truncate_crash_while_fts_cleanup";
 
 --error 2013
 truncate table t1;

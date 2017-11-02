@@ -14,7 +14,7 @@ FTS_DOC_ID BIGINT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200),
 FULLTEXT(title)
 ) ENGINE = InnoDB;
-SET GLOBAL debug="+d,fts_instrument_sync_debug,fts_instrument_sync_sleep";
+SET GLOBAL DEBUG_DBUG="+d,fts_instrument_sync_debug,fts_instrument_sync_sleep";
 SET DEBUG_SYNC= 'fts_sync_begin SIGNAL begin WAIT_FOR continue';
 INSERT INTO t1(title) VALUES('mysql database');
 SET DEBUG_SYNC= 'now WAIT_FOR begin';
@@ -31,7 +31,7 @@ SLEEP(2)
 SELECT sql_text FROM mysql.slow_log WHERE query_time >= '00:00:02';
 sql_text
 INSERT INTO t1(title) VALUES('mysql database')
-SET GLOBAL debug="-d,fts_instrument_sync_debug,fts_instrument_sync_sleep";
+SET GLOBAL DEBUG_DBUG="-d,fts_instrument_sync_debug,fts_instrument_sync_sleep";
 TRUNCATE TABLE mysql.slow_log;
 DROP TABLE t1;
 # Case 2: Sync blocks DML(insert) on other tables.
@@ -41,7 +41,7 @@ title VARCHAR(200),
 FULLTEXT(title)
 ) ENGINE = InnoDB;
 CREATE TABLE t2(id INT);
-SET GLOBAL debug="+d,fts_instrument_sync_request,fts_instrument_sync_sleep";
+SET GLOBAL DEBUG_DBUG="+d,fts_instrument_sync_request,fts_instrument_sync_sleep";
 SET DEBUG_SYNC= 'fts_instrument_sync_request SIGNAL begin WAIT_FOR continue';
 INSERT INTO t1(title) VALUES('mysql database');
 SET DEBUG_SYNC= 'now WAIT_FOR begin';
@@ -56,7 +56,7 @@ SLEEP(2)
 # slow log results should be empty here.
 SELECT sql_text FROM mysql.slow_log WHERE query_time >= '00:00:02';
 sql_text
-SET GLOBAL debug="-d,fts_instrument_sync_request,fts_instrument_sync_sleep";
+SET GLOBAL DEBUG_DBUG="-d,fts_instrument_sync_request,fts_instrument_sync_sleep";
 TRUNCATE TABLE mysql.slow_log;
 DROP TABLE t1,t2;
 # Restore slow log settings.

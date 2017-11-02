@@ -11,9 +11,9 @@ a	b
 # Test the first injection point in fil_rename_tablespace().
 # Make sure the table is useable after this failure.
 #
-SET SESSION debug="+d,fil_rename_tablespace_failure_1";
+SET SESSION DEBUG_DBUG="+d,fil_rename_tablespace_failure_1";
 RENAME TABLE t1 TO t2;
-SET SESSION debug="-d,fil_rename_tablespace_failure_1";
+SET SESSION DEBUG_DBUG="-d,fil_rename_tablespace_failure_1";
 INSERT INTO t1 VALUES (2, "tablespace");
 SELECT * FROM t1;
 a	b
@@ -23,9 +23,9 @@ a	b
 # Test the second injection point in fil_rename_tablespace().
 # Make sure the table is useable after this failure.
 #
-SET SESSION debug="+d,fil_rename_tablespace_failure_2";
+SET SESSION DEBUG_DBUG="+d,fil_rename_tablespace_failure_2";
 RENAME TABLE t1 TO t2;
-SET SESSION debug="-d,fil_rename_tablespace_failure_2";
+SET SESSION DEBUG_DBUG="-d,fil_rename_tablespace_failure_2";
 INSERT INTO t1 VALUES (3, "tablespace");
 SELECT * FROM t1;
 a	b
@@ -36,9 +36,9 @@ a	b
 # Test the injection point in dict_table_rename_in_cache().
 # Make sure the table is useable after this failure.
 #
-SET SESSION debug="+d,dict_table_rename_in_cache_failure";
+SET SESSION DEBUG_DBUG="+d,dict_table_rename_in_cache_failure";
 RENAME TABLE t1 TO t2;
-SET SESSION debug="-d,dict_table_rename_in_cache_failure";
+SET SESSION DEBUG_DBUG="-d,dict_table_rename_in_cache_failure";
 INSERT INTO t1 VALUES (4, "tablespace");
 SELECT * FROM t1;
 a	b

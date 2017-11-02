@@ -6,7 +6,7 @@ FULLTEXT(title)
 ) ENGINE = InnoDB;
 INSERT INTO t1(title) VALUES('mysql');
 INSERT INTO t1(title) VALUES('database');
-SET SESSION debug="+d,fts_instrument_sync_debug";
+SET SESSION DEBUG_DBUG="+d,fts_instrument_sync_debug";
 SET DEBUG_SYNC= 'fts_write_node SIGNAL written WAIT_FOR selected';
 INSERT INTO t1(title) VALUES('mysql database');
 SET DEBUG_SYNC= 'now WAIT_FOR written';
@@ -26,7 +26,7 @@ FTS_DOC_ID	title
 2	database
 SET DEBUG_SYNC= 'now SIGNAL selected';
 /* connection con1 */ INSERT INTO t1(title) VALUES('mysql database');
-SET SESSION debug="-d,fts_instrument_sync_debug";
+SET SESSION DEBUG_DBUG="-d,fts_instrument_sync_debug";
 SET GLOBAL innodb_ft_aux_table="test/t1";
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
@@ -51,14 +51,14 @@ FULLTEXT(title)
 ) ENGINE = InnoDB;
 INSERT INTO t1(title) VALUES('mysql');
 INSERT INTO t1(title) VALUES('database');
-SET SESSION debug="+d,fts_instrument_sync_debug";
+SET SESSION DEBUG_DBUG="+d,fts_instrument_sync_debug";
 SET DEBUG_SYNC= 'fts_write_node SIGNAL written WAIT_FOR inserted';
 INSERT INTO t1(title) VALUES('mysql database');
 SET DEBUG_SYNC= 'now WAIT_FOR written';
 INSERT INTO t1(title) VALUES('mysql database');
 SET DEBUG_SYNC= 'now SIGNAL inserted';
 /* connection con1 */ INSERT INTO t1(title) VALUES('mysql database');
-SET SESSION debug="-d,fts_instrument_sync_debug";
+SET SESSION DEBUG_DBUG="-d,fts_instrument_sync_debug";
 SET GLOBAL innodb_ft_aux_table="test/t1";
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
@@ -85,7 +85,7 @@ title VARCHAR(200),
 FULLTEXT(title)
 ) ENGINE = InnoDB;
 INSERT INTO t1(title) VALUES('database');
-SET SESSION debug="+d,fts_instrument_sync_debug,fts_write_node_crash";
+SET SESSION DEBUG_DBUG="+d,fts_instrument_sync_debug,fts_write_node_crash";
 INSERT INTO t1(title) VALUES('mysql');
 ERROR HY000: Lost connection to MySQL server during query
 # restart
@@ -93,9 +93,9 @@ After restart
 SELECT * FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
 FTS_DOC_ID	title
 1	database
-SET SESSION debug="+d,fts_instrument_sync_debug";
+SET SESSION DEBUG_DBUG="+d,fts_instrument_sync_debug";
 INSERT INTO t1(title) VALUES('mysql');
-SET SESSION debug="-d,fts_instrument_sync_debug";
+SET SESSION DEBUG_DBUG="-d,fts_instrument_sync_debug";
 SELECT * FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
 FTS_DOC_ID	title
 1	database
@@ -107,16 +107,16 @@ id INT AUTO_INCREMENT,
 title VARCHAR(100),
 FULLTEXT(title),
 PRIMARY KEY(id)) ENGINE=InnoDB;
-SET SESSION debug="+d,fts_instrument_sync";
+SET SESSION DEBUG_DBUG="+d,fts_instrument_sync";
 INSERT INTO t1(title) VALUES('mysql');
-SET SESSION debug="-d,fts_instrument_sync";
+SET SESSION DEBUG_DBUG="-d,fts_instrument_sync";
 # restart
-SET GLOBAL debug="+d,fts_instrument_sync,fts_instrument_sync_interrupted";
+SET GLOBAL DEBUG_DBUG="+d,fts_instrument_sync,fts_instrument_sync_interrupted";
 INSERT INTO t1(title) VALUES('database');
-SET GLOBAL debug="-d,fts_instrument_sync,fts_instrument_sync_interrupted";
-SET SESSION debug="+d,fts_instrument_sync_debug";
+SET GLOBAL DEBUG_DBUG="-d,fts_instrument_sync,fts_instrument_sync_interrupted";
+SET SESSION DEBUG_DBUG="+d,fts_instrument_sync_debug";
 INSERT INTO t1(title) VALUES('good');
-SET SESSION debug="-d,fts_instrument_sync_debug";
+SET SESSION DEBUG_DBUG="-d,fts_instrument_sync_debug";
 SET GLOBAL innodb_ft_aux_table="test/t1";
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION

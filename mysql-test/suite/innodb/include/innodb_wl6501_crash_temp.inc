@@ -56,7 +56,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_drop_reinit_done_create_to_start";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_drop_reinit_done_create_to_start";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;
@@ -83,7 +83,7 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 check table t;
 #
-set session debug = "+d,ib_trunc_crash_on_updating_dict_sys_info";
+SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_updating_dict_sys_info";
 --source include/expect_crash.inc
 --error 2013
 truncate table t;

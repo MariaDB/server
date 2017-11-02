@@ -204,12 +204,12 @@ while ($cnt) {
 	# set the debug crash point and exercise them.
 	if ($cnt == 6)
 	{
-		set session debug="+d,ib_trunc_crash_during_drop_index_temp_table";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_during_drop_index_temp_table";
 		--echo "---debug ib_trunc_crash_during_drop_index_temp_table point---"
 	}
 	if ($cnt == 5)
 	{
-		set session debug="+d,ib_trunc_crash_drop_reinit_done_create_to_start";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_drop_reinit_done_create_to_start";
 		--echo "---debug ib_trunc_crash_drop_reinit_done_create_to_start---"
 	}
 
@@ -237,32 +237,32 @@ while ($cnt) {
 	# set the debug crash point and exercise them.
 	if ($cnt == 6)
 	{
-		set session debug="+d,ib_trunc_crash_on_drop_of_sec_index";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
 		--echo "---debug ib_trunc_crash_on_drop_of_sec_index point---"
 	}
 	if ($cnt == 5)
 	{
-		set session debug="+d,ib_trunc_crash_on_create_of_sec_index";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
 		--echo "---debug ib_trunc_crash_on_create_of_sec_index---"
 	}
 	if ($cnt == 4)
 	{
-		set session debug="+d,ib_trunc_crash_before_log_removal";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
 		--echo "---debug ib_trunc_crash_before_log_removal point---"
 	}
 	if ($cnt == 3)
 	{
-		set session debug="+d,ib_trunc_crash_after_truncate_done";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 		--echo "---debug ib_trunc_crash_after_truncate_done point---"
 	}
 	if ($cnt == 2)
 	{
-		set session debug="+d,ib_trunc_crash_after_truncate_done";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 		--echo "---debug ib_trunc_crash_after_truncate_done point---"
 	}
 	if ($cnt == 1)
 	{
-		set session debug="+d,ib_trunc_crash_after_redo_log_write_complete";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
 		--echo "---debug ib_trunc_crash_after_redo_log_write_complete point---"
 	}
 
@@ -287,32 +287,32 @@ while ($cnt) {
 
 	if ($cnt == 6)
 	{
-		set session debug="+d,ib_trunc_crash_on_drop_of_sec_index";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
 		--echo "---debug ib_trunc_crash_on_drop_of_sec_index point---"
 	}
 	if ($cnt == 5)
 	{
-		set session debug="+d,ib_trunc_crash_on_create_of_sec_index";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
 		--echo "---debug ib_trunc_crash_on_create_of_sec_index---"
 	}
 	if ($cnt == 4)
 	{
-		set session debug="+d,ib_trunc_crash_before_log_removal";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
 		--echo "---debug ib_trunc_crash_before_log_removal point---"
 	}
 	if ($cnt == 3)
 	{
-		set session debug="+d,ib_trunc_crash_after_truncate_done";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 		--echo "---debug ib_trunc_crash_after_truncate_done point---"
 	}
 	if ($cnt == 2)
 	{
-		set session debug="+d,ib_trunc_crash_after_truncate_done";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 		--echo "---debug ib_trunc_crash_after_truncate_done point---"
 	}
 	if ($cnt == 1)
 	{
-		set session debug="+d,ib_trunc_crash_after_redo_log_write_complete";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
 		--echo "---debug ib_trunc_crash_after_redo_log_write_complete point---"
 	}
 
@@ -338,32 +338,32 @@ while ($cnt) {
 
 	if ($cnt == 6)
 	{
-		set session debug="+d,ib_trunc_crash_on_drop_of_sec_index";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
 		--echo "---debug ib_trunc_crash_on_drop_of_sec_index point---"
 	}
 	if ($cnt == 5)
 	{
-		set session debug="+d,ib_trunc_crash_on_create_of_sec_index";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
 		--echo "---debug ib_trunc_crash_on_create_of_sec_index---"
 	}
 	if ($cnt == 4)
 	{
-		set session debug="+d,ib_trunc_crash_before_log_removal";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
 		--echo "---debug ib_trunc_crash_before_log_removal point---"
 	}
 	if ($cnt == 3)
 	{
-		set session debug="+d,ib_trunc_crash_after_truncate_done";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 		--echo "---debug ib_trunc_crash_after_truncate_done point---"
 	}
 	if ($cnt == 2)
 	{
-		set session debug="+d,ib_trunc_crash_after_truncate_done";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 		--echo "---debug ib_trunc_crash_after_truncate_done point---"
 	}
 	if ($cnt == 1)
 	{
-		set session debug="+d,ib_trunc_crash_after_redo_log_write_complete";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
 		--echo "---debug ib_trunc_crash_after_redo_log_write_complete point---"
 	}
 
@@ -390,32 +390,32 @@ while ($cnt) {
 
 	if ($cnt == 6)
 	{
-		set session debug="+d,ib_trunc_crash_on_drop_of_sec_index";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
 		--echo "---debug ib_trunc_crash_on_drop_of_sec_index point---"
 	}
 	if ($cnt == 5)
 	{
-		set session debug="+d,ib_trunc_crash_on_create_of_sec_index";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
 		--echo "---debug ib_trunc_crash_on_create_of_sec_index---"
 	}
 	if ($cnt == 4)
 	{
-		set session debug="+d,ib_trunc_crash_before_log_removal";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
 		--echo "---debug ib_trunc_crash_before_log_removal point---"
 	}
 	if ($cnt == 3)
 	{
-		set session debug="+d,ib_trunc_crash_after_truncate_done";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 		--echo "---debug ib_trunc_crash_after_truncate_done point---"
 	}
 	if ($cnt == 2)
 	{
-		set session debug="+d,ib_trunc_crash_after_truncate_done";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
 		--echo "---debug ib_trunc_crash_after_truncate_done point---"
 	}
 	if ($cnt == 1)
 	{
-		set session debug="+d,ib_trunc_crash_after_redo_log_write_complete";
+		SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
 		--echo "---debug ib_trunc_crash_after_redo_log_write_complete point---"
 	}
 

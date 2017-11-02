@@ -6,7 +6,7 @@ call populate_t1();
 delete from t1 where keyc < 20000;
 update t1 set c1 = 'mysql' where  keyc > 20000;
 update t1 set c2 = 'oracle' where  keyc > 20000;
-eval set global debug = $debug_point;
+eval SET GLOBAL DEBUG_DBUG= $debug_point;
 commit;
 set global innodb_fast_shutdown=0;
 --source include/shutdown_mysqld.inc

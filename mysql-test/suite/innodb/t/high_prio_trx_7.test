@@ -124,22 +124,22 @@ INSERT INTO t1 VALUES (0);
 --echo # On connection 1
 --connection con1
 --disable_query_log
-SET GLOBAL DEBUG='+d,dbug_set_high_prio_trx';
+SET GLOBAL DEBUG_DBUG='+d,dbug_set_high_prio_trx';
 --enable_query_log
 START TRANSACTION READ ONLY /* HIGH PRIORITY */ ;
 --disable_query_log
-SET GLOBAL DEBUG='-d,dbug_set_high_prio_trx';
+SET GLOBAL DEBUG_DBUG='-d,dbug_set_high_prio_trx';
 --enable_query_log
 SELECT c1 FROM t1 WHERE c1=0 LOCK IN SHARE MODE;
 
 --echo
 --echo # On connection 2
 --connection con2
-SET GLOBAL DEBUG='+d,dbug_set_high_prio_trx';
+SET GLOBAL DEBUG_DBUG='+d,dbug_set_high_prio_trx';
 --enable_query_log
 START TRANSACTION READ ONLY /* HIGH PRIORITY */ ;
 --disable_query_log
-SET GLOBAL DEBUG='-d,dbug_set_high_prio_trx';
+SET GLOBAL DEBUG_DBUG='-d,dbug_set_high_prio_trx';
 --enable_query_log
 SELECT c1 FROM t1 WHERE c1=0 LOCK IN SHARE MODE;
 --error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
@@ -342,11 +342,11 @@ UPDATE t1 SET c1=11 WHERE c1=0;
 
 --connection con1
 --disable_query_log
-SET GLOBAL DEBUG='+d,dbug_set_high_prio_trx';
+SET GLOBAL DEBUG_DBUG='+d,dbug_set_high_prio_trx';
 --enable_query_log
 XA START 'xa_high_prio' /* HIGH PRIORITY */ ;
 --disable_query_log
-SET GLOBAL DEBUG='-d,dbug_set_high_prio_trx';
+SET GLOBAL DEBUG_DBUG='-d,dbug_set_high_prio_trx';
 --enable_query_log
 UPDATE t1 SET c1=10 WHERE c1=0;
 XA END 'xa_high_prio';
@@ -382,21 +382,21 @@ UPDATE t1 SET c1=11 WHERE c1=0;
 
 --connection con1
 --disable_query_log
-SET GLOBAL DEBUG='+d,dbug_set_high_prio_trx';
+SET GLOBAL DEBUG_DBUG='+d,dbug_set_high_prio_trx';
 --enable_query_log
 XA START 'xa_high_prio' /* HIGH PRIORITY */ ;
 --disable_query_log
-SET GLOBAL DEBUG='-d,dbug_set_high_prio_trx';
+SET GLOBAL DEBUG_DBUG='-d,dbug_set_high_prio_trx';
 --enable_query_log
 UPDATE t1 SET c1=10 WHERE c1=0;
 
 --connection con3
 --disable_query_log
-SET GLOBAL DEBUG='+d,dbug_set_high_prio_trx';
+SET GLOBAL DEBUG_DBUG='+d,dbug_set_high_prio_trx';
 --enable_query_log
 XA START 'second_xa_high_prio' /* HIGH PRIORITY */ ;
 --disable_query_log
-SET GLOBAL DEBUG='-d,dbug_set_high_prio_trx';
+SET GLOBAL DEBUG_DBUG='-d,dbug_set_high_prio_trx';
 --enable_query_log
 --send UPDATE t1 SET c1=13 WHERE c1=0
 

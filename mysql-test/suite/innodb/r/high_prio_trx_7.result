@@ -60,7 +60,7 @@ c1
 0
 
 # On connection 2
-SET GLOBAL DEBUG='+d,dbug_set_high_prio_trx';
+SET GLOBAL DEBUG_DBUG='+d,dbug_set_high_prio_trx';
 START TRANSACTION READ ONLY /* HIGH PRIORITY */ ;
 SELECT c1 FROM t1 WHERE c1=0 LOCK IN SHARE MODE;
 c1

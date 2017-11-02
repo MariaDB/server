@@ -16,10 +16,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_assigning_undo_log";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_assigning_undo_log";
 select * from t;
 i	f	c
 1	1.1	a
@@ -42,10 +42,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_preparing_for_truncate";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_preparing_for_truncate";
 select * from t;
 i	f	c
 1	1.1	a
@@ -68,10 +68,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_drop_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_drop_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -90,10 +90,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_create_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_create_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -112,10 +112,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_temp_recreate_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_temp_recreate_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -136,10 +136,10 @@ i	f	c
 1	1.1	mysql is now oracle company
 2	2.2	innodb is part of mysql
 3	3.3	innodb is default storage engine of mysql
-set session debug = "+d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_fts_trunc";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_fts_trunc";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -160,10 +160,10 @@ i	f	c
 1	1.1	mysql is now oracle company
 2	2.2	innodb is part of mysql
 3	3.3	innodb is default storage engine of mysql
-set session debug = "+d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_sys_table_update";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_sys_table_update";
 select * from t order by i;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -189,10 +189,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_assigning_undo_log";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_assigning_undo_log";
 select * from t;
 i	f	c
 1	1.1	a
@@ -215,10 +215,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_preparing_for_truncate";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_preparing_for_truncate";
 select * from t;
 i	f	c
 1	1.1	a
@@ -241,10 +241,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_drop_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_drop_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -263,10 +263,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_create_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_create_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -285,10 +285,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_temp_recreate_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_temp_recreate_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -309,10 +309,10 @@ i	f	c
 1	1.1	mysql is now oracle company
 2	2.2	innodb is part of mysql
 3	3.3	innodb is default storage engine of mysql
-set session debug = "+d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_fts_trunc";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_fts_trunc";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -333,10 +333,10 @@ i	f	c
 1	1.1	mysql is now oracle company
 2	2.2	innodb is part of mysql
 3	3.3	innodb is default storage engine of mysql
-set session debug = "+d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_sys_table_update";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_sys_table_update";
 select * from t order by i;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -362,10 +362,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_assigning_undo_log";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_assigning_undo_log";
 select * from t;
 i	f	c
 1	1.1	a
@@ -388,10 +388,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_preparing_for_truncate";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_preparing_for_truncate";
 select * from t;
 i	f	c
 1	1.1	a
@@ -414,10 +414,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_drop_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_drop_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -436,10 +436,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_create_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_create_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -458,10 +458,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_temp_recreate_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_temp_recreate_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -482,10 +482,10 @@ i	f	c
 1	1.1	mysql is now oracle company
 2	2.2	innodb is part of mysql
 3	3.3	innodb is default storage engine of mysql
-set session debug = "+d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_fts_trunc";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_fts_trunc";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -506,10 +506,10 @@ i	f	c
 1	1.1	mysql is now oracle company
 2	2.2	innodb is part of mysql
 3	3.3	innodb is default storage engine of mysql
-set session debug = "+d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_sys_table_update";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_sys_table_update";
 select * from t order by i;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -535,10 +535,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_assigning_undo_log";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_assigning_undo_log";
 select * from t;
 i	f	c
 1	1.1	a
@@ -561,10 +561,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_preparing_for_truncate";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_preparing_for_truncate";
 select * from t;
 i	f	c
 1	1.1	a
@@ -587,10 +587,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_drop_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_drop_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -609,10 +609,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_create_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_create_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -631,10 +631,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_temp_recreate_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_temp_recreate_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -655,10 +655,10 @@ i	f	c
 1	1.1	mysql is now oracle company
 2	2.2	innodb is part of mysql
 3	3.3	innodb is default storage engine of mysql
-set session debug = "+d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_fts_trunc";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_fts_trunc";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -679,10 +679,10 @@ i	f	c
 1	1.1	mysql is now oracle company
 2	2.2	innodb is part of mysql
 3	3.3	innodb is default storage engine of mysql
-set session debug = "+d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_sys_table_update";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_sys_table_update";
 select * from t order by i;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -708,10 +708,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_assigning_undo_log";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_assigning_undo_log";
 select * from t;
 i	f	c
 1	1.1	a
@@ -734,10 +734,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_preparing_for_truncate";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_preparing_for_truncate";
 select * from t;
 i	f	c
 1	1.1	a
@@ -760,10 +760,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_drop_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_drop_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -782,10 +782,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_create_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_create_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -804,10 +804,10 @@ i	f	c
 1	1.1	a
 2	2.2	b
 3	3.3	c
-set session debug = "+d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_temp_recreate_index";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_temp_recreate_index";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -828,10 +828,10 @@ i	f	c
 1	1.1	mysql is now oracle company
 2	2.2	innodb is part of mysql
 3	3.3	innodb is default storage engine of mysql
-set session debug = "+d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_fts_trunc";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_fts_trunc";
 select * from t;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;
@@ -852,10 +852,10 @@ i	f	c
 1	1.1	mysql is now oracle company
 2	2.2	innodb is part of mysql
 3	3.3	innodb is default storage engine of mysql
-set session debug = "+d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_sys_table_update";
 truncate table t;
 ERROR HY000: Got error 168 from storage engine
-set session debug = "-d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_sys_table_update";
 select * from t order by i;
 ERROR HY000: Operation cannot be performed. The table 'test.t' is missing, corrupt or contains bad data.
 drop table t;

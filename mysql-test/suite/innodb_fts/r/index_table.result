@@ -85,7 +85,7 @@ use	4	7	3	7	23
 well	4	4	1	4	17
 went	4	4	1	4	32
 you	4	4	1	4	28
-SET SESSION debug="+d,fts_instrument_result_cache_limit";
+SET SESSION DEBUG_DBUG="+d,fts_instrument_result_cache_limit";
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
 1001	6	6	1	6	0
@@ -120,7 +120,7 @@ use	4	7	3	7	23
 well	4	4	1	4	17
 went	4	4	1	4	32
 you	4	4	1	4	28
-SET SESSION debug="-d,fts_instrument_result_cache_limit";
+SET SESSION DEBUG_DBUG="-d,fts_instrument_result_cache_limit";
 DROP TABLE articles;
 SET GLOBAL innodb_ft_result_cache_limit=default;
 CREATE TABLE articles (

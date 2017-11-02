@@ -33,7 +33,7 @@ CREATE TABLE t1 (
 
 connection con1;
 
-SET GLOBAL debug="+d,fts_instrument_sync_debug,fts_instrument_sync_sleep";
+SET GLOBAL DEBUG_DBUG="+d,fts_instrument_sync_debug,fts_instrument_sync_sleep";
 
 SET DEBUG_SYNC= 'fts_sync_begin SIGNAL begin WAIT_FOR continue';
 
@@ -62,7 +62,7 @@ SELECT SLEEP(2);
 -- echo # slow log results should only contain INSERT INTO t1.
 SELECT sql_text FROM mysql.slow_log WHERE query_time >= '00:00:02';
 
-SET GLOBAL debug="-d,fts_instrument_sync_debug,fts_instrument_sync_sleep";
+SET GLOBAL DEBUG_DBUG="-d,fts_instrument_sync_debug,fts_instrument_sync_sleep";
 TRUNCATE TABLE mysql.slow_log;
 
 DROP TABLE t1;
@@ -78,7 +78,7 @@ CREATE TABLE t2(id INT);
 
 connection con1;
 
-SET GLOBAL debug="+d,fts_instrument_sync_request,fts_instrument_sync_sleep";
+SET GLOBAL DEBUG_DBUG="+d,fts_instrument_sync_request,fts_instrument_sync_sleep";
 
 SET DEBUG_SYNC= 'fts_instrument_sync_request SIGNAL begin WAIT_FOR continue';
 
@@ -107,7 +107,7 @@ SELECT SLEEP(2);
 -- echo # slow log results should be empty here.
 SELECT sql_text FROM mysql.slow_log WHERE query_time >= '00:00:02';
 
-SET GLOBAL debug="-d,fts_instrument_sync_request,fts_instrument_sync_sleep";
+SET GLOBAL DEBUG_DBUG="-d,fts_instrument_sync_request,fts_instrument_sync_sleep";
 TRUNCATE TABLE mysql.slow_log;
 
 DROP TABLE t1,t2;

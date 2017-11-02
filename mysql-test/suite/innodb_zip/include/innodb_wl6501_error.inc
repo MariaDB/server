@@ -55,10 +55,10 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 #check table t;
 #
-set session debug = "+d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_assigning_undo_log";
 --error ER_GET_ERRNO
 truncate table t;
-set session debug = "-d,ib_err_trunc_assigning_undo_log";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_assigning_undo_log";
 #
 #check table t;
 select * from t;
@@ -81,10 +81,10 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 #check table t;
 #
-set session debug = "+d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_preparing_for_truncate";
 --error ER_GET_ERRNO
 truncate table t;
-set session debug = "-d,ib_err_trunc_preparing_for_truncate";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_preparing_for_truncate";
 #
 #check table t;
 select * from t;
@@ -107,10 +107,10 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 #check table t;
 #
-set session debug = "+d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_drop_index";
 --error ER_GET_ERRNO
 truncate table t;
-set session debug = "-d,ib_err_trunc_drop_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_drop_index";
 #
 #check table t;
 --error ER_TABLE_CORRUPT, 1030
@@ -130,10 +130,10 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 #check table t;
 #
-set session debug = "+d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_create_index";
 --error ER_GET_ERRNO
 truncate table t;
-set session debug = "-d,ib_err_trunc_create_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_create_index";
 #
 #check table t;
 --error ER_TABLE_CORRUPT, 1030
@@ -153,10 +153,10 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 select * from t;
 #check table t;
 #
-set session debug = "+d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_temp_recreate_index";
 --error ER_GET_ERRNO
 truncate table t;
-set session debug = "-d,ib_err_trunc_temp_recreate_index";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_temp_recreate_index";
 #
 #check table t;
 --error ER_TABLE_CORRUPT, 1030
@@ -181,10 +181,10 @@ insert into t values (1, 1.1, 'mysql is now oracle company'),
 select * from t;
 #check table t;
 #
-set session debug = "+d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_fts_trunc";
 --error ER_GET_ERRNO
 truncate table t;
-set session debug = "-d,ib_err_trunc_during_fts_trunc";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_fts_trunc";
 #
 #check table t;
 --error ER_TABLE_CORRUPT, 1030
@@ -209,10 +209,10 @@ insert into t values (1, 1.1, 'mysql is now oracle company'),
 select * from t order by i;
 #check table t;
 #
-set session debug = "+d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "+d,ib_err_trunc_during_sys_table_update";
 --error ER_GET_ERRNO
 truncate table t;
-set session debug = "-d,ib_err_trunc_during_sys_table_update";
+SET SESSION DEBUG_DBUG= "-d,ib_err_trunc_during_sys_table_update";
 #
 #check table t;
 --error ER_TABLE_CORRUPT, 1030

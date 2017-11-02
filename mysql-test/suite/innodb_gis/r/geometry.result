@@ -1,6 +1,6 @@
 SET default_storage_engine=InnoDB;
 SET innodb_strict_mode=OFF;
-SET SESSION debug="+d,row_print_geometry_data";
+SET SESSION DEBUG_DBUG="+d,row_print_geometry_data";
 SHOW VARIABLES LIKE '%engine%';
 Variable_name	Value
 default_storage_engine	InnoDB
