@@ -966,6 +966,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  UTC_TIMESTAMP_SYM
 %token  UTC_TIME_SYM
 %token  VALUES                        /* SQL-2003-R */
+%token  VALUES_IN_SYM
+%token  VALUES_LESS_SYM
 %token  VALUE_SYM                     /* SQL-2003-R */
 %token  VARBINARY
 %token  VARCHAR                       /* SQL-2003-R */
@@ -4839,8 +4841,15 @@ part_type_def:
           { Lex->part_info->part_type= RANGE_PARTITION; }
         | RANGE_SYM part_column_list
           { Lex->part_info->part_type= RANGE_PARTITION; }
-        | LIST_SYM part_func
-          { Lex->part_info->part_type= LIST_PARTITION; }
+        | LIST_SYM 
+	  {
+	    Select->parsing_place= IN_PART_FUNC;
+          }
+          part_func
+          { 
+	    Lex->part_info->part_type= LIST_PARTITION; 
+	    Select->parsing_place= NO_MATTER;
+	  }
         | LIST_SYM part_column_list
           { Lex->part_info->part_type= LIST_PARTITION; }
         ;
@@ -5090,7 +5099,7 @@ opt_part_values:
             else
               part_info->part_type= HASH_PARTITION;
           }
-        | VALUES LESS_SYM THAN_SYM
+        | VALUES_LESS_SYM THAN_SYM
           {
             LEX *lex= Lex;
             partition_info *part_info= lex->part_info;
@@ -5104,7 +5113,7 @@ opt_part_values:
               part_info->part_type= RANGE_PARTITION;
           }
           part_func_max {}
-        | VALUES IN_SYM
+        | VALUES_IN_SYM
           {
             LEX *lex= Lex;
             partition_info *part_info= lex->part_info;
@@ -9499,7 +9508,7 @@ column_default_non_parenthesized_expr:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | VALUES '(' simple_ident_nospvar ')'
+        | VALUE_SYM '(' simple_ident_nospvar ')'
           {
             $$= new (thd->mem_root) Item_insert_value(thd, Lex->current_context(),
                                                         $3);
@@ -12750,7 +12759,14 @@ expr_or_default:
 opt_insert_update:
           /* empty */
         | ON DUPLICATE_SYM { Lex->duplicates= DUP_UPDATE; }
-          KEY_SYM UPDATE_SYM insert_update_list
+          KEY_SYM UPDATE_SYM 
+          {
+	    Select->parsing_place= IN_UPDATE_ON_DUP_KEY;
+          }
+          insert_update_list
+          {
+	    Select->parsing_place= NO_MATTER;
+          }
         ;
 
 /* Update rows in a table */
