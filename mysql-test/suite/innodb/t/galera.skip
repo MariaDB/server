@@ -49,3 +49,5 @@ innodb_stats_del_mark : Unsafe statement written to the binary log using stateme
 ibuf_not_empty : InnoDB: Failing assertion: !srv_read_only_mode with server restart
 innodb_force_recovery : InnoDB: Failing assertion: !srv_read_only_mode with server restart
 innodb-system-table-view : Result depends on whether galera is loaded or not
+innodb-wl5980-linux : Fails because portability_wl5980_linux.zip does not contain wsrep_schema
+innodb-multiple-tablespaces : No changes to SR table are allowed if innodb-force-recovery > 0
