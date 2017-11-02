@@ -3,8 +3,7 @@
 --source include/have_simple_parser.inc
 
 # Install fts parser plugin
---replace_regex /\.dll/.so/
-eval INSTALL PLUGIN simple_parser SONAME '$SIMPLE_PARSER';
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
 
 -- echo # Test Part 2: Create Index Test(CREATE TABLE WITH FULLTEXT INDEX)
 CREATE TABLE articles (
