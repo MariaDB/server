@@ -240,14 +240,21 @@ SHOW SESSION STATUS LIKE 'Handler_read%';
 FLUSH STATUS;
 
 --echo Optimization does not apply for GROUP BY
---source include/turn_off_only_full_group_by.inc
+
+--disable_query_log
+set @old_sql_mode=@@sql_mode;
+set sql_mode=(select replace(@@sql_mode,'ONLY_FULL_GROUP_BY',''));
+--enable_query_log
+
 SELECT FTS_DOC_ID, MATCH(title, text) AGAINST ('database') AS score
 FROM wp
 WHERE MATCH(title, text) AGAINST ('database')
 GROUP BY score;
 
 SHOW SESSION STATUS LIKE 'Handler_read%';
---source include/restore_sql_mode_after_turn_off_only_full_group_by.inc
+--disable_query_log
+set @@sql_mode= @old_sql_mode;
+--enable_query_log
 
 #
 #  Putting all three optimizations together
@@ -783,7 +790,10 @@ ORDER BY  MATCH(title, text) AGAINST ('database') DESC;
 
 --echo # MATCH and GROUP BY, DISTINCT
 
---source include/turn_off_only_full_group_by.inc
+--disable_query_log
+set @old_sql_mode1=@@sql_mode;
+set sql_mode=(select replace(@@sql_mode,'ONLY_FULL_GROUP_BY',''));
+--enable_query_log
 
 EXPLAIN SELECT FTS_DOC_ID FROM t1
 WHERE MATCH (title, text) AGAINST ('fast database' IN NATURAL LANGUAGE MODE)
@@ -835,7 +845,9 @@ WHERE MATCH (title, text) AGAINST ('fast database' IN NATURAL LANGUAGE MODE)
 ORDER BY MATCH (title, text) AGAINST ('fast database' IN NATURAL LANGUAGE MODE) DESC
 LIMIT 3;
 
---source include/restore_sql_mode_after_turn_off_only_full_group_by.inc
+--disable_query_log
+set @@sql_mode= @old_sql_mode1;
+--enable_query_log
 
 --echo # FTS index access
 
