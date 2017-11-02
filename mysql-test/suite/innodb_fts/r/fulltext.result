@@ -1,3 +1,4 @@
+drop table if exists t1,t2,t3;
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b)) ENGINE = InnoDB;
 INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
 ('Full-text indexes', 'are called collections'),

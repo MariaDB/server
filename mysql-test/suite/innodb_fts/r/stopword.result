@@ -1,5 +1,3 @@
-call mtr.add_suppression("\\[ERROR\\] InnoDB: user stopword table not_defined does not exist.");
-call mtr.add_suppression("\\[ERROR\\] InnoDB: user stopword table test/user_stopword_session does not exist.");
 select * from information_schema.innodb_ft_default_stopword;
 value
 a
@@ -115,6 +113,7 @@ SELECT * FROM articles_4 WHERE MATCH (title,body)
 AGAINST ('this' IN NATURAL LANGUAGE MODE);
 id	title	body
 1	test for session stopwords	this should also be excluded...
+connect  con1,localhost,root,,;
 CREATE TABLE articles_5 (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200),
@@ -127,6 +126,7 @@ SELECT * FROM articles_5 WHERE MATCH (title,body)
 AGAINST ('session' IN NATURAL LANGUAGE MODE);
 id	title	body
 1	test for session stopwords	this should also be excluded...
+connection default;
 drop table articles;
 drop table articles_2;
 drop table articles_3;
@@ -147,7 +147,7 @@ Table	Create Table
 articles	CREATE TABLE `articles` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `title` varchar(200) DEFAULT NULL,
-  `body` text,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`title`,`body`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -243,7 +243,7 @@ Table	Create Table
 articles	CREATE TABLE `articles` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `title` varchar(200) DEFAULT NULL,
-  `body` text,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=latin1
 ALTER TABLE articles ADD FULLTEXT INDEX idx (title,body);
@@ -437,7 +437,7 @@ Table	Create Table
 articles	CREATE TABLE `articles` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `title` varchar(200) DEFAULT NULL,
-  `body` text,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`title`,`body`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -548,7 +548,7 @@ Table	Create Table
 articles	CREATE TABLE `articles` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `title` varchar(200) DEFAULT NULL,
-  `body` text,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`title`,`body`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -565,7 +565,7 @@ select @@innodb_ft_enable_stopword;
 0
 ALTER TABLE articles DROP INDEX idx;
 ALTER TABLE articles ADD FULLTEXT INDEX idx (title,body);
-"In connection 1"
+connection con1;
 select @@innodb_ft_enable_stopword;
 @@innodb_ft_enable_stopword
 1
@@ -631,7 +631,7 @@ SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('"where will"@6' IN BOO
 id	title	body
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('"where will"@9' IN BOOLEAN MODE);
 id	title	body
-"In connection default"
+connection default;
 select @@innodb_ft_enable_stopword;
 @@innodb_ft_enable_stopword
 0
@@ -663,7 +663,7 @@ SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+the +will" IN BOOLEAN M
 id	title	body
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('"the will"@11' IN BOOLEAN MODE);
 id	title	body
-"In connection 1"
+connection con1;
 SET SESSION innodb_ft_enable_stopword = 1;
 create table user_stopword(value varchar(30)) engine = innodb;
 set session innodb_ft_user_stopword_table = "test/user_stopword";
@@ -674,7 +674,7 @@ SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+show +will" IN BOOLEAN 
 id	title	body
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
 id	title	body
-"In connection default"
+connection default;
 SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+show +will" IN BOOLEAN MODE);
 id	title	body
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
@@ -700,7 +700,7 @@ SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+when" IN BOOLEAN MODE);
 id	title	body
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('when');
 id	title	body
-"In connection 1"
+connection con1;
 SET SESSION innodb_ft_enable_stopword = 1;
 SET SESSION innodb_ft_user_stopword_table=default;
 select @@innodb_ft_user_stopword_table;
@@ -721,7 +721,8 @@ SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+when" IN BOOLEAN MODE);
 id	title	body
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('the');
 id	title	body
-"In connection default"
+disconnect con1;
+connection default;
 SET SESSION innodb_ft_enable_stopword = 1;
 SET SESSION innodb_ft_user_stopword_table=default;
 select @@innodb_ft_server_stopword_table;

@@ -1,8 +1,8 @@
---source include/have_innodb.inc
-
 #------------------------------------------------------------------------------
 # Test With two FTS index on same table + alter/create/drop index + tnx
 #------------------------------------------------------------------------------
+--source include/have_innodb.inc
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings

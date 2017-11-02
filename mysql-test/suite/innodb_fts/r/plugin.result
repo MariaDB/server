@@ -1,4 +1,4 @@
-INSTALL PLUGIN simple_parser SONAME 'mypluglib.so';
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
 # Test Part 1: Grammar Test
 CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -124,7 +124,6 @@ INSERT INTO articles (title, body) VALUES
 ('Optimizing MySQL','In this tutorial we will show ...'),
 ('1001 MySQL Tricks','How to use full-text search engine'),
 ('Go MySQL Tricks','How to use full text search engine');
-# Kill and restart
 SELECT COUNT(*) FROM articles;
 COUNT(*)
 0
@@ -136,13 +135,29 @@ INSERT INTO articles (title, body) VALUES
 ('How To Use MySQL Well','After you went through a ...'),
 ('Optimizing MySQL','In this tutorial we will show ...'),
 ('1001 MySQL Tricks','How to use full-text search engine'),
-('Go MySQL Tricks','How to use full text search engine');
-# Kill and restart
+('Go MariaDB Tricks','How to use full text search engine');
+SELECT * FROM articles WHERE
+MATCH(title, body) AGAINST('MySQL');
+id	title	body
+6	MySQL Tutorial	DBMS stands for MySQL DataBase ...
+7	How To Use MySQL Well	After you went through a ...
+8	Optimizing MySQL	In this tutorial we will show ...
+9	1001 MySQL Tricks	How to use full-text search engine
+SELECT * FROM articles WHERE
+MATCH(title, body) AGAINST('tutorial');
+id	title	body
+6	MySQL Tutorial	DBMS stands for MySQL DataBase ...
+8	Optimizing MySQL	In this tutorial we will show ...
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('Tricks');
 id	title	body
-4	1001 MySQL Tricks	How to use full-text search engine
-5	Go MySQL Tricks	How to use full text search engine
+9	1001 MySQL Tricks	How to use full-text search engine
+10	Go MariaDB Tricks	How to use full text search engine
+SELECT * FROM articles WHERE
+MATCH(title, body) AGAINST('full text search');
+id	title	body
+10	Go MariaDB Tricks	How to use full text search engine
+9	1001 MySQL Tricks	How to use full-text search engine
 SELECT COUNT(*) FROM articles;
 COUNT(*)
 5
@@ -158,7 +173,7 @@ UNINSTALL PLUGIN simple_parser;
 INSERT INTO articles (title, body) VALUES
 ('MySQL Tutorial','DBMS stands for MySQL DataBase ...');
 ERROR HY000: Plugin 'simple_parser' is not loaded
-INSTALL PLUGIN simple_parser SONAME 'mypluglib.so';
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
 INSERT INTO articles (title, body) VALUES
 ('MySQL Tutorial','DBMS stands for MySQL DataBase ...'),
 ('How To Use MySQL Well','After you went through a ...'),

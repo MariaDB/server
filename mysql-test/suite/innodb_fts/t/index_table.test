@@ -32,11 +32,11 @@ OPTIMIZE TABLE articles;
 
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE;
 
-SET SESSION debug_dbug="+d,fts_instrument_result_cache_limit";
+SET SESSION debug="+d,fts_instrument_result_cache_limit";
 
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE;
 
-SET SESSION debug_dbug="-d,fts_instrument_result_cache_limit";
+SET SESSION debug="-d,fts_instrument_result_cache_limit";
 
 DROP TABLE articles;
 

@@ -1,9 +1,10 @@
---source include/have_innodb.inc
---source include/no_valgrind_without_big.inc
-
 #------------------------------------------------------------------------------
 # Test With alter/create/drop index
 #------------------------------------------------------------------------------
+--source include/have_innodb.inc
+let collation=UTF8_UNICODE_CI;
+--source include/have_collation.inc
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
@@ -665,7 +666,7 @@ DROP TABLE t1;
 
 --echo "----------Test27---------"
 #27 Crash after server restart
-CREATE TABLE t1 (id INT,char_column VARCHAR(60)) ENGINE=InnoDB;
+CREATE TABLE t1 (id INT,char_column VARCHAR(60));
 SET @@autocommit=0;
 CREATE FULLTEXT INDEX i ON t1 (char_column);
 INSERT INTO t1 values (1,'aaa');
