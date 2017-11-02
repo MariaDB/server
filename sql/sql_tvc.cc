@@ -271,8 +271,8 @@ int table_value_constr::save_explain_data_intern(THD *thd,
 {
   const char *message= "No tables used";
   DBUG_ENTER("table_value_constr::save_explain_data_intern");
-  DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
-		      (ulong)select_lex, select_lex->type,
+  DBUG_PRINT("info", ("Select %p, type %s, message %s",
+		      select_lex, select_lex->type,
 		      message));
   DBUG_ASSERT(have_query_plan == QEP_AVAILABLE);
 
