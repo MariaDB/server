@@ -12,6 +12,7 @@ SET @old_log_output = @@global.log_output;
 SET @old_slow_query_log = @@global.slow_query_log;
 SET @old_general_log = @@global.general_log;
 SET @old_long_query_time = @@global.long_query_time;
+SET @old_dbug= @@global.DEBUG_DBUG;
 
 SET GLOBAL log_output = 'TABLE';
 SET GLOBAL general_log = 1;
@@ -120,3 +121,5 @@ SET GLOBAL log_output = @old_log_output;
 SET GLOBAL general_log = @old_general_log;
 SET GLOBAL slow_query_log = @old_slow_query_log;
 SET GLOBAL long_query_time = @old_long_query_time;
+SET @@global.DEBUG_DBUG= @old_dbug;
+SET DEBUG_SYNC= 'RESET';
