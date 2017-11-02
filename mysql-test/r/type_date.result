@@ -843,5 +843,16 @@ Warning	1292	Incorrect datetime value: '1'
 Warning	1292	Incorrect datetime value: '1'
 DROP TABLE t1;
 #
+# MDEV-14221 Assertion `0' failed in Item::field_type_for_temporal_comparison
+#
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1985-05-13'),('1989-12-24');
+SELECT d, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP HAVING CASE d WHEN '2017-05-25' THEN 0 ELSE 1 END;
+d	COUNT(*)
+1985-05-13	1
+1989-12-24	1
+NULL	2
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
