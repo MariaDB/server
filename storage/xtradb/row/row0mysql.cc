@@ -2494,10 +2494,7 @@ err_exit:
 		/* We already have .ibd file here. it should be deleted. */
 
 		if (table->space
-		    && fil_delete_tablespace(
-			    table->space,
-			    BUF_REMOVE_FLUSH_NO_WRITE)
-		    != DB_SUCCESS) {
+		    && fil_delete_tablespace(table->space) != DB_SUCCESS) {
 
 			ut_print_timestamp(stderr);
 			fprintf(stderr,
@@ -3131,9 +3128,6 @@ row_discard_tablespace(
 
 	4) FOREIGN KEY operations: if table->n_foreign_key_checks_running > 0,
 	we do not allow the discard. */
-
-	/* Play safe and remove all insert buffer entries, though we should
-	have removed them already when DISCARD TABLESPACE was called */
 
 	ibuf_delete_for_discarded_space(table->space);
 
@@ -4516,9 +4510,7 @@ row_drop_table_for_mysql(
 
 				fil_delete_file(filepath);
 
-			} else if (fil_delete_tablespace(
-					space_id,
-					BUF_REMOVE_FLUSH_NO_WRITE)
+			} else if (fil_delete_tablespace(space_id)
 				   != DB_SUCCESS) {
 				fprintf(stderr,
 					"InnoDB: We removed now the InnoDB"

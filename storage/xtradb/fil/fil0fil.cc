@@ -2572,8 +2572,7 @@ fil_op_log_parse_or_replay(
 	switch (type) {
 	case MLOG_FILE_DELETE:
 		if (fil_tablespace_exists_in_mem(space_id)) {
-			dberr_t	err = fil_delete_tablespace(
-				space_id, BUF_REMOVE_FLUSH_NO_WRITE);
+			dberr_t	err = fil_delete_tablespace(space_id);
 			ut_a(err == DB_SUCCESS);
 		}
 
@@ -2851,7 +2850,7 @@ fil_close_tablespace(
 	completely and permanently. The flag stop_new_ops also prevents
 	fil_flush() from being applied to this tablespace. */
 
-	buf_LRU_flush_or_remove_pages(id, BUF_REMOVE_FLUSH_WRITE, trx);
+	buf_LRU_flush_or_remove_pages(id, trx);
 #endif
 	mutex_enter(&fil_system->mutex);
 
@@ -2878,18 +2877,13 @@ fil_close_tablespace(
 	return(err);
 }
 
-/*******************************************************************//**
-Deletes a single-table tablespace. The tablespace must be cached in the
-memory cache.
+/** Delete a tablespace and associated .ibd file.
+@param[in]	id		tablespace identifier
+@param[in]	drop_ahi	whether to drop the adaptive hash index
 @return	DB_SUCCESS or error */
 UNIV_INTERN
 dberr_t
-fil_delete_tablespace(
-/*==================*/
-	ulint		id,		/*!< in: space id */
-	buf_remove_t	buf_remove)	/*!< in: specify the action to take
-					on the tables pages in the buffer
-					pool */
+fil_delete_tablespace(ulint id, bool drop_ahi)
 {
 	char*		path = 0;
 	fil_space_t*	space = 0;
@@ -2945,7 +2939,7 @@ fil_delete_tablespace(
 	To deal with potential read requests by checking the
 	::stop_new_ops flag in fil_io() */
 
-	buf_LRU_flush_or_remove_pages(id, buf_remove, 0);
+	buf_LRU_flush_or_remove_pages(id, NULL, drop_ahi);
 
 #endif /* !UNIV_HOTBACKUP */
 
@@ -3056,7 +3050,7 @@ fil_discard_tablespace(
 {
 	dberr_t	err;
 
-	switch (err = fil_delete_tablespace(id, BUF_REMOVE_ALL_NO_WRITE)) {
+	switch (err = fil_delete_tablespace(id, true)) {
 	case DB_SUCCESS:
 		break;
 
