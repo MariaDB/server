@@ -88,7 +88,6 @@ INSERT INTO t1 VALUES('TEST1', 'TEST2', 'TEXT3');
 INSERT INTO t1 VALUES('TEXT1', 'TEXT2', 'TEXT5');
 SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ('TEST2');
 SELECT * FROM t1 WHERE MATCH(c) AGAINST ('TEXT5');
-
 let $restart_parameters = --debug-dbug=d,aux_table_flag_fail;
 --source include/restart_mysqld.inc
 
