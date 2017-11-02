@@ -571,26 +571,20 @@ buf_flush_or_remove_page(
 	return(processed);
 }
 
-/******************************************************************//**
-Remove all dirty pages belonging to a given tablespace inside a specific
+/** Remove all dirty pages belonging to a given tablespace inside a specific
 buffer pool instance when we are deleting the data file(s) of that
 tablespace. The pages still remain a part of LRU and are evicted from
 the list as they age towards the tail of the LRU.
+@param[in,out]	buf_pool	buffer pool
+@param[in]	id		tablespace identifier
+@param[in]	trx		transaction (to check for interrupt),
+				or NULL if the files should not be written to
 @retval DB_SUCCESS if all freed
 @retval DB_FAIL if not all freed
 @retval DB_INTERRUPTED if the transaction was interrupted */
 static	MY_ATTRIBUTE((nonnull(1), warn_unused_result))
 dberr_t
-buf_flush_or_remove_pages(
-/*======================*/
-	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
-	ulint		id,		/*!< in: target space id for which
-					to remove or flush pages */
-	bool		flush,		/*!< in: flush to disk if true but
-					don't remove else remove without
-					flushing to disk */
-	const trx_t*	trx)		/*!< to check if the operation must
-					be interrupted, can be 0 */
+buf_flush_or_remove_pages(buf_pool_t* buf_pool, ulint id, const trx_t* trx)
 {
 	buf_page_t*	prev;
 	buf_page_t*	bpage;
@@ -621,7 +615,7 @@ rescan:
 			/* Skip this block, as it does not belong to
 			the target space. */
 
-		} else if (!buf_flush_or_remove_page(buf_pool, bpage, flush,
+		} else if (!buf_flush_or_remove_page(buf_pool, bpage, trx,
 						     &must_restart)) {
 
 			/* Remove was unsuccessful, we have to try again
@@ -647,7 +641,7 @@ rescan:
 				/* Cannot trust the prev pointer */
 				break;
 			}
-		} else if (flush) {
+		} else if (trx) {
 
 			/* The processing was successful. And during the
 			processing we have released all the buf_pool mutexes
@@ -674,19 +668,17 @@ rescan:
 			break;
 		}
 
-#ifdef DBUG_OFF
-		if (flush) {
+		if (trx) {
 			DBUG_EXECUTE_IF("ib_export_flush_crash",
 					static ulint	n_pages;
 					if (++n_pages == 4) {DBUG_SUICIDE();});
-		}
-#endif /* DBUG_OFF */
 
-		/* The check for trx is interrupted is expensive, we want
-		to check every N iterations. */
-		if (!processed && trx && trx_is_interrupted(trx)) {
-			buf_flush_list_mutex_exit(buf_pool);
-			return(DB_INTERRUPTED);
+			/* The check for trx is interrupted is
+			expensive, we want to check every N iterations. */
+			if (!processed && trx_is_interrupted(trx)) {
+				buf_flush_list_mutex_exit(buf_pool);
+				return(DB_INTERRUPTED);
+			}
 		}
 	}
 
@@ -695,28 +687,25 @@ rescan:
 	return(all_freed ? DB_SUCCESS : DB_FAIL);
 }
 
-/******************************************************************//**
-Remove or flush all the dirty pages that belong to a given tablespace
+/** Remove or flush all the dirty pages that belong to a given tablespace
 inside a specific buffer pool instance. The pages will remain in the LRU
 list and will be evicted from the LRU list as they age and move towards
-the tail of the LRU list. */
+the tail of the LRU list.
+@param[in,out]	buf_pool	buffer pool
+@param[in]	id		tablespace identifier
+@param[in]	trx		transaction (to check for interrupt),
+				or NULL if the files should not be written to
+*/
 static MY_ATTRIBUTE((nonnull(1)))
 void
-buf_flush_dirty_pages(
-/*==================*/
-	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
-	ulint		id,		/*!< in: space id */
-	bool		flush,		/*!< in: flush to disk if true otherwise
-					remove the pages without flushing */
-	const trx_t*	trx)		/*!< to check if the operation must
-					be interrupted */
+buf_flush_dirty_pages(buf_pool_t* buf_pool, ulint id, const trx_t* trx)
 {
 	dberr_t		err;
 
 	do {
 		mutex_enter(&buf_pool->LRU_list_mutex);
 
-		err = buf_flush_or_remove_pages(buf_pool, id, flush, trx);
+		err = buf_flush_or_remove_pages(buf_pool, id, trx);
 
 		mutex_exit(&buf_pool->LRU_list_mutex);
 
@@ -913,12 +902,12 @@ buf_LRU_remove_pages(
 
 	case BUF_REMOVE_FLUSH_NO_WRITE:
 		ut_a(trx == 0);
-		buf_flush_dirty_pages(buf_pool, id, false, NULL);
+		buf_flush_dirty_pages(buf_pool, id, NULL);
 		break;
 
 	case BUF_REMOVE_FLUSH_WRITE:
 		ut_a(trx != 0);
-		buf_flush_dirty_pages(buf_pool, id, true, trx);
+		buf_flush_dirty_pages(buf_pool, id, trx);
 		/* Ensure that all asynchronous IO is completed. */
 		os_aio_wait_until_no_pending_writes();
 		fil_flush(id);
