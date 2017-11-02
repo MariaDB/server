@@ -10,7 +10,7 @@ UPDATE t1 SET c1=1 WHERE c1=0;
 include/start_transaction_high_prio.inc
 START TRANSACTION /* HIGH PRIORITY */;
 UPDATE t1 SET c1=2 WHERE c1=0;
-SET DEBUG='+d,crash_commit_after';
+SET DEBUG_DBUG='+d,crash_commit_after';
 COMMIT;
 ERROR HY000: Lost connection to MySQL server during query
 
@@ -32,7 +32,7 @@ UPDATE t1 SET c1=1 WHERE c1=0;
 include/start_transaction_high_prio.inc
 START TRANSACTION /* HIGH PRIORITY */;
 UPDATE t1 SET c1=2 WHERE c1=0;
-SET DEBUG='+d,crash_commit_before';
+SET DEBUG_DBUG='+d,crash_commit_before';
 COMMIT;
 ERROR HY000: Lost connection to MySQL server during query
 

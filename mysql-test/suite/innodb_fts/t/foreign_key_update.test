@@ -1,3 +1,5 @@
+
+-- source include/have_innodb.inc
 #
 # BUG#21111301 INNODB FTS: ERROR DUPLICATE ENTRY IN FTS_DOC_ID_INDEX ON UPDATE CASCADE
 #

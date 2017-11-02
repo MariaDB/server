@@ -94,7 +94,7 @@ INSERT INTO t1 select * from t1;
 SELECT * FROM t1 ORDER BY c1 LIMIT 10;
 
 --disable_query_log
-SET DEBUG='+d,os_block_cache_busy';
+SET DEBUG_DBUG='+d,os_block_cache_busy';
 --enable_query_log
 
 # Restart without key ring to check the encrypted table can't be open.
@@ -113,7 +113,7 @@ SELECT * FROM t1 ORDER BY c1 LIMIT 10;
 --disable_reconnect
 
 --disable_query_log
-SET DEBUG='-d,os_block_cache_busy';
+SET DEBUG_DBUG='-d,os_block_cache_busy';
 --enable_query_log
 
 SELECT * FROM t1 ORDER BY c1 LIMIT 10;

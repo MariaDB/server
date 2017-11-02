@@ -26,7 +26,7 @@ let datadir= `select @@datadir`;
 
 --echo # Crash the server in ha_innobase::commit_inplace_alter_table()
 CREATE TABLE t1 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=innodb;
-SET debug='d,innodb_alter_commit_crash_before_commit';
+SET DEBUG_DBUG='d,innodb_alter_commit_crash_before_commit';
 
 let $orig_table_id = `SELECT table_id
 	FROM information_schema.innodb_sys_tables

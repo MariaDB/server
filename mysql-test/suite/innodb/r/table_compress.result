@@ -649,5 +649,5 @@ DROP TABLE t1;
 DROP TABLESPACE s1;
 SET GLOBAL INNODB_FILE_PER_TABLE=1;
 SET GLOBAL INNODB_FILE_PER_TABLE=1;
-SET DEBUG='-d,ignore_punch_hole';
-SET DEBUG='-d,ignore_punch_hole_size';
+SET DEBUG_DBUG='-d,ignore_punch_hole';
+SET DEBUG_DBUG='-d,ignore_punch_hole_size';

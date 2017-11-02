@@ -51,8 +51,8 @@ f1
 1
 2
 3
-SET DEBUG='+d,dml_cascade_only_once';
-SET DEBUG='+d,row_upd_cascade_lock_wait_err';
+SET DEBUG_DBUG='+d,dml_cascade_only_once';
+SET DEBUG_DBUG='+d,row_upd_cascade_lock_wait_err';
 update t1 set f1 = 100 where f1 = 2;
 select f1 from t1;
 f1

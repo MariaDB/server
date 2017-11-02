@@ -54,7 +54,7 @@ if ($no_holes)
   --source include/have_debug.inc
   --disable_query_log
   LET IGNORE_PUNCH_HOLE=1;
-  SET DEBUG='+d,ignore_punch_hole';
+  SET DEBUG_DBUG='+d,ignore_punch_hole';
   --enable_query_log
 }
 DROP TABLE t1;
@@ -89,7 +89,7 @@ SELECT NAME,ROW_FORMAT,SPACE_TYPE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES
 IF ($IGNORE_PUNCH_HOLE)
 {
   --disable_query_log
-  SET DEBUG='+d,ignore_punch_hole';
+  SET DEBUG_DBUG='+d,ignore_punch_hole';
   --enable_query_log
 }
 SET GLOBAL innodb_file_per_table = ON;
@@ -421,6 +421,6 @@ DROP TABLE t1;
 DROP TABLESPACE s1;
 eval SET GLOBAL INNODB_FILE_PER_TABLE=$prev_innodb_file_per_table;
 eval SET GLOBAL INNODB_FILE_PER_TABLE=$prev_innodb_strict_mode;
-SET DEBUG='-d,ignore_punch_hole';
-SET DEBUG='-d,ignore_punch_hole_size';
+SET DEBUG_DBUG='-d,ignore_punch_hole';
+SET DEBUG_DBUG='-d,ignore_punch_hole_size';
 

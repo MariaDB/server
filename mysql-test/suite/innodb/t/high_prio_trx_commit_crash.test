@@ -30,7 +30,7 @@ UPDATE t1 SET c1=1 WHERE c1=0;
 --connection con2
 --source include/start_transaction_high_prio.inc
 UPDATE t1 SET c1=2 WHERE c1=0;
-SET DEBUG='+d,crash_commit_after';
+SET DEBUG_DBUG='+d,crash_commit_after';
 # Request a crash, and restart the server.
 # Write file to make mysql-test-run.pl restart the server
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect

@@ -43,9 +43,9 @@ let $wait_condition=
 
 --source include/wait_condition.inc
 
-SET DEBUG='+d,do_page_reorganize,do_lock_reverse_page_reorganize';
+SET DEBUG_DBUG='+d,do_page_reorganize,do_lock_reverse_page_reorganize';
 insert into t1(f2) values (repeat('+', 100));
-SET DEBUG='-d,do_page_reorganize,do_lock_reverse_page_reorganize';
+SET DEBUG_DBUG='-d,do_page_reorganize,do_lock_reverse_page_reorganize';
 commit;
 
 --echo # Connection con1:
