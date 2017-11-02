@@ -1306,7 +1306,7 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
 {
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
   int token;
-
+  
   if (lip->lookahead_token >= 0)
   {
     /*
@@ -1347,6 +1347,24 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       lip->yylval= NULL;
       lip->lookahead_token= token;
       return WITH;
+    }
+    break;
+  case VALUES:
+    if (thd->lex->current_select->parsing_place == IN_UPDATE_ON_DUP_KEY ||
+        thd->lex->current_select->parsing_place == IN_PART_FUNC)
+      return VALUE_SYM;
+    token= lex_one_token(yylval, thd);
+    lip->add_digest_token(token, yylval);
+    switch(token) {
+    case LESS_SYM:
+      return VALUES_LESS_SYM;
+    case IN_SYM:
+      return VALUES_IN_SYM;
+    default:
+      lip->lookahead_yylval= lip->yylval;
+      lip->yylval= NULL;
+      lip->lookahead_token= token;
+      return VALUES;
     }
     break;
   default:
@@ -2224,6 +2242,8 @@ void st_select_lex::init_query()
   m_agg_func_used= false;
   window_specs.empty();
   window_funcs.empty();
+  tvc= 0;
+  in_tvc= false;
 }
 
 void st_select_lex::init_select()
@@ -2261,6 +2281,10 @@ void st_select_lex::init_select()
   with_dep= 0;
   join= 0;
   lock_type= TL_READ_DEFAULT;
+  tvc= 0;
+  in_funcs.empty();
+  curr_tvc_name= 0;
+  in_tvc= false;
 }
 
 /*
@@ -4179,6 +4203,22 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
       sj_subselects.push_back(in_subq, thd->mem_root);
       if (in_subq->emb_on_expr_nest == NO_JOIN_NEST)
          in_subq->emb_on_expr_nest= derived;
+    }
+
+    uint cnt= sizeof(expr_cache_may_be_used)/sizeof(bool);
+    for (uint i= 0; i < cnt; i++)
+    {
+      if (subq_select->expr_cache_may_be_used[i])
+	expr_cache_may_be_used[i]= true;
+    }
+
+    List_iterator_fast<Item_func_in> it(subq_select->in_funcs);
+    Item_func_in *in_func;
+    while ((in_func= it++))
+    {
+      in_funcs.push_back(in_func, thd->mem_root);
+      if (in_func->emb_on_expr_nest == NO_JOIN_NEST)
+        in_func->emb_on_expr_nest= derived;
     }
   }
 

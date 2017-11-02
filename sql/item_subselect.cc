@@ -116,9 +116,10 @@ void Item_subselect::init(st_select_lex *select_lex,
       do not take into account expression inside aggregate functions because
       they can access original table fields
     */
-    parsing_place= (outer_select->in_sum_expr ? NO_MATTER
-                                              : outer_select->parsing_place);
-    if (unit->is_unit_op())
+    parsing_place= (outer_select->in_sum_expr ?
+                    NO_MATTER :
+                    outer_select->parsing_place);
+    if (unit->is_unit_op() && unit->first_select()->next_select())
       engine= new subselect_union_engine(unit, result, this);
     else
       engine= new subselect_single_select_engine(select_lex, result, this);
@@ -264,6 +265,13 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   if (check_stack_overrun(thd, STACK_MIN_SIZE, (uchar*)&res))
     return TRUE;
   
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    if (sl->tvc)
+    {
+      wrap_tvc_in_derived_table(thd, sl);
+    }
+  }
   
   if (!(res= engine->prepare(thd)))
   {

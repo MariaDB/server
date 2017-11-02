@@ -5790,4 +5790,11 @@ static Sys_var_mybool Sys_session_track_state_change(
        ON_CHECK(0),
        ON_UPDATE(update_session_track_state_change));
 
+static Sys_var_ulong Sys_in_subquery_conversion_threshold(
+       "in_subquery_conversion_threshold",
+       "The minimum number of scalar elements in the value list of "
+       "IN predicate that triggers its conversion to IN subquery",
+       SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(10000), BLOCK_SIZE(1));
+
 #endif //EMBEDDED_LIBRARY

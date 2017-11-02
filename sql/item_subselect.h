@@ -266,6 +266,7 @@ public:
   Item* build_clone(THD *thd, MEM_ROOT *mem_root) { return 0; }
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 
+  bool wrap_tvc_in_derived_table(THD *thd, st_select_lex *tvc_sl);
 
   friend class select_result_interceptor;
   friend class Item_in_optimizer;
@@ -878,6 +879,7 @@ public:
   virtual enum_engine_type engine_type() { return SINGLE_SELECT_ENGINE; }
   int get_identifier();
   void force_reexecution();
+  void change_select(st_select_lex *new_select) { select_lex= new_select; }
 
   friend class subselect_hash_sj_engine;
   friend class Item_in_subselect;

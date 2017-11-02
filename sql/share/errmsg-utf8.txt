@@ -7786,3 +7786,7 @@ ER_COMPRESSED_COLUMN_USED_AS_KEY
   eng "Compressed column '%-.192s' can't be used in key specification"
 ER_UNKNOWN_COMPRESSION_METHOD
   eng "Unknown compression method: %s"
+ER_WRONG_NUMBER_OF_VALUES_IN_TVC
+        eng "The used table value constructor has a different number of values"
+ER_FIELD_REFERENCE_IN_TVC
+	eng "Field reference '%-.192s' can't be used in table value constructor"

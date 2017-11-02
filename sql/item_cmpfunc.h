@@ -2280,6 +2280,7 @@ class Item_func_in :public Item_func_opt_neg,
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value);
+  bool transform_into_subq;
 public:
   /// An array of values, created when the bisection lookup method is used
   in_vector *array;
@@ -2296,11 +2297,13 @@ public:
   */
   bool arg_types_compatible;
 
+  TABLE_LIST *emb_on_expr_nest;
+
   Item_func_in(THD *thd, List<Item> &list):
     Item_func_opt_neg(thd, list),
     Predicant_to_list_comparator(thd, arg_count - 1),
     array(0), have_null(0),
-    arg_types_compatible(FALSE)
+    arg_types_compatible(FALSE), emb_on_expr_nest(0)
   { }
   longlong val_int();
   bool fix_fields(THD *, Item **);
@@ -2392,7 +2395,11 @@ public:
         return NULL;
     }
     return clone;
-  }      
+  }
+  void mark_as_condition_AND_part(TABLE_LIST *embedding);
+  bool to_be_transformed_into_in_subq(THD *thd);
+  bool create_value_list_for_tvc(THD *thd, List< List<Item> > *values);
+  Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg);
 };
 
 class cmp_item_row :public cmp_item

@@ -226,7 +226,7 @@ create table y select 1 b;
 select 1 from y group by b;
 1
 1
-select 1 from y group by values(b);
+select 1 from y group by value(b);
 1
 1
 drop table y;

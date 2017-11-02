@@ -1755,6 +1755,8 @@ public:
   virtual Item *derived_grouping_field_transformer_for_where(THD *thd,
                                                              uchar *arg)
   { return this; }
+  virtual Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg)
+  { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs) const

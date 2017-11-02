@@ -1203,6 +1203,11 @@ JOIN::optimize_inner()
       DBUG_RETURN(TRUE);  
     table_count= select_lex->leaf_tables.elements;
   }
+
+  if (select_lex->first_cond_optimization &&
+      transform_in_predicates_into_in_subq(thd))
+    DBUG_RETURN(1);
+
   // Update used tables after all handling derived table procedures
   select_lex->update_used_tables();
 
@@ -14221,7 +14226,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
         equals on top level, or the constant.
       */
       Item *head_item= (!item_const && current_sjm && 
-                        current_sjm_head != field_item) ? current_sjm_head: head; 
+                        current_sjm_head != field_item) ? current_sjm_head: head;
       Item *head_real_item=  head_item->real_item();
       if (head_real_item->type() == Item::FIELD_ITEM)
         head_item= head_real_item;
@@ -25612,6 +25617,12 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 {
   DBUG_ASSERT(thd);
+  
+  if (tvc)
+  {
+    tvc->print(thd, str, query_type);
+    return;
+  }
 
   if ((query_type & QT_SHOW_SELECT_NUMBER) &&
       thd->lex->all_selects_list &&

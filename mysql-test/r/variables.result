@@ -1789,7 +1789,7 @@ set session collation_database=2048;
 ERROR HY000: Unknown collation: '2048'
 set session rand_seed1=DEFAULT;
 ERROR 42000: Variable 'rand_seed1' doesn't have a default value
-set autocommit = values(v);
+set autocommit = value(v);
 ERROR 42S22: Unknown column 'v' in 'field list'
 set session sql_mode=ansi_quotes;
 select * from information_schema.session_variables where variable_name='sql_mode';

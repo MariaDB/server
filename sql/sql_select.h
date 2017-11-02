@@ -1676,6 +1676,7 @@ public:
   bool inject_cond_into_where(Item *injected_cond);
   bool push_splitting_cond_into_derived(THD *thd, Item *cond);
   bool improve_chosen_plan(THD *thd);
+  bool transform_in_predicates_into_in_subq(THD *thd);
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER
