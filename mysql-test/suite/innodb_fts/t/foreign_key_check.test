@@ -2,9 +2,10 @@
 # BUG#22094601 CREATE TABLE WITH FULLTEXT AND CONSTRAINT FAILS WHEN FOREIGN_KEY_CHECKS IS 0
 #
 
---source include/have_innodb.inc
+--source  include/have_innodb.inc
 
---error ER_CANNOT_ADD_FOREIGN
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE t1 (
   id       INT NOT NULL,
   title    TEXT,
@@ -19,7 +20,8 @@ CREATE TABLE t1 (
   PRIMARY  KEY (id)
 ) ENGINE=InnoDB;
 
---error ER_CANNOT_ADD_FOREIGN
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
+--error ER_CANT_CREATE_TABLE
 ALTER TABLE t1 ADD FULLTEXT KEY (title), ADD FOREIGN KEY (id) REFERENCES t2 (id);
 
 SET FOREIGN_KEY_CHECKS = 0;

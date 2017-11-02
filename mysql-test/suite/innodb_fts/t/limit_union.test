@@ -1,4 +1,5 @@
 --source include/have_debug.inc
+--source include/have_innodb.inc
 
 --echo # Bug #22709692	FTS QUERY EXCEEDS RESULT CACHE LIMIT
 
@@ -26,11 +27,11 @@ SELECT * FROM articles
 	AGAINST ('MySQL' IN NATURAL LANGUAGE MODE) LIMIT 1;
 
 --echo # Without optimization
-SET DEBUG = '+d,fts_union_limit_off';
+SET debug_dbug = '+d,fts_union_limit_off';
 SELECT * FROM articles
 	WHERE MATCH (title,body)
 	AGAINST ('MySQL' IN NATURAL LANGUAGE MODE) LIMIT 1;
-SET DEBUG = '-d,fts_union_limit_off';
+SET debug_dbug = '-d,fts_union_limit_off';
 
 --echo # Query involves No Ranking and fts_union operations
 SELECT * FROM articles
@@ -38,12 +39,12 @@ SELECT * FROM articles
 	AGAINST ('MySQL' IN BOOLEAN MODE) limit 1;
 
 --echo # Without optimization
-SET DEBUG = '+d,fts_union_limit_off';
+SET debug_dbug = '+d,fts_union_limit_off';
 SELECT * FROM articles
 	WHERE MATCH (title,body)
 	AGAINST ('MySQL' IN BOOLEAN MODE) limit 1;
 
-SET DEBUG = '-d,fts_union_limit_off';
+SET debug_dbug = '-d,fts_union_limit_off';
 
 --echo # Query involves No ranking and fts_union, fts_ignore
 SELECT * FROM articles
@@ -51,11 +52,11 @@ SELECT * FROM articles
 	AGAINST ('MySQL -YourSQL' IN BOOLEAN MODE) limit 1;
 
 --echo # Without optimization
-SET DEBUG = '+d,fts_union_limit_off';
+SET debug_dbug = '+d,fts_union_limit_off';
 SELECT * FROM articles
 	WHERE MATCH (title,body)
 	AGAINST ('MySQL -YourSQL' IN BOOLEAN MODE) limit 1;
-SET DEBUG = '-d,fts_union_limit_off';
+SET debug_dbug = '-d,fts_union_limit_off';
 
 --echo # Query with fts_intersect
 SELECT * FROM articles
@@ -63,11 +64,11 @@ SELECT * FROM articles
 	AGAINST ('MySQL +YourSQL' IN BOOLEAN MODE) limit 1;
 
 --echo # Without optimization
-SET DEBUG = '+d,fts_union_limit_off';
+SET debug_dbug = '+d,fts_union_limit_off';
 SELECT * FROM articles
 	WHERE MATCH (title,body)
 	AGAINST ('MySQL +YourSQL' IN BOOLEAN MODE) limit 1;
-SET DEBUG = '-d,fts_union_limit_off';
+SET debug_dbug = '-d,fts_union_limit_off';
 
 # insert record with @ character which is used in proximity search
 INSERT INTO articles (title,body) VALUES
@@ -83,11 +84,11 @@ SELECT * FROM articles
 	AGAINST ('"MySQL request"@3' IN BOOLEAN MODE) limit 1;
 
 --echo # Without optimization
-SET DEBUG = '+d,fts_union_limit_off';
+SET debug_dbug = '+d,fts_union_limit_off';
 SELECT * FROM articles
 	WHERE MATCH (title,body)
 	AGAINST ('"MySQL request"@3' IN BOOLEAN MODE) limit 1;
-SET DEBUG = '-d,fts_union_limit_off';
+SET debug_dbug = '-d,fts_union_limit_off';
 
 --echo # Query with subexpression
 SELECT * FROM articles
@@ -95,11 +96,11 @@ SELECT * FROM articles
 	AGAINST ('+MySQL +(-support +doc)' IN BOOLEAN MODE) limit 1;
 
 --echo # Without optimization
-SET DEBUG = '+d,fts_union_limit_off';
+SET debug_dbug = '+d,fts_union_limit_off';
 SELECT * FROM articles
 	WHERE MATCH (title,body)
 	AGAINST ('+MySQL +(-support +doc)' IN BOOLEAN MODE) limit 1;
-SET DEBUG = '-d,fts_union_limit_off';
+SET debug_dbug = '-d,fts_union_limit_off';
 
 --echo # limit num1 OFFSET num2
 SELECT * FROM articles
@@ -107,11 +108,11 @@ SELECT * FROM articles
 	AGAINST ('MySQL' in boolean mode) limit 4 offset 2;
 
 --echo # Without optimization
-SET DEBUG = '+d,fts_union_limit_off';
+SET debug_dbug = '+d,fts_union_limit_off';
 SELECT * FROM articles
 	WHERE MATCH (title,body)
 	AGAINST ('MySQL' in boolean mode) limit 4 offset 2;
-SET DEBUG = '-d,fts_union_limit_off';
+SET debug_dbug = '-d,fts_union_limit_off';
 
 --echo # wild card search
 SELECT * FROM articles
@@ -119,11 +120,11 @@ SELECT * FROM articles
 	AGAINST ('ru*' IN BOOLEAN MODE) limit 1;
 
 --echo # Without optimization
-SET DEBUG = '+d,fts_union_limit_off';
+SET debug_dbug = '+d,fts_union_limit_off';
 SELECT * FROM articles
 	WHERE MATCH (title,body)
 	AGAINST ('ru*' IN BOOLEAN MODE) limit 1;
-SET DEBUG = '-d,fts_union_limit_off';
+SET debug_dbug = '-d,fts_union_limit_off';
 
 --echo # phrase search
 SELECT * FROM articles
@@ -131,11 +132,11 @@ SELECT * FROM articles
 	AGAINST ('"request support"' IN BOOLEAN MODE) limit 1;
 
 --echo # Without optimization
-SET DEBUG = '+d,fts_union_limit_off';
+SET debug_dbug = '+d,fts_union_limit_off';
 SELECT * FROM articles
 	WHERE MATCH (title,body)
 	AGAINST ('"request support"' IN BOOLEAN MODE) limit 1;
-SET DEBUG = '-d,fts_union_limit_off';
+SET debug_dbug = '-d,fts_union_limit_off';
 
 DROP TABLE articles;
 --disable_query_log
