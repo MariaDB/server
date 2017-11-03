@@ -21,8 +21,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_while_writing_redo_log";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
@@ -57,8 +55,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_after_redo_log_write_complete";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
@@ -96,8 +92,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_drop_of_clust_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
@@ -134,8 +128,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_drop_of_uniq_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
@@ -172,8 +164,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_drop_of_sec_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
@@ -212,8 +202,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_drop_reinit_done_create_to_start";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
@@ -251,8 +239,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_create_of_clust_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
@@ -289,8 +275,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_create_of_uniq_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
@@ -327,8 +311,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_create_of_sec_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
@@ -367,8 +349,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_on_updating_dict_sys_info";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
@@ -406,8 +386,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_before_log_removal";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
@@ -439,8 +417,6 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 SET SESSION DEBUG_DBUG= "+d,ib_trunc_crash_after_truncate_done";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
 check table t;
