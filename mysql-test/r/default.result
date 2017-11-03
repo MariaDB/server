@@ -547,7 +547,7 @@ CALL p1;
 ERROR 42S22: Unknown column 'par' in 'DEFAULT'
 DROP PROCEDURE p1;
 CREATE TABLE t1 (a INT DEFAULT VALUE(a));
-ERROR HY000: Function or expression 'values()' cannot be used in the DEFAULT clause of `a`
+ERROR HY000: Function or expression 'value()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT);
 CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW CREATE TABLE t2 (a INT DEFAULT NEW.a);
 ERROR HY000: Function or expression 'NEW.a' cannot be used in the DEFAULT clause of `a`

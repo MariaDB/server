@@ -5506,7 +5506,7 @@ public:
   bool update_vcol_processor(void *arg) { return 0; }
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function("values()", arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function("value()", arg, VCOL_IMPOSSIBLE);
   }
 };
 
