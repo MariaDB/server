@@ -34,9 +34,9 @@ ALTER TABLE t2 ALGORITHM=INPLACE, CHANGE COLUMN fk fk VARCHAR(6);
 ALTER TABLE t2 ALGORITHM=INPLACE, CHANGE COLUMN fk fk VARCHAR(255);
 # We cannot shrink the size or cross the 256-byte boundary.
 ALTER TABLE t2 ALGORITHM=INPLACE, CHANGE COLUMN fk fk VARCHAR(6);
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
 ALTER TABLE t2 ALGORITHM=INPLACE, CHANGE COLUMN fk fk VARCHAR(256);
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
 # ALGORITHM=COPY has more limitations with FOREIGN KEY.
 ALTER TABLE t2 CHANGE COLUMN fk fk VARCHAR(256);
 ERROR HY000: Cannot change column 'fk': used in a foreign key constraint 'fk'
@@ -44,13 +44,11 @@ ALTER TABLE t2 ALGORITHM=INPLACE, DROP FOREIGN KEY fk;
 ALTER TABLE t2 CHANGE COLUMN fk fk VARCHAR(256);
 ALTER TABLE t2 ALGORITHM=INPLACE, CHANGE COLUMN fk fk VARCHAR(300);
 SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 ALTER TABLE t2 ALGORITHM=INPLACE, CHANGE COLUMN fk fk VARCHAR(99999);
 ERROR 42000: BLOB/TEXT column 'fk' used in key specification without a key length
 ALTER TABLE t2 ALGORITHM=INPLACE, DROP INDEX fk;
 # Type change from VARCHAR to BLOB is not supported.
 ALTER TABLE t2 ALGORITHM=INPLACE, CHANGE COLUMN fk fk VARCHAR(99999);
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
 DROP TABLE t2, t1;
 SET sql_mode = default;

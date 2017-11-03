@@ -315,7 +315,6 @@ INSERT INTO t_red_in_16k VALUES (1,'a'),(2,'b'),(3,'c');
 INSERT INTO t_com_in_16k VALUES (1,'a'),(2,'b'),(3,'c');
 INSERT INTO t_dyn_in_16k VALUES (1,'a'),(2,'b'),(3,'c');
 # Restart mysqld
-# restart
 #
 # Try to drop these tablespaces which are not empty
 #
@@ -452,7 +451,6 @@ s_8k.ibd
 #
 # Stop the server.
 # Delete a general tablespace datafile.
-# restart
 # Make sure that the missing tablespace can be dropped and
 # everything else is OK.
 #

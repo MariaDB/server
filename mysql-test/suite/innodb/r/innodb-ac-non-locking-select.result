@@ -3,6 +3,13 @@ INSERT INTO t1 VALUES(0, "0");
 INSERT INTO t1 VALUES(1, "1");
 INSERT INTO t1 VALUES(2, "2");
 INSERT INTO t1 VALUES(3, "3");
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+connect  con5,localhost,root,,;
+connect  con6,localhost,root,,;
+connection default;
 SET AUTOCOMMIT=0;
 BEGIN;
 SELECT * FROM t1 FOR UPDATE;
@@ -17,6 +24,7 @@ c1	c2
 1	1
 2	2
 3	3
+connection default;
 SET DEBUG_SYNC='now WAIT_FOR waiting4';
 SELECT trx_state, trx_query, trx_autocommit_non_locking
 FROM INFORMATION_SCHEMA.INNODB_TRX
@@ -27,6 +35,7 @@ LOCK WAIT	SELECT COUNT(*) FROM t1 LOCK IN SHARE MODE	0
 LOCK WAIT	SELECT COUNT(*) FROM t1 WHERE c1 >= 0	0
 INSERT INTO t1 VALUES(4, '4');
 COMMIT;
+connection con6;
 SELECT * FROM t1 WHERE c1 <= 4;
 c1	c2
 0	0
@@ -36,9 +45,19 @@ c1	c2
 XA END '1';
 XA PREPARE '1';
 XA ROLLBACK '1';
+connection default;
+disconnect con2;
+disconnect con3;
+disconnect con5;
+disconnect con6;
+connection con1;
 COUNT(*)
 5
+disconnect con1;
+connection con4;
 COUNT(*)
 5
+disconnect con4;
+connection default;
 DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';

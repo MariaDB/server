@@ -72,7 +72,6 @@ test/t2	Dynamic	Single
 #
 # Bug#21687636 COMPRESSION COLUMN IN INNODB_SYS_TABLESPACES IS NOT CORRECT
 #
-# restart
 SET GLOBAL innodb_file_per_table = ON;
 SET SESSION innodb_strict_mode = ON;
 SHOW CREATE TABLE t1;

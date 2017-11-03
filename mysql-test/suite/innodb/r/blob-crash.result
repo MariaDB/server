@@ -93,7 +93,6 @@ f1	right(f2, 20)	right(f3, 20)
 SET GLOBAL innodb_log_checkpoint_now=ON;
 # Kill the server
 # Starting server with --innodb-force-recovery-crash=99
-# restart
 select f1, right(f2, 20), right(f3, 20) from t2;
 f1	right(f2, 20)	right(f3, 20)
 10	....................	????????????????????

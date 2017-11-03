@@ -12,15 +12,15 @@ SET DEBUG_SYNC = 'RESET';
 create table t1 (a SERIAL PRIMARY KEY, c varchar(2) UNIQUE) ENGINE=InnoDB;
 INSERT INTO t1 (c) VALUES('a'),('bb');
 --enable_info
-SET DEBUG = '+d,ib_rename_column_error';
+SET DEBUG_DBUG = '+d,ib_rename_column_error';
 --error ER_RECORD_FILE_FULL
 ALTER TABLE t1 CHANGE c b varchar(2), drop index c, add index (b,a);
-SET DEBUG = '-d,ib_rename_column_error';
+SET DEBUG_DBUG = '-d,ib_rename_column_error';
 ALTER TABLE t1 CHANGE c b varchar(2), drop index c, add index (b,a);
-SET DEBUG = '+d,ib_resize_column_error';
+SET DEBUG_DBUG = '+d,ib_resize_column_error';
 --error ER_RECORD_FILE_FULL
 ALTER TABLE t1 CHANGE b fail varchar(4);
-SET DEBUG = '-d,ib_resize_column_error';
+SET DEBUG_DBUG = '-d,ib_resize_column_error';
 ALTER TABLE t1 CHANGE b c varchar(4);
 --disable_info
 INSERT IGNORE INTO t1 (c) VALUES('eeeee'),('ffffff');

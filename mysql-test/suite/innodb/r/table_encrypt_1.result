@@ -67,7 +67,6 @@ c1	c2
 0	aaaaa
 0	aaaaa
 0	aaaaa
-# restart
 SELECT * FROM t1 ORDER BY c1 LIMIT 10;
 ERROR HY000: Can't find master key from keyring, please check keyring plugin is loaded.
 SELECT * FROM t1 ORDER BY c1 LIMIT 10;

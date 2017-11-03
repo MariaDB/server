@@ -4,7 +4,6 @@ SELECT @@innodb_force_recovery;
 @@innodb_force_recovery
 2
 # Restart server in normal mode
-# restart
 SELECT @@innodb_force_recovery;
 @@innodb_force_recovery
 0
@@ -30,7 +29,6 @@ SELECT COUNT(*) IN (0,4) yes FROM t1;
 yes
 1
 # Restart server in normal mode
-# restart
 SELECT @@innodb_force_recovery;
 @@innodb_force_recovery
 0

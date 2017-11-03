@@ -33,7 +33,6 @@ Error	1712	Index t is corrupted
 select * from t use index(primary) where a = 1;
 a	b	c	z
 1	x	1	1
-# restart
 DROP INDEX idx ON t;
 DROP INDEX idx1 ON t;
 drop table t;

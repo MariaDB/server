@@ -17,5 +17,4 @@ Level	Code	Message
 Error	1529	Failed to drop TABLESPACE s1
 Error	1874	InnoDB is in read only mode.
 # Restart in normal mode for cleanup.
-# restart
 DROP TABLESPACE s1;

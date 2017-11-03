@@ -162,7 +162,6 @@ a	b	RIGHT(c,10)	RIGHT(d,10)	RIGHT(e,10)
 6	11.111	a1a1a1a1a1	a1a1a1a1a1	a1a1a1a1a1
 # shutting down the server
 # list_file, no files expected - temp tablespace cleared on stopping server
-# restart
 CREATE TEMPORARY TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b FLOAT(5,3),
 c BLOB(100),d VARCHAR(100),e TEXT) ENGINE=InnoDB;
 INSERT INTO t1(b,c,d,e) VALUES (11.111,REPEAT('a1',50),REPEAT('a1',50),
@@ -179,7 +178,6 @@ SELECT a,b,RIGHT(c,10),RIGHT(d,10),RIGHT(e,10) FROM t1;
 a	b	RIGHT(c,10)	RIGHT(d,10)	RIGHT(e,10)
 6	11.111	a1a1a1a1a1	a1a1a1a1a1	a1a1a1a1a1
 DROP TABLE t1;
-# restart
 SHOW TABLES;
 Tables_in_test
 t2

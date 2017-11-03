@@ -17,8 +17,6 @@ select count(*) from corrupt_bit_test_ā;
 count(*)
 2
 SET SESSION DEBUG_DBUG="+d,dict_set_index_corrupted";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 check table corrupt_bit_test_ā;
 Table	Op	Msg_type	Msg_text
 test.corrupt_bit_test_ā	check	Warning	InnoDB: Index idx is marked as corrupted
@@ -26,8 +24,6 @@ test.corrupt_bit_test_ā	check	Warning	InnoDB: Index idxā is marked as corrupte
 test.corrupt_bit_test_ā	check	Warning	InnoDB: Index idxē is marked as corrupted
 test.corrupt_bit_test_ā	check	error	Corrupt
 SET SESSION DEBUG_DBUG="-d,dict_set_index_corrupted";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 CREATE INDEX idx3 ON corrupt_bit_test_ā(b, c);
 ERROR HY000: Index idx is corrupted
 CREATE INDEX idx4 ON corrupt_bit_test_ā(b, z);

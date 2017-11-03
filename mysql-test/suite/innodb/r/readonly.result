@@ -9,7 +9,6 @@ SET GLOBAL innodb_fast_shutdown=0;
 # restart: --innodb-read-only
 UPDATE t1,t2 SET t1.a = 2, t2.b = 2 WHERE t1.a = 1;
 ERROR HY000: Table 't1' is read only
-# restart
 DROP TABLE t1;
 DROP TABLE t2;
 #
@@ -22,5 +21,4 @@ SET GLOBAL innodb_fast_shutdown=0;
 SELECT * FROM t1;
 a
 1
-# restart
 DROP TABLE t1;

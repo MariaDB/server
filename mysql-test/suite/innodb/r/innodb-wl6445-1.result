@@ -105,7 +105,6 @@ FLUSH LOGS;
 FLUSH TABLES t1;
 FLUSH TABLES WITH READ LOCK;
 UNLOCK TABLES;
-# restart
 DROP USER 'test1'@'localhost';
 DROP USER 'test2'@'localhost';
 DROP USER 'test3'@'localhost';
@@ -1092,7 +1091,6 @@ FLUSH LOGS;
 FLUSH TABLES t1;
 FLUSH TABLES WITH READ LOCK;
 UNLOCK TABLES;
-# restart
 DROP DATABASE testdb_wl6445;
 case # 3
 CREATE DATABASE testdb_wl6445;
@@ -1184,7 +1182,6 @@ FLUSH LOGS;
 FLUSH TABLES t1,t2,t3;
 FLUSH TABLES WITH READ LOCK;
 UNLOCK TABLES;
-# restart
 DROP DATABASE testdb_wl6445;
 case # 4
 CREATE DATABASE testdb_wl6445;
@@ -1241,7 +1238,6 @@ SELECT * FROM t1 WHERE MATCH (j) AGAINST ('innodb') ;
 i	j
 5	mysql database innodb support
 6	innodb engine
-# restart
 DROP DATABASE testdb_wl6445;
 case # 5
 CREATE DATABASE testdb_wl6445;
@@ -1308,7 +1304,6 @@ i	LEFT(j,20)
 CREATE TABLE t2 ( i INT ) ENGINE = Innodb;
 CREATE USER 'test5_2'@'localhost' IDENTIFIED BY '123';
 GRANT ALL ON testdb_wl6445.* TO 'test5_2'@'localhost';
-# restart
 DROP USER 'test5_2'@'localhost';
 DROP USER 'test5'@'localhost';
 DROP DATABASE testdb_wl6445;
@@ -1332,7 +1327,6 @@ i
 1
 2
 3
-# restart
 DROP DATABASE testdb_wl6445;
 case # 7 (restart server in read-only mode and perform check table)
 use test;
@@ -1363,7 +1357,6 @@ test.t1	check	status	OK
 check table t1 extended;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
-# restart
 check table t1 extended;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

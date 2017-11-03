@@ -44,7 +44,6 @@ FLUSH LOGS;
 FLUSH TABLES t1;
 FLUSH TABLES WITH READ LOCK;
 UNLOCK TABLES;
-# restart
 DROP DATABASE testdb_wl6445;
 case # 2
 CREATE DATABASE testdb_wl6445;
@@ -115,5 +114,4 @@ case # 3
 #    Try to restart the server without --innodb-read-only after removing
 #    write permissions of system tablespace. Server should not start.
 #    This confirms server is not automatically started in read-only mode.
-# restart
 DROP DATABASE testdb_wl6445;

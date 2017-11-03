@@ -8,7 +8,6 @@ ibtmp1
 # files in MYSQL_DATA_DIR
 --innodb-force-recovery-crash=100
 "Next stmt will crash server"
-# restart
 # files in MYSQL_DATA_DIR
 ibtmp1
 create temporary table t1 (keyc int, c1 char(100), c2 char(100)) engine=innodb;

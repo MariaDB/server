@@ -19,7 +19,7 @@ drop table t1;
 SET SESSION DEBUG_DBUG="+d,ib_create_table_fail_at_create_index";
 create temporary table t1
 (a int, b int, primary key(a), index(b)) engine = innodb;
-ERROR HY000: Index column size too large. The maximum column size is 3072 bytes.
+ERROR HY000: Index column size too large. The maximum column size is 3072 bytes
 insert into t1 values (10, 11);
 ERROR 42S02: Table 'test.t1' doesn't exist
 SET SESSION DEBUG_DBUG="-d,ib_create_table_fail_at_create_index";
@@ -47,7 +47,6 @@ j
 4
 5
 6
-# restart
 select * from parent ;
 ERROR 42S02: Table 'test.parent' doesn't exist
 select * from child ;

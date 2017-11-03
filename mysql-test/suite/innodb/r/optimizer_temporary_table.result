@@ -4120,7 +4120,6 @@ or outr.col_varchar_key is null;
 x
 102
 SET @@optimizer_switch=@optimizer_switch_saved;
-# restart
 select @@big_tables;
 @@big_tables
 1

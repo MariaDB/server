@@ -52,5 +52,4 @@ SELECT SLEEP(30);
 SLEEP(30)
 0
 COMMIT;
-# restart
 DROP TABLE t;

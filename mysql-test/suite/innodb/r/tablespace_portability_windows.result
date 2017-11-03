@@ -221,7 +221,6 @@ DELETE FROM ibport_t6 WHERE a = 3;
 # Put the full path to the *.ibd files into *.isl files.
 # Restart the DB server.
 # Show that the tables are open and the full paths are in SYS_DATAFILES.
-# restart
 # Directory listing of MYSQLD_DATADIR/test/ ibport*.frm
 ibport_t1.frm
 ibport_t5.frm
@@ -329,7 +328,6 @@ ibport_t1.ibd
 ibport_s1_gen.ibd
 ibport_s2_gen.ibd
 # Start the DB server
-# restart
 SELECT * FROM ibport_t1 ORDER BY a;
 a	b	c
 1	One	11
@@ -422,7 +420,6 @@ ibport_s1_gen.ibd
 ibport_s2_gen.ibd
 ibport_t1.ibd
 # Start the DB server
-# restart
 SELECT s.space_type 'Type', s.name 'Space Name', d.path 'Path'
 	FROM information_schema.innodb_sys_tablespaces s, information_schema.innodb_sys_datafiles d
 WHERE s.name like '%ibport%' AND s.space = d.space ORDER BY s.space;
@@ -525,7 +522,6 @@ ibport_t1.isl
 ibport_t1.ibd
 # Directory listing of MYSQL_TMP_DIR/portability/altogether/
 # Start the DB server
-# restart
 SHOW CREATE TABLE ibport_t1;
 Table	Create Table
 ibport_t1	CREATE TABLE `ibport_t1` (
@@ -622,7 +618,6 @@ ibport_t6.frm
 # Directory listing of MYSQLD_DATADIR/test/ ibport*.ibd
 ibport_t1.ibd
 # Start the DB server
-# restart
 SELECT * FROM ibport_t1 ORDER BY a;
 a	b	c
 1	One	11

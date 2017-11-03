@@ -39,7 +39,6 @@ t1
 t2
 t3
 #restart the server
-# restart
 USE test;
 show tables;
 Tables_in_test

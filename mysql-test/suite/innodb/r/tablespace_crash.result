@@ -46,7 +46,6 @@ INSERT INTO t4 VALUES (6);
 # Copy the datafiles so that they can be found
 # in both default and remote locations.
 # Restart mysqld and display which datafiles were recovered.
-# restart
 # Default locations should be recovered.
 #
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
@@ -126,7 +125,6 @@ INSERT INTO t4 VALUES (6);
 # Delete the older remote files and move the default files to the
 # remote locations.
 # Restart mysqld and show that the remote files were opened and recovered.
-# restart
 #
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
@@ -206,7 +204,6 @@ INSERT INTO t4 VALUES (6);
 # Recovery will fail. Check the error message.
 # Delete the ISL files and move all remote files to default locations
 # Restart mysqld and display which datafiles were recovered.
-# restart
 # It should be the default datafiles
 # The two previous attempts to recover should not cause a problem
 #

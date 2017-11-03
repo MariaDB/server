@@ -160,7 +160,6 @@ yyy.ibd
 #
 # Start the server and show the tablespaces.
 #
-# restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
 test/yyy	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/yyy.ibd
@@ -337,7 +336,6 @@ yyy.ibd
 #
 # Restart the server and DROP the tablespaces.
 #
-# restart
 DROP TABLE yyy;
 DROP TABLE nyy;
 DROP TABLE yny;
@@ -478,7 +476,6 @@ wy.ibd
 yw.ibd
 yy.ibd
 # restoring yn.ibd, yw.ibd
-# restart
 SELECT * FROM ny;
 c1	c2
 1	ny

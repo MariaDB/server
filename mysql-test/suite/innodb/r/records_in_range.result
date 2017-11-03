@@ -52,7 +52,7 @@ SELECT COUNT(*) FROM records_in_range_test WHERE c1 < 'aaa';
 COUNT(*)
 0
 Warnings:
-Warning	1230	btr_estimate_n_rows_in_range(): 0
+Warning	1230	btr_estimate_n_rows_in_range(): 0.000000
 SELECT COUNT(*) FROM records_in_range_test WHERE c1 < 'ccc';
 COUNT(*)
 0

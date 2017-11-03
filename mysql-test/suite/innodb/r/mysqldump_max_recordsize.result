@@ -138,4 +138,3 @@ count(*)
 SELECT count(*) FROM tab3;
 ERROR 42S02: Table 'test.tab3' doesn't exist
 SET innodb_strict_mode=Default;
-# restart

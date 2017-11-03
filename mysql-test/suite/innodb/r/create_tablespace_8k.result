@@ -266,7 +266,6 @@ INSERT INTO t_red_in_8k VALUES (1,'a'),(2,'b'),(3,'c');
 INSERT INTO t_com_in_8k VALUES (1,'a'),(2,'b'),(3,'c');
 INSERT INTO t_dyn_in_8k VALUES (1,'a'),(2,'b'),(3,'c');
 # Restart mysqld
-# restart
 #
 # Try to drop a tablespace which is not empty
 #
@@ -358,7 +357,6 @@ s_8k.ibd
 #
 # Restart the server and make sure that everything is OK.
 #
-# restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
 s_1k	General	DEFAULT	1024	Compressed	MYSQLD_DATADIR/s_1k.ibd
