@@ -174,3 +174,11 @@ set max_session_mem_used = 50000;
 select * from seq_1_to_1000;
 set max_session_mem_used = 8192;
 select * from seq_1_to_1000;
+#
+# MDEV-14269 errors.test fails with valgrind (Conditional jump or move depends on uninitialised value)
+#
+SET NAMES utf8;
+SELECT UPDATEXML(-73 * -2465717823867977728,@@global.auto_increment_increment,null);
+ERROR 22003: BIGINT value is out of range in '-73 * -2465717823867977728'
+SELECT UPDATEXML(-73 * -2465717823867977728,@@global.long_query_time,null);
+ERROR 22003: BIGINT value is out of range in '-73 * -2465717823867977728'

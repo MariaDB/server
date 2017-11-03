@@ -213,3 +213,14 @@ select * from seq_1_to_1000;
 --enable_result_log
 # We may not be able to execute any more queries with this connection
 # because of too little memory#
+
+
+--echo #
+--echo # MDEV-14269 errors.test fails with valgrind (Conditional jump or move depends on uninitialised value)
+--echo #
+
+SET NAMES utf8;
+--error ER_DATA_OUT_OF_RANGE
+SELECT UPDATEXML(-73 * -2465717823867977728,@@global.auto_increment_increment,null);
+--error ER_DATA_OUT_OF_RANGE
+SELECT UPDATEXML(-73 * -2465717823867977728,@@global.long_query_time,null);
