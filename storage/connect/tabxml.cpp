@@ -1319,7 +1319,7 @@ void TDBXML::CloseDB(PGLOBAL g)
         Docp->CloseDoc(g, To_Xb);
 
         // This causes a crash in Diagnostics_area::set_error_status
-//				throw (int)TYPE_AM_XML;
+//			throw (int)TYPE_AM_XML;
 			} // endif DumpDoc
       
       } // endif Changed

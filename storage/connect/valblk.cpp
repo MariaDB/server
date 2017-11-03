@@ -59,11 +59,12 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
 
   switch (type) {
     case TYPE_STRING:
+		case TYPE_BIN:
     case TYPE_DECIM:
       if (len)
-        blkp = new(g) CHRBLK(mp, nval, len, prec, blank);
+        blkp = new(g) CHRBLK(mp, nval, type, len, prec, blank);
       else
-        blkp = new(g) STRBLK(g, mp, nval);
+        blkp = new(g) STRBLK(g, mp, nval, type);
 
       break;
     case TYPE_SHORT:
@@ -615,8 +616,8 @@ int TYPBLK<TYPE>::GetMaxLength(void)
 /***********************************************************************/
 /*  Constructor.                                                       */
 /***********************************************************************/
-CHRBLK::CHRBLK(void *mp, int nval, int len, int prec, bool blank)
-      : VALBLK(mp, TYPE_STRING, nval), Chrp((char*&)Blkp)
+CHRBLK::CHRBLK(void *mp, int nval, int type, int len, int prec, bool blank)
+      : VALBLK(mp, type, nval), Chrp((char*&)Blkp)
   {
   Valp = NULL;
   Blanks = blank;
@@ -1008,8 +1009,8 @@ int CHRBLK::GetMaxLength(void)
 /***********************************************************************/
 /*  Constructor.                                                       */
 /***********************************************************************/
-STRBLK::STRBLK(PGLOBAL g, void *mp, int nval)
-      : VALBLK(mp, TYPE_STRING, nval), Strp((PSZ*&)Blkp)
+STRBLK::STRBLK(PGLOBAL g, void *mp, int nval, int type)
+      : VALBLK(mp, type, nval), Strp((PSZ*&)Blkp)
   {
   Global = g;
   Nullable = true;

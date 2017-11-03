@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,6 +36,7 @@ Created 2/27/1997 Heikki Tuuri
 #include "trx0roll.h"
 #include "btr0btr.h"
 #include "mach0data.h"
+#include "ibuf0ibuf.h"
 #include "row0undo.h"
 #include "row0vers.h"
 #include "row0log.h"
@@ -432,6 +434,11 @@ row_undo_mod_del_mark_or_remove_sec_low(
 
 	log_free_check();
 	mtr_start_trx(&mtr, thr_get_trx(thr));
+	if (mode == BTR_MODIFY_TREE
+	    && index->space == IBUF_SPACE_ID
+	    && !dict_index_is_unique(index)) {
+		ibuf_free_excess_pages();
+	}
 
 	if (*index->name == TEMP_INDEX_PREFIX) {
 		/* The index->online_status may change if the
@@ -604,6 +611,11 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 
 	log_free_check();
 	mtr_start_trx(&mtr, thr_get_trx(thr));
+	if (mode == BTR_MODIFY_TREE
+	    && index->space == IBUF_SPACE_ID
+	    && !dict_index_is_unique(index)) {
+		ibuf_free_excess_pages();
+	}
 
 	if (*index->name == TEMP_INDEX_PREFIX) {
 		/* The index->online_status may change if the
@@ -664,7 +676,7 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 			trx_print(stderr, trx, 0);
 			fputs("\n"
 			      "InnoDB: Submit a detailed bug report"
-			      " to http://bugs.mysql.com\n", stderr);
+			      " to https://jira.mariadb.org/\n", stderr);
 
 			ib_logf(IB_LOG_LEVEL_WARN,
 				"record in index %s was not found"

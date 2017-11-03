@@ -53,6 +53,8 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
 }; // end of XMLDEF
 
 #if defined(INCLUDE_TDBXML)
+#include "m_ctype.h"
+
 /***********************************************************************/
 /*  This is the class declaration for the simple XML tables.           */
 /***********************************************************************/

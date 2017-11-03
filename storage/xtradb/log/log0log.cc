@@ -2537,7 +2537,7 @@ loop:
 	start_lsn += len;
 	buf += len;
 
-	if (recv_sys->report(ut_time())) {
+	if (recv_recovery_is_on() && recv_sys->report(ut_time())) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Read redo log up to LSN=" LSN_PF,
 			start_lsn);
 	}

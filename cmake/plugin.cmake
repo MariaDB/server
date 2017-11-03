@@ -208,7 +208,7 @@ MACRO(MYSQL_ADD_PLUGIN)
       # only server package is required to be generated.
       IF(CPACK_COMPONENTS_ALL AND
          NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT} AND
-         NOT WITH_WSREP)
+         NOT WITH_WSREP AND INSTALL_SYSCONF2DIR)
         IF (ARG_STORAGE_ENGINE)
           SET(ver " = %{version}-%{release}")
         ENDIF()

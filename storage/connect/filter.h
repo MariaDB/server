@@ -1,7 +1,7 @@
 /*************** Filter H Declares Source Code File (.H) ***************/
-/*  Name: FILTER.H    Version 1.2                                      */
+/*  Name: FILTER.H    Version 1.3                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2010-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2010-2017    */
 /*                                                                     */
 /*  This file contains the FILTER and derived classes declares.        */
 /***********************************************************************/

@@ -34,6 +34,7 @@
 /* Structs that defines the TABLE */
 
 class Item;				/* Needed by ORDER */
+typedef Item (*Item_ptr);
 class Item_subselect;
 class Item_field;
 class GRANT_TABLE;
@@ -2447,7 +2448,7 @@ typedef struct st_nested_join
   table_map         sj_depends_on;
   /* Outer non-trivially correlated tables */
   table_map         sj_corr_tables;
-  List<Item>        sj_outer_expr_list;
+  List<Item_ptr>    sj_outer_expr_list;
   /**
      True if this join nest node is completely covered by the query execution
      plan. This means two things.

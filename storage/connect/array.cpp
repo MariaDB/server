@@ -520,7 +520,7 @@ bool ARRAY::FilTest(PGLOBAL g, PVAL valp, OPVAL opc, int opm)
 
   } else if (opc != OP_EXIST) {
 		sprintf(g->Message, MSG(MISSING_ARG), opc);
-		throw (int)TYPE_ARRAY;
+		throw	(int)TYPE_ARRAY;
   } else    // OP_EXIST
     return Nval > 0;
 
@@ -975,7 +975,7 @@ int ARRAY::BlockTest(PGLOBAL, int opc, int opm,
 PSZ ARRAY::MakeArrayList(PGLOBAL g)
   {
   char   *p, *tp;
-  int    i;
+  int     i;
   size_t  z, len = 2;
 
   if (Type == TYPE_LIST)

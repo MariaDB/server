@@ -154,7 +154,7 @@ page_dir_find_owner_slot(
 			fputs("\n"
 			      "InnoDB: on that page!\n", stderr);
 
-			buf_page_print(page, 0, 0);
+			buf_page_print(page, 0);
 
 			ut_error;
 		}
@@ -618,10 +618,8 @@ page_copy_rec_list_end_no_locks(
 			/* Track an assertion failure reported on the mailing
 			list on June 18th, 2003 */
 
-			buf_page_print(new_page, 0,
-				       BUF_PAGE_PRINT_NO_CRASH);
-			buf_page_print(page_align(rec), 0,
-				       BUF_PAGE_PRINT_NO_CRASH);
+			buf_page_print(new_page, 0);
+			buf_page_print(page_align(rec), 0);
 			ut_print_timestamp(stderr);
 
 			fprintf(stderr,
@@ -1945,7 +1943,8 @@ page_check_dir(
 		fprintf(stderr,
 			"InnoDB: Page directory corruption:"
 			" infimum not pointed to\n");
-		buf_page_print(page, 0, 0);
+		buf_page_print(page, 0);
+		ut_ad(0);
 	}
 
 	if (UNIV_UNLIKELY(!page_rec_is_supremum_low(supremum_offs))) {
@@ -1953,7 +1952,8 @@ page_check_dir(
 		fprintf(stderr,
 			"InnoDB: Page directory corruption:"
 			" supremum not pointed to\n");
-		buf_page_print(page, 0, 0);
+		buf_page_print(page, 0);
+		ut_ad(0);
 	}
 }
 #endif /* !UNIV_HOTBACKUP */
@@ -2671,7 +2671,8 @@ func_exit2:
 			(ulong) page_get_space_id(page),
 			(ulong) page_get_page_no(page),
 			index->name);
-		buf_page_print(page, 0, 0);
+		buf_page_print(page, 0);
+		ut_ad(0);
 	}
 
 	return(ret);

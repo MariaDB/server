@@ -2,6 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1537,6 +1538,7 @@ rec_loop:
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
 				err = DB_SUCCESS;
+				/* fall through */
 			case DB_SUCCESS:
 				break;
 			default:
@@ -1595,6 +1597,7 @@ skip_lock:
 		switch (err) {
 		case DB_SUCCESS_LOCKED_REC:
 			err = DB_SUCCESS;
+			/* fall through */
 		case DB_SUCCESS:
 			break;
 		default:
@@ -2720,6 +2723,7 @@ row_sel_field_store_in_mysql_format_func(
 	case DATA_SYS:
 		/* These column types should never be shipped to MySQL. */
 		ut_ad(0);
+		/* fall through */
 
 	case DATA_CHAR:
 	case DATA_FIXBINARY:
@@ -2754,8 +2758,6 @@ row_sel_field_store_in_mysql_format_func(
 @param[in]	field_no		templ->rec_field_no or
 					templ->clust_rec_field_no
 					or templ->icp_rec_field_no
-					or sec field no if clust_templ_for_sec
-					is TRUE
 @param[in]	templ			row template
 */
 static MY_ATTRIBUTE((warn_unused_result))
@@ -2908,10 +2910,6 @@ be needed in the query.
 @param[in]	rec_clust		TRUE if the rec in the clustered index
 @param[in]	index			index of rec
 @param[in]	offsets			array returned by rec_get_offsets(rec)
-@param[in]	clust_templ_for_sec	TRUE if rec belongs to secondary index
-					but the prebuilt->template is in
-					clustered index format and it is
-					used only for end range comparison
 @return TRUE on success, FALSE if not all columns could be retrieved */
 static MY_ATTRIBUTE((warn_unused_result))
 ibool
@@ -3087,7 +3085,7 @@ row_sel_get_clust_rec_for_mysql(
 			trx_print(stderr, trx, 600);
 			fputs("\n"
 			      "InnoDB: Submit a detailed bug report"
-			      " to http://bugs.mysql.com\n", stderr);
+			      " to https://jira.mariadb.org/\n", stderr);
 			ut_ad(0);
 		}
 
@@ -4203,6 +4201,7 @@ wait_table_again:
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
 				err = DB_SUCCESS;
+				/* fall through */
 			case DB_SUCCESS:
 				break;
 			default:
@@ -4273,6 +4272,7 @@ rec_loop:
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
 				err = DB_SUCCESS;
+				/* fall through */
 			case DB_SUCCESS:
 				break;
 			default:
@@ -4308,8 +4308,7 @@ rec_loop:
 wrong_offs:
 		if (srv_force_recovery == 0 || moves_up == FALSE) {
 			ut_print_timestamp(stderr);
-			buf_page_print(page_align(rec), 0,
-				       BUF_PAGE_PRINT_NO_CRASH);
+			buf_page_print(page_align(rec), 0);
 			fprintf(stderr,
 				"\nInnoDB: rec address %p,"
 				" buf block fix count %lu\n",
@@ -4550,6 +4549,7 @@ no_gap_lock:
 				prebuilt->new_rec_locks = 1;
 			}
 			err = DB_SUCCESS;
+			/* fall through */
 		case DB_SUCCESS:
 			break;
 		case DB_LOCK_WAIT:
@@ -4997,19 +4997,8 @@ idx_cond_failed:
 
 		btr_pcur_store_position(pcur, &mtr);
 
-		if (prebuilt->innodb_api
-		    && (btr_pcur_get_rec(pcur) != result_rec)) {
-			ulint rec_size =  rec_offs_size(offsets);
-			if (!prebuilt->innodb_api_rec_size ||
-			   (prebuilt->innodb_api_rec_size < rec_size)) {
-				prebuilt->innodb_api_buf =
-				  static_cast<byte*>
-				  (mem_heap_alloc(prebuilt->cursor_heap,rec_size));
-				prebuilt->innodb_api_rec_size = rec_size;
-			}
-			prebuilt->innodb_api_rec =
-			      rec_copy(
-			       prebuilt->innodb_api_buf, result_rec, offsets);
+		if (prebuilt->innodb_api) {
+			prebuilt->innodb_api_rec = result_rec;
 		}
 	}
 

@@ -509,6 +509,12 @@ Returns:       MATCH_MATCH if matched            )  these values are >= 0
                  (e.g. stopped by repeated call or recursion limit)
 */
 
+#ifdef __GNUC__
+static int
+match(REGISTER PCRE_PUCHAR eptr, REGISTER const pcre_uchar *ecode,
+  PCRE_PUCHAR mstart, int offset_top, match_data *md, eptrblock *eptrb,
+  unsigned int rdepth) __attribute__((noinline,noclone));
+#endif
 static int
 match(REGISTER PCRE_PUCHAR eptr, REGISTER const pcre_uchar *ecode,
   PCRE_PUCHAR mstart, int offset_top, match_data *md, eptrblock *eptrb,
@@ -1052,6 +1058,8 @@ for (;;)
     reached. This is tested by comparing md->once_target with the start of the
     group. At this point, the return is converted into MATCH_NOMATCH so that
     previous backup points can be taken. */
+
+    /* fall through */
 
     case OP_ONCE:
     case OP_BRA:

@@ -1,4 +1,4 @@
-SET(TOKUDB_VERSION 5.6.36-82.1)
+SET(TOKUDB_VERSION 5.6.37-82.2)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(CMAKE_VERSION VERSION_LESS "2.8.9")
   MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
@@ -112,6 +112,7 @@ endmacro(append_cflags_if_supported)
 
 set_cflags_if_supported(-Wno-missing-field-initializers)
 append_cflags_if_supported(-Wno-vla)
+append_cflags_if_supported(-Wno-implicit-fallthrough)
 
 IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/PerconaFT/")
     IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ft-index/")

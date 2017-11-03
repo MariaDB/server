@@ -5766,8 +5766,6 @@ innobase_match_index_columns(
 			if (innodb_idx_fld >= innodb_idx_fld_end) {
 				DBUG_RETURN(FALSE);
 			}
-
-			mtype = innodb_idx_fld->col->mtype;
 		}
 
 		if (col_type != mtype) {
@@ -10373,6 +10371,27 @@ ha_innobase::ft_init_ext(
 
 	return((FT_INFO*) fts_hdl);
 }
+
+/*****************************************************************//**
+Copy a cached MySQL row.
+If requested, also avoids overwriting non-read columns.
+@param[out]     buf             Row in MySQL format.
+@param[in]      cached_row      Which row to copy.
+@param[in]	rec_len		Record length. */
+void
+ha_innobase::copy_cached_row(
+	uchar*		buf,
+	const uchar*    cached_row,
+	uint		rec_len)
+{
+	if (prebuilt->keep_other_fields_on_keyread) {
+                row_sel_copy_cached_fields_for_mysql(buf, cached_row,
+                        prebuilt);
+        } else {
+                memcpy(buf, cached_row, rec_len);
+        }
+}
+
 
 /*****************************************************************//**
 Set up search tuple for a query through FTS_DOC_ID_INDEX on
@@ -16602,6 +16621,10 @@ innobase_commit_by_xid(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
+	if (high_level_read_only) {
+		return(XAER_RMFAIL);
+	}
+
 	trx = trx_get_trx_by_xid(xid);
 
 	if (trx) {
@@ -16629,8 +16652,11 @@ innobase_rollback_by_xid(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	trx = trx_get_trx_by_xid(xid);
+	if (high_level_read_only) {
+		return(XAER_RMFAIL);
+	}
 
+	trx = trx_get_trx_by_xid(xid);
 	if (trx) {
 		int	ret = innobase_rollback_trx(trx);
 		trx_free_for_background(trx);
@@ -18832,7 +18858,7 @@ buffer_pool_load_now(
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
-	if (*(my_bool*) save) {
+	if (*(my_bool*) save && !srv_read_only_mode) {
 		buf_load_start();
 	}
 }
@@ -18855,7 +18881,7 @@ buffer_pool_load_abort(
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
-	if (*(my_bool*) save) {
+	if (*(my_bool*) save && !srv_read_only_mode) {
 		buf_load_abort();
 	}
 }

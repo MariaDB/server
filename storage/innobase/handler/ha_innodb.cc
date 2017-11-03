@@ -5101,8 +5101,6 @@ innobase_match_index_columns(
 			if (innodb_idx_fld >= innodb_idx_fld_end) {
 				DBUG_RETURN(FALSE);
 			}
-
-			mtype = innodb_idx_fld->col->mtype;
 		}
 
                 // MariaDB-5.5 compatibility
@@ -15653,6 +15651,10 @@ innobase_commit_by_xid(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
+	if (high_level_read_only) {
+		return(XAER_RMFAIL);
+	}
+
 	trx = trx_get_trx_by_xid(xid);
 
 	if (trx) {
@@ -15680,8 +15682,11 @@ innobase_rollback_by_xid(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	trx = trx_get_trx_by_xid(xid);
+	if (high_level_read_only) {
+		return(XAER_RMFAIL);
+	}
 
+	trx = trx_get_trx_by_xid(xid);
 	if (trx) {
 		int	ret = innobase_rollback_trx(trx);
 		trx_free_for_background(trx);
@@ -17577,7 +17582,7 @@ buffer_pool_load_now(
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
-	if (*(my_bool*) save) {
+	if (*(my_bool*) save && !srv_read_only_mode) {
 		buf_load_start();
 	}
 }
@@ -17600,7 +17605,7 @@ buffer_pool_load_abort(
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
-	if (*(my_bool*) save) {
+	if (*(my_bool*) save && !srv_read_only_mode) {
 		buf_load_abort();
 	}
 }

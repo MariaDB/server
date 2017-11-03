@@ -1858,7 +1858,7 @@ lock_sec_rec_some_has_impl(
 
 	} else if (!lock_check_trx_id_sanity(max_trx_id, rec, index, offsets)) {
 
-		buf_page_print(page, 0, 0);
+		buf_page_print(page, 0);
 
 		/* The page is corrupt: try to avoid a crash by returning 0 */
 		trx_id = 0;
@@ -2237,7 +2237,7 @@ lock_rec_enqueue_waiting(
 		dict_index_name_print(stderr, trx, index);
 		fputs(".\n"
 		      "InnoDB: Submit a detailed bug report"
-		      " to http://bugs.mysql.com\n",
+		      " to https://jira.mariadb.org/\n",
 		      stderr);
 		ut_ad(0);
 	}
@@ -4836,7 +4836,7 @@ lock_table_enqueue_waiting(
 		ut_print_name(stderr, trx, TRUE, table->name);
 		fputs(".\n"
 		      "InnoDB: Submit a detailed bug report"
-		      " to http://bugs.mysql.com\n",
+		      " to https://jira.mariadb.org/\n",
 		      stderr);
 		ut_ad(0);
 	}

@@ -1609,6 +1609,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
        sj-nest.
   */
   st_select_lex *subq_lex= subq_pred->unit->first_select();
+  DBUG_ASSERT(subq_lex->next_select() == NULL);
   nested_join->join_list.empty();
   List_iterator_fast<TABLE_LIST> li(subq_lex->top_join_list);
   TABLE_LIST *tl;
@@ -1706,7 +1707,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
   if (subq_pred->left_expr->cols() == 1)
   {
-    nested_join->sj_outer_expr_list.push_back(subq_pred->left_expr);
+    /* add left = select_list_element */
+    nested_join->sj_outer_expr_list.push_back(&subq_pred->left_expr);
     /*
       Create Item_func_eq. Note that
       1. this is done on the statement, not execution, arena
@@ -1718,23 +1720,60 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     */
     Item_func_eq *item_eq=
       new Item_func_eq(subq_pred->left_expr_orig, subq_lex->ref_pointer_array[0]);
+    if (!item_eq)
+      DBUG_RETURN(TRUE);
     if (subq_pred->left_expr_orig != subq_pred->left_expr)
       thd->change_item_tree(item_eq->arguments(), subq_pred->left_expr);
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(sj_nest->sj_on_expr, item_eq);
   }
-  else
+  else if (subq_pred->left_expr->type() == Item::ROW_ITEM)
   {
+    /*
+      disassemple left expression and add
+      left1 = select_list_element1 and left2 = select_list_element2 ...
+    */
     for (uint i= 0; i < subq_pred->left_expr->cols(); i++)
     {
       nested_join->sj_outer_expr_list.push_back(subq_pred->left_expr->
-                                                element_index(i));
-      Item_func_eq *item_eq= 
-        new Item_func_eq(subq_pred->left_expr->element_index(i), 
+                                                addr(i));
+      Item_func_eq *item_eq=
+        new Item_func_eq(subq_pred->left_expr_orig->element_index(i),
                          subq_lex->ref_pointer_array[i]);
+      if (!item_eq)
+        DBUG_RETURN(TRUE);
+      DBUG_ASSERT(subq_pred->left_expr->element_index(i)->fixed);
+      if (subq_pred->left_expr_orig->element_index(i) !=
+          subq_pred->left_expr->element_index(i))
+        thd->change_item_tree(item_eq->arguments(),
+                              subq_pred->left_expr->element_index(i));
       item_eq->in_equality_no= i;
       sj_nest->sj_on_expr= and_items(sj_nest->sj_on_expr, item_eq);
     }
+  }
+  else
+  {
+    /*
+      add row operation
+      left = (select_list_element1, select_list_element2, ...)
+    */
+    Item_row *row= new Item_row(subq_lex->pre_fix);
+    /* fix fields on subquery was call so they should be the same */
+    DBUG_ASSERT(subq_pred->left_expr->cols() == row->cols());
+    if (!row)
+      DBUG_RETURN(TRUE);
+    nested_join->sj_outer_expr_list.push_back(&subq_pred->left_expr);
+    Item_func_eq *item_eq=
+      new Item_func_eq(subq_pred->left_expr_orig, row);
+    if (!item_eq)
+      DBUG_RETURN(TRUE);
+    for (uint i= 0; i < row->cols(); i++)
+    {
+      if (row->element_index(i) != subq_lex->ref_pointer_array[i])
+        thd->change_item_tree(row->addr(i), subq_lex->ref_pointer_array[i]);
+    }
+    item_eq->in_equality_no= 0;
+    sj_nest->sj_on_expr= and_items(sj_nest->sj_on_expr, item_eq);
   }
   /*
     Fix the created equality and AND
@@ -3289,8 +3328,8 @@ void restore_prev_sj_state(const table_map remaining_tables,
 ulonglong get_bound_sj_equalities(TABLE_LIST *sj_nest, 
                                   table_map remaining_tables)
 {
-  List_iterator<Item> li(sj_nest->nested_join->sj_outer_expr_list);
-  Item *item;
+  List_iterator<Item_ptr> li(sj_nest->nested_join->sj_outer_expr_list);
+  Item **item;
   uint i= 0;
   ulonglong res= 0;
   while ((item= li++))
@@ -3301,7 +3340,7 @@ ulonglong get_bound_sj_equalities(TABLE_LIST *sj_nest,
          class and see if there is an element that is bound?
       (this is an optional feature)
     */
-    if (!(item->used_tables() & remaining_tables))
+    if (!(item[0]->used_tables() & remaining_tables))
     {
       res |= 1ULL << i;
     }

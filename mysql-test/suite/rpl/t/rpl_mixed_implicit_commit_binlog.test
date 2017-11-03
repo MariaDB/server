@@ -3,8 +3,8 @@
 ################################################################################
 --source include/have_udf.inc
 --source include/have_binlog_format_mixed.inc
---source include/master-slave.inc
 --source include/have_innodb.inc
+--source include/master-slave.inc
 
 --let $engine=Innodb
 set session storage_engine=innodb;

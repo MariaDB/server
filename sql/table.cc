@@ -4631,19 +4631,28 @@ void TABLE_LIST::cleanup_items()
 
 int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
 {
-  if (check_option && check_option->val_int() == 0)
+  if (check_option)
   {
-    TABLE_LIST *main_view= top_table();
-    if (ignore_failure)
+    Counting_error_handler ceh;
+    thd->push_internal_handler(&ceh);
+    bool res= check_option->val_int() == 0;
+    thd->pop_internal_handler();
+    if (ceh.errors)
+      return(VIEW_CHECK_ERROR);
+    if (res)
     {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_VIEW_CHECK_FAILED, ER(ER_VIEW_CHECK_FAILED),
-                          main_view->view_db.str, main_view->view_name.str);
-      return(VIEW_CHECK_SKIP);
+      TABLE_LIST *main_view= top_table();
+      if (ignore_failure)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_VIEW_CHECK_FAILED, ER(ER_VIEW_CHECK_FAILED),
+                            main_view->view_db.str, main_view->view_name.str);
+        return(VIEW_CHECK_SKIP);
+      }
+      my_error(ER_VIEW_CHECK_FAILED, MYF(0), main_view->view_db.str,
+               main_view->view_name.str);
+      return(VIEW_CHECK_ERROR);
     }
-    my_error(ER_VIEW_CHECK_FAILED, MYF(0), main_view->view_db.str,
-             main_view->view_name.str);
-    return(VIEW_CHECK_ERROR);
   }
   return(VIEW_CHECK_OK);
 }
@@ -5254,7 +5263,8 @@ Item *Field_iterator_table::create_item(THD *thd)
 
   Item_field *item= new Item_field(thd, &select->context, *ptr);
   if (item && thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      !thd->lex->in_sum_func && select->cur_pos_in_select_list != UNDEF_POS)
+      !thd->lex->in_sum_func && select->cur_pos_in_select_list != UNDEF_POS &&
+      select->join)
   {
     select->join->non_agg_fields.push_back(item);
     item->marker= select->cur_pos_in_select_list;

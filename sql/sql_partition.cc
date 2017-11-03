@@ -1,5 +1,5 @@
-/* Copyright (c) 2005, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+/* Copyright (c) 2005, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2017, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4716,7 +4716,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
   thd->work_part_info= thd->lex->part_info;
 
   if (thd->work_part_info &&
-      !(thd->work_part_info= thd->lex->part_info->get_clone()))
+      !(thd->work_part_info= thd->work_part_info->get_clone()))
     DBUG_RETURN(TRUE);
 
   /* ALTER_ADMIN_PARTITION is handled in mysql_admin_table */
@@ -6835,7 +6835,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   lpt->alter_info= alter_info;
   lpt->create_info= create_info;
   lpt->db_options= create_info->table_options;
-  if (create_info->row_type == ROW_TYPE_DYNAMIC)
+  if (create_info->row_type != ROW_TYPE_FIXED &&
+      create_info->row_type != ROW_TYPE_DEFAULT)
     lpt->db_options|= HA_OPTION_PACK_RECORD;
   lpt->table= table;
   lpt->key_info_buffer= 0;
@@ -8303,6 +8304,7 @@ int create_partition_name(char *out, size_t outlen, const char *in1,
   }
   else
     transl_part= in2;
+
   if (name_variant == NORMAL_PART_NAME)
     end= strxnmov(out, outlen-1, in1, "#P#", transl_part, NullS);
   else if (name_variant == TEMP_PART_NAME)
@@ -8317,25 +8319,19 @@ int create_partition_name(char *out, size_t outlen, const char *in1,
   return 0;
 }
 
+/**
+  Create subpartition name. This method is used to calculate the
+  subpartition name, service routine to the del_ren_cre_table method.
+  The output buffer size should be FN_REFLEN + 1(terminating '\0').
 
-/*
-  Create subpartition name
+    @param [out] out          Created partition name string
+    @param in1                First part
+    @param in2                Second part
+    @param in3                Third part
+    @param name_variant       Normal, temporary or renamed partition name
 
-  SYNOPSIS
-    create_subpartition_name()
-    out:out                   The buffer for the created partition name string
-                              must be *at least* of FN_REFLEN+1 bytes
-    in1                       First part
-    in2                       Second part
-    in3                       Third part
-    name_variant              Normal, temporary or renamed partition name
-
-  RETURN VALUE
-    0 if ok, error if name too long
-
-  DESCRIPTION
-  This method is used to calculate the subpartition name, service routine to
-  the del_ren_cre_table method.
+    @retval true              Error.
+    @retval false             Success.
 */
 
 int create_subpartition_name(char *out, size_t outlen,
@@ -8347,6 +8343,7 @@ int create_subpartition_name(char *out, size_t outlen,
 
   tablename_to_filename(in2, transl_part_name, FN_REFLEN);
   tablename_to_filename(in3, transl_subpart_name, FN_REFLEN);
+
   if (name_variant == NORMAL_PART_NAME)
     end= strxnmov(out, outlen-1, in1, "#P#", transl_part_name,
                   "#SP#", transl_subpart_name, NullS);

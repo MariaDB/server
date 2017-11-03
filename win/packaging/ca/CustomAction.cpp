@@ -767,6 +767,49 @@ extern "C" UINT __stdcall PresetDatabaseProperties(MSIHANDLE hInstall)
 LExit:
   return WcaFinalize(er);
 }
+
+static BOOL FindErrorLog(const wchar_t *dir, wchar_t * ErrorLogFile, size_t ErrorLogLen)
+{
+  WIN32_FIND_DATA FindFileData;
+  HANDLE hFind;
+  wchar_t name[MAX_PATH];
+  wcsncpy_s(name,dir, MAX_PATH);
+  wcsncat_s(name,L"\\*.err", MAX_PATH);
+  hFind = FindFirstFileW(name,&FindFileData);
+  if (hFind != INVALID_HANDLE_VALUE)
+  {
+    _snwprintf(ErrorLogFile, ErrorLogLen,
+      L"%s\\%s",dir, FindFileData.cFileName);
+    FindClose(hFind);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+static void DumpErrorLog(const wchar_t *dir)
+{
+  wchar_t filepath[MAX_PATH];
+  if (!FindErrorLog(dir, filepath, MAX_PATH))
+    return;
+  FILE *f= _wfopen(filepath, L"r");
+  if (!f)
+    return;
+  char buf[2048];
+  WcaLog(LOGMSG_STANDARD,"=== dumping error log %S === ",filepath);
+  while (fgets(buf, sizeof(buf), f))
+  {
+     /* Strip off EOL chars. */
+     size_t len = strlen(buf);
+     if (len > 0 && buf[len-1] == '\n')
+       buf[--len]= 0;
+     if (len > 0 && buf[len-1] == '\r')
+       buf[--len]= 0;
+     WcaLog(LOGMSG_STANDARD,"%s",buf);
+  }
+  fclose(f);
+  WcaLog(LOGMSG_STANDARD,"=== end of error log ===");
+}
+
 /* Remove service and data directory created by CreateDatabase operation */
 extern "C" UINT __stdcall CreateDatabaseRollback(MSIHANDLE hInstall) 
 {
@@ -774,7 +817,6 @@ extern "C" UINT __stdcall CreateDatabaseRollback(MSIHANDLE hInstall)
   UINT er = ERROR_SUCCESS;
   wchar_t* service= 0;
   wchar_t* dir= 0;
-
   hr = WcaInitialize(hInstall, __FUNCTION__);
   ExitOnFailure(hr, "Failed to initialize");
   WcaLog(LOGMSG_STANDARD, "Initialized.");
@@ -804,6 +846,7 @@ extern "C" UINT __stdcall CreateDatabaseRollback(MSIHANDLE hInstall)
   }
   if(dir)
   {
+    DumpErrorLog(dir);
     ExecRemoveDataDirectory(dir);
   }
 LExit:

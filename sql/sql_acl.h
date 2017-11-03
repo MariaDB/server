@@ -402,6 +402,14 @@ bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
 int acl_setrole(THD *thd, char *rolename, ulonglong access);
 int acl_check_setrole(THD *thd, char *rolename, ulonglong *access);
 
+/* Check if a role is granted to a user/role.
+
+   If hostname == NULL, search for a role as the starting grantee.
+*/
+bool check_role_is_granted(const char *username,
+                           const char *hostname,
+                           const char *rolename);
+
 #ifndef DBUG_OFF
 extern ulong role_global_merges, role_db_merges, role_table_merges,
              role_column_merges, role_routine_merges;

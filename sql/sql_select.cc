@@ -787,7 +787,7 @@ JOIN::prepare(Item ***rref_pointer_array,
                               wild_num)) ||
       select_lex->setup_ref_array(thd, real_og_num) ||
       setup_fields(thd, (*rref_pointer_array), fields_list, MARK_COLUMNS_READ,
-		   &all_fields, 1) ||
+		   &all_fields, &select_lex->pre_fix, 1) ||
       setup_without_group(thd, (*rref_pointer_array), tables_list,
 			  select_lex->leaf_tables, fields_list,
 			  all_fields, &conds, order, group_list,
@@ -7729,9 +7729,11 @@ best_extension_by_limited_search(JOIN      *join,
       best_access_path(join, s, remaining_tables, idx, disable_jbuf,
                        record_count, join->positions + idx, &loose_scan_pos);
 
-      /* Compute the cost of extending the plan with 's' */
-
-      current_record_count= record_count * position->records_read;
+      /* Compute the cost of extending the plan with 's', avoid overflow */
+      if (position->records_read < DBL_MAX / record_count)
+        current_record_count= record_count * position->records_read;
+      else
+        current_record_count= DBL_MAX;
       current_read_time=read_time + position->read_time +
                         current_record_count / (double) TIME_FOR_COMPARE;
 
@@ -14237,10 +14239,23 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
     nested_join= table->nested_join;
     if (table->sj_on_expr && !in_sj)
     {
-       /*
-         If this is a semi-join that is not contained within another semi-join, 
-         leave it intact (otherwise it is flattened)
-       */
+      /*
+        If this is a semi-join that is not contained within another semi-join
+        leave it intact (otherwise it is flattened)
+      */
+      /*
+        Make sure that any semi-join appear in
+        the join->select_lex->sj_nests list only once
+      */
+      List_iterator_fast<TABLE_LIST> sj_it(join->select_lex->sj_nests);
+      TABLE_LIST *sj_nest;
+      while ((sj_nest= sj_it++))
+      {
+        if (table == sj_nest)
+          break;
+      }
+      if (sj_nest)
+        continue;
       join->select_lex->sj_nests.push_back(table);
 
       /* 

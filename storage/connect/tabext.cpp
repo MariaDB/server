@@ -279,10 +279,57 @@ int TDBEXT::Decode(PCSZ txt, char *buf, size_t n)
 } // end of Decode
 
 /***********************************************************************/
-/*  MakeSQL: make the SQL statement use with remote connection.        */
-/*  TODO: when implementing remote filtering, column only used in      */
-/*  local filter should be removed from column list.                   */
+/*  MakeSrcdef: make the SQL statement from SRDEF option.              */
 /***********************************************************************/
+bool TDBEXT::MakeSrcdef(PGLOBAL g)
+{
+	char *catp = strstr(Srcdef, "%s");
+
+	if (catp) {
+		char *fil1, *fil2;
+		PCSZ  ph = ((EXTDEF*)To_Def)->Phpos;
+
+		if (!ph)
+			ph = (strstr(catp + 2, "%s")) ? "WH" : "W";
+
+		if (stricmp(ph, "H")) {
+			fil1 = (To_CondFil && *To_CondFil->Body)
+				? To_CondFil->Body : PlugDup(g, "1=1");
+		} // endif ph
+
+		if (stricmp(ph, "W")) {
+			fil2 = (To_CondFil && To_CondFil->Having && *To_CondFil->Having)
+				? To_CondFil->Having : PlugDup(g, "1=1");
+		} // endif ph
+
+		if (!stricmp(ph, "W")) {
+			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1));
+			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil1));
+		} else if (!stricmp(ph, "WH")) {
+			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1) + strlen(fil2));
+			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil1, fil2));
+		} else if (!stricmp(ph, "H")) {
+			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil2));
+			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil2));
+		} else if (!stricmp(ph, "HW")) {
+			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1) + strlen(fil2));
+			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil2, fil1));
+		} else {
+			strcpy(g->Message, "MakeSQL: Wrong place holders specification");
+			return true;
+		} // endif's ph
+
+	} else
+		Query = new(g)STRING(g, 0, Srcdef);
+
+	return false;
+} // end of MakeSrcdef
+
+	/***********************************************************************/
+	/*  MakeSQL: make the SQL statement use with remote connection.        */
+	/*  TODO: when implementing remote filtering, column only used in      */
+	/*  local filter should be removed from column list.                   */
+	/***********************************************************************/
 bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 {
 	PCSZ   schmp = NULL;
@@ -292,47 +339,8 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 	PTABLE tablep = To_Table;
 	PCOL   colp;
 
-	if (Srcdef) {
-		if ((catp = strstr(Srcdef, "%s"))) {
-			char *fil1, *fil2;
-			PCSZ  ph = ((EXTDEF*)To_Def)->Phpos;
-
-			if (!ph)
-				ph = (strstr(catp + 2, "%s")) ? const_cast<char*>("WH") :
-                                                const_cast<char*>("W");
-
-			if (stricmp(ph, "H")) {
-				fil1 = (To_CondFil && *To_CondFil->Body)
-					   ? To_CondFil->Body : PlugDup(g, "1=1");
-			} // endif ph
-
-			if (stricmp(ph, "W")) {
-				fil2 = (To_CondFil && To_CondFil->Having && *To_CondFil->Having)
-					   ? To_CondFil->Having : PlugDup(g, "1=1");
-			} // endif ph
-
-			if (!stricmp(ph, "W")) {
-				Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1));
-				Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil1));
-			} else if (!stricmp(ph, "WH")) {
-				Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1) + strlen(fil2));
-				Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil1, fil2));
-			} else if (!stricmp(ph, "H")) {
-				Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil2));
-				Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil2));
-			} else if (!stricmp(ph, "HW")) {
-				Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1) + strlen(fil2));
-				Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil2, fil1));
-			} else {
-				strcpy(g->Message, "MakeSQL: Wrong place holders specification");
-				return true;
-			} // endif's ph
-
-		} else
-			Query = new(g)STRING(g, 0, Srcdef);
-
-		return false;
-	} // endif Srcdef
+	if (Srcdef)
+		return MakeSrcdef(g);
 
 	// Allocate the string used to contain the Query
 	Query = new(g)STRING(g, 1023, "SELECT ");

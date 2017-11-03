@@ -13,3 +13,9 @@ jdbc            : Variable settings depend on machine configuration
 jdbc_new        : Variable settings depend on machine configuration
 jdbc_oracle     : Variable settings depend on machine configuration
 jdbc_postgresql : Variable settings depend on machine configuration
+json_mongo_c    : Need MongoDB running and its C Driver installed
+json_java_2     : Need MongoDB running and its Java Driver installed
+json_java_3     : Need MongoDB running and its Java Driver installed
+mongo_c         : Need MongoDB running and its C Driver installed
+mongo_java_2    : Need MongoDB running and its Java Driver installed
+mongo_java_3    : Need MongoDB running and its Java Driver installed

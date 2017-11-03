@@ -520,6 +520,8 @@ bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
                       derived->merge_underlying_list != 0));
   if (derived->merged_for_insert)
     DBUG_RETURN(FALSE);
+  if (derived->init_derived(thd, FALSE))
+    DBUG_RETURN(TRUE);
   if (derived->is_materialized_derived())
     DBUG_RETURN(mysql_derived_prepare(thd, lex, derived));
   if ((thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
@@ -537,8 +539,6 @@ bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
       DBUG_ASSERT(derived->table);
     }
   }
-  else
-    derived->table= derived->merge_underlying_list->table;
   DBUG_RETURN(FALSE);
 }
 

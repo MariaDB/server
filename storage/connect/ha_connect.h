@@ -32,8 +32,6 @@
 /****************************************************************************/
 #include "mycat.h"
 
-static char *strz(PGLOBAL g, LEX_STRING &ls);
-
 /****************************************************************************/
 /*  Structures used to pass info between CONNECT and ha_connect.            */
 /****************************************************************************/
@@ -166,8 +164,8 @@ public:
   ~ha_connect();
 
   // CONNECT Implementation
-  static   bool connect_init(void);
-  static   bool connect_end(void);
+//static   bool connect_init(void);
+//static   bool connect_end(void);
   TABTYPE  GetRealType(PTOS pos= NULL);
   char    *GetRealString(PCSZ s);
 	PCSZ     GetStringOption(PCSZ opname, PCSZ sdef= NULL);
@@ -207,13 +205,13 @@ public:
   bool     IsOpened(void);
   int      CloseTable(PGLOBAL g);
   int      MakeRecord(char *buf);
-  int      ScanRecord(PGLOBAL g, uchar *buf);
-  int      CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf);
+  int      ScanRecord(PGLOBAL g, const uchar *buf);
+  int      CheckRecord(PGLOBAL g, const uchar *oldbuf, const uchar *newbuf);
 	int      ReadIndexed(uchar *buf, OPVAL op, const key_range *kr= NULL);
 	bool     IsIndexed(Field *fp);
   bool     MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL op, char q,
                                    const key_range *kr);
-  inline char *Strz(LEX_STRING &ls);
+//inline char *Strz(LEX_STRING &ls);
 	key_range start_key;
 
 
@@ -231,7 +229,7 @@ public:
   /** @brief
     The file extensions.
    */
-  const char **bas_ext() const;
+//const char **bas_ext() const;
 
  /**
     Check if a storage engine supports a particular alter table in-place
@@ -347,6 +345,13 @@ PCFIL CheckCond(PGLOBAL g, PCFIL filp, const Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
 PFIL  CondFilter(PGLOBAL g, Item *cond);
 //PFIL  CheckFilter(PGLOBAL g);
+
+/** admin commands - called from mysql_admin_table */
+virtual int check(THD* thd, HA_CHECK_OPT* check_opt)
+{
+	// TODO: implement it
+	return HA_ADMIN_OK;	// Just to avoid error message with checktables
+}	// end of check
 
  /**
    Number of rows in table. It will only be called if

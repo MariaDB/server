@@ -263,9 +263,8 @@ ulong federatedx_io_mysql::savepoint_release(ulong sp)
     savept= dynamic_element(&savepoints, savepoints.elements - 1, SAVEPT *);
     if (savept->level < sp)
       break;
-  if ((savept->flags & (SAVEPOINT_REALIZED | 
-                        SAVEPOINT_RESTRICT)) == SAVEPOINT_REALIZED)
-    last= savept;
+    if ((savept->flags & (SAVEPOINT_REALIZED | SAVEPOINT_RESTRICT)) == SAVEPOINT_REALIZED)
+      last= savept;
     savepoints.elements--;
   }
 
@@ -291,8 +290,8 @@ ulong federatedx_io_mysql::savepoint_rollback(ulong sp)
   while (savepoints.elements)
   {
     savept= dynamic_element(&savepoints, savepoints.elements - 1, SAVEPT *);
-  if (savept->level <= sp)
-    break;
+    if (savept->level <= sp)
+      break;
     savepoints.elements--;
   }
 

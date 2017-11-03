@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3633,6 +3634,10 @@ fts_query_free(
 		fts_doc_ids_free(query->deleted);
 	}
 
+	if (query->intersection) {
+		fts_query_free_doc_ids(query, query->intersection);
+	}
+
 	if (query->doc_ids) {
 		fts_query_free_doc_ids(query, query->doc_ids);
 	}
@@ -3656,8 +3661,6 @@ fts_query_free(
 
 		rbt_free(query->word_freqs);
 	}
-
-	ut_a(!query->intersection);
 
 	if (query->word_map) {
 		rbt_free(query->word_map);

@@ -84,6 +84,8 @@
 #define SYSEXIT void *
 #endif  // !__WIN__
 
+extern pthread_mutex_t tblmut;
+
 /* ---------------------------- Class TBLDEF ---------------------------- */
 
 /**************************************************************************/
@@ -575,9 +577,20 @@ pthread_handler_t ThreadOpen(void *p)
 
     // Try to open the connection
     if (!cmp->Tap->GetTo_Tdb()->OpenDB(cmp->G)) {
-      cmp->Ready = true;
-    } else
-      cmp->Rc = RC_FX;
+			pthread_mutex_lock(&tblmut);
+			if (trace)
+				htrc("Table %s ready\n", cmp->Tap->GetName());
+
+			cmp->Ready = true;
+			pthread_mutex_unlock(&tblmut);
+		} else {
+			pthread_mutex_lock(&tblmut);
+			if (trace)
+				htrc("Opening %s failed\n", cmp->Tap->GetName());
+
+			cmp->Rc = RC_FX;
+			pthread_mutex_unlock(&tblmut);
+		}	// endif OpenDB
 
     my_thread_end();
   } else
@@ -629,6 +642,18 @@ int TDBTBM::RowNumber(PGLOBAL g, bool b)
   } // end of RowNumber
 
 /***********************************************************************/
+/*  Returns true if this MYSQL table refers to a local table.          */
+/***********************************************************************/
+bool TDBTBM::IsLocal(PTABLE tbp)
+{
+	TDBMYSQL *tdbp = (TDBMYSQL*)tbp->GetTo_Tdb();
+
+	return ((!stricmp(tdbp->Host, "localhost") ||
+		       !strcmp(tdbp->Host, "127.0.0.1")) &&
+		        tdbp->Port == (int)GetDefaultPort());
+}	// end of IsLocal
+
+/***********************************************************************/
 /*  Initialyze table parallel processing.                              */
 /***********************************************************************/
 bool TDBTBM::OpenTables(PGLOBAL g)
@@ -640,14 +665,18 @@ bool TDBTBM::OpenTables(PGLOBAL g)
 
   // Allocates the TBMT blocks for the tables
   for (tabp = Tablist; tabp; tabp = tabp->Next)
-    if (tabp->GetTo_Tdb()->GetAmType() == TYPE_AM_MYSQL) {
+    if (tabp->GetTo_Tdb()->GetAmType() == TYPE_AM_MYSQL && !IsLocal(tabp)) {
       // Remove remote table from the local list
       *ptabp = tabp->Next;
+
+			if (trace)
+				htrc("=====> New remote table %s\n", tabp->GetName());
 
       // Make the remote table block
       tp = (PTBMT)PlugSubAlloc(g, NULL, sizeof(TBMT));
       memset(tp, 0, sizeof(TBMT));
       tp->G = g;
+			tp->Ready = false;
       tp->Tap = tabp;
       tp->Thd = thd;
 
@@ -666,7 +695,10 @@ bool TDBTBM::OpenTables(PGLOBAL g)
       ptp = &tp->Next;
       Nrc++;         // Number of remote connections
     } else {
-      ptabp = &tabp->Next;
+			if (trace)
+				htrc("=====> Local table %s\n", tabp->GetName());
+
+			ptabp = &tabp->Next;
       Nlc++;         // Number of local connections
     } // endif Type
 
@@ -783,7 +815,7 @@ int TDBTBM::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBTBM::ReadNextRemote(PGLOBAL g)
   {
-  bool b = false;
+  bool b;
 
   if (Tdbp)
     Tdbp->CloseDB(g);
@@ -791,14 +823,24 @@ int TDBTBM::ReadNextRemote(PGLOBAL g)
   Cmp = NULL;
 
  retry:
-  // Search for a remote table having its result set
-  for (PTBMT  tp = Tmp; tp; tp = tp->Next)
-    if (tp->Ready) {
-      if (!tp->Complete)
-        Cmp = tp;
+	b = false;
 
-    } else
-      b = true;
+	// Search for a remote table having its result set
+	pthread_mutex_lock(&tblmut);
+	for (PTBMT  tp = Tmp; tp; tp = tp->Next)
+		if (tp->Rc != RC_FX) {
+			if (tp->Ready) {
+				if (!tp->Complete) {
+					Cmp = tp;
+					break;
+				}	// endif Complete
+
+			} else
+				b = true;
+
+		}	// endif Rc
+
+	pthread_mutex_unlock(&tblmut);
 
   if (!Cmp) {
     if (b) {          // more result to come

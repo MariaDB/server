@@ -818,10 +818,8 @@ not_consistent:
 
 		fprintf(stderr,
 			"InnoDB: No valid checkpoint found.\n"
-			"InnoDB: If you are attempting downgrade"
-			" from MySQL 5.7.9 or later,\n"
-			"InnoDB: please refer to " REFMAN
-			"upgrading-downgrading.html\n"
+			"InnoDB: A downgrade from MariaDB 10.2.2"
+			" or later is not supported.\n"
 			"InnoDB: If this error appears when you are"
 			" creating an InnoDB database,\n"
 			"InnoDB: the problem may be that during"
@@ -3474,6 +3472,7 @@ recv_reset_logs(
 	log_sys->archived_lsn = log_sys->lsn;
 #endif /* UNIV_LOG_ARCHIVE */
 
+	memset(log_sys->buf, 0, log_sys->buf_size);
 	log_block_init(log_sys->buf, log_sys->lsn);
 	log_block_set_first_rec_group(log_sys->buf, LOG_BLOCK_HDR_SIZE);
 

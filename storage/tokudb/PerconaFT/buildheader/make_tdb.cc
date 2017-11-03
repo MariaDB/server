@@ -231,6 +231,8 @@ static void print_defines (void) {
     printf("#define DB_SET_RANGE_REVERSE 252\n"); // private tokudb
     //printf("#define DB_GET_BOTH_RANGE_REVERSE 251\n"); // private tokudb.  No longer supported #2862.
     dodefine(DB_RMW);
+    
+    printf("#define DB_LOCKING_READ 0x80000000\n");
     printf("#define DB_IS_RESETTING_OP 0x01000000\n"); // private tokudb
     printf("#define DB_PRELOCKED 0x00800000\n"); // private tokudb
     printf("#define DB_PRELOCKED_WRITE 0x00400000\n"); // private tokudb

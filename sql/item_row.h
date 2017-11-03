@@ -35,6 +35,7 @@ public:
     const_item_cache(item->const_item_cache),
     with_null(0)
   {}
+  Item_row(Item *item);
 
   enum Type type() const { return ROW_ITEM; };
   void illegal_method_call(const char *);
