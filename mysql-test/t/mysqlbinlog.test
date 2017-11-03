@@ -603,3 +603,9 @@ eval SET GLOBAL SERVER_ID = $old_server_id;
 --exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_group_id.binlog
 --exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_group_id_checksum.binlog
 --exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_none.binlog
+
+#
+# MDEV-12372 mysqlbinlog --version output is the same on 10.x as on 5.5.x, and contains not only version
+#
+replace_regex /.*mysqlbinlog(\.exe)? Ver .* for .* at [-_a-zA-Z0-9]+/mysqlbinlog Ver VER for OS at ARCH/;
+exec $MYSQL_BINLOG --version;
