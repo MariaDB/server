@@ -14,7 +14,7 @@ gis_split_inf : MDEV-14057 InnoDB GIS tests fail
 row_format : MDEV-14057 InnoDB GIS tests fail
 rtree_estimate : MDEV-14057 InnoDB GIS tests fail
 rtree_multi_pk : MDEV-14057 InnoDB GIS tests fail
-rtree_recovery : MDEV-14058 InnoDB Assertion failure !leaf on rem0rec.cc line 566 on test innodb_gis.rtree_recovery
+rtree_recovery : MDEV-14058 InnoDB Assertion failure !leaf on rem0rec.cc line 566 on test innodb_rtree_recovery
 tree_search : MDEV-14057 InnoDB GIS tests fail
 rtree_concurrent_srch: MDEV-14059 InnoDB assertion failure offset >= ((38U + 36 + 2 * 10) + 5) at page0page.h line 318
 point_big : MDEV-14057 InnoDB GIS tests fail
@@ -24,4 +24,7 @@ bug16236208 : MDEV-14057 InnoDB GIS tests fail
 bug16266012 : MDEV-14057 InnoDB GIS tests fail
 rtree_search : MDEV-14057 InnoDB GIS tests fail
 rtree_old : MDEV-14057 InnoDB GIS tests fail
-innodb_gis.kill_server  : MDEV-14218 
+gis_split_nan : 13626, results mismatch
+rtree_split : ---13626, results mismatch
+rtree_compress2 : --MDEV-14218 Assertion failure !leaf 
+kill_server : --MDEV-14218 Assertion failure !leaf 

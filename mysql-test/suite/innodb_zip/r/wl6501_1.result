@@ -94,8 +94,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_during_drop_index_temp_table";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_during_drop_index_temp_table point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -120,8 +118,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_drop_of_sec_index point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -146,8 +142,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_drop_of_sec_index point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -172,8 +166,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_drop_of_sec_index point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -198,8 +190,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_drop_of_sec_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_drop_of_sec_index point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -310,8 +300,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_drop_reinit_done_create_to_start";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_drop_reinit_done_create_to_start---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -336,8 +324,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_create_of_sec_index---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -362,8 +348,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_create_of_sec_index---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -388,8 +372,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_create_of_sec_index---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -414,8 +396,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_on_create_of_sec_index";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_on_create_of_sec_index---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -526,8 +506,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_before_log_removal point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -552,8 +530,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_before_log_removal point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -578,8 +554,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_before_log_removal point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -604,8 +578,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_before_log_removal";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_before_log_removal point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -716,8 +688,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -742,8 +712,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -768,8 +736,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -794,8 +760,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -906,8 +870,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -932,8 +894,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -958,8 +918,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -984,8 +942,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_truncate_done";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_truncate_done point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -1096,8 +1052,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_redo_log_write_complete point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -1122,8 +1076,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_redo_log_write_complete point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -1148,8 +1100,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_redo_log_write_complete point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
@@ -1174,8 +1124,6 @@ select count(*) from t6;
 count(*)
 3
 SET SESSION DEBUG_DBUG="+d,ib_trunc_crash_after_redo_log_write_complete";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 "---debug ib_trunc_crash_after_redo_log_write_complete point---"
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
