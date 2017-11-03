@@ -32,7 +32,10 @@ FLUSH TABLES t1,t2 FOR EXPORT;
 --echo # set MYSQLD_DATADIR with master datadir to copy idb and cfg files
 LET MYSQLD_DATADIR = $MYSQLD_MASTER_DATA_DIR;
 perl;
-do 'include/innodb-util.inc';
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+#do 'include/innodb-util.inc';
 ib_backup_tablespaces("test", "t1#P#p0", "t1#P#p1", "t1#P#p2");
 ib_backup_tablespaces("test", "t2#P#p0", "t2#P#p1");
 EOF

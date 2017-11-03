@@ -25,7 +25,7 @@ SET DEBUG_SYNC='innodb_rename_table_ready SIGNAL s1 WAIT_FOR s2 EXECUTE 2';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR s1';
 SET DEBUG_SYNC='now SIGNAL s2 WAIT_FOR s1';
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 disconnect con1;
 
 show tables;

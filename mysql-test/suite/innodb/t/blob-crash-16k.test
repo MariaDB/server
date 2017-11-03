@@ -46,7 +46,7 @@ connection con1;
 --echo # Connection default:
 connection default;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 select f1, length(f2), length(f3) from t2;
 select f1, right(f2, 40), right(f3, 40) from t2;
@@ -89,7 +89,7 @@ connection con2;
 --echo # Connection default:
 connection default;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 select f1, length(f2), length(f3) from t3;
 select f1, right(f2, 30), right(f3, 20) from t3;

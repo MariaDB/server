@@ -45,7 +45,7 @@ connection default;
 
 --echo # Restart the server in force recovery mode (3)
 let $restart_parameters = : --innodb-force-recovery=3;
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 SELECT @@innodb_force_recovery;
 

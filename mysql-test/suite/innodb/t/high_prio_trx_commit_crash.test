@@ -69,7 +69,7 @@ UPDATE t1 SET c1=1 WHERE c1=0;
 --source include/start_transaction_high_prio.inc
 UPDATE t1 SET c1=2 WHERE c1=0;
 --connection default
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 --disconnect con1
 --disconnect con2

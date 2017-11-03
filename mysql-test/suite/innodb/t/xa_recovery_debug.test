@@ -24,7 +24,7 @@ SET DEBUG_SYNC='now WAIT_FOR s1';
 # to the redo log. Without this, it could be that we will recover to
 # a state that precedes the start of the XA ROLLBACK.
 SET GLOBAL innodb_log_checkpoint_now=ON;
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 disconnect con1;
 --error ER_XAER_NOTA
 XA COMMIT 'zombie';

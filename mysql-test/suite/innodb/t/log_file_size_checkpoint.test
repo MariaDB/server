@@ -24,7 +24,7 @@ dec $i;
 # test case. Once we fix the bug#22179133 and bug#22186325, we should use
 # the default innodb buffer pool(or the smaller one).
 let $restart_parameters = : --innodb-log-files-in-group=2 --innodb-log-file-size=4M --innodb-buffer-pool-size=50M;
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 --disable_query_log
 let $i=$n;

@@ -14,8 +14,7 @@
 ######################################################################
 
 -- source include/not_embedded.inc
--- source include/have_innodb.inc
--- source include/have_innodb_zip.inc
+--source include/innodb_page_size_small.inc
 -- source include/big_test.inc
 
 # Test Row Format: REDUNDANT.

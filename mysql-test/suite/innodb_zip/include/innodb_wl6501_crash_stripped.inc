@@ -136,7 +136,7 @@ check table t;
 select * from t;
 insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 #
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 #
 check table t;
 select * from t;

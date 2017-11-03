@@ -58,7 +58,7 @@ CALL insert_t1(5000);
 
 COMMIT;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 # Clean up.
 drop procedure insert_t1;

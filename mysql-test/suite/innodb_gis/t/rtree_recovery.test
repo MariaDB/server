@@ -44,7 +44,7 @@ delimiter ;|
 CALL insert_t1(367);
 COMMIT;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 # Check table.
 check table t1;
@@ -63,7 +63,7 @@ SET @poly1 = ST_GeomFromText('POLYGON((10000 10000, 10000 10350, 10350 10350, 10
 delete from t1 where ST_Contains(@poly1, c2);
 COMMIT;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 # Check table.
 check table t1;

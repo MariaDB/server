@@ -181,7 +181,7 @@ create temporary table t1
 insert into t1 values (1, 'a', 'b');
 begin;
 insert into t2 values (4, 'a', 'b');
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 show tables;
 select * from t2;
 update t2 set a = a * -1;
@@ -193,7 +193,7 @@ insert into t1 values (1, 'a', 'b');
 begin;
 insert into t1 values (4, 'a', 'b');
 # crash on temp table commit_before
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 show tables;
 SELECT * from t2;
 update t2 set a = a * -1;

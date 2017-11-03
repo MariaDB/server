@@ -67,7 +67,7 @@ CONNECTION con1;
 
 call mtr.add_suppression("Found 1 prepared XA transactions");
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 SELECT update_time FROM information_schema.tables WHERE table_name = 't';
 

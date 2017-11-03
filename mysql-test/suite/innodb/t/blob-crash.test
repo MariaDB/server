@@ -33,7 +33,7 @@ INSERT INTO t1 (a, b) VALUES (5, '5');
 begin;
 INSERT INTO t1 (a, b) VALUES (6, REPEAT('a', 4*1024*1024));
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 SELECT a, right(b, 50) FROM t1;
 
@@ -49,7 +49,7 @@ SELECT a, right(b, 50) FROM t1;
 begin;
 UPDATE t1 set b = REPEAT('a', 4*1024*1024) where a = 5 ;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 SELECT a, right(b, 50) FROM t1;
 
@@ -65,7 +65,7 @@ SELECT a, right(b, 50) FROM t1;
 begin;
 UPDATE t1 set b = REPEAT('$', 50000) where a = 1 ;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 SELECT a, right(b, 50) FROM t1;
 
@@ -159,7 +159,7 @@ begin;
 INSERT INTO t3 (f1, f2, f3) VALUES (6, repeat('/', 40000), repeat('<', 40000));
 --enable_query_log
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 select f1, length(f2), length(f3) from t3;
 select f1, right(f2, 30), right(f3, 20) from t3;
@@ -180,7 +180,7 @@ insert into t3 values (2, repeat('!', 30), repeat('+', 30));
 begin;
 UPDATE t3 set f2 = repeat('>', 40000) where f1 = 2;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 select f1, length(f2), length(f3) from t3;
 select f1, right(f2, 30), right(f3, 20) from t3;
@@ -201,7 +201,7 @@ insert into t3 values (3, repeat('%', 40000), repeat('~', 40000));
 begin;
 UPDATE t3 set f2 = concat(f2, repeat(',', 10)) where f1 = 3;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 select f1, length(f2), length(f3) from t3;
 select f1, right(f2, 30), right(f3, 20) from t3;

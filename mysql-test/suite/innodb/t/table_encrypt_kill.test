@@ -343,7 +343,7 @@ SELECT 1;
 #--echo # kill and restart the server
 #let $restart_parameters = : --early-plugin-load="keyring_file=$KEYRING_PLUGIN" --loose-keyring_file_data=$MYSQL_TMP_DIR/mysecret_keyring $KEYRING_PLUGIN_OPT ;
 #--sleep 3
-#--source include/kill_and_restart_mysqld.inc
+#--source include/restart_mysqld.inc
 #--disconnect con1
 #--disconnect con2
 #--disconnect con3
