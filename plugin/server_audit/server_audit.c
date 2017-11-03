@@ -15,7 +15,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.2"
+#define PLUGIN_STR_VERSION "1.4.3"
 
 #define _my_thread_var loc_thread_var
 
