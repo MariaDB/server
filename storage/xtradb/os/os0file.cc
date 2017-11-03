@@ -2570,8 +2570,8 @@ os_file_get_size(
 
 	return(offset);
 #else
-	return((os_offset_t) lseek(file, 0, SEEK_END));
-
+	struct stat statbuf;
+	return fstat(file, &statbuf) ? os_offset_t(-1) : statbuf.st_size;
 #endif /* __WIN__ */
 }
 
@@ -2625,7 +2625,10 @@ os_file_set_size(
 	if (srv_use_posix_fallocate) {
 		int err;
 		do {
-			err = posix_fallocate(file, 0, size);
+			os_offset_t current_size = os_file_get_size(file);
+			err = current_size >= size
+				? 0 : posix_fallocate(file, current_size,
+						      size - current_size);
 		} while (err == EINTR
 			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
