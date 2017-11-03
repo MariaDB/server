@@ -2260,6 +2260,76 @@ derived_exit:
   DBUG_RETURN(0);
 }
 
+/**
+  Add having condition as a where clause condition of the given temp table.
+
+  @param    tab   Table to which having condition is added.
+
+  @returns  false if success, true if error.
+*/
+
+bool JOIN::add_having_as_table_cond(JOIN_TAB *tab)
+{
+  tmp_having->update_used_tables();
+  table_map used_tables= tab->table->map | OUTER_REF_TABLE_BIT;
+
+  /* If tmp table is not used then consider conditions of const table also */
+  if (!need_tmp)
+    used_tables|= const_table_map;
+
+  DBUG_ENTER("JOIN::add_having_as_table_cond");
+
+  Item* sort_table_cond= make_cond_for_table(thd, tmp_having, used_tables,
+                                             (table_map) 0, false,
+                                             false, false);
+  if (sort_table_cond)
+  {
+    if (!tab->select)
+    {
+      if (!(tab->select= new SQL_SELECT))
+        DBUG_RETURN(true);
+      tab->select->head= tab->table;
+    }
+    if (!tab->select->cond)
+      tab->select->cond= sort_table_cond;
+    else
+    {
+      if (!(tab->select->cond=
+	      new (thd->mem_root) Item_cond_and(thd,
+                                                tab->select->cond,
+                                                sort_table_cond)))
+        DBUG_RETURN(true);
+    }
+    if (tab->pre_idx_push_select_cond)
+    {
+      if (sort_table_cond->type() == Item::COND_ITEM)
+        sort_table_cond= sort_table_cond->copy_andor_structure(thd);
+      if (!(tab->pre_idx_push_select_cond=
+              new (thd->mem_root) Item_cond_and(thd,
+                                                tab->pre_idx_push_select_cond,
+                                                sort_table_cond)))
+        DBUG_RETURN(true);
+    }
+    if (tab->select->cond && !tab->select->cond->fixed)
+      tab->select->cond->fix_fields(thd, 0);
+    if (tab->pre_idx_push_select_cond && !tab->pre_idx_push_select_cond->fixed)
+      tab->pre_idx_push_select_cond->fix_fields(thd, 0);
+    tab->select->pre_idx_push_select_cond= tab->pre_idx_push_select_cond;
+    tab->set_select_cond(tab->select->cond, __LINE__);
+    tab->select_cond->top_level_item();
+    DBUG_EXECUTE("where",print_where(tab->select->cond,
+				     "select and having",
+                                     QT_ORDINARY););
+
+    having= make_cond_for_table(thd, tmp_having, ~ (table_map) 0,
+                                ~used_tables, false, false, false);
+    DBUG_EXECUTE("where",
+                 print_where(having, "having after sort", QT_ORDINARY););
+  }
+
+  DBUG_RETURN(false);
+}
+
 
 /**
   Set info for aggregation tables
@@ -2289,6 +2359,7 @@ bool JOIN::make_aggr_tables_info()
   TABLE *exec_tmp_table= NULL;
   bool distinct= false;
   bool keep_row_order= false;
+  bool is_having_added_as_table_cond= false;
   DBUG_ENTER("JOIN::make_aggr_tables_info");
 
   const bool has_group_by= this->group;
@@ -2475,29 +2546,6 @@ bool JOIN::make_aggr_tables_info()
     if (exec_tmp_table->distinct)
       optimize_distinct();
 
-    /*
-      We don't have to store rows in temp table that doesn't match HAVING if:
-      - we are sorting the table and writing complete group rows to the
-        temp table.
-      - We are using DISTINCT without resolving the distinct as a GROUP BY
-        on all columns.
-
-      If having is not handled here, it will be checked before the row
-      is sent to the client.
-
-      In the case of window functions however, we *must* make sure to not
-      store any rows which don't match HAVING within the temp table,
-      as rows will end up being used during their computation.
-    */
-    if (having &&
-        (sort_and_group || (exec_tmp_table->distinct && !group_list) ||
-         select_lex->have_window_funcs()))
-    {
-      /* Attach HAVING to tmp table's condition */
-      curr_tab->having= having;
-      having= NULL; /* Already done */
-    }
-
    /* Change sum_fields reference to calculated fields in tmp_table */
     items1= ref_ptr_array_slice(2);
     if ((sort_and_group || curr_tab->table->group ||
@@ -2524,6 +2572,38 @@ bool JOIN::make_aggr_tables_info()
     curr_tab->all_fields= &tmp_all_fields1;
     curr_tab->fields= &tmp_fields_list1;
     set_postjoin_aggr_write_func(curr_tab);
+
+    /*
+      If having is not handled here, it will be checked before the row is sent
+      to the client.
+    */
+    if (tmp_having &&
+        (sort_and_group || (exec_tmp_table->distinct && !group_list) ||
+	 select_lex->have_window_funcs()))
+    {
+      /*
+        If there is no select distinct and there are no window functions
+        then move the having to table conds of tmp table.
+        NOTE : We cannot apply having after distinct or window functions
+               If columns of having are not part of select distinct,
+               then distinct may remove rows which can satisfy having.
+               In the case of window functions we *must* make sure to not
+               store any rows which don't match HAVING within the temp table,
+               as rows will end up being used during their computation.
+      */
+      if (!select_distinct && !select_lex->have_window_funcs() &&
+          add_having_as_table_cond(curr_tab))
+        DBUG_RETURN(true);
+      is_having_added_as_table_cond= tmp_having != having;
+
+      /*
+        Having condition which we are not able to add as tmp table conds are
+        kept as before. And, this will be applied before storing the rows in
+        tmp table.
+      */
+      curr_tab->having= having;
+      having= NULL; // Already done
+    }
 
     tmp_table_param.func_count= 0;
     tmp_table_param.field_count+= tmp_table_param.func_count;
@@ -2714,60 +2794,11 @@ bool JOIN::make_aggr_tables_info()
     DBUG_PRINT("info",("Sorting for send_result_set_metadata"));
     THD_STAGE_INFO(thd, stage_sorting_result);
     /* If we have already done the group, add HAVING to sorted table */
-    if (tmp_having && !group_list && !sort_and_group)
+    if (tmp_having && !is_having_added_as_table_cond &&
+        !group_list && !sort_and_group)
     {
-      // Some tables may have been const
-      tmp_having->update_used_tables();
-      table_map used_tables= (const_table_map | curr_tab->table->map);
-
-      Item* sort_table_cond= make_cond_for_table(thd, tmp_having, used_tables,
-                                                 (table_map) 0, false,
-                                                 false, false);
-      if (sort_table_cond)
-      {
-	if (!curr_tab->select)
-        {
-	  if (!(curr_tab->select= new SQL_SELECT))
-	    DBUG_RETURN(true);
-	  curr_tab->select->head= curr_tab->table;
-        }
-	if (!curr_tab->select->cond)
-	  curr_tab->select->cond= sort_table_cond;
-	else
-	{
-	  if (!(curr_tab->select->cond=
-		new (thd->mem_root) Item_cond_and(thd, curr_tab->select->cond,
-				                      sort_table_cond)))
-	    DBUG_RETURN(true);
-	}
-        if (curr_tab->pre_idx_push_select_cond)
-	{
-          if (sort_table_cond->type() == Item::COND_ITEM)
-            sort_table_cond= sort_table_cond->copy_andor_structure(thd);           
-          if (!(curr_tab->pre_idx_push_select_cond= 
-                new (thd->mem_root) Item_cond_and(thd,
-                                                  curr_tab->pre_idx_push_select_cond,
-                                                  sort_table_cond)))
-            DBUG_RETURN(true);            
-        }
-        if (curr_tab->select->cond && !curr_tab->select->cond->fixed)
-	  curr_tab->select->cond->fix_fields(thd, 0);
-        if (curr_tab->pre_idx_push_select_cond &&
-            !curr_tab->pre_idx_push_select_cond->fixed)
-          curr_tab->pre_idx_push_select_cond->fix_fields(thd, 0);
-        curr_tab->select->pre_idx_push_select_cond=
-          curr_tab->pre_idx_push_select_cond;
-        curr_tab->set_select_cond(curr_tab->select->cond, __LINE__);
-        curr_tab->select_cond->top_level_item();
-	DBUG_EXECUTE("where",print_where(curr_tab->select->cond,
-					 "select and having",
-                                         QT_ORDINARY););
-
-        having= make_cond_for_table(thd, tmp_having, ~ (table_map) 0,
-                                    ~used_tables, false, false, false);
-        DBUG_EXECUTE("where",
-                     print_where(having, "having after sort", QT_ORDINARY););
-      }
+      if (add_having_as_table_cond(curr_tab))
+        DBUG_RETURN(true);
     }
 
     if (group)

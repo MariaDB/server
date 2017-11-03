@@ -1709,6 +1709,7 @@ private:
   void optimize_distinct();
 
   void cleanup_item_list(List<Item> &items) const;
+  bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
 
 };

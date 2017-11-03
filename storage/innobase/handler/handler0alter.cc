@@ -4523,7 +4523,7 @@ prepare_inplace_alter_table_dict(
 			if (alt_opt.encryption != opt.encryption
 			    || alt_opt.encryption_key_id
 			    != opt.encryption_key_id) {
-				key_id = alt_opt.encryption_key_id;
+				key_id = uint32_t(alt_opt.encryption_key_id);
 				mode = fil_encryption_t(alt_opt.encryption);
 			}
 		}
