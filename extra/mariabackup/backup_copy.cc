@@ -1700,25 +1700,27 @@ copy_back()
 	ut_crc32_init();
 
 	/* copy undo tablespaces */
-	if (srv_undo_tablespaces > 0) {
 
-		dst_dir = (srv_undo_dir && *srv_undo_dir)
-				? srv_undo_dir : mysql_data_home;
 
-		ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
+	dst_dir = (srv_undo_dir && *srv_undo_dir)
+			? srv_undo_dir : mysql_data_home;
 
-		for (i = 1; i <= srv_undo_tablespaces; i++) {
-			char filename[20];
-			sprintf(filename, "undo%03u", (uint)i);
-			if (!(ret = copy_or_move_file(filename, filename,
-				                      dst_dir, 1))) {
-				goto cleanup;
-			}
+	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
+
+	for (i = 1; ; i++) {
+		char filename[20];
+		sprintf(filename, "undo%03u", (uint)i);
+		if (!file_exists(filename)) {
+			break;
 		}
-
-		ds_destroy(ds_data);
-		ds_data = NULL;
+		if (!(ret = copy_or_move_file(filename, filename,
+														dst_dir, 1))) {
+			goto cleanup;
+		}
 	}
+
+	ds_destroy(ds_data);
+	ds_data = NULL;
 
 	/* copy redo logs */
 
@@ -1844,7 +1846,7 @@ copy_back()
 		}
 	}
 
-	/* copy buufer pool dump */
+	/* copy buffer pool dump */
 
 	if (innobase_buffer_pool_filename) {
 		const char *src_name;
