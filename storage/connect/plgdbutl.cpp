@@ -334,7 +334,7 @@ PDBUSER PlgMakeUser(PGLOBAL g)
   {
   PDBUSER dbuserp;
 
-  if (!(dbuserp = (PDBUSER)PlugAllocMem(g, (uint)sizeof(DBUSERBLK)))) {
+  if (!(dbuserp = (PDBUSER)malloc(sizeof(DBUSERBLK)))) {
     sprintf(g->Message, MSG(MALLOC_ERROR), "PlgMakeUser");
     return NULL;
     } // endif dbuserp
