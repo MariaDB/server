@@ -15,7 +15,6 @@ SELECT COUNT(*) FROM bug16720368;
 COUNT(*)
 8
 INSERT INTO bug16720368_1 VALUES(1);
-# Kill and restart
 # The table is unaccessible, because after a crash we will
 # validate the tablespace header.
 SELECT COUNT(*) FROM bug16720368;

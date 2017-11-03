@@ -8,7 +8,6 @@ SET DEBUG_SYNC = 'row_log_apply_after SIGNAL apply_after WAIT_FOR insert_after';
 ALTER TABLE t1 ADD UNIQUE INDEX(c2);
 SET DEBUG_SYNC = 'now WAIT_FOR apply_after';
 INSERT INTO t1 VALUES(6, 6);
-# Kill and restart
 SELECT * FROM t1;
 c1	c2
 1	1

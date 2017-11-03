@@ -13,7 +13,6 @@ SET DEBUG_SYNC='innodb_rename_table_ready SIGNAL s1 WAIT_FOR s2 EXECUTE 2';
 ALTER TABLE child ROW_FORMAT=DYNAMIC, ALGORITHM=COPY;
 SET DEBUG_SYNC='now WAIT_FOR s1';
 SET DEBUG_SYNC='now SIGNAL s2 WAIT_FOR s1';
-# Kill and restart
 show tables;
 Tables_in_bug
 parent

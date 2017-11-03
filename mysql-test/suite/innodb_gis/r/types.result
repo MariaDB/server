@@ -1,6 +1,4 @@
 SET SESSION DEBUG_DBUG="+d,row_print_geometry_data";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 CREATE TABLE t_wl6455 ( i INT, g GEOMETRY NOT NULL) ENGINE=InnoDB;
 SHOW CREATE TABLE t_wl6455;
 Table	Create Table
@@ -53,7 +51,6 @@ COMMIT;
 INSERT INTO t_wl6455 VALUES(11, POINT(11,11));
 BEGIN;
 INSERT INTO t_wl6455 VALUES(1, POINT(1,1));
-# Kill and restart
 CHECK TABLE t_wl6455;
 Table	Op	Msg_type	Msg_text
 test.t_wl6455	check	status	OK

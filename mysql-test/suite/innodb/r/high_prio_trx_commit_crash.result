@@ -31,7 +31,6 @@ UPDATE t1 SET c1=1 WHERE c1=0;
 include/start_transaction_high_prio.inc
 START TRANSACTION /* HIGH PRIORITY */;
 UPDATE t1 SET c1=2 WHERE c1=0;
-# Kill and restart
 # Value 0 is expected as server crash on high prio txn (crash_commit_before point)
 SELECT * FROM t1;
 c1

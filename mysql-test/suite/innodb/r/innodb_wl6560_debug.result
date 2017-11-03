@@ -130,7 +130,6 @@ create temporary table t1
 insert into t1 values (1, 'a', 'b');
 begin;
 insert into t2 values (4, 'a', 'b');
-# Kill and restart
 show tables;
 Tables_in_test
 t2
@@ -150,7 +149,6 @@ create temporary table t1
 insert into t1 values (1, 'a', 'b');
 begin;
 insert into t1 values (4, 'a', 'b');
-# Kill and restart
 show tables;
 Tables_in_test
 t2

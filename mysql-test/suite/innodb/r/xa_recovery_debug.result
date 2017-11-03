@@ -14,7 +14,6 @@ SET DEBUG_SYNC='trx_xa_rollback SIGNAL s1 WAIT_FOR s2';
 XA ROLLBACK 'zombie';
 SET DEBUG_SYNC='now WAIT_FOR s1';
 SET GLOBAL innodb_log_checkpoint_now=ON;
-# Kill and restart
 XA COMMIT 'zombie';
 ERROR XAE04: XAER_NOTA: Unknown XID
 SELECT COUNT(*) FROM t;
