@@ -1359,7 +1359,7 @@ idle-transaction-timeout 0
 idle-write-transaction-timeout 0
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
-in-subquery-conversion-threshold 10000
+in-subquery-conversion-threshold 1000
 init-connect 
 init-file (No default value)
 init-rpl-role MASTER
