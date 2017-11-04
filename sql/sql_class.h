@@ -704,7 +704,7 @@ typedef struct system_variables
   uint idle_write_transaction_timeout;
   uint column_compression_threshold;
   uint column_compression_zlib_level;
-  ulong in_subquery_conversion_threshold;
+  uint in_subquery_conversion_threshold;
 } SV;
 
 /**

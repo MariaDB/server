@@ -1,3 +1,8 @@
+#
+# MDEV-12176 Transform [NOT] IN predicate with long list of values INTO [NOT] IN subquery
+#
+source include/have_debug.inc;
+
 create table t1 (a int, b int);
 
 insert into t1
@@ -28,7 +33,7 @@ eval explain extended $query;
 
 --echo # set minimum number of values in VALUEs list when optimization works to 2
 
-set @@in_subquery_conversion_threshold= 2;
+set @@in_predicate_conversion_threshold= 2;
 
 --echo # single IN-predicate in WHERE-part
 
@@ -251,27 +256,27 @@ deallocate prepare stmt;
 --echo # use inside out access from tvc rows
 
 let $query= select * from t3 where a in (1,4,10);
-set @@in_subquery_conversion_threshold= default;
+set @@in_predicate_conversion_threshold= default;
 eval $query;
 eval explain extended $query;
-set @@in_subquery_conversion_threshold= 2;
+set @@in_predicate_conversion_threshold= 2;
 eval $query;
 eval explain extended $query;
 
 --echo # use vectors in IN predeicate
 
-set @@in_subquery_conversion_threshold= 4;
+set @@in_predicate_conversion_threshold= 4;
 
 let $query=
 select * from t1 where (a,b) in ((1,2),(3,4));
 
 eval $query;
 eval explain extended $query;
-set @@in_subquery_conversion_threshold= 2;
+set @@in_predicate_conversion_threshold= 2;
 
 --echo # trasformation works for the one IN predicate and doesn't work for the other
 
-set @@in_subquery_conversion_threshold= 5;
+set @@in_predicate_conversion_threshold= 5;
 
 let $query=
 select * from t2
@@ -280,7 +285,7 @@ where (a,b) in ((1,2),(8,9)) and
 
 eval $query;
 eval explain extended $query;
-set @@in_subquery_conversion_threshold= 2;
+set @@in_predicate_conversion_threshold= 2;
 
 --echo #
 --echo # mdev-14281: conversion of NOT IN predicate into subquery predicate
@@ -312,4 +317,4 @@ eval explain extended $query;
 
 drop table t1, t2, t3;
 
-set @@in_subquery_conversion_threshold= default;
+set @@in_predicate_conversion_threshold= default;

@@ -19,6 +19,7 @@ select * from information_schema.system_variables
         variable_name not like 'debug%' and
         variable_name not like 'wsrep%' and
         variable_name not in (
+          'in_predicate_conversion_threshold',
           'have_openssl',
           'have_symlink',
           'hostname',

@@ -327,6 +327,8 @@
 /* Used to check GROUP BY list in the MODE_ONLY_FULL_GROUP_BY mode */
 #define UNDEF_POS (-1)
 
+#define IN_SUBQUERY_CONVERSION_THRESHOLD 1000
+
 #endif /* !MYSQL_CLIENT */
 
 /* BINLOG_DUMP options */
