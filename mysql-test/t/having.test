@@ -758,3 +758,83 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 --echo End of 10.1 tests
+
+--echo #
+--echo # MDEV-14093: GROUP BY with HAVING over function + ORDER BY
+--echo #
+
+CREATE TABLE _authors (
+  id MEDIUMINT(8) UNSIGNED AUTO_INCREMENT,
+  name VARCHAR(100),
+  some_field MEDIUMINT(8) UNSIGNED,
+  PRIMARY KEY (id),
+  index(some_field)
+);
+ 
+CREATE TABLE _books (
+  id MEDIUMINT(8) UNSIGNED AUTO_INCREMENT,
+  title VARCHAR(100),
+  PRIMARY KEY (id)
+);
+CREATE TABLE _books2authors (
+  author_id MEDIUMINT(8) DEFAULT 0,
+  book_id MEDIUMINT(8) DEFAULT 0,
+  index(author_id),
+  index(book_id)
+);
+
+INSERT INTO _authors (name, some_field) VALUES
+('author1', 1),('author2', 2),('author3', 3);
+
+INSERT INTO _books (title) VALUES
+('book1'),('book2'),('book3');
+
+INSERT INTO _books2authors (author_id, book_id) VALUES
+(2,1),(3,2),(3,3);
+
+SELECT A.id,
+       GROUP_CONCAT(B.title ORDER BY B.title DESC SEPARATOR ',') AS books,
+       some_field-1 AS having_field
+FROM _authors A
+     LEFT JOIN _books2authors B2A FORCE INDEX(author_id)
+     ON B2A.author_id = A.id
+     LEFT JOIN
+     _books B ON B.id = B2A.book_id
+GROUP BY A.id
+HAVING having_field < 1
+ORDER BY having_field ASC;
+
+DROP TABLE _authors, _books, _books2authors;
+
+--echo #
+--echo # Bug#17055185: WRONG RESULTS WHEN RUNNING A SELECT THAT INCLUDE
+--echo #               A HAVING BASED ON A FUNCTION.
+--echo #
+
+# Generate series 1, 0, 1, 0....
+CREATE TABLE series (
+  val INT(10) UNSIGNED NOT NULL
+);
+INSERT INTO series VALUES(1);
+
+DELIMITER |;
+CREATE FUNCTION next_seq_value() RETURNS INT
+BEGIN
+ DECLARE next_val INT;
+ SELECT val INTO next_val FROM series;
+ UPDATE series SET val=mod(val + 1, 2);
+ RETURN next_val;
+END;
+|
+DELIMITER ;|
+
+CREATE TABLE t1 (t INT, u INT, KEY(t));
+INSERT INTO t1 VALUES(10, 10), (11, 11), (12, 12), (12, 13),(14, 15), (15, 16),
+                     (16, 17), (17, 17);
+ANALYZE TABLE t1;
+SELECT t, next_seq_value() r FROM t1 FORCE INDEX(t)
+       GROUP BY t HAVING r = 1  ORDER BY t1.u;
+
+DROP TABLE t1;
+DROP FUNCTION next_seq_value;
+DROP TABLE series;

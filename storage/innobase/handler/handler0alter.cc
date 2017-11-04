@@ -390,23 +390,34 @@ innobase_spatial_exist(
 	return(false);
 }
 
-/*******************************************************************//**
-Determine if ALTER TABLE needs to rebuild the table.
-@param ha_alter_info the DDL operation
-@param altered_table		MySQL original table
+/** Determine if ALTER TABLE needs to rebuild the table.
+@param ha_alter_info	the DDL operation
+@param table		metadata before ALTER TABLE
 @return whether it is necessary to rebuild the table */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
 innobase_need_rebuild(
-/*==================*/
 	const Alter_inplace_info*	ha_alter_info,
-	const TABLE*			altered_table)
+	const TABLE*			table)
 {
 	Alter_inplace_info::HA_ALTER_FLAGS alter_inplace_flags =
-		ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE);
+		ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE;
 
-	if (alter_inplace_flags
-	    == Alter_inplace_info::CHANGE_CREATE_OPTION
+	if (alter_inplace_flags & Alter_inplace_info::CHANGE_CREATE_OPTION) {
+		const ha_table_option_struct& alt_opt=
+			*ha_alter_info->create_info->option_struct;
+		const ha_table_option_struct& opt= *table->s->option_struct;
+
+		if (alt_opt.page_compressed != opt.page_compressed
+		    || alt_opt.page_compression_level
+		    != opt.page_compression_level
+		    || alt_opt.encryption != opt.encryption
+		    || alt_opt.encryption_key_id != opt.encryption_key_id) {
+			return(true);
+		}
+	}
+
+	if (alter_inplace_flags == Alter_inplace_info::CHANGE_CREATE_OPTION
 	    && !(ha_alter_info->create_info->used_fields
 		 & (HA_CREATE_USED_ROW_FORMAT
 		    | HA_CREATE_USED_KEY_BLOCK_SIZE))) {
@@ -416,7 +427,7 @@ innobase_need_rebuild(
 		return(false);
 	}
 
-	return(!!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD));
+	return(!!(alter_inplace_flags & INNOBASE_ALTER_REBUILD));
 }
 
 /** Check if virtual column in old and new table are in order, excluding
@@ -570,28 +581,6 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	update_thd();
-
-	/* Change on engine specific table options require rebuild of the
-	table */
-	if (ha_alter_info->handler_flags
-		& Alter_inplace_info::CHANGE_CREATE_OPTION) {
-		ha_table_option_struct *new_options= ha_alter_info->create_info->option_struct;
-		ha_table_option_struct *old_options= table->s->option_struct;
-
-		if (new_options->page_compressed != old_options->page_compressed ||
-		    new_options->page_compression_level != old_options->page_compression_level) {
-			ha_alter_info->unsupported_reason = innobase_get_err_msg(
-				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
-			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-		}
-
-		if (new_options->encryption != old_options->encryption ||
-			new_options->encryption_key_id != old_options->encryption_key_id) {
-			ha_alter_info->unsupported_reason = innobase_get_err_msg(
-				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
-			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-		}
-	}
 
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
@@ -4501,7 +4490,6 @@ prepare_inplace_alter_table_dict(
 	to rebuild the table with a temporary name. */
 
 	if (new_clustered) {
-		fil_space_crypt_t* crypt_data;
 		const char*	new_table_name
 			= dict_mem_create_temporary_tablename(
 				ctx->heap,
@@ -4515,13 +4503,29 @@ prepare_inplace_alter_table_dict(
 		uint32_t	key_id = FIL_DEFAULT_ENCRYPTION_KEY;
 		fil_encryption_t mode = FIL_ENCRYPTION_DEFAULT;
 
-		fil_space_t* space = fil_space_acquire(ctx->prebuilt->table->space);
-		crypt_data = space->crypt_data;
-		fil_space_release(space);
+		if (fil_space_t* space
+		    = fil_space_acquire(ctx->prebuilt->table->space)) {
+			if (const fil_space_crypt_t* crypt_data
+			    = space->crypt_data) {
+				key_id = crypt_data->key_id;
+				mode = crypt_data->encryption;
+			}
 
-		if (crypt_data) {
-			key_id = crypt_data->key_id;
-			mode = crypt_data->encryption;
+			fil_space_release(space);
+		}
+
+		if (ha_alter_info->handler_flags
+		    & Alter_inplace_info::CHANGE_CREATE_OPTION) {
+			const ha_table_option_struct& alt_opt=
+				*ha_alter_info->create_info->option_struct;
+			const ha_table_option_struct& opt=
+				*old_table->s->option_struct;
+			if (alt_opt.encryption != opt.encryption
+			    || alt_opt.encryption_key_id
+			    != opt.encryption_key_id) {
+				key_id = uint32_t(alt_opt.encryption_key_id);
+				mode = fil_encryption_t(alt_opt.encryption);
+			}
 		}
 
 		if (innobase_check_foreigns(

@@ -144,7 +144,7 @@ String *Item_func_geometry_from_json::val_str(String *str)
     {
       String *sv= args[1]->val_str(&tmp_js);
       my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0),
-               "option", sv->c_ptr(), "ST_GeometryFromJSON");
+               "option", sv->c_ptr_safe(), "ST_GeometryFromJSON");
       null_value= 1;
       return 0;
     }
