@@ -689,7 +689,6 @@ typedef struct system_variables
   ulong session_track_transaction_info;
   my_bool session_track_schema;
   my_bool session_track_state_change;
-  my_bool sequence_read_skip_cache;
 
   ulong threadpool_priority;
 } SV;
