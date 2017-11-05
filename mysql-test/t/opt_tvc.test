@@ -282,5 +282,34 @@ eval $query;
 eval explain extended $query;
 set @@in_subquery_conversion_threshold= 2;
 
+--echo #
+--echo # mdev-14281: conversion of NOT IN predicate into subquery predicate
+--echo # 
+
+let $query=
+select * from t1
+where (a,b) not in ((1,2),(8,9), (5,1));
+let $optimized_query=
+select * from t1
+where (a,b) not in (select * from (values (1,2),(8,9), (5,1)) as tvc_0);
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+let $query=
+select * from t1
+where b < 7 and (a,b) not in ((1,2),(8,9), (5,1));
+eval $query;
+eval explain extended $query;
+
+let $query=
+select * from t2
+where (a,c) not in ((1,2),(8,9), (5,1));
+eval $query;
+eval explain extended $query;
+
 drop table t1, t2, t3;
+
 set @@in_subquery_conversion_threshold= default;

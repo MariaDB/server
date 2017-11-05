@@ -728,20 +728,25 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   /* Create IN subquery predicate */
   sq_select->parsing_place= parent_select->parsing_place;
   Item_in_subselect *in_subs;
+  Item *sq;
   if (!(in_subs=
           new (thd->mem_root) Item_in_subselect(thd, args[0], sq_select)))
     goto err;
-  in_subs->emb_on_expr_nest= emb_on_expr_nest;
-
+  sq= in_subs;
+  if (negated)
+    sq= negate_expression(thd, in_subs);
+  else
+    in_subs->emb_on_expr_nest= emb_on_expr_nest;
+  
   if (arena)
     thd->restore_active_arena(arena, &backup);
   thd->lex->current_select= parent_select;
 
-  if (in_subs->fix_fields(thd, (Item **)&in_subs))
+  if (sq->fix_fields(thd, (Item **)&sq))
     goto err;
 
   parent_select->curr_tvc_name++;
-  return in_subs;
+  return sq;
 
 err:
   if (arena)
@@ -847,3 +852,4 @@ bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
   thd->lex->current_select= save_current_select;
   DBUG_RETURN(false);
 }
+
