@@ -2649,7 +2649,7 @@ ER_INVALID_GROUP_FUNC_USE
         swe "Felaktig användning av SQL grupp function"
         ukr "Хибне використання функції групування"
 ER_UNSUPPORTED_EXTENSION 42000 
-        cze "Tabulka '%-.192s' používá rozšíření, které v této verzi MySQL není"
+        cze "Tabulka '%-.192s' používá rozšíření, které v této verzi MariaDB není"
         dan "Tabellen '%-.192s' bruger et filtypenavn som ikke findes i denne MariaDB version"
         nla "Tabel '%-.192s' gebruikt een extensie, die niet in deze MariaDB-versie voorkomt"
         eng "Table '%-.192s' uses an extension that doesn't exist in this MariaDB version"
@@ -2660,7 +2660,7 @@ ER_UNSUPPORTED_EXTENSION 42000
         hindi "टेबल '%-.192s' जिस इक्स्टेन्शन का उपयोग कर रहा है, वह इस MariaDB संस्करण में उपलब्ध नहीं है"
         hun "A(z) '%-.192s' tabla olyan bovitest hasznal, amely nem letezik ebben a MariaDB versioban"
         ita "La tabella '%-.192s' usa un'estensione che non esiste in questa versione di MariaDB"
-	jpn "表 '%-.192s' は、このMySQLバージョンには無い機能を使用しています。"
+	jpn "表 '%-.192s' は、このMariaDBバージョンには無い機能を使用しています。"
         kor "테이블 '%-.192s'는 확장명령을 이용하지만 현재의 MariaDB 버젼에서는 존재하지 않습니다."
         nor "Table '%-.192s' uses a extension that doesn't exist in this MariaDB version"
         norwegian-ny "Table '%-.192s' uses a extension that doesn't exist in this MariaDB version"
@@ -2740,7 +2740,7 @@ ER_UNKNOWN_CHARACTER_SET 42000
         swe "Okänd teckenuppsättning: '%-.64s'"
         ukr "Невідома кодова таблиця: '%-.64s'"
 ER_TOO_MANY_TABLES  
-        cze "Příliš mnoho tabulek, MySQL jich může mít v joinu jen %d"
+        cze "Příliš mnoho tabulek, MariaDB jich může mít v joinu jen %d"
         dan "For mange tabeller. MariaDB kan kun bruge %d tabeller i et join"
         nla "Teveel tabellen. MariaDB kan slechts %d tabellen in een join bevatten"
         eng "Too many tables; MariaDB can only use %d tables in a join"
@@ -2751,7 +2751,7 @@ ER_TOO_MANY_TABLES
         hindi "बहुत अधिक टेबल्स, MariaDB एक JOIN में केवल %d टेबल्स का उपयोग कर सकता है"
         hun "Tul sok tabla. A MariaDB csak %d tablat tud kezelni osszefuzeskor"
         ita "Troppe tabelle. MariaDB puo` usare solo %d tabelle in una join"
-        jpn "表が多すぎます。MySQLがJOINできる表は %d 個までです。"
+        jpn "表が多すぎます。MariaDBがJOINできる表は %d 個までです。"
         kor "너무 많은 테이블이 Join되었습니다. MariaDB에서는 JOIN시 %d개의 테이블만 사용할 수 있습니다."
         por "Tabelas demais. O MariaDB pode usar somente %d tabelas em uma junção (JOIN)"
         rum "Prea multe tabele. MariaDB nu poate folosi mai mult de %d tabele intr-un join"
@@ -3023,7 +3023,7 @@ ER_HOST_IS_BLOCKED
         swe "Denna dator, '%-.64s', är blockerad pga många felaktig paket. Gör 'mysqladmin flush-hosts' för att ta bort alla blockeringarna"
         ukr "Хост '%-.64s' заблоковано з причини великої кількості помилок з'єднання. Для розблокування використовуйте 'mysqladmin flush-hosts'"
 ER_HOST_NOT_PRIVILEGED  
-        cze "Stroj '%-.64s' nemá povoleno se k tomuto MySQL serveru připojit"
+        cze "Stroj '%-.64s' nemá povoleno se k tomuto MariaDB serveru připojit"
         dan "Værten '%-.64s' kan ikke tilkoble denne MariaDB-server"
         nla "Het is host '%-.64s' is niet toegestaan verbinding te maken met deze MariaDB server"
         eng "Host '%-.64s' is not allowed to connect to this MariaDB server"
@@ -3034,7 +3034,7 @@ ER_HOST_NOT_PRIVILEGED
         hindi "होस्ट '%-.64s' को इस MariaDB सर्वर से कनेक्ट करने के लिए अनुमति नहीं है"
         hun "A '%-.64s' host szamara nem engedelyezett a kapcsolodas ehhez a MariaDB szerverhez"
         ita "Al sistema '%-.64s' non e` consentita la connessione a questo server MariaDB"
-        jpn "ホスト '%-.64s' からのこの MySQL server への接続は許可されていません。"
+        jpn "ホスト '%-.64s' からのこの MariaDB server への接続は許可されていません。"
         kor "'%-.64s' 호스트는 이 MariaDB서버에 접속할 허가를 받지 못했습니다."
         por "'Host' '%-.64s' não tem permissão para se conectar com este servidor MariaDB"
         rum "Host-ul '%-.64s' nu este permis a se conecta la aceste server MariaDB"
@@ -3044,7 +3044,7 @@ ER_HOST_NOT_PRIVILEGED
         swe "Denna dator, '%-.64s', har inte privileger att använda denna MariaDB server"
         ukr "Хосту '%-.64s' не доволено зв'язуватись з цим сервером MariaDB"
 ER_PASSWORD_ANONYMOUS_USER 42000 
-        cze "Používáte MySQL jako anonymní uživatel a anonymní uživatelé nemají povoleno měnit hesla"
+        cze "Používáte MariaDB jako anonymní uživatel a anonymní uživatelé nemají povoleno měnit hesla"
         dan "Du bruger MariaDB som anonym bruger. Anonyme brugere må ikke ændre adgangskoder"
         nla "U gebruikt MariaDB als anonieme gebruiker en deze mogen geen wachtwoorden wijzigen"
         eng "You are using MariaDB as an anonymous user and anonymous users are not allowed to modify user settings"
@@ -3055,7 +3055,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         hindi "आप MariaDB का उपयोग एक बेनाम यूज़र की तरह कर रहे हैं; बेनाम यूज़र्स को 'यूज़र सेटिंग्स' बदलने की अनुमति नहीं है"
         hun "Nevtelen (anonymous) felhasznalokent nem negedelyezett a jelszovaltoztatas"
         ita "Impossibile cambiare la password usando MariaDB come utente anonimo"
-        jpn "MySQL を匿名ユーザーで使用しているので、パスワードの変更はできません。"
+        jpn "MariaDB を匿名ユーザーで使用しているので、パスワードの変更はできません。"
         kor "당신은 MariaDB서버에 익명의 사용자로 접속을 하셨습니다.익명의 사용자는 암호를 변경할 수 없습니다."
         por "Você está usando o MariaDB como usuário anônimo e usuários anônimos não têm permissão para mudar senhas"
         rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe setarile utilizatorilor"
@@ -3394,7 +3394,7 @@ ER_NONEXISTING_TABLE_GRANT 42000
         swe "Det finns inget privilegium definierat för användare '%-.48s' på '%-.64s' för tabell '%-.192s'"
         ukr "Повноважень не визначено для користувача '%-.48s' з хосту '%-.64s' для таблиці '%-.192s'"
 ER_NOT_ALLOWED_COMMAND 42000 
-        cze "Použitý příkaz není v této verzi MySQL povolen"
+        cze "Použitý příkaz není v této verzi MariaDB povolen"
         dan "Den brugte kommando er ikke tilladt med denne udgave af MariaDB"
         nla "Het used commando is niet toegestaan in deze MariaDB versie"
         eng "The used command is not allowed with this MariaDB version"
@@ -3404,7 +3404,7 @@ ER_NOT_ALLOWED_COMMAND 42000
         hindi "यह कमांड इस MariaDB संस्करण के साथ इस्तेमाल नहीं किया जा सकता है"
         hun "A hasznalt parancs nem engedelyezett ebben a MariaDB verzioban"
         ita "Il comando utilizzato non e` supportato in questa versione di MariaDB"
-        jpn "このMySQLバージョンでは利用できないコマンドです。"
+        jpn "このMariaDBバージョンでは利用できないコマンドです。"
         kor "사용된 명령은 현재의 MariaDB 버젼에서는 이용되지 않습니다."
         por "Comando usado não é permitido para esta versão do MariaDB"
         rum "Comanda folosita nu este permisa pentru aceasta versiune de MariaDB"
@@ -3907,7 +3907,7 @@ ER_REQUIRES_PRIMARY_KEY 42000
         swe "Denna tabelltyp kräver en PRIMARY KEY"
         ukr "Цей тип таблиці потребує первинного ключа"
 ER_NO_RAID_COMPILED  
-        cze "Tato verze MySQL není zkompilována s podporou RAID"
+        cze "Tato verze MariaDB není zkompilována s podporou RAID"
         dan "Denne udgave af MariaDB er ikke oversat med understøttelse af RAID"
         nla "Deze versie van MariaDB is niet gecompileerd met RAID ondersteuning"
         eng "This version of MariaDB is not compiled with RAID support"
@@ -3917,7 +3917,7 @@ ER_NO_RAID_COMPILED
         hindi "MariaDB का यह संस्करण RAID सपोर्ट के साथ कॉम्पाईल्ड नहीं है"
         hun "Ezen leforditott MariaDB verzio nem tartalmaz RAID support-ot"
         ita "Questa versione di MYSQL non e` compilata con il supporto RAID"
-        jpn "このバージョンのMySQLはRAIDサポートを含めてコンパイルされていません。"
+        jpn "このバージョンのMariaDBはRAIDサポートを含めてコンパイルされていません。"
         por "Esta versão do MariaDB não foi compilada com suporte a RAID"
         rum "Aceasta versiune de MariaDB, nu a fost compilata cu suport pentru RAID"
         rus "Эта версия MariaDB скомпилирована без поддержки RAID"
@@ -5042,7 +5042,7 @@ ER_UNKNOWN_COLLATION
 ER_SLAVE_IGNORED_SSL_PARAMS  
         eng "SSL parameters in CHANGE MASTER are ignored because this MariaDB slave was compiled without SSL support; they can be used later if MariaDB slave with SSL is started"
         ger "SSL-Parameter in CHANGE MASTER werden ignoriert, weil dieser MariaDB-Slave ohne SSL-Unterstützung kompiliert wurde. Sie können aber später verwendet werden, wenn ein MariaDB-Slave mit SSL gestartet wird"
-        jpn "このMySQLスレーブはSSLサポートを含めてコンパイルされていないので、CHANGE MASTER のSSLパラメータは無視されました。今後SSLサポートを持つMySQLスレーブを起動する際に利用されます。"
+        jpn "このMariaDBスレーブはSSLサポートを含めてコンパイルされていないので、CHANGE MASTER のSSLパラメータは無視されました。今後SSLサポートを持つMariaDBスレーブを起動する際に利用されます。"
         por "SSL parâmetros em CHANGE MASTER são ignorados porque este escravo MariaDB foi compilado sem o SSL suporte. Os mesmos podem ser usados mais tarde quando o escravo MariaDB com SSL seja iniciado."
         spa "Parametros SSL en CHANGE MASTER son ignorados porque este slave MariaDB fue compilado sin soporte SSL; pueden ser usados despues cuando el slave MariaDB con SSL sea inicializado"
 ER_SERVER_IS_IN_SECURE_AUTH_MODE  
@@ -6753,7 +6753,7 @@ ER_INSECURE_PLAIN_TEXT
   eng "Sending passwords in plain text without SSL/TLS is extremely insecure"
 
 ER_INSECURE_CHANGE_MASTER
-  eng "Storing MySQL user name or password information in the master.info repository is not secure and is therefore not recommended. Please see the MySQL Manual for more about this issue and possible alternatives"
+  eng "Storing MariaDB user name or password information in the master.info repository is not secure and is therefore not recommended. Please see the MariaDB Manual for more about this issue and possible alternatives"
 
 ER_FOREIGN_DUPLICATE_KEY_WITH_CHILD_INFO 23000 S1009
         eng "Foreign key constraint for table '%.192s', record '%-.192s' would lead to a duplicate entry in table '%.192s', key '%.192s'"
@@ -6860,7 +6860,7 @@ ER_TOO_LONG_TABLE_PARTITION_COMMENT
   eng "Comment for table partition '%-.64s' is too long (max = %lu)"
 
 ER_SLAVE_CONFIGURATION
-  eng "Slave is not configured or failed to initialize properly. You must at least set --server-id to enable either a master or a slave. Additional error messages can be found in the MySQL error log"
+  eng "Slave is not configured or failed to initialize properly. You must at least set --server-id to enable either a master or a slave. Additional error messages can be found in the MariaDB error log"
 
 ER_INNODB_FT_LIMIT
   eng "InnoDB presently supports one FULLTEXT index creation at a time"
@@ -6887,10 +6887,10 @@ ER_MTS_CHANGE_MASTER_CANT_RUN_WITH_GAPS
   eng "CHANGE MASTER cannot be executed when the slave was stopped with an error or killed in MTS mode. Consider using RESET SLAVE or START SLAVE UNTIL"
 
 ER_MTS_RECOVERY_FAILURE
-  eng "Cannot recover after SLAVE errored out in parallel execution mode. Additional error messages can be found in the MySQL error log"
+  eng "Cannot recover after SLAVE errored out in parallel execution mode. Additional error messages can be found in the MariaDB error log"
 
 ER_MTS_RESET_WORKERS
-  eng "Cannot clean up worker info tables. Additional error messages can be found in the MySQL error log"
+  eng "Cannot clean up worker info tables. Additional error messages can be found in the MariaDB error log"
 
 ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2
   eng "Column count of %s.%s is wrong. Expected %d, found %d. The table is probably corrupted"
@@ -7398,8 +7398,8 @@ ER_FK_DEPTH_EXCEEDED
   eng "Foreign key cascade delete/update exceeds max depth of %d."
 
 ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE_V2
-        eng "Column count of %s.%s is wrong. Expected %d, found %d. Created with MySQL %d, now running %d. Please use mysql_upgrade to fix this error."
-        ger "Spaltenanzahl von %s.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MySQL %d, jetzt unter %d. Bitte benutzen Sie mysql_upgrade, um den Fehler zu beheben"
+        eng "Column count of %s.%s is wrong. Expected %d, found %d. Created with MariaDB %d, now running %d. Please use mysql_upgrade to fix this error."
+        ger "Spaltenanzahl von %s.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MariaDB %d, jetzt unter %d. Bitte benutzen Sie mysql_upgrade, um den Fehler zu beheben"
 
 ER_WARN_TRIGGER_DOESNT_HAVE_CREATED
   eng "Trigger %s.%s.%s does not have CREATED attribute."

@@ -2242,7 +2242,7 @@ int ha_start_consistent_snapshot(THD *thd)
   */
   if (warn)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
-                 "This MySQL server does not support any "
+                 "This MariaDB server does not support any "
                  "consistent-read capable storage engine");
   return 0;
 }
