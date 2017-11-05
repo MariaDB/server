@@ -2193,12 +2193,13 @@ public:
                    const char *calling_file,
                    const unsigned int calling_line)
   {
-    DBUG_PRINT("THD::enter_stage", ("%s:%d", calling_file, calling_line));
+    DBUG_PRINT("THD::enter_stage", ("%s at %s:%d", stage->m_name,
+                                    calling_file, calling_line));
     DBUG_ASSERT(stage);
     m_current_stage_key= stage->m_key;
     proc_info= stage->m_name;
 #if defined(ENABLED_PROFILING)
-    profiling.status_change(stage->m_name, calling_func, calling_file,
+    profiling.status_change(proc_info, calling_func, calling_file,
                             calling_line);
 #endif
 #ifdef HAVE_PSI_THREAD_INTERFACE
