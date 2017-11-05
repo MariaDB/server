@@ -235,18 +235,17 @@ row_lock_table_for_mysql(
 					(ignored if table==NULL) */
 	MY_ATTRIBUTE((nonnull(1)));
 
-/* System Versioning: row_insert_for_mysql() modes */
+/** System Versioning: row_insert_for_mysql() modes */
 enum ins_mode_t {
-	ROW_INS_NORMAL = 0,
-	// insert versioned row: sys_trx_start = TRX_ID, sys_trx_end = MAX
-	ROW_INS_VERSIONED,
-	// insert historical row: sys_trx_end = TRX_ID
-	ROW_INS_HISTORICAL
+	ROW_INS_NORMAL = 0,	///< plain row (without versioning)
+	ROW_INS_VERSIONED,	///< sys_trx_start = TRX_ID, sys_trx_end = MAX
+	ROW_INS_HISTORICAL	///< sys_trx_end = TRX_ID
 };
 
 /** Does an insert for MySQL.
 @param[in]	mysql_rec	row in the MySQL format
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
+@param[in]	ins_mode	what row type we're inserting
 @return error code or DB_SUCCESS*/
 dberr_t
 row_insert_for_mysql(
@@ -274,6 +273,7 @@ row_get_prebuilt_update_vector(
 					handle */
 /** Does an update or delete of a row for MySQL.
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
+@param[in]	vers_set_fields	working with system versioned table
 @return error code or DB_SUCCESS */
 dberr_t
 row_update_for_mysql(

@@ -31,13 +31,14 @@ Created 4/24/1996 Heikki Tuuri
 #include "univ.i"
 #include "dict0types.h"
 #include "trx0types.h"
-#include "trx0vtq.h"
 #include "ut0byte.h"
 #include "mem0mem.h"
 #include "btr0types.h"
 #include "ut0new.h"
 
 #include <deque>
+
+struct vtq_record_t;
 
 /** A stack of table names related through foreign key constraints */
 typedef std::deque<const char*, ut_allocator<const char*> >	dict_names_t;
@@ -317,17 +318,19 @@ dict_process_sys_datafiles(
 	const rec_t*	rec,		/*!< in: current SYS_DATAFILES rec */
 	ulint*		space,		/*!< out: pace id */
 	const char**	path);		/*!< out: datafile path */
-/********************************************************************//**
-This function parses a SYS_VTQ record, extracts necessary
+
+/** This function parses a SYS_VTQ record, extracts necessary
 information from the record and returns it to the caller.
+@param[in,out]	heap	Heap memory
+@param[in]	rec	Current record
+@param[out]	fields	Field values
 @return error message, or NULL on success */
 UNIV_INTERN
 const char*
 dict_process_sys_vtq(
-/*=======================*/
-mem_heap_t*	heap,		/*!< in/out: heap memory */
-const rec_t*	rec,		/*!< in: current rec */
-vtq_record_t&	fields		/*!< out: field values */
+	mem_heap_t*	heap,		/*!< in/out: heap memory */
+	const rec_t*	rec,		/*!< in: current rec */
+        vtq_record_t&	fields		/*!< out: field values */
 );
 
 /** Update the record for space_id in SYS_TABLESPACES to this filepath.

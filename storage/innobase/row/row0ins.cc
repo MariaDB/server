@@ -1594,17 +1594,21 @@ row_ins_get_sys_trx_end(
 	return(mach_read_from_8(field));
 }
 
-/*********************************************************************//**
+/**
 Performs search at clustered index and returns sys_trx_end if row was found.
+@param[in]	index	secondary index of record
+@param[in]	rec	record in a secondary index
+@param[out]	end_trx_id	value from clustered index
 @return DB_SUCCESS, DB_NO_REFERENCED_ROW */
 static
 dberr_t
 row_ins_search_sys_trx_end(
-/*=======================*/
-			dict_index_t *index,	/*!< in: index of record */
-			const rec_t *rec,	/*!< in: record */
-			trx_id_t *end_trx_id)	/*!< out: end_trx_id */
+	dict_index_t *index,
+	const rec_t *rec,
+	trx_id_t *end_trx_id)
 {
+	ut_ad(!index->is_clust());
+
 	bool found = false;
 	mem_heap_t *heap = mem_heap_create(256);
 	dict_index_t *clust_index = NULL;
@@ -1629,7 +1633,8 @@ not_found:
 	mtr_commit(&mtr);
 	mem_heap_free(heap);
 	if (!found) {
-		fprintf(stderr, "InnoDB: foreign constraints: secondary index is out of sync\n");
+		ib::error() << "foreign constraints: secondary index is out of "
+			       "sync";
 		ut_ad(false && "secondary index is out of sync");
 		return(DB_NO_REFERENCED_ROW);
 	}
@@ -4014,7 +4019,7 @@ vers_row_ins_vtq_low(trx_t* trx, mem_heap_t* heap, dtuple_t* tuple)
 		break;
 	case DB_SUCCESS_LOCKED_REC:
 		/* The row had already been copied to the table. */
-		fprintf(stderr, "InnoDB: duplicate VTQ record!\n");
+		ib::info() << "InnoDB: duplicate VTQ record!";
 		return DB_SUCCESS;
 	default:
 		return err;
@@ -4068,7 +4073,8 @@ void vers_notify_vtq(trx_t* trx)
 
 	err = vers_row_ins_vtq_low(trx, heap, tuple);
 	if (DB_SUCCESS != err)
-		fprintf(stderr, "InnoDB: failed to insert VTQ record (error %d)\n", err);
+		ib::error()
+			<< "failed to insert VTQ record (error " << err << ")";
 
 	mem_heap_free(heap);
 }

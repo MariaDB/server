@@ -223,9 +223,6 @@ public:
 
 	ha_rows estimate_rows_upper_bound();
 
-	// JAN: TODO: MySQL 5.7
-	ha_rows records_new(); // FIXME: rename to records(), fix main.bug39022
-
 	void update_create_info(HA_CREATE_INFO* create_info);
 
 	int create(
@@ -458,7 +455,7 @@ protected:
 	void reset_template();
 
 protected:
-	void update_thd(THD* thd);
+	inline void update_thd(THD* thd);
 	void update_thd();
 
 	int general_fetch(uchar* buf, uint direction, uint match_mode);

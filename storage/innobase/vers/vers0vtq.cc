@@ -23,7 +23,6 @@
 #include "row0row.h"
 #include "trx0trx.h"
 #include "trx0types.h"
-#include "trx0vtq.h"
 
 
 /** Field or record selector.
@@ -145,7 +144,9 @@ vtq_query_trx_id(THD* thd, void *out, ulonglong _in_trx_id, vtq_field_t field)
 	{
 		const char *err = trx->vtq_query.cache_result(heap, rec);
 		if (err) {
-			fprintf(stderr, "InnoDB: vtq_query_trx_id: get VTQ field failed: %s\n", err);
+			ib::error()
+				<< "vtq_query_trx_id: get VTQ field failed: "
+				<< err;
 			ut_ad(false && "get VTQ field failed");
 			goto not_found;
 		}
@@ -378,7 +379,8 @@ vtq_query_commit_ts(
 found:
 	clust_rec = row_get_clust_rec(BTR_SEARCH_LEAF, rec, index, &clust_index, &mtr);
 	if (!clust_rec) {
-		fprintf(stderr, "InnoDB: vtq_query_commit_ts: secondary index is out of sync\n");
+		ib::error() << "vtq_query_commit_ts: secondary index is out of "
+			       "sync";
 		ut_ad(false && "secondary index is out of sync");
 		goto not_found;
 	}
@@ -391,7 +393,9 @@ found:
 				rec_ts,
 				backwards);
 		if (err) {
-			fprintf(stderr, "InnoDB: vtq_query_commit_ts: get VTQ field failed: %s\n", err);
+			ib::error()
+				<< "vtq_query_commit_ts: get VTQ field failed: "
+				<< err;
 			ut_ad(false && "get VTQ field failed");
 			goto not_found;
 		}
@@ -438,10 +442,11 @@ vtq_trx_sees(
 		DBUG_RETURN(true);
 	}
 
-	static const char* msg_cant_find = "InnoDB: vtq_trx_sees: can't find COMMIT_ID%c by TRX_ID: %llu\n";
 	if (!commit_id1) {
 		if (!vtq_query_trx_id(thd, NULL, trx_id1, VTQ_ALL)) {
-			fprintf(stderr, msg_cant_find, '1', trx_id1);
+			ib::info() << "vtq_trx_sees: can't find COMMIT_ID0 by "
+				      "TRX_ID: "
+				   << trx_id1;
 			DBUG_RETURN(false);
 		}
 		trx_t* trx = thd_to_trx(thd);
@@ -452,7 +457,9 @@ vtq_trx_sees(
 
 	if (!commit_id0) {
 		if (!vtq_query_trx_id(thd, &commit_id0, trx_id0, VTQ_COMMIT_ID)) {
-			fprintf(stderr, msg_cant_find, '0', trx_id0);
+			ib::info() << "vtq_trx_sees: can't find COMMIT_ID1 by "
+				      "TRX_ID: "
+				   << trx_id0;
 			DBUG_RETURN(false);
 		}
 	}

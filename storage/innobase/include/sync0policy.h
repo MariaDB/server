@@ -59,11 +59,7 @@ public:
 		@param[in]	id	ID of the latch to track */
 		Context(latch_id_t id)
 			:
-			latch_t(id),
-			m_mutex(),
-			m_filename(),
-			m_line(),
-			m_thread_id(os_thread_id_t(ULINT_UNDEFINED))
+			latch_t(id)
 		{
 			ut_ad(id != LATCH_ID_NONE);
 		}
