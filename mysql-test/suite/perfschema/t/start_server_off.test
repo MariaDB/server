@@ -7,6 +7,7 @@
 
 # Expecting all off / zero
 show status like "performance_schema%";
+show variables like "performance_schema";
 
 # Expect all consumers disabled
 
@@ -44,5 +45,3 @@ truncate performance_schema.events_statements_history_long;
 truncate performance_schema.events_waits_history_long;
 truncate performance_schema.setup_objects;
 truncate performance_schema.setup_actors;
-
-

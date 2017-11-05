@@ -273,6 +273,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
     DBUG_RETURN(TRUE);
 
+  THD_STAGE_INFO(thd, stage_init_update);
   if (mysql_handle_list_of_derived(thd->lex, table_list, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE);
   if (mysql_handle_list_of_derived(thd->lex, table_list, DT_PREPARE))
@@ -289,7 +290,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 	       table_list->view_db.str, table_list->view_name.str);
     DBUG_RETURN(TRUE);
   }
-  THD_STAGE_INFO(thd, stage_init);
   table->map=1;
   query_plan.select_lex= &thd->lex->select_lex;
   query_plan.table= table;
@@ -556,7 +556,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     goto got_error;
   
   init_ftfuncs(thd, select_lex, 1);
-  THD_STAGE_INFO(thd, stage_updating);
 
   if (table->prepare_triggers_for_delete_stmt_or_event())
   {
@@ -588,6 +587,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     deltempfile= new (thd->mem_root) Unique (refpos_order_cmp, table->file,
                                              table->file->ref_length,
                                              MEM_STRIP_BUF_SIZE);
+
+    THD_STAGE_INFO(thd, stage_searching_rows_for_update);
     while (!(error=info.read_record(&info)) && !thd->killed &&
           ! thd->is_error())
     {
@@ -613,6 +614,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     delete_record= true;
   }
 
+  THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record(&info)) && !thd->killed &&
         ! thd->is_error())
   {

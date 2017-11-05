@@ -595,7 +595,7 @@ bool Sql_cmd_alter_table_exchange_partition::
 
   /* Table and partition has same structure/options, OK to exchange */
 
-  thd_proc_info(thd, "verifying data with partition");
+  thd_proc_info(thd, "Verifying data with partition");
 
   if (verify_data_with_partition(swap_table, part_table, swap_part_id))
     DBUG_RETURN(TRUE);

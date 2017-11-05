@@ -17,7 +17,7 @@ flush logs;;
 connection conn1;
 select DB, command, state, info from information_schema.processlist where id != connection_id();
 DB	command	state	info
-test	Query	init	flush logs
+test	Query	Init	flush logs
 set tokudb_checkpoint_lock=0;
 connection default;
 disconnect conn1;

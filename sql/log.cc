@@ -2002,7 +2002,9 @@ static bool trans_cannot_safely_rollback(THD *thd, bool all)
 static int binlog_commit(handlerton *hton, THD *thd, bool all)
 {
   int error= 0;
+  PSI_stage_info org_stage;
   DBUG_ENTER("binlog_commit");
+
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
 
@@ -2019,6 +2021,9 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
               YESNO(thd->transaction.all.modified_non_trans_table),
               YESNO(thd->transaction.stmt.modified_non_trans_table)));
 
+
+  thd->backup_stage(&org_stage);
+  THD_STAGE_INFO(thd, stage_binlog_write);
   if (!cache_mngr->stmt_cache.empty())
   {
     error= binlog_commit_flush_stmt_cache(thd, all, cache_mngr);
@@ -2030,6 +2035,7 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
       we're here because cache_log was flushed in MYSQL_BIN_LOG::log_xid()
     */
     cache_mngr->reset(false, true);
+    THD_STAGE_INFO(thd, org_stage);
     DBUG_RETURN(error);
   }
 
@@ -2048,6 +2054,7 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
   if (!all)
     cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
 
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(error);
 }
 

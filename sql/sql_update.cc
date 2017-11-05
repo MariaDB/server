@@ -305,12 +305,12 @@ int mysql_update(THD *thd,
   if (lock_tables(thd, table_list, table_count, 0))
     DBUG_RETURN(1);
 
+  THD_STAGE_INFO(thd, stage_init_update);
   if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(1);
   if (table_list->handle_derived(thd->lex, DT_PREPARE))
     DBUG_RETURN(1);
 
-  THD_STAGE_INFO(thd, stage_init);
   table= table_list->table;
 
   if (!table_list->single_table_updatable())
@@ -707,7 +707,6 @@ int mysql_update(THD *thd,
   */
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   thd->cuted_fields=0L;
-  THD_STAGE_INFO(thd, stage_updating);
 
   transactional_table= table->file->has_transactions();
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
@@ -735,6 +734,7 @@ int mysql_update(THD *thd,
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
 
+  THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
     explain->tracker.on_record_read();

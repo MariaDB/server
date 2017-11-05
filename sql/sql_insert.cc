@@ -761,9 +761,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       DBUG_RETURN(TRUE);
   }
 
+  THD_STAGE_INFO(thd, stage_init_update);
   lock_type= table_list->lock_type;
-
-  THD_STAGE_INFO(thd, stage_init);
   thd->lex->used_tables=0;
   values= its++;
   if (bulk_parameters_set(thd))
@@ -860,7 +859,6 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 #endif
 
   error=0;
-  THD_STAGE_INFO(thd, stage_update);
   if (duplic == DUP_REPLACE &&
       (!table->triggers || !table->triggers->has_delete_triggers()))
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
@@ -940,6 +938,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       goto values_loop_end;
     }
   }
+
+  THD_STAGE_INFO(thd, stage_update);
   do
   {
     DBUG_PRINT("info", ("iteration %llu", iteration));
@@ -3357,7 +3357,7 @@ bool Delayed_insert::handle_inserts(void)
   }
 
   if (WSREP((&thd)))
-    thd_proc_info(&thd, "insert done");
+    thd_proc_info(&thd, "Insert done");
   else
     thd_proc_info(&thd, 0);
   mysql_mutex_unlock(&mutex);

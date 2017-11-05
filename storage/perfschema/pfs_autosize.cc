@@ -124,7 +124,7 @@ PFS_sizing_data small_data=
   /* Account / user / host */
   10, 5, 20,
   /* History sizes */
-  5, 100, 5, 100, 5, 100,
+  10, 100, 10, 100, 10, 100,
   /* Digests */
   1000,
   /* Session connect attrs. */
@@ -140,7 +140,7 @@ PFS_sizing_data medium_data=
   /* Account / user / host */
   100, 100, 100,
   /* History sizes */
-  10, 1000, 10, 1000, 10, 1000,
+  20, 1000, 20, 1000, 20, 1000,
   /* Digests */
   5000,
   /* Session connect attrs. */
@@ -156,7 +156,7 @@ PFS_sizing_data large_data=
   /* Account / user / host */
   100, 100, 100,
   /* History sizes */
-  10, 10000, 10, 10000, 10, 10000,
+  20, 10000, 20, 10000, 20, 10000,
   /* Digests */
   10000,
   /* Session connect attrs. */
