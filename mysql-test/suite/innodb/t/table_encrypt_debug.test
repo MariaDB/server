@@ -41,7 +41,7 @@ SELECT @@innodb_file_per_table;
 
 
 --echo # Starting server with keyring plugin restart with keying
-let $restart_parameters = : --early-plugin-load="keyring_file=$KEYRING_PLUGIN" --loose-keyring_file_data=$MYSQL_TMP_DIR/mysecret_keyring $KEYRING_PLUGIN_OPT ;
+let $restart_parameters =--early-plugin-load="keyring_file=$KEYRING_PLUGIN" --loose-keyring_file_data=$MYSQL_TMP_DIR/mysecret_keyring $KEYRING_PLUGIN_OPT ;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR $KEYRING_PLUGIN_OPT --plugin-dir=KEYRING_PLUGIN_PATH $KEYRING_PLUGIN keyring_file.so
 --replace_regex /\.dll/.so/
 --source include/restart_mysqld.inc

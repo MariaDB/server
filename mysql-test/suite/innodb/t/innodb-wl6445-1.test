@@ -63,7 +63,7 @@ SELECT * FROM otherlocation ORDER BY id;
 
 #
 
-let $restart_parameters = : --innodb-read-only;
+let $restart_parameters =--innodb-read-only;
 --source include/restart_mysqld.inc
 
 SET GLOBAL innodb_file_per_table = 1;
@@ -148,7 +148,7 @@ UNLOCK TABLES;
 #------------------------------------------------------------------------------
 #
 
-let $restart_parameters = 
+let $restart_parameters =
 --source include/restart_mysqld.inc
 DROP USER 'test1'@'localhost';
 DROP USER 'test2'@'localhost';
@@ -198,7 +198,7 @@ SELECT COUNT(*) FROM testdb_wl6445.t1;
 
 #
 
-let $restart_parameters = : --innodb-read-only;
+let $restart_parameters =--innodb-read-only;
 --source include/restart_mysqld.inc
 
 USE testdb_wl6445;
@@ -328,7 +328,7 @@ UNLOCK TABLES;
 # clean-up
 #------------------------------------------------------------------------------
 #
-let $restart_parameters = 
+let $restart_parameters =
 --source include/restart_mysqld.inc
 DROP DATABASE testdb_wl6445;
 
@@ -379,7 +379,7 @@ SELECT * FROM t3;
 
 #
 
-let $restart_parameters = : --innodb-read-only;
+let $restart_parameters =--innodb-read-only;
 --source include/restart_mysqld.inc
 
 SET GLOBAL innodb_file_per_table = 1;
@@ -415,7 +415,7 @@ UNLOCK TABLES;
 #------------------------------------------------------------------------------
 #
 
-let $restart_parameters = 
+let $restart_parameters =
 --source include/restart_mysqld.inc
 DROP DATABASE testdb_wl6445;
 
@@ -449,7 +449,7 @@ let $innodb_change_buffering_orig = `select @@innodb_change_buffering`;
 let $innodb_print_all_deadlocks_orig = `select @@innodb_print_all_deadlocks`;
 
 
-let $restart_parameters = : --innodb-read-only --innodb_purge_threads=5 --innodb_buffer_pool_size=16M;
+let $restart_parameters =--innodb-read-only --innodb_purge_threads=5 --innodb_buffer_pool_size=16M;
 --source include/restart_mysqld.inc
 
 SET GLOBAL innodb_max_purge_lag = 10;
@@ -500,7 +500,7 @@ eval SET GLOBAL innodb_print_all_deadlocks = $innodb_print_all_deadlocks_orig;
 #------------------------------------------------------------------------------
 #
 
-let $restart_parameters = 
+let $restart_parameters =
 --source include/restart_mysqld.inc
 DROP DATABASE testdb_wl6445;
 
@@ -521,7 +521,7 @@ INSERT INTO t1 VALUES (4,'mysql database'),(5,'mysql database innodb support'),(
 SELECT * FROM t1 WHERE MATCH (j) AGAINST ('mysql (+database -innodb)' IN BOOLEAN MODE) ;
 SELECT * FROM t1 WHERE MATCH (j) AGAINST ('innodb') ;
 
-let $restart_parameters = : --innodb-read-only --read-only;
+let $restart_parameters =--innodb-read-only --read-only;
 --source include/restart_mysqld.inc
 USE testdb_wl6445;
 show tables;
@@ -538,7 +538,7 @@ CREATE TABLE t2 ( i INT ) ENGINE = Innodb;
 CREATE USER 'test5'@'localhost' IDENTIFIED BY '123';
 GRANT ALL ON testdb_wl6445.* TO 'test5'@'localhost';
 
-let $restart_parameters = : --read-only;
+let $restart_parameters =--read-only;
 --source include/restart_mysqld.inc
 USE testdb_wl6445;
 # check if root user able to do DML/DDL
@@ -558,7 +558,7 @@ GRANT ALL ON testdb_wl6445.* TO 'test5_2'@'localhost';
 #------------------------------------------------------------------------------
 #
 
-let $restart_parameters = 
+let $restart_parameters =
 --source include/restart_mysqld.inc
 DROP USER 'test5_2'@'localhost';
 DROP USER 'test5'@'localhost';
@@ -585,7 +585,7 @@ SELECT i FROM t1 ORDER BY i;
 EOF
 
 
-let $restart_parameters = : --innodb-read-only;
+let $restart_parameters =--innodb-read-only;
 --source include/restart_mysqld.inc
 
 USE testdb_wl6445;
@@ -608,7 +608,7 @@ SELECT i FROM t1 ORDER BY i;
 #------------------------------------------------------------------------------
 # clean-up
 #------------------------------------------------------------------------------
-let $restart_parameters = 
+let $restart_parameters =
 --source include/restart_mysqld.inc
 DROP DATABASE testdb_wl6445;
 --rmdir $MYSQL_TMP_DIR/alt_dir/testdb_wl6445
@@ -658,7 +658,7 @@ commit;
 check table t1 extended;
 #
 #
-let $restart_parameters = : --innodb-read-only;
+let $restart_parameters =--innodb-read-only;
 --source include/restart_mysqld.inc
 #
 check table t1 extended;
@@ -666,7 +666,7 @@ check table t1 extended;
 #------------------------------------------------------------------------------
 # clean-up
 #------------------------------------------------------------------------------
-let $restart_parameters = 
+let $restart_parameters =
 --source include/restart_mysqld.inc
 check table t1 extended;
 drop table t1;

@@ -23,7 +23,7 @@ if (`SELECT @@innodb_log_file_size = 2097152`) {
 }
 
 # restart with innodb-fast-shutdown=2 to on stopping it , behave as crash
-let $restart_parameters = : --innodb-fast-shutdown=2 --innodb-log-file-size=4M;
+let $restart_parameters =--innodb-fast-shutdown=2 --innodb-log-file-size=4M;
 --source include/restart_mysqld.inc
 
 call mtr.add_suppression("InnoDB: Resizing redo log");
@@ -107,7 +107,7 @@ SELECT id,LEFT(bfield,20) FROM t1;
 DROP TABLE t1;
 DROP DATABASE db_wl6494;
 # set log size to 3*6M
-let $restart_parameters = : --innodb-fast-shutdown=2 --innodb-log-file-size=6M --innodb_log_files_in_group=3;
+let $restart_parameters =--innodb-fast-shutdown=2 --innodb-log-file-size=6M --innodb_log_files_in_group=3;
 --source include/restart_mysqld.inc
 
 SELECT @@innodb_log_file_size;
@@ -233,7 +233,7 @@ let SEARCH_PATTERN= InnoDB: .*ib_logfile1 is of different size;
 --move_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile0_hidden
 
 # restart server
-let $restart_parameters = 
+let $restart_parameters =
 --source include/start_mysqld.inc
 USE db_wl6494;
 SELECT id,LEFT(bfield,20) FROM t1;

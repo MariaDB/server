@@ -53,7 +53,7 @@ CHECK TABLE t1;
 BEGIN;
 INSERT INTO t1 VALUES (42);
 
-let $restart_parameters = --innodb-log-file-size=6M;
+let $restart_parameters =--innodb-log-file-size=6M;
 let $shutdown_timeout=0;
 --source include/restart_mysqld.inc
 
@@ -63,7 +63,7 @@ INSERT INTO t1 VALUES (42);
 BEGIN;
 DELETE FROM t1;
 
-let $restart_parameters = --innodb-log-files-in-group=3 --innodb-log-file-size=5M;
+let $restart_parameters =--innodb-log-files-in-group=3 --innodb-log-file-size=5M;
 --source include/restart_mysqld.inc
 let $shutdown_timeout=;
 

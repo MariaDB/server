@@ -87,7 +87,7 @@ set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
 select count(*) from t1 where MBRWithin(t1.c2, @g1);
 
 # test read only case
-let $restart_parameters = --innodb-read-only;
+let $restart_parameters =--innodb-read-only;
 --source include/restart_mysqld.inc
 set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
 select count(*) from t1 where MBRWithin(t1.c2, @g1);

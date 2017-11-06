@@ -69,7 +69,7 @@ set debug_dbug = '+d,crash_after_checkpoint';
 set global innodb_log_checkpoint_now = 1;
 
 --echo # Skip MLOG_FILE_NAME redo records during recovery
---let $restart_parameters = --debug-dbug=d,reduce_recv_parsing_buf
+--let $restart_parameters =--debug-dbug=d,reduce_recv_parsing_buf
 --source include/start_mysqld.inc
 
 DROP DATABASE very_long_database_name;

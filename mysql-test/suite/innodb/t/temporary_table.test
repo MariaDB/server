@@ -108,7 +108,7 @@ call populate_t1();
 drop procedure populate_t1;
 
 --echo # test read-only mode
---let $restart_parameters = --innodb-read-only
+--let $restart_parameters =--innodb-read-only
 --source include/restart_mysqld.inc
 
 --echo # files in MYSQL_DATA_DIR

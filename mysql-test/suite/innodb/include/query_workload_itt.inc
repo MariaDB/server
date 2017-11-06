@@ -22,7 +22,8 @@ select * from t1 left join t2 on t1.b = t2.b order by t1.a;
 explain format = json select * from t1 order by func1(a);
 select * from t1 order by func1(a);
 
---source include/turn_off_only_full_group_by.inc
+set @previous_sql_mode_htnt542nh=@@sql_mode;
+set sql_mode=(select replace(@@sql_mode,'ONLY_FULL_GROUP_BY',''));
 
 # order by aggregate function
 explain format = json select a from t1 group by b order by sum(a);
@@ -209,7 +210,6 @@ from t13 as outr2 left join
 	 or not outr.pk > 9)
 	or outr.col_varchar_key is null;
 
---source include/restore_sql_mode_after_turn_off_only_full_group_by.inc
-
+set @@sql_mode=@previous_sql_mode_htnt542nh;
 SET @@optimizer_switch=@optimizer_switch_saved;
 
