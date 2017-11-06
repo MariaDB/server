@@ -1548,3 +1548,20 @@ eval explain format=json $q;
 
 DROP VIEW v2;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-14237: derived with regexp_substr() in select list
+--echo #
+
+create table t1 (a char(8));
+insert into t1 values ('b'), ('a'), ('xx');
+
+let $q=
+select *
+from ( select distinct regexp_substr(t1.a,'^[A-Za-z]+') as f from t1) as t
+where t.f = 'a' or t.f = 'b';
+
+eval $q;
+eval explain format=json $q;
+
+drop table t1;

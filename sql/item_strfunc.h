@@ -333,8 +333,7 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   const char *func_name() const { return "regexp_replace"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_regexp_replace>(thd, mem_root, this); }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0;}
 };
 
 
@@ -356,8 +355,7 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   const char *func_name() const { return "regexp_substr"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_regexp_substr>(thd, mem_root, this); }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 };
 
 
