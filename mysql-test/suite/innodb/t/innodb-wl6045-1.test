@@ -25,8 +25,7 @@ SET GLOBAL innodb_file_per_table=on;
 # Disable compression for this table, otherwise our pattern matching below
 # will not work
 --echo # Create and populate the table to be corrupted
-CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) COMPRESSION="none",
-ROW_FORMAT=COMPACT ENGINE=InnoDB;
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ROW_FORMAT=COMPACT ENGINE=InnoDB;
 INSERT INTO t1 (b) VALUES ('corrupt me');
 --disable_query_log
 --let $i = 10
@@ -81,7 +80,7 @@ EOF
 
 --echo # The below SELECT query will crash the server because some pages
 --echo # on the disk are corrupted
---error 2013
+--error 1030, 1932
 SELECT * FROM t1;
 --source include/wait_until_disconnected.inc
 --echo [1(a)]: Repair the ibd file with innochecksum with --write=innodb

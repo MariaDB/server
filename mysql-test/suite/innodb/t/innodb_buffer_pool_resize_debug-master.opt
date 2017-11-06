@@ -1,1 +1,2 @@
---innodb-buffer-pool-size=8M --innodb-buffer-pool-chunk-size=2M
+--innodb-buffer-pool-size=8M 
+--innodb-buffer-pool-chunk-size=2M

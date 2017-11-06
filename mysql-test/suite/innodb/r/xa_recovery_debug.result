@@ -2,6 +2,7 @@
 # Bug#20872655 XA ROLLBACK IS NOT CRASH-SAFE
 #
 CREATE TABLE t(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=INNODB;
+connect  con1,localhost,root;
 XA START 'zombie';
 insert into t(a) values (0);
 update t set b=a;
@@ -12,8 +13,10 @@ XA END 'zombie';
 XA PREPARE 'zombie';
 SET DEBUG_SYNC='trx_xa_rollback SIGNAL s1 WAIT_FOR s2';
 XA ROLLBACK 'zombie';
+connection default;
 SET DEBUG_SYNC='now WAIT_FOR s1';
 SET GLOBAL innodb_log_checkpoint_now=ON;
+disconnect con1;
 XA COMMIT 'zombie';
 ERROR XAE04: XAER_NOTA: Unknown XID
 SELECT COUNT(*) FROM t;

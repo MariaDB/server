@@ -6,6 +6,7 @@ worklog5743;
 col_1_CHAR = repeat("a", 200)	col_2_CHAR  = repeat("o", 200)
 1	1
 "In connection 1"
+connect  con1,localhost,root,,;
 SELECT col_1_CHAR = repeat("a", 200) , col_2_CHAR = repeat("o", 200) FROM
 worklog5743;
 col_1_CHAR = repeat("a", 200)	col_2_CHAR = repeat("o", 200)
@@ -14,6 +15,7 @@ SELECT COUNT(*) FROM worklog5743;
 COUNT(*)
 1
 "In connection 2"
+connect  con2,localhost,root,,;
 START TRANSACTION;
 INSERT INTO worklog5743 VALUES(repeat("b", 200) , repeat("o", 200));
 UPDATE worklog5743 SET col_1_CHAR = repeat("d", 200) WHERE col_1_CHAR =
@@ -24,6 +26,7 @@ col_1_CHAR = repeat("a", 200)	col_2_CHAR  = repeat("o", 200)
 0	1
 0	1
 "In connection 1"
+connection con1;
 SELECT col_1_CHAR = repeat("b", 200) , col_2_CHAR = repeat("o", 200) FROM
 worklog5743;
 col_1_CHAR = repeat("b", 200)	col_2_CHAR = repeat("o", 200)
@@ -37,11 +40,13 @@ SELECT COUNT(*) FROM worklog5743;
 COUNT(*)
 1
 "In connection 2"
+connection con2;
 COMMIT;
 SELECT sleep(5);
 sleep(5)
 0
 "In connection 1"
+connection con1;
 SELECT col_1_CHAR = repeat("b", 200) , col_2_CHAR = repeat("o", 200) FROM
 worklog5743;
 col_1_CHAR = repeat("b", 200)	col_2_CHAR = repeat("o", 200)
@@ -54,4 +59,5 @@ SELECT COUNT(*) FROM worklog5743;
 COUNT(*)
 1
 COMMIT;
+connection default;
 DROP TABLE worklog5743;

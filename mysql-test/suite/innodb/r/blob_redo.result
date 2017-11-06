@@ -7,6 +7,8 @@ call mtr.add_suppression("InnoDB: Starting to delete and rewrite log files.");
 call mtr.add_suppression("InnoDB: New log files created, LSN=");
 SET GLOBAL max_allowed_packet = 100*1024*1024;
 # Connection big_packets:
+connect big_packets,localhost,root,,;
+connection big_packets;
 CREATE TABLE t1 (a BIGINT PRIMARY KEY, b LONGBLOB) ENGINE=InnoDB;
 INSERT INTO t1 (a, b) VALUES (1, '1');
 INSERT INTO t1 (a, b) VALUES (2, '2');
@@ -16,6 +18,8 @@ INSERT INTO t1 (a, b) VALUES (5, '5');
 start transaction;
 INSERT INTO t1 (a, b) VALUES (6, REPEAT('a', 6*1024*1024));
 # Connection default:
+connection default;
+disconnect big_packets;
 SELECT a, b FROM t1;
 a	b
 1	1
@@ -25,10 +29,14 @@ a	b
 5	5
 SET GLOBAL max_allowed_packet = 100*1024*1024;
 # Connection big_packets:
+connect big_packets,localhost,root,,;
 start transaction;
 UPDATE t1 SET b = REPEAT('a', 6*1024*1024) WHERE a = 1;
 # Connection default:
+connection default;
 # Connection default:
+connection default;
+disconnect big_packets;
 SELECT a, b FROM t1;
 a	b
 1	1

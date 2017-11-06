@@ -1,5 +1,13 @@
 set global innodb_file_per_table=ON;
 set global innodb_thread_concurrency=20;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+connect  con5,localhost,root,,;
+connect  con6,localhost,root,,;
+connect  con7,localhost,root,,;
+connect  con8,localhost,root,,;
 create table t2 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
 insert into t2 (c1, c2) values (1, 1);
 create table t3 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
@@ -14,6 +22,7 @@ create database test2;
 create table test2.t7 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
 insert into test2.t7 (c1, c2) values (1, 1);
 drop table test2.t7;
+connection con1;
 SET GLOBAL DEBUG_DBUG="+d,ib_buf_pool_resize_wait_before_resize";
 set global innodb_buffer_pool_size = 12*1024*1024;
 set global innodb_buffer_pool_size = 8*1024*1024;
@@ -33,19 +42,45 @@ select @@global.innodb_adaptive_hash_index;
 @@global.innodb_adaptive_hash_index
 0
 create table t1 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
+connection con2;
 analyze table t2;
+connection con3;
 alter table t3 algorithm=inplace, add index idx (c1);
+connection con4;
 alter table t4 rename to t0;
+connection con5;
 drop table t5;
+connection con6;
 alter table t6 discard tablespace;
+connection con7;
 drop database test2;
+connection con8;
 select count(*) > 0 from information_schema.innodb_buffer_page;
+connection default;
 SET GLOBAL DEBUG_DBUG="-d,ib_buf_pool_resize_wait_before_resize";
+connection con1;
+connection con2;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	OK
+connection con3;
+connection con4;
+connection con5;
+connection con6;
+connection con7;
+connection con8;
 count(*) > 0
 1
+connection default;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con1;
+disconnect con2;
 call mtr.add_suppression("\\[ERROR\\] InnoDB: buffer pool 0 : failed to allocate new memory.");
+connection default;
 SET GLOBAL DEBUG_DBUG="+d,ib_buf_chunk_init_fails";
 set global innodb_buffer_pool_size = 16*1024*1024;
 SET GLOBAL DEBUG_DBUG="-d,ib_buf_chunk_init_fails";

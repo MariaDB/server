@@ -50,7 +50,7 @@ let NEW_CMD = $MYSQLD --no-defaults --initialize-insecure $KEYRING_PLUGIN_OPT --
 
 --echo # Start the DB server with page size 32k
 --replace_result $MYSQLD_DATADIR1 MYSQLD_DATADIR1
---let $restart_parameters="restart: --innodb_page_size=32K --datadir=$MYSQLD_DATADIR1 --innodb_log_file_size=5M --innodb_log_files_in_group=2 --innodb_undo_tablespaces=0"
+--let $restart_parameters="--innodb_page_size=32K --datadir=$MYSQLD_DATADIR1 --innodb_log_file_size=5M --innodb_log_files_in_group=2 --innodb_undo_tablespaces=0"
 --source include/start_mysqld.inc
 
 SET innodb_strict_mode=ON;
@@ -215,7 +215,7 @@ let SEARCH_PATTERN= \[Warning\] InnoDB: innodb-page-size has been changed from t
 # Restart the datadir with same page size 32k and check , server should be started
 --echo # Restart the DB server with datadir1 with same 32k page size 
 --replace_result $MYSQLD_DATADIR1 MYSQLD_DATADIR1
---let $restart_parameters="restart: --innodb_page_size=32K --datadir=$MYSQLD_DATADIR1  --innodb_log_file_size=5M --innodb_log_files_in_group=2 --innodb_undo_tablespaces=0"
+--let $restart_parameters="--innodb_page_size=32K --datadir=$MYSQLD_DATADIR1  --innodb_log_file_size=5M --innodb_log_files_in_group=2 --innodb_undo_tablespaces=0"
 --source include/start_mysqld.inc
 
 # Check page size

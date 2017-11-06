@@ -49,7 +49,7 @@ let NEW_CMD = $MYSQLD --no-defaults --initialize-insecure --lc_messages_dir=$MYS
 
 --echo # Start the DB server with page size 32k
 --replace_result $MYSQLD_DATADIR1 MYSQLD_DATADIR1
---let $restart_parameters="restart: --innodb_page_size=32K --datadir=$MYSQLD_DATADIR1 --innodb_log_file_size=5M --innodb_log_files_in_group=2 --innodb_undo_tablespaces=0"
+--let $restart_parameters="--innodb_page_size=32K --datadir=$MYSQLD_DATADIR1 --innodb_log_file_size=5M --innodb_log_files_in_group=2 --innodb_undo_tablespaces=0"
 --source include/start_mysqld.inc
 
 USE test;
@@ -175,7 +175,7 @@ let NEW_CMD = $MYSQLD --no-defaults --initialize-insecure --lc_messages_dir=$MYS
 
 --echo # Start the DB server with page size 16k
 --replace_result $MYSQLD_DATADIR1 MYSQLD_DATADIR1
---let $restart_parameters="restart: --innodb_page_size=16K --datadir=$MYSQLD_DATADIR1 --innodb_log_file_size=5M --innodb_log_files_in_group=2 --innodb_undo_tablespaces=0"
+--let $restart_parameters="--innodb_page_size=16K --datadir=$MYSQLD_DATADIR1 --innodb_log_file_size=5M --innodb_log_files_in_group=2 --innodb_undo_tablespaces=0"
 --source include/start_mysqld.inc
 
 # page size 16K

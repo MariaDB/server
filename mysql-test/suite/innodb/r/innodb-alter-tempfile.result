@@ -7,8 +7,6 @@
 # Crash the server in ha_innobase::commit_inplace_alter_table()
 CREATE TABLE t1 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=innodb;
 SET DEBUG_DBUG='d,innodb_alter_commit_crash_before_commit';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 # Write file to make mysql-test-run.pl expect crash
 # Execute the statement that causes the crash
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);

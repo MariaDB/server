@@ -8,6 +8,7 @@
 --source include/have_debug.inc
 
 --disable_query_log
+SET @old_debug= @@global.debug_dbug;
 set @old_innodb_buffer_pool_size = @@innodb_buffer_pool_size;
 set @old_innodb_file_per_table = @@innodb_file_per_table;
 set @old_innodb_thread_concurrency = @@innodb_thread_concurrency;
@@ -64,7 +65,7 @@ let $wait_condition =
 --source include/wait_condition.inc
 
 # trying to update innodb_buffer_pool_size
---error ER_BUFPOOL_RESIZE_INPROGRESS
+--error 1210
 set global innodb_buffer_pool_size = 8*1024*1024;
 select @@global.innodb_buffer_pool_size;
 
@@ -179,6 +180,7 @@ set global innodb_file_per_table = @old_innodb_file_per_table;
 set global innodb_thread_concurrency = @old_innodb_thread_concurrency;
 set global innodb_thread_sleep_delay = @old_innodb_thread_sleep_delay;
 set global innodb_disable_resize_buffer_pool_debug = @old_innodb_disable_resize;
+SET GLOBAL debug_dbug=@old_debug;
 --enable_query_log
 
 let $wait_condition =

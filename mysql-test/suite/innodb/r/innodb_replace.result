@@ -5,49 +5,69 @@
 #
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT NOT NULL) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(3,1);
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
 BEGIN;
 SET DEBUG_SYNC='write_row_noreplace SIGNAL insert1 WAIT_FOR select1';
 INSERT INTO t1 VALUES(3,2);
+connection default;
 SET DEBUG_SYNC='now WAIT_FOR insert1';
 SELECT * FROM t1 LOCK IN SHARE MODE;
 a	b
 3	1
 SELECT * FROM t1 FOR UPDATE;
+connection con2;
 SET DEBUG_SYNC='now SIGNAL select1';
+connection con1;
 ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
 INSERT INTO t1 VALUES(3,3) ON DUPLICATE KEY UPDATE b=b+10;
+connection default;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection con1;
 COMMIT;
 SET DEBUG_SYNC='write_row_replace SIGNAL insert2 WAIT_FOR select2';
 REPLACE INTO t1 VALUES(3,4);
+connection default;
 SET DEBUG_SYNC='now WAIT_FOR insert2';
 SELECT * FROM t1;
 a	b
 3	11
 SELECT * FROM t1 LOCK IN SHARE MODE;
+connection con2;
 SET DEBUG_SYNC='now SIGNAL select2';
+connection con1;
 SET DEBUG_SYNC='write_row_replace SIGNAL insert3 WAIT_FOR select3';
 INSERT INTO t1 VALUES(3,5) ON DUPLICATE KEY UPDATE b=b+20;
+connection default;
 a	b
 3	4
 SET DEBUG_SYNC='now WAIT_FOR insert3';
 SELECT b FROM t1 LOCK IN SHARE MODE;
+connection con2;
 SET DEBUG_SYNC='now SIGNAL select3';
+connection default;
 b
 24
+connection con1;
 SET DEBUG_SYNC='write_row_noreplace SIGNAL insert4 WAIT_FOR select4';
 LOAD DATA INFILE '../../std_data/loaddata5.dat' INTO TABLE t1 FIELDS TERMINATED BY '' ENCLOSED BY '' (a, b);
+connection default;
 SET DEBUG_SYNC='now WAIT_FOR insert4';
 SELECT b FROM t1 WHERE a=3 LOCK IN SHARE MODE;
 b
 24
 SELECT b FROM t1 WHERE a=3 FOR UPDATE;
+connection con2;
 SET DEBUG_SYNC='now SIGNAL select4';
+connection default;
 b
 24
+connection con1;
 ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
 SET DEBUG_SYNC='write_row_noreplace SIGNAL insert5 WAIT_FOR select5';
 LOAD DATA INFILE '../../std_data/loaddata5.dat' IGNORE INTO TABLE t1 FIELDS TERMINATED BY '' ENCLOSED BY '' (a, b);
+connection default;
 SET DEBUG_SYNC='now WAIT_FOR insert5';
 SELECT * FROM t1;
 a	b
@@ -56,13 +76,18 @@ SELECT * FROM t1 WHERE a=3 LOCK IN SHARE MODE;
 a	b
 3	24
 SELECT * FROM t1 WHERE a=3 FOR UPDATE;
+connection con2;
 SET DEBUG_SYNC='now SIGNAL select5';
+connection con1;
 Warnings:
 Warning	1062	Duplicate entry '3' for key 'PRIMARY'
+connection default;
 a	b
 3	24
+connection con1;
 SET DEBUG_SYNC='write_row_replace SIGNAL insert6 WAIT_FOR select6';
 LOAD DATA INFILE '../../std_data/loaddata5.dat' REPLACE INTO TABLE t1 FIELDS TERMINATED BY '' ENCLOSED BY '' (a, b);
+connection default;
 SET DEBUG_SYNC='now WAIT_FOR insert6';
 SELECT * FROM t1;
 a	b
@@ -70,11 +95,17 @@ a	b
 3	24
 5	6
 SELECT a,b FROM t1 LOCK IN SHARE MODE;
+connection con2;
 SET DEBUG_SYNC='now SIGNAL select6';
+connection con1;
+connection default;
 a	b
 1	2
 3	4
 5	6
+disconnect con1;
+disconnect con2;
+connection default;
 SET DEBUG_SYNC='RESET';
 DROP TABLE t1;
 START TRANSACTION;
