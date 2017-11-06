@@ -4857,7 +4857,7 @@ fil_load_single_table_tablespace(
 
 
 	/* Check for a link file which locates a remote tablespace. */
-	remote.success = fil_open_linked_file(
+	remote.success = (IS_XTRABACKUP() && !srv_backup_mode) ? 0 : fil_open_linked_file(
 		tablename, &remote.filepath, &remote.file, FALSE);
 
 	/* Read the first page of the remote tablespace */
