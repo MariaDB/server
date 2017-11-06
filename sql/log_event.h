@@ -4594,6 +4594,8 @@ protected:
   uchar    *m_extra_row_data;   /* Pointer to extra row data if any */
                                 /* If non null, first byte is length */
 
+  bool m_vers_from_plain;
+
 
   /* helper functions */
 
@@ -4744,6 +4746,7 @@ public:
                                           __attribute__((unused)),
                                           const uchar *after_record)
   {
+    DBUG_ASSERT(!table->versioned_by_engine());
     return thd->binlog_write_row(table, is_transactional, after_record);
   }
 #endif
@@ -4825,6 +4828,7 @@ public:
                                           const uchar *before_record,
                                           const uchar *after_record)
   {
+    DBUG_ASSERT(!table->versioned_by_engine());
     return thd->binlog_update_row(table, is_transactional,
                                   before_record, after_record);
   }
@@ -4914,6 +4918,7 @@ public:
                                           const uchar *after_record
                                           __attribute__((unused)))
   {
+    DBUG_ASSERT(!table->versioned_by_engine());
     return thd->binlog_delete_row(table, is_transactional,
                                   before_record);
   }

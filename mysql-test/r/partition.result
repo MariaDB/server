@@ -1459,7 +1459,7 @@ ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setti
 create table t1 (a int)
 partition by hash (a)
 (partition p0 (subpartition sp0));
-ERROR HY000: It is only possible to mix RANGE/LIST partitioning with HASH/KEY partitioning for subpartitioning
+ERROR HY000: It is only possible to mix RANGE/LIST/SYSTEM_TIME partitioning with HASH/KEY partitioning for subpartitioning
 create table t1 (a int)
 partition by range (a)
 (partition p0 values less than (1));

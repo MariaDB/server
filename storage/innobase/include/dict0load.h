@@ -31,6 +31,7 @@ Created 4/24/1996 Heikki Tuuri
 #include "univ.i"
 #include "dict0types.h"
 #include "trx0types.h"
+#include "trx0vtq.h"
 #include "ut0byte.h"
 #include "mem0mem.h"
 #include "btr0types.h"
@@ -52,6 +53,7 @@ enum dict_system_id_t {
 	SYS_TABLESPACES,
 	SYS_DATAFILES,
 	SYS_VIRTUAL,
+	SYS_VTQ,
 
 	/* This must be last item. Defines the number of system tables. */
 	SYS_NUM_SYSTEM_TABLES
@@ -181,7 +183,8 @@ dict_startscan_system(
 	btr_pcur_t*	pcur,		/*!< out: persistent cursor to
 					the record */
 	mtr_t*		mtr,		/*!< in: the mini-transaction */
-	dict_system_id_t system_id);	/*!< in: which system table to open */
+	dict_system_id_t system_id,	/*!< in: which system table to open */
+	bool		from_left = true);
 /********************************************************************//**
 This function get the next system table record as we scan the table.
 @return the record if found, NULL if end of scan. */
@@ -314,6 +317,18 @@ dict_process_sys_datafiles(
 	const rec_t*	rec,		/*!< in: current SYS_DATAFILES rec */
 	ulint*		space,		/*!< out: pace id */
 	const char**	path);		/*!< out: datafile path */
+/********************************************************************//**
+This function parses a SYS_VTQ record, extracts necessary
+information from the record and returns it to the caller.
+@return error message, or NULL on success */
+UNIV_INTERN
+const char*
+dict_process_sys_vtq(
+/*=======================*/
+mem_heap_t*	heap,		/*!< in/out: heap memory */
+const rec_t*	rec,		/*!< in: current rec */
+vtq_record_t&	fields		/*!< out: field values */
+);
 
 /** Update the record for space_id in SYS_TABLESPACES to this filepath.
 @param[in]	space_id	Tablespace ID
@@ -337,5 +352,10 @@ dict_replace_tablespace_and_filepath(
 	const char*	name,
 	const char*	filepath,
 	ulint		fsp_flags);
+
+
+UNIV_INTERN
+dict_table_t*
+get_vtq_table();
 
 #endif

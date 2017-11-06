@@ -101,8 +101,8 @@ SET @@session.keep_files_on_create = ONN;
 ERROR 42000: Variable 'keep_files_on_create' can't be set to the value of 'ONN'
 SET @@session.keep_files_on_create = ONF;
 ERROR 42000: Variable 'keep_files_on_create' can't be set to the value of 'ONF'
-SET @@session.keep_files_on_create = OF;
-ERROR 42000: Variable 'keep_files_on_create' can't be set to the value of 'OF'
+SET @@session.keep_files_on_create = OFFF;
+ERROR 42000: Variable 'keep_files_on_create' can't be set to the value of 'OFFF'
 SET @@session.keep_files_on_create = 'OFN';
 ERROR 42000: Variable 'keep_files_on_create' can't be set to the value of 'OFN'
 SET @@session.keep_files_on_create = -2;

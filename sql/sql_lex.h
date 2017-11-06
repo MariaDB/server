@@ -831,6 +831,7 @@ public:
   Item *prep_having;/* saved HAVING clause for prepared statement processing */
   Item *cond_pushed_into_where;  /* condition pushed into the select's WHERE  */
   Item *cond_pushed_into_having; /* condition pushed into the select's HAVING */
+  Item *saved_where;
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;
   /* point on lex in which it was created, used in view subquery detection */
@@ -1017,6 +1018,12 @@ public:
 
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;
+
+  /* System Versioning */
+  vers_select_conds_t vers_export_outer;
+  bool vers_import_outer;
+  /* push new Item_field into item_list */
+  bool vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name);
 
   void init_query();
   void init_select();
@@ -1946,6 +1953,18 @@ private:
 };
 
 
+class Query_tables_backup
+{
+  THD *thd;
+  Query_tables_list backup;
+
+public:
+  Query_tables_backup(THD *_thd);
+  ~Query_tables_backup();
+  const Query_tables_list& get() const { return backup; }
+};
+
+
 /*
   st_parsing_options contains the flags for constructions that are
   allowed in the current statement.
@@ -2682,7 +2701,6 @@ struct LEX: public Query_tables_list
 private:
   Query_arena_memroot *arena_for_set_stmt;
   MEM_ROOT *mem_root_for_set_stmt;
-  void parse_error();
   bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
                                    class sp_label **splabel);
   bool sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive);
@@ -2696,6 +2714,7 @@ private:
   bool sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop);
 
 public:
+  void parse_error(uint err_number= ER_SYNTAX_ERROR);
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
   bool set_arena_for_set_stmt(Query_arena *backup);
   void reset_arena_for_set_stmt(Query_arena *backup);
@@ -2945,6 +2964,9 @@ public:
   Window_frame_bound *frame_top_bound;
   Window_frame_bound *frame_bottom_bound;
   Window_spec *win_spec;
+
+  /* System Versioning */
+  vers_select_conds_t vers_conditions;
 
   inline void free_set_stmt_mem_root()
   {
@@ -3647,6 +3669,11 @@ public:
 
   bool add_grant_command(THD *thd, enum_sql_command sql_command_arg,
                          stored_procedure_type type_arg);
+
+  Vers_parse_info &vers_get_info()
+  {
+    return create_info.vers_info;
+  }
 };
 
 

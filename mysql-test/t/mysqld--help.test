@@ -5,6 +5,7 @@
 --source include/have_perfschema.inc
 --source include/have_profiling.inc
 --source include/platform.inc
+--source include/have_xtradb.inc
 
 #
 # force lower-case-table-names=1 (linux/macosx have different defaults)

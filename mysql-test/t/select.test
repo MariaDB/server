@@ -25,13 +25,13 @@ if (`select @join_cache_level_for_select_test is not null`)
 }
 
 CREATE TABLE t1 (
-  Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
+  Period_ smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
   Varor_period smallint(4) unsigned DEFAULT '0' NOT NULL
 );
 
 INSERT INTO t1 VALUES (9410,9412);
   
-select period from t1;
+select period_ from t1;
 select * from t1;
 select t1.* from t1;
 
@@ -1361,7 +1361,7 @@ select fld1,fld3 from t2 where fld1 like "25050_";
 select distinct companynr from t2;
 select distinct companynr from t2 order by companynr;
 select distinct companynr from t2 order by companynr desc;
-select distinct t2.fld3,period from t2,t1 where companynr=37 and fld3 like "O%";
+select distinct t2.fld3,period_ from t2,t1 where companynr=37 and fld3 like "O%";
 
 select distinct fld3 from t2 where companynr = 34 order by fld3;
 select distinct fld3 from t2 limit 10;
@@ -1374,26 +1374,26 @@ select distinct substring(fld3,1,3) as a from t2 having a like "A%" limit 10;
 # make a big table.
 
 create table t3 (
- period    int not null,
+ period_   int not null,
  name      char(32) not null,
  companynr int not null,
  price     double(11,0),
  price2     double(11,0),
- key (period),
+ key (period_),
  key (name)
 );
 
 --disable_query_log
-INSERT INTO t3 (period,name,companynr,price,price2) VALUES (1001,"Iranizes",37,5987435,234724);
-INSERT INTO t3 (period,name,companynr,price,price2) VALUES (1002,"violinist",37,28357832,8723648);
-INSERT INTO t3 (period,name,companynr,price,price2) VALUES (1003,"extramarital",37,39654943,235872);
-INSERT INTO t3 (period,name,companynr,price,price2) VALUES (1004,"spates",78,726498,72987523);
-INSERT INTO t3 (period,name,companynr,price,price2) VALUES (1005,"cloakroom",78,98439034,823742);
-INSERT INTO t3 (period,name,companynr,price,price2) VALUES (1006,"gazer",101,834598,27348324);
-INSERT INTO t3 (period,name,companynr,price,price2) VALUES (1007,"hand",154,983543950,29837423);
-INSERT INTO t3 (period,name,companynr,price,price2) VALUES (1008,"tucked",311,234298,3275892);
-INSERT INTO t3 (period,name,companynr,price,price2) VALUES (1009,"gems",447,2374834,9872392);
-INSERT INTO t3 (period,name,companynr,price,price2) VALUES (1010,"clinker",512,786542,76234234);
+INSERT INTO t3 (period_,name,companynr,price,price2) VALUES (1001,"Iranizes",37,5987435,234724);
+INSERT INTO t3 (period_,name,companynr,price,price2) VALUES (1002,"violinist",37,28357832,8723648);
+INSERT INTO t3 (period_,name,companynr,price,price2) VALUES (1003,"extramarital",37,39654943,235872);
+INSERT INTO t3 (period_,name,companynr,price,price2) VALUES (1004,"spates",78,726498,72987523);
+INSERT INTO t3 (period_,name,companynr,price,price2) VALUES (1005,"cloakroom",78,98439034,823742);
+INSERT INTO t3 (period_,name,companynr,price,price2) VALUES (1006,"gazer",101,834598,27348324);
+INSERT INTO t3 (period_,name,companynr,price,price2) VALUES (1007,"hand",154,983543950,29837423);
+INSERT INTO t3 (period_,name,companynr,price,price2) VALUES (1008,"tucked",311,234298,3275892);
+INSERT INTO t3 (period_,name,companynr,price,price2) VALUES (1009,"gems",447,2374834,9872392);
+INSERT INTO t3 (period_,name,companynr,price,price2) VALUES (1010,"clinker",512,786542,76234234);
 --enable_query_log
 
 create temporary table tmp engine = myisam select * from t3;
@@ -1462,39 +1462,39 @@ explain select t3.t2nr,fld3 from t2,t3 where t2.companynr = 34 and t2.fld1=t3.t2
 # Some test with ORDER BY and limit
 #
 
-explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period;
-explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period limit 10;
-explain select * from t3 as t1,t3 where t1.period=t3.period order by t1.period limit 10;
+explain select * from t3 as t1,t3 where t1.period_=t3.period_ order by t3.period_;
+explain select * from t3 as t1,t3 where t1.period_=t3.period_ order by t3.period_ limit 10;
+explain select * from t3 as t1,t3 where t1.period_=t3.period_ order by t1.period_ limit 10;
 
 #
 # Search with a constant table.
 #
 
-select period from t1;
-select period from t1 where period=1900;
-select fld3,period from t1,t2 where fld1 = 011401 order by period;
+select period_ from t1;
+select period_ from t1 where period_=1900;
+select fld3,period_ from t1,t2 where fld1 = 011401 order by period_;
 
 #
 # Search with a constant table and several keyparts. (Rows are read only once
 # in the beginning of the search)
 #
 
-select fld3,period from t2,t3 where t2.fld1 = 011401 and t2.fld1=t3.t2nr and t3.period=1001;
+select fld3,period_ from t2,t3 where t2.fld1 = 011401 and t2.fld1=t3.t2nr and t3.period_=1001;
 
-explain select fld3,period from t2,t3 where t2.fld1 = 011401 and t3.t2nr=t2.fld1 and 1001 = t3.period;
+explain select fld3,period_ from t2,t3 where t2.fld1 = 011401 and t3.t2nr=t2.fld1 and 1001 = t3.period_;
 
 #
 # Search with a constant table and several rows from another table
 #
 
-select fld3,period from t2,t1 where companynr*10 = 37*10;
+select fld3,period_ from t2,t1 where companynr*10 = 37*10;
 
 #
 # Search with a table reference and without a key.
 # t3 will be the main table.
 #
 
-select fld3,period,price,price2 from t2,t3 where t2.fld1=t3.t2nr and period >= 1001 and period <= 1002 and t2.companynr = 37 order by fld3,period, price;
+select fld3,period_,price,price2 from t2,t3 where t2.fld1=t3.t2nr and period_ >= 1001 and period_ <= 1002 and t2.companynr = 37 order by fld3,period_, price;
 
 #
 # Search with an interval on a table with full key on reference table.
@@ -1502,7 +1502,7 @@ select fld3,period,price,price2 from t2,t3 where t2.fld1=t3.t2nr and period >= 1
 # t2nr will be checked.
 #
 
-select t2.fld1,fld3,period,price,price2 from t2,t3 where t2.fld1>= 18201 and t2.fld1 <= 18811 and t2.fld1=t3.t2nr and period = 1001 and t2.companynr = 37;
+select t2.fld1,fld3,period_,price,price2 from t2,t3 where t2.fld1>= 18201 and t2.fld1 <= 18811 and t2.fld1=t3.t2nr and period_ = 1001 and t2.companynr = 37;
 
 #
 # We need another table for join stuff..
@@ -1594,18 +1594,18 @@ explain select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=
 # each record
 #
 
-select t2.fld1,t2.companynr,fld3,period from t3,t2 where t2.fld1 = 38208 and t2.fld1=t3.t2nr and period = 1008 or t2.fld1 = 38008 and t2.fld1 =t3.t2nr and period = 1008;
+select t2.fld1,t2.companynr,fld3,period_ from t3,t2 where t2.fld1 = 38208 and t2.fld1=t3.t2nr and period_ = 1008 or t2.fld1 = 38008 and t2.fld1 =t3.t2nr and period_ = 1008;
 
-select t2.fld1,t2.companynr,fld3,period from t3,t2 where (t2.fld1 = 38208 or t2.fld1 = 38008) and t2.fld1=t3.t2nr and period>=1008 and period<=1009;
+select t2.fld1,t2.companynr,fld3,period_ from t3,t2 where (t2.fld1 = 38208 or t2.fld1 = 38008) and t2.fld1=t3.t2nr and period_>=1008 and period_<=1009;
 
-select t2.fld1,t2.companynr,fld3,period from t3,t2 where (t3.t2nr = 38208 or t3.t2nr = 38008) and t2.fld1=t3.t2nr and period>=1008 and period<=1009;
+select t2.fld1,t2.companynr,fld3,period_ from t3,t2 where (t3.t2nr = 38208 or t3.t2nr = 38008) and t2.fld1=t3.t2nr and period_>=1008 and period_<=1009;
 
 #
 # Test of many parenthesis levels
 #
 
-select period from t1 where (((period > 0) or period < 10000 or (period = 1900)) and (period=1900 and period <= 1901) or (period=1903 and (period=1903)) and period>=1902) or ((period=1904 or period=1905) or (period=1906 or period>1907)) or (period=1908 and period = 1909);
-select period from t1 where ((period > 0 and period < 1) or (((period > 0 and period < 100) and (period > 10)) or (period > 10)) or (period > 0 and (period > 5 or period > 6)));
+select period_ from t1 where (((period_ > 0) or period_ < 10000 or (period_ = 1900)) and (period_=1900 and period_ <= 1901) or (period_=1903 and (period_=1903)) and period_>=1902) or ((period_=1904 or period_=1905) or (period_=1906 or period_>1907)) or (period_=1908 and period_ = 1909);
+select period_ from t1 where ((period_ > 0 and period_ < 1) or (((period_ > 0 and period_ < 100) and (period_ > 10)) or (period_ > 10)) or (period_ > 0 and (period_ > 5 or period_ > 6)));
 
 select a.fld1 from t2 as a,t2 b where ((a.fld1 = 250501 and a.fld1=b.fld1) or a.fld1=250502 or a.fld1=250503 or (a.fld1=250505 and a.fld1<=b.fld1 and b.fld1>=a.fld1)) and a.fld1=b.fld1;
 
@@ -1663,7 +1663,7 @@ select t2.fld1,count(*) from t2,t3 where t2.fld1=158402 and t3.name=t2.fld3 grou
 # Calculation with group functions
 #
 
-select sum(Period)/count(*) from t1;
+select sum(Period_)/count(*) from t1;
 select companynr,count(price) as "count",sum(price) as "sum" ,abs(sum(price)/count(price)-avg(price)) as "diff",(0+count(price))*companynr as func from t3 group by companynr;
 select companynr,sum(price)/count(price) as avg from t3 group by companynr having avg > 70000000 order by avg;
 
@@ -1753,13 +1753,13 @@ select max(t2nr) from t3 where price=983543950;
 # Test of alias
 #
 
-select t1.period from t3 = t1 limit 1;
-select t1.period from t1 as t1 limit 1;
-select t1.period as "Nuvarande period" from t1 as t1 limit 1;
-select period as ok_period from t1 limit 1;
-select period as ok_period from t1 group by ok_period limit 1;
+select t1.period_ from t3 = t1 limit 1;
+select t1.period_ from t1 as t1 limit 1;
+select t1.period_ as "Nuvarande period_" from t1 as t1 limit 1;
+select period_ as ok_period from t1 limit 1;
+select period_ as ok_period from t1 group by ok_period limit 1;
 select 1+1 as summa from t1 group by summa limit 1;
-select period as "Nuvarande period" from t1 group by "Nuvarande period" limit 1;
+select period_ as "Nuvarande period_" from t1 group by "Nuvarande period_" limit 1;
 
 #
 # Some simple show commands

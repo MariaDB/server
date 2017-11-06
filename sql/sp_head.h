@@ -209,7 +209,7 @@ public:
   ulong sp_cache_version() const { return m_sp_cache_version; }
 
   /** Set the value of the SP cache version.  */
-  void set_sp_cache_version(ulong version_arg)
+  void set_sp_cache_version(ulong version_arg) const
   {
     m_sp_cache_version= version_arg;
   }
@@ -231,7 +231,7 @@ private:
     is obsolete and should not be used --
     sp_cache_flush_obsolete() will purge it.
   */
-  ulong m_sp_cache_version;
+  mutable ulong m_sp_cache_version;
   Stored_program_creation_ctx *m_creation_ctx;
   /**
     Boolean combination of (1<<flag), where flag is a member of

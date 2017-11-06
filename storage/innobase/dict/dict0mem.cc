@@ -303,6 +303,16 @@ dict_mem_table_add_col(
 	col = dict_table_get_nth_col(table, i);
 
 	dict_mem_fill_column_struct(col, i, mtype, prtype, len);
+
+	if (prtype & DATA_VERS_ROW_START) {
+		ut_ad(table->flags2 & DICT_TF2_VERSIONED
+			&& !(prtype & DATA_VERS_ROW_END));
+		table->vers_row_start = i;
+	} else if (prtype & DATA_VERS_ROW_END) {
+		ut_ad(table->flags2 & DICT_TF2_VERSIONED
+			&& !(prtype & DATA_VERS_ROW_START));
+		table->vers_row_end = i;
+	}
 }
 
 /** Adds a virtual column definition to a table.

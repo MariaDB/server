@@ -141,6 +141,7 @@ SET (SQL_SOURCE
                sql_type.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
+               item_vers.cc
                sql_sequence.cc sql_sequence.h ha_sequence.h
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
@@ -148,6 +149,7 @@ SET (SQL_SOURCE
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
+               vtmd.cc
 			   )
   
 IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR

@@ -408,6 +408,10 @@ enum ha_base_keytype {
   when only HA_STATUS_VARIABLE but it won't be used.
 */
 #define HA_STATUS_VARIABLE_EXTRA 128U
+/*
+  Treat empty table as empty (ignore HA_STATUS_TIME hack).
+*/
+#define HA_STATUS_OPEN           256U
 
 /*
   Errorcodes given by handler functions

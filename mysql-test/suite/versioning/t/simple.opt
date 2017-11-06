@@ -1,0 +1,2 @@
+--innodb --default-storage-engine=innodb
+--plugin-load=versioning

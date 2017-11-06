@@ -63,7 +63,7 @@ SET @@session.sql_low_priority_updates = TRÜE;
 ERROR 42000: Variable 'sql_low_priority_updates' can't be set to the value of 'TRÜE'
 SET @@session.sql_low_priority_updates = ÕN;
 ERROR 42000: Variable 'sql_low_priority_updates' can't be set to the value of 'ÕN'
-SET @@session.sql_low_priority_updates = OF;
+SET @@session.sql_low_priority_updates = OFFF;
 ERROR 42000: Variable 'sql_low_priority_updates' can't be set to the value of 'OF'
 SET @@session.sql_low_priority_updates = ÓFF;
 ERROR 42000: Variable 'sql_low_priority_updates' can't be set to the value of 'ÓFF'
@@ -79,7 +79,7 @@ SET @@global.sql_low_priority_updates = TRÜE;
 ERROR 42000: Variable 'sql_low_priority_updates' can't be set to the value of 'TRÜE'
 SET @@global.sql_low_priority_updates = ÕN;
 ERROR 42000: Variable 'sql_low_priority_updates' can't be set to the value of 'ÕN'
-SET @@global.sql_low_priority_updates = OF;
+SET @@global.sql_low_priority_updates = OFFF;
 ERROR 42000: Variable 'sql_low_priority_updates' can't be set to the value of 'OF'
 SET @@global.sql_low_priority_updates = ÓFF;
 ERROR 42000: Variable 'sql_low_priority_updates' can't be set to the value of 'ÓFF'

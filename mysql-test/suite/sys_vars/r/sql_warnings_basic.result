@@ -46,8 +46,8 @@ SET @@session.sql_warnings = TRÜE;
 ERROR 42000: Variable 'sql_warnings' can't be set to the value of 'TRÜE'
 SET @@session.sql_warnings = ÕN;
 ERROR 42000: Variable 'sql_warnings' can't be set to the value of 'ÕN'
-SET @@session.sql_warnings = OF;
-ERROR 42000: Variable 'sql_warnings' can't be set to the value of 'OF'
+SET @@session.sql_warnings = OFFF;
+ERROR 42000: Variable 'sql_warnings' can't be set to the value of 'OFFF'
 SET @@session.sql_warnings = ÓFF;
 ERROR 42000: Variable 'sql_warnings' can't be set to the value of 'ÓFF'
 SET @@session.sql_warnings = '¹';

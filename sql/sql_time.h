@@ -170,6 +170,7 @@ bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
                     int lsign, MYSQL_TIME *l_time3, ulonglong fuzzydate);
 int my_time_compare(const MYSQL_TIME *a, const MYSQL_TIME *b);
 void localtime_to_TIME(MYSQL_TIME *to, struct tm *from);
+
 void calc_time_from_sec(MYSQL_TIME *to, long seconds, long microseconds);
 uint calc_week(MYSQL_TIME *l_time, uint week_behaviour, uint *year);
 

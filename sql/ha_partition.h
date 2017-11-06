@@ -68,6 +68,8 @@ public:
 };
 
 
+extern PSI_mutex_key key_partition_auto_inc_mutex;
+
 /**
   Partition specific Handler_share.
 */
@@ -85,24 +87,86 @@ public:
   HASH partition_name_hash;
   /** Storage for each partitions Handler_share */
   Parts_share_refs partitions_share_refs;
-  Partition_share() {}
+  Partition_share()
+    : auto_inc_initialized(false),
+    next_auto_inc_val(0),
+    partition_name_hash_initialized(false),
+    partition_names(NULL)
+  {
+    mysql_mutex_init(key_partition_auto_inc_mutex,
+                    &auto_inc_mutex,
+                    MY_MUTEX_INIT_FAST);
+  }
+
   ~Partition_share()
   {
-    DBUG_ENTER("Partition_share::~Partition_share");
     mysql_mutex_destroy(&auto_inc_mutex);
+    if (partition_names)
+    {
+      my_free(partition_names);
+    }
     if (partition_name_hash_initialized)
+    {
       my_hash_free(&partition_name_hash);
-    DBUG_VOID_RETURN;
+    }
   }
+  
   bool init(uint num_parts);
-  void lock_auto_inc()
+
+  /**
+    Release reserved auto increment values not used.
+    @param thd             Thread.
+    @param table_share     Table Share
+    @param next_insert_id  Next insert id (first non used auto inc value).
+    @param max_reserved    End of reserved auto inc range.
+  */
+  void release_auto_inc_if_possible(THD *thd, TABLE_SHARE *table_share,
+                                    const ulonglong next_insert_id,
+                                    const ulonglong max_reserved);
+
+  /** lock mutex protecting auto increment value next_auto_inc_val. */
+  inline void lock_auto_inc()
   {
     mysql_mutex_lock(&auto_inc_mutex);
   }
-  void unlock_auto_inc()
+  /** unlock mutex protecting auto increment value next_auto_inc_val. */
+  inline void unlock_auto_inc()
   {
     mysql_mutex_unlock(&auto_inc_mutex);
   }
+  /**
+    Populate partition_name_hash with partition and subpartition names
+    from part_info.
+    @param part_info  Partition info containing all partitions metadata.
+
+    @return Operation status.
+      @retval false Success.
+      @retval true  Failure.
+  */
+  bool populate_partition_name_hash(partition_info *part_info);
+  /** Get partition name.
+
+  @param part_id  Partition id (for subpartitioned table only subpartition
+                  names will be returned.)
+
+  @return partition name or NULL if error.
+  */
+  const char *get_partition_name(size_t part_id) const;
+private:
+  const uchar **partition_names;
+  /**
+    Insert [sub]partition name into  partition_name_hash
+    @param name        Partition name.
+    @param part_id     Partition id.
+    @param is_subpart  True if subpartition else partition.
+
+    @return Operation status.
+      @retval false Success.
+      @retval true  Failure.
+  */
+  bool insert_partition_name_in_hash(const char *name,
+                                     uint part_id,
+                                     bool is_subpart);
 };
 
 
@@ -599,6 +663,10 @@ public:
   virtual int index_last(uchar * buf);
   virtual int index_next_same(uchar * buf, const uchar * key, uint keylen);
 
+  int index_read_last_map(uchar *buf,
+                          const uchar *key,
+                          key_part_map keypart_map);
+
   /*
     read_first_row is virtual method but is only implemented by
     handler.cc, no storage engine has implemented it so neither
@@ -1080,7 +1148,6 @@ private:
     ulonglong nr= (((Field_num*) field)->unsigned_flag ||
                    field->val_int() > 0) ? field->val_int() : 0;
     lock_auto_increment();
-    DBUG_ASSERT(part_share->auto_inc_initialized);
     /* must check when the mutex is taken */
     if (nr >= part_share->next_auto_inc_val)
       part_share->next_auto_inc_val= nr + 1;
@@ -1271,7 +1338,37 @@ public:
     return h;
   }
 
+  virtual ha_rows part_records(void *_part_elem)
+  {
+    partition_element *part_elem= reinterpret_cast<partition_element *>(_part_elem);
+    DBUG_ASSERT(m_part_info);
+    uint32 sub_factor= m_part_info->num_subparts ? m_part_info->num_subparts : 1;
+    uint32 part_id= part_elem->id * sub_factor;
+    uint32 part_id_end= part_id + sub_factor;
+    DBUG_ASSERT(part_id_end <= m_tot_parts);
+    ha_rows part_recs= 0;
+    for (; part_id < part_id_end; ++part_id)
+    {
+      handler *file= m_file[part_id];
+      DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), part_id));
+      file->info(HA_STATUS_OPEN | HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
+      part_recs+= file->stats.records;
+    }
+    return part_recs;
+  }
+
+  virtual handler* part_handler(uint32 part_id)
+  {
+    DBUG_ASSERT(part_id < m_tot_parts);
+    return m_file[part_id];
+  }
+
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
 };
+
+bool print_admin_msg(THD* thd, uint len,
+                            const char* msg_type,
+                            const char* db_name, String &table_name,
+                            const char* op_name, const char *fmt, ...);
 
 #endif /* HA_PARTITION_INCLUDED */

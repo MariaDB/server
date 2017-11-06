@@ -179,6 +179,48 @@ extern char *opt_backup_history_logname, *opt_backup_progress_logname,
             *opt_backup_settings_name;
 extern const char *log_output_str;
 extern const char *log_backup_output_str;
+
+/* System Versioning begin */
+enum vers_range_type_t
+{
+  FOR_SYSTEM_TIME_UNSPECIFIED = 0,
+  FOR_SYSTEM_TIME_AS_OF,
+  FOR_SYSTEM_TIME_FROM_TO,
+  FOR_SYSTEM_TIME_BETWEEN,
+  FOR_SYSTEM_TIME_ALL,
+  FOR_SYSTEM_TIME_BEFORE
+};
+
+/* Used only for @@versioning_current_time sysvar. This struct must be POD
+ * because of str_value, which is used as interface to user.
+ * So no virtual-anything! */
+struct st_vers_current_time
+{
+  char *str_value; // must be first
+  vers_range_type_t type;
+  MYSQL_TIME ltime;
+  st_vers_current_time() :
+    str_value(NULL),
+    type(FOR_SYSTEM_TIME_UNSPECIFIED)
+  {}
+};
+
+enum vers_hide_enum
+{
+  VERS_HIDE_AUTO= 0,
+  VERS_HIDE_IMPLICIT,
+  VERS_HIDE_FULL,
+  VERS_HIDE_NEVER
+};
+
+enum vers_alter_history_enum
+{
+  VERS_ALTER_HISTORY_KEEP= 0,
+  VERS_ALTER_HISTORY_SURVIVE,
+  VERS_ALTER_HISTORY_DROP
+};
+/* System Versioning end */
+
 extern char *mysql_home_ptr, *pidfile_name_ptr;
 extern MYSQL_PLUGIN_IMPORT char glob_hostname[FN_REFLEN];
 extern char mysql_home[FN_REFLEN];
@@ -313,13 +355,16 @@ extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
 
 extern PSI_mutex_key key_TABLE_SHARE_LOCK_share, key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
-  key_LOCK_global_index_stats, key_LOCK_wakeup_ready, key_LOCK_wait_commit;
+  key_LOCK_global_index_stats, key_LOCK_wakeup_ready, key_LOCK_wait_commit,
+  key_TABLE_SHARE_LOCK_rotation;
 extern PSI_mutex_key key_LOCK_gtid_waiting;
 
 extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
   key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock,
-  key_LOCK_SEQUENCE;
+  key_LOCK_SEQUENCE,
+  key_rwlock_LOCK_vers_stats, key_rwlock_LOCK_stat_serial;
+
 #ifdef HAVE_MMAP
 extern PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
@@ -347,6 +392,7 @@ extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
   key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer;
 extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
+extern PSI_cond_key key_TABLE_SHARE_COND_rotation;
 
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,
@@ -649,6 +695,7 @@ enum options_mysqld
   OPT_SSL_KEY,
   OPT_THREAD_CONCURRENCY,
   OPT_WANT_CORE,
+  OPT_VERS_CURRENT_TIME,
 #ifdef WITH_WSREP
   OPT_WSREP_CAUSAL_READS,
   OPT_WSREP_SYNC_WAIT,

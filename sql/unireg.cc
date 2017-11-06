@@ -87,6 +87,46 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
   return extra2_write(pos, type, reinterpret_cast<LEX_CSTRING *>(str));
 }
 
+static const bool ROW_START = true;
+static const bool ROW_END = false;
+
+inline
+uint16
+vers_get_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields, bool row_start)
+{
+  DBUG_ASSERT(create_info->versioned());
+
+  List_iterator<Create_field> it(create_fields);
+  Create_field *sql_field = NULL;
+
+  const LString_i row_field= row_start ? create_info->vers_info.as_row.start
+                                   : create_info->vers_info.as_row.end;
+  DBUG_ASSERT(row_field);
+
+  for (unsigned field_no = 0; (sql_field = it++); ++field_no)
+  {
+    if (row_field == sql_field->field_name)
+    {
+      DBUG_ASSERT(field_no <= uint16(~0U));
+      return uint16(field_no);
+    }
+  }
+
+  DBUG_ASSERT(0); /* Not Reachable */
+  return 0;
+}
+
+bool has_extra2_field_flags(List<Create_field> &create_fields)
+{
+  List_iterator<Create_field> it(create_fields);
+  while (Create_field *f= it++)
+  {
+    if (f->flags & (VERS_OPTIMIZED_UPDATE_FLAG | HIDDEN_FLAG))
+      return true;
+  }
+  return false;
+}
+
 /**
   Create a frm (table definition) file
 
@@ -219,6 +259,22 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
 
+  if (create_info->versioned())
+  {
+    extra2_size+= 1 + 1 + 2 * sizeof(uint16);
+  }
+
+  if (create_info->vtmd())
+  {
+    extra2_size+= 1 + 1 + 1;
+  }
+
+  bool has_extra2_field_flags_= has_extra2_field_flags(create_fields);
+  if (has_extra2_field_flags_)
+  {
+    extra2_size+=
+        1 + (create_fields.elements <= 255 ? 1 : 3) + create_fields.elements;
+  }
 
   key_buff_length= uint4korr(fileinfo+47);
 
@@ -274,6 +330,39 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     pos+= gis_field_options_image(pos, create_fields);
   }
 #endif /*HAVE_SPATIAL*/
+
+  if (create_info->versioned())
+  {
+    *pos++= EXTRA2_PERIOD_FOR_SYSTEM_TIME;
+    *pos++= 2 * sizeof(uint16);
+    int2store(pos, vers_get_field(create_info, create_fields, ROW_START));
+    pos+= sizeof(uint16);
+    int2store(pos, vers_get_field(create_info, create_fields, ROW_END));
+    pos+= sizeof(uint16);
+  }
+
+  if (create_info->vtmd())
+  {
+    *pos++= EXTRA2_VTMD;
+    *pos++= 1;
+    *pos++= 1;
+  }
+
+  if (has_extra2_field_flags_)
+  {
+    *pos++= EXTRA2_FIELD_FLAGS;
+    pos= extra2_write_len(pos, create_fields.elements);
+    List_iterator<Create_field> it(create_fields);
+    while (Create_field *field= it++)
+    {
+      uchar flags= 0;
+      if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG)
+        flags|= VERS_OPTIMIZED_UPDATE;
+      if (field->flags & HIDDEN_FLAG)
+        flags|= HIDDEN;
+      *pos++= flags;
+    }
+  }
 
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;
@@ -960,7 +1049,8 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
                                 field->unireg_check,
                                 field->save_interval ? field->save_interval
                                                      : field->interval,
-                                &field->field_name);
+                                &field->field_name,
+                                field->flags);
     if (!regfield)
     {
       error= 1;

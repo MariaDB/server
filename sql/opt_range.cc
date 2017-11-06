@@ -3454,6 +3454,13 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
     free_root(&alloc,MYF(0));		// Return memory & allocator
     DBUG_RETURN(FALSE);
   }
+
+  if (part_info->part_type == VERSIONING_PARTITION &&
+    part_info->vers_update_range_constants(thd))
+  {
+    retval= TRUE;
+    goto end2;
+  }
   
   dbug_tmp_use_all_columns(table, old_sets, 
                            table->read_set, table->write_set);
@@ -3554,6 +3561,7 @@ all_used:
   mark_all_partitions_as_used(prune_param.part_info);
 end:
   dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+end2:
   thd->no_errors=0;
   thd->mem_root= range_par->old_root;
   free_root(&alloc,MYF(0));			// Return memory & allocator
@@ -3980,7 +3988,7 @@ int find_used_partitions(PART_PRUNE_PARAM *ppar, SEL_ARG *key_tree)
         simply set res= -1 as if the mapper had returned that.
         TODO: What to do here is defined in WL#4065.
       */
-      if (ppar->arg_stack[0]->part == 0)
+      if (ppar->arg_stack[0]->part == 0 || ppar->part_info->part_type == VERSIONING_PARTITION)
       {
         uint32 i;
         uint32 store_length_array[MAX_KEY];

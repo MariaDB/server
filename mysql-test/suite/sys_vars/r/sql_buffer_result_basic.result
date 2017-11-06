@@ -48,8 +48,8 @@ SET @@session.sql_buffer_result = TRÜE;
 ERROR 42000: Variable 'sql_buffer_result' can't be set to the value of 'TRÜE'
 SET @@session.sql_buffer_result = ÕN;
 ERROR 42000: Variable 'sql_buffer_result' can't be set to the value of 'ÕN'
-SET @@session.sql_buffer_result = OF;
-ERROR 42000: Variable 'sql_buffer_result' can't be set to the value of 'OF'
+SET @@session.sql_buffer_result = OFFF;
+ERROR 42000: Variable 'sql_buffer_result' can't be set to the value of 'OFFF'
 SET @@session.sql_buffer_result = ÓFF;
 ERROR 42000: Variable 'sql_buffer_result' can't be set to the value of 'ÓFF'
 SET @@session.sql_buffer_result = '¹';

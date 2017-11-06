@@ -8,13 +8,13 @@ if (`select count(*) = 0 from information_schema.plugins
 set global innodb_encrypt_tables=ON;
 show variables like 'innodb_encrypt%';
 
-let $wait_condition= select count(*) = 3 from information_schema.innodb_tablespaces_encryption where current_key_version=1;
+let $wait_condition= select count(*) = 4 from information_schema.innodb_tablespaces_encryption where current_key_version=1;
 --source include/wait_condition.inc
 
 select count(*) from information_schema.innodb_tablespaces_encryption where current_key_version <> 1;
 set global debug_key_management_version=10;
 
-let $wait_condition= select count(*) = 3 from information_schema.innodb_tablespaces_encryption where current_key_version=10;
+let $wait_condition= select count(*) = 4 from information_schema.innodb_tablespaces_encryption where current_key_version=10;
 --source include/wait_condition.inc
 
 select count(*) from information_schema.innodb_tablespaces_encryption where current_key_version <> 10;

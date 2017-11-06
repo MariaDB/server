@@ -1,0 +1,376 @@
+set @@session.time_zone='+00:00';
+select ifnull(max(transaction_id), 0) into @start_trx_id from information_schema.innodb_vtq;
+set @test_start=now(6);
+create procedure if not exists verify_vtq()
+begin
+set @i= 0;
+select
+@i:= @i + 1 as No,
+transaction_id > 0 as A,
+commit_id > transaction_id as B,
+begin_timestamp > @test_start as C,
+commit_timestamp >= begin_timestamp as D
+from information_schema.innodb_vtq
+where transaction_id > @start_trx_id;
+select ifnull(max(transaction_id), 0)
+into @start_trx_id
+from information_schema.innodb_vtq;
+end~~
+create function if not exists default_engine()
+returns varchar(255)
+deterministic
+begin
+declare e varchar(255);
+select lower(engine) from information_schema.engines where support='DEFAULT' into e;
+return e;
+end~~
+create function if not exists sys_datatype()
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return 'bigint unsigned';
+elseif default_engine() = 'myisam' then
+return 'timestamp(6)';
+end if;
+return NULL;
+end~~
+create function if not exists sys_commit_ts(sys_field varchar(255))
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return concat('vtq_commit_ts(', sys_field, ')');
+elseif default_engine() = 'myisam' then
+return sys_field;
+end if;
+return NULL;
+end~~
+create procedure if not exists innodb_verify_vtq(recs int)
+begin
+declare i int default 1;
+if default_engine() = 'innodb' then
+call verify_vtq;
+elseif default_engine() = 'myisam' then
+create temporary table tmp (No int, A bool, B bool, C bool, D bool);
+while i <= recs do
+insert into tmp values (i, 1, 1, 1, 1);
+set i= i + 1;
+end while;
+select * from tmp;
+drop table tmp;
+end if;
+end~~
+create procedure concat_exec2(a varchar(255), b varchar(255))
+begin
+prepare stmt from concat(a, b);
+execute stmt;
+deallocate prepare stmt;
+end~~
+create procedure concat_exec3(a varchar(255), b varchar(255), c varchar(255))
+begin
+prepare stmt from concat(a, b, c);
+execute stmt;
+deallocate prepare stmt;
+end~~
+drop table if exists t1;
+create function if not exists non_default_engine()
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return 'myisam';
+end if;
+return 'innodb';
+end~~
+create table t1 (
+x1 int unsigned,
+Sys_start SYS_TRX_TYPE generated always as row start comment 'start',
+Sys_end SYS_TRX_TYPE generated always as row end comment 'end',
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x1` int(10) unsigned DEFAULT NULL,
+  `Sys_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START COMMENT 'start',
+  `Sys_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END COMMENT 'end',
+  PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+# Implicit fields test
+create or replace table t1 (
+x2 int unsigned
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x2` int(10) unsigned DEFAULT NULL,
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+x3 int unsigned,
+Sys_start SYS_TRX_TYPE generated always as row start,
+Sys_start2 SYS_TRX_TYPE generated always as row start,
+Sys_end SYS_TRX_TYPE generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: Wrong parameters for `t1`: mismatch 'PERIOD FOR SYSTEM_TIME' and 'AS ROW START'
+create or replace table t1 (
+x4 int unsigned,
+Sys_start SYS_TRX_TYPE generated always as row start,
+Sys_end2 SYS_TRX_TYPE generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: Wrong parameters for `t1`: mismatch 'PERIOD FOR SYSTEM_TIME' and 'AS ROW END'
+create or replace table t1 (
+x5 int unsigned,
+Sys_start SYS_TRX_TYPE generated always as row start,
+Sys_end SYS_TRX_TYPE generated always as row end,
+Sys_end2 SYS_TRX_TYPE generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: Wrong parameters for `t1`: mismatch 'PERIOD FOR SYSTEM_TIME' and 'AS ROW END'
+create or replace table t1 (
+x6 int unsigned,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: Wrong parameters for `t1`: missing 'AS ROW START'
+create or replace table t1 (
+x7 int unsigned,
+Sys_start SYS_TRX_TYPE generated always as row start,
+Sys_end SYS_TRX_TYPE generated always as row end,
+Sys_end2 SYS_TRX_TYPE generated always as row end,
+period for system_time (Sys_start, Sys_end)
+);
+ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
+create or replace table t1 (
+x8 int unsigned,
+Sys_start SYS_TRX_TYPE generated always as row start,
+Sys_end SYS_TRX_TYPE generated always as row end,
+period for system_time (sys_insert, sys_remove)
+) with system versioning;
+ERROR HY000: Wrong parameters for `t1`: mismatch 'PERIOD FOR SYSTEM_TIME' and 'AS ROW START'
+create or replace table t1 (
+x9 int unsigned,
+Sys_start SYS_TRX_TYPE generated always as row start,
+Sys_end SYS_TRX_TYPE generated always as row end,
+period for system_time (Sys_start, Sys_end)
+);
+ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
+create or replace table t1 (
+x10 int unsigned,
+Sys_start SYS_TRX_TYPE generated always as row start,
+Sys_end SYS_TRX_TYPE generated always as row end,
+period for system_time (Sys_start, Sys_start)
+);
+ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
+create or replace table t1 (
+x11 int unsigned,
+Sys_start bigint unsigned generated always as row start,
+Sys_end timestamp(6) generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+Got one of the listed errors
+create or replace table t1 (
+x12 int unsigned,
+Sys_start timestamp(6) generated always as row start,
+Sys_end bigint unsigned generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+Got one of the listed errors
+create or replace table t1 (
+x13 int unsigned,
+Sys_start bigint generated always as row start,
+Sys_end bigint unsigned generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning engine innodb;
+ERROR HY000: `Sys_start` must be of type `BIGINT(20) UNSIGNED` for versioned table `t1`
+create or replace table t1 (
+x14 int unsigned,
+Sys_start bigint unsigned generated always as row start,
+Sys_end bigint generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning engine innodb;
+ERROR HY000: `Sys_end` must be of type `BIGINT(20) UNSIGNED` for versioned table `t1`
+create or replace table t1 (
+A1 int with system versioning,
+B int
+);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A1` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+A2 int with system versioning,
+B int
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A2` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL,
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+A3 int,
+B int without system versioning
+);
+create or replace table t1 (
+A4 int,
+B int without system versioning
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A4` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+A5 int with system versioning,
+B int without system versioning
+);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A5` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+A6 int with system versioning,
+B int without system versioning
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A6` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+A7 int without system versioning
+);
+create or replace table t1 (
+A8 int without system versioning
+) with system versioning;
+ERROR HY000: Wrong parameters for `t1`: no columns defined 'WITH SYSTEM VERSIONING'
+create table t(
+a11 int
+) without system versioning;
+ERROR HY000: Wrong parameters for `t`: not allowed 'WITHOUT SYSTEM VERSIONING'
+create or replace table t1 (a int) with system versioning;
+create temporary table tmp with system versioning select * from t1;
+create or replace table t1 (a int) with system versioning;
+create table tt1 like t1;
+show create table tt1;
+Table	Create Table
+tt1	CREATE TABLE `tt1` (
+  `a` int(11) DEFAULT NULL,
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+drop table tt1;
+create or replace table t1 (x int) with system versioning;
+create or replace table t0(
+y int,
+st SYS_TRX_TYPE generated always as row start,
+en SYS_TRX_TYPE generated always as row end,
+period for system_time (st, en)
+) with system versioning;
+create or replace table t2 as select * from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1
+create or replace table t3 as select * from t0;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `y` int(11) DEFAULT NULL
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1
+insert into t1 values (1);
+insert into t0 values (2);
+create or replace table t2 with system versioning as select * from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) DEFAULT NULL,
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t2;
+x
+1
+create or replace table t3 with system versioning as select * from t0;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `y` int(11) DEFAULT NULL,
+  `st` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `en` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`st`, `en`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t3 where y > 2;
+y	st	en
+delete from t0;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int);
+create or replace table t3 with system versioning select * from t1 for system_time all, t2;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x` int(11) DEFAULT NULL,
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
+  `y` int(11) DEFAULT NULL,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t2 with system versioning as select * from t0;
+create or replace table t3 with system versioning select x, y, t1.sys_trx_start, t2.en from t1, t2;
+ERROR HY000: Wrong parameters for `t3`: system fields selected from different tables
+insert into t2 values (1), (2);
+delete from t2 where y = 2;
+create or replace table t3 select * from t2 for system_time all;
+select st, en from t2 where y = 1 into @st, @en;
+select y from t2 for system_time all where st = @st and en = @en;
+y
+1
+select st, en from t2 for system_time all where y = 2 into @st, @en;
+select y from t2 for system_time all where st = @st and en = @en;
+y
+2
+create or replace table t1 (a int) with system versioning engine INNODB_OR_MYISAM;
+create or replace table t2 as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
+create or replace table t2 with system versioning engine INNODB_OR_MYISAM as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
+ERROR HY000: `sys_trx_start` must be of type `SYS_TRX_TYPE` for versioned table `t2`
+create or replace table t1 (a int, id int) with system versioning engine INNODB_OR_MYISAM;
+create or replace table t2 (b int, id int);
+create or replace table t3 as
+select t2.b, t1.a, t1.sys_trx_start, t1.sys_trx_end from t2 inner join t1 on t2.id=t1.id;
+create or replace table t (sys_trx_start int);
+alter table t with system versioning;
+ERROR 42S21: Duplicate column name 'sys_trx_start'
+create or replace table t (sys_trx_end int);
+alter table t with system versioning;
+ERROR 42S21: Duplicate column name 'sys_trx_end'
+drop database test;
+create database test;

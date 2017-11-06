@@ -503,3 +503,5 @@ IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
 You have linked MariaDB with GPLv3 libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with Free Software Foundation.")
 ENDIF()
+
+INCLUDE(${CMAKE_SOURCE_DIR}/cmake/print_warnings.cmake)

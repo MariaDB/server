@@ -1,0 +1,267 @@
+-- source suite/versioning/common.inc
+
+delimiter ~~;
+create procedure test_01(
+  sys_type varchar(255),
+  engine varchar(255),
+  fields varchar(255))
+begin
+  set @str= concat('
+  create table t1(
+    x int unsigned,
+    y int unsigned,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+  prepare stmt from @str; execute stmt; drop prepare stmt;
+  insert into t1(x, y) values
+    (1, 1000),
+    (2, 2000),
+    (3, 3000),
+    (4, 4000),
+    (5, 5000),
+    (6, 6000),
+    (7, 7000),
+    (8, 8000),
+    (9, 9000);
+  select x, y from t1;
+  update t1 set y = y + 1 where x > 7;
+  select x, y from t1;
+  select x, y from t1 for system_time
+  between timestamp '0000-0-0 0:0:0'
+  and timestamp '2038-01-19 04:14:07';
+  drop table t1;
+end~~
+
+create procedure test_02(
+  sys_type varchar(255),
+  engine varchar(255),
+  fields varchar(255))
+begin
+  set @str= concat('
+  create table t1 (
+    id bigint primary key,
+    x int,
+    y int without system versioning)
+  with system versioning
+  engine ', engine);
+  prepare stmt from @str; execute stmt; drop prepare stmt;  
+  insert into t1 values(1, 1, 1);
+  set @ins_t= now(6);
+  select sys_trx_start into @tmp1 from t1;
+  update t1 set x= 11, y= 11 where id = 1;
+  select @tmp1 < sys_trx_start as A1, x, y from t1;
+  
+  select sys_trx_start into @tmp1 from t1;
+  update t1 set y= 1 where id = 1;
+  select @tmp1 = sys_trx_start as A2, x from t1;
+
+  drop table t1;
+end~~
+
+create procedure test_03(
+  sys_type varchar(255),
+  engine varchar(255),
+  fields varchar(255))
+begin
+  set @str= concat('
+  create table t1 (
+    x int,
+    y int)
+  with system versioning
+  engine ', engine);
+  prepare stmt from @str; execute stmt; drop prepare stmt;
+
+  insert into t1 (x, y) values (1, 1), (2, 1), (3, 1);
+
+  start transaction;  
+  update t1 set y= y + 1 where x = 3;
+  update t1 set y= y + 1 where x = 3;
+  commit;
+
+  select x, y from t1 for system_time
+  between timestamp '0000-0-0 0:0:0'
+  and timestamp '2038-01-19 04:14:07';
+
+  drop table t1;
+end~~
+
+create procedure test_04(
+  sys_type varchar(255),
+  engine varchar(255),
+  fields varchar(255))
+begin
+  set @str= concat('
+  create table t1 (
+    id int primary key auto_increment,
+    x int)
+  with system versioning
+  engine ', engine);
+  prepare stmt from @str; execute stmt; drop prepare stmt;
+
+  set @t0= now(6);
+  insert into t1 (x) values (1);
+  set @t1= now(6);
+  update t1 set x= 2 where id = 1;
+  set @t2= now(6);
+  update t1 set x= 3 where id = 1;
+
+  select x from t1 for system_time as of timestamp @t0;
+  select x from t1 for system_time as of timestamp @t1;
+  select x from t1 for system_time as of timestamp @t2;
+  select x from t1 for system_time as of timestamp now(6);
+
+  drop table t1;
+end~~
+
+create procedure test_05(
+  sys_type varchar(255),
+  engine varchar(255),
+  fields varchar(255))
+begin
+  set @str= concat('
+  create table t1(
+    x int unsigned,
+    sys_end ', sys_type, ' generated always as row end,
+    sys_start ', sys_type, ' generated always as row start,
+    y int unsigned,
+    period for system_time (sys_start, sys_end),
+    primary key(x, y))
+  with system versioning
+  engine ', engine);
+  prepare stmt from @str; execute stmt; drop prepare stmt;
+  insert into t1(x, y) values
+    (1, 1000),
+    (2, 2000),
+    (3, 3000),
+    (4, 4000),
+    (5, 5000),
+    (6, 6000),
+    (7, 7000),
+    (8, 8000),
+    (9, 9000);
+  insert into t1(x, y) values(3, 3000) on duplicate key update y = y+1;
+  insert into t1(x, y) values(4, 4000) on duplicate key update y = y+1;
+  insert into t1(x, y) values(4, 4001) on duplicate key update y = y+1;
+  insert into t1(x, y) values(4, 4444) on duplicate key update y = y+1;
+  select x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp '9999-1-1 0:0:0';
+  select x, y from t1;
+  drop table t1;
+end~~
+
+create procedure test_06(
+  sys_type varchar(255),
+  engine varchar(255),
+  fields varchar(255))
+begin
+  set @str= concat('(
+    x int unsigned,
+    y int unsigned,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+  set @str2= concat('create table t1', @str);
+  prepare stmt from @str2; execute stmt; drop prepare stmt;
+  set @str2= concat('create table t2', @str);
+  prepare stmt from @str2; execute stmt; drop prepare stmt;
+  insert into t1(x, y) values
+    (1, 1000),
+    (2, 2000),
+    (3, 3000),
+    (4, 4000),
+    (5, 5000),
+    (6, 6000),
+    (7, 7000),
+    (8, 8000),
+    (9, 9000);
+  insert into t2(x, y) values
+    (1, 1010),
+    (2, 2010),
+    (3, 3010),
+    (4, 4010),
+    (5, 5010),
+    (6, 6010),
+    (7, 7010),
+    (8, 8010),
+    (9, 9010);
+  update t1, t2 set t1.y = t1.x + t1.y, t2.y = t2.x + t2.y where t1.x > 7 and t2.x < 7;
+  select x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp '9999-1-1 0:0:0';
+  select x, y from t1;
+  select x, y from t2 for system_time between timestamp '0-0-0 0:0:0' and timestamp '9999-1-1 0:0:0';
+  select x, y from t2;
+  drop table t1;
+  drop table t2;
+end~~
+
+create procedure test_07(
+  sys_type varchar(255),
+  engine varchar(255),
+  fields varchar(255))
+begin
+  set @str= concat('(
+    id bigint primary key,
+    name varchar(128) with system versioning,
+    salary bigint)
+  engine ', engine);
+
+  set @str2= concat('create table t1', @str);
+  prepare stmt from @str2; execute stmt; drop prepare stmt;
+  set @str2= concat('create table t2', @str);
+  prepare stmt from @str2; execute stmt; drop prepare stmt;
+
+  insert into t1 values (1, "Jeremy", 3000);
+  insert into t2 values (1, "Jeremy", 4000);
+  
+  select sys_trx_start into @tmp1 from t1;
+  select sys_trx_start into @tmp2 from t2;
+  update t1, t2 set t1.name= "Jerry", t2.name= "Jerry" where t1.id = t2.id and t1.name = "Jeremy";
+  select @tmp1 < sys_trx_start as A1, name from t1;
+  select @tmp2 < sys_trx_start as A2, name from t2;
+  
+  select sys_trx_start into @tmp1 from t1;
+  select sys_trx_start into @tmp2 from t2;
+  update t1, t2 set t1.salary= 2500, t2.salary= 2500 where t1.id = t2.id and t1.name = "Jerry";
+  select @tmp1 = sys_trx_start as B1, salary from t1;
+  select @tmp2 = sys_trx_start as B2, salary from t2;
+
+  drop table t1;
+  drop table t2;
+end~~
+delimiter ;~~
+
+call test_01('timestamp(6)', 'myisam', 'sys_end');
+call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+
+call test_02('timestamp(6)', 'myisam', 'sys_end');
+call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+
+call test_03('timestamp(6)', 'myisam', 'sys_end');
+call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+
+call test_04('timestamp(6)', 'myisam', 'sys_end');
+call test_04('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+
+call test_05('timestamp(6)', 'myisam', 'sys_end');
+call test_05('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+
+call test_06('timestamp(6)', 'myisam', 'sys_end');
+call test_06('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+
+call test_07('timestamp(6)', 'myisam', 'sys_end');
+call test_07('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+
+call verify_vtq;
+
+drop procedure test_01;
+drop procedure test_02;
+drop procedure test_03;
+drop procedure test_04;
+drop procedure test_05;
+drop procedure test_06;
+drop procedure test_07;
+
+-- source suite/versioning/common_finish.inc

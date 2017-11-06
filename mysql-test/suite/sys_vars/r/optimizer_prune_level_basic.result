@@ -104,7 +104,7 @@ SET @@session.optimizer_prune_level = ONF;
 ERROR 42000: Incorrect argument type to variable 'optimizer_prune_level'
 SET @@session.optimizer_prune_level = ON;
 ERROR 42000: Incorrect argument type to variable 'optimizer_prune_level'
-SET @@session.optimizer_prune_level = OF;
+SET @@session.optimizer_prune_level = OFFF;
 ERROR 42000: Incorrect argument type to variable 'optimizer_prune_level'
 SET @@session.optimizer_prune_level = 'OFN';
 ERROR 42000: Incorrect argument type to variable 'optimizer_prune_level'

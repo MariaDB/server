@@ -43,38 +43,6 @@
 */
 
 /**
-  Adapter for native functions with a variable number of arguments.
-  The main use of this class is to discard the following calls:
-  <code>foo(expr1 AS name1, expr2 AS name2, ...)</code>
-  which are syntactically correct (the syntax can refer to a UDF),
-  but semantically invalid for native functions.
-*/
-
-class Create_native_func : public Create_func
-{
-public:
-  virtual Item *create_func(THD *thd, LEX_CSTRING *name,
-                            List<Item> *item_list);
-
-  /**
-    Builder method, with no arguments.
-    @param thd The current thread
-    @param name The native function name
-    @param item_list The function parameters, none of which are named
-    @return An item representing the function call
-  */
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
-                              List<Item> *item_list) = 0;
-
-protected:
-  /** Constructor. */
-  Create_native_func() {}
-  /** Destructor. */
-  virtual ~Create_native_func() {}
-};
-
-
-/**
   Adapter for functions that takes exactly zero arguments.
 */
 
@@ -6827,12 +6795,6 @@ Create_func_year_week::create_native(THD *thd, LEX_CSTRING *name,
 }
 
 
-struct Native_func_registry
-{
-  LEX_CSTRING name;
-  Create_func *builder;
-};
-
 #define BUILDER(F) & F::s_singleton
 
 #ifdef HAVE_SPATIAL
@@ -7218,8 +7180,6 @@ get_native_fct_hash_key(const uchar *buff, size_t *length,
 
 int item_create_init()
 {
-  Native_func_registry *func;
-
   DBUG_ENTER("item_create_init");
 
   if (my_hash_init(& native_functions_hash,
@@ -7232,7 +7192,16 @@ int item_create_init()
                    MYF(0)))
     DBUG_RETURN(1);
 
-  for (func= func_array; func->builder != NULL; func++)
+  DBUG_RETURN(item_create_append(func_array));
+}
+
+int item_create_append(Native_func_registry array[])
+{
+  Native_func_registry *func;
+
+  DBUG_ENTER("item_create_append");
+
+  for (func= array; func->builder != NULL; func++)
   {
     if (my_hash_insert(& native_functions_hash, (uchar*) func))
       DBUG_RETURN(1);

@@ -96,7 +96,7 @@ SET @@global.log_bin_trust_function_creators = 'ONN';
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.log_bin_trust_function_creators = "OFFF";
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@global.log_bin_trust_function_creators = OF;
+SET @@global.log_bin_trust_function_creators = OFFF;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.log_bin_trust_function_creators = TTRUE;
 --Error ER_WRONG_VALUE_FOR_VAR

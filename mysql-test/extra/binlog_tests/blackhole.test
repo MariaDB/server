@@ -17,13 +17,13 @@ drop table if exists t1,t2;
 --enable_warnings
 
 CREATE TABLE t1 (
-  Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
+  Period_ smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
   Varor_period smallint(4) unsigned DEFAULT '0' NOT NULL
 ) ENGINE=blackhole;
 
 INSERT INTO t1 VALUES (9410,9412);
   
-select period from t1;
+select period_ from t1;
 select * from t1;
 select t1.* from t1;
 

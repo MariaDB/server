@@ -702,6 +702,12 @@ typedef struct system_variables
   uint idle_write_transaction_timeout;
   uint column_compression_threshold;
   uint column_compression_zlib_level;
+
+  st_vers_current_time vers_current_time;
+  my_bool vers_force;
+  ulong vers_hide;
+  my_bool vers_innodb_algorithm_simple;
+  ulong vers_alter_history;
 } SV;
 
 /**
@@ -938,6 +944,11 @@ public:
 
   enum_state state;
 
+protected:
+  friend class sp_head;
+  bool is_stored_procedure;
+
+public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
   {
@@ -945,7 +956,8 @@ public:
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
-    free_list(0), mem_root(mem_root_arg), state(state_arg)
+    free_list(0), mem_root(mem_root_arg), state(state_arg),
+    is_stored_procedure(state_arg == STMT_INITIALIZED_FOR_SP ? true : false)
   { INIT_ARENA_DBUG_INFO; }
   /*
     This constructor is used only when Query_arena is created as
@@ -965,6 +977,8 @@ public:
   { return state == STMT_PREPARED || state == STMT_EXECUTED; }
   inline bool is_conventional() const
   { return state == STMT_CONVENTIONAL_EXECUTION; }
+  inline bool is_sp_execute() const
+  { return is_stored_procedure; }
 
   inline void* alloc(size_t size) { return alloc_root(mem_root,size); }
   inline void* calloc(size_t size)
@@ -1006,6 +1020,22 @@ public:
   {}
 
   virtual ~Query_arena_memroot() {}
+};
+
+
+class Query_arena_stmt
+{
+  THD *thd;
+  Query_arena backup;
+  Query_arena *arena;
+
+public:
+  Query_arena_stmt(THD *_thd);
+  ~Query_arena_stmt();
+  bool arena_replaced()
+  {
+    return arena != NULL;
+  }
 };
 
 
@@ -3287,6 +3317,7 @@ public:
   inline my_time_t query_start() { query_start_used=1; return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
+  MYSQL_TIME query_start_TIME();
   inline void set_current_time()
   {
     my_hrtime_t hrtime= my_hrtime();
@@ -4083,7 +4114,12 @@ public:
     Lex_input_stream *lip= &m_parser_state->m_lip;
     if (!yytext)
     {
-      if (!(yytext= lip->get_tok_start()))
+      if (lip->lookahead_token >= 0)
+        yytext= lip->get_tok_start_prev();
+      else
+        yytext= lip->get_tok_start();
+
+      if (!yytext)
         yytext= "";
     }
     /* Push an error into the error stack */
@@ -5712,6 +5748,12 @@ class multi_update :public select_result_interceptor
   
   /* Need this to protect against multiple prepare() calls */
   bool prepared;
+
+  // For System Versioning (may need to insert new fields to a table).
+  ha_rows updated_sys_ver;
+
+  bool has_vers_fields;
+
 public:
   multi_update(THD *thd_arg, TABLE_LIST *ut, List<TABLE_LIST> *leaves_list,
 	       List<Item> *fields, List<Item> *values,
@@ -6229,6 +6271,24 @@ inline bool lex_string_eq(const LEX_CSTRING *a,
   return strcasecmp(a->str, b->str) != 0;
 }
 
-#endif /* MYSQL_SERVER */
+class ScopedStatementReplication
+{
+public:
+  ScopedStatementReplication(THD *thd) : thd(thd)
+  {
+    if (thd)
+      saved_binlog_format= thd->set_current_stmt_binlog_format_stmt();
+  }
+  ~ScopedStatementReplication()
+  {
+    if (thd)
+      thd->restore_stmt_binlog_format(saved_binlog_format);
+  }
 
+private:
+  enum_binlog_format saved_binlog_format;
+  THD *thd;
+};
+
+#endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

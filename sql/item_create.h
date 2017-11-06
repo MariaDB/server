@@ -19,6 +19,8 @@
 #ifndef ITEM_CREATE_H
 #define ITEM_CREATE_H
 
+#include "item_func.h" // Cast_target
+
 typedef struct st_udf_func udf_func;
 
 /**
@@ -63,6 +65,38 @@ protected:
   Create_func() {}
   /** Destructor */
   virtual ~Create_func() {}
+};
+
+
+/**
+  Adapter for native functions with a variable number of arguments.
+  The main use of this class is to discard the following calls:
+  <code>foo(expr1 AS name1, expr2 AS name2, ...)</code>
+  which are syntactically correct (the syntax can refer to a UDF),
+  but semantically invalid for native functions.
+*/
+
+class Create_native_func : public Create_func
+{
+public:
+  virtual Item *create_func(THD *thd, LEX_CSTRING *name,
+                            List<Item> *item_list);
+
+  /**
+    Builder method, with no arguments.
+    @param thd The current thread
+    @param name The native function name
+    @param item_list The function parameters, none of which are named
+    @return An item representing the function call
+  */
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
+                              List<Item> *item_list) = 0;
+
+protected:
+  /** Constructor. */
+  Create_native_func() {}
+  /** Destructor. */
+  virtual ~Create_native_func() {}
 };
 
 
@@ -172,7 +206,14 @@ Item *create_temporal_literal(THD *thd, const String *str,
                                  type, send_error);
 }
 
+struct Native_func_registry
+{
+  LEX_STRING name;
+  Create_func *builder;
+};
+
 int item_create_init();
+int item_create_append(Native_func_registry array[]);
 void item_create_cleanup();
 
 Item *create_func_dyncol_create(THD *thd, List<DYNCALL_CREATE_DEF> &list);

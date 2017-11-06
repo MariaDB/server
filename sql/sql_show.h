@@ -199,6 +199,9 @@ typedef struct st_lookup_field_values
   bool wild_table_value;
 } LOOKUP_FIELD_VALUES;  
 
+int make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING *> *table_names,
+                         LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
+                         LEX_CSTRING *db_name);
 
 /*
   INFORMATION_SCHEMA: Execution plan for get_all_tables() call

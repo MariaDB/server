@@ -3,18 +3,18 @@ call mtr.add_suppression("Table 'test_repair_table4' is marked as crashed and sh
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
 drop table if exists t1,t2,t3,t4;
 CREATE TABLE t1 (
-Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
+Period_ smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
 Varor_period smallint(4) unsigned DEFAULT '0' NOT NULL
 ) ENGINE = CSV;
 INSERT INTO t1 VALUES (9410,9412);
-select period from t1;
-period
+select period_ from t1;
+period_
 9410
 select * from t1;
-Period	Varor_period
+Period_	Varor_period
 9410	9412
 select t1.* from t1;
-Period	Varor_period
+Period_	Varor_period
 9410	9412
 CREATE TABLE t2 (
 auto int not null,
@@ -4919,12 +4919,12 @@ DROP TABLE t1;
 ALTER TABLE t2 RENAME t1;
 DROP TABLE t1;
 CREATE TABLE t1 (
-Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
+Period_ smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
 Varor_period smallint(4) unsigned DEFAULT '0' NOT NULL
 ) ENGINE = CSV;
 INSERT INTO t1 VALUES (9410,9412);
-select period from t1;
-period
+select period_ from t1;
+period_
 9410
 drop table if exists t1,t2,t3,t4;
 Warnings:

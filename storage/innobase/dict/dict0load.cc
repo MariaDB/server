@@ -50,7 +50,7 @@ Created 4/24/1996 Heikki Tuuri
 #include <set>
 
 /** Following are the InnoDB system tables. The positions in
-this array are referenced by enum dict_system_table_id. */
+this array are referenced by enum dict_system_id_t. */
 static const char* SYSTEM_TABLE_NAME[] = {
 	"SYS_TABLES",
 	"SYS_INDEXES",
@@ -60,7 +60,8 @@ static const char* SYSTEM_TABLE_NAME[] = {
 	"SYS_FOREIGN_COLS",
 	"SYS_TABLESPACES",
 	"SYS_DATAFILES",
-	"SYS_VIRTUAL"
+	"SYS_VIRTUAL",
+	"SYS_VTQ"
 };
 
 /** Loads a table definition and also all its index definitions.
@@ -307,7 +308,10 @@ dict_getnext_system_low(
 	rec_t*	rec = NULL;
 
 	while (!rec || rec_get_deleted_flag(rec, 0)) {
-		btr_pcur_move_to_next_user_rec(pcur, mtr);
+		if (pcur->search_mode == PAGE_CUR_L)
+			btr_pcur_move_to_prev_user_rec(pcur, mtr);
+		else
+			btr_pcur_move_to_next_user_rec(pcur, mtr);
 
 		rec = btr_pcur_get_rec(pcur);
 
@@ -334,7 +338,8 @@ dict_startscan_system(
 	btr_pcur_t*	pcur,		/*!< out: persistent cursor to
 					the record */
 	mtr_t*		mtr,		/*!< in: the mini-transaction */
-	dict_system_id_t system_id)	/*!< in: which system table to open */
+	dict_system_id_t system_id,	/*!< in: which system table to open */
+	bool		from_left)
 {
 	dict_table_t*	system_table;
 	dict_index_t*	clust_index;
@@ -346,7 +351,7 @@ dict_startscan_system(
 
 	clust_index = UT_LIST_GET_FIRST(system_table->indexes);
 
-	btr_pcur_open_at_index_side(true, clust_index, BTR_SEARCH_LEAF, pcur,
+	btr_pcur_open_at_index_side(from_left, clust_index, BTR_SEARCH_LEAF, pcur,
 				    true, 0, mtr);
 
 	rec = dict_getnext_system_low(pcur, mtr);
@@ -806,6 +811,84 @@ err_len:
 		goto err_len;
 	}
 	*path = mem_heap_strdupl(heap, (char*) field, len);
+
+	return(NULL);
+}
+
+
+inline
+const char* dict_print_error(mem_heap_t* heap, ulint col, ulint len, ulint expected)
+{
+	return mem_heap_printf(heap,
+		"incorrect column %lu length in SYS_VTQ; got: %lu, expected: %lu",
+		col, len, expected);
+}
+
+/********************************************************************//**
+This function parses a SYS_VTQ record, extracts necessary
+information from the record and returns it to the caller.
+@return error message, or NULL on success */
+UNIV_INTERN
+const char*
+dict_process_sys_vtq(
+/*=======================*/
+mem_heap_t*	heap,		/*!< in/out: heap memory */
+const rec_t*	rec,		/*!< in: current rec */
+vtq_record_t&	out		/*!< out: field values */
+)
+{
+	ulint		len, nfld;
+	const byte	*field;
+
+	if (rec_get_deleted_flag(rec, 0)) {
+		return("delete-marked record in SYS_VTQ");
+	}
+
+	if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_VTQ) {
+		return("wrong number of columns in SYS_VTQ record");
+	}
+	/* TRX_ID */
+	field = rec_get_nth_field_old(
+		rec, (nfld = DICT_FLD__SYS_VTQ__TRX_ID), &len);
+
+	if (len != sizeof(trx_id_t))
+		return dict_print_error(heap, nfld, len, sizeof(trx_id_t));
+
+	out.trx_id = mach_read_from_8(field);
+	/* COMMIT_ID */
+	field = rec_get_nth_field_old(
+		rec, (nfld = DICT_FLD__SYS_VTQ__COMMIT_ID), &len);
+
+	if (len != sizeof(trx_id_t))
+		return dict_print_error(heap, nfld, len, sizeof(trx_id_t));
+
+	out.commit_id = mach_read_from_8(field);
+	/* BEGIN_TS */
+	field = rec_get_nth_field_old(
+		rec, (nfld = DICT_FLD__SYS_VTQ__BEGIN_TS), &len);
+
+	if (len != sizeof(ullong))
+		return dict_print_error(heap, nfld, len, sizeof(ullong));
+
+	out.begin_ts.tv_sec = mach_read_from_4(field);
+	out.begin_ts.tv_usec = mach_read_from_4(field + 4);
+	/* COMMIT_TS */
+	field = rec_get_nth_field_old(
+		rec, (nfld = DICT_FLD__SYS_VTQ__COMMIT_TS), &len);
+
+	if (len != sizeof(ullong))
+		return dict_print_error(heap, nfld, len, sizeof(ullong));
+
+	out.commit_ts.tv_sec = mach_read_from_4(field);
+	out.commit_ts.tv_usec = mach_read_from_4(field + 4);
+	/* ISOLATION_LEVEL */
+	field = rec_get_nth_field_old(
+		rec, (nfld = DICT_FLD__SYS_VTQ__ISOLATION_LEVEL), &len);
+
+	if (len != sizeof(byte))
+		return dict_print_error(heap, nfld, len, sizeof(byte));
+
+	out.iso_level = *field;
 
 	return(NULL);
 }

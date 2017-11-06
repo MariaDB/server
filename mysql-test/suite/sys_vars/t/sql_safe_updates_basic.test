@@ -97,7 +97,7 @@ SET @@session.sql_safe_updates = TRÜE;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_safe_updates = ÕN;
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@session.sql_safe_updates = OF;
+SET @@session.sql_safe_updates = OFFF;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_safe_updates = ÓFF;
 --Error ER_WRONG_VALUE_FOR_VAR

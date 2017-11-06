@@ -197,6 +197,7 @@ my @DEFAULT_SUITES= qw(
     sql_sequence-
     unit-
     vcol-
+    versioning-
     wsrep-
     galera-
   );
@@ -220,6 +221,7 @@ our @opt_extra_mysqld_opt;
 our @opt_mysqld_envs;
 
 my $opt_stress;
+my $opt_tail_lines= 20;
 
 my $opt_dry_run;
 
@@ -1204,6 +1206,7 @@ sub command_line_setup {
 	     'report-times'             => \$opt_report_times,
 	     'result-file'              => \$opt_resfile,
 	     'stress=s'                 => \$opt_stress,
+	     'tail-lines=i'             => \$opt_tail_lines,
              'dry-run'                  => \$opt_dry_run,
 
              'help|h'                   => \$opt_usage,
@@ -4870,7 +4873,7 @@ sub report_failure_and_restart ($) {
 	    $tinfo->{comment}.=
 	      "The result from queries just before the failure was:".
 	      "\n< snip >\n".
-	      mtr_lastlinesfromfile($log_file_name, 20)."\n";
+	      mtr_lastlinesfromfile($log_file_name, $opt_tail_lines)."\n";
 	  }
 	}
       }
@@ -5543,7 +5546,7 @@ sub start_mysqltest ($) {
   mtr_add_arg($args, "--test-file=%s", $tinfo->{'path'});
 
   # Number of lines of resut to include in failure report
-  mtr_add_arg($args, "--tail-lines=20");
+  mtr_add_arg($args, "--tail-lines=%d", $opt_tail_lines);
 
   if ( defined $tinfo->{'result_file'} ) {
     mtr_add_arg($args, "--result-file=%s", $tinfo->{'result_file'});
@@ -6191,6 +6194,8 @@ Misc options
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to
                         mysql-stress-test.pl. Options are separated by comma.
+  tail-lines=N          Number of lines of the result to include in a failure
+                        report.
 
 Some options that control enabling a feature for normal test runs,
 can be turned off by prepending 'no' to the option, e.g. --notimer.

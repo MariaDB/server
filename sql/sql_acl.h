@@ -49,6 +49,7 @@
 #define EVENT_ACL       (1UL << 26)
 #define TRIGGER_ACL     (1UL << 27)
 #define CREATE_TABLESPACE_ACL (1UL << 28)
+#define DELETE_VERSIONING_ROWS_ACL (1UL << 29)
 /*
   don't forget to update
   1. static struct show_privileges_st sys_privileges[]
@@ -62,12 +63,13 @@
 (UPDATE_ACL | SELECT_ACL | INSERT_ACL | DELETE_ACL | CREATE_ACL | DROP_ACL | \
  GRANT_ACL | REFERENCES_ACL | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL | \
  LOCK_TABLES_ACL | EXECUTE_ACL | CREATE_VIEW_ACL | SHOW_VIEW_ACL | \
- CREATE_PROC_ACL | ALTER_PROC_ACL | EVENT_ACL | TRIGGER_ACL)
+ CREATE_PROC_ACL | ALTER_PROC_ACL | EVENT_ACL | TRIGGER_ACL | \
+ DELETE_VERSIONING_ROWS_ACL)
 
 #define TABLE_ACLS \
 (SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL | CREATE_ACL | DROP_ACL | \
  GRANT_ACL | REFERENCES_ACL | INDEX_ACL | ALTER_ACL | CREATE_VIEW_ACL | \
- SHOW_VIEW_ACL | TRIGGER_ACL)
+ SHOW_VIEW_ACL | TRIGGER_ACL | DELETE_VERSIONING_ROWS_ACL)
 
 #define COL_ACLS \
 (SELECT_ACL | INSERT_ACL | UPDATE_ACL | REFERENCES_ACL)
@@ -85,7 +87,7 @@
  CREATE_TMP_ACL | LOCK_TABLES_ACL | REPL_SLAVE_ACL | REPL_CLIENT_ACL | \
  EXECUTE_ACL | CREATE_VIEW_ACL | SHOW_VIEW_ACL | CREATE_PROC_ACL | \
  ALTER_PROC_ACL | CREATE_USER_ACL | EVENT_ACL | TRIGGER_ACL | \
- CREATE_TABLESPACE_ACL)
+ CREATE_TABLESPACE_ACL | DELETE_VERSIONING_ROWS_ACL)
 
 #define DEFAULT_CREATE_PROC_ACLS \
 (ALTER_PROC_ACL | EXECUTE_ACL)
@@ -117,31 +119,37 @@
                    CREATE_PROC_ACL | ALTER_PROC_ACL )
 #define DB_CHUNK4 (EXECUTE_ACL)
 #define DB_CHUNK5 (EVENT_ACL | TRIGGER_ACL)
+#define DB_CHUNK6 (DELETE_VERSIONING_ROWS_ACL)
 
 #define fix_rights_for_db(A)  (((A)       & DB_CHUNK0) | \
                               (((A) << 4) & DB_CHUNK1) | \
                               (((A) << 6) & DB_CHUNK2) | \
                               (((A) << 9) & DB_CHUNK3) | \
-                              (((A) << 2) & DB_CHUNK4))| \
-                              (((A) << 9) & DB_CHUNK5)
+                              (((A) << 2) & DB_CHUNK4) | \
+                              (((A) << 9) & DB_CHUNK5) | \
+                              (((A) << 10) & DB_CHUNK6))
 #define get_rights_for_db(A)  (((A) & DB_CHUNK0)       | \
                               (((A) & DB_CHUNK1) >> 4) | \
                               (((A) & DB_CHUNK2) >> 6) | \
                               (((A) & DB_CHUNK3) >> 9) | \
-                              (((A) & DB_CHUNK4) >> 2))| \
-                              (((A) & DB_CHUNK5) >> 9)
+                              (((A) & DB_CHUNK4) >> 2) | \
+                              (((A) & DB_CHUNK5) >> 9) | \
+                              (((A) & DB_CHUNK6) >> 10))
 #define TBL_CHUNK0 DB_CHUNK0
 #define TBL_CHUNK1 DB_CHUNK1
 #define TBL_CHUNK2 (CREATE_VIEW_ACL | SHOW_VIEW_ACL)
 #define TBL_CHUNK3 TRIGGER_ACL
+#define TBL_CHUNK4 (DELETE_VERSIONING_ROWS_ACL)
 #define fix_rights_for_table(A) (((A)        & TBL_CHUNK0) | \
                                 (((A) <<  4) & TBL_CHUNK1) | \
                                 (((A) << 11) & TBL_CHUNK2) | \
-                                (((A) << 15) & TBL_CHUNK3))
+                                (((A) << 15) & TBL_CHUNK3) | \
+                                (((A) << 16) & TBL_CHUNK4))
 #define get_rights_for_table(A) (((A) & TBL_CHUNK0)        | \
                                 (((A) & TBL_CHUNK1) >>  4) | \
                                 (((A) & TBL_CHUNK2) >> 11) | \
-                                (((A) & TBL_CHUNK3) >> 15))
+                                (((A) & TBL_CHUNK3) >> 15) | \
+                                (((A) & TBL_CHUNK4) >> 16))
 #define fix_rights_for_column(A) (((A) & 7) | (((A) & ~7) << 8))
 #define get_rights_for_column(A) (((A) & 7) | ((A) >> 8))
 #define fix_rights_for_procedure(A) ((((A) << 18) & EXECUTE_ACL) | \
@@ -175,6 +183,7 @@ enum mysql_db_table_field
   MYSQL_DB_FIELD_EXECUTE_PRIV,
   MYSQL_DB_FIELD_EVENT_PRIV,
   MYSQL_DB_FIELD_TRIGGER_PRIV,
+  MYSQL_DB_FIELD_DELETE_VERSIONING_ROWS_PRIV,
   MYSQL_DB_FIELD_COUNT
 };
 

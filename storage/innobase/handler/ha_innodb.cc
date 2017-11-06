@@ -117,6 +117,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "trx0xa.h"
 #include "ut0mem.h"
 #include "row0ext.h"
+#include "vers0vtq.h"
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -1713,9 +1714,7 @@ thd_start_time_in_secs(
 /*===================*/
 	THD*	thd)	/*!< in: thread handle, or NULL */
 {
-	// FIXME: This function should be added to the server code.
-	//return(thd_start_time(thd));
-	return(ulint(ut_time()));
+	return(thd_start_time(thd));
 }
 
 /** Enter InnoDB engine after checking the max number of user threads
@@ -3679,7 +3678,7 @@ innobase_init(
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->flags =
-		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS;
+		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS | HTON_NATIVE_SYS_VERSIONING;
 
 #ifdef WITH_WSREP
         innobase_hton->abort_transaction=wsrep_abort_transaction;
@@ -3693,6 +3692,11 @@ innobase_init(
 	}
 
 	innobase_hton->table_options = innodb_table_option_list;
+
+	/* System Versioning */
+	innobase_hton->vers_query_trx_id = vtq_query_trx_id;
+	innobase_hton->vers_query_commit_ts = vtq_query_commit_ts;
+	innobase_hton->vers_trx_sees = vtq_trx_sees;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -4424,6 +4428,14 @@ innobase_commit_ordered_2(
 		/* Don't do write + flush right now. For group commit
 		to work we want to do the flush later. */
 		trx->flush_log_later = true;
+
+		/* Notify VTQ on System Versioned tables update */
+		if (trx->vtq_notify_on_commit) {
+			vers_notify_vtq(trx);
+			trx->vtq_notify_on_commit = false;
+		}
+	} else {
+		DBUG_ASSERT(!trx->vtq_notify_on_commit);
 	}
 
 	innobase_commit_low(trx);
@@ -4547,6 +4559,11 @@ innobase_commit(
 
 	if (commit_trx
 	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
+		/* Notify VTQ on System Versioned tables update */
+		if (trx->vtq_notify_on_commit) {
+			vers_notify_vtq(trx);
+			trx->vtq_notify_on_commit = false;
+		}
 
 		DBUG_EXECUTE_IF("crash_innodb_before_commit",
 				DBUG_SUICIDE(););
@@ -6500,7 +6517,7 @@ no_such_table:
 		}
 	}
 
-	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
+	info(HA_STATUS_OPEN | HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
 	DBUG_RETURN(0);
 }
 
@@ -8143,6 +8160,7 @@ ha_innobase::write_row(
 
 	trx_t*		trx = thd_to_trx(m_user_thd);
 	TrxInInnoDB	trx_in_innodb(trx);
+	ins_mode_t	vers_set_fields;
 
 	if (trx_in_innodb.is_aborted()) {
 
@@ -8343,8 +8361,14 @@ no_commit:
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
+	vers_set_fields = (table->versioned() && !is_innopart() &&
+		(sql_command != SQLCOM_CREATE_TABLE || table->s->vtmd))
+		?
+		ROW_INS_VERSIONED :
+		ROW_INS_NORMAL;
+
 	/* Step-5: Execute insert graph that will result in actual insert. */
-	error = row_insert_for_mysql((byte*) record, m_prebuilt);
+	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
 
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
@@ -8604,6 +8628,9 @@ calc_row_difference(
 	/* We use upd_buff to convert changed fields */
 	buf = (byte*) upd_buff;
 
+	prebuilt->upd_node->versioned = false;
+	prebuilt->upd_node->vers_delete = false;
+
 	for (i = 0; i < n_fields; i++) {
 		field = table->field[i];
 		bool		is_virtual = innobase_is_v_fld(field);
@@ -8842,6 +8869,13 @@ calc_row_difference(
 			}
 			n_changed++;
 
+			if (!prebuilt->upd_node->versioned &&
+				DICT_TF2_FLAG_IS_SET(prebuilt->table, DICT_TF2_VERSIONED) &&
+				!(field->flags & VERS_OPTIMIZED_UPDATE_FLAG))
+			{
+				prebuilt->upd_node->versioned = true;
+			}
+
 			/* If an FTS indexed column was changed by this
 			UPDATE then we need to inform the FTS sub-system.
 
@@ -8946,6 +8980,13 @@ calc_row_difference(
 			innodb_table, ufield, &trx->fts_next_doc_id);
 
 		++n_changed;
+
+		if (!prebuilt->upd_node->versioned &&
+			DICT_TF2_FLAG_IS_SET(prebuilt->table, DICT_TF2_VERSIONED) &&
+			!(field->flags & VERS_OPTIMIZED_UPDATE_FLAG))
+		{
+			prebuilt->upd_node->versioned = true;
+		}
 	} else {
 		/* We have a Doc ID column, but none of FTS indexed
 		columns are touched, nor the Doc ID column, so set
@@ -9102,6 +9143,8 @@ ha_innobase::update_row(
 
 	upd_t*		uvect = row_get_prebuilt_update_vector(m_prebuilt);
 	ib_uint64_t	autoinc;
+	bool		vers_set_fields = false;
+	bool		vers_ins_row = false;
 
 	/* Build an update vector from the modified fields in the rows
 	(uses m_upd_buf of the handle) */
@@ -9127,7 +9170,26 @@ ha_innobase::update_row(
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	error = row_update_for_mysql(m_prebuilt);
+	if (!table->versioned())
+		m_prebuilt->upd_node->versioned = false;
+
+	if (m_prebuilt->upd_node->versioned && !is_innopart()) {
+		vers_set_fields = true;
+		if (thd_sql_command(m_user_thd) == SQLCOM_ALTER_TABLE && !table->s->vtmd)
+		{
+			m_prebuilt->upd_node->vers_delete = true;
+		} else {
+			m_prebuilt->upd_node->vers_delete = false;
+			vers_ins_row = true;
+		}
+	}
+
+	error = row_update_for_mysql(m_prebuilt, vers_set_fields);
+
+	if (error == DB_SUCCESS && vers_ins_row) {
+		if (trx->id != static_cast<trx_id_t>(table->vers_start_field()->val_int()))
+			error = row_insert_for_mysql((byte*) old_row, m_prebuilt, ROW_INS_HISTORICAL);
+	}
 
 	if (error == DB_SUCCESS && autoinc) {
 		/* A value for an AUTO_INCREMENT column
@@ -9242,7 +9304,12 @@ ha_innobase::delete_row(
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	error = row_update_for_mysql(m_prebuilt);
+	bool vers_set_fields =
+		table->versioned() &&
+		!is_innopart() &&
+		table->vers_end_field()->is_max();
+
+	error = row_update_for_mysql(m_prebuilt, vers_set_fields);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 
@@ -11330,8 +11397,17 @@ create_table_info_t::create_table_def()
 	for (i = 0; i < n_cols; i++) {
 		ulint	is_virtual;
 		bool	is_stored = false;
-
 		Field*	field = m_form->field[i];
+		ulint vers_row_start = 0;
+		ulint vers_row_end = 0;
+
+		if (m_flags2 & DICT_TF2_VERSIONED) {
+			if (i == m_form->s->row_start_field) {
+				vers_row_start = DATA_VERS_ROW_START;
+			} else if (i == m_form->s->row_end_field) {
+				vers_row_end = DATA_VERS_ROW_END;
+			}
+		}
 
 		col_type = get_innobase_type_from_mysql_type(
 			&unsigned_type, field);
@@ -11422,7 +11498,8 @@ err_col:
 				dtype_form_prtype(
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
-					| binary_type | long_true_varchar,
+					| binary_type | long_true_varchar
+					| vers_row_start | vers_row_end,
 					charset_no),
 				col_len);
 		} else {
@@ -11432,6 +11509,7 @@ err_col:
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
 					| binary_type | long_true_varchar
+					| vers_row_start | vers_row_end
 					| is_virtual,
 					charset_no),
 				col_len, i, 0);
@@ -12444,6 +12522,10 @@ index_bad:
 	m_flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
 	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
 			m_flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
+
+	if (m_create_info->options & HA_VERSIONED_TABLE) {
+		m_flags2 |= DICT_TF2_VERSIONED;
+	}
 
 	DBUG_RETURN(true);
 }
@@ -14323,7 +14405,7 @@ ha_innobase::info_low(
 		set. That way SHOW TABLE STATUS will show the best estimate,
 		while the optimizer never sees the table empty. */
 
-		if (n_rows == 0 && !(flag & HA_STATUS_TIME)) {
+		if (n_rows == 0 && !(flag & (HA_STATUS_TIME | HA_STATUS_OPEN))) {
 			n_rows++;
 		}
 
@@ -21215,7 +21297,8 @@ i_s_innodb_sys_virtual,
 i_s_innodb_mutexes,
 i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption,
-i_s_innodb_tablespaces_scrubbing
+i_s_innodb_tablespaces_scrubbing,
+i_s_innodb_vtq
 maria_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.

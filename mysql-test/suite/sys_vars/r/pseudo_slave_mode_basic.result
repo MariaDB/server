@@ -58,8 +58,8 @@ SET @@session.pseudo_slave_mode = TRÜE;
 ERROR 42000: Variable 'pseudo_slave_mode' can't be set to the value of 'TRÜE'
 SET @@session.pseudo_slave_mode = ÕN;
 ERROR 42000: Variable 'pseudo_slave_mode' can't be set to the value of 'ÕN'
-SET @@session.pseudo_slave_mode = OF;
-ERROR 42000: Variable 'pseudo_slave_mode' can't be set to the value of 'OF'
+SET @@session.pseudo_slave_mode = OFFF;
+ERROR 42000: Variable 'pseudo_slave_mode' can't be set to the value of 'OFFF'
 SET @@session.pseudo_slave_mode = ÓFF;
 ERROR 42000: Variable 'pseudo_slave_mode' can't be set to the value of 'ÓFF'
 SET @@session.pseudo_slave_mode = '¹';

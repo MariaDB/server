@@ -1,0 +1,201 @@
+set @@session.time_zone='+00:00';
+select ifnull(max(transaction_id), 0) into @start_trx_id from information_schema.innodb_vtq;
+set @test_start=now(6);
+create procedure if not exists verify_vtq()
+begin
+set @i= 0;
+select
+@i:= @i + 1 as No,
+transaction_id > 0 as A,
+commit_id > transaction_id as B,
+begin_timestamp > @test_start as C,
+commit_timestamp >= begin_timestamp as D
+from information_schema.innodb_vtq
+where transaction_id > @start_trx_id;
+select ifnull(max(transaction_id), 0)
+into @start_trx_id
+from information_schema.innodb_vtq;
+end~~
+create function if not exists default_engine()
+returns varchar(255)
+deterministic
+begin
+declare e varchar(255);
+select lower(engine) from information_schema.engines where support='DEFAULT' into e;
+return e;
+end~~
+create function if not exists sys_datatype()
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return 'bigint unsigned';
+elseif default_engine() = 'myisam' then
+return 'timestamp(6)';
+end if;
+return NULL;
+end~~
+create function if not exists sys_commit_ts(sys_field varchar(255))
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return concat('vtq_commit_ts(', sys_field, ')');
+elseif default_engine() = 'myisam' then
+return sys_field;
+end if;
+return NULL;
+end~~
+create procedure if not exists innodb_verify_vtq(recs int)
+begin
+declare i int default 1;
+if default_engine() = 'innodb' then
+call verify_vtq;
+elseif default_engine() = 'myisam' then
+create temporary table tmp (No int, A bool, B bool, C bool, D bool);
+while i <= recs do
+insert into tmp values (i, 1, 1, 1, 1);
+set i= i + 1;
+end while;
+select * from tmp;
+drop table tmp;
+end if;
+end~~
+create procedure concat_exec2(a varchar(255), b varchar(255))
+begin
+prepare stmt from concat(a, b);
+execute stmt;
+deallocate prepare stmt;
+end~~
+create procedure concat_exec3(a varchar(255), b varchar(255), c varchar(255))
+begin
+prepare stmt from concat(a, b, c);
+execute stmt;
+deallocate prepare stmt;
+end~~
+create procedure test_01(
+sys_type varchar(255),
+engine varchar(255),
+fields varchar(255))
+begin
+set @str= concat('
+  create table t1(
+    id int unsigned auto_increment primary key,
+    x int unsigned,
+    y int unsigned,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+prepare stmt from @str; execute stmt; drop prepare stmt;
+set @str= concat('
+  create table t2(
+    id int unsigned auto_increment primary key,
+    x int unsigned,
+    y int unsigned)
+  engine ', engine);
+prepare stmt from @str; execute stmt; drop prepare stmt;
+insert into t1(x, y) values(1, 11);
+insert into t2(x, y) values(1, 11);
+insert into t1(x, y) values(2, 12);
+insert into t2(x, y) values(2, 12);
+insert into t1(x, y) values(3, 13);
+insert into t2(x, y) values(3, 13);
+insert into t1(x, y) values(4, 14);
+insert into t2(x, y) values(4, 14);
+insert into t1(x, y) values(5, 15);
+insert into t2(x, y) values(5, 15);
+insert into t1(x, y) values(6, 16);
+insert into t2(x, y) values(6, 16);
+insert into t1(x, y) values(7, 17);
+insert into t2(x, y) values(7, 17);
+insert into t1(x, y) values(8, 18);
+insert into t2(x, y) values(8, 18);
+insert into t1(x, y) values(9, 19);
+insert into t2(x, y) values(9, 19);
+select t1.x = t2.x and t1.y = t2.y as A, t1.x, t1.y, t2.x, t2.y from t1 inner join t2 on t1.id = t2.id;
+delete from t1 where x = 2;
+delete from t2 where x = 2;
+select t1.x = t2.x and t1.y = t2.y as A, t1.x, t1.y, t2.x, t2.y from t1 inner join t2 on t1.id = t2.id;
+delete from t1 where x > 7;
+delete from t2 where x > 7;
+select t1.x = t2.x and t1.y = t2.y as A, t1.x, t1.y, t2.x, t2.y from t1 inner join t2 on t1.id = t2.id;
+drop table t1;
+drop table t2;
+end~~
+call test_01('timestamp(6)', 'myisam', 'sys_end');
+A	x	y	x	y
+1	1	11	1	11
+1	2	12	2	12
+1	3	13	3	13
+1	4	14	4	14
+1	5	15	5	15
+1	6	16	6	16
+1	7	17	7	17
+1	8	18	8	18
+1	9	19	9	19
+A	x	y	x	y
+1	1	11	1	11
+1	3	13	3	13
+1	4	14	4	14
+1	5	15	5	15
+1	6	16	6	16
+1	7	17	7	17
+1	8	18	8	18
+1	9	19	9	19
+A	x	y	x	y
+1	1	11	1	11
+1	3	13	3	13
+1	4	14	4	14
+1	5	15	5	15
+1	6	16	6	16
+1	7	17	7	17
+call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+A	x	y	x	y
+1	1	11	1	11
+1	2	12	2	12
+1	3	13	3	13
+1	4	14	4	14
+1	5	15	5	15
+1	6	16	6	16
+1	7	17	7	17
+1	8	18	8	18
+1	9	19	9	19
+A	x	y	x	y
+1	1	11	1	11
+1	3	13	3	13
+1	4	14	4	14
+1	5	15	5	15
+1	6	16	6	16
+1	7	17	7	17
+1	8	18	8	18
+1	9	19	9	19
+A	x	y	x	y
+1	1	11	1	11
+1	3	13	3	13
+1	4	14	4	14
+1	5	15	5	15
+1	6	16	6	16
+1	7	17	7	17
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
+3	1	1	1	1
+4	1	1	1	1
+5	1	1	1	1
+6	1	1	1	1
+7	1	1	1	1
+8	1	1	1	1
+9	1	1	1	1
+10	1	1	1	1
+11	1	1	1	1
+drop procedure test_01;
+drop procedure verify_vtq;
+drop procedure innodb_verify_vtq;
+drop function default_engine;
+drop function sys_commit_ts;
+drop function sys_datatype;
+drop procedure concat_exec2;
+drop procedure concat_exec3;

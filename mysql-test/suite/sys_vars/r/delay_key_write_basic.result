@@ -37,8 +37,8 @@ SET @@global.delay_key_write = FALSE0;
 ERROR 42000: Variable 'delay_key_write' can't be set to the value of 'FALSE0'
 SET @@global.delay_key_write = ONN;
 ERROR 42000: Variable 'delay_key_write' can't be set to the value of 'ONN'
-SET @@global.delay_key_write = OF;
-ERROR 42000: Variable 'delay_key_write' can't be set to the value of 'OF'
+SET @@global.delay_key_write = OFFF;
+ERROR 42000: Variable 'delay_key_write' can't be set to the value of 'OFFF'
 SET @@global.delay_key_write = ' ';
 ERROR 42000: Variable 'delay_key_write' can't be set to the value of ' '
 SET @@global.delay_key_write = "";

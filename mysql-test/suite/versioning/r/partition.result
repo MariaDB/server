@@ -1,0 +1,378 @@
+set @@session.time_zone='+00:00';
+select ifnull(max(transaction_id), 0) into @start_trx_id from information_schema.innodb_vtq;
+set @test_start=now(6);
+create procedure if not exists verify_vtq()
+begin
+set @i= 0;
+select
+@i:= @i + 1 as No,
+transaction_id > 0 as A,
+commit_id > transaction_id as B,
+begin_timestamp > @test_start as C,
+commit_timestamp >= begin_timestamp as D
+from information_schema.innodb_vtq
+where transaction_id > @start_trx_id;
+select ifnull(max(transaction_id), 0)
+into @start_trx_id
+from information_schema.innodb_vtq;
+end~~
+create function if not exists default_engine()
+returns varchar(255)
+deterministic
+begin
+declare e varchar(255);
+select lower(engine) from information_schema.engines where support='DEFAULT' into e;
+return e;
+end~~
+create function if not exists sys_datatype()
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return 'bigint unsigned';
+elseif default_engine() = 'myisam' then
+return 'timestamp(6)';
+end if;
+return NULL;
+end~~
+create function if not exists sys_commit_ts(sys_field varchar(255))
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return concat('vtq_commit_ts(', sys_field, ')');
+elseif default_engine() = 'myisam' then
+return sys_field;
+end if;
+return NULL;
+end~~
+create procedure if not exists innodb_verify_vtq(recs int)
+begin
+declare i int default 1;
+if default_engine() = 'innodb' then
+call verify_vtq;
+elseif default_engine() = 'myisam' then
+create temporary table tmp (No int, A bool, B bool, C bool, D bool);
+while i <= recs do
+insert into tmp values (i, 1, 1, 1, 1);
+set i= i + 1;
+end while;
+select * from tmp;
+drop table tmp;
+end if;
+end~~
+create procedure concat_exec2(a varchar(255), b varchar(255))
+begin
+prepare stmt from concat(a, b);
+execute stmt;
+deallocate prepare stmt;
+end~~
+create procedure concat_exec3(a varchar(255), b varchar(255), c varchar(255))
+begin
+prepare stmt from concat(a, b, c);
+execute stmt;
+deallocate prepare stmt;
+end~~
+create table t1 (x int)
+with system versioning
+partition by range columns (x) (
+partition p0 values less than (100),
+partition p1 values less than (1000));
+insert into t1 values (3), (300);
+select * from t1;
+x
+3
+300
+select * from t1 partition (p0);
+x
+3
+select * from t1 partition (p1);
+x
+300
+delete from t1;
+select * from t1;
+x
+select * from t1 for system_time all;
+x
+3
+300
+select * from t1 partition (p0) for system_time all;
+x
+3
+select * from t1 partition (p1) for system_time all;
+x
+300
+create or replace table t1 (x int)
+partition by system_time (
+partition p0 versioning,
+partition pn as of now);
+ERROR HY000: System Versioning required: t1
+create or replace table t1 (x int);
+alter table t1
+partition by system_time (
+partition p0 versioning,
+partition pn as of now);
+Got one of the listed errors
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0 as of now);
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0 as of now,
+partition p1 as of now);
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0 versioning,
+partition p1 versioning);
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition pn as of now,
+partition p0 versioning);
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0 versioning,
+partition pn as of now);
+alter table t1 add partition (
+partition p1 as of now);
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+alter table t1 add partition (
+partition p1 versioning);
+Warnings:
+Warning	4078	Maybe missing parameters: no rotation condition for multiple `VERSIONING` partitions.
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `sys_trx_start` ${SYS_TRX_TYPE} GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` ${SYS_TRX_TYPE} GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=${INNODB_OR_MYISAM} DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+(PARTITION p0 VERSIONING ENGINE = ${INNODB_OR_MYISAM},
+ PARTITION p1 VERSIONING ENGINE = ${INNODB_OR_MYISAM},
+ PARTITION pn AS OF NOW ENGINE = ${INNODB_OR_MYISAM})
+insert into t1 values (1), (2);
+alter table t1 drop partition pn;
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+alter table t1 drop partition p1;
+alter table t1 drop partition p0;
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+select x from t1;
+x
+1
+2
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 1 (
+partition p0 versioning,
+partition pn as of now);
+alter table t1 change x big int;
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0 versioning,
+partition pn as of now);
+set @now= now(6);
+insert into t1 values (1);
+set @ts_start= sys_commit_ts('sys_trx_start');
+set @ts_end= sys_commit_ts('sys_trx_end');
+set @str= concat('select x, ', @ts_start, ' < @now as A, ', @ts_end, ' > @now as B from t1 partition (p0) for system_time all');
+prepare select_p0 from @str;
+set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn) for system_time all');
+prepare select_pn from @str;
+execute select_p0;
+x	A	B
+execute select_pn;
+x	C	D
+1	1	1
+explain partitions select * from t1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	pn	system	NULL	NULL	NULL	NULL	1	
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+set @now= now(6);
+delete from t1;
+execute select_p0;
+x	A	B
+1	1	1
+execute select_pn;
+x	C	D
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all into @ts1');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+select @ts0 = @ts1;
+@ts0 = @ts1
+1
+set @now= now(6);
+insert into t1 values (2);
+execute select_p0;
+x	A	B
+1	1	0
+execute select_pn;
+x	C	D
+2	1	1
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+set @now= now(6);
+update t1 set x = x + 1;
+execute select_p0;
+x	A	B
+1	1	0
+2	1	1
+execute select_pn;
+x	C	D
+3	1	1
+drop prepare select_p0;
+drop prepare select_pn;
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all where x = 2 into @ts1');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+set @str= concat('select ', @ts_end, ' from t1 partition (p0) for system_time all where x = 2 into @ts2');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts3');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+select @ts0 = @ts1;
+@ts0 = @ts1
+1
+select @ts2 = @ts3;
+@ts2 = @ts3
+1
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 0 (
+partition p0 versioning,
+partition p1 versioning,
+partition pn as of now);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'LIMIT'
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 1 (
+partition p0 versioning,
+partition p1 versioning,
+partition pn as of now);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `sys_trx_start` ${SYS_TRX_TYPE} GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` ${SYS_TRX_TYPE} GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=${INNODB_OR_MYISAM} DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1
+(PARTITION p0 VERSIONING ENGINE = ${INNODB_OR_MYISAM},
+ PARTITION p1 VERSIONING ENGINE = ${INNODB_OR_MYISAM},
+ PARTITION pn AS OF NOW ENGINE = ${INNODB_OR_MYISAM})
+alter table t1 drop partition non_existent;
+ERROR HY000: Error in list of partitions to DROP
+insert into t1 values (1), (2);
+select * from t1 partition (pn);
+x
+1
+2
+delete from t1;
+Warnings:
+Note	4079	Switching from partition `p0` to `p1`
+select * from t1 partition (p0) for system_time all;
+x
+1
+select * from t1 partition (p1) for system_time all;
+x
+2
+insert into t1 values (3);
+delete from t1;
+Warnings:
+Warning	4077	Using full partition `p1`, need more VERSIONING partitions!
+select * from t1 partition (p1) for system_time all;
+x
+2
+3
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 0 second (
+partition p0 versioning,
+partition p1 versioning,
+partition pn as of now);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'INTERVAL'
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 1 second (
+partition p0 versioning,
+partition p1 versioning,
+partition pn as of now);
+insert into t1 values (1), (2), (3);
+select * from t1 partition (pn);
+x
+1
+2
+3
+delete from t1;
+select * from t1 partition (p0) for system_time all;
+x
+1
+2
+3
+insert into t1 values (4);
+delete from t1;
+Warnings:
+Note	4079	Switching from partition `p0` to `p1`
+select * from t1 partition (p1) for system_time all;
+x
+4
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 1
+subpartition by key (x)
+subpartitions 2 (
+partition p0 versioning,
+partition p1 versioning,
+partition pn as of now);
+insert into t1 (x) values (1), (2), (3);
+select * from t1 partition (pnsp0);
+x
+1
+3
+select * from t1 partition (pnsp1);
+x
+2
+delete from t1;
+Warnings:
+Note	4079	Switching from partition `p0` to `p1`
+Warning	4077	Using full partition `p1`, need more VERSIONING partitions!
+select * from t1 partition (p0sp0) for system_time all;
+x
+1
+select * from t1 partition (p0sp1) for system_time all;
+x
+select * from t1 partition (p1sp0) for system_time all;
+x
+3
+select * from t1 partition (p1sp1) for system_time all;
+x
+2
+drop table t1;
+drop procedure verify_vtq;
+drop procedure innodb_verify_vtq;
+drop function default_engine;
+drop function sys_commit_ts;
+drop function sys_datatype;
+drop procedure concat_exec2;
+drop procedure concat_exec3;

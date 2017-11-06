@@ -39,7 +39,7 @@ SET @@session.tokudb_support_xa = 1.6;
 SET @@session.tokudb_support_xa = "T";
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.tokudb_support_xa = "Y";
-SET @@session.tokudb_support_xa = OF;
+SET @@session.tokudb_support_xa = OFF;
 SELECT @@session.tokudb_support_xa;
 
 # for global

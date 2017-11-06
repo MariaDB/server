@@ -33,9 +33,9 @@
 #include "sql_signal.h"
 
 
-void LEX::parse_error()
+void LEX::parse_error(uint err_number)
 {
-  thd->parse_error();
+  thd->parse_error(err_number);
 }
 
 
@@ -771,6 +771,8 @@ void LEX::start(THD *thd_arg)
   frame_bottom_bound= NULL;
   win_spec= NULL;
 
+  vers_conditions.empty();
+
   is_lex_started= TRUE;
   DBUG_VOID_RETURN;
 }
@@ -1339,6 +1341,8 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       return WITH_CUBE_SYM;
     case ROLLUP_SYM:
       return WITH_ROLLUP_SYM;
+    case SYSTEM:
+      return WITH_SYSTEM_SYM;
     default:
       /*
         Save the token following 'WITH'
@@ -1347,6 +1351,27 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       lip->yylval= NULL;
       lip->lookahead_token= token;
       return WITH;
+    }
+    break;
+  case FOR_SYM:
+    /*
+     * Additional look-ahead to resolve doubtful cases like:
+     * SELECT ... FOR UPDATE
+     * SELECT ... FOR SYSTEM_TIME ... .
+     */
+    token= lex_one_token(yylval, thd);
+    lip->add_digest_token(token, yylval);
+    switch(token) {
+    case SYSTEM_TIME_SYM:
+      return FOR_SYSTEM_TIME_SYM;
+    default:
+      /*
+        Save the token following 'FOR_SYM'
+      */
+      lip->lookahead_yylval= lip->yylval;
+      lip->yylval= NULL;
+      lip->lookahead_token= token;
+      return FOR_SYM;
     }
     break;
   default:
@@ -2185,6 +2210,7 @@ void st_select_lex::init_query()
   join= 0;
   having= prep_having= where= prep_where= 0;
   cond_pushed_into_where= cond_pushed_into_having= 0;
+  saved_where= 0;
   olap= UNSPECIFIED_OLAP_TYPE;
   having_fix_field= 0;
   context.select_lex= this;
@@ -2261,6 +2287,8 @@ void st_select_lex::init_select()
   with_dep= 0;
   join= 0;
   lock_type= TL_READ_DEFAULT;
+  vers_import_outer= false;
+  vers_export_outer.empty();
 }
 
 /*
@@ -2997,8 +3025,7 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  : explain(NULL),
-    result(0), arena_for_set_stmt(0), mem_root_for_set_stmt(0),
+  : explain(NULL), result(0), arena_for_set_stmt(0), mem_root_for_set_stmt(0),
     option_type(OPT_DEFAULT), context_analysis_only(0), sphead(0),
     is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
@@ -7227,6 +7254,19 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
 }
 
 
+Query_tables_backup::Query_tables_backup(THD* _thd) :
+  thd(_thd)
+{
+  thd->lex->reset_n_backup_query_tables_list(&backup);
+}
+
+
+Query_tables_backup::~Query_tables_backup()
+{
+  thd->lex->restore_backup_query_tables_list(&backup);
+}
+
+
 bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
 {
   uint offset;
@@ -7357,3 +7397,25 @@ Item *LEX::make_item_func_replace(THD *thd,
     new (thd->mem_root) Item_func_replace_oracle(thd, org, find, replace) :
     new (thd->mem_root) Item_func_replace(thd, org, find, replace);
 }
+
+
+bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name)
+{
+  Item_field *fld= new (thd->mem_root) Item_field(thd, &context,
+                                      table->db, table->alias, &field_name);
+  if (!fld)
+    return true;
+
+  item_list.push_back(fld);
+
+  if (thd->lex->view_list.elements)
+  {
+    if (LEX_STRING *l= thd->make_lex_string(field_name.str, field_name.length))
+      thd->lex->view_list.push_back(l);
+    else
+      return true;
+  }
+
+  return false;
+}
+
