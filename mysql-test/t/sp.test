@@ -9588,4 +9588,21 @@ drop procedure p;
 drop view v;
 drop table t, tmp_t;
 
+
+--echo #
+--echo # MDEV-13936: Server crashes in Time_and_counter_tracker::incr_loops
+--echo #
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE RAND() > 0.5;
+CREATE FUNCTION f1() RETURNS INT RETURN ( SELECT MAX(i) FROM v1 );
+
+--error ER_NON_INSERTABLE_TABLE
+REPLACE INTO v1 VALUES (f1());
+SET @aux = f1();
+
+# Cleanup
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1;
+
 --echo #End of 10.1 tests

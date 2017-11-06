@@ -8107,4 +8107,16 @@ CALL p();
 drop procedure p;
 drop view v;
 drop table t, tmp_t;
+#
+# MDEV-13936: Server crashes in Time_and_counter_tracker::incr_loops
+#
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE RAND() > 0.5;
+CREATE FUNCTION f1() RETURNS INT RETURN ( SELECT MAX(i) FROM v1 );
+REPLACE INTO v1 VALUES (f1());
+ERROR HY000: The target table v1 of the INSERT is not insertable-into
+SET @aux = f1();
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1;
 #End of 10.1 tests
