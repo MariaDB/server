@@ -730,6 +730,8 @@ buf_page_is_corrupted(
 	ulint			zip_size,
 	const fil_space_t* 	space)
 {
+	DBUG_EXECUTE_IF("buf_page_import_corrupt_failure", return(TRUE); );
+
 	ulint		checksum_field1;
 	ulint		checksum_field2;
 	ulint 		space_id = mach_read_from_4(
@@ -837,8 +839,6 @@ buf_page_is_corrupted(
 
 		return(false);
 	}
-
-	DBUG_EXECUTE_IF("buf_page_is_corrupt_failure", return(true); );
 
 	ulint	page_no = mach_read_from_4(read_buf + FIL_PAGE_OFFSET);
 
@@ -4825,7 +4825,7 @@ database_corrupted:
 		if (err != DB_SUCCESS) {
 			/* Not a real corruption if it was triggered by
 			error injection */
-			DBUG_EXECUTE_IF("buf_page_is_corrupt_failure",
+			DBUG_EXECUTE_IF("buf_page_import_corrupt_failure",
 				if (bpage->space > TRX_SYS_SPACE) {
 					buf_mark_space_corrupt(bpage);
 					ib_logf(IB_LOG_LEVEL_INFO,
@@ -4893,7 +4893,7 @@ database_corrupted:
 			}
 		}
 
-		DBUG_EXECUTE_IF("buf_page_is_corrupt_failure",
+		DBUG_EXECUTE_IF("buf_page_import_corrupt_failure",
 				page_not_corrupt:  bpage = bpage; );
 
 		if (recv_recovery_is_on()) {

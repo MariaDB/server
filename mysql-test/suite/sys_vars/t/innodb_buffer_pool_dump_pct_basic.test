@@ -8,19 +8,15 @@
 SET @orig = @@global.innodb_buffer_pool_dump_pct;
 SELECT @orig;
 
-# Do the dump
-SET GLOBAL innodb_buffer_pool_dump_pct=3, GLOBAL innodb_buffer_pool_dump_now = ON;
+SET GLOBAL innodb_buffer_pool_dump_pct=3;
 
-# Wait for the dump to complete
-let $wait_condition =
-  SELECT SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) dump completed at '
-  FROM information_schema.global_status
-  WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status';
--- source include/wait_condition.inc
+--echo # Do the dump
 
-# Confirm that the dump file has been created
--- let $file = `SELECT CONCAT(@@datadir, @@global.innodb_buffer_pool_filename)`
--- file_exists $file
+--disable_query_log
+--disable_result_log
+--source innodb_buffer_pool_dump_now_basic.test
+--enable_result_log
+--enable_query_log
 
 --disable_warnings
 SET GLOBAL innodb_buffer_pool_dump_pct=0;

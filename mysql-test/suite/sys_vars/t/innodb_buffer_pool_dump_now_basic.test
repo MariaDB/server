@@ -5,8 +5,31 @@
 -- source include/have_innodb.inc
 
 # Check the default value
-SET @orig = @@global.innodb_buffer_pool_dump_now;
-SELECT @orig;
+SELECT @@global.innodb_buffer_pool_dump_now;
+
+-- let $file = `SELECT CONCAT(@@datadir, @@global.innodb_buffer_pool_filename)`
+-- error 0,1
+-- remove_file $file
+
+SELECT variable_value INTO @old_dump_status FROM information_schema.global_status
+    WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status';
+
+# A previous test could have run buffer pool dump already;
+# in this case we want to make sure that the current time is different
+# from the timestamp in the status variable.
+# We should have had a smart wait condition here, like the commented one below,
+# let $wait_condition =
+#  SELECT TRIM(SUBSTR('$old_status', -8)) != DATE_FORMAT(CURTIME(), '%k:%i:%s');
+# -- source include/wait_condition.inc
+
+# ... but we can't because of MDEV-9867, so there will be just sleep instead.
+# And it might be not enough to sleep one second, so we'll have to sleep two.
+
+if (`SELECT variable_value LIKE '%completed at%' FROM information_schema.global_status
+     WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status'`)
+{
+  -- sleep 2
+}
 
 # Do the dump
 SET GLOBAL innodb_buffer_pool_dump_now = ON;
@@ -15,11 +38,11 @@ SELECT @@global.innodb_buffer_pool_dump_now;
 
 # Wait for the dump to complete
 let $wait_condition =
-  SELECT SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) dump completed at '
+  SELECT variable_value != @old_dump_status
+     AND SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) dump completed at '
   FROM information_schema.global_status
   WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status';
 -- source include/wait_condition.inc
 
 # Confirm that the dump file has been created
--- let $file = `SELECT CONCAT(@@datadir, @@global.innodb_buffer_pool_filename)`
 -- file_exists $file
