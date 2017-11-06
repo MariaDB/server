@@ -1928,3 +1928,22 @@ set standard_compliant_cte=default;
 
 DROP TABLE t;
 
+--echo #
+--echo # mdev-14184: recursive CTE embedded into CTE with multiple references 
+--echo #
+
+WITH
+cte1 AS (
+  SELECT n FROM (
+    WITH RECURSIVE rec_cte(n) AS (
+      SELECT 1 as n1
+      UNION ALL
+      SELECT n+1 as n2 FROM rec_cte WHERE n < 3
+    ) SELECT n FROM rec_cte
+  ) AS X
+),
+cte2 as (
+ SELECT 2 FROM cte1
+)
+SELECT *
+FROM cte1;
