@@ -771,3 +771,22 @@ eval $q;
 eval explain extended $q;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-13753: embedded CTE in a VIEW created in prepared statement
+--echo #
+
+SET @sql_query = "
+  CREATE OR REPLACE VIEW cte_test AS
+   WITH  cte1  AS ( SELECT 1 as a from dual )
+    ,    cte2  AS ( SELECT * FROM cte1 )
+    SELECT * FROM cte2;
+";
+PREPARE stmt FROM @sql_query;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SHOW CREATE VIEW cte_test;
+SELECT * FROM cte_test;
+
+DROP VIEW cte_test;

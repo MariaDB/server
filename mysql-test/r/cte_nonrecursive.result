@@ -1128,3 +1128,22 @@ NULL	UNION RESULT	<union1,6>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 Warnings:
 Note	1003	with cte_e as (with cte_o as (with cte_i as (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1 union select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1)select `cte_e1`.`a` AS `a` from `cte_e` `cte_e1` where `cte_e1`.`a` > 1 union select `cte_e2`.`a` AS `a` from `cte_e` `cte_e2`
 drop table t1;
+#
+# MDEV-13753: embedded CTE in a VIEW created in prepared statement
+#
+SET @sql_query = "
+  CREATE OR REPLACE VIEW cte_test AS
+   WITH  cte1  AS ( SELECT 1 as a from dual )
+    ,    cte2  AS ( SELECT * FROM cte1 )
+    SELECT * FROM cte2;
+";
+PREPARE stmt FROM @sql_query;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+SHOW CREATE VIEW cte_test;
+View	Create View	character_set_client	collation_connection
+cte_test	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `cte_test` AS with cte1 as (select 1 AS `a`), cte2 as (select `cte1`.`a` AS `a` from `cte1`)select `cte2`.`a` AS `a` from `cte2`	latin1	latin1_swedish_ci
+SELECT * FROM cte_test;
+a
+1
+DROP VIEW cte_test;
