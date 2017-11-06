@@ -206,11 +206,19 @@ extern Binlog_relay_IO_delegate *binlog_relay_io_delegate;
 #endif /* HAVE_REPLICATION */
 
 /*
-  if there is no observers in the delegate, we can return 0
-  immediately.
+  if semisync replication is not enabled, we can return immediately.
 */
-#define RUN_HOOK(group, hook, args)             \
-  (group ##_delegate->is_empty() ?              \
-   0 : group ##_delegate->hook args)
+#ifdef HAVE_REPLICATION
+/*
+  As semisync is unpluggined and its hooks are turned into static
+  invocations all other hooks are not run for optimization sake.
+  Todo: introduce a server flag to allow the plugins' hooks to run
+  along with "static" semisync ones.
+*/
+#define RUN_HOOK(group, hook, args)   \
+  (unlikely(run_hooks_enabled) ? group ##_delegate->hook args : 0)
+#else
+#define RUN_HOOK(group, hook, args) 0
+#endif /* HAVE_REPLICATION */
 
 #endif /* RPL_HANDLER_H */

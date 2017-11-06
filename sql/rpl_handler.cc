@@ -149,13 +149,17 @@ void delegates_destroy()
 {
   if (transaction_delegate)
     transaction_delegate->~Trans_delegate();
+  transaction_delegate= 0;
   if (binlog_storage_delegate)
     binlog_storage_delegate->~Binlog_storage_delegate();
+  binlog_storage_delegate= 0;
 #ifdef HAVE_REPLICATION
   if (binlog_transmit_delegate)
     binlog_transmit_delegate->~Binlog_transmit_delegate();
+  binlog_transmit_delegate= 0;
   if (binlog_relay_io_delegate)
     binlog_relay_io_delegate->~Binlog_relay_IO_delegate();
+  binlog_relay_io_delegate= 0;
 #endif /* HAVE_REPLICATION */
 }
 
@@ -171,13 +175,11 @@ void delegates_destroy()
   Observer_info *info= iter++;                                          \
   for (; info; info= iter++)                                            \
   {                                                                     \
-    if (do_lock) plugin_lock(thd, plugin_int_to_ref(info->plugin_int)); \
     if (((Observer *)info->observer)->f                                 \
         && ((Observer *)info->observer)->f args)                        \
     {                                                                   \
       r= 1;                                                             \
-      sql_print_error("Run function '" #f "' in plugin '%s' failed",    \
-                      info->plugin_int->name.str);                      \
+      sql_print_error("Run function '" #f "' failed");                  \
       break;                                                            \
     }                                                                   \
   }                                                                     \

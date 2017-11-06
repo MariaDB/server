@@ -24,7 +24,7 @@
 #include "rpl_handler.h"
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_acl.h"
-
+#include "semisync_master.h"
 
 #ifndef EMBEDDED_LIBRARY
 /**
@@ -318,9 +318,19 @@ bool trans_commit(THD *thd)
       transaction, so the hooks for rollback will be called.
     */
   if (res)
+  {
     (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.waitAfterRollback(thd, FALSE);
+#endif
+  }
   else
+  {
     (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.waitAfterCommit(thd, FALSE);
+#endif
+  }
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.reset();
   thd->lex->start_transaction_opt= 0;
@@ -414,6 +424,9 @@ bool trans_rollback(THD *thd)
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_rollback_trans(thd, TRUE);
   (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+#ifdef HAVE_REPLICATION
+  repl_semisync_master.waitAfterRollback(thd, FALSE); // TODO-MDEV-13073: test
+#endif
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   /* Reset the binlog transaction marker */
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
@@ -526,9 +539,19 @@ bool trans_commit_stmt(THD *thd)
       transaction, so the hooks for rollback will be called.
     */
   if (res)
+  {
     (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.waitAfterRollback(thd, FALSE);
+#endif
+  }
   else
+  {
     (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.waitAfterCommit(thd, FALSE);
+#endif
+  }
 
   thd->transaction.stmt.reset();
 
@@ -568,6 +591,9 @@ bool trans_rollback_stmt(THD *thd)
   }
 
   (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+#ifdef HAVE_REPLICATION
+  repl_semisync_master.waitAfterRollback(thd, FALSE);
+#endif
 
   thd->transaction.stmt.reset();
 

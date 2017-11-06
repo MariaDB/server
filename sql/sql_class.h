@@ -2232,7 +2232,8 @@ public:
 
   /* Needed by MariaDB semi sync replication */
   Trans_binlog_info *semisync_info;
-
+  /* If this is a semisync slave connection. */
+  bool semi_sync_slave;
   ulonglong client_capabilities;  /* What the client supports */
   ulong max_client_packet_length;
 

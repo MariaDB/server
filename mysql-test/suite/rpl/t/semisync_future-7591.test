@@ -1,4 +1,3 @@
---source include/have_semisync.inc
 --source include/master-slave.inc
 
 call mtr.add_suppression("Timeout waiting for reply of binlog*");

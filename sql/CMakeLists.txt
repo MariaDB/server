@@ -36,7 +36,7 @@ ELSE()
 ENDIF()
 
 INCLUDE_DIRECTORIES(
-${CMAKE_SOURCE_DIR}/include 
+${CMAKE_SOURCE_DIR}/include
 ${CMAKE_SOURCE_DIR}/sql 
 ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
@@ -135,6 +135,8 @@ SET (SQL_SOURCE
                my_apc.cc mf_iocache_encr.cc item_jsonfunc.cc
                my_json_writer.cc
                rpl_gtid.cc rpl_parallel.cc
+               semisync.cc semisync_master.cc semisync_slave.cc
+               semisync_master_ack_receiver.cc
                sql_type.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc

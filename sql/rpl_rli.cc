@@ -68,7 +68,8 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
   relay_log_state.init();
 #ifdef HAVE_PSI_INTERFACE
   relay_log.set_psi_keys(key_RELAYLOG_LOCK_index,
-                         key_RELAYLOG_update_cond,
+                         key_RELAYLOG_COND_relay_log_updated,
+                         key_RELAYLOG_COND_bin_log_updated,
                          key_file_relaylog,
                          key_file_relaylog_index,
                          key_RELAYLOG_COND_queue_busy);
@@ -536,7 +537,7 @@ read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
     if (my_b_tell(cur_log) >= start_pos)
       break;
 
-    if (!(ev= Log_event::read_log_event(cur_log, 0, fdev,
+    if (!(ev= Log_event::read_log_event(cur_log, fdev,
                                         opt_slave_sql_verify_checksum)))
     {
       DBUG_PRINT("info",("could not read event, cur_log->error=%d",

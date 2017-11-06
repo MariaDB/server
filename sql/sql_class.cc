@@ -4019,7 +4019,8 @@ my_bool thd_net_is_killed()
 
 void thd_increment_bytes_received(void *thd, ulong length)
 {
-  ((THD*) thd)->status_var.bytes_received+= length;
+  if (thd != NULL) // MDEV-13073 Ack collector having NULL
+    ((THD*) thd)->status_var.bytes_received+= length;
 }
 
 
