@@ -4,7 +4,7 @@
 #
 create table t1 (f1 int primary key, f2 int) engine=innodb;
 insert into t1 values (1, 1);
-set debug ='d,test_sys_tablestats';
+set debug_dbug ='d,test_sys_tablestats';
 set debug_sync = 'dict_table_not_protected SIGNAL have_t1 WAIT_FOR del_t1';
 select name from information_schema.innodb_sys_tablestats;
 # Connection con1:
@@ -13,5 +13,5 @@ drop table t1;
 set debug_sync = 'now SIGNAL del_t1';
 # Connection default:
 set debug_sync = reset;
-set debug = reset;
+set debug_dbug = reset;
 set global innodb_background_drop_list_empty = 0;

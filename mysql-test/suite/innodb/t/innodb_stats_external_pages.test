@@ -3,7 +3,7 @@
 #
 
 -- source include/have_innodb.inc
--- source include/have_innodb_max_16k.inc
+--source include/innodb_page_size_small.inc
 
 CREATE TABLE bug18384390 (
 	id INT AUTO_INCREMENT PRIMARY KEY,

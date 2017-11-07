@@ -76,7 +76,7 @@ INSERT INTO t1(b) VALUES('abcdef');
 
 --error 1030,1712,1932
 UPDATE t1 set b = 'deadbeef' where a = 1;
-SET DEBUG = '+d,innodb_page_corruption_retries';
+set debug_dbug = '+d,innodb_page_corruption_retries';
 
 --echo # Write file to make mysql-test-run.pl expect the "crash", but don't
 --echo # start it until it's told to
@@ -98,7 +98,7 @@ SLEEP 1;
 
 --source include/start_mysqld.inc
 
-# Note SET DEBUG = '-d,innodb_page_corruption_retries' is not required
+# Note set debug_dbug = '-d,innodb_page_corruption_retries' is not required
 # because the session information is lost after server restart
 
 --echo # Cleanup, this must be possible

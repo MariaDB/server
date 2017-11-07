@@ -445,7 +445,7 @@ DROP TABLE t1;
 connection con1;
 CREATE TABLE t1 (a SERIAL, c64 VARCHAR(64) UNIQUE) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(0, NULL);
-SET DEBUG='+d,innodb_trx_duplicates';
+SET DEBUG_DBUG='+d,innodb_trx_duplicates';
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL t1_ddl WAIT_FOR t1_dml';
 --send
 ALTER TABLE t1 ENGINE=InnoDB;
@@ -467,7 +467,7 @@ connection default;
 DROP TABLE t1;
 
 SET DEBUG_SYNC = 'RESET';
-SET DEBUG = '';
+set debug_dbug = '';
 SET GLOBAL innodb_monitor_disable = module_ddl;
 DROP TABLE t1;
 

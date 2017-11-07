@@ -8,7 +8,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
-  `f2` blob,
+  `f2` blob DEFAULT NULL,
   PRIMARY KEY (`f1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 show create table t2;
@@ -33,19 +33,23 @@ select f1, f2 from t2;
 f1	f2
 1	2
 # Connection con1:
+connect con1,localhost,root,,test;
 start transaction;
 select f1, f2 from t2 for update;
 f1	f2
 1	2
 # Connection default:
+connection default;
 set debug_sync='lock_wait_suspend_thread_enter SIGNAL upd_waiting WAIT_FOR go_upd';
 # send: update t1 set f1 = 10 where f1 = 2;
 update t1 set f1 = 10 where f1 = 2;
 # Connection con1:
+connection con1;
 set debug_sync='now WAIT_FOR upd_waiting';
 rollback;
 set debug_sync='now SIGNAL go_upd';
 # Connection default:
+connection default;
 # reap: update t1 set f1 = 10 where f1 = 2;
 select f1, right(f2, 20) as p2 from t1;
 f1	p2
@@ -93,19 +97,23 @@ select f1, f2 from t2;
 f1	f2
 1	91
 # Connection con1:
+connection con1;
 start transaction;
 select f1, f2 from t2 for update;
 f1	f2
 1	91
 # Connection default:
+connection default;
 set debug_sync='lock_wait_suspend_thread_enter SIGNAL upd_waiting WAIT_FOR go_upd';
 # send: update t1 set f1 = 10 where f1 = 2;
 update t1 set f2 = 28 where f2 = 91;
 # Connection con1:
+connection con1;
 set debug_sync='now WAIT_FOR upd_waiting';
 rollback;
 set debug_sync='now SIGNAL go_upd';
 # Connection default:
+connection default;
 # reap: update t1 set f1 = 10 where f1 = 2;
 select f1, f2 from t1;
 f1	f2
@@ -129,14 +137,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
-  `f2` blob,
+  `f2` blob DEFAULT NULL,
   PRIMARY KEY (`f1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `f1` int(11) NOT NULL,
-  `f2` blob,
+  `f2` blob DEFAULT NULL,
   PRIMARY KEY (`f1`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f1`) REFERENCES `t1` (`f1`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -144,7 +152,7 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `f1` int(11) NOT NULL,
-  `f2` blob,
+  `f2` blob DEFAULT NULL,
   PRIMARY KEY (`f1`),
   CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`f1`) REFERENCES `t2` (`f1`) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -161,15 +169,18 @@ select f1, right(f2, 20) as p2 from t3;
 f1	p2
 2	++++++++++++++++++++
 # Connection con1:
+connection con1;
 start transaction;
 select f1 from t3 for update;
 f1
 2
 # Connection default:
+connection default;
 set debug_sync='lock_wait_suspend_thread_enter SIGNAL upd_waiting WAIT_FOR go_upd';
 # send: update t1 set f1 = 10 where f1 = 2;
 update t1 set f1 = 10 where f1 = 2;
 # Connection con1:
+connection con1;
 set debug_sync='now WAIT_FOR upd_waiting';
 rollback;
 # The table t1 is updated.
@@ -188,6 +199,7 @@ f1	p2
 commit;
 set debug_sync='now SIGNAL go_upd';
 # Connection default:
+connection default;
 # reap: update t1 set f1 = 10 where f1 = 2;
 start transaction;
 select f1, right(f2, 20) as p2 from t1;
@@ -252,15 +264,18 @@ select f1, f2 from t3;
 f1	f2
 2	91
 # Connection con1:
+connection con1;
 start transaction;
 select f1 from t3 for update;
 f1
 2
 # Connection default:
+connection default;
 set debug_sync='lock_wait_suspend_thread_enter SIGNAL upd_waiting WAIT_FOR go_upd';
 # send: update t1 set f2 = 28 where f2 = 91;
 update t1 set f2 = 28 where f2 = 91;
 # Connection con1:
+connection con1;
 set debug_sync='now WAIT_FOR upd_waiting';
 rollback;
 # The table t1 is updated.
@@ -279,6 +294,8 @@ f1	f2
 commit;
 set debug_sync='now SIGNAL go_upd';
 # Connection default:
+connection default;
+disconnect con1;
 # reap: update t1 set f2 = 28 where f2 = 91;
 start transaction;
 select f1, f2 from t1;

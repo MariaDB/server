@@ -13,7 +13,7 @@
 create table t1 (f1 int primary key, f2 int) engine=innodb;
 insert into t1 values (1, 1);
 
-set debug ='d,test_sys_tablestats';
+set debug_dbug ='d,test_sys_tablestats';
 --disable_result_log
 set debug_sync = 'dict_table_not_protected SIGNAL have_t1 WAIT_FOR del_t1';
 --send
@@ -33,7 +33,7 @@ connection default;
 disconnect con1;
 
 set debug_sync = reset;
-set debug = reset;
+set debug_dbug = reset;
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc

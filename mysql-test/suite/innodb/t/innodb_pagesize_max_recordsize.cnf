@@ -2,4 +2,4 @@
 !include include/default_my.cnf
 
 [mysqld.1]
-plugin-dir=@env.MYSQLXPLUGIN_DIR
+plugin-dir=@mysqld.1.plugin-dir
