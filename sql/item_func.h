@@ -2367,6 +2367,13 @@ public:
     return sp_result_field->val_decimal(dec_buf);
   }
 
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    if (execute())
+      return true;
+    return sp_result_field->get_date(ltime, fuzzydate);
+  }
+
   String *val_str(String *str)
   {
     String buf;
