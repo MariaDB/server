@@ -439,3 +439,22 @@ SELECT SUM(a) FROM t1 GROUP BY c, b, a;
 DROP TABLE t1;
 
 --echo End of 5.1 tests
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8867 Wrong field type or metadata for COALESCE(bit_column, 1)
+--echo #
+
+CREATE TABLE t1 (val bit(1));
+INSERT INTO t1 VALUES (0);
+CREATE TABLE t2 AS SELECT COALESCE(val, 1) AS c FROM t1;
+SELECT  * FROM t2;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+--enable_metadata
+SELECT COALESCE(val, 1) FROM t1;
+--disable_metadata
+DROP TABLE t1;

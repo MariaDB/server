@@ -806,3 +806,27 @@ SUM(a)
 NULL
 DROP TABLE t1;
 End of 5.1 tests
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8867 Wrong field type or metadata for COALESCE(bit_column, 1)
+#
+CREATE TABLE t1 (val bit(1));
+INSERT INTO t1 VALUES (0);
+CREATE TABLE t2 AS SELECT COALESCE(val, 1) AS c FROM t1;
+SELECT  * FROM t2;
+c
+0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SELECT COALESCE(val, 1) FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(val, 1)	246	2	1	Y	32896	0	63
+COALESCE(val, 1)
+0
+DROP TABLE t1;
