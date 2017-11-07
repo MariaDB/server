@@ -965,8 +965,9 @@ static int install_used_engines(void)
 {
   char buf[512];
   DYNAMIC_STRING ds_result;
-  const char *query = "SELECT DISTINCT LOWER(engine) FROM information_schema.tables"
-                      " WHERE table_comment LIKE 'Unknown storage engine%'";
+  const char *query = "SELECT DISTINCT LOWER(engine) AS c1 FROM information_schema.tables"
+                      " WHERE table_comment LIKE 'Unknown storage engine%'"
+                      " ORDER BY c1";
 
   if (opt_systables_only || !from_before_10_1())
   {
