@@ -1,0 +1,5 @@
+--innodb-undo-tablespaces=2 
+--innodb-max-undo-log-size=10M 
+--innodb-purge-rseg-truncate-frequency=1
+--innodb-undo-log-truncate=1 
+--innodb-rollback-segments=35

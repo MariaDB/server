@@ -1,4 +1,4 @@
---source include/have_innodb_max_16k.inc
+--source include/innodb_page_size_small.inc
 --source include/not_valgrind.inc
 --source include/not_embedded.inc
 --source include/big_test.inc
@@ -33,7 +33,7 @@ let NEW_CMD = $MYSQLD --no-defaults --initialize-insecure $KEYRING_PLUGIN_OPT --
 
 --echo # Start the DB server with 2 undo tablespaces
 --replace_result $MYSQLD_DATADIR1 MYSQLD_DATADIR1 $page_size page_size
---let $restart_parameters="restart: --datadir=$MYSQLD_DATADIR1 --innodb_undo_tablespaces=2"
+--let $restart_parameters="--datadir=$MYSQLD_DATADIR1 --innodb_undo_tablespaces=2"
 --source include/start_mysqld.inc
 
 CREATE TABLE t1
@@ -79,7 +79,7 @@ EOF
 SET GLOBAL innodb_fast_shutdown=0;
 
 --replace_result $page_size page_size
---let $restart_parameters="restart: --innodb-page-size=$page_size"
+--let $restart_parameters="--innodb-page-size=$page_size"
 --source include/restart_mysqld.inc
 
 --source $CHECKFILE

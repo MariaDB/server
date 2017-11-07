@@ -10,4 +10,5 @@
 #
 ################################################################################
 
+--source include/innodb_page_size_small.inc
 --source suite/innodb_undo/include/undo_trunc_multi_client.inc
