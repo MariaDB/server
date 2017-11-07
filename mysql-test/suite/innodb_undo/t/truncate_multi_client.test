@@ -6,7 +6,7 @@
 # This test is restarting the server.
 --source include/not_embedded.inc
 # With larger innodb_page_size, the undo log tablespaces do not grow enough.
---source include/have_innodb_max_16k.inc
+--source include/innodb_page_size_small.inc
 --source include/have_undo_tablespaces.inc
 
 SET GLOBAL innodb_fast_shutdown=0;

@@ -5,7 +5,7 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 # With larger innodb_page_size, the undo log tablespaces do not grow enough.
---source include/have_innodb_max_16k.inc
+--source include/innodb_page_size_small.inc
 --source include/have_undo_tablespaces.inc
 
 # Valgrind would complain about memory leaks when we crash on purpose.
