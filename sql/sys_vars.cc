@@ -4872,6 +4872,14 @@ static Sys_var_ulonglong Sys_read_binlog_speed_limit(
        GLOBAL_VAR(opt_read_binlog_speed_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
+static Sys_var_charptr Sys_slave_transaction_retry_errors(
+       "slave_transaction_retry_errors", "Tells the slave thread to retry "
+       "transaction for replication when a query event returns an error from "
+       "the provided list. Deadlock and elapsed lock wait timeout errors are "
+       "automatically added to this list",
+       READ_ONLY GLOBAL_VAR(opt_slave_transaction_retry_errors), CMD_LINE(REQUIRED_ARG),
+       IN_SYSTEM_CHARSET, DEFAULT(0));
+
 static Sys_var_ulonglong Sys_relay_log_space_limit(
        "relay_log_space_limit", "Maximum space to use for all relay logs",
        READ_ONLY GLOBAL_VAR(relay_log_space_limit), CMD_LINE(REQUIRED_ARG),
@@ -4906,10 +4914,19 @@ static Sys_var_uint Sys_sync_masterinfo_period(
 #ifdef HAVE_REPLICATION
 static Sys_var_ulong Sys_slave_trans_retries(
        "slave_transaction_retries", "Number of times the slave SQL "
-       "thread will retry a transaction in case it failed with a deadlock "
-       "or elapsed lock wait timeout, before giving up and stopping",
+       "thread will retry a transaction in case it failed with a deadlock, "
+       "elapsed lock wait timeout or listed in "
+       "slave_transaction_retry_errors, before giving up and stopping",
        GLOBAL_VAR(slave_trans_retries), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(10), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_slave_trans_retry_interval(
+       "slave_transaction_retry_interval", "Interval of the slave SQL "
+       "thread will retry a transaction in case it failed with a deadlock "
+       "or elapsed lock wait timeout or listed in "
+       "slave_transaction_retry_errors",
+       GLOBAL_VAR(slave_trans_retry_interval), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 3600), DEFAULT(0), BLOCK_SIZE(1));
 #endif
 
 static bool check_locale(sys_var *self, THD *thd, set_var *var)
