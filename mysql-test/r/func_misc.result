@@ -1407,3 +1407,17 @@ SELECT CONCAT(NAME_CONST('name',15),'오');
 CONCAT(NAME_CONST('name',15),'오')
 15오
 SET NAMES latin1;
+#
+# MDEV-14116 INET6_NTOA output is set as null to varchar(39) variable
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE ip_full_addr varchar(39) DEFAULT "";
+SELECT INET6_NTOA(UNHEX('20000000000000000000000000000000')) into ip_full_addr;
+SELECT ip_full_addr;
+END;
+$$
+CALL p1();
+ip_full_addr
+2000::
+DROP PROCEDURE p1;
