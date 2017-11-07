@@ -208,6 +208,7 @@ extern my_bool slave_allow_batching;
 extern my_bool allow_slave_start;
 extern LEX_CSTRING reason_slave_blocked;
 extern ulong slave_trans_retries;
+extern ulong slave_trans_retry_interval;
 extern uint  slave_net_timeout;
 extern int max_user_connections;
 extern volatile ulong cached_thread_count;

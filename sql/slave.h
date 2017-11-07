@@ -132,6 +132,9 @@ extern ulong master_retry_count;
 extern MY_BITMAP slave_error_mask;
 extern char slave_skip_error_names[];
 extern bool use_slave_mask;
+extern char slave_transaction_retry_error_names[];
+extern uint *slave_transaction_retry_errors;
+extern uint slave_transaction_retry_error_length;
 extern char *slave_load_tmpdir;
 extern char *master_info_file;
 extern MYSQL_PLUGIN_IMPORT char *relay_log_info_file;
@@ -139,6 +142,7 @@ extern char *opt_relay_logname, *opt_relaylog_index_name;
 extern my_bool opt_skip_slave_start, opt_reckless_slave;
 extern my_bool opt_log_slave_updates;
 extern char *opt_slave_skip_errors;
+extern char *opt_slave_transaction_retry_errors;
 extern my_bool opt_replicate_annotate_row_events;
 extern ulonglong relay_log_space_limit;
 extern ulonglong opt_read_binlog_speed_limit;
@@ -184,7 +188,8 @@ extern const char *relay_log_basename;
 
 int init_slave();
 int init_recovery(Master_info* mi, const char** errmsg);
-void init_slave_skip_errors(const char* arg);
+bool init_slave_skip_errors(const char* arg);
+bool init_slave_transaction_retry_errors(const char* arg);
 int register_slave_on_master(MYSQL* mysql);
 int terminate_slave_threads(Master_info* mi, int thread_mask,
 			     bool skip_lock = 0);

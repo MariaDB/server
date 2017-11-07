@@ -72,6 +72,9 @@
 bool use_slave_mask = 0;
 MY_BITMAP slave_error_mask;
 char slave_skip_error_names[SHOW_VAR_FUNC_BUFF_SIZE];
+uint *slave_transaction_retry_errors;
+uint slave_transaction_retry_error_length= 0;
+char slave_transaction_retry_error_names[SHOW_VAR_FUNC_BUFF_SIZE];
 
 char* slave_load_tmpdir = 0;
 Master_info *active_mi= 0;
@@ -156,7 +159,8 @@ static bool wait_for_relay_log_space(Relay_log_info* rli);
 static bool io_slave_killed(Master_info* mi);
 static bool sql_slave_killed(rpl_group_info *rgi);
 static int init_slave_thread(THD*, Master_info *, SLAVE_THD_TYPE);
-static void print_slave_skip_errors(void);
+static void make_slave_skip_errors_printable(void);
+static void make_slave_transaction_retry_errors_printable(void);
 static int safe_connect(THD* thd, MYSQL* mysql, Master_info* mi);
 static int safe_reconnect(THD*, MYSQL*, Master_info*, bool);
 static int connect_to_master(THD*, MYSQL*, Master_info*, bool, bool);
@@ -635,7 +639,6 @@ start_slave_background_thread()
     sql_print_error("Failed to create thread while initialising slave");
     return 1;
   }
-
   mysql_mutex_lock(&LOCK_slave_background);
   while (!slave_background_thread_gtid_loaded)
     mysql_cond_wait(&COND_slave_background, &LOCK_slave_background);
@@ -704,15 +707,6 @@ int init_slave()
     delete active_mi;
     active_mi= 0;
     goto err;
-  }
-
-  /*
-    If --slave-skip-errors=... was not used, the string value for the
-    system variable has not been set up yet. Do it now.
-  */
-  if (!use_slave_mask)
-  {
-    print_slave_skip_errors();
   }
 
   /*
@@ -812,12 +806,12 @@ int init_recovery(Master_info* mi, const char** errmsg)
   DBUG_RETURN(0);
 }
 
- 
+
 /**
   Convert slave skip errors bitmap into a printable string.
 */
 
-static void print_slave_skip_errors(void)
+static void make_slave_skip_errors_printable(void)
 {
   /*
     To be safe, we want 10 characters of room in the buffer for a number
@@ -826,7 +820,7 @@ static void print_slave_skip_errors(void)
     plus a NUL terminator. That is a max 6 digit number.
   */
   const size_t MIN_ROOM= 10;
-  DBUG_ENTER("print_slave_skip_errors");
+  DBUG_ENTER("make_slave_skip_errors_printable");
   DBUG_ASSERT(sizeof(slave_skip_error_names) > MIN_ROOM);
   DBUG_ASSERT(MAX_SLAVE_ERROR <= 999999); // 6 digits
 
@@ -848,14 +842,14 @@ static void print_slave_skip_errors(void)
   else
   {
     char *buff= slave_skip_error_names;
-    char *bend= buff + sizeof(slave_skip_error_names);
+    char *bend= buff + sizeof(slave_skip_error_names) - MIN_ROOM;
     int  errnum;
 
     for (errnum= 0; errnum < MAX_SLAVE_ERROR; errnum++)
     {
       if (bitmap_is_set(&slave_error_mask, errnum))
       {
-        if (buff + MIN_ROOM >= bend)
+        if (buff >= bend)
           break; /* purecov: tested */
         buff= int10_to_str(errnum, buff, 10);
         *buff++= ',';
@@ -885,24 +879,24 @@ static void print_slave_skip_errors(void)
     Called from get_options() in mysqld.cc on start-up
 */
 
-void init_slave_skip_errors(const char* arg)
+bool init_slave_skip_errors(const char* arg)
 {
   const char *p;
   DBUG_ENTER("init_slave_skip_errors");
 
+  if (!arg || !*arg)                            // No errors defined
+    goto end;
+
   if (my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR,0))
-  {
-    fprintf(stderr, "Badly out of memory, please check your system status\n");
-    exit(1);
-  }
-  use_slave_mask = 1;
+    DBUG_RETURN(1);
+
+  use_slave_mask= 1;
   for (;my_isspace(system_charset_info,*arg);++arg)
     /* empty */;
   if (!my_strnncoll(system_charset_info,(uchar*)arg,4,(const uchar*)"all",4))
   {
     bitmap_set_all(&slave_error_mask);
-    print_slave_skip_errors();
-    DBUG_VOID_RETURN;
+    goto end;
   }
   for (p= arg ; *p; )
   {
@@ -914,10 +908,108 @@ void init_slave_skip_errors(const char* arg)
     while (!my_isdigit(system_charset_info,*p) && *p)
       p++;
   }
-  /* Convert slave skip errors bitmap into a printable string. */
-  print_slave_skip_errors();
+
+end:
+  make_slave_skip_errors_printable();
+  DBUG_RETURN(0);
+}
+
+/**
+  Make printable version if slave_transaction_retry_errors
+  This is never empty as at least ER_LOCK_DEADLOCK and ER_LOCK_WAIT_TIMEOUT
+  will be there
+*/
+
+static void make_slave_transaction_retry_errors_printable(void)
+{
+  /*
+    To be safe, we want 10 characters of room in the buffer for a number
+    plus terminators. Also, we need some space for constant strings.
+    10 characters must be sufficient for a number plus {',' | '...'}
+    plus a NUL terminator. That is a max 6 digit number.
+  */
+  const size_t MIN_ROOM= 10;
+  char *buff= slave_transaction_retry_error_names;
+  char *bend= buff + sizeof(slave_transaction_retry_error_names) - MIN_ROOM;
+  uint  i;
+  DBUG_ENTER("make_slave_transaction_retry_errors_printable");
+  DBUG_ASSERT(sizeof(slave_transaction_retry_error_names) > MIN_ROOM);
+
+  /* Make @@slave_transaction_retry_errors show a human-readable value */
+  opt_slave_transaction_retry_errors= slave_transaction_retry_error_names;
+
+  for (i= 0; i < slave_transaction_retry_error_length && buff < bend; i++)
+  {
+    buff= int10_to_str(slave_transaction_retry_errors[i], buff, 10);
+    *buff++= ',';
+  }
+  if (buff != slave_transaction_retry_error_names)
+    buff--; // Remove last ','
+  if (i < slave_transaction_retry_error_length)
+  {
+    /* Couldn't show all errors */
+    buff= strmov(buff, "..."); /* purecov: tested */
+  }
+  *buff=0;
+  DBUG_PRINT("exit", ("error_names: '%s'",
+                      slave_transaction_retry_error_names));
   DBUG_VOID_RETURN;
 }
+
+
+bool init_slave_transaction_retry_errors(const char* arg)
+{
+  const char *p;
+  long err_code;
+  uint i;
+  DBUG_ENTER("init_slave_transaction_retry_errors");
+
+  /* Handle empty strings */
+  if (!arg)
+    arg= "";
+
+  slave_transaction_retry_error_length= 2;
+  for (;my_isspace(system_charset_info,*arg);++arg)
+    /* empty */;
+  for (p= arg; *p; )
+  {
+    if (!(p= str2int(p, 10, 0, LONG_MAX, &err_code)))
+      break;
+    slave_transaction_retry_error_length++;
+    while (!my_isdigit(system_charset_info,*p) && *p)
+      p++;
+  }
+
+  if (!(slave_transaction_retry_errors=
+        (uint *) my_once_alloc(sizeof(int) *
+                               slave_transaction_retry_error_length,
+                               MYF(MY_WME))))
+    DBUG_RETURN(1);
+
+  /*
+    Temporary error codes:
+    currently, InnoDB deadlock detected by InnoDB or lock
+    wait timeout (innodb_lock_wait_timeout exceeded
+  */
+  slave_transaction_retry_errors[0]= ER_LOCK_DEADLOCK;
+  slave_transaction_retry_errors[1]= ER_LOCK_WAIT_TIMEOUT;
+
+  /* Add user codes after this */
+  for (p= arg, i= 2; *p; )
+  {
+    if (!(p= str2int(p, 10, 0, LONG_MAX, &err_code)))
+      break;
+    if (err_code > 0 && err_code < ER_ERROR_LAST)
+      slave_transaction_retry_errors[i++]= (uint) err_code;
+    while (!my_isdigit(system_charset_info,*p) && *p)
+      p++;
+  }
+  slave_transaction_retry_error_length= i;
+
+  make_slave_transaction_retry_errors_printable();
+  DBUG_RETURN(0);
+}
+
 
 int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
 {
@@ -987,7 +1079,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
 
     mysql_mutex_unlock(log_lock);
   }
-  DBUG_RETURN(retval); 
+  DBUG_RETURN(retval);
 }
 
 
@@ -3598,14 +3690,20 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings,
   DBUG_RETURN(len - 1);
 }
 
-/*
+
+/**
   Check if the current error is of temporary nature of not.
   Some errors are temporary in nature, such as
   ER_LOCK_DEADLOCK and ER_LOCK_WAIT_TIMEOUT.
+
+  @retval 0 if fatal error
+  @retval 1 temporary error, do retry
 */
+
 int
 has_temporary_error(THD *thd)
 {
+  uint current_errno;
   DBUG_ENTER("has_temporary_error");
 
   DBUG_EXECUTE_IF("all_errors_are_temporary_errors",
@@ -3623,14 +3721,12 @@ has_temporary_error(THD *thd)
   if (!thd->is_error())
     DBUG_RETURN(0);
 
-  /*
-    Temporary error codes:
-    currently, InnoDB deadlock detected by InnoDB or lock
-    wait timeout (innodb_lock_wait_timeout exceeded
-  */
-  if (thd->get_stmt_da()->sql_errno() == ER_LOCK_DEADLOCK ||
-      thd->get_stmt_da()->sql_errno() == ER_LOCK_WAIT_TIMEOUT)
-    DBUG_RETURN(1);
+  current_errno= thd->get_stmt_da()->sql_errno();
+  for (uint i= 0; i < slave_transaction_retry_error_length; i++)
+  {
+    if (current_errno == slave_transaction_retry_errors[i])
+      DBUG_RETURN(1);
+  }
 
   DBUG_RETURN(0);
 }
@@ -4281,8 +4377,9 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
             exec_res= 0;
             serial_rgi->cleanup_context(thd, 1);
             /* chance for concurrent connection to get more locks */
-            slave_sleep(thd, MY_MIN(serial_rgi->trans_retries,
+            slave_sleep(thd, MY_MAX(MY_MIN(serial_rgi->trans_retries,
                                     MAX_SLAVE_RETRY_PAUSE),
+                                    slave_trans_retry_interval),
                        sql_slave_killed, serial_rgi);
             serial_rgi->trans_retries++;
             mysql_mutex_lock(&rli->data_lock); // because of SHOW STATUS
@@ -4367,7 +4464,7 @@ static bool check_io_slave_killed(Master_info *mi, const char *info)
   @param[in]     mysql               MySQL connection.
   @param[in]     mi                  Master connection information.
   @param[in,out] retry_count         Number of attempts to reconnect.
-  @param[in]     suppress_warnings   TRUE when a normal net read timeout 
+  @param[in]     suppress_warnings   TRUE when a normal net read timeout
                                      has caused to reconnecting.
   @param[in]     messages            Messages to print/log, see 
                                      reconnect_messages[] array.

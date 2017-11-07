@@ -444,6 +444,7 @@ my_bool opt_replicate_annotate_row_events= 0;
 my_bool opt_mysql56_temporal_format=0, strict_password_validation= 1;
 my_bool opt_explicit_defaults_for_timestamp= 0;
 char *opt_slave_skip_errors;
+char *opt_slave_transaction_retry_errors;
 
 /*
   Legacy global handlerton. These will be removed (please do not add more).
@@ -499,6 +500,7 @@ ulong what_to_log;
 ulong slow_launch_time;
 ulong open_files_limit, max_binlog_size;
 ulong slave_trans_retries;
+ulong slave_trans_retry_interval;
 uint  slave_net_timeout;
 ulong slave_exec_mode_options;
 ulong slave_run_triggers_for_rbr= 0;
@@ -9638,8 +9640,10 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     flush_time= 0;
 
 #ifdef HAVE_REPLICATION
-  if (opt_slave_skip_errors)
-    init_slave_skip_errors(opt_slave_skip_errors);
+  if (init_slave_skip_errors(opt_slave_skip_errors))
+    return 1;
+  if (init_slave_transaction_retry_errors(opt_slave_transaction_retry_errors))
+    return 1;
 #endif
 
   if (global_system_variables.max_join_size == HA_POS_ERROR)
