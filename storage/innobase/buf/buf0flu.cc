@@ -3830,8 +3830,7 @@ FlushObserver::flush()
 	that will be freed by the clean-up of the ALTER operation.
 	(Maybe, instead of buf_pool->flush_list, use a dedicated list
 	for pages on which redo logging has been disabled.) */
-	buf_LRU_flush_or_remove_pages(
-		m_space_id, BUF_REMOVE_FLUSH_WRITE, m_trx);
+	buf_LRU_flush_or_remove_pages(m_space_id, m_trx);
 
 	/* Wait for all dirty pages were flushed. */
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {

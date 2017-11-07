@@ -2503,10 +2503,7 @@ err_exit:
 		/* We already have .ibd file here. it should be deleted. */
 
 		if (dict_table_is_file_per_table(table)
-		    && fil_delete_tablespace(
-			    table->space,
-			    BUF_REMOVE_FLUSH_NO_WRITE)
-		    != DB_SUCCESS) {
+		    && fil_delete_tablespace(table->space) != DB_SUCCESS) {
 
 			ib::error() << "Not able to delete tablespace "
 				<< table->space << " of table "
@@ -3173,9 +3170,6 @@ row_discard_tablespace(
 	4) FOREIGN KEY operations: if table->n_foreign_key_checks_running > 0,
 	we do not allow the discard. */
 
-	/* Play safe and remove all insert buffer entries, though we should
-	have removed them already when DISCARD TABLESPACE was called */
-
 	ibuf_delete_for_discarded_space(table->space);
 
 	table_id_t	new_id;
@@ -3540,8 +3534,7 @@ row_drop_single_table_tablespace(
 
 		ib::info() << "Removed datafile " << filepath
 			<< " for table " << tablename;
-	} else if (fil_delete_tablespace(space_id, BUF_REMOVE_FLUSH_NO_WRITE)
-		   != DB_SUCCESS) {
+	} else if (fil_delete_tablespace(space_id) != DB_SUCCESS) {
 
 		ib::error() << "We removed the InnoDB internal data"
 			" dictionary entry of table " << tablename

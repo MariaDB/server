@@ -5072,10 +5072,15 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
     {
       char engine_buf[NAME_CHAR_LEN + 1];
       LEX_STRING engine= { engine_buf, 0 };
+      frm_type_enum type;
 
-      if (dd_frm_type(thd, path, &engine) != FRMTYPE_VIEW)
+      if ((type= dd_frm_type(thd, path, &engine)) == FRMTYPE_ERROR)
+        DBUG_RETURN(0);
+
+      if (type != FRMTYPE_VIEW)
       {
-        plugin_ref p=  plugin_lock_by_name(thd, &engine,  MYSQL_STORAGE_ENGINE_PLUGIN);
+        plugin_ref p= plugin_lock_by_name(thd, &engine,
+                                          MYSQL_STORAGE_ENGINE_PLUGIN);
         *hton= p ? plugin_hton(p) : NULL;
         if (*hton)
           // verify that the table really exists

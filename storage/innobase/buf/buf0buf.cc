@@ -4168,7 +4168,8 @@ buf_page_get_gen(
 	ulint		retries = 0;
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
 
-	ut_ad(mtr->is_active());
+	ut_ad((mtr == NULL) == (mode == BUF_EVICT_IF_IN_POOL));
+	ut_ad(!mtr || mtr->is_active());
 	ut_ad((rw_latch == RW_S_LATCH)
 	      || (rw_latch == RW_X_LATCH)
 	      || (rw_latch == RW_SX_LATCH)
@@ -4180,29 +4181,31 @@ buf_page_get_gen(
 
 #ifdef UNIV_DEBUG
 	switch (mode) {
+	case BUF_EVICT_IF_IN_POOL:
+		/* After DISCARD TABLESPACE, the tablespace would not exist,
+		but in IMPORT TABLESPACE, PageConverter::operator() must
+		replace any old pages, which were not evicted during DISCARD.
+		Skip the assertion on space_page_size. */
+		break;
+	default:
+		ut_error;
 	case BUF_GET_NO_LATCH:
 		ut_ad(rw_latch == RW_NO_LATCH);
-		break;
+		/* fall through */
 	case BUF_GET:
 	case BUF_GET_IF_IN_POOL:
 	case BUF_PEEK_IF_IN_POOL:
 	case BUF_GET_IF_IN_POOL_OR_WATCH:
 	case BUF_GET_POSSIBLY_FREED:
-		break;
-	default:
-		ut_error;
+		bool			found;
+		const page_size_t&	space_page_size
+			= fil_space_get_page_size(page_id.space(), &found);
+		ut_ad(found);
+		ut_ad(page_size.equals_to(space_page_size));
 	}
-
-	bool			found;
-	const page_size_t&	space_page_size
-		= fil_space_get_page_size(page_id.space(), &found);
-
-	ut_ad(found);
-
-	ut_ad(page_size.equals_to(space_page_size));
 #endif /* UNIV_DEBUG */
 
-	ut_ad(!ibuf_inside(mtr)
+	ut_ad(!mtr || !ibuf_inside(mtr)
 	      || ibuf_page_low(page_id, page_size, FALSE, file, line, NULL));
 
 	buf_pool->stat.n_page_gets++;
@@ -4263,7 +4266,24 @@ loop:
 				sure that no state change takes place. */
 				fix_block = block;
 
-				buf_block_fix(fix_block);
+				if (fsp_is_system_temporary(page_id.space())) {
+					/* For temporary tablespace,
+					the mutex is being used for
+					synchronization between user
+					thread and flush thread,
+					instead of block->lock. See
+					buf_flush_page() for the flush
+					thread counterpart. */
+
+					BPageMutex*	fix_mutex
+						= buf_page_get_mutex(
+							&fix_block->page);
+					mutex_enter(fix_mutex);
+					buf_block_fix(fix_block);
+					mutex_exit(fix_mutex);
+				} else {
+					buf_block_fix(fix_block);
+				}
 
 				/* Now safe to release page_hash mutex */
 				rw_lock_x_unlock(hash_lock);
@@ -4273,13 +4293,15 @@ loop:
 			rw_lock_x_unlock(hash_lock);
 		}
 
-		if (mode == BUF_GET_IF_IN_POOL
-		    || mode == BUF_PEEK_IF_IN_POOL
-		    || mode == BUF_GET_IF_IN_POOL_OR_WATCH) {
-
+		switch (mode) {
+		case BUF_GET_IF_IN_POOL:
+		case BUF_GET_IF_IN_POOL_OR_WATCH:
+		case BUF_PEEK_IF_IN_POOL:
+		case BUF_EVICT_IF_IN_POOL:
+#ifdef UNIV_SYNC_DEBUG
 			ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
 			ut_ad(!rw_lock_own(hash_lock, RW_LOCK_S));
-
+#endif /* UNIV_SYNC_DEBUG */
 			return(NULL);
 		}
 
@@ -4354,15 +4376,29 @@ loop:
 		fix_block = block;
 	}
 
-	buf_block_fix(fix_block);
+	if (fsp_is_system_temporary(page_id.space())) {
+		/* For temporary tablespace, the mutex is being used
+		for synchronization between user thread and flush
+		thread, instead of block->lock. See buf_flush_page()
+		for the flush thread counterpart. */
+		BPageMutex*	fix_mutex = buf_page_get_mutex(
+			&fix_block->page);
+		mutex_enter(fix_mutex);
+		buf_block_fix(fix_block);
+		mutex_exit(fix_mutex);
+	} else {
+		buf_block_fix(fix_block);
+	}
 
 	/* Now safe to release page_hash mutex */
 	rw_lock_s_unlock(hash_lock);
 
 got_block:
 
-	if (mode == BUF_GET_IF_IN_POOL || mode == BUF_PEEK_IF_IN_POOL) {
-
+	switch (mode) {
+	case BUF_GET_IF_IN_POOL:
+	case BUF_PEEK_IF_IN_POOL:
+	case BUF_EVICT_IF_IN_POOL:
 		buf_page_t*	fix_page = &fix_block->page;
 		BPageMutex*	fix_mutex = buf_page_get_mutex(fix_page);
 		mutex_enter(fix_mutex);
@@ -4394,6 +4430,20 @@ got_block:
 			os_thread_sleep(WAIT_FOR_WRITE);
 			goto loop;
 		}
+
+		if (UNIV_UNLIKELY(mode == BUF_EVICT_IF_IN_POOL)) {
+evict_from_pool:
+			ut_ad(!fix_block->page.oldest_modification);
+			buf_pool_mutex_enter(buf_pool);
+			buf_block_unfix(fix_block);
+
+			if (!buf_LRU_free_page(&fix_block->page, true)) {
+				ut_ad(0);
+			}
+
+			buf_pool_mutex_exit(buf_pool);
+			return(NULL);
+		}
 		break;
 
 	case BUF_BLOCK_ZIP_PAGE:
@@ -4424,6 +4474,10 @@ got_block:
 			os_thread_sleep(WAIT_FOR_READ);
 
 			goto loop;
+		}
+
+		if (UNIV_UNLIKELY(mode == BUF_EVICT_IF_IN_POOL)) {
+			goto evict_from_pool;
 		}
 
 		/* Buffer-fix the block so that it cannot be evicted

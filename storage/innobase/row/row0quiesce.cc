@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -536,8 +537,7 @@ row_quiesce_table_start(
 	}
 
 	if (!trx_is_interrupted(trx)) {
-		buf_LRU_flush_or_remove_pages(
-			table->space, BUF_REMOVE_FLUSH_WRITE, trx);
+		buf_LRU_flush_or_remove_pages(table->space, trx);
 
 		if (trx_is_interrupted(trx)) {
 

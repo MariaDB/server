@@ -50,18 +50,14 @@ These are low-level functions
 /** Minimum LRU list length for which the LRU_old pointer is defined */
 #define BUF_LRU_OLD_MIN_LEN	512	/* 8 megabytes of 16k pages */
 
-/******************************************************************//**
-Flushes all dirty pages or removes all pages belonging
-to a given tablespace. A PROBLEM: if readahead is being started, what
-guarantees that it will not try to read in pages after this operation
-has completed? */
+/** Empty the flush list for all pages belonging to a tablespace.
+@param[in]	id		tablespace identifier
+@param[in]	trx		transaction, for checking for user interrupt;
+				or NULL if nothing is to be written
+@param[in]	drop_ahi	whether to drop the adaptive hash index */
+UNIV_INTERN
 void
-buf_LRU_flush_or_remove_pages(
-/*==========================*/
-	ulint		id,		/*!< in: space id */
-	buf_remove_t	buf_remove,	/*!< in: remove or flush strategy */
-	const trx_t*	trx);		/*!< to check if the operation must
-					be interrupted */
+buf_LRU_flush_or_remove_pages(ulint id, const trx_t* trx, bool drop_ahi=false);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /********************************************************************//**

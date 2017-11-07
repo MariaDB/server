@@ -929,17 +929,12 @@ bool
 fil_table_accessible(const dict_table_t* table)
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
 
-/** Deletes an IBD tablespace, either general or single-table.
-The tablespace must be cached in the memory cache. This will delete the
-datafile, fil_space_t & fil_node_t entries from the file_system_t cache.
-@param[in]	space_id	Tablespace id
-@param[in]	buf_remove	Specify the action to take on the pages
-for this table in the buffer pool.
-@return true if success */
+/** Delete a tablespace and associated .ibd file.
+@param[in]	id		tablespace identifier
+@param[in]	drop_ahi	whether to drop the adaptive hash index
+@return	DB_SUCCESS or error */
 dberr_t
-fil_delete_tablespace(
-	ulint		id,
-	buf_remove_t	buf_remove);
+fil_delete_tablespace(ulint id, bool drop_ahi = false);
 
 /** Truncate the tablespace to needed size.
 @param[in]	space_id	id of tablespace to truncate

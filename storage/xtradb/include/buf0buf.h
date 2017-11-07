@@ -58,6 +58,7 @@ Created 11/5/1995 Heikki Tuuri
 #define BUF_GET_POSSIBLY_FREED		16
 					/*!< Like BUF_GET, but do not mind
 					if the file page has been freed. */
+#define BUF_EVICT_IF_IN_POOL	20	/*!< evict a clean block if found */
 /* @} */
 /** @name Modes for buf_page_get_known_nowait */
 /* @{ */

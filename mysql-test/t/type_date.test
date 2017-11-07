@@ -576,6 +576,15 @@ SELECT DATE(a), DATE(b), DATE(c) FROM t1;
 SELECT DATE(COALESCE(a)), DATE(COALESCE(b)), DATE(COALESCE(c)) FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-14221 Assertion `0' failed in Item::field_type_for_temporal_comparison
+--echo #
+
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1985-05-13'),('1989-12-24');
+SELECT d, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP HAVING CASE d WHEN '2017-05-25' THEN 0 ELSE 1 END;
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 10.1 tests
