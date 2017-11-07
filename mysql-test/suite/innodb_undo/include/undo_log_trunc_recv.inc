@@ -10,6 +10,6 @@ eval SET GLOBAL DEBUG_DBUG= $debug_point;
 commit;
 set global innodb_fast_shutdown=0;
 --source include/shutdown_mysqld.inc
---source include/search_pattern.inc
+--source include/search_pattern_in_file.inc
 --source include/start_mysqld.inc
 drop table t1;

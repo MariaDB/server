@@ -77,4 +77,4 @@ SET GLOBAL innodb_fast_shutdown=0;
 
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN = Truncating UNDO tablespace;
---source include/search_pattern.inc
+--source include/search_pattern_in_file.inc

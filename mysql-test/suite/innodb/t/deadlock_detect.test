@@ -35,13 +35,12 @@ send SELECT * FROM t1 WHERE id = 2 FOR UPDATE;
 
 connection con1;
 --error ER_LOCK_WAIT_TIMEOUT
-reap;
+--reap;
 
 ROLLBACK;
 
 connection default;
---error ER_LOCK_WAIT_TIMEOUT
-reap;
+--reap;
 
 ROLLBACK;
 

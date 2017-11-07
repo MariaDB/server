@@ -12,7 +12,7 @@
 --echo #
 
 --source include/have_innodb.inc
-
+--source include/have_partition.inc
 --disable_query_log
 let $MYSQLD_DATADIR= `select @@datadir`;
 let $initial_timeout=`select @@innodb_lock_wait_timeout`;
@@ -40,6 +40,17 @@ CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 (SELECT * FROM t1);
 --disable_info
 
+CREATE TABLE t3 (
+	c1 INT AUTO_INCREMENT PRIMARY KEY,
+	c2 INT,
+	c3 INT,
+	c4 INT,
+	INDEX k2(c2)
+) Engine=InnoDB PARTITION BY HASH(c1) PARTITIONS 4;
+--enable_info
+INSERT INTO t3 (SELECT * FROM t1);
+--disable_info
+
 --source suite/innodb/include/innodb_isolation_selects.inc
 
 --echo #
@@ -49,7 +60,9 @@ SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
 --enable_info
 UPDATE t1 SET c2 = c2 * 3 WHERE c1 = 1;
+UPDATE t3 SET c2 = c2 * 3 WHERE c1 = 1;
 DELETE FROM t1 WHERE c1 = 6;
+DELETE FROM t3 WHERE c1 = 6;
 --disable_info
 --source suite/innodb/include/innodb_isolation_selects.inc
 
@@ -64,8 +77,11 @@ BEGIN;
 --source suite/innodb/include/innodb_isolation_selects.inc
 --enable_info
 UPDATE t1 SET c2 = c2 * 5 WHERE c1 = 2;
+UPDATE t3 SET c2 = c2 * 5 WHERE c1 = 2;
 DELETE FROM t1 WHERE c1 = 7;
+DELETE FROM t3 WHERE c1 = 7;
 INSERT INTO t1(c2,c3,c4) VALUES (100, 1, 1);
+INSERT INTO t3(c2,c3,c4) VALUES (100, 1, 1);
 --disable_info
 --source suite/innodb/include/innodb_isolation_selects.inc
 
@@ -87,7 +103,9 @@ BEGIN;
 --enable_info
 UPDATE t1 SET c2 = c2 * 7 WHERE c1 = 3;
 DELETE FROM t1 WHERE c1 = 8;
+DELETE FROM t3 WHERE c1 = 8;
 INSERT INTO t1(c2,c3,c4) VALUES (1000, 1, 1);
+INSERT INTO t3(c2,c3,c4) VALUES (1000, 1, 1);
 --disable_info
 --source suite/innodb/include/innodb_isolation_selects.inc
 
@@ -100,8 +118,11 @@ BEGIN;
 --source suite/innodb/include/innodb_isolation_selects.inc
 --enable_info
 UPDATE t1 SET c2 = c2 * 11 WHERE c1 = 4;
+UPDATE t3 SET c2 = c2 * 11 WHERE c1 = 4;
 INSERT INTO t1(c2,c3,c4) VALUES (10000, 1, 1);
+INSERT INTO t3(c2,c3,c4) VALUES (10000, 1, 1);
 DELETE FROM t1 WHERE c1 in(9);
+DELETE FROM t3 WHERE c1 in(9);
 --disable_info
 --source suite/innodb/include/innodb_isolation_selects.inc
 
@@ -162,12 +183,20 @@ COMMIT;
 --echo #
 --echo # Show The EXPLAIN output for these queries;
 --echo #
+ANALYZE TABLE t1;
+ANALYZE TABLE t2;
+ANALYZE TABLE t3;
+
 # column 10 is the row count provided by handler::info().  In InnoDB, this is
 # a statistical estimate.  After the multi-transactional changes above,
 # Solaris reports 10 rows which is correct, but other OSes report 9.
 --replace_column 10 #
 EXPLAIN SELECT * FROM t1;
+--replace_column 10 #
 EXPLAIN SELECT COUNT(*) FROM t1;
+--replace_column 10 #
+EXPLAIN SELECT COUNT(*) FROM t3;
+--replace_column 10 #
 EXPLAIN SELECT COUNT(c1) FROM t1;
 --replace_column 10 #
 EXPLAIN SELECT COUNT(c2) FROM t1;
@@ -180,11 +209,19 @@ EXPLAIN SELECT SUM(c2) FROM t1;
 --replace_column 10 #
 EXPLAIN SELECT AVG(c1), MAX(c1), MIN(c2), AVG(c3), SUM(c4) FROM t1;
 --replace_column 10 #
+EXPLAIN SELECT AVG(c1), MAX(c1), MIN(c2), AVG(c3), SUM(c4) FROM t3;
+--replace_column 10 #
 EXPLAIN SELECT c1, c2 FROM t1 WHERE c1 > ((SELECT COUNT(*) FROM t1) / 2);
+--replace_column 10 #
+EXPLAIN SELECT c1, c2 FROM t1 WHERE c1 > ((SELECT COUNT(*) FROM t3) / 2);
 --replace_column 10 #
 EXPLAIN SELECT COUNT(c2) FROM t1 WHERE c1 > ((SELECT COUNT(*) FROM t1) / 2);
 --replace_column 10 #
+EXPLAIN SELECT COUNT(c2) FROM t1 WHERE c1 > ((SELECT COUNT(*) FROM t3) / 2);
+--replace_column 10 #
 EXPLAIN SELECT COUNT(*) FROM t1 WHERE c1 > (SELECT AVG(c1) FROM t1);
+--replace_column 10 #
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE c1 > (SELECT AVG(c1) FROM t3);
 
 --echo #
 --echo # Make all indexes in t2 obsolete to the active repeatable read transaction
@@ -200,6 +237,7 @@ connection default;
 --source suite/innodb/include/innodb_isolation_selects.inc
 --enable_info
 UPDATE t1 SET c4 = c2 * 10;
+UPDATE t3 SET c4 = c2 * 10;
 --disable_info
 --source suite/innodb/include/innodb_isolation_selects.inc
 
@@ -318,7 +356,7 @@ SELECT COUNT(*) FROM t7;
 --echo #
 --echo # Cleanup
 --echo #
-DROP TABLE t1,t2,t4,t5,t6,t7;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7;
 disconnect con1;
 disconnect con2;
 disconnect con3;
@@ -340,15 +378,21 @@ INSERT INTO t1(c1) SELECT c1 + 10 FROM t1;
 INSERT INTO t1(c1) SELECT c1 + 100 FROM t1;
 
 CREATE TABLE t2 SELECT * FROM t1;
+ANALYZE TABLE t1;
+ANALYZE TABLE t2;
 
 let query1= SELECT COUNT(*) FROM t1;
 let query2= SELECT COUNT(*) FROM t1 FORCE INDEX(c2_idx);
 let query3= SELECT COUNT(*) FROM t1, t2;
 let query4= SELECT COUNT(*) FROM t1 FORCE INDEX(c2_idx), t2;
 
+--replace_column 10 #
 eval EXPLAIN $query1;
+--replace_column 10 #
 eval EXPLAIN $query2;
+--replace_column 10 #
 eval EXPLAIN $query3;
+--replace_column 10 #
 eval EXPLAIN $query4;
 
 DROP TABLE t1, t2;

@@ -405,6 +405,20 @@ select f1, f2 from t1;
 drop table t1;
 
 --echo #
+--echo # BUG#20511314 - INNODB: FAILING ASSERTION: FOUND IN BUF0BUF.CC LINE 3856
+--echo #
+
+SET GLOBAL innodb_fil_make_page_dirty_debug=38098908;
+
+--echo #
+--echo # Bug#22311319 - SERVER CRASHES ON INVALID VALUE FOR VARIABLE
+--echo #		INNODB_SAVED_PAGE_NUMBER_DEBUG
+--echo #
+set global innodb_saved_page_number_debug=461461461;
+set global innodb_fil_make_page_dirty_debug=0;
+set global innodb_saved_page_number_debug=default;
+
+--echo #
 --echo # MDEV-12600 crash during install_db with innodb_page_size=32K
 --echo # and ibdata1=3M
 --echo #
