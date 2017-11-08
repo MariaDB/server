@@ -5,14 +5,18 @@
 --echo # Bug #22306581	VALGRIND FAILURE IN INNODB.TEMPORARY_TABLE
 --echo #
 
+set @old_innodb_compression_algorithm=@@innodb_compression_algorithm;
+set global innodb_compression_algorithm=zlib;
+
 --error ER_ILLEGAL_HA
-create temporary table t (i int) COMPRESSION = "ZLIB" ENGINE = InnoDB;
+create temporary table t (i int)  ENGINE = InnoDB;
 SHOW WARNINGS;
 
 --error ER_ILLEGAL_HA
-create table t1(i INT) COMPRESSION="ZLIB" ENGINE=InnoDB TABLESPACE=innodb_system;
+create table t1(i INT) ENGINE=InnoDB TABLESPACE=innodb_system;
 SHOW WARNINGS;
 
+set global innodb_compression_algorithm=@old_innodb_compression_algorithm;
 set debug_dbug ='+d, simulate_max_char_col';
 --error 1030
 create table t1(f1 varchar(1000))engine=innodb;

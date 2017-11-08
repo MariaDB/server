@@ -33,3 +33,6 @@ tablespace_embedded: create tablespace
 tablespace_embedded_windows: create tablespace
 tablespace_portability: create tablespace
 tablespace_portability_windows: create tablespace
+alter_table_stage_progress: have to be rewritten
+create_table: have to be rewritten
+blob-crash: no --innodb-force-recovery-crash option in Mariadb

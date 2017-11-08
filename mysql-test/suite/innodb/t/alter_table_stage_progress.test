@@ -22,6 +22,7 @@ ALTER TABLE wl5889 ADD COLUMN b INT;
 # is near the limit specified in alter_table_stage_progress-master.opt and
 # rows are missing from the SELECT below, then the limit must be increased.
 
+
 SELECT
 event_name,
 work_completed > 0,
@@ -30,5 +31,7 @@ work_completed <= work_estimated
 FROM performance_schema.events_stages_history
 WHERE event_name LIKE 'stage/innodb/alter table%'
 ORDER BY 1;
+
+#SELECT EVENT_NAME, TIMER_START,TIMER_END FROM performance_schema.events_stages_history WHERE event_name LIKE '%alter%' ORDER BY 1;
 
 DROP TABLE wl5889;
