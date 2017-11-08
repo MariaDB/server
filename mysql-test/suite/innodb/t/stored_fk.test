@@ -1,7 +1,7 @@
 --source include/have_innodb.inc
 
 --echo # Create statement with FK on base column of stored column
---error ER_CANNOT_ADD_FOREIGN
+--error 1005
 create table t1(f1 int, f2 int as(f1) stored,
 		foreign key(f1) references t2(f1) on delete cascade)engine=innodb;
 
