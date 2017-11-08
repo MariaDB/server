@@ -5621,7 +5621,7 @@ finish:
     if (thd->is_error() || (thd->variables.option_bits & OPTION_MASTER_SQL_ERROR))
       trans_rollback_stmt(thd);
 #ifdef WITH_WSREP
-    else if (thd->sp_runtime_ctx &&
+    else if (thd->spcont &&
              !thd->is_error() &&
              !thd->in_multi_stmt_transaction_mode() &&
              (thd->wsrep_conflict_state == MUST_ABORT ||
@@ -5637,7 +5637,7 @@ finish:
       */
       trans_rollback_stmt(thd);
       thd->wsrep_conflict_state= NO_CONFLICT;
-      thd->killed= THD::NOT_KILLED;
+      thd->killed= NOT_KILLED;
     }
 #endif /* WITH_WSREP */
     else
