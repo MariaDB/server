@@ -2070,7 +2070,7 @@ Item_sum_hybrid::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (null_value)
-    return 0;
+    return true;
   bool retval= value->get_date(ltime, fuzzydate);
   if ((null_value= value->null_value))
     DBUG_ASSERT(retval == true);
