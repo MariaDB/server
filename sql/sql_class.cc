@@ -4772,11 +4772,11 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd)
   if (WSREP(thd))
   {
     /* for wsrep binlog format is meaningful also when binlogging is off */
-    return (int) WSREP_BINLOG_FORMAT(thd->variables.binlog_format);
+    return (int) WSREP_FORMAT(thd->variables.binlog_format);
   }
 #endif /* WITH_WSREP */
   if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
-    return (int) WSREP_FORMAT(thd->variables.binlog_format);
+    return (int) thd->variables.binlog_format;
   else
     return BINLOG_FORMAT_UNSPEC;
 }
