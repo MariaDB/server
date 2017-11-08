@@ -4343,8 +4343,19 @@ fil_ibd_discover(
 
 		/* Look for a remote file-per-table tablespace. */
 
-		df_rem_per.set_name(db);
-		if (df_rem_per.open_link_file() == DB_SUCCESS) {
+		switch (srv_operation) {
+		case SRV_OPERATION_BACKUP:
+		case SRV_OPERATION_RESTORE_DELTA:
+			ut_ad(0);
+			break;
+		case SRV_OPERATION_RESTORE_EXPORT:
+		case SRV_OPERATION_RESTORE:
+			break;
+		case SRV_OPERATION_NORMAL:
+			df_rem_per.set_name(db);
+			if (df_rem_per.open_link_file() != DB_SUCCESS) {
+				break;
+			}
 
 			/* An ISL file was found with contents. */
 			if (df_rem_per.open_read_only(false) != DB_SUCCESS
@@ -4432,6 +4443,18 @@ fil_ibd_load(
 				return(FIL_LOAD_ID_CHANGED);
 		}
 		return(FIL_LOAD_OK);
+	}
+
+	if (srv_operation == SRV_OPERATION_RESTORE) {
+		/* Replace absolute DATA DIRECTORY file paths with
+		short names relative to the backup directory. */
+		if (const char* name = strrchr(filename, OS_PATH_SEPARATOR)) {
+			while (--name > filename
+			       && *name != OS_PATH_SEPARATOR);
+			if (name > filename) {
+				filename = name + 1;
+			}
+		}
 	}
 
 	Datafile	file;

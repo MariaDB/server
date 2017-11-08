@@ -2838,7 +2838,7 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 				/* We found a symlink or a file */
 				if (strlen(fileinfo.name) > 4) {
 					bool is_isl= false;
-					if (ends_with(fileinfo.name, ".ibd") || ((is_isl = ends_with(fileinfo.name, ".ibd"))))
+					if (ends_with(fileinfo.name, ".ibd") || ((is_isl = ends_with(fileinfo.name, ".isl"))))
 						(*callback)(dbinfo.name, fileinfo.name, is_isl);
 				}
 			}

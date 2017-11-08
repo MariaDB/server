@@ -2141,6 +2141,7 @@ lock_rec_insert_by_trx_age(
 	return DB_SUCCESS;
 }
 
+#ifdef UNIV_DEBUG
 static
 bool
 lock_queue_validate(
@@ -2174,6 +2175,7 @@ lock_queue_validate(
 	}
 	return true;
 }
+#endif /* UNIV_DEBUG */
 
 static
 void
