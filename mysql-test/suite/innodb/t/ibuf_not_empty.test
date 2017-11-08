@@ -4,7 +4,7 @@
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
 # The test is not big enough to use change buffering with larger page size.
---source include/have_innodb_max_16k.inc
+--source include/innodb_page_size_small.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Failed to find tablespace for table `test`\\.`t1` in the cache\\. Attempting to load the tablespace with space id");

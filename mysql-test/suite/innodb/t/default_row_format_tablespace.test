@@ -11,7 +11,7 @@
 --source include/have_innodb.inc
 # InnoDB does not support compressed tables for page sizes=32k,64k
 # Also FILE_BLOCK_SIZE=8k and KEY_BLOCK_SIZEr=8
---source include/have_innodb_max_16k.inc
+--source include/innodb_page_size_small.inc
 
 # Check without any tablespace is set
 --let tablespace=

@@ -9,10 +9,12 @@
 # Prerequisite : portability_wl5980_linux.zip
 # should exist in "suite/innodb/t"
 
+--source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 --source include/not_embedded.inc
 --source include/linux.inc
 --source include/have_util_unzip.inc
+--source include/have_partition.inc
 
 --echo # Set the environmental variables
 LET MYSQL_BASEDIR= `select @@basedir`;

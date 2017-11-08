@@ -2,7 +2,7 @@
 # A series of tests to show the correct tablespace behavior
 # for compressed tables.
 #
---source include/have_innodb_max_16k.inc
+--source include/innodb_page_size_small.inc
 --source include/have_partition.inc
 
 SET default_storage_engine=InnoDB;

@@ -11,3 +11,25 @@
 ##############################################################################
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
+
+check_sector_size:  tests with keyring
+innodb_pagesize_max_recordsize: tests with keyring
+table_encrypt_1: tests with keyring
+table_encrypt_2: tests with keyring
+table_encrypt_3: tests with keyring
+table_encrypt_4: tests with keyring
+table_encrypt_5: tests with keyring
+table_encrypt_debug: tests with keyring
+table_encrypt_kill: tests with keyring
+
+alter_rename_existing: create tablespace
+i_s_files_debug: create tablespace
+log_file: create tablespace
+partition: create tablespace
+table_compress: create tablespace
+table_encrypt_3: create tablespace
+tablespace_crash: create tablespace
+tablespace_embedded: create tablespace
+tablespace_embedded_windows: create tablespace
+tablespace_portability: create tablespace
+tablespace_portability_windows: create tablespace

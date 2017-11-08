@@ -6,7 +6,7 @@
 --echo # even though no space on the FS is being released.
 --echo #
 
---source include/have_innodb_max_16k.inc
+--source include/innodb_page_size_small.inc
 # Restart not supported in embedded server
 --source include/not_embedded.inc
 

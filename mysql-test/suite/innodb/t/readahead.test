@@ -1,5 +1,5 @@
 --source include/have_innodb.inc
---source include/have_innodb_max_16k.inc
+--source include/innodb_page_size_small.inc
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
 

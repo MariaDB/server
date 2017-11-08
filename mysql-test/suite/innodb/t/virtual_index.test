@@ -1,5 +1,5 @@
 --source include/have_innodb.inc
---source include/have_innodb_max_16k.inc
+--source include/innodb_page_size_small.inc
 --echo #
 --echo # Bug 21922176 - PREBUILT->SEARCH_TUPLE CREATED WITHOUT INCLUDING
 --echo # THE NUMBER OF VIRTUAL COLUMNS

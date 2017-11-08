@@ -1,5 +1,5 @@
 --source include/have_innodb.inc
---source include/have_innodb_max_16k.inc
+--source include/innodb_page_size_small.inc
 
 let $ps16 = `SELECT truncate(@@innodb_page_size / 16, 0)`;
 let $ps316 = `SELECT truncate(3 * @@innodb_page_size / 16, 0)`;
