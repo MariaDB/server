@@ -143,7 +143,7 @@ public:
   // Constructor used for Item_cond_and/or (see Item comment)
   Item_func(THD *thd, Item_func *item);
   bool fix_fields(THD *, Item **ref);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void quick_fix_field();
   table_map used_tables() const;
   table_map not_null_tables() const;

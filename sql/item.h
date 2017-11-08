@@ -706,7 +706,9 @@ public:
     Fix after some tables has been pulled out. Basically re-calculate all
     attributes that are dependent on the tables.
   */
-  virtual void fix_after_pullout(st_select_lex *new_parent, Item **ref) {};
+  virtual void fix_after_pullout(st_select_lex *new_parent, Item **ref,
+                                 bool merge)
+    {};
 
   /*
     This method should be used in case where we are sure that we do not need
@@ -2256,7 +2258,7 @@ public:
   bool send(Protocol *protocol, String *str_arg);
   void reset_field(Field *f);
   bool fix_fields(THD *, Item **);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void make_field(Send_field *tmp_field);
   int save_in_field(Field *field,bool no_conversions);
   void save_org_in_field(Field *field, fast_field_copier optimizer_data);
@@ -3410,7 +3412,7 @@ public:
   bool send(Protocol *prot, String *tmp);
   void make_field(Send_field *field);
   bool fix_fields(THD *, Item **);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   int save_in_field(Field *field, bool no_conversions);
   void save_org_in_field(Field *field, fast_field_copier optimizer_data);
   fast_field_copier setup_fast_field_copier(Field *field)
@@ -3664,9 +3666,9 @@ public:
     Item *it= ((Item *) item)->real_item();
     return orig_item->eq(it, binary_cmp);
   }
-  void fix_after_pullout(st_select_lex *new_parent, Item **refptr)
+  void fix_after_pullout(st_select_lex *new_parent, Item **refptr, bool merge)
   {
-    orig_item->fix_after_pullout(new_parent, &orig_item);
+    orig_item->fix_after_pullout(new_parent, &orig_item, merge);
   }
   int save_in_field(Field *to, bool no_conversions);
   enum Item_result result_type () const { return orig_item->result_type(); }
@@ -3924,7 +3926,7 @@ public:
     outer_ref->save_org_in_field(result_field, NULL);
   }
   bool fix_fields(THD *, Item **);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   table_map used_tables() const
   {
     return (*ref)->const_item() ? 0 : OUTER_REF_TABLE_BIT;

@@ -272,7 +272,7 @@ public:
   virtual void get_cache_parameters(List<Item> &parameters);
   bool is_top_level_item();
   bool eval_not_null_tables(uchar *opt_arg);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool invisible_mode();
   void reset_cache() { cache= NULL; }
 };
@@ -689,7 +689,7 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool count_sargable_conds(uchar *arg);
 };
 
@@ -791,7 +791,7 @@ public:
   uint decimal_precision() const;
   const char *func_name() const { return "if"; }
   bool eval_not_null_tables(uchar *opt_arg);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
 private:
   void cache_type_info(Item *source);
 };
@@ -1337,7 +1337,7 @@ public:
   bool nulls_in_row();
   CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
 };
 
 class cmp_item_row :public cmp_item
@@ -1729,7 +1729,7 @@ public:
     list.concat(nlist);
   }
   bool fix_fields(THD *, Item **ref);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
 
   enum Type type() const { return COND_ITEM; }
   List<Item>* argument_list() { return &list; }
