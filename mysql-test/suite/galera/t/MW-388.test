@@ -66,3 +66,9 @@ SELECT * FROM t1;
 SET GLOBAL wsrep_slave_threads = DEFAULT;
 DROP TABLE t1;
 DROP PROCEDURE insert_proc;
+
+SET GLOBAL debug = NULL;
+SET debug_sync='RESET';
+
+# Make sure no pending signals are leftover to surprise subsequent tests.
+SELECT @@debug_sync;
