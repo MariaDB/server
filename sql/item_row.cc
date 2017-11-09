@@ -109,13 +109,14 @@ void Item_row::split_sum_func(THD *thd, Item **ref_pointer_array,
 }
 
 
-void Item_row::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_row::fix_after_pullout(st_select_lex *new_parent, Item **ref,
+                                 bool merge)
 {
   used_tables_and_const_cache_init();
   not_null_tables_cache= 0;
   for (uint i= 0; i < arg_count; i++)
   {
-    args[i]->fix_after_pullout(new_parent, &args[i]);
+    args[i]->fix_after_pullout(new_parent, &args[i], merge);
     used_tables_and_const_cache_join(args[i]);
     not_null_tables_cache|= args[i]->not_null_tables();
   }
