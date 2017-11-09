@@ -34,9 +34,14 @@ tablespace_embedded_windows:  tablespace
 tablespace_portability:  tablespace
 tablespace_portability_windows:  tablespace
 default_row_format_tablespace:  tablespace
-alter_table_stage_progress: has to be rewritten
-create_table: has to be rewritten
+innodb-multiple-tablespaces: tablespaces
+alter_table_stage_progress: fix
+innodb-status-output: fix
+create_table: fix
 blob-crash: no --innodb-force-recovery-crash option in Mariadb
-flush-hang: no GLOBAL INNODB_PURGE_STOP_NOW variable
-help_verbose : has to be rewritten
+flush-hang: no GLOBAL INNODB_PURGE_STOP_NOW variable, fix
+innodb-lock-inherit-read_commited: no GLOBAL INNODB_PURGE_STOP_NOW variable, fix
+innodb-truncate-debug: no GLOBAL INNODB_PURGE_STOP_NOW variable, fix
+innodb_wl6470_debug: no GLOBAL INNODB_PURGE_STOP_NOW variable, fix
+help_verbose : fix
 index-online-norebuild: no STORAGE DISK type//

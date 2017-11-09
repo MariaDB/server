@@ -1,0 +1,6 @@
+--innodb-sys-tablestats=1
+--innodb-sys-tables
+--innodb-sys-indexes
+--innodb-sys-columns
+--innodb-sys-foreign
+--innodb-sys-foreign-cols

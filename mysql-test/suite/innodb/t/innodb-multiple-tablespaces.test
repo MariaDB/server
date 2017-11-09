@@ -206,7 +206,7 @@ INSERT INTO nolink VALUES (1, 'no link file');
 --echo #
 --source include/start_mysqld.inc
 
---source suite/innodb/include/show_i_s_tablespaces.inc
+#--source suite/innodb/include/show_i_s_tablespaces.inc
 
 --error ER_TABLESPACE_MISSING
 SELECT * FROM yyy;
