@@ -622,6 +622,8 @@ log_group_read_log_seg(
 	lsn_t	source_offset;
 
 	ut_ad(log_mutex_own());
+	ut_ad(!(start_lsn % OS_FILE_LOG_BLOCK_SIZE));
+	ut_ad(!(end_lsn % OS_FILE_LOG_BLOCK_SIZE));
 
 loop:
 	source_offset = log_group_calc_lsn_offset(start_lsn, group);
@@ -2899,7 +2901,8 @@ recv_group_scan_log_recs(
 			recv_apply_hashed_log_recs(false);
 		}
 
-		start_lsn = end_lsn;
+		start_lsn = ut_uint64_align_down(end_lsn,
+						 OS_FILE_LOG_BLOCK_SIZE);
 		end_lsn = log_group_read_log_seg(
 			log_sys->buf, group, start_lsn,
 			start_lsn + RECV_SCAN_SIZE);
