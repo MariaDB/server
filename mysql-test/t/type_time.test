@@ -747,6 +747,17 @@ DROP TABLE t1,t2;
 
 
 --echo #
+--echo # MDEV-10817 CAST(MAX(DATE'2001-01-01') AS TIME) returns a wrong result
+--echo #
+
+SELECT CAST(DATE'2001-01-01' AS TIME);
+SELECT CAST(MAX(DATE'2001-01-01') AS TIME);
+CREATE FUNCTION f1() RETURNS DATE RETURN DATE'2001-01-01';
+SELECT CAST(f1() AS TIME);
+DROP FUNCTION  f1;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

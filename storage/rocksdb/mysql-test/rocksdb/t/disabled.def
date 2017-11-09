@@ -82,5 +82,5 @@ autoinc_vars_thread: debug sync point wait timed out
 ##
 information_schema : MariaRocks: requires GTIDs
 mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
-read_only_tx : MariaRocks: requires GTIDs
+#read_only_tx : MariaRocks: requires GTIDs
 rpl_row_triggers : MariaRocks: requires GTIDs

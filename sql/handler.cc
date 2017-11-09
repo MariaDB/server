@@ -5089,8 +5089,13 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
     {
       char engine_buf[NAME_CHAR_LEN + 1];
       LEX_CSTRING engine= { engine_buf, 0 };
+      Table_type type;
 
-      if (dd_frm_type(thd, path, &engine, is_sequence) != TABLE_TYPE_VIEW)
+      if ((type= dd_frm_type(thd, path, &engine, is_sequence)) ==
+          TABLE_TYPE_UNKNOWN)
+        DBUG_RETURN(0);
+      
+      if (type != TABLE_TYPE_VIEW)
       {
         plugin_ref p=  plugin_lock_by_name(thd, &engine,
                                            MYSQL_STORAGE_ENGINE_PLUGIN);

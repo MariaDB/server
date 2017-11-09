@@ -129,7 +129,7 @@ public:
     Item_func_or_sum::cleanup();
     used_tables_and_const_cache_init();
   }
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void quick_fix_field();
   table_map not_null_tables() const;
   void update_used_tables()
@@ -2807,6 +2807,13 @@ public:
     if (execute())
       return NULL;
     return sp_result_field->val_decimal(dec_buf);
+  }
+
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    if (execute())
+      return true;
+    return sp_result_field->get_date(ltime, fuzzydate);
   }
 
   String *val_str(String *str)

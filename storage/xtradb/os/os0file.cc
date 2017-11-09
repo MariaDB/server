@@ -2570,8 +2570,8 @@ os_file_get_size(
 
 	return(offset);
 #else
-	return((os_offset_t) lseek(file, 0, SEEK_END));
-
+	struct stat statbuf;
+	return fstat(file, &statbuf) ? os_offset_t(-1) : statbuf.st_size;
 #endif /* __WIN__ */
 }
 
@@ -2625,19 +2625,29 @@ os_file_set_size(
 	if (srv_use_posix_fallocate) {
 		int err;
 		do {
-			err = posix_fallocate(file, 0, size);
+			os_offset_t current_size = os_file_get_size(file);
+			err = current_size >= size
+				? 0 : posix_fallocate(file, current_size,
+						      size - current_size);
 		} while (err == EINTR
 			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
-		if (err) {
+		switch (err) {
+		case 0:
+			return true;
+		default:
 			ib_logf(IB_LOG_LEVEL_ERROR,
 				"preallocating " INT64PF " bytes for"
 				"file %s failed with error %d",
 				size, name, err);
+			/* fall through */
+		case EINTR:
+			errno = err;
+			return false;
+		case EINVAL:
+			/* fall back to the code below */
+			break;
 		}
-		/* Set errno because posix_fallocate() does not do it.*/
-		errno = err;
-		return(!err);
 	}
 # endif
 
@@ -2679,11 +2689,12 @@ os_file_set_size(
 		}
 
 		current_size += n_bytes;
-	} while (current_size < size);
+	} while (current_size < size
+		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
 	free(buf2);
 
-	return(ret && os_file_flush(file));
+	return(ret && current_size >= size && os_file_flush(file));
 #endif
 }
 

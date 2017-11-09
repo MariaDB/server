@@ -3238,7 +3238,8 @@ table_map Item_field::all_used_tables() const
   return (get_depended_from() ? OUTER_REF_TABLE_BIT : field->table->map);
 }
 
-void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
+                                   bool merge)
 {
   if (new_parent == get_depended_from())
     depended_from= NULL;
@@ -3281,6 +3282,19 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref)
     }
     if (!need_change)
       return;
+
+    if (!merge)
+    {
+      /*
+        It is transformation without merge.
+        This field was "outer" for the inner SELECT where it was taken and
+        moved up.
+        "Outer" fields uses normal SELECT_LEX context of upper SELECTs for
+        name resolution, so we can switch everything to it safely.
+      */
+      this->context= &new_parent->context;
+      return;
+    }
 
     Name_resolution_context *ctx= new Name_resolution_context();
     if (context->select_lex == new_parent)
@@ -8698,18 +8712,19 @@ bool Item_outer_ref::fix_fields(THD *thd, Item **reference)
 
 
 void Item_outer_ref::fix_after_pullout(st_select_lex *new_parent,
-                                       Item **ref_arg)
+                                       Item **ref_arg, bool merge)
 {
   if (get_depended_from() == new_parent)
   {
     *ref_arg= outer_ref;
-    (*ref_arg)->fix_after_pullout(new_parent, ref_arg);
+    (*ref_arg)->fix_after_pullout(new_parent, ref_arg, merge);
   }
 }
 
-void Item_ref::fix_after_pullout(st_select_lex *new_parent, Item **refptr)
+void Item_ref::fix_after_pullout(st_select_lex *new_parent, Item **refptr,
+                                 bool merge)
 {
-  (*ref)->fix_after_pullout(new_parent, ref);
+  (*ref)->fix_after_pullout(new_parent, ref, merge);
   if (get_depended_from() == new_parent)
     depended_from= NULL;
 }

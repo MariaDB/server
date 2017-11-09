@@ -743,3 +743,50 @@ eval $q;
 eval explain $q;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-13780: tower of embedding CTEs with multiple usage of them
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (2), (4), (7), (1), (2), (5);
+
+let $q=
+with cte_e as
+(
+  with cte_o as
+  (
+    with cte_i as (select * from t1 where a < 7)
+    select * from cte_i where a > 1
+  )
+  select * from cte_o as cto_o1 where a < 3
+  union
+  select * from cte_o as cto_o2 where a > 4
+)
+select * from cte_e as cte_e1 where a > 1
+union
+select * from cte_e as cte_e2;
+
+eval $q;
+eval explain extended $q;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-13753: embedded CTE in a VIEW created in prepared statement
+--echo #
+
+SET @sql_query = "
+  CREATE OR REPLACE VIEW cte_test AS
+   WITH  cte1  AS ( SELECT 1 as a from dual )
+    ,    cte2  AS ( SELECT * FROM cte1 )
+    SELECT * FROM cte2;
+";
+PREPARE stmt FROM @sql_query;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SHOW CREATE VIEW cte_test;
+SELECT * FROM cte_test;
+
+DROP VIEW cte_test;

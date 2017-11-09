@@ -181,7 +181,8 @@ String *Item_func_inet_str_base::val_str_ascii(String *buffer)
     return NULL;
   }
 
-  String *arg_str= args[0]->val_str(buffer);
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
+  String *arg_str= args[0]->val_str(&tmp);
   if (!arg_str) // Out-of memory happened. The error has been reported.
   {             // Or: the underlying field is NULL
     null_value= true;
@@ -679,7 +680,7 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
   @retval true  The string has been converted sucessfully.
 */
 
-bool Item_func_inet6_aton::calc_value(String *arg, String *buffer)
+bool Item_func_inet6_aton::calc_value(const String *arg, String *buffer)
 {
   // ipv4-string -> varbinary(4)
   // ipv6-string -> varbinary(16)
@@ -719,7 +720,7 @@ bool Item_func_inet6_aton::calc_value(String *arg, String *buffer)
   @retval true  The string has been converted sucessfully.
 */
 
-bool Item_func_inet6_ntoa::calc_value(String *arg, String *buffer)
+bool Item_func_inet6_ntoa::calc_value(const String *arg, String *buffer)
 {
   if (arg->charset() != &my_charset_bin)
     return false;

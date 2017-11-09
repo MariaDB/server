@@ -1642,7 +1642,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     {
       tl->jtbm_table_no= table_no;
       Item *dummy= tl->jtbm_subselect;
-      tl->jtbm_subselect->fix_after_pullout(parent_lex, &dummy);
+      tl->jtbm_subselect->fix_after_pullout(parent_lex, &dummy, true);
       DBUG_ASSERT(dummy == tl->jtbm_subselect);
     }
     SELECT_LEX *old_sl= tl->select_lex;
@@ -1783,7 +1783,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     Walk through sj nest's WHERE and ON expressions and call
     item->fix_table_changes() for all items.
   */
-  sj_nest->sj_on_expr->fix_after_pullout(parent_lex, &sj_nest->sj_on_expr);
+  sj_nest->sj_on_expr->fix_after_pullout(parent_lex, &sj_nest->sj_on_expr,
+                                         TRUE);
   fix_list_after_tbl_changes(parent_lex, &sj_nest->nested_join->join_list);
 
 
@@ -1942,7 +1943,7 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
   DBUG_ASSERT(parent_join->table_count < MAX_TABLES);
 
   Item *conds= hash_sj_engine->semi_join_conds;
-  conds->fix_after_pullout(parent_lex, &conds);
+  conds->fix_after_pullout(parent_lex, &conds, TRUE);
 
   DBUG_EXECUTE("where", print_where(conds,"SJ-EXPR", QT_ORDINARY););
   
@@ -1994,7 +1995,7 @@ void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist)
   while ((table= it++))
   {
     if (table->on_expr)
-      table->on_expr->fix_after_pullout(new_parent, &table->on_expr);
+      table->on_expr->fix_after_pullout(new_parent, &table->on_expr, TRUE);
     if (table->nested_join)
       fix_list_after_tbl_changes(new_parent, &table->nested_join->join_list);
   }

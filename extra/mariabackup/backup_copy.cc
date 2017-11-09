@@ -46,6 +46,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include <ut0mem.h>
 #include <srv0start.h>
 #include <fil0fil.h>
+#include <trx0sys.h>
 #include <set>
 #include <string>
 #include <mysqld.h>
@@ -1680,25 +1681,29 @@ copy_back()
 	ut_crc32_init();
 
 	/* copy undo tablespaces */
-	if (srv_undo_tablespaces > 0) {
 
-		dst_dir = (srv_undo_dir && *srv_undo_dir)
-				? srv_undo_dir : mysql_data_home;
 
-		ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
+	dst_dir = (srv_undo_dir && *srv_undo_dir)
+			? srv_undo_dir : mysql_data_home;
 
-		for (ulong i = 1; i <= srv_undo_tablespaces; i++) {
-			char filename[20];
-			sprintf(filename, "undo%03lu", i);
-			if (!(ret = copy_or_move_file(filename, filename,
-				                      dst_dir, 1))) {
-				goto cleanup;
-			}
+	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
+
+	for (uint i = 1; i <= TRX_SYS_MAX_UNDO_SPACES; i++) {
+		char filename[20];
+		sprintf(filename, "undo%03u", i);
+		if (!file_exists(filename)) {
+			break;
 		}
-
-		ds_destroy(ds_data);
-		ds_data = NULL;
+		if (!(ret = copy_or_move_file(filename, filename,
+					      dst_dir, 1))) {
+			goto cleanup;
+		}
 	}
+
+	ds_destroy(ds_data);
+	ds_data = NULL;
+
+	/* copy redo logs */
 
 	dst_dir = (srv_log_group_home_dir && *srv_log_group_home_dir)
 		? srv_log_group_home_dir : mysql_data_home;
@@ -1825,7 +1830,7 @@ copy_back()
 		}
 	}
 
-	/* copy buufer pool dump */
+	/* copy buffer pool dump */
 
 	if (innobase_buffer_pool_filename) {
 		const char *src_name;
