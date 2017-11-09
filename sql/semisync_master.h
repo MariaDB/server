@@ -553,7 +553,7 @@ class ReplSemiSyncMaster
    * be acked by slave*/
   int reportBinlogUpdate(THD *thd, const char *log_file,my_off_t log_pos);
 
-  void dump_start(THD* thd,
+  int dump_start(THD* thd,
                   const char *log_file,
                   my_off_t log_pos);
 

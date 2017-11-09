@@ -96,7 +96,6 @@
 #include "set_var.h"
 
 #include "rpl_injector.h"
-#include "rpl_handler.h"
 #include "semisync_master.h"
 #include "semisync_slave.h"
 
@@ -2235,7 +2234,6 @@ void clean_up(bool print_message)
   semi_sync_master_deinit();
   semi_sync_slave_deinit();
 #endif
-  delegates_destroy();
   xid_cache_free();
   tdc_deinit();
   mdl_destroy();
@@ -5088,13 +5086,6 @@ static int init_server_components()
 #endif
 
   xid_cache_init();
-
-  /*
-    initialize delegates for extension observers, errors have already
-    been reported in the function
-  */
-  if (delegates_init())
-    unireg_abort(1);
 
   /* need to configure logging before initializing storage engines */
   if (!opt_bin_log_used && !WSREP_ON)

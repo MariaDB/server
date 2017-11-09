@@ -28,7 +28,6 @@
 #include "log_event.h"
 #include "rpl_filter.h"
 #include <my_dir.h>
-#include "rpl_handler.h"
 #include "debug_sync.h"
 #include "semisync_master.h"
 #include "semisync_slave.h"
@@ -161,6 +160,7 @@ struct binlog_send_info {
 
   bool clear_initial_log_pos;
   bool should_stop;
+  size_t dirlen;
 
   binlog_send_info(THD *thd_arg, String *packet_arg, ushort flags_arg,
                    char *lfn)
@@ -314,22 +314,33 @@ static int reset_transmit_packet(binlog_send_info *info, ushort flags,
   packet->length(0);
   packet->set("\0", 1, &my_charset_bin);
 
-  if (RUN_HOOK(binlog_transmit, reserve_header, (info->thd, flags, packet)))
-  {
-    /* RUN_HOOK() must return zero when thd->semi_sync_slave */
-    DBUG_ASSERT(!info->thd->semi_sync_slave);
-
-    info->error= ER_UNKNOWN_ERROR;
-    *errmsg= "Failed to run hook 'reserve_header'";
-    ret= 1;
-  }
   if (info->thd->semi_sync_slave)
   {
-    repl_semisync_master.reserveSyncHeader(packet);
+    if (repl_semisync_master.reserveSyncHeader(packet))
+    {
+      info->error= ER_UNKNOWN_ERROR;
+      *errmsg= "Failed to run hook 'reserve_header'";
+      ret= 1;
+    }
   }
 
   *ev_offset= packet->length();
   return ret;
+}
+
+int get_user_var_int(const char *name,
+                     long long int *value, int *null_value)
+{
+  bool null_val;
+  user_var_entry *entry= 
+    (user_var_entry*) my_hash_search(&current_thd->user_vars,
+                                  (uchar*) name, strlen(name));
+  if (!entry)
+    return 1;
+  *value= entry->val_int(&null_val);
+  if (null_value)
+    *null_value= null_val;
+  return 0;
 }
 
 inline bool is_semi_sync_slave()
@@ -2001,23 +2012,13 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   THD_STAGE_INFO(info->thd, stage_sending_binlog_event_to_slave);
 
   pos= my_b_tell(log);
-  if (RUN_HOOK(binlog_transmit, before_send_event,
-               (info->thd, info->flags, packet, info->log_file_name, pos)))
+  if (repl_semisync_master.updateSyncHeader(info->thd, (uchar *)packet->c_ptr(),
+                                            info->log_file_name + info->dirlen,
+                                            pos, &need_sync))
   {
     info->error= ER_UNKNOWN_ERROR;
     return "run 'before_send_event' hook failed";
   }
-
-  // TODO: instead of local var compute it in send_one_binlog_file() to pass as param from there
-  size_t dirlen= dirname_length(info->log_file_name);
-
-  // todo: remove the merge mark comment
-  // @@ -1429,15 +1433,12 @@ void mysql_binlog_send(
-  DBUG_ASSERT(dirlen == dirname_length(info->log_file_name));
-
-  repl_semisync_master.updateSyncHeader(info->thd, (uchar *)packet->c_ptr(),
-                                        info->log_file_name+dirlen,
-                                        pos, &need_sync);
 
   if (my_net_write(info->net, (uchar*) packet->ptr(), len))
   {
@@ -2035,15 +2036,12 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     }
   }
 
-  if (RUN_HOOK(binlog_transmit, after_send_event,
-               (info->thd, info->flags, packet)))
+  if (need_sync && repl_semisync_master.flushNet(info->thd, packet->c_ptr()))
+  // Todo-MDEV-13073: check if Bug#15985893 is relevant args += (log_file_name, skip_group ? pos : 0);
   {
     info->error= ER_UNKNOWN_ERROR;
     return "Failed to run hook 'after_send_event'";
   }
-  if (need_sync)
-    repl_semisync_master.flushNet(info->thd, packet->c_ptr());
-  // Todo-MDEV-13073: check if Bug#15985893 is relevant args += (log_file_name, skip_group ? pos : 0);
 
   return NULL;    /* Success */
 }
@@ -2780,7 +2778,7 @@ static int send_one_binlog_file(binlog_send_info *info,
       /** end of file or error */
       return (int)end_pos;
     }
-
+    info->dirlen= dirname_length(info->log_file_name);
     /**
      * send events from current position up to end_pos
      */
@@ -2815,21 +2813,16 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   if (init_binlog_sender(info, &linfo, log_ident, &pos))
     goto err;
 
-  /*
-     run hook first when all check has been made that slave seems to
-     be requesting a reasonable position. i.e when transmit actually starts
-  */
-  if (RUN_HOOK(binlog_transmit, transmit_start, (thd, flags, log_ident, pos)))
+  has_transmit_started= true;
+
+  /* Check if the dump thread is created by a slave with semisync enabled. */
+  thd->semi_sync_slave = is_semi_sync_slave();
+  if (repl_semisync_master.dump_start(thd, log_ident, pos))
   {
     info->errmsg= "Failed to run hook 'transmit_start'";
     info->error= ER_UNKNOWN_ERROR;
     goto err;
   }
-  has_transmit_started= true;
-
-  /* Check if the dump thread is created by a slave with semisync enabled. */
-  thd->semi_sync_slave = is_semi_sync_slave();
-  repl_semisync_master.dump_start(thd, log_ident, pos);
 
   /*
     heartbeat_period from @master_heartbeat_period user variable
@@ -2946,7 +2939,6 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
 err:
   THD_STAGE_INFO(thd, stage_waiting_to_finalize_termination);
-  (void) RUN_HOOK(binlog_transmit, transmit_stop, (thd, flags));
   if (has_transmit_started)
   {
     repl_semisync_master.dump_end(thd);
@@ -3416,8 +3408,7 @@ int reset_slave(THD *thd, Master_info* mi)
   else if (global_system_variables.log_warnings > 1)
     sql_print_information("Deleted Master_info file '%s'.", fname);
 
-  (void) RUN_HOOK(binlog_relay_io, after_reset_slave, (thd, mi));
-  if (rpl_semi_sync_slave_enabled)   // Todo/fixme: turn this block into default RUN_HOOK action
+  if (rpl_semi_sync_slave_enabled)
     repl_semisync_slave.resetSlave(mi);
 err:
   mi->unlock_slave_threads();
@@ -3925,7 +3916,6 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
   repl_semisync_master.beforeResetMaster();
   ret= mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
                                 next_log_number);
-  (void) RUN_HOOK(binlog_transmit, after_reset_master, (thd, 0 /* flags */));
   repl_semisync_master.afterResetMaster();
   return ret;
 }
