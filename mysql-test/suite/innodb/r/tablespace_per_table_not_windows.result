@@ -8,7 +8,7 @@ SET default_storage_engine=InnoDB;
 # of up to 3 bytes per character, corresponding to 192 bytes.
 #
 CREATE DATABASE `this_sixty_five_byte_name_is_too_long____________________________`;
-ERROR 42000: Identifier name 'this_sixty_five_byte_name_is_too_long____________________________' is too long
+ERROR 42000: Incorrect database name 'this_sixty_five_byte_name_is_too_long____________________________'
 CREATE DATABASE `this_sixty_four_byte_name_is_not_too_long_______________________`;
 USE `this_sixty_four_byte_name_is_not_too_long_______________________`;
 #
@@ -19,9 +19,9 @@ CREATE TABLE `this_sixty_four_byte_name_is_not_too_long_______________________`.
 # A 65 character tablename is too long.
 #
 CREATE TABLE `test`.`this_sixty_five_byte_name_is_too_long____________________________` (a SERIAL);
-ERROR 42000: Identifier name 'this_sixty_five_byte_name_is_too_long____________________________' is too long
+ERROR 42000: Incorrect table name 'this_sixty_five_byte_name_is_too_long____________________________'
 CREATE TABLE `this_sixty_four_byte_name_is_not_too_long_______________________`.`this_sixty_five_byte_name_is_too_long____________________________` (a SERIAL);
-ERROR 42000: Identifier name 'this_sixty_five_byte_name_is_too_long____________________________' is too long
+ERROR 42000: Incorrect table name 'this_sixty_five_byte_name_is_too_long____________________________'
 #
 # Non-non-filename-safe characters like '#' are expanded to '@0023'.
 # On many file systems, such as Linux extfs, you can create a database name
@@ -38,7 +38,7 @@ USE `##################################################_long`;
 #                        (50 * 5) +                    6  = 256.
 #
 CREATE DATABASE `##################################################_long_`;
-ERROR HY000: Can't get stat of './##################################################_long_' (Errcode: ## - File name too long)
+ERROR HY000: Can't get stat of './##################################################_long_' (Errcode: ## "File name too long")
 #
 # This 300-byte name which is the longest name that gets an error code
 # from the stat operation.
@@ -46,14 +46,14 @@ ERROR HY000: Can't get stat of './##############################################
 #                        (59 * 5) +                             5  = 300.
 #
 CREATE DATABASE `###########################################################_long`;
-ERROR HY000: Can't get stat of './###########################################################_long' (Errcode: ## - File name too long)
+ERROR HY000: Can't get stat of './###########################################################_long' (Errcode: ## "File name too long")
 #
 # This 301-byte name which is only one byte longer but fails with ER_TOO_LONG_IDENT.
 # `###########################################################_long_` is expanded to
 #                        (59 * 5) +                             6  = 301.
 #
 CREATE DATABASE `###########################################################_long_`;
-ERROR 42000: Identifier name '###########################################################_long_' is too long
+ERROR 42000: Incorrect database name '###########################################################_long_'
 USE test;
 #
 # An expanded table name is limited to 251 bytes
@@ -63,7 +63,7 @@ CREATE TABLE `test`.`#################################################_long_` (a
 # A 252-byte tablename is too long
 #
 CREATE TABLE `test`.`#################################################_long___` (a SERIAL);
-ERROR HY000: Can't create table '#################################################_long___' (errno: ##)
+ERROR HY000: Can't create table `test`.`#################################################_long___` (errno: ## "File name too long")
 CREATE DATABASE twenty_byte_db_name_;
 USE `twenty_byte_db_name_`;
 #
@@ -74,7 +74,7 @@ CREATE TABLE `twenty_byte_db_name_`.`###########################################
 # A 252 byte expanded table name is also too long in a longer database name
 #
 CREATE TABLE `twenty_byte_db_name_`.`#################################################_long___` (a SERIAL);
-ERROR HY000: Can't create table '#################################################_long___' (errno: ##)
+ERROR HY000: Can't create table `twenty_byte_db_name_`.`#################################################_long___` (errno: ## "File name too long")
 #
 # Another limitation is a 512 byte length to an expanded path that includes
 # the datadir which is './' in this test, the expanded database name,
@@ -108,27 +108,7 @@ name
 test/#################################################_long_
 this_sixty_four_byte_name_is_not_too_long_______________________/this_sixty_four_byte_name_is_not_too_long_______________________
 twenty_byte_db_name_/#################################################_long_
-SELECT name FROM information_schema.innodb_sys_tablespaces WHERE name LIKE '%long%';
-name
-this_sixty_four_byte_name_is_not_too_long_______________________/this_sixty_four_byte_name_is_not_too_long_______________________
-test/#################################################_long_
-twenty_byte_db_name_/#################################################_long_
-##################################################_long/#################################################_long
-SELECT path FROM information_schema.innodb_sys_datafiles WHERE path LIKE '%long%';
-path
-./this_sixty_four_byte_name_is_not_too_long_______________________/this_sixty_four_byte_name_is_not_too_long_______________________.ibd
-./test/#################################################_long_.ibd
-./twenty_byte_db_name_/#################################################_long_.ibd
-./##################################################_long/#################################################_long.ibd
 SELECT file_name, tablespace_name FROM information_schema.files WHERE file_name LIKE '%long%';
-file_name	./this_sixty_four_byte_name_is_not_too_long_______________________/this_sixty_four_byte_name_is_not_too_long_______________________.ibd
-tablespace_name	innodb_file_per_table_##
-file_name	./test/#################################################_long_.ibd
-tablespace_name	innodb_file_per_table_##
-file_name	./twenty_byte_db_name_/#################################################_long_.ibd
-tablespace_name	innodb_file_per_table_##
-file_name	./##################################################_long/#################################################_long.ibd
-tablespace_name	innodb_file_per_table_##
 #
 # Cleanup
 #

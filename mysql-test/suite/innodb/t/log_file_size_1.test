@@ -233,7 +233,7 @@ let SEARCH_PATTERN= InnoDB: .*ib_logfile1 is of different size;
 --move_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile0_hidden
 
 # restart server
-let $restart_parameters =
+--let $restart_parameters =
 --source include/start_mysqld.inc
 USE db_wl6494;
 SELECT id,LEFT(bfield,20) FROM t1;

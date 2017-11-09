@@ -50,7 +50,7 @@ show warnings;
 # This does not use the corrupted index, expect to succeed
 select * from t use index(primary) where a = 1;
 
-let $restart_parameters =
+--let $restart_parameters =
 --source include/restart_mysqld.inc
 
 DROP INDEX idx ON t;

@@ -15,7 +15,7 @@ call mtr.add_suppression("Table test/t contains fewer indexes inside InnoDB than
 CREATE TABLE t (c1 INT, c2 INT, KEY i2 (c2)) ENGINE=INNODB;
 
 SET DEBUG_DBUG='+d,ib_rename_index_fail1';
--- error ER_LOCK_DEADLOCK
+-- error 1064
 ALTER TABLE t RENAME INDEX i2 to x, ALGORITHM=INPLACE;
 SET DEBUG_DBUG='-d,ib_rename_index_fail1';
 

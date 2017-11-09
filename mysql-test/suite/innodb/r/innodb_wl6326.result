@@ -1,6 +1,9 @@
 DROP TABLE IF EXISTS t1;
 SET GLOBAL innodb_adaptive_hash_index = false;
 SET GLOBAL innodb_stats_persistent = false;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
 CREATE TABLE t1 (
 a00 CHAR(255) NOT NULL DEFAULT 'a',
 a01 CHAR(255) NOT NULL DEFAULT 'a',
@@ -255,8 +258,10 @@ SET GLOBAL innodb_limit_optimistic_insert_debug = 0;
 # Test start
 SET DEBUG_SYNC = 'RESET';
 INSERT INTO t1 (a00) VALUES ('bfa');
+connection con1;
 SET DEBUG_SYNC = 'before_insert_pessimitic_row_ins_clust SIGNAL reached WAIT_FOR continue';
 INSERT INTO t1 (a00) VALUES ('bfb');
+connection con2;
 SET DEBUG_SYNC = 'now WAIT_FOR reached';
 SELECT a00,a01 FROM t1 WHERE a00 = 'aa';
 a00	a01
@@ -272,15 +277,21 @@ a00	a01
 el	a
 SET DEBUG_SYNC = 'rw_s_lock_waiting SIGNAL lockwait1';
 SELECT a00,a01 FROM t1 WHERE a00 = 'ar';
+connection con3;
 SET DEBUG_SYNC = 'rw_s_lock_waiting SIGNAL lockwait2';
 SELECT a00,a01 FROM t1 WHERE a00 = 'cn';
+connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR lockwait1';
 SET DEBUG_SYNC = 'now WAIT_FOR lockwait2';
 SET DEBUG_SYNC = 'now SIGNAL continue';
+connection con1;
+connection con2;
 a00	a01
 ar	a
+connection con3;
 a00	a01
 cn	a
+connection default;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
@@ -289,20 +300,28 @@ CLUST_INDEX_SIZE
 30
 SET DEBUG_SYNC = 'RESET';
 INSERT INTO t1 (a00) VALUES ('cva');
+connection con1;
 SET DEBUG_SYNC = 'before_insert_pessimitic_row_ins_clust SIGNAL reached WAIT_FOR continue';
 INSERT INTO t1 (a00) VALUES ('cvb');
+connection con2;
 SET DEBUG_SYNC = 'now WAIT_FOR reached';
 SET DEBUG_SYNC = 'rw_s_lock_waiting SIGNAL lockwait1';
 SELECT a00,a01 FROM t1 WHERE a00 = 'aa';
+connection con3;
 SET DEBUG_SYNC = 'rw_s_lock_waiting SIGNAL lockwait2';
 SELECT a00,a01 FROM t1 WHERE a00 = 'el';
+connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR lockwait1';
 SET DEBUG_SYNC = 'now WAIT_FOR lockwait2';
 SET DEBUG_SYNC = 'now SIGNAL continue';
+connection con1;
+connection con2;
 a00	a01
 aa	a
+connection con3;
 a00	a01
 el	a
+connection default;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
@@ -311,8 +330,10 @@ CLUST_INDEX_SIZE
 31
 SET DEBUG_SYNC = 'RESET';
 INSERT INTO t1 (a00) VALUES ('gba');
+connection con1;
 SET DEBUG_SYNC = 'before_insert_pessimitic_row_ins_clust SIGNAL reached WAIT_FOR continue';
 INSERT INTO t1 (a00) VALUES ('gbb');
+connection con2;
 SET DEBUG_SYNC = 'now WAIT_FOR reached';
 SELECT a00,a01 FROM t1 WHERE a00 = 'aa';
 a00	a01
@@ -322,15 +343,21 @@ a00	a01
 ek	a
 SET DEBUG_SYNC = 'rw_s_lock_waiting SIGNAL lockwait1';
 SELECT a00,a01 FROM t1 WHERE a00 = 'el';
+connection con3;
 SET DEBUG_SYNC = 'rw_s_lock_waiting SIGNAL lockwait2';
 SELECT a00,a01 FROM t1 WHERE a00 = 'gb';
+connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR lockwait1';
 SET DEBUG_SYNC = 'now WAIT_FOR lockwait2';
 SET DEBUG_SYNC = 'now SIGNAL continue';
+connection con1;
+connection con2;
 a00	a01
 el	a
+connection con3;
 a00	a01
 gb	a
+connection default;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
@@ -338,4 +365,8 @@ SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME
 CLUST_INDEX_SIZE
 32
 SET DEBUG_SYNC = 'RESET';
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
 DROP TABLE t1;

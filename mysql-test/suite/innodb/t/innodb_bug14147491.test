@@ -84,7 +84,7 @@ set debug_dbug = '+d,innodb_page_corruption_retries';
 
 --echo # The below SELECT query will crash the server because some pages
 --echo # on the disk are corrupted
---error 2013
+--error 1932
 SELECT * FROM t1;
 
 # The below mtr command --remove_file fails randomly on windows with

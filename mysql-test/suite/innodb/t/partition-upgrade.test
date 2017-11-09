@@ -1,6 +1,7 @@
 # Can't run test of external client with embedded server
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--source include/have_partition.inc
 
 let $MYSQLD_DATADIR=`SELECT @@datadir`;
 let PATH_TO_TABLE=$MYSQLD_DATADIR/test/t575;
@@ -239,4 +240,5 @@ DROP TABLE t575;
 
 --remove_files_wildcard $MYSQLD_DATADIR/test list_t575*.txt
 
+mysql_upgrade_cleanup
 --source include/mysql_upgrade_cleanup.inc

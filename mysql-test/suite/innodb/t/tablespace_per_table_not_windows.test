@@ -19,7 +19,7 @@ LET $MYSQLD_DATADIR = `select @@datadir`;
 --echo # of up to 3 bytes per character, corresponding to 192 bytes.
 --echo #
 LET $too_long_name  = this_sixty_five_byte_name_is_too_long____________________________;
---error 1005
+--error 1102
 --eval CREATE DATABASE `$too_long_name`
 
 LET $long_name      = this_sixty_four_byte_name_is_not_too_long_______________________;
@@ -34,9 +34,9 @@ LET $long_name      = this_sixty_four_byte_name_is_not_too_long_________________
 --echo #
 --echo # A 65 character tablename is too long.
 --echo #
---error ER_TOO_LONG_IDENT
+--error 1103
 --eval CREATE TABLE `test`.`$too_long_name` (a SERIAL)
---error ER_TOO_LONG_IDENT
+--error 1103
 --eval CREATE TABLE `$long_name`.`$too_long_name` (a SERIAL)
 
 --echo #
@@ -76,7 +76,7 @@ CREATE DATABASE `###########################################################_lon
 --echo #                        (59 * 5) +                             6  = 301.
 --echo #
 --replace_result @0023 #
---error ER_TOO_LONG_IDENT
+--error 1102
 CREATE DATABASE `###########################################################_long_`;
 
 USE test;
@@ -141,10 +141,6 @@ SHOW WARNINGS;
 
 --replace_result @0023 #
 SELECT name FROM information_schema.innodb_sys_tables WHERE name LIKE '%long%';
---replace_result @0023 #
-SELECT name FROM information_schema.innodb_sys_tablespaces WHERE name LIKE '%long%';
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR  @0023 #
-SELECT path FROM information_schema.innodb_sys_datafiles WHERE path LIKE '%long%';
 --vertical_results
 --replace_regex /innodb_file_per_table_[0-9]*/innodb_file_per_table_##/
 --replace_result $MYSQLD_DATADIR MYSQLD_DATADIR  @0023 #

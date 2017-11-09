@@ -1,0 +1,2 @@
+--innodb_page_size=16384  
+--innodb-sys-tablestats

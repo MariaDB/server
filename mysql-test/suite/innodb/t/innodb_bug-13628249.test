@@ -23,7 +23,7 @@ let $restart_parameters =--innodb-force-recovery=2;
 SELECT @@innodb_force_recovery;
 
 --echo # Restart server in normal mode
-let $restart_parameters =
+--let $restart_parameters =
 --source include/restart_mysqld.inc
 
 SELECT @@innodb_force_recovery;
@@ -64,7 +64,7 @@ SELECT COUNT(*) IN (0,4) yes FROM t1;
 # mode. For -innodb-force-recovery >= 3 a transaction is not assigned a
 # rollback segment.
 --echo # Restart server in normal mode
-let $restart_parameters =
+--let $restart_parameters =
 --source include/restart_mysqld.inc
 
 SELECT @@innodb_force_recovery;

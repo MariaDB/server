@@ -136,7 +136,7 @@ SET @@global.innodb_stats_persistent=default;
 --echo Test_2 :- Check if purge thread ignores the undo  
 --echo		 log records of the table being truncated.
 
-let $restart_parameters =--innodb_purge_threads=1 --innodb_purge_batch_size=1 --innodb_stats_persistent=OFF
+--let $restart_parameters =--innodb_purge_threads=1 --innodb_purge_batch_size=1 --innodb_stats_persistent=OFF
 --source include/restart_mysqld.inc;
 
 create table t1 (f1 int ,f2 int,key(f2)) engine=innodb;
@@ -185,5 +185,5 @@ let SEARCH_PATTERN = InnoDB: Record with space id \d+ belongs to table which is 
 
 #cleanup
 --echo # restart server
-let $restart_parameters =
+--let $restart_parameters =
 --source include/restart_mysqld.inc

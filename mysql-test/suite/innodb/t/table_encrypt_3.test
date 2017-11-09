@@ -761,7 +761,7 @@ ALTER INSTANCE ROTATE INNODB MASTER KEY;
 
 # Normal restart
 --disable_query_log
-let $restart_parameters =
+--let $restart_parameters =
 --enable_query_log
 --source include/restart_mysqld.inc
 ## Cleanup

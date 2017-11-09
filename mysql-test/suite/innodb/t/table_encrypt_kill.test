@@ -360,7 +360,7 @@ SELECT 1;
 
 # Cleanup
 --echo # restart server without keyring
-let $restart_parameters =
+--let $restart_parameters =
 --source include/restart_mysqld.inc
 eval SET GLOBAL innodb_file_per_table=$innodb_file_per_table;
 --remove_file $MYSQL_TMP_DIR/mysecret_keyring

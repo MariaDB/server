@@ -274,7 +274,7 @@ SELECT PLUGIN_NAME,PLUGIN_VERSION,PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS 
 --echo # init tables
 call tde_db.init_setup();
 --echo # restart without --early-plugin-load and keyring_file_data
-let $restart_parameters =
+--let $restart_parameters =
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR $KEYRING_PLUGIN_OPT --plugin-dir=KEYRING_PLUGIN_PATH $KEYRING_PLUGIN keyring_file.so
 --source include/restart_mysqld.inc
 
@@ -426,7 +426,7 @@ SELECT @@global.keyring_file_data;
 call tde_db.init_setup();
 --echo # restart without --early-plugin-load and keyring_file_data
 --echo # AND explicitly install plugin to access old table
-let $restart_parameters =
+--let $restart_parameters =
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR $KEYRING_PLUGIN_OPT --plugin-dir=KEYRING_PLUGIN_PATH $KEYRING_PLUGIN keyring_file.so
 --source include/restart_mysqld.inc
 
@@ -600,7 +600,7 @@ DROP TABLE tde_db.t_non_encrypt , tde_db.t_non_encrypt_2 ,tde_db.t_non_encrypt_4
 DROP DATABASE tde_db;
 
 --echo # Starting server without keyring
-let $restart_parameters =
+--let $restart_parameters =
 --source include/restart_mysqld.inc
 
 # Cleanup

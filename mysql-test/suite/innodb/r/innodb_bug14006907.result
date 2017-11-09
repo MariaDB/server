@@ -10,20 +10,24 @@ DROP TABLE t2;
 SET DEBUG_SYNC = 'innodb_after_inplace_alter_table SIGNAL drop WAIT_FOR fk';
 DROP INDEX c2 ON t1;
 # Establish session con1 (user=root)
+connect  con1,localhost,root,,;
 # Session con1
+connection con1;
 SET DEBUG_SYNC = 'now WAIT_FOR drop';
 CREATE TABLE t2 (
 c2 INT PRIMARY KEY,
 CONSTRAINT t2c2 FOREIGN KEY (c2) REFERENCES t1 (c2))
 ENGINE = InnoDB;
-ERROR HY000: Cannot add foreign key constraint
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 SET DEBUG_SYNC = 'now SIGNAL fk';
+disconnect con1;
 # Session default
+connection default;
 /* reap */ DROP INDEX c2 ON t1;
 CREATE TABLE t2 (
 c2 INT PRIMARY KEY,
 CONSTRAINT t2c2 FOREIGN KEY (c2) REFERENCES t1 (c2))
 ENGINE = InnoDB;
-ERROR HY000: Cannot add foreign key constraint
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 SET DEBUG_SYNC='RESET';
 DROP TABLE t1;

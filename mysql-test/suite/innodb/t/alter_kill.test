@@ -67,7 +67,7 @@ SELECT COUNT(*) FROM bug16720368;
 --error ER_TABLESPACE_MISSING
 INSERT INTO bug16720368 VALUES(0,1);
 
-let $restart_parameters =--innodb-force-recovery=3;
+--let $restart_parameters =--innodb-force-recovery=3
 -- source include/kill_and_restart_mysqld.inc
 
 -- echo # The table is readable thanks to innodb-force-recovery.
@@ -76,7 +76,7 @@ SELECT COUNT(*) FROM bug16720368;
 INSERT INTO bug16720368 VALUES(0,1);
 
 -- echo # Shut down the server cleanly to hide the corruption.
-let $restart_parameters =
+--let $restart_parameters =
 -- source include/restart_mysqld.inc
 
 -- echo # The table is accessible, because after a clean shutdown we will

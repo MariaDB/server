@@ -26,6 +26,7 @@ alter_rename_existing:  tablespace
 i_s_files_debug:  tablespace
 log_file:  tablespace
 partition:  tablespace
+partition-upgrade: no UPGARDE PARTITIONING 
 table_compress:  tablespace
 table_encrypt_3:  tablespace
 tablespace_crash:  tablespace

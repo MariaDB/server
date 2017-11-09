@@ -44,7 +44,7 @@ let $restart_parameters =--innodb-read-only --big-tables=1;
 
 --source suite/innodb/include/query_workload_itt.inc
 
-let $restart_parameters =
+--let $restart_parameters =
 --source include/restart_mysqld.inc
 
 #-----------------------------------------------------------------------------

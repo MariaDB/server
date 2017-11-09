@@ -27,7 +27,7 @@ LET $innodb_file_per_table_orig=`select @@innodb_file_per_table`;
 --echo #
 SET SESSION innodb_strict_mode = ON;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---error ER_ILLEGAL_HA
+--error 1005
 eval CREATE TABLE t1 (a int KEY, b text) $index_directory_clause;
 SHOW WARNINGS;
 
@@ -47,7 +47,7 @@ DROP TABLE t1;
 SET SESSION innodb_strict_mode = ON;
 SET GLOBAL innodb_file_per_table=OFF;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---error ER_ILLEGAL_HA
+--error 1005
 eval CREATE TABLE t1 (a int KEY, b text) $data_directory_clause;
 SHOW WARNINGS;
 
@@ -91,14 +91,12 @@ SHOW CREATE TABLE t1;
 
 --echo # Show that the new system tables have this table in them correctly
 --source suite/innodb/include/show_i_s_tables.inc
---source suite/innodb/include/show_i_s_tablespaces.inc
 
 --echo #
 --echo # Show that the system tables are updated on drop table
 --echo #
 DROP TABLE t1;
 --source suite/innodb/include/show_i_s_tables.inc
---source suite/innodb/include/show_i_s_tablespaces.inc
 
 --echo #
 --echo # Create the same table a second time in the same place
@@ -111,7 +109,6 @@ SELECT * FROM t1;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 SHOW CREATE TABLE t1;
 --source suite/innodb/include/show_i_s_tables.inc
---source suite/innodb/include/show_i_s_tablespaces.inc
 --echo ---- MYSQLD_DATADIR/test
 --list_files $MYSQLD_DATADIR/test
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
@@ -125,7 +122,6 @@ INSERT INTO t1 VALUES (3, "Truncate the table, then insert");
 SELECT * FROM t1;
 
 --source suite/innodb/include/show_i_s_tables.inc
---source suite/innodb/include/show_i_s_tablespaces.inc
 --echo ---- MYSQLD_DATADIR/test
 --list_files $MYSQLD_DATADIR/test
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
@@ -139,7 +135,6 @@ INSERT INTO t2 VALUES (4, "Rename the table, then insert");
 SELECT * FROM t2;
 
 --source suite/innodb/include/show_i_s_tables.inc
---source suite/innodb/include/show_i_s_tablespaces.inc
 --echo ---- MYSQLD_DATADIR/test
 --list_files $MYSQLD_DATADIR/test
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
@@ -152,7 +147,6 @@ CREATE TABLE t3 LIKE t2;
 INSERT INTO t3 VALUES (5, "CREATE TABLE LIKE");
 SELECT * FROM t3;
 --source suite/innodb/include/show_i_s_tables.inc
---source suite/innodb/include/show_i_s_tablespaces.inc
 --echo ---- MYSQLD_DATADIR/test
 --list_files $MYSQLD_DATADIR/test
 
@@ -161,7 +155,6 @@ SELECT * FROM t3;
 --echo #
 DROP TABLE t2, t3;
 --source suite/innodb/include/show_i_s_tables.inc
---source suite/innodb/include/show_i_s_tablespaces.inc
 --echo ---- MYSQLD_DATADIR/test
 --list_files $MYSQLD_DATADIR/test
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
@@ -199,7 +192,7 @@ SET SESSION innodb_strict_mode = ON;
 --echo # CREATE TEMPORARY TABLE with DATA DIRECTORY is rejected in strict mode.
 --echo #
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---error ER_ILLEGAL_HA
+--error 1005
 eval CREATE TEMPORARY TABLE t1 (a int KEY, b text) engine=InnoDB $data_directory_clause;
 SHOW WARNINGS;
 
@@ -223,7 +216,7 @@ eval CREATE TEMPORARY TABLE t1 (a int KEY, b text) engine=InnoDB $data_directory
 DROP TABLE t1;
 SET SESSION innodb_strict_mode = ON;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---error ER_ILLEGAL_HA
+--error 1005
 eval CREATE TEMPORARY TABLE t1 (a int KEY, b text) engine=InnoDB $data_directory_clause;
 SHOW WARNINGS;
 SET SESSION innodb_strict_mode = OFF;
@@ -241,7 +234,6 @@ DELIMITER |;
 eval CREATE PROCEDURE static_proc() BEGIN CREATE TABLE t1 (a int KEY, b text) $data_directory_clause; END |
 DELIMITER ;|
 CALL static_proc;
---source suite/innodb/include/show_i_s_tablespaces.inc
 INSERT INTO t1 VALUES (7, "Create the remote table via static DDL statements");
 SELECT * FROM t1;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
@@ -261,7 +253,6 @@ DELIMITER |;
 eval CREATE PROCEDURE dynamic_proc() BEGIN PREPARE stmt1 FROM "CREATE TABLE t1 (a int KEY, b text) $data_directory_clause"; EXECUTE stmt1; END |
 DELIMITER ;|
 CALL dynamic_proc;
---source suite/innodb/include/show_i_s_tablespaces.inc
 INSERT INTO t1 VALUES (8, "Create the remote table via dynamic DDL statements");
 SELECT * FROM t1;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
@@ -300,7 +291,6 @@ INSERT INTO emp values(3,'IBM','NAIL',70);
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 SHOW CREATE TABLE emp;
 --source suite/innodb/include/show_i_s_tables.inc
---source suite/innodb/include/show_i_s_tablespaces.inc
 SELECT * FROM emp;
 --echo ---- MYSQLD_DATADIR/test
 --replace_regex /emp#P#/emp#p#/
@@ -322,7 +312,6 @@ ALTER TABLE emp DROP PARTITION west;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 SHOW CREATE TABLE emp;
 --source suite/innodb/include/show_i_s_tables.inc
---source suite/innodb/include/show_i_s_tablespaces.inc
 SELECT * FROM emp;
 --echo ---- MYSQLD_DATADIR/test
 --replace_regex /emp#P#/emp#p#/
@@ -347,7 +336,6 @@ eval ALTER TABLE emp ADD PARTITION (
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 SHOW CREATE TABLE emp;
 --source suite/innodb/include/show_i_s_tables.inc
---source suite/innodb/include/show_i_s_tablespaces.inc
 
 INSERT INTO emp VALUES(3,'IBM','NAIL',70);
 SELECT * FROM emp;
@@ -373,7 +361,6 @@ ALTER TABLE emp TRUNCATE PARTITION west;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 SHOW CREATE TABLE emp;
 --source suite/innodb/include/show_i_s_tables.inc
---source suite/innodb/include/show_i_s_tablespaces.inc
 
 SELECT * FROM emp;
 INSERT INTO emp VALUES(3,'IBM','NAIL',70);
