@@ -46,7 +46,7 @@ a	RIGHT(b,10)	RIGHT(c,10)	RIGHT(d,10)	RIGHT(e,10)	RIGHT(f,10)
 1	11.111	a1a1a1a1a1	a1a1a1a1a1	tatatatata	NULL
 2	12.111	a2a2a2a2a2	a2a2a2a2a2	tatatatata	NULL
 ALTER TABLE t1 DROP COLUMN f, DROP INDEX `idx1` , ADD INDEX `idx2` (d), ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 ALTER TABLE t1 DROP COLUMN f, DROP INDEX `idx1` , ADD INDEX `idx2` (d), ALGORITHM=COPY;
 SELECT a,RIGHT(b,10),RIGHT(c,10),RIGHT(d,10),RIGHT(e,10) FROM t1;
 a	RIGHT(b,10)	RIGHT(c,10)	RIGHT(d,10)	RIGHT(e,10)
@@ -61,6 +61,7 @@ SELECT @@global.innodb_file_per_table;
 1
 CREATE DATABASE test_db;
 "Create con1 client connection"
+connect  con1,localhost,root,,;
 # creation of shared temp-tablespace in MYSQL_DATA_DIR
 ibtmp1
 DROP TABLE IF EXISTS t1,t2,t3,t4;

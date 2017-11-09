@@ -16,7 +16,7 @@ SET GLOBAL innodb_fast_shutdown=0;
 --let $restart_parameters =--innodb-read-only
 --source include/restart_mysqld.inc
 
---error 1836
+--error ER_READ_ONLY_MODE
 UPDATE t1,t2 SET t1.a = 2, t2.b = 2 WHERE t1.a = 1;
 
 # Restart in normal mode to drop tables

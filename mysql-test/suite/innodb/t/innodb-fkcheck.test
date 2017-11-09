@@ -45,7 +45,7 @@ show create table c;
 #
 # Note that column b has different type in parent table
 #
---error 1005
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE b (
   b bigint unsigned NOT NULL,
   d1 date NOT NULL,
@@ -78,7 +78,7 @@ show create table d;
 # table is not allowed to be dropped even in case
 # when actual create is not successfull.
 #
---error 1005
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE b (
   b bigint unsigned NOT NULL,
   d1 date NOT NULL,

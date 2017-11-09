@@ -320,7 +320,7 @@ SELECT * FROM testdb_wl5522.t1;
 SELECT * FROM testdb_wl5522.t1_fk;
 
 # Enter Invalid value: PK-FK relationship violation
---error 1452
+--error ER_NO_REFERENCED_ROW_2
 INSERT INTO testdb_wl5522.t1_fk VALUES (100,'a100');
 
 SET AUTOCOMMIT = 0;

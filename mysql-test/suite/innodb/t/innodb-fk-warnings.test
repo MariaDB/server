@@ -15,7 +15,7 @@ CREATE TABLE t1 (
 # Below create table fails because constraint name test
 # is reserved for above table.
 #
---error 1005
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE t2 (
   id int(11) NOT NULL PRIMARY KEY,
   a int(11) NOT NULL,
@@ -37,19 +37,19 @@ drop table t1;
 # No index for referenced columns
 #
 create table t1(a int) engine=innodb;
---error 1005
+--error ER_CANT_CREATE_TABLE
 create table t2(a int, constraint a foreign key a (a) references t1(a)) engine=innodb;
 show warnings;
 drop table t1;
 
 create table t1(a int not null primary key, b int) engine=innodb;
---error 1005
+--error ER_CANT_CREATE_TABLE
 create table t2(a int, b int, constraint a foreign key a (a) references t1(a),
 constraint a foreign key a (a) references t1(b)) engine=innodb;
 show warnings;
 create table t2(a int, b int, constraint a foreign key a (a) references t1(a)) engine=innodb;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error 1005
+--error ER_CANT_CREATE_TABLE
 alter table t2 add constraint b foreign key (b) references t2(b);
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
@@ -61,7 +61,7 @@ drop table t2, t1;
 
 create table t1 (f1 integer primary key) engine=innodb;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error 1005
+--error ER_CANT_CREATE_TABLE
 alter table t1 add constraint c1 foreign key (f1) references t11(f1);
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
@@ -88,12 +88,12 @@ create temporary table t1(a int not null primary key, b int, key(b)) engine=inno
 --echo Error	1005	Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
 --echo Warning	1215	Cannot add foreign key constraint
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error 1005
+--error ER_CANT_CREATE_TABLE
 create temporary table t2(a int, foreign key(a) references t1(a)) engine=innodb;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error 1005
+--error ER_CANT_CREATE_TABLE
 alter table t1 add foreign key(b) references t1(a);
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
@@ -122,12 +122,12 @@ drop table t1;
 #
 create table t1 (f1 integer not null primary key) engine=innodb;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error 1005
+--error ER_CANT_CREATE_TABLE
 alter table t1 add constraint c1 foreign key (f1) references t1(f1) on update set null;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error 1005
+--error ER_CANT_CREATE_TABLE
 create table t2(a int not null, foreign key(a) references t1(f1) on delete set null) engine=innodb;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
@@ -138,7 +138,7 @@ drop table t1;
 #
 create table t1 (id int not null primary key, f1 int, f2 int, key(f1)) engine=innodb;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error 1005
+--error ER_CANT_CREATE_TABLE
 create table t2(a char(20), key(a), foreign key(a) references t1(f1)) engine=innodb;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;

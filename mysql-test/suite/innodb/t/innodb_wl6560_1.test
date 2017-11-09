@@ -3,6 +3,8 @@
 #
 
 --source include/have_innodb.inc
+--source include/have_partition.inc
+
 # Embedded server does not support crashing
 --source include/not_embedded.inc
 # Avoid CrashReporter popup on Mac

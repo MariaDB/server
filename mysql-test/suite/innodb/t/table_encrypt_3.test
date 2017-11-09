@@ -665,7 +665,7 @@ SELECT c11,c22,right(c33, 20) FROM tde_db.t_encrypt1 LIMIT 10;
 --ERROR ER_DUP_ENTRY
 INSERT INTO tde_db.t_encrypt2(f1,f2) VALUES(2,"general tablespace option");
 # No entry in PK
---ERROR 1452
+--error ER_NO_REFERENCED_ROW_2
 INSERT INTO tde_db.t_encrypt2(f1,f2) VALUES(8,"general tablespace option");
 SELECT f1,f2 FROM tde_db.t_encrypt2;
 UPDATE tde_db.t_encrypt SET c1=10 WHERE c1=1;

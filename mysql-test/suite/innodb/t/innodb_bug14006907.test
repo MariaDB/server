@@ -28,7 +28,7 @@ connect (con1,localhost,root,,);
 connection con1;
 
 SET DEBUG_SYNC = 'now WAIT_FOR drop';
---error 1005
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE t2 (
  c2 INT PRIMARY KEY,
  CONSTRAINT t2c2 FOREIGN KEY (c2) REFERENCES t1 (c2))
@@ -42,7 +42,7 @@ connection default;
 --echo /* reap */ DROP INDEX c2 ON t1;
 reap;
 
---error 1005 
+--error ER_CANT_CREATE_TABLE 
 CREATE TABLE t2 (
  c2 INT PRIMARY KEY,
  CONSTRAINT t2c2 FOREIGN KEY (c2) REFERENCES t1 (c2))

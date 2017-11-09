@@ -36,6 +36,8 @@ tablespace_portability:  tablespace
 tablespace_portability_windows:  tablespace
 default_row_format_tablespace:  tablespace
 innodb-multiple-tablespaces: tablespaces
+missing_tablespaces: tablespaces
+
 alter_table_stage_progress: fix
 innodb-status-output: fix
 create_table: fix

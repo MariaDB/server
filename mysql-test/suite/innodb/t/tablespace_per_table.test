@@ -32,7 +32,7 @@ DROP TABLE t1;
 
 SET SESSION innodb_strict_mode = ON;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---error 1005
+--error ER_CANT_CREATE_TABLE
 eval CREATE TABLE t1 (a int KEY, b text) $index_directory_clause;
 SHOW WARNINGS;
 
@@ -52,7 +52,7 @@ DROP TABLE t1;
 
 SET SESSION innodb_strict_mode = ON;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---error 1005
+--error ER_CANT_CREATE_TABLE
 eval CREATE TABLE t1 (a int KEY, b text) $data_directory_clause;
 SHOW WARNINGS;
 
@@ -214,7 +214,7 @@ DROP TABLE t1;
 
 SET SESSION innodb_strict_mode = ON;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---error 1005
+--error ER_CANT_CREATE_TABLE
 eval CREATE TEMPORARY TABLE t1 (a int KEY, b text) engine=InnoDB $data_directory_clause;
 SHOW WARNINGS;
 

@@ -52,9 +52,9 @@ insert into a(cola) values (12);
 select * from a;
 insert into b(cola, v_cola, p_cola) values (10,2,2);
 select * from b;
---error 1452
+--error ER_NO_REFERENCED_ROW_2
 insert into b(cola, v_cola, p_cola) values (10,1,1);
---error 1451
+--error ER_ROW_IS_REFERENCED_2
 delete from a;
 select * from a;
 select * from b;
