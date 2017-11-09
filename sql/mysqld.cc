@@ -8872,7 +8872,7 @@ static int mysql_init_variables(void)
   report_user= report_password = report_host= 0;	/* TO BE DELETED */
   opt_relay_logname= opt_relaylog_index_name= 0;
   slave_retried_transactions= 0;
-  run_hooks_enabled= 1; // "dynamic" hooks run by default unlike "static" semisync
+  run_hooks_enabled= 0; // don't run hooks, semisync does not need 'em
   log_bin_basename= NULL;
   log_bin_index= NULL;
 

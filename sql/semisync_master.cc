@@ -409,7 +409,6 @@ int ReplSemiSyncMaster::enableMaster()
 
       set_master_enabled(true);
       state_ = true;
-      run_hooks_enabled= 0; // plugin "dynamic" hooks not to run when semisync ON
       sql_print_information("Semi-sync replication enabled on the master.");
     }
     else
