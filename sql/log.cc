@@ -3265,7 +3265,7 @@ void MYSQL_BIN_LOG::init_pthread_objects()
   mysql_cond_init(key_BINLOG_COND_binlog_background_thread_end,
                   &COND_binlog_background_thread_end, 0);
 
-  mysql_mutex_init(key_LOCK_binlog_end_pos, &LOCK_binlog_end_pos,
+  mysql_mutex_init(m_key_LOCK_binlog_end_pos, &LOCK_binlog_end_pos,
                    MY_MUTEX_INIT_SLOW);
 }
 
