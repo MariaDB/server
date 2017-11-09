@@ -21,6 +21,7 @@ b CHAR(30),
 PRIMARY KEY(pk) COMMENT "cf1",
 KEY(a)
 ) COLLATE 'latin1_bin' PARTITION BY KEY() PARTITIONS 4;
+connect  other,localhost,root,,;
 set session transaction isolation level repeatable read;
 select * from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
 STAT_TYPE	VALUE
@@ -29,6 +30,7 @@ start transaction with consistent snapshot;
 select * from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
 STAT_TYPE	VALUE
 DB_NUM_SNAPSHOTS	1
+connection default;
 set rocksdb_bulk_load=1;
 set rocksdb_bulk_load_size=100000;
 LOAD DATA INFILE <input_file> INTO TABLE t1;
@@ -79,4 +81,5 @@ count(b)
 5000000
 longfilenamethatvalidatesthatthiswillgetdeleted.bulk_load.tmp
 test.bulk_load.tmp
+disconnect other;
 DROP TABLE t1, t2, t3;
