@@ -1256,10 +1256,11 @@ bool Item_in_optimizer::is_top_level_item()
 }
 
 
-void Item_in_optimizer::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_in_optimizer::fix_after_pullout(st_select_lex *new_parent,
+                                          Item **ref, bool merge)
 {
   /* This will re-calculate attributes of our Item_in_subselect: */
-  Item_bool_func::fix_after_pullout(new_parent, ref);
+  Item_bool_func::fix_after_pullout(new_parent, ref, merge);
 
   /* Then, re-calculate not_null_tables_cache: */
   eval_not_null_tables(NULL);
@@ -2086,10 +2087,11 @@ bool Item_func_between::count_sargable_conds(void *arg)
 }
 
 
-void Item_func_between::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_func_between::fix_after_pullout(st_select_lex *new_parent,
+                                          Item **ref, bool merge)
 {
   /* This will re-calculate attributes of the arguments */
-  Item_func_opt_neg::fix_after_pullout(new_parent, ref);
+  Item_func_opt_neg::fix_after_pullout(new_parent, ref, merge);
   /* Then, re-calculate not_null_tables_cache according to our special rules */
   eval_not_null_tables(NULL);
 }
@@ -2430,10 +2432,11 @@ Item_func_if::eval_not_null_tables(void *opt_arg)
 }
 
 
-void Item_func_if::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_func_if::fix_after_pullout(st_select_lex *new_parent,
+                                     Item **ref, bool merge)
 {
   /* This will re-calculate attributes of the arguments */
-  Item_func::fix_after_pullout(new_parent, ref);
+  Item_func::fix_after_pullout(new_parent, ref, merge);
   /* Then, re-calculate not_null_tables_cache according to our special rules */
   eval_not_null_tables(NULL);
 }
@@ -4164,10 +4167,11 @@ Item_func_in::eval_not_null_tables(void *opt_arg)
 }
 
 
-void Item_func_in::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_func_in::fix_after_pullout(st_select_lex *new_parent, Item **ref,
+                                     bool merge)
 {
   /* This will re-calculate attributes of the arguments */
-  Item_func_opt_neg::fix_after_pullout(new_parent, ref);
+  Item_func_opt_neg::fix_after_pullout(new_parent, ref, merge);
   /* Then, re-calculate not_null_tables_cache according to our special rules */
   eval_not_null_tables(NULL);
 }
@@ -4689,7 +4693,8 @@ Item_cond::eval_not_null_tables(void *opt_arg)
 }
 
 
-void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref,
+                                  bool merge)
 {
   List_iterator<Item> li(list);
   Item *item;
@@ -4702,7 +4707,7 @@ void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref)
   while ((item=li++))
   {
     table_map tmp_table_map;
-    item->fix_after_pullout(new_parent, li.ref());
+    item->fix_after_pullout(new_parent, li.ref(), merge);
     item= *li.ref();
     used_tables_and_const_cache_join(item);
 

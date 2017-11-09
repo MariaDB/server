@@ -273,7 +273,8 @@ Item_func::eval_not_null_tables(void *opt_arg)
 }
 
 
-void Item_func::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_func::fix_after_pullout(st_select_lex *new_parent, Item **ref,
+                                  bool merge)
 {
   Item **arg,**arg_end;
 
@@ -284,7 +285,7 @@ void Item_func::fix_after_pullout(st_select_lex *new_parent, Item **ref)
   {
     for (arg=args, arg_end=args+arg_count; arg != arg_end ; arg++)
     {
-      (*arg)->fix_after_pullout(new_parent, arg);
+      (*arg)->fix_after_pullout(new_parent, arg, merge);
       Item *item= *arg;
 
       used_tables_and_const_cache_join(item);

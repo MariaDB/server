@@ -126,7 +126,7 @@ public:
     Item_func_or_sum::cleanup();
     used_tables_and_const_cache_init();
   }
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void quick_fix_field();
   table_map not_null_tables() const;
   void update_used_tables()
