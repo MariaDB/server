@@ -334,18 +334,16 @@ row_undo_mod_clust(
 		switch (node->rec_type) {
 		case TRX_UNDO_DEL_MARK_REC:
 			row_log_table_insert(
-				btr_pcur_get_rec(pcur), node->row,
-				index, offsets);
+				btr_pcur_get_rec(pcur), index, offsets);
 			break;
 		case TRX_UNDO_UPD_EXIST_REC:
 			row_log_table_update(
 				btr_pcur_get_rec(pcur), index, offsets,
-				rebuilt_old_pk, node->undo_row, node->row);
+				rebuilt_old_pk);
 			break;
 		case TRX_UNDO_UPD_DEL_REC:
 			row_log_table_delete(
-				btr_pcur_get_rec(pcur), node->row,
-				index, offsets, sys);
+				btr_pcur_get_rec(pcur), index, offsets, sys);
 			break;
 		default:
 			ut_ad(0);

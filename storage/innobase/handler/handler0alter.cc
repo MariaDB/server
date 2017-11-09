@@ -372,6 +372,26 @@ innobase_fulltext_exist(
 	return(false);
 }
 
+/** Determine whether indexed virtual columns exist in a table.
+@param[in]	table	table definition
+@return	whether indexes exist on virtual columns */
+static bool innobase_indexed_virtual_exist(const TABLE* table)
+{
+	const KEY* const end = &table->key_info[table->s->keys];
+
+	for (const KEY* key = table->key_info; key < end; key++) {
+		const KEY_PART_INFO* const key_part_end = key->key_part
+			+ key->user_defined_key_parts;
+		for (const KEY_PART_INFO* key_part = key->key_part;
+		     key_part < key_part_end; key_part++) {
+			if (!key_part->field->stored_in_db())
+				return true;
+		}
+	}
+
+	return false;
+}
+
 /** Determine if spatial indexes exist in a given table.
 @param table MySQL table
 @return whether spatial indexes exist on the table */
@@ -903,9 +923,11 @@ ha_innobase::check_if_supported_inplace_alter(
 		     & Alter_inplace_info::ADD_PK_INDEX)
 		    || innobase_need_rebuild(ha_alter_info, table))
 		   && (innobase_fulltext_exist(altered_table)
-		       || innobase_spatial_exist(altered_table))) {
+		       || innobase_spatial_exist(altered_table)
+		       || innobase_indexed_virtual_exist(altered_table))) {
 		/* Refuse to rebuild the table online, if
-		FULLTEXT OR SPATIAL indexes are to survive the rebuild. */
+		FULLTEXT OR SPATIAL indexes or indexed virtual columns
+		are to survive the rebuild. */
 		online = false;
 		/* If the table already contains fulltext indexes,
 		refuse to rebuild the table natively altogether. */
@@ -919,6 +941,10 @@ ha_innobase::check_if_supported_inplace_alter(
 			ha_alter_info->unsupported_reason =
 				innobase_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
+		} else if (!innobase_fulltext_exist(altered_table)) {
+			/* MDEV-14341 FIXME: Remove this limitation. */
+			ha_alter_info->unsupported_reason =
+				"online rebuild with indexed virtual columns";
 		} else {
 			ha_alter_info->unsupported_reason =
 				innobase_get_err_msg(
@@ -1053,8 +1079,6 @@ ha_innobase::check_if_supported_inplace_alter(
 next_column:
 		af++;
 	}
-
-	cf_it.rewind();
 
 	DBUG_RETURN(online
 		    ? HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE

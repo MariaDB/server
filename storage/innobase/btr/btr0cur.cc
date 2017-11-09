@@ -4707,7 +4707,7 @@ btr_cur_del_mark_set_clust_rec(
 		 << rec_printer(rec, offsets).str());
 
 	if (dict_index_is_online_ddl(index)) {
-		row_log_table_delete(rec, entry, index, offsets, NULL);
+		row_log_table_delete(rec, index, offsets, NULL);
 	}
 
 	row_upd_rec_sys_fields(rec, page_zip, index, offsets, trx, roll_ptr);

@@ -292,15 +292,13 @@ trx_undo_rec_get_col_val(
 @param[in]	table		the table
 @param[in]	ptr		undo log pointer
 @param[in,out]	row		the dtuple to fill
-@param[in]	in_purge        called by purge thread
-@param[in]	col_map		online rebuild column map */
+@param[in]	in_purge	whether this is called by purge */
 void
 trx_undo_read_v_cols(
 	const dict_table_t*	table,
 	const byte*		ptr,
 	const dtuple_t*		row,
-	bool			in_purge,
-	const ulint*		col_map);
+	bool			in_purge);
 
 /** Read virtual column index from undo log if the undo log contains such
 info, and verify the column is still indexed, and output its position

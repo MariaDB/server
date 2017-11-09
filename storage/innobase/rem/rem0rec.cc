@@ -936,49 +936,6 @@ rec_get_converted_size_comp_prefix_low(
 	return(extra_size + data_size);
 }
 
-/** Determine the converted size of virtual column data in a temporary file.
-@see rec_convert_dtuple_to_temp_v()
-@param[in]	index	clustered index
-@param[in]	v	clustered index record augmented with the values
-			of virtual columns
-@return size in bytes */
-ulint
-rec_get_converted_size_temp_v(const dict_index_t* index, const dtuple_t* v)
-{
-	ut_ad(dict_index_is_clust(index));
-
-	/* length marker */
-	ulint data_size = 2;
-	const ulint n_v_fields = dtuple_get_n_v_fields(v);
-
-	for (ulint i = 0; i < n_v_fields; i++) {
-		const dict_v_col_t*     col
-			= dict_table_get_nth_v_col(index->table, i);
-
-		/* Only those indexed needs to be logged */
-		if (!col->m_col.ord_part) {
-			continue;
-		}
-
-		data_size += mach_get_compressed_size(i + REC_MAX_N_FIELDS);
-		const dfield_t* vfield = dtuple_get_nth_v_field(v, col->v_pos);
-		ulint		flen = vfield->len;
-
-		if (flen != UNIV_SQL_NULL) {
-			flen = ut_min(
-				flen,
-				static_cast<ulint>(
-					DICT_MAX_FIELD_LEN_BY_FORMAT(
-						index->table)));
-			data_size += flen;
-		}
-
-		data_size += mach_get_compressed_size(flen);
-	}
-
-	return(data_size);
-}
-
 /**********************************************************//**
 Determines the size of a data tuple prefix in ROW_FORMAT=COMPACT.
 @return total size */
@@ -1374,68 +1331,6 @@ rec_convert_dtuple_to_rec_comp(
 			end += len;
 		}
 	}
-}
-
-/** Write indexed virtual column data into a temporary file.
-@see rec_get_converted_size_temp_v()
-@param[out]	rec	serialized record
-@param[in]	index	clustered index
-@param[in]	v_entry	clustered index record augmented with the values
-			of virtual columns */
-void
-rec_convert_dtuple_to_temp_v(
-	byte*			rec,
-	const dict_index_t*	index,
-	const dtuple_t*		v_entry)
-{
-	ut_ad(dict_index_is_clust(index));
-	const ulint num_v = dtuple_get_n_v_fields(v_entry);
-
-	/* reserve 2 bytes for writing length */
-	byte*	ptr = rec;
-	ptr += 2;
-
-	/* Now log information on indexed virtual columns */
-	for (ulint col_no = 0; col_no < num_v; col_no++) {
-		dfield_t*       vfield;
-		ulint		flen;
-
-		const dict_v_col_t*     col
-			= dict_table_get_nth_v_col(index->table, col_no);
-
-		if (col->m_col.ord_part) {
-			ulint   pos = col_no;
-
-			pos += REC_MAX_N_FIELDS;
-
-			ptr += mach_write_compressed(ptr, pos);
-
-			vfield = dtuple_get_nth_v_field(
-				v_entry, col->v_pos);
-
-			flen = vfield->len;
-
-			if (flen != UNIV_SQL_NULL) {
-				/* The virtual column can only be in sec
-				index, and index key length is bound by
-				DICT_MAX_FIELD_LEN_BY_FORMAT */
-				flen = ut_min(
-					flen,
-					static_cast<ulint>(
-					DICT_MAX_FIELD_LEN_BY_FORMAT(
-						index->table)));
-			}
-
-			ptr += mach_write_compressed(ptr, flen);
-
-			if (flen != UNIV_SQL_NULL) {
-				ut_memcpy(ptr, dfield_get_data(vfield), flen);
-				ptr += flen;
-			}
-		}
-	}
-
-	mach_write_to_2(rec, ptr - rec);
 }
 
 /*********************************************************//**
