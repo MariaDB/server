@@ -23,10 +23,12 @@ table_encrypt_debug: tests with keyring
 table_encrypt_kill: tests with keyring
 
 alter_rename_existing:  tablespace
+default_row_format_tablespace:  tablespace
 i_s_files_debug:  tablespace
+innodb-multiple-tablespaces: tablespaces
 log_file:  tablespace
+missing_tablespaces: tablespaces
 partition:  tablespace
-partition-upgrade: no UPGARDE PARTITIONING 
 table_compress:  tablespace
 table_encrypt_3:  tablespace
 tablespace_crash:  tablespace
@@ -34,17 +36,15 @@ tablespace_embedded:  tablespace
 tablespace_embedded_windows:  tablespace
 tablespace_portability:  tablespace
 tablespace_portability_windows:  tablespace
-default_row_format_tablespace:  tablespace
-innodb-multiple-tablespaces: tablespaces
-missing_tablespaces: tablespaces
 
 alter_table_stage_progress: fix
-innodb-status-output: fix
-create_table: fix
 blob-crash: no --innodb-force-recovery-crash option in Mariadb
+create_table: fix
 flush-hang: no GLOBAL INNODB_PURGE_STOP_NOW variable, fix
-innodb-lock-inherit-read_commited: no GLOBAL INNODB_PURGE_STOP_NOW variable, fix
-innodb-truncate-debug: no GLOBAL INNODB_PURGE_STOP_NOW variable, fix
-innodb_wl6470_debug: no GLOBAL INNODB_PURGE_STOP_NOW variable, fix
 help_verbose : fix
 index-online-norebuild: no STORAGE DISK type//
+innodb-lock-inherit-read_commited: no GLOBAL INNODB_PURGE_STOP_NOW variable, fix
+innodb-status-output: fix
+innodb-truncate-debug: no GLOBAL INNODB_PURGE_STOP_NOW variable, fix
+innodb_wl6470_debug: no GLOBAL INNODB_PURGE_STOP_NOW variable, fix
+partition-upgrade: no UPGARDE PARTITIONING 
