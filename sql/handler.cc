@@ -4301,7 +4301,7 @@ bool handler::ha_commit_inplace_alter_table(TABLE *altered_table,
                                                    MDL_EXCLUSIVE) ||
                !commit);
 
-  if (commit)
+  if (commit && native_versioned())
   {
     TR_table trt(ha_thd(), true);
     bool updated;
