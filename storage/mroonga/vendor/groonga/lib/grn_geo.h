@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2011 Brazil
+/*
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,13 +15,10 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_GEO_H
-#define GRN_GEO_H
 
-#ifndef GRN_H
+#pragma once
+
 #include "grn.h"
-#endif /* GRN_H */
-
 #include "grn_ii.h"
 #include "grn_db.h"
 
@@ -125,9 +123,6 @@ typedef struct {
 grn_rc grn_geo_cursor_close(grn_ctx *ctx, grn_obj *geo_cursor);
 
 
-int grn_geo_table_sort(grn_ctx *ctx, grn_obj *table, int offset, int limit,
-                       grn_obj *result, grn_table_sort_key *keys, int n_keys);
-
 grn_rc grn_geo_resolve_approximate_type(grn_ctx *ctx, grn_obj *type_name,
                                         grn_geo_approximate_type *type);
 
@@ -203,5 +198,3 @@ double grn_geo_distance_ellipsoid_raw_wgs84(grn_ctx *ctx,
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_GEO_H */

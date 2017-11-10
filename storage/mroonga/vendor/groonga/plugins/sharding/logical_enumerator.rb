@@ -1,12 +1,15 @@
 module Groonga
   module Sharding
     class LogicalEnumerator
+      include Enumerable
+
       attr_reader :target_range
       attr_reader :logical_table
       attr_reader :shard_key_name
-      def initialize(command_name, input)
+      def initialize(command_name, input, options={})
         @command_name = command_name
         @input = input
+        @options = options
         initialize_parameters
       end
 
@@ -22,7 +25,6 @@ module Groonga
       def each_internal(order)
         context = Context.instance
         each_shard_with_around(order) do |prev_shard, current_shard, next_shard|
-          table = current_shard.table
           shard_range_data = current_shard.range_data
           shard_range = nil
 
@@ -52,16 +54,7 @@ module Groonga
                                             shard_range_data.day)
           end
 
-          physical_shard_key_name = "#{table.name}.#{@shard_key_name}"
-          shard_key = context[physical_shard_key_name]
-          if shard_key.nil?
-            message =
-              "[#{@command_name}] shard_key doesn't exist: " +
-              "<#{physical_shard_key_name}>"
-            raise InvalidArgument, message
-          end
-
-          yield(table, shard_key, shard_range)
+          yield(current_shard, shard_range)
         end
       end
 
@@ -70,10 +63,10 @@ module Groonga
         prefix = "#{@logical_table}_"
 
         shards = [nil]
-        context.database.each_table(:prefix => prefix,
-                                    :order_by => :key,
-                                    :order => order) do |table|
-          shard_range_raw = table.name[prefix.size..-1]
+        context.database.each_name(:prefix => prefix,
+                                   :order_by => :key,
+                                   :order => order) do |name|
+          shard_range_raw = name[prefix.size..-1]
 
           case shard_range_raw
           when /\A(\d{4})(\d{2})\z/
@@ -84,7 +77,7 @@ module Groonga
             next
           end
 
-          shards << Shard.new(table, shard_range_data)
+          shards << Shard.new(name, @shard_key_name, shard_range_data)
           next if shards.size < 3
           yield(*shards)
           shards.shift
@@ -104,7 +97,11 @@ module Groonga
 
         @shard_key_name = @input[:shard_key]
         if @shard_key_name.nil?
-          raise InvalidArgument, "[#{@command_name}] shard_key is missing"
+          require_shard_key = @options[:require_shard_key]
+          require_shard_key = true if require_shard_key.nil?
+          if require_shard_key
+            raise InvalidArgument, "[#{@command_name}] shard_key is missing"
+          end
         end
 
         @target_range = TargetRange.new(@command_name, @input)
@@ -119,10 +116,23 @@ module Groonga
       end
 
       class Shard
-        attr_reader :table, :range_data
-        def initialize(table, range_data)
-          @table = table
+        attr_reader :table_name, :key_name, :range_data
+        def initialize(table_name, key_name, range_data)
+          @table_name = table_name
+          @key_name = key_name
           @range_data = range_data
+        end
+
+        def table
+          @table ||= Context.instance[@table_name]
+        end
+
+        def full_key_name
+          "#{@table_name}.#{@key_name}"
+        end
+
+        def key
+          @key ||= Context.instance[full_key_name]
         end
       end
 
@@ -132,6 +142,14 @@ module Groonga
           @year = year
           @month = month
           @day = day
+        end
+
+        def to_suffix
+          if @day.nil?
+            "_%04d%02d" % [@year, @month]
+          else
+            "_%04d%02d%02d" % [@year, @month, @day]
+          end
         end
       end
 
@@ -144,7 +162,11 @@ module Groonga
         end
 
         def least_over_time
-          Time.local(@year, @month, @day + 1)
+          next_day = Time.local(@year, @month, @day) + (60 * 60 * 24)
+          while next_day.day == @day # For leap second
+            next_day += 1
+          end
+          next_day
         end
 
         def min_time
@@ -168,9 +190,13 @@ module Groonga
 
         def least_over_time
           if @max_day.nil?
-            Time.local(@year, @month + 1, 1)
+            if @month == 12
+              Time.local(@year + 1, 1, 1)
+            else
+              Time.local(@year, @month + 1, 1)
+            end
           else
-            Time.local(@year, @month, @max_day + 1)
+            Time.local(@year, @month, @max_day)
           end
         end
 
@@ -270,10 +296,7 @@ module Groonga
 
           return true if @min_border == :exclude
 
-          not (@min.hour == 0 and
-               @min.min  == 0 and
-               @min.sec  == 0 and
-               @min.usec == 0)
+          shard_range.min_time != @min
         end
 
         def in_max?(shard_range)

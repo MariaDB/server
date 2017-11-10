@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2010-2014 Brazil
+  Copyright(C) 2010-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GROONGA_PLUGIN_H
-#define GROONGA_PLUGIN_H
+
+#pragma once
 
 #include <stddef.h>
 
@@ -62,17 +62,34 @@ GRN_PLUGIN_EXPORT grn_rc GRN_PLUGIN_FIN(grn_ctx *ctx);
 
 /*
   Don't call these functions directly. Use GRN_PLUGIN_MALLOC(),
-  GRN_PLUGIN_REALLOC() and GRN_PLUGIN_FREE() instead.
+  GRN_PLUGIN_CALLOC(), GRN_PLUGIN_REALLOC() and GRN_PLUGIN_FREE() instead.
  */
-GRN_API void *grn_plugin_malloc(grn_ctx *ctx, size_t size, const char *file,
-                                int line, const char *func);
-GRN_API void *grn_plugin_realloc(grn_ctx *ctx, void *ptr, size_t size,
-                                 const char *file, int line, const char *func);
+GRN_API void *grn_plugin_malloc(grn_ctx *ctx,
+                                size_t size,
+                                const char *file,
+                                int line,
+                                const char *func) GRN_ATTRIBUTE_ALLOC_SIZE(2);
+GRN_API void *grn_plugin_calloc(grn_ctx *ctx,
+                                size_t size,
+                                const char *file,
+                                int line,
+                                const char *func) GRN_ATTRIBUTE_ALLOC_SIZE(2);
+GRN_API void *grn_plugin_realloc(grn_ctx *ctx,
+                                 void *ptr,
+                                 size_t size,
+                                 const char *file,
+                                 int line,
+                                 const char *func) GRN_ATTRIBUTE_ALLOC_SIZE(3);
 GRN_API void grn_plugin_free(grn_ctx *ctx, void *ptr, const char *file,
                              int line, const char *func);
 
 #define GRN_PLUGIN_MALLOC(ctx, size) \
   grn_plugin_malloc((ctx), (size), __FILE__, __LINE__, __FUNCTION__)
+#define GRN_PLUGIN_MALLOCN(ctx, type, n) \
+  ((type *)(grn_plugin_malloc((ctx), sizeof(type) * (n), \
+                              __FILE__, __LINE__, __FUNCTION__)))
+#define GRN_PLUGIN_CALLOC(ctx, size) \
+  grn_plugin_calloc((ctx), (size), __FILE__, __LINE__, __FUNCTION__)
 #define GRN_PLUGIN_REALLOC(ctx, ptr, size) \
   grn_plugin_realloc((ctx), (ptr), (size), __FILE__, __LINE__, __FUNCTION__)
 #define GRN_PLUGIN_FREE(ctx, ptr) \
@@ -89,6 +106,8 @@ GRN_API void grn_plugin_set_error(grn_ctx *ctx, grn_log_level level,
                                   grn_rc error_code,
                                   const char *file, int line, const char *func,
                                   const char *format, ...) GRN_ATTRIBUTE_PRINTF(7);
+GRN_API void grn_plugin_clear_error(grn_ctx *ctx);
+
 
 /*
   Don't call these functions directly. grn_plugin_backtrace() and
@@ -104,13 +123,14 @@ GRN_API void grn_plugin_logtrace(grn_ctx *ctx, grn_log_level level);
 #define GRN_PLUGIN_SET_ERROR(ctx, level, error_code, ...) do { \
   grn_plugin_set_error(ctx, level, error_code, \
                        __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__); \
-  GRN_LOG(ctx, level, __VA_ARGS__); \
-  grn_plugin_backtrace(ctx); \
-  grn_plugin_logtrace(ctx, level); \
 } while (0)
 
 #define GRN_PLUGIN_ERROR(ctx, error_code, ...) \
   GRN_PLUGIN_SET_ERROR(ctx, GRN_LOG_ERROR, error_code, __VA_ARGS__)
+
+#define GRN_PLUGIN_CLEAR_ERROR(ctx) do { \
+  grn_plugin_clear_error((ctx)); \
+} while (0)
 
 typedef struct _grn_plugin_mutex grn_plugin_mutex;
 
@@ -135,18 +155,43 @@ GRN_API void grn_plugin_mutex_lock(grn_ctx *ctx, grn_plugin_mutex *mutex);
 GRN_API void grn_plugin_mutex_unlock(grn_ctx *ctx, grn_plugin_mutex *mutex);
 
 GRN_API grn_obj *grn_plugin_proc_alloc(grn_ctx *ctx, grn_user_data *user_data,
-                                       grn_id domain, grn_obj_flags flags);
+                                       grn_id domain, unsigned char flags);
 
 GRN_API grn_obj *grn_plugin_proc_get_vars(grn_ctx *ctx, grn_user_data *user_data);
 
 GRN_API grn_obj *grn_plugin_proc_get_var(grn_ctx *ctx, grn_user_data *user_data,
                                          const char *name, int name_size);
+GRN_API grn_bool grn_plugin_proc_get_var_bool(grn_ctx *ctx,
+                                              grn_user_data *user_data,
+                                              const char *name,
+                                              int name_size,
+                                              grn_bool default_value);
+GRN_API int32_t grn_plugin_proc_get_var_int32(grn_ctx *ctx,
+                                              grn_user_data *user_data,
+                                              const char *name,
+                                              int name_size,
+                                              int32_t default_value);
+GRN_API const char *grn_plugin_proc_get_var_string(grn_ctx *ctx,
+                                                   grn_user_data *user_data,
+                                                   const char *name,
+                                                   int name_size,
+                                                   size_t *size);
+GRN_API grn_content_type grn_plugin_proc_get_var_content_type(grn_ctx *ctx,
+                                                              grn_user_data *user_data,
+                                                              const char *name,
+                                                              int name_size,
+                                                              grn_content_type default_value);
 
 GRN_API grn_obj *grn_plugin_proc_get_var_by_offset(grn_ctx *ctx,
                                                    grn_user_data *user_data,
                                                    unsigned int offset);
 
+GRN_API grn_obj *grn_plugin_proc_get_caller(grn_ctx *ctx,
+                                            grn_user_data *user_data);
+
+/* Deprecated since 5.0.9. Use grn_plugin_windows_base_dir() instead. */
 GRN_API const char *grn_plugin_win32_base_dir(void);
+GRN_API const char *grn_plugin_windows_base_dir(void);
 
 GRN_API int grn_plugin_charlen(grn_ctx *ctx, const char *str_ptr,
                                unsigned int str_length, grn_encoding encoding);
@@ -159,16 +204,14 @@ GRN_API grn_rc grn_plugin_expr_var_init(grn_ctx *ctx,
                                         const char *name,
                                         int name_size);
 
-GRN_API grn_obj * grn_plugin_command_create(grn_ctx *ctx,
-                                            const char *name,
-                                            int name_size,
-                                            grn_proc_func func,
-                                            unsigned int n_vars,
-                                            grn_expr_var *vars);
+GRN_API grn_obj *grn_plugin_command_create(grn_ctx *ctx,
+                                           const char *name,
+                                           int name_size,
+                                           grn_proc_func func,
+                                           unsigned int n_vars,
+                                           grn_expr_var *vars);
 
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GROONGA_PLUGIN_H */

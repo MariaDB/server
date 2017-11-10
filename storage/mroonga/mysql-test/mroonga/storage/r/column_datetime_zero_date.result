@@ -3,25 +3,14 @@ CREATE TABLE timestamps (
 id INT PRIMARY KEY AUTO_INCREMENT,
 create_dt DATETIME
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE timestamps;
-Table	Create Table
-timestamps	CREATE TABLE `timestamps` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `create_dt` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
-INSERT INTO timestamps (create_dt) VALUES ("2012-00-01 00:00:00");
-Warnings:
-Warning	1265	Data truncated for column 'create_dt' at row 1
-INSERT INTO timestamps (create_dt) VALUES ("2012-01-00 00:00:00");
-Warnings:
-Warning	1265	Data truncated for column 'create_dt' at row 1
+SET sql_mode='STRICT_TRANS_TABLES';
+INSERT INTO timestamps (create_dt) VALUES ("0000-00-00 00:00:00");
+ERROR 22003: Out of range value for column 'create_dt' at row 1
+SET sql_mode=default;
 SELECT * FROM timestamps;
 id	create_dt
-1	2012-01-01 00:00:00
-2	2012-01-01 00:00:00
-SELECT * FROM timestamps WHERE create_dt = "2012-01-01 00:00:00";
+INSERT INTO timestamps (create_dt) VALUES ("2015-06-17 00:00:00");
+SELECT * FROM timestamps;
 id	create_dt
-1	2012-01-01 00:00:00
-2	2012-01-01 00:00:00
+2	2015-06-17 00:00:00
 DROP TABLE timestamps;

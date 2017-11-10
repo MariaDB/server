@@ -3,13 +3,6 @@ CREATE TABLE diaries (
 time TIMESTAMP PRIMARY KEY,
 title TEXT
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `title` text,
-  PRIMARY KEY (`time`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (time, title) VALUES ("2012-01-29 21:51:01", "clear day");
 INSERT INTO diaries (time, title) VALUES ("2012-01-30 01:23:45", "rainy day");
 INSERT INTO diaries (time, title) VALUES ("2012-01-31 08:32:10", "cloudy day");

@@ -5,15 +5,6 @@ name TEXT,
 location GEOMETRY NOT NULL,
 SPATIAL KEY location_index (location)
 );
-SHOW CREATE TABLE shops;
-Table	Create Table
-shops	CREATE TABLE `shops` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` text,
-  `location` geometry NOT NULL,
-  PRIMARY KEY (`id`),
-  SPATIAL KEY `location_index` (`location`)
-) ENGINE=Mroonga DEFAULT CHARSET=latin1
 INSERT INTO shops (name, location)
 VALUES ('nezu-no-taiyaki',
 ST_GeomFromText('POINT(139.762573 35.720253)'));
@@ -167,4 +158,10 @@ id	name	location_text
 14	tetsuji	POINT(139.76857 35.680911944444446)
 19	daruma	POINT(139.7705988888889 35.68146111111111)
 26	kazuya	POINT(139.760895 35.67350805555556)
+EXPLAIN
+SELECT id, name, ST_AsText(location) AS location_text FROM shops
+WHERE MBRContains(ST_GeomFromText('LineString(139.7727 35.6684, 139.7038 35.7121)'), location)
+ORDER BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	shops	range	location_index	location_index	34	NULL	36	Using where; Using filesort
 DROP TABLE shops;

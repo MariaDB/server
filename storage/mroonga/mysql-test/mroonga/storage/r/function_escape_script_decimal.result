@@ -1,0 +1,11 @@
+SET NAMES UTF8;
+DROP TABLE IF EXISTS data;
+CREATE TABLE data (
+value DECIMAL(5, 3)
+);
+INSERT INTO data VALUES (2.9);
+SELECT mroonga_escape(value AS script)
+FROM data;
+mroonga_escape(value AS script)
+2.9
+DROP TABLE data;

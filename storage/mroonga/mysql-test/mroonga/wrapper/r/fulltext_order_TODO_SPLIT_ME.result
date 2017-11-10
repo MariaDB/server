@@ -1,23 +1,13 @@
 DROP TABLE IF EXISTS diaries;
 SET NAMES UTF8;
 CREATE TABLE ft(
-a INT,
+a INT DEFAULT 0,
 b TEXT,
 c TEXT,
 PRIMARY KEY(a),
 FULLTEXT KEY ftx1(b),
 FULLTEXT KEY ftx2(c)
 )ENGINE=Mroonga DEFAULT CHARSET=UTF8 COMMENT = 'engine "innodb"';
-SHOW CREATE TABLE ft;
-Table	Create Table
-ft	CREATE TABLE `ft` (
-  `a` int(11) NOT NULL,
-  `b` text,
-  `c` text,
-  PRIMARY KEY (`a`),
-  FULLTEXT KEY `ftx1` (`b`),
-  FULLTEXT KEY `ftx2` (`c`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='engine "innodb"'
 INSERT INTO ft VALUES(1,'aaaaa','abcde');
 INSERT INTO ft VALUES(2,'bbbbb','bcdef');
 INSERT INTO ft VALUES(3,'ccccc','cdefg');

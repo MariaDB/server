@@ -1,28 +1,28 @@
-drop table if exists t1, t2, t3;
-create table t1 (_id int, a int, primary key (_id) using hash);
-insert into t1 values(null, 100);
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (_id int, a int, PRIMARY KEY (_id) USING HASH);
+INSERT INTO t1 VALUES(null, 100);
 ERROR 23000: Column '_id' cannot be null
-insert into t1 values(1,100);
+INSERT INTO t1 VALUES(1,100);
 Warnings:
 Warning	1265	Data truncated for column '_id' at row 1
-insert into t1 values(1,100);
+INSERT INTO t1 VALUES(1,100);
 Warnings:
 Warning	1265	Data truncated for column '_id' at row 1
-insert into t1 values(1,100);
+INSERT INTO t1 VALUES(1,100);
 Warnings:
 Warning	1265	Data truncated for column '_id' at row 1
-insert into t1 values(1,100);
+INSERT INTO t1 VALUES(1,100);
 Warnings:
 Warning	1265	Data truncated for column '_id' at row 1
-select * from t1;
+SELECT * FROM t1;
 _id	a
 1	100
 2	100
 3	100
 4	100
-select * from t1 where _id = 2;
+SELECT * FROM t1 WHERE _id = 2;
 _id	a
 2	100
-select * from t1 where _id = 20;
+SELECT * FROM t1 WHERE _id = 20;
 _id	a
-drop table t1;
+DROP TABLE t1;

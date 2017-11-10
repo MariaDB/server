@@ -1,28 +1,28 @@
 DROP TABLE IF EXISTS diaries;
 CREATE TABLE diaries (
 id INT PRIMARY KEY AUTO_INCREMENT,
-title TEXT,
-body TEXT
+title VARCHAR(40),
+body VARCHAR(140)
 ) DEFAULT CHARSET UTF8;
 SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
+  `title` varchar(40) DEFAULT NULL,
+  `body` varchar(140) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (title, body) values ("groonga (1)", "starting groonga.");
 SELECT * FROM diaries;
 id	title	body
 1	groonga (1)	starting groonga.
-ALTER TABLE diaries MODIFY body TEXT AFTER id;
+ALTER TABLE diaries MODIFY body VARCHAR(140) AFTER id;
 SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `body` text,
-  `title` text,
+  `body` varchar(140) DEFAULT NULL,
+  `title` varchar(40) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga AUTO_INCREMENT=2 DEFAULT CHARSET=utf8
 INSERT INTO diaries (title, body) values ("groonga (2)", "started groonga.");

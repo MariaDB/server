@@ -1,4 +1,4 @@
-# Copyright(C) 2012-2013 Brazil
+# Copyright(C) 2012-2016 Brazil
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -21,35 +21,63 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/dat
   ${ONIGMO_INCLUDE_DIRS}
   ${MRUBY_INCLUDE_DIRS}
-  ${LIBLZ4_INCLUDE_DIRS})
-if (LIBLZ4_LIBRARY_DIRS)
-  find_library(LZ4_LIBS
-    NAMES ${LIBLZ4_LIBRARIES}
-    PATHS ${LIBLZ4_LIBRARY_DIRS}
-    NO_DEFAULT_PATH)
-else()
-  set(LZ4_LIBS ${LIBLZ4_LIBRARIES})
-endif()
+  ${LIBLZ4_INCLUDE_DIRS}
+  ${LIBZSTD_INCLUDE_DIRS}
+  ${MESSAGE_PACK_INCLUDE_DIRS})
 
-read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/sources.am LIBGROONGA_SOURCES)
+read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/c_sources.am LIBGROONGA_C_SOURCES)
+read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/cpp_sources.am LIBGROONGA_CPP_SOURCES)
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/dat/sources.am LIBGRNDAT_SOURCES)
 string(REGEX REPLACE "([^;]+)" "dat/\\1"
   LIBGRNDAT_SOURCES "${LIBGRNDAT_SOURCES}")
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/sources.am LIBGRNMRB_SOURCES)
 string(REGEX REPLACE "([^;]+)" "mrb/\\1"
   LIBGRNMRB_SOURCES "${LIBGRNMRB_SOURCES}")
+read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/proc/sources.am LIBGRNPROC_SOURCES)
+string(REGEX REPLACE "([^;]+)" "proc/\\1"
+  LIBGRNPROC_SOURCES "${LIBGRNPROC_SOURCES}")
+read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/ts/sources.am LIBGRNTS_SOURCES)
+string(REGEX REPLACE "([^;]+)" "ts/\\1"
+  LIBGRNTS_SOURCES "${LIBGRNTS_SOURCES}")
 
-set_source_files_properties(${LIBGROONGA_SOURCES} ${LIBGRNMRB_SOURCES}
+if(WIN32)
+  configure_file(
+    "metadata.rc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/metadata.rc"
+    @ONLY)
+  set(LIBGROONGA_METADATA_SOURCES
+    "${CMAKE_CURRENT_BINARY_DIR}/metadata.rc")
+else()
+  set(LIBGROONGA_METADATA_SOURCES)
+endif()
+
+set_source_files_properties(
+  ${LIBGROONGA_C_SOURCES}
+  ${LIBGRNMRB_SOURCES}
+  ${LIBGRNPROC_SOURCES}
+  ${LIBGRNTS_SOURCES}
   PROPERTIES
   COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS}")
-set_source_files_properties(dat.cpp egn.cpp ${LIBGRNDAT_SOURCES}
+set_source_files_properties(
+  ${LIBGROONGA_C_SOURCES}
+  ${LIBGROONGA_CPP_SOURCES}
+  ${LIBGRNMRB_SOURCES}
+  PROPERTIES
+  COMPILE_DEFINITIONS "${MRUBY_DEFINITIONS}")
+set_source_files_properties(
+  ${LIBGROONGA_CPP_SOURCES}
+  ${LIBGRNDAT_SOURCES}
   PROPERTIES
   COMPILE_FLAGS "${GRN_CXX_COMPILE_FLAGS}")
 
 set(GRN_ALL_SOURCES
-  ${LIBGROONGA_SOURCES}
+  ${LIBGROONGA_C_SOURCES}
+  ${LIBGROONGA_CPP_SOURCES}
   ${LIBGRNDAT_SOURCES}
-  ${LIBGRNMRB_SOURCES})
+  ${LIBGRNMRB_SOURCES}
+  ${LIBGRNPROC_SOURCES}
+  ${LIBGRNTS_SOURCES}
+  ${LIBGROONGA_METADATA_SOURCES})
 if(GRN_EMBED)
   add_library(libgroonga STATIC ${GRN_ALL_SOURCES})
   set_target_properties(
@@ -66,7 +94,9 @@ set(GRN_ALL_LIBRARIES
     ${RT_LIBS}
     ${PTHREAD_LIBS}
     ${Z_LIBS}
-    ${LZ4_LIBS}
+    ${LIBLZ4_LIBS}
+    ${LIBZSTD_LIBS}
+    ${MESSAGE_PACK_LIBS}
     ${DL_LIBS}
     ${M_LIBS}
     ${WS2_32_LIBS}
@@ -130,4 +160,20 @@ if(GRN_WITH_MRUBY)
   install(
     FILES ${LOGGER_RUBY_SCRIPTS}
     DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}/logger")
+
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/scripts/query_logger/sources.am
+    QUERY_LOGGER_RUBY_SCRIPTS)
+  string(REGEX REPLACE "([^;]+)" "mrb/scripts/query_logger/\\1"
+    QUERY_LOGGER_RUBY_SCRIPTS "${QUERY_LOGGER_RUBY_SCRIPTS}")
+  install(
+    FILES ${QUERY_LOGGER_RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}/query_logger")
+
+  read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/mrb/scripts/expression_tree/sources.am
+    EXPRESSION_TREE_RUBY_SCRIPTS)
+  string(REGEX REPLACE "([^;]+)" "mrb/scripts/expression_tree/\\1"
+    EXPRESSION_TREE_RUBY_SCRIPTS "${EXPRESSION_TREE_RUBY_SCRIPTS}")
+  install(
+    FILES ${EXPRESSION_TREE_RUBY_SCRIPTS}
+    DESTINATION "${GRN_RELATIVE_RUBY_SCRIPTS_DIR}/expression_tree")
 endif()

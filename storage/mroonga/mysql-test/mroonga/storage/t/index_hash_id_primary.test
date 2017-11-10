@@ -1,4 +1,5 @@
 # Copyright(C) 2010 Tetsuro IKEDA
+# Copyright(C) 2016-2017 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -12,24 +13,28 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
+--source ../../include/mroonga/skip_strict_sql_mode.inc
 --source ../../include/mroonga/have_mroonga.inc
 
 --disable_warnings
-drop table if exists t1, t2, t3;
+DROP TABLE IF EXISTS t1;
 --enable_warnings
 
-create table t1 (_id int, a int, primary key (_id) using hash);
+CREATE TABLE t1 (_id int, a int, PRIMARY KEY (_id) USING HASH);
+
 --error ER_BAD_NULL_ERROR
-insert into t1 values(null, 100);
-insert into t1 values(1,100);
-insert into t1 values(1,100);
-insert into t1 values(1,100);
-insert into t1 values(1,100);
-select * from t1;
-select * from t1 where _id = 2;
-select * from t1 where _id = 20;
-drop table t1;
+INSERT INTO t1 VALUES(null, 100);
+INSERT INTO t1 VALUES(1,100);
+INSERT INTO t1 VALUES(1,100);
+INSERT INTO t1 VALUES(1,100);
+INSERT INTO t1 VALUES(1,100);
+
+SELECT * FROM t1;
+SELECT * FROM t1 WHERE _id = 2;
+SELECT * FROM t1 WHERE _id = 20;
+
+DROP TABLE t1;
 
 --source ../../include/mroonga/have_mroonga_deinit.inc

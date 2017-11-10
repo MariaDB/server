@@ -6,8 +6,15 @@ COLLATE=utf8_bin
 COMMENT='default_tokenizer "TokenDelimit"';
 CREATE TABLE bugs (
 id INT UNSIGNED PRIMARY KEY,
-tags TEXT COMMENT 'flags "COLUMN_VECTOR", type "tags"'
+tags VARCHAR(128) DEFAULT '' COMMENT 'flags "COLUMN_VECTOR", type "tags"'
 ) DEFAULT CHARSET=utf8;
+SHOW CREATE TABLE bugs;
+Table	Create Table
+bugs	CREATE TABLE `bugs` (
+  `id` int(10) unsigned NOT NULL,
+  `tags` varchar(128) DEFAULT '' COMMENT 'flags "COLUMN_VECTOR", type "tags"',
+  PRIMARY KEY (`id`)
+) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO bugs (id, tags) VALUES (1, "Linux MySQL groonga");
 SELECT * FROM bugs;
 id	tags

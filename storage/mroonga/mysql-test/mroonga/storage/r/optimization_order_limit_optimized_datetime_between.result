@@ -8,15 +8,6 @@ content TEXT,
 FULLTEXT INDEX(content),
 KEY(date)
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(10) unsigned NOT NULL,
-  `date` datetime DEFAULT NULL,
-  `content` text,
-  KEY `date` (`date`),
-  FULLTEXT KEY `content` (`content`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries VALUES(1, "2011-11-11 12:23:30", "Today is fine.");
 INSERT INTO diaries VALUES(2, "2011-11-11 12:23:31", "Today's lucky item is flower!");
 INSERT INTO diaries VALUES(3, "2011-11-11 12:23:32", "I will do something today!");

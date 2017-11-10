@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2015 Brazil
+/*
+  Copyright(C) 2009-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_IO_H
-#define GRN_IO_H
+
+#pragma once
 
 #include "grn.h"
 #include "grn_error.h"
@@ -88,7 +89,7 @@ struct _grn_io_header {
   uint32_t lock;
   uint64_t curr_size;
   uint32_t segment_tail;
-  uint32_t lastmod;
+  uint32_t last_modified;
 };
 
 struct _grn_io {
@@ -116,6 +117,7 @@ GRN_API grn_io *grn_io_create(grn_ctx *ctx, const char *path,
 grn_io *grn_io_open(grn_ctx *ctx, const char *path, grn_io_mode mode);
 GRN_API grn_rc grn_io_close(grn_ctx *ctx, grn_io *io);
 grn_rc grn_io_remove(grn_ctx *ctx, const char *path);
+grn_rc grn_io_remove_if_exist(grn_ctx *ctx, const char *path);
 grn_rc grn_io_size(grn_ctx *ctx, grn_io *io, uint64_t *size);
 grn_rc grn_io_rename(grn_ctx *ctx, const char *old_name, const char *new_name);
 GRN_API void *grn_io_header(grn_io *io);
@@ -174,7 +176,8 @@ void grn_io_seg_map_(grn_ctx *ctx, grn_io *io, uint32_t segno, grn_io_mapinfo *i
         if (nref) {\
           GRN_ATOMIC_ADD_EX(pnref, -1, nref);\
           if (retry >= GRN_IO_MAX_RETRY) {\
-            GRN_LOG(ctx, GRN_LOG_CRIT, "deadlock detected! in GRN_IO_SEG_REF(%p, %u)", io, segno);\
+            GRN_LOG(ctx, GRN_LOG_CRIT,\
+                    "deadlock detected! in GRN_IO_SEG_REF(%p, %u)", io, segno);\
             break;\
           }\
           GRN_FUTEX_WAIT(pnref);\
@@ -199,7 +202,9 @@ void grn_io_seg_map_(grn_ctx *ctx, grn_io *io, uint32_t segno, grn_io_mapinfo *i
         if (nref >= GRN_IO_MAX_REF) {\
           GRN_ATOMIC_ADD_EX(pnref, -1, nref);\
           if (retry >= GRN_IO_MAX_RETRY) {\
-            GRN_LOG(ctx, GRN_LOG_CRIT, "deadlock detected!! in GRN_IO_SEG_REF(%p, %u, %u)", io, segno, nref);\
+            GRN_LOG(ctx, GRN_LOG_CRIT,\
+                    "deadlock detected!! in GRN_IO_SEG_REF(%p, %u, %u)",\
+                    io, segno, nref);\
             *pnref = 0; /* force reset */ \
             break;\
           }\
@@ -207,13 +212,16 @@ void grn_io_seg_map_(grn_ctx *ctx, grn_io *io, uint32_t segno, grn_io_mapinfo *i
           continue;\
         }\
         if (nref >= 0x40000000) {\
-          ALERT("strange nref value!! in GRN_IO_SEG_REF(%p, %u, %u)", io, segno, nref); \
+          ALERT("strange nref value!! in GRN_IO_SEG_REF(%p, %u, %u)",\
+                io, segno, nref); \
         }\
         if (!info->map) {\
           if (nref) {\
             GRN_ATOMIC_ADD_EX(pnref, -1, nref);\
             if (retry >= GRN_IO_MAX_RETRY) {\
-              GRN_LOG(ctx, GRN_LOG_CRIT, "deadlock detected!!! in GRN_IO_SEG_REF(%p, %u, %u)", io, segno, nref);\
+              GRN_LOG(ctx, GRN_LOG_CRIT,\
+                      "deadlock detected!!! in GRN_IO_SEG_REF(%p, %u, %u)",\
+                      io, segno, nref);\
               break;\
             }\
             GRN_FUTEX_WAIT(pnref);\
@@ -240,7 +248,9 @@ void grn_io_seg_map_(grn_ctx *ctx, grn_io *io, uint32_t segno, grn_io_mapinfo *i
       if (nref) {\
         GRN_ATOMIC_ADD_EX(pnref, -1, nref);\
         if (retry >= GRN_IO_MAX_RETRY) {\
-          GRN_LOG(ctx, GRN_LOG_CRIT, "deadlock detected!!!! in GRN_IO_SEG_REF(%p, %u)", io, segno);\
+          GRN_LOG(ctx, GRN_LOG_CRIT,\
+                  "deadlock detected!!!! in GRN_IO_SEG_REF(%p, %u)",\
+                  io, segno);\
           break;\
         }\
         GRN_FUTEX_WAIT(pnref);\
@@ -303,6 +313,8 @@ GRN_API grn_rc grn_io_lock(grn_ctx *ctx, grn_io *io, int timeout);
 GRN_API void grn_io_unlock(grn_io *io);
 void grn_io_clear_lock(grn_io *io);
 uint32_t grn_io_is_locked(grn_io *io);
+grn_bool grn_io_is_corrupt(grn_ctx *ctx, grn_io *io);
+size_t grn_io_get_disk_usage(grn_ctx *ctx, grn_io *io);
 
 #define GRN_IO_ARRAY_AT(io,array,offset,flags,res) do {\
   grn_io_array_info *ainfo = &(io)->ainfo[array];\
@@ -353,7 +365,6 @@ uint32_t grn_io_get_type(grn_io *io);
 void grn_io_init_from_env(void);
 
 uint32_t grn_io_expire(grn_ctx *ctx, grn_io *io, int count_thresh, uint32_t limit);
-uint32_t grn_expire(grn_ctx *ctx, int count_thresh, uint32_t limit);
 
 grn_rc grn_io_flush(grn_ctx *ctx, grn_io *io);
 
@@ -474,5 +485,3 @@ grn_rc grn_io_flush(grn_ctx *ctx, grn_io *io);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_IO_H */

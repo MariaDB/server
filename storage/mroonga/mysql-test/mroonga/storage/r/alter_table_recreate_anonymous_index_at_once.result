@@ -5,15 +5,6 @@ title TEXT,
 body TEXT,
 FULLTEXT INDEX (body)
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `body` (`body`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (title, body) VALUES ("survey", "will start groonga!");
 INSERT INTO diaries (title, body) VALUES ("survey", "will start mroonga!");
 SELECT * FROM diaries;
@@ -35,13 +26,4 @@ SELECT * FROM diaries
 WHERE MATCH (body) AGAINST ("+groonga" IN BOOLEAN MODE);
 id	title	body
 1	survey	will start groonga!
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `body` (`body`)
-) ENGINE=Mroonga AUTO_INCREMENT=3 DEFAULT CHARSET=utf8
 DROP TABLE diaries;

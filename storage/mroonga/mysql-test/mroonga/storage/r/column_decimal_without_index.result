@@ -4,14 +4,6 @@ id INT PRIMARY KEY AUTO_INCREMENT,
 title TEXT,
 temperature DECIMAL
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `temperature` decimal(10,0) DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (title, temperature) VALUES ("clear day", 21);
 INSERT INTO diaries (title, temperature) VALUES ("rainy day", 14);
 INSERT INTO diaries (title, temperature) VALUES ("cloudy day", 17);

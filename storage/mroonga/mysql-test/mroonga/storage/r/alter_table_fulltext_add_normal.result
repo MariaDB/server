@@ -7,15 +7,7 @@ INSERT INTO memos (content) values ("Starting Groonga...");
 INSERT INTO memos (content) values ("Started Groonga.");
 INSERT INTO memos (content) values ("Starting Mroonga...");
 ALTER TABLE memos ADD FULLTEXT INDEX content_index (content);
-SHOW CREATE TABLE memos;
-Table	Create Table
-memos	CREATE TABLE `memos` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `content` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `content_index` (`content`)
-) ENGINE=Mroonga AUTO_INCREMENT=4 DEFAULT CHARSET=utf8
-SELECT * FROM memos WHERE MATCH(content) AGAINST("groonga");
+SELECT * FROM memos WHERE MATCH(content) AGAINST("+groonga" IN BOOLEAN MODE);
 id	content
 1	Starting Groonga...
 2	Started Groonga.

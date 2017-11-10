@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2009-2015 Brazil
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_CTX_IMPL_H
-#define GRN_CTX_IMPL_H
+
+#pragma once
 
 #ifndef GRN_CTX_H
 # include "grn_ctx.h"
@@ -59,12 +59,27 @@ typedef enum {
   GRN_LOADER_END
 } grn_loader_stat;
 
+/*
+ * Status of target columns used in Format 1.
+ * Target columns are specified via --columns or the first array in a Format 1
+ * JSON object.
+ */
+typedef enum {
+  GRN_LOADER_COLUMNS_UNSET = 0, /* Columns are not available. */
+  GRN_LOADER_COLUMNS_SET,       /* Columns are available. */
+  GRN_LOADER_COLUMNS_BROKEN     /* Columns are specified but broken. */
+} grn_loader_columns_status;
+
 typedef struct {
   grn_obj values;
   grn_obj level;
   grn_obj columns;
+  grn_obj ids;
+  grn_obj return_codes;
+  grn_obj error_messages;
   uint32_t emit_level;
-  int32_t key_offset;
+  int32_t id_offset;  /* Position of _id in values or -1 if _id is N/A. */
+  int32_t key_offset; /* Position of _key in values or -1 if _key is N/A. */
   grn_obj *table;
   grn_obj *last;
   grn_obj *ifexists;
@@ -74,6 +89,11 @@ typedef struct {
   uint32_t nrecords;
   grn_loader_stat stat;
   grn_content_type input_type;
+  grn_loader_columns_status columns_status;
+  grn_rc rc;
+  char errbuf[GRN_CTX_MSGSIZE];
+  grn_bool output_ids;
+  grn_bool output_errors;
 } grn_loader;
 
 #define GRN_CTX_N_SEGMENTS 512
@@ -84,6 +104,7 @@ struct _grn_alloc_info
 {
   void *address;
   int freed;
+  size_t size;
   char alloc_backtrace[4096];
   char free_backtrace[4096];
   char *file;
@@ -93,9 +114,10 @@ struct _grn_alloc_info
 };
 #endif
 
-#ifdef GRN_WITH_MRUBY
 typedef struct _grn_mrb_data grn_mrb_data;
 struct _grn_mrb_data {
+  grn_bool initialized;
+#ifdef GRN_WITH_MRUBY
   mrb_state *state;
   char base_directory[PATH_MAX];
   struct RClass *module;
@@ -112,8 +134,8 @@ struct _grn_mrb_data {
   struct {
     struct RClass *operator_class;
   } groonga;
-};
 #endif
+};
 
 struct _grn_ctx_impl {
   grn_encoding encoding;
@@ -143,7 +165,8 @@ struct _grn_ctx_impl {
   uint32_t stack_curr;
   grn_hash *expr_vars;
   grn_obj *curr_expr;
-  grn_obj *qe_next;
+  grn_obj current_request_id;
+  void *current_request_timer_id;
   void *parser;
   grn_timeval tv;
 
@@ -155,13 +178,33 @@ struct _grn_ctx_impl {
   const char *plugin_path;
 
   /* output portion */
-  grn_content_type output_type;
-  const char *mime_type;
-  grn_obj names;
-  grn_obj levels;
+  struct {
+    grn_obj *buf;
+    void (*func)(grn_ctx *, int, void *);
+    union {
+      void *ptr;
+      int fd;
+      uint32_t u32;
+      uint64_t u64;
+    } data;
+    grn_content_type type;
+    const char *mime_type;
+    grn_bool is_pretty;
+    grn_obj names;
+    grn_obj levels;
+#ifdef GRN_WITH_MESSAGE_PACK
+    msgpack_packer msgpacker;
+#endif
+  } output;
 
-  /* command portion */
-  grn_command_version command_version;
+  struct {
+    int flags;
+    grn_command_version version;
+    struct {
+      grn_obj *command;
+      grn_command_version version;
+    } keep;
+  } command;
 
   /* match escalation portion */
   int64_t match_escalation_threshold;
@@ -171,33 +214,24 @@ struct _grn_ctx_impl {
 
   grn_obj *db;
   grn_array *values;        /* temporary objects */
+  grn_pat *temporary_columns;
   grn_hash *ios;        /* IOs */
-  grn_obj *outbuf;
-  void (*output)(grn_ctx *, int, void *);
   grn_com *com;
   unsigned int com_status;
-  union {
-    void *ptr;
-    int fd;
-    uint32_t u32;
-    uint64_t u64;
-  } data;
 
   grn_obj query_log_buf;
 
   char previous_errbuf[GRN_CTX_MSGSIZE];
   unsigned int n_same_error_messages;
 
-#ifdef GRN_WITH_MESSAGE_PACK
-  msgpack_packer msgpacker;
-#endif
-#ifdef GRN_WITH_MRUBY
   grn_mrb_data mrb;
-#endif
+
+  struct {
+    grn_obj stack;
+    grn_obj *current;
+  } temporary_open_spaces;
 };
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_CTX_IMPL_H */

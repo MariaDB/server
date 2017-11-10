@@ -6,15 +6,6 @@ title VARCHAR(255) CHARSET utf8mb4 COLLATE utf8mb4_general_ci,
 content TEXT CHARSET utf8mb4 COLLATE utf8mb4_general_ci,
 FULLTEXT INDEX (content)
 ) DEFAULT CHARSET utf8mb4;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL,
-  `title` varchar(255) DEFAULT NULL,
-  `content` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `content` (`content`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4
 INSERT INTO diaries VALUES(1, "Alphabet", "ABCDE");
 INSERT INTO diaries VALUES(2, "Mathmatics", "𝐀𝐁𝐂𝐃𝐄 | U+1D400-U+1D405");
 INSERT INTO diaries VALUES(3, "ひらがな", "あいうえお");

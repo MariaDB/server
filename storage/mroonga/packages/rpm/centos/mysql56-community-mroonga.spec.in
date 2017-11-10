@@ -1,24 +1,24 @@
-%{!?centos_ver:%define centos_ver 6}
+%define _centos_ver %{?centos_ver:%{centos_ver}}%{!?centos_ver:5}
 
-%if %{centos_ver} == 7
-%define mysql_version_default 5.6.25
+%if %{_centos_ver} == 7
+%define mysql_version_default 5.6.37
 %define mysql_release_default 2
 %define mysql_dist_default    el7
 %define mysql_download_base_url_default http://repo.mysql.com/yum/mysql-5.6-community/el/7/SRPMS
 %define mysql_spec_file_default mysql.spec
 %else
-%define mysql_version_default 5.6.25
+%define mysql_version_default 5.6.37
 %define mysql_release_default 2
 %define mysql_dist_default    el6
 %define mysql_download_base_url_default http://repo.mysql.com/yum/mysql-5.6-community/el/6/SRPMS
 %define mysql_spec_file_default mysql.spec
 %endif
 
-%{!?mysql_version:%define mysql_version %{mysql_version_default}}
-%{!?mysql_release:%define mysql_release %{mysql_release_default}}
-%{!?mysql_dist:%define mysql_dist %{mysql_dist_default}}
-%{!?mysql_download_base_url:%define mysql_download_base_url %{mysql_download_base_url_default}}
-%{!?mysql_spec_file:%define mysql_spec_file %{mysql_spec_file_default}}
+%define _mysql_version %{?mysql_version:%{mysql_version}}%{!?mysql_version:%{mysql_version_default}}
+%define _mysql_release %{?mysql_release:%{mysql_release}}%{!?mysql_release:%{mysql_release_default}}
+%define _mysql_dist %{?mysql_dist:%{mysql_dist}}%{!?mysql_dist:%{mysql_dist_default}}
+%define _mysql_download_base_url %{?mysql_download_base_url:%{mysql_download_base_url}}%{!?mysql_download_base_url:%{mysql_download_base_url_default}}
+%define _mysql_spec_file %{?mysql_spec_file:%{mysql_spec_file}}%{!?mysql_spec_file:%{mysql_spec_file_default}}
 
 %define groonga_required_version @REQUIRED_GROONGA_VERSION@
 
@@ -38,9 +38,10 @@ BuildRequires:	groonga-normalizer-mysql-devel
 BuildRequires:	wget
 BuildRequires:	which
 BuildRequires:	gcc, gcc-c++
-BuildRequires:	mysql-community-devel = %{mysql_version}-%{mysql_release}.%{mysql_dist}
-Requires:	mysql-community-server = %{mysql_version}-%{mysql_release}.%{mysql_dist}
-Requires:	mysql-community-client = %{mysql_version}-%{mysql_release}.%{mysql_dist}
+BuildRequires:  numactl-devel
+BuildRequires:	mysql-community-devel = %{_mysql_version}-%{_mysql_release}.%{_mysql_dist}
+Requires:	mysql-community-server = %{_mysql_version}-%{_mysql_release}.%{_mysql_dist}
+Requires:	mysql-community-client = %{_mysql_version}-%{_mysql_release}.%{_mysql_dist}
 Requires:	groonga-libs >= %{groonga_required_version}
 Requires:	groonga-normalizer-mysql
 
@@ -61,21 +62,21 @@ Documentation for Mroonga
 %prep
 %setup -q -n mroonga-%{version}
 
-mysql_full_version=%{mysql_version}-%{mysql_release}.%{mysql_dist}
+mysql_full_version=%{_mysql_version}-%{_mysql_release}.%{_mysql_dist}
 srpm=mysql-community-${mysql_full_version}.src.rpm
 if [ ! -f ../../SRPMS/$srpm ]; then
-    wget --continue -O ../../SRPMS/$srpm %{mysql_download_base_url}/$srpm
+    wget --continue -O ../../SRPMS/$srpm %{_mysql_download_base_url}/$srpm
     rpm -Uvh ../../SRPMS/$srpm
 fi
 
 %build
-mysql_source=../mysql-%{mysql_version}/mysql-%{mysql_version}
+mysql_source=../mysql-%{_mysql_version}/mysql-%{_mysql_version}
 if [ ! -d ${mysql_source} ]; then
     specs_dir=
     MYSQL_RPMBUILD_TEST=no rpmbuild -bp \
 	--define 'runselftest 0' \
 	--define 'optflags -O0' \
-	../../SPECS/%{mysql_spec_file}
+	../../SPECS/%{_mysql_spec_file}
 fi
 %configure \
     --disable-static \
@@ -102,10 +103,10 @@ else
 fi
 
 mysql_command=`which mysql`
-password_option=""
-$mysql_command -u root -e "quit"
-if [ $? -ne 0 ]; then
-    password_option="-p"
+if $mysql_command -u root -e "quit" > /dev/null 2>&1; then
+  password_option=""
+else
+  password_option="-p"
 fi
 current_version=0
 version=`echo %{groonga_required_version} | sed -e 's/\.//g'`
@@ -153,7 +154,7 @@ fi
 
 uninstall_sql=%{_datadir}/mroonga/uninstall.sql
 mysql_command=`which mysql`
-if $mysql_command -u root -e "quit"; then
+if $mysql_command -u root -e "quit" > /dev/null 2>&1; then
     password_option=""
 else
     password_option="-p"
@@ -183,10 +184,118 @@ fi
 %doc mysql-mroonga-doc/*
 
 %changelog
+* Thu Oct 12 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.07-1
+- new upstream release.
+
+* Tue Aug 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.06-1
+- new upstream release.
+
+* Wed Aug 23 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.05-2
+- build against MySQL 5.6.37 on CentOS 7. Reported by Hiroshi Kagami. Thanks!!!
+
+* Sat Jul 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.05-1
+- new upstream release.
+
+* Fri Jul 21 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.04-2
+- build against MySQL 5.6.37 on CentOS 6. Reported by Hiroshi Kagami. Thanks!!!
+
+* Thu Jun 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.04-1
+- new upstream release.
+
+* Mon May 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.03-1
+- new upstream release.
+
+* Sat Apr 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.02-1
+- new upstream release.
+
+* Wed Apr 12 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.01-2
+- build against MySQL 5.6.36 Reported by @tigersun2000. Thanks!!!
+
+* Wed Mar 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.01-1
+- new upstream release.
+
+* Thu Feb 09 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.00-1
+- new upstream release.
+
+* Fri Jan 13 2017 Kouhei Sutou <kou@clear-code.com> - 6.13-1
+- new upstream release.
+
+* Thu Dec 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.12-1
+- new upstream release.
+
+* Tue Nov 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.11-1
+- new upstream release.
+
+* Sat Oct 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.10-1
+- new upstream release.
+
+* Mon Oct 24 2016 Kouhei Sutou <kou@clear-code.com> - 6.09-2
+- build against MySQL 5.6.34. Reported by Hiroshi Kagami. Thanks!!!
+
+* Thu Sep 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.09-1
+- new upstream release.
+
+* Wed Sep 14 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.08-2
+- build against MySQL 5.6.33.
+
+* Mon Aug 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.08-1
+- new upstream release.
+
+* Fri Jul 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.07-1
+- new upstream release.
+
+* Thu Jun 30 2016 Masafumi Yokoyama <yokoyama@clear-code.com> - 6.06-1
+- new upstream release.
+
+* Wed Jun 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.05-1
+- new upstream release.
+
+* Mon Jun 06 2016 Kouhei Sutou <kou@clear-code.com> - 6.03-2
+- build against MySQL 5.6.30.
+
+* Sun May 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.03-1
+- new upstream release.
+
+* Fri Apr 29 2016 HAYASHI Kentaro <hayashi@clear-code.com> - 6.02-1
+- new upstream release.
+
+* Tue Mar 29 2016 Masafumi Yokoyama <yokoyama@clear-code.com> - 6.01-1
+- new upstream release.
+
+* Mon Feb 29 2016 Kouhei Sutou <kou@clear-code.com> - 6.00-1
+- new upstream release.
+
+* Fri Jan 29 2016 Kouhei Sutou <kou@clear-code.com> - 5.12-1
+- new upstream release.
+
+* Tue Dec 29 2015 Kouhei Sutou <kou@clear-code.com> - 5.11-1
+- new upstream release.
+
+* Wed Dec 09 2015 Kouhei Sutou <kou@clear-code.com> - 5.10-2
+- build against MySQL 5.6.28. Reported by @stealthinu. Thanks!!!
+
+* Sun Nov 29 2015 Kouhei Sutou <kou@clear-code.com> - 5.10-1
+- new upstream release.
+
+* Thu Oct 29 2015 Kouhei Sutou <kou@cozmixng.org> - 5.09-1
+- new upstream release.
+
+* Sat Oct 03 2015 Kouhei Sutou <kou@clear-code.com> - 5.08-2
+- build against MySQL 5.6.27. Reported by @star_orihime. Thanks!!!
+
+* Tue Sep 29 2015 Kouhei Sutou <kou@clear-code.com> - 5.08-1
+- new upstream release.
+
+* Mon Aug 31 2015 Kouhei Sutou <kou@clear-code.com> - 5.06-1
+- new upstream release.
+
+* Wed Jul 29 2015 Masafumi Yokoyama <yokoyama@clear-code.com> - 5.05-1
+- new upstream release.
+
 * Mon Jun 29 2015 Masafumi Yokoyama <myokoym@gmail.com> - 5.04-1
 - new upstream release.
 
-* Thu Jun 02 2015 Masafumi Yokoyama <yokoyama@clear-code.com> - 5.03-2
+* Tue Jun 02 2015 Masafumi Yokoyama <yokoyama@clear-code.com> - 5.03-2
 - build against MySQL 5.6.25.
 
 * Fri May 29 2015 HAYASHI Kentaro <hayashi@clear-code.com> - 5.03-1

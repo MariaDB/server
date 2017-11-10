@@ -1,0 +1,20 @@
+DROP TABLE IF EXISTS listing;
+CREATE TABLE scores (
+id INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
+score1 INT NOT NULL,
+score2 INT NOT NULL,
+INDEX (score1, score2)
+) DEFAULT CHARSET=UTF8;
+INSERT INTO scores (score1, score2) VALUES(1,  1);
+INSERT INTO scores (score1, score2) VALUES(1,  2);
+INSERT INTO scores (score1, score2) VALUES(2,  3);
+INSERT INTO scores (score1, score2) VALUES(2,  2);
+INSERT INTO scores (score1, score2) VALUES(2,  1);
+INSERT INTO scores (score1, score2) VALUES(2,  0);
+INSERT INTO scores (score1, score2) VALUES(2, -1);
+INSERT INTO scores (score1, score2) VALUES(2, -2);
+INSERT INTO scores (score1, score2) VALUES(2, -3);
+SELECT MIN(score2) FROM scores WHERE score1 = 2;
+MIN(score2)
+-3
+DROP TABLE scores;
