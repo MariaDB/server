@@ -834,6 +834,7 @@ static int setval(const struct my_option *opts, void *value, char *argument,
           goto ret;
         };
       }
+      break;
     case GET_BIT:
     {
       uint tmp;
