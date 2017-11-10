@@ -1,1 +1,2 @@
 --innodb-undo-tablespaces=0
+--innodb-page-size=16384 
