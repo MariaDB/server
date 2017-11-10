@@ -100,18 +100,20 @@ uchar *hp_search(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *key,
                 uint nextflag)
 {
   reg1 HASH_INFO *pos,*prev_ptr;
-  int flag;
   uint old_nextflag;
   HP_SHARE *share=info->s;
   DBUG_ENTER("hp_search");
   old_nextflag=nextflag;
-  flag=1;
   prev_ptr=0;
 
   if (share->records)
   {
-    pos=hp_find_hash(&keyinfo->block, hp_mask(hp_hashnr(keyinfo, key),
-					      share->blength, share->records));
+    ulong search_pos=
+      hp_mask(hp_hashnr(keyinfo, key), share->blength, share->records);
+    pos=hp_find_hash(&keyinfo->block, search_pos);
+    if (search_pos !=
+        hp_mask(pos->hash_of_key, share->blength, share->records))
+      goto not_found;                           /* Wrong link */
     do
     {
       if (!hp_key_cmp(keyinfo, pos->ptr_to_rec, key))
@@ -142,17 +144,11 @@ uchar *hp_search(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *key,
 	  }
 	}
       }
-      if (flag)
-      {
-	flag=0;					/* Reset flag */
-	if (hp_find_hash(&keyinfo->block,
-			 hp_mask(pos->hash_of_key,
-                                 share->blength, share->records)) != pos)
-	  break;				/* Wrong link */
-      }
     }
     while ((pos=pos->next_key));
   }
+
+not_found:
   my_errno=HA_ERR_KEY_NOT_FOUND;
   if (nextflag == 2 && ! info->current_ptr)
   {
@@ -191,26 +187,6 @@ uchar *hp_search_next(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *key,
   DBUG_PRINT("exit",("Error: %d",my_errno));
   info->current_hash_ptr=0;
   DBUG_RETURN ((info->current_ptr= 0));
-}
-
-
-/*
-  Calculate position number for hash value.
-  SYNOPSIS
-    hp_mask()
-      hashnr     Hash value
-      buffmax    Value such that
-                 2^(n-1) < maxlength <= 2^n = buffmax
-      maxlength  
-  
-  RETURN
-    Array index, in [0..maxlength)
-*/
-
-ulong hp_mask(ulong hashnr, ulong buffmax, ulong maxlength)
-{
-  if ((hashnr & (buffmax-1)) < maxlength) return (hashnr & (buffmax-1));
-  return (hashnr & ((buffmax >> 1) -1));
 }
 
 
