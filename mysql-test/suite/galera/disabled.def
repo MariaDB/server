@@ -56,3 +56,7 @@ MW-284 : MDEV-13549 Galera test failures 10.1
 galera_as_slave : MDEV-13549 Galera test failures 10.1
 galera_var_innodb_disallow_writes : MDEV-10949
 galera_kill_applier : race condition at the start of the test
+GAL-480 : "Lost connection to MySQL"
+MW-328A : "Found wrong usage of mutex"
+MW-328B : "Found wrong usage of mutex"
+MW-328C : "Found wrong usage of mutex"

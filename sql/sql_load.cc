@@ -348,7 +348,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   {
     DBUG_RETURN(TRUE);
   }
-  thd_proc_info(thd, "executing");
+  thd_proc_info(thd, "Executing");
   /*
     Let us emit an error if we are loading data to table which is used
     in subselect in SET clause like we do it for INSERT.
@@ -574,7 +574,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     }
   }
 
-  thd_proc_info(thd, "reading file");
+  thd_proc_info(thd, "Reading file");
   if (!(error= MY_TEST(read_info.error)))
   {
     table->reset_default_fields();

@@ -235,11 +235,11 @@ wsrep_cb_status_t wsrep_apply_cb(void* const             ctx,
 
 #ifdef WSREP_PROC_INFO
   snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-           "applying write set %lld: %p, %zu",
+           "Applying write set %lld: %p, %zu",
            (long long)wsrep_thd_trx_seqno(thd), buf, buf_len);
   thd_proc_info(thd, thd->wsrep_info);
 #else
-  thd_proc_info(thd, "applying write set");
+  thd_proc_info(thd, "Applying write set");
 #endif /* WSREP_PROC_INFO */
 
   /* tune FK and UK checking policy */
@@ -269,10 +269,10 @@ wsrep_cb_status_t wsrep_apply_cb(void* const             ctx,
 
 #ifdef WSREP_PROC_INFO
   snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-           "applied write set %lld", (long long)wsrep_thd_trx_seqno(thd));
+           "Applied write set %lld", (long long)wsrep_thd_trx_seqno(thd));
   thd_proc_info(thd, thd->wsrep_info);
 #else
-  thd_proc_info(thd, "applied write set");
+  thd_proc_info(thd, "Applied write set");
 #endif /* WSREP_PROC_INFO */
 
   if (WSREP_CB_SUCCESS != rcode)
@@ -294,10 +294,10 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd)
 {
 #ifdef WSREP_PROC_INFO
   snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-           "committing %lld", (long long)wsrep_thd_trx_seqno(thd));
+           "Committing %lld", (long long)wsrep_thd_trx_seqno(thd));
   thd_proc_info(thd, thd->wsrep_info);
 #else
-  thd_proc_info(thd, "committing");
+  thd_proc_info(thd, "Committing");
 #endif /* WSREP_PROC_INFO */
 
   wsrep_cb_status_t const rcode(trans_commit(thd) ?
@@ -318,10 +318,10 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd)
 
 #ifdef WSREP_PROC_INFO
   snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-           "committed %lld", (long long) wsrep_thd_trx_seqno(thd));
+           "Committed %lld", (long long) wsrep_thd_trx_seqno(thd));
   thd_proc_info(thd, thd->wsrep_info);
 #else
-  thd_proc_info(thd, "committed");
+  thd_proc_info(thd, "Committed");
 #endif /* WSREP_PROC_INFO */
 
   return rcode;
@@ -331,10 +331,10 @@ static wsrep_cb_status_t wsrep_rollback(THD* const thd)
 {
 #ifdef WSREP_PROC_INFO
   snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-           "rolling back %lld", (long long)wsrep_thd_trx_seqno(thd));
+           "Rolling back %lld", (long long)wsrep_thd_trx_seqno(thd));
   thd_proc_info(thd, thd->wsrep_info);
 #else
-  thd_proc_info(thd, "rolling back");
+  thd_proc_info(thd, "Rolling back");
 #endif /* WSREP_PROC_INFO */
 
   wsrep_cb_status_t const rcode(trans_rollback(thd) ?
@@ -342,10 +342,10 @@ static wsrep_cb_status_t wsrep_rollback(THD* const thd)
 
 #ifdef WSREP_PROC_INFO
   snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-           "rolled back %lld", (long long)wsrep_thd_trx_seqno(thd));
+           "Rolled back %lld", (long long)wsrep_thd_trx_seqno(thd));
   thd_proc_info(thd, thd->wsrep_info);
 #else
-  thd_proc_info(thd, "rolled back");
+  thd_proc_info(thd, "Rolled back");
 #endif /* WSREP_PROC_INFO */
 
   return rcode;

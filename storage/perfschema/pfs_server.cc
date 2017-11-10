@@ -67,8 +67,10 @@ initialize_performance_schema(PFS_global_param *param)
       The performance schema is disabled in the startup command line.
       All the instrumentation is turned off.
     */
+    pfs_enabled= 0;
     return NULL;
   }
+  pfs_enabled= TRUE;
 
   init_timers();
 

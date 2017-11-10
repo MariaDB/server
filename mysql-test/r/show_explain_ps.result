@@ -4,7 +4,7 @@ drop table if exists t0, t1;
 select * from performance_schema.setup_instruments where name like '%show_explain%';
 NAME	ENABLED	TIMED
 wait/synch/cond/sql/show_explain	YES	YES
-stage/sql/show explain	YES	YES
+stage/sql/Show explain	YES	YES
 statement/sql/show_explain	YES	YES
 # We've got no instances
 select * from performance_schema.cond_instances where name like '%show_explain%';
@@ -38,5 +38,5 @@ thread_id in(select thread_id
 from performance_schema.events_statements_history_long
 where EVENT_NAME='statement/sql/show_explain');
 event_name
-stage/sql/show explain
+stage/sql/Show explain
 drop table t0;

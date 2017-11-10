@@ -29,10 +29,12 @@ truncate performance_schema.events_waits_summary_global_by_event_name;
 truncate performance_schema.events_waits_history_long;
 
 # Check the configuration is ok
-show variables where
-    `Variable_name` != "performance_schema_max_statement_classes" and
-    `Variable_name` like "performance_schema%";
-show status like "performance_schema%";
+# We don't print this as it causes too many changes in test cases if
+# one variable changes value
+#show variables where
+#    `Variable_name` != "performance_schema_max_statement_classes" and
+#    `Variable_name` like "performance_schema%";
+#show status like "performance_schema%";
 
 echo "================== Step 1 ==================";
 call dump_thread();
@@ -493,4 +495,3 @@ execute dump_objects_summary;
 
 # On test failures, may help to track the root cause
 show status like "performance_schema%";
-

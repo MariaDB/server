@@ -2509,8 +2509,7 @@ row_ins_index_entry_big_rec(
 
 	if (error == DB_SUCCESS
 	    && dict_index_is_online_ddl(index)) {
-		row_log_table_insert(btr_pcur_get_rec(&pcur), entry,
-				     index, offsets);
+		row_log_table_insert(btr_pcur_get_rec(&pcur), index, offsets);
 	}
 
 	mtr.commit();
@@ -2727,7 +2726,7 @@ err_exit:
 			entry_heap, entry, thr, &mtr);
 
 		if (err == DB_SUCCESS && dict_index_is_online_ddl(index)) {
-			row_log_table_insert(btr_cur_get_rec(cursor), entry,
+			row_log_table_insert(btr_cur_get_rec(cursor),
 					     index, offsets);
 		}
 
@@ -2788,7 +2787,7 @@ do_insert:
 			if (err == DB_SUCCESS
 			    && dict_index_is_online_ddl(index)) {
 				row_log_table_insert(
-					insert_rec, entry, index, offsets);
+					insert_rec, index, offsets);
 			}
 
 			mtr_commit(&mtr);

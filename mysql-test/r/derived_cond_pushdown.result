@@ -8783,6 +8783,47 @@ EXPLAIN
 DROP VIEW v2;
 DROP TABLE t1,t2;
 #
+# MDEV-14237: derived with regexp_substr() in select list
+#
+create table t1 (a char(8));
+insert into t1 values ('b'), ('a'), ('xx');
+select *
+from ( select distinct regexp_substr(t1.a,'^[A-Za-z]+') as f from t1) as t
+where t.f = 'a' or t.f = 'b';
+f
+b
+a
+explain format=json select *
+from ( select distinct regexp_substr(t1.a,'^[A-Za-z]+') as f from t1) as t
+where t.f = 'a' or t.f = 'b';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "t.f = 'a' or t.f = 'b'",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}
+drop table t1;
+#
 # MDEV-10855: Pushdown into derived with window functions 
 #
 set @save_optimizer_switch= @@optimizer_switch;

@@ -2375,7 +2375,7 @@ com_multi_end:
                (thd->open_tables == NULL ||
                (thd->locked_tables_mode == LTM_LOCK_TABLES)));
 
-    thd_proc_info(thd, "updating status");
+    thd_proc_info(thd, "Updating status");
     /* Finalize server status flags after executing a command. */
     thd->update_server_status();
     if (command != COM_MULTI)
@@ -6275,10 +6275,14 @@ finish:
       thd->reset_kill_query();
     }
     if (thd->is_error() || (thd->variables.option_bits & OPTION_MASTER_SQL_ERROR))
+    {
+      THD_STAGE_INFO(thd, stage_rollback);
       trans_rollback_stmt(thd);
+    }
     else
     {
       /* If commit fails, we should be able to reset the OK status. */
+      THD_STAGE_INFO(thd, stage_commit);
       thd->get_stmt_da()->set_overwrite_status(true);
       trans_commit_stmt(thd);
       thd->get_stmt_da()->set_overwrite_status(false);
@@ -6288,11 +6292,12 @@ finish:
 #endif
   }
 
-  /* Free tables */
+  /* Free tables. Set stage 'closing tables' */
   close_thread_tables(thd);
 #ifdef WITH_WSREP
   thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
 #endif /* WITH_WSREP */
+
 
 #ifndef DBUG_OFF
   if (lex->sql_command != SQLCOM_SET_OPTION && ! thd->in_sub_stmt)
@@ -6311,6 +6316,7 @@ finish:
       one of storage engines (e.g. due to deadlock). Rollback transaction in
       all storage engines including binary log.
     */
+    THD_STAGE_INFO(thd, stage_rollback_implicit);
     trans_rollback_implicit(thd);
     thd->mdl_context.release_transactional_locks();
   }
@@ -6320,6 +6326,7 @@ finish:
     DBUG_ASSERT(! thd->in_sub_stmt);
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
     {
+      THD_STAGE_INFO(thd, stage_commit_implicit);
       /* If commit fails, we should be able to reset the OK status. */
       thd->get_stmt_da()->set_overwrite_status(true);
       /* Commit the normal transaction if one is active. */
@@ -6346,6 +6353,8 @@ finish:
   {
     thd->mdl_context.release_statement_locks();
   }
+
+  THD_STAGE_INFO(thd, stage_starting_cleanup);
 
   TRANSACT_TRACKER(add_trx_state_from_thd(thd));
 
@@ -6615,7 +6624,9 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
     dummy= 0;
   }
 
-  THD_STAGE_INFO(thd, stage_checking_permissions);
+  /* check access may be called twice in a row. Don't change to same stage */
+  if (thd->proc_info != stage_checking_permissions.m_name)
+    THD_STAGE_INFO(thd, stage_checking_permissions);
   if ((!db || !db[0]) && !thd->db && !dont_check_global_grants)
   {
     DBUG_PRINT("error",("No database"));

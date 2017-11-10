@@ -109,6 +109,13 @@ static ulonglong binlog_status_group_commit_trigger_timeout;
 static char binlog_snapshot_file[FN_REFLEN];
 static ulonglong binlog_snapshot_position;
 
+static const char *fatal_log_error=
+  "Could not use %s for logging (error %d). "
+  "Turning logging off for the whole duration of the MariaDB server process. "
+  "To turn it on again: fix the cause, shutdown the MariaDB server and "
+  "restart it.";
+
+
 static SHOW_VAR binlog_status_vars_detail[]=
 {
   {"commits",
@@ -2002,7 +2009,9 @@ static bool trans_cannot_safely_rollback(THD *thd, bool all)
 static int binlog_commit(handlerton *hton, THD *thd, bool all)
 {
   int error= 0;
+  PSI_stage_info org_stage;
   DBUG_ENTER("binlog_commit");
+
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
 
@@ -2019,6 +2028,9 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
               YESNO(thd->transaction.all.modified_non_trans_table),
               YESNO(thd->transaction.stmt.modified_non_trans_table)));
 
+
+  thd->backup_stage(&org_stage);
+  THD_STAGE_INFO(thd, stage_binlog_write);
   if (!cache_mngr->stmt_cache.empty())
   {
     error= binlog_commit_flush_stmt_cache(thd, all, cache_mngr);
@@ -2030,6 +2042,7 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
       we're here because cache_log was flushed in MYSQL_BIN_LOG::log_xid()
     */
     cache_mngr->reset(false, true);
+    THD_STAGE_INFO(thd, org_stage);
     DBUG_RETURN(error);
   }
 
@@ -2048,6 +2061,7 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
   if (!all)
     cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
 
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(error);
 }
 
@@ -2683,10 +2697,7 @@ bool MYSQL_LOG::open(
   DBUG_RETURN(0);
 
 err:
-  sql_print_error("Could not use %s for logging (error %d). \
-Turning logging off for the whole duration of the MySQL server process. \
-To turn it on again: fix the cause, \
-shutdown the MySQL server and restart it.", name, errno);
+  sql_print_error(fatal_log_error, name, errno);
   if (file >= 0)
     mysql_file_close(file, MYF(0));
   end_io_cache(&log_file);
@@ -3794,15 +3805,13 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
   DBUG_RETURN(0);
 
 err:
+  int tmp_errno= errno;
 #ifdef HAVE_REPLICATION
   if (is_inited_purge_index_file())
     purge_index_entry(NULL, NULL, need_mutex);
   close_purge_index_file();
 #endif
-  sql_print_error("Could not use %s for logging (error %d). \
-Turning logging off for the whole duration of the MySQL server process. \
-To turn it on again: fix the cause, \
-shutdown the MySQL server and restart it.", name, errno);
+  sql_print_error(fatal_log_error, name, tmp_errno);
   if (new_xid_list_entry)
     my_free(new_xid_list_entry);
   if (file >= 0)
@@ -5229,12 +5238,7 @@ end:
        - ...
     */
     close(LOG_CLOSE_INDEX);
-    sql_print_error("Could not open %s for logging (error %d). "
-                     "Turning logging off for the whole duration "
-                     "of the MySQL server process. To turn it on "
-                     "again: fix the cause, shutdown the MySQL "
-                     "server and restart it.", 
-                     new_name_ptr, errno);
+    sql_print_error(fatal_log_error, new_name_ptr, errno);
   }
 
   mysql_mutex_unlock(&LOCK_index);

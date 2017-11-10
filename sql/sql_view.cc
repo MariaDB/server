@@ -705,7 +705,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   DBUG_RETURN(0);
 
 err:
-  THD_STAGE_INFO(thd, stage_end);
   lex->link_first_table_back(view, link_to_local);
   unit->cleanup();
   DBUG_RETURN(res || thd->is_error());

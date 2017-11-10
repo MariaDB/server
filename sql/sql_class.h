@@ -693,7 +693,6 @@ typedef struct system_variables
   ulong session_track_transaction_info;
   my_bool session_track_schema;
   my_bool session_track_state_change;
-  my_bool sequence_read_skip_cache;
 
   ulong threadpool_priority;
 
@@ -831,6 +830,7 @@ typedef struct system_status_var
   double cpu_time, busy_time;
   /* Don't initialize */
   /* Memory used for thread local storage */
+  int64 max_local_memory_used;
   volatile int64 local_memory_used;
   /* Memory allocated for global usage */
   volatile int64 global_memory_used;
@@ -2225,12 +2225,13 @@ public:
                    const char *calling_file,
                    const unsigned int calling_line)
   {
-    DBUG_PRINT("THD::enter_stage", ("%s:%d", calling_file, calling_line));
+    DBUG_PRINT("THD::enter_stage", ("%s at %s:%d", stage->m_name,
+                                    calling_file, calling_line));
     DBUG_ASSERT(stage);
     m_current_stage_key= stage->m_key;
     proc_info= stage->m_name;
 #if defined(ENABLED_PROFILING)
-    profiling.status_change(stage->m_name, calling_func, calling_file,
+    profiling.status_change(proc_info, calling_func, calling_file,
                             calling_line);
 #endif
 #ifdef HAVE_PSI_THREAD_INTERFACE

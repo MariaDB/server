@@ -173,7 +173,7 @@ SET SQL_LOG_BIN=1;
 SET GLOBAL debug_dbug=@old_debug;
 ###################### TEST #10
 call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
-call mtr.add_suppression("Could not open .*");
+call mtr.add_suppression("Could not use .*");
 RESET MASTER;
 SHOW WARNINGS;
 Level	Code	Message
@@ -233,7 +233,7 @@ include/rpl_reset.inc
 connection slave;
 call mtr.add_suppression("Slave I/O: Relay log write failure: could not queue event from master.*");
 call mtr.add_suppression("Error writing file .*");
-call mtr.add_suppression("Could not open .*");
+call mtr.add_suppression("Could not use .*");
 call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
 call mtr.add_suppression("Can't generate a unique log-filename .*");
 ###################### TEST #13

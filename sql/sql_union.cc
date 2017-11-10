@@ -713,13 +713,7 @@ bool st_select_lex_unit::join_union_type_handlers(THD *thd_arg,
         holders[pos].set_handler(item_type_handler);
       else
       {
-        if (first_sl->item_list.elements != sl->item_list.elements)
-        {
-          my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
-                     ER_THD(thd_arg, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT),
-                     MYF(0));
-          DBUG_RETURN(true);
-        }
+        DBUG_ASSERT(first_sl->item_list.elements == sl->item_list.elements);
         if (holders[pos].aggregate_for_result(item_type_handler))
         {
           my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
@@ -986,6 +980,16 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
           goto err;
         if (check_duplicate_names(thd, sl->item_list, 0))
           goto err;
+      }
+    }
+    else
+    {
+      if (first_sl->item_list.elements != sl->item_list.elements)
+      {
+        my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
+                   ER_THD(thd_arg, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT),
+                   MYF(0));
+        goto err;
       }
     }
     if (is_recursive)

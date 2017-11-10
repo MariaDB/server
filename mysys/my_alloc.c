@@ -68,6 +68,7 @@ void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
   mem_root->error_handler= 0;
   mem_root->block_num= 4;			/* We shift this with >>2 */
   mem_root->first_block_usage= 0;
+  mem_root->total_alloc= 0;
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
   if (pre_alloc_size)
@@ -77,6 +78,7 @@ void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
 			       MYF(my_flags))))
     {
       mem_root->free->size= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
+      mem_root->total_alloc= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
       mem_root->free->left= pre_alloc_size;
       mem_root->free->next= 0;
     }
@@ -134,6 +136,7 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
         {
           /* remove block from the list and free it */
           *prev= mem->next;
+          mem_root->total_alloc-= mem->size;
           my_free(mem);
         }
         else
@@ -145,9 +148,10 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
                                                        block_size)))))
       {
         mem->size= size; 
+        mem_root->total_alloc+= size;
         mem->left= pre_alloc_size;
         mem->next= *prev;
-        *prev= mem_root->pre_alloc= mem; 
+        *prev= mem_root->pre_alloc= mem;
       }
       else
       {
@@ -190,8 +194,10 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     DBUG_RETURN((uchar*) 0);			/* purecov: inspected */
   }
   next->next= mem_root->used;
+  next->left= 0;
   next->size= length;
   mem_root->used= next;
+  mem_root->total_alloc+= length;
   DBUG_PRINT("exit",("ptr: %p", (((char*) next)+
                                  ALIGN_SIZE(sizeof(USED_MEM)))));
   DBUG_RETURN((uchar*) (((char*) next)+ALIGN_SIZE(sizeof(USED_MEM))));
@@ -244,6 +250,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
       DBUG_RETURN((void*) 0);                      /* purecov: inspected */
     }
     mem_root->block_num++;
+    mem_root->total_alloc+= get_size;
     next->next= *prev;
     next->size= get_size;
     next->left= get_size-ALIGN_SIZE(sizeof(USED_MEM));
@@ -346,6 +353,7 @@ static inline void mark_blocks_free(MEM_ROOT* root)
   /* Now everything is set; Indicate that nothing is used anymore */
   root->used= 0;
   root->first_block_usage= 0;
+  root->block_num= 4;
 }
 
 
@@ -374,11 +382,17 @@ void free_root(MEM_ROOT *root, myf MyFlags)
   DBUG_ENTER("free_root");
   DBUG_PRINT("enter",("root: %p  flags: %u", root, (uint) MyFlags));
 
+#if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
+  /*
+    There is no point in using mark_blocks_free when using valgrind as
+    it will not reclaim any memory
+  */
   if (MyFlags & MY_MARK_BLOCKS_FREE)
   {
     mark_blocks_free(root);
     DBUG_VOID_RETURN;
   }
+#endif
   if (!(MyFlags & MY_KEEP_PREALLOC))
     root->pre_alloc=0;
 
@@ -386,13 +400,19 @@ void free_root(MEM_ROOT *root, myf MyFlags)
   {
     old=next; next= next->next ;
     if (old != root->pre_alloc)
+    {
+      root->total_alloc-= old->size;
       my_free(old);
+    }
   }
   for (next=root->free ; next ;)
   {
     old=next; next= next->next;
     if (old != root->pre_alloc)
+    {
+      root->total_alloc-= old->size;
       my_free(old);
+    }
   }
   root->used=root->free=0;
   if (root->pre_alloc)

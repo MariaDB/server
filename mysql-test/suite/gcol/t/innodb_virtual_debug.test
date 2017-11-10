@@ -53,8 +53,11 @@ SELECT c FROM t;
 SHOW CREATE TABLE t;
 SELECT * FROM t;
 
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t FORCE, LOCK=NONE;
+if (0) {# MDEV-14341 TODO: re-enable this
 SET DEBUG_SYNC = 'innodb_inplace_alter_table_enter SIGNAL start_create WAIT_FOR go_ahead';
---send ALTER TABLE t ADD COLUMN x INT
+--send ALTER TABLE t FORCE
 
 connection con1;
 
@@ -78,7 +81,7 @@ check table t;
 SELECT c FROM t;
 
 SET DEBUG_SYNC = 'innodb_inplace_alter_table_enter SIGNAL start_create WAIT_FOR go_ahead';
---send ALTER TABLE t ADD COLUMN x2 INT
+--send ALTER TABLE t FORCE
 
 connection con1;
 
@@ -93,6 +96,7 @@ connection default;
 reap;
 
 SELECT c FROM t;
+}
 
 disconnect con1;
 DROP TABLE t;
@@ -129,7 +133,7 @@ SELECT c FROM t;
 
 DROP TABLE t;
 
-
+if (0) {# MDEV-14341 TODO: re-enable LOCK=NONE and these tests
 --echo #
 --echo # Bug#22018532 ASSERTION WHEN ONLINE REAPPLY REBUILD LOG ON
 --echo # MULTIPLE INDEXED VIRTUAL COLUMNS
@@ -264,7 +268,7 @@ SELECT * FROM t;
 DROP TABLE t;
 
 disconnect con1;
-
+}
 SET DEBUG_SYNC = 'RESET';
 
 --source include/wait_until_count_sessions.inc

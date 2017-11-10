@@ -366,7 +366,10 @@ void With_element::check_dependencies_in_select(st_select_lex *sl,
   /* Now look for the dependencies in the subqueries of sl */
   st_select_lex_unit *inner_unit= sl->first_inner_unit();
   for (; inner_unit; inner_unit= inner_unit->next_unit())
-    check_dependencies_in_unit(inner_unit, ctxt, in_subq, dep_map);
+  {
+    if (!inner_unit->with_element)
+      check_dependencies_in_unit(inner_unit, ctxt, in_subq, dep_map);
+  }
 }
 
 
@@ -854,7 +857,6 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
     with_table->next_global= spec_tables;
   }
   res= &lex->unit;
-  res->set_with_clause(owner);
   
   lex->unit.include_down(with_table->select_lex);
   lex->unit.set_slave(with_select); 
@@ -863,6 +865,8 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
 		      insert_chain_before(
 			(st_select_lex_node **) &(old_lex->all_selects_list),
                         with_select));
+  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
+    res= NULL;
   lex_end(lex);
 err:
   if (arena)
@@ -1006,14 +1010,18 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
       and it was unsuccesful. Yet for units cloned from the spec it has not 
       been done yet.
     */
-    if (with_elem && sl->master_unit() == with_elem->spec)
+    With_clause *attached_with_clause=sl->get_with_clause();
+    if (attached_with_clause &&
+        (found= attached_with_clause->find_table_def(table, NULL)))
       break;
-    With_clause *with_clause=sl->get_with_clause();
-    if (with_clause)
+    if (with_elem)
     {
-      With_element *barrier= with_clause->with_recursive ? NULL : with_elem;
-      if ((found= with_clause->find_table_def(table, barrier)))
+      With_clause *containing_with_clause= with_elem->get_owner();
+      With_element *barrier= containing_with_clause->with_recursive ?
+                               NULL : with_elem;
+      if ((found= containing_with_clause->find_table_def(table, barrier)))
         break;
+      sl= sl->master_unit()->outer_select(); 
     }
     master_unit= sl->master_unit();
     /* Do not look for the table's definition beyond the scope of the view */

@@ -10,7 +10,7 @@ WHERE name IN (
 AND enabled = 'yes' AND timed = 'no'
 ORDER BY name;
 NAME	ENABLED	TIMED
-stage/sql/creating table	YES	NO
+stage/sql/Creating table	YES	NO
 wait/synch/mutex/sql/LOCK_plugin	YES	NO
 wait/synch/mutex/sql/LOCK_user_conn	YES	NO
 SELECT * FROM performance_schema.setup_instruments

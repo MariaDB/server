@@ -93,7 +93,6 @@ enum enum_i_s_events_fields
 
 #define USERNAME_WITH_HOST_CHAR_LENGTH (USERNAME_CHAR_LENGTH + HOSTNAME_LENGTH + 2)
 
-
 static const LEX_CSTRING trg_action_time_type_names[]=
 {
   { STRING_WITH_LEN("BEFORE") },
@@ -3103,17 +3102,17 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       {
         table->field[7]->store(tmp->query(),
                                MY_MIN(PROCESS_LIST_INFO_WIDTH,
-                                   tmp->query_length()), cs);
+                                      tmp->query_length()), cs);
         table->field[7]->set_notnull();
       }
 
       /* INFO_BINARY */
       if (tmp->query())
       {
-        table->field[15]->store(tmp->query(),
+        table->field[16]->store(tmp->query(),
                                 MY_MIN(PROCESS_LIST_INFO_WIDTH,
                                 tmp->query_length()), &my_charset_bin);
-        table->field[15]->set_notnull();
+        table->field[16]->set_notnull();
       }
 
       /*
@@ -3136,14 +3135,14 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       */
       table->field[12]->store((longlong) tmp->status_var.local_memory_used,
                               FALSE);
-      table->field[12]->set_notnull();
-      table->field[13]->store((longlong) tmp->get_examined_row_count(), TRUE);
-      table->field[13]->set_notnull();
+      table->field[13]->store((longlong) tmp->status_var.max_local_memory_used,
+                              FALSE);
+      table->field[14]->store((longlong) tmp->get_examined_row_count(), TRUE);
 
       /* QUERY_ID */
-      table->field[14]->store(tmp->query_id, TRUE);
+      table->field[15]->store(tmp->query_id, TRUE);
 
-      table->field[16]->store(tmp->os_thread_id);
+      table->field[17]->store(tmp->os_thread_id);
 
       if (schema_table_store_record(thd, table))
       {
@@ -4304,14 +4303,15 @@ static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
   @retval TRUE  - Failure.
 */
 static bool
-fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
+fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
+                          bool is_show_fields_or_keys,
                           TABLE *table, ST_SCHEMA_TABLE *schema_table,
                           LEX_CSTRING *orig_db_name,
                           LEX_CSTRING *orig_table_name,
                           Open_tables_backup *open_tables_state_backup,
                           bool can_deadlock)
 {
-  Query_arena i_s_arena(thd->mem_root,
+  Query_arena i_s_arena(mem_root,
                         Query_arena::STMT_CONVENTIONAL_EXECUTION),
               backup_arena, *old_arena;
   LEX *old_lex= thd->lex, temp_lex, *lex;
@@ -4888,7 +4888,10 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
+  MEM_ROOT tmp_mem_root;
   DBUG_ENTER("get_all_tables");
+
+  bzero(&tmp_mem_root, sizeof(tmp_mem_root));
 
   /*
     In cases when SELECT from I_S table being filled by this call is
@@ -4925,7 +4928,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     table_name.str= lsel->table_list.first->table_name;
     table_name.length= lsel->table_list.first->table_name_length;
 
-    error= fill_schema_table_by_open(thd, TRUE,
+    error= fill_schema_table_by_open(thd, thd->mem_root, TRUE,
                                      table, schema_table,
                                      &db_name, &table_name,
                                      &open_tables_state_backup,
@@ -4950,6 +4953,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
+
+  /* Use tmp_mem_root to allocate data for opened tables */
+  init_alloc_root(&tmp_mem_root, SHOW_ALLOC_BLOCK_SIZE, SHOW_ALLOC_BLOCK_SIZE,
+                  MY_THREAD_SPECIFIC);
+
   for (size_t i=0; i < db_names.elements(); i++)
   {
     LEX_CSTRING *db_name= db_names.at(i);
@@ -5035,12 +5043,13 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             }
 
             DEBUG_SYNC(thd, "before_open_in_get_all_tables");
-            if (fill_schema_table_by_open(thd, FALSE,
+            if (fill_schema_table_by_open(thd, &tmp_mem_root, FALSE,
                                           table, schema_table,
                                           db_name, table_name,
                                           &open_tables_state_backup,
                                           can_deadlock))
               goto err;
+            free_root(&tmp_mem_root, MY_MARK_BLOCKS_FREE);
           }
         }
       }
@@ -5050,6 +5059,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   error= 0;
 err:
   thd->restore_backup_open_tables_state(&open_tables_state_backup);
+  free_root(&tmp_mem_root, 0);
 
   DBUG_RETURN(error);
 }
@@ -9074,6 +9084,7 @@ ST_FIELD_INFO processlist_fields_info[]=
   {"PROGRESS", 703, MYSQL_TYPE_DECIMAL,  0, 0, "Progress",
    SKIP_OPEN_TABLE},
   {"MEMORY_USED", 7, MYSQL_TYPE_LONGLONG, 0, 0, "Memory_used", SKIP_OPEN_TABLE},
+  {"MAX_MEMORY_USED", 7, MYSQL_TYPE_LONGLONG, 0, 0, "Max_memory_used", SKIP_OPEN_TABLE},
   {"EXAMINED_ROWS", 7, MYSQL_TYPE_LONG, 0, 0, "Examined_rows", SKIP_OPEN_TABLE},
   {"QUERY_ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, SKIP_OPEN_TABLE},
   {"INFO_BINARY", PROCESS_LIST_INFO_WIDTH, MYSQL_TYPE_BLOB, 0, 1,

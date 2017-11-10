@@ -989,29 +989,6 @@ rec_convert_dtuple_to_temp(
 	rec_comp_status_t	status = REC_STATUS_ORDINARY)
 	MY_ATTRIBUTE((nonnull));
 
-/** Determine the converted size of virtual column data in a temporary file.
-@see rec_convert_dtuple_to_temp_v()
-@param[in]	index	clustered index
-@param[in]	v	clustered index record augmented with the values
-			of virtual columns
-@return size in bytes */
-ulint
-rec_get_converted_size_temp_v(const dict_index_t* index, const dtuple_t* v)
-	MY_ATTRIBUTE((warn_unused_result, nonnull));
-
-/** Write indexed virtual column data into a temporary file.
-@see rec_get_converted_size_temp_v()
-@param[out]	rec	serialized record
-@param[in]	index	clustered index
-@param[in]	v_entry	clustered index record augmented with the values
-			of virtual columns */
-void
-rec_convert_dtuple_to_temp_v(
-	byte*			rec,
-	const dict_index_t*	index,
-	const dtuple_t*		v_entry)
-	MY_ATTRIBUTE((nonnull));
-
 /**************************************************************//**
 Copies the first n fields of a physical record to a new physical record in
 a buffer.

@@ -2464,6 +2464,21 @@ static int my_xpath_parse_UnaryExpr(MY_XPATH *xpath)
 }
 
 
+/**
+  A helper class to make a null-terminated string from XPath fragments.
+  The string is allocated on the THD memory root.
+*/
+class XPath_cstring_null_terminated: public LEX_CSTRING
+{
+public:
+  XPath_cstring_null_terminated(THD *thd, const char *str, size_t length)
+  {
+    if (thd->make_lex_string(this, str, length))
+      static_cast<LEX_CSTRING>(*this)= empty_clex_str;
+  }
+};
+
+
 /*
   Scan Number
 
@@ -2498,14 +2513,15 @@ static int my_xpath_parse_Number(MY_XPATH *xpath)
   thd= xpath->thd;
   if (!my_xpath_parse_term(xpath, MY_XPATH_LEX_DOT))
   {
-    xpath->item= new (thd->mem_root) Item_int(thd, xpath->prevtok.beg,
-                              (uint)(xpath->prevtok.end - xpath->prevtok.beg));
-    return 1;
+    XPath_cstring_null_terminated nr(thd, beg, xpath->prevtok.end - beg);
+    xpath->item= new (thd->mem_root) Item_int(thd, nr.str, (uint) nr.length);
   }
-  my_xpath_parse_term(xpath, MY_XPATH_LEX_DIGITS);
-
-  xpath->item= new (thd->mem_root) Item_float(thd, beg,
-                                              (uint)(xpath->prevtok.end - beg));
+  else
+  {
+    my_xpath_parse_term(xpath, MY_XPATH_LEX_DIGITS);
+    XPath_cstring_null_terminated nr(thd, beg, xpath->prevtok.end - beg);
+    xpath->item= new (thd->mem_root) Item_float(thd, nr.str, (uint) nr.length);
+  }
   return 1;
 }
 

@@ -1928,3 +1928,51 @@ set standard_compliant_cte=default;
 
 DROP TABLE t;
 
+--echo #
+--echo # mdev-14184: recursive CTE embedded into CTE with multiple references 
+--echo #
+
+WITH
+cte1 AS (
+  SELECT n FROM (
+    WITH RECURSIVE rec_cte(n) AS (
+      SELECT 1 as n1
+      UNION ALL
+      SELECT n+1 as n2 FROM rec_cte WHERE n < 3
+    ) SELECT n FROM rec_cte
+  ) AS X
+),
+cte2 as (
+ SELECT 2 FROM cte1
+)
+SELECT *
+FROM cte1;
+
+--echo #
+--echo # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field
+--echo #
+
+CREATE TEMPORARY TABLE a_tbl (
+  a VARCHAR(33) PRIMARY KEY,
+  b VARCHAR(33)
+);
+
+INSERT INTO a_tbl VALUES ('block0', 'block0'), ('block1', NULL);
+
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+WITH RECURSIVE Q0 AS (
+  SELECT T0.a, T0.b, 5
+  FROM a_tbl T0
+  WHERE b IS NULL
+  UNION ALL
+  SELECT T1.a, T1.b
+  FROM Q0
+  JOIN a_tbl T1
+  ON T1.a=Q0.a
+) SELECT distinct(Q0.a), Q0.b
+  FROM Q0;
+DROP TABLE a_tbl;
+
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+WITH RECURSIVE x AS (SELECT 1,2 UNION ALL SELECT 1 FROM x) SELECT * FROM x;
+
