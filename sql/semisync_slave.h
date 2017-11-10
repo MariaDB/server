@@ -24,6 +24,8 @@
 #include "rpl_mi.h"
 #include "mysql.h"
 
+class Master_info;
+
 /**
    The extension class for the slave of semi-synchronous replication
 */
