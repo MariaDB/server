@@ -594,6 +594,7 @@ rec_get_offsets_func(
 		ut_ad(is_user_rec || n == 1);
 		ut_ad(!is_user_rec || leaf || index->is_dummy
 		      || dict_index_is_ibuf(index)
+		      || n == n_fields /* dict_stats_analyze_index_level() */
 		      || n
 		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
 		ut_ad(!is_user_rec || !leaf || index->is_dummy

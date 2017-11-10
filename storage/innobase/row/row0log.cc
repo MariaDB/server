@@ -203,11 +203,6 @@ struct row_log_t {
 	byte*		crypt_head; /*!< reader context;
 				temporary buffer used in encryption,
 				decryption or NULL */
-	ulint		n_old_col;
-				/*!< number of non-virtual column in
-				old table */
-	ulint		n_old_vcol;
-				/*!< number of virtual column in old table */
 	const char*	path;	/*!< where to create temporary file during
 				log operation */
 };
@@ -2334,13 +2329,6 @@ row_log_table_apply_op(
 
 		next_mrec = mrec + rec_offs_data_size(offsets);
 
-		if (log->table->n_v_cols) {
-			if (next_mrec + 2 > mrec_end) {
-				return(NULL);
-			}
-			next_mrec += mach_read_from_2(next_mrec);
-		}
-
 		if (next_mrec > mrec_end) {
 			return(NULL);
 		} else {
@@ -2375,13 +2363,6 @@ row_log_table_apply_op(
 		rec_offs_set_n_fields(offsets, new_index->n_uniq + 2);
 		rec_init_offsets_temp(mrec, new_index, offsets);
 		next_mrec = mrec + rec_offs_data_size(offsets) + ext_size;
-		if (log->table->n_v_cols) {
-			if (next_mrec + 2 > mrec_end) {
-				return(NULL);
-			}
-
-			next_mrec += mach_read_from_2(next_mrec);
-		}
 
 		if (next_mrec > mrec_end) {
 			return(NULL);
@@ -3092,8 +3073,6 @@ row_log_allocate(
 	log->head.blocks = log->head.bytes = 0;
 	log->head.total = 0;
 	log->path = path;
-	log->n_old_col = index->table->n_cols;
-	log->n_old_vcol = index->table->n_v_cols;
 
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
 	index->online_log = log;
