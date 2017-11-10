@@ -2359,7 +2359,7 @@ trx_undo_prev_version_build(
 
 		ut_ad(index->table->n_v_cols);
 		trx_undo_read_v_cols(index->table, ptr, *vrow,
-				     v_status & TRX_UNDO_PREV_IN_PURGE, NULL);
+				     v_status & TRX_UNDO_PREV_IN_PURGE);
 	}
 
 	return(true);
@@ -2368,16 +2368,14 @@ trx_undo_prev_version_build(
 /** Read virtual column value from undo log
 @param[in]	table		the table
 @param[in]	ptr		undo log pointer
-@param[in,out]	row		the row struct to fill
-@param[in]	in_purge	called by purge thread
-@param[in]	col_map		online rebuild column map */
+@param[in,out]	row		the dtuple to fill
+@param[in]	in_purge	whether this is called by purge */
 void
 trx_undo_read_v_cols(
 	const dict_table_t*	table,
 	const byte*		ptr,
 	const dtuple_t*		row,
-	bool			in_purge,
-	const ulint*		col_map)
+	bool			in_purge)
 {
 	const byte*     end_ptr;
 	bool		first_v_col = true;
@@ -2417,21 +2415,10 @@ trx_undo_read_v_cols(
 		}
 
 		if (is_virtual) {
-			ulint		col_no;
 			dict_v_col_t*	vcol = dict_table_get_nth_v_col(
 				table, field_no);
 
-			if (!col_map) {
-				col_no = vcol->v_pos;
-			} else {
-				col_no = col_map[vcol->v_pos];
-			}
-
-			if (col_no == ULINT_UNDEFINED) {
-				continue;
-			}
-
-			dfield = dtuple_get_nth_v_field(row, col_no);
+			dfield = dtuple_get_nth_v_field(row, vcol->v_pos);
 
 			if (!in_purge
 			    || dfield_get_type(dfield)->mtype == DATA_MISSING) {

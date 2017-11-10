@@ -1,0 +1,52 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (j SERIAL, i INT, v INT AS (i) VIRTUAL) ENGINE=InnoDB;
+CREATE TABLE t2 (j SERIAL, i INT, v INT AS (i) VIRTUAL) ENGINE=InnoDB
+ROW_FORMAT=REDUNDANT;
+CREATE TABLE t3 (i INT, v INT AS (i) VIRTUAL) ENGINE=InnoDB;
+CREATE TABLE t4 (i INT, v INT AS (i) VIRTUAL) ENGINE=InnoDB
+ROW_FORMAT=REDUNDANT;
+
+let $n=4;
+while ($n)
+{
+eval INSERT INTO t$n SET i=1;
+eval ALTER TABLE t$n ADD INDEX(v), LOCK=NONE;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+eval ALTER TABLE t$n ADD COLUMN k INT, LOCK=NONE;
+eval ALTER TABLE t$n ADD COLUMN k INT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+eval ALTER TABLE t$n DROP k, LOCK=NONE;
+eval ALTER TABLE t$n DROP INDEX v, LOCK=NONE;
+eval ALTER TABLE t$n DROP k, LOCK=NONE;
+dec $n;
+}
+
+connect (ddl,localhost,root,,test);
+connection default;
+
+let $n=4;
+while ($n)
+{
+connection ddl;
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL copied WAIT_FOR dml';
+send_eval ALTER TABLE t$n FORCE;
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR copied';
+BEGIN;
+eval UPDATE t$n SET i = 0;
+ROLLBACK;
+SET DEBUG_SYNC = 'now SIGNAL dml';
+
+connection ddl;
+reap;
+connection default;
+eval SELECT * FROM t$n;
+eval DROP TABLE t$n;
+dec $n;
+}
+disconnect ddl;
+SET DEBUG_SYNC = 'RESET';
