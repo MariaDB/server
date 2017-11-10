@@ -2670,10 +2670,11 @@ int main(int argc, char** argv)
 
   if (!argc || opt_version)
   {
-    if (!argc)
-      usage();
     if (!opt_version)
+    {
+      usage();
       retval= ERROR_STOP;
+    }
     goto err;
   }
 
