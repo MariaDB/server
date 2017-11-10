@@ -1297,12 +1297,11 @@ row_ins_foreign_check_on_constraint(
 
 #ifdef WITH_WSREP
 	err = wsrep_append_foreign_key(
-					thr_get_trx(thr),
-					foreign,
-					clust_rec,
-					clust_index,
-					FALSE,
-					(node) ? TRUE : FALSE);
+				       thr_get_trx(thr),
+				       foreign,
+				       clust_rec,
+				       clust_index,
+				       FALSE, FALSE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);

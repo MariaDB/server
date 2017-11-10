@@ -2435,4 +2435,3 @@ trx_start_for_ddl_low(
 
 	ut_error;
 }
-

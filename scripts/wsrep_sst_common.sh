@@ -256,18 +256,18 @@ parse_cnf()
     # finally get the variable value (if variables has been specified multiple time use the last value only)
 
     # look in group+suffix
-    if [[ -n $WSREP_SST_OPT_CONF_SUFFIX ]]; then
+    if [ -n $WSREP_SST_OPT_CONF_SUFFIX ]; then
         reval=$($MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF "${group}${WSREP_SST_OPT_CONF_SUFFIX}" | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
     fi
 
     # look in group
-    if [[ -z $reval ]]; then
+    if [ -z $reval ]; then
         reval=$($MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
     fi
 
     # use default if we haven't found a value
-    if [[ -z $reval ]]; then
-        [[ -n $3 ]] && reval=$3
+    if [ -z $reval ]; then
+        [ -n $3 ] && reval=$3
     fi
     echo $reval
 }
