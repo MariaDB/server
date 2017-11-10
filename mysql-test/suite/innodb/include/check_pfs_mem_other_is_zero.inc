@@ -9,8 +9,13 @@
 -- disable_query_log
 
 if ($pfs_enabled) {
+	#check if we have memory_summary_global_by_event_name table
+	-- let mem_sum_enabled = `SHOW TABLES IN performance_schema like 'memory_summary_global_by_event_name'`
+	if (!$mem_sum_enabled) { SELECT 0 AS count_alloc;}
+	if ($mem_sum_enabled) {
 	SELECT count_alloc FROM performance_schema.memory_summary_global_by_event_name
 	WHERE event_name = 'memory/innodb/other';
+	}
 }
 
 if (!$pfs_enabled) {

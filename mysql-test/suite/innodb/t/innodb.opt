@@ -1,1 +1,2 @@
 --innodb-defragment=0
+--innodb_page_size=16k
