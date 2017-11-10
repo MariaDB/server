@@ -27,7 +27,7 @@ let $MYSQLD_DATADIR = `SELECT @@datadir`;
 --source include/no_valgrind_without_big.inc
 
 # Check storage engine InnoDB
-SELECT @@internal_tmp_disk_storage_engine;
+#SELECT @@internal_tmp_disk_storage_engine;
 
 CREATE TABLE tab
 (col1 TEXT, col2 TEXT, col3 TEXT, col4 TEXT, col5 TEXT,
@@ -65,7 +65,7 @@ SELECT @@innodb_default_row_format;
 # Check file_per_table=1
 SELECT @@innodb_file_per_table;
 
-CREATE TABLE tab(a INT);
+CREATE TABLE tab(a INT) ENGINE=InnoDB;
 
 INSERT INTO tab VALUES(1);
 INSERT INTO tab VALUES(2);
@@ -76,8 +76,9 @@ SELECT * FROM tab;
 FLUSH TABLE tab FOR EXPORT;
 
 # Take the backup of the ibd and cfg files
---copy_file $MYSQLD_DATADIR/test/tab.cfg $MYSQLD_TMPDIR/tab.cfg
 --copy_file $MYSQLD_DATADIR/test/tab.ibd $MYSQLD_TMPDIR/tab.ibd
+--copy_file $MYSQLD_DATADIR/test/tab.cfg $MYSQLD_TMPDIR/tab.cfg
+
 
 UNLOCK TABLES;
 
@@ -87,7 +88,7 @@ DROP TABLE tab;
 # Set the default_row_format=Dynamic
 SET GLOBAL innodb_default_row_format=Dynamic;
 
-CREATE TABLE tab(a INT);
+CREATE TABLE tab(a INT) ENGINE=InnoDB;
 
 # Remove the *.ibd file
 ALTER TABLE tab DISCARD TABLESPACE;
@@ -116,7 +117,7 @@ SET GLOBAL innodb_default_row_format=Compact;
 # Check row_format=Compact
 SELECT @@innodb_default_row_format;
 
-CREATE TABLE tab(a INT);
+CREATE TABLE tab(a INT) ENGINE=InnoDB;
 
 # Check row_fromat=Dynamic
 --source  ../include/default_row_format_show.inc
