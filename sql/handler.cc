@@ -1414,6 +1414,27 @@ int ha_commit_trans(THD *thd, bool all)
     goto err;
   }
 
+  if (rw_trans || thd->lex->sql_command == SQLCOM_ALTER_TABLE)
+  {
+    for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
+    {
+      handlerton *ht= hi->ht();
+      if ((ht->flags & HTON_NATIVE_SYS_VERSIONING) &&
+        thd->lex->sql_command == SQLCOM_ALTER_TABLE ?
+        hi->is_trx_tmp_read_write() :
+        hi->is_trx_read_write())
+      {
+        TR_table trt(thd, true);
+        bool updated;
+        if (trt.update(updated))
+          goto err;
+        if (updated && all)
+          trans_commit_stmt(thd);
+        break;
+      }
+    }
+  }
+
   if (trans->no_2pc || (rw_ha_count <= 1))
   {
     error= ha_commit_one_phase(thd, all);
@@ -4054,6 +4075,8 @@ void handler::mark_trx_read_write_internal()
     */
     if (table_share == NULL || table_share->tmp_table == NO_TMP_TABLE)
       ha_info->set_trx_read_write();
+    else
+      ha_info->set_trx_tmp_read_write();
   }
 }
 
@@ -4277,6 +4300,14 @@ bool handler::ha_commit_inplace_alter_table(TABLE *altered_table,
                                                    table->s->table_name.str,
                                                    MDL_EXCLUSIVE) ||
                !commit);
+
+  if (commit)
+  {
+    TR_table trt(ha_thd(), true);
+    bool updated;
+    if (trt.update(updated))
+      return true;
+  }
 
    return commit_inplace_alter_table(altered_table, ha_alter_info, commit);
 }

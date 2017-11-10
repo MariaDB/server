@@ -34,7 +34,6 @@ VTMD_table::create(THD *thd)
     TL_READ);
 
   Query_tables_backup backup(thd);
-  thd->lex->sql_command= backup.get().sql_command;
   thd->lex->add_to_query_tables(&src_table);
 
   MDL_auto_lock mdl_lock(thd, table);
@@ -256,6 +255,12 @@ err:
   }
 
 quit:
+  if (!result)
+  {
+    TR_table trt(thd, true);
+    result= trt.update(result);
+  }
+
   close_log_table(thd, &open_tables_backup);
 
 open_error:

@@ -18,36 +18,18 @@
 
 /* System Versioning items */
 
-#include "vtq.h"
-
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
 #endif
 
-template <class Item_func_X>
-class VTQ_common : public Item_func_X
+class Item_func_vtq_ts: public Item_datetimefunc
 {
-protected:
-  handlerton *hton;
-  void check_hton();
+  TR_table::field_id_t vtq_field;
 public:
-  VTQ_common(THD *thd, handlerton* _hton, Item* a, Item* b) :
-    Item_func_X(thd, a, b),
-    hton(_hton) {}
-  VTQ_common(THD *thd, handlerton* _hton, Item* a) :
-    Item_func_X(thd, a),
-    hton(_hton) {}
-};
-
-class Item_func_vtq_ts :
-  public VTQ_common<Item_datetimefunc>
-{
-  vtq_field_t vtq_field;
-public:
-  Item_func_vtq_ts(THD *thd, handlerton *hton, Item* a, vtq_field_t _vtq_field);
+  Item_func_vtq_ts(THD *thd, Item* a, TR_table::field_id_t _vtq_field);
   const char *func_name() const
   {
-    if (vtq_field == VTQ_BEGIN_TS)
+    if (vtq_field == TR_table::FLD_BEGIN_TS)
     {
       return "vtq_begin_ts";
     }
@@ -59,31 +41,27 @@ public:
   void fix_length_and_dec() { fix_attributes_datetime(decimals); }
 };
 
-class Item_func_vtq_id :
-  public VTQ_common<Item_longlong_func>
+class Item_func_vtq_id : public Item_longlong_func
 {
-  vtq_field_t vtq_field;
-  vtq_record_t cached_result;
+  TR_table::field_id_t vtq_field;
   bool backwards;
 
   longlong get_by_trx_id(ulonglong trx_id);
   longlong get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards);
 
 public:
-  Item_func_vtq_id(THD *thd, handlerton *hton, Item* a, vtq_field_t _vtq_field, bool _backwards= false);
-  Item_func_vtq_id(THD *thd, handlerton *hton, Item* a, Item* b, vtq_field_t _vtq_field);
-
-  vtq_record_t *vtq_cached_result() { return &cached_result; }
+  Item_func_vtq_id(THD *thd, Item* a, TR_table::field_id_t _vtq_field, bool _backwards= false);
+  Item_func_vtq_id(THD *thd, Item* a, Item* b, TR_table::field_id_t _vtq_field);
 
   const char *func_name() const
   {
     switch (vtq_field)
     {
-    case VTQ_TRX_ID:
+    case TR_table::FLD_TRX_ID:
       return "vtq_trx_id";
-    case VTQ_COMMIT_ID:
+    case TR_table::FLD_COMMIT_ID:
         return "vtq_commit_id";
-    case VTQ_ISO_LEVEL:
+    case TR_table::FLD_ISO_LEVEL:
       return "vtq_iso_level";
     default:
       DBUG_ASSERT(0);
@@ -102,14 +80,13 @@ public:
   { return get_item_copy<Item_func_vtq_id>(thd, mem_root, this); }
 };
 
-class Item_func_vtq_trx_sees :
-  public VTQ_common<Item_bool_func>
+class Item_func_vtq_trx_sees : public Item_bool_func
 {
 protected:
   bool accept_eq;
 
 public:
-  Item_func_vtq_trx_sees(THD *thd, handlerton *hton, Item* a, Item* b);
+  Item_func_vtq_trx_sees(THD *thd, Item* a, Item* b);
   const char *func_name() const
   {
     return "vtq_trx_sees";
@@ -123,8 +100,8 @@ class Item_func_vtq_trx_sees_eq :
   public Item_func_vtq_trx_sees
 {
 public:
-  Item_func_vtq_trx_sees_eq(THD *thd, handlerton *hton, Item* a, Item* b) :
-    Item_func_vtq_trx_sees(thd, hton, a, b)
+  Item_func_vtq_trx_sees_eq(THD *thd, Item* a, Item* b) :
+    Item_func_vtq_trx_sees(thd, a, b)
   {
     accept_eq= true;
   }

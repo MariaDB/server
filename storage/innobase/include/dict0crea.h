@@ -311,10 +311,6 @@ struct tab_node_t{
 					storage */
 };
 
-UNIV_INTERN
-dberr_t
-dict_create_or_check_vtq_table(void);
-
 /* Table create node states */
 #define	TABLE_BUILD_TABLE_DEF	1
 #define	TABLE_BUILD_COL_DEF	2

@@ -145,7 +145,7 @@ trx_init(
 
 	trx->check_unique_secondary = true;
 
-	trx->vtq_notify_on_commit = false;
+	trx->vers_update_trt = false;
 
 	trx->lock.n_rec_locks = 0;
 

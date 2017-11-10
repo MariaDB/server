@@ -1651,6 +1651,38 @@ class SQL_SELECT :public Sql_alloc {
 };
 
 
+class SQL_SELECT_auto
+{
+  SQL_SELECT *select;
+public:
+  SQL_SELECT_auto(): select(NULL)
+  {}
+  ~SQL_SELECT_auto()
+  {
+    delete select;
+  }
+  SQL_SELECT_auto&
+  operator= (SQL_SELECT *_select)
+  {
+    select= _select;
+    return *this;
+  }
+  operator SQL_SELECT * () const
+  {
+    return select;
+  }
+  SQL_SELECT *
+  operator-> () const
+  {
+    return select;
+  }
+  operator bool () const
+  {
+    return select;
+  }
+};
+
+
 class FT_SELECT: public QUICK_RANGE_SELECT 
 {
 public:

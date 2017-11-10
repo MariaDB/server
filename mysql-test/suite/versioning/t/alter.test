@@ -141,32 +141,52 @@ alter table t
   add period for system_time(trx_start, trx_end),
   with system versioning;
 
+call verify_vtq;
 alter table t
   add column trx_start bigint(20) unsigned generated always as row start,
   add column trx_end bigint(20) unsigned generated always as row end,
   add period for system_time(trx_start, trx_end),
   with system versioning;
+call verify_vtq;
+
 show create table t;
 alter table t drop column trx_start, drop column trx_end;
-alter table t without system versioning;
 
+call verify_vtq;
+alter table t without system versioning, algorithm=copy;
+call verify_vtq;
 alter table t with system versioning, algorithm=copy;
+call verify_vtq;
 show create table t;
 
-update t set a=2;
+update t set a= 2;
 select * from t for system_time all;
+call verify_vtq;
 
 alter table t add column b int, algorithm=copy;
 show create table t;
 select * from t;
+call verify_vtq;
 
 alter table t drop column b, algorithm=copy;
 show create table t;
 select * from t for system_time all;
+call verify_vtq;
+
+alter table t without system versioning, algorithm=inplace;
+call verify_vtq;
+alter table t with system versioning, algorithm=inplace;
+call verify_vtq;
+show create table t;
+
+update t set a= 1;
+select * from t for system_time all;
+call verify_vtq;
 
 alter table t add column b int, algorithm=inplace;
 show create table t;
 select * from t;
+call verify_vtq;
 
 alter table t drop column b, algorithm=inplace;
 show create table t;
@@ -206,17 +226,6 @@ alter table t add b tinyint auto_increment unique;
 select * from t for system_time all;
 insert into t values (4, NULL);
 select * from t for system_time all;
-
-create or replace table t (a int) engine innodb;
-insert into t values (1);
-alter table t with system versioning, algorithm=inplace;
-select * from t for system_time all;
-update t set a=2;
-select * from t for system_time all;
-alter table t add column b int, algorithm=inplace;
-select * from t for system_time all;
-alter table t without system versioning, algorithm=inplace;
-select * from t;
 
 create or replace table t (
   a int,

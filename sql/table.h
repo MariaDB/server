@@ -2894,6 +2894,7 @@ extern LEX_CSTRING PERFORMANCE_SCHEMA_DB_NAME;
 
 extern LEX_CSTRING GENERAL_LOG_NAME;
 extern LEX_CSTRING SLOW_LOG_NAME;
+extern LEX_CSTRING TRANSACTION_REG_NAME;
 
 /* information schema */
 extern LEX_CSTRING INFORMATION_SCHEMA_NAME;
@@ -2921,6 +2922,64 @@ inline void mark_as_null_row(TABLE *table)
 }
 
 bool is_simple_order(ORDER *order);
+
+/** Transaction Registry Table (TRT)
+
+    This table holds transaction IDs, their corresponding times and other
+    transaction-related data which is used for transaction order resolution.
+    When versioned table marks its records lifetime with transaction IDs,
+    TRT is used to get their actual timestamps. */
+
+class Open_tables_backup;
+class TR_table: public TABLE_LIST
+{
+  THD *thd;
+  Open_tables_backup *open_tables_backup;
+
+public:
+  enum field_id_t {
+    FLD_TRX_ID= 0,
+    FLD_COMMIT_ID,
+    FLD_BEGIN_TS,
+    FLD_COMMIT_TS,
+    FLD_ISO_LEVEL,
+    FIELD_COUNT
+  };
+  TR_table(THD *_thd, bool rw= false);
+  ~TR_table();
+  THD *get_thd() const { return thd; }
+  void store(uint field_id, ulonglong val);
+  void store(uint field_id, timeval ts);
+  void store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts);
+  bool update(bool &updated);
+  // return true if found; false if not found or error
+  bool query(ulonglong trx_id);
+  bool query(MYSQL_TIME &commit_time, bool backwards);
+  // return true if error
+  bool query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
+                  ulonglong commit_id1= 0, enum_tx_isolation iso_level1= ISO_READ_UNCOMMITTED,
+                  ulonglong commit_id0= 0);
+
+  TABLE * operator-> () const
+  {
+    return table;
+  }
+  Field * operator[] (uint field_id) const
+  {
+    DBUG_ASSERT(field_id < FIELD_COUNT);
+    return table->field[field_id];
+  }
+  operator bool () const
+  {
+    return table;
+  }
+  enum_tx_isolation iso_level() const;
+  void store_iso_level(enum_tx_isolation iso_level)
+  {
+    DBUG_ASSERT(iso_level <= ISO_SERIALIZABLE);
+    store(FLD_ISO_LEVEL, iso_level + 1);
+  }
+};
 
 #endif /* MYSQL_CLIENT */
 

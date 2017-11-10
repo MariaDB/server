@@ -1569,8 +1569,8 @@ error_exit:
 
 	node->duplicate = NULL;
 
-	if (node->table->with_versioning()) {
-		trx->vtq_notify_on_commit = true;
+	if (node->table->versioned() && ins_mode != ROW_INS_NORMAL) {
+		trx->vers_update_trt = true;
 	}
 
 	if (dict_table_has_fts_index(table)) {
@@ -2129,7 +2129,7 @@ run_again:
 		node->cascade_upd_nodes = cascade_upd_nodes;
 		cascade_upd_nodes->pop_front();
 		thr->fk_cascade_depth++;
-		vers_set_fields = node->table->with_versioning() &&
+		vers_set_fields = node->table->versioned() &&
 				  (node->is_delete || node->versioned);
 
 		goto run_again;
@@ -2210,12 +2210,12 @@ run_again:
 		prebuilt->table->stat_modified_counter++;
 	}
 
-	if (node->table->with_versioning() &&
+	if (node->table->versioned() &&
 	    (node->versioned || node->vers_delete ||
 	     // TODO: imrove this check (check if we touch only
 	     // unversioned fields in foreigh table)
 	     node->foreign)) {
-		trx->vtq_notify_on_commit = true;
+		trx->vers_update_trt = true;
 	}
 
 	trx->op_info = "";

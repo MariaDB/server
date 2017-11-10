@@ -883,33 +883,6 @@ struct TrxVersion {
 	ulint		m_version;
 };
 
-/** Class which is used to query VTQ and also serves as a cache to VTQ of size 1
- */
-class vtq_query_t
-{
-public:
-	/** VTQ used to translate timestamps to nearest trx_id and this is
-	a timestamp for a row we're caching now */
-	timeval		prev_query;
-	/** We search for nearest trx_id on the left or on the right and
-	we search forwards or backwards */
-	bool		backwards;
-
-	/** Cached row from VTQ */
-	vtq_record_t	result;
-
-	/** Parses record and stores its value in a result field
-	but disables a cache */
-	const char * cache_result(mem_heap_t* heap, const rec_t* rec);
-	/** Parses record and stores its value in a result field and enables
-	cache (prev_query, backward) */
-	const char * cache_result(
-		mem_heap_t* heap,
-		const rec_t* rec,
-		const timeval &_ts_query,
-		bool _backwards);
-};
-
 typedef std::list<TrxVersion, ut_allocator<TrxVersion> > hit_list_t;
 
 struct trx_t {
@@ -1296,10 +1269,8 @@ struct trx_t {
 #endif /* WITH_WSREP */
 
 	/* System Versioning */
-	bool		vtq_notify_on_commit;
-					/*!< Notify VTQ for System Versioned update */
-	vtq_query_t	vtq_query;	/*!< Structure to query VTQ and store
-					one row result */
+	bool		vers_update_trt;
+					/*!< Notify TRT on System Versioned write */
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */

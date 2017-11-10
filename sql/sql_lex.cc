@@ -7298,6 +7298,7 @@ Query_tables_backup::Query_tables_backup(THD* _thd) :
   thd(_thd)
 {
   thd->lex->reset_n_backup_query_tables_list(&backup);
+  thd->lex->sql_command= backup.sql_command;
 }
 
 

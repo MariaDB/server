@@ -117,7 +117,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "trx0xa.h"
 #include "ut0mem.h"
 #include "row0ext.h"
-#include "vers0vtq.h"
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -3626,6 +3625,26 @@ static const char* ha_innobase_exts[] = {
 	NullS
 };
 
+bool innodb_get_trt_data(TR_table &trt)
+{
+	THD *thd = trt.get_thd();
+	trx_t *trx = thd_to_trx(thd);
+	ut_a(trx);
+	if (trx->vers_update_trt)
+	{
+		timeval commit_ts;
+		mutex_enter(&trx_sys->mutex);
+		trx_id_t commit_id = trx_sys_get_new_trx_id();
+		ut_usectime((ulint *)&commit_ts.tv_sec, (ulint *)&commit_ts.tv_usec);
+		mutex_exit(&trx_sys->mutex);
+
+		trt.store_data(trx->id, commit_id, commit_ts);
+		trx->vers_update_trt = false;
+		return true;
+	}
+	return false;
+}
+
 /*********************************************************************//**
 Opens an InnoDB database.
 @return 0 on success, 1 on failure */
@@ -3694,9 +3713,7 @@ innobase_init(
 	innobase_hton->table_options = innodb_table_option_list;
 
 	/* System Versioning */
-	innobase_hton->vers_query_trx_id = vtq_query_trx_id;
-	innobase_hton->vers_query_commit_ts = vtq_query_commit_ts;
-	innobase_hton->vers_trx_sees = vtq_trx_sees;
+	innobase_hton->vers_get_trt_data = innodb_get_trt_data;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -4428,14 +4445,6 @@ innobase_commit_ordered_2(
 		/* Don't do write + flush right now. For group commit
 		to work we want to do the flush later. */
 		trx->flush_log_later = true;
-
-		/* Notify VTQ on System Versioned tables update */
-		if (trx->vtq_notify_on_commit) {
-			vers_notify_vtq(trx);
-			trx->vtq_notify_on_commit = false;
-		}
-	} else {
-		DBUG_ASSERT(!trx->vtq_notify_on_commit);
 	}
 
 	innobase_commit_low(trx);
@@ -4559,11 +4568,6 @@ innobase_commit(
 
 	if (commit_trx
 	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
-		/* Notify VTQ on System Versioned tables update */
-		if (trx->vtq_notify_on_commit) {
-			vers_notify_vtq(trx);
-			trx->vtq_notify_on_commit = false;
-		}
 
 		DBUG_EXECUTE_IF("crash_innodb_before_commit",
 				DBUG_SUICIDE(););
@@ -8870,7 +8874,7 @@ calc_row_difference(
 			n_changed++;
 
 			if (!prebuilt->upd_node->versioned &&
-			    prebuilt->table->with_versioning() &&
+			    prebuilt->table->versioned() &&
 			    !(field->flags & VERS_OPTIMIZED_UPDATE_FLAG)) {
 				prebuilt->upd_node->versioned = true;
 			}
@@ -8981,7 +8985,7 @@ calc_row_difference(
 		++n_changed;
 
 		if (!prebuilt->upd_node->versioned &&
-		    prebuilt->table->with_versioning() &&
+		    prebuilt->table->versioned() &&
 		    !(field->flags & VERS_OPTIMIZED_UPDATE_FLAG)) {
 			prebuilt->upd_node->versioned = true;
 		}
@@ -21291,8 +21295,7 @@ i_s_innodb_sys_virtual,
 i_s_innodb_mutexes,
 i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption,
-i_s_innodb_tablespaces_scrubbing,
-i_s_innodb_vtq
+i_s_innodb_tablespaces_scrubbing
 maria_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.

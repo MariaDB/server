@@ -128,7 +128,7 @@ trx_rollback_to_savepoint_low(
 	} else {
 		trx->lock.que_state = TRX_QUE_RUNNING;
 		MONITOR_INC(MONITOR_TRX_ROLLBACK_SAVEPOINT);
-		trx->vtq_notify_on_commit = savept->vtq_notify_on_commit;
+		trx->vers_update_trt = savept->vers_update_trt;
 	}
 
 	ut_a(trx->error_state == DB_SUCCESS);
@@ -618,7 +618,7 @@ trx_savept_take(
 	trx_savept_t	savept;
 
 	savept.least_undo_no = trx->undo_no;
-	savept.vtq_notify_on_commit = trx->vtq_notify_on_commit;
+	savept.vers_update_trt = trx->vers_update_trt;
 
 	return(savept);
 }

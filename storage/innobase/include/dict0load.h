@@ -38,8 +38,6 @@ Created 4/24/1996 Heikki Tuuri
 
 #include <deque>
 
-struct vtq_record_t;
-
 /** A stack of table names related through foreign key constraints */
 typedef std::deque<const char*, ut_allocator<const char*> >	dict_names_t;
 
@@ -319,20 +317,6 @@ dict_process_sys_datafiles(
 	ulint*		space,		/*!< out: pace id */
 	const char**	path);		/*!< out: datafile path */
 
-/** This function parses a SYS_VTQ record, extracts necessary
-information from the record and returns it to the caller.
-@param[in,out]	heap	Heap memory
-@param[in]	rec	Current record
-@param[out]	fields	Field values
-@return error message, or NULL on success */
-UNIV_INTERN
-const char*
-dict_process_sys_vtq(
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current rec */
-        vtq_record_t&	fields		/*!< out: field values */
-);
-
 /** Update the record for space_id in SYS_TABLESPACES to this filepath.
 @param[in]	space_id	Tablespace ID
 @param[in]	filepath	Tablespace filepath
@@ -355,10 +339,5 @@ dict_replace_tablespace_and_filepath(
 	const char*	name,
 	const char*	filepath,
 	ulint		fsp_flags);
-
-
-UNIV_INTERN
-dict_table_t*
-get_vtq_table();
 
 #endif

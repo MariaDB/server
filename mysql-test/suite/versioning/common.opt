@@ -14,6 +14,5 @@
 --innodb-sys-indexes
 --innodb-sys-tables
 --innodb-sys-virtual
---innodb-vtq
 --versioning-hide=implicit
 --plugin-load=versioning

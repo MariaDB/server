@@ -131,6 +131,19 @@ SET @create_innodb_index_stats="CREATE TABLE IF NOT EXISTS innodb_index_stats (
 	PRIMARY KEY (database_name, table_name, index_name, stat_name)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0";
 
+SET @create_transaction_registry="CREATE TABLE IF NOT EXISTS transaction_registry (
+	transaction_id			BIGINT UNSIGNED NOT NULL,
+	commit_id			BIGINT UNSIGNED NOT NULL,
+	begin_timestamp			TIMESTAMP(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+	commit_timestamp		TIMESTAMP(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+	isolation_level			ENUM('READ-UNCOMMITTED', 'READ-COMMITTED',
+					'REPEATABLE-READ', 'SERIALIZABLE') NOT NULL,
+	PRIMARY KEY (transaction_id),
+	UNIQUE KEY (commit_id),
+	INDEX (begin_timestamp),
+	INDEX (commit_timestamp, transaction_id)
+) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0";
+
 SET @create_vtmd_template="CREATE OR REPLACE TABLE vtmd_template (
 	start		BIGINT UNSIGNED GENERATED ALWAYS AS ROW START	COMMENT 'TRX_ID of table lifetime start',
 	end		BIGINT UNSIGNED GENERATED ALWAYS AS ROW END	COMMENT 'TRX_ID of table lifetime end',
@@ -148,6 +161,11 @@ EXECUTE stmt;
 DROP PREPARE stmt;
 
 SET @str=IF(@have_innodb <> 0, @create_innodb_index_stats, "SET @dummy = 0");
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt;
+
+SET @str=IF(@have_innodb <> 0, @create_transaction_registry, "SET @dummy = 0");
 PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;

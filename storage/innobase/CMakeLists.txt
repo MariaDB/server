@@ -147,8 +147,7 @@ SET(INNOBASE_SOURCES
 	ut/ut0ut.cc
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc
-	ut/ut0timer.cc
-	vers/vers0vtq.cc)
+	ut/ut0timer.cc)
 
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
   DEFAULT RECOMPILE_FOR_EMBEDDED

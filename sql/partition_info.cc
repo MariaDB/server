@@ -3387,8 +3387,8 @@ bool partition_info::vers_trx_id_to_ts(THD* thd, Field* in_trx_id, Field_timesta
   handlerton *hton= plugin_hton(table->s->db_plugin);
   DBUG_ASSERT(hton);
   ulonglong trx_id= in_trx_id->val_int();
-  MYSQL_TIME ts;
-  bool found= hton->vers_query_trx_id(thd, &ts, trx_id, VTQ_COMMIT_TS);
+  TR_table trt(thd);
+  bool found= trt.query(trx_id);
   if (!found)
   {
     push_warning_printf(thd,
@@ -3398,6 +3398,8 @@ bool partition_info::vers_trx_id_to_ts(THD* thd, Field* in_trx_id, Field_timesta
       trx_id);
     return true;
   }
+  MYSQL_TIME ts;
+  trt[TR_table::FLD_COMMIT_TS]->get_date(&ts, 0);
   out_ts.store_time_dec(&ts, 6);
   return false;
 }

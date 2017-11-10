@@ -303,6 +303,28 @@ public:
   }
 };
 
+class Name_resolution_context_backup
+{
+  Name_resolution_context &ctx;
+  TABLE_LIST &table_list;
+  table_map save_map;
+  Name_resolution_context_state ctx_state;
+
+public:
+  Name_resolution_context_backup(Name_resolution_context &_ctx, TABLE_LIST &_table_list)
+    : ctx(_ctx), table_list(_table_list), save_map(_table_list.map)
+  {
+    ctx_state.save_state(&ctx, &table_list);
+    ctx.table_list= &table_list;
+    ctx.first_name_resolution_table= &table_list;
+  }
+  ~Name_resolution_context_backup()
+  {
+    ctx_state.restore_state(&ctx, &table_list);
+    table_list.map= save_map;
+  }
+};
+
 
 /*
   This enum is used to report information about monotonicity of function
@@ -1944,9 +1966,6 @@ public:
   {
     marker &= ~EXTRACTION_MASK;
   }
-
-  /* System versioning */
-  virtual vtq_record_t *vtq_cached_result() { return NULL; }
 };
 
 template <class T>

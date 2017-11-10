@@ -1705,7 +1705,7 @@ row_ins_check_foreign_constraint(
 		}
 		/* System Versioning: if sys_trx_end != Inf, we
 		suppress the foreign key check */
-		if (table->with_versioning() &&
+		if (table->versioned() &&
 		    dfield_get_type(field)->prtype & DATA_VERS_END) {
 			byte* data = static_cast<byte*>(dfield_get_data(field));
 			ut_ad(data);
@@ -1841,7 +1841,7 @@ row_ins_check_foreign_constraint(
 		cmp = cmp_dtuple_rec(entry, rec, offsets);
 
 		if (cmp == 0) {
-			if (check_table->with_versioning()) {
+			if (check_table->versioned()) {
 				trx_id_t end_trx_id = 0;
 
 				if (dict_index_is_clust(check_index)) {
@@ -3987,94 +3987,3 @@ error_handling:
 	return(thr);
 }
 
-/***********************************************************//**
-Inserts a row to SYS_VTQ, low level.
-@return DB_SUCCESS if operation successfully completed, else error
-code */
-static __attribute__((nonnull, warn_unused_result))
-dberr_t
-vers_row_ins_vtq_low(trx_t* trx, mem_heap_t* heap, dtuple_t* tuple)
-{
-	dberr_t		err;
-	dtuple_t*	entry;
-	ulint		n_index = 0;
-	dict_index_t*	index	= dict_table_get_first_index(dict_sys->sys_vtq);
-	static const ulint flags
-		= (BTR_KEEP_SYS_FLAG
-			| BTR_NO_LOCKING_FLAG
-			| BTR_NO_UNDO_LOG_FLAG);
-
-	entry = row_build_index_entry(tuple, NULL, index, heap);
-
-	dfield_t* dfield = dtuple_get_nth_field(entry, DATA_TRX_ID);
-	ut_ad(dfield->type.len == DATA_TRX_ID_LEN);
-	dfield_set_data(dfield, mem_heap_alloc(heap, DATA_TRX_ID_LEN), DATA_TRX_ID_LEN);
-	row_upd_index_entry_sys_field(entry, index, DATA_TRX_ID, trx->id);
-
-	err = row_ins_clust_index_entry_low(
-		flags, BTR_MODIFY_TREE, index, index->n_uniq, entry, 0, NULL, false, trx);
-
-	switch (err) {
-	case DB_SUCCESS:
-		break;
-	case DB_SUCCESS_LOCKED_REC:
-		/* The row had already been copied to the table. */
-		ib::info() << "InnoDB: duplicate VTQ record!";
-		return DB_SUCCESS;
-	default:
-		return err;
-	}
-
-	mem_heap_t* offsets_heap = mem_heap_create(1024);
-
-	do {
-		if (!(index = dict_table_get_next_index(index))) {
-			break;
-		}
-
-		n_index++;
-
-		entry = row_build_index_entry(tuple, NULL, index, heap);
-		err = row_ins_sec_index_entry_low(
-			flags, BTR_MODIFY_TREE,
-			index, offsets_heap, heap, entry, trx->id, NULL, false, trx);
-	} while (err == DB_SUCCESS);
-	ut_ad(n_index == 3 || err != DB_SUCCESS);
-
-	mem_heap_free(offsets_heap);
-	return err;
-}
-
-/***********************************************************//**
-Inserts a row to SYS_VTQ table.
-@return	error state */
-void vers_notify_vtq(trx_t* trx)
-{
-	dberr_t err;
-	mem_heap_t* heap = mem_heap_create(1024);
-	dtuple_t* tuple = dtuple_create(heap, dict_table_get_n_cols(dict_sys->sys_vtq));
-
-	timeval begin_ts, commit_ts;
-	begin_ts.tv_sec = static_cast<my_time_t>(trx->start_time);
-	begin_ts.tv_usec = trx->start_time_micro % 1000000;
-
-	mutex_enter(&trx_sys->mutex);
-	trx_id_t commit_id = trx_sys_get_new_trx_id();
-	ut_usectime((ulint *)&commit_ts.tv_sec, (ulint *)&commit_ts.tv_usec);
-	mutex_exit(&trx_sys->mutex);
-
-	dict_table_copy_types(tuple, dict_sys->sys_vtq);
-	row_ins_set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__TRX_ID, trx->id, heap);
-	row_ins_set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__COMMIT_ID, commit_id, heap);
-	row_ins_set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__BEGIN_TS, begin_ts, heap);
-	row_ins_set_tuple_col_8(tuple, DICT_COL__SYS_VTQ__COMMIT_TS, commit_ts, heap);
-	ut_ad(trx->isolation_level < 256);
-	row_ins_set_tuple_col_1(tuple, DICT_COL__SYS_VTQ__ISOLATION_LEVEL, trx->isolation_level, heap);
-
-	err = vers_row_ins_vtq_low(trx, heap, tuple);
-	if (DB_SUCCESS != err)
-		ib::error()
-			<< "failed to insert VTQ record (error " << err << ")";
-
-	mem_heap_free(heap);
-}

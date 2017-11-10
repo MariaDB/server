@@ -7894,7 +7894,7 @@ ER_VERS_HISTORY_LOCK
         eng "Versioned SELECT write-locking of history rows"
 
 ER_VERS_NO_TRX_ID
-        eng "TRX_ID %lu not found in VTQ"
+        eng "TRX_ID %lu not found in `mysql.transaction_registry`"
 
 ER_WRONG_TABLESPACE_NAME 42000
         eng "Incorrect tablespace name `%-.192s`"

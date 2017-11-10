@@ -1,5 +1,5 @@
 set @@session.time_zone='+00:00';
-select ifnull(max(transaction_id), 0) into @start_trx_id from information_schema.innodb_vtq;
+select ifnull(max(transaction_id), 0) into @start_trx_id from mysql.transaction_registry;
 set @test_start=now(6);
 
 delimiter ~~;
@@ -12,11 +12,11 @@ begin
     commit_id > transaction_id as B,
     begin_timestamp > @test_start as C,
     commit_timestamp >= begin_timestamp as D
-  from information_schema.innodb_vtq
+  from mysql.transaction_registry
   where transaction_id > @start_trx_id;
   select ifnull(max(transaction_id), 0)
   into @start_trx_id
-  from information_schema.innodb_vtq;
+  from mysql.transaction_registry;
 end~~
 
 create function if not exists default_engine()

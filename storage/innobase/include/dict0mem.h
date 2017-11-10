@@ -1489,7 +1489,7 @@ struct dict_table_t {
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
 
-	bool with_versioning() const { return vers_start || vers_end; }
+	bool versioned() const { return vers_start || vers_end; }
 
 	/** Id of the table. */
 	table_id_t				id;

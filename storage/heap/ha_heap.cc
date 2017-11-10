@@ -26,9 +26,6 @@
 #include "ha_heap.h"
 #include "sql_base.h"                    // enum_tdc_remove_table_type
 
-bool vtq_query_trx_id(THD *thd, void *out, ulonglong in_trx_id,
-                      vtq_field_t field);
-
 static handler *heap_create_handler(handlerton *hton,
                                     TABLE_SHARE *table, 
                                     MEM_ROOT *mem_root);
@@ -57,8 +54,6 @@ int heap_init(void *p)
   heap_hton->create=     heap_create_handler;
   heap_hton->panic=      heap_panic;
   heap_hton->flags=      HTON_CAN_RECREATE;
-
-  heap_hton->vers_query_trx_id = vtq_query_trx_id;
 
   return 0;
 }

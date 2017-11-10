@@ -13,17 +13,20 @@ insert into t1 values ();
 set @ts0= now(6);
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx0;
-select transaction_id = @tx0 from information_schema.innodb_vtq limit 1;
+select transaction_id = @tx0 from mysql.transaction_registry
+order by transaction_id desc limit 1;
 
 set @ts1= now(6);
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx1;
-select transaction_id = @tx1 from information_schema.innodb_vtq limit 1;
+select transaction_id = @tx1 from mysql.transaction_registry
+order by transaction_id desc limit 1;
 
 set @ts2= now(6);
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx2;
-select transaction_id = @tx2 from information_schema.innodb_vtq limit 1;
+select transaction_id = @tx2 from mysql.transaction_registry
+order by transaction_id desc limit 1;
 
 set @ts3= now(6);
 
@@ -62,22 +65,22 @@ select
 set transaction isolation level read uncommitted;
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx3;
-select isolation_level = 'READ-UNCOMMITTED' from information_schema.innodb_vtq where transaction_id = @tx3;
+select isolation_level = 'READ-UNCOMMITTED' from mysql.transaction_registry where transaction_id = @tx3;
 
 set transaction isolation level read committed;
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx4;
-select isolation_level = 'READ-COMMITTED' from information_schema.innodb_vtq where transaction_id = @tx4;
+select isolation_level = 'READ-COMMITTED' from mysql.transaction_registry where transaction_id = @tx4;
 
 set transaction isolation level serializable;
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx5;
-select isolation_level = 'SERIALIZABLE' from information_schema.innodb_vtq where transaction_id = @tx5;
+select isolation_level = 'SERIALIZABLE' from mysql.transaction_registry where transaction_id = @tx5;
 
 set transaction isolation level repeatable read;
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx6;
-select isolation_level = 'REPEATABLE-READ' from information_schema.innodb_vtq where transaction_id = @tx6;
+select isolation_level = 'REPEATABLE-READ' from mysql.transaction_registry where transaction_id = @tx6;
 
 
 drop table t1;

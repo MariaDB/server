@@ -2588,10 +2588,6 @@ files_checked:
 		err = dict_create_or_check_sys_tablespace();
 		if (err == DB_SUCCESS) {
 			err = dict_create_or_check_sys_virtual();
-			if (err == DB_SUCCESS) {
-				/* Create the SYS_VTQ system table */
-				err = dict_create_or_check_vtq_table();
-			}
 		}
 	}
 	switch (err) {
