@@ -50,6 +50,14 @@ static const char* innobase_system_databases[] = {
 	NullS
 };
 
+/** The start of the table basename suffix for partitioned tables */
+const char table_name_t::part_suffix[4]
+#ifdef _WIN32
+= "#p#";
+#else
+= "#P#";
+#endif
+
 /** An interger randomly initialized at startup used to make a temporary
 table name as unuique as possible. */
 static ib_uint32_t	dict_temp_file_num;

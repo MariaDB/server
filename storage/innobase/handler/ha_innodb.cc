@@ -299,11 +299,7 @@ is_partition(
 {
 	/* We look for pattern #P# to see if the table is partitioned
 	MariaDB table. */
-#ifdef _WIN32
-	return strstr(file_name, "#p#");
-#else
-	return strstr(file_name, "#P#");
-#endif /* _WIN32 */
+	return strstr(file_name, table_name_t::part_suffix);
 }
 
 /** Signal to shut down InnoDB (NULL if shutdown was signaled, or if

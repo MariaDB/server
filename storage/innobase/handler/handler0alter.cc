@@ -4514,11 +4514,18 @@ prepare_inplace_alter_table_dict(
 	to rebuild the table with a temporary name. */
 
 	if (new_clustered) {
-		const char*	new_table_name
-			= dict_mem_create_temporary_tablename(
-				ctx->heap,
-				ctx->new_table->name.m_name,
-				ctx->new_table->id);
+		size_t	dblen = ctx->old_table->name.dblen() + 1;
+		size_t	tablen = altered_table->s->table_name.length;
+		const char* part = ctx->old_table->name.part();
+		size_t	partlen = part ? strlen(part) : 0;
+		char*	new_table_name = static_cast<char*>(
+			mem_heap_alloc(ctx->heap,
+				       dblen + tablen + partlen + 1));
+		memcpy(new_table_name, ctx->old_table->name.m_name, dblen);
+		memcpy(new_table_name + dblen,
+		       altered_table->s->table_name.str, tablen);
+		memcpy(new_table_name + dblen + tablen,
+		       part ? part : "", partlen + 1);
 		ulint		n_cols = 0;
 		ulint		n_v_cols = 0;
 		dtuple_t*	add_cols;

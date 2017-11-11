@@ -138,24 +138,27 @@ ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
 let $temp_table_name = `SELECT SUBSTRING(name,6)
 	FROM information_schema.innodb_sys_tables
 	WHERE name LIKE "test/#sql-ib$orig_table_id%"`;
-# This second copy is an environment variable for the perl script below.
-let temp_table_name = $temp_table_name;
 
 --echo # Manual *.frm recovery begin. The dictionary was not updated
 --echo # and the files were not renamed. The rebuilt table
 --echo # was left behind on purpose, to faciliate data recovery.
 
+let TABLENAME_INC= $MYSQLTEST_VARDIR/tmp/tablename.inc;
 perl;
-my @frm_file = glob "$ENV{'datadir'}/test/#sql-*.frm";
-my $target_frm = "$ENV{'datadir'}/test/$ENV{'temp_table_name'}.frm";
-rename($frm_file[0], $target_frm);
+die unless open OUT, ">$ENV{TABLENAME_INC}";
+chdir "$ENV{'datadir'}/test";
+my @frm_file = map { substr($_, 0, -4) } glob "#sql-*.frm";
+print OUT 'let $tablename=', $frm_file[0], ';';
+close OUT or die;
 EOF
+source $TABLENAME_INC;
+remove_file $TABLENAME_INC;
 
 --echo # Manual recovery end
 
 --echo # Drop the orphaned rebuilt table.
 --disable_query_log
-eval DROP TABLE `#mysql50#$temp_table_name`;
+eval DROP TABLE `#mysql50#$tablename`;
 --enable_query_log
 
 SHOW TABLES;
@@ -186,7 +189,6 @@ SET DEBUG_DBUG='+d,innodb_alter_commit_crash_after_commit';
 let $orig_table_id = `select table_id from
   information_schema.innodb_sys_tables where name = 'test/t1'`;
 
-# FIXME: MDEV-9469 'Incorrect key file' on ALTER TABLE
 # Write file to make mysql-test-run.pl expect crash
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 #
