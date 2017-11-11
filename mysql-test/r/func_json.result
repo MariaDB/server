@@ -725,3 +725,6 @@ json_contains_path('{"foo":"bar"}', 'one', '$[]')
 NULL
 Warnings:
 Warning	4042	Syntax error in JSON path in argument 3 to function 'json_contains_path' at position 3
+select JSON_VALID(0x36f0c8dccd83c5eac156da);
+JSON_VALID(0x36f0c8dccd83c5eac156da)
+0

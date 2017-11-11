@@ -378,3 +378,7 @@ SELECT JSON_OBJECT("user","Jožko Mrkvičká") as json_data;
 
 select json_contains_path('{"foo":"bar"}', 'one', '$[]');
 
+#
+# MDEV-13971 crash in skip_num_constant.
+#
+select JSON_VALID(0x36f0c8dccd83c5eac156da);
