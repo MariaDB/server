@@ -2979,6 +2979,7 @@ public:
     DBUG_ASSERT(iso_level <= ISO_SERIALIZABLE);
     store(FLD_ISO_LEVEL, iso_level + 1);
   }
+  bool check() const;
 };
 
 #endif /* MYSQL_CLIENT */

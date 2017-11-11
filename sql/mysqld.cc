@@ -100,6 +100,8 @@
 
 #include "rpl_handler.h"
 
+#include "transaction.h"
+
 #ifdef HAVE_SYS_PRCTL_H
 #include <sys/prctl.h>
 #endif
@@ -6023,6 +6025,26 @@ int mysqld_main(int argc, char **argv)
   Events::set_original_state(Events::opt_event_scheduler);
   if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
     unireg_abort(1);
+
+  if (!opt_bootstrap)
+  {
+    THD *thd = new THD(0);
+    thd->thread_stack= (char*) &thd;
+    thd->store_globals();
+
+    {
+      TR_table trt(thd);
+      if (trt.check())
+      {
+        sql_print_error("%s schema is incorrect", trt.table_name);
+        delete thd;
+        unireg_abort(1);
+      }
+    }
+
+    trans_commit_stmt(thd);
+    delete thd;
+  }
 
   if (WSREP_ON)
   {
