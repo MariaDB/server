@@ -47,7 +47,6 @@ Created April 08, 2011 Vasil Dimov
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
 
 enum status_severity {
-	STATUS_VERBOSE,
 	STATUS_INFO,
 	STATUS_ERR
 };
@@ -133,9 +132,6 @@ buf_dump_status(
 	case STATUS_ERR:
 		ib::error() << export_vars.innodb_buffer_pool_dump_status;
 		break;
-
-	case STATUS_VERBOSE:
-		break;
 	}
 
 	va_end(ap);
@@ -174,9 +170,6 @@ buf_load_status(
 
 	case STATUS_ERR:
 		ib::error() << export_vars.innodb_buffer_pool_load_status;
-		break;
-
-	case STATUS_VERBOSE:
 		break;
 	}
 
@@ -298,8 +291,6 @@ buf_dump(
 		buf_dump_t*		dump;
 		ulint			n_pages;
 		ulint			j;
-		ulint			limit;
-		ulint			counter;
 
 		buf_pool = buf_pool_from_array(i);
 
@@ -368,9 +359,6 @@ buf_dump(
 
 		buf_pool_mutex_exit(buf_pool);
 
-		limit = (ulint)((double)n_pages * ((double)srv_buf_dump_status_frequency / (double)100));
-		counter = 0;
-
 		for (j = 0; j < n_pages && !SHOULD_QUIT(); j++) {
 			ret = fprintf(f, ULINTPF "," ULINTPF "\n",
 				      BUF_DUMP_SPACE(dump[j]),
@@ -383,23 +371,6 @@ buf_dump(
 						tmp_filename, strerror(errno));
 				/* leave tmp_filename to exist */
 				return;
-			}
-
-			counter++;
-
-			/* Print buffer pool dump status only if
-			srv_buf_dump_status_frequency is > 0 and
-			we have processed that amount of pages. */
-			if (srv_buf_dump_status_frequency &&
-			    counter == limit) {
-				counter = 0;
-				buf_dump_status(
-					STATUS_VERBOSE,
-					"Dumping buffer pool"
-					" " ULINTPF "/%lu,"
-					" page " ULINTPF "/" ULINTPF,
-					i + 1, srv_buf_pool_instances,
-					j + 1, n_pages);
 			}
 		}
 
@@ -718,21 +689,6 @@ buf_load()
 			os_aio_simulated_wake_handler_threads();
 		}
 
-		/* Update the progress every 32 MiB, which is every Nth page,
-		where N = 32*1024^2 / page_size. */
-		static const ulint	update_status_every_n_mb = 32;
-		static const ulint	update_status_every_n_pages
-			= update_status_every_n_mb * 1024 * 1024
-			/ page_size.physical();
-
-		if (i % update_status_every_n_pages == 0) {
-			buf_load_status(STATUS_VERBOSE,
-					"Loaded " ULINTPF "/" ULINTPF " pages",
-					i + 1, dump_n);
-			/* mysql_stage_set_work_completed(pfs_stage_progress,
-			i); */
-		}
-
 		if (buf_load_abort_flag) {
 			if (space != NULL) {
 				fil_space_release(space);
@@ -804,9 +760,6 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 #ifdef UNIV_PFS_THREAD
 	pfs_register_thread(buf_dump_thread_key);
 	#endif */ /* UNIV_PFS_THREAD */
-
-	buf_dump_status(STATUS_VERBOSE, "Dumping of buffer pool not started");
-	buf_load_status(STATUS_VERBOSE, "Loading of buffer pool not started");
 
 	if (srv_buffer_pool_load_at_startup) {
 
