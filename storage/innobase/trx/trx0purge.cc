@@ -567,10 +567,10 @@ namespace undo {
 			log_file_name_len = strlen(log_file_name);
 		}
 
-		ut_snprintf(log_file_name + log_file_name_len,
-			    log_file_name_sz - log_file_name_len,
-			    "%s%lu_%s", undo::s_log_prefix,
-			    (ulong) space_id, s_log_ext);
+		snprintf(log_file_name + log_file_name_len,
+			 log_file_name_sz - log_file_name_len,
+			 "%s%lu_%s", undo::s_log_prefix,
+			 (ulong) space_id, s_log_ext);
 
 		return(DB_SUCCESS);
 	}

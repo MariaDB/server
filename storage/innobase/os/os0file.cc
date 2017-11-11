@@ -1305,11 +1305,8 @@ os_file_make_new_pathname(
 	new_path = static_cast<char*>(ut_malloc_nokey(new_path_len));
 	memcpy(new_path, old_path, dir_len);
 
-	ut_snprintf(new_path + dir_len,
-		    new_path_len - dir_len,
-		    "%c%s.ibd",
-		    OS_PATH_SEPARATOR,
-		    base_name);
+	snprintf(new_path + dir_len, new_path_len - dir_len,
+		 "%c%s.ibd", OS_PATH_SEPARATOR, base_name);
 
 	return(new_path);
 }
