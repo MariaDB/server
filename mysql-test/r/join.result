@@ -763,6 +763,7 @@ Warnings:
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
 drop table t1;
 drop table t2;
 drop table t3;
