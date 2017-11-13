@@ -5382,13 +5382,21 @@ fallback:
 	} while (err == EINTR
 		 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
-	if (err) {
+	switch (err) {
+	case 0:
+		return true;
+	default:
 		ib::error() << "preallocating "
 			    << size << " bytes for file " << name
 			    << " failed with error " << err;
+		/* fall through */
+	case EINTR:
+		errno = err;
+		return false;
+	case EINVAL:
+		/* fall back to the code below */
+		break;
 	}
-	errno = err;
-	return(!err);
 # endif /* HAVE_POSIX_ALLOCATE */
 #endif /* _WIN32*/
 
@@ -5410,14 +5418,9 @@ fallback:
 	memset(buf, 0, buf_size);
 
 	os_offset_t	current_size = os_file_get_size(file);
-	bool write_progress_info =
-		(size - current_size >= (os_offset_t) 100 << 20);
 
-	if (write_progress_info) {
-		ib::info() << "Progress in MB:";
-	}
-
-	while (current_size < size) {
+	while (current_size < size
+	       && srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 		ulint	n_bytes;
 
 		if (size - current_size < (os_offset_t) buf_size) {
@@ -5433,32 +5436,15 @@ fallback:
 			request, name, file, buf, current_size, n_bytes);
 
 		if (err != DB_SUCCESS) {
-
-			ut_free(buf2);
-			return(false);
-		}
-
-		/* Print about progress for each 100 MB written */
-		if (write_progress_info &&
-			((current_size + n_bytes) / (100 << 20)
-				!= current_size / (100 << 20))) {
-
-			fprintf(stderr, " %lu00",
-				(ulong) ((current_size + n_bytes)
-					 / (100 << 20)));
+			break;
 		}
 
 		current_size += n_bytes;
 	}
 
-	if (write_progress_info) {
-
-		fprintf(stderr, "\n");
-	}
-
 	ut_free(buf2);
 
-	return(os_file_flush(file));
+	return(current_size >= size && os_file_flush(file));
 }
 
 /** Truncates a file to a specified size in bytes.

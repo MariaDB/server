@@ -16,13 +16,13 @@ show databases;
 --error ER_DBACCESS_DENIED_ERROR
 show create database db;
 select table_schema, table_name from information_schema.tables
-where table_schema = 'db';
+where table_schema = 'db' order by table_name;
 
 set role r1;
 show databases;
 show create database db;
 select table_schema, table_name from information_schema.tables
-where table_schema = 'db';
+where table_schema = 'db' order by table_name;
 
 
 connection default;
@@ -36,14 +36,14 @@ show databases;
 --error ER_DBACCESS_DENIED_ERROR
 show create database db;
 select table_schema, table_name from information_schema.tables
-where table_schema = 'db';
+where table_schema = 'db' order by table_name;
 
 set role r2;
 show databases;
 
 show create database db;
 select table_schema, table_name from information_schema.tables
-where table_schema = 'db';
+where table_schema = 'db' order by table_name;
 
 
 connection default;

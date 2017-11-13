@@ -51,7 +51,8 @@ DEFAULT_COLLATION_NAME	varchar(32)	NO
 SQL_PATH	varchar(512)	YES		NULL	
 SELECT catalog_name, schema_name, sql_path
 FROM information_schema.schemata
-WHERE catalog_name IS NOT NULL or sql_path IS NOT NULL;
+WHERE catalog_name IS NOT NULL or sql_path IS NOT NULL
+ORDER BY schema_name;
 catalog_name	schema_name	sql_path
 def	information_schema	NULL
 def	mtr	NULL

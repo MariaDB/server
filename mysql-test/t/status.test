@@ -387,6 +387,39 @@ drop table t1;
 
 # End of 5.3 tests
 
+--echo #
+--echo # MDEV-11153 - Introduce status variables for table cache monitoring and
+--echo #              tuning
+--echo #
+SET @old_table_open_cache= @@table_open_cache;
+SET @@global.table_open_cache=10;
+FLUSH TABLES;
+FLUSH STATUS;
+SHOW STATUS LIKE 'Table_open_cache%';
+disable_query_log;
+let $i= `SELECT @@table_open_cache + 5`;
+while ($i)
+{
+  eval CREATE TABLE t$i(a INT);
+  eval DELETE FROM t$i;
+  eval DELETE FROM t$i;
+  eval DELETE FROM t$i;
+  dec $i;
+}
+enable_query_log;
+SHOW STATUS LIKE 'Table_open_cache%';
+FLUSH TABLES;
+FLUSH STATUS;
+disable_query_log;
+let $i= `SELECT @@table_open_cache + 5`;
+while ($i)
+{
+  eval DROP TABLE t$i;
+  dec $i;
+}
+enable_query_log;
+SET @@global.table_open_cache= @old_table_open_cache;
+
 # Restore global concurrent_insert value. Keep in the end of the test file.
 --connection default
 set @@global.concurrent_insert= @old_concurrent_insert;

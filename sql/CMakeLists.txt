@@ -143,6 +143,7 @@ SET (SQL_SOURCE
 	       sql_cte.cc
                item_vers.cc
                sql_sequence.cc sql_sequence.h ha_sequence.h
+               sql_tvc.cc sql_tvc.h
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc

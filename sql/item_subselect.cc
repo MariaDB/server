@@ -116,9 +116,10 @@ void Item_subselect::init(st_select_lex *select_lex,
       do not take into account expression inside aggregate functions because
       they can access original table fields
     */
-    parsing_place= (outer_select->in_sum_expr ? NO_MATTER
-                                              : outer_select->parsing_place);
-    if (unit->is_unit_op())
+    parsing_place= (outer_select->in_sum_expr ?
+                    NO_MATTER :
+                    outer_select->parsing_place);
+    if (unit->is_unit_op() && unit->first_select()->next_select())
       engine= new subselect_union_engine(unit, result, this);
     else
       engine= new subselect_single_select_engine(select_lex, result, this);
@@ -264,6 +265,13 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   if (check_stack_overrun(thd, STACK_MIN_SIZE, (uchar*)&res))
     return TRUE;
   
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    if (sl->tvc)
+    {
+      wrap_tvc_in_derived_table(thd, sl);
+    }
+  }
   
   if (!(res= engine->prepare(thd)))
   {
@@ -452,7 +460,8 @@ bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select,
       OUTER_REF_TABLE_BIT.
 */
 
-void Item_subselect::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_subselect::fix_after_pullout(st_select_lex *new_parent,
+                                       Item **ref, bool merge)
 {
   recalc_used_tables(new_parent, TRUE);
   parent_select= new_parent;
@@ -1160,7 +1169,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     /*
       as far as we moved content to upper level we have to fix dependences & Co
     */
-    substitution->fix_after_pullout(select_lex->outer_select(), &substitution);
+    substitution->fix_after_pullout(select_lex->outer_select(),
+                                    &substitution, TRUE);
   }
   DBUG_RETURN(false);
 }
@@ -2937,7 +2947,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
           goto out;
         }
       }
-      outer_exp->fix_after_pullout(unit->outer_select(), &outer_exp);
+      outer_exp->fix_after_pullout(unit->outer_select(), &outer_exp, FALSE);
       outer_exp->update_used_tables();
       outer.push_back(outer_exp, thd->mem_root);
     }
@@ -3318,10 +3328,11 @@ err:
 }
 
 
-void Item_in_subselect::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_in_subselect::fix_after_pullout(st_select_lex *new_parent,
+                                          Item **ref, bool merge)
 {
-  left_expr->fix_after_pullout(new_parent, &left_expr);
-  Item_subselect::fix_after_pullout(new_parent, ref);
+  left_expr->fix_after_pullout(new_parent, &left_expr, merge);
+  Item_subselect::fix_after_pullout(new_parent, ref, merge);
   used_tables_cache |= left_expr->used_tables();
 }
 

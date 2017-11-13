@@ -112,7 +112,8 @@ select @a|
 /**/ while (select count(*) from information_schema.tables where table_schema='test')
 do
 select concat('drop table ', table_name) into @a
-from information_schema.tables where table_schema='test' limit 1;
+from information_schema.tables where table_schema='test'
+     order by table_name limit 1;
 select @a as 'executing:';
 prepare dt from @a;
 execute dt;

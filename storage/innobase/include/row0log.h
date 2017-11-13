@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -132,7 +133,6 @@ row_log_table_delete(
 /*=================*/
 	const rec_t*	rec,	/*!< in: clustered index leaf page record,
 				page X-latched */
-	const dtuple_t*	ventry,	/*!< in: dtuple holding virtual column info */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
 	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index) */
@@ -151,12 +151,8 @@ row_log_table_update(
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
 	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index) */
-	const dtuple_t*	old_pk,	/*!< in: row_log_table_get_pk()
+	const dtuple_t*	old_pk);/*!< in: row_log_table_get_pk()
 				before the update */
-	const dtuple_t*	new_v_row,/*!< in: dtuple contains the new virtual
-				columns */
-	const dtuple_t*	old_v_row);/*!< in: dtuple contains the old virtual
-				columns */
 
 /******************************************************//**
 Constructs the old PRIMARY KEY and DB_TRX_ID,DB_ROLL_PTR
@@ -185,7 +181,6 @@ row_log_table_insert(
 /*=================*/
 	const rec_t*	rec,	/*!< in: clustered index leaf page record,
 				page X-latched */
-	const dtuple_t*	ventry,	/*!< in: dtuple holding virtual column info */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
 	const ulint*	offsets);/*!< in: rec_get_offsets(rec,index) */

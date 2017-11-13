@@ -375,7 +375,7 @@ public:
   virtual void get_cache_parameters(List<Item> &parameters);
   bool is_top_level_item();
   bool eval_not_null_tables(void *opt_arg);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool invisible_mode();
   void reset_cache() { cache= NULL; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -908,7 +908,7 @@ public:
   bool fix_length_and_dec_numeric(THD *);
   virtual void print(String *str, enum_query_type query_type);
   bool eval_not_null_tables(void *opt_arg);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool count_sargable_conds(void *arg);
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
@@ -1144,7 +1144,7 @@ public:
   }
   const char *func_name() const { return "if"; }
   bool eval_not_null_tables(void *opt_arg);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_if>(thd, mem_root, this); }
 private:
@@ -2280,6 +2280,7 @@ class Item_func_in :public Item_func_opt_neg,
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value);
+  bool transform_into_subq;
 public:
   /// An array of values, created when the bisection lookup method is used
   in_vector *array;
@@ -2296,11 +2297,14 @@ public:
   */
   bool arg_types_compatible;
 
+  TABLE_LIST *emb_on_expr_nest;
+
   Item_func_in(THD *thd, List<Item> &list):
     Item_func_opt_neg(thd, list),
     Predicant_to_list_comparator(thd, arg_count - 1),
+    transform_into_subq(false),
     array(0), have_null(0),
-    arg_types_compatible(FALSE)
+    arg_types_compatible(FALSE), emb_on_expr_nest(0)
   { }
   longlong val_int();
   bool fix_fields(THD *, Item **);
@@ -2378,7 +2382,7 @@ public:
   const char *func_name() const { return "in"; }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
   bool eval_not_null_tables(void *opt_arg);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool count_sargable_conds(void *arg);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_in>(thd, mem_root, this); }
@@ -2392,7 +2396,11 @@ public:
         return NULL;
     }
     return clone;
-  }      
+  }
+  void mark_as_condition_AND_part(TABLE_LIST *embedding);
+  bool to_be_transformed_into_in_subq(THD *thd);
+  bool create_value_list_for_tvc(THD *thd, List< List<Item> > *values);
+  Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg);
 };
 
 class cmp_item_row :public cmp_item
@@ -2902,7 +2910,7 @@ public:
     list.append(nlist);
   }
   bool fix_fields(THD *, Item **ref);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
 
   enum Type type() const { return COND_ITEM; }
   List<Item>* argument_list() { return &list; }

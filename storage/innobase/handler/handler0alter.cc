@@ -77,7 +77,7 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_REBUILD
 	= Alter_inplace_info::ADD_PK_INDEX
 	| Alter_inplace_info::DROP_PK_INDEX
 	| Alter_inplace_info::CHANGE_CREATE_OPTION
-	/* CHANGE_CREATE_OPTION needs to check innobase_need_rebuild() */
+	/* CHANGE_CREATE_OPTION needs to check create_option_need_rebuild() */
 	| Alter_inplace_info::ALTER_COLUMN_NULLABLE
 	| Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE
 	| Alter_inplace_info::ALTER_STORED_COLUMN_ORDER
@@ -427,6 +427,26 @@ innobase_fulltext_exist(
 	return(false);
 }
 
+/** Determine whether indexed virtual columns exist in a table.
+@param[in]	table	table definition
+@return	whether indexes exist on virtual columns */
+static bool innobase_indexed_virtual_exist(const TABLE* table)
+{
+	const KEY* const end = &table->key_info[table->s->keys];
+
+	for (const KEY* key = table->key_info; key < end; key++) {
+		const KEY_PART_INFO* const key_part_end = key->key_part
+			+ key->user_defined_key_parts;
+		for (const KEY_PART_INFO* key_part = key->key_part;
+		     key_part < key_part_end; key_part++) {
+			if (!key_part->field->stored_in_db())
+				return true;
+		}
+	}
+
+	return false;
+}
+
 /** Determine if spatial indexes exist in a given table.
 @param table MySQL table
 @return whether spatial indexes exist on the table */
@@ -445,33 +465,61 @@ innobase_spatial_exist(
 	return(false);
 }
 
-/*******************************************************************//**
-Determine if ALTER TABLE needs to rebuild the table.
-@param ha_alter_info the DDL operation
-@param altered_table		MySQL original table
-@return whether it is necessary to rebuild the table */
+/** Determine if CHANGE_CREATE_OPTION requires rebuilding the table.
+@param[in] ha_alter_info	the ALTER TABLE operation
+@param[in] table		metadata before ALTER TABLE
+@return whether it is mandatory to rebuild the table */
+static bool create_option_need_rebuild(
+	const Alter_inplace_info*	ha_alter_info,
+	const TABLE*			table)
+{
+	DBUG_ASSERT((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
+		    == Alter_inplace_info::CHANGE_CREATE_OPTION);
+
+	if (ha_alter_info->create_info->used_fields
+	    & (HA_CREATE_USED_ROW_FORMAT
+	       | HA_CREATE_USED_KEY_BLOCK_SIZE)) {
+		/* Specifying ROW_FORMAT or KEY_BLOCK_SIZE requires
+		rebuilding the table. (These attributes in the .frm
+		file may disagree with the InnoDB data dictionary, and
+		the interpretation of thse attributes depends on
+		InnoDB parameters. That is why we for now always
+		require a rebuild when these attributes are specified.) */
+		return true;
+	}
+
+	const ha_table_option_struct& alt_opt=
+		*ha_alter_info->create_info->option_struct;
+	const ha_table_option_struct& opt= *table->s->option_struct;
+
+	if (alt_opt.page_compressed != opt.page_compressed
+	    || alt_opt.page_compression_level
+	    != opt.page_compression_level
+	    || alt_opt.encryption != opt.encryption
+	    || alt_opt.encryption_key_id != opt.encryption_key_id) {
+		return(true);
+	}
+
+	return false;
+}
+
+/** Determine if ALTER TABLE needs to rebuild the table
+(or perform instant operation).
+@param[in] ha_alter_info	the ALTER TABLE operation
+@param[in] table		metadata before ALTER TABLE
+@return whether it is necessary to rebuild the table or to alter columns */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
 innobase_need_rebuild(
-/*==================*/
 	const Alter_inplace_info*	ha_alter_info,
-	const TABLE*			altered_table)
+	const TABLE*			table)
 {
-	Alter_inplace_info::HA_ALTER_FLAGS alter_inplace_flags =
-		ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE);
-
-	if (alter_inplace_flags
-	    == Alter_inplace_info::CHANGE_CREATE_OPTION
-	    && !(ha_alter_info->create_info->used_fields
-		 & (HA_CREATE_USED_ROW_FORMAT
-		    | HA_CREATE_USED_KEY_BLOCK_SIZE))) {
-		/* Any other CHANGE_CREATE_OPTION than changing
-		ROW_FORMAT or KEY_BLOCK_SIZE can be done without
-		rebuilding the table. */
-		return(false);
+	if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
+	    == Alter_inplace_info::CHANGE_CREATE_OPTION) {
+		return create_option_need_rebuild(ha_alter_info, table);
 	}
 
-	return(!!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD));
+	return !!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD);
 }
 
 /** Check if virtual column in old and new table are in order, excluding
@@ -574,6 +622,53 @@ check_v_col_in_order(
 	return(true);
 }
 
+/** Determine if an instant operation is possible for altering columns.
+@param[in]	ha_alter_info	the ALTER TABLE operation
+@param[in]	table		table definition before ALTER TABLE */
+static
+bool
+instant_alter_column_possible(
+	const Alter_inplace_info*	ha_alter_info,
+	const TABLE*			table)
+{
+	if (ha_alter_info->create_info->vers_info.with_system_versioning)
+		return false;
+
+
+	if (~ha_alter_info->handler_flags
+	    & Alter_inplace_info::ADD_STORED_BASE_COLUMN) {
+		return false;
+	}
+
+	/* At the moment, we disallow ADD [UNIQUE] INDEX together with
+	instant ADD COLUMN.
+
+	The main reason is that the work of instant ADD must be done
+	in commit_inplace_alter_table().  For the rollback_instant()
+	to work, we must add the columns to dict_table_t beforehand,
+	and roll back those changes in case the transaction is rolled
+	back.
+
+	If we added the columns to the dictionary cache already in the
+	prepare_inplace_alter_table(), we would have to deal with
+	column number mismatch in ha_innobase::open(), write_row() and
+	other functions. */
+
+	/* FIXME: allow instant ADD COLUMN together with
+	INNOBASE_ONLINE_CREATE (ADD [UNIQUE] INDEX) on pre-existing
+	columns. */
+	if (ha_alter_info->handler_flags
+	    & ((INNOBASE_ALTER_REBUILD | INNOBASE_ONLINE_CREATE)
+	       & ~Alter_inplace_info::ADD_STORED_BASE_COLUMN
+	       & ~Alter_inplace_info::CHANGE_CREATE_OPTION)) {
+		return false;
+	}
+
+	return !(ha_alter_info->handler_flags
+		 & Alter_inplace_info::CHANGE_CREATE_OPTION)
+		|| !create_option_need_rebuild(ha_alter_info, table);
+}
+
 /** Check if InnoDB supports a particular alter table in-place
 @param altered_table TABLE object for new version of table.
 @param ha_alter_info Structure describing changes to be done
@@ -625,33 +720,6 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	update_thd();
-
-	// FIXME: Construct ha_innobase_inplace_ctx here and determine
-	// if instant ALTER TABLE is possible. If yes, we will be able to
-	// allow ADD COLUMN even if SPATIAL INDEX, FULLTEXT INDEX or
-	// virtual columns exist, also together with adding virtual columns.
-
-	/* Change on engine specific table options require rebuild of the
-	table */
-	if (ha_alter_info->handler_flags
-		& Alter_inplace_info::CHANGE_CREATE_OPTION) {
-		ha_table_option_struct *new_options= ha_alter_info->create_info->option_struct;
-		ha_table_option_struct *old_options= table->s->option_struct;
-
-		if (new_options->page_compressed != old_options->page_compressed ||
-		    new_options->page_compression_level != old_options->page_compression_level) {
-			ha_alter_info->unsupported_reason = innobase_get_err_msg(
-				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
-			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-		}
-
-		if (new_options->encryption != old_options->encryption ||
-			new_options->encryption_key_id != old_options->encryption_key_id) {
-			ha_alter_info->unsupported_reason = innobase_get_err_msg(
-				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
-			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-		}
-	}
 
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
@@ -967,76 +1035,14 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	m_prebuilt->trx->will_lock++;
 
-	if (!online) {
-		/* We already determined that only a non-locking
-		operation is possible. */
-	} else if (((ha_alter_info->handler_flags
-		     & Alter_inplace_info::ADD_PK_INDEX)
-		    || innobase_need_rebuild(ha_alter_info, table))
-		   && (innobase_fulltext_exist(altered_table)
-		       || innobase_spatial_exist(altered_table))) {
-		/* Refuse to rebuild the table online, if
-		FULLTEXT OR SPATIAL indexes are to survive the rebuild. */
-		online = false;
-		/* If the table already contains fulltext indexes,
-		refuse to rebuild the table natively altogether. */
-		if (m_prebuilt->table->fts) {
-			ha_alter_info->unsupported_reason = innobase_get_err_msg(
-				ER_INNODB_FT_LIMIT);
-			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-		}
-
-		if (innobase_spatial_exist(altered_table)) {
-			ha_alter_info->unsupported_reason =
-				innobase_get_err_msg(
-				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
-		} else {
-			ha_alter_info->unsupported_reason =
-				innobase_get_err_msg(
-				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
-		}
-	} else if ((ha_alter_info->handler_flags
-		    & Alter_inplace_info::ADD_INDEX)) {
-		/* ADD FULLTEXT|SPATIAL INDEX requires a lock.
-
-		We could do ADD FULLTEXT INDEX without a lock if the
-		table already contains an FTS_DOC_ID column, but in
-		that case we would have to apply the modification log
-		to the full-text indexes.
-
-		We could also do ADD SPATIAL INDEX by implementing
-		row_log_apply() for it. */
-
-		for (uint i = 0; i < ha_alter_info->index_add_count; i++) {
-			const KEY* key =
-				&ha_alter_info->key_info_buffer[
-					ha_alter_info->index_add_buffer[i]];
-			if (key->flags & HA_FULLTEXT) {
-				DBUG_ASSERT(!(key->flags & HA_KEYFLAG_MASK
-					      & ~(HA_FULLTEXT
-						  | HA_PACK_KEY
-						  | HA_GENERATED_KEY
-						  | HA_BINARY_PACK_KEY)));
-				ha_alter_info->unsupported_reason = innobase_get_err_msg(
-					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
-				online = false;
-				break;
-			}
-			if (key->flags & HA_SPATIAL) {
-				ha_alter_info->unsupported_reason = innobase_get_err_msg(
-					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
-				online = false;
-				break;
-			}
-		}
-	}
-
 	/* When changing a NULL column to NOT NULL and specifying a
 	DEFAULT value, ensure that the DEFAULT expression is a constant.
 	Also, in ADD COLUMN, for now we only support a
 	constant DEFAULT expression. */
 	cf_it.rewind();
 	Field **af = altered_table->field;
+	bool add_column_not_last = false;
+	uint n_stored_cols = 0, n_add_cols = 0;
 
 	while (Create_field* cf = cf_it++) {
 		DBUG_ASSERT(cf->field
@@ -1098,6 +1104,11 @@ ha_innobase::check_if_supported_inplace_alter(
 		} else if (!(*af)->default_value
 			   || !((*af)->default_value->flags
 				& ~(VCOL_SESSION_FUNC | VCOL_TIME_FUNC))) {
+			n_add_cols++;
+
+			if (af < &altered_table->field[table_share->fields]) {
+				add_column_not_last = true;
+			}
 			/* The added NOT NULL column lacks a DEFAULT value,
 			or the DEFAULT is the same for all rows.
 			(Time functions, such as CURRENT_TIMESTAMP(),
@@ -1122,10 +1133,92 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
 next_column:
-		af++;
+		n_stored_cols += (*af++)->stored_in_db();
 	}
 
-	cf_it.rewind();
+	if (!add_column_not_last
+	    && uint(m_prebuilt->table->n_cols) - DATA_N_SYS_COLS + n_add_cols
+	    == n_stored_cols
+	    && m_prebuilt->table->supports_instant()
+	    && instant_alter_column_possible(ha_alter_info, table)) {
+		/* We can perform instant ADD COLUMN, because all
+		columns are going to be added after existing ones
+		(and not after hidden InnoDB columns, such as FTS_DOC_ID). */
+
+		/* MDEV-14246 FIXME: return HA_ALTER_INPLACE_NO_LOCK and
+		perform all work in ha_innobase::commit_inplace_alter_table(),
+		to avoid an unnecessary MDL upgrade/downgrade cycle. */
+		DBUG_RETURN(HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE);
+	}
+
+	if (!online) {
+		/* We already determined that only a non-locking
+		operation is possible. */
+	} else if (((ha_alter_info->handler_flags
+		     & Alter_inplace_info::ADD_PK_INDEX)
+		    || innobase_need_rebuild(ha_alter_info, table))
+		   && (innobase_fulltext_exist(altered_table)
+		       || innobase_spatial_exist(altered_table)
+		       || innobase_indexed_virtual_exist(altered_table))) {
+		/* Refuse to rebuild the table online, if
+		FULLTEXT OR SPATIAL indexes are to survive the rebuild. */
+		online = false;
+		/* If the table already contains fulltext indexes,
+		refuse to rebuild the table natively altogether. */
+		if (m_prebuilt->table->fts) {
+			ha_alter_info->unsupported_reason = innobase_get_err_msg(
+				ER_INNODB_FT_LIMIT);
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
+
+		if (innobase_spatial_exist(altered_table)) {
+			ha_alter_info->unsupported_reason =
+				innobase_get_err_msg(
+				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
+		} else if (!innobase_fulltext_exist(altered_table)) {
+			/* MDEV-14341 FIXME: Remove this limitation. */
+			ha_alter_info->unsupported_reason =
+				"online rebuild with indexed virtual columns";
+		} else {
+			ha_alter_info->unsupported_reason =
+				innobase_get_err_msg(
+				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
+		}
+	} else if ((ha_alter_info->handler_flags
+		    & Alter_inplace_info::ADD_INDEX)) {
+		/* ADD FULLTEXT|SPATIAL INDEX requires a lock.
+
+		We could do ADD FULLTEXT INDEX without a lock if the
+		table already contains an FTS_DOC_ID column, but in
+		that case we would have to apply the modification log
+		to the full-text indexes.
+
+		We could also do ADD SPATIAL INDEX by implementing
+		row_log_apply() for it. */
+
+		for (uint i = 0; i < ha_alter_info->index_add_count; i++) {
+			const KEY* key =
+				&ha_alter_info->key_info_buffer[
+					ha_alter_info->index_add_buffer[i]];
+			if (key->flags & HA_FULLTEXT) {
+				DBUG_ASSERT(!(key->flags & HA_KEYFLAG_MASK
+					      & ~(HA_FULLTEXT
+						  | HA_PACK_KEY
+						  | HA_GENERATED_KEY
+						  | HA_BINARY_PACK_KEY)));
+				ha_alter_info->unsupported_reason = innobase_get_err_msg(
+					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
+				online = false;
+				break;
+			}
+			if (key->flags & HA_SPATIAL) {
+				ha_alter_info->unsupported_reason = innobase_get_err_msg(
+					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
+				online = false;
+				break;
+			}
+		}
+	}
 
 	DBUG_RETURN(online
 		    ? HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE
@@ -4705,29 +4798,6 @@ prepare_inplace_alter_table_dict(
 
 	new_clustered = DICT_CLUSTERED & index_defs[0].ind_type;
 
-	if (num_fts_index > 1) {
-		my_error(ER_INNODB_FT_LIMIT, MYF(0));
-		goto error_handled;
-	}
-
-	if (!ctx->online) {
-		/* This is not an online operation (LOCK=NONE). */
-	} else if (ctx->add_autoinc == ULINT_UNDEFINED
-		   && num_fts_index == 0
-		   && (!innobase_need_rebuild(ha_alter_info, old_table)
-		       || !innobase_fulltext_exist(altered_table))) {
-		/* InnoDB can perform an online operation (LOCK=NONE). */
-	} else {
-		size_t query_length;
-		/* This should have been blocked in
-		check_if_supported_inplace_alter(). */
-		ut_ad(0);
-		my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-			 innobase_get_stmt_unsafe(ctx->prebuilt->trx->mysql_thd,
-						  &query_length));
-		goto error_handled;
-	}
-
 	/* The primary index would be rebuilt if a FTS Doc ID
 	column is to be added, and the primary index definition
 	is just copied from old table and stored in indexdefs[0] */
@@ -5080,24 +5150,8 @@ new_clustered_failed:
 			    == !!new_clustered);
 	}
 
-	if (ctx->need_rebuild() && ctx->new_table->supports_instant()) {
-		if (~ha_alter_info->handler_flags
-		    & Alter_inplace_info::ADD_STORED_BASE_COLUMN) {
-			goto not_instant_add_column;
-		}
-
-		if (ha_alter_info->handler_flags
-		    & (INNOBASE_ALTER_REBUILD
-		       & ~Alter_inplace_info::ADD_STORED_BASE_COLUMN
-		       & ~Alter_inplace_info::CHANGE_CREATE_OPTION)) {
-			goto not_instant_add_column;
-		}
-
-		if ((ha_alter_info->handler_flags
-		     & Alter_inplace_info::CHANGE_CREATE_OPTION)
-		    && (ha_alter_info->create_info->used_fields
-			& (HA_CREATE_USED_ROW_FORMAT
-			   | HA_CREATE_USED_KEY_BLOCK_SIZE))) {
+	if (ctx->need_rebuild() && user_table->supports_instant()) {
+		if (!instant_alter_column_possible(ha_alter_info, old_table)) {
 			goto not_instant_add_column;
 		}
 
@@ -5110,28 +5164,6 @@ new_clustered_failed:
 
 		DBUG_ASSERT(ctx->new_table->n_cols > ctx->old_table->n_cols);
 
-		if (ha_alter_info->handler_flags & INNOBASE_ONLINE_CREATE) {
-			/* At the moment, we disallow ADD [UNIQUE] INDEX
-			together with instant ADD COLUMN.
-
-			The main reason is that the work of instant
-			ADD must be done in commit_inplace_alter_table().
-			For the rollback_instant() to work, we must
-			add the columns to dict_table_t beforehand,
-			and roll back those changes in case the
-			transaction is rolled back.
-
-			If we added the columns to the dictionary cache
-			already in the prepare_inplace_alter_table(),
-			we would have to deal with column number
-			mismatch in ha_innobase::open(), write_row()
-			and other functions. */
-
-			/* FIXME: allow instant ADD COLUMN together
-			with ADD INDEX on pre-existing columns. */
-			goto not_instant_add_column;
-		}
-
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
 			error = dict_index_add_to_cache_w_vcol(
 				ctx->new_table, ctx->add_index[a], add_v,
@@ -5139,8 +5171,15 @@ new_clustered_failed:
 			ut_a(error == DB_SUCCESS);
 		}
 		DBUG_ASSERT(ha_alter_info->key_count
+			    /* hidden GEN_CLUST_INDEX in InnoDB */
 			    + dict_index_is_auto_gen_clust(
 				    dict_table_get_first_index(ctx->new_table))
+			    /* hidden FTS_DOC_ID_INDEX in InnoDB */
+			    + (ctx->old_table->fts_doc_id_index
+			       && innobase_fts_check_doc_id_index_in_def(
+				       altered_table->s->keys,
+				       altered_table->key_info)
+			       != FTS_EXIST_DOC_ID_INDEX)
 			    == ctx->num_to_add_index);
 		ctx->num_to_add_index = 0;
 		ctx->add_index = NULL;
@@ -5258,6 +5297,33 @@ new_clustered_failed:
 		ctx->prepare_instant();
 	}
 
+	if (!ctx->is_instant()) {
+		if (num_fts_index > 1) {
+			my_error(ER_INNODB_FT_LIMIT, MYF(0));
+			goto error_handled;
+		}
+
+		if (!ctx->online) {
+			/* This is not an online operation (LOCK=NONE). */
+		} else if (ctx->add_autoinc == ULINT_UNDEFINED
+			   && num_fts_index == 0
+			   && (!innobase_need_rebuild(ha_alter_info, old_table)
+			       || !innobase_fulltext_exist(altered_table))) {
+			/* InnoDB can perform an online operation
+			(LOCK=NONE). */
+		} else {
+			size_t query_length;
+			/* This should have been blocked in
+			check_if_supported_inplace_alter(). */
+			ut_ad(0);
+			my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+				 innobase_get_stmt_unsafe(
+					 ctx->prebuilt->trx->mysql_thd,
+					 &query_length));
+			goto error_handled;
+		}
+	}
+
 	if (ctx->need_rebuild()) {
 not_instant_add_column:
 		uint32_t		key_id	= FIL_DEFAULT_ENCRYPTION_KEY;
@@ -5269,6 +5335,20 @@ not_instant_add_column:
 				mode = c->encryption;
 			}
 			fil_space_release(s);
+		}
+
+		if (ha_alter_info->handler_flags
+		    & Alter_inplace_info::CHANGE_CREATE_OPTION) {
+			const ha_table_option_struct& alt_opt=
+				*ha_alter_info->create_info->option_struct;
+			const ha_table_option_struct& opt=
+				*old_table->s->option_struct;
+			if (alt_opt.encryption != opt.encryption
+			    || alt_opt.encryption_key_id
+			    != opt.encryption_key_id) {
+				key_id = uint32_t(alt_opt.encryption_key_id);
+				mode = fil_encryption_t(alt_opt.encryption);
+			}
 		}
 
 		if (dict_table_get_low(ctx->new_table->name.m_name)) {
@@ -6616,7 +6696,7 @@ err_exit:
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 	    || ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
 		== Alter_inplace_info::CHANGE_CREATE_OPTION
-		&& !innobase_need_rebuild(ha_alter_info, table))) {
+		&& !create_option_need_rebuild(ha_alter_info, table))) {
 
 		if (heap) {
 			ha_alter_info->handler_ctx
@@ -6901,7 +6981,7 @@ ok_exit:
 
 	if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
-	    && !innobase_need_rebuild(ha_alter_info, table)) {
+	    && !create_option_need_rebuild(ha_alter_info, table)) {
 		goto ok_exit;
 	}
 
@@ -9662,47 +9742,6 @@ foreign_fail:
 	MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
 	DBUG_RETURN(false);
 }
-
-
-/** Helper class for in-place alter, see handler.h */
-class ha_innopart_inplace_ctx : public inplace_alter_handler_ctx
-{
-/* Only used locally in this file, so have everything public for
-conveniance. */
-public:
-	/** Total number of partitions. */
-	uint				m_tot_parts;
-	/** Array of inplace contexts for all partitions. */
-	inplace_alter_handler_ctx**	ctx_array;
-	/** Array of prebuilt for all partitions. */
-	row_prebuilt_t**		prebuilt_array;
-
-	ha_innopart_inplace_ctx(THD *thd, uint tot_parts)
-		: inplace_alter_handler_ctx(),
-		m_tot_parts(tot_parts),
-		ctx_array(),
-		prebuilt_array()
-	{}
-
-	~ha_innopart_inplace_ctx()
-	{
-		if (ctx_array) {
-			for (uint i = 0; i < m_tot_parts; i++) {
-				delete ctx_array[i];
-			}
-			ut_free(ctx_array);
-		}
-		if (prebuilt_array) {
-			/* First entry is the original prebuilt! */
-			for (uint i = 1; i < m_tot_parts; i++) {
-				/* Don't close the tables. */
-				prebuilt_array[i]->table = NULL;
-				row_prebuilt_free(prebuilt_array[i], false);
-			}
-			ut_free(prebuilt_array);
-		}
-	}
-};
 
 
 /**

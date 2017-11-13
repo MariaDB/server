@@ -127,8 +127,8 @@ ERROR HY000: Function or expression 'uuid_short()' cannot be used in the GENERAT
 create or replace table t1 (a varchar(1024) as (uuid()) PERSISTENT);
 ERROR HY000: Function or expression 'uuid()' cannot be used in the GENERATED ALWAYS AS clause of `a`
 # VALUES()
-create or replace table t1 (a varchar(1024), b varchar(1024) as (values(a)));
-ERROR HY000: Function or expression 'values()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (a varchar(1024), b varchar(1024) as (value(a)));
+ERROR HY000: Function or expression 'value()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # VERSION()
 create or replace table t1 (a varchar(1024), b varchar(1024) as (version()) PERSISTENT);
 ERROR HY000: Function or expression 'version()' cannot be used in the GENERATED ALWAYS AS clause of `b`

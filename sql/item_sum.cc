@@ -2019,6 +2019,18 @@ void Item_sum_hybrid::clear()
   null_value= 1;
 }
 
+bool
+Item_sum_hybrid::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return true;
+  bool retval= value->get_date(ltime, fuzzydate);
+  if ((null_value= value->null_value))
+    DBUG_ASSERT(retval == true);
+  return retval;
+}
+
 double Item_sum_hybrid::val_real()
 {
   DBUG_ASSERT(fixed == 1);

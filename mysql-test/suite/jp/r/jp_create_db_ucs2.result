@@ -7,7 +7,7 @@ SET character_set_server = ucs2;
 CREATE DATABASE `é∆éŒé›é∫éﬁ`;
 CREATE DATABASE `∆¸À‹∏Ï`;
 CREATE DATABASE `èÌ‹èÌ›èÌﬁ`;
-SELECT schema_name from information_schema.schemata where schema_name <> 'mtr';
+SELECT schema_name from information_schema.schemata where schema_name <> 'mtr' ORDER BY schema_name;
 schema_name
 information_schema
 mysql

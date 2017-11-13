@@ -2490,6 +2490,7 @@ drop table t1,t2;
 --echo #
 CREATE TABLE t1 (db VARCHAR(64) DEFAULT NULL); 
 INSERT INTO t1 VALUES ('mysql'),('information_schema'); 
+--sorted_result
 SELECT * FROM t1 WHERE db IN (SELECT `SCHEMA_NAME` FROM information_schema.SCHEMATA); 
 DROP TABLE t1;
 

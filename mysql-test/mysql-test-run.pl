@@ -1917,10 +1917,10 @@ sub collect_mysqld_features_from_running_server ()
     #print "Major: $1 Minor: $2 Build: $3\n";
     $mysql_version_id= $1*10000 + $2*100 + $3;
     #print "mysql_version_id: $mysql_version_id\n";
-    mtr_report("MySQL Version $1.$2.$3");
+    mtr_report("MariaDB Version $1.$2.$3");
     $mysql_version_extra= $4;
   }
-  mtr_error("Could not find version of MySQL") unless $mysql_version_id;
+  mtr_error("Could not find version of MariaDBL") unless $mysql_version_id;
 }
 
 sub find_mysqld {
@@ -2210,7 +2210,7 @@ sub environment_setup {
   $ENV{'UMASK_DIR'}=          "0770"; # The octal *string*
 
   #
-  # MySQL tests can produce output in various character sets
+  # MariaDB tests can produce output in various character sets
   # (especially, ctype_xxx.test). To avoid confusing Perl
   # with output which is incompatible with the current locale
   # settings, we reset the current values of LC_ALL and LC_CTYPE to "C".
@@ -2541,7 +2541,7 @@ sub setup_vardir() {
   if (check_socket_path_length("$opt_tmpdir/testsocket.sock")){
     mtr_error("Socket path '$opt_tmpdir' too long, it would be ",
 	      "truncated and thus not possible to use for connection to ",
-	      "MySQL Server. Set a shorter with --tmpdir=<path> option");
+	      "MariaDB Server. Set a shorter with --tmpdir=<path> option");
   }
 
   # copy all files from std_data into var/std_data
@@ -4397,12 +4397,12 @@ sub extract_warning_lines ($$) {
      qr/Slave I\/O: error reconnecting to master '.*' - retry-time: [1-3]  retries/,
      qr/Slave I\/0: Master command COM_BINLOG_DUMP failed/,
      qr/Error reading packet/,
-     qr/Lost connection to MySQL server at 'reading initial communication packet'/,
+     qr/Lost connection to MariaDB server at 'reading initial communication packet'/,
      qr/Failed on request_dump/,
      qr/Slave: Can't drop database.* database doesn't exist/,
      qr/Slave: Operation DROP USER failed for 'create_rout_db'/,
      qr|Checking table:   '\..mtr.test_suppressions'|,
-     qr|Table \./test/bug53592 has a primary key in InnoDB data dictionary, but not in MySQL|,
+     qr|Table \./test/bug53592 has a primary key in InnoDB data dictionary, but not in|,
      qr|Table '\..mtr.test_suppressions' is marked as crashed and should be repaired|,
      qr|Table 'test_suppressions' is marked as crashed and should be repaired|,
      qr|Can't open shared library|,

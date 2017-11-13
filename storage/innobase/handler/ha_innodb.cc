@@ -8361,7 +8361,7 @@ no_commit:
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	vers_set_fields = (table->versioned() && !is_innopart() &&
+	vers_set_fields = (table->versioned() &&
 		(sql_command != SQLCOM_CREATE_TABLE || table->s->vtmd))
 		?
 		ROW_INS_VERSIONED :
@@ -9173,7 +9173,7 @@ ha_innobase::update_row(
 	if (!table->versioned())
 		m_prebuilt->upd_node->versioned = false;
 
-	if (m_prebuilt->upd_node->versioned && !is_innopart()) {
+	if (m_prebuilt->upd_node->versioned) {
 		vers_set_fields = true;
 		if (thd_sql_command(m_user_thd) == SQLCOM_ALTER_TABLE && !table->s->vtmd)
 		{
@@ -9306,7 +9306,6 @@ ha_innobase::delete_row(
 
 	bool vers_set_fields =
 		table->versioned() &&
-		!is_innopart() &&
 		table->vers_end_field()->is_max();
 
 	error = row_update_for_mysql(m_prebuilt, vers_set_fields);
@@ -19722,7 +19721,7 @@ wsrep_innobase_kill_one_trx(
 			wsrep_thd_awake(thd, signal);
 		} else {
 			/* abort currently executing query */
-			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %ld",
+			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %lu",
                                             thd_get_thread_id(thd)));
 			WSREP_DEBUG("kill query for: %ld",
 				thd_get_thread_id(thd));
@@ -19866,7 +19865,8 @@ wsrep_fake_trx_id(
 	mutex_enter(&trx_sys->mutex);
 	trx_id_t trx_id = trx_sys_get_new_trx_id();
 	mutex_exit(&trx_sys->mutex);
-	WSREP_DEBUG("innodb fake trx id: %lu thd: %s", trx_id, wsrep_thd_query(thd));
+	WSREP_DEBUG("innodb fake trx id: " TRX_ID_FMT " thd: %s",
+		    trx_id, wsrep_thd_query(thd));
 	wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd), trx_id);
 }
 

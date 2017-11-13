@@ -252,7 +252,7 @@ void wsrep_replay_transaction(THD *thd)
       MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
       thd->m_statement_psi= NULL;
       thd->m_digest= NULL;
-      thd_proc_info(thd, "wsrep replaying trx");
+      thd_proc_info(thd, "WSREP replaying trx");
       WSREP_DEBUG("replay trx: %s %lld",
                   thd->query() ? thd->query() : "void",
                   (long long)wsrep_thd_trx_seqno(thd));
@@ -463,7 +463,7 @@ static void wsrep_rollback_process(THD *thd)
   wsrep_aborting_thd= NULL;
 
   while (thd->killed == NOT_KILLED) {
-    thd_proc_info(thd, "wsrep aborter idle");
+    thd_proc_info(thd, "WSREP aborter idle");
     thd->mysys_var->current_mutex= &LOCK_wsrep_rollback;
     thd->mysys_var->current_cond=  &COND_wsrep_rollback;
 
@@ -472,7 +472,7 @@ static void wsrep_rollback_process(THD *thd)
     WSREP_DEBUG("WSREP rollback thread wakes for signal");
 
     mysql_mutex_lock(&thd->mysys_var->mutex);
-    thd_proc_info(thd, "wsrep aborter active");
+    thd_proc_info(thd, "WSREP aborter active");
     thd->mysys_var->current_mutex= 0;
     thd->mysys_var->current_cond=  0;
     mysql_mutex_unlock(&thd->mysys_var->mutex);

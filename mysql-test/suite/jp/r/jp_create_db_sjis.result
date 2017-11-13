@@ -6,7 +6,7 @@ drop database if exists `ソ十表`;
 CREATE DATABASE `ﾆﾎﾝｺﾞ`;
 CREATE DATABASE `日本語`;
 CREATE DATABASE `ソ十表`;
-SELECT schema_name from information_schema.schemata where schema_name <> 'mtr';
+SELECT schema_name from information_schema.schemata where schema_name <> 'mtr' ORDER BY schema_name;
 schema_name
 information_schema
 mysql

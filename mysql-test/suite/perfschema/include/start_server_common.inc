@@ -13,6 +13,7 @@ select count(*) from performance_schema.setup_timers;
 # Make sure we don't crash, no matter what the starting parameters are
 
 --disable_result_log
+--disable_query_log
 select * from performance_schema.accounts;
 select * from performance_schema.cond_instances;
 select * from performance_schema.events_stages_current;
@@ -66,11 +67,7 @@ select * from performance_schema.table_lock_waits_summary_by_table;
 select * from performance_schema.threads;
 select * from performance_schema.users;
 --enable_result_log
-
-# This has a stable output, printing the result:
-show variables where
-    `Variable_name` != "performance_schema_max_statement_classes" and
-    `Variable_name` like "performance_schema%";
+--enable_query_log
 
 # This has an unrepeatable output, it does depends too much on
 # - the platform hardware (sizeof structures, padding)

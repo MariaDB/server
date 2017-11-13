@@ -111,7 +111,7 @@ create table t1 (a int, b int generated always as (sleep(a)) virtual);
 
 --echo # VALUES()
 -- error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create table t1 (a varchar(1024), b varchar(1024) generated always as (values(a)) virtual);
+create table t1 (a varchar(1024), b varchar(1024) generated always as (value(a)) virtual);
 
 --echo # Stored procedures
 

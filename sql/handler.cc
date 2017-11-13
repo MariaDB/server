@@ -2247,7 +2247,7 @@ int ha_start_consistent_snapshot(THD *thd)
   */
   if (warn)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
-                 "This MySQL server does not support any "
+                 "This MariaDB server does not support any "
                  "consistent-read capable storage engine");
   return 0;
 }
@@ -5137,8 +5137,13 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
     {
       char engine_buf[NAME_CHAR_LEN + 1];
       LEX_CSTRING engine= { engine_buf, 0 };
+      Table_type type;
 
-      if (dd_frm_type(thd, path, &engine, is_sequence) != TABLE_TYPE_VIEW)
+      if ((type= dd_frm_type(thd, path, &engine, is_sequence)) ==
+          TABLE_TYPE_UNKNOWN)
+        DBUG_RETURN(0);
+      
+      if (type != TABLE_TYPE_VIEW)
       {
         plugin_ref p=  plugin_lock_by_name(thd, &engine,
                                            MYSQL_STORAGE_ENGINE_PLUGIN);
@@ -5209,6 +5214,13 @@ static int cmp_table_names(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
                                        (uchar*)((*b)->str), (*b)->length);
 }
 
+#ifndef DBUG_OFF
+static int cmp_table_names_desc(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
+{
+  return -cmp_table_names(a, b);
+}
+#endif
+
 }
 
 Discovered_table_list::Discovered_table_list(THD *thd_arg,
@@ -5260,6 +5272,15 @@ void Discovered_table_list::sort()
 {
   tables->sort(cmp_table_names);
 }
+
+
+#ifndef DBUG_OFF
+void Discovered_table_list::sort_desc()
+{
+  tables->sort(cmp_table_names_desc);
+}
+#endif
+
 
 void Discovered_table_list::remove_duplicates()
 {

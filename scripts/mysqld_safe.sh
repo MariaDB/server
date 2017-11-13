@@ -153,7 +153,11 @@ log_generic () {
   echo "$msg"
   case $logging in
     init) ;;  # Just echo the message, don't save it anywhere
-    file) echo "$msg" | "$helper" "$user" log "$err_log" ;;
+    file)
+      if [ -n "$helper" ]; then
+        echo "$msg" | "$helper" "$user" log "$err_log"
+      fi
+    ;;
     syslog) logger -t "$syslog_tag_mysqld_safe" -p "$priority" "$*" ;;
     *)
       echo "Internal program error (non-fatal):" \
@@ -173,7 +177,11 @@ log_notice () {
 eval_log_error () {
   local cmd="$1"
   case $logging in
-    file) cmd="$cmd 2>&1 | "`shell_quote_string "$helper"`" $user log "`shell_quote_string "$err_log"` ;;
+    file)
+     if [ -n "$helper" ]; then
+        cmd="$cmd 2>&1 | "`shell_quote_string "$helper"`" $user log "`shell_quote_string "$err_log"`
+     fi
+     ;;
     syslog)
       # mysqld often prefixes its messages with a timestamp, which is
       # redundant when logging to syslog (which adds its own timestamp)
@@ -455,8 +463,9 @@ get_mysql_config() {
 
 # set_malloc_lib LIB
 # - If LIB is empty, do nothing and return
-# - If LIB is 'tcmalloc', look for tcmalloc shared library in /usr/lib
-#   then pkglibdir.  tcmalloc is part of the Google perftools project.
+# - If LIB starts with 'tcmalloc' or 'jemalloc', look for the shared library in
+#   /usr/lib, /usr/lib64 and then pkglibdir.
+#   tcmalloc is part of the Google perftools project.
 # - If LIB is an absolute path, assume it is a malloc shared library
 #
 # Put LIB in mysqld_ld_preload, which will be added to LD_PRELOAD when
@@ -464,23 +473,23 @@ get_mysql_config() {
 set_malloc_lib() {
   malloc_lib="$1"
 
-  if [ "$malloc_lib" = tcmalloc ]; then
+  if expr "$malloc_lib" : "\(tcmalloc\|jemalloc\)" > /dev/null ; then
     pkglibdir=`get_mysql_config --variable=pkglibdir`
-    malloc_lib=
+    where=''
     # This list is kept intentionally simple.  Simply set --malloc-lib
     # to a full path if another location is desired.
-    for libdir in /usr/lib "$pkglibdir" "$pkglibdir/mysql"; do
-      for flavor in _minimal '' _and_profiler _debug; do
-        tmp="$libdir/libtcmalloc$flavor.so"
-        #log_notice "DEBUG: Checking for malloc lib '$tmp'"
-        [ -r "$tmp" ] || continue
-        malloc_lib="$tmp"
-        break 2
-      done
+    for libdir in /usr/lib /usr/lib64 "$pkglibdir" "$pkglibdir/mysql"; do
+       tmp=`echo "$libdir/lib$malloc_lib.so".[0-9]`
+       where="$where $libdir"
+       # log_notice "DEBUG: Checking for malloc lib '$tmp'"
+       [ -r "$tmp" ] || continue
+       malloc_lib="$tmp"
+       where=''
+       break
     done
 
-    if [ -z "$malloc_lib" ]; then
-      log_error "no shared library for --malloc-lib=tcmalloc found in /usr/lib or $pkglibdir"
+    if [ -n "$where" ]; then
+      log_error "no shared library for lib$malloc_lib.so.[0-9] found in$where"
       exit 1
     fi
   fi
@@ -496,8 +505,8 @@ set_malloc_lib() {
       fi
       ;;
     *)
-      log_error "--malloc-lib must be an absolute path or 'tcmalloc'; " \
-        "ignoring value '$malloc_lib'"
+      log_error "--malloc-lib must be an absolute path, 'tcmalloc' or " \
+      "'jemalloc'; ignoring value '$malloc_lib'"
       exit 1
       ;;
   esac
@@ -548,6 +557,9 @@ fi
 
 helper=`find_in_bin mysqld_safe_helper`
 print_defaults=`find_in_bin my_print_defaults`
+
+# Check if helper exists
+$helper --help >/dev/null 2>&1 || helper=""
 
 #
 # Second, try to find the data directory
@@ -751,7 +763,7 @@ then
 does not exist or is not executable. Please cd to the mysql installation
 directory and restart this script from there as follows:
 ./bin/mysqld_safe&
-See http://dev.mysql.com/doc/mysql/en/mysqld-safe.html for more information"
+See https://mariadb.com/kb/en/mysqld_safe for more information"
   exit 1
 fi
 

@@ -1247,6 +1247,13 @@
 }
 
 {
+  Galera uses gcc __thread variables
+  Memcheck:Leak
+  fun:memalign
+  fun:__tls_get_addr
+}
+
+{
   Mroonga: dlopen leaves some "still reachable"
   Memcheck:Leak
   fun:malloc
@@ -1747,8 +1754,10 @@
    match-leak-kinds: reachable
    fun:malloc
    fun:CRYPTO_malloc
-   fun:ENGINE_ADD
+   ...
+   fun:ENGINE_add
 }
+
 {
    OPENSSL 1.0.1k crypto leak
    Memcheck:Leak
@@ -1756,15 +1765,4 @@
    fun:malloc
    fun:CRYPTO_malloc
    fun:ENGINE_new
-}
-
-{
-   OPENSSL 1.0.1k crypto leak2
-   Memcheck:Leak
-   match-leak-kinds: reachable
-   fun:malloc
-   fun:CRYPTO_malloc
-   fun:sk_new
-   obj:/lib64/libcrypto.so*
-   fun:ENGINE_ADD
 }

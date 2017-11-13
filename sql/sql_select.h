@@ -1464,6 +1464,8 @@ public:
     ordered_index_usage= ordered_index_void;
     need_distinct= 0;
     skip_sort_order= 0;
+    with_two_phase_optimization= 0;
+    is_for_splittable_grouping_derived= 0;
     need_tmp= 0;
     hidden_group_fields= 0; /*safety*/
     error= 0;
@@ -1676,6 +1678,7 @@ public:
   bool inject_cond_into_where(Item *injected_cond);
   bool push_splitting_cond_into_derived(THD *thd, Item *cond);
   bool improve_chosen_plan(THD *thd);
+  bool transform_in_predicates_into_in_subq(THD *thd);
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER
@@ -1707,6 +1710,7 @@ private:
   void optimize_distinct();
 
   void cleanup_item_list(List<Item> &items) const;
+  bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
 
 };

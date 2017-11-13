@@ -72,8 +72,8 @@ ERROR HY000: Function or expression 'row_count()' cannot be used in the GENERATE
 create table t1 (a int, b int generated always as (sleep(a)) virtual);
 ERROR HY000: Function or expression 'sleep()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # VALUES()
-create table t1 (a varchar(1024), b varchar(1024) generated always as (values(a)) virtual);
-ERROR HY000: Function or expression 'values()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a varchar(1024), b varchar(1024) generated always as (value(a)) virtual);
+ERROR HY000: Function or expression 'value()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # Stored procedures
 create procedure p1()
 begin

@@ -527,7 +527,7 @@ static void wsrep_synced_cb(void* app_ctx)
   if (wsrep_restart_slave_activated)
   {
     int rcode;
-    WSREP_INFO("MySQL slave restart");
+    WSREP_INFO("MariaDB slave restart");
     wsrep_restart_slave_activated= FALSE;
 
     mysql_mutex_lock(&LOCK_active_mi);

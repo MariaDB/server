@@ -256,18 +256,19 @@ def	information_schema	PLUGINS	PLUGIN_TYPE_VERSION	5	''	NO	varchar	20	60	NULL	NU
 def	information_schema	PLUGINS	PLUGIN_VERSION	2	''	NO	varchar	20	60	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(20)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	COMMAND	5	''	NO	varchar	16	48	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(16)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	DB	4	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
-def	information_schema	PROCESSLIST	EXAMINED_ROWS	14	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(7)			select		NEVER	NULL
+def	information_schema	PROCESSLIST	EXAMINED_ROWS	15	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(7)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	HOST	3	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	ID	1	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	INFO	8	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8	utf8_general_ci	longtext			select		NEVER	NULL
-def	information_schema	PROCESSLIST	INFO_BINARY	16	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL
+def	information_schema	PROCESSLIST	INFO_BINARY	17	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL
+def	information_schema	PROCESSLIST	MAX_MEMORY_USED	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(7)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	MAX_STAGE	11	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(2)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	MEMORY_USED	13	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(7)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	PROGRESS	12	0.000	NO	decimal	NULL	NULL	7	3	NULL	NULL	NULL	decimal(7,3)			select		NEVER	NULL
-def	information_schema	PROCESSLIST	QUERY_ID	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)			select		NEVER	NULL
+def	information_schema	PROCESSLIST	QUERY_ID	16	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	STAGE	10	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(2)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	STATE	7	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
-def	information_schema	PROCESSLIST	TID	17	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)			select		NEVER	NULL
+def	information_schema	PROCESSLIST	TID	18	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	TIME	6	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(7)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	TIME_MS	9	0.000	NO	decimal	NULL	NULL	22	3	NULL	NULL	NULL	decimal(22,3)			select		NEVER	NULL
 def	information_schema	PROCESSLIST	USER	2	''	NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)			select		NEVER	NULL
@@ -797,6 +798,7 @@ NULL	information_schema	PROCESSLIST	STAGE	tinyint	NULL	NULL	NULL	NULL	tinyint(2)
 NULL	information_schema	PROCESSLIST	MAX_STAGE	tinyint	NULL	NULL	NULL	NULL	tinyint(2)
 NULL	information_schema	PROCESSLIST	PROGRESS	decimal	NULL	NULL	NULL	NULL	decimal(7,3)
 NULL	information_schema	PROCESSLIST	MEMORY_USED	bigint	NULL	NULL	NULL	NULL	bigint(7)
+NULL	information_schema	PROCESSLIST	MAX_MEMORY_USED	bigint	NULL	NULL	NULL	NULL	bigint(7)
 NULL	information_schema	PROCESSLIST	EXAMINED_ROWS	int	NULL	NULL	NULL	NULL	int(7)
 NULL	information_schema	PROCESSLIST	QUERY_ID	bigint	NULL	NULL	NULL	NULL	bigint(4)
 1.0000	information_schema	PROCESSLIST	INFO_BINARY	blob	65535	65535	NULL	NULL	blob

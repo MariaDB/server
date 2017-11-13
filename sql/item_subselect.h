@@ -183,7 +183,7 @@ public:
   }
   bool fix_fields(THD *thd, Item **ref);
   bool mark_as_dependent(THD *thd, st_select_lex *select, Item *item);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void recalc_used_tables(st_select_lex *new_parent, bool after_pullout);
   virtual bool exec();
   /*
@@ -266,6 +266,7 @@ public:
   Item* build_clone(THD *thd, MEM_ROOT *mem_root) { return 0; }
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 
+  bool wrap_tvc_in_derived_table(THD *thd, st_select_lex *tvc_sl);
 
   friend class select_result_interceptor;
   friend class Item_in_optimizer;
@@ -624,7 +625,7 @@ public:
   enum precedence precedence() const { return CMP_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool const_item() const
   {
     return Item_subselect::const_item() && left_expr->const_item();
@@ -878,6 +879,7 @@ public:
   virtual enum_engine_type engine_type() { return SINGLE_SELECT_ENGINE; }
   int get_identifier();
   void force_reexecution();
+  void change_select(st_select_lex *new_select) { select_lex= new_select; }
 
   friend class subselect_hash_sj_engine;
   friend class Item_in_subselect;

@@ -693,7 +693,6 @@ typedef struct system_variables
   ulong session_track_transaction_info;
   my_bool session_track_schema;
   my_bool session_track_state_change;
-  my_bool sequence_read_skip_cache;
 
   ulong threadpool_priority;
 
@@ -702,6 +701,7 @@ typedef struct system_variables
   uint idle_write_transaction_timeout;
   uint column_compression_threshold;
   uint column_compression_zlib_level;
+  ulong in_subquery_conversion_threshold;
 
   st_vers_current_time vers_current_time;
   my_bool vers_force;
@@ -829,10 +829,14 @@ typedef struct system_status_var
   ulonglong rows_sent;
   ulonglong rows_tmp_read;
   ulonglong binlog_bytes_written;
+  ulonglong table_open_cache_hits;
+  ulonglong table_open_cache_misses;
+  ulonglong table_open_cache_overflows;
   double last_query_cost;
   double cpu_time, busy_time;
   /* Don't initialize */
   /* Memory used for thread local storage */
+  int64 max_local_memory_used;
   volatile int64 local_memory_used;
   /* Memory allocated for global usage */
   volatile int64 global_memory_used;
@@ -2251,12 +2255,13 @@ public:
                    const char *calling_file,
                    const unsigned int calling_line)
   {
-    DBUG_PRINT("THD::enter_stage", ("%s:%d", calling_file, calling_line));
+    DBUG_PRINT("THD::enter_stage", ("%s at %s:%d", stage->m_name,
+                                    calling_file, calling_line));
     DBUG_ASSERT(stage);
     m_current_stage_key= stage->m_key;
     proc_info= stage->m_name;
 #if defined(ENABLED_PROFILING)
-    profiling.status_change(stage->m_name, calling_func, calling_file,
+    profiling.status_change(proc_info, calling_func, calling_file,
                             calling_line);
 #endif
 #ifdef HAVE_PSI_THREAD_INTERFACE
@@ -6270,6 +6275,64 @@ inline bool lex_string_eq(const LEX_CSTRING *a,
     return 1;                                   /* Different */
   return strcasecmp(a->str, b->str) != 0;
 }
+
+class Type_holder: public Sql_alloc,
+                   public Item_args,
+                   public Type_handler_hybrid_field_type,
+                   public Type_all_attributes,
+                   public Type_geometry_attributes
+{
+  TYPELIB *m_typelib;
+  bool m_maybe_null;
+public:
+  Type_holder()
+   :m_typelib(NULL),
+    m_maybe_null(false)
+  { }
+
+  void set_maybe_null(bool maybe_null_arg) { m_maybe_null= maybe_null_arg; }
+  bool get_maybe_null() const { return m_maybe_null; }
+
+  uint decimal_precision() const
+  {
+    /*
+      Type_holder is not used directly to create fields, so
+      its virtual decimal_precision() is never called.
+      We should eventually extend create_result_table() to accept
+      an array of Type_holders directly, without having to allocate
+      Item_type_holder's and put them into List<Item>.
+    */
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  void set_geometry_type(uint type)
+  {
+    Type_geometry_attributes::set_geometry_type(type);
+  }
+  uint uint_geometry_type() const
+  {
+    return Type_geometry_attributes::get_geometry_type();
+  }
+  void set_typelib(TYPELIB *typelib)
+  {
+    m_typelib= typelib;
+  }
+  TYPELIB *get_typelib() const
+  {
+    return m_typelib;
+  }
+
+  bool aggregate_attributes(THD *thd)
+  {
+    for (uint i= 0; i < arg_count; i++)
+      m_maybe_null|= args[i]->maybe_null;
+    return
+       type_handler()->Item_hybrid_func_fix_attributes(thd,
+                                                       "UNION", this, this,
+                                                       args, arg_count);
+  }
+};
+
 
 class ScopedStatementReplication
 {

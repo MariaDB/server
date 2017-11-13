@@ -1,3 +1,4 @@
+set in_subquery_conversion_threshold=10000;
 drop table if exists t1, t2, t3, t10, t100;
 CREATE TABLE t1 (
 event_date date DEFAULT '0000-00-00' NOT NULL,
@@ -3006,3 +3007,4 @@ drop table t1,t2,t3;
 #
 # End of 10.2 tests
 #
+set in_subquery_conversion_threshold=default;

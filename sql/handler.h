@@ -4520,6 +4520,13 @@ public:
 
   void sort();
   void remove_duplicates(); // assumes that the list is sorted
+#ifndef DBUG_OFF
+  /*
+     Used to find unstable mtr tests querying
+     INFORMATION_SCHEMA.TABLES without ORDER BY.
+  */
+  void sort_desc();
+#endif
 };
 
 int ha_discover_table(THD *thd, TABLE_SHARE *share);

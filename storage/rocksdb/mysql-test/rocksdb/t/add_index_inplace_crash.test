@@ -105,3 +105,13 @@ SHOW CREATE TABLE t1;
 SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
+
+# Cleanup temporary #sql files.  In the future server will remove these
+# automatically but for now we need to do the delete explicit
+
+--disable_query_log
+--disable_result_log
+let $datadir=`select @@datadir`;
+--remove_files_wildcard $datadir/test #sql*
+--enable_result_log
+--enable_query_log

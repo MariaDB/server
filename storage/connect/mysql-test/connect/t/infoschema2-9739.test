@@ -5,5 +5,5 @@
 --source have_libxml2.inc
 
 create table t1 (i int) engine=Connect table_type=XML option_list='xmlsup=libxml2';
-select * from information_schema.tables where create_options like '%table_type=XML%';
+select * from information_schema.tables where table_schema='test' and create_options like '%table_type=XML%';
 drop table t1;

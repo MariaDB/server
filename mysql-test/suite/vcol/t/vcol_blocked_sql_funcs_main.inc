@@ -187,7 +187,7 @@ create or replace table t1 (a varchar(1024) as (uuid()) PERSISTENT);
 
 --echo # VALUES()
 -- error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create or replace table t1 (a varchar(1024), b varchar(1024) as (values(a)));
+create or replace table t1 (a varchar(1024), b varchar(1024) as (value(a)));
 
 --echo # VERSION()
 -- error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED

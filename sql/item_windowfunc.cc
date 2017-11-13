@@ -108,6 +108,7 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
     my_error(ER_NO_ORDER_LIST_IN_WINDOW_SPEC, MYF(0), window_func()->func_name());
     return true;
   }
+
   /*
     TODO: why the last parameter is 'ref' in this call? What if window_func
     decides to substitute itself for something else and does *ref=.... ? 
@@ -168,10 +169,25 @@ void Item_window_func::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
   window_func()->setup_caches(thd);
 }
 
+bool Item_window_func::check_result_type_of_order_item()
+{
+  if (only_single_element_order_list())
+  {
+    Item_result rtype= window_spec->order_list->first->item[0]->cmp_type();
+    // TODO (varun) : support date type in percentile_cont function
+    if (rtype != REAL_RESULT && rtype != INT_RESULT &&
+        rtype != DECIMAL_RESULT && rtype != TIME_RESULT)
+    {
+      my_error(ER_WRONG_TYPE_FOR_PERCENTILE_FUNC, MYF(0), window_func()->func_name());
+      return TRUE;
+    }
+    setting_handler_for_percentile_functions(rtype);
+  }
+  return FALSE;
+}
 
 /*
   This must be called before attempting to compute the window function values.
-
   @detail
     If we attempt to do it in fix_fields(), partition_fields will refer
     to the original window function arguments.
@@ -192,6 +208,71 @@ void Item_sum_dense_rank::setup_window_func(THD *thd, Window_spec *window_spec)
   peer_tracker = new Group_bound_tracker(thd, window_spec->order_list);
   peer_tracker->init();
   clear();
+}
+
+void Item_sum_percentile_disc::setup_window_func(THD *thd, Window_spec *window_spec)
+{
+  order_item= window_spec->order_list->first->item[0];
+  if (!(value= order_item->get_cache(thd)))
+    return;
+  value->setup(thd, order_item);
+  value->store(order_item);
+}
+
+void Item_sum_percentile_cont::setup_window_func(THD *thd, Window_spec *window_spec)
+{
+  order_item= window_spec->order_list->first->item[0];
+  /* TODO(varun): need to discuss and finalise what type should we
+     return for percentile cont functions
+  */
+  if (!(ceil_value= order_item->get_cache(thd)))
+    return;
+  ceil_value->setup(thd, order_item);
+  ceil_value->store(order_item);
+
+  if (!(floor_value= order_item->get_cache(thd)))
+    return;
+  floor_value->setup(thd, order_item);
+  floor_value->store(order_item);
+}
+bool Item_sum_percentile_cont::fix_fields(THD *thd, Item **ref)
+{
+  bool res;
+  res= Item_sum_num::fix_fields(thd, ref);
+  if (res)
+    return res;
+
+  switch(args[0]->cmp_type())
+  {
+    case DECIMAL_RESULT:
+    case REAL_RESULT:
+    case INT_RESULT:
+      break;
+    default:
+      my_error(ER_WRONG_TYPE_OF_ARGUMENT, MYF(0), func_name());
+      return TRUE;
+  }
+  return res;
+}
+bool Item_sum_percentile_disc::fix_fields(THD *thd, Item **ref)
+{
+  bool res;
+  res= Item_sum_num::fix_fields(thd, ref);
+  if (res)
+    return res;
+
+  switch(args[0]->cmp_type())
+  {
+    case DECIMAL_RESULT:
+    case REAL_RESULT:
+    case INT_RESULT:
+      break;
+    default:
+      my_error(ER_WRONG_TYPE_OF_ARGUMENT, MYF(0), func_name());
+      return TRUE;
+  }
+  return res;
+
 }
 
 bool Item_sum_dense_rank::add()

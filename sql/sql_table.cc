@@ -8797,7 +8797,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
 #endif
   }
 
-  THD_STAGE_INFO(thd, stage_init);
+  THD_STAGE_INFO(thd, stage_init_update);
 
   /*
     Code below can handle only base tables so ensure that we won't open a view.

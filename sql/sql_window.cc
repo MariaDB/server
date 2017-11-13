@@ -321,6 +321,12 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     win_func_item->update_used_tables();
   }
 
+  li.rewind();
+  while ((win_func_item= li++))
+  {
+    if (win_func_item->check_result_type_of_order_item())
+      DBUG_RETURN(1);
+  }
   DBUG_RETURN(0);
 }
 
@@ -967,6 +973,8 @@ private:
   Group_bound_tracker bound_tracker;
   bool end_of_partition;
 };
+
+
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -1735,7 +1743,17 @@ public:
     /* Walk to the end of the partition, find how many rows there are. */
     while (!cursor.next())
       num_rows_in_partition++;
+    set_win_funcs_row_count(num_rows_in_partition);
+  }
 
+  ha_rows get_curr_rownum() const
+  {
+    return cursor.get_rownum();
+  }
+
+protected:
+  void set_win_funcs_row_count(ha_rows num_rows_in_partition)
+  {
     List_iterator_fast<Item_sum> it(sum_functions);
     Item_sum* item;
     while ((item= it++))
@@ -1745,11 +1763,43 @@ public:
       item_with_row_count->set_row_count(num_rows_in_partition);
     }
   }
+};
+
+class Frame_unbounded_following_set_count_no_nulls:
+            public Frame_unbounded_following_set_count
+{
+
+public:
+  Frame_unbounded_following_set_count_no_nulls(THD *thd,
+      SQL_I_List<ORDER> *partition_list,
+      SQL_I_List<ORDER> *order_list) :
+  Frame_unbounded_following_set_count(thd,partition_list, order_list)
+  {
+    order_item= order_list->first->item[0];
+  }
+  void next_partition(ha_rows rownum)
+  {
+    ha_rows num_rows_in_partition= 0;
+    if (cursor.fetch())
+      return;
+
+    /* Walk to the end of the partition, find how many rows there are. */
+    do
+    {
+      if (!order_item->is_null())
+        num_rows_in_partition++;
+    } while (!cursor.next());
+
+    set_win_funcs_row_count(num_rows_in_partition);
+  }
 
   ha_rows get_curr_rownum() const
   {
     return cursor.get_rownum();
   }
+
+private:
+  Item* order_item;
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -2490,6 +2540,21 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       cursor_manager->add_cursor(fc);
       break;
     }
+    case Item_sum::PERCENTILE_CONT_FUNC:
+    case Item_sum::PERCENTILE_DISC_FUNC:
+    {
+      fc= new Frame_unbounded_preceding(thd,
+                                        spec->partition_list,
+                                        spec->order_list);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      fc= new Frame_unbounded_following(thd,
+                                          spec->partition_list,
+                                          spec->order_list);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      break;
+    }
     default:
       fc= new Frame_unbounded_preceding(
               thd, spec->partition_list, spec->order_list);
@@ -2514,6 +2579,8 @@ static bool is_computed_with_remove(Item_sum::Sumfunctype sum_func)
     case Item_sum::NTILE_FUNC:
     case Item_sum::FIRST_VALUE_FUNC:
     case Item_sum::LAST_VALUE_FUNC:
+    case Item_sum::PERCENTILE_CONT_FUNC:
+    case Item_sum::PERCENTILE_DISC_FUNC:
       return false;
     default:
       return true;
@@ -2544,9 +2611,18 @@ void get_window_functions_required_cursors(
     */
     if (item_win_func->requires_partition_size())
     {
-      fc= new Frame_unbounded_following_set_count(thd,
+      if (item_win_func->only_single_element_order_list())
+      {
+        fc= new Frame_unbounded_following_set_count_no_nulls(thd,
                 item_win_func->window_spec->partition_list,
                 item_win_func->window_spec->order_list);
+      }
+      else
+      {
+        fc= new Frame_unbounded_following_set_count(thd,
+                item_win_func->window_spec->partition_list,
+                item_win_func->window_spec->order_list);
+      }
       fc->add_sum_func(sum_func);
       cursor_manager->add_cursor(fc);
     }
@@ -2727,6 +2803,13 @@ bool compute_window_func(THD *thd,
       {
         cursor_manager->notify_cursors_next_row();
       }
+
+      /* Check if we found any error in the window function while adding values
+         through cursors. */
+      if (thd->is_error() || thd->is_killed())
+        break;
+
+
       /* Return to current row after notifying cursors for each window
          function. */
       tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);

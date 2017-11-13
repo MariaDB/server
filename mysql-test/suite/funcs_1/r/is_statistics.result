@@ -83,16 +83,17 @@ INDEX_TYPE	varchar(16)	NO
 COMMENT	varchar(16)	YES		NULL	
 INDEX_COMMENT	varchar(1024)	NO			
 SELECT table_catalog, table_schema, table_name, index_schema, index_name
-FROM information_schema.statistics WHERE table_catalog IS NOT NULL;
+FROM information_schema.statistics WHERE table_catalog IS NOT NULL
+ORDER BY table_schema, table_name, index_schema, index_name;
 table_catalog	table_schema	table_name	index_schema	index_name
+def	mysql	columns_priv	mysql	PRIMARY
+def	mysql	columns_priv	mysql	PRIMARY
+def	mysql	columns_priv	mysql	PRIMARY
+def	mysql	columns_priv	mysql	PRIMARY
+def	mysql	columns_priv	mysql	PRIMARY
 def	mysql	column_stats	mysql	PRIMARY
 def	mysql	column_stats	mysql	PRIMARY
 def	mysql	column_stats	mysql	PRIMARY
-def	mysql	columns_priv	mysql	PRIMARY
-def	mysql	columns_priv	mysql	PRIMARY
-def	mysql	columns_priv	mysql	PRIMARY
-def	mysql	columns_priv	mysql	PRIMARY
-def	mysql	columns_priv	mysql	PRIMARY
 def	mysql	db	mysql	PRIMARY
 def	mysql	db	mysql	PRIMARY
 def	mysql	db	mysql	PRIMARY
@@ -102,14 +103,14 @@ def	mysql	event	mysql	PRIMARY
 def	mysql	func	mysql	PRIMARY
 def	mysql	gtid_slave_pos	mysql	PRIMARY
 def	mysql	gtid_slave_pos	mysql	PRIMARY
-def	mysql	help_category	mysql	PRIMARY
 def	mysql	help_category	mysql	name
-def	mysql	help_keyword	mysql	PRIMARY
+def	mysql	help_category	mysql	PRIMARY
 def	mysql	help_keyword	mysql	name
+def	mysql	help_keyword	mysql	PRIMARY
 def	mysql	help_relation	mysql	PRIMARY
 def	mysql	help_relation	mysql	PRIMARY
-def	mysql	help_topic	mysql	PRIMARY
 def	mysql	help_topic	mysql	name
+def	mysql	help_topic	mysql	PRIMARY
 def	mysql	host	mysql	PRIMARY
 def	mysql	host	mysql	PRIMARY
 def	mysql	index_stats	mysql	PRIMARY
@@ -120,28 +121,28 @@ def	mysql	plugin	mysql	PRIMARY
 def	mysql	proc	mysql	PRIMARY
 def	mysql	proc	mysql	PRIMARY
 def	mysql	proc	mysql	PRIMARY
-def	mysql	procs_priv	mysql	PRIMARY
-def	mysql	procs_priv	mysql	PRIMARY
-def	mysql	procs_priv	mysql	PRIMARY
-def	mysql	procs_priv	mysql	PRIMARY
-def	mysql	procs_priv	mysql	PRIMARY
 def	mysql	procs_priv	mysql	Grantor
-def	mysql	proxies_priv	mysql	PRIMARY
-def	mysql	proxies_priv	mysql	PRIMARY
-def	mysql	proxies_priv	mysql	PRIMARY
-def	mysql	proxies_priv	mysql	PRIMARY
+def	mysql	procs_priv	mysql	PRIMARY
+def	mysql	procs_priv	mysql	PRIMARY
+def	mysql	procs_priv	mysql	PRIMARY
+def	mysql	procs_priv	mysql	PRIMARY
+def	mysql	procs_priv	mysql	PRIMARY
 def	mysql	proxies_priv	mysql	Grantor
+def	mysql	proxies_priv	mysql	PRIMARY
+def	mysql	proxies_priv	mysql	PRIMARY
+def	mysql	proxies_priv	mysql	PRIMARY
+def	mysql	proxies_priv	mysql	PRIMARY
 def	mysql	roles_mapping	mysql	Host
 def	mysql	roles_mapping	mysql	Host
 def	mysql	roles_mapping	mysql	Host
 def	mysql	servers	mysql	PRIMARY
-def	mysql	table_stats	mysql	PRIMARY
-def	mysql	table_stats	mysql	PRIMARY
-def	mysql	tables_priv	mysql	PRIMARY
-def	mysql	tables_priv	mysql	PRIMARY
-def	mysql	tables_priv	mysql	PRIMARY
-def	mysql	tables_priv	mysql	PRIMARY
 def	mysql	tables_priv	mysql	Grantor
+def	mysql	tables_priv	mysql	PRIMARY
+def	mysql	tables_priv	mysql	PRIMARY
+def	mysql	tables_priv	mysql	PRIMARY
+def	mysql	tables_priv	mysql	PRIMARY
+def	mysql	table_stats	mysql	PRIMARY
+def	mysql	table_stats	mysql	PRIMARY
 def	mysql	time_zone	mysql	PRIMARY
 def	mysql	time_zone_leap_second	mysql	PRIMARY
 def	mysql	time_zone_name	mysql	PRIMARY

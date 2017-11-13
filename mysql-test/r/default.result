@@ -232,7 +232,7 @@ CREATE TABLE t1 (a INT DEFAULT 10);
 INSERT INTO t1 VALUES (11);
 CREATE VIEW v1 AS SELECT a AS a FROM t1;
 CREATE VIEW v2 AS SELECT DEFAULT(a) AS a FROM t1;
-CREATE VIEW v3 AS SELECT VALUES(a) AS a FROM t1;
+CREATE VIEW v3 AS SELECT VALUE(a) AS a FROM t1;
 SELECT * FROM v1;
 a
 11
@@ -546,8 +546,8 @@ CREATE PROCEDURE p1() CREATE TABLE t1 (a INT DEFAULT par);
 CALL p1;
 ERROR 42S22: Unknown column 'par' in 'DEFAULT'
 DROP PROCEDURE p1;
-CREATE TABLE t1 (a INT DEFAULT VALUES(a));
-ERROR HY000: Function or expression 'values()' cannot be used in the DEFAULT clause of `a`
+CREATE TABLE t1 (a INT DEFAULT VALUE(a));
+ERROR HY000: Function or expression 'value()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT);
 CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW CREATE TABLE t2 (a INT DEFAULT NEW.a);
 ERROR HY000: Function or expression 'NEW.a' cannot be used in the DEFAULT clause of `a`

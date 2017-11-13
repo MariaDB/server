@@ -92,7 +92,7 @@ echo
 #   - INFO must contain the corresponding SHOW/SELECT PROCESSLIST
 #
 # 1. Just dump what we get
---replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
+--replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <MAX_MEMORY> 15 <ROWS> 16 <QUERY_ID> 18 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS>
 SHOW FULL PROCESSLIST;
@@ -159,7 +159,7 @@ let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
                      WHERE COMMAND = 'Sleep' AND USER = 'test_user';
 --source include/wait_condition.inc
 # 1. Just dump what we get
---replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 7 <STATE> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
+--replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 7 <STATE> 9 <TIME_MS> 13 <MEMORY> 14 <MAX_MEMORY> 15 <ROWS> 16 <QUERY_ID> 18 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME>
 SHOW FULL PROCESSLIST;
@@ -201,7 +201,7 @@ echo
 #----------------------------------------------------------------------------
 ;
 connection con1;
---replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
+--replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <MAX_MEMORY> 15 <ROWS> 16 <QUERY_ID> 18 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME>
 SHOW FULL PROCESSLIST;
@@ -226,7 +226,7 @@ let $wait_condition= SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST
 --source include/wait_condition.inc
 connection con2;
 # Just dump what we get
---replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
+--replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <MAX_MEMORY> 15 <ROWS> 16 <QUERY_ID> 18 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME>
 SHOW FULL PROCESSLIST;
@@ -277,7 +277,7 @@ WHERE ID = @test_user_con2_id AND Command IN('Query','Execute')
   AND State = 'User sleep' AND INFO IS NOT NULL ;
 --source include/wait_condition.inc
 # 1. Just dump what we get
---replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
+--replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <MAX_MEMORY> 15 <ROWS> 16 <QUERY_ID> 18 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME>
 SHOW FULL PROCESSLIST;
@@ -336,7 +336,7 @@ let $wait_condition= SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST
 #
 # Expect to see the state 'Waiting for table metadata lock' for the third
 # connection because the SELECT collides with the WRITE TABLE LOCK.
---replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
+--replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <MAX_MEMORY> 15 <ROWS> 16 <QUERY_ID> 18 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
 UNLOCK TABLES;
 #
@@ -383,7 +383,7 @@ echo
 # SHOW FULL PROCESSLIST                          Complete statement
 # SHOW PROCESSLIST                               statement truncated after 100 char
 ;
---replace_column 1 <ID> 3 <HOST_NAME> 5 <COMMAND> 6 <TIME> 7 <STATE> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
+--replace_column 1 <ID> 3 <HOST_NAME> 5 <COMMAND> 6 <TIME> 7 <STATE> 9 <TIME_MS> 13 <MEMORY> 14 <MAX_MEMORY> 15 <ROWS> 16 <QUERY_ID> 18 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
 --replace_column 1 <ID> 3 <HOST_NAME> 5 <COMMAND> 6 <TIME> 7 <STATE>
 SHOW FULL PROCESSLIST;

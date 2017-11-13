@@ -421,8 +421,11 @@ void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock)
 
 void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
 {
-  DBUG_ENTER("mysql_unlock_tables");
   bool errors= thd->is_error();
+  PSI_stage_info org_stage;
+  DBUG_ENTER("mysql_unlock_tables");
+
+  thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_unlocking_tables);
 
   if (sql_lock->table_count)
@@ -433,6 +436,7 @@ void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
     my_free(sql_lock);
   if (!errors)
     thd->clear_error();
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_VOID_RETURN;
 }
 

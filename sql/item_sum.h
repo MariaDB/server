@@ -354,7 +354,8 @@ public:
     VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, GROUP_CONCAT_FUNC,
     ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
     CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
-    NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC
+    NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC, PERCENTILE_CONT_FUNC,
+    PERCENTILE_DISC_FUNC
   };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
@@ -1034,6 +1035,7 @@ protected:
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   void reset_field();
   String *val_str(String *);
   const Type_handler *real_type_handler() const

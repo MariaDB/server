@@ -85,7 +85,8 @@ eval SHOW COLUMNS FROM information_schema.$is_table;
 SELECT * FROM information_schema.triggers
 WHERE trigger_catalog IS NOT NULL OR event_object_catalog IS NOT NULL
    OR action_condition IS NOT NULL OR action_reference_old_table IS NOT NULL
-   OR action_reference_new_table IS NOT NULL;
+   OR action_reference_new_table IS NOT NULL
+ORDER BY trigger_schema, trigger_name;
 
 
 --echo ##################################################################################

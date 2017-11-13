@@ -5,44 +5,22 @@
 -- source include/have_innodb.inc
 
 # Check the default value
-SET @orig = @@global.innodb_buffer_pool_load_now;
-SELECT @orig;
+SELECT @@global.innodb_buffer_pool_load_now;
 
-let $old_status= `SELECT variable_value FROM information_schema.global_status
-    WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status'`;
+# Make sure there is a dump file to load
 
-# A previous test could have run buffer pool dump already; 
-# in this case we want to make sure that the current time is different 
-# from the timestamp in the status variable.
-# We should have had a smart wait condition here, like the commented one below,
-# but we can't because of MDEV-9867, so there will be just sleep instead.
-# And it might be not enough to sleep one second, so we'll have to sleep two. 
-# let $wait_condition =
-#  SELECT TRIM(SUBSTR('$old_status', -8)) != DATE_FORMAT(CURTIME(), '%k:%i:%s');
-# -- source include/wait_condition.inc
-if (`SELECT count(*) > 0 FROM information_schema.global_status
-     WHERE (LOWER(variable_name) = 'innodb_buffer_pool_dump_status' or
-            LOWER(variable_name) = 'innodb_buffer_pool_load_status')
-            and variable_value LIKE '%completed at%'`)
-{
-  -- sleep 2
-}
-# Do the dump
-SET GLOBAL innodb_buffer_pool_dump_now = ON;
-
-# Wait for the dump to complete
-let $wait_condition =
-  SELECT variable_value != '$old_status'
-     AND SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) dump completed at '
-  FROM information_schema.global_status
-  WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status';
---disable_warnings
--- source include/wait_condition.inc
---enable_warnings
-
-# Confirm the file is really created
 -- let $file = `SELECT CONCAT(@@datadir, @@global.innodb_buffer_pool_filename)`
+-- error 0,1
 -- file_exists $file
+if ($errno)
+{
+  # Dump file does not exist, get it created
+  --disable_query_log
+  --disable_result_log
+  --source innodb_buffer_pool_dump_now_basic.test
+  --enable_result_log
+  --enable_query_log
+}
 
 let $old_load_status=
    `SELECT variable_value FROM information_schema.global_status

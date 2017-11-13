@@ -2918,18 +2918,9 @@ row_upd_clust_rec(
 	if (err == DB_SUCCESS) {
 success:
 		if (dict_index_is_online_ddl(index)) {
-			dtuple_t*	new_v_row = NULL;
-			dtuple_t*	old_v_row = NULL;
-
-			if (!(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
-				new_v_row = node->upd_row;
-				old_v_row = node->update->old_vrow;
-			}
-
 			row_log_table_update(
 				btr_cur_get_rec(btr_cur),
-				index, offsets, rebuilt_old_pk, new_v_row,
-				old_v_row);
+				index, offsets, rebuilt_old_pk);
 		}
 	}
 

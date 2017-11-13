@@ -646,6 +646,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  MAX_STATEMENT_TIME_SYM
 %token  MAX_USER_CONNECTIONS_SYM
 %token  MAXVALUE_SYM                 /* SQL-2003-N */
+%token  MEDIAN_SYM
 %token  MEDIUMBLOB
 %token  MEDIUMINT
 %token  MEDIUMTEXT
@@ -738,6 +739,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PARTITIONING_SYM
 %token  PASSWORD_SYM
 %token  PERCENT_RANK_SYM
+%token  PERCENTILE_CONT_SYM
+%token  PERCENTILE_DISC_SYM
 %token  PERIOD_SYM                    /* 32N2439 */
 %token  PERSISTENT_SYM
 %token  PHASE_SYM
@@ -967,6 +970,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  UTC_TIMESTAMP_SYM
 %token  UTC_TIME_SYM
 %token  VALUES                        /* SQL-2003-R */
+%token  VALUES_IN_SYM
+%token  VALUES_LESS_SYM
 %token  VALUE_SYM                     /* SQL-2003-R */
 %token  VARBINARY
 %token  VARCHAR                       /* SQL-2003-R */
@@ -988,6 +993,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  WINDOW_SYM
 %token  WHILE_SYM
 %token  WITH                          /* SQL-2003-R */
+%token  WITHIN
 %token  WITHOUT                       /* SQL-2003-R */
 %token  WITH_CUBE_SYM                 /* INTERNAL */
 %token  WITH_ROLLUP_SYM               /* INTERNAL */
@@ -1154,6 +1160,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         window_func_expr
         window_func
         simple_window_func
+        inverse_distribution_function
+        percentile_function
+        inverse_distribution_function_def
         explicit_cursor_attr
         function_call_keyword
         function_call_nonkeyword
@@ -4839,8 +4848,15 @@ part_type_def:
           { Lex->part_info->part_type= RANGE_PARTITION; }
         | RANGE_SYM part_column_list
           { Lex->part_info->part_type= RANGE_PARTITION; }
-        | LIST_SYM part_func
-          { Lex->part_info->part_type= LIST_PARTITION; }
+        | LIST_SYM 
+	  {
+	    Select->parsing_place= IN_PART_FUNC;
+          }
+          part_func
+          { 
+	    Lex->part_info->part_type= LIST_PARTITION; 
+	    Select->parsing_place= NO_MATTER;
+	  }
         | LIST_SYM part_column_list
           { Lex->part_info->part_type= LIST_PARTITION; }
         ;
@@ -5090,7 +5106,7 @@ opt_part_values:
             else
               part_info->part_type= HASH_PARTITION;
           }
-        | VALUES LESS_SYM THAN_SYM
+        | VALUES_LESS_SYM THAN_SYM
           {
             LEX *lex= Lex;
             partition_info *part_info= lex->part_info;
@@ -5104,7 +5120,7 @@ opt_part_values:
               part_info->part_type= RANGE_PARTITION;
           }
           part_func_max {}
-        | VALUES IN_SYM
+        | VALUES_IN_SYM
           {
             LEX *lex= Lex;
             partition_info *part_info= lex->part_info;
@@ -9396,6 +9412,7 @@ column_default_non_parenthesized_expr:
         | variable
         | sum_expr
         | window_func_expr
+        | inverse_distribution_function
         | ROW_SYM '(' expr ',' expr_list ')'
           {
             $5->push_front($3, thd->mem_root);
@@ -9498,7 +9515,7 @@ column_default_non_parenthesized_expr:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | VALUES '(' simple_ident_nospvar ')'
+        | VALUE_SYM '(' simple_ident_nospvar ')'
           {
             $$= new (thd->mem_root) Item_insert_value(thd, Lex->current_context(),
                                                         $3);
@@ -10723,6 +10740,67 @@ simple_window_func:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
+        ;
+inverse_distribution_function:
+          percentile_function OVER_SYM
+          '(' opt_window_partition_clause ')'
+          {
+            LEX *lex= Lex;
+            if (Select->add_window_spec(thd, lex->win_ref,
+                                       Select->group_list,
+                                       Select->order_list,
+                                       NULL))
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_window_func(thd, (Item_sum *) $1,
+                                                     thd->lex->win_spec);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+            if (Select->add_window_func((Item_window_func *) $$))
+              MYSQL_YYABORT;
+          }
+        ;
+
+percentile_function:
+          inverse_distribution_function_def  WITHIN GROUP_SYM '('
+           { Select->prepare_add_window_spec(thd); }
+           order_by_single_element_list ')'
+           {
+             $$= $1;
+           }
+        | MEDIAN_SYM '(' expr ')'
+          {
+            Item *args= new (thd->mem_root) Item_decimal(thd, "0.5", 3,
+                                                   thd->charset());
+            if (($$ == NULL) || (thd->is_error()))
+            {
+              MYSQL_YYABORT;
+            }
+            if (add_order_to_list(thd, $3,FALSE)) MYSQL_YYABORT;
+
+            $$= new (thd->mem_root) Item_sum_percentile_cont(thd, args);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        ;
+
+inverse_distribution_function_def:
+          PERCENTILE_CONT_SYM '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_percentile_cont(thd, $3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |  PERCENTILE_DISC_SYM '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_percentile_disc(thd, $3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        ;
+
+order_by_single_element_list:
+          ORDER_SYM BY order_ident order_dir
+          { if (add_order_to_list(thd, $3,(bool) $4)) MYSQL_YYABORT; }
         ;
 
 window_name:
@@ -12688,7 +12766,14 @@ expr_or_default:
 opt_insert_update:
           /* empty */
         | ON DUPLICATE_SYM { Lex->duplicates= DUP_UPDATE; }
-          KEY_SYM UPDATE_SYM insert_update_list
+          KEY_SYM UPDATE_SYM 
+          {
+	    Select->parsing_place= IN_UPDATE_ON_DUP_KEY;
+          }
+          insert_update_list
+          {
+	    Select->parsing_place= NO_MATTER;
+          }
         ;
 
 /* Update rows in a table */
@@ -14710,6 +14795,7 @@ keyword_directly_assignable:
         | UNICODE_SYM           {}
         | UNINSTALL_SYM         {}
         | UNBOUNDED_SYM         {}
+        | WITHIN                {}
         | WRAPPER_SYM           {}
         | XA_SYM                {}
         | UPGRADE_SYM           {}

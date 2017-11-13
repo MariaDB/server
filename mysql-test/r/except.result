@@ -525,3 +525,13 @@ t3	CREATE TABLE `t3` (
   `b1` blob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop tables t1,t2,t3;
+#
+# MDEV-13723: Server crashes in ha_heap::find_unique_row or
+# Assertion `0' failed in st_select_lex_unit::optimize with INTERSECT
+#
+CREATE TABLE t (i INT);
+INSERT INTO t VALUES (1),(2);
+SELECT * FROM t WHERE i != ANY ( SELECT 3 EXCEPT SELECT 3 );
+i
+drop table t;
+# End of 10.3 tests

@@ -1343,8 +1343,8 @@ static bool update_cached_long_query_time(sys_var *self, THD *thd,
 static Sys_var_double Sys_long_query_time(
        "long_query_time",
        "Log all queries that have taken more than long_query_time seconds "
-       "to execute to file. The argument will be treated as a decimal value "
-       "with microsecond precision",
+       "to execute to the slow query log file. The argument will be treated "
+       "as a decimal value with microsecond precision",
        SESSION_VAR(long_query_time_double),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(10),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
@@ -5825,3 +5825,11 @@ static Sys_var_mybool Sys_session_track_state_change(
        ON_UPDATE(update_session_track_state_change));
 
 #endif //EMBEDDED_LIBRARY
+
+static Sys_var_ulong Sys_in_subquery_conversion_threshold(
+       "in_subquery_conversion_threshold",
+       "The minimum number of scalar elements in the value list of "
+       "IN predicate that triggers its conversion to IN subquery",
+       SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(1000), BLOCK_SIZE(1));
+

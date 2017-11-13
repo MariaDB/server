@@ -588,8 +588,8 @@ select s1 from t1 where s1 in (select version from
 information_schema.tables) union select version from
 information_schema.tables;
 s1
-11
 10
+11
 drop table t1;
 SHOW CREATE TABLE INFORMATION_SCHEMA.character_sets;
 Table	Create Table
@@ -773,11 +773,18 @@ table_name
 v2
 v3
 select column_name from information_schema.columns
-where table_schema='test';
+where table_schema='test' and table_name='t4';
 column_name
 f1
+select column_name from information_schema.columns
+where table_schema='test' and table_name='v2';
+column_name
 Warnings:
 Warning	1356	View 'test.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+select column_name from information_schema.columns
+where table_schema='test' and table_name='v3';
+column_name
+Warnings:
 Warning	1356	View 'test.v3' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 select index_name from information_schema.statistics where table_schema='test';
 index_name
@@ -842,7 +849,8 @@ drop view a2, a1;
 drop table t_crashme;
 select table_schema,table_name, column_name from
 information_schema.columns
-where data_type = 'longtext' and table_schema != 'performance_schema';
+where data_type = 'longtext' and table_schema != 'performance_schema'
+order by binary table_name, ordinal_position;
 table_schema	table_name	column_name
 information_schema	ALL_PLUGINS	PLUGIN_DESCRIPTION
 information_schema	COLUMNS	COLUMN_DEFAULT
@@ -863,7 +871,8 @@ information_schema	TRIGGERS	ACTION_CONDITION
 information_schema	TRIGGERS	ACTION_STATEMENT
 information_schema	VIEWS	VIEW_DEFINITION
 select table_name, column_name, data_type from information_schema.columns
-where data_type = 'datetime' and table_name not like 'innodb_%';
+where data_type = 'datetime' and table_name not like 'innodb_%'
+order by binary table_name, ordinal_position;
 table_name	column_name	data_type
 EVENTS	EXECUTE_AT	datetime
 EVENTS	STARTS	datetime
@@ -1278,7 +1287,7 @@ sql security definer view v2 as select 1;
 connect  con16681,localhost,mysqltest_1,,test;
 connection con16681;
 select * from information_schema.views
-where table_name='v1' or table_name='v2';
+where table_name='v1' or table_name='v2' order by table_name;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
 def	test	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
 def	test	v2	select 1 AS `1`	NONE	NO	mysqltest_1@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
@@ -1291,7 +1300,7 @@ set @a:= '.';
 create table t1(f1 char(5));
 create table t2(f1 char(5));
 select concat(@a, table_name), @a, table_name
-from information_schema.tables where table_schema = 'test';
+from information_schema.tables where table_schema = 'test' order by table_name;
 concat(@a, table_name)	@a	table_name
 .t1	.	t1
 .t2	.	t2
@@ -1378,7 +1387,8 @@ create table t2 (f1 int(11), f2 int(11));
 select table_name from information_schema.tables
 where table_schema = 'test' and table_name not in
 (select table_name from information_schema.columns
-where table_schema = 'test' and column_name = 'f3');
+where table_schema = 'test' and column_name = 'f3')
+order by table_name;
 table_name
 t1
 t2
@@ -1387,7 +1397,7 @@ create table t1(f1 int);
 create view v1 as select f1+1 as a from t1;
 create table t2 (f1 int, f2 int);
 create view v2 as select f1+1 as a, f2 as b from t2;
-select table_name, is_updatable from information_schema.views;
+select table_name, is_updatable from information_schema.views order by table_name;
 table_name	is_updatable
 v1	NO
 v2	YES
@@ -1846,12 +1856,12 @@ rename table t2 to t3;
 connection default;
 # These statements should not be blocked by pending lock requests
 select table_name, column_name, data_type from information_schema.columns
-where table_schema = 'test' and table_name in ('t1', 't2');
+where table_schema = 'test' and table_name in ('t1', 't2') order by table_name, column_name;
 table_name	column_name	data_type
 t1	i	int
 t2	j	int
 select table_name, auto_increment from information_schema.tables
-where table_schema = 'test' and table_name in ('t1', 't2');
+where table_schema = 'test' and table_name in ('t1', 't2') order by table_name;
 table_name	auto_increment
 t1	NULL
 t2	1
@@ -2000,7 +2010,7 @@ connect  con12828477_2, localhost, root,,mysqltest;
 # Wait while the above RENAME is blocked.
 # Issue query to I_S which will open 't0' and get
 # blocked on 't1' because of RENAME.
-select table_name, auto_increment from information_schema.tables where table_schema='mysqltest';
+select table_name, auto_increment from information_schema.tables where table_schema='mysqltest' and table_name='t0' union select table_name, auto_increment from information_schema.tables where table_schema='mysqltest' and table_name<>'t0' order by table_name;
 connect  con12828477_3, localhost, root,,mysqltest;
 # Wait while the above SELECT is blocked.
 #

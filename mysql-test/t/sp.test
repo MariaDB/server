@@ -5299,7 +5299,7 @@ insert into t3 (id, county) values (1, 'York')|
 
 create procedure bug15441(c varchar(25))
 begin
-  update t3 set id=2, county=values(c);
+  update t3 set id=2, county=value(c);
 end|
 --error ER_BAD_FIELD_ERROR
 call bug15441('county')|
@@ -5326,7 +5326,7 @@ begin
   on duplicate key update county= values(county);
   select * from t3;
 
-  update t3 set id=2, county=values(id);
+  update t3 set id=2, county=value(id);
   select * from t3;
 end|
 call bug15441('Yale')|
@@ -5722,8 +5722,10 @@ create procedure bug18344_2() begin end|
 
 use test|
 
+--sorted_result
 select schema_name from information_schema.schemata where 
   schema_name like 'bug18344%'|
+--sorted_result
 select routine_name,routine_schema from information_schema.routines where
   routine_schema like 'bug18344%'|
 

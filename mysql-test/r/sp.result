@@ -4440,7 +4440,7 @@ create table t3 (id int not null primary key, county varchar(25))|
 insert into t3 (id, county) values (1, 'York')|
 create procedure bug15441(c varchar(25))
 begin
-update t3 set id=2, county=values(c);
+update t3 set id=2, county=value(c);
 end|
 call bug15441('county')|
 ERROR 42S22: Unknown column 'c' in 'field list'
@@ -4451,7 +4451,7 @@ declare c varchar(25) default "hello";
 insert into t3 (id, county) values (1, county)
 on duplicate key update county= values(county);
 select * from t3;
-update t3 set id=2, county=values(id);
+update t3 set id=2, county=value(id);
 select * from t3;
 end|
 call bug15441('Yale')|
@@ -4810,8 +4810,8 @@ select routine_name,routine_schema from information_schema.routines where
 routine_schema like 'bug18344%'|
 routine_name	routine_schema
 bug18344	bug18344_012345678901
-bug18344_2	bug18344_012345678901
 bug18344	bug18344_0123456789012
+bug18344_2	bug18344_012345678901
 bug18344_2	bug18344_0123456789012
 drop database bug18344_012345678901|
 drop database bug18344_0123456789012|

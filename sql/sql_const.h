@@ -175,6 +175,11 @@
 #define TABLE_ALLOC_BLOCK_SIZE		1024
 #define WARN_ALLOC_BLOCK_SIZE		2048
 #define WARN_ALLOC_PREALLOC_SIZE	1024
+/*
+  Note that if we are using 32K or less, then TCmalloc will use a local
+  heap without locks!
+*/
+#define SHOW_ALLOC_BLOCK_SIZE           (32768-MALLOC_OVERHEAD)
 
 /*
   The following parameters is to decide when to use an extra cache to

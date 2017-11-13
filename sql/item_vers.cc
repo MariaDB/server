@@ -44,7 +44,8 @@ VTQ_common<Item_func_X>::check_hton()
   DBUG_ASSERT(hton);
   if (!(hton->flags & HTON_NATIVE_SYS_VERSIONING) && hton->db_type != DB_TYPE_HEAP)
   {
-    my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), Item::name.str ? Item::name.str : this->func_name());
+    my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), this->Item::name.str ?
+      this->Item::name.str : this->func_name());
     hton= NULL;
   }
 }

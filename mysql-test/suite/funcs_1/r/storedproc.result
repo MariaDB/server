@@ -2775,7 +2775,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT * from t1 where f2=f1' at line 1
 CREATE PROCEDURE values()
 SELECT * from t1 where f2=f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'values()
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()
 SELECT * from t1 where f2=f1' at line 1
 CREATE PROCEDURE varbinary()
 SELECT * from t1 where f2=f1;
@@ -5596,7 +5596,7 @@ CREATE PROCEDURE sp1()
 values:BEGIN
 SELECT @x;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'values:BEGIN
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':BEGIN
 SELECT @x;
 END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
@@ -9150,7 +9150,7 @@ CREATE PROCEDURE sp1()
 BEGIN
 declare values char;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'values char;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'char;
 END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
@@ -11494,8 +11494,9 @@ BEGIN
 declare values condition for sqlstate '02000';
 declare exit handler for values set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'values condition for sqlstate '02000';
-declare exit handler for values set @var2' at line 3
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'condition for sqlstate '02000';
+declare exit handler for values set @var2 = 1;
+E' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -13607,7 +13608,7 @@ CREATE PROCEDURE sp1( )
 BEGIN
 declare values handler for sqlstate '02000' set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'values handler for sqlstate '02000' set @var2 = 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'handler for sqlstate '02000' set @var2 = 1;
 END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:

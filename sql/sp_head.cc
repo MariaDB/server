@@ -2002,7 +2002,6 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       thd->get_stmt_da()->set_overwrite_status(false);
     }
 
-    thd_proc_info(thd, "closing tables");
     close_thread_tables(thd);
     thd_proc_info(thd, 0);
 
@@ -3126,7 +3125,6 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
       thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
       thd->get_stmt_da()->set_overwrite_status(false);
     }
-    thd_proc_info(thd, "closing tables");
     close_thread_tables(thd);
     thd_proc_info(thd, 0);
 

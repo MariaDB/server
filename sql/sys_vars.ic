@@ -2723,9 +2723,9 @@ public:
   { DBUG_ASSERT(false);  }
   void global_save_default(THD *thd, set_var *var)
   { DBUG_ASSERT(false); }
-  uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
+  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
   { return valptr(thd, session_var(thd, st_vers_current_time)); }
-  uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
+  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
   { return valptr(thd, global_var(st_vers_current_time)); }
   uchar *default_value_ptr(THD *thd)
   { return (uchar *)option.def_value; }

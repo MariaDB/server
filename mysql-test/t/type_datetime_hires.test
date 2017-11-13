@@ -57,6 +57,7 @@ INSERT INTO t2 VALUES
 ('2006-10-02 21:50:01.567',8),
 ('2006-10-02 21:50:01.5678',9);
 
+--sorted_result
 select table_name,partition_name,partition_method,partition_expression,partition_description,table_rows from information_schema.partitions where table_name in ('t1', 't2');
 
 drop table t1, t2;

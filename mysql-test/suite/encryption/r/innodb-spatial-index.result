@@ -5,7 +5,7 @@ ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
 c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB;
 ALTER TABLE t1 ENCRYPTED=YES;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTED'
 DROP TABLE t1;
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
 c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=YES ENGINE=INNODB;

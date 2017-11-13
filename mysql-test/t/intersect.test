@@ -190,3 +190,4 @@ show create view v1;
 drop view v1;
 drop tables t1,t2,t3;
 
+--echo # End of 10.3 tests
