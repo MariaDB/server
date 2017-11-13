@@ -48,7 +48,8 @@ create or replace procedure show_tables()
 begin
 show tables;
 select table_name, table_schema from information_schema.tables
-where table_schema not in ('mysql', 'performance_schema', 'information_schema', 'mtr');
+where table_schema not in ('mysql', 'performance_schema', 'information_schema', 'mtr')
+order by table_name;
 end~~
 set versioning_alter_history= keep;
 create table t0 (z int) with system versioning;
@@ -150,7 +151,7 @@ x0_vtmd
 drop table x0_vtmd;
 rename table x0 to d0;
 Warnings:
-Warning	4115	`test.d0_vtmd` table already exists!
+Warning	4122	`test.d0_vtmd` table already exists!
 show tables;
 Tables_in_test
 d0
@@ -331,11 +332,11 @@ t3_TIMESTAMP_SUFFIX
 t3_TIMESTAMP_SUFFIX
 t3_vtmd
 table_name	table_schema
+t0_TIMESTAMP_SUFFIX	test
+t0_TIMESTAMP_SUFFIX	test
+t0_TIMESTAMP_SUFFIX	test
+t0_TIMESTAMP_SUFFIX	test
 t1_TIMESTAMP_SUFFIX	db1
-t0_TIMESTAMP_SUFFIX	test
-t0_TIMESTAMP_SUFFIX	test
-t0_TIMESTAMP_SUFFIX	test
-t0_TIMESTAMP_SUFFIX	test
 t2	test
 t2_vtmd	test
 t3	test
@@ -353,7 +354,7 @@ t3_vtmd
 u0_vtmd
 u0_vtmd_vtmd
 Warnings:
-Warning	4115	Table `test.u0_vtmd` is not a VTMD table
+Warning	4122	Table `test.u0_vtmd` is not a VTMD table
 set versioning_alter_history= survive;
 create or replace table t (x int) with system versioning;
 select * from t for system_time all;

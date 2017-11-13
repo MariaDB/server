@@ -147,7 +147,7 @@ ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERS
 alter table t1 add partition (
 partition p1 versioning);
 Warnings:
-Warning	4105	Maybe missing parameters: no rotation condition for multiple `VERSIONING` partitions.
+Warning	4112	Maybe missing parameters: no rotation condition for multiple `VERSIONING` partitions.
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -290,7 +290,7 @@ x
 2
 delete from t1;
 Warnings:
-Note	4106	Switching from partition `p0` to `p1`
+Note	4113	Switching from partition `p0` to `p1`
 select * from t1 partition (p0) for system_time all;
 x
 1
@@ -300,7 +300,7 @@ x
 insert into t1 values (3);
 delete from t1;
 Warnings:
-Warning	4104	Using full partition `p1`, need more VERSIONING partitions!
+Warning	4111	Using full partition `p1`, need more VERSIONING partitions!
 select * from t1 partition (p1) for system_time all;
 x
 2
@@ -333,7 +333,7 @@ x
 insert into t1 values (4);
 delete from t1;
 Warnings:
-Note	4106	Switching from partition `p0` to `p1`
+Note	4113	Switching from partition `p0` to `p1`
 select * from t1 partition (p1) for system_time all;
 x
 4
@@ -355,8 +355,8 @@ x
 2
 delete from t1;
 Warnings:
-Note	4106	Switching from partition `p0` to `p1`
-Warning	4104	Using full partition `p1`, need more VERSIONING partitions!
+Note	4113	Switching from partition `p0` to `p1`
+Warning	4111	Using full partition `p1`, need more VERSIONING partitions!
 select * from t1 partition (p0sp0) for system_time all;
 x
 1

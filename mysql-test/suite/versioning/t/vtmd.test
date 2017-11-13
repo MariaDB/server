@@ -61,7 +61,8 @@ create or replace procedure show_tables()
 begin
   show tables;
   select table_name, table_schema from information_schema.tables
-    where table_schema not in ('mysql', 'performance_schema', 'information_schema', 'mtr');
+    where table_schema not in ('mysql', 'performance_schema', 'information_schema', 'mtr')
+    order by table_name;
 end~~
 delimiter ;~~
 
