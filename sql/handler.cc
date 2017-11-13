@@ -6772,6 +6772,8 @@ bool Vers_parse_info::check_and_fix_implicit(
   HA_CREATE_INFO *create_info,
   const char* table_name)
 {
+  DBUG_ASSERT(!without_system_versioning);
+
   SELECT_LEX &slex= thd->lex->select_lex;
   int vers_tables= 0;
   bool from_select= slex.item_list.elements ? true : false;
@@ -6816,13 +6818,6 @@ bool Vers_parse_info::check_and_fix_implicit(
     // All is correct but this table is not versioned.
     create_info->options&= ~HA_VERSIONED_TABLE;
     return false;
-  }
-
-  if (without_system_versioning)
-  {
-    my_error_as(ER_VERS_WRONG_PARAMS, ER_NOT_ALLOWED, MYF(0), table_name,
-             "WITHOUT SYSTEM VERSIONING");
-    return true;
   }
 
   if ((system_time.start || system_time.end || as_row.start || as_row.end) &&

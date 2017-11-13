@@ -270,10 +270,6 @@ create or replace table t1 (
 A8 int without system versioning
 ) with system versioning;
 ERROR HY000: Wrong parameters for `t1`: no columns defined 'WITH SYSTEM VERSIONING'
-create table t(
-a11 int
-) without system versioning;
-ERROR HY000: Wrong parameters for `t`: not allowed 'WITHOUT SYSTEM VERSIONING'
 create or replace table t1 (a int) with system versioning;
 create temporary table tmp with system versioning select * from t1;
 create or replace table t1 (a int) with system versioning;

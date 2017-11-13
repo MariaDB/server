@@ -890,7 +890,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
    INTERNAL   : Not a real token, lex optimization
    OPERATOR   : SQL operator
    FUTURE-USE : Reserved for future use
-   32N2439    : Reserver keywords per ISO/IEC PDTR 19075-2,
+   32N2439    : Reserved keywords per ISO/IEC PDTR 19075-2,
                 http://jtc1sc32.org/doc/N2401-2450/32N2439-text_for_ballot-PDTR_19075-2.pdf
                 System Versioned Tables
 
@@ -2539,7 +2539,7 @@ create:
                                                      sequence_definition()))
                MYSQL_YYABORT;
          }
-         opt_sequence opt_create_sequence_options
+         opt_sequence opt_create_table_options
          {
             LEX *lex= thd->lex;
 
@@ -5774,31 +5774,20 @@ create_or_replace:
           }
          ;
 
-opt_create_sequence_options:
+opt_create_table_options:
           /* empty */
         | create_table_options
         ;
 
-opt_create_table_options:
-          /* empty */
-        | create_table_options_versioning
-        ;
-
-alter_table_options:
-          create_table_option_versioning
-        | create_table_option_versioning alter_table_options
+create_table_options_space_separated:
+          create_table_option
+        | create_table_option create_table_options_space_separated
         ;
 
 create_table_options:
           create_table_option
         | create_table_option     create_table_options
         | create_table_option ',' create_table_options
-        ;
-
-create_table_options_versioning:
-          create_table_option_versioning
-        | create_table_option_versioning     create_table_options_versioning
-        | create_table_option_versioning ',' create_table_options_versioning
         ;
 
 create_table_option:
@@ -6045,10 +6034,6 @@ create_table_option:
 	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
             Lex->create_info.sequence= ($3 == HA_CHOICE_YES);
 	  }
-        ;
-
-create_table_option_versioning:
-          create_table_option
         | versioning_option
         ;
 
@@ -6062,10 +6047,6 @@ versioning_option:
           {
             Lex->vers_get_info().with_system_versioning= true;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
-          }
-	| WITHOUT SYSTEM VERSIONING_SYM
-          {
-            Lex->vers_get_info().without_system_versioning= true;
           }
         ;
 
@@ -6904,7 +6885,7 @@ asrow_attribute:
           {
             LEX *lex=Lex;
             lex->last_field->flags|= UNIQUE_KEY_FLAG;
-            lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX; 
+            lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
         ;
@@ -8060,7 +8041,7 @@ alter_list_item:
               MYSQL_YYABORT;
             Lex->alter_info.flags|= Alter_info::ALTER_OPTIONS;
           }
-        | alter_table_options
+        | create_table_options_space_separated
           {
             LEX *lex=Lex;
             lex->alter_info.flags|= Alter_info::ALTER_OPTIONS;
@@ -8081,6 +8062,15 @@ alter_list_item:
           }
         | alter_algorithm_option
         | alter_lock_option
+        | ADD SYSTEM VERSIONING_SYM
+          {
+            Lex->vers_get_info().with_system_versioning= true;
+            Lex->create_info.options|= HA_VERSIONED_TABLE;
+          }
+        | DROP SYSTEM VERSIONING_SYM
+          {
+            Lex->vers_get_info().without_system_versioning= true;
+          }
         ;
 
 opt_index_lock_algorithm:

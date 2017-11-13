@@ -3,12 +3,12 @@ create table t(
 );
 show create table t;
 --error ER_VERS_WRONG_PARAMS
-alter table t without system versioning;
+alter table t drop system versioning;
 
-alter table t with system versioning;
+alter table t add system versioning;
 show create table t;
 
-alter table t without system versioning;
+alter table t drop system versioning;
 show create table t;
 
 --error ER_VERS_FIELD_WRONG_TYPE
@@ -16,34 +16,34 @@ alter table t
   add column trx_start bigint(20) unsigned generated always as row start,
   add column trx_end bigint(20) unsigned generated always as row end,
   add period for system_time(trx_start, trx_end),
-  with system versioning;
+  add system versioning;
 
 --error ER_VERS_FIELD_WRONG_TYPE
 alter table t
   add column trx_start timestamp generated always as row start,
   add column trx_end timestamp generated always as row end,
   add period for system_time(trx_start, trx_end),
-  with system versioning;
+  add system versioning;
 
 --error ER_PARSE_ERROR
 alter table t
   add column trx_start timestamp(6) not null generated always as row start,
   add column trx_end timestamp(6) not null generated always as row end,
   add period for system_time(trx_start, trx_end),
-  with system versioning;
+  add system versioning;
 
 alter table t
   add column trx_start timestamp(6) generated always as row start,
   add column trx_end timestamp(6) generated always as row end,
   add period for system_time(trx_start, trx_end),
-  with system versioning;
+  add system versioning;
 show create table t;
 
 alter table t drop column trx_start, drop column trx_end;
-alter table t without system versioning;
+alter table t drop system versioning;
 show create table t;
 
-alter table t with system versioning;
+alter table t add system versioning;
 show create table t;
 
 alter table t add column b int;
@@ -93,7 +93,7 @@ create or replace table t(
   a int
 );
 insert into t values(1);
-alter table t with system versioning;
+alter table t add system versioning;
 show create table t;
 insert into t values(2);
 select * from t for system_time all;
@@ -109,7 +109,7 @@ show create table t;
 select * from t;
 select * from t for system_time all;
 
-alter table t without system versioning;
+alter table t drop system versioning;
 select * from t;
 show create table t;
 
@@ -118,7 +118,7 @@ alter table t modify a int with system versioning;
 --error ER_VERS_WRONG_PARAMS
 alter table t modify a int without system versioning;
 
-alter table t with system versioning;
+alter table t add system versioning;
 
 alter table t modify a int without system versioning;
 show create table t;
@@ -139,23 +139,23 @@ alter table t
   add column trx_start timestamp(6) generated always as row start,
   add column trx_end timestamp(6) generated always as row end,
   add period for system_time(trx_start, trx_end),
-  with system versioning;
+  add system versioning;
 
 call verify_vtq;
 alter table t
   add column trx_start bigint(20) unsigned generated always as row start,
   add column trx_end bigint(20) unsigned generated always as row end,
   add period for system_time(trx_start, trx_end),
-  with system versioning;
+  add system versioning;
 call verify_vtq;
 
 show create table t;
 alter table t drop column trx_start, drop column trx_end;
 
 call verify_vtq;
-alter table t without system versioning, algorithm=copy;
+alter table t drop system versioning, algorithm=copy;
 call verify_vtq;
-alter table t with system versioning, algorithm=copy;
+alter table t add system versioning, algorithm=copy;
 call verify_vtq;
 show create table t;
 
@@ -173,9 +173,9 @@ show create table t;
 select * from t for system_time all;
 call verify_vtq;
 
-alter table t without system versioning, algorithm=inplace;
+alter table t drop system versioning, algorithm=inplace;
 call verify_vtq;
-alter table t with system versioning, algorithm=inplace;
+alter table t add system versioning, algorithm=inplace;
 call verify_vtq;
 show create table t;
 
@@ -192,7 +192,7 @@ alter table t drop column b, algorithm=inplace;
 show create table t;
 select * from t for system_time all;
 
-alter table t without system versioning, algorithm=copy;
+alter table t drop system versioning, algorithm=copy;
 show create table t;
 
 create or replace table t (a int) with system versioning engine=innodb;
@@ -254,16 +254,16 @@ create or replace table t (
 select * from t;
 
 --error ER_VERS_SYS_FIELD_NOT_HIDDEN
-alter table t without system versioning;
+alter table t drop system versioning;
 alter table t drop column sys_trx_start;
 select * from t;
 
 --error ER_VERS_SYS_FIELD_NOT_HIDDEN
-alter table t without system versioning;
+alter table t drop system versioning;
 alter table t drop column sys_trx_end;
 select * from t;
 
-alter table t without system versioning;
+alter table t drop system versioning;
 show create table t;
 
 set versioning_alter_history = DROP;

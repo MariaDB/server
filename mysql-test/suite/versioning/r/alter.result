@@ -6,9 +6,9 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-alter table t without system versioning;
+alter table t drop system versioning;
 ERROR HY000: Wrong parameters for `t`: table is not versioned
-alter table t with system versioning;
+alter table t add system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -17,7 +17,7 @@ t	CREATE TABLE `t` (
   `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-alter table t without system versioning;
+alter table t drop system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -27,26 +27,26 @@ alter table t
 add column trx_start bigint(20) unsigned generated always as row start,
 add column trx_end bigint(20) unsigned generated always as row end,
 add period for system_time(trx_start, trx_end),
-with system versioning;
+add system versioning;
 ERROR HY000: `trx_start` must be of type `TIMESTAMP(6)` for versioned table `t`
 alter table t
 add column trx_start timestamp generated always as row start,
 add column trx_end timestamp generated always as row end,
 add period for system_time(trx_start, trx_end),
-with system versioning;
+add system versioning;
 ERROR HY000: `trx_start` must be of type `TIMESTAMP(6)` for versioned table `t`
 alter table t
 add column trx_start timestamp(6) not null generated always as row start,
 add column trx_end timestamp(6) not null generated always as row end,
 add period for system_time(trx_start, trx_end),
-with system versioning;
+add system versioning;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'generated always as row start,
 add column trx_end timestamp(6) not null generate' at line 2
 alter table t
 add column trx_start timestamp(6) generated always as row start,
 add column trx_end timestamp(6) generated always as row end,
 add period for system_time(trx_start, trx_end),
-with system versioning;
+add system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -56,13 +56,13 @@ t	CREATE TABLE `t` (
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t drop column trx_start, drop column trx_end;
-alter table t without system versioning;
+alter table t drop system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-alter table t with system versioning;
+alter table t add system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -160,7 +160,7 @@ create or replace table t(
 a int
 );
 insert into t values(1);
-alter table t with system versioning;
+alter table t add system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -211,7 +211,7 @@ a	b
 3	NULL
 2	NULL
 1	NULL
-alter table t without system versioning;
+alter table t drop system versioning;
 select * from t;
 a	b
 3	NULL
@@ -226,7 +226,7 @@ alter table t modify a int with system versioning;
 ERROR HY000: Wrong parameters for `t`: table is not versioned
 alter table t modify a int without system versioning;
 ERROR HY000: Wrong parameters for `t`: table is not versioned
-alter table t with system versioning;
+alter table t add system versioning;
 alter table t modify a int without system versioning;
 show create table t;
 Table	Create Table
@@ -333,7 +333,7 @@ alter table t
 add column trx_start timestamp(6) generated always as row start,
 add column trx_end timestamp(6) generated always as row end,
 add period for system_time(trx_start, trx_end),
-with system versioning;
+add system versioning;
 ERROR HY000: `trx_start` must be of type `BIGINT(20) UNSIGNED` for versioned table `t`
 call verify_vtq;
 No	A	B	C	D
@@ -341,7 +341,7 @@ alter table t
 add column trx_start bigint(20) unsigned generated always as row start,
 add column trx_end bigint(20) unsigned generated always as row end,
 add period for system_time(trx_start, trx_end),
-with system versioning;
+add system versioning;
 call verify_vtq;
 No	A	B	C	D
 1	1	1	1	1
@@ -356,10 +356,10 @@ t	CREATE TABLE `t` (
 alter table t drop column trx_start, drop column trx_end;
 call verify_vtq;
 No	A	B	C	D
-alter table t without system versioning, algorithm=copy;
+alter table t drop system versioning, algorithm=copy;
 call verify_vtq;
 No	A	B	C	D
-alter table t with system versioning, algorithm=copy;
+alter table t add system versioning, algorithm=copy;
 call verify_vtq;
 No	A	B	C	D
 1	1	1	1	1
@@ -409,10 +409,10 @@ a
 1
 call verify_vtq;
 No	A	B	C	D
-alter table t without system versioning, algorithm=inplace;
+alter table t drop system versioning, algorithm=inplace;
 call verify_vtq;
 No	A	B	C	D
-alter table t with system versioning, algorithm=inplace;
+alter table t add system versioning, algorithm=inplace;
 call verify_vtq;
 No	A	B	C	D
 1	1	1	1	1
@@ -460,7 +460,7 @@ select * from t for system_time all;
 a
 1
 2
-alter table t without system versioning, algorithm=copy;
+alter table t drop system versioning, algorithm=copy;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -554,17 +554,17 @@ period for system_time(sys_trx_start, sys_trx_end)
 ) with system versioning;
 select * from t;
 a	sys_trx_start	sys_trx_end
-alter table t without system versioning;
+alter table t drop system versioning;
 ERROR HY000: System versioning field 'sys_trx_start' is not hidden
 alter table t drop column sys_trx_start;
 select * from t;
 a	sys_trx_end
-alter table t without system versioning;
+alter table t drop system versioning;
 ERROR HY000: System versioning field 'sys_trx_end' is not hidden
 alter table t drop column sys_trx_end;
 select * from t;
 a
-alter table t without system versioning;
+alter table t drop system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
