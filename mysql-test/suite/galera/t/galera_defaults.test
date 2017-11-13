@@ -57,6 +57,8 @@ ORDER BY VARIABLE_NAME;
 	$wsrep_provider_options =~ s/repl\.proto_max = .*?;/<REPL_PROTO_MAX>;/sgio;
 	$wsrep_provider_options =~ s/signal = .*?;\s*//sgio;
 	$wsrep_provider_options =~ s/dbug = .*?;\s*//sgio;
+	$wsrep_provider_options =~ s/gcs.recv_q_hard_limit = .*?;\s*/<RECV_Q_HARD_LIMIT>;/sgio;
+	$wsrep_provider_options =~ s/repl.proto_max = .*?;\s*/<REPL_PROTO_MAX>;/sgio;
 	print $wsrep_provider_options."\n";
 EOF
 
