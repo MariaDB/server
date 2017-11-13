@@ -2212,7 +2212,7 @@ buf_resize_status(
 
 	va_start(ap, fmt);
 
-	ut_vsnprintf(
+	vsnprintf(
 		export_vars.innodb_buffer_pool_resize_status,
 		sizeof(export_vars.innodb_buffer_pool_resize_status),
 		fmt, ap);
