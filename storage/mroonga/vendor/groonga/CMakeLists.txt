@@ -355,13 +355,13 @@ if(NOT ${GRN_WITH_LZ4} STREQUAL "no")
   if(GRN_WITH_BUNDLED_LZ4)
     set(LIBLZ4_INCLUDE_DIRS
       "${CMAKE_CURRENT_SOURCE_DIR}/vendor/lz4-${GRN_BUNDLED_LZ4_VERSION}/lib")
-    set(LIBLZ4_LIBS liblz4)
+    set(LZ4_LIBS liblz4)
   else()
     if(NOT DEFINED LIBLZ4_FOUND)
       pkg_check_modules(LIBLZ4 liblz4)
     endif()
     if(LIBLZ4_FOUND)
-      find_library(LIBLZ4_LIBS
+      find_library(LZ4_LIBS
 	NAMES ${LIBLZ4_LIBRARIES}
 	PATHS ${LIBLZ4_LIBRARY_DIRS}
 	NO_DEFAULT_PATH)

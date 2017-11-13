@@ -94,7 +94,7 @@ set(GRN_ALL_LIBRARIES
     ${RT_LIBS}
     ${PTHREAD_LIBS}
     ${Z_LIBS}
-    ${LIBLZ4_LIBS}
+    ${LZ4_LIBS}
     ${LIBZSTD_LIBS}
     ${MESSAGE_PACK_LIBS}
     ${DL_LIBS}
