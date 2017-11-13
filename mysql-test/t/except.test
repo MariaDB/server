@@ -81,3 +81,17 @@ create table t3 (select a,b,b1 from t1) except (select c,d,d1 from t2);
 show create table t3;
 
 drop tables t1,t2,t3;
+
+--echo #
+--echo # MDEV-13723: Server crashes in ha_heap::find_unique_row or
+--echo # Assertion `0' failed in st_select_lex_unit::optimize with INTERSECT
+--echo #
+CREATE TABLE t (i INT);
+INSERT INTO t VALUES (1),(2);
+
+SELECT * FROM t WHERE i != ANY ( SELECT 3 EXCEPT SELECT 3 );
+
+drop table t;
+
+
+--echo # End of 10.3 tests

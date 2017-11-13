@@ -1299,11 +1299,11 @@ bool st_select_lex_unit::optimize()
       {
         item->assigned(0); // We will reinit & rexecute unit
         item->reset();
-        if (table->is_created())
-        {
-          table->file->ha_delete_all_rows();
-          table->file->info(HA_STATUS_VARIABLE);
-        }
+      }
+      if (table->is_created())
+      {
+        table->file->ha_delete_all_rows();
+        table->file->info(HA_STATUS_VARIABLE);
       }
       /* re-enabling indexes for next subselect iteration */
       if (union_distinct && table->file->ha_enable_indexes(HA_KEY_SWITCH_ALL))
