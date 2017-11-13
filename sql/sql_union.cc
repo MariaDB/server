@@ -302,7 +302,8 @@ int select_union_recursive::send_data(List<Item> &values)
 {
   int rc= select_unit::send_data(values);
 
-  if (write_err != HA_ERR_FOUND_DUPP_KEY && 
+  if (rc == 0 &&
+      write_err != HA_ERR_FOUND_DUPP_KEY &&
       write_err != HA_ERR_FOUND_DUPP_UNIQUE)
   { 
     int err;
