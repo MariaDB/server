@@ -4184,8 +4184,7 @@ mariadb_dyncol_json_internal(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json,
     }
     else
     {
-      if ((rc= mariadb_dyncol_val_str(json, &val,
-                                      &my_charset_utf8_general_ci, '"')) < 0)
+      if ((rc= mariadb_dyncol_val_str(json, &val, DYNCOL_UTF, '"')) < 0)
         goto err;
     }
   }
