@@ -1420,15 +1420,14 @@ int ha_commit_trans(THD *thd, bool all)
     {
       handlerton *ht= hi->ht();
       if ((ht->flags & HTON_NATIVE_SYS_VERSIONING) &&
-        thd->lex->sql_command == SQLCOM_ALTER_TABLE ?
+        (thd->lex->sql_command == SQLCOM_ALTER_TABLE ?
         hi->is_trx_tmp_read_write() :
-        hi->is_trx_read_write())
+        hi->is_trx_read_write()))
       {
         TR_table trt(thd, true);
-        bool updated;
-        if (trt.update(updated))
+        if (trt.update())
           goto err;
-        if (updated && all)
+        if (all)
           trans_commit_stmt(thd);
         break;
       }
@@ -4300,14 +4299,6 @@ bool handler::ha_commit_inplace_alter_table(TABLE *altered_table,
                                                    table->s->table_name.str,
                                                    MDL_EXCLUSIVE) ||
                !commit);
-
-  if (commit && native_versioned())
-  {
-    TR_table trt(ha_thd(), true);
-    bool updated;
-    if (trt.update(updated))
-      return true;
-  }
 
    return commit_inplace_alter_table(altered_table, ha_alter_info, commit);
 }

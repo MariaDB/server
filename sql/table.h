@@ -2946,12 +2946,13 @@ public:
     FIELD_COUNT
   };
   TR_table(THD *_thd, bool rw= false);
+  bool open();
   ~TR_table();
   THD *get_thd() const { return thd; }
   void store(uint field_id, ulonglong val);
   void store(uint field_id, timeval ts);
   void store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts);
-  bool update(bool &updated);
+  bool update();
   // return true if found; false if not found or error
   bool query(ulonglong trx_id);
   bool query(MYSQL_TIME &commit_time, bool backwards);
@@ -2979,7 +2980,7 @@ public:
     DBUG_ASSERT(iso_level <= ISO_SERIALIZABLE);
     store(FLD_ISO_LEVEL, iso_level + 1);
   }
-  bool check() const;
+  bool check();
 };
 
 #endif /* MYSQL_CLIENT */

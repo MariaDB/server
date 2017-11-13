@@ -8484,22 +8484,38 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   return names + opt;
 }
 
-TR_table::TR_table(THD* _thd, bool rw) : thd(_thd)
+TR_table::TR_table(THD* _thd, bool rw) :
+  thd(_thd), open_tables_backup(NULL)
 {
   init_one_table(LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
                  LEX_STRING_WITH_LEN(TRANSACTION_REG_NAME),
                  TRANSACTION_REG_NAME.str, rw ? TL_WRITE : TL_READ);
+}
+
+bool TR_table::open()
+{
+  DBUG_ASSERT(!table);
   open_tables_backup= new Open_tables_backup;
-  if (open_tables_backup)
-    open_log_table(thd, this, open_tables_backup);
-  else
+  if (!open_tables_backup)
+  {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+
+  All_tmp_tables_list *temporary_tables= thd->temporary_tables;
+  bool error= !open_log_table(thd, this, open_tables_backup);
+  thd->temporary_tables= temporary_tables;
+
+  return error;
 }
 
 TR_table::~TR_table()
 {
   if (table)
+  {
+    thd->temporary_tables= NULL;
     close_log_table(thd, open_tables_backup);
+  }
   delete open_tables_backup;
 }
 
@@ -8532,9 +8548,9 @@ enum_tx_isolation TR_table::iso_level() const
   return res;
 }
 
-bool TR_table::update(bool &updated)
+bool TR_table::update()
 {
-  if (!table)
+  if (!table && open())
     return true;
 
   DBUG_ASSERT(table->s);
@@ -8542,6 +8558,7 @@ bool TR_table::update(bool &updated)
   DBUG_ASSERT(hton);
   DBUG_ASSERT(hton->flags & HTON_NATIVE_SYS_VERSIONING);
 
+  bool updated;
   if ((updated= hton->vers_get_trt_data(*this)))
   {
     int error= table->file->ha_write_row(table->record[0]);
@@ -8557,7 +8574,7 @@ bool TR_table::update(bool &updated)
 #define newx new (thd->mem_root)
 bool TR_table::query(ulonglong trx_id)
 {
-  if (!table)
+  if (!table && open())
     return false;
   SQL_SELECT_auto select;
   READ_RECORD info;
@@ -8587,7 +8604,7 @@ bool TR_table::query(ulonglong trx_id)
 
 bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
 {
-  if (!table)
+  if (!table && open())
     return false;
   SQL_SELECT_auto select;
   READ_RECORD info;
@@ -8684,13 +8701,13 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
   return false;
 }
 
-bool TR_table::check() const
+bool TR_table::check()
 {
   // InnoDB may not be loaded
   if (!ha_resolve_by_legacy_type(thd, DB_TYPE_INNODB))
     return false;
 
-  if (!table)
+  if (open())
     return true;
 
   if (table->file->ht->db_type != DB_TYPE_INNODB)

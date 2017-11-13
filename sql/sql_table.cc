@@ -7428,11 +7428,22 @@ static bool mysql_inplace_alter_table(THD *thd,
   DEBUG_SYNC(thd, "alter_table_inplace_before_commit");
   THD_STAGE_INFO(thd, stage_alter_inplace_commit);
 
-  if (table->file->ha_commit_inplace_alter_table(altered_table,
-                                                 ha_alter_info,
-                                                 true))
   {
-    goto rollback;
+    TR_table trt(thd, true);
+    if (table->file->native_versioned())
+    {
+      if (trt.update())
+        return true;
+    }
+
+    if (table->file->ha_commit_inplace_alter_table(altered_table,
+                                                  ha_alter_info,
+                                                  true))
+    {
+      goto rollback;
+    }
+
+    thd->drop_temporary_table(altered_table, NULL, false);
   }
 
   close_all_tables_for_name(thd, table->s,
@@ -7441,8 +7452,6 @@ static bool mysql_inplace_alter_table(THD *thd,
                             HA_EXTRA_NOT_USED,
                             NULL);
   table_list->table= table= NULL;
-
-  thd->drop_temporary_table(altered_table, NULL, false);
 
   /*
     Replace the old .FRM with the new .FRM, but keep the old name for now.
