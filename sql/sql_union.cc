@@ -1384,6 +1384,9 @@ bool st_select_lex_unit::exec()
   if (saved_error)
     DBUG_RETURN(saved_error);
 
+  if (union_result)
+    union_result->init();
+
   if (uncacheable || !item || !item->assigned() || describe)
   {
     if (!fake_select_lex && !(with_element && with_element->is_recursive))
