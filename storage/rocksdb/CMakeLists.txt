@@ -16,6 +16,10 @@ IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile")
   SKIP_ROCKSDB_PLUGIN("Missing Makefile in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
 
+IF (CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
+  SKIP_ROCKSDB_PLUGIN("rocksdb cannot be compiled under OpenBSD")
+ENDIF()
+
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1 -DROCKSDB_SCHED_GETCPU_PRESENT)
