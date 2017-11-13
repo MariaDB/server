@@ -88,6 +88,8 @@ def	mysql	PRIMARY	mysql	time_zone_leap_second
 def	mysql	PRIMARY	mysql	time_zone_name
 def	mysql	PRIMARY	mysql	time_zone_transition
 def	mysql	PRIMARY	mysql	time_zone_transition_type
+def	mysql	commit_id	mysql	transaction_registry
+def	mysql	PRIMARY	mysql	transaction_registry
 def	mysql	PRIMARY	mysql	user
 def	mysql	PRIMARY	mysql	vtmd_template
 #########################################################################################

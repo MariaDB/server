@@ -37,6 +37,8 @@ def	mysql	PRIMARY	mysql	time_zone_leap_second	PRIMARY KEY
 def	mysql	PRIMARY	mysql	time_zone_name	PRIMARY KEY
 def	mysql	PRIMARY	mysql	time_zone_transition	PRIMARY KEY
 def	mysql	PRIMARY	mysql	time_zone_transition_type	PRIMARY KEY
+def	mysql	commit_id	mysql	transaction_registry	UNIQUE
+def	mysql	PRIMARY	mysql	transaction_registry	PRIMARY KEY
 def	mysql	PRIMARY	mysql	user	PRIMARY KEY
 def	mysql	PRIMARY	mysql	vtmd_template	PRIMARY KEY
 connect  testuser1,localhost,testuser1,,db_datadict;

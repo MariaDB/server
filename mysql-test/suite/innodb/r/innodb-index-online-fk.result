@@ -124,9 +124,9 @@ SYS_FOREIGN
 SYS_FOREIGN_COLS
 SYS_TABLESPACES
 SYS_VIRTUAL
-SYS_VTQ
 mysql/innodb_index_stats
 mysql/innodb_table_stats
+mysql/transaction_registry
 mysql/vtmd_template
 test/child
 test/parent
@@ -317,9 +317,9 @@ SYS_FOREIGN
 SYS_FOREIGN_COLS
 SYS_TABLESPACES
 SYS_VIRTUAL
-SYS_VTQ
 mysql/innodb_index_stats
 mysql/innodb_table_stats
+mysql/transaction_registry
 mysql/vtmd_template
 test/child
 test/parent
@@ -344,9 +344,9 @@ SYS_FOREIGN
 SYS_FOREIGN_COLS
 SYS_TABLESPACES
 SYS_VIRTUAL
-SYS_VTQ
 mysql/innodb_index_stats
 mysql/innodb_table_stats
+mysql/transaction_registry
 mysql/vtmd_template
 test/child
 test/parent
@@ -382,9 +382,9 @@ SYS_FOREIGN
 SYS_FOREIGN_COLS
 SYS_TABLESPACES
 SYS_VIRTUAL
-SYS_VTQ
 mysql/innodb_index_stats
 mysql/innodb_table_stats
+mysql/transaction_registry
 mysql/vtmd_template
 test/child
 test/parent
@@ -420,9 +420,9 @@ SYS_FOREIGN
 SYS_FOREIGN_COLS
 SYS_TABLESPACES
 SYS_VIRTUAL
-SYS_VTQ
 mysql/innodb_index_stats
 mysql/innodb_table_stats
+mysql/transaction_registry
 mysql/vtmd_template
 test/child
 test/parent

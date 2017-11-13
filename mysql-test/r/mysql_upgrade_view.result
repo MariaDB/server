@@ -97,6 +97,9 @@ mysql.time_zone_leap_second                        OK
 mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
 mysql.user                                         OK
 mysql.vtmd_template
 Error    : Unknown storage engine 'InnoDB'
@@ -107,6 +110,9 @@ mysql.innodb_index_stats
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 mysql.vtmd_template
@@ -247,6 +253,9 @@ mysql.time_zone_leap_second                        OK
 mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
 mysql.user                                         OK
 mysql.vtmd_template
 Error    : Unknown storage engine 'InnoDB'
@@ -257,6 +266,9 @@ mysql.innodb_index_stats
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 mysql.vtmd_template
@@ -372,6 +384,9 @@ mysql.time_zone_leap_second                        OK
 mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
 mysql.user                                         OK
 mysql.vtmd_template
 Error    : Unknown storage engine 'InnoDB'
@@ -382,6 +397,9 @@ mysql.innodb_index_stats
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 mysql.vtmd_template

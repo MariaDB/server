@@ -77,6 +77,11 @@ def	mysql	time_zone_transition	0	mysql	PRIMARY	1	Time_zone_id	A	#CARD#	NULL	NULL
 def	mysql	time_zone_transition	0	mysql	PRIMARY	2	Transition_time	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	time_zone_transition_type	0	mysql	PRIMARY	1	Time_zone_id	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	time_zone_transition_type	0	mysql	PRIMARY	2	Transition_type_id	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	transaction_registry	1	mysql	begin_timestamp	1	begin_timestamp	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	transaction_registry	0	mysql	commit_id	1	commit_id	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	transaction_registry	1	mysql	commit_timestamp	1	commit_timestamp	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	transaction_registry	1	mysql	commit_timestamp	2	transaction_id	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	transaction_registry	0	mysql	PRIMARY	1	transaction_id	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	user	0	mysql	PRIMARY	1	Host	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	user	0	mysql	PRIMARY	2	User	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	vtmd_template	1	mysql	archive_name	1	archive_name	A	#CARD#	NULL	NULL	YES	BTREE		

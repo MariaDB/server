@@ -454,4 +454,4 @@ Wildcard: inf_rmation_schema
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
 information_schema	64
-mysql	31
+mysql	32

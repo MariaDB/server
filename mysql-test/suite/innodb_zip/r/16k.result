@@ -18,6 +18,10 @@ AND	t.name LIKE 'mysql%'
 table_name	n_cols	table_flags	index_name	root_page	type	n_fields	merge_threshold
 mysql/innodb_index_stats	11	33	PRIMARY	3	3	4	50
 mysql/innodb_table_stats	9	33	PRIMARY	3	3	2	50
+mysql/transaction_registry	8	33	PRIMARY	3	3	1	50
+mysql/transaction_registry	8	33	commit_id	4	2	1	50
+mysql/transaction_registry	8	33	begin_timestamp	5	0	1	50
+mysql/transaction_registry	8	33	commit_timestamp	6	0	2	50
 mysql/vtmd_template	8	33	PRIMARY	3	3	1	50
 mysql/vtmd_template	8	33	archive_name	4	0	1	50
 CREATE TABLE t1 (a INT KEY, b TEXT) ROW_FORMAT=REDUNDANT ENGINE=innodb;

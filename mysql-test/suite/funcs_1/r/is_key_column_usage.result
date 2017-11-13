@@ -142,6 +142,8 @@ def	mysql	PRIMARY	def	mysql	time_zone_transition	Time_zone_id
 def	mysql	PRIMARY	def	mysql	time_zone_transition	Transition_time
 def	mysql	PRIMARY	def	mysql	time_zone_transition_type	Time_zone_id
 def	mysql	PRIMARY	def	mysql	time_zone_transition_type	Transition_type_id
+def	mysql	commit_id	def	mysql	transaction_registry	commit_id
+def	mysql	PRIMARY	def	mysql	transaction_registry	transaction_id
 def	mysql	PRIMARY	def	mysql	user	Host
 def	mysql	PRIMARY	def	mysql	user	User
 def	mysql	PRIMARY	def	mysql	vtmd_template	end
