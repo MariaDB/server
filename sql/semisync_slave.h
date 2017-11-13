@@ -71,10 +71,7 @@ public:
    * Input:
    *  header      - (IN)  packet header pointer
    *  total_len   - (IN)  total packet length: metadata + payload
-
-MERGE>  TODO: integrate with  MDEV-162
    *  semi_flags  - (IN)  store flags: SEMI_SYNC_SLAVE_DELAY_SYNC and SEMI_SYNC_NEED_ACK
-
    *  payload     - (IN)  payload: the replication event
    *  payload_len - (IN)  payload length
    *

@@ -7669,24 +7669,14 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       for (current= queue; current != NULL; current= current->next)
       {
         last= current->next == NULL;
-        if (!current->error
 #ifdef HAVE_REPLICATION
-            // Todo: MDEV-13073 no test is present
-            && (DBUG_EVALUATE_IF("failed_report_binlog_update", 1, 0) ||
-                repl_semisync_master.
-                reportBinlogUpdate(current->thd,
-                                   current->cache_mngr->last_commit_pos_file,
-                                   current->cache_mngr->
-                                   last_commit_pos_offset))
+        if (!current->error)
+          (void) repl_semisync_master.
+            reportBinlogUpdate(current->thd,
+                               current->cache_mngr->last_commit_pos_file,
+                               current->cache_mngr->
+                               last_commit_pos_offset);
 #endif
-            )
-        {
-          current->error= ER_ERROR_ON_WRITE;
-          current->commit_errno= -1;
-          current->error_cache= NULL;
-          any_error= true;
-          // Todo-MDEV-13073: check if we need +      failed_semisync_report= true;
-        }
         first= false;
       }
 
@@ -7762,19 +7752,13 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     for (current= queue; current != NULL; current= current->next)
     {
       last= current->next == NULL;
-      if (!current->error
 #ifdef HAVE_REPLICATION
-          // Todo: MDEV-13073 no test is present
-          && (DBUG_EVALUATE_IF("simulate_after_sync_hook_error", 1, 0) ||
-              repl_semisync_master.waitAfterSync(current->cache_mngr->
-                                                 last_commit_pos_file,
-                                                 current->cache_mngr->
-                                                 last_commit_pos_offset))
+      if (!current->error)
+        (void) repl_semisync_master.waitAfterSync(current->cache_mngr->
+                                                  last_commit_pos_file,
+                                                  current->cache_mngr->
+                                                  last_commit_pos_offset);
 #endif
-          )
-      {
-        sql_print_error("Failed to call 'repl_semisync_master.waitAfterSync'");
-      }
       first= false;
     }
   }

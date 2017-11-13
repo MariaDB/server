@@ -2036,8 +2036,8 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     }
   }
 
+  // Todo-MDEV-13073: check if Bug#15985893 (commit dd0fbffd2989876) is relevant
   if (need_sync && repl_semisync_master.flushNet(info->thd, packet->c_ptr()))
-  // Todo-MDEV-13073: check if Bug#15985893 is relevant args += (log_file_name, skip_group ? pos : 0);
   {
     info->error= ER_UNKNOWN_ERROR;
     return "Failed to run hook 'after_send_event'";

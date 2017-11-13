@@ -943,9 +943,15 @@ The following options may be given as the first argument:
  Should transaction wait for semi-sync ack after having
  synced binlog, or after having committed in storage
  engine.. One of: AFTER_SYNC, AFTER_COMMIT
+ --rpl-semi-sync-slave-delay-master 
+ Only write master info file when ack is needed.
  --rpl-semi-sync-slave-enabled 
  Enable semi-synchronous replication slave (disabled by
  default).
+ --rpl-semi-sync-slave-kill-conn-timeout[=#] 
+ Timeout for the mysql connection used to kill the slave
+ io_thread's connection on master. This timeout comes into
+ play when stop slave is executed.
  --rpl-semi-sync-slave-trace-level=# 
  The tracing level for semi-sync replication.
  --safe-mode         Skip some optimize stages (for testing). Deprecated.
@@ -1489,7 +1495,9 @@ rpl-semi-sync-master-timeout 10000
 rpl-semi-sync-master-trace-level 32
 rpl-semi-sync-master-wait-no-slave TRUE
 rpl-semi-sync-master-wait-point AFTER_COMMIT
+rpl-semi-sync-slave-delay-master FALSE
 rpl-semi-sync-slave-enabled FALSE
+rpl-semi-sync-slave-kill-conn-timeout 5
 rpl-semi-sync-slave-trace-level 32
 safe-user-create FALSE
 secure-auth TRUE
