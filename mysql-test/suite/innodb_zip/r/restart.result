@@ -195,20 +195,20 @@ count(*)
 #
 # Show these tables in information_schema.
 #
-=== information_schema.innodb_sys_tables  and innodb_sys_tablespaces ===
-Table Name	Tablespace	Table Flags	Columns	Row Format	Zip Size	Space Type
-test/t1_restart	test/t1_restart	0	8	Redundant	0	Single
-test/t2_restart	test/t2_restart	1	8	Compact	0	Single
-test/t3_restart	test/t3_restart	37	8	Compressed	2048	Single
-test/t4_restart	test/t4_restart	33	8	Dynamic	0	Single
-test/t5_restart	test/t5_restart	97	8	Dynamic	0	Single
-test/t6_restart#p#p0	test/t6_restart#p#p0	101	8	Compressed	2048	Single
-test/t6_restart#p#p1	test/t6_restart#p#p1	101	8	Compressed	2048	Single
-test/t6_restart#p#p2	test/t6_restart#p#p2	101	8	Compressed	2048	Single
-test/t7_restart#p#p0#sp#s0	test/t7_restart#p#p0#sp#s0	97	8	Dynamic	0	Single
-test/t7_restart#p#p0#sp#s1	test/t7_restart#p#p0#sp#s1	97	8	Dynamic	0	Single
-test/t7_restart#p#p1#sp#s2	test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0	Single
-test/t7_restart#p#p1#sp#s3	test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0	Single
+=== information_schema.innodb_sys_tables ===
+Table Name	Table Flags	Columns	Row Format	Zip Size	Space Type
+test/t1_restart	0	8	Redundant	0	Single
+test/t2_restart	1	8	Compact	0	Single
+test/t3_restart	37	8	Compressed	2048	Single
+test/t4_restart	33	8	Dynamic	0	Single
+test/t5_restart	97	8	Dynamic	0	Single
+test/t6_restart#p#p0	101	8	Compressed	2048	Single
+test/t6_restart#p#p1	101	8	Compressed	2048	Single
+test/t6_restart#p#p2	101	8	Compressed	2048	Single
+test/t7_restart#p#p0#sp#s0	97	8	Dynamic	0	Single
+test/t7_restart#p#p0#sp#s1	97	8	Dynamic	0	Single
+test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0	Single
+test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0	Single
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
 test/t1_restart	Single	DEFAULT	DEFAULT	Compact or Redundant	MYSQLD_DATADIR/test/t1_restart.ibd
@@ -378,20 +378,20 @@ count(*)
 #
 # Show these tables in information_schema.
 #
-=== information_schema.innodb_sys_tables  and innodb_sys_tablespaces ===
-Table Name	Tablespace	Table Flags	Columns	Row Format	Zip Size	Space Type
-test/t1_restart	test/t1_restart	0	8	Redundant	0	Single
-test/t2_restart	test/t2_restart	1	8	Compact	0	Single
-test/t3_restart	test/t3_restart	37	8	Compressed	2048	Single
-test/t4_restart	test/t4_restart	33	8	Dynamic	0	Single
-test/t5_restart	test/t5_restart	97	8	Dynamic	0	Single
-test/t6_restart#p#p0	test/t6_restart#p#p0	101	8	Compressed	2048	Single
-test/t6_restart#p#p1	test/t6_restart#p#p1	101	8	Compressed	2048	Single
-test/t6_restart#p#p2	test/t6_restart#p#p2	101	8	Compressed	2048	Single
-test/t7_restart#p#p0#sp#s0	test/t7_restart#p#p0#sp#s0	97	8	Dynamic	0	Single
-test/t7_restart#p#p0#sp#s1	test/t7_restart#p#p0#sp#s1	97	8	Dynamic	0	Single
-test/t7_restart#p#p1#sp#s2	test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0	Single
-test/t7_restart#p#p1#sp#s3	test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0	Single
+=== information_schema.innodb_sys_tables ===
+Table Name	Table Flags	Columns	Row Format	Zip Size	Space Type
+test/t1_restart	0	8	Redundant	0	Single
+test/t2_restart	1	8	Compact	0	Single
+test/t3_restart	37	8	Compressed	2048	Single
+test/t4_restart	33	8	Dynamic	0	Single
+test/t5_restart	97	8	Dynamic	0	Single
+test/t6_restart#p#p0	101	8	Compressed	2048	Single
+test/t6_restart#p#p1	101	8	Compressed	2048	Single
+test/t6_restart#p#p2	101	8	Compressed	2048	Single
+test/t7_restart#p#p0#sp#s0	97	8	Dynamic	0	Single
+test/t7_restart#p#p0#sp#s1	97	8	Dynamic	0	Single
+test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0	Single
+test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0	Single
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
 test/t1_restart	Single	DEFAULT	DEFAULT	Compact or Redundant	MYSQLD_DATADIR/test/t1_restart.ibd
