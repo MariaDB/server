@@ -22,7 +22,7 @@
 #include <vector>
 
 /* Rdb_io_watchdog doesn't work on Windows [yet] */
-#if !defined(_WIN32) && !defined(__APPLE__)
+#ifdef HAVE_TIMER_DELETE
 
 namespace myrocks {
 
