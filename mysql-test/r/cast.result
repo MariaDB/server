@@ -1168,3 +1168,112 @@ CAST('-1' AS UNSIGNED)
 18446744073709551615
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+#
+# MDEV-14376 Explicit CAST(CHAR(N)) erroneously escalates warnings to errors in STRICT_ALL_TABLES
+#
+SET sql_mode=STRICT_ALL_TABLES;
+SELECT CAST('xxx' AS CHAR(1));
+CAST('xxx' AS CHAR(1))
+x
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+CREATE OR REPLACE TABLE t1 (a VARCHAR(1));
+INSERT INTO t1 VALUES (CAST('xxx' AS CHAR(1)));
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(3));
+INSERT INTO t1 VALUES ('xxx');
+UPDATE t1 SET a=CAST(a AS CHAR(1));
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET latin1;
+SET a=CAST('xxx' AS CHAR(1));
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET latin1;
+SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET latin1;
+SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET utf8);
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET utf8;
+SET a=CAST('xxx' AS CHAR(1));
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET utf8;
+SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET utf8;
+SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET utf8);
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+# Conversion problems still escalate warnings to errors (without right truncation)
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET utf8;
+SET a=CAST(_utf8 0xD18F AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+ERROR HY000: Cannot convert 'utf8' character 0xD18F to 'latin1'
+# Conversion problems still escalate warnings to errors (with right truncation)
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET utf8;
+SET a=CAST(_utf8 0xD18FD18F AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+ERROR HY000: Cannot convert 'utf8' character 0xD18F to 'latin1'
+# CAST(number AS CHAR) escalates warnings to errors on truncation
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES (CAST(123 AS CHAR(1)));
+ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('1');
+UPDATE t1 SET a=CAST(123 AS CHAR(1));
+ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(10);
+SET a=CAST(123 AS CHAR(1));
+END;
+$$
+ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+# CAST(temporal AS CHAR) escalates warnings to errors on truncation
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES (CAST(TIME'10:20:30' AS CHAR(1)));
+ERROR 22007: Truncated incorrect CHAR(1) value: '10:20:30'
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('1');
+UPDATE t1 SET a=CAST(TIME'10:20:30' AS CHAR(1));
+ERROR 22007: Truncated incorrect CHAR(1) value: '10:20:30'
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(10);
+SET a=CAST(TIME'10:20:30' AS CHAR(1));
+END;
+$$
+ERROR 22007: Truncated incorrect CHAR(1) value: '10:20:30'
+SET sql_mode=DEFAULT;

@@ -4339,7 +4339,7 @@ bool Type_handler::
 bool Type_handler::
        Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const
 {
-  item->fix_length_and_dec_str();
+  item->fix_length_and_dec_generic();
   return false;
 }
 
@@ -4348,6 +4348,14 @@ bool Type_handler_numeric::
        Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const
 {
   item->fix_length_and_dec_numeric();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const
+{
+  item->fix_length_and_dec_str();
   return false;
 }
 

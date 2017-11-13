@@ -2434,6 +2434,8 @@ void Item_char_typecast::check_truncation_with_warn(String *src, uint dstlen)
     THD *thd= current_thd;
     char char_type[40];
     ErrConvString err(src);
+    bool save_abort_on_warning= thd->abort_on_warning;
+    thd->abort_on_warning&= !m_suppress_warning_to_error_escalation;
     my_snprintf(char_type, sizeof(char_type), "%s(%lu)",
                 cast_cs == &my_charset_bin ? "BINARY" : "CHAR",
                 (ulong) cast_length);
@@ -2441,6 +2443,7 @@ void Item_char_typecast::check_truncation_with_warn(String *src, uint dstlen)
                         ER_TRUNCATED_WRONG_VALUE,
                         ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), char_type,
                         err.ptr());
+    thd->abort_on_warning= save_abort_on_warning;
   }
 }
 
@@ -2551,7 +2554,7 @@ void Item_char_typecast::fix_length_and_dec_numeric()
 }
 
 
-void Item_char_typecast::fix_length_and_dec_str()
+void Item_char_typecast::fix_length_and_dec_generic()
 {
   fix_length_and_dec_internal(from_cs= args[0]->dynamic_result() ?
                                        0 :
