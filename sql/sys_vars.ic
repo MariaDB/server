@@ -2679,12 +2679,6 @@ private:
     my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "versioning_asof_timestamp", "NULL (wrong range type)");
     return (uchar*) thd->strdup("Error: wrong range type");
   }
-  void session_save_default(THD *thd, set_var *var)
-  { DBUG_ASSERT(false);  }
-  void global_save_default(THD *thd, set_var *var)
-  { DBUG_ASSERT(false); }
-  uchar *default_value_ptr(THD *thd)
-  { return (uchar *)option.def_value; }
 
 public:
   virtual uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
