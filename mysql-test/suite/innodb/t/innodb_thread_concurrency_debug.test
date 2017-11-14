@@ -35,3 +35,4 @@ select * from t1;
 drop table t1;
 SET GLOBAL innodb_thread_concurrency = @old_innodb_thread_concurrency;
 SET GLOBAL innodb_thread_sleep_delay = @old_innodb_thread_sleep_delay;
+SET DEBUG_SYNC=RESET;

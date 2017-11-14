@@ -77,5 +77,4 @@ COMMIT;
 --source include/assert.inc
 
 DROP TABLE t1;
-
 --source include/wait_until_count_sessions.inc

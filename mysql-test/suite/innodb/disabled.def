@@ -12,30 +12,13 @@
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
 
-check_sector_size:  tests with keyring
-innodb_pagesize_max_recordsize: tests with keyring
-table_encrypt_1: tests with keyring
-table_encrypt_2: tests with keyring
-table_encrypt_3: tests with keyring
-table_encrypt_4: tests with keyring
-table_encrypt_5: tests with keyring
-table_encrypt_debug: tests with keyring
-table_encrypt_kill: tests with keyring
-
 alter_rename_existing:  tablespace
-default_row_format_tablespace:  tablespace
 i_s_files_debug:  tablespace
 innodb-multiple-tablespaces: tablespaces
 log_file:  tablespace
 missing_tablespaces: tablespaces
 partition:  tablespace
 table_compress:  tablespace
-table_encrypt_3:  tablespace
-tablespace_crash:  tablespace
-tablespace_embedded:  tablespace
-tablespace_embedded_windows:  tablespace
-tablespace_portability:  tablespace
-tablespace_portability_windows:  tablespace
 
 alter_table_stage_progress: fix
 blob-crash: no --innodb-force-recovery-crash option in Mariadb
@@ -61,11 +44,12 @@ high_prio_trx_2: mdev-13626 (a)
 high_prio_trx_3: mdev-13626 (a)
 high_prio_trx_4: mdev-13626 (a)
 high_prio_trx_5: mdev-13626 (a)
+high_prio_trx_6: mdev-13626 (a)
 high_prio_trx_7: mdev-13626 (a)
 high_prio_trx_commit_crash: mdev-13626 (a)
 high_prio_trx_debug: mdev-13626 (a)
 high_prio_trx_fk: mdev-13626 (a)
-high_prio_trx_rpl
+high_prio_trx_rpl: mdev-13626 (a)
 import_update_stats: mdev-13626 (a)
 innodb-2byte-collation: mdev-13626 (a)
 innodb-alter-tempfile: mdev-13626 (a)

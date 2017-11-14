@@ -1,0 +1,36 @@
+##############################################################################
+#
+#  List the test cases that are to be disabled temporarily.
+#
+#  Separate the test case name and the comment with ':'.
+#
+#    <testcasename> : BUG#<xxxx> <date disabled> <disabler> <comment>
+#
+#  Do not use any TAB characters for whitespace.
+#
+##############################################################################
+
+innodb_bigstress: mdev-13626
+innodb_bigstress_blob: mdev-13626
+innodb_bigstress_blob_nocompress: mdev-13626
+innodb_bigstress_crash: mdev-13626
+innodb_bigstress_crash_blob: mdev-13626
+innodb_bigstress_crash_blob_nocompress: mdev-13626
+innodb_bigstress_crash_nocompress: mdev-13626
+innodb_bigstress_nocompress: mdev-13626
+innodb_hugestress: mdev-13626
+innodb_hugestress_blob: mdev-13626
+innodb_hugestress_blob_nocompress: mdev-13626
+innodb_hugestress_crash: mdev-13626
+innodb_hugestress_crash_blob: mdev-13626
+innodb_hugestress_crash_blob_nocompress: mdev-13626
+innodb_hugestress_crash_nocompress: mdev-13626
+innodb_hugestress_nocompress: mdev-13626
+innodb_stress: mdev-13626
+innodb_stress_blob: mdev-13626
+innodb_stress_blob_nocompress: mdev-13626
+innodb_stress_crash: mdev-13626
+innodb_stress_crash_blob: mdev-13626
+innodb_stress_crash_blob_nocompress: mdev-13626
+innodb_stress_crash_nocompress: mdev-13626
+innodb_stress_nocompress: mdev-13626
