@@ -14,6 +14,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 NAME
 mysql/innodb_table_stats
 mysql/innodb_index_stats
+mysql/transaction_registry
 mysql/vtmd_template
 innodb_system
 # Success!
@@ -24,6 +25,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 NAME
 mysql/innodb_table_stats
 mysql/innodb_index_stats
+mysql/transaction_registry
 mysql/vtmd_template
 innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
@@ -39,6 +41,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 NAME
 mysql/innodb_table_stats
 mysql/innodb_index_stats
+mysql/transaction_registry
 mysql/vtmd_template
 innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
@@ -53,6 +56,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 NAME
 mysql/innodb_table_stats
 mysql/innodb_index_stats
+mysql/transaction_registry
 mysql/vtmd_template
 innodb_system
 # Success!
@@ -68,6 +72,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 NAME
 mysql/innodb_table_stats
 mysql/innodb_index_stats
+mysql/transaction_registry
 mysql/vtmd_template
 innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
