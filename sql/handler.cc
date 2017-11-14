@@ -1428,7 +1428,7 @@ int ha_commit_trans(THD *thd, bool all)
         if (trt.update())
           goto err;
         if (all)
-          trans_commit_stmt(thd);
+          commit_one_phase_2(thd, false, &thd->transaction.stmt, false);
         break;
       }
     }

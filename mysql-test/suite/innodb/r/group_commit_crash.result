@@ -5,14 +5,15 @@ d CHAR(255),
 id INT,
 PRIMARY KEY(id)) ENGINE=InnoDB;
 create table t2 like t1;
-create procedure setcrash(IN i INT)
+create function getcrash(i INT)
+returns VARCHAR(255)
 begin
 CASE i
-WHEN 1 THEN SET SESSION debug_dbug="d,crash_commit_after_prepare";
-WHEN 2 THEN SET SESSION debug_dbug="d,crash_commit_after_log";
-WHEN 3 THEN SET SESSION debug_dbug="d,crash_commit_before_unlog";
-WHEN 4 THEN SET SESSION debug_dbug="d,crash_commit_after";
-WHEN 5 THEN SET SESSION debug_dbug="d,crash_commit_before";
+WHEN 1 THEN RETURN "crash_commit_after_prepare";
+WHEN 2 THEN RETURN "crash_commit_after_log";
+WHEN 3 THEN RETURN "crash_commit_before_unlog";
+WHEN 4 THEN RETURN "crash_commit_after";
+WHEN 5 THEN RETURN "crash_commit_before";
 ELSE BEGIN END;
 END CASE;
 end //
@@ -31,9 +32,12 @@ SET binlog_format= mixed;
 RESET MASTER;
 START TRANSACTION;
 insert into t1 select * from t2;
-call setcrash(5);
+SET @crash= getcrash(5);
+SET SESSION debug_dbug=concat("d,", @crash);
 COMMIT;
 Got one of the listed errors
+CRASH_POINT
+crash_commit_before
 SELECT * FROM t1 ORDER BY id;
 a	b	c	d	id
 SHOW BINLOG EVENTS LIMIT 4,1;
@@ -43,32 +47,12 @@ SET binlog_format= mixed;
 RESET MASTER;
 START TRANSACTION;
 insert into t1 select * from t2;
-call setcrash(4);
+SET @crash= getcrash(4);
+SET SESSION debug_dbug=concat("d,", @crash);
 COMMIT;
 Got one of the listed errors
-SELECT * FROM t1 ORDER BY id;
-a	b	c	d	id
-a	b	c	d	1
-a	b	c	d	2
-a	b	c	d	3
-a	b	c	d	4
-a	b	c	d	5
-a	b	c	d	6
-a	b	c	d	7
-a	b	c	d	8
-a	b	c	d	9
-a	b	c	d	10
-SHOW BINLOG EVENTS LIMIT 4,1;
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Query	1	#	use `test`; insert into t1 select * from t2
-delete from t1;
-SET binlog_format= mixed;
-RESET MASTER;
-START TRANSACTION;
-insert into t1 select * from t2;
-call setcrash(3);
-COMMIT;
-Got one of the listed errors
+CRASH_POINT
+crash_commit_after
 SELECT * FROM t1 ORDER BY id;
 a	b	c	d	id
 a	b	c	d	1
@@ -89,9 +73,12 @@ SET binlog_format= mixed;
 RESET MASTER;
 START TRANSACTION;
 insert into t1 select * from t2;
-call setcrash(2);
+SET @crash= getcrash(3);
+SET SESSION debug_dbug=concat("d,", @crash);
 COMMIT;
 Got one of the listed errors
+CRASH_POINT
+crash_commit_before_unlog
 SELECT * FROM t1 ORDER BY id;
 a	b	c	d	id
 a	b	c	d	1
@@ -112,9 +99,38 @@ SET binlog_format= mixed;
 RESET MASTER;
 START TRANSACTION;
 insert into t1 select * from t2;
-call setcrash(1);
+SET @crash= getcrash(2);
+SET SESSION debug_dbug=concat("d,", @crash);
 COMMIT;
 Got one of the listed errors
+CRASH_POINT
+crash_commit_after_log
+SELECT * FROM t1 ORDER BY id;
+a	b	c	d	id
+a	b	c	d	1
+a	b	c	d	2
+a	b	c	d	3
+a	b	c	d	4
+a	b	c	d	5
+a	b	c	d	6
+a	b	c	d	7
+a	b	c	d	8
+a	b	c	d	9
+a	b	c	d	10
+SHOW BINLOG EVENTS LIMIT 4,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Query	1	#	use `test`; insert into t1 select * from t2
+delete from t1;
+SET binlog_format= mixed;
+RESET MASTER;
+START TRANSACTION;
+insert into t1 select * from t2;
+SET @crash= getcrash(1);
+SET SESSION debug_dbug=concat("d,", @crash);
+COMMIT;
+Got one of the listed errors
+CRASH_POINT
+crash_commit_after_prepare
 SELECT * FROM t1 ORDER BY id;
 a	b	c	d	id
 SHOW BINLOG EVENTS LIMIT 4,1;
@@ -122,4 +138,4 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 delete from t1;
 DROP TABLE t1;
 DROP TABLE t2;
-DROP PROCEDURE setcrash;
+DROP FUNCTION getcrash;

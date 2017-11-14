@@ -17,14 +17,15 @@ CREATE TABLE t1(a CHAR(255),
                 PRIMARY KEY(id)) ENGINE=InnoDB;
 create table t2 like t1;
 delimiter //;
-create procedure setcrash(IN i INT)
+create function getcrash(i INT)
+returns VARCHAR(255)
 begin
   CASE i
-    WHEN 1 THEN SET SESSION debug_dbug="d,crash_commit_after_prepare";
-    WHEN 2 THEN SET SESSION debug_dbug="d,crash_commit_after_log";
-    WHEN 3 THEN SET SESSION debug_dbug="d,crash_commit_before_unlog";
-    WHEN 4 THEN SET SESSION debug_dbug="d,crash_commit_after";
-    WHEN 5 THEN SET SESSION debug_dbug="d,crash_commit_before";
+    WHEN 1 THEN RETURN "crash_commit_after_prepare";
+    WHEN 2 THEN RETURN "crash_commit_after_log";
+    WHEN 3 THEN RETURN "crash_commit_before_unlog";
+    WHEN 4 THEN RETURN "crash_commit_after";
+    WHEN 5 THEN RETURN "crash_commit_before";
     ELSE BEGIN END;
   END CASE;
 end //
@@ -53,8 +54,8 @@ while ($numtests)
   # Write file to make mysql-test-run.pl expect crash
   --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
-  eval call setcrash($numtests);
-
+  eval SET @crash= getcrash($numtests);
+  SET SESSION debug_dbug=concat("d,", @crash);
   # Run the crashing query
   --error 2006,2013
   COMMIT;
@@ -62,6 +63,10 @@ while ($numtests)
   # Poll the server waiting for it to be back online again.
   --source include/wait_until_connected_again.inc
 
+  --disable_query_log
+  eval SET @crash= getcrash($numtests);
+  SELECT @crash as CRASH_POINT;
+  --enable_query_log
   # table and binlog should be in sync.
   SELECT * FROM t1 ORDER BY id;
 --replace_column 2 # 5 #
@@ -75,4 +80,4 @@ while ($numtests)
 # final cleanup
 DROP TABLE t1;
 DROP TABLE t2;
-DROP PROCEDURE setcrash;
+DROP FUNCTION getcrash;
