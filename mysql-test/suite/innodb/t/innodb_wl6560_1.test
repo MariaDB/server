@@ -284,7 +284,6 @@ SELECT * FROM t3,t4;
 UNLOCK TABLES;
 
 --list_files $MYSQL_DATA_DIR/ ibtmp1*
---list_files $MYSQL_DATA_DIR/test/ t4*ibd*
 DROP TABLE t1,t2,t3,t4;
 
 

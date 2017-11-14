@@ -129,7 +129,6 @@ SELECT * FROM t3,t4;
 a	RIGHT(t1.c,10)	RIGHT(t2.c,10)	a	RIGHT(t1.c,10)	RIGHT(t2.c,10)
 UNLOCK TABLES;
 ibtmp1
-t4.ibd
 DROP TABLE t1,t2,t3,t4;
 SELECT @@global.innodb_file_per_table;
 @@global.innodb_file_per_table

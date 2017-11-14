@@ -62,8 +62,6 @@ WHERE t.TABLE_ID = i.TABLE_ID AND t.NAME = 'test/tab';
 # Cleanup
 DROP TABLE tab;
 
-
-
 --echo #
 --echo # behavior for deleting records
 --echo #
@@ -104,8 +102,6 @@ PARTITION BY RANGE (a)
 --source suite/innodb/include/innodb_merge_threshold_delete.inc
 
 DROP TABLE tab1;
-
-
 
 --echo #
 --echo # behavior for updating to smaller records

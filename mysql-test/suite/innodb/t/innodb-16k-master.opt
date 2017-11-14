@@ -1,1 +1,2 @@
 --default_storage_engine=InnoDB
+--innodb_page_size=16k

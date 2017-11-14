@@ -2,3 +2,4 @@
 --loose-innodb-buffer-page
 --loose-innodb-buffer-page-lru
 --innodb-defragment=1
+--innodb_page_size=16k
