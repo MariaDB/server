@@ -1143,33 +1143,37 @@ void Explain_table_access::fill_key_len_str(String *key_len_str) const
 }
 
 
-void Explain_index_use::set(MEM_ROOT *mem_root, KEY *key, uint key_len_arg)
+bool Explain_index_use::set(MEM_ROOT *mem_root, KEY *key, uint key_len_arg)
 {
-  set_pseudo_key(mem_root, key->name.str);
+  if (set_pseudo_key(mem_root, key->name.str))
+    return 1;
+
   key_len= key_len_arg;
   uint len= 0;
   for (uint i= 0; i < key->usable_key_parts; i++)
   {
-    key_parts_list.append_str(mem_root,
-                              key->key_part[i].field->field_name.str);
+    if (!key_parts_list.append_str(mem_root,
+                                   key->key_part[i].field->field_name.str))
+      return 1;
     len += key->key_part[i].store_length;
     if (len >= key_len_arg)
       break;
   }
+  return 0;
 }
 
 
-void Explain_index_use::set_pseudo_key(MEM_ROOT *root, const char* key_name_arg)
+bool Explain_index_use::set_pseudo_key(MEM_ROOT *root, const char* key_name_arg)
 {
   if (key_name_arg)
   {
-    size_t name_len= strlen(key_name_arg);
-    if ((key_name= (char*)alloc_root(root, name_len+1)))
-      memcpy(key_name, key_name_arg, name_len+1);
+    if (!(key_name= strdup_root(root, key_name_arg)))
+      return 1;
   }
   else
     key_name= NULL;
   key_len= ~(uint) 0;
+  return 0;
 }
 
 
@@ -2450,8 +2454,11 @@ int Explain_range_checked_fer::append_possible_keys_stat(MEM_ROOT *alloc,
   for (j= 0; j < table->s->keys; j++)
   {
     if (possible_keys.is_set(j))
-      keys_stat_names[j]= key_set.append_str(alloc,
-                                             table->key_info[j].name.str);
+    {
+      if (!(keys_stat_names[j]= key_set.append_str(alloc,
+                                                   table->key_info[j].name.str)))
+        return 1;
+    }
     else
       keys_stat_names[j]= NULL;
   }

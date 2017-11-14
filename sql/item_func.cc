@@ -3253,17 +3253,15 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       func->used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
     }
-    //TODO: why all following memory is not allocated with 1 thd->alloc() call?
-    if (!(buffers=new String[arg_count]) ||
-	!(f_args.args= (char**) thd->alloc(arg_count * sizeof(char *))) ||
-	!(f_args.lengths= (ulong*) thd->alloc(arg_count * sizeof(long))) ||
-	!(f_args.maybe_null= (char*) thd->alloc(arg_count * sizeof(char))) ||
-	!(num_buffer= (char*) thd->alloc(arg_count *
-					ALIGN_SIZE(sizeof(double)))) ||
-	!(f_args.attributes= (const char**) thd->alloc(arg_count *
-                                                 sizeof(char *))) ||
-	!(f_args.attribute_lengths= (ulong*) thd->alloc(arg_count *
-						       sizeof(long))))
+    if (!(buffers=new (thd->mem_root) String[arg_count]) ||
+        !multi_alloc_root(thd->mem_root,
+                          &f_args.args,              arg_count * sizeof(char *),
+                          &f_args.lengths,           arg_count * sizeof(long),
+                          &f_args.maybe_null,        arg_count * sizeof(char),
+                          &num_buffer,               arg_count * sizeof(double),
+                          &f_args.attributes,        arg_count * sizeof(char *),
+                          &f_args.attribute_lengths, arg_count * sizeof(long),
+                          NullS))
     {
       free_udf(u_d);
       DBUG_RETURN(TRUE);
@@ -3275,6 +3273,8 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   initid.const_item=func->const_item_cache;
   initid.decimals=func->decimals;
   initid.ptr=0;
+  for (uint i1= 0 ; i1 < arg_count ; i1++)
+    buffers[i1].set_thread_specific();
 
   if (u_d->func_init)
   {
@@ -5299,8 +5299,8 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
                                         Item_func_set_user_var(thd, name,
                                                                new (thd->mem_root) Item_null(thd))),
                            thd->mem_root);
-    /* Create the variable */
-    if (sql_set_variables(thd, &tmp_var_list, false))
+    /* Create the variable if the above allocations succeeded */
+    if (thd->is_fatal_error || sql_set_variables(thd, &tmp_var_list, false))
     {
       thd->lex= sav_lex;
       goto err;
@@ -5837,20 +5837,25 @@ void Item_func_get_system_var::cleanup()
   cached_strval.free();
 }
 
+/**
+   @retval
+   0 ok
+   1 OOM error
+*/
 
-void Item_func_match::init_search(THD *thd, bool no_order)
+bool Item_func_match::init_search(THD *thd, bool no_order)
 {
   DBUG_ENTER("Item_func_match::init_search");
 
   if (!table->file->get_table()) // the handler isn't opened yet
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(0);
 
   /* Check if init_search() has been called before */
   if (ft_handler)
   {
     if (join_key)
       table->file->ft_handler= ft_handler;
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(0);
   }
 
   if (key == NO_SUCH_KEY)
@@ -5862,6 +5867,8 @@ void Item_func_match::init_search(THD *thd, bool no_order)
     for (uint i= 1; i < arg_count; i++)
       fields.push_back(args[i]);
     concat_ws= new (thd->mem_root) Item_func_concat_ws(thd, fields);
+    if (thd->is_fatal_error)
+      DBUG_RETURN(1);                           // OOM
     /*
       Above function used only to get value and do not need fix_fields for it:
       Item_string - basic constant
@@ -5874,10 +5881,11 @@ void Item_func_match::init_search(THD *thd, bool no_order)
   if (master)
   {
     join_key= master->join_key= join_key | master->join_key;
-    master->init_search(thd, no_order);
+    if (master->init_search(thd, no_order))
+      DBUG_RETURN(1);
     ft_handler= master->ft_handler;
     join_key= master->join_key;
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(0);
   }
 
   String *ft_tmp= 0;
@@ -5892,8 +5900,9 @@ void Item_func_match::init_search(THD *thd, bool no_order)
   if (ft_tmp->charset() != cmp_collation.collation)
   {
     uint dummy_errors;
-    search_value.copy(ft_tmp->ptr(), ft_tmp->length(), ft_tmp->charset(),
-                      cmp_collation.collation, &dummy_errors);
+    if (search_value.copy(ft_tmp->ptr(), ft_tmp->length(), ft_tmp->charset(),
+                          cmp_collation.collation, &dummy_errors))
+      DBUG_RETURN(1);
     ft_tmp= &search_value;
   }
 
@@ -5908,7 +5917,7 @@ void Item_func_match::init_search(THD *thd, bool no_order)
   if (join_key)
     table->file->ft_handler=ft_handler;
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 

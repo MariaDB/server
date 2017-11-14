@@ -1261,7 +1261,7 @@ Item *Item::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   if (!needs_charset_converter(tocs))
     return this;
   Item_func_conv_charset *conv= new (thd->mem_root) Item_func_conv_charset(thd, this, tocs, 1);
-  return conv->safe ? conv : NULL;
+  return conv && conv->safe ? conv : NULL;
 }
 
 
@@ -3237,6 +3237,11 @@ table_map Item_field::all_used_tables() const
   return (get_depended_from() ? OUTER_REF_TABLE_BIT : field->table->map);
 }
 
+
+/*
+  @Note  thd->fatal_error can be set in case of OOM
+*/
+
 void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
                                    bool merge)
 {
@@ -3296,6 +3301,8 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
     }
 
     Name_resolution_context *ctx= new Name_resolution_context();
+    if (!ctx)
+      return;                                   // Fatal error set
     if (context->select_lex == new_parent)
     {
       /*

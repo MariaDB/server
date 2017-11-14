@@ -451,7 +451,8 @@ int mysql_update(THD *thd,
       goto err;
     }
   }
-  init_ftfuncs(thd, select_lex, 1);
+  if (init_ftfuncs(thd, select_lex, 1))
+    goto err;
 
   table->mark_columns_needed_for_update();
 
@@ -522,7 +523,8 @@ int mysql_update(THD *thd,
   */
   if (thd->lex->describe)
     goto produce_explain_and_leave;
-  explain= query_plan.save_explain_update_data(query_plan.mem_root, thd);
+  if (!(explain= query_plan.save_explain_update_data(query_plan.mem_root, thd)))
+    goto err;
 
   ANALYZE_START_TRACKING(&explain->command_tracker);
 
@@ -1046,7 +1048,8 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  query_plan.save_explain_update_data(query_plan.mem_root, thd);
+  if (!query_plan.save_explain_update_data(query_plan.mem_root, thd))
+    goto err;
 
 emit_explain_and_leave:
   int err2= thd->lex->explain->send_explain(thd);
@@ -1776,7 +1779,7 @@ int multi_update::prepare(List<Item> &not_used_values,
       switch_to_nullable_trigger_fields(*values_for_table[i], table);
     }
   }
-  copy_field= new Copy_field[max_fields];
+  copy_field= new (thd->mem_root) Copy_field[max_fields];
   DBUG_RETURN(thd->is_fatal_error != 0);
 }
 

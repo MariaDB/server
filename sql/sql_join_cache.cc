@@ -2571,10 +2571,11 @@ finish:
     BNLH, BKA or BKAH) to the data structure
 
   RETURN VALUE
-    none
+   0 ok
+   1 error
 */ 
 
-void JOIN_CACHE::save_explain_data(EXPLAIN_BKA_TYPE *explain)
+bool JOIN_CACHE::save_explain_data(EXPLAIN_BKA_TYPE *explain)
 {
   explain->incremental= MY_TEST(prev_cache);
 
@@ -2596,6 +2597,7 @@ void JOIN_CACHE::save_explain_data(EXPLAIN_BKA_TYPE *explain)
   default:
     DBUG_ASSERT(0);
   }
+  return 0;
 }
 
 /**
@@ -2608,7 +2610,7 @@ THD *JOIN_CACHE::thd()
 }
 
 
-static void add_mrr_explain_info(String *str, uint mrr_mode, handler *file)
+static bool add_mrr_explain_info(String *str, uint mrr_mode, handler *file)
 {
   char mrr_str_buf[128]={0};
   int len;
@@ -2617,22 +2619,30 @@ static void add_mrr_explain_info(String *str, uint mrr_mode, handler *file)
   if (len > 0)
   {
     if (str->length())
-      str->append(STRING_WITH_LEN("; "));
-    str->append(mrr_str_buf, len);
+    {
+      if (str->append(STRING_WITH_LEN("; ")))
+        return 1;
+    }
+    if (str->append(mrr_str_buf, len))
+      return 1;
   }
-}
-
-void JOIN_CACHE_BKA::save_explain_data(EXPLAIN_BKA_TYPE *explain)
-{
-  JOIN_CACHE::save_explain_data(explain); 
-  add_mrr_explain_info(&explain->mrr_type, mrr_mode, join_tab->table->file);
+  return 0;
 }
 
 
-void JOIN_CACHE_BKAH::save_explain_data(EXPLAIN_BKA_TYPE *explain)
+bool JOIN_CACHE_BKA::save_explain_data(EXPLAIN_BKA_TYPE *explain)
 {
-  JOIN_CACHE::save_explain_data(explain); 
-  add_mrr_explain_info(&explain->mrr_type, mrr_mode, join_tab->table->file);
+  if (JOIN_CACHE::save_explain_data(explain))
+    return 1;
+  return add_mrr_explain_info(&explain->mrr_type, mrr_mode, join_tab->table->file);
+}
+
+
+bool JOIN_CACHE_BKAH::save_explain_data(EXPLAIN_BKA_TYPE *explain)
+{
+  if (JOIN_CACHE::save_explain_data(explain))
+    return 1;
+  return add_mrr_explain_info(&explain->mrr_type, mrr_mode, join_tab->table->file);
 }
 
 

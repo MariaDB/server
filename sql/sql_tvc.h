@@ -57,7 +57,7 @@ public:
 
   int save_explain_data_intern(THD *thd_arg,
 			       Explain_query *output);
-  void optimize(THD *thd_arg);
+  bool optimize(THD *thd_arg);
   bool exec(SELECT_LEX *sl);
 
   void print(THD *thd_arg, String *str, enum_query_type query_type);

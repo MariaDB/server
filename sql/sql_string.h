@@ -181,6 +181,8 @@ public:
   }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return (void*) alloc_root(mem_root, (uint) size); }
+  static void *operator new[](size_t size, MEM_ROOT *mem_root) throw ()
+  { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr_arg, size_t size)
   {
     (void) ptr_arg;
@@ -189,6 +191,10 @@ public:
   }
   static void operator delete(void *, MEM_ROOT *)
   { /* never called */ }
+  static void operator delete[](void *ptr, size_t size) { TRASH(ptr, size); }
+  static void operator delete[](void *ptr, MEM_ROOT *mem_root)
+  { /* never called */ }
+
   ~String() { free(); }
 
   /* Mark variable thread specific it it's not allocated already */

@@ -9697,7 +9697,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   if (mysql_trans_prepare_alter_copy_data(thd))
     DBUG_RETURN(-1);
 
-  if (!(copy= new Copy_field[to->s->fields]))
+  if (!(copy= new (thd->mem_root) Copy_field[to->s->fields]))
     DBUG_RETURN(-1);				/* purecov: inspected */
 
   /* We need external lock before we can disable/enable keys */

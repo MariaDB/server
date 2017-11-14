@@ -8481,7 +8481,8 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
     DBUG_PRINT("info",("Performing FULLTEXT search"));
 
     while ((ifm=li++))
-      ifm->init_search(thd, no_order);
+      if (ifm->init_search(thd, no_order))
+        return 1;
   }
   return 0;
 }

@@ -662,7 +662,7 @@ public:
   enum_nested_loop_state join_records(bool skip_last);
 
   /* Add a comment on the join algorithm employed by the join cache */
-  virtual void save_explain_data(EXPLAIN_BKA_TYPE *explain);
+  virtual bool save_explain_data(EXPLAIN_BKA_TYPE *explain);
 
   THD *thd();
 
@@ -1340,7 +1340,7 @@ public:
   /* Check index condition of the joined table for a record from BKA cache */
   bool skip_index_tuple(range_id_t range_info);
 
-  void save_explain_data(EXPLAIN_BKA_TYPE *explain);
+  bool save_explain_data(EXPLAIN_BKA_TYPE *explain);
 };
 
 
@@ -1431,5 +1431,5 @@ public:
   /* Check index condition of the joined table for a record from BKAH cache */
   bool skip_index_tuple(range_id_t range_info);
 
-  void save_explain_data(EXPLAIN_BKA_TYPE *explain);
+  bool save_explain_data(EXPLAIN_BKA_TYPE *explain);
 };

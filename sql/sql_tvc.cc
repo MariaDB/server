@@ -283,6 +283,9 @@ int table_value_constr::save_explain_data_intern(THD *thd,
 
   explain= new (output->mem_root) Explain_select(output->mem_root,
                                                  thd->lex->analyze_stmt);
+  if (!explain)
+    DBUG_RETURN(1);
+
   select_lex->set_explain_type(true);
 
   explain->select_id= select_lex->select_number;
@@ -309,7 +312,7 @@ int table_value_constr::save_explain_data_intern(THD *thd,
   Optimization of TVC
 */
 
-void table_value_constr::optimize(THD *thd)
+bool table_value_constr::optimize(THD *thd)
 {
   create_explain_query_if_not_exists(thd->lex, thd->mem_root);
   have_query_plan= QEP_AVAILABLE;
@@ -320,8 +323,9 @@ void table_value_constr::optimize(THD *thd)
       thd->lex->explain && // for "SET" command in SPs.
       (!thd->lex->explain->get_select(select_lex->select_number)))
   {
-    save_explain_data_intern(thd, thd->lex->explain);
+    return save_explain_data_intern(thd, thd->lex->explain);
   }
+  return 0;
 }
 
 

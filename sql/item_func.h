@@ -2584,7 +2584,7 @@ public:
   virtual void print(String *str, enum_query_type query_type);
 
   bool fix_index();
-  void init_search(THD *thd, bool no_order);
+  bool init_search(THD *thd, bool no_order);
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function("match ... against()", arg, VCOL_IMPOSSIBLE);
