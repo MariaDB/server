@@ -2165,8 +2165,7 @@ row_ins_scan_sec_index_for_duplicate(
 	que_thr_t*	thr,	/*!< in: query thread */
 	bool		s_latch,/*!< in: whether index->lock is being held */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
-	mem_heap_t*	offsets_heap,
-	trx_t*		trx)
+	mem_heap_t*	offsets_heap)
 				/*!< in/out: memory heap that can be emptied */
 {
 	ulint		n_unique;
@@ -2178,8 +2177,9 @@ row_ins_scan_sec_index_for_duplicate(
 	ulint*		offsets		= NULL;
 	DBUG_ENTER("row_ins_scan_sec_index_for_duplicate");
 
+
 	ut_ad(s_latch == rw_lock_own_flagged(
-		      &index->lock, RW_LOCK_FLAG_S | RW_LOCK_FLAG_SX));
+			&index->lock, RW_LOCK_FLAG_S | RW_LOCK_FLAG_SX));
 
 	n_unique = dict_index_get_n_unique(index);
 
@@ -2209,7 +2209,7 @@ row_ins_scan_sec_index_for_duplicate(
 		      : BTR_SEARCH_LEAF,
 		      &pcur, mtr);
 
-	allow_duplicates = trx->duplicates;
+	allow_duplicates = thr_get_trx(thr)->duplicates;
 
 	/* Scan index records and check if there is a duplicate */
 
@@ -2265,7 +2265,7 @@ row_ins_scan_sec_index_for_duplicate(
 							index, offsets)) {
 				err = DB_DUPLICATE_KEY;
 
-				trx->error_info = index;
+				thr_get_trx(thr)->error_info = index;
 
 				/* If the duplicate is on hidden FTS_DOC_ID,
 				state so in the error log */
@@ -2651,10 +2651,9 @@ row_ins_clust_index_entry_low(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only,
+	bool		dup_chk_only)
 				/*!< in: if true, just do duplicate check
 				and return. don't execute actual insert. */
-	trx_t*		trx)
 {
 	btr_pcur_t	pcur;
 	btr_cur_t*	cursor;
@@ -2669,15 +2668,11 @@ row_ins_clust_index_entry_low(
 
 	DBUG_ENTER("row_ins_clust_index_entry_low");
 
-	ut_ad(thr || trx);
-	if (!trx)
-		trx = thr_get_trx(thr);
-
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!dict_index_is_unique(index)
 	      || n_uniq == dict_index_get_n_unique(index));
 	ut_ad(!n_uniq || n_uniq == dict_index_get_n_unique(index));
-	ut_ad(!trx->in_rollback);
+	ut_ad(!thr_get_trx(thr)->in_rollback);
 
 	mtr_start(&mtr);
 
@@ -2797,7 +2792,7 @@ row_ins_clust_index_entry_low(
 				/* fall through */
 			case DB_SUCCESS_LOCKED_REC:
 			case DB_DUPLICATE_KEY:
-				trx->error_info = cursor->index;
+				thr_get_trx(thr)->error_info = cursor->index;
 			}
 		} else {
 			/* Note that the following may return also
@@ -2887,7 +2882,7 @@ do_insert:
 					LSN_MAX, TRUE););
 			err = row_ins_index_entry_big_rec(
 				entry, big_rec, offsets, &offsets_heap, index,
-				trx->mysql_thd);
+				thr_get_trx(thr)->mysql_thd);
 			dtuple_convert_back_big_rec(index, entry, big_rec);
 		} else {
 			if (err == DB_SUCCESS
@@ -2981,10 +2976,9 @@ row_ins_sec_index_entry_low(
 	trx_id_t	trx_id,	/*!< in: PAGE_MAX_TRX_ID during
 				row_log_table_apply(), or 0 */
 	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only,
+	bool		dup_chk_only)
 				/*!< in: if true, just do duplicate check
 				and return. don't execute actual insert. */
-	trx_t*		trx)
 {
 	DBUG_ENTER("row_ins_sec_index_entry_low");
 
@@ -2998,17 +2992,12 @@ row_ins_sec_index_entry_low(
 	rec_offs_init(offsets_);
 	rtr_info_t	rtr_info;
 
-	ut_ad(thr || trx);
-	if (!trx)
-		trx = thr_get_trx(thr);
-
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(mode == BTR_MODIFY_LEAF || mode == BTR_MODIFY_TREE);
 
 	cursor.thr = thr;
 	cursor.rtr_info = NULL;
-	ut_ad(trx);
-	ut_ad(trx->id != 0);
+	ut_ad(thr_get_trx(thr)->id != 0);
 
 	mtr_start(&mtr);
 	mtr.set_named_space(index->space);
@@ -3044,7 +3033,7 @@ row_ins_sec_index_entry_low(
 		}
 
 		if (row_log_online_op_try(
-			    index, entry, trx->id)) {
+			    index, entry, thr_get_trx(thr)->id)) {
 			goto func_exit;
 		}
 	}
@@ -3053,7 +3042,7 @@ row_ins_sec_index_entry_low(
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
 
-	if (!trx->check_unique_secondary) {
+	if (!thr_get_trx(thr)->check_unique_secondary) {
 		search_mode |= BTR_IGNORE_SEC_UNIQUE;
 	}
 
@@ -3096,6 +3085,8 @@ row_ins_sec_index_entry_low(
 	}
 
 	if (err != DB_SUCCESS) {
+		trx_t* trx = thr_get_trx(thr);
+
 		if (err == DB_DECRYPTION_FAILED) {
 			ib_push_warning(trx->mysql_thd,
 				DB_DECRYPTION_FAILED,
@@ -3139,7 +3130,7 @@ row_ins_sec_index_entry_low(
 		}
 
 		err = row_ins_scan_sec_index_for_duplicate(
-			flags, index, entry, thr, check, &mtr, offsets_heap, trx);
+			flags, index, entry, thr, check, &mtr, offsets_heap);
 
 		mtr_commit(&mtr);
 
@@ -3148,7 +3139,7 @@ row_ins_sec_index_entry_low(
 			break;
 		case DB_DUPLICATE_KEY:
 			if (!index->is_committed()) {
-				ut_ad(!trx
+				ut_ad(!thr_get_trx(thr)
 				      ->dict_operation_lock_mode);
 				mutex_enter(&dict_sys->mutex);
 				dict_set_corrupted_index_cache_only(index);
@@ -3191,8 +3182,8 @@ row_ins_sec_index_entry_low(
 
 	if (!(flags & BTR_NO_LOCKING_FLAG)
 	    && dict_index_is_unique(index)
-	    && trx->duplicates
-	    && trx->isolation_level >= TRX_ISO_REPEATABLE_READ) {
+	    && thr_get_trx(thr)->duplicates
+	    && thr_get_trx(thr)->isolation_level >= TRX_ISO_REPEATABLE_READ) {
 
 		/* When using the REPLACE statement or ON DUPLICATE clause, a
 		gap lock is taken on the position of the to-be-inserted record,
@@ -3215,7 +3206,7 @@ row_ins_sec_index_entry_low(
 		switch (err) {
 		case DB_SUCCESS:
 		case DB_SUCCESS_LOCKED_REC:
-			if (trx->error_state != DB_DUPLICATE_KEY) {
+			if (thr_get_trx(thr)->error_state != DB_DUPLICATE_KEY) {
 				break;
 			}
 			/* Fall through (skip actual insert) after we have
@@ -3225,7 +3216,7 @@ row_ins_sec_index_entry_low(
 		}
 	}
 
-	ut_ad(trx->error_state == DB_SUCCESS);
+	ut_ad(thr_get_trx(thr)->error_state == DB_SUCCESS);
 
 	if (dup_chk_only) {
 		goto func_exit;
