@@ -2961,6 +2961,15 @@ public:
                   ulonglong commit_id1= 0, enum_tx_isolation iso_level1= ISO_READ_UNCOMMITTED,
                   ulonglong commit_id0= 0);
 
+  enum_tx_isolation iso_level() const;
+  void store_iso_level(enum_tx_isolation iso_level)
+  {
+    DBUG_ASSERT(iso_level <= ISO_SERIALIZABLE);
+    store(FLD_ISO_LEVEL, iso_level + 1);
+  }
+  bool check();
+
+public:
   TABLE * operator-> () const
   {
     return table;
@@ -2974,13 +2983,16 @@ public:
   {
     return table;
   }
-  enum_tx_isolation iso_level() const;
-  void store_iso_level(enum_tx_isolation iso_level)
+  bool operator== (TABLE_LIST &subj) const
   {
-    DBUG_ASSERT(iso_level <= ISO_SERIALIZABLE);
-    store(FLD_ISO_LEVEL, iso_level + 1);
+    if (0 != strcmp(db, subj.db))
+      return false;
+    return (0 == strcmp(table_name, subj.table_name));
   }
-  bool check();
+  bool operator!= (TABLE_LIST &subj) const
+  {
+    return !(*this == subj);
+  }
 };
 
 #endif /* MYSQL_CLIENT */
