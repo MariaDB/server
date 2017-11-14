@@ -10,13 +10,13 @@ create database innodb_encrypted_1;
 use innodb_encrypted_1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	4
+Innodb_pages0_read	5
 set autocommit=0;
 set autocommit=1;
 commit work;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	4
+Innodb_pages0_read	5
 # should be empty
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE NAME LIKE 'innodb_encrypted%';
 NAME
@@ -24,13 +24,13 @@ create database innodb_encrypted_2;
 use innodb_encrypted_2;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	4
+Innodb_pages0_read	5
 set autocommit=0;
 commit work;
 set autocommit=1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	4
+Innodb_pages0_read	5
 # should contain 100 tables
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'innodb_encrypted%' ORDER BY NAME;
 NAME
@@ -141,13 +141,13 @@ create database innodb_encrypted_3;
 use innodb_encrypted_3;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	4
+Innodb_pages0_read	5
 set autocommit=0;
 commit work;
 set autocommit=1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	4
+Innodb_pages0_read	5
 # should contain 100 tables
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'innodb_encrypted%' ORDER BY NAME;
 NAME
@@ -357,7 +357,7 @@ innodb_encrypted_3/t_99
 use test;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	4
+Innodb_pages0_read	5
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'innodb_encrypted%' ORDER BY NAME;
 NAME
 innodb_encrypted_2/t_1
@@ -770,53 +770,53 @@ innodb_encrypted_3/t_98
 innodb_encrypted_3/t_99
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	4
+Innodb_pages0_read	5
 # Success!
 # Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
 # Restart Success!
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 use test;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 use innodb_encrypted_1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 use innodb_encrypted_2;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 use innodb_encrypted_3;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 use innodb_encrypted_1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 use innodb_encrypted_2;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 use innodb_encrypted_3;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	304
+Innodb_pages0_read	305
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE 'innodb_encrypted%' ORDER BY NAME;
 NAME
 innodb_encrypted_3/t_1
