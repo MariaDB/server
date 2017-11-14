@@ -19,7 +19,7 @@ SET GLOBAL innodb_buffer_pool_dump_at_shutdown=OFF;
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/my_restart.err;
 --echo # Restart the server with --log-error
 --replace_result $SEARCH_FILE SEARCH_FILE
---let $restart_parameters =--log-error=$SEARCH_FILE --no-console
+--let $restart_parameters =--log-error=$SEARCH_FILE 
 --source include/restart_mysqld.inc
 
 set global innodb_checksum_algorithm=strict_innodb;

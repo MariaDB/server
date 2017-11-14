@@ -27,7 +27,7 @@ show warnings;
 create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant;
 show create table innodb_redundant;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
---error ER_CANT_CREATE_TABLE
+--error ER_CANT_CREATE_TABLE, 1478
 alter table innodb_redundant page_compressed=1;
 --replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
