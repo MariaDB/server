@@ -206,15 +206,13 @@ INSERT INTO nolink VALUES (1, 'no link file');
 --echo #
 --source include/start_mysqld.inc
 
-#--source suite/innodb/include/show_i_s_tablespaces.inc
-
---error ER_TABLESPACE_MISSING
+--error 1932
 SELECT * FROM yyy;
---error ER_TABLESPACE_MISSING
+--error 1932
 SELECT * FROM nyy;
---error ER_TABLESPACE_MISSING
+--error 1932
 SELECT * FROM yny;
---error ER_TABLESPACE_MISSING
+--error 1932
 SELECT * FROM yyn;
 SELECT * FROM nyw;
 SELECT * FROM nwy;
@@ -222,19 +220,19 @@ SELECT * FROM wny;
 SELECT * FROM ynw;
 SELECT * FROM wyn;
 SELECT * FROM ywn;
---error ER_TABLESPACE_MISSING
+--error 1932
 SELECT * FROM nnn;
---error ER_TABLESPACE_MISSING
+--error 1932
 SELECT * FROM www;
 SELECT * FROM nolink;
 
---error ER_TABLESPACE_MISSING
+--error 1932
 SHOW CREATE TABLE yyy;
---error ER_TABLESPACE_MISSING
+--error 1932
 SHOW CREATE TABLE nyy;
---error ER_TABLESPACE_MISSING
+--error 1932
 SHOW CREATE TABLE yny;
---error ER_TABLESPACE_MISSING
+--error 1932
 SHOW CREATE TABLE yyn;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 SHOW CREATE TABLE nyw;
@@ -246,9 +244,9 @@ SHOW CREATE TABLE ynw;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 SHOW CREATE TABLE wyn;
 SHOW CREATE TABLE ywn;
---error ER_TABLESPACE_MISSING
+--error 1932
 SHOW CREATE TABLE nnn;
---error ER_TABLESPACE_MISSING
+--error 1932
 SHOW CREATE TABLE www;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 SHOW CREATE TABLE nolink;

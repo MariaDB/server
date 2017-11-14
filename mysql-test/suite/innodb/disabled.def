@@ -12,13 +12,8 @@
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
 
-alter_rename_existing:  tablespace
-i_s_files_debug:  tablespace
-innodb-multiple-tablespaces: tablespaces
-log_file:  tablespace
-missing_tablespaces: tablespaces
-partition:  tablespace
-table_compress:  tablespace
+innodb-multiple-tablespaces: crash// --
+partition:  MDEV-14391 
 
 alter_table_stage_progress: fix
 blob-crash: no --innodb-force-recovery-crash option in Mariadb
