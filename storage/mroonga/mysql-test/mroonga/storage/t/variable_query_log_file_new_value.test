@@ -23,8 +23,7 @@
 SET GLOBAL mroonga_log_file = "groonga-query-log.log";
 
 SET GLOBAL mroonga_query_log_file = "groonga-query.log";
-SHOW GLOBAL VARIABLES LIKE "mroonga_query_log_file";
---exec sed -r -e 's/^[^|]+\|[^|]+\|[^|]+\| *//' $MYSQLD_DATADIR/groonga-query-log.log
+--source ../../include/mroonga/print_groonga_query_log.inc
 
 SET GLOBAL mroonga_query_log_file = DEFAULT;
 SET GLOBAL mroonga_log_file = DEFAULT;
