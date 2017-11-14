@@ -40,6 +40,10 @@ SELECT ST_AsGeoJSON(ST_GeomFromText('POINT(5.363 7.266)'),10);
 SELECT ST_AsGeoJSON(ST_GeomFromText("POINT(10 11)"), 100, 1);
 SELECT ST_AsGeoJSON(ST_GeomFromText("POINT(10 11)"), 100, 5);
 
+SELECT st_astext(st_geomfromgeojson('{"type": "MultiLineString","coordinates": []}')) as a;
+SELECT st_astext(st_geomfromgeojson('{"type": "Polygon","coordinates": []}')) as a;
+SELECT st_astext(st_geomfromgeojson('{"type": "MultiPolygon","coordinates": []}')) as a;
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

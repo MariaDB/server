@@ -7746,3 +7746,6 @@ ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
 
 ER_NET_OK_PACKET_TOO_LARGE
   eng "OK packet too large"
+
+ER_GEOJSON_EMPTY_COORDINATES
+        eng "Incorrect GeoJSON format - empty 'coordinates' array."
