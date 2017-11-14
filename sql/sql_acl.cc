@@ -7557,6 +7557,10 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
       tl->correspondent_table ? tl->correspondent_table : tl;
     sctx= t_ref->security_ctx ? t_ref->security_ctx : thd->security_ctx;
 
+    if (tl->with ||
+        (tl->with= tl->select_lex->find_table_def_in_with_clauses(tl)))
+      continue;
+
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
                               t_ref->get_db_name(),
