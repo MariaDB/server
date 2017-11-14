@@ -2212,7 +2212,7 @@ run_again:
 
 	if (node->table->versioned() &&
 	    (node->versioned || node->vers_delete ||
-	     // TODO: imrove this check (check if we touch only
+	     // TODO: improve this check (check if we touch only
 	     // unversioned fields in foreigh table)
 	     node->foreign)) {
 		trx->vers_update_trt = true;

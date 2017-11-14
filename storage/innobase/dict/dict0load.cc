@@ -50,7 +50,7 @@ Created 4/24/1996 Heikki Tuuri
 #include <set>
 
 /** Following are the InnoDB system tables. The positions in
-this array are referenced by enum dict_system_id_t. */
+this array are referenced by enum dict_system_table_id. */
 static const char* SYSTEM_TABLE_NAME[] = {
 	"SYS_TABLES",
 	"SYS_INDEXES",
@@ -60,8 +60,7 @@ static const char* SYSTEM_TABLE_NAME[] = {
 	"SYS_FOREIGN_COLS",
 	"SYS_TABLESPACES",
 	"SYS_DATAFILES",
-	"SYS_VIRTUAL",
-	"SYS_VTQ"
+	"SYS_VIRTUAL"
 };
 
 /** Loads a table definition and also all its index definitions.
@@ -308,10 +307,7 @@ dict_getnext_system_low(
 	rec_t*	rec = NULL;
 
 	while (!rec || rec_get_deleted_flag(rec, 0)) {
-		if (pcur->search_mode == PAGE_CUR_L)
-			btr_pcur_move_to_prev_user_rec(pcur, mtr);
-		else
-			btr_pcur_move_to_next_user_rec(pcur, mtr);
+		btr_pcur_move_to_next_user_rec(pcur, mtr);
 
 		rec = btr_pcur_get_rec(pcur);
 
@@ -338,8 +334,7 @@ dict_startscan_system(
 	btr_pcur_t*	pcur,		/*!< out: persistent cursor to
 					the record */
 	mtr_t*		mtr,		/*!< in: the mini-transaction */
-	dict_system_id_t system_id,	/*!< in: which system table to open */
-	bool		from_left)
+	dict_system_id_t system_id)	/*!< in: which system table to open */
 {
 	dict_table_t*	system_table;
 	dict_index_t*	clust_index;
@@ -351,7 +346,7 @@ dict_startscan_system(
 
 	clust_index = UT_LIST_GET_FIRST(system_table->indexes);
 
-	btr_pcur_open_at_index_side(from_left, clust_index, BTR_SEARCH_LEAF, pcur,
+	btr_pcur_open_at_index_side(true, clust_index, BTR_SEARCH_LEAF, pcur,
 				    true, 0, mtr);
 
 	rec = dict_getnext_system_low(pcur, mtr);
@@ -813,15 +808,6 @@ err_len:
 	*path = mem_heap_strdupl(heap, (char*) field, len);
 
 	return(NULL);
-}
-
-
-inline
-const char* dict_print_error(mem_heap_t* heap, ulint col, ulint len, ulint expected)
-{
-	return mem_heap_printf(heap,
-		"incorrect column %lu length in SYS_VTQ; got: %lu, expected: %lu",
-		col, len, expected);
 }
 
 /** Get the first filepath from SYS_DATAFILES for a given space_id.

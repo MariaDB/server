@@ -325,6 +325,7 @@ enum dict_fld_sys_datafiles_enum {
 	DICT_FLD__SYS_DATAFILES__PATH			= 3,
 	DICT_NUM_FIELDS__SYS_DATAFILES			= 4
 };
+
 /* The columns in SYS_VIRTUAL */
 enum dict_col_sys_virtual_enum {
 	DICT_COL__SYS_VIRTUAL__TABLE_ID		= 0,

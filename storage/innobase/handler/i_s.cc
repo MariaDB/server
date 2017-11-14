@@ -28,8 +28,6 @@ Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 #include "ha_prototypes.h"
 #include <mysql_version.h>
 #include <field.h>
-#include <tztime.h>
-
 #include "univ.i"
 
 #include <sql_acl.h>
@@ -348,51 +346,6 @@ field_store_ulint(
 #else
 # define I_S_AHI 0 /* Omit the IS_HASHED column */
 #endif
-
-/*******************************************************************//**
-Auxiliary function to store ulint value in MYSQL_TYPE_LONGLONG field.
-If the value is UINT64_UNDEFINED then the field it set to NULL.
-@return	0 on success */
-int
-field_store_uint64_t(
-/*==============*/
-	Field*	field,	/*!< in/out: target field for storage */
-	uint64_t	n)	/*!< in: value to store */
-{
-	int	ret;
-
-	if (n != UINT64_UNDEFINED) {
-		ret = field->store(n, 1);
-		field->set_notnull();
-	} else {
-		ret = 0; /* success */
-		field->set_null();
-	}
-
-	return(ret);
-}
-
-/*******************************************************************//**
-Auxiliary function to store packed timestamp value in MYSQL_TYPE_DATETIME field.
-If the value is ULINT_UNDEFINED then the field it set to NULL.
-@return	0 on success */
-int
-field_store_timeval(
-/*==============*/
-Field*	field,	/*!< in/out: target field for storage */
-timeval	t,	/*!< in: value to store */
-THD*	thd)
-{
-	int	ret;
-	MYSQL_TIME tmp;
-
-	thd_get_timezone(thd)->gmt_sec_to_TIME(&tmp, t.tv_sec);
-	tmp.second_part = t.tv_usec;
-	ret = field->store_time(&tmp);
-	field->set_notnull();
-
-	return(ret);
-}
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_trx */
 static ST_FIELD_INFO	innodb_trx_fields_info[] =

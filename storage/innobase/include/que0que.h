@@ -381,6 +381,9 @@ struct que_thr_t{
 			thrs;		/*!< list of thread nodes of the fork
 					node */
 	UT_LIST_NODE_T(que_thr_t)
+			trx_thrs;	/*!< lists of threads in wait list of
+					the trx */
+	UT_LIST_NODE_T(que_thr_t)
 			queue;		/*!< list of runnable thread nodes in
 					the server task queue */
 	ulint		fk_cascade_depth; /*!< maximum cascading call depth

@@ -1713,7 +1713,9 @@ thd_start_time_in_secs(
 /*===================*/
 	THD*	thd)	/*!< in: thread handle, or NULL */
 {
-	return(static_cast<ulint>(thd_start_time(thd)));
+	// FIXME: This function should be added to the server code.
+	//return(thd_start_time(thd));
+	return(ulint(ut_time()));
 }
 
 /** Enter InnoDB engine after checking the max number of user threads

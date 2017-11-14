@@ -180,7 +180,7 @@ trx_purge_graph_build(sess_t* sess)
 	ut_ad(trx->sess == sess);
 
 	trx->id = 0;
-	trx->init_start_time();
+	trx->start_time = ut_time();
 	trx->state = TRX_STATE_ACTIVE;
 	trx->op_info = "purge trx";
 

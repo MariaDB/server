@@ -471,7 +471,7 @@ alphabetical position of the cursor is guaranteed to be sensible on
 return, but it may happen that the cursor is not positioned on the last
 record of any page, because the structure of the tree may have changed
 during the time when the cursor had no latches. */
-UNIV_INTERN
+static
 void
 btr_pcur_move_backward_from_page(
 /*=============================*/
@@ -607,9 +607,8 @@ btr_pcur_open_on_user_rec_func(
 	} else {
 		ut_ad((mode == PAGE_CUR_LE) || (mode == PAGE_CUR_L));
 
-		if (btr_pcur_is_before_first_on_page(cursor)) {
+		/* Not implemented yet */
 
-			btr_pcur_move_to_prev_user_rec(cursor, mtr);
-		}
+		ut_error;
 	}
 }

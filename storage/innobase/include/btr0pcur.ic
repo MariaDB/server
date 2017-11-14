@@ -335,42 +335,6 @@ loop:
 }
 
 /*********************************************************//**
-Moves the persistent cursor to the previous user record in the tree. If no user
-records are left, the cursor ends up 'before first in tree'.
-@return	TRUE if the cursor moved forward, ending on a user record */
-UNIV_INLINE
-ibool
-btr_pcur_move_to_prev_user_rec(
-/*===========================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor; NOTE that the
-				function may release the page latch */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
-	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
-	cursor->old_stored = false;
-loop:
-	if (btr_pcur_is_before_first_on_page(cursor)) {
-
-		if (btr_pcur_is_before_first_in_tree(cursor, mtr)) {
-
-			return(FALSE);
-		}
-
-		btr_pcur_move_to_prev(cursor, mtr);
-	} else {
-		btr_pcur_move_to_prev_on_page(cursor);
-	}
-
-	if (btr_pcur_is_on_user_rec(cursor)) {
-
-		return(TRUE);
-	}
-
-	goto loop;
-}
-
-/*********************************************************//**
 Moves the persistent cursor to the next record in the tree. If no records are
 left, the cursor stays 'after last in tree'.
 @return TRUE if the cursor was not after last in tree */

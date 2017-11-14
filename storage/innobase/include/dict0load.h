@@ -52,7 +52,6 @@ enum dict_system_id_t {
 	SYS_TABLESPACES,
 	SYS_DATAFILES,
 	SYS_VIRTUAL,
-	SYS_VTQ,
 
 	/* This must be last item. Defines the number of system tables. */
 	SYS_NUM_SYSTEM_TABLES
@@ -182,8 +181,7 @@ dict_startscan_system(
 	btr_pcur_t*	pcur,		/*!< out: persistent cursor to
 					the record */
 	mtr_t*		mtr,		/*!< in: the mini-transaction */
-	dict_system_id_t system_id,	/*!< in: which system table to open */
-	bool		from_left = true);
+	dict_system_id_t system_id);	/*!< in: which system table to open */
 /********************************************************************//**
 This function get the next system table record as we scan the table.
 @return the record if found, NULL if end of scan. */

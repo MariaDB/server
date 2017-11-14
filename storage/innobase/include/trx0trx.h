@@ -1303,15 +1303,6 @@ struct trx_t {
 		return(assign_temp_rseg());
 	}
 
-	void init_start_time()
-	{
-		ulint secs;
-		ulint usecs;
-		ut_usectime(&secs, &usecs);
-		start_time = secs;
-		start_time_micro = usecs + (ib_uint64_t) secs * 1000000;
-	}
-
 private:
 	/** Assign a rollback segment for modifying temporary tables.
 	@return the assigned rollback segment */

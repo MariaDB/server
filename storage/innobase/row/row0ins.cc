@@ -2782,10 +2782,7 @@ row_ins_clust_index_entry_low(
 
 		if (flags
 		    == (BTR_CREATE_FLAG | BTR_NO_LOCKING_FLAG
-			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG) || !thr) {
-			// thr == 0 for SYS_VTQ table
-			ut_ad(thr || flags &
-				(BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG));
+			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG)) {
 			/* Set no locks when applying log
 			in online table rebuild. Only check for duplicates. */
 			err = row_ins_duplicate_error_in_clust_online(
@@ -3986,4 +3983,3 @@ error_handling:
 
 	return(thr);
 }
-
