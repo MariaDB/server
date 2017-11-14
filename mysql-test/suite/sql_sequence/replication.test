@@ -582,7 +582,7 @@ drop sequence s1;
 --echo ------------------------------------------
 connection master;
 set session binlog_format=statement;
-show  session variables like '%binlog_format%';
+select @@session.binlog_format;
 create sequence s1 cache 2;
 --error ER_BINLOG_STMT_MODE_AND_ROW_ENGINE
 select next value for s1;
@@ -603,7 +603,7 @@ drop sequence s1;
 --echo ------------------------------------------
 connection master;
 set session binlog_format=mixed;
-show  session variables like '%binlog_format%';
+select @@session.binlog_format;
 create sequence s1 cache 2;
 select next value for s1;
 

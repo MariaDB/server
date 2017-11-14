@@ -600,10 +600,9 @@ set binlog_format=statement
 ------------------------------------------
 connection master;
 set session binlog_format=statement;
-show  session variables like '%binlog_format%';
-Variable_name	Value
-binlog_format	STATEMENT
-wsrep_forced_binlog_format	NONE
+select @@session.binlog_format;
+@@session.binlog_format
+STATEMENT
 create sequence s1 cache 2;
 select next value for s1;
 ERROR HY000: Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT and at least one table uses a storage engine limited to row-based logging.
