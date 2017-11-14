@@ -802,7 +802,13 @@ int sp_cursor::open_view_structure_only(THD *thd)
   if (!(thd->lex->limit_rows_examined= new (thd->mem_root) Item_uint(thd, 0)))
     return -1;
   thd->no_errors= true; // Suppress ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
+  DBUG_ASSERT(!thd->killed);
   res= open(thd);
+  /*
+    The query possibly exited on LIMIT ROWS EXAMINED and set thd->killed.
+    Reset it now.
+  */
+  thd->reset_killed();
   thd->no_errors= thd_no_errors_save;
   thd->lex->limit_rows_examined= limit_rows_examined;
   return res;
