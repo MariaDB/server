@@ -89,14 +89,6 @@ alter table t1 drop partition p0;
 
 select x from t1;
 
-# Bug #260: incorrect IB partitioning warning
-create or replace table t1 (x int)
-with system versioning
-partition by system_time limit 1 (
-    partition p0 versioning,
-    partition pn as of now);
-alter table t1 change x big int;
-
 # insert, delete, update
 create or replace table t1 (x int)
 with system versioning

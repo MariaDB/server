@@ -3163,21 +3163,11 @@ int vers_get_partition_id(partition_info *part_info,
   DBUG_ASSERT(part_info);
   Field *sys_trx_end= part_info->part_field_array[STAT_TRX_END];
   DBUG_ASSERT(sys_trx_end);
-  TABLE *table= part_info->table;
-  DBUG_ASSERT(table);
+  DBUG_ASSERT(part_info->table);
   Vers_part_info *vers_info= part_info->vers_info;
-  DBUG_ASSERT(vers_info);
-  DBUG_ASSERT(vers_info->initialized());
-  DBUG_ASSERT(sys_trx_end->table == table);
-  bool tmp_off= false;
-  if (!table->versioned() && table->file->native_versioned())
-  {
-    // in copy_data_between_tables() versioning may be temporarily turned off
-    tmp_off= true;
-    table->s->versioned= true;
-  }
-  DBUG_ASSERT(table->versioned());
-  DBUG_ASSERT(table->vers_end_field() == sys_trx_end);
+  DBUG_ASSERT(vers_info && vers_info->initialized());
+  DBUG_ASSERT(sys_trx_end->table == part_info->table && part_info->table->versioned());
+  DBUG_ASSERT(part_info->table->vers_end_field() == sys_trx_end);
 
   // new rows have NULL in sys_trx_end
   if (sys_trx_end->is_max() || sys_trx_end->is_null())
@@ -3187,6 +3177,7 @@ int vers_get_partition_id(partition_info *part_info,
   else // row is historical
   {
     THD *thd= current_thd;
+    TABLE *table= part_info->table;
 
     switch (thd->lex->sql_command)
     {
@@ -3223,9 +3214,6 @@ int vers_get_partition_id(partition_info *part_info,
     }
     *part_id= vers_info->hist_part->id;
   }
-
-  if (tmp_off)
-    table->s->versioned= false;
 
   DBUG_PRINT("exit",("partition: %d", *part_id));
   DBUG_RETURN(0);

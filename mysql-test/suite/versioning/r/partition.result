@@ -172,12 +172,6 @@ x
 2
 create or replace table t1 (x int)
 with system versioning
-partition by system_time limit 1 (
-partition p0 versioning,
-partition pn as of now);
-alter table t1 change x big int;
-create or replace table t1 (x int)
-with system versioning
 partition by system_time (
 partition p0 versioning,
 partition pn as of now);

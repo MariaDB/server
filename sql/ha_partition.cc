@@ -3585,7 +3585,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
                             m_part_info->part_expr->get_monotonicity_info();
   else if (m_part_info->list_of_part_fields)
     m_part_func_monotonicity_info= MONOTONIC_STRICT_INCREASING;
-  info(HA_STATUS_OPEN | HA_STATUS_VARIABLE | HA_STATUS_CONST);
+  info(HA_STATUS_VARIABLE | HA_STATUS_CONST);
   DBUG_RETURN(0);
 
 err_handler:
@@ -6585,7 +6585,6 @@ int ha_partition::info(uint flag)
 {
   uint no_lock_flag= flag & HA_STATUS_NO_LOCK;
   uint extra_var_flag= flag & HA_STATUS_VARIABLE_EXTRA;
-  uint open_flag= flag & HA_STATUS_OPEN;
   DBUG_ENTER("ha_partition::info");
 
 #ifndef DBUG_OFF
@@ -6626,7 +6625,7 @@ int ha_partition::info(uint flag)
         do
         {
           file= *file_array;
-          file->info(HA_STATUS_AUTO | no_lock_flag | open_flag);
+          file->info(HA_STATUS_AUTO | no_lock_flag);
           set_if_bigger(auto_increment_value,
                         file->stats.auto_increment_value);
         } while (*(++file_array));
@@ -6680,7 +6679,7 @@ int ha_partition::info(uint flag)
          i= bitmap_get_next_set(&m_part_info->read_partitions, i))
     {
       file= m_file[i];
-      file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag | open_flag);
+      file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag);
       stats.records+= file->stats.records;
       stats.deleted+= file->stats.deleted;
       stats.data_file_length+= file->stats.data_file_length;
@@ -6761,7 +6760,7 @@ int ha_partition::info(uint flag)
       if (!(flag & HA_STATUS_VARIABLE) ||
           !bitmap_is_set(&(m_part_info->read_partitions),
                          (uint)(file_array - m_file)))
-        file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag | open_flag);
+        file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag);
       if (file->stats.records > max_records)
       {
         max_records= file->stats.records;
@@ -6780,7 +6779,7 @@ int ha_partition::info(uint flag)
               this);
 
     file= m_file[handler_instance];
-    file->info(HA_STATUS_CONST | no_lock_flag | open_flag);
+    file->info(HA_STATUS_CONST | no_lock_flag);
     stats.block_size= file->stats.block_size;
     stats.create_time= file->stats.create_time;
     ref_length= m_ref_length;
@@ -6796,7 +6795,7 @@ int ha_partition::info(uint flag)
       Note: all engines does not support HA_STATUS_ERRKEY, so set errkey.
     */
     file->errkey= errkey;
-    file->info(HA_STATUS_ERRKEY | no_lock_flag | open_flag);
+    file->info(HA_STATUS_ERRKEY | no_lock_flag);
     errkey= file->errkey;
   }
   if (flag & HA_STATUS_TIME)
@@ -6813,7 +6812,7 @@ int ha_partition::info(uint flag)
     do
     {
       file= *file_array;
-      file->info(HA_STATUS_TIME | no_lock_flag | open_flag);
+      file->info(HA_STATUS_TIME | no_lock_flag);
       if (file->stats.update_time > stats.update_time)
 	stats.update_time= file->stats.update_time;
     } while (*(++file_array));

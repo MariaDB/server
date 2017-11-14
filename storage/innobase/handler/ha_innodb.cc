@@ -6523,7 +6523,7 @@ no_such_table:
 		}
 	}
 
-	info(HA_STATUS_OPEN | HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
+	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
 	DBUG_RETURN(0);
 }
 
@@ -14404,7 +14404,7 @@ ha_innobase::info_low(
 		set. That way SHOW TABLE STATUS will show the best estimate,
 		while the optimizer never sees the table empty. */
 
-		if (n_rows == 0 && !(flag & (HA_STATUS_TIME | HA_STATUS_OPEN))) {
+		if (n_rows == 0 && !(flag & HA_STATUS_TIME)) {
 			n_rows++;
 		}
 
