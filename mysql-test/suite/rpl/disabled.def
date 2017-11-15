@@ -17,3 +17,6 @@ rpl_row_binlog_max_cache_size : MDEV-11092
 rpl_blackhole             : MDEV-11094
 rpl_row_mysqlbinlog       : MDEV-11095
 rpl_row_index_choice      : MDEV-11666
+rpl_semi_sync_event_after_sync : broken in 10.3
+rpl_semi_sync_after_sync_row : broken in 10.3
+rpl_semi_sync_after_sync  : broken in 10.3

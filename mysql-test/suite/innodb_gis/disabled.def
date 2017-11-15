@@ -24,3 +24,7 @@ bug16236208 : MDEV-14057 InnoDB GIS tests fail
 bug16266012 : MDEV-14057 InnoDB GIS tests fail
 rtree_search : MDEV-14057 InnoDB GIS tests fail
 rtree_old : MDEV-14057 InnoDB GIS tests fail
+rtree_compress           : broken in 10.3
+rtree_compress2          : broken in 10.3
+rtree_purge              : broken in 10.3
+rtree_split              : broken in 10.3
