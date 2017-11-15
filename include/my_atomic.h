@@ -101,7 +101,7 @@
                             sequentially-consistent operation ordering.
 
   We choose implementation as follows: on Windows using Visual C++ the native
-  implementation should be preferrable. When using gcc we prefer the Solaris
+  implementation should be preferable. When using gcc we prefer the Solaris
   implementation before the gcc because of stability preference, we choose gcc
   builtins if available.
 */

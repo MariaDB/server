@@ -376,7 +376,7 @@ typedef size_t (*my_charset_conv_case)(CHARSET_INFO *,
   A structure to return the statistics of a native string copying,
   when no Unicode conversion is involved.
 
-  The stucture is OK to be unitialized before calling a copying routine.
+  The stucture is OK to be uninitialized before calling a copying routine.
   A copying routine must populate the structure as follows:
     - m_source_end_pos must be set by to a non-NULL value
       in the range of the input string.
@@ -425,7 +425,7 @@ struct my_charset_handler_st
   my_charset_conv_case caseup;
   my_charset_conv_case casedn;
 
-  /* Charset dependant snprintf() */
+  /* Charset dependent snprintf() */
   size_t (*snprintf)(CHARSET_INFO *, char *to, size_t n,
                      const char *fmt,
                      ...) ATTRIBUTE_FORMAT_FPTR(printf, 4, 5);
