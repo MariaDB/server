@@ -425,7 +425,7 @@ static Sys_var_enum Sys_vers_alter_history(
 static Sys_var_mybool Sys_transaction_registry(
        "transaction_registry",
        "Enable or disable update of transaction_registry",
-       GLOBAL_VAR(transaction_registry), CMD_LINE(OPT_ARG),
+       GLOBAL_VAR(opt_transaction_registry), CMD_LINE(OPT_ARG),
        DEFAULT(TRUE));
 
 static Sys_var_ulonglong Sys_binlog_cache_size(

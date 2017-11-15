@@ -7432,7 +7432,7 @@ static bool mysql_inplace_alter_table(THD *thd,
     TR_table trt(thd, true);
     if (table->file->native_versioned())
     {
-      if (transaction_registry && trt.update())
+      if (opt_transaction_registry && trt.update())
         return true;
     }
 

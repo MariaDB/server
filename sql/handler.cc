@@ -1419,7 +1419,7 @@ int ha_commit_trans(THD *thd, bool all)
     for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
     {
       handlerton *ht= hi->ht();
-      if (transaction_registry &&
+      if (opt_transaction_registry &&
         (ht->flags & HTON_NATIVE_SYS_VERSIONING) &&
         (thd->lex->sql_command == SQLCOM_ALTER_TABLE ?
         hi->is_trx_tmp_read_write() :
