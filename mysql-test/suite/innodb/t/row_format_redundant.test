@@ -20,6 +20,7 @@ let bugdir= $MYSQLTEST_VARDIR/tmp/row_format_redundant;
 --let $d=--innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
 --let $d=$d --innodb-data-file-path=ibdata1:1M:autoextend
 --let $d=$d --innodb-undo-tablespaces=0 --innodb-stats-persistent=0
+--let $d=$d --transaction-registry=0
 --let $restart_parameters= $d
 --source include/restart_mysqld.inc
 

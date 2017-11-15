@@ -38,6 +38,7 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 --let $ibp=$ibp --innodb-data-home-dir=$bugdir --innodb-undo-directory=$bugdir
 --let $ibp=$ibp --innodb-undo-logs=20 --innodb-undo-tablespaces=3
 --let $ibp=$ibp --innodb-data-file-path=ibdata1:16M;ibdata2:10M:autoextend
+--let $ibp=$ibp --transaction-registry=0
 
 --echo # Start mysqld without the possibility to create innodb_undo_tablespaces
 --let $restart_parameters= $ibp

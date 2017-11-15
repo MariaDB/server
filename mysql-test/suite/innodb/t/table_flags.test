@@ -29,6 +29,7 @@ let bugdir= $MYSQLTEST_VARDIR/tmp/table_flags;
 --let $d=$d --innodb-undo-tablespaces=0
 --let $d=$d --innodb-purge-rseg-truncate-frequency=1
 --let $d=$d --skip-innodb-fast-shutdown
+--let $d=$d --transaction-registry=0
 
 --let $restart_parameters=$d --innodb-stats-persistent=0
 --source include/restart_mysqld.inc
