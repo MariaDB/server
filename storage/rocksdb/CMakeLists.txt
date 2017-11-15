@@ -1,9 +1,5 @@
 # TODO: Copyrights
 
-IF("${PLUGIN_ROCKSDB}" STREQUAL "NO")
-  RETURN()
-ENDIF()
-
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
   MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
   RETURN()
