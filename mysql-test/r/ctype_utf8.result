@@ -10113,5 +10113,20 @@ DROP FUNCTION iswellformed;
 DROP TABLE allbytes;
 # End of ctype_backslash.inc
 #
+# MDEV-12681 Wrong VIEW results for CHAR(0xDF USING latin1)
+#
+SET NAMES utf8;
+SELECT CHAR(0xDF USING latin1);
+CHAR(0xDF USING latin1)
+ß
+CREATE OR REPLACE VIEW v1 AS SELECT CHAR(0xDF USING latin1) AS c;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select char(0xdf using latin1) AS `c`	utf8	utf8_general_ci
+SELECT * FROM v1;
+c
+ß
+DROP VIEW v1;
+#
 # End of 10.0 tests
 #

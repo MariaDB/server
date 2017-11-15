@@ -702,6 +702,7 @@ public:
     max_length= arg_count * 4;
   }
   const char *func_name() const { return "char"; }
+  void print(String *str, enum_query_type query_type);
 };
 
 

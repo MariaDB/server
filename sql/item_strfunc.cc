@@ -2905,6 +2905,20 @@ String *Item_func_make_set::val_str(String *str)
 }
 
 
+void Item_func_char::print(String *str, enum_query_type query_type)
+{
+  str->append(Item_func_char::func_name());
+  str->append('(');
+  print_args(str, 0, query_type);
+  if (collation.collation != &my_charset_bin)
+  {
+    str->append(C_STRING_WITH_LEN(" using "));
+    str->append(collation.collation->csname);
+  }
+  str->append(')');
+}
+
+
 String *Item_func_char::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
