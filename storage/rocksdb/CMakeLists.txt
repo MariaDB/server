@@ -5,13 +5,6 @@ MACRO(SKIP_ROCKSDB_PLUGIN msg)
   RETURN()
 ENDMACRO()
 
-IF(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile AND GIT_EXECUTABLE)
-  EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" submodule init
-                  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-  EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" submodule update
-                  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-ENDIF()
-
 IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile")
   SKIP_ROCKSDB_PLUGIN("Missing Makefile in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
