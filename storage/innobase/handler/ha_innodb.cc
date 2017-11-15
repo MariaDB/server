@@ -3634,12 +3634,16 @@ bool innodb_get_trt_data(TR_table &trt)
 	ut_a(trx);
 	if (trx->vers_update_trt)
 	{
-		timeval commit_ts;
 		mutex_enter(&trx_sys->mutex);
 		trx_id_t commit_id = trx_sys_get_new_trx_id();
-		ut_usectime((ulint *)&commit_ts.tv_sec, (ulint *)&commit_ts.tv_usec);
+		ulint sec = 0;
+		ulint usec = 0;
+		ut_usectime(&sec, &usec);
 		mutex_exit(&trx_sys->mutex);
 
+                // silent downgrade cast warning on win64
+		timeval commit_ts = {static_cast<int>(sec),
+				     static_cast<int>(usec)};
 		trt.store_data(trx->id, commit_id, commit_ts);
 		trx->vers_update_trt = false;
 		return true;
