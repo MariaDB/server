@@ -7079,6 +7079,9 @@ ok_exit:
 		ctx->m_stage, add_v, eval_table,
 		ha_alter_info->handler_flags & Alter_inplace_info::ALTER_DROP_HISTORICAL);
 
+	if (m_prebuilt->trx->vers_update_trt)
+		thd_vers_update_trt(m_user_thd);
+
 #ifndef DBUG_OFF
 oom:
 #endif /* !DBUG_OFF */

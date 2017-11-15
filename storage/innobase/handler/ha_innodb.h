@@ -586,6 +586,8 @@ bool thd_is_strict_mode(const MYSQL_THD thd);
  */
 extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
 
+extern void thd_vers_update_trt(THD * thd);
+
 /** Get the partition_info working copy.
 @param	thd	Thread object.
 @return	NULL or pointer to partition_info working copy. */

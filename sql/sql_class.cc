@@ -716,6 +716,11 @@ Time_zone * thd_get_timezone(THD * thd)
 	return thd->variables.time_zone;
 }
 
+void thd_vers_update_trt(THD * thd)
+{
+  thd->vers_update_trt= true;
+}
+
 THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
@@ -1347,6 +1352,8 @@ void THD::init(void)
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
 #endif /* WITH_WSREP */
+
+  vers_update_trt = false;
 
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;

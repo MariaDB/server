@@ -8380,6 +8380,9 @@ no_commit:
 	/* Step-5: Execute insert graph that will result in actual insert. */
 	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
 
+	if (m_prebuilt->trx->vers_update_trt)
+		thd_vers_update_trt(m_user_thd);
+
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
 	/* Step-6: Handling of errors related to auto-increment. */
@@ -9199,6 +9202,9 @@ ha_innobase::update_row(
 			error = row_insert_for_mysql((byte*) old_row, m_prebuilt, ROW_INS_HISTORICAL);
 	}
 
+	if (m_prebuilt->trx->vers_update_trt)
+		thd_vers_update_trt(m_user_thd);
+
 	if (error == DB_SUCCESS && autoinc) {
 		/* A value for an AUTO_INCREMENT column
 		was specified in the UPDATE statement. */
@@ -9317,6 +9323,9 @@ ha_innobase::delete_row(
 		table->vers_end_field()->is_max();
 
 	error = row_update_for_mysql(m_prebuilt, vers_set_fields);
+
+	if (m_prebuilt->trx->vers_update_trt)
+		thd_vers_update_trt(m_user_thd);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 
