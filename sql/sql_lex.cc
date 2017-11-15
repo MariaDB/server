@@ -6438,6 +6438,11 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
                                  const char *start, const char *end)
 {
+  if (!thd->m_parser_state->m_lip.stmt_prepare_mode)
+  {
+    thd->parse_error(ER_SYNTAX_ERROR, start);
+    return NULL;
+  }
   if (!parsing_options.allows_variable)
   {
     my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
