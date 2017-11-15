@@ -473,8 +473,8 @@ static bool create_option_need_rebuild(
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			table)
 {
-	DBUG_ASSERT((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
-		    == Alter_inplace_info::CHANGE_CREATE_OPTION);
+	DBUG_ASSERT(ha_alter_info->handler_flags
+		    & Alter_inplace_info::CHANGE_CREATE_OPTION);
 
 	if (ha_alter_info->create_info->used_fields
 	    & (HA_CREATE_USED_ROW_FORMAT

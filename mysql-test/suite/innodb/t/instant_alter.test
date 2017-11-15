@@ -6,8 +6,9 @@
 
 let $format= `SELECT CASE WHEN @@GLOBAL.innodb_page_size>16384
 THEN 'DYNAMIC' ELSE 'COMPRESSED' END`;
-eval CREATE TABLE t(a INT UNIQUE)ENGINE=InnoDB ROW_FORMAT=$format;
-INSERT INTO t VALUES(1);
+CREATE TABLE t(a INT UNIQUE)ENGINE=InnoDB ROW_FORMAT=COMPACT;
+eval ALTER TABLE t ADD e INT, ROW_FORMAT=$format;
+INSERT INTO t SET a=1;
 SET @old_instant=
 (SELECT variable_value FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column');
@@ -23,6 +24,9 @@ ALTER TABLE t ADD d INT NOT NULL;
 --disable_info
 SELECT * FROM t;
 SHOW CREATE TABLE t;
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
