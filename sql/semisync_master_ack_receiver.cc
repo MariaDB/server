@@ -64,6 +64,7 @@ bool Ack_receiver::start()
   const char *kWho = "Ack_receiver::start";
   function_enter(kWho);
 
+  mysql_mutex_lock(&m_mutex);
   if(m_status == ST_DOWN)
   {
     pthread_attr_t attr;
@@ -83,10 +84,13 @@ bool Ack_receiver::start()
                       " could not create thread(errno:%d)", errno);
 
       m_status= ST_DOWN;
+      mysql_mutex_unlock(&m_mutex);
+
       return function_exit(kWho, true);
     }
     (void) pthread_attr_destroy(&attr);
   }
+  mysql_mutex_unlock(&m_mutex);
 
   return function_exit(kWho, false);
 }
@@ -96,9 +100,9 @@ void Ack_receiver::stop()
   const char *kWho = "Ack_receiver::stop";
   function_enter(kWho);
 
+  mysql_mutex_lock(&m_mutex);
   if (m_status == ST_UP)
   {
-    mysql_mutex_lock(&m_mutex);
     m_status= ST_STOPPING;
     mysql_cond_broadcast(&m_cond);
 
@@ -107,10 +111,10 @@ void Ack_receiver::stop()
 
     DBUG_ASSERT(m_status == ST_DOWN);
 
-    mysql_mutex_unlock(&m_mutex);
-
     m_pid= 0;
   }
+  mysql_mutex_unlock(&m_mutex);
+
   function_exit(kWho);
 }
 
