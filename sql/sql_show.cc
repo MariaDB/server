@@ -5096,10 +5096,11 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
 
     if (share->tmp_table == SYSTEM_TMP_TABLE)
       table->field[3]->store(STRING_WITH_LEN("SYSTEM VIEW"), cs);
-    else if (share->tmp_table)
-      table->field[3]->store(STRING_WITH_LEN("LOCAL TEMPORARY"), cs);
     else
+    {
+      DBUG_ASSERT(share->tmp_table == NO_TMP_TABLE);
       table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
+    }
 
     for (int i= 4; i < 20; i++)
     {
