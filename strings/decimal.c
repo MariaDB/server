@@ -1694,7 +1694,7 @@ done:
                 scale increment for '/'
 
   NOTE
-    returned valued may be larger than the actual buffer requred
+    returned valued may be larger than the actual buffer required
     in the operation, as decimal_result_size, by design, operates on
     precision/scale values only and not on the actual decimal number
 

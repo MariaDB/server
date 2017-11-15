@@ -259,7 +259,7 @@ static my_bool shannon_has_atomic_write(File file, int page_size)
 ************************************************************************/
 
 /*
-  Initalize automic write sub systems.
+  Initialize automic write sub systems.
   Checks if we have any devices that supports atomic write
 */
 

@@ -25,7 +25,7 @@ SELF=$(cd $(dirname $0); pwd -P)/$(basename $0)
 
 MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
 
-# priority can be overriden and "-s" adds output to stderr
+# priority can be overridden and "-s" adds output to stderr
 ERR_LOGGER="logger -p daemon.err -t /etc/init.d/mysql -i"
 
 if [ -f /etc/default/mysql ]; then

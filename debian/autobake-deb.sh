@@ -33,7 +33,7 @@ fi
 # Look up distro-version specific stuff
 #
 # Always keep the actual packaging as up-to-date as possible following the latest
-# Debian policy and targetting Debian Sid. Then case-by-case run in autobake-deb.sh
+# Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
 # tests for backwards compatibility and strip away parts on older builders.
 
 # If iproute2 is not available (before Debian Jessie and Ubuntu Trusty)
