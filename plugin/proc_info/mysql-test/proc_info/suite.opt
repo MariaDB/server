@@ -1,0 +1,1 @@
+--plugin-load-add=$PROC_INFO_SO  --plugin-proc-meminfo=ON
