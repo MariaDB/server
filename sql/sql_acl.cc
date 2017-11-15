@@ -7558,7 +7558,8 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     sctx= t_ref->security_ctx ? t_ref->security_ctx : thd->security_ctx;
 
     if (tl->with ||
-        (tl->with= tl->select_lex->find_table_def_in_with_clauses(tl)))
+        (tl->select_lex &&
+         (tl->with= tl->select_lex->find_table_def_in_with_clauses(tl))))
       continue;
 
     const ACL_internal_table_access *access=
