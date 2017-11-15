@@ -7715,10 +7715,14 @@ int ha_partition::handle_ordered_index_scan_key_not_found()
 int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
 {
   int error;
+  DBUG_ENTER("ha_partition::handle_ordered_next");
+
+  if (m_top_entry == NO_CURRENT_PART_ID)
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+
   uint part_id= m_top_entry;
   uchar *rec_buf= queue_top(&m_queue) + PARTITION_BYTES_IN_POS;
   handler *file;
-  DBUG_ENTER("ha_partition::handle_ordered_next");
 
   if (m_key_not_found)
   {
@@ -7930,11 +7934,15 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
 int ha_partition::handle_ordered_prev(uchar *buf)
 {
   int error;
+  DBUG_ENTER("ha_partition::handle_ordered_prev");
+  DBUG_PRINT("enter", ("partition: %p", this));
+
+  if (m_top_entry == NO_CURRENT_PART_ID)
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+
   uint part_id= m_top_entry;
   uchar *rec_buf= queue_top(&m_queue) + PARTITION_BYTES_IN_POS;
   handler *file= m_file[part_id];
-  DBUG_ENTER("ha_partition::handle_ordered_prev");
-  DBUG_PRINT("enter", ("partition: %p", this));
 
   if ((error= file->ha_index_prev(rec_buf)))
   {
