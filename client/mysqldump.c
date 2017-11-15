@@ -747,6 +747,7 @@ static void write_header(FILE *sql_file, char *db_name)
             "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n",
             path?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
             compatible_mode_normal_str);
+    fprintf(sql_file, "/*!100300 SET GLOBAL TRANSACTION_REGISTRY=0 */;\n");
     check_io(sql_file);
   }
 } /* write_header */
@@ -761,6 +762,7 @@ static void write_footer(FILE *sql_file)
   }
   else if (!opt_compact)
   {
+    fprintf(sql_file, "/*!100300 SET GLOBAL TRANSACTION_REGISTRY=1 */;\n");
     if (opt_tz_utc)
       fprintf(sql_file,"/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;\n");
 
@@ -991,7 +993,9 @@ static int get_options(int *argc, char ***argv)
       my_hash_insert(&ignore_table,
                      (uchar*) my_strdup("mysql.general_log", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup("mysql.slow_log", MYF(MY_WME))))
+                     (uchar*) my_strdup("mysql.slow_log", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.transaction_registry", MYF(MY_WME))))
     return(EX_EOM);
 
   if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))
@@ -2668,7 +2672,8 @@ static inline my_bool general_log_or_slow_log_tables(const char *db,
 {
   return (!my_strcasecmp(charset_info, db, "mysql")) &&
           (!my_strcasecmp(charset_info, table, "general_log") ||
-           !my_strcasecmp(charset_info, table, "slow_log"));
+           !my_strcasecmp(charset_info, table, "slow_log") ||
+           !my_strcasecmp(charset_info, table, "transaction_registry"));
 }
 
 /*
@@ -4583,6 +4588,7 @@ static int dump_all_tables_in_db(char *database)
   char hash_key[2*NAME_LEN+2];  /* "db.tablename" */
   char *afterdot;
   my_bool general_log_table_exists= 0, slow_log_table_exists=0;
+  my_bool transaction_registry_table_exists= 0;
   int using_mysql_db= !my_strcasecmp(charset_info, database, "mysql");
   DBUG_ENTER("dump_all_tables_in_db");
 
@@ -4685,6 +4691,8 @@ static int dump_all_tables_in_db(char *database)
           general_log_table_exists= 1;
         else if (!my_strcasecmp(charset_info, table, "slow_log"))
           slow_log_table_exists= 1;
+        else if (!my_strcasecmp(charset_info, table, "transaction_registry"))
+          transaction_registry_table_exists= 1;
       }
     }
   }
@@ -4730,6 +4738,13 @@ static int dump_all_tables_in_db(char *database)
                                database, table_type, &ignore_flag) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'slow_log' table\n");
+    }
+    if (transaction_registry_table_exists)
+    {
+      if (!get_table_structure((char *) "transaction_registry",
+                               database, table_type, &ignore_flag) )
+        verbose_msg("-- Warning: get_table_structure() failed with some internal "
+                    "error for 'transaction_registry' table\n");
     }
   }
   if (flush_privileges && using_mysql_db)

@@ -1255,6 +1255,9 @@ The following options may be given as the first argument:
  --transaction-read-only 
  Default transaction access mode. True if transactions are
  read-only.
+ --transaction-registry 
+ Enable or disable update of transaction_registry
+ (Defaults to on; use --skip-transaction-registry to disable.)
  --updatable-views-with-limit=name 
  YES = Don't issue an error message (warning only) if a
  VIEW without presence of a key of the underlying table is
@@ -1625,6 +1628,7 @@ transaction-alloc-block-size 8192
 transaction-isolation REPEATABLE-READ
 transaction-prealloc-size 4096
 transaction-read-only FALSE
+transaction-registry TRUE
 updatable-views-with-limit YES
 use-stat-tables NEVER
 userstat FALSE

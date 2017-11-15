@@ -422,6 +422,12 @@ static Sys_var_enum Sys_vers_alter_history(
        SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_KEEP));
 
+static Sys_var_mybool Sys_transaction_registry(
+       "transaction_registry",
+       "Enable or disable update of transaction_registry",
+       GLOBAL_VAR(transaction_registry), CMD_LINE(OPT_ARG),
+       DEFAULT(TRUE));
+
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "
        "updates to transactional engines for the binary log. "

@@ -255,7 +255,7 @@ err:
   }
 
 quit:
-  if (!result)
+  if (!result && transaction_registry)
   {
     TR_table trt(thd, true);
     result= trt.update();

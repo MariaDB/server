@@ -312,6 +312,7 @@ extern my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 extern ulong encryption_algorithm;
 extern const char *encryption_algorithm_names[];
 extern const char *quoted_string;
+extern my_bool transaction_registry;
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
