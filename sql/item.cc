@@ -8924,15 +8924,10 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
     }
     return my_time_compare(&field_time, &item_time);
   }
-  /*
-    The patch for Bug#13463415 started using this function for comparing
-    BIGINTs. That uncovered a bug in Visual Studio 32bit optimized mode.
-    Prefixing the auto variables with volatile fixes the problem....
-  */
-  volatile double result= item->val_real();
+  double result= item->val_real();
   if (item->null_value)
     return 0;
-  volatile double field_result= field->val_real();
+  double field_result= field->val_real();
   if (field_result < result)
     return -1;
   else if (field_result > result)
