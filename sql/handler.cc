@@ -4058,7 +4058,7 @@ int handler::ha_repair(THD* thd, HA_CHECK_OPT* check_opt)
 
 int
 handler::ha_bulk_update_row(const uchar *old_data, const uchar *new_data,
-                            uint *dup_key_found)
+                            ha_rows *dup_key_found)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type == F_WRLCK);
@@ -6162,6 +6162,59 @@ int handler::ha_delete_row(const uchar *buf)
   return error;
 }
 
+
+/**
+  Execute a direct update request.  A direct update request updates all
+  qualified rows in a single operation, rather than one row at a time.
+  In a Spider cluster the direct update operation is pushed down to the
+  child levels of the cluster.
+
+  Note that this can't be used in case of statment logging
+
+  @param  update_rows   Number of updated rows.
+
+  @retval 0             Success.
+  @retval != 0          Failure.
+*/
+
+int handler::ha_direct_update_rows(ha_rows *update_rows)
+{
+  int error;
+
+  MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
+  mark_trx_read_write();
+
+  error = direct_update_rows(update_rows);
+  MYSQL_UPDATE_ROW_DONE(error);
+  return error;
+}
+
+
+/**
+  Execute a direct delete request.  A direct delete request deletes all
+  qualified rows in a single operation, rather than one row at a time.
+  In a Spider cluster the direct delete operation is pushed down to the
+  child levels of the cluster.
+
+  @param  delete_rows   Number of deleted rows.
+
+  @retval 0             Success.
+  @retval != 0          Failure.
+*/
+
+int handler::ha_direct_delete_rows(ha_rows *delete_rows)
+{
+  int error;
+  /* Ensure we are not using binlog row */
+  DBUG_ASSERT(!table->in_use->is_current_stmt_binlog_format_row());
+
+  MYSQL_DELETE_ROW_START(table_share->db.str, table_share->table_name.str);
+  mark_trx_read_write();
+
+  error = direct_delete_rows(delete_rows);
+  MYSQL_DELETE_ROW_DONE(error);
+  return error;
+}
 
 
 /** @brief

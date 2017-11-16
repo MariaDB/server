@@ -14,7 +14,7 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 /*
-  Define functinolity offered by MySQL or MariaDB
+  Define functionality offered by MySQL or MariaDB
 */
 
 #ifndef SPD_ENVIRON_INCLUDED
@@ -25,6 +25,7 @@
 
 #if MYSQL_VERSION_ID >=	100204
 #define HANDLER_HAS_TOP_TABLE_FIELDS
+#define HANDLER_HAS_DIRECT_UPDATE_ROWS
 #define HANDLER_HAS_DIRECT_AGGREGATE
 #define PARTITION_HAS_EXTRA_ATTACH_CHILDREN
 #define PARTITION_HAS_GET_CHILD_HANDLERS
