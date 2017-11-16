@@ -296,6 +296,7 @@ private:
   ha_rows   m_bulk_inserted_rows;
   /** used for prediction of start_bulk_insert rows */
   enum_monotonicity_info m_part_func_monotonicity_info;
+  part_id_range m_direct_update_part_spec;
   bool                m_pre_calling;
   bool                m_pre_call_use_parallel;
   /* Keep track of bulk access requests */
@@ -535,8 +536,23 @@ public:
     number of calls to write_row.
   */
   virtual int write_row(uchar * buf);
+  virtual bool start_bulk_update();
+  virtual int exec_bulk_update(ha_rows *dup_key_found);
+  virtual int end_bulk_update();
+  virtual int bulk_update_row(const uchar *old_data, const uchar *new_data,
+                              ha_rows *dup_key_found);
   virtual int update_row(const uchar * old_data, const uchar * new_data);
+  virtual int direct_update_rows_init();
+  virtual int pre_direct_update_rows_init();
+  virtual int direct_update_rows(ha_rows *update_rows);
+  virtual int pre_direct_update_rows();
+  virtual bool start_bulk_delete();
+  virtual int end_bulk_delete();
   virtual int delete_row(const uchar * buf);
+  virtual int direct_delete_rows_init();
+  virtual int pre_direct_delete_rows_init();
+  virtual int direct_delete_rows(ha_rows *delete_rows);
+  virtual int pre_direct_delete_rows();
   virtual int delete_all_rows(void);
   virtual int truncate();
   virtual void start_bulk_insert(ha_rows rows, uint flags);
@@ -1306,6 +1322,7 @@ public:
     virtual const COND *cond_push(const COND *cond);
     virtual void cond_pop();
     virtual void clear_top_table_fields();
+    virtual int info_push(uint info_type, void *info);
 
     private:
     int handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt, uint flags);
