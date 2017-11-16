@@ -28,6 +28,9 @@ NULL
 select json_value('{"key1": [1,2,3], "key1":123}', '$.key1');
 json_value('{"key1": [1,2,3], "key1":123}', '$.key1')
 123
+select JSON_VALUE('{ "x": [0,1], "y": "[0,1]", "z": "Mon\\\"t\\\"y" }','$.z');
+JSON_VALUE('{ "x": [0,1], "y": "[0,1]", "z": "Mon\\\"t\\\"y" }','$.z')
+Mon"t"y
 select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2');
 json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2')
 NULL

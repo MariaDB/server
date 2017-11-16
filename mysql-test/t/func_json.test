@@ -9,6 +9,7 @@ select json_value('{"key1":123}', '$.key2');
 select json_value('{"key1":123}', '$.key1');
 select json_value('{"key1":[1,2,3]}', '$.key1');
 select json_value('{"key1": [1,2,3], "key1":123}', '$.key1');
+select JSON_VALUE('{ "x": [0,1], "y": "[0,1]", "z": "Mon\\\"t\\\"y" }','$.z');
 
 select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2');
 select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key1');
