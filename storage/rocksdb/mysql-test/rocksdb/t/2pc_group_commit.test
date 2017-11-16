@@ -1,6 +1,6 @@
 --source include/have_rocksdb.inc
 --source include/have_log_bin.inc
-
+--source include/not_windows.inc
 --echo # Disable for valgrind because this takes too long
 --source include/not_valgrind.inc
 
