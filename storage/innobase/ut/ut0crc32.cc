@@ -86,7 +86,7 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "univ.i"
 #include "ut0crc32.h"
 
-#if _WIN64
+#ifdef __WIN__
 #include <intrin.h>
 #endif
 
@@ -139,7 +139,7 @@ ut_crc32_power8(
 }
 #endif
 
-#if defined(__GNUC__) && defined(__x86_64__)
+#if (defined(__GNUC__) && defined(__x86_64__)) || defined(__WIN__)
 /********************************************************************//**
 Fetches CPU info */
 static
@@ -154,10 +154,29 @@ ut_cpuid(
 	uint32_t*	features_edx)	/*!< out: CPU features edx */
 {
 	uint32_t	sig;
+#ifdef __WIN__
+	int data[4];
+	__cpuid(data, 0);
+	/* ebx */
+	vend[0] = data[1];
+	/* edx */
+	vend[1] = data[3];
+	/* ecx */
+	vend[2] = data[2];
+
+	__cpuid(data, 1);
+	/* eax */
+	sig = data[0];
+	/* ecx */
+	*features_ecx = data[2];
+	/* edx */
+	*features_edx = data[3];
+#else
 	asm("cpuid" : "=b" (vend[0]), "=c" (vend[2]), "=d" (vend[1]) : "a" (0));
 	asm("cpuid" : "=a" (sig), "=c" (*features_ecx), "=d" (*features_edx)
 	    : "a" (1)
 	    : "ebx");
+#endif
 
 	*model = ((sig >> 4) & 0xF);
 	*family = ((sig >> 8) & 0xF);
@@ -184,11 +203,15 @@ ut_crc32_8_hw(
 	const byte**	data,
 	ulint*		len)
 {
+#ifdef __WIN__
+	*crc = _mm_crc32_u8(*crc, (*data)[0]);
+#else
 	asm("crc32b %1, %0"
 	    /* output operands */
 	    : "+r" (*crc)
 	    /* input operands */
 	    : "rm" ((*data)[0]));
+#endif
 
 	(*data)++;
 	(*len)--;
@@ -205,52 +228,26 @@ ut_crc32_64_low_hw(
 	uint64_t	data)
 {
 	uint64_t	crc_64bit = crc;
-
+#ifdef __WIN__
+#ifdef _WIN64
+	crc_64bit = _mm_crc32_u64(crc_64bit, data);
+#else
+	crc = _mm_crc32_u32(crc, static_cast<uint32_t>(data));
+	crc_64bit = _mm_crc32_u32(crc, static_cast<uint32_t>(data >> 32));
+#endif
+#else
 	asm("crc32q %1, %0"
 	    /* output operands */
 	    : "+r" (crc_64bit)
 	    /* input operands */
 	    : "rm" (data));
+#endif
 
 	return(static_cast<uint32_t>(crc_64bit));
 }
-#elif (_WIN64)
-/** Calculate CRC32 over 8-bit data using a hardware/CPU instruction.
-@param[in,out]	crc	crc32 checksum so far when this function is called,
-when the function ends it will contain the new checksum
-@param[in,out]	data	data to be checksummed, the pointer will be advanced
-with 1 byte
-@param[in,out]	len	remaining bytes, it will be decremented with 1 */
-inline
-void
-ut_crc32_8_hw(
-	uint32_t*	crc,
-	const byte**	data,
-	ulint*		len)
-{
-	*crc = _mm_crc32_u8(*crc, (*data)[0]);
-	(*data)++;
-	(*len)--;
-}
+#endif /* (defined(__GNUC__) && defined(__x86_64__)) || defined(__WIN__) */
 
-/** Calculate CRC32 over a 64-bit integer using a hardware/CPU instruction.
-@param[in]	crc	crc32 checksum so far
-@param[in]	data	data to be checksummed
-@return resulting checksum of crc + crc(data) */
-inline
-uint32_t
-ut_crc32_64_low_hw(
-	uint32_t	crc,
-	uint64_t	data)
-{
-	unsigned __int64 local_crc = crc;
-	local_crc = _mm_crc32_u64(local_crc, data);
-	return(static_cast<uint32_t>(local_crc));
-}
-
-#endif /* defined(__GNUC__) && defined(__x86_64__) */
-
-#if (defined(__GNUC__) && defined(__x86_64__)) || (_WIN64)
+#if (defined(__GNUC__) && defined(__x86_64__)) || defined(__WIN__)
 /** Calculate CRC32 over 64-bit byte string using a hardware/CPU instruction.
 @param[in,out]	crc	crc32 checksum so far when this function is called,
 when the function ends it will contain the new checksum
@@ -744,7 +741,7 @@ ut_crc32_init()
 	ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_sw;
 	ut_crc32_implementation = "Using generic crc32 instructions";
 
-#if defined(__GNUC__) && defined(__x86_64__)
+#if (defined(__GNUC__) && defined(__x86_64__)) || defined(__WIN__)
 	uint32_t	vend[3];
 	uint32_t	model;
 	uint32_t	family;
@@ -773,16 +770,6 @@ ut_crc32_init()
 	*/
 
 	if (features_ecx & 1 << 20) {
-		ut_crc32 = ut_crc32_hw;
-		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
-		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_hw;
-		ut_crc32_implementation = "Using SSE2 crc32 instructions";
-	}
-
-#elif (_WIN64)
-	int features[4];
-	__cpuid(features, 1);
-	if (features[2] & 1 << 20) {
 		ut_crc32 = ut_crc32_hw;
 		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
 		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_hw;
