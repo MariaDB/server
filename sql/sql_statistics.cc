@@ -1351,7 +1351,8 @@ public:
   */
   bool get_next_row()
   {
-    if (!my_b_inited(&io_cache) || my_b_read(&io_cache, rowid_buf, rowid_size))
+    DBUG_ASSERT(my_b_inited(&io_cache));
+    if (my_b_read(&io_cache, rowid_buf, rowid_size))
       return true; /* No more data */
 
     handler *h= owner->stat_file;
@@ -1364,19 +1365,12 @@ public:
     return (res==0)? false : true;
   }
 
-  void cleanup()
+  ~Stat_table_write_iter()
   {
     if (rowid_buf)
       my_free(rowid_buf);
-    rowid_buf= NULL;
     owner->stat_file->ha_index_or_rnd_end();
     close_cached_file(&io_cache);
-    my_b_clear(&io_cache);
-  }
-
-  ~Stat_table_write_iter()
-  {
-    cleanup();
   }
 };
 
@@ -3410,34 +3404,44 @@ int rename_table_in_stat_tables(THD *thd, LEX_STRING *db, LEX_STRING *tab,
   Index_stat index_stat(stat_table, db, tab);
   index_stat.set_full_table_name();
 
-  Stat_table_write_iter index_iter(&index_stat);
-  if (index_iter.init(2))
-    rc= 1;
-  while (!index_iter.get_next_row())
   {
-    err= index_stat.update_table_name_key_parts(new_db, new_tab);
-    if (err & !rc)
+    Stat_table_write_iter index_iter(&index_stat);
+    if (index_iter.init(2))
+    {
       rc= 1;
-    index_stat.set_full_table_name();
+      goto column_stat_start;
+    }
+    while (!index_iter.get_next_row())
+    {
+      err= index_stat.update_table_name_key_parts(new_db, new_tab);
+      if (err & !rc)
+        rc= 1;
+      index_stat.set_full_table_name();
+    }
   }
-  index_iter.cleanup();
 
+column_stat_start:
   /* Rename table in the statistical table column_stats */
   stat_table= tables[COLUMN_STAT].table;
   Column_stat column_stat(stat_table, db, tab);
   column_stat.set_full_table_name();
-  Stat_table_write_iter column_iter(&column_stat);
-  if (column_iter.init(2))
-    rc= 1;
-  while (!column_iter.get_next_row())
   {
-    err= column_stat.update_table_name_key_parts(new_db, new_tab);
-    if (err & !rc)
+    Stat_table_write_iter column_iter(&column_stat);
+    if (column_iter.init(2))
+    {
       rc= 1;
-    column_stat.set_full_table_name();
+      goto table_stat_start;
+    }
+    while (!column_iter.get_next_row())
+    {
+      err= column_stat.update_table_name_key_parts(new_db, new_tab);
+      if (err & !rc)
+        rc= 1;
+      column_stat.set_full_table_name();
+    }
   }
-  column_iter.cleanup();
    
+table_stat_start:
   /* Rename table in the statistical table table_stats */
   stat_table= tables[TABLE_STAT].table;
   Table_stat table_stat(stat_table, db, tab);
