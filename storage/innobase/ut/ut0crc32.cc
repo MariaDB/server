@@ -245,9 +245,7 @@ ut_crc32_64_low_hw(
 
 	return(static_cast<uint32_t>(crc_64bit));
 }
-#endif /* (defined(__GNUC__) && defined(__x86_64__)) || defined(__WIN__) */
 
-#if (defined(__GNUC__) && defined(__x86_64__)) || defined(__WIN__)
 /** Calculate CRC32 over 64-bit byte string using a hardware/CPU instruction.
 @param[in,out]	crc	crc32 checksum so far when this function is called,
 when the function ends it will contain the new checksum
@@ -466,7 +464,7 @@ ut_crc32_byte_by_byte_hw(
 
 	return(~crc);
 }
-#endif /* defined(__GNUC__) && defined(__x86_64__) || (_WIN64)*/
+#endif /* defined(__GNUC__) && defined(__x86_64__) || (_WIN64) */
 
 /* CRC32 software implementation. */
 
