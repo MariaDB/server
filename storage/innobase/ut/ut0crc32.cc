@@ -86,7 +86,7 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "univ.i"
 #include "ut0crc32.h"
 
-#ifdef __WIN__
+#ifdef _MSC_VER
 #include <intrin.h>
 #endif
 
@@ -139,7 +139,7 @@ ut_crc32_power8(
 }
 #endif
 
-#if (defined(__GNUC__) && defined(__x86_64__)) || defined(__WIN__)
+#if (defined(__GNUC__) && defined(__x86_64__)) || defined(_MSC_VER)
 /********************************************************************//**
 Fetches CPU info */
 static
@@ -154,7 +154,7 @@ ut_cpuid(
 	uint32_t*	features_edx)	/*!< out: CPU features edx */
 {
 	uint32_t	sig;
-#ifdef __WIN__
+#ifdef _MSC_VER
 	int data[4];
 	__cpuid(data, 0);
 	/* ebx */
@@ -203,7 +203,7 @@ ut_crc32_8_hw(
 	const byte**	data,
 	ulint*		len)
 {
-#ifdef __WIN__
+#ifdef _MSC_VER
 	*crc = _mm_crc32_u8(*crc, (*data)[0]);
 #else
 	asm("crc32b %1, %0"
@@ -228,12 +228,14 @@ ut_crc32_64_low_hw(
 	uint64_t	data)
 {
 	uint64_t	crc_64bit = crc;
-#ifdef __WIN__
-#ifdef _WIN64
+#ifdef _MSC_VER
+#ifdef _M_X64
 	crc_64bit = _mm_crc32_u64(crc_64bit, data);
-#else
+#elif defined(_M_IX86)
 	crc = _mm_crc32_u32(crc, static_cast<uint32_t>(data));
 	crc_64bit = _mm_crc32_u32(crc, static_cast<uint32_t>(data >> 32));
+#else
+#error Not Supported processors type.
 #endif
 #else
 	asm("crc32q %1, %0"
@@ -739,7 +741,7 @@ ut_crc32_init()
 	ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_sw;
 	ut_crc32_implementation = "Using generic crc32 instructions";
 
-#if (defined(__GNUC__) && defined(__x86_64__)) || defined(__WIN__)
+#if (defined(__GNUC__) && defined(__x86_64__)) || defined(_MSC_VER)
 	uint32_t	vend[3];
 	uint32_t	model;
 	uint32_t	family;
