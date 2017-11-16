@@ -2,11 +2,9 @@ This directory contains a test suite for the MariaDB daemon. To run
 the currently existing test cases, execute ./mysql-test-run in
 this directory.
 
-For use in distributions, you should run the script as user mysql.
-This user may be created with nologin shell however, so the best bet is something like
-       $ su -
-       # cd /usr/share/mysql-test
-       # su -s /bin/bash mysql -c "./mysql-test-run --skip-test-list=unstable-tests"
+For use in distributions you can test as follows:
+       $ cd /usr/share/mysql/mysql-test
+       $ perl mysql-test-run.pl --verbose-restart --vardir="$(readlink -f /dev/shm/var)" --parallel=4 --force --retry=3 --max-save-core=0 --max-save-datadir=1
 
 This will use the installed mysql executables, but will run a private copy
 of the server process (using data files within /usr/share/mysql-test),
@@ -20,8 +18,8 @@ be found in the file unstable-tests.
 Distributions may include additional tests in an additional file like Red Hat's
 rh-skipped-tests.list.
 
-To clean up afterwards, remove the created "var" subdirectory, e.g.
-  # su -s /bin/bash - mysql -c "rm -rf /usr/share/mysql-test/var"
+To clean up afterwards, remove the created "var" subdirectory, eg
+       $ rm -rf /dev/shm/var"
 
 If one or more tests fail on your system on reasons other than listed
 in lists of unstable tests, please read the following manual section
