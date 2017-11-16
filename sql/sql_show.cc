@@ -4907,6 +4907,9 @@ static bool get_all_archive_tables(THD *thd,
   if (thd->variables.vers_hide == VERS_HIDE_NEVER)
     return false;
 
+  if (thd->variables.vers_alter_history != VERS_ALTER_HISTORY_SURVIVE)
+    return false;
+
   Dynamic_array<LEX_CSTRING *> all_db;
   LOOKUP_FIELD_VALUES lookup_field_values= {
     {C_STRING_WITH_LEN("%")}, {NULL, 0}, true, false};
