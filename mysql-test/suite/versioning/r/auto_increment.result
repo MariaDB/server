@@ -73,6 +73,17 @@ prepare stmt from concat(a, b, c);
 execute stmt;
 deallocate prepare stmt;
 end~~
+create or replace function moment()
+returns timestamp(6)
+not deterministic
+begin
+declare t timestamp(6);
+declare i int;
+set i= sleep(0.1);
+set t= now(6);
+set i= sleep(0.1);
+return t;
+end~~
 create procedure test_01(
 sys_type varchar(255),
 engine varchar(255),
@@ -199,3 +210,4 @@ drop function sys_commit_ts;
 drop function sys_datatype;
 drop procedure concat_exec2;
 drop procedure concat_exec3;
+drop function moment;

@@ -1,4 +1,5 @@
--- source include/have_innodb.inc
+-- source suite/versioning/common.inc
+
 delimiter ~~;
 create or replace procedure drop_archives (in vtmd_name varchar(64))
 begin
@@ -88,7 +89,7 @@ create or replace table t0 (x int) with system versioning;
 
 # alter
 insert into t0 values (1);
-set @t0= now(6);
+set @t0= moment();
 alter table t0 add column (y int);
 select * from t0 for system_time as of @t0;
 select * from t0;

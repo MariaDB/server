@@ -73,33 +73,44 @@ prepare stmt from concat(a, b, c);
 execute stmt;
 deallocate prepare stmt;
 end~~
+create or replace function moment()
+returns timestamp(6)
+not deterministic
+begin
+declare t timestamp(6);
+declare i int;
+set i= sleep(0.1);
+set t= now(6);
+set i= sleep(0.1);
+return t;
+end~~
 create table t1(
 id int auto_increment primary key)
 with system versioning
 engine innodb;
 insert into t1 values ();
-set @ts0= now(6);
+set @ts0= moment();
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx0;
 select transaction_id = @tx0 from mysql.transaction_registry
 order by transaction_id desc limit 1;
 transaction_id = @tx0
 1
-set @ts1= now(6);
+set @ts1= moment();
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx1;
 select transaction_id = @tx1 from mysql.transaction_registry
 order by transaction_id desc limit 1;
 transaction_id = @tx1
 1
-set @ts2= now(6);
+set @ts2= moment();
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx2;
 select transaction_id = @tx2 from mysql.transaction_registry
 order by transaction_id desc limit 1;
 transaction_id = @tx2
 1
-set @ts3= now(6);
+set @ts3= moment();
 select
 vtq_trx_id(@ts0) < @tx0 as A,
 vtq_trx_id(@ts0, true) = @tx0 as B,
@@ -174,3 +185,4 @@ drop function sys_commit_ts;
 drop function sys_datatype;
 drop procedure concat_exec2;
 drop procedure concat_exec3;
+drop function moment;

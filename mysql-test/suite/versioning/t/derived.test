@@ -1,3 +1,5 @@
+-- source suite/versioning/common.inc
+
 create table emp
 (
   emp_id int,
@@ -8,7 +10,7 @@ create table emp
 insert into emp values (1, 'bill', 0),
                        (2, 'bill', 1),
 		       (3, 'kate', 1);
-set @ts=now(6);
+set @ts=moment();
 delete from emp;
 insert into emp values (4, 'john', 1);
 
@@ -95,7 +97,7 @@ drop table emp;
 create or replace table t1 (x int) with system versioning;
 create or replace table t2 (y int) with system versioning;
 insert into t1 values (1);
-set @t0= now(6);
+set @t0= moment();
 insert into t1 values (2);
 delete from t1 where x = 1;
 insert into t2 values (10);
@@ -129,5 +131,5 @@ select * from (select *, vt1.sys_trx_end from t2, vt1) as s0;
 # system_time propagation from outer to inner
 select * from (select *, vt1.sys_trx_start from t2 for system_time as of now, vt1) as s0 system_time as of timestamp @t0;
 
-drop table t1, t2;
-drop view vt1;
+drop database test;
+create database test;

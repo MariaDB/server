@@ -73,6 +73,17 @@ prepare stmt from concat(a, b, c);
 execute stmt;
 deallocate prepare stmt;
 end~~
+create or replace function moment()
+returns timestamp(6)
+not deterministic
+begin
+declare t timestamp(6);
+declare i int;
+set i= sleep(0.1);
+set t= now(6);
+set i= sleep(0.1);
+return t;
+end~~
 create table t1 (x int)
 with system versioning
 partition by range columns (x) (
@@ -175,7 +186,7 @@ with system versioning
 partition by system_time (
 partition p0 versioning,
 partition pn as of now);
-set @now= now(6);
+set @now= moment();
 insert into t1 values (1);
 set @ts_start= sys_commit_ts('sys_trx_start');
 set @ts_end= sys_commit_ts('sys_trx_end');
@@ -195,7 +206,7 @@ set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
 prepare stmt from @str;
 execute stmt;
 drop prepare stmt;
-set @now= now(6);
+set @now= moment();
 delete from t1;
 execute select_p0;
 x	A	B
@@ -209,7 +220,7 @@ drop prepare stmt;
 select @ts0 = @ts1;
 @ts0 = @ts1
 1
-set @now= now(6);
+set @now= moment();
 insert into t1 values (2);
 execute select_p0;
 x	A	B
@@ -221,7 +232,7 @@ set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
 prepare stmt from @str;
 execute stmt;
 drop prepare stmt;
-set @now= now(6);
+set @now= moment();
 update t1 set x = x + 1;
 execute select_p0;
 x	A	B
@@ -370,3 +381,4 @@ drop function sys_commit_ts;
 drop function sys_datatype;
 drop procedure concat_exec2;
 drop procedure concat_exec3;
+drop function moment;

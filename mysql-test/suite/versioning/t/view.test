@@ -3,10 +3,10 @@
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
 
-select now(6) into @t1;
+select moment() into @t1;
 update t1 set x= 2;
 
-select now(6) into @t2;
+select moment() into @t2;
 delete from t1;
 
 set @vt1= concat("create or replace view vt1 as select * from t1 for system_time as of timestamp '", @t1, "'");
@@ -49,11 +49,11 @@ select * from vt1 for system_time all;
 
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1), (2);
-set @t1=now(6);
+set @t1=moment();
 delete from t1 where x=2;
-set @t2=now(6);
+set @t2=moment();
 delete from t1 where x=1;
-set @t3=now(6);
+set @t3=moment();
 
 set @tmp= concat("create or replace view vt1 as select * from t1 for system_time as of timestamp '", @t1, "'");
 prepare stmt from @tmp; execute stmt; drop prepare stmt;

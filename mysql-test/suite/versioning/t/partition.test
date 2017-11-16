@@ -96,7 +96,7 @@ partition by system_time (
     partition p0 versioning,
     partition pn as of now);
 
-set @now= now(6);
+set @now= moment();
 insert into t1 values (1);
 set @ts_start= sys_commit_ts('sys_trx_start');
 set @ts_end= sys_commit_ts('sys_trx_end');
@@ -115,7 +115,7 @@ explain partitions select * from t1;
 set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 
-set @now= now(6);
+set @now= moment();
 delete from t1;
 execute select_p0;
 execute select_pn;
@@ -125,7 +125,7 @@ prepare stmt from @str; execute stmt; drop prepare stmt;
 
 select @ts0 = @ts1;
 
-set @now= now(6);
+set @now= moment();
 insert into t1 values (2);
 execute select_p0;
 execute select_pn;
@@ -133,7 +133,7 @@ execute select_pn;
 set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 
-set @now= now(6);
+set @now= moment();
 update t1 set x = x + 1;
 execute select_p0;
 execute select_pn;

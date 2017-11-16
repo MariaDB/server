@@ -49,7 +49,7 @@ begin
   engine ', engine);
   prepare stmt from @str; execute stmt; drop prepare stmt;  
   insert into t1 values(1, 1, 1);
-  set @ins_t= now(6);
+  set @ins_t= moment();
   select sys_trx_start into @tmp1 from t1;
   update t1 set x= 11, y= 11 where id = 1;
   select @tmp1 < sys_trx_start as A1, x, y from t1;
@@ -101,17 +101,17 @@ begin
   engine ', engine);
   prepare stmt from @str; execute stmt; drop prepare stmt;
 
-  set @t0= now(6);
+  set @t0= moment();
   insert into t1 (x) values (1);
-  set @t1= now(6);
+  set @t1= moment();
   update t1 set x= 2 where id = 1;
-  set @t2= now(6);
+  set @t2= moment();
   update t1 set x= 3 where id = 1;
 
   select x from t1 for system_time as of timestamp @t0;
   select x from t1 for system_time as of timestamp @t1;
   select x from t1 for system_time as of timestamp @t2;
-  select x from t1 for system_time as of timestamp now(6);
+  select x from t1 for system_time as of timestamp moment();
 
   drop table t1;
 end~~

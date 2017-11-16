@@ -10,25 +10,25 @@ engine innodb;
 
 insert into t1 values ();
 
-set @ts0= now(6);
+set @ts0= moment();
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx0;
 select transaction_id = @tx0 from mysql.transaction_registry
 order by transaction_id desc limit 1;
 
-set @ts1= now(6);
+set @ts1= moment();
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx1;
 select transaction_id = @tx1 from mysql.transaction_registry
 order by transaction_id desc limit 1;
 
-set @ts2= now(6);
+set @ts2= moment();
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx2;
 select transaction_id = @tx2 from mysql.transaction_registry
 order by transaction_id desc limit 1;
 
-set @ts3= now(6);
+set @ts3= moment();
 
 select
   vtq_trx_id(@ts0) < @tx0 as A,

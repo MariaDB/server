@@ -81,6 +81,18 @@ begin
   execute stmt;
   deallocate prepare stmt;
 end~~
+
+create or replace function moment()
+returns timestamp(6)
+not deterministic
+begin
+  declare t timestamp(6);
+  declare i int;
+  set i= sleep(0.1);
+  set t= now(6);
+  set i= sleep(0.1);
+  return t;
+end~~
 delimiter ;~~
 
 let $default_engine= `select default_engine()`;

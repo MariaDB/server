@@ -1,4 +1,4 @@
--- source include/have_innodb.inc
+-- source suite/versioning/common.inc
 
 #################
 # Test RESTRICT #
@@ -29,7 +29,7 @@ insert into child values(1);
 update parent set id=id+1;
 delete from child;
 update parent set id=id+1;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp '1-1-1' to timestamp moment();
 
 drop table child;
 drop table parent;
@@ -156,14 +156,14 @@ insert into child values(1);
 
 delete from parent where id = 1;
 select * from child;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp '1-1-1' to timestamp moment();
 delete from child;
 
 insert into parent values(1);
 insert into child values(1);
 update parent set id=id+1;
 select * from child;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp '1-1-1' to timestamp moment();
 
 drop table child;
 drop table parent;
@@ -201,5 +201,5 @@ delete from parent;
 -- error ER_ROW_IS_REFERENCED_2
 update parent set id=2;
 
-drop table child;
-drop table parent;
+drop database test;
+create database test;

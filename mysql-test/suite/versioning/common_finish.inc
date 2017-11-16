@@ -5,3 +5,4 @@ drop function sys_commit_ts;
 drop function sys_datatype;
 drop procedure concat_exec2;
 drop procedure concat_exec3;
+drop function moment;

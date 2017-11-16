@@ -1,4 +1,4 @@
--- source include/have_innodb.inc
+-- source suite/versioning/common.inc
 
 create table t (a int);
 --error ER_VERSIONING_REQUIRED
@@ -7,23 +7,26 @@ truncate t to system_time now();
 # TRUNCATE is not DELETE and trigger must not be called.
 create or replace table t (a int) with system versioning;
 insert into t values (1);
-update t set a=2;
-set @test = 'correct';
+update t set a= 2;
+set @test= 'correct';
 create trigger trg_before before delete on t for each row set @test = 'incorrect';
 create trigger trg_after after delete on t for each row set @test = 'incorrect';
-truncate t to system_time now(6);
+set @ts0= moment();
+truncate t to system_time @ts0;
 select @test from t;
 drop table t;
 
 create table t (a int) with system versioning;
 insert into t values (1), (2);
 update t set a=11 where a=1;
-set @ts1=now(6);
+set @ts1= moment();
 update t set a=22 where a=2;
 select * from t for system_time all;
 truncate t to system_time timestamp @ts1;
 select * from t for system_time all;
-truncate table t to system_time timestamp now(6);
+set @ts2= moment();
+truncate table t to system_time timestamp @ts2;
 select * from t for system_time all;
 
-drop table t;
+drop database test;
+create database test;
