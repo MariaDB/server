@@ -6277,11 +6277,6 @@ void TABLE::mark_columns_needed_for_delete()
       need_signal= true;
     }
   }
-  if (check_constraints)
-  {
-    mark_check_constraint_columns_for_read();
-    need_signal= true;
-  }
 
   if (need_signal)
     file->column_bitmaps_signal();
