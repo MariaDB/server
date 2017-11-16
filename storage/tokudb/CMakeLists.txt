@@ -4,11 +4,13 @@ IF(CMAKE_VERSION VERSION_LESS "2.8.9")
   MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
 ELSEIF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
        CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+# tokudb requires F_NOCACHE, O_DIRECT, and designated initializers
 CHECK_CXX_SOURCE_COMPILES(
 "
+#include <fcntl.h>
 struct a {int b; int c; };
 struct a d = { .b=1, .c=2 };
-int main() { return 0; }
+int main() { return F_NOCACHE + O_DIRECT; }
 " TOKUDB_OK)
 ENDIF()
 
