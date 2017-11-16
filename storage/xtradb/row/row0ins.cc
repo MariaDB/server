@@ -3041,6 +3041,10 @@ row_ins_sec_index_entry(
 	mem_heap_t*	offsets_heap;
 	mem_heap_t*	heap;
 
+	DBUG_EXECUTE_IF("row_ins_sec_index_entry_timeout", {
+ 			DBUG_SET("-d,row_ins_sec_index_entry_timeout");
+ 			return(DB_LOCK_WAIT);});
+
 	if (!index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(index->table, index,
 							entry, thr);
