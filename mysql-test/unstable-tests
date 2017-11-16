@@ -258,15 +258,15 @@ innodb_gis.bug17057168               : Added in 10.2.10
 innodb_gis.geometry                  : Added in 10.2.10
 innodb_gis.gis_split_inf             : Added in 10.2.10
 innodb_gis.gis_split_nan             : Added in 10.2.10
-innodb_gis.kill_server               : Added in 10.2.10
+innodb_gis.kill_server               : Added in 10.2.10 - MDEV-14218 - Assertion Failure
 innodb_gis.multi_pk                  : Added in 10.2.10
 innodb_gis.point_basic               : Added in 10.2.10
 innodb_gis.point_big                 : Added in 10.2.10
 innodb_gis.repeatable_spatial        : Added in 10.2.10
 innodb_gis.rollback                  : Added in 10.2.10
 innodb_gis.row_format                : Added in 10.2.10
-innodb_gis.rtree_compress            : MDEV-14207 - Missing include; added in 10.2.10
-innodb_gis.rtree_compress2           : MDEV-14207 - Missing include; added in 10.2.10
+innodb_gis.rtree_compress            : Modified in 10.2.11
+innodb_gis.rtree_compress2           : MDEV-14227 - Assertion failure (same as MDEV-14218?)
 innodb_gis.rtree_concurrent_srch     : Added in 10.2.10
 innodb_gis.rtree_create_inplace      : Added in 10.2.10
 innodb_gis.rtree_debug               : MDEV-14209 - Huge error log; added in 10.2.10
@@ -274,7 +274,7 @@ innodb_gis.rtree_drop_index          : Added in 10.2.10
 innodb_gis.rtree_estimate            : Added in 10.2.10
 innodb_gis.rtree_multi_pk            : Added in 10.2.10
 innodb_gis.rtree_old                 : Added in 10.2.10
-innodb_gis.rtree_purge               : MDEV-14207 - Missing include; added in 10.2.10
+innodb_gis.rtree_purge               : Modified in 10.2.11
 innodb_gis.rtree_recovery            : Added in 10.2.10
 innodb_gis.rtree_rollback1           : Added in 10.2.10
 innodb_gis.rtree_rollback2           : Added in 10.2.10
