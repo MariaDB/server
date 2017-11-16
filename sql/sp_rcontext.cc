@@ -837,7 +837,7 @@ void sp_cursor::destroy()
 }
 
 
-int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
+int sp_cursor::fetch(THD *thd, List<sp_variable> *vars, bool error_on_no_data)
 {
   if (! server_side_cursor)
   {
@@ -874,7 +874,7 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
   if (! server_side_cursor->is_open())
   {
     m_found= false;
-    if (thd->variables.sql_mode & MODE_ORACLE)
+    if (!error_on_no_data)
       return 0;
     my_message(ER_SP_FETCH_NO_DATA, ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
     return -1;

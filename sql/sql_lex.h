@@ -3472,6 +3472,9 @@ public:
                                                uint coffset,
                                                sp_assignment_lex *param_lex,
                                                Item_args *parameters);
+  bool sp_for_loop_implicit_cursor_statement(THD *thd,
+                                             Lex_for_loop_bounds_st *bounds,
+                                             sp_lex_cursor *cur);
   bool sp_for_loop_cursor_condition_test(THD *thd, const Lex_for_loop_st &loop);
   bool sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &);
 

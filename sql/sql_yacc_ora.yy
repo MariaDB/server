@@ -1023,12 +1023,16 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident_or_text
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         opt_component key_cache_name
-        sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
+        sp_opt_label BIN_NUM TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident
-        label_declaration_oracle labels_declaration_oracle
         ident_directly_assignable
         sp_decl_ident
         sp_block_label opt_place opt_db
+
+%type <lex_str>
+        label_ident
+        label_declaration_oracle
+        labels_declaration_oracle
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -4080,25 +4084,8 @@ sp_for_loop_bounds:
           }
         | IN_SYM opt_sp_for_loop_direction '(' sp_cursor_stmt ')'
           {
-            Item *item;
-            DBUG_ASSERT(Lex->sphead);
-            LEX_CSTRING name= {STRING_WITH_LEN("[implicit_cursor]") };
-            if (Lex->sp_declare_cursor(thd, &name, $4, NULL, true))
+            if (Lex->sp_for_loop_implicit_cursor_statement(thd, &$$, $4))
               MYSQL_YYABORT;
-            if (!($$.m_index= new (thd->mem_root) sp_assignment_lex(thd, thd->lex)))
-              MYSQL_YYABORT;
-            $$.m_index->sp_lex_in_use= true;
-            Lex->sphead->reset_lex(thd, $$.m_index);
-            if (!(item= new (thd->mem_root) Item_field(thd,
-                                                       Lex->current_context(),
-                                                       NullS, NullS, &name)))
-              MYSQL_YYABORT;
-            $$.m_index->set_item_and_free_list(item, NULL);
-            if (Lex->sphead->restore_lex(thd))
-              MYSQL_YYABORT;
-            $$.m_direction= 1;
-            $$.m_upper_bound= NULL;
-            $$.m_implicit_cursor= true;
           }
         ;
 

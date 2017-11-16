@@ -4130,7 +4130,7 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
   Query_arena backup_arena;
   DBUG_ENTER("sp_instr_cfetch::execute");
 
-  res= c ? c->fetch(thd, &m_varlist) : -1;
+  res= c ? c->fetch(thd, &m_varlist, m_error_on_no_data) : -1;
 
   *nextp= m_ip+1;
   DBUG_RETURN(res);
@@ -4730,7 +4730,7 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
 
   sp_instr_cfetch *instr_cfetch=
     new (thd->mem_root) sp_instr_cfetch(instructions(),
-                                        spcont, coffset);
+                                        spcont, coffset, false);
   if (instr_cfetch == NULL || add_instr(instr_cfetch))
     return true;
   instr_cfetch->add_to_varlist(index);

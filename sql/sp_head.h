@@ -1796,8 +1796,8 @@ class sp_instr_cfetch : public sp_instr
 
 public:
 
-  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c)
-    : sp_instr(ip, ctx), m_cursor(c)
+  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool error_on_no_data)
+    : sp_instr(ip, ctx), m_cursor(c), m_error_on_no_data(error_on_no_data)
   {
     m_varlist.empty();
   }
@@ -1818,6 +1818,7 @@ private:
 
   uint m_cursor;
   List<sp_variable> m_varlist;
+  bool m_error_on_no_data;
 
 }; // class sp_instr_cfetch : public sp_instr
 

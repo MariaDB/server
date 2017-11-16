@@ -456,7 +456,7 @@ public:
   ulonglong fetch_count() const
   { return m_fetch_count; }
 
-  int fetch(THD *, List<sp_variable> *vars);
+  int fetch(THD *, List<sp_variable> *vars, bool error_on_no_data);
 
   bool export_structure(THD *thd, Row_definition_list *list);
 
