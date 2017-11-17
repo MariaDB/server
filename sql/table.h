@@ -2702,7 +2702,7 @@ ulong get_form_pos(File file, uchar *head, TYPELIB *save_names);
 void append_unescaped(String *res, const char *pos, uint length);
 void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
                         HA_CREATE_INFO *create_info, uint keys, KEY *key_info);
-char *fn_rext(char *name);
+const char *fn_frm_ext(const char *name);
 
 /* Check that the integer is in the internal */
 static inline int set_zone(int nr,int min_zone,int max_zone)
