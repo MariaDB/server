@@ -3409,6 +3409,7 @@ void Item_param::set_int(longlong i, uint32 max_length_arg)
   DBUG_ENTER("Item_param::set_int");
   value.integer= (longlong) i;
   state= INT_VALUE;
+  collation.set_numeric();
   max_length= max_length_arg;
   decimals= 0;
   maybe_null= 0;
@@ -3421,6 +3422,7 @@ void Item_param::set_double(double d)
   DBUG_ENTER("Item_param::set_double");
   value.real= d;
   state= REAL_VALUE;
+  collation.set_numeric();
   max_length= DBL_DIG + 8;
   decimals= NOT_FIXED_DEC;
   maybe_null= 0;
@@ -3450,6 +3452,7 @@ void Item_param::set_decimal(const char *str, ulong length)
   str2my_decimal(E_DEC_FATAL_ERROR, str, &decimal_value, &end);
   state= DECIMAL_VALUE;
   decimals= decimal_value.frac;
+  collation.set_numeric();
   max_length=
     my_decimal_precision_to_length_no_truncation(decimal_value.precision(),
                                                  decimals, unsigned_flag);
@@ -3465,6 +3468,7 @@ void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
   my_decimal2decimal(dv, &decimal_value);
 
   decimals= (uint8) decimal_value.frac;
+  collation.set_numeric();
   unsigned_flag= unsigned_arg;
   max_length= my_decimal_precision_to_length(decimal_value.intg + decimals,
                                              decimals, unsigned_flag);
@@ -3475,6 +3479,7 @@ void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
 void Item_param::fix_temporal(uint32 max_length_arg, uint decimals_arg)
 {
   state= TIME_VALUE;
+  collation.set_numeric();
   max_length= max_length_arg;
   decimals= decimals_arg;
   fix_type(Item::DATE_ITEM);
