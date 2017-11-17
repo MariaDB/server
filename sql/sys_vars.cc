@@ -5169,6 +5169,33 @@ static Sys_var_ulong Sys_host_cache_size(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
        ON_UPDATE(fix_host_cache_size));
 
+static Sys_var_ulong Sys_keepalive_time_seconds(
+       "keepalive_time",
+       "The interval between the last data packet sent and the first keepalive probe.",
+       AUTO_SET GLOBAL_VAR(Sys_keepalive_time_seconds),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 65536),
+       DEFAULT(VIO_DEFAULT_KEEPALIVE_TIME),
+       BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL));
+
+static Sys_var_ulong Sys_keepalive_intvl_seconds(
+       "keepalive_intvl",
+       "The interval between subsequential keepalive probes, regardless of what the connection has exchanged in the meantime.",
+       AUTO_SET GLOBAL_VAR(Sys_keepalive_intvl_seconds),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 65536),
+       DEFAULT(VIO_DEFAULT_KEEPALIVE_INTVL),
+       BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL));
+
+static Sys_var_ulong Sys_keepalive_probes(
+       "keepalive_probes",
+       "The number of unacknowledged probes to send before considering the connection dead and notifying the application layer.",
+       AUTO_SET GLOBAL_VAR(Sys_keepalive_probes),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 65536),
+       DEFAULT(VIO_DEFAULT_KEEPALIVE_PROBES),
+       BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL));
+
 static Sys_var_charptr Sys_ignore_db_dirs(
        "ignore_db_dirs",
        "Specifies a directory to add to the ignore list when collecting "
