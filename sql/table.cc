@@ -8557,18 +8557,16 @@ bool TR_table::update()
   handlerton *hton= table->s->db_type();
   DBUG_ASSERT(hton);
   DBUG_ASSERT(hton->flags & HTON_NATIVE_SYS_VERSIONING);
+  DBUG_ASSERT(thd->vers_update_trt);
 
-  bool updated;
-  if ((updated= hton->vers_get_trt_data(*this)))
+  hton->vers_get_trt_data(*this);
+  int error= table->file->ha_write_row(table->record[0]);
+  if (error)
   {
-    int error= table->file->ha_write_row(table->record[0]);
-    if (error)
-    {
-      table->file->print_error(error, MYF(0));
-    }
-    return error;
+    table->file->print_error(error, MYF(0));
   }
-  return false;
+  thd->vers_update_trt= false;
+  return error;
 }
 
 #define newx new (thd->mem_root)

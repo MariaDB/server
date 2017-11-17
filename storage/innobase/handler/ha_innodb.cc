@@ -3627,28 +3627,24 @@ static const char* ha_innobase_exts[] = {
 	NullS
 };
 
-bool innodb_get_trt_data(TR_table &trt)
+void innodb_get_trt_data(TR_table &trt)
 {
 	THD *thd = trt.get_thd();
 	trx_t *trx = thd_to_trx(thd);
 	ut_a(trx);
-	if (trx->vers_update_trt)
-	{
-		mutex_enter(&trx_sys->mutex);
-		trx_id_t commit_id = trx_sys_get_new_trx_id();
-		ulint sec = 0;
-		ulint usec = 0;
-		ut_usectime(&sec, &usec);
-		mutex_exit(&trx_sys->mutex);
+	ut_a(trx->vers_update_trt);
+	mutex_enter(&trx_sys->mutex);
+	trx_id_t commit_id = trx_sys_get_new_trx_id();
+	ulint sec = 0;
+	ulint usec = 0;
+	ut_usectime(&sec, &usec);
+	mutex_exit(&trx_sys->mutex);
 
-                // silent downgrade cast warning on win64
-		timeval commit_ts = {static_cast<int>(sec),
-				     static_cast<int>(usec)};
-		trt.store_data(trx->id, commit_id, commit_ts);
-		trx->vers_update_trt = false;
-		return true;
-	}
-	return false;
+	// silent downgrade cast warning on win64
+	timeval commit_ts = {static_cast<int>(sec),
+				static_cast<int>(usec)};
+	trt.store_data(trx->id, commit_id, commit_ts);
+	trx->vers_update_trt = false;
 }
 
 /*********************************************************************//**
@@ -4903,6 +4899,8 @@ innobase_rollback_to_savepoint(
 
 	dberr_t	error = trx_rollback_to_savepoint_for_mysql(
 		trx, name, &mysql_binlog_cache_pos);
+
+	thd_vers_update_trt(thd, trx->vers_update_trt);
 
 	if (error == DB_SUCCESS && trx->fts_trx != NULL) {
 		fts_savepoint_rollback(trx, name);
@@ -8381,7 +8379,7 @@ no_commit:
 	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
 
 	if (m_prebuilt->trx->vers_update_trt)
-		thd_vers_update_trt(m_user_thd);
+		thd_vers_update_trt(m_user_thd, true);
 
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
@@ -9203,7 +9201,7 @@ ha_innobase::update_row(
 	}
 
 	if (m_prebuilt->trx->vers_update_trt)
-		thd_vers_update_trt(m_user_thd);
+		thd_vers_update_trt(m_user_thd, true);
 
 	if (error == DB_SUCCESS && autoinc) {
 		/* A value for an AUTO_INCREMENT column
@@ -9325,7 +9323,7 @@ ha_innobase::delete_row(
 	error = row_update_for_mysql(m_prebuilt, vers_set_fields);
 
 	if (m_prebuilt->trx->vers_update_trt)
-		thd_vers_update_trt(m_user_thd);
+		thd_vers_update_trt(m_user_thd, true);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 

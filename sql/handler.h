@@ -1392,9 +1392,8 @@ struct handlerton
    */
    /** Fill TRT record for update.
     @param[out]   trt       TRT table which record[0] will be filled with
-                            transaction data.
-    @return                 TRUE if update of TRT is required, FALSE otherwise */
-   bool (*vers_get_trt_data)(TR_table &trt);
+                            transaction data. */
+   void (*vers_get_trt_data)(TR_table &trt);
 };
 
 

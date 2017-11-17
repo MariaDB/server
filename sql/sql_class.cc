@@ -716,9 +716,9 @@ Time_zone * thd_get_timezone(THD * thd)
 	return thd->variables.time_zone;
 }
 
-void thd_vers_update_trt(THD * thd)
+void thd_vers_update_trt(THD * thd, bool value)
 {
-  thd->vers_update_trt= true;
+  thd->vers_update_trt= value;
 }
 
 THD::THD(my_thread_id id, bool is_wsrep_applier)
