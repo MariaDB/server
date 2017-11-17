@@ -200,7 +200,7 @@ struct recv_sys_t{
 	ib_mutex_t		writer_mutex;/*!< mutex coordinating
 				flushing between recv_writer_thread and
 				the recovery thread. */
-	os_event_t		flush_start;/*!< event to acticate
+	os_event_t		flush_start;/*!< event to activate
 				page cleaner threads */
 	os_event_t		flush_end;/*!< event to signal that the page
 				cleaner has finished the request */
