@@ -5311,6 +5311,38 @@ static Sys_var_ulong Sys_host_cache_size(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
        ON_UPDATE(fix_host_cache_size));
 
+vio_keepalive_opts opt_vio_keepalive;
+
+static Sys_var_int Sys_keepalive_time(
+       "tcp_keepalive_time",
+       "Timeout, in milliseconds, with no activity until the first TCP keep-alive packet is sent."
+       "If set to 0, system dependent default is used.",
+       AUTO_SET GLOBAL_VAR(opt_vio_keepalive.idle),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000),
+       DEFAULT(0),
+       BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL));
+
+static Sys_var_int Sys_keepalive_interval(
+       "tcp_keepalive_interval",
+       "The interval, in seconds, between when successive keep-alive packets are sent if no acknowledgement is received."
+       "If set to 0, system dependent default is used.",
+       AUTO_SET GLOBAL_VAR(opt_vio_keepalive.interval),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000),
+       DEFAULT(0),
+       BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL));
+
+static Sys_var_int Sys_keepalive_probes(
+       "tcp_keepalive_probes",
+       "The number of unacknowledged probes to send before considering the connection dead and notifying the application layer."
+       "If set to 0, system dependent default is used.",
+       AUTO_SET GLOBAL_VAR(opt_vio_keepalive.probes),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000),
+       DEFAULT(0),
+       BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL));
+
 static Sys_var_charptr Sys_ignore_db_dirs(
        "ignore_db_dirs",
        "Specifies a directory to add to the ignore list when collecting "

@@ -51,6 +51,14 @@ enum enum_vio_io_event
   VIO_IO_EVENT_CONNECT
 };
 
+struct vio_keepalive_opts
+{
+  int interval;
+  int idle;
+  int probes;
+};
+
+
 #define VIO_LOCALHOST 1U                        /* a localhost connection */
 #define VIO_BUFFERED_READ 2U                    /* use buffered read */
 #define VIO_READ_BUFFER_SIZE 16384U             /* size of read buffer */
@@ -84,6 +92,7 @@ my_bool	vio_is_blocking(Vio *vio);
 int	vio_fastsend(Vio *vio);
 /* setsockopt SO_KEEPALIVE at SOL_SOCKET level, when possible */
 int	vio_keepalive(Vio *vio, my_bool	onoff);
+int	vio_set_keepalive_options(Vio * vio, const struct vio_keepalive_opts *opts);
 /* Whenever we should retry the last read/write operation. */
 my_bool	vio_should_retry(Vio *vio);
 /* Check that operation was timed out */
@@ -213,7 +222,6 @@ enum SSL_type
   SSL_TYPE_X509,
   SSL_TYPE_SPECIFIED
 };
-
 
 /* HFTODO - hide this if we don't want client in embedded server */
 /* This structure is for every connection on both sides */

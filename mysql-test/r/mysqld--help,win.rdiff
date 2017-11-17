@@ -1,6 +1,6 @@
 --- a/mysql-test/r/mysqld--help.result
 +++ b/mysql-test/r/mysqld--help.result
-@@ -334,7 +334,6 @@
+@@ -381,7 +381,6 @@
   The number of segments in a key cache
   -L, --language=name Client error messages in given language. May be given as
   a full path. Deprecated. Use --lc-messages-dir instead.
@@ -8,7 +8,7 @@
   --lc-messages=name  Set the language used for the error messages.
   -L, --lc-messages-dir=name 
   Directory where error messages are
-@@ -543,6 +542,7 @@
+@@ -602,6 +601,7 @@
   Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
   DATETIME, TIMESTAMP columns.
   (Defaults to on; use --skip-mysql56-temporal-format to disable.)
@@ -16,7 +16,7 @@
   --net-buffer-length=# 
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
-@@ -957,6 +957,9 @@
+@@ -1020,6 +1020,9 @@
   characteristics (isolation level, read only/read
   write,snapshot - but not any work done / data modified
   within the transaction).
@@ -26,7 +26,7 @@
   --show-slave-auth-info 
   Show user and password in SHOW SLAVE HOSTS on this
   master.
-@@ -1069,6 +1072,10 @@
+@@ -1132,6 +1135,10 @@
   Log slow queries to given log file. Defaults logging to
   'hostname'-slow.log. Must be enabled to activate other
   slow log options
@@ -37,15 +37,15 @@
   --socket=name       Socket file to use for connection
   --sort-buffer-size=# 
   Each thread that needs to do a sort allocates a buffer of
-@@ -1087,6 +1094,7 @@
-  NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH
+@@ -1151,6 +1158,7 @@
+  EMPTY_STRING_IS_NULL
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
 + --standalone        Dummy option to start as a standalone program (NT).
   --standard-compliant-cte 
   Allow only CTEs compliant to SQL standard
   (Defaults to on; use --skip-standard-compliant-cte to disable.)
-@@ -1134,6 +1142,11 @@
+@@ -1214,6 +1222,11 @@
   --thread-pool-max-threads=# 
   Maximum allowed number of worker threads in the thread
   pool
@@ -57,7 +57,7 @@
   --thread-pool-oversubscribe=# 
   How many additional active worker threads in a group are
   allowed.
-@@ -1172,8 +1185,8 @@
+@@ -1252,8 +1265,8 @@
   automatically convert it to an on-disk MyISAM or Aria
   table.
   -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
@@ -68,7 +68,7 @@
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
-@@ -1298,7 +1311,6 @@
+@@ -1387,7 +1400,6 @@
  key-cache-division-limit 100
  key-cache-file-hash-size 512
  key-cache-segments 0
@@ -76,7 +76,7 @@
  lc-messages en_US
  lc-messages-dir MYSQL_SHAREDIR/
  lc-time-names en_US
-@@ -1368,6 +1380,7 @@
+@@ -1459,6 +1471,7 @@
  myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE
  mysql56-temporal-format TRUE
@@ -84,16 +84,16 @@
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -1469,6 +1482,8 @@
+@@ -1561,6 +1574,8 @@
  session-track-state-change FALSE
- session-track-system-variables 
+ session-track-system-variables autocommit,character_set_client,character_set_connection,character_set_results,time_zone
  session-track-transaction-info OFF
 +shared-memory FALSE
 +shared-memory-base-name MYSQL
  show-slave-auth-info FALSE
  silent-startup FALSE
  skip-grant-tables TRUE
-@@ -1493,6 +1508,7 @@
+@@ -1585,6 +1600,7 @@
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
@@ -101,7 +101,7 @@
  sort-buffer-size 2097152
  sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  stack-trace TRUE
-@@ -1506,14 +1522,16 @@
+@@ -1598,9 +1614,9 @@
  sync-relay-log 10000
  sync-relay-log-info 10000
  sysdate-is-now FALSE
@@ -112,6 +112,8 @@
 +table-open-cache 2000
  table-open-cache-instances 8
  tc-heuristic-recover OFF
+ tcp-keepalive-interval 0
+@@ -1609,6 +1625,8 @@
  thread-cache-size 151
  thread-pool-idle-timeout 60
  thread-pool-max-threads 65536
