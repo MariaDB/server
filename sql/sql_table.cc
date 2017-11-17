@@ -438,6 +438,13 @@ uint check_n_cut_mysql50_prefix(const char *from, char *to, uint to_length)
 }
 
 
+static bool check_if_frm_exists(char *path, const char *db, const char *table)
+{
+  fn_format(path, table, db, reg_ext, MYF(0));
+  return !access(path, F_OK);
+}
+
+
 /*
   Translate a table name to a file name (WL #1324).
 
@@ -528,12 +535,17 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
   DBUG_PRINT("enter", ("db: '%s'  table_name: '%s'  ext: '%s'  flags: %x",
                        db, table_name, ext, flags));
 
+  (void) tablename_to_filename(db, dbbuff, sizeof(dbbuff));
+
+  /* Check if this is a temporary table name. Allow it if a corresponding .frm file exists */
+  if (is_prefix(table_name, tmp_file_prefix) && strlen(table_name) < NAME_CHAR_LEN &&
+      check_if_frm_exists(tbbuff, dbbuff, table_name))
+    flags|= FN_IS_TMP;
+
   if (flags & FN_IS_TMP) // FN_FROM_IS_TMP | FN_TO_IS_TMP
     strmake(tbbuff, table_name, sizeof(tbbuff)-1);
   else
     (void) tablename_to_filename(table_name, tbbuff, sizeof(tbbuff));
-
-  (void) tablename_to_filename(db, dbbuff, sizeof(dbbuff));
 
   char *end = buff + bufflen;
   /* Don't add FN_ROOTDIR if mysql_data_home already includes it */

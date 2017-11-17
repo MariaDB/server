@@ -24,7 +24,7 @@ static int read_string(File file, uchar**to, size_t length)
 {
   DBUG_ENTER("read_string");
 
-  my_free(*to);
+  /* This can't use MY_THREAD_SPECIFIC as it's used on server start */
   if (!(*to= (uchar*) my_malloc(length+1,MYF(MY_WME))) ||
       mysql_file_read(file, *to, length, MYF(MY_NABP)))
   {
@@ -51,7 +51,7 @@ static int read_string(File file, uchar**to, size_t length)
 
   @param[out] is_sequence  1 if table is a SEQUENCE, 0 otherwise
 
-  @retval  TABLE_TYPE_UNKNOWN   error
+  @retval  TABLE_TYPE_UNKNOWN   error  - file can't be opened
   @retval  TABLE_TYPE_NORMAL    table
   @retval  TABLE_TYPE_SEQUENCE  sequence table
   @retval  TABLE_TYPE_VIEW      view
@@ -72,32 +72,35 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
   if ((file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0)))
       < 0)
     DBUG_RETURN(TABLE_TYPE_UNKNOWN);
-  error= mysql_file_read(file, (uchar*) header, sizeof(header), MYF(MY_NABP));
 
-  if (error)
+  /*
+    We return TABLE_TYPE_NORMAL if we can open the .frm file. This allows us
+    to drop a bad .frm file with DROP TABLE
+  */
+  type= TABLE_TYPE_NORMAL;
+
+  /*
+    Initialize engine name in case we are not able to find it out
+    The cast is safe, as engine_name->str points to a usable buffer.
+   */
+  if (engine_name)
+  {
+    engine_name->length= 0;
+    ((char*) (engine_name->str))[0]= 0;
+  }
+
+  if ((error= mysql_file_read(file, (uchar*) header, sizeof(header), MYF(MY_NABP))))
     goto err;
+
   if (!strncmp((char*) header, "TYPE=VIEW\n", 10))
   {
     type= TABLE_TYPE_VIEW;
     goto err;
   }
 
-  /*
-    We return TABLE_TYPE_NORMAL if we can read the .frm file. This allows us
-    to drop a bad .frm file with DROP TABLE
-  */
-  type= TABLE_TYPE_NORMAL;
-
   /* engine_name is 0 if we only want to know if table is view or not */
   if (!engine_name)
     goto err;
-
-  /*
-    Initialize engine name in case we are not able to find it out
-    The cast is safe, as engine_name->str points to a usable buffer.
-   */
-  engine_name->length= 0;
-  ((char*) (engine_name->str))[0]= 0;
 
   if (!is_binary_frm_header(header))
     goto err;

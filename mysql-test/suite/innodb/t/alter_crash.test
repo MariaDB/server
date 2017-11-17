@@ -95,7 +95,7 @@ FLUSH TABLES;
 
 --echo # Drop the orphaned original table.
 --disable_query_log
-eval DROP TABLE `#mysql50#$temp_table_name`;
+eval DROP TABLE `$temp_table_name`;
 --enable_query_log
 
 --echo # Files in datadir after manual recovery.
