@@ -32,7 +32,7 @@ CXX := $(DEB_HOST_GNU_TYPE)-g++
 # at https://www.debian.org/doc/debian-policy/ch-source.html#s-debianrules-options
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
     NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
-    MAKEFLAGS += -j $(NUMJOBS)
+    MAKEFLAGS += -j$(NUMJOBS)
 else
     # NUMJOBS cannot be empty as it is used as a parameter to mtr, default to 1.
     NUMJOBS = 1

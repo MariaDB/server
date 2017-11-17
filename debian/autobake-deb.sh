@@ -6,16 +6,11 @@
 # Exit immediately on any error
 set -e
 
-# On Buildbot, don't run the mysql-test-run test suite as part of build.
-# It takes a lot of time, and we will do a better test anyway in
-# Buildbot, running the test suite from installed .debs on a clean VM.
-# On Travis-CI we want to simulate the full build, including tests.
-# Also on Travis-CI it is useful not to override the DEB_BUILD_OPTIONS
-# at this stage at all.
-if [[ ! $TRAVIS ]]
-then
-  export DEB_BUILD_OPTIONS="nocheck"
-fi
+# This file is invocated from Buildbot and Travis-CI to build deb packages.
+# As both of those CI systems have many parallel jobs that include different
+# parts of the test suite, we don't need to run the mysql-test-run at all when
+# building the deb packages here.
+export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 
 # Travis-CI optimizations
 if [[ $TRAVIS ]]
@@ -26,6 +21,12 @@ then
   # Don't include test suite package on Travis-CI to make the build time shorter
   sed '/Package: mariadb-test-data/,+28d' -i debian/control
   sed '/Package: mariadb-test/,+36d' -i debian/control
+
+  # Don't build the test package at all to save time and disk space
+  sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
+
+  # Also skip building RocksDB and TokuDB to save even more time and disk space
+  sed 's|-DDEB|-DWITHOUT_TOKUDB_STORAGE_ENGINE=true -DWITHOUT_MROONGA_STORAGE_ENGINE=true -DWITHOUT_ROCKSDB_STORAGE_ENGINE=true -DDEB|' -i debian/rules
 fi
 
 
@@ -77,11 +78,11 @@ fi
 GCCVERSION=$(gcc -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$/&00/')
 # Don't build rocksdb package if gcc version is less than 4.8 or we are running on
 # x86 32 bit.
-if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]]
+if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
 then
   sed '/Package: mariadb-plugin-rocksdb/,+11d' -i debian/control
 fi
-if [[ $GCCVERSION -lt 40800 ]]
+if [[ $GCCVERSION -lt 40800 ]] || [[ $TRAVIS ]]
 then
   sed '/Package: mariadb-plugin-aws-key-management-10.2/,+13d' -i debian/control
 fi
