@@ -40,6 +40,8 @@ matrix:
   include:
     - os: linux
       compiler: gcc
+      env:
+        - DebPackages
       addons:
         apt:
           packages: # make sure these match debian/control contents
