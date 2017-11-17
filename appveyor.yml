@@ -2,7 +2,7 @@ version: 10.2-{build}
 before_build:
 - md %APPVEYOR_BUILD_FOLDER%\win_build
 - cd %APPVEYOR_BUILD_FOLDER%\win_build
-- cmake ..  -G "Visual Studio 15 2017" -DBOOST_ROOT=C:\Libraries\boost_1_64_0 -DPKG_CONFIG_EXECUTABLE=C:\perl\bin\pkg-config -DBISON_EXECUTABLE=C:\cygwin\bin\bison
+- cmake ..  -G "Visual Studio 15 2017" -DBISON_EXECUTABLE=C:\cygwin\bin\bison
 - dir
 build:
   project: win_build\MySQL.sln
@@ -13,5 +13,5 @@ configuration:
 test:
 test_script:
 - cd %APPVEYOR_BUILD_FOLDER%\win_build\mysql-test
-- perl mysql-test-run.pl --force --max-test-fail=20 --parallel=6 --testcase-timeout=2 --skip-test-list=unstable-tests --suite=main,innodb,plugins,mariabackup
+- perl mysql-test-run.pl --force --max-test-fail=20 --parallel=6 --testcase-timeout=4 --skip-test-list=unstable-tests --suite=main,innodb,plugins,mariabackup
 image: Visual Studio 2017
