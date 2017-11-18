@@ -44,7 +44,6 @@ if ((CMAKE_CXX_COMPILER_ID STREQUAL GNU) AND
   endif ()
 endif()
 
-include(TokuFeatureDetection)
 include(TokuSetupCompiler)
 #include(TokuSetupCTest)
 include(TokuThirdParty)

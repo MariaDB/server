@@ -16,6 +16,14 @@ IF(NOT TOKUDB_OK)
   RETURN()
 ENDIF()
 
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/PerconaFT/cmake_modules")
+include(TokuFeatureDetection)
+
+if (NOT HAVE_O_DIRECT AND NOT HAVE_F_NOCACHE)
+  RETURN()
+endif()
+
+
 SET(TOKUDB_SOURCES
     ha_tokudb.cc
     tokudb_background.cc

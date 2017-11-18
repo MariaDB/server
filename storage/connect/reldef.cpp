@@ -23,6 +23,9 @@
 #include <dlfcn.h>          // dlopen(), dlclose(), dlsym() ...
 #include "osutil.h"
 //#include "sqlext.h"
+#if defined(__OpenBSD__)
+#define RTLD_NOLOAD 0
+#endif
 #endif
 #include "handler.h"
 
