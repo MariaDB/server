@@ -4247,6 +4247,7 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
   }
 
   null_value= FALSE;
+  unsigned_flag= arg->unsigned_flag;
 
   switch (arg->result_type()) {
   case STRING_RESULT:
