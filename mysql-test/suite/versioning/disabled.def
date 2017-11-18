@@ -1,0 +1,15 @@
+##############################################################################
+#
+#  List the test cases that are to be disabled temporarily.
+#
+#  Separate the test case name and the comment with ':'.
+#
+#    <testcasename> : BUG#<xxxx> <date disabled> <disabler> <comment>
+#
+#  Do not use any TAB characters for whitespace.
+#
+##############################################################################
+ddl : DDL Survival WIP
+vtmd : DDL Survival WIP
+vtmd_show : DDL Survival WIP
+
