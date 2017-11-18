@@ -15,8 +15,8 @@
             $bootstrap_sql_file);
  
 +      mtr_tofile($bootstrap_sql_file, "-- Debian removed the default privileges on the 'test' database\n");
-+      mtr_tofile($bootstrap_sql_file, "INSERT INTO mysql.db VALUES ('%','test','','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y');\n");
-+      mtr_tofile($bootstrap_sql_file, "INSERT INTO mysql.db VALUES ('%','test\\_%','','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y');\n");
++      mtr_tofile($bootstrap_sql_file, "INSERT INTO mysql.db VALUES ('%','test','','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y');\n");
++      mtr_tofile($bootstrap_sql_file, "INSERT INTO mysql.db VALUES ('%','test\\_%','','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y');\n");
 +
 +
        # Add test data for timezone - this is just a subset, on a real
