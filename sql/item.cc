@@ -10385,7 +10385,7 @@ Item *Item_field::vers_optimized_fields_transformer(THD *thd, uchar *)
         current_thd, Sql_condition::WARN_LEVEL_WARN,
         ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY,
         ER_THD(current_thd, ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY),
-        field_name);
+        field_name.str);
 
     Item *null_item= new (thd->mem_root) Item_null(thd);
     if (null_item)

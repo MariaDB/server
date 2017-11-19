@@ -6933,13 +6933,13 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
     if (!(share->vers_start_field()->flags & HIDDEN_FLAG))
     {
       my_error(ER_VERS_SYS_FIELD_NOT_HIDDEN, MYF(0),
-               share->vers_start_field()->field_name);
+               share->vers_start_field()->field_name.str);
       return true;
     }
     if (!(share->vers_end_field()->flags & HIDDEN_FLAG))
     {
       my_error(ER_VERS_SYS_FIELD_NOT_HIDDEN, MYF(0),
-               share->vers_end_field()->field_name);
+               share->vers_end_field()->field_name.str);
       return true;
     }
 
@@ -6979,7 +6979,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
 
         if (f->change.str && (start == f->change || end == f->change))
         {
-          my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->change);
+          my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->change.str);
           return true;
         }
       }
