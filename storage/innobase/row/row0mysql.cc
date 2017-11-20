@@ -1504,14 +1504,14 @@ row_insert_for_mysql(
 		ut_ad(t->mysql_col_len == 8);
 
 		if (ins_mode == ROW_INS_HISTORICAL) {
-			row_ins_set_tuple_col_8(node->row, table->vers_end, trx->id, node->entry_sys_heap);
+			row_ins_set_tuple_col_8(node->row, table->vers_end, trx->id, node->vers_end_buf);
 		}
 		else /* ROW_INS_VERSIONED */ {
-			row_ins_set_tuple_col_8(node->row, table->vers_end, IB_UINT64_MAX, node->entry_sys_heap);
+			row_ins_set_tuple_col_8(node->row, table->vers_end, IB_UINT64_MAX, node->vers_end_buf);
 			int8store(&mysql_rec[t->mysql_col_offset], IB_UINT64_MAX);
 			t = &prebuilt->mysql_template[table->vers_start];
 			ut_ad(t->mysql_col_len == 8);
-			row_ins_set_tuple_col_8(node->row, table->vers_start, trx->id, node->entry_sys_heap);
+			row_ins_set_tuple_col_8(node->row, table->vers_start, trx->id, node->vers_start_buf);
 			int8store(&mysql_rec[t->mysql_col_offset], trx->id);
 		}
 	}
