@@ -23,7 +23,6 @@ $ENV{MARIAROCKS_SST_DUMP}="$sst_dump";
 # Temporarily disable testing under valgrind, due to MDEV-12439 
 return "RocksDB tests disabled under valgrind" if ($::opt_valgrind);
 
-return "Temporarily disabled on Windows due to MDEV-13852" if (My::SysInfo::IS_WINDOWS);
 
 bless { };
 

@@ -725,7 +725,7 @@ FetchIndexRootPages::build_row_import(row_import* cfg) const UNIV_NOTHROW
 
 		char	name[BUFSIZ];
 
-		ut_snprintf(name, sizeof(name), "index" IB_ID_FMT, it->m_id);
+		snprintf(name, sizeof(name), "index" IB_ID_FMT, it->m_id);
 
 		ulint	len = strlen(name) + 1;
 
@@ -2561,11 +2561,11 @@ row_import_read_index_data(
 		if (n_bytes != sizeof(row)) {
 			char	msg[BUFSIZ];
 
-			ut_snprintf(msg, sizeof(msg),
-				    "while reading index meta-data, expected "
-				    "to read " ULINTPF
-				    " bytes but read only " ULINTPF " bytes",
-				    sizeof(row), n_bytes);
+			snprintf(msg, sizeof(msg),
+				 "while reading index meta-data, expected "
+				 "to read " ULINTPF
+				 " bytes but read only " ULINTPF " bytes",
+				 sizeof(row), n_bytes);
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
@@ -3084,9 +3084,9 @@ row_import_read_cfg(
 	if (file == NULL) {
 		char	msg[BUFSIZ];
 
-		ut_snprintf(msg, sizeof(msg),
-			    "Error opening '%s', will attempt to import"
-			    " without schema verification", name);
+		snprintf(msg, sizeof(msg),
+			 "Error opening '%s', will attempt to import"
+			 " without schema verification", name);
 
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_WARN, ER_IO_READ_ERROR,

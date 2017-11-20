@@ -3698,6 +3698,14 @@ mysql_execute_command(THD *thd)
     ulong privileges_requested= lex->exchange ? SELECT_ACL | FILE_ACL :
       SELECT_ACL;
 
+    /* 
+      The same function must be called for DML commands
+      when CTEs are supported in DML statements
+    */
+    res= check_dependencies_in_with_clauses(thd->lex->with_clauses_list);
+    if (res)
+      break;
+
     if (all_tables)
       res= check_table_access(thd,
                               privileges_requested,

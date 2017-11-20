@@ -14851,9 +14851,9 @@ ha_innobase::info_low(
 			dict_table_stats_unlock(ib_table, RW_S_LATCH);
 		}
 
-		my_snprintf(path, sizeof(path), "%s/%s%s",
-			    mysql_data_home, table->s->normalized_path.str,
-			    reg_ext);
+		snprintf(path, sizeof(path), "%s/%s%s",
+			 mysql_data_home, table->s->normalized_path.str,
+			 reg_ext);
 
 		unpack_filename(path,path);
 
@@ -16704,13 +16704,13 @@ ShowStatus::to_string(
 		int	name_len;
 		char	name_buf[IO_SIZE];
 
-		name_len = ut_snprintf(
+		name_len = snprintf(
 			name_buf, sizeof(name_buf), "%s", it->m_name.c_str());
 
 		int	status_len;
 		char	status_buf[IO_SIZE];
 
-		status_len = ut_snprintf(
+		status_len = snprintf(
 			status_buf, sizeof(status_buf),
 			"spins=%lu,waits=%lu,calls=%llu",
 			static_cast<ulong>(it->m_spins),
@@ -16797,7 +16797,7 @@ innodb_show_rwlock_status(
 			continue;
 		}
 
-		buf1len = ut_snprintf(
+		buf1len = snprintf(
 			buf1, sizeof buf1, "rwlock: %s:%u",
 			innobase_basename(rw_lock->cfile_name),
 			rw_lock->cline);
@@ -16805,7 +16805,7 @@ innodb_show_rwlock_status(
 		int		buf2len;
 		char		buf2[IO_SIZE];
 
-		buf2len = ut_snprintf(
+		buf2len = snprintf(
 			buf2, sizeof buf2, "waits=%u",
 			rw_lock->count_os_wait);
 
@@ -16825,7 +16825,7 @@ innodb_show_rwlock_status(
 		int		buf1len;
 		char		buf1[IO_SIZE];
 
-		buf1len = ut_snprintf(
+		buf1len = snprintf(
 			buf1, sizeof buf1, "sum rwlock: %s:%u",
 			innobase_basename(block_rwlock->cfile_name),
 			block_rwlock->cline);
@@ -16833,7 +16833,7 @@ innodb_show_rwlock_status(
 		int		buf2len;
 		char		buf2[IO_SIZE];
 
-		buf2len = ut_snprintf(
+		buf2len = snprintf(
 			buf2, sizeof buf2, "waits=" ULINTPF,
 			block_rwlock_oswait_count);
 
@@ -17586,7 +17586,7 @@ ha_innobase::get_foreign_dup_key(
 	child_table_name[len] = '\0';
 
 	/* copy index name */
-	ut_snprintf(child_key_name, child_key_name_len, "%s",
+	snprintf(child_key_name, child_key_name_len, "%s",
 		    err_index->name());
 
 	return(true);
@@ -18490,7 +18490,7 @@ innodb_buffer_pool_size_update(
 {
         longlong	in_val = *static_cast<const longlong*>(save);
 
-	ut_snprintf(export_vars.innodb_buffer_pool_resize_status,
+	snprintf(export_vars.innodb_buffer_pool_resize_status,
 	        sizeof(export_vars.innodb_buffer_pool_resize_status),
 		"Requested to resize buffer pool.");
 
@@ -22510,7 +22510,7 @@ ib_errf(
 	if (vasprintf(&str, format, args) == -1) {
 		/* In case of failure use a fixed length string */
 		str = static_cast<char*>(malloc(BUFSIZ));
-		my_vsnprintf(str, BUFSIZ, format, args);
+		vsnprintf(str, BUFSIZ, format, args);
 	}
 #else
 	/* Use a fixed length string. */
@@ -22519,7 +22519,7 @@ ib_errf(
 		va_end(args);
 		return;	/* Watch for Out-Of-Memory */
 	}
-	my_vsnprintf(str, BUFSIZ, format, args);
+	vsnprintf(str, BUFSIZ, format, args);
 #endif /* _WIN32 */
 
 	ib_senderrf(thd, level, code, str);

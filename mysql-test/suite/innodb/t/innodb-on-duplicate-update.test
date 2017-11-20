@@ -1,0 +1,63 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-13206: INSERT ON DUPLICATE KEY UPDATE foreign key fail
+#
+set sql_mode='';
+set innodb_strict_mode=0;
+
+CREATE TABLE `v` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+INSERT v values (1);
+
+CREATE TABLE `vp` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `v_id` int(10) unsigned NOT NULL,
+  `p_id` int(10) unsigned NOT NULL,
+  `ppp` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `IDX_vp_uniq` (`v_id`,`p_id`),
+  KEY `FK_vp_v` (`v_id`),
+  CONSTRAINT `FK_vp_v` FOREIGN KEY (`v_id`) REFERENCES `v` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+INSERT vp VALUES (12, 1, 100, 'text12');
+INSERT INTO `vp` (`id`,`ppp`) VALUES (12, 'test12-2') ON DUPLICATE KEY UPDATE `ppp` = VALUES(`ppp`);
+SELECT * FROM vp;
+DROP TABLE vp, v;
+
+CREATE TABLE t1 (i int PRIMARY KEY) ENGINE=InnoDB;
+INSERT into t1 values (1);
+
+CREATE TABLE t2 (
+  i int not null primary key,
+  vi int not null,
+  m int,
+  UNIQUE KEY (vi),
+  CONSTRAINT `cc` FOREIGN KEY (vi) REFERENCES t1 (i) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+INSERT into t2 VALUES (1, 1, 100);
+INSERT INTO t2 (i,m) VALUES (1, 2) ON DUPLICATE KEY UPDATE m=3;
+SELECT * FROM t2;
+
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 (i int PRIMARY KEY) ENGINE=InnoDB;
+INSERT into t1 values (1);
+
+CREATE TABLE t2 (
+  i int not null primary key,
+  vi int not null,
+  m int,
+  KEY (vi),
+  CONSTRAINT `cc` FOREIGN KEY (vi) REFERENCES t1 (i) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+INSERT into t2 VALUES (1, 1, 100);
+INSERT INTO t2 (i,m) VALUES (1, 2) ON DUPLICATE KEY UPDATE m=3;
+SELECT * FROM t2;
+DROP TABLE t2, t1;

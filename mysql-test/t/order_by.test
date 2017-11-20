@@ -2106,3 +2106,46 @@ INSERT INTO t1 VALUES (1),(2),(3);
 SELECT DISTINCT pk FROM t1 GROUP BY 'foo';
 SELECT DISTINCT pk FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-13994: Bad join results with orderby_uses_equalities=on
+--echo #
+
+CREATE TABLE books (
+  id int(16) NOT NULL AUTO_INCREMENT,
+  library_id int(16) NOT NULL DEFAULT 0,
+  wings_id int(12) NOT NULL DEFAULT 0,
+  scheduled_for_removal int(1) DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY library_idx (library_id)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+INSERT INTO books VALUES (32625,8663,707,0),(32624,8663,505,1);
+
+CREATE TABLE wings (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  department_id int(11) DEFAULT NULL,
+  PRIMARY KEY (id)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+INSERT INTO wings VALUES (505,11745),(707,11768);
+
+let $q=
+SELECT wings.id as wing_id, wings.department_id FROM wings
+  WHERE wings.id IN ( SELECT books.wings_id FROM books
+                        WHERE books.library_id = 8663 AND
+                              books.scheduled_for_removal=0 )
+ORDER BY wings.id;
+
+SET @save_optimizer_switch=@@optimizer_switch;
+
+SET optimizer_switch='orderby_uses_equalities=off';
+eval $q;
+
+SET optimizer_switch='orderby_uses_equalities=on';
+eval $q;
+eval explain extended $q;
+
+set optimizer_switch= @save_optimizer_switch;
+
+DROP TABLE books, wings;

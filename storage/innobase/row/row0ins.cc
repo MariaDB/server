@@ -3608,6 +3608,11 @@ row_ins(
 			switch (err) {
 			case DB_SUCCESS:
 				break;
+			case DB_NO_REFERENCED_ROW:
+				if (!dict_index_is_unique(node->index)) {
+					DBUG_RETURN(err);
+				}
+				/* fall through */
 			case DB_DUPLICATE_KEY:
 				ut_ad(dict_index_is_unique(node->index));
 
@@ -3624,7 +3629,55 @@ row_ins(
 					secondary indexes to block concurrent
 					transactions from inserting the
 					searched records. */
-					if (!node->duplicate) {
+					if (err == DB_NO_REFERENCED_ROW
+					    && node->duplicate) {
+						/* A foreign key check on a
+						unique index may fail to
+						find the record.
+
+						Consider as a example
+						following:
+						create table child(a int not null
+						primary key, b int not null,
+						c int,
+						unique key (b),
+						foreign key (b) references
+						parent (id)) engine=innodb;
+
+						insert into child values
+						(1,1,2);
+
+						insert into child(a) values
+						(1) on duplicate key update
+						c = 3;
+
+						Now primary key value 1
+						naturally causes duplicate
+						key error that will be
+						stored on node->duplicate.
+						If there was no duplicate
+						key error, we should return
+						the actual no referenced
+						row error.
+
+						As value for
+						column b used in both unique
+						key and foreign key is not
+						provided, server uses 0 as a
+						search value. This is
+						naturally, not found leading
+						to DB_NO_REFERENCED_ROW.
+						But, we should update the
+						row with primay key value 1
+						anyway.
+
+						Return the
+						original  DB_DUPLICATE_KEY
+						error after
+						placing all gaplocks. */
+						err = DB_DUPLICATE_KEY;
+						break;
+					} else if (!node->duplicate) {
 						/* Save 1st dup error. Ignore
 						subsequent dup errors. */
 						node->duplicate = node->index;

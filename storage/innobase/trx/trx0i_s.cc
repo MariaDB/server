@@ -1607,17 +1607,17 @@ trx_i_s_create_lock_id(
 
 	if (row->lock_space != ULINT_UNDEFINED) {
 		/* record lock */
-		res_len = ut_snprintf(lock_id, lock_id_size,
-				      TRX_ID_FMT
-				      ":" ULINTPF ":" ULINTPF ":" ULINTPF,
-				      row->lock_trx_id, row->lock_space,
-				      row->lock_page, row->lock_rec);
+		res_len = snprintf(lock_id, lock_id_size,
+				   TRX_ID_FMT
+				   ":" ULINTPF ":" ULINTPF ":" ULINTPF,
+				   row->lock_trx_id, row->lock_space,
+				   row->lock_page, row->lock_rec);
 	} else {
 		/* table lock */
-		res_len = ut_snprintf(lock_id, lock_id_size,
-				      TRX_ID_FMT":" UINT64PF,
-				      row->lock_trx_id,
-				      row->lock_table_id);
+		res_len = snprintf(lock_id, lock_id_size,
+				   TRX_ID_FMT":" UINT64PF,
+				   row->lock_trx_id,
+				   row->lock_table_id);
 	}
 
 	/* the typecast is safe because snprintf(3) never returns

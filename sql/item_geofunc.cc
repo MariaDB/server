@@ -165,6 +165,9 @@ String *Item_func_geometry_from_json::val_str(String *str)
     case Geometry::GEOJ_TOO_FEW_POINTS:
       code= ER_GEOJSON_TOO_FEW_POINTS;
       break;
+    case Geometry::GEOJ_EMPTY_COORDINATES:
+      code= ER_GEOJSON_EMPTY_COORDINATES;
+      break;
     case Geometry::GEOJ_POLYGON_NOT_CLOSED:
       code= ER_GEOJSON_NOT_CLOSED;
       break;

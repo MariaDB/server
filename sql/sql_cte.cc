@@ -822,9 +822,10 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
        tbl;
        tbl= tbl->next_global)
   {
-    tbl->grant.privilege= with_table->grant.privilege;
     spec_tables_tail= tbl;
   }
+  if (check_table_access(thd, SELECT_ACL, spec_tables, FALSE, UINT_MAX, FALSE))
+    goto err;
   if (spec_tables)
   {
     if (with_table->next_global)

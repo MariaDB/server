@@ -12848,8 +12848,37 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
             can be used without tmp. table.
           */
           bool can_subst_to_first_table= false;
+          bool first_is_in_sjm_nest= false;
+          if (first_is_base_table)
+          {
+            TABLE_LIST *tbl_for_first=
+              join->join_tab[join->const_tables].table->pos_in_table_list;
+            first_is_in_sjm_nest= tbl_for_first->sj_mat_info &&
+                                  tbl_for_first->sj_mat_info->is_used;
+          }
+          /*
+            Currently we do not employ the optimization that uses multiple
+            equalities for ORDER BY to remove tmp table in the case when
+            the first table happens to be the result of materialization of
+            a semi-join nest ( <=> first_is_in_sjm_nest == true).
+
+            When a semi-join nest is materialized and scanned to look for
+            possible matches in the remaining tables for every its row
+            the fields from the result of materialization are copied
+            into the record buffers of tables from the semi-join nest.
+            So these copies are used to access the remaining tables rather
+            than the fields from the result of materialization.
+
+            Unfortunately now this so-called 'copy back' technique is
+            supported only if the rows  are scanned with the rr_sequential
+            function, but not with other rr_* functions that are employed
+            when the result of materialization is required to be sorted.
+
+            TODO: either to support 'copy back' technique for the above case,
+                  or to get rid of this technique altogether.
+          */
           if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP) &&
-              first_is_base_table &&
+              first_is_base_table && !first_is_in_sjm_nest &&
               order->item[0]->real_item()->type() == Item::FIELD_ITEM &&
               join->cond_equal)
           {

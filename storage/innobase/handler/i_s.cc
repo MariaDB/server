@@ -597,7 +597,7 @@ fill_innodb_trx_from_cache(
 				cache, I_S_INNODB_TRX, i);
 
 		/* trx_id */
-		ut_snprintf(trx_id, sizeof(trx_id), TRX_ID_FMT, row->trx_id);
+		snprintf(trx_id, sizeof(trx_id), TRX_ID_FMT, row->trx_id);
 		OK(field_store_string(fields[IDX_TRX_ID], trx_id));
 
 		/* trx_state */
@@ -931,8 +931,8 @@ fill_innodb_locks_from_cache(
 				      lock_id));
 
 		/* lock_trx_id */
-		ut_snprintf(lock_trx_id, sizeof(lock_trx_id),
-			    TRX_ID_FMT, row->lock_trx_id);
+		snprintf(lock_trx_id, sizeof(lock_trx_id),
+			 TRX_ID_FMT, row->lock_trx_id);
 		OK(field_store_string(fields[IDX_LOCK_TRX_ID], lock_trx_id));
 
 		/* lock_mode */
@@ -1131,8 +1131,8 @@ fill_innodb_lock_waits_from_cache(
 				cache, I_S_INNODB_LOCK_WAITS, i);
 
 		/* requesting_trx_id */
-		ut_snprintf(requesting_trx_id, sizeof(requesting_trx_id),
-			    TRX_ID_FMT, row->requested_lock_row->lock_trx_id);
+		snprintf(requesting_trx_id, sizeof(requesting_trx_id),
+			 TRX_ID_FMT, row->requested_lock_row->lock_trx_id);
 		OK(field_store_string(fields[IDX_REQUESTING_TRX_ID],
 				      requesting_trx_id));
 
@@ -1145,8 +1145,8 @@ fill_innodb_lock_waits_from_cache(
 				   sizeof(requested_lock_id))));
 
 		/* blocking_trx_id */
-		ut_snprintf(blocking_trx_id, sizeof(blocking_trx_id),
-			    TRX_ID_FMT, row->blocking_lock_row->lock_trx_id);
+		snprintf(blocking_trx_id, sizeof(blocking_trx_id),
+			 TRX_ID_FMT, row->blocking_lock_row->lock_trx_id);
 		OK(field_store_string(fields[IDX_BLOCKING_TRX_ID],
 				      blocking_trx_id));
 
@@ -1748,8 +1748,8 @@ i_s_cmp_per_index_fill_low(
 					       index->name);
 		} else {
 			/* index not found */
-			ut_snprintf(name, sizeof(name),
-				    "index_id:" IB_ID_FMT, iter->first);
+			snprintf(name, sizeof(name),
+				 "index_id:" IB_ID_FMT, iter->first);
 			field_store_string(fields[IDX_DATABASE_NAME],
 					   "unknown");
 			field_store_string(fields[IDX_TABLE_NAME],
@@ -9221,8 +9221,8 @@ i_s_innodb_mutexes_fill_table(
 	if (block_mutex) {
 		char buf1[IO_SIZE];
 
-		my_snprintf(buf1, sizeof buf1, "combined %s",
-			    innobase_basename(block_mutex->cfile_name));
+		snprintf(buf1, sizeof buf1, "combined %s",
+			 innobase_basename(block_mutex->cfile_name));
 
 		OK(field_store_string(fields[MUTEXES_NAME], block_mutex->cmutex_name));
 		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
@@ -9260,8 +9260,8 @@ i_s_innodb_mutexes_fill_table(
 	if (block_lock) {
 		char buf1[IO_SIZE];
 
-		my_snprintf(buf1, sizeof buf1, "combined %s",
-			    innobase_basename(block_lock->cfile_name));
+		snprintf(buf1, sizeof buf1, "combined %s",
+			 innobase_basename(block_lock->cfile_name));
 
 		//OK(field_store_string(fields[MUTEXES_NAME], block_lock->lock_name));
 		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));

@@ -7747,6 +7747,9 @@ ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
 ER_NET_OK_PACKET_TOO_LARGE
   eng "OK packet too large"
 
+ER_GEOJSON_EMPTY_COORDINATES
+        eng "Incorrect GeoJSON format - empty 'coordinates' array."
+
 ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
         eng "Illegal parameter data types %s and %s for operation '%s'"
 ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION

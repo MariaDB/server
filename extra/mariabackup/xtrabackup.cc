@@ -2685,10 +2685,10 @@ xb_load_single_table_tablespace(
 	name = static_cast<char*>(ut_malloc_nokey(pathlen));
 
 	if (dirname != NULL) {
-		ut_snprintf(name, pathlen, "%s/%s", dirname, filname);
+		snprintf(name, pathlen, "%s/%s", dirname, filname);
 		name[pathlen - 5] = 0;
 	} else {
-		ut_snprintf(name, pathlen, "%s", filname);
+		snprintf(name, pathlen, "%s", filname);
 		name[pathlen - 5] = 0;
 	}
 
@@ -2806,8 +2806,8 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 
 			dbpath = static_cast<char*>(ut_malloc_nokey(dbpath_len));
 		}
-		ut_snprintf(dbpath, dbpath_len,
-			    "%s/%s", fil_path_to_mysql_datadir, dbinfo.name);
+		snprintf(dbpath, dbpath_len,
+			 "%s/%s", fil_path_to_mysql_datadir, dbinfo.name);
 		os_normalize_path(dbpath);
 
 		if (check_if_skip_database_by_path(dbpath)) {

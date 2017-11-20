@@ -2578,21 +2578,20 @@ dict_stats_save(
 			char	stat_name[16];
 			char	stat_description[1024];
 
-			ut_snprintf(stat_name, sizeof(stat_name),
-				    "n_diff_pfx%02u", i + 1);
+			snprintf(stat_name, sizeof(stat_name),
+				 "n_diff_pfx%02u", i + 1);
 
 			/* craft a string that contains the column names */
-			ut_snprintf(stat_description,
-				    sizeof(stat_description),
-				    "%s", index->fields[0].name());
+			snprintf(stat_description, sizeof(stat_description),
+				 "%s", index->fields[0].name());
 			for (unsigned j = 1; j <= i; j++) {
 				size_t	len;
 
 				len = strlen(stat_description);
 
-				ut_snprintf(stat_description + len,
-					    sizeof(stat_description) - len,
-					    ",%s", index->fields[j].name());
+				snprintf(stat_description + len,
+					 sizeof(stat_description) - len,
+					 ",%s", index->fields[j].name());
 			}
 
 			ret = dict_stats_save_index_stat(
@@ -3461,23 +3460,23 @@ dict_stats_drop_index(
 	}
 
 	if (ret != DB_SUCCESS) {
-		ut_snprintf(errstr, errstr_sz,
-			    "Unable to delete statistics for index %s"
-			    " from %s%s: %s. They can be deleted later using"
-			    " DELETE FROM %s WHERE"
-			    " database_name = '%s' AND"
-			    " table_name = '%s' AND"
-			    " index_name = '%s';",
-			    iname,
-			    INDEX_STATS_NAME_PRINT,
-			    (ret == DB_LOCK_WAIT_TIMEOUT
-			     ? " because the rows are locked"
-			     : ""),
-			    ut_strerr(ret),
-			    INDEX_STATS_NAME_PRINT,
-			    db_utf8,
-			    table_utf8,
-			    iname);
+		snprintf(errstr, errstr_sz,
+			 "Unable to delete statistics for index %s"
+			 " from %s%s: %s. They can be deleted later using"
+			 " DELETE FROM %s WHERE"
+			 " database_name = '%s' AND"
+			 " table_name = '%s' AND"
+			 " index_name = '%s';",
+			 iname,
+			 INDEX_STATS_NAME_PRINT,
+			 (ret == DB_LOCK_WAIT_TIMEOUT
+			  ? " because the rows are locked"
+			  : ""),
+			 ut_strerr(ret),
+			 INDEX_STATS_NAME_PRINT,
+			 db_utf8,
+			 table_utf8,
+			 iname);
 
 		ut_print_timestamp(stderr);
 		fprintf(stderr, " InnoDB: %s\n", errstr);
@@ -3607,26 +3606,26 @@ dict_stats_drop_table(
 
 	if (ret != DB_SUCCESS) {
 
-		ut_snprintf(errstr, errstr_sz,
-			    "Unable to delete statistics for table %s.%s: %s."
-			    " They can be deleted later using"
+		snprintf(errstr, errstr_sz,
+			 "Unable to delete statistics for table %s.%s: %s."
+			 " They can be deleted later using"
 
-			    " DELETE FROM %s WHERE"
-			    " database_name = '%s' AND"
-			    " table_name = '%s';"
+			 " DELETE FROM %s WHERE"
+			 " database_name = '%s' AND"
+			 " table_name = '%s';"
 
-			    " DELETE FROM %s WHERE"
-			    " database_name = '%s' AND"
-			    " table_name = '%s';",
+			 " DELETE FROM %s WHERE"
+			 " database_name = '%s' AND"
+			 " table_name = '%s';",
 
-			    db_utf8, table_utf8,
-			    ut_strerr(ret),
+			 db_utf8, table_utf8,
+			 ut_strerr(ret),
 
-			    INDEX_STATS_NAME_PRINT,
-			    db_utf8, table_utf8,
+			 INDEX_STATS_NAME_PRINT,
+			 db_utf8, table_utf8,
 
-			    TABLE_STATS_NAME_PRINT,
-			    db_utf8, table_utf8);
+			 TABLE_STATS_NAME_PRINT,
+			 db_utf8, table_utf8);
 	}
 
 	return(ret);
@@ -3790,26 +3789,26 @@ dict_stats_rename_table(
 		 && n_attempts < 5);
 
 	if (ret != DB_SUCCESS) {
-		ut_snprintf(errstr, errstr_sz,
-			    "Unable to rename statistics from"
-			    " %s.%s to %s.%s in %s: %s."
-			    " They can be renamed later using"
+		snprintf(errstr, errstr_sz,
+			 "Unable to rename statistics from"
+			 " %s.%s to %s.%s in %s: %s."
+			 " They can be renamed later using"
 
-			    " UPDATE %s SET"
-			    " database_name = '%s',"
-			    " table_name = '%s'"
-			    " WHERE"
-			    " database_name = '%s' AND"
-			    " table_name = '%s';",
+			 " UPDATE %s SET"
+			 " database_name = '%s',"
+			 " table_name = '%s'"
+			 " WHERE"
+			 " database_name = '%s' AND"
+			 " table_name = '%s';",
 
-			    old_db_utf8, old_table_utf8,
-			    new_db_utf8, new_table_utf8,
-			    TABLE_STATS_NAME_PRINT,
-			    ut_strerr(ret),
+			 old_db_utf8, old_table_utf8,
+			 new_db_utf8, new_table_utf8,
+			 TABLE_STATS_NAME_PRINT,
+			 ut_strerr(ret),
 
-			    TABLE_STATS_NAME_PRINT,
-			    new_db_utf8, new_table_utf8,
-			    old_db_utf8, old_table_utf8);
+			 TABLE_STATS_NAME_PRINT,
+			 new_db_utf8, new_table_utf8,
+			 old_db_utf8, old_table_utf8);
 		mutex_exit(&dict_sys->mutex);
 		rw_lock_x_unlock(dict_operation_lock);
 		return(ret);
@@ -3849,26 +3848,26 @@ dict_stats_rename_table(
 	rw_lock_x_unlock(dict_operation_lock);
 
 	if (ret != DB_SUCCESS) {
-		ut_snprintf(errstr, errstr_sz,
-			    "Unable to rename statistics from"
-			    " %s.%s to %s.%s in %s: %s."
-			    " They can be renamed later using"
+		snprintf(errstr, errstr_sz,
+			 "Unable to rename statistics from"
+			 " %s.%s to %s.%s in %s: %s."
+			 " They can be renamed later using"
 
-			    " UPDATE %s SET"
-			    " database_name = '%s',"
-			    " table_name = '%s'"
-			    " WHERE"
-			    " database_name = '%s' AND"
-			    " table_name = '%s';",
+			 " UPDATE %s SET"
+			 " database_name = '%s',"
+			 " table_name = '%s'"
+			 " WHERE"
+			 " database_name = '%s' AND"
+			 " table_name = '%s';",
 
-			    old_db_utf8, old_table_utf8,
-			    new_db_utf8, new_table_utf8,
-			    INDEX_STATS_NAME_PRINT,
-			    ut_strerr(ret),
+			 old_db_utf8, old_table_utf8,
+			 new_db_utf8, new_table_utf8,
+			 INDEX_STATS_NAME_PRINT,
+			 ut_strerr(ret),
 
-			    INDEX_STATS_NAME_PRINT,
-			    new_db_utf8, new_table_utf8,
-			    old_db_utf8, old_table_utf8);
+			 INDEX_STATS_NAME_PRINT,
+			 new_db_utf8, new_table_utf8,
+			 old_db_utf8, old_table_utf8);
 	}
 
 	return(ret);
@@ -3971,7 +3970,7 @@ test_dict_table_schema_check()
 	};
 	char	errstr[512];
 
-	ut_snprintf(errstr, sizeof(errstr), "Table not found");
+	snprintf(errstr, sizeof(errstr), "Table not found");
 
 	/* prevent any data dictionary modifications while we are checking
 	the tables' structure */
