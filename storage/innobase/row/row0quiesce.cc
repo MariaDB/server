@@ -535,7 +535,10 @@ row_quiesce_table_start(
 	}
 
 	if (!trx_is_interrupted(trx)) {
-		buf_LRU_flush_or_remove_pages(table->space, trx);
+		{
+			FlushObserver observer(table->space, trx, NULL);
+			buf_LRU_flush_or_remove_pages(table->space, &observer);
+		}
 
 		if (trx_is_interrupted(trx)) {
 

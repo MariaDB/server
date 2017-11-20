@@ -1100,22 +1100,19 @@ srv_undo_tablespaces_init(bool create_new_db)
 		mtr_commit(&mtr);
 
 		/* Step-2: Flush the dirty pages from the buffer pool. */
-		trx_t* trx = trx_allocate_for_background();
-
 		for (undo::undo_spaces_t::const_iterator it
 			     = undo::Truncate::s_fix_up_spaces.begin();
 		     it != undo::Truncate::s_fix_up_spaces.end();
 		     ++it) {
-
-			buf_LRU_flush_or_remove_pages(TRX_SYS_SPACE, trx);
-
-			buf_LRU_flush_or_remove_pages(*it, trx);
+			FlushObserver dummy(TRX_SYS_SPACE, NULL, NULL);
+			buf_LRU_flush_or_remove_pages(TRX_SYS_SPACE, &dummy);
+			FlushObserver dummy2(*it, NULL, NULL);
+			buf_LRU_flush_or_remove_pages(*it, &dummy2);
 
 			/* Remove the truncate redo log file. */
 			undo::Truncate	undo_trunc;
 			undo_trunc.done_logging(*it);
 		}
-		trx_free_for_background(trx);
 	}
 
 	return(DB_SUCCESS);
