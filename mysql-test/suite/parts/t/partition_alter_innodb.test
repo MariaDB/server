@@ -1,0 +1,4 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+--let $engine=InnoDB
+--source inc/part_alter_values.inc
