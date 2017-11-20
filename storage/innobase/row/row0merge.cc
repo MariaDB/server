@@ -5024,7 +5024,7 @@ func_exit:
 		ut_ad(need_flush_observer);
 
 		DBUG_EXECUTE_IF("ib_index_build_fail_before_flush",
-			error = DB_FAIL;
+			error = DB_INTERRUPTED;
 		);
 
 		if (error != DB_SUCCESS) {

@@ -33,29 +33,30 @@ CALL populate_t1();
 
 SELECT COUNT(*) FROM t1;
 
-SET SESSION debug="+d,ib_index_build_fail_before_flush";
+SET @saved_dbug= @@SESSION.debug_dbug;
+SET debug_dbug='+d,ib_index_build_fail_before_flush';
 
--- error ER_GET_ERRNO
+-- error ER_QUERY_INTERRUPTED
 CREATE INDEX idx_id ON t1(id);
 
 CHECK TABLE t1;
 
--- error ER_GET_ERRNO
+-- error ER_QUERY_INTERRUPTED
 CREATE INDEX idx_title ON t1(title);
 
 CHECK TABLE t1;
 
--- error ER_GET_ERRNO
+-- error ER_QUERY_INTERRUPTED
 CREATE FULLTEXT INDEX fidx_title ON t1(title);
 
 CHECK TABLE t1;
 
--- error ER_GET_ERRNO
+-- error ER_QUERY_INTERRUPTED
 ALTER TABLE t1 ADD COLUMN content TEXT;
 
 CHECK TABLE t1;
 
-SET SESSION debug="-d,ib_index_build_fail_before_flush";
+SET debug_dbug= @saved_dbug;
 
 INSERT INTO t1 VALUES(10001, 10001, 'a10000');
 

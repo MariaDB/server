@@ -2,8 +2,7 @@
 # wl#7277: InnoDB: Bulk Load for Create Index
 #
 
--- source include/have_innodb.inc
--- source include/have_innodb_zip.inc
+-- source include/innodb_page_size_small.inc
 
 # Create Insert Procedure
 DELIMITER |;
