@@ -7907,3 +7907,6 @@ ER_VERS_SYS_FIELD_NOT_HIDDEN
 
 ER_NOT_LOG_TABLE
         eng "Table `%s.%s` is not a log table"
+
+ER_VERS_GENERATED_ALWAYS_NOT_EMPTY
+        eng "Can not modify column `%s` to GENERATED ALWAYS AS ROW START/END for non-empty table"

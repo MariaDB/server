@@ -593,6 +593,19 @@ alter table t add column b int;
 select * from t for system_time all;
 a	b
 2	NULL
+create or replace table non_empty (
+a int,
+sys_trx_start bigint(20) unsigned,
+sys_trx_end bigint(20) unsigned
+) engine innodb;
+insert into non_empty values (1, 100, 200);
+alter table non_empty
+change column sys_trx_start sys_trx_start bigint(20) unsigned generated always as row start;
+ERROR HY000: Can not modify column `sys_trx_start` to GENERATED ALWAYS AS ROW START/END for non-empty table
+alter table non_empty
+change column sys_trx_end sys_trx_end bigint(20) unsigned generated always as row end;
+ERROR HY000: Can not modify column `sys_trx_end` to GENERATED ALWAYS AS ROW START/END for non-empty table
+drop table non_empty;
 call verify_vtq;
 No	A	B	C	D
 1	1	1	1	1

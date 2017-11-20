@@ -8977,7 +8977,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
     DBUG_RETURN(true);
 
   if (create_info->vers_info.check_and_fix_alter(thd, alter_info, create_info,
-                                                 table->s))
+                                                 table))
   {
     DBUG_RETURN(true);
   }

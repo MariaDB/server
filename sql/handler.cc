@@ -6913,8 +6913,9 @@ static bool add_field_to_drop_list(THD *thd, Alter_info *alter_info,
 
 bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
                                           HA_CREATE_INFO *create_info,
-                                          TABLE_SHARE *share)
+                                          TABLE *table)
 {
+  TABLE_SHARE *share= table->s;
   bool integer_fields=
       create_info->db_type->flags & HTON_NATIVE_SYS_VERSIONING;
   const char *table_name= share->table_name.str;
@@ -6948,6 +6949,29 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
       return true;
 
     return false;
+  }
+
+  {
+    List_iterator_fast<Create_field> it(alter_info->create_list);
+    while (Create_field *f= it++)
+    {
+      if (f->change.length &&
+          f->flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG))
+      {
+        if (thd->mdl_context.upgrade_shared_lock(
+                table->mdl_ticket, MDL_EXCLUSIVE,
+                thd->variables.lock_wait_timeout))
+          return true;
+        if (table->file->info(HA_STATUS_VARIABLE | HA_STATUS_TIME))
+          return true;
+        if (0 < table->file->records())
+        {
+          my_error(ER_VERS_GENERATED_ALWAYS_NOT_EMPTY, MYF(0), f->change.str);
+          return true;
+        }
+        break;
+      }
+    }
   }
 
   if ((versioned_fields || unversioned_fields) && !share->versioned)

@@ -282,6 +282,21 @@ select * from t for system_time all;
 alter table t add column b int;
 select * from t for system_time all;
 
+create or replace table non_empty (
+  a int,
+  sys_trx_start bigint(20) unsigned,
+  sys_trx_end bigint(20) unsigned
+) engine innodb;
+insert into non_empty values (1, 100, 200);
+
+--error ER_VERS_GENERATED_ALWAYS_NOT_EMPTY
+alter table non_empty
+  change column sys_trx_start sys_trx_start bigint(20) unsigned generated always as row start;
+--error ER_VERS_GENERATED_ALWAYS_NOT_EMPTY
+alter table non_empty
+  change column sys_trx_end sys_trx_end bigint(20) unsigned generated always as row end;
+drop table non_empty;
+
 call verify_vtq;
 drop table t;
 
