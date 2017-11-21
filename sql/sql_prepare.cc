@@ -735,7 +735,13 @@ static void set_param_str_or_null(Item_param *param, uchar **pos, ulong len,
   {
     if (length > len)
       length= len;
-    param->set_str((const char *) *pos, length);
+    /*
+      We use &my_charset_bin here. Conversion and setting real character
+      sets will be done in Item_param::convert_str_value(), after the
+      original value is appended to the query used for logging.
+    */
+    param->set_str((const char *) *pos, length,
+                   &my_charset_bin, &my_charset_bin);
     *pos+= length;
   }
 }

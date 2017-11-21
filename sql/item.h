@@ -391,6 +391,8 @@ public:
 
   virtual const Send_field *get_out_param_info() const
   { return NULL; }
+
+  virtual Item_param *get_item_param() { return 0; }
 };
 
 
@@ -3173,6 +3175,7 @@ public:
   */
   enum enum_indicator_type indicator;
 
+private:
   /*
     A buffer for string and long data values. Historically all allocated
     values returned from val_str() were treated as eligible to
@@ -3184,6 +3187,8 @@ public:
     Can not be declared inside the union as it's not a POD type.
   */
   String str_value_ptr;
+
+public:
   my_decimal decimal_value;
   union
   {
@@ -3225,7 +3230,8 @@ public:
   void set_double(double i);
   void set_decimal(const char *str, ulong length);
   void set_decimal(const my_decimal *dv, bool unsigned_arg);
-  bool set_str(const char *str, ulong length);
+  bool set_str(const char *str, ulong length,
+               CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   bool set_longdata(const char *str, ulong length);
   void set_time(MYSQL_TIME *tm, timestamp_type type, uint32 max_length_arg);
   void set_time(const MYSQL_TIME *tm, uint32 max_length_arg, uint decimals_arg);
@@ -3304,6 +3310,8 @@ private:
 
 public:
   virtual const Send_field *get_out_param_info() const;
+
+  Item_param *get_item_param() { return this; }
 
   virtual void make_field(THD *thd, Send_field *field);
 

@@ -3550,7 +3550,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('a', 16);
 @a	@a = REPEAT('a', 16)
@@ -3568,7 +3568,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('b', 16);
 @a	@a = REPEAT('b', 16)
@@ -3586,7 +3586,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('c', 16);
 @a	@a = REPEAT('c', 16)
@@ -3604,7 +3604,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('d', 16);
 @a	@a = REPEAT('d', 16)
@@ -3622,7 +3622,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('e', 16);
 @a	@a = REPEAT('e', 16)
@@ -3640,7 +3640,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('f', 16);
 @a	@a = REPEAT('f', 16)
@@ -3766,7 +3766,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = 'aaa';
 @a	@a = 'aaa'
@@ -3784,7 +3784,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = 'aaa';
 @a	@a = 'aaa'
@@ -5071,6 +5071,20 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) unsigned DEFAULT NULL,
   `b` bigint(20) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# MDEV-14454 Binary protocol returns wrong collation ID for SP OUT parameters
+#
+CREATE PROCEDURE p1(OUT v CHAR(32) CHARACTER SET utf8) SET v='aaa';
+PREPARE stmt1 FROM 'CALL p1(?)';
+EXECUTE stmt1 USING @a;
+CREATE TABLE t1 AS SELECT @a AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` longtext CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;

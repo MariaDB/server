@@ -3903,7 +3903,8 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
 }
 
 
-bool Item_param::set_str(const char *str, ulong length)
+bool Item_param::set_str(const char *str, ulong length,
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
   DBUG_ENTER("Item_param::set_str");
   /*
@@ -3911,10 +3912,24 @@ bool Item_param::set_str(const char *str, ulong length)
     been written to the binary log.
   */
   uint dummy_errors;
-  if (str_value.copy(str, length, &my_charset_bin, &my_charset_bin,
-                     &dummy_errors))
+  if (str_value.copy(str, length, fromcs, tocs, &dummy_errors))
     DBUG_RETURN(TRUE);
+  /*
+    Set str_value_ptr to make sure it's in sync with str_value.
+    This is needed in case if we're called from Item_param::set_value(),
+    from the code responsible for setting OUT parameters in
+    sp_head::execute_procedure(). This makes sure that
+    Protocol_binary::send_out_parameters() later gets a valid value
+    from Item_param::val_str().
+    Note, for IN parameters, Item_param::convert_str_value() will be called
+    later, which will convert the value from the client character set to the
+    connection character set, and will reset both str_value and str_value_ptr.
+  */
+  str_value_ptr.set(str_value.ptr(),
+                    str_value.length(),
+                    str_value.charset());
   state= STRING_VALUE;
+  collation.set(tocs, DERIVATION_COERCIBLE);
   max_length= length;
   maybe_null= 0;
   /* max_length and decimals are set after charset conversion */
@@ -4576,66 +4591,14 @@ bool
 Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 {
   Item *arg= *it;
-
-  if (arg->is_null())
+  struct st_value tmp;
+  if (arg->save_in_value(&tmp) ||
+      arg->type_handler()->Item_param_set_from_value(thd, this, arg, &tmp))
   {
     set_null();
-    return FALSE;
+    return false;
   }
-
-  null_value= FALSE;
-  unsigned_flag= arg->unsigned_flag;
-
-  switch (arg->result_type()) {
-  case STRING_RESULT:
-  {
-    char str_buffer[STRING_BUFFER_USUAL_SIZE];
-    String sv_buffer(str_buffer, sizeof(str_buffer), &my_charset_bin);
-    String *sv= arg->val_str(&sv_buffer);
-
-    if (!sv)
-      return TRUE;
-
-    set_str(sv->c_ptr_safe(), sv->length());
-    str_value_ptr.set(str_value.ptr(),
-                      str_value.length(),
-                      str_value.charset());
-    collation.set(str_value.charset(), DERIVATION_COERCIBLE);
-    decimals= 0;
-    break;
-  }
-
-  case REAL_RESULT:
-    set_double(arg->val_real());
-    break;
-
-  case INT_RESULT:
-    set_int(arg->val_int(), arg->max_length);
-    break;
-
-  case DECIMAL_RESULT:
-  {
-    my_decimal dv_buf;
-    my_decimal *dv= arg->val_decimal(&dv_buf);
-
-    if (!dv)
-      return TRUE;
-
-    set_decimal(dv, !dv->sign());
-    break;
-  }
-
-  default:
-    /* That can not happen. */
-
-    DBUG_ASSERT(TRUE);  // Abort in debug mode.
-
-    set_null();         // Set to NULL in release mode.
-    return FALSE;
-  }
-
-  set_handler_by_result_type(arg->result_type());
-  return FALSE;
+  return null_value= false;
 }
 
 

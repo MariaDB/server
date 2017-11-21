@@ -4529,3 +4529,15 @@ CREATE TABLE t1 AS SELECT @a AS a, @b AS b;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-14454 Binary protocol returns wrong collation ID for SP OUT parameters
+--echo #
+
+CREATE PROCEDURE p1(OUT v CHAR(32) CHARACTER SET utf8) SET v='aaa';
+PREPARE stmt1 FROM 'CALL p1(?)';
+EXECUTE stmt1 USING @a;
+CREATE TABLE t1 AS SELECT @a AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;

@@ -109,6 +109,9 @@ Diagnostics_information_item::set_value(THD *thd, Item **value)
 
   DBUG_ASSERT(srp);
 
+  /* GET DIAGNOSTICS is not allowed in prepared statements */
+  DBUG_ASSERT(srp->get_item_param() == NULL);
+
   /* Set variable/parameter value. */
   rv= srp->set_value(thd, thd->spcont, value);
 

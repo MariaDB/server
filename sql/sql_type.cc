@@ -5059,7 +5059,9 @@ bool Type_handler_string_result::
     charset of connection, so we have to set it later.
   */
   param->set_handler(&type_handler_varchar);
-  return param->set_str(val->m_string.ptr(), val->m_string.length());
+  return param->set_str(val->m_string.ptr(), val->m_string.length(),
+                        attr->collation.collation,
+                        attr->collation.collation);
 }
 
 
@@ -5087,7 +5089,8 @@ bool Type_handler_geometry::
   param->value.cs_info.set(thd, &my_charset_bin);
   param->set_handler(&type_handler_geometry);
   param->set_geometry_type(attr->uint_geometry_type());
-  return param->set_str(val->m_string.ptr(), val->m_string.length());
+  return param->set_str(val->m_string.ptr(), val->m_string.length(),
+                        &my_charset_bin, &my_charset_bin);
 }
 #endif
 
