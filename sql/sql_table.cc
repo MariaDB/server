@@ -7432,7 +7432,7 @@ static bool mysql_inplace_alter_table(THD *thd,
     TR_table trt(thd, true);
     if (thd->vers_update_trt && trt != *table_list)
     {
-      if (opt_transaction_registry && trt.update())
+      if (use_transaction_registry && trt.update())
         return true;
     }
 

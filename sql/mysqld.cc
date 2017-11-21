@@ -535,6 +535,7 @@ ulong feature_files_opened_with_delayed_keys= 0, feature_check_constraint= 0;
 ulonglong denied_connections;
 my_decimal decimal_zero;
 my_bool opt_transaction_registry= 1;
+my_bool use_transaction_registry= 1;
 
 /*
   Maximum length of parameter value which can be set through
@@ -6027,25 +6028,35 @@ int mysqld_main(int argc, char **argv)
   if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
     unireg_abort(1);
 
-  if (!opt_bootstrap && opt_transaction_registry)
+  if (opt_transaction_registry)
   {
-    THD *thd = new THD(0);
-    thd->thread_stack= (char*) &thd;
-    thd->store_globals();
-
+    use_transaction_registry= true;
+    if (opt_bootstrap)
     {
-      TR_table trt(thd);
-      if (trt.check())
-      {
-        sql_print_error("%s schema is incorrect", trt.table_name);
-        delete thd;
-        unireg_abort(1);
-      }
+      use_transaction_registry= false;
     }
+    else
+    {
+      THD *thd = new THD(0);
+      thd->thread_stack= (char*) &thd;
+      thd->store_globals();
+      {
+        TR_table trt(thd);
+        if (trt.check())
+        {
+          use_transaction_registry= false;
+        }
+      }
 
-    trans_commit_stmt(thd);
-    delete thd;
+      trans_commit_stmt(thd);
+      delete thd;
+    }
   }
+  else
+    use_transaction_registry= false;
+
+  if (opt_transaction_registry && !use_transaction_registry)
+    sql_print_information("Disabled transaction registry.");
 
   if (WSREP_ON)
   {

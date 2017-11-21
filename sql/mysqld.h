@@ -313,6 +313,7 @@ extern ulong encryption_algorithm;
 extern const char *encryption_algorithm_names[];
 extern const char *quoted_string;
 extern my_bool opt_transaction_registry;
+extern my_bool use_transaction_registry;
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP

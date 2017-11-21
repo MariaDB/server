@@ -1416,7 +1416,7 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (rw_trans || thd->lex->sql_command == SQLCOM_ALTER_TABLE)
   {
-    if (opt_transaction_registry && thd->vers_update_trt)
+    if (use_transaction_registry && thd->vers_update_trt)
     {
       TR_table trt(thd, true);
       if (trt.update())

@@ -8699,57 +8699,108 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
   return false;
 }
 
+void TR_table::warn_schema_incorrect(const char *reason)
+{
+  if (MYSQL_VERSION_ID == table->s->mysql_version)
+  {
+    sql_print_error("`%s.%s` schema is incorrect: %s.", db, table_name, reason);
+  }
+  else
+  {
+    sql_print_error("`%s.%s` schema is incorrect: %s. Created with MariaDB %d, "
+                    "now running %d.", db, table_name, reason, MYSQL_VERSION_ID,
+                    static_cast<int>(table->s->mysql_version));
+  }
+}
+
 bool TR_table::check()
 {
-  // InnoDB may not be loaded
   if (!ha_resolve_by_legacy_type(thd, DB_TYPE_INNODB))
-    return false;
+  {
+    sql_print_information("`%s.%s` requires InnoDB storage engine.", db, table_name);
+    return true;
+  }
 
   if (open())
+  {
+    sql_print_warning("`%s.%s` does not exist (open failed).", db, table_name);
     return true;
+  }
 
   if (table->file->ht->db_type != DB_TYPE_INNODB)
+  {
+    warn_schema_incorrect("Wrong table engine (expected InnoDB)");
     return true;
+  }
 
-  if (table->s->fields != 5)
+#define WARN_SCHEMA(...) \
+  char reason[128]; \
+  snprintf(reason, 128, __VA_ARGS__); \
+  warn_schema_incorrect(reason);
+
+  if (table->s->fields != FIELD_COUNT)
+  {
+    WARN_SCHEMA("Wrong field count (expected %d)", FIELD_COUNT);
     return true;
+  }
 
   if (table->field[FLD_TRX_ID]->type() != MYSQL_TYPE_LONGLONG)
+  {
+    WARN_SCHEMA("Wrong field %d type (expected BIGINT UNSIGNED)", FLD_TRX_ID);
     return true;
+  }
 
   if (table->field[FLD_COMMIT_ID]->type() != MYSQL_TYPE_LONGLONG)
+  {
+    WARN_SCHEMA("Wrong field %d type (expected BIGINT UNSIGNED)", FLD_COMMIT_ID);
     return true;
+  }
 
   if (table->field[FLD_BEGIN_TS]->type() != MYSQL_TYPE_TIMESTAMP)
+  {
+    WARN_SCHEMA("Wrong field %d type (expected TIMESTAMP(6))", FLD_BEGIN_TS);
     return true;
+  }
 
   if (table->field[FLD_COMMIT_TS]->type() != MYSQL_TYPE_TIMESTAMP)
+  {
+    WARN_SCHEMA("Wrong field %d type (expected TIMESTAMP(6))", FLD_COMMIT_TS);
     return true;
+  }
 
   if (table->field[FLD_ISO_LEVEL]->type() != MYSQL_TYPE_STRING ||
       !(table->field[FLD_ISO_LEVEL]->flags & ENUM_FLAG))
+  {
+  wrong_enum:
+    WARN_SCHEMA("Wrong field %d type (expected ENUM('READ-UNCOMMITTED', "
+                "'READ-COMMITTED', 'REPEATABLE-READ', 'SERIALIZABLE'))",
+                FLD_ISO_LEVEL);
     return true;
+  }
 
   Field_enum *iso_level= static_cast<Field_enum *>(table->field[FLD_ISO_LEVEL]);
   st_typelib *typelib= iso_level->typelib;
 
   if (typelib->count != 4)
-    return true;
+    goto wrong_enum;
 
   if (strcmp(typelib->type_names[0], "READ-UNCOMMITTED") ||
       strcmp(typelib->type_names[1], "READ-COMMITTED") ||
       strcmp(typelib->type_names[2], "REPEATABLE-READ") ||
       strcmp(typelib->type_names[3], "SERIALIZABLE"))
   {
-    return true;
+    goto wrong_enum;
   }
 
   if (!table->key_info || !table->key_info->key_part)
-    return true;
+    goto wrong_pk;
 
-  if (strcmp(table->key_info->key_part->field->field_name.str,
-             "transaction_id"))
+  if (strcmp(table->key_info->key_part->field->field_name.str, "transaction_id"))
+  {
+  wrong_pk:
+    WARN_SCHEMA("Wrong PRIMARY KEY (expected `transaction_id`)");
     return true;
+  }
 
   return false;
 }

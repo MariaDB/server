@@ -2967,6 +2967,8 @@ public:
     DBUG_ASSERT(iso_level <= ISO_SERIALIZABLE);
     store(FLD_ISO_LEVEL, iso_level + 1);
   }
+
+  void warn_schema_incorrect(const char *reason);
   bool check();
 
 public:
