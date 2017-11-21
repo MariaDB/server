@@ -17,7 +17,6 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
 CREATE INDEX idx_title ON t1(title);
-# restart
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -50,7 +49,6 @@ CHAR_LENGTH(b)
 40000
 60000
 ALTER TABLE t1 DROP COLUMN c;
-# restart
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -66,7 +64,7 @@ class   INT,
 id      INT,
 title   VARCHAR(100)
 ) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-SET SESSION debug="+d,crash_commit_before";
+SET debug_dbug='+d,crash_commit_before';
 CREATE INDEX idx_title ON t1(title);
 ERROR HY000: Lost connection to MySQL server during query
 SELECT COUNT(*) FROM t1;
@@ -76,10 +74,8 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	NULL	ref	idx_title	idx_title	103	const	1	100.00	NULL
-Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`class` AS `class`,`test`.`t1`.`id` AS `id`,`test`.`t1`.`title` AS `title` from `test`.`t1` where (`test`.`t1`.`title` = 'a10')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
 SELECT * FROM t1 WHERE title = 'a10';
 class	id	title
 10	10	a10
@@ -108,7 +104,7 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-SET SESSION debug="+d,crash_commit_before";
+SET debug_dbug='+d,crash_commit_before';
 ALTER TABLE t1 DROP COLUMN c;
 ERROR HY000: Lost connection to MySQL server during query
 CHECK TABLE t1;
@@ -141,7 +137,6 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
 CREATE INDEX idx_title ON t1(title);
-# restart
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -174,7 +169,6 @@ CHAR_LENGTH(b)
 40000
 60000
 ALTER TABLE t1 DROP COLUMN c;
-# restart
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -190,7 +184,7 @@ class   INT,
 id      INT,
 title   VARCHAR(100)
 ) ENGINE=InnoDB ROW_FORMAT=COMPACT;
-SET SESSION debug="+d,crash_commit_before";
+SET debug_dbug='+d,crash_commit_before';
 CREATE INDEX idx_title ON t1(title);
 ERROR HY000: Lost connection to MySQL server during query
 SELECT COUNT(*) FROM t1;
@@ -200,10 +194,8 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	NULL	ref	idx_title	idx_title	103	const	1	100.00	NULL
-Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`class` AS `class`,`test`.`t1`.`id` AS `id`,`test`.`t1`.`title` AS `title` from `test`.`t1` where (`test`.`t1`.`title` = 'a10')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
 SELECT * FROM t1 WHERE title = 'a10';
 class	id	title
 10	10	a10
@@ -232,7 +224,7 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-SET SESSION debug="+d,crash_commit_before";
+SET debug_dbug='+d,crash_commit_before';
 ALTER TABLE t1 DROP COLUMN c;
 ERROR HY000: Lost connection to MySQL server during query
 CHECK TABLE t1;
@@ -265,7 +257,6 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
 CREATE INDEX idx_title ON t1(title);
-# restart
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -298,7 +289,6 @@ CHAR_LENGTH(b)
 40000
 60000
 ALTER TABLE t1 DROP COLUMN c;
-# restart
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -314,7 +304,7 @@ class   INT,
 id      INT,
 title   VARCHAR(100)
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
-SET SESSION debug="+d,crash_commit_before";
+SET debug_dbug='+d,crash_commit_before';
 CREATE INDEX idx_title ON t1(title);
 ERROR HY000: Lost connection to MySQL server during query
 SELECT COUNT(*) FROM t1;
@@ -324,10 +314,8 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	NULL	ref	idx_title	idx_title	103	const	1	100.00	NULL
-Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`class` AS `class`,`test`.`t1`.`id` AS `id`,`test`.`t1`.`title` AS `title` from `test`.`t1` where (`test`.`t1`.`title` = 'a10')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
 SELECT * FROM t1 WHERE title = 'a10';
 class	id	title
 10	10	a10
@@ -356,7 +344,7 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-SET SESSION debug="+d,crash_commit_before";
+SET debug_dbug='+d,crash_commit_before';
 ALTER TABLE t1 DROP COLUMN c;
 ERROR HY000: Lost connection to MySQL server during query
 CHECK TABLE t1;
@@ -390,7 +378,6 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
 CREATE INDEX idx_title ON t1(title);
-# restart
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -424,7 +411,6 @@ CHAR_LENGTH(b)
 40000
 60000
 ALTER TABLE t1 DROP COLUMN c;
-# restart
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -441,7 +427,7 @@ class   INT,
 id      INT,
 title   VARCHAR(100)
 ) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
-SET SESSION debug="+d,crash_commit_before";
+SET debug_dbug='+d,crash_commit_before';
 CREATE INDEX idx_title ON t1(title);
 ERROR HY000: Lost connection to MySQL server during query
 SELECT COUNT(*) FROM t1;
@@ -451,10 +437,8 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	NULL	ref	idx_title	idx_title	103	const	1	100.00	NULL
-Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`class` AS `class`,`test`.`t1`.`id` AS `id`,`test`.`t1`.`title` AS `title` from `test`.`t1` where (`test`.`t1`.`title` = 'a10')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
 SELECT * FROM t1 WHERE title = 'a10';
 class	id	title
 10	10	a10
@@ -484,7 +468,7 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-SET SESSION debug="+d,crash_commit_before";
+SET debug_dbug='+d,crash_commit_before';
 ALTER TABLE t1 DROP COLUMN c;
 ERROR HY000: Lost connection to MySQL server during query
 CHECK TABLE t1;
