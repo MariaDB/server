@@ -67,7 +67,11 @@ void Trie::create(const char *file_name,
   if (num_nodes_per_key < 1.0) {
     num_nodes_per_key = DEFAULT_NUM_NODES_PER_KEY;
   }
+  if (num_nodes_per_key > MAX_NUM_NODES_PER_KEY) {
+    num_nodes_per_key = MAX_NUM_NODES_PER_KEY;
+  }
   GRN_DAT_THROW_IF(PARAM_ERROR, num_nodes_per_key < 1.0);
+  GRN_DAT_THROW_IF(PARAM_ERROR, num_nodes_per_key > MAX_NUM_NODES_PER_KEY);
 
   if (average_key_length < 1.0) {
     average_key_length = DEFAULT_AVERAGE_KEY_LENGTH;
@@ -105,9 +109,13 @@ void Trie::create(const Trie &trie,
       num_nodes_per_key = DEFAULT_NUM_NODES_PER_KEY;
     } else {
       num_nodes_per_key = 1.0 * trie.num_nodes() / trie.num_keys();
+      if (num_nodes_per_key > MAX_NUM_NODES_PER_KEY) {
+        num_nodes_per_key = MAX_NUM_NODES_PER_KEY;
+      }
     }
   }
   GRN_DAT_THROW_IF(PARAM_ERROR, num_nodes_per_key < 1.0);
+  GRN_DAT_THROW_IF(PARAM_ERROR, num_nodes_per_key > MAX_NUM_NODES_PER_KEY);
 
   if (average_key_length < 1.0) {
     if (trie.num_keys() == 0) {

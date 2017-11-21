@@ -65,18 +65,6 @@ select * from t1;
 c1
 2010-03-26 11:22:33
 drop table t1;
-create table t1 (c1 int, _id int);
-set sql_mode="";
-insert into t1 (c1,_id) values (1,1);
-Warnings:
-Warning	1265	Data truncated for column '_id' at row 1
-set sql_mode="strict_all_tables";
-insert into t1 (c1,_id) values (4,1);
-ERROR 01000: Data truncated for column '_id' at row 1
-select * from t1;
-c1	_id
-1	1
-drop table t1;
 create table t1 (c1 int primary key, c2 int);
 insert into t1 values(1,100);
 select * from t1;

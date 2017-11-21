@@ -1,0 +1,40 @@
+DROP TABLE IF EXISTS items;
+CREATE TABLE items (
+id INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
+score1 INT,
+score2 INT,
+score3 INT,
+INDEX (score1, score2, score3)
+) DEFAULT CHARSET=UTF8;
+SHOW CREATE TABLE items;
+Table	Create Table
+items	CREATE TABLE `items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `score1` int(11) DEFAULT NULL,
+  `score2` int(11) DEFAULT NULL,
+  `score3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `score1` (`score1`,`score2`,`score3`)
+) ENGINE=Mroonga DEFAULT CHARSET=utf8
+INSERT INTO items (score1, score2, score3) VALUES(1, 10, -100);
+INSERT INTO items (score1, score2, score3) VALUES(1, 10,   0);
+INSERT INTO items (score1, score2, score3) VALUES(2, 10,  100);
+INSERT INTO items (score1, score2, score3) VALUES(2, 30, -100);
+INSERT INTO items (score1, score2, score3) VALUES(2, 30,    0);
+INSERT INTO items (score1, score2, score3) VALUES(2, 30,  100);
+INSERT INTO items (score1, score2, score3) VALUES(2, 20, -100);
+INSERT INTO items (score1, score2, score3) VALUES(2, 20,    0);
+INSERT INTO items (score1, score2, score3) VALUES(2, 20,  100);
+SELECT *
+FROM items
+WHERE score1 = 2
+ORDER BY score2 ASC, score3 ASC;
+id	score1	score2	score3
+3	2	10	100
+7	2	20	-100
+8	2	20	0
+9	2	20	100
+4	2	30	-100
+5	2	30	0
+6	2	30	100
+DROP TABLE items;

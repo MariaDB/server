@@ -18,9 +18,9 @@ INSERT INTO diaries_mroonga (body) VALUES ("starting groonga...");
 INSERT INTO diaries_mroonga (body) VALUES ("started groonga.");
 EXPLAIN SELECT COUNT(*) FROM diaries_innodb;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	diaries_innodb	index	NULL	flag	2	NULL	3	Using index
+1	SIMPLE	diaries_innodb	index	NULL	flag	2	NULL	#	Using index
 EXPLAIN SELECT COUNT(*) FROM diaries_mroonga;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	diaries_mroonga	index	NULL	flag	2	NULL	3	Using index
+1	SIMPLE	diaries_mroonga	index	NULL	flag	2	NULL	#	Using index
 DROP TABLE diaries_innodb;
 DROP TABLE diaries_mroonga;

@@ -18,9 +18,11 @@
 
 #include "../grn_ctx_impl.h"
 #include "../grn_ii.h"
+#include <string.h>
 
 #ifdef GRN_WITH_MRUBY
 #include <mruby.h>
+#include <mruby/array.h>
 #include <mruby/class.h>
 #include <mruby/data.h>
 
@@ -56,6 +58,31 @@ mrb_grn_index_column_get_lexicon(mrb_state *mrb, mrb_value self)
   lexicon = ((grn_ii *)index_column)->lexicon;
 
   return grn_mrb_value_from_grn_obj(mrb, lexicon);
+}
+
+static mrb_value
+mrb_grn_index_column_get_source_ids(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *index_column;
+  grn_obj source_ids;
+  unsigned int i, n_ids;
+  mrb_value mrb_source_ids;
+
+  index_column = DATA_PTR(self);
+  GRN_RECORD_INIT(&source_ids, GRN_OBJ_VECTOR, GRN_DB_VOID);
+  grn_obj_get_info(ctx, index_column, GRN_INFO_SOURCE, &source_ids);
+  n_ids = GRN_BULK_VSIZE(&source_ids) / sizeof(grn_id);
+
+  mrb_source_ids = mrb_ary_new_capa(mrb, n_ids);
+  for (i = 0; i < n_ids; i++) {
+    grn_id source_id = GRN_RECORD_VALUE_AT(&source_ids, i);
+    mrb_ary_push(mrb, mrb_source_ids, mrb_fixnum_value(source_id));
+  }
+
+  GRN_OBJ_FIN(ctx, &source_ids);
+
+  return mrb_source_ids;
 }
 
 static mrb_value
@@ -153,6 +180,10 @@ grn_mrb_index_column_init(grn_ctx *ctx)
 
   mrb_define_method(mrb, klass, "lexicon",
                     mrb_grn_index_column_get_lexicon,
+                    MRB_ARGS_NONE());
+
+  mrb_define_method(mrb, klass, "source_ids",
+                    mrb_grn_index_column_get_source_ids,
                     MRB_ARGS_NONE());
 
   mrb_define_method(mrb, klass, "estimate_size_for_term_id",

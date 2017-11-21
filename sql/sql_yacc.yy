@@ -1178,6 +1178,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  DEFINER_SYM
 %token  DELAYED_SYM
 %token  DELAY_KEY_WRITE_SYM
+%token  DELETE_DOMAIN_ID_SYM
 %token  DELETE_SYM                    /* SQL-2003-R */
 %token  DENSE_RANK_SYM
 %token  DESC                          /* SQL-2003-N */
@@ -1995,6 +1996,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         vcol_opt_attribute_list vcol_attribute
         opt_serial_attribute opt_serial_attribute_list serial_attribute
         explainable_command
+        opt_delete_gtid_domain
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -13319,7 +13321,7 @@ flush_option:
           { Lex->type|= REFRESH_GENERAL_LOG; }
         | SLOW LOGS_SYM
           { Lex->type|= REFRESH_SLOW_LOG; }
-        | BINARY LOGS_SYM
+        | BINARY LOGS_SYM opt_delete_gtid_domain
           { Lex->type|= REFRESH_BINARY_LOG; }
         | RELAY LOGS_SYM optional_connection_name
           {
@@ -13374,6 +13376,24 @@ flush_option:
 opt_table_list:
           /* empty */  {}
         | table_list {}
+        ;
+
+opt_delete_gtid_domain:
+          /* empty */ {}
+        | DELETE_DOMAIN_ID_SYM '=' '(' delete_domain_id_list ')'
+          {}
+        ;
+delete_domain_id_list:
+          /* Empty */
+        | delete_domain_id
+        | delete_domain_id_list ',' delete_domain_id
+        ;
+
+delete_domain_id:
+          ulong_num
+          {
+            insert_dynamic(&Lex->delete_gtid_domain, (uchar*) &($1));
+          }
         ;
 
 optional_flush_tables_arguments:

@@ -2329,6 +2329,23 @@ DROP TRIGGER t1_bi;
 DROP TABLE t1;
 SET TIMESTAMP=DEFAULT;
 set time_zone= @@global.time_zone;
+#
+# MDEV-13936: Server crashes in Time_and_counter_tracker::incr_loops
+#
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE RAND() > 0.5;
+CREATE TABLE t2 (a int);
+CREATE TABLE t3 (a int);
+create trigger trg after insert on t2 for each row
+INSERT INTO t3 SELECT MAX(i) FROM v1 UNION SELECT MAX(i) FROM v1;
+drop table t1;
+insert into t2 value (2);
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TABLE t1 (i INT);
+insert into t2 value (2);
+DROP VIEW v1;
+DROP TABLE t1,t2,t3;
+End of 10.1 tests.
 create table t1 (i int);
 create trigger tr1 after insert on t1 for each row set @a=@a+1;
 create trigger tr2 after insert on t1 for each row set @a=@a+1;

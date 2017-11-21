@@ -12,13 +12,18 @@ FULLTEXT INDEX (content) COMMENT 'table "terms"'
 ) DEFAULT CHARSET=utf8;
 SELECT mroonga_command("dump --dump_plugins no");
 mroonga_command("dump --dump_plugins no")
-table_create terms TABLE_PAT_KEY ShortText --default_tokenizer TokenBigram --normalizer NormalizerMySQLGeneralCI
-column_create terms is_stop_word COLUMN_SCALAR Int8
-column_create terms term COLUMN_SCALAR ShortText
-
 table_create memos TABLE_PAT_KEY Int32
 column_create memos content COLUMN_SCALAR LongText
 column_create memos id COLUMN_SCALAR Int32
+
+table_create mroonga_operations TABLE_NO_KEY
+column_create mroonga_operations record COLUMN_SCALAR UInt32
+column_create mroonga_operations table COLUMN_SCALAR ShortText
+column_create mroonga_operations type COLUMN_SCALAR ShortText
+
+table_create terms TABLE_PAT_KEY ShortText --default_tokenizer TokenBigram --normalizer NormalizerMySQLGeneralCI
+column_create terms is_stop_word COLUMN_SCALAR Int8
+column_create terms term COLUMN_SCALAR ShortText
 
 column_create terms content COLUMN_INDEX|WITH_POSITION memos content
 ALTER TABLE terms COMMENT='default_tokenizer "TokenBigram", token_filters "TokenFilterStopWord"';
@@ -27,6 +32,11 @@ mroonga_command("dump --dump_plugins no")
 table_create memos TABLE_PAT_KEY Int32
 column_create memos content COLUMN_SCALAR LongText
 column_create memos id COLUMN_SCALAR Int32
+
+table_create mroonga_operations TABLE_NO_KEY
+column_create mroonga_operations record COLUMN_SCALAR UInt32
+column_create mroonga_operations table COLUMN_SCALAR ShortText
+column_create mroonga_operations type COLUMN_SCALAR ShortText
 
 table_create terms TABLE_PAT_KEY ShortText --default_tokenizer TokenBigram --normalizer NormalizerMySQLGeneralCI --token_filters TokenFilterStopWord
 column_create terms is_stop_word COLUMN_SCALAR Int8
@@ -38,6 +48,11 @@ mroonga_command("dump --dump_plugins no")
 table_create memos TABLE_PAT_KEY Int32
 column_create memos content COLUMN_SCALAR LongText
 column_create memos id COLUMN_SCALAR Int32
+
+table_create mroonga_operations TABLE_NO_KEY
+column_create mroonga_operations record COLUMN_SCALAR UInt32
+column_create mroonga_operations table COLUMN_SCALAR ShortText
+column_create mroonga_operations type COLUMN_SCALAR ShortText
 
 table_create terms TABLE_PAT_KEY ShortText --default_tokenizer TokenBigram --normalizer NormalizerMySQLGeneralCI --token_filters TokenFilterStopWord
 column_create terms is_stop_word COLUMN_SCALAR Int8

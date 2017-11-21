@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2014 Brazil
+/*
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_TOKEN_CURSOR_H
-#define GRN_TOKEN_CURSOR_H
+
+#pragma once
 
 #include "grn_ctx.h"
 #include "grn_db.h"
@@ -57,7 +58,10 @@ typedef struct {
   grn_encoding encoding;
   grn_obj *tokenizer;
   grn_proc_ctx pctx;
-  grn_obj *token_filters;
+  struct {
+    grn_obj *objects;
+    void **data;
+  } token_filter;
   uint32_t variant;
   grn_obj *nstr;
 } grn_token_cursor;
@@ -75,5 +79,3 @@ GRN_API grn_rc grn_token_cursor_close(grn_ctx *ctx, grn_token_cursor *token_curs
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_TOKEN_CURSOR_H */

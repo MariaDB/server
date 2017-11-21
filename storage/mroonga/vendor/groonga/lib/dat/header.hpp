@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011 Brazil
+/*
+  Copyright(C) 2011-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,8 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef GRN_DAT_HPP_HEADER_HPP_
-#define GRN_DAT_HPP_HEADER_HPP_
+#pragma once
 
 #include "dat.hpp"
 
@@ -177,5 +177,3 @@ class GRN_DAT_API Header {
 
 }  // namespace dat
 }  // namespace grn
-
-#endif  // GRN_DAT_HPP_HEADER_HPP_

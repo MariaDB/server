@@ -1,0 +1,4 @@
+SELECT mroonga_highlight_html('Mroonga is the Groonga based storage engine.',
+'Mroonga', 'Groonga') AS highlighted;
+highlighted
+<span class="keyword">Mroonga</span> is the <span class="keyword">Groonga</span> based storage engine.

@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source ../../include/mroonga/have_mariadb.inc
 --source ../../include/mroonga/have_mroonga.inc
@@ -26,7 +26,6 @@ CREATE TABLE diaries (
   body text,
   FULLTEXT INDEX body_index (body) TOKENIZER='TokenBigramSplitSymbolAlphaDigit'
 ) DEFAULT CHARSET utf8;
-SHOW CREATE TABLE diaries;
 
 INSERT INTO diaries (body) VALUES ("will start Groonga!");
 INSERT INTO diaries (body) VALUES ("starting Groonga...");

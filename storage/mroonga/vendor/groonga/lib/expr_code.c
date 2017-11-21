@@ -24,7 +24,6 @@ grn_expr_code_n_used_codes(grn_ctx *ctx,
 {
   unsigned int n_codes;
   int i, n_args;
-  grn_bool have_proc_push_code = GRN_FALSE;
   grn_expr_code *sub_code;
 
   if (start == target) {
@@ -32,16 +31,10 @@ grn_expr_code_n_used_codes(grn_ctx *ctx,
   }
 
   n_args = target->nargs;
-  if (target->op == GRN_OP_CALL) {
-    if (!target->value) {
-      have_proc_push_code = GRN_TRUE;
-    }
-  } else {
-    if (target->value) {
-      n_args--;
-      if (n_args == 0) {
-        return 1;
-      }
+  if (target->value) {
+    n_args--;
+    if (n_args == 0) {
+      return 1;
     }
   }
 
@@ -52,15 +45,6 @@ grn_expr_code_n_used_codes(grn_ctx *ctx,
     sub_n_codes = grn_expr_code_n_used_codes(ctx, start, sub_code);
     n_codes += sub_n_codes;
     sub_code -= sub_n_codes;
-    if (sub_code < start) {
-      /* TODO: report error */
-      return 0;
-    }
-  }
-
-  if (have_proc_push_code) {
-    n_codes++;
-    sub_code--;
     if (sub_code < start) {
       /* TODO: report error */
       return 0;

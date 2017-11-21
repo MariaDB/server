@@ -1,5 +1,7 @@
 module Groonga
   class TableCursor
+    include Enumerable
+
     class << self
       def open(*arguments)
         cursor = open_raw(*arguments)
