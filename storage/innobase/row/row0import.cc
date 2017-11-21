@@ -3653,11 +3653,16 @@ row_import_for_mysql(
 	The only dirty pages generated should be from the pessimistic purge
 	of delete marked records that couldn't be purged in Phase I. */
 
-	buf_LRU_flush_or_remove_pages(prebuilt->table->space, trx);
+	{
+		FlushObserver observer(prebuilt->table->space, trx, NULL);
+		buf_LRU_flush_or_remove_pages(prebuilt->table->space,
+					      &observer);
 
-	if (trx_is_interrupted(trx)) {
-		ib::info() << "Phase III - Flush interrupted";
-		return(row_import_error(prebuilt, trx, DB_INTERRUPTED));
+		if (observer.is_interrupted()) {
+			ib::info() << "Phase III - Flush interrupted";
+			return(row_import_error(prebuilt, trx,
+						DB_INTERRUPTED));
+		}
 	}
 
 	ib::info() << "Phase IV - Flush complete";

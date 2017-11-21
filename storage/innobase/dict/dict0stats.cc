@@ -293,7 +293,10 @@ dict_stats_exec_sql(
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	if (!dict_stats_persistent_storage_check(true)) {
+	extern bool dict_stats_start_shutdown;
+
+	if (dict_stats_start_shutdown
+	    || !dict_stats_persistent_storage_check(true)) {
 		pars_info_free(pinfo);
 		return(DB_STATS_DO_NOT_EXIST);
 	}
