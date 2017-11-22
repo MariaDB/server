@@ -60,6 +60,8 @@
 #include "rpl_tblmap.h"
 #include "debug_sync.h"
 #include "rpl_parallel.h"
+#include "semisync_slave.h"
+
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
@@ -3280,7 +3282,9 @@ static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
                before_request_transmit,
                (thd, mi, binlog_flags)))
     DBUG_RETURN(1);
-  
+  if (repl_semisync_slave.requestTransmit(mi))
+    DBUG_RETURN(1);
+
   // TODO if big log files: Change next to int8store()
   int4store(buf, (ulong) mi->master_log_pos);
   int2store(buf + 4, binlog_flags);
@@ -4303,7 +4307,9 @@ pthread_handler_t handle_slave_io(void *arg)
   }
 
 
-  if (RUN_HOOK(binlog_relay_io, thread_start, (thd, mi)))
+  if (RUN_HOOK(binlog_relay_io, thread_start, (thd, mi)) ||
+      (DBUG_EVALUATE_IF("failed_slave_start", 1, 0)
+       || repl_semisync_slave.slaveStart(mi)))
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4493,9 +4499,13 @@ Stopping slave I/O thread due to out-of-memory error from master");
       retry_count=0;                    // ok event, reset retry counter
       THD_STAGE_INFO(thd, stage_queueing_master_event_to_the_relay_log);
       event_buf= (const char*)mysql->net.read_pos + 1;
+      mi->semi_ack= 0;
       if (RUN_HOOK(binlog_relay_io, after_read_event,
                    (thd, mi,(const char*)mysql->net.read_pos + 1,
-                    event_len, &event_buf, &event_len)))
+                    event_len, &event_buf, &event_len)) ||
+          repl_semisync_slave.
+          slaveReadSyncHeader((const char*)mysql->net.read_pos + 1, event_len,
+                              &(mi->semi_ack), &event_buf, &event_len))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4556,7 +4566,10 @@ Stopping slave I/O thread due to out-of-memory error from master");
       }
 
       if (RUN_HOOK(binlog_relay_io, after_queue_event,
-                   (thd, mi, event_buf, event_len, synced)))
+                   (thd, mi, event_buf, event_len, synced)) ||
+          (rpl_semi_sync_slave_status &&
+           (mi->semi_ack & SEMI_SYNC_NEED_ACK) &&
+           repl_semisync_slave.slaveReply(mi)))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4565,7 +4578,16 @@ Stopping slave I/O thread due to out-of-memory error from master");
       }
 
       if (mi->using_gtid == Master_info::USE_GTID_NO &&
-          flush_master_info(mi, TRUE, TRUE))
+          /*
+            If rpl_semi_sync_slave_delay_master is enabled, we will flush
+            master info only when ack is needed. This may lead to at least one
+            group transaction delay but affords better performance improvement.
+          */
+          (!repl_semisync_slave.getSlaveEnabled() ||
+           (!(mi->semi_ack & SEMI_SYNC_SLAVE_DELAY_SYNC) ||
+            (mi->semi_ack & (SEMI_SYNC_NEED_ACK)))) &&
+          (DBUG_EVALUATE_IF("failed_flush_master_info", 1, 0) ||
+           flush_master_info(mi, TRUE, TRUE)))
       {
         sql_print_error("Failed to flush master info file");
         goto err;
@@ -4619,7 +4641,8 @@ err:
                           IO_RPL_LOG_NAME, mi->master_log_pos,
                           tmp.c_ptr_safe());
   }
-  RUN_HOOK(binlog_relay_io, thread_stop, (thd, mi));
+  (void) RUN_HOOK(binlog_relay_io, thread_stop, (thd, mi));
+  repl_semisync_slave.slaveStop(mi);
   thd->reset_query();
   thd->reset_db(NULL, 0);
   if (mysql)

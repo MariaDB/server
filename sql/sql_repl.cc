@@ -30,7 +30,8 @@
 #include <my_dir.h>
 #include "rpl_handler.h"
 #include "debug_sync.h"
-
+#include "semisync_master.h"
+#include "semisync_slave.h"
 
 enum enum_gtid_until_state {
   GTID_UNTIL_NOT_DONE,
@@ -160,6 +161,7 @@ struct binlog_send_info {
 
   bool clear_initial_log_pos;
   bool should_stop;
+  size_t dirlen;
 
   binlog_send_info(THD *thd_arg, String *packet_arg, ushort flags_arg,
                    char *lfn)
@@ -315,12 +317,28 @@ static int reset_transmit_packet(binlog_send_info *info, ushort flags,
 
   if (RUN_HOOK(binlog_transmit, reserve_header, (info->thd, flags, packet)))
   {
+    /* RUN_HOOK() must return zero when thd->semi_sync_slave */
+    DBUG_ASSERT(!info->thd->semi_sync_slave);
+
     info->error= ER_UNKNOWN_ERROR;
     *errmsg= "Failed to run hook 'reserve_header'";
     ret= 1;
   }
+  if (info->thd->semi_sync_slave)
+  {
+    repl_semisync_master.reserveSyncHeader(packet);
+  }
+
   *ev_offset= packet->length();
   return ret;
+}
+
+inline bool is_semi_sync_slave()
+{
+  int null_value;
+  long long val= 0;
+  get_user_var_int("rpl_semi_sync_slave", &val, &null_value);
+  return val;
 }
 
 static int send_file(THD *thd)
@@ -1673,6 +1691,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   enum enum_binlog_checksum_alg current_checksum_alg= info->current_checksum_alg;
   slave_connection_state *gtid_state= &info->gtid_state;
   slave_connection_state *until_gtid_state= info->until_gtid_state;
+  bool need_sync= false;
 
   if (event_type == GTID_LIST_EVENT &&
       info->using_gtid_state && until_gtid_state)
@@ -1984,7 +2003,10 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
 
   pos= my_b_tell(log);
   if (RUN_HOOK(binlog_transmit, before_send_event,
-               (info->thd, info->flags, packet, info->log_file_name, pos)))
+               (info->thd, info->flags, packet, info->log_file_name, pos)) ||
+      repl_semisync_master.updateSyncHeader(info->thd, (uchar *)packet->c_ptr(),
+                                            info->log_file_name + info->dirlen,
+                                            pos, &need_sync))
   {
     info->error= ER_UNKNOWN_ERROR;
     return "run 'before_send_event' hook failed";
@@ -2012,6 +2034,8 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     info->error= ER_UNKNOWN_ERROR;
     return "Failed to run hook 'after_send_event'";
   }
+  if (need_sync)
+    repl_semisync_master.flushNet(info->thd, packet->c_ptr());
 
   return NULL;    /* Success */
 }
@@ -2748,7 +2772,7 @@ static int send_one_binlog_file(binlog_send_info *info,
       /** end of file or error */
       return (int)end_pos;
     }
-
+    info->dirlen= dirname_length(info->log_file_name);
     /**
      * send events from current position up to end_pos
      */
@@ -2770,6 +2794,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   binlog_send_info infoobj(thd, packet, flags, linfo.log_file_name);
   binlog_send_info *info= &infoobj;
+  bool has_transmit_started= false;
 
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
   thd->variables.max_allowed_packet= MAX_MAX_ALLOWED_PACKET;
@@ -2792,6 +2817,11 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     info->error= ER_UNKNOWN_ERROR;
     goto err;
   }
+  has_transmit_started= true;
+
+  /* Check if the dump thread is created by a slave with semisync enabled. */
+  thd->semi_sync_slave = is_semi_sync_slave();
+  repl_semisync_master.dump_start(thd, log_ident, pos);
 
   /*
     heartbeat_period from @master_heartbeat_period user variable
@@ -2908,7 +2938,11 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
 err:
   THD_STAGE_INFO(thd, stage_waiting_to_finalize_termination);
-  RUN_HOOK(binlog_transmit, transmit_stop, (thd, flags));
+  (void) RUN_HOOK(binlog_transmit, transmit_stop, (thd, flags));
+  if (has_transmit_started)
+  {
+    repl_semisync_master.dump_end(thd);
+  }
 
   if (info->thd->killed == KILL_SLAVE_SAME_ID)
   {
@@ -3374,7 +3408,9 @@ int reset_slave(THD *thd, Master_info* mi)
   else if (global_system_variables.log_warnings > 1)
     sql_print_information("Deleted Master_info file '%s'.", fname);
 
-  RUN_HOOK(binlog_relay_io, after_reset_slave, (thd, mi));
+  (void) RUN_HOOK(binlog_relay_io, after_reset_slave, (thd, mi));
+  if (rpl_semi_sync_slave_enabled)
+    repl_semisync_slave.resetSlave(mi);
 err:
   mi->unlock_slave_threads();
   if (error)
@@ -3876,11 +3912,14 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
     return 1;
   }
 
-  if (mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
-                               next_log_number))
-    return 1;
-  RUN_HOOK(binlog_transmit, after_reset_master, (thd, 0 /* flags */));
-  return 0;
+  bool ret= 0;
+  /* Temporarily disable master semisync before reseting master. */
+  repl_semisync_master.beforeResetMaster();
+  ret= mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
+                                next_log_number);
+  (void) RUN_HOOK(binlog_transmit, after_reset_master, (thd, 0 /* flags */));
+  repl_semisync_master.afterResetMaster();
+  return ret;
 }
 
 

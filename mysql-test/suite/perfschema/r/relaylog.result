@@ -86,6 +86,7 @@ EVENT_NAME	COUNT_STAR	SUM_TIMER_WAIT	MIN_TIMER_WAIT	AVG_TIMER_WAIT	MAX_TIMER_WAI
 wait/synch/cond/sql/MYSQL_RELAY_LOG::COND_bin_log_updated	0	0	0	0	0
 wait/synch/cond/sql/MYSQL_RELAY_LOG::COND_queue_busy	0	0	0	0	0
 wait/synch/cond/sql/MYSQL_RELAY_LOG::COND_relay_log_updated	0	0	0	0	0
+wait/synch/mutex/sql/MYSQL_RELAY_LOG::LOCK_binlog_end_pos	0	0	0	0	0
 wait/synch/mutex/sql/MYSQL_RELAY_LOG::LOCK_index	0	0	0	0	0
 connection slave;
 "============ Performance schema on slave ============"
@@ -193,5 +194,6 @@ EVENT_NAME	COUNT_STAR
 wait/synch/cond/sql/MYSQL_RELAY_LOG::COND_bin_log_updated	NONE
 wait/synch/cond/sql/MYSQL_RELAY_LOG::COND_queue_busy	NONE
 wait/synch/cond/sql/MYSQL_RELAY_LOG::COND_relay_log_updated	MANY
+wait/synch/mutex/sql/MYSQL_RELAY_LOG::LOCK_binlog_end_pos	NONE
 wait/synch/mutex/sql/MYSQL_RELAY_LOG::LOCK_index	MANY
 include/stop_slave.inc

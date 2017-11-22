@@ -2990,22 +2990,18 @@ static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
   {
     if (repl_semisync_master.enableMaster() != 0)
       rpl_semi_sync_master_enabled= false;
-#ifdef HAVE_ACC_RECEIVER
     else if (ack_receiver.start())
     {
       repl_semisync_master.disableMaster();
       rpl_semi_sync_master_enabled= false;
     }
-#endif
   }
   else
   {
     if (repl_semisync_master.disableMaster() != 0)
       rpl_semi_sync_master_enabled= true;
-#ifdef HAVE_ACC_RECEIVER
     if (!rpl_semi_sync_master_enabled)
       ack_receiver.stop();
-#endif
   }
   return false;
 }
@@ -3021,27 +3017,21 @@ static bool fix_rpl_semi_sync_master_trace_level(sys_var *self, THD *thd,
                                                  enum_var_type type)
 {
   repl_semisync_master.setTraceLevel(rpl_semi_sync_master_trace_level);
-#ifdef HAVE_ACC_RECEIVER
   ack_receiver.setTraceLevel(rpl_semi_sync_master_trace_level);
-#endif
   return false;
 }
 
 static bool fix_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
                                                 enum_var_type type)
 {
-#ifdef HAVE_ACC_RECEIVER
   repl_semisync_master.setWaitPoint(rpl_semi_sync_master_wait_point);
-#endif
   return false;
 }
 
 static bool fix_rpl_semi_sync_master_wait_no_slave(sys_var *self, THD *thd,
                                                    enum_var_type type)
 {
-#ifdef HAVE_ACC_RECEIVER
   repl_semisync_master.checkAndSwitch();
-#endif
   return false;
 }
 
@@ -3107,7 +3097,6 @@ static bool fix_rpl_semi_sync_slave_trace_level(sys_var *self, THD *thd,
   return false;
 }
 
-#ifdef HAVE_ACC_RECEIVER
 static bool fix_rpl_semi_sync_slave_delay_master(sys_var *self, THD *thd,
                                                  enum_var_type type)
 {
@@ -3121,8 +3110,6 @@ static bool fix_rpl_semi_sync_slave_kill_conn_timeout(sys_var *self, THD *thd,
   repl_semisync_slave.setKillConnTimeout(rpl_semi_sync_slave_kill_conn_timeout);
   return false;
 }
-#endif
-
 
 static Sys_var_mybool Sys_semisync_slave_enabled(
        "rpl_semi_sync_slave_enabled",
@@ -3141,7 +3128,6 @@ static Sys_var_ulong Sys_semisync_slave_trace_level(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_slave_trace_level));
 
-#ifdef HAVE_ACC_RECEIVER
 static Sys_var_mybool Sys_semisync_slave_delay_master(
        "rpl_semi_sync_slave_delay_master",
        "Only write master info file when ack is needed.",
@@ -3160,7 +3146,6 @@ static Sys_var_uint  Sys_semisync_slave_kill_conn_timeout(
        VALID_RANGE(0, UINT_MAX), DEFAULT(5), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_slave_kill_conn_timeout));
-#endif
 #endif /* HAVE_REPLICATION */
 
 static Sys_var_ulong Sys_slow_launch_time(

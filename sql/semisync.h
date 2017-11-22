@@ -47,6 +47,20 @@ public:
     return exit_code;
   }
 
+  inline bool function_exit(const char *func_name, bool exit_code)
+  {
+    if (trace_level_ & kTraceFunction)
+      sql_print_information("<--- %s exit (%s)", func_name,
+                            exit_code ? "True" : "False");
+    return exit_code;
+  }
+
+  inline void function_exit(const char *func_name)
+  {
+    if (trace_level_ & kTraceFunction)
+      sql_print_information("<--- %s exit", func_name);
+  }
+
   Trace()
     :trace_level_(0L)
   {}
@@ -79,5 +93,7 @@ public:
 #define REPLY_MAGIC_NUM_OFFSET 0
 #define REPLY_BINLOG_POS_OFFSET (REPLY_MAGIC_NUM_OFFSET + REPLY_MAGIC_NUM_LEN)
 #define REPLY_BINLOG_NAME_OFFSET (REPLY_BINLOG_POS_OFFSET + REPLY_BINLOG_POS_LEN)
+#define REPLY_MESSAGE_MAX_LENGTH \
+    (REPLY_MAGIC_NUM_LEN + REPLY_BINLOG_POS_LEN + REPLY_BINLOG_NAME_LEN)
 
 #endif /* SEMISYNC_H */

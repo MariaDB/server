@@ -1550,7 +1550,8 @@ enum enum_thread_type
   SYSTEM_THREAD_EVENT_WORKER= 16,
   SYSTEM_THREAD_BINLOG_BACKGROUND= 32,
   SYSTEM_THREAD_SLAVE_BACKGROUND= 64,
-  SYSTEM_THREAD_GENERIC= 128
+  SYSTEM_THREAD_GENERIC= 128,
+  SYSTEM_THREAD_SEMISYNC_MASTER_BACKGROUND= 256
 };
 
 inline char const *
@@ -1566,6 +1567,7 @@ show_system_thread(enum_thread_type thread)
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_SCHEDULER);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_WORKER);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_BACKGROUND);
+    RETURN_NAME_AS_STRING(SYSTEM_THREAD_SEMISYNC_MASTER_BACKGROUND);
   default:
     sprintf(buf, "<UNKNOWN SYSTEM THREAD: %d>", thread);
     return buf;
@@ -2232,7 +2234,8 @@ public:
 
   /* Needed by MariaDB semi sync replication */
   Trans_binlog_info *semisync_info;
-
+  /* If this is a semisync slave connection. */
+  bool semi_sync_slave;
   ulonglong client_capabilities;  /* What the client supports */
   ulong max_client_packet_length;
 
@@ -3095,11 +3098,20 @@ public:
   /* Debug Sync facility. See debug_sync.cc. */
   struct st_debug_sync_control *debug_sync_control;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-  THD(my_thread_id id, bool is_wsrep_applier= false);
+  /**
+    @param id                thread identifier
+    @param is_wsrep_applier  thread type
+    @param skip_lock         instruct whether @c LOCK_global_system_variables
+                             is already locked, to not acquire it then.
+  */
+  THD(my_thread_id id, bool is_wsrep_applier= false, bool skip_lock= false);
 
   ~THD();
-
-  void init(void);
+  /**
+    @param skip_lock         instruct whether @c LOCK_global_system_variables
+                             is already locked, to not acquire it then.
+  */
+  void init(bool skip_lock= false);
   /*
     Initialize memory roots necessary for query processing and (!)
     pre-allocate memory for it. We can't do that in THD constructor because

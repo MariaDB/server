@@ -20,13 +20,12 @@
 #define SEMISYNC_MASTER_H
 
 #include "semisync.h"
+#include "semisync_master_ack_receiver.h"
 
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_LOCK_binlog;
 extern PSI_cond_key key_COND_binlog_send;
 #endif
-
-extern PSI_stage_info stage_waiting_for_semi_sync_ack_from_slave;
 
 struct TranxNode {
   char             log_name_[FN_REFLEN];
@@ -432,6 +431,9 @@ class ReplSemiSyncMaster
 
   bool            state_;                    /* whether semi-sync is switched */
 
+  /*Waiting for ACK before/after innodb commit*/
+  ulong wait_point_;
+
   void lock();
   void unlock();
   void cond_broadcast();
@@ -473,6 +475,17 @@ class ReplSemiSyncMaster
     wait_timeout_ = wait_timeout;
   }
 
+  /*set the ACK point, after binlog sync or after transaction commit*/
+  void setWaitPoint(unsigned long ack_point)
+  {
+    wait_point_ = ack_point;
+  }
+
+  ulong waitPoint() //no cover line
+  {
+    return wait_point_; //no cover line
+  }
+
   /* Initialize this class after MySQL parameters are initialized. this
    * function should be called once at bootstrap time.
    */
@@ -490,8 +503,9 @@ class ReplSemiSyncMaster
   /* Remove a semi-sync replication slave */
   void remove_slave();
 
-  /* Is the slave servered by the thread requested semi-sync */
-  bool is_semi_sync_slave();
+  /* It parses a reply packet and call reportReplyBinlog to handle it. */
+  int reportReplyPacket(uint32 server_id, const uchar *packet,
+                        ulong packet_len);
 
   /* In semi-sync replication, reports up to which binlog position we have
    * received replies from the slave indicating that it already get the events.
@@ -527,42 +541,61 @@ class ReplSemiSyncMaster
   int commitTrx(const char* trx_wait_binlog_name,
                 my_off_t trx_wait_binlog_pos);
 
+  /*Wait for ACK after writing/sync binlog to file*/
+  int waitAfterSync(const char* log_file, my_off_t log_pos);
+
+  /*Wait for ACK after commting the transaction*/
+  int waitAfterCommit(THD* thd, bool all);
+
+  /*Wait after the transaction is rollback*/
+  int waitAfterRollback(THD *thd, bool all);
+  /*Store the current binlog position in active_tranxs_. This position should
+   * be acked by slave*/
+  int reportBinlogUpdate(THD *thd, const char *log_file,my_off_t log_pos);
+
+  void dump_start(THD* thd,
+                  const char *log_file,
+                  my_off_t log_pos);
+
+  void dump_end(THD* thd);
+
   /* Reserve space in the replication event packet header:
    *  . slave semi-sync off: 1 byte - (0)
    *  . slave semi-sync on:  3 byte - (0, 0xef, 0/1}
-   * 
+   *
    * Input:
-   *  header   - (IN)  the header buffer
-   *  size     - (IN)  size of the header buffer
+   *  packet   - (IN)  the header buffer
    *
    * Return:
    *  size of the bytes reserved for header
    */
-  int reserveSyncHeader(unsigned char *header, unsigned long size);
+  int reserveSyncHeader(String* packet);
 
   /* Update the sync bit in the packet header to indicate to the slave whether
    * the master will wait for the reply of the event.  If semi-sync is switched
    * off and we detect that the slave is catching up, we switch semi-sync on.
    * 
    * Input:
+   *  THD           - (IN)  current dump thread
    *  packet        - (IN)  the packet containing the replication event
    *  log_file_name - (IN)  the event ending position's file name
    *  log_file_pos  - (IN)  the event ending position's file offset
+   *  need_sync     - (IN)  identify if flushNet is needed to call.
    *  server_id     - (IN)  master server id number
    *
    * Return:
    *  0: success;  non-zero: error
    */
-  int updateSyncHeader(unsigned char *packet,
+  int updateSyncHeader(THD* thd, unsigned char *packet,
                        const char *log_file_name,
-		       my_off_t log_file_pos,
-		       uint32 server_id);
+                       my_off_t log_file_pos,
+                       bool* need_sync);
 
   /* Called when a transaction finished writing binlog events.
    *  . update the 'largest' transactions' binlog event position
    *  . insert the ending position in the active transaction list if
    *    semi-sync is on
-   * 
+   *
    * Input:  (the transaction events' ending binlog position)
    *  log_file_name - (IN)  transaction ending position's file name
    *  log_file_pos  - (IN)  transaction ending position's file offset
@@ -574,16 +607,8 @@ class ReplSemiSyncMaster
 
   /* Read the slave's reply so that we know how much progress the slave makes
    * on receive replication events.
-   * 
-   * Input:
-   *  net          - (IN)  the connection to master
-   *  server_id    - (IN)  master server id number
-   *  event_buf    - (IN)  pointer to the event packet
-   *
-   * Return:
-   *  0: success;  non-zero: error
    */
-  int readSlaveReply(NET *net, uint32 server_id, const char *event_buf);
+  int flushNet(THD* thd, const char *event_buf);
 
   /* Export internal statistics for semi-sync replication. */
   void setExportStats();
@@ -591,13 +616,21 @@ class ReplSemiSyncMaster
   /* 'reset master' command is issued from the user and semi-sync need to
    * go off for that.
    */
-  int resetMaster();
+  int afterResetMaster();
+
+  /*called before reset master*/
+  int beforeResetMaster();
+
+  void checkAndSwitch();
 };
 
 enum rpl_semi_sync_master_wait_point_t {
   SEMI_SYNC_MASTER_WAIT_POINT_AFTER_BINLOG_SYNC,
   SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT,
 };
+
+extern ReplSemiSyncMaster repl_semisync_master;
+extern Ack_receiver ack_receiver;
 
 /* System and status variables for the master component */
 extern my_bool rpl_semi_sync_master_enabled;
@@ -620,6 +653,8 @@ extern ulonglong rpl_semi_sync_master_net_wait_num;
 extern ulonglong rpl_semi_sync_master_trx_wait_num;
 extern ulonglong rpl_semi_sync_master_net_wait_time;
 extern ulonglong rpl_semi_sync_master_trx_wait_time;
+extern unsigned long long rpl_semi_sync_master_request_ack;
+extern unsigned long long rpl_semi_sync_master_get_ack;
 
 /*
   This indicates whether we should keep waiting if no semi-sync slave
@@ -630,7 +665,10 @@ extern ulonglong rpl_semi_sync_master_trx_wait_time;
 extern char rpl_semi_sync_master_wait_no_slave;
 extern ReplSemiSyncMaster repl_semisync_master;
 
-int semi_sync_master_init();
+extern PSI_stage_info stage_waiting_for_semi_sync_ack_from_slave;
+extern PSI_stage_info stage_reading_semi_sync_ack;
+extern PSI_stage_info stage_waiting_for_semi_sync_slave;
+
 void semi_sync_master_deinit();
 
 #endif /* SEMISYNC_MASTER_H */
