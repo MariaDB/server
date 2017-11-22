@@ -128,8 +128,6 @@ enum precedence {
   HIGHEST_PRECEDENCE
 };
 
-typedef Bounds_checked_array<Item*> Ref_ptr_array;
-
 bool mark_unsupported_function(const char *where, void *store, uint result);
 
 /* convenience helper for mark_unsupported_function() above */

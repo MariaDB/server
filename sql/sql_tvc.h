@@ -16,14 +16,14 @@
 #ifndef SQL_TVC_INCLUDED
 #define SQL_TVC_INCLUDED
 #include "sql_type.h"
-#include "item.h"
 
 typedef List<Item> List_item;
 class select_result;
-
 class Explain_select;
 class Explain_query;
 class Item_func_in;
+class st_select_lex_unit;
+typedef class st_select_lex SELECT_LEX;
 
 /**
   @class table_value_constr

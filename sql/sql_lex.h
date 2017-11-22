@@ -31,6 +31,7 @@
 #include "sql_trigger.h"
 #include "sp.h"                       // enum stored_procedure_type
 #include "sql_tvc.h"
+#include "item.h"
 
 /* YACC and LEX Definitions */
 
