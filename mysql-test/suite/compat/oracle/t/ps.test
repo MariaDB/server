@@ -270,6 +270,10 @@ DROP PROCEDURE p1;
 --echo # MDEV-12846 sql_mode=ORACLE: using Oracle-style placeholders in direct query execution makes the server crash
 --echo #
 
+# When running with --ps, the below queries return
+# CR_PARAMS_NOT_BOUND instead of ER_PARSE_ERROR
+
+--disable_ps_protocol
 --error ER_PARSE_ERROR
 SELECT ? FROM DUAL;
 --error ER_PARSE_ERROR
@@ -283,3 +287,4 @@ SELECT 1+? FROM DUAL;
 SELECT 1+:a FROM DUAL;
 --error ER_PARSE_ERROR
 SELECT 1+:1 FROM DUAL;
+--enable_ps_protocol
