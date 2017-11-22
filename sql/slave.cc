@@ -3883,13 +3883,18 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
     exec_res= ev->apply_event(rgi);
 
 #ifdef WITH_WSREP
-  if (exec_res && thd->wsrep_conflict_state() != NO_CONFLICT)
+  if (WSREP_ON)
   {
-    WSREP_DEBUG("SQL apply failed, res %d conflict state: %d",
-                exec_res, thd->wsrep_conflict_state_unsafe());
-    rli->abort_slave= 1;
-    rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
-                "Node has dropped from cluster");
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    if (exec_res && thd->wsrep_conflict_state() != NO_CONFLICT)
+    {
+      WSREP_DEBUG("SQL apply failed, res %d conflict state: %d",
+                  exec_res, thd->wsrep_conflict_state_unsafe());
+      rli->abort_slave= 1;
+      rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                  "Node has dropped from cluster");
+    }
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
 #endif
 
@@ -5517,10 +5522,16 @@ pthread_handler_t handle_slave_sql(void *arg)
     if (exec_relay_log_event(thd, rli, serial_rgi))
     {
 #ifdef WITH_WSREP
-      if (thd->wsrep_conflict_state() != NO_CONFLICT)
+      if (WSREP_ON)
       {
-        wsrep_node_dropped= TRUE;
-        rli->abort_slave= TRUE;
+        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+
+        if (thd->wsrep_conflict_state() != NO_CONFLICT)
+        {
+          wsrep_node_dropped= TRUE;
+          rli->abort_slave= TRUE;
+        }
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       }
 #endif /* WITH_WSREP */
 

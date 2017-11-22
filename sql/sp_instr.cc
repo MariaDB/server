@@ -958,7 +958,8 @@ bool sp_instr_stmt::exec_core(THD *thd, uint *nextp)
 
   bool rc= mysql_execute_command(thd);
 #ifdef WITH_WSREP
-  if ((thd->is_fatal_error || thd->killed_errno()) &&
+  if (WSREP(thd) &&
+      (thd->is_fatal_error || thd->killed_errno()) &&
       (thd->wsrep_conflict_state_unsafe() == NO_CONFLICT))
   {
     /*

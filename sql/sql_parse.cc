@@ -1333,7 +1333,7 @@ bool do_command(THD *thd)
       goto out;
     }
   }
-#endif /WITH_WSREP */
+#endif /* WITH_WSREP */
 
   /* Restore read timeout value */
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
@@ -1607,7 +1607,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     thd->set_query_id(get_query_id());
   }
 #ifdef WITH_WSREP
-  if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+  if (WSREP(thd) && thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
   {
     thd->set_wsrep_next_trx_id(thd->query_id);
     WSREP_DEBUG("assigned new next trx id: %lu", thd->wsrep_next_trx_id());
@@ -7908,7 +7908,6 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                 thd->wsrep_conflict_state() == RETRY_AUTOCOMMIT);
 
     if (WSREP(thd)) {
-
       if (thd->wsrep_conflict_state() == RETRY_AUTOCOMMIT)
       {
         thd->reset_for_next_command();

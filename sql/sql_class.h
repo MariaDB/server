@@ -4254,7 +4254,7 @@ public:
   {
     query_id= new_query_id;
 #ifdef WITH_WSREP
-  if (wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+    if (WSREP(this) && wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
   {
     set_wsrep_next_trx_id(query_id);
     WSREP_DEBUG("assigned new next trx id: %lu", wsrep_next_trx_id());
