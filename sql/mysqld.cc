@@ -933,6 +933,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_thread_count, key_LOCK_thread_cache,
   key_PARTITION_LOCK_auto_inc;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
+PSI_mutex_key key_LOCK_relaylog_end_pos;
 PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
   key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
 PSI_mutex_key key_LOCK_binlog;
@@ -947,6 +948,8 @@ PSI_mutex_key key_LOCK_after_binlog_sync;
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered,
   key_LOCK_slave_background;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
+PSI_mutex_key key_ss_mutex_LOCK_binlog_;
+PSI_mutex_key key_ss_mutex_Ack_receiver_mutex;
 
 static PSI_mutex_info all_server_mutexes[]=
 {
@@ -967,6 +970,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_BINLOG_LOCK_binlog_background_thread, "MYSQL_BIN_LOG::LOCK_binlog_background_thread", 0},
   { &key_LOCK_binlog_end_pos, "MYSQL_BIN_LOG::LOCK_binlog_end_pos", 0 },
   { &key_RELAYLOG_LOCK_index, "MYSQL_RELAY_LOG::LOCK_index", 0},
+  { &key_LOCK_relaylog_end_pos, "MYSQL_RELAY_LOG::LOCK_binlog_end_pos", 0},
   { &key_delayed_insert_mutex, "Delayed_insert::mutex", 0},
   { &key_hash_filo_lock, "hash_filo::lock", 0},
   { &key_LOCK_active_mi, "LOCK_active_mi", PSI_FLAG_GLOBAL},
@@ -1024,6 +1028,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_rpl_thread, "LOCK_rpl_thread", 0},
   { &key_LOCK_rpl_thread_pool, "LOCK_rpl_thread_pool", 0},
   { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0},
+  { &key_ss_mutex_Ack_receiver_mutex, "Ack_receiver::m_mutex", 0},
   { &key_LOCK_binlog, "LOCK_binlog", 0}
 };
 
@@ -1078,6 +1083,7 @@ PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
   key_COND_prepare_ordered, key_COND_slave_background;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
+PSI_cond_key key_ss_cond_Ack_receiver_cond;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -1131,6 +1137,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_start_thread, "COND_start_thread", PSI_FLAG_GLOBAL},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0},
   { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0},
+  { &key_ss_cond_Ack_receiver_cond, "Ack_receiver::m_cond", 0},
   { &key_COND_binlog_send, "COND_binlog_send", 0}
 };
 
@@ -1138,6 +1145,7 @@ PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
   key_thread_slave_background, key_rpl_parallel_thread;
+PSI_thread_key key_ss_thread_Ack_receiver_thread;
 
 static PSI_thread_info all_server_threads[]=
 {
@@ -1164,6 +1172,7 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_one_connection, "one_connection", 0},
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
   { &key_thread_slave_background, "slave_background", PSI_FLAG_GLOBAL},
+  { &key_ss_thread_Ack_receiver_thread, "Ack_receiver", PSI_FLAG_GLOBAL},
   { &key_rpl_parallel_thread, "rpl_parallel_thread", 0}
 };
 
@@ -1743,6 +1752,7 @@ static void close_connections(void)
   Events::deinit();
   slave_prepare_for_shutdown();
   mysql_bin_log.stop_background_thread();
+  ack_receiver.stop();
 
   /*
     Give threads time to die.
@@ -2226,7 +2236,6 @@ void clean_up(bool print_message)
     tc_log->close();
 #ifdef HAVE_REPLICATION
   semi_sync_master_deinit();
-  semi_sync_slave_deinit();
 #endif
   delegates_destroy();
   xid_cache_free();
@@ -4251,7 +4260,8 @@ static int init_common_variables()
                              key_BINLOG_COND_bin_log_updated,
                              key_file_binlog,
                              key_file_binlog_index,
-                             key_BINLOG_COND_queue_busy);
+                             key_BINLOG_COND_queue_busy,
+                             key_LOCK_binlog_end_pos);
 #endif
 
   /*
@@ -5183,8 +5193,12 @@ static int init_server_components()
                         "--log-bin option is not defined.");
   }
 
-  semi_sync_master_init();
-  semi_sync_slave_init();
+  if (repl_semisync_master.initObject() ||
+      repl_semisync_slave.initObject())
+  {
+    sql_print_error("Could not initialize semisync.");
+    unireg_abort(1);
+  }
 #endif
 
   if (opt_bin_log)
@@ -8599,14 +8613,10 @@ SHOW_VAR status_vars[]= {
   {"Rpl_semi_sync_master_net_wait_time", (char*) &SHOW_FNAME(net_wait_time), SHOW_FUNC},
   {"Rpl_semi_sync_master_net_waits", (char*) &SHOW_FNAME(net_wait_num), SHOW_FUNC},
   {"Rpl_semi_sync_master_net_avg_wait_time", (char*) &SHOW_FNAME(avg_net_wait_time), SHOW_FUNC},
-#ifdef HAVE_ACC_RECEIVER
   {"Rpl_semi_sync_master_request_ack", (char*) &rpl_semi_sync_master_request_ack, SHOW_LONGLONG},
   {"Rpl_semi_sync_master_get_ack", (char*)&rpl_semi_sync_master_get_ack, SHOW_LONGLONG},
-#endif
   {"Rpl_semi_sync_slave_status", (char*) &rpl_semi_sync_slave_status, SHOW_BOOL},
-#ifdef HAVE_ACC_RECEIVER
   {"Rpl_semi_sync_slave_send_ack", (char*) &rpl_semi_sync_slave_send_ack, SHOW_LONGLONG},
-#endif
 #endif /* HAVE_REPLICATION */
 #ifdef HAVE_QUERY_CACHE
   {"Qcache_free_blocks",       (char*) &query_cache.free_memory_blocks, SHOW_LONG_NOFLUSH},
@@ -8950,7 +8960,7 @@ static int mysql_init_variables(void)
   transactions_multi_engine= 0;
   rpl_transactions_multi_engine= 0;
   transactions_gtid_foreign_engine= 0;
-  run_hooks_enabled= 0;
+  run_hooks_enabled= 0; // don't run hooks, semisync does not need 'em
   log_bin_basename= NULL;
   log_bin_index= NULL;
 
@@ -10348,6 +10358,8 @@ PSI_stage_info stage_waiting_for_master_update= { 0, "Waiting for master update"
 PSI_stage_info stage_waiting_for_relay_log_space= { 0, "Waiting for the slave SQL thread to free enough relay log space", 0};
 PSI_stage_info stage_waiting_for_semi_sync_ack_from_slave=
 { 0, "Waiting for semi-sync ACK from slave", 0};
+PSI_stage_info stage_waiting_for_semi_sync_slave={ 0, "Waiting for semi-sync slave connection", 0};
+PSI_stage_info stage_reading_semi_sync_ack={ 0, "Reading semi-sync ACK from slave", 0};
 PSI_stage_info stage_waiting_for_slave_mutex_on_exit= { 0, "Waiting for slave mutex on exit", 0};
 PSI_stage_info stage_waiting_for_slave_thread_to_start= { 0, "Waiting for slave thread to start", 0};
 PSI_stage_info stage_waiting_for_table_flush= { 0, "Waiting for table flush", 0};
@@ -10508,6 +10520,9 @@ PSI_stage_info *all_server_stages[]=
   & stage_gtid_wait_other_connection,
   & stage_slave_background_process_request,
   & stage_slave_background_wait_request,
+  & stage_waiting_for_semi_sync_ack_from_slave,
+  & stage_waiting_for_semi_sync_slave,
+  & stage_reading_semi_sync_ack,
   & stage_waiting_for_deadlock_kill
 };
 

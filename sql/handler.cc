@@ -50,6 +50,7 @@
 #ifdef WITH_ARIA_STORAGE_ENGINE
 #include "../storage/maria/ha_maria.h"
 #endif
+#include "semisync_master.h"
 
 #include "wsrep_mysqld.h"
 #include "wsrep.h"
@@ -1485,6 +1486,10 @@ done:
   mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
   (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
+#ifdef REPLICATION
+  repl_semisync_master.waitAfterCommit(thd, all);
+  DEBUG_SYNC(thd, "after_group_after_commit");
+#endif
   goto end;
 
   /* Come here if error and we need to rollback. */
@@ -1730,6 +1735,9 @@ int ha_rollback_trans(THD *thd, bool all)
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
                  ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
   (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+#ifdef REPLICATION
+  repl_semisync_master.waitAfterRollback(thd, all);
+#endif
   DBUG_RETURN(error);
 }
 

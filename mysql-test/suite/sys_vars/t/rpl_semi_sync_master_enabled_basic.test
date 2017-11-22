@@ -51,6 +51,35 @@ set global rpl_semi_sync_master_enabled=1e1;
 --error ER_WRONG_VALUE_FOR_VAR
 set global rpl_semi_sync_master_enabled="some text";
 
+#
+# Test conflicting concurrent setting
+#
+--let $val_saved= `SELECT @@global.rpl_semi_sync_master_enabled`
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+--let $iter=100
+--disable_query_log
+while ($iter)
+{
+  --connection con1
+  --send_eval SET @@global.rpl_semi_sync_master_enabled = $iter % 2
+
+  --connection con2
+  --send_eval SET @@global.rpl_semi_sync_master_enabled = ($iter + 1) % 2
+
+  --connection con1
+  reap;
+  --connection con2
+  reap;
+
+  --dec $iter
+}
+--enable_query_log
+disconnect con1;
+disconnect con2;
+
+--connection default
+--eval SET @@global.rpl_semi_sync_master_enabled = $val_saved
 
 #
 # Cleanup
