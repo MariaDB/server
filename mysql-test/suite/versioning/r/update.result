@@ -349,6 +349,10 @@ x	y
 9	9001
 8	8000
 9	9000
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
 call test_02('timestamp(6)', 'myisam', 'sys_end');
 A1	x	y
 1	11	11
@@ -359,6 +363,10 @@ A1	x	y
 1	11	11
 A2	x
 1	11
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
 call test_03('timestamp(6)', 'myisam', 'sys_end');
 x	y
 1	1
@@ -372,6 +380,10 @@ x	y
 2	1
 3	3
 3	1
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
 call test_04('timestamp(6)', 'myisam', 'sys_end');
 x
 x
@@ -388,6 +400,11 @@ x
 2
 x
 3
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
+3	1	1	1	1
 call test_05('timestamp(6)', 'myisam', 'sys_end');
 x	y
 1	1000
@@ -440,6 +457,13 @@ x	y
 7	7000
 8	8000
 9	9000
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
+3	1	1	1	1
+4	1	1	1	1
+5	1	1	1	1
 call test_06('timestamp(6)', 'myisam', 'sys_end');
 x	y
 1	1000
@@ -538,6 +562,11 @@ x	y
 7	7010
 8	8010
 9	9010
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
+3	1	1	1	1
 call test_07('timestamp(6)', 'myisam', 'sys_end');
 A1	name
 1	Jerry
@@ -561,23 +590,6 @@ No	A	B	C	D
 1	1	1	1	1
 2	1	1	1	1
 3	1	1	1	1
-4	1	1	1	1
-5	1	1	1	1
-6	1	1	1	1
-7	1	1	1	1
-8	1	1	1	1
-9	1	1	1	1
-10	1	1	1	1
-11	1	1	1	1
-12	1	1	1	1
-13	1	1	1	1
-14	1	1	1	1
-15	1	1	1	1
-16	1	1	1	1
-17	1	1	1	1
-18	1	1	1	1
-19	1	1	1	1
-20	1	1	1	1
 drop procedure test_01;
 drop procedure test_02;
 drop procedure test_03;
