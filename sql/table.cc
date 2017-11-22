@@ -8232,8 +8232,8 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
       if (!(item->used_tables() == tab_map))
 	continue;
       Item_func_eq *eq= 0;
-      Item *left_item_clone= left_item->build_clone(thd, thd->mem_root);
-      Item *right_item_clone= item->build_clone(thd, thd->mem_root);
+      Item *left_item_clone= left_item->build_clone(thd);
+      Item *right_item_clone= item->build_clone(thd);
       if (left_item_clone && right_item_clone)
       {
         left_item_clone->set_item_equal(NULL);
@@ -8263,7 +8263,7 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
     return new_cond;
   }
   else if (cond->get_extraction_flag() != NO_EXTRACTION_FL)
-    return cond->build_clone(thd, thd->mem_root);
+    return cond->build_clone(thd);
   return 0;
 }
 

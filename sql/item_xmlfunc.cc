@@ -247,8 +247,8 @@ public:
     Item_nodeset_func(thd, pxml) {}
   const char *func_name() const { return "xpath_rootelement"; }
   String *val_nodeset(String *nodeset);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_func_rootelement>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_func_rootelement>(thd, this); }
 };
 
 
@@ -260,8 +260,8 @@ public:
     Item_nodeset_func(thd, a, b, pxml) {}
   const char *func_name() const { return "xpath_union"; }
   String *val_nodeset(String *nodeset);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_func_union>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_func_union>(thd, this); }
 };
 
 
@@ -294,8 +294,8 @@ public:
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_selfbyname"; }
   String *val_nodeset(String *nodeset);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_func_selfbyname>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_func_selfbyname>(thd, this); }
 };
 
 
@@ -308,8 +308,8 @@ public:
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_childbyname"; }
   String *val_nodeset(String *nodeset);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_func_childbyname>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_func_childbyname>(thd, this); }
 };
 
 
@@ -324,8 +324,8 @@ public:
       need_self(need_self_arg) {}
   const char *func_name() const { return "xpath_descendantbyname"; }
   String *val_nodeset(String *nodeset);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_func_descendantbyname>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_func_descendantbyname>(thd, this); }
 };
 
 
@@ -340,8 +340,8 @@ public:
       need_self(need_self_arg) {}
   const char *func_name() const { return "xpath_ancestorbyname"; }
   String *val_nodeset(String *nodeset);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_func_ancestorbyname>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_func_ancestorbyname>(thd, this); }
 };
 
 
@@ -354,8 +354,8 @@ public:
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_parentbyname"; }
   String *val_nodeset(String *nodeset);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_func_parentbyname>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_func_parentbyname>(thd, this); }
 };
 
 
@@ -368,8 +368,8 @@ public:
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_attributebyname"; }
   String *val_nodeset(String *nodeset);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_func_attributebyname>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_func_attributebyname>(thd, this); }
 };
 
 
@@ -385,8 +385,8 @@ public:
     Item_nodeset_func(thd, a, b, pxml) {}
   const char *func_name() const { return "xpath_predicate"; }
   String *val_nodeset(String *nodeset);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_func_predicate>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_func_predicate>(thd, this); }
 };
 
 
@@ -398,8 +398,8 @@ public:
     Item_nodeset_func(thd, a, b, pxml) { }
   const char *func_name() const { return "xpath_elementbyindex"; }
   String *val_nodeset(String *nodeset);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_func_elementbyindex>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_func_elementbyindex>(thd, this); }
 };
 
 
@@ -426,8 +426,8 @@ public:
     }
     return args[0]->val_real() ? 1 : 0;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_xpath_cast_bool>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_xpath_cast_bool>(thd, this); }
 };
 
 
@@ -440,8 +440,8 @@ public:
   Item_xpath_cast_number(THD *thd, Item *a): Item_real_func(thd, a) {}
   const char *func_name() const { return "xpath_cast_number"; }
   virtual double val_real() { return args[0]->val_real(); }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_xpath_cast_number>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_xpath_cast_number>(thd, this); }
 };
 
 
@@ -457,8 +457,8 @@ public:
   String *val_nodeset(String *res)
   { return string_cache; }
   void fix_length_and_dec() { max_length= MAX_BLOB_WIDTH; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_context_cache>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_context_cache>(thd, this); }
 };
 
 
@@ -478,8 +478,8 @@ public:
       return ((MY_XPATH_FLT*)flt->ptr())->pos + 1;
     return 0;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_xpath_position>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_xpath_position>(thd, this); }
 };
 
 
@@ -501,8 +501,8 @@ public:
       return predicate_supplied_context_size;
     return res->length() / sizeof(MY_XPATH_FLT);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_xpath_count>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_xpath_count>(thd, this); }
 };
 
 
@@ -546,8 +546,8 @@ public:
     }
     return sum;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_xpath_sum>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_xpath_sum>(thd, this); }
 };
 
 
@@ -624,8 +624,8 @@ public:
     }
     return 0;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_nodeset_to_const_comparator>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_nodeset_to_const_comparator>(thd, this); }
 };
 
 

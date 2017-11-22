@@ -202,8 +202,8 @@ public:
     Item_geometry_func(thd, a, srid) {}
   const char *func_name() const { return "st_geometryfromtext"; }
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_geometry_from_text>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_geometry_from_text>(thd, this); }
 };
 
 class Item_func_geometry_from_wkb: public Item_geometry_func
@@ -219,8 +219,8 @@ public:
     Item_geometry_func(thd, a, srid) {}
   const char *func_name() const { return "st_geometryfromwkb"; }
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_geometry_from_wkb>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_geometry_from_wkb>(thd, this); }
 };
 
 
@@ -241,8 +241,8 @@ public:
     Item_geometry_func(thd, js, opt, srid) {}
   const char *func_name() const { return "st_geomfromgeojson"; }
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_geometry_from_json>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_geometry_from_json>(thd, this); }
 };
 
 
@@ -254,8 +254,8 @@ public:
   const char *func_name() const { return "st_astext"; }
   String *val_str_ascii(String *);
   void fix_length_and_dec();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_as_wkt>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_as_wkt>(thd, this); }
 };
 
 class Item_func_as_wkb: public Item_binary_func_args_geometry
@@ -273,8 +273,8 @@ public:
     max_length= (uint32) UINT_MAX32;
     maybe_null= 1;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_as_wkb>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_as_wkb>(thd, this); }
 };
 
 
@@ -296,8 +296,8 @@ public:
   const char *func_name() const { return "st_asgeojson"; }
   void fix_length_and_dec();
   String *val_str_ascii(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_as_geojson>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_as_geojson>(thd, this); }
 };
 
 
@@ -314,8 +314,8 @@ public:
     fix_length_and_charset(20, default_charset());
     maybe_null= 1;
   };
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_geometry_type>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_geometry_type>(thd, this); }
 };
 
 
@@ -349,8 +349,8 @@ public:
     {}
   const char *func_name() const { return "st_convexhull"; }
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_convexhull>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_convexhull>(thd, this); }
 };
 
 
@@ -362,8 +362,8 @@ public:
   const char *func_name() const { return "st_centroid"; }
   String *val_str(String *);
   Field::geometry_type get_geometry_type() const;
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_centroid>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_centroid>(thd, this); }
 };
 
 class Item_func_envelope: public Item_geometry_func_args_geometry
@@ -374,8 +374,8 @@ public:
   const char *func_name() const { return "st_envelope"; }
   String *val_str(String *);
   Field::geometry_type get_geometry_type() const;
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_envelope>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_envelope>(thd, this); }
 };
 
 
@@ -408,8 +408,8 @@ public:
    :Item_geometry_func_args_geometry(thd, a) {}
   const char *func_name() const { return "st_boundary"; }
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_boundary>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_boundary>(thd, this); }
 };
 
 
@@ -424,8 +424,8 @@ public:
   const char *func_name() const { return "point"; }
   String *val_str(String *);
   Field::geometry_type get_geometry_type() const;
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_point>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_point>(thd, this); }
 };
 
 class Item_func_spatial_decomp: public Item_geometry_func_args_geometry
@@ -450,8 +450,8 @@ public:
     }
   }
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_spatial_decomp>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_spatial_decomp>(thd, this); }
 };
 
 class Item_func_spatial_decomp_n: public Item_geometry_func_args_geometry
@@ -483,8 +483,8 @@ public:
     }
   }
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_spatial_decomp_n>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_spatial_decomp_n>(thd, this); }
 };
 
 class Item_func_spatial_collection: public Item_geometry_func
@@ -521,8 +521,8 @@ public:
   }
  
   const char *func_name() const { return "geometrycollection"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_spatial_collection>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_spatial_collection>(thd, this); }
 };
 
 
@@ -571,7 +571,7 @@ public:
                                       usable_tables, sargables, false);
   }
   bool need_parentheses_in_default() { return false; }
-  Item *build_clone(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  Item *build_clone(THD *thd) { return 0; }
 };
 
 
@@ -583,8 +583,8 @@ public:
   { }
   longlong val_int();
   const char *func_name() const;
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_spatial_mbr_rel>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_spatial_mbr_rel>(thd, this); }
 };
 
 
@@ -599,8 +599,8 @@ public:
   { }
   longlong val_int();
   const char *func_name() const;
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_spatial_precise_rel>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_spatial_precise_rel>(thd, this); }
 };
 
 
@@ -622,8 +622,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "st_relate"; }
   bool need_parentheses_in_default() { return false; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_spatial_relate>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_spatial_relate>(thd, this); }
 };
 
 
@@ -658,8 +658,8 @@ public:
   {
     Item_func::print(str, query_type);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_spatial_operation>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_spatial_operation>(thd, this); }
 };
 
 
@@ -715,8 +715,8 @@ public:
    :Item_geometry_func_args_geometry(thd, obj, distance) {}
   const char *func_name() const { return "st_buffer"; }
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_buffer>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_buffer>(thd, this); }
 };
 
 
@@ -729,8 +729,8 @@ public:
   const char *func_name() const { return "st_isempty"; }
   void fix_length_and_dec() { maybe_null= 1; }
   bool need_parentheses_in_default() { return false; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_isempty>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_isempty>(thd, this); }
 };
 
 class Item_func_issimple: public Item_long_func_args_geometry
@@ -746,8 +746,8 @@ public:
   const char *func_name() const { return "st_issimple"; }
   void fix_length_and_dec() { decimals=0; max_length=2; }
   uint decimal_precision() const { return 1; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_issimple>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_issimple>(thd, this); }
 };
 
 class Item_func_isclosed: public Item_long_func_args_geometry
@@ -759,8 +759,8 @@ public:
   const char *func_name() const { return "st_isclosed"; }
   void fix_length_and_dec() { decimals=0; max_length=2; }
   uint decimal_precision() const { return 1; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_isclosed>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_isclosed>(thd, this); }
 };
 
 class Item_func_isring: public Item_func_issimple
@@ -769,8 +769,8 @@ public:
   Item_func_isring(THD *thd, Item *a): Item_func_issimple(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_isring"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_isring>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_isring>(thd, this); }
 };
 
 class Item_func_dimension: public Item_long_func_args_geometry
@@ -781,8 +781,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "st_dimension"; }
   void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_dimension>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_dimension>(thd, this); }
 };
 
 
@@ -797,8 +797,8 @@ public:
     Item_real_func::fix_length_and_dec();
     maybe_null= 1; 
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_x>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_x>(thd, this); }
 };
 
 
@@ -813,8 +813,8 @@ public:
     Item_real_func::fix_length_and_dec();
     maybe_null= 1; 
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_y>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_y>(thd, this); }
 };
 
 
@@ -826,8 +826,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "st_numgeometries"; }
   void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_numgeometries>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_numgeometries>(thd, this); }
 };
 
 
@@ -839,8 +839,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "st_numinteriorrings"; }
   void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_numinteriorring>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_numinteriorring>(thd, this); }
 };
 
 
@@ -852,8 +852,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "st_numpoints"; }
   void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_numpoints>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_numpoints>(thd, this); }
 };
 
 
@@ -868,8 +868,8 @@ public:
     Item_real_func::fix_length_and_dec();
     maybe_null= 1; 
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_area>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_area>(thd, this); }
 };
 
 
@@ -886,8 +886,8 @@ public:
     Item_real_func::fix_length_and_dec();
     maybe_null= 1; 
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_glength>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_glength>(thd, this); }
 };
 
 
@@ -899,8 +899,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "srid"; }
   void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_srid>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_srid>(thd, this); }
 };
 
 
@@ -916,8 +916,8 @@ public:
    :Item_real_func_args_geometry_geometry(thd, a, b) {}
   double val_real();
   const char *func_name() const { return "st_distance"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_distance>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_distance>(thd, this); }
 };
 
 
@@ -933,8 +933,8 @@ public:
   const char *func_name() const { return "st_pointonsurface"; }
   String *val_str(String *);
   Field::geometry_type get_geometry_type() const;
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_pointonsurface>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_pointonsurface>(thd, this); }
 };
 
 
@@ -951,8 +951,8 @@ class Item_func_gis_debug: public Item_long_func
     {
       return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
     }
-    Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-    { return get_item_copy<Item_func_gis_debug>(thd, mem_root, this); }
+    Item *get_copy(THD *thd)
+    { return get_item_copy<Item_func_gis_debug>(thd, this); }
 };
 #endif
 

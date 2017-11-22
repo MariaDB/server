@@ -263,8 +263,8 @@ public:
   void register_as_with_rec_ref(With_element *with_elem);
   void init_expr_cache_tracker(THD *thd);
   
-  Item* build_clone(THD *thd, MEM_ROOT *mem_root) { return 0; }
-  Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  Item* build_clone(THD *thd) { return 0; }
+  Item* get_copy(THD *thd) { return 0; }
 
   bool wrap_tvc_in_derived_table(THD *thd, st_select_lex *tvc_sl);
 

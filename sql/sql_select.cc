@@ -9084,16 +9084,16 @@ Item *JOIN_TAB::get_splitting_cond_for_grouping_derived(THD *thd)
   for (ORDER *ord= sel->join->partition_list; ord;
        ord= ord->next, fld= li++)  
   {
-    Item *left_item= (*ord->item)->build_clone(thd, thd->mem_root);
+    Item *left_item= (*ord->item)->build_clone(thd);
     uint i= 0;
     for (KEY_PART_INFO *key_part= start; key_part < end; key_part++, i++)
     {
       if (key_part->fieldnr == fld->field_index + 1)
         break;
     }
-    Item *right_item= ref.items[i]->build_clone(thd, thd->mem_root); 
+    Item *right_item= ref.items[i]->build_clone(thd);
     Item_func_eq *eq_item= 0;
-    right_item= right_item->build_clone(thd, thd->mem_root);
+    right_item= right_item->build_clone(thd);
     if (left_item && right_item)
     {
       right_item->walk(&Item::set_fields_as_dependent_processor,

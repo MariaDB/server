@@ -1197,7 +1197,7 @@ public:
   virtual bool basic_const_item() const { return 0; }
   /* cloning of constant items (0 if it is not const) */
   virtual Item *clone_item(THD *thd) { return 0; }
-  virtual Item* build_clone(THD *thd, MEM_ROOT *mem_root) { return get_copy(thd, mem_root); }
+  virtual Item* build_clone(THD *thd) { return get_copy(thd); }
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
   { return decimals < FLOATING_POINT_DECIMALS ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
@@ -1667,7 +1667,7 @@ public:
   virtual bool set_fields_as_dependent_processor(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
-  virtual Item *get_copy(THD *thd, MEM_ROOT *mem_root)=0;
+  virtual Item *get_copy(THD *thd)=0;
 
   bool cache_const_expr_analyzer(uchar **arg);
   Item* cache_const_expr_transformer(THD *thd, uchar *arg);
@@ -1939,12 +1939,14 @@ public:
   }
 };
 
+MEM_ROOT *get_thd_memroot(THD *thd);
 
 template <class T>
-inline Item* get_item_copy (THD *thd, MEM_ROOT *mem_root, T* item)
+inline Item* get_item_copy (THD *thd, T* item)
 {
-  Item *copy= new (mem_root) T(*item);
-  copy->register_in(thd);
+  Item *copy= new (get_thd_memroot(thd)) T(*item);
+  if (copy)
+    copy->register_in(thd);
   return copy;
 }	
 
@@ -2375,7 +2377,7 @@ public:
 
   bool append_for_log(THD *thd, String *str);
   
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  Item *get_copy(THD *thd) { return 0; }
 
   /*
     Override the inherited create_field_for_create_select(),
@@ -2503,7 +2505,7 @@ public:
     purposes.
   */
   virtual void print(String *str, enum_query_type query_type);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  Item *get_copy(THD *thd) { return 0; }
 
 private:
   uint m_case_expr_id;
@@ -2573,8 +2575,8 @@ public:
   {
     return mark_unsupported_function("name_const()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_name_const>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_name_const>(thd, this); }
 };
 
 class Item_num: public Item_basic_constant
@@ -2710,8 +2712,8 @@ public:
     const Type_handler *handler= field->type_handler();
     return handler->type_handler_for_item_field();
   }
-  Item* get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_ident_for_show>(thd, mem_root, this); }
+  Item* get_copy(THD *thd)
+  { return get_item_copy<Item_ident_for_show>(thd, this); }
 };
 
 
@@ -2895,8 +2897,8 @@ public:
   bool cleanup_excluding_const_fields_processor(void *arg)
   { return field && const_item() ? 0 : cleanup_processor(arg); }
   
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_field>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_field>(thd, this); }
   bool is_outer_field() const
   {
     DBUG_ASSERT(fixed);
@@ -2924,8 +2926,8 @@ public:
    :Item_field(thd, field),
     Item_args()
   { }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_field_row>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_field_row>(thd, this); }
 
   const Type_handler *type_handler() const { return &type_handler_row; }
   uint cols() const { return arg_count; }
@@ -3020,8 +3022,8 @@ public:
 
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_null>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_null>(thd, this); }
 };
 
 class Item_null_result :public Item_null
@@ -3295,7 +3297,7 @@ public:
 
   bool append_for_log(THD *thd, String *str);
   bool check_vcol_func_processor(void *int_arg) {return FALSE;}
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  Item *get_copy(THD *thd) { return 0; }
 
 private:
   void invalid_default_param() const;
@@ -3357,8 +3359,8 @@ public:
   { return (uint) (max_length - MY_TEST(value < 0)); }
   bool eq(const Item *item, bool binary_cmp) const
   { return int_eq(value, item); }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_int>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_int>(thd, this); }
 };
 
 
@@ -3390,8 +3392,8 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   Item *neg(THD *thd);
   uint decimal_precision() const { return max_length; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_uint>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_uint>(thd, this); }
 };
 
 
@@ -3437,8 +3439,8 @@ public:
   uint decimal_precision() const { return decimal_value.precision(); }
   bool eq(const Item *, bool binary_cmp) const;
   void set_decimal_value(my_decimal *value_par);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_decimal>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_decimal>(thd, this); }
 };
 
 
@@ -3488,8 +3490,8 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   bool eq(const Item *item, bool binary_cmp) const
   { return real_eq(value, item); }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_float>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_float>(thd, this); }
 };
 
 
@@ -3679,8 +3681,8 @@ public:
     return MYSQL_TYPE_STRING; // Not a temporal literal
   }
   
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_string>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_string>(thd, this); }
 
 };
 
@@ -3934,8 +3936,8 @@ public:
     return &type_handler_longlong;
   }
   void print(String *str, enum_query_type query_type);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_hex_hybrid>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_hex_hybrid>(thd, this); }
 };
 
 
@@ -3975,8 +3977,8 @@ public:
                         collation.collation);
   }
   void print(String *str, enum_query_type query_type);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_hex_string>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_hex_string>(thd, this); }
 };
 
 
@@ -4056,8 +4058,8 @@ public:
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_date_literal>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_date_literal>(thd, this); }
 };
 
 
@@ -4077,8 +4079,8 @@ public:
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_time_literal>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_time_literal>(thd, this); }
 };
 
 
@@ -4100,8 +4102,8 @@ public:
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_datetime_literal>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_datetime_literal>(thd, this); }
 };
 
 
@@ -4338,7 +4340,7 @@ public:
   virtual void fix_length_and_dec()= 0;
   bool const_item() const { return const_item_cache; }
   table_map used_tables() const { return used_tables_cache; }
-  Item* build_clone(THD *thd, MEM_ROOT *mem_root);
+  Item* build_clone(THD *thd);
 };
 
 
@@ -4521,7 +4523,7 @@ public:
     return (*ref)->is_outer_field();
   }
   
-  Item* build_clone(THD *thd, MEM_ROOT *mem_root);
+  Item* build_clone(THD *thd);
 
   /**
     Checks if the item tree that ref points to contains a subquery.
@@ -4530,8 +4532,8 @@ public:
   { 
     return (*ref)->has_subquery();
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_ref>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_ref>(thd, this); }
   bool excl_dep_on_table(table_map tab_map)
   { 
     table_map used= used_tables();
@@ -4599,8 +4601,8 @@ public:
   bool is_null();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   virtual Ref_Type ref_type() { return DIRECT_REF; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_direct_ref>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_direct_ref>(thd, this); }
 };
 
 
@@ -4763,9 +4765,9 @@ public:
   {
     return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_cache_wrapper>(thd, mem_root, this); }
-  Item *build_clone(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_wrapper>(thd, this); }
+  Item *build_clone(THD *thd) { return 0; }
 };
 
 
@@ -4933,8 +4935,8 @@ public:
     item_equal= NULL;
     Item_direct_ref::cleanup();
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_direct_view_ref>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_direct_view_ref>(thd, this); }
 };
 
 
@@ -5027,8 +5029,8 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   virtual void print(String *str, enum_query_type query_type);
   table_map used_tables() const;
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_ref_null_helper>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_ref_null_helper>(thd, this); }
 };
 
 /*
@@ -5190,8 +5192,8 @@ public:
   longlong val_int();
   void copy();
   int save_in_field(Field *field, bool no_conversions);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_copy_string>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_copy_string>(thd, this); }
 };
 
 
@@ -5214,8 +5216,8 @@ public:
     return null_value ? 0 : cached_value;
   }
   virtual void copy();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_copy_int>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_copy_int>(thd, this); }
 };
 
 
@@ -5232,8 +5234,8 @@ public:
   {
     return null_value ? 0.0 : (double) (ulonglong) cached_value;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_copy_uint>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_copy_uint>(thd, this); }
 };
 
 
@@ -5260,8 +5262,8 @@ public:
     cached_value= item->val_real();
     null_value= item->null_value;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_copy_float>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_copy_float>(thd, this); }
 };
 
 
@@ -5281,8 +5283,8 @@ public:
   double val_real();
   longlong val_int();
   void copy();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_copy_decimal>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_copy_decimal>(thd, this); }
 };
 
 
@@ -5776,8 +5778,8 @@ public:
   bool cache_value();
   int save_in_field(Field *field, bool no_conversions);
   Item *convert_to_basic_const_item(THD *thd);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_cache_int>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_int>(thd, this); }
 };
 
 
@@ -5812,8 +5814,8 @@ public:
   Item_cache_time(THD *thd)
    :Item_cache_temporal(thd, &type_handler_time2) { }
   bool cache_value();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_cache_time>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_time>(thd, this); }
 };
 
 
@@ -5822,8 +5824,8 @@ class Item_cache_datetime: public Item_cache_temporal
 public:
   Item_cache_datetime(THD *thd)
    :Item_cache_temporal(thd, &type_handler_datetime2) { }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_cache_datetime>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_datetime>(thd, this); }
 };
 
 
@@ -5832,8 +5834,8 @@ class Item_cache_date: public Item_cache_temporal
 public:
   Item_cache_date(THD *thd)
    :Item_cache_temporal(thd, &type_handler_newdate) { }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_cache_date>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_date>(thd, this); }
 };
 
 
@@ -5850,8 +5852,8 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_cache_real>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_real>(thd, this); }
 };
 
 
@@ -5868,8 +5870,8 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_cache_decimal>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_decimal>(thd, this); }
 };
 
 
@@ -5896,8 +5898,8 @@ public:
   int save_in_field(Field *field, bool no_conversions);
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_cache_str>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_str>(thd, this); }
 };
 
 
@@ -5921,8 +5923,8 @@ public:
     */
     return Item::safe_charset_converter(thd, tocs);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_cache_str_for_nullif>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_str_for_nullif>(thd, this); }
 };
 
 
@@ -5992,8 +5994,8 @@ public:
   }
   bool cache_value();
   virtual void set_null();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_cache_row>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_row>(thd, this); }
 };
 
 
@@ -6064,7 +6066,7 @@ public:
   {
     Type_geometry_attributes::set_geometry_type(type);
   }
-  Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  Item* get_copy(THD *thd) { return 0; }
 };
 
 

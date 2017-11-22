@@ -1261,7 +1261,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
         continue;
       extracted_cond_copy= !sl->next_select() ?
                            extracted_cond :
-                           extracted_cond->build_clone(thd, thd->mem_root);
+                           extracted_cond->build_clone(thd);
       if (!extracted_cond_copy)
         continue;
 
@@ -1291,7 +1291,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     */
     extracted_cond_copy= !sl->next_select() ?
                          extracted_cond :
-                         extracted_cond->build_clone(thd, thd->mem_root);
+                         extracted_cond->build_clone(thd);
     if (!extracted_cond_copy)
       continue;
 
