@@ -4485,6 +4485,7 @@ public:
   uchar result_buf[64];
   sp_rcontext *func_ctx;
   MEM_ROOT sp_mem_root;
+  Query_arena *sp_query_arena;
 
   /*
      The result field of the stored function.

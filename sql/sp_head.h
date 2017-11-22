@@ -164,7 +164,10 @@ public:
     /*
       Marks routines that have column type references: DECLARE a t1.a%TYPE;
     */
-    HAS_COLUMN_TYPE_REFS= 8192
+    HAS_COLUMN_TYPE_REFS= 8192,
+    /* Set if has FETCH GROUP NEXT ROW instr. Used to ensure that only
+       functions with AGGREGATE keyword use the instr. */
+    HAS_AGGREGATE_INSTR= 16384
   };
 
   const Sp_handler *m_handler;
@@ -197,6 +200,7 @@ public:
   enum_sp_suid_behaviour suid() const { return m_chistics.suid; }
   bool detistic() const { return m_chistics.detistic; }
   enum_sp_data_access daccess() const { return m_chistics.daccess; }
+  enum_sp_aggregate_type agg_type() const { return m_chistics.agg_type; }
   /**
     Is this routine being executed?
   */
@@ -720,6 +724,10 @@ public:
                                           const LEX_CSTRING &table);
 
   void set_chistics(const st_sp_chistics &chistics);
+  inline void set_chistics_agg_type(enum enum_sp_aggregate_type type)
+  {
+    m_chistics.agg_type= type;
+  }
   void set_info(longlong created, longlong modified,
 		const st_sp_chistics &chistics, sql_mode_t sql_mode);
 
@@ -1821,6 +1829,32 @@ private:
   bool m_error_on_no_data;
 
 }; // class sp_instr_cfetch : public sp_instr
+
+/*
+This class is created for the special fetch instruction
+FETCH GROUP NEXT ROW, used in the user-defined aggregate
+functions
+*/
+
+class sp_instr_agg_cfetch : public sp_instr
+{
+  sp_instr_agg_cfetch(const sp_instr_cfetch &); /**< Prevent use of these */
+  void operator=(sp_instr_cfetch &);
+
+public:
+
+  sp_instr_agg_cfetch(uint ip, sp_pcontext *ctx)
+    : sp_instr(ip, ctx){}
+
+  virtual ~sp_instr_agg_cfetch()
+  {}
+
+  virtual int execute(THD *thd, uint *nextp);
+
+  virtual void print(String *str){};
+}; // class sp_instr_agg_cfetch : public sp_instr
+
+
 
 
 class sp_instr_error : public sp_instr

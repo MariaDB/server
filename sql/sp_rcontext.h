@@ -178,6 +178,9 @@ public:
   /// (if one is found). Otherwise the client will hang due to a violation
   /// of the client/server protocol.
   bool end_partial_result_set;
+  bool pause_state;
+  bool quit_func;
+  uint instr_ptr;
 
   /// The stored program for which this runtime context is created. Used for
   /// checking if correct runtime context is used for variable handling.

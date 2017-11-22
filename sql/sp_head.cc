@@ -999,6 +999,12 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   bool err_status= FALSE;
   uint ip= 0;
   sql_mode_t save_sql_mode;
+
+  // TODO(cvicentiu) See if you can drop this bit. This is used to resume
+  // execution from where we left off.
+  if (m_chistics.agg_type == GROUP_AGGREGATE)
+    ip= thd->spcont->instr_ptr;
+
   bool save_abort_on_warning;
   Query_arena *old_arena;
   /* per-instruction arena */
@@ -1176,6 +1182,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 #if defined(ENABLED_PROFILING)
       thd->profiling.discard_current_query();
 #endif
+      thd->spcont->quit_func= TRUE;
       break;
     }
 
@@ -1245,7 +1252,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     /* Reset sp_rcontext::end_partial_result_set flag. */
     ctx->end_partial_result_set= FALSE;
 
-  } while (!err_status && !thd->killed && !thd->is_fatal_error);
+  } while (!err_status && !thd->killed && !thd->is_fatal_error &&
+           !thd->spcont->pause_state);
 
 #if defined(ENABLED_PROFILING)
   thd->profiling.finish_current_query();
@@ -1261,9 +1269,14 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
   thd->restore_active_arena(&execute_arena, &backup_arena);
 
-  thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error
+  /* Only pop cursors when we're done with group aggregate running. */
+  if (m_chistics.agg_type != GROUP_AGGREGATE ||
+      (m_chistics.agg_type == GROUP_AGGREGATE && thd->spcont->quit_func))
+    thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error
 
   /* Restore all saved */
+  if (m_chistics.agg_type == GROUP_AGGREGATE)
+    thd->spcont->instr_ptr= ip;
   thd->server_status= (thd->server_status & ~status_backup_mask) | old_server_status;
   old_packet.swap(thd->packet);
   DBUG_ASSERT(thd->change_list.is_empty());
@@ -1856,7 +1869,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     }
   }
 
-  if (!err_status)
+  if (!err_status && thd->spcont->quit_func)
   {
     /* We need result only in function but not in trigger */
 
@@ -2481,7 +2494,6 @@ sp_head::set_chistics(const st_sp_chistics &chistics)
                                          m_chistics.comment.str,
                                          m_chistics.comment.length);
 }
-
 
 void
 sp_head::set_info(longlong created, longlong modified,
@@ -4216,6 +4228,35 @@ sp_instr_cfetch::print(String *str)
     str->qs_append(pv->offset);
   }
 }
+
+int
+sp_instr_agg_cfetch::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_cfetch::execute");
+  int res= 0;
+  if (!thd->spcont->instr_ptr)
+  {
+    *nextp= m_ip+1;
+    thd->spcont->instr_ptr= m_ip + 1;
+  }
+  else if (!thd->spcont->pause_state)
+    thd->spcont->pause_state= TRUE;
+  else
+  {
+    thd->spcont->pause_state= FALSE;
+    if (thd->server_status == SERVER_STATUS_LAST_ROW_SENT)
+    {
+      my_message(ER_SP_FETCH_NO_DATA,
+                 ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
+      res= -1;
+      thd->spcont->quit_func= TRUE;
+    }
+    else
+      *nextp= m_ip + 1;
+  }
+  DBUG_RETURN(res);
+}
+
 
 
 /*

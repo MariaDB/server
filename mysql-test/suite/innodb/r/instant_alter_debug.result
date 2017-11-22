@@ -35,7 +35,7 @@ ALTER TABLE t4 ADD COLUMN b INT;
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
 LEFT JOIN t4 ON (NUMERIC_SCALE = pk);
 COUNT(*)
-1734
+1735
 SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL enter WAIT_FOR delete';
 ALTER TABLE t4 ADD COLUMN c INT;
 connect  dml,localhost,root,,;

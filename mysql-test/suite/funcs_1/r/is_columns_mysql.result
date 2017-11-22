@@ -133,6 +133,7 @@ def	mysql	innodb_table_stats	sum_of_other_index_sizes	6	NULL	NO	bigint	NULL	NULL
 def	mysql	innodb_table_stats	table_name	2	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI		select,insert,update,references		NEVER	NULL
 def	mysql	plugin	dl	2	''	NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)			select,insert,update,references		NEVER	NULL
 def	mysql	plugin	name	1	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)	PRI		select,insert,update,references		NEVER	NULL
+def	mysql	proc	aggregate	21	'NONE'	NO	enum	5	15	NULL	NULL	NULL	utf8	utf8_general_ci	enum('NONE','GROUP')			select,insert,update,references		NEVER	NULL
 def	mysql	proc	body	11	NULL	NO	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob			select,insert,update,references		NEVER	NULL
 def	mysql	proc	body_utf8	20	NULL	YES	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob			select,insert,update,references		NEVER	NULL
 def	mysql	proc	character_set_client	17	NULL	YES	char	32	96	NULL	NULL	NULL	utf8	utf8_bin	char(32)			select,insert,update,references		NEVER	NULL
@@ -488,6 +489,7 @@ NULL	mysql	proc	modified	timestamp	NULL	NULL	NULL	NULL	timestamp
 3.0000	mysql	proc	collation_connection	char	32	96	utf8	utf8_bin	char(32)
 3.0000	mysql	proc	db_collation	char	32	96	utf8	utf8_bin	char(32)
 1.0000	mysql	proc	body_utf8	longblob	4294967295	4294967295	NULL	NULL	longblob
+3.0000	mysql	proc	aggregate	enum	5	15	utf8	utf8_general_ci	enum('NONE','GROUP')
 3.0000	mysql	procs_priv	Host	char	60	180	utf8	utf8_bin	char(60)
 3.0000	mysql	procs_priv	Db	char	64	192	utf8	utf8_bin	char(64)
 3.0000	mysql	procs_priv	User	char	80	240	utf8	utf8_bin	char(80)

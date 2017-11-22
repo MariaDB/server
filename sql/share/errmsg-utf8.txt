@@ -7803,3 +7803,7 @@ ER_ARGUMENT_OUT_OF_RANGE
         eng "Argument to the %s function does not belong to the range [0,1]"
 ER_WRONG_TYPE_OF_ARGUMENT
         eng "%s function only accepts arguments that can be converted to numerical types"
+ER_NOT_AGGREGATE_FUNCTION
+        eng "Non-aggregate function contains aggregate specific instructions: (FETCH GROUP NEXT ROW)"
+ER_INVALID_AGGREGATE_FUNCTION
+        eng "Aggregate specific instruction(FETCH GROUP NEXT ROW) missing from the aggregate function"

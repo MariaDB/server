@@ -1212,7 +1212,7 @@ ERROR 42S02: Unknown table 'c' in field list
 drop procedure bug15091;
 drop function if exists bug16896;
 create aggregate function bug16896() returns int return 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '() returns int return 1' at line 1
+ERROR HY000: Aggregate specific instruction(FETCH GROUP NEXT ROW) missing from the aggregate function
 DROP PROCEDURE IF EXISTS bug14702;
 CREATE IF NOT EXISTS PROCEDURE bug14702()
 BEGIN

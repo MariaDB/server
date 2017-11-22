@@ -355,7 +355,7 @@ public:
     ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
     CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
     NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC, PERCENTILE_CONT_FUNC,
-    PERCENTILE_DISC_FUNC
+    PERCENTILE_DISC_FUNC, SP_AGGREGATE_FUNC
   };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
@@ -1224,6 +1224,132 @@ private:
   void set_bits_from_counters();
 };
 
+class sp_head;
+class sp_name;
+class Query_arena;
+struct st_sp_security_context;
+
+/*
+  Item_sum_sp handles STORED AGGREGATE FUNCTIONS
+
+  Each Item_sum_sp represents a custom aggregate function. Inside the
+  function's body, we require at least one occurence of FETCH GROUP NEXT ROW
+  instruction. This cursor is what makes custom stored aggregates possible.
+
+  During computation the function's add method is called. This in turn performs
+  an execution of the function. The function will execute from the current
+  function context (and instruction), if one exists, or from the start if not.
+  See Item_sp for more details.
+
+  Upon encounter of FETCH GROUP NEXT ROW instruction, the function will pause
+  execution. We assume that the user has performed the necessary additions for
+  a row, between two encounters of FETCH GROUP NEXT ROW.
+
+  Example:
+  create aggregate function f1(x INT) returns int
+  begin
+    declare continue handler for not found return s;
+    declare s int default 0
+    loop
+      fetch group next row;
+      set s = s + x;
+    end loop;
+  end
+
+  The function will always stop after an encounter of FETCH GROUP NEXT ROW,
+  except (!) on first encounter, as the value for the first row in the
+  group is already set in the argument x. This behaviour is done so when
+  a user writes a function, he should "logically" include FETCH GROUP NEXT ROW
+  before any "add" instructions in the stored function. This means however that
+  internally, the first occurence doesn't stop the function. See the
+  implementation of FETCH GROUP NEXT ROW for details as to how it happens.
+
+  Either way, one should assume that after calling "Item_sum_sp::add()" that
+  the values for that particular row have been added to the aggregation.
+
+  To produce values for val_xxx methods we need an extra syntactic construct.
+  We require a continue handler when "no more rows are available". val_xxx
+  methods force a function return by executing the function again, while
+  setting a server flag that no more rows have been found. This implies
+  that val_xxx methods should only be called once per group however.
+
+  Example:
+  DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN ret_val;
+*/
+class Item_sum_sp :public Item_sum,
+                   public Item_sp
+{
+ private:
+  bool execute();
+
+public:
+  Item_sum_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name,
+              sp_head *sp);
+
+  Item_sum_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name,
+              sp_head *sp, List<Item> &list);
+
+  enum Sumfunctype sum_func () const
+  {
+    return SP_AGGREGATE_FUNC;
+  }
+  void fix_length_and_dec();
+  bool fix_fields(THD *thd, Item **ref);
+  const char *func_name() const;
+  const Type_handler *type_handler() const;
+  bool add();
+
+  /* val_xx functions */
+  longlong val_int()
+  {
+    if(execute())
+      return 0;
+    return sp_result_field->val_int();
+  }
+
+  double val_real()
+  {
+    if(execute())
+      return 0.0;
+    return sp_result_field->val_real();
+  }
+
+  my_decimal *val_decimal(my_decimal *dec_buf)
+  {
+    if(execute())
+      return NULL;
+    return sp_result_field->val_decimal(dec_buf);
+  }
+
+  String *val_str(String *str)
+  {
+    String buf;
+    char buff[20];
+    buf.set(buff, 20, str->charset());
+    buf.length(0);
+    if (execute())
+      return NULL;
+    /*
+      result_field will set buf pointing to internal buffer
+      of the resul_field. Due to this it will change any time
+      when SP is executed. In order to prevent occasional
+      corruption of returned value, we make here a copy.
+    */
+    sp_result_field->val_str(&buf);
+    str->copy(buf);
+    return str;
+  }
+  void reset_field(){DBUG_ASSERT(0);}
+  void update_field(){DBUG_ASSERT(0);}
+  void clear();
+  void cleanup();
+  inline Field *get_sp_result_field()
+  {
+    return sp_result_field;
+  }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_sp>(thd, this); }
+};
 
 /* Items to get the value of a stored sum function */
 

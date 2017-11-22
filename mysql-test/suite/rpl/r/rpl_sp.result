@@ -17,7 +17,7 @@ insert into t1 values (b);
 insert into t1 values (unix_timestamp());
 end|
 select * from mysql.proc where name='foo' and db='mysqltest1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 mysqltest1	foo	PROCEDURE	foo	SQL	CONTAINS_SQL	NO	DEFINER			begin
 declare b int;
 set b = 8;
@@ -28,10 +28,10 @@ declare b int;
 set b = 8;
 insert into t1 values (b);
 insert into t1 values (unix_timestamp());
-end
+end	NONE
 connection slave;
 select * from mysql.proc where name='foo' and db='mysqltest1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 mysqltest1	foo	PROCEDURE	foo	SQL	CONTAINS_SQL	NO	DEFINER			begin
 declare b int;
 set b = 8;
@@ -42,7 +42,7 @@ declare b int;
 set b = 8;
 insert into t1 values (b);
 insert into t1 values (unix_timestamp());
-end
+end	NONE
 connection master;
 set timestamp=1000000000;
 call foo();
@@ -137,19 +137,19 @@ select * from t2;
 a
 20
 select * from mysql.proc where name="foo4" and db='mysqltest1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 mysqltest1	foo4	PROCEDURE	foo4	SQL	CONTAINS_SQL	YES	DEFINER			begin
 insert into t2 values(20),(20);
 end	root@localhost	#	#			latin1	latin1_swedish_ci	latin1_swedish_ci	begin
 insert into t2 values(20),(20);
-end
+end	NONE
 connection master;
 drop procedure foo4;
 select * from mysql.proc where name="foo4" and db='mysqltest1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 connection slave;
 select * from mysql.proc where name="foo4" and db='mysqltest1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 connection master;
 drop procedure foo;
 drop procedure foo2;
@@ -235,22 +235,22 @@ select fn3();
 fn3()
 0
 select * from mysql.proc where db='mysqltest1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 mysqltest1	fn1	FUNCTION	fn1	SQL	NO_SQL	NO	DEFINER		int(11)	begin
 return unix_timestamp();
 end	root@localhost	#	#			latin1	latin1_swedish_ci	latin1_swedish_ci	begin
 return unix_timestamp();
-end
+end	NONE
 mysqltest1	fn2	FUNCTION	fn2	SQL	NO_SQL	NO	DEFINER		int(11)	begin
 return unix_timestamp();
 end	zedjzlcsjhd@localhost	#	#			latin1	latin1_swedish_ci	latin1_swedish_ci	begin
 return unix_timestamp();
-end
+end	NONE
 mysqltest1	fn3	FUNCTION	fn3	SQL	READS_SQL_DATA	NO	DEFINER		int(11)	begin
 return 0;
 end	root@localhost	#	#			latin1	latin1_swedish_ci	latin1_swedish_ci	begin
 return 0;
-end
+end	NONE
 select * from t1;
 a
 1000000000
@@ -260,22 +260,22 @@ select * from t1;
 a
 1000000000
 select * from mysql.proc where db='mysqltest1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
 mysqltest1	fn1	FUNCTION	fn1	SQL	NO_SQL	NO	DEFINER		int(11)	begin
 return unix_timestamp();
 end	root@localhost	#	#			latin1	latin1_swedish_ci	latin1_swedish_ci	begin
 return unix_timestamp();
-end
+end	NONE
 mysqltest1	fn2	FUNCTION	fn2	SQL	NO_SQL	NO	DEFINER		int(11)	begin
 return unix_timestamp();
 end	zedjzlcsjhd@localhost	#	#			latin1	latin1_swedish_ci	latin1_swedish_ci	begin
 return unix_timestamp();
-end
+end	NONE
 mysqltest1	fn3	FUNCTION	fn3	SQL	READS_SQL_DATA	NO	DEFINER		int(11)	begin
 return 0;
 end	root@localhost	#	#			latin1	latin1_swedish_ci	latin1_swedish_ci	begin
 return 0;
-end
+end	NONE
 connection master;
 delete from t2;
 alter table t2 add unique (a);

@@ -201,6 +201,11 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     { C_STRING_WITH_LEN("body_utf8") },
     { C_STRING_WITH_LEN("longblob") },
     { NULL, 0 }
+  },
+  {
+    { C_STRING_WITH_LEN("aggregate") },
+    { C_STRING_WITH_LEN("enum('NONE','GROUP')") },
+    { NULL, 0 }
   }
 };
 
@@ -582,6 +587,22 @@ bool st_sp_chistics::read_from_mysql_proc_row(THD *thd, TABLE *table)
                                                                   &str))
     return true;
   suid= str.str[0] == 'I' ? SP_IS_NOT_SUID : SP_IS_SUID;
+
+  if (table->field[MYSQL_PROC_FIELD_AGGREGATE]->val_str_nopad(thd->mem_root,
+                                                              &str))
+    return true;
+
+  switch (str.str[0]) {
+  case 'N':
+    agg_type= NOT_AGGREGATE;
+    break;
+  case 'G':
+    agg_type= GROUP_AGGREGATE;
+    break;
+  default:
+    agg_type= DEFAULT_AGGREGATE;
+  }
+
 
   if (table->field[MYSQL_PROC_FIELD_COMMENT]->val_str_nopad(thd->mem_root,
                                                             &comment))
@@ -1183,6 +1204,13 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
       table->field[MYSQL_PROC_FIELD_NAME]->
         store(sp->m_name, system_charset_info);
 
+    if (sp->agg_type() != DEFAULT_AGGREGATE)
+    {
+      store_failed= store_failed ||
+        table->field[MYSQL_PROC_FIELD_AGGREGATE]->
+          store((longlong)sp->agg_type(),TRUE);
+    }
+
     store_failed= store_failed ||
       table->field[MYSQL_PROC_MYSQL_TYPE]->
         store((longlong) type(), true);
@@ -1494,6 +1522,9 @@ Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
     if (chistics->comment.str)
       table->field[MYSQL_PROC_FIELD_COMMENT]->store(chistics->comment,
 						    system_charset_info);
+    if (chistics->agg_type != DEFAULT_AGGREGATE)
+      table->field[MYSQL_PROC_FIELD_AGGREGATE]->
+         store((longlong)chistics->agg_type, TRUE);
     if ((ret= table->file->ha_update_row(table->record[1],table->record[0])) &&
         ret != HA_ERR_RECORD_IS_THE_SAME)
       ret= SP_WRITE_ROW_FAILED;
@@ -2238,11 +2269,12 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
                            sql_mode_t sql_mode) const
 {
   sql_mode_t old_sql_mode= thd->variables.sql_mode;
+  size_t agglen= (chistics.agg_type == GROUP_AGGREGATE)? 10 : 0;
   /* Make some room to begin with */
   if (buf->alloc(100 + db.length + 1 + name.length +
                  params.length + returns.length +
-		 chistics.comment.length + 10 /* length of " DEFINER= "*/ +
-                 USER_HOST_BUFF_SIZE))
+                 chistics.comment.length + 10 /* length of " DEFINER= "*/ +
+                 agglen + USER_HOST_BUFF_SIZE))
     return true;
 
   thd->variables.sql_mode= sql_mode;
@@ -2250,6 +2282,8 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
   if (ddl_options.or_replace())
     buf->append(STRING_WITH_LEN("OR REPLACE "));
   append_definer(thd, buf, &definer.user, &definer.host);
+  if (chistics.agg_type == GROUP_AGGREGATE)
+    buf->append(STRING_WITH_LEN("AGGREGATE "));
   buf->append(type_lex_cstring());
   buf->append(STRING_WITH_LEN(" "));
   if (ddl_options.if_not_exists())

@@ -30,6 +30,10 @@
 #include "sql_priv.h"
 #include "sql_select.h"
 #include "uniques.h"
+#include "sp_rcontext.h"
+#include "sp.h"
+#include "sql_parse.h"
+#include "sp_head.h"
 
 /**
   Calculate the affordable RAM limit for structures like TREE or Unique
@@ -1239,6 +1243,158 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
   DBUG_RETURN(tmp_table_field_from_field_type(table));
 }
 
+/***********************************************************************
+** Item_sum_sp class
+***********************************************************************/
+
+Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
+                           sp_name *name_arg, sp_head *sp, List<Item> &list)
+  :Item_sum(thd, list), Item_sp(thd, context_arg, name_arg)
+{
+  maybe_null= 1;
+  quick_group= 0;
+  m_sp= sp;
+}
+
+Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
+                           sp_name *name_arg, sp_head *sp)
+  :Item_sum(thd), Item_sp(thd, context_arg, name_arg)
+{
+  maybe_null= 1;
+  quick_group= 0;
+  m_sp= sp;
+}
+
+
+bool
+Item_sum_sp::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed == 0);
+  if (init_sum_func_check(thd))
+    return TRUE;
+  decimals= 0;
+
+  m_sp= m_sp ? m_sp : sp_handler_function.sp_find_routine(thd, m_name, true);
+
+  if (!m_sp)
+  {
+    my_missing_function_error(m_name->m_name, ErrConvDQName(m_name).ptr());
+    context->process_error(thd);
+    return TRUE;
+  }
+
+  if (init_result_field(thd, max_length, maybe_null, &null_value, &name))
+    return TRUE;
+
+  for (uint i= 0 ; i < arg_count ; i++)
+  {
+    if (args[i]->fix_fields(thd, args + i) || args[i]->check_cols(1))
+      return TRUE;
+    set_if_bigger(decimals, args[i]->decimals);
+    m_with_subquery|= args[i]->with_subquery();
+    with_window_func|= args[i]->with_window_func;
+  }
+  result_field= NULL;
+  max_length= float_length(decimals);
+  null_value= 1;
+  fix_length_and_dec();
+
+  if (check_sum_func(thd, ref))
+    return TRUE;
+
+  memcpy(orig_args, args, sizeof(Item *) * arg_count);
+  fixed= 1;
+  return FALSE;
+}
+
+/**
+  Execute function to store value in result field.
+  This is called when we need the value to be returned for the function.
+  Here we send a signal in form of the server status that all rows have been
+  fetched and now we have to exit from the function with the return value.
+  @return Function returns error status.
+  @retval FALSE on success.
+  @retval TRUE if an error occurred.
+*/
+
+bool
+Item_sum_sp::execute()
+{
+  THD *thd= current_thd;
+  bool res;
+  uint old_server_status= thd->server_status;
+
+  /* We set server status so we can send a signal to exit from the
+     function with the return value. */
+
+  thd->server_status= SERVER_STATUS_LAST_ROW_SENT;
+  res= Item_sp::execute(thd, &null_value, args, arg_count);
+  thd->server_status= old_server_status;
+  return res;
+}
+
+/**
+  Handles the aggregation of the values.
+  @note: See class description for more details on how and why this is done.
+  @return The error state.
+  @retval FALSE on success.
+  @retval TRUE if an error occurred.
+*/
+
+bool
+Item_sum_sp::add()
+{
+  return execute_impl(current_thd, args, arg_count);
+}
+
+
+void
+Item_sum_sp::clear()
+{
+  delete func_ctx;
+  func_ctx= NULL;
+  sp_query_arena->free_items();
+  free_root(&sp_mem_root, MYF(0));
+}
+
+const Type_handler *Item_sum_sp::type_handler() const
+{
+  DBUG_ENTER("Item_sum_sp::type_handler");
+  DBUG_PRINT("info", ("m_sp = %p", (void *) m_sp));
+  DBUG_ASSERT(sp_result_field);
+  // This converts ENUM/SET to STRING
+  const Type_handler *handler= sp_result_field->type_handler();
+  DBUG_RETURN(handler->type_handler_for_item_field());
+}
+
+void
+Item_sum_sp::cleanup()
+{
+  Item_sp::cleanup();
+  Item_sum::cleanup();
+}
+
+/**
+  Initialize local members with values from the Field interface.
+  @note called from Item::fix_fields.
+*/
+
+void
+Item_sum_sp::fix_length_and_dec()
+{
+  DBUG_ENTER("Item_sum_sp::fix_length_and_dec");
+  DBUG_ASSERT(sp_result_field);
+  Type_std_attributes::set(sp_result_field);
+  Item_sum::fix_length_and_dec();
+  DBUG_VOID_RETURN;
+}
+
+const char *
+Item_sum_sp::func_name() const
+{
+  THD *thd= current_thd;
+  return Item_sp::func_name(thd);
+}
 
 /***********************************************************************
 ** reset and add of sum_func

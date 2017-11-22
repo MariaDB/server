@@ -2735,8 +2735,12 @@ Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
   context(context_arg), m_name(name_arg), m_sp(NULL), func_ctx(NULL),
   sp_result_field(NULL)
 {
-  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE) + sizeof(TABLE_SHARE));
+  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE) + sizeof(TABLE_SHARE) +
+                                    sizeof(Query_arena));
   dummy_table->s= (TABLE_SHARE*) (dummy_table + 1);
+  /* TODO(cvicentiu) Move this sp_query_arena in the class as a direct member.
+     Currently it can not be done due to header include dependencies. */
+  sp_query_arena= (Query_arena *) (dummy_table->s + 1);
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
 }
 
@@ -2876,19 +2880,37 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
   */
   thd->reset_sub_statement_state(&statement_state, SUB_STMT_FUNCTION);
 
-  init_sql_alloc(&sp_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
-  Query_arena call_arena(&sp_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
+  /*
+     If this function is an aggregate function, we want to initialise the
+     mem_root only once per group. For a regular stored function, we will
+     initialise once for each call to execute_function.
+  */
+  m_sp->agg_type();
+  DBUG_ASSERT(m_sp->agg_type() == GROUP_AGGREGATE ||
+              (m_sp->agg_type() == NOT_AGGREGATE && !func_ctx));
+  if (!func_ctx)
+  {
+    init_sql_alloc(&sp_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
+    *sp_query_arena= Query_arena(&sp_mem_root,
+                                 Query_arena::STMT_INITIALIZED_FOR_SP);
+  }
 
   bool err_status= m_sp->execute_function(thd, args, arg_count,
                                           sp_result_field, &func_ctx,
-                                          &call_arena);
-  /* Free Items allocated during function execution. */
-  delete func_ctx;
-  func_ctx= NULL;
-  call_arena.free_items();
-  free_root(&sp_mem_root, MYF(0));
-  memset(&sp_mem_root, 0, sizeof(sp_mem_root));
-
+                                          sp_query_arena);
+  /*
+     We free the function context when the function finished executing normally
+     (quit_func == TRUE) or the function has exited with an error.
+  */
+  if (err_status || func_ctx->quit_func)
+  {
+    /* Free Items allocated during function execution. */
+    delete func_ctx;
+    func_ctx= NULL;
+    sp_query_arena->free_items();
+    free_root(&sp_mem_root, MYF(0));
+    memset(&sp_mem_root, 0, sizeof(sp_mem_root));
+  }
   thd->restore_sub_statement_state(&statement_state);
 
   thd->security_ctx= save_security_ctx;

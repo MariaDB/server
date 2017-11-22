@@ -6441,6 +6441,36 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   if (res)
     DBUG_RETURN(TRUE);
 
+  if (m_sp->agg_type() == GROUP_AGGREGATE)
+  {
+    List<Item> list;
+    list.empty();
+    for (uint i=0; i < arg_count; i++)
+      list.push_back(*(args+i));
+
+    Item_sum_sp *item_sp;
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+
+    if (arg_count)
+      item_sp= new (thd->mem_root) Item_sum_sp(thd, context, m_name, sp, list);
+    else
+      item_sp= new (thd->mem_root) Item_sum_sp(thd, context, m_name, sp);
+
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+    if (!item_sp)
+      DBUG_RETURN(TRUE);
+    *ref= item_sp;
+    item_sp->name= name;
+    bool err= item_sp->fix_fields(thd, ref);
+    if (err)
+      DBUG_RETURN(TRUE);
+
+    list.empty();
+    DBUG_RETURN(FALSE);
+  }
+
   res= Item_func::fix_fields(thd, ref);
 
   if (res)

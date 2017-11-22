@@ -665,6 +665,7 @@ proc	character_set_client	char(32)
 proc	collation_connection	char(32)
 proc	db_collation	char(32)
 proc	body_utf8	longblob
+proc	aggregate	enum('NONE','GROUP')
 drop table t115;
 create procedure p108 () begin declare c cursor for select data_type
 from information_schema.columns;  open c; open c; end;//
@@ -1270,7 +1271,7 @@ drop table t1;
 use mysql;
 INSERT INTO `proc` VALUES ('test','','PROCEDURE','','SQL','CONTAINS_SQL',
 'NO','DEFINER','','','BEGIN\r\n  \r\nEND','root@%','2006-03-02 18:40:03',
-'2006-03-02 18:40:03','','','utf8','utf8_general_ci','utf8_general_ci','n/a');
+'2006-03-02 18:40:03','','','utf8','utf8_general_ci','utf8_general_ci','n/a', 'NONE');
 select routine_name from information_schema.routines where ROUTINE_SCHEMA='test';
 routine_name
 
