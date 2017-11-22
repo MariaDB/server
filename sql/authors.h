@@ -75,6 +75,8 @@ struct show_table_authors_st show_table_authors[]= {
     "Prepared statements (4.1), Cursors (5.0), GET_LOCK (10.0)" },
   { "Ian Gilfillan", "South Africa", "MariaDB documentation"},
   { "Federico Razolli", "Italy", "MariaDB documentation Italian translation"},
+  { "Vinchen", "Shenzhen, China", "Instant ADD Column for InnoDB, Spider engine optimization, from Tencent Game DBA Team" },
+  { "Willhan", "Shenzhen, China", "Big Column Compression, Spider engine optimization, from Tencent Game DBA Team" },
 
   /* People working on MySQL code base (not NDB) */
   { "Guilhem Bichot", "Bordeaux, France", "Replication (since 4.0)" },
