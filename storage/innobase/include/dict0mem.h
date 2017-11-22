@@ -652,6 +652,20 @@ struct dict_col_t{
 	bool is_virtual() const { return prtype & DATA_VIRTUAL; }
 	/** @return whether NULL is an allowed value for this column */
 	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
+
+	/** @return whether this is system versioned */
+	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
+	/** @return whether this is the system version start */
+	bool is_version_start() const
+	{
+		return (prtype & DATA_VERSIONED) == DATA_VERS_START;
+	}
+	/** @return whether this is the system version end */
+	bool is_version_end() const
+	{
+		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
+	}
+
 	/** @return whether this is an instantly-added column */
 	bool is_instant() const
 	{

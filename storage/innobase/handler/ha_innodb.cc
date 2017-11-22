@@ -11413,14 +11413,16 @@ create_table_info_t::create_table_def()
 		bool	is_stored = false;
 
 		Field*	field = m_form->field[i];
-		ulint vers_row_start = 0;
-		ulint vers_row_end = 0;
+		ulint vers_row = 0;
 
 		if (m_form->versioned()) {
 			if (i == m_form->s->row_start_field) {
-				vers_row_start = DATA_VERS_START;
+				vers_row = DATA_VERS_START;
 			} else if (i == m_form->s->row_end_field) {
-				vers_row_end = DATA_VERS_END;
+				vers_row = DATA_VERS_END;
+			} else if (!(field->flags
+				     & VERS_UPDATE_UNVERSIONED_FLAG)) {
+				vers_row = DATA_VERSIONED;
 			}
 		}
 
@@ -11514,7 +11516,7 @@ err_col:
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
 					| binary_type | long_true_varchar
-					| vers_row_start | vers_row_end,
+					| vers_row,
 					charset_no),
 				col_len);
 		} else {
@@ -11524,7 +11526,7 @@ err_col:
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
 					| binary_type | long_true_varchar
-					| vers_row_start | vers_row_end
+					| vers_row
 					| is_virtual,
 					charset_no),
 				col_len, i, 0);

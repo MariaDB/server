@@ -1701,11 +1701,8 @@ row_ins_check_foreign_constraint(
 		}
 		/* System Versioning: if sys_trx_end != Inf, we
 		suppress the foreign key check */
-		if (dfield_get_type(field)->prtype & DATA_VERS_END) {
-			ut_ad(table->versioned());
-			if (dfield_is_historical_sys_trx_end(field)) {
-				goto exit_func;
-			}
+		if (field->is_version_historical_end()) {
+			goto exit_func;
 		}
 	}
 

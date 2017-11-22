@@ -2249,8 +2249,8 @@ end_of_index:
 			if (new_table->versioned()) {
 				const dfield_t* dfield = dtuple_get_nth_field(
 				    row, new_table->vers_end);
-				historical_row =
-				    dfield_is_historical_sys_trx_end(dfield);
+				historical_row
+					= dfield->is_version_historical_end();
 			}
 
 			const dfield_t*	dfield;

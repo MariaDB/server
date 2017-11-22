@@ -140,9 +140,6 @@ typedef ib_id_t	roll_ptr_t;
 /** Undo number */
 typedef ib_id_t	undo_no_t;
 
-/** Maximum transaction identifier */
-#define TRX_ID_MAX	IB_ID_MAX
-
 /** Transaction savepoint */
 struct trx_savept_t{
 	undo_no_t	least_undo_no;	/*!< least undo number to undo */

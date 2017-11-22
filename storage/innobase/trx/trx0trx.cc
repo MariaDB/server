@@ -62,6 +62,11 @@ Created 3/26/1996 Heikki Tuuri
 extern "C"
 int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
 
+/** The bit pattern corresponding to TRX_ID_MAX */
+const char trx_id_max_bytes[8] = {
+	'\377', '\377', '\377', '\377', '\377', '\377', '\377', '\377'
+};
+
 static const ulint MAX_DETAILED_ERROR_LEN = 256;
 
 /** Set of table_id */

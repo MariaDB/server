@@ -861,17 +861,3 @@ dfield_t::clone(mem_heap_t* heap) const
 
 	return(obj);
 }
-
-/** Assuming field is sys_trx_end checks whether its value is not SYS_TRX_MAX.
-@param	dfield	field to check
-@return true for historical rows and false otherwise*/
-bool
-dfield_is_historical_sys_trx_end(const dfield_t* dfield)
-{
-	static const trx_id_t MAX = TRX_ID_MAX;
-	ut_ad(dfield);
-	ut_ad(dfield->type.prtype & DATA_VERS_END);
-	const byte* data = static_cast<const byte*>(dfield_get_data(dfield));
-	ut_ad(dfield_get_len(dfield) == 8);
-	return(memcmp(data, &MAX, 8));
-}
