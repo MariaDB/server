@@ -1927,16 +1927,6 @@ trx_undo_report_row_operation(
 	} else {
 		ut_ad(!trx->read_only);
 		ut_ad(trx->id);
-		if (UNIV_LIKELY(!clust_entry || clust_entry->info_bits
-				!= REC_INFO_DEFAULT_ROW)) {
-			/* Keep INFORMATION_SCHEMA.TABLES.UPDATE_TIME
-			up-to-date for persistent tables outside
-			instant ADD COLUMN. */
-			trx->mod_tables.insert(index->table);
-		} else {
-			ut_ad(index->is_instant());
-		}
-
 		pundo = &trx->rsegs.m_redo.undo;
 		rseg = trx->rsegs.m_redo.rseg;
 	}
@@ -2021,6 +2011,13 @@ trx_undo_report_row_operation(
 			trx->undo_rseg_space = rseg->space;
 
 			mutex_exit(&trx->undo_mutex);
+
+			if (!is_temp) {
+				trx->mod_tables.insert(
+					trx_mod_tables_t::value_type(
+						index->table,
+						undo->top_undo_no));
+			}
 
 			*roll_ptr = trx_undo_build_roll_ptr(
 				!rec, rseg->id, page_no, offset);

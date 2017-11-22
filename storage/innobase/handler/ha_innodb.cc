@@ -13350,7 +13350,7 @@ ha_innobase::delete_table(
 	     iter != parent_trx->mod_tables.end();
 	     ++iter) {
 
-		dict_table_t*	table_to_drop = *iter;
+		dict_table_t*	table_to_drop = iter->first;
 
 		if (strcmp(norm_name, table_to_drop->name.m_name) == 0) {
 			parent_trx->mod_tables.erase(table_to_drop);

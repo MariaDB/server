@@ -783,7 +783,9 @@ trx_resurrect_table_locks(
 			}
 
 			if (trx->state == TRX_STATE_PREPARED) {
-				trx->mod_tables.insert(table);
+				trx->mod_tables.insert(
+					trx_mod_tables_t::value_type(table,
+								     0));
 			}
 			lock_table_ix_resurrect(table, trx);
 
@@ -1619,7 +1621,7 @@ trx_update_mod_tables_timestamp(
 		"garbage" in table->update_time is justified because
 		protecting it with a latch here would be too performance
 		intrusive. */
-		(*it)->update_time = now;
+		it->first->update_time = now;
 	}
 
 	trx->mod_tables.clear();
@@ -1725,8 +1727,12 @@ trx_commit_in_memory(
 		trx->state = TRX_STATE_NOT_STARTED;
 
 	} else {
+		const bool rw = trx->rsegs.m_redo.rseg != NULL;
 
-		if (trx->id > 0) {
+		ut_ad(!trx->read_only || !rw);
+		ut_ad(trx->id || !rw);
+
+		if (rw) {
 			/* For consistent snapshot, we need to remove current
 			transaction from running transaction id list for mvcc
 			before doing commit and releasing locks. */
@@ -1741,16 +1747,14 @@ trx_commit_in_memory(
 		ut_ad(trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
 		DEBUG_SYNC_C("after_trx_committed_in_memory");
 
-		if (trx->read_only || trx->rsegs.m_redo.rseg == NULL) {
-
+		if (!rw) {
 			MONITOR_INC(MONITOR_TRX_RO_COMMIT);
 			if (trx->read_view != NULL) {
 				trx_sys->mvcc->view_close(
 					trx->read_view, false);
 			}
-
 		} else {
-			ut_ad(trx->id > 0);
+			trx_update_mod_tables_timestamp(trx);
 			MONITOR_INC(MONITOR_TRX_RW_COMMIT);
 		}
 	}
@@ -2204,10 +2208,6 @@ trx_commit_for_mysql(
 	case TRX_STATE_PREPARED:
 
 		trx->op_info = "committing";
-
-		if (trx->id != 0) {
-			trx_update_mod_tables_timestamp(trx);
-		}
 
 		trx_commit(trx);
 
