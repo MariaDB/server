@@ -43,7 +43,6 @@
 #include <ssl_compat.h>
 #include <mysqld_error.h>
 #include <mysys_err.h>
-#include "rpl_handler.h"
 #include <signal.h>
 #include <mysql.h>
 #include <myisam.h>
@@ -3278,10 +3277,6 @@ static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
   if (opt_log_slave_updates && opt_replicate_annotate_row_events)
     binlog_flags|= BINLOG_SEND_ANNOTATE_ROWS_EVENT;
 
-  if (RUN_HOOK(binlog_relay_io,
-               before_request_transmit,
-               (thd, mi, binlog_flags)))
-    DBUG_RETURN(1);
   if (repl_semisync_slave.requestTransmit(mi))
     DBUG_RETURN(1);
 
@@ -4307,9 +4302,8 @@ pthread_handler_t handle_slave_io(void *arg)
   }
 
 
-  if (RUN_HOOK(binlog_relay_io, thread_start, (thd, mi)) ||
-      (DBUG_EVALUATE_IF("failed_slave_start", 1, 0)
-       || repl_semisync_slave.slaveStart(mi)))
+  if (DBUG_EVALUATE_IF("failed_slave_start", 1, 0)
+      || repl_semisync_slave.slaveStart(mi))
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4500,10 +4494,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
       THD_STAGE_INFO(thd, stage_queueing_master_event_to_the_relay_log);
       event_buf= (const char*)mysql->net.read_pos + 1;
       mi->semi_ack= 0;
-      if (RUN_HOOK(binlog_relay_io, after_read_event,
-                   (thd, mi,(const char*)mysql->net.read_pos + 1,
-                    event_len, &event_buf, &event_len)) ||
-          repl_semisync_slave.
+      if (repl_semisync_slave.
           slaveReadSyncHeader((const char*)mysql->net.read_pos + 1, event_len,
                               &(mi->semi_ack), &event_buf, &event_len))
       {
@@ -4554,9 +4545,6 @@ Stopping slave I/O thread due to out-of-memory error from master");
         tokenamount -= network_read_len;
       }
 
-      /* XXX: 'synced' should be updated by queue_event to indicate
-         whether event has been synced to disk */
-      bool synced= 0;
       if (queue_event(mi, event_buf, event_len))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
@@ -4565,11 +4553,8 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      if (RUN_HOOK(binlog_relay_io, after_queue_event,
-                   (thd, mi, event_buf, event_len, synced)) ||
-          (rpl_semi_sync_slave_status &&
-           (mi->semi_ack & SEMI_SYNC_NEED_ACK) &&
-           repl_semisync_slave.slaveReply(mi)))
+      if (rpl_semi_sync_slave_status && (mi->semi_ack & SEMI_SYNC_NEED_ACK) &&
+          repl_semisync_slave.slaveReply(mi))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4641,7 +4626,6 @@ err:
                           IO_RPL_LOG_NAME, mi->master_log_pos,
                           tmp.c_ptr_safe());
   }
-  (void) RUN_HOOK(binlog_relay_io, thread_stop, (thd, mi));
   repl_semisync_slave.slaveStop(mi);
   thd->reset_query();
   thd->reset_db(NULL, 0);

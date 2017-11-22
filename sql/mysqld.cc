@@ -96,7 +96,6 @@
 #include "set_var.h"
 
 #include "rpl_injector.h"
-#include "rpl_handler.h"
 #include "semisync_master.h"
 #include "semisync_slave.h"
 
@@ -393,7 +392,7 @@ static DYNAMIC_ARRAY all_options;
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
-bool opt_bin_log_compress, run_hooks_enabled;
+bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
 my_bool debug_assert_on_not_freed_memory= 0;
@@ -2235,7 +2234,6 @@ void clean_up(bool print_message)
 #ifdef HAVE_REPLICATION
   semi_sync_master_deinit();
 #endif
-  delegates_destroy();
   xid_cache_free();
   tdc_deinit();
   mdl_destroy();
@@ -5088,13 +5086,6 @@ static int init_server_components()
 #endif
 
   xid_cache_init();
-
-  /*
-    initialize delegates for extension observers, errors have already
-    been reported in the function
-  */
-  if (delegates_init())
-    unireg_abort(1);
 
   /* need to configure logging before initializing storage engines */
   if (!opt_bin_log_used && !WSREP_ON)
@@ -8877,7 +8868,6 @@ static int mysql_init_variables(void)
   report_user= report_password = report_host= 0;	/* TO BE DELETED */
   opt_relay_logname= opt_relaylog_index_name= 0;
   slave_retried_transactions= 0;
-  run_hooks_enabled= 0; // don't run hooks, semisync does not need 'em
   log_bin_basename= NULL;
   log_bin_index= NULL;
 

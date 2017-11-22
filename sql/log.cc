@@ -51,7 +51,6 @@
 #endif
 
 #include "sql_plugin.h"
-#include "rpl_handler.h"
 #include "debug_sync.h"
 #include "sql_show.h"
 #include "my_pthread.h"
@@ -6326,19 +6325,15 @@ err:
           mysql_mutex_assert_owner(&LOCK_log);
           mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
           mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
-          if ((error= RUN_HOOK(binlog_storage, after_flush,
-                               (thd, log_file_name, file->pos_in_file,
-                                synced, true, true)))
-#ifdef REPLICATION
-              || repl_semisync_master.reportBinlogUpdate(thd, log_file_name,
-                                                         file->pos_in_file)
-#endif
-              )
+#ifdef HAVE_REPLICATION
+          if (repl_semisync_master.reportBinlogUpdate(thd, log_file_name,
+                                                      file->pos_in_file))
           {
             sql_print_error("Failed to run 'after_flush' hooks");
             error= 1;
           }
           else
+#endif
           {
             /*
               update binlog_end_pos so it can be read by dump thread
@@ -6364,18 +6359,14 @@ err:
       mysql_mutex_assert_not_owner(&LOCK_log);
       mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
       mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
-      if (RUN_HOOK(binlog_storage, after_sync,
-                   (thd, log_file_name, file->pos_in_file,
-                    true, true))
-#ifdef REPLICATION
-          || repl_semisync_master.waitAfterSync(log_file_name,
-                                                file->pos_in_file)
-#endif
-          )
+#ifdef HAVE_REPLICATION
+      if (repl_semisync_master.waitAfterSync(log_file_name,
+                                             file->pos_in_file))
       {
         error=1;
         /* error is already printed inside hook */
       }
+#endif
 
       /*
         Take mutex to protect against a reader seeing partial writes of 64-bit
@@ -7672,33 +7663,23 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       mysql_mutex_assert_owner(&LOCK_log);
       mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
       mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
-      bool first __attribute__((unused))= true;
-      bool last __attribute__((unused));
+
       for (current= queue; current != NULL; current= current->next)
       {
-        last= current->next == NULL;
+#ifdef HAVE_REPLICATION
         if (!current->error &&
-            (RUN_HOOK(binlog_storage, after_flush,
-                      (current->thd,
-                       current->cache_mngr->last_commit_pos_file,
-                       current->cache_mngr->last_commit_pos_offset, synced,
-                       first, last))
-#ifdef REPLICATION
-             || (DBUG_EVALUATE_IF("failed_report_binlog_update", 1, 0) ||
-                 repl_semisync_master.
-                 reportBinlogUpdate(current->thd,
-                                    current->cache_mngr->last_commit_pos_file,
-                                    current->cache_mngr->
-                                    last_commit_pos_offset))
-#endif
-             ))
+            repl_semisync_master.
+            reportBinlogUpdate(current->thd,
+                               current->cache_mngr->last_commit_pos_file,
+                               current->cache_mngr->
+                               last_commit_pos_offset))
         {
           current->error= ER_ERROR_ON_WRITE;
           current->commit_errno= -1;
           current->error_cache= NULL;
           any_error= true;
         }
-        first= false;
+#endif
       }
 
       /*
@@ -7773,24 +7754,14 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     for (current= queue; current != NULL; current= current->next)
     {
       last= current->next == NULL;
-      if (!current->error &&
-          (RUN_HOOK(binlog_storage, after_sync,
-                   (current->thd, current->cache_mngr->last_commit_pos_file,
-                    current->cache_mngr->last_commit_pos_offset,
-                    first, last))
-#ifdef REPLICATION
-           || (DBUG_EVALUATE_IF("simulate_after_sync_hook_error", 1, 0) ||
-               repl_semisync_master.waitAfterSync(current->cache_mngr->
-                                                  last_commit_pos_file,
-                                                  current->cache_mngr->
-                                                  last_commit_pos_offset))
+#ifdef HAVE_REPLICATION
+      if (!current->error)
+        current->error=
+          repl_semisync_master.waitAfterSync(current->cache_mngr->
+                                             last_commit_pos_file,
+                                             current->cache_mngr->
+                                             last_commit_pos_offset);
 #endif
-           ))
-      {
-        const char *hook_name= rpl_semi_sync_master_enabled ?
-          "'waitAfterSync'" : "binlog_storage 'after_sync'";
-        sql_print_error("Failed to call '%s'", hook_name);
-      }
       first= false;
     }
   }

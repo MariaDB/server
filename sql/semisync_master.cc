@@ -737,19 +737,19 @@ int ReplSemiSyncMaster::reportBinlogUpdate(THD* thd, const char *log_file,
   return 0;
 }
 
-void ReplSemiSyncMaster::dump_start(THD* thd,
+int ReplSemiSyncMaster::dump_start(THD* thd,
                                    const char *log_file,
                                    my_off_t log_pos)
 {
   if (!thd->semi_sync_slave)
-    return;
+    return 0;
 
   if (ack_receiver.add_slave(thd))
   {
     sql_print_error("Failed to register slave to semi-sync ACK receiver "
                     "thread. Turning off semisync");
     thd->semi_sync_slave= 0;
-    return;
+    return 1;
   }
 
   add_slave();
@@ -757,7 +757,7 @@ void ReplSemiSyncMaster::dump_start(THD* thd,
   sql_print_information("Start semi-sync binlog_dump to slave (server_id: %d), pos(%s, %lu",
                         thd->variables.server_id, log_file, (unsigned long)log_pos);
 
-  return;
+  return 0;
 }
 
 void ReplSemiSyncMaster::dump_end(THD* thd)

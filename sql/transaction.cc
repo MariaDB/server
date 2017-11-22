@@ -21,7 +21,6 @@
 #include <my_global.h>
 #include "sql_priv.h"
 #include "transaction.h"
-#include "rpl_handler.h"
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_acl.h"
 #include "semisync_master.h"
@@ -319,14 +318,12 @@ bool trans_commit(THD *thd)
     */
   if (res)
   {
-    (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
 #ifdef HAVE_REPLICATION
     repl_semisync_master.waitAfterRollback(thd, FALSE);
 #endif
   }
   else
   {
-    (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
 #ifdef HAVE_REPLICATION
     repl_semisync_master.waitAfterCommit(thd, FALSE);
 #endif
@@ -423,7 +420,6 @@ bool trans_rollback(THD *thd)
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_rollback_trans(thd, TRUE);
-  (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
 #ifdef HAVE_REPLICATION
   repl_semisync_master.waitAfterRollback(thd, FALSE);
 #endif
@@ -540,14 +536,12 @@ bool trans_commit_stmt(THD *thd)
     */
   if (res)
   {
-    (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
 #ifdef HAVE_REPLICATION
     repl_semisync_master.waitAfterRollback(thd, FALSE);
 #endif
   }
   else
   {
-    (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
 #ifdef HAVE_REPLICATION
     repl_semisync_master.waitAfterCommit(thd, FALSE);
 #endif
@@ -590,7 +584,6 @@ bool trans_rollback_stmt(THD *thd)
       trans_reset_one_shot_chistics(thd);
   }
 
-  (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
 #ifdef HAVE_REPLICATION
   repl_semisync_master.waitAfterRollback(thd, FALSE);
 #endif

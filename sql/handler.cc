@@ -23,7 +23,7 @@
 #include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
-#include "rpl_handler.h"
+#include "rpl_rli.h"
 #include "sql_cache.h"                   // query_cache, query_cache_*
 #include "sql_connect.h"                 // global_table_stats
 #include "key.h"     // key_copy, key_unpack, key_cmp_if_same, key_cmp
@@ -1481,8 +1481,7 @@ done:
   mysql_mutex_assert_not_owner(mysql_bin_log.get_log_lock());
   mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
-  (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
-#ifdef REPLICATION
+#ifdef HAVE_REPLICATION
   repl_semisync_master.waitAfterCommit(thd, all);
   DEBUG_SYNC(thd, "after_group_after_commit");
 #endif
@@ -1725,8 +1724,7 @@ int ha_rollback_trans(THD *thd, bool all)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
                  ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
-  (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
-#ifdef REPLICATION
+#ifdef HAVE_REPLICATION
   repl_semisync_master.waitAfterRollback(thd, all);
 #endif
   DBUG_RETURN(error);
