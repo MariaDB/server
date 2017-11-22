@@ -8536,8 +8536,14 @@ void TR_table::store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_
   timeval start_time= {thd->start_time, thd->start_time_sec_part};
   store(FLD_TRX_ID, trx_id);
   store(FLD_COMMIT_ID, commit_id);
-  store(FLD_COMMIT_TS, commit_ts);
   store(FLD_BEGIN_TS, start_time);
+  if (thd->start_time_ge(commit_ts.tv_sec, commit_ts.tv_usec))
+  {
+    thd->start_time_inc();
+    commit_ts.tv_sec= thd->start_time;
+    commit_ts.tv_usec= thd->start_time_sec_part;
+  }
+  store(FLD_COMMIT_TS, commit_ts);
   store_iso_level(thd->tx_isolation);
 }
 

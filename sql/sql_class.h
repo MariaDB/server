@@ -3323,11 +3323,37 @@ public:
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
+
+  void start_time_inc()
+  {
+    ++start_time_sec_part;
+    if (start_time_sec_part == HRTIME_RESOLUTION)
+    {
+      ++start_time;
+      start_time_sec_part= 0;
+    }
+  }
+
+  bool start_time_ge(my_time_t secs, ulong usecs)
+  {
+    return (start_time == secs && start_time_sec_part >= usecs) ||
+        start_time > secs;
+  }
+
   inline void set_current_time()
   {
     my_hrtime_t hrtime= my_hrtime();
-    start_time= hrtime_to_my_time(hrtime);
-    start_time_sec_part= hrtime_sec_part(hrtime);
+    my_time_t secs= hrtime_to_my_time(hrtime);
+    ulong usecs= hrtime_sec_part(hrtime);
+    if (start_time_ge(secs, usecs))
+    {
+      start_time_inc();
+    }
+    else
+    {
+      start_time= secs;
+      start_time_sec_part= usecs;
+    }
 #ifdef HAVE_PSI_THREAD_INTERFACE
     PSI_THREAD_CALL(set_thread_start_time)(start_time);
 #endif
