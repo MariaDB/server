@@ -942,8 +942,8 @@ The following options may be given as the first argument:
  --wsrep-sync-wait[=#] 
  Ensure "synchronous" read view before executing an
  operation of the type specified by bitmask: 1 -
- READ(includes SELECT, SHOW and BEGIN/START TRANSACTION);
- 2 - UPDATE and DELETE; 4 - INSERT and REPLACE
+ READ(includes SELECT and BEGIN/START TRANSACTION); 2 -
+ UPDATE and DELETE; 4 - INSERT and REPLACE; 8 - SHOW
 
 Variables (--variable-name=value)
 allow-suspicious-udfs FALSE
