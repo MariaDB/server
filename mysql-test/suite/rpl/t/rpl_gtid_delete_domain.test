@@ -56,10 +56,13 @@ FLUSH BINARY LOGS;
 --eval PURGE BINARY LOGS TO '$purge_to_binlog';
 # with final removal of the extra domain
 --eval FLUSH BINARY LOGS DELETE_DOMAIN_ID=($extra_domain_id)
-
+SELECT @@global.gtid_binlog_pos, @@global.gtid_binlog_state;
 --connection slave
+SELECT @@global.gtid_slave_pos;
 # start the slave sucessfully
+--let rpl_debug=1
 --source include/start_slave.inc
+--let rpl_debug=0
 
 --connection master
 # but the following gtid from the *extra* domain will break replication

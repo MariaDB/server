@@ -24,8 +24,47 @@ connection master;
 FLUSH BINARY LOGS;
 PURGE BINARY LOGS TO 'master-bin.000002';;
 FLUSH BINARY LOGS DELETE_DOMAIN_ID=(11);
+SELECT @@global.gtid_binlog_pos, @@global.gtid_binlog_state;
+@@global.gtid_binlog_pos	@@global.gtid_binlog_state
+0-1-1	0-1-1
 connection slave;
+SELECT @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-1-1,11-111-2
 include/start_slave.inc
+==== BEGIN include/start_slave.inc ====
+ con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+START SLAVE;
+.==== BEGIN include/wait_for_slave_to_start.inc ====
+. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+..==== BEGIN include/wait_for_slave_io_to_start.inc ====
+.. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+...==== BEGIN include/wait_for_slave_param.inc [Slave_IO_Running] ====
+... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+Waiting until 'Slave_IO_Running' = 'Yes' [timeout='300', $slave_error_param='Last_IO_Errno']
+[connection slave]
+...==== END include/wait_for_slave_param.inc [Slave_IO_Running] ====
+... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+[connection slave]
+..==== END include/wait_for_slave_io_to_start.inc ====
+.. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+..==== BEGIN include/wait_for_slave_sql_to_start.inc ====
+.. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+...==== BEGIN include/wait_for_slave_param.inc [Slave_SQL_Running] ====
+... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+Waiting until 'Slave_SQL_Running' = 'Yes' [timeout='300', $slave_error_param='1']
+[connection slave]
+...==== END include/wait_for_slave_param.inc [Slave_SQL_Running] ====
+... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+[connection slave]
+..==== END include/wait_for_slave_sql_to_start.inc ====
+.. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+[connection slave]
+.==== END include/wait_for_slave_to_start.inc ====
+. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+[connection slave]
+==== END include/start_slave.inc ====
+ con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
 connection master;
 INSERT INTO t SET a=1;
 connection slave;
