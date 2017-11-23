@@ -1675,18 +1675,16 @@ err_with_cleanup:
 
 bool
 sp_head::execute_function(THD *thd, Item **argp, uint argcount,
-                          Field *return_value_fld)
+                          Field *return_value_fld, sp_rcontext **func_ctx,
+                          Query_arena *call_arena)
 {
   ulonglong UNINIT_VAR(binlog_save_options);
   bool need_binlog_call= FALSE;
   uint arg_no;
   sp_rcontext *octx = thd->spcont;
-  sp_rcontext *nctx = NULL;
   char buf[STRING_BUFFER_USUAL_SIZE];
   String binlog_buf(buf, sizeof(buf), &my_charset_bin);
   bool err_status= FALSE;
-  MEM_ROOT call_mem_root;
-  Query_arena call_arena(&call_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
   Query_arena backup_arena;
   DBUG_ENTER("sp_head::execute_function");
   DBUG_PRINT("info", ("function %s", m_name.str));
@@ -1719,23 +1717,25 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     TODO: we should create sp_rcontext once per command and reuse
     it on subsequent executions of a function/trigger.
   */
-  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
-  thd->set_n_backup_active_arena(&call_arena, &backup_arena);
-
-  if (!(nctx= rcontext_create(thd, return_value_fld, argp, argcount)))
+  if (!(*func_ctx))
   {
-    thd->restore_active_arena(&call_arena, &backup_arena);
-    err_status= TRUE;
-    goto err_with_cleanup;
-  }
+    thd->set_n_backup_active_arena(call_arena, &backup_arena);
 
-  /*
-    We have to switch temporarily back to callers arena/memroot.
-    Function arguments belong to the caller and so the may reference
-    memory which they will allocate during calculation long after
-    this function call will be finished (e.g. in Item::cleanup()).
-  */
-  thd->restore_active_arena(&call_arena, &backup_arena);
+    if (!(*func_ctx= rcontext_create(thd, return_value_fld, argp, argcount)))
+    {
+      thd->restore_active_arena(call_arena, &backup_arena);
+      err_status= TRUE;
+      goto err_with_cleanup;
+    }
+
+    /*
+      We have to switch temporarily back to callers arena/memroot.
+      Function arguments belong to the caller and so the may reference
+      memory which they will allocate during calculation long after
+      this function call will be finished (e.g. in Item::cleanup()).
+    */
+    thd->restore_active_arena(call_arena, &backup_arena);
+  }
 
   /* Pass arguments. */
   for (arg_no= 0; arg_no < argcount; arg_no++)
@@ -1743,7 +1743,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     /* Arguments must be fixed in Item_func_sp::fix_fields */
     DBUG_ASSERT(argp[arg_no]->fixed);
 
-    if ((err_status= nctx->set_variable(thd, arg_no, &(argp[arg_no]))))
+    if ((err_status= (*func_ctx)->set_variable(thd, arg_no, &(argp[arg_no]))))
       goto err_with_cleanup;
   }
 
@@ -1775,7 +1775,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       if (arg_no)
         binlog_buf.append(',');
 
-      Item *item= nctx->get_item(arg_no);
+      Item *item= (*func_ctx)->get_item(arg_no);
       str_value= item->type_handler()->print_item_value(thd, item,
                                                         &str_value_holder);
       if (str_value)
@@ -1785,7 +1785,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     }
     binlog_buf.append(')');
   }
-  thd->spcont= nctx;
+  thd->spcont= *func_ctx;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx;
@@ -1826,11 +1826,11 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
           sp_rcontext and allocate all these objects (and sp_rcontext
           itself) on it directly rather than juggle with arenas.
   */
-  thd->set_n_backup_active_arena(&call_arena, &backup_arena);
+  thd->set_n_backup_active_arena(call_arena, &backup_arena);
 
   err_status= execute(thd, TRUE);
 
-  thd->restore_active_arena(&call_arena, &backup_arena);
+  thd->restore_active_arena(call_arena, &backup_arena);
 
   if (need_binlog_call)
   {
@@ -1860,7 +1860,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   {
     /* We need result only in function but not in trigger */
 
-    if (!nctx->is_return_value_set())
+    if (!(*func_ctx)->is_return_value_set())
     {
       my_error(ER_SP_NORETURNEND, MYF(0), m_name.str);
       err_status= TRUE;
@@ -1872,9 +1872,6 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
 #endif
 
 err_with_cleanup:
-  delete nctx;
-  call_arena.free_items();
-  free_root(&call_mem_root, MYF(0));
   thd->spcont= octx;
 
   /*

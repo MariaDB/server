@@ -4471,6 +4471,34 @@ public:
   Item* build_clone(THD *thd);
 };
 
+class sp_head;
+class sp_name;
+struct st_sp_security_context;
+
+class Item_sp
+{
+public:
+  Name_resolution_context *context;
+  sp_name *m_name;
+  sp_head *m_sp;
+  TABLE *dummy_table;
+  uchar result_buf[64];
+  sp_rcontext *func_ctx;
+  MEM_ROOT sp_mem_root;
+
+  /*
+     The result field of the stored function.
+  */
+  Field *sp_result_field;
+  Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
+  const char *func_name(THD *thd) const;
+  void cleanup();
+  bool sp_check_access(THD *thd);
+  bool execute(THD *thd, bool *null_value, Item **args, uint arg_count);
+  bool execute_impl(THD *thd, Item **args, uint arg_count);
+  bool init_result_field(THD *thd, sp_head *sp, uint max_length,
+                         uint maybe_null, bool *null_value, LEX_CSTRING *name);
+};
 
 class Item_ref :public Item_ident
 {

@@ -343,7 +343,8 @@ public:
                   GRANT_INFO *grant_info);
 
   bool
-  execute_function(THD *thd, Item **args, uint argcount, Field *return_fld);
+  execute_function(THD *thd, Item **args, uint argcount, Field *return_fld,
+                   sp_rcontext **nctx, Query_arena *call_arena);
 
   bool
   execute_procedure(THD *thd, List<Item> *args);
