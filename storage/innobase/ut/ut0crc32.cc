@@ -89,10 +89,6 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 /** Pointer to CRC32 calculation function. */
 ut_crc32_func_t	ut_crc32;
 
-/** Pointer to CRC32 calculation function, which uses big-endian byte order
-when converting byte strings to integers internally. */
-ut_crc32_func_t	ut_crc32_legacy_big_endian;
-
 /** Text description of CRC32 implementation */
 const char*	ut_crc32_implementation;
 
@@ -238,37 +234,6 @@ ut_crc32_64_hw(
 	*len -= 8;
 }
 
-/** Calculate CRC32 over 64-bit byte string using a hardware/CPU instruction.
-The byte string is converted to a 64-bit integer using big endian byte order.
-@param[in,out]	crc	crc32 checksum so far when this function is called,
-when the function ends it will contain the new checksum
-@param[in,out]	data	data to be checksummed, the pointer will be advanced
-with 8 bytes
-@param[in,out]	len	remaining bytes, it will be decremented with 8 */
-inline
-void
-ut_crc32_64_legacy_big_endian_hw(
-	uint32_t*	crc,
-	const byte**	data,
-	ulint*		len)
-{
-	uint64_t	data_int = *reinterpret_cast<const uint64_t*>(*data);
-
-#ifndef WORDS_BIGENDIAN
-	data_int = ut_crc32_swap_byteorder(data_int);
-#else
-	/* Currently we only support x86_64 (little endian) CPUs. In case
-	some big endian CPU supports a CRC32 instruction, then maybe we will
-	NOT need a byte order swap here. */
-#error Dont know how to handle big endian CPUs
-#endif /* WORDS_BIGENDIAN */
-
-	*crc = ut_crc32_64_low_hw(*crc, data_int);
-
-	*data += 8;
-	*len -= 8;
-}
-
 /** Calculates CRC32 using hardware/CPU instructions.
 @param[in]	buf	data over which to calculate CRC32
 @param[in]	len	data length
@@ -347,56 +312,6 @@ ut_crc32_hw(
 
 	while (len >= 8) {
 		ut_crc32_64_hw(&crc, &buf, &len);
-	}
-
-	while (len > 0) {
-		ut_crc32_8_hw(&crc, &buf, &len);
-	}
-
-	return(~crc);
-}
-
-/** Calculates CRC32 using hardware/CPU instructions.
-This function uses big endian byte ordering when converting byte sequence to
-integers.
-@param[in]	buf	data over which to calculate CRC32
-@param[in]	len	data length
-@return CRC-32C (polynomial 0x11EDC6F41) */
-uint32_t
-ut_crc32_legacy_big_endian_hw(
-	const byte*	buf,
-	ulint		len)
-{
-	uint32_t	crc = 0xFFFFFFFFU;
-
-	/* Calculate byte-by-byte up to an 8-byte aligned address. After
-	this consume the input 8-bytes at a time. */
-	while (len > 0 && (reinterpret_cast<uintptr_t>(buf) & 7) != 0) {
-		ut_crc32_8_hw(&crc, &buf, &len);
-	}
-
-	while (len >= 128) {
-		/* This call is repeated 16 times. 16 * 8 = 128. */
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-	}
-
-	while (len >= 8) {
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
 	}
 
 	while (len > 0) {
@@ -600,7 +515,7 @@ integers.
 @param[in]	len	data length
 @return CRC-32C (polynomial 0x11EDC6F41) */
 uint32_t
-ut_crc32_legacy_big_endian_sw(
+ut_crc32_legacy_big_endian(
 	const byte*	buf,
 	ulint		len)
 {
@@ -654,7 +569,6 @@ ut_crc32_init()
 {
 	ut_crc32_slice8_table_init();
 	ut_crc32 = ut_crc32_sw;
-	ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_sw;
 	ut_crc32_implementation = "Using generic crc32 instructions";
 
 #if defined(__GNUC__) && defined(__x86_64__)
@@ -687,7 +601,6 @@ ut_crc32_init()
 
 	if (features_ecx & 1 << 20) {
 		ut_crc32 = ut_crc32_hw;
-		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
 		ut_crc32_implementation = "Using SSE2 crc32 instructions";
 	}
 
