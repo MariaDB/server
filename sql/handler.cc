@@ -3036,7 +3036,7 @@ int handler::update_auto_increment()
   DBUG_ENTER("handler::update_auto_increment");
 
   // System Versioning: handle ALTER ADD COLUMN AUTO_INCREMENT
-  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE && table->versioned_by_sql())
+  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE && table->versioned())
   {
     Field *end= table->vers_end_field();
     DBUG_ASSERT(end);

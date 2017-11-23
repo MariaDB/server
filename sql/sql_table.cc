@@ -10180,14 +10180,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (keep_versioned && to->versioned_by_engine() &&
         thd->variables.vers_alter_history != VERS_ALTER_HISTORY_SURVIVE)
     {
-      to->s->versioned= false;
+      to->vers_write= false;
     }
     error= to->file->ha_write_row(to->record[0]);
-    if (keep_versioned && to->versioned_by_engine() &&
-        thd->variables.vers_alter_history != VERS_ALTER_HISTORY_SURVIVE)
-    {
-      to->s->versioned= true;
-    }
     to->auto_increment_field_not_null= FALSE;
     if (error)
     {

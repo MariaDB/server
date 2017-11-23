@@ -2304,21 +2304,7 @@ end_of_index:
 		}
 
 		if (old_table->versioned()) {
-			if (new_table->versioned() && !drop_historical) {
-				dfield_t *end = dtuple_get_nth_field(
-					row, new_table->vers_end);
-				byte *data = static_cast<byte *>(
-					dfield_get_data(end));
-				ut_ad(data);
-				if (mach_read_from_8(data) == TRX_ID_MAX) {
-					dfield_t *start = dtuple_get_nth_field(
-						row, new_table->vers_start);
-					void *data = dfield_get_data(start);
-					ut_ad(data);
-					mach_write_to_8(data, trx->id);
-					trx->vers_update_trt= true;
-				}
-			} else {
+			if (!new_table->versioned() || drop_historical) {
 				const dict_col_t *col =
 					&old_table->cols
 						 [old_table->vers_end];

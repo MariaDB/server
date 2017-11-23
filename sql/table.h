@@ -1505,11 +1505,18 @@ public:
   /**
     System Versioning support
    */
+  bool vers_write;
 
   bool versioned() const
   {
     DBUG_ASSERT(s);
     return s->versioned;
+  }
+
+  bool versioned_write() const
+  {
+    DBUG_ASSERT(versioned() || !vers_write);
+    return vers_write;
   }
 
   /* Versioned by SQL layer */

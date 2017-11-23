@@ -186,9 +186,9 @@ VTMD_table::update(THD *thd, const char* archive_name)
       vtmd.table->mark_columns_needed_for_update(); // not needed?
       if (archive_name)
       {
-        vtmd.table->s->versioned= false;
+        vtmd.table->vers_write= false;
         error= vtmd.table->file->ha_update_row(vtmd.table->record[1], vtmd.table->record[0]);
-        vtmd.table->s->versioned= true;
+        vtmd.table->vers_write= true;
 
         if (!error)
         {
@@ -220,9 +220,9 @@ VTMD_table::update(THD *thd, const char* archive_name)
               store_record(vtmd.table, record[1]);
               vtmd.table->field[FLD_ARCHIVE_NAME]->store(archive_name, an_len, table_alias_charset);
               vtmd.table->field[FLD_ARCHIVE_NAME]->set_notnull();
-              vtmd.table->s->versioned= false;
+              vtmd.table->vers_write= false;
               error= vtmd.table->file->ha_update_row(vtmd.table->record[1], vtmd.table->record[0]);
-              vtmd.table->s->versioned= true;
+              vtmd.table->vers_write= true;
               if (error)
                 goto err;
               sys_trx_end= (ulonglong) vtmd.table->vers_start_field()->val_int();

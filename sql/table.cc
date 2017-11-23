@@ -3216,9 +3216,13 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       *fptr++ = outparam->field[i];
     }
     (*fptr)= 0;                                 // End marker
+    outparam->vers_write= true;
   }
   else
+  {
     outparam->non_generated_field= NULL;
+    outparam->vers_write= false;
+  }
 
   if (share->found_next_number_field)
     outparam->found_next_number_field=
