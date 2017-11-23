@@ -10,6 +10,7 @@ engine innodb;
 
 insert into t1 values ();
 
+--real_sleep 0.01
 set @ts0= now(6);
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx0;
