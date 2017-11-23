@@ -3897,8 +3897,8 @@ static Sys_var_mybool Sys_wsrep_causal_reads(
 static Sys_var_uint Sys_wsrep_sync_wait(
        "wsrep_sync_wait", "Ensure \"synchronous\" read view before executing "
        "an operation of the type specified by bitmask: 1 - READ(includes "
-       "SELECT, SHOW and BEGIN/START TRANSACTION); 2 - UPDATE and DELETE; 4 - "
-       "INSERT and REPLACE",
+       "SELECT and BEGIN/START TRANSACTION); 2 - UPDATE and DELETE; 4 - "
+       "INSERT and REPLACE; 8 - SHOW",
        SESSION_VAR(wsrep_sync_wait), CMD_LINE(OPT_ARG),
        VALID_RANGE(WSREP_SYNC_WAIT_NONE, WSREP_SYNC_WAIT_MAX),
        DEFAULT(WSREP_SYNC_WAIT_NONE), BLOCK_SIZE(1),
