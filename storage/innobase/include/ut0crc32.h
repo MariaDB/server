@@ -51,10 +51,6 @@ extern ut_crc32_func_t	ut_crc32;
 when converting byte strings to integers internally. */
 extern ut_crc32_func_t	ut_crc32_legacy_big_endian;
 
-/** Pointer to CRC32-byte-by-byte calculation function (byte order agnostic,
-but very slow). */
-extern ut_crc32_func_t	ut_crc32_byte_by_byte;
-
 extern const char*	ut_crc32_implementation;
 
 #endif /* ut0crc32_h */

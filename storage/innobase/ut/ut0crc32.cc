@@ -93,10 +93,6 @@ ut_crc32_func_t	ut_crc32;
 when converting byte strings to integers internally. */
 ut_crc32_func_t	ut_crc32_legacy_big_endian;
 
-/** Pointer to CRC32-byte-by-byte calculation function (byte order agnostic,
-but very slow). */
-ut_crc32_func_t	ut_crc32_byte_by_byte;
-
 /** Text description of CRC32 implementation */
 const char*	ut_crc32_implementation;
 
@@ -409,26 +405,6 @@ ut_crc32_legacy_big_endian_hw(
 
 	return(~crc);
 }
-
-/** Calculates CRC32 using hardware/CPU instructions.
-This function processes one byte at a time (very slow) and thus it does
-not depend on the byte order of the machine.
-@param[in]	buf	data over which to calculate CRC32
-@param[in]	len	data length
-@return CRC-32C (polynomial 0x11EDC6F41) */
-uint32_t
-ut_crc32_byte_by_byte_hw(
-	const byte*	buf,
-	ulint		len)
-{
-	uint32_t	crc = 0xFFFFFFFFU;
-
-	while (len > 0) {
-		ut_crc32_8_hw(&crc, &buf, &len);
-	}
-
-	return(~crc);
-}
 #endif /* defined(__GNUC__) && defined(__x86_64__) */
 
 /* CRC32 software implementation. */
@@ -669,28 +645,6 @@ ut_crc32_legacy_big_endian_sw(
 	return(~crc);
 }
 
-/** Calculates CRC32 in software, without using CPU instructions.
-This function processes one byte at a time (very slow) and thus it does
-not depend on the byte order of the machine.
-@param[in]	buf	data over which to calculate CRC32
-@param[in]	len	data length
-@return CRC-32C (polynomial 0x11EDC6F41) */
-uint32_t
-ut_crc32_byte_by_byte_sw(
-	const byte*	buf,
-	ulint		len)
-{
-	uint32_t	crc = 0xFFFFFFFFU;
-
-	ut_a(ut_crc32_slice8_table_initialized);
-
-	while (len > 0) {
-		ut_crc32_8_sw(&crc, &buf, &len);
-	}
-
-	return(~crc);
-}
-
 /********************************************************************//**
 Initializes the data structures used by ut_crc32*(). Does not do any
 allocations, would not hurt if called twice, but would be pointless. */
@@ -701,7 +655,6 @@ ut_crc32_init()
 	ut_crc32_slice8_table_init();
 	ut_crc32 = ut_crc32_sw;
 	ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_sw;
-	ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_sw;
 	ut_crc32_implementation = "Using generic crc32 instructions";
 
 #if defined(__GNUC__) && defined(__x86_64__)
@@ -735,7 +688,6 @@ ut_crc32_init()
 	if (features_ecx & 1 << 20) {
 		ut_crc32 = ut_crc32_hw;
 		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
-		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_hw;
 		ut_crc32_implementation = "Using SSE2 crc32 instructions";
 	}
 
