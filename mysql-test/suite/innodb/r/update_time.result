@@ -19,7 +19,7 @@ SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 't'
 AND TIMESTAMPDIFF(SECOND, update_time, NOW()) < 120;
 COUNT(*)
 1
-CREATE TABLE big (a TEXT) ENGINE=INNODB;
+CREATE TEMPORARY TABLE big (a TEXT) ENGINE=INNODB;
 SELECT COUNT(*) FROM information_schema.innodb_buffer_page
 WHERE table_name = '`test`.`t`';
 COUNT(*)
@@ -34,20 +34,21 @@ SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 't'
 AND update_time IS NOT NULL;
 COUNT(*)
 1
-DROP TABLE big;
+DROP TEMPORARY TABLE big;
 # Test the behavior after restart with a prepared XA transaction
 XA START 'xatrx';
 INSERT INTO t VALUES (5);
 XA END 'xatrx';
 XA PREPARE 'xatrx';
+CONNECT  con1,localhost,root,,;
 call mtr.add_suppression("Found 1 prepared XA transactions");
+FLUSH TABLES;
 # Kill and restart
 SELECT update_time FROM information_schema.tables WHERE table_name = 't';
 update_time
 NULL
 XA COMMIT 'xatrx';
-SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 't'
-AND update_time IS NOT NULL;
-COUNT(*)
+SELECT COUNT(update_time) FROM information_schema.tables WHERE table_name='t';
+COUNT(update_time)
 1
 DROP TABLE t;

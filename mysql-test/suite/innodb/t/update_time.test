@@ -25,7 +25,7 @@ AND update_time IS NOT NULL;
 SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 't'
 AND TIMESTAMPDIFF(SECOND, update_time, NOW()) < 120;
 
-CREATE TABLE big (a TEXT) ENGINE=INNODB;
+CREATE TEMPORARY TABLE big (a TEXT) ENGINE=INNODB;
 
 SELECT COUNT(*) FROM information_schema.innodb_buffer_page
 WHERE table_name = '`test`.`t`';
@@ -44,7 +44,7 @@ COMMIT;
 -- enable_query_log
 -- echo # INSERT lots of data in table 'big': end
 
-# confirm that table 't' has been evicted
+# confirm that all pages for table 't' have been evicted
 SELECT COUNT(*) FROM information_schema.innodb_buffer_page
 WHERE table_name = '`test`.`t`';
 
@@ -53,7 +53,7 @@ WHERE table_name = '`test`.`t`';
 SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 't'
 AND update_time IS NOT NULL;
 
-DROP TABLE big;
+DROP TEMPORARY TABLE big;
 
 -- echo # Test the behavior after restart with a prepared XA transaction
 
@@ -63,9 +63,9 @@ XA END 'xatrx';
 XA PREPARE 'xatrx';
 
 CONNECT (con1,localhost,root,,);
-CONNECTION con1;
 
 call mtr.add_suppression("Found 1 prepared XA transactions");
+FLUSH TABLES;
 
 --source include/kill_and_restart_mysqld.inc
 
@@ -73,7 +73,6 @@ SELECT update_time FROM information_schema.tables WHERE table_name = 't';
 
 XA COMMIT 'xatrx';
 
-SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 't'
-AND update_time IS NOT NULL;
+SELECT COUNT(update_time) FROM information_schema.tables WHERE table_name='t';
 
 DROP TABLE t;
