@@ -1290,7 +1290,7 @@ static double ratio(Bigint *a, Bigint *b)
   dval(&db)= b2d(b, &kb);
   k= ka - kb + 32*(a->wds - b->wds);
   if (k > 0)
-    word0(&da)+= k*Exp_msk1;
+    word0(&da)+= k*Exp_msk1 * 1.0;
   else
   {
     k= -k;
