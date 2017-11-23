@@ -4955,10 +4955,29 @@ xtrabackup_apply_delta(
 			const os_offset_t off = os_offset_t(offset_on_page)*page_size;
 
 			if (off == 0) {
-				/* Fix tablespace size. */
-				os_offset_t n_pages = fsp_get_size_low(static_cast<ib_page_t *>(buf));
-				if (!os_file_set_size(dst_path, dst_file, n_pages*page_size))
-					goto error;
+				/* Read tablespace size from page 0,
+				  extend the tablespace to specified size. */
+				os_offset_t n_pages = mach_read_from_4(buf + FSP_HEADER_OFFSET + FSP_SIZE);
+				ulint space_id = mach_read_from_4(buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+				if (space_id != TRX_SYS_SPACE) {
+					if (!os_file_set_size(dst_path, dst_file, n_pages*page_size))
+						goto error;
+				} else {
+					/* System tablespace needs special handling , since
+					it can consist of multiple files. The first one has full
+					tablespace size in page 0, but only last file should be extended. */
+					mutex_enter(&fil_system->mutex);
+					fil_space_t* space = fil_space_get_by_id(space_id);
+					mutex_exit(&fil_system->mutex);
+					DBUG_ASSERT(space);
+					fil_node_t* n = UT_LIST_GET_FIRST(space->chain);
+					if(strcmp(n->name, dst_path) == 0) {
+						/* Got first tablespace file, with correct size */
+						ulint actual_size;
+						if (!fil_extend_space_to_desired_size(&actual_size, 0, (ulint)n_pages))
+							goto error;
+					}
+				}
 			}
 
 			success = os_file_write(dst_path, dst_file, buf, off, page_size);

@@ -2817,7 +2817,7 @@ sub mysql_server_start($) {
       # Some InnoDB options are incompatible with the default bootstrap.
       # If they are used, re-bootstrap
       if ( $extra_opts and
-           "@$extra_opts" =~ /--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)/ )
+           "@$extra_opts" =~ /--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path/ )
       {
         mysql_install_db($mysqld, undef, $extra_opts);
       }
