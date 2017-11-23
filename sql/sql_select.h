@@ -608,7 +608,7 @@ typedef struct st_join_table {
 
   void remove_redundant_bnl_scan_conds();
 
-  void save_explain_data(Explain_table_access *eta, table_map prefix_tables, 
+  bool save_explain_data(Explain_table_access *eta, table_map prefix_tables,
                          bool distinct, struct st_join_table *first_top_tab);
 
   bool use_order() const; ///< Use ordering provided by chosen index?
@@ -1526,7 +1526,7 @@ public:
   int optimize();
   int optimize_inner();
   int optimize_stage2();
-  void build_explain();
+  bool build_explain();
   int reinit();
   int init_execution();
   void exec();
@@ -1667,7 +1667,7 @@ public:
   {
     return (unit->item && unit->item->is_in_predicate());
   }
-  void save_explain_data(Explain_query *output, bool can_overwrite,
+  bool save_explain_data(Explain_query *output, bool can_overwrite,
                          bool need_tmp_table, bool need_order, bool distinct);
   int save_explain_data_intern(Explain_query *output, bool need_tmp_table,
                                bool need_order, bool distinct,

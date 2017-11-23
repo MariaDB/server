@@ -2082,11 +2082,6 @@ typedef struct
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
-class THD;
-#ifndef DBUG_OFF
-void dbug_serve_apcs(THD *thd, int n_calls);
-#endif 
-
 /**
   @class THD
   For each client connection we create a separate thread with THD serving as
@@ -6362,6 +6357,10 @@ public:
   }
 };
 
+
+#ifndef DBUG_OFF
+void dbug_serve_apcs(THD *thd, int n_calls);
+#endif 
 
 class ScopedStatementReplication
 {

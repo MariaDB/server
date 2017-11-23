@@ -45,6 +45,7 @@ HASH global_index_stats;
 extern mysql_mutex_t LOCK_global_user_client_stats;
 extern mysql_mutex_t LOCK_global_table_stats;
 extern mysql_mutex_t LOCK_global_index_stats;
+extern vio_keepalive_opts opt_vio_keepalive;
 
 /*
   Get structure for logging connection data for the current user
@@ -1064,7 +1065,8 @@ static int check_connection(THD *thd)
     bzero((char*) &net->vio->remote, sizeof(net->vio->remote));
   }
   vio_keepalive(net->vio, TRUE);
-  
+  vio_set_keepalive_options(net->vio, &opt_vio_keepalive);
+
   if (thd->packet.alloc(thd->variables.net_buffer_length))
   {
     /*

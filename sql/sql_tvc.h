@@ -16,14 +16,14 @@
 #ifndef SQL_TVC_INCLUDED
 #define SQL_TVC_INCLUDED
 #include "sql_type.h"
-#include "item.h"
 
 typedef List<Item> List_item;
 class select_result;
-
 class Explain_select;
 class Explain_query;
 class Item_func_in;
+class st_select_lex_unit;
+typedef class st_select_lex SELECT_LEX;
 
 /**
   @class table_value_constr
@@ -57,7 +57,7 @@ public:
 
   int save_explain_data_intern(THD *thd_arg,
 			       Explain_query *output);
-  void optimize(THD *thd_arg);
+  bool optimize(THD *thd_arg);
   bool exec(SELECT_LEX *sl);
 
   void print(THD *thd_arg, String *str, enum_query_type query_type);

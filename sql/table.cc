@@ -219,30 +219,25 @@ static uchar *get_field_name(Field **buff, size_t *length,
   Returns pointer to '.frm' extension of the file name.
 
   SYNOPSIS
-    fn_rext()
+    fn_frm_ext()
     name       file name
 
   DESCRIPTION
     Checks file name part starting with the rightmost '.' character,
     and returns it if it is equal to '.frm'. 
 
-  TODO
-    It is a good idea to get rid of this function modifying the code
-    to garantee that the functions presently calling fn_rext() always
-    get arguments in the same format: either with '.frm' or without '.frm'.
-
   RETURN VALUES
-    Pointer to the '.frm' extension. If there is no extension,
-    or extension is not '.frm', pointer at the end of file name.
+    Pointer to the '.frm' extension or NULL if not a .frm file
 */
 
-char *fn_rext(char *name)
+const char *fn_frm_ext(const char *name)
 {
-  char *res= strrchr(name, '.');
+  const char *res= strrchr(name, '.');
   if (res && !strcmp(res, reg_ext))
     return res;
-  return name + strlen(name);
+  return 0;
 }
+
 
 TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
                                   const LEX_CSTRING *name)
@@ -6421,11 +6416,6 @@ void TABLE::mark_columns_needed_for_delete()
       need_signal= true;
     }
   }
-  if (check_constraints)
-  {
-    mark_check_constraint_columns_for_read();
-    need_signal= true;
-  }
 
   if (need_signal)
     file->column_bitmaps_signal();
@@ -8439,8 +8429,8 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
       if (!(item->used_tables() == tab_map))
 	continue;
       Item_func_eq *eq= 0;
-      Item *left_item_clone= left_item->build_clone(thd, thd->mem_root);
-      Item *right_item_clone= item->build_clone(thd, thd->mem_root);
+      Item *left_item_clone= left_item->build_clone(thd);
+      Item *right_item_clone= item->build_clone(thd);
       if (left_item_clone && right_item_clone)
       {
         left_item_clone->set_item_equal(NULL);
@@ -8470,7 +8460,7 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
     return new_cond;
   }
   else if (cond->get_extraction_flag() != NO_EXTRACTION_FL)
-    return cond->build_clone(thd, thd->mem_root);
+    return cond->build_clone(thd);
   return 0;
 }
 

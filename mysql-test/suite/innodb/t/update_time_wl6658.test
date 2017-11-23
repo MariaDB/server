@@ -1,0 +1,232 @@
+###################################################################
+#Testing functionality of the WL6658
+#case1: begin work with INSERT with Triggers
+#case2: (tab1u) begin transaction with UPDATE
+#case3: (tab1d) begin transaction with DELETE
+#case4: (tab1i) Rollback & INSERT
+#case5: (tab2) partitioned table and procedures
+#case6: (tab2) SAVEPOINT
+#case7: (tab7,tab8) pk-fk with ON DELETE CASCADE
+###################################################################
+--source include/no_valgrind_without_big.inc
+--source include/have_innodb.inc
+--source include/have_partition.inc
+--source include/not_embedded.inc
+
+CREATE TABLE tab1(c1 int,c2 varchar(30), c3 BLOB) ENGINE=InnoDB;
+CREATE TABLE tab1u LIKE tab1;
+CREATE TABLE tab1d LIKE tab1;
+CREATE TABLE tab1i LIKE tab1;
+CREATE TABLE tab3(c1 int,c2 varchar(30)) ENGINE=InnoDB;
+CREATE TABLE tab4(c1 int,c2 varchar(30)) ENGINE=InnoDB;
+CREATE TABLE tab5(c1 int,c2 varchar(30)) ENGINE=InnoDB;
+
+INSERT INTO tab1u VALUES(1,'Testing the wl6658','Testing the wl6658');
+INSERT INTO tab1d VALUES(1,'Updated','Updated');
+INSERT INTO tab4 VALUES(1,'Test for Update');
+INSERT INTO tab5 VALUES(1,'Test for Delete');
+
+delimiter |;
+
+CREATE TRIGGER test_trig BEFORE INSERT ON tab1
+FOR EACH ROW BEGIN
+    INSERT INTO tab3 VALUES(1,'Inserted From Trigger');
+    UPDATE tab4 SET c2='Updated from Trigger' WHERE c1=1;
+    DELETE FROM tab5;
+END |
+
+delimiter ;|
+
+CREATE TABLE tab2(
+    id INT NOT NULL,
+    store_name VARCHAR(30),
+    parts VARCHAR(30),
+    store_id INT
+) ENGINE=InnoDB
+PARTITION BY LIST(store_id) (
+    PARTITION pNorth VALUES IN (10,20,30),
+    PARTITION pEast VALUES IN (40,50,60),
+    PARTITION pWest VALUES IN (70,80,100)
+);
+
+SELECT update_time
+FROM information_schema.tables WHERE table_name='tab2';
+
+delimiter |;
+
+CREATE PROCEDURE proc_wl6658()
+BEGIN
+INSERT INTO tab2 VALUES(1,'ORACLE','NUTT',10);
+INSERT INTO tab2 VALUES(2,'HUAWEI','BOLT',40);
+COMMIT;
+END |
+
+delimiter ;|
+
+CALL proc_wl6658;
+
+SELECT * FROM tab2 ORDER BY id,store_id;
+
+SELECT COUNT(update_time)
+FROM information_schema.tables WHERE table_name='tab2';
+
+TRUNCATE TABLE tab2;
+
+SELECT COUNT(update_time)
+FROM information_schema.tables WHERE table_name='tab2';
+
+CREATE TABLE tab7(c1 INT NOT NULL, PRIMARY KEY (c1)) ENGINE=INNODB;
+
+CREATE TABLE tab8(c1 INT PRIMARY KEY,c2 INT,
+FOREIGN KEY (c2) REFERENCES tab7(c1)  ON DELETE CASCADE )
+ENGINE=INNODB;
+
+SELECT table_name,update_time
+FROM information_schema.tables WHERE table_name IN ('tab7','tab8')
+GROUP BY table_name ORDER BY table_name;
+
+INSERT INTO tab7 VALUES(1);
+
+INSERT INTO tab8 VALUES(1,1);
+
+SELECT table_name,COUNT(update_time)
+FROM information_schema.tables WHERE table_name IN ('tab7','tab8')
+GROUP BY table_name ORDER BY table_name;
+
+--echo #restart the server
+--source include/restart_mysqld.inc
+
+SELECT table_name,update_time
+FROM information_schema.tables
+WHERE table_name IN ('tab1','tab2','tab3','tab4','tab5','tab7','tab8')
+ORDER BY table_name;
+
+--echo #case1:
+
+BEGIN WORK;
+
+INSERT INTO tab1
+VALUES(1,'Testing the wl6658', 'Testing the wl6658');
+
+SELECT update_time
+FROM information_schema.tables WHERE table_name='tab1';
+
+COMMIT;
+
+SELECT * FROM tab1;
+SELECT * FROM tab3;
+SELECT * FROM tab4;
+SELECT * FROM tab5;
+
+SELECT table_name,COUNT(update_time)
+FROM information_schema.tables
+WHERE table_name IN ('tab1','tab3','tab4','tab5')
+GROUP BY table_name ORDER BY table_name;
+
+--echo Testcase with UPDATE stmt and transaction
+
+SELECT * FROM tab1u;
+
+SELECT update_time
+FROM information_schema.tables WHERE table_name='tab1u';
+
+--echo #case2:
+START TRANSACTION;
+
+UPDATE tab1u SET c2='Updated',c3='Updated' WHERE c1=1;
+
+SELECT update_time
+FROM information_schema.tables WHERE table_name='tab1u';
+
+COMMIT;
+
+SELECT * FROM tab1u;
+
+SELECT COUNT(update_time)
+FROM information_schema.tables WHERE table_name='tab1u';
+
+SELECT * FROM tab1d;
+
+SELECT update_time
+FROM information_schema.tables WHERE table_name='tab1d';
+
+--echo #case3:
+START TRANSACTION;
+
+DELETE FROM tab1d;
+
+SELECT update_time
+FROM information_schema.tables WHERE table_name='tab1d';
+
+COMMIT;
+
+SELECT * FROM tab1d;
+
+SELECT COUNT(update_time)
+FROM information_schema.tables WHERE table_name='tab1d';
+
+SELECT * FROM tab1i;
+
+SELECT update_time
+FROM information_schema.tables WHERE table_name='tab1i';
+
+--echo #case4:
+START TRANSACTION;
+
+INSERT INTO tab1i
+VALUES(1,'Testing the wl6658', 'Testing the wl6658');
+
+SELECT update_time
+FROM information_schema.tables WHERE table_name='tab1i';
+
+ROLLBACK;
+
+SELECT * FROM tab1i;
+
+SELECT update_time
+FROM information_schema.tables WHERE table_name='tab1i';
+
+BEGIN WORK;
+DELETE FROM tab1i;
+SAVEPOINT A;
+INSERT INTO tab2 VALUES(1,'Oracle','NUTT',10);
+INSERT INTO tab2 VALUES(2,'HUAWEI','BOLT',40);
+SAVEPOINT B;
+INSERT INTO tab2 VALUES(3,'IBM','NAIL',70);
+SAVEPOINT C;
+ROLLBACK to A;
+
+SELECT * FROM tab2;
+
+SELECT update_time
+FROM information_schema.tables WHERE table_name='tab2';
+
+--echo #execute DDL instead of commit
+create table tab6(c1 int);
+
+SELECT update_time
+FROM information_schema.tables WHERE table_name='tab2';
+
+START TRANSACTION;
+DELETE FROM tab7;
+ROLLBACK;
+
+SELECT * FROM tab7;
+SELECT * FROM tab8;
+
+SELECT table_name,update_time
+FROM information_schema.tables WHERE table_name IN ('tab7','tab8')
+GROUP BY table_name ORDER BY table_name;
+
+DELETE FROM tab7;
+SELECT * FROM tab7;
+SELECT * FROM tab8;
+
+SELECT table_name,COUNT(update_time)
+FROM information_schema.tables WHERE table_name IN ('tab7','tab8')
+GROUP BY table_name ORDER BY table_name;
+
+--echo #cleanup
+DROP TRIGGER test_trig;
+DROP TABLE tab1,tab1u,tab1d,tab1i,tab2,tab3,tab4,tab5,tab6,tab8,tab7;
+DROP PROCEDURE proc_wl6658;

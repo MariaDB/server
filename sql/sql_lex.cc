@@ -7208,7 +7208,7 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     if (no_top_clones)
       return cond;
     cond->clear_extraction_flag();
-    return cond->build_clone(thd, thd->mem_root);
+    return cond->build_clone(thd);
   }
   if (cond->type() == Item::COND_ITEM)
   {

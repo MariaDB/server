@@ -67,6 +67,8 @@ The following options may be given as the first argument:
  --binlog-do-db=name Tells the master it should log updates for the specified
  database, and exclude all others not explicitly
  mentioned.
+ --binlog-file-cache-size=# 
+ The size of file cache for the binary log
  --binlog-format=name 
  What form of binary logging the master will use: either
  ROW for row-based binary logging, STATEMENT for
@@ -1193,6 +1195,21 @@ The following options may be given as the first argument:
  --tc-heuristic-recover=name 
  Decision to use in heuristic recover process. One of: OFF,
  COMMIT, ROLLBACK
+ --tcp-keepalive-interval=# 
+ The interval, in seconds, between when successive
+ keep-alive packets are sent if no acknowledgement is
+ received.If set to 0, system dependent default is used.
+ (Automatically configured unless set explicitly)
+ --tcp-keepalive-probes=# 
+ The number of unacknowledged probes to send before
+ considering the connection dead and notifying the
+ application layer.If set to 0, system dependent default
+ is used. (Automatically configured unless set explicitly)
+ --tcp-keepalive-time=# 
+ Timeout, in milliseconds, with no activity until the
+ first TCP keep-alive packet is sent.If set to 0, system
+ dependent default is used. (Automatically configured
+ unless set explicitly)
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse.
  These are freed after 5 minutes of idle time
@@ -1310,6 +1327,7 @@ binlog-checksum CRC32
 binlog-commit-wait-count 0
 binlog-commit-wait-usec 100000
 binlog-direct-non-transactional-updates FALSE
+binlog-file-cache-size 16384
 binlog-format MIXED
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192
@@ -1611,6 +1629,9 @@ table-definition-cache 400
 table-open-cache 431
 table-open-cache-instances 8
 tc-heuristic-recover OFF
+tcp-keepalive-interval 0
+tcp-keepalive-probes 0
+tcp-keepalive-time 0
 thread-cache-size 151
 thread-pool-idle-timeout 60
 thread-pool-max-threads 65536

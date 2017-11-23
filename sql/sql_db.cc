@@ -1725,8 +1725,7 @@ bool mysql_upgrade_db(THD *thd, LEX_CSTRING *old_db)
       DBUG_PRINT("info",("Examining: %s", file->name));
 
       /* skiping non-FRM files */
-      if (my_strcasecmp(files_charset_info,
-                        (extension= fn_rext(file->name)), reg_ext))
+      if (!(extension= (char*) fn_frm_ext(file->name)))
         continue;
 
       /* A frm file found, add the table info rename list */

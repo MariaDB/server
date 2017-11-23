@@ -18,16 +18,12 @@ compiler:
 
 cache:
   apt: true
-  ccache: true
+  ccache: true # Does not currently work for clang builds: https://github.com/travis-ci/travis-ci/issues/6201
   directories:
-    - /usr/local/Cellar
+    - /usr/local/Cellar # Fails do to permission error: https://github.com/travis-ci/travis-ci/issues/8092
 
 env:
   matrix:
-#    - GCC_VERSION=4.8 TYPE=Debug          MYSQL_TEST_SUITES=rpl
-#    - GCC_VERSION=5   TYPE=Debug          MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
-#    - GCC_VERSION=6   TYPE=Debug          MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
-#    - GCC_VERSION=6   TYPE=Debug          MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
     - GCC_VERSION=4.8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
     - GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
     - GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
@@ -40,6 +36,8 @@ matrix:
   include:
     - os: linux
       compiler: gcc
+      env:
+        - DebPackages
       addons:
         apt:
           packages: # make sure these match debian/control contents
@@ -80,7 +78,6 @@ matrix:
             - fakeroot
       script:
         - ${CC} --version ; ${CXX} --version
-        - source .travis.compiler.sh
       # https://github.com/travis-ci/travis-ci/issues/7062 - /run/shm isn't writable or executable
       # in trusty containers
         - export MTR_MEM=/tmp
@@ -101,44 +98,13 @@ matrix:
       compiler: clang
       env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
 
-# Matrix include for coverity
-#    - env:
-#        - GCC_VERSION=6
-#      addon:
-#      coverity_scan:
-#        # ref: https://scan.coverity.com/travis_ci
-#        # GitHub project metadata
-#        project:
-#          - name: MariaDB/server
-#          - description: MariaDB Server
-#
-#        # Where email notification of build analysis results will be sent
-#        notification_email: security@mariadb.org
-#
-#        # Commands to prepare for build_command
-#        build_command_prepend:
-#          - source .travis.compiler.sh
-#          - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
-#          - cmake . 
-#                   -DCMAKE_BUILD_TYPE=Debug
-#                   -DWITH_SSL=system -DWITH_ZLIB=system
-#                   -DWITHOUT_TOKUDB_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
-#
-#        # The command that will be added as an argument to "cov-build" to compile your project for analysis,
-#        build_command: make -j 4
-#
-#        # Pattern to match selecting branches that will run analysis.
-#        # Take care in resource usage, and consider the build frequency allowances per
-#        #   https://scan.coverity.com/faq#frequency - 7 per week is the current limit.
-#        branch_pattern: .*coverity.*
-
 addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
       - llvm-toolchain-trusty-4.0
       - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-5.0 main'
-    packages: # make sure these match the build requirements
+    packages: # make sure these include all compilers and all build dependencies (see list above)
       - gcc-5
       - g++-5
       - gcc-6

@@ -682,7 +682,7 @@ int ha_partition::create(const char *name, TABLE *table_arg,
   handler **file, **abort_file;
   DBUG_ENTER("ha_partition::create");
 
-  DBUG_ASSERT(*fn_rext((char*)name) == '\0');
+  DBUG_ASSERT(!fn_frm_ext(name));
 
   /* Not allowed to create temporary partitioned tables */
   if (create_info && create_info->tmp_table())

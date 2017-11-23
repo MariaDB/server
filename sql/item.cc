@@ -78,6 +78,12 @@ inline void set_max_sum_func_level(THD *thd, SELECT_LEX *select)
                   select->nest_level - 1);
 }
 
+
+MEM_ROOT *get_thd_memroot(THD *thd)
+{
+  return thd->mem_root;
+}
+
 /*****************************************************************************
 ** Item functions
 *****************************************************************************/
@@ -1261,7 +1267,7 @@ Item *Item::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   if (!needs_charset_converter(tocs))
     return this;
   Item_func_conv_charset *conv= new (thd->mem_root) Item_func_conv_charset(thd, this, tocs, 1);
-  return conv->safe ? conv : NULL;
+  return conv && conv->safe ? conv : NULL;
 }
 
 
@@ -2700,15 +2706,15 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
      0 if an error occured
 */ 
 
-Item* Item_func_or_sum::build_clone(THD *thd, MEM_ROOT *mem_root)
+Item* Item_func_or_sum::build_clone(THD *thd)
 {
-  Item_func_or_sum *copy= (Item_func_or_sum *) get_copy(thd, mem_root);
+  Item_func_or_sum *copy= (Item_func_or_sum *) get_copy(thd);
   if (!copy)
     return 0;
   if (arg_count > 2)
   {
     copy->args= 
-      (Item**) alloc_root(mem_root, sizeof(Item*) * arg_count);
+      (Item**) alloc_root(thd->mem_root, sizeof(Item*) * arg_count);
     if (!copy->args)
       return 0;
   }
@@ -2718,7 +2724,7 @@ Item* Item_func_or_sum::build_clone(THD *thd, MEM_ROOT *mem_root)
    
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *arg_clone= args[i]->build_clone(thd, mem_root);
+    Item *arg_clone= args[i]->build_clone(thd);
     if (!arg_clone)
       return 0;
     copy->args[i]= arg_clone;
@@ -2743,19 +2749,13 @@ Item* Item_func_or_sum::build_clone(THD *thd, MEM_ROOT *mem_root)
      0 if an error occured
 */ 
 
-Item* Item_ref::build_clone(THD *thd, MEM_ROOT *mem_root)
+Item* Item_ref::build_clone(THD *thd)
 {
-  Item_ref *copy= (Item_ref *) get_copy(thd, mem_root);
-  if (!copy)
+  Item_ref *copy= (Item_ref *) get_copy(thd);
+  if (!copy ||
+      !(copy->ref= (Item**) alloc_root(thd->mem_root, sizeof(Item*))) ||
+      !(*copy->ref= (* ref)->build_clone(thd)))
     return 0;
-  copy->ref= 
-      (Item**) alloc_root(mem_root, sizeof(Item*));
-  if (!copy->ref)
-      return 0;
-  Item *item_clone= (* ref)->build_clone(thd, mem_root);
-  if (!item_clone)
-    return 0;
-  *copy->ref= item_clone;
   return copy;
 }
 
@@ -3237,6 +3237,11 @@ table_map Item_field::all_used_tables() const
   return (get_depended_from() ? OUTER_REF_TABLE_BIT : field->table->map);
 }
 
+
+/*
+  @Note  thd->fatal_error can be set in case of OOM
+*/
+
 void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
                                    bool merge)
 {
@@ -3296,6 +3301,8 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
     }
 
     Name_resolution_context *ctx= new Name_resolution_context();
+    if (!ctx)
+      return;                                   // Fatal error set
     if (context->select_lex == new_parent)
     {
       /*
@@ -7356,7 +7363,7 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
   st_select_lex *sel= (st_select_lex *)arg;
   Item *producing_item= find_producing_item(this, sel);
   if (producing_item)
-    return producing_item->build_clone(thd, thd->mem_root);
+    return producing_item->build_clone(thd);
   return this;
 }
 
@@ -7368,7 +7375,7 @@ Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
     st_select_lex *sel= (st_select_lex *)arg;
     Item *producing_item= find_producing_item(this, sel);
     DBUG_ASSERT (producing_item != NULL);
-    return producing_item->build_clone(thd, thd->mem_root);
+    return producing_item->build_clone(thd);
   }
   return this;
 }
@@ -7414,7 +7421,7 @@ Item *Item_field::derived_grouping_field_transformer_for_where(THD *thd,
   st_select_lex *sel= (st_select_lex *)arg;
   Grouping_tmp_field *gr_field= find_matching_grouping_field(this, sel);
   if (gr_field)
-    return gr_field->producing_item->build_clone(thd, thd->mem_root);
+    return gr_field->producing_item->build_clone(thd);
   return this;
 }
 
@@ -7427,7 +7434,7 @@ Item_direct_view_ref::derived_grouping_field_transformer_for_where(THD *thd,
     return this;
   st_select_lex *sel= (st_select_lex *)arg;
   Grouping_tmp_field *gr_field= find_matching_grouping_field(this, sel);
-  return gr_field->producing_item->build_clone(thd, thd->mem_root);
+  return gr_field->producing_item->build_clone(thd);
 }
 
 void Item_field::print(String *str, enum_query_type query_type)

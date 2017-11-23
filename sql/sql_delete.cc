@@ -61,6 +61,8 @@ Explain_delete* Delete_plan::save_explain_delete_data(MEM_ROOT *mem_root, THD *t
   Explain_query *query= thd->lex->explain;
   Explain_delete *explain= 
      new (mem_root) Explain_delete(mem_root, thd->lex->analyze_stmt);
+  if (!explain)
+    return 0;
 
   if (deleting_all_rows)
   {
@@ -71,8 +73,9 @@ Explain_delete* Delete_plan::save_explain_delete_data(MEM_ROOT *mem_root, THD *t
   else
   {
     explain->deleting_all_rows= false;
-    Update_plan::save_explain_data_intern(mem_root, explain, 
-                                          thd->lex->analyze_stmt);
+    if (Update_plan::save_explain_data_intern(mem_root, explain,
+                                              thd->lex->analyze_stmt))
+      return 0;
   }
  
   query->add_upd_del_plan(explain);
@@ -86,13 +89,16 @@ Update_plan::save_explain_update_data(MEM_ROOT *mem_root, THD *thd)
   Explain_query *query= thd->lex->explain;
   Explain_update* explain= 
     new (mem_root) Explain_update(mem_root, thd->lex->analyze_stmt);
-  save_explain_data_intern(mem_root, explain, thd->lex->analyze_stmt);
+  if (!explain)
+    return 0;
+  if (save_explain_data_intern(mem_root, explain, thd->lex->analyze_stmt))
+    return 0;
   query->add_upd_del_plan(explain);
   return explain;
 }
 
 
-void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
+bool Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
                                            Explain_update *explain,
                                            bool is_analyze)
 {
@@ -105,13 +111,13 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
   if (impossible_where)
   {
     explain->impossible_where= true;
-    return;
+    return 0;
   }
 
   if (no_partitions)
   {
     explain->no_partitions= true;
-    return;
+    return 0;
   }
   
   if (is_analyze)
@@ -162,7 +168,8 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
   explain->where_cond= select? select->cond: NULL;
 
   if (using_filesort)
-    explain->filesort_tracker= new (mem_root) Filesort_tracker(is_analyze);
+    if (!(explain->filesort_tracker= new (mem_root) Filesort_tracker(is_analyze)))
+      return 1;
   explain->using_io_buffer= using_io_buffer;
 
   append_possible_keys(mem_root, explain->possible_keys, table, 
@@ -211,6 +218,7 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
     if (!(unit->item && unit->item->eliminated))
       explain->add_child(unit->first_select()->select_number);
   }
+  return 0;
 }
 
 
@@ -428,7 +436,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       query_type= THD::STMT_QUERY_TYPE;
       error= -1;
       deleted= maybe_deleted;
-      query_plan.save_explain_delete_data(thd->mem_root, thd);
+      if (!query_plan.save_explain_delete_data(thd->mem_root, thd))
+        error= 1;
       goto cleanup;
     }
     if (error != HA_ERR_WRONG_COMMAND)
@@ -546,7 +555,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (thd->lex->describe)
     goto produce_explain_and_leave;
   
-  explain= query_plan.save_explain_delete_data(thd->mem_root, thd);
+  if (!(explain= query_plan.save_explain_delete_data(thd->mem_root, thd)))
+    goto got_error;
   ANALYZE_START_TRACKING(&explain->command_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
@@ -598,7 +608,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (error)
     goto got_error;
   
-  init_ftfuncs(thd, select_lex, 1);
+  if (init_ftfuncs(thd, select_lex, 1))
+    goto got_error;
 
   if (table->prepare_triggers_for_delete_stmt_or_event())
   {
@@ -812,7 +823,8 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  query_plan.save_explain_delete_data(thd->mem_root, thd);
+  if (!(query_plan.save_explain_delete_data(thd->mem_root, thd)))
+    goto got_error;
 
 send_nothing_and_leave:
   /* 
@@ -1112,7 +1124,7 @@ multi_delete::initialize_tables(JOIN *join)
                                                   MEM_STRIP_BUF_SIZE);
   }
   init_ftfuncs(thd, thd->lex->current_select, 1);
-  DBUG_RETURN(thd->is_fatal_error != 0);
+  DBUG_RETURN(thd->is_fatal_error);
 }
 
 

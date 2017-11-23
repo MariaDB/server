@@ -258,4 +258,6 @@ public:
   }
 };
 
+typedef Bounds_checked_array<Item*> Ref_ptr_array;
+
 #endif /* SQL_ARRAY_INCLUDED */

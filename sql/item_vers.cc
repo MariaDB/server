@@ -19,6 +19,9 @@
     System Versioning items
 */
 
+#include "mariadb.h"
+#include "sql_priv.h"
+
 #include "sql_class.h"
 #include "tztime.h"
 #include "item.h"

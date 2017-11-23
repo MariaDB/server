@@ -36,8 +36,8 @@ public:
     return "vtq_commit_ts";
   }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_vtq_ts>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_vtq_ts>(thd, this); }
   void fix_length_and_dec() { fix_attributes_datetime(decimals); }
 };
 
@@ -76,8 +76,8 @@ public:
   }
 
   longlong val_int();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_vtq_id>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_vtq_id>(thd, this); }
 };
 
 class Item_func_vtq_trx_sees : public Item_bool_func
@@ -92,8 +92,8 @@ public:
     return "vtq_trx_sees";
   }
   longlong val_int();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_vtq_trx_sees>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_vtq_trx_sees>(thd, this); }
 };
 
 class Item_func_vtq_trx_sees_eq :

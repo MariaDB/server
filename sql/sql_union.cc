@@ -1282,7 +1282,11 @@ bool st_select_lex_unit::optimize()
 	sl->tvc->select_options=
           (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
           sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
-	sl->tvc->optimize(thd);
+	if (sl->tvc->optimize(thd))
+        {
+          thd->lex->current_select= lex_select_save;
+          DBUG_RETURN(TRUE);
+        }
 	continue;
       }
       thd->lex->current_select= sl;
@@ -1397,7 +1401,7 @@ bool st_select_lex_unit::exec()
 	  sl->tvc->select_options=
              (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
              sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
-	  sl->tvc->optimize(thd);
+	  saved_error= sl->tvc->optimize(thd);
 	}
 	else
 	{

@@ -473,8 +473,8 @@ static bool create_option_need_rebuild(
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			table)
 {
-	DBUG_ASSERT((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
-		    == Alter_inplace_info::CHANGE_CREATE_OPTION);
+	DBUG_ASSERT(ha_alter_info->handler_flags
+		    & Alter_inplace_info::CHANGE_CREATE_OPTION);
 
 	if (ha_alter_info->create_info->used_fields
 	    & (HA_CREATE_USED_ROW_FORMAT
@@ -4891,11 +4891,18 @@ new_clustered_failed:
 			goto err_exit;
 		}
 
-		const char*	new_table_name
-			= dict_mem_create_temporary_tablename(
-				ctx->heap,
-				ctx->new_table->name.m_name,
-				ctx->new_table->id);
+		size_t	dblen = ctx->old_table->name.dblen() + 1;
+		size_t	tablen = altered_table->s->table_name.length;
+		const char* part = ctx->old_table->name.part();
+		size_t	partlen = part ? strlen(part) : 0;
+		char*	new_table_name = static_cast<char*>(
+			mem_heap_alloc(ctx->heap,
+				       dblen + tablen + partlen + 1));
+		memcpy(new_table_name, ctx->old_table->name.m_name, dblen);
+		memcpy(new_table_name + dblen,
+		       altered_table->s->table_name.str, tablen);
+		memcpy(new_table_name + dblen + tablen,
+		       part ? part : "", partlen + 1);
 		ulint		n_cols = 0;
 		ulint		n_v_cols = 0;
 		dtuple_t*	add_cols;

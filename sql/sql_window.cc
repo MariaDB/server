@@ -3093,10 +3093,14 @@ Window_funcs_computation::save_explain_plan(MEM_ROOT *mem_root,
   Explain_aggr_window_funcs *xpl= new Explain_aggr_window_funcs;
   List_iterator<Window_funcs_sort> it(win_func_sorts);
   Window_funcs_sort *srt;
+  if (!xpl)
+    return 0;
   while ((srt = it++))
   {
     Explain_aggr_filesort *eaf=
       new Explain_aggr_filesort(mem_root, is_analyze, srt->filesort);
+    if (!eaf)
+      return 0;
     xpl->sorts.push_back(eaf, mem_root);
   }
   return xpl;

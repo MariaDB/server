@@ -2,6 +2,10 @@
 #define VTMD_INCLUDED
 
 #include <mysqld_error.h>
+
+#include "mariadb.h"
+#include "sql_priv.h"
+
 #include "my_sys.h"
 #include "table.h"
 #include "unireg.h"

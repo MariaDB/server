@@ -73,7 +73,6 @@ struct Schema_specification_st;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 
-
 /*
   Flags for collation aggregation modes, used in TDCollation::agg():
 
