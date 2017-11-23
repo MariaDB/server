@@ -4255,10 +4255,10 @@ public:
     query_id= new_query_id;
 #ifdef WITH_WSREP
     if (WSREP(this) && wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
-  {
-    set_wsrep_next_trx_id(query_id);
-    WSREP_DEBUG("assigned new next trx id: %lu", wsrep_next_trx_id());
-  }
+    {
+      set_wsrep_next_trx_id(query_id);
+      WSREP_DEBUG("assigned new next trx id: %lu", wsrep_next_trx_id());
+    }
 #endif /* WITH_WSREP */
   }
   void set_open_tables(TABLE *open_tables_arg)
