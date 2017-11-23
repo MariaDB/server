@@ -51,6 +51,7 @@ extern ut_crc32_func_t	ut_crc32;
 when converting byte strings to integers internally. */
 extern uint32_t ut_crc32_legacy_big_endian(const byte* buf, ulint len);
 
+/** Text description of CRC32 implementation */
 extern const char*	ut_crc32_implementation;
 
 #endif /* ut0crc32_h */

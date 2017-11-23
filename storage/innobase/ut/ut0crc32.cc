@@ -86,12 +86,6 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "univ.i"
 #include "ut0crc32.h"
 
-/** Pointer to CRC32 calculation function. */
-ut_crc32_func_t	ut_crc32;
-
-/** Text description of CRC32 implementation */
-const char*	ut_crc32_implementation;
-
 /** Swap the byte order of an 8 byte integer.
 @param[in]	i	8-byte integer
 @return 8-byte integer */
@@ -125,6 +119,13 @@ ut_crc32_power8(
 {
 	return crc32c_vpmsum(0, buf, len);
 }
+
+ut_crc32_func_t	ut_crc32 = ut_crc32_power8;
+const char*	ut_crc32_implementation = "Using POWER8 crc32 instructions";
+#else
+uint32_t ut_crc32_sw(const byte* buf, ulint len);
+ut_crc32_func_t	ut_crc32 = ut_crc32_sw;
+const char*	ut_crc32_implementation = "Using generic crc32 instructions";
 #endif
 
 #if defined(__GNUC__) && defined(__x86_64__)
@@ -568,8 +569,6 @@ ut_crc32_init()
 /*===========*/
 {
 	ut_crc32_slice8_table_init();
-	ut_crc32 = ut_crc32_sw;
-	ut_crc32_implementation = "Using generic crc32 instructions";
 
 #if defined(__GNUC__) && defined(__x86_64__)
 	uint32_t	vend[3];
@@ -603,10 +602,5 @@ ut_crc32_init()
 		ut_crc32 = ut_crc32_hw;
 		ut_crc32_implementation = "Using SSE2 crc32 instructions";
 	}
-
-#elif defined(HAVE_CRC32_VPMSUM)
-	ut_crc32 = ut_crc32_power8;
-	ut_crc32_implementation = "Using POWER8 crc32 instructions";
 #endif
-
 }
