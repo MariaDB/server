@@ -2137,28 +2137,6 @@ check_if_skip_table(
 	return(FALSE);
 }
 
-/** @return the tablespace flags from a given data file
-@retval	ULINT_UNDEFINED	if the file is not readable */
-ulint xb_get_space_flags(pfs_os_file_t file)
-{
-	byte	*buf;
-	byte	*page;
-	ulint	flags;
-
-	buf = static_cast<byte *>(malloc(2 * UNIV_PAGE_SIZE));
-	page = static_cast<byte *>(ut_align(buf, UNIV_PAGE_SIZE));
-
-	if (os_file_read(IORequestRead, file, page, 0, UNIV_PAGE_SIZE)) {
-		flags = fsp_header_get_flags(page);
-	} else {
-		flags = ULINT_UNDEFINED;
-	}
-
-	free(buf);
-
-	return(flags);
-}
-
 const char*
 xb_get_copy_action(const char *dflt)
 {
