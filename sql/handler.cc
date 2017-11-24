@@ -6927,6 +6927,29 @@ static bool add_field_to_drop_list(THD *thd, Alter_info *alter_info,
   return !ad || alter_info->drop_list.push_back(ad, thd->mem_root);
 }
 
+static bool is_dropping_primary_key(Alter_info *alter_info)
+{
+  List_iterator_fast<Alter_drop> it(alter_info->drop_list);
+  while (Alter_drop *ad= it++)
+  {
+    if (ad->type == Alter_drop::KEY &&
+        !my_strcasecmp(system_charset_info, ad->name, primary_key_name))
+      return true;
+  }
+  return false;
+}
+
+static bool is_adding_primary_key(Alter_info *alter_info)
+{
+  List_iterator_fast<Key> it(alter_info->key_list);
+  while (Key *key= it++)
+  {
+    if (key->type == Key::PRIMARY)
+      return true;
+  }
+  return false;
+}
+
 bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
                                           HA_CREATE_INFO *create_info,
                                           TABLE *table)
@@ -6963,6 +6986,42 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
     if (add_field_to_drop_list(thd, alter_info, share->vers_start_field()) ||
         add_field_to_drop_list(thd, alter_info, share->vers_end_field()))
       return true;
+
+    if (share->primary_key != MAX_KEY && !is_adding_primary_key(alter_info) &&
+        !is_dropping_primary_key(alter_info))
+    {
+      alter_info->flags|= Alter_info::ALTER_DROP_INDEX;
+      Alter_drop *ad= new (thd->mem_root)
+          Alter_drop(Alter_drop::KEY, primary_key_name, false);
+      if (!ad || alter_info->drop_list.push_back(ad, thd->mem_root))
+        return true;
+
+      alter_info->flags|= Alter_info::ALTER_ADD_INDEX;
+      LEX_CSTRING key_name= {NULL, 0};
+      DDL_options_st options;
+      options.init();
+      Key *pk= new (thd->mem_root)
+          Key(Key::PRIMARY, &key_name, HA_KEY_ALG_UNDEF, false, options);
+      if (!pk)
+        return true;
+
+      st_key &key= table->key_info[share->primary_key];
+      for (st_key_part_info *it= key.key_part,
+                            *end= it + key.user_defined_key_parts;
+           it != end; ++it)
+      {
+        if (it->field->vers_sys_field())
+          continue;
+
+        Key_part_spec *key_part_spec= new (thd->mem_root)
+            Key_part_spec(&it->field->field_name, it->length);
+        if (!key_part_spec ||
+            pk->columns.push_back(key_part_spec, thd->mem_root))
+          return true;
+      }
+
+      alter_info->key_list.push_back(pk);
+    }
 
     return false;
   }

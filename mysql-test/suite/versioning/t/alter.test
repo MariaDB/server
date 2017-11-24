@@ -320,6 +320,23 @@ alter table non_empty
   change column sys_trx_end sys_trx_end bigint(20) unsigned generated always as row end;
 drop table non_empty;
 
+create or replace table t (a int primary key) with system versioning;
+insert into t values (1);
+update t set a=2;
+alter table t drop primary key, add primary key (a), drop system versioning;
+select * from t;
+--replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM
+show create table t;
+
+create or replace table t (a int primary key) with system versioning;
+insert into t values (1);
+update t set a=2;
+alter table t drop system versioning;
+select * from t;
+--replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM
+show create table t;
+
+
 call verify_vtq;
 }
 
