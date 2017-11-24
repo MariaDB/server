@@ -271,8 +271,6 @@ A8 int without system versioning
 ) with system versioning;
 ERROR HY000: Wrong parameters for `t1`: no columns defined 'WITH SYSTEM VERSIONING'
 create or replace table t1 (a int) with system versioning;
-create temporary table tmp with system versioning select * from t1;
-create or replace table t1 (a int) with system versioning;
 create table tt1 like t1;
 show create table tt1;
 Table	Create Table
@@ -368,5 +366,7 @@ ERROR 42S21: Duplicate column name 'sys_trx_start'
 create or replace table t (sys_trx_end int);
 alter table t with system versioning;
 ERROR 42S21: Duplicate column name 'sys_trx_end'
+create or replace temporary table t (x int) with system versioning;
+ERROR HY000: Incorrect usage of TEMPORARY and WITH SYSTEM VERSIONING
 drop database test;
 create database test;

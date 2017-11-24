@@ -6045,8 +6045,20 @@ opt_versioning_option:
 versioning_option:
         WITH_SYSTEM_SYM VERSIONING_SYM
           {
-            Lex->vers_get_info().with_system_versioning= true;
-            Lex->create_info.options|= HA_VERSIONED_TABLE;
+            if (Lex->create_info.options & HA_LEX_CREATE_TMP_TABLE)
+            {
+              if (!thd->variables.vers_force)
+              {
+                my_error(ER_WRONG_USAGE, MYF(0),
+                         "TEMPORARY", "WITH SYSTEM VERSIONING");
+                MYSQL_YYABORT;
+              }
+            }
+            else
+            {
+              Lex->vers_get_info().with_system_versioning= true;
+              Lex->create_info.options|= HA_VERSIONED_TABLE;
+            }
           }
         ;
 

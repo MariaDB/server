@@ -192,11 +192,6 @@ create or replace table t1 (
   A8 int without system versioning
 ) with system versioning;
 
-# table with/without system versioning
-
-create or replace table t1 (a int) with system versioning;
-create temporary table tmp with system versioning select * from t1;
-
 # CREATE TABLE ... LIKE
 create or replace table t1 (a int) with system versioning;
 create table tt1 like t1;
@@ -285,6 +280,9 @@ alter table t with system versioning;
 create or replace table t (sys_trx_end int);
 --error ER_DUP_FIELDNAME
 alter table t with system versioning;
+
+--error ER_WRONG_USAGE
+create or replace temporary table t (x int) with system versioning;
 
 drop database test;
 create database test;
