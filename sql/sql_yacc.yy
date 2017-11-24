@@ -6366,17 +6366,14 @@ field_def:
             const LEX_CSTRING &field_name= lex->last_field->field_name;
 
             LString_i *p;
-            const char* clause;
             switch ($4)
             {
             case 1:
               p= &info.as_row.start;
-              clause= "AS ROW START";
               lex->last_field->flags|= VERS_SYS_START_FLAG;
               break;
             case 0:
               p= &info.as_row.end;
-              clause= "AS ROW END";
               lex->last_field->flags|= VERS_SYS_END_FLAG;
               break;
             default:
