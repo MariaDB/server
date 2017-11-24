@@ -4,6 +4,7 @@
 [mysqld]
 wsrep-on=1
 binlog-format=row
+plugin-maturity=unknown
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
 wsrep-provider=@ENV.WSREP_PROVIDER

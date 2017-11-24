@@ -1155,6 +1155,7 @@ static bool plugin_add(MEM_ROOT *tmp_root,
       report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, ENOEXEC, buf);
       goto err;
     }
+
     if (plugin_maturity_map[plugin->maturity] < plugin_maturity)
     {
       char buf[256];
@@ -1167,6 +1168,14 @@ static bool plugin_add(MEM_ROOT *tmp_root,
       report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, EPERM, buf);
       goto err;
     }
+    else if (plugin_maturity_map[plugin->maturity] < SERVER_MATURITY_LEVEL)
+    {
+      sql_print_warning("Plugin '%s' is of maturity level %s while the server is %s",
+        tmp.name.str,
+        plugin_maturity_names[plugin->maturity],
+        plugin_maturity_names[SERVER_MATURITY_LEVEL]);
+    }
+
     tmp.plugin= plugin;
     tmp.ref_count= 0;
     tmp.state= PLUGIN_IS_UNINITIALIZED;

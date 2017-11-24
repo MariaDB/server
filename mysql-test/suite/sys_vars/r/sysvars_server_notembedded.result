@@ -15,6 +15,7 @@ variable_name not in (
 'lower_case_file_system',
 'lower_case_table_names',
 'open_files_limit',
+'plugin_maturity',
 'rand_seed1',
 'rand_seed2',
 'system_time_zone',
@@ -3396,20 +3397,6 @@ NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	PLUGIN_MATURITY
-SESSION_VALUE	NULL
-GLOBAL_VALUE	unknown
-GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	unknown
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	The lowest desirable plugin maturity. Plugins less mature than that will not be installed or loaded
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	unknown,experimental,alpha,beta,gamma,stable
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PORT
