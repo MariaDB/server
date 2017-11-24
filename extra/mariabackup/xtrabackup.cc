@@ -4417,7 +4417,7 @@ xtrabackup_apply_delta(
 						space->chain);
 					bool fail = !strcmp(n->name, dst_path)
 						&& !fil_space_extend(
-							space, n_pages);
+							space, (ulint)n_pages);
 					fil_space_release(space);
 					if (fail) goto error;
 				}
