@@ -1,0 +1,1 @@
+--sequence --innodb-data-file-path=ibdata_first:3M;ibdata_second:1M:autoextend

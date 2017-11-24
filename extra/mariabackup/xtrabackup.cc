@@ -4398,10 +4398,29 @@ xtrabackup_apply_delta(
 			if (off == 0) {
 				/* Read tablespace size from page 0,
 				and extend the file to specified size.*/
-				os_offset_t n_pages = mach_read_from_4(buf + FSP_HEADER_OFFSET + FSP_SIZE);
-				success = os_file_set_size(dst_path, dst_file, n_pages*page_size);
-				if (!success)
-					goto error;
+				os_offset_t n_pages = mach_read_from_4(
+					buf + FSP_HEADER_OFFSET + FSP_SIZE);
+				if (mach_read_from_4(buf
+						     + FIL_PAGE_SPACE_ID)) {
+					if (!os_file_set_size(
+						    dst_path, dst_file,
+						    n_pages * page_size))
+						goto error;
+				} else if (fil_space_t* space
+					   = fil_space_acquire(0)) {
+					/* The system tablespace can
+					consist of multiple files. The
+					first one has full tablespace
+					size in page 0, but only the last
+					file should be extended. */
+					fil_node_t* n = UT_LIST_GET_FIRST(
+						space->chain);
+					bool fail = !strcmp(n->name, dst_path)
+						&& !fil_space_extend(
+							space, n_pages);
+					fil_space_release(space);
+					if (fail) goto error;
+				}
 			}
 
 			success = os_file_write(IORequestWrite,

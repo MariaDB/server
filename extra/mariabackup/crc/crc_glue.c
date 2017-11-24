@@ -24,7 +24,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <string.h>
 #include <zlib.h>
 
-#if __GNUC__ >= 4 && defined(__x86_64__)
+#if defined(__GNUC__) && defined(__x86_64__)
 static int pclmul_enabled = 0;
 #endif
 
