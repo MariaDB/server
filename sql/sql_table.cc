@@ -7442,10 +7442,16 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   {
     TR_table trt(thd, true);
-    if (thd->vers_update_trt && trt != *table_list)
+    if (trt == *table_list || !use_transaction_registry);
+    else if (ulonglong (*prepare)(THD*,ulonglong*)= table->file->ht->
+             prepare_commit_versioned)
     {
-      if (use_transaction_registry && trt.update())
-        return true;
+      ulonglong trx_start_id, trx_end_id= prepare(thd, &trx_start_id);
+      if (trx_end_id && trt.update(trx_start_id, trx_end_id))
+      {
+        my_error(ER_UNKNOWN_ERROR, MYF(0));
+        goto rollback;
+      }
     }
 
     if (table->file->ha_commit_inplace_alter_table(altered_table,

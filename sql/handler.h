@@ -980,7 +980,6 @@ struct handler_iterator {
 class handler;
 class group_by_handler;
 struct Query;
-class TR_table;
 typedef class st_select_lex SELECT_LEX;
 typedef struct st_order ORDER;
 
@@ -1390,10 +1389,12 @@ struct handlerton
    /*
      System Versioning
    */
-   /** Fill TRT record for update.
-    @param[out]   trt       TRT table which record[0] will be filled with
-                            transaction data. */
-   void (*vers_get_trt_data)(TR_table &trt);
+   /** Determine if system-versioned data was modified by the transaction.
+   @param[in,out] thd          current session
+   @param[out]    trx_id       transaction start ID
+   @return transaction commit ID
+   @retval 0 if no system-versioned data was affected by the transaction */
+   ulonglong (*prepare_commit_versioned)(THD *thd, ulonglong *trx_id);
 };
 
 

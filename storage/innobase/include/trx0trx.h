@@ -779,13 +779,70 @@ struct trx_lock_t {
 	bool		start_stmt;
 };
 
+/** Logical first modification time of a table in a transaction */
+class trx_mod_table_time_t
+{
+	/** First modification of the table */
+	undo_no_t	first;
+	/** First modification of a system versioned column */
+	undo_no_t	first_versioned;
+
+	/** Magic value signifying that a system versioned column of a
+	table was never modified in a transaction. */
+	static const undo_no_t UNVERSIONED = IB_ID_MAX;
+
+public:
+	/** Constructor
+	@param[in]	rows	number of modified rows so far */
+	trx_mod_table_time_t(undo_no_t rows)
+		: first(rows), first_versioned(UNVERSIONED) {}
+
+#ifdef UNIV_DEBUG
+	/** Validation
+	@param[in]	rows	number of modified rows so far
+	@return	whether the object is valid */
+	bool valid(undo_no_t rows = UNVERSIONED) const
+	{
+		return first <= first_versioned && first <= rows;
+	}
+#endif /* UNIV_DEBUG */
+	/** @return if versioned columns were modified */
+	bool is_versioned() const { return first_versioned != UNVERSIONED; }
+
+	/** After writing an undo log record, set is_versioned() if needed
+	@param[in]	rows	number of modified rows so far */
+	void set_versioned(undo_no_t rows)
+	{
+		ut_ad(!is_versioned());
+		first_versioned = rows;
+		ut_ad(valid());
+	}
+
+	/** Invoked after partial rollback
+	@param[in]	limit	number of surviving modified rows
+	@return	whether this should be erased from trx_t::mod_tables */
+	bool rollback(undo_no_t limit)
+	{
+		ut_ad(valid());
+		if (first >= limit) {
+			return true;
+		}
+
+		if (first_versioned < limit && is_versioned()) {
+			first_versioned = UNVERSIONED;
+		}
+
+		return false;
+	}
+};
+
 /** Collection of persistent tables and their first modification
 in a transaction.
 We store pointers to the table objects in memory because
 we know that a table object will not be destroyed while a transaction
 that modified it is running. */
 typedef std::map<
-	dict_table_t*, undo_no_t,
+	dict_table_t*, trx_mod_table_time_t,
 	std::less<dict_table_t*>,
 	ut_allocator<dict_table_t*> >	trx_mod_tables_t;
 
@@ -1269,9 +1326,6 @@ struct trx_t {
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
 #endif /* WITH_WSREP */
 
-	/* System Versioning */
-	bool		vers_update_trt;
-					/*!< Notify TRT on System Versioned write */
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */

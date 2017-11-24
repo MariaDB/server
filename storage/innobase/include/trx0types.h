@@ -143,7 +143,6 @@ typedef ib_id_t	undo_no_t;
 /** Transaction savepoint */
 struct trx_savept_t{
 	undo_no_t	least_undo_no;	/*!< least undo number to undo */
-	bool		vers_update_trt; /*!< Notify TRT for System Versioned write */
 };
 
 /** File objects */

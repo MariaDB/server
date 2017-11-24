@@ -1414,15 +1414,31 @@ int ha_commit_trans(THD *thd, bool all)
     goto err;
   }
 
-  if (rw_trans || thd->lex->sql_command == SQLCOM_ALTER_TABLE)
+  if (rw_trans && use_transaction_registry)
   {
-    if (use_transaction_registry && thd->vers_update_trt)
+    ulonglong trx_start_id= 0, trx_end_id= 0;
+    for (Ha_trx_info *ha_info= trans->ha_list; ha_info;
+         ha_info= ha_info->next())
     {
+      if (ulonglong (*prepare)(THD*,ulonglong*)= ha_info->ht()->
+          prepare_commit_versioned)
+      {
+        trx_end_id= prepare(thd, &trx_start_id);
+        if (trx_end_id)
+          break; // FIXME: use a common ID for cross-engine transactions
+      }
+    }
+
+    if (trx_end_id)
+    {
+      DBUG_ASSERT(trx_start_id);
       TR_table trt(thd, true);
-      if (trt.update())
+      if (trt.update(trx_start_id, trx_end_id))
         goto err;
-      if (all)
+#if 1 // FIXME: fix this properly, and remove TR_table::was_updated()
+      if (all) // avoid a crash in versioning.rpl_stmt
         commit_one_phase_2(thd, false, &thd->transaction.stmt, false);
+#endif
     }
   }
 

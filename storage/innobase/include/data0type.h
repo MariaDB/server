@@ -561,7 +561,9 @@ struct dtype_t{
 					mbminlen=DATA_MBMINLEN(mbminmaxlen);
 					mbmaxlen=DATA_MBMINLEN(mbminmaxlen) */
 
-	/** @return whether this is system versioned */
+	/** @return whether this is any system versioned field */
+	bool is_any_versioned() const { return prtype & DATA_VERSIONED; }
+	/** @return whether this is system versioned user field */
 	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
 	/** @return whether this is the system version start */
 	bool is_version_start() const

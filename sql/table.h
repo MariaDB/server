@@ -2983,26 +2983,15 @@ public:
    */
   void store(uint field_id, timeval ts);
   /**
-     Stores value to internal transaction_registry TABLE object.
+    Update the transaction_registry right before commit.
+    @param start_id    transaction identifier at start
+    @param end_id      transaction identifier at commit
 
-     @param[in] current (InnoDB) transaction id
-     @param[in] InnoDB transaction counter at the time of transaction commit
-     @param[in] transaction commit timestamp
-   */
-  void store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts);
-  /**
-     Writes a row from internal TABLE object to transaction_registry table.
-
-     @retval true on error, false otherwise.
-   */
-  bool update();
-  /**
-     Checks whether a row with specified transaction_id exists in a
-     transaction_registry table.
-
-     @param[in] transacton_id value
-     @retval true if exists, false it not exists or an error occured
-   */
+    @retval false      on success
+    @retval true       on error (the transaction must be rolled back)
+  */
+  bool update(ulonglong start_id, ulonglong end_id);
+  // return true if found; false if not found or error
   bool query(ulonglong trx_id);
   /**
      Gets a row from transaction_registry with the closest commit_timestamp to

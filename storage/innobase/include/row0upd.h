@@ -484,6 +484,18 @@ struct upd_t{
 		return(false);
 	}
 
+	/** Determine if the update affects a system versioned column.
+	@param[in]	index	the clustered index that is being updated */
+	bool affects_versioned() const
+	{
+		for (ulint i = 0; i < n_fields; i++) {
+			if (fields[i].new_val.type.is_any_versioned()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 #ifdef UNIV_DEBUG
         bool validate() const
         {

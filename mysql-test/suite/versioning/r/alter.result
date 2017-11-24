@@ -344,7 +344,6 @@ add period for system_time(trx_start, trx_end),
 add system versioning;
 call verify_vtq;
 No	A	B	C	D
-1	1	1	1	1
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -362,7 +361,6 @@ No	A	B	C	D
 alter table t add system versioning, algorithm=copy;
 call verify_vtq;
 No	A	B	C	D
-1	1	1	1	1
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -415,7 +413,6 @@ No	A	B	C	D
 alter table t add system versioning, algorithm=inplace;
 call verify_vtq;
 No	A	B	C	D
-1	1	1	1	1
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (

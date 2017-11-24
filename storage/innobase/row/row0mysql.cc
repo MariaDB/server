@@ -1586,10 +1586,6 @@ error_exit:
 
 	node->duplicate = NULL;
 
-	if (node->table->versioned() && ins_mode != ROW_INS_NORMAL) {
-		trx->vers_update_trt = true;
-	}
-
 	if (dict_table_has_fts_index(table)) {
 		doc_id_t	doc_id;
 
@@ -2225,15 +2221,6 @@ run_again:
 	} else {
 		/* Always update the table modification counter. */
 		prebuilt->table->stat_modified_counter++;
-	}
-
-	if (node->table->versioned()
-	    && (node->versioned
-		|| node->vers_delete
-		// TODO: improve this check (check if we touch only
-		// unversioned fields in foreigh table)
-		|| node->foreign)) {
-		trx->vers_update_trt = true;
 	}
 
 	trx->op_info = "";

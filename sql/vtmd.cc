@@ -255,11 +255,13 @@ err:
   }
 
 quit:
-  if (!result && use_transaction_registry)
+  if (result || !use_transaction_registry);
+  else if (ulonglong (*prepare)(THD*,ulonglong*)= vtmd.table->file->ht->
+           prepare_commit_versioned)
   {
-    DBUG_ASSERT(thd->vers_update_trt);
     TR_table trt(thd, true);
-    result= trt.update();
+    ulonglong trx_start_id, trx_end_id= prepare(thd, &trx_start_id);
+    result= trx_end_id && trt.update(trx_start_id, trx_end_id);
   }
 
   close_log_table(thd, &open_tables_backup);

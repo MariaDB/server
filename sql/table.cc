@@ -8525,23 +8525,6 @@ void TR_table::store(uint field_id, timeval ts)
   table->field[field_id]->set_notnull();
 }
 
-void TR_table::store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts)
-{
-  timeval start_time= {static_cast<int>(thd->start_time),
-                       static_cast<int>(thd->start_time_sec_part)};
-  store(FLD_TRX_ID, trx_id);
-  store(FLD_COMMIT_ID, commit_id);
-  store(FLD_BEGIN_TS, start_time);
-  if (thd->start_time_ge(commit_ts.tv_sec, commit_ts.tv_usec))
-  {
-    thd->start_time_inc();
-    commit_ts.tv_sec= thd->start_time;
-    commit_ts.tv_usec= thd->start_time_sec_part;
-  }
-  store(FLD_COMMIT_TS, commit_ts);
-  store_iso_level(thd->tx_isolation);
-}
-
 enum_tx_isolation TR_table::iso_level() const
 {
   enum_tx_isolation res= (enum_tx_isolation) ((*this)[FLD_ISO_LEVEL]->val_int() - 1);
@@ -8549,24 +8532,23 @@ enum_tx_isolation TR_table::iso_level() const
   return res;
 }
 
-bool TR_table::update()
+bool TR_table::update(ulonglong start_id, ulonglong end_id)
 {
   if (!table && open())
     return true;
 
-  DBUG_ASSERT(table->s);
-  handlerton *hton= table->s->db_type();
-  DBUG_ASSERT(hton);
-  DBUG_ASSERT(hton->flags & HTON_NATIVE_SYS_VERSIONING);
-  DBUG_ASSERT(thd->vers_update_trt);
+  timeval start_time= {thd->start_time, long(thd->start_time_sec_part)};
+  thd->set_current_time();
+  timeval end_time= {thd->start_time, long(thd->start_time_sec_part)};
+  store(FLD_TRX_ID, start_id);
+  store(FLD_COMMIT_ID, end_id);
+  store(FLD_BEGIN_TS, start_time);
+  store(FLD_COMMIT_TS, end_time);
+  store_iso_level(thd->tx_isolation);
 
-  hton->vers_get_trt_data(*this);
   int error= table->file->ha_write_row(table->record[0]);
   if (error)
-  {
     table->file->print_error(error, MYF(0));
-  }
-  thd->vers_update_trt= false;
   return error;
 }
 
