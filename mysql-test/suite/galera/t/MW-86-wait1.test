@@ -90,7 +90,7 @@ SHOW WARNINGS;
 --enable_result_log
 
 # Unblock the background INSERT and remove the sync point.
-SET GLOBAL debug = "-d,sync.wsrep_apply_cb";
+SET GLOBAL debug_dbug = "-d,sync.wsrep_apply_cb";
 SET SESSION debug_sync = "now SIGNAL signal.wsrep_apply_cb";
 
 SET SESSION wsrep_sync_wait = default;

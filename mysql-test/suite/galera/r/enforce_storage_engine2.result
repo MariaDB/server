@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 #
 # MDEV-9312: storage engine not enforced during galera cluster
 # replication
