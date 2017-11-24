@@ -3708,20 +3708,6 @@ Item *Item_null::clone_item(THD *thd)
 
 /*********************** Item_param related ******************************/
 
-/** 
-  Default function of Item_param::set_param_func, so in case
-  of malformed packet the server won't SIGSEGV.
-*/
-
-static void
-default_set_param_func(Item_param *param,
-                       uchar **pos __attribute__((unused)),
-                       ulong len __attribute__((unused)))
-{
-  param->set_null();
-}
-
-
 Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
                        uint pos_in_query_arg, uint len_in_query_arg):
   Item_basic_value(thd),
@@ -3739,8 +3725,8 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
   state(NO_VALUE),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
+  m_empty_string_is_null(false),
   indicator(STMT_INDICATOR_NONE),
-  set_param_func(default_set_param_func),
   m_out_param_info(NULL),
   /*
     Set m_is_settable_routine_parameter to "true" by default.
@@ -4025,9 +4011,8 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     else
     {
       unsigned_flag= item->unsigned_flag;
-      set_int(val, MY_INT64_NUM_DECIMAL_DIGITS);
       set_handler_by_result_type(item->result_type());
-      DBUG_RETURN(!unsigned_flag && value.integer < 0 ? 1 : 0);
+      DBUG_RETURN(set_limit_clause_param(val));
     }
   }
   struct st_value tmp;
@@ -4535,7 +4520,6 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 {
   Type_std_attributes::set(src);
   set_handler(src->type_handler());
-  set_param_func= src->set_param_func;
   item_type= src->item_type;
 
   maybe_null= src->maybe_null;
@@ -4544,6 +4528,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
   fixed= src->fixed;
   value= src->value;
 
+  value.set_handler(src->value.type_handler());
   decimal_value.swap(src->decimal_value);
   str_value.swap(src->str_value);
   str_value_ptr.swap(src->str_value_ptr);

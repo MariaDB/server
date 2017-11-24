@@ -3128,7 +3128,6 @@ class Item_param :public Item_basic_value,
 
   void fix_temporal(uint32 max_length_arg, uint decimals_arg);
 
-public:
   struct CONVERSION_INFO
   {
     /*
@@ -3171,12 +3170,6 @@ public:
   };
 
   /*
-    Used for bulk protocol only.
-  */
-  enum enum_indicator_type indicator;
-
-private:
-  /*
     A buffer for string and long data values. Historically all allocated
     values returned from val_str() were treated as eligible to
     modification. I. e. in some cases Item_func_concat can append it's
@@ -3188,15 +3181,30 @@ private:
   */
   String str_value_ptr;
 
-public:
-  my_decimal decimal_value;
-  union
+  bool m_empty_string_is_null;
+
+  class PValue: public Type_handler_hybrid_field_type
   {
-    longlong integer;
-    double   real;
-    CONVERSION_INFO cs_info;
-    MYSQL_TIME     time;
-  } value;
+  public:
+    PValue(): Type_handler_hybrid_field_type(&type_handler_null) {}
+    union
+    {
+      longlong integer;
+      double   real;
+      CONVERSION_INFO cs_info;
+      MYSQL_TIME     time;
+    };
+  };
+
+  PValue value;
+
+  my_decimal decimal_value;
+
+public:
+  /*
+    Used for bulk protocol only.
+  */
+  enum enum_indicator_type indicator;
 
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
@@ -3237,14 +3245,39 @@ public:
   void set_time(const MYSQL_TIME *tm, uint32 max_length_arg, uint decimals_arg);
   bool set_from_item(THD *thd, Item *item);
   void reset();
+
+  void set_param_tiny(uchar **pos, ulong len);
+  void set_param_short(uchar **pos, ulong len);
+  void set_param_int32(uchar **pos, ulong len);
+  void set_param_int64(uchar **pos, ulong len);
+  void set_param_float(uchar **pos, ulong len);
+  void set_param_double(uchar **pos, ulong len);
+  void set_param_decimal(uchar **pos, ulong len);
+  void set_param_time(uchar **pos, ulong len);
+  void set_param_datetime(uchar **pos, ulong len);
+  void set_param_date(uchar **pos, ulong len);
+  void set_param_str(uchar **pos, ulong len);
+
+  void setup_conversion(THD *thd, uchar param_type);
+  void setup_conversion_blob(THD *thd);
+  void setup_conversion_string(THD *thd, CHARSET_INFO *fromcs);
+
   /*
     Assign placeholder value from bind data.
     Note, that 'len' has different semantics in embedded library (as we
     don't need to check that packet is not broken there). See
     sql_prepare.cc for details.
   */
-  void (*set_param_func)(Item_param *param, uchar **pos, ulong len);
+  void set_param_func(uchar **pos, ulong len)
+  {
+    value.type_handler()->Item_param_set_param_func(this, pos, len);
+  }
 
+  bool set_limit_clause_param(longlong nr)
+  {
+    set_int(nr, MY_INT64_NUM_DECIMAL_DIGITS);
+    return !unsigned_flag && value.integer < 0;
+  }
   const String *query_val_str(THD *thd, String *str) const;
 
   bool convert_str_value(THD *thd);
