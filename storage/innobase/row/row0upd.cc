@@ -493,8 +493,6 @@ upd_node_create(
 	node->common.type = QUE_NODE_UPDATE;
 	node->state = UPD_NODE_UPDATE_CLUSTERED;
 	node->heap = mem_heap_create(128);
-	node->cmpl_info = 0;
-	node->versioned = false;
 	node->magic_n = UPD_NODE_MAGIC_N;
 
 	return(node);

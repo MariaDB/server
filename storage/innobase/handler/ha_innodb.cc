@@ -8639,7 +8639,6 @@ calc_row_difference(
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 	ulint		num_v = 0;
 	uint		n_fields = mysql_fields(table);
-	bool		table_versioned = prebuilt->table->versioned();
 
 	ut_ad(!srv_read_only_mode);
 
@@ -8648,9 +8647,6 @@ calc_row_difference(
 
 	/* We use upd_buff to convert changed fields */
 	buf = (byte*) upd_buff;
-
-	prebuilt->upd_node->versioned = false;
-	prebuilt->upd_node->vers_delete = false;
 
 	for (i = 0; i < n_fields; i++) {
 		field = table->field[i];
@@ -8890,11 +8886,6 @@ calc_row_difference(
 			}
 			n_changed++;
 
-			if (table_versioned
-			    && !field->vers_update_unversioned()) {
-				prebuilt->upd_node->versioned = true;
-			}
-
 			/* If an FTS indexed column was changed by this
 			UPDATE then we need to inform the FTS sub-system.
 
@@ -8999,10 +8990,6 @@ calc_row_difference(
 			innodb_table, ufield, &trx->fts_next_doc_id);
 
 		++n_changed;
-
-		if (table_versioned && !field->vers_update_unversioned()) {
-			prebuilt->upd_node->versioned = true;
-		}
 	} else {
 		/* We have a Doc ID column, but none of FTS indexed
 		columns are touched, nor the Doc ID column, so set
@@ -9159,8 +9146,6 @@ ha_innobase::update_row(
 
 	upd_t*		uvect = row_get_prebuilt_update_vector(m_prebuilt);
 	ib_uint64_t	autoinc;
-	bool		vers_set_fields = false;
-	bool		vers_ins_row = false;
 
 	/* Build an update vector from the modified fields in the rows
 	(uses m_upd_buf of the handle) */
@@ -9183,29 +9168,30 @@ ha_innobase::update_row(
 
 	/* This is not a delete */
 	m_prebuilt->upd_node->is_delete = FALSE;
+	m_prebuilt->upd_node->vers_delete = false;
 
-	innobase_srv_conc_enter_innodb(m_prebuilt);
+	{
+		bool	vers_ins_row = false;
+		const bool vers_set_fields = table->versioned_write()
+			&& m_prebuilt->upd_node->update->affects_versioned();
 
-	if (!table->versioned_write()) {
-		m_prebuilt->upd_node->versioned = false;
-	}
-
-	if (m_prebuilt->upd_node->versioned) {
-		vers_set_fields = true;
-		if (thd_sql_command(m_user_thd) == SQLCOM_ALTER_TABLE
-		    && !table->s->vtmd) {
-			m_prebuilt->upd_node->vers_delete = true;
-		} else {
-			m_prebuilt->upd_node->vers_delete = false;
-			vers_ins_row = true;
+		if (vers_set_fields) {
+			vers_ins_row = table->s->vtmd
+				|| thd_sql_command(m_user_thd)
+				!= SQLCOM_ALTER_TABLE;
+			m_prebuilt->upd_node->vers_delete = !vers_ins_row;
 		}
-	}
 
-	error = row_update_for_mysql(m_prebuilt, vers_set_fields);
+		innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	if (error == DB_SUCCESS && vers_ins_row) {
-		if (trx->id != static_cast<trx_id_t>(table->vers_start_field()->val_int())) {
-			error = row_insert_for_mysql((byte*) old_row, m_prebuilt, ROW_INS_HISTORICAL);
+		error = row_update_for_mysql(m_prebuilt, vers_set_fields);
+
+		if (error == DB_SUCCESS && vers_ins_row
+		    && trx->id != static_cast<trx_id_t>(
+			    table->vers_start_field()->val_int())) {
+			error = row_insert_for_mysql((byte*) old_row,
+						     m_prebuilt,
+						     ROW_INS_HISTORICAL);
 		}
 	}
 

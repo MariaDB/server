@@ -2006,8 +2006,7 @@ row_update_for_mysql(
 	thr->fk_cascade_depth = 0;
 
 run_again:
-	if (vers_set_fields)
-	{
+	if (vers_set_fields) {
 		/* System Versioning: modify update vector to set
 		   sys_trx_start (or sys_trx_end in case of DELETE)
 		   to current trx_id. */
@@ -2143,7 +2142,8 @@ run_again:
 		cascade_upd_nodes->pop_front();
 		thr->fk_cascade_depth++;
 		vers_set_fields = node->table->versioned()
-			&& (node->is_delete || node->versioned);
+			&& (node->is_delete
+			    || node->update->affects_versioned());
 
 		goto run_again;
 	}
