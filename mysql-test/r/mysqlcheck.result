@@ -73,7 +73,8 @@ status   : OK
 mysql.user                                         OK
 mysql.vtmd_template
 note     : Table does not support optimize, doing recreate + analyze instead
-status   : OK
+error    : Not allowed for versioned `mysql.vtmd_template`. Change `versioning_alter_history` to proceed with ALTER.
+status   : Operation failed
 mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
@@ -141,7 +142,8 @@ status   : OK
 mysql.user                                         Table is already up to date
 mysql.vtmd_template
 note     : Table does not support optimize, doing recreate + analyze instead
-status   : OK
+error    : Not allowed for versioned `mysql.vtmd_template`. Change `versioning_alter_history` to proceed with ALTER.
+status   : Operation failed
 create table t1 (a int) engine=myisam;
 create view v1 as select * from t1;
 test.t1                                            OK

@@ -1,3 +1,6 @@
+select @@versioning_alter_history;
+@@versioning_alter_history
+ERROR
 create table t(
 a int
 );
@@ -17,12 +20,15 @@ t	CREATE TABLE `t` (
   `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t add column y int;
+ERROR HY000: Not allowed for versioned `test.t`. Change `versioning_alter_history` to proceed with ALTER.
 alter table t drop system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set versioning_alter_history= keep;
 alter table t
 add column trx_start bigint(20) unsigned generated always as row start,
 add column trx_end bigint(20) unsigned generated always as row end,
@@ -587,51 +593,9 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-set versioning_alter_history = DROP;
-create or replace table t (a int) with system versioning engine innodb;
-insert into t values (1);
-update t set a = 2;
-select * from t for system_time all;
-a
-2
-1
-alter table t add column b int;
-select * from t for system_time all;
-a	b
-2	NULL
-create or replace table t (a int) with system versioning engine myisam;
-insert into t values (1);
-update t set a = 2;
-select * from t for system_time all;
-a
-2
-1
-alter table t add column b int;
-select * from t for system_time all;
-a	b
-2	NULL
-create or replace table non_empty (
-a int,
-sys_trx_start bigint(20) unsigned,
-sys_trx_end bigint(20) unsigned
-) engine innodb;
-insert into non_empty values (1, 100, 200);
-alter table non_empty
-change column sys_trx_start sys_trx_start bigint(20) unsigned generated always as row start;
-ERROR HY000: Can not modify column `sys_trx_start` to GENERATED ALWAYS AS ROW START/END for non-empty table
-alter table non_empty
-change column sys_trx_end sys_trx_end bigint(20) unsigned generated always as row end;
-ERROR HY000: Can not modify column `sys_trx_end` to GENERATED ALWAYS AS ROW START/END for non-empty table
-drop table non_empty;
-call verify_vtq;
-No	A	B	C	D
-1	1	1	1	1
-2	1	1	1	1
-drop table t;
-drop procedure verify_vtq;
-drop procedure innodb_verify_vtq;
-drop function default_engine;
-drop function sys_commit_ts;
-drop function sys_datatype;
-drop procedure concat_exec2;
-drop procedure concat_exec3;
+set versioning_alter_history= SURVIVE;
+ERROR 42000: Variable 'versioning_alter_history' can't be set to the value of 'SURVIVE'
+set versioning_alter_history= DROP;
+ERROR 42000: Variable 'versioning_alter_history' can't be set to the value of 'DROP'
+drop database test;
+create database test;

@@ -7845,8 +7845,8 @@ WARN_VERS_TRX_MISSING
 WARN_VERS_PART_NON_HISTORICAL
         eng "Partition %`s contains non-historical data"
 
-ER_VERS_NOT_ALLOWED
-        eng "%`s is not allowed for versioned table"
+ER_VERS_ALTER_NOT_ALLOWED
+        eng "Not allowed for versioned `%s.%s`. Change `versioning_alter_history` to proceed with ALTER."
 
 ER_VERS_RANGE_PROHIBITED
         eng "SYSTEM_TIME range selector is prohibited"

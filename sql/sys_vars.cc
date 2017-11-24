@@ -413,14 +413,15 @@ static Sys_var_mybool Sys_vers_innodb_algorithm_simple(
        SESSION_VAR(vers_innodb_algorithm_simple), CMD_LINE(OPT_ARG),
        DEFAULT(TRUE));
 
-static const char *vers_alter_history_keywords[]= {"KEEP", "SURVIVE", "DROP", NULL};
+static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP",/* "SURVIVE", "DROP",*/ NULL};
 static Sys_var_enum Sys_vers_alter_history(
        "versioning_alter_history", "Versioning ALTER TABLE mode. "
-       "KEEP: leave historical system rows as is on ALTER TABLE; "
-       "SURVIVE: use DDL survival feature; "
-       "DROP: delete historical system rows on ALTER TABLE",
+       "ERROR: Fail ALTER with error; " /* TODO: fail only when history non-empty */
+       "KEEP: Keep historical system rows and subject them to ALTER; "
+       /*"SURVIVE: Keep historical system rows intact; "
+       "DROP: Drop historical system rows while processing ALTER"*/,
        SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
-       vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_KEEP));
+       vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_ERROR));
 
 static Sys_var_mybool Sys_transaction_registry(
        "transaction_registry",

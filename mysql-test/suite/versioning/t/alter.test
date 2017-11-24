@@ -1,3 +1,5 @@
+select @@versioning_alter_history;
+
 create table t(
   a int
 );
@@ -8,8 +10,13 @@ alter table t drop system versioning;
 alter table t add system versioning;
 show create table t;
 
+--error ER_VERS_ALTER_NOT_ALLOWED
+alter table t add column y int;
+
 alter table t drop system versioning;
 show create table t;
+
+set versioning_alter_history= keep;
 
 --error ER_VERS_FIELD_WRONG_TYPE
 alter table t
@@ -273,8 +280,17 @@ select * from t;
 alter table t drop system versioning;
 show create table t;
 
-set versioning_alter_history = DROP;
 
+## These experimental options are now disabled
+
+--error ER_WRONG_VALUE_FOR_VAR
+set versioning_alter_history= SURVIVE;
+
+--error ER_WRONG_VALUE_FOR_VAR
+set versioning_alter_history= DROP;
+
+if (0)
+{
 create or replace table t (a int) with system versioning engine innodb;
 insert into t values (1);
 update t set a = 2;
@@ -305,6 +321,7 @@ alter table non_empty
 drop table non_empty;
 
 call verify_vtq;
-drop table t;
+}
 
--- source suite/versioning/common_finish.inc
+drop database test;
+create database test;

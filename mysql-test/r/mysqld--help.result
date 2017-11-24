@@ -1293,10 +1293,9 @@ The following options may be given as the first argument:
  -V, --version[=name] 
  Output version information and exit.
  --versioning-alter-history=name 
- Versioning ALTER TABLE mode. KEEP: leave historical
- system rows as is on ALTER TABLE; SURVIVE: use DDL
- survival feature; DROP: delete historical system rows on
- ALTER TABLE
+ Versioning ALTER TABLE mode. ERROR: Fail ALTER with
+ error; KEEP: Keep historical system rows and subject them
+ to ALTER; 
  --versioning-force  Force system versioning for all created tables
  --versioning-hide=name 
  Hide system versioning from being displayed in table
