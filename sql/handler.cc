@@ -6859,7 +6859,7 @@ bool Vers_parse_info::check_and_fix_implicit(
          !with_system_versioning) ||
         f->versioning == Column_definition::WITHOUT_VERSIONING)
     {
-      f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
+      f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
     }
   }
 
@@ -6999,7 +6999,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
       while (Create_field *f= it++)
       {
         if (f->versioning == Column_definition::WITHOUT_VERSIONING)
-          f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
+          f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
 
         if (f->change.str && (start == f->change || end == f->change))
         {

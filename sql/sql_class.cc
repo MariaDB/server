@@ -710,12 +710,6 @@ extern "C" void thd_kill_timeout(THD* thd)
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
-Time_zone * thd_get_timezone(THD * thd)
-{
-	DBUG_ASSERT(thd && thd->variables.time_zone);
-	return thd->variables.time_zone;
-}
-
 void thd_vers_update_trt(THD * thd, bool value)
 {
   thd->vers_update_trt= value;

@@ -237,9 +237,12 @@ row_lock_table_for_mysql(
 
 /** System Versioning: row_insert_for_mysql() modes */
 enum ins_mode_t {
-	ROW_INS_NORMAL = 0,	///< plain row (without versioning)
-	ROW_INS_VERSIONED,	///< sys_trx_start = TRX_ID, sys_trx_end = MAX
-	ROW_INS_HISTORICAL	///< sys_trx_end = TRX_ID
+	/* plain row (without versioning) */
+	ROW_INS_NORMAL = 0,
+	/* sys_trx_start = TRX_ID, sys_trx_end = MAX */
+	ROW_INS_VERSIONED,
+	/* sys_trx_end = TRX_ID */
+	ROW_INS_HISTORICAL
 };
 
 /** Does an insert for MySQL.

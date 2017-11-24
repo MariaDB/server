@@ -429,8 +429,8 @@ row_ins_cascade_ancestor_updates_table(
 
 		upd_node = static_cast<upd_node_t*>(parent);
 
-		if (upd_node->table == table && upd_node->is_delete == FALSE
-			&& !upd_node->vers_delete) {
+		if (upd_node->table == table && !upd_node->is_delete
+		    && !upd_node->vers_delete) {
 
 			return(TRUE);
 		}
@@ -1573,18 +1573,19 @@ private:
 	ulint&		counter;
 };
 
-/*********************************************************************//**
-Reads sys_trx_end field from clustered index row.
+/** Reads sys_trx_end field from clustered index row.
+@param[in]	rec	clustered row
+@param[in]	offsets	offsets
+@param[in]	index	clustered index
 @return trx_id_t */
 static
 trx_id_t
 row_ins_get_sys_trx_end(
-/*===================================*/
-			const rec_t *rec,	/*!< in: clustered row */
-			ulint *offsets,		/*!< in: offsets */
-			dict_index_t *index)	/*!< in: clustered index */
+	const rec_t*		rec,
+	const ulint*		offsets,
+	const dict_index_t*	index)
 {
-	ut_a(dict_index_is_clust(index));
+	ut_a(index->is_clust());
 
 	ulint len;
 	ulint nfield = dict_col_get_clust_pos(
@@ -1594,51 +1595,46 @@ row_ins_get_sys_trx_end(
 	return(mach_read_from_8(field));
 }
 
-/**
-Performs search at clustered index and returns sys_trx_end if row was found.
+/** Performs search at clustered index and returns sys_trx_end if row was found.
 @param[in]	index	secondary index of record
 @param[in]	rec	record in a secondary index
-@param[out]	end_trx_id	value from clustered index
-@return DB_SUCCESS, DB_NO_REFERENCED_ROW */
+@return sys_trx_end on success or 0 at failure */
 static
-dberr_t
+trx_id_t
 row_ins_search_sys_trx_end(
-	dict_index_t *index,
-	const rec_t *rec,
-	trx_id_t *end_trx_id)
+	dict_index_t*	index,
+	const rec_t* rec)
 {
 	ut_ad(!index->is_clust());
 
-	bool found = false;
-	mem_heap_t *heap = mem_heap_create(256);
-	dict_index_t *clust_index = NULL;
+	trx_id_t result = 0;
+	mem_heap_t* heap = NULL;
+	dict_index_t* clust_index = NULL;
 	ulint offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint *offsets = offsets_;
+	ulint* offsets = offsets_;
 	rec_offs_init(offsets_);
 
 	mtr_t mtr;
-	mtr_start(&mtr);
+	mtr.start();
 
-	rec_t *clust_rec =
+	rec_t* clust_rec =
 	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, index, &clust_index, &mtr);
-        if (!clust_rec)
-		goto not_found;
+	if (clust_rec) {
+		offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
+					  ULINT_UNDEFINED, &heap);
 
-	offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
-				  ULINT_UNDEFINED, &heap);
-
-	*end_trx_id = row_ins_get_sys_trx_end(clust_rec, offsets, clust_index);
-	found = true;
-not_found:
-	mtr_commit(&mtr);
-	mem_heap_free(heap);
-	if (!found) {
+		result =
+		    row_ins_get_sys_trx_end(clust_rec, offsets, clust_index);
+        } else {
 		ib::error() << "foreign constraints: secondary index is out of "
 			       "sync";
-		ut_ad(false && "secondary index is out of sync");
-		return(DB_NO_REFERENCED_ROW);
+		ut_ad(!"secondary index is out of sync");
 	}
-	return(DB_SUCCESS);
+	mtr.commit();
+	if (heap) {
+		mem_heap_free(heap);
+	}
+	return(result);
 }
 
 /***************************************************************//**
@@ -1705,13 +1701,11 @@ row_ins_check_foreign_constraint(
 		}
 		/* System Versioning: if sys_trx_end != Inf, we
 		suppress the foreign key check */
-		if (table->versioned() &&
-		    dfield_get_type(field)->prtype & DATA_VERS_END) {
-			byte* data = static_cast<byte*>(dfield_get_data(field));
-			ut_ad(data);
-			trx_id_t end_trx_id = mach_read_from_8(data);
-			if (end_trx_id != TRX_ID_MAX)
+		if (dfield_get_type(field)->prtype & DATA_VERS_END) {
+			ut_ad(table->versioned());
+			if (dfield_is_historical_sys_trx_end(field)) {
 				goto exit_func;
+			}
 		}
 	}
 
@@ -1844,18 +1838,19 @@ row_ins_check_foreign_constraint(
 			if (check_table->versioned()) {
 				trx_id_t end_trx_id = 0;
 
-				if (dict_index_is_clust(check_index)) {
+				if (check_index->is_clust()) {
 					end_trx_id =
 						row_ins_get_sys_trx_end(
 						rec, offsets, check_index);
-				} else if (row_ins_search_sys_trx_end(
-						check_index, rec, &end_trx_id) !=
-						DB_SUCCESS) {
+				} else if (!(end_trx_id =
+						 row_ins_search_sys_trx_end(
+						     check_index, rec))) {
 					break;
 				}
 
-				if (end_trx_id != TRX_ID_MAX)
+				if (end_trx_id != TRX_ID_MAX) {
 					continue;
+				}
 			}
 
 			if (rec_get_deleted_flag(rec,

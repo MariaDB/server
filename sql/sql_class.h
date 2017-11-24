@@ -155,6 +155,7 @@ extern bool volatile shutdown_in_progress;
 
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd);
 extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
+void thd_vers_update_trt(THD *thd, bool value);
 
 /**
   @class CSET_STRING
@@ -4564,6 +4565,8 @@ public:
   /* Handling of timeouts for commands */
   thr_timer_t query_timer;
 
+  // Storage engine may set this to true is we want to write a row to
+  // transaction_registry table on transaction commit.
   bool vers_update_trt;
 
 public:

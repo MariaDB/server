@@ -16743,7 +16743,7 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
       HIDDEN_FLAG |
       VERS_SYS_START_FLAG |
       VERS_SYS_END_FLAG |
-      VERS_OPTIMIZED_UPDATE_FLAG));
+      VERS_UPDATE_UNVERSIONED_FLAG));
     if (org_field->maybe_null() || (item && item->maybe_null))
       new_field->flags&= ~NOT_NULL_FLAG;	// Because of outer join
     if (org_field->type() == MYSQL_TYPE_VAR_STRING ||

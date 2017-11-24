@@ -1455,6 +1455,11 @@ public:
     return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
   }
 
+  bool vers_update_unversioned() const
+  {
+    return flags & VERS_UPDATE_UNVERSIONED_FLAG;
+  }
+
   virtual bool vers_trx_id() const
   {
     return false;

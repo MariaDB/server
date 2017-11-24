@@ -121,7 +121,7 @@ bool has_extra2_field_flags(List<Create_field> &create_fields)
   List_iterator<Create_field> it(create_fields);
   while (Create_field *f= it++)
   {
-    if (f->flags & (VERS_OPTIMIZED_UPDATE_FLAG | HIDDEN_FLAG))
+    if (f->flags & (VERS_UPDATE_UNVERSIONED_FLAG | HIDDEN_FLAG))
       return true;
   }
   return false;
@@ -356,7 +356,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     while (Create_field *field= it++)
     {
       uchar flags= 0;
-      if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG)
+      if (field->flags & VERS_UPDATE_UNVERSIONED_FLAG)
         flags|= VERS_OPTIMIZED_UPDATE;
       if (field->flags & HIDDEN_FLAG)
         flags|= HIDDEN;

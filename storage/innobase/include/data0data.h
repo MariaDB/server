@@ -508,6 +508,12 @@ dtuple_print(
 	const dtuple_t*	tuple)	/*!< in: tuple */
 	MY_ATTRIBUTE((nonnull));
 
+/** Assuming field is sys_trx_end checks whether its value is not SYS_TRX_MAX.
+@param	dfield	field to check
+@return true for historical rows and false otherwise*/
+bool
+dfield_is_historical_sys_trx_end(const dfield_t* dfield);
+
 /** Print the contents of a tuple.
 @param[out]	o	output stream
 @param[in]	field	array of data fields

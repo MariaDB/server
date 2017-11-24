@@ -2188,7 +2188,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         packet->append(def_value.ptr(), def_value.length(), system_charset_info);
       }
 
-      if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG)
+      if (field->vers_update_unversioned())
       {
         packet->append(STRING_WITH_LEN(" WITHOUT SYSTEM VERSIONING"));
       }

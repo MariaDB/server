@@ -1420,6 +1420,23 @@ row_mysql_get_table_status(
 	return(err);
 }
 
+/** Writes 8 bytes to nth tuple field
+@param[in]	tuple	where to write
+@param[in]	nth	index in tuple
+@param[in]	data	what to write
+@param[in]	buf	field data buffer */
+static
+void
+set_tuple_col_8(dtuple_t* tuple, int col, uint64_t data, byte* buf) {
+	dfield_t* dfield = dtuple_get_nth_field(tuple, col);
+	ut_ad(dfield->type.len == 8);
+	if (dfield->len == UNIV_SQL_NULL) {
+		dfield_set_data(dfield, buf, 8);
+	}
+	ut_ad(dfield->len == dfield->type.len && dfield->data);
+	mach_write_to_8(dfield->data, data);
+}
+
 /** Does an insert for MySQL.
 @param[in]	mysql_rec	row in the MySQL format
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
@@ -1504,14 +1521,14 @@ row_insert_for_mysql(
 		ut_ad(t->mysql_col_len == 8);
 
 		if (ins_mode == ROW_INS_HISTORICAL) {
-			row_ins_set_tuple_col_8(node->row, table->vers_end, trx->id, node->vers_end_buf);
+			set_tuple_col_8(node->row, table->vers_end, trx->id, node->vers_end_buf);
 		}
 		else /* ROW_INS_VERSIONED */ {
-			row_ins_set_tuple_col_8(node->row, table->vers_end, IB_UINT64_MAX, node->vers_end_buf);
-			int8store(&mysql_rec[t->mysql_col_offset], IB_UINT64_MAX);
+			set_tuple_col_8(node->row, table->vers_end, TRX_ID_MAX, node->vers_end_buf);
+			int8store(&mysql_rec[t->mysql_col_offset], TRX_ID_MAX);
 			t = &prebuilt->mysql_template[table->vers_start];
 			ut_ad(t->mysql_col_len == 8);
-			row_ins_set_tuple_col_8(node->row, table->vers_start, trx->id, node->vers_start_buf);
+			set_tuple_col_8(node->row, table->vers_start, trx->id, node->vers_start_buf);
 			int8store(&mysql_rec[t->mysql_col_offset], trx->id);
 		}
 	}
@@ -2129,8 +2146,8 @@ run_again:
 		node->cascade_upd_nodes = cascade_upd_nodes;
 		cascade_upd_nodes->pop_front();
 		thr->fk_cascade_depth++;
-		vers_set_fields = node->table->versioned() &&
-				  (node->is_delete || node->versioned);
+		vers_set_fields = node->table->versioned()
+			&& (node->is_delete || node->versioned);
 
 		goto run_again;
 	}
@@ -2210,11 +2227,12 @@ run_again:
 		prebuilt->table->stat_modified_counter++;
 	}
 
-	if (node->table->versioned() &&
-	    (node->versioned || node->vers_delete ||
-	     // TODO: improve this check (check if we touch only
-	     // unversioned fields in foreigh table)
-	     node->foreign)) {
+	if (node->table->versioned()
+	    && (node->versioned
+		|| node->vers_delete
+		// TODO: improve this check (check if we touch only
+		// unversioned fields in foreigh table)
+		|| node->foreign)) {
 		trx->vers_update_trt = true;
 	}
 

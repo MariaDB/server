@@ -89,7 +89,5 @@ extern my_time_t   sec_since_epoch_TIME(MYSQL_TIME *t);
 
 static const int MY_TZ_TABLES_COUNT= 4;
 
-extern Time_zone* thd_get_timezone(THD* thd);
-
 #endif /* !defined(TESTTIME) && !defined(TZINFO2SQL) */
 #endif /* TZTIME_INCLUDED */

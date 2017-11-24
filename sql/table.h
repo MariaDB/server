@@ -2930,14 +2930,14 @@ inline void mark_as_null_row(TABLE *table)
 
 bool is_simple_order(ORDER *order);
 
+class Open_tables_backup;
+
 /** Transaction Registry Table (TRT)
 
     This table holds transaction IDs, their corresponding times and other
     transaction-related data which is used for transaction order resolution.
     When versioned table marks its records lifetime with transaction IDs,
     TRT is used to get their actual timestamps. */
-
-class Open_tables_backup;
 class TR_table: public TABLE_LIST
 {
   THD *thd;
@@ -2952,33 +2952,111 @@ public:
     FLD_ISO_LEVEL,
     FIELD_COUNT
   };
+  /**
+     @param[in,out] Thread handle
+     @param[in] Current transaction is read-write.
+   */
   TR_table(THD *_thd, bool rw= false);
+  /**
+     Opens a transaction_registry table.
+
+     @retval true on error, false otherwise.
+   */
   bool open();
   ~TR_table();
+  /**
+     @retval current thd
+  */
   THD *get_thd() const { return thd; }
+  /**
+     Stores value to internal transaction_registry TABLE object.
+
+     @param[in] field number in a TABLE
+     @param[in] value to store
+   */
   void store(uint field_id, ulonglong val);
+  /**
+     Stores value to internal transaction_registry TABLE object.
+
+     @param[in] field number in a TABLE
+     @param[in] value to store
+   */
   void store(uint field_id, timeval ts);
+  /**
+     Stores value to internal transaction_registry TABLE object.
+
+     @param[in] current (InnoDB) transaction id
+     @param[in] InnoDB transaction counter at the time of transaction commit
+     @param[in] transaction commit timestamp
+   */
   void store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts);
+  /**
+     Writes a row from internal TABLE object to transaction_registry table.
+
+     @retval true on error, false otherwise.
+   */
   bool update();
-  // return true if found; false if not found or error
+  /**
+     Checks whether a row with specified transaction_id exists in a
+     transaction_registry table.
+
+     @param[in] transacton_id value
+     @retval true if exists, false it not exists or an error occured
+   */
   bool query(ulonglong trx_id);
+  /**
+     Gets a row from transaction_registry with the closest commit_timestamp to
+     first argument. We can search for a value which a lesser or greater than
+     first argument. Also loads a row into an internal TABLE object.
+
+     @param[in] timestamp
+     @param[in] true if we search for a lesser timestamp, false if greater
+     @retval true if exists, false it not exists or an error occured
+   */
   bool query(MYSQL_TIME &commit_time, bool backwards);
-  // return true if error
+  /**
+     Checks whether transaction1 sees transaction0.
+
+     @param[out] true if transaction1 sees transaction0, undefined on error and
+       when transaction1=transaction0 and false otherwise
+     @param[in] transaction_id of transaction1
+     @param[in] transaction_id of transaction0
+     @param[in] commit time of transaction1 or 0 if we want it to be queried
+     @param[in] isolation level (from handler.h) of transaction1
+     @param[in] commit time of transaction0 or 0 if we want it to be queried
+     @retval true on error, false otherwise
+   */
   bool query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
-                  ulonglong commit_id1= 0, enum_tx_isolation iso_level1= ISO_READ_UNCOMMITTED,
+                  ulonglong commit_id1= 0,
+                  enum_tx_isolation iso_level1= ISO_READ_UNCOMMITTED,
                   ulonglong commit_id0= 0);
 
+  /**
+     @retval transaction isolation level of a row from internal TABLE object.
+   */
   enum_tx_isolation iso_level() const;
+  /**
+     Stores transactioin isolation level to internal TABLE object.
+   */
   void store_iso_level(enum_tx_isolation iso_level)
   {
     DBUG_ASSERT(iso_level <= ISO_SERIALIZABLE);
     store(FLD_ISO_LEVEL, iso_level + 1);
   }
 
+  /**
+     Writes a message to MariaDB log about incorrect transaction_registry schema.
+
+     @param[in] a message explained what's incorrect in schema
+   */
   void warn_schema_incorrect(const char *reason);
+  /**
+     Checks whether transaction_registry table has a correct schema.
+
+     @retval true if schema is incorrect and false otherwise
+   */
   bool check();
 
-public:
   TABLE * operator-> () const
   {
     return table;
@@ -2992,13 +3070,13 @@ public:
   {
     return table;
   }
-  bool operator== (TABLE_LIST &subj) const
+  bool operator== (const TABLE_LIST &subj) const
   {
     if (0 != strcmp(db, subj.db))
       return false;
     return (0 == strcmp(table_name, subj.table_name));
   }
-  bool operator!= (TABLE_LIST &subj) const
+  bool operator!= (const TABLE_LIST &subj) const
   {
     return !(*this == subj);
   }
