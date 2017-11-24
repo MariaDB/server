@@ -5382,7 +5382,9 @@ static Sys_var_enum Sys_plugin_maturity(
        "The lowest desirable plugin maturity. "
        "Plugins less mature than that will not be installed or loaded",
        READ_ONLY GLOBAL_VAR(plugin_maturity), CMD_LINE(REQUIRED_ARG),
-       plugin_maturity_names, DEFAULT(MariaDB_PLUGIN_MATURITY_UNKNOWN));
+       plugin_maturity_names,
+       DEFAULT(SERVER_MATURITY_LEVEL > 0 ?
+               SERVER_MATURITY_LEVEL - 1 : SERVER_MATURITY_LEVEL));
 
 static Sys_var_ulong Sys_deadlock_search_depth_short(
        "deadlock_search_depth_short",
