@@ -3277,7 +3277,7 @@ static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
   if (opt_log_slave_updates && opt_replicate_annotate_row_events)
     binlog_flags|= BINLOG_SEND_ANNOTATE_ROWS_EVENT;
 
-  if (repl_semisync_slave.requestTransmit(mi))
+  if (repl_semisync_slave.request_transmit(mi))
     DBUG_RETURN(1);
 
   // TODO if big log files: Change next to int8store()
@@ -4303,7 +4303,7 @@ pthread_handler_t handle_slave_io(void *arg)
 
 
   if (DBUG_EVALUATE_IF("failed_slave_start", 1, 0)
-      || repl_semisync_slave.slaveStart(mi))
+      || repl_semisync_slave.slave_start(mi))
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4495,8 +4495,8 @@ Stopping slave I/O thread due to out-of-memory error from master");
       event_buf= (const char*)mysql->net.read_pos + 1;
       mi->semi_ack= 0;
       if (repl_semisync_slave.
-          slaveReadSyncHeader((const char*)mysql->net.read_pos + 1, event_len,
-                              &(mi->semi_ack), &event_buf, &event_len))
+          slave_read_sync_header((const char*)mysql->net.read_pos + 1, event_len,
+                                 &(mi->semi_ack), &event_buf, &event_len))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4554,7 +4554,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
       }
 
       if (rpl_semi_sync_slave_status && (mi->semi_ack & SEMI_SYNC_NEED_ACK) &&
-          repl_semisync_slave.slaveReply(mi))
+          repl_semisync_slave.slave_reply(mi))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4568,7 +4568,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
             master info only when ack is needed. This may lead to at least one
             group transaction delay but affords better performance improvement.
           */
-          (!repl_semisync_slave.getSlaveEnabled() ||
+          (!repl_semisync_slave.get_slave_enabled() ||
            (!(mi->semi_ack & SEMI_SYNC_SLAVE_DELAY_SYNC) ||
             (mi->semi_ack & (SEMI_SYNC_NEED_ACK)))) &&
           (DBUG_EVALUATE_IF("failed_flush_master_info", 1, 0) ||
@@ -4626,7 +4626,7 @@ err:
                           IO_RPL_LOG_NAME, mi->master_log_pos,
                           tmp.c_ptr_safe());
   }
-  repl_semisync_slave.slaveStop(mi);
+  repl_semisync_slave.slave_stop(mi);
   thd->reset_query();
   thd->reset_db(NULL, 0);
   if (mysql)

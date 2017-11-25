@@ -28,10 +28,10 @@
 */
 class Trace {
 public:
-  static const unsigned long kTraceFunction;
-  static const unsigned long kTraceGeneral;
-  static const unsigned long kTraceDetail;
-  static const unsigned long kTraceNetWait;
+  static const unsigned long k_trace_function;
+  static const unsigned long k_trace_general;
+  static const unsigned long k_trace_detail;
+  static const unsigned long k_trace_net_wait;
 
   unsigned long           trace_level_;                      /* the level for tracing */
 
@@ -46,14 +46,14 @@ public:
 /**
    Base class for semi-sync master and slave classes
 */
-class ReplSemiSyncBase
+class Repl_semi_sync_base
   :public Trace {
 public:
-  static const unsigned char  kSyncHeader[2];     /* three byte packet header */
+  static const unsigned char  k_sync_header[2];     /* three byte packet header */
 
   /* Constants in network packet header. */
-  static const unsigned char kPacketMagicNum;
-  static const unsigned char kPacketFlagSync;
+  static const unsigned char k_packet_magic_num;
+  static const unsigned char k_packet_flag_sync;
 };
 
 /* The layout of a semisync slave reply packet:

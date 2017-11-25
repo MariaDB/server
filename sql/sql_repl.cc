@@ -316,7 +316,7 @@ static int reset_transmit_packet(binlog_send_info *info, ushort flags,
 
   if (info->thd->semi_sync_slave)
   {
-    if (repl_semisync_master.reserveSyncHeader(packet))
+    if (repl_semisync_master.reserve_sync_header(packet))
     {
       info->error= ER_UNKNOWN_ERROR;
       *errmsg= "Failed to run hook 'reserve_header'";
@@ -2012,9 +2012,10 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   THD_STAGE_INFO(info->thd, stage_sending_binlog_event_to_slave);
 
   pos= my_b_tell(log);
-  if (repl_semisync_master.updateSyncHeader(info->thd, (uchar *)packet->c_ptr(),
-                                            info->log_file_name + info->dirlen,
-                                            pos, &need_sync))
+  if (repl_semisync_master.update_sync_header(info->thd,
+                                              (uchar*) packet->c_ptr(),
+                                              info->log_file_name + info->dirlen,
+                                              pos, &need_sync))
   {
     info->error= ER_UNKNOWN_ERROR;
     return "run 'before_send_event' hook failed";
@@ -2036,7 +2037,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     }
   }
 
-  if (need_sync && repl_semisync_master.flushNet(info->thd, packet->c_ptr()))
+  if (need_sync && repl_semisync_master.flush_net(info->thd, packet->c_ptr()))
   {
     info->error= ER_UNKNOWN_ERROR;
     return "Failed to run hook 'after_send_event'";
@@ -3408,7 +3409,7 @@ int reset_slave(THD *thd, Master_info* mi)
     sql_print_information("Deleted Master_info file '%s'.", fname);
 
   if (rpl_semi_sync_slave_enabled)
-    repl_semisync_slave.resetSlave(mi);
+    repl_semisync_slave.reset_slave(mi);
 err:
   mi->unlock_slave_threads();
   if (error)
@@ -3912,10 +3913,10 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
 
   bool ret= 0;
   /* Temporarily disable master semisync before reseting master. */
-  repl_semisync_master.beforeResetMaster();
+  repl_semisync_master.before_reset_master();
   ret= mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
                                 next_log_number);
-  repl_semisync_master.afterResetMaster();
+  repl_semisync_master.after_reset_master();
   return ret;
 }
 

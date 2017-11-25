@@ -948,8 +948,7 @@ PSI_mutex_key key_LOCK_after_binlog_sync;
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered,
   key_LOCK_slave_background;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
-PSI_mutex_key key_ss_mutex_LOCK_binlog_;
-PSI_mutex_key key_ss_mutex_Ack_receiver_mutex;
+PSI_mutex_key key_LOCK_ack_receiver;
 
 static PSI_mutex_info all_server_mutexes[]=
 {
@@ -1028,7 +1027,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_rpl_thread, "LOCK_rpl_thread", 0},
   { &key_LOCK_rpl_thread_pool, "LOCK_rpl_thread_pool", 0},
   { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0},
-  { &key_ss_mutex_Ack_receiver_mutex, "Ack_receiver::m_mutex", 0},
+  { &key_LOCK_ack_receiver, "Ack_receiver::mutex", 0},
   { &key_LOCK_binlog, "LOCK_binlog", 0}
 };
 
@@ -1080,7 +1079,7 @@ PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
   key_COND_prepare_ordered, key_COND_slave_background;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
-PSI_cond_key key_ss_cond_Ack_receiver_cond;
+PSI_cond_key key_COND_ack_receiver;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -1134,7 +1133,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_start_thread, "COND_start_thread", PSI_FLAG_GLOBAL},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0},
   { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0},
-  { &key_ss_cond_Ack_receiver_cond, "Ack_receiver::m_cond", 0},
+  { &key_COND_ack_receiver, "Ack_receiver::cond", 0},
   { &key_COND_binlog_send, "COND_binlog_send", 0}
 };
 
@@ -1142,7 +1141,7 @@ PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
   key_thread_slave_background, key_rpl_parallel_thread;
-PSI_thread_key key_ss_thread_Ack_receiver_thread;
+PSI_thread_key key_thread_ack_receiver;
 
 static PSI_thread_info all_server_threads[]=
 {
@@ -1169,7 +1168,7 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_one_connection, "one_connection", 0},
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
   { &key_thread_slave_background, "slave_background", PSI_FLAG_GLOBAL},
-  { &key_ss_thread_Ack_receiver_thread, "Ack_receiver", PSI_FLAG_GLOBAL},
+  { &key_thread_ack_receiver, "Ack_receiver", PSI_FLAG_GLOBAL},
   { &key_rpl_parallel_thread, "rpl_parallel_thread", 0}
 };
 
@@ -5119,8 +5118,8 @@ static int init_server_components()
                         "--log-bin option is not defined.");
   }
 
-  if (repl_semisync_master.initObject() ||
-      repl_semisync_slave.initObject())
+  if (repl_semisync_master.init_object() ||
+      repl_semisync_slave.init_object())
   {
     sql_print_error("Could not initialize semisync.");
     unireg_abort(1);
@@ -8188,7 +8187,7 @@ static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
 #define DEF_SHOW_FUNC(name, show_type)                                       \
     static  int SHOW_FNAME(name)(MYSQL_THD thd, SHOW_VAR *var, char *buff)   \
     {                                                                        \
-      repl_semisync_master.setExportStats();                                 \
+      repl_semisync_master.set_export_stats();                                 \
       var->type= show_type;                                                  \
       var->value= (char *)&rpl_semi_sync_master_##name;                      \
       return 0;                                                              \

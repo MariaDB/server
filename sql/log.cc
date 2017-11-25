@@ -6326,8 +6326,8 @@ err:
           mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
           mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-          if (repl_semisync_master.reportBinlogUpdate(thd, log_file_name,
-                                                      file->pos_in_file))
+          if (repl_semisync_master.report_binlog_update(thd, log_file_name,
+                                                        file->pos_in_file))
           {
             sql_print_error("Failed to run 'after_flush' hooks");
             error= 1;
@@ -6360,8 +6360,8 @@ err:
       mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
       mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-      if (repl_semisync_master.waitAfterSync(log_file_name,
-                                             file->pos_in_file))
+      if (repl_semisync_master.wait_after_sync(log_file_name,
+                                               file->pos_in_file))
       {
         error=1;
         /* error is already printed inside hook */
@@ -7669,10 +7669,10 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 #ifdef HAVE_REPLICATION
         if (!current->error &&
             repl_semisync_master.
-            reportBinlogUpdate(current->thd,
-                               current->cache_mngr->last_commit_pos_file,
-                               current->cache_mngr->
-                               last_commit_pos_offset))
+            report_binlog_update(current->thd,
+                                 current->cache_mngr->last_commit_pos_file,
+                                 current->cache_mngr->
+                                 last_commit_pos_offset))
         {
           current->error= ER_ERROR_ON_WRITE;
           current->commit_errno= -1;
@@ -7757,10 +7757,10 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 #ifdef HAVE_REPLICATION
       if (!current->error)
         current->error=
-          repl_semisync_master.waitAfterSync(current->cache_mngr->
-                                             last_commit_pos_file,
-                                             current->cache_mngr->
-                                             last_commit_pos_offset);
+          repl_semisync_master.wait_after_sync(current->cache_mngr->
+                                               last_commit_pos_file,
+                                               current->cache_mngr->
+                                               last_commit_pos_offset);
 #endif
       first= false;
     }
