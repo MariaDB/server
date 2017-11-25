@@ -13,4 +13,3 @@
 innodb_scrub            : MDEV-8139 scrubbing does not work reliably
 innodb_scrub_background : MDEV-8139 scrubbing does not work reliably
 innodb-redo-badkey : MDEV-13893 / MDEV-12699 Improve crash recovery of corrupted data pages
-innodb_encrypt_log_corruption : fails in 10.3

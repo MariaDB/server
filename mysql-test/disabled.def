@@ -21,11 +21,3 @@ innodb-wl5522-debug-zip  : broken upstream
 innodb_bug12902967       : broken upstream
 file_contents            : MDEV-6526 these files are not installed anymore
 max_statement_time       : cannot possibly work, depends on timing
-ssl_ca                   : natsys: fails in mariadb-10.2.2
-innodb_load_xa           : natsys: requires external innodb plugin
-func_regexp_pcre         : broken in 10.3
-tc_heuristic_recover     : broken in 10.3
-mysql_client_test        : broken result in 10.3
-mysql_client_test_comp   : broken result in 10.3
-mysql_client_test_nonblock : broken result in 10.3
-

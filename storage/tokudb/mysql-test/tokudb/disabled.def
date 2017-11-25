@@ -29,11 +29,3 @@ cluster_key_part: engine options on partitioned tables
 i_s_tokudb_lock_waits_released: unstable, race conditions
 i_s_tokudb_locks_released: unstable, race conditions
 row_format: n/a
-
-rows-32m-rand-insert: versioning branch
-rows-32m-seq-insert: versioning branch
-background_job_manager: versioning branch
-i_s_tokudb_lock_waits_timeout: versioning branch
-i_s_tokudb_locks: versioning branch
-i_s_tokudb_trx: versioning branch
-card_auto_analyze_lots: versioning branch

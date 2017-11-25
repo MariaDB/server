@@ -1,9 +1,2 @@
 5585: times out, too many huge insert...selects
 db233: different execution path in mariadb, debug_sync point is not hit
-
-db397_insert_trigger: versioning branch
-db397_delete_trigger: versioning branch
-db397_update_trigger: versioning branch
-db938: versioning branch
-tokudb718: versioning branch
-db945: versioning branch
