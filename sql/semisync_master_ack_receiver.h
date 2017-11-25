@@ -30,7 +30,7 @@
   add_slave: maintain a new semisync slave's information
   remove_slave: remove a semisync slave's information
  */
-class Ack_receiver : public ReplSemiSyncBase
+class Ack_receiver : public Repl_semi_sync_base
 {
 public:
   Ack_receiver();
@@ -76,7 +76,7 @@ public:
   */
   void run();
 
-  void setTraceLevel(unsigned long trace_level)
+  void set_trace_level(unsigned long trace_level)
   {
     trace_level_= trace_level;
   }

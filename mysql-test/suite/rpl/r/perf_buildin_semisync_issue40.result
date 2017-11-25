@@ -5,7 +5,7 @@ CALL mtr.add_suppression("Failed to register slave to semi-sync ACK receiver thr
 CALL mtr.add_suppression("Failed to stop ack receiver thread on pthread_join.*");
 CALL mtr.add_suppression("Got an error reading communication packets:*");
 CALL mtr.add_suppression("Timeout waiting for reply of binlog*");
-CALL mtr.add_suppression("slaveReadSyncHeader*");
+CALL mtr.add_suppression("slave_read_sync_header*");
 CALL mtr.add_suppression("Missing magic number for semi-sync*");
 CALL mtr.add_suppression("Got timeout reading communication packets*");
 CALL mtr.add_suppression("Failed to call*");

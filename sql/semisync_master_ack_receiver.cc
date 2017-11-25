@@ -17,10 +17,10 @@
 #include "semisync_master.h"
 #include "semisync_master_ack_receiver.h"
 
-extern PSI_mutex_key key_ss_mutex_Ack_receiver_mutex;
-extern PSI_cond_key key_ss_cond_Ack_receiver_cond;
-extern PSI_thread_key key_ss_thread_Ack_receiver_thread;
-extern ReplSemiSyncMaster repl_semisync;
+extern PSI_mutex_key key_LOCK_ack_receiver;
+extern PSI_cond_key key_COND_ack_receiver;
+extern PSI_thread_key key_thread_ack_receiver;
+extern Repl_semi_sync_master repl_semisync;
 
 /* Callback function of ack receive thread */
 pthread_handler_t ack_receive_handler(void *arg)
@@ -39,9 +39,9 @@ Ack_receiver::Ack_receiver()
   DBUG_ENTER("Ack_receiver::Ack_receiver");
 
   m_status= ST_DOWN;
-  mysql_mutex_init(key_ss_mutex_Ack_receiver_mutex, &m_mutex,
+  mysql_mutex_init(key_LOCK_ack_receiver, &m_mutex,
                    MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_ss_cond_Ack_receiver_cond, &m_cond, NULL);
+  mysql_cond_init(key_COND_ack_receiver, &m_cond, NULL);
   m_pid= 0;
 
   DBUG_VOID_RETURN;
@@ -75,7 +75,7 @@ bool Ack_receiver::start()
 #ifndef _WIN32
         pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM) != 0 ||
 #endif
-        mysql_thread_create(key_ss_thread_Ack_receiver_thread, &m_pid,
+        mysql_thread_create(key_thread_ack_receiver, &m_pid,
                             &attr, ack_receive_handler, this))
     {
       sql_print_error("Failed to start semi-sync ACK receiver thread, "
@@ -283,8 +283,8 @@ void Ack_receiver::run()
 
         len= my_net_read(&net);
         if (likely(len != packet_error))
-          repl_semisync_master.reportReplyPacket(slave->server_id(),
-                                          net.read_pos, len);
+          repl_semisync_master.report_reply_packet(slave->server_id(),
+                                                   net.read_pos, len);
         else if (net.last_errno == ER_NET_READ_ERROR)
           FD_CLR(slave->sock_fd(), &read_fds);
       }

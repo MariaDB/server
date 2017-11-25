@@ -1486,7 +1486,7 @@ done:
   mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-  repl_semisync_master.waitAfterCommit(thd, all);
+  repl_semisync_master.wait_after_commit(thd, all);
   DEBUG_SYNC(thd, "after_group_after_commit");
 #endif
   goto end;
@@ -1734,7 +1734,7 @@ int ha_rollback_trans(THD *thd, bool all)
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
                  ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
 #ifdef HAVE_REPLICATION
-  repl_semisync_master.waitAfterRollback(thd, all);
+  repl_semisync_master.wait_after_rollback(thd, all);
 #endif
   DBUG_RETURN(error);
 }

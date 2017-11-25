@@ -18,7 +18,7 @@
 #include <my_global.h>
 #include "semisync_slave.h"
 
-ReplSemiSyncSlave repl_semisync_slave;
+Repl_semi_sync_slave repl_semisync_slave;
 
 my_bool rpl_semi_sync_slave_enabled= 0;
 
@@ -37,26 +37,26 @@ bool semi_sync_need_reply= false;
 unsigned int rpl_semi_sync_slave_kill_conn_timeout;
 unsigned long long rpl_semi_sync_slave_send_ack = 0;
 
-int ReplSemiSyncSlave::initObject()
+int Repl_semi_sync_slave::init_object()
 {
   int result= 0;
 
   init_done_ = true;
 
   /* References to the parameter works after set_options(). */
-  setSlaveEnabled(rpl_semi_sync_slave_enabled);
-  setTraceLevel(rpl_semi_sync_slave_trace_level);
-  setDelayMaster(rpl_semi_sync_slave_delay_master);
-  setKillConnTimeout(rpl_semi_sync_slave_kill_conn_timeout);
+  set_slave_enabled(rpl_semi_sync_slave_enabled);
+  set_trace_level(rpl_semi_sync_slave_trace_level);
+  set_delay_master(rpl_semi_sync_slave_delay_master);
+  set_kill_conn_timeout(rpl_semi_sync_slave_kill_conn_timeout);
 
   return result;
 }
 
-int ReplSemiSyncSlave::slaveReadSyncHeader(const char *header,
-                                      unsigned long total_len,
-                                      int  *semi_flags,
-                                      const char **payload,
-                                      unsigned long *payload_len)
+int Repl_semi_sync_slave::slave_read_sync_header(const char *header,
+                                                 unsigned long total_len,
+                                                 int  *semi_flags,
+                                                 const char **payload,
+                                                 unsigned long *payload_len)
 {
   int read_res = 0;
   DBUG_ENTER("Repl_semi_sync_slave::slave_read_sync_header");
@@ -64,9 +64,9 @@ int ReplSemiSyncSlave::slaveReadSyncHeader(const char *header,
   if (rpl_semi_sync_slave_status)
   {
     if (DBUG_EVALUATE_IF("semislave_corrupt_log", 0, 1)
-        && (unsigned char)(header[0]) == kPacketMagicNum)
+        && (unsigned char)(header[0]) == k_packet_magic_num)
     {
-      semi_sync_need_reply  = (header[1] & kPacketFlagSync);
+      semi_sync_need_reply  = (header[1] & k_packet_flag_sync);
       *payload_len = total_len - 2;
       *payload     = header + 2;
 
@@ -76,7 +76,7 @@ int ReplSemiSyncSlave::slaveReadSyncHeader(const char *header,
 
       if (semi_sync_need_reply)
         *semi_flags |= SEMI_SYNC_NEED_ACK;
-      if (isDelayMaster())
+      if (is_delay_master())
         *semi_flags |= SEMI_SYNC_SLAVE_DELAY_SYNC;
     }
     else
@@ -93,9 +93,9 @@ int ReplSemiSyncSlave::slaveReadSyncHeader(const char *header,
   DBUG_RETURN(read_res);
 }
 
-int ReplSemiSyncSlave::slaveStart(Master_info *mi)
+int Repl_semi_sync_slave::slave_start(Master_info *mi)
 {
-  bool semi_sync= getSlaveEnabled();
+  bool semi_sync= get_slave_enabled();
 
   sql_print_information("Slave I/O thread: Start %s replication to\
  master '%s@%s:%d' in log '%s' at position %lu",
@@ -112,21 +112,21 @@ int ReplSemiSyncSlave::slaveStart(Master_info *mi)
   return 0;
 }
 
-int ReplSemiSyncSlave::slaveStop(Master_info *mi)
+int Repl_semi_sync_slave::slave_stop(Master_info *mi)
 {
   if (rpl_semi_sync_slave_status)
     rpl_semi_sync_slave_status= 0;
-  if (getSlaveEnabled())
-    killConnection(mi->mysql);
+  if (get_slave_enabled())
+    kill_connection(mi->mysql);
   return 0;
 }
 
-int ReplSemiSyncSlave::resetSlave(Master_info *mi)
+int Repl_semi_sync_slave::reset_slave(Master_info *mi)
 {
   return 0;
 }
 
-void ReplSemiSyncSlave::killConnection(MYSQL *mysql)
+void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
 {
   if (!mysql)
     return;
@@ -154,14 +154,14 @@ void ReplSemiSyncSlave::killConnection(MYSQL *mysql)
   mysql_close(kill_mysql);
 }
 
-int ReplSemiSyncSlave::requestTransmit(Master_info *mi)
+int Repl_semi_sync_slave::request_transmit(Master_info *mi)
 {
   MYSQL *mysql= mi->mysql;
   MYSQL_RES *res= 0;
   MYSQL_ROW row;
   const char *query;
 
-  if (!getSlaveEnabled())
+  if (!get_slave_enabled())
     return 0;
 
   query= "SHOW VARIABLES LIKE 'rpl_semi_sync_master_enabled'";
@@ -201,7 +201,7 @@ int ReplSemiSyncSlave::requestTransmit(Master_info *mi)
   return 0;
 }
 
-int ReplSemiSyncSlave::slaveReply(Master_info *mi)
+int Repl_semi_sync_slave::slave_reply(Master_info *mi)
 {
   MYSQL* mysql= mi->mysql;
   const char *binlog_filename= const_cast<char *>(mi->master_log_name);
@@ -219,7 +219,7 @@ int ReplSemiSyncSlave::slaveReply(Master_info *mi)
   if (rpl_semi_sync_slave_status && semi_sync_need_reply)
   {
     /* Prepare the buffer of the reply. */
-    reply_buffer[REPLY_MAGIC_NUM_OFFSET] = kPacketMagicNum;
+    reply_buffer[REPLY_MAGIC_NUM_OFFSET] = k_packet_magic_num;
     int8store(reply_buffer + REPLY_BINLOG_POS_OFFSET, binlog_filepos);
     memcpy(reply_buffer + REPLY_BINLOG_NAME_OFFSET,
            binlog_filename,

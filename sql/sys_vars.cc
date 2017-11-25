@@ -3049,17 +3049,17 @@ static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
 {
   if (rpl_semi_sync_master_enabled)
   {
-    if (repl_semisync_master.enableMaster() != 0)
+    if (repl_semisync_master.enable_master() != 0)
       rpl_semi_sync_master_enabled= false;
     else if (ack_receiver.start())
     {
-      repl_semisync_master.disableMaster();
+      repl_semisync_master.disable_master();
       rpl_semi_sync_master_enabled= false;
     }
   }
   else
   {
-    if (repl_semisync_master.disableMaster() != 0)
+    if (repl_semisync_master.disable_master() != 0)
       rpl_semi_sync_master_enabled= true;
     if (!rpl_semi_sync_master_enabled)
       ack_receiver.stop();
@@ -3070,29 +3070,29 @@ static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
 static bool fix_rpl_semi_sync_master_timeout(sys_var *self, THD *thd,
                                              enum_var_type type)
 {
-  repl_semisync_master.setWaitTimeout(rpl_semi_sync_master_timeout);
+  repl_semisync_master.set_wait_timeout(rpl_semi_sync_master_timeout);
   return false;
 }
 
 static bool fix_rpl_semi_sync_master_trace_level(sys_var *self, THD *thd,
                                                  enum_var_type type)
 {
-  repl_semisync_master.setTraceLevel(rpl_semi_sync_master_trace_level);
-  ack_receiver.setTraceLevel(rpl_semi_sync_master_trace_level);
+  repl_semisync_master.set_trace_level(rpl_semi_sync_master_trace_level);
+  ack_receiver.set_trace_level(rpl_semi_sync_master_trace_level);
   return false;
 }
 
 static bool fix_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
                                                 enum_var_type type)
 {
-  repl_semisync_master.setWaitPoint(rpl_semi_sync_master_wait_point);
+  repl_semisync_master.set_wait_point(rpl_semi_sync_master_wait_point);
   return false;
 }
 
 static bool fix_rpl_semi_sync_master_wait_no_slave(sys_var *self, THD *thd,
                                                    enum_var_type type)
 {
-  repl_semisync_master.checkAndSwitch();
+  repl_semisync_master.check_and_switch();
   return false;
 }
 
@@ -3147,28 +3147,29 @@ static Sys_var_enum Sys_semisync_master_wait_point(
 static bool fix_rpl_semi_sync_slave_enabled(sys_var *self, THD *thd,
                                             enum_var_type type)
 {
-  repl_semisync_slave.setSlaveEnabled(rpl_semi_sync_slave_enabled != 0);
+  repl_semisync_slave.set_slave_enabled(rpl_semi_sync_slave_enabled != 0);
   return false;
 }
 
 static bool fix_rpl_semi_sync_slave_trace_level(sys_var *self, THD *thd,
                                                 enum_var_type type)
 {
-  repl_semisync_slave.setTraceLevel(rpl_semi_sync_slave_trace_level);
+  repl_semisync_slave.set_trace_level(rpl_semi_sync_slave_trace_level);
   return false;
 }
 
 static bool fix_rpl_semi_sync_slave_delay_master(sys_var *self, THD *thd,
                                                  enum_var_type type)
 {
-  repl_semisync_slave.setDelayMaster(rpl_semi_sync_slave_delay_master);
+  repl_semisync_slave.set_delay_master(rpl_semi_sync_slave_delay_master);
   return false;
 }
 
 static bool fix_rpl_semi_sync_slave_kill_conn_timeout(sys_var *self, THD *thd,
                                                       enum_var_type type)
 {
-  repl_semisync_slave.setKillConnTimeout(rpl_semi_sync_slave_kill_conn_timeout);
+  repl_semisync_slave.
+    set_kill_conn_timeout(rpl_semi_sync_slave_kill_conn_timeout);
   return false;
 }
 
