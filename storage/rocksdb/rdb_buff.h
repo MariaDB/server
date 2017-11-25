@@ -40,6 +40,10 @@
 #define be16toh(x) OSSwapBigToHostInt16(x)
 #endif
 
+#ifdef __FreeBSD__
+#include <sys/endian.h>
+#endif
+
 namespace myrocks {
 
 /*

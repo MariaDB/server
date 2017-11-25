@@ -29,7 +29,6 @@ else()
   endif()
   if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
     # FreeBSD has jemaloc as default malloc
-    add_definitions(-DROCKSDB_JEMALLOC)
     set(WITH_JEMALLOC ON)
   endif()
 endif()
