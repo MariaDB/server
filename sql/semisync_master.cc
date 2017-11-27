@@ -141,18 +141,18 @@ int ActiveTranx::compare(const char *log_file_name1, my_off_t log_file_pos1,
 int ActiveTranx::insert_tranx_node(const char *log_file_name,
 				   my_off_t log_file_pos)
 {
-  const char *kWho = "ActiveTranx:insert_tranx_node";
   TranxNode  *ins_node;
   int         result = 0;
   unsigned int        hash_val;
 
-  function_enter(kWho);
+  DBUG_ENTER("Active_tranx:insert_tranx_node");
 
   ins_node = allocator_.allocate_node();
   if (!ins_node)
   {
     sql_print_error("%s: transaction node allocation failed for: (%s, %lu)",
-                    kWho, log_file_name, (ulong)log_file_pos);
+                    "Active_tranx:insert_tranx_node",
+                    log_file_name, (ulong)log_file_pos);
     result = -1;
     goto l_end;
   }
@@ -184,7 +184,7 @@ int ActiveTranx::insert_tranx_node(const char *log_file_name,
        * mysql_bin_log.LOCK_log when appending events.
        */
       sql_print_error("%s: binlog write out-of-order, tail (%s, %lu), "
-                      "new node (%s, %lu)", kWho,
+                      "new node (%s, %lu)", "Active_tranx:insert_tranx_node",
                       trx_rear_->log_name_, (ulong)trx_rear_->log_pos_,
                       ins_node->log_name_, (ulong)ins_node->log_pos_);
       result = -1;
@@ -196,20 +196,19 @@ int ActiveTranx::insert_tranx_node(const char *log_file_name,
   ins_node->hash_next_ = trx_htb_[hash_val];
   trx_htb_[hash_val]   = ins_node;
 
-  if (trace_level_ & kTraceDetail)
-    sql_print_information("%s: insert (%s, %lu) in entry(%u)", kWho,
+  DBUG_PRINT("semisync", ("%s: insert (%s, %lu) in entry(%u)",
+                          "Active_tranx:insert_tranx_node",
                           ins_node->log_name_, (ulong)ins_node->log_pos_,
-                          hash_val);
-
+                          hash_val));
  l_end:
-  return function_exit(kWho, result);
+
+  DBUG_RETURN(result);
 }
 
 bool ActiveTranx::is_tranx_end_pos(const char *log_file_name,
 				   my_off_t    log_file_pos)
 {
-  const char *kWho = "ActiveTranx::is_tranx_end_pos";
-  function_enter(kWho);
+  DBUG_ENTER("Active_tranx::is_tranx_end_pos");
 
   unsigned int hash_val = get_hash_value(log_file_name, log_file_pos);
   TranxNode *entry = trx_htb_[hash_val];
@@ -222,21 +221,19 @@ bool ActiveTranx::is_tranx_end_pos(const char *log_file_name,
     entry = entry->hash_next_;
   }
 
-  if (trace_level_ & kTraceDetail)
-    sql_print_information("%s: probe (%s, %lu) in entry(%u)", kWho,
-                          log_file_name, (ulong)log_file_pos, hash_val);
+  DBUG_PRINT("semisync", ("%s: probe (%s, %lu) in entry(%u)",
+                          "Active_tranx::is_tranx_end_pos",
+                          log_file_name, (ulong)log_file_pos, hash_val));
 
-  function_exit(kWho, (entry != NULL));
-  return (entry != NULL);
+  DBUG_RETURN(entry != NULL);
 }
 
 int ActiveTranx::clear_active_tranx_nodes(const char *log_file_name,
 					  my_off_t log_file_pos)
 {
-  const char *kWho = "ActiveTranx::::clear_active_tranx_nodes";
   TranxNode *new_front;
 
-  function_enter(kWho);
+  DBUG_ENTER("Active_tranx::::clear_active_tranx_nodes");
 
   if (log_file_name != NULL)
   {
@@ -270,8 +267,8 @@ int ActiveTranx::clear_active_tranx_nodes(const char *log_file_name,
       trx_rear_  = NULL;
     }
 
-    if (trace_level_ & kTraceDetail)
-      sql_print_information("%s: cleared all nodes", kWho);
+    DBUG_PRINT("semisync", ("%s: cleared all nodes",
+                            "Active_tranx::::clear_active_tranx_nodes"));
   }
   else if (new_front != trx_front_)
   {
@@ -304,13 +301,13 @@ int ActiveTranx::clear_active_tranx_nodes(const char *log_file_name,
     trx_front_ = new_front;
     allocator_.free_nodes_before(trx_front_);
 
-    if (trace_level_ & kTraceDetail)
-      sql_print_information("%s: cleared %d nodes back until pos (%s, %lu)",
-                            kWho, n_frees,
-                            trx_front_->log_name_, (ulong)trx_front_->log_pos_);
+    DBUG_PRINT("semisync", ("%s: cleared %d nodes back until pos (%s, %lu)",
+                            "Active_tranx::::clear_active_tranx_nodes",
+                            n_frees,
+                            trx_front_->log_name_, (ulong)trx_front_->log_pos_));
   }
 
-  return function_exit(kWho, 0);
+  DBUG_RETURN(0);
 }
 
 
@@ -481,13 +478,14 @@ void ReplSemiSyncMaster::cond_broadcast()
 
 int ReplSemiSyncMaster::cond_timewait(struct timespec *wait_time)
 {
-  const char *kWho = "ReplSemiSyncMaster::cond_timewait()";
   int wait_res;
 
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_master::cond_timewait()");
+
   wait_res= mysql_cond_timedwait(&COND_binlog_send,
                                  &LOCK_binlog, wait_time);
-  return function_exit(kWho, wait_res);
+
+  DBUG_RETURN(wait_res);
 }
 
 void ReplSemiSyncMaster::add_slave()
@@ -519,13 +517,12 @@ void ReplSemiSyncMaster::remove_slave()
 int ReplSemiSyncMaster::reportReplyPacket(uint32 server_id, const uchar *packet,
                                           ulong packet_len)
 {
-  const char *kWho = "ReplSemiSyncMaster::reportReplyPacket";
   int result= -1;
   char log_file_name[FN_REFLEN+1];
   my_off_t log_file_pos;
   ulong log_file_len = 0;
 
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_master::report_reply_packet");
 
   if (unlikely(packet[REPLY_MAGIC_NUM_OFFSET] != ReplSemiSyncMaster::kPacketMagicNum))
   {
@@ -551,30 +548,30 @@ int ReplSemiSyncMaster::reportReplyPacket(uint32 server_id, const uchar *packet,
 
   DBUG_ASSERT(dirname_length(log_file_name) == 0);
 
-  if (trace_level_ & kTraceDetail)
-    sql_print_information("%s: Got reply(%s, %lu) from server %u",
-                          kWho, log_file_name, (ulong)log_file_pos, server_id);
+  DBUG_PRINT("semisync", ("%s: Got reply(%s, %lu) from server %u",
+                          "Repl_semi_sync_master::report_reply_packet",
+                          log_file_name, (ulong)log_file_pos, server_id));
 
   rpl_semi_sync_master_get_ack++;
   reportReplyBinlog(server_id, log_file_name, log_file_pos);
 
 l_end:
-  return function_exit(kWho, result);
+
+  DBUG_RETURN(result);
 }
 
 int ReplSemiSyncMaster::reportReplyBinlog(uint32 server_id,
 					  const char *log_file_name,
 					  my_off_t log_file_pos)
 {
-  const char *kWho = "ReplSemiSyncMaster::reportReplyBinlog";
   int   cmp;
   bool  can_release_threads = false;
   bool  need_copy_send_pos = true;
 
-  if (!(getMasterEnabled()))
-    return 0;
+  DBUG_ENTER("Repl_semi_sync_master::report_reply_binlog");
 
-  function_enter(kWho);
+  if (!(getMasterEnabled()))
+    DBUG_RETURN(0);
 
   lock();
 
@@ -622,9 +619,9 @@ int ReplSemiSyncMaster::reportReplyBinlog(uint32 server_id,
     assert(active_tranxs_ != NULL);
     active_tranxs_->clear_active_tranx_nodes(log_file_name, log_file_pos);
 
-    if (trace_level_ & kTraceDetail)
-      sql_print_information("%s: Got reply at (%s, %lu)", kWho,
-                            log_file_name, (ulong)log_file_pos);
+    DBUG_PRINT("semisync", ("%s: Got reply at (%s, %lu)",
+                            "Repl_semi_sync_master::report_reply_binlog",
+                            log_file_name, (ulong)log_file_pos));
   }
 
   if (rpl_semi_sync_master_wait_sessions > 0)
@@ -649,13 +646,13 @@ int ReplSemiSyncMaster::reportReplyBinlog(uint32 server_id,
 
   if (can_release_threads)
   {
-    if (trace_level_ & kTraceDetail)
-      sql_print_information("%s: signal all waiting threads.", kWho);
+    DBUG_PRINT("semisync", ("%s: signal all waiting threads.",
+                            "Repl_semi_sync_master::report_reply_binlog"));
 
     cond_broadcast();
   }
 
-  return function_exit(kWho, 0);
+  DBUG_RETURN(0);
 }
 
 int ReplSemiSyncMaster::waitAfterSync(const char *log_file, my_off_t log_pos)
@@ -776,9 +773,8 @@ void ReplSemiSyncMaster::dump_end(THD* thd)
 int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
 				  my_off_t trx_wait_binlog_pos)
 {
-  const char *kWho = "ReplSemiSyncMaster::commitTrx";
 
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_master::commit_trx");
 
   if (getMasterEnabled() && trx_wait_binlog_name)
   {
@@ -802,12 +798,10 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
     if (!getMasterEnabled() || !is_on())
       goto l_end;
 
-    if (trace_level_ & kTraceDetail)
-    {
-      sql_print_information("%s: wait pos (%s, %lu), repl(%d)\n", kWho,
+    DBUG_PRINT("semisync", ("%s: wait pos (%s, %lu), repl(%d)\n",
+                            "Repl_semi_sync_master::commit_trx",
                             trx_wait_binlog_name, (ulong)trx_wait_binlog_pos,
-                            (int)is_on());
-    }
+                            (int)is_on()));
 
     while (is_on() && !thd_killed(current_thd))
     {
@@ -820,9 +814,10 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
           /* We have already sent the relevant binlog to the slave: no need to
            * wait here.
            */
-          if (trace_level_ & kTraceDetail)
-            sql_print_information("%s: Binlog reply is ahead (%s, %lu),",
-                                  kWho, reply_file_name_, (ulong)reply_file_pos_);
+          DBUG_PRINT("semisync", ("%s: Binlog reply is ahead (%s, %lu),",
+                                  "Repl_semi_sync_master::commit_trx",
+                                  reply_file_name_,
+                                  (ulong)reply_file_pos_));
           break;
         }
       }
@@ -841,9 +836,9 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
           wait_file_pos_ = trx_wait_binlog_pos;
 
           rpl_semi_sync_master_wait_pos_backtraverse++;
-          if (trace_level_ & kTraceDetail)
-            sql_print_information("%s: move back wait position (%s, %lu),",
-                                  kWho, wait_file_name_, (ulong)wait_file_pos_);
+          DBUG_PRINT("semisync", ("%s: move back wait position (%s, %lu),",
+                                  "Repl_semi_sync_master::commit_trx",
+                                  wait_file_name_, (ulong)wait_file_pos_));
         }
       }
       else
@@ -852,9 +847,9 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
         wait_file_pos_ = trx_wait_binlog_pos;
         wait_file_name_inited_ = true;
 
-        if (trace_level_ & kTraceDetail)
-          sql_print_information("%s: init wait position (%s, %lu),",
-                                kWho, wait_file_name_, (ulong)wait_file_pos_);
+        DBUG_PRINT("semisync", ("%s: init wait position (%s, %lu),",
+                                "Repl_semi_sync_master::commit_trx",
+                                wait_file_name_, (ulong)wait_file_pos_));
       }
 
       /* Calcuate the waiting period. */
@@ -874,10 +869,10 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
        */
       rpl_semi_sync_master_wait_sessions++;
 
-      if (trace_level_ & kTraceDetail)
-        sql_print_information("%s: wait %lu ms for binlog sent (%s, %lu)",
-                              kWho, wait_timeout_,
-                              wait_file_name_, (ulong)wait_file_pos_);
+      DBUG_PRINT("semisync", ("%s: wait %lu ms for binlog sent (%s, %lu)",
+                              "Repl_semi_sync_master::commit_trx",
+                              wait_timeout_,
+                              wait_file_name_, (ulong)wait_file_pos_));
 
       wait_result = cond_timewait(&abstime);
       rpl_semi_sync_master_wait_sessions--;
@@ -901,12 +896,10 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
         wait_time = getWaitTime(start_ts);
         if (wait_time < 0)
         {
-          if (trace_level_ & kTraceGeneral)
-          {
-            sql_print_error("Replication semi-sync getWaitTime fail at "
-                            "wait position (%s, %lu)",
-                            trx_wait_binlog_name, (ulong)trx_wait_binlog_pos);
-          }
+          DBUG_PRINT("semisync", ("Replication semi-sync getWaitTime fail at "
+                                  "wait position (%s, %lu)",
+                                  trx_wait_binlog_name,
+                                  (ulong)trx_wait_binlog_pos));
           rpl_semi_sync_master_timefunc_fails++;
         }
         else
@@ -939,7 +932,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
     THD_EXIT_COND(NULL, & old_stage);
   }
 
-  return function_exit(kWho, 0);
+  DBUG_RETURN(0);
 }
 
 /* Indicate that semi-sync replication is OFF now.
@@ -962,10 +955,10 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
  */
 int ReplSemiSyncMaster::switch_off()
 {
-  const char *kWho = "ReplSemiSyncMaster::switch_off";
   int result;
 
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_master::switch_off");
+
   state_ = false;
 
   /* Clear the active transaction list. */
@@ -978,17 +971,16 @@ int ReplSemiSyncMaster::switch_off()
   sql_print_information("Semi-sync replication switched OFF.");
   cond_broadcast();                            /* wake up all waiting threads */
 
-  return function_exit(kWho, result);
+  DBUG_RETURN(result);
 }
 
 int ReplSemiSyncMaster::try_switch_on(int server_id,
 				      const char *log_file_name,
 				      my_off_t log_file_pos)
 {
-  const char *kWho = "ReplSemiSyncMaster::try_switch_on";
   bool semi_sync_on = false;
 
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_master::try_switch_on");
 
   /* If the current sending event's position is larger than or equal to the
    * 'largest' commit transaction binlog position, the slave is already
@@ -1018,20 +1010,19 @@ int ReplSemiSyncMaster::try_switch_on(int server_id,
                           (ulong)log_file_pos);
   }
 
-  return function_exit(kWho, 0);
+  DBUG_RETURN(0);
 }
 
 int ReplSemiSyncMaster::reserveSyncHeader(String* packet)
 {
-  const char *kWho = "ReplSemiSyncMaster::reserveSyncHeader";
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_master::reserve_sync_header");
 
   /* Set the magic number and the sync status.  By default, no sync
    * is required.
    */
   packet->append(reinterpret_cast<const char*>(kSyncHeader),
                  sizeof(kSyncHeader));
-  return function_exit(kWho, 0);
+  DBUG_RETURN(0);
 }
 
 int ReplSemiSyncMaster::updateSyncHeader(THD* thd, unsigned char *packet,
@@ -1039,9 +1030,10 @@ int ReplSemiSyncMaster::updateSyncHeader(THD* thd, unsigned char *packet,
 					 my_off_t log_file_pos,
 					 bool* need_sync)
 {
-  const char *kWho = "ReplSemiSyncMaster::updateSyncHeader";
   int  cmp = 0;
   bool sync = false;
+
+  DBUG_ENTER("Repl_semi_sync_master::update_sync_header");
 
   /* If the semi-sync master is not enabled, or the slave is not a semi-sync
    * target, do not request replies from the slave.
@@ -1049,10 +1041,8 @@ int ReplSemiSyncMaster::updateSyncHeader(THD* thd, unsigned char *packet,
   if (!getMasterEnabled() || !thd->semi_sync_slave)
   {
     *need_sync = false;
-    return 0;
+    DBUG_RETURN(0);
   }
-
-  function_enter(kWho);
 
   lock();
 
@@ -1118,10 +1108,10 @@ int ReplSemiSyncMaster::updateSyncHeader(THD* thd, unsigned char *packet,
     }
   }
 
-  if (trace_level_ & kTraceDetail)
-    sql_print_information("%s: server(%d), (%s, %lu) sync(%d), repl(%d)",
-                          kWho, thd->variables.server_id, log_file_name,
-                          (ulong)log_file_pos, sync, (int)is_on());
+  DBUG_PRINT("semisync", ("%s: server(%lu), (%s, %lu) sync(%d), repl(%d)",
+                          "Repl_semi_sync_master::update_sync_header",
+                          thd->variables.server_id, log_file_name,
+                          (ulong)log_file_pos, sync, (int)is_on()));
   *need_sync= sync;
 
  l_end:
@@ -1135,16 +1125,15 @@ int ReplSemiSyncMaster::updateSyncHeader(THD* thd, unsigned char *packet,
     (packet)[2] = kPacketFlagSync;
   }
 
-  return function_exit(kWho, 0);
+  DBUG_RETURN(0);
 }
 
 int ReplSemiSyncMaster::writeTranxInBinlog(const char* log_file_name,
 					   my_off_t log_file_pos)
 {
-  const char *kWho = "ReplSemiSyncMaster::writeTranxInBinlog";
   int result = 0;
 
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_master::write_tranx_in_binlog");
 
   lock();
 
@@ -1201,17 +1190,16 @@ int ReplSemiSyncMaster::writeTranxInBinlog(const char* log_file_name,
  l_end:
   unlock();
 
-  return function_exit(kWho, result);
+  DBUG_RETURN(result);
 }
 
 int ReplSemiSyncMaster::flushNet(THD *thd,
                                  const char *event_buf)
 {
-  const char *kWho = "ReplSemiSyncMaster::flushNet";
   int      result = -1;
   NET* net= &thd->net;
 
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_master::flush_net");
 
   assert((unsigned char)event_buf[1] == kPacketMagicNum);
   if ((unsigned char)event_buf[2] != kPacketFlagSync)
@@ -1238,15 +1226,15 @@ int ReplSemiSyncMaster::flushNet(THD *thd,
 
  l_end:
   thd->clear_error();
-  return function_exit(kWho, result);
+
+  DBUG_RETURN(result);
 }
 
 int ReplSemiSyncMaster::afterResetMaster()
 {
-  const char *kWho = "ReplSemiSyncMaster::afterResetMaster";
   int result = 0;
 
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_master::after_reset_master");
 
   if (rpl_semi_sync_master_enabled)
   {
@@ -1279,20 +1267,19 @@ int ReplSemiSyncMaster::afterResetMaster()
 
   unlock();
 
-  return function_exit(kWho, result);
+  DBUG_RETURN(result);
 }
 
 int ReplSemiSyncMaster::beforeResetMaster()
 {
-  const char *kWho = "ReplSemiSyncMaster::beforeResetMaster";
   int result = 0;
 
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_master::before_reset_master");
 
   if (rpl_semi_sync_master_enabled)
     disableMaster();
 
-  return function_exit(kWho, result);
+  DBUG_RETURN(result);
 }
 
 void ReplSemiSyncMaster::checkAndSwitch()
