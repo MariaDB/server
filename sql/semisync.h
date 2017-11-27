@@ -35,32 +35,6 @@ public:
 
   unsigned long           trace_level_;                      /* the level for tracing */
 
-  inline void function_enter(const char *func_name)
-  {
-    if (trace_level_ & kTraceFunction)
-      sql_print_information("---> %s enter", func_name);
-  }
-  inline int  function_exit(const char *func_name, int exit_code)
-  {
-    if (trace_level_ & kTraceFunction)
-      sql_print_information("<--- %s exit (%d)", func_name, exit_code);
-    return exit_code;
-  }
-
-  inline bool function_exit(const char *func_name, bool exit_code)
-  {
-    if (trace_level_ & kTraceFunction)
-      sql_print_information("<--- %s exit (%s)", func_name,
-                            exit_code ? "True" : "False");
-    return exit_code;
-  }
-
-  inline void function_exit(const char *func_name)
-  {
-    if (trace_level_ & kTraceFunction)
-      sql_print_information("<--- %s exit", func_name);
-  }
-
   Trace()
     :trace_level_(0L)
   {}

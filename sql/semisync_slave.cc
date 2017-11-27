@@ -58,9 +58,8 @@ int ReplSemiSyncSlave::slaveReadSyncHeader(const char *header,
                                       const char **payload,
                                       unsigned long *payload_len)
 {
-  const char *kWho = "ReplSemiSyncSlave::slaveReadSyncHeader";
   int read_res = 0;
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_slave::slave_read_sync_header");
 
   if (rpl_semi_sync_slave_status)
   {
@@ -71,8 +70,9 @@ int ReplSemiSyncSlave::slaveReadSyncHeader(const char *header,
       *payload_len = total_len - 2;
       *payload     = header + 2;
 
-      if (trace_level_ & kTraceDetail)
-        sql_print_information("%s: reply - %d", kWho, semi_sync_need_reply);
+      DBUG_PRINT("semisync", ("%s: reply - %d",
+                              "Repl_semi_sync_slave::slave_read_sync_header",
+                              semi_sync_need_reply));
 
       if (semi_sync_need_reply)
         *semi_flags |= SEMI_SYNC_NEED_ACK;
@@ -90,7 +90,7 @@ int ReplSemiSyncSlave::slaveReadSyncHeader(const char *header,
     *payload_len= total_len;
   }
 
-  return function_exit(kWho, read_res);
+  DBUG_RETURN(read_res);
 }
 
 int ReplSemiSyncSlave::slaveStart(Master_info *mi)
@@ -203,7 +203,6 @@ int ReplSemiSyncSlave::requestTransmit(Master_info *mi)
 
 int ReplSemiSyncSlave::slaveReply(Master_info *mi)
 {
-  const char *kWho = "ReplSemiSyncSlave::slaveReply";
   MYSQL* mysql= mi->mysql;
   const char *binlog_filename= const_cast<char *>(mi->master_log_name);
   my_off_t binlog_filepos= mi->master_log_pos;
@@ -215,7 +214,7 @@ int ReplSemiSyncSlave::slaveReply(Master_info *mi)
   int reply_res = 0;
   int name_len = strlen(binlog_filename);
 
-  function_enter(kWho);
+  DBUG_ENTER("Repl_semi_sync_slave::slave_reply");
 
   if (rpl_semi_sync_slave_status && semi_sync_need_reply)
   {
@@ -226,9 +225,9 @@ int ReplSemiSyncSlave::slaveReply(Master_info *mi)
            binlog_filename,
            name_len + 1 /* including trailing '\0' */);
 
-    if (trace_level_ & kTraceDetail)
-      sql_print_information("%s: reply (%s, %lu)", kWho,
-                            binlog_filename, (ulong)binlog_filepos);
+    DBUG_PRINT("semisync", ("%s: reply (%s, %lu)",
+                            "Repl_semi_sync_slave::slave_reply",
+                            binlog_filename, (ulong)binlog_filepos));
 
     net_clear(net, 0);
     /* Send the reply. */
@@ -248,5 +247,5 @@ int ReplSemiSyncSlave::slaveReply(Master_info *mi)
     }
   }
 
-  return function_exit(kWho, reply_res);
+  DBUG_RETURN(reply_res);
 }

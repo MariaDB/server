@@ -36,8 +36,7 @@ pthread_handler_t ack_receive_handler(void *arg)
 
 Ack_receiver::Ack_receiver()
 {
-  const char *kWho = "Ack_receiver::Ack_receiver";
-  function_enter(kWho);
+  DBUG_ENTER("Ack_receiver::Ack_receiver");
 
   m_status= ST_DOWN;
   mysql_mutex_init(key_ss_mutex_Ack_receiver_mutex, &m_mutex,
@@ -45,25 +44,23 @@ Ack_receiver::Ack_receiver()
   mysql_cond_init(key_ss_cond_Ack_receiver_cond, &m_cond, NULL);
   m_pid= 0;
 
-  function_exit(kWho);
+  DBUG_VOID_RETURN;
 }
 
 void Ack_receiver::cleanup()
 {
-  const char *kWho = "Ack_receiver::~Ack_receiver";
-  function_enter(kWho);
+  DBUG_ENTER("Ack_receiver::~Ack_receiver");
 
   stop();
   mysql_mutex_destroy(&m_mutex);
   mysql_cond_destroy(&m_cond);
 
-  function_exit(kWho);
+  DBUG_VOID_RETURN;
 }
 
 bool Ack_receiver::start()
 {
-  const char *kWho = "Ack_receiver::start";
-  function_enter(kWho);
+  DBUG_ENTER("Ack_receiver::start");
 
   mysql_mutex_lock(&m_mutex);
   if(m_status == ST_DOWN)
@@ -87,19 +84,18 @@ bool Ack_receiver::start()
       m_status= ST_DOWN;
       mysql_mutex_unlock(&m_mutex);
 
-      return function_exit(kWho, true);
+      DBUG_RETURN(true);
     }
     (void) pthread_attr_destroy(&attr);
   }
   mysql_mutex_unlock(&m_mutex);
 
-  return function_exit(kWho, false);
+  DBUG_RETURN(false);
 }
 
 void Ack_receiver::stop()
 {
-  const char *kWho = "Ack_receiver::stop";
-  function_enter(kWho);
+  DBUG_ENTER("Ack_receiver::stop");
 
   mysql_mutex_lock(&m_mutex);
   if (m_status == ST_UP)
@@ -116,17 +112,16 @@ void Ack_receiver::stop()
   }
   mysql_mutex_unlock(&m_mutex);
 
-  function_exit(kWho);
+  DBUG_VOID_RETURN;
 }
 
 bool Ack_receiver::add_slave(THD *thd)
 {
   Slave *slave;
-  const char *kWho = "Ack_receiver::add_slave";
-  function_enter(kWho);
+  DBUG_ENTER("Ack_receiver::add_slave");
 
   if (!(slave= new Slave))
-    return function_exit(kWho, true);
+    DBUG_RETURN(true);
 
   slave->thd= thd;
   slave->vio= *thd->net.vio;
@@ -139,15 +134,14 @@ bool Ack_receiver::add_slave(THD *thd)
   mysql_cond_broadcast(&m_cond);
   mysql_mutex_unlock(&m_mutex);
 
-  return function_exit(kWho, false);
+  DBUG_RETURN(false);
 }
 
 void Ack_receiver::remove_slave(THD *thd)
 {
   I_List_iterator<Slave> it(m_slaves);
   Slave *slave;
-  const char *kWho = "Ack_receiver::remove_slave";
-  function_enter(kWho);
+  DBUG_ENTER("Ack_receiver::remove_slave");
 
   mysql_mutex_lock(&m_mutex);
 
@@ -161,7 +155,8 @@ void Ack_receiver::remove_slave(THD *thd)
     }
   }
   mysql_mutex_unlock(&m_mutex);
-  function_exit(kWho);
+
+  DBUG_VOID_RETURN;
 }
 
 inline void Ack_receiver::set_stage_info(const PSI_stage_info &stage)
