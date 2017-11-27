@@ -40,7 +40,7 @@ int Repl_semi_sync_slave::init_object()
 {
   int result= 0;
 
-  init_done_ = true;
+  m_init_done = true;
 
   /* References to the parameter works after set_options(). */
   set_slave_enabled(rpl_semi_sync_slave_enabled);
@@ -133,9 +133,9 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
   char kill_buffer[30];
   MYSQL *kill_mysql = NULL;
   kill_mysql = mysql_init(kill_mysql);
-  mysql_options(kill_mysql, MYSQL_OPT_CONNECT_TIMEOUT, &kill_conn_timeout_);
-  mysql_options(kill_mysql, MYSQL_OPT_READ_TIMEOUT, &kill_conn_timeout_);
-  mysql_options(kill_mysql, MYSQL_OPT_WRITE_TIMEOUT, &kill_conn_timeout_);
+  mysql_options(kill_mysql, MYSQL_OPT_CONNECT_TIMEOUT, &m_kill_conn_timeout);
+  mysql_options(kill_mysql, MYSQL_OPT_READ_TIMEOUT, &m_kill_conn_timeout);
+  mysql_options(kill_mysql, MYSQL_OPT_WRITE_TIMEOUT, &m_kill_conn_timeout);
 
   bool ret= (!mysql_real_connect(kill_mysql, mysql->host,
             mysql->user, mysql->passwd,0, mysql->port, mysql->unix_socket, 0));

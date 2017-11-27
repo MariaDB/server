@@ -32,11 +32,11 @@ class Master_info;
 class Repl_semi_sync_slave
   :public Repl_semi_sync_base {
 public:
- Repl_semi_sync_slave() :slave_enabled_(false) {}
+ Repl_semi_sync_slave() :m_slave_enabled(false) {}
   ~Repl_semi_sync_slave() {}
 
   void set_trace_level(unsigned long trace_level) {
-    trace_level_ = trace_level;
+    m_trace_level = trace_level;
   }
 
   /* Initialize this class after MySQL parameters are initialized. this
@@ -45,23 +45,23 @@ public:
   int init_object();
 
   bool get_slave_enabled() {
-    return slave_enabled_;
+    return m_slave_enabled;
   }
 
   void set_slave_enabled(bool enabled) {
-    slave_enabled_ = enabled;
+    m_slave_enabled = enabled;
   }
 
   bool is_delay_master(){
-    return delay_master_;
+    return m_delay_master;
   }
 
   void set_delay_master(bool enabled) {
-    delay_master_ = enabled;
+    m_delay_master = enabled;
   }
 
   void set_kill_conn_timeout(unsigned int timeout) {
-    kill_conn_timeout_ = timeout;
+    m_kill_conn_timeout = timeout;
   }
 
   /* A slave reads the semi-sync packet header and separate the metadata
@@ -95,10 +95,10 @@ public:
 
 private:
   /* True when init_object has been called */
-  bool init_done_;
-  bool slave_enabled_;        /* semi-sycn is enabled on the slave */
-  bool delay_master_;
-  unsigned int kill_conn_timeout_;
+  bool m_init_done;
+  bool m_slave_enabled;        /* semi-sycn is enabled on the slave */
+  bool m_delay_master;
+  unsigned int m_kill_conn_timeout;
 };
 
 
