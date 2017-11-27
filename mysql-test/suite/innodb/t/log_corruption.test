@@ -16,6 +16,7 @@ call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
 call mtr.add_suppression("InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42\\r?$");
 call mtr.add_suppression("InnoDB: Obtaining redo log encryption key version 1 failed");
 call mtr.add_suppression("InnoDB: Decrypting checkpoint failed");
+call mtr.add_suppression("`mysql\\.transaction_registry` does not exist");
 --enable_query_log
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;
