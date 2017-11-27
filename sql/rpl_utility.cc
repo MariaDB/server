@@ -141,10 +141,10 @@ max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
     */
 
   case MYSQL_TYPE_TINY_BLOB:
-    return my_set_bits(1 * 8);
+    return (uint32)my_set_bits(1 * 8);
 
   case MYSQL_TYPE_MEDIUM_BLOB:
-    return my_set_bits(3 * 8);
+    return (uint32)my_set_bits(3 * 8);
 
   case MYSQL_TYPE_BLOB:
   case MYSQL_TYPE_BLOB_COMPRESSED:
@@ -153,11 +153,11 @@ max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
       blobs are of type MYSQL_TYPE_BLOB. In that case, we have to look
       at the length instead to decide what the max display size is.
      */
-    return my_set_bits(metadata * 8);
+    return (uint32)my_set_bits(metadata * 8);
 
   case MYSQL_TYPE_LONG_BLOB:
   case MYSQL_TYPE_GEOMETRY:
-    return my_set_bits(4 * 8);
+    return (uint32)my_set_bits(4 * 8);
 
   default:
     return ~(uint32) 0;

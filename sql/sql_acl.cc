@@ -7367,9 +7367,8 @@ static bool grant_load(THD *thd,
             continue;
           }
         }
-        uint type= procs_priv.routine_type()->val_int();
-        const Sp_handler *sph= Sp_handler::handler((stored_procedure_type)
-                                                   type);
+        stored_procedure_type type= (stored_procedure_type)procs_priv.routine_type()->val_int();
+        const Sp_handler *sph= Sp_handler::handler(type);
         if (!sph || !(hash= sph->get_priv_hash()))
         {
           sql_print_warning("'procs_priv' entry '%s' "

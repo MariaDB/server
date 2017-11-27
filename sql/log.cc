@@ -2391,7 +2391,7 @@ File open_binlog(IO_CACHE *log, const char *log_file_name, const char **errmsg)
     *errmsg = "Could not open log file";
     goto err;
   }
-  if (init_io_cache(log, file, binlog_file_cache_size, READ_CACHE, 0, 0,
+  if (init_io_cache(log, file, (size_t)binlog_file_cache_size, READ_CACHE, 0, 0,
                     MYF(MY_WME|MY_DONT_CHECK_FILESIZE)))
   {
     sql_print_error("Failed to create a cache on log (file '%s')",

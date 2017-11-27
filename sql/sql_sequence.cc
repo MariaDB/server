@@ -113,7 +113,7 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
 
   /* To ensure that cache * real_increment will never overflow */
   max_increment= (real_increment ?
-                  labs(real_increment) :
+                  llabs(real_increment) :
                   MAX_AUTO_INCREMENT_VALUE);
 
   if (max_value >= start &&
