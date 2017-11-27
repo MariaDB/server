@@ -2256,6 +2256,14 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
     for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
     {
+      Field *field= key_part->field;
+      if (field && field->vers_sys_field())
+      {
+        if (vers_hide == VERS_HIDE_FULL /*|| ((field->flags & HIDDEN_FLAG) &&
+                                            vers_hide != VERS_HIDE_NEVER)*/)
+          continue;
+      }
+
       if (j)
         packet->append(',');
 
