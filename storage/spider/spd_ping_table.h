@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2014 Kentoku Shiba
+/* Copyright (C) 2009-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
   SPIDER_TRX *trx,
@@ -19,6 +19,8 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
   spider_string *str,
   uint conv_name_length,
   int link_idx,
+  char *static_link_id,
+  uint static_link_id_length,
   uint32 server_id,
   bool need_lock,
   int *error_num
@@ -33,7 +35,7 @@ void spider_release_ping_table_mon_list_loop(
   SPIDER_TABLE_MON_LIST *table_mon_list
 );
 
-void spider_release_ping_table_mon_list(
+int spider_release_ping_table_mon_list(
   const char *conv_name,
   uint conv_name_length,
   int link_idx
@@ -55,6 +57,8 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
   char *name,
   uint name_length,
   int link_idx,
+  char *static_link_id,
+  uint static_link_id_length,
   uint32 server_id,
   spider_string *str,
   bool need_lock,
@@ -65,6 +69,17 @@ SPIDER_CONN *spider_get_ping_table_tgt_conn(
   SPIDER_TRX *trx,
   SPIDER_SHARE *share,
   int *error_num
+);
+
+int spider_get_ping_table_gtid_pos(
+  SPIDER_TRX *trx,
+  THD *thd,
+  spider_string *str,
+  uint conv_name_length,
+  int failed_link_idx,
+  uint32 server_id,
+  bool need_lock,
+  spider_string *tmp_str
 );
 
 int spider_init_ping_table_mon_cache(
@@ -90,6 +105,7 @@ int spider_ping_table_mon_from_table(
   SPIDER_TRX *trx,
   THD *thd,
   SPIDER_SHARE *share,
+  int base_link_idx,
   uint32 server_id,
   char *conv_name,
   uint conv_name_length,

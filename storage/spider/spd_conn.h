@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define SPIDER_LOCK_MODE_NO_LOCK             0
 #define SPIDER_LOCK_MODE_SHARED              1
@@ -24,6 +24,12 @@
 
 uchar *spider_conn_get_key(
   SPIDER_CONN *conn,
+  size_t *length,
+  my_bool not_used __attribute__ ((unused))
+);
+
+uchar *spider_ipport_conn_get_key(
+  SPIDER_IP_PORT_CONN *ip_port,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 );
@@ -315,6 +321,12 @@ int spider_conn_link_idx_next(
   int link_status
 );
 
+int spider_conn_get_link_status(
+  long *link_statuses,
+  uint *conn_link_idx,
+  int link_idx
+);
+
 int spider_conn_lock_mode(
   ha_spider *spider
 );
@@ -334,3 +346,16 @@ bool spider_conn_need_open_handler(
   uint idx,
   int link_idx
 );
+
+SPIDER_IP_PORT_CONN *spider_create_ipport_conn(SPIDER_CONN *conn) ;
+SPIDER_CONN* spider_get_conn_from_idle_connection
+(
+ SPIDER_SHARE *share,
+ int link_idx,
+ char *conn_key,
+ ha_spider *spider,
+ uint conn_kind,
+ int base_link_idx,
+ int *error_num
+ );
+void spider_free_ipport_conn(void *info);

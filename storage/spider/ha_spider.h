@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2015 Kentoku Shiba
+/* Copyright (C) 2008-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,13 +11,11 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface
 #endif
-
-#include "spd_environ.h"
 
 #define SPIDER_CONNECT_INFO_MAX_LEN 64
 #define SPIDER_CONNECT_INFO_PATH_MAX_LEN FN_REFLEN
@@ -130,6 +128,14 @@ public:
 
   bool               da_status;
   bool               use_spatial_index;
+
+#ifdef SPIDER_HAS_GROUP_BY_HANDLER
+  uint                  idx_for_direct_join;
+  bool                  use_fields;
+  spider_fields         *fields;
+  SPIDER_LINK_IDX_CHAIN *link_idx_chain;
+  SPIDER_LINK_IDX_CHAIN *result_link_idx_chain;
+#endif
 
   /* for mrr */
   bool               mrr_with_cnt;
@@ -248,6 +254,11 @@ public:
 
   /* for dbton */
   spider_db_handler  **dbton_handler;
+
+  /* for direct limit offset */
+  longlong direct_select_offset;
+  longlong direct_current_offset;
+  longlong direct_select_limit;
 
   ha_spider();
   ha_spider(
@@ -575,6 +586,7 @@ public:
     const uchar *new_data
   );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int direct_update_rows_init()
   {
     return direct_update_rows_init(2, NULL, 0, FALSE, NULL);
@@ -586,7 +598,11 @@ public:
     bool sorted,
     const uchar *new_data
   );
+#else
+  int direct_update_rows_init();
+#endif
 #ifdef HA_CAN_BULK_ACCESS
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int pre_direct_update_rows_init()
   {
     return pre_direct_update_rows_init(2, NULL, 0, FALSE, NULL);
@@ -598,13 +614,11 @@ public:
     bool sorted,
     uchar *new_data
   );
+#else
+  int pre_direct_update_rows_init();
 #endif
-  inline int ha_direct_update_rows(KEY_MULTI_RANGE *ranges,
-                                   uint range_count, bool sorted,
-                                   uchar *new_data, ha_rows *update_rows)
-  {
-    return handler::ha_direct_update_rows(update_rows);
-  }
+#endif
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int direct_update_rows(ha_rows *update_rows)
   {
     return direct_update_rows(NULL, 0, FALSE, NULL, update_rows);
@@ -616,7 +630,13 @@ public:
     uchar *new_data,
     ha_rows *update_rows
   );
+#else
+  int direct_update_rows(
+    ha_rows *update_rows
+  );
+#endif
 #ifdef HA_CAN_BULK_ACCESS
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int pre_direct_update_rows()
   {
     ha_rows update_rows;
@@ -630,6 +650,9 @@ public:
     uchar *new_data,
     ha_rows *update_rows
   );
+#else
+  int pre_direct_update_rows();
+#endif
 #endif
 #endif
   bool start_bulk_delete();
@@ -638,6 +661,7 @@ public:
     const uchar *buf
   );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int direct_delete_rows_init()
   {
     return direct_delete_rows_init(2, NULL, 0, FALSE);
@@ -648,7 +672,11 @@ public:
     uint range_count,
     bool sorted
   );
+#else
+  int direct_delete_rows_init();
+#endif
 #ifdef HA_CAN_BULK_ACCESS
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int pre_direct_delete_rows_init()
   {
     return pre_direct_delete_rows_init(2, NULL, 0, FALSE);
@@ -659,13 +687,11 @@ public:
     uint range_count,
     bool sorted
   );
+#else
+  int pre_direct_delete_rows_init();
 #endif
-  inline int ha_direct_delete_rows(KEY_MULTI_RANGE *ranges,
-                                   uint range_count, bool sorted,
-                                   ha_rows *delete_rows)
-  {
-    return handler::ha_direct_delete_rows(delete_rows);
-  }
+#endif
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int direct_delete_rows(ha_rows *delete_rows)
   {
     return direct_delete_rows(NULL, 0, FALSE, delete_rows);
@@ -676,7 +702,13 @@ public:
     bool sorted,
     ha_rows *delete_rows
   );
+#else
+  int direct_delete_rows(
+    ha_rows *delete_rows
+  );
+#endif
 #ifdef HA_CAN_BULK_ACCESS
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int pre_direct_delete_rows()
   {
     ha_rows delete_rows;
@@ -689,6 +721,9 @@ public:
     bool sorted,
     ha_rows *delete_rows
   );
+#else
+  int pre_direct_delete_rows();
+#endif
 #endif
 #endif
   int delete_all_rows();
@@ -798,7 +833,9 @@ public:
   uint check_partitioned();
   void check_direct_order_limit();
   void check_distinct_key_query();
-  bool is_sole_projection_field( uint16 field_index );
+  bool is_sole_projection_field(
+    uint16 field_index
+  );
   int check_ha_range_eof();
   int drop_tmp_tables();
   bool handler_opened(

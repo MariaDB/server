@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2015 Kentoku Shiba
+/* Copyright (C) 2008-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define SPIDER_DB_WRAPPER_STR "mysql"
 #define SPIDER_DB_WRAPPER_LEN (sizeof(SPIDER_DB_WRAPPER_STR) - 1)
@@ -192,6 +192,8 @@
 #define SPIDER_SQL_PF_EQUAL_LEN (sizeof(SPIDER_SQL_PF_EQUAL_STR) - 1)
 #define SPIDER_SQL_GROUP_STR " group by "
 #define SPIDER_SQL_GROUP_LEN (sizeof(SPIDER_SQL_GROUP_STR) - 1)
+#define SPIDER_SQL_HAVING_STR " having "
+#define SPIDER_SQL_HAVING_LEN (sizeof(SPIDER_SQL_HAVING_STR) - 1)
 #define SPIDER_SQL_PLUS_STR " + "
 #define SPIDER_SQL_PLUS_LEN (sizeof(SPIDER_SQL_PLUS_STR) - 1)
 #define SPIDER_SQL_MINUS_STR " - "
@@ -250,6 +252,13 @@
 #define SPIDER_SQL_B_STR "b"
 #define SPIDER_SQL_B_LEN (sizeof(SPIDER_SQL_B_STR) - 1)
 
+#define SPIDER_SQL_INDEX_IGNORE_STR " IGNORE INDEX "
+#define SPIDER_SQL_INDEX_IGNORE_LEN (sizeof(SPIDER_SQL_INDEX_IGNORE_STR) - 1)
+#define SPIDER_SQL_INDEX_USE_STR " USE INDEX "
+#define SPIDER_SQL_INDEX_USE_LEN (sizeof(SPIDER_SQL_INDEX_USE_STR) - 1)
+#define SPIDER_SQL_INDEX_FORCE_STR " FORCE INDEX "
+#define SPIDER_SQL_INDEX_FORCE_LEN (sizeof(SPIDER_SQL_INDEX_FORCE_STR) - 1)
+
 #define SPIDER_SQL_INT_LEN 20
 #define SPIDER_SQL_HANDLER_CID_LEN 6
 #define SPIDER_SQL_HANDLER_CID_FORMAT "t%05u"
@@ -261,6 +270,13 @@ int spider_db_connect(
   const SPIDER_SHARE *share,
   SPIDER_CONN *conn,
   int link_idx
+);
+
+int spider_db_ping_internal(
+  SPIDER_SHARE *share,
+  SPIDER_CONN *conn,
+  int all_link_idx,
+  int *need_mon
 );
 
 int spider_db_ping(
@@ -729,6 +745,7 @@ int spider_db_update(
 );
 
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 int spider_db_direct_update(
   ha_spider *spider,
   TABLE *table,
@@ -736,6 +753,13 @@ int spider_db_direct_update(
   uint range_count,
   ha_rows *update_rows
 );
+#else
+int spider_db_direct_update(
+  ha_spider *spider,
+  TABLE *table,
+  ha_rows *update_rows
+);
+#endif
 #endif
 
 #ifdef HA_CAN_BULK_ACCESS
@@ -758,6 +782,7 @@ int spider_db_delete(
 );
 
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 int spider_db_direct_delete(
   ha_spider *spider,
   TABLE *table,
@@ -765,6 +790,13 @@ int spider_db_direct_delete(
   uint range_count,
   ha_rows *delete_rows
 );
+#else
+int spider_db_direct_delete(
+  ha_spider *spider,
+  TABLE *table,
+  ha_rows *delete_rows
+);
+#endif
 #endif
 
 int spider_db_delete_all_rows(
@@ -812,7 +844,9 @@ int spider_db_print_item_type(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 
 int spider_db_open_item_cond(
@@ -821,7 +855,9 @@ int spider_db_open_item_cond(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 
 int spider_db_open_item_func(
@@ -830,7 +866,9 @@ int spider_db_open_item_func(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
@@ -840,7 +878,9 @@ int spider_db_open_item_sum_func(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 #endif
 
@@ -850,7 +890,9 @@ int spider_db_open_item_ident(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 
 int spider_db_open_item_field(
@@ -859,7 +901,9 @@ int spider_db_open_item_field(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 
 int spider_db_open_item_ref(
@@ -868,7 +912,9 @@ int spider_db_open_item_ref(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 
 int spider_db_open_item_row(
@@ -877,7 +923,9 @@ int spider_db_open_item_row(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 
 int spider_db_open_item_string(
@@ -886,7 +934,9 @@ int spider_db_open_item_string(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 
 int spider_db_open_item_int(
@@ -895,7 +945,9 @@ int spider_db_open_item_int(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 
 int spider_db_open_item_cache(
@@ -904,7 +956,9 @@ int spider_db_open_item_cache(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 
 int spider_db_open_item_insert_value(
@@ -913,7 +967,9 @@ int spider_db_open_item_insert_value(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 
 int spider_db_append_condition(
@@ -929,7 +985,9 @@ int spider_db_append_update_columns(
   spider_string *str,
   const char *alias,
   uint alias_length,
-  uint dbton_id
+  uint dbton_id,
+  bool use_fields,
+  spider_fields *fields
 );
 #endif
 
