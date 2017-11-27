@@ -115,6 +115,7 @@ binlog_encryption.rpl_binlog_errors : MDEV-12742 - Crash
 binlog_encryption.rpl_parallel      : MDEV-10653 - Timeout in include
 binlog_encryption.rpl_semi_sync     : MDEV-11673 - Valgrind
 binlog_encryption.rpl_skip_replication : MDEV-13571 - Unexpected warning
+binlog_encryption.rpl_ssl           : MDEV-14507 - Timeouts
 binlog_encryption.rpl_stm_relay_ign_space : MDEV-13278 - Wrong result (test assertion)
 
 #----------------------------------------------------------------
@@ -191,6 +192,7 @@ innodb.innodb-alter                  : Modified in 10.2.10
 innodb.innodb-alter-table            : Modified in 10.2.10
 innodb.innodb-alter-tempfile         : MDEV-14485 - Server deadlock on startup
 innodb.innodb_bug14147491            : MDEV-11808 - Index is corrupt
+innodb.innodb_bug59641               : MDEV-13830 - Assertion failure
 innodb.innodb_bulk_create_index      : Added in 10.2.11
 innodb.innodb_bulk_create_index_debug : Added in 10.2.11
 innodb.innodb_bulk_create_index_flush : Added in 10.2.11
@@ -216,6 +218,7 @@ innodb.innodb-truncate               : Modified in 10.2.10
 innodb.innodb_sys_semaphore_waits    : MDEV-10331 - Semaphore wait
 innodb.innodb-wl5522-debug           : MDEV-14200 - Wrong errno
 innodb.innodb-wl5980-alter           : Modified in 10.2.10
+innodb.innodb_zip_innochecksum2      : MDEV-13882 - Extra warnings
 innodb.innodb_zip_innochecksum3      : MDEV-14486 - Resource temporarily unavailable
 innodb.log_corruption                : MDEV-13251 - Wrong result
 innodb.log_data_file_size            : MDEV-14204 - Server failed to start
@@ -303,8 +306,10 @@ mariabackup.data_directory          : Added in 10.2.11
 mariabackup.full_backup             : MDEV-13889 - Timeout
 mariabackup.incremental_backup      : MDEV-14192 - Assertion failure; modified in 10.2.11
 mariabackup.incremental_encrypted   : MDEV-14188 - Wrong result
+mariabackup.mdev-14447              : Added in 10.2.11
 mariabackup.partition_datadir       : Added in 10.2.11
 mariabackup.xb_file_key_management  : Modified in 10.2.10
+mariabackup.xbstream                : MDEV-14192 - Crash
 
 #----------------------------------------------------------------
 
@@ -372,7 +377,9 @@ rpl.rpl_extra_col_master_myisam      : MDEV-14203 - Extra warning
 rpl.rpl_gtid_crash                   : MDEV-9501 - Failed registering on master, MDEV-13643 - Lost connection
 rpl.rpl_gtid_delete_domain           : MDEV-14463 - Timeout; added in 10.2.11
 rpl.rpl_gtid_errorhandling           : MDEV-13261 - Crash
+rpl.rpl_gtid_reconnect               : MDEV-14497 - Crash
 rpl.rpl_gtid_stop_start              : MDEV-11621 - Table marked as crashed
+rpl.rpl_manual_change_index_file     : MDEV-14309 - Requires Env package
 rpl.rpl_mariadb_slave_capability     : MDEV-11018 - Extra lines in binlog
 rpl.rpl_non_direct_stm_mixing_engines : MDEV-14489 - Failed sync_slave_with_master
 rpl.rpl_parallel                     : MDEV-12730 - Assertion failure
