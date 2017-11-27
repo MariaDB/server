@@ -8842,11 +8842,21 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
   bool error= open_tables(thd, &table_list, &tables_opened, 0,
                           &alter_prelocking_strategy);
   thd->open_options&= ~HA_OPEN_FOR_ALTER;
-  bool versioned= table_list->table && table_list->table->versioned();
+
+  TABLE *table= table_list->table;
+  bool versioned= table && table->versioned();
   bool vers_survival_mod= false;
 
   if (versioned)
   {
+    if (create_info->db_type &&
+      table->s->db_type() != create_info->db_type && (
+      table->file->native_versioned() ||
+      create_info->db_type->flags & HTON_NATIVE_SYS_VERSIONING))
+    {
+      my_error(ER_VERS_ALTER_ENGINE_PROHIBITED, MYF(0), table_list->db, table_list->table_name);
+      DBUG_RETURN(true);
+    }
     bool vers_data_mod= alter_info->data_modifying();
     if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
     {
@@ -8895,7 +8905,6 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
   if (error)
     DBUG_RETURN(true);
 
-  TABLE *table= table_list->table;
   table->use_all_columns();
   MDL_ticket *mdl_ticket= table->mdl_ticket;
 

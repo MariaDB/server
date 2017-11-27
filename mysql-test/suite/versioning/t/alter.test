@@ -12,6 +12,8 @@ show create table t;
 
 --error ER_VERS_ALTER_NOT_ALLOWED
 alter table t add column y int;
+--error ER_VERS_ALTER_ENGINE_PROHIBITED
+alter table t engine innodb;
 
 alter table t drop system versioning;
 show create table t;

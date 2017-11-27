@@ -22,6 +22,8 @@ t	CREATE TABLE `t` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column y int;
 ERROR HY000: Not allowed for versioned `test.t`. Change `versioning_alter_history` to proceed with ALTER.
+alter table t engine innodb;
+ERROR HY000: Not allowed for versioned `test.t`. Change to/from native versioning engine is prohibited.
 alter table t drop system versioning;
 show create table t;
 Table	Create Table
