@@ -33,13 +33,13 @@ public:
   static const unsigned long k_trace_detail;
   static const unsigned long k_trace_net_wait;
 
-  unsigned long           trace_level_;                      /* the level for tracing */
+  unsigned long           m_trace_level;                      /* the level for tracing */
 
   Trace()
-    :trace_level_(0L)
+    :m_trace_level(0L)
   {}
   Trace(unsigned long trace_level)
-    :trace_level_(trace_level)
+    :m_trace_level(trace_level)
   {}
 };
 

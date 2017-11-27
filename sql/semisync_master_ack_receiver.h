@@ -78,7 +78,7 @@ public:
 
   void set_trace_level(unsigned long trace_level)
   {
-    trace_level_= trace_level;
+    m_trace_level= trace_level;
   }
 private:
   enum status {ST_UP, ST_DOWN, ST_STOPPING};
