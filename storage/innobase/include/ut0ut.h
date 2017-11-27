@@ -77,8 +77,8 @@ typedef time_t	ib_time_t;
 # define UT_RELAX_CPU() do { \
      volatile int32	volatile_var; \
      int32 oldval= 0; \
-     my_atomic_cas32(&volatile_var, &oldval, 1); \
-   } while (0)
+     my_atomic_cas32_strong_explicit(&volatile_var, &oldval, 1, MY_MEMORY_ORDER_RELAXED, MY_MEMORY_ORDER_RELAXED);\   
+} while (0)
 #endif
 
 #if defined (__GNUC__)
