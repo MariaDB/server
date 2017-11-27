@@ -484,8 +484,7 @@ struct upd_t{
 		return(false);
 	}
 
-	/** Determine if the update affects a system versioned column.
-	@param[in]	index	the clustered index that is being updated */
+	/** Determine if the update affects a system versioned column. */
 	bool affects_versioned() const
 	{
 		for (ulint i = 0; i < n_fields; i++) {
