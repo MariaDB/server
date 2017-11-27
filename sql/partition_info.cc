@@ -962,8 +962,9 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
     DBUG_ASSERT(partitions.elements > alter_add + 1);
     Vers_min_max_stats** old_array= table->s->stat_trx;
     table->s->stat_trx= static_cast<Vers_min_max_stats**>(
-      alloc_root(&table->s->mem_root, sizeof(void *) * partitions.elements * num_columns));
+      alloc_root(&table->s->mem_root, sizeof(void *) * (partitions.elements * num_columns + 1)));
     memcpy(table->s->stat_trx, old_array, sizeof(void *) * (partitions.elements - alter_add) * num_columns);
+    table->s->stat_trx[partitions.elements * num_columns]= NULL;
   }
   else
   {
@@ -1185,7 +1186,8 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
     {
       DBUG_ASSERT(partitions.elements > 1);
       table->s->stat_trx= static_cast<Vers_min_max_stats**>(
-        alloc_root(&table->s->mem_root, sizeof(void *) * partitions.elements * num_columns));
+        alloc_root(&table->s->mem_root, sizeof(void *) * (partitions.elements * num_columns + 1)));
+      table->s->stat_trx[partitions.elements * num_columns]= NULL;
       dont_stat= false;
     }
 

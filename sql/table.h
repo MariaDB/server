@@ -769,12 +769,7 @@ struct TABLE_SHARE
     mysql_rwlock_init(key_rwlock_LOCK_stat_serial, &LOCK_stat_serial);
   }
 
-  void vers_destroy()
-  {
-    mysql_mutex_destroy(&LOCK_rotation);
-    mysql_cond_destroy(&COND_rotation);
-    mysql_rwlock_destroy(&LOCK_stat_serial);
-  }
+  void vers_destroy();
 
   Field *vers_start_field()
   {

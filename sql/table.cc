@@ -8478,6 +8478,20 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   return names + opt;
 }
 
+void TABLE_SHARE::vers_destroy()
+{
+  mysql_mutex_destroy(&LOCK_rotation);
+  mysql_cond_destroy(&COND_rotation);
+  mysql_rwlock_destroy(&LOCK_stat_serial);
+  if (stat_trx)
+  {
+    for (Vers_min_max_stats** p= stat_trx; *p; ++p)
+    {
+      delete *p;
+    }
+  }
+}
+
 TR_table::TR_table(THD* _thd, bool rw) :
   thd(_thd), open_tables_backup(NULL)
 {
