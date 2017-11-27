@@ -3,6 +3,7 @@
 
 /*
  * Copyright (C) 2010 DeNA Co.,Ltd.. All rights reserved.
+ * Copyright (C) 2011-2017 Kentoku SHIBA
  * See COPYRIGHT.txt for details.
  */
 

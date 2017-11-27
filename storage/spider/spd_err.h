@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define ER_SPIDER_INVALID_CONNECT_INFO_NUM 12501
 #define ER_SPIDER_INVALID_CONNECT_INFO_STR "The connect info '%-.64s' is invalid"
@@ -21,10 +21,10 @@
 #define ER_SPIDER_INVALID_UDF_PARAM_STR "The UDF parameter '%-.64s' is invalid"
 #define ER_SPIDER_DIFFERENT_LINK_COUNT_NUM 12504
 #define ER_SPIDER_DIFFERENT_LINK_COUNT_STR "Different multiple table link parameter's count"
-#define ER_SPIDER_UDF_PING_TABLE_PARAM_TOO_LONG_NUM 12505
-#define ER_SPIDER_UDF_PING_TABLE_PARAM_TOO_LONG_STR "Server name or table name are too long"
-#define ER_SPIDER_UDF_PING_TABLE_PARAM_REQIRED_NUM 12506
-#define ER_SPIDER_UDF_PING_TABLE_PARAM_REQIRED_STR "Server name or table name are required"
+#define ER_SPIDER_UDF_PARAM_TOO_LONG_NUM 12505
+#define ER_SPIDER_UDF_PARAM_TOO_LONG_STR "The UDF parameter '%-.64s' is too long"
+#define ER_SPIDER_UDF_PARAM_REQIRED_NUM 12506
+#define ER_SPIDER_UDF_PARAM_REQIRED_STR "The UDF parameter '%-.64s' is required"
 #define ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM 12507
 #define ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR "This UDF can't execute if other tables are opened"
 #define ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM "This UDF can't execute if other tables are opened '%s'=%lld"
@@ -65,6 +65,10 @@
 #define ER_SPIDER_CANT_OPEN_SYS_TABLE_STR "Can't open system table %s.%s"
 #define ER_SPIDER_LINK_MON_JUST_NG_NUM 12525
 #define ER_SPIDER_LINK_MON_JUST_NG_STR "Table '%s.%s' just got a problem"
+#define ER_SPIDER_INVALID_CONNECT_INFO_START_WITH_NUM_NUM 12526
+#define ER_SPIDER_INVALID_CONNECT_INFO_START_WITH_NUM_STR "The connect info '%-.64s' for %s cannot start with number"
+#define ER_SPIDER_INVALID_CONNECT_INFO_SAME_NUM 12527
+#define ER_SPIDER_INVALID_CONNECT_INFO_SAME_STR "The connect info '%-.64s' for %s cannot use same name in same table"
 
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_NUM 12601
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_STR "Can't use both spider_use_consistent_snapshot = 1 and spider_internal_xa = 1"
@@ -116,6 +120,10 @@
 #define ER_SPIDER_ORACLE_STR "Error from Oracle %d %d %s"
 #define ER_SPIDER_ORACLE_NUM 12712
 #define ER_SPIDER_ORACLE_ERR "Oracle error"
+#define ER_SPIDER_CON_COUNT_ERROR 12713
+#define ER_SPIDER_CON_COUNT_ERROR_STR "Too many connections between spider and remote"
+#define ER_SPIDER_TABLE_OPEN_TIMEOUT_NUM 12714
+#define ER_SPIDER_TABLE_OPEN_TIMEOUT_STR "Table %s.%s open timeout"
 #define ER_SPIDER_COND_SKIP_NUM 12801
 
 #define ER_SPIDER_UNKNOWN_NUM 12500

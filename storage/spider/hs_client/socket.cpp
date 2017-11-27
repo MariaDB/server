@@ -3,11 +3,12 @@
 
 /*
  * Copyright (C) 2010-2011 DeNA Co.,Ltd.. All rights reserved.
- * Copyright (C) 2011 Kentoku SHIBA
+ * Copyright (C) 2011-2017 Kentoku SHIBA
  * See COPYRIGHT.txt for details.
  */
 
 #include <my_global.h>
+#include <my_config.h>
 #ifndef __WIN__
 #include <sys/types.h>
 #include <sys/un.h>
@@ -223,7 +224,7 @@ socket_set_options(auto_file& fd, const socket_args& args, String& err_r)
 int
 socket_open(auto_file& fd, const socket_args& args, String& err_r)
 {
-  fd.reset((int)socket(args.family, args.socktype, args.protocol));
+  fd.reset(socket(args.family, args.socktype, args.protocol));
   if (fd.get() < 0) {
     return errno_string("socket", errno, err_r);
   }
@@ -253,7 +254,7 @@ socket_connect(auto_file& fd, const socket_args& args, String& err_r)
 int
 socket_bind(auto_file& fd, const socket_args& args, String& err_r)
 {
-  fd.reset((int)socket(args.family, args.socktype, args.protocol));
+  fd.reset(socket(args.family, args.socktype, args.protocol));
   if (fd.get() < 0) {
     return errno_string("socket", errno, err_r);
   }
@@ -300,7 +301,7 @@ int
 socket_accept(int listen_fd, auto_file& fd, const socket_args& args,
   sockaddr_storage& addr_r, socklen_t& addrlen_r, String& err_r)
 {
-  fd.reset((int)accept(listen_fd, reinterpret_cast<sockaddr *>(&addr_r),
+  fd.reset(accept(listen_fd, reinterpret_cast<sockaddr *>(&addr_r),
     &addrlen_r));
   if (fd.get() < 0) {
     return errno_string("accept", errno, err_r);

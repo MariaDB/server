@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2015 Kentoku Shiba
+/* Copyright (C) 2008-2017 Kentoku Shiba
 
   This program is free software); you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program); if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 my_bool spider_param_support_xa();
 my_bool spider_param_connect_mutex();
@@ -39,6 +39,9 @@ uint spider_param_internal_xa_snapshot(
   THD *thd
 );
 uint spider_param_force_commit(
+  THD *thd
+);
+uint spider_param_xa_register_mode(
   THD *thd
 );
 longlong spider_param_internal_offset(
@@ -349,6 +352,10 @@ int spider_param_skip_default_condition(
   THD *thd,
   int skip_default_condition
 );
+int spider_param_skip_parallel_search(
+  THD *thd,
+  int skip_parallel_search
+);
 longlong spider_param_direct_order_limit(
   THD *thd,
   longlong direct_order_limit
@@ -370,6 +377,11 @@ int spider_param_udf_ds_use_real_table(
 );
 #endif
 my_bool spider_param_general_log();
+my_bool spider_param_index_hint_pushdown(
+  THD *thd
+);
+uint spider_param_max_connections();
+uint spider_param_conn_wait_timeout();
 uint spider_param_log_result_errors();
 uint spider_param_log_result_error_with_sql();
 uint spider_param_internal_xa_id_type(
@@ -388,3 +400,19 @@ int spider_param_bka_table_name_type(
   THD *thd,
   int bka_table_name_type
 );
+int spider_param_store_last_sts(
+  int store_last_sts
+);
+int spider_param_store_last_crd(
+  int store_last_crd
+);
+int spider_param_load_sts_at_startup(
+  int load_sts_at_startup
+);
+int spider_param_load_crd_at_startup(
+  int load_crd_at_startup
+);
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+uint spider_param_table_sts_thread_count();
+uint spider_param_table_crd_thread_count();
+#endif

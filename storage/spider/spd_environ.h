@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2015 Kentoku Shiba & 2017 MariaDB corp
+/* Copyright (C) 2008-2017 Kentoku Shiba & 2017 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,13 +23,14 @@
 #define SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
 #endif
 
-#if MYSQL_VERSION_ID >=	100204
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >=	100100
+#define SPIDER_SUPPORT_CREATE_OR_REPLACE_TABLE
+#endif
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >=	100204
 #define HANDLER_HAS_TOP_TABLE_FIELDS
 #define HANDLER_HAS_DIRECT_UPDATE_ROWS
 #define HANDLER_HAS_DIRECT_AGGREGATE
-#define PARTITION_HAS_EXTRA_ATTACH_CHILDREN
-#define PARTITION_HAS_GET_CHILD_HANDLERS
-#define PARTITION_HAS_EXTRA_ATTACH_CHILDREN
 #define PARTITION_HAS_GET_CHILD_HANDLERS
 #define HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN
 #define HANDLER_HAS_NEED_INFO_FOR_AUTO_INC

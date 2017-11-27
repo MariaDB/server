@@ -1,4 +1,4 @@
-/* Copyright (C) 2013 Kentoku Shiba
+/* Copyright (C) 2016 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -13,19 +13,32 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#ifndef HS_COMPAT_H
-#define HS_COMPAT_H
+#ifdef SPIDER_HAS_GROUP_BY_HANDLER
+class spider_group_by_handler: public group_by_handler
+{
+  Query query;
+  spider_fields *fields;
+  ha_spider *spider;
+  SPIDER_TRX *trx;
+  spider_db_result *result;
+  bool first;
+  longlong offset_limit;
+  int store_error;
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
-#define SPD_INIT_DYNAMIC_ARRAY2(A, B, C, D, E, F) \
-  my_init_dynamic_array2(A, B, C, D, E, F)
-#define SPD_INIT_ALLOC_ROOT(A, B, C, D) \
-  init_alloc_root(A, B, C, D)
-#else
-#define SPD_INIT_DYNAMIC_ARRAY2(A, B, C, D, E, F) \
-  my_init_dynamic_array2(A, B, C, D, E)
-#define SPD_INIT_ALLOC_ROOT(A, B, C, D) \
-  init_alloc_root(A, B, C)
-#endif
+public:
+  spider_group_by_handler(
+    THD *thd_arg,
+    Query *query_arg,
+    spider_fields *fields_arg
+  );
+  ~spider_group_by_handler();
+  int init_scan();
+  int next_row();
+  int end_scan();
+};
 
+group_by_handler *spider_create_group_by_handler(
+  THD *thd,
+  Query *query
+);
 #endif

@@ -3,7 +3,7 @@
 
 /*
  * Copyright (C) 2010-2011 DeNA Co.,Ltd.. All rights reserved.
- * Copyright (C) 2011 Kentoku SHIBA
+ * Copyright (C) 2011-2017 Kentoku SHIBA
  * See COPYRIGHT.txt for details.
  */
 
@@ -263,8 +263,8 @@ parse_args(int argc, char **argv, config& conf)
     }
     if (!(param = new conf_param()))
       continue;
-    uint32 key_len = (uint32)(eq - arg);
-    uint32 val_len = (uint32)(strlen(eq + 1));
+    uint32 key_len = eq - arg;
+    uint32 val_len = strlen(eq + 1);
     if (
       param->key.reserve(key_len + 1) ||
       param->val.reserve(val_len + 1)

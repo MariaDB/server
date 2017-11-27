@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2015 Kentoku Shiba
+/* Copyright (C) 2008-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,14 +11,15 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#define SPIDER_DETAIL_VERSION "3.2.37"
-#define SPIDER_HEX_VERSION 0x0302
+#define SPIDER_DETAIL_VERSION "3.3.13"
+#define SPIDER_HEX_VERSION 0x0303
 
 #if MYSQL_VERSION_ID < 50500
+#define spider_my_free(A,B) my_free(A,B)
 #else
-#define my_free(A,B) my_free(A)
+#define spider_my_free(A,B) my_free(A)
 #ifdef pthread_mutex_t
 #undef pthread_mutex_t
 #endif
@@ -65,6 +66,7 @@
 #define pthread_cond_destroy mysql_cond_destroy
 #define my_sprintf(A,B) sprintf B
 #endif
+
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100004
 #define spider_stmt_da_message(A) thd_get_error_message(A)
@@ -129,6 +131,55 @@
 #define SPIDER_Item_args_arg_count_IS_PROTECTED
 #endif
 
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100112
+#define SPIDER_Item_func_conv_charset_conv_charset collation.collation
+#else
+#define SPIDER_Item_func_conv_charset_conv_charset conv_charset
+#endif
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100200
+#define SPIDER_WITHOUT_HA_STATISTIC_INCREMENT
+#define SPIDER_init_read_record(A,B,C,D,E,F,G,H) init_read_record(A,B,C,D,E,F,G,H)
+#define SPIDER_HAS_NEXT_THREAD_ID
+#define SPIDER_new_THD(A) (new THD(A))
+#define SPIDER_order_direction_is_asc(A) (A->direction == ORDER::ORDER_ASC)
+#else
+#define SPIDER_init_read_record(A,B,C,D,E,F,G,H) init_read_record(A,B,C,D,F,G,H)
+#define SPIDER_new_THD(A) (new THD())
+#define SPIDER_order_direction_is_asc(A) (A->asc)
+#endif
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100201
+#define SPIDER_HAS_MY_CHARLEN
+#define SPIDER_find_temporary_table(A,B) A->find_temporary_table(B)
+#else
+#define SPIDER_find_temporary_table(A,B) find_temporary_table(A,B)
+#endif
+
+#if defined(MARIADB_BASE_VERSION)
+#if MYSQL_VERSION_ID >= 100209
+#define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(A,B,C,E,F,G)
+#elif MYSQL_VERSION_ID >= 100200
+#define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(A,B,C,D,E,F,G,H)
+#elif MYSQL_VERSION_ID >= 100007
+#define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(B,C,D,E,F,G,H)
+#else
+#define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(B,C,D,E,F,G)
+#endif
+#else
+#define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H)
+#endif
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100209
+#define SPIDER_create_partition_name(A,B,C,D,E,F) create_partition_name(A,B,C,D,E,F)
+#define SPIDER_create_subpartition_name(A,B,C,D,E,F) create_subpartition_name(A,B,C,D,E,F)
+#define SPIDER_free_part_syntax(A,B)
+#else
+#define SPIDER_create_partition_name(A,B,C,D,E,F) create_partition_name(A,C,D,E,F)
+#define SPIDER_create_subpartition_name(A,B,C,D,E,F) create_subpartition_name(A,C,D,E,F)
+#define SPIDER_free_part_syntax(A,B) spider_my_free(A,B)
+#endif
+
 #if MYSQL_VERSION_ID >= 50500
 #define SPIDER_HAS_HASH_VALUE_TYPE
 #endif
@@ -151,12 +202,13 @@
 #define SPIDER_LINK_MON_DRAW_FEW_MON         1
 #define SPIDER_LINK_MON_DRAW                 2
 
-#define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     19
+#define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     20
 #define SPIDER_TMP_SHARE_UINT_COUNT         17
-#define SPIDER_TMP_SHARE_LONG_COUNT         18
+#define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           247
+#define SPIDER_MEM_CALC_LIST_NUM           257
+#define SPIDER_CONN_META_BUF_LEN           64
 
 #define SPIDER_BACKUP_DASTATUS \
   bool da_status; if (thd) da_status = thd->is_error(); else da_status = FALSE;
@@ -176,6 +228,25 @@
 
 class ha_spider;
 typedef struct st_spider_share SPIDER_SHARE;
+typedef struct st_spider_table_mon_list SPIDER_TABLE_MON_LIST;
+typedef struct st_spider_ip_port_conn SPIDER_IP_PORT_CONN;
+
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+typedef struct st_spider_thread
+{
+  uint                  thread_idx;
+  THD                   *thd;
+  volatile bool         killed;
+  volatile bool         thd_wait;
+  volatile bool         first_free_wait;
+  pthread_t             thread;
+  pthread_cond_t        cond;
+  pthread_mutex_t       mutex;
+  pthread_cond_t        sync_cond;
+  volatile SPIDER_SHARE *queue_first;
+  volatile SPIDER_SHARE *queue_last;
+} SPIDER_THREAD;
+#endif
 
 typedef struct st_spider_file_pos
 {
@@ -224,8 +295,10 @@ typedef struct st_spider_alter_table
   char               **tmp_tgt_ssl_keys;
   char               **tmp_tgt_default_files;
   char               **tmp_tgt_default_groups;
+  char               **tmp_static_link_ids;
   long               *tmp_tgt_ports;
   long               *tmp_tgt_ssl_vscs;
+  long               *tmp_monitoring_binlog_pos_at_failing;
   long               *tmp_link_statuses;
 
   uint               *tmp_server_names_lengths;
@@ -243,6 +316,7 @@ typedef struct st_spider_alter_table
   uint               *tmp_tgt_ssl_keys_lengths;
   uint               *tmp_tgt_default_files_lengths;
   uint               *tmp_tgt_default_groups_lengths;
+  uint               *tmp_static_link_ids_lengths;
 
   uint               tmp_server_names_charlen;
   uint               tmp_tgt_table_names_charlen;
@@ -259,6 +333,7 @@ typedef struct st_spider_alter_table
   uint               tmp_tgt_ssl_keys_charlen;
   uint               tmp_tgt_default_files_charlen;
   uint               tmp_tgt_default_groups_charlen;
+  uint               tmp_static_link_ids_charlen;
 
   uint               tmp_server_names_length;
   uint               tmp_tgt_table_names_length;
@@ -275,8 +350,10 @@ typedef struct st_spider_alter_table
   uint               tmp_tgt_ssl_keys_length;
   uint               tmp_tgt_default_files_length;
   uint               tmp_tgt_default_groups_length;
+  uint               tmp_static_link_ids_length;
   uint               tmp_tgt_ports_length;
   uint               tmp_tgt_ssl_vscs_length;
+  uint               tmp_monitoring_binlog_pos_at_failing_length;
   uint               tmp_link_statuses_length;
 } SPIDER_ALTER_TABLE;
 
@@ -455,6 +532,12 @@ typedef struct st_spider_conn
   THD                *connect_error_thd;
   query_id_t         connect_error_query_id;
   time_t             connect_error_time;
+
+#ifdef SPIDER_HAS_GROUP_BY_HANDLER
+  SPIDER_CONN_HOLDER    *conn_holder_for_direct_join;
+  SPIDER_LINK_IDX_CHAIN *link_idx_chain;
+#endif
+  SPIDER_IP_PORT_CONN *ip_port_conn;
 } SPIDER_CONN;
 
 typedef struct st_spider_lgtm_tblhnd_share
@@ -489,6 +572,7 @@ typedef struct st_spider_patition_handler_share
   bool               between_flg;
   bool               idx_bitmap_is_set;
   bool               rnd_bitmap_is_set;
+  query_id_t         parallel_search_query_id;
 } SPIDER_PARTITION_HANDLER_SHARE;
 
 typedef struct st_spider_patition_share
@@ -543,6 +627,8 @@ typedef struct st_spider_transaction
   query_id_t         query_id;
   bool               tmp_flg;
   bool               registed_allocated_thds;
+
+  bool               updated_in_this_trx;
 
   THD                *thd;
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
@@ -608,6 +694,7 @@ typedef struct st_spider_transaction
   ulonglong          direct_delete_count;
   ulonglong          direct_order_limit_count;
   ulonglong          direct_aggregate_count;
+  ulonglong          parallel_search_count;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   ulonglong          hs_result_free_count;
 #endif
@@ -719,6 +806,27 @@ typedef struct st_spider_share
   pthread_cond_t     *bg_mon_conds;
   pthread_cond_t     *bg_mon_sleep_conds;
 #endif
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+  /* static bg thread for sts and crd */
+  TABLE                 table;
+  ha_spider             *sts_spider;
+  ha_spider             *crd_spider;
+  SPIDER_THREAD         *sts_thread;
+  SPIDER_THREAD         *crd_thread;
+  volatile bool         sts_spider_init;
+  volatile bool         sts_working;
+  volatile bool         sts_wait;
+  volatile bool         crd_spider_init;
+  volatile bool         crd_working;
+  volatile bool         crd_wait;
+  volatile SPIDER_SHARE *sts_prev;
+  volatile SPIDER_SHARE *sts_next;
+  volatile SPIDER_SHARE *crd_prev;
+  volatile SPIDER_SHARE *crd_next;
+#endif
+
+  MEM_ROOT           mem_root;
+
 /*
   volatile bool      auto_increment_init;
   volatile ulonglong auto_increment_lclval;
@@ -755,6 +863,8 @@ typedef struct st_spider_share
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   int                sts_sync;
 #endif
+  int                store_last_sts;
+  int                load_sts_at_startup;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   int                crd_bg_mode;
 #endif
@@ -763,6 +873,8 @@ typedef struct st_spider_share
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   int                crd_sync;
 #endif
+  int                store_last_crd;
+  int                load_crd_at_startup;
   int                crd_type;
   double             crd_weight;
   longlong           internal_offset;
@@ -804,6 +916,7 @@ typedef struct st_spider_share
   int                use_table_charset;
   int                use_pushdown_udf;
   int                skip_default_condition;
+  int                skip_parallel_search;
   int                direct_dup_insert;
   longlong           direct_order_limit;
   int                read_only_mode;
@@ -851,6 +964,7 @@ typedef struct st_spider_share
   char               **tgt_ssl_keys;
   char               **tgt_default_files;
   char               **tgt_default_groups;
+  char               **static_link_ids;
   char               **tgt_pk_names;
   char               **tgt_sequence_names;
   char               **conn_keys;
@@ -867,6 +981,7 @@ typedef struct st_spider_share
   long               *monitoring_bg_flag;
   long               *monitoring_bg_kind;
 #endif
+  long               *monitoring_binlog_pos_at_failing;
   long               *monitoring_flag;
   long               *monitoring_kind;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -903,6 +1018,7 @@ typedef struct st_spider_share
   uint               *tgt_ssl_keys_lengths;
   uint               *tgt_default_files_lengths;
   uint               *tgt_default_groups_lengths;
+  uint               *static_link_ids_lengths;
   uint               *tgt_pk_names_lengths;
   uint               *tgt_sequence_names_lengths;
   uint               *conn_keys_lengths;
@@ -932,6 +1048,7 @@ typedef struct st_spider_share
   uint               tgt_ssl_keys_charlen;
   uint               tgt_default_files_charlen;
   uint               tgt_default_groups_charlen;
+  uint               static_link_ids_charlen;
   uint               tgt_pk_names_charlen;
   uint               tgt_sequence_names_charlen;
   uint               conn_keys_charlen;
@@ -957,6 +1074,7 @@ typedef struct st_spider_share
   uint               tgt_ssl_keys_length;
   uint               tgt_default_files_length;
   uint               tgt_default_groups_length;
+  uint               static_link_ids_length;
   uint               tgt_pk_names_length;
   uint               tgt_sequence_names_length;
   uint               conn_keys_length;
@@ -973,6 +1091,7 @@ typedef struct st_spider_share
   uint               monitoring_bg_flag_length;
   uint               monitoring_bg_kind_length;
 #endif
+  uint               monitoring_binlog_pos_at_failing_length;
   uint               monitoring_flag_length;
   uint               monitoring_kind_length;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -1143,6 +1262,7 @@ typedef struct st_spider_table_mon
 {
   SPIDER_SHARE               *share;
   uint32                     server_id;
+  st_spider_table_mon_list   *parent;
   st_spider_table_mon        *next;
 } SPIDER_TABLE_MON;
 
@@ -1276,3 +1396,19 @@ char *spider_create_string(
   const char *str,
   uint length
 );
+
+
+typedef struct st_spider_ip_port_conn {
+  char               *key;
+  size_t             key_len;
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+  my_hash_value_type key_hash_value;
+#endif
+  char               remote_ip_str[SPIDER_CONN_META_BUF_LEN];
+  long               remote_port;
+  ulong              ip_port_count;
+  volatile ulong     waiting_count;
+  pthread_mutex_t    mutex;
+  pthread_cond_t     cond;
+  ulonglong          conn_id; /* each conn has it's own conn_id */
+} SPIDER_IP_PORT_CONN;
