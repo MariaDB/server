@@ -1876,12 +1876,9 @@ public:
 
 /** Does an update or delete of a row for MySQL.
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
-@param[in]	vers_set_fields	working with system versioned table
 @return error code or DB_SUCCESS */
 dberr_t
-row_update_for_mysql(
-	row_prebuilt_t*	prebuilt,
-	bool		vers_set_fields)
+row_update_for_mysql(row_prebuilt_t* prebuilt)
 {
 	trx_savept_t	savept;
 	dberr_t		err;
@@ -1896,7 +1893,7 @@ row_update_for_mysql(
 	upd_cascade_t*	new_upd_nodes;
 	upd_cascade_t*	processed_cascades;
 	bool		got_s_lock	= false;
-	bool		vers_delete	= prebuilt->upd_node->vers_delete;
+	const bool	vers_delete	= prebuilt->upd_node->vers_delete;
 
 	DBUG_ENTER("row_update_for_mysql");
 
@@ -2005,6 +2002,12 @@ row_update_for_mysql(
 
 	thr->fk_cascade_depth = 0;
 
+	ut_ad(!prebuilt->versioned_write || node->table->versioned());
+
+	bool vers_set_fields = prebuilt->versioned_write
+		&& node->table->versioned()
+		&& (node->is_delete ? node->vers_delete
+		    : node->update->affects_versioned());
 run_again:
 	if (vers_set_fields) {
 		/* System Versioning: modify update vector to set

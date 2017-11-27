@@ -7758,6 +7758,7 @@ ha_innobase::build_template(
 
 	index = whole_row ? clust_index : m_prebuilt->index;
 
+	m_prebuilt->versioned_write = table->versioned_write();
 	m_prebuilt->need_to_access_clustered = (index == clust_index);
 
 	/* Either m_prebuilt->index should be a secondary index, or it
@@ -9171,20 +9172,21 @@ ha_innobase::update_row(
 	m_prebuilt->upd_node->vers_delete = false;
 
 	{
-		bool	vers_ins_row = false;
-		const bool vers_set_fields = table->versioned_write()
+		const bool	vers_set_fields
+			= m_prebuilt->versioned_write
 			&& m_prebuilt->upd_node->update->affects_versioned();
+		const bool	vers_ins_row
+			= vers_set_fields
+			&& (table->s->vtmd
+			    || thd_sql_command(m_user_thd)
+			    != SQLCOM_ALTER_TABLE);
 
-		if (vers_set_fields) {
-			vers_ins_row = table->s->vtmd
-				|| thd_sql_command(m_user_thd)
-				!= SQLCOM_ALTER_TABLE;
-			m_prebuilt->upd_node->vers_delete = !vers_ins_row;
-		}
+		m_prebuilt->upd_node->vers_delete = vers_set_fields
+			&& !vers_ins_row;
 
 		innobase_srv_conc_enter_innodb(m_prebuilt);
 
-		error = row_update_for_mysql(m_prebuilt, vers_set_fields);
+		error = row_update_for_mysql(m_prebuilt);
 
 		if (error == DB_SUCCESS && vers_ins_row
 		    && trx->id != static_cast<trx_id_t>(
@@ -9305,13 +9307,12 @@ ha_innobase::delete_row(
 	/* This is a delete */
 
 	m_prebuilt->upd_node->is_delete = TRUE;
+	m_prebuilt->upd_node->vers_delete = table->versioned_write()
+		&& table->vers_end_field()->is_max();
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	bool vers_set_fields =
-	    table->versioned_write() && table->vers_end_field()->is_max();
-
-	error = row_update_for_mysql(m_prebuilt, vers_set_fields);
+	error = row_update_for_mysql(m_prebuilt);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 

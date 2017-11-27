@@ -276,12 +276,10 @@ row_get_prebuilt_update_vector(
 					handle */
 /** Does an update or delete of a row for MySQL.
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
-@param[in]	vers_set_fields	working with system versioned table
 @return error code or DB_SUCCESS */
 dberr_t
 row_update_for_mysql(
-	row_prebuilt_t*		prebuilt,
-	bool			vers_set_fields)
+	row_prebuilt_t*		prebuilt)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this
@@ -683,6 +681,8 @@ struct row_prebuilt_t {
 					not to be confused with InnoDB
 					externally stored columns
 					(VARCHAR can be off-page too) */
+	unsigned	versioned_write:1;/*!< whether this is
+					a versioned write */
 	mysql_row_templ_t* mysql_template;/*!< template used to transform
 					rows fast between MySQL and Innobase
 					formats; memory for this template
