@@ -1656,8 +1656,8 @@ static void check_mdl_lock_works(const char *table_name)
   MYSQL *test_con=  xb_mysql_connect();
   char *query;
   xb_a(asprintf(&query,
-    "SET STATEMENT max_statement_time=1 FOR ALTER TABLE %s"
-    " ADD COLUMN mdl_lock_column int", table_name));
+		"SET STATEMENT max_statement_time=1 FOR ALTER TABLE %s FORCE",
+		table_name));
   int err = mysql_query(test_con, query);
   DBUG_ASSERT(err);
   int err_no = mysql_errno(test_con);
