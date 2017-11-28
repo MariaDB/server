@@ -4291,12 +4291,12 @@ xtrabackup_apply_delta(
 
 	page_size = info.page_size.physical();
 	page_size_shift = get_bit_shift(page_size);
-	msg("mariabackup: page size for %s is %lu bytes\n",
+	msg("mariabackup: page size for %s is %zu bytes\n",
 	    src_path, page_size);
 	if (page_size_shift < 10 ||
 	    page_size_shift > UNIV_PAGE_SIZE_SHIFT_MAX) {
 		msg("mariabackup: error: invalid value of page_size "
-		    "(%lu bytes) read from %s\n", page_size, meta_path);
+		    "(%zu bytes) read from %s\n", page_size, meta_path);
 		goto error;
 	}
 
