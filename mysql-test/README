@@ -1,31 +1,25 @@
-This directory contains test suites for the MariaDB server. To run
-currently existing test cases, execute ./mysql-test-run in this directory.
+This directory contains a test suite for the MariaDB daemon. To run
+the currently existing test cases, execute ./mysql-test-run in
+this directory.
 
-Some tests are known to fail on some platforms or be otherwise unreliable.
-The file "unstable-tests" contains the list of such tests along with
-a comment for every test.
-To exclude them from the test run, execute
-  # ./mysql-test-run --skip-test-list=unstable-tests
+For use in distributions you can test as follows:
+       $ cd /usr/share/mysql/mysql-test
+       $ perl mysql-test-run.pl --verbose-restart --vardir="$(readlink -f /dev/shm/var)" --parallel=4 --force --retry=3 --max-save-core=0 --max-save-datadir=1
 
-In general you do not have to have to do "make install", and you can have
-a co-existing MariaDB installation, the tests will not conflict with it.
-To run the tests in a source directory, you must do "make" first.
-
-In Red Hat distributions, you should run the script as user "mysql".
-The user is created with nologin shell, so the best bet is something like
-  # su -
-  # cd /usr/share/mysql-test
-  # su -s /bin/bash mysql -c "./mysql-test-run --skip-test-list=unstable-tests"
-
-This will use the installed MariaDB executables, but will run a private
-copy of the server process (using data files within /usr/share/mysql-test),
+This will use the installed mysql executables, but will run a private copy
+of the server process (using data files within /usr/share/mysql-test),
 so you need not start the mysqld service beforehand.
 
-You can omit --skip-test-list option if you want to check whether
-the listed failures occur for you.
+The "--skip-test-list=unstable-tests" option excludes tests that are
+known to fail.  You can omit it if you want to check whether such failures
+occur for you.  Documentation about the reasons for omitting such tests can
+be found in the file unstable-tests.
 
-To clean up afterwards, remove the created "var" subdirectory, e.g.
-  # su -s /bin/bash - mysql -c "rm -rf /usr/share/mysql-test/var"
+Distributions may include additional tests in an additional file like Red Hat's
+rh-skipped-tests.list.
+
+To clean up afterwards, remove the created "var" subdirectory, eg
+       $ rm -rf /dev/shm/var"
 
 If one or more tests fail on your system on reasons other than listed
 in lists of unstable tests, please read the following manual section
