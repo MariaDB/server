@@ -8088,7 +8088,7 @@ void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *table)
   Field** field= table->field_to_fill();
 
  /* True if we have NOT NULL fields and BEFORE triggers */
-  if (field != table->field && field != table->non_generated_field)
+  if (field != table->field)
   {
     List_iterator_fast<Item> it(items);
     Item *item;
@@ -8278,6 +8278,12 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     /* Ensure that all fields are from the same table */
     DBUG_ASSERT(field->table == table);
 
+    if (table->versioned() && field->vers_sys_field() && !ignore_errors)
+    {
+      my_error(ER_VERS_READONLY_FIELD, MYF(0), field->field_name.str);
+      goto err;
+    }
+
     value=v++;
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
@@ -8293,13 +8299,6 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
                             ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                             field->field_name.str, table->s->table_name.str);
       }
-    }
-
-    if (table->versioned() && field->vers_sys_field() &&
-        !ignore_errors)
-    {
-      my_error(ER_VERS_READONLY_FIELD, MYF(0), field->field_name.str);
-      goto err;
     }
 
     if (use_value)
