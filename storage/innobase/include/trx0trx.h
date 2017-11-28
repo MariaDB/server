@@ -779,15 +779,19 @@ struct trx_lock_t {
 	bool		start_stmt;
 };
 
+/** The first modification time of a table in a transaction */
+typedef undo_no_t trx_mod_table_time_t;
+
 /** Collection of persistent tables and their first modification
 in a transaction.
 We store pointers to the table objects in memory because
 we know that a table object will not be destroyed while a transaction
 that modified it is running. */
 typedef std::map<
-	dict_table_t*, undo_no_t,
+	dict_table_t*, trx_mod_table_time_t,
 	std::less<dict_table_t*>,
-	ut_allocator<dict_table_t*> >	trx_mod_tables_t;
+	ut_allocator<std::pair<dict_table_t*, trx_mod_table_time_t> > >
+	trx_mod_tables_t;
 
 /** The transaction handle
 
