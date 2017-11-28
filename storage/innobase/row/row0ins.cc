@@ -429,8 +429,7 @@ row_ins_cascade_ancestor_updates_table(
 
 		upd_node = static_cast<upd_node_t*>(parent);
 
-		if (upd_node->table == table && !upd_node->is_delete
-		    && !upd_node->vers_delete) {
+		if (upd_node->table == table && !upd_node->is_delete) {
 
 			return(TRUE);
 		}
@@ -975,8 +974,6 @@ row_ins_foreign_fill_virtual(
 		innobase_init_vc_templ(index->table);
 	}
 
-	bool is_delete = node->is_delete || node->vers_delete;
-
 	for (ulint i = 0; i < n_v_fld; i++) {
 
 		dict_v_col_t*     col = dict_table_get_nth_v_col(
@@ -1008,14 +1005,14 @@ row_ins_foreign_fill_virtual(
 
 		upd_field_set_v_field_no(upd_field, i, index);
 
-		if (is_delete
+		if (node->is_delete
 		    ? (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL)
 		    : (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL)) {
 
 			dfield_set_null(&upd_field->new_val);
 		}
 
-		if (!is_delete
+		if (!node->is_delete
 		    && (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE)) {
 
 			dfield_t* new_vfield = innobase_get_computed_value(
@@ -1108,9 +1105,7 @@ row_ins_foreign_check_on_constraint(
 
 	node = static_cast<upd_node_t*>(thr->run_node);
 
-	bool is_delete = node->is_delete || node->vers_delete;
-
-	if (is_delete && 0 == (foreign->type
+	if (node->is_delete && 0 == (foreign->type
 				     & (DICT_FOREIGN_ON_DELETE_CASCADE
 					| DICT_FOREIGN_ON_DELETE_SET_NULL))) {
 
@@ -1121,7 +1116,7 @@ row_ins_foreign_check_on_constraint(
 		DBUG_RETURN(DB_ROW_IS_REFERENCED);
 	}
 
-	if (!is_delete && 0 == (foreign->type
+	if (!node->is_delete && 0 == (foreign->type
 				      & (DICT_FOREIGN_ON_UPDATE_CASCADE
 					 | DICT_FOREIGN_ON_UPDATE_SET_NULL))) {
 
@@ -1150,11 +1145,11 @@ row_ins_foreign_check_on_constraint(
 
 	cascade->foreign = foreign;
 
-	if (is_delete
+	if (node->is_delete
 	    && (foreign->type & DICT_FOREIGN_ON_DELETE_CASCADE)) {
-		cascade->is_delete = TRUE;
+		cascade->is_delete = PLAIN_DELETE;
 	} else {
-		cascade->is_delete = FALSE;
+		cascade->is_delete = NO_DELETE;
 
 		if (foreign->n_fields > cascade->update_n_fields) {
 			/* We have to make the update vector longer */
@@ -1289,7 +1284,7 @@ row_ins_foreign_check_on_constraint(
 						 clust_index, tmp_heap);
 	}
 
-	if (is_delete
+	if (node->is_delete
 	    ? (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL)
 	    : (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL)) {
 
@@ -1351,7 +1346,7 @@ row_ins_foreign_check_on_constraint(
 				goto nonstandard_exit_func;
 			}
 		}
-	} else if (table->fts && cascade->is_delete) {
+	} else if (table->fts && cascade->is_delete == PLAIN_DELETE) {
 		/* DICT_FOREIGN_ON_DELETE_CASCADE case */
 		for (i = 0; i < foreign->n_fields; i++) {
 			if (table->fts && dict_table_is_fts_column(
@@ -1369,7 +1364,7 @@ row_ins_foreign_check_on_constraint(
 		}
 	}
 
-	if (!is_delete
+	if (!node->is_delete
 	    && (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE)) {
 
 		/* Build the appropriate update vector which sets changing
@@ -1709,7 +1704,7 @@ row_ins_check_foreign_constraint(
 	if (que_node_get_type(thr->run_node) == QUE_NODE_UPDATE) {
 		upd_node = static_cast<upd_node_t*>(thr->run_node);
 
-		if (!(upd_node->is_delete) && !(upd_node->vers_delete) && upd_node->foreign == foreign) {
+		if (!(upd_node->is_delete) && upd_node->foreign == foreign) {
 			/* If a cascaded update is done as defined by a
 			foreign key constraint, do not check that
 			constraint for the child row. In ON UPDATE CASCADE

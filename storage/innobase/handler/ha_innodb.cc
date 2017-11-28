@@ -9168,8 +9168,7 @@ ha_innobase::update_row(
 	}
 
 	/* This is not a delete */
-	m_prebuilt->upd_node->is_delete = FALSE;
-	m_prebuilt->upd_node->vers_delete = false;
+	m_prebuilt->upd_node->is_delete = NO_DELETE;
 
 	{
 		const bool	vers_set_fields
@@ -9181,8 +9180,8 @@ ha_innobase::update_row(
 			    || thd_sql_command(m_user_thd)
 			    != SQLCOM_ALTER_TABLE);
 
-		m_prebuilt->upd_node->vers_delete = vers_set_fields
-			&& !vers_ins_row;
+		if (vers_set_fields && !vers_ins_row)
+			m_prebuilt->upd_node->is_delete = VERSIONED_DELETE;
 
 		innobase_srv_conc_enter_innodb(m_prebuilt);
 
@@ -9306,9 +9305,11 @@ ha_innobase::delete_row(
 
 	/* This is a delete */
 
-	m_prebuilt->upd_node->is_delete = TRUE;
-	m_prebuilt->upd_node->vers_delete = table->versioned_write()
-		&& table->vers_end_field()->is_max();
+	if (table->versioned_write() && table->vers_end_field()->is_max()) {
+		m_prebuilt->upd_node->is_delete = VERSIONED_DELETE;
+	} else {
+		m_prebuilt->upd_node->is_delete = PLAIN_DELETE;
+	}
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 

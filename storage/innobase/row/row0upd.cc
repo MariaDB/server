@@ -272,7 +272,6 @@ row_upd_check_references_constraints(
 
 		if (foreign->referenced_index == index
 		    && (node->is_delete
-			|| node->vers_delete
 			|| row_upd_changes_first_fields_binary(
 				entry, index, node->update,
 				foreign->n_fields))) {
@@ -413,7 +412,6 @@ wsrep_row_upd_check_foreign_constraints(
 
 		if (foreign->foreign_index == index
 		    && (node->is_delete
-			|| node->vers_delete
 			|| row_upd_changes_first_fields_binary(
 				entry, index, node->update,
 				foreign->n_fields))) {
@@ -2229,11 +2227,13 @@ row_upd_store_row(
 			      NULL, NULL, NULL, ext, node->heap);
 
 	if (node->table->n_v_cols) {
-		row_upd_store_v_row(node, node->is_delete ? NULL : node->update,
-				    thd, mysql_table);
+		row_upd_store_v_row(
+		    node,
+		    node->is_delete == PLAIN_DELETE ? NULL : node->update,
+		    thd, mysql_table);
 	}
 
-	if (node->is_delete) {
+	if (node->is_delete == PLAIN_DELETE) {
 		node->upd_row = NULL;
 		node->upd_ext = NULL;
 	} else {
@@ -2508,7 +2508,7 @@ row_upd_sec_index_entry(
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 
-	if (node->is_delete || err != DB_SUCCESS) {
+	if (node->is_delete == PLAIN_DELETE || err != DB_SUCCESS) {
 
 		goto func_exit;
 	}
@@ -2961,7 +2961,7 @@ row_upd_del_mark_clust_rec(
 
 	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
-	ut_ad(node->is_delete);
+	ut_ad(node->is_delete == PLAIN_DELETE);
 
 	pcur = node->pcur;
 	btr_cur = btr_pcur_get_btr_cur(pcur);
@@ -3113,7 +3113,8 @@ row_upd_clust_step(
 	then we have to free the file segments of the index tree associated
 	with the index */
 
-	if (node->is_delete && node->table->id == DICT_INDEXES_ID) {
+	if (node->is_delete == PLAIN_DELETE
+	    && node->table->id == DICT_INDEXES_ID) {
 
 		ut_ad(!dict_index_is_online_ddl(index));
 
@@ -3157,7 +3158,7 @@ row_upd_clust_step(
 
 	/* NOTE: the following function calls will also commit mtr */
 
-	if (node->is_delete) {
+	if (node->is_delete == PLAIN_DELETE) {
 		err = row_upd_del_mark_clust_rec(
 			node, index, offsets, thr, referenced, foreign, &mtr);
 
@@ -3262,7 +3263,7 @@ row_upd(
 		/* We do not get the cmpl_info value from the MySQL
 		interpreter: we must calculate it on the fly: */
 
-		if (node->is_delete
+		if (node->is_delete == PLAIN_DELETE
 		    || row_upd_changes_some_index_ord_field_binary(
 			    node->table, node->update)) {
 			node->cmpl_info = 0;
