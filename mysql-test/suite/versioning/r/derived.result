@@ -93,12 +93,12 @@ as
 select e.emp_id, e.name, e.mgr
 from emp as e
 where name = 'bill'
-  system_time as of timestamp @ts
+  for system_time as of timestamp @ts
 union
 select ee.emp_id, ee.name, ee.mgr
 from emp as ee, ancestors as a
 where ee.mgr = a.emp_id
-system_time as of timestamp @ts
+for system_time as of timestamp @ts
 )
 select * from ancestors;
 emp_id	name	mgr
@@ -113,12 +113,12 @@ as
   select e.emp_id, e.name, e.mgr
   from emp as e
   where name = 'bill'
-  system_time as of timestamp @ts
+  for system_time as of timestamp @ts
   union
   select ee.emp_id, ee.name, ee.mgr
   from emp as ee, ancestors as a
   where ee.mgr = a.emp_id
-  system_time as of timestamp @ts
+  for system_time as of timestamp @ts
 )
 select * from ancestors";
 prepare stmt from @tmp;
@@ -152,13 +152,13 @@ y	x
 with s3 as (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) select * from s3;
 y	x
 10	1
-select * from (select *, t1.sys_trx_start from t2 for system_time as of now, t1) as s4 system_time as of timestamp @t0;
+select * from (select *, t1.sys_trx_start from t2 for system_time as of now, t1) as s4 for system_time as of timestamp @t0;
 y	x
 10	1
 with s5 as (select *, t1.sys_trx_start from t2 for system_time as of now, t1) select * from s5 for system_time as of timestamp @t0;
 y	x
 10	1
-with s6 as (select *, t1.sys_trx_start from t2 for system_time as of now, t1) select * from s6 system_time as of timestamp @t0;
+with s6 as (select *, t1.sys_trx_start from t2 for system_time as of now, t1) select * from s6 for system_time as of timestamp @t0;
 y	x
 10	1
 set @q= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t0, "'");
@@ -174,7 +174,7 @@ x	y
 select * from (select *, vt1.sys_trx_end from t2, vt1) as s0;
 y	x
 10	1
-select * from (select *, vt1.sys_trx_start from t2 for system_time as of now, vt1) as s0 system_time as of timestamp @t0;
+select * from (select *, vt1.sys_trx_start from t2 for system_time as of now, vt1) as s0 for system_time as of timestamp @t0;
 y	x
 10	1
 drop table t1, t2;

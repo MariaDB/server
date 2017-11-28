@@ -44,28 +44,28 @@ emp_id	dept_id	name	salary	dept_id	name
 select * from emp e, dept d
 where d.dept_id = 10
 and d.dept_id = e.dept_id
-system_time from timestamp @ts_1 to timestamp @ts_2;
+for system_time from timestamp @ts_1 to timestamp @ts_2;
 emp_id	dept_id	name	salary	sys_trx_start	sys_trx_end	dept_id	name	sys_trx_start	sys_trx_end
 select * from emp e, dept d
 where d.dept_id = 10
 and d.dept_id = e.dept_id
-system_time as of timestamp @ts_0;
+for system_time as of timestamp @ts_0;
 emp_id	dept_id	name	salary	dept_id	name
 select * from emp e, dept d
 where d.dept_id = 10
 and d.dept_id = e.dept_id
-system_time as of timestamp @ts_1;
+for system_time as of timestamp @ts_1;
 emp_id	dept_id	name	salary	dept_id	name
 select * from emp e, dept d
 where d.dept_id = 10
 and d.dept_id = e.dept_id
-system_time as of timestamp @ts_2;
+for system_time as of timestamp @ts_2;
 emp_id	dept_id	name	salary	dept_id	name
 1	10	bill	1000	10	accounting
 select * from emp e, dept d
 where d.dept_id = 10
 and d.dept_id = e.dept_id
-system_time as of timestamp @ts_3;
+for system_time as of timestamp @ts_3;
 emp_id	dept_id	name	salary	dept_id	name
 1	10	bill	2000	10	accounting
 drop table emp, dept;

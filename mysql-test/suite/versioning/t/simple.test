@@ -45,26 +45,26 @@ where d.dept_id = 10
 select * from emp e, dept d
 where d.dept_id = 10
   and d.dept_id = e.dept_id
-system_time from timestamp @ts_1 to timestamp @ts_2;
+for system_time from timestamp @ts_1 to timestamp @ts_2;
 
 select * from emp e, dept d
 where d.dept_id = 10
   and d.dept_id = e.dept_id
-system_time as of timestamp @ts_0;
+for system_time as of timestamp @ts_0;
 
 select * from emp e, dept d
 where d.dept_id = 10
   and d.dept_id = e.dept_id
-system_time as of timestamp @ts_1;
+for system_time as of timestamp @ts_1;
 
 select * from emp e, dept d
 where d.dept_id = 10
   and d.dept_id = e.dept_id
-system_time as of timestamp @ts_2;
+for system_time as of timestamp @ts_2;
 
 select * from emp e, dept d
 where d.dept_id = 10
   and d.dept_id = e.dept_id
-system_time as of timestamp @ts_3;
+for system_time as of timestamp @ts_3;
 
 drop table emp, dept;

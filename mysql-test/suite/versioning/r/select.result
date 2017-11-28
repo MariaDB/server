@@ -145,13 +145,13 @@ NULL	NULL	3	1
 delete from t1;
 delete from t2;
 select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x
-system_time as of timestamp @t0;
+for system_time as of timestamp @t0;
 IJ2_x1	y1	x2	y2
 1	1	1	2
 1	2	1	2
 1	3	1	2
 select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x
-system_time as of timestamp @t0;
+for system_time as of timestamp @t0;
 LJ2_x1	y1	x2	y2
 1	1	1	2
 1	2	1	2
@@ -159,7 +159,7 @@ LJ2_x1	y1	x2	y2
 4	4	NULL	NULL
 5	5	NULL	NULL
 select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x
-system_time as of timestamp @t0;
+for system_time as of timestamp @t0;
 RJ2_x1	y1	x2	y2
 1	1	1	2
 1	2	1	2
@@ -276,12 +276,11 @@ create or replace table t2 (y int) with system versioning;
 insert into t1 values (1), (2), (3);
 delete from t1 where x = 3;
 insert into t2 values (1);
-select * from t1, t2 system_time all;
+select * from t1, t2 for system_time all;
 x	y
 1	1
 2	1
-3	1
-select * from t1 for system_time all, t2 for system_time all system_time all;
+select * from t1 for system_time all, t2 for system_time all for system_time all;
 ERROR HY000: Unused clause: 'SYSTEM_TIME'
 ### Issue #365, bug 4 (related to #226, optimized fields)
 create or replace table t1 (i int, b int) with system versioning;

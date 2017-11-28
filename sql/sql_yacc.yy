@@ -871,15 +871,16 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 117 shift/reduce conflicts.
+  Currently there are 124 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 117
+%expect 124
 
 /*
    Comments for TOKENS.
    For each token, please include in the same line a comment that contains
    the following tags:
+   SQL-2011-R : Reserved keyword as per SQL-2011
    SQL-2011-N : Non Reserved keyword as per SQL-2011
    SQL-2003-R : Reserved keyword as per SQL-2003
    SQL-2003-N : Non Reserved keyword as per SQL-2003
@@ -890,9 +891,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
    INTERNAL   : Not a real token, lex optimization
    OPERATOR   : SQL operator
    FUTURE-USE : Reserved for future use
-   32N2439    : Reserved keywords per ISO/IEC PDTR 19075-2,
-                http://jtc1sc32.org/doc/N2401-2450/32N2439-text_for_ballot-PDTR_19075-2.pdf
-                System Versioned Tables
 
    This makes the code grep-able, and helps maintenance.
 */
@@ -1340,7 +1338,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PERCENT_RANK_SYM
 %token  PERCENTILE_CONT_SYM
 %token  PERCENTILE_DISC_SYM
-%token  PERIOD_SYM                    /* 32N2439 */
+%token  PERIOD_SYM                    /* SQL-2011-R */
 %token  PERSISTENT_SYM
 %token  PHASE_SYM
 %token  PLUGINS_SYM
@@ -1507,8 +1505,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SWAPS_SYM
 %token  SWITCHES_SYM
 %token  SYSDATE
-%token  SYSTEM                        /* 32N2439 */
-%token  SYSTEM_TIME_SYM               /* 32N2439 */
+%token  SYSTEM                        /* SQL-2011-R */
+%token  SYSTEM_TIME_SYM               /* SQL-2011-R */
 %token  TABLES
 %token  TABLESPACE
 %token  TABLE_REF_PRIORITY
@@ -1579,7 +1577,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  VARIANCE_SYM
 %token  VARYING                       /* SQL-2003-R */
 %token  VAR_SAMP_SYM
-%token  VERSIONING_SYM                /* 32N2439 */
+%token  VERSIONING_SYM                /* SQL-2011-R */
 %token  VIA_SYM
 %token  VIEW_SYM                      /* SQL-2003-N */
 %token  VIRTUAL_SYM
@@ -9011,7 +9009,7 @@ opt_trans_or_timestamp:
 opt_system_time_clause:
           /* empty */
           {}
-        | SYSTEM_TIME_SYM system_time_expr
+        | FOR_SYSTEM_TIME_SYM system_time_expr
           {
             DBUG_ASSERT(Select);
             int used= 0;
@@ -15453,6 +15451,8 @@ keyword_sp_not_data_type:
         | SUSPEND_SYM              {}
         | SWAPS_SYM                {}
         | SWITCHES_SYM             {}
+        | SYSTEM                   {}
+        | SYSTEM_TIME_SYM          {}
         | TABLE_NAME_SYM           {}
         | TABLES                   {}
         | TABLE_CHECKSUM_SYM       {}
@@ -15478,6 +15478,7 @@ keyword_sp_not_data_type:
         | USER_SYM                 {}
         | USE_FRM                  {}
         | VARIABLES                {}
+        | VERSIONING_SYM           {}
         | VIEW_SYM                 {}
         | VIRTUAL_SYM              {}
         | VALUE_SYM                {}
@@ -15485,6 +15486,7 @@ keyword_sp_not_data_type:
         | WAIT_SYM                 {}
         | WEEK_SYM                 {}
         | WEIGHT_STRING_SYM        {}
+        | WITHOUT                  {}
         | WORK_SYM                 {}
         | X509_SYM                 {}
         | XML_SYM                  {}
