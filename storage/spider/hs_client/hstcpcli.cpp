@@ -497,7 +497,7 @@ hstcpcli::response_recv(size_t& num_flds_r)
     char *const err_begin = start;
     read_token(start, finish);
     char *const err_end = start;
-    String e = String(err_begin, err_end - err_begin, &my_charset_bin);
+    String e = String(err_begin, (uint32)(err_end - err_begin), &my_charset_bin);
     if (!e.length()) {
       e = String("unknown_error", &my_charset_bin);
     }
