@@ -1180,6 +1180,27 @@ static bool wsrep_node_is_ready(THD *thd)
   return true;
 }
 #endif
+#ifdef WITH_WSREP
+static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
+{
+  bool has_tables = false;
+  for (const TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    TABLE_CATEGORY c;
+    LEX_CSTRING    db, tn;
+    lex_string_set(&db, table->db);
+    lex_string_set(&tn, table->table_name);
+    c= get_table_category(&db, &tn);
+    if (c != TABLE_CATEGORY_INFORMATION &&
+        c != TABLE_CATEGORY_PERFORMANCE)
+    {
+      return false;
+    }
+    has_tables = true;
+  }
+  return has_tables;
+}
+#endif /* WITH_WSREP */
 
 /**
   Read one command from connection and execute it (query or simple command).
@@ -1548,11 +1569,15 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       }
       else
       {
-        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
         thd->reset_killed();
         thd->mysys_var->abort       = 0;
-        thd->set_wsrep_conflict_state(NO_CONFLICT);
         thd->wsrep_retry_counter    = 0;
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+        /*
+          Increment threads running to compensate dec_thread_running() called
+          after dispatch_end label.
+        */
+        inc_thread_running();
         goto dispatch_end;
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       }
@@ -3465,31 +3490,21 @@ mysql_execute_command(THD *thd)
     }
 
     /*
-      Bail out if DB snapshot has not been installed. SET and SHOW commands,
-      however, are always allowed.
-      Select query is also allowed if it does not access any table.
-      We additionally allow all other commands that do not change data in
-      case wsrep_dirty_reads is enabled.
-    */
-    if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready_get() &&
-        lex->sql_command != SQLCOM_SET_OPTION &&
+     * bail out if DB snapshot has not been installed. We however,
+     * allow SET and SHOW queries and reads from information schema
+     * and dirty reads (if configured)
+     */
+    if (!(thd->wsrep_applier || thd->wsrep_SR_thd) &&
+        !(wsrep_ready_get() && wsrep_reject_queries == WSREP_REJECT_NONE)    &&
+        !(thd->variables.wsrep_dirty_reads &&
+          (sql_command_flags[lex->sql_command] & CF_CHANGES_DATA) == 0)    &&
+        !wsrep_tables_accessible_when_detached(all_tables)                 &&
+        lex->sql_command != SQLCOM_SET_OPTION                              &&
         !wsrep_is_show_query(lex->sql_command))
     {
-#if DIRTY_HACK
-      /* Dirty hack for lp:1002714 - trying to recognize mysqldump connection
-       * and allow it to continue. Actuall mysqldump_magic_str may be longer
-       * and is obviously version dependent and may be issued by any client
-       * connection after which connection becomes non-replicating. */
-      static char const mysqldump_magic_str[]=
-"SELECT LOGFILE_GROUP_NAME, FILE_NAME, TOTAL_EXTENTS, INITIAL_SIZE, ENGINE, EXTRA FROM INFORMATION_SCHEMA.FILES WHERE FILE_TYPE = 'UNDO LOG' AND FILE_NAME IS NOT NULL";
-      static const size_t mysqldump_magic_str_len= sizeof(mysqldump_magic_str) -1;
-      if (SQLCOM_SELECT != lex->sql_command ||
-          thd->query_length() < mysqldump_magic_str_len ||
-          strncmp(thd->query(), mysqldump_magic_str, mysqldump_magic_str_len))
-      {
-#endif /* DIRTY_HACK */
-      my_error(ER_UNKNOWN_COM_ERROR, MYF(0),
-               "WSREP has not yet prepared node for application use");
+      my_message(ER_UNKNOWN_COM_ERROR,
+                 "WSREP has not yet prepared node for application use",
+                 MYF(0));
       goto error;
       }
   }
@@ -5870,17 +5885,17 @@ end_with_restore_list:
       thd->print_aborted_warning(3, "RELEASE");
     }
 #ifdef WITH_WSREP
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-    if (WSREP(thd) && (thd->wsrep_conflict_state() != NO_CONFLICT &&
-                       thd->wsrep_conflict_state() != REPLAYING))
-    {
-      DBUG_ASSERT(thd->is_error()); // the error is already issued
+    if (WSREP(thd)) {
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      if (thd->wsrep_conflict_state() == NO_CONFLICT ||
+          thd->wsrep_conflict_state() == REPLAYING)
+      {
+        my_ok(thd);
+      }
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-    }
-    else
-    {
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    } else {
 #endif /* WITH_WSREP */
+
       my_ok(thd);
 #ifdef WITH_WSREP
     }
@@ -5921,8 +5936,7 @@ end_with_restore_list:
     if (tx_release)
       thd->set_killed(KILL_CONNECTION);
 #ifdef WITH_WSREP
-    if (WSREP(thd))
-    {
+    if (WSREP(thd)) {
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       bool send_ok= (thd->wsrep_conflict_state() == NO_CONFLICT ||
                      thd->wsrep_conflict_state() == REPLAYING);
@@ -6404,10 +6418,11 @@ finish:
       trans_rollback_stmt(thd);
     }
 #ifdef WITH_WSREP
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     if (thd->spcont &&
-             (thd->wsrep_conflict_state == MUST_ABORT ||
-              thd->wsrep_conflict_state == ABORTED    ||
-              thd->wsrep_conflict_state == CERT_FAILURE))
+        (thd->wsrep_conflict_state() == MUST_ABORT ||
+         thd->wsrep_conflict_state() == ABORTED    ||
+         thd->wsrep_conflict_state() == CERT_FAILURE))
     {
       /*
         The error was cleared, but THD was aborted by wsrep and
@@ -6417,15 +6432,26 @@ finish:
         In which case the error may have been cleared in method
         sp_rcontext::handle_sql_condition().
       */
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       trans_rollback_stmt(thd);
-    else
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      thd->set_wsrep_conflict_state(NO_CONFLICT);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+
+      thd->killed= NOT_KILLED;
+    }
+   else
     {
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
       /* If commit fails, we should be able to reset the OK status. */
       THD_STAGE_INFO(thd, stage_commit);
       thd->get_stmt_da()->set_overwrite_status(true);
       trans_commit_stmt(thd);
       thd->get_stmt_da()->set_overwrite_status(false);
+#ifdef WITH_WSREP
     }
+#endif /* WITH_WSREP */
 #ifdef WITH_ARIA_STORAGE_ENGINE
     ha_maria::implicit_commit(thd, FALSE);
 #endif

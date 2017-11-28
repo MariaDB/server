@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE rand_table (f1 FLOAT);
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
 INSERT INTO t1 VALUES (1, 'a');
@@ -16,10 +18,88 @@ COMMIT;;
 connection node_1a;
 SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_on = 0;
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+1	system user		NULL	Sleep	9	wsrep aborter idle	NULL	0.000
+2	system user		NULL	Sleep	9	Waiting on cond	NULL	0.000
+3	system user		NULL	Sleep	9	NULL	NULL	0.000
+4	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+6	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+5	system user		NULL	Daemon	NULL	InnoDB purge coordinator	NULL	0.000
+7	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+8	system user		NULL	Daemon	NULL	InnoDB shutdown handler	NULL	0.000
+28	root	localhost	test	Sleep	3		NULL	0.000
+29	root	localhost:45286	test	Sleep	0		NULL	0.000
+30	root	localhost:45288	test	Query	0	Init	SHOW PROCESSLIST	0.000
+SHOW STATUS LIKE 'wsrep_%';
+Variable_name	Value
+wsrep_blocks_not_flushed	0
+wsrep_blocks_unused	828
+wsrep_blocks_used	2
+wsrep_blocks_warm	0
+wsrep_read_requests	8
+wsrep_reads	3
+wsrep_write_requests	0
+wsrep_writes	0
+wsrep_cluster_conf_id	2
+wsrep_cluster_size	2
+wsrep_cluster_state_uuid	21053024-d47c-11e7-b3b6-8f82d6cdaf59
+wsrep_cluster_status	Primary
+wsrep_connected	ON
+wsrep_local_bf_aborts	0
+wsrep_local_index	0
+wsrep_provider_capabilities	:MULTI_MASTER:CERTIFICATION:PARALLEL_APPLYING:TRX_REPLAY:ISOLATION:PAUSE:CAUSAL_READS:
+wsrep_provider_name	Galera
+wsrep_provider_vendor	Codership Oy <info@codership.com>
+wsrep_provider_version	4.dev(r3773)
+wsrep_ready	ON
+wsrep_thread_count	3
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters';
+VARIABLE_NAME	VARIABLE_VALUE
+commit_monitor_enter_sync
+Timeout in wait_condition.inc for SELECT 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters' AND VARIABLE_VALUE = 'commit_monitor_enter_sync'
+Id	User	Host	db	Command	Time	State	Info	Progress
+1	system user		NULL	Sleep	19	wsrep aborter idle	NULL	0.000
+2	system user		NULL	Sleep	19	Waiting on cond	NULL	0.000
+3	system user		NULL	Sleep	19	NULL	NULL	0.000
+4	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+6	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+5	system user		NULL	Daemon	NULL	InnoDB purge coordinator	NULL	0.000
+7	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+8	system user		NULL	Daemon	NULL	InnoDB shutdown handler	NULL	0.000
+28	root	localhost	test	Sleep	13		NULL	0.000
+29	root	localhost:45286	test	Sleep	11		NULL	0.000
+30	root	localhost:45288	test	Query	0	Init	show full processlist	0.000
 SET SESSION wsrep_on = 1;
 connection node_2;
 UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
 connection node_1a;
+Timeout in wait_condition.inc for SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Update_rows_log_event::find_row%';
+Id	User	Host	db	Command	Time	State	Info	Progress
+1	system user		NULL	Sleep	50	wsrep aborter idle	NULL	0.000
+2	system user		NULL	Sleep	50	Waiting on cond	NULL	0.000
+3	system user		NULL	Sleep	31	Committed 6	NULL	0.000
+4	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+6	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+5	system user		NULL	Daemon	NULL	InnoDB purge coordinator	NULL	0.000
+7	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+8	system user		NULL	Daemon	NULL	InnoDB shutdown handler	NULL	0.000
+28	root	localhost	test	Sleep	44		NULL	0.000
+29	root	localhost:45286	test	Sleep	42		NULL	0.000
+30	root	localhost:45288	test	Query	0	Init	show full processlist	0.000
+Timeout in wait_condition.inc for SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'init' AND INFO = 'COMMIT';
+Id	User	Host	db	Command	Time	State	Info	Progress
+1	system user		NULL	Sleep	81	wsrep aborter idle	NULL	0.000
+2	system user		NULL	Sleep	81	Waiting on cond	NULL	0.000
+3	system user		NULL	Sleep	62	Committed 6	NULL	0.000
+4	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+6	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+5	system user		NULL	Daemon	NULL	InnoDB purge coordinator	NULL	0.000
+7	system user		NULL	Daemon	NULL	InnoDB purge worker	NULL	0.000
+8	system user		NULL	Daemon	NULL	InnoDB shutdown handler	NULL	0.000
+28	root	localhost	test	Sleep	75		NULL	0.000
+29	root	localhost:45286	test	Sleep	73		NULL	0.000
+30	root	localhost:45288	test	Query	0	Init	show full processlist	0.000
 connection node_1a;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_enter_sync';
@@ -33,7 +113,7 @@ SELECT COUNT(DISTINCT f1) = 10 FROM rand_table;
 COUNT(DISTINCT f1) = 10
 1
 wsrep_local_replays
-1
+0
 connection node_2;
 DROP TABLE t1;
 DROP TABLE rand_table;

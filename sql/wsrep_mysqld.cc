@@ -81,6 +81,7 @@ const char *wsrep_node_name;
 const char *wsrep_node_address;
 const char *wsrep_node_incoming_address;
 const char *wsrep_start_position;
+ulong   wsrep_reject_queries;
 const char *wsrep_data_home_dir;
 const char *wsrep_dbug_option;
 const char *wsrep_notify_cmd;

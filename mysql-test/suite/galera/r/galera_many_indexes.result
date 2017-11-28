@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 VARCHAR(767) PRIMARY KEY) ENGINE=InnoDB;
 CREATE UNIQUE INDEX i63 ON t1(f1);
 CREATE UNIQUE INDEX i62 ON t1(f1);

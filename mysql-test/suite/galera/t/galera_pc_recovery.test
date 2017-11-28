@@ -3,6 +3,7 @@
 # restarting them should succeed and the cluster should re-form.
 #
 
+--source include/have_innodb.inc
 --source include/galera_cluster.inc
 --source include/big_test.inc
 

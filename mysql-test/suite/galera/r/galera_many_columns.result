@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 INSERT INTO t1 (f1) VALUES (DEFAULT);
 connection node_2;
 SELECT f1 = 'ABC', f1017 = 'ABC' FROM t1;

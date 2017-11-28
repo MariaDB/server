@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE SCHEMA schema1;
 CREATE SCHEMA schema2;
 USE schema1;
