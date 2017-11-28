@@ -2403,20 +2403,22 @@ bool JOIN::make_aggr_tables_info()
 
   /*
     All optimization is done. Check if we can use the storage engines
-    group by handler to evaluate the group by
+    group by handler to evaluate the group by.
+    Some storage engines, like spider can also do joins, group by and
+    distinct in the engine, so we do this for all queries, not only
+    GROUP BY queries.
   */
-  if (tables_list && (tmp_table_param.sum_func_count || group_list) &&
-      !procedure)
+  if (tables_list && !procedure)
   {
     /*
       At the moment we only support push down for queries where
       all tables are in the same storage engine
     */
     TABLE_LIST *tbl= tables_list;
-    handlerton *ht= tbl && tbl->table ? tbl->table->file->ht : 0;
+    handlerton *ht= tbl && tbl->table ? tbl->table->file->partition_ht() : 0;
     for (tbl= tbl->next_local; ht && tbl; tbl= tbl->next_local)
     {
-      if (!tbl->table || tbl->table->file->ht != ht)
+      if (!tbl->table || tbl->table->file->partition_ht() != ht)
         ht= 0;
     }
 

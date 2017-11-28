@@ -324,6 +324,14 @@ public:
   {
     return m_file;
   }
+  virtual part_id_range *get_part_spec()
+  {
+    return &m_part_spec;
+  }
+  virtual uint get_no_current_part_id()
+  {
+    return NO_CURRENT_PART_ID;
+  }
   Partition_share *get_part_share() { return part_share; }
   handler *clone(const char *name, MEM_ROOT *mem_root);
   virtual void set_part_info(partition_info *part_info)

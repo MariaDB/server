@@ -8740,15 +8740,12 @@ int spider_db_open_item_field(
   Field *field = item_field->field;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_db_open_item_field");
-  if (field)
+  if (field && !field->table->const_table)
   {
     DBUG_PRINT("info",("spider field=%p", field));
     DBUG_PRINT("info",("spider db=%s", field->table->s->db.str));
     DBUG_PRINT("info",("spider table_name=%s", field->table->s->table_name.str));
     DBUG_PRINT("info",("spider tmp_table=%u", field->table->s->tmp_table));
-/*
-    if (field->table->const_table)
-*/
     if (field->table->s->tmp_table != INTERNAL_TMP_TABLE)
     {
       if (!use_fields)
