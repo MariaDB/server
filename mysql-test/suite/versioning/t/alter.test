@@ -238,6 +238,8 @@ call verify_vtq;
 create or replace table t (a int) with system versioning;
 insert into t values (1), (2), (3);
 delete from t where a<3;
+# kvm-deb-trusty-ppc64le fails with "Out of range value for column 'b' at row 3"
+--error 0,ER_WARN_DATA_OUT_OF_RANGE
 alter table t add b tinyint auto_increment unique;
 select * from t for system_time all;
 insert into t values (4, NULL);
