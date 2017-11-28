@@ -191,6 +191,15 @@ insert into t2(x) values (1);
 insert into t1(x) values (1);
 set global transaction_registry= on;
 
+# virtual columns
+create or replace table t1 (
+  x int,
+  y int as (x) virtual
+) engine=innodb with system versioning;
+insert into t1 values (1, null);
+update t1 set x= x + 1;
+select *, sys_trx_end = 18446744073709551615 as current from t1 for system_time all;
+
 drop table t1;
 drop table t2;
 
