@@ -238,8 +238,8 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
       return TRUE;
   }
   Type_std_attributes::set(args[0]);
-  for (uint i= 0; i < arg_count && !with_subselect; i++)
-    with_subselect= with_subselect || args[i]->with_subselect;
+  for (uint i= 0; i < arg_count && !m_with_subquery; i++)
+    m_with_subquery|= args[i]->with_subquery();
 
   Item *item2= args[0]->real_item();
   if (item2->type() == Item::FIELD_ITEM)

@@ -12810,7 +12810,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
       *simple_order=0;				// Must do a temp table to sort
     else if (!(order_tables & not_const_tables))
     {
-      if (order->item[0]->has_subquery())
+      if (order->item[0]->with_subquery())
       {
         /*
           Delay the evaluation of constant ORDER and/or GROUP expressions that

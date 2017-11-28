@@ -1126,7 +1126,7 @@ Item_sum_num::fix_fields(THD *thd, Item **ref)
     if (args[i]->fix_fields(thd, args + i) || args[i]->check_cols(1))
       return TRUE;
     set_if_bigger(decimals, args[i]->decimals);
-    with_subselect|= args[i]->with_subselect;
+    m_with_subquery|= args[i]->with_subquery();
     with_window_func|= args[i]->with_window_func;
   }
   result_field=0;
@@ -1157,7 +1157,7 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   if ((!item->fixed && item->fix_fields(thd, args)) ||
       (item= args[0])->check_cols(1))
     return TRUE;
-  with_subselect= args[0]->with_subselect;
+  m_with_subquery= args[0]->with_subquery();
   with_window_func|= args[0]->with_window_func;
 
   fix_length_and_dec();
@@ -3447,7 +3447,7 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
          args[i]->fix_fields(thd, args + i)) ||
         args[i]->check_cols(1))
       return TRUE;
-    with_subselect|= args[i]->with_subselect;
+    m_with_subquery|= args[i]->with_subquery();
     with_window_func|= args[i]->with_window_func;
   }
 

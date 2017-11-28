@@ -830,11 +830,11 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
         MY_BITMAP *tmp_write_set= sort_form->write_set;
         MY_BITMAP *tmp_vcol_set= sort_form->vcol_set;
 
-        if (select->cond->with_subselect)
+        if (select->cond->with_subquery())
           sort_form->column_bitmaps_set(save_read_set, save_write_set,
                                         save_vcol_set);
         write_record= (select->skip_record(thd) > 0);
-        if (select->cond->with_subselect)
+        if (select->cond->with_subquery())
           sort_form->column_bitmaps_set(tmp_read_set,
                                         tmp_write_set,
                                         tmp_vcol_set);

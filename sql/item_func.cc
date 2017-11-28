@@ -362,7 +362,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_window_func= with_window_func || item->with_window_func;
       with_field= with_field || item->with_field;
       used_tables_and_const_cache_join(item);
-      with_subselect|=        item->has_subquery();
+      m_with_subquery|= item->with_subquery();
     }
   }
   if (check_arguments())
@@ -3248,7 +3248,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 	func->maybe_null=1;
       func->with_sum_func= func->with_sum_func || item->with_sum_func;
       func->with_field= func->with_field || item->with_field;
-      func->with_subselect|= item->with_subselect;
+      func->With_subquery_cache::join(item);
       func->used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
     }
