@@ -347,7 +347,7 @@ bool spider_conn_need_open_handler(
   int link_idx
 );
 
-SPIDER_IP_PORT_CONN *spider_create_ipport_conn(SPIDER_CONN *conn) ;
+SPIDER_IP_PORT_CONN *spider_create_ipport_conn(SPIDER_CONN *conn);
 SPIDER_CONN* spider_get_conn_from_idle_connection
 (
  SPIDER_SHARE *share,

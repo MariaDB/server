@@ -9398,9 +9398,6 @@ ulonglong ha_spider::table_flags() const
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
     HA_CAN_TABLE_CONDITION_PUSHDOWN |
 #endif
-#ifdef HA_SKIP_OPTIMIZE_CONST_TABLE
-    HA_SKIP_OPTIMIZE_CONST_TABLE |
-#endif
 #ifdef HA_CAN_BULK_ACCESS
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     (support_bulk_access_hs() ? HA_CAN_BULK_ACCESS : 0) |
