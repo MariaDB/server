@@ -37,6 +37,7 @@ Created 5/11/1994 Heikki Tuuri
 #include "trx0trx.h"
 #include <string>
 #include "log.h"
+#include "my_cpu.h"
 
 #ifdef _WIN32
 /*****************************************************************//**
@@ -290,14 +291,14 @@ ut_delay(
 {
 	ulint	i;
 
-	UT_LOW_PRIORITY_CPU();
+	HMT_low();
 
 	for (i = 0; i < delay * 50; i++) {
 		UT_RELAX_CPU();
 		UT_COMPILER_BARRIER();
 	}
 
-	UT_RESUME_PRIORITY_CPU();
+	HMT_medium();
 }
 
 /*************************************************************//**

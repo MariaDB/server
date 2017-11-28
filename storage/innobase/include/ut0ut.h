@@ -89,15 +89,6 @@ typedef time_t	ib_time_t;
 # define UT_COMPILER_BARRIER()
 #endif
 
-#if defined(HAVE_HMT_PRIORITY_INSTRUCTION)
-# include <sys/platform/ppc.h>
-# define UT_LOW_PRIORITY_CPU() __ppc_set_ppr_low()
-# define UT_RESUME_PRIORITY_CPU() __ppc_set_ppr_med()
-#else
-# define UT_LOW_PRIORITY_CPU() ((void)0)
-# define UT_RESUME_PRIORITY_CPU() ((void)0)
-#endif
-
 /*********************************************************************//**
 Delays execution for at most max_wait_us microseconds or returns earlier
 if cond becomes true.

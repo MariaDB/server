@@ -792,17 +792,6 @@ IF(NOT CMAKE_CROSSCOMPILING AND NOT MSVC)
     }
    " HAVE_FAKE_PAUSE_INSTRUCTION)
   ENDIF()
-  IF (NOT HAVE_PAUSE_INSTRUCTION)
-    CHECK_C_SOURCE_COMPILES("
-    #include <sys/platform/ppc.h>
-    int main()
-    {
-     __ppc_set_ppr_low();
-     __ppc_set_ppr_med();
-     return 0;
-    }
-    " HAVE_HMT_PRIORITY_INSTRUCTION)
-  ENDIF()
 ENDIF()
   
 CHECK_SYMBOL_EXISTS(tcgetattr "termios.h" HAVE_TCGETATTR 1)

@@ -21,17 +21,18 @@
   The defines are the same ones used by the linux kernel
 */
 
-#if defined(__powerpc__)
+#ifdef _ARCH_PWR8
+#include <sys/platform/ppc.h>
 /* Very low priority */
-#define HMT_very_low() asm volatile("or 31,31,31")
+#define HMT_very_low() __ppc_set_ppr_very_low()
 /* Low priority */
-#define HMT_low() asm volatile("or 1,1,1")
+#define HMT_low() __ppc_set_ppr_low()
 /* Medium low priority */
-#define HMT_medium_low() asm volatile("or 6,6,6")
+#define HMT_medium_low() __ppc_set_ppr_med_low()
 /* Medium priority */
-#define HMT_medium() asm volatile("or 2,2,2")
+#define HMT_medium() __ppc_set_ppr_med()
 /* Medium high priority */
-#define HMT_medium_high() asm volatile("or 5,5,5")
+#define HMT_medium_high() __ppc_set_ppr_med_high()
 /* High priority */
 #define HMT_high() asm volatile("or 3,3,3")
 #else
