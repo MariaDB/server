@@ -355,6 +355,11 @@ rollback to a;
 commit;
 call verify_vtq;
 No	A	B	C	D
+set global transaction_registry= off;
+insert into t2(x) values (1);
+insert into t1(x) values (1);
+ERROR HY000: Some versioned DML requires `transaction_registry` to be set to ON.
+set global transaction_registry= on;
 drop table t1;
 drop table t2;
 drop procedure test_01;

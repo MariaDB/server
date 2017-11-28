@@ -1414,16 +1414,14 @@ int ha_commit_trans(THD *thd, bool all)
     goto err;
   }
 
-  if (rw_trans && use_transaction_registry)
+  if (rw_trans)
   {
     ulonglong trx_start_id= 0, trx_end_id= 0;
-    for (Ha_trx_info *ha_info= trans->ha_list; ha_info;
-         ha_info= ha_info->next())
+    for (Ha_trx_info *ha_info= trans->ha_list; ha_info; ha_info= ha_info->next())
     {
-      if (ulonglong (*prepare)(THD*,ulonglong*)= ha_info->ht()->
-          prepare_commit_versioned)
+      if (ha_info->ht()->prepare_commit_versioned)
       {
-        trx_end_id= prepare(thd, &trx_start_id);
+        trx_end_id= ha_info->ht()->prepare_commit_versioned(thd, &trx_start_id);
         if (trx_end_id)
           break; // FIXME: use a common ID for cross-engine transactions
       }
@@ -1431,6 +1429,11 @@ int ha_commit_trans(THD *thd, bool all)
 
     if (trx_end_id)
     {
+      if (!use_transaction_registry)
+      {
+        my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
+        goto err;
+      }
       DBUG_ASSERT(trx_start_id);
       TR_table trt(thd, true);
       if (trt.update(trx_start_id, trx_end_id))

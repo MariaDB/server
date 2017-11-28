@@ -255,12 +255,12 @@ err:
   }
 
 quit:
-  if (result || !use_transaction_registry);
-  else if (ulonglong (*prepare)(THD*,ulonglong*)= vtmd.table->file->ht->
-           prepare_commit_versioned)
+  if (!result && vtmd.table->file->ht->prepare_commit_versioned)
   {
+    DBUG_ASSERT(use_transaction_registry); // FIXME: disable survival mode while TRT is disabled
     TR_table trt(thd, true);
-    ulonglong trx_start_id, trx_end_id= prepare(thd, &trx_start_id);
+    ulonglong trx_start_id= 0;
+    ulonglong trx_end_id= vtmd.table->file->ht->prepare_commit_versioned(thd, &trx_start_id);
     result= trx_end_id && trt.update(trx_start_id, trx_end_id);
   }
 

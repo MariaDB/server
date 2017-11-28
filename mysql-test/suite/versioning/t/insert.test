@@ -185,6 +185,12 @@ rollback to a;
 commit;
 call verify_vtq;
 
+set global transaction_registry= off;
+insert into t2(x) values (1);
+--error ER_VERS_TRT_IS_DISABLED
+insert into t1(x) values (1);
+set global transaction_registry= on;
+
 drop table t1;
 drop table t2;
 

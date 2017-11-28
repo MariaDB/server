@@ -7913,3 +7913,6 @@ ER_NOT_LOG_TABLE
 
 ER_VERS_GENERATED_ALWAYS_NOT_EMPTY
         eng "Can not modify column `%s` to GENERATED ALWAYS AS ROW START/END for non-empty table"
+
+ER_VERS_TRT_IS_DISABLED
+        eng "Some versioned DML requires `transaction_registry` to be set to ON."
