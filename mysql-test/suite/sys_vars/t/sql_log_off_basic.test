@@ -97,7 +97,7 @@ SET @@session.sql_log_off = TRÜE;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_log_off = ÕN;
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@session.sql_log_off = OFFF;
+SET @@session.sql_log_off = OF;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.sql_log_off = ÓFF;
 --Error ER_WRONG_VALUE_FOR_VAR
