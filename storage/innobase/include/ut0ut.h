@@ -45,6 +45,7 @@ Created 1/20/1994 Heikki Tuuri
 #include <stdarg.h>
 
 #include <string>
+#include <my_atomic.h>
 
 /** Index name prefix in fast index creation, as a string constant */
 #define TEMP_INDEX_PREFIX_STR	"\377"
@@ -74,11 +75,15 @@ typedef time_t	ib_time_t;
 # include <sys/platform/ppc.h>
 # define UT_RELAX_CPU() __ppc_get_timebase()
 #else
-# define UT_RELAX_CPU() do { \
-     volatile int32	volatile_var; \
-     int32 oldval= 0; \
-     my_atomic_cas32(&volatile_var, &oldval, 1); \
-   } while (0)
+static inline void UT_RELAX_CPU(void)
+{
+	volatile int32 var;
+	int32 oldval = 0;
+	my_atomic_cas32_strong_explicit(
+		&var, &oldval, 1,
+		MY_MEMORY_ORDER_RELAXED,
+		MY_MEMORY_ORDER_RELAXED);
+}
 #endif
 
 #if defined (__GNUC__)
