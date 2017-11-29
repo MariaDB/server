@@ -3765,8 +3765,9 @@ void Item_param::set_null()
 void Item_param::set_int(longlong i, uint32 max_length_arg)
 {
   DBUG_ENTER("Item_param::set_int");
+  DBUG_ASSERT(value.type_handler()->cmp_type() == INT_RESULT);
   value.integer= (longlong) i;
-  state= INT_VALUE;
+  state= SHORT_DATA_VALUE;
   collation.set_numeric();
   max_length= max_length_arg;
   decimals= 0;
@@ -3778,8 +3779,9 @@ void Item_param::set_int(longlong i, uint32 max_length_arg)
 void Item_param::set_double(double d)
 {
   DBUG_ENTER("Item_param::set_double");
+  DBUG_ASSERT(value.type_handler()->cmp_type() == REAL_RESULT);
   value.real= d;
-  state= REAL_VALUE;
+  state= SHORT_DATA_VALUE;
   collation.set_numeric();
   max_length= DBL_DIG + 8;
   decimals= NOT_FIXED_DEC;
@@ -3805,14 +3807,15 @@ void Item_param::set_decimal(const char *str, ulong length)
 {
   char *end;
   DBUG_ENTER("Item_param::set_decimal");
+  DBUG_ASSERT(value.type_handler()->cmp_type() == DECIMAL_RESULT);
 
   end= (char*) str+length;
-  str2my_decimal(E_DEC_FATAL_ERROR, str, &decimal_value, &end);
-  state= DECIMAL_VALUE;
-  decimals= decimal_value.frac;
+  str2my_decimal(E_DEC_FATAL_ERROR, str, &value.m_decimal, &end);
+  state= SHORT_DATA_VALUE;
+  decimals= value.m_decimal.frac;
   collation.set_numeric();
   max_length=
-    my_decimal_precision_to_length_no_truncation(decimal_value.precision(),
+    my_decimal_precision_to_length_no_truncation(value.m_decimal.precision(),
                                                  decimals, unsigned_flag);
   maybe_null= 0;
   fix_type(Item::DECIMAL_ITEM);
@@ -3821,14 +3824,15 @@ void Item_param::set_decimal(const char *str, ulong length)
 
 void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
 {
-  state= DECIMAL_VALUE;
+  DBUG_ASSERT(value.type_handler()->cmp_type() == DECIMAL_RESULT);
+  state= SHORT_DATA_VALUE;
 
-  my_decimal2decimal(dv, &decimal_value);
+  my_decimal2decimal(dv, &value.m_decimal);
 
-  decimals= (uint8) decimal_value.frac;
+  decimals= (uint8) value.m_decimal.frac;
   collation.set_numeric();
   unsigned_flag= unsigned_arg;
-  max_length= my_decimal_precision_to_length(decimal_value.intg + decimals,
+  max_length= my_decimal_precision_to_length(value.m_decimal.intg + decimals,
                                              decimals, unsigned_flag);
   fix_type(Item::DECIMAL_ITEM);
 }
@@ -3836,7 +3840,7 @@ void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
 
 void Item_param::fix_temporal(uint32 max_length_arg, uint decimals_arg)
 {
-  state= TIME_VALUE;
+  state= SHORT_DATA_VALUE;
   collation.set_numeric();
   max_length= max_length_arg;
   decimals= decimals_arg;
@@ -3847,6 +3851,7 @@ void Item_param::fix_temporal(uint32 max_length_arg, uint decimals_arg)
 void Item_param::set_time(const MYSQL_TIME *tm,
                           uint32 max_length_arg, uint decimals_arg)
 {
+  DBUG_ASSERT(value.type_handler()->cmp_type() == TIME_RESULT);
   value.time= *tm;
   fix_temporal(max_length_arg, decimals_arg);
 }
@@ -3869,6 +3874,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
                           uint32 max_length_arg)
 { 
   DBUG_ENTER("Item_param::set_time");
+  DBUG_ASSERT(value.type_handler()->cmp_type() == TIME_RESULT);
 
   value.time= *tm;
   value.time.time_type= time_type;
@@ -3891,12 +3897,13 @@ bool Item_param::set_str(const char *str, ulong length,
                          CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
   DBUG_ENTER("Item_param::set_str");
+  DBUG_ASSERT(value.type_handler()->cmp_type() == STRING_RESULT);
   /*
     Assign string with no conversion: data is converted only after it's
     been written to the binary log.
   */
   uint dummy_errors;
-  if (str_value.copy(str, length, fromcs, tocs, &dummy_errors))
+  if (value.m_string.copy(str, length, fromcs, tocs, &dummy_errors))
     DBUG_RETURN(TRUE);
   /*
     Set str_value_ptr to make sure it's in sync with str_value.
@@ -3909,10 +3916,10 @@ bool Item_param::set_str(const char *str, ulong length,
     later, which will convert the value from the client character set to the
     connection character set, and will reset both str_value and str_value_ptr.
   */
-  str_value_ptr.set(str_value.ptr(),
-                    str_value.length(),
-                    str_value.charset());
-  state= STRING_VALUE;
+  value.m_string_ptr.set(value.m_string.ptr(),
+                         value.m_string.length(),
+                         value.m_string.charset());
+  state= SHORT_DATA_VALUE;
   collation.set(tocs, DERIVATION_COERCIBLE);
   max_length= length;
   maybe_null= 0;
@@ -3926,6 +3933,7 @@ bool Item_param::set_str(const char *str, ulong length,
 bool Item_param::set_longdata(const char *str, ulong length)
 {
   DBUG_ENTER("Item_param::set_longdata");
+  DBUG_ASSERT(value.type_handler()->cmp_type() == STRING_RESULT);
 
   /*
     If client character set is multibyte, end of long data packet
@@ -3936,7 +3944,7 @@ bool Item_param::set_longdata(const char *str, ulong length)
     (here), and first have to concatenate all pieces together,
     write query to the binary log and only then perform conversion.
   */
-  if (str_value.length() + length > max_long_data_size)
+  if (value.m_string.length() + length > max_long_data_size)
   {
     my_message(ER_UNKNOWN_ERROR,
                "Parameter of prepared statement which is set through "
@@ -3946,7 +3954,7 @@ bool Item_param::set_longdata(const char *str, ulong length)
     DBUG_RETURN(true);
   }
 
-  if (str_value.append(str, length, &my_charset_bin))
+  if (value.m_string.append(str, length, &my_charset_bin))
     DBUG_RETURN(TRUE);
   state= LONG_DATA_VALUE;
   maybe_null= 0;
@@ -4009,15 +4017,16 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     else
     {
       unsigned_flag= item->unsigned_flag;
-      set_handler_by_result_type(item->result_type());
+      set_handler(item->type_handler());
       DBUG_RETURN(set_limit_clause_param(val));
     }
   }
   struct st_value tmp;
   if (!item->save_in_value(&tmp))
   {
-    if (item->type_handler()->Item_param_set_from_value(thd, this, item, &tmp))
-      DBUG_RETURN(true);
+    const Type_handler *h= item->type_handler();
+    set_handler(h);
+    DBUG_RETURN(set_value(thd, item, &tmp, h));
   }
   else
     set_null();
@@ -4037,16 +4046,16 @@ void Item_param::reset()
 {
   DBUG_ENTER("Item_param::reset");
   /* Shrink string buffer if it's bigger than max possible CHAR column */
-  if (str_value.alloced_length() > MAX_CHAR_WIDTH)
-    str_value.free();
+  if (value.m_string.alloced_length() > MAX_CHAR_WIDTH)
+    value.m_string.free();
   else
-    str_value.length(0);
-  str_value_ptr.length(0);
+    value.m_string.length(0);
+  value.m_string_ptr.length(0);
   /*
     We must prevent all charset conversions until data has been written
     to the binary log.
   */
-  str_value.set_charset(&my_charset_bin);
+  value.m_string.set_charset(&my_charset_bin);
   collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
   state= NO_VALUE;
   maybe_null= 1;
@@ -4075,19 +4084,9 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
     Garbage (e.g. in case of a memory overrun) is handled after the switch.
   */
   switch (state) {
-  case INT_VALUE:
-    return field->store(value.integer, unsigned_flag);
-  case REAL_VALUE:
-    return field->store(value.real);
-  case DECIMAL_VALUE:
-    return field->store_decimal(&decimal_value);
-  case TIME_VALUE:
-    field->store_time_dec(&value.time, decimals);
-    return 0;
-  case STRING_VALUE:
+  case SHORT_DATA_VALUE:
   case LONG_DATA_VALUE:
-    return field->store(str_value.ptr(), str_value.length(),
-                        str_value.charset());
+    return value.type_handler()->Item_save_in_field(this, field, no_conversions);
   case NULL_VALUE:
     return set_field_to_null_with_conversions(field, no_conversions);
   case DEFAULT_VALUE:
@@ -4107,6 +4106,28 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
 }
 
 
+bool Item_param::can_return_value() const
+{
+  // There's no "default". See comments in Item_param::save_in_field().
+  switch (state) {
+  case SHORT_DATA_VALUE:
+  case LONG_DATA_VALUE:
+    return true;
+  case IGNORE_VALUE:
+  case DEFAULT_VALUE:
+    invalid_default_param();
+    // fall through
+  case NULL_VALUE:
+    return false;
+  case NO_VALUE:
+    DBUG_ASSERT(0); // Should not be possible
+    return false;
+  }
+  DBUG_ASSERT(0); // Garbage
+  return false;
+}
+
+
 void Item_param::invalid_default_param() const
 {
   my_message(ER_INVALID_DEFAULT_PARAM,
@@ -4116,7 +4137,14 @@ void Item_param::invalid_default_param() const
 
 bool Item_param::get_date(MYSQL_TIME *res, ulonglong fuzzydate)
 {
-  if (state == TIME_VALUE)
+  /*
+    LIMIT clause parameter should not call get_date()
+    For non-LIMIT parameters, handlers must be the same.
+  */
+  DBUG_ASSERT(type_handler()->result_type() ==
+              value.type_handler()->result_type());
+  if (state == SHORT_DATA_VALUE &&
+      value.type_handler()->cmp_type() == TIME_RESULT)
   {
     *res= value.time;
     return 0;
@@ -4125,156 +4153,116 @@ bool Item_param::get_date(MYSQL_TIME *res, ulonglong fuzzydate)
 }
 
 
-double Item_param::val_real()
+double Item_param::PValue::val_real() const
 {
-  // There's no "default". See comments in Item_param::save_in_field().
-  switch (state) {
-  case REAL_VALUE:
-    return value.real;
-  case INT_VALUE:
-    return (double) value.integer;
-  case DECIMAL_VALUE:
+  switch (type_handler()->cmp_type()) {
+  case REAL_RESULT:
+    return real;
+  case INT_RESULT:
+    return (double) integer;
+  case DECIMAL_RESULT:
   {
     double result;
-    my_decimal2double(E_DEC_FATAL_ERROR, &decimal_value, &result);
+    my_decimal2double(E_DEC_FATAL_ERROR, &m_decimal, &result);
     return result;
   }
-  case STRING_VALUE:
-  case LONG_DATA_VALUE:
-  {
-    return double_from_string_with_check(&str_value);
-  }
-  case TIME_VALUE:
+  case STRING_RESULT:
+    return double_from_string_with_check(&m_string);
+  case TIME_RESULT:
     /*
       This works for example when user says SELECT ?+0.0 and supplies
       time value for the placeholder.
     */
-    return TIME_to_double(&value.time);
-  case IGNORE_VALUE:
-  case DEFAULT_VALUE:
-    invalid_default_param();
-    // fall through
-  case NULL_VALUE:
-    return 0.0;
-  case NO_VALUE:
-    DBUG_ASSERT(0); // Should not be possible
-    return 0.0;
+    return TIME_to_double(&time);
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    break;
   }
-  DBUG_ASSERT(0); // Garbage
   return 0.0;
-} 
+}
 
 
-longlong Item_param::val_int() 
-{ 
-  // There's no "default". See comments in Item_param::save_in_field().
-  switch (state) {
-  case REAL_VALUE:
-    return (longlong) rint(value.real);
-  case INT_VALUE:
-    return value.integer;
-  case DECIMAL_VALUE:
+longlong Item_param::PValue::val_int(const Type_std_attributes *attr) const
+{
+  switch (type_handler()->cmp_type()) {
+  case REAL_RESULT:
+    return (longlong) rint(real);
+  case INT_RESULT:
+    return integer;
+  case DECIMAL_RESULT:
   {
     longlong i;
-    my_decimal2int(E_DEC_FATAL_ERROR, &decimal_value, unsigned_flag, &i);
+    my_decimal2int(E_DEC_FATAL_ERROR, &m_decimal, attr->unsigned_flag, &i);
     return i;
   }
-  case STRING_VALUE:
-  case LONG_DATA_VALUE:
-    {
-      return longlong_from_string_with_check(&str_value);
-    }
-  case TIME_VALUE:
-    return (longlong) TIME_to_ulonglong(&value.time);
-  case IGNORE_VALUE:
-  case DEFAULT_VALUE:
-    invalid_default_param();
-    // fall through
-  case NULL_VALUE:
-    return 0; 
-  case NO_VALUE:
-    DBUG_ASSERT(0); // Should not be possible
-    return 0;
+  case STRING_RESULT:
+    return longlong_from_string_with_check(&m_string);
+  case TIME_RESULT:
+    return (longlong) TIME_to_ulonglong(&time);
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    break;
   }
-  DBUG_ASSERT(0); // Garbage
   return 0;
 }
 
 
-my_decimal *Item_param::val_decimal(my_decimal *dec)
+my_decimal *Item_param::PValue::val_decimal(my_decimal *dec,
+                                            const Type_std_attributes *attr)
 {
-  // There's no "default". See comments in Item_param::save_in_field().
-  switch (state) {
-  case DECIMAL_VALUE:
-    return &decimal_value;
-  case REAL_VALUE:
-    double2my_decimal(E_DEC_FATAL_ERROR, value.real, dec);
+  switch (type_handler()->cmp_type()) {
+  case DECIMAL_RESULT:
+    return &m_decimal;
+  case REAL_RESULT:
+    double2my_decimal(E_DEC_FATAL_ERROR, real, dec);
     return dec;
-  case INT_VALUE:
-    int2my_decimal(E_DEC_FATAL_ERROR, value.integer, unsigned_flag, dec);
+  case INT_RESULT:
+    int2my_decimal(E_DEC_FATAL_ERROR, integer, attr->unsigned_flag, dec);
     return dec;
-  case STRING_VALUE:
-  case LONG_DATA_VALUE:
-    return decimal_from_string_with_check(dec, &str_value);
-  case TIME_VALUE:
-  {
-    return TIME_to_my_decimal(&value.time, dec);
+  case STRING_RESULT:
+    return decimal_from_string_with_check(dec, &m_string);
+  case TIME_RESULT:
+    return TIME_to_my_decimal(&time, dec);
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    break;
   }
-  case IGNORE_VALUE:
-  case DEFAULT_VALUE:
-    invalid_default_param();
-    // fall through
-  case NULL_VALUE:
-    return 0;
-  case NO_VALUE:
-    DBUG_ASSERT(0); // Should not be possible
-    return 0;
-  }
-  DBUG_ASSERT(0); // Gabrage
   return 0;
 }
 
 
-String *Item_param::val_str(String* str) 
-{ 
-  // There's no "default". See comments in Item_param::save_in_field().
-  switch (state) {
-  case STRING_VALUE:
-  case LONG_DATA_VALUE:
-    return &str_value_ptr;
-  case REAL_VALUE:
-    str->set_real(value.real, NOT_FIXED_DEC, &my_charset_bin);
+String *Item_param::PValue::val_str(String *str,
+                                    const Type_std_attributes *attr)
+{
+  switch (type_handler()->cmp_type()) {
+  case STRING_RESULT:
+    return &m_string_ptr;
+  case REAL_RESULT:
+    str->set_real(real, NOT_FIXED_DEC, &my_charset_bin);
     return str;
-  case INT_VALUE:
-    str->set(value.integer, &my_charset_bin);
+  case INT_RESULT:
+    str->set(integer, &my_charset_bin);
     return str;
-  case DECIMAL_VALUE:
-    if (my_decimal2string(E_DEC_FATAL_ERROR, &decimal_value,
-                          0, 0, 0, str) <= 1)
+  case DECIMAL_RESULT:
+    if (my_decimal2string(E_DEC_FATAL_ERROR, &m_decimal, 0, 0, 0, str) <= 1)
       return str;
     return NULL;
-  case TIME_VALUE:
+  case TIME_RESULT:
   {
     if (str->reserve(MAX_DATE_STRING_REP_LENGTH))
-      break;
-    str->length((uint) my_TIME_to_str(&value.time, (char*) str->ptr(),
-                decimals));
+      return NULL;
+    str->length((uint) my_TIME_to_str(&time, (char*) str->ptr(),
+                attr->decimals));
     str->set_charset(&my_charset_bin);
     return str;
   }
-  case IGNORE_VALUE:
-  case DEFAULT_VALUE:
-    invalid_default_param();
-    // fall through
-  case NULL_VALUE:
-    return NULL; 
-  case NO_VALUE:
-    DBUG_ASSERT(0); // Should not be possible
-    return NULL;
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    break;
   }
-  DBUG_ASSERT(0); // Garbage
   return NULL;
 }
+
 
 /**
   Return Param item values in string format, for generating the dynamic 
@@ -4287,32 +4275,31 @@ String *Item_param::val_str(String* str)
     that binary log contains wrong statement 
 */
 
-const String *Item_param::query_val_str(THD *thd, String* str) const
+const String *Item_param::value_query_val_str(THD *thd, String *str) const
 {
-  // There's no "default". See comments in Item_param::save_in_field().
-  switch (state) {
-  case INT_VALUE:
+  switch (value.type_handler()->cmp_type()) {
+  case INT_RESULT:
     str->set_int(value.integer, unsigned_flag, &my_charset_bin);
     return str;
-  case REAL_VALUE:
+  case REAL_RESULT:
     str->set_real(value.real, NOT_FIXED_DEC, &my_charset_bin);
     return str;
-  case DECIMAL_VALUE:
-    if (my_decimal2string(E_DEC_FATAL_ERROR, &decimal_value,
+  case DECIMAL_RESULT:
+    if (my_decimal2string(E_DEC_FATAL_ERROR, &value.m_decimal,
                           0, 0, 0, str) > 1)
       return &my_null_string;
     return str;
-  case TIME_VALUE:
+  case TIME_RESULT:
     {
       static const uint32 typelen= 9; // "TIMESTAMP" is the longest type name
       char *buf, *ptr;
       str->length(0);
       /*
         TODO: in case of error we need to notify replication
-        that binary log contains wrong statement 
+        that binary log contains wrong statement
       */
       if (str->reserve(MAX_DATE_STRING_REP_LENGTH + 3 + typelen))
-        break; 
+        return NULL;
 
       /* Create date string inplace */
       switch (value.time.time_type) {
@@ -4338,15 +4325,29 @@ const String *Item_param::query_val_str(THD *thd, String* str) const
       str->length((uint32) (ptr - buf));
       return str;
     }
-  case STRING_VALUE:
-  case LONG_DATA_VALUE:
+  case STRING_RESULT:
     {
       str->length(0);
       append_query_string(value.cs_info.character_set_client, str,
-                          str_value.ptr(), str_value.length(),
+                          value.m_string.ptr(), value.m_string.length(),
                           thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
       return str;
     }
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    break;
+  }
+  return NULL;
+}
+
+
+const String *Item_param::query_val_str(THD *thd, String* str) const
+{
+  // There's no "default". See comments in Item_param::save_in_field().
+  switch (state) {
+  case SHORT_DATA_VALUE:
+  case LONG_DATA_VALUE:
+    return value_query_val_str(thd, str);
   case IGNORE_VALUE:
   case DEFAULT_VALUE:
     return &my_default_string;
@@ -4369,19 +4370,20 @@ const String *Item_param::query_val_str(THD *thd, String* str) const
 bool Item_param::convert_str_value(THD *thd)
 {
   bool rc= FALSE;
-  if (state == STRING_VALUE || state == LONG_DATA_VALUE)
+  if ((state == SHORT_DATA_VALUE || state == LONG_DATA_VALUE) &&
+      value.type_handler()->cmp_type() == STRING_RESULT)
   {
-    rc= value.cs_info.convert_if_needed(thd, &str_value);
+    rc= value.cs_info.convert_if_needed(thd, &value.m_string);
     /* Here str_value is guaranteed to be in final_character_set_of_str_value */
 
     /*
       str_value_ptr is returned from val_str(). It must be not alloced
       to prevent it's modification by val_str() invoker.
     */
-    str_value_ptr.set(str_value.ptr(), str_value.length(),
-                      str_value.charset());
+    value.m_string_ptr.set(value.m_string.ptr(), value.m_string.length(),
+                           value.m_string.charset());
     /* Synchronize item charset and length with value charset */
-    fix_charset_and_length_from_str_value(DERIVATION_COERCIBLE);
+    fix_charset_and_length_from_str_value(value.m_string, DERIVATION_COERCIBLE);
   }
   return rc;
 }
@@ -4390,9 +4392,40 @@ bool Item_param::convert_str_value(THD *thd)
 bool Item_param::basic_const_item() const
 {
   DBUG_ASSERT(fixed || state == NO_VALUE);
-  if (state == NO_VALUE || state == TIME_VALUE)
+  if (state == NO_VALUE ||
+      (state == SHORT_DATA_VALUE && type_handler()->cmp_type() == TIME_RESULT))
     return FALSE;
   return TRUE;
+}
+
+
+Item *Item_param::value_clone_item(THD *thd)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  switch (value.type_handler()->cmp_type()) {
+  case INT_RESULT:
+    return (unsigned_flag ?
+            new (mem_root) Item_uint(thd, name.str, value.integer, max_length) :
+            new (mem_root) Item_int(thd, name.str, value.integer, max_length));
+  case REAL_RESULT:
+    return new (mem_root) Item_float(thd, name.str, value.real, decimals,
+                                     max_length);
+  case DECIMAL_RESULT:
+    return 0; // Should create Item_decimal. See MDEV-11361.
+  case STRING_RESULT:
+    return new (mem_root) Item_string(thd, name.str,
+                                      value.m_string.c_ptr_quick(),
+                                      value.m_string.length(),
+                                      value.m_string.charset(),
+                                      collation.derivation,
+                                      collation.repertoire);
+  case TIME_RESULT:
+    break;
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    break;
+  }
+  return 0;
 }
 
 
@@ -4401,7 +4434,6 @@ bool Item_param::basic_const_item() const
 Item *
 Item_param::clone_item(THD *thd)
 {
-  MEM_ROOT *mem_root= thd->mem_root;
   // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
   case IGNORE_VALUE:
@@ -4409,29 +4441,36 @@ Item_param::clone_item(THD *thd)
     invalid_default_param();
     // fall through
   case NULL_VALUE:
-    return new (mem_root) Item_null(thd, name.str);
-  case INT_VALUE:
-    return (unsigned_flag ?
-            new (mem_root) Item_uint(thd, name.str, value.integer, max_length) :
-            new (mem_root) Item_int(thd, name.str, value.integer, max_length));
-  case REAL_VALUE:
-    return new (mem_root) Item_float(thd, name.str, value.real, decimals,
-                                     max_length);
-  case DECIMAL_VALUE:
-    return 0; // Should create Item_decimal. See MDEV-11361.
-  case STRING_VALUE:
+    return new (thd->mem_root) Item_null(thd, name.str);
+  case SHORT_DATA_VALUE:
   case LONG_DATA_VALUE:
-    return new (mem_root) Item_string(thd, name.str, str_value.c_ptr_quick(),
-                                      str_value.length(), str_value.charset(),
-                                      collation.derivation,
-                                      collation.repertoire);
-  case TIME_VALUE:
-    return 0;
+  {
+    DBUG_ASSERT(type_handler()->cmp_type() == value.type_handler()->cmp_type());
+    return value_clone_item(thd);
+  }
   case NO_VALUE:
     return 0;
   }
   DBUG_ASSERT(0);  // Garbage
   return 0;
+}
+
+
+bool Item_param::value_eq(const Item *item, bool binary_cmp) const
+{
+  switch (value.type_handler()->cmp_type()) {
+  case INT_RESULT:
+    return int_eq(value.integer, item);
+  case REAL_RESULT:
+    return real_eq(value.real, item);
+  case STRING_RESULT:
+    return str_eq(&value.m_string, item, binary_cmp);
+  case DECIMAL_RESULT:
+  case TIME_RESULT:
+  case ROW_RESULT:
+    break;
+  }
+  return false;
 }
 
 
@@ -4449,15 +4488,9 @@ Item_param::eq(const Item *item, bool binary_cmp) const
     return false;
   case NULL_VALUE:
     return null_eq(item);
-  case INT_VALUE:
-    return int_eq(value.integer, item);
-  case REAL_VALUE:
-    return real_eq(value.real, item);
-  case STRING_VALUE:
+  case SHORT_DATA_VALUE:
   case LONG_DATA_VALUE:
-    return str_eq(&str_value, item, binary_cmp);
-  case DECIMAL_VALUE:
-  case TIME_VALUE:
+    return value_eq(item, binary_cmp);
   case NO_VALUE:
     return false;
   }
@@ -4524,12 +4557,8 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
   null_value= src->null_value;
   state= src->state;
   fixed= src->fixed;
-  value= src->value;
 
-  value.set_handler(src->value.type_handler());
-  decimal_value.swap(src->decimal_value);
-  str_value.swap(src->str_value);
-  str_value_ptr.swap(src->str_value_ptr);
+  value.swap(src->value);
 }
 
 
@@ -4575,8 +4604,15 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 {
   Item *arg= *it;
   struct st_value tmp;
+  /*
+    The OUT parameter is bound to some data type.
+    It's important not to touch m_type_handler,
+    to make sure the next mysql_stmt_execute()
+    correctly fetches the value from the client-server protocol,
+    using set_param_func().
+  */
   if (arg->save_in_value(&tmp) ||
-      arg->type_handler()->Item_param_set_from_value(thd, this, arg, &tmp))
+      set_value(thd, arg, &tmp, arg->type_handler()))
   {
     set_null();
     return false;

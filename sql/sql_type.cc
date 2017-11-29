@@ -5015,7 +5015,6 @@ bool Type_handler_real_result::
 {
   param->unsigned_flag= attr->unsigned_flag;
   param->set_double(val->value.m_double);
-  param->set_handler(&type_handler_double);
   return false;
 }
 
@@ -5027,8 +5026,7 @@ bool Type_handler_int_result::
                             const st_value *val) const
 {
   param->unsigned_flag= attr->unsigned_flag;
-  param->set_int(val->value.m_longlong, MY_INT64_NUM_DECIMAL_DIGITS);
-  param->set_handler(&type_handler_longlong);
+  param->set_int(val->value.m_longlong, attr->max_length);
   return false;
 }
 
@@ -5041,7 +5039,6 @@ bool Type_handler_decimal_result::
 {
   param->unsigned_flag= attr->unsigned_flag;
   param->set_decimal(&val->m_decimal, attr->unsigned_flag);
-  param->set_handler(&type_handler_newdecimal);
   return false;
 }
 
@@ -5058,7 +5055,6 @@ bool Type_handler_string_result::
     Exact value of max_length is not known unless data is converted to
     charset of connection, so we have to set it later.
   */
-  param->set_handler(&type_handler_varchar);
   return param->set_str(val->m_string.ptr(), val->m_string.length(),
                         attr->collation.collation,
                         attr->collation.collation);
@@ -5073,7 +5069,6 @@ bool Type_handler_temporal_result::
 {
   param->unsigned_flag= attr->unsigned_flag;
   param->set_time(&val->value.m_time, attr->max_length, attr->decimals);
-  param->set_handler(this);
   return false;
 }
 
@@ -5087,7 +5082,6 @@ bool Type_handler_geometry::
 {
   param->unsigned_flag= false;
   param->setup_conversion_blob(thd);
-  param->set_handler(&type_handler_geometry);
   param->set_geometry_type(attr->uint_geometry_type());
   return param->set_str(val->m_string.ptr(), val->m_string.length(),
                         &my_charset_bin, &my_charset_bin);

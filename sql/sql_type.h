@@ -2838,6 +2838,10 @@ public:
   Type_handler_hybrid_field_type(const Type_handler_hybrid_field_type *other)
     :m_type_handler(other->m_type_handler)
   { }
+  void swap(Type_handler_hybrid_field_type &other)
+  {
+    swap_variables(const Type_handler *, m_type_handler, other.m_type_handler);
+  }
   const Type_handler *type_handler() const { return m_type_handler; }
   enum_field_types real_field_type() const
   {

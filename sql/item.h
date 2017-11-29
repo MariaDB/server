@@ -2184,7 +2184,8 @@ protected:
     uint repertoire() const { return MY_STRING_METADATA::repertoire; }
     size_t char_length() const { return MY_STRING_METADATA::char_length; }
   };
-  void fix_charset_and_length_from_str_value(Derivation dv, Metadata metadata)
+  void fix_charset_and_length(CHARSET_INFO *cs,
+                              Derivation dv, Metadata metadata)
   {
     /*
       We have to have a different max_length than 'length' here to
@@ -2193,13 +2194,13 @@ protected:
       number of chars for a string of this type because we in Create_field::
       divide the max_length with mbmaxlen).
     */
-    collation.set(str_value.charset(), dv, metadata.repertoire());
+    collation.set(cs, dv, metadata.repertoire());
     fix_char_length(metadata.char_length());
     decimals= NOT_FIXED_DEC;
   }
-  void fix_charset_and_length_from_str_value(Derivation dv)
+  void fix_charset_and_length_from_str_value(const String &str, Derivation dv)
   {
-    fix_charset_and_length_from_str_value(dv, Metadata(&str_value));
+    fix_charset_and_length(str.charset(), dv, Metadata(&str));
   }
   Item_basic_value(THD *thd): Item(thd) {}
   /*
@@ -3075,12 +3076,27 @@ public:
   For example in case of 'SELECT ?' you'll get MYSQL_TYPE_STRING both
   in result set and placeholders metadata, no matter what type you will
   supply for this placeholder in mysql_stmt_execute.
+
+  Item_param has two Type_handler pointers,
+  which can point to different handlers:
+
+  1. In the Type_handler_hybrid_field_type member
+     It's initialized in:
+     - Item_param::setup_conversion(), for client-server PS protocol,
+       according to the bind type.
+     - Item_param::set_from_item(), for EXECUTE and EXECUTE IMMEDIATE,
+       according to the actual parameter data type.
+
+  2. In the "value" member.
+     It's initialized in:
+     - Item_param::set_param_func(), for client-server PS protocol.
+     - Item_param::set_from_item(), for EXECUTE and EXECUTE IMMEDIATE.
 */
 
 class Item_param :public Item_basic_value,
                   private Settable_routine_parameter,
                   public Rewritable_query_parameter,
-                  public Type_handler_hybrid_field_type,
+                  private Type_handler_hybrid_field_type,
                   public Type_geometry_attributes
 {
   /*
@@ -3126,9 +3142,8 @@ class Item_param :public Item_basic_value,
   */
   enum enum_item_param_state
   {
-    NO_VALUE, NULL_VALUE, INT_VALUE, REAL_VALUE,
-    STRING_VALUE, TIME_VALUE, LONG_DATA_VALUE,
-    DECIMAL_VALUE, DEFAULT_VALUE, IGNORE_VALUE
+    NO_VALUE, NULL_VALUE, SHORT_DATA_VALUE, LONG_DATA_VALUE,
+    DEFAULT_VALUE, IGNORE_VALUE
   } state;
 
   enum Type item_type;
@@ -3182,24 +3197,11 @@ class Item_param :public Item_basic_value,
     }
   };
 
-  /*
-    A buffer for string and long data values. Historically all allocated
-    values returned from val_str() were treated as eligible to
-    modification. I. e. in some cases Item_func_concat can append it's
-    second argument to return value of the first one. Because of that we
-    can't return the original buffer holding string data from val_str(),
-    and have to have one buffer for data and another just pointing to
-    the data. This is the latter one and it's returned from val_str().
-    Can not be declared inside the union as it's not a POD type.
-  */
-  String str_value_ptr;
-
   bool m_empty_string_is_null;
 
-  class PValue: public Type_handler_hybrid_field_type
+  class PValue_simple
   {
   public:
-    PValue(): Type_handler_hybrid_field_type(&type_handler_null) {}
     union
     {
       longlong integer;
@@ -3207,11 +3209,52 @@ class Item_param :public Item_basic_value,
       CONVERSION_INFO cs_info;
       MYSQL_TIME     time;
     };
+    void swap(PValue_simple &other)
+    {
+      swap_variables(PValue_simple, *this, other);
+    }
+  };
+
+  class PValue: public Type_handler_hybrid_field_type,
+                public PValue_simple,
+                public Value_source
+  {
+  public:
+    PValue(): Type_handler_hybrid_field_type(&type_handler_null) {}
+    my_decimal m_decimal;
+    String m_string;
+    /*
+      A buffer for string and long data values. Historically all allocated
+      values returned from val_str() were treated as eligible to
+      modification. I. e. in some cases Item_func_concat can append it's
+      second argument to return value of the first one. Because of that we
+      can't return the original buffer holding string data from val_str(),
+      and have to have one buffer for data and another just pointing to
+      the data. This is the latter one and it's returned from val_str().
+      Can not be declared inside the union as it's not a POD type.
+    */
+    String m_string_ptr;
+
+    void swap(PValue &other)
+    {
+      Type_handler_hybrid_field_type::swap(other);
+      PValue_simple::swap(other);
+      m_decimal.swap(other.m_decimal);
+      m_string.swap(other.m_string);
+      m_string_ptr.swap(other.m_string_ptr);
+    }
+    double val_real() const;
+    longlong val_int(const Type_std_attributes *attr) const;
+    my_decimal *val_decimal(my_decimal *dec, const Type_std_attributes *attr);
+    String *val_str(String *str, const Type_std_attributes *attr);
   };
 
   PValue value;
 
-  my_decimal decimal_value;
+  const String *value_query_val_str(THD *thd, String* str) const;
+  bool value_eq(const Item *item, bool binary_cmp) const;
+  Item *value_clone_item(THD *thd);
+  bool can_return_value() const;
 
 public:
   /*
@@ -3237,10 +3280,22 @@ public:
     return item_type;
   }
 
-  double val_real();
-  longlong val_int();
-  my_decimal *val_decimal(my_decimal*);
-  String *val_str(String*);
+  double val_real()
+  {
+    return can_return_value() ? value.val_real() : 0e0;
+  }
+  longlong val_int()
+  {
+    return can_return_value() ? value.val_int(this) : 0;
+  }
+  my_decimal *val_decimal(my_decimal *dec)
+  {
+    return can_return_value() ? value.val_decimal(dec, this) : NULL;
+  }
+  String *val_str(String *str)
+  {
+    return can_return_value() ? value.val_str(str, this) : NULL;
+  }
   bool get_date(MYSQL_TIME *tm, ulonglong fuzzydate);
   int  save_in_field(Field *field, bool no_conversions);
 
@@ -3283,11 +3338,29 @@ public:
   */
   void set_param_func(uchar **pos, ulong len)
   {
-    value.type_handler()->Item_param_set_param_func(this, pos, len);
+    /*
+      To avoid Item_param::set_xxx() asserting on data type mismatch,
+      we set the value type handler here:
+      - It can not be initialized yet after Item_param::setup_conversion().
+      - Also, for LIMIT clause parameters, the value type handler might have
+        changed from the real type handler to type_handler_longlong.
+        So here we'll restore it.
+    */
+    const Type_handler *h= Item_param::type_handler();
+    value.set_handler(h);
+    h->Item_param_set_param_func(this, pos, len);
+  }
+
+  bool set_value(THD *thd, const Type_all_attributes *attr,
+                 const st_value *val, const Type_handler *h)
+  {
+    value.set_handler(h); // See comments in set_param_func()
+    return h->Item_param_set_from_value(thd, this, attr, val);
   }
 
   bool set_limit_clause_param(longlong nr)
   {
+    value.set_handler(&type_handler_longlong);
     set_int(nr, MY_INT64_NUM_DECIMAL_DIGITS);
     return !unsigned_flag && value.integer < 0;
   }
@@ -3316,7 +3389,8 @@ public:
   }
   bool has_int_value() const
   {
-    return state == INT_VALUE;
+    return state == SHORT_DATA_VALUE &&
+           value.type_handler()->cmp_type() == INT_RESULT;
   }
   /*
     This method is used to make a copy of a basic constant item when
@@ -3571,7 +3645,7 @@ class Item_string :public Item_basic_constant
 protected:
   void fix_from_value(Derivation dv, const Metadata metadata)
   {
-    fix_charset_and_length_from_str_value(dv, metadata);
+    fix_charset_and_length(str_value.charset(), dv, metadata);
     // it is constant => can be used without fix_fields (and frequently used)
     fixed= 1;
   }

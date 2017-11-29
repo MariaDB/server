@@ -751,7 +751,6 @@ void Item_param::setup_conversion(THD *thd, uchar param_type)
   if (!h)
     h= &type_handler_string;
   set_handler(h);
-  value.set_handler(h);
   h->Item_param_setup_conversion(thd, this);
 }
 
