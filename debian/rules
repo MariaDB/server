@@ -116,13 +116,13 @@ override_dh_auto_install:
 
 # Skip TokuDB if arch is not amd64
 ifneq ($(ARCH), amd64)
-	sed -i -e "/Package: mariadb-plugin-tokudb/,+14d" debian/control
+	sed -i -e "/Package: mariadb-plugin-tokudb/,+16d" debian/control
 endif
 
 	# If libthrift-dev was available (manually installed, as it is
 	# not in Debian) and ha_cassandra.so was thus built, create package,
 	# otherwise skip it.
-	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+16d" debian/control
+	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+18d" debian/control
 
 	# Copy systemd files to a location available for dh_installinit
 	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.2.mariadb.service

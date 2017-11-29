@@ -438,7 +438,7 @@ Description: MariaDB database client (metapackage depending on the latest versio
 Package: mariadb-plugin-connect
 Architecture: any
 Depends: libxml2,
-         mariadb-server-10.2,
+         mariadb-server-10.2 (= ${binary:Version}),
          unixodbc,
          ${misc:Depends},
          ${shlibs:Depends}
@@ -452,7 +452,9 @@ Description: Connect storage engine for MariaDB
 
 Package: mariadb-plugin-rocksdb
 Architecture: any
-Depends: mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Depends: mariadb-server-10.2 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Description: RocksDB storage engine for MariaDB
  The RocksDB storage engine is a high performance storage engine, aimed
  at maximising storage efficiency while maintaining InnoDB-like performance.
@@ -460,7 +462,10 @@ Description: RocksDB storage engine for MariaDB
 
 Package: mariadb-plugin-oqgraph
 Architecture: any
-Depends: libjudydebian1, mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Depends: libjudydebian1,
+         mariadb-server-10.2 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Breaks: mariadb-oqgraph-engine-10.1, mariadb-oqgraph-engine-10.2
 Replaces: mariadb-oqgraph-engine-10.1, mariadb-oqgraph-engine-10.2
 Description: OQGraph storage engine for MariaDB
@@ -470,7 +475,9 @@ Description: OQGraph storage engine for MariaDB
 
 Package: mariadb-plugin-tokudb
 Architecture: any
-Depends: mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Depends: mariadb-server-10.2 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
         mariadb-server-10.1,
         mariadb-server-10.2 (<< ${source:Version})
@@ -485,7 +492,9 @@ Description: TokuDB storage engine for MariaDB
 
 Package: mariadb-plugin-mroonga
 Architecture: any
-Depends: mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Depends: mariadb-server-10.2 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
         mariadb-server-10.1,
         mariadb-server-10.2 (<< ${source:Version})
@@ -499,7 +508,9 @@ Description: Mroonga storage engine for MariaDB
 
 Package: mariadb-plugin-spider
 Architecture: any
-Depends: mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Depends: mariadb-server-10.2 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
         mariadb-server-10.1,
         mariadb-server-10.2 (<< ${source:Version})
@@ -514,7 +525,9 @@ Description: Spider storage engine for MariaDB
 
 Package: mariadb-plugin-cassandra
 Architecture: any
-Depends: mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Depends: mariadb-server-10.2 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
         mariadb-server-10.1,
         mariadb-server-10.2 (<< ${source:Version})
