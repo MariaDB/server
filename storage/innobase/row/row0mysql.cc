@@ -1518,7 +1518,8 @@ row_insert_for_mysql(
 		/* Return back modified fields into mysql_rec, so that
 		   upper logic may benefit from it (f.ex. 'on duplicate key'). */
 		const mysql_row_templ_t* t = prebuilt->get_template_by_col(table->vers_end);
-		ut_ad(t && t->mysql_col_len == 8);
+		ut_ad(t);
+		ut_ad(t->mysql_col_len == 8);
 
 		if (ins_mode == ROW_INS_HISTORICAL) {
 			set_tuple_col_8(node->row, table->vers_end, trx->id, node->vers_end_buf);
@@ -1527,7 +1528,8 @@ row_insert_for_mysql(
 			set_tuple_col_8(node->row, table->vers_end, TRX_ID_MAX, node->vers_end_buf);
 			int8store(&mysql_rec[t->mysql_col_offset], TRX_ID_MAX);
 			t = prebuilt->get_template_by_col(table->vers_start);
-			ut_ad(t && t->mysql_col_len == 8);
+			ut_ad(t);
+			ut_ad(t->mysql_col_len == 8);
 			set_tuple_col_8(node->row, table->vers_start, trx->id, node->vers_start_buf);
 			int8store(&mysql_rec[t->mysql_col_offset], trx->id);
 		}

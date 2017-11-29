@@ -860,16 +860,16 @@ struct row_prebuilt_t {
 	/** The MySQL table object */
 	TABLE*		m_mysql_table;
 
-	/** Get template by column number */
+	/** Get template by dict_table_t::cols[] number */
 	const mysql_row_templ_t* get_template_by_col(ulint col) const
 	{
-		ut_a(col < n_template);
-		ut_a(mysql_template);
-		for (int i = col; i < n_template; ++i)
-		{
-			const mysql_row_templ_t* templ = mysql_template + i;
-			if (!templ->is_virtual && templ->col_no == col)
+		ut_ad(col < n_template);
+		ut_ad(mysql_template);
+		for (int i = col; i < n_template; ++i) {
+			const mysql_row_templ_t* templ = &mysql_template[i];
+			if (!templ->is_virtual && templ->col_no == col) {
 				return templ;
+			}
 		}
 		return NULL;
 	}
