@@ -2555,8 +2555,9 @@ xtrabackup_scan_log_recs(
 					to this lsn */
 	lsn_t*		group_scanned_lsn,/*!< out: scanning succeeded up to
 					this lsn */
-	bool*		finished)	/*!< out: false if is not able to scan
+	bool*		finished,	/*!< out: false if is not able to scan
 					any more in this log group */
+	bool*		must_reread_log)	/*!< out: should re-read buffer from disk, incomplete read*/
 {
 	lsn_t		scanned_lsn;
 	ulint		data_len;
@@ -2566,6 +2567,7 @@ xtrabackup_scan_log_recs(
 	ulint		scanned_checkpoint_no = 0;
 
 	*finished = false;
+	*must_reread_log = false;
 	scanned_lsn = start_lsn;
 	log_block = log_sys->buf;
 
@@ -2622,8 +2624,10 @@ xtrabackup_scan_log_recs(
 			msg("mariabackup: warning: this is possible when the "
 			    "log block has not been fully written by the "
 			    "server, will retry later.\n");
-			*finished = true;
-			break;
+			*finished = false;
+			*must_reread_log = true;
+			my_sleep(1000);
+			return false;
 		}
 
 		if (log_block_get_flush_bit(log_block)) {
@@ -2735,14 +2739,23 @@ xtrabackup_copy_logfile(lsn_t from_lsn, my_bool is_last)
 
 			mutex_enter(&log_sys->mutex);
 
-			log_group_read_log_seg(LOG_RECOVER, log_sys->buf,
-					       group, start_lsn, end_lsn, false);
+			bool scan_ok = false;
+			bool must_reread_log;
+			int retries = 0;
+			do {
 
-			 if (!xtrabackup_scan_log_recs(group, is_last,
-				start_lsn, &contiguous_lsn, &group_scanned_lsn,
-				&finished)) {
+				log_group_read_log_seg(LOG_RECOVER, log_sys->buf,
+					group, start_lsn, end_lsn, false);
+
+				scan_ok = xtrabackup_scan_log_recs(group, is_last,
+					start_lsn, &contiguous_lsn, &group_scanned_lsn,
+					&finished, &must_reread_log);
+
+			} while (!scan_ok && must_reread_log && retries++ < 100);
+
+			if (!scan_ok) {
 				goto error;
-			 }
+			}
 
 			mutex_exit(&log_sys->mutex);
 
