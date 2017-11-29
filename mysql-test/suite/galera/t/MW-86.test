@@ -187,4 +187,7 @@ SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 --eval SET GLOBAL wsrep_provider_options = "$wsrep_provider_options_orig"
 
 SET SESSION wsrep_sync_wait = 15;
+SET GLOBAL debug_dbug=NULL;
+SET debug_sync='RESET';
 DROP TABLE q, bar;
+SELECT @@debug_sync;

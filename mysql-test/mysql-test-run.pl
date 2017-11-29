@@ -2862,6 +2862,49 @@ sub mysql_server_wait {
                                       $warn_seconds);
 }
 
+sub have_wsrep() {
+  my $wsrep_on= $mysqld_variables{'wsrep-on'};
+  return defined $wsrep_on
+}
+
+
+sub check_wsrep_support() {
+  if (have_wsrep())
+  {
+    mtr_report(" - binaries built with wsrep patch");
+
+    # ADD scripts to $PATH to that wsrep_sst_* can be found
+    my ($path) = grep { -f "$_/wsrep_sst_rsync"; } "$::bindir/scripts", $::path_client_bindir;
+    mtr_error("No SST scripts") unless $path;
+    $ENV{PATH}="$path:$ENV{PATH}";
+
+    # Check whether WSREP_PROVIDER environment variable is set.
+    if (defined $ENV{'WSREP_PROVIDER'}) {
+      if ((mtr_file_exists($ENV{'WSREP_PROVIDER'}) eq "")  &&
+          ($ENV{'WSREP_PROVIDER'} ne "none")) {
+        mtr_error("WSREP_PROVIDER env set to an invalid path");
+      }
+      # WSREP_PROVIDER is valid; set to a valid path or "none").
+      mtr_verbose("WSREP_PROVIDER env set to $ENV{'WSREP_PROVIDER'}");
+    } else {
+      # WSREP_PROVIDER env not defined. Lets try to locate the wsrep provider
+      # library.
+      my $file_wsrep_provider=
+        mtr_file_exists("/usr/lib/galera/libgalera_smm.so",
+                        "/usr/lib64/galera/libgalera_smm.so");
+
+      if ($file_wsrep_provider ne "") {
+        # wsrep provider library found !
+        mtr_verbose("wsrep provider library found : $file_wsrep_provider");
+        $ENV{'WSREP_PROVIDER'}= $file_wsrep_provider;
+      } else {
+        mtr_verbose("Could not find wsrep provider library, setting it to 'none'");
+        $ENV{'WSREP_PROVIDER'}= "none";
+      }
+    }
+  }
+}
+
 sub create_config_file_for_extern {
   my %opts=
     (
@@ -5415,34 +5458,13 @@ sub start_servers($) {
       return 1;
     }
 
-    #
-    # TODO: fix this to enable wait_wsrep_ready()
-    #
-    #if (have_wsrep() && !wait_wsrep_ready($tinfo, $mysqld))
-    #{
-    #  return 1;
-    #}
+    if (have_wsrep() && !wait_wsrep_ready($tinfo, $_))
+    {
+      return 1;
+    }
   }
 
-  #
-  # TODO: this coe block fails also
-  #
-  # Start memcached(s) for each cluster
-  #foreach my $cluster ( clusters() )
-  #{
-  #  next if !in_cluster($cluster, memcacheds());
-#
-    # Load the memcache metadata into this cluster
-  #  memcached_load_metadata($cluster);
-
-    # Start memcached(s)
- #   foreach my $memcached ( in_cluster($cluster, memcacheds()))
- #   {
- #     next if started($memcached);
- #     memcached_start($cluster, $memcached);
- #   }
- # }
- # return 0;
+  return 0;
 }
 
 
