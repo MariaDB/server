@@ -5465,7 +5465,7 @@ void Regexp_processor_pcre::pcre_exec_warn(int rc) const
   switch (rc)
   {
   case PCRE_ERROR_NULL:
-    errmsg= "pcre_exec: null arguement passed";
+    errmsg= "pcre_exec: null argument passed";
     break;
   case PCRE_ERROR_BADOPTION:
     errmsg= "pcre_exec: bad option";

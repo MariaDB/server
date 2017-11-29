@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2015 Brazil
+/*
+  Copyright(C) 2009-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,26 +17,48 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef GRN_H
-#define GRN_H
+#pragma once
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif /* HAVE_CONFIG_H */
 
-#if defined(WIN32) && defined(__GNUC__)
-# define __MINGW_MSVC_COMPAT_WARNINGS
-#endif /* defined(WIN32) && defined(__GNUC__) */
+#ifdef WIN32
+# ifdef __GNUC__
+#  define __MINGW_MSVC_COMPAT_WARNINGS
+# endif /* __GNUC__ */
+
+# ifdef __GNUC__
+#  include <w32api.h>
+#  define GRN_MINIMUM_WINDOWS_VERSION WindowsVista
+# else /* __GNUC__ */
+#  define GRN_MINIMUM_WINDOWS_VERSION 0x0600 /* Vista */
+# endif /* __GNUC__ */
+
+# ifdef WINVER
+#  undef WINVER
+# endif /* WINVER */
+# define WINVER GRN_MINIMUM_WINDOWS_VERSION
+# ifdef _WIN32_WINNT
+#  undef _WIN32_WINNT
+# endif /* _WIN32_WINNT */
+# define _WIN32_WINNT GRN_MINIMUM_WINDOWS_VERSION
+# ifdef NTDDI_VERSION
+#  undef NTDDI_VERSION
+# endif /* NTDDI_VERSION */
+# define NTDDI_VERSION GRN_MINIMUM_WINDOWS_VERSION
+
+# ifdef WIN32_LEAN_AND_MEAN
+#  undef WIN32_LEAN_AND_MEAN
+# endif /* WIN32_LEAN_AND_MEAN */
+#endif /* WIN32 */
 
 #ifdef __cplusplus
 # define __STDC_LIMIT_MACROS
 #endif
 
 #include <stdlib.h>
-
-#ifdef HAVE_STDINT_H
-# include <stdint.h>
-#endif /* HAVE_STDINT_H */
+#include <stdint.h>
 
 #include <sys/types.h>
 
@@ -57,23 +80,17 @@
 
 #ifdef WIN32
 # define GRN_API __declspec(dllexport)
-#ifdef GROONGA_MAIN
-# define GRN_VAR __declspec(dllimport)
-#else
-# define GRN_VAR __declspec(dllexport) extern
-#endif /* GROONGA_MAIN */
+# ifdef GROONGA_MAIN
+#  define GRN_VAR __declspec(dllimport)
+# else
+#  define GRN_VAR __declspec(dllexport) extern
+# endif /* GROONGA_MAIN */
 #else
 # define GRN_API
 # define GRN_VAR extern
 #endif
 
 #ifdef WIN32
-
-# if defined(__GNUC__) && !defined(WINVER)
-#  include <w32api.h>
-#  define WINVER WindowsXP
-# endif /* defined(__GNUC__) && !defined(WINVER) */
-
 # include <basetsd.h>
 # include <process.h>
 # include <winsock2.h>
@@ -92,33 +109,7 @@
 #  endif
 # endif
 
-# if !defined(__GNUC__) && _MSC_VER < 1500
-#  define vsnprintf(str, size, format, ap) _vsnprintf(str, size, format, ap)
-# endif /* !defined(__GNUC__) && _MSC_VER < 1500 */
-# define getpid() _getpid()
-# if !defined(__GNUC__) && _MSC_VER < 1400
-#  define fstat(fd, buf) _fstat(fd, buf)
-# endif /* !defined(__GNUC__) && _MSC_VER < 1400 */
-# ifdef HAVE__STRICMP
-#  ifdef strcasecmp
-#   undef strcasecmp
-#  endif /* strcasecmp */
-#  define strcasecmp(s1, s2) _stricmp(s1, s2)
-# endif /* defined(HAVE__STRICMP) */
-
-# ifdef __GNUC__
-#  include <stdint.h>
-# else
-typedef UINT8 uint8_t;
-typedef INT8 int8_t;
-typedef INT8 int_least8_t;
-typedef UINT8 uint_least8_t;
-typedef INT16 int16_t;
-typedef UINT16 uint16_t;
-typedef INT32 int32_t;
-typedef UINT32 uint32_t;
-typedef INT64 int64_t;
-typedef UINT64 uint64_t;
+# ifndef __GNUC__
 typedef SSIZE_T ssize_t;
 typedef int pid_t;
 typedef int64_t off64_t;
@@ -223,10 +214,11 @@ typedef void * grn_thread_func_result;
   (pthread_create(&(thread), NULL, (func), (arg)))
 # define THREAD_JOIN(thread) (pthread_join(thread, NULL))
 typedef pthread_mutex_t grn_mutex;
-# define MUTEX_INIT(m)   pthread_mutex_init(&m, NULL)
-# define MUTEX_LOCK(m)   pthread_mutex_lock(&m)
-# define MUTEX_UNLOCK(m) pthread_mutex_unlock(&m)
-# define MUTEX_FIN(m)
+# define MUTEX_INIT(m)       pthread_mutex_init(&m, NULL)
+# define MUTEX_LOCK(m)       pthread_mutex_lock(&m)
+# define MUTEX_LOCK_CHECK(m) (MUTEX_LOCK(m) == 0)
+# define MUTEX_UNLOCK(m)     pthread_mutex_unlock(&m)
+# define MUTEX_FIN(m)        pthread_mutex_destroy(&m)
 # ifdef HAVE_PTHREAD_MUTEXATTR_SETPSHARED
 #  define MUTEX_INIT_SHARED(m) do {\
   pthread_mutexattr_t mutexattr;\
@@ -259,6 +251,7 @@ typedef pthread_cond_t grn_cond;
 # else
 #  define COND_INIT_SHARED COND_INIT
 # endif /* HAVE_PTHREAD_CONDATTR_SETPSHARE */
+# define COND_FIN(c)    pthread_cond_destroy(&c)
 
 typedef pthread_key_t grn_thread_key;
 # define THREAD_KEY_CREATE(key, destr)  pthread_key_create(key, destr)
@@ -271,7 +264,7 @@ typedef pthread_key_t grn_thread_key;
   #define GRN_TEST_YIELD() do {\
     if (((++grn_uyield_count) & (0x20 - 1)) == 0) {\
       sched_yield();\
-      if(grn_uyield_count > 0x1000) {\
+      if (grn_uyield_count > 0x1000) {\
         grn_uyield_count = (uint32_t)time(NULL) % 0x1000;\
       }\
     }\
@@ -286,7 +279,7 @@ typedef pthread_key_t grn_thread_key;
     GRN_TEST_YIELD();\
   } while (0)
 
-  #define if(if_cond) \
+  #define if (if_cond) \
     if ((((++grn_uyield_count) & (0x100 - 1)) != 0 || (sched_yield() * 0) == 0) && (if_cond))
   #define while(while_cond) \
     while ((((++grn_uyield_count) & (0x100 - 1)) != 0 || (sched_yield() * 0) == 0) && (while_cond))
@@ -316,10 +309,11 @@ typedef unsigned int grn_thread_func_result;
 #  define THREAD_JOIN(thread) \
   (WaitForSingleObject((HANDLE)(thread), INFINITE) == WAIT_FAILED)
 typedef HANDLE grn_mutex;
-#  define MUTEX_INIT(m)   ((m) = CreateMutex(0, FALSE, NULL))
-#  define MUTEX_LOCK(m)   WaitForSingleObject((m), INFINITE)
-#  define MUTEX_UNLOCK(m) ReleaseMutex(m)
-#  define MUTEX_FIN(m)    CloseHandle(m)
+#  define MUTEX_INIT(m)       ((m) = CreateMutex(0, FALSE, NULL))
+#  define MUTEX_LOCK(m)       WaitForSingleObject((m), INFINITE)
+#  define MUTEX_LOCK_CHECK(m) (MUTEX_LOCK(m) == WAIT_OBJECT_0)
+#  define MUTEX_UNLOCK(m)     ReleaseMutex(m)
+#  define MUTEX_FIN(m)        CloseHandle(m)
 typedef CRITICAL_SECTION grn_critical_section;
 #  define CRITICAL_SECTION_INIT(cs)  InitializeCriticalSection(&(cs))
 #  define CRITICAL_SECTION_ENTER(cs) EnterCriticalSection(&(cs))
@@ -392,6 +386,12 @@ typedef struct
   } \
 } while (0)
 
+#  define COND_FIN(c) do { \
+  CloseHandle((c).waiters_done_); \
+  MUTEX_FIN((c).waiters_count_lock_); \
+  CloseHandle((c).sema_); \
+} while (0)
+
 # else /* WIN32 */
 /* todo */
 typedef int grn_cond;
@@ -402,6 +402,7 @@ typedef int grn_cond;
   grn_nanosleep(1000000); \
   MUTEX_LOCK(m); \
 } while (0)
+#  define COND_FIN(c)
 /* todo : must be enhanced! */
 
 # endif /* WIN32 */
@@ -412,6 +413,20 @@ typedef int grn_cond;
 # define GRN_TEST_YIELD() do {} while (0)
 
 #endif /* HAVE_PTHREAD_H */
+
+#define MUTEX_LOCK_ENSURE(ctx_, mutex) do {     \
+  grn_ctx *ctx__ = (ctx_);                      \
+  do {                                          \
+    grn_ctx *ctx = ctx__;                       \
+    if (MUTEX_LOCK_CHECK(mutex)) {              \
+      break;                                    \
+    }                                           \
+    if (ctx) {                                  \
+      SERR("MUTEX_LOCK");                       \
+    }                                           \
+    grn_nanosleep(1000000);                     \
+  } while (GRN_TRUE);                           \
+} while (GRN_FALSE)
 
 /* format string for printf */
 #ifdef HAVE_INTTYPES_H
@@ -446,8 +461,10 @@ typedef int grn_cond;
 # define GRN_FMT_SSIZE "Id"
 # ifdef WIN64
 #  define GRN_FMT_SOCKET GRN_FMT_INT64U
+#  define GRN_FMT_DWORD  "lu"
 # else /* WIN64 */
-#  define GRN_FMT_SOCKET "u"
+#  define GRN_FMT_SOCKET GRN_FMT_INT32U
+#  define GRN_FMT_DWORD  "u"
 # endif /* WIN64 */
 # define GRN_FMT_OFF64_T GRN_FMT_LLD
 #else /* WIN32 */
@@ -524,7 +541,7 @@ typedef int grn_cond;
 #elif (defined(WIN32) || defined (_WIN64)) /* __GNUC__ */
 
 # define GRN_ATOMIC_ADD_EX(p,i,r) \
-  ((r) = (uint32_t)InterlockedExchangeAdd((int32_t *)(p), (int32_t)(i)))
+  ((r) = InterlockedExchangeAdd((p), (i)))
 # if defined(_WIN64) /* ATOMIC 64BIT SET */
 #  define GRN_SET_64BIT(p,v) \
   (*(p) = (v))
@@ -734,9 +751,9 @@ grn_str_greater(const uint8_t *ap, uint32_t as, const uint8_t *bp, uint32_t bs)
 # endif /* POSIX_HOST_NAME_MAX */
 #endif /* HOST_NAME_MAX */
 
+#define GRN_NEXT_ADDR(p) (((byte *)(p)) + sizeof(*(p)))
+
 GRN_API void grn_sleep(uint32_t seconds);
 GRN_API void grn_nanosleep(uint64_t nanoseconds);
 
 #include <groonga.h>
-
-#endif /* GRN_H */

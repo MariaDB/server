@@ -1297,12 +1297,11 @@ row_ins_foreign_check_on_constraint(
 
 #ifdef WITH_WSREP
 	err = wsrep_append_foreign_key(
-					thr_get_trx(thr),
-					foreign,
-					clust_rec,
-					clust_index,
-					FALSE,
-					(node) ? TRUE : FALSE);
+				       thr_get_trx(thr),
+				       foreign,
+				       clust_rec,
+				       clust_index,
+				       FALSE, FALSE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
@@ -3041,6 +3040,10 @@ row_ins_sec_index_entry(
 	dberr_t		err;
 	mem_heap_t*	offsets_heap;
 	mem_heap_t*	heap;
+
+	DBUG_EXECUTE_IF("row_ins_sec_index_entry_timeout", {
+ 			DBUG_SET("-d,row_ins_sec_index_entry_timeout");
+ 			return(DB_LOCK_WAIT);});
 
 	if (!index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(index->table, index,

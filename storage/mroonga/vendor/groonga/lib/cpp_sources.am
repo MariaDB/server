@@ -1,0 +1,3 @@
+libgroonga_cpp_source =				\
+	arrow.cpp				\
+	dat.cpp

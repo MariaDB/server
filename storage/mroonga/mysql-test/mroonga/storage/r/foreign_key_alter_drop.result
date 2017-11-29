@@ -1,0 +1,23 @@
+DROP TABLE IF EXISTS articles;
+DROP TABLE IF EXISTS comments;
+CREATE TABLE comments (
+comment int unsigned PRIMARY KEY,
+content text NOT NULL
+);
+CREATE TABLE articles (
+content text NOT NULL,
+comment int unsigned,
+FOREIGN KEY (comment) REFERENCES comments (comment)
+);
+ALTER TABLE articles DROP FOREIGN KEY comment;
+SHOW CREATE TABLE articles;
+Table	Create Table
+articles	CREATE TABLE `articles` (
+  `content` text NOT NULL,
+  `comment` int(10) unsigned DEFAULT NULL,
+  KEY `comment` (`comment`)
+) ENGINE=Mroonga DEFAULT CHARSET=latin1
+SELECT * FROM information_schema.referential_constraints;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	UNIQUE_CONSTRAINT_CATALOG	UNIQUE_CONSTRAINT_SCHEMA	UNIQUE_CONSTRAINT_NAME	MATCH_OPTION	UPDATE_RULE	DELETE_RULE	TABLE_NAME	REFERENCED_TABLE_NAME
+DROP TABLE articles;
+DROP TABLE comments;

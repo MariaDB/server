@@ -436,6 +436,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  DEFINER_SYM
 %token  DELAYED_SYM
 %token  DELAY_KEY_WRITE_SYM
+%token  DELETE_DOMAIN_ID_SYM
 %token  DELETE_SYM                    /* SQL-2003-R */
 %token  DENSE_RANK_SYM
 %token  DESC                          /* SQL-2003-N */

@@ -16,6 +16,10 @@ module Groonga
       @logger ||= Logger.new
     end
 
+    def query_logger
+      @query_logger ||= QueryLogger.new
+    end
+
     def writer
       @writer ||= Writer.new
     end
@@ -32,6 +36,35 @@ module Groonga
       set_error_raw(rc, ErrorLevel::ERROR, error.message, error.backtrace)
 
       logger.log_error(error)
+    end
+
+    def with_command_version(version)
+      old_version = command_version
+      begin
+        self.command_version = version
+        yield
+      ensure
+        self.command_version = old_version
+      end
+    end
+
+    def open_temporary(id)
+      if Thread.limit == 1
+        need_close = !opened?(id)
+      else
+        need_close = false
+      end
+      object = self[id]
+      begin
+        yield(object)
+      ensure
+        if need_close and object and !object.closed?
+          case object
+          when Table, Column
+            object.close
+          end
+        end
+      end
     end
 
     private

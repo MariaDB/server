@@ -5,14 +5,6 @@ id int primary key,
 title varchar(255),
 fulltext index (title)
 ) default charset utf8 COMMENT = 'engine "innodb"';
-show create table diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL,
-  `title` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `title` (`title`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='engine "innodb"'
 set autocommit=0;
 insert into diaries values(0, "2011-07-14");
 insert into diaries values(1, "2011-07-15");

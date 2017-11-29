@@ -19,26 +19,19 @@
 #  define GRN_PLUGIN_FUNCTION_TAG query_expanders_tsv
 #endif
 
-/* groonga's internal headers */
-/* for grn_text_fgets(): We don't want to require stdio.h for groonga.h.
-   What should we do? Should we split header file such as groonga/stdio.h? */
-#include <grn_str.h>
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif /* HAVE_CONFIG_H */
 
 #include <groonga/plugin.h>
 
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef WIN32
+# include <windows.h>
 # include <share.h>
 #endif /* WIN32 */
-
-#ifdef HAVE__STRNICMP
-# ifdef strncasecmp
-#  undef strncasecmp
-# endif /* strncasecmp */
-# define strncasecmp(s1,s2,n) _strnicmp(s1,s2,n)
-#endif /* HAVE__STRNICMP */
 
 #define MAX_SYNONYM_BYTES 4096
 
@@ -54,7 +47,7 @@ get_system_synonyms_file(void)
     const char *relative_path = GRN_QUERY_EXPANDER_TSV_RELATIVE_SYNONYMS_FILE;
     size_t base_dir_length;
 
-    base_dir = grn_plugin_win32_base_dir();
+    base_dir = grn_plugin_windows_base_dir();
     base_dir_length = strlen(base_dir);
     grn_strcpy(win32_synonyms_file, MAX_PATH, base_dir);
     grn_strcat(win32_synonyms_file, MAX_PATH, "/");
@@ -71,13 +64,13 @@ get_system_synonyms_file(void)
 }
 #endif /* WIN32 */
 
-static inline grn_bool
+static grn_bool
 is_comment_mark(char character)
 {
   return character == '#';
 }
 
-static inline grn_encoding
+static grn_encoding
 detect_coding_part(grn_ctx *ctx, const char *line, size_t line_length)
 {
   grn_encoding encoding = GRN_ENC_NONE;
@@ -95,19 +88,19 @@ detect_coding_part(grn_ctx *ctx, const char *line, size_t line_length)
   coding_part = strstr(c_line, coding_part_keyword);
   if (coding_part) {
     encoding_name = coding_part + strlen(coding_part_keyword);
-    if (strncasecmp(encoding_name, "utf-8", strlen("utf-8")) == 0 ||
-        strncasecmp(encoding_name, "utf8", strlen("utf8")) == 0) {
+    if (grn_strncasecmp(encoding_name, "utf-8", strlen("utf-8")) == 0 ||
+        grn_strncasecmp(encoding_name, "utf8", strlen("utf8")) == 0) {
       encoding = GRN_ENC_UTF8;
-    } else if (strncasecmp(encoding_name, "sjis", strlen("sjis")) == 0 ||
-               strncasecmp(encoding_name, "Shift_JIS", strlen("Shift_JIS")) == 0) {
+    } else if (grn_strncasecmp(encoding_name, "sjis", strlen("sjis")) == 0 ||
+               grn_strncasecmp(encoding_name, "Shift_JIS", strlen("Shift_JIS")) == 0) {
       encoding = GRN_ENC_SJIS;
-    } else if (strncasecmp(encoding_name, "EUC-JP", strlen("EUC-JP")) == 0 ||
-               strncasecmp(encoding_name, "euc_jp", strlen("euc_jp")) == 0) {
+    } else if (grn_strncasecmp(encoding_name, "EUC-JP", strlen("EUC-JP")) == 0 ||
+               grn_strncasecmp(encoding_name, "euc_jp", strlen("euc_jp")) == 0) {
       encoding = GRN_ENC_EUC_JP;
-    } else if (strncasecmp(encoding_name, "latin1", strlen("latin1")) == 0) {
+    } else if (grn_strncasecmp(encoding_name, "latin1", strlen("latin1")) == 0) {
       encoding = GRN_ENC_LATIN1;
-    } else if (strncasecmp(encoding_name, "KOI8-R", strlen("KOI8-R")) == 0 ||
-               strncasecmp(encoding_name, "koi8r", strlen("koi8r")) == 0) {
+    } else if (grn_strncasecmp(encoding_name, "KOI8-R", strlen("KOI8-R")) == 0 ||
+               grn_strncasecmp(encoding_name, "koi8r", strlen("koi8r")) == 0) {
       encoding = GRN_ENC_KOI8R;
     }
   } else {
@@ -118,7 +111,7 @@ detect_coding_part(grn_ctx *ctx, const char *line, size_t line_length)
   return encoding;
 }
 
-static inline grn_encoding
+static grn_encoding
 guess_encoding(grn_ctx *ctx, const char **line, size_t *line_length)
 {
   const char bom[] = {0xef, 0xbb, 0xbf};
@@ -138,7 +131,7 @@ guess_encoding(grn_ctx *ctx, const char **line, size_t *line_length)
 }
 
 static void
-parse_synonyms_file_line(grn_ctx *ctx, const char *line, int line_length,
+parse_synonyms_file_line(grn_ctx *ctx, const char *line, size_t line_length,
                          grn_obj *key, grn_obj *value)
 {
   size_t i = 0;
@@ -201,7 +194,7 @@ load_synonyms(grn_ctx *ctx)
 {
   static char path_env[GRN_ENV_BUFFER_SIZE];
   const char *path;
-  FILE *file;
+  grn_file_reader *file_reader;
   int number_of_lines;
   grn_encoding encoding;
   grn_obj line, key, value;
@@ -214,8 +207,8 @@ load_synonyms(grn_ctx *ctx)
   } else {
     path = get_system_synonyms_file();
   }
-  file = grn_fopen(path, "r");
-  if (!file) {
+  file_reader = grn_file_reader_open(ctx, path);
+  if (!file_reader) {
     GRN_LOG(ctx, GRN_LOG_WARNING,
             "[plugin][query-expander][tsv] "
             "synonyms file doesn't exist: <%s>",
@@ -228,7 +221,7 @@ load_synonyms(grn_ctx *ctx)
   GRN_TEXT_INIT(&value, 0);
   grn_bulk_reserve(ctx, &value, MAX_SYNONYM_BYTES);
   number_of_lines = 0;
-  while (grn_text_fgets(ctx, &line, file) == GRN_SUCCESS) {
+  while (grn_file_reader_read_line(ctx, file_reader, &line) == GRN_SUCCESS) {
     const char *line_value = GRN_TEXT_VALUE(&line);
     size_t line_length = GRN_TEXT_LEN(&line);
 
@@ -252,7 +245,7 @@ load_synonyms(grn_ctx *ctx)
   GRN_OBJ_FIN(ctx, &key);
   GRN_OBJ_FIN(ctx, &value);
 
-  fclose(file);
+  grn_file_reader_close(ctx, file_reader);
 }
 
 static grn_obj *

@@ -1,0 +1,6 @@
+SET @mroonga_default_tokenizer_backup = @@mroonga_default_tokenizer;
+SET GLOBAL mroonga_default_tokenizer = "TokenBigramSplitAlpha";
+SHOW GLOBAL VARIABLES LIKE 'mroonga_default_tokenizer';
+Variable_name	Value
+mroonga_default_tokenizer	TokenBigramSplitAlpha
+SET GLOBAL mroonga_default_tokenizer = @mroonga_default_tokenizer_backup;

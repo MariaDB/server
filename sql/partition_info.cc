@@ -42,13 +42,12 @@ partition_info *partition_info::get_clone(THD *thd)
 
   List_iterator<partition_element> part_it(partitions);
   partition_element *part;
-  partition_info *clone= new (mem_root) partition_info();
+  partition_info *clone= new (mem_root) partition_info(*this);
   if (!clone)
   {
     mem_alloc_error(sizeof(partition_info));
     DBUG_RETURN(NULL);
   }
-  memcpy(clone, this, sizeof(partition_info));
   memset(&(clone->read_partitions), 0, sizeof(clone->read_partitions));
   memset(&(clone->lock_partitions), 0, sizeof(clone->lock_partitions));
   clone->bitmaps_are_initialized= FALSE;

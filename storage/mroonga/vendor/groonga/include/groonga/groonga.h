@@ -1,5 +1,5 @@
 /*
-  Copyright(C) 2009-2015 Brazil
+  Copyright(C) 2009-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,11 +15,13 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GROONGA_GROONGA_H
-#define GROONGA_GROONGA_H
+
+#pragma once
 
 #include <stdarg.h>
 #include <sys/types.h>
+#include <stdint.h>
+#include <string.h>
 
 #ifdef  __cplusplus
 extern "C" {
@@ -34,7 +36,7 @@ extern "C" {
 #endif /* GRN_API */
 
 typedef unsigned int grn_id;
-typedef unsigned char grn_bool;
+typedef uint8_t grn_bool;
 
 #define GRN_ID_NIL                     (0x00)
 #define GRN_ID_MAX                     (0x3fffffff)
@@ -122,11 +124,16 @@ typedef enum {
   GRN_TOKEN_FILTER_ERROR = -73,
   GRN_COMMAND_ERROR = -74,
   GRN_PLUGIN_ERROR = -75,
-  GRN_SCORER_ERROR = -76
+  GRN_SCORER_ERROR = -76,
+  GRN_CANCEL = -77,
+  GRN_WINDOW_FUNCTION_ERROR = -78,
+  GRN_ZSTD_ERROR = -79
 } grn_rc;
 
 GRN_API grn_rc grn_init(void);
 GRN_API grn_rc grn_fin(void);
+
+GRN_API const char *grn_get_global_error_message(void);
 
 typedef enum {
   GRN_ENC_DEFAULT = 0,
@@ -141,12 +148,13 @@ typedef enum {
 typedef enum {
   GRN_COMMAND_VERSION_DEFAULT = 0,
   GRN_COMMAND_VERSION_1,
-  GRN_COMMAND_VERSION_2
+  GRN_COMMAND_VERSION_2,
+  GRN_COMMAND_VERSION_3
 } grn_command_version;
 
 #define GRN_COMMAND_VERSION_MIN GRN_COMMAND_VERSION_1
 #define GRN_COMMAND_VERSION_STABLE GRN_COMMAND_VERSION_1
-#define GRN_COMMAND_VERSION_MAX GRN_COMMAND_VERSION_2
+#define GRN_COMMAND_VERSION_MAX GRN_COMMAND_VERSION_3
 
 typedef enum {
   GRN_LOG_NONE = 0,
@@ -160,6 +168,9 @@ typedef enum {
   GRN_LOG_DEBUG,
   GRN_LOG_DUMP
 } grn_log_level;
+
+GRN_API const char *grn_log_level_to_string(grn_log_level level);
+GRN_API grn_bool grn_log_level_parse(const char *string, grn_log_level *level);
 
 /* query log flags */
 #define GRN_QUERY_LOG_NONE        (0x00)
@@ -237,6 +248,10 @@ GRN_API grn_ctx *grn_ctx_open(int flags);
 GRN_API grn_rc grn_ctx_close(grn_ctx *ctx);
 GRN_API grn_rc grn_ctx_set_finalizer(grn_ctx *ctx, grn_proc_func *func);
 
+GRN_API grn_rc grn_ctx_push_temporary_open_space(grn_ctx *ctx);
+GRN_API grn_rc grn_ctx_pop_temporary_open_space(grn_ctx *ctx);
+GRN_API grn_rc grn_ctx_merge_temporary_open_space(grn_ctx *ctx);
+
 GRN_API grn_encoding grn_get_default_encoding(void);
 GRN_API grn_rc grn_set_default_encoding(grn_encoding encoding);
 
@@ -246,6 +261,7 @@ GRN_API grn_rc grn_set_default_encoding(grn_encoding encoding);
 
 GRN_API const char *grn_get_version(void);
 GRN_API const char *grn_get_package(void);
+GRN_API const char *grn_get_package_label(void);
 
 GRN_API grn_command_version grn_get_default_command_version(void);
 GRN_API grn_rc grn_set_default_command_version(grn_command_version version);
@@ -259,22 +275,6 @@ GRN_API grn_rc grn_set_default_match_escalation_threshold(long long int threshol
 GRN_API int grn_get_lock_timeout(void);
 GRN_API grn_rc grn_set_lock_timeout(int timeout);
 
-/* cache */
-#define GRN_CACHE_DEFAULT_MAX_N_ENTRIES 100
-typedef struct _grn_cache grn_cache;
-
-GRN_API grn_cache *grn_cache_open(grn_ctx *ctx);
-GRN_API grn_rc grn_cache_close(grn_ctx *ctx, grn_cache *cache);
-
-GRN_API grn_rc grn_cache_current_set(grn_ctx *ctx, grn_cache *cache);
-GRN_API grn_cache *grn_cache_current_get(grn_ctx *ctx);
-
-GRN_API grn_rc grn_cache_set_max_n_entries(grn_ctx *ctx,
-                                           grn_cache *cache,
-                                           unsigned int n);
-GRN_API unsigned int grn_cache_get_max_n_entries(grn_ctx *ctx,
-                                                 grn_cache *cache);
-
 /* grn_encoding */
 
 GRN_API const char *grn_encoding_to_string(grn_encoding encoding);
@@ -282,7 +282,13 @@ GRN_API grn_encoding grn_encoding_parse(const char *name);
 
 /* obj */
 
-typedef unsigned short int grn_obj_flags;
+typedef uint16_t grn_obj_flags;
+typedef uint32_t grn_table_flags;
+typedef uint32_t grn_column_flags;
+
+/* flags for grn_obj_flags and grn_table_flags */
+
+#define GRN_OBJ_FLAGS_MASK             (0xffff)
 
 #define GRN_OBJ_TABLE_TYPE_MASK        (0x07)
 #define GRN_OBJ_TABLE_HASH_KEY         (0x00)
@@ -310,6 +316,7 @@ typedef unsigned short int grn_obj_flags;
 #define GRN_OBJ_COMPRESS_LZ4           (0x02<<4)
 /* Just for backward compatibility. We'll remove it at 5.0.0. */
 #define GRN_OBJ_COMPRESS_LZO           GRN_OBJ_COMPRESS_LZ4
+#define GRN_OBJ_COMPRESS_ZSTD          (0x03<<4)
 
 #define GRN_OBJ_WITH_SECTION           (0x01<<7)
 #define GRN_OBJ_WITH_WEIGHT            (0x01<<8)
@@ -327,6 +334,8 @@ typedef unsigned short int grn_obj_flags;
 #define GRN_OBJ_UNIT_USERDEF_SECTION   (0x07<<8)
 #define GRN_OBJ_UNIT_USERDEF_POSITION  (0x08<<8)
 
+/* Don't use (0x01<<12) because it's used internally. */
+
 #define GRN_OBJ_NO_SUBREC              (0x00<<13)
 #define GRN_OBJ_WITH_SUBREC            (0x01<<13)
 
@@ -334,6 +343,15 @@ typedef unsigned short int grn_obj_flags;
 
 #define GRN_OBJ_TEMPORARY              (0x00<<15)
 #define GRN_OBJ_PERSISTENT             (0x01<<15)
+
+/* flags only for grn_table_flags */
+
+#define GRN_OBJ_KEY_LARGE              (0x01<<16)
+
+/* flags only for grn_column_flags */
+
+#define GRN_OBJ_INDEX_SMALL            (0x01<<16)
+#define GRN_OBJ_INDEX_MEDIUM           (0x01<<17)
 
 /* obj types */
 
@@ -355,6 +373,7 @@ typedef unsigned short int grn_obj_flags;
 #define GRN_CURSOR_TABLE_NO_KEY        (0x13)
 #define GRN_CURSOR_COLUMN_INDEX        (0x18)
 #define GRN_CURSOR_COLUMN_GEO_INDEX    (0x1a)
+#define GRN_CURSOR_CONFIG              (0x1f)
 #define GRN_TYPE                       (0x20)
 #define GRN_PROC                       (0x21)
 #define GRN_EXPR                       (0x22)
@@ -402,6 +421,7 @@ struct _grn_obj {
 
 #define GRN_OBJ_REFER                  (0x01<<0)
 #define GRN_OBJ_OUTPLACE               (0x01<<1)
+#define GRN_OBJ_OWN                    (0x01<<5)
 
 #define GRN_OBJ_INIT(obj,obj_type,obj_flags,obj_domain) do { \
   (obj)->header.type = (obj_type);\
@@ -415,26 +435,17 @@ struct _grn_obj {
 
 #define GRN_OBJ_FIN(ctx,obj) (grn_obj_close((ctx), (obj)))
 
-typedef struct _grn_db_create_optarg grn_db_create_optarg;
-
-struct _grn_db_create_optarg {
-  char **builtin_type_names;
-  int n_builtin_type_names;
-};
-
-GRN_API grn_obj *grn_db_create(grn_ctx *ctx, const char *path, grn_db_create_optarg *optarg);
-
-#define GRN_DB_OPEN_OR_CREATE(ctx,path,optarg,db) \
-  (((db) = grn_db_open((ctx), (path))) || (db = grn_db_create((ctx), (path), (optarg))))
-
-GRN_API grn_obj *grn_db_open(grn_ctx *ctx, const char *path);
-GRN_API void grn_db_touch(grn_ctx *ctx, grn_obj *db);
-GRN_API grn_rc grn_db_recover(grn_ctx *ctx, grn_obj *db);
-
 GRN_API grn_rc grn_ctx_use(grn_ctx *ctx, grn_obj *db);
 GRN_API grn_obj *grn_ctx_db(grn_ctx *ctx);
 GRN_API grn_obj *grn_ctx_get(grn_ctx *ctx, const char *name, int name_size);
 GRN_API grn_rc grn_ctx_get_all_tables(grn_ctx *ctx, grn_obj *tables_buffer);
+GRN_API grn_rc grn_ctx_get_all_types(grn_ctx *ctx, grn_obj *types_buffer);
+GRN_API grn_rc grn_ctx_get_all_tokenizers(grn_ctx *ctx,
+                                          grn_obj *tokenizers_buffer);
+GRN_API grn_rc grn_ctx_get_all_normalizers(grn_ctx *ctx,
+                                           grn_obj *normalizers_buffer);
+GRN_API grn_rc grn_ctx_get_all_token_filters(grn_ctx *ctx,
+                                             grn_obj *token_filters_buffer);
 
 typedef enum {
   GRN_DB_VOID = 0,
@@ -467,9 +478,7 @@ typedef enum {
 } grn_builtin_tokenizer;
 
 GRN_API grn_obj *grn_ctx_at(grn_ctx *ctx, grn_id id);
-
-GRN_API grn_obj *grn_type_create(grn_ctx *ctx, const char *name, unsigned int name_size,
-                                 grn_obj_flags flags, unsigned int size);
+GRN_API grn_bool grn_ctx_is_opened(grn_ctx *ctx, grn_id id);
 
 GRN_API grn_rc grn_plugin_register(grn_ctx *ctx, const char *name);
 GRN_API grn_rc grn_plugin_unregister(grn_ctx *ctx, const char *name);
@@ -478,6 +487,7 @@ GRN_API grn_rc grn_plugin_unregister_by_path(grn_ctx *ctx, const char *path);
 GRN_API const char *grn_plugin_get_system_plugins_dir(void);
 GRN_API const char *grn_plugin_get_suffix(void);
 GRN_API const char *grn_plugin_get_ruby_suffix(void);
+GRN_API grn_rc grn_plugin_get_names(grn_ctx *ctx, grn_obj *names);
 
 typedef struct {
   const char *name;
@@ -495,7 +505,8 @@ typedef enum {
   GRN_PROC_HOOK,
   GRN_PROC_NORMALIZER,
   GRN_PROC_TOKEN_FILTER,
-  GRN_PROC_SCORER
+  GRN_PROC_SCORER,
+  GRN_PROC_WINDOW_FUNCTION
 } grn_proc_type;
 
 GRN_API grn_obj *grn_proc_create(grn_ctx *ctx,
@@ -506,135 +517,16 @@ GRN_API grn_obj *grn_proc_get_info(grn_ctx *ctx, grn_user_data *user_data,
                                    grn_expr_var **vars, unsigned int *nvars, grn_obj **caller);
 GRN_API grn_proc_type grn_proc_get_type(grn_ctx *ctx, grn_obj *proc);
 
-/*-------------------------------------------------------------
- * API for table
- */
-
-#define GRN_TABLE_MAX_KEY_SIZE         (0x1000)
-
-GRN_API grn_obj *grn_table_create(grn_ctx *ctx,
-                                  const char *name, unsigned int name_size,
-                                  const char *path, grn_obj_flags flags,
-                                  grn_obj *key_type, grn_obj *value_type);
-
-#define GRN_TABLE_OPEN_OR_CREATE(ctx,name,name_size,path,flags,key_type,value_type,table) \
-  (((table) = grn_ctx_get((ctx), (name), (name_size))) ||\
-   ((table) = grn_table_create((ctx), (name), (name_size), (path), (flags), (key_type), (value_type))))
-
-/* TODO: int *added -> grn_bool *added */
-GRN_API grn_id grn_table_add(grn_ctx *ctx, grn_obj *table,
-                             const void *key, unsigned int key_size, int *added);
-GRN_API grn_id grn_table_get(grn_ctx *ctx, grn_obj *table,
-                             const void *key, unsigned int key_size);
-GRN_API grn_id grn_table_at(grn_ctx *ctx, grn_obj *table, grn_id id);
-GRN_API grn_id grn_table_lcp_search(grn_ctx *ctx, grn_obj *table,
-                                    const void *key, unsigned int key_size);
-GRN_API int grn_table_get_key(grn_ctx *ctx, grn_obj *table,
-                              grn_id id, void *keybuf, int buf_size);
-GRN_API grn_rc grn_table_delete(grn_ctx *ctx, grn_obj *table,
-                                const void *key, unsigned int key_size);
-GRN_API grn_rc grn_table_delete_by_id(grn_ctx *ctx, grn_obj *table, grn_id id);
-GRN_API grn_rc grn_table_update_by_id(grn_ctx *ctx, grn_obj *table, grn_id id,
-                                      const void *dest_key, unsigned int dest_key_size);
-GRN_API grn_rc grn_table_update(grn_ctx *ctx, grn_obj *table,
-                                const void *src_key, unsigned int src_key_size,
-                                const void *dest_key, unsigned int dest_key_size);
-GRN_API grn_rc grn_table_truncate(grn_ctx *ctx, grn_obj *table);
-
 typedef grn_obj grn_table_cursor;
-
-#define GRN_CURSOR_ASCENDING           (0x00<<0)
-#define GRN_CURSOR_DESCENDING          (0x01<<0)
-#define GRN_CURSOR_GE                  (0x00<<1)
-#define GRN_CURSOR_GT                  (0x01<<1)
-#define GRN_CURSOR_LE                  (0x00<<2)
-#define GRN_CURSOR_LT                  (0x01<<2)
-#define GRN_CURSOR_BY_KEY              (0x00<<3)
-#define GRN_CURSOR_BY_ID               (0x01<<3)
-#define GRN_CURSOR_PREFIX              (0x01<<4)
-#define GRN_CURSOR_SIZE_BY_BIT         (0x01<<5)
-#define GRN_CURSOR_RK                  (0x01<<6)
-
-GRN_API grn_table_cursor *grn_table_cursor_open(grn_ctx *ctx, grn_obj *table,
-                                                const void *min, unsigned int min_size,
-                                                const void *max, unsigned int max_size,
-                                                int offset, int limit, int flags);
-GRN_API grn_rc grn_table_cursor_close(grn_ctx *ctx, grn_table_cursor *tc);
-GRN_API grn_id grn_table_cursor_next(grn_ctx *ctx, grn_table_cursor *tc);
-GRN_API int grn_table_cursor_get_key(grn_ctx *ctx, grn_table_cursor *tc, void **key);
-GRN_API int grn_table_cursor_get_value(grn_ctx *ctx, grn_table_cursor *tc, void **value);
-GRN_API grn_rc grn_table_cursor_set_value(grn_ctx *ctx, grn_table_cursor *tc,
-                                          const void *value, int flags);
-GRN_API grn_rc grn_table_cursor_delete(grn_ctx *ctx, grn_table_cursor *tc);
-GRN_API grn_obj *grn_table_cursor_table(grn_ctx *ctx, grn_table_cursor *tc);
 
 typedef struct {
   grn_id rid;
-  grn_id sid;
-  unsigned int pos;
-  unsigned int tf;
-  unsigned int weight;
-  unsigned int rest;
+  uint32_t sid;
+  uint32_t pos;
+  uint32_t tf;
+  uint32_t weight;
+  uint32_t rest;
 } grn_posting;
-
-GRN_API grn_obj *grn_index_cursor_open(grn_ctx *ctx, grn_table_cursor *tc, grn_obj *index,
-                                       grn_id rid_min, grn_id rid_max, int flags);
-GRN_API grn_posting *grn_index_cursor_next(grn_ctx *ctx, grn_obj *ic, grn_id *tid);
-
-#define GRN_TABLE_EACH(ctx,table,head,tail,id,key,key_size,value,block) do {\
-  (ctx)->errlvl = GRN_LOG_NOTICE;\
-  (ctx)->rc = GRN_SUCCESS;\
-  if ((ctx)->seqno & 1) {\
-    (ctx)->subno++;\
-  } else {\
-    (ctx)->seqno++;\
-  }\
-  if (table) {\
-    switch ((table)->header.type) {\
-    case GRN_TABLE_PAT_KEY :\
-      GRN_PAT_EACH((ctx), (grn_pat *)(table), (id), (key), (key_size), (value), block);\
-      break;\
-    case GRN_TABLE_DAT_KEY :\
-      GRN_DAT_EACH((ctx), (grn_dat *)(table), (id), (key), (key_size), block);\
-      break;\
-    case GRN_TABLE_HASH_KEY :\
-      GRN_HASH_EACH((ctx), (grn_hash *)(table), (id), (key), (key_size), (value), block);\
-      break;\
-    case GRN_TABLE_NO_KEY :\
-      GRN_ARRAY_EACH((ctx), (grn_array *)(table), (head), (tail), (id), (value), block);\
-      break;\
-    }\
-  }\
-  if ((ctx)->subno) {\
-    (ctx)->subno--;\
-  } else {\
-    (ctx)->seqno++;\
-  }\
-} while (0)
-
-typedef struct _grn_table_sort_key grn_table_sort_key;
-typedef unsigned char grn_table_sort_flags;
-
-#define GRN_TABLE_SORT_ASC             (0x00<<0)
-#define GRN_TABLE_SORT_DESC            (0x01<<0)
-
-struct _grn_table_sort_key {
-  grn_obj *key;
-  grn_table_sort_flags flags;
-  int offset;
-};
-
-GRN_API int grn_table_sort(grn_ctx *ctx, grn_obj *table, int offset, int limit,
-                           grn_obj *result, grn_table_sort_key *keys, int n_keys);
-
-typedef struct _grn_table_group_result grn_table_group_result;
-typedef unsigned int grn_table_group_flags;
-
-#define GRN_TABLE_GROUP_CALC_COUNT     (0x01<<3)
-#define GRN_TABLE_GROUP_CALC_MAX       (0x01<<4)
-#define GRN_TABLE_GROUP_CALC_MIN       (0x01<<5)
-#define GRN_TABLE_GROUP_CALC_SUM       (0x01<<6)
-#define GRN_TABLE_GROUP_CALC_AVG       (0x01<<7)
 
 typedef enum {
   GRN_OP_PUSH = 0,
@@ -716,52 +608,12 @@ typedef enum {
   GRN_OP_TABLE_GROUP,
   GRN_OP_JSON_PUT,
   GRN_OP_GET_MEMBER,
-  GRN_OP_REGEXP
+  GRN_OP_REGEXP,
+  GRN_OP_FUZZY
 } grn_operator;
-
-GRN_API const char *grn_operator_to_string(grn_operator op);
-GRN_API grn_bool grn_operator_exec_equal(grn_ctx *ctx, grn_obj *x, grn_obj *y);
-GRN_API grn_bool grn_operator_exec_not_equal(grn_ctx *ctx,
-                                             grn_obj *x, grn_obj *y);
-GRN_API grn_bool grn_operator_exec_less(grn_ctx *ctx, grn_obj *x, grn_obj *y);
-GRN_API grn_bool grn_operator_exec_greater(grn_ctx *ctx, grn_obj *x, grn_obj *y);
-GRN_API grn_bool grn_operator_exec_less_equal(grn_ctx *ctx,
-                                              grn_obj *x, grn_obj *y);
-GRN_API grn_bool grn_operator_exec_greater_equal(grn_ctx *ctx,
-                                                 grn_obj *x, grn_obj *y);
-GRN_API grn_bool grn_operator_exec_match(grn_ctx *ctx,
-                                         grn_obj *target, grn_obj *sub_text);
-GRN_API grn_bool grn_operator_exec_prefix(grn_ctx *ctx,
-                                          grn_obj *target, grn_obj *prefix);
-GRN_API grn_bool grn_operator_exec_regexp(grn_ctx *ctx,
-                                          grn_obj *target, grn_obj *pattern);
-
-struct _grn_table_group_result {
-  grn_obj *table;
-  unsigned char key_begin;
-  unsigned char key_end;
-  int limit;
-  grn_table_group_flags flags;
-  grn_operator op;
-  unsigned int max_n_subrecs;
-  grn_obj *calc_target;
-};
-
-GRN_API grn_rc grn_table_group(grn_ctx *ctx, grn_obj *table,
-                               grn_table_sort_key *keys, int n_keys,
-                               grn_table_group_result *results, int n_results);
-GRN_API grn_rc grn_table_setoperation(grn_ctx *ctx, grn_obj *table1, grn_obj *table2,
-                                      grn_obj *res, grn_operator op);
-GRN_API grn_rc grn_table_difference(grn_ctx *ctx, grn_obj *table1, grn_obj *table2,
-                                    grn_obj *res1, grn_obj *res2);
-GRN_API int grn_table_columns(grn_ctx *ctx, grn_obj *table,
-                              const char *name, unsigned int name_size,
-                              grn_obj *res);
 
 GRN_API grn_obj *grn_obj_column(grn_ctx *ctx, grn_obj *table,
                                 const char *name, unsigned int name_size);
-
-GRN_API unsigned int grn_table_size(grn_ctx *ctx, grn_obj *table);
 
 /*-------------------------------------------------------------
  * API for column
@@ -788,7 +640,7 @@ GRN_API unsigned int grn_table_size(grn_ctx *ctx, grn_obj *table);
 
 GRN_API grn_obj *grn_column_create(grn_ctx *ctx, grn_obj *table,
                                    const char *name, unsigned int name_size,
-                                   const char *path, grn_obj_flags flags, grn_obj *type);
+                                   const char *path, grn_column_flags flags, grn_obj *type);
 
 #define GRN_COLUMN_OPEN_OR_CREATE(ctx,table,name,name_size,path,flags,type,column) \
   (((column) = grn_obj_column((ctx), (table), (name), (name_size))) ||\
@@ -839,7 +691,9 @@ typedef enum {
 /* Just for backward compatibility. We'll remove it at 5.0.0. */
 #define GRN_INFO_SUPPORT_LZO GRN_INFO_SUPPORT_LZ4
   GRN_INFO_NORMALIZER,
-  GRN_INFO_TOKEN_FILTERS
+  GRN_INFO_TOKEN_FILTERS,
+  GRN_INFO_SUPPORT_ZSTD,
+  GRN_INFO_SUPPORT_ARROW
 } grn_info_type;
 
 GRN_API grn_obj *grn_obj_get_info(grn_ctx *ctx, grn_obj *obj, grn_info_type type, grn_obj *valuebuf);
@@ -875,6 +729,10 @@ GRN_API int grn_obj_get_values(grn_ctx *ctx, grn_obj *obj, grn_id offset, void *
 
 GRN_API grn_rc grn_obj_set_value(grn_ctx *ctx, grn_obj *obj, grn_id id, grn_obj *value, int flags);
 GRN_API grn_rc grn_obj_remove(grn_ctx *ctx, grn_obj *obj);
+GRN_API grn_rc grn_obj_remove_dependent(grn_ctx *ctx, grn_obj *obj);
+GRN_API grn_rc grn_obj_remove_force(grn_ctx *ctx,
+                                    const char *name,
+                                    int name_size);
 GRN_API grn_rc grn_obj_rename(grn_ctx *ctx, grn_obj *obj,
                               const char *name, unsigned int name_size);
 GRN_API grn_rc grn_table_rename(grn_ctx *ctx, grn_obj *table,
@@ -915,6 +773,27 @@ GRN_API grn_obj *grn_obj_db(grn_ctx *ctx, grn_obj *obj);
 
 GRN_API grn_id grn_obj_id(grn_ctx *ctx, grn_obj *obj);
 
+/* Flags for grn_fuzzy_search_optarg::flags. */
+#define GRN_TABLE_FUZZY_SEARCH_WITH_TRANSPOSITION                  (0x01)
+
+typedef struct _grn_fuzzy_search_optarg grn_fuzzy_search_optarg;
+
+struct _grn_fuzzy_search_optarg {
+  unsigned int max_distance;
+  unsigned int max_expansion;
+  unsigned int prefix_match_size;
+  int flags;
+};
+
+#define GRN_MATCH_INFO_GET_MIN_RECORD_ID                           (0x01)
+
+typedef struct _grn_match_info grn_match_info;
+
+struct _grn_match_info {
+  int flags;
+  grn_id min;
+};
+
 typedef struct _grn_search_optarg grn_search_optarg;
 
 struct _grn_search_optarg {
@@ -928,6 +807,8 @@ struct _grn_search_optarg {
   grn_obj *scorer;
   grn_obj *scorer_args_expr;
   unsigned int scorer_args_expr_offset;
+  grn_fuzzy_search_optarg fuzzy;
+  grn_match_info match_info;
 };
 
 GRN_API grn_rc grn_obj_search(grn_ctx *ctx, grn_obj *obj, grn_obj *query,
@@ -939,6 +820,16 @@ typedef grn_rc grn_selector_func(grn_ctx *ctx, grn_obj *table, grn_obj *index,
 
 GRN_API grn_rc grn_proc_set_selector(grn_ctx *ctx, grn_obj *proc,
                                      grn_selector_func selector);
+GRN_API grn_rc grn_proc_set_selector_operator(grn_ctx *ctx,
+                                              grn_obj *proc,
+                                              grn_operator selector_op);
+GRN_API grn_operator grn_proc_get_selector_operator(grn_ctx *ctx,
+                                                    grn_obj *proc);
+
+GRN_API grn_rc grn_proc_set_is_stable(grn_ctx *ctx,
+                                      grn_obj *proc,
+                                      grn_bool is_stable);
+GRN_API grn_bool grn_proc_is_stable(grn_ctx *ctx, grn_obj *proc);
 
 /*-------------------------------------------------------------
  * grn_vector
@@ -953,6 +844,10 @@ GRN_API grn_rc grn_vector_add_element(grn_ctx *ctx, grn_obj *vector,
 GRN_API unsigned int grn_vector_get_element(grn_ctx *ctx, grn_obj *vector,
                                             unsigned int offset, const char **str,
                                             unsigned int *weight, grn_id *domain);
+GRN_API unsigned int grn_vector_pop_element(grn_ctx *ctx, grn_obj *vector,
+                                            const char **str,
+                                            unsigned int *weight,
+                                            grn_id *domain);
 
 /*-------------------------------------------------------------
  * grn_uvector
@@ -1008,6 +903,11 @@ GRN_API unsigned int grn_column_find_index_data(grn_ctx *ctx, grn_obj *column,
                                                 grn_operator op,
                                                 grn_index_datum *index_data,
                                                 unsigned int n_index_data);
+/* @since 5.1.2. */
+GRN_API uint32_t grn_column_get_all_index_data(grn_ctx *ctx,
+                                               grn_obj *column,
+                                               grn_index_datum *index_data,
+                                               uint32_t n_index_data);
 
 GRN_API grn_rc grn_obj_delete_by_id(grn_ctx *ctx, grn_obj *db, grn_id id, grn_bool removep);
 GRN_API grn_rc grn_obj_path_by_id(grn_ctx *ctx, grn_obj *db, grn_id id, char *buffer);
@@ -1123,6 +1023,7 @@ GRN_API grn_rc grn_snip_get_result(grn_ctx *ctx, grn_obj *snip, const unsigned i
 #define GRN_LOG_TITLE                  (0x01<<1)
 #define GRN_LOG_MESSAGE                (0x01<<2)
 #define GRN_LOG_LOCATION               (0x01<<3)
+#define GRN_LOG_PID                    (0x01<<4)
 
 /* Deprecated since 2.1.2. Use grn_logger instead. */
 typedef struct _grn_logger_info grn_logger_info;
@@ -1163,8 +1064,34 @@ GRN_API grn_log_level grn_logger_get_max_level(grn_ctx *ctx);
 # define GRN_ATTRIBUTE_PRINTF(fmt_pos)
 #endif /* __GNUC__ */
 
+#if defined(__clang__)
+# if __has_attribute(__alloc_size__)
+#  define HAVE_ALLOC_SIZE_ATTRIBUTE
+# endif /* __has_attribute(__alloc_size__) */
+#elif defined(__GNUC__) && \
+  ((__GNUC__ >= 5) || (__GNUC__ > 4 && __GNUC_MINOR__ >= 3))
+# define HAVE_ALLOC_SIZE_ATTRIBUTE
+#endif /* __clang__ */
+
+#ifdef HAVE_ALLOC_SIZE_ATTRIBUTE
+# define GRN_ATTRIBUTE_ALLOC_SIZE(size) \
+  __attribute__ ((alloc_size(size)))
+# define GRN_ATTRIBUTE_ALLOC_SIZE_N(n, size) \
+  __attribute__ ((alloc_size(n, size)))
+#else
+# define GRN_ATTRIBUTE_ALLOC_SIZE(size)
+# define GRN_ATTRIBUTE_ALLOC_SIZE_N(n, size)
+#endif /* HAVE_ALLOC_SIZE_ATTRIBUTE */
+
 GRN_API void grn_logger_put(grn_ctx *ctx, grn_log_level level,
                             const char *file, int line, const char *func, const char *fmt, ...) GRN_ATTRIBUTE_PRINTF(6);
+GRN_API void grn_logger_putv(grn_ctx *ctx,
+                             grn_log_level level,
+                             const char *file,
+                             int line,
+                             const char *func,
+                             const char *fmt,
+                             va_list ap);
 GRN_API void grn_logger_reopen(grn_ctx *ctx);
 
 GRN_API grn_bool grn_logger_pass(grn_ctx *ctx, grn_log_level level);
@@ -1175,6 +1102,8 @@ GRN_API grn_bool grn_logger_pass(grn_ctx *ctx, grn_log_level level);
 
 GRN_API void grn_default_logger_set_max_level(grn_log_level level);
 GRN_API grn_log_level grn_default_logger_get_max_level(void);
+GRN_API void grn_default_logger_set_flags(int flags);
+GRN_API int grn_default_logger_get_flags(void);
 GRN_API void grn_default_logger_set_path(const char *path);
 GRN_API const char *grn_default_logger_get_path(void);
 GRN_API void grn_default_logger_set_rotate_threshold_size(off_t threshold);
@@ -1198,7 +1127,15 @@ struct _grn_query_logger {
   void (*fin)(grn_ctx *ctx, void *user_data);
 };
 
+GRN_API grn_bool grn_query_log_flags_parse(const char *string,
+                                           int string_size,
+                                           unsigned int *flags);
+
 GRN_API grn_rc grn_query_logger_set(grn_ctx *ctx, const grn_query_logger *logger);
+GRN_API void grn_query_logger_set_flags(grn_ctx *ctx, unsigned int flags);
+GRN_API void grn_query_logger_add_flags(grn_ctx *ctx, unsigned int flags);
+GRN_API void grn_query_logger_remove_flags(grn_ctx *ctx, unsigned int flags);
+GRN_API unsigned int grn_query_logger_get_flags(grn_ctx *ctx);
 
 GRN_API void grn_query_logger_put(grn_ctx *ctx, unsigned int flag,
                                   const char *mark,
@@ -1244,6 +1181,13 @@ GRN_API off_t grn_default_query_logger_get_rotate_threshold_size(void);
     } else {\
       (bulk)->header.flags &= ~GRN_BULK_BUFSIZE_MAX;\
     }\
+  }\
+} while (0)
+#define GRN_BULK_INCR_LEN(bulk,len) do {\
+  if (GRN_BULK_OUTP(bulk)) {\
+    (bulk)->u.b.curr += (len);\
+  } else {\
+    (bulk)->header.flags += (grn_obj_flags)(len);\
   }\
 } while (0)
 #define GRN_BULK_WSIZE(bulk) \
@@ -1356,6 +1300,10 @@ GRN_API void grn_ctx_recv_handler_set(grn_ctx *,
 #define GRN_TEXT_VALUE(obj) GRN_BULK_HEAD(obj)
 #define GRN_TEXT_LEN(obj) GRN_BULK_VSIZE(obj)
 
+#define GRN_TEXT_EQUAL_CSTRING(bulk, string)\
+  (GRN_TEXT_LEN(bulk) == strlen(string) &&\
+   memcmp(GRN_TEXT_VALUE(bulk), string, GRN_TEXT_LEN(bulk)) == 0)
+
 #define GRN_BOOL_INIT(obj,flags) \
   GRN_VALUE_FIX_SIZE_INIT(obj, flags, GRN_DB_BOOL)
 #define GRN_INT8_INIT(obj,flags) \
@@ -1381,7 +1329,8 @@ GRN_API void grn_ctx_recv_handler_set(grn_ctx *,
 #define GRN_RECORD_INIT GRN_VALUE_FIX_SIZE_INIT
 #define GRN_PTR_INIT(obj,flags,domain)\
   GRN_OBJ_INIT((obj), ((flags) & GRN_OBJ_VECTOR) ? GRN_PVECTOR : GRN_PTR,\
-               ((flags) & GRN_OBJ_DO_SHALLOW_COPY), (domain))
+               ((flags) & (GRN_OBJ_DO_SHALLOW_COPY | GRN_OBJ_OWN)),\
+               (domain))
 #define GRN_TOKYO_GEO_POINT_INIT(obj,flags) \
   GRN_VALUE_FIX_SIZE_INIT(obj, flags, GRN_DB_TOKYO_GEO_POINT)
 #define GRN_WGS84_GEO_POINT_INIT(obj,flags) \
@@ -1512,17 +1461,6 @@ GRN_API void grn_ctx_recv_handler_set(grn_ctx *,
                       (offset) * sizeof(grn_obj *), sizeof(grn_obj *));\
 } while (0)
 
-#define GRN_TIME_USEC_PER_SEC 1000000
-#define GRN_TIME_PACK(sec, usec) ((long long int)(sec) * GRN_TIME_USEC_PER_SEC + (usec))
-#define GRN_TIME_UNPACK(time_value, sec, usec) do {\
-  sec = (time_value) / GRN_TIME_USEC_PER_SEC;\
-  usec = (time_value) % GRN_TIME_USEC_PER_SEC;\
-} while (0)
-
-GRN_API void grn_time_now(grn_ctx *ctx, grn_obj *obj);
-
-#define GRN_TIME_NOW(ctx,obj) (grn_time_now((ctx), (obj)))
-
 #define GRN_BOOL_VALUE(obj) (*((unsigned char *)GRN_BULK_HEAD(obj)))
 #define GRN_INT8_VALUE(obj) (*((signed char *)GRN_BULK_HEAD(obj)))
 #define GRN_UINT8_VALUE(obj) (*((unsigned char *)GRN_BULK_HEAD(obj)))
@@ -1600,6 +1538,28 @@ GRN_API void grn_time_now(grn_ctx *ctx, grn_obj *obj);
   grn_obj *_val = (grn_obj *)(val);\
   grn_bulk_write((ctx), (obj), (char *)&_val, sizeof(grn_obj *));\
 } while (0)
+
+#define GRN_BULK_POP(obj, value, type, default) do {\
+  if (GRN_BULK_VSIZE(obj) >= sizeof(type)) {\
+    GRN_BULK_INCR_LEN((obj), -(sizeof(type)));\
+    value = *(type *)(GRN_BULK_CURR(obj));\
+  } else {\
+    value = default;\
+  }\
+} while (0)
+#define GRN_BOOL_POP(obj, value) GRN_BULK_POP(obj, value, unsigned char, 0)
+#define GRN_INT8_POP(obj, value) GRN_BULK_POP(obj, value, int8_t, 0)
+#define GRN_UINT8_POP(obj, value) GRN_BULK_POP(obj, value, uint8_t, 0)
+#define GRN_INT16_POP(obj, value) GRN_BULK_POP(obj, value, int16_t, 0)
+#define GRN_UINT16_POP(obj, value) GRN_BULK_POP(obj, value, uint16_t, 0)
+#define GRN_INT32_POP(obj, value) GRN_BULK_POP(obj, value, int32_t, 0)
+#define GRN_UINT32_POP(obj, value) GRN_BULK_POP(obj, value, uint32_t, 0)
+#define GRN_INT64_POP(obj, value) GRN_BULK_POP(obj, value, int64_t, 0)
+#define GRN_UINT64_POP(obj, value) GRN_BULK_POP(obj, value, uint64_t, 0)
+#define GRN_FLOAT_POP(obj, value) GRN_BULK_POP(obj, value, double, 0.0)
+#define GRN_TIME_POP GRN_INT64_POP
+#define GRN_RECORD_POP(obj, value) GRN_BULK_POP(obj, value, grn_id, GRN_ID_NIL)
+#define GRN_PTR_POP(obj, value) GRN_BULK_POP(obj, value, grn_obj *, NULL)
 
 /* grn_str: deprecated. use grn_string instead. */
 
@@ -1680,37 +1640,8 @@ GRN_API int grn_charlen(grn_ctx *ctx, const char *str, const char *end);
 GRN_API grn_rc grn_ctx_push(grn_ctx *ctx, grn_obj *obj);
 GRN_API grn_obj *grn_ctx_pop(grn_ctx *ctx);
 
-GRN_API grn_obj *grn_table_select(grn_ctx *ctx, grn_obj *table, grn_obj *expr,
-                                  grn_obj *res, grn_operator op);
-
 GRN_API int grn_obj_columns(grn_ctx *ctx, grn_obj *table,
                             const char *str, unsigned int str_size, grn_obj *res);
-
-GRN_API grn_table_sort_key *grn_table_sort_key_from_str(grn_ctx *ctx,
-                                                        const char *str, unsigned int str_size,
-                                                        grn_obj *table, unsigned int *nkeys);
-GRN_API grn_rc grn_table_sort_key_close(grn_ctx *ctx,
-                                        grn_table_sort_key *keys, unsigned int nkeys);
-
-GRN_API grn_bool grn_table_is_grouped(grn_ctx *ctx, grn_obj *table);
-
-GRN_API unsigned int grn_table_max_n_subrecs(grn_ctx *ctx, grn_obj *table);
-
-GRN_API grn_obj *grn_table_create_for_group(grn_ctx *ctx,
-                                            const char *name,
-                                            unsigned int name_size,
-                                            const char *path,
-                                            grn_obj *group_key,
-                                            grn_obj *value_type,
-                                            unsigned int max_n_subrecs);
-
-GRN_API unsigned int grn_table_get_subrecs(grn_ctx *ctx, grn_obj *table,
-                                           grn_id id, grn_id *subrecbuf,
-                                           int *scorebuf, int buf_size);
-
-GRN_API grn_obj *grn_table_tokenize(grn_ctx *ctx, grn_obj *table,
-                                    const char *str, unsigned int str_len,
-                                    grn_obj *buf, grn_bool addp);
 
 GRN_API grn_rc grn_load(grn_ctx *ctx, grn_content_type input_type,
                         const char *table, unsigned int table_len,
@@ -1744,28 +1675,6 @@ GRN_API grn_rc grn_set_segv_handler(void);
 GRN_API grn_rc grn_set_int_handler(void);
 GRN_API grn_rc grn_set_term_handler(void);
 
-/* hash */
-
-typedef struct _grn_hash grn_hash;
-typedef struct _grn_hash_cursor grn_hash_cursor;
-
-GRN_API grn_hash *grn_hash_create(grn_ctx *ctx, const char *path, unsigned int key_size,
-                                  unsigned int value_size, unsigned int flags);
-
-GRN_API grn_hash *grn_hash_open(grn_ctx *ctx, const char *path);
-
-GRN_API grn_rc grn_hash_close(grn_ctx *ctx, grn_hash *hash);
-
-GRN_API grn_id grn_hash_add(grn_ctx *ctx, grn_hash *hash, const void *key,
-                            unsigned int key_size, void **value, int *added);
-GRN_API grn_id grn_hash_get(grn_ctx *ctx, grn_hash *hash, const void *key,
-                            unsigned int key_size, void **value);
-
-GRN_API int grn_hash_get_key(grn_ctx *ctx, grn_hash *hash, grn_id id, void *keybuf, int bufsize);
-GRN_API int grn_hash_get_key2(grn_ctx *ctx, grn_hash *hash, grn_id id, grn_obj *bulk);
-GRN_API int grn_hash_get_value(grn_ctx *ctx, grn_hash *hash, grn_id id, void *valuebuf);
-GRN_API grn_rc grn_hash_set_value(grn_ctx *ctx, grn_hash *hash, grn_id id,
-                                  const void *value, int flags);
 
 typedef struct _grn_table_delete_optarg grn_table_delete_optarg;
 
@@ -1775,253 +1684,17 @@ struct _grn_table_delete_optarg {
   void *func_arg;
 };
 
-GRN_API grn_rc grn_hash_delete_by_id(grn_ctx *ctx, grn_hash *hash, grn_id id,
-                                     grn_table_delete_optarg *optarg);
-GRN_API grn_rc grn_hash_delete(grn_ctx *ctx, grn_hash *hash,
-                               const void *key, unsigned int key_size,
-                               grn_table_delete_optarg *optarg);
-
-GRN_API grn_hash_cursor *grn_hash_cursor_open(grn_ctx *ctx, grn_hash *hash,
-                                              const void *min, unsigned int min_size,
-                                              const void *max, unsigned int max_size,
-                                              int offset, int limit, int flags);
-GRN_API grn_id grn_hash_cursor_next(grn_ctx *ctx, grn_hash_cursor *c);
-GRN_API void grn_hash_cursor_close(grn_ctx *ctx, grn_hash_cursor *c);
-
-GRN_API int grn_hash_cursor_get_key(grn_ctx *ctx, grn_hash_cursor *c, void **key);
-GRN_API int grn_hash_cursor_get_value(grn_ctx *ctx, grn_hash_cursor *c, void **value);
-GRN_API grn_rc grn_hash_cursor_set_value(grn_ctx *ctx, grn_hash_cursor *c,
-                                         const void *value, int flags);
-
-GRN_API int grn_hash_cursor_get_key_value(grn_ctx *ctx, grn_hash_cursor *c,
-                                          void **key, unsigned int *key_size, void **value);
-
-GRN_API grn_rc grn_hash_cursor_delete(grn_ctx *ctx, grn_hash_cursor *c,
-                                      grn_table_delete_optarg *optarg);
-
-#define GRN_HASH_EACH(ctx,hash,id,key,key_size,value,block) do {\
-  grn_hash_cursor *_sc = grn_hash_cursor_open(ctx, hash, NULL, 0, NULL, 0, 0, -1, 0); \
-  if (_sc) {\
-    grn_id id;\
-    while ((id = grn_hash_cursor_next(ctx, _sc))) {\
-      grn_hash_cursor_get_key_value(ctx, _sc, (void **)(key),\
-                                    (key_size), (void **)(value));\
-      block\
-    }\
-    grn_hash_cursor_close(ctx, _sc);\
-  }\
-} while (0)
-
-/* array */
-
-typedef struct _grn_array grn_array;
-typedef struct _grn_array_cursor grn_array_cursor;
-
-GRN_API grn_array *grn_array_create(grn_ctx *ctx, const char *path,
-                                    unsigned int value_size, unsigned int flags);
-GRN_API grn_array *grn_array_open(grn_ctx *ctx, const char *path);
-GRN_API grn_rc grn_array_close(grn_ctx *ctx, grn_array *array);
-GRN_API grn_id grn_array_add(grn_ctx *ctx, grn_array *array, void **value);
-GRN_API grn_id grn_array_push(grn_ctx *ctx, grn_array *array,
-                              void (*func)(grn_ctx *ctx, grn_array *array,
-                                           grn_id id, void *func_arg),
-                              void *func_arg);
-GRN_API grn_id grn_array_pull(grn_ctx *ctx, grn_array *array, grn_bool blockp,
-                              void (*func)(grn_ctx *ctx, grn_array *array,
-                                           grn_id id, void *func_arg),
-                              void *func_arg);
-GRN_API void grn_array_unblock(grn_ctx *ctx, grn_array *array);
-GRN_API int grn_array_get_value(grn_ctx *ctx, grn_array *array, grn_id id, void *valuebuf);
-GRN_API grn_rc grn_array_set_value(grn_ctx *ctx, grn_array *array, grn_id id,
-                                   const void *value, int flags);
-GRN_API grn_array_cursor *grn_array_cursor_open(grn_ctx *ctx, grn_array *array,
-                                                grn_id min, grn_id max,
-                                                int offset, int limit, int flags);
-GRN_API grn_id grn_array_cursor_next(grn_ctx *ctx, grn_array_cursor *cursor);
-GRN_API int grn_array_cursor_get_value(grn_ctx *ctx, grn_array_cursor *cursor, void **value);
-GRN_API grn_rc grn_array_cursor_set_value(grn_ctx *ctx, grn_array_cursor *cursor,
-                                          const void *value, int flags);
-GRN_API grn_rc grn_array_cursor_delete(grn_ctx *ctx, grn_array_cursor *cursor,
-                                       grn_table_delete_optarg *optarg);
-GRN_API void grn_array_cursor_close(grn_ctx *ctx, grn_array_cursor *cursor);
-GRN_API grn_rc grn_array_delete_by_id(grn_ctx *ctx, grn_array *array, grn_id id,
-                                      grn_table_delete_optarg *optarg);
-
-GRN_API grn_id grn_array_next(grn_ctx *ctx, grn_array *array, grn_id id);
-
-GRN_API void *_grn_array_get_value(grn_ctx *ctx, grn_array *array, grn_id id);
-
-#define GRN_ARRAY_EACH(ctx,array,head,tail,id,value,block) do {\
-  grn_array_cursor *_sc = grn_array_cursor_open(ctx, array, head, tail, 0, -1, 0); \
-  if (_sc) {\
-    grn_id id;\
-    while ((id = grn_array_cursor_next(ctx, _sc))) {\
-      grn_array_cursor_get_value(ctx, _sc, (void **)(value));\
-      block\
-    }\
-    grn_array_cursor_close(ctx, _sc); \
-  }\
-} while (0)
-
-/* pat */
-
-typedef struct _grn_pat grn_pat;
-typedef struct _grn_pat_cursor grn_pat_cursor;
-
-GRN_API grn_pat *grn_pat_create(grn_ctx *ctx, const char *path, unsigned int key_size,
-                                unsigned int value_size, unsigned int flags);
-
-GRN_API grn_pat *grn_pat_open(grn_ctx *ctx, const char *path);
-
-GRN_API grn_rc grn_pat_close(grn_ctx *ctx, grn_pat *pat);
-
-GRN_API grn_rc grn_pat_remove(grn_ctx *ctx, const char *path);
-
-GRN_API grn_id grn_pat_get(grn_ctx *ctx, grn_pat *pat, const void *key,
-                           unsigned int key_size, void **value);
-GRN_API grn_id grn_pat_add(grn_ctx *ctx, grn_pat *pat, const void *key,
-                           unsigned int key_size, void **value, int *added);
-
-GRN_API int grn_pat_get_key(grn_ctx *ctx, grn_pat *pat, grn_id id, void *keybuf, int bufsize);
-GRN_API int grn_pat_get_key2(grn_ctx *ctx, grn_pat *pat, grn_id id, grn_obj *bulk);
-GRN_API int grn_pat_get_value(grn_ctx *ctx, grn_pat *pat, grn_id id, void *valuebuf);
-GRN_API grn_rc grn_pat_set_value(grn_ctx *ctx, grn_pat *pat, grn_id id,
-                                 const void *value, int flags);
-
-GRN_API grn_rc grn_pat_delete_by_id(grn_ctx *ctx, grn_pat *pat, grn_id id,
-                                    grn_table_delete_optarg *optarg);
-GRN_API grn_rc grn_pat_delete(grn_ctx *ctx, grn_pat *pat, const void *key, unsigned int key_size,
-                              grn_table_delete_optarg *optarg);
-GRN_API int grn_pat_delete_with_sis(grn_ctx *ctx, grn_pat *pat, grn_id id,
-                                    grn_table_delete_optarg *optarg);
-
-typedef struct _grn_table_scan_hit grn_pat_scan_hit;
-typedef struct _grn_table_scan_hit grn_dat_scan_hit;
-
 struct _grn_table_scan_hit {
   grn_id id;
   unsigned int offset;
   unsigned int length;
 };
 
-GRN_API int grn_pat_scan(grn_ctx *ctx, grn_pat *pat, const char *str, unsigned int str_len,
-                         grn_pat_scan_hit *sh, unsigned int sh_size, const char **rest);
-
-GRN_API grn_rc grn_pat_prefix_search(grn_ctx *ctx, grn_pat *pat,
-                                     const void *key, unsigned int key_size, grn_hash *h);
-GRN_API grn_rc grn_pat_suffix_search(grn_ctx *ctx, grn_pat *pat,
-                                     const void *key, unsigned int key_size, grn_hash *h);
-GRN_API grn_id grn_pat_lcp_search(grn_ctx *ctx, grn_pat *pat,
-                                  const void *key, unsigned int key_size);
-
-GRN_API unsigned int grn_pat_size(grn_ctx *ctx, grn_pat *pat);
-
-GRN_API grn_pat_cursor *grn_pat_cursor_open(grn_ctx *ctx, grn_pat *pat,
-                                            const void *min, unsigned int min_size,
-                                            const void *max, unsigned int max_size,
-                                            int offset, int limit, int flags);
-GRN_API grn_id grn_pat_cursor_next(grn_ctx *ctx, grn_pat_cursor *c);
-GRN_API void grn_pat_cursor_close(grn_ctx *ctx, grn_pat_cursor *c);
-
-GRN_API int grn_pat_cursor_get_key(grn_ctx *ctx, grn_pat_cursor *c, void **key);
-GRN_API int grn_pat_cursor_get_value(grn_ctx *ctx, grn_pat_cursor *c, void **value);
-
-GRN_API int grn_pat_cursor_get_key_value(grn_ctx *ctx, grn_pat_cursor *c,
-                                         void **key, unsigned int *key_size, void **value);
-GRN_API grn_rc grn_pat_cursor_set_value(grn_ctx *ctx, grn_pat_cursor *c,
-                                        const void *value, int flags);
-GRN_API grn_rc grn_pat_cursor_delete(grn_ctx *ctx, grn_pat_cursor *c,
-                                     grn_table_delete_optarg *optarg);
-
-#define GRN_PAT_EACH(ctx,pat,id,key,key_size,value,block) do {          \
-  grn_pat_cursor *_sc = grn_pat_cursor_open(ctx, pat, NULL, 0, NULL, 0, 0, -1, 0); \
-  if (_sc) {\
-    grn_id id;\
-    while ((id = grn_pat_cursor_next(ctx, _sc))) {\
-      grn_pat_cursor_get_key_value(ctx, _sc, (void **)(key),\
-                                   (key_size), (void **)(value));\
-      block\
-    }\
-    grn_pat_cursor_close(ctx, _sc);\
-  }\
-} while (0)
-
-/* dat */
-
-typedef struct _grn_dat grn_dat;
-typedef struct _grn_dat_cursor grn_dat_cursor;
-
-GRN_API int grn_dat_scan(grn_ctx *ctx, grn_dat *dat, const char *str,
-                         unsigned int str_size, grn_dat_scan_hit *scan_hits,
-                         unsigned int max_num_scan_hits, const char **str_rest);
-
-GRN_API grn_id grn_dat_lcp_search(grn_ctx *ctx, grn_dat *dat,
-                          const void *key, unsigned int key_size);
-
-GRN_API grn_dat *grn_dat_create(grn_ctx *ctx, const char *path, unsigned int key_size,
-                                unsigned int value_size, unsigned int flags);
-
-GRN_API grn_dat *grn_dat_open(grn_ctx *ctx, const char *path);
-
-GRN_API grn_rc grn_dat_close(grn_ctx *ctx, grn_dat *dat);
-
-GRN_API grn_rc grn_dat_remove(grn_ctx *ctx, const char *path);
-
-GRN_API grn_id grn_dat_get(grn_ctx *ctx, grn_dat *dat, const void *key,
-                           unsigned int key_size, void **value);
-GRN_API grn_id grn_dat_add(grn_ctx *ctx, grn_dat *dat, const void *key,
-                           unsigned int key_size, void **value, int *added);
-
-GRN_API int grn_dat_get_key(grn_ctx *ctx, grn_dat *dat, grn_id id, void *keybuf, int bufsize);
-GRN_API int grn_dat_get_key2(grn_ctx *ctx, grn_dat *dat, grn_id id, grn_obj *bulk);
-
-GRN_API grn_rc grn_dat_delete_by_id(grn_ctx *ctx, grn_dat *dat, grn_id id,
-                                    grn_table_delete_optarg *optarg);
-GRN_API grn_rc grn_dat_delete(grn_ctx *ctx, grn_dat *dat, const void *key, unsigned int key_size,
-                              grn_table_delete_optarg *optarg);
-
-GRN_API grn_rc grn_dat_update_by_id(grn_ctx *ctx, grn_dat *dat, grn_id src_key_id,
-                                    const void *dest_key, unsigned int dest_key_size);
-GRN_API grn_rc grn_dat_update(grn_ctx *ctx, grn_dat *dat,
-                              const void *src_key, unsigned int src_key_size,
-                              const void *dest_key, unsigned int dest_key_size);
-
-GRN_API unsigned int grn_dat_size(grn_ctx *ctx, grn_dat *dat);
-
-GRN_API grn_dat_cursor *grn_dat_cursor_open(grn_ctx *ctx, grn_dat *dat,
-                                            const void *min, unsigned int min_size,
-                                            const void *max, unsigned int max_size,
-                                            int offset, int limit, int flags);
-GRN_API grn_id grn_dat_cursor_next(grn_ctx *ctx, grn_dat_cursor *c);
-GRN_API void grn_dat_cursor_close(grn_ctx *ctx, grn_dat_cursor *c);
-
-GRN_API int grn_dat_cursor_get_key(grn_ctx *ctx, grn_dat_cursor *c, const void **key);
-GRN_API grn_rc grn_dat_cursor_delete(grn_ctx *ctx, grn_dat_cursor *c,
-                                     grn_table_delete_optarg *optarg);
-
-#define GRN_DAT_EACH(ctx,dat,id,key,key_size,block) do {\
-  grn_dat_cursor *_sc = grn_dat_cursor_open(ctx, dat, NULL, 0, NULL, 0, 0, -1, 0);\
-  if (_sc) {\
-    grn_id id;\
-    unsigned int *_ks = (key_size);\
-    if (_ks) {\
-      while ((id = grn_dat_cursor_next(ctx, _sc))) {\
-        int _ks_raw = grn_dat_cursor_get_key(ctx, _sc, (const void **)(key));\
-        *(_ks) = (unsigned int)_ks_raw;\
-        block\
-      }\
-    } else {\
-      while ((id = grn_dat_cursor_next(ctx, _sc))) {\
-        grn_dat_cursor_get_key(ctx, _sc, (const void **)(key));\
-        block\
-      }\
-    }\
-    grn_dat_cursor_close(ctx, _sc);\
-  }\
-} while (0)
+typedef struct {
+  int64_t tv_sec;
+  int32_t tv_nsec;
+} grn_timeval;
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GROONGA_GROONGA_H */

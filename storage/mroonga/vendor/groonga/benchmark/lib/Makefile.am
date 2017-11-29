@@ -9,6 +9,9 @@ AM_CPPFLAGS =			\
 AM_CFLAGS =			\
 	$(GLIB_CFLAGS)
 
+CFLAGS +=					\
+	$(NO_BAD_FUNCTION_CAST_CFLAGS)
+
 LIBS =				\
 	$(GLIB_LIBS)
 

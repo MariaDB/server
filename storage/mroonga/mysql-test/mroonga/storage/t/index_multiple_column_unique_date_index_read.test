@@ -14,11 +14,10 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
---source ../../include/mroonga/have_64bit.inc
 --source ../../include/mroonga/skip_freebsd.inc
---source ../../include/mroonga/skip_osx.inc
+--source ../../include/mroonga/have_signed_64bit_time_t.inc
 --source ../../include/mroonga/have_mroonga.inc
 
 --disable_warnings
@@ -32,10 +31,10 @@ CREATE TABLE ranges (
   UNIQUE KEY range_key(start, end)
 );
 
-INSERT INTO ranges VALUES (1, "1000-01-01", "2012-10-05");
-INSERT INTO ranges VALUES (2, "1000-01-01", "9999-12-31");
+INSERT INTO ranges VALUES (1, "1000-01-02", "2012-10-05");
+INSERT INTO ranges VALUES (2, "1000-01-02", "9999-12-31");
 INSERT INTO ranges VALUES (3, "2012-10-25", "9999-12-31");
-INSERT INTO ranges VALUES (4, "9999-12-31", "1000-01-01");
+INSERT INTO ranges VALUES (4, "9999-12-31", "1000-01-02");
 
 SELECT start, end
        FROM ranges FORCE INDEX(range_key)

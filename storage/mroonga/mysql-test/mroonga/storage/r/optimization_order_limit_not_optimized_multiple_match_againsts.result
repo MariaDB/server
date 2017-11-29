@@ -1,0 +1,35 @@
+DROP TABLE IF EXISTS memos;
+FLUSH STATUS;
+SET NAMES UTF8;
+CREATE TABLE memos (
+id INT UNSIGNED NOT NULL,
+title VARCHAR(255),
+content TEXT,
+FULLTEXT INDEX(title),
+FULLTEXT INDEX(content)
+) DEFAULT CHARSET UTF8;
+INSERT INTO memos VALUES(5,  "title 1",   "content a");
+INSERT INTO memos VALUES(12, "title 1",   "content a");
+INSERT INTO memos VALUES(10, "title 1",   "content a");
+INSERT INTO memos VALUES(4,  "title 2",   "content b");
+INSERT INTO memos VALUES(6,  "title 2",   "content b");
+INSERT INTO memos VALUES(1,  "title 2",   "content b");
+INSERT INTO memos VALUES(11, "title 1-a", "content a-1");
+INSERT INTO memos VALUES(3,  "title 2-b", "content a-2");
+INSERT INTO memos VALUES(2,  "title 2-c", "content a-3");
+INSERT INTO memos VALUES(8,  "title 1-a", "content b-1");
+INSERT INTO memos VALUES(9,  "title 2-b", "content b-2");
+INSERT INTO memos VALUES(7,  "title 2-c", "content b-3");
+SELECT * FROM memos
+WHERE MATCH(title) AGAINST("+1" IN BOOLEAN MODE) AND
+MATCH(content) AGAINST("+a" IN BOOLEAN MODE)
+ORDER BY id
+LIMIT 1,3;
+id	title	content
+10	title 1	content a
+11	title 1-a	content a-1
+12	title 1	content a
+SHOW STATUS LIKE 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	0
+DROP TABLE memos;

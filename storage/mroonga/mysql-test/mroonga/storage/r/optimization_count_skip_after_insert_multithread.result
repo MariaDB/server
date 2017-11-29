@@ -6,11 +6,7 @@ FULLTEXT INDEX ft(title)
 );
 INSERT INTO diaries VALUES("Hello mroonga!");
 INSERT INTO diaries VALUES("It's funny.");
-CONNECT  thread2, localhost, root, ,;
-connection thread2;
 INSERT INTO diaries VALUES("Happy birthday!");
-disconnect thread2;
-connection default;
 SHOW STATUS LIKE 'mroonga_count_skip';
 Variable_name	Value
 Mroonga_count_skip	0

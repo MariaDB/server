@@ -1022,6 +1022,19 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   if (check_stack_overrun(thd, 7 * STACK_MIN_SIZE, (uchar*)&old_packet))
     DBUG_RETURN(TRUE);
 
+  /*
+     Normally the counter is not reset between parsing and first execution,
+     but it is possible in case of error to have parsing on one CALL and
+     first execution (where VIEW will be parsed and added). So we store the
+     counter after parsing and restore it before execution just to avoid
+     repeating SELECT numbers.
+
+     Other problem is that it can be more SELECTs parsed in case of fixing
+     error causes previous interruption of the SP. So it is save not just
+     assign old value but add it.
+   */
+  thd->select_number+= m_select_number;
+
   /* init per-instruction memroot */
   init_sql_alloc(&execute_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
 
@@ -1360,6 +1373,16 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
                m_first_instance->m_first_free_instance->m_recursion_level ==
                m_recursion_level + 1));
   m_first_instance->m_first_free_instance= this;
+
+  /*
+     This execution of the SP was aborted with an error (e.g. "Table not
+     found").  However it might still have consumed some numbers from the
+     thd->select_number counter.  The next sp->exec() call must not use the
+     consumed numbers, so we remember the first free number (We know that
+     nobody will use it as this execution has stopped with an error).
+   */
+  if (err_status)
+    set_select_number(thd->select_number);
 
   DBUG_RETURN(err_status);
 }
@@ -2046,26 +2069,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
   if (!err_status)
   {
-    /*
-      Normally the counter is not reset between parsing and first execution,
-      but it is possible in case of error to have parsing on one CALL and
-      first execution (where VIEW will be parsed and added). So we store the
-      counter after parsing and restore it before execution just to avoid
-      repeating SELECT numbers.
-    */
-    thd->select_number= m_select_number;
-
     err_status= execute(thd, TRUE);
-    DBUG_PRINT("info", ("execute returned %d", (int) err_status));
-    /*
-      This execution of the SP was aborted with an error (e.g. "Table not
-      found").  However it might still have consumed some numbers from the
-      thd->select_number counter.  The next sp->exec() call must not use the
-      consumed numbers, so we remember the first free number (We know that
-      nobody will use it as this execution has stopped with an error).
-    */
-    if (err_status)
-      set_select_number(thd->select_number);
   }
 
   if (save_log_general)

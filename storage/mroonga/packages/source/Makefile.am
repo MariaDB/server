@@ -1,17 +1,17 @@
 MROONGA_BASE = $(PACKAGE)-$(VERSION)
 MROONGA_TAR_GZ = $(MROONGA_BASE).tar.gz
 
-GROONGA_VERSION = 5.0.5
+GROONGA_VERSION = 7.0.7
 GROONGA_BASE = groonga-$(GROONGA_VERSION)
 GROONGA_TAR_GZ = $(GROONGA_BASE).tar.gz
 
-GROONGA_NORMALIZER_MYSQL_VERSION = 1.1.0
+GROONGA_NORMALIZER_MYSQL_VERSION = 1.1.1
 GROONGA_NORMALIZER_MYSQL_BASE = \
 	groonga-normalizer-mysql-$(GROONGA_NORMALIZER_MYSQL_VERSION)
 GROONGA_NORMALIZER_MYSQL_TAR_GZ = \
 	$(GROONGA_NORMALIZER_MYSQL_BASE).tar.gz
 
-MARIADB_VERSION = 10.0.20
+MARIADB_VERSION = 10.1.28
 MARIADB_BASE = mariadb-$(MARIADB_VERSION)
 MARIADB_TAR_GZ = $(MARIADB_BASE).tar.gz
 
@@ -29,7 +29,7 @@ CURL = curl --fail --silent --show-error
 
 all:
 
-release: archive upload
+release: download archive upload
 
 ensure-rsync-path:
 	@if test -z "$(RSYNC_PATH)"; then				\
@@ -88,6 +88,8 @@ tmp/$(MARIADB_WITH_MROONGA_BASE).stamp: $(MARIADB_WITH_MROONGA_ARCHIVES)
 	mkdir -p $$(dirname $(BUNDLED_GROONGA_PATH))
 	tar xf tmp/$(GROONGA_TAR_GZ)
 	rm -rf $(GROONGA_BASE)/test
+	cd $(GROONGA_BASE)/vendor && ruby download_mecab.rb
+	cd $(GROONGA_BASE)/vendor && ruby download_lz4.rb
 	mv $(GROONGA_BASE) $(BUNDLED_GROONGA_PATH)
 
 	tar xf tmp/$(GROONGA_NORMALIZER_MYSQL_TAR_GZ)
@@ -103,7 +105,7 @@ files/$(MARIADB_WITH_MROONGA_BASE).tar.gz: tmp/$(MARIADB_WITH_MROONGA_BASE).stam
 	mkdir -p files/
 	(cd tmp && tar czf ../$@ $(MARIADB_WITH_MROONGA_BASE))
 
-PATCHES =						\
+PATCHES =								\
 	patches/mariadb-10.0.3-windows-build.diff
 
 tmp/$(MARIADB_WITH_MROONGA_FOR_WINDOWS_BASE).stamp: tmp/$(MARIADB_WITH_MROONGA_BASE).stamp $(PATCHES)

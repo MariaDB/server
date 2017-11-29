@@ -70,41 +70,104 @@ case ${distribution} in
     run yum install -y mariadb-devel
     ;;
   centos)
+    release_rpm=groonga-release-1.3.0-1.noarch.rpm
+    if [ ${distribution_version} = 5 ]; then
+      wget http://packages.groonga.org/${distribution}/${release_rpm}
+      run yum install -y --nogpgcheck ${release_rpm}
+      rm -f ${release_rpm}
+    else
+      run yum install -y \
+          http://packages.groonga.org/${distribution}/${release_rpm}
+    fi
+    run yum makecache
+
     case ${package_name} in
       mysql55-${PACKAGE})
 	USE_MYSQLSERVICES_COMPAT=yes
         run yum install -y scl-utils-build
         if [ ${distribution_version} = 6 ]; then
-	  run yum install -y centos-release-SCL
+	  run yum install -y centos-release-scl
         fi
         run yum install -y mysql55-mysql-devel mysql55-build
 	;;
-      mysql56-community-${PACKAGE})
-        release_rpm=mysql-community-release-el${distribution_version}-5.noarch.rpm
+      mysql5?-community-${PACKAGE})
+        release_rpm=mysql-community-release-el${distribution_version}-7.noarch.rpm
         run yum -y install http://repo.mysql.com/${release_rpm}
-        run yum -y install mysql-community-devel
+        if [ "${package_name}" = "mysql57-community-${PACKAGE}" ]; then
+          run yum install -y yum-utils
+          run yum-config-manager --disable mysql56-community
+          run yum-config-manager --enable mysql57-community
+          if [ ${distribution_version} = 6 ]; then
+            run yum install -y cmake28
+          fi
+        fi
+        run yum install -y mysql-community-devel
         ;;
       mariadb-${PACKAGE})
-        run yum -y install mariadb-devel
-	;;
+        run yum install -y mariadb-devel
+        ;;
+      mariadb-10.1-${PACKAGE})
+        if [ "${architecture}" = "x86_64" ]; then
+          mariadb_architecture="amd64"
+        else
+          mariadb_architecture="x86"
+        fi
+        cat <<REPO > /etc/yum.repos.d/MariaDB.repo
+[mariadb]
+name = MariaDB
+baseurl = http://yum.mariadb.org/10.1/${distribution}${distribution_version}-${mariadb_architecture}
+gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+REPO
+        run yum install -y MariaDB-devel
+        if [ ${distribution_version} = 6 ]; then
+          run yum install -y cmake28
+        fi
+        ;;
+      mariadb-10.2-${PACKAGE})
+        if [ "${architecture}" = "x86_64" ]; then
+          mariadb_architecture="amd64"
+        else
+          mariadb_architecture="x86"
+        fi
+        cat <<REPO > /etc/yum.repos.d/MariaDB.repo
+[mariadb]
+name = MariaDB
+baseurl = http://yum.mariadb.org/10.2/${distribution}${distribution_version}-${mariadb_architecture}
+gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+REPO
+        run yum install -y MariaDB-devel
+        if [ ${distribution_version} = 6 ]; then
+          run yum install -y cmake28
+        fi
+        ;;
       percona-server-56-${PACKAGE})
-        release_rpm_version=0.1-3
+        release_rpm_version=0.1-4
         release_rpm=percona-release-${release_rpm_version}.noarch.rpm
-        run yum -y install http://www.percona.com/downloads/percona-release/redhat/${release_rpm_version}/${release_rpm}
-        run yum -y install Percona-Server-devel-56
+        run yum install -y http://www.percona.com/downloads/percona-release/redhat/${release_rpm_version}/${release_rpm}
+        run yum install -y Percona-Server-devel-56
+        ;;
+      percona-server-57-${PACKAGE})
+        release_rpm_version=0.1-4
+        release_rpm=percona-release-${release_rpm_version}.noarch.rpm
+        run yum install -y http://www.percona.com/downloads/percona-release/redhat/${release_rpm_version}/${release_rpm}
+        run yum install -y Percona-Server-devel-57
+        if [ ${distribution_version} = 6 ]; then
+          run yum install -y cmake28
+        fi
         ;;
     esac
-
-    release_rpm=groonga-release-1.1.0-1.noarch.rpm
-    wget http://packages.groonga.org/${distribution}/${release_rpm}
-    run rpm -U ${release_rpm}
-    rm -f ${release_rpm}
-    run yum makecache
     ;;
 esac
 run yum install -y ${DEPENDED_PACKAGES}
 
 if [ "${package_name}" = "percona-server-56-${PACKAGE}" ]; then
+  if [ "${distribution_version}" = "7" ]; then
+    rpmbuild_options="$rpmbuild_options --define 'dist .el7'"
+  fi
+fi
+if [ "${package_name}" = "percona-server-57-${PACKAGE}" ]; then
   if [ "${distribution_version}" = "7" ]; then
     rpmbuild_options="$rpmbuild_options --define 'dist .el7'"
   fi

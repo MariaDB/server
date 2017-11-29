@@ -1801,8 +1801,8 @@ ER_WRONG_AUTO_KEY 42000 S1009
         spa "Puede ser solamente un campo automatico y este debe ser definido como una clave"
         swe "Det får finnas endast ett AUTO_INCREMENT-fält och detta måste vara en nyckel"
         ukr "Невірне визначення таблиці; Може бути лише один автоматичний стовбець, що повинен бути визначений як ключ"
-ER_UNUSED_9
-        eng "You should never see it"
+ER_BINLOG_CANT_DELETE_GTID_DOMAIN
+	eng "Could not delete gtid domain. Reason: %s."
 ER_NORMAL_SHUTDOWN  
         cze "%s (%s): normální ukončení\n"
         dan "%s (%s): Normal nedlukning\n"
@@ -7330,7 +7330,7 @@ ER_SUBQUERIES_NOT_SUPPORTED 42000
         eng "%s does not support subqueries or stored functions"
 ER_SET_STATEMENT_NOT_SUPPORTED 42000
         eng "The system variable %.200s cannot be set in SET STATEMENT." 
-ER_UNUSED_17
+ER_UNUSED_9
         eng "You should never see it"
 ER_USER_CREATE_EXISTS
         eng "Can't create user '%-.64s'@'%-.64s'; it already exists"

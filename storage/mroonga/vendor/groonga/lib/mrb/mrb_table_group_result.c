@@ -182,15 +182,15 @@ mrb_grn_table_group_result_set_operator(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
-mrb_grn_table_group_result_set_max_n_subrecs(mrb_state *mrb, mrb_value self)
+mrb_grn_table_group_result_set_max_n_sub_records(mrb_state *mrb, mrb_value self)
 {
   grn_table_group_result *result;
-  mrb_int max_n_subrecs;
+  mrb_int max_n_sub_records;
 
   result = DATA_PTR(self);
-  mrb_get_args(mrb, "i", &max_n_subrecs);
+  mrb_get_args(mrb, "i", &max_n_sub_records);
 
-  result->max_n_subrecs = max_n_subrecs;
+  result->max_n_subrecs = max_n_sub_records;
 
   return mrb_nil_value();
 }
@@ -204,7 +204,11 @@ mrb_grn_table_group_result_set_calc_target(mrb_state *mrb, mrb_value self)
   result = DATA_PTR(self);
   mrb_get_args(mrb, "o", &mrb_calc_target);
 
-  result->calc_target = DATA_PTR(mrb_calc_target);
+  if (mrb_nil_p(mrb_calc_target)) {
+    result->calc_target = NULL;
+  } else {
+    result->calc_target = DATA_PTR(mrb_calc_target);
+  }
 
   return mrb_nil_value();
 }
@@ -241,8 +245,8 @@ grn_mrb_table_group_result_init(grn_ctx *ctx)
                     mrb_grn_table_group_result_set_flags, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "operator=",
                     mrb_grn_table_group_result_set_operator, MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, klass, "max_n_subrecs=",
-                    mrb_grn_table_group_result_set_max_n_subrecs,
+  mrb_define_method(mrb, klass, "max_n_sub_records=",
+                    mrb_grn_table_group_result_set_max_n_sub_records,
                     MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "calc_target=",
                     mrb_grn_table_group_result_set_calc_target, MRB_ARGS_REQ(1));
