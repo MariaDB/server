@@ -608,28 +608,29 @@ recv_sys_debug_free(void)
 /** Read a log segment to a buffer.
 @param[out]	buf		buffer
 @param[in]	group		redo log files
-@param[in]	start_lsn	read area start
+@param[in, out]	start_lsn	in : read area start, out: the last read valid lsn
 @param[in]	end_lsn		read area end
-@return	valid end_lsn */
-lsn_t
+@param[out] invalid_block - invalid, (maybe incompletely written) block encountered
+@return	false, if invalid block encountered (e.g checksum mismatch), true otherwise */
+bool
 log_group_read_log_seg(
 	byte*			buf,
 	const log_group_t*	group,
-	lsn_t			start_lsn,
+	lsn_t			*start_lsn,
 	lsn_t			end_lsn)
 {
 	ulint	len;
 	lsn_t	source_offset;
-
+	bool success = true;
 	ut_ad(log_mutex_own());
-	ut_ad(!(start_lsn % OS_FILE_LOG_BLOCK_SIZE));
+	ut_ad(!(*start_lsn % OS_FILE_LOG_BLOCK_SIZE));
 	ut_ad(!(end_lsn % OS_FILE_LOG_BLOCK_SIZE));
 
 loop:
-	source_offset = log_group_calc_lsn_offset(start_lsn, group);
+	source_offset = log_group_calc_lsn_offset(*start_lsn, group);
 
-	ut_a(end_lsn - start_lsn <= ULINT_MAX);
-	len = (ulint) (end_lsn - start_lsn);
+	ut_a(end_lsn - *start_lsn <= ULINT_MAX);
+	len = (ulint) (end_lsn - *start_lsn);
 
 	ut_ad(len != 0);
 
@@ -659,22 +660,29 @@ loop:
 
 	for (ulint l = 0; l < len; l += OS_FILE_LOG_BLOCK_SIZE,
 		     buf += OS_FILE_LOG_BLOCK_SIZE,
-		     start_lsn += OS_FILE_LOG_BLOCK_SIZE) {
+		     (*start_lsn) += OS_FILE_LOG_BLOCK_SIZE) {
 		const ulint block_number = log_block_get_hdr_no(buf);
 
-		if (block_number != log_block_convert_lsn_to_no(start_lsn)) {
+		if (block_number != log_block_convert_lsn_to_no(*start_lsn)) {
 			/* Garbage or an incompletely written log block.
 			We will not report any error, because this can
 			happen when InnoDB was killed while it was
 			writing redo log. We simply treat this as an
 			abrupt end of the redo log. */
-			end_lsn = start_lsn;
+			end_lsn = *start_lsn;
 			break;
 		}
 
 		if (innodb_log_checksums || group->is_encrypted()) {
 			ulint crc = log_block_calc_checksum_crc32(buf);
 			ulint cksum = log_block_get_checksum(buf);
+
+			DBUG_EXECUTE_IF("log_intermittent_checksum_mismatch", {
+					 static int block_counter;
+					 if (block_counter++ == 0) {
+						 cksum = crc + 1;
+					 }
+			 });
 
 			if (crc != cksum) {
 				ib::error() << "Invalid log block checksum."
@@ -683,29 +691,32 @@ loop:
 					    << log_block_get_checkpoint_no(buf)
 					    << " expected: " << crc
 					    << " found: " << cksum;
-				end_lsn = start_lsn;
+				end_lsn = *start_lsn;
+				success = false;
 				break;
 			}
 
 			if (group->is_encrypted()) {
-				log_crypt(buf, start_lsn,
+				log_crypt(buf, *start_lsn,
 					  OS_FILE_LOG_BLOCK_SIZE, true);
 			}
 		}
 	}
 
 	if (recv_sys->report(ut_time())) {
-		ib::info() << "Read redo log up to LSN=" << start_lsn;
+		ib::info() << "Read redo log up to LSN=" << *start_lsn;
 		sd_notifyf(0, "STATUS=Read redo log up to LSN=" LSN_PF,
-			   start_lsn);
+			   *start_lsn);
 	}
 
-	if (start_lsn != end_lsn) {
+	if (*start_lsn != end_lsn) {
 		goto loop;
 	}
 
-	return(start_lsn);
+	return(success);
 }
+
+
 
 /********************************************************//**
 Copies a log segment from the most up-to-date log group to the other log
@@ -721,10 +732,10 @@ recv_synchronize_groups()
 	/* Read the last recovered log block to the recovery system buffer:
 	the block is always incomplete */
 
-	const lsn_t start_lsn = ut_uint64_align_down(recovered_lsn,
+	lsn_t start_lsn = ut_uint64_align_down(recovered_lsn,
 						     OS_FILE_LOG_BLOCK_SIZE);
 	log_group_read_log_seg(log_sys->buf, &log_sys->log,
-			       start_lsn, start_lsn + OS_FILE_LOG_BLOCK_SIZE);
+			       &start_lsn, start_lsn + OS_FILE_LOG_BLOCK_SIZE);
 
 	/* Update the fields in the group struct to correspond to
 	recovered_lsn */
@@ -2903,8 +2914,9 @@ recv_group_scan_log_recs(
 
 		start_lsn = ut_uint64_align_down(end_lsn,
 						 OS_FILE_LOG_BLOCK_SIZE);
-		end_lsn = log_group_read_log_seg(
-			log_sys->buf, group, start_lsn,
+		end_lsn = start_lsn;
+		log_group_read_log_seg(
+			log_sys->buf, group, &end_lsn,
 			start_lsn + RECV_SCAN_SIZE);
 	} while (end_lsn != start_lsn
 		 && !recv_scan_log_recs(
