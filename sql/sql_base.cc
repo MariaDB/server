@@ -8025,6 +8025,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       goto err;
     }
     value=v++;
+    DBUG_ASSERT(value);
     Field *rfield= field->field;
     TABLE* table= rfield->table;
     if (table->next_number_field &&

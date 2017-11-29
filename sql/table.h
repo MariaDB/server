@@ -1487,7 +1487,8 @@ public:
   bool prepare_triggers_for_update_stmt_or_event();
 
   Field **field_to_fill();
-  Field **user_fields();
+  Field **vers_user_field_to_fill();
+  bool vers_update_user_field();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 
   bool insert_all_rows_into_tmp_table(THD *thd, 

@@ -89,7 +89,7 @@ set @str= concat('
   engine ', engine);
 prepare stmt from @str; execute stmt; drop prepare stmt;
 insert into t1(x, y) values(3, 4);
-insert into t1(x, y) values(2, 3);
+insert delayed into t1(x, y) values(2, 3);
 insert into t1 values(40, 33);
 set @str= concat('select x, y, ', fields, ' from t1');
 prepare stmt from @str; execute stmt; drop prepare stmt;
