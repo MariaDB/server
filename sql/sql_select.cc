@@ -4198,6 +4198,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
               keyuse->val->is_null() && keyuse->null_rejecting)
           {
             s->type= JT_CONST;
+            s->table->const_table= 1;
             mark_as_null_row(table);
             found_const_table_map|= table->map;
 	    join->const_table_map|= table->map;
@@ -4303,6 +4304,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	        s->type= JT_CONST;
 	        join->const_table_map|=table->map;
 	        set_position(join,const_count++,s,start_keyuse);
+                /* create_ref_for_key will set s->table->const_table */
 	        if (create_ref_for_key(join, s, start_keyuse, FALSE,
 				       found_const_table_map))
                   goto error;
@@ -4508,12 +4510,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	join->const_table_map|= s->table->map;
 	set_position(join,const_count++,s,(KEYUSE*) 0);
 	s->type= JT_CONST;
+        s->table->const_table= 1;
 	if (*s->on_expr_ref)
 	{
 	  /* Generate empty row */
 	  s->info= ET_IMPOSSIBLE_ON_CONDITION;
 	  found_const_table_map|= s->table->map;
-	  s->type= JT_CONST;
 	  mark_as_null_row(s->table);		// All fields are NULL
 	}
       }
@@ -19533,6 +19535,7 @@ join_read_system(JOIN_TAB *tab)
     {
       if (error != HA_ERR_END_OF_FILE)
 	return report_error(table, error);
+      table->const_table= 1;
       mark_as_null_row(tab->table);
       empty_record(table);			// Make empty record
       return -1;
