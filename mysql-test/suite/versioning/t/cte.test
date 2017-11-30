@@ -1,3 +1,5 @@
+-- source include/have_innodb.inc
+set default_storage_engine=innodb;
 create or replace table dept (
   dept_id int(10) primary key, 
   name varchar(100)
