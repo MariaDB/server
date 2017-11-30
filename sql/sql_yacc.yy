@@ -754,7 +754,6 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 
 %}
 %union {
-  bool BOOL;
   int  num;
   ulong ulong_num;
   ulonglong ulonglong_number;
@@ -1696,7 +1695,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         optional_flush_tables_arguments
         opt_time_precision kill_type kill_option int_num
         opt_default_time_precision
-        case_stmt_body opt_bin_mod
+        case_stmt_body opt_bin_mod opt_for_system_time_clause
         opt_if_exists_table_element opt_if_not_exists_table_element
 	opt_recursive
 
@@ -2000,7 +1999,6 @@ END_OF_INPUT
 %type <lex_str_list> opt_with_column_list
 
 %type <vers_range_unit> opt_trans_or_timestamp
-%type <BOOL> opt_for_system_time_clause
 %type <vers_column_versioning> with_or_without_system
 %%
 
