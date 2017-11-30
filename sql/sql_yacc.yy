@@ -6393,11 +6393,6 @@ field_def:
             }
             DBUG_ASSERT(p);
             *p= field_name;
-            if (lex->last_field->implicit_not_null)
-            {
-              lex->last_field->flags&= ~NOT_NULL_FLAG;
-              lex->last_field->implicit_not_null= false;
-            }
           }
         ;
 
@@ -6636,10 +6631,7 @@ field_type_temporal:
                 Unless --explicit-defaults-for-timestamp is given.
               */
               if (!opt_explicit_defaults_for_timestamp)
-              {
                 Lex->last_field->flags|= NOT_NULL_FLAG;
-                Lex->last_field->implicit_not_null= true;
-              }
               $$.set(opt_mysql56_temporal_format ?
                      static_cast<const Type_handler*>(&type_handler_timestamp2):
                      static_cast<const Type_handler*>(&type_handler_timestamp),
@@ -6830,11 +6822,7 @@ opt_attribute_list:
         ;
 
 attribute:
-          NULL_SYM
-          {
-            Lex->last_field->flags&= ~ NOT_NULL_FLAG;
-            Lex->last_field->implicit_not_null= false;
-          }
+          NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; }
         | DEFAULT column_default_expr { Lex->last_field->default_value= $2; }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
@@ -6874,7 +6862,6 @@ asrow_attribute:
           not NULL_SYM
           {
             Lex->last_field->flags|= NOT_NULL_FLAG;
-            Lex->last_field->implicit_not_null= false;
           }
         | opt_primary KEY_SYM
           {

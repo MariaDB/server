@@ -10704,7 +10704,6 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   pack_flag= 0;
   compression_method_ptr= 0;
   versioning= VERSIONING_NOT_SET;
-  implicit_not_null= false;
 
   if (orig_field)
   {
