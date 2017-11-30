@@ -12509,9 +12509,10 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   // Set vers fields when replicating from not system-versioned table.
   if (m_type == WRITE_ROWS_EVENT_V1 && table->versioned_by_sql())
   {
+    ulong sec_part;
     bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
     // Check whether a row came from unversioned table and fix vers fields.
-    if (table->vers_start_field()->get_timestamp() == 0)
+    if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
     {
       bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
       bitmap_set_bit(table->write_set, table->vers_end_field()->field_index);

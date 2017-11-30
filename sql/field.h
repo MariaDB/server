@@ -1008,8 +1008,12 @@ public:
   }
   bool set_explicit_default(Item *value);
 
-  virtual my_time_t get_timestamp(const uchar *pos= NULL, ulong *sec_part= NULL) const
+  virtual my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const
   { DBUG_ASSERT(0); return 0; }
+  my_time_t get_timestamp(ulong *sec_part) const
+  {
+    return get_timestamp(ptr, sec_part);
+  }
 
   /**
      Evaluates the @c UPDATE default function, if one exists, and stores the
@@ -2509,7 +2513,7 @@ public:
     return res;
   }
   /* Get TIMESTAMP field value as seconds since begging of Unix Epoch */
-  virtual my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
+  my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   my_time_t get_timestamp(ulong *sec_part) const
   {
     return get_timestamp(ptr, sec_part);
@@ -2641,7 +2645,11 @@ public:
   void set_max();
   bool is_max();
   void store_TIME(my_time_t timestamp, ulong sec_part);
-  my_time_t get_timestamp(const uchar *pos= NULL, ulong *sec_part= NULL) const;
+  my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
+  my_time_t get_timestamp(ulong *sec_part) const
+  {
+    return get_timestamp(ptr, sec_part);
+  }
   uint size_of() const { return sizeof(*this); }
 };
 

@@ -130,14 +130,16 @@ public:
   my_time_t min_time()
   {
     mysql_rwlock_rdlock(&lock);
-    my_time_t res= min_value.get_timestamp();
+    ulong sec_part;
+    my_time_t res= min_value.get_timestamp(&sec_part);
     mysql_rwlock_unlock(&lock);
     return res;
   }
   my_time_t max_time()
   {
     mysql_rwlock_rdlock(&lock);
-    my_time_t res= max_value.get_timestamp();
+    ulong sec_part;
+    my_time_t res= max_value.get_timestamp(&sec_part);
     mysql_rwlock_unlock(&lock);
     return res;
   }
