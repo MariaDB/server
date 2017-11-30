@@ -1881,6 +1881,20 @@ DROP FUNCTION f1;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-10397: Server crashes in key_copy with join_cache_level > 2 and join on BIT fields
+--echo #
+
+CREATE TABLE t1 (b1 BIT NOT NULL);
+INSERT INTO t1 VALUES (0),(1);
+
+CREATE TABLE t2 (b2 BIT NOT NULL);
+INSERT INTO t2 VALUES (0),(1);
+
+SET SESSION JOIN_CACHE_LEVEL = 3;
+SELECT t1.b1+'0' , t2.b2 + '0' FROM t1 LEFT JOIN t2 ON b1 = b2;
+DROP TABLE t1, t2;
+
 --echo # end of 5.5 tests
 
 SET optimizer_switch=@save_optimizer_switch;
