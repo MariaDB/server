@@ -1414,6 +1414,7 @@ int ha_commit_trans(THD *thd, bool all)
     goto err;
   }
 
+#if 1 // FIXME: This should be done in ha_prepare().
   if (rw_trans)
   {
     ulonglong trx_start_id= 0, trx_end_id= 0;
@@ -1438,12 +1439,13 @@ int ha_commit_trans(THD *thd, bool all)
       TR_table trt(thd, true);
       if (trt.update(trx_start_id, trx_end_id))
         goto err;
-#if 1 // FIXME: fix this properly, and remove TR_table::was_updated()
-      if (all) // avoid a crash in versioning.rpl_stmt
+      // Here, the call will not commit inside InnoDB. It is only working
+      // around closing thd->transaction.stmt open by TR_table::open().
+      if (all)
         commit_one_phase_2(thd, false, &thd->transaction.stmt, false);
-#endif
     }
   }
+#endif
 
   if (trans->no_2pc || (rw_ha_count <= 1))
   {
