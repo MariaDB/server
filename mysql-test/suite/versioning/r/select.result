@@ -367,6 +367,12 @@ order by i;
 f
 0
 0
+### Issue #365, bug 5 (dangling AND)
+create or replace table t1 (a int);
+create or replace table t2 (b int) with system versioning;
+select * from t1
+where exists (select 1 from t2 where t2.b = t1.a and t2.b = t1.a);
+a
 drop view v1;
 drop table t1, t2;
 call innodb_verify_vtq(28);
