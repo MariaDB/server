@@ -86,6 +86,12 @@ ibool	innobase_get_slow_log();
 in the server */
 UNIV_INTERN ulint	srv_activity_count	= 0;
 
+#include <my_service_manager.h>
+
+#ifdef WITH_WSREP
+extern int wsrep_debug;
+extern int wsrep_trx_is_aborting(void *thd_ptr);
+#endif
 /* The following is the maximum allowed duration of a lock wait. */
 UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
 
@@ -3435,6 +3441,10 @@ srv_do_purge(
 
 		*n_total_purged += n_pages_purged;
 
+		if (n_pages_purged > 0) {
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL, "Innodb %d pages purged", n_pages_purged);
+		}
 	} while (!srv_purge_should_exit(n_pages_purged)
 		 && n_pages_purged > 0
 		 && purge_sys->state == PURGE_STATE_RUN);

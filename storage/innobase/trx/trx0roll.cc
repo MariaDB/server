@@ -25,7 +25,7 @@ Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
 #include "my_config.h"
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 #include "trx0roll.h"
 
@@ -740,11 +740,17 @@ UNIV_INTERN void trx_roll_report_progress()
 				n_rows += t->undo_no;
 			}
 		}
+
+		if (n_rows > 0) {
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL,
+				"To roll back: " ULINTPF " transactions, "
+				"%llu rows", n_trx, n_rows);
+		}
+
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"To roll back: " ULINTPF " transactions, "
 			"%llu rows", n_trx, n_rows);
-		sd_notifyf(0, "STATUS=To roll back: " ULINTPF " transactions, "
-			   "%llu rows", n_trx, n_rows);
 	}
 
 	mutex_exit(&recv_sys->mutex);
