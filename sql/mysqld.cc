@@ -7759,6 +7759,7 @@ struct my_option my_long_options[]=
   MYSQL_SUGGEST_ANALOG_OPTION("max-binlog-dump-events", "--debug-max-binlog-dump-events"),
   MYSQL_SUGGEST_ANALOG_OPTION("sporadic-binlog-dump-fail", "--debug-sporadic-binlog-dump-fail"),
   MYSQL_COMPATIBILITY_OPTION("new"),
+  MYSQL_COMPATIBILITY_OPTION("show_compatibility_56"),
 
   /* The following options were added after 5.6.10 */
   MYSQL_TO_BE_IMPLEMENTED_OPTION("rpl-stop-slave-timeout"),
@@ -9044,12 +9045,12 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
                       opt->name);
     break;
   case OPT_MYSQL_COMPATIBILITY:
-    sql_print_warning("'%s' is MySQL 5.6 compatible option. Not used or needed "
-                      "in MariaDB.", opt->name);
+    sql_print_warning("'%s' is MySQL 5.6 / 5.7 compatible option. Not used or "
+                      "needed in MariaDB.", opt->name);
     break;
   case OPT_MYSQL_TO_BE_IMPLEMENTED:
-    sql_print_warning("'%s' is MySQL 5.6 compatible option. To be implemented "
-                      "in later versions.", opt->name);
+    sql_print_warning("'%s' is MySQL 5.6 / 5.7 compatible option. To be "
+                      "implemented in later versions.", opt->name);
     break;
   case 'a':
     SYSVAR_AUTOSIZE(global_system_variables.sql_mode, MODE_ANSI);
