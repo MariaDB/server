@@ -2167,6 +2167,9 @@ static void mysqld_exit(int exit_code)
             (long) global_status_var.global_memory_used);
   if (!opt_debugging && !my_disable_leak_check && exit_code == 0)
   {
+#ifdef SAFEMALLOC
+    sf_report_leaked_memory(0);
+#endif
     DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
   }
   cleanup_tls();
