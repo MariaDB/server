@@ -1371,13 +1371,13 @@ JOIN::prepare(TABLE_LIST *tables_init,
       for (ORDER *ord= order; ord; ord= ord->next)
       {
         ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
-        ord->item= &ord->item_ptr;
+        *ord->item= ord->item_ptr;
       }
 
       for (ORDER *ord= group_list; ord; ord= ord->next)
       {
         ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
-        ord->item= &ord->item_ptr;
+        *ord->item= ord->item_ptr;
       }
 
       if (having)

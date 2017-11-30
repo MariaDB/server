@@ -358,9 +358,18 @@ x	y
 3	1
 select * from t1 for system_time all, t2 for system_time all system_time all;
 ERROR HY000: Unused clause: 'SYSTEM_TIME'
+### Issue #365, bug 4 (related to #226, optimized fields)
+create or replace table t1 (i int, b int) with system versioning;
+insert into t1 values (0, 0), (0, 0);
+select min(i) over (partition by b) as f
+from (select i + 0 as i, b from t1) as tt
+order by i;
+f
+0
+0
 drop view v1;
 drop table t1, t2;
-call innodb_verify_vtq(27);
+call innodb_verify_vtq(28);
 No	A	B	C	D
 1	1	1	1	1
 2	1	1	1	1
@@ -389,6 +398,7 @@ No	A	B	C	D
 25	1	1	1	1
 26	1	1	1	1
 27	1	1	1	1
+28	1	1	1	1
 drop procedure verify_vtq;
 drop procedure innodb_verify_vtq;
 drop function default_engine;

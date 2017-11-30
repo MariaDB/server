@@ -52,7 +52,6 @@ select * from t group by b having b=2 system_time as of timestamp now(6);
 a	b
 Warnings:
 Warning	4109	Attempt to read unversioned field `b` in historical query
-Warning	4109	Attempt to read unversioned field `b` in historical query
 select a from t where b=2 system_time as of timestamp now(6);
 a
 Warnings:
@@ -71,7 +70,6 @@ select count(*), b from t group by b having b=NULL system_time as of timestamp n
 count(*)	b
 Warnings:
 Warning	4109	Attempt to read unversioned field `b` in historical query
-Warning	4109	Attempt to read unversioned field `b` in historical query
 select a, b from t;
 a	b
 1	2
@@ -84,7 +82,6 @@ Warning	4109	Attempt to read unversioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) group by b having b=2;
 a	b
 Warnings:
-Warning	4109	Attempt to read unversioned field `b` in historical query
 Warning	4109	Attempt to read unversioned field `b` in historical query
 select a from t for system_time as of timestamp now(6) where b=2;
 a
@@ -103,7 +100,6 @@ Warning	4109	Attempt to read unversioned field `b` in historical query
 select count(*), b from t for system_time as of timestamp now(6) group by b having b=NULL;
 count(*)	b
 Warnings:
-Warning	4109	Attempt to read unversioned field `b` in historical query
 Warning	4109	Attempt to read unversioned field `b` in historical query
 create or replace table t (
 a int,
