@@ -55,7 +55,7 @@ MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
 #include <io.h>
 #endif
 
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 /** @file ha_innodb.cc */
 

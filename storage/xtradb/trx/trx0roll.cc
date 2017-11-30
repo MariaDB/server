@@ -25,7 +25,7 @@ Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
 #include "my_config.h"
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 #include "trx0roll.h"
 

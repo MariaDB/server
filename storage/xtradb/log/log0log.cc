@@ -49,7 +49,7 @@ Created 12/9/1995 Heikki Tuuri
 
 #ifndef UNIV_HOTBACKUP
 #if MYSQL_VERSION_ID < 100200
-# include <my_systemd.h> /* sd_notifyf() */
+# include <my_service_manager.h> /* sd_notifyf() */
 #endif
 
 #include "mem0mem.h"

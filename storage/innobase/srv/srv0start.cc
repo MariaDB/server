@@ -3104,6 +3104,7 @@ innodb_shutdown()
 		srv_undo_sources = false;
 	}
 
+
 	/* 1. Flush the buffer pool to disk, write the current lsn to
 	the tablespace header(s), and copy all log data to archive.
 	The step 1 is the real InnoDB shutdown. The remaining steps 2 - ...

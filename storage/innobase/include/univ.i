@@ -65,6 +65,10 @@ component, i.e. we show M.N.P as M.N */
 	IB_TO_STR(INNODB_VERSION_MAJOR) "."		\
 	IB_TO_STR(INNODB_VERSION_MINOR) "/en/"
 
+/** How far ahead should we tell the service manager the timeout
+(time in seconds) */
+#define INNODB_EXTEND_TIMEOUT_INTERVAL 30
+
 #ifdef MYSQL_DYNAMIC_PLUGIN
 /* In the dynamic plugin, redefine some externally visible symbols
 in order not to conflict with the symbols of a builtin InnoDB. */
