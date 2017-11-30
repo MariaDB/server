@@ -3010,7 +3010,9 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
           return NULL;
 
         if (!x) {
+					const char *p;
 					char *s = (ishav) ? havg : body;
+					uint	j, k, n;
 
           // Append the value to the filter
           switch (args[i]->field_type()) {
@@ -3066,16 +3068,38 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                     strcat(s, "'}");
                     break;
                   default:
-                    strcat(s, "'");
-                    strncat(s, res->ptr(), res->length());
-                    strcat(s, "'");
-                  } // endswitch field type
+										j = strlen(s);
+										s[j++] = '\'';
+										p = res->ptr();
+										n = res->length();
+
+										for (k = 0; k < n; k++) {
+											if (p[k] == '\'')
+												s[j++] = '\'';
+
+											s[j++] = p[k];
+										} // endfor k
+
+										s[j++] = '\'';
+										s[j] = 0;
+								} // endswitch field type
 
               } else {
-                strcat(s, "'");
-                strncat(s, res->ptr(), res->length());
-                strcat(s, "'");
-              } // endif tty
+								j = strlen(s);
+								s[j++] = '\'';
+								p = res->ptr();
+								n = res->length();
+
+								for (k = 0; k < n; k++) {
+									if (p[k] == '\'')
+										s[j++] = '\'';
+
+									s[j++] = p[k];
+								} // endfor k
+
+								s[j++] = '\'';
+								s[j] = 0;
+							} // endif tty
 
               break;
             default:

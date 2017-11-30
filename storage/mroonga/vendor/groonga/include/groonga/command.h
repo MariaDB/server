@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2015 Brazil
+  Copyright(C) 2015-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GROONGA_COMMAND_H
-#define GROONGA_COMMAND_H
+
+#pragma once
 
 #include <groonga/plugin.h>
 
@@ -77,5 +77,3 @@ GRN_PLUGIN_EXPORT grn_rc grn_command_run(grn_ctx *ctx,
 #ifdef __cplusplus
 }  /* extern "C" */
 #endif  /* __cplusplus */
-
-#endif  /* GROONGA_COMMAND_H */

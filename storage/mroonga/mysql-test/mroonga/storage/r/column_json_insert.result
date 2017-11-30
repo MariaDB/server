@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS logs;
+CREATE TABLE logs (
+record JSON
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4;
+INSERT INTO logs VALUES ('{"message": "start"}');
+INSERT INTO logs VALUES ('{"message": "restart"}');
+INSERT INTO logs VALUES ('{"message": "shutdown"}');
+SELECT * FROM logs;
+record
+{"message": "start"}
+{"message": "restart"}
+{"message": "shutdown"}
+DROP TABLE logs;

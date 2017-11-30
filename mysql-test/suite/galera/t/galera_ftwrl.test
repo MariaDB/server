@@ -29,12 +29,11 @@ SELECT * FROM t1;
 
 UNLOCK TABLES;
 
-SHOW TABLES;
-SELECT COUNT(*) = 1 FROM t1;
-
 --disable_query_log
 --eval SET GLOBAL wsrep_provider_options = "$wsrep_provider_options_orig";
 --enable_query_log
 
-DROP TABLE t1;
+SHOW TABLES;
+SELECT COUNT(*) = 1 FROM t1;
 
+DROP TABLE t1;

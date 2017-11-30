@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2012 Brazil
+  Copyright(C) 2012-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GROONGA_TOKENIZER_H
-#define GROONGA_TOKENIZER_H
+
+#pragma once
 
 #include <groonga/plugin.h>
 #include <groonga/token.h>
@@ -258,5 +258,3 @@ GRN_PLUGIN_EXPORT grn_rc grn_tokenizer_register(grn_ctx *ctx, const char *plugin
 #ifdef __cplusplus
 }  /* extern "C" */
 #endif  /* __cplusplus */
-
-#endif  /* GROONGA_TOKENIZER_H */

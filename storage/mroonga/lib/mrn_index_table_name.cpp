@@ -1,7 +1,7 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
   Copyright(C) 2011 Kentoku SHIBA
-  Copyright(C) 2011-2012 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -26,7 +26,8 @@
 #define MRN_CLASS_NAME "mrn::IndexTableName"
 
 namespace mrn {
-  const char *IndexTableName::SEPARATOR = "-";
+  const char *IndexTableName::SEPARATOR = "#";
+  const char *IndexTableName::OLD_SEPARATOR = "-";
 
   bool IndexTableName::is_custom_name(const char *table_name,
                                       size_t table_name_length,
@@ -43,9 +44,12 @@ namespace mrn {
       DBUG_RETURN(true);
     }
 
-    if (strncmp(SEPARATOR,
-                index_table_name + table_name_length,
-                strlen(SEPARATOR)) != 0) {
+    if ((strncmp(OLD_SEPARATOR,
+                 index_table_name + table_name_length,
+                 strlen(OLD_SEPARATOR)) != 0) &&
+        (strncmp(SEPARATOR,
+                 index_table_name + table_name_length,
+                 strlen(SEPARATOR)) != 0)) {
       DBUG_RETURN(true);
     }
 
@@ -63,6 +67,12 @@ namespace mrn {
            encoded_mysql_index_name_multibyte + MRN_MAX_KEY_SIZE,
            mysql_index_name_multibyte,
            mysql_index_name_multibyte + strlen(mysql_index_name_));
+    snprintf(old_name_, MRN_MAX_KEY_SIZE,
+             "%s%s%s",
+             table_name_,
+             OLD_SEPARATOR,
+             encoded_mysql_index_name_multibyte);
+    old_length_ = strlen(old_name_);
     snprintf(name_, MRN_MAX_KEY_SIZE,
              "%s%s%s",
              table_name_,
@@ -77,6 +87,14 @@ namespace mrn {
 
   size_t IndexTableName::length() {
     return length_;
+  }
+
+  const char *IndexTableName::old_c_str() {
+    return old_name_;
+  }
+
+  size_t IndexTableName::old_length() {
+    return old_length_;
   }
 
   uint IndexTableName::encode(uchar *encoded_start,

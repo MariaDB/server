@@ -252,9 +252,8 @@ datadir_iter_next_database(datadir_iter_t *it)
 			it->dbpath = static_cast<char*>(
 				malloc(it->dbpath_len));
 		}
-		ut_snprintf(it->dbpath, it->dbpath_len,
-			    "%s/%s", it->datadir_path,
-			    it->dbinfo.name);
+		snprintf(it->dbpath, it->dbpath_len, "%s/%s",
+			 it->datadir_path, it->dbinfo.name);
 		os_normalize_path(it->dbpath);
 
 		if (it->dbinfo.type == OS_FILE_TYPE_FILE) {
@@ -1034,8 +1033,8 @@ move_file(ds_ctxt_t *datasink,
 	char dst_dir_abs[FN_REFLEN];
 	size_t dirname_length;
 
-	ut_snprintf(dst_file_path_abs, sizeof(dst_file_path_abs),
-			"%s/%s", dst_dir, dst_file_path);
+	snprintf(dst_file_path_abs, sizeof(dst_file_path_abs),
+		 "%s/%s", dst_dir, dst_file_path);
 
 	dirname_part(dst_dir_abs, dst_file_path_abs, &dirname_length);
 
@@ -1252,8 +1251,8 @@ backup_files(const char *from, bool prep_mode)
 		} else if (!prep_mode) {
 			/* backup fake file into empty directory */
 			char path[FN_REFLEN];
-			ut_snprintf(path, sizeof(path),
-					"%s/db.opt", node.filepath);
+			snprintf(path, sizeof(path),
+				 "%s/db.opt", node.filepath);
 			if (!(ret = backup_file_printf(
 					trim_dotslash(path), "%s", ""))) {
 				msg("Failed to create file %s\n", path);

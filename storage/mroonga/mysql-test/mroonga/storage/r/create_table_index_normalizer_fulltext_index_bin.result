@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES utf8;
+CREATE TABLE diaries (
+day DATE PRIMARY KEY,
+content VARCHAR(64) NOT NULL,
+FULLTEXT INDEX (content) COMMENT 'normalizer "NormalizerAuto"'
+) DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+INSERT INTO diaries VALUES ("2013-04-23", "ブラックコーヒーを飲んだ。");
+SELECT * FROM diaries
+WHERE MATCH (content) AGAINST ("+ふらつく" IN BOOLEAN MODE);
+day	content
+SELECT * FROM diaries
+WHERE MATCH (content) AGAINST ("+ﾌﾞﾗｯｸ" IN BOOLEAN MODE);
+day	content
+2013-04-23	ブラックコーヒーを飲んだ。
+DROP TABLE diaries;

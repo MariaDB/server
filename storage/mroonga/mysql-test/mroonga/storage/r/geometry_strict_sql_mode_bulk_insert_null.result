@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS shops;
+CREATE TABLE shops (
+location GEOMETRY NOT NULL
+);
+INSERT INTO shops VALUES (NULL), (NULL);
+ERROR 23000: Column 'location' cannot be null
+SELECT ST_AsText(location) FROM shops;
+ST_AsText(location)
+DROP TABLE shops;

@@ -1,0 +1,3 @@
+SELECT mroonga_normalize('aBcＡｂＣ㍑');
+mroonga_normalize('aBcＡｂＣ㍑')
+abcabcリットル

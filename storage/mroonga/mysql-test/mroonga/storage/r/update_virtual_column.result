@@ -1,28 +1,29 @@
-drop table if exists t1, t2, t3;
-create table t1 (c1 int, _id int);
-insert into t1 values(1,null);
-insert into t1 values(2,null);
-insert into t1 values(3,null);
-select * from t1;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (c1 int, _id int);
+INSERT INTO t1 VALUES(1,null);
+INSERT INTO t1 VALUES(2,null);
+INSERT INTO t1 VALUES(3,null);
+SELECT * FROM t1;
 c1	_id
 1	1
 2	2
 3	3
-set sql_mode="";
-update t1 set _id = 10 where c1 = 1;
+SET sql_mode="";
+UPDATE t1 SET _id = 10 WHERE c1 = 1;
 Warnings:
 Warning	1265	Data truncated for column '_id' at row 1
-select * from t1;
+SELECT * FROM t1;
 c1	_id
 1	1
 2	2
 3	3
-set sql_mode="strict_all_tables";
-update t1 set _id = 11 where c1 = 1;
+SET sql_mode="STRICT_ALL_TABLES";
+UPDATE t1 SET _id = 11 WHERE c1 = 1;
 ERROR 01000: Data truncated for column '_id' at row 1
-select * from t1;
+SELECT * FROM t1;
 c1	_id
 1	1
 2	2
 3	3
-drop table t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;

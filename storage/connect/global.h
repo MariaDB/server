@@ -217,7 +217,8 @@ DllExport int     PlugExit(PGLOBAL);       // Plug global termination
 DllExport LPSTR   PlugRemoveType(LPSTR, LPCSTR);
 DllExport LPCSTR  PlugSetPath(LPSTR to, LPCSTR prefix, LPCSTR name, LPCSTR dir);
 DllExport BOOL    PlugIsAbsolutePath(LPCSTR path);
-DllExport void   *PlugAllocMem(PGLOBAL, uint);
+DllExport bool    AllocSarea(PGLOBAL, uint);
+DllExport void    FreeSarea(PGLOBAL);
 DllExport BOOL    PlugSubSet(PGLOBAL, void *, uint);
 DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
 DllExport char   *PlugDup(PGLOBAL g, const char *str);

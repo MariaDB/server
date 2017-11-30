@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2009-2014 Brazil
+  Copyright(C) 2009-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -24,8 +24,10 @@ static void
 grn_token_cursor_open_initialize_token_filters(grn_ctx *ctx,
                                                grn_token_cursor *token_cursor)
 {
-  grn_obj *token_filters = token_cursor->token_filters;
+  grn_obj *token_filters = token_cursor->token_filter.objects;
   unsigned int i, n_token_filters;
+
+  token_cursor->token_filter.data = NULL;
 
   if (token_filters) {
     n_token_filters = GRN_BULK_VSIZE(token_filters) / sizeof(grn_obj *);
@@ -33,11 +35,20 @@ grn_token_cursor_open_initialize_token_filters(grn_ctx *ctx,
     n_token_filters = 0;
   }
 
+  if (n_token_filters == 0) {
+    return;
+  }
+
+  token_cursor->token_filter.data = GRN_CALLOC(sizeof(void *) * n_token_filters);
+  if (!token_cursor->token_filter.data) {
+    return;
+  }
+
   for (i = 0; i < n_token_filters; i++) {
     grn_obj *token_filter_object = GRN_PTR_VALUE_AT(token_filters, i);
     grn_proc *token_filter = (grn_proc *)token_filter_object;
 
-    token_filter->user_data =
+    token_cursor->token_filter.data[i] =
       token_filter->callbacks.token_filter.init(ctx,
                                                 token_cursor->table,
                                                 token_cursor->mode);
@@ -54,7 +65,7 @@ grn_token_cursor_open(grn_ctx *ctx, grn_obj *table,
   grn_obj *tokenizer;
   grn_obj *normalizer;
   grn_obj *token_filters;
-  grn_obj_flags table_flags;
+  grn_table_flags table_flags;
   if (grn_table_get_info(ctx, table, &table_flags, &encoding, &tokenizer,
                          &normalizer, &token_filters)) {
     return NULL;
@@ -64,7 +75,8 @@ grn_token_cursor_open(grn_ctx *ctx, grn_obj *table,
   token_cursor->mode = mode;
   token_cursor->encoding = encoding;
   token_cursor->tokenizer = tokenizer;
-  token_cursor->token_filters = token_filters;
+  token_cursor->token_filter.objects = token_filters;
+  token_cursor->token_filter.data = NULL;
   token_cursor->orig = (const unsigned char *)str;
   token_cursor->orig_blen = str_len;
   token_cursor->curr = NULL;
@@ -111,7 +123,9 @@ grn_token_cursor_open(grn_ctx *ctx, grn_obj *table,
     }
   }
 
-  grn_token_cursor_open_initialize_token_filters(ctx, token_cursor);
+  if (ctx->rc == GRN_SUCCESS) {
+    grn_token_cursor_open_initialize_token_filters(ctx, token_cursor);
+  }
 
   if (ctx->rc) {
     grn_token_cursor_close(ctx, token_cursor);
@@ -126,7 +140,7 @@ grn_token_cursor_next_apply_token_filters(grn_ctx *ctx,
                                           grn_obj *current_token_data,
                                           grn_obj *status)
 {
-  grn_obj *token_filters = token_cursor->token_filters;
+  grn_obj *token_filters = token_cursor->token_filter.objects;
   unsigned int i, n_token_filters;
   grn_token current_token;
   grn_token next_token;
@@ -151,6 +165,7 @@ grn_token_cursor_next_apply_token_filters(grn_ctx *ctx,
   for (i = 0; i < n_token_filters; i++) {
     grn_obj *token_filter_object = GRN_PTR_VALUE_AT(token_filters, i);
     grn_proc *token_filter = (grn_proc *)token_filter_object;
+    void *data = token_cursor->token_filter.data[i];
 
 #define SKIP_FLAGS\
     (GRN_TOKEN_SKIP |\
@@ -163,7 +178,7 @@ grn_token_cursor_next_apply_token_filters(grn_ctx *ctx,
     token_filter->callbacks.token_filter.filter(ctx,
                                                 &current_token,
                                                 &next_token,
-                                                token_filter->user_data);
+                                                data);
     GRN_TEXT_SET(ctx, &(current_token.data),
                  GRN_TEXT_VALUE(&(next_token.data)),
                  GRN_TEXT_LEN(&(next_token.data)));
@@ -290,7 +305,7 @@ grn_token_cursor_next(grn_ctx *ctx, grn_token_cursor *token_cursor)
         }
         break;
       }
-    } else {
+    } else if (token_cursor->mode != GRN_TOKENIZE_ONLY) {
       switch (table->header.type) {
       case GRN_TABLE_PAT_KEY :
         tid = grn_pat_get(ctx, (grn_pat *)table, token_cursor->curr, token_cursor->curr_size, NULL);
@@ -310,7 +325,8 @@ grn_token_cursor_next(grn_ctx *ctx, grn_token_cursor *token_cursor)
         break;
       }
     }
-    if (tid == GRN_ID_NIL && token_cursor->status != GRN_TOKEN_CURSOR_DONE) {
+    if (token_cursor->mode != GRN_TOKENIZE_ONLY &&
+        tid == GRN_ID_NIL && token_cursor->status != GRN_TOKEN_CURSOR_DONE) {
       token_cursor->status = GRN_TOKEN_CURSOR_NOT_FOUND;
     }
     token_cursor->pos++;
@@ -323,20 +339,31 @@ static void
 grn_token_cursor_close_token_filters(grn_ctx *ctx,
                                      grn_token_cursor *token_cursor)
 {
-  grn_obj *token_filters = token_cursor->token_filters;
+  grn_obj *token_filters = token_cursor->token_filter.objects;
   unsigned int i, n_token_filters;
+
+  if (!token_cursor->token_filter.data) {
+    return;
+  }
 
   if (token_filters) {
     n_token_filters = GRN_BULK_VSIZE(token_filters) / sizeof(grn_obj *);
   } else {
     n_token_filters = 0;
   }
+
+  if (n_token_filters == 0) {
+    return;
+  }
+
   for (i = 0; i < n_token_filters; i++) {
     grn_obj *token_filter_object = GRN_PTR_VALUE_AT(token_filters, i);
     grn_proc *token_filter = (grn_proc *)token_filter_object;
+    void *data = token_cursor->token_filter.data[i];
 
-    token_filter->callbacks.token_filter.fin(ctx, token_filter->user_data);
+    token_filter->callbacks.token_filter.fin(ctx, data);
   }
+  GRN_FREE(token_cursor->token_filter.data);
 }
 
 grn_rc

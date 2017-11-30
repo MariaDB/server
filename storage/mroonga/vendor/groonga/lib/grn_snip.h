@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2014 Brazil
+/*
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,17 +15,11 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_SNIP_H
-#define GRN_SNIP_H
 
-#ifndef GRN_H
+#pragma once
+
 #include "grn.h"
-#endif /* GRN_H */
-
-#ifndef GRN_STR_H
 #include "grn_str.h"
-#endif /* GRN_STR_H */
-
 #include "grn_db.h"
 
 #define ASIZE                   256U
@@ -128,5 +123,3 @@ void grn_bm_tunedbm(grn_ctx *ctx, snip_cond *cond, grn_obj *string, int flags);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_SNIP_H */

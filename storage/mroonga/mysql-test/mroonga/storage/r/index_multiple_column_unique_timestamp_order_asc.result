@@ -1,8 +1,8 @@
 DROP TABLE IF EXISTS ranges;
 CREATE TABLE ranges (
 id int PRIMARY KEY,
-start timestamp,
-end timestamp,
+start timestamp DEFAULT '2016-04-21 00:00:00',
+end timestamp DEFAULT '2016-04-22 00:00:00',
 UNIQUE KEY range_key(start, end)
 );
 INSERT INTO ranges VALUES (1, "2012-10-25 16:18:29", "2038-01-18 15:14:07");

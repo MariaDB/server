@@ -1,12 +1,21 @@
 RUBY_SCRIPT_FILES =				\
+	accessor.rb				\
 	backtrace_entry.rb			\
 	command.rb				\
+	command_input.rb			\
+	command_line_parser.rb			\
 	context.rb				\
 	database.rb				\
 	error.rb				\
 	eval_context.rb				\
 	expression.rb				\
+	expression_rewriter.rb			\
+	expression_rewriters.rb			\
 	expression_size_estimator.rb		\
+	expression_tree.rb			\
+	expression_tree_builder.rb		\
+	fixed_size_column.rb			\
+	id.rb					\
 	index_column.rb				\
 	index_cursor.rb				\
 	index_info.rb				\
@@ -14,11 +23,15 @@ RUBY_SCRIPT_FILES =				\
 	object.rb				\
 	operator.rb				\
 	plugin_loader.rb			\
+	query_logger.rb				\
+	record.rb				\
 	require.rb				\
 	scan_info.rb				\
 	scan_info_builder.rb			\
 	scan_info_data.rb			\
+	scan_info_data_size_estimator.rb	\
 	scan_info_search_index.rb		\
 	table.rb				\
 	table_cursor.rb				\
+	variable_size_column.rb			\
 	writer.rb

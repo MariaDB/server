@@ -5,5 +5,5 @@ FULLTEXT INDEX (content) COMMENT 'index_flags "NONE"'
 ) COMMENT='engine "InnoDB"' DEFAULT CHARSET=utf8;
 SELECT mroonga_command("dump --dump_plugins no --dump_schema no");
 mroonga_command("dump --dump_plugins no --dump_schema no")
-column_create memos-content index COLUMN_INDEX memos
+column_create memos#content index COLUMN_INDEX memos
 DROP TABLE memos;

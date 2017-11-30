@@ -1183,7 +1183,7 @@ row_raw_format_int(
 		value = mach_read_int_type(
 			(const byte*) data, data_len, unsigned_type);
 
-		ret = ut_snprintf(
+		ret = snprintf(
 			buf, buf_size,
 			unsigned_type ? "%llu" : "%lld", (longlong) value)+1;
 	} else {
@@ -1282,7 +1282,7 @@ row_raw_format(
 
 	if (data_len == UNIV_SQL_NULL) {
 
-		ret = ut_snprintf((char*) buf, buf_size, "NULL") + 1;
+		ret = snprintf((char*) buf, buf_size, "NULL") + 1;
 
 		return(ut_min(ret, buf_size));
 	}

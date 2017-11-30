@@ -1089,6 +1089,7 @@ class Item_char_typecast :public Item_str_func
   CHARSET_INFO *cast_cs, *from_cs;
   bool charset_conversion;
   String tmp_value;
+  bool m_suppress_warning_to_error_escalation;
   bool has_explicit_length() const { return cast_length != ~0U; }
   String *reuse(String *src, uint32 length);
   String *copy(String *src, CHARSET_INFO *cs);
@@ -1097,14 +1098,20 @@ class Item_char_typecast :public Item_str_func
   void fix_length_and_dec_internal(CHARSET_INFO *fromcs);
 public:
   Item_char_typecast(THD *thd, Item *a, uint length_arg, CHARSET_INFO *cs_arg):
-    Item_str_func(thd, a), cast_length(length_arg), cast_cs(cs_arg) {}
+    Item_str_func(thd, a), cast_length(length_arg), cast_cs(cs_arg),
+    m_suppress_warning_to_error_escalation(false) {}
   enum Functype functype() const { return CHAR_TYPECAST_FUNC; }
   bool eq(const Item *item, bool binary_cmp) const;
   const char *func_name() const { return "cast_as_char"; }
   CHARSET_INFO *cast_charset() const { return cast_cs; }
   String *val_str(String *a);
+  void fix_length_and_dec_generic();
   void fix_length_and_dec_numeric();
-  void fix_length_and_dec_str();
+  void fix_length_and_dec_str()
+  {
+    fix_length_and_dec_generic();
+    m_suppress_warning_to_error_escalation= true;
+  }
   void fix_length_and_dec()
   {
     args[0]->type_handler()->Item_char_typecast_fix_length_and_dec(this);

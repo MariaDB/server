@@ -542,27 +542,21 @@ buf_flush_or_remove_page(
 	return(processed);
 }
 
-/******************************************************************//**
-Remove all dirty pages belonging to a given tablespace inside a specific
+/** Remove all dirty pages belonging to a given tablespace inside a specific
 buffer pool instance when we are deleting the data file(s) of that
 tablespace. The pages still remain a part of LRU and are evicted from
 the list as they age towards the tail of the LRU.
-@retval DB_SUCCESS if all freed
-@retval DB_FAIL if not all freed
-@retval DB_INTERRUPTED if the transaction was interrupted */
+@param[in,out]	buf_pool	buffer pool
+@param[in]	id		tablespace identifier
+@param[in]	observer	flush observer (to check for interrupt),
+				or NULL if the files should not be written to
+@return	whether all dirty pages were freed */
 static	MY_ATTRIBUTE((warn_unused_result))
-dberr_t
+bool
 buf_flush_or_remove_pages(
-/*======================*/
-	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
-	ulint		id,		/*!< in: target space id for which
-					to remove or flush pages */
-	FlushObserver*	observer,	/*!< in: flush observer */
-	bool		flush,		/*!< in: flush to disk if true but
-					don't remove else remove without
-					flushing to disk */
-	const trx_t*	trx)		/*!< to check if the operation must
-					be interrupted, can be 0 */
+	buf_pool_t*	buf_pool,
+	ulint		id,
+	FlushObserver*	observer)
 {
 	buf_page_t*	prev;
 	buf_page_t*	bpage;
@@ -584,15 +578,27 @@ rescan:
 
 		prev = UT_LIST_GET_PREV(list, bpage);
 
-		/* If flush observer is NULL, flush page for space id,
-		or flush page for flush observer. */
-		if (observer ? (observer != bpage->flush_observer)
-		    : (id != bpage->id.space())) {
-
-			/* Skip this block, as it does not belong to
-			the target space. */
-
-		} else if (!buf_flush_or_remove_page(buf_pool, bpage, flush)) {
+		/* Flush the pages matching space id,
+		or pages matching the flush observer. */
+		if (observer && observer->is_partial_flush()) {
+			if (observer != bpage->flush_observer) {
+				/* Skip this block. */
+			} else if (!buf_flush_or_remove_page(
+					   buf_pool, bpage,
+					   !observer->is_interrupted())) {
+				all_freed = false;
+			} else if (!observer->is_interrupted()) {
+				/* The processing was successful. And during the
+				processing we have released the buf_pool mutex
+				when calling buf_page_flush(). We cannot trust
+				prev pointer. */
+				goto rescan;
+			}
+		} else if (id != bpage->id.space()) {
+			/* Skip this block, because it is for a
+			different tablespace. */
+		} else if (!buf_flush_or_remove_page(
+				   buf_pool, bpage, observer != NULL)) {
 
 			/* Remove was unsuccessful, we have to try again
 			by scanning the entire list from the end.
@@ -615,7 +621,7 @@ rescan:
 			iteration. */
 
 			all_freed = false;
-		} else if (flush) {
+		} else if (observer) {
 
 			/* The processing was successful. And during the
 			processing we have released the buf_pool mutex
@@ -636,25 +642,14 @@ rescan:
 
 		/* The check for trx is interrupted is expensive, we want
 		to check every N iterations. */
-		if (!processed && trx && trx_is_interrupted(trx)) {
-			if (trx->flush_observer != NULL) {
-				if (flush) {
-					trx->flush_observer->interrupted();
-				} else {
-					/* We should remove all pages with the
-					the flush observer. */
-					continue;
-				}
-			}
-
-			buf_flush_list_mutex_exit(buf_pool);
-			return(DB_INTERRUPTED);
+		if (!processed && observer) {
+			observer->check_interrupted();
 		}
 	}
 
 	buf_flush_list_mutex_exit(buf_pool);
 
-	return(all_freed ? DB_SUCCESS : DB_FAIL);
+	return(all_freed);
 }
 
 /** Remove or flush all the dirty pages that belong to a given tablespace
@@ -665,73 +660,58 @@ the tail of the LRU list.
 @param[in]	id		tablespace identifier
 @param[in]	observer	flush observer,
 				or NULL if the files should not be written to
-@param[in]	trx		transaction (to check for interrupt),
-				or NULL if the files should not be written to
 */
 static
 void
 buf_flush_dirty_pages(
 	buf_pool_t*	buf_pool,
 	ulint		id,
-	FlushObserver*	observer,
-	const trx_t*	trx)
+	FlushObserver*	observer)
 {
-	dberr_t		err;
-	bool		flush = trx != NULL;
-
-	do {
+	for (;;) {
 		buf_pool_mutex_enter(buf_pool);
 
-		err = buf_flush_or_remove_pages(
-			buf_pool, id, observer, flush, trx);
+		bool freed = buf_flush_or_remove_pages(buf_pool, id, observer);
 
 		buf_pool_mutex_exit(buf_pool);
 
 		ut_ad(buf_flush_validate(buf_pool));
 
-		if (err == DB_FAIL) {
-			os_thread_sleep(2000);
+		if (freed) {
+			break;
 		}
 
-		if (err == DB_INTERRUPTED && observer != NULL) {
-			ut_a(flush);
-
-			flush = false;
-			err = DB_FAIL;
-		}
-
-		/* DB_FAIL is a soft error, it means that the task wasn't
-		completed, needs to be retried. */
-
+		os_thread_sleep(2000);
 		ut_ad(buf_flush_validate(buf_pool));
+	}
 
-	} while (err == DB_FAIL);
-
-	ut_ad(err == DB_INTERRUPTED
+	ut_ad((observer && observer->is_interrupted())
 	      || buf_pool_get_dirty_pages_count(buf_pool, id, observer) == 0);
 }
 
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
-@param[in]	trx		transaction, for checking for user interrupt;
+@param[in]	observer	flush observer,
 				or NULL if nothing is to be written
 @param[in]	drop_ahi	whether to drop the adaptive hash index */
 void
-buf_LRU_flush_or_remove_pages(ulint id, const trx_t* trx, bool drop_ahi)
+buf_LRU_flush_or_remove_pages(
+	ulint		id,
+	FlushObserver*	observer,
+	bool		drop_ahi)
 {
-	FlushObserver*	observer = (trx == NULL) ? NULL : trx->flush_observer;
 	/* Pages in the system tablespace must never be discarded. */
-	ut_ad(id || trx);
+	ut_ad(id || observer);
 
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 		buf_pool_t* buf_pool = buf_pool_from_array(i);
 		if (drop_ahi) {
 			buf_LRU_drop_page_hash_for_tablespace(buf_pool, id);
 		}
-		buf_flush_dirty_pages(buf_pool, id, observer, trx);
+		buf_flush_dirty_pages(buf_pool, id, observer);
 	}
 
-	if (trx && !observer && !trx_is_interrupted(trx)) {
+	if (observer && !observer->is_interrupted()) {
 		/* Ensure that all asynchronous IO is completed. */
 		os_aio_wait_until_no_pending_writes();
 		fil_flush(id);

@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2; coding: utf-8 -*- */
 /*
-  Copyright (C) 2011  Kouhei Sutou <kou@clear-code.com>
+  Copyright (C) 2011-2016  Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -56,6 +56,7 @@
     2nd: select_in_rectangle     (all): (4.61558)
 */
 
+#include <stdlib.h>
 #include <string.h>
 
 #include <grn_db.h>
@@ -212,11 +213,17 @@ teardown_database(BenchmarkData *data)
 int
 main(int argc, gchar **argv)
 {
+  grn_rc rc;
   BenchmarkData data;
   BenchReporter *reporter;
   gint n = 100;
 
-  grn_init();
+  rc = grn_init();
+  if (rc != GRN_SUCCESS) {
+    g_print("failed to initialize Groonga: <%d>: %s\n",
+            rc, grn_get_global_error_message());
+    return EXIT_FAILURE;
+  }
   bench_init(&argc, &argv);
 
   data.report_result = g_getenv("GROONGA_BENCH_REPORT_RESULT") != NULL;
@@ -265,5 +272,5 @@ main(int argc, gchar **argv)
   bench_quit();
   grn_fin();
 
-  return 0;
+  return EXIT_SUCCESS;
 }

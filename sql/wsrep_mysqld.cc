@@ -2022,7 +2022,7 @@ static bool abort_replicated(THD *thd)
   bool ret_code= false;
   if (thd->wsrep_query_state== QUERY_COMMITTING)
   {
-    WSREP_DEBUG("aborting replicated trx: %lu", (ulong) thd->real_id);
+    WSREP_DEBUG("aborting replicated trx: %llu", (ulonglong)(thd->real_id));
 
     (void)wsrep_abort_thd(thd, thd, TRUE);
     ret_code= true;

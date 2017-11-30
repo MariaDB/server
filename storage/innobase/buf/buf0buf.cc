@@ -138,10 +138,13 @@ inline void* aligned_malloc(size_t size, size_t align) {
     void *result;
 #ifdef _MSC_VER
     result = _aligned_malloc(size, align);
-#else
+#elif defined (HAVE_POSIX_MEMALIGN)
     if(posix_memalign(&result, align, size)) {
 	    result = 0;
     }
+#else
+    /* Use unaligned malloc as fallback */
+    result = malloc(size);
 #endif
     return result;
 }
@@ -2205,7 +2208,7 @@ buf_resize_status(
 
 	va_start(ap, fmt);
 
-	ut_vsnprintf(
+	vsnprintf(
 		export_vars.innodb_buffer_pool_resize_status,
 		sizeof(export_vars.innodb_buffer_pool_resize_status),
 		fmt, ap);
@@ -4291,10 +4294,8 @@ loop:
 		case BUF_GET_IF_IN_POOL_OR_WATCH:
 		case BUF_PEEK_IF_IN_POOL:
 		case BUF_EVICT_IF_IN_POOL:
-#ifdef UNIV_SYNC_DEBUG
 			ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
 			ut_ad(!rw_lock_own(hash_lock, RW_LOCK_S));
-#endif /* UNIV_SYNC_DEBUG */
 			return(NULL);
 		}
 

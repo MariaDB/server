@@ -6,6 +6,7 @@ EXTRA_DIST =					\
 CONFIGURE_DEPENDENCIES =			\
 	configure
 
+if WITH_BUNDLED_ONIGMO
 ALL_DEPEND_TARGETS = onigmo-all
 CLEAN_DEPEND_TARGETS = onigmo-clean
 
@@ -28,3 +29,4 @@ onigmo-clean:
 	cd ../onigmo-source && $(MAKE) clean
 
 clean: $(CLEAN_DEPEND_TARGETS)
+endif

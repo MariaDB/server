@@ -827,6 +827,7 @@ void lex_end_stage2(LEX *lex)
 
   /* Reset LEX_MASTER_INFO */
   lex->mi.reset(lex->sql_command == SQLCOM_CHANGE_MASTER);
+  delete_dynamic(&lex->delete_gtid_domain);
 
   DBUG_VOID_RETURN;
 }
@@ -3032,6 +3033,10 @@ LEX::LEX()
                       INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
+  init_dynamic_array2(&delete_gtid_domain, sizeof(ulong*),
+                      gtid_domain_static_buffer,
+                      initial_gtid_domain_buffer_size,
+                      initial_gtid_domain_buffer_size, 0);
 }
 
 
@@ -5594,6 +5599,35 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
 }
 
 
+bool LEX::sp_for_loop_implicit_cursor_statement(THD *thd,
+                                                Lex_for_loop_bounds_st *bounds,
+                                                sp_lex_cursor *cur)
+{
+  Item *item;
+  DBUG_ASSERT(sphead);
+  LEX_CSTRING name= {STRING_WITH_LEN("[implicit_cursor]") };
+  if (sp_declare_cursor(thd, &name, cur, NULL, true))
+    return true;
+  DBUG_ASSERT(thd->lex == this);
+  if (!(bounds->m_index= new (thd->mem_root) sp_assignment_lex(thd, this)))
+    return true;
+  bounds->m_index->sp_lex_in_use= true;
+  sphead->reset_lex(thd, bounds->m_index);
+  DBUG_ASSERT(thd->lex != this);
+  if (!(item= new (thd->mem_root) Item_field(thd,
+                                             thd->lex->current_context(),
+                                             NullS, NullS, &name)))
+    return true;
+  bounds->m_index->set_item_and_free_list(item, NULL);
+  if (thd->lex->sphead->restore_lex(thd))
+    return true;
+  DBUG_ASSERT(thd->lex == this);
+  bounds->m_direction= 1;
+  bounds->m_upper_bound= NULL;
+  bounds->m_implicit_cursor= true;
+  return false;
+}
+
 sp_variable *
 LEX::sp_add_for_loop_cursor_variable(THD *thd,
                                      const LEX_CSTRING *name,
@@ -5805,7 +5839,7 @@ bool LEX::sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &loop)
 {
   sp_instr_cfetch *instr=
     new (thd->mem_root) sp_instr_cfetch(sphead->instructions(),
-                                        spcont, loop.m_cursor_offset);
+                                        spcont, loop.m_cursor_offset, false);
   if (instr == NULL || sphead->add_instr(instr))
     return true;
   instr->add_to_varlist(loop.m_index);
@@ -6452,6 +6486,11 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
                                  const char *start, const char *end)
 {
+  if (!thd->m_parser_state->m_lip.stmt_prepare_mode)
+  {
+    thd->parse_error(ER_SYNTAX_ERROR, start);
+    return NULL;
+  }
   if (!parsing_options.allows_variable)
   {
     my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
@@ -7278,7 +7317,8 @@ bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
     return true;
   }
   i= new (thd->mem_root)
-    sp_instr_cfetch(sphead->instructions(), spcont, offset);
+    sp_instr_cfetch(sphead->instructions(), spcont, offset,
+                    !(thd->variables.sql_mode & MODE_ORACLE));
   if (i == NULL || sphead->add_instr(i))
     return true;
   return false;

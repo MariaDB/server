@@ -293,13 +293,13 @@ public:
 			log_file_name_len = strlen(m_log_file_name);
 		}
 
-		ut_snprintf(m_log_file_name + log_file_name_len,
-			    log_file_name_buf_sz - log_file_name_len,
-			    "%s%lu_%lu_%s",
-			    TruncateLogger::s_log_prefix,
-			    (ulong) m_table->space,
-			    (ulong) m_table->id,
-			    TruncateLogger::s_log_ext);
+		snprintf(m_log_file_name + log_file_name_len,
+			 log_file_name_buf_sz - log_file_name_len,
+			 "%s%lu_%lu_%s",
+			 TruncateLogger::s_log_prefix,
+			 (ulong) m_table->space,
+			 (ulong) m_table->id,
+			 TruncateLogger::s_log_ext);
 
 		return(DB_SUCCESS);
 

@@ -52,12 +52,14 @@ These are low-level functions
 
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
-@param[in]	trx		transaction, for checking for user interrupt;
+@param[in,out]	observer	flush observer,
 				or NULL if nothing is to be written
 @param[in]	drop_ahi	whether to drop the adaptive hash index */
-UNIV_INTERN
 void
-buf_LRU_flush_or_remove_pages(ulint id, const trx_t* trx, bool drop_ahi=false);
+buf_LRU_flush_or_remove_pages(
+	ulint		id,
+	FlushObserver*	observer,
+	bool		drop_ahi = false);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /********************************************************************//**

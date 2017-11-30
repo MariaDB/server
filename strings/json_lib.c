@@ -501,7 +501,7 @@ static int skip_num_constant(json_engine_t *j)
   for (;;)
   {
     j->num_flags|= json_num_state_flags[state];
-    if ((c_len= json_next_char(&j->s)) > 0)
+    if ((c_len= json_next_char(&j->s)) > 0 && j->s.c_next < 128)
     {
       if ((state= json_num_states[state][json_num_chr_map[j->s.c_next]]) > 0)
       {

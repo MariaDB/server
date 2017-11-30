@@ -64,7 +64,6 @@ Item_subselect::Item_subselect(THD *thd_arg):
 #ifndef DBUG_OFF
   exec_counter= 0;
 #endif
-  with_subselect= 1;
   reset();
   /*
     Item value is NULL if select_result_interceptor didn't change this value

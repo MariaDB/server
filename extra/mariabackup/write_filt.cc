@@ -28,6 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include "write_filt.h"
 #include "fil_cur.h"
 #include "xtrabackup.h"
+#include <os0proc.h>
 
 /************************************************************************
 Write-through page write filter. */
@@ -68,19 +69,22 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 		    xb_fil_cur_t *cursor)
 {
 	char				meta_name[FN_REFLEN];
-	ulint				buf_size;
 	xb_wf_incremental_ctxt_t	*cp =
 		&(ctxt->u.wf_incremental_ctxt);
 
 	ctxt->cursor = cursor;
 
 	/* allocate buffer for incremental backup (4096 pages) */
-	buf_size = (cursor->page_size.physical() / 4 + 1)
-		* cursor->page_size.physical();
-	cp->delta_buf_base = static_cast<byte *>(malloc(buf_size));
-	memset(cp->delta_buf_base, 0, buf_size);
-	cp->delta_buf = static_cast<byte *>
-		(ut_align(cp->delta_buf_base, cursor->page_size.physical()));
+	cp->delta_buf_size = (cursor->page_size.physical() / 4)
+                * cursor->page_size.physical();
+	cp->delta_buf = (unsigned char *)os_mem_alloc_large(&cp->delta_buf_size);
+
+	if (!cp->delta_buf) {
+		msg("[%02u] mariabackup: Error: "
+			"cannot allocate %zu bytes\n",
+			cursor->thread_n, (size_t) cp->delta_buf_size);
+		return (FALSE);
+	}
 
 	/* write delta meta info */
 	snprintf(meta_name, sizeof(meta_name), "%s%s", dst_name,
@@ -184,8 +188,7 @@ static void
 wf_incremental_deinit(xb_write_filt_ctxt_t *ctxt)
 {
 	xb_wf_incremental_ctxt_t	*cp = &(ctxt->u.wf_incremental_ctxt);
-
-	free(cp->delta_buf_base);
+	os_mem_free_large(cp->delta_buf, cp->delta_buf_size);
 }
 
 /************************************************************************

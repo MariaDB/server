@@ -1,19 +1,72 @@
 version: "{build}"
 clone_depth: 10
-build_script:
-  - git submodule update --init
-  - cmake . -G "Visual Studio 12 2013 Win64"
-  - cmake --build . --config Debug
+
+environment:
+  matrix:
+    - VS_VERSION: 12
+      ARCH: x86
+    - VS_VERSION: 12
+      ARCH: amd64
+    - VS_VERSION: 14
+      ARCH: x86
+    - VS_VERSION: 14
+      ARCH: amd64
 
 notifications:
   - provider: Email
     to:
-      - kou@clear-code.com
-      - groonga-commit@lists.sourceforge.jp
+      - groonga-commit@lists.osdn.me
     on_build_status_changed: true
 
-test: off
-# before_test:
-#   - gem install grntest
-# test_script:
-#   - grntest --groonga src\groonga.exe --base-directory test\command test\command\suite
+init:
+  - set PATH=C:\Ruby22\bin;%PATH%
+  - set PATH=C:\msys64\usr\bin;%PATH%
+  - call
+      "C:\Program Files (x86)\Microsoft Visual Studio %VS_VERSION%.0\VC\vcvarsall.bat"
+      %ARCH%
+#  - ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+
+install:
+  - tzutil /s "Tokyo Standard Time"
+  # - choco install -y imdisk-toolkit
+  # - mkdir tmp
+  # - imdisk -a -t file -m tmp -o awe -s 1G -p "/fs:ntfs /q /y"
+
+build_script:
+  - git submodule update --init
+  - cd vendor
+  - ruby download_mecab.rb
+  - ruby download_message_pack.rb
+  - ruby download_lz4.rb
+  - cd ..
+  - set CMAKE_GENERATOR_NAME=Visual Studio %VS_VERSION%
+  - if "%VS_VERSION%" == "12"
+      set CMAKE_GENERATOR_NAME=%CMAKE_GENERATOR_NAME% 2013
+  - if "%VS_VERSION%" == "14"
+      set CMAKE_GENERATOR_NAME=%CMAKE_GENERATOR_NAME% 2015
+  - if "%ARCH%" == "amd64"
+      set CMAKE_GENERATOR_NAME=%CMAKE_GENERATOR_NAME% Win64
+  - cmake . -G "%CMAKE_GENERATOR_NAME%"
+      -DCMAKE_INSTALL_PREFIX=c:\groonga
+      -DGRN_WITH_MRUBY=yes
+      -DGRN_WITH_BUNDLED_MECAB=yes
+      -DGRN_WITH_BUNDLED_MESSAGE_PACK=yes
+      -DGRN_WITH_BUNDLED_LZ4=yes
+  - cmake --build . --config Debug
+  - cmake --build . --config Debug --target Install
+
+before_test:
+  - git clone --depth 1
+      https://github.com/groonga/grntest.git
+      test\command\grntest
+  - cd test\command\grntest
+  - bundle install --binstubs=..\bin
+  - cd ..\..\..
+test_script:
+  - ruby test\command\bin\grntest
+     --groonga c:\groonga\bin\groonga.exe
+     --base-directory test\command
+     --reporter mark
+     --n-workers 1
+     --timeout 60
+     test\command\suite

@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2015 Brazil
+/*
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_II_H
-#define GRN_II_H
+
+#pragma once
 
 /* "ii" is for inverted index */
 
@@ -30,15 +31,18 @@ extern "C" {
 
 struct _grn_ii {
   grn_db_obj obj;
-  grn_io *seg;
-  grn_io *chunk;
-  grn_obj *lexicon;
-  grn_obj_flags lflags;
-  grn_encoding encoding;
-  uint32_t n_elements;
+  grn_io *seg;           /* I/O for a variety of segments */
+  grn_io *chunk;         /* I/O for posting chunks */
+  grn_obj *lexicon;      /* Lexicon table */
+  grn_table_flags lflags;
+  grn_encoding encoding; /* Character encoding */
+                         /* This member is used for matching */
+  uint32_t n_elements;   /* Number of elements in postings */
+                         /* rid, [sid], tf, [weight] and [pos] */
   struct grn_ii_header *header;
 };
 
+/* BGQ is buffer garbage queue? */
 #define GRN_II_BGQSIZE 16
 #define GRN_II_MAX_LSEG           0x10000
 #define GRN_II_W_TOTAL_CHUNK      40
@@ -46,6 +50,17 @@ struct _grn_ii {
 #define GRN_II_W_LEAST_CHUNK      (GRN_II_W_TOTAL_CHUNK - 32)
 #define GRN_II_MAX_CHUNK          (1 << (GRN_II_W_TOTAL_CHUNK - GRN_II_W_CHUNK))
 #define GRN_II_N_CHUNK_VARIATION  (GRN_II_W_CHUNK - GRN_II_W_LEAST_CHUNK)
+
+#define GRN_II_MAX_CHUNK_SMALL    (1 << (GRN_II_W_TOTAL_CHUNK - GRN_II_W_CHUNK - 8))
+/* GRN_II_MAX_CHUNK_MEDIUM has enough space for the following source:
+ *   * Single source.
+ *   * Source is a fixed size column or _key of a table.
+ *   * Source column is a scalar column.
+ *   * Lexicon doesn't have tokenizer.
+ */
+#define GRN_II_MAX_CHUNK_MEDIUM   (1 << (GRN_II_W_TOTAL_CHUNK - GRN_II_W_CHUNK - 4))
+
+#define GRN_II_PSEG_NOT_ASSIGNED  0xffffffff
 
 struct grn_ii_header {
   uint64_t total_chunk_size;
@@ -60,8 +75,8 @@ struct grn_ii_header {
   uint32_t bgqtail;
   uint32_t bgqbody[GRN_II_BGQSIZE];
   uint32_t reserved[288];
-  uint32_t ainfo[GRN_II_MAX_LSEG];
-  uint32_t binfo[GRN_II_MAX_LSEG];
+  uint32_t ainfo[GRN_II_MAX_LSEG]; /* array info */
+  uint32_t binfo[GRN_II_MAX_LSEG]; /* buffer info */
   uint32_t free_chunks[GRN_II_N_CHUNK_VARIATION + 1];
   uint32_t garbages[GRN_II_N_CHUNK_VARIATION + 1];
   uint32_t ngarbages[GRN_II_N_CHUNK_VARIATION + 1];
@@ -95,6 +110,7 @@ GRN_API grn_ii *grn_ii_open(grn_ctx *ctx, const char *path, grn_obj *lexicon);
 GRN_API grn_rc grn_ii_close(grn_ctx *ctx, grn_ii *ii);
 GRN_API grn_rc grn_ii_remove(grn_ctx *ctx, const char *path);
 grn_rc grn_ii_info(grn_ctx *ctx, grn_ii *ii, uint64_t *seg_size, uint64_t *chunk_size);
+grn_column_flags grn_ii_get_flags(grn_ctx *ctx, grn_ii *ii);
 grn_rc grn_ii_update_one(grn_ctx *ctx, grn_ii *ii, uint32_t key, grn_ii_updspec *u,
                          grn_hash *h);
 grn_rc grn_ii_delete_one(grn_ctx *ctx, grn_ii *ii, uint32_t key, grn_ii_updspec *u,
@@ -106,28 +122,10 @@ int grn_ii_updspec_cmp(grn_ii_updspec *a, grn_ii_updspec *b);
 
 void grn_ii_expire(grn_ctx *ctx, grn_ii *ii);
 grn_rc grn_ii_flush(grn_ctx *ctx, grn_ii *ii);
+size_t grn_ii_get_disk_usage(grn_ctx *ctx, grn_ii *ii);
 
-typedef struct {
-  grn_id rid;
-  uint32_t sid;
-  uint32_t pos;
-  uint32_t tf;
-  uint32_t weight;
-  uint32_t rest;
-} grn_ii_posting;
-
-typedef struct _grn_ii_cursor grn_ii_cursor;
-
-GRN_API grn_rc grn_ii_posting_add(grn_ctx *ctx, grn_ii_posting *pos,
-                                  grn_hash *s, grn_operator op);
-
-GRN_API grn_ii_cursor *grn_ii_cursor_open(grn_ctx *ctx, grn_ii *ii, grn_id tid,
-                                          grn_id min, grn_id max, int nelements, int flags);
 grn_ii_cursor *grn_ii_cursor_openv1(grn_ii *ii, uint32_t key);
 grn_rc grn_ii_cursor_openv2(grn_ii_cursor **cursors, int ncursors);
-GRN_API grn_ii_posting *grn_ii_cursor_next(grn_ctx *ctx, grn_ii_cursor *c);
-grn_ii_posting *grn_ii_cursor_next_pos(grn_ctx *ctx, grn_ii_cursor *c);
-GRN_API grn_rc grn_ii_cursor_close(grn_ctx *ctx, grn_ii_cursor *c);
 
 uint32_t grn_ii_max_section(grn_ii *ii);
 
@@ -157,6 +155,8 @@ struct _grn_select_optarg {
   grn_obj *scorer;
   grn_obj *scorer_args_expr;
   unsigned int scorer_args_expr_offset;
+  grn_fuzzy_search_optarg fuzzy;
+  grn_match_info *match_info;
 };
 
 GRN_API grn_rc grn_ii_column_update(grn_ctx *ctx, grn_ii *ii, grn_id id,
@@ -179,10 +179,14 @@ grn_rc grn_ii_at(grn_ctx *ctx, grn_ii *ii, grn_id id, grn_hash *s, grn_operator 
 void grn_ii_inspect_values(grn_ctx *ctx, grn_ii *ii, grn_obj *buf);
 void grn_ii_cursor_inspect(grn_ctx *ctx, grn_ii_cursor *c, grn_obj *buf);
 
+grn_rc grn_ii_truncate(grn_ctx *ctx, grn_ii *ii);
 grn_rc grn_ii_build(grn_ctx *ctx, grn_ii *ii, uint64_t sparsity);
+
+typedef struct grn_ii_builder_options grn_ii_builder_options;
+
+grn_rc grn_ii_build2(grn_ctx *ctx, grn_ii *ii,
+                     const grn_ii_builder_options *options);
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_II_H */

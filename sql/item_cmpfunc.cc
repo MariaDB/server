@@ -1365,7 +1365,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   }
   if (args[1]->maybe_null)
     maybe_null=1;
-  with_subselect= 1;
+  m_with_subquery= true;
   with_sum_func= with_sum_func || args[1]->with_sum_func;
   with_field= with_field || args[1]->with_field;
   used_tables_and_const_cache_join(args[1]);
@@ -4623,7 +4623,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
   
     with_sum_func|=    item->with_sum_func;
     with_field|=       item->with_field;
-    with_subselect|=   item->has_subquery();
+    m_with_subquery|=  item->with_subquery();
     with_window_func|= item->with_window_func;
     maybe_null|=       item->maybe_null;
   }
@@ -5485,7 +5485,7 @@ void Regexp_processor_pcre::pcre_exec_warn(int rc) const
   switch (rc)
   {
   case PCRE_ERROR_NULL:
-    errmsg= "pcre_exec: null arguement passed";
+    errmsg= "pcre_exec: null argument passed";
     break;
   case PCRE_ERROR_BADOPTION:
     errmsg= "pcre_exec: bad option";
@@ -6627,7 +6627,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
     used_tables_cache|= item->used_tables();
     tmp_table_map= item->not_null_tables();
     not_null_tables_cache|= tmp_table_map;
-    DBUG_ASSERT(!item->with_sum_func && !item->with_subselect);
+    DBUG_ASSERT(!item->with_sum_func && !item->with_subquery());
     if (item->maybe_null)
       maybe_null= 1;
     if (!item->get_item_equal())

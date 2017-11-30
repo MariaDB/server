@@ -867,10 +867,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 102 shift/reduce conflicts.
+  Currently there are 104 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 102
+%expect 104
 
 /*
    Comments for TOKENS.
@@ -1028,6 +1028,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  DEFINER_SYM
 %token  DELAYED_SYM
 %token  DELAY_KEY_WRITE_SYM
+%token  DELETE_DOMAIN_ID_SYM
 %token  DELETE_SYM                    /* SQL-2003-R */
 %token  DENSE_RANK_SYM
 %token  DESC                          /* SQL-2003-N */
@@ -1622,10 +1623,14 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident_or_text
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         opt_component key_cache_name
-        sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
+        sp_opt_label BIN_NUM TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident
         sp_decl_ident
         sp_block_label opt_place opt_db
+
+%type <lex_str>
+        label_ident
+        sp_label
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1767,6 +1772,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <assignment_lex>
         assignment_source_lex
         assignment_source_expr
+        for_loop_bound_expr
 
 %type <sp_assignment_lex_list>
         cursor_actual_parameters
@@ -1918,7 +1924,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
         vcol_opt_attribute_list vcol_attribute
         opt_serial_attribute opt_serial_attribute_list serial_attribute
-        explainable_command opt_lock_wait_timeout
+        explainable_command
+	opt_lock_wait_timeout
+        opt_delete_gtid_domain
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -1943,6 +1951,9 @@ END_OF_INPUT
 %type <spblock> sp_decls sp_decl sp_decl_body sp_decl_variable_list
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
+%type <for_loop> sp_for_loop_index_and_bounds
+%type <for_loop_bounds> sp_for_loop_bounds
+%type <num> opt_sp_for_loop_direction
 %type <spvar_mode> sp_opt_inout
 %type <index_hint> index_hint_type
 %type <num> index_hint_clause normal_join inner_join
@@ -3938,6 +3949,22 @@ assignment_source_expr:
           }
         ;
 
+for_loop_bound_expr:
+          assignment_source_lex
+          {
+            Lex->sphead->reset_lex(thd, $1);
+          }
+          expr
+          {
+            DBUG_ASSERT($1 == thd->lex);
+            $$= $1;
+            $$->sp_lex_in_use= true;
+            $$->set_item_and_free_list($3, NULL);
+            if ($$->sphead->restore_lex(thd))
+              MYSQL_YYABORT;
+          }
+        ;
+
 cursor_actual_parameters:
           assignment_source_expr
           {
@@ -4237,13 +4264,17 @@ else_clause_opt:
         | ELSE sp_proc_stmts1
         ;
 
+sp_label:
+          label_ident ':' { $$= $1; }
+        ;
+
 sp_opt_label:
           /* Empty  */  { $$= null_clex_str; }
         | label_ident   { $$= $1; }
         ;
 
 sp_block_label:
-          label_ident ':'
+          sp_label
           {
             if (Lex->spcont->block_label_declare(&$1))
               MYSQL_YYABORT;
@@ -4293,6 +4324,43 @@ sp_unlabeled_block_not_atomic:
           END
           {
             if (Lex->sp_block_finalize(thd, $5))
+              MYSQL_YYABORT;
+          }
+        ;
+
+/* This adds one shift/reduce conflict */
+opt_sp_for_loop_direction:
+            /* Empty */ { $$= 1; }
+          | REVERSE_SYM { $$= -1; }
+        ;
+
+sp_for_loop_index_and_bounds:
+          ident sp_for_loop_bounds
+          {
+            if (Lex->sp_for_loop_declarations(thd, &$$, &$1, $2))
+              MYSQL_YYABORT;
+          }
+        ;
+
+sp_for_loop_bounds:
+          IN_SYM opt_sp_for_loop_direction for_loop_bound_expr
+          DOT_DOT_SYM for_loop_bound_expr
+          {
+            $$.m_direction= $2;
+            $$.m_index= $3;
+            $$.m_upper_bound= $5;
+            $$.m_implicit_cursor= false;
+          }
+        | IN_SYM opt_sp_for_loop_direction for_loop_bound_expr
+          {
+            $$.m_direction= $2;
+            $$.m_index= $3;
+            $$.m_upper_bound= NULL;
+            $$.m_implicit_cursor= false;
+          }
+        | IN_SYM opt_sp_for_loop_direction '(' sp_cursor_stmt ')'
+          {
+            if (Lex->sp_for_loop_implicit_cursor_statement(thd, &$$, $4))
               MYSQL_YYABORT;
           }
         ;
@@ -4356,14 +4424,14 @@ pop_sp_loop_label:
         ;
 
 sp_labeled_control:
-          label_ident ':' LOOP_SYM
+          sp_label LOOP_SYM
           {
             if (Lex->sp_push_loop_label(thd, &$1))
               MYSQL_YYABORT;
           }
           loop_body pop_sp_loop_label
           { }
-        | label_ident ':' WHILE_SYM
+        | sp_label WHILE_SYM
           {
             if (Lex->sp_push_loop_label(thd, &$1))
               MYSQL_YYABORT;
@@ -4371,7 +4439,33 @@ sp_labeled_control:
           }
           while_body pop_sp_loop_label
           { }
-        | label_ident ':' REPEAT_SYM
+        | sp_label FOR_SYM
+          {
+            // See "The FOR LOOP statement" comments in sql_lex.cc
+            Lex->sp_block_init(thd); // The outer DECLARE..BEGIN..END block
+          }
+          sp_for_loop_index_and_bounds
+          {
+            if (Lex->sp_push_loop_label(thd, &$1)) // The inner WHILE block
+              MYSQL_YYABORT;
+            if (Lex->sp_for_loop_condition_test(thd, $4))
+              MYSQL_YYABORT;
+          }
+          DO_SYM
+          sp_proc_stmts1
+          END FOR_SYM
+          {
+            if (Lex->sp_for_loop_finalize(thd, $4))
+              MYSQL_YYABORT;
+          }
+          pop_sp_loop_label                    // The inner WHILE block
+          {
+            Lex_spblock tmp;
+            tmp.curs= MY_TEST($4.m_implicit_cursor);
+            if (Lex->sp_block_finalize(thd, tmp)) // The outer DECLARE..BEGIN..END
+              MYSQL_YYABORT;
+          }
+        | sp_label REPEAT_SYM
           {
             if (Lex->sp_push_loop_label(thd, &$1))
               MYSQL_YYABORT;
@@ -4399,6 +4493,32 @@ sp_unlabeled_control:
           while_body
           {
             Lex->sp_pop_loop_empty_label(thd);
+          }
+        | FOR_SYM
+          {
+            // See "The FOR LOOP statement" comments in sql_lex.cc
+            if (Lex->maybe_start_compound_statement(thd))
+              MYSQL_YYABORT;
+            Lex->sp_block_init(thd); // The outer DECLARE..BEGIN..END block
+          }
+          sp_for_loop_index_and_bounds
+          {
+            if (Lex->sp_push_loop_empty_label(thd)) // The inner WHILE block
+              MYSQL_YYABORT;
+            if (Lex->sp_for_loop_condition_test(thd, $3))
+              MYSQL_YYABORT;
+          }
+          DO_SYM
+          sp_proc_stmts1
+          END FOR_SYM
+          {
+            Lex_spblock tmp;
+            tmp.curs= MY_TEST($3.m_implicit_cursor);
+            if (Lex->sp_for_loop_finalize(thd, $3))
+              MYSQL_YYABORT;
+            Lex->sp_pop_loop_empty_label(thd); // The inner WHILE block
+            if (Lex->sp_block_finalize(thd, tmp)) // The outer DECLARE..BEGIN..END
+              MYSQL_YYABORT;
           }
         | REPEAT_SYM
           {
@@ -7346,7 +7466,7 @@ alter:
             Lex->create_info.set($2);
             Lex->sql_command= SQLCOM_ALTER_USER;
           }
-        | ALTER SEQUENCE_SYM opt_if_exists_table_element
+        | ALTER SEQUENCE_SYM opt_if_exists
           {
             LEX *lex= Lex;
             lex->name= null_clex_str;
@@ -7369,7 +7489,7 @@ alter:
           sequence_defs
           {
             /* Create a generic ALTER SEQUENCE statment. */
-            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_sequence();
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_sequence($3);
             if (Lex->m_sql_cmd == NULL)
               MYSQL_YYABORT;
           }
@@ -13628,7 +13748,7 @@ flush_option:
           { Lex->type|= REFRESH_GENERAL_LOG; }
         | SLOW LOGS_SYM
           { Lex->type|= REFRESH_SLOW_LOG; }
-        | BINARY LOGS_SYM
+        | BINARY LOGS_SYM opt_delete_gtid_domain
           { Lex->type|= REFRESH_BINARY_LOG; }
         | RELAY LOGS_SYM optional_connection_name
           {
@@ -13683,6 +13803,24 @@ flush_option:
 opt_table_list:
           /* empty */  {}
         | table_list {}
+        ;
+
+opt_delete_gtid_domain:
+          /* empty */ {}
+        | DELETE_DOMAIN_ID_SYM '=' '(' delete_domain_id_list ')'
+          {}
+        ;
+delete_domain_id_list:
+          /* Empty */
+        | delete_domain_id
+        | delete_domain_id_list ',' delete_domain_id
+        ;
+
+delete_domain_id:
+          ulong_num
+          {
+            insert_dynamic(&Lex->delete_gtid_domain, (uchar*) &($1));
+          }
         ;
 
 optional_flush_tables_arguments:

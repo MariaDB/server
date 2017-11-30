@@ -11,23 +11,18 @@ simple_table	CREATE TABLE `simple_table` (
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='ENGINE "InnoDB"'
 INSERT INTO simple_table (id) VALUES (1),(2);
-CONNECT second_connection, localhost, root;
 USE test;
 START TRANSACTION;
 INSERT INTO simple_table (id) VALUES (3);
-connection default;
 SELECT * FROM simple_table;
 id
 1
 2
-connection second_connection;
 COMMIT;
-connection default;
 SELECT * FROM simple_table;
 id
 1
 2
 3
 DROP TABLE simple_table;
-disconnect second_connection;
 SET GLOBAL query_cache_size = @tmp_query_cache_size;

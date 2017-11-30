@@ -190,4 +190,19 @@ show create view v1;
 drop view v1;
 drop tables t1,t2,t3;
 
+--echo #
+--echo # MDEV-14346:incorrect result of intersect with ANY/ALL/IN subquery
+--echo #
+CREATE TABLE t (i INT);
+INSERT INTO t VALUES (1),(2);
+SELECT * FROM t WHERE i != ANY ( SELECT 6 INTERSECT SELECT 3 );
+
+select i from t where
+   exists ((select 6 as r from dual having t.i <> 6)
+           intersect
+           (select 3 from dual having t.i <> 3));
+
+drop table t;
+
+
 --echo # End of 10.3 tests

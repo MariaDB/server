@@ -149,10 +149,6 @@ void xtrabackup_io_throttling(void);
 my_bool xb_write_delta_metadata(const char *filename,
 				const xb_delta_info_t *info);
 
-/** @return the tablespace flags from a given data file
-@retval	ULINT_UNDEFINED	if the file is not readable */
-ulint xb_get_space_flags(pfs_os_file_t file);
-
 /************************************************************************
 Checks if a table specified as a name in the form "database/name" (InnoDB 5.6)
 or "./database/name.ibd" (InnoDB 5.5-) should be skipped from backup based on

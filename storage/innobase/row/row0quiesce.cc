@@ -454,8 +454,7 @@ row_quiesce_write_cfg(
 
 			char	msg[BUFSIZ];
 
-			ut_snprintf(msg, sizeof(msg), "%s flush() failed",
-				    name);
+			snprintf(msg, sizeof(msg), "%s flush() failed", name);
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
@@ -465,8 +464,7 @@ row_quiesce_write_cfg(
 		if (fclose(file) != 0) {
 			char	msg[BUFSIZ];
 
-			ut_snprintf(msg, sizeof(msg), "%s flose() failed",
-				    name);
+			snprintf(msg, sizeof(msg), "%s flose() failed", name);
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
@@ -537,7 +535,10 @@ row_quiesce_table_start(
 	}
 
 	if (!trx_is_interrupted(trx)) {
-		buf_LRU_flush_or_remove_pages(table->space, trx);
+		{
+			FlushObserver observer(table->space, trx, NULL);
+			buf_LRU_flush_or_remove_pages(table->space, &observer);
+		}
 
 		if (trx_is_interrupted(trx)) {
 

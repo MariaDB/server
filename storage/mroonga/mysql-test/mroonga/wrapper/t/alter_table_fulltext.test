@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source include/have_innodb.inc
 --source include/not_embedded.inc
@@ -27,7 +27,6 @@ CREATE TABLE diaries (
   title TEXT,
   FULLTEXT INDEX title_index (title)
 ) DEFAULT CHARSET UTF8 COMMENT = 'ENGINE "InnoDB"';
-SHOW CREATE TABLE diaries;
 
 INSERT INTO diaries (title) VALUES ("survey");
 SELECT * FROM diaries;
@@ -49,8 +48,6 @@ SELECT * FROM diaries
 SELECT * FROM diaries
   WHERE MATCH(title) AGAINST("groonga") AND
         MATCH(body) AGAINST("starting");
-
-SHOW CREATE TABLE diaries;
 
 DROP TABLE diaries;
 

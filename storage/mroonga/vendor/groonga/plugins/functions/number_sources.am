@@ -1,0 +1,2 @@
+number_la_SOURCES =				\
+	number.c

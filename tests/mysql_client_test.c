@@ -19861,6 +19861,85 @@ static void test_mdev14013_1()
 }
 
 
+static void test_mdev14454_internal(const char *init,
+                                    unsigned int csid,
+                                    const char *value)
+{
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind;
+  const char *stmtstr= "CALL P1(?)";
+  char res[20];
+  int rc;
+
+  if ((rc= mysql_query_or_error(mysql, init)) ||
+      (rc= mysql_query_or_error(mysql, "DROP PROCEDURE IF EXISTS p1")) ||
+      (rc= mysql_query_or_error(mysql,
+                               "CREATE PROCEDURE p1"
+                               "("
+                               "  OUT param1 TEXT CHARACTER SET utf8"
+                               ")"
+                               "BEGIN "
+                               "  SET param1 = _latin1'test\xFF'; "
+                               "END")))
+    DIE("Initiation failed");
+
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt, stmtstr, strlen(stmtstr));
+  DIE_UNLESS(rc == 0);
+  DIE_UNLESS(mysql_stmt_param_count(stmt) == 1);
+
+  bind.buffer_type= MYSQL_TYPE_NULL;
+  rc= mysql_stmt_bind_param(stmt, &bind);
+  DIE_UNLESS(rc == 0);
+
+  rc= mysql_stmt_execute(stmt);
+  DIE_UNLESS(rc == 0);
+
+  memset(res, 0, sizeof(res));
+  memset(&bind, 0, sizeof(bind));
+  bind.buffer_type= MYSQL_TYPE_STRING;
+  bind.buffer_length= sizeof(res);
+  bind.buffer= res;
+
+  do {
+    if (mysql->server_status & SERVER_PS_OUT_PARAMS)
+    {
+      MYSQL_FIELD *field;
+      printf("\nOUT param result set:\n");
+      DIE_UNLESS(mysql_stmt_field_count(stmt) == 1);
+      field= &stmt->fields[0];
+      printf("Field: %s\n", field->name);
+      printf("Type: %d\n", field->type);
+      printf("Collation: %d\n", field->charsetnr);
+      printf("Length: %lu\n", field->length);
+      DIE_UNLESS(stmt->fields[0].charsetnr == csid);
+
+      rc= mysql_stmt_bind_result(stmt, &bind);
+      DIE_UNLESS(rc == 0);
+      rc= mysql_stmt_fetch(stmt);
+      DIE_UNLESS(rc == 0);
+      printf("Value: %s\n", res);
+      DIE_UNLESS(strcmp(res, value) == 0);
+    }
+    else if (mysql_stmt_field_count(stmt))
+    {
+      printf("sp result set\n");
+    }
+  } while (mysql_stmt_next_result(stmt) == 0);
+
+  mysql_stmt_close(stmt);
+  DIE_UNLESS(mysql_query_or_error(mysql, "DROP PROCEDURE p1") == 0);
+}
+
+
+static void test_mdev14454()
+{
+  myheader("test_mdev14454");
+  test_mdev14454_internal("SET NAMES latin1", 8, "test\xFF");
+  test_mdev14454_internal("SET NAMES utf8", 33, "test\xC3\xBF");
+}
+
+
 typedef struct {
   char sig[12];
   char ver_cmd;
@@ -20318,6 +20397,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev12579", test_mdev12579 },
   { "test_mdev14013", test_mdev14013 },
   { "test_mdev14013_1", test_mdev14013_1 },
+  { "test_mdev14454", test_mdev14454 },
 #ifndef EMBEDDED_LIBRARY
   { "test_proxy_header", test_proxy_header},
 #endif

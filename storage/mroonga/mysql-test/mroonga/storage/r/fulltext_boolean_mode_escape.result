@@ -1,5 +1,5 @@
 DROP TABLE IF EXISTS memos;
-SET GLOBAL mroonga_default_parser = TokenDelimit;
+SET GLOBAL mroonga_default_tokenizer = TokenDelimit;
 SET NAMES UTF8;
 CREATE TABLE memos (
 id INT PRIMARY KEY,
@@ -15,4 +15,4 @@ id	content
 1	(groonga) Installed!
 3	(groonga) Upgraded!
 DROP TABLE memos;
-SET GLOBAL mroonga_default_parser = TokenBigram;
+SET GLOBAL mroonga_default_tokenizer = TokenBigram;

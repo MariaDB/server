@@ -804,6 +804,9 @@ public:
   virtual uint32 max_display_length(const Item *item) const= 0;
   virtual uint32 calc_pack_length(uint32 length) const= 0;
   virtual bool Item_save_in_value(Item *item, st_value *value) const= 0;
+  virtual void Item_param_setup_conversion(THD *thd, Item_param *) const {}
+  virtual void Item_param_set_param_func(Item_param *param,
+                                         uchar **pos, ulong len) const;
   virtual bool Item_param_set_from_value(THD *thd,
                                          Item_param *param,
                                          const Type_all_attributes *attr,
@@ -1422,6 +1425,8 @@ public:
                              const Type_cast_attributes &attr) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
   bool Item_param_set_from_value(THD *thd,
                                  Item_param *param,
                                  const Type_all_attributes *attr,
@@ -1658,6 +1663,9 @@ public:
   }
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
+  void Item_param_setup_conversion(THD *thd, Item_param *) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
   bool Item_param_set_from_value(THD *thd,
                                  Item_param *param,
                                  const Type_all_attributes *attr,
@@ -1716,6 +1724,7 @@ public:
                                   MYSQL_TIME *, ulonglong fuzzydate) const;
   bool Item_func_between_fix_length_and_dec(Item_func_between *func) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
@@ -1783,6 +1792,8 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
 };
 
 
@@ -1810,6 +1821,8 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
 };
 
 
@@ -1840,6 +1853,8 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
 };
 
 
@@ -1871,6 +1886,8 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
 };
 
 
@@ -1994,6 +2011,8 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
 };
 
 
@@ -2024,6 +2043,8 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
 };
 
 
@@ -2068,6 +2089,8 @@ public:
   bool set_comparator_func(Arg_comparator *cmp) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
 };
 
 
@@ -2151,6 +2174,8 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
 };
 
 class Type_handler_date: public Type_handler_date_common
@@ -2225,6 +2250,8 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
 };
 
 
@@ -2305,6 +2332,8 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
 };
 
 
@@ -2573,6 +2602,7 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
+  void Item_param_setup_conversion(THD *thd, Item_param *) const;
 };
 
 
@@ -2674,6 +2704,8 @@ public:
   {
     return false; // Materialization does not work with GEOMETRY columns
   }
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
   bool Item_param_set_from_value(THD *thd,
                                  Item_param *param,
                                  const Type_all_attributes *attr,
@@ -2753,6 +2785,8 @@ public:
                                          const handler *file,
                                          const Schema_specification_st *schema)
                                          const;
+  void Item_param_set_param_func(Item_param *param,
+                                 uchar **pos, ulong len) const;
 };
 
 
@@ -2819,6 +2853,10 @@ public:
   Type_handler_hybrid_field_type(const Type_handler_hybrid_field_type *other)
     :m_type_handler(other->m_type_handler)
   { }
+  void swap(Type_handler_hybrid_field_type &other)
+  {
+    swap_variables(const Type_handler *, m_type_handler, other.m_type_handler);
+  }
   const Type_handler *type_handler() const { return m_type_handler; }
   enum_field_types real_field_type() const
   {
