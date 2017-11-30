@@ -155,14 +155,20 @@ static bool check_fields(THD *thd, List<Item> &items)
   return FALSE;
 }
 
-static bool check_has_vers_fields(List<Item> &items)
+static bool check_has_vers_fields(TABLE *table, List<Item> &items)
 {
   List_iterator<Item> it(items);
+  if (!table->versioned())
+    return false;
+
   while (Item *item= it++)
   {
     if (Item_field *item_field= item->field_for_view_update())
-      if (!item_field->field->vers_update_unversioned())
+    {
+      Field *field= item_field->field;
+      if (field->table == table && !field->vers_update_unversioned())
         return true;
+    }
   }
   return false;
 }
@@ -369,8 +375,7 @@ int mysql_update(THD *thd,
   {
     DBUG_RETURN(1);
   }
-  bool has_vers_fields=
-      table->versioned() ? check_has_vers_fields(fields) : false;
+  bool has_vers_fields= check_has_vers_fields(table, fields);
   if (check_key_in_view(thd, table_list))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
@@ -1682,7 +1687,6 @@ multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
    transactional_tables(0), ignore(ignore_arg), error_handled(0), prepared(0),
    updated_sys_ver(0)
 {
-  has_vers_fields= check_has_vers_fields(*field_list);
 }
 
 
@@ -1987,6 +1991,7 @@ multi_update::initialize_tables(JOIN *join)
       if (safe_update_on_fly(thd, join->join_tab, table_ref, all_tables))
       {
 	table_to_update= table;			// Update table on the fly
+        has_vers_fields= check_has_vers_fields(table, *fields);
 	continue;
       }
     }
@@ -2439,6 +2444,8 @@ int multi_update::do_updates()
     */
     if (table->vfield)
       empty_record(table);
+
+    has_vers_fields= check_has_vers_fields(table, *fields);
 
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)
