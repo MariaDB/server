@@ -14639,7 +14639,7 @@ keyword_alias:
 
 
 /* Keyword that we allow for identifiers (except SP labels) */
-keyword: keyword_alias | WINDOW_SYM ;
+keyword: keyword_alias | WINDOW_SYM {};
 
 /*
  * Keywords that we allow for labels in SPs.
