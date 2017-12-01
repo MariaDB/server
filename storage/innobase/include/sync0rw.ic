@@ -77,7 +77,8 @@ rw_lock_get_writer(
 /*===============*/
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	int32_t lock_word = lock->lock_word;
+	int32_t lock_word = my_atomic_load32_explicit(const_cast<int32_t*>(&lock->lock_word),
+						      MY_MEMORY_ORDER_RELAXED);
 
 	ut_ad(lock_word <= X_LOCK_DECR);
 	if (lock_word > X_LOCK_HALF_DECR) {
@@ -109,7 +110,8 @@ rw_lock_get_reader_count(
 /*=====================*/
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	int32_t lock_word = lock->lock_word;
+	int32_t lock_word = my_atomic_load32_explicit(const_cast<int32_t*>(&lock->lock_word),
+						      MY_MEMORY_ORDER_RELAXED);
 	ut_ad(lock_word <= X_LOCK_DECR);
 
 	if (lock_word > X_LOCK_HALF_DECR) {
@@ -145,7 +147,8 @@ rw_lock_get_x_lock_count(
 /*=====================*/
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	int32_t lock_copy = lock->lock_word;
+	int32_t lock_copy = my_atomic_load32_explicit(const_cast<int32_t*>(&lock->lock_word),
+						      MY_MEMORY_ORDER_RELAXED);
 	ut_ad(lock_copy <= X_LOCK_DECR);
 
 	if (lock_copy == 0 || lock_copy == -X_LOCK_HALF_DECR) {
@@ -178,7 +181,8 @@ rw_lock_get_sx_lock_count(
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
 #ifdef UNIV_DEBUG
-	int32_t lock_copy = lock->lock_word;
+	int32_t lock_copy = my_atomic_load32_explicit(const_cast<int32_t*>(&lock->lock_word),
+						      MY_MEMORY_ORDER_RELAXED);
 
 	ut_ad(lock_copy <= X_LOCK_DECR);
 
@@ -197,9 +201,7 @@ rw_lock_get_sx_lock_count(
 }
 
 /******************************************************************//**
-Two different implementations for decrementing the lock_word of a rw_lock:
-one for systems supporting atomic operations, one for others. This does
-does not support recusive x-locks: they should be handled by the caller and
+Recursive x-locks are not supported: they should be handled by the caller and
 need not be atomic since they are performed by the current lock holder.
 Returns true if the decrement was made, false if not.
 @return true if decr occurs */
@@ -211,13 +213,11 @@ rw_lock_lock_word_decr(
 	int32_t		amount,		/*!< in: amount to decrement */
 	int32_t		threshold)	/*!< in: threshold of judgement */
 {
-	int32_t local_lock_word;
-
-	local_lock_word = my_atomic_load32_explicit(&lock->lock_word,
-						    MY_MEMORY_ORDER_RELAXED);
-	while (local_lock_word > threshold) {
-		if (my_atomic_cas32(&lock->lock_word, &local_lock_word,
-				    local_lock_word - amount)) {
+	int32_t lock_copy = my_atomic_load32_explicit(&lock->lock_word,
+						      MY_MEMORY_ORDER_RELAXED);
+	while (lock_copy > threshold) {
+		if (my_atomic_cas32(&lock->lock_word, &lock_copy,
+				    lock_copy - amount)) {
 			return(true);
 		}
 	}
@@ -311,23 +311,24 @@ rw_lock_x_lock_func_nowait(
 		lock->writer_thread = os_thread_get_curr_id();
 
 	} else if (os_thread_eq(lock->writer_thread, os_thread_get_curr_id())) {
-		/* Relock: this lock_word modification is safe since no other
-		threads can modify (lock, unlock, or reserve) lock_word while
-		there is an exclusive writer and this is the writer thread. */
-		if (lock->lock_word == 0 || lock->lock_word == -X_LOCK_HALF_DECR) {
+		/* Relock: even though no other thread can modify (lock, unlock
+		or reserve) lock_word while there is an exclusive writer and
+		this is the writer thread, we still want concurrent threads to
+		observe consistent values. */
+		if (oldval == 0 || oldval == -X_LOCK_HALF_DECR) {
 			/* There are 1 x-locks */
-			lock->lock_word -= X_LOCK_DECR;
-		} else if (lock->lock_word <= -X_LOCK_DECR) {
+			my_atomic_add32_explicit(&lock->lock_word, -X_LOCK_DECR,
+						 MY_MEMORY_ORDER_RELAXED);
+		} else if (oldval <= -X_LOCK_DECR) {
 			/* There are 2 or more x-locks */
-			lock->lock_word--;
+			my_atomic_add32_explicit(&lock->lock_word, -1,
+						 MY_MEMORY_ORDER_RELAXED);
+			/* Watch for too many recursive locks */
+			ut_ad(oldval < 1);
 		} else {
 			/* Failure */
 			return(FALSE);
 		}
-
-		/* Watch for too many recursive locks */
-		ut_ad(lock->lock_word < 0);
-
 	} else {
 		/* Failure */
 		return(FALSE);
@@ -356,8 +357,8 @@ rw_lock_s_unlock_func(
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
 #ifdef UNIV_DEBUG
-	int32_t	dbg_lock_word = my_atomic_load32_explicit(
-			&lock->lock_word, MY_MEMORY_ORDER_RELAXED);
+	int32_t	dbg_lock_word = my_atomic_load32_explicit(&lock->lock_word,
+							  MY_MEMORY_ORDER_RELAXED);
 	ut_ad(dbg_lock_word > -X_LOCK_DECR);
 	ut_ad(dbg_lock_word != 0);
 	ut_ad(dbg_lock_word < X_LOCK_DECR);
@@ -392,9 +393,8 @@ rw_lock_x_unlock_func(
 #endif /* UNIV_DEBUG */
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-	int32_t	lock_word;
-	lock_word = my_atomic_load32_explicit(&lock->lock_word,
-					      MY_MEMORY_ORDER_RELAXED);
+	int32_t	lock_word = my_atomic_load32_explicit(&lock->lock_word,
+						      MY_MEMORY_ORDER_RELAXED);
 
 	ut_ad(lock_word == 0 || lock_word == -X_LOCK_HALF_DECR
 	      || lock_word <= -X_LOCK_DECR);
@@ -427,11 +427,13 @@ rw_lock_x_unlock_func(
 	} else if (lock_word == -X_LOCK_DECR
 		   || lock_word == -(X_LOCK_DECR + X_LOCK_HALF_DECR)) {
 		/* There are 2 x-locks */
-		lock->lock_word += X_LOCK_DECR;
+		my_atomic_add32_explicit(&lock->lock_word, X_LOCK_DECR,
+					 MY_MEMORY_ORDER_RELAXED);
 	} else {
 		/* There are more than 2 x-locks. */
 		ut_ad(lock_word < -X_LOCK_DECR);
-		lock->lock_word += 1;
+		my_atomic_add32_explicit(&lock->lock_word, 1,
+					 MY_MEMORY_ORDER_RELAXED);
 	}
 
 	ut_ad(rw_lock_validate(lock));
@@ -457,8 +459,10 @@ rw_lock_sx_unlock_func(
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_SX));
 
 	if (lock->sx_recursive == 0) {
+		int32_t	lock_word = my_atomic_load32_explicit(&lock->lock_word,
+							      MY_MEMORY_ORDER_RELAXED);
 		/* Last caller in a possible recursive chain. */
-		if (lock->lock_word > 0) {
+		if (lock_word > 0) {
 			lock->writer_thread = 0;
 
 			if (my_atomic_add32(&lock->lock_word, X_LOCK_HALF_DECR) <= 0) {
@@ -475,10 +479,10 @@ rw_lock_sx_unlock_func(
 			}
 		} else {
 			/* still has x-lock */
-			ut_ad(lock->lock_word == -X_LOCK_HALF_DECR
-			      || lock->lock_word <= -(X_LOCK_DECR
-						      + X_LOCK_HALF_DECR));
-			lock->lock_word += X_LOCK_HALF_DECR;
+			ut_ad(lock_word == -X_LOCK_HALF_DECR ||
+			      lock_word <= -(X_LOCK_DECR + X_LOCK_HALF_DECR));
+			my_atomic_add32_explicit(&lock->lock_word, X_LOCK_HALF_DECR,
+						 MY_MEMORY_ORDER_RELAXED);
 		}
 	}
 

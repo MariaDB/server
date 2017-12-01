@@ -571,7 +571,7 @@ struct rw_lock_t
 #endif /* UNIV_DEBUG */
 {
 	/** Holds the state of the lock. */
-	volatile int32_t	lock_word;
+	int32_t	lock_word;
 
 	/** 1: there are waiters */
 	volatile uint32_t	waiters;

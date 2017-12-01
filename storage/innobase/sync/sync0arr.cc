@@ -599,7 +599,7 @@ sync_array_cell_print(
 				"\n",
 				rw_lock_get_reader_count(rwlock),
 				rwlock->waiters,
-				rwlock->lock_word,
+				my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED),
 				innobase_basename(rwlock->last_s_file_name),
 				rwlock->last_s_line,
 				innobase_basename(rwlock->last_x_file_name),
@@ -1398,7 +1398,8 @@ sync_arr_fill_sys_semphore_waits_table(
 						//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_READERS], rw_lock_get_reader_count(rwlock)));
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG], (longlong)rwlock->waiters));
-						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD], (longlong)rwlock->lock_word));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD],
+						   my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED)));
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_READER_FILE], innobase_basename(rwlock->last_s_file_name)));
 						OK(fields[SYS_SEMAPHORE_WAITS_LAST_READER_LINE]->store(rwlock->last_s_line, true));
 						fields[SYS_SEMAPHORE_WAITS_LAST_READER_LINE]->set_notnull();
