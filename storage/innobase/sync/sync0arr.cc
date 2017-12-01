@@ -589,7 +589,7 @@ sync_array_cell_print(
 			fprintf(file,
 				"number of readers " ULINTPF
 				", waiters flag %u, "
-				"lock_word: " ULINTPFx "\n"
+				"lock_word: %x\n"
 				"Last time read locked in file %s line %u\n"
 				"Last time write locked in file %s line %u"
 #if 0 /* JAN: TODO: FIX LATER */

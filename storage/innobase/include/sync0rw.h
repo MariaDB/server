@@ -501,8 +501,8 @@ bool
 rw_lock_lock_word_decr(
 /*===================*/
 	rw_lock_t*	lock,		/*!< in/out: rw-lock */
-	ulint		amount,		/*!< in: amount to decrement */
-	lint		threshold);	/*!< in: threshold of judgement */
+	int32_t		amount,		/*!< in: amount to decrement */
+	int32_t		threshold);	/*!< in: threshold of judgement */
 #ifdef UNIV_DEBUG
 /******************************************************************//**
 Checks if the thread has locked the rw-lock in the specified mode, with
@@ -571,7 +571,7 @@ struct rw_lock_t
 #endif /* UNIV_DEBUG */
 {
 	/** Holds the state of the lock. */
-	volatile lint	lock_word;
+	volatile int32_t	lock_word;
 
 	/** 1: there are waiters */
 	volatile uint32_t	waiters;

@@ -77,7 +77,7 @@ rw_lock_get_writer(
 /*===============*/
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	lint lock_word = lock->lock_word;
+	int32_t lock_word = lock->lock_word;
 
 	ut_ad(lock_word <= X_LOCK_DECR);
 	if (lock_word > X_LOCK_HALF_DECR) {
@@ -109,7 +109,7 @@ rw_lock_get_reader_count(
 /*=====================*/
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	lint lock_word = lock->lock_word;
+	int32_t lock_word = lock->lock_word;
 	ut_ad(lock_word <= X_LOCK_DECR);
 
 	if (lock_word > X_LOCK_HALF_DECR) {
@@ -145,7 +145,7 @@ rw_lock_get_x_lock_count(
 /*=====================*/
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	lint lock_copy = lock->lock_word;
+	int32_t lock_copy = lock->lock_word;
 	ut_ad(lock_copy <= X_LOCK_DECR);
 
 	if (lock_copy == 0 || lock_copy == -X_LOCK_HALF_DECR) {
@@ -178,7 +178,7 @@ rw_lock_get_sx_lock_count(
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
 #ifdef UNIV_DEBUG
-	lint lock_copy = lock->lock_word;
+	int32_t lock_copy = lock->lock_word;
 
 	ut_ad(lock_copy <= X_LOCK_DECR);
 
@@ -208,17 +208,16 @@ bool
 rw_lock_lock_word_decr(
 /*===================*/
 	rw_lock_t*	lock,		/*!< in/out: rw-lock */
-	ulint		amount,		/*!< in: amount to decrement */
-	lint		threshold)	/*!< in: threshold of judgement */
+	int32_t		amount,		/*!< in: amount to decrement */
+	int32_t		threshold)	/*!< in: threshold of judgement */
 {
-	lint local_lock_word;
+	int32_t local_lock_word;
 
-	local_lock_word = my_atomic_loadlint_explicit(&lock->lock_word,
-						      MY_MEMORY_ORDER_RELAXED);
+	local_lock_word = my_atomic_load32_explicit(&lock->lock_word,
+						    MY_MEMORY_ORDER_RELAXED);
 	while (local_lock_word > threshold) {
-		if (my_atomic_caslint(&lock->lock_word,
-				      &local_lock_word,
-				      local_lock_word - amount)) {
+		if (my_atomic_cas32(&lock->lock_word, &local_lock_word,
+				    local_lock_word - amount)) {
 			return(true);
 		}
 	}
@@ -306,9 +305,9 @@ rw_lock_x_lock_func_nowait(
 	const char*	file_name,/*!< in: file name where lock requested */
 	unsigned	line)	/*!< in: line where requested */
 {
-	lint oldval = X_LOCK_DECR;
+	int32_t oldval = X_LOCK_DECR;
 
-	if (my_atomic_caslint(&lock->lock_word, &oldval, 0)) {
+	if (my_atomic_cas32(&lock->lock_word, &oldval, 0)) {
 		lock->writer_thread = os_thread_get_curr_id();
 
 	} else if (os_thread_eq(lock->writer_thread, os_thread_get_curr_id())) {
@@ -357,7 +356,7 @@ rw_lock_s_unlock_func(
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
 #ifdef UNIV_DEBUG
-	lint	dbg_lock_word = my_atomic_loadlint_explicit(
+	int32_t	dbg_lock_word = my_atomic_load32_explicit(
 			&lock->lock_word, MY_MEMORY_ORDER_RELAXED);
 	ut_ad(dbg_lock_word > -X_LOCK_DECR);
 	ut_ad(dbg_lock_word != 0);
@@ -367,7 +366,7 @@ rw_lock_s_unlock_func(
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_S));
 
 	/* Increment lock_word to indicate 1 less reader */
-	lint	lock_word = my_atomic_addlint(&lock->lock_word, 1) + 1;
+	int32_t	lock_word = my_atomic_add32(&lock->lock_word, 1) + 1;
 	if (lock_word == 0 || lock_word == -X_LOCK_HALF_DECR) {
 
 		/* wait_ex waiter exists. It may not be asleep, but we signal
@@ -393,9 +392,9 @@ rw_lock_x_unlock_func(
 #endif /* UNIV_DEBUG */
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-	lint	lock_word;
-	lock_word = my_atomic_loadlint_explicit(&lock->lock_word,
-						MY_MEMORY_ORDER_RELAXED);
+	int32_t	lock_word;
+	lock_word = my_atomic_load32_explicit(&lock->lock_word,
+					      MY_MEMORY_ORDER_RELAXED);
 
 	ut_ad(lock_word == 0 || lock_word == -X_LOCK_HALF_DECR
 	      || lock_word <= -X_LOCK_DECR);
@@ -410,7 +409,7 @@ rw_lock_x_unlock_func(
 	if (lock_word == 0 || lock_word == -X_LOCK_HALF_DECR) {
 		/* There is 1 x-lock */
 		/* atomic increment is needed, because it is last */
-		if (my_atomic_addlint(&lock->lock_word, X_LOCK_DECR) <= -X_LOCK_DECR) {
+		if (my_atomic_add32(&lock->lock_word, X_LOCK_DECR) <= -X_LOCK_DECR) {
 			ut_error;
 		}
 
@@ -462,7 +461,7 @@ rw_lock_sx_unlock_func(
 		if (lock->lock_word > 0) {
 			lock->writer_thread = 0;
 
-			if (my_atomic_addlint(&lock->lock_word, X_LOCK_HALF_DECR) <= 0) {
+			if (my_atomic_add32(&lock->lock_word, X_LOCK_HALF_DECR) <= 0) {
 				ut_error;
 			}
 			/* Lock is now free. May have to signal read/write
