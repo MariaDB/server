@@ -2399,8 +2399,15 @@ xtrabackup_copy_logfile(copy_logfile copy)
 
 		log_mutex_enter();
 
-		lsn_t lsn = log_group_read_log_seg(log_sys->buf, &log_sys->log,
-						   start_lsn, end_lsn);
+		lsn_t lsn= start_lsn;
+		for(int retries= 0; retries < 100; retries++) {
+			if (log_group_read_log_seg(log_sys->buf, &log_sys->log,
+				&lsn, end_lsn)){
+				break;
+			}
+			msg("Retrying read of a redo log block");
+			my_sleep(1000);
+		}
 
 		start_lsn = xtrabackup_copy_log(copy, start_lsn, lsn);
 

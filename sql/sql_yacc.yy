@@ -1624,7 +1624,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         opt_component key_cache_name
         sp_opt_label BIN_NUM TEXT_STRING_filesystem ident_or_empty
-        opt_constraint constraint opt_ident
+        opt_constraint constraint opt_ident ident_table_alias
         sp_decl_ident
         sp_block_label opt_place opt_db
 
@@ -1819,7 +1819,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <Lex_length_and_dec> precision opt_precision float_options
 
-%type <symbol> keyword keyword_sp
+%type <symbol> keyword keyword_sp keyword_alias
                keyword_sp_data_type
                keyword_sp_not_data_type
 
@@ -11777,7 +11777,7 @@ table_alias:
 
 opt_table_alias:
           /* empty */ { $$=0; }
-        | table_alias ident
+        | table_alias ident_table_alias
           {
             $$= (LEX_CSTRING*) thd->memdup(&$2,sizeof(LEX_STRING));
             if ($$ == NULL)
@@ -14707,6 +14707,16 @@ TEXT_STRING_filesystem:
 	      $$.length= to.length;
             }
           }
+
+ident_table_alias:
+          IDENT_sys   { $$= $1; }
+        | keyword_alias
+          {
+            $$.str= thd->strmake($1.str, $1.length);
+            if ($$.str == NULL)
+              MYSQL_YYABORT;
+            $$.length= $1.length;
+          }
         ;
 
 ident:
@@ -14821,8 +14831,8 @@ user: user_maybe_role
          }
          ;
 
-/* Keyword that we allow for identifiers (except SP labels) */
-keyword:
+/* Keywords which we allow as table aliases. */
+keyword_alias:
           keyword_sp            {}
         | keyword_sp_verb_clause{}
         | ASCII_SYM             {}
@@ -14885,6 +14895,10 @@ keyword:
         | XA_SYM                {}
         | UPGRADE_SYM           {}
         ;
+
+
+/* Keyword that we allow for identifiers (except SP labels) */
+keyword: keyword_alias | WINDOW_SYM {};
 
 /*
  * Keywords that we allow for labels in SPs.
