@@ -1979,6 +1979,7 @@ wait_suspend_loop:
 		goto wait_suspend_loop;
 	case SRV_PURGE:
 	case SRV_WORKER:
+		ut_ad(!"purge was not shut down");
 		srv_purge_wakeup();
 		thread_name = "purge thread";
 		goto wait_suspend_loop;

@@ -99,14 +99,15 @@ recv_sys_debug_free(void);
 /** Read a log segment to a buffer.
 @param[out]	buf		buffer
 @param[in]	group		redo log files
-@param[in]	start_lsn	read area start
+@param[in, out]	start_lsn	in : read area start, out: the last read valid lsn
 @param[in]	end_lsn		read area end
-@return	valid end_lsn */
-lsn_t
+@param[out] invalid_block - invalid, (maybe incompletely written) block encountered
+@return	false, if invalid block encountered (e.g checksum mismatch), true otherwise */
+bool
 log_group_read_log_seg(
 	byte*			buf,
 	const log_group_t*	group,
-	lsn_t			start_lsn,
+	lsn_t*			start_lsn,
 	lsn_t			end_lsn);
 
 /********************************************************//**

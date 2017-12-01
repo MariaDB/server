@@ -2980,8 +2980,11 @@ srv_purge_wakeup()
 {
 	ut_ad(!srv_read_only_mode);
 
-	if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
+	if (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND) {
+		return;
+	}
 
+	do {
 		srv_release_threads(SRV_PURGE, 1);
 
 		if (srv_n_purge_threads > 1) {
@@ -2989,7 +2992,9 @@ srv_purge_wakeup()
 
 			srv_release_threads(SRV_WORKER, n_workers);
 		}
-	}
+	} while (!srv_running
+		 && (srv_sys.n_threads_active[SRV_WORKER]
+		     || srv_sys.n_threads_active[SRV_PURGE]));
 }
 
 /** Check if tablespace is being truncated.
