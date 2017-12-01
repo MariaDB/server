@@ -361,7 +361,7 @@ lock_loop:
 
 		/* Set waiters before checking lock_word to ensure wake-up
 		signal is sent. This may lead to some unnecessary signals. */
-		my_atomic_fas32((int32*) &lock->waiters, 1);
+		my_atomic_fas32_explicit(&lock->waiters, 1, MY_MEMORY_ORDER_ACQUIRE);
 
 		if (rw_lock_s_lock_low(lock, pass, file_name, line)) {
 
@@ -745,7 +745,7 @@ lock_loop:
 
 	/* Waiters must be set before checking lock_word, to ensure signal
 	is sent. This could lead to a few unnecessary wake-up signals. */
-	my_atomic_fas32((int32*) &lock->waiters, 1);
+	my_atomic_fas32_explicit(&lock->waiters, 1, MY_MEMORY_ORDER_ACQUIRE);
 
 	if (rw_lock_x_lock_low(lock, pass, file_name, line)) {
 		sync_array_free_cell(sync_arr, cell);
@@ -850,7 +850,7 @@ lock_loop:
 
 	/* Waiters must be set before checking lock_word, to ensure signal
 	is sent. This could lead to a few unnecessary wake-up signals. */
-	my_atomic_fas32((int32*) &lock->waiters, 1);
+	my_atomic_fas32_explicit(&lock->waiters, 1, MY_MEMORY_ORDER_ACQUIRE);
 
 	if (rw_lock_sx_lock_low(lock, pass, file_name, line)) {
 
