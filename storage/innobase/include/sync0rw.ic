@@ -418,7 +418,7 @@ rw_lock_x_unlock_func(
 		We need to signal read/write waiters.
 		We do not need to signal wait_ex waiters, since they cannot
 		exist when there is a writer. */
-		if (my_atomic_load32_explicit((int32*) &lock->waiters,
+		if (my_atomic_load32_explicit(&lock->waiters,
 					      MY_MEMORY_ORDER_RELAXED)) {
 			my_atomic_store32((int32*) &lock->waiters, 0);
 			os_event_set(lock->event);
@@ -472,7 +472,8 @@ rw_lock_sx_unlock_func(
 			waiters. We do not need to signal wait_ex waiters,
 			since they cannot exist when there is an sx-lock
 			holder. */
-			if (lock->waiters) {
+			if (my_atomic_load32_explicit(&lock->waiters,
+						      MY_MEMORY_ORDER_RELAXED)) {
 				my_atomic_store32((int32*) &lock->waiters, 0);
 				os_event_set(lock->event);
 				sync_array_object_signalled();

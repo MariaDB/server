@@ -574,7 +574,7 @@ struct rw_lock_t
 	int32_t	lock_word;
 
 	/** 1: there are waiters */
-	volatile uint32_t	waiters;
+	int32_t	waiters;
 
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;

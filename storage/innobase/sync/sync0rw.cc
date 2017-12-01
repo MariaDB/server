@@ -897,7 +897,7 @@ rw_lock_validate(
 					      MY_MEMORY_ORDER_RELAXED);
 
 	ut_ad(lock->magic_n == RW_LOCK_MAGIC_N);
-	ut_ad(my_atomic_load32_explicit((int32*) &lock->waiters,
+	ut_ad(my_atomic_load32_explicit(const_cast<int32_t*>(&lock->waiters),
 					MY_MEMORY_ORDER_RELAXED) < 2);
 	ut_ad(lock_word > -(2 * X_LOCK_DECR));
 	ut_ad(lock_word <= X_LOCK_DECR);
@@ -1166,8 +1166,8 @@ rw_lock_list_print_info(
 
 			fprintf(file, "RW-LOCK: %p ", (void*) lock);
 
-			if (lock->waiters) {
-				fputs(" Waiters for the lock exist\n", file);
+			if (int32_t waiters= my_atomic_load32_explicit(const_cast<int32_t*>(&lock->waiters), MY_MEMORY_ORDER_RELAXED)) {
+				fprintf(file, " (%d waiters)\n", waiters);
 			} else {
 				putc('\n', file);
 			}

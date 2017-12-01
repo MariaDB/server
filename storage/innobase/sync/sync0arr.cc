@@ -588,7 +588,7 @@ sync_array_cell_print(
 
 			fprintf(file,
 				"number of readers " ULINTPF
-				", waiters flag %u, "
+				", waiters flag %d, "
 				"lock_word: %x\n"
 				"Last time read locked in file %s line %u\n"
 				"Last time write locked in file %s line %u"
@@ -598,7 +598,7 @@ sync_array_cell_print(
 #endif
 				"\n",
 				rw_lock_get_reader_count(rwlock),
-				rwlock->waiters,
+				my_atomic_load32_explicit(&rwlock->waiters, MY_MEMORY_ORDER_RELAXED),
 				my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED),
 				innobase_basename(rwlock->last_s_file_name),
 				rwlock->last_s_line,
@@ -1397,7 +1397,8 @@ sync_arr_fill_sys_semphore_waits_table(
 						//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->store(rwlock->line, true));
 						//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_READERS], rw_lock_get_reader_count(rwlock)));
-						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG], (longlong)rwlock->waiters));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG],
+						   my_atomic_load32_explicit(&rwlock->waiters, MY_MEMORY_ORDER_RELAXED)));
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD],
 						   my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED)));
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_READER_FILE], innobase_basename(rwlock->last_s_file_name)));
