@@ -3056,34 +3056,23 @@ int handler::update_auto_increment()
   enum enum_check_fields save_count_cuted_fields;
   DBUG_ENTER("handler::update_auto_increment");
 
-  // System Versioning: handle ALTER ADD COLUMN AUTO_INCREMENT
-  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE && table->versioned())
+  // ALTER TABLE ... ADD COLUMN ... AUTO_INCREMENT
+  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
   {
-    Field *end= table->vers_end_field();
-    DBUG_ASSERT(end);
-    bitmap_set_bit(table->read_set, end->field_index);
-    if (!end->is_max())
+    if (table->versioned())
     {
-      uchar *ptr= table->next_number_field->ptr;
-      switch (table->next_number_field->pack_length())
+      Field *end= table->vers_end_field();
+      DBUG_ASSERT(end);
+      bitmap_set_bit(table->read_set, end->field_index);
+      if (!end->is_max())
       {
-      case 8:
-        int8store(ptr, vers_auto_decrement--);
-        break;
-      case 4:
-        int4store(ptr, vers_auto_decrement--);
-        break;
-      case 2:
-        int2store(ptr, vers_auto_decrement--);
-        break;
-      case 1:
-        *ptr= static_cast<uchar>(vers_auto_decrement--);
-        break;
-      default:
-        DBUG_ASSERT(false);
+        if (!table->next_number_field->real_maybe_null())
+          DBUG_RETURN(HA_ERR_UNSUPPORTED);
+        table->next_number_field->set_null();
+        DBUG_RETURN(0);
       }
-      DBUG_RETURN(0);
     }
+    table->next_number_field->set_notnull();
   }
 
   /*

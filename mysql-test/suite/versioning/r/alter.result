@@ -426,17 +426,24 @@ No	A	B	C	D
 create or replace table t (a int) with system versioning;
 insert into t values (1), (2), (3);
 delete from t where a<3;
+alter table t add b int not null unique;
+ERROR 23000: Duplicate entry '...' for key 'b'
 alter table t add b int auto_increment unique;
-select * from t for system_time all;
+ERROR 42000: Table '#sql-temporary' uses an extension that doesn't exist in this MariaDB version
+alter table t add b int auto_increment null unique;
+select * from t;
 a	b
-1	-1
-2	-2
 3	1
-insert into t values (4, NULL);
 select * from t for system_time all;
 a	b
-1	-1
-2	-2
+1	NULL
+2	NULL
+3	1
+insert into t values (4, 0);
+select * from t for system_time all;
+a	b
+1	NULL
+2	NULL
 3	1
 4	2
 create or replace table t (a int) with system versioning engine=innodb;
@@ -467,17 +474,17 @@ No	A	B	C	D
 create or replace table t (a int) with system versioning;
 insert into t values (1), (2), (3);
 delete from t where a<3;
-alter table t add b tinyint auto_increment unique;
+alter table t add b tinyint auto_increment null unique;
 select * from t for system_time all;
 a	b
-1	-1
-2	-2
+1	NULL
+2	NULL
 3	1
-insert into t values (4, NULL);
+insert into t values (4, 0);
 select * from t for system_time all;
 a	b
-1	-1
-2	-2
+1	NULL
+2	NULL
 3	1
 4	2
 create or replace table t (

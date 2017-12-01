@@ -10112,7 +10112,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
   else if (keep_versioned)
   {
-    to->file->vers_auto_decrement= 0xffffffffffffffff;
     if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
     {
       query_start= thd->query_start_TIME();

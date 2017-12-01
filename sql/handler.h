@@ -2865,8 +2865,6 @@ public:
   */
   uint auto_inc_intervals_count;
 
-  ulonglong vers_auto_decrement;
-
   /**
     Instrumented table associated with this handler.
     This member should be set to NULL when no instrumentation is in place,
