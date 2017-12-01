@@ -5502,13 +5502,6 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     thd->work_part_info= src_table->table->part_info->get_clone(thd);
 #endif
 
-  if (src_table->table->versioned() &&
-      local_create_info.vers_info.fix_create_like(thd, &local_alter_info,
-                                                  &local_create_info, src_table))
-  {
-    goto err;
-  }
-
   /*
     Adjust description of source table before using it for creation of
     target table.
@@ -5520,7 +5513,6 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     local_create_info.max_rows= 0;
   /* Replace type of source table with one specified in the statement. */
   local_create_info.options&= ~HA_LEX_CREATE_TMP_TABLE;
-  local_create_info.options|= create_info->tmp_table();
   local_create_info.options|= create_info->options;
   /* Reset auto-increment counter for the new table. */
   local_create_info.auto_increment_value= 0;
@@ -5529,6 +5521,13 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     the original table. This is documented behavior.
   */
   local_create_info.data_file_name= local_create_info.index_file_name= NULL;
+
+  if (src_table->table->versioned() &&
+      local_create_info.vers_info.fix_create_like(local_alter_info, local_create_info,
+                                                  *src_table, *table))
+  {
+    goto err;
+  }
 
   /* The following is needed only in case of lock tables */
   if ((local_create_info.table= thd->lex->query_tables->table))

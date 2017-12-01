@@ -1747,8 +1747,8 @@ public:
                               const char *table_name);
   bool check_and_fix_alter(THD *thd, Alter_info *alter_info,
                            HA_CREATE_INFO *create_info, TABLE *table);
-  bool fix_create_like(THD *thd, Alter_info *alter_info,
-                       HA_CREATE_INFO *create_info, TABLE_LIST *table);
+  bool fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
+                       TABLE_LIST &src_table, TABLE_LIST &table);
 
   /** User has added 'WITH SYSTEM VERSIONING' to table definition */
   bool with_system_versioning : 1;

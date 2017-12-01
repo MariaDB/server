@@ -198,6 +198,10 @@ create table tt1 like t1;
 --replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM "bigint(20) unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
 show create table tt1;
 drop table tt1;
+create temporary table tt1 like t1;
+--echo # Temporary is stripped from versioning
+--replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM
+show create table tt1;
 
 # CREATE TABLE ... SELECT
 create or replace table t1 (x int) with system versioning;

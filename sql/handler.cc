@@ -7138,13 +7138,34 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
            check_generated_type(table_name, alter_info, integer_fields)));
 }
 
-bool Vers_parse_info::fix_create_like(THD *thd, Alter_info *alter_info,
-                                      HA_CREATE_INFO *create_info, TABLE_LIST *table)
+bool
+Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
+                                 TABLE_LIST &src_table, TABLE_LIST &table)
 {
-  List_iterator<Create_field> it(alter_info->create_list);
+  List_iterator<Create_field> it(alter_info.create_list);
   Create_field *f, *f_start=NULL, *f_end= NULL;
 
-  DBUG_ASSERT(alter_info->create_list.elements > 2);
+  DBUG_ASSERT(alter_info.create_list.elements > 2);
+
+  if (create_info.tmp_table())
+  {
+    int remove= 2;
+    while (remove && (f= it++))
+    {
+      if (f->flags & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+      {
+        it.remove();
+        remove--;
+      }
+    }
+    DBUG_ASSERT(remove == 0);
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_UNKNOWN_ERROR,
+                        "System versioning is stripped from temporary `%s.%s`",
+                        table.db, table.table_name);
+    return false;
+  }
+
   while ((f= it++))
   {
     if (f->flags & VERS_SYS_START_FLAG)
@@ -7163,7 +7184,7 @@ bool Vers_parse_info::fix_create_like(THD *thd, Alter_info *alter_info,
 
   if (!f_start || !f_end)
   {
-    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table->table_name,
+    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), src_table.table_name,
       f_start ? "AS ROW END" : "AS ROW START");
     return true;
   }
@@ -7171,7 +7192,7 @@ bool Vers_parse_info::fix_create_like(THD *thd, Alter_info *alter_info,
   as_row= start_end_t(f_start->field_name, f_end->field_name);
   system_time= as_row;
 
-  create_info->options|= HA_VERSIONED_TABLE;
+  create_info.options|= HA_VERSIONED_TABLE;
   return false;
 }
 

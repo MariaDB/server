@@ -281,6 +281,15 @@ tt1	CREATE TABLE `tt1` (
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 drop table tt1;
+create temporary table tt1 like t1;
+Warnings:
+Warning	1105	System versioning is stripped from temporary `test.tt1`
+# Temporary is stripped from versioning
+show create table tt1;
+Table	Create Table
+tt1	CREATE TEMPORARY TABLE `tt1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1
 create or replace table t1 (x int) with system versioning;
 create or replace table t0(
 y int,
