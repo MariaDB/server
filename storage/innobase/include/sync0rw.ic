@@ -420,7 +420,8 @@ rw_lock_x_unlock_func(
 		exist when there is a writer. */
 		if (my_atomic_load32_explicit(&lock->waiters,
 					      MY_MEMORY_ORDER_RELAXED)) {
-			my_atomic_store32((int32*) &lock->waiters, 0);
+			my_atomic_store32_explicit(&lock->waiters, 0,
+						   MY_MEMORY_ORDER_RELAXED);
 			os_event_set(lock->event);
 			sync_array_object_signalled();
 		}
@@ -474,7 +475,8 @@ rw_lock_sx_unlock_func(
 			holder. */
 			if (my_atomic_load32_explicit(&lock->waiters,
 						      MY_MEMORY_ORDER_RELAXED)) {
-				my_atomic_store32((int32*) &lock->waiters, 0);
+				my_atomic_store32_explicit(&lock->waiters, 0,
+							   MY_MEMORY_ORDER_RELAXED);
 				os_event_set(lock->event);
 				sync_array_object_signalled();
 			}
