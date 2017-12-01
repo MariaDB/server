@@ -1675,18 +1675,7 @@ RecLock::prepare() const
 		ut_error;
 	}
 
-	switch (trx_get_dict_operation(m_trx)) {
-	case TRX_DICT_OP_NONE:
-		break;
-	case TRX_DICT_OP_TABLE:
-	case TRX_DICT_OP_INDEX:
-		ib::error() << "A record lock wait happens in a dictionary"
-			" operation. index " << m_index->name
-			<< " of table " << m_index->table->name
-			<< ". " << BUG_REPORT_MSG;
-		ut_ad(0);
-	}
-
+	ut_ad(trx_get_dict_operation(m_trx) == TRX_DICT_OP_NONE);
 	ut_ad(m_index->table->n_ref_count > 0
 	      || !m_index->table->can_be_evicted);
 }
@@ -2246,6 +2235,24 @@ RecLock::add_to_waitq(const lock_t* wait_for, const lock_prdt_t* prdt)
 	m_mode |= LOCK_WAIT;
 
 	/* Do the preliminary checks, and set query thread state */
+
+	switch (UNIV_EXPECT(trx_get_dict_operation(m_trx), TRX_DICT_OP_NONE)) {
+	case TRX_DICT_OP_NONE:
+		break;
+	case TRX_DICT_OP_TABLE:
+	case TRX_DICT_OP_INDEX:
+		ut_ad(!prdt);
+
+		if (m_trx->dict_operation_lock_mode != RW_X_LATCH) {
+		} else if (!strcmp(m_index->table->name.m_name,
+				   "mysql/innodb_table_stats")
+			   || !strcmp(m_index->table->name.m_name,
+				      "mysql/innodb_index_stats")) {
+			/* Statistics can be updated as part of a DDL
+			transaction, but only as the very last operation. */
+			return(DB_QUE_THR_SUSPENDED);
+		}
+	}
 
 	prepare();
 
@@ -4628,6 +4635,16 @@ lock_table_enqueue_waiting(
 		break;
 	case TRX_DICT_OP_TABLE:
 	case TRX_DICT_OP_INDEX:
+		if (trx->dict_operation_lock_mode != RW_X_LATCH) {
+		} else if (!strcmp(table->name.m_name,
+				   "mysql/innodb_table_stats")
+			   || !strcmp(table->name.m_name,
+				      "mysql/innodb_index_stats")) {
+			/* Statistics can be updated as part of a DDL
+			transaction, but only as the very last operation. */
+			return(DB_QUE_THR_SUSPENDED);
+		}
+
 		ib::error() << "A table lock wait happens in a dictionary"
 			" operation. Table " << table->name
 			<< ". " << BUG_REPORT_MSG;
