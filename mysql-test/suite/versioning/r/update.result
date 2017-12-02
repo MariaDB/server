@@ -193,19 +193,12 @@ set @str= concat('
 prepare stmt from @str; execute stmt; drop prepare stmt;
 insert into t1(x, y) values
 (1, 1000),
-(2, 2000),
 (3, 3000),
 (4, 4000),
-(5, 5000),
-(6, 6000),
-(7, 7000),
-(8, 8000),
-(9, 9000);
+(5, 5000);
 insert into t1(x, y) values(3, 3000) on duplicate key update y = y+1;
-insert into t1(x, y) values(4, 4000) on duplicate key update y = y+1;
-insert into t1(x, y) values(4, 4001) on duplicate key update y = y+1;
 insert into t1(x, y) values(4, 4444) on duplicate key update y = y+1;
-select x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp '9999-1-1 0:0:0';
+select x, y from t1 for system_time all;
 select x, y from t1;
 drop table t1;
 end~~
@@ -408,62 +401,36 @@ No	A	B	C	D
 call test_05('timestamp(6)', 'myisam', 'sys_end');
 x	y
 1	1000
-2	2000
-3	3001
-4	4002
-5	5000
-6	6000
-7	7000
-8	8000
-9	9000
 3	3000
+3	3001
 4	4000
-4	4001
 4	4444
+5	5000
 x	y
 1	1000
-2	2000
 3	3001
-4	4002
+4	4000
 4	4444
 5	5000
-6	6000
-7	7000
-8	8000
-9	9000
 call test_05('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 x	y
 1	1000
-2	2000
 3	3000
 3	3001
 4	4000
-4	4001
-4	4002
 4	4444
 5	5000
-6	6000
-7	7000
-8	8000
-9	9000
 x	y
 1	1000
-2	2000
 3	3001
-4	4002
+4	4000
 4	4444
 5	5000
-6	6000
-7	7000
-8	8000
-9	9000
 call verify_vtq;
 No	A	B	C	D
 1	1	1	1	1
 2	1	1	1	1
 3	1	1	1	1
-4	1	1	1	1
-5	1	1	1	1
 call test_06('timestamp(6)', 'myisam', 'sys_end');
 x	y
 1	1000
@@ -590,17 +557,13 @@ No	A	B	C	D
 1	1	1	1	1
 2	1	1	1	1
 3	1	1	1	1
-drop procedure test_01;
-drop procedure test_02;
-drop procedure test_03;
-drop procedure test_04;
-drop procedure test_05;
-drop procedure test_06;
-drop procedure test_07;
-drop procedure verify_vtq;
-drop procedure innodb_verify_vtq;
-drop function default_engine;
-drop function sys_commit_ts;
-drop function sys_datatype;
-drop procedure concat_exec2;
-drop procedure concat_exec3;
+### Issue #365, bug 7 (duplicate of historical row)
+set timestamp= 1000000019;
+create or replace table t1 (a int primary key, b int)
+with system versioning engine myisam;
+insert into t1 (a) values (1);
+update t1 set b= 2;
+insert into t1 (a) values (1) on duplicate key update a= 2;
+ERROR 23000: Duplicate entry '1-2001-09-09 01:46:59.000000' for key 'PRIMARY'
+drop database test;
+create database test;

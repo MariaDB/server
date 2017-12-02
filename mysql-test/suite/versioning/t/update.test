@@ -134,19 +134,12 @@ begin
   prepare stmt from @str; execute stmt; drop prepare stmt;
   insert into t1(x, y) values
     (1, 1000),
-    (2, 2000),
     (3, 3000),
     (4, 4000),
-    (5, 5000),
-    (6, 6000),
-    (7, 7000),
-    (8, 8000),
-    (9, 9000);
+    (5, 5000);
   insert into t1(x, y) values(3, 3000) on duplicate key update y = y+1;
-  insert into t1(x, y) values(4, 4000) on duplicate key update y = y+1;
-  insert into t1(x, y) values(4, 4001) on duplicate key update y = y+1;
   insert into t1(x, y) values(4, 4444) on duplicate key update y = y+1;
-  select x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp '9999-1-1 0:0:0';
+  select x, y from t1 for system_time all;
   select x, y from t1;
   drop table t1;
 end~~
@@ -262,12 +255,14 @@ call test_07('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 
 call verify_vtq;
 
-drop procedure test_01;
-drop procedure test_02;
-drop procedure test_03;
-drop procedure test_04;
-drop procedure test_05;
-drop procedure test_06;
-drop procedure test_07;
+--echo ### Issue #365, bug 7 (duplicate of historical row)
+set timestamp= 1000000019;
+create or replace table t1 (a int primary key, b int)
+with system versioning engine myisam;
+insert into t1 (a) values (1);
+update t1 set b= 2;
+--error ER_DUP_ENTRY
+insert into t1 (a) values (1) on duplicate key update a= 2;
 
--- source suite/versioning/common_finish.inc
+drop database test;
+create database test;
