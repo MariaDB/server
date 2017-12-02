@@ -4496,8 +4496,8 @@ public:
   bool sp_check_access(THD *thd);
   bool execute(THD *thd, bool *null_value, Item **args, uint arg_count);
   bool execute_impl(THD *thd, Item **args, uint arg_count);
-  bool init_result_field(THD *thd, sp_head *sp, uint max_length,
-                         uint maybe_null, bool *null_value, LEX_CSTRING *name);
+  bool init_result_field(THD *thd, uint max_length, uint maybe_null,
+                         bool *null_value, LEX_CSTRING *name);
 };
 
 class Item_ref :public Item_ident

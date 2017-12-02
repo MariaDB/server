@@ -6415,12 +6415,28 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     }
   }
 
+
+  /* Custom aggregates are transformed into an Item_sum_sp. We can not do this
+     earlier as we have no way of knowing what kind of Item we should create
+     when parsing the query.
+
+     TODO(cvicentiu): See if this limitation can be lifted.
+  */
+
+  DBUG_ASSERT(m_sp == NULL);
+  if (!(m_sp= sp))
+  {
+    my_missing_function_error(m_name->m_name, ErrConvDQName(m_name).ptr());
+    context->process_error(thd);
+    DBUG_RETURN(TRUE);
+  }
+
   /*
-    We must call init_result_field before Item_func::fix_fields() 
+    We must call init_result_field before Item_func::fix_fields()
     to make m_sp and result_field members available to fix_length_and_dec(),
     which is called from Item_func::fix_fields().
   */
-  res= init_result_field(thd, sp, max_length, maybe_null, &null_value, &name);
+  res= init_result_field(thd, max_length, maybe_null, &null_value, &name);
 
   if (res)
     DBUG_RETURN(TRUE);

@@ -2915,20 +2915,13 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
 */
 
 bool
-Item_sp::init_result_field(THD *thd, sp_head *sp, uint max_length,
-                           uint maybe_null, bool *null_value, LEX_CSTRING *name)
+Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
+                           bool *null_value, LEX_CSTRING *name)
 {
   DBUG_ENTER("Item_sp::init_result_field");
 
-  DBUG_ASSERT(m_sp == NULL);
+  DBUG_ASSERT(m_sp != NULL);
   DBUG_ASSERT(sp_result_field == NULL);
-
-  if (!(m_sp= sp))
-  {
-    my_missing_function_error (m_name->m_name, ErrConvDQName(m_name).ptr());
-    context->process_error(thd);
-    DBUG_RETURN(TRUE);
-  }
 
   /*
      A Field needs to be attached to a Table.
