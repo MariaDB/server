@@ -1871,20 +1871,10 @@ struct vers_select_conds_t
     start= end= NULL;
   }
 
-  void init(
-    vers_range_type_t t,
-    vers_range_unit_t u_start= UNIT_AUTO,
-    Item * s= NULL,
-    vers_range_unit_t u_end= UNIT_AUTO,
-    Item * e= NULL)
-  {
-    type= t;
-    unit_start= u_start;
-    unit_end= u_end;
-    start= s;
-    end= e;
-    import_outer= from_inner= false;
-  }
+  inline Item *fix_dec(Item *item);
+
+  inline void init( vers_range_type_t t, vers_range_unit_t u_start,
+    Item * s, vers_range_unit_t u_end, Item * e);
 
   bool init_from_sysvar(THD *thd);
 

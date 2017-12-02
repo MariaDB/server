@@ -49,7 +49,7 @@ as
        ancestors as a
   where e.mgr = a.emp_id
 )
-select * from ancestors for system_time as of now;
+select * from ancestors for system_time as of current_timestamp;
 
 /* Expected 3 rows */
 with recursive

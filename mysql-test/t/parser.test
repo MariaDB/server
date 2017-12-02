@@ -104,7 +104,9 @@ create table MIN (a int);
 drop table MIN;
 
 --error ER_PARSE_ERROR
+create table NOW(a int);
 create table NOW (a int);
+drop table NOW;
 
 --error ER_PARSE_ERROR
 create table POSITION(a int);

@@ -2221,7 +2221,7 @@ static int add_partition_values(String *str, partition_info *part_info,
     switch (p_elem->type())
     {
     case partition_element::AS_OF_NOW:
-      err+= str->append(STRING_WITH_LEN(" AS OF NOW"));
+      err+= str->append(STRING_WITH_LEN(" AS OF CURRENT_TIMESTAMP"));
       break;
     case partition_element::VERSIONING:
       err+= str->append(STRING_WITH_LEN(" VERSIONING"));

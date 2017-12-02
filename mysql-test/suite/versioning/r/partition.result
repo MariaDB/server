@@ -30,24 +30,24 @@ x
 create or replace table t1 (x int)
 partition by system_time (
 partition p0 versioning,
-partition pn as of now);
+partition pn as of current_timestamp);
 ERROR HY000: System Versioning required: t1
 create or replace table t1 (x int);
 alter table t1
 partition by system_time (
 partition p0 versioning,
-partition pn as of now);
+partition pn as of current_timestamp);
 Got one of the listed errors
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-partition p0 as of now);
+partition p0 as of current_timestamp);
 ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-partition p0 as of now,
-partition p1 as of now);
+partition p0 as of current_timestamp,
+partition p1 as of current_timestamp);
 ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 create or replace table t1 (x int)
 with system versioning
@@ -58,16 +58,16 @@ ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERS
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-partition pn as of now,
+partition pn as of current_timestamp,
 partition p0 versioning);
 ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
 partition p0 versioning,
-partition pn as of now);
+partition pn as of current_timestamp);
 alter table t1 add partition (
-partition p1 as of now);
+partition p1 as of current_timestamp);
 ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
 alter table t1 add partition (
 partition p1 versioning);
@@ -84,7 +84,7 @@ t1	CREATE TABLE `t1` (
  PARTITION BY SYSTEM_TIME 
 (PARTITION `p0` VERSIONING ENGINE = ${INNODB_OR_MYISAM},
  PARTITION `p1` VERSIONING ENGINE = ${INNODB_OR_MYISAM},
- PARTITION `pn` AS OF NOW ENGINE = ${INNODB_OR_MYISAM})
+ PARTITION `pn` AS OF CURRENT_TIMESTAMP ENGINE = ${INNODB_OR_MYISAM})
 insert into t1 values (1), (2);
 alter table t1 drop partition pn;
 ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
@@ -99,7 +99,7 @@ create or replace table t1 (x int)
 with system versioning
 partition by system_time (
 partition p0 versioning,
-partition pn as of now);
+partition pn as of current_timestamp);
 set @now= now(6);
 insert into t1 values (1);
 set @ts_start= sys_commit_ts('sys_trx_start');
@@ -180,14 +180,14 @@ with system versioning
 partition by system_time limit 0 (
 partition p0 versioning,
 partition p1 versioning,
-partition pn as of now);
+partition pn as of current_timestamp);
 ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'LIMIT'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time limit 1 (
 partition p0 versioning,
 partition p1 versioning,
-partition pn as of now);
+partition pn as of current_timestamp);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -199,7 +199,7 @@ t1	CREATE TABLE `t1` (
  PARTITION BY SYSTEM_TIME LIMIT 1
 (PARTITION `p0` VERSIONING ENGINE = ${INNODB_OR_MYISAM},
  PARTITION `p1` VERSIONING ENGINE = ${INNODB_OR_MYISAM},
- PARTITION `pn` AS OF NOW ENGINE = ${INNODB_OR_MYISAM})
+ PARTITION `pn` AS OF CURRENT_TIMESTAMP ENGINE = ${INNODB_OR_MYISAM})
 alter table t1 drop partition non_existent;
 ERROR HY000: Error in list of partitions to DROP
 insert into t1 values (1), (2);
@@ -229,14 +229,14 @@ with system versioning
 partition by system_time interval 0 second (
 partition p0 versioning,
 partition p1 versioning,
-partition pn as of now);
+partition pn as of current_timestamp);
 ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'INTERVAL'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 1 second (
 partition p0 versioning,
 partition p1 versioning,
-partition pn as of now);
+partition pn as of current_timestamp);
 insert into t1 values (1), (2), (3);
 select * from t1 partition (pn);
 x
@@ -263,7 +263,7 @@ subpartition by key (x)
 subpartitions 2 (
 partition p0 versioning,
 partition p1 versioning,
-partition pn as of now);
+partition pn as of current_timestamp);
 insert into t1 (x) values (1), (2), (3);
 select * from t1 partition (pnsp0);
 x

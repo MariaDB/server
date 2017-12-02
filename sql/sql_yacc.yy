@@ -739,6 +739,32 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
        MYSQL_YYABORT;                   \
   } while(0)
 
+
+inline void vers_select_conds_t::init(
+    vers_range_type_t t,
+    vers_range_unit_t u_start= UNIT_AUTO,
+    Item * s= NULL,
+    vers_range_unit_t u_end= UNIT_AUTO,
+    Item * e= NULL)
+{
+  type= t;
+  unit_start= u_start;
+  unit_end= u_end;
+  start= fix_dec(s);
+  end= fix_dec(e);
+  import_outer= from_inner= false;
+}
+
+inline Item *vers_select_conds_t::fix_dec(Item *item)
+{
+  if (item && item->decimals == 0 && item->type() == Item::FUNC_ITEM &&
+      ((Item_func*)item)->functype() == Item_func::NOW_FUNC)
+    item->decimals= 6;
+
+  return item;
+}
+
+
 Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 {
   Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
@@ -870,10 +896,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 124 shift/reduce conflicts.
+  Currently there are 123 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 124
+%expect 123
 
 /*
    Comments for TOKENS.
@@ -9031,13 +9057,6 @@ system_time_expr:
           AS OF_SYM opt_trans_or_timestamp simple_expr
           {
             Lex->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, $3, $4);
-          }
-        | AS OF_SYM NOW_SYM
-          {
-            Item *item= new (thd->mem_root) Item_func_now_local(thd, 6);
-            if (item == NULL)
-              MYSQL_YYABORT;
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, UNIT_TIMESTAMP, item);
           }
         | ALL
           {
