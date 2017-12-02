@@ -87,6 +87,21 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
   return extra2_write(pos, type, reinterpret_cast<LEX_CSTRING *>(str));
 }
 
+static uchar *extra2_write_additional_field_properties(uchar *pos,
+                   int number_of_fields,List_iterator<Create_field> * it)
+{
+  *pos++=EXTRA2_FIELD_FLAGS;
+  /*
+   always first 2  for field visibility
+  */
+  pos= extra2_write_len(pos, number_of_fields);
+  Create_field *cf;
+  while((cf=(*it)++))
+    *pos++= cf->field_visibility;
+  it->rewind();
+  return pos;
+}
+
 /**
   Create a frm (table definition) file
 
@@ -120,6 +135,19 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   LEX_CUSTRING frm= {0,0};
   StringBuffer<MAX_FIELD_WIDTH> vcols;
   DBUG_ENTER("build_frm_image");
+
+  List_iterator<Create_field> it(create_fields);
+  Create_field *field;
+  bool have_additional_field_properties= false;
+  while ((field=it++))
+  {
+    if (field->field_visibility != NOT_INVISIBLE)
+    {
+      have_additional_field_properties= true;
+      break;
+    }
+  }
+  it.rewind();
 
  /* If fixed row records, we need one bit to check for deleted rows */
   if (!(create_info->table_options & HA_OPTION_PACK_RECORD))
@@ -218,7 +246,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
-
+  if(have_additional_field_properties)
+    extra2_size+=1 + (create_fields.elements > 255 ? 3 : 1) +
+        create_fields.elements;
 
   key_buff_length= uint4korr(fileinfo+47);
 
@@ -274,7 +304,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     pos+= gis_field_options_image(pos, create_fields);
   }
 #endif /*HAVE_SPATIAL*/
-
+  if (have_additional_field_properties)
+    pos=extra2_write_additional_field_properties(pos,create_fields.elements,&it);
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;
 

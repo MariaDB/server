@@ -176,6 +176,7 @@ enum extra2_frm_value_type {
 #define EXTRA2_ENGINE_IMPORTANT 128
 
   EXTRA2_ENGINE_TABLEOPTS=128,
+  EXTRA2_FIELD_FLAGS=129
 };
 
 int rea_create_table(THD *thd, LEX_CUSTRING *frm,

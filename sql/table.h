@@ -335,6 +335,16 @@ enum enum_vcol_update_mode
   VCOL_UPDATE_FOR_REPLACE
 };
 
+/* Field visibility enums */
+
+enum  field_visible_type{
+	NOT_INVISIBLE= 0,
+	USER_DEFINED_INVISIBLE,
+    /* automatically added by the server. Can be queried explicitly
+      in SELECT, otherwise invisible from anything" */
+	SYSTEM_INVISIBLE,
+	COMPLETELY_INVISIBLE
+};
 
 /**
   Category of table found in the table share.
@@ -668,6 +678,7 @@ struct TABLE_SHARE
   uint blob_fields;                     /* number of blob fields */
   uint varchar_fields;                  /* number of varchar fields */
   uint default_fields;                  /* number of default fields */
+  uint visible_fields;                  /* number of visible fields */
 
   uint default_expressions;
   uint table_check_constraints, field_check_constraints;

@@ -7810,3 +7810,5 @@ ER_INVALID_AGGREGATE_FUNCTION
         eng "Aggregate specific instruction(FETCH GROUP NEXT ROW) missing from the aggregate function"
 ER_INVALID_VALUE_TO_LIMIT
         eng "Limit only accepts integer values"
+ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT
+        eng "Invisible column %`s must have a default value"

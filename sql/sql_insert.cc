@@ -222,7 +222,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
                table_list->view_db.str, table_list->view_name.str);
       DBUG_RETURN(-1);
     }
-    if (values.elements != table->s->fields)
+    if (values.elements != table->s->visible_fields)
     {
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
@@ -980,7 +980,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
           No field list, all fields are set explicitly:
           INSERT INTO t1 VALUES (values)
         */
-        if (thd->lex->used_tables)		      // Column used in values()
+        if (thd->lex->used_tables || // Column used in values()
+                table->s->visible_fields != table->s->fields)
 	  restore_record(table,s->default_values);	// Get empty record
         else
         {

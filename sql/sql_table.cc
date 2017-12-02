@@ -62,12 +62,16 @@
 
 const char *primary_key_name="PRIMARY";
 
-static bool check_if_keyname_exists(const char *name,KEY *start, KEY *end);
+static int check_if_keyname_exists(const char *name,KEY *start, KEY *end);
 static char *make_unique_key_name(THD *thd, const char *field_name, KEY *start,
                                   KEY *end);
 static void make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
                                         List<Virtual_column_info> *vcol,
                                         uint *nr);
+static const
+char * make_unique_invisible_field_name(THD *thd, const char *field_name,
+                        List<Create_field> *fields);
+
 static int copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                                     List<Create_field> &create, bool ignore,
 				    uint order_num, ORDER *order,
@@ -3263,8 +3267,70 @@ bool Column_definition::prepare_stage1_check_typelib_default()
   }
   return false;
 }
+/*
+   This function adds a invisible field to field_list
+   SYNOPSIS
+    mysql_add_invisible_field()
+      thd                      Thread Object
+      field_list               list of all table fields
+      field_name               name/prefix of invisible field
+                               ( Prefix in the case when it is
+                                *COMPLETELY_INVISIBLE*
+                               and given name is duplicate)
+      type_handler             field data type
+      field_visibility
+      default value
+    RETURN VALUE
+      Create_field pointer
+*/
+int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
+        const char *field_name, Type_handler *type_handler,
+        field_visible_type field_visibility, Item* default_value)
+{
+  Create_field *fld= new(thd->mem_root)Create_field();
+  const char *new_name= NULL;
+  /* Get unique field name if field_visibility == COMPLETELY_INVISIBLE */
+  if (field_visibility == COMPLETELY_INVISIBLE)
+  {
+    if ((new_name= make_unique_invisible_field_name(thd, field_name,
+                                                     field_list)))
+    {
+      fld->field_name.str= new_name;
+      fld->field_name.length= strlen(new_name);
+    }
+    else
+      return 1;  //Should not happen
+  }
+  else
+  {
+    fld->field_name.str= thd->strmake(field_name, strlen(field_name));
+    fld->field_name.length= strlen(field_name);
+  }
+  fld->set_handler(type_handler);
+  fld->field_visibility= field_visibility;
+  if (default_value)
+  {
+    Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
+    v->expr= default_value;
+    v->utf8= 0;
+    fld->default_value= v;
+  }
+  field_list->push_front(fld, thd->mem_root);
+  return 0;
+}
 
-
+Key *
+mysql_add_invisible_index(THD *thd, List<Key> *key_list,
+        LEX_CSTRING* field_name, enum Key::Keytype type)
+{
+  Key *key= NULL;
+  key= new (thd->mem_root) Key(type, &null_clex_str, HA_KEY_ALG_UNDEF,
+         false, DDL_options(DDL_options::OPT_NONE));
+  key->columns.push_back(new(thd->mem_root) Key_part_spec(field_name, 0),
+          thd->mem_root);
+  key_list->push_back(key, thd->mem_root);
+  return key;
+}
 /*
   Preparation for table creation
 
@@ -3440,7 +3506,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   while ((sql_field=it++))
   {
     DBUG_ASSERT(sql_field->charset != 0);
-
     if (sql_field->prepare_stage2(file, file->ha_table_flags()))
       DBUG_RETURN(TRUE);
     if (sql_field->real_field_type() == MYSQL_TYPE_VARCHAR)
@@ -3460,8 +3525,18 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
+    if (sql_field->field_visibility == USER_DEFINED_INVISIBLE &&
+        sql_field->flags & NOT_NULL_FLAG &&
+        sql_field->flags & NO_DEFAULT_VALUE_FLAG)
+    {
+      my_error(ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT, MYF(0),
+                          sql_field->field_name.str);
+      DBUG_RETURN(TRUE);
+    }
   }
-  /* Update virtual fields' offset*/
+  /* Update virtual fields' offset and give error if
+     All fields are invisible */
+  bool is_all_invisible= true;
   it.rewind();
   while ((sql_field=it++))
   {
@@ -3470,6 +3545,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       sql_field->offset= record_offset;
       record_offset+= sql_field->pack_length;
     }
+    if (sql_field->field_visibility == NOT_INVISIBLE)
+      is_all_invisible= false;
+  }
+  if (is_all_invisible)
+  {
+    my_error(ER_TABLE_MUST_HAVE_COLUMNS, MYF(0));
+    DBUG_RETURN(TRUE);
   }
   if (auto_increment > 1)
   {
@@ -3720,10 +3802,20 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                             &column->field_name,
                             &sql_field->field_name))
 	field++;
+      /*
+         Either field is not present or field visibility is >
+         USER_DEFINED_INVISIBLE
+      */
       if (!sql_field)
       {
 	my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
 	DBUG_RETURN(TRUE);
+      }
+      if (sql_field->field_visibility > USER_DEFINED_INVISIBLE &&
+          !key->invisible)
+      {
+        my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
+        DBUG_RETURN(TRUE);
       }
       while ((dup_column= cols2++) != column)
       {
@@ -5034,17 +5126,36 @@ err:
 
 /*
 ** Give the key name after the first field with an optional '_#' after
+   @returns
+    0        if keyname does not exists
+    [1..)    index + 1 of duplicate key name
 **/
 
-static bool
+static int
 check_if_keyname_exists(const char *name, KEY *start, KEY *end)
 {
-  for (KEY *key=start ; key != end ; key++)
+  uint i= 1;
+  for (KEY *key=start; key != end ; key++, i++)
     if (!my_strcasecmp(system_charset_info, name, key->name.str))
-      return 1;
+      return i;
   return 0;
 }
 
+/**
+ Returns 1 if field name exists otherwise 0
+*/
+static bool
+check_if_field_name_exists(const char *name, List<Create_field> * fields)
+{
+  Create_field *fld;
+  List_iterator<Create_field>it(*fields);
+  while ((fld = it++))
+  {
+    if (!my_strcasecmp(system_charset_info, fld->field_name.str, name))
+      return 1;
+  }
+  return 0;
+}
 
 static char *
 make_unique_key_name(THD *thd, const char *field_name,KEY *start,KEY *end)
@@ -5102,6 +5213,33 @@ static void make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
   }
 }
 
+/**
+  COMPLETELY_INVISIBLE are internally created. They are completely invisible
+  to Alter command (Opposite of SYSTEM_INVISIBLE which throws an
+  error when same name column is added by Alter). So in the case of when
+  user added a same column name as of COMPLETELY_INVISIBLE , we change
+  COMPLETELY_INVISIBLE column name.
+*/
+static const
+char * make_unique_invisible_field_name(THD *thd, const char *field_name,
+                        List<Create_field> *fields)
+{
+  if (!check_if_field_name_exists(field_name, fields))
+    return field_name;
+  char buff[MAX_FIELD_NAME], *buff_end;
+  buff_end= strmake_buf(buff, field_name);
+  if (buff_end - buff < 5)
+    return NULL; // Should not happen
+
+  for (uint i=1 ; i < 10000; i++)
+  {
+    char *real_end= int10_to_str(i, buff_end, 10);
+    if (check_if_field_name_exists(buff, fields))
+      continue;
+    return (const char *)thd->strmake(buff, real_end - buff);
+  }
+  return NULL; //Should not happen
+}
 
 /****************************************************************************
 ** Alter a table definition
@@ -7530,6 +7668,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   bitmap_clear_all(&table->tmp_set);
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
+    if (field->field_visibility == COMPLETELY_INVISIBLE)
+        continue;
     Alter_drop *drop;
     if (field->type() == MYSQL_TYPE_VARCHAR)
       create_info->varchar= TRUE;
@@ -7541,7 +7681,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           !my_strcasecmp(system_charset_info,field->field_name.str, drop->name))
         break;
     }
-    if (drop)
+    if (drop && field->field_visibility < SYSTEM_INVISIBLE)
     {
       /* Reset auto_increment value if it was dropped */
       if (MTYP_TYPENR(field->unireg_check) == Field::NEXT_NUMBER &&
@@ -7566,7 +7706,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                           &def->change))
 	break;
     }
-    if (def)
+    if (def && field->field_visibility < SYSTEM_INVISIBLE)
     {						// Field is changed
       def->field=field;
       /*
@@ -7621,12 +7761,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   def_it.rewind();
   while ((def=def_it++))			// Add new columns
   {
+    Create_field *find;
     if (def->change.str && ! def->field)
     {
       /*
         Check if there is modify for newly added field.
       */
-      Create_field *find;
       find_it.rewind();
       while((find=find_it++))
       {
@@ -7666,7 +7806,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       new_create_list.push_back(def, thd->mem_root);
     else
     {
-      Create_field *find;
       if (def->change.str)
       {
         find_it.rewind();
@@ -7753,9 +7892,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     Collect all keys which isn't in drop list. Add only those
     for which some fields exists.
   */
- 
+
   for (uint i=0 ; i < table->s->keys ; i++,key_info++)
   {
+    if (key_info->flags & HA_INVISIBLE_KEY)
+      continue;
     const char *key_name= key_info->name.str;
     Alter_drop *drop;
     drop_it.rewind();
