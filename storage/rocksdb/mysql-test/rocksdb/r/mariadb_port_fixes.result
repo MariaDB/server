@@ -1,0 +1,33 @@
+#
+# MDEV-14433: RocksDB may show empty or incorrect output with rocksdb_strict_collation_check=off
+#
+set global rocksdb_strict_collation_check=off;
+set @tmp_rscc=@@rocksdb_strict_collation_check;
+CREATE TABLE t1(
+a varchar(10) NOT NULL,
+b char(1) DEFAULT 'X',
+c char(2) NOT NULL DEFAULT '??',
+d varchar(10) NOT NULL,
+e int(11) DEFAULT 0,
+PRIMARY KEY (a,d),
+KEY (e)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
+insert into t1 select 1,1,1,1,0;
+insert into t1 select 2,1,1,1,0;
+insert into t1 select 3,1,1,1,0;
+explain
+select a from t1 force index(e) where e<10000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	e	e	5	NULL	#	Using index condition
+select a from t1;
+a
+1
+2
+3
+select * from t1;
+a	b	c	d	e
+1	1	1	1	0
+2	1	1	1	0
+3	1	1	1	0
+DROP TABLE t1;
+set global rocksdb_strict_collation_check=@tmp_rscc;
