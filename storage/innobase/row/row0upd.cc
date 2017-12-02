@@ -2227,10 +2227,8 @@ row_upd_store_row(
 			      NULL, NULL, NULL, ext, node->heap);
 
 	if (node->table->n_v_cols) {
-		row_upd_store_v_row(
-		    node,
-		    node->is_delete == PLAIN_DELETE ? NULL : node->update,
-		    thd, mysql_table);
+		row_upd_store_v_row(node, node->is_delete ? NULL : node->update,
+				    thd, mysql_table);
 	}
 
 	if (node->is_delete == PLAIN_DELETE) {

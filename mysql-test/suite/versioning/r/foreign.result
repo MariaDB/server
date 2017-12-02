@@ -170,3 +170,19 @@ update parent set id=2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 drop table child;
 drop table parent;
+create or replace table a (
+cola int(10) primary key,
+v_cola int(10) as (cola mod 10) virtual
+) engine=innodb with system versioning;
+create index v_cola on a (v_cola);
+create or replace table b(
+cola int(10),
+v_cola int(10)
+) engine=innodb with system versioning;
+alter table b add constraint `v_cola_fk`
+foreign key (v_cola) references a (v_cola);
+insert into a(cola) values (12);
+insert into b(cola, v_cola) values (10,2);
+delete from a;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`b`, CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`))
+drop table b, a;
