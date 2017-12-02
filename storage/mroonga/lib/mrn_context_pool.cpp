@@ -50,7 +50,7 @@ namespace mrn {
         if (pool_) {
           ctx = static_cast<grn_ctx *>(pool_->data);
           list_pop(pool_);
-          if ((now - last_pull_time_) >= CLEAR_THREATHOLD_IN_SECONDS) {
+          if ((uint) (now - last_pull_time_) >= CLEAR_THREATHOLD_IN_SECONDS) {
             clear();
           }
         }

@@ -3022,7 +3022,7 @@ xb_validate_name(
 		exit(EXIT_FAILURE);
 	}
 	p = strpbrk(name, "/\\~");
-	if (p && p - name < NAME_LEN) {
+	if (p && (uint) (p - name) < NAME_LEN) {
 		msg("mariabackup: name `%s` is not valid.\n", name);
 		exit(EXIT_FAILURE);
 	}

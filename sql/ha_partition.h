@@ -786,7 +786,7 @@ private:
                                           Query_cache_block_table
                                           **block_table,
                                           handler *file, uint *n);
-  static const uint NO_CURRENT_PART_ID;
+  static const uint NO_CURRENT_PART_ID= NOT_A_PARTITION_ID;
   int loop_extra(enum ha_extra_function operation);
   int loop_extra_alter(enum ha_extra_function operations);
   void late_extra_cache(uint partition_id);
