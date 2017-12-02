@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include <mysqld_error.h>
+#include <my_attribute.h>
 #include <mysql/plugin_password_validation.h>
 #include <ctype.h>
 #include <string.h>
@@ -50,7 +51,9 @@ static int validate(MYSQL_CONST_LEX_STRING *username,
          others < min_others;
 }
 
-static void fix_min_length(MYSQL_THD thd, struct st_mysql_sys_var *var,
+static void fix_min_length(MYSQL_THD thd __attribute__((unused)),
+                           struct st_mysql_sys_var *var
+                           __attribute__((unused)),
                            void *var_ptr, const void *save)
 {
   unsigned int new_min_length;
