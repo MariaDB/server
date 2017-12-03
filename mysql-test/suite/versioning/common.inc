@@ -1,3 +1,4 @@
+--disable_query_log
 set @@session.time_zone='+00:00';
 select ifnull(max(transaction_id), 0) into @start_trx_id from mysql.transaction_registry;
 set @test_start=now(6);
@@ -85,3 +86,4 @@ delimiter ;~~
 
 let $default_engine= `select default_engine()`;
 let sys_datatype= `select sys_datatype()`;
+--enable_query_log
