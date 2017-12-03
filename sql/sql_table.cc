@@ -3378,6 +3378,23 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
   DBUG_ENTER("mysql_prepare_create_table");
 
+  DBUG_EXECUTE_IF("test_pseudo_invisible",{
+          mysql_add_invisible_field(thd, &alter_info->create_list,
+                      "invisible", &type_handler_long, SYSTEM_INVISIBLE,
+                      new (thd->mem_root)Item_int(thd, 9));
+          });
+  DBUG_EXECUTE_IF("test_completely_invisible",{
+          mysql_add_invisible_field(thd, &alter_info->create_list,
+                      "invisible", &type_handler_long, COMPLETELY_INVISIBLE,
+                      new (thd->mem_root)Item_int(thd, 9));
+          });
+  DBUG_EXECUTE_IF("test_invisible_index",{
+          LEX_CSTRING temp;
+          temp.str= "invisible";
+          temp.length= strlen("invisible");
+          mysql_add_invisible_index(thd, &alter_info->key_list
+                  , &temp, Key::MULTIPLE);
+          });
   LEX_CSTRING* connect_string = &create_info->connect_string;
   if (connect_string->length != 0 &&
       connect_string->length > CONNECT_STRING_MAXLEN &&
@@ -3812,7 +3829,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	DBUG_RETURN(TRUE);
       }
       if (sql_field->field_visibility > USER_DEFINED_INVISIBLE &&
-          !key->invisible)
+          !key->invisible && DBUG_EVALUATE_IF("test_invisible_index", 0, 1))
       {
         my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
         DBUG_RETURN(TRUE);
