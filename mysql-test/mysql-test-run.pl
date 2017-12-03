@@ -3758,14 +3758,32 @@ sub run_testcase ($$) {
   $ENV{'MTR_TEST_NAME'} = $tinfo->{name};
   resfile_report_test($tinfo) if $opt_resfile;
 
-  # Allow only alpanumerics pluss _ - + . in combination names,
-  # or anything beginning with -- (the latter comes from --combination)
-  my $combination= $tinfo->{combination};
-  if ($combination && $combination !~ /^\w[-\w\.\+]*$/
-                   && $combination !~ /^--/)
+  for my $key (grep { /^MTR_COMBINATION/ } keys %ENV)
   {
-    mtr_error("Combination '$combination' contains illegal characters");
+    delete $ENV{$key};
   }
+
+  if (ref $tinfo->{combinations} eq 'ARRAY')
+  {
+    for (my $i = 0; $i < @{$tinfo->{combinations}}; ++$i )
+    {
+      my $combination = $tinfo->{combinations}->[$i];
+      # Allow only alphanumerics plus _ - + . in combination names,
+      # or anything beginning with -- (the latter comes from --combination)
+      if ($combination && $combination !~ /^\w[-\w\.\+]*$/
+                      && $combination !~ /^--/)
+      {
+        mtr_error("Combination '$combination' contains illegal characters");
+      }
+      $ENV{"MTR_COMBINATION_". uc(${combination})} = 1;
+    }
+    $ENV{"MTR_COMBINATIONS"} = join(',', @{$tinfo->{combinations}});
+  }
+  elsif (exists $tinfo->{combinations})
+  {
+    die 'Unexpected type of $tinfo->{combinations}';
+  }
+
   # -------------------------------------------------------
   # Init variables that can change between each test case
   # -------------------------------------------------------
