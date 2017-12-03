@@ -45,11 +45,6 @@ else
     TESTSUITE_FAIL_CMD:=exit 1
 endif
 
-# Skip TokuDB if arch is not amd64
-ifneq ($(ARCH), amd64)
-    CMAKEFLAGS += -DWITHOUT_TOKUDB=true
-endif
-
 # Add support for verbose builds
 MAKEFLAGS += VERBOSE=1
 
@@ -119,19 +114,15 @@ override_dh_auto_install:
 	dh_testdir
 	dh_testroot
 
-	# If TokuDB plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/tokudb/ha_tokudb.so ] || sed -i -e "/Package: mariadb-plugin-tokudb/,+14d" debian/control
-
-	# If Mroonga plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/mroonga/ha_mroonga.so ] || sed -i -e "/Package: mariadb-plugin-mroonga/,+13d" debian/control
+# Skip TokuDB if arch is not amd64
+ifneq ($(ARCH), amd64)
+	sed -i -e "/Package: mariadb-plugin-tokudb/,+14d" debian/control
+endif
 
 	# If libthrift-dev was available (manually installed, as it is
 	# not in Debian) and ha_cassandra.so was thus built, create package,
 	# otherwise skip it.
 	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+16d" debian/control
-
-	# If Spider plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/spider/ha_spider.so ] || sed -i -e "/Package: mariadb-plugin-spider/,+14d" debian/control
 
 	# Copy systemd files to a location available for dh_installinit
 	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.2.mariadb.service
