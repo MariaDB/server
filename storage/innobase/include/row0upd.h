@@ -464,6 +464,7 @@ struct upd_t{
 					virtual column update now */
 	ulint		n_fields;	/*!< number of update fields */
 	upd_field_t*	fields;		/*!< array of update fields */
+	byte		vers_sys_value[8]; /*!< buffer for updating system fields */
 
 	/** Append an update field to the end of array
 	@param[in]	field	an update field */

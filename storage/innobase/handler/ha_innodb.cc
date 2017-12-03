@@ -9171,14 +9171,11 @@ ha_innobase::update_row(
 	m_prebuilt->upd_node->is_delete = NO_DELETE;
 
 	{
-		const bool	vers_set_fields
-			= m_prebuilt->versioned_write
+		const bool vers_set_fields = m_prebuilt->versioned_write
 			&& m_prebuilt->upd_node->update->affects_versioned();
-		const bool	vers_ins_row
-			= vers_set_fields
+		const bool vers_ins_row = vers_set_fields
 			&& (table->s->vtmd
-			    || thd_sql_command(m_user_thd)
-			    != SQLCOM_ALTER_TABLE);
+			    || thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE);
 
 		if (vers_set_fields && !vers_ins_row)
 			m_prebuilt->upd_node->is_delete = VERSIONED_DELETE;

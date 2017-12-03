@@ -2004,7 +2004,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_ad(!prebuilt->versioned_write || node->table->versioned());
 
 	bool vers_set_fields = prebuilt->versioned_write
-		&& node->table->versioned()
 		&& (node->is_delete ? node->is_delete == VERSIONED_DELETE
 		    : node->update->affects_versioned());
 run_again:
@@ -2038,11 +2037,9 @@ run_again:
 		ufield->orig_len = 0;
 		ufield->exp = NULL;
 
-		static const ulint fsize = sizeof(trx_id_t);
-		byte* buf = static_cast<byte*>(mem_heap_alloc(node->update->heap, fsize));
-		mach_write_to_8(buf, trx->id);
+		mach_write_to_8(node->update->vers_sys_value, trx->id);
 		dfield_t* dfield = &ufield->new_val;
-		dfield_set_data(dfield, buf, fsize);
+		dfield_set_data(dfield, node->update->vers_sys_value, 8);
 		dict_col_copy_type(col, &dfield->type);
 
 		uvect->n_fields++;
