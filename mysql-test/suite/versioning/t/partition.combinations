@@ -1,7 +1,0 @@
-# [innodb]
-# partition
-# default-storage-engine=innodb
-
-[myisam]
-partition
-default-storage-engine=myisam

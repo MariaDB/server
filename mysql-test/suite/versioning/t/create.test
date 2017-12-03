@@ -1,4 +1,5 @@
--- source suite/versioning/common.inc
+--source suite/versioning/engines.inc
+--source suite/versioning/common.inc
 
 --disable_warnings
 drop table if exists t1;

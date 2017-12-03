@@ -1,4 +1,4 @@
--- source include/have_innodb.inc
+--source suite/versioning/engines.inc
 
 create table t (a int);
 --error ER_VERSIONING_REQUIRED
