@@ -62,6 +62,7 @@ matrix:
             - libreadline-gplv2-dev
             - libstemmer-dev
             - libssl-dev
+            - libsystemd-daemon-dev
             - libnuma-dev
             - libxml2-dev
             - lsb-release
@@ -137,6 +138,7 @@ addons:
       - libreadline-gplv2-dev
       - libstemmer-dev
       - libssl-dev
+      - libsystemd-daemon-dev
       - libnuma-dev
       - libxml2-dev
       - lsb-release
@@ -151,7 +153,6 @@ addons:
       - libzmq-dev
       - uuid-dev
 
-# libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
 
 before_install:
   - if [[ "${TRAVIS_OS_NAME}" == 'osx' ]]; then
