@@ -1635,13 +1635,11 @@ static void close_connections(void)
   {
     if (mysql_socket_getfd(base_ip_sock) != INVALID_SOCKET)
     {
-      (void) mysql_socket_shutdown(base_ip_sock, SHUT_RDWR);
       (void) mysql_socket_close(base_ip_sock);
       base_ip_sock= MYSQL_INVALID_SOCKET;
     }
     if (mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
     {
-      (void) mysql_socket_shutdown(extra_ip_sock, SHUT_RDWR);
       (void) mysql_socket_close(extra_ip_sock);
       extra_ip_sock= MYSQL_INVALID_SOCKET;
     }
@@ -1673,7 +1671,6 @@ static void close_connections(void)
 #ifdef HAVE_SYS_UN_H
   if (mysql_socket_getfd(unix_sock) != INVALID_SOCKET)
   {
-    (void) mysql_socket_shutdown(unix_sock, SHUT_RDWR);
     (void) mysql_socket_close(unix_sock);
     (void) unlink(mysqld_unix_port);
     unix_sock= MYSQL_INVALID_SOCKET;
