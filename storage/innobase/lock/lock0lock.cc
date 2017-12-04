@@ -6415,13 +6415,9 @@ loop:
 
 	ut_ad(!trx_is_ac_nl_ro(lock->trx));
 
-# ifdef UNIV_DEBUG
 	/* Only validate the record queues when this thread is not
-	holding a space->latch.  Deadlocks are possible due to
-	latching order violation when UNIV_DEBUG is defined while
-	UNIV_DEBUG is not. */
+	holding a space->latch. */
 	if (!sync_check_find(SYNC_FSP))
-# endif /* UNIV_DEBUG */
 	for (i = nth_bit; i < lock_rec_get_n_bits(lock); i++) {
 
 		if (i == 1 || lock_rec_get_nth_bit(lock, i)) {
