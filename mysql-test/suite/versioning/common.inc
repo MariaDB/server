@@ -43,6 +43,18 @@ begin
   return NULL;
 end~~
 
+create function if not exists current_row(sys_trx_end varbinary(255))
+returns int
+deterministic
+begin
+  if default_engine() = 'innodb' then
+    return sys_trx_end = 18446744073709551615;
+  elseif default_engine() = 'myisam' then
+    return sys_trx_end = timestamp'2038-01-19 03:14:07.999999';
+  end if;
+  return NULL;
+end~~
+
 create function if not exists sys_commit_ts(sys_field varchar(255))
 returns varchar(255)
 deterministic

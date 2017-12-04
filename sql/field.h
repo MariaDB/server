@@ -4642,4 +4642,19 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
 
+inline
+ulonglong TABLE::vers_end_id() const
+{
+  DBUG_ASSERT(versioned_by_engine());
+  return static_cast<ulonglong>(vers_end_field()->val_int());
+}
+
+inline
+ulonglong TABLE::vers_start_id() const
+{
+  DBUG_ASSERT(versioned_by_engine());
+  return static_cast<ulonglong>(vers_start_field()->val_int());
+}
+
+
 #endif /* FIELD_INCLUDED */

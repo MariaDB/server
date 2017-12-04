@@ -1,0 +1,13 @@
+--source suite/versioning/common.inc
+--source suite/versioning/key_type.inc
+--source suite/versioning/engines.inc
+
+call create_table('t', 'x int');
+
+insert t values (1, 2);
+replace t values (1, 3);
+select *, current_row(sys_trx_end) as current from t for system_time all
+order by x;
+
+drop database test;
+create database test;

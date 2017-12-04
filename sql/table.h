@@ -1546,6 +1546,9 @@ public:
     return field[s->row_end_field];
   }
 
+  ulonglong vers_start_id() const;
+  ulonglong vers_end_id() const;
+
   int delete_row();
 
 /** Number of additional fields used in versioned tables */

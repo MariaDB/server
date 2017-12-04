@@ -1050,7 +1050,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         }
       }
 
-      if (table->versioned_by_sql())
+      if (table->versioned())
         table->vers_update_fields();
 
       if ((res= table_list->view_check_option(thd,
@@ -1937,15 +1937,30 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         */
         if (last_uniq_key(table,key_nr) &&
             !table->file->referenced_by_foreign_key() &&
-            (!table->triggers || !table->triggers->has_delete_triggers()) &&
-            !table->versioned_by_sql())
+            (!table->triggers || !table->triggers->has_delete_triggers()))
         {
+          if (table->versioned_by_engine())
+          {
+            bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
+            table->vers_start_field()->set_notnull();
+            table->vers_start_field()->store(0, false);
+          }
           if ((error=table->file->ha_update_row(table->record[1],
                                                 table->record[0])) &&
               error != HA_ERR_RECORD_IS_THE_SAME)
             goto err;
           if (error != HA_ERR_RECORD_IS_THE_SAME)
+          {
             info->deleted++;
+            if (table->versioned_by_sql())
+            {
+              store_record(table, record[2]);
+              error= vers_insert_history_row(table);
+              restore_record(table, record[2]);
+              if (error)
+                goto err;
+            }
+          }
           else
             error= 0;
           thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
@@ -3832,7 +3847,7 @@ int select_insert::send_data(List<Item> &values)
     DBUG_RETURN(0);
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
-  if (table->versioned_by_sql())
+  if (table->versioned())
     table->vers_update_fields();
   store_values(values);
   if (table->default_field && table->update_default_fields(0, info.ignore))

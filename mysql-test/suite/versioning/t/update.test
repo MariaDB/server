@@ -74,16 +74,17 @@ begin
   engine ', engine);
   prepare stmt from @str; execute stmt; drop prepare stmt;
 
-  insert into t1 (x, y) values (1, 1), (2, 1), (3, 1);
+  insert into t1 (x, y) values (1, 1), (2, 1), (3, 1), (4, 1), (5, 1);
 
   start transaction;  
   update t1 set y= y + 1 where x = 3;
+  update t1 set y= y + 1 where x = 2;
   update t1 set y= y + 1 where x = 3;
+  update t1 set y= y + 1 where x > 3;
+  update t1 set y= y + 1 where x > 4;
   commit;
 
-  select x, y from t1 for system_time
-  between timestamp '0000-0-0 0:0:0'
-  and timestamp '2038-01-19 04:14:07';
+  select x, y, sys_trx_end = 18446744073709551615 as current from t1 for system_time all;
 
   drop table t1;
 end~~
@@ -234,7 +235,8 @@ call test_02('timestamp(6)', 'myisam', 'sys_end');
 call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 call verify_vtq;
 
-call test_03('timestamp(6)', 'myisam', 'sys_end');
+--echo # Multiple UPDATE of same rows in single transaction create historical
+--echo # rows only once (applicable to InnoDB only).
 call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 call verify_vtq;
 

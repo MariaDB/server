@@ -9185,8 +9185,9 @@ ha_innobase::update_row(
 		error = row_update_for_mysql(m_prebuilt);
 
 		if (error == DB_SUCCESS && vers_ins_row
-		    && trx->id != static_cast<trx_id_t>(
-			    table->vers_start_field()->val_int())) {
+		    /* Multiple UPDATE of same rows in single transaction create
+		       historical rows only once. */
+		    && trx->id != table->vers_start_id()) {
 			error = row_insert_for_mysql((byte*) old_row,
 						     m_prebuilt,
 						     ROW_INS_HISTORICAL);
