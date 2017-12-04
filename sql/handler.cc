@@ -6900,8 +6900,7 @@ bool Vers_parse_info::check_and_fix_implicit(
     vers_cols == 0 &&
     (plain_cols == 0 || !table_with_system_versioning))
   {
-    my_error(ER_VERS_NO_COLS_DEFINED, MYF(0),
-                table_name, "WITH SYSTEM VERSIONING");
+    my_error(ER_VERS_NO_COLS_DEFINED, MYF(0), table_name);
     return true;
   }
 
@@ -7202,17 +7201,9 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
     return true;
   }
 
-  if (as_row.start != system_time.start)
+  if (as_row.start != system_time.start || as_row.end != system_time.end)
   {
-    my_error(ER_MISMATCH, MYF(0), table_name,
-             "PERIOD FOR SYSTEM_TIME", "AS ROW START");
-    return true;
-  }
-
-  if (as_row.end != system_time.end)
-  {
-    my_error(ER_MISMATCH, MYF(0), table_name,
-             "PERIOD FOR SYSTEM_TIME", "AS ROW END");
+    my_error(ER_VERS_PERIOD_COLUMNS, MYF(0), as_row.start.str, as_row.end.str);
     return true;
   }
 

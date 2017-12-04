@@ -10,7 +10,7 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t drop system versioning;
-ERROR HY000: Wrong parameters for `t`: table is not versioned
+ERROR HY000: Table `t` is not versioned
 alter table t add system versioning;
 show create table t;
 Table	Create Table
@@ -21,9 +21,9 @@ t	CREATE TABLE `t` (
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column y int;
-ERROR HY000: Not allowed for versioned `test.t`. Change `versioning_alter_history` to proceed with ALTER.
+ERROR HY000: Not allowed for versioned `test`.`t`. Change `versioning_alter_history` to proceed with ALTER.
 alter table t engine innodb;
-ERROR HY000: Not allowed for versioned `test.t`. Change to/from native versioning engine is prohibited.
+ERROR HY000: Not allowed for versioned `test`.`t`. Change to/from native versioning engine is prohibited.
 alter table t drop system versioning;
 show create table t;
 Table	Create Table
@@ -36,13 +36,13 @@ add column trx_start bigint(20) unsigned generated always as row start,
 add column trx_end bigint(20) unsigned generated always as row end,
 add period for system_time(trx_start, trx_end),
 add system versioning;
-ERROR HY000: `trx_start` must be of type `TIMESTAMP(6)` for versioned table `t`
+ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for versioned table `t`
 alter table t
 add column trx_start timestamp generated always as row start,
 add column trx_end timestamp generated always as row end,
 add period for system_time(trx_start, trx_end),
 add system versioning;
-ERROR HY000: `trx_start` must be of type `TIMESTAMP(6)` for versioned table `t`
+ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for versioned table `t`
 alter table t
 add column trx_start timestamp(6) not null generated always as row start,
 add column trx_end timestamp(6) not null generated always as row end,
@@ -231,9 +231,9 @@ t	CREATE TABLE `t` (
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t modify a int with system versioning;
-ERROR HY000: Wrong parameters for `t`: table is not versioned
+ERROR HY000: Table `t` is not versioned
 alter table t modify a int without system versioning;
-ERROR HY000: Wrong parameters for `t`: table is not versioned
+ERROR HY000: Table `t` is not versioned
 alter table t add system versioning;
 alter table t modify a int without system versioning;
 show create table t;
@@ -267,7 +267,7 @@ add column trx_start timestamp(6) generated always as row start,
 add column trx_end timestamp(6) generated always as row end,
 add period for system_time(trx_start, trx_end),
 add system versioning;
-ERROR HY000: `trx_start` must be of type `BIGINT(20) UNSIGNED` for versioned table `t`
+ERROR HY000: `trx_start` must be of type BIGINT(20) UNSIGNED for versioned table `t`
 call verify_vtq;
 No	A	B	C	D
 alter table t
@@ -494,7 +494,7 @@ sys_trx_end bigint(20) unsigned generated always as row end,
 period for system_time(sys_trx_start, sys_trx_end)
 ) with system versioning engine innodb;
 alter table t change column sys_trx_start asdf bigint unsigned;
-ERROR HY000: Can not change system versioning field 'sys_trx_start'
+ERROR HY000: Can not change system versioning field `sys_trx_start`
 create or replace table t (
 a int,
 sys_trx_start timestamp(6) generated always as row start,
@@ -502,7 +502,7 @@ sys_trx_end timestamp(6) generated always as row end,
 period for system_time(sys_trx_start, sys_trx_end)
 ) with system versioning engine myisam;
 alter table t change column sys_trx_start asdf timestamp(6);
-ERROR HY000: Can not change system versioning field 'sys_trx_start'
+ERROR HY000: Can not change system versioning field `sys_trx_start`
 create or replace table t (
 a int,
 sys_trx_start timestamp(6) generated always as row start,
@@ -512,12 +512,12 @@ period for system_time(sys_trx_start, sys_trx_end)
 select * from t;
 a	sys_trx_start	sys_trx_end
 alter table t drop system versioning;
-ERROR HY000: System versioning field 'sys_trx_start' is not hidden
+ERROR HY000: System versioning field `sys_trx_start` is not hidden
 alter table t drop column sys_trx_start;
 select * from t;
 a	sys_trx_end
 alter table t drop system versioning;
-ERROR HY000: System versioning field 'sys_trx_end' is not hidden
+ERROR HY000: System versioning field `sys_trx_end` is not hidden
 alter table t drop column sys_trx_end;
 select * from t;
 a

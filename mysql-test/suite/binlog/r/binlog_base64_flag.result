@@ -9,7 +9,7 @@ BINLOG '
 SVtYRxMBAAAAKQAAADQBAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=
 SVtYRxcBAAAAIgAAAFYBAAAQABAAAAAAAAEAAf/+AgAAAA==
 ';
-ERROR HY000: The BINLOG statement of type `Table_map` was not preceded by a format description BINLOG statement
+ERROR HY000: The BINLOG statement of type Table_map was not preceded by a format description BINLOG statement
 select * from t1;
 a
 1
