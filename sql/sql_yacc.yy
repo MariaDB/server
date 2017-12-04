@@ -5667,7 +5667,7 @@ opt_versioning_interval:
            if (get_interval_value($2, $3, &interval) ||
               part_info->vers_set_interval(interval))
            {
-             my_error_as(ER_VERS_WRONG_PARAMS, ER_PART_WRONG_VALUE, MYF(0),
+             my_error(ER_PART_WRONG_VALUE, MYF(0),
                 Lex->create_last_non_select_table->table_name, "INTERVAL");
              MYSQL_YYABORT;
            }
@@ -5682,7 +5682,7 @@ opt_versioning_limit:
            DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
            if (part_info->vers_set_limit($2))
            {
-             my_error_as(ER_VERS_WRONG_PARAMS, ER_PART_WRONG_VALUE, MYF(0),
+             my_error(ER_PART_WRONG_VALUE, MYF(0),
                 Lex->create_last_non_select_table->table_name, "LIMIT");
              MYSQL_YYABORT;
            }

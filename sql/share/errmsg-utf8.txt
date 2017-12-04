@@ -7815,9 +7815,6 @@ ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING
 ER_VERS_FIELD_WRONG_TYPE
         eng "%`s must be of type %`s for versioned table %`s"
 
-ER_VERS_WRONG_PARAMS
-        eng "Wrong parameters %s"
-
 ER_VERS_ENGINE_UNSUPPORTED
         eng "Engine does not support System Versioning for %`s"
 
@@ -7873,22 +7870,22 @@ ER_NOT_ALLOWED
         eng "for %`s: not allowed '%s'"
 
 ER_VERS_DIFFERENT_TABLES
-        eng "for %`s: system fields selected from different tables"
+        eng "Wrong parameters for %`s: system fields selected from different tables"
 
 ER_VERS_NO_COLS_DEFINED
-        eng "for %`s: no columns defined '%s'"
+        eng "Wrong parameters for %`s: no columns defined '%s'"
 
 ER_VERS_NOT_VERSIONED
-        eng "for %`s: table is not versioned"
+        eng "Wrong parameters for %`s: table is not versioned"
 
 ER_MISSING
-        eng "for %`s: missing '%s'"
+        eng "Wrong parameters for %`s: missing '%s'"
 
 ER_MISMATCH
-        eng "for %`s: mismatch '%s' and '%s'"
+        eng "Wrong parameters for %`s: mismatch '%s' and '%s'"
 
 ER_PART_WRONG_VALUE
-        eng "for partitioned %`s: wrong value for '%s'"
+        eng "Wrong parameters for partitioned %`s: wrong value for '%s'"
 
 ER_VERS_WRONG_PARTS
         eng "Wrong partitions consistency for %`s: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'"

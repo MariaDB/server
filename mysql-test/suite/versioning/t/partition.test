@@ -152,7 +152,7 @@ select @ts0 = @ts1;
 select @ts2 = @ts3;
 
 # rotation by LIMIT
---error ER_VERS_WRONG_PARAMS
+--error ER_PART_WRONG_VALUE
 create or replace table t1 (x int)
 with system versioning
 partition by system_time limit 0 (
@@ -184,7 +184,7 @@ delete from t1;
 select * from t1 partition (p1) for system_time all;
 
 # rotation by INTERVAL
---error ER_VERS_WRONG_PARAMS
+--error ER_PART_WRONG_VALUE
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 0 second (

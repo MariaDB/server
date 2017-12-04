@@ -6823,8 +6823,7 @@ bool Vers_parse_info::check_and_fix_implicit(
   if ((system_time.start || system_time.end || as_row.start || as_row.end) &&
       !with_system_versioning)
   {
-    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
-             "WITH SYSTEM VERSIONING");
+    my_error(ER_MISSING, MYF(0), table_name, "WITH SYSTEM VERSIONING");
     return true;
   }
 
@@ -6840,7 +6839,7 @@ bool Vers_parse_info::check_and_fix_implicit(
         if (orig_table && orig_table != f->field->orig_table)
         {
           err_different_tables:
-          my_error_as(ER_VERS_WRONG_PARAMS, ER_VERS_DIFFERENT_TABLES, MYF(0), table_name);
+          my_error(ER_VERS_DIFFERENT_TABLES, MYF(0), table_name);
           return true;
         }
         orig_table= f->field->orig_table;
@@ -6901,7 +6900,7 @@ bool Vers_parse_info::check_and_fix_implicit(
     vers_cols == 0 &&
     (plain_cols == 0 || !table_with_system_versioning))
   {
-    my_error_as(ER_VERS_WRONG_PARAMS, ER_VERS_NO_COLS_DEFINED, MYF(0),
+    my_error(ER_VERS_NO_COLS_DEFINED, MYF(0),
                 table_name, "WITH SYSTEM VERSIONING");
     return true;
   }
@@ -6960,7 +6959,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
   {
     if (!share->versioned)
     {
-      my_error_as(ER_VERS_WRONG_PARAMS, ER_VERS_NOT_VERSIONED, MYF(0), table_name);
+      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name);
       return true;
     }
 
@@ -7045,7 +7044,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
 
   if ((versioned_fields || unversioned_fields) && !share->versioned)
   {
-    my_error_as(ER_VERS_WRONG_PARAMS, ER_VERS_NOT_VERSIONED, MYF(0), table_name);
+    my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name);
     return true;
   }
 
@@ -7175,7 +7174,7 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
 
   if (!f_start || !f_end)
   {
-    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), src_table.table_name,
+    my_error(ER_MISSING, MYF(0), src_table.table_name,
       f_start ? "AS ROW END" : "AS ROW START");
     return true;
   }
@@ -7192,28 +7191,27 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
 {
   if (!as_row.start || !as_row.end)
   {
-    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
+    my_error(ER_MISSING, MYF(0), table_name,
                 as_row.start ? "AS ROW END" : "AS ROW START");
     return true;
   }
 
   if (!system_time.start || !system_time.end)
   {
-    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
-             "PERIOD FOR SYSTEM_TIME");
+    my_error(ER_MISSING, MYF(0), table_name, "PERIOD FOR SYSTEM_TIME");
     return true;
   }
 
   if (as_row.start != system_time.start)
   {
-    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISMATCH, MYF(0), table_name,
+    my_error(ER_MISMATCH, MYF(0), table_name,
              "PERIOD FOR SYSTEM_TIME", "AS ROW START");
     return true;
   }
 
   if (as_row.end != system_time.end)
   {
-    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISMATCH, MYF(0), table_name,
+    my_error(ER_MISMATCH, MYF(0), table_name,
              "PERIOD FOR SYSTEM_TIME", "AS ROW END");
     return true;
   }
