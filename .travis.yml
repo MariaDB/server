@@ -124,7 +124,7 @@ addons:
       - llvm-6.0-dev
       - bison
       - chrpath
-      - cmake
+      - cmake3
       - gdb
       - libaio-dev
       - libboost-dev
