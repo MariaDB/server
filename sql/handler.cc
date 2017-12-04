@@ -6585,35 +6585,15 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
 
   DBUG_RETURN(0);
 }
-
 void ha_fake_trx_id(THD *thd)
 {
-  DBUG_ENTER("ha_fake_trx_id");
-
-  bool no_fake_trx_id= true;
-
-  if (!WSREP(thd))
+  DBUG_ENTER("ha_wsrep_fake_trx_id");
+  if (!WSREP(thd)) 
   {
     DBUG_VOID_RETURN;
   }
 
-  if (thd->wsrep_ws_handle.trx_id != WSREP_UNDEFINED_TRX_ID)
-  {
-    WSREP_DEBUG("fake trx id skipped: %lu", thd->wsrep_ws_handle.trx_id);
-    DBUG_VOID_RETURN;
-  }
-  handlerton *hton= installed_htons[DB_TYPE_INNODB];
-  if (hton && hton->fake_trx_id)
-  {
-    hton->fake_trx_id(hton, thd);
-  }
-  else
-  {
-    WSREP_WARN("cannot get get fake InnoDB transaction ID");
-  }
-
-  if (unlikely(no_fake_trx_id))
-    WSREP_WARN("Cannot get fake transaction ID from storage engine.");
+  (void *)wsrep_ws_handle_for_trx(&thd->wsrep_ws_handle, thd->query_id);
 
   DBUG_VOID_RETURN;
 }

@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 call  mtr.add_suppression("WSREP: Stray state UUID msg: .* current group state WAIT_STATE_UUID .*");
 call  mtr.add_suppression("WSREP: Protocol violation. JOIN message sender .* is not in state transfer (.*). Message ignored.");
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
