@@ -831,6 +831,7 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 			mtr_commit(&mtr);
 			/* Reaching the end of the index. */
 			dict_stats_empty_defrag_stats(index);
+			ut_d(trx->persistent_stats = true);
 			++trx->will_lock;
 			dberr_t err = dict_stats_save_defrag_stats(index, trx);
 			if (err == DB_SUCCESS) {
@@ -849,6 +850,7 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 				trx_commit_for_mysql(trx);
 			}
 
+			ut_d(trx->persistent_stats = false);
 			btr_defragment_remove_item(item);
 		}
 	}

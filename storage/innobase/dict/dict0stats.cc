@@ -287,14 +287,6 @@ dict_stats_exec_sql(
 {
 	dberr_t	err;
 
-	extern bool dict_stats_start_shutdown;
-
-	if (dict_stats_start_shutdown
-	    || !dict_stats_persistent_storage_check(true)) {
-		pars_info_free(pinfo);
-		return(DB_STATS_DO_NOT_EXIST);
-	}
-
 	err = que_eval_sql(pinfo, sql, FALSE, trx); /* pinfo is freed here */
 
 	DBUG_EXECUTE_IF("stats_index_error",
@@ -2276,6 +2268,8 @@ dict_stats_save_index_stat(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
+	ut_ad(trx->persistent_stats || trx->in_mysql_trx_list);
+
 	dict_fs2utf8(index->table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
 
@@ -2400,6 +2394,8 @@ dict_stats_save(
 	dict_table_t*	table;
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
+
+	ut_ad(trx->persistent_stats || trx->in_mysql_trx_list);
 
 	if (table_orig->is_readable()) {
 	} else {
