@@ -280,10 +280,10 @@ dict_stats_thread_init()
 	1) the background stats gathering thread before any other latch
 	   and released without latching anything else in between (thus
 	   any level would do here)
-	2) from row_update_statistics_if_needed()
+	2) from dict_stats_update_if_needed()
 	   and released without latching anything else in between. We know
 	   that dict_sys->mutex (SYNC_DICT) is not acquired when
-	   row_update_statistics_if_needed() is called and it may be acquired
+	   dict_stats_update_if_needed() is called and it may be acquired
 	   inside that function (thus a level <=SYNC_DICT would do).
 	3) from row_drop_table_for_mysql() after dict_sys->mutex (SYNC_DICT)
 	   and dict_operation_lock (SYNC_DICT_OPERATION) have been locked

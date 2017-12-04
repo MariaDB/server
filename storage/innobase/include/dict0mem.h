@@ -1581,7 +1581,7 @@ struct dict_table_t {
 	/** How many rows are modified since last stats recalc. When a row is
 	inserted, updated, or deleted, we add 1 to this number; we calculate
 	new estimates for the table and the indexes if the table has changed
-	too much, see row_update_statistics_if_needed(). The counter is reset
+	too much, see dict_stats_update_if_needed(). The counter is reset
 	to zero at statistics calculation. This counter is not protected by
 	any latch, because this is only used for heuristics. */
 	ib_uint64_t				stat_modified_counter;
