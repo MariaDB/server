@@ -5717,6 +5717,18 @@ int ha_rocksdb::open(const char *const name, int mode, uint test_if_locked) {
         }
       }
     }
+
+    for (uint key= 0; key < table->s->keys; key++) {
+      KEY *const key_info = &table->key_info[key];
+      for (uint kp = 0; kp < key_info->usable_key_parts; kp++) {
+        uint field_index= key_info->key_part[kp].field->field_index;
+        if (m_key_descr_arr[key]->can_unpack(kp)) {
+          table->field[field_index]->part_of_key.set_bit(key);
+        } else {
+          table->field[field_index]->part_of_key.clear_bit(key);
+        }
+      }
+    }
   }
 
   info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);

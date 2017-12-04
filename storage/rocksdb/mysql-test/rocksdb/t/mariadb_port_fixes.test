@@ -27,4 +27,30 @@ select a from t1;
 select * from t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-14563: Wrong query plan for query with no PK
+--echo #
+
+CREATE TABLE t1(
+  pk int primary key,
+  a varchar(10) NOT NULL,   
+  e int(11) DEFAULT 0,   
+  KEY (a) 
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
+insert into t1 values (1,1,1),(2,2,2);
+--replace_column 9 #
+explain select a from t1 where a <'zzz';
+
+CREATE TABLE t2(
+  pk int,
+  a varchar(10) NOT NULL,
+  e int(11) DEFAULT 0,   
+  KEY (a)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
+insert into t2 values (1,1,1),(2,2,2);
+--replace_column 9 #
+explain select a from t2 where a <'zzz';
+
+drop table t1,t2;
+
 set global rocksdb_strict_collation_check=@tmp_rscc;
