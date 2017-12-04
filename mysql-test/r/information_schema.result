@@ -749,7 +749,7 @@ Lock_tables_priv	select,insert,update,references
 Show_view_priv	select,insert,update,references
 Create_routine_priv	select,insert,update,references
 Alter_routine_priv	select,insert,update,references
-Delete_versioning_rows_priv	select,insert,update,references
+Truncate_versioning_priv	select,insert,update,references
 max_questions	select,insert,update,references
 max_connections	select,insert,update,references
 max_user_connections	select,insert,update,references

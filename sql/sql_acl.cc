@@ -172,7 +172,7 @@ TABLE_FIELD_TYPE mysql_db_table_fields[MYSQL_DB_FIELD_COUNT] = {
     { C_STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Delete_versioning_rows_priv") },
+    { C_STRING_WITH_LEN("Truncate_versioning_priv") },
     { C_STRING_WITH_LEN("enum('N','Y')") },
     { C_STRING_WITH_LEN("utf8") }
   }
