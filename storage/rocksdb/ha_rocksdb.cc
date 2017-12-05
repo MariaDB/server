@@ -5720,6 +5720,8 @@ int ha_rocksdb::open(const char *const name, int mode, uint test_if_locked) {
 
     for (uint key= 0; key < table->s->keys; key++) {
       KEY *const key_info = &table->key_info[key];
+      if (key ==  table->s->primary_key)
+        continue;
       for (uint kp = 0; kp < key_info->usable_key_parts; kp++) {
         uint field_index= key_info->key_part[kp].field->field_index;
         if (m_key_descr_arr[key]->can_unpack(kp)) {
