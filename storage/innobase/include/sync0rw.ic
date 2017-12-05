@@ -249,11 +249,6 @@ rw_lock_s_lock_low(
 
 	ut_d(rw_lock_add_debug_info(lock, pass, RW_LOCK_S, file_name, line));
 
-	/* These debugging values are not set safely: they may be incorrect
-	or even refer to a line that is invalid for the file name. */
-	lock->last_s_file_name = file_name;
-	lock->last_s_line = line;
-
 	return(TRUE);	/* locking succeeded */
 }
 
