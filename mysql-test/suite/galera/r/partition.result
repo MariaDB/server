@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 #
 # MDEV#4953 Galera: DELETE from a partitioned table is not replicated
 #
@@ -13,10 +15,12 @@ SELECT * FROM t1;
 pk	i
 
 # On node_1
+connection node_1;
 SELECT * FROM t1;
 pk	i
 
 # On node_2
+connection node_2;
 SELECT * FROM t1;
 pk	i
 DROP TABLE t1;
@@ -26,6 +30,7 @@ DROP TABLE t1;
 #
 
 # On node_1
+connection node_1;
 CREATE TABLE test.t1 (
 i INT UNSIGNED NOT NULL AUTO_INCREMENT,
 PRIMARY KEY (i)
@@ -46,16 +51,17 @@ i
 9
 
 # On node_2
+connection node_2;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(10) unsigned NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`i`)
 ) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (i)
-(PARTITION p1 VALUES LESS THAN (10) ENGINE = InnoDB,
- PARTITION p2 VALUES LESS THAN (20) ENGINE = InnoDB,
- PARTITION pMax VALUES LESS THAN MAXVALUE ENGINE = InnoDB) */
+ PARTITION BY RANGE (`i`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = InnoDB,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = InnoDB,
+ PARTITION `pMax` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
 SHOW CREATE TABLE p1;
 Table	Create Table
 p1	CREATE TABLE `p1` (
@@ -70,15 +76,18 @@ i
 9
 
 # On node_1
+connection node_1;
 ALTER TABLE t1 TRUNCATE PARTITION p2;
 SELECT * FROM test.t1;
 i
 
 # On node_2
+connection node_2;
 SELECT * FROM test.t1;
 i
 
 # On node_1
+connection node_1;
 ALTER TABLE t1 DROP PARTITION p2;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -86,29 +95,32 @@ t1	CREATE TABLE `t1` (
   `i` int(10) unsigned NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`i`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (i)
-(PARTITION p1 VALUES LESS THAN (10) ENGINE = InnoDB,
- PARTITION pMax VALUES LESS THAN MAXVALUE ENGINE = InnoDB) */
+ PARTITION BY RANGE (`i`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = InnoDB,
+ PARTITION `pMax` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
 
 # On node_2
+connection node_2;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(10) unsigned NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`i`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (i)
-(PARTITION p1 VALUES LESS THAN (10) ENGINE = InnoDB,
- PARTITION pMax VALUES LESS THAN MAXVALUE ENGINE = InnoDB) */
+ PARTITION BY RANGE (`i`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = InnoDB,
+ PARTITION `pMax` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
 DROP TABLE t1, p1;
 #
 # MDEV-5146: Bulk loads into partitioned table not working
 #
+connection node_1;
 # Case 1: wsrep_load_data_splitting = ON & LOAD DATA with 20002
 # entries.
 SET GLOBAL wsrep_load_data_splitting = ON;
 CREATE TABLE t1 (pk INT PRIMARY KEY)
 ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+connection node_2;
 SELECT COUNT(*) = 20002 FROM t1;
 COUNT(*) = 20002
 1
@@ -116,9 +128,11 @@ wsrep_last_committed_diff
 AS_EXPECTED_3_or_5
 DROP TABLE t1;
 # Case 2: wsrep_load_data_splitting = ON & LOAD DATA with 101 entries.
+connection node_1;
 SET GLOBAL wsrep_load_data_splitting = ON;
 CREATE TABLE t1 (pk INT PRIMARY KEY)
 ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+connection node_2;
 SELECT COUNT(*) = 101 FROM t1;
 COUNT(*) = 101
 1
@@ -127,14 +141,19 @@ wsrep_last_committed_diff
 DROP TABLE t1;
 # Case 3: wsrep_load_data_splitting = OFF & LOAD DATA with 20002
 # entries.
+connection node_1;
 SET GLOBAL wsrep_load_data_splitting = OFF;
 CREATE TABLE t1 (pk INT PRIMARY KEY)
 ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+connection node_2;
 SELECT COUNT(*) = 20002 FROM t1;
 COUNT(*) = 20002
 1
 wsrep_last_committed_diff
 AS_EXPECTED_1_or_2
 DROP TABLE t1;
+connection node_1;
 SET GLOBAL wsrep_load_data_splitting = 1;;
+disconnect node_2;
+disconnect node_1;
 # End of test

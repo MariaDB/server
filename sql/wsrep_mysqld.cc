@@ -3843,3 +3843,4 @@ my_bool get_wsrep_certify_nonPK()
 {
   return wsrep_certify_nonPK;
 }
+
