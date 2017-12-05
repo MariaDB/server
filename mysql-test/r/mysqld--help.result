@@ -1535,6 +1535,7 @@ performance-schema-session-connect-attrs-size -1
 performance-schema-setup-actors-size 100
 performance-schema-setup-objects-size 100
 performance-schema-users-size -1
+plugin-maturity unknown
 port 3306
 port-open-timeout 0
 preload-buffer-size 32768
