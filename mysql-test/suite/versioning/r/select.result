@@ -302,9 +302,21 @@ a
 create or replace table t1 (x int) with system versioning;
 select t1.x in (select x from t1) a from t1, (select x from t1) b;
 a
+### Issue #365, bug 10 (WHERE cond freed prematurely for PS)
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+create or replace view v1 as select x from t1 where x = 1;
+prepare stmt from "
+select x from t1 where x in (select x from v1);";
+execute stmt;
+x
+1
+execute stmt;
+x
+1
 drop view v1;
 drop table t1, t2;
-call innodb_verify_vtq(28);
+call innodb_verify_vtq(29);
 No	A	B	C	D
 1	1	1	1	1
 2	1	1	1	1
@@ -334,3 +346,4 @@ No	A	B	C	D
 26	1	1	1	1
 27	1	1	1	1
 28	1	1	1	1
+29	1	1	1	1

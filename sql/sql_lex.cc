@@ -3775,6 +3775,7 @@ void st_select_lex::fix_prepare_information(THD *thd, Item **conds,
   DBUG_ENTER("st_select_lex::fix_prepare_information");
   if (!thd->stmt_arena->is_conventional() && first_execution)
   {
+    Query_arena_stmt on_stmt_arena(thd);
     first_execution= 0;
     if (group_list.first)
     {
