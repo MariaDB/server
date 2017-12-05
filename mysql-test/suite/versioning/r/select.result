@@ -298,6 +298,10 @@ create or replace table t2 (b int) with system versioning;
 select * from t1
 where exists (select 1 from t2 where t2.b = t1.a and t2.b = t1.a);
 a
+### Issue #365, bug 9 (not a derived subquery)
+create or replace table t1 (x int) with system versioning;
+select t1.x in (select x from t1) a from t1, (select x from t1) b;
+a
 drop view v1;
 drop table t1, t2;
 call innodb_verify_vtq(28);

@@ -791,14 +791,14 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       if (!vers_conditions && outer_slex && slex->vers_import_outer)
       {
         TABLE_LIST* derived= slex->master_unit()->derived;
-        while (outer_slex && (!derived->vers_conditions || derived->vers_conditions.from_inner))
+        // inner SELECT may not be a derived table (derived == NULL)
+        while (derived && outer_slex && (!derived->vers_conditions || derived->vers_conditions.from_inner))
         {
           derived= outer_slex->master_unit()->derived;
           outer_slex= outer_slex->next_select_in_list();
         }
-        if (outer_slex)
+        if (derived && outer_slex && !derived->vers_conditions.from_inner)
         {
-          DBUG_ASSERT(derived);
           DBUG_ASSERT(derived->vers_conditions);
           vers_conditions= derived->vers_conditions;
         }
