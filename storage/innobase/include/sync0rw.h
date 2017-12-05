@@ -603,9 +603,6 @@ struct rw_lock_t
 	/** File name where lock created */
 	const char*	cfile_name;
 
-	/** last s-lock file/line is not guaranteed to be correct */
-	const char*	last_s_file_name;
-
 	/** File name where last x-locked */
 	const char*	last_x_file_name;
 
@@ -614,9 +611,6 @@ struct rw_lock_t
 
 	/** If 1 then the rw-lock is a block lock */
 	unsigned	is_block_lock:1;
-
-	/** Line number where last time s-locked */
-	unsigned	last_s_line:14;
 
 	/** Line number where last time x-locked */
 	unsigned	last_x_line:14;

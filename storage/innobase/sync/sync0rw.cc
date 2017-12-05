@@ -239,9 +239,7 @@ rw_lock_create_func(
 	ut_ad(cline <= 8192);
 	lock->cline = cline;
 	lock->count_os_wait = 0;
-	lock->last_s_file_name = "not yet reserved";
 	lock->last_x_file_name = "not yet reserved";
-	lock->last_s_line = 0;
 	lock->last_x_line = 0;
 	lock->event = os_event_create(0);
 	lock->wait_ex_event = os_event_create(0);
