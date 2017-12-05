@@ -45,19 +45,52 @@
 #include "spd_malloc.h"
 #include "spd_group_by_handler.h"
 
-#ifndef SPIDER_HAS_NEXT_THREAD_ID
-ulong *spd_db_att_thread_id;
-#endif
+/* Background thread management */
 #ifdef SPIDER_HAS_NEXT_THREAD_ID
 #define SPIDER_set_next_thread_id(A)
+MYSQL_THD create_thd();
+void destroy_thd(MYSQL_THD thd);
 #else
+ulong *spd_db_att_thread_id;
 inline void SPIDER_set_next_thread_id(THD *A)
 {
   pthread_mutex_lock(&LOCK_thread_count);
   A->thread_id = (*spd_db_att_thread_id)++;
   pthread_mutex_unlock(&LOCK_thread_count);
 }
+MYSQL_THD create_thd()
+{
+  THD *thd = SPIDER_new_THD(next_thread_id());
+  if (thd)
+  {
+    thd->thread_stack = (char*) &thd;
+    thd->store_globals();
+    thd->set_command(COM_DAEMON);
+    thd->security_ctx->host_or_ip = "";
+  }
+  return thd;
+}
+void destroy_thd(MYSQL_THD thd)
+{
+  delete thd;
+}
 #endif
+inline MYSQL_THD spider_create_thd(SPIDER_THREAD *thread)
+{
+  THD *thd = create_thd();
+  if (thd)
+  {
+    SPIDER_set_next_thread_id(thd);
+    thd->mysys_var->current_cond = &thread->cond;
+    thd->mysys_var->current_mutex = &thread->mutex;
+  }
+  return thd;
+}
+inline void spider_destroy_thd(MYSQL_THD thd)
+{
+  destroy_thd(thd);
+}
+
 #ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
 #ifdef XID_CACHE_IS_SPLITTED
@@ -9708,14 +9741,19 @@ error_mutex_init:
 void spider_free_sts_threads(
   SPIDER_THREAD *spider_thread
 ) {
+  bool thread_killed;
   DBUG_ENTER("spider_free_sts_threads");
   pthread_mutex_lock(&spider_thread->mutex);
+  thread_killed = spider_thread->killed;
   spider_thread->killed = TRUE;
-  if (spider_thread->thd_wait)
+  if (!thread_killed)
   {
-    pthread_cond_signal(&spider_thread->cond);
+    if (spider_thread->thd_wait)
+    {
+      pthread_cond_signal(&spider_thread->cond);
+    }
+    pthread_cond_wait(&spider_thread->sync_cond, &spider_thread->mutex);
   }
-  pthread_cond_wait(&spider_thread->sync_cond, &spider_thread->mutex);
   pthread_mutex_unlock(&spider_thread->mutex);
   pthread_join(spider_thread->thread, NULL);
   pthread_cond_destroy(&spider_thread->sync_cond);
@@ -9790,14 +9828,19 @@ error_mutex_init:
 void spider_free_crd_threads(
   SPIDER_THREAD *spider_thread
 ) {
+  bool thread_killed;
   DBUG_ENTER("spider_free_crd_threads");
   pthread_mutex_lock(&spider_thread->mutex);
+  thread_killed = spider_thread->killed;
   spider_thread->killed = TRUE;
-  if (spider_thread->thd_wait)
+  if (!thread_killed)
   {
-    pthread_cond_signal(&spider_thread->cond);
+    if (spider_thread->thd_wait)
+    {
+      pthread_cond_signal(&spider_thread->cond);
+    }
+    pthread_cond_wait(&spider_thread->sync_cond, &spider_thread->mutex);
   }
-  pthread_cond_wait(&spider_thread->sync_cond, &spider_thread->mutex);
   pthread_mutex_unlock(&spider_thread->mutex);
   pthread_join(spider_thread->thread, NULL);
   pthread_cond_destroy(&spider_thread->sync_cond);
@@ -9822,7 +9865,7 @@ void *spider_table_bg_sts_action(
   DBUG_ENTER("spider_table_bg_sts_action");
   /* init start */
   pthread_mutex_lock(&thread->mutex);
-  if (!(thd = SPIDER_new_THD(next_thread_id())))
+  if (!(thd = spider_create_thd(thread)))
   {
     thread->thd_wait = FALSE;
     thread->killed = FALSE;
@@ -9834,11 +9877,10 @@ void *spider_table_bg_sts_action(
 #ifdef HAVE_PSI_INTERFACE
   mysql_thread_set_psi_id(thd->thread_id);
 #endif
-  thd->thread_stack = (char*) &thd;
-  thd->store_globals();
+  thd_proc_info(thd, "Spider table background statistics action handler");
   if (!(trx = spider_get_trx(NULL, FALSE, &error_num)))
   {
-    delete thd;
+    spider_destroy_thd(thd);
     thread->thd_wait = FALSE;
     thread->killed = FALSE;
     pthread_mutex_unlock(&thread->mutex);
@@ -9859,7 +9901,7 @@ void *spider_table_bg_sts_action(
       DBUG_PRINT("info",("spider bg sts kill start"));
       trx->thd = NULL;
       spider_free_trx(trx, TRUE);
-      delete thd;
+      spider_destroy_thd(thd);
       pthread_cond_signal(&thread->sync_cond);
       pthread_mutex_unlock(&thread->mutex);
 #if !defined(MYSQL_DYNAMIC_PLUGIN) || !defined(_WIN32)
@@ -9874,6 +9916,8 @@ void *spider_table_bg_sts_action(
       thread->thd_wait = TRUE;
       pthread_cond_wait(&thread->cond, &thread->mutex);
       thread->thd_wait = FALSE;
+      if (thd->killed)
+        thread->killed = TRUE;
       continue;
     }
     share = (SPIDER_SHARE *) thread->queue_first;
@@ -9952,6 +9996,8 @@ void *spider_table_bg_sts_action(
     {
       pthread_cond_signal(&thread->sync_cond);
       pthread_cond_wait(&thread->cond, &thread->mutex);
+      if (thd->killed)
+        thread->killed = TRUE;
     }
   }
 }
@@ -9971,7 +10017,7 @@ void *spider_table_bg_crd_action(
   DBUG_ENTER("spider_table_bg_crd_action");
   /* init start */
   pthread_mutex_lock(&thread->mutex);
-  if (!(thd = SPIDER_new_THD(next_thread_id())))
+  if (!(thd = spider_create_thd(thread)))
   {
     thread->thd_wait = FALSE;
     thread->killed = FALSE;
@@ -9983,11 +10029,10 @@ void *spider_table_bg_crd_action(
 #ifdef HAVE_PSI_INTERFACE
   mysql_thread_set_psi_id(thd->thread_id);
 #endif
-  thd->thread_stack = (char*) &thd;
-  thd->store_globals();
+  thd_proc_info(thd, "Spider table background cardinality action handler");
   if (!(trx = spider_get_trx(NULL, FALSE, &error_num)))
   {
-    delete thd;
+    spider_destroy_thd(thd);
     thread->thd_wait = FALSE;
     thread->killed = FALSE;
     pthread_mutex_unlock(&thread->mutex);
@@ -10008,7 +10053,7 @@ void *spider_table_bg_crd_action(
       DBUG_PRINT("info",("spider bg crd kill start"));
       trx->thd = NULL;
       spider_free_trx(trx, TRUE);
-      delete thd;
+      spider_destroy_thd(thd);
       pthread_cond_signal(&thread->sync_cond);
       pthread_mutex_unlock(&thread->mutex);
 #if !defined(MYSQL_DYNAMIC_PLUGIN) || !defined(_WIN32)
@@ -10023,6 +10068,8 @@ void *spider_table_bg_crd_action(
       thread->thd_wait = TRUE;
       pthread_cond_wait(&thread->cond, &thread->mutex);
       thread->thd_wait = FALSE;
+      if (thd->killed)
+        thread->killed = TRUE;
       continue;
     }
     share = (SPIDER_SHARE *) thread->queue_first;
@@ -10102,6 +10149,8 @@ void *spider_table_bg_crd_action(
     {
       pthread_cond_signal(&thread->sync_cond);
       pthread_cond_wait(&thread->cond, &thread->mutex);
+      if (thd->killed)
+        thread->killed = TRUE;
     }
   }
 }
