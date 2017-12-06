@@ -5,7 +5,7 @@ c INT GENERATED ALWAYS AS(a+b),
 d INT GENERATED ALWAYS AS(a+b+b),
 KEY idxa (a),
 KEY vidxcd (c, d)
-) ENGINE=INNODB;
+) ENGINE=INNODB STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
 INSERT INTO t (a,b) VALUES (1, 2);
 SELECT index_name, stat_name, stat_description
 FROM mysql.innodb_index_stats
