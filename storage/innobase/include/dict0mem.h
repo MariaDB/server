@@ -1840,6 +1840,19 @@ dict_col_get_spatial_status(
 	return(spatial_status);
 }
 
+/** Clear defragmentation summary. */
+inline void dict_stats_empty_defrag_summary(dict_index_t* index)
+{
+	index->stat_defrag_n_pages_freed = 0;
+}
+
+/** Clear defragmentation related index stats. */
+inline void dict_stats_empty_defrag_stats(dict_index_t* index)
+{
+	index->stat_defrag_modified_counter = 0;
+	index->stat_defrag_n_page_split = 0;
+}
+
 #include "dict0mem.ic"
 
 #endif /* dict0mem_h */

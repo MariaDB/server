@@ -206,23 +206,6 @@ dberr_t
 dict_stats_save_defrag_stats(
 	dict_index_t*	index);	/*!< in: index */
 
-/**********************************************************************//**
-Clear defragmentation summary. */
-UNIV_INTERN
-void
-dict_stats_empty_defrag_summary(
-/*==================*/
-	dict_index_t* index);	/*!< in: index to clear defragmentation stats */
-
-/**********************************************************************//**
-Clear defragmentation related index stats. */
-UNIV_INTERN
-void
-dict_stats_empty_defrag_stats(
-/*==================*/
-	dict_index_t* index);	/*!< in: index to clear defragmentation stats */
-
-
 /*********************************************************************//**
 Renames an index in InnoDB persistent stats storage.
 This function creates its own transaction and commits it.

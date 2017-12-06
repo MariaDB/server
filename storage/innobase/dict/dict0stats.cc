@@ -546,29 +546,6 @@ dict_stats_empty_index(
 	}
 }
 
-/**********************************************************************//**
-Clear defragmentation summary. */
-UNIV_INTERN
-void
-dict_stats_empty_defrag_summary(
-/*==================*/
-	dict_index_t* index)	/*!< in: index to clear defragmentation stats */
-{
-	index->stat_defrag_n_pages_freed = 0;
-}
-
-/**********************************************************************//**
-Clear defragmentation related index stats. */
-UNIV_INTERN
-void
-dict_stats_empty_defrag_stats(
-/*==================*/
-	dict_index_t* index)	/*!< in: index to clear defragmentation stats */
-{
-	index->stat_defrag_modified_counter = 0;
-	index->stat_defrag_n_page_split = 0;
-}
-
 /*********************************************************************//**
 Write all zeros (or 1 where it makes sense) into a table and its indexes'
 statistics members. The resulting stats correspond to an empty table. */
