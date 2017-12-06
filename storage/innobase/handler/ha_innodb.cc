@@ -6464,7 +6464,21 @@ no_such_table:
 
 	/* No point to init any statistics if tablespace is still encrypted. */
 	if (ib_table->is_readable()) {
-		dict_stats_init(ib_table);
+		trx_t* trx = check_trx_exists(thd);
+		bool alloc = !trx_state_eq(trx, TRX_STATE_NOT_STARTED);
+
+		if (alloc) {
+			trx = trx_allocate_for_background();
+		}
+		ut_ad(!trx->persistent_stats);
+		ut_d(trx->persistent_stats = true);
+		++trx->will_lock;
+		dict_stats_init(ib_table, trx);
+		innobase_commit_low(trx);
+		ut_d(trx->persistent_stats = false);
+		if (alloc) {
+			trx_free_for_background(trx);
+		}
 	} else {
 		ib_table->stat_initialized = 1;
 	}
@@ -13263,7 +13277,9 @@ create_table_info_t::create_table_update_dict()
 
 	innobase_copy_frm_flags_from_create_info(innobase_table, m_create_info);
 
-	dict_stats_update(innobase_table, DICT_STATS_EMPTY_TABLE);
+	++m_trx->will_lock;
+	dict_stats_update(innobase_table, DICT_STATS_EMPTY_TABLE, m_trx);
+	innobase_commit_low(m_trx);
 
 	if (innobase_table) {
 		/* We update the highest file format in the system table
@@ -13529,7 +13545,8 @@ ha_innobase::discard_or_import_tablespace(
 
 		/* Adjust the persistent statistics. */
 		ret = dict_stats_update(dict_table,
-					DICT_STATS_RECALC_PERSISTENT);
+					DICT_STATS_RECALC_PERSISTENT,
+					m_prebuilt->trx);
 
 		if (ret != DB_SUCCESS) {
 			push_warning_printf(
@@ -13537,8 +13554,11 @@ ha_innobase::discard_or_import_tablespace(
 				Sql_condition::WARN_LEVEL_WARN,
 				ER_ALTER_INFO,
 				"Error updating stats for table '%s'"
-				" after table rebuild: %s",
+				" after table import: %s",
 				dict_table->name.m_name, ut_strerr(ret));
+			trx_rollback_to_savepoint(m_prebuilt->trx, NULL);
+		} else {
+			trx_commit_for_mysql(m_prebuilt->trx);
 		}
 	}
 
@@ -14017,8 +14037,6 @@ ha_innobase::rename_table(
 
 	innobase_commit_low(trx);
 
-	trx_free_for_mysql(trx);
-
 	if (error == DB_SUCCESS) {
 		char	norm_from[MAX_FULL_NAME_LEN];
 		char	norm_to[MAX_FULL_NAME_LEN];
@@ -14028,16 +14046,22 @@ ha_innobase::rename_table(
 		normalize_table_name(norm_from, from);
 		normalize_table_name(norm_to, to);
 
+		++trx->will_lock;
 		ret = dict_stats_rename_table(norm_from, norm_to,
-					      errstr, sizeof(errstr));
+					      errstr, sizeof errstr, trx);
 
 		if (ret != DB_SUCCESS) {
+			trx_rollback_to_savepoint(trx, NULL);
 			ib::error() << errstr;
 
 			push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
 				     ER_LOCK_WAIT_TIMEOUT, errstr);
+		} else {
+			innobase_commit_low(trx);
 		}
 	}
+
+	trx_free_for_mysql(trx);
 
 	/* Add a special case to handle the Duplicated Key error
 	and return DB_ERROR instead.
@@ -14575,17 +14599,33 @@ ha_innobase::info_low(
 			}
 
 			ut_ad(!mutex_own(&dict_sys->mutex));
-			ret = dict_stats_update(ib_table, opt);
+			/* Do not use prebuilt->trx in case this is
+			called in the middle of a transaction. We
+			should commit the transaction after
+			dict_stats_update() in order not to hog locks
+			on the mysql.innodb_table_stats,
+			mysql.innodb_index_stats tables. */
+			trx_t* trx = trx_allocate_for_background();
+			ut_d(trx->persistent_stats = true);
+			++trx->will_lock;
+			ret = dict_stats_update(ib_table, opt, trx);
 
 			if (ret != DB_SUCCESS) {
 				m_prebuilt->trx->op_info = "";
-				DBUG_RETURN(HA_ERR_GENERIC);
+				trx_rollback_to_savepoint(trx, NULL);
+			} else {
+				m_prebuilt->trx->op_info =
+					"returning various info to MySQL";
+				trx_commit_for_mysql(trx);
 			}
 
-			m_prebuilt->trx->op_info =
-				"returning various info to MariaDB";
-		}
+			ut_d(trx->persistent_stats = false);
+			trx_free_for_background(trx);
 
+			if (ret != DB_SUCCESS) {
+				DBUG_RETURN(HA_ERR_GENERIC);
+			}
+		}
 
 		stats.update_time = (ulong) ib_table->update_time;
 	}

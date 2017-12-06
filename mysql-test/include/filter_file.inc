@@ -53,6 +53,9 @@
 #
 #   $rpl_debug
 #     If set, verbose debug info is printed.
+#
+#   $filter_script
+#     If set, rows matching this regexp will be filtered out
 
 --let $include_filename= filter_file.inc
 --source include/begin_include_file.inc
@@ -67,10 +70,12 @@ if ($rpl_debug)
 
 --let _FF_PRE_SCRIPT= $pre_script
 --let _FF_SCRIPT= $script
+--let _FF_FILTER_SCRIPT= $filter_script
 --let _FF_INPUT_FILE= $input_file
 --let _FF_OUTPUT_FILE= $output_file
 --let _FF_SELECT_COLUMNS= $select_columns
 --let _FF_DEBUG= $rpl_debug
+
 if (!$output_file)
 {
   --let _FF_OUTPUT_FILE= $input_file
@@ -79,6 +84,7 @@ perl;
   my $pre_script = $ENV{'_FF_PRE_SCRIPT'};
   $pre_script =~ s/DOLLAR/\$/g;
   my $script = $ENV{'_FF_SCRIPT'};
+  my $filter_script = $ENV{'_FF_FILTER_SCRIPT'};
   $script =~ s/DOLLAR/\$/g;
   my $input_file = $ENV{'_FF_INPUT_FILE'};
   my $output_file = $ENV{'_FF_OUTPUT_FILE'};
@@ -123,7 +129,10 @@ perl;
     {
       ' . $script . '
     }
-    $filtered_contents .= $_."\n";
+    if (!$filter_script || ! m/$filter_script/)
+    {
+      $filtered_contents .= $_."\n";
+    }
   }
   close FILE or die "Error closing $input_file: $!";
   open FILE, "> $output_file" or die "Error opening $output_file: $!";

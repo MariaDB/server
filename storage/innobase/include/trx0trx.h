@@ -1123,6 +1123,9 @@ struct trx_t {
 			mysql_trx_list;	/*!< list of transactions created for
 					MySQL; protected by trx_sys->mutex */
 #ifdef UNIV_DEBUG
+	/** whether this transaction is updating persistent statistics
+	(used for silencing a debug assertion at shutdown) */
+	bool		persistent_stats;
 	bool		in_mysql_trx_list;
 					/*!< true if in
 					trx_sys->mysql_trx_list */

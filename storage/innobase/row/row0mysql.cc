@@ -3366,31 +3366,9 @@ run_again:
 		que_thr_stop_for_mysql_no_error(thr, trx);
 	} else {
 		que_thr_stop_for_mysql(thr);
+		ut_ad(err != DB_QUE_THR_SUSPENDED);
 
-		if (err != DB_QUE_THR_SUSPENDED) {
-			ibool	was_lock_wait;
-
-			was_lock_wait = row_mysql_handle_errors(
-				&err, trx, thr, NULL);
-
-			if (was_lock_wait) {
-				goto run_again;
-			}
-		} else {
-			que_thr_t*	run_thr;
-			que_node_t*	parent;
-
-			parent = que_node_get_parent(thr);
-
-			run_thr = que_fork_start_command(
-				static_cast<que_fork_t*>(parent));
-
-			ut_a(run_thr == thr);
-
-			/* There was a lock wait but the thread was not
-			in a ready to run or running state. */
-			trx->error_state = DB_LOCK_WAIT;
-
+		if (row_mysql_handle_errors(&err, trx, thr, NULL)) {
 			goto run_again;
 		}
 	}
@@ -3668,7 +3646,6 @@ row_drop_table_for_mysql(
 
 	if (!dict_table_is_temporary(table) && !table->no_rollback()) {
 
-		dict_stats_recalc_pool_del(table);
 		dict_stats_defrag_pool_del(table, NULL);
 		if (btr_defragment_thread_active) {
 			/* During fts_drop_orphaned_tables() in
@@ -3676,17 +3653,6 @@ row_drop_table_for_mysql(
 			btr_defragment_mutex has not yet been
 			initialized by btr_defragment_init(). */
 			btr_defragment_remove_table(table);
-		}
-
-		/* Remove stats for this table and all of its indexes from the
-		persistent storage if it exists and if there are stats for this
-		table in there. This function creates its own trx and commits
-		it. */
-		char	errstr[1024];
-		err = dict_stats_drop_table(name, errstr, sizeof(errstr));
-
-		if (err != DB_SUCCESS) {
-			ib::warn() << errstr;
 		}
 	}
 
@@ -4021,9 +3987,17 @@ row_drop_table_for_mysql(
 		table_flags = table->flags;
 		ut_ad(!dict_table_is_temporary(table));
 
-		err = row_drop_ancillary_fts_tables(table, trx);
-		if (err != DB_SUCCESS) {
-			break;
+		if (!table->no_rollback()) {
+			char	errstr[1024];
+			if (dict_stats_drop_table(name, errstr, sizeof errstr,
+						  trx) != DB_SUCCESS) {
+				ib::warn() << errstr;
+			}
+
+			err = row_drop_ancillary_fts_tables(table, trx);
+			if (err != DB_SUCCESS) {
+				break;
+			}
 		}
 
 		/* Determine the tablespace filename before we drop

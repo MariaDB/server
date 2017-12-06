@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, MariaDB Corporation. All rights Reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -66,28 +66,24 @@ dict_stats_defrag_pool_del(
 					all entries for the table */
 	const dict_index_t*	index);	/*!< in: index to remove */
 
-/*****************************************************************//**
-Get the first index that has been added for updating persistent defrag
-stats and eventually save its stats. */
+/** Process indexes that have been scheduled for defragmenting.
+@param[in,out]	trx	transaction that will be started and committed  */
 void
-dict_defrag_process_entries_from_defrag_pool();
-/*===========================================*/
+dict_defrag_process_entries_from_defrag_pool(trx_t* trx);
 
-/*********************************************************************//**
-Save defragmentation result.
+/** Save defragmentation result.
+@param[in]	index	index that was defragmented
+@param[in,out]	trx	transaction
 @return DB_SUCCESS or error code */
 dberr_t
-dict_stats_save_defrag_summary(
-/*============================*/
-	dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
+dict_stats_save_defrag_summary(dict_index_t* index, trx_t* trx)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*********************************************************************//**
-Save defragmentation stats for a given index.
+/** Save defragmentation stats for a given index.
+@param[in]	index	index that is being defragmented
+@param[in,out]	trx	transaction
 @return DB_SUCCESS or error code */
 dberr_t
-dict_stats_save_defrag_stats(
-/*============================*/
-	dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
+dict_stats_save_defrag_stats(dict_index_t* index, trx_t* trx)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #endif /* dict0defrag_bg_h */
