@@ -208,6 +208,11 @@ select x from t1 where x in (select x from v1);";
 execute stmt;
 execute stmt;
 
+--echo ### Issue #365, bug 11 (WHERE cond not top level item)
+create or replace table t1 (a int, b int,  key idx(a)) with system versioning;
+insert into t1 values (1, 1), (2, 2);
+select * from t1 where (a, 2) in ((1, 1), (2, 2)) and b = 1;
+
 drop view v1;
 drop table t1, t2;
 

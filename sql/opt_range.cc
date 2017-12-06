@@ -7347,6 +7347,7 @@ SEL_TREE *Item_func_in::get_func_row_mm_tree(RANGE_OPT_PARAM *param,
 
       key_col->bring_value();
       key_col_info.comparator= row_cmp_item->get_comparator(i);
+      DBUG_ASSERT(key_col_info.comparator);
       key_col_info.comparator->store_value(key_col);
       col_comparators++;
 

@@ -986,6 +986,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           thd->change_item_tree(dst_cond, cond1);
 
         slex->where= *dst_cond;
+        slex->where->top_level_item();
       }
     } // if (... table->table->versioned())
   } // for (table= tables; ...)
