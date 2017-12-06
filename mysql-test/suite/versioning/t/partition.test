@@ -229,6 +229,13 @@ select * from t1 partition (p0sp1) for system_time all;
 select * from t1 partition (p1sp0) for system_time all;
 select * from t1 partition (p1sp1) for system_time all;
 
+create or replace table t1 (a bigint)
+with system versioning
+partition by range (a)
+(partition p0 values less than (20) engine innodb,
+ partition p1 values less than maxvalue engine innodb);
+insert into t1 values (1);
+
 drop table t1;
 
 -- source suite/versioning/common_finish.inc

@@ -6872,7 +6872,25 @@ bool Vers_parse_info::check_and_fix_implicit(
     }
   }
 
-  bool integer_fields= create_info->db_type->flags & HTON_NATIVE_SYS_VERSIONING;
+  bool integer_fields= ha_check_storage_engine_flag(create_info->db_type,
+                                                    HTON_NATIVE_SYS_VERSIONING);
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (partition_info *info= thd->work_part_info)
+  {
+    if (!(create_info->used_fields & HA_CREATE_USED_ENGINE) &&
+        info->partitions.elements)
+    {
+      partition_element *element=
+          static_cast<partition_element *>(info->partitions.elem(0));
+      handlerton *hton= element->engine_type;
+      if (hton && ha_check_storage_engine_flag(hton, HTON_NATIVE_SYS_VERSIONING))
+      {
+        integer_fields= true;
+      }
+    }
+  }
+#endif
 
   if (fix_implicit(thd, alter_info, integer_fields))
     return true;
@@ -6947,8 +6965,8 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
                                           TABLE *table)
 {
   TABLE_SHARE *share= table->s;
-  bool integer_fields=
-      create_info->db_type->flags & HTON_NATIVE_SYS_VERSIONING;
+  bool integer_fields= ha_check_storage_engine_flag(create_info->db_type,
+                                                    HTON_NATIVE_SYS_VERSIONING);
   const char *table_name= share->table_name.str;
 
   if (!need_check() && !share->versioned)

@@ -8854,13 +8854,17 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
 
   if (versioned)
   {
-    if (create_info->db_type &&
-      table->s->db_type() != create_info->db_type && (
-      table->file->native_versioned() ||
-      create_info->db_type->flags & HTON_NATIVE_SYS_VERSIONING))
+    if (handlerton *hton1= create_info->db_type)
     {
-      my_error(ER_VERS_ALTER_ENGINE_PROHIBITED, MYF(0), table_list->db, table_list->table_name);
-      DBUG_RETURN(true);
+      handlerton *hton2= table->file->ht;
+      if (hton1 != hton2 &&
+          (ha_check_storage_engine_flag(hton1, HTON_NATIVE_SYS_VERSIONING) ||
+           ha_check_storage_engine_flag(hton2, HTON_NATIVE_SYS_VERSIONING)))
+      {
+        my_error(ER_VERS_ALTER_ENGINE_PROHIBITED, MYF(0), table_list->db,
+                 table_list->table_name);
+        DBUG_RETURN(true);
+      }
     }
     bool vers_data_mod= alter_info->data_modifying();
     if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
