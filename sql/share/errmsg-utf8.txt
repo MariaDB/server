@@ -7857,6 +7857,9 @@ ER_VERS_VIEW_PROHIBITED
 ER_VERS_DERIVED_PROHIBITED
         eng "Derived table is prohibited!"
 
+ER_VERS_SYSTEM_TIME_CLASH
+        eng "SYSTEM_TIME is not allowed outside historical %`s"
+
 ER_VERS_UNUSED_CLAUSE
         eng "Unused clause: '%s'"
 

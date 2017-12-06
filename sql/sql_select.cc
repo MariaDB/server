@@ -773,7 +773,15 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   {
     for (table= outer_slex->table_list.first; table; table= table->next_local)
     {
-      if (!table->vers_conditions)
+      if (table->vers_conditions)
+      {
+        if (!slex->is_linkage_set() && !table->vers_conditions.from_inner)
+        {
+          my_error(ER_VERS_SYSTEM_TIME_CLASH, MYF(0), table->alias);
+          DBUG_RETURN(-1);
+        }
+      }
+      else
       {
         table->vers_conditions= slex->vers_export_outer;
         table->vers_conditions.from_inner= true;

@@ -575,6 +575,10 @@ public:
   */
   uint8 uncacheable;
   enum sub_select_type linkage;
+  bool is_linkage_set() const
+  {
+    return linkage == UNION_TYPE || linkage == INTERSECT_TYPE || linkage == EXCEPT_TYPE;
+  }
   bool no_table_names_allowed; /* used for global order by */
 
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()

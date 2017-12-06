@@ -16,8 +16,6 @@ prepare stmt from @vt1; execute stmt; drop prepare stmt;
 set @vt2= concat("create or replace view vt2 as select *, sys_trx_end from t1 for system_time as of timestamp '", @t2, "'");
 prepare stmt from @vt2; execute stmt; drop prepare stmt;
 
-select * from vt1 for system_time all;
-select * from vt2 for system_time all;
 select * from t1;
 
 create or replace view vt1 as select * from t1;
@@ -27,26 +25,19 @@ show create view vt1;
 drop view vt1;
 drop view vt2;
 
-create view vt1 as select * from t1 for system_time all;
-select * from vt1 for system_time all;
-prepare stmt from 'select * from vt1 for system_time all'; execute stmt; drop prepare stmt;
-
+create or replace view vt1 as select * from t1 for system_time all;
 select * from vt1;
 prepare stmt from 'select * from vt1'; execute stmt; drop prepare stmt;
 
+set @str= concat('create or replace view vt1 as
+select * from t1 for system_time as of timestamp "', @t1, '"');
+prepare stmt from @str; execute stmt; drop prepare stmt;
 select * from t1 for system_time as of timestamp @t1;
-select * from vt1 for system_time as of timestamp @t1;
-prepare stmt from 'select * from vt1 for system_time as of timestamp @t1'; execute stmt; drop prepare stmt;
-
-create or replace view vt1 as select * from t1;
-select * from vt1 for system_time all;
-prepare stmt from 'select * from vt1 for system_time all'; execute stmt; drop prepare stmt;
+select * from vt1;
 
 insert into vt1 values (3);
 select * from t1;
 select * from vt1;
-select * from t1 for system_time all;
-select * from vt1 for system_time all;
 
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1), (2);
@@ -59,7 +50,7 @@ set @t3=now(6);
 set @tmp= concat("create or replace view vt1 as select * from t1 for system_time as of timestamp '", @t1, "'");
 prepare stmt from @tmp; execute stmt; drop prepare stmt;
 
-select * from vt1 for system_time all;
+select * from vt1;
 
 --echo # VIEW with parameters [#151]
 create or replace table t1 (x int) with system versioning;

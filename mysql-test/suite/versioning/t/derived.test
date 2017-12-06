@@ -96,8 +96,8 @@ create or replace table t1 (x int) with system versioning;
 create or replace table t2 (y int) with system versioning;
 insert into t1 values (1);
 set @t0= now(6);
+delete from t1;
 insert into t1 values (2);
-delete from t1 where x = 1;
 insert into t2 values (10);
 
 --error ER_VERS_DERIVED_PROHIBITED
@@ -105,29 +105,51 @@ select * from (select *, t1.sys_trx_end, t1.sys_trx_end as endo from t1) as s0;
 --error ER_VERS_DERIVED_PROHIBITED
 select * from (select *, t1.sys_trx_end, t2.sys_trx_start from t1, t2) as s0;
 
-# system_time propagation from inner to outer
+--echo # SYSTEM_TIME propagation from inner to outer
 select * from (select * from t1 for system_time as of timestamp @t0, t2) as s0;
 with s1 as (select * from t1 for system_time as of timestamp @t0, t2) select * from s1;
-# leading table selection
+--echo # leading table selection
 select * from (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) as s2;
 with s3 as (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) select * from s3;
-# system_time propagation from outer to inner
+--echo # SYSTEM_TIME propagation from outer to inner
 select * from (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) as s4 for system_time as of timestamp @t0;
 with s5 as (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) select * from s5 for system_time as of timestamp @t0;
 with s6 as (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) select * from s6 for system_time as of timestamp @t0;
 
-# VIEW instead of t1
+--echo ### VIEW instead of t1
 set @q= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t0, "'");
 prepare q from @q; execute q; drop prepare q;
+create view vt2 as select * from t1;
 
-# system_time propagation from view
+--echo # SYSTEM_TIME propagation from view
 select * from vt1;
-# system_time propagation from inner to outer
+--echo # SYSTEM_TIME propagation from inner to outer
 select * from (select * from vt1, t2) as s0;
-# leading table selection
+--echo # leading table selection
 select * from (select *, vt1.sys_trx_end from t2, vt1) as s0;
-# system_time propagation from outer to inner
-select * from (select *, vt1.sys_trx_start from t2 for system_time as of current_timestamp, vt1) as s0 for system_time as of timestamp @t0;
 
-drop table t1, t2;
-drop view vt1;
+--echo ### SYSTEM_TIME clash
+--error ER_VERS_SYSTEM_TIME_CLASH
+select * from (select * from t1 for system_time all) dt0 for system_time all;
+--error ER_VERS_SYSTEM_TIME_CLASH
+select * from vt1 for system_time all;
+--error ER_VERS_SYSTEM_TIME_CLASH
+with dt1 as (select * from t1 for system_time all)
+select * from dt1 for system_time all;
+
+--echo ### UNION
+set @t1= now(6);
+delete from t2;
+insert into t2 values (3);
+--echo # SYSTEM_TIME is not propagated
+select x from t1 union
+select y from t2;
+select x from t1 for system_time as of @t0 union
+select y from t2;
+select x from t1 union
+select y from t2 for system_time as of @t1;
+select x from t1 for system_time as of @t0 union
+select y from t2 for system_time as of @t1;
+
+drop database test;
+create database test;

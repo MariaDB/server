@@ -133,25 +133,28 @@ create or replace table t1 (x int) with system versioning;
 create or replace table t2 (y int) with system versioning;
 insert into t1 values (1);
 set @t0= now(6);
+delete from t1;
 insert into t1 values (2);
-delete from t1 where x = 1;
 insert into t2 values (10);
 select * from (select *, t1.sys_trx_end, t1.sys_trx_end as endo from t1) as s0;
 ERROR HY000: Derived table is prohibited: multiple end system fields `t1.sys_trx_end`, `t1.sys_trx_end` in query!
 select * from (select *, t1.sys_trx_end, t2.sys_trx_start from t1, t2) as s0;
 ERROR HY000: Derived table is prohibited: system fields from multiple tables `t1`, `t2` in query!
+# SYSTEM_TIME propagation from inner to outer
 select * from (select * from t1 for system_time as of timestamp @t0, t2) as s0;
 x	y
 1	10
 with s1 as (select * from t1 for system_time as of timestamp @t0, t2) select * from s1;
 x	y
 1	10
+# leading table selection
 select * from (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) as s2;
 y	x
 10	1
 with s3 as (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) select * from s3;
 y	x
 10	1
+# SYSTEM_TIME propagation from outer to inner
 select * from (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) as s4 for system_time as of timestamp @t0;
 y	x
 10	1
@@ -161,21 +164,56 @@ y	x
 with s6 as (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) select * from s6 for system_time as of timestamp @t0;
 y	x
 10	1
+### VIEW instead of t1
 set @q= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t0, "'");
 prepare q from @q;
 execute q;
 drop prepare q;
+create view vt2 as select * from t1;
+# SYSTEM_TIME propagation from view
 select * from vt1;
 x
 1
+# SYSTEM_TIME propagation from inner to outer
 select * from (select * from vt1, t2) as s0;
 x	y
 1	10
+# leading table selection
 select * from (select *, vt1.sys_trx_end from t2, vt1) as s0;
 y	x
 10	1
-select * from (select *, vt1.sys_trx_start from t2 for system_time as of current_timestamp, vt1) as s0 for system_time as of timestamp @t0;
-y	x
-10	1
-drop table t1, t2;
-drop view vt1;
+### SYSTEM_TIME clash
+select * from (select * from t1 for system_time all) dt0 for system_time all;
+ERROR HY000: SYSTEM_TIME is not allowed outside historical `dt0`
+select * from vt1 for system_time all;
+ERROR HY000: SYSTEM_TIME is not allowed outside historical `vt1`
+with dt1 as (select * from t1 for system_time all)
+select * from dt1 for system_time all;
+ERROR HY000: SYSTEM_TIME is not allowed outside historical `dt1`
+### UNION
+set @t1= now(6);
+delete from t2;
+insert into t2 values (3);
+# SYSTEM_TIME is not propagated
+select x from t1 union
+select y from t2;
+x
+2
+3
+select x from t1 for system_time as of @t0 union
+select y from t2;
+x
+1
+3
+select x from t1 union
+select y from t2 for system_time as of @t1;
+x
+2
+10
+select x from t1 for system_time as of @t0 union
+select y from t2 for system_time as of @t1;
+x
+1
+10
+drop database test;
+create database test;
