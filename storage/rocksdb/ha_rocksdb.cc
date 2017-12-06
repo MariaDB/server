@@ -5698,6 +5698,41 @@ int ha_rocksdb::open(const char *const name, int mode, uint test_if_locked) {
 
   setup_field_converters();
 
+  /*
+    MariaDB: adjust field->part_of_key for PK columns. We can only do it here
+    because SE API is just relying on the HA_PRIMARY_KEY_IN_READ_INDEX which
+    does not allow to distinguish between unpack'able and non-unpack'able
+    columns. 
+    Upstream uses handler->init_with_fields() but we don't have that call.
+  */
+  {
+    if (!has_hidden_pk(table)) {
+      KEY *const pk_info = &table->key_info[table->s->primary_key];
+      for (uint kp = 0; kp < pk_info->user_defined_key_parts; kp++) {
+        if (!m_pk_descr->can_unpack(kp)) {
+          //
+          uint field_index= pk_info->key_part[kp].field->field_index;
+          table->field[field_index]->part_of_key.clear_all();
+          table->field[field_index]->part_of_key.set_bit(table->s->primary_key);
+        }
+      }
+    }
+
+    for (uint key= 0; key < table->s->keys; key++) {
+      KEY *const key_info = &table->key_info[key];
+      if (key ==  table->s->primary_key)
+        continue;
+      for (uint kp = 0; kp < key_info->usable_key_parts; kp++) {
+        uint field_index= key_info->key_part[kp].field->field_index;
+        if (m_key_descr_arr[key]->can_unpack(kp)) {
+          table->field[field_index]->part_of_key.set_bit(key);
+        } else {
+          table->field[field_index]->part_of_key.clear_bit(key);
+        }
+      }
+    }
+  }
+
   info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
 
   /*

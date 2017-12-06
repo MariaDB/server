@@ -1,0 +1,56 @@
+--source include/have_rocksdb.inc
+
+--echo #
+--echo # MDEV-14433: RocksDB may show empty or incorrect output with rocksdb_strict_collation_check=off
+--echo #
+set global rocksdb_strict_collation_check=off;
+set @tmp_rscc=@@rocksdb_strict_collation_check;
+
+CREATE TABLE t1(
+  a varchar(10) NOT NULL,
+  b char(1) DEFAULT 'X',
+  c char(2) NOT NULL DEFAULT '??',
+  d varchar(10) NOT NULL,
+  e int(11) DEFAULT 0,
+  PRIMARY KEY (a,d),
+  KEY (e)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
+ 
+insert into t1 select 1,1,1,1,0;
+insert into t1 select 2,1,1,1,0;
+insert into t1 select 3,1,1,1,0;
+ 
+--replace_column 9 #
+explain
+select a from t1 force index(e) where e<10000;
+select a from t1;
+select * from t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14563: Wrong query plan for query with no PK
+--echo #
+
+CREATE TABLE t1(
+  pk int primary key,
+  a varchar(10) NOT NULL,   
+  e int(11) DEFAULT 0,   
+  KEY (a) 
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
+insert into t1 values (1,1,1),(2,2,2);
+--replace_column 9 #
+explain select a from t1 where a <'zzz';
+
+CREATE TABLE t2(
+  pk int,
+  a varchar(10) NOT NULL,
+  e int(11) DEFAULT 0,   
+  KEY (a)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
+insert into t2 values (1,1,1),(2,2,2);
+--replace_column 9 #
+explain select a from t2 where a <'zzz';
+
+drop table t1,t2;
+
+set global rocksdb_strict_collation_check=@tmp_rscc;

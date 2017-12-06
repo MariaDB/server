@@ -1,0 +1,13 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+call mtr.add_suppression("InnoDB: Cannot save (table|index) statistics for table `test`\\.`t1`.*: Persistent statistics do not exist");
+
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=INNODB STATS_PERSISTENT=1;
+SET @save_debug= @@SESSION.debug_dbug;
+SET debug_dbug= '+d,stats_index_error';
+ANALYZE TABLE t1;
+SET debug_dbug= @save_debug;
+ANALYZE TABLE t1;
+
+DROP TABLE t1;

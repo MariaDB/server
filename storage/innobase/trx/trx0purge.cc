@@ -304,7 +304,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		  && purge_sys->state == PURGE_STATE_INIT)
 	      || (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND
 		  && purge_sys->state == PURGE_STATE_DISABLED)
-	      || ((trx->undo_no == 0 || trx->in_mysql_trx_list)
+	      || ((trx->undo_no == 0 || trx->in_mysql_trx_list
+		   || trx->persistent_stats)
 		  && srv_fast_shutdown));
 
 	/* Add the log as the first in the history list */

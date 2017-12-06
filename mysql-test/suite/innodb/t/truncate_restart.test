@@ -2,10 +2,8 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
-call mtr.add_suppression("InnoDB: Cannot save table statistics for table `test`\\.`t1`: Persistent statistics do not exist");
-
 SET GLOBAL innodb_stats_persistent= ON;
-CREATE TABLE t1 (t TEXT) ENGINE=InnoDB;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB STATS_PERSISTENT=1;
 --connect (con1,localhost,root,,test)
 SET DEBUG_SYNC='ib_trunc_table_trunc_completing SIGNAL committed WAIT_FOR ever';
 --send
