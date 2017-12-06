@@ -244,6 +244,36 @@ cannot_find_file()
   link_to_help
 }
 
+check_basedir()
+{
+  bindir="$basedir/bin" # only used in the help text
+  resolveip=`find_in_dirs resolveip @resolveip_locations@`
+  if test -z "$resolveip"
+  then
+    cannot_find_file resolveip @resolveip_locations@
+    exit 1
+  fi
+  mysqld=`find_in_dirs mysqld @mysqld_locations@`
+  if test -z "$mysqld"
+  then
+    cannot_find_file mysqld @mysqld_locations@
+    exit 1
+  fi
+  langdir=`find_in_dirs --dir errmsg.sys @errmsg_locations@`
+  if test -z "$langdir"
+  then
+    cannot_find_file errmsg.sys @errmsg_locations@
+    exit 1
+  fi
+  srcpkgdatadir=`find_in_dirs --dir fill_help_tables.sql @pkgdata_locations@`
+  buildpkgdatadir=$srcpkgdatadir
+  if test -z "$srcpkgdatadir"
+  then
+    cannot_find_file fill_help_tables.sql @pkgdata_locations@
+    exit 1
+  fi
+}
+
 # Ok, let's go.  We first need to parse arguments which are required by
 # my_print_defaults so that we can execute it first, then later re-parse
 # the command line to add any extra bits that we need.
@@ -278,6 +308,11 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
+elif test -d "@CMAKE_INSTALL_PREFIX@"
+then
+  basedir="@CMAKE_INSTALL_PREFIX@"
+  print_defaults=`find_in_dirs my_print_defaults @resolveip_locations@`
+  basedir=""
 else
   print_defaults="@bindir@/my_print_defaults"
 fi
@@ -305,32 +340,11 @@ then
   buildpkgdatadir="$builddir/scripts"
 elif test -n "$basedir"
 then
-  bindir="$basedir/bin" # only used in the help text
-  resolveip=`find_in_dirs resolveip @resolveip_locations@`
-  if test -z "$resolveip"
-  then
-    cannot_find_file resolveip @resolveip_locations@
-    exit 1
-  fi
-  mysqld=`find_in_dirs mysqld @mysqld_locations@`
-  if test -z "$mysqld"
-  then
-    cannot_find_file mysqld @mysqld_locations@
-    exit 1
-  fi
-  langdir=`find_in_dirs --dir errmsg.sys @errmsg_locations@`
-  if test -z "$langdir"
-  then
-    cannot_find_file errmsg.sys @errmsg_locations@
-    exit 1
-  fi
-  srcpkgdatadir=`find_in_dirs --dir fill_help_tables.sql @pkgdata_locations@`
-  buildpkgdatadir=$srcpkgdatadir
-  if test -z "$srcpkgdatadir"
-  then
-    cannot_find_file fill_help_tables.sql @pkgdata_locations@
-    exit 1
-  fi
+  check_basedir
+elif test -d "@CMAKE_INSTALL_PREFIX@"
+then
+  basedir="@CMAKE_INSTALL_PREFIX@"
+  check_basedir
 else
   basedir="@prefix@"
   bindir="@bindir@"
