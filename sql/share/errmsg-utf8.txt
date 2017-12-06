@@ -7914,3 +7914,5 @@ ER_VERS_GENERATED_ALWAYS_NOT_EMPTY
 ER_VERS_TRT_IS_DISABLED
         eng "Some versioned DML requires `transaction_registry` to be set to ON."
 
+ER_VERS_DUPLICATE_ROW_START_END
+	eng "Duplicate ROW %s column %`s"
