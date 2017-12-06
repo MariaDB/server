@@ -11,11 +11,21 @@ END WHILE;
 END|
 CALL proc_update();;
 SET SESSION wsrep_retry_autocommit = 0;
-have_successes
-1
-have_deadlocks
-1
 Got one of the listed errors
 DROP PROCEDURE proc_update;
 DROP TABLE t1, t2;
 CALL mtr.add_suppression("conflict state 3 after post commit");
+CREATE TABLE t1 (i int primary key, j int) engine=innodb;
+INSERT INTO t1 values (1,0);
+BEGIN;
+UPDATE t1 SET j=1 WHERE i=1;
+UPDATE t1 SET j=2 WHERE i=1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM t1;
+i	j
+1	2
+SELECT * FROM t1;
+i	j
+1	2
+DROP TABLE t1;

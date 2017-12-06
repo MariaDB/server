@@ -3,8 +3,13 @@
 # 
 
 #
-# Attempt to insert into t2 and check if insert actually inserted rows if 
-# a success was reported.
+# test phase 1 is not deterministic
+#
+# Here we attempt to insert into t2 and check if insert actually
+# inserted rows if a success was reported.
+#
+# However, deadlocks may or may not happen in this test execution
+# it all depends on timing.
 #
 
 --source include/galera_cluster.inc
@@ -43,14 +48,31 @@ while ($count)
 
 --enable_query_log
 
-#
-# Check that the test produced both deadlocks and successes
-#
-
---disable_query_log
---eval SELECT $successes > 0 AS have_successes
---eval SELECT $deadlocks > 0 AS have_deadlocks
---enable_query_log
-
 
 --source suite/galera/t/MW-328-footer.inc
+
+#
+# Test phase 1 is deterministic
+# Here we generate a sure conflict in node 1 and verify that
+# insert failed in both nodes
+#
+--connection node_1
+CREATE TABLE t1 (i int primary key, j int) engine=innodb;
+INSERT INTO t1 values (1,0);
+
+BEGIN;
+UPDATE t1 SET j=1 WHERE i=1;
+
+--connection node_2
+UPDATE t1 SET j=2 WHERE i=1;
+
+--connection node_1
+--error 1213
+COMMIT;
+
+SELECT * FROM t1;
+--connection node_2
+SELECT * FROM t1;
+--connection node_1
+
+DROP TABLE t1;
