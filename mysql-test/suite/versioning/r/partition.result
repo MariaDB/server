@@ -42,25 +42,25 @@ create or replace table t1 (x int)
 with system versioning
 partition by system_time (
 partition p0 as of current_timestamp);
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one VERSIONING and exactly one last AS OF CURRENT_TIMESTAMP
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
 partition p0 as of current_timestamp,
 partition p1 as of current_timestamp);
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one VERSIONING and exactly one last AS OF CURRENT_TIMESTAMP
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
 partition p0 versioning,
 partition p1 versioning);
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one VERSIONING and exactly one last AS OF CURRENT_TIMESTAMP
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
 partition pn as of current_timestamp,
 partition p0 versioning);
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one VERSIONING and exactly one last AS OF CURRENT_TIMESTAMP
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
@@ -68,7 +68,7 @@ partition p0 versioning,
 partition pn as of current_timestamp);
 alter table t1 add partition (
 partition p1 as of current_timestamp);
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one VERSIONING and exactly one last AS OF CURRENT_TIMESTAMP
 alter table t1 add partition (
 partition p1 versioning);
 Warnings:
@@ -87,10 +87,10 @@ t1	CREATE TABLE `t1` (
  PARTITION `pn` AS OF CURRENT_TIMESTAMP ENGINE = ${INNODB_OR_MYISAM})
 insert into t1 values (1), (2);
 alter table t1 drop partition pn;
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one VERSIONING and exactly one last AS OF CURRENT_TIMESTAMP
 alter table t1 drop partition p1;
 alter table t1 drop partition p0;
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one VERSIONING and exactly one last AS OF CURRENT_TIMESTAMP
 select x from t1;
 x
 1
@@ -209,7 +209,7 @@ x
 2
 delete from t1;
 Warnings:
-Note	4116	Switching from partition `p0` to `p1`
+Note	4116	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
 select * from t1 partition (p0) for system_time all;
 x
 1
@@ -219,7 +219,7 @@ x
 insert into t1 values (3);
 delete from t1;
 Warnings:
-Warning	4114	Using full partition `p1`, need more VERSIONING partitions!
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more VERSIONING partitions
 select * from t1 partition (p1) for system_time all;
 x
 2
@@ -252,7 +252,7 @@ x
 insert into t1 values (4);
 delete from t1;
 Warnings:
-Note	4116	Switching from partition `p0` to `p1`
+Note	4116	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
 select * from t1 partition (p1) for system_time all;
 x
 4
@@ -274,8 +274,8 @@ x
 2
 delete from t1;
 Warnings:
-Note	4116	Switching from partition `p0` to `p1`
-Warning	4114	Using full partition `p1`, need more VERSIONING partitions!
+Note	4116	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more VERSIONING partitions
 select * from t1 partition (p0sp0) for system_time all;
 x
 1

@@ -7837,13 +7837,13 @@ ER_PARTITION_WRONG_TYPE
         eng "Wrong partition type, expected type: %`s"
 
 WARN_VERS_PART_FULL
-        eng "Using full partition %`s, need more VERSIONING partitions!"
+        eng "Versioned table %`s.%`s: partition %`s is full, add more VERSIONING partitions"
 
 WARN_VERS_PARAMETERS
         eng "Maybe missing parameters: %s"
 
 WARN_VERS_PART_ROTATION
-        eng "Switching from partition %`s to %`s"
+        eng "Versioned table %`s.%`s: switching from partition %`s to %`s"
 
 WARN_VERS_TRX_MISSING
         eng "VTQ missing transaction ID %lu"
@@ -7897,7 +7897,7 @@ ER_PART_WRONG_VALUE
         eng "Wrong parameters for partitioned %`s: wrong value for '%s'"
 
 ER_VERS_WRONG_PARTS
-        eng "Wrong partitions consistency for %`s: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'"
+        eng "Wrong partitions consistency for %`s: must have at least one VERSIONING and exactly one last AS OF CURRENT_TIMESTAMP"
 
 ER_VERS_HISTORY_LOCK
         eng "Versioned SELECT write-locking of history rows"
