@@ -2578,22 +2578,27 @@ static const char *thread_state_info(THD *tmp)
   {
     if (tmp->net.reading_or_writing == 2)
       return "Writing to net";
-    else if (tmp->get_command() == COM_SLEEP)
+    if (tmp->get_command() == COM_SLEEP)
       return "";
-    else
-      return "Reading from net";
+    return "Reading from net";
   }
-  else
 #endif
+
+  if (tmp->proc_info)
+    return tmp->proc_info;
+
+  /* Check if we are waiting on a condition */
+  if (!trylock_short(&tmp->LOCK_thd_kill))
   {
-    if (tmp->proc_info)
-      return tmp->proc_info;
-    else if (tmp->mysys_var && tmp->mysys_var->current_cond)
+    /* mysys_var is protected by above mutex */
+    bool cond= tmp->mysys_var && tmp->mysys_var->current_cond;
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
+    if (cond)
       return "Waiting on cond";
-    else
-      return NULL;
   }
+  return NULL;
 }
+
 
 void mysqld_list_processes(THD *thd,const char *user, bool verbose)
 {
@@ -2657,8 +2662,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   while ((tmp=it++))
   {
     Security_context *tmp_sctx= tmp->security_ctx;
-    struct st_my_thread_var *mysys_var= 0;
-    bool got_thd_data, got_mysys_lock= 0;
+    bool got_thd_data;
     if ((tmp->vio_ok() || tmp->system_thread) &&
         (!user || (!tmp->system_thread &&
                    tmp_sctx->user && !strcmp(tmp_sctx->user, user))))
@@ -2684,17 +2688,10 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
       thd_info->command=(int) tmp->get_command();
 
       if ((got_thd_data= !trylock_short(&tmp->LOCK_thd_data)))
-        if ((mysys_var= tmp->mysys_var))
-          got_mysys_lock= !trylock_short(&mysys_var->mutex);
-
-      if (got_thd_data)
       {
-        /* This is correct under mysys_lock, otherwise an approximation */
+        /* This is an approximation */
         thd_info->proc_info= (char*) (tmp->killed >= KILL_QUERY ?
                                       "Killed" : 0);
-        if (got_mysys_lock)
-           mysql_mutex_unlock(&mysys_var->mutex);
-
         /*
           The following variables are only safe to access under a lock
         */
@@ -2952,13 +2949,13 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
                                                    tmp_sctx->user)))
     {
       my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "PROCESS");
-      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      mysql_mutex_unlock(&tmp->LOCK_thd_kill);
       DBUG_RETURN(1);
     }
 
     if (tmp == thd)
     {
-      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      mysql_mutex_unlock(&tmp->LOCK_thd_kill);
       my_error(ER_TARGET_NOT_EXPLAINABLE, MYF(0));
       DBUG_RETURN(1);
     }
@@ -2966,7 +2963,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     bool bres;
     /* 
       Ok we've found the thread of interest and it won't go away because 
-      we're holding its LOCK_thd data. Post it a SHOW EXPLAIN request.
+      we're holding its LOCK_thd_kill. Post it a SHOW EXPLAIN request.
     */
     bool timed_out;
     int timeout_sec= 30;
@@ -3059,10 +3056,9 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
     while ((tmp= it++))
     {
       Security_context *tmp_sctx= tmp->security_ctx;
-      struct st_my_thread_var *mysys_var= 0;
       const char *val, *db;
       ulonglong max_counter;
-      bool got_thd_data, got_mysys_lock= 0;
+      bool got_thd_data;
 
       if ((!tmp->vio_ok() && !tmp->system_thread) ||
           (user && (tmp->system_thread || !tmp_sctx->user ||
@@ -3090,10 +3086,6 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
                                strlen(tmp_sctx->host_or_ip), cs);
 
       if ((got_thd_data= !trylock_short(&tmp->LOCK_thd_data)))
-        if ((mysys_var= tmp->mysys_var))
-          got_mysys_lock= !trylock_short(&mysys_var->mutex);
-
-      if (got_thd_data)
       {
         /* DB */
         if ((db= tmp->db))
@@ -3112,9 +3104,6 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
         table->field[4]->store(command_name[tmp->get_command()].str,
                                command_name[tmp->get_command()].length, cs);
 
-      if (got_mysys_lock)
-        mysql_mutex_unlock(&mysys_var->mutex);
-
       /* MYSQL_TIME */
       ulonglong utime= tmp->start_utime;
       ulonglong utime_after_query_snapshot= tmp->utime_after_query;
@@ -3123,13 +3112,6 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       utime= utime && utime < unow ? unow - utime : 0;
 
       table->field[5]->store(utime / HRTIME_RESOLUTION, TRUE);
-
-      /* STATE */
-      if ((val= thread_state_info(tmp)))
-      {
-        table->field[6]->store(val, strlen(val), cs);
-        table->field[6]->set_notnull();
-      }
 
       if (got_thd_data)
       {
@@ -3160,6 +3142,13 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
                                   (double) max_counter*100.0);
         }
         mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      }
+
+      /* STATE */
+      if ((val= thread_state_info(tmp)))
+      {
+        table->field[6]->store(val, strlen(val), cs);
+        table->field[6]->set_notnull();
       }
 
       /* TIME_MS */

@@ -125,7 +125,7 @@ relative_event_id	relative_end_event_id	event_name	comment	nesting_event_type	re
 15	15	stage/sql/Starting cleanup	(stage)	STATEMENT	0
 16	16	stage/sql/Freeing items	(stage)	STATEMENT	0
 17	17	wait/io/socket/sql/client_connection	send	STATEMENT	0
-18	18	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STATEMENT	0
+18	18	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STATEMENT	0
 19	20	stage/sql/Reset for next command	(stage)	STATEMENT	0
 20	20	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	19
 21	21	idle	idle	NULL	NULL
@@ -147,7 +147,7 @@ relative_event_id	relative_end_event_id	event_name	comment	nesting_event_type	re
 37	37	stage/sql/Starting cleanup	(stage)	STATEMENT	22
 38	38	stage/sql/Freeing items	(stage)	STATEMENT	22
 39	39	wait/io/socket/sql/client_connection	send	STATEMENT	22
-40	40	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STATEMENT	22
+40	40	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STATEMENT	22
 41	42	stage/sql/Reset for next command	(stage)	STATEMENT	22
 42	42	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	41
 43	43	idle	idle	NULL	NULL
@@ -169,7 +169,7 @@ relative_event_id	relative_end_event_id	event_name	comment	nesting_event_type	re
 59	59	stage/sql/Starting cleanup	(stage)	STATEMENT	44
 60	60	stage/sql/Freeing items	(stage)	STATEMENT	44
 61	61	wait/io/socket/sql/client_connection	send	STATEMENT	44
-62	62	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STATEMENT	44
+62	62	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STATEMENT	44
 63	64	stage/sql/Reset for next command	(stage)	STATEMENT	44
 64	64	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	63
 65	65	idle	idle	NULL	NULL
@@ -194,7 +194,7 @@ select "With a third part to make things complete" as payload	NULL	NULL
 82	82	stage/sql/Starting cleanup	(stage)	STATEMENT	66
 83	85	stage/sql/Freeing items	(stage)	STATEMENT	66
 84	84	wait/io/socket/sql/client_connection	send	STAGE	83
-85	85	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	83
+85	85	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STAGE	83
 86	103	statement/sql/select	select "And this is the second part of a multi query" as payload;
 select "With a third part to make things complete" as payload	NULL	NULL
 87	89	stage/sql/Init	(stage)	STATEMENT	86
@@ -213,7 +213,7 @@ select "With a third part to make things complete" as payload	NULL	NULL
 100	100	stage/sql/Starting cleanup	(stage)	STATEMENT	86
 101	103	stage/sql/Freeing items	(stage)	STATEMENT	86
 102	102	wait/io/socket/sql/client_connection	send	STAGE	101
-103	103	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	101
+103	103	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STAGE	101
 104	122	statement/sql/select	select "With a third part to make things complete" as payload	NULL	NULL
 105	106	stage/sql/Init	(stage)	STATEMENT	104
 106	106	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	105
@@ -230,7 +230,7 @@ select "With a third part to make things complete" as payload	NULL	NULL
 117	117	stage/sql/Starting cleanup	(stage)	STATEMENT	104
 118	118	stage/sql/Freeing items	(stage)	STATEMENT	104
 119	119	wait/io/socket/sql/client_connection	send	STATEMENT	104
-120	120	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STATEMENT	104
+120	120	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STATEMENT	104
 121	122	stage/sql/Reset for next command	(stage)	STATEMENT	104
 122	122	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	121
 123	123	idle	idle	NULL	NULL
@@ -252,7 +252,7 @@ select "With a third part to make things complete" as payload	NULL	NULL
 139	139	stage/sql/Starting cleanup	(stage)	STATEMENT	124
 140	140	stage/sql/Freeing items	(stage)	STATEMENT	124
 141	141	wait/io/socket/sql/client_connection	send	STATEMENT	124
-142	142	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STATEMENT	124
+142	142	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STATEMENT	124
 143	144	stage/sql/Reset for next command	(stage)	STATEMENT	124
 144	144	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	143
 disconnect con1;
