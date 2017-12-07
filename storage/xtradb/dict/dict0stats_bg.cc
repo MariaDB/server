@@ -512,6 +512,7 @@ dict_stats_process_entry_from_defrag_pool()
 		return;
 	}
 
+	mutex_exit(&dict_sys->mutex);
 	dict_stats_save_defrag_stats(index);
 	dict_table_close(table, FALSE, FALSE);
 }
