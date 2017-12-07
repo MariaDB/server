@@ -2432,3 +2432,66 @@ a	b
 DROP PROCEDURE p1;
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-14228 MariaDB crashes with function
+#
+CREATE TABLE t1 (c VARCHAR(16), KEY(c));
+INSERT INTO t1 VALUES ('foo');
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+v VARCHAR2(16);
+BEGIN
+FOR v IN (SELECT DISTINCT c FROM t1)
+LOOP
+IF (v = 'bar') THEN
+SELECT 1 INTO @a;
+END IF;
+END LOOP;
+RETURN 'qux';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+v t1%ROWTYPE;
+BEGIN
+IF v = 'bar' THEN
+NULL;
+END IF;
+RETURN 'qux';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+v ROW(a INT);
+BEGIN
+IF v = 'bar' THEN
+NULL;
+END IF;
+RETURN 'qux';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+DROP TABLE t1;
+DECLARE
+v ROW(a INT);
+BEGIN
+SELECT v IN ('a','b');
+END $$
+ERROR HY000: Illegal parameter data types row and varchar for operation 'in'
+DECLARE
+v ROW(a INT);
+BEGIN
+SELECT 'a' IN (v,'b');
+END $$
+ERROR HY000: Illegal parameter data types varchar and row for operation 'in'
+DECLARE
+v ROW(a INT);
+BEGIN
+SELECT 'a' IN ('b',v);
+END $$
+ERROR HY000: Illegal parameter data types varchar and row for operation 'in'
