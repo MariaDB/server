@@ -241,6 +241,7 @@ dict_stats_process_entry_from_defrag_pool(trx_t* trx)
 		return;
 	}
 
+	mutex_exit(&dict_sys->mutex);
 	++trx->will_lock;
 	dberr_t err = dict_stats_save_defrag_stats(index, trx);
 
