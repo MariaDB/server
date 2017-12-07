@@ -3,7 +3,7 @@ create table t1(abc int primary key, xyz int invisible);
 SHOW STATUS LIKE 'Feature_invisible_columns';
 desc t1;
 show create table t1;
-select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA='test' and TABLE_NAME='t1';
+select TABLE_CATALOG,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,EXTRA from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA='test' and TABLE_NAME='t1';
 drop table t1;
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create table t1(a1 int invisible);
