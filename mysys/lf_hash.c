@@ -102,7 +102,7 @@ retry:
   do { /* PTR() isn't necessary below, head is a dummy node */
     cursor->curr= (LF_SLIST *)(*cursor->prev);
     lf_pin(pins, 1, cursor->curr);
-  } while (*cursor->prev != (intptr)cursor->curr && LF_BACKOFF);
+  } while (*cursor->prev != (intptr)cursor->curr && LF_BACKOFF());
 
   for (;;)
   {
@@ -117,7 +117,7 @@ retry:
       link= cursor->curr->link;
       cursor->next= PTR(link);
       lf_pin(pins, 0, cursor->next);
-    } while (link != cursor->curr->link && LF_BACKOFF);
+    } while (link != cursor->curr->link && LF_BACKOFF());
 
     if (!DELETED(link))
     {
@@ -145,7 +145,7 @@ retry:
         and remove this deleted node
       */
       if (my_atomic_casptr((void **) cursor->prev,
-                           (void **) &cursor->curr, cursor->next) && LF_BACKOFF)
+                           (void **) &cursor->curr, cursor->next) && LF_BACKOFF())
         lf_alloc_free(pins, cursor->curr);
       else
         goto retry;

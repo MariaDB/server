@@ -617,7 +617,7 @@ retry:
   {
     rc= *shared_ptr;
     lf_pin(arg->thd->pins, 0, rc);
-  } while (rc != *shared_ptr && LF_BACKOFF);
+  } while (rc != *shared_ptr && LF_BACKOFF());
 
   if (rc == 0)
   {

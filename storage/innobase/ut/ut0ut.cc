@@ -293,7 +293,7 @@ ut_delay(
 	UT_LOW_PRIORITY_CPU();
 
 	for (i = 0; i < delay * 50; i++) {
-		UT_RELAX_CPU();
+		MY_RELAX_CPU();
 		UT_COMPILER_BARRIER();
 	}
 
