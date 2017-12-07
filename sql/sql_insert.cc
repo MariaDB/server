@@ -2615,7 +2615,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   }
   *field=0;
 
-  if (copy->versioned() && copy->vers_update_user_field())
+  if (copy->versioned() && copy->vers_update_user_field(client_thd->mem_root))
     goto error;
 
   if (share->virtual_fields || share->default_expressions ||

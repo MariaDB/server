@@ -7705,10 +7705,10 @@ void TABLE::vers_update_fields()
 }
 
 
-bool TABLE::vers_update_user_field()
+bool TABLE::vers_update_user_field(MEM_ROOT *_mem_root)
 {
   DBUG_ASSERT(versioned());
-  Field **dst= (Field **) alloc_root(&mem_root,
+  Field **dst= (Field **) alloc_root(_mem_root ? _mem_root : &mem_root,
                                     (s->fields - VERSIONING_FIELDS + 1) *
                                     sizeof(Field*));
   if (!dst)
