@@ -824,6 +824,27 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     {
       vers_select_conds_t &vers_conditions= table->vers_conditions;
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+      /*
+        if the history is stored in partitions, then partitions
+        themselves are not versioned
+      */
+      if (table->partition_names && table->table->part_info->vers_info)
+      {
+        if (vers_conditions)
+        {
+#define PART_VERS_ERR_MSG "%s PARTITION (%s)"
+          char buf[NAME_LEN*2 + sizeof(PART_VERS_ERR_MSG)];
+          my_snprintf(buf, sizeof(buf), PART_VERS_ERR_MSG, table->alias,
+                      table->partition_names->head()->c_ptr());
+          my_error(ER_VERSIONING_REQUIRED, MYF(0), buf);
+          DBUG_RETURN(-1);
+        }
+        else
+          vers_conditions.init(FOR_SYSTEM_TIME_ALL);
+      }
+#endif
+
       // propagate system_time from nearest outer SELECT_LEX
       if (!vers_conditions && outer_slex && vers_import_outer)
       {

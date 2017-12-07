@@ -740,12 +740,8 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   } while(0)
 
 
-inline void vers_select_conds_t::init(
-    vers_range_type_t t,
-    vers_range_unit_t u_start= UNIT_AUTO,
-    Item * s= NULL,
-    vers_range_unit_t u_end= UNIT_AUTO,
-    Item * e= NULL)
+void vers_select_conds_t::init(vers_range_type_t t, vers_range_unit_t u_start,
+                               Item *s, vers_range_unit_t u_end, Item *e)
 {
   type= t;
   unit_start= u_start;
@@ -755,7 +751,7 @@ inline void vers_select_conds_t::init(
   import_outer= from_inner= false;
 }
 
-inline Item *vers_select_conds_t::fix_dec(Item *item)
+Item *vers_select_conds_t::fix_dec(Item *item)
 {
   if (item && item->decimals == 0 && item->type() == Item::FUNC_ITEM &&
       ((Item_func*)item)->functype() == Item_func::NOW_FUNC)
