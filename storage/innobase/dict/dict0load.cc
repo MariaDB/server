@@ -377,8 +377,7 @@ dict_getnext_system(
 
 /********************************************************************//**
 This function processes one SYS_TABLES record and populate the dict_table_t
-struct for the table. Extracted out of dict_print() to be used by
-both monitor table output and information schema innodb_sys_tables output.
+struct for the table.
 @return error message, or NULL on success */
 const char*
 dict_process_sys_tables_rec_and_mtr_commit(
