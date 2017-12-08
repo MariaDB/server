@@ -1059,9 +1059,9 @@ my_bool my_like_range_simple(CHARSET_INFO *cs,
     if (*ptr == w_many)				/* '%' in SQL */
     {
       /* Calculate length of keys */
-      *min_length= ((cs->state & MY_CS_BINSORT) ?
+      *min_length= (cs->state & (MY_CS_BINSORT | MY_CS_NOPAD)) ?
                     (size_t) (min_str - min_org) :
-                    res_length);
+                    res_length;
       *max_length= res_length;
       do
       {
