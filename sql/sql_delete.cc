@@ -314,7 +314,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_ASSERT(table);
 
     DBUG_ASSERT(!conds);
-    if (vers_setup_select(thd, table_list, &conds, select_lex))
+    if (select_lex->vers_setup_conds(thd, table_list, &conds))
       DBUG_RETURN(TRUE);
 
     // trx_sees() in InnoDB reads sys_trx_start

@@ -836,7 +836,6 @@ public:
   Item *prep_having;/* saved HAVING clause for prepared statement processing */
   Item *cond_pushed_into_where;  /* condition pushed into the select's WHERE  */
   Item *cond_pushed_into_having; /* condition pushed into the select's HAVING */
-  Item *saved_where;
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;
   /* point on lex in which it was created, used in view subquery detection */
@@ -1038,9 +1037,14 @@ public:
   table_value_constr *tvc;
   bool in_tvc;
 
-  /* System Versioning */
+  /** System Versioning */
+private:
+  Item *vers_saved_where;
+public:
   vers_select_conds_t vers_export_outer;
   bool vers_import_outer;
+  uint versioned_tables;
+  int vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr);
   /* push new Item_field into item_list */
   bool vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name);
 

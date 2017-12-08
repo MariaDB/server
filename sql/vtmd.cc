@@ -539,7 +539,7 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   vtmd.table->map= 1;
 
   vtmd.vers_conditions= about.vers_conditions;
-  if ((error= vers_setup_select(thd, &vtmd, &conds, &select_lex)) ||
+  if ((error= select_lex.vers_setup_conds(thd, &vtmd, &conds)) ||
       (error= setup_conds(thd, &vtmd, dummy, &conds)))
     goto err;
 

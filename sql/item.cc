@@ -10379,7 +10379,7 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
   return find_matching_grouping_field(this, sel) != NULL;
 }
 
-Item *Item_field::vers_optimized_fields_transformer(THD *thd, uchar *)
+Item *Item_field::vers_transformer(THD *thd, uchar *)
 {
   if (!field)
     return this;

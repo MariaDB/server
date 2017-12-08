@@ -2228,7 +2228,6 @@ void st_select_lex::init_query()
   join= 0;
   having= prep_having= where= prep_where= 0;
   cond_pushed_into_where= cond_pushed_into_having= 0;
-  saved_where= 0;
   olap= UNSPECIFIED_OLAP_TYPE;
   having_fix_field= 0;
   context.select_lex= this;
@@ -2311,8 +2310,10 @@ void st_select_lex::init_select()
   in_funcs.empty();
   curr_tvc_name= 0;
   in_tvc= false;
-  vers_import_outer= false;
+  vers_saved_where= NULL;
   vers_export_outer.empty();
+  vers_import_outer= false;
+  versioned_tables= 0;
 }
 
 /*

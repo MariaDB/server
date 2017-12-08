@@ -690,14 +690,40 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   return false;
 }
 
-int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
-                      SELECT_LEX *slex)
+inline
+void JOIN::vers_check_items()
 {
-  DBUG_ENTER("vers_setup_select");
+  Item_transformer transformer= &Item::vers_transformer;
+
+  if (conds)
+  {
+    conds= conds->transform(thd, transformer, NULL);
+  }
+
+  for (ORDER *ord= order; ord; ord= ord->next)
+  {
+    ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
+    *ord->item= ord->item_ptr;
+  }
+
+  for (ORDER *ord= group_list; ord; ord= ord->next)
+  {
+    ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
+    *ord->item= ord->item_ptr;
+  }
+
+  if (having)
+  {
+    having= having->transform(thd, transformer, NULL);
+  }
+}
+
+int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr)
+{
+  DBUG_ENTER("SELECT_LEX::vers_setup_cond");
 #define newx new (thd->mem_root)
 
   TABLE_LIST *table;
-  int versioned_tables= 0;
 
   if (!thd->stmt_arena->is_conventional() &&
       !thd->stmt_arena->is_stmt_prepare() && !thd->stmt_arena->is_sp_execute())
@@ -706,14 +732,17 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
     DBUG_RETURN(0);
   }
 
-  for (table= tables; table; table= table->next_local)
+  if (!versioned_tables)
   {
-    if (table->table && table->table->versioned())
-      versioned_tables++;
-    else if (table->vers_conditions)
+    for (table= tables; table; table= table->next_local)
     {
-      my_error(ER_VERSIONING_REQUIRED, MYF(0), table->alias);
-      DBUG_RETURN(-1);
+      if (table->table && table->table->versioned())
+        versioned_tables++;
+      else if (table->vers_conditions)
+      {
+        my_error(ER_VERSIONING_REQUIRED, MYF(0), table->alias);
+        DBUG_RETURN(-1);
+      }
     }
   }
 
@@ -724,11 +753,11 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
      because they must outlive execution phase for multiple executions. */
   Query_arena_stmt on_stmt_arena(thd);
 
-  if (slex->saved_where)
+  if (vers_saved_where)
   {
     DBUG_ASSERT(thd->stmt_arena->is_sp_execute());
     /* 2. this copy_andor_structure() is also required by the same reason */
-    *where_expr= slex->saved_where->copy_andor_structure(thd);
+    *where_expr= vers_saved_where->copy_andor_structure(thd);
   }
   else if (thd->stmt_arena->is_sp_execute())
   {
@@ -737,7 +766,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
     else if (*where_expr) // SP executed first time (STMT_INITIALIZED_FOR_SP)
       /* 1. copy_andor_structure() is required since this andor tree
          is modified later (and on shorter arena) */
-      slex->saved_where= (*where_expr)->copy_andor_structure(thd);
+      vers_saved_where= (*where_expr)->copy_andor_structure(thd);
   }
 
   /* We have to save also non-versioned on_expr since we may have
@@ -749,7 +778,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       if (!table->table)
         continue;
 
-      if (table->saved_on_expr) // same logic as saved_where
+      if (table->saved_on_expr) // same logic as vers_saved_where
       {
         if (table->on_expr)
           table->on_expr= table->saved_on_expr->copy_andor_structure(thd);
@@ -767,15 +796,15 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
     }
   }
 
-  SELECT_LEX *outer_slex= slex->next_select_in_list();
+  SELECT_LEX *outer_slex= next_select_in_list();
   // propagate derived conditions to outer SELECT_LEX
-  if (outer_slex && slex->vers_export_outer)
+  if (outer_slex && vers_export_outer)
   {
     for (table= outer_slex->table_list.first; table; table= table->next_local)
     {
       if (table->vers_conditions)
       {
-        if (!slex->is_linkage_set() && !table->vers_conditions.from_inner)
+        if (!is_linkage_set() && !table->vers_conditions.from_inner)
         {
           my_error(ER_VERS_SYSTEM_TIME_CLASH, MYF(0), table->alias);
           DBUG_RETURN(-1);
@@ -783,7 +812,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       }
       else
       {
-        table->vers_conditions= slex->vers_export_outer;
+        table->vers_conditions= vers_export_outer;
         table->vers_conditions.from_inner= true;
       }
     }
@@ -796,9 +825,9 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       vers_select_conds_t &vers_conditions= table->vers_conditions;
 
       // propagate system_time from nearest outer SELECT_LEX
-      if (!vers_conditions && outer_slex && slex->vers_import_outer)
+      if (!vers_conditions && outer_slex && vers_import_outer)
       {
-        TABLE_LIST* derived= slex->master_unit()->derived;
+        TABLE_LIST* derived= master_unit()->derived;
         // inner SELECT may not be a derived table (derived == NULL)
         while (derived && outer_slex && (!derived->vers_conditions || derived->vers_conditions.from_inner))
         {
@@ -821,7 +850,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
 
       if (vers_conditions)
       {
-        switch (slex->lock_type)
+        switch (this->lock_type)
         {
         case TL_WRITE_ALLOW_WRITE:
         case TL_WRITE_CONCURRENT_INSERT:
@@ -856,9 +885,9 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       const LEX_CSTRING *fend= &table->table->vers_end_field()->field_name;
 
       Item *row_start=
-          newx Item_field(thd, &slex->context, table->db, table->alias, fstart);
+          newx Item_field(thd, &this->context, table->db, table->alias, fstart);
       Item *row_end=
-          newx Item_field(thd, &slex->context, table->db, table->alias, fend);
+          newx Item_field(thd, &this->context, table->db, table->alias, fend);
       Item *row_end2= row_end;
 
       bool tmp_from_ib=
@@ -985,8 +1014,8 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         else
           thd->change_item_tree(dst_cond, cond1);
 
-        slex->where= *dst_cond;
-        slex->where->top_level_item();
+        this->where= *dst_cond;
+        this->where->top_level_item();
       }
     } // if (... table->table->versioned())
   } // for (table= tables; ...)
@@ -1072,7 +1101,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   }
 
   /* System Versioning: handle FOR SYSTEM_TIME clause. */
-  if (vers_setup_select(thd, tables_list, &conds, select_lex) < 0)
+  if (select_lex->vers_setup_conds(thd, tables_list, &conds) < 0)
     DBUG_RETURN(-1);
 
   /*
@@ -1358,44 +1387,9 @@ JOIN::prepare(TABLE_LIST *tables_init,
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
 
-  if (!thd->stmt_arena->is_stmt_prepare())
+  if (!thd->stmt_arena->is_stmt_prepare() && select_lex->versioned_tables > 0)
   {
-    bool have_versioned_tables= false;
-    for (TABLE_LIST *table= tables_list; table; table= table->next_local)
-    {
-      if (table->table && table->table->versioned())
-      {
-        have_versioned_tables= true;
-        break;
-      }
-    }
-
-    if (have_versioned_tables)
-    {
-      Item_transformer transformer= &Item::vers_optimized_fields_transformer;
-
-      if (conds)
-      {
-        conds= conds->transform(thd, transformer, NULL);
-      }
-
-      for (ORDER *ord= order; ord; ord= ord->next)
-      {
-        ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
-        *ord->item= ord->item_ptr;
-      }
-
-      for (ORDER *ord= group_list; ord; ord= ord->next)
-      {
-        ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
-        *ord->item= ord->item_ptr;
-      }
-
-      if (having)
-      {
-        having= having->transform(thd, transformer, NULL);
-      }
-    }
+    vers_check_items();
   }
 
   unit= unit_arg;
@@ -3994,7 +3988,7 @@ void JOIN::exec_inner()
     List_iterator<Item> it(*columns_list);
     while (Item *item= it++)
     {
-      Item_transformer transformer= &Item::vers_optimized_fields_transformer;
+      Item_transformer transformer= &Item::vers_transformer;
       it.replace(item->transform(thd, transformer, NULL));
     }
   }

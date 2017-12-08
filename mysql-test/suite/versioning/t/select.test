@@ -216,6 +216,6 @@ select * from t1 where (a, 2) in ((1, 1), (2, 2)) and b = 1;
 drop view v1;
 drop table t1, t2;
 
-call innodb_verify_vtq(29);
+call innodb_verify_vtq(30);
 
 -- source suite/versioning/common_finish.inc
