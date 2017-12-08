@@ -318,7 +318,7 @@ dict_stats_save_defrag_stats(dict_index_t* index, trx_t* trx)
 		return DB_SUCCESS;
 	}
 
-	lint now = ut_time();
+	ib_time_t now = ut_time();
 	dberr_t err = dict_stats_save_index_stat(
 		index, now, "n_page_split",
 		index->stat_defrag_n_page_split,
