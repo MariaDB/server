@@ -349,6 +349,87 @@ drop table t4;
 drop function bug27563;
 
 
+# Prove that killing connection in the middle
+# of mixed engine transactions affect binlogging
+# as specified.
+
+# keep binlogging for this piece of test in a new file
+FLUSH LOGS;
+
+# Connection con3 as transaction generator thoughout the test
+connect (con3, localhost, root,,);
+
+connection con3;
+let $ID= `select connection_id()`;
+
+--echo MI: MyISAM, INNODB
+BEGIN;
+INSERT INTO t2 VALUES (NULL, 1);
+INSERT INTO t1 VALUES (NULL, 1);
+
+#Connection con1 as killer throughout the test
+connection con1;
+--replace_result $ID ID
+--eval KILL $ID
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+--let $binlog_start= 4
+--source include/show_binlog_events.inc
+--let $binlog_killed_pos=query_get_value(SHOW MASTER STATUS, Position, 1)
+
+disconnect con3;
+connect (con3, localhost, root,,);
+connection con3;
+let $ID= `select connection_id()`;
+
+--echo IM: INNODB, MyISAM
+BEGIN;
+INSERT INTO t1 VALUES (NULL, 1);
+INSERT INTO t2 VALUES (NULL, 1);
+
+connection con1;
+--replace_result $ID ID
+--eval KILL $ID
+--let $binlog_start= $binlog_killed_pos
+--source include/show_binlog_events.inc
+--let $binlog_killed_pos=query_get_value(SHOW MASTER STATUS, Position, 1)
+
+disconnect con3;
+connect (con3, localhost, root,,);
+connection con3;
+let $ID= `select connection_id()`;
+
+--echo IMI: INNODB, MyISAM, INNODB
+BEGIN;
+INSERT INTO t1 VALUES (NULL, 1);
+INSERT INTO t2 VALUES (NULL, 1);
+INSERT INTO t1 VALUES (NULL, 1);
+
+connection con1;
+--replace_result $ID ID
+--eval KILL $ID
+--let $binlog_start= $binlog_killed_pos
+--source include/show_binlog_events.inc
+--let $binlog_killed_pos=query_get_value(SHOW MASTER STATUS, Position, 1)
+
+disconnect con3;
+connect (con3, localhost, root,,);
+connection con3;
+let $ID= `select connection_id()`;
+
+--echo MI2:  MyISAM, INNODB, MyISAM, INNODB
+BEGIN;
+INSERT INTO t2 VALUES (NULL, 1);
+INSERT INTO t1 VALUES (NULL, 1);
+INSERT INTO t2 VALUES (NULL, 1);
+INSERT INTO t1 VALUES (NULL, 1);
+
+connection con1;
+--replace_result $ID ID
+--eval KILL $ID
+--let $binlog_start= $binlog_killed_pos
+--source include/show_binlog_events.inc
+
+
 #
 # common cleanup 
 #

@@ -4967,9 +4967,7 @@ err_during_init:
   // TODO: make rpl_status part of Master_info
   change_rpl_status(RPL_ACTIVE_SLAVE,RPL_IDLE_SLAVE);
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->unlink();
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->assert_not_linked();
   delete thd;
   thread_safe_decrement32(&service_thread_count);
   signal_thd_deleted();
@@ -5648,11 +5646,7 @@ err_during_init:
 
   rpl_parallel_resize_pool_if_no_slaves();
 
-  /* TODO: Check if this lock is needed */
-  mysql_mutex_lock(&LOCK_thread_count);
   delete serial_rgi;
-  mysql_mutex_unlock(&LOCK_thread_count);
-
   delete thd;
   thread_safe_decrement32(&service_thread_count);
   signal_thd_deleted();

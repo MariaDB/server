@@ -4171,14 +4171,6 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
     mysql_mutex_unlock(&LOCK_xid_list);
   }
 
-  /*
-    The following mutex is needed to ensure that no threads call
-    'delete thd' as we would then risk missing a 'rollback' from this
-    thread. If the transaction involved MyISAM tables, it should go
-    into binlog even on rollback.
-  */
-  mysql_mutex_lock(&LOCK_thread_count);
-
   /* Save variables so that we can reopen the log */
   save_name=name;
   name=0;					// Protect against free
@@ -4285,7 +4277,6 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
 err:
   if (error == 1)
     name= const_cast<char*>(save_name);
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   if (!is_relay_log)
   {
