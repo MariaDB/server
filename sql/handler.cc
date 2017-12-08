@@ -3071,8 +3071,8 @@ int handler::update_auto_increment()
         table->next_number_field->set_null();
         DBUG_RETURN(0);
       }
+      table->next_number_field->set_notnull();
     }
-    table->next_number_field->set_notnull();
   }
 
   /*

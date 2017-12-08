@@ -1742,9 +1742,9 @@ row_merge_read_clustered_index(
 	double 			curr_progress = 0.0;
 	ib_uint64_t		read_rows = 0;
 	ib_uint64_t		table_total_rows = 0;
-	ulonglong		historic_auto_decrement = 0xffffffffffffffff;
 	char			new_sys_trx_start[8];
 	char			new_sys_trx_end[8];
+	byte			any_autoinc_data[8] = {0};
 
 	DBUG_ENTER("row_merge_read_clustered_index");
 
@@ -2253,9 +2253,26 @@ end_of_index:
 					= dfield->is_version_historical_end();
 			}
 
-			const dfield_t*	dfield;
+			dfield_t*	dfield;
 
 			dfield = dtuple_get_nth_field(row, add_autoinc);
+
+			if (new_table->versioned()) {
+				if (historical_row) {
+					if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
+						err = DB_UNSUPPORTED;
+						my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),
+							 old_table->name);
+						goto func_exit;
+					}
+					dfield_set_null(dfield);
+				} else {
+					// set not null
+					ulint len = dfield_get_type(dfield)->len;
+					dfield_set_data(dfield, any_autoinc_data, len);
+				}
+			}
+
 			if (dfield_is_null(dfield)) {
 				goto write_buffers;
 			}
@@ -2273,12 +2290,7 @@ end_of_index:
 				goto func_exit;
 			}
 
-			ulonglong value;
-			if (likely(!historical_row)) {
-				value = sequence++;
-			} else {
-				value = historic_auto_decrement--;
-			}
+			ulonglong	value = sequence++;
 
 			switch (dtype_get_mtype(dtype)) {
 			case DATA_INT: {
