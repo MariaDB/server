@@ -7807,3 +7807,5 @@ ER_NOT_AGGREGATE_FUNCTION
         eng "Non-aggregate function contains aggregate specific instructions: (FETCH GROUP NEXT ROW)"
 ER_INVALID_AGGREGATE_FUNCTION
         eng "Aggregate specific instruction(FETCH GROUP NEXT ROW) missing from the aggregate function"
+ER_INVALID_VALUE_TO_LIMIT
+        eng "Limit only accepts integer values"
