@@ -5560,7 +5560,7 @@ public:
                                           MY_MEMORY_ORDER_RELAXED))
     {
       old&= ACQUIRED | RECOVERED;
-      (void) LF_BACKOFF;
+      (void) LF_BACKOFF();
     }
   }
   bool acquire_recovered()
@@ -5573,7 +5573,7 @@ public:
       if (!(old & RECOVERED) || (old & ACQUIRED))
         return false;
       old= RECOVERED;
-      (void) LF_BACKOFF;
+      (void) LF_BACKOFF();
     }
     return true;
   }
