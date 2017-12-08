@@ -1446,7 +1446,7 @@ static MYSQL_SYSVAR_UINT(
 static MYSQL_SYSVAR_STR(datadir, rocksdb_datadir,
                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
                         "RocksDB data directory", nullptr, nullptr,
-                        "./.rocksdb");
+                        "./#rocksdb");
 
 static MYSQL_SYSVAR_STR(supported_compression_types,
   compression_types_val,
