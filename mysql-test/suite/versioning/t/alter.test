@@ -205,6 +205,13 @@ alter table t drop system versioning, algorithm=copy;
 show create table t;
 call verify_vtq;
 
+# nullable autoinc test w/o versioning
+create or replace table t (a int);
+insert t values (1),(2),(3),(4);
+alter table t add b int auto_increment null unique;
+select * from t;
+drop table t;
+
 create or replace table t (a int) with system versioning engine=innodb;
 insert into t values (1), (2), (3);
 delete from t where a<3;
