@@ -111,6 +111,10 @@ bool thd_binlog_filter_ok(const MYSQL_THD thd);
 
 MYSQL_PLUGIN_IMPORT bool my_disable_leak_check;
 
+// Needed in rocksdb_init_func
+void ignore_db_dirs_append(const char *dirname_arg);
+
+
 namespace myrocks {
 
 static st_global_stats global_stats;
@@ -3934,6 +3938,7 @@ static rocksdb::Status check_rocksdb_options_compatibility(
   return status;
 }
 
+
 /*
   Storage Engine initialization function, invoked when plugin is loaded.
 */
@@ -3961,6 +3966,11 @@ static int rocksdb_init_func(void *const p) {
                    MY_MUTEX_INIT_FAST);
   mysql_mutex_init(rdb_mem_cmp_space_mutex_key, &rdb_mem_cmp_space_mutex,
                    MY_MUTEX_INIT_FAST);
+
+  const char* initial_rocksdb_datadir_for_ignore_dirs= rocksdb_datadir;
+  if (!strncmp(rocksdb_datadir, "./", 2))
+    initial_rocksdb_datadir_for_ignore_dirs += 2;
+  ignore_db_dirs_append(initial_rocksdb_datadir_for_ignore_dirs);
 
 #if defined(HAVE_PSI_INTERFACE)
   rdb_collation_exceptions =
