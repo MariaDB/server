@@ -191,22 +191,25 @@ lock_wait_table_reserve_slot(
 /*********************************************************************//**
 check if lock timeout was for priority thread, 
 as a side effect trigger lock monitor
+@param[in]    trx    transaction owning the lock
+@param[in]    locked true if trx and lock_sys_mutex is ownd
 @return        false for regular lock timeout */
-static ibool
+static
+bool
 wsrep_is_BF_lock_timeout(
-/*====================*/
-    trx_t* trx) /* in: trx to check for lock priority */
+	const trx_t*	trx,
+	bool		locked = true)
 {
-       if (wsrep_on_trx(trx) &&
-           wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
-               fprintf(stderr, "WSREP: BF lock wait long\n");
-                srv_print_innodb_monitor       = TRUE;
-                srv_print_innodb_lock_monitor  = TRUE;
-                os_event_set(srv_monitor_event);
-                return TRUE;
-       }
-       return FALSE;
- }
+	if (wsrep_on_trx(trx)
+	    && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+		fprintf(stderr, "WSREP: BF lock wait long for trx " TRX_ID_FMT "\n", trx->id);
+		srv_print_innodb_monitor	= TRUE;
+		srv_print_innodb_lock_monitor	= TRUE;
+		os_event_set(srv_monitor_event);
+		return true;
+	}
+	return false;
+}
 #endif /* WITH_WSREP */
 
 /***************************************************************//**
@@ -402,15 +405,15 @@ lock_wait_suspend_thread(
 	if (lock_wait_timeout < 100000000
 	    && wait_time > (double) lock_wait_timeout) {
 #ifdef WITH_WSREP
-                if (!wsrep_on_trx(trx) ||
-                    (!wsrep_is_BF_lock_timeout(trx) &&
-                     trx->error_state != DB_DEADLOCK)) {
+		if (!wsrep_on_trx(trx) ||
+		    (!wsrep_is_BF_lock_timeout(trx) &&
+		     trx->error_state != DB_DEADLOCK)) {
 #endif /* WITH_WSREP */
 
-		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+			trx->error_state = DB_LOCK_WAIT_TIMEOUT;
 
 #ifdef WITH_WSREP
-                }
+		}
 #endif /* WITH_WSREP */
 		MONITOR_INC(MONITOR_TIMEOUT);
 	}
