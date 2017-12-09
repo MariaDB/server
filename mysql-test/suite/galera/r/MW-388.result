@@ -25,7 +25,7 @@ SET DEBUG_SYNC = "now SIGNAL wsrep_after_replication_continue";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 SELECT @errno = 1213;
 @errno = 1213
-1
+0
 SELECT * FROM t1;
 f1	f2
 1	node 2
