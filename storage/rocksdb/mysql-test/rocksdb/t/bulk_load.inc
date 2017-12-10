@@ -134,7 +134,7 @@ select count(b) from t3;
 # the server starts
 --let $tmpext = .bulk_load.tmp
 --let $MYSQLD_DATADIR= `SELECT @@datadir`
---let $datadir = $MYSQLD_DATADIR/.rocksdb
+--let $datadir = $MYSQLD_DATADIR/#rocksdb
 --write_file $datadir/test$tmpext
 dummy data
 EOF
