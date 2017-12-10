@@ -120,10 +120,13 @@ insert into t1(x, y) values
 (3, 3001),
 (4, 4001),
 (5, 5001),
-(6, 6001),
-(7, 7001),
-(8, 8001),
-(9, 9001);
+(6, 6001);
+insert into t1(x, y, sys_start) values
+(7, 7001, DEFAULT);
+insert into t1(x, y, sys_end) values
+(8, 8001, DEFAULT);
+insert into t1(x, y, sys_start, sys_end) values
+(9, 9001, DEFAULT, DEFAULT);
 insert into t2 select x, y from t1 for system_time between timestamp '0000-0-0 0:0:0' and timestamp '9999-1-1 0:0:0';
 select x, y from t1;
 select x, y from t2;
@@ -259,6 +262,9 @@ No	A	B	C	D
 13	1	1	1	1
 14	1	1	1	1
 15	1	1	1	1
+16	1	1	1	1
+17	1	1	1	1
+18	1	1	1	1
 create table t1(
 x int unsigned,
 sys_start bigint unsigned generated always as row start,

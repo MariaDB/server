@@ -8045,6 +8045,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     if (table->versioned() && rfield->vers_sys_field() &&
         !ignore_errors)
     {
+      if (type == Item::DEFAULT_VALUE_ITEM)
+        continue;
       my_error(ER_VERS_READONLY_FIELD, MYF(0), rfield->field_name.str);
       goto err;
     }
