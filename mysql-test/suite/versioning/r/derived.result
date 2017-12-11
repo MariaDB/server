@@ -91,34 +91,29 @@ ancestors
 as
 (
 select e.emp_id, e.name, e.mgr
-from emp as e
+from emp for system_time as of timestamp @ts as e
 where name = 'bill'
-  for system_time as of timestamp @ts
-union
+  union
 select ee.emp_id, ee.name, ee.mgr
-from emp as ee, ancestors as a
+from emp for system_time as of timestamp @ts as ee, ancestors as a
 where ee.mgr = a.emp_id
-for system_time as of timestamp @ts
 )
 select * from ancestors;
 emp_id	name	mgr
 1	bill	0
 2	bill	1
-3	kate	1
 set @tmp= "
 with recursive
 ancestors
 as
 (
   select e.emp_id, e.name, e.mgr
-  from emp as e
+  from emp for system_time as of timestamp @ts as e
   where name = 'bill'
-  for system_time as of timestamp @ts
   union
   select ee.emp_id, ee.name, ee.mgr
-  from emp as ee, ancestors as a
+  from emp for system_time as of timestamp @ts as ee, ancestors as a
   where ee.mgr = a.emp_id
-  for system_time as of timestamp @ts
 )
 select * from ancestors";
 prepare stmt from @tmp;
@@ -126,7 +121,6 @@ execute stmt;
 emp_id	name	mgr
 1	bill	0
 2	bill	1
-3	kate	1
 drop prepare stmt;
 drop table emp;
 create or replace table t1 (x int) with system versioning;
@@ -155,7 +149,7 @@ with s3 as (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp
 y	x
 10	1
 # SYSTEM_TIME propagation from outer to inner
-select * from (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) as s4 for system_time as of timestamp @t0;
+select * from (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) for system_time as of timestamp @t0 as s4;
 y	x
 10	1
 with s5 as (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) select * from s5 for system_time as of timestamp @t0;
@@ -183,7 +177,7 @@ select * from (select *, vt1.sys_trx_end from t2, vt1) as s0;
 y	x
 10	1
 ### SYSTEM_TIME clash
-select * from (select * from t1 for system_time all) dt0 for system_time all;
+select * from (select * from t1 for system_time all) for system_time all as dt0;
 ERROR HY000: SYSTEM_TIME is not allowed outside historical `dt0`
 select * from vt1 for system_time all;
 ERROR HY000: SYSTEM_TIME is not allowed outside historical `vt1`

@@ -892,10 +892,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 125 shift/reduce conflicts.
+  Currently there are 122 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 125
+%expect 122
 
 /*
    Comments for TOKENS.
@@ -9138,7 +9138,6 @@ table_expression:
           opt_group_clause
           opt_having_clause
           opt_window_clause
-          opt_system_time_clause
         ;
 
 opt_table_expression:
@@ -9185,31 +9184,6 @@ opt_trans_or_timestamp:
         | TIMESTAMP
           {
             $$ = UNIT_TIMESTAMP;
-          }
-        ;
-
-opt_system_time_clause:
-          /* empty */
-          {}
-        | FOR_SYSTEM_TIME_SYM system_time_expr
-          {
-            DBUG_ASSERT(Select);
-            int used= 0;
-            if (Lex->vers_conditions)
-            {
-              for (TABLE_LIST *table= Select->table_list.first; table; table= table->next_local)
-              {
-                if (!table->vers_conditions)
-                {
-                  table->vers_conditions= Lex->vers_conditions;
-                  used++;
-                }
-              }
-              if (!used)
-              {
-                my_yyabort_error((ER_VERS_UNUSED_CLAUSE, MYF(0), "SYSTEM_TIME"));
-              }
-            }
           }
         ;
 
@@ -11862,7 +11836,10 @@ table_primary_derived:
                 !$$->derived->first_select()->next_select())
               $$->select_lex->add_where_field($$->derived->first_select());
             if ($5)
+            {
+              MYSQL_YYABORT_UNLESS(!$3);
               $$->vers_conditions= Lex->vers_conditions;
+            }
           }
           /* Represents derived table with WITH clause */
         | '(' get_select_lex subselect_start

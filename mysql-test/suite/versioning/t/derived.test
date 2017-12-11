@@ -57,19 +57,18 @@ as
 select * from ancestors";
 prepare stmt from @tmp; execute stmt; drop prepare stmt;
 
+#385
 with recursive
 ancestors
 as
 (
   select e.emp_id, e.name, e.mgr
-  from emp as e
+  from emp for system_time as of timestamp @ts as e
   where name = 'bill'
-  for system_time as of timestamp @ts
   union
   select ee.emp_id, ee.name, ee.mgr
-  from emp as ee, ancestors as a
+  from emp for system_time as of timestamp @ts as ee, ancestors as a
   where ee.mgr = a.emp_id
-  for system_time as of timestamp @ts
 )
 select * from ancestors;
 set @tmp= "
@@ -78,14 +77,12 @@ ancestors
 as
 (
   select e.emp_id, e.name, e.mgr
-  from emp as e
+  from emp for system_time as of timestamp @ts as e
   where name = 'bill'
-  for system_time as of timestamp @ts
   union
   select ee.emp_id, ee.name, ee.mgr
-  from emp as ee, ancestors as a
+  from emp for system_time as of timestamp @ts as ee, ancestors as a
   where ee.mgr = a.emp_id
-  for system_time as of timestamp @ts
 )
 select * from ancestors";
 prepare stmt from @tmp; execute stmt; drop prepare stmt;
@@ -112,7 +109,7 @@ with s1 as (select * from t1 for system_time as of timestamp @t0, t2) select * f
 select * from (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) as s2;
 with s3 as (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) select * from s3;
 --echo # SYSTEM_TIME propagation from outer to inner
-select * from (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) as s4 for system_time as of timestamp @t0;
+select * from (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) for system_time as of timestamp @t0 as s4;
 with s5 as (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) select * from s5 for system_time as of timestamp @t0;
 with s6 as (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) select * from s6 for system_time as of timestamp @t0;
 
@@ -130,7 +127,7 @@ select * from (select *, vt1.sys_trx_end from t2, vt1) as s0;
 
 --echo ### SYSTEM_TIME clash
 --error ER_VERS_SYSTEM_TIME_CLASH
-select * from (select * from t1 for system_time all) dt0 for system_time all;
+select * from (select * from t1 for system_time all) for system_time all as dt0;
 --error ER_VERS_SYSTEM_TIME_CLASH
 select * from vt1 for system_time all;
 --error ER_VERS_SYSTEM_TIME_CLASH
