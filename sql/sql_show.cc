@@ -813,6 +813,57 @@ static void dispose_db_dir(void *ptr)
 }
 
 
+/*
+  Append an element into @@ignore_db_dirs
+
+  This is a function to be called after regular option processing has been
+  finalized.
+*/
+
+void ignore_db_dirs_append(const char *dirname_arg)
+{
+  char *new_entry_buf;
+  LEX_STRING *new_entry;
+  size_t len= strlen(dirname_arg);
+
+  if (!my_multi_malloc(0,
+                       &new_entry, sizeof(LEX_STRING),
+                       &new_entry_buf, len + 1,
+                       NullS))
+    return;
+
+  memcpy(new_entry_buf, dirname_arg, len+1);
+  new_entry->str = new_entry_buf;
+  new_entry->length= len;
+
+  if (my_hash_insert(&ignore_db_dirs_hash, (uchar *)new_entry))
+  {
+    // Either the name is already there or out-of-memory.
+    my_free(new_entry);
+    return;
+  }
+
+  // Append the name to the option string.
+  size_t curlen= strlen(opt_ignore_db_dirs);
+  // Add one for comma and one for \0.
+  size_t newlen= curlen + len + 1 + 1;
+  char *new_db_dirs;
+  if (!(new_db_dirs= (char*)my_malloc(newlen ,MYF(0))))
+  {
+    // This is not a critical condition
+    return;
+  }
+
+  memcpy(new_db_dirs, opt_ignore_db_dirs, curlen);
+  if (curlen != 0)
+    new_db_dirs[curlen]=',';
+  memcpy(new_db_dirs + (curlen + ((curlen!=0)?1:0)), dirname_arg, len+1);
+
+  if (opt_ignore_db_dirs)
+    my_free(opt_ignore_db_dirs);
+  opt_ignore_db_dirs= new_db_dirs;
+}
+
 bool
 ignore_db_dirs_process_additions()
 {

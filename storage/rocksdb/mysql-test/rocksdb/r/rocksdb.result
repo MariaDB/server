@@ -898,7 +898,7 @@ rocksdb_concurrent_prepare	ON
 rocksdb_create_checkpoint	
 rocksdb_create_if_missing	ON
 rocksdb_create_missing_column_families	OFF
-rocksdb_datadir	./.rocksdb
+rocksdb_datadir	./#rocksdb
 rocksdb_db_write_buffer_size	0
 rocksdb_deadlock_detect	OFF
 rocksdb_deadlock_detect_depth	50

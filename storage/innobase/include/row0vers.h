@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,19 +39,18 @@ Created 2/6/1997 Heikki Tuuri
 // Forward declaration
 class ReadView;
 
-/*****************************************************************//**
-Finds out if an active transaction has inserted or modified a secondary
+/** Determine if an active transaction has inserted or modified a secondary
 index record.
-@return 0 if committed, else the active transaction id;
-NOTE that this function can return false positives but never false
-negatives. The caller must confirm all positive results by calling
-trx_is_active() while holding lock_sys->mutex. */
+@param[in]	rec	secondary index record
+@param[in]	index	secondary index
+@param[in]	offsets	rec_get_offsets(rec, index)
+@return	the active transaction; trx_release_reference() must be invoked
+@retval	NULL if the record was committed */
 trx_t*
 row_vers_impl_x_locked(
-/*===================*/
-	const rec_t*	rec,	/*!< in: record in a secondary index */
-	dict_index_t*	index,	/*!< in: the secondary index */
-	const ulint*	offsets);/*!< in: rec_get_offsets(rec, index) */
+	const rec_t*	rec,
+	dict_index_t*	index,
+	const ulint*	offsets);
 
 /*****************************************************************//**
 Finds out if we must preserve a delete marked earlier version of a clustered
