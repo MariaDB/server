@@ -1156,7 +1156,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  HEX_NUM
 %token  HEX_STRING
 %token  HIGH_PRIORITY
-%token  INVISIBLE_SYM
 %token  HISTORY_SYM                   /* MYSQL */
 %token  HOST_SYM
 %token  HOSTS_SYM
@@ -1198,6 +1197,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  ISOPEN_SYM                    /* Oracle-N   */
 %token  ISSUER_SYM
 %token  ITERATE_SYM
+%token  INVISIBLE_SYM
 %token  JOIN_SYM                      /* SQL-2003-R */
 %token  JSON_SYM
 %token  KEYS
@@ -15517,7 +15517,6 @@ keyword_sp_not_data_type:
         | GOTO_SYM                 {}
         | HASH_SYM                 {}
         | HARD_SYM                 {}
-        | INVISIBLE_SYM            {}
         | HISTORY_SYM              {}
         | HOSTS_SYM                {}
         | HOUR_SYM                 {}
@@ -15536,6 +15535,7 @@ keyword_sp_not_data_type:
         | ISOPEN_SYM               {}
         | ISSUER_SYM               {}
         | INSERT_METHOD            {}
+        | INVISIBLE_SYM            {}
         | KEY_BLOCK_SIZE           {}
         | LAST_VALUE               {}
         | LAST_SYM                 {}
