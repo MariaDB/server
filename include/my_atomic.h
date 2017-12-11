@@ -374,18 +374,18 @@ extern int my_atomic_initialize();
 #define my_atomic_add64_explicit(P, A, O) __atomic_fetch_add((P), (A), (O))
 
 #define my_atomic_cas32_weak_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
+  __atomic_compare_exchange_n((P), (E), (D), 1, (S), (F))
 #define my_atomic_cas64_weak_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
+  __atomic_compare_exchange_n((P), (E), (D), 1, (S), (F))
 #define my_atomic_casptr_weak_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
+  __atomic_compare_exchange_n((P), (E), (D), 1, (S), (F))
 
 #define my_atomic_cas32_strong_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
+  __atomic_compare_exchange_n((P), (E), (D), 0, (S), (F))
 #define my_atomic_cas64_strong_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
+  __atomic_compare_exchange_n((P), (E), (D), 0, (S), (F))
 #define my_atomic_casptr_strong_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
+  __atomic_compare_exchange_n((P), (E), (D), 0, (S), (F))
 #else
 #define MY_MEMORY_ORDER_RELAXED
 #define MY_MEMORY_ORDER_CONSUME
