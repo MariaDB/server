@@ -151,5 +151,5 @@ select y from t2 for system_time as of @t1;
 select x from t1 for system_time as of @t0 union
 select y from t2 for system_time as of @t1;
 
-drop database test;
-create database test;
+drop table t1, t2;
+drop view vt1, vt2;
