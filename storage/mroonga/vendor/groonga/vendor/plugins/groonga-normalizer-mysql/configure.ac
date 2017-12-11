@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2015  Kouhei Sutou <kou@clear-code.com>
+# Copyright (C) 2013-2016  Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -28,9 +28,33 @@ AM_INIT_AUTOMAKE([1.9 foreign tar-pax])
 
 AC_PROG_LIBTOOL
 
+AC_MSG_CHECKING([for clang])
+if test "$CC" = "clang"; then
+  CLANG=yes
+else
+  CLANG=no
+fi
+AC_MSG_RESULT([$CLANG])
+
 if test "$GCC" = "yes"; then
   CFLAGS="$CFLAGS -Wall -Wextra"
   CFLAGS="$CFLAGS -Wmissing-declarations -Wmissing-prototypes"
+fi
+
+# For debug
+AC_ARG_ENABLE(debug,
+  [AS_HELP_STRING([--enable-debug],
+                  [use debug flags (default=no)])],
+  [groonga_normalizer_mysql_debug="$enableval"],
+  [groonga_normalizer_mysql_debug="no"])
+if test "x$groonga_normalizer_mysql_debug" != "xno"; then
+  if test "$CLANG" = "yes"; then
+    CFLAGS="$CFLAGS -O0 -g"
+    CXXFLAGS="$CXXFLAGS -O0 -g"
+  elif test "$GCC" = "yes"; then
+    CFLAGS="$CFLAGS -O0 -g3"
+    CXXFLAGS="$CXXFLAGS -O0 -g3"
+  fi
 fi
 
 m4_define([groonga_required_version], m4_include(required_groonga_version))
@@ -74,7 +98,12 @@ if test "x$RUBY" = "xno"; then
 else
   if test "x$RUBY" = "xauto"; then
     AC_PATH_PROGS(RUBY,
-                  [ruby2.1 ruby21 ruby2.0 ruby20 ruby1.9 ruby19 ruby1.9.1 ruby],
+                  [ dnl
+                    ruby2.3 ruby23 dnl
+                    ruby2.2 ruby22 dnl
+                    ruby2.1 ruby21 dnl
+                    ruby dnl
+                  ],
                   ruby-not-found)
     if test "$RUBY" != "ruby-not-found"; then
       ruby_version="`$RUBY --version`"

@@ -3,12 +3,13 @@
 /* general constants */
 #define CONFIGURE_OPTIONS    "${CONFIGURE_OPTIONS}"
 
-#define HOST_CPU             "${CMAKE_HOST_SYSTEM_PROCESSOR}"
-#define HOST_OS              "${CMAKE_HOST_SYSTEM_NAME}"
+#define HOST_CPU             "${CMAKE_SYSTEM_PROCESSOR}"
+#define HOST_OS              "${CMAKE_SYSTEM_NAME}"
 
 #define VERSION              "${VERSION}"
 #define PACKAGE              "${PROJECT_NAME}"
 #define PACKAGE_NAME         "${PROJECT_NAME}"
+#define PACKAGE_LABEL        "${GRN_PROJECT_LABEL}"
 #define PACKAGE_STRING       "${PROJECT_NAME} ${VERSION}"
 #define PACKAGE_TARNAME      "${PROJECT_NAME}"
 #define PACKAGE_URL          "${PACKAGE_URL}"
@@ -84,6 +85,7 @@
 #cmakedefine GRN_WITH_CUTTER
 #cmakedefine GRN_WITH_KYTEA
 #cmakedefine GRN_WITH_LZ4
+#cmakedefine GRN_WITH_ZSTD
 #cmakedefine GRN_WITH_MECAB
 #cmakedefine GRN_WITH_MESSAGE_PACK
 #cmakedefine GRN_WITH_MRUBY
@@ -103,10 +105,6 @@
 #cmakedefine HAVE_NETDB_H
 #cmakedefine HAVE_PTHREAD_H
 #cmakedefine HAVE_SIGNAL_H
-#cmakedefine HAVE_STDARG_H
-#cmakedefine HAVE_STDINT_H
-#cmakedefine HAVE_STRINGS_H
-#cmakedefine HAVE_STRING_H
 #cmakedefine HAVE_SYS_MMAN_H
 #cmakedefine HAVE_SYS_PARAM_H
 #cmakedefine HAVE_SYS_RESOURCE_H
@@ -133,8 +131,6 @@
 /* functions */
 #cmakedefine HAVE__GMTIME64_S
 #cmakedefine HAVE__LOCALTIME64_S
-#cmakedefine HAVE__STRICMP
-#cmakedefine HAVE__STRNICMP
 #cmakedefine HAVE__STRTOUI64
 #cmakedefine HAVE_BACKTRACE
 #cmakedefine HAVE_CLOCK

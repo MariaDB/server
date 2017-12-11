@@ -446,6 +446,7 @@ my_bool opt_replicate_annotate_row_events= 0;
 my_bool opt_mysql56_temporal_format=0, strict_password_validation= 1;
 my_bool opt_explicit_defaults_for_timestamp= 0;
 char *opt_slave_skip_errors;
+char *opt_slave_transaction_retry_errors;
 
 /*
   Legacy global handlerton. These will be removed (please do not add more).
@@ -501,6 +502,7 @@ ulong what_to_log;
 ulong slow_launch_time;
 ulong open_files_limit, max_binlog_size;
 ulong slave_trans_retries;
+ulong slave_trans_retry_interval;
 uint  slave_net_timeout;
 ulong slave_exec_mode_options;
 ulong slave_run_triggers_for_rbr= 0;
@@ -2178,6 +2180,9 @@ static void mysqld_exit(int exit_code)
             (long) global_status_var.global_memory_used);
   if (!opt_debugging && !my_disable_leak_check && exit_code == 0)
   {
+#ifdef SAFEMALLOC
+    sf_report_leaked_memory(0);
+#endif
     DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
   }
   cleanup_tls();
@@ -5953,9 +5958,6 @@ int mysqld_main(int argc, char **argv)
 #ifdef __WIN__
   if (!opt_console)
   {
-    if (reopen_fstreams(log_error_file, stdout, stderr))
-      unireg_abort(1);
-    setbuf(stderr, NULL);
     FreeConsole();				// Remove window
   }
 
@@ -7800,6 +7802,7 @@ struct my_option my_long_options[]=
   MYSQL_SUGGEST_ANALOG_OPTION("max-binlog-dump-events", "--debug-max-binlog-dump-events"),
   MYSQL_SUGGEST_ANALOG_OPTION("sporadic-binlog-dump-fail", "--debug-sporadic-binlog-dump-fail"),
   MYSQL_COMPATIBILITY_OPTION("new"),
+  MYSQL_COMPATIBILITY_OPTION("show_compatibility_56"),
 
   /* The following options were added after 5.6.10 */
   MYSQL_TO_BE_IMPLEMENTED_OPTION("rpl-stop-slave-timeout"),
@@ -9085,12 +9088,12 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
                       opt->name);
     break;
   case OPT_MYSQL_COMPATIBILITY:
-    sql_print_warning("'%s' is MySQL 5.6 compatible option. Not used or needed "
-                      "in MariaDB.", opt->name);
+    sql_print_warning("'%s' is MySQL 5.6 / 5.7 compatible option. Not used or "
+                      "needed in MariaDB.", opt->name);
     break;
   case OPT_MYSQL_TO_BE_IMPLEMENTED:
-    sql_print_warning("'%s' is MySQL 5.6 compatible option. To be implemented "
-                      "in later versions.", opt->name);
+    sql_print_warning("'%s' is MySQL 5.6 / 5.7 compatible option. To be "
+                      "implemented in later versions.", opt->name);
     break;
   case 'a':
     SYSVAR_AUTOSIZE(global_system_variables.sql_mode, MODE_ANSI);
@@ -9678,8 +9681,10 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     flush_time= 0;
 
 #ifdef HAVE_REPLICATION
-  if (opt_slave_skip_errors)
-    init_slave_skip_errors(opt_slave_skip_errors);
+  if (init_slave_skip_errors(opt_slave_skip_errors))
+    return 1;
+  if (init_slave_transaction_retry_errors(opt_slave_transaction_retry_errors))
+    return 1;
 #endif
 
   if (global_system_variables.max_join_size == HA_POS_ERROR)

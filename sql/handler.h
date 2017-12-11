@@ -162,6 +162,7 @@ enum enum_alter_inplace_result {
 */
 #define HA_BINLOG_ROW_CAPABLE  (1ULL << 34)
 #define HA_BINLOG_STMT_CAPABLE (1ULL << 35)
+
 /*
     When a multiple key conflict happens in a REPLACE command mysql
     expects the conflicts to be reported in the ascending order of
@@ -286,6 +287,17 @@ enum enum_alter_inplace_result {
   flags.
  */
 #define HA_BINLOG_FLAGS (HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE)
+
+/* The following are used by Spider */
+#define HA_CAN_FORCE_BULK_UPDATE (1ULL << 50)
+#define HA_CAN_FORCE_BULK_DELETE (1ULL << 51)
+#define HA_CAN_DIRECT_UPDATE_AND_DELETE (1ULL << 52)
+
+/* The following is for partition handler */
+#define HA_CAN_MULTISTEP_MERGE (1LL << 53)
+
+/* calling cmp_ref() on the engine is expensive */
+#define HA_CMP_REF_IS_EXPENSIVE (1ULL << 54)
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -437,6 +449,12 @@ static const uint MYSQL_START_TRANS_OPT_READ_WRITE         = 4;
 #define HA_CHECK_FK_ERROR 4U
 #define HA_CHECK_DUP (HA_CHECK_DUP_KEY + HA_CHECK_DUP_UNIQUE)
 #define HA_CHECK_ALL (~0U)
+
+/* Options for info_push() */
+#define INFO_KIND_UPDATE_FIELDS       101
+#define INFO_KIND_UPDATE_VALUES       102
+#define INFO_KIND_FORCE_LIMIT_BEGIN   103
+#define INFO_KIND_FORCE_LIMIT_END     104
 
 enum legacy_db_type
 {
@@ -1446,6 +1464,10 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 
 // MySQL compatibility. Unused.
 #define HTON_SUPPORTS_FOREIGN_KEYS   (1 << 0) //Foreign key constraint supported.
+
+#define HTON_CAN_MERGE               (1 <<11) //Merge type table
+// Engine needs to access the main connect string in partitions
+#define HTON_CAN_READ_CONNECT_STRING_IN_PARTITION (1 <<12)
 
 class Ha_trx_info;
 
@@ -2816,7 +2838,8 @@ public:
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
   FT_INFO *ft_handler;
-  enum {NONE=0, INDEX, RND} inited;
+  enum init_stat { NONE=0, INDEX, RND };
+  init_stat inited, pre_inited;
 
   const COND *pushed_cond;
   /**
@@ -2882,6 +2905,11 @@ public:
   virtual void unbind_psi();
   virtual void rebind_psi();
 
+  bool set_top_table_fields;
+  struct TABLE *top_table;
+  Field **top_table_field;
+  uint top_table_fields;
+
 private:
   /**
     The lock type set by when calling::ha_external_lock(). This is 
@@ -2910,13 +2938,15 @@ public:
     key_used_on_scan(MAX_KEY),
     active_index(MAX_KEY), keyread(MAX_KEY),
     ref_length(sizeof(my_off_t)),
-    ft_handler(0), inited(NONE),
+    ft_handler(0), inited(NONE), pre_inited(NONE),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
     tracker(NULL),
     pushed_idx_cond(NULL),
     pushed_idx_cond_keyno(MAX_KEY),
     auto_inc_intervals_count(0),
-    m_psi(NULL), m_lock_type(F_UNLCK), ha_share(NULL)
+    m_psi(NULL), set_top_table_fields(FALSE), top_table(0),
+    top_table_field(0), top_table_fields(0),
+    m_lock_type(F_UNLCK), ha_share(NULL)
   {
     DBUG_PRINT("info",
                ("handler created F_UNLCK %d F_RDLCK %d F_WRLCK %d",
@@ -3049,7 +3079,7 @@ public:
     DBUG_RETURN(ret);
   }
   int ha_bulk_update_row(const uchar *old_data, const uchar *new_data,
-                         uint *dup_key_found);
+                         ha_rows *dup_key_found);
   int ha_delete_all_rows();
   int ha_truncate();
   int ha_reset_auto_increment(ulonglong value);
@@ -3190,6 +3220,7 @@ public:
     Number of rows in table. It will only be called if
     (table_flags() & (HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT)) != 0
   */
+  virtual int pre_records() { return 0; }
   virtual ha_rows records() { return stats.records; }
   /**
     Return upper bound of current number of records in the table
@@ -3246,7 +3277,7 @@ public:
     @retval  0           Success
     @retval  >0          Error code
   */
-  virtual int exec_bulk_update(uint *dup_key_found)
+  virtual int exec_bulk_update(ha_rows *dup_key_found)
   {
     DBUG_ASSERT(FALSE);
     return HA_ERR_WRONG_COMMAND;
@@ -3255,7 +3286,7 @@ public:
     Perform any needed clean-up, no outstanding updates are there at the
     moment.
   */
-  virtual void end_bulk_update() { return; }
+  virtual int end_bulk_update() { return 0; }
   /**
     Execute all outstanding deletes and close down the bulk delete.
 
@@ -3267,6 +3298,79 @@ public:
     DBUG_ASSERT(FALSE);
     return HA_ERR_WRONG_COMMAND;
   }
+  virtual int pre_index_read_map(const uchar *key,
+                                 key_part_map keypart_map,
+                                 enum ha_rkey_function find_flag,
+                                 bool use_parallel)
+   { return 0; }
+  virtual int pre_index_first(bool use_parallel)
+   { return 0; }
+  virtual int pre_index_last(bool use_parallel)
+   { return 0; }
+  virtual int pre_index_read_last_map(const uchar *key,
+                                      key_part_map keypart_map,
+                                      bool use_parallel)
+   { return 0; }
+/*
+  virtual int pre_read_multi_range_first(KEY_MULTI_RANGE **found_range_p,
+                                         KEY_MULTI_RANGE *ranges,
+                                         uint range_count,
+                                         bool sorted, HANDLER_BUFFER *buffer,
+                                         bool use_parallel);
+*/
+  virtual int pre_multi_range_read_next(bool use_parallel)
+  { return 0; }
+  virtual int pre_read_range_first(const key_range *start_key,
+                                   const key_range *end_key,
+                                   bool eq_range, bool sorted,
+                                   bool use_parallel)
+   { return 0; }
+  virtual int pre_ft_read(bool use_parallel)
+   { return 0; }
+  virtual int pre_rnd_next(bool use_parallel)
+   { return 0; }
+  int ha_pre_rnd_init(bool scan)
+  {
+    int result;
+    DBUG_ENTER("ha_pre_rnd_init");
+    DBUG_ASSERT(pre_inited==NONE || (pre_inited==RND && scan));
+    pre_inited= (result= pre_rnd_init(scan)) ? NONE: RND;
+    DBUG_RETURN(result);
+  }
+  int ha_pre_rnd_end()
+  {
+    DBUG_ENTER("ha_pre_rnd_end");
+    DBUG_ASSERT(pre_inited==RND);
+    pre_inited=NONE;
+    DBUG_RETURN(pre_rnd_end());
+  }
+  virtual int pre_rnd_init(bool scan) { return 0; }
+  virtual int pre_rnd_end() { return 0; }
+  virtual int pre_index_init(uint idx, bool sorted) { return 0; }
+  virtual int pre_index_end() { return 0; }
+  int ha_pre_index_init(uint idx, bool sorted)
+  {
+    int result;
+    DBUG_ENTER("ha_pre_index_init");
+    DBUG_ASSERT(pre_inited==NONE);
+    if (!(result= pre_index_init(idx, sorted)))
+      pre_inited=INDEX;
+    DBUG_RETURN(result);
+  }
+  int ha_pre_index_end()
+  {
+    DBUG_ENTER("ha_pre_index_end");
+    DBUG_ASSERT(pre_inited==INDEX);
+    pre_inited=NONE;
+    DBUG_RETURN(pre_index_end());
+  }
+  int ha_pre_index_or_rnd_end()
+  {
+    return (pre_inited == INDEX ?
+            ha_pre_index_end() :
+            pre_inited == RND ? ha_pre_rnd_end() : 0 );
+  }
+
   /**
      @brief
      Positions an index cursor to the index specified in the
@@ -3387,7 +3491,9 @@ public:
   int compare_key(key_range *range);
   int compare_key2(key_range *range) const;
   virtual int ft_init() { return HA_ERR_WRONG_COMMAND; }
-  void ft_end() { ft_handler=NULL; }
+  virtual int pre_ft_init() { return HA_ERR_WRONG_COMMAND; }
+  virtual void ft_end() {}
+  virtual int pre_ft_end() { return 0; }
   virtual FT_INFO *ft_init_ext(uint flags, uint inx,String *key)
     { return NULL; }
 public:
@@ -3410,6 +3516,7 @@ public:
 
   /* Same as above, but with statistics */
   inline int ha_ft_read(uchar *buf);
+  inline void ha_ft_end() { ft_end(); ft_handler=NULL; }
   int ha_rnd_next(uchar *buf);
   int ha_rnd_pos(uchar *buf, uchar *pos);
   inline int ha_rnd_pos_by_record(uchar *buf);
@@ -3467,6 +3574,8 @@ public:
   virtual void try_semi_consistent_read(bool) {}
   virtual void unlock_row() {}
   virtual int start_stmt(THD *thd, thr_lock_type lock_type) {return 0;}
+  virtual bool need_info_for_auto_inc() { return 0; }
+  virtual bool can_use_for_auto_inc_init() { return 1; }
   virtual void get_auto_increment(ulonglong offset, ulonglong increment,
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,
@@ -3574,6 +3683,7 @@ public:
     return 0;
   }
   virtual void set_part_info(partition_info *part_info) {return;}
+  virtual void return_record_by_parent() { return; }
 
   virtual ulong index_flags(uint idx, uint part, bool all_parts) const =0;
 
@@ -3778,6 +3888,41 @@ public:
  virtual void cond_pop() { return; };
 
  /**
+   Push metadata for the current operation down to the table handler.
+ */
+ virtual int info_push(uint info_type, void *info) { return 0; };
+
+ /**
+    This function is used to get correlating of a parent (table/column)
+    and children (table/column). When conditions are pushed down to child
+    table (like child of myisam_merge), child table needs to know about
+    which table/column is my parent for understanding conditions.
+ */
+ virtual int set_top_table_and_fields(TABLE *top_table,
+                                      Field **top_table_field,
+                                      uint top_table_fields)
+ {
+   if (!set_top_table_fields)
+   {
+     set_top_table_fields= TRUE;
+     this->top_table= top_table;
+     this->top_table_field= top_table_field;
+     this->top_table_fields= top_table_fields;
+   }
+   return 0;
+ }
+ virtual void clear_top_table_fields()
+ {
+   if (set_top_table_fields)
+   {
+     set_top_table_fields= FALSE;
+     top_table= NULL;
+     top_table_field= NULL;
+     top_table_fields= 0;
+   }
+ }
+
+ /**
    Push down an index condition to the handler.
 
    The server will use this method to push down a condition it wants
@@ -3810,6 +3955,10 @@ public:
    pushed_idx_cond_keyno= MAX_KEY;
    in_range_check_pushed_down= false;
  }
+
+ /* Needed for partition / spider */
+  virtual TABLE_LIST *get_next_global_for_child() { return NULL; }
+
  /**
    Part of old, deprecated in-place ALTER API.
  */
@@ -4195,6 +4344,49 @@ private:
   {
     return HA_ERR_WRONG_COMMAND;
   }
+
+  /* Perform initialization for a direct update request */
+public:
+  int ha_direct_update_rows(ha_rows *update_rows);
+  virtual int direct_update_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+private:
+  virtual int pre_direct_update_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+  virtual int direct_update_rows(ha_rows *update_rows __attribute__((unused)))
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+  virtual int pre_direct_update_rows()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
+  /* Perform initialization for a direct delete request */
+public:
+  int ha_direct_delete_rows(ha_rows *delete_rows);
+  virtual int direct_delete_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+private:
+  virtual int pre_direct_delete_rows_init()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+  virtual int direct_delete_rows(ha_rows *delete_rows __attribute__((unused)))
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+  virtual int pre_direct_delete_rows()
+  {
+    return HA_ERR_WRONG_COMMAND;
+  }
+
   /**
     Reset state of file to after 'open'.
     This function is called after every statement for all tables used
@@ -4274,7 +4466,7 @@ public:
     @retval  1   Bulk delete not used, normal operation used
   */
   virtual int bulk_update_row(const uchar *old_data, const uchar *new_data,
-                              uint *dup_key_found)
+                              ha_rows *dup_key_found)
   {
     DBUG_ASSERT(FALSE);
     return HA_ERR_WRONG_COMMAND;

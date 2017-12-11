@@ -275,11 +275,12 @@ int mysql_update(THD *thd,
 {
   bool		using_limit= limit != HA_POS_ERROR;
   bool          safe_update= thd->variables.option_bits & OPTION_SAFE_UPDATES;
-  bool          used_key_is_modified= FALSE, transactional_table, will_batch;
+  bool          used_key_is_modified= FALSE, transactional_table;
+  bool          will_batch= FALSE;
   bool		can_compare_record;
   int           res;
   int		error, loc_error;
-  uint          dup_key_found;
+  ha_rows       dup_key_found;
   bool          need_sort= TRUE;
   bool          reverse= FALSE;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -296,6 +297,7 @@ int mysql_update(THD *thd,
   ulonglong     id;
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
+  bool has_triggers, binlog_is_row, do_direct_update= FALSE;
   Update_plan query_plan(thd->mem_root);
   Explain_update *explain;
   TABLE_LIST *update_source_table;
@@ -311,7 +313,7 @@ int mysql_update(THD *thd,
   if (open_tables(thd, &table_list, &table_count, 0))
     DBUG_RETURN(1);
 
-  //Prepare views so they are handled correctly.
+  /* Prepare views so they are handled correctly */
   if (mysql_handle_derived(thd->lex, DT_INIT))
     DBUG_RETURN(1);
 
@@ -543,7 +545,6 @@ int mysql_update(THD *thd,
       query_plan.using_io_buffer= true;
   }
 
-
   /*
     Ok, we have generated a query plan for the UPDATE.
      - if we're running EXPLAIN UPDATE, goto produce explain output 
@@ -558,9 +559,67 @@ int mysql_update(THD *thd,
 
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
-  
+
+  has_triggers= (table->triggers &&
+                 (table->triggers->has_triggers(TRG_EVENT_UPDATE,
+                                                TRG_ACTION_BEFORE) ||
+                 table->triggers->has_triggers(TRG_EVENT_UPDATE,
+                                               TRG_ACTION_AFTER)));
+  DBUG_PRINT("info", ("has_triggers: %s", has_triggers ? "TRUE" : "FALSE"));
+  binlog_is_row= thd->is_current_stmt_binlog_format_row();
+  DBUG_PRINT("info", ("binlog_is_row: %s", binlog_is_row ? "TRUE" : "FALSE"));
+
   if (!(select && select->quick))
     status_var_increment(thd->status_var.update_scan_count);
+
+  /*
+    We can use direct update (update that is done silently in the handler)
+    if none of the following conditions are true:
+    - There are triggers
+    - There is binary logging
+    - using_io_buffer
+      - This means that the partition changed or the key we want
+        to use for scanning the table is changed
+    - ignore is set
+      - Direct updates don't return the number of ignored rows
+    - There is a virtual not stored column in the WHERE clause
+    - Changing a field used by a stored virtual column, which
+      would require the column to be recalculated.
+    - ORDER BY or LIMIT
+      - As this requires the rows to be updated in a specific order
+      - Note that Spider can handle ORDER BY and LIMIT in a cluster with
+        one data node.  These conditions are therefore checked in
+        direct_update_rows_init().
+
+    Direct update does not require a WHERE clause
+
+    Later we also ensure that we are only using one table (no sub queries)
+  */
+  if ((table->file->ha_table_flags() & HA_CAN_DIRECT_UPDATE_AND_DELETE) &&
+      !has_triggers && !binlog_is_row &&
+      !query_plan.using_io_buffer && !ignore &&
+      !table->check_virtual_columns_marked_for_read() &&
+      !table->check_virtual_columns_marked_for_write())
+  {
+    DBUG_PRINT("info", ("Trying direct update"));
+    if (select && select->cond &&
+        (select->cond->used_tables() == table->map))
+    {
+      DBUG_ASSERT(!table->file->pushed_cond);
+      if (!table->file->cond_push(select->cond))
+        table->file->pushed_cond= select->cond;
+    }
+
+    if (!table->file->info_push(INFO_KIND_UPDATE_FIELDS, &fields) &&
+        !table->file->info_push(INFO_KIND_UPDATE_VALUES, &values) &&
+        !table->file->direct_update_rows_init())
+    {
+      do_direct_update= TRUE;
+
+      /* Direct update is not using_filesort and is not using_io_buffer */
+      goto update_begin;
+    }
+  }
 
   if (query_plan.using_filesort || query_plan.using_io_buffer)
   {
@@ -721,6 +780,7 @@ int mysql_update(THD *thd,
     }
   }
 
+update_begin:
   if (ignore)
     table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
   
@@ -740,11 +800,20 @@ int mysql_update(THD *thd,
 
   transactional_table= table->file->has_transactions();
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
-  if (table->prepare_triggers_for_update_stmt_or_event())
+
+  if (do_direct_update)
   {
-    will_batch= FALSE;
+    /* Direct updating is supported */
+    DBUG_PRINT("info", ("Using direct update"));
+    table->reset_default_fields();
+    if (!(error= table->file->ha_direct_update_rows(&updated)))
+      error= -1;
+    found= updated;
+    goto update_end;
   }
-  else
+
+  if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_UPDATE) &&
+      !table->prepare_triggers_for_update_stmt_or_event())
     will_batch= !table->file->start_bulk_update();
 
   /*
@@ -838,6 +907,7 @@ int mysql_update(THD *thd,
             call then it should be included in the count of dup_key_found
             and error should be set to 0 (only if these errors are ignored).
           */
+          DBUG_PRINT("info", ("Batched update"));
           error= table->file->ha_bulk_update_row(table->record[1],
                                                  table->record[0],
                                                  &dup_key_found);
@@ -1002,6 +1072,8 @@ int mysql_update(THD *thd,
     updated-= dup_key_found;
   if (will_batch)
     table->file->end_bulk_update();
+
+update_end:
   table->file->try_semi_consistent_read(0);
 
   if (!transactional_table && updated > 0)
@@ -1060,6 +1132,11 @@ int mysql_update(THD *thd,
   DBUG_ASSERT(transactional_table || !updated || thd->transaction.stmt.modified_non_trans_table);
   free_underlaid_joins(thd, select_lex);
   delete file_sort;
+  if (table->file->pushed_cond)
+  {
+    table->file->pushed_cond= 0;
+    table->file->cond_pop();
+  }
 
   /* If LAST_INSERT_ID(X) was used, report X */
   id= thd->arg_of_last_insert_id_function ?
@@ -1091,7 +1168,6 @@ int mysql_update(THD *thd,
   *found_return= found;
   *updated_return= updated;
   
-  
   if (thd->lex->analyze_stmt)
     goto emit_explain_and_leave;
 
@@ -1102,6 +1178,8 @@ err:
   delete file_sort;
   free_underlaid_joins(thd, select_lex);
   table->file->ha_end_keyread();
+  if (table->file->pushed_cond)
+    table->file->cond_pop();
   thd->abort_on_warning= 0;
   DBUG_RETURN(1);
 

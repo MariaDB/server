@@ -293,13 +293,13 @@ public:
 			log_file_name_len = strlen(m_log_file_name);
 		}
 
-		ut_snprintf(m_log_file_name + log_file_name_len,
-			    log_file_name_buf_sz - log_file_name_len,
-			    "%s%lu_%lu_%s",
-			    TruncateLogger::s_log_prefix,
-			    (ulong) m_table->space,
-			    (ulong) m_table->id,
-			    TruncateLogger::s_log_ext);
+		snprintf(m_log_file_name + log_file_name_len,
+			 log_file_name_buf_sz - log_file_name_len,
+			 "%s%lu_%lu_%s",
+			 TruncateLogger::s_log_prefix,
+			 (ulong) m_table->space,
+			 (ulong) m_table->id,
+			 TruncateLogger::s_log_ext);
 
 		return(DB_SUCCESS);
 
@@ -1271,10 +1271,6 @@ row_truncate_complete(
 		}
 	}
 
-	if (err == DB_SUCCESS) {
-		dict_stats_update(table, DICT_STATS_EMPTY_TABLE);
-	}
-
 	trx->op_info = "";
 
 	/* For temporary tables or if there was an error, we need to reset
@@ -2102,8 +2098,17 @@ row_truncate_table_for_mysql(
 	dict_table_autoinc_unlock(table);
 
 	if (trx_is_started(trx)) {
+		char	errstr[1024];
+		if (dict_stats_drop_table(table->name.m_name, errstr,
+					  sizeof errstr, trx) != DB_SUCCESS) {
+			ib::warn() << "Deleting persistent "
+				"statistics for table " << table->name
+				   << " failed: " << errstr;
+		}
 
 		trx_commit_for_mysql(trx);
+
+		dict_stats_empty_table(table);
 	}
 
 	ut_ad(!table->is_instant());

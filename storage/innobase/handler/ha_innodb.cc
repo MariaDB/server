@@ -6281,7 +6281,21 @@ no_such_table:
 
 	/* No point to init any statistics if tablespace is still encrypted. */
 	if (ib_table->is_readable()) {
-		dict_stats_init(ib_table);
+		trx_t* trx = check_trx_exists(thd);
+		bool alloc = !trx_state_eq(trx, TRX_STATE_NOT_STARTED);
+
+		if (alloc) {
+			trx = trx_allocate_for_background();
+		}
+		ut_ad(!trx->persistent_stats);
+		ut_d(trx->persistent_stats = true);
+		++trx->will_lock;
+		dict_stats_init(ib_table, trx);
+		innobase_commit_low(trx);
+		ut_d(trx->persistent_stats = false);
+		if (alloc) {
+			trx_free_for_background(trx);
+		}
 	} else {
 		ib_table->stat_initialized = 1;
 	}
@@ -13053,7 +13067,9 @@ create_table_info_t::create_table_update_dict()
 
 	innobase_copy_frm_flags_from_create_info(innobase_table, m_create_info);
 
-	dict_stats_update(innobase_table, DICT_STATS_EMPTY_TABLE);
+	++m_trx->will_lock;
+	dict_stats_update(innobase_table, DICT_STATS_EMPTY_TABLE, m_trx);
+	innobase_commit_low(m_trx);
 
 	/* Load server stopword into FTS cache */
 	if (m_flags2 & DICT_TF2_FTS) {
@@ -13310,7 +13326,8 @@ ha_innobase::discard_or_import_tablespace(
 
 		/* Adjust the persistent statistics. */
 		ret = dict_stats_update(dict_table,
-					DICT_STATS_RECALC_PERSISTENT);
+					DICT_STATS_RECALC_PERSISTENT,
+					m_prebuilt->trx);
 
 		if (ret != DB_SUCCESS) {
 			push_warning_printf(
@@ -13318,8 +13335,11 @@ ha_innobase::discard_or_import_tablespace(
 				Sql_condition::WARN_LEVEL_WARN,
 				ER_ALTER_INFO,
 				"Error updating stats for table '%s'"
-				" after table rebuild: %s",
+				" after table import: %s",
 				dict_table->name.m_name, ut_strerr(ret));
+			trx_rollback_to_savepoint(m_prebuilt->trx, NULL);
+		} else {
+			trx_commit_for_mysql(m_prebuilt->trx);
 		}
 	}
 
@@ -13798,8 +13818,6 @@ ha_innobase::rename_table(
 
 	innobase_commit_low(trx);
 
-	trx_free_for_mysql(trx);
-
 	if (error == DB_SUCCESS) {
 		char	norm_from[MAX_FULL_NAME_LEN];
 		char	norm_to[MAX_FULL_NAME_LEN];
@@ -13809,16 +13827,22 @@ ha_innobase::rename_table(
 		normalize_table_name(norm_from, from);
 		normalize_table_name(norm_to, to);
 
+		++trx->will_lock;
 		ret = dict_stats_rename_table(norm_from, norm_to,
-					      errstr, sizeof(errstr));
+					      errstr, sizeof errstr, trx);
 
 		if (ret != DB_SUCCESS) {
+			trx_rollback_to_savepoint(trx, NULL);
 			ib::error() << errstr;
 
 			push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
 				     ER_LOCK_WAIT_TIMEOUT, errstr);
+		} else {
+			innobase_commit_low(trx);
 		}
 	}
+
+	trx_free_for_mysql(trx);
 
 	/* Add a special case to handle the Duplicated Key error
 	and return DB_ERROR instead.
@@ -14356,17 +14380,33 @@ ha_innobase::info_low(
 			}
 
 			ut_ad(!mutex_own(&dict_sys->mutex));
-			ret = dict_stats_update(ib_table, opt);
+			/* Do not use prebuilt->trx in case this is
+			called in the middle of a transaction. We
+			should commit the transaction after
+			dict_stats_update() in order not to hog locks
+			on the mysql.innodb_table_stats,
+			mysql.innodb_index_stats tables. */
+			trx_t* trx = trx_allocate_for_background();
+			ut_d(trx->persistent_stats = true);
+			++trx->will_lock;
+			ret = dict_stats_update(ib_table, opt, trx);
 
 			if (ret != DB_SUCCESS) {
 				m_prebuilt->trx->op_info = "";
-				DBUG_RETURN(HA_ERR_GENERIC);
+				trx_rollback_to_savepoint(trx, NULL);
+			} else {
+				m_prebuilt->trx->op_info =
+					"returning various info to MySQL";
+				trx_commit_for_mysql(trx);
 			}
 
-			m_prebuilt->trx->op_info =
-				"returning various info to MariaDB";
-		}
+			ut_d(trx->persistent_stats = false);
+			trx_free_for_background(trx);
 
+			if (ret != DB_SUCCESS) {
+				DBUG_RETURN(HA_ERR_GENERIC);
+			}
+		}
 
 		stats.update_time = (ulong) ib_table->update_time;
 	}
@@ -14632,9 +14672,9 @@ ha_innobase::info_low(
 			dict_table_stats_unlock(ib_table, RW_S_LATCH);
 		}
 
-		my_snprintf(path, sizeof(path), "%s/%s%s",
-			    mysql_data_home, table->s->normalized_path.str,
-			    reg_ext);
+		snprintf(path, sizeof(path), "%s/%s%s",
+			 mysql_data_home, table->s->normalized_path.str,
+			 reg_ext);
 
 		unpack_filename(path,path);
 
@@ -16485,13 +16525,13 @@ ShowStatus::to_string(
 		int	name_len;
 		char	name_buf[IO_SIZE];
 
-		name_len = ut_snprintf(
+		name_len = snprintf(
 			name_buf, sizeof(name_buf), "%s", it->m_name.c_str());
 
 		int	status_len;
 		char	status_buf[IO_SIZE];
 
-		status_len = ut_snprintf(
+		status_len = snprintf(
 			status_buf, sizeof(status_buf),
 			"spins=%lu,waits=%lu,calls=%llu",
 			static_cast<ulong>(it->m_spins),
@@ -16578,7 +16618,7 @@ innodb_show_rwlock_status(
 			continue;
 		}
 
-		buf1len = ut_snprintf(
+		buf1len = snprintf(
 			buf1, sizeof buf1, "rwlock: %s:%u",
 			innobase_basename(rw_lock->cfile_name),
 			rw_lock->cline);
@@ -16586,7 +16626,7 @@ innodb_show_rwlock_status(
 		int		buf2len;
 		char		buf2[IO_SIZE];
 
-		buf2len = ut_snprintf(
+		buf2len = snprintf(
 			buf2, sizeof buf2, "waits=%u",
 			rw_lock->count_os_wait);
 
@@ -16606,7 +16646,7 @@ innodb_show_rwlock_status(
 		int		buf1len;
 		char		buf1[IO_SIZE];
 
-		buf1len = ut_snprintf(
+		buf1len = snprintf(
 			buf1, sizeof buf1, "sum rwlock: %s:%u",
 			innobase_basename(block_rwlock->cfile_name),
 			block_rwlock->cline);
@@ -16614,7 +16654,7 @@ innodb_show_rwlock_status(
 		int		buf2len;
 		char		buf2[IO_SIZE];
 
-		buf2len = ut_snprintf(
+		buf2len = snprintf(
 			buf2, sizeof buf2, "waits=" ULINTPF,
 			block_rwlock_oswait_count);
 
@@ -17367,7 +17407,7 @@ ha_innobase::get_foreign_dup_key(
 	child_table_name[len] = '\0';
 
 	/* copy index name */
-	ut_snprintf(child_key_name, child_key_name_len, "%s",
+	snprintf(child_key_name, child_key_name_len, "%s",
 		    err_index->name());
 
 	return(true);
@@ -17994,7 +18034,7 @@ innodb_buffer_pool_size_update(
 {
         longlong	in_val = *static_cast<const longlong*>(save);
 
-	ut_snprintf(export_vars.innodb_buffer_pool_resize_status,
+	snprintf(export_vars.innodb_buffer_pool_resize_status,
 	        sizeof(export_vars.innodb_buffer_pool_resize_status),
 		"Requested to resize buffer pool.");
 
@@ -21909,7 +21949,7 @@ ib_errf(
 	if (vasprintf(&str, format, args) == -1) {
 		/* In case of failure use a fixed length string */
 		str = static_cast<char*>(malloc(BUFSIZ));
-		my_vsnprintf(str, BUFSIZ, format, args);
+		vsnprintf(str, BUFSIZ, format, args);
 	}
 #else
 	/* Use a fixed length string. */
@@ -21918,7 +21958,7 @@ ib_errf(
 		va_end(args);
 		return;	/* Watch for Out-Of-Memory */
 	}
-	my_vsnprintf(str, BUFSIZ, format, args);
+	vsnprintf(str, BUFSIZ, format, args);
 #endif /* _WIN32 */
 
 	ib_senderrf(thd, level, code, str);

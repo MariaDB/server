@@ -1,5 +1,5 @@
 /*
-  Copyright(C) 2009-2015 Brazil
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GROONGA_OUTPUT_H
-#define GROONGA_OUTPUT_H
+
+#pragma once
 
 #ifdef  __cplusplus
 extern "C" {
@@ -58,7 +58,13 @@ struct _grn_obj_format {
 #define GRN_OBJ_FORMAT_FIN(ctx,format) do {\
   int ncolumns = GRN_BULK_VSIZE(&(format)->columns) / sizeof(grn_obj *);\
   grn_obj **columns = (grn_obj **)GRN_BULK_HEAD(&(format)->columns);\
-  while (ncolumns--) { grn_obj_unlink((ctx), *columns++); }\
+  while (ncolumns--) {\
+    grn_obj *column = *columns;\
+    columns++;\
+    if (grn_obj_is_accessor((ctx), column)) {\
+      grn_obj_close((ctx), column);\
+    }\
+  }\
   GRN_OBJ_FIN((ctx), &(format)->columns);\
   if ((format)->expression) { GRN_OBJ_FIN((ctx), (format)->expression); } \
 } while (0)
@@ -76,8 +82,10 @@ GRN_API void grn_ctx_output_array_close(grn_ctx *ctx);
 GRN_API void grn_ctx_output_map_open(grn_ctx *ctx,
                                      const char *name, int nelements);
 GRN_API void grn_ctx_output_map_close(grn_ctx *ctx);
+GRN_API void grn_ctx_output_null(grn_ctx *ctx);
 GRN_API void grn_ctx_output_int32(grn_ctx *ctx, int value);
-GRN_API void grn_ctx_output_int64(grn_ctx *ctx, long long int value);
+GRN_API void grn_ctx_output_int64(grn_ctx *ctx, int64_t value);
+GRN_API void grn_ctx_output_uint64(grn_ctx *ctx, uint64_t value);
 GRN_API void grn_ctx_output_float(grn_ctx *ctx, double value);
 GRN_API void grn_ctx_output_cstr(grn_ctx *ctx, const char *value);
 GRN_API void grn_ctx_output_str(grn_ctx *ctx,
@@ -85,6 +93,16 @@ GRN_API void grn_ctx_output_str(grn_ctx *ctx,
 GRN_API void grn_ctx_output_bool(grn_ctx *ctx, grn_bool value);
 GRN_API void grn_ctx_output_obj(grn_ctx *ctx,
                                 grn_obj *value, grn_obj_format *format);
+GRN_API void grn_ctx_output_result_set_open(grn_ctx *ctx,
+                                            grn_obj *result_set,
+                                            grn_obj_format *format,
+                                            uint32_t n_additional_elements);
+GRN_API void grn_ctx_output_result_set_close(grn_ctx *ctx,
+                                             grn_obj *result_set,
+                                             grn_obj_format *format);
+GRN_API void grn_ctx_output_result_set(grn_ctx *ctx,
+                                       grn_obj *result_set,
+                                       grn_obj_format *format);
 GRN_API void grn_ctx_output_table_columns(grn_ctx *ctx,
                                           grn_obj *table,
                                           grn_obj_format *format);
@@ -104,5 +122,3 @@ GRN_API grn_rc grn_text_otoj(grn_ctx *ctx, grn_obj *bulk, grn_obj *obj,
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GROONGA_OUTPUT_H */

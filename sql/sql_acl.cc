@@ -7375,9 +7375,8 @@ static bool grant_load(THD *thd,
             continue;
           }
         }
-        uint type= procs_priv.routine_type()->val_int();
-        const Sp_handler *sph= Sp_handler::handler((stored_procedure_type)
-                                                   type);
+        stored_procedure_type type= (stored_procedure_type)procs_priv.routine_type()->val_int();
+        const Sp_handler *sph= Sp_handler::handler(type);
         if (!sph || !(hash= sph->get_priv_hash()))
         {
           sql_print_warning("'procs_priv' entry '%s' "
@@ -7604,6 +7603,11 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
       orig_want_access= ((t_ref->lock_type == TL_WRITE_ALLOW_WRITE) ?
                          INSERT_ACL : SELECT_ACL);
     }
+
+    if (tl->with ||
+        (tl->select_lex &&
+         (tl->with= tl->select_lex->find_table_def_in_with_clauses(tl))))
+      continue;
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,

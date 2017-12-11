@@ -4775,19 +4775,6 @@ extern "C" int thd_slave_thread(const MYSQL_THD thd)
   return(thd->slave_thread);
 }
 
-/* Returns true for a worker thread in parallel replication. */
-extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
-{
-  return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
-}
-
-/* Returns high resolution timestamp for the start
-  of the current query. */
-extern "C" time_t thd_start_time(const MYSQL_THD thd)
-{
-  return thd->start_time;
-}
-
 /* Returns high resolution timestamp for the start
   of the current query. */
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)
@@ -5035,17 +5022,14 @@ extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 
 extern "C" int thd_binlog_format(const MYSQL_THD thd)
 {
-#ifdef WITH_WSREP
   if (WSREP(thd))
   {
     /* for wsrep binlog format is meaningful also when binlogging is off */
-    return (int) WSREP_BINLOG_FORMAT(thd->variables.binlog_format);
+    return (int) thd->wsrep_binlog_format();
   }
-#endif /* WITH_WSREP */
   if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
     return (int) thd->variables.binlog_format;
-  else
-    return BINLOG_FORMAT_UNSPEC;
+  return BINLOG_FORMAT_UNSPEC;
 }
 
 extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)

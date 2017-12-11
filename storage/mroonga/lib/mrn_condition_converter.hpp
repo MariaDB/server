@@ -33,7 +33,7 @@ namespace mrn {
     ~ConditionConverter();
 
     bool is_convertable(const Item *item);
-    const Item_func *find_match_against(const Item *item);
+    unsigned int count_match_against(const Item *item);
     // caller must check "where" can be convertable by
     // is_convertable(). This method doesn't validate "where".
     void convert(const Item *where, grn_obj *expression);

@@ -45,6 +45,7 @@ Created 1/20/1994 Heikki Tuuri
 #include <stdarg.h>
 
 #include <string>
+#include <my_atomic.h>
 
 /** Index name prefix in fast index creation, as a string constant */
 #define TEMP_INDEX_PREFIX_STR	"\377"
@@ -74,11 +75,15 @@ typedef time_t	ib_time_t;
 # include <sys/platform/ppc.h>
 # define UT_RELAX_CPU() __ppc_get_timebase()
 #else
-# define UT_RELAX_CPU() do { \
-     volatile int32	volatile_var; \
-     int32 oldval= 0; \
-     my_atomic_cas32(&volatile_var, &oldval, 1); \
-   } while (0)
+static inline void UT_RELAX_CPU(void)
+{
+	volatile int32 var;
+	int32 oldval = 0;
+	my_atomic_cas32_strong_explicit(
+		&var, &oldval, 1,
+		MY_MEMORY_ORDER_RELAXED,
+		MY_MEMORY_ORDER_RELAXED);
+}
 #endif
 
 #if defined (__GNUC__)
@@ -87,15 +92,6 @@ typedef time_t	ib_time_t;
 # define UT_COMPILER_BARRIER() _ReadWriteBarrier()
 #else
 # define UT_COMPILER_BARRIER()
-#endif
-
-#if defined(HAVE_HMT_PRIORITY_INSTRUCTION)
-# include <sys/platform/ppc.h>
-# define UT_LOW_PRIORITY_CPU() __ppc_set_ppr_low()
-# define UT_RESUME_PRIORITY_CPU() __ppc_set_ppr_med()
-#else
-# define UT_LOW_PRIORITY_CPU() ((void)0)
-# define UT_RESUME_PRIORITY_CPU() ((void)0)
 #endif
 
 /*********************************************************************//**
@@ -394,50 +390,6 @@ ut_copy_file(
 /*=========*/
 	FILE*	dest,	/*!< in: output file */
 	FILE*	src);	/*!< in: input file to be appended to output */
-
-#ifdef _WIN32
-/**********************************************************************//**
-A substitute for vsnprintf(3), formatted output conversion into
-a limited buffer. Note: this function DOES NOT return the number of
-characters that would have been printed if the buffer was unlimited because
-VC's _vsnprintf() returns -1 in this case and we would need to call
-_vscprintf() in addition to estimate that but we would need another copy
-of "ap" for that and VC does not provide va_copy(). */
-void
-ut_vsnprintf(
-/*=========*/
-	char*		str,	/*!< out: string */
-	size_t		size,	/*!< in: str size */
-	const char*	fmt,	/*!< in: format */
-	va_list		ap);	/*!< in: format values */
-
-/**********************************************************************//**
-A substitute for snprintf(3), formatted output conversion into
-a limited buffer.
-@return number of characters that would have been printed if the size
-were unlimited, not including the terminating '\0'. */
-int
-ut_snprintf(
-/*========*/
-	char*		str,	/*!< out: string */
-	size_t		size,	/*!< in: str size */
-	const char*	fmt,	/*!< in: format */
-	...);			/*!< in: format values */
-#else
-/**********************************************************************//**
-A wrapper for vsnprintf(3), formatted output conversion into
-a limited buffer. Note: this function DOES NOT return the number of
-characters that would have been printed if the buffer was unlimited because
-VC's _vsnprintf() returns -1 in this case and we would need to call
-_vscprintf() in addition to estimate that but we would need another copy
-of "ap" for that and VC does not provide va_copy(). */
-# define ut_vsnprintf(buf, size, fmt, ap)	\
-	((void) vsnprintf(buf, size, fmt, ap))
-/**********************************************************************//**
-A wrapper for snprintf(3), formatted output conversion into
-a limited buffer. */
-# define ut_snprintf	snprintf
-#endif /* _WIN32 */
 
 /*************************************************************//**
 Convert an error number to a human readable text message. The

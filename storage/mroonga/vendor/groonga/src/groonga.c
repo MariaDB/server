@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2009-2015 Brazil
+  Copyright(C) 2009-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -21,6 +21,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <errno.h>
 
 #ifdef WIN32
 # define GROONGA_MAIN
@@ -32,6 +33,7 @@
 #include <grn_proc.h>
 #include <grn_db.h>
 #include <grn_util.h>
+#include <grn_error.h>
 
 #ifdef HAVE_SYS_WAIT_H
 # include <sys/wait.h>
@@ -58,13 +60,6 @@
 # include <sys/uio.h>
 #endif /* WIN32 */
 
-#ifdef HAVE__STRNICMP
-# ifdef strncasecmp
-#  undef strncasecmp
-# endif /* strcasecmp */
-# define strncasecmp(s1,s2,n) _strnicmp(s1,s2,n)
-#endif /* HAVE__STRNICMP */
-
 #ifndef USE_MSG_NOSIGNAL
 # ifdef MSG_NOSIGNAL
 #  undef MSG_NOSIGNAL
@@ -85,7 +80,7 @@
 #define DEFAULT_HTTP_PORT 10041
 #define DEFAULT_GQTP_PORT 10043
 #define DEFAULT_DEST "localhost"
-#define DEFAULT_MAX_NFTHREADS 8
+#define DEFAULT_MAX_N_FLOATING_THREADS 8
 #define MAX_CON 0x10000
 
 #define RLIMIT_NOFILE_MINIMUM 4096
@@ -101,16 +96,19 @@ static int (*do_client)(int argc, char **argv);
 static int (*do_server)(char *path);
 static const char *pid_file_path = NULL;
 static const char *input_path = NULL;
+static grn_file_reader *input_reader = NULL;
 static FILE *output = NULL;
+static grn_bool is_memcached_mode = GRN_FALSE;
+static const char *memcached_column_name = NULL;
 
 static int ready_notify_pipe[2];
 #define PIPE_READ  0
 #define PIPE_WRITE 1
 
 static grn_encoding encoding;
-static grn_command_version default_command_version;
-static int64_t default_match_escalation_threshold;
-static int log_level;
+static const char *windows_event_source_name = "Groonga";
+static grn_bool use_windows_event_log = GRN_FALSE;
+static grn_obj http_response_server_line;
 
 static int
 grn_rc_to_exit_code(grn_rc rc)
@@ -119,6 +117,25 @@ grn_rc_to_exit_code(grn_rc rc)
     return EXIT_SUCCESS;
   } else {
     return EXIT_FAILURE;
+  }
+}
+
+static void
+break_accept_event_loop(grn_ctx *ctx)
+{
+  grn_com *client;
+  const char *address;
+
+  if (strcmp(bind_address, "0.0.0.0") == 0) {
+    address = "127.0.0.1";
+  } else if (strcmp(bind_address, "::") == 0) {
+    address = "::1";
+    } else {
+    address = bind_address;
+  }
+  client = grn_com_copen(ctx, NULL, address, port);
+  if (client) {
+    grn_com_close(ctx, client);
   }
 }
 
@@ -224,10 +241,10 @@ read_next_line(grn_ctx *ctx, grn_obj *buf)
 #else
     fprintf(stderr, "> ");
     fflush(stderr);
-    rc = grn_text_fgets(ctx, buf, stdin);
+    rc = grn_file_reader_read_line(ctx, input_reader, buf);
 #endif
   } else {
-    rc = grn_text_fgets(ctx, buf, stdin);
+    rc = grn_file_reader_read_line(ctx, input_reader, buf);
     if (rc != GRN_END_OF_DATA) {
       number_of_lines++;
     }
@@ -299,6 +316,11 @@ s_output_raw(grn_ctx *ctx, int flags, FILE *stream)
   if (flags & GRN_CTX_TAIL) {
     grn_obj *command;
 
+    if (grn_ctx_get_output_type(ctx) == GRN_CONTENT_GROONGA_COMMAND_LIST &&
+        chunk_size > 0 &&
+        chunk[chunk_size - 1] != '\n') {
+      fwrite("\n", 1, 1, stream);
+    }
     fflush(stream);
 
     command = GRN_CTX_USER_DATA(ctx)->ptr;
@@ -476,7 +498,283 @@ static grn_com_queue ctx_new;
 static grn_com_queue ctx_old;
 static grn_mutex q_mutex;
 static grn_cond q_cond;
-static uint32_t nthreads = 0, nfthreads = 0, max_nfthreads;
+static uint32_t n_running_threads = 0;
+static uint32_t n_floating_threads = 0;
+static uint32_t max_n_floating_threads;
+
+static uint32_t
+groonga_get_thread_limit(void *data)
+{
+  return max_n_floating_threads;
+}
+
+static void
+groonga_set_thread_limit(uint32_t new_limit, void *data)
+{
+  uint32_t i;
+  uint32_t current_n_floating_threads;
+  static uint32_t n_changing_threads = 0;
+  uint32_t prev_n_changing_threads;
+
+  GRN_ATOMIC_ADD_EX(&n_changing_threads, 1, prev_n_changing_threads);
+
+  MUTEX_LOCK_ENSURE(&grn_gctx, q_mutex);
+  current_n_floating_threads = n_floating_threads;
+  max_n_floating_threads = new_limit;
+  MUTEX_UNLOCK(q_mutex);
+
+  if (prev_n_changing_threads > 0) {
+    GRN_ATOMIC_ADD_EX(&n_changing_threads, -1, prev_n_changing_threads);
+    return;
+  }
+
+  if (current_n_floating_threads > new_limit) {
+    for (i = 0; i < current_n_floating_threads; i++) {
+      MUTEX_LOCK_ENSURE(&grn_gctx, q_mutex);
+      COND_SIGNAL(q_cond);
+      MUTEX_UNLOCK(q_mutex);
+    }
+  }
+
+  while (GRN_TRUE) {
+    grn_bool is_reduced;
+    MUTEX_LOCK_ENSURE(&grn_gctx, q_mutex);
+    is_reduced = (n_running_threads <= max_n_floating_threads);
+    if (!is_reduced && n_floating_threads > 0) {
+      COND_SIGNAL(q_cond);
+    }
+    MUTEX_UNLOCK(q_mutex);
+    if (is_reduced) {
+      break;
+    }
+    grn_nanosleep(1000000);
+  }
+
+  GRN_ATOMIC_ADD_EX(&n_changing_threads, -1, prev_n_changing_threads);
+}
+
+typedef struct {
+  grn_mutex mutex;
+  grn_ctx ctx;
+  grn_pat *entries;
+  uint64_t earliest_unix_time_msec;
+} request_timer_data;
+static request_timer_data the_request_timer_data;
+
+static void *
+request_timer_register(const char *request_id,
+                       unsigned int request_id_size,
+                       double timeout,
+                       void *user_data)
+{
+  request_timer_data *data = user_data;
+  grn_id id = GRN_ID_NIL;
+
+  {
+    grn_ctx *ctx = &(data->ctx);
+    grn_bool is_first_timer;
+    grn_timeval tv;
+    uint64_t timeout_unix_time_msec;
+    void *value;
+
+    MUTEX_LOCK(data->mutex);
+    is_first_timer = (grn_pat_size(ctx, data->entries) == 0);
+    grn_timeval_now(ctx, &tv);
+    timeout_unix_time_msec = GRN_TIMEVAL_TO_MSEC(&tv) + (timeout * 1000);
+    while (GRN_TRUE) {
+      int added;
+      id = grn_pat_add(ctx, data->entries,
+                       &timeout_unix_time_msec, sizeof(uint64_t),
+                       &value, &added);
+      if (added != 0) {
+        break;
+      }
+      timeout_unix_time_msec++;
+    }
+    grn_memcpy(value, &request_id_size, sizeof(unsigned int));
+    grn_memcpy(((uint8_t *)value) + sizeof(unsigned int),
+               request_id, request_id_size);
+    if (data->earliest_unix_time_msec == 0 ||
+        data->earliest_unix_time_msec > timeout_unix_time_msec) {
+      data->earliest_unix_time_msec = timeout_unix_time_msec;
+    }
+    if (is_first_timer) {
+      break_accept_event_loop(ctx);
+    }
+    MUTEX_UNLOCK(data->mutex);
+  }
+
+  return (void *)(uint64_t)id;
+}
+
+static void
+request_timer_unregister(void *timer_id,
+                         void *user_data)
+{
+  request_timer_data *data = user_data;
+  grn_id id = (grn_id)(uint64_t)timer_id;
+
+  {
+    grn_ctx *ctx = &(data->ctx);
+    uint64_t timeout_unix_time_msec;
+    int key_size;
+
+    MUTEX_LOCK(data->mutex);
+    key_size = grn_pat_get_key(ctx,
+                               data->entries,
+                               id,
+                               &timeout_unix_time_msec,
+                               sizeof(uint64_t));
+    if (key_size > 0) {
+      grn_pat_delete_by_id(ctx, data->entries, id, NULL);
+      if (data->earliest_unix_time_msec >= timeout_unix_time_msec) {
+        data->earliest_unix_time_msec = 0;
+      }
+    }
+    MUTEX_UNLOCK(data->mutex);
+  }
+}
+
+static void
+request_timer_fin(void *user_data)
+{
+  request_timer_data *data = user_data;
+
+  {
+    grn_ctx *ctx = &(data->ctx);
+    grn_pat_close(ctx, data->entries);
+    grn_ctx_fin(ctx);
+    MUTEX_FIN(data->mutex);
+  }
+}
+
+static void
+request_timer_init(void)
+{
+  static grn_request_timer timer;
+  request_timer_data *data = &the_request_timer_data;
+  grn_ctx *ctx;
+
+  MUTEX_INIT(data->mutex);
+  ctx = &(data->ctx);
+  grn_ctx_init(ctx, 0);
+  data->entries = grn_pat_create(ctx,
+                                 NULL,
+                                 sizeof(uint64_t),
+                                 GRN_TABLE_MAX_KEY_SIZE,
+                                 GRN_OBJ_KEY_UINT);
+  data->earliest_unix_time_msec = 0;
+
+  timer.user_data = data;
+  timer.register_func = request_timer_register;
+  timer.unregister_func = request_timer_unregister;
+  timer.fin_func = request_timer_fin;
+
+  grn_request_timer_set(&timer);
+}
+
+static grn_bool
+request_timer_ensure_earliest_unix_time_msec(void)
+{
+  request_timer_data *data = &the_request_timer_data;
+  grn_ctx *ctx;
+  grn_pat_cursor *cursor;
+
+  if (data->earliest_unix_time_msec > 0) {
+    return GRN_TRUE;
+  }
+
+  ctx = &(data->ctx);
+  cursor = grn_pat_cursor_open(ctx, data->entries,
+                               NULL, 0,
+                               NULL, 0,
+                               0, 1, GRN_CURSOR_ASCENDING);
+  if (!cursor) {
+    return GRN_FALSE;
+  }
+  while (grn_pat_cursor_next(ctx, cursor) != GRN_ID_NIL) {
+    void *key;
+    uint64_t timeout_unix_time_msec;
+
+    grn_pat_cursor_get_key(ctx, cursor, &key);
+    timeout_unix_time_msec = *(uint64_t *)key;
+    data->earliest_unix_time_msec = timeout_unix_time_msec;
+    break;
+  }
+  grn_pat_cursor_close(ctx, cursor);
+
+  return data->earliest_unix_time_msec > 0;
+}
+
+static int
+request_timer_get_poll_timeout(void)
+{
+  request_timer_data *data = &the_request_timer_data;
+  int timeout = 1000;
+  grn_ctx *ctx;
+  grn_timeval tv;
+
+  MUTEX_LOCK(data->mutex);
+  ctx = &(data->ctx);
+  if (grn_pat_size(ctx, data->entries) == 0) {
+    goto exit;
+  }
+
+  if (!request_timer_ensure_earliest_unix_time_msec()) {
+    goto exit;
+  }
+
+  grn_timeval_now(ctx, &tv);
+  timeout = data->earliest_unix_time_msec - GRN_TIMEVAL_TO_MSEC(&tv);
+  if (timeout < 0) {
+    timeout = 0;
+  } else if (timeout > 1000) {
+    timeout = 1000;
+  }
+
+exit :
+  MUTEX_UNLOCK(data->mutex);
+
+  return timeout;
+}
+
+static void
+request_timer_process_timeout(void)
+{
+  request_timer_data *data = &the_request_timer_data;
+  grn_ctx *ctx;
+  grn_timeval tv;
+  uint64_t max;
+  grn_pat_cursor *cursor;
+
+  ctx = &(data->ctx);
+  if (grn_pat_size(ctx, data->entries) == 0) {
+    return;
+  }
+
+  grn_timeval_now(ctx, &tv);
+  max = GRN_TIMEVAL_TO_MSEC(&tv);
+  cursor = grn_pat_cursor_open(ctx, data->entries,
+                               NULL, 0,
+                               &max, sizeof(uint64_t),
+                               0, -1, GRN_CURSOR_ASCENDING);
+  if (!cursor) {
+    return;
+  }
+
+  grn_id id;
+  while ((id = grn_pat_cursor_next(ctx, cursor)) != GRN_ID_NIL) {
+    void *value;
+    const char *request_id;
+    unsigned int request_id_size;
+
+    grn_pat_cursor_get_value(ctx, cursor, &value);
+    request_id_size = *((unsigned int *)value);
+    request_id = (const char *)(((uint8_t *)value) + sizeof(unsigned int));
+    grn_request_canceler_cancel(request_id, request_id_size);
+  }
+  grn_pat_cursor_close(ctx, cursor);
+}
 
 static void
 reset_ready_notify_pipe(void)
@@ -512,29 +810,40 @@ send_ready_notify(void)
 static void
 create_pid_file(void)
 {
-#ifndef WIN32
   FILE *pid_file = NULL;
-  pid_t pid;
 
   if (!pid_file_path) {
     return;
   }
 
   pid_file = fopen(pid_file_path, "w");
-  pid = getpid();
-  fprintf(pid_file, "%d\n", pid);
+  if (!pid_file) {
+    fprintf(stderr,
+            "Failed to open PID file: <%s>: <%s>\n",
+            pid_file_path, grn_strerror(errno));
+    return;
+  }
+
+  {
+#ifdef WIN32
+    DWORD pid;
+    pid = GetCurrentProcessId();
+    fprintf(pid_file, "%" GRN_FMT_DWORD "\n", pid);
+#else /* WIN32 */
+    pid_t pid;
+    pid = grn_getpid();
+    fprintf(pid_file, "%d\n", pid);
+#endif /* WIN32 */
+  }
   fclose(pid_file);
-#endif
 }
 
 static void
 clean_pid_file(void)
 {
-#ifndef WIN32
   if (pid_file_path) {
-    unlink(pid_file_path);
+    grn_unlink(pid_file_path);
   }
-#endif
 }
 
 static int
@@ -572,7 +881,7 @@ daemonize(void)
       create_pid_file();
     } else {
       pid_t pid;
-      pid = getpid();
+      pid = grn_getpid();
       fprintf(stderr, "%d\n", pid);
     }
     break;
@@ -600,7 +909,9 @@ daemonize(void)
 static void
 run_server_loop(grn_ctx *ctx, grn_com_event *ev)
 {
-  while (!grn_com_event_poll(ctx, ev, 1000) && grn_gctx.stat != GRN_CTX_QUIT) {
+  request_timer_init();
+  while (!grn_com_event_poll(ctx, ev, request_timer_get_poll_timeout()) &&
+         grn_gctx.stat != GRN_CTX_QUIT) {
     grn_edge *edge;
     while ((edge = (grn_edge *)grn_com_queue_deque(ctx, &ctx_old))) {
       grn_obj *msg;
@@ -616,11 +927,12 @@ run_server_loop(grn_ctx *ctx, grn_com_event *ev)
       }
       grn_edges_delete(ctx, edge);
     }
+    request_timer_process_timeout();
     /* todo : log stat */
   }
   for (;;) {
-    MUTEX_LOCK(q_mutex);
-    if (nthreads == nfthreads) { break; }
+    MUTEX_LOCK_ENSURE(ctx, q_mutex);
+    if (n_running_threads == n_floating_threads) { break; }
     MUTEX_UNLOCK(q_mutex);
     grn_nanosleep(1000000);
   }
@@ -673,6 +985,8 @@ run_server(grn_ctx *ctx, grn_obj *db, grn_com_event *ev,
   return exit_code;
 }
 
+static grn_bool memcached_init(grn_ctx *ctx);
+
 static int
 start_service(grn_ctx *ctx, const char *db_path,
               grn_edge_dispatcher_func dispatcher, grn_handler_func handler)
@@ -693,10 +1007,20 @@ start_service(grn_ctx *ctx, const char *db_path,
     grn_obj *db;
     db = (newdb || !db_path) ? grn_db_create(ctx, db_path, NULL) : grn_db_open(ctx, db_path);
     if (db) {
-      exit_code = run_server(ctx, db, &ev, dispatcher, handler);
+      if (is_memcached_mode) {
+        if (!memcached_init(ctx)) {
+          fprintf(stderr, "failed to initialize memcached mode: %s\n",
+                  ctx->errbuf);
+          exit_code = EXIT_FAILURE;
+          send_ready_notify();
+        }
+      }
+      if (exit_code == EXIT_SUCCESS) {
+        exit_code = run_server(ctx, db, &ev, dispatcher, handler);
+      }
       grn_obj_close(ctx, db);
     } else {
-      fprintf(stderr, "db open failed (%s)\n", db_path);
+      fprintf(stderr, "db open failed (%s): %s\n", db_path, ctx->errbuf);
       exit_code = EXIT_FAILURE;
       send_ready_notify();
     }
@@ -719,26 +1043,43 @@ typedef struct {
 } ht_context;
 
 static void
-h_output_set_header(grn_ctx *ctx, grn_obj *header,
-                    grn_rc rc, long long int content_length)
+h_output_set_header(grn_ctx *ctx,
+                    grn_obj *header,
+                    grn_rc rc,
+                    long long int content_length,
+                    grn_obj *foot)
 {
   switch (rc) {
   case GRN_SUCCESS :
     GRN_TEXT_SETS(ctx, header, "HTTP/1.1 200 OK\r\n");
     break;
   case GRN_INVALID_ARGUMENT :
+  case GRN_FUNCTION_NOT_IMPLEMENTED :
   case GRN_SYNTAX_ERROR :
     GRN_TEXT_SETS(ctx, header, "HTTP/1.1 400 Bad Request\r\n");
     break;
   case GRN_NO_SUCH_FILE_OR_DIRECTORY :
     GRN_TEXT_SETS(ctx, header, "HTTP/1.1 404 Not Found\r\n");
     break;
+  case GRN_CANCEL :
+    GRN_TEXT_SETS(ctx, header, "HTTP/1.1 408 Request Timeout\r\n");
+    break;
   default :
     GRN_TEXT_SETS(ctx, header, "HTTP/1.1 500 Internal Server Error\r\n");
     break;
   }
+  GRN_TEXT_PUT(ctx, header,
+               GRN_TEXT_VALUE(&http_response_server_line),
+               GRN_TEXT_LEN(&http_response_server_line));
   GRN_TEXT_PUTS(ctx, header, "Content-Type: ");
-  GRN_TEXT_PUTS(ctx, header, grn_ctx_get_mime_type(ctx));
+  if (grn_ctx_get_output_type(ctx) == GRN_CONTENT_JSON &&
+      foot &&
+      GRN_TEXT_LEN(foot) > 0 &&
+      GRN_TEXT_VALUE(foot)[GRN_TEXT_LEN(foot) - 1] == ';') {
+    GRN_TEXT_PUTS(ctx, header, "application/javascript");
+  } else {
+    GRN_TEXT_PUTS(ctx, header, grn_ctx_get_mime_type(ctx));
+  }
   GRN_TEXT_PUTS(ctx, header, "\r\n");
   if (content_length >= 0) {
     GRN_TEXT_PUTS(ctx, header, "Connection: close\r\n");
@@ -865,10 +1206,10 @@ h_output_raw(grn_ctx *ctx, int flags, ht_context *hc)
 
   if (!hc->in_body) {
     if (is_last_message) {
-      h_output_set_header(ctx, &header_, expr_rc, GRN_TEXT_LEN(&body_));
+      h_output_set_header(ctx, &header_, expr_rc, GRN_TEXT_LEN(&body_), NULL);
       hc->is_chunked = GRN_FALSE;
     } else {
-      h_output_set_header(ctx, &header_, expr_rc, -1);
+      h_output_set_header(ctx, &header_, expr_rc, -1, NULL);
       hc->is_chunked = GRN_TRUE;
     }
     header = &header_;
@@ -938,7 +1279,8 @@ h_output_typed(grn_ctx *ctx, int flags, ht_context *hc)
   h_output_set_header(ctx, &header, expr_rc,
                       GRN_TEXT_LEN(&head) +
                       GRN_TEXT_LEN(&body) +
-                      GRN_TEXT_LEN(&foot));
+                      GRN_TEXT_LEN(&foot),
+                      &foot);
   if (should_return_body) {
     h_output_send(ctx, fd, &header, &head, &body, &foot);
   } else {
@@ -967,8 +1309,9 @@ h_output(grn_ctx *ctx, int flags, void *arg)
 }
 
 static void
-do_htreq_get(grn_ctx *ctx, grn_msg *msg)
+do_htreq_get(grn_ctx *ctx, ht_context *hc)
 {
+  grn_msg *msg = hc->msg;
   char *path = NULL;
   char *pathe = GRN_BULK_HEAD((grn_obj *)msg);
   char *e = GRN_BULK_CURR((grn_obj *)msg);
@@ -987,7 +1330,7 @@ do_htreq_get(grn_ctx *ctx, grn_msg *msg)
       }
     }
   }
-  grn_ctx_send(ctx, path, pathe - path, 0);
+  grn_ctx_send(ctx, path, pathe - path, GRN_CTX_TAIL);
 }
 
 typedef struct {
@@ -1004,7 +1347,7 @@ typedef struct {
 
 #define STRING_EQUAL_CI(string, string_length, constant_string)\
   (string_length == strlen(constant_string) &&\
-   strncasecmp(string, constant_string, string_length) == 0)
+   grn_strncasecmp(string, constant_string, string_length) == 0)
 
 static const char *
 do_htreq_post_parse_header_request_line(grn_ctx *ctx,
@@ -1169,8 +1512,9 @@ do_htreq_post_parse_header(grn_ctx *ctx,
 }
 
 static void
-do_htreq_post(grn_ctx *ctx, grn_msg *msg)
+do_htreq_post(grn_ctx *ctx, ht_context *hc)
 {
+  grn_msg *msg = hc->msg;
   grn_sock fd = msg->u.fd;
   const char *end;
   h_post_header header;
@@ -1189,7 +1533,7 @@ do_htreq_post(grn_ctx *ctx, grn_msg *msg)
     return;
   }
 
-  grn_ctx_send(ctx, header.path_start, header.path_length, GRN_CTX_QUIET);
+  grn_ctx_send(ctx, header.path_start, header.path_length, GRN_CTX_MORE);
   if (ctx->rc != GRN_SUCCESS) {
     ht_context context;
     context.msg = msg;
@@ -1264,7 +1608,9 @@ do_htreq_post(grn_ctx *ctx, grn_msg *msg)
           int flags = 0;
           if (!(read_content_length == header.content_length &&
                 buffer_current + 1 == buffer_end)) {
-            flags |= GRN_CTX_QUIET;
+            flags |= GRN_CTX_MORE;
+          } else {
+            flags |= GRN_CTX_TAIL;
           }
           grn_ctx_send(ctx,
                        GRN_TEXT_VALUE(&chunk_buffer),
@@ -1280,13 +1626,19 @@ do_htreq_post(grn_ctx *ctx, grn_msg *msg)
                      buffer_start, buffer_end - buffer_start);
       }
 #undef POST_BUFFER_SIZE
+
+      if (ctx->rc != GRN_SUCCESS) {
+        break;
+      }
     }
 
-    if (GRN_TEXT_LEN(&chunk_buffer) > 0) {
+    if (ctx->rc == GRN_CANCEL) {
+      h_output(ctx, GRN_CTX_TAIL, hc);
+    } else if (ctx->rc == GRN_SUCCESS && GRN_TEXT_LEN(&chunk_buffer) > 0) {
       grn_ctx_send(ctx,
                    GRN_TEXT_VALUE(&chunk_buffer),
                    GRN_TEXT_LEN(&chunk_buffer),
-                   0);
+                   GRN_CTX_TAIL);
     }
 
     GRN_OBJ_FIN(ctx, &chunk_buffer);
@@ -1294,19 +1646,19 @@ do_htreq_post(grn_ctx *ctx, grn_msg *msg)
 }
 
 static void
-do_htreq(grn_ctx *ctx, grn_msg *msg)
+do_htreq(grn_ctx *ctx, ht_context *hc)
 {
+  grn_msg *msg = hc->msg;
   grn_com_header *header = &msg->header;
   switch (header->qtype) {
   case 'G' : /* GET */
   case 'H' : /* HEAD */
-    do_htreq_get(ctx, msg);
+    do_htreq_get(ctx, hc);
     break;
   case 'P' : /* POST */
-    do_htreq_post(ctx, msg);
+    do_htreq_post(ctx, hc);
     break;
   }
-  grn_ctx_set_next_expr(ctx, NULL);
   /* if (ctx->rc != GRN_OPERATION_WOULD_BLOCK) {...} */
   grn_msg_close(ctx, (grn_obj *)msg);
   /* if not keep alive connection */
@@ -1355,7 +1707,6 @@ enum {
   MBCMD_PREPENDQ = 0x1a
 };
 
-static grn_critical_section cache_lock;
 static grn_obj *cache_table = NULL;
 static grn_obj *cache_value = NULL;
 static grn_obj *cache_flags = NULL;
@@ -1364,39 +1715,189 @@ static grn_obj *cache_cas = NULL;
 
 #define CTX_GET(name) (grn_ctx_get(ctx, (name), strlen(name)))
 
-static grn_obj *
-cache_init(grn_ctx *ctx)
+static grn_bool
+memcached_setup_flags_column(grn_ctx *ctx, const char *name)
 {
-  if (cache_cas) { return cache_cas; }
-  CRITICAL_SECTION_ENTER(cache_lock);
+  cache_flags = grn_obj_column(ctx, cache_table, name, strlen(name));
+  if (cache_flags) {
+    return GRN_TRUE;
+  }
+
+  cache_flags = grn_column_create(ctx, cache_table, name, strlen(name), NULL,
+                                  GRN_OBJ_COLUMN_SCALAR|GRN_OBJ_PERSISTENT,
+                                  grn_ctx_at(ctx, GRN_DB_UINT32));
+  if (!cache_flags) {
+    return GRN_FALSE;
+  }
+
+  return GRN_TRUE;
+}
+
+static grn_bool
+memcached_setup_expire_column(grn_ctx *ctx, const char *name)
+{
+  cache_expire = grn_obj_column(ctx, cache_table, name, strlen(name));
+  if (cache_expire) {
+    return GRN_TRUE;
+  }
+
+  cache_expire = grn_column_create(ctx, cache_table, name, strlen(name), NULL,
+                                   GRN_OBJ_COLUMN_SCALAR|GRN_OBJ_PERSISTENT,
+                                   grn_ctx_at(ctx, GRN_DB_UINT32));
+  if (!cache_expire) {
+    return GRN_FALSE;
+  }
+
+  return GRN_TRUE;
+}
+
+static grn_bool
+memcached_setup_cas_column(grn_ctx *ctx, const char *name)
+{
+  cache_cas = grn_obj_column(ctx, cache_table, name, strlen(name));
+  if (cache_cas) {
+    return GRN_TRUE;
+  }
+
+  cache_cas = grn_column_create(ctx, cache_table, name, strlen(name), NULL,
+                                GRN_OBJ_COLUMN_SCALAR|GRN_OBJ_PERSISTENT,
+                                grn_ctx_at(ctx, GRN_DB_UINT64));
   if (!cache_cas) {
-    if ((cache_table = CTX_GET("Memcache"))) {
-      cache_value = CTX_GET("Memcache.value");
-      cache_flags = CTX_GET("Memcache.flags");
-      cache_expire = CTX_GET("Memcache.expire");
-      cache_cas = CTX_GET("Memcache.cas");
-    } else {
-      if (!cache_table) {
-        grn_obj *uint32_type = grn_ctx_at(ctx, GRN_DB_UINT32);
-        grn_obj *uint64_type = grn_ctx_at(ctx, GRN_DB_UINT64);
-        grn_obj *shorttext_type = grn_ctx_at(ctx, GRN_DB_SHORT_TEXT);
-        if ((cache_table = grn_table_create(ctx, "Memcache", 8, NULL,
-                                            GRN_OBJ_TABLE_PAT_KEY|GRN_OBJ_PERSISTENT,
-                                            shorttext_type, NULL))) {
-          cache_value = grn_column_create(ctx, cache_table, "value", 5, NULL,
-                                          GRN_OBJ_PERSISTENT, shorttext_type);
-          cache_flags = grn_column_create(ctx, cache_table, "flags", 5, NULL,
-                                          GRN_OBJ_PERSISTENT, uint32_type);
-          cache_expire = grn_column_create(ctx, cache_table, "expire", 6, NULL,
-                                           GRN_OBJ_PERSISTENT, uint32_type);
-          cache_cas = grn_column_create(ctx, cache_table, "cas", 3, NULL,
-                                        GRN_OBJ_PERSISTENT, uint64_type);
-        }
+    return GRN_FALSE;
+  }
+
+  return GRN_TRUE;
+}
+
+static grn_bool
+memcached_init(grn_ctx *ctx)
+{
+  if (memcached_column_name) {
+    cache_value = CTX_GET(memcached_column_name);
+    if (!cache_value) {
+      ERR(GRN_INVALID_ARGUMENT,
+          "memcached column doesn't exist: <%s>",
+          memcached_column_name);
+      return GRN_FALSE;
+    }
+    if (!(grn_obj_is_column(ctx, cache_value) &&
+          ((cache_value->header.flags & GRN_OBJ_COLUMN_TYPE_MASK) ==
+           GRN_OBJ_COLUMN_SCALAR))) {
+      grn_obj inspected;
+      GRN_TEXT_INIT(&inspected, 0);
+      grn_inspect(ctx, &inspected, cache_value);
+      ERR(GRN_INVALID_ARGUMENT,
+          "memcached column must be scalar column: <%.*s>",
+          (int)GRN_TEXT_LEN(&inspected),
+          GRN_TEXT_VALUE(&inspected));
+      GRN_OBJ_FIN(ctx, &inspected);
+      return GRN_FALSE;
+    }
+    if (!(GRN_DB_SHORT_TEXT <= grn_obj_get_range(ctx, cache_value) &&
+          grn_obj_get_range(ctx, cache_value) <= GRN_DB_LONG_TEXT)) {
+      grn_obj inspected;
+      GRN_TEXT_INIT(&inspected, 0);
+      grn_inspect(ctx, &inspected, cache_value);
+      ERR(GRN_INVALID_ARGUMENT,
+          "memcached column must be text column: <%.*s>",
+          (int)GRN_TEXT_LEN(&inspected),
+          GRN_TEXT_VALUE(&inspected));
+      GRN_OBJ_FIN(ctx, &inspected);
+      return GRN_FALSE;
+    }
+
+    cache_table = grn_ctx_at(ctx, cache_value->header.domain);
+    if (cache_table->header.type == GRN_TABLE_NO_KEY) {
+      grn_obj inspected;
+      GRN_TEXT_INIT(&inspected, 0);
+      grn_inspect(ctx, &inspected, cache_table);
+      ERR(GRN_INVALID_ARGUMENT,
+          "memcached column's table must be HASH_KEY, PAT_KEY or DAT_KEY table: "
+          "<%.*s>",
+          (int)GRN_TEXT_LEN(&inspected),
+          GRN_TEXT_VALUE(&inspected));
+      GRN_OBJ_FIN(ctx, &inspected);
+      return GRN_FALSE;
+    }
+
+    {
+      char column_name[GRN_TABLE_MAX_KEY_SIZE];
+      char value_column_name[GRN_TABLE_MAX_KEY_SIZE];
+      int value_column_name_size;
+
+      value_column_name_size = grn_column_name(ctx, cache_value,
+                                               value_column_name,
+                                               GRN_TABLE_MAX_KEY_SIZE);
+      grn_snprintf(column_name,
+                   GRN_TABLE_MAX_KEY_SIZE,
+                   GRN_TABLE_MAX_KEY_SIZE,
+                   "%.*s_memcached_flags",
+                   value_column_name_size,
+                   value_column_name);
+      if (!memcached_setup_flags_column(ctx, column_name)) {
+        return GRN_FALSE;
+      }
+      grn_snprintf(column_name,
+                   GRN_TABLE_MAX_KEY_SIZE,
+                   GRN_TABLE_MAX_KEY_SIZE,
+                   "%.*s_memcached_expire",
+                   value_column_name_size,
+                   value_column_name);
+      if (!memcached_setup_expire_column(ctx, column_name)) {
+        return GRN_FALSE;
+      }
+      grn_snprintf(column_name,
+                   GRN_TABLE_MAX_KEY_SIZE,
+                   GRN_TABLE_MAX_KEY_SIZE,
+                   "%.*s_memcached_cas",
+                   value_column_name_size,
+                   value_column_name);
+      if (!memcached_setup_cas_column(ctx, column_name)) {
+        return GRN_FALSE;
       }
     }
+  } else {
+    const char *table_name = "Memcache";
+    const char *value_column_name = "value";
+
+    cache_table = CTX_GET(table_name);
+    if (!cache_table) {
+      cache_table = grn_table_create(ctx, table_name, strlen(table_name), NULL,
+                                     GRN_OBJ_TABLE_PAT_KEY|GRN_OBJ_PERSISTENT,
+                                     grn_ctx_at(ctx, GRN_DB_SHORT_TEXT),
+                                     NULL);
+      if (!cache_table) {
+        return GRN_FALSE;
+      }
+    }
+
+    cache_value = grn_obj_column(ctx, cache_table,
+                                 value_column_name,
+                                 strlen(value_column_name));
+    if (!cache_value) {
+      cache_value = grn_column_create(ctx, cache_table,
+                                      value_column_name,
+                                      strlen(value_column_name),
+                                      NULL,
+                                      GRN_OBJ_COLUMN_SCALAR|GRN_OBJ_PERSISTENT,
+                                      grn_ctx_at(ctx, GRN_DB_SHORT_TEXT));
+      if (!cache_value) {
+        return GRN_FALSE;
+      }
+    }
+
+    if (!memcached_setup_flags_column(ctx, "flags")) {
+      return GRN_FALSE;
+    }
+    if (!memcached_setup_expire_column(ctx, "expire")) {
+      return GRN_FALSE;
+    }
+    if (!memcached_setup_cas_column(ctx, "cas")) {
+      return GRN_FALSE;
+    }
   }
-  CRITICAL_SECTION_LEAVE(cache_lock);
-  return cache_cas;
+
+  return GRN_TRUE;
 }
 
 #define RELATIVE_TIME_THRESH 1000000000
@@ -1439,7 +1940,6 @@ do_mbreq(grn_ctx *ctx, grn_edge *edge)
       grn_id rid;
       uint16_t keylen = ntohs(header->keylen);
       char *key = GRN_BULK_HEAD((grn_obj *)msg);
-      cache_init(ctx);
       rid = grn_table_get(ctx, cache_table, key, keylen);
       if (!rid) {
         GRN_MSG_MBRES({
@@ -1499,7 +1999,6 @@ do_mbreq(grn_ctx *ctx, grn_edge *edge)
       int f = (header->qtype == MBCMD_REPLACE ||
                header->qtype == MBCMD_REPLACEQ) ? 0 : GRN_TABLE_ADD;
       GRN_ASSERT(extralen == 8);
-      cache_init(ctx);
       if (header->qtype == MBCMD_REPLACE || header->qtype == MBCMD_REPLACEQ) {
         rid = grn_table_get(ctx, cache_table, key, keylen);
       } else {
@@ -1623,7 +2122,6 @@ do_mbreq(grn_ctx *ctx, grn_edge *edge)
       grn_id rid;
       uint16_t keylen = ntohs(header->keylen);
       char *key = GRN_BULK_HEAD((grn_obj *)msg);
-      cache_init(ctx);
       rid = grn_table_get(ctx, cache_table, key, keylen);
       if (!rid) {
         /* GRN_LOG(ctx, GRN_LOG_NOTICE, "GET k=%d not found", keylen); */
@@ -1655,7 +2153,6 @@ do_mbreq(grn_ctx *ctx, grn_edge *edge)
       grn_ntoh(&delta, body, 8);
       grn_ntoh(&init, body + 8, 8);
       GRN_ASSERT(header->level == 20); /* extralen */
-      cache_init(ctx);
       if (expire == 0xffffffff) {
         rid = grn_table_get(ctx, cache_table, key, keylen);
       } else {
@@ -1777,7 +2274,6 @@ do_mbreq(grn_ctx *ctx, grn_edge *edge)
       grn_id rid;
       uint16_t keylen = ntohs(header->keylen);
       char *key = GRN_BULK_HEAD((grn_obj *)msg);
-      cache_init(ctx);
       rid = grn_table_get(ctx, cache_table, key, keylen);
       if (!rid) {
         GRN_MSG_MBRES({
@@ -1824,7 +2320,6 @@ do_mbreq(grn_ctx *ctx, grn_edge *edge)
       char *key = GRN_BULK_HEAD((grn_obj *)msg);
       char *value = key + keylen;
       uint32_t valuelen = size - keylen;
-      cache_init(ctx);
       rid = grn_table_add(ctx, cache_table, key, keylen, NULL);
       if (!rid) {
         GRN_MSG_MBRES({
@@ -1845,7 +2340,7 @@ do_mbreq(grn_ctx *ctx, grn_edge *edge)
     break;
   case MBCMD_STAT :
     {
-      pid_t pid = getpid();
+      pid_t pid = grn_getpid();
       GRN_MSG_MBRES({
         grn_bulk_write(ctx, re, "pid", 3);
         grn_text_itoa(ctx, re, pid);
@@ -1906,31 +2401,44 @@ h_worker(void *arg)
   grn_ctx_init(ctx, 0);
   grn_ctx_use(ctx, (grn_obj *)arg);
   grn_ctx_recv_handler_set(ctx, h_output, &hc);
-  GRN_LOG(&grn_gctx, GRN_LOG_NOTICE, "thread start (%d/%d)", nfthreads, nthreads + 1);
-  MUTEX_LOCK(q_mutex);
-  do {
+  MUTEX_LOCK_ENSURE(ctx, q_mutex);
+  GRN_LOG(&grn_gctx, GRN_LOG_NOTICE, "thread start (%d/%d)",
+          n_floating_threads, n_running_threads);
+  while (n_running_threads <= max_n_floating_threads &&
+         grn_gctx.stat != GRN_CTX_QUIT) {
     grn_obj *msg;
-    nfthreads++;
+    if (ctx->rc == GRN_CANCEL) {
+      ctx->rc = GRN_SUCCESS;
+    }
+    n_floating_threads++;
     while (!(msg = (grn_obj *)grn_com_queue_deque(&grn_gctx, &ctx_new))) {
       COND_WAIT(q_cond, q_mutex);
       if (grn_gctx.stat == GRN_CTX_QUIT) {
-        nfthreads--;
+        n_floating_threads--;
+        goto exit;
+      }
+      if (n_running_threads > max_n_floating_threads) {
+        n_floating_threads--;
         goto exit;
       }
     }
-    nfthreads--;
+    n_floating_threads--;
     MUTEX_UNLOCK(q_mutex);
     hc.msg = (grn_msg *)msg;
     hc.in_body = GRN_FALSE;
     hc.is_chunked = GRN_FALSE;
-    do_htreq(ctx, (grn_msg *)msg);
-    MUTEX_LOCK(q_mutex);
-  } while (nfthreads < max_nfthreads && grn_gctx.stat != GRN_CTX_QUIT);
+    do_htreq(ctx, &hc);
+    MUTEX_LOCK_ENSURE(ctx, q_mutex);
+  }
 exit :
-  nthreads--;
-  MUTEX_UNLOCK(q_mutex);
-  GRN_LOG(&grn_gctx, GRN_LOG_NOTICE, "thread end (%d/%d)", nfthreads, nthreads);
+  n_running_threads--;
+  GRN_LOG(&grn_gctx, GRN_LOG_NOTICE, "thread end (%d/%d)",
+          n_floating_threads, n_running_threads);
+  if (grn_gctx.stat == GRN_CTX_QUIT) {
+    break_accept_event_loop(ctx);
+  }
   grn_ctx_fin(ctx);
+  MUTEX_UNLOCK(q_mutex);
   return GRN_THREAD_FUNC_RETURN_VALUE;
 }
 
@@ -1947,12 +2455,15 @@ h_handler(grn_ctx *ctx, grn_obj *msg)
     /* if not keep alive connection */
     grn_com_event_del(ctx, com->ev, fd);
     ((grn_msg *)msg)->u.fd = fd;
-    MUTEX_LOCK(q_mutex);
+    MUTEX_LOCK_ENSURE(ctx, q_mutex);
     grn_com_queue_enque(ctx, &ctx_new, (grn_com_queue_entry *)msg);
-    if (!nfthreads && nthreads < max_nfthreads) {
+    if (n_floating_threads == 0 && n_running_threads < max_n_floating_threads) {
       grn_thread thread;
-      nthreads++;
-      if (THREAD_CREATE(thread, h_worker, arg)) { SERR("pthread_create"); }
+      n_running_threads++;
+      if (THREAD_CREATE(thread, h_worker, arg)) {
+        n_running_threads--;
+        SERR("pthread_create");
+      }
     }
     COND_SIGNAL(q_cond);
     MUTEX_UNLOCK(q_mutex);
@@ -1965,13 +2476,17 @@ h_server(char *path)
   int exit_code = EXIT_FAILURE;
   grn_ctx ctx_, *ctx = &ctx_;
   grn_ctx_init(ctx, 0);
-  MUTEX_INIT(q_mutex);
-  COND_INIT(q_cond);
-  CRITICAL_SECTION_INIT(cache_lock);
   GRN_COM_QUEUE_INIT(&ctx_new);
   GRN_COM_QUEUE_INIT(&ctx_old);
   check_rlimit_nofile(ctx);
+  GRN_TEXT_INIT(&http_response_server_line, 0);
+  grn_text_printf(ctx,
+                  &http_response_server_line,
+                  "Server: %s/%s\r\n",
+                  grn_get_package_label(),
+                  grn_get_version());
   exit_code = start_service(ctx, path, NULL, h_handler);
+  GRN_OBJ_FIN(ctx, &http_response_server_line);
   grn_ctx_fin(ctx);
   return exit_code;
 }
@@ -1979,21 +2494,27 @@ h_server(char *path)
 static grn_thread_func_result CALLBACK
 g_worker(void *arg)
 {
-  GRN_LOG(&grn_gctx, GRN_LOG_NOTICE, "thread start (%d/%d)", nfthreads, nthreads + 1);
-  MUTEX_LOCK(q_mutex);
-  do {
+  MUTEX_LOCK_ENSURE(NULL, q_mutex);
+  GRN_LOG(&grn_gctx, GRN_LOG_NOTICE, "thread start (%d/%d)",
+          n_floating_threads, n_running_threads);
+  while (n_running_threads <= max_n_floating_threads &&
+         grn_gctx.stat != GRN_CTX_QUIT) {
     grn_ctx *ctx;
     grn_edge *edge;
-    nfthreads++;
+    n_floating_threads++;
     while (!(edge = (grn_edge *)grn_com_queue_deque(&grn_gctx, &ctx_new))) {
       COND_WAIT(q_cond, q_mutex);
       if (grn_gctx.stat == GRN_CTX_QUIT) {
-        nfthreads--;
+        n_floating_threads--;
+        goto exit;
+      }
+      if (n_running_threads > max_n_floating_threads) {
+        n_floating_threads--;
         goto exit;
       }
     }
     ctx = &edge->ctx;
-    nfthreads--;
+    n_floating_threads--;
     if (edge->stat == EDGE_DOING) { continue; }
     if (edge->stat == EDGE_WAIT) {
       edge->stat = EDGE_DOING;
@@ -2012,6 +2533,9 @@ g_worker(void *arg)
           case GRN_COM_PROTO_GQTP :
             grn_ctx_send(ctx, GRN_BULK_HEAD(msg), GRN_BULK_VSIZE(msg), header->flags);
             ERRCLR(ctx);
+            if (ctx->rc == GRN_CANCEL) {
+              ctx->rc = GRN_SUCCESS;
+            }
             break;
           default :
             ctx->stat = GRN_CTX_QUIT;
@@ -2022,7 +2546,7 @@ g_worker(void *arg)
         while ((msg = (grn_obj *)grn_com_queue_deque(ctx, &edge->send_old))) {
           grn_msg_close(ctx, msg);
         }
-        MUTEX_LOCK(q_mutex);
+        MUTEX_LOCK_ENSURE(ctx, q_mutex);
         if (ctx->stat == GRN_CTX_QUIT || edge->stat == EDGE_ABORT) { break; }
       }
     }
@@ -2032,25 +2556,29 @@ g_worker(void *arg)
     } else {
       edge->stat = EDGE_IDLE;
     }
-  } while (nfthreads < max_nfthreads && grn_gctx.stat != GRN_CTX_QUIT);
+  };
 exit :
-  nthreads--;
+  n_running_threads--;
+  GRN_LOG(&grn_gctx, GRN_LOG_NOTICE, "thread end (%d/%d)",
+          n_floating_threads, n_running_threads);
   MUTEX_UNLOCK(q_mutex);
-  GRN_LOG(&grn_gctx, GRN_LOG_NOTICE, "thread end (%d/%d)", nfthreads, nthreads);
   return GRN_THREAD_FUNC_RETURN_VALUE;
 }
 
 static void
 g_dispatcher(grn_ctx *ctx, grn_edge *edge)
 {
-  MUTEX_LOCK(q_mutex);
+  MUTEX_LOCK_ENSURE(ctx, q_mutex);
   if (edge->stat == EDGE_IDLE) {
     grn_com_queue_enque(ctx, &ctx_new, (grn_com_queue_entry *)edge);
     edge->stat = EDGE_WAIT;
-    if (!nfthreads && nthreads < max_nfthreads) {
+    if (n_floating_threads == 0 && n_running_threads < max_n_floating_threads) {
       grn_thread thread;
-      nthreads++;
-      if (THREAD_CREATE(thread, g_worker, NULL)) { SERR("pthread_create"); }
+      n_running_threads++;
+      if (THREAD_CREATE(thread, g_worker, NULL)) {
+        n_running_threads--;
+        SERR("pthread_create");
+      }
     }
     COND_SIGNAL(q_cond);
   }
@@ -2062,18 +2590,18 @@ g_output(grn_ctx *ctx, int flags, void *arg)
 {
   grn_edge *edge = arg;
   grn_com *com = edge->com;
-  grn_msg *req = edge->msg, *msg = (grn_msg *)ctx->impl->outbuf;
+  grn_msg *req = edge->msg, *msg = (grn_msg *)ctx->impl->output.buf;
   msg->edge_id = req->edge_id;
   msg->header.proto = req->header.proto == GRN_COM_PROTO_MBREQ
     ? GRN_COM_PROTO_MBRES : req->header.proto;
-  if (ctx->rc != GRN_SUCCESS && GRN_BULK_VSIZE(ctx->impl->outbuf) == 0) {
-    GRN_TEXT_PUTS(ctx, ctx->impl->outbuf, ctx->errbuf);
+  if (ctx->rc != GRN_SUCCESS && GRN_BULK_VSIZE(ctx->impl->output.buf) == 0) {
+    GRN_TEXT_PUTS(ctx, ctx->impl->output.buf, ctx->errbuf);
   }
   if (grn_msg_send(ctx, (grn_obj *)msg,
                    (flags & GRN_CTX_MORE) ? GRN_CTX_MORE : GRN_CTX_TAIL)) {
     edge->stat = EDGE_ABORT;
   }
-  ctx->impl->outbuf = grn_msg_open(ctx, com, &edge->send_old);
+  ctx->impl->output.buf = grn_msg_open(ctx, com, &edge->send_old);
 }
 
 static void
@@ -2084,7 +2612,7 @@ g_handler(grn_ctx *ctx, grn_obj *msg)
   if (ctx->rc) {
     if (com->has_sid) {
       if ((edge = com->opaque)) {
-        MUTEX_LOCK(q_mutex);
+        MUTEX_LOCK_ENSURE(ctx, q_mutex);
         if (edge->stat == EDGE_IDLE) {
           grn_com_queue_enque(ctx, &ctx_old, (grn_com_queue_entry *)edge);
         }
@@ -2105,8 +2633,9 @@ g_handler(grn_ctx *ctx, grn_obj *msg)
       grn_ctx_use(&edge->ctx, (grn_obj *)com->ev->opaque);
       grn_ctx_recv_handler_set(&edge->ctx, g_output, edge);
       com->opaque = edge;
-      grn_obj_close(&edge->ctx, edge->ctx.impl->outbuf);
-      edge->ctx.impl->outbuf = grn_msg_open(&edge->ctx, com, &edge->send_old);
+      grn_obj_close(&edge->ctx, edge->ctx.impl->output.buf);
+      edge->ctx.impl->output.buf =
+        grn_msg_open(&edge->ctx, com, &edge->send_old);
       edge->com = com;
       edge->stat = EDGE_IDLE;
       edge->flags = GRN_EDGE_WORKER;
@@ -2126,9 +2655,6 @@ g_server(char *path)
   int exit_code = EXIT_FAILURE;
   grn_ctx ctx_, *ctx = &ctx_;
   grn_ctx_init(ctx, 0);
-  MUTEX_INIT(q_mutex);
-  COND_INIT(q_cond);
-  CRITICAL_SECTION_INIT(cache_lock);
   GRN_COM_QUEUE_INIT(&ctx_new);
   GRN_COM_QUEUE_INIT(&ctx_old);
   check_rlimit_nofile(ctx);
@@ -2151,6 +2677,7 @@ enum {
 #define FLAG_MODE_DAEMON     (1 << 6)
 #define FLAG_MODE_SERVER     (1 << 7)
 #define FLAG_NEW_DB     (1 << 8)
+#define FLAG_USE_WINDOWS_EVENT_LOG (1 << 9)
 
 static uint32_t
 get_core_number(void)
@@ -2267,7 +2794,7 @@ config_file_parse(const char *path, const grn_str_getopt_opt *opts,
   char *ptr, *name, *value;
   size_t name_length, value_length;
 
-  while (isspace(*buf)) {
+  while (isspace((unsigned char)*buf)) {
     buf++;
   }
 
@@ -2278,17 +2805,17 @@ config_file_parse(const char *path, const grn_str_getopt_opt *opts,
 
   do {
     *ptr-- = '\0';
-  } while (ptr >= buf && isspace(*ptr));
+  } while (ptr >= buf && isspace((unsigned char)*ptr));
 
   if (!*buf) {
     return CONFIG_FILE_SUCCESS;
   }
 
   name = ptr = buf;
-  while (*ptr && !isspace(*ptr) && *ptr != '=') {
+  while (*ptr && !isspace((unsigned char)*ptr) && *ptr != '=') {
     ptr++;
   }
-  while (isspace(*ptr)) {
+  while (isspace((unsigned char)*ptr)) {
     *ptr++ = '\0';
   }
 
@@ -2303,7 +2830,7 @@ config_file_parse(const char *path, const grn_str_getopt_opt *opts,
 
   if (*ptr == '=') {
     *ptr++ = '\0';
-    while (isspace(*ptr)) {
+    while (isspace((unsigned char)*ptr)) {
       ptr++;
     }
     value = ptr;
@@ -2370,8 +2897,8 @@ config_file_load(const char *path, const grn_str_getopt_opt *opts, int *flags)
 static const int default_http_port = DEFAULT_HTTP_PORT;
 static const int default_gqtp_port = DEFAULT_GQTP_PORT;
 static grn_encoding default_encoding = GRN_ENC_DEFAULT;
-static uint32_t default_max_num_threads = DEFAULT_MAX_NFTHREADS;
-static const int default_log_level = GRN_LOG_DEFAULT_LEVEL;
+static uint32_t default_max_n_threads = DEFAULT_MAX_N_FLOATING_THREADS;
+static const grn_log_level default_log_level = GRN_LOG_DEFAULT_LEVEL;
 static const char * const default_protocol = "gqtp";
 static const char *default_hostname = "localhost";
 static const char * const default_dest = "localhost";
@@ -2383,6 +2910,7 @@ static grn_command_version default_default_command_version =
     GRN_COMMAND_VERSION_DEFAULT;
 static int64_t default_default_match_escalation_threshold = 0;
 static const char * const default_bind_address = "0.0.0.0";
+static double default_default_request_timeout = 0.0;
 
 static void
 init_default_hostname(void)
@@ -2415,9 +2943,9 @@ init_default_settings(void)
   default_encoding = grn_encoding_parse(GRN_DEFAULT_ENCODING);
 
   {
-    const uint32_t num_cores = get_core_number();
-    if (num_cores != 0) {
-      default_max_num_threads = num_cores;
+    const uint32_t n_cores = get_core_number();
+    if (n_cores != 0) {
+      default_max_n_threads = n_cores;
     }
   }
 
@@ -2436,17 +2964,19 @@ init_default_settings(void)
 
 #ifdef WIN32
   {
-    static char win32_default_document_root[PATH_MAX];
-    size_t document_root_length = strlen(grn_win32_base_dir()) + 1 +
+    static char windows_default_document_root[PATH_MAX];
+    size_t document_root_length = strlen(grn_windows_base_dir()) + 1 +
         strlen(GRN_DEFAULT_RELATIVE_DOCUMENT_ROOT) + 1;
     if (document_root_length >= PATH_MAX) {
       fprintf(stderr, "can't use default root: too long path\n");
     } else {
-      grn_strcpy(win32_default_document_root, PATH_MAX, grn_win32_base_dir());
-      grn_strcat(win32_default_document_root, PATH_MAX, "/");
-      grn_strcat(win32_default_document_root, PATH_MAX,
+      grn_strcpy(windows_default_document_root, PATH_MAX,
+                 grn_windows_base_dir());
+      grn_strcat(windows_default_document_root, PATH_MAX,
+                 "/");
+      grn_strcat(windows_default_document_root, PATH_MAX,
                  GRN_DEFAULT_RELATIVE_DOCUMENT_ROOT);
-      default_document_root = win32_default_document_root;
+      default_document_root = windows_default_document_root;
     }
   }
 #else
@@ -2455,7 +2985,8 @@ init_default_settings(void)
 
   default_default_command_version = grn_get_default_command_version();
   default_default_match_escalation_threshold =
-      grn_get_default_match_escalation_threshold();
+    grn_get_default_match_escalation_threshold();
+  default_default_request_timeout = grn_get_default_request_timeout();
 }
 
 static void
@@ -2498,7 +3029,7 @@ static void
 show_version(void)
 {
   printf("%s %s [",
-         grn_get_package(),
+         grn_get_package_label(),
          grn_get_version());
 
   /* FIXME: Should we detect host information dynamically on Windows? */
@@ -2533,6 +3064,9 @@ show_version(void)
 #endif
 #ifdef GRN_WITH_LZ4
   printf(",lz4");
+#endif
+#ifdef GRN_WITH_ZSTD
+  printf(",zstd");
 #endif
 #ifdef USE_KQUEUE
   printf(",kqueue");
@@ -2575,7 +3109,7 @@ show_usage(FILE *output)
           "      --file <path>:          read commands from specified file\n"
           "      --input-fd <FD>:        read commands from specified file descriptor\n"
           "                              --file has a prioriry over --input-fd\n"
-          "      --output-fd <FD>:       output response to specifid file descriptor\n"
+          "      --output-fd <FD>:       output response to specified file descriptor\n"
           "  -p, --port <port number>:   specify server port number (client mode only)\n"
           "                              (default: %d)\n"
           "\n"
@@ -2596,10 +3130,26 @@ show_usage(FILE *output)
           "                                specify max number of threads (default: %u)\n"
           "      --pid-path <path>:        specify file to write process ID to\n"
           "                                (daemon mode only)\n"
+          "      --default-request-timeout <timeout>:\n"
+          "                                specify the default request timeout in seconds\n"
+          "                                (default: %f)\n"
+          "      --cache-base-path <path>: specify the cache base path\n"
+          "                                You can make cache persistent by this option\n"
+          "                                You must specify path on memory file system\n"
+          "                                (default: none; disabled)\n"
+          "\n"
+          "Memcached options:\n"
+          "      --memcached-column <column>:\n"
+          "                                specify column to access by memcached protocol\n"
+          "                                The column must be text type column and\n"
+          "                                its table must be not NO_KEY table\n"
           "\n"
           "Logging options:\n"
           "  -l, --log-level <log level>:\n"
-          "                           specify log level (default: %d)\n"
+          "                           specify log level\n"
+          "                           [none|emergency|alert|critical|\n"
+          "                            error|warning|notice|info|debug|dump]\n"
+          "                           (default: %s)\n"
           "      --log-path <path>:   specify log path\n"
           "                           (default: %s)\n"
           "      --log-rotate-threshold-size <threshold>:\n"
@@ -2608,6 +3158,10 @@ show_usage(FILE *output)
           "                           log file size is larger than or\n"
           "                           equals to the threshold\n"
           "                           (default: 0; disabled)\n"
+#ifdef WIN32
+          "      --use-windows-event-log:\n"
+          "                           report logs as Windows events\n"
+#endif /* WIN32 */
           "      --query-log-path <path>:\n"
           "                           specify query log path\n"
           "                           (default: %s)\n"
@@ -2642,8 +3196,10 @@ show_usage(FILE *output)
           grn_encoding_to_string(default_encoding),
           default_gqtp_port, default_bind_address,
           default_http_port, default_gqtp_port, default_hostname, default_protocol,
-          default_document_root, default_cache_limit, default_max_num_threads,
-          default_log_level, default_log_path, default_query_log_path,
+          default_document_root, default_cache_limit, default_max_n_threads,
+          default_default_request_timeout,
+          grn_log_level_to_string(default_log_level),
+          default_log_path, default_query_log_path,
           default_config_path, default_default_command_version,
           (long long int)default_default_match_escalation_threshold,
           default_dest);
@@ -2654,7 +3210,7 @@ main(int argc, char **argv)
 {
   const char *port_arg = NULL;
   const char *encoding_arg = NULL;
-  const char *max_num_threads_arg = NULL;
+  const char *max_n_threads_arg = NULL;
   const char *log_level_arg = NULL;
   const char *bind_address_arg = NULL;
   const char *hostname_arg = NULL;
@@ -2671,10 +3227,15 @@ main(int argc, char **argv)
   const char *output_fd_arg = NULL;
   const char *working_directory_arg = NULL;
   const char *config_path = NULL;
+  const char *default_request_timeout_arg = NULL;
+  const char *cache_base_path = NULL;
   int exit_code = EXIT_SUCCESS;
   int i;
   int flags = 0;
   uint32_t cache_limit = 0;
+  grn_command_version default_command_version;
+  int64_t default_match_escalation_threshold = 0;
+  double default_request_timeout = 0.0;
   grn_bool need_line_editor = GRN_FALSE;
   static grn_str_getopt_opt opts[] = {
     {'p', "port", NULL, 0, GETOPT_OP_NONE},
@@ -2705,11 +3266,16 @@ main(int argc, char **argv)
     {'\0', "input-fd", NULL, 0, GETOPT_OP_NONE},
     {'\0', "output-fd", NULL, 0, GETOPT_OP_NONE},
     {'\0', "working-directory", NULL, 0, GETOPT_OP_NONE},
+    {'\0', "use-windows-event-log", NULL,
+     FLAG_USE_WINDOWS_EVENT_LOG, GETOPT_OP_ON},
+    {'\0', "memcached-column", NULL, 0, GETOPT_OP_NONE},
+    {'\0', "default-request-timeout", NULL, 0, GETOPT_OP_NONE},
+    {'\0', "cache-base-path", NULL, 0, GETOPT_OP_NONE},
     {'\0', NULL, NULL, 0, 0}
   };
   opts[0].arg = &port_arg;
   opts[1].arg = &encoding_arg;
-  opts[2].arg = &max_num_threads_arg;
+  opts[2].arg = &max_n_threads_arg;
   opts[7].arg = &log_level_arg;
   opts[8].arg = &hostname_arg;
   opts[10].arg = &protocol_arg;
@@ -2728,6 +3294,9 @@ main(int argc, char **argv)
   opts[25].arg = &input_fd_arg;
   opts[26].arg = &output_fd_arg;
   opts[27].arg = &working_directory_arg;
+  opts[29].arg = &memcached_column_name;
+  opts[30].arg = &default_request_timeout_arg;
+  opts[31].arg = &cache_base_path;
 
   reset_ready_notify_pipe();
 
@@ -2769,6 +3338,10 @@ main(int argc, char **argv)
               argv[0], working_directory_arg, strerror(errno));
       return EXIT_FAILURE;
     }
+  }
+
+  if (cache_base_path) {
+    grn_set_default_cache_base_path(cache_base_path);
   }
 
   /* ignore mode option in config file */
@@ -2864,6 +3437,7 @@ main(int argc, char **argv)
       break;
     case 'm' :
     case 'M' :
+      is_memcached_mode = GRN_TRUE;
       do_client = g_client;
       do_server = g_server;
       break;
@@ -2875,6 +3449,16 @@ main(int argc, char **argv)
   } else {
     do_client = g_client;
     do_server = g_server;
+  }
+
+#ifdef WIN32
+  if (flags & FLAG_USE_WINDOWS_EVENT_LOG) {
+    use_windows_event_log = GRN_TRUE;
+  }
+#endif /* WIN32 */
+
+  if (use_windows_event_log) {
+    grn_windows_event_logger_set(NULL, windows_event_source_name);
   }
 
   if (log_path_arg) {
@@ -2914,69 +3498,50 @@ main(int argc, char **argv)
     grn_default_query_logger_set_rotate_threshold_size(value);
   }
 
-  if (log_level_arg) {
-    const char * const end = log_level_arg + strlen(log_level_arg);
-    const char *rest = NULL;
-    const int value = grn_atoi(log_level_arg, end, &rest);
-    if (end != rest || value < 0 || value > 9) {
-      fprintf(stderr, "invalid log level: <%s>\n", log_level_arg);
-      return EXIT_FAILURE;
-    }
-    log_level = value;
-  } else {
-    log_level = default_log_level;
-  }
-  grn_default_logger_set_max_level(log_level);
+  {
+    grn_log_level log_level;
 
-  if (max_num_threads_arg) {
-    const char * const end = max_num_threads_arg + strlen(max_num_threads_arg);
+    if (log_level_arg) {
+      grn_bool parsed;
+
+      parsed = grn_log_level_parse(log_level_arg, &log_level);
+      if (!parsed) {
+        const char * const end = log_level_arg + strlen(log_level_arg);
+        const char *rest = NULL;
+        const int value = grn_atoi(log_level_arg, end, &rest);
+        if (end != rest || value < GRN_LOG_NONE || value > GRN_LOG_DUMP) {
+          fprintf(stderr, "invalid log level: <%s>\n", log_level_arg);
+          return EXIT_FAILURE;
+        }
+        log_level = value;
+      }
+    } else {
+      log_level = default_log_level;
+    }
+
+    grn_default_logger_set_max_level(log_level);
+  }
+
+  if (max_n_threads_arg) {
+    const char * const end = max_n_threads_arg + strlen(max_n_threads_arg);
     const char *rest = NULL;
-    const uint32_t value = grn_atoui(max_num_threads_arg, end, &rest);
+    const uint32_t value = grn_atoui(max_n_threads_arg, end, &rest);
     if (end != rest || value < 1 || value > 100) {
       fprintf(stderr, "invalid max number of threads: <%s>\n",
-              max_num_threads_arg);
+              max_n_threads_arg);
       return EXIT_FAILURE;
     }
-    max_nfthreads = value;
+    max_n_floating_threads = value;
   } else {
-    max_nfthreads = default_max_num_threads;
-  }
-
-  if (input_path) {
-    if (!freopen(input_path, "r", stdin)) {
-      fprintf(stderr, "can't open input file: %s (%s)\n",
-              input_path, strerror(errno));
-      return EXIT_FAILURE;
-    }
-    batchmode = GRN_TRUE;
-  } else {
-    if (input_fd_arg) {
-      const char * const end = input_fd_arg + strlen(input_fd_arg);
-      const char *rest = NULL;
-      const int input_fd = grn_atoi(input_fd_arg, end, &rest);
-      if (rest != end || input_fd == 0) {
-        fprintf(stderr, "invalid input FD: <%s>\n", input_fd_arg);
-        return EXIT_FAILURE;
-      }
-      if (dup2(input_fd, STDIN_FILENO) == -1) {
-        fprintf(stderr, "can't open input FD: %d (%s)\n",
-                input_fd, strerror(errno));
-        return EXIT_FAILURE;
-      }
-      batchmode = GRN_TRUE;
+    if (flags & FLAG_MODE_ALONE) {
+      max_n_floating_threads = 1;
     } else {
-      if (argc - i > 1) {
-        batchmode = GRN_TRUE;
-      } else {
-        batchmode = !isatty(0);
-      }
+      max_n_floating_threads = default_max_n_threads;
     }
   }
 
-  if ((flags & (FLAG_MODE_ALONE | FLAG_MODE_CLIENT)) &&
-      !batchmode) {
-    need_line_editor = GRN_TRUE;
-  }
+  grn_thread_set_get_limit_func(groonga_get_thread_limit, NULL);
+  grn_thread_set_set_limit_func(groonga_set_thread_limit, NULL);
 
   if (output_fd_arg) {
     const char * const end = output_fd_arg + strlen(output_fd_arg);
@@ -3036,18 +3601,7 @@ main(int argc, char **argv)
               default_command_version_arg);
       return EXIT_FAILURE;
     }
-    switch (value) {
-    case 1 :
-      default_command_version = GRN_COMMAND_VERSION_1;
-      break;
-    case 2 :
-      default_command_version = GRN_COMMAND_VERSION_2;
-      break;
-    default :
-      fprintf(stderr, "invalid command version: <%s>\n",
-              default_command_version_arg);
-      return EXIT_FAILURE;
-    }
+    default_command_version = value;
   } else {
     default_command_version = default_default_command_version;
   }
@@ -3078,12 +3632,27 @@ main(int argc, char **argv)
     cache_limit = value;
   }
 
-#ifdef GRN_WITH_LIBEDIT
-  if (need_line_editor) {
-    line_editor_init(argc, argv);
+  if (default_request_timeout_arg) {
+    const char * const end =
+      default_request_timeout_arg + strlen(default_request_timeout_arg);
+    char *rest = NULL;
+    double value;
+    value = strtod(default_request_timeout_arg, &rest);
+    if (end != rest) {
+      fprintf(stderr, "invalid default request timeout: <%s>\n",
+              default_request_timeout_arg);
+      return EXIT_FAILURE;
+    }
+    default_request_timeout = value;
+  } else {
+    default_request_timeout = default_default_request_timeout;
   }
-#endif
-  if (grn_init()) { return EXIT_FAILURE; }
+
+  grn_gctx.errbuf[0] = '\0';
+  if (grn_init()) {
+    fprintf(stderr, "failed to initialize Groonga: %s\n", grn_gctx.errbuf);
+    return EXIT_FAILURE;
+  }
 
   grn_set_default_encoding(encoding);
 
@@ -3093,6 +3662,10 @@ main(int argc, char **argv)
 
   if (default_match_escalation_threshold_arg) {
     grn_set_default_match_escalation_threshold(default_match_escalation_threshold);
+  }
+
+  if (default_request_timeout_arg) {
+    grn_set_default_request_timeout(default_request_timeout);
   }
 
   grn_set_segv_handler();
@@ -3105,6 +3678,62 @@ main(int argc, char **argv)
     grn_cache_set_max_n_entries(&grn_gctx, cache, cache_limit);
   }
 
+  MUTEX_INIT(q_mutex);
+  COND_INIT(q_cond);
+
+  if (input_path) {
+    input_reader = grn_file_reader_open(&grn_gctx, input_path);
+    if (!input_reader) {
+      fprintf(stderr, "can't open input file: %s (%s)\n",
+              input_path, strerror(errno));
+      return EXIT_FAILURE;
+    }
+    batchmode = GRN_TRUE;
+  } else {
+    if (input_fd_arg) {
+      const char * const end = input_fd_arg + strlen(input_fd_arg);
+      const char *rest = NULL;
+      const int input_fd = grn_atoi(input_fd_arg, end, &rest);
+      if (rest != end || input_fd == 0) {
+        fprintf(stderr, "invalid input FD: <%s>\n", input_fd_arg);
+        return EXIT_FAILURE;
+      }
+      if (dup2(input_fd, STDIN_FILENO) == -1) {
+        fprintf(stderr, "can't open input FD: %d (%s)\n",
+                input_fd, strerror(errno));
+        return EXIT_FAILURE;
+      }
+      input_reader = grn_file_reader_open(&grn_gctx, "-");
+      if (!input_reader) {
+        fprintf(stderr, "%s", grn_gctx.errbuf);
+        return EXIT_FAILURE;
+      }
+      batchmode = GRN_TRUE;
+    } else {
+      input_reader = grn_file_reader_open(&grn_gctx, "-");
+      if (!input_reader) {
+        fprintf(stderr, "%s", grn_gctx.errbuf);
+        return EXIT_FAILURE;
+      }
+      if (argc - i > 1) {
+        batchmode = GRN_TRUE;
+      } else {
+        batchmode = !grn_isatty(0);
+      }
+    }
+  }
+
+  if ((flags & (FLAG_MODE_ALONE | FLAG_MODE_CLIENT)) &&
+      !batchmode) {
+    need_line_editor = GRN_TRUE;
+  }
+
+#ifdef GRN_WITH_LIBEDIT
+  if (need_line_editor) {
+    line_editor_init(argc, argv);
+  }
+#endif
+
   newdb = (flags & FLAG_NEW_DB);
   is_daemon_mode = (flags & FLAG_MODE_DAEMON);
   if (flags & FLAG_MODE_CLIENT) {
@@ -3115,6 +3744,12 @@ main(int argc, char **argv)
     exit_code = do_alone(argc - i, argv + i);
   }
 
+  COND_FIN(q_cond);
+  MUTEX_FIN(q_mutex);
+
+  if (input_reader) {
+    grn_file_reader_close(&grn_gctx, input_reader);
+  }
 #ifdef GRN_WITH_LIBEDIT
   if (need_line_editor) {
     line_editor_fin();

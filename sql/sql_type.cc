@@ -4392,7 +4392,7 @@ bool Type_handler::
 bool Type_handler::
        Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const
 {
-  item->fix_length_and_dec_str();
+  item->fix_length_and_dec_generic();
   return false;
 }
 
@@ -4401,6 +4401,14 @@ bool Type_handler_numeric::
        Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const
 {
   item->fix_length_and_dec_numeric();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const
+{
+  item->fix_length_and_dec_str();
   return false;
 }
 
@@ -5060,7 +5068,6 @@ bool Type_handler_real_result::
 {
   param->unsigned_flag= attr->unsigned_flag;
   param->set_double(val->value.m_double);
-  param->set_handler(&type_handler_double);
   return false;
 }
 
@@ -5072,8 +5079,7 @@ bool Type_handler_int_result::
                             const st_value *val) const
 {
   param->unsigned_flag= attr->unsigned_flag;
-  param->set_int(val->value.m_longlong, MY_INT64_NUM_DECIMAL_DIGITS);
-  param->set_handler(&type_handler_longlong);
+  param->set_int(val->value.m_longlong, attr->max_length);
   return false;
 }
 
@@ -5086,7 +5092,6 @@ bool Type_handler_decimal_result::
 {
   param->unsigned_flag= attr->unsigned_flag;
   param->set_decimal(&val->m_decimal, attr->unsigned_flag);
-  param->set_handler(&type_handler_newdecimal);
   return false;
 }
 
@@ -5098,13 +5103,14 @@ bool Type_handler_string_result::
                             const st_value *val) const
 {
   param->unsigned_flag= false;
-  param->value.cs_info.set(thd, attr->collation.collation);
+  param->setup_conversion_string(thd, attr->collation.collation);
   /*
     Exact value of max_length is not known unless data is converted to
     charset of connection, so we have to set it later.
   */
-  param->set_handler(&type_handler_varchar);
-  return param->set_str(val->m_string.ptr(), val->m_string.length());
+  return param->set_str(val->m_string.ptr(), val->m_string.length(),
+                        attr->collation.collation,
+                        attr->collation.collation);
 }
 
 
@@ -5116,7 +5122,6 @@ bool Type_handler_temporal_result::
 {
   param->unsigned_flag= attr->unsigned_flag;
   param->set_time(&val->value.m_time, attr->max_length, attr->decimals);
-  param->set_handler(this);
   return false;
 }
 
@@ -5129,10 +5134,10 @@ bool Type_handler_geometry::
                             const st_value *val) const
 {
   param->unsigned_flag= false;
-  param->value.cs_info.set(thd, &my_charset_bin);
-  param->set_handler(&type_handler_geometry);
+  param->setup_conversion_blob(thd);
   param->set_geometry_type(attr->uint_geometry_type());
-  return param->set_str(val->m_string.ptr(), val->m_string.length());
+  return param->set_str(val->m_string.ptr(), val->m_string.length(),
+                        &my_charset_bin, &my_charset_bin);
 }
 #endif
 
@@ -5516,5 +5521,141 @@ Item *Type_handler_long_blob::
   }
   return new (thd->mem_root) Item_char_typecast(thd, item, len, real_cs);
 }
+
+/***************************************************************************/
+
+void Type_handler_string_result::Item_param_setup_conversion(THD *thd,
+                                                             Item_param *param)
+                                                             const
+{
+  param->setup_conversion_string(thd, thd->variables.character_set_client);
+}
+
+
+void Type_handler_blob_common::Item_param_setup_conversion(THD *thd,
+                                                           Item_param *param)
+                                                           const
+{
+  param->setup_conversion_blob(thd);
+}
+
+
+void Type_handler_tiny::Item_param_set_param_func(Item_param *param,
+                                                  uchar **pos, ulong len) const
+{
+  param->set_param_tiny(pos, len);
+}
+
+
+void Type_handler_short::Item_param_set_param_func(Item_param *param,
+                                                   uchar **pos, ulong len) const
+{
+  param->set_param_short(pos, len);
+}
+
+
+void Type_handler_long::Item_param_set_param_func(Item_param *param,
+                                                  uchar **pos, ulong len) const
+{
+  param->set_param_int32(pos, len);
+}
+
+
+void Type_handler_longlong::Item_param_set_param_func(Item_param *param,
+                                                      uchar **pos,
+                                                      ulong len) const
+{
+  param->set_param_int64(pos, len);
+}
+
+
+void Type_handler_float::Item_param_set_param_func(Item_param *param,
+                                                   uchar **pos,
+                                                   ulong len) const
+{
+  param->set_param_float(pos, len);
+}
+
+
+void Type_handler_double::Item_param_set_param_func(Item_param *param,
+                                                   uchar **pos,
+                                                   ulong len) const
+{
+  param->set_param_double(pos, len);
+}
+
+
+void Type_handler_decimal_result::Item_param_set_param_func(Item_param *param,
+                                                            uchar **pos,
+                                                            ulong len) const
+{
+  param->set_param_decimal(pos, len);
+}
+
+
+void Type_handler_string_result::Item_param_set_param_func(Item_param *param,
+                                                           uchar **pos,
+                                                           ulong len) const
+{
+  param->set_param_str(pos, len);
+}
+
+
+void Type_handler_time_common::Item_param_set_param_func(Item_param *param,
+                                                         uchar **pos,
+                                                         ulong len) const
+{
+  param->set_param_time(pos, len);
+}
+
+
+void Type_handler_date_common::Item_param_set_param_func(Item_param *param,
+                                                         uchar **pos,
+                                                         ulong len) const
+{
+  param->set_param_date(pos, len);
+}
+
+
+void Type_handler_datetime_common::Item_param_set_param_func(Item_param *param,
+                                                             uchar **pos,
+                                                             ulong len) const
+{
+  param->set_param_datetime(pos, len);
+}
+
+
+void Type_handler_timestamp_common::Item_param_set_param_func(Item_param *param,
+                                                              uchar **pos,
+                                                              ulong len) const
+{
+  param->set_param_datetime(pos, len);
+}
+
+
+void Type_handler::Item_param_set_param_func(Item_param *param,
+                                             uchar **pos,
+                                             ulong len) const
+{
+  param->set_null(); // Not possible type code in the client-server protocol
+}
+
+
+void Type_handler_typelib::Item_param_set_param_func(Item_param *param,
+                                                     uchar **pos,
+                                                     ulong len) const
+{
+  param->set_null(); // Not possible type code in the client-server protocol
+}
+
+
+#ifdef HAVE_SPATIAL
+void Type_handler_geometry::Item_param_set_param_func(Item_param *param,
+                                                      uchar **pos,
+                                                      ulong len) const
+{
+  param->set_null(); // Not possible type code in the client-server protocol
+}
+#endif
 
 /***************************************************************************/

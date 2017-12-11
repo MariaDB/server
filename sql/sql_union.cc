@@ -303,7 +303,8 @@ int select_union_recursive::send_data(List<Item> &values)
 {
   int rc= select_unit::send_data(values);
 
-  if (write_err != HA_ERR_FOUND_DUPP_KEY && 
+  if (rc == 0 &&
+      write_err != HA_ERR_FOUND_DUPP_KEY &&
       write_err != HA_ERR_FOUND_DUPP_UNIQUE)
   { 
     int err;
@@ -1359,6 +1360,9 @@ bool st_select_lex_unit::exec()
 
   if (saved_error)
     DBUG_RETURN(saved_error);
+
+  if (union_result)
+    union_result->init();
 
   if (uncacheable || !item || !item->assigned() || describe)
   {

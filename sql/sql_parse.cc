@@ -3735,6 +3735,14 @@ mysql_execute_command(THD *thd)
     ulong privileges_requested= lex->exchange ? SELECT_ACL | FILE_ACL :
       SELECT_ACL;
 
+    /* 
+      The same function must be called for DML commands
+      when CTEs are supported in DML statements
+    */
+    res= check_dependencies_in_with_clauses(thd->lex->with_clauses_list);
+    if (res)
+      break;
+
     if (all_tables)
       res= check_table_access(thd,
                               privileges_requested,
@@ -6290,6 +6298,24 @@ finish:
       THD_STAGE_INFO(thd, stage_rollback);
       trans_rollback_stmt(thd);
     }
+#ifdef WITH_WSREP
+    else if (thd->spcont &&
+             (thd->wsrep_conflict_state == MUST_ABORT ||
+              thd->wsrep_conflict_state == CERT_FAILURE))
+    {
+      /*
+        The error was cleared, but THD was aborted by wsrep and
+        wsrep_conflict_state is still set accordingly. This
+        situation is expected if we are running a stored procedure
+        that declares a handler that catches ER_LOCK_DEADLOCK error.
+        In which case the error may have been cleared in method
+        sp_rcontext::handle_sql_condition().
+      */
+      trans_rollback_stmt(thd);
+      thd->wsrep_conflict_state= NO_CONFLICT;
+      thd->killed= NOT_KILLED;
+    }
+#endif /* WITH_WSREP */
     else
     {
       /* If commit fails, we should be able to reset the OK status. */

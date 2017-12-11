@@ -39,7 +39,7 @@ static struct mrb_data_type mrb_grn_index_cursor_type = {
 };
 
 static mrb_value
-mrb_grn_index_cursor_singleton_open_raw(mrb_state *mrb, mrb_value klass)
+mrb_grn_index_cursor_class_open_raw(mrb_state *mrb, mrb_value klass)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   mrb_value mrb_table_cursor;
@@ -123,7 +123,9 @@ mrb_grn_index_cursor_select(mrb_state *mrb, mrb_value self)
   grn_obj *expr_variable = NULL;
   int offset = 0;
   int limit = 10;
+  int max_n_unmatched_records = -1;
   int n_matched_records = 0;
+  int n_unmatched_records = 0;
   mrb_value mrb_index;
   grn_obj *index;
   grn_obj *lexicon;
@@ -142,6 +144,7 @@ mrb_grn_index_cursor_select(mrb_state *mrb, mrb_value self)
     mrb_value mrb_expr;
     mrb_value mrb_offset;
     mrb_value mrb_limit;
+    mrb_value mrb_max_n_unmatched_records;
 
     mrb_expr = grn_mrb_options_get_lit(mrb, mrb_options, "expression");
     if (!mrb_nil_p(mrb_expr)) {
@@ -158,6 +161,12 @@ mrb_grn_index_cursor_select(mrb_state *mrb, mrb_value self)
     if (!mrb_nil_p(mrb_limit)) {
       limit = mrb_fixnum(mrb_limit);
     }
+
+    mrb_max_n_unmatched_records =
+      grn_mrb_options_get_lit(mrb, mrb_options, "max_n_unmatched_records");
+    if (!mrb_nil_p(mrb_max_n_unmatched_records)) {
+      max_n_unmatched_records = mrb_fixnum(mrb_max_n_unmatched_records);
+    }
   }
 
   if (limit <= 0) {
@@ -169,15 +178,27 @@ mrb_grn_index_cursor_select(mrb_state *mrb, mrb_value self)
   lexicon = ((grn_ii *)index)->lexicon;
   data_table = grn_ctx_at(ctx, grn_obj_get_range(ctx, index));
 
+  if (max_n_unmatched_records < 0) {
+    max_n_unmatched_records = INT32_MAX;
+  }
   while ((posting = grn_index_cursor_next(ctx, index_cursor, &term_id))) {
     if (expr) {
-      grn_bool matched_raw;
+      grn_bool matched_raw = GRN_FALSE;
       grn_obj *matched;
 
       GRN_RECORD_SET(ctx, expr_variable, posting->rid);
       matched = grn_expr_exec(ctx, expr, 0);
-      GRN_TRUEP(ctx, matched, matched_raw);
+      if (matched) {
+        matched_raw = grn_obj_is_true(ctx, matched);
+      } else {
+        grn_mrb_ctx_check(mrb);
+      }
+
       if (!matched_raw) {
+        n_unmatched_records++;
+        if (n_unmatched_records > max_n_unmatched_records) {
+          return mrb_fixnum_value(-1);
+        }
         continue;
       }
     }
@@ -186,7 +207,7 @@ mrb_grn_index_cursor_select(mrb_state *mrb, mrb_value self)
       offset--;
       continue;
     }
-    grn_ii_posting_add(ctx, (grn_ii_posting *)posting, result_set, op);
+    grn_ii_posting_add(ctx, posting, result_set, op);
     limit--;
     if (limit == 0) {
       break;
@@ -208,9 +229,9 @@ grn_mrb_index_cursor_init(grn_ctx *ctx)
   klass = mrb_define_class_under(mrb, module, "IndexCursor", mrb->object_class);
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
 
-  mrb_define_singleton_method(mrb, (struct RObject *)klass, "open_raw",
-                              mrb_grn_index_cursor_singleton_open_raw,
-                              MRB_ARGS_ARG(2, 1));
+  mrb_define_class_method(mrb, klass, "open_raw",
+                          mrb_grn_index_cursor_class_open_raw,
+                          MRB_ARGS_ARG(2, 1));
 
   mrb_define_method(mrb, klass, "initialize",
                     mrb_grn_index_cursor_initialize, MRB_ARGS_REQ(1));

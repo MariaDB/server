@@ -20,10 +20,10 @@
 #ifndef MRN_MULTIPLE_COLUMN_KEY_CODEC_HPP_
 #define MRN_MULTIPLE_COLUMN_KEY_CODEC_HPP_
 
-#include <groonga.h>
-
 #include <mrn_mysql.h>
 #include <mrn_mysql_compat.h>
+
+#include <groonga.h>
 
 namespace mrn {
   class MultipleColumnKeyCodec {

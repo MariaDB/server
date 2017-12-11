@@ -2135,28 +2135,6 @@ check_if_skip_table(
 	return(FALSE);
 }
 
-/** @return the tablespace flags from a given data file
-@retval	ULINT_UNDEFINED	if the file is not readable */
-ulint xb_get_space_flags(pfs_os_file_t file)
-{
-	byte	*buf;
-	byte	*page;
-	ulint	flags;
-
-	buf = static_cast<byte *>(malloc(2 * UNIV_PAGE_SIZE));
-	page = static_cast<byte *>(ut_align(buf, UNIV_PAGE_SIZE));
-
-	if (os_file_read(IORequestRead, file, page, 0, UNIV_PAGE_SIZE)) {
-		flags = fsp_header_get_flags(page);
-	} else {
-		flags = ULINT_UNDEFINED;
-	}
-
-	free(buf);
-
-	return(flags);
-}
-
 const char*
 xb_get_copy_action(const char *dflt)
 {
@@ -2421,8 +2399,15 @@ xtrabackup_copy_logfile(copy_logfile copy)
 
 		log_mutex_enter();
 
-		lsn_t lsn = log_group_read_log_seg(log_sys->buf, &log_sys->log,
-						   start_lsn, end_lsn);
+		lsn_t lsn= start_lsn;
+		for(int retries= 0; retries < 100; retries++) {
+			if (log_group_read_log_seg(log_sys->buf, &log_sys->log,
+				&lsn, end_lsn)){
+				break;
+			}
+			msg("Retrying read of a redo log block");
+			my_sleep(1000);
+		}
 
 		start_lsn = xtrabackup_copy_log(copy, start_lsn, lsn);
 
@@ -2683,10 +2668,10 @@ xb_load_single_table_tablespace(
 	name = static_cast<char*>(ut_malloc_nokey(pathlen));
 
 	if (dirname != NULL) {
-		ut_snprintf(name, pathlen, "%s/%s", dirname, filname);
+		snprintf(name, pathlen, "%s/%s", dirname, filname);
 		name[pathlen - 5] = 0;
 	} else {
-		ut_snprintf(name, pathlen, "%s", filname);
+		snprintf(name, pathlen, "%s", filname);
 		name[pathlen - 5] = 0;
 	}
 
@@ -2804,8 +2789,8 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 
 			dbpath = static_cast<char*>(ut_malloc_nokey(dbpath_len));
 		}
-		ut_snprintf(dbpath, dbpath_len,
-			    "%s/%s", fil_path_to_mysql_datadir, dbinfo.name);
+		snprintf(dbpath, dbpath_len,
+			 "%s/%s", fil_path_to_mysql_datadir, dbinfo.name);
 		os_normalize_path(dbpath);
 
 		if (check_if_skip_database_by_path(dbpath)) {
@@ -3037,7 +3022,7 @@ xb_validate_name(
 		exit(EXIT_FAILURE);
 	}
 	p = strpbrk(name, "/\\~");
-	if (p && p - name < NAME_LEN) {
+	if (p && (uint) (p - name) < NAME_LEN) {
 		msg("mariabackup: name `%s` is not valid.\n", name);
 		exit(EXIT_FAILURE);
 	}
@@ -4311,12 +4296,12 @@ xtrabackup_apply_delta(
 
 	page_size = info.page_size.physical();
 	page_size_shift = get_bit_shift(page_size);
-	msg("mariabackup: page size for %s is %lu bytes\n",
+	msg("mariabackup: page size for %s is %zu bytes\n",
 	    src_path, page_size);
 	if (page_size_shift < 10 ||
 	    page_size_shift > UNIV_PAGE_SIZE_SHIFT_MAX) {
 		msg("mariabackup: error: invalid value of page_size "
-		    "(%lu bytes) read from %s\n", page_size, meta_path);
+		    "(%zu bytes) read from %s\n", page_size, meta_path);
 		goto error;
 	}
 
@@ -4418,10 +4403,29 @@ xtrabackup_apply_delta(
 			if (off == 0) {
 				/* Read tablespace size from page 0,
 				and extend the file to specified size.*/
-				os_offset_t n_pages = mach_read_from_4(buf + FSP_HEADER_OFFSET + FSP_SIZE);
-				success = os_file_set_size(dst_path, dst_file, n_pages*page_size);
-				if (!success)
-					goto error;
+				os_offset_t n_pages = mach_read_from_4(
+					buf + FSP_HEADER_OFFSET + FSP_SIZE);
+				if (mach_read_from_4(buf
+						     + FIL_PAGE_SPACE_ID)) {
+					if (!os_file_set_size(
+						    dst_path, dst_file,
+						    n_pages * page_size))
+						goto error;
+				} else if (fil_space_t* space
+					   = fil_space_acquire(0)) {
+					/* The system tablespace can
+					consist of multiple files. The
+					first one has full tablespace
+					size in page 0, but only the last
+					file should be extended. */
+					fil_node_t* n = UT_LIST_GET_FIRST(
+						space->chain);
+					bool fail = !strcmp(n->name, dst_path)
+						&& !fil_space_extend(
+							space, (ulint)n_pages);
+					fil_space_release(space);
+					if (fail) goto error;
+				}
 			}
 
 			success = os_file_write(IORequestWrite,

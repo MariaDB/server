@@ -999,6 +999,12 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   bool err_status= FALSE;
   uint ip= 0;
   sql_mode_t save_sql_mode;
+
+  // TODO(cvicentiu) See if you can drop this bit. This is used to resume
+  // execution from where we left off.
+  if (m_chistics.agg_type == GROUP_AGGREGATE)
+    ip= thd->spcont->instr_ptr;
+
   bool save_abort_on_warning;
   Query_arena *old_arena;
   /* per-instruction arena */
@@ -1021,6 +1027,19 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   /* this 7*STACK_MIN_SIZE is a complex matter with a long history (see it!) */
   if (check_stack_overrun(thd, 7 * STACK_MIN_SIZE, (uchar*)&old_packet))
     DBUG_RETURN(TRUE);
+
+  /*
+     Normally the counter is not reset between parsing and first execution,
+     but it is possible in case of error to have parsing on one CALL and
+     first execution (where VIEW will be parsed and added). So we store the
+     counter after parsing and restore it before execution just to avoid
+     repeating SELECT numbers.
+
+     Other problem is that it can be more SELECTs parsed in case of fixing
+     error causes previous interruption of the SP. So it is save not just
+     assign old value but add it.
+   */
+  thd->select_number+= m_select_number;
 
   /* init per-instruction memroot */
   init_sql_alloc(&execute_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
@@ -1163,6 +1182,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 #if defined(ENABLED_PROFILING)
       thd->profiling.discard_current_query();
 #endif
+      thd->spcont->quit_func= TRUE;
       break;
     }
 
@@ -1232,7 +1252,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     /* Reset sp_rcontext::end_partial_result_set flag. */
     ctx->end_partial_result_set= FALSE;
 
-  } while (!err_status && !thd->killed && !thd->is_fatal_error);
+  } while (!err_status && !thd->killed && !thd->is_fatal_error &&
+           !thd->spcont->pause_state);
 
 #if defined(ENABLED_PROFILING)
   thd->profiling.finish_current_query();
@@ -1248,9 +1269,14 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
   thd->restore_active_arena(&execute_arena, &backup_arena);
 
-  thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error
+  /* Only pop cursors when we're done with group aggregate running. */
+  if (m_chistics.agg_type != GROUP_AGGREGATE ||
+      (m_chistics.agg_type == GROUP_AGGREGATE && thd->spcont->quit_func))
+    thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error
 
   /* Restore all saved */
+  if (m_chistics.agg_type == GROUP_AGGREGATE)
+    thd->spcont->instr_ptr= ip;
   thd->server_status= (thd->server_status & ~status_backup_mask) | old_server_status;
   old_packet.swap(thd->packet);
   DBUG_ASSERT(thd->change_list.is_empty());
@@ -1360,6 +1386,16 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
                m_first_instance->m_first_free_instance->m_recursion_level ==
                m_recursion_level + 1));
   m_first_instance->m_first_free_instance= this;
+
+  /*
+     This execution of the SP was aborted with an error (e.g. "Table not
+     found").  However it might still have consumed some numbers from the
+     thd->select_number counter.  The next sp->exec() call must not use the
+     consumed numbers, so we remember the first free number (We know that
+     nobody will use it as this execution has stopped with an error).
+   */
+  if (err_status)
+    set_select_number(thd->select_number);
 
   DBUG_RETURN(err_status);
 }
@@ -1652,18 +1688,16 @@ err_with_cleanup:
 
 bool
 sp_head::execute_function(THD *thd, Item **argp, uint argcount,
-                          Field *return_value_fld)
+                          Field *return_value_fld, sp_rcontext **func_ctx,
+                          Query_arena *call_arena)
 {
   ulonglong UNINIT_VAR(binlog_save_options);
   bool need_binlog_call= FALSE;
   uint arg_no;
   sp_rcontext *octx = thd->spcont;
-  sp_rcontext *nctx = NULL;
   char buf[STRING_BUFFER_USUAL_SIZE];
   String binlog_buf(buf, sizeof(buf), &my_charset_bin);
   bool err_status= FALSE;
-  MEM_ROOT call_mem_root;
-  Query_arena call_arena(&call_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
   Query_arena backup_arena;
   DBUG_ENTER("sp_head::execute_function");
   DBUG_PRINT("info", ("function %s", m_name.str));
@@ -1696,23 +1730,25 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     TODO: we should create sp_rcontext once per command and reuse
     it on subsequent executions of a function/trigger.
   */
-  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
-  thd->set_n_backup_active_arena(&call_arena, &backup_arena);
-
-  if (!(nctx= rcontext_create(thd, return_value_fld, argp, argcount)))
+  if (!(*func_ctx))
   {
-    thd->restore_active_arena(&call_arena, &backup_arena);
-    err_status= TRUE;
-    goto err_with_cleanup;
-  }
+    thd->set_n_backup_active_arena(call_arena, &backup_arena);
 
-  /*
-    We have to switch temporarily back to callers arena/memroot.
-    Function arguments belong to the caller and so the may reference
-    memory which they will allocate during calculation long after
-    this function call will be finished (e.g. in Item::cleanup()).
-  */
-  thd->restore_active_arena(&call_arena, &backup_arena);
+    if (!(*func_ctx= rcontext_create(thd, return_value_fld, argp, argcount)))
+    {
+      thd->restore_active_arena(call_arena, &backup_arena);
+      err_status= TRUE;
+      goto err_with_cleanup;
+    }
+
+    /*
+      We have to switch temporarily back to callers arena/memroot.
+      Function arguments belong to the caller and so the may reference
+      memory which they will allocate during calculation long after
+      this function call will be finished (e.g. in Item::cleanup()).
+    */
+    thd->restore_active_arena(call_arena, &backup_arena);
+  }
 
   /* Pass arguments. */
   for (arg_no= 0; arg_no < argcount; arg_no++)
@@ -1720,7 +1756,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     /* Arguments must be fixed in Item_func_sp::fix_fields */
     DBUG_ASSERT(argp[arg_no]->fixed);
 
-    if ((err_status= nctx->set_variable(thd, arg_no, &(argp[arg_no]))))
+    if ((err_status= (*func_ctx)->set_variable(thd, arg_no, &(argp[arg_no]))))
       goto err_with_cleanup;
   }
 
@@ -1752,7 +1788,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       if (arg_no)
         binlog_buf.append(',');
 
-      Item *item= nctx->get_item(arg_no);
+      Item *item= (*func_ctx)->get_item(arg_no);
       str_value= item->type_handler()->print_item_value(thd, item,
                                                         &str_value_holder);
       if (str_value)
@@ -1762,7 +1798,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     }
     binlog_buf.append(')');
   }
-  thd->spcont= nctx;
+  thd->spcont= *func_ctx;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx;
@@ -1803,11 +1839,11 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
           sp_rcontext and allocate all these objects (and sp_rcontext
           itself) on it directly rather than juggle with arenas.
   */
-  thd->set_n_backup_active_arena(&call_arena, &backup_arena);
+  thd->set_n_backup_active_arena(call_arena, &backup_arena);
 
   err_status= execute(thd, TRUE);
 
-  thd->restore_active_arena(&call_arena, &backup_arena);
+  thd->restore_active_arena(call_arena, &backup_arena);
 
   if (need_binlog_call)
   {
@@ -1833,11 +1869,11 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     }
   }
 
-  if (!err_status)
+  if (!err_status && thd->spcont->quit_func)
   {
     /* We need result only in function but not in trigger */
 
-    if (!nctx->is_return_value_set())
+    if (!(*func_ctx)->is_return_value_set())
     {
       my_error(ER_SP_NORETURNEND, MYF(0), m_name.str);
       err_status= TRUE;
@@ -1849,9 +1885,6 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
 #endif
 
 err_with_cleanup:
-  delete nctx;
-  call_arena.free_items();
-  free_root(&call_mem_root, MYF(0));
   thd->spcont= octx;
 
   /*
@@ -2065,26 +2098,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
   if (!err_status)
   {
-    /*
-      Normally the counter is not reset between parsing and first execution,
-      but it is possible in case of error to have parsing on one CALL and
-      first execution (where VIEW will be parsed and added). So we store the
-      counter after parsing and restore it before execution just to avoid
-      repeating SELECT numbers.
-    */
-    thd->select_number= m_select_number;
-
     err_status= execute(thd, TRUE);
-    DBUG_PRINT("info", ("execute returned %d", (int) err_status));
-    /*
-      This execution of the SP was aborted with an error (e.g. "Table not
-      found").  However it might still have consumed some numbers from the
-      thd->select_number counter.  The next sp->exec() call must not use the
-      consumed numbers, so we remember the first free number (We know that
-      nobody will use it as this execution has stopped with an error).
-    */
-    if (err_status)
-      set_select_number(thd->select_number);
   }
 
   if (save_log_general)
@@ -2480,7 +2494,6 @@ sp_head::set_chistics(const st_sp_chistics &chistics)
                                          m_chistics.comment.str,
                                          m_chistics.comment.length);
 }
-
 
 void
 sp_head::set_info(longlong created, longlong modified,
@@ -4178,7 +4191,7 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
   Query_arena backup_arena;
   DBUG_ENTER("sp_instr_cfetch::execute");
 
-  res= c ? c->fetch(thd, &m_varlist) : -1;
+  res= c ? c->fetch(thd, &m_varlist, m_error_on_no_data) : -1;
 
   *nextp= m_ip+1;
   DBUG_RETURN(res);
@@ -4216,6 +4229,35 @@ sp_instr_cfetch::print(String *str)
     str->qs_append(pv->offset);
   }
 }
+
+int
+sp_instr_agg_cfetch::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_cfetch::execute");
+  int res= 0;
+  if (!thd->spcont->instr_ptr)
+  {
+    *nextp= m_ip+1;
+    thd->spcont->instr_ptr= m_ip + 1;
+  }
+  else if (!thd->spcont->pause_state)
+    thd->spcont->pause_state= TRUE;
+  else
+  {
+    thd->spcont->pause_state= FALSE;
+    if (thd->server_status == SERVER_STATUS_LAST_ROW_SENT)
+    {
+      my_message(ER_SP_FETCH_NO_DATA,
+                 ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
+      res= -1;
+      thd->spcont->quit_func= TRUE;
+    }
+    else
+      *nextp= m_ip + 1;
+  }
+  DBUG_RETURN(res);
+}
+
 
 
 /*
@@ -4778,7 +4820,7 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
 
   sp_instr_cfetch *instr_cfetch=
     new (thd->mem_root) sp_instr_cfetch(instructions(),
-                                        spcont, coffset);
+                                        spcont, coffset, false);
   if (instr_cfetch == NULL || add_instr(instr_cfetch))
     return true;
   instr_cfetch->add_to_varlist(index);

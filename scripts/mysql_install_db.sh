@@ -24,6 +24,7 @@ builddir=""
 ldata="@localstatedir@"
 langdir=""
 srcdir=""
+log_error=""
 
 args=""
 defaults=""
@@ -136,6 +137,8 @@ parse_arguments()
       --builddir=*) builddir=`parse_arg "$arg"` ;;
       --srcdir=*)  srcdir=`parse_arg "$arg"` ;;
       --ldata=*|--datadir=*|--data=*) ldata=`parse_arg "$arg"` ;;
+      --log-error=*)
+       log_error=`parse_arg "$arg"` ;;
       --user=*)
         # Note that the user will be passed to mysqld so that it runs
         # as 'user' (crucial e.g. if log-bin=/some_other_path/
@@ -147,7 +150,6 @@ parse_arguments()
       --help) usage ;;
       --no-defaults|--defaults-file=*|--defaults-extra-file=*)
         defaults="$arg" ;;
-
       --cross-bootstrap|--windows)
         # Used when building the MariaDB system tables on a different host than
         # the target. The platform-independent files that are created in
@@ -475,9 +477,14 @@ if { echo "use mysql;$install_params"; cat "$create_system_tables" "$create_syst
 then
   s_echo "OK"
 else
+  log_file_place=$ldata
+  if test -n "$log_error"
+  then
+    log_file_place="$log_error or $log_file_place"
+  fi
   echo
   echo "Installation of system tables failed!  Examine the logs in"
-  echo "$ldata for more information."
+  echo "$log_file_place for more information."
   echo
   echo "The problem could be conflicting information in an external"
   echo "my.cnf files. You can ignore these by doing:"

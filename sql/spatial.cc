@@ -1041,7 +1041,7 @@ bool Gis_line_string::init_from_json(json_engine_t *je, bool er_on_3D,
   }
   if (n_points < 1)
   {
-    je->s.error= GEOJ_TOO_FEW_POINTS;
+    je->s.error= Geometry::GEOJ_TOO_FEW_POINTS;
     return TRUE;
   }
   wkb->write_at_position(np_pos, n_points);
@@ -1439,6 +1439,15 @@ bool Gis_polygon::init_from_json(json_engine_t *je, bool er_on_3D, String *wkb)
       return TRUE;
     }
     n_linear_rings++;
+  }
+
+  if (je->s.error)
+    return TRUE;
+
+  if (n_linear_rings == 0)
+  {
+    je->s.error= Geometry::GEOJ_EMPTY_COORDINATES;
+    return TRUE;
   }
   wkb->write_at_position(lr_pos, n_linear_rings);
   return FALSE;
@@ -1945,6 +1954,14 @@ bool Gis_multi_point::init_from_json(json_engine_t *je, bool er_on_3D,
     n_points++;
   }
 
+  if (je->s.error)
+    return TRUE;
+  if (n_points == 0)
+  {
+    je->s.error= Geometry::GEOJ_EMPTY_COORDINATES;
+    return TRUE;
+  }
+
   wkb->write_at_position(np_pos, n_points);
   return FALSE;
 }
@@ -2214,6 +2231,15 @@ bool Gis_multi_line_string::init_from_json(json_engine_t *je, bool er_on_3D,
 
     n_line_strings++;
   }
+  if (je->s.error)
+    return TRUE;
+
+  if (n_line_strings == 0)
+  {
+    je->s.error= Geometry::GEOJ_EMPTY_COORDINATES;
+    return TRUE;
+  }
+
   wkb->write_at_position(ls_pos, n_line_strings);
   return FALSE;
 }
@@ -2602,6 +2628,13 @@ bool Gis_multi_polygon::init_from_json(json_engine_t *je, bool er_on_3D,
       return TRUE;
 
     n_polygons++;
+  }
+  if (je->s.error)
+    return TRUE;
+  if (n_polygons == 0)
+  {
+    je->s.error= Geometry::GEOJ_EMPTY_COORDINATES;
+    return TRUE;
   }
   wkb->write_at_position(np_pos, n_polygons);
   return FALSE;

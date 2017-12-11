@@ -2907,7 +2907,10 @@ fil_close_tablespace(
 	completely and permanently. The flag stop_new_ops also prevents
 	fil_flush() from being applied to this tablespace. */
 
-	buf_LRU_flush_or_remove_pages(id, trx);
+	{
+		FlushObserver observer(id, trx, NULL);
+		buf_LRU_flush_or_remove_pages(id, &observer);
+	}
 
 	/* If the free is successful, the X lock will be released before
 	the space memory data structure is freed. */

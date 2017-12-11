@@ -751,6 +751,8 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 	buf_block_t*	first_block;
 	buf_block_t*	last_block;
 
+	trx_t* trx = trx_allocate_for_background();
+
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 		ut_ad(btr_defragment_thread_active);
 
@@ -826,30 +828,34 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 			/* Update the last_processed time of this index. */
 			item->last_processed = now;
 		} else {
-			dberr_t err = DB_SUCCESS;
 			mtr_commit(&mtr);
 			/* Reaching the end of the index. */
 			dict_stats_empty_defrag_stats(index);
-			err = dict_stats_save_defrag_stats(index);
-			if (err != DB_SUCCESS) {
-				ib::error() << "Saving defragmentation stats for table "
-					    << index->table->name.m_name
-					    << " index " << index->name()
-					    << " failed with error " << err;
-			} else {
-				err = dict_stats_save_defrag_summary(index);
-
-				if (err != DB_SUCCESS) {
-					ib::error() << "Saving defragmentation summary for table "
-					    << index->table->name.m_name
-					    << " index " << index->name()
-					    << " failed with error " << err;
-				}
+			ut_d(trx->persistent_stats = true);
+			++trx->will_lock;
+			dberr_t err = dict_stats_save_defrag_stats(index, trx);
+			if (err == DB_SUCCESS) {
+				err = dict_stats_save_defrag_summary(
+					index, trx);
 			}
 
+			if (err != DB_SUCCESS) {
+				trx_rollback_to_savepoint(trx, NULL);
+				ib::error() << "Saving defragmentation stats for table "
+					    << index->table->name
+					    << " index " << index->name
+					    << " failed with error "
+					    << ut_strerr(err);
+			} else if (trx->state != TRX_STATE_NOT_STARTED) {
+				trx_commit_for_mysql(trx);
+			}
+
+			ut_d(trx->persistent_stats = false);
 			btr_defragment_remove_item(item);
 		}
 	}
+
+	trx_free_for_background(trx);
 
 	btr_defragment_thread_active = false;
 	os_thread_exit();

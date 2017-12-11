@@ -28,6 +28,7 @@ Created 11/11/1995 Heikki Tuuri
 #include "ha_prototypes.h"
 #include <mysql/service_thd_wait.h>
 #include <my_dbug.h>
+#include <sql_class.h>
 
 #include "buf0flu.h"
 #include "buf0buf.h"
@@ -2683,20 +2684,20 @@ than a second
 @retval OS_SYNC_TIME_EXCEEDED if timeout was exceeded
 @param next_loop_time	time when next loop iteration should start
 @param sig_count	zero or the value returned by previous call of
-			os_event_reset() */
+			os_event_reset()
+@param cur_time		current time as in ut_time_ms() */
 static
 ulint
 pc_sleep_if_needed(
 /*===============*/
 	ulint		next_loop_time,
-	int64_t		sig_count)
+	int64_t		sig_count,
+	ulint		cur_time)
 {
 	/* No sleep if we are cleaning the buffer pool during the shutdown
 	with everything else finished */
 	if (srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)
 		return OS_SYNC_TIME_EXCEEDED;
-
-	ulint	cur_time = ut_time_ms();
 
 	if (next_loop_time > cur_time) {
 		/* Get sleep interval in micro seconds. We use
@@ -3195,6 +3196,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 	ulint	last_pages = 0;
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+		ulint	curr_time = ut_time_ms();
 
 		/* The page_cleaner skips sleep if the server is
 		idle and there are no pending IOs in the buffer pool
@@ -3204,23 +3206,22 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 		    || n_flushed == 0) {
 
 			ret_sleep = pc_sleep_if_needed(
-				next_loop_time, sig_count);
-
-			if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
-				break;
-			}
-		} else if (ut_time_ms() > next_loop_time) {
+				next_loop_time, sig_count, curr_time);
+		} else if (curr_time > next_loop_time) {
 			ret_sleep = OS_SYNC_TIME_EXCEEDED;
 		} else {
 			ret_sleep = 0;
 		}
 
+		if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+			break;
+		}
+
 		sig_count = os_event_reset(buf_flush_event);
 
 		if (ret_sleep == OS_SYNC_TIME_EXCEEDED) {
-			ulint	curr_time = ut_time_ms();
-
-			if (curr_time > next_loop_time + 3000
+			if (global_system_variables.log_warnings > 2
+			    && curr_time > next_loop_time + 3000
 			    && !(test_flags & TEST_SIGINT)) {
 				if (warn_count == 0) {
 					ib::info() << "page_cleaner: 1000ms"
@@ -3487,19 +3488,15 @@ buf_flush_set_page_cleaner_thread_cnt(ulong new_cnt)
 {
 	mutex_enter(&page_cleaner->mutex);
 
-	if (new_cnt > srv_n_page_cleaners) {
+	srv_n_page_cleaners = new_cnt;
+	if (new_cnt > page_cleaner->n_workers) {
 		/* User has increased the number of page
 		cleaner threads. */
-		uint add = new_cnt - srv_n_page_cleaners;
-		srv_n_page_cleaners = new_cnt;
+		uint add = new_cnt - page_cleaner->n_workers;
 		for (uint i = 0; i < add; i++) {
 			os_thread_id_t cleaner_thread_id;
 			os_thread_create(buf_flush_page_cleaner_worker, NULL, &cleaner_thread_id);
 		}
-	} else if (new_cnt < srv_n_page_cleaners) {
-		/* User has decreased the number of page
-		cleaner threads. */
-		srv_n_page_cleaners = new_cnt;
 	}
 
 	mutex_exit(&page_cleaner->mutex);
@@ -3879,16 +3876,14 @@ FlushObserver::notify_remove(
 void
 FlushObserver::flush()
 {
+	ut_ad(m_trx);
+
 	if (!m_interrupted && m_stage) {
 		m_stage->begin_phase_flush(buf_flush_get_dirty_pages_count(
 						   m_space_id, this));
 	}
 
-	/* MDEV-14317 FIXME: Discard all changes to only those pages
-	that will be freed by the clean-up of the ALTER operation.
-	(Maybe, instead of buf_pool->flush_list, use a dedicated list
-	for pages on which redo logging has been disabled.) */
-	buf_LRU_flush_or_remove_pages(m_space_id, m_trx);
+	buf_LRU_flush_or_remove_pages(m_space_id, this);
 
 	/* Wait for all dirty pages were flushed. */
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {

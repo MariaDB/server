@@ -352,3 +352,9 @@ EXPLAIN SELECT * FROM t1 WHERE a='1.1';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 DROP TABLE t1;
+#
+# MDEV-11155 Bad error message when creating a SET column with comma and non-ASCII characters
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a SET('a,bü'));
+ERROR 22007: Illegal set 'a,bü' value found during parsing

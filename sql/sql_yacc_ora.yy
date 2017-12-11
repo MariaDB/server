@@ -436,6 +436,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  DEFINER_SYM
 %token  DELAYED_SYM
 %token  DELAY_KEY_WRITE_SYM
+%token  DELETE_DOMAIN_ID_SYM
 %token  DELETE_SYM                    /* SQL-2003-R */
 %token  DENSE_RANK_SYM
 %token  DESC                          /* SQL-2003-N */
@@ -1037,12 +1038,16 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident_or_text
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         opt_component key_cache_name
-        sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
+        sp_opt_label BIN_NUM TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident
-        label_declaration_oracle labels_declaration_oracle
         ident_directly_assignable
         sp_decl_ident
         sp_block_label opt_place opt_db
+
+%type <lex_str>
+        label_ident
+        label_declaration_oracle
+        labels_declaration_oracle
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1094,7 +1099,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <num>
         order_dir lock_option
         udf_type opt_local opt_no_write_to_binlog
-        opt_temporary all_or_any opt_distinct
+        opt_temporary all_or_any opt_distinct opt_glimit_clause
         opt_ignore_leaves fulltext_options union_option
         opt_not
         select_derived_init transaction_access_mode_types
@@ -4097,25 +4102,8 @@ sp_for_loop_bounds:
           }
         | IN_SYM opt_sp_for_loop_direction '(' sp_cursor_stmt ')'
           {
-            Item *item;
-            DBUG_ASSERT(Lex->sphead);
-            LEX_CSTRING name= {STRING_WITH_LEN("[implicit_cursor]") };
-            if (Lex->sp_declare_cursor(thd, &name, $4, NULL, true))
+            if (Lex->sp_for_loop_implicit_cursor_statement(thd, &$$, $4))
               MYSQL_YYABORT;
-            if (!($$.m_index= new (thd->mem_root) sp_assignment_lex(thd, thd->lex)))
-              MYSQL_YYABORT;
-            $$.m_index->sp_lex_in_use= true;
-            Lex->sphead->reset_lex(thd, $$.m_index);
-            if (!(item= new (thd->mem_root) Item_field(thd,
-                                                       Lex->current_context(),
-                                                       NullS, NullS, &name)))
-              MYSQL_YYABORT;
-            $$.m_index->set_item_and_free_list(item, NULL);
-            if (Lex->sphead->restore_lex(thd))
-              MYSQL_YYABORT;
-            $$.m_direction= 1;
-            $$.m_upper_bound= NULL;
-            $$.m_implicit_cursor= true;
           }
         ;
 
@@ -7325,7 +7313,7 @@ alter:
             Lex->create_info.set($2);
             Lex->sql_command= SQLCOM_ALTER_USER;
           }
-        | ALTER SEQUENCE_SYM opt_if_exists_table_element
+        | ALTER SEQUENCE_SYM opt_if_exists
           {
             LEX *lex= Lex;
             lex->name= null_clex_str;
@@ -7348,7 +7336,7 @@ alter:
           sequence_defs
           {
             /* Create a generic ALTER SEQUENCE statment. */
-            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_sequence();
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_sequence($3);
             if (Lex->m_sql_cmd == NULL)
               MYSQL_YYABORT;
           }
@@ -10590,16 +10578,22 @@ sum_expr:
         | GROUP_CONCAT_SYM '(' opt_distinct
           { Select->in_sum_expr++; }
           expr_list opt_gorder_clause
-          opt_gconcat_separator
+          opt_gconcat_separator opt_glimit_clause
           ')'
           {
             SELECT_LEX *sel= Select;
             sel->in_sum_expr--;
             $$= new (thd->mem_root)
-                  Item_func_group_concat(thd, Lex->current_context(), $3, $5,
-                                         sel->gorder_list, $7);
+                  Item_func_group_concat(thd, Lex->current_context(),
+                                        $3, $5,
+                                        sel->gorder_list, $7, $8,
+                                        sel->select_limit,
+                                        sel->offset_limit);
             if ($$ == NULL)
               MYSQL_YYABORT;
+            sel->select_limit= NULL;
+            sel->offset_limit= NULL;
+            sel->explicit_limit= 0;
             $5->empty();
             sel->gorder_list.empty();
           }
@@ -10883,6 +10877,46 @@ gorder_list:
           { if (add_gorder_to_list(thd, $3,(bool) $4)) MYSQL_YYABORT; }
         | order_ident order_dir
           { if (add_gorder_to_list(thd, $1,(bool) $2)) MYSQL_YYABORT; }
+        ;
+
+opt_glimit_clause:
+          /* empty */ { $$ = 0; }
+        | glimit_clause { $$ = 1; }
+        ;
+
+glimit_clause_init:
+          LIMIT{}
+        ;
+
+glimit_clause:
+          glimit_clause_init glimit_options
+          {
+            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
+          }
+        ;
+
+glimit_options:
+          limit_option
+          {
+            SELECT_LEX *sel= Select;
+            sel->select_limit= $1;
+            sel->offset_limit= 0;
+            sel->explicit_limit= 1;
+          }
+        | limit_option ',' limit_option
+          {
+            SELECT_LEX *sel= Select;
+            sel->select_limit= $3;
+            sel->offset_limit= $1;
+            sel->explicit_limit= 1;
+          }
+        | limit_option OFFSET_SYM limit_option
+          {
+            SELECT_LEX *sel= Select;
+            sel->select_limit= $1;
+            sel->offset_limit= $3;
+            sel->explicit_limit= 1;
+          }
         ;
 
 in_sum_expr:

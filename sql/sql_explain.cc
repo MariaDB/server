@@ -1813,9 +1813,9 @@ const char * extra_tag_text[]=
 
   "Using join buffer", // special handling 
 
-  "const row not found",
-  "unique row not found",
-  "Impossible ON condition"
+  "Const row not found",
+  "Unique row not found",
+  "Impossible ON condition",
 };
 
 

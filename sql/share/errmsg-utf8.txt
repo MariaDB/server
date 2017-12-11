@@ -1801,8 +1801,8 @@ ER_WRONG_AUTO_KEY 42000 S1009
         spa "Puede ser solamente un campo automatico y este debe ser definido como una clave"
         swe "Det får finnas endast ett AUTO_INCREMENT-fält och detta måste vara en nyckel"
         ukr "Невірне визначення таблиці; Може бути лише один автоматичний стовбець, що повинен бути визначений як ключ"
-ER_UNUSED_9
-        eng "You should never see it"
+ER_BINLOG_CANT_DELETE_GTID_DOMAIN
+	eng "Could not delete gtid domain. Reason: %s."
 ER_NORMAL_SHUTDOWN  
         cze "%s (%s): normální ukončení\n"
         dan "%s (%s): Normal nedlukning\n"
@@ -7330,7 +7330,7 @@ ER_SUBQUERIES_NOT_SUPPORTED 42000
         eng "%s does not support subqueries or stored functions"
 ER_SET_STATEMENT_NOT_SUPPORTED 42000
         eng "The system variable %.200s cannot be set in SET STATEMENT." 
-ER_UNUSED_17
+ER_UNUSED_9
         eng "You should never see it"
 ER_USER_CREATE_EXISTS
         eng "Can't create user '%-.64s'@'%-.64s'; it already exists"
@@ -7747,6 +7747,9 @@ ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
 ER_NET_OK_PACKET_TOO_LARGE
   eng "OK packet too large"
 
+ER_GEOJSON_EMPTY_COORDINATES
+        eng "Incorrect GeoJSON format - empty 'coordinates' array."
+
 ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
         eng "Illegal parameter data types %s and %s for operation '%s'"
 ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
@@ -7800,6 +7803,12 @@ ER_ARGUMENT_OUT_OF_RANGE
         eng "Argument to the %s function does not belong to the range [0,1]"
 ER_WRONG_TYPE_OF_ARGUMENT
         eng "%s function only accepts arguments that can be converted to numerical types"
+ER_NOT_AGGREGATE_FUNCTION
+        eng "Non-aggregate function contains aggregate specific instructions: (FETCH GROUP NEXT ROW)"
+ER_INVALID_AGGREGATE_FUNCTION
+        eng "Aggregate specific instruction(FETCH GROUP NEXT ROW) missing from the aggregate function"
+ER_INVALID_VALUE_TO_LIMIT
+        eng "Limit only accepts integer values"
 
 # MariaDB error numbers related to System Versioning
 

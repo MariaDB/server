@@ -40,6 +40,7 @@ sp_rcontext::sp_rcontext(const sp_head *owner,
                          Field *return_value_fld,
                          bool in_sub_stmt)
   :end_partial_result_set(false),
+   pause_state(false), quit_func(false), instr_ptr(0),
    m_sp(owner),
    m_root_parsing_ctx(root_parsing_ctx),
    m_var_table(NULL),
@@ -800,7 +801,13 @@ int sp_cursor::open_view_structure_only(THD *thd)
   if (!(thd->lex->limit_rows_examined= new (thd->mem_root) Item_uint(thd, 0)))
     return -1;
   thd->no_errors= true; // Suppress ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
+  DBUG_ASSERT(!thd->killed);
   res= open(thd);
+  /*
+    The query possibly exited on LIMIT ROWS EXAMINED and set thd->killed.
+    Reset it now.
+  */
+  thd->reset_killed();
   thd->no_errors= thd_no_errors_save;
   thd->lex->limit_rows_examined= limit_rows_examined;
   return res;
@@ -829,7 +836,7 @@ void sp_cursor::destroy()
 }
 
 
-int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
+int sp_cursor::fetch(THD *thd, List<sp_variable> *vars, bool error_on_no_data)
 {
   if (! server_side_cursor)
   {
@@ -866,7 +873,7 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
   if (! server_side_cursor->is_open())
   {
     m_found= false;
-    if (thd->variables.sql_mode & MODE_ORACLE)
+    if (!error_on_no_data)
       return 0;
     my_message(ER_SP_FETCH_NO_DATA, ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
     return -1;

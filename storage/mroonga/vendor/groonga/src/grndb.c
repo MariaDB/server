@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2014 Brazil
+  Copyright(C) 2014-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -20,8 +20,11 @@
 # define GROONGA_MAIN
 #endif /* WIN32 */
 
+#include <stdio.h>
+
 #include <grn_mrb.h>
 #include <grn_ctx_impl.h>
+#include <grn_ctx_impl_mrb.h>
 
 #include <mruby/variable.h>
 #include <mruby/array.h>
@@ -119,8 +122,58 @@ int
 main(int argc, char **argv)
 {
   int exit_code = EXIT_SUCCESS;
+  const char *log_path = GRN_LOG_PATH;
+  const char *log_level_name = NULL;
 
-  grn_default_logger_set_path(GRN_LOG_PATH);
+  {
+    int i;
+    for (i = 1; i < argc; i++) {
+      const char *arg = argv[i];
+
+      if (arg[0] != '-') {
+        continue;
+      }
+
+      if (arg[1] == '-' && arg[2] == '\0') {
+        break;
+      }
+
+#define log_path_prefix "--log-path"
+#define log_level_prefix "--log-level"
+      if (strcmp(arg, log_path_prefix) == 0) {
+        if (i + 1 < argc) {
+          log_path = argv[i + 1];
+          i++;
+        }
+      } else if (strncmp(arg,
+                         log_path_prefix "=",
+                         strlen(log_path_prefix "=")) == 0) {
+        log_path = arg + strlen(log_path_prefix "=");
+      } else if (strcmp(arg, log_level_prefix) == 0) {
+        if (i + 1 < argc) {
+          log_level_name = argv[i + 1];
+          i++;
+        }
+      } else if (strncmp(arg,
+                         log_level_prefix "=",
+                         strlen(log_level_prefix "=")) == 0) {
+        log_level_name = arg + strlen(log_level_prefix "=");
+      }
+#undef log_path_equal_prefix
+#undef log_level_equal_prefix
+    }
+  }
+
+  grn_default_logger_set_path(log_path);
+  if (log_level_name) {
+    grn_log_level log_level = GRN_LOG_DEFAULT_LEVEL;
+    if (!grn_log_level_parse(log_level_name, &log_level)) {
+      fprintf(stderr, "%s: failed to parse log level: <%s>\n",
+              argv[0], log_level_name);
+      return EXIT_FAILURE;
+    }
+    grn_default_logger_set_max_level(log_level);
+  }
 
   if (grn_init() != GRN_SUCCESS) {
     return EXIT_FAILURE;
@@ -129,7 +182,12 @@ main(int argc, char **argv)
   {
     grn_ctx ctx;
     grn_ctx_init(&ctx, 0);
-    exit_code = run(&ctx, argc, argv);
+    grn_ctx_impl_mrb_ensure_init(&ctx);
+    if (ctx.rc == GRN_SUCCESS) {
+      exit_code = run(&ctx, argc, argv);
+    } else {
+      exit_code = EXIT_FAILURE;
+    }
     grn_ctx_fin(&ctx);
   }
 

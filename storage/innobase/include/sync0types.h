@@ -1163,15 +1163,11 @@ enum rw_lock_flag_t {
 #ifdef _WIN64
 #define my_atomic_addlint(A,B) my_atomic_add64((int64*) (A), (B))
 #define my_atomic_loadlint(A) my_atomic_load64((int64*) (A))
-#define my_atomic_loadlint_explicit(A,O) my_atomic_load64_explicit((int64*) (A), (O))
 #define my_atomic_storelint(A,B) my_atomic_store64((int64*) (A), (B))
-#define my_atomic_caslint(A,B,C) my_atomic_cas64((int64*) (A), (int64*) (B), (C))
 #else
 #define my_atomic_addlint my_atomic_addlong
 #define my_atomic_loadlint my_atomic_loadlong
-#define my_atomic_loadlint_explicit my_atomic_loadlong_explicit
 #define my_atomic_storelint my_atomic_storelong
-#define my_atomic_caslint my_atomic_caslong
 #endif
 
 /** Simple counter aligned to CACHE_LINE_SIZE

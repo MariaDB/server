@@ -1,0 +1,18 @@
+SET NAMES UTF8;
+CREATE DATABASE check_test;
+USE check_test;
+CREATE TABLE diaries (
+title TEXT,
+FULLTEXT INDEX (title)
+);
+INSERT INTO diaries VALUES ('Hello');
+FLUSH TABLES;
+CHECK TABLE diaries;
+Table	Op	Msg_type	Msg_text
+check_test.diaries	check	error	Corrupt
+REPAIR TABLE diaries;
+Table	Op	Msg_type	Msg_text
+check_test.diaries	repair	status	OK
+DROP TABLE diaries;
+DROP DATABASE check_test;
+USE test;

@@ -32,6 +32,7 @@ Created Apr 25, 2012 Vasil Dimov
 #include "srv0start.h"
 #include "ut0new.h"
 #include "fil0fil.h"
+#include "trx0trx.h"
 
 #include <vector>
 
@@ -180,7 +181,7 @@ dict_stats_update_if_needed(dict_table_t* table)
 
 	if (counter > threshold) {
 		/* this will reset table->stat_modified_counter to 0 */
-		dict_stats_update(table, DICT_STATS_RECALC_TRANSIENT);
+		dict_stats_update(table, DICT_STATS_RECALC_TRANSIENT, NULL);
 	}
 }
 
@@ -280,10 +281,10 @@ dict_stats_thread_init()
 	1) the background stats gathering thread before any other latch
 	   and released without latching anything else in between (thus
 	   any level would do here)
-	2) from row_update_statistics_if_needed()
+	2) from dict_stats_update_if_needed()
 	   and released without latching anything else in between. We know
 	   that dict_sys->mutex (SYNC_DICT) is not acquired when
-	   row_update_statistics_if_needed() is called and it may be acquired
+	   dict_stats_update_if_needed() is called and it may be acquired
 	   inside that function (thus a level <=SYNC_DICT would do).
 	3) from row_drop_table_for_mysql() after dict_sys->mutex (SYNC_DICT)
 	   and dict_operation_lock (SYNC_DICT_OPERATION) have been locked
@@ -323,8 +324,7 @@ Get the first table that has been added for auto recalc and eventually
 update its stats. */
 static
 void
-dict_stats_process_entry_from_recalc_pool()
-/*=======================================*/
+dict_stats_process_entry_from_recalc_pool(trx_t* trx)
 {
 	table_id_t	table_id;
 
@@ -378,8 +378,11 @@ dict_stats_process_entry_from_recalc_pool()
 		dict_stats_recalc_pool_add(table);
 
 	} else {
-
-		dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
+		++trx->will_lock;
+		dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT, trx);
+		if (trx->state != TRX_STATE_NOT_STARTED) {
+			trx_commit_for_mysql(trx);
+		}
 	}
 
 	mutex_enter(&dict_sys->mutex);
@@ -440,6 +443,9 @@ DECLARE_THREAD(dict_stats_thread)(void*)
 	*/
 #endif /* UNIV_PFS_THREAD */
 
+	trx_t* trx = trx_allocate_for_background();
+	ut_d(trx->persistent_stats = true);
+
 	while (!dict_stats_start_shutdown) {
 
 		/* Wake up periodically even if not signaled. This is
@@ -465,12 +471,14 @@ DECLARE_THREAD(dict_stats_thread)(void*)
 			break;
 		}
 
-		dict_stats_process_entry_from_recalc_pool();
-		dict_defrag_process_entries_from_defrag_pool();
+		dict_stats_process_entry_from_recalc_pool(trx);
+		dict_defrag_process_entries_from_defrag_pool(trx);
 
 		os_event_reset(dict_stats_event);
 	}
 
+	ut_d(trx->persistent_stats = false);
+	trx_free_for_background(trx);
 	srv_dict_stats_thread_active = false;
 
 	os_event_set(dict_stats_shutdown_event);

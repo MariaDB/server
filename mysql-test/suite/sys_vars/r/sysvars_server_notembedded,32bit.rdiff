@@ -1176,10 +1176,19 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Number of times the slave SQL thread will retry a transaction in case it failed with a deadlock or elapsed lock wait timeout, before giving up and stopping
+ VARIABLE_COMMENT	Number of times the slave SQL thread will retry a transaction in case it failed with a deadlock, elapsed lock wait timeout or listed in slave_transaction_retry_errors, before giving up and stopping
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
 @@ -4426,7 +4426,7 @@
+ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+ DEFAULT_VALUE	0
+ VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	BIGINT UNSIGNED
++VARIABLE_TYPE	INT UNSIGNED
+ VARIABLE_COMMENT	Interval of the slave SQL thread will retry a transaction in case it failed with a deadlock or elapsed lock wait timeout or listed in slave_transaction_retry_errors
+ NUMERIC_MIN_VALUE	0
+ NUMERIC_MAX_VALUE	3600
+@@ -4257,7 +4257,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	2
  VARIABLE_SCOPE	GLOBAL
@@ -1188,7 +1197,7 @@
  VARIABLE_COMMENT	If creating the thread takes longer than this value (in seconds), the Slow_launch_threads counter will be incremented
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	31536000
-@@ -4485,7 +4485,7 @@
+@@ -4316,7 +4316,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Each thread that needs to do a sort allocates a buffer of this size
  NUMERIC_MIN_VALUE	1024
@@ -1197,7 +1206,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -4790,7 +4790,7 @@
+@@ -4621,7 +4621,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	256
  VARIABLE_SCOPE	GLOBAL
@@ -1206,7 +1215,7 @@
  VARIABLE_COMMENT	The soft upper limit for number of cached stored routines for one connection.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	524288
-@@ -4888,7 +4888,7 @@
+@@ -4719,7 +4719,7 @@
  GLOBAL_VALUE_ORIGIN	AUTO
  DEFAULT_VALUE	400
  VARIABLE_SCOPE	GLOBAL
@@ -1215,7 +1224,7 @@
  VARIABLE_COMMENT	The number of cached table definitions
  NUMERIC_MIN_VALUE	400
  NUMERIC_MAX_VALUE	524288
-@@ -4902,7 +4902,7 @@
+@@ -4733,7 +4733,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	2000
  VARIABLE_SCOPE	GLOBAL
@@ -1224,7 +1233,7 @@
  VARIABLE_COMMENT	The number of cached open tables
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	1048576
-@@ -4972,7 +4972,7 @@
+@@ -4761,7 +4761,7 @@
  GLOBAL_VALUE_ORIGIN	AUTO
  DEFAULT_VALUE	256
  VARIABLE_SCOPE	GLOBAL
@@ -1233,7 +1242,7 @@
  VARIABLE_COMMENT	How many threads we should keep in a cache for reuse. These are freed after 5 minutes of idle time
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16384
-@@ -4986,7 +4986,7 @@
+@@ -4775,7 +4775,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	10
  VARIABLE_SCOPE	GLOBAL
@@ -1242,7 +1251,7 @@
  VARIABLE_COMMENT	Permits the application to give the threads system a hint for the desired number of threads that should be run at the same time.This variable has no effect, and is deprecated. It will be removed in a future release.
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	512
-@@ -5191,15 +5191,15 @@
+@@ -4980,15 +4980,15 @@
  READ_ONLY	YES
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	TMP_DISK_TABLE_SIZE
@@ -1262,7 +1271,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -5213,7 +5213,7 @@
+@@ -5002,7 +5002,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table. Same as tmp_table_size.
  NUMERIC_MIN_VALUE	1024
@@ -1271,7 +1280,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -5227,7 +5227,7 @@
+@@ -5016,7 +5016,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Alias for tmp_memory_table_size. If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table.
  NUMERIC_MIN_VALUE	1024
@@ -1280,7 +1289,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -5238,7 +5238,7 @@
+@@ -5027,7 +5027,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	8192
  VARIABLE_SCOPE	SESSION
@@ -1289,7 +1298,7 @@
  VARIABLE_COMMENT	Allocation block size for transactions to be stored in binary log
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	134217728
-@@ -5252,7 +5252,7 @@
+@@ -5041,7 +5041,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	4096
  VARIABLE_SCOPE	SESSION
@@ -1298,7 +1307,7 @@
  VARIABLE_COMMENT	Persistent buffer for transactions to be stored in binary log
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	134217728
-@@ -5350,7 +5350,7 @@
+@@ -5139,7 +5139,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	28800
  VARIABLE_SCOPE	SESSION
@@ -1307,7 +1316,7 @@
  VARIABLE_COMMENT	The number of seconds the server waits for activity on a connection before closing it
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	31536000
-@@ -5455,7 +5455,7 @@
+@@ -5243,7 +5243,7 @@
  COMMAND_LINE_ARGUMENT	OPTIONAL
  VARIABLE_NAME	OPEN_FILES_LIMIT
  VARIABLE_SCOPE	GLOBAL
@@ -1316,7 +1325,7 @@
  VARIABLE_COMMENT	If this is not 0, then mysqld will use this value to reserve file descriptors to use with setrlimit(). If this value is 0 or autoset then mysqld will reserve max_connections*5 or max_connections + table_cache*2 (whichever is larger) number of file descriptors
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -5468,7 +5468,7 @@
+@@ -5256,7 +5256,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Sets the internal state of the RAND() generator for replication purposes
  NUMERIC_MIN_VALUE	0
@@ -1325,7 +1334,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -5478,7 +5478,7 @@
+@@ -5266,7 +5266,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Sets the internal state of the RAND() generator for replication purposes
  NUMERIC_MIN_VALUE	0
@@ -1334,7 +1343,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -5573,7 +5573,7 @@
+@@ -5351,7 +5351,7 @@
  VARIABLE_NAME	LOG_TC_SIZE
  GLOBAL_VALUE_ORIGIN	AUTO
  VARIABLE_SCOPE	GLOBAL

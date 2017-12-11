@@ -212,7 +212,7 @@ log_send(struct evkeyvalq *output_headers, struct evbuffer *res_buf,
       zmq_msg_t msg;
       if (!zmq_msg_init_size(&msg, sbuf.size)) {
         memcpy((void *)zmq_msg_data(&msg), sbuf.data, sbuf.size);
-        if (zmq_msg_send(&msg, thd->zmq_sock, 0)) {
+        if (zmq_msg_send(&msg, thd->zmq_sock, 0) == -1) {
           print_error("zmq_msg_send() error");
         }
         zmq_msg_close(&msg);
@@ -512,7 +512,7 @@ recv_handler(grn_ctx *ctx, void *zmq_recv_sock, msgpack_zone *mempool, grn_obj *
   if (zmq_msg_init(&msg)) {
     print_error("cannot init zmq message.");
   } else {
-    if (zmq_msg_recv(&msg, zmq_recv_sock, 0)) {
+    if (zmq_msg_recv(&msg, zmq_recv_sock, 0) == -1) {
       print_error("cannot recv zmq message.");
     } else {
       msgpack_object obj;

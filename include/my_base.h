@@ -204,6 +204,11 @@ enum ha_extra_function {
   HA_EXTRA_PREPARE_FOR_FORCED_CLOSE,
   /* Inform handler that we will do an alter table */
   HA_EXTRA_PREPARE_FOR_ALTER_TABLE,
+  /*
+    Used in ha_partition::handle_ordered_index_scan() to inform engine
+    that we are starting an ordered index scan. Needed by Spider
+  */
+  HA_EXTRA_STARTING_ORDERED_INDEX_SCAN
 };
 
 /* Compatible option, to be deleted in 6.0 */

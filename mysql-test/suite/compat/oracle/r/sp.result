@@ -2404,3 +2404,31 @@ t1	CREATE TABLE "t1" (
   "aa_timestamp5" timestamp(5) NULL DEFAULT NULL,
   "aa_date0" datetime DEFAULT NULL
 )
+#
+#  MDEV-11160 "Incorrect column name" when "CREATE TABLE t1 AS SELECT spvar"
+#
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (10);
+CREATE VIEW v1 AS SELECT x+1 AS a,x+1 AS b FROM t1;
+CREATE PROCEDURE p1
+AS
+a INT := 1;
+b INT := 2;
+BEGIN
+CREATE TABLE t2 AS SELECT a,b FROM v1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" int(11) DEFAULT NULL,
+  "b" int(11) DEFAULT NULL
+)
+a	b
+1	2
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP TABLE t1;

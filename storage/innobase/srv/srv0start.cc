@@ -684,8 +684,8 @@ srv_undo_tablespace_open(
 	dberr_t		err	= DB_ERROR;
 	char		undo_name[sizeof "innodb_undo000"];
 
-	ut_snprintf(undo_name, sizeof(undo_name),
-		   "innodb_undo%03u", static_cast<unsigned>(space_id));
+	snprintf(undo_name, sizeof(undo_name),
+		 "innodb_undo%03u", static_cast<unsigned>(space_id));
 
 	if (!srv_file_check_mode(name)) {
 		ib::error() << "UNDO tablespaces must be " <<
@@ -763,7 +763,7 @@ srv_check_undo_redo_logs_exists()
 	/* Check if any undo tablespaces exist */
 	for (ulint i = 1; i <= srv_undo_tablespaces; ++i) {
 
-		ut_snprintf(
+		snprintf(
 			name, sizeof(name),
 			"%s%cundo%03zu",
 			srv_undo_dir, OS_PATH_SEPARATOR,
@@ -860,7 +860,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 		DBUG_EXECUTE_IF("innodb_undo_upgrade",
 				space_id = i + 3;);
 
-		ut_snprintf(
+		snprintf(
 			name, sizeof(name),
 			"%s%cundo%03zu",
 			srv_undo_dir, OS_PATH_SEPARATOR, space_id);
@@ -922,10 +922,10 @@ srv_undo_tablespaces_init(bool create_new_db)
 
 				char	name[OS_FILE_MAX_PATH];
 
-				ut_snprintf(name, sizeof(name),
-					    "%s%cundo%03zu",
-					    srv_undo_dir, OS_PATH_SEPARATOR,
-					    undo_tablespace_ids[i]);
+				snprintf(name, sizeof(name),
+					 "%s%cundo%03zu",
+					 srv_undo_dir, OS_PATH_SEPARATOR,
+					 undo_tablespace_ids[i]);
 
 				os_file_delete(innodb_data_file_key, name);
 
@@ -955,7 +955,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 	for (i = 0; i < n_undo_tablespaces; ++i) {
 		char	name[OS_FILE_MAX_PATH];
 
-		ut_snprintf(
+		snprintf(
 			name, sizeof(name),
 			"%s%cundo%03zu",
 			srv_undo_dir, OS_PATH_SEPARATOR,
@@ -993,7 +993,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 	for (i = prev_space_id + 1; i < TRX_SYS_N_RSEGS; ++i) {
 		char	name[OS_FILE_MAX_PATH];
 
-		ut_snprintf(
+		snprintf(
 			name, sizeof(name),
 			"%s%cundo%03zu", srv_undo_dir, OS_PATH_SEPARATOR, i);
 
@@ -1097,22 +1097,19 @@ srv_undo_tablespaces_init(bool create_new_db)
 		mtr_commit(&mtr);
 
 		/* Step-2: Flush the dirty pages from the buffer pool. */
-		trx_t* trx = trx_allocate_for_background();
-
 		for (undo::undo_spaces_t::const_iterator it
 			     = undo::Truncate::s_fix_up_spaces.begin();
 		     it != undo::Truncate::s_fix_up_spaces.end();
 		     ++it) {
-
-			buf_LRU_flush_or_remove_pages(TRX_SYS_SPACE, trx);
-
-			buf_LRU_flush_or_remove_pages(*it, trx);
+			FlushObserver dummy(TRX_SYS_SPACE, NULL, NULL);
+			buf_LRU_flush_or_remove_pages(TRX_SYS_SPACE, &dummy);
+			FlushObserver dummy2(*it, NULL, NULL);
+			buf_LRU_flush_or_remove_pages(*it, &dummy2);
 
 			/* Remove the truncate redo log file. */
 			undo::Truncate	undo_trunc;
 			undo_trunc.done_logging(*it);
 		}
-		trx_free_for_background(trx);
 	}
 
 	return(DB_SUCCESS);

@@ -369,6 +369,12 @@ public:
 		       || m_interrupted);
 	}
 
+	/** @return whether to flush only some pages of the tablespace */
+	bool is_partial_flush() const { return m_stage != NULL; }
+
+	/** @return whether the operation was interrupted */
+	bool is_interrupted() const { return m_interrupted; }
+
 	/** Interrupt observer not to wait. */
 	void interrupted()
 	{
@@ -381,7 +387,6 @@ public:
 
 	/** Flush dirty pages. */
 	void flush();
-
 	/** Notify observer of flushing a page
 	@param[in]	buf_pool	buffer pool instance
 	@param[in]	bpage		buffer page to flush */
@@ -397,10 +402,10 @@ public:
 		buf_page_t*	bpage);
 private:
 	/** Table space id */
-	ulint			m_space_id;
+	const ulint		m_space_id;
 
 	/** Trx instance */
-	trx_t*			m_trx;
+	trx_t* const		m_trx;
 
 	/** Performance schema accounting object, used by ALTER TABLE.
 	If not NULL, then stage->begin_phase_flush() will be called initially,

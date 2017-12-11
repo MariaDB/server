@@ -1991,7 +1991,8 @@ row_merge_read_clustered_index(
 			}
 
 			if (dbug_run_purge
-			    || dict_index_get_lock(clust_index)->waiters) {
+			    || my_atomic_load32_explicit(&clust_index->lock.waiters,
+							 MY_MEMORY_ORDER_RELAXED)) {
 				/* There are waiters on the clustered
 				index tree lock, likely the purge
 				thread. Store and restore the cursor
@@ -5092,7 +5093,7 @@ func_exit:
 		ut_ad(need_flush_observer);
 
 		DBUG_EXECUTE_IF("ib_index_build_fail_before_flush",
-			error = DB_FAIL;
+			error = DB_INTERRUPTED;
 		);
 
 		if (error != DB_SUCCESS) {

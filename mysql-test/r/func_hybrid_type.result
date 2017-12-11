@@ -3443,8 +3443,8 @@ EXECUTE stmt USING @a,@a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(21) DEFAULT NULL,
-  `b` varchar(21) DEFAULT NULL
+  `a` varchar(20) DEFAULT NULL,
+  `b` varchar(20) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #

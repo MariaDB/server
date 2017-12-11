@@ -5262,10 +5262,11 @@ public:
 
   select_unit(THD *thd_arg):
     select_result_interceptor(thd_arg),
-    curr_step(0), prev_step(0), curr_sel(UINT_MAX),
-    step(UNION_TYPE), intersect_mark(0), write_err(0), table(0),
-    records(0)
-  { tmp_table_param.init(); }
+    intersect_mark(0), table(0)
+  {
+    init();
+    tmp_table_param.init();
+  }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   /**
     Do prepare() and prepare2() if they have been postponed until
@@ -5289,6 +5290,14 @@ public:
                                    bool keep_row_order,
                                    uint hidden);
   TMP_TABLE_PARAM *get_tmp_table_param() { return &tmp_table_param; }
+  void init()
+  {
+    curr_step= prev_step= 0;
+    curr_sel= UINT_MAX;
+    step= UNION_TYPE;
+    write_err= 0;
+    records= 0;
+  }
   void change_select();
 };
 

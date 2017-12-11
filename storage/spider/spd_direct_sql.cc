@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2015 Kentoku Shiba
+/* Copyright (C) 2009-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,11 +11,12 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
+#include "spd_environ.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
 #include <mysql/plugin.h>
@@ -58,7 +59,11 @@ extern PSI_cond_key spd_key_cond_bg_direct_sql;
 #endif
 
 extern HASH spider_open_connections;
+extern HASH spider_ipport_conns;
 extern pthread_mutex_t spider_conn_mutex;
+extern pthread_mutex_t spider_conn_id_mutex;
+extern pthread_mutex_t spider_ipport_conn_mutex;
+extern ulonglong spider_conn_id;
 
 uint spider_udf_calc_hash(
   char *key,
@@ -350,6 +355,27 @@ int spider_udf_direct_sql_create_conn_key(
 #endif
     }
   }
+  if (direct_sql->dbton_id == SPIDER_DBTON_SIZE)
+  {
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+    if (direct_sql->access_mode == 0)
+    {
+#endif
+      my_printf_error(
+        ER_SPIDER_SQL_WRAPPER_IS_INVALID_NUM,
+        ER_SPIDER_SQL_WRAPPER_IS_INVALID_STR,
+        MYF(0), direct_sql->tgt_wrapper);
+      DBUG_RETURN(ER_SPIDER_SQL_WRAPPER_IS_INVALID_NUM);
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+    } else {
+      my_printf_error(
+        ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_NUM,
+        ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_STR,
+        MYF(0), direct_sql->tgt_wrapper);
+      DBUG_RETURN(ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_NUM);
+    }
+#endif
+  }
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   direct_sql->conn_key_hash_value = my_calc_hash(&spider_open_connections,
     (uchar*) direct_sql->conn_key, direct_sql->conn_key_length);
@@ -362,6 +388,7 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   int *error_num
 ) {
   SPIDER_CONN *conn;
+  SPIDER_IP_PORT_CONN *ip_port_conn;
   char *tmp_name, *tmp_host, *tmp_username, *tmp_password, *tmp_socket;
   char *tmp_wrapper, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
@@ -559,12 +586,57 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
     goto error;
   conn->ping_time = (time_t) time((time_t*) 0);
   conn->connect_error_time = conn->ping_time;
+  pthread_mutex_lock(&spider_conn_id_mutex);
+  conn->conn_id = spider_conn_id;
+  ++spider_conn_id;
+  pthread_mutex_unlock(&spider_conn_id_mutex);
+
+  pthread_mutex_lock(&spider_ipport_conn_mutex);
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+  if ((ip_port_conn = (SPIDER_IP_PORT_CONN*) my_hash_search_using_hash_value(
+    &spider_ipport_conns, conn->conn_key_hash_value,
+    (uchar*)conn->conn_key, conn->conn_key_length)))
+#else
+  if ((ip_port_conn = (SPIDER_IP_PORT_CONN*) my_hash_search(
+    &spider_ipport_conns, (uchar*)conn->conn_key, conn->conn_key_length)))
+#endif
+  { /* exists, +1 */
+    pthread_mutex_unlock(&spider_ipport_conn_mutex);
+    pthread_mutex_lock(&ip_port_conn->mutex);
+    if (spider_param_max_connections())
+    { /* enable conncetion pool */
+      if (ip_port_conn->ip_port_count >= spider_param_max_connections())
+      { /* bigger than the max num of connections, free conn and return NULL */
+        pthread_mutex_unlock(&ip_port_conn->mutex);
+        goto error_too_many_ipport_count;
+      }
+    }
+    ip_port_conn->ip_port_count++;
+    pthread_mutex_unlock(&ip_port_conn->mutex);
+  }
+  else
+  {// do not exist
+    ip_port_conn = spider_create_ipport_conn(conn);
+    if (!ip_port_conn) {
+      /* failed, always do not effect 'create conn' */
+      pthread_mutex_unlock(&spider_ipport_conn_mutex);
+      DBUG_RETURN(conn);
+    }
+    if (my_hash_insert(&spider_ipport_conns, (uchar *)ip_port_conn)) {
+      /* insert failed, always do not effect 'create conn' */
+      pthread_mutex_unlock(&spider_ipport_conn_mutex);
+      DBUG_RETURN(conn);
+    }
+    pthread_mutex_unlock(&spider_ipport_conn_mutex);
+  }
+  conn->ip_port_conn = ip_port_conn;
 
   DBUG_RETURN(conn);
 
 error:
   DBUG_ASSERT(!conn->mta_conn_mutex_file_pos.file_name);
   pthread_mutex_destroy(&conn->mta_conn_mutex);
+error_too_many_ipport_count:
 error_mta_conn_mutex_init:
 error_db_conn_init:
   delete conn->db_conn;
@@ -1623,6 +1695,15 @@ long long spider_direct_sql_body(
       goto error;
     }
   }
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  if (trx->trx_start && direct_sql->access_mode != 1)
+  {
+#endif
+    trx->updated_in_this_trx = TRUE;
+    DBUG_PRINT("info",("spider trx->updated_in_this_trx=TRUE"));
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  }
+#endif
 #if MYSQL_VERSION_ID < 50500
 #else
   use_real_table = spider_param_udf_ds_use_real_table(thd,
@@ -1641,7 +1722,7 @@ long long spider_direct_sql_body(
     table_list.table_name = direct_sql->table_names[roop_count];
 #endif
     if (!(direct_sql->tables[roop_count] =
-          thd->find_temporary_table(&table_list)))
+      SPIDER_find_temporary_table(thd, &table_list)))
     {
 #if MYSQL_VERSION_ID < 50500
 #else

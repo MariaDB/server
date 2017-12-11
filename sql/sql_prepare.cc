@@ -489,24 +489,23 @@ static ulong get_param_length(uchar **packet, ulong len)
     (i.e. when input types altered) and for all subsequent executions
     we don't read any values for this.
 
-  @param  param             parameter item
   @param  pos               input data buffer
   @param  len               length of data in the buffer
 */
 
-static void set_param_tiny(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_tiny(uchar **pos, ulong len)
 {
 #ifndef EMBEDDED_LIBRARY
   if (len < 1)
     return;
 #endif
   int8 value= (int8) **pos;
-  param->set_int(param->unsigned_flag ? (longlong) ((uint8) value) :
-                                        (longlong) value, 4);
+  set_int(unsigned_flag ? (longlong) ((uint8) value) :
+                          (longlong) value, 4);
   *pos+= 1;
 }
 
-static void set_param_short(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_short(uchar **pos, ulong len)
 {
   int16 value;
 #ifndef EMBEDDED_LIBRARY
@@ -516,12 +515,12 @@ static void set_param_short(Item_param *param, uchar **pos, ulong len)
 #else
   shortget(value, *pos);
 #endif
-  param->set_int(param->unsigned_flag ? (longlong) ((uint16) value) :
-                                        (longlong) value, 6);
+  set_int(unsigned_flag ? (longlong) ((uint16) value) :
+                          (longlong) value, 6);
   *pos+= 2;
 }
 
-static void set_param_int32(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_int32(uchar **pos, ulong len)
 {
   int32 value;
 #ifndef EMBEDDED_LIBRARY
@@ -531,12 +530,12 @@ static void set_param_int32(Item_param *param, uchar **pos, ulong len)
 #else
   longget(value, *pos);
 #endif
-  param->set_int(param->unsigned_flag ? (longlong) ((uint32) value) :
-                                        (longlong) value, 11);
+  set_int(unsigned_flag ? (longlong) ((uint32) value) :
+                          (longlong) value, 11);
   *pos+= 4;
 }
 
-static void set_param_int64(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_int64(uchar **pos, ulong len)
 {
   longlong value;
 #ifndef EMBEDDED_LIBRARY
@@ -546,11 +545,11 @@ static void set_param_int64(Item_param *param, uchar **pos, ulong len)
 #else
   longlongget(value, *pos);
 #endif
-  param->set_int(value, 21);
+  set_int(value, 21);
   *pos+= 8;
 }
 
-static void set_param_float(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_float(uchar **pos, ulong len)
 {
   float data;
 #ifndef EMBEDDED_LIBRARY
@@ -560,11 +559,11 @@ static void set_param_float(Item_param *param, uchar **pos, ulong len)
 #else
   floatget(data, *pos);
 #endif
-  param->set_double((double) data);
+  set_double((double) data);
   *pos+= 4;
 }
 
-static void set_param_double(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_double(uchar **pos, ulong len)
 {
   double data;
 #ifndef EMBEDDED_LIBRARY
@@ -574,14 +573,14 @@ static void set_param_double(Item_param *param, uchar **pos, ulong len)
 #else
   doubleget(data, *pos);
 #endif
-  param->set_double((double) data);
+  set_double((double) data);
   *pos+= 8;
 }
 
-static void set_param_decimal(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_decimal(uchar **pos, ulong len)
 {
   ulong length= get_param_length(pos, len);
-  param->set_decimal((char*)*pos, length);
+  set_decimal((char*)*pos, length);
   *pos+= length;
 }
 
@@ -597,7 +596,7 @@ static void set_param_decimal(Item_param *param, uchar **pos, ulong len)
   @todo
     Add warning 'Data truncated' here
 */
-static void set_param_time(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_time(uchar **pos, ulong len)
 {
   MYSQL_TIME tm;
   ulong length= get_param_length(pos, len);
@@ -624,11 +623,11 @@ static void set_param_time(Item_param *param, uchar **pos, ulong len)
   }
   else
     set_zero_time(&tm, MYSQL_TIMESTAMP_TIME);
-  param->set_time(&tm, MYSQL_TIMESTAMP_TIME, MAX_TIME_FULL_WIDTH);
+  set_time(&tm, MYSQL_TIMESTAMP_TIME, MAX_TIME_FULL_WIDTH);
   *pos+= length;
 }
 
-static void set_param_datetime(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_datetime(uchar **pos, ulong len)
 {
   MYSQL_TIME tm;
   ulong length= get_param_length(pos, len);
@@ -654,13 +653,12 @@ static void set_param_datetime(Item_param *param, uchar **pos, ulong len)
   }
   else
     set_zero_time(&tm, MYSQL_TIMESTAMP_DATETIME);
-  param->set_time(&tm, MYSQL_TIMESTAMP_DATETIME,
-                  MAX_DATETIME_WIDTH * MY_CHARSET_BIN_MB_MAXLEN);
+  set_time(&tm, MYSQL_TIMESTAMP_DATETIME, MAX_DATETIME_WIDTH);
   *pos+= length;
 }
 
 
-static void set_param_date(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_date(uchar **pos, ulong len)
 {
   MYSQL_TIME tm;
   ulong length= get_param_length(pos, len);
@@ -679,8 +677,7 @@ static void set_param_date(Item_param *param, uchar **pos, ulong len)
   }
   else
     set_zero_time(&tm, MYSQL_TIMESTAMP_DATE);
-  param->set_time(&tm, MYSQL_TIMESTAMP_DATE,
-                  MAX_DATE_WIDTH * MY_CHARSET_BIN_MB_MAXLEN);
+  set_time(&tm, MYSQL_TIMESTAMP_DATE, MAX_DATE_WIDTH);
   *pos+= length;
 }
 
@@ -689,7 +686,7 @@ static void set_param_date(Item_param *param, uchar **pos, ulong len)
   @todo
     Add warning 'Data truncated' here
 */
-void set_param_time(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_time(uchar **pos, ulong len)
 {
   MYSQL_TIME tm= *((MYSQL_TIME*)*pos);
   tm.hour+= tm.day * 24;
@@ -701,145 +698,81 @@ void set_param_time(Item_param *param, uchar **pos, ulong len)
     tm.minute= 59;
     tm.second= 59;
   }
-  param->set_time(&tm, MYSQL_TIMESTAMP_TIME,
-                  MAX_TIME_WIDTH * MY_CHARSET_BIN_MB_MAXLEN);
-
+  set_time(&tm, MYSQL_TIMESTAMP_TIME, MAX_TIME_WIDTH);
 }
 
-void set_param_datetime(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_datetime(uchar **pos, ulong len)
 {
   MYSQL_TIME tm= *((MYSQL_TIME*)*pos);
   tm.neg= 0;
-
-  param->set_time(&tm, MYSQL_TIMESTAMP_DATETIME,
-                  MAX_DATETIME_WIDTH * MY_CHARSET_BIN_MB_MAXLEN);
+  set_time(&tm, MYSQL_TIMESTAMP_DATETIME, MAX_DATETIME_WIDTH);
 }
 
-void set_param_date(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_date(uchar **pos, ulong len)
 {
   MYSQL_TIME *to= (MYSQL_TIME*)*pos;
-
-  param->set_time(to, MYSQL_TIMESTAMP_DATE,
-                  MAX_DATE_WIDTH * MY_CHARSET_BIN_MB_MAXLEN);
+  set_time(to, MYSQL_TIMESTAMP_DATE, MAX_DATE_WIDTH);
 }
 #endif /*!EMBEDDED_LIBRARY*/
 
 
-static void set_param_str_or_null(Item_param *param, uchar **pos, ulong len,
-                                  bool empty_string_is_null)
+void Item_param::set_param_str(uchar **pos, ulong len)
 {
   ulong length= get_param_length(pos, len);
-  if (length == 0 && empty_string_is_null)
-    param->set_null();
+  if (length == 0 && m_empty_string_is_null)
+    set_null();
   else
   {
     if (length > len)
       length= len;
-    param->set_str((const char *) *pos, length);
+    /*
+      We use &my_charset_bin here. Conversion and setting real character
+      sets will be done in Item_param::convert_str_value(), after the
+      original value is appended to the query used for logging.
+    */
+    set_str((const char *) *pos, length, &my_charset_bin, &my_charset_bin);
     *pos+= length;
   }
 }
 
 
-static void set_param_str(Item_param *param, uchar **pos, ulong len)
-{
-  set_param_str_or_null(param, pos, len, false);
-}
-
-
-/*
-  set_param_str_empty_is_null : bind empty string as null value
-  when sql_mode=MODE_EMPTY_STRING_IS_NULL
-*/
-static void set_param_str_empty_is_null(Item_param *param, uchar **pos,
-                                        ulong len)
-{
-  set_param_str_or_null(param, pos, len, true);
-}
-
-
 #undef get_param_length
 
-static void setup_one_conversion_function(THD *thd, Item_param *param,
-                                          uchar param_type)
+
+void Item_param::setup_conversion(THD *thd, uchar param_type)
 {
-  switch (param_type) {
-  case MYSQL_TYPE_TINY:
-    param->set_param_func= set_param_tiny;
-    break;
-  case MYSQL_TYPE_SHORT:
-    param->set_param_func= set_param_short;
-    break;
-  case MYSQL_TYPE_LONG:
-    param->set_param_func= set_param_int32;
-    break;
-  case MYSQL_TYPE_LONGLONG:
-    param->set_param_func= set_param_int64;
-    break;
-  case MYSQL_TYPE_FLOAT:
-    param->set_param_func= set_param_float;
-    break;
-  case MYSQL_TYPE_DOUBLE:
-    param->set_param_func= set_param_double;
-    break;
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_NEWDECIMAL:
-    param->set_param_func= set_param_decimal;
-    break;
-  case MYSQL_TYPE_TIME:
-    param->set_param_func= set_param_time;
-    break;
-  case MYSQL_TYPE_DATE:
-    param->set_param_func= set_param_date;
-    break;
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_TIMESTAMP:
-    param->set_param_func= set_param_datetime;
-    break;
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_BLOB:
-    param->set_param_func= set_param_str;
-    param->value.cs_info.character_set_of_placeholder= &my_charset_bin;
-    param->value.cs_info.character_set_client=
-      thd->variables.character_set_client;
-    DBUG_ASSERT(thd->variables.character_set_client);
-    param->value.cs_info.final_character_set_of_str_value= &my_charset_bin;
-    break;
-  default:
-    /*
-      The client library ensures that we won't get any other typecodes
-      except typecodes above and typecodes for string types. Marking
-      label as 'default' lets us to handle malformed packets as well.
-    */
-    {
-      CHARSET_INFO *fromcs= thd->variables.character_set_client;
-      CHARSET_INFO *tocs= thd->variables.collation_connection;
-      uint32 dummy_offset;
+  const Type_handler *h=
+    Type_handler::get_handler_by_field_type((enum_field_types) param_type);
+  /*
+    The client library ensures that we won't get any unexpected typecodes
+    in the bound parameter. Translating unknown typecodes to
+    &type_handler_string lets us to handle malformed packets as well.
+  */
+  if (!h)
+    h= &type_handler_string;
+  set_handler(h);
+  h->Item_param_setup_conversion(thd, this);
+}
 
-      param->value.cs_info.character_set_of_placeholder= fromcs;
-      param->value.cs_info.character_set_client= fromcs;
 
-      /*
-        Setup source and destination character sets so that they
-        are different only if conversion is necessary: this will
-        make later checks easier.
-      */
-      param->value.cs_info.final_character_set_of_str_value=
-        String::needs_conversion(0, fromcs, tocs, &dummy_offset) ?
-        tocs : fromcs;
+void Item_param::setup_conversion_blob(THD *thd)
+{
+  value.cs_info.character_set_of_placeholder= &my_charset_bin;
+  value.cs_info.character_set_client= thd->variables.character_set_client;
+  DBUG_ASSERT(thd->variables.character_set_client);
+  value.cs_info.final_character_set_of_str_value= &my_charset_bin;
+  m_empty_string_is_null= thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL;
+}
 
-      param->set_param_func=
-        (thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL) ?
-        set_param_str_empty_is_null : set_param_str;
-      /*
-        Exact value of max_length is not known unless data is converted to
-        charset of connection, so we have to set it later.
-      */
-    }
-  }
-  param->set_handler_by_field_type((enum enum_field_types) param_type);
+
+void Item_param::setup_conversion_string(THD *thd, CHARSET_INFO *fromcs)
+{
+  value.cs_info.set(thd, fromcs);
+  m_empty_string_is_null= thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL;
+  /*
+    Exact value of max_length is not known unless data is converted to
+    charset of connection, so we have to set it later.
+  */
 }
 
 #ifndef EMBEDDED_LIBRARY
@@ -903,14 +836,13 @@ static bool insert_params_with_log(Prepared_statement *stmt, uchar *null_array,
       {
         if (read_pos >= data_end)
           DBUG_RETURN(1);
-        param->set_param_func(param, &read_pos, (uint) (data_end - read_pos));
+        param->set_param_func(&read_pos, (uint) (data_end - read_pos));
         if (param->has_no_value())
           DBUG_RETURN(1);
 
         if (param->limit_clause_param && !param->has_int_value())
         {
-          param->set_int(param->val_int(), MY_INT64_NUM_DECIMAL_DIGITS);
-          if (!param->unsigned_flag && param->value.integer < 0)
+          if (param->set_limit_clause_param(param->val_int()))
             DBUG_RETURN(1);
         }
       }
@@ -958,7 +890,7 @@ static bool insert_params(Prepared_statement *stmt, uchar *null_array,
       {
         if (read_pos >= data_end)
           DBUG_RETURN(1);
-        param->set_param_func(param, &read_pos, (uint) (data_end - read_pos));
+        param->set_param_func(&read_pos, (uint) (data_end - read_pos));
         if (param->has_no_value())
           DBUG_RETURN(1);
       }
@@ -1002,7 +934,7 @@ static bool insert_bulk_params(Prepared_statement *stmt,
       case STMT_INDICATOR_NONE:
         if ((*read_pos) >= data_end)
           DBUG_RETURN(1);
-        param->set_param_func(param, read_pos, (uint) (data_end - (*read_pos)));
+        param->set_param_func(read_pos, (uint) (data_end - (*read_pos)));
         if (param->has_no_value())
           DBUG_RETURN(1);
         if (param->convert_str_value(stmt->thd))
@@ -1048,7 +980,7 @@ static bool set_conversion_functions(Prepared_statement *stmt,
     typecode= sint2korr(read_pos);
     read_pos+= 2;
     (**it).unsigned_flag= MY_TEST(typecode & signed_bit);
-    setup_one_conversion_function(thd, *it, (uchar) (typecode & 0xff));
+    (*it)->setup_conversion(thd, (uchar) (typecode & 0xff));
   }
   *data= read_pos;
   DBUG_RETURN(0);
@@ -1103,7 +1035,7 @@ static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
   for (; it < end; ++it, ++client_param)
   {
     Item_param *param= *it;
-    setup_one_conversion_function(thd, param, client_param->buffer_type);
+    param->setup_conversion(thd, client_param->buffer_type);
     if (!param->has_long_data_value())
     {
       if (*client_param->is_null)
@@ -1112,7 +1044,7 @@ static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
       {
         uchar *buff= (uchar*) client_param->buffer;
         param->unsigned_flag= client_param->is_unsigned;
-        param->set_param_func(param, &buff,
+        param->set_param_func(&buff,
                               client_param->length ?
                               *client_param->length :
                               client_param->buffer_length);
@@ -1139,7 +1071,7 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
   for (; it < end; ++it, ++client_param)
   {
     Item_param *param= *it;
-    setup_one_conversion_function(thd, param, client_param->buffer_type);
+    param->setup_conversion(thd, client_param->buffer_type);
     if (!param->has_long_data_value())
     {
       if (*client_param->is_null)
@@ -1148,7 +1080,7 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
       {
         uchar *buff= (uchar*)client_param->buffer;
         param->unsigned_flag= client_param->is_unsigned;
-        param->set_param_func(param, &buff,
+        param->set_param_func(&buff,
                               client_param->length ?
                               *client_param->length :
                               client_param->buffer_length);
@@ -1281,12 +1213,6 @@ insert_params_from_actual_params_with_log(Prepared_statement *stmt,
   {
     Item_param *param= *it;
     Item *ps_param= param_it++;
-    /*
-      We have to call the setup_one_conversion_function() here to set
-      the parameter's members that might be needed further
-      (e.g. value.cs_info.character_set_client is used in the query_val_str()).
-    */
-    setup_one_conversion_function(thd, param, param->field_type());
     if (ps_param->save_in_param(thd, param))
       DBUG_RETURN(1);
 

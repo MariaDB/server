@@ -15,6 +15,7 @@ variable_name not in (
 'lower_case_file_system',
 'lower_case_table_names',
 'open_files_limit',
+'plugin_maturity',
 'rand_seed1',
 'rand_seed2',
 'system_time_zone',
@@ -927,7 +928,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	This option causes CREATE TABLE to create all TIMESTAMP columns as NULL with DEFAULT NULL attribute, Without this option, TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses. The old behavior is deprecated.
+VARIABLE_COMMENT	This option causes CREATE TABLE to create all TIMESTAMP columns as NULL with DEFAULT NULL attribute, Without this option, TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3398,20 +3399,6 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	PLUGIN_MATURITY
-SESSION_VALUE	NULL
-GLOBAL_VALUE	unknown
-GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	unknown
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	The lowest desirable plugin maturity. Plugins less mature than that will not be installed or loaded
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	unknown,experimental,alpha,beta,gamma,stable
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PORT
 SESSION_VALUE	NULL
 GLOBAL_VALUE	MASTER_MYPORT
@@ -4399,9 +4386,37 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	10
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of times the slave SQL thread will retry a transaction in case it failed with a deadlock or elapsed lock wait timeout, before giving up and stopping
+VARIABLE_COMMENT	Number of times the slave SQL thread will retry a transaction in case it failed with a deadlock, elapsed lock wait timeout or listed in slave_transaction_retry_errors, before giving up and stopping
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SLAVE_TRANSACTION_RETRY_ERRORS
+SESSION_VALUE	NULL
+GLOBAL_VALUE	1213,1205
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Tells the slave thread to retry transaction for replication when a query event returns an error from the provided list. Deadlock and elapsed lock wait timeout errors are automatically added to this list
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SLAVE_TRANSACTION_RETRY_INTERVAL
+SESSION_VALUE	NULL
+GLOBAL_VALUE	0
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	0
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Interval of the slave SQL thread will retry a transaction in case it failed with a deadlock or elapsed lock wait timeout or listed in slave_transaction_retry_errors
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	3600
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO

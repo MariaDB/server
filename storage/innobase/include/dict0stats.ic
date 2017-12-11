@@ -79,7 +79,7 @@ dict_stats_is_persistent_enabled(const dict_table_t* table)
 	protect the ::stat_persistent with dict_table_stats_lock() like the
 	other ::stat_ members which would be too big performance penalty,
 	especially when this function is called from
-	row_update_statistics_if_needed(). */
+	dict_stats_update_if_needed(). */
 
 	/* we rely on this read to be atomic */
 	ib_uint32_t	stat_persistent = table->stat_persistent;
@@ -141,13 +141,12 @@ dict_stats_auto_recalc_is_enabled(const dict_table_t* table)
 	}
 }
 
-/*********************************************************************//**
-Initialize table's stats for the first time when opening a table. */
+/** Initialize table statistics for the first time when opening a table.
+@param[in,out]	table	freshly opened table
+@param[in,out]	trx	transaction */
 UNIV_INLINE
 void
-dict_stats_init(
-/*============*/
-	dict_table_t*	table)	/*!< in/out: table */
+dict_stats_init(dict_table_t* table, trx_t* trx)
 {
 	ut_ad(!mutex_own(&dict_sys->mutex));
 
@@ -163,7 +162,7 @@ dict_stats_init(
 		opt = DICT_STATS_RECALC_TRANSIENT;
 	}
 
-	dict_stats_update(table, opt);
+	dict_stats_update(table, opt, trx);
 }
 
 /*********************************************************************//**

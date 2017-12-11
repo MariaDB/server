@@ -1,0 +1,30 @@
+CREATE TABLE memos (
+content text
+);
+INSERT INTO memos VALUES ('Mroonga is a MySQL storage engine based on Groonga, the full text search engine.
+
+In MySQL 5.1 or later, Pluggable Storage Engine interface is introduced, and we can use custom storage engines easily. So we implement Mroonga, so that we can use Groonga through MySQL.
+
+By using Mroonga, you can use Groonga with SQL.');
+INSERT INTO memos VALUES ('Since Tritonn was the modified version of MySQL, we need to build it by ourselves or use binary files provided by Tritonn project, thus we cannot use the official binary files provided by MySQL.
+
+On the other hand, Mroonga is an independent program (shared library) using Pluggable Storage Engine interface, and we can dynamically load it on MySQL''s official binary. So we can use it more easily than Tritonn.');
+INSERT INTO memos VALUES ('Mroonga has two running modes.
+
+One is "storage mode", that is the default mode, and we use Groonga for both storing data and searching. With this mode, you can have full benefits of Groonga described above, like fast data update, lock-free full text search and geolocation search. But it does not support transactions.
+
+Another one is "wrapper mode", that adds full text search function on other storage engines like MyISAM or InnoDB. With this mode, you can use Groonga''s fast full text search with having the benefits of the storage engine, ex. transaction in InnoDB. But you cannot have benefits from Groonga''s read-lock free characteristic. And you might have the performance bottle neck in the storage engine in updating data.');
+SELECT mroonga_snippet_html(content, 'Mroonga') as snippet
+FROM memos;
+snippet
+<div class="snippet"><span class="keyword">Mroonga</span> is a MySQL storage engine based on Groonga, the full text search engine.
+
+In MySQL 5.1 or later, Pluggable Storage Engine interface is introduced, and we can use custom storage engines easily.</div><div class="snippet"> So we implement <span class="keyword">Mroonga</span>, so that we can use Groonga through MySQL.
+
+By using <span class="keyword">Mroonga</span>, you can use Groonga with SQL.</div>
+<div class="snippet">onn project, thus we cannot use the official binary files provided by MySQL.
+
+On the other hand, <span class="keyword">Mroonga</span> is an independent program (shared library) using Pluggable Storage Engine interface, and we can</div>
+<div class="snippet"><span class="keyword">Mroonga</span> has two running modes.
+
+One is &quot;storage mode&quot;, that is the default mode, and we use Groonga for both storing data and searching. With this mode, you can have full benefits of Groonga described</div>

@@ -3211,7 +3211,7 @@ drop procedure bug10961|
 DROP PROCEDURE IF EXISTS bug6866|
 DROP VIEW IF EXISTS tv|
 Warnings:
-Note	4090	Unknown VIEW: 'test.tv'
+Note	4091	Unknown VIEW: 'test.tv'
 DROP TABLE IF EXISTS tt1,tt2,tt3|
 Warnings:
 Note	1051	Unknown table 'test.tt1'
@@ -5324,7 +5324,7 @@ DROP PROCEDURE bug21414|
 set names utf8|
 drop database if exists това_е_дълго_име_за_база_данни_нали|
 create database това_е_дълго_име_за_база_данни_нали|
-INSERT INTO mysql.proc VALUES ('това_е_дълго_име_за_база_данни_нали','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','PROCEDURE','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','SQL','CONTAINS_SQL','NO','DEFINER','','','bad_body','root@localhost',now(), now(),'','', 'utf8', 'utf8_general_ci', 'utf8_general_ci', 'n/a')|
+INSERT INTO mysql.proc VALUES ('това_е_дълго_име_за_база_данни_нали','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','PROCEDURE','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','SQL','CONTAINS_SQL','NO','DEFINER','','','bad_body','root@localhost',now(), now(),'','', 'utf8', 'utf8_general_ci', 'utf8_general_ci', 'n/a', 'NONE')|
 call това_е_дълго_име_за_база_данни_нали.това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго()|
 ERROR HY000: Failed to load routine това_е_дълго_име_за_база_данни_нали.това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго. The table mysql.proc is missing, corrupt, or contains bad data (internal code -6)
 drop database това_е_дълго_име_за_база_данни_нали|
@@ -7823,7 +7823,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 show warnings;
 Level	Code	Message
 Error	1062	Duplicate entry '2' for key 'PRIMARY'
-Note	4092	At line 5 in test.p1
+Note	4093	At line 5 in test.p1
 select * from t1;
 id
 1
@@ -8116,6 +8116,18 @@ CALL p();
 drop procedure p;
 drop view v;
 drop table t, tmp_t;
+#
+# MDEV-13936: Server crashes in Time_and_counter_tracker::incr_loops
+#
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE RAND() > 0.5;
+CREATE FUNCTION f1() RETURNS INT RETURN ( SELECT MAX(i) FROM v1 );
+REPLACE INTO v1 VALUES (f1());
+ERROR HY000: The target table v1 of the INSERT is not insertable-into
+SET @aux = f1();
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1;
 #End of 10.1 tests
 #
 # MDEV-11081: CURSOR for query with GROUP BY

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -343,6 +344,15 @@ trx_rw_is_active(
 	bool		do_ref_count)	/*!< in: if true then increment the
 					trx_t::n_ref_count */
 {
+	if (!trx_id) {
+		/* In MariaDB 10.3, purge will reset DB_TRX_ID to 0
+		when the history is lost. Read/write transactions will
+		always have a nonzero trx_t::id; there the value 0 is
+		reserved for transactions that did not write or lock
+		anything yet. */
+		return NULL;
+	}
+
 	trx_t*		trx;
 
 	trx_sys_mutex_enter();

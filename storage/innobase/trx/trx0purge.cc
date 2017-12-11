@@ -304,7 +304,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		  && purge_sys->state == PURGE_STATE_INIT)
 	      || (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND
 		  && purge_sys->state == PURGE_STATE_DISABLED)
-	      || ((trx->undo_no == 0 || trx->in_mysql_trx_list)
+	      || ((trx->undo_no == 0 || trx->in_mysql_trx_list
+		   || trx->persistent_stats)
 		  && srv_fast_shutdown));
 
 	/* Add the log as the first in the history list */
@@ -569,10 +570,10 @@ namespace undo {
 			log_file_name_len = strlen(log_file_name);
 		}
 
-		ut_snprintf(log_file_name + log_file_name_len,
-			    log_file_name_sz - log_file_name_len,
-			    "%s%lu_%s", undo::s_log_prefix,
-			    (ulong) space_id, s_log_ext);
+		snprintf(log_file_name + log_file_name_len,
+			 log_file_name_sz - log_file_name_len,
+			 "%s%lu_%s", undo::s_log_prefix,
+			 (ulong) space_id, s_log_ext);
 
 		return(DB_SUCCESS);
 	}

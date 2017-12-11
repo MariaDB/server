@@ -38,6 +38,8 @@ namespace mrn {
     const char *table_name();
     const char *mysql_table_name();
     const char *mysql_path();
+    bool is_internal_table_name();
+    bool is_temporary_table_name();
   private:
     const char *original_mysql_path_;
     const char *path_prefix_;

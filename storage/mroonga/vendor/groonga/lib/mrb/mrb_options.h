@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2015 Brazil
+  Copyright(C) 2015-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,8 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef GRN_MRB_OPTIONS_H
-#define GRN_MRB_OPTIONS_H
+#pragma once
 
 #include "../grn_ctx.h"
 
@@ -37,4 +36,3 @@ mrb_value grn_mrb_options_get_static(mrb_state *mrb,
 }
 #endif
 
-#endif /* GRN_MRB_OPTIONS_H */

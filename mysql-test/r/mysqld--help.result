@@ -242,7 +242,7 @@ The following options may be given as the first argument:
  This option causes CREATE TABLE to create all TIMESTAMP
  columns as NULL with DEFAULT NULL attribute, Without this
  option, TIMESTAMP columns are NOT NULL and have implicit
- DEFAULT clauses. The old behavior is deprecated.
+ DEFAULT clauses.
  --external-locking  Use system (external) locking (disabled by default). 
  With this option enabled you can run myisamchk to test
  (not repair) tables while the MySQL server is running.
@@ -1118,8 +1118,19 @@ The following options may be given as the first argument:
  (Defaults to on; use --skip-slave-sql-verify-checksum to disable.)
  --slave-transaction-retries=# 
  Number of times the slave SQL thread will retry a
- transaction in case it failed with a deadlock or elapsed
- lock wait timeout, before giving up and stopping
+ transaction in case it failed with a deadlock, elapsed
+ lock wait timeout or listed in
+ slave_transaction_retry_errors, before giving up and
+ stopping
+ --slave-transaction-retry-errors=name 
+ Tells the slave thread to retry transaction for
+ replication when a query event returns an error from the
+ provided list. Deadlock and elapsed lock wait timeout
+ errors are automatically added to this list
+ --slave-transaction-retry-interval=# 
+ Interval of the slave SQL thread will retry a transaction
+ in case it failed with a deadlock or elapsed lock wait
+ timeout or listed in slave_transaction_retry_errors
  --slave-type-conversions=name 
  Set of slave type conversions that are enabled. If the
  variable is empty, no conversions are allowed and it is
@@ -1543,7 +1554,6 @@ performance-schema-session-connect-attrs-size -1
 performance-schema-setup-actors-size 100
 performance-schema-setup-objects-size 100
 performance-schema-users-size -1
-plugin-maturity unknown
 port 3306
 port-open-timeout 0
 preload-buffer-size 32768
@@ -1604,9 +1614,11 @@ slave-parallel-mode conservative
 slave-parallel-threads 0
 slave-parallel-workers 0
 slave-run-triggers-for-rbr NO
-slave-skip-errors (No default value)
+slave-skip-errors OFF
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10
+slave-transaction-retry-errors 1213,1205
+slave-transaction-retry-interval 0
 slave-type-conversions 
 slow-launch-time 2
 slow-query-log FALSE

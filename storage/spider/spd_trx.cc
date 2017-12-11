@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2015 Kentoku Shiba
+/* Copyright (C) 2008-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,11 +11,12 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
+#include "spd_environ.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"
 #include <mysql/plugin.h>
@@ -503,6 +504,7 @@ int spider_create_trx_alter_table(
   char **tmp_tgt_ssl_keys;
   char **tmp_tgt_default_files;
   char **tmp_tgt_default_groups;
+  char **tmp_static_link_ids;
   uint *tmp_server_names_lengths;
   uint *tmp_tgt_table_names_lengths;
   uint *tmp_tgt_dbs_lengths;
@@ -518,8 +520,10 @@ int spider_create_trx_alter_table(
   uint *tmp_tgt_ssl_keys_lengths;
   uint *tmp_tgt_default_files_lengths;
   uint *tmp_tgt_default_groups_lengths;
+  uint *tmp_static_link_ids_lengths;
   long *tmp_tgt_ports;
   long *tmp_tgt_ssl_vscs;
+  long *tmp_monitoring_binlog_pos_at_failing;
   long *tmp_link_statuses;
   char *tmp_server_names_char;
   char *tmp_tgt_table_names_char;
@@ -536,6 +540,7 @@ int spider_create_trx_alter_table(
   char *tmp_tgt_ssl_keys_char;
   char *tmp_tgt_default_files_char;
   char *tmp_tgt_default_groups_char;
+  char *tmp_static_link_ids_char;
   uint old_elements;
 
   DBUG_ENTER("spider_create_trx_alter_table");
@@ -561,6 +566,7 @@ int spider_create_trx_alter_table(
       &tmp_tgt_ssl_keys, sizeof(char *) * share->all_link_count,
       &tmp_tgt_default_files, sizeof(char *) * share->all_link_count,
       &tmp_tgt_default_groups, sizeof(char *) * share->all_link_count,
+      &tmp_static_link_ids, sizeof(char *) * share->all_link_count,
 
       &tmp_server_names_lengths, sizeof(uint) * share->all_link_count,
       &tmp_tgt_table_names_lengths, sizeof(uint) * share->all_link_count,
@@ -577,9 +583,12 @@ int spider_create_trx_alter_table(
       &tmp_tgt_ssl_keys_lengths, sizeof(uint) * share->all_link_count,
       &tmp_tgt_default_files_lengths, sizeof(uint) * share->all_link_count,
       &tmp_tgt_default_groups_lengths, sizeof(uint) * share->all_link_count,
+      &tmp_static_link_ids_lengths, sizeof(uint) * share->all_link_count,
 
       &tmp_tgt_ports, sizeof(long) * share->all_link_count,
       &tmp_tgt_ssl_vscs, sizeof(long) * share->all_link_count,
+      &tmp_monitoring_binlog_pos_at_failing,
+        sizeof(long) * share->all_link_count,
       &tmp_link_statuses, sizeof(long) * share->all_link_count,
 
       &tmp_server_names_char, sizeof(char) *
@@ -612,6 +621,8 @@ int spider_create_trx_alter_table(
         (share_alter->tmp_tgt_default_files_charlen + 1),
       &tmp_tgt_default_groups_char, sizeof(char) *
         (share_alter->tmp_tgt_default_groups_charlen + 1),
+      &tmp_static_link_ids_char, sizeof(char) *
+        (share_alter->tmp_static_link_ids_charlen + 1),
       NullS))
   ) {
     error_num = HA_ERR_OUT_OF_MEM;
@@ -645,9 +656,12 @@ int spider_create_trx_alter_table(
   alter_table->tmp_tgt_ssl_keys = tmp_tgt_ssl_keys;
   alter_table->tmp_tgt_default_files = tmp_tgt_default_files;
   alter_table->tmp_tgt_default_groups = tmp_tgt_default_groups;
+  alter_table->tmp_static_link_ids = tmp_static_link_ids;
 
   alter_table->tmp_tgt_ports = tmp_tgt_ports;
   alter_table->tmp_tgt_ssl_vscs = tmp_tgt_ssl_vscs;
+  alter_table->tmp_monitoring_binlog_pos_at_failing =
+    tmp_monitoring_binlog_pos_at_failing;
   alter_table->tmp_link_statuses = tmp_link_statuses;
 
   alter_table->tmp_server_names_lengths = tmp_server_names_lengths;
@@ -665,6 +679,7 @@ int spider_create_trx_alter_table(
   alter_table->tmp_tgt_ssl_keys_lengths = tmp_tgt_ssl_keys_lengths;
   alter_table->tmp_tgt_default_files_lengths = tmp_tgt_default_files_lengths;
   alter_table->tmp_tgt_default_groups_lengths = tmp_tgt_default_groups_lengths;
+  alter_table->tmp_static_link_ids_lengths = tmp_static_link_ids_lengths;
 
   for(roop_count = 0; roop_count < (int) share->all_link_count; roop_count++)
   {
@@ -763,11 +778,24 @@ int spider_create_trx_alter_table(
       sizeof(char) * share_alter->tmp_tgt_default_groups_lengths[roop_count]);
     tmp_tgt_default_groups_char +=
       share_alter->tmp_tgt_default_groups_lengths[roop_count] + 1;
+
+    if (share_alter->tmp_static_link_ids[roop_count])
+    {
+      tmp_static_link_ids[roop_count] = tmp_static_link_ids_char;
+      memcpy(tmp_static_link_ids_char,
+        share_alter->tmp_static_link_ids[roop_count],
+        sizeof(char) * share_alter->tmp_static_link_ids_lengths[roop_count]);
+      tmp_static_link_ids_char +=
+        share_alter->tmp_static_link_ids_lengths[roop_count] + 1;
+    }
   }
 
   memcpy(tmp_tgt_ports, share_alter->tmp_tgt_ports,
     sizeof(long) * share->all_link_count);
   memcpy(tmp_tgt_ssl_vscs, share_alter->tmp_tgt_ssl_vscs,
+    sizeof(long) * share->all_link_count);
+  memcpy(tmp_monitoring_binlog_pos_at_failing,
+    share_alter->tmp_monitoring_binlog_pos_at_failing,
     sizeof(long) * share->all_link_count);
   memcpy(tmp_link_statuses, share_alter->tmp_link_statuses,
     sizeof(long) * share->all_link_count);
@@ -804,6 +832,9 @@ int spider_create_trx_alter_table(
   memcpy(tmp_tgt_default_groups_lengths,
     share_alter->tmp_tgt_default_groups_lengths,
     sizeof(uint) * share->all_link_count);
+  memcpy(tmp_static_link_ids_lengths,
+    share_alter->tmp_static_link_ids_lengths,
+    sizeof(uint) * share->all_link_count);
 
   alter_table->tmp_server_names_length =
     share_alter->tmp_server_names_length;
@@ -835,10 +866,14 @@ int spider_create_trx_alter_table(
     share_alter->tmp_tgt_default_files_length;
   alter_table->tmp_tgt_default_groups_length =
     share_alter->tmp_tgt_default_groups_length;
+  alter_table->tmp_static_link_ids_length =
+    share_alter->tmp_static_link_ids_length;
   alter_table->tmp_tgt_ports_length =
     share_alter->tmp_tgt_ports_length;
   alter_table->tmp_tgt_ssl_vscs_length =
     share_alter->tmp_tgt_ssl_vscs_length;
+  alter_table->tmp_monitoring_binlog_pos_at_failing_length =
+    share_alter->tmp_monitoring_binlog_pos_at_failing_length;
   alter_table->tmp_link_statuses_length =
     share_alter->tmp_link_statuses_length;
 
@@ -1034,9 +1069,21 @@ bool spider_cmp_trx_alter_table(
             cmp2->tmp_tgt_default_groups[roop_count])
         )
       ) ||
+      (
+        cmp1->tmp_static_link_ids[roop_count] !=
+          cmp2->tmp_static_link_ids[roop_count] &&
+        (
+          !cmp1->tmp_static_link_ids[roop_count] ||
+          !cmp2->tmp_static_link_ids[roop_count] ||
+          strcmp(cmp1->tmp_static_link_ids[roop_count],
+            cmp2->tmp_static_link_ids[roop_count])
+        )
+      ) ||
       cmp1->tmp_tgt_ports[roop_count] != cmp2->tmp_tgt_ports[roop_count] ||
       cmp1->tmp_tgt_ssl_vscs[roop_count] !=
         cmp2->tmp_tgt_ssl_vscs[roop_count] ||
+      cmp1->tmp_monitoring_binlog_pos_at_failing[roop_count] !=
+        cmp2->tmp_monitoring_binlog_pos_at_failing[roop_count] ||
       cmp1->tmp_link_statuses[roop_count] !=
         cmp2->tmp_link_statuses[roop_count]
     )
@@ -1659,7 +1706,8 @@ int spider_xa_lock(
 #ifdef SPIDER_XID_USES_xid_cache_iterate
   if (xid_cache_insert(thd, xid_state))
   {
-    error_num = my_errno;
+    error_num = (spider_stmt_da_sql_errno(thd) == ER_XAER_DUPID ?
+      ER_SPIDER_XA_LOCKED_NUM : HA_ERR_OUT_OF_MEM);
     goto error;
   }
 #else
@@ -1905,6 +1953,8 @@ int spider_internal_start_trx(
     }
     trx->trx_start = TRUE;
     trx->trx_xa_prepared = FALSE;
+    trx->updated_in_this_trx = FALSE;
+    DBUG_PRINT("info",("spider trx->updated_in_this_trx=FALSE"));
   }
 
   DBUG_PRINT("info",("spider sync_autocommit = %d", sync_autocommit));
@@ -1983,7 +2033,7 @@ int spider_internal_xa_commit(
   TABLE *table_xa,
   TABLE *table_xa_member
 ) {
-  int error_num, tmp_error_num;
+  int error_num = 0, tmp_error_num;
   char xa_key[MAX_KEY_LENGTH];
   SPIDER_CONN *conn;
   uint force_commit = spider_param_force_commit(thd);
@@ -1997,72 +2047,75 @@ int spider_internal_xa_commit(
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_commit");
 
-  /*
-    select
-      status
-    from
-      mysql.spider_xa
-    where
-      format_id = xid->format_id and
-      gtrid_length = xid->gtrid_length and
-      data = xid->data
-  */
-  if (
-    !(table_xa = spider_open_sys_table(
-      thd, SPIDER_SYS_XA_TABLE_NAME_STR, SPIDER_SYS_XA_TABLE_NAME_LEN,
-      TRUE, &open_tables_backup, TRUE, &error_num))
-  )
-    goto error_open_table;
-  table_xa_opened = TRUE;
-  spider_store_xa_pk(table_xa, &trx->xid);
-  if (
-    (error_num = spider_check_sys_table(table_xa, xa_key))
-  ) {
-    if (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
-    {
-      table_xa->file->print_error(error_num, MYF(0));
+  if (trx->updated_in_this_trx || spider_param_xa_register_mode(thd) == 0)
+  {
+    /*
+      select
+        status
+      from
+        mysql.spider_xa
+      where
+        format_id = xid->format_id and
+        gtrid_length = xid->gtrid_length and
+        data = xid->data
+    */
+    if (
+      !(table_xa = spider_open_sys_table(
+        thd, SPIDER_SYS_XA_TABLE_NAME_STR, SPIDER_SYS_XA_TABLE_NAME_LEN,
+        TRUE, &open_tables_backup, TRUE, &error_num))
+    )
+      goto error_open_table;
+    table_xa_opened = TRUE;
+    spider_store_xa_pk(table_xa, &trx->xid);
+    if (
+      (error_num = spider_check_sys_table(table_xa, xa_key))
+    ) {
+      if (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
+      {
+        table_xa->file->print_error(error_num, MYF(0));
+        goto error;
+      }
+      my_message(ER_SPIDER_XA_NOT_EXISTS_NUM, ER_SPIDER_XA_NOT_EXISTS_STR,
+        MYF(0));
+      error_num = ER_SPIDER_XA_NOT_EXISTS_NUM;
       goto error;
     }
-    my_message(ER_SPIDER_XA_NOT_EXISTS_NUM, ER_SPIDER_XA_NOT_EXISTS_STR,
-      MYF(0));
-    error_num = ER_SPIDER_XA_NOT_EXISTS_NUM;
-    goto error;
-  }
-  SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
-  if (
-    force_commit != 2 &&
-    (error_num = spider_check_sys_xa_status(
-      table_xa,
-      SPIDER_SYS_XA_PREPARED_STR,
-      SPIDER_SYS_XA_COMMIT_STR,
-      NULL,
-      ER_SPIDER_XA_NOT_PREPARED_NUM,
-      &mem_root))
-  ) {
+    SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
+    if (
+      force_commit != 2 &&
+      (error_num = spider_check_sys_xa_status(
+        table_xa,
+        SPIDER_SYS_XA_PREPARED_STR,
+        SPIDER_SYS_XA_COMMIT_STR,
+        NULL,
+        ER_SPIDER_XA_NOT_PREPARED_NUM,
+        &mem_root))
+    ) {
+      free_root(&mem_root, MYF(0));
+      if (error_num == ER_SPIDER_XA_NOT_PREPARED_NUM)
+        my_message(error_num, ER_SPIDER_XA_NOT_PREPARED_STR, MYF(0));
+      goto error;
+    }
     free_root(&mem_root, MYF(0));
-    if (error_num == ER_SPIDER_XA_NOT_PREPARED_NUM)
-      my_message(error_num, ER_SPIDER_XA_NOT_PREPARED_STR, MYF(0));
-    goto error;
-  }
-  free_root(&mem_root, MYF(0));
 
-  /*
-    update
-      mysql.spider_xa
-    set
-      status = 'COMMIT'
-    where
-      format_id = trx->xid.format_id and
-      gtrid_length = trx->xid.gtrid_length and
-      data = trx->xid.data
-  */
-  if (
-    (error_num = spider_update_xa(
-      table_xa, &trx->xid, SPIDER_SYS_XA_COMMIT_STR))
-  )
-    goto error;
-  spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
-  table_xa_opened = FALSE;
+    /*
+      update
+        mysql.spider_xa
+      set
+        status = 'COMMIT'
+      where
+        format_id = trx->xid.format_id and
+        gtrid_length = trx->xid.gtrid_length and
+        data = trx->xid.data
+    */
+    if (
+      (error_num = spider_update_xa(
+        table_xa, &trx->xid, SPIDER_SYS_XA_COMMIT_STR))
+    )
+      goto error;
+    spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
+    table_xa_opened = FALSE;
+  }
 
   SPIDER_BACKUP_DASTATUS;
   if ((conn = spider_tree_first(trx->join_trx_top)))
@@ -2100,46 +2153,49 @@ int spider_internal_xa_commit(
   if (error_num)
     goto error_in_commit;
 
-  /*
-    delete from
-      mysql.spider_xa_member
-    where
-      format_id = xid->format_id and
-      gtrid_length = xid->gtrid_length and
-      data = xid->data
-  */
-  if (
-    !(table_xa_member = spider_open_sys_table(
-      thd, SPIDER_SYS_XA_MEMBER_TABLE_NAME_STR,
-      SPIDER_SYS_XA_MEMBER_TABLE_NAME_LEN, TRUE, &open_tables_backup, TRUE,
-      &error_num))
-  )
-    goto error_open_table;
-  table_xa_member_opened = TRUE;
-  if ((error_num = spider_delete_xa_member(table_xa_member, &trx->xid)))
-    goto error;
-  spider_close_sys_table(thd, table_xa_member, &open_tables_backup, TRUE);
-  table_xa_member_opened = FALSE;
+  if (trx->updated_in_this_trx || spider_param_xa_register_mode(thd) == 0)
+  {
+    /*
+      delete from
+        mysql.spider_xa_member
+      where
+        format_id = xid->format_id and
+        gtrid_length = xid->gtrid_length and
+        data = xid->data
+    */
+    if (
+      !(table_xa_member = spider_open_sys_table(
+        thd, SPIDER_SYS_XA_MEMBER_TABLE_NAME_STR,
+        SPIDER_SYS_XA_MEMBER_TABLE_NAME_LEN, TRUE, &open_tables_backup, TRUE,
+        &error_num))
+    )
+      goto error_open_table;
+    table_xa_member_opened = TRUE;
+    if ((error_num = spider_delete_xa_member(table_xa_member, &trx->xid)))
+      goto error;
+    spider_close_sys_table(thd, table_xa_member, &open_tables_backup, TRUE);
+    table_xa_member_opened = FALSE;
 
-  /*
-    delete from
-      mysql.spider_xa
-    where
-      format_id = xid->format_id and
-      gtrid_length = xid->gtrid_length and
-      data = xid->data
-  */
-  if (
-    !(table_xa = spider_open_sys_table(
-      thd, SPIDER_SYS_XA_TABLE_NAME_STR, SPIDER_SYS_XA_TABLE_NAME_LEN,
-      TRUE, &open_tables_backup, TRUE, &error_num))
-  )
-    goto error_open_table;
-  table_xa_opened = TRUE;
-  if ((error_num = spider_delete_xa(table_xa, &trx->xid)))
-    goto error;
-  spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
-  table_xa_opened = FALSE;
+    /*
+      delete from
+        mysql.spider_xa
+      where
+        format_id = xid->format_id and
+        gtrid_length = xid->gtrid_length and
+        data = xid->data
+    */
+    if (
+      !(table_xa = spider_open_sys_table(
+        thd, SPIDER_SYS_XA_TABLE_NAME_STR, SPIDER_SYS_XA_TABLE_NAME_LEN,
+        TRUE, &open_tables_backup, TRUE, &error_num))
+    )
+      goto error_open_table;
+    table_xa_opened = TRUE;
+    if ((error_num = spider_delete_xa(table_xa, &trx->xid)))
+      goto error;
+    spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
+    table_xa_opened = FALSE;
+  }
   spider_xa_unlock(&trx->internal_xid_state);
   trx->internal_xid_state.xa_state = XA_NOTR;
   DBUG_RETURN(0);
@@ -2176,8 +2232,13 @@ int spider_internal_xa_rollback(
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_rollback");
 
-  if (trx->trx_xa_prepared)
-  {
+  if (
+    trx->trx_xa_prepared &&
+    (
+      trx->updated_in_this_trx ||
+      spider_param_xa_register_mode(thd) == 0
+    )
+  ) {
     /*
       select
         status
@@ -2326,7 +2387,11 @@ int spider_internal_xa_rollback(
 
   if (
     trx->trx_xa_prepared &&
-    !server_lost
+    !server_lost &&
+    (
+      trx->updated_in_this_trx ||
+      spider_param_xa_register_mode(thd) == 0
+    )
   ) {
     /*
       delete from
@@ -2403,35 +2468,38 @@ int spider_internal_xa_prepare(
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_prepare");
-  /*
-    insert into mysql.spider_xa
-      (format_id, gtrid_length, bqual_length, data, status) values
-      (trx->xid.format_id, trx->xid.gtrid_length, trx->xid.bqual_length,
-      trx->xid.data, 'NOT YET')
-  */
-  if (
-    !(table_xa = spider_open_sys_table(
-      thd, SPIDER_SYS_XA_TABLE_NAME_STR, SPIDER_SYS_XA_TABLE_NAME_LEN,
-      TRUE, &open_tables_backup, TRUE, &error_num))
-  )
-    goto error_open_table;
-  table_xa_opened = TRUE;
-  if (
-    (error_num = spider_insert_xa(
-      table_xa, &trx->xid, SPIDER_SYS_XA_NOT_YET_STR))
-  )
-    goto error;
-  spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
-  table_xa_opened = FALSE;
+  if (trx->updated_in_this_trx || spider_param_xa_register_mode(thd) == 0)
+  {
+    /*
+      insert into mysql.spider_xa
+        (format_id, gtrid_length, bqual_length, data, status) values
+        (trx->xid.format_id, trx->xid.gtrid_length, trx->xid.bqual_length,
+        trx->xid.data, 'NOT YET')
+    */
+    if (
+      !(table_xa = spider_open_sys_table(
+        thd, SPIDER_SYS_XA_TABLE_NAME_STR, SPIDER_SYS_XA_TABLE_NAME_LEN,
+        TRUE, &open_tables_backup, TRUE, &error_num))
+    )
+      goto error_open_table;
+    table_xa_opened = TRUE;
+    if (
+      (error_num = spider_insert_xa(
+        table_xa, &trx->xid, SPIDER_SYS_XA_NOT_YET_STR))
+    )
+      goto error;
+    spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
+    table_xa_opened = FALSE;
 
-  if (
-    !(table_xa_member = spider_open_sys_table(
-      thd, SPIDER_SYS_XA_MEMBER_TABLE_NAME_STR,
-      SPIDER_SYS_XA_MEMBER_TABLE_NAME_LEN, TRUE, &open_tables_backup, TRUE,
-      &error_num))
-  )
-    goto error_open_table;
-  table_xa_member_opened = TRUE;
+    if (
+      !(table_xa_member = spider_open_sys_table(
+        thd, SPIDER_SYS_XA_MEMBER_TABLE_NAME_STR,
+        SPIDER_SYS_XA_MEMBER_TABLE_NAME_LEN, TRUE, &open_tables_backup, TRUE,
+        &error_num))
+    )
+      goto error_open_table;
+    table_xa_member_opened = TRUE;
+  }
   SPIDER_BACKUP_DASTATUS;
   if ((conn = spider_tree_first(trx->join_trx_top)))
   {
@@ -2457,26 +2525,29 @@ int spider_internal_xa_prepare(
         }
         conn->join_trx = 0;
       } else {
-        /*
-          insert into mysql.spider_xa_member
-            (format_id, gtrid_length, bqual_length, data,
-            scheme, host, port, socket, username, password) values
-            (trx->xid.format_id, trx->xid.gtrid_length,
-            trx->xid.bqual_length, trx->xid.data,
-            conn->tgt_wrapper,
-            conn->tgt_host,
-            conn->tgt_port,
-            conn->tgt_socket,
-            conn->tgt_username,
-            conn->tgt_password)
-        */
-        if (
-          (error_num = spider_insert_xa_member(
-            table_xa_member, &trx->xid, conn))
-        ) {
-          SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_ERROR_NUM;
-          if (error_num)
-            goto error;
+        if (trx->updated_in_this_trx || spider_param_xa_register_mode(thd) == 0)
+        {
+          /*
+            insert into mysql.spider_xa_member
+              (format_id, gtrid_length, bqual_length, data,
+              scheme, host, port, socket, username, password) values
+              (trx->xid.format_id, trx->xid.gtrid_length,
+              trx->xid.bqual_length, trx->xid.data,
+              conn->tgt_wrapper,
+              conn->tgt_host,
+              conn->tgt_port,
+              conn->tgt_socket,
+              conn->tgt_username,
+              conn->tgt_password)
+          */
+          if (
+            (error_num = spider_insert_xa_member(
+              table_xa_member, &trx->xid, conn))
+          ) {
+            SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_ERROR_NUM;
+            if (error_num)
+              goto error;
+          }
         }
 
         if ((error_num = spider_db_xa_end(conn, &trx->xid)))
@@ -2514,33 +2585,36 @@ int spider_internal_xa_prepare(
       trx->join_trx_top = NULL;
 */
   }
-  spider_close_sys_table(thd, table_xa_member, &open_tables_backup, TRUE);
-  table_xa_member_opened = FALSE;
+  if (trx->updated_in_this_trx || spider_param_xa_register_mode(thd) == 0)
+  {
+    spider_close_sys_table(thd, table_xa_member, &open_tables_backup, TRUE);
+    table_xa_member_opened = FALSE;
 
-  /*
-    update
-      mysql.spider_xa
-    set
-      status = 'PREPARED'
-    where
-      format_id = trx->xid.format_id and
-      gtrid_length = trx->xid.gtrid_length and
-      data = trx->xid.data
-  */
-  if (
-    !(table_xa = spider_open_sys_table(
-      thd, SPIDER_SYS_XA_TABLE_NAME_STR, SPIDER_SYS_XA_TABLE_NAME_LEN,
-      TRUE, &open_tables_backup, TRUE, &error_num))
-  )
-    goto error_open_table;
-  table_xa_opened = TRUE;
-  if (
-    (error_num = spider_update_xa(
-      table_xa, &trx->xid, SPIDER_SYS_XA_PREPARED_STR))
-  )
-    goto error;
-  spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
-  table_xa_opened = FALSE;
+    /*
+      update
+        mysql.spider_xa
+      set
+        status = 'PREPARED'
+      where
+        format_id = trx->xid.format_id and
+        gtrid_length = trx->xid.gtrid_length and
+        data = trx->xid.data
+    */
+    if (
+      !(table_xa = spider_open_sys_table(
+        thd, SPIDER_SYS_XA_TABLE_NAME_STR, SPIDER_SYS_XA_TABLE_NAME_LEN,
+        TRUE, &open_tables_backup, TRUE, &error_num))
+    )
+      goto error_open_table;
+    table_xa_opened = TRUE;
+    if (
+      (error_num = spider_update_xa(
+        table_xa, &trx->xid, SPIDER_SYS_XA_PREPARED_STR))
+    )
+      goto error;
+    spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
+    table_xa_opened = FALSE;
+  }
   if (internal_xa)
     trx->internal_xid_state.xa_state = XA_PREPARED;
   DBUG_RETURN(0);
@@ -2684,8 +2758,8 @@ int spider_initinal_xa_recover(
         FALSE, open_tables_backup, TRUE, &error_num))
     )
       goto error_open_table;
-    init_read_record(read_record, thd, table_xa, NULL, NULL, TRUE, FALSE,
-                     FALSE);
+    SPIDER_init_read_record(read_record, thd, table_xa, NULL, NULL, TRUE,
+      FALSE, FALSE);
   }
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
   while ((!(read_record->read_record())) && cnt < (int) len)
@@ -3370,7 +3444,9 @@ int spider_commit(
         }
       }
       trx->trx_start = FALSE;
+      trx->updated_in_this_trx = FALSE;
       DBUG_PRINT("info",("spider trx->trx_start=FALSE"));
+      DBUG_PRINT("info",("spider trx->updated_in_this_trx=FALSE"));
     }
     spider_reuse_trx_ha(trx);
     spider_free_trx_conn(trx, FALSE);
@@ -3441,7 +3517,9 @@ int spider_rollback(
         }
       }
       trx->trx_start = FALSE;
+      trx->updated_in_this_trx = FALSE;
       DBUG_PRINT("info",("spider trx->trx_start=FALSE"));
+      DBUG_PRINT("info",("spider trx->updated_in_this_trx=FALSE"));
     }
     spider_reuse_trx_ha(trx);
     spider_free_trx_conn(trx, FALSE);
@@ -3712,21 +3790,14 @@ int spider_check_trx_and_get_conn(
         {
           TABLE *table = spider->get_table();
           TABLE_SHARE *table_share = table->s;
-#if defined(_MSC_VER) || defined(__SUNPRO_CC)
-          char *db, *table_name;
-          if (!(db = (char *)
-            spider_bulk_malloc(spider_current_trx, 57, MYF(MY_WME),
-              &db, table_share->db.length + 1,
-              &table_name, table_share->table_name.length + 1,
-              NullS))
-          ) {
-            my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+          char *db = (char *) my_alloca(
+            table_share->db.length + 1 + table_share->table_name.length + 1);
+          if (!db)
+          {
+            my_error(HA_ERR_OUT_OF_MEM, MYF(0));
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
           }
-#else
-          char db[table_share->db.length + 1],
-            table_name[table_share->table_name.length + 1];
-#endif
+          char *table_name = db + table_share->db.length + 1;
           memcpy(db, table_share->db.str, table_share->db.length);
           db[table_share->db.length] = '\0';
           memcpy(table_name, table_share->table_name.str,
@@ -3734,10 +3805,12 @@ int spider_check_trx_and_get_conn(
           table_name[table_share->table_name.length] = '\0';
           my_printf_error(ER_SPIDER_ALL_LINKS_FAILED_NUM,
             ER_SPIDER_ALL_LINKS_FAILED_STR, MYF(0), db, table_name);
-#if defined(_MSC_VER) || defined(__SUNPRO_CC)
-          spider_free(trx, db, MYF(MY_WME));
-#endif
+          my_afree(db);
           DBUG_RETURN(ER_SPIDER_ALL_LINKS_FAILED_NUM);
+        } else if (search_link_idx == -2)
+        {
+          my_error(HA_ERR_OUT_OF_MEM, MYF(0));
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
         spider->search_link_idx = search_link_idx;
         spider->search_link_query_id = thd->query_id;
@@ -3803,6 +3876,7 @@ int spider_check_trx_and_get_conn(
                 trx,
                 trx->thd,
                 share,
+                roop_count,
                 (uint32) share->monitoring_sid[roop_count],
                 share->table_name,
                 share->table_name_length,
@@ -3845,6 +3919,7 @@ int spider_check_trx_and_get_conn(
                 trx,
                 trx->thd,
                 share,
+                roop_count,
                 (uint32) share->monitoring_sid[roop_count],
                 share->table_name,
                 share->table_name_length,
@@ -3871,21 +3946,14 @@ int spider_check_trx_and_get_conn(
       {
         TABLE *table = spider->get_table();
         TABLE_SHARE *table_share = table->s;
-#if defined(_MSC_VER) || defined(__SUNPRO_CC)
-        char *db, *table_name;
-        if (!(db = (char *)
-          spider_bulk_malloc(spider_current_trx, 57, MYF(MY_WME),
-            &db, table_share->db.length + 1,
-            &table_name, table_share->table_name.length + 1,
-            NullS))
-        ) {
-          my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+        char *db = (char *) my_alloca(
+          table_share->db.length + 1 + table_share->table_name.length + 1);
+        if (!db)
+        {
+          my_error(HA_ERR_OUT_OF_MEM, MYF(0));
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
-#else
-        char db[table_share->db.length + 1],
-          table_name[table_share->table_name.length + 1];
-#endif
+        char *table_name = db + table_share->db.length + 1;
         memcpy(db, table_share->db.str, table_share->db.length);
         db[table_share->db.length] = '\0';
         memcpy(table_name, table_share->table_name.str,
@@ -3893,9 +3961,7 @@ int spider_check_trx_and_get_conn(
         table_name[table_share->table_name.length] = '\0';
         my_printf_error(ER_SPIDER_LINK_MON_JUST_NG_NUM,
           ER_SPIDER_LINK_MON_JUST_NG_STR, MYF(0), db, table_name);
-#if defined(_MSC_VER) || defined(__SUNPRO_CC)
-        spider_free(trx, db, MYF(MY_WME));
-#endif
+        my_afree(db);
         DBUG_RETURN(ER_SPIDER_LINK_MON_JUST_NG_NUM);
       }
     } else {
@@ -3949,6 +4015,7 @@ int spider_check_trx_and_get_conn(
                 trx,
                 trx->thd,
                 share,
+                roop_count,
                 (uint32) share->monitoring_sid[roop_count],
                 share->table_name,
                 share->table_name_length,
@@ -3992,6 +4059,7 @@ int spider_check_trx_and_get_conn(
                   trx,
                   trx->thd,
                   share,
+                  roop_count,
                   (uint32) share->monitoring_sid[roop_count],
                   share->table_name,
                   share->table_name_length,
@@ -4017,21 +4085,14 @@ int spider_check_trx_and_get_conn(
       {
         TABLE *table = spider->get_table();
         TABLE_SHARE *table_share = table->s;
-#if defined(_MSC_VER) || defined(__SUNPRO_CC)
-        char *db, *table_name;
-        if (!(db = (char *)
-          spider_bulk_malloc(spider_current_trx, 57, MYF(MY_WME),
-            &db, table_share->db.length + 1,
-            &table_name, table_share->table_name.length + 1,
-            NullS))
-        ) {
-          my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+        char *db = (char *) my_alloca(
+          table_share->db.length + 1 + table_share->table_name.length + 1);
+        if (!db)
+        {
+          my_error(HA_ERR_OUT_OF_MEM, MYF(0));
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
-#else
-        char db[table_share->db.length + 1],
-          table_name[table_share->table_name.length + 1];
-#endif
+        char *table_name = db + table_share->db.length + 1;
         memcpy(db, table_share->db.str, table_share->db.length);
         db[table_share->db.length] = '\0';
         memcpy(table_name, table_share->table_name.str,
@@ -4039,9 +4100,7 @@ int spider_check_trx_and_get_conn(
         table_name[table_share->table_name.length] = '\0';
         my_printf_error(ER_SPIDER_LINK_MON_JUST_NG_NUM,
           ER_SPIDER_LINK_MON_JUST_NG_STR, MYF(0), db, table_name);
-#if defined(_MSC_VER) || defined(__SUNPRO_CC)
-        spider_free(trx, db, MYF(MY_WME));
-#endif
+        my_afree(db);
         DBUG_RETURN(ER_SPIDER_LINK_MON_JUST_NG_NUM);
       }
     }
@@ -4056,7 +4115,7 @@ THD *spider_create_tmp_thd()
 {
   THD *thd;
   DBUG_ENTER("spider_create_tmp_thd");
-  if (!(thd = new THD(0)))
+  if (!(thd = SPIDER_new_THD((my_thread_id) 0)))
     DBUG_RETURN(NULL);
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   thd->killed = NOT_KILLED;
@@ -4067,6 +4126,10 @@ THD *spider_create_tmp_thd()
   thd->locked_tables = FALSE;
 #endif
   thd->proc_info = "";
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100200
+#else
+  thd->thread_id = thd->variables.pseudo_thread_id = 0;
+#endif
   thd->thread_stack = (char*) &thd;
   if (thd->store_globals())
     DBUG_RETURN(NULL);

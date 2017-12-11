@@ -2767,20 +2767,22 @@ bool JOIN::make_aggr_tables_info()
 
   /*
     All optimization is done. Check if we can use the storage engines
-    group by handler to evaluate the group by
+    group by handler to evaluate the group by.
+    Some storage engines, like spider can also do joins, group by and
+    distinct in the engine, so we do this for all queries, not only
+    GROUP BY queries.
   */
-  if (tables_list && (tmp_table_param.sum_func_count || group_list) &&
-      !procedure)
+  if (tables_list && !procedure)
   {
     /*
       At the moment we only support push down for queries where
       all tables are in the same storage engine
     */
     TABLE_LIST *tbl= tables_list;
-    handlerton *ht= tbl && tbl->table ? tbl->table->file->ht : 0;
+    handlerton *ht= tbl && tbl->table ? tbl->table->file->partition_ht() : 0;
     for (tbl= tbl->next_local; ht && tbl; tbl= tbl->next_local)
     {
-      if (!tbl->table || tbl->table->file->ht != ht)
+      if (!tbl->table || tbl->table->file->partition_ht() != ht)
         ht= 0;
     }
 
@@ -4572,6 +4574,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
               keyuse->val->is_null() && keyuse->null_rejecting)
           {
             s->type= JT_CONST;
+            s->table->const_table= 1;
             mark_as_null_row(table);
             found_const_table_map|= table->map;
 	    join->const_table_map|= table->map;
@@ -4677,6 +4680,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	        s->type= JT_CONST;
 	        join->const_table_map|=table->map;
 	        set_position(join,const_count++,s,start_keyuse);
+                /* create_ref_for_key will set s->table->const_table */
 	        if (create_ref_for_key(join, s, start_keyuse, FALSE,
 				       found_const_table_map))
                   goto error;
@@ -4882,12 +4886,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	join->const_table_map|= s->table->map;
 	set_position(join,const_count++,s,(KEYUSE*) 0);
 	s->type= JT_CONST;
+        s->table->const_table= 1;
 	if (*s->on_expr_ref)
 	{
 	  /* Generate empty row */
 	  s->info= ET_IMPOSSIBLE_ON_CONDITION;
 	  found_const_table_map|= s->table->map;
-	  s->type= JT_CONST;
 	  mark_as_null_row(s->table);		// All fields are NULL
 	}
       }
@@ -13231,7 +13235,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
       *simple_order=0;				// Must do a temp table to sort
     else if (!(order_tables & not_const_tables))
     {
-      if (order->item[0]->has_subquery())
+      if (order->item[0]->with_subquery())
       {
         /*
           Delay the evaluation of constant ORDER and/or GROUP expressions that
@@ -13269,8 +13273,37 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
             can be used without tmp. table.
           */
           bool can_subst_to_first_table= false;
+          bool first_is_in_sjm_nest= false;
+          if (first_is_base_table)
+          {
+            TABLE_LIST *tbl_for_first=
+              join->join_tab[join->const_tables].table->pos_in_table_list;
+            first_is_in_sjm_nest= tbl_for_first->sj_mat_info &&
+                                  tbl_for_first->sj_mat_info->is_used;
+          }
+          /*
+            Currently we do not employ the optimization that uses multiple
+            equalities for ORDER BY to remove tmp table in the case when
+            the first table happens to be the result of materialization of
+            a semi-join nest ( <=> first_is_in_sjm_nest == true).
+
+            When a semi-join nest is materialized and scanned to look for
+            possible matches in the remaining tables for every its row
+            the fields from the result of materialization are copied
+            into the record buffers of tables from the semi-join nest.
+            So these copies are used to access the remaining tables rather
+            than the fields from the result of materialization.
+
+            Unfortunately now this so-called 'copy back' technique is
+            supported only if the rows  are scanned with the rr_sequential
+            function, but not with other rr_* functions that are employed
+            when the result of materialization is required to be sorted.
+
+            TODO: either to support 'copy back' technique for the above case,
+                  or to get rid of this technique altogether.
+          */
           if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP) &&
-              first_is_base_table &&
+              first_is_base_table && !first_is_in_sjm_nest &&
               order->item[0]->real_item()->type() == Item::FIELD_ITEM &&
               join->cond_equal)
           {
@@ -19925,6 +19958,7 @@ join_read_system(JOIN_TAB *tab)
     {
       if (error != HA_ERR_END_OF_FILE)
 	return report_error(table, error);
+      table->const_table= 1;
       mark_as_null_row(tab->table);
       empty_record(table);			// Make empty record
       return -1;
@@ -22533,7 +22567,7 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
  
   table->file->ha_end_keyread();
   if (tab->type == JT_FT)
-    table->file->ft_end();
+    table->file->ha_ft_end();
   else
     table->file->ha_index_or_rnd_end();
 

@@ -689,4 +689,17 @@ View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS (select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) union select `__3`.`c` AS `c`,`__3`.`d` AS `d` from ((select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2`) intersect (select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3`)) `__3` union (select 4 AS `4`,4 AS `4`)	latin1	latin1_swedish_ci
 drop view v1;
 drop tables t1,t2,t3;
+#
+# MDEV-14346:incorrect result of intersect with ANY/ALL/IN subquery
+#
+CREATE TABLE t (i INT);
+INSERT INTO t VALUES (1),(2);
+SELECT * FROM t WHERE i != ANY ( SELECT 6 INTERSECT SELECT 3 );
+i
+select i from t where
+exists ((select 6 as r from dual having t.i <> 6)
+intersect
+(select 3 from dual having t.i <> 3));
+i
+drop table t;
 # End of 10.3 tests

@@ -2,7 +2,7 @@
 /*
   Copyright(C) 2010 Tetsuro IKEDA
   Copyright(C) 2010-2013 Kentoku SHIBA
-  Copyright(C) 2011-2013 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2017 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -25,39 +25,93 @@
 #include <mrn_windows.hpp>
 #include <mrn_macro.hpp>
 #include <mrn_database_manager.hpp>
+#include <mrn_context_pool.hpp>
 #include <mrn_variables.hpp>
+#include <mrn_current_thread.hpp>
+
+#include <sql_table.h>
 
 MRN_BEGIN_DECLS
 
 extern mrn::DatabaseManager *mrn_db_manager;
+extern mrn::ContextPool *mrn_context_pool;
 
 struct CommandInfo
 {
-  grn_ctx ctx;
+  grn_ctx *ctx;
   grn_obj *db;
   bool use_shared_db;
+  grn_obj command;
   String result;
 };
 
-MRN_API my_bool mroonga_command_init(UDF_INIT *initid, UDF_ARGS *args,
+MRN_API my_bool mroonga_command_init(UDF_INIT *init, UDF_ARGS *args,
                                      char *message)
 {
   CommandInfo *info = NULL;
 
-  initid->ptr = NULL;
-  if (args->arg_count != 1) {
-    sprintf(message,
-            "mroonga_command(): Incorrect number of arguments: %u for 1",
-            args->arg_count);
+  init->ptr = NULL;
+  if (args->arg_count == 0) {
+    grn_snprintf(message,
+                 MYSQL_ERRMSG_SIZE,
+                 MYSQL_ERRMSG_SIZE,
+                 "mroonga_command(): Wrong number of arguments: %u for 1..",
+                 args->arg_count);
     goto error;
   }
-  if (args->arg_type[0] != STRING_RESULT) {
-    strcpy(message,
-           "mroonga_command(): The 1st argument must be command as string");
+
+  if ((args->arg_count % 2) == 0) {
+    grn_snprintf(message,
+                 MYSQL_ERRMSG_SIZE,
+                 MYSQL_ERRMSG_SIZE,
+                 "mroonga_command(): The number of arguments must be odd: %u",
+                 args->arg_count);
     goto error;
   }
-  initid->maybe_null = 1;
-  initid->const_item = 1;
+
+  for (unsigned int i = 0; i < args->arg_count; ++i) {
+    switch (args->arg_type[i]) {
+    case STRING_RESULT:
+      // OK
+      break;
+    case REAL_RESULT:
+      grn_snprintf(message,
+                   MYSQL_ERRMSG_SIZE,
+                   MYSQL_ERRMSG_SIZE,
+                   "mroonga_command(): Argument must be string: <%g>",
+                   *reinterpret_cast<double *>(args->args[i]));
+      goto error;
+      break;
+    case INT_RESULT:
+      grn_snprintf(message,
+                   MYSQL_ERRMSG_SIZE,
+                   MYSQL_ERRMSG_SIZE,
+                   "mroonga_command(): Argument must be string: <%lld>",
+                   *reinterpret_cast<longlong *>(args->args[i]));
+      goto error;
+      break;
+    case DECIMAL_RESULT:
+      grn_snprintf(message,
+                   MYSQL_ERRMSG_SIZE,
+                   MYSQL_ERRMSG_SIZE,
+                   "mroonga_command(): Argument must be string: <%.*s>",
+                   static_cast<int>(args->lengths[i]),
+                   args->args[i]);
+      goto error;
+      break;
+    default:
+      grn_snprintf(message,
+                   MYSQL_ERRMSG_SIZE,
+                   MYSQL_ERRMSG_SIZE,
+                   "mroonga_command(): Argument must be string: <%d>(%u)",
+                   args->arg_type[i],
+                   i);
+      goto error;
+      break;
+    }
+  }
+  init->maybe_null = 1;
+  init->const_item = 0;
 
   info = (CommandInfo *)mrn_my_malloc(sizeof(CommandInfo),
                                       MYF(MY_WME | MY_ZEROFILL));
@@ -66,53 +120,100 @@ MRN_API my_bool mroonga_command_init(UDF_INIT *initid, UDF_ARGS *args,
     goto error;
   }
 
-  grn_ctx_init(&(info->ctx), 0);
+  info->ctx = mrn_context_pool->pull();
   {
     const char *current_db_path = MRN_THD_DB_PATH(current_thd);
     const char *action;
     if (current_db_path) {
       action = "open database";
-      int error = mrn_db_manager->open(current_db_path, &(info->db));
+      char encoded_db_path[FN_REFLEN + 1];
+      uint encoded_db_path_length =
+        tablename_to_filename(current_db_path,
+                              encoded_db_path,
+                              sizeof(encoded_db_path));
+      encoded_db_path[encoded_db_path_length] = '\0';
+      mrn::Database *db;
+      int error = mrn_db_manager->open(encoded_db_path, &db);
       if (error == 0) {
-        grn_ctx_use(&(info->ctx), info->db);
+        info->db = db->get();
+        grn_ctx_use(info->ctx, info->db);
         info->use_shared_db = true;
       }
     } else {
       action = "create anonymous database";
-      info->db = grn_db_create(&(info->ctx), NULL, NULL);
+      info->db = grn_db_create(info->ctx, NULL, NULL);
       info->use_shared_db = false;
     }
     if (!info->db) {
-      sprintf(message,
-              "mroonga_command(): failed to %s: %s",
-              action,
-              info->ctx.errbuf);
+      grn_snprintf(message,
+                   MYSQL_ERRMSG_SIZE,
+                   MYSQL_ERRMSG_SIZE,
+                   "mroonga_command(): failed to %s: %s",
+                   action,
+                   info->ctx->errbuf);
       goto error;
     }
   }
+  GRN_TEXT_INIT(&(info->command), 0);
 
-  initid->ptr = (char *)info;
+  init->ptr = (char *)info;
 
   return FALSE;
 
 error:
   if (info) {
     if (!info->use_shared_db) {
-      grn_obj_close(&(info->ctx), info->db);
+      grn_obj_close(info->ctx, info->db);
     }
-    grn_ctx_fin(&(info->ctx));
+    mrn_context_pool->release(info->ctx);
     my_free(info);
   }
   return TRUE;
 }
 
-MRN_API char *mroonga_command(UDF_INIT *initid, UDF_ARGS *args, char *result,
+static void mroonga_command_escape_value(grn_ctx *ctx,
+                                         grn_obj *command,
+                                         const char *value,
+                                         unsigned long value_length)
+{
+  GRN_TEXT_PUTC(ctx, command, '"');
+
+  const char *value_current = value;
+  const char *value_end = value_current + value_length;
+  while (value_current < value_end) {
+    int char_length = grn_charlen(ctx, value_current, value_end);
+
+    if (char_length == 0) {
+      break;
+    } else if (char_length == 1) {
+      switch (*value_current) {
+      case '\\':
+      case '"':
+        GRN_TEXT_PUTC(ctx, command, '\\');
+        GRN_TEXT_PUTC(ctx, command, *value_current);
+        break;
+      case '\n':
+        GRN_TEXT_PUTS(ctx, command, "\\n");
+        break;
+      default:
+        GRN_TEXT_PUTC(ctx, command, *value_current);
+        break;
+      }
+    } else {
+      GRN_TEXT_PUT(ctx, command, value_current, char_length);
+    }
+
+    value_current += char_length;
+  }
+
+  GRN_TEXT_PUTC(ctx, command, '"');
+}
+
+MRN_API char *mroonga_command(UDF_INIT *init, UDF_ARGS *args, char *result,
                               unsigned long *length, char *is_null, char *error)
 {
-  CommandInfo *info = (CommandInfo *)initid->ptr;
-  grn_ctx *ctx = &(info->ctx);
-  char *command;
-  unsigned int command_length;
+  CommandInfo *info = (CommandInfo *)init->ptr;
+  grn_ctx *ctx = info->ctx;
   int flags = 0;
 
   if (!args->args[0]) {
@@ -120,11 +221,31 @@ MRN_API char *mroonga_command(UDF_INIT *initid, UDF_ARGS *args, char *result,
     return NULL;
   }
 
-  *is_null = 0;
-  command = args->args[0];
-  command_length = args->lengths[0];
+  GRN_BULK_REWIND(&(info->command));
+  GRN_TEXT_PUT(ctx, &(info->command), args->args[0], args->lengths[0]);
+  for (unsigned int i = 1; i < args->arg_count; i += 2) {
+    if (!args->args[i] || !args->args[i + 1]) {
+      *is_null = 1;
+      return NULL;
+    }
 
-  grn_ctx_send(ctx, command, command_length, 0);
+    const char *name = args->args[i];
+    unsigned long name_length = args->lengths[i];
+    GRN_TEXT_PUTS(ctx, &(info->command), " --");
+    GRN_TEXT_PUT(ctx, &(info->command), name, name_length);
+
+    const char *value = args->args[i + 1];
+    unsigned long value_length = args->lengths[i + 1];
+    GRN_TEXT_PUTS(ctx, &(info->command), " ");
+    mroonga_command_escape_value(ctx, &(info->command), value, value_length);
+  }
+
+  *is_null = 0;
+
+  grn_ctx_send(ctx,
+               GRN_TEXT_VALUE(&(info->command)),
+               GRN_TEXT_LEN(&(info->command)),
+               0);
   if (ctx->rc) {
     my_message(ER_ERROR_ON_WRITE, ctx->errbuf, MYF(0));
     goto error;
@@ -156,14 +277,15 @@ error:
   return NULL;
 }
 
-MRN_API void mroonga_command_deinit(UDF_INIT *initid)
+MRN_API void mroonga_command_deinit(UDF_INIT *init)
 {
-  CommandInfo *info = (CommandInfo *)initid->ptr;
+  CommandInfo *info = (CommandInfo *)init->ptr;
   if (info) {
+    GRN_OBJ_FIN(info->ctx, &(info->command));
     if (!info->use_shared_db) {
-      grn_obj_close(&(info->ctx), info->db);
+      grn_obj_close(info->ctx, info->db);
     }
-    grn_ctx_fin(&(info->ctx));
+    mrn_context_pool->release(info->ctx);
     MRN_STRING_FREE(info->result);
     my_free(info);
   }

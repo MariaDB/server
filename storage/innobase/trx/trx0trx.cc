@@ -558,6 +558,7 @@ trx_validate_state_before_free(trx_t* trx)
 	ut_ad(!trx->declared_to_be_inside_innodb);
 	ut_ad(!trx->n_mysql_tables_in_use);
 	ut_ad(!trx->mysql_n_tables_locked);
+	ut_ad(!trx->persistent_stats);
 
 	if (trx->declared_to_be_inside_innodb) {
 
@@ -3044,6 +3045,7 @@ trx_set_rw_mode(
 	ut_ad(trx->rsegs.m_redo.rseg == 0);
 	ut_ad(!trx->in_rw_trx_list);
 	ut_ad(!trx_is_autocommit_non_locking(trx));
+	ut_ad(!trx->read_only);
 
 	if (high_level_read_only) {
 		return;
@@ -3080,11 +3082,9 @@ trx_set_rw_mode(
 	}
 #endif /* UNIV_DEBUG */
 
-	if (!trx->read_only) {
-		UT_LIST_ADD_FIRST(trx_sys->rw_trx_list, trx);
+	UT_LIST_ADD_FIRST(trx_sys->rw_trx_list, trx);
 
-		ut_d(trx->in_rw_trx_list = true);
-	}
+	ut_d(trx->in_rw_trx_list = true);
 
 	mutex_exit(&trx_sys->mutex);
 }

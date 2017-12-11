@@ -408,13 +408,15 @@ public:
 /**
   Sql_cmd_alter_sequence represents the ALTER SEQUENCE statement.
 */
-class Sql_cmd_alter_sequence : public Sql_cmd
+class Sql_cmd_alter_sequence : public Sql_cmd,
+                               public DDL_options
 {
 public:
   /**
     Constructor, used to represent a ALTER TABLE statement.
   */
-  Sql_cmd_alter_sequence()
+  Sql_cmd_alter_sequence(const DDL_options &options)
+   :DDL_options(options)
   {}
 
   ~Sql_cmd_alter_sequence()

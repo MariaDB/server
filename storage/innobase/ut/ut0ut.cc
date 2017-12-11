@@ -37,6 +37,7 @@ Created 5/11/1994 Heikki Tuuri
 #include "trx0trx.h"
 #include <string>
 #include "log.h"
+#include "my_cpu.h"
 
 #ifdef _WIN32
 /*****************************************************************//**
@@ -290,14 +291,14 @@ ut_delay(
 {
 	ulint	i;
 
-	UT_LOW_PRIORITY_CPU();
+	HMT_low();
 
 	for (i = 0; i < delay * 50; i++) {
 		UT_RELAX_CPU();
 		UT_COMPILER_BARRIER();
 	}
 
-	UT_RESUME_PRIORITY_CPU();
+	HMT_medium();
 }
 
 /*************************************************************//**
@@ -521,65 +522,6 @@ ut_copy_file(
 		}
 	} while (len > 0);
 }
-
-#ifdef _WIN32
-# include <stdarg.h>
-/**********************************************************************//**
-A substitute for vsnprintf(3), formatted output conversion into
-a limited buffer. Note: this function DOES NOT return the number of
-characters that would have been printed if the buffer was unlimited because
-VC's _vsnprintf() returns -1 in this case and we would need to call
-_vscprintf() in addition to estimate that but we would need another copy
-of "ap" for that and VC does not provide va_copy(). */
-void
-ut_vsnprintf(
-/*=========*/
-	char*		str,	/*!< out: string */
-	size_t		size,	/*!< in: str size */
-	const char*	fmt,	/*!< in: format */
-	va_list		ap)	/*!< in: format values */
-{
-	_vsnprintf(str, size, fmt, ap);
-	str[size - 1] = '\0';
-}
-
-/**********************************************************************//**
-A substitute for snprintf(3), formatted output conversion into
-a limited buffer.
-@return number of characters that would have been printed if the size
-were unlimited, not including the terminating '\0'. */
-int
-ut_snprintf(
-/*========*/
-	char*		str,	/*!< out: string */
-	size_t		size,	/*!< in: str size */
-	const char*	fmt,	/*!< in: format */
-	...)			/*!< in: format values */
-{
-	int	res;
-	va_list	ap1;
-	va_list	ap2;
-
-	va_start(ap1, fmt);
-	va_start(ap2, fmt);
-
-	res = _vscprintf(fmt, ap1);
-	ut_a(res != -1);
-
-	if (size > 0) {
-		_vsnprintf(str, size, fmt, ap2);
-
-		if ((size_t) res >= size) {
-			str[size - 1] = '\0';
-		}
-	}
-
-	va_end(ap1);
-	va_end(ap2);
-
-	return(res);
-}
-#endif /* _WIN32 */
 
 /** Convert an error number to a human readable text message.
 The returned string is static and should not be freed or modified.

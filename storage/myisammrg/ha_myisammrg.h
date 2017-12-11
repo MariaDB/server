@@ -91,7 +91,7 @@ public:
             HA_ANY_INDEX_MAY_BE_UNIQUE | HA_CAN_BIT_FIELD |
             HA_HAS_RECORDS | HA_CAN_EXPORT |
             HA_NO_COPY_ON_ALTER |
-            HA_DUPLICATE_POS);
+            HA_DUPLICATE_POS | HA_CAN_MULTISTEP_MERGE);
   }
   ulong index_flags(uint inx, uint part, bool all_parts) const
   {

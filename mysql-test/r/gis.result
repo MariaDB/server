@@ -4390,7 +4390,7 @@ SELECT ST_BUFFER(Point(1,1), Point(1,1));
 ERROR HY000: Illegal parameter data type geometry for operation 'st_buffer'
 PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ST_ENVELOPE(?) AS g';
 EXECUTE stmt USING 1;
-ERROR HY000: Illegal parameter data type bigint for operation 'st_envelope'
+ERROR HY000: Illegal parameter data type int for operation 'st_envelope'
 EXECUTE stmt USING POINT(1,1);
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -4404,7 +4404,7 @@ DROP TABLE t1;
 DEALLOCATE PREPARE stmt;
 PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ST_BUFFER(?,?) AS g';
 EXECUTE stmt USING 1,1;
-ERROR HY000: Illegal parameter data type bigint for operation 'st_buffer'
+ERROR HY000: Illegal parameter data type int for operation 'st_buffer'
 EXECUTE stmt USING POINT(1,1),POINT(1,1);
 ERROR HY000: Illegal parameter data type geometry for operation 'st_buffer'
 EXECUTE stmt USING POINT(1,1),0;
@@ -4455,7 +4455,7 @@ SELECT POINT(1,POINT(1,1));
 ERROR HY000: Illegal parameter data type geometry for operation 'point'
 PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ST_GEOMFROMTEXT(?,?) AS g';
 EXECUTE stmt USING 1,1;
-ERROR HY000: Illegal parameter data type bigint for operation 'st_geometryfromtext'
+ERROR HY000: Illegal parameter data type int for operation 'st_geometryfromtext'
 EXECUTE stmt USING POINT(1,1),POINT(1,1);
 ERROR HY000: Illegal parameter data type geometry for operation 'st_geometryfromtext'
 EXECUTE stmt USING 'POINT(1 1)',1;

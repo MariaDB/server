@@ -474,3 +474,136 @@ DROP PROCEDURE p1;
 --echo #
 --echo # End of MDEV-12457 Cursors with parameters
 --echo #
+
+
+--echo #
+--echo # MDEV-14415 Add Oracle-style FOR loop to sql_mode=DEFAULT
+--echo #
+
+--echo # Explicit cursor
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1'), (2,'b2'), (3,'b3');
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE cur CURSOR FOR SELECT * FROM t1;
+  FOR rec IN cur
+  DO
+    SELECT rec.a AS a, rec.b AS b;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo # Explicit cursor with parameters
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1'), (2,'b2'), (3,'b3');
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE cur CURSOR(pa INT) FOR SELECT * FROM t1 WHERE a>=pa;
+  FOR rec IN cur(2)
+  DO
+    SELECT rec.a AS a, rec.b AS b;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo # Explicit cursor + label
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES ('1','b1'), ('2','b2');
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE cur CURSOR FOR SELECT * FROM t1;
+  forrec:
+  FOR rec IN cur
+  DO
+    SELECT rec.a AS a, rec.b AS b;
+    IF rec.a = 2 THEN
+      LEAVE forrec;
+    END IF;
+  END FOR forrec;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo # Explicit cursor + FETCH inside the loop body produce an error on "NOT FOUND"
+
+DELIMITER $$;
+--error ER_SP_FETCH_NO_DATA
+BEGIN NOT ATOMIC
+  DECLARE x INT;
+  DECLARE cur CURSOR FOR SELECT 1 AS x;
+  FOR rec IN cur
+  DO
+    FETCH cur INTO x;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Explicit cursor + FETCH inside the loop body are normally handled by "HANDLER FOR NOT FOUND"
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE done INT DEFAULT 0;
+  DECLARE cur CURSOR FOR SELECT 1 AS x, 'y1' AS y UNION
+                         SELECT 2,'y2' UNION
+                         SELECT 3,'y3';
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+  forrec:
+  FOR rec IN cur
+  DO
+    SELECT CONCAT(rec.x, ' ', rec.y) AS 'Implicit FETCH';
+    FETCH cur INTO rec;
+    IF done THEN
+      SELECT 'NO DATA' AS `Explicit FETCH`;
+      LEAVE forrec;
+    ELSE
+      SELECT CONCAT(rec.x, ' ', rec.y) AS 'Explicit FETCH';
+    END IF;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Implicit cursor
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES ('1','b1'), ('2','b2');
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  FOR rec IN (SELECT * FROM t1)
+  DO
+    SELECT rec.a AS a, rec.b AS b;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo # Implicit cursor + label
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES ('1','b1'), ('2','b2');
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  forrec:
+  FOR rec IN (SELECT * FROM t1)
+  DO
+    SELECT rec.a AS a, rec.b AS b;
+    IF rec.a = 2 THEN
+      LEAVE forrec;
+    END IF;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;

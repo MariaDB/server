@@ -113,7 +113,7 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
 
   /* To ensure that cache * real_increment will never overflow */
   max_increment= (real_increment ?
-                  labs(real_increment) :
+                  llabs(real_increment) :
                   MAX_AUTO_INCREMENT_VALUE);
 
   if (max_value >= start &&
@@ -852,10 +852,10 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   if (check_grant(thd, ALTER_ACL, first_table, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
-  if (lex->check_exists)
+  if (if_exists())
     thd->push_internal_handler(&no_such_table_handler);
   error= open_and_lock_tables(thd, first_table, FALSE, 0);
-  if (lex->check_exists)
+  if (if_exists())
   {
     trapped_errors= no_such_table_handler.safely_trapped_errors();
     thd->pop_internal_handler();

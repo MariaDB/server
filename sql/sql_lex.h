@@ -226,6 +226,13 @@ enum enum_sp_data_access
   SP_MODIFIES_SQL_DATA
 };
 
+enum enum_sp_aggregate_type
+{
+  DEFAULT_AGGREGATE= 0,
+  NOT_AGGREGATE,
+  GROUP_AGGREGATE
+};
+
 const LEX_STRING sp_data_access_name[]=
 {
   { C_STRING_WITH_LEN("") },
@@ -1305,6 +1312,7 @@ struct st_sp_chistics
   enum enum_sp_suid_behaviour suid;
   bool detistic;
   enum enum_sp_data_access daccess;
+  enum enum_sp_aggregate_type agg_type;
   void init() { bzero(this, sizeof(*this)); }
   void set(const st_sp_chistics &other) { *this= other; }
   bool read_from_mysql_proc_row(THD *thd, TABLE *table);
@@ -2976,6 +2984,13 @@ public:
   */
   Item *limit_rows_examined;
   ulonglong limit_rows_examined_cnt;
+  /**
+    Holds a set of domain_ids for deletion at FLUSH..DELETE_DOMAIN_ID
+  */
+  DYNAMIC_ARRAY delete_gtid_domain;
+  static const ulong initial_gtid_domain_buffer_size= 16;
+  ulong gtid_domain_static_buffer[initial_gtid_domain_buffer_size];
+
   inline void set_limit_rows_examined()
   {
     if (limit_rows_examined)
@@ -3503,6 +3518,9 @@ public:
                                                uint coffset,
                                                sp_assignment_lex *param_lex,
                                                Item_args *parameters);
+  bool sp_for_loop_implicit_cursor_statement(THD *thd,
+                                             Lex_for_loop_bounds_st *bounds,
+                                             sp_lex_cursor *cur);
   bool sp_for_loop_cursor_condition_test(THD *thd, const Lex_for_loop_st &loop);
   bool sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &);
 

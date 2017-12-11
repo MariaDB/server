@@ -3,7 +3,7 @@
 
 /*
  * Copyright (C) 2010-2011 DeNA Co.,Ltd.. All rights reserved.
- * Copyright (C) 2011 Kentoku SHIBA
+ * Copyright (C) 2011-2017 Kentoku SHIBA
  * See COPYRIGHT.txt for details.
  */
 
@@ -31,11 +31,11 @@ extern "C" {
 
 #if 1
 #define DENA_ALLOCA_ALLOCATE(typ, len) \
-	(typ *) alloca((len) * sizeof(typ))
+  (typ *) (alloca((len) * sizeof(typ)))
 #define DENA_ALLOCA_FREE(x)
 #else
 #define DENA_ALLOCA_ALLOCATE(typ, len) \
-	static_cast<typ *>(malloc((len) * sizeof(typ)))
+  (typ *) (malloc((len) * sizeof(typ)))
 #define DENA_ALLOCA_FREE(x) free(x)
 #endif
 

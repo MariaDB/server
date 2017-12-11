@@ -20,6 +20,10 @@ AM_CFLAGS =					\
 	$(GRN_CFLAGS)				\
 	$(MESSAGE_PACK_CFLAGS)			\
 	$(MRUBY_CFLAGS)
+
+AM_CPPFLAGS =					\
+	$(MRUBY_CPPFLAGS)
+
 DEFS += $(GRN_DEFS)
 
 AM_LDFLAGS = -no-undefined

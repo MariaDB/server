@@ -182,6 +182,7 @@ public:
     return null_value;
   }
   bool fix_fields(THD *thd, Item **ref);
+  bool with_subquery() const { DBUG_ASSERT(fixed); return true; }
   bool mark_as_dependent(THD *thd, st_select_lex *select, Item *item);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void recalc_used_tables(st_select_lex *new_parent, bool after_pullout);

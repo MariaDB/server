@@ -853,6 +853,18 @@ row_log_table_low_redundant(
 		}
 	}
 
+	dfield_t* db_trx_id = dtuple_get_nth_field(tuple, index->n_uniq);
+	ut_ad(dfield_get_len(db_trx_id) == DATA_TRX_ID_LEN);
+	ut_ad(dfield_get_len(db_trx_id + 1) == DATA_ROLL_PTR_LEN);
+
+	if (trx_read_trx_id(static_cast<const byte*>
+			    (dfield_get_data(db_trx_id)))
+	    < index->online_log->min_trx) {
+		dfield_set_data(db_trx_id, reset_trx_id, DATA_TRX_ID_LEN);
+		dfield_set_data(db_trx_id + 1, reset_trx_id + DATA_TRX_ID_LEN,
+				DATA_ROLL_PTR_LEN);
+	}
+
 	rec_comp_status_t status = index->is_instant()
 		? REC_STATUS_COLUMNS_ADDED : REC_STATUS_ORDINARY;
 
@@ -1057,7 +1069,16 @@ row_log_table_low(
 
 		memcpy(b, rec - rec_extra_size - omit_size, rec_extra_size);
 		b += rec_extra_size;
+		ulint len;
+		ulint trx_id_offs = rec_get_nth_field_offs(
+			offsets, index->n_uniq, &len);
+		ut_ad(len == DATA_TRX_ID_LEN);
 		memcpy(b, rec, rec_offs_data_size(offsets));
+		if (trx_read_trx_id(b + trx_id_offs)
+		    < index->online_log->min_trx) {
+			memcpy(b + trx_id_offs,
+			       reset_trx_id, sizeof reset_trx_id);
+		}
 		b += rec_offs_data_size(offsets);
 
 		row_log_table_close(index, b, mrec_size, avail_size);

@@ -28,6 +28,9 @@ NULL
 select json_value('{"key1": [1,2,3], "key1":123}', '$.key1');
 json_value('{"key1": [1,2,3], "key1":123}', '$.key1')
 123
+select JSON_VALUE('{ "x": [0,1], "y": "[0,1]", "z": "Mon\\\"t\\\"y" }','$.z');
+JSON_VALUE('{ "x": [0,1], "y": "[0,1]", "z": "Mon\\\"t\\\"y" }','$.z')
+Mon"t"y
 select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2');
 json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2')
 NULL
@@ -725,6 +728,9 @@ json_contains_path('{"foo":"bar"}', 'one', '$[]')
 NULL
 Warnings:
 Warning	4042	Syntax error in JSON path in argument 3 to function 'json_contains_path' at position 3
+select JSON_VALID(0x36f0c8dccd83c5eac156da);
+JSON_VALID(0x36f0c8dccd83c5eac156da)
+0
 #
 # Start of 10.3 tests
 #

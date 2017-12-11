@@ -1,4 +1,4 @@
-# Copyright(C) 2011-2012 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2011-2016 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,11 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source include/have_geometry.inc
---source ../../include/mroonga/have_version_56_or_later.inc
+--source ../../include/mroonga/have_version_5_6_or_later.inc
+--source ../../include/mroonga/skip_mysql_5_7.inc
 --source ../../include/mroonga/have_mroonga.inc
 
 --disable_warnings
@@ -28,7 +29,6 @@ CREATE TABLE shops (
   location GEOMETRY NOT NULL,
   SPATIAL KEY location_index (location)
 );
-SHOW CREATE TABLE shops;
 
 INSERT INTO shops (name, location)
            VALUES ('nezu-no-taiyaki',
@@ -140,6 +140,11 @@ INSERT INTO shops (name, location)
                    ST_GeomFromText('POINT(139.711517 35.647701)'));
 
 SELECT id, name, ST_AsText(location) AS location_text FROM shops;
+SELECT id, name, ST_AsText(location) AS location_text FROM shops
+  WHERE MBRContains(ST_GeomFromText('LineString(139.7727 35.6684, 139.7038 35.7121)'), location)
+  ORDER BY id;
+
+EXPLAIN
 SELECT id, name, ST_AsText(location) AS location_text FROM shops
   WHERE MBRContains(ST_GeomFromText('LineString(139.7727 35.6684, 139.7038 35.7121)'), location)
   ORDER BY id;

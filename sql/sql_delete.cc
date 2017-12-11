@@ -274,7 +274,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
                   SQL_I_List<ORDER> *order_list, ha_rows limit,
                   ulonglong options, select_result *result)
 {
-  bool          will_batch;
+  bool          will_batch= FALSE;
   int		error, loc_error;
   TABLE		*table;
   SQL_SELECT	*select=0;
@@ -286,11 +286,13 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   bool		return_error= 0;
   ha_rows	deleted= 0;
   bool          reverse= FALSE;
+  bool          has_triggers;
   ORDER *order= (ORDER *) ((order_list && order_list->elements) ?
                            order_list->first : NULL);
   SELECT_LEX   *select_lex= &thd->lex->select_lex;
   killed_state killed_status= NOT_KILLED;
   THD::enum_binlog_query_type query_type= THD::ROW_QUERY_TYPE;
+  bool binlog_is_row;
   bool with_select= !select_lex->item_list.is_empty();
   Explain_delete *explain;
   Delete_plan query_plan(thd->mem_root);
@@ -413,9 +415,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       - We should not be binlogging this statement in row-based, and
       - there should be no delete triggers associated with the table.
   */
+
+  has_triggers= (table->triggers &&
+                 table->triggers->has_delete_triggers());
   if (!with_select && !using_limit && const_cond_result &&
       (!thd->is_current_stmt_binlog_format_row() &&
-       !(table->triggers && table->triggers->has_delete_triggers()))
+       !has_triggers)
       && !table->versioned_by_sql())
   {
     /* Update the table->file->stats.records number */
@@ -565,14 +570,59 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (!(select && select->quick))
     status_var_increment(thd->status_var.delete_scan_count);
 
+  binlog_is_row= thd->is_current_stmt_binlog_format_row();
+  DBUG_PRINT("info", ("binlog_is_row: %s", binlog_is_row ? "TRUE" : "FALSE"));
+
+  /*
+    We can use direct delete (delete that is done silently in the handler)
+    if none of the following conditions are true:
+    - There are triggers
+    - There is binary logging
+    - There is a virtual not stored column in the WHERE clause
+    - ORDER BY or LIMIT
+      - As this requires the rows to be deleted in a specific order
+      - Note that Spider can handle ORDER BY and LIMIT in a cluster with
+        one data node.  These conditions are therefore checked in
+        direct_delete_rows_init().
+
+    Direct delete does not require a WHERE clause
+
+    Later we also ensure that we are only using one table (no sub queries)
+  */
+
+  if ((table->file->ha_table_flags() & HA_CAN_DIRECT_UPDATE_AND_DELETE) &&
+      !has_triggers && !binlog_is_row && !with_select)
+  {
+    table->mark_columns_needed_for_delete();
+    if (!table->check_virtual_columns_marked_for_read())
+    {
+      DBUG_PRINT("info", ("Trying direct delete"));
+      if (select && select->cond &&
+          (select->cond->used_tables() == table->map))
+      {
+        DBUG_ASSERT(!table->file->pushed_cond);
+        if (!table->file->cond_push(select->cond))
+          table->file->pushed_cond= select->cond;
+      }
+      if (!table->file->direct_delete_rows_init())
+      {
+        /* Direct deleting is supported */
+        DBUG_PRINT("info", ("Using direct delete"));
+        THD_STAGE_INFO(thd, stage_updating);
+        if (!(error= table->file->ha_direct_delete_rows(&deleted)))
+          error= -1;
+        goto terminate_delete;
+      }
+    }
+  }
+
   if (query_plan.using_filesort)
   {
-
     {
       Filesort fsort(order, HA_POS_ERROR, true, select);
       DBUG_ASSERT(query_plan.index == MAX_KEY);
 
-      Filesort_tracker *fs_tracker= 
+      Filesort_tracker *fs_tracker=
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
       if (!(file_sort= filesort(thd, table, &fsort, fs_tracker)))
@@ -611,14 +661,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (init_ftfuncs(thd, select_lex, 1))
     goto got_error;
 
-  if (table->prepare_triggers_for_delete_stmt_or_event())
-  {
-    will_batch= FALSE;
-  }
-  else
-    will_batch= !table->file->start_bulk_delete();
-
   table->mark_columns_needed_for_delete();
+
+  if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
+      !table->prepare_triggers_for_delete_stmt_or_event())
+    will_batch= !table->file->start_bulk_delete();
 
   if (with_select)
   {
@@ -727,6 +774,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     else
       break;
   }
+
 terminate_delete:
   killed_status= thd->killed;
   if (killed_status != NOT_KILLED || thd->is_error())
@@ -815,6 +863,8 @@ cleanup:
   }
   delete file_sort;
   free_underlaid_joins(thd, select_lex);
+  if (table->file->pushed_cond)
+    table->file->cond_pop();
   DBUG_RETURN(error >= 0 || thd->is_error());
   
   /* Special exits */
@@ -836,7 +886,8 @@ send_nothing_and_leave:
   delete select;
   delete file_sort;
   free_underlaid_joins(thd, select_lex);
-  //table->set_keyread(false);
+  if (table->file->pushed_cond)
+    table->file->cond_pop();
 
   DBUG_ASSERT(!return_error || thd->is_error() || thd->killed);
   DBUG_RETURN((return_error || thd->is_error() || thd->killed) ? 1 : 0);

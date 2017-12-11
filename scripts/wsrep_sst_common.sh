@@ -124,9 +124,9 @@ readonly WSREP_SST_OPT_BYPASS
 readonly WSREP_SST_OPT_BINLOG
 readonly WSREP_SST_OPT_CONF_SUFFIX
 
-if [ -n "${WSREP_SST_OPT_ADDR_PORT:-}" ]; then
+if [ -n "${WSREP_SST_OPT_ADDR:-}" ]; then
   if [ -n "${WSREP_SST_OPT_PORT:-}" ]; then
-    if [ "$WSREP_SST_OPT_PORT" != "$WSREP_SST_OPT_ADDR_PORT" ]; then
+    if [ -n "$WSREP_SST_OPT_ADDR_PORT" -a "$WSREP_SST_OPT_PORT" != "$WSREP_SST_OPT_ADDR_PORT" ]; then
       wsrep_log_error "port in --port=$WSREP_SST_OPT_PORT differs from port in --address=$WSREP_SST_OPT_ADDR"
       exit 2
     fi
@@ -266,18 +266,18 @@ parse_cnf()
     # finally get the variable value (if variables has been specified multiple time use the last value only)
 
     # look in group+suffix
-    if [[ -n $WSREP_SST_OPT_CONF_SUFFIX ]]; then
+    if [ -n $WSREP_SST_OPT_CONF_SUFFIX ]; then
         reval=$($MY_PRINT_DEFAULTS "${group}${WSREP_SST_OPT_CONF_SUFFIX}" | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
     fi
 
     # look in group
-    if [[ -z $reval ]]; then
+    if [ -z $reval ]; then
         reval=$($MY_PRINT_DEFAULTS $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
     fi
 
     # use default if we haven't found a value
-    if [[ -z $reval ]]; then
-        [[ -n $3 ]] && reval=$3
+    if [ -z $reval ]; then
+        [ -n $3 ] && reval=$3
     fi
     echo $reval
 }

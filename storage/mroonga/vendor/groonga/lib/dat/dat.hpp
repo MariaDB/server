@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011 Brazil
+/*
+  Copyright(C) 2011-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,8 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef GRN_DAT_COMMON_HPP_
-#define GRN_DAT_COMMON_HPP_
+#pragma once
 
 #ifndef _MSC_VER
 # include <stddef.h>
@@ -126,6 +126,7 @@ const UInt64 MIN_FILE_SIZE              = 1 << 16;
 const UInt64 DEFAULT_FILE_SIZE          = 1 << 20;
 const UInt64 MAX_FILE_SIZE              = (UInt64)1 << 40;
 const double DEFAULT_NUM_NODES_PER_KEY  = 4.0;
+const double MAX_NUM_NODES_PER_KEY      = 16.0;
 const double DEFAULT_AVERAGE_KEY_LENGTH = 16.0;
 const UInt32 MAX_KEY_BUF_SIZE           = 0x80000000U;
 const UInt32 MAX_TOTAL_KEY_LENGTH       = 0xFFFFFFFFU;
@@ -245,5 +246,3 @@ typedef Error<STATUS_ERROR> StatusError;
 
 }  // namespace dat
 }  // namespace grn
-
-#endif  // GRN_DAT_COMMON_HPP_

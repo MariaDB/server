@@ -5235,7 +5235,7 @@ static bool vers_reset_alter_copy(THD *thd, TABLE *table)
   READ_RECORD info;
   int error= 0;
   bool will_batch= false;
-  uint dup_key_found= 0;
+  ha_rows dup_key_found= 0;
   if (init_read_record(&info, thd, table, NULL, NULL, 0, 1, true))
     goto err;
 

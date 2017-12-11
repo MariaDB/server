@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2014 Kentoku Shiba
+/* Copyright (C) 2012-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 class spider_db_mysql_util: public spider_db_util
 {
@@ -99,7 +99,9 @@ public:
     ha_spider *spider,
     spider_string *str,
     const char *alias,
-    uint alias_length
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields
   );
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int open_item_sum_func(
@@ -107,13 +109,32 @@ public:
     ha_spider *spider,
     spider_string *str,
     const char *alias,
-    uint alias_length
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields
   );
 #endif
   int append_escaped_util(
     spider_string *to,
     String *from
   );
+#ifdef SPIDER_HAS_GROUP_BY_HANDLER
+  int append_from_and_tables(
+    spider_fields *fields,
+    spider_string *str
+  );
+  int reappend_tables(
+    spider_fields *fields,
+    SPIDER_LINK_IDX_CHAIN *link_idx_chain,
+    spider_string *str
+  );
+  int append_where(
+    spider_string *str
+  );
+  int append_having(
+    spider_string *str
+  );
+#endif
 };
 
 class spider_db_mysql_row: public spider_db_row
@@ -161,7 +182,7 @@ public:
   spider_db_mysql_row row;
   MYSQL_ROW_OFFSET    first_row;
   int                 store_error_num;
-  spider_db_mysql_result();
+  spider_db_mysql_result(SPIDER_DB_CONN *in_db_conn);
   ~spider_db_mysql_result();
   bool has_result();
   void free_result();
@@ -199,6 +220,13 @@ public:
   int fetch_table_mon_status(
     int &status
   );
+  int fetch_show_master_status(
+    const char **binlog_file_name,
+    const char **binlog_pos
+  );
+  int fetch_select_binlog_gtid_pos(
+    const char **gtid_pos
+  );
   longlong num_rows();
   uint num_fields();
   void move_to_pos(
@@ -224,9 +252,9 @@ public:
 
 class spider_db_mysql: public spider_db_conn
 {
-  MYSQL          *db_conn;
   int            stored_error;
 public:
+  MYSQL          *db_conn;
   HASH           lock_table_hash;
   bool           lock_table_hash_inited;
   uint           lock_table_hash_id;
@@ -350,6 +378,39 @@ public:
   int set_time_zone(
     Time_zone *time_zone,
     int *need_mon
+  );
+  int exec_simple_sql_with_result(
+    SPIDER_TRX *trx,
+    SPIDER_SHARE *share,
+    const char *sql,
+    uint sql_length,
+    int all_link_idx,
+    int *need_mon,
+    SPIDER_DB_RESULT **res
+  );
+  int show_master_status(
+    SPIDER_TRX *trx,
+    SPIDER_SHARE *share,
+    int all_link_idx,
+    int *need_mon,
+    TABLE *table,
+    spider_string *str,
+    int mode,
+    SPIDER_DB_RESULT **res1,
+    SPIDER_DB_RESULT **res2
+  );
+  int select_binlog_gtid_pos(
+    SPIDER_TRX *trx,
+    SPIDER_SHARE *share,
+    int all_link_idx,
+    int *need_mon,
+    TABLE *table,
+    spider_string *str,
+    const char *binlog_file_name,
+    uint binlog_file_name_length,
+    const char *binlog_pos,
+    uint binlog_pos_length,
+    SPIDER_DB_RESULT **res
   );
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   int append_sql(
@@ -512,7 +573,9 @@ class spider_mysql_handler: public spider_db_handler
   int                     where_pos;
   int                     order_pos;
   int                     limit_pos;
+public:
   int                     table_name_pos;
+private:
   int                     ha_read_pos;
   int                     ha_next_pos;
   int                     ha_where_pos;
@@ -554,6 +617,11 @@ public:
   );
   ~spider_mysql_handler();
   int init();
+  int append_index_hint(
+    spider_string *str,
+    int link_idx,
+    ulong sql_type
+    );
   int append_table_name_with_adjusting(
     spider_string *str,
     int link_idx,
@@ -1129,7 +1197,7 @@ public:
     int link_idx
   );
   bool is_sole_projection_field(
-      uint16 field_index
+    uint16 field_index
   );
   bool is_bulk_insert_exec_period(
     bool bulk_end
@@ -1199,6 +1267,13 @@ public:
   bool need_lock_before_set_sql_for_exec(
     ulong sql_type
   );
+#ifdef SPIDER_HAS_GROUP_BY_HANDLER
+  int set_sql_for_exec(
+    ulong sql_type,
+    int link_idx,
+    SPIDER_LINK_IDX_CHAIN *link_idx_chain
+  );
+#endif
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx
@@ -1310,6 +1385,78 @@ public:
     int link_idx,
     ulong sql_type
   );
+#ifdef SPIDER_HAS_GROUP_BY_HANDLER
+  int append_from_and_tables_part(
+    spider_fields *fields,
+    ulong sql_type
+  );
+  int reappend_tables_part(
+    spider_fields *fields,
+    ulong sql_type
+  );
+  int append_where_part(
+    ulong sql_type
+  );
+  int append_having_part(
+    ulong sql_type
+  );
+  int append_item_type_part(
+    Item *item,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields,
+    ulong sql_type
+  );
+  int append_list_item_select_part(
+    List<Item> *select,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields,
+    ulong sql_type
+  );
+  int append_list_item_select(
+    List<Item> *select,
+    spider_string *str,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields
+  );
+  int append_group_by_part(
+    ORDER *order,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields,
+    ulong sql_type
+  );
+  int append_group_by(
+    ORDER *order,
+    spider_string *str,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields
+  );
+  int append_order_by_part(
+    ORDER *order,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields,
+    ulong sql_type
+  );
+  int append_order_by(
+    ORDER *order,
+    spider_string *str,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields
+  );
+#endif
 };
 
 class spider_mysql_copy_table: public spider_db_copy_table

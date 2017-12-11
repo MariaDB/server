@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2016 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define SPIDER_SYS_XA_TABLE_NAME_STR "spider_xa"
 #define SPIDER_SYS_XA_TABLE_NAME_LEN (sizeof(SPIDER_SYS_XA_TABLE_NAME_STR) - 1)
@@ -25,6 +25,12 @@
 #define SPIDER_SYS_LINK_FAILED_TABLE_NAME_LEN (sizeof(SPIDER_SYS_LINK_FAILED_TABLE_NAME_STR) - 1)
 #define SPIDER_SYS_XA_FAILED_TABLE_NAME_STR "spider_xa_failed_log"
 #define SPIDER_SYS_XA_FAILED_TABLE_NAME_LEN (sizeof(SPIDER_SYS_XA_FAILED_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_STR "spider_table_position_for_recovery"
+#define SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_LEN (sizeof(SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_TABLE_STS_TABLE_NAME_STR "spider_table_sts"
+#define SPIDER_SYS_TABLE_STS_TABLE_NAME_LEN (sizeof(SPIDER_SYS_TABLE_STS_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR "spider_table_crd"
+#define SPIDER_SYS_TABLE_CRD_TABLE_NAME_LEN (sizeof(SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR) - 1)
 
 #define SPIDER_SYS_XA_PREPARED_STR "PREPARED"
 #define SPIDER_SYS_XA_NOT_YET_STR "NOT YET"
@@ -36,14 +42,20 @@
 #define SPIDER_SYS_XA_IDX1_COL_CNT 1
 #define SPIDER_SYS_XA_MEMBER_COL_CNT 18
 #define SPIDER_SYS_XA_MEMBER_PK_COL_CNT 6
-#define SPIDER_SYS_TABLES_COL_CNT 22
-#define SPIDER_SYS_TABLES_PK_COL_CNT 2
+#define SPIDER_SYS_TABLES_COL_CNT 25
+#define SPIDER_SYS_TABLES_PK_COL_CNT 3
 #define SPIDER_SYS_TABLES_IDX1_COL_CNT 1
+#define SPIDER_SYS_TABLES_UIDX1_COL_CNT 3
 #define SPIDER_SYS_LINK_MON_TABLE_COL_CNT 19
+#define SPIDER_SYS_POS_FOR_RECOVERY_TABLE_COL_CNT 7
+#define SPIDER_SYS_TABLE_STS_COL_CNT 10
+#define SPIDER_SYS_TABLE_STS_PK_COL_CNT 2
+#define SPIDER_SYS_TABLE_CRD_COL_CNT 4
+#define SPIDER_SYS_TABLE_CRD_PK_COL_CNT 3
 
 #define SPIDER_SYS_LINK_MON_TABLE_DB_NAME_SIZE 64
 #define SPIDER_SYS_LINK_MON_TABLE_TABLE_NAME_SIZE 64
-#define SPIDER_SYS_LINK_MON_TABLE_LINK_ID_SIZE 10
+#define SPIDER_SYS_LINK_MON_TABLE_LINK_ID_SIZE 64
 
 class SPIDER_MON_KEY: public SPIDER_SORT
 {
@@ -139,6 +151,11 @@ int spider_check_sys_table_with_find_flag(
   enum ha_rkey_function find_flag
 );
 
+int spider_check_sys_table_for_update_all_columns(
+  TABLE *table,
+  char *table_key
+);
+
 int spider_get_sys_table_by_idx(
   TABLE *table,
   char *table_key,
@@ -212,6 +229,12 @@ void spider_store_tables_link_idx_str(
   const uint link_idx_length
 );
 
+void spider_store_tables_static_link_id(
+  TABLE *table,
+  const char *static_link_id,
+  const uint static_link_id_length
+);
+
 void spider_store_tables_priority(
   TABLE *table,
   longlong priority
@@ -233,6 +256,50 @@ void spider_store_link_chk_server_id(
   uint32 server_id
 );
 
+void spider_store_binlog_pos_failed_link_idx(
+  TABLE *table,
+  int failed_link_idx
+);
+
+void spider_store_binlog_pos_source_link_idx(
+  TABLE *table,
+  int source_link_idx
+);
+
+void spider_store_binlog_pos_binlog_file(
+  TABLE *table,
+  const char *file_name,
+  int file_name_length,
+  const char *position,
+  int position_length,
+  CHARSET_INFO *binlog_pos_cs
+);
+
+void spider_store_binlog_pos_gtid(
+  TABLE *table,
+  const char *gtid,
+  int gtid_length,
+  CHARSET_INFO *binlog_pos_cs
+);
+
+void spider_store_table_sts_info(
+  TABLE *table,
+  ulonglong *data_file_length,
+  ulonglong *max_data_file_length,
+  ulonglong *index_file_length,
+  ha_rows *records,
+  ulong *mean_rec_length,
+  time_t *check_time,
+  time_t *create_time,
+  time_t *update_time
+);
+
+void spider_store_table_crd_info(
+  TABLE *table,
+  uint *seq,
+  longlong *cardinality
+);
+
 int spider_insert_xa(
   TABLE *table,
   XID *xid,
@@ -248,6 +315,32 @@ int spider_insert_xa_member(
 int spider_insert_tables(
   TABLE *table,
   SPIDER_SHARE *share
+);
+
+int spider_insert_sys_table(
+  TABLE *table
+);
+
+int spider_insert_or_update_table_sts(
+  TABLE *table,
+  const char *name,
+  uint name_length,
+  ulonglong *data_file_length,
+  ulonglong *max_data_file_length,
+  ulonglong *index_file_length,
+  ha_rows *records,
+  ulong *mean_rec_length,
+  time_t *check_time,
+  time_t *create_time,
+  time_t *update_time
+);
+
+int spider_insert_or_update_table_crd(
+  TABLE *table,
+  const char *name,
+  uint name_length,
+  longlong *cardinality,
+  uint number_of_keys
 );
 
 int spider_log_tables_link_failed(
@@ -309,6 +402,18 @@ int spider_delete_tables(
   int *old_link_count
 );
 
+int spider_delete_table_sts(
+  TABLE *table,
+  const char *name,
+  uint name_length
+);
+
+int spider_delete_table_crd(
+  TABLE *table,
+  const char *name,
+  uint name_length
+);
+
 int spider_get_sys_xid(
   TABLE *table,
   XID *xid,
@@ -345,6 +450,12 @@ int spider_get_sys_tables_connect_info(
   MEM_ROOT *mem_root
 );
 
+int spider_get_sys_tables_monitoring_binlog_pos_at_failing(
+  TABLE *table,
+  long *monitoring_binlog_pos_at_failing,
+  MEM_ROOT *mem_root
+);
+
 int spider_get_sys_tables_link_status(
   TABLE *table,
   SPIDER_SHARE *share,
@@ -352,10 +463,41 @@ int spider_get_sys_tables_link_status(
   MEM_ROOT *mem_root
 );
 
+int spider_get_sys_tables_link_status(
+  TABLE *table,
+  long *link_status,
+  MEM_ROOT *mem_root
+);
+
 int spider_get_sys_tables_link_idx(
   TABLE *table,
   int *link_idx,
   MEM_ROOT *mem_root
+);
+
+int spider_get_sys_tables_static_link_id(
+  TABLE *table,
+  char **static_link_id,
+  uint *static_link_id_length,
+  MEM_ROOT *mem_root
+);
+
+void spider_get_sys_table_sts_info(
+  TABLE *table,
+  ulonglong *data_file_length,
+  ulonglong *max_data_file_length,
+  ulonglong *index_file_length,
+  ha_rows *records,
+  ulong *mean_rec_length,
+  time_t *check_time,
+  time_t *create_time,
+  time_t *update_time
+);
+
+void spider_get_sys_table_crd_info(
+  TABLE *table,
+  longlong *cardinality,
+  uint number_of_keys
 );
 
 int spider_sys_update_tables_link_status(
@@ -407,6 +549,68 @@ int spider_get_link_statuses(
   TABLE *table,
   SPIDER_SHARE *share,
   MEM_ROOT *mem_root
+);
+
+int spider_sys_insert_or_update_table_sts(
+  THD *thd,
+  const char *name,
+  uint name_length,
+  ulonglong *data_file_length,
+  ulonglong *max_data_file_length,
+  ulonglong *index_file_length,
+  ha_rows *records,
+  ulong *mean_rec_length,
+  time_t *check_time,
+  time_t *create_time,
+  time_t *update_time,
+  bool need_lock
+);
+
+int spider_sys_insert_or_update_table_crd(
+  THD *thd,
+  const char *name,
+  uint name_length,
+  longlong *cardinality,
+  uint number_of_keys,
+  bool need_lock
+);
+
+int spider_sys_delete_table_sts(
+  THD *thd,
+  const char *name,
+  uint name_length,
+  bool need_lock
+);
+
+int spider_sys_delete_table_crd(
+  THD *thd,
+  const char *name,
+  uint name_length,
+  bool need_lock
+);
+
+int spider_sys_get_table_sts(
+  THD *thd,
+  const char *name,
+  uint name_length,
+  ulonglong *data_file_length,
+  ulonglong *max_data_file_length,
+  ulonglong *index_file_length,
+  ha_rows *records,
+  ulong *mean_rec_length,
+  time_t *check_time,
+  time_t *create_time,
+  time_t *update_time,
+  bool need_lock
+);
+
+int spider_sys_get_table_crd(
+  THD *thd,
+  const char *name,
+  uint name_length,
+  longlong *cardinality,
+  uint number_of_keys,
+  bool need_lock
 );
 
 int spider_sys_replace(

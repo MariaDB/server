@@ -355,7 +355,7 @@ public:
     ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
     CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
     NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC, PERCENTILE_CONT_FUNC,
-    PERCENTILE_DISC_FUNC
+    PERCENTILE_DISC_FUNC, SP_AGGREGATE_FUNC
   };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
@@ -521,6 +521,7 @@ public:
   Item *get_arg(uint i) const { return args[i]; }
   Item *set_arg(uint i, THD *thd, Item *new_val);
   uint get_arg_count() const { return arg_count; }
+  virtual Item **get_args() { return fixed ? orig_args : args; }
 
   /* Initialization of distinct related members */
   void init_aggregator()
@@ -757,14 +758,20 @@ class Item_sum_sum :public Item_sum_num,
                    public Type_handler_hybrid_field_type 
 {
 protected:
+  bool direct_added;
+  bool direct_reseted_field;
+  bool direct_sum_is_null;
+  double direct_sum_real;
   double sum;
+  my_decimal direct_sum_decimal;
   my_decimal dec_buffs[2];
   uint curr_dec_buff;
   void fix_length_and_dec();
 
 public:
   Item_sum_sum(THD *thd, Item *item_par, bool distinct):
-    Item_sum_num(thd, item_par)
+    Item_sum_num(thd, item_par), direct_added(FALSE),
+    direct_reseted_field(FALSE)
   {
     set_distinct(distinct);
   }
@@ -773,6 +780,9 @@ public:
   { 
     return has_with_distinct() ? SUM_DISTINCT_FUNC : SUM_FUNC; 
   }
+  void cleanup();
+  void direct_add(my_decimal *add_sum_decimal);
+  void direct_add(double add_sum_real, bool add_sum_is_null);
   void clear();
   bool add();
   double val_real();
@@ -808,6 +818,9 @@ private:
 
 class Item_sum_count :public Item_sum_int
 {
+  bool direct_counted;
+  bool direct_reseted_field;
+  longlong direct_count;
   longlong count;
 
   friend class Aggregator_distinct;
@@ -817,9 +830,10 @@ class Item_sum_count :public Item_sum_int
   void cleanup();
   void remove();
 
-  public:
+public:
   Item_sum_count(THD *thd, Item *item_par):
-    Item_sum_int(thd, item_par), count(0)
+    Item_sum_int(thd, item_par), direct_counted(FALSE),
+    direct_reseted_field(FALSE), count(0)
   {}
 
   /**
@@ -831,12 +845,14 @@ class Item_sum_count :public Item_sum_int
   */
 
   Item_sum_count(THD *thd, List<Item> &list):
-    Item_sum_int(thd, list), count(0)
+    Item_sum_int(thd, list), direct_counted(FALSE),
+    direct_reseted_field(FALSE), count(0)
   {
     set_distinct(TRUE);
   }
   Item_sum_count(THD *thd, Item_sum_count *item):
-    Item_sum_int(thd, item), count(item->count)
+    Item_sum_int(thd, item), direct_counted(FALSE),
+    direct_reseted_field(FALSE), count(item->count)
   {}
   enum Sumfunctype sum_func () const 
   { 
@@ -851,6 +867,7 @@ class Item_sum_count :public Item_sum_int
   longlong val_int();
   void reset_field();
   void update_field();
+  void direct_add(longlong add_count);
   const char *func_name() const 
   { 
     return has_with_distinct() ? "count(distinct " : "count(";
@@ -1009,6 +1026,8 @@ class Item_cache;
 class Item_sum_hybrid :public Item_sum, public Type_handler_hybrid_field_type
 {
 protected:
+  bool direct_added;
+  Item *direct_item;
   Item_cache *value, *arg_cache;
   Arg_comparator *cmp;
   int cmp_sign;
@@ -1019,19 +1038,20 @@ protected:
   Item_sum_hybrid(THD *thd, Item *item_par,int sign):
     Item_sum(thd, item_par),
     Type_handler_hybrid_field_type(&type_handler_longlong),
-    value(0), arg_cache(0), cmp(0),
+    direct_added(FALSE), value(0), arg_cache(0), cmp(0),
     cmp_sign(sign), was_values(TRUE)
   { collation.set(&my_charset_bin); }
   Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
     :Item_sum(thd, item),
     Type_handler_hybrid_field_type(item),
-    value(item->value), arg_cache(0),
+    direct_added(FALSE), value(item->value), arg_cache(0),
     cmp_sign(item->cmp_sign), was_values(item->was_values)
   { }
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec();
   void setup_hybrid(THD *thd, Item *item, Item *value_arg);
   void clear();
+  void direct_add(Item *item);
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
@@ -1204,6 +1224,132 @@ private:
   void set_bits_from_counters();
 };
 
+class sp_head;
+class sp_name;
+class Query_arena;
+struct st_sp_security_context;
+
+/*
+  Item_sum_sp handles STORED AGGREGATE FUNCTIONS
+
+  Each Item_sum_sp represents a custom aggregate function. Inside the
+  function's body, we require at least one occurence of FETCH GROUP NEXT ROW
+  instruction. This cursor is what makes custom stored aggregates possible.
+
+  During computation the function's add method is called. This in turn performs
+  an execution of the function. The function will execute from the current
+  function context (and instruction), if one exists, or from the start if not.
+  See Item_sp for more details.
+
+  Upon encounter of FETCH GROUP NEXT ROW instruction, the function will pause
+  execution. We assume that the user has performed the necessary additions for
+  a row, between two encounters of FETCH GROUP NEXT ROW.
+
+  Example:
+  create aggregate function f1(x INT) returns int
+  begin
+    declare continue handler for not found return s;
+    declare s int default 0
+    loop
+      fetch group next row;
+      set s = s + x;
+    end loop;
+  end
+
+  The function will always stop after an encounter of FETCH GROUP NEXT ROW,
+  except (!) on first encounter, as the value for the first row in the
+  group is already set in the argument x. This behaviour is done so when
+  a user writes a function, he should "logically" include FETCH GROUP NEXT ROW
+  before any "add" instructions in the stored function. This means however that
+  internally, the first occurence doesn't stop the function. See the
+  implementation of FETCH GROUP NEXT ROW for details as to how it happens.
+
+  Either way, one should assume that after calling "Item_sum_sp::add()" that
+  the values for that particular row have been added to the aggregation.
+
+  To produce values for val_xxx methods we need an extra syntactic construct.
+  We require a continue handler when "no more rows are available". val_xxx
+  methods force a function return by executing the function again, while
+  setting a server flag that no more rows have been found. This implies
+  that val_xxx methods should only be called once per group however.
+
+  Example:
+  DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN ret_val;
+*/
+class Item_sum_sp :public Item_sum,
+                   public Item_sp
+{
+ private:
+  bool execute();
+
+public:
+  Item_sum_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name,
+              sp_head *sp);
+
+  Item_sum_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name,
+              sp_head *sp, List<Item> &list);
+
+  enum Sumfunctype sum_func () const
+  {
+    return SP_AGGREGATE_FUNC;
+  }
+  void fix_length_and_dec();
+  bool fix_fields(THD *thd, Item **ref);
+  const char *func_name() const;
+  const Type_handler *type_handler() const;
+  bool add();
+
+  /* val_xx functions */
+  longlong val_int()
+  {
+    if(execute())
+      return 0;
+    return sp_result_field->val_int();
+  }
+
+  double val_real()
+  {
+    if(execute())
+      return 0.0;
+    return sp_result_field->val_real();
+  }
+
+  my_decimal *val_decimal(my_decimal *dec_buf)
+  {
+    if(execute())
+      return NULL;
+    return sp_result_field->val_decimal(dec_buf);
+  }
+
+  String *val_str(String *str)
+  {
+    String buf;
+    char buff[20];
+    buf.set(buff, 20, str->charset());
+    buf.length(0);
+    if (execute())
+      return NULL;
+    /*
+      result_field will set buf pointing to internal buffer
+      of the resul_field. Due to this it will change any time
+      when SP is executed. In order to prevent occasional
+      corruption of returned value, we make here a copy.
+    */
+    sp_result_field->val_str(&buf);
+    str->copy(buf);
+    return str;
+  }
+  void reset_field(){DBUG_ASSERT(0);}
+  void update_field(){DBUG_ASSERT(0);}
+  void clear();
+  void cleanup();
+  inline Field *get_sp_result_field()
+  {
+    return sp_result_field;
+  }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_sp>(thd, this); }
+};
 
 /* Items to get the value of a stored sum function */
 
@@ -1601,6 +1747,16 @@ class Item_func_group_concat : public Item_sum
   bool always_null;
   bool force_copy_fields;
   bool no_appended;
+  /** Limits the rows in the result */
+  Item *row_limit;
+  /** Skips a particular number of rows in from the result*/
+  Item *offset_limit;
+  bool limit_clause;
+  /* copy of the offset limit */
+  ulonglong copy_offset_limit;
+  /*copy of the row limit */
+  ulonglong copy_row_limit;
+
   /*
     Following is 0 normal object and pointer to original one for copy
     (to correctly free resources)
@@ -1617,7 +1773,8 @@ class Item_func_group_concat : public Item_sum
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                          bool is_distinct, List<Item> *is_select,
-                         const SQL_I_List<ORDER> &is_order, String *is_separator);
+                         const SQL_I_List<ORDER> &is_order, String *is_separator,
+                         bool limit_clause, Item *row_limit, Item *offset_limit);
 
   Item_func_group_concat(THD *thd, Item_func_group_concat *item);
   ~Item_func_group_concat();

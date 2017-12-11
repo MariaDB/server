@@ -1327,6 +1327,7 @@ bool Protocol_text::send_out_parameters(List<Item_param> *sp_params)
       continue;
     }
 
+    DBUG_ASSERT(sparam->get_item_param() == NULL);
     sparam->set_value(thd, thd->spcont, reinterpret_cast<Item **>(&item_param));
   }
 

@@ -1371,6 +1371,8 @@ public:
   void mark_columns_per_binlog_row_image(void);
   bool mark_virtual_col(Field *field);
   bool mark_virtual_columns_for_write(bool insert_fl);
+  bool check_virtual_columns_marked_for_read();
+  bool check_virtual_columns_marked_for_write();
   void mark_default_fields_for_write(bool insert_fl);
   void mark_columns_used_by_check_constraints(void);
   void mark_check_constraint_columns_for_read(void);

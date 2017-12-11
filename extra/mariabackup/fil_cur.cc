@@ -212,24 +212,7 @@ xb_fil_cur_open(
 
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 
-	/* Determine the page size */
-	ulint	flags = xb_get_space_flags(cursor->file);
-	if (flags == ULINT_UNDEFINED) {
-		xb_fil_cur_close(cursor);
-		return(XB_FIL_CUR_SKIP);
-	}
-
-	if (!fsp_flags_is_valid(flags, cursor->space_id)) {
-		ulint cflags = fsp_flags_convert_from_101(flags);
-		if (cflags == ULINT_UNDEFINED) {
-			msg("[%02u] mariabackup: Error: Invalid "
-			    "tablespace flags: %x.\n", thread_n, uint(flags));
-			return(XB_FIL_CUR_SKIP);
-		}
-		flags = cflags;
-	}
-
-	const page_size_t page_size(flags);
+	const page_size_t page_size(cursor->node->space->flags);
 	cursor->page_size = page_size;
 
 	/* Allocate read buffer */

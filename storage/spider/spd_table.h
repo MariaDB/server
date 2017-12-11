@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 uchar *spider_tbl_get_key(
   SPIDER_SHARE *share,
@@ -389,9 +389,18 @@ void spider_free_tmp_dbton_handler(
 TABLE_LIST *spider_get_parent_table_list(
   ha_spider *spider
 );
+List<Index_hint> *spider_get_index_hints(
+  ha_spider *spider
+  );
 
 st_select_lex *spider_get_select_lex(
   ha_spider *spider
+);
+
+void spider_get_select_limit_from_select_lex(
+  st_select_lex *select_lex,
+  longlong *select_limit,
+  longlong *offset_limit
 );
 
 void spider_get_select_limit(
@@ -420,6 +429,10 @@ void spider_next_split_read_param(
 bool spider_check_direct_order_limit(
   ha_spider *spider
 );
+
+int spider_set_direct_limit_offset(
+                                   ha_spider*		spider
+                                   );
 
 bool spider_check_index_merge(
   TABLE *table,
@@ -452,5 +465,57 @@ int spider_discover_table_structure(
   THD* thd,
   TABLE_SHARE *share,
   HA_CREATE_INFO *info
+);
+#endif
+
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+int spider_create_spider_object_for_share(
+  SPIDER_TRX *trx,
+  SPIDER_SHARE *share,
+  ha_spider **spider
+);
+
+void spider_free_spider_object_for_share(
+  ha_spider **spider
+);
+
+int spider_create_sts_threads(
+  SPIDER_THREAD *spider_thread
+);
+
+void spider_free_sts_threads(
+  SPIDER_THREAD *spider_thread
+);
+
+int spider_create_crd_threads(
+  SPIDER_THREAD *spider_thread
+);
+
+void spider_free_crd_threads(
+  SPIDER_THREAD *spider_thread
+);
+
+void *spider_table_bg_sts_action(
+  void *arg
+);
+
+void *spider_table_bg_crd_action(
+  void *arg
+);
+
+void spider_table_add_share_to_sts_thread(
+  SPIDER_SHARE *share
+);
+
+void spider_table_add_share_to_crd_thread(
+  SPIDER_SHARE *share
+);
+
+void spider_table_remove_share_from_sts_thread(
+  SPIDER_SHARE *share
+);
+
+void spider_table_remove_share_from_crd_thread(
+  SPIDER_SHARE *share
 );
 #endif

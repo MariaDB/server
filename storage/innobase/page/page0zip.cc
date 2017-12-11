@@ -1340,8 +1340,8 @@ page_zip_compress(
 	if (UNIV_UNLIKELY(page_zip_compress_log)) {
 		/* Create a log file for every compression attempt. */
 		char	logfilename[9];
-		ut_snprintf(logfilename, sizeof logfilename,
-			    "%08x", page_zip_compress_log++);
+		snprintf(logfilename, sizeof logfilename,
+			 "%08x", page_zip_compress_log++);
 		logfile = fopen(logfilename, "wb");
 
 		if (logfile) {
