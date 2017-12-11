@@ -54,3 +54,16 @@ explain select a from t2 where a <'zzz';
 drop table t1,t2;
 
 set global rocksdb_strict_collation_check=@tmp_rscc;
+
+--echo #
+--echo # MDEV-14389: MyRocks and NOPAD collations
+--echo #
+
+--error ER_MYROCKS_CANT_NOPAD_COLLATION
+create table t1 (pk varchar(10) collate latin1_nopad_bin, primary key(pk)) engine=rocksdb;
+
+set global rocksdb_strict_collation_check=off;
+--error ER_MYROCKS_CANT_NOPAD_COLLATION
+create table t1 (pk varchar(10) collate latin1_nopad_bin, primary key(pk)) engine=rocksdb;
+
+set global rocksdb_strict_collation_check=@tmp_rscc;
