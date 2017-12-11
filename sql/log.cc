@@ -3583,6 +3583,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         new_xid_list_entry->binlog_name= name_mem;
         new_xid_list_entry->binlog_name_len= len;
         new_xid_list_entry->xid_count= 0;
+        new_xid_list_entry->notify_count= 0;
 
         /*
           Find the name for the Initial binlog checkpoint.
@@ -9678,9 +9679,20 @@ void
 TC_LOG_BINLOG::commit_checkpoint_notify(void *cookie)
 {
   xid_count_per_binlog *entry= static_cast<xid_count_per_binlog *>(cookie);
+  bool found_entry= false;
   mysql_mutex_lock(&LOCK_binlog_background_thread);
-  entry->next_in_queue= binlog_background_thread_queue;
-  binlog_background_thread_queue= entry;
+  /* count the same notification kind from different engines */
+  for (xid_count_per_binlog *link= binlog_background_thread_queue;
+       link && !found_entry; link= link->next_in_queue)
+  {
+    if ((found_entry= (entry == link)))
+      entry->notify_count++;
+  }
+  if (!found_entry)
+  {
+    entry->next_in_queue= binlog_background_thread_queue;
+    binlog_background_thread_queue= entry;
+  }
   mysql_cond_signal(&COND_binlog_background_thread);
   mysql_mutex_unlock(&LOCK_binlog_background_thread);
 }
@@ -9775,13 +9787,16 @@ binlog_background_thread(void *arg __attribute__((unused)))
       );
     while (queue)
     {
+      long count= queue->notify_count;
       THD_STAGE_INFO(thd, stage_binlog_processing_checkpoint_notify);
       DEBUG_SYNC(thd, "binlog_background_thread_before_mark_xid_done");
       /* Set the thread start time */
       thd->set_time();
       /* Grab next pointer first, as mark_xid_done() may free the element. */
       next= queue->next_in_queue;
-      mysql_bin_log.mark_xid_done(queue->binlog_id, true);
+      queue->notify_count= 0;
+      for (long i= 0; i <= count; i++)
+        mysql_bin_log.mark_xid_done(queue->binlog_id, true);
       queue= next;
 
       DBUG_EXECUTE_IF("binlog_background_checkpoint_processed",
