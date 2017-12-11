@@ -154,6 +154,8 @@ typedef struct my_aio_result {
 /* Extra length needed for filename if one calls my_create_backup_name */
 #define MY_BACKUP_NAME_EXTRA_LENGTH 17
 
+char *guess_malloc_library();
+
 /* If we have our own safemalloc (for debugging) */
 #if defined(SAFEMALLOC)
 void sf_report_leaked_memory(my_thread_id id);

@@ -35,6 +35,7 @@
 #include "sql_priv.h"
 #include "sql_class.h"                          // set_var.h: THD
 #include "sys_vars.ic"
+#include "my_sys.h"
 
 #include "events.h"
 #include <thr_alarm.h>
@@ -3511,27 +3512,6 @@ static Sys_var_charptr Sys_version_source_revision(
        CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(SOURCE_REVISION));
 
-static char *guess_malloc_library()
-{
-  if (strcmp(MALLOC_LIBRARY, "system") == 0)
-  {
-#ifdef HAVE_DLOPEN
-    typedef int (*mallctl_type)(const char*, void*, size_t*, void*, size_t);
-    mallctl_type mallctl_func;
-    mallctl_func= (mallctl_type)dlsym(RTLD_DEFAULT, "mallctl");
-    if (mallctl_func)
-    {
-      static char buf[128];
-      char *ver;
-      size_t len = sizeof(ver);
-      mallctl_func("version", &ver, &len, NULL, 0);
-      strxnmov(buf, sizeof(buf)-1, "jemalloc ", ver, NULL);
-      return buf;
-    }
-#endif
-  }
-  return const_cast<char*>(MALLOC_LIBRARY);
-}
 static char *malloc_library;
 static Sys_var_charptr Sys_malloc_library(
        "version_malloc_library", "Version of the used malloc library",

@@ -36,7 +36,8 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 				string.c thr_alarm.c thr_lock.c thr_mutex.c
 				thr_rwlock.c thr_timer.c
                                 tree.c typelib.c base64.c my_memmem.c
-                                 my_getpagesize.c
+                                my_getpagesize.c
+                                guess_malloc_library.c
 				lf_alloc-pin.c lf_dynarray.c lf_hash.c
                                 safemalloc.c my_new.cc
 				my_atomic.c my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
