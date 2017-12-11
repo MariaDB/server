@@ -7852,7 +7852,7 @@ WARN_VERS_PART_NON_HISTORICAL
         eng "Partition %`s contains non-historical data"
 
 ER_VERS_ALTER_NOT_ALLOWED
-        eng "Not allowed for versioned %`s.%`s. Change `versioning_alter_history` to proceed with ALTER."
+        eng "Not allowed for versioned %`s.%`s. Change @@system_versioning_alter_history to proceed with ALTER."
 
 ER_VERS_ALTER_ENGINE_PROHIBITED
         eng "Not allowed for versioned %`s.%`s. Change to/from native versioning engine is prohibited."

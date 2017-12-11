@@ -50,22 +50,22 @@ select * from
 where d.dept_id = 10
   and d.dept_id = e.dept_id;
 
-set statement versioning_asof_timestamp=@ts_0 for
+set statement system_versioning_asof=@ts_0 for
 select * from emp e, dept d
 where d.dept_id = 10
   and d.dept_id = e.dept_id;
 
-set statement versioning_asof_timestamp=@ts_1 for
+set statement system_versioning_asof=@ts_1 for
 select * from emp e, dept d
 where d.dept_id = 10
   and d.dept_id = e.dept_id;
 
-set statement versioning_asof_timestamp=@ts_2 for
+set statement system_versioning_asof=@ts_2 for
 select * from emp e, dept d
 where d.dept_id = 10
   and d.dept_id = e.dept_id;
 
-set statement versioning_asof_timestamp=@ts_3 for
+set statement system_versioning_asof=@ts_3 for
 select * from emp e, dept d
 where d.dept_id = 10
   and d.dept_id = e.dept_id;

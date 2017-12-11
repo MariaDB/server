@@ -1,3 +1,4 @@
+-- source include/have_partition.inc
 -- source suite/versioning/common.inc
 
 ### check System Versioning and conventional partitioning
