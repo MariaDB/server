@@ -29,7 +29,7 @@ while ($count)
 {
   TRUNCATE TABLE t2;
 
-  --error 0,1213
+  --error 0,ER_LOCK_DEADLOCK
   INSERT IGNORE INTO t2 SELECT f2 FROM t1;
   if ($mysql_errno != 1213) {
     --inc $successes
@@ -52,7 +52,7 @@ while ($count)
 --source suite/galera/t/MW-328-footer.inc
 
 #
-# Test phase 1 is deterministic
+# Test phase 2 is deterministic
 # Here we generate a sure conflict in node 1 and verify that
 # insert failed in both nodes
 #
@@ -67,7 +67,7 @@ UPDATE t1 SET j=1 WHERE i=1;
 UPDATE t1 SET j=2 WHERE i=1;
 
 --connection node_1
---error 1213
+--error ER_LOCK_DEADLOCK
 COMMIT;
 
 SELECT * FROM t1;
