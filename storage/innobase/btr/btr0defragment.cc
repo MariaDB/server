@@ -831,6 +831,7 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 			mtr_commit(&mtr);
 			/* Reaching the end of the index. */
 			dict_stats_empty_defrag_stats(index);
+			trx->error_state = DB_SUCCESS;
 			ut_d(trx->persistent_stats = true);
 			++trx->will_lock;
 			dberr_t err = dict_stats_save_defrag_stats(index, trx);

@@ -6480,6 +6480,7 @@ no_such_table:
 		}
 		ut_ad(!trx->persistent_stats);
 		ut_d(trx->persistent_stats = true);
+		trx->error_state = DB_SUCCESS;
 		++trx->will_lock;
 		dict_stats_init(ib_table, trx);
 		innobase_commit_low(trx);
@@ -13281,6 +13282,7 @@ create_table_info_t::create_table_update_dict()
 	innobase_copy_frm_flags_from_create_info(innobase_table, m_create_info);
 
 	++m_trx->will_lock;
+	m_trx->error_state = DB_SUCCESS;
 	dict_stats_update(innobase_table, DICT_STATS_EMPTY_TABLE, m_trx);
 	innobase_commit_low(m_trx);
 
@@ -14045,6 +14047,7 @@ ha_innobase::rename_table(
 		normalize_table_name(norm_from, from);
 		normalize_table_name(norm_to, to);
 
+		trx->error_state = DB_SUCCESS;
 		++trx->will_lock;
 		ret = dict_stats_rename_table(norm_from, norm_to,
 					      errstr, sizeof errstr, trx);
