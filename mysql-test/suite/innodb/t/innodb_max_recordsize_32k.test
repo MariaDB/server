@@ -6,16 +6,7 @@ call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the
 # Check page size 32k
 SELECT @@innodb_page_size;
 
-let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;
-let $innodb_strict_mode = `SELECT @@innodb_strict_mode`;
-
---disable_warnings
-SET GLOBAL innodb_file_per_table=ON;
-SET @@innodb_strict_mode=ON;
---enable_warnings
-
-SELECT @@innodb_file_per_table;
-SELECT @@innodb_strict_mode;
+SET innodb_strict_mode=ON;
 
 # Check the error when the max record length > 16K for innodb_page_size=32k
 --error ER_TOO_BIG_ROWSIZE
@@ -356,9 +347,8 @@ INSERT INTO t VALUES (REPEAT('a',65535));
 SELECT LENGTH(col) FROM t;
 FLUSH TABLE t;
 ANALYZE TABLE t;
-# retrieve the number of leaf pages
-SELECT stat_value FROM mysql.innodb_index_stats where database_name = 'test' and table_name= 't' and stat_name='n_leaf_pages';
-SELECT clustered_index_size from mysql.innodb_table_stats where database_name = 'test' and table_name= 't';
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t';
 DROP TABLE t;
 
 CREATE TABLE t(col BLOB) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
@@ -369,9 +359,8 @@ INSERT INTO t VALUES (REPEAT('a',65535));
 SELECT LENGTH(col) FROM t;
 FLUSH TABLE t;
 ANALYZE TABLE t;
-# retrieve the number of leaf pages
-SELECT stat_value FROM mysql.innodb_index_stats where database_name = 'test' and table_name= 't' and stat_name='n_leaf_pages';
-SELECT clustered_index_size from mysql.innodb_table_stats where database_name = 'test' and table_name= 't';
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t';
 DROP TABLE t;
 
 CREATE TABLE t(col BLOB) ENGINE=InnoDB ROW_FORMAT=COMPACT;
@@ -382,18 +371,6 @@ INSERT INTO t VALUES (REPEAT('a',65535));
 SELECT LENGTH(col) FROM t;
 FLUSH TABLE t;
 ANALYZE TABLE t;
-# retrieve the number of leaf pages
-SELECT stat_value FROM mysql.innodb_index_stats where database_name = 'test' and table_name= 't' and stat_name='n_leaf_pages';
-SELECT clustered_index_size from mysql.innodb_table_stats where database_name = 'test' and table_name= 't';
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t';
 DROP TABLE t;
-
-# cleanup
---disable_query_log
---disable_warnings
-eval SET GLOBAL INNODB_FILE_PER_TABLE=$innodb_file_per_table;
-eval SET GLOBAL INNODB_STRICT_MODE=$innodb_strict_mode;
---enable_warnings
---enable_query_log
-
---echo # Success
-

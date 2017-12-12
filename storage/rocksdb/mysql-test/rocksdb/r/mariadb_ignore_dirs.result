@@ -1,0 +1,9 @@
+# 
+# RocksDB plugin adds #rocksdb to ignore_db_dirs
+# 
+select @@ignore_db_dirs;
+@@ignore_db_dirs
+#rocksdb
+select @@ignore_db_dirs;
+@@ignore_db_dirs
+aa,bbb,#rocksdb

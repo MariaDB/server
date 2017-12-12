@@ -4314,7 +4314,7 @@ CREATE VIEW      v2 AS Select * from test.v1;
 ERROR 42S02: Table 'test.v1' doesn't exist
 DROP VIEW IF EXISTS v2;
 Warnings:
-Note	4091	Unknown VIEW: 'test.v2'
+Note	4092	Unknown VIEW: 'test.v2'
 
 Testcase 3.3.1.25 
 --------------------------------------------------------------------------------
@@ -7566,7 +7566,7 @@ Call sp1() ;
 ERROR 42000: PROCEDURE test.sp1 does not exist
 Drop view if exists test.v1 ;
 Warnings:
-Note	4091	Unknown VIEW: 'test.v1'
+Note	4092	Unknown VIEW: 'test.v1'
 Drop procedure sp1 ;
 ERROR 42000: PROCEDURE test.sp1 does not exist
 
@@ -21312,7 +21312,7 @@ CREATE VIEW  v1 AS SELECT f1 FROM t1;
 DROP VIEW IF EXISTS v1;
 DROP VIEW IF EXISTS v1;
 Warnings:
-Note	4091	Unknown VIEW: 'test.v1'
+Note	4092	Unknown VIEW: 'test.v1'
 
 Testcase 3.3.1.68 
 --------------------------------------------------------------------------------

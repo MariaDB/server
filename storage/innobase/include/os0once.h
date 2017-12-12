@@ -30,6 +30,7 @@ Created Feb 20, 2014 Vasil Dimov
 #include "univ.i"
 
 #include "ut0ut.h"
+#include "my_cpu.h"
 
 /** Execute a given function exactly once in a multi-threaded environment
 or wait for the function to be executed by another thread.
@@ -110,7 +111,7 @@ public:
 					ut_error;
 				}
 
-				UT_RELAX_CPU();
+				MY_RELAX_CPU();
 			}
 		}
 	}

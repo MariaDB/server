@@ -30,7 +30,7 @@ DELIMITER ;|
 # commit cut is not processed and therefore does not advance
 # local monitor, and our INSERT remains stuck there.
 SET GLOBAL wsrep_slave_threads = 2;
-SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
 
 --connection node_2
 --send INSERT INTO t1 VALUES (1, 'node 2');
@@ -48,7 +48,7 @@ SET SESSION DEBUG_SYNC = 'wsrep_after_replication SIGNAL wsrep_after_replication
 SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_after_replication_reached";
 
 
-SET GLOBAL DEBUG = "";
+SET GLOBAL DEBUG_DBUG = "";
 SET DEBUG_SYNC = "now SIGNAL wsrep_after_replication_continue";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 
@@ -69,7 +69,7 @@ SET GLOBAL wsrep_slave_threads = DEFAULT;
 DROP TABLE t1;
 DROP PROCEDURE insert_proc;
 
-SET GLOBAL debug = NULL;
+SET GLOBAL debug_dbug = NULL;
 SET debug_sync='RESET';
 
 # Make sure no pending signals are leftover to surprise subsequent tests.

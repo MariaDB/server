@@ -1715,7 +1715,7 @@ show warnings $$
 Level	Code	Message
 Warning	1012	Raising a warning
 Error	5555	RESIGNAL to not found
-Note	4093	At line 9 in test.test_resignal
+Note	4094	At line 9 in test.test_resignal
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -1740,7 +1740,7 @@ show warnings $$
 Level	Code	Message
 Warning	1012	Raising a warning
 Error	5555	RESIGNAL to error
-Note	4093	At line 9 in test.test_resignal
+Note	4094	At line 9 in test.test_resignal
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -1789,7 +1789,7 @@ show warnings $$
 Level	Code	Message
 Error	1012	Raising a not found
 Error	5555	RESIGNAL to not found
-Note	4093	At line 9 in test.test_resignal
+Note	4094	At line 9 in test.test_resignal
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -1814,7 +1814,7 @@ show warnings $$
 Level	Code	Message
 Error	1012	Raising a not found
 Error	5555	RESIGNAL to error
-Note	4093	At line 9 in test.test_resignal
+Note	4094	At line 9 in test.test_resignal
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -1863,7 +1863,7 @@ show warnings $$
 Level	Code	Message
 Error	1012	Raising an error
 Error	5555	RESIGNAL to not found
-Note	4093	At line 9 in test.test_resignal
+Note	4094	At line 9 in test.test_resignal
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -1888,7 +1888,7 @@ show warnings $$
 Level	Code	Message
 Error	1012	Raising an error
 Error	5555	RESIGNAL to error
-Note	4093	At line 9 in test.test_resignal
+Note	4094	At line 9 in test.test_resignal
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -1931,7 +1931,7 @@ show warnings $$
 Level	Code	Message
 Warning	1264	Out of range value for column 'a' at row 1
 Error	5555	RESIGNAL to a not found
-Note	4093	At line 8 in test.test_resignal
+Note	4094	At line 8 in test.test_resignal
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -1953,7 +1953,7 @@ show warnings $$
 Level	Code	Message
 Warning	1264	Out of range value for column 'a' at row 1
 Error	5555	RESIGNAL to an error
-Note	4093	At line 8 in test.test_resignal
+Note	4094	At line 8 in test.test_resignal
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -2004,7 +2004,7 @@ show warnings $$
 Level	Code	Message
 Error	1329	No data - zero rows fetched, selected, or processed
 Error	5555	RESIGNAL to a not found
-Note	4093	At line 10 in test.test_resignal
+Note	4094	At line 10 in test.test_resignal
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -2030,7 +2030,7 @@ show warnings $$
 Level	Code	Message
 Error	1329	No data - zero rows fetched, selected, or processed
 Error	5555	RESIGNAL to an error
-Note	4093	At line 10 in test.test_resignal
+Note	4094	At line 10 in test.test_resignal
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -2073,7 +2073,7 @@ show warnings $$
 Level	Code	Message
 Error	1051	Unknown table 'test.no_such_table'
 Error	5555	RESIGNAL to a not found
-Note	4093	At line 8 in test.test_resignal
+Note	4094	At line 8 in test.test_resignal
 drop procedure test_resignal $$
 create procedure test_resignal()
 begin
@@ -2095,7 +2095,7 @@ show warnings $$
 Level	Code	Message
 Error	1051	Unknown table 'test.no_such_table'
 Error	5555	RESIGNAL to an error
-Note	4093	At line 8 in test.test_resignal
+Note	4094	At line 8 in test.test_resignal
 drop procedure test_resignal $$
 #
 # More complex cases
@@ -2142,7 +2142,7 @@ ERROR 42000: Hi, I am a useless error message
 show warnings $$
 Level	Code	Message
 Error	9999	Hi, I am a useless error message
-Note	4093	At line 7 in test.peter_p2
+Note	4094	At line 7 in test.peter_p2
 drop procedure peter_p1 $$
 drop procedure peter_p2 $$
 CREATE PROCEDURE peter_p1 ()
@@ -2198,16 +2198,16 @@ Level	Code	Message
 Error	1231	Variable 'sql_mode' can't be set to the value of 'NULL'
 Error	1232	Variable 'sql_mode' can't be set to the value of 'NULL'
 Error	9999	Variable 'sql_mode' can't be set to the value of 'NULL'
-Note	4093	At line 8 in test.peter_p1
+Note	4094	At line 8 in test.peter_p1
 ERROR 42000: Hi, I am a useless error message
 show warnings $$
 Level	Code	Message
 Error	1231	Variable 'sql_mode' can't be set to the value of 'NULL'
 Error	1232	Variable 'sql_mode' can't be set to the value of 'NULL'
 Error	9999	Variable 'sql_mode' can't be set to the value of 'NULL'
-Note	4093	At line 8 in test.peter_p1
+Note	4094	At line 8 in test.peter_p1
 Error	9999	Hi, I am a useless error message
-Note	4093	At line 10 in test.peter_p2
+Note	4094	At line 10 in test.peter_p2
 drop procedure peter_p1 $$
 drop procedure peter_p2 $$
 drop procedure if exists peter_p3 $$
@@ -2225,7 +2225,7 @@ show warnings $$
 Level	Code	Message
 Error	1	Original
 Error	2	Original
-Note	4093	At line 4 in test.peter_p3
+Note	4094	At line 4 in test.peter_p3
 drop procedure peter_p3 $$
 drop table t_warn;
 drop table t_cursor;

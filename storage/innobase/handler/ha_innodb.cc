@@ -3742,6 +3742,16 @@ innobase_init(
 		goto error;
 	}
 
+#ifdef WITH_WSREP
+	/* Currently, Galera does not support VATS lock schedule algorithm. */
+	if (innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS
+	    && global_system_variables.wsrep_on) {
+		ib::info() << "In Galera environment Variance-Aware-Transaction-Sheduling Algorithm"
+			   " is not supported. Falling back to First-Come-First-Served order. ";
+		innodb_lock_schedule_algorithm = INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS;
+	}
+#endif /* WITH_WSREP */
+
 #ifndef HAVE_LZ4
 	if (innodb_compression_algorithm == PAGE_LZ4_ALGORITHM) {
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
@@ -5133,7 +5143,7 @@ innobase_kill_query(
 				wsrep_thd_is_BF(current_thd, FALSE));
 		}
 
-		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE) && trx->abort_type != TRX_WSREP_ABORT) {
 			lock_mutex_enter();
 			lock_mutex_taken = true;
 		}
@@ -6252,6 +6262,7 @@ no_such_table:
 		}
 		ut_ad(!trx->persistent_stats);
 		ut_d(trx->persistent_stats = true);
+		trx->error_state = DB_SUCCESS;
 		++trx->will_lock;
 		dict_stats_init(ib_table, trx);
 		innobase_commit_low(trx);
@@ -12983,6 +12994,7 @@ create_table_info_t::create_table_update_dict()
 	innobase_copy_frm_flags_from_create_info(innobase_table, m_create_info);
 
 	++m_trx->will_lock;
+	m_trx->error_state = DB_SUCCESS;
 	dict_stats_update(innobase_table, DICT_STATS_EMPTY_TABLE, m_trx);
 	innobase_commit_low(m_trx);
 
@@ -13742,6 +13754,7 @@ ha_innobase::rename_table(
 		normalize_table_name(norm_from, from);
 		normalize_table_name(norm_to, to);
 
+		trx->error_state = DB_SUCCESS;
 		++trx->will_lock;
 		ret = dict_stats_rename_table(norm_from, norm_to,
 					      errstr, sizeof errstr, trx);
@@ -20233,7 +20246,7 @@ static MYSQL_SYSVAR_ULONG(doublewrite_batch_size, srv_doublewrite_batch_size,
 #endif /* defined UNIV_DEBUG || defined UNIV_PERF_DEBUG */
 
 static MYSQL_SYSVAR_ENUM(lock_schedule_algorithm, innodb_lock_schedule_algorithm,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "The algorithm Innodb uses for deciding which locks to grant next when"
   " a lock is released. Possible values are"
   " FCFS"

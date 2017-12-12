@@ -5781,14 +5781,19 @@ end_with_restore_list:
       thd->print_aborted_warning(3, "RELEASE");
     }
 #ifdef WITH_WSREP
-    if (WSREP(thd) && (thd->wsrep_conflict_state != NO_CONFLICT &&
-                       thd->wsrep_conflict_state != REPLAYING))
-    {
-      DBUG_ASSERT(thd->is_error()); // the error is already issued
-    }
-    else
+    if (WSREP(thd)) {
+
+      if (thd->wsrep_conflict_state == NO_CONFLICT ||
+          thd->wsrep_conflict_state == REPLAYING)
+      {
+        my_ok(thd);
+      }
+    } else {
 #endif /* WITH_WSREP */
-      my_ok(thd);
+	my_ok(thd);
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
     break;
   }
   case SQLCOM_ROLLBACK:
@@ -5825,13 +5830,16 @@ end_with_restore_list:
     if (tx_release)
       thd->set_killed(KILL_CONNECTION);
 #ifdef WITH_WSREP
-    if (WSREP(thd) && thd->wsrep_conflict_state != NO_CONFLICT)
-    {
-      DBUG_ASSERT(thd->is_error()); // the error is already issued
-    }
-    else
+    if (WSREP(thd)) {
+      if (thd->wsrep_conflict_state == NO_CONFLICT) {
+        my_ok(thd);
+      }
+    } else {
 #endif /* WITH_WSREP */
-      my_ok(thd);
+	my_ok(thd);
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
    break;
   }
   case SQLCOM_RELEASE_SAVEPOINT:
@@ -6288,8 +6296,9 @@ finish:
       trans_rollback_stmt(thd);
     }
 #ifdef WITH_WSREP
-    else if (thd->spcont &&
+    if (thd->spcont &&
              (thd->wsrep_conflict_state == MUST_ABORT ||
+              thd->wsrep_conflict_state == ABORTED    ||
               thd->wsrep_conflict_state == CERT_FAILURE))
     {
       /*
@@ -8773,13 +8782,13 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
 
 
 /**
-  Find a thread by id and return it, locking it LOCK_thd_data
+  Find a thread by id and return it, locking it LOCK_thd_kill
 
   @param id  Identifier of the thread we're looking for
   @param query_id If true, search by query_id instead of thread_id
 
   @return NULL    - not found
-          pointer - thread found, and its LOCK_thd_data is locked.
+          pointer - thread found, and its LOCK_thd_kill is locked.
 */
 
 THD *find_thread_by_id(longlong id, bool query_id)
@@ -8793,7 +8802,7 @@ THD *find_thread_by_id(longlong id, bool query_id)
       continue;
     if (id == (query_id ? tmp->query_id : (longlong) tmp->thread_id))
     {
-      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
+      mysql_mutex_lock(&tmp->LOCK_thd_kill);    // Lock from delete
       break;
     }
   }
@@ -8849,13 +8858,13 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
 	!wsrep_thd_is_BF(tmp, true))
     {
-      tmp->awake(kill_signal);
+      tmp->awake_no_mutex(kill_signal);
       error=0;
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
                                         ER_KILL_DENIED_ERROR);
-    mysql_mutex_unlock(&tmp->LOCK_thd_data);
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }
   DBUG_PRINT("exit", ("%d", error));
   DBUG_RETURN(error);
@@ -8913,7 +8922,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
         DBUG_RETURN(ER_KILL_DENIED_ERROR);
       }
       if (!threads_to_kill.push_back(tmp, thd->mem_root))
-        mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from delete
+        mysql_mutex_lock(&tmp->LOCK_thd_kill); // Lock from delete
     }
   }
   mysql_mutex_unlock(&LOCK_thread_count);
@@ -8924,17 +8933,17 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
     THD *ptr= it2++;
     do
     {
-      ptr->awake(kill_signal);
+      ptr->awake_no_mutex(kill_signal);
       /*
         Careful here: The list nodes are allocated on the memroots of the
         THDs to be awakened.
         But those THDs may be terminated and deleted as soon as we release
-        LOCK_thd_data, which will make the list nodes invalid.
+        LOCK_thd_kill, which will make the list nodes invalid.
         Since the operation "it++" dereferences the "next" pointer of the
-        previous list node, we need to do this while holding LOCK_thd_data.
+        previous list node, we need to do this while holding LOCK_thd_kill.
       */
       next_ptr= it2++;
-      mysql_mutex_unlock(&ptr->LOCK_thd_data);
+      mysql_mutex_unlock(&ptr->LOCK_thd_kill);
       (*rows)++;
     } while ((ptr= next_ptr));
   }

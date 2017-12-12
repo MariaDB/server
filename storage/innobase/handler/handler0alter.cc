@@ -9675,6 +9675,7 @@ foreign_fail:
 	}
 
 	row_mysql_unlock_data_dictionary(trx);
+	trx->error_state = DB_SUCCESS;
 	++trx->will_lock;
 
 	/* TODO: The following code could be executed

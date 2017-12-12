@@ -437,8 +437,6 @@ stderr on startup/shutdown. Not enabled on the embedded server. */
 ibool	srv_print_verbose_log;
 my_bool	srv_print_innodb_monitor;
 my_bool	srv_print_innodb_lock_monitor;
-my_bool	srv_print_innodb_tablespace_monitor;
-my_bool	srv_print_innodb_table_monitor;
 /** innodb_force_primary_key; whether to disallow CREATE TABLE without
 PRIMARY KEY */
 my_bool	srv_force_primary_key;
@@ -1691,8 +1689,6 @@ DECLARE_THREAD(srv_monitor_thread)(void*)
 	double		time_elapsed;
 	time_t		current_time;
 	time_t		last_monitor_time;
-	time_t		last_table_monitor_time;
-	time_t		last_tablespace_monitor_time;
 	ulint		mutex_skipped;
 	ibool		last_srv_print_monitor;
 
@@ -1708,8 +1704,6 @@ DECLARE_THREAD(srv_monitor_thread)(void*)
 #endif /* UNIV_PFS_THREAD */
 
 	srv_last_monitor_time = ut_time();
-	last_table_monitor_time = ut_time();
-	last_tablespace_monitor_time = ut_time();
 	last_monitor_time = ut_time();
 	mutex_skipped = 0;
 	last_srv_print_monitor = srv_print_innodb_monitor;
@@ -1769,60 +1763,6 @@ loop:
 			os_file_set_eof(srv_monitor_file);
 			mutex_exit(&srv_monitor_file_mutex);
 		}
-
-		if (srv_print_innodb_tablespace_monitor
-		    && difftime(current_time,
-				last_tablespace_monitor_time) > 60) {
-			last_tablespace_monitor_time = ut_time();
-
-			fputs("========================"
-			      "========================\n",
-			      stderr);
-
-			ut_print_timestamp(stderr);
-
-			fputs(" INNODB TABLESPACE MONITOR OUTPUT\n"
-			      "========================"
-			      "========================\n",
-			      stderr);
-
-			// JAN: TODO: MySQL 5.7
-			//fsp_print(0);
-			//fputs("Validating tablespace\n", stderr);
-			//fsp_validate(0);
-			fputs("Validation ok\n"
-			      "---------------------------------------\n"
-			      "END OF INNODB TABLESPACE MONITOR OUTPUT\n"
-			      "=======================================\n",
-			      stderr);
-		}
-
-		if (srv_print_innodb_table_monitor
-		    && difftime(current_time, last_table_monitor_time) > 60) {
-
-			last_table_monitor_time = ut_time();
-
-			// fprintf(stderr, "Warning: %s\n",
-			//	DEPRECATED_MSG_INNODB_TABLE_MONITOR);
-
-			fputs("===========================================\n",
-			      stderr);
-
-			ut_print_timestamp(stderr);
-
-			fputs(" INNODB TABLE MONITOR OUTPUT\n"
-			      "===========================================\n",
-			      stderr);
-			// dict_print();
-
-			fputs("-----------------------------------\n"
-			      "END OF INNODB TABLE MONITOR OUTPUT\n"
-			      "==================================\n",
-			      stderr);
-
-			//fprintf(stderr, "Warning: %s\n",
-			//	DEPRECATED_MSG_INNODB_TABLE_MONITOR);
-		}
 	}
 
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
@@ -1830,9 +1770,7 @@ loop:
 	}
 
 	if (srv_print_innodb_monitor
-	    || srv_print_innodb_lock_monitor
-	    || srv_print_innodb_tablespace_monitor
-	    || srv_print_innodb_table_monitor) {
+	    || srv_print_innodb_lock_monitor) {
 		goto loop;
 	}
 

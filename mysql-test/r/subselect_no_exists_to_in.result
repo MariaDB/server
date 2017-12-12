@@ -388,10 +388,10 @@ Warnings:
 Note	1003	/* select#1 */ select 'joce' AS `pseudo`,(/* select#2 */ select 'test' from `test`.`t8` where 1) AS `(SELECT email FROM t8 WHERE pseudo=(SELECT pseudo FROM t8 WHERE pseudo='joce'))` from `test`.`t8` where 1
 SELECT pseudo FROM t8 WHERE pseudo=(SELECT pseudo,email FROM
 t8 WHERE pseudo='joce');
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types varchar and row for operation '='
 SELECT pseudo FROM t8 WHERE pseudo=(SELECT * FROM t8 WHERE
 pseudo='joce');
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types varchar and row for operation '='
 SELECT pseudo FROM t8 WHERE pseudo=(SELECT pseudo FROM t8 WHERE pseudo='joce');
 pseudo
 joce
@@ -2868,13 +2868,13 @@ drop table t1, t2;
 create table t1 (a int, b int);
 insert into t1 values (1,2);
 select 1 = (select * from t1);
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types int and row for operation '='
 select (select * from t1) = 1;
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Illegal parameter data types row and int for operation '='
 select (1,2) = (select a from t1);
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Illegal parameter data types row and int for operation '='
 select (select a from t1) = (1,2);
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types int and row for operation '='
 select (1,2,3) = (select * from t1);
 ERROR 21000: Operand should contain 3 column(s)
 select (select * from t1) = (1,2,3);

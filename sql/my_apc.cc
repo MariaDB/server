@@ -35,7 +35,7 @@
 void Apc_target::init(mysql_mutex_t *target_mutex)
 {
   DBUG_ASSERT(!enabled);
-  LOCK_thd_data_ptr= target_mutex;
+  LOCK_thd_kill_ptr= target_mutex;
 #ifndef DBUG_OFF
   n_calls_processed= 0;
 #endif
@@ -46,7 +46,7 @@ void Apc_target::init(mysql_mutex_t *target_mutex)
 
 void Apc_target::enqueue_request(Call_request *qe)
 {
-  mysql_mutex_assert_owner(LOCK_thd_data_ptr);
+  mysql_mutex_assert_owner(LOCK_thd_kill_ptr);
   if (apc_calls)
   {
     Call_request *after= apc_calls->prev;
@@ -72,7 +72,7 @@ void Apc_target::enqueue_request(Call_request *qe)
 
 void Apc_target::dequeue_request(Call_request *qe)
 {
-  mysql_mutex_assert_owner(LOCK_thd_data_ptr);
+  mysql_mutex_assert_owner(LOCK_thd_kill_ptr);
   if (apc_calls == qe)
   {
     if ((apc_calls= apc_calls->next) == qe)
@@ -146,14 +146,14 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
 
     int wait_res= 0;
     PSI_stage_info old_stage;
-    caller_thd->ENTER_COND(&apc_request.COND_request, LOCK_thd_data_ptr,
+    caller_thd->ENTER_COND(&apc_request.COND_request, LOCK_thd_kill_ptr,
                            &stage_show_explain, &old_stage);
     /* todo: how about processing other errors here? */
     while (!apc_request.processed && (wait_res != ETIMEDOUT))
     {
-      /* We own LOCK_thd_data_ptr */
+      /* We own LOCK_thd_kill_ptr */
       wait_res= mysql_cond_timedwait(&apc_request.COND_request,
-                                     LOCK_thd_data_ptr, &abstime);
+                                     LOCK_thd_kill_ptr, &abstime);
                                       // &apc_request.LOCK_request, &abstime);
       if (caller_thd->killed)
         break;
@@ -164,7 +164,7 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
       /* 
         The wait has timed out, or this thread was KILLed.
         Remove the request from the queue (ok to do because we own
-        LOCK_thd_data_ptr)
+        LOCK_thd_kill_ptr)
       */
       apc_request.processed= TRUE;
       dequeue_request(&apc_request);
@@ -177,7 +177,7 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
       res= FALSE;
     }
     /* 
-      exit_cond() will call mysql_mutex_unlock(LOCK_thd_data_ptr) for us:
+      exit_cond() will call mysql_mutex_unlock(LOCK_thd_kill_ptr) for us:
     */
     caller_thd->EXIT_COND(&old_stage);
 
@@ -186,7 +186,7 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
   }
   else
   {
-    mysql_mutex_unlock(LOCK_thd_data_ptr);
+    mysql_mutex_unlock(LOCK_thd_kill_ptr);
   }
   return res;
 }
@@ -203,11 +203,11 @@ void Apc_target::process_apc_requests()
   {
     Call_request *request;
  
-    mysql_mutex_lock(LOCK_thd_data_ptr);
+    mysql_mutex_lock(LOCK_thd_kill_ptr);
     if (!(request= get_first_in_queue()))
     {
       /* No requests in the queue */
-      mysql_mutex_unlock(LOCK_thd_data_ptr);
+      mysql_mutex_unlock(LOCK_thd_kill_ptr);
       break;
     }
 
@@ -226,7 +226,7 @@ void Apc_target::process_apc_requests()
     n_calls_processed++;
 #endif
     mysql_cond_signal(&request->COND_request);
-    mysql_mutex_unlock(LOCK_thd_data_ptr);
+    mysql_mutex_unlock(LOCK_thd_kill_ptr);
   }
 }
 

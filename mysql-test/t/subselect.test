@@ -188,10 +188,10 @@ INSERT INTO t8 (pseudo,email) VALUES ('joce','test');
 INSERT INTO t8 (pseudo,email) VALUES ('joce1','test1');
 INSERT INTO t8 (pseudo,email) VALUES ('2joce1','2test1');
 EXPLAIN EXTENDED SELECT pseudo,(SELECT email FROM t8 WHERE pseudo=(SELECT pseudo FROM t8 WHERE pseudo='joce')) FROM t8 WHERE pseudo=(SELECT pseudo FROM t8 WHERE pseudo='joce');
--- error ER_OPERAND_COLUMNS
+-- error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT pseudo FROM t8 WHERE pseudo=(SELECT pseudo,email FROM
 t8 WHERE pseudo='joce');
--- error ER_OPERAND_COLUMNS
+-- error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT pseudo FROM t8 WHERE pseudo=(SELECT * FROM t8 WHERE
 pseudo='joce');
 SELECT pseudo FROM t8 WHERE pseudo=(SELECT pseudo FROM t8 WHERE pseudo='joce');
@@ -1834,13 +1834,13 @@ drop table t1, t2;
 #
 create table t1 (a int, b int);
 insert into t1 values (1,2);
--- error ER_OPERAND_COLUMNS
+-- error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 select 1 = (select * from t1);
--- error ER_OPERAND_COLUMNS
+-- error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 select (select * from t1) = 1;
--- error ER_OPERAND_COLUMNS
+-- error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 select (1,2) = (select a from t1);
--- error ER_OPERAND_COLUMNS
+-- error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 select (select a from t1) = (1,2);
 -- error ER_OPERAND_COLUMNS
 select (1,2,3) = (select * from t1);

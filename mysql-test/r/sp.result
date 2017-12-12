@@ -3211,7 +3211,7 @@ drop procedure bug10961|
 DROP PROCEDURE IF EXISTS bug6866|
 DROP VIEW IF EXISTS tv|
 Warnings:
-Note	4091	Unknown VIEW: 'test.tv'
+Note	4092	Unknown VIEW: 'test.tv'
 DROP TABLE IF EXISTS tt1,tt2,tt3|
 Warnings:
 Note	1051	Unknown table 'test.tt1'
@@ -7823,7 +7823,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 show warnings;
 Level	Code	Message
 Error	1062	Duplicate entry '2' for key 'PRIMARY'
-Note	4093	At line 5 in test.p1
+Note	4094	At line 5 in test.p1
 select * from t1;
 id
 1
@@ -8291,6 +8291,63 @@ rec=(10)
 c
 rec=(20)
 DROP PROCEDURE p1;
+#
+# MDEV-14228 MariaDB crashes with function
+#
+CREATE TABLE t1 (c VARCHAR(16), KEY(c));
+INSERT INTO t1 VALUES ('foo');
+CREATE FUNCTION f1() RETURNS VARCHAR(16)
+BEGIN
+DECLARE v VARCHAR(16);
+FOR v IN (SELECT DISTINCT c FROM t1)
+DO
+IF (v = 'bar') THEN
+SELECT 1 INTO @a;
+END IF;
+END FOR;
+RETURN 'qux';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURNS VARCHAR(16)
+BEGIN
+DECLARE v ROW TYPE OF t1;
+IF v = 'bar' THEN
+RETURN 'eq';
+END IF;
+RETURN 'ne';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURNS VARCHAR(16)
+BEGIN
+DECLARE v ROW(a INT);
+IF v = 'bar' THEN
+RETURN 'eq';
+END IF;
+RETURN 'ne';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+DECLARE v ROW(a INT);
+SELECT v IN ('a','b');
+END $$
+ERROR HY000: Illegal parameter data types row and varchar for operation 'in'
+BEGIN NOT ATOMIC
+DECLARE v ROW(a INT);
+SELECT 'a' IN (v,'b');
+END $$
+ERROR HY000: Illegal parameter data types varchar and row for operation 'in'
+BEGIN NOT ATOMIC
+DECLARE v ROW(a INT);
+SELECT 'a' IN ('b',v);
+END $$
+ERROR HY000: Illegal parameter data types varchar and row for operation 'in'
 # Test affected rows from an sp
 create table t1 (a int);
 create procedure p1()

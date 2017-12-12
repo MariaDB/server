@@ -116,16 +116,6 @@
 #include "atomic/gcc_sync.h"
 #endif
 
-
-/*
-  the macro below defines (as an expression) the code that
-  will be run in spin-loops. Intel manuals recummend to have PAUSE there.
-  It is expected to be defined in include/atomic/ *.h files
-*/
-#ifndef LF_BACKOFF
-#define LF_BACKOFF (1)
-#endif
-
 #if SIZEOF_LONG == 4
 #define my_atomic_addlong(A,B) my_atomic_add32((int32*) (A), (B))
 #define my_atomic_loadlong(A) my_atomic_load32((int32*) (A))

@@ -34,9 +34,9 @@
 
 char *host= NULL, *user= 0, *opt_password= 0,
      *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
-char truncated_var_names[MAX_MYSQL_VAR][MAX_TRUNC_LENGTH];
-char ex_var_names[MAX_MYSQL_VAR][FN_REFLEN];
-ulonglong last_values[MAX_MYSQL_VAR];
+char truncated_var_names[MAX_MYSQL_VAR+100][MAX_TRUNC_LENGTH];
+char ex_var_names[MAX_MYSQL_VAR+100][FN_REFLEN];
+ulonglong last_values[MAX_MYSQL_VAR+100];
 static int interval=0;
 static my_bool option_force=0,interrupted=0,new_line=0,
                opt_compress= 0, opt_local= 0, opt_relative= 0, opt_verbose= 0,
@@ -885,7 +885,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	return -1;
       }
 
-      DBUG_ASSERT(mysql_num_rows(res) < MAX_MYSQL_VAR);
+      DBUG_ASSERT(mysql_num_rows(res) < MAX_MYSQL_VAR+100);
 
       if (!opt_vertical)
 	print_header(res);

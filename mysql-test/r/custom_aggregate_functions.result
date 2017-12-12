@@ -15,9 +15,9 @@ select f1(sal) from t1 where id>= 1;
 f1(sal)
 0
 Warnings:
-Note	4093	At line 5 in test.f1
-Note	4093	At line 5 in test.f1
-Note	4093	At line 5 in test.f1
+Note	4094	At line 5 in test.f1
+Note	4094	At line 5 in test.f1
+Note	4094	At line 5 in test.f1
 select * from t2;
 sal
 5000
@@ -802,9 +802,9 @@ select f5() from t2;
 f5()
 192000
 Warnings:
-Note	4093	At line 6 in test.f5
-Note	4093	At line 6 in test.f5
-Note	4093	At line 6 in test.f5
+Note	4094	At line 6 in test.f5
+Note	4094	At line 6 in test.f5
+Note	4094	At line 6 in test.f5
 create aggregate function f6(x INT) returns INT
 begin
 declare z int default 0;
@@ -820,8 +820,8 @@ select f6(sal) from t2;
 f6(sal)
 128000
 Warnings:
-Note	4093	At line 6 in test.f6
-Note	4093	At line 6 in test.f6
+Note	4094	At line 6 in test.f6
+Note	4094	At line 6 in test.f6
 select id, f1(sal) from t1 where id>= 1 group by id;
 id	f1(sal)
 1	7000
@@ -913,19 +913,19 @@ select f7(sal) from t1;
 f7(sal)
 64000
 Warnings:
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
-Note	4093	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
 drop table t1;
 drop table t2;
 drop table t3;
