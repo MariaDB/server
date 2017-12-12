@@ -1,21 +1,99 @@
-# Multi instance version of mariadb. For if you run multiple versions at once.
-# Also used for mariadb@bootstrap to bootstrap Galera.
+# Multi instance version of MariaDB
 #
-# create config file @sysconf2dir@/my{instancename}.cnf
+# Use this if you run multiple instances of MariaDB on a single server.
 #
-# start as systemctl start mariadb@{instancename}.server
-
+# Copyright notice:
+#
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation; either version 2.1 of the License, or
 # (at your option) any later version.
 #
-# Thanks to:
-# Daniel Black
-# Erkan Yanar
-# David Strauss
-# and probably others
-# Inspired from https://gitweb.gentoo.org/repo/gentoo.git/tree/dev-db/mysql-init-scripts/files/mysqld_at.service
+# MULTI INSTANCES
+#
+# When multiple instances of MariaDB are running on a server they need to
+# ensure that they don't conflict with each other. This includes elements
+# like network ports, sockets and data directories. The systemd environment
+# variable MYSQLD_MULTI_INSTANCE controls each instance to ensure it is
+# run independently.
+#
+# Suffix Mechanism (default):
+#
+# MYSQLD_MULTI_INSTANCE=--defaults-group-suffix=.%I
+#
+# With this option, the [mysqld.{instancename}] group is read from the default
+# configuration file.
+#
+# Command Line Mechanism:
+#
+# MYSQLD_MULTI_INSTANCE="--socket=/var/run/mysqld/%I.sock \
+#                        --datadir=/var/lib/mysqld-multi/%I \
+#                        --skip-networking"
+#
+# This is a good way run multiple instance where there is little difference
+# in configuration between instances.
+#
+# Configuration File Based Mechanism:
+#
+# MYSQLD_MULTI_INSTANCE=@sysconfdir@/my%I.cnf
+#
+# Here you need to create a file for each instance. Recommend the systemd
+# configuration "ConditionPathExists=@sysconf@/my%I.cnf" at the same time to
+# ensure the file exists for the instance before starting.
+#
+# APPLYING YOUR MULTI INSTANCE MECHANISM
+#
+# To apply one of the non-default multi-instance mechanisms, create a file
+# "/etc/systemd/system/mariadb@.service.d/multi.conf" containing:
+#
+#   [Service]
+#   Environment=MYSQLD_MULTI_INSTANCE="...."
+#
+# Include any other settings you which to override. Directives like Exec* are
+# lists and adding a directive will append to the list. You can clear the list
+# by starting with "Directive=" and no value. Follow this by the list that you
+# do want.
+#
+# Then run "systemctl daemon-reload".
+#
+# CONFLICTING VARIABLES
+#
+# A number of MariaDB system variables may conflict. The main ones that need to
+# be set because their default values will conflict are:
+#   * socket
+#   * port
+#   * datadir
+#
+# Galera will require:
+#   * wsrep_node_address
+#   * wsrep_cluster_address
+#   * ensure SST mechanisms don't conflict on network ports or temporary locations
+#
+# PRE-10.3
+#
+# Before 10.3 MYSQLD_MULTI_INSTANCE was effectively --defaults-file=@sysconf2dir@/my%I.cnf
+# As @sysconfdir@/my.cnf included these files it was a bad choice as an
+# existing single instance would include all these files. If you want to
+# continue a file based multi-instance mysqld, recommend the Configuration File
+# Based Mechanism above and moving @sysconf2dir@/my%I.cnf files to @sysconfdir@/my%I.cnf.
+#
+# SELINUX
+#
+# As basic selinux rules are written around a single instance of MariaDB you may need
+# to define labels for the files and network ports of all instances.
+#
+# See: https://mariadb.com/kb/en/library/what-to-do-if-mariadb-doesnt-start/#selinux
+#
+# STARTING
+#
+# Start the instance: systemctl start mariadb@{instancename}.service
+#
+# DOCUMENTATION:
+#
+# Read https://mariadb.com/kb/en/mariadb/systemd/ regarding customisation.
+#
+# Also see systemd man pages: systemd.unit(5), systemd.exec(5) and
+# systemd.service(5)
 
 [Unit]
 Description=MariaDB @VERSION@ database server (multi-instance)
@@ -23,7 +101,13 @@ Documentation=man:mysqld(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
 
-ConditionPathExists=@sysconf2dir@/my%I.cnf
+# Negated condition here is because 10.2 had @sysconf2dir@/my%I.cnf
+# as the configuration difference for multiple instances. This condition here
+# to prevent an accidental change during an upgrade in the case the user
+# created these file(s).
+#
+## See Environment=MYSQLD_MULTI_INSTANCE below for current recommended options.
+ConditionPathExists=!@sysconf2dir@/my%I.cnf
 
 [Install]
 WantedBy=multi-user.target
@@ -56,7 +140,8 @@ CapabilityBoundingSet=CAP_IPC_LOCK
 # Prevent writes to /usr, /boot, and /etc
 ProtectSystem=full
 
-# Doesn't yet work properly with SELinux enabled
+# Requires kernel 4.14 or later and SELinux transition rule for mysqld_t
+# (https://github.com/systemd/systemd/issues/3845)
 # NoNewPrivileges=true
 
 PrivateDevices=true
@@ -75,34 +160,23 @@ PermissionsStartOnly=true
 ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
 
 ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
- VAR=`@bindir@/galera_recovery --defaults-file=@sysconf2dir@/my%I.cnf`; [ $? -eq 0 ] \
+ VAR=`@bindir@/galera_recovery $MYSQLD_MULTI_INSTANCE`; [ $? -eq 0 ] \
  && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
 
-# Alternate: (remove ConditionPathExists above)
-# use [mysqld.INSTANCENAME] as sections in my.cnf
-#
-#ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
-# VAR=`@bindir@/galera_recovery --defaults-group-suffix=%I`; [ $? -eq 0 ] \
-# && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
-
 # Needed to create system tables etc.
-# ExecStartPre=@scriptdir@/mysql_install_db -u mysql
+ExecStartPre=@scriptdir@/mysql_install_db $MYSQLD_MULTI_INSTANCE --user=mysql
 
 # Start main service
-# MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb@.service.d/MY_SPECIAL.conf
-# Use the [Service] section and Environment="MYSQLD_OPTS=...".
-# This isn't a replacement for my.cnf.
-# _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
-
-# Note: Place $MYSQLD_OPTS at the very end for its options to take precedence.
-
-ExecStart=@sbindir@/mysqld --defaults-file=@sysconf2dir@/my%I.cnf \
-  $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
-# Alternate: (remove ConditionPathExists above)
-# use [mysqld.INSTANCENAME] as sections in my.cnf
+# A few variables are here:
+# * MYSQLD_MULTI_INSTANCE - control how multiple instances are distinguisable
+# * _WSREP_NEW_CLUSTER - for the exclusive use of the script galera_new_cluster
+# * MYSQLD_OPTS - user definable extras - not a replacement for my.cnf
 #
-# ExecStart=@sbindir@/mysqld --defaults-group-suffix=%I \
-# $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
+# Note 1: Place $MYSQLD_OPTS at the very end for its options to take precedence.
+# Note 2: we set --basedir to prevent probes that might trigger SELinux alarms,
+# per bug https://bugzilla.redhat.com/show_bug.cgi?id=547485
+ExecStart=@sbindir@/mysqld $MYSQLD_MULTI_INSTANCE --basedir=@prefix@ \
+  $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
 
 # Unset _WSREP_START_POSITION environment variable.
 ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
@@ -139,6 +213,9 @@ UMask=007
 # If you don't use the /tmp directory for SELECT ... OUTFILE and
 # LOAD DATA INFILE you can enable PrivateTmp=true for a little more security.
 PrivateTmp=false
+
+# Controlling how multiple instances are separated. See top of this file.
+Environment=MYSQLD_MULTI_INSTANCE=--defaults-group-suffix=.%I
 
 ##
 ## Options previously available to be set via [mysqld_safe]
