@@ -519,6 +519,10 @@ ALTER TABLE proc MODIFY body_utf8 longblob DEFAULT NULL;
 ALTER TABLE proc MODIFY comment
                         text collate utf8_bin NOT NULL;
 
+# MDEV-7773: Stored Aggregate Functions
+ALTER TABLE proc ADD aggregate enum('NONE', 'GROUP') DEFAULT 'NONE' NOT NULL
+                     AFTER body_utf8;
+
 #
 # EVENT privilege
 #
