@@ -5971,6 +5971,15 @@ rdb_field_uses_nopad_collation(const my_core::Field *const field) {
   /* Handle [VAR](CHAR|BINARY) or TEXT|BLOB */
   if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_STRING ||
       type == MYSQL_TYPE_BLOB) {
+
+    /*
+      This is technically a NOPAD collation but it's a binary collation
+      that we can handle.
+    */
+    if (RDB_INDEX_COLLATIONS.find(field->charset()->number) !=
+           RDB_INDEX_COLLATIONS.end())
+      return false;
+
     return (field->charset()->state & MY_CS_NOPAD);
   }
   return false;
