@@ -5964,6 +5964,19 @@ rdb_is_index_collation_supported(const my_core::Field *const field) {
   return true;
 }
 
+
+static bool
+rdb_field_uses_nopad_collation(const my_core::Field *const field) {
+  const my_core::enum_field_types type = field->real_type();
+  /* Handle [VAR](CHAR|BINARY) or TEXT|BLOB */
+  if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_STRING ||
+      type == MYSQL_TYPE_BLOB) {
+    return (field->charset()->state & MY_CS_NOPAD);
+  }
+  return false;
+}
+
+
 /*
   Create structures needed for storing data in rocksdb. This is called when the
   table is created. The structures will be shared by all TABLE* objects.
@@ -6072,8 +6085,7 @@ int ha_rocksdb::create_cfs(
   for (uint i = 0; i < tbl_def_arg->m_key_count; i++) {
     rocksdb::ColumnFamilyHandle *cf_handle;
 
-    if (rocksdb_strict_collation_check &&
-        !is_hidden_pk(i, table_arg, tbl_def_arg) &&
+    if (!is_hidden_pk(i, table_arg, tbl_def_arg) &&
         tbl_def_arg->base_tablename().find(tmp_file_prefix) != 0) {
       if (!tsys_set)
       {
@@ -6085,7 +6097,16 @@ int ha_rocksdb::create_cfs(
       for (uint part = 0; part < table_arg->key_info[i].ext_key_parts; 
            part++)
       {
-        if (!rdb_is_index_collation_supported(
+        /* MariaDB: disallow NOPAD collations */
+        if (rdb_field_uses_nopad_collation(
+              table_arg->key_info[i].key_part[part].field))
+        {
+          my_error(ER_MYROCKS_CANT_NOPAD_COLLATION, MYF(0));
+          DBUG_RETURN(HA_EXIT_FAILURE);
+        }
+
+        if (rocksdb_strict_collation_check &&
+            !rdb_is_index_collation_supported(
                 table_arg->key_info[i].key_part[part].field) &&
             !rdb_collation_exceptions->matches(tablename_sys)) {
           std::string collation_err;
