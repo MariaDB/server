@@ -2780,6 +2780,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
       {
         thd_info->proc_info= "Busy";
         thd_info->progress= 0.0;
+        thd_info->db= "";
       }
 
       thd_info->state_info= thread_state_info(tmp);
