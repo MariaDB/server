@@ -441,6 +441,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER, MYF(0));
     DBUG_RETURN(TRUE);
   }
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
   if (!create)
   {
@@ -606,6 +607,10 @@ end:
     my_ok(thd);
 
   DBUG_RETURN(result);
+#ifdef WITH_WSREP
+ error:
+  DBUG_RETURN(true);
+#endif /* WITH_WSREP */
 }
 
 /**

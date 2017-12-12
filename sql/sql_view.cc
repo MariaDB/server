@@ -425,6 +425,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   if ((res= create_view_precheck(thd, tables, view, mode)))
     goto err;
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
@@ -695,6 +696,10 @@ err:
   lex->link_first_table_back(view, link_to_local);
   unit->cleanup();
   DBUG_RETURN(res || thd->is_error());
+#ifdef WITH_WSREP
+ error:
+  DBUG_RETURN(true);
+#endif /* WITH_WSREP */
 }
 
 
