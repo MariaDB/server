@@ -28,7 +28,6 @@ def	mysql	db	Create_tmp_table_priv	14	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_g
 def	mysql	db	Create_view_priv	16	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	db	Db	2	''	NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)	PRI				NEVER	NULL
 def	mysql	db	Delete_priv	7	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
-def	mysql	db	Truncate_versioning_priv	23	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	db	Drop_priv	9	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	db	Event_priv	21	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	db	Execute_priv	20	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
@@ -41,6 +40,7 @@ def	mysql	db	References_priv	11	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general
 def	mysql	db	Select_priv	4	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	db	Show_view_priv	17	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	db	Trigger_priv	22	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
+def	mysql	db	Truncate_versioning_priv	23	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	db	Update_priv	6	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	db	User	3	''	NO	char	80	240	NULL	NULL	NULL	utf8	utf8_bin	char(80)	PRI				NEVER	NULL
 def	mysql	event	body	3	NULL	NO	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob					NEVER	NULL
@@ -218,7 +218,6 @@ def	mysql	user	Create_user_priv	29	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_gene
 def	mysql	user	Create_view_priv	25	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	user	default_role	46	''	NO	char	80	240	NULL	NULL	NULL	utf8	utf8_bin	char(80)					NEVER	NULL
 def	mysql	user	Delete_priv	7	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
-def	mysql	user	Truncate_versioning_priv	33	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	user	Drop_priv	9	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	user	Event_priv	30	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	user	Execute_priv	22	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
@@ -250,6 +249,7 @@ def	mysql	user	ssl_cipher	35	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	b
 def	mysql	user	ssl_type	34	''	NO	enum	9	27	NULL	NULL	NULL	utf8	utf8_general_ci	enum('','ANY','X509','SPECIFIED')					NEVER	NULL
 def	mysql	user	Super_priv	19	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	user	Trigger_priv	31	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
+def	mysql	user	Truncate_versioning_priv	33	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	user	Update_priv	6	'N'	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')					NEVER	NULL
 def	mysql	user	User	2	''	NO	char	80	240	NULL	NULL	NULL	utf8	utf8_bin	char(80)	PRI				NEVER	NULL
 def	mysql	user	x509_issuer	36	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob					NEVER	NULL
