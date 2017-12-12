@@ -6845,25 +6845,25 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
 
 bool Table_scope_and_contents_source_st::vers_native(THD *thd) const
 {
-  bool integer_fields= ha_check_storage_engine_flag(db_type,
-                                                    HTON_NATIVE_SYS_VERSIONING);
+  if (ha_check_storage_engine_flag(db_type, HTON_NATIVE_SYS_VERSIONING))
+    return true;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (partition_info *info= thd->work_part_info)
+  partition_info *info= thd->work_part_info;
+  if (info && !(used_fields & HA_CREATE_USED_ENGINE))
   {
-    if (!(used_fields & HA_CREATE_USED_ENGINE) && info->partitions.elements)
+    if (handlerton *hton= info->default_engine_type)
+      return ha_check_storage_engine_flag(hton, HTON_NATIVE_SYS_VERSIONING);
+
+    List_iterator_fast<partition_element> it(info->partitions);
+    while (partition_element *partition_element= it++)
     {
-      partition_element *element=
-          static_cast<partition_element *>(info->partitions.elem(0));
-      handlerton *hton= element->engine_type;
-      if (hton && ha_check_storage_engine_flag(hton, HTON_NATIVE_SYS_VERSIONING))
-      {
-        integer_fields= true;
-      }
+      if (partition_element->find_engine_flag(HTON_NATIVE_SYS_VERSIONING))
+        return true;
     }
   }
 #endif
-  return integer_fields;
+  return false;
 }
 
 bool Table_scope_and_contents_source_st::vers_fix_system_fields(

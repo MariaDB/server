@@ -293,4 +293,13 @@ partition by range (a)
 (partition p0 values less than (20) engine innodb,
 partition p1 values less than maxvalue engine innodb);
 insert into t1 values (1);
+create or replace table t1 (
+f_int1 integer default 0
+) with system versioning
+partition by range(f_int1)
+subpartition by hash(f_int1)
+( partition part1 values less than (1000)
+(subpartition subpart11 storage engine = 'innodb',
+subpartition subpart12 storage engine = 'innodb'));
+insert into t1 values (1);
 drop table t1;
