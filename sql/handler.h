@@ -1735,18 +1735,33 @@ struct Vers_parse_info
   start_end_t system_time;
   start_end_t as_row;
 
-  void set_period_for_system_time(LString start, LString end)
+  void set_system_time(LString start, LString end)
   {
     system_time.start= start;
     system_time.end= end;
   }
 
-private:
-  bool is_trx_start(const char *name) const;
-  bool is_trx_end(const char *name) const;
-  bool is_trx_start(const Create_field &f) const;
-  bool is_trx_end(const Create_field &f) const;
-  bool fix_implicit(THD *thd, Alter_info *alter_info, bool integer_fields);
+protected:
+  friend struct Table_scope_and_contents_source_st;
+  void set_start(const LEX_CSTRING field_name)
+  {
+    as_row.start= field_name;
+    system_time.start= field_name;
+  }
+  void set_end(const LEX_CSTRING field_name)
+  {
+    as_row.end= field_name;
+    system_time.end= field_name;
+  }
+  bool is_start(const char *name) const;
+  bool is_end(const char *name) const;
+  bool is_start(const Create_field &f) const;
+  bool is_end(const Create_field &f) const;
+  bool fix_implicit(THD *thd, Alter_info *alter_info, bool integer_fields, int *added= NULL);
+  operator bool() const
+  {
+    return as_row.start || as_row.end || system_time.start || system_time.end;
+  }
   bool need_check() const
   {
     return
@@ -1754,40 +1769,30 @@ private:
       unversioned_fields ||
       with_system_versioning ||
       without_system_versioning ||
-      system_time.start ||
-      system_time.end ||
-      as_row.start ||
-      as_row.end;
+      *this;
   }
   bool check_with_conditions(const char *table_name) const;
   bool check_generated_type(const char *table_name, Alter_info *alter_info,
                             bool integer_fields) const;
 
 public:
-  bool check_and_fix_implicit(THD *thd, Alter_info *alter_info,
-                              HA_CREATE_INFO *create_info,
-                              const char *table_name);
-  bool check_and_fix_alter(THD *thd, Alter_info *alter_info,
-                           HA_CREATE_INFO *create_info, TABLE *table);
+  static const LString default_start;
+  static const LString default_end;
+
+  bool fix_alter_info(THD *thd, Alter_info *alter_info,
+                       HA_CREATE_INFO *create_info, TABLE *table);
   bool fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
                        TABLE_LIST &src_table, TABLE_LIST &table);
 
-  /** User has added 'WITH SYSTEM VERSIONING' to table definition */
+  /** Table definition has 'WITH/WITHOUT SYSTEM VERSIONING' */
   bool with_system_versioning : 1;
-
-  /** Use has added 'WITHOUT SYSTEM VERSIONING' to ALTER TABLE */
   bool without_system_versioning : 1;
 
   /**
-     At least one field was specified 'WITH SYSTEM VERSIONING'. Useful for
-     error handling.
+     At least one field was specified 'WITH/WITHOUT SYSTEM VERSIONING'.
+     Useful for error handling.
   */
   bool versioned_fields : 1;
-
-  /**
-     At least one field was specified 'WITHOUT SYSTEM VERSIONING'. Useful for
-     error handling.
-  */
   bool unversioned_fields : 1;
 };
 
@@ -1866,6 +1871,14 @@ struct Table_scope_and_contents_source_st
   sequence_definition *seq_create_info;
 
   Vers_parse_info vers_info;
+
+  bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
+                         const TABLE_LIST &create_table,
+                         const TABLE_LIST *select_table= NULL,
+                         List<Item> *items= NULL,
+                         bool *versioned_write= NULL);
+
+  bool vers_native(THD *thd) const;
 
   void init()
   {

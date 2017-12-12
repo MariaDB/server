@@ -7642,10 +7642,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         enum_sql_command sql_command= thd->lex->sql_command;
         unsigned int create_options= thd->lex->create_info.options;
 
-        if (
-          sql_command == SQLCOM_CREATE_TABLE ?
-            sys_field && !(create_options & HA_VERSIONED_TABLE) : (
-            sys_field ?
+        if (sys_field ?
               (sql_command == SQLCOM_CREATE_VIEW ||
               slex->nest_level > 0 ||
               vers_hide == VERS_HIDE_FULL ||
@@ -7654,8 +7651,10 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
                   (vers_hide == VERS_HIDE_AUTO && (
                     vers_type == FOR_SYSTEM_TIME_UNSPECIFIED ||
                     vers_type == FOR_SYSTEM_TIME_AS_OF))))) :
-            (fl & HIDDEN_FLAG)))
+            (fl & HIDDEN_FLAG))
         {
+          if (sql_command != SQLCOM_CREATE_TABLE ||
+            !(create_options & HA_VERSIONED_TABLE))
           continue;
         }
       }

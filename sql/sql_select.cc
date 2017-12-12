@@ -4002,7 +4002,9 @@ void JOIN::exec_inner()
     while (Item *item= it++)
     {
       Item_transformer transformer= &Item::vers_transformer;
-      it.replace(item->transform(thd, transformer, NULL));
+      Item *new_item= item->transform(thd, transformer, NULL);
+      if (new_item) // Item_default_value::transform() may return NULL
+        it.replace(new_item);
     }
   }
 

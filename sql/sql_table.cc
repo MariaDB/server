@@ -9024,7 +9024,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
   if (check_engine(thd, alter_ctx.new_db, alter_ctx.new_name, create_info))
     DBUG_RETURN(true);
 
-  if (create_info->vers_info.check_and_fix_alter(thd, alter_info, create_info,
+  if (create_info->vers_info.fix_alter_info(thd, alter_info, create_info,
                                                  table))
   {
     DBUG_RETURN(true);

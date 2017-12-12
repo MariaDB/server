@@ -4243,8 +4243,7 @@ mysql_execute_command(THD *thd)
       }
       else
       {
-        if (create_info.vers_info.check_and_fix_implicit(
-              thd, &alter_info, &create_info, create_table->table_name))
+        if (create_info.vers_fix_system_fields(thd, &alter_info, *create_table))
         {
           goto end_with_restore_list;
         }

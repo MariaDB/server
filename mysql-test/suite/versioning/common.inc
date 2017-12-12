@@ -27,17 +27,17 @@ returns varchar(255)
 deterministic
 begin
   declare e varchar(255);
-  select lower(engine) from information_schema.engines where support='DEFAULT' into e;
+  select engine from information_schema.engines where support='DEFAULT' into e;
   return e;
 end~~
 
-create function if not exists sys_datatype()
+create function if not exists sys_datatype(engine varchar(255))
 returns varchar(255)
 deterministic
 begin
-  if default_engine() = 'innodb' then
-    return 'bigint unsigned';
-  elseif default_engine() = 'myisam' then
+  if engine = 'InnoDB' then
+    return 'bigint(20) unsigned';
+  elseif engine = 'MyISAM' then
     return 'timestamp(6)';
   end if;
   return NULL;
@@ -47,9 +47,9 @@ create function if not exists current_row(sys_trx_end varbinary(255))
 returns int
 deterministic
 begin
-  if default_engine() = 'innodb' then
+  if default_engine() = 'InnoDB' then
     return sys_trx_end = 18446744073709551615;
-  elseif default_engine() = 'myisam' then
+  elseif default_engine() = 'MyISAM' then
     return sys_trx_end = timestamp'2038-01-19 03:14:07.999999';
   end if;
   return NULL;
@@ -59,9 +59,9 @@ create function if not exists sys_commit_ts(sys_field varchar(255))
 returns varchar(255)
 deterministic
 begin
-  if default_engine() = 'innodb' then
+  if default_engine() = 'InnoDB' then
     return concat('vtq_commit_ts(', sys_field, ')');
-  elseif default_engine() = 'myisam' then
+  elseif default_engine() = 'MyISAM' then
     return sys_field;
   end if;
   return NULL;
@@ -70,9 +70,9 @@ end~~
 create procedure if not exists innodb_verify_vtq(recs int)
 begin
   declare i int default 1;
-  if default_engine() = 'innodb' then
+  if default_engine() = 'InnoDB' then
     call verify_vtq;
-  elseif default_engine() = 'myisam' then
+  elseif default_engine() = 'MyISAM' then
     create temporary table tmp (No int, A bool, B bool, C bool, D bool);
     while i <= recs do
       insert into tmp values (i, 1, 1, 1, 1);
@@ -99,5 +99,6 @@ end~~
 delimiter ;~~
 
 let $default_engine= `select default_engine()`;
-let sys_datatype= `select sys_datatype()`;
+let $sys_datatype= `select sys_datatype(default_engine())`;
+let $sys_datatype_uc= `select upper(sys_datatype(default_engine()))`;
 --enable_query_log

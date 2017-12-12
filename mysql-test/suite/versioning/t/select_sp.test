@@ -5,7 +5,7 @@ delimiter ~~;
 create procedure test_01()
 begin
   declare engine varchar(255) default default_engine();
-  declare sys_type varchar(255) default sys_datatype();
+  declare sys_type varchar(255) default sys_datatype(default_engine());
   declare fields varchar(255) default sys_commit_ts('sys_start');
 
   set @str= concat('
@@ -66,7 +66,7 @@ end~~
 create or replace procedure test_02()
 begin
   declare engine varchar(255) default default_engine();
-  declare sys_type varchar(255) default sys_datatype();
+  declare sys_type varchar(255) default sys_datatype(default_engine());
   declare fields varchar(255) default sys_commit_ts('sys_start');
 
   set @str0= concat('(

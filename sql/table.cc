@@ -7742,19 +7742,24 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
 
 void TABLE::vers_update_fields()
 {
-  DBUG_ENTER("vers_update_fields");
+  bitmap_set_bit(write_set, vers_start_field()->field_index);
+  bitmap_set_bit(write_set, vers_end_field()->field_index);
 
   if (versioned_by_sql())
   {
-    bitmap_set_bit(write_set, vers_start_field()->field_index);
+    if (!vers_write)
+      return;
     if (vers_start_field()->set_time())
       DBUG_ASSERT(0);
   }
+  else
+  {
+    vers_start_field()->set_notnull();
+    if (!vers_write)
+      return;
+  }
 
-  bitmap_set_bit(write_set, vers_end_field()->field_index);
   vers_end_field()->set_max();
-
-  DBUG_VOID_RETURN;
 }
 
 

@@ -6738,21 +6738,21 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
   DBUG_RETURN(res);
 }
 
-bool Vers_parse_info::is_trx_start(const char *name) const
+bool Vers_parse_info::is_start(const char *name) const
 {
   DBUG_ASSERT(name);
   return as_row.start && as_row.start == LString_i(name);
 }
-bool Vers_parse_info::is_trx_end(const char *name) const
+bool Vers_parse_info::is_end(const char *name) const
 {
   DBUG_ASSERT(name);
   return as_row.end && as_row.end == LString_i(name);
 }
-bool Vers_parse_info::is_trx_start(const Create_field &f) const
+bool Vers_parse_info::is_start(const Create_field &f) const
 {
   return f.flags & VERS_SYS_START_FLAG;
 }
-bool Vers_parse_info::is_trx_end(const Create_field &f) const
+bool Vers_parse_info::is_end(const Create_field &f) const
 {
   return f.flags & VERS_SYS_END_FLAG;
 }
@@ -6818,143 +6818,40 @@ static bool vers_change_sys_field(THD *thd, const char *field_name,
   return false;
 }
 
+const LString Vers_parse_info::default_start= "sys_trx_start";
+const LString Vers_parse_info::default_end= "sys_trx_end";
+
 bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
-                                   bool integer_fields)
+                                   bool integer_fields, int *added)
 {
   // If user specified some of these he must specify the others too. Do nothing.
-  if (as_row.start || as_row.end || system_time.start || system_time.end)
+  if (*this)
     return false;
 
   alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
 
-  static const LString sys_trx_start= "sys_trx_start";
-  static const LString sys_trx_end= "sys_trx_end";
-
-  system_time= start_end_t(sys_trx_start, sys_trx_end);
+  system_time= start_end_t(default_start, default_end);
   as_row= system_time;
 
-  return vers_create_sys_field(thd, sys_trx_start, alter_info,
-                              VERS_SYS_START_FLAG,
-                              integer_fields) ||
-         vers_create_sys_field(thd, sys_trx_end, alter_info,
-                              VERS_SYS_END_FLAG,
-                              integer_fields);
-}
-
-bool Vers_parse_info::check_and_fix_implicit(
-  THD *thd,
-  Alter_info *alter_info,
-  HA_CREATE_INFO *create_info,
-  const char* table_name)
-{
-  DBUG_ASSERT(!without_system_versioning);
-
-  SELECT_LEX &slex= thd->lex->select_lex;
-  int vers_tables= 0;
-  bool from_select= slex.item_list.elements ? true : false;
-
-  if (from_select)
+  if (vers_create_sys_field(thd, default_start, alter_info, VERS_SYS_START_FLAG, integer_fields) ||
+      vers_create_sys_field(thd, default_end, alter_info, VERS_SYS_END_FLAG, integer_fields))
   {
-    for (TABLE_LIST *table= slex.table_list.first; table; table= table->next_local)
-    {
-      if (table->table && table->table->versioned())
-        vers_tables++;
-    }
-  }
-
-  // CREATE ... SELECT: if at least one table in SELECT is versioned,
-  // then created table will be versioned.
-  if (thd->variables.vers_force)
-  {
-    with_system_versioning= true;
-    create_info->options|= HA_VERSIONED_TABLE;
-  }
-
-  // Possibly override default storage engine to match one used in source table.
-  if (from_select && with_system_versioning &&
-    !(create_info->used_fields & HA_CREATE_USED_ENGINE))
-  {
-    List_iterator_fast<Create_field> it(alter_info->create_list);
-    while (Create_field *f= it++)
-    {
-      if (is_trx_start(*f) || is_trx_end(*f))
-      {
-        create_info->db_type= f->field->orig_table->file->ht;
-        break;
-      }
-    }
-  }
-
-  if (!need_check())
-    return false;
-
-  if (!versioned_fields && unversioned_fields && !with_system_versioning)
-  {
-    // All is correct but this table is not versioned.
-    create_info->options&= ~HA_VERSIONED_TABLE;
-    return false;
-  }
-
-  if ((system_time.start || system_time.end || as_row.start || as_row.end) &&
-      !with_system_versioning)
-  {
-    my_error(ER_MISSING, MYF(0), table_name, "WITH SYSTEM VERSIONING");
     return true;
   }
+  if (added)
+    *added+= 2;
+  return false;
+}
 
-  TABLE *orig_table= NULL;
-  List_iterator<Create_field> it(alter_info->create_list);
-  while (Create_field *f= it++)
-  {
-    if (is_trx_start(*f))
-    {
-      if (!as_row.start) // not inited in CREATE ... SELECT
-      {
-        DBUG_ASSERT(vers_tables > 0);
-        if (orig_table && orig_table != f->field->orig_table)
-        {
-          err_different_tables:
-          my_error(ER_VERS_DIFFERENT_TABLES, MYF(0), table_name);
-          return true;
-        }
-        orig_table= f->field->orig_table;
-        as_row.start= f->field_name;
-        system_time.start= as_row.start;
-      }
-      continue;
-    }
-    if (is_trx_end(*f))
-    {
-      if (!as_row.end)
-      {
-        DBUG_ASSERT(vers_tables > 0);
-        if (orig_table && orig_table != f->field->orig_table)
-        {
-          goto err_different_tables;
-        }
-        orig_table= f->field->orig_table;
-        as_row.end= f->field_name;
-        system_time.end= as_row.end;
-      }
-      continue;
-    }
-
-    if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
-         !with_system_versioning) ||
-        f->versioning == Column_definition::WITHOUT_VERSIONING)
-    {
-      f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
-    }
-  }
-
-  bool integer_fields= ha_check_storage_engine_flag(create_info->db_type,
+bool Table_scope_and_contents_source_st::vers_native(THD *thd) const
+{
+  bool integer_fields= ha_check_storage_engine_flag(db_type,
                                                     HTON_NATIVE_SYS_VERSIONING);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (partition_info *info= thd->work_part_info)
   {
-    if (!(create_info->used_fields & HA_CREATE_USED_ENGINE) &&
-        info->partitions.elements)
+    if (!(used_fields & HA_CREATE_USED_ENGINE) && info->partitions.elements)
     {
       partition_element *element=
           static_cast<partition_element *>(info->partitions.elem(0));
@@ -6966,16 +6863,174 @@ bool Vers_parse_info::check_and_fix_implicit(
     }
   }
 #endif
+  return integer_fields;
+}
 
-  if (fix_implicit(thd, alter_info, integer_fields))
+bool Table_scope_and_contents_source_st::vers_fix_system_fields(
+  THD *thd,
+  Alter_info *alter_info,
+  const TABLE_LIST &create_table,
+  const TABLE_LIST *select_tables,
+  List<Item> *items,
+  bool *versioned_write)
+{
+  DBUG_ASSERT(!vers_info.without_system_versioning);
+  int vers_tables= 0;
+
+  if (select_tables)
+  {
+    for (const TABLE_LIST *table= select_tables; table; table= table->next_local)
+    {
+      if (table->table && table->table->versioned())
+        vers_tables++;
+    }
+  }
+
+  // CREATE ... SELECT: if at least one table in SELECT is versioned,
+  // then created table will be versioned.
+  if (thd->variables.vers_force)
+  {
+    vers_info.with_system_versioning= true;
+    options|= HA_VERSIONED_TABLE;
+  }
+
+  // Possibly override default storage engine to match one used in source table.
+  if (vers_tables && vers_info.with_system_versioning &&
+    !(used_fields & HA_CREATE_USED_ENGINE))
+  {
+    List_iterator_fast<Create_field> it(alter_info->create_list);
+    while (Create_field *f= it++)
+    {
+      if (vers_info.is_start(*f) || vers_info.is_end(*f))
+      {
+        if (f->field)
+        {
+          db_type= f->field->orig_table->file->ht;
+        }
+        break;
+      }
+    }
+  }
+
+  if (!vers_info.need_check())
+    return false;
+
+  if (!vers_info.versioned_fields &&
+    vers_info.unversioned_fields &&
+    !vers_info.with_system_versioning)
+  {
+    // All is correct but this table is not versioned.
+    options&= ~HA_VERSIONED_TABLE;
+    return false;
+  }
+
+  if (!vers_info.with_system_versioning && vers_info)
+  {
+    my_error(ER_MISSING, MYF(0), create_table.table_name, "WITH SYSTEM VERSIONING");
+    return true;
+  }
+
+  if (vers_tables)
+  {
+    DBUG_ASSERT(options & HA_VERSIONED_TABLE);
+    DBUG_ASSERT(versioned_write);
+    *versioned_write= true;
+  }
+
+  List_iterator<Create_field> it(alter_info->create_list);
+  bool explicit_declared= vers_info.as_row.start || vers_info.as_row.end;
+  while (Create_field *f= it++)
+  {
+    if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
+         !vers_info.with_system_versioning) ||
+        f->versioning == Column_definition::WITHOUT_VERSIONING)
+    {
+      f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
+    }
+
+    /* Assign selected implicit fields when no explicit fields */
+    if (!vers_tables || explicit_declared)
+      continue;
+
+    DBUG_ASSERT(versioned_write);
+    if (vers_info.is_start(*f) &&
+      vers_info.default_start == f->field_name)
+    {
+      if (vers_info.as_row.start)
+        it.remove();
+      else
+      {
+        vers_info.set_start(f->field_name);
+        *versioned_write= false;
+      }
+      continue;
+    }
+    if (vers_info.is_end(*f) &&
+      vers_info.default_end == f->field_name)
+    {
+      if (vers_info.as_row.end)
+        it.remove();
+      else
+      {
+        vers_info.set_end(f->field_name);
+        *versioned_write= false;
+      }
+      continue;
+    }
+  } // while (Create_field *f= it++)
+
+  /* Assign selected system fields to explicit system fields if any */
+  if (vers_tables)
+  {
+    it.rewind();
+    while (Create_field *f= it++)
+    {
+      uint flags_left= VERS_SYSTEM_FIELD;
+      if (flags_left && (vers_info.is_start(*f) || vers_info.is_end(*f)) && !f->field)
+      {
+        uint sys_flag= f->flags & flags_left;
+        flags_left-= sys_flag;
+        List_iterator_fast<Item> it2(*items);
+        while (Item *item= it2++)
+        {
+          if (item->type() != Item::FIELD_ITEM)
+            continue;
+          Field *fld= static_cast<Item_field *>(item)->field;
+          DBUG_ASSERT(fld);
+          if ((fld->flags & sys_flag) &&
+            LString_i(f->field_name) == fld->field_name)
+          {
+            f->field= fld;
+            *versioned_write= false;
+          }
+        } // while (item)
+      } // if (flags_left ...
+    } // while (Create_field *f= it++)
+  } // if (vers_tables)
+
+  bool integer_fields= vers_native(thd);
+  int added= 0;
+  if (vers_info.fix_implicit(thd, alter_info, integer_fields, &added))
     return true;
 
-  int plain_cols= 0; // column doesn't have WITH or WITHOUT SYSTEM VERSIONING
-  int vers_cols= 0; // column has WITH SYSTEM VERSIONING
+  DBUG_ASSERT(added >= 0);
+  if (vers_tables)
+  {
+    DBUG_ASSERT(items);
+    while (added--)
+    {
+      items->push_back(
+        new (thd->mem_root) Item_default_value(thd, thd->lex->current_context()),
+        thd->mem_root);
+    }
+  }
+
+  int plain_cols= 0; // columns don't have WITH or WITHOUT SYSTEM VERSIONING
+  int vers_cols= 0; // columns have WITH SYSTEM VERSIONING
   it.rewind();
   while (const Create_field *f= it++)
   {
-    if (is_trx_start(*f) || is_trx_end(*f))
+    if (vers_info.is_start(*f) || vers_info.is_end(*f))
       continue;
 
     if (f->versioning == Column_definition::VERSIONING_NOT_SET)
@@ -6984,21 +7039,18 @@ bool Vers_parse_info::check_and_fix_implicit(
       vers_cols++;
   }
 
-  bool table_with_system_versioning=
-      as_row.start || as_row.end || system_time.start || system_time.end;
-
   if (!thd->lex->tmp_table() &&
     // CREATE from SELECT (Create_fields are not yet added)
-    !from_select &&
+    !select_tables &&
     vers_cols == 0 &&
-    (plain_cols == 0 || !table_with_system_versioning))
+    (plain_cols == 0 || !vers_info))
   {
-    my_error(ER_VERS_NO_COLS_DEFINED, MYF(0), table_name);
+    my_error(ER_VERS_NO_COLS_DEFINED, MYF(0), create_table.table_name);
     return true;
   }
 
-  return check_with_conditions(table_name) ||
-         check_generated_type(table_name, alter_info, integer_fields);
+  return vers_info.check_with_conditions(create_table.table_name) ||
+         vers_info.check_generated_type(create_table.table_name, alter_info, integer_fields);
 }
 
 static bool add_field_to_drop_list(THD *thd, Alter_info *alter_info,
@@ -7035,13 +7087,12 @@ static bool is_adding_primary_key(Alter_info *alter_info)
   return false;
 }
 
-bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
+bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
                                           HA_CREATE_INFO *create_info,
                                           TABLE *table)
 {
   TABLE_SHARE *share= table->s;
-  bool integer_fields= ha_check_storage_engine_flag(create_info->db_type,
-                                                    HTON_NATIVE_SYS_VERSIONING);
+  bool integer_fields= create_info->vers_native(thd);
   const char *table_name= share->table_name.str;
 
   if (!need_check() && !share->versioned)
@@ -7184,12 +7235,12 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
       {
         const char *name= d->name;
         Field *f= NULL;
-        if (!done_start && is_trx_start(name))
+        if (!done_start && is_start(name))
         {
           f= share->vers_start_field();
           done_start= true;
         }
-        else if (!done_end && is_trx_end(name))
+        else if (!done_end && is_end(name))
         {
           f= share->vers_end_field();
           done_end= true;
@@ -7316,7 +7367,7 @@ bool Vers_parse_info::check_generated_type(const char *table_name,
   List_iterator<Create_field> it(alter_info->create_list);
   while (Create_field *f= it++)
   {
-    if (is_trx_start(*f) || is_trx_end(*f))
+    if (is_start(*f) || is_end(*f))
     {
       if (integer_fields)
       {

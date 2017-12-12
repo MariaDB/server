@@ -8397,10 +8397,7 @@ no_commit:
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
 	vers_set_fields =
-	    (table->versioned_write()
-	     && (sql_command != SQLCOM_CREATE_TABLE || table->s->vtmd))
-		? ROW_INS_VERSIONED
-		: ROW_INS_NORMAL;
+		table->versioned_write() ? ROW_INS_VERSIONED : ROW_INS_NORMAL;
 
 	/* Step-5: Execute insert graph that will result in actual insert. */
 	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
