@@ -336,5 +336,11 @@ show create table t;
 call verify_vtq;
 }
 
+create or replace table t (a int) with system versioning;
+--error ER_VERS_ALREADY_VERSIONED
+alter table t add system versioning;
+--error ER_VERS_ALREADY_VERSIONED
+alter table t add system versioning, drop system versioning;
+
 drop database test;
 create database test;

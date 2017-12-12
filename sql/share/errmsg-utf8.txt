@@ -7925,3 +7925,6 @@ ER_VERS_TRT_IS_DISABLED
 
 ER_VERS_DUPLICATE_ROW_START_END
 	eng "Duplicate ROW %s column %`s"
+
+ER_VERS_ALREADY_VERSIONED
+        eng "Table %`s is already system-versioned table"

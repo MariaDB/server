@@ -7047,6 +7047,12 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
   if (!need_check() && !share->versioned)
     return false;
 
+  if (with_system_versioning && table->versioned())
+  {
+    my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
+    return true;
+  }
+
   if (without_system_versioning)
   {
     if (!share->versioned)

@@ -497,5 +497,10 @@ set versioning_alter_history= SURVIVE;
 ERROR 42000: Variable 'versioning_alter_history' can't be set to the value of 'SURVIVE'
 set versioning_alter_history= DROP;
 ERROR 42000: Variable 'versioning_alter_history' can't be set to the value of 'DROP'
+create or replace table t (a int) with system versioning;
+alter table t add system versioning;
+ERROR HY000: Table `t` is already system-versioned table
+alter table t add system versioning, drop system versioning;
+ERROR HY000: Table `t` is already system-versioned table
 drop database test;
 create database test;
