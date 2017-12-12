@@ -1,0 +1,22 @@
+#
+# Test cases related to row cache
+#
+
+# The server must support partitioning.
+--source include/have_partition.inc
+
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT, f4 INT, KEY (f4), 
+  KEY (f1,f4,f3,f2)
+) PARTITION BY RANGE(f1) ( PARTITION p VALUES LESS THAN MAXVALUE );
+
+INSERT IGNORE INTO t1 VALUES 
+(140,0,0,7),(143,92,NULL,0),(0,0,NULL,154),(NULL,255,117,197),(0,0,NULL,0),(60,0,0,1);
+
+CREATE TABLE t2 (f INT);
+INSERT INTO t2 VALUES (NULL),(35),(NULL),(2);
+
+--sorted_result
+SELECT * FROM t1, t2 WHERE f4 >= f;
+
+# Cleanup
+DROP TABLE t1, t2;
