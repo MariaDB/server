@@ -1323,9 +1323,28 @@ srv_printf_innodb_monitor(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		rw_lock_s_lock(btr_search_latches[i]);
-		ha_print_info(file, btr_search_sys->hash_tables[i]);
-		rw_lock_s_unlock(btr_search_latches[i]);
+		const hash_table_t* table = btr_search_sys->hash_tables[i];
+
+		ut_ad(table->magic_n == HASH_TABLE_MAGIC_N);
+		/* this is only used for buf_pool->page_hash */
+		ut_ad(!table->heaps);
+		/* this is used for the adaptive hash index */
+		ut_ad(table->heap);
+
+		const mem_heap_t* heap = table->heap;
+		/* The heap may change during the following call,
+		so the data displayed may be garbage. We intentionally
+		avoid acquiring btr_search_latches[] so that the
+		diagnostic output will not stop here even in case another
+		thread hangs while holding btr_search_latches[].
+
+		This should be safe from crashes, because
+		table->heap will be pointing to the same object
+		for the full lifetime of the server. Even during
+		btr_search_disable() the heap will stay valid. */
+		fprintf(file, "Hash table size " ULINTPF
+			", node heap has " ULINTPF " buffer(s)\n",
+			table->n_cells, heap->base.count - !heap->free_block);
 	}
 
 	fprintf(file,
