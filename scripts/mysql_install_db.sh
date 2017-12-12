@@ -49,6 +49,9 @@ Usage: $0 [OPTIONS]
   --defaults-extra-file=name
                        Read this file after the global files are read.
   --defaults-file=name Only read default options from the given file name.
+  --defaults-group-suffix=name
+                       In addition to the given groups, read also groups with
+                       this suffix
   --force              Causes mysql_install_db to run even if DNS does not
                        work.  In that case, grant table entries that
                        normally use hostnames will use IP addresses.
@@ -127,8 +130,8 @@ parse_arguments()
       --verbose) verbose=1 ;; # Obsolete
       --rpm) in_rpm=1 ;;
       --help) usage ;;
-      --no-defaults|--defaults-file=*|--defaults-extra-file=*)
-        defaults="$arg" ;;
+      --no-defaults|--defaults-file=*|--defaults-extra-file=*|--defaults-group-suffix=*)
+        defaults="$defaults $arg" ;;
 
       --cross-bootstrap|--windows)
         # Used when building the MariaDB system tables on a different host than
