@@ -1550,9 +1550,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                        "<?>")));
   bool drop_more_results= 0;
 
-  if (!is_com_multi)
-    inc_thread_running();
-
   /* keep it withing 1 byte */
   compile_time_assert(COM_END == 255);
 
@@ -2410,10 +2407,8 @@ com_multi_end:
   thd->m_digest= NULL;
 
   if (!is_com_multi)
-  {
-    dec_thread_running();
     thd->packet.shrink(thd->variables.net_buffer_length); // Reclaim some memory
-  }
+
   thd->reset_kill_query();  /* Ensure that killed_errmsg is released */
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
 

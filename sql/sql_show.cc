@@ -3491,6 +3491,9 @@ const char* get_one_variable(THD *thd,
   case SHOW_MY_BOOL:
     end= strmov(buff, *(my_bool*) value ? "ON" : "OFF");
     break;
+  case SHOW_UINT32_STATUS:
+    value= ((char *) status_var + (intptr) value);
+    /* fall through */
   case SHOW_UINT:
     end= int10_to_str((long) *(uint*) value, buff, 10);
     break;
@@ -3717,6 +3720,8 @@ uint calc_sum_of_all_status(STATUS_VAR *to)
       add_to_status(to, &tmp->status_var);
       to->local_memory_used+= tmp->status_var.local_memory_used;
     }
+    if (tmp->get_command() != COM_SLEEP)
+      to->threads_running++;
   }
   
   mysql_mutex_unlock(&LOCK_thread_count);

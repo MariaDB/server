@@ -24,7 +24,8 @@
 #define SHOW_always_last SHOW_KEY_CACHE_LONG, \
             SHOW_LONG_STATUS, SHOW_DOUBLE_STATUS, \
             SHOW_HAVE, SHOW_MY_BOOL, SHOW_HA_ROWS, SHOW_SYS, \
-            SHOW_LONG_NOFLUSH, SHOW_LONGLONG_STATUS, SHOW_LEX_STRING
+            SHOW_LONG_NOFLUSH, SHOW_LONGLONG_STATUS, SHOW_UINT32_STATUS, \
+            SHOW_LEX_STRING
 #include "mariadb.h"
 #undef SHOW_always_last
 

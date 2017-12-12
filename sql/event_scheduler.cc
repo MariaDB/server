@@ -297,7 +297,6 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
   DBUG_ENTER("Event_worker_thread::run");
   DBUG_PRINT("info", ("Time is %u, THD: %p", (uint)my_time(0), thd));
 
-  inc_thread_running();
   if (res)
     goto end;
 
@@ -326,7 +325,6 @@ end:
              event->name.str));
 
   delete event;
-  dec_thread_running();
   deinit_event_thread(thd);
 
   DBUG_VOID_RETURN;

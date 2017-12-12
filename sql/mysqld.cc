@@ -492,7 +492,6 @@ uint protocol_version;
 uint lower_case_table_names;
 ulong tc_heuristic_recover= 0;
 int32 thread_count, service_thread_count;
-int32 thread_running;
 int32 slave_open_temp_tables;
 ulong thread_created;
 ulong back_log, connect_timeout, concurrency, server_id;
@@ -8640,7 +8639,7 @@ SHOW_VAR status_vars[]= {
   {"Threads_cached",           (char*) &cached_thread_count,    SHOW_LONG_NOFLUSH},
   {"Threads_connected",        (char*) &connection_count,       SHOW_INT},
   {"Threads_created",	       (char*) &thread_created,		SHOW_LONG_NOFLUSH},
-  {"Threads_running",          (char*) &thread_running,         SHOW_INT},
+  {"Threads_running",          (char*) offsetof(STATUS_VAR, threads_running), SHOW_UINT32_STATUS},
   {"Transactions_multi_engine", (char*) &transactions_multi_engine, SHOW_LONG},
   {"Rpl_transactions_multi_engine", (char*) &rpl_transactions_multi_engine, SHOW_LONG},
   {"Transactions_gtid_foreign_engine", (char*) &transactions_gtid_foreign_engine, SHOW_LONG},
@@ -8817,7 +8816,7 @@ static int mysql_init_variables(void)
   kill_in_progress= 0;
   cleanup_done= 0;
   test_flags= select_errors= dropping_tables= ha_open_options=0;
-  thread_count= thread_running= kill_cached_threads= wake_thread= 0;
+  thread_count= kill_cached_threads= wake_thread= 0;
   service_thread_count= 0;
   slave_open_temp_tables= 0;
   cached_thread_count= 0;

@@ -4207,6 +4207,12 @@ void THD::set_status_var_init()
 {
   bzero((char*) &status_var, offsetof(STATUS_VAR,
                                       last_cleared_system_status_var));
+  /*
+    Session status for Threads_running is always 1. It can only be queried
+    by thread itself via INFORMATION_SCHEMA.SESSION_STATUS or SHOW [SESSION]
+    STATUS. And at this point thread is guaranteed to be running.
+  */
+  status_var.threads_running= 1;
 }
 
 
