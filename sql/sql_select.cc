@@ -818,6 +818,9 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     }
   }
 
+  COND** dst_cond= where_expr;
+  COND* vers_cond= NULL;
+
   for (table= tables; table; table= table->next_local)
   {
     if (table->table && table->table->versioned())
@@ -869,7 +872,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
           continue;
       } // if (vers_conditions)
 
-      COND** dst_cond= where_expr;
       if (table->on_expr)
       {
         dst_cond= &table->on_expr;
@@ -888,7 +890,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
           newx Item_field(thd, &this->context, table->db, table->alias, fstart);
       Item *row_end=
           newx Item_field(thd, &this->context, table->db, table->alias, fend);
-      Item *row_end2= row_end;
 
       bool tmp_from_ib=
           table->table->s->table_category == TABLE_CATEGORY_TEMPORARY &&
@@ -929,7 +930,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
           else
           {
             curr= newx Item_int(thd, ULONGLONG_MAX);
-            cond1= newx Item_func_eq(thd, row_end2, curr);
+            cond1= newx Item_func_eq(thd, row_end, curr);
           }
           break;
         case FOR_SYSTEM_TIME_AS_OF:
@@ -968,7 +969,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
           curr= newx Item_int(thd, ULONGLONG_MAX);
-          cond1= newx Item_func_eq(thd, row_end2, curr);
+          cond1= newx Item_func_eq(thd, row_end, curr);
           break;
         case FOR_SYSTEM_TIME_AS_OF:
           trx_id0= vers_conditions.unit_start == UNIT_TIMESTAMP ?
@@ -1003,22 +1004,32 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
 
       if (cond1)
       {
-        cond1= and_items(thd,
-          *dst_cond,
+        vers_cond= and_items(thd,
+          vers_cond,
           and_items(thd,
             cond2,
             cond1));
-
-        if (on_stmt_arena.arena_replaced())
-          *dst_cond= cond1;
-        else
-          thd->change_item_tree(dst_cond, cond1);
-
-        this->where= *dst_cond;
-        this->where->top_level_item();
+        if (table->is_view_or_derived())
+          vers_cond= or_items(thd, vers_cond, newx Item_func_isnull(thd, row_end));
       }
     } // if (... table->table->versioned())
   } // for (table= tables; ...)
+
+  if (vers_cond)
+  {
+    COND *all_cond= and_items(thd, *dst_cond, vers_cond);
+    bool from_where= dst_cond == where_expr;
+    if (on_stmt_arena.arena_replaced())
+      *dst_cond= all_cond;
+    else
+      thd->change_item_tree(dst_cond, all_cond);
+
+    if (from_where)
+    {
+      this->where= *dst_cond;
+      this->where->top_level_item();
+    }
+  }
 
   DBUG_RETURN(0);
 #undef newx

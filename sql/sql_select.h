@@ -2215,6 +2215,10 @@ inline Item * and_items(THD *thd, Item* cond, Item *item)
 {
   return (cond ? (new (thd->mem_root) Item_cond_and(thd, cond, item)) : item);
 }
+inline Item * or_items(THD *thd, Item* cond, Item *item)
+{
+  return (cond ? (new (thd->mem_root) Item_cond_or(thd, cond, item)) : item);
+}
 bool choose_plan(JOIN *join, table_map join_tables);
 void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab, 
                                 table_map last_remaining_tables, 

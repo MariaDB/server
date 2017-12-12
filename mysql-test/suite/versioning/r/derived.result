@@ -215,5 +215,83 @@ select y from t2 for system_time as of @t1;
 x
 1
 10
+# LEFT/RIGHT JOIN
+create or replace table t1 (x int, y int) with system versioning;
+create or replace table t2 (x int, y int) with system versioning;
+insert into t1 values (1, 1), (1, 2), (1, 3), (4, 4), (5, 5);
+insert into t2 values (1, 2), (2, 1), (3, 1);
+## LEFT JOIN: t1, t2 versioned
+select * from (
+select t1.x as LJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 left join t2 on t1.x = t2.x)
+as derived;
+LJ1_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+4	4	NULL	NULL
+5	5	NULL	NULL
+alter table t2 drop system versioning;
+## LEFT JOIN: t1 versioned
+select * from (
+select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 left join t2 on t1.x = t2.x)
+as derived;
+LJ2_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+4	4	NULL	NULL
+5	5	NULL	NULL
+alter table t1 drop system versioning;
+alter table t2 add system versioning;
+## LEFT JOIN: t2 versioned
+select * from (
+select t1.x as LJ3_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 left join t2 on t1.x = t2.x)
+as derived;
+LJ3_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+4	4	NULL	NULL
+5	5	NULL	NULL
+alter table t1 add system versioning;
+## RIGHT JOIN: t1, t2 versioned
+select * from (
+select t1.x as RJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 right join t2 on t1.x = t2.x)
+as derived;
+RJ1_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+NULL	NULL	2	1
+NULL	NULL	3	1
+alter table t2 drop system versioning;
+## RIGHT JOIN: t1 versioned
+select * from (
+select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 right join t2 on t1.x = t2.x)
+as derived;
+RJ2_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+NULL	NULL	2	1
+NULL	NULL	3	1
+alter table t1 drop system versioning;
+alter table t2 add system versioning;
+## RIGHT JOIN: t2 versioned
+select * from (
+select t1.x as RJ3_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 right join t2 on t1.x = t2.x)
+as derived;
+RJ3_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+NULL	NULL	2	1
+NULL	NULL	3	1
 drop table t1, t2;
 drop view vt1, vt2;
