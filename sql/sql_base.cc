@@ -8067,12 +8067,11 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
                           ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           rfield->field_name.str, table->s->table_name.str);
     }
-    if (table->versioned() && rfield->vers_sys_field() &&
-        !ignore_errors)
+    if (table->versioned() && rfield->vers_sys_field())
     {
       if (type == Item::DEFAULT_VALUE_ITEM)
         continue;
-      my_error(ER_VERS_READONLY_FIELD, MYF(0), rfield->field_name.str);
+      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), rfield->field_name.str);
       goto err;
     }
 
@@ -8308,7 +8307,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
 
     if (table->versioned() && field->vers_sys_field() && !ignore_errors)
     {
-      my_error(ER_VERS_READONLY_FIELD, MYF(0), field->field_name.str);
+      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), field->field_name.str);
       goto err;
     }
 

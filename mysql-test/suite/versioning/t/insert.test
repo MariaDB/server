@@ -203,6 +203,14 @@ insert into t1 values (1, null);
 update t1 set x= x + 1;
 select *, sys_trx_end = 18446744073709551615 as current from t1 for system_time all;
 
+create or replace table t1 (i int) with system versioning engine innodb;
+insert into t1 values  (1),(2);
+--error ER_NONUPDATEABLE_COLUMN
+insert into t1 (sys_trx_start) select sys_trx_end from t1;
+--error ER_NONUPDATEABLE_COLUMN
+insert into t1 (sys_trx_start, sys_trx_end) values (DEFAULT, 1);
+insert into t1 (sys_trx_start, sys_trx_end) values (DEFAULT, DEFAULT);
+
 drop table t1;
 drop table t2;
 
