@@ -55,7 +55,7 @@ rollback */
 bool			trx_rollback_or_clean_is_active;
 
 /** In crash recovery, the current trx to be rolled back; NULL otherwise */
-static const trx_t*	trx_roll_crash_recv_trx	= NULL;
+const trx_t*		trx_roll_crash_recv_trx;
 
 /** In crash recovery we set this to the undo n:o of the current trx to be
 rolled back. Then we can print how many % the rollback has progressed. */
@@ -605,6 +605,14 @@ trx_rollback_active(
 
 	que_run_threads(roll_node->undo_thr);
 
+	if (trx->error_state != DB_SUCCESS) {
+		ut_ad(trx->error_state == DB_INTERRUPTED);
+		ut_ad(!srv_undo_sources);
+		ut_ad(srv_fast_shutdown);
+		ut_ad(!dictionary_locked);
+		goto func_exit;
+	}
+
 	trx_rollback_finish(thr_get_trx(roll_node->undo_thr));
 
 	/* Free the memory reserved by the undo graph */
@@ -649,12 +657,13 @@ trx_rollback_active(
 		}
 	}
 
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Rollback of trx with id " TRX_ID_FMT " completed", trx->id);
+
+func_exit:
 	if (dictionary_locked) {
 		row_mysql_unlock_data_dictionary(trx);
 	}
-
-	ib_logf(IB_LOG_LEVEL_INFO,
-		"Rollback of trx with id " TRX_ID_FMT " completed", trx->id);
 
 	mem_heap_free(heap);
 
@@ -700,8 +709,8 @@ func_exit:
 		trx_free_for_background(trx);
 		return(TRUE);
 	case TRX_STATE_ACTIVE:
-		if (srv_shutdown_state != SRV_SHUTDOWN_NONE
-		    && srv_fast_shutdown) {
+		if (!srv_undo_sources && srv_fast_shutdown) {
+fake_prepared:
 			trx->state = TRX_STATE_PREPARED;
 			trx_sys->n_prepared_trx++;
 			trx_sys->n_prepared_recovered_trx++;
@@ -713,6 +722,14 @@ func_exit:
 		if (*all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE) {
 			mutex_exit(&trx_sys->mutex);
 			trx_rollback_active(trx);
+			if (trx->error_state != DB_SUCCESS) {
+				ut_ad(trx->error_state == DB_INTERRUPTED);
+				ut_ad(!srv_undo_sources);
+				ut_ad(srv_fast_shutdown);
+				mutex_enter(&trx_sys->mutex);
+				trx_mutex_enter(trx);
+				goto fake_prepared;
+			}
 			trx_free_for_background(trx);
 			return(TRUE);
 		}

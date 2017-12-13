@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,6 +45,7 @@ Created 1/8/1997 Heikki Tuuri
 #include "row0upd.h"
 #include "row0mysql.h"
 #include "srv0srv.h"
+#include "srv0start.h"
 
 /* How to undo row operations?
 (1) For an insert, we have stored a prefix of the clustered index record
@@ -347,6 +349,14 @@ row_undo_step(
 	node = static_cast<undo_node_t*>(thr->run_node);
 
 	ut_ad(que_node_get_type(node) == QUE_NODE_UNDO);
+
+	if (UNIV_UNLIKELY(trx == trx_roll_crash_recv_trx)
+	    && trx_get_dict_operation(trx) == TRX_DICT_OP_NONE
+	    && !srv_undo_sources && srv_fast_shutdown) {
+		/* Shutdown has been initiated. */
+		trx->error_state = DB_INTERRUPTED;
+		return(NULL);
+	}
 
 	err = row_undo(node, thr);
 
