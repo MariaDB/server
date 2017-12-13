@@ -2872,6 +2872,9 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	purge_sys->running = false;
 
+	/* Ensure that the wait in trx_purge_stop() will terminate. */
+	os_event_set(purge_sys->event);
+
 	rw_lock_x_unlock(&purge_sys->latch);
 
 #ifdef UNIV_DEBUG_THREAD_CREATION

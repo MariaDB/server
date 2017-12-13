@@ -520,7 +520,7 @@ row_quiesce_table_start(
 	ut_ad(fil_space_get(table->space) != NULL);
 	ib::info() << "Sync to disk of " << table->name << " started.";
 
-	if (trx_purge_state() != PURGE_STATE_DISABLED) {
+	if (srv_undo_sources) {
 		trx_purge_stop();
 	}
 
@@ -603,7 +603,7 @@ row_quiesce_table_complete(
 		ib::info() << "Deleting the meta-data file '" << cfg_name << "'";
 	}
 
-	if (trx_purge_state() != PURGE_STATE_DISABLED) {
+	if (srv_undo_sources) {
 		trx_purge_run();
 	}
 
