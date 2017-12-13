@@ -3483,7 +3483,7 @@ innobase_init(
 	if (innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS
 	    && global_system_variables.wsrep_on) {
 		/* Do not allow InnoDB startup with VATS and Galera */
-		sql_print_error("In Galera environment Variance-Aware-Transaction-Sheduling Algorithm"
+		sql_print_error("In Galera, innodb_lock_schedule_algorithm=vats"
 			" is not supported.");
 		goto error;
 	}
