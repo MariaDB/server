@@ -67,7 +67,8 @@ CONNECT (con1,localhost,root,,);
 call mtr.add_suppression("Found 1 prepared XA transactions");
 FLUSH TABLES;
 
---source include/kill_and_restart_mysqld.inc
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
 
 SELECT update_time FROM information_schema.tables WHERE table_name = 't';
 
