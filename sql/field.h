@@ -1146,6 +1146,8 @@ public:
     { if (null_ptr) null_ptr[row_offset]&= (uchar) ~null_bit; }
   inline bool maybe_null(void) const
   { return null_ptr != 0 || table->maybe_null; }
+  // Set to NULL on LOAD DATA or LOAD XML
+  virtual bool load_data_set_null(THD *thd);
 
   /* @return true if this field is NULL-able (even if temporarily) */
   inline bool real_maybe_null(void) const { return null_ptr != 0; }
@@ -2448,6 +2450,7 @@ public:
   {
     return get_equal_const_item_datetime(thd, ctx, const_item);
   }
+  bool load_data_set_null(THD *thd);
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -3509,6 +3512,7 @@ public:
     but the underlying blob must still be reset.
    */
   int reset(void) { return Field_blob::reset() || !maybe_null(); }
+  bool load_data_set_null(THD *thd);
 
   geometry_type get_geometry_type() { return geom_type; };
   static geometry_type geometry_type_merge(geometry_type, geometry_type);

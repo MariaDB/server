@@ -1253,6 +1253,20 @@ warn:
 }
 
 
+bool Field::load_data_set_null(THD *thd)
+{
+  reset();
+  set_null();
+  if (!maybe_null())
+  {
+    if (this != table->next_number_field)
+      set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_NULL_TO_NOTNULL, 1);
+  }
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
 /**
   Numeric fields base class constructor.
 */
@@ -5152,6 +5166,27 @@ int Field_timestamp::set_time()
   return 0;
 }
 
+
+bool Field_timestamp::load_data_set_null(THD *thd)
+{
+  if (!maybe_null())
+  {
+    /*
+      Timestamp fields that are NOT NULL are autoupdated if there is no
+      corresponding value in the data file.
+    */
+    set_time();
+  }
+  else
+  {
+    reset();
+    set_null();
+  }
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
 #ifdef NOT_USED
 static void store_native(ulonglong num, uchar *to, uint bytes)
 {
@@ -8527,6 +8562,22 @@ bool Field_geom::can_optimize_range(const Item_bool_func *cond,
 {
   return item->cmp_type() == STRING_RESULT;
 }
+
+
+bool Field_geom::load_data_set_null(THD *thd)
+{
+  Field_blob::reset();
+  if (!maybe_null())
+  {
+    my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0), field_name.str,
+             thd->get_stmt_da()->current_row_for_warning());
+    return true;
+  }
+  set_null();
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
 
 #endif /*HAVE_SPATIAL*/
 
