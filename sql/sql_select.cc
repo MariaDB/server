@@ -823,196 +823,196 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
 
   for (table= tables; table; table= table->next_local)
   {
-    if (table->table && table->table->versioned())
+    if (!table->table || !table->table->versioned())
+      continue;
+
+    vers_select_conds_t &vers_conditions= table->vers_conditions;
+
+    // propagate system_time from nearest outer SELECT_LEX
+    if (!vers_conditions && outer_slex && vers_import_outer)
     {
-      vers_select_conds_t &vers_conditions= table->vers_conditions;
-
-      // propagate system_time from nearest outer SELECT_LEX
-      if (!vers_conditions && outer_slex && vers_import_outer)
+      TABLE_LIST* derived= master_unit()->derived;
+      // inner SELECT may not be a derived table (derived == NULL)
+      while (derived && outer_slex && (!derived->vers_conditions || derived->vers_conditions.from_inner))
       {
-        TABLE_LIST* derived= master_unit()->derived;
-        // inner SELECT may not be a derived table (derived == NULL)
-        while (derived && outer_slex && (!derived->vers_conditions || derived->vers_conditions.from_inner))
+        derived= outer_slex->master_unit()->derived;
+        outer_slex= outer_slex->next_select_in_list();
+      }
+      if (derived && outer_slex && !derived->vers_conditions.from_inner)
+      {
+        DBUG_ASSERT(derived->vers_conditions);
+        vers_conditions= derived->vers_conditions;
+      }
+    }
+
+    // propagate system_time from sysvar
+    if (!vers_conditions)
+    {
+      if (vers_conditions.init_from_sysvar(thd))
+        DBUG_RETURN(-1);
+    }
+
+    if (vers_conditions)
+    {
+      switch (this->lock_type)
+      {
+      case TL_WRITE_ALLOW_WRITE:
+      case TL_WRITE_CONCURRENT_INSERT:
+      case TL_WRITE_DELAYED:
+      case TL_WRITE_DEFAULT:
+      case TL_WRITE_LOW_PRIORITY:
+      case TL_WRITE:
+      case TL_WRITE_ONLY:
+        my_error(ER_VERS_HISTORY_LOCK, MYF(0));
+        DBUG_RETURN(-1);
+      default:
+        break;
+      }
+
+      if (vers_conditions == FOR_SYSTEM_TIME_ALL)
+        continue;
+    } // if (vers_conditions)
+
+    if (table->on_expr)
+    {
+      dst_cond= &table->on_expr;
+    }
+
+    if (TABLE_LIST *t= table->embedding)
+    {
+      if (t->on_expr)
+        dst_cond= &t->on_expr;
+    }
+
+    const LEX_CSTRING *fstart= &table->table->vers_start_field()->field_name;
+    const LEX_CSTRING *fend= &table->table->vers_end_field()->field_name;
+
+    Item *row_start=
+        newx Item_field(thd, &this->context, table->db, table->alias, fstart);
+    Item *row_end=
+        newx Item_field(thd, &this->context, table->db, table->alias, fend);
+
+    bool tmp_from_ib=
+        table->table->s->table_category == TABLE_CATEGORY_TEMPORARY &&
+        table->table->vers_start_field()->type() == MYSQL_TYPE_LONGLONG;
+    bool timestamps_only= table->table->versioned_by_sql() && !tmp_from_ib;
+
+    if (vers_conditions)
+    {
+      vers_conditions.resolve_units(timestamps_only);
+      if (timestamps_only && (vers_conditions.unit_start == UNIT_TRX_ID ||
+        vers_conditions.unit_end == UNIT_TRX_ID))
+      {
+        my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name);
+        DBUG_RETURN(-1);
+      }
+    }
+
+    Item *cond1= 0, *cond2= 0, *curr= 0;
+    // Temporary tables of can be created from INNODB tables and thus will
+    // have uint64 type of sys_trx_(start|end) field.
+    // They need special handling.
+    TABLE *t= table->table;
+    if (tmp_from_ib || t->versioned_by_sql() ||
+        thd->variables.vers_innodb_algorithm_simple)
+    {
+      switch (vers_conditions.type)
+      {
+      case FOR_SYSTEM_TIME_UNSPECIFIED:
+        if (t->vers_start_field()->real_type() != MYSQL_TYPE_LONGLONG)
         {
-          derived= outer_slex->master_unit()->derived;
-          outer_slex= outer_slex->next_select_in_list();
+          MYSQL_TIME max_time;
+          thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
+          max_time.second_part= TIME_MAX_SECOND_PART;
+          curr= newx Item_datetime_literal(thd, &max_time,
+                                            TIME_SECOND_PART_DIGITS);
+          cond1= newx Item_func_eq(thd, row_end, curr);
         }
-        if (derived && outer_slex && !derived->vers_conditions.from_inner)
+        else
         {
-          DBUG_ASSERT(derived->vers_conditions);
-          vers_conditions= derived->vers_conditions;
-        }
-      }
-
-      // propagate system_time from sysvar
-      if (!vers_conditions)
-      {
-        if (vers_conditions.init_from_sysvar(thd))
-          DBUG_RETURN(-1);
-      }
-
-      if (vers_conditions)
-      {
-        switch (this->lock_type)
-        {
-        case TL_WRITE_ALLOW_WRITE:
-        case TL_WRITE_CONCURRENT_INSERT:
-        case TL_WRITE_DELAYED:
-        case TL_WRITE_DEFAULT:
-        case TL_WRITE_LOW_PRIORITY:
-        case TL_WRITE:
-        case TL_WRITE_ONLY:
-          my_error(ER_VERS_HISTORY_LOCK, MYF(0));
-          DBUG_RETURN(-1);
-        default:
-          break;
-        }
-
-        if (vers_conditions == FOR_SYSTEM_TIME_ALL)
-          continue;
-      } // if (vers_conditions)
-
-      if (table->on_expr)
-      {
-        dst_cond= &table->on_expr;
-      }
-
-      if (TABLE_LIST *t= table->embedding)
-      {
-        if (t->on_expr)
-          dst_cond= &t->on_expr;
-      }
-
-      const LEX_CSTRING *fstart= &table->table->vers_start_field()->field_name;
-      const LEX_CSTRING *fend= &table->table->vers_end_field()->field_name;
-
-      Item *row_start=
-          newx Item_field(thd, &this->context, table->db, table->alias, fstart);
-      Item *row_end=
-          newx Item_field(thd, &this->context, table->db, table->alias, fend);
-
-      bool tmp_from_ib=
-          table->table->s->table_category == TABLE_CATEGORY_TEMPORARY &&
-          table->table->vers_start_field()->type() == MYSQL_TYPE_LONGLONG;
-      bool timestamps_only= table->table->versioned_by_sql() && !tmp_from_ib;
-
-      if (vers_conditions)
-      {
-        vers_conditions.resolve_units(timestamps_only);
-        if (timestamps_only && (vers_conditions.unit_start == UNIT_TRX_ID ||
-          vers_conditions.unit_end == UNIT_TRX_ID))
-        {
-          my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name);
-          DBUG_RETURN(-1);
-        }
-      }
-
-      Item *cond1= 0, *cond2= 0, *curr= 0;
-      // Temporary tables of can be created from INNODB tables and thus will
-      // have uint64 type of sys_trx_(start|end) field.
-      // They need special handling.
-      TABLE *t= table->table;
-      if (tmp_from_ib || t->versioned_by_sql() ||
-          thd->variables.vers_innodb_algorithm_simple)
-      {
-        switch (vers_conditions.type)
-        {
-        case FOR_SYSTEM_TIME_UNSPECIFIED:
-          if (t->vers_start_field()->real_type() != MYSQL_TYPE_LONGLONG)
-          {
-            MYSQL_TIME max_time;
-            thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
-            max_time.second_part= TIME_MAX_SECOND_PART;
-            curr= newx Item_datetime_literal(thd, &max_time,
-                                             TIME_SECOND_PART_DIGITS);
-            cond1= newx Item_func_eq(thd, row_end, curr);
-          }
-          else
-          {
-            curr= newx Item_int(thd, ULONGLONG_MAX);
-            cond1= newx Item_func_eq(thd, row_end, curr);
-          }
-          break;
-        case FOR_SYSTEM_TIME_AS_OF:
-          cond1= newx Item_func_le(thd, row_start,
-            vers_conditions.start);
-          cond2= newx Item_func_gt(thd, row_end,
-            vers_conditions.start);
-          break;
-        case FOR_SYSTEM_TIME_FROM_TO:
-          cond1= newx Item_func_lt(thd, row_start,
-            vers_conditions.end);
-          cond2= newx Item_func_ge(thd, row_end,
-            vers_conditions.start);
-          break;
-        case FOR_SYSTEM_TIME_BETWEEN:
-          cond1= newx Item_func_le(thd, row_start,
-            vers_conditions.end);
-          cond2= newx Item_func_ge(thd, row_end,
-            vers_conditions.start);
-          break;
-        case FOR_SYSTEM_TIME_BEFORE:
-          cond1= newx Item_func_lt(thd, row_end,
-            vers_conditions.start);
-          break;
-        default:
-          DBUG_ASSERT(0);
-        }
-      }
-      else
-      {
-        DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
-
-        Item *trx_id0, *trx_id1;
-
-        switch (vers_conditions.type)
-        {
-        case FOR_SYSTEM_TIME_UNSPECIFIED:
           curr= newx Item_int(thd, ULONGLONG_MAX);
           cond1= newx Item_func_eq(thd, row_end, curr);
-          break;
-        case FOR_SYSTEM_TIME_AS_OF:
-          trx_id0= vers_conditions.unit_start == UNIT_TIMESTAMP ?
-            newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
-            vers_conditions.start;
-          cond1= newx Item_func_vtq_trx_sees_eq(thd, trx_id0, row_start);
-          cond2= newx Item_func_vtq_trx_sees(thd, row_end, trx_id0);
-          break;
-        case FOR_SYSTEM_TIME_FROM_TO:
-        case FOR_SYSTEM_TIME_BETWEEN:
-          trx_id0= vers_conditions.unit_start == UNIT_TIMESTAMP ?
-            newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID, true) :
-            vers_conditions.start;
-          trx_id1= vers_conditions.unit_end == UNIT_TIMESTAMP ?
-            newx Item_func_vtq_id(thd, vers_conditions.end, TR_table::FLD_TRX_ID, false) :
-            vers_conditions.end;
-          cond1= vers_conditions.type == FOR_SYSTEM_TIME_FROM_TO ?
-            newx Item_func_vtq_trx_sees(thd, trx_id1, row_start) :
-            newx Item_func_vtq_trx_sees_eq(thd, trx_id1, row_start);
-          cond2= newx Item_func_vtq_trx_sees_eq(thd, row_end, trx_id0);
-          break;
-        case FOR_SYSTEM_TIME_BEFORE:
-          trx_id0= vers_conditions.unit_start == UNIT_TIMESTAMP ?
-            newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
-            vers_conditions.start;
-          cond1= newx Item_func_lt(thd, row_end, trx_id0);
-          break;
-        default:
-          DBUG_ASSERT(0);
         }
+        break;
+      case FOR_SYSTEM_TIME_AS_OF:
+        cond1= newx Item_func_le(thd, row_start,
+          vers_conditions.start);
+        cond2= newx Item_func_gt(thd, row_end,
+          vers_conditions.start);
+        break;
+      case FOR_SYSTEM_TIME_FROM_TO:
+        cond1= newx Item_func_lt(thd, row_start,
+          vers_conditions.end);
+        cond2= newx Item_func_ge(thd, row_end,
+          vers_conditions.start);
+        break;
+      case FOR_SYSTEM_TIME_BETWEEN:
+        cond1= newx Item_func_le(thd, row_start,
+          vers_conditions.end);
+        cond2= newx Item_func_ge(thd, row_end,
+          vers_conditions.start);
+        break;
+      case FOR_SYSTEM_TIME_BEFORE:
+        cond1= newx Item_func_lt(thd, row_end,
+          vers_conditions.start);
+        break;
+      default:
+        DBUG_ASSERT(0);
       }
+    }
+    else
+    {
+      DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
 
-      if (cond1)
+      Item *trx_id0, *trx_id1;
+
+      switch (vers_conditions.type)
       {
-        vers_cond= and_items(thd,
-          vers_cond,
-          and_items(thd,
-            cond2,
-            cond1));
-        if (table->is_view_or_derived())
-          vers_cond= or_items(thd, vers_cond, newx Item_func_isnull(thd, row_end));
+      case FOR_SYSTEM_TIME_UNSPECIFIED:
+        curr= newx Item_int(thd, ULONGLONG_MAX);
+        cond1= newx Item_func_eq(thd, row_end, curr);
+        break;
+      case FOR_SYSTEM_TIME_AS_OF:
+        trx_id0= vers_conditions.unit_start == UNIT_TIMESTAMP ?
+          newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
+          vers_conditions.start;
+        cond1= newx Item_func_vtq_trx_sees_eq(thd, trx_id0, row_start);
+        cond2= newx Item_func_vtq_trx_sees(thd, row_end, trx_id0);
+        break;
+      case FOR_SYSTEM_TIME_FROM_TO:
+      case FOR_SYSTEM_TIME_BETWEEN:
+        trx_id0= vers_conditions.unit_start == UNIT_TIMESTAMP ?
+          newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID, true) :
+          vers_conditions.start;
+        trx_id1= vers_conditions.unit_end == UNIT_TIMESTAMP ?
+          newx Item_func_vtq_id(thd, vers_conditions.end, TR_table::FLD_TRX_ID, false) :
+          vers_conditions.end;
+        cond1= vers_conditions.type == FOR_SYSTEM_TIME_FROM_TO ?
+          newx Item_func_vtq_trx_sees(thd, trx_id1, row_start) :
+          newx Item_func_vtq_trx_sees_eq(thd, trx_id1, row_start);
+        cond2= newx Item_func_vtq_trx_sees_eq(thd, row_end, trx_id0);
+        break;
+      case FOR_SYSTEM_TIME_BEFORE:
+        trx_id0= vers_conditions.unit_start == UNIT_TIMESTAMP ?
+          newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
+          vers_conditions.start;
+        cond1= newx Item_func_lt(thd, row_end, trx_id0);
+        break;
+      default:
+        DBUG_ASSERT(0);
       }
-    } // if (... table->table->versioned())
+    }
+
+    if (cond1)
+    {
+      vers_cond= and_items(thd,
+        vers_cond,
+        and_items(thd,
+          cond2,
+          cond1));
+      if (table->is_view_or_derived())
+        vers_cond= or_items(thd, vers_cond, newx Item_func_isnull(thd, row_end));
+    }
   } // for (table= tables; ...)
 
   if (vers_cond)
