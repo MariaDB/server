@@ -672,7 +672,7 @@ ibool
 trx_rollback_resurrected(
 /*=====================*/
 	trx_t*	trx,	/*!< in: transaction to rollback or clean */
-	ibool	all)	/*!< in: FALSE=roll back dictionary transactions;
+	ibool*	all)	/*!< in/out: FALSE=roll back dictionary transactions;
 			TRUE=roll back all non-PREPARED transactions */
 {
 	ut_ad(mutex_own(&trx_sys->mutex));
@@ -683,16 +683,15 @@ trx_rollback_resurrected(
 	to accidentally clean up a non-recovered transaction here. */
 
 	trx_mutex_enter(trx);
-	bool		is_recovered	= trx->is_recovered;
-	trx_state_t	state		= trx->state;
-	trx_mutex_exit(trx);
-
-	if (!is_recovered) {
+	if (!trx->is_recovered) {
+func_exit:
+		trx_mutex_exit(trx);
 		return(FALSE);
 	}
 
-	switch (state) {
+	switch (trx->state) {
 	case TRX_STATE_COMMITTED_IN_MEMORY:
+		trx_mutex_exit(trx);
 		mutex_exit(&trx_sys->mutex);
 		fprintf(stderr,
 			"InnoDB: Cleaning up trx with id " TRX_ID_FMT "\n",
@@ -701,7 +700,17 @@ trx_rollback_resurrected(
 		trx_free_for_background(trx);
 		return(TRUE);
 	case TRX_STATE_ACTIVE:
-		if (all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE) {
+		if (srv_shutdown_state != SRV_SHUTDOWN_NONE
+		    && srv_fast_shutdown) {
+			trx->state = TRX_STATE_PREPARED;
+			trx_sys->n_prepared_trx++;
+			trx_sys->n_prepared_recovered_trx++;
+			*all = FALSE;
+			goto func_exit;
+		}
+		trx_mutex_exit(trx);
+
+		if (*all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE) {
 			mutex_exit(&trx_sys->mutex);
 			trx_rollback_active(trx);
 			trx_free_for_background(trx);
@@ -709,13 +718,13 @@ trx_rollback_resurrected(
 		}
 		return(FALSE);
 	case TRX_STATE_PREPARED:
-		return(FALSE);
+		goto func_exit;
 	case TRX_STATE_NOT_STARTED:
 		break;
 	}
 
 	ut_error;
-	return(FALSE);
+	goto func_exit;
 }
 
 /*******************************************************************//**
@@ -762,17 +771,11 @@ trx_rollback_or_clean_recovered(
 
 			assert_trx_in_rw_list(trx);
 
-			if (srv_shutdown_state != SRV_SHUTDOWN_NONE
-			    && srv_fast_shutdown != 0) {
-				all = FALSE;
-				break;
-			}
-
 			/* If this function does a cleanup or rollback
 			then it will release the trx_sys->mutex, therefore
 			we need to reacquire it before retrying the loop. */
 
-			if (trx_rollback_resurrected(trx, all)) {
+			if (trx_rollback_resurrected(trx, &all)) {
 
 				mutex_enter(&trx_sys->mutex);
 
