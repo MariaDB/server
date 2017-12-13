@@ -91,6 +91,23 @@ insert addr values (1, 'Moscow'), (2, 'New York'), (3, 'London');
 set @ts=now(6);
 delete from emp;
 delete from addr;
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr
+from emp for system_time as of timestamp @ts as e
+where name = 'bill'
+  union
+select ee.emp_id, ee.name, ee.mgr
+from emp for system_time as of timestamp @ts as ee, ancestors as a
+where ee.mgr = a.emp_id
+)
+select * from ancestors;
+emp_id	name	mgr
+1	bill	0
+2	bill	1
+3	kate	1
 insert emp values (4, 'john', 1);
 insert addr values (4, 'Paris');
 with ancestors as (select * from emp natural join addr) select * from ancestors;

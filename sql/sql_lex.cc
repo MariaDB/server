@@ -2313,7 +2313,6 @@ void st_select_lex::init_select()
   in_tvc= false;
   vers_saved_where= NULL;
   vers_export_outer.empty();
-  vers_import_outer= false;
   versioned_tables= 0;
 }
 

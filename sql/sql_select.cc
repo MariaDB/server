@@ -829,19 +829,27 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     vers_select_conds_t &vers_conditions= table->vers_conditions;
 
     // propagate system_time from nearest outer SELECT_LEX
-    if (!vers_conditions && outer_slex && vers_import_outer)
+    if (!vers_conditions && outer_slex)
     {
       TABLE_LIST* derived= master_unit()->derived;
-      // inner SELECT may not be a derived table (derived == NULL)
-      while (derived && outer_slex && (!derived->vers_conditions || derived->vers_conditions.from_inner))
+      if (derived == table && vers_export_outer) // recursive CTE
       {
-        derived= outer_slex->master_unit()->derived;
-        outer_slex= outer_slex->next_select_in_list();
+        vers_conditions= vers_export_outer;
       }
-      if (derived && outer_slex && !derived->vers_conditions.from_inner)
+      else
       {
-        DBUG_ASSERT(derived->vers_conditions);
-        vers_conditions= derived->vers_conditions;
+        // inner SELECT may not be a derived table (derived == NULL)
+        while (derived && outer_slex &&
+          (!derived->vers_conditions || derived->vers_conditions.from_inner))
+        {
+          derived= outer_slex->master_unit()->derived;
+          outer_slex= outer_slex->next_select_in_list();
+        }
+        if (derived && outer_slex && !derived->vers_conditions.from_inner)
+        {
+          DBUG_ASSERT(derived->vers_conditions);
+          vers_conditions= derived->vers_conditions;
+        }
       }
     }
 
