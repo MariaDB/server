@@ -873,11 +873,585 @@ eval $no_pushdown $query;
 eval $query;
 eval explain $query;
 eval explain format=json $query;   
-     
+
 drop view v1,v2,v3,v4;
 drop view v_union,v2_union,v3_union,v4_union;
 drop view v_double,v_char,v_decimal;
-drop table t1,t2,t1_double,t2_double,t1_char,t2_char,t1_decimal,t2_decimal;  
+drop table t1,t2,t1_double,t2_double,t1_char,t2_char,t1_decimal,t2_decimal;
+
+--echo #
+--echo # MDEV-14579: pushdown conditions into materialized views/derived tables
+--echo # that are defined with EXIST or/and INTERSECT
+--echo #
+
+create table t1 (a int, b int, c int);
+create table t2 (a int, b int, c int);
+
+insert into t1 values
+  (1,21,345), (1,33,7), (8,33,114), (1,21,500), (1,19,117), (5,14,787),
+  (8,33,123), (9,10,211), (5,16,207), (1,33,988), (5,27,132), (1,21,104),
+  (6,20,309), (6,20,315), (1,21,101), (4,33,404), (9,10,800), (1,21,123);
+
+insert into t2 values
+  (2,3,207), (1,16,909), (5,14,312),
+  (5,33,207), (6,20,211), (1,19,132),
+  (8,33,117), (3,21,231), (6,23,303);
+
+create view v1 as
+  select a, b, min(c) as c from t1
+  where t1.a<9 group by a,b having c < 300
+  intersect
+  select a, b, min(c) as c from t1
+  where t1.b>10 group by a,b having c > 100;
+
+--echo # using intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # pushing equalities
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE using equalities
+let $query= select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # conjunctive subformulas : pushing into HAVING
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.c>200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # conjunctive subformulas : pushing into HAVING
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # extracted or formula : pushing into WHERE
+let $query=
+  select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # extracted or formula : pushing into HAVING
+let $query=
+  select * from v1,t2 where
+    (v1.a=t2.a) and ((v1.c>200) or (v1.c<105));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # extracted or formula : pushing into WHERE
+--echo # extracted or formula : pushing into HAVING using equalities
+--echo # pushing equalities
+let $query=
+  select * from v1,t2 where
+    ((v1.a>3) and (t2.c>110) and (v1.c=t2.c)) or
+    ((v1.a=1) and (v1.c<110));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # prepare of a query
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # conjunctive subformulas : pushing into HAVING
+prepare stmt from "select * from v1,t2
+                   where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # using intersect in derived table definition
+--echo # extracted or formula : pushing into WHERE using equalities
+--echo # extracted or formula : pushing into HAVING
+--echo # pushing equalities
+let $query=
+  select *
+  from t2,
+      (select a, b, min(c) as c from t1
+       where t1.a<9 group by a,b having c < 300
+       intersect
+       select a, b, min(c) as c from t1
+       where t1.b>10 group by a,b having c > 100) as d1
+  where
+  (d1.b=t2.b) and
+  (((t2.b>13) and (t2.c=909)) or
+  ((d1.a<4) and (d1.c<200)));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+create view v1 as
+  select a, b, max(c) as c from t1
+  where t1.a<9 group by a,b having c > 200
+  except
+  select a, b, max(c) as c from t1
+  where t1.b>10 group by a,b having c < 300;
+
+--echo # using except in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # pushing equalities
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a=6);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # conjunctive subformulas : pushing into WHERE using equalities
+let $query= select * from v1,t2 where (v1.a=t2.a) and (t2.a=6);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # conjunctive subformulas : pushing into HAVING
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.c>500);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # conjunctive subformulas : pushing into HAVING
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # extracted or formula : pushing into WHERE
+let $query=
+  select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # extracted or formula : pushing into HAVING
+let $query=
+  select * from v1,t2 where
+    (v1.a=t2.a) and ((v1.c<400) or (v1.c>800));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # extracted or formula : pushing into WHERE
+--echo # extracted or formula : pushing into HAVING using equalities
+--echo # pushing equalities
+let $query=
+  select * from v1,t2 where
+    (v1.c=t2.c) and
+    ((v1.a>1) and (t2.c<500)) or
+    ((v1.a=1) and (v1.c>500));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # prepare of a query
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # conjunctive subformulas : pushing into HAVING
+prepare stmt from "select * from v1,t2
+                   where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # using except in view definition
+--echo # extracted or formula : pushing into WHERE using equalities
+--echo # extracted or formula : pushing into HAVING
+--echo # pushing equalities
+let $query=
+  select *
+  from t2,
+      (select a, b, max(c) as c from t1
+       where t1.a<9 group by a,b having c > 200
+       except
+       select a, b, max(c) as c from t1
+       where t1.b>10 group by a,b having c < 300) as d1
+  where
+  (d1.b=t2.b) and
+  (((t2.b>13) and (t2.c=988)) or
+  ((d1.a>4) and (d1.c>500)));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union and intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, min(c) as c from t1
+    where t1.a<9 group by a,b having c > 200
+  union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a>3 group by a,b having c < 530;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union and intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, min(c) as c from t1
+    where t1.a<9 group by a,b having c > 200
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a>3 group by a,b having c < 500
+  union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union and except in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, min(c) as c from t1
+    where t1.a<9 group by a,b having c > 200
+  union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a>3 group by a,b having c < 530;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union and except in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, min(c) as c from t1
+    where t1.a<9 group by a,b having c > 200
+  except
+  select a, b, max(c) as c from t1
+    where t1.a>3 group by a,b having c < 500
+  union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using except and intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by a,b having c < 500
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a,b having c > 150;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<150);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using except and intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a,b having c > 150
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by a,b having c < 500;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using except, intersect and union in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a,b having c > 150
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by a,b having c < 500
+  union
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by a,b having c < 120;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using intersect in view definition
+--echo # using embedded view
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a,b having c > 120;
+
+create view v2 as
+  select a, b, max(c) as c from v1
+    where v1.a<7 group by a,b;
+
+let $query= select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1,v2;
+
+--echo # using except in view definition
+--echo # using embedded view
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a,b having c > 150;
+
+create view v2 as
+  select a, b, max(c) as c from v1
+    where v1.a<7 group by a,b;
+
+let $query= select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1,v2;
+
+--echo # using intersect in view definition
+--echo # conditions are pushed in different parts of selects
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a having c > 300
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.b<21 group by b having c > 200;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.b>12) and (v1.c<450);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using except in view definition
+--echo # conditions are pushed in different parts of selects
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>20 group by a having c > 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by b having c > 150;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<2) and (v1.b<30) and (v1.c>450);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using except and union in view definition
+--echo # conditions are pushed in different parts of selects
+--echo # conjunctive subformulas : pushing into HAVING
+--echo # extracted or formula : pushing into WHERE
+--echo # extracted or formula : pushing into HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>20 group by a having c > 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by b having c > 150;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and ((v1.a<2) or (v1.a<5)) and (v1.c>450);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union and intersect in view definition
+--echo # conditions are pushed in different parts of selects
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a having c > 100
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a>3 group by b having c < 800
+  union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c > 300;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) and (v1.c>400);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+create table t3 (a int, b int, c int);
+insert into t3 values
+  (1,21,345), (2,33,7), (8,33,114), (3,21,500), (1,19,107), (5,14,787),
+  (4,33,123), (9,10,211), (11,16,207), (10,33,988), (5,27,132), (12,21,104),
+  (6,20,309), (16,20,315), (16,21,101), (18,33,404), (19,10,800), (10,21,123),
+  (17,11,708), (6,20,214);
+
+create index i1 on t3(a);
+
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # pushed condition gives range access
+create view v1 as
+  select a, b, max(c) as max_c from t3
+    where a>0 group by a;
+
+let $query= select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # pushed condition gives range access
+create view v1 as
+  select a, b, max(c) as c from t3
+    where t3.a>1 group by a
+  union
+  select a, b, max(c) as c from t3
+    where t3.a>2 group by a;
+
+let $query= select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # pushed condition gives range access in one of the selects
+create view v1 as
+  select a, b, max(c) as c from t3
+    where t3.a>1 group by a
+  union
+  select a, b, max(c) as c from t3
+    where t3.b<21 group by b;
+
+let $query= select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+alter table t3 drop index i1;
+
+drop table t1,t2,t3;
 
 --echo #
 --echo # MDEV-10782: condition extracted from a multiple equality
