@@ -1330,39 +1330,8 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       skip_lines--;
       continue;
     }
-    
-    if (item)
-    {
-      /* Have not read any field, thus input file is simply ended */
-      if (item == fields_vars.head())
-        break;
-      
-      for ( ; item; item= it++)
-      {
-        Item_field *real_item= item->field_for_view_update();
-        if (item->type() == Item::STRING_ITEM)
-          ((Item_user_var_as_out_param *)item)->set_null_value(cs);
-        else if (!real_item)
-        {
-          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
-          DBUG_RETURN(1);
-        }
-        else
-        {
-          /*
-            QQ: We probably should not throw warning for each field.
-            But how about intention to always have the same number
-            of warnings in THD::cuted_fields (and get rid of cuted_fields
-            in the end ?)
-          */
-          thd->cuted_fields++;
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                              ER_WARN_TOO_FEW_RECORDS,
-                              ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
-                              thd->get_stmt_da()->current_row_for_warning());
-        }
-      }
-    }
+
+    DBUG_ASSERT(!item);
 
     if (thd->killed ||
         fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
