@@ -57,13 +57,6 @@ bool			trx_rollback_or_clean_is_active;
 /** In crash recovery, the current trx to be rolled back; NULL otherwise */
 const trx_t*		trx_roll_crash_recv_trx;
 
-/** In crash recovery we set this to the undo n:o of the current trx to be
-rolled back. Then we can print how many % the rollback has progressed. */
-static undo_no_t	trx_roll_max_undo_no;
-
-/** Auxiliary variable which tells the previous progress % we printed */
-static ulint		trx_roll_progress_printed_pct;
-
 /****************************************************************//**
 Finishes a transaction rollback. */
 static
@@ -551,8 +544,6 @@ trx_rollback_active(
 	que_thr_t*	thr;
 	roll_node_t*	roll_node;
 	dict_table_t*	table;
-	ib_int64_t	rows_to_undo;
-	const char*	unit		= "";
 	ibool		dictionary_locked = FALSE;
 
 	heap = mem_heap_create(512);
@@ -571,29 +562,7 @@ trx_rollback_active(
 
 	ut_a(thr == que_fork_start_command(fork));
 
-	mutex_enter(&trx_sys->mutex);
-
 	trx_roll_crash_recv_trx	= trx;
-
-	trx_roll_max_undo_no = trx->undo_no;
-
-	trx_roll_progress_printed_pct = 0;
-
-	rows_to_undo = trx_roll_max_undo_no;
-
-	mutex_exit(&trx_sys->mutex);
-
-	if (rows_to_undo > 1000000000) {
-		rows_to_undo = rows_to_undo / 1000000;
-		unit = "M";
-	}
-
-	ut_print_timestamp(stderr);
-	fprintf(stderr,
-		"  InnoDB: Rolling back trx with id " TRX_ID_FMT ", %lu%s"
-		" rows to undo\n",
-		trx->id,
-		(ulong) rows_to_undo, unit);
 
 	if (trx_get_dict_operation(trx) != TRX_DICT_OP_NONE) {
 		row_mysql_lock_data_dictionary(trx);
@@ -742,6 +711,48 @@ fake_prepared:
 
 	ut_error;
 	goto func_exit;
+}
+
+/** Report progress when rolling back a row of a recovered transaction.
+@return	whether the rollback should be aborted due to pending shutdown */
+UNIV_INTERN
+bool
+trx_roll_must_shutdown()
+{
+	const trx_t* trx = trx_roll_crash_recv_trx;
+	ut_ad(trx);
+	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
+
+	if (trx_get_dict_operation(trx) == TRX_DICT_OP_NONE
+	    && !srv_undo_sources && srv_fast_shutdown) {
+		return true;
+	}
+
+	ib_time_t time = ut_time();
+	mutex_enter(&trx_sys->mutex);
+	mutex_enter(&recv_sys->mutex);
+
+	if (recv_sys->report(time)) {
+		ulint n_trx = 0, n_rows = 0;
+		for (const trx_t* t = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
+		     t != NULL;
+		     t = UT_LIST_GET_NEXT(trx_list, t)) {
+
+			assert_trx_in_rw_list(t);
+			if (t->is_recovered
+			    && trx_state_eq(t, TRX_STATE_ACTIVE)) {
+				n_trx++;
+				n_rows += t->undo_no;
+			}
+		}
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"To roll back: " ULINTPF " transactions, "
+			ULINTPF " rows", n_trx, n_rows);
+	}
+
+	mutex_exit(&recv_sys->mutex);
+	mutex_exit(&trx_sys->mutex);
+	return false;
 }
 
 /*******************************************************************//**
@@ -1119,7 +1130,6 @@ trx_roll_pop_top_rec_of_trx(
 	undo_no_t	undo_no;
 	ibool		is_insert;
 	trx_rseg_t*	rseg;
-	ulint		progress_pct;
 	mtr_t		mtr;
 
 	rseg = trx->rseg;
@@ -1176,27 +1186,6 @@ try_again:
 	undo_no = trx_undo_rec_get_undo_no(undo_rec);
 
 	ut_ad(undo_no + 1 == trx->undo_no);
-
-	/* We print rollback progress info if we are in a crash recovery
-	and the transaction has at least 1000 row operations to undo. */
-
-	if (trx == trx_roll_crash_recv_trx && trx_roll_max_undo_no > 1000) {
-
-		progress_pct = 100 - (ulint)
-			((undo_no * 100) / trx_roll_max_undo_no);
-		if (progress_pct != trx_roll_progress_printed_pct) {
-			if (trx_roll_progress_printed_pct == 0) {
-				fprintf(stderr,
-					"\nInnoDB: Progress in percents:"
-					" %lu", (ulong) progress_pct);
-			} else {
-				fprintf(stderr,
-					" %lu", (ulong) progress_pct);
-			}
-			fflush(stderr);
-			trx_roll_progress_printed_pct = progress_pct;
-		}
-	}
 
 	trx->undo_no = undo_no;
 

@@ -105,6 +105,11 @@ trx_undo_rec_release(
 /*=================*/
 	trx_t*		trx,	/*!< in/out: transaction */
 	undo_no_t	undo_no);/*!< in: undo number */
+/** Report progress when rolling back a row of a recovered transaction.
+@return	whether the rollback should be aborted due to pending shutdown */
+UNIV_INTERN
+bool
+trx_roll_must_shutdown();
 /*******************************************************************//**
 Rollback or clean up any incomplete transactions which were
 encountered in crash recovery.  If the transaction already was
