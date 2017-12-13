@@ -7098,6 +7098,18 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (!need_check() && !share->versioned)
     return false;
 
+  if (with_system_versioning || without_system_versioning)
+  {
+    // Disable Online DDL which is not implemented yet for ADD/DROP SYSTEM VERSIONING.
+    if (thd->mdl_context.upgrade_shared_lock(table->mdl_ticket, MDL_EXCLUSIVE,
+                                             thd->variables.lock_wait_timeout))
+    {
+      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      return true;
+    }
+    alter_info->requested_lock= Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE;
+  }
+
   if (with_system_versioning && table->versioned())
   {
     my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
