@@ -676,6 +676,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   st_vers_asof_timestamp &in= thd->variables.vers_asof_timestamp;
   type= (vers_range_type_t) in.type;
   unit_start= UNIT_TIMESTAMP;
+  from_query= false;
   if (type != FOR_SYSTEM_TIME_UNSPECIFIED && type != FOR_SYSTEM_TIME_ALL)
   {
     DBUG_ASSERT(type == FOR_SYSTEM_TIME_AS_OF);
@@ -738,7 +739,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     {
       if (table->table && table->table->versioned())
         versioned_tables++;
-      else if (table->vers_conditions)
+      else if (table->vers_conditions.user_defined())
       {
         my_error(ER_VERSIONING_REQUIRED, MYF(0), table->alias);
         DBUG_RETURN(-1);
@@ -798,22 +799,14 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
 
   SELECT_LEX *outer_slex= next_select_in_list();
   // propagate derived conditions to outer SELECT_LEX
-  if (outer_slex && vers_export_outer)
+  if (outer_slex && vers_check_clash)
   {
     for (table= outer_slex->table_list.first; table; table= table->next_local)
     {
-      if (table->vers_conditions)
+      if (table->vers_conditions && !is_linkage_set())
       {
-        if (!is_linkage_set() && !table->vers_conditions.from_inner)
-        {
-          my_error(ER_VERS_SYSTEM_TIME_CLASH, MYF(0), table->alias);
-          DBUG_RETURN(-1);
-        }
-      }
-      else
-      {
-        table->vers_conditions= vers_export_outer;
-        table->vers_conditions.from_inner= true;
+        my_error(ER_VERS_SYSTEM_TIME_CLASH, MYF(0), table->alias);
+        DBUG_RETURN(-1);
       }
     }
   }
@@ -832,24 +825,16 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     if (!vers_conditions && outer_slex)
     {
       TABLE_LIST* derived= master_unit()->derived;
-      if (derived == table && vers_export_outer) // recursive CTE
+      // inner SELECT may not be a derived table (derived == NULL)
+      while (derived && outer_slex && !derived->vers_conditions)
       {
-        vers_conditions= vers_export_outer;
+        derived= outer_slex->master_unit()->derived;
+        outer_slex= outer_slex->next_select_in_list();
       }
-      else
+      if (derived && outer_slex)
       {
-        // inner SELECT may not be a derived table (derived == NULL)
-        while (derived && outer_slex &&
-          (!derived->vers_conditions || derived->vers_conditions.from_inner))
-        {
-          derived= outer_slex->master_unit()->derived;
-          outer_slex= outer_slex->next_select_in_list();
-        }
-        if (derived && outer_slex && !derived->vers_conditions.from_inner)
-        {
-          DBUG_ASSERT(derived->vers_conditions);
-          vers_conditions= derived->vers_conditions;
-        }
+        DBUG_ASSERT(derived->vers_conditions);
+        vers_conditions= derived->vers_conditions;
       }
     }
 

@@ -752,7 +752,7 @@ inline void vers_select_conds_t::init(
   unit_end= u_end;
   start= fix_dec(s);
   end= fix_dec(e);
-  import_outer= from_inner= false;
+  from_query= false;
 }
 
 inline Item *vers_select_conds_t::fix_dec(Item *item)
@@ -9206,6 +9206,7 @@ opt_system_time_clause:
                 if (!table->vers_conditions)
                 {
                   table->vers_conditions= Lex->vers_conditions;
+                  table->vers_conditions.from_query= true;
                   used++;
                 }
               }

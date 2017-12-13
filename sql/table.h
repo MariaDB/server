@@ -1861,21 +1861,20 @@ struct vers_select_conds_t
 {
   vers_range_type_t type;
   vers_range_unit_t unit_start, unit_end;
-  bool import_outer:1;
-  bool from_inner:1;
+  bool from_query:1;
   Item *start, *end;
 
   void empty()
   {
     type= FOR_SYSTEM_TIME_UNSPECIFIED;
     unit_start= unit_end= UNIT_AUTO;
-    import_outer= from_inner= false;
+    from_query= false;
     start= end= NULL;
   }
 
-  inline Item *fix_dec(Item *item);
+  Item *fix_dec(Item *item);
 
-  inline void init( vers_range_type_t t, vers_range_unit_t u_start,
+  void init( vers_range_type_t t, vers_range_unit_t u_start,
     Item * s, vers_range_unit_t u_end, Item * e);
 
   bool init_from_sysvar(THD *thd);
@@ -1893,6 +1892,10 @@ struct vers_select_conds_t
     return type != FOR_SYSTEM_TIME_UNSPECIFIED;
   }
   void resolve_units(bool timestamps_only);
+  bool user_defined() const
+  {
+    return !from_query && type != FOR_SYSTEM_TIME_UNSPECIFIED;
+  }
 };
 
 struct LEX;

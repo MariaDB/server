@@ -2312,7 +2312,7 @@ void st_select_lex::init_select()
   curr_tvc_name= 0;
   in_tvc= false;
   vers_saved_where= NULL;
-  vers_export_outer.empty();
+  vers_check_clash= false;
   versioned_tables= 0;
 }
 

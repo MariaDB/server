@@ -178,10 +178,6 @@ x
 select * from (select * from vt1, t2) as s0;
 x	y
 1	10
-# leading table selection
-select * from (select *, vt1.sys_trx_end from t2, vt1) as s0;
-y	x
-10	1
 ### SYSTEM_TIME clash
 select * from (select * from t1 for system_time all) dt0 for system_time all;
 ERROR HY000: SYSTEM_TIME is not allowed outside historical `dt0`

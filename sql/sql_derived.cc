@@ -841,15 +841,16 @@ expli_table_err:
       if (impli_table)
       {
         Query_arena_stmt on_stmt_arena(thd);
-        if (!expli_start && (res= sl->vers_push_field(thd, impli_table, impli_start)))
-          goto exit;
-        if (!expli_end && (res= sl->vers_push_field(thd, impli_table, impli_end)))
-          goto exit;
-
-        if (impli_table->vers_conditions)
+        SELECT_LEX *outer= sl->outer_select();
+        if (outer && outer->table_list.first->vers_conditions)
         {
-          sl->vers_export_outer= impli_table->vers_conditions;
+          if (!expli_start && (res= sl->vers_push_field(thd, impli_table, impli_start)))
+            goto exit;
+          if (!expli_end && (res= sl->vers_push_field(thd, impli_table, impli_end)))
+            goto exit;
         }
+
+        sl->vers_check_clash= impli_table->vers_conditions;
       }
     } // if (sl->table_list.elements > 0)
     // System Versioning end

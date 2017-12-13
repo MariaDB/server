@@ -125,8 +125,6 @@ create view vt2 as select * from t1;
 select * from vt1;
 --echo # SYSTEM_TIME propagation from inner to outer
 select * from (select * from vt1, t2) as s0;
---echo # leading table selection
-select * from (select *, vt1.sys_trx_end from t2, vt1) as s0;
 
 --echo ### SYSTEM_TIME clash
 --error ER_VERS_SYSTEM_TIME_CLASH

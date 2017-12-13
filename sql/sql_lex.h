@@ -1048,7 +1048,7 @@ public:
 private:
   Item *vers_saved_where;
 public:
-  vers_select_conds_t vers_export_outer;
+  bool vers_check_clash;
   uint versioned_tables;
   int vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr);
   /* push new Item_field into item_list */
