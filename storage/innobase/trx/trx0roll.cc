@@ -579,6 +579,8 @@ trx_rollback_active(
 		ut_ad(!srv_undo_sources);
 		ut_ad(srv_fast_shutdown);
 		ut_ad(!dictionary_locked);
+		que_graph_free(static_cast<que_t*>(
+				       roll_node->undo_thr->common.parent));
 		goto func_exit;
 	}
 
