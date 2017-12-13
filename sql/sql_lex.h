@@ -742,7 +742,7 @@ public:
   /* thread handler */
   THD *thd;
   /*
-    SELECT_LEX for hidden SELECT in onion which process global
+    SELECT_LEX for hidden SELECT in union which process global
     ORDER BY and LIMIT
   */
   st_select_lex *fake_select_lex;
