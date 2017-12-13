@@ -31,7 +31,7 @@ create or replace table t1 (x int)
 partition by system_time (
 partition p0 versioning,
 partition pn as of current_timestamp);
-ERROR HY000: System Versioning required: t1
+ERROR HY000: Engine does not support System Versioning for `t1`
 create or replace table t1 (x int);
 alter table t1
 partition by system_time (

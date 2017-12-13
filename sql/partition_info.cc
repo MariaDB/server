@@ -953,7 +953,7 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
 
   if (!table->versioned_by_sql())
   {
-    my_error(ER_VERSIONING_REQUIRED, MYF(0), table->s->table_name.str);
+    my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->s->table_name.str);
     return true;
   }
 
