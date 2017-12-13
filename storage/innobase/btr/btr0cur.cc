@@ -482,10 +482,10 @@ inconsistent:
 	/* In fact, because we only ever append fields to the 'default
 	value' record, it is also OK to perform READ UNCOMMITTED and
 	then ignore any extra fields, provided that
-	trx_rw_is_active(DB_TRX_ID). */
+	trx_sys->rw_trx_hash.find(DB_TRX_ID). */
 	if (rec_offs_n_fields(offsets) > index->n_fields
-	    && !trx_rw_is_active(row_get_rec_trx_id(rec, index, offsets),
-				 NULL, false)) {
+	    && !trx_sys->rw_trx_hash.find(row_get_rec_trx_id(rec, index,
+							     offsets))) {
 		goto inconsistent;
 	}
 

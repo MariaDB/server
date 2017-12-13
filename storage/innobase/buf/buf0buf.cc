@@ -443,9 +443,6 @@ bool
 buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 	MY_ATTRIBUTE((nonnull));
 
-/* prototypes for new functions added to ha_innodb.cc */
-trx_t* innobase_get_trx();
-
 /********************************************************************//**
 Gets the smallest oldest_modification lsn for any page in the pool. Returns
 zero if all modified pages have been flushed to disk.

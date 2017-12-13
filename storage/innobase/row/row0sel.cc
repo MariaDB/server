@@ -799,7 +799,7 @@ row_sel_build_committed_vers_for_mysql(
 			rec_offs_size(*offsets));
 	}
 
-	row_vers_build_for_semi_consistent_read(
+	row_vers_build_for_semi_consistent_read(prebuilt->trx,
 		rec, mtr, clust_index, offsets, offset_heap,
 		prebuilt->old_vers_heap, old_vers, vrow);
 }
@@ -4972,17 +4972,17 @@ wrong_offs:
 				/* In delete-marked records, DB_TRX_ID must
 				always refer to an existing undo log record. */
 				ut_ad(trx_id);
-				if (!trx_rw_is_active(trx_id, NULL, false)) {
+				if (!trx_sys->rw_trx_hash.find(trx, trx_id)) {
 					/* The clustered index record
 					was delete-marked in a committed
 					transaction. Ignore the record. */
 					goto locks_ok_del_marked;
 				}
-			} else if (trx_t* trx = row_vers_impl_x_locked(
-					   rec, index, offsets)) {
+			} else if (trx_t* t = row_vers_impl_x_locked(
+					   trx, rec, index, offsets)) {
 				/* The record belongs to an active
 				transaction. We must acquire a lock. */
-				trx_release_reference(trx);
+				trx_release_reference(t);
 			} else {
 				/* The secondary index record does not
 				point to a delete-marked clustered index
