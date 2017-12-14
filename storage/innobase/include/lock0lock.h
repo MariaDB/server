@@ -964,11 +964,6 @@ struct lock_sys_t{
 						in the waiting_threads array,
 						protected by
 						lock_sys->wait_mutex */
-	ibool		rollback_complete;
-						/*!< TRUE if rollback of all
-						recovered transactions is
-						complete. Protected by
-						lock_sys->mutex */
 
 	ulint		n_lock_max_wait_time;	/*!< Max wait time */
 
