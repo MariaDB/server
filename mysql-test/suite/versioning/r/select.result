@@ -356,6 +356,12 @@ create or replace table t1 (a int, b int,  key idx(a)) with system versioning;
 insert into t1 values (1, 1), (2, 2);
 select * from t1 where (a, 2) in ((1, 1), (2, 2)) and b = 1;
 a	b
+### Issue #398, NOW is now non-magic
+create or replace table t1 (x int) with system versioning;
+select * from t1 for system_time as of current_timestamp;
+x
+select * from t1 for system_time as of now;
+ERROR 42S22: Unknown column 'now' in 'where clause'
 drop view v1;
 drop table t1, t2;
 call innodb_verify_vtq(32);

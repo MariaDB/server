@@ -242,6 +242,12 @@ create or replace table t1 (a int, b int,  key idx(a)) with system versioning;
 insert into t1 values (1, 1), (2, 2);
 select * from t1 where (a, 2) in ((1, 1), (2, 2)) and b = 1;
 
+--echo ### Issue #398, NOW is now non-magic
+create or replace table t1 (x int) with system versioning;
+select * from t1 for system_time as of current_timestamp;
+--error ER_BAD_FIELD_ERROR
+select * from t1 for system_time as of now;
+
 drop view v1;
 drop table t1, t2;
 

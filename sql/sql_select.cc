@@ -895,6 +895,10 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
 
     if (vers_conditions)
     {
+      /* TODO: do resolve fix_length_and_dec(), fix_fields(). This requires
+        storing vers_conditions as Item and make some magic related to
+        UNIT_TIMESTAMP/UNIT_TRX_ID at stage of fix_fields()
+        (this is large refactoring). */
       vers_conditions.resolve_units(timestamps_only);
       if (timestamps_only && (vers_conditions.unit_start == UNIT_TRX_ID ||
         vers_conditions.unit_end == UNIT_TRX_ID))
