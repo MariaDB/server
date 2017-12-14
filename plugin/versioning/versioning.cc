@@ -199,6 +199,6 @@ maria_declare_plugin(versioning)
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
   "1.0",                      /* string version */
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL /* maturity */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;

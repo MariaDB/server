@@ -4447,6 +4447,14 @@ bool Type_handler::
 }
 
 
+bool Type_handler::
+       Item_longlong_typecast_fix_length_and_dec(Item_longlong_typecast *item) const
+{
+  item->fix_length_and_dec_generic();
+  return false;
+}
+
+
 #ifdef HAVE_SPATIAL
 
 bool Type_handler_geometry::

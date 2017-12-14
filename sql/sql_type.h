@@ -55,6 +55,7 @@ class Item_char_typecast;
 class Item_time_typecast;
 class Item_date_typecast;
 class Item_datetime_typecast;
+class Item_longlong_typecast;
 class Item_func_plus;
 class Item_func_minus;
 class Item_func_mul;
@@ -983,6 +984,8 @@ public:
   Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const;
   virtual bool
   Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item) const;
+  virtual bool
+  Item_longlong_typecast_fix_length_and_dec(Item_longlong_typecast *item) const;
 
   virtual bool
   Item_func_plus_fix_length_and_dec(Item_func_plus *func) const= 0;

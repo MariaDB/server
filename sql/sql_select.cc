@@ -912,6 +912,48 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     if (tmp_from_ib || t->versioned_by_sql() ||
         thd->variables.vers_innodb_algorithm_simple)
     {
+      if (vers_conditions)
+      {
+        if (vers_conditions.start)
+        {
+          switch (vers_conditions.unit_start)
+          {
+          case UNIT_TIMESTAMP:
+          {
+            vers_conditions.start= newx Item_datetime_from_unixtime_typecast(
+              thd, vers_conditions.start, 6);
+            break;
+          }
+          case UNIT_TRX_ID:
+          {
+            vers_conditions.start= newx Item_longlong_typecast(
+              thd, vers_conditions.start);
+            break;
+          }
+          default:;
+          }
+        }
+
+        if (vers_conditions.end)
+        {
+          switch (vers_conditions.unit_end)
+          {
+          case UNIT_TIMESTAMP:
+          {
+            vers_conditions.end= newx Item_datetime_from_unixtime_typecast(
+              thd, vers_conditions.end, 6);
+            break;
+          }
+          case UNIT_TRX_ID:
+          {
+            vers_conditions.end= newx Item_longlong_typecast(
+              thd, vers_conditions.end);
+            break;
+          }
+          default:;
+          }
+        }
+      }
       switch (vers_conditions.type)
       {
       case FOR_SYSTEM_TIME_UNSPECIFIED:

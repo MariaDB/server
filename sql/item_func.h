@@ -988,6 +988,30 @@ public:
 };
 
 
+class Item_longlong_typecast :public Item_int_func
+{
+public:
+  Item_longlong_typecast(THD *thd, Item *a): Item_int_func(thd, a)
+  {
+  }
+  const char *func_name() const { return "cast_as_longlong"; }
+  const char *cast_type() const { return "longlong"; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  longlong val_int()
+  {
+    return args[0]->val_int();
+  }
+  void fix_length_and_dec_generic() {}
+  void fix_length_and_dec()
+  {
+    args[0]->type_handler()->Item_longlong_typecast_fix_length_and_dec(this);
+  }
+  bool need_parentheses_in_default() { return true; }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_longlong_typecast>(thd, this); }
+};
+
+
 
 class Item_func_additive_op :public Item_num_op
 {

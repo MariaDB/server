@@ -21,7 +21,7 @@ insert into t1 (x, y) values
   (9, 109);
 
 set @t0= now(6);
-if ($default_engine == 'innodb')
+if ($default_engine == 'InnoDB')
 {
 --disable_query_log
   select sys_trx_start from t1 limit 1 into @x0;
@@ -33,7 +33,7 @@ delete from t1 where x > 7;
 
 insert into t1(x, y) values(3, 33);
 select sys_trx_start from t1 where x = 3 and y = 33 into @t1;
-if ($default_engine == 'innodb')
+if ($default_engine == 'InnoDB')
 {
 --disable_query_log
   set @x1= @t1;
@@ -43,21 +43,21 @@ if ($default_engine == 'innodb')
 
 select x, y from t1;
 select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
-select x as FROMTO_x, y from t1 for system_time from '0-0-0 0:0:0' to timestamp @t1;
-select x as BETWAND_x, y from t1 for system_time between '0-0-0 0:0:0' and timestamp @t1;
+select x as FROMTO_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
+select x as BETWAND_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
 select x as ALL_x, y from t1 for system_time all;
 
 --disable_query_log
-if ($default_engine == 'innodb')
+if ($default_engine == 'InnoDB')
 {
   select x as ASOF2_x, y from t1 for system_time as of @x0;
   select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
   select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
 }
-if ($default_engine != 'innodb')
+if ($default_engine != 'InnoDB')
 {
   select x as ASOF2_x, y from t1 for system_time as of @t0;
-  select x as FROMTO2_x, y from t1 for system_time from '0-0-0 0:0:0' to @t1;
+  select x as FROMTO2_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
   select x as BETWAND2_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
 }
 --enable_query_log
@@ -182,6 +182,35 @@ select * from t1, t2 for system_time all;
 --error ER_VERS_UNUSED_CLAUSE
 select * from t1 for system_time all, t2 for system_time all for system_time all;
 
+--echo # TRANSACTION/TIMESTAMP specifier in SYSTEM_TIME [MDEV-14645, Issue #396]
+create or replace table t1 (x int) with system versioning engine myisam;
+--error ER_VERS_ENGINE_UNSUPPORTED
+select * from t1 for system_time as of transaction 1;
+create or replace table t1 (x int) with system versioning engine innodb;
+insert into t1 values (1);
+set @ts= now(6);
+delete from t1;
+select sys_trx_start from t1 for system_time all into @trx_start;
+
+--echo ## ensure @trx_start is much lower than unix timestamp
+select @trx_start < unix_timestamp(@ts) - 100 as trx_start_good;
+
+--echo ## TIMESTAMP specifier
+select * from t1 for system_time as of timestamp @ts;
+select * from t1 for system_time as of timestamp unix_timestamp(@ts);
+select * from t1 for system_time as of timestamp @trx_start;
+
+--echo ## TRANSACTION specifier
+select * from t1 for system_time as of transaction @ts;
+select * from t1 for system_time as of transaction unix_timestamp(@ts);
+select * from t1 for system_time as of transaction @trx_start;
+
+--echo ## no specifier (auto-detection)
+select * from t1 for system_time as of @ts;
+select * from t1 for system_time as of unix_timestamp(@ts);
+select * from t1 for system_time as of @trx_start;
+
+
 --echo ### Issue #365, bug 4 (related to #226, optimized fields)
 create or replace table t1 (i int, b int) with system versioning;
 insert into t1 values (0, 0), (0, 0);
@@ -216,6 +245,6 @@ select * from t1 where (a, 2) in ((1, 1), (2, 2)) and b = 1;
 drop view v1;
 drop table t1, t2;
 
-call innodb_verify_vtq(30);
+call innodb_verify_vtq(32);
 
 -- source suite/versioning/common_finish.inc

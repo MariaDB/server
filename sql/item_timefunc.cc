@@ -2652,6 +2652,26 @@ bool Item_datetime_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 }
 
 
+void Item_datetime_from_unixtime_typecast::fix_length_and_dec()
+{
+  Item_datetime_typecast::fix_length_and_dec();
+
+  switch (args[0]->result_type())
+  {
+  case INT_RESULT:
+  case REAL_RESULT:
+  case DECIMAL_RESULT:
+  {
+    Item_func_from_unixtime *a= new (thd->mem_root) Item_func_from_unixtime(thd, args[0]);
+    a->fix_length_and_dec();
+    args[0]= a;
+    break;
+  }
+  default:;
+  }
+}
+
+
 /**
   MAKEDATE(a,b) is a date function that creates a date value 
   from a year and day value.
