@@ -273,6 +273,7 @@ static SYMBOL symbols[] = {
   { "HAVING",		SYM(HAVING)},
   { "HELP",		SYM(HELP_SYM)},
   { "HIGH_PRIORITY",	SYM(HIGH_PRIORITY)},
+  { "HISTORY",      	SYM(HISTORY_SYM)},
   { "HOST",		SYM(HOST_SYM)},
   { "HOSTS",		SYM(HOSTS_SYM)},
   { "HOUR",		SYM(HOUR_SYM)},

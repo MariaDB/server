@@ -1156,6 +1156,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  HEX_NUM
 %token  HEX_STRING
 %token  HIGH_PRIORITY
+%token  HISTORY_SYM                   /* MYSQL */
 %token  HOST_SYM
 %token  HOSTS_SYM
 %token  HOUR_MICROSECOND_SYM
@@ -5460,7 +5461,7 @@ opt_part_values:
               part_info->part_type= LIST_PARTITION;
           }
           part_values_in {}
-        | AS OF_SYM NOW_SYM
+        | CURRENT_SYM
           {
             LEX *lex= Lex;
             partition_info *part_info= lex->part_info;
@@ -5479,7 +5480,7 @@ opt_part_values:
               my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0),
                 Lex->create_last_non_select_table->table_name));
             }
-            elem->type(partition_element::AS_OF_NOW);
+            elem->type(partition_element::CURRENT);
             DBUG_ASSERT(part_info->vers_info);
             part_info->vers_info->now_part= elem;
             if (part_info->init_column_part(thd))
@@ -5487,7 +5488,7 @@ opt_part_values:
               MYSQL_YYABORT;
             }
           }
-        | VERSIONING_SYM
+        | HISTORY_SYM
           {
             LEX *lex= Lex;
             partition_info *part_info= lex->part_info;
@@ -5510,7 +5511,7 @@ opt_part_values:
               DBUG_ASSERT(Lex->create_last_non_select_table->table_name);
               my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0), Lex->create_last_non_select_table->table_name));
             }
-            elem->type(partition_element::VERSIONING);
+            elem->type(partition_element::HISTORY);
             if (part_info->init_column_part(thd))
             {
               MYSQL_YYABORT;
@@ -15506,6 +15507,7 @@ keyword_sp_not_data_type:
         | GOTO_SYM                 {}
         | HASH_SYM                 {}
         | HARD_SYM                 {}
+        | HISTORY_SYM              {}
         | HOSTS_SYM                {}
         | HOUR_SYM                 {}
         | ID_SYM                   {}

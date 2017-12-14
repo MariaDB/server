@@ -2220,11 +2220,11 @@ static int add_partition_values(String *str, partition_info *part_info,
   {
     switch (p_elem->type())
     {
-    case partition_element::AS_OF_NOW:
-      err+= str->append(STRING_WITH_LEN(" AS OF CURRENT_TIMESTAMP"));
+    case partition_element::CURRENT:
+      err+= str->append(STRING_WITH_LEN(" CURRENT"));
       break;
-    case partition_element::VERSIONING:
-      err+= str->append(STRING_WITH_LEN(" VERSIONING"));
+    case partition_element::HISTORY:
+      err+= str->append(STRING_WITH_LEN(" HISTORY"));
       break;
     default:
       DBUG_ASSERT(0 && "wrong p_elem->type");
@@ -5000,7 +5000,7 @@ that are reorganised.
           partition_element *el;
           while ((el= it++))
           {
-            if (el->type() == partition_element::AS_OF_NOW)
+            if (el->type() == partition_element::CURRENT)
             {
               DBUG_ASSERT(tab_part_info->vers_info && el == tab_part_info->vers_info->now_part);
               it.remove();
@@ -5094,7 +5094,7 @@ that are reorganised.
                             alter_info->partition_names))
         {
           if (tab_part_info->part_type == VERSIONING_PARTITION &&
-            part_elem->type() == partition_element::AS_OF_NOW)
+            part_elem->type() == partition_element::CURRENT)
           {
             DBUG_ASSERT(table && table->s && table->s->table_name.str);
             my_error(ER_VERS_WRONG_PARTS, MYF(0), table->s->table_name.str);

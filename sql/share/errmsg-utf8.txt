@@ -7837,7 +7837,7 @@ ER_PARTITION_WRONG_TYPE
         eng "Wrong partition type, expected type: %`s"
 
 WARN_VERS_PART_FULL
-        eng "Versioned table %`s.%`s: partition %`s is full, add more VERSIONING partitions"
+        eng "Versioned table %`s.%`s: partition %`s is full, add more HISTORY partitions"
 
 WARN_VERS_PARAMETERS
         eng "Maybe missing parameters: %s"
@@ -7897,7 +7897,7 @@ ER_PART_WRONG_VALUE
         eng "Wrong parameters for partitioned %`s: wrong value for '%s'"
 
 ER_VERS_WRONG_PARTS
-        eng "Wrong partitions consistency for %`s: must have at least one VERSIONING and exactly one last AS OF CURRENT_TIMESTAMP"
+        eng "Wrong partitions consistency for %`s: must have at least one HISTORY and exactly one last CURRENT"
 
 ER_VERS_HISTORY_LOCK
         eng "Versioned SELECT write-locking of history rows"
