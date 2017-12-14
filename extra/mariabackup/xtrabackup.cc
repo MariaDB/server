@@ -3626,7 +3626,6 @@ fail:
 	/* Reset the system variables in the recovery module. */
 	recv_sys_var_init();
 	trx_pool_init();
-	row_mysql_init();
 
 	ut_crc32_init();
 	crc_init();
