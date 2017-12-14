@@ -67,9 +67,10 @@ as
   for system_time as of timestamp @ts
   union
   select ee.emp_id, ee.name, ee.mgr
-  from emp as ee, ancestors as a
+  from emp
+  for system_time as of timestamp @ts as ee,
+  ancestors as a
   where ee.mgr = a.emp_id
-  for system_time as of timestamp @ts
 )
 select * from ancestors;
 set @tmp= "
@@ -83,9 +84,9 @@ as
   for system_time as of timestamp @ts
   union
   select ee.emp_id, ee.name, ee.mgr
-  from emp as ee, ancestors as a
+  from emp for system_time as of timestamp @ts as ee,
+  ancestors as a
   where ee.mgr = a.emp_id
-  for system_time as of timestamp @ts
 )
 select * from ancestors";
 prepare stmt from @tmp; execute stmt; drop prepare stmt;
@@ -111,10 +112,6 @@ with s1 as (select * from t1 for system_time as of timestamp @t0, t2) select * f
 --echo # leading table selection
 select * from (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) as s2;
 with s3 as (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) select * from s3;
---echo # SYSTEM_TIME propagation from outer to inner
-select * from (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) as s4 for system_time as of timestamp @t0;
-with s5 as (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) select * from s5 for system_time as of timestamp @t0;
-with s6 as (select *, t1.sys_trx_start from t2 for system_time as of current_timestamp, t1) select * from s6 for system_time as of timestamp @t0;
 
 --echo ### VIEW instead of t1
 set @q= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t0, "'");
@@ -155,6 +152,36 @@ create or replace table t2 (x int, y int) with system versioning;
 
 insert into t1 values (1, 1), (1, 2), (1, 3), (4, 4), (5, 5);
 insert into t2 values (1, 2), (2, 1), (3, 1);
+
+--echo ## Outer or inner SYSTEM_TIME produces same expression
+
+--disable_warnings
+--disable_query_log
+explain extended
+select * from (
+  select t1.x, t1.y as y1, t2.x as x2, t2.y as y2
+  from t1 join t2 on t1.x = t2.x) for system_time as of now() as t;
+
+let $a=`show warnings`;
+--echo Query A:
+echo $a;
+
+explain extended
+select * from (
+  select t1.x, t1.y as y1, t2.x as x2, t2.y as y2
+  from t1 for system_time as of now()
+  join t2 for system_time as of now() on t1.x = t2.x) as t;
+
+let $b=`show warnings`;
+--echo Query B:
+echo $b;
+
+if ($a == $b)
+{
+  --echo Fine result: queries A and B are equal.
+}
+--enable_query_log
+--enable_warnings
 
 --echo ## LEFT JOIN: t1, t2 versioned
 select * from (

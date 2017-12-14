@@ -797,17 +797,23 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     }
   }
 
-  SELECT_LEX *outer_slex= next_select_in_list();
-  // propagate derived conditions to outer SELECT_LEX
-  if (outer_slex && vers_check_clash)
+  // find outer system_time
+  SELECT_LEX *outer_slex= outer_select();
+  TABLE_LIST* outer_table= NULL;
+
+  if (outer_slex)
   {
-    for (table= outer_slex->table_list.first; table; table= table->next_local)
+    TABLE_LIST* derived= master_unit()->derived;
+    // inner SELECT may not be a derived table (derived == NULL)
+    while (derived && outer_slex && !derived->vers_conditions)
     {
-      if (table->vers_conditions && !is_linkage_set())
-      {
-        my_error(ER_VERS_SYSTEM_TIME_CLASH, MYF(0), table->alias);
-        DBUG_RETURN(-1);
-      }
+      derived= outer_slex->master_unit()->derived;
+      outer_slex= outer_slex->outer_select();
+    }
+    if (derived && outer_slex)
+    {
+      DBUG_ASSERT(derived->vers_conditions);
+      outer_table= derived;
     }
   }
 
@@ -821,20 +827,17 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
 
     vers_select_conds_t &vers_conditions= table->vers_conditions;
 
-    // propagate system_time from nearest outer SELECT_LEX
-    if (!vers_conditions && outer_slex)
+    if (outer_table && table != outer_table) // inner table may be outer in recursive CTE
     {
-      TABLE_LIST* derived= master_unit()->derived;
-      // inner SELECT may not be a derived table (derived == NULL)
-      while (derived && outer_slex && !derived->vers_conditions)
+      if (vers_conditions)
       {
-        derived= outer_slex->master_unit()->derived;
-        outer_slex= outer_slex->next_select_in_list();
+        my_error(ER_VERS_SYSTEM_TIME_CLASH, MYF(0), outer_table->alias);
+        DBUG_RETURN(-1);
       }
-      if (derived && outer_slex)
+      else
       {
-        DBUG_ASSERT(derived->vers_conditions);
-        vers_conditions= derived->vers_conditions;
+        // propagate system_time from nearest outer SELECT_LEX
+        vers_conditions= outer_table->vers_conditions;
       }
     }
 
@@ -1022,6 +1025,9 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       this->where= *dst_cond;
       this->where->top_level_item();
     }
+
+    if (outer_table)
+      outer_table->vers_conditions.type= FOR_SYSTEM_TIME_ALL;
   }
 
   DBUG_RETURN(0);

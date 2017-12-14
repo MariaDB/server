@@ -849,8 +849,6 @@ expli_table_err:
           if (!expli_end && (res= sl->vers_push_field(thd, impli_table, impli_end)))
             goto exit;
         }
-
-        sl->vers_check_clash= impli_table->vers_conditions;
       }
     } // if (sl->table_list.elements > 0)
     // System Versioning end
