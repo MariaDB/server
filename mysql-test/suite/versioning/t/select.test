@@ -248,6 +248,12 @@ select * from t1 for system_time as of current_timestamp;
 --error ER_BAD_FIELD_ERROR
 select * from t1 for system_time as of now;
 
+--echo ### Issue #405, NATURAL JOIN failure
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (b int);
+create or replace view v1 as select a, sys_trx_start, sys_trx_end from t1 where a > round(rand()*1000);
+select * from v1 natural join t2;
+
 drop view v1;
 drop table t1, t2;
 
