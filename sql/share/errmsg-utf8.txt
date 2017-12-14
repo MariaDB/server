@@ -7750,6 +7750,9 @@ ER_NET_OK_PACKET_TOO_LARGE
 ER_GEOJSON_EMPTY_COORDINATES
         eng "Incorrect GeoJSON format - empty 'coordinates' array."
 
+ER_MYROCKS_CANT_NOPAD_COLLATION
+  eng "MyRocks doesn't currently support collations with \"No pad\" attribute."
+
 ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
         eng "Illegal parameter data types %s and %s for operation '%s'"
 ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
@@ -7793,8 +7796,6 @@ ER_WRONG_NUMBER_OF_VALUES_IN_TVC
         eng "The used table value constructor has a different number of values"
 ER_FIELD_REFERENCE_IN_TVC
 	eng "Field reference '%-.192s' can't be used in table value constructor"
-ER_NOT_SINGLE_ELEMENT_ORDER_LIST
-        eng "Incorrect number of elements in the order list for '%s'"
 ER_WRONG_TYPE_FOR_PERCENTILE_FUNC
         eng "Numeric datatype is required for %s function"
 ER_ARGUMENT_NOT_CONSTANT

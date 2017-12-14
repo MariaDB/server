@@ -494,7 +494,6 @@ uint protocol_version;
 uint lower_case_table_names;
 ulong tc_heuristic_recover= 0;
 int32 thread_count, service_thread_count;
-int32 thread_running;
 int32 slave_open_temp_tables;
 ulong thread_created;
 ulong back_log, connect_timeout, concurrency, server_id;
@@ -1646,13 +1645,11 @@ static void close_connections(void)
   {
     if (mysql_socket_getfd(base_ip_sock) != INVALID_SOCKET)
     {
-      (void) mysql_socket_shutdown(base_ip_sock, SHUT_RDWR);
       (void) mysql_socket_close(base_ip_sock);
       base_ip_sock= MYSQL_INVALID_SOCKET;
     }
     if (mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
     {
-      (void) mysql_socket_shutdown(extra_ip_sock, SHUT_RDWR);
       (void) mysql_socket_close(extra_ip_sock);
       extra_ip_sock= MYSQL_INVALID_SOCKET;
     }
@@ -1684,7 +1681,6 @@ static void close_connections(void)
 #ifdef HAVE_SYS_UN_H
   if (mysql_socket_getfd(unix_sock) != INVALID_SOCKET)
   {
-    (void) mysql_socket_shutdown(unix_sock, SHUT_RDWR);
     (void) mysql_socket_close(unix_sock);
     (void) unlink(mysqld_unix_port);
     unix_sock= MYSQL_INVALID_SOCKET;
@@ -1721,7 +1717,7 @@ static void close_connections(void)
 #endif
     tmp->set_killed(KILL_SERVER_HARD);
     MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
-    mysql_mutex_lock(&tmp->LOCK_thd_data);
+    mysql_mutex_lock(&tmp->LOCK_thd_kill);
     if (tmp->mysys_var)
     {
       tmp->mysys_var->abort=1;
@@ -1744,7 +1740,7 @@ static void close_connections(void)
       }
       mysql_mutex_unlock(&tmp->mysys_var->mutex);
     }
-    mysql_mutex_unlock(&tmp->LOCK_thd_data);
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }
   mysql_mutex_unlock(&LOCK_thread_count); // For unlink from list
 
@@ -8684,7 +8680,7 @@ SHOW_VAR status_vars[]= {
   {"Threads_cached",           (char*) &cached_thread_count,    SHOW_LONG_NOFLUSH},
   {"Threads_connected",        (char*) &connection_count,       SHOW_INT},
   {"Threads_created",	       (char*) &thread_created,		SHOW_LONG_NOFLUSH},
-  {"Threads_running",          (char*) &thread_running,         SHOW_INT},
+  {"Threads_running",          (char*) offsetof(STATUS_VAR, threads_running), SHOW_UINT32_STATUS},
   {"Transactions_multi_engine", (char*) &transactions_multi_engine, SHOW_LONG},
   {"Rpl_transactions_multi_engine", (char*) &rpl_transactions_multi_engine, SHOW_LONG},
   {"Transactions_gtid_foreign_engine", (char*) &transactions_gtid_foreign_engine, SHOW_LONG},
@@ -8861,7 +8857,7 @@ static int mysql_init_variables(void)
   kill_in_progress= 0;
   cleanup_done= 0;
   test_flags= select_errors= dropping_tables= ha_open_options=0;
-  thread_count= thread_running= kill_cached_threads= wake_thread= 0;
+  thread_count= kill_cached_threads= wake_thread= 0;
   service_thread_count= 0;
   slave_open_temp_tables= 0;
   cached_thread_count= 0;

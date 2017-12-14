@@ -639,7 +639,6 @@ extern mysql_rwlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_thread_count, COND_start_thread;
 extern mysql_cond_t COND_manager;
 extern mysql_cond_t COND_slave_background;
-extern int32 thread_running;
 extern int32 thread_count, service_thread_count;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
@@ -827,16 +826,6 @@ inline void thread_safe_increment64(int64 *value)
 inline void thread_safe_decrement64(int64 *value)
 {
   (void) my_atomic_add64_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void inc_thread_running()
-{
-  thread_safe_increment32(&thread_running);
-}
-
-inline void dec_thread_running()
-{
-  thread_safe_decrement32(&thread_running);
 }
 
 extern void set_server_version(char *buf, size_t size);

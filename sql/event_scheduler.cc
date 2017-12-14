@@ -297,7 +297,6 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
   DBUG_ENTER("Event_worker_thread::run");
   DBUG_PRINT("info", ("Time is %u, THD: %p", (uint)my_time(0), thd));
 
-  inc_thread_running();
   if (res)
     goto end;
 
@@ -326,7 +325,6 @@ end:
              event->name.str));
 
   delete event;
-  dec_thread_running();
   deinit_event_thread(thd);
 
   DBUG_VOID_RETURN;
@@ -648,14 +646,11 @@ Event_scheduler::stop()
     state= STOPPING;
     DBUG_PRINT("info", ("Scheduler thread has id %lu",
                         (ulong) scheduler_thd->thread_id));
-    /* Lock from delete */
-    mysql_mutex_lock(&scheduler_thd->LOCK_thd_data);
     /* This will wake up the thread if it waits on Queue's conditional */
     sql_print_information("Event Scheduler: Killing the scheduler thread, "
                           "thread id %lu",
                           (ulong) scheduler_thd->thread_id);
     scheduler_thd->awake(KILL_CONNECTION);
-    mysql_mutex_unlock(&scheduler_thd->LOCK_thd_data);
 
     /* thd could be 0x0, when shutting down */
     sql_print_information("Event Scheduler: "

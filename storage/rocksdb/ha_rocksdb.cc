@@ -111,6 +111,10 @@ bool thd_binlog_filter_ok(const MYSQL_THD thd);
 
 MYSQL_PLUGIN_IMPORT bool my_disable_leak_check;
 
+// Needed in rocksdb_init_func
+void ignore_db_dirs_append(const char *dirname_arg);
+
+
 namespace myrocks {
 
 static st_global_stats global_stats;
@@ -1446,7 +1450,7 @@ static MYSQL_SYSVAR_UINT(
 static MYSQL_SYSVAR_STR(datadir, rocksdb_datadir,
                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
                         "RocksDB data directory", nullptr, nullptr,
-                        "./.rocksdb");
+                        "./#rocksdb");
 
 static MYSQL_SYSVAR_STR(supported_compression_types,
   compression_types_val,
@@ -3934,6 +3938,7 @@ static rocksdb::Status check_rocksdb_options_compatibility(
   return status;
 }
 
+
 /*
   Storage Engine initialization function, invoked when plugin is loaded.
 */
@@ -3961,6 +3966,11 @@ static int rocksdb_init_func(void *const p) {
                    MY_MUTEX_INIT_FAST);
   mysql_mutex_init(rdb_mem_cmp_space_mutex_key, &rdb_mem_cmp_space_mutex,
                    MY_MUTEX_INIT_FAST);
+
+  const char* initial_rocksdb_datadir_for_ignore_dirs= rocksdb_datadir;
+  if (!strncmp(rocksdb_datadir, "./", 2))
+    initial_rocksdb_datadir_for_ignore_dirs += 2;
+  ignore_db_dirs_append(initial_rocksdb_datadir_for_ignore_dirs);
 
 #if defined(HAVE_PSI_INTERFACE)
   rdb_collation_exceptions =
@@ -5954,6 +5964,28 @@ rdb_is_index_collation_supported(const my_core::Field *const field) {
   return true;
 }
 
+
+static bool
+rdb_field_uses_nopad_collation(const my_core::Field *const field) {
+  const my_core::enum_field_types type = field->real_type();
+  /* Handle [VAR](CHAR|BINARY) or TEXT|BLOB */
+  if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_STRING ||
+      type == MYSQL_TYPE_BLOB) {
+
+    /*
+      This is technically a NOPAD collation but it's a binary collation
+      that we can handle.
+    */
+    if (RDB_INDEX_COLLATIONS.find(field->charset()->number) !=
+           RDB_INDEX_COLLATIONS.end())
+      return false;
+
+    return (field->charset()->state & MY_CS_NOPAD);
+  }
+  return false;
+}
+
+
 /*
   Create structures needed for storing data in rocksdb. This is called when the
   table is created. The structures will be shared by all TABLE* objects.
@@ -6062,8 +6094,7 @@ int ha_rocksdb::create_cfs(
   for (uint i = 0; i < tbl_def_arg->m_key_count; i++) {
     rocksdb::ColumnFamilyHandle *cf_handle;
 
-    if (rocksdb_strict_collation_check &&
-        !is_hidden_pk(i, table_arg, tbl_def_arg) &&
+    if (!is_hidden_pk(i, table_arg, tbl_def_arg) &&
         tbl_def_arg->base_tablename().find(tmp_file_prefix) != 0) {
       if (!tsys_set)
       {
@@ -6075,7 +6106,16 @@ int ha_rocksdb::create_cfs(
       for (uint part = 0; part < table_arg->key_info[i].ext_key_parts; 
            part++)
       {
-        if (!rdb_is_index_collation_supported(
+        /* MariaDB: disallow NOPAD collations */
+        if (rdb_field_uses_nopad_collation(
+              table_arg->key_info[i].key_part[part].field))
+        {
+          my_error(ER_MYROCKS_CANT_NOPAD_COLLATION, MYF(0));
+          DBUG_RETURN(HA_EXIT_FAILURE);
+        }
+
+        if (rocksdb_strict_collation_check &&
+            !rdb_is_index_collation_supported(
                 table_arg->key_info[i].key_part[part].field) &&
             !rdb_collation_exceptions->matches(tablename_sys)) {
           std::string collation_err;

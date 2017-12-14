@@ -1432,7 +1432,7 @@ Warnings:
 Note	1305	FUNCTION test.test_function does not exist
 drop view if exists v1;
 Warnings:
-Note	4091	Unknown VIEW: 'test.v1'
+Note	4092	Unknown VIEW: 'test.v1'
 create table test (col1 varchar(30));
 create function test_function() returns varchar(30)
 begin

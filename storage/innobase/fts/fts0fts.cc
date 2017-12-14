@@ -7002,15 +7002,6 @@ fts_drop_orphaned_tables(void)
 	que_t*			graph;
 	ib_vector_t*		tables;
 	ib_alloc_t*		heap_alloc;
-	space_name_list_t	space_name_list;
-	dberr_t			error = DB_SUCCESS;
-
-	/* Note: We have to free the memory after we are done with the list. */
-	error = fil_get_space_names(space_name_list);
-
-	if (error == DB_OUT_OF_MEMORY) {
-		ib::fatal() << "Out of memory";
-	}
 
 	heap = mem_heap_create(1024);
 	heap_alloc = ib_heap_allocator_create(heap);
@@ -7023,34 +7014,31 @@ fts_drop_orphaned_tables(void)
 	users can't map them back to table names and this will create
 	unnecessary clutter. */
 
-	for (space_name_list_t::iterator it = space_name_list.begin();
-	     it != space_name_list.end();
-	     ++it) {
+	mutex_enter(&fil_system->mutex);
 
-		fts_aux_table_t*	fts_aux_table;
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system->space_list);
+	     space != NULL;
+	     space = UT_LIST_GET_NEXT(space_list, space)) {
 
-		fts_aux_table = static_cast<fts_aux_table_t*>(
-			ib_vector_push(tables, NULL));
-
-		memset(fts_aux_table, 0x0, sizeof(*fts_aux_table));
-
-		if (!fts_is_aux_table_name(fts_aux_table, *it, strlen(*it))) {
-			ib_vector_pop(tables);
-		} else {
-			ulint	len = strlen(*it);
-
-			fts_aux_table->id = fil_space_get_id_by_name(*it);
-
-			/* We got this list from fil0fil.cc. The tablespace
-			with this name must exist. */
-			ut_a(fts_aux_table->id != ULINT_UNDEFINED);
-
-			fts_aux_table->name = static_cast<char*>(
-				mem_heap_dup(heap, *it, len + 1));
-
-			fts_aux_table->name[len] = 0;
+		if (space->purpose != FIL_TYPE_TABLESPACE) {
+			continue;
 		}
+
+		fts_aux_table_t	fts_aux_table;
+		memset(&fts_aux_table, 0x0, sizeof fts_aux_table);
+
+		size_t len = strlen(space->name);
+
+		if (!fts_is_aux_table_name(&fts_aux_table, space->name, len)) {
+			continue;
+		}
+
+		fts_aux_table.id = space->id;
+		fts_aux_table.name = mem_heap_strdupl(heap, space->name, len);
+		ib_vector_push(tables, &fts_aux_table);
 	}
+
+	mutex_exit(&fil_system->mutex);
 
 	trx = trx_allocate_for_background();
 	trx->op_info = "dropping orphaned FTS tables";
@@ -7079,7 +7067,7 @@ fts_drop_orphaned_tables(void)
 		"CLOSE c;");
 
 	for (;;) {
-		error = fts_eval_sql(trx, graph);
+		dberr_t error = fts_eval_sql(trx, graph);
 
 		if (error == DB_SUCCESS) {
 			fts_check_and_drop_orphaned_tables(trx, tables);
@@ -7111,14 +7099,6 @@ fts_drop_orphaned_tables(void)
 
 	if (heap != NULL) {
 		mem_heap_free(heap);
-	}
-
-	/** Free the memory allocated to store the .ibd names. */
-	for (space_name_list_t::iterator it = space_name_list.begin();
-	     it != space_name_list.end();
-	     ++it) {
-
-		UT_DELETE_ARRAY(*it);
 	}
 }
 

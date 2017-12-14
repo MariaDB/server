@@ -799,9 +799,9 @@ fill_max_and_min:
         'a\0\0... is the smallest possible string when we have space expand
         a\ff\ff... is the biggest possible string
       */
-      *min_length= ((cs->state & MY_CS_BINSORT) ? (size_t) (min_str - min_org) :
-                    res_length);
-      *max_length= res_length;
+      *min_length= (cs->state & (MY_CS_BINSORT | MY_CS_NOPAD)) ?
+                    (size_t) (min_str - min_org) :
+                    res_length;
       /* Create min key  */
       do
       {
@@ -1002,9 +1002,9 @@ my_like_range_generic(CHARSET_INFO *cs,
         a\min\min... is the smallest possible string
         a\max\max... is the biggest possible string
       */
-      *min_length= ((cs->state & MY_CS_BINSORT) ?
+      *min_length= (cs->state & (MY_CS_BINSORT | MY_CS_NOPAD)) ?
                     (size_t) (min_str - min_org) :
-                    res_length);
+                    res_length;
       *max_length= res_length;
       goto pad_min_max;
     }

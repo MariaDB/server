@@ -153,12 +153,19 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
 
 bool Item_func::check_argument_types_like_args0() const
 {
-  uint cols;
-  if (arg_count == 0)
+  if (arg_count < 2)
     return false;
-  cols= args[0]->cols();
+  uint cols= args[0]->cols();
+  bool is_scalar= args[0]->type_handler()->is_scalar_type();
   for (uint i= 1; i < arg_count; i++)
   {
+    if (is_scalar != args[i]->type_handler()->is_scalar_type())
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+               args[0]->type_handler()->name().ptr(),
+               args[i]->type_handler()->name().ptr(), func_name());
+      return true;
+    }
     if (args[i]->check_cols(cols))
       return true;
   }

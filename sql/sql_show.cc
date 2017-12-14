@@ -139,6 +139,29 @@ static const LEX_CSTRING *view_algorithm(TABLE_LIST *table);
 
 bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *);
 
+/**
+  Try to lock a mutex, but give up after a short while to not cause deadlocks
+
+  The loop is short, as the mutex we are trying to lock are mutex the should
+  never be locked a long time, just over a few instructions.
+
+  @return 0 ok
+  @return 1 error
+*/
+
+static bool trylock_short(mysql_mutex_t *mutex)
+{
+  uint i;
+  for (i= 0 ; i < 100 ; i++)
+  {
+    if (!mysql_mutex_trylock(mutex))
+      return 0;
+    LF_BACKOFF();
+  }
+  return 1;
+}
+
+
 /***************************************************************************
 ** List all table types supported
 ***************************************************************************/
@@ -792,6 +815,57 @@ static void dispose_db_dir(void *ptr)
   my_free(ptr);
 }
 
+
+/*
+  Append an element into @@ignore_db_dirs
+
+  This is a function to be called after regular option processing has been
+  finalized.
+*/
+
+void ignore_db_dirs_append(const char *dirname_arg)
+{
+  char *new_entry_buf;
+  LEX_STRING *new_entry;
+  size_t len= strlen(dirname_arg);
+
+  if (!my_multi_malloc(0,
+                       &new_entry, sizeof(LEX_STRING),
+                       &new_entry_buf, len + 1,
+                       NullS))
+    return;
+
+  memcpy(new_entry_buf, dirname_arg, len+1);
+  new_entry->str = new_entry_buf;
+  new_entry->length= len;
+
+  if (my_hash_insert(&ignore_db_dirs_hash, (uchar *)new_entry))
+  {
+    // Either the name is already there or out-of-memory.
+    my_free(new_entry);
+    return;
+  }
+
+  // Append the name to the option string.
+  size_t curlen= strlen(opt_ignore_db_dirs);
+  // Add one for comma and one for \0.
+  size_t newlen= curlen + len + 1 + 1;
+  char *new_db_dirs;
+  if (!(new_db_dirs= (char*)my_malloc(newlen ,MYF(0))))
+  {
+    // This is not a critical condition
+    return;
+  }
+
+  memcpy(new_db_dirs, opt_ignore_db_dirs, curlen);
+  if (curlen != 0)
+    new_db_dirs[curlen]=',';
+  memcpy(new_db_dirs + (curlen + ((curlen!=0)?1:0)), dirname_arg, len+1);
+
+  if (opt_ignore_db_dirs)
+    my_free(opt_ignore_db_dirs);
+  opt_ignore_db_dirs= new_db_dirs;
+}
 
 bool
 ignore_db_dirs_process_additions()
@@ -2628,22 +2702,27 @@ static const char *thread_state_info(THD *tmp)
   {
     if (tmp->net.reading_or_writing == 2)
       return "Writing to net";
-    else if (tmp->get_command() == COM_SLEEP)
+    if (tmp->get_command() == COM_SLEEP)
       return "";
-    else
-      return "Reading from net";
+    return "Reading from net";
   }
-  else
 #endif
+
+  if (tmp->proc_info)
+    return tmp->proc_info;
+
+  /* Check if we are waiting on a condition */
+  if (!trylock_short(&tmp->LOCK_thd_kill))
   {
-    if (tmp->proc_info)
-      return tmp->proc_info;
-    else if (tmp->mysys_var && tmp->mysys_var->current_cond)
+    /* mysys_var is protected by above mutex */
+    bool cond= tmp->mysys_var && tmp->mysys_var->current_cond;
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
+    if (cond)
       return "Waiting on cond";
-    else
-      return NULL;
   }
+  return NULL;
 }
+
 
 void mysqld_list_processes(THD *thd,const char *user, bool verbose)
 {
@@ -2707,7 +2786,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   while ((tmp=it++))
   {
     Security_context *tmp_sctx= tmp->security_ctx;
-    struct st_my_thread_var *mysys_var;
+    bool got_thd_data;
     if ((tmp->vio_ok() || tmp->system_thread) &&
         (!user || (!tmp->system_thread &&
                    tmp_sctx->user && !strcmp(tmp_sctx->user, user))))
@@ -2731,48 +2810,59 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
                                     tmp_sctx->host_or_ip :
                                     tmp_sctx->host ? tmp_sctx->host : "");
       thd_info->command=(int) tmp->get_command();
-      mysql_mutex_lock(&tmp->LOCK_thd_data);
-      if ((thd_info->db= tmp->db))             // Safe test
-        thd_info->db= thd->strdup(thd_info->db);
-      if ((mysys_var= tmp->mysys_var))
-        mysql_mutex_lock(&mysys_var->mutex);
-      thd_info->proc_info= (char*) (tmp->killed >= KILL_QUERY ?
-                                    "Killed" : 0);
-      thd_info->state_info= thread_state_info(tmp);
-      if (mysys_var)
-        mysql_mutex_unlock(&mysys_var->mutex);
 
-      /* Lock THD mutex that protects its data when looking at it. */
-      if (tmp->query())
+      if ((got_thd_data= !trylock_short(&tmp->LOCK_thd_data)))
       {
-        uint length= MY_MIN(max_query_length, tmp->query_length());
-        char *q= thd->strmake(tmp->query(),length);
-        /* Safety: in case strmake failed, we set length to 0. */
-        thd_info->query_string=
-          CSET_STRING(q, q ? length : 0, tmp->query_charset());
-      }
+        /* This is an approximation */
+        thd_info->proc_info= (char*) (tmp->killed >= KILL_QUERY ?
+                                      "Killed" : 0);
+        /*
+          The following variables are only safe to access under a lock
+        */
 
-      /*
-        Progress report. We need to do this under a lock to ensure that all
-        is from the same stage.
-      */
-      if (tmp->progress.max_counter)
-      {
-        uint max_stage= MY_MAX(tmp->progress.max_stage, 1);
-        thd_info->progress= (((tmp->progress.stage / (double) max_stage) +
-                              ((tmp->progress.counter /
-                                (double) tmp->progress.max_counter) /
-                               (double) max_stage)) *
-                             100.0);
-        set_if_smaller(thd_info->progress, 100);
+        if ((thd_info->db= tmp->db))             // Safe test
+          thd_info->db= thd->strdup(thd_info->db);
+
+        if (tmp->query())
+        {
+          uint length= MY_MIN(max_query_length, tmp->query_length());
+          char *q= thd->strmake(tmp->query(),length);
+          /* Safety: in case strmake failed, we set length to 0. */
+          thd_info->query_string=
+            CSET_STRING(q, q ? length : 0, tmp->query_charset());
+        }
+
+        /*
+          Progress report. We need to do this under a lock to ensure that all
+          is from the same stage.
+        */
+        if (tmp->progress.max_counter)
+        {
+          uint max_stage= MY_MAX(tmp->progress.max_stage, 1);
+          thd_info->progress= (((tmp->progress.stage / (double) max_stage) +
+                                ((tmp->progress.counter /
+                                  (double) tmp->progress.max_counter) /
+                                 (double) max_stage)) *
+                               100.0);
+          set_if_smaller(thd_info->progress, 100);
+        }
+        else
+          thd_info->progress= 0.0;
       }
       else
+      {
+        thd_info->proc_info= "Busy";
         thd_info->progress= 0.0;
+      }
+
+      thd_info->state_info= thread_state_info(tmp);
       thd_info->start_time= tmp->start_utime;
       ulonglong utime_after_query_snapshot= tmp->utime_after_query;
       if (thd_info->start_time < utime_after_query_snapshot)
         thd_info->start_time= utime_after_query_snapshot; // COM_SLEEP
-      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+
+      if (got_thd_data)
+        mysql_mutex_unlock(&tmp->LOCK_thd_data);
       thread_infos.append(thd_info);
     }
   }
@@ -2983,13 +3073,13 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
                                                    tmp_sctx->user)))
     {
       my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "PROCESS");
-      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      mysql_mutex_unlock(&tmp->LOCK_thd_kill);
       DBUG_RETURN(1);
     }
 
     if (tmp == thd)
     {
-      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      mysql_mutex_unlock(&tmp->LOCK_thd_kill);
       my_error(ER_TARGET_NOT_EXPLAINABLE, MYF(0));
       DBUG_RETURN(1);
     }
@@ -2997,7 +3087,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     bool bres;
     /* 
       Ok we've found the thread of interest and it won't go away because 
-      we're holding its LOCK_thd data. Post it a SHOW EXPLAIN request.
+      we're holding its LOCK_thd_kill. Post it a SHOW EXPLAIN request.
     */
     bool timed_out;
     int timeout_sec= 30;
@@ -3011,7 +3101,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     explain_req.request_thd= thd;
     explain_req.failed_to_produce= FALSE;
     
-    /* Ok, we have a lock on target->LOCK_thd_data, can call: */
+    /* Ok, we have a lock on target->LOCK_thd_kill, can call: */
     bres= tmp->apc_target.make_apc_call(thd, &explain_req, timeout_sec, &timed_out);
 
     if (bres || explain_req.failed_to_produce)
@@ -3090,9 +3180,9 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
     while ((tmp= it++))
     {
       Security_context *tmp_sctx= tmp->security_ctx;
-      struct st_my_thread_var *mysys_var;
       const char *val, *db;
       ulonglong max_counter;
+      bool got_thd_data;
 
       if ((!tmp->vio_ok() && !tmp->system_thread) ||
           (user && (tmp->system_thread || !tmp_sctx->user ||
@@ -3118,23 +3208,26 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       else
         table->field[2]->store(tmp_sctx->host_or_ip,
                                strlen(tmp_sctx->host_or_ip), cs);
-      /* DB */
-      mysql_mutex_lock(&tmp->LOCK_thd_data);
-      if ((db= tmp->db))
+
+      if ((got_thd_data= !trylock_short(&tmp->LOCK_thd_data)))
       {
-        table->field[3]->store(db, strlen(db), cs);
-        table->field[3]->set_notnull();
+        /* DB */
+        if ((db= tmp->db))
+        {
+          table->field[3]->store(db, strlen(db), cs);
+          table->field[3]->set_notnull();
+        }
       }
 
-      if ((mysys_var= tmp->mysys_var))
-        mysql_mutex_lock(&mysys_var->mutex);
       /* COMMAND */
-      if ((val= (char *) ((tmp->killed >= KILL_QUERY ?
+      if ((val= (char *) (!got_thd_data ? "Busy" :
+                          (tmp->killed >= KILL_QUERY ?
                            "Killed" : 0))))
         table->field[4]->store(val, strlen(val), cs);
       else
         table->field[4]->store(command_name[tmp->get_command()].str,
                                command_name[tmp->get_command()].length, cs);
+
       /* MYSQL_TIME */
       ulonglong utime= tmp->start_utime;
       ulonglong utime_after_query_snapshot= tmp->utime_after_query;
@@ -3143,6 +3236,38 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       utime= utime && utime < unow ? unow - utime : 0;
 
       table->field[5]->store(utime / HRTIME_RESOLUTION, TRUE);
+
+      if (got_thd_data)
+      {
+        if (tmp->query())
+        {
+          table->field[7]->store(tmp->query(),
+                                 MY_MIN(PROCESS_LIST_INFO_WIDTH,
+                                        tmp->query_length()), cs);
+          table->field[7]->set_notnull();
+
+          /* INFO_BINARY */
+          table->field[16]->store(tmp->query(),
+                                  MY_MIN(PROCESS_LIST_INFO_WIDTH,
+                                         tmp->query_length()),
+                                  &my_charset_bin);
+          table->field[16]->set_notnull();
+        }
+
+        /*
+          Progress report. We need to do this under a lock to ensure that all
+          is from the same stage.
+        */
+        if ((max_counter= tmp->progress.max_counter))
+        {
+          table->field[9]->store((longlong) tmp->progress.stage + 1, 1);
+          table->field[10]->store((longlong) tmp->progress.max_stage, 1);
+          table->field[11]->store((double) tmp->progress.counter /
+                                  (double) max_counter*100.0);
+        }
+        mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      }
+
       /* STATE */
       if ((val= thread_state_info(tmp)))
       {
@@ -3150,45 +3275,8 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
         table->field[6]->set_notnull();
       }
 
-      if (mysys_var)
-        mysql_mutex_unlock(&mysys_var->mutex);
-      mysql_mutex_unlock(&tmp->LOCK_thd_data);
-
       /* TIME_MS */
       table->field[8]->store((double)(utime / (HRTIME_RESOLUTION / 1000.0)));
-
-      /* INFO */
-      /* Lock THD mutex that protects its data when looking at it. */
-      mysql_mutex_lock(&tmp->LOCK_thd_data);
-      if (tmp->query())
-      {
-        table->field[7]->store(tmp->query(),
-                               MY_MIN(PROCESS_LIST_INFO_WIDTH,
-                                      tmp->query_length()), cs);
-        table->field[7]->set_notnull();
-      }
-
-      /* INFO_BINARY */
-      if (tmp->query())
-      {
-        table->field[16]->store(tmp->query(),
-                                MY_MIN(PROCESS_LIST_INFO_WIDTH,
-                                tmp->query_length()), &my_charset_bin);
-        table->field[16]->set_notnull();
-      }
-
-      /*
-        Progress report. We need to do this under a lock to ensure that all
-        is from the same stage.
-      */
-      if ((max_counter= tmp->progress.max_counter))
-      {
-        table->field[9]->store((longlong) tmp->progress.stage + 1, 1);
-        table->field[10]->store((longlong) tmp->progress.max_stage, 1);
-        table->field[11]->store((double) tmp->progress.counter /
-                                (double) max_counter*100.0);
-      }
-      mysql_mutex_unlock(&tmp->LOCK_thd_data);
 
       /*
         This may become negative if we free a memory allocated by another
@@ -3465,6 +3553,9 @@ const char* get_one_variable(THD *thd,
   case SHOW_MY_BOOL:
     end= strmov(buff, *(my_bool*) value ? "ON" : "OFF");
     break;
+  case SHOW_UINT32_STATUS:
+    value= ((char *) status_var + (intptr) value);
+    /* fall through */
   case SHOW_UINT:
     end= int10_to_str((long) *(uint*) value, buff, 10);
     break;
@@ -3691,6 +3782,8 @@ uint calc_sum_of_all_status(STATUS_VAR *to)
       add_to_status(to, &tmp->status_var);
       to->local_memory_used+= tmp->status_var.local_memory_used;
     }
+    if (tmp->get_command() != COM_SLEEP)
+      to->threads_running++;
   }
   
   mysql_mutex_unlock(&LOCK_thread_count);

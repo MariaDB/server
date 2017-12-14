@@ -5076,6 +5076,7 @@ int ha_partition::rnd_next(uchar *buf)
   }
 
 end:
+  DBUG_PRINT("exit", ("reset start_part"));
   m_part_spec.start_part= NO_CURRENT_PART_ID;
 end_dont_reset_start_part:
   DBUG_RETURN(result);
@@ -6245,10 +6246,13 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
   ha_rows rows= 0;
   uint ret_mrr_mode= 0;
   range_seq_t seq_it;
+  part_id_range save_part_spec;
   DBUG_ENTER("ha_partition::multi_range_read_info_const");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
   m_mrr_new_full_buffer_size= 0;
+  save_part_spec= m_part_spec;
+
   seq_it= seq->init(seq_init_param, n_ranges, *mrr_mode);
   if ((error= multi_range_key_create_key(seq, seq_it)))
   {
@@ -6262,6 +6266,7 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
       (probably running out of memory) and we need to fallback to
       normal reads
     */
+    m_part_spec= save_part_spec;
     DBUG_RETURN(HA_POS_ERROR);
   }
   m_part_seq_if.get_key_info=
@@ -6291,7 +6296,10 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
                                     &m_mrr_buffer_size[i],
                                     &tmp_mrr_mode, cost);
       if (tmp_rows == HA_POS_ERROR)
+      {
+        m_part_spec= save_part_spec;
         DBUG_RETURN(HA_POS_ERROR);
+      }
       rows+= tmp_rows;
       ret_mrr_mode|= tmp_mrr_mode;
       m_mrr_new_full_buffer_size+= m_mrr_buffer_size[i];
@@ -6300,6 +6308,7 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
   *mrr_mode= ret_mrr_mode;
 
 calc_cost:
+  m_part_spec= save_part_spec;
   cost->reset();
   cost->avg_io_cost= 1;
   if ((*mrr_mode & HA_MRR_INDEX_ONLY) && rows > 2)
@@ -8682,8 +8691,8 @@ int ha_partition::extra(enum ha_extra_function operation)
   {
     if (!m_myisam)
       DBUG_RETURN(loop_extra(operation));
-    break;
   }
+  break;
 
   /* Category 3), used by MyISAM handlers */
   case HA_EXTRA_PREPARE_FOR_UPDATE:

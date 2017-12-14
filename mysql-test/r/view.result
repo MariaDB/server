@@ -5166,7 +5166,7 @@ CREATE TABLE t4 (i4 INT);
 INSERT INTO t4 VALUES (1),(2);
 DROP VIEW IF EXISTS v1;
 Warnings:
-Note	4091	Unknown VIEW: 'test.v1'
+Note	4092	Unknown VIEW: 'test.v1'
 CREATE VIEW v1 AS select coalesce(j1,i3) AS v1_field1 from t2 join t3 left join t1 on ( i1 = i2 );
 CREATE VIEW v2 AS select v1_field1 from t4 join v1;
 prepare my_stmt from "select v1_field1 from v2";

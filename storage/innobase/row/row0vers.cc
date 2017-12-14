@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -63,23 +63,25 @@ row_vers_non_vc_match(
 	const dtuple_t*		ientry,
 	mem_heap_t*		heap,
 	ulint*			n_non_v_col);
-/*****************************************************************//**
-Finds out if an active transaction has inserted or modified a secondary
+/** Determine if an active transaction has inserted or modified a secondary
 index record.
-@return 0 if committed, else the active transaction id;
-NOTE that this function can return false positives but never false
-negatives. The caller must confirm all positive results by calling
-trx_is_active() while holding lock_sys->mutex. */
+@param[in]	clust_rec	clustered index record
+@param[in]	clust_index	clustered index
+@param[in]	rec		secondary index record
+@param[in]	index		secondary index
+@param[in]	offsets		rec_get_offsets(rec, index)
+@param[in,out]	mtr		mini-transaction
+@return	the active transaction; trx_release_reference() must be invoked
+@retval	NULL if the record was committed */
 UNIV_INLINE
 trx_t*
 row_vers_impl_x_locked_low(
-/*=======================*/
-	const rec_t*	clust_rec,	/*!< in: clustered index record */
-	dict_index_t*	clust_index,	/*!< in: the clustered index */
-	const rec_t*	rec,		/*!< in: secondary index record */
-	dict_index_t*	index,		/*!< in: the secondary index */
-	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index) */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
+	const rec_t*	clust_rec,
+	dict_index_t*	clust_index,
+	const rec_t*	rec,
+	dict_index_t*	index,
+	const ulint*	offsets,
+	mtr_t*		mtr)
 {
 	trx_id_t	trx_id;
 	ibool		corrupt;
@@ -338,19 +340,18 @@ result_check:
 	DBUG_RETURN(trx);
 }
 
-/*****************************************************************//**
-Finds out if an active transaction has inserted or modified a secondary
+/** Determine if an active transaction has inserted or modified a secondary
 index record.
-@return 0 if committed, else the active transaction id;
-NOTE that this function can return false positives but never false
-negatives. The caller must confirm all positive results by calling
-trx_is_active() while holding lock_sys->mutex. */
+@param[in]	rec	secondary index record
+@param[in]	index	secondary index
+@param[in]	offsets	rec_get_offsets(rec, index)
+@return	the active transaction; trx_release_reference() must be invoked
+@retval	NULL if the record was committed */
 trx_t*
 row_vers_impl_x_locked(
-/*===================*/
-	const rec_t*	rec,	/*!< in: record in a secondary index */
-	dict_index_t*	index,	/*!< in: the secondary index */
-	const ulint*	offsets)/*!< in: rec_get_offsets(rec, index) */
+	const rec_t*	rec,
+	dict_index_t*	index,
+	const ulint*	offsets)
 {
 	mtr_t		mtr;
 	trx_t*		trx;

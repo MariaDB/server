@@ -1154,6 +1154,16 @@ bool Item::check_type_can_return_text(const char *opname) const
 
 bool Item::check_type_scalar(const char *opname) const
 {
+  /*
+    fixed==true usually means than the Item has an initialized
+    and reliable data type handler and attributes.
+    Item_outer_ref is an exception. It copies the data type and the attributes
+    from the referenced Item in the constructor, but then sets "fixed" to false,
+    and re-fixes itself again in fix_inner_refs().
+    This hack in Item_outer_ref should probably be refactored eventually.
+    Discuss with Sanja.
+  */
+  DBUG_ASSERT(fixed || type() == REF_ITEM);
   const Type_handler *handler= type_handler();
   if (handler->is_scalar_type())
     return false;

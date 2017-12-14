@@ -2264,7 +2264,7 @@ storage.
 dberr_t
 dict_stats_save_index_stat(
 	dict_index_t*	index,
-	lint		last_update,
+	ib_time_t	last_update,
 	const char*	stat_name,
 	ib_uint64_t	stat_value,
 	ib_uint64_t*	sample_size,
@@ -2286,7 +2286,7 @@ dict_stats_save_index_stat(
 	pars_info_add_str_literal(pinfo, "table_name", table_utf8);
 	pars_info_add_str_literal(pinfo, "index_name", index->name);
 	UNIV_MEM_ASSERT_RW_ABORT(&last_update, 4);
-	pars_info_add_int4_literal(pinfo, "last_update", last_update);
+	pars_info_add_int4_literal(pinfo, "last_update", (lint)last_update);
 	UNIV_MEM_ASSERT_RW_ABORT(stat_name, strlen(stat_name));
 	pars_info_add_str_literal(pinfo, "stat_name", stat_name);
 	UNIV_MEM_ASSERT_RW_ABORT(&stat_value, 8);
@@ -2397,7 +2397,7 @@ dict_stats_save(
 	const index_id_t*	only_for_index = NULL)
 {
 	pars_info_t*	pinfo;
-	lint		now;
+	ib_time_t	now;
 	dberr_t		ret;
 	dict_table_t*	table;
 	char		db_utf8[MAX_DB_UTF8_LEN];
@@ -2415,16 +2415,14 @@ dict_stats_save(
 	dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
 
-	/* MySQL's timestamp is 4 byte, so we use
-	pars_info_add_int4_literal() which takes a lint arg, so "now" is
-	lint */
-	now = (lint) ut_time();
+
+	now = ut_time();
 
 	pinfo = pars_info_create();
 
 	pars_info_add_str_literal(pinfo, "database_name", db_utf8);
 	pars_info_add_str_literal(pinfo, "table_name", table_utf8);
-	pars_info_add_int4_literal(pinfo, "last_update", now);
+	pars_info_add_int4_literal(pinfo, "last_update", (lint)now);
 	pars_info_add_ull_literal(pinfo, "n_rows", table->stat_n_rows);
 	pars_info_add_ull_literal(pinfo, "clustered_index_size",
 		table->stat_clustered_index_size);
@@ -3669,8 +3667,8 @@ dict_stats_rename_table(
 				new_db_utf8, new_table_utf8, trx);
 			mutex_exit(&dict_sys->mutex);
 			/* fall through */
-		case DB_DEADLOCK:
 		case DB_LOCK_WAIT_TIMEOUT:
+			trx->error_state = DB_SUCCESS;
 			os_thread_sleep(200000 /* 0.2 sec */);
 			continue;
 		case DB_STATS_DO_NOT_EXIST:
@@ -3711,8 +3709,8 @@ dict_stats_rename_table(
 				new_db_utf8, new_table_utf8, trx);
 			mutex_exit(&dict_sys->mutex);
 			/* fall through */
-		case DB_DEADLOCK:
 		case DB_LOCK_WAIT_TIMEOUT:
+			trx->error_state = DB_SUCCESS;
 			os_thread_sleep(200000 /* 0.2 sec */);
 			continue;
 		case DB_STATS_DO_NOT_EXIST:

@@ -2811,9 +2811,9 @@ void kill_delayed_threads(void)
   Delayed_insert *di;
   while ((di= it++))
   {
-    mysql_mutex_lock(&di->thd.LOCK_thd_data);
+    mysql_mutex_lock(&di->thd.LOCK_thd_kill);
     if (di->thd.killed < KILL_CONNECTION)
-      di->thd.set_killed(KILL_CONNECTION);
+      di->thd.set_killed_no_mutex(KILL_CONNECTION);
     if (di->thd.mysys_var)
     {
       mysql_mutex_lock(&di->thd.mysys_var->mutex);
@@ -2831,7 +2831,7 @@ void kill_delayed_threads(void)
       }
       mysql_mutex_unlock(&di->thd.mysys_var->mutex);
     }
-    mysql_mutex_unlock(&di->thd.LOCK_thd_data);
+    mysql_mutex_unlock(&di->thd.LOCK_thd_kill);
   }
   mysql_mutex_unlock(&LOCK_delayed_insert); // For unlink from list
   DBUG_VOID_RETURN;
@@ -3185,9 +3185,9 @@ pthread_handler_t handle_delayed_insert(void *arg)
       this.
     */
     mysql_mutex_lock(&thd->LOCK_thd_data);
-    thd->set_killed(KILL_CONNECTION_HARD);	        // If error
     thd->mdl_context.set_needs_thr_lock_abort(0);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
+    thd->set_killed(KILL_CONNECTION_HARD);	        // If error
 
     close_thread_tables(thd);			// Free the table
     thd->mdl_context.release_transactional_locks();

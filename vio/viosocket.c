@@ -83,6 +83,16 @@ int vio_errno(Vio *vio __attribute__((unused)))
   return socket_errno;
 }
 
+static int vio_set_linger(my_socket s, unsigned short timeout_sec)
+{
+  struct linger s_linger;
+  int ret;
+  s_linger.l_onoff = 1;
+  s_linger.l_linger = timeout_sec;
+  ret = setsockopt(s, SOL_SOCKET, SO_LINGER, (const char *)&s_linger, (int)sizeof(s_linger));
+  return ret;
+}
+
 
 /**
   Attempt to wait for an I/O event on a socket.
@@ -115,6 +125,7 @@ int vio_socket_io_wait(Vio *vio, enum enum_vio_io_event event)
   case  0:
     /* The wait timed out. */
     ret= -1;
+    vio_set_linger(vio->mysql_socket.fd, 0);
     break;
   default:
     /* A positive value indicates an I/O event. */
@@ -400,43 +411,6 @@ int vio_socket_timeout(Vio *vio,
 {
   int ret= 0;
   DBUG_ENTER("vio_socket_timeout");
-
-#if defined(_WIN32)
-  {
-    int optname;
-    DWORD timeout= 0;
-    const char *optval= (const char *) &timeout;
-
-    /*
-      The default socket timeout value is zero, which means an infinite
-      timeout. Values less than 500 milliseconds are interpreted to be of
-      500 milliseconds. Hence, the VIO behavior for zero timeout, which is
-      intended to cause the send or receive operation to fail immediately
-      if no data is available, is not supported on WIN32 and neither is
-      necessary as it's not possible to set the VIO timeout value to zero.
-
-      Assert that the VIO timeout is either positive or set to infinite.
-    */
-    DBUG_ASSERT(which || vio->read_timeout);
-    DBUG_ASSERT(!which || vio->write_timeout);
-
-    if (which)
-    {
-      optname= SO_SNDTIMEO;
-      if (vio->write_timeout > 0)
-        timeout= vio->write_timeout;
-    }
-    else
-    {
-      optname= SO_RCVTIMEO;
-      if (vio->read_timeout > 0)
-        timeout= vio->read_timeout;
-    }
-
-    ret= mysql_socket_setsockopt(vio->mysql_socket, SOL_SOCKET, optname,
-	                             optval, sizeof(timeout));
-  }
-#else
   /*
     The MSG_DONTWAIT trick is not used with SSL sockets as the send and
     receive I/O operations are wrapped through SSL-specific functions
@@ -457,7 +431,6 @@ int vio_socket_timeout(Vio *vio,
     if (new_mode != old_mode)
       ret= vio_blocking(vio, new_mode, &not_used);
   }
-#endif
 
   DBUG_RETURN(ret);
 }
@@ -630,8 +603,6 @@ int vio_close(Vio *vio)
       vio->type == VIO_TYPE_SSL);
 
     DBUG_ASSERT(mysql_socket_getfd(vio->mysql_socket) >= 0);
-    if (mysql_socket_shutdown(vio->mysql_socket, SHUT_RDWR))
-      r= -1;
     if (mysql_socket_close(vio->mysql_socket))
       r= -1;
   }

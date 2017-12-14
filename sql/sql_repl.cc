@@ -3344,7 +3344,7 @@ void kill_zombie_dump_threads(uint32 slave_server_id)
     if (tmp->get_command() == COM_BINLOG_DUMP &&
        tmp->variables.server_id == slave_server_id)
     {
-      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
+      mysql_mutex_lock(&tmp->LOCK_thd_kill);    // Lock from delete
       break;
     }
   }
@@ -3356,8 +3356,8 @@ void kill_zombie_dump_threads(uint32 slave_server_id)
       it will be slow because it will iterate through the list
       again. We just to do kill the thread ourselves.
     */
-    tmp->awake(KILL_SLAVE_SAME_ID);
-    mysql_mutex_unlock(&tmp->LOCK_thd_data);
+    tmp->awake_no_mutex(KILL_SLAVE_SAME_ID);
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }
 }
 

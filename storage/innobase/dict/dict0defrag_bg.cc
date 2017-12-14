@@ -213,6 +213,7 @@ dict_stats_process_entry_from_defrag_pool(trx_t* trx)
 	index_id_t	index_id;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(trx->persistent_stats);
 
 	/* pop the first index from the auto defrag pool */
 	if (!dict_stats_defrag_pool_get(&table_id, &index_id)) {
@@ -242,6 +243,7 @@ dict_stats_process_entry_from_defrag_pool(trx_t* trx)
 	}
 
 	mutex_exit(&dict_sys->mutex);
+	trx->error_state = DB_SUCCESS;
 	++trx->will_lock;
 	dberr_t err = dict_stats_save_defrag_stats(index, trx);
 
@@ -275,6 +277,8 @@ dict_defrag_process_entries_from_defrag_pool(trx_t* trx)
 dberr_t
 dict_stats_save_defrag_summary(dict_index_t* index, trx_t* trx)
 {
+	ut_ad(trx->persistent_stats);
+
 	if (dict_index_is_ibuf(index)) {
 		return DB_SUCCESS;
 	}
@@ -294,6 +298,9 @@ dict_stats_save_defrag_summary(dict_index_t* index, trx_t* trx)
 dberr_t
 dict_stats_save_defrag_stats(dict_index_t* index, trx_t* trx)
 {
+	ut_ad(trx->error_state == DB_SUCCESS);
+	ut_ad(trx->persistent_stats);
+
 	if (dict_index_is_ibuf(index)) {
 		return DB_SUCCESS;
 	}
@@ -318,7 +325,7 @@ dict_stats_save_defrag_stats(dict_index_t* index, trx_t* trx)
 		return DB_SUCCESS;
 	}
 
-	lint now = ut_time();
+	ib_time_t now = ut_time();
 	dberr_t err = dict_stats_save_index_stat(
 		index, now, "n_page_split",
 		index->stat_defrag_n_page_split,

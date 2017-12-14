@@ -835,6 +835,7 @@ typedef struct system_status_var
   ulonglong table_open_cache_overflows;
   double last_query_cost;
   double cpu_time, busy_time;
+  uint32_t threads_running;
   /* Don't initialize */
   /* Memory used for thread local storage */
   int64 max_local_memory_used;
@@ -2185,11 +2186,15 @@ public:
     - thd->query and thd->query_length (used by SHOW ENGINE
       INNODB STATUS and SHOW PROCESSLIST
     - thd->db and thd->db_length (used in SHOW PROCESSLIST)
-    - thd->mysys_var (used by KILL statement and shutdown).
     Is locked when THD is deleted.
   */
   mysql_mutex_t LOCK_thd_data;
-  /* Protect kill information */
+  /*
+    Protects:
+    - kill information
+    - mysys_var (used by KILL statement and shutdown).
+    - Also ensures that THD is not deleted while mutex is hold
+  */
   mysql_mutex_t LOCK_thd_kill;
 
   /* all prepared statements and cursors of this connection */
@@ -3208,7 +3213,13 @@ public:
   }
   void close_active_vio();
 #endif
-  void awake(killed_state state_to_set);
+  void awake_no_mutex(killed_state state_to_set);
+  void awake(killed_state state_to_set)
+  {
+    mysql_mutex_lock(&LOCK_thd_kill);
+    awake_no_mutex(state_to_set);
+    mysql_mutex_unlock(&LOCK_thd_kill);
+  }
  
   /** Disconnect the associated communication endpoint. */
   void disconnect();

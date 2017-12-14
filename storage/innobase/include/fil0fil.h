@@ -35,15 +35,10 @@ Created 10/25/1995 Heikki Tuuri
 #include "page0size.h"
 #include "ibuf0types.h"
 
-#include <list>
-#include <vector>
-
 // Forward declaration
 struct trx_t;
 class page_id_t;
 class truncate_t;
-
-typedef std::list<char*, ut_allocator<char*> >	space_name_list_t;
 
 /** Structure containing encryption specification */
 struct fil_space_crypt_t;
@@ -1502,18 +1497,6 @@ This call is made from external to this module, so the mutex is not owned.
 ulint
 fil_space_get_id_by_name(
 	const char*	tablespace);
-
-/**
-Iterate over all the spaces in the space list and fetch the
-tablespace names. It will return a copy of the name that must be
-freed by the caller using: delete[].
-@return DB_SUCCESS if all OK. */
-dberr_t
-fil_get_space_names(
-/*================*/
-	space_name_list_t&	space_name_list)
-				/*!< in/out: Vector for collecting the names. */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Generate redo log for swapping two .ibd files
 @param[in]	old_table	old table

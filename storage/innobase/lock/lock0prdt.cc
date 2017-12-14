@@ -290,7 +290,7 @@ Checks if some other transaction has a conflicting predicate
 lock request in the queue, so that we have to wait.
 @return	lock or NULL */
 static
-const lock_t*
+lock_t*
 lock_prdt_other_has_conflicting(
 /*============================*/
 	ulint			mode,	/*!< in: LOCK_S or LOCK_X,
@@ -305,10 +305,10 @@ lock_prdt_other_has_conflicting(
 {
 	ut_ad(lock_mutex_own());
 
-	for (const lock_t* lock = lock_rec_get_first(
+	for (lock_t* lock = lock_rec_get_first(
 		lock_hash_get(mode), block, PRDT_HEAPNO);
 	     lock != NULL;
-	     lock = lock_rec_get_next_const(PRDT_HEAPNO, lock)) {
+	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 
 		if (lock->trx == trx) {
 			continue;
@@ -565,7 +565,7 @@ lock_prdt_insert_check_and_lock(
 
 	const ulint	mode = LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION;
 
-	const lock_t*	wait_for = lock_prdt_other_has_conflicting(
+	lock_t*	wait_for = lock_prdt_other_has_conflicting(
 		mode, block, prdt, trx);
 
 	if (wait_for != NULL) {
@@ -854,7 +854,7 @@ lock_prdt_lock(
 
 			if (lock == NULL) {
 
-				const lock_t*	wait_for;
+				lock_t*	wait_for;
 
 				wait_for = lock_prdt_other_has_conflicting(
 					prdt_mode, block, prdt, trx);

@@ -4952,9 +4952,44 @@ wrong_offs:
 
 		ulint	lock_type;
 
+		if (srv_locks_unsafe_for_binlog
+		    || trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
+			/* At READ COMMITTED or READ UNCOMMITTED
+			isolation levels, do not lock committed
+			delete-marked records. */
+			if (!rec_get_deleted_flag(rec, comp)) {
+				goto no_gap_lock;
+			}
+			if (index == clust_index) {
+				trx_id_t trx_id = row_get_rec_trx_id(
+					rec, index, offsets);
+				/* In delete-marked records, DB_TRX_ID must
+				always refer to an existing undo log record. */
+				ut_ad(trx_id);
+				if (!trx_rw_is_active(trx_id, NULL, false)) {
+					/* The clustered index record
+					was delete-marked in a committed
+					transaction. Ignore the record. */
+					goto locks_ok_del_marked;
+				}
+			} else if (trx_t* trx = row_vers_impl_x_locked(
+					   rec, index, offsets)) {
+				/* The record belongs to an active
+				transaction. We must acquire a lock. */
+				trx_release_reference(trx);
+			} else {
+				/* The secondary index record does not
+				point to a delete-marked clustered index
+				record that belongs to an active transaction.
+				Ignore the secondary index record, because
+				it is not locked. */
+				goto next_rec;
+			}
+
+			goto no_gap_lock;
+		}
+
 		if (!set_also_gap_locks
-		    || srv_locks_unsafe_for_binlog
-		    || trx->isolation_level <= TRX_ISO_READ_COMMITTED
 		    || (unique_search && !rec_get_deleted_flag(rec, comp))
 		    || dict_index_is_spatial(index)) {
 
@@ -5159,23 +5194,13 @@ locks_ok:
 	page_rec_is_comp() cannot be used! */
 
 	if (rec_get_deleted_flag(rec, comp)) {
+locks_ok_del_marked:
 		/* In delete-marked records, DB_TRX_ID must
 		always refer to an existing undo log record. */
 		ut_ad(index != clust_index
 		      || row_get_rec_trx_id(rec, index, offsets));
 
 		/* The record is delete-marked: we can skip it */
-
-		if ((srv_locks_unsafe_for_binlog
-		     || trx->isolation_level <= TRX_ISO_READ_COMMITTED)
-		    && prebuilt->select_lock_type != LOCK_NONE
-		    && !did_semi_consistent_read) {
-
-			/* No need to keep a lock on a delete-marked record
-			if we do not want to use next-key locking. */
-
-			row_unlock_for_mysql(prebuilt, TRUE);
-		}
 
 		/* This is an optimization to skip setting the next key lock
 		on the record that follows this delete-marked record. This

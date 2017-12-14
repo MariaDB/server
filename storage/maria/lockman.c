@@ -268,7 +268,7 @@ retry:
   do {
     cursor->curr= PTR(*cursor->prev);
     lf_pin(pins, 1, cursor->curr);
-  } while(*cursor->prev != (intptr)cursor->curr && LF_BACKOFF);
+  } while(*cursor->prev != (intptr)cursor->curr && LF_BACKOFF());
   for (;;)
   {
     if (!cursor->curr)
@@ -277,7 +277,7 @@ retry:
       cur_link= cursor->curr->link;
       cursor->next= PTR(cur_link);
       lf_pin(pins, 0, cursor->next);
-    } while (cur_link != cursor->curr->link && LF_BACKOFF);
+    } while (cur_link != cursor->curr->link && LF_BACKOFF());
     cur_hashnr= cursor->curr->hashnr;
     cur_resource= cursor->curr->resource;
     cur_lock= cursor->curr->lock;
@@ -285,7 +285,7 @@ retry:
     cur_flags= cursor->curr->flags;
     if (*cursor->prev != (intptr)cursor->curr)
     {
-      (void)LF_BACKOFF;
+      (void)LF_BACKOFF();
       goto retry;
     }
     if (!DELETED(cur_link))
@@ -362,7 +362,7 @@ retry:
         lf_alloc_free(pins, cursor->curr);
       else
       {
-        (void)LF_BACKOFF;
+        (void)LF_BACKOFF();
         goto retry;
       }
     }

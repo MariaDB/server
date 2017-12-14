@@ -17,6 +17,7 @@
 #define INCLUDE_LF_INCLUDED
 
 #include <my_atomic.h>
+#include <my_cpu.h>
 
 C_MODE_START
 

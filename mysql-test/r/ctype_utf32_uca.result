@@ -7886,6 +7886,32 @@ DROP TABLE t1;
 # End of ctype_pad.inc
 #
 SET STORAGE_ENGINE=Default;
+SET NAMES utf8, collation_connection=utf32_unicode_520_nopad_ci;
+#
+# MDEV-14350 Index use with collation utf8mb4_unicode_nopad_ci on LIKE pattern with wrong results
+#
+CREATE OR REPLACE TABLE t1 AS SELECT SPACE(50) AS a, SPACE (50) AS b;
+ALTER TABLE t1 ADD KEY(a), ADD KEY(b);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(50) CHARACTER SET utf32 COLLATE utf32_unicode_520_nopad_ci DEFAULT NULL,
+  `b` varchar(50) CHARACTER SET utf32 COLLATE utf32_unicode_520_nopad_ci DEFAULT NULL,
+  KEY `a` (`a`),
+  KEY `b` (`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('111', '111');
+INSERT INTO t1 VALUES ('222', '222');
+INSERT INTO t1 VALUES ('333', '333');
+INSERT INTO t1 VALUES ('444', '444');
+SELECT * FROM t1 WHERE a LIKE '111%';
+a	b
+111	111
+SELECT * FROM t1 IGNORE INDEX (a) WHERE a LIKE '111%';
+a	b
+111	111
+DROP TABLE t1;
+SET NAMES utf8;
 #
 # End of 10.2 tests
 #

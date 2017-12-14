@@ -93,27 +93,6 @@ static ib_mutex_t row_drop_list_mutex;
 /** Flag: has row_mysql_drop_list been initialized? */
 static ibool	row_mysql_drop_list_inited	= FALSE;
 
-/** Magic table names for invoking various monitor threads */
-/* @{ */
-static const char S_innodb_monitor[] = "innodb_monitor";
-static const char S_innodb_lock_monitor[] = "innodb_lock_monitor";
-static const char S_innodb_tablespace_monitor[] = "innodb_tablespace_monitor";
-static const char S_innodb_table_monitor[] = "innodb_table_monitor";
-#ifdef UNIV_MEM_DEBUG
-static const char S_innodb_mem_validate[] = "innodb_mem_validate";
-#endif /* UNIV_MEM_DEBUG */
-/* @} */
-
-/** Evaluates to true if str1 equals str2_onstack, used for comparing
-the magic table names.
-@param str1		in: string to compare
-@param str1_len 	in: length of str1, in bytes, including terminating NUL
-@param str2_onstack	in: char[] array containing a NUL terminated string
-@return			TRUE if str1 equals str2_onstack */
-#define STR_EQ(str1, str1_len, str2_onstack) \
-	((str1_len) == sizeof(str2_onstack) \
-	 && memcmp(str1, str2_onstack, sizeof(str2_onstack)) == 0)
-
 /*******************************************************************//**
 Determine if the given name is a name reserved for MySQL system tables.
 @return TRUE if name is a MySQL system table name */
@@ -5227,31 +5206,6 @@ not_ok:
 		buf, PAGE_CUR_G, prebuilt, 0, ROW_SEL_NEXT);
 
 	goto loop;
-}
-/*********************************************************************//**
-Determines if a table is a magic monitor table.
-@return	true if monitor table */
-UNIV_INTERN
-bool
-row_is_magic_monitor_table(
-/*=======================*/
-	const char*	table_name)	/*!< in: name of the table, in the
-					form database/table_name */
-{
-	const char*	name; /* table_name without database/ */
-	ulint		len;
-
-	name = dict_remove_db_name(table_name);
-	len = strlen(name) + 1;
-
-	return(STR_EQ(name, len, S_innodb_monitor)
-	       || STR_EQ(name, len, S_innodb_lock_monitor)
-	       || STR_EQ(name, len, S_innodb_tablespace_monitor)
-	       || STR_EQ(name, len, S_innodb_table_monitor)
-#ifdef UNIV_MEM_DEBUG
-	       || STR_EQ(name, len, S_innodb_mem_validate)
-#endif /* UNIV_MEM_DEBUG */
-	       );
 }
 
 /*********************************************************************//**

@@ -1,0 +1,52 @@
+--source include/galera_cluster.inc
+--source include/big_test.inc
+ 
+CREATE TABLE t1 ENGINE=InnoDB select 1 as a, 1 as b union select 2, 2;
+ALTER TABLE t1 add primary key(a);
+ 
+DELIMITER |;
+ 
+CREATE PROCEDURE p1()
+BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION rollback;
+        WHILE 1 DO
+                start transaction;
+                update t1 set b=connection_id() where a=1;
+                commit;
+        END WHILE;
+END|
+ 
+ 
+DELIMITER ;|
+ 
+--connect node_1_p1, 127.0.0.1, root, , test, $NODE_MYPORT_1
+send call p1;
+--connect node_1_p2, 127.0.0.1, root, , test, $NODE_MYPORT_1
+send call p1;
+--connect node_2_p1, 127.0.0.1, root, , test, $NODE_MYPORT_2
+send call p1;
+--connect node_2_p2, 127.0.0.1, root, , test, $NODE_MYPORT_2
+send call p1;
+ 
+connection default;
+let $counter=10;
+let $sleep_period=10;
+ 
+echo checking error log for 'BF lock wait long' message for $counter times every $sleep_period seconds ...;
+while($counter > 0)
+{
+--disable_query_log
+--disable_result_log
+  eval do sleep($sleep_period);
+--enable_query_log
+--enable_result_log
+
+# use error 0,1 instead if want test to continue
+  --error 1
+  exec grep 'BF lock wait long' $MYSQLTEST_VARDIR/log/mysqld.*.err;
+  dec $counter;
+}
+ 
+drop table t1;
+drop procedure p1;
+

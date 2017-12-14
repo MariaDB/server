@@ -165,7 +165,7 @@ drop sequence t1;
 ERROR 42S02: 'test.t1' is not a SEQUENCE
 drop sequence if exists t1;
 Warnings:
-Note	4090	Unknown SEQUENCE: 'test.t1'
+Note	4091	Unknown SEQUENCE: 'test.t1'
 create sequence t1 start with 10 maxvalue=9;
 ERROR HY000: Sequence 'test.t1' values are conflicting
 create sequence t1 minvalue= 100 maxvalue=10;
@@ -377,7 +377,7 @@ key key1 (next_not_cached_value)
 ERROR HY000: Sequence 'test.t1' table structure is invalid (Sequence tables cannot have any keys)
 drop sequence if exists t1;
 Warnings:
-Note	4090	Unknown SEQUENCE: 'test.t1'
+Note	4091	Unknown SEQUENCE: 'test.t1'
 create sequence t1;
 create sequence t2;
 create table t3 (a int) engine=myisam;
@@ -387,8 +387,8 @@ CREATE SEQUENCE s1;
 drop sequence s1;
 drop sequence if exists t1,t2,t3,t4;
 Warnings:
-Note	4090	Unknown SEQUENCE: 'test.t3'
-Note	4090	Unknown SEQUENCE: 'test.t4'
+Note	4091	Unknown SEQUENCE: 'test.t3'
+Note	4091	Unknown SEQUENCE: 'test.t4'
 drop table if exists t1,t2,t3;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -414,9 +414,9 @@ CREATE TABLE t2 (a int);
 CREATE SEQUENCE s1;
 drop sequence if exists t1,t2,s1,s2;
 Warnings:
-Note	4090	Unknown SEQUENCE: 'test.t1'
-Note	4090	Unknown SEQUENCE: 'test.t2'
-Note	4090	Unknown SEQUENCE: 'test.s2'
+Note	4091	Unknown SEQUENCE: 'test.t1'
+Note	4091	Unknown SEQUENCE: 'test.t2'
+Note	4091	Unknown SEQUENCE: 'test.s2'
 drop table if exists t1,t2;
 CREATE TEMPORARY SEQUENCE s1;
 DROP SEQUENCE s1;

@@ -378,6 +378,7 @@ dict_stats_process_entry_from_recalc_pool(trx_t* trx)
 		dict_stats_recalc_pool_add(table);
 
 	} else {
+		trx->error_state = DB_SUCCESS;
 		++trx->will_lock;
 		dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT, trx);
 		if (trx->state != TRX_STATE_NOT_STARTED) {
