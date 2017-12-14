@@ -34,4 +34,13 @@ select * from t for system_time all;
 a
 11
 22
+### Issue #399, truncate partitioned table is now unimplemented
+create or replace table t (a int)
+with system versioning
+engine myisam
+partition by system_time (
+partition p0 versioning,
+partition pn as of current_timestamp);
+truncate table t to system_time current_timestamp;
+ERROR 42000: The used command is not allowed with this MariaDB version
 drop table t;
