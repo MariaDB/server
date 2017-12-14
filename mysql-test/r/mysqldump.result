@@ -1917,7 +1917,7 @@ drop table t1, t2, t3;
 # Bug#21288 mysqldump segmentation fault when using --where
 #
 create table t1 (a int);
-mysqldump: Couldn't execute 'SELECT /*!40001 SQL_NO_CACHE */ * FROM `t1` WHERE xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx': You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' at line 1 (1064)
+mysqldump: Couldn't execute 'SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `t1` WHERE xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx': You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' at line 1 (1064)
 mysqldump: Got error: 1064: "You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' at line 1" when retrieving data from server
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
@@ -5646,3 +5646,183 @@ DELIMITER ;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 DROP TABLE t1;
+#
+# Test for Invisible columns
+#
+create database d;
+use d;
+# Invisble field table
+create table t1(a int , b int invisible);
+insert into t1 values(1);
+insert into t1(a,b) values(1,2);
+# not invisible field table --complete-insert wont be used
+create table t2(a int , b int);
+insert into t2(a,b) values(1,2);
+insert into t2(a,b) values(1,2);
+# Invisble field table
+create table t3(invisible int , `a  b c & $!@#$%^&*( )` int invisible default 4, `ds=~!@ \# $% ^ & * ( ) _ - = +` int invisible default 5);
+insert into t3 values(1);
+insert into t3 values(5);
+insert into t3 values(2);
+insert into t3(`invisible`,  `a  b c & $!@#$%^&*( )`, `ds=~!@ \# $% ^ & * ( ) _ - = +` ) values(1,2,3);
+CREATE TABLE t4(ËÏÌÏÎËÁ1 INT);
+insert into t4 values(1);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) INVISIBLE DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` (`a`, `b`) VALUES (1,NULL),(1,2);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t2` VALUES (1,2),(1,2);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t3` (
+  `invisible` int(11) DEFAULT NULL,
+  `a  b c & $!@#$%^&*( )` int(11) INVISIBLE DEFAULT 4,
+  `ds=~!@ \# $% ^ & * ( ) _ - = +` int(11) INVISIBLE DEFAULT 5
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t3` (`invisible`, `a  b c & $!@#$%^&*( )`, `ds=~!@ \# $% ^ & * ( ) _ - = +`) VALUES (1,4,5),(5,4,5),(2,4,5),(1,2,3);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t4` (
+  `ËÏÌÏÎËÁ1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t4` VALUES (1);
+#Check side effect on --complete insert
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) INVISIBLE DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` (`a`, `b`) VALUES (1,NULL),(1,2);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t2` (`a`, `b`) VALUES (1,2),(1,2);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t3` (
+  `invisible` int(11) DEFAULT NULL,
+  `a  b c & $!@#$%^&*( )` int(11) INVISIBLE DEFAULT 4,
+  `ds=~!@ \# $% ^ & * ( ) _ - = +` int(11) INVISIBLE DEFAULT 5
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t3` (`invisible`, `a  b c & $!@#$%^&*( )`, `ds=~!@ \# $% ^ & * ( ) _ - = +`) VALUES (1,4,5),(5,4,5),(2,4,5),(1,2,3);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t4` (
+  `ËÏÌÏÎËÁ1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t4` (`ËÏÌÏÎËÁ1`) VALUES (1);
+#Check xml
+<?xml version="1.0"?>
+<mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<database name="d">
+	<table_structure name="t1">
+		<field Field="a" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="b" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="INVISIBLE" Comment="" />
+	</table_structure>
+	<table_data name="t1">
+	<row>
+		<field name="a">1</field>
+		<field name="b" xsi:nil="true" />
+	</row>
+	<row>
+		<field name="a">1</field>
+		<field name="b">2</field>
+	</row>
+	</table_data>
+	<table_structure name="t2">
+		<field Field="a" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="b" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+	</table_structure>
+	<table_data name="t2">
+	<row>
+		<field name="a">1</field>
+		<field name="b">2</field>
+	</row>
+	<row>
+		<field name="a">1</field>
+		<field name="b">2</field>
+	</row>
+	</table_data>
+	<table_structure name="t3">
+		<field Field="invisible" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="a  b c &amp; $!@#$%^&amp;*( )" Type="int(11)" Null="YES" Key="" Default="4" Extra="INVISIBLE" Comment="" />
+		<field Field="ds=~!@ \# $% ^ &amp; * ( ) _ - = +" Type="int(11)" Null="YES" Key="" Default="5" Extra="INVISIBLE" Comment="" />
+	</table_structure>
+	<table_data name="t3">
+	<row>
+		<field name="invisible">1</field>
+		<field name="a  b c &amp; $!@#$%^&amp;*( )">4</field>
+		<field name="ds=~!@ \# $% ^ &amp; * ( ) _ - = +">5</field>
+	</row>
+	<row>
+		<field name="invisible">5</field>
+		<field name="a  b c &amp; $!@#$%^&amp;*( )">4</field>
+		<field name="ds=~!@ \# $% ^ &amp; * ( ) _ - = +">5</field>
+	</row>
+	<row>
+		<field name="invisible">2</field>
+		<field name="a  b c &amp; $!@#$%^&amp;*( )">4</field>
+		<field name="ds=~!@ \# $% ^ &amp; * ( ) _ - = +">5</field>
+	</row>
+	<row>
+		<field name="invisible">1</field>
+		<field name="a  b c &amp; $!@#$%^&amp;*( )">2</field>
+		<field name="ds=~!@ \# $% ^ &amp; * ( ) _ - = +">3</field>
+	</row>
+	</table_data>
+	<table_structure name="t4">
+		<field Field="ËÏÌÏÎËÁ1" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+	</table_structure>
+	<table_data name="t4">
+	<row>
+		<field name="ËÏÌÏÎËÁ1">1</field>
+	</row>
+	</table_data>
+</database>
+</mysqldump>
+DROP table t1,t2,t3;
+select * from t1;
+a
+1
+1
+select a,b from t1;
+a	b
+1	NULL
+1	2
+select * from t2;
+a	b
+1	2
+1	2
+select * from t3;
+invisible
+1
+5
+2
+1
+desc t3;
+Field	Type	Null	Key	Default	Extra
+invisible	int(11)	YES		NULL	
+a  b c & $!@#$%^&*( )	int(11)	YES		4	INVISIBLE
+ds=~!@ \# $% ^ & * ( ) _ - = +	int(11)	YES		5	INVISIBLE
+drop database d;

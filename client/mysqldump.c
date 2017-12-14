@@ -115,10 +115,11 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
                 opt_drop_trigger= 0 ;
-static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0;
+static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
+               select_field_names_inited= 0;
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
 static MYSQL mysql_connection,*mysql=0;
-static DYNAMIC_STRING insert_pat;
+static DYNAMIC_STRING insert_pat, select_field_names;
 static char  *opt_password=0,*current_user=0,
              *current_host=0,*path=0,*fields_terminated=0,
              *lines_terminated=0, *enclosed=0, *opt_enclosed=0, *escaped=0,
@@ -1641,6 +1642,7 @@ static void free_resources()
   dynstr_free(&extended_row);
   dynstr_free(&dynamic_where);
   dynstr_free(&insert_pat);
+  dynstr_free(&select_field_names);
   if (defaults_argv)
     free_defaults(defaults_argv);
   mysql_library_end();
@@ -2735,7 +2737,13 @@ static uint get_table_structure(char *table, char *db, char *table_type,
     else
       dynstr_set_checked(&insert_pat, "");
   }
-
+  if (!select_field_names_inited)
+  {
+    select_field_names_inited= 1;
+    init_dynamic_string_checked(&select_field_names, "", 1024, 1024);
+  }
+  else
+    dynstr_set_checked(&select_field_names, "");
   insert_option= ((delayed && opt_ignore) ? " DELAYED IGNORE " :
                   delayed ? " DELAYED " : opt_ignore ? " IGNORE " : "");
 
@@ -2971,6 +2979,19 @@ static uint get_table_structure(char *table, char *db, char *table_type,
       DBUG_RETURN(0);
     }
 
+    while ((row= mysql_fetch_row(result)))
+    {
+      if (strlen(row[SHOW_EXTRA]) && strstr(row[SHOW_EXTRA],"INVISIBLE"))
+        complete_insert= 1;
+      if (init)
+      {
+        dynstr_append_checked(&select_field_names, ", ");
+      }
+      init=1;
+      dynstr_append_checked(&select_field_names,
+              quote_name(row[SHOW_FIELDNAME], name_buff, 0));
+    }
+    init=0;
     /*
       If write_data is true, then we build up insert statements for
       the table's data. Note: in subsequent lines of code, this test
@@ -2998,19 +3019,8 @@ static uint get_table_structure(char *table, char *db, char *table_type,
       }
     }
 
-    while ((row= mysql_fetch_row(result)))
-    {
-      if (complete_insert)
-      {
-        if (init)
-        {
-          dynstr_append_checked(&insert_pat, ", ");
-        }
-        init=1;
-        dynstr_append_checked(&insert_pat,
-                      quote_name(row[SHOW_FIELDNAME], name_buff, 0));
-      }
-    }
+    if (complete_insert)
+      dynstr_append_checked(&insert_pat, select_field_names.str);
     num_fields= mysql_num_rows(result);
     mysql_free_result(result);
   }
@@ -3067,6 +3077,21 @@ static uint get_table_structure(char *table, char *db, char *table_type,
           dynstr_append_checked(&insert_pat, "(");
       }
     }
+
+    while ((row= mysql_fetch_row(result)))
+    {
+      if (strlen(row[SHOW_EXTRA]) && strstr(row[SHOW_EXTRA],"INVISIBLE"))
+        complete_insert= 1;
+      if (init)
+      {
+        dynstr_append_checked(&select_field_names, ", ");
+      }
+      dynstr_append_checked(&select_field_names,
+              quote_name(row[SHOW_FIELDNAME], name_buff, 0));
+      init=1;
+    }
+    init=0;
+    mysql_data_seek(result, 0);
 
     while ((row= mysql_fetch_row(result)))
     {
@@ -3708,7 +3733,9 @@ static void dump_table(char *table, char *db)
 
     /* now build the query string */
 
-    dynstr_append_checked(&query_string, "SELECT /*!40001 SQL_NO_CACHE */ * INTO OUTFILE '");
+    dynstr_append_checked(&query_string, "SELECT /*!40001 SQL_NO_CACHE */ ");
+    dynstr_append_checked(&query_string, select_field_names.str);
+    dynstr_append_checked(&query_string, " INTO OUTFILE '");
     dynstr_append_checked(&query_string, filename);
     dynstr_append_checked(&query_string, "'");
 
@@ -3757,7 +3784,9 @@ static void dump_table(char *table, char *db)
                   "\n--\n-- Dumping data for table %s\n--\n",
                   fix_for_comment(result_table));
     
-    dynstr_append_checked(&query_string, "SELECT /*!40001 SQL_NO_CACHE */ * FROM ");
+    dynstr_append_checked(&query_string, "SELECT /*!40001 SQL_NO_CACHE */ ");
+    dynstr_append_checked(&query_string, select_field_names.str);
+    dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
 
     if (where)

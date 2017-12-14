@@ -1206,26 +1206,6 @@ DROP TABLE t1;
 DROP VIEW v1;
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
-set names koi8r;
-DROP DATABASE IF EXISTS mysqltest1;
-CREATE DATABASE mysqltest1;
-use mysqltest1;
-CREATE TABLE t1(колонка1 INT);
-
----> Dumping mysqltest1 to outfile1
-
-
-DROP DATABASE mysqltest1;
-
-
----> Restoring mysqltest1...
-SHOW CREATE TABLE mysqltest1.t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `колонка1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-DROP DATABASE mysqltest1;
-use test;
 flush status;
 show variables like "log_queries_not_using_indexes";
 Variable_name	Value
@@ -1273,8 +1253,8 @@ PRIMARY KEY  (Codigo)
 ) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8;
 show create table t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					Table	253	64	2	N	1	39	7
-def					Create Table	253	1024	458	N	1	39	7
+def					Table	253	192	2	N	1	39	33
+def					Create Table	253	3072	458	N	1	39	33
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `Codigo` int(10) unsigned NOT NULL AUTO_INCREMENT,
