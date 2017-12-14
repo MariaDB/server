@@ -2270,6 +2270,8 @@ void st_select_lex::init_query()
   window_funcs.empty();
   tvc= 0;
   in_tvc= false;
+  vers_saved_where= NULL;
+  versioned_tables= 0;
 }
 
 void st_select_lex::init_select()
