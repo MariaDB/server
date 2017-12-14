@@ -1602,10 +1602,14 @@ trx_undo_free_prepared(
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
 			/* lock_trx_release_locks() assigns
-			trx->is_recovered=false */
+			trx->is_recovered=false and
+			trx->state = TRX_STATE_COMMITTED_IN_MEMORY,
+			also for transactions that we faked
+			to TRX_STATE_PREPARED in trx_rollback_resurrected(). */
 			ut_a(!srv_was_started
 			     || srv_read_only_mode
-			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
+			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
+			     || srv_fast_shutdown);
 			break;
 		default:
 			ut_error;
@@ -1628,10 +1632,14 @@ trx_undo_free_prepared(
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
 			/* lock_trx_release_locks() assigns
-			trx->is_recovered=false */
+			trx->is_recovered=false and
+			trx->state = TRX_STATE_COMMITTED_IN_MEMORY,
+			also for transactions that we faked
+			to TRX_STATE_PREPARED in trx_rollback_resurrected(). */
 			ut_a(!srv_was_started
 			     || srv_read_only_mode
-			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
+			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
+			     || srv_fast_shutdown);
 			break;
 		default:
 			ut_error;

@@ -1724,52 +1724,48 @@ void
 trx_purge_stop(void)
 /*================*/
 {
-	ut_a(srv_n_purge_threads > 0);
-
 	rw_lock_x_lock(&purge_sys->latch);
 
-	const int64_t		sig_count = os_event_reset(purge_sys->event);
-	const purge_state_t	state = purge_sys->state;
-
-	ut_a(state == PURGE_STATE_RUN || state == PURGE_STATE_STOP);
-
-	++purge_sys->n_stop;
-
-	if (state == PURGE_STATE_RUN) {
+	switch (purge_sys->state) {
+	case PURGE_STATE_INIT:
+	case PURGE_STATE_DISABLED:
+		ut_error;
+	case PURGE_STATE_EXIT:
+		/* Shutdown must have been initiated during
+		FLUSH TABLES FOR EXPORT. */
+		ut_ad(!srv_undo_sources);
+unlock:
+		rw_lock_x_unlock(&purge_sys->latch);
+		break;
+	case PURGE_STATE_STOP:
+		ut_ad(srv_n_purge_threads > 0);
+		++purge_sys->n_stop;
+		purge_sys->state = PURGE_STATE_STOP;
+		if (!purge_sys->running) {
+			goto unlock;
+		}
+		ib::info() << "Waiting for purge to stop";
+		do {
+			rw_lock_x_unlock(&purge_sys->latch);
+			os_thread_sleep(10000);
+			rw_lock_x_lock(&purge_sys->latch);
+		} while (purge_sys->running);
+		goto unlock;
+	case PURGE_STATE_RUN:
+		ut_ad(srv_n_purge_threads > 0);
+		++purge_sys->n_stop;
 		ib::info() << "Stopping purge";
 
 		/* We need to wakeup the purge thread in case it is suspended,
 		so that it can acknowledge the state change. */
 
+		const int64_t sig_count = os_event_reset(purge_sys->event);
+		purge_sys->state = PURGE_STATE_STOP;
 		srv_purge_wakeup();
-	}
-
-	purge_sys->state = PURGE_STATE_STOP;
-
-	if (state != PURGE_STATE_STOP) {
 		rw_lock_x_unlock(&purge_sys->latch);
 		/* Wait for purge coordinator to signal that it
 		is suspended. */
 		os_event_wait_low(purge_sys->event, sig_count);
-	} else {
-		bool	once = true;
-
-		/* Wait for purge to signal that it has actually stopped. */
-		while (purge_sys->running) {
-
-			if (once) {
-				ib::info() << "Waiting for purge to stop";
-				once = false;
-			}
-
-			rw_lock_x_unlock(&purge_sys->latch);
-
-			os_thread_sleep(10000);
-
-			rw_lock_x_lock(&purge_sys->latch);
-		}
-
-		rw_lock_x_unlock(&purge_sys->latch);
 	}
 
 	MONITOR_INC_VALUE(MONITOR_PURGE_STOP_COUNT, 1);
@@ -1784,8 +1780,12 @@ trx_purge_run(void)
 	rw_lock_x_lock(&purge_sys->latch);
 
 	switch (purge_sys->state) {
-	case PURGE_STATE_INIT:
 	case PURGE_STATE_EXIT:
+		/* Shutdown must have been initiated during
+		FLUSH TABLES FOR EXPORT. */
+		ut_ad(!srv_undo_sources);
+		break;
+	case PURGE_STATE_INIT:
 	case PURGE_STATE_DISABLED:
 		ut_error;
 

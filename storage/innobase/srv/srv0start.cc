@@ -2618,8 +2618,6 @@ files_checked:
 		srv_start_state_set(SRV_START_STATE_MASTER);
 	}
 
-	srv_is_being_started = false;
-
 	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
 	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 
@@ -2646,6 +2644,8 @@ files_checked:
 	} else {
 		purge_sys->state = PURGE_STATE_DISABLED;
 	}
+
+	srv_is_being_started = false;
 
 	if (!srv_read_only_mode) {
 		/* wake main loop of page cleaner up */

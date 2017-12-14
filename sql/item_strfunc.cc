@@ -2918,6 +2918,20 @@ String *Item_func_make_set::val_str(String *str)
 }
 
 
+void Item_func_char::print(String *str, enum_query_type query_type)
+{
+  str->append(Item_func_char::func_name());
+  str->append('(');
+  print_args(str, 0, query_type);
+  if (collation.collation != &my_charset_bin)
+  {
+    str->append(C_STRING_WITH_LEN(" using "));
+    str->append(collation.collation->csname);
+  }
+  str->append(')');
+}
+
+
 String *Item_func_char::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -4517,20 +4531,19 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
       if (res)
       {
         // guaranty UTF-8 string for names
-        if (my_charset_same(res->charset(), &my_charset_utf8_general_ci))
+        if (my_charset_same(res->charset(), DYNCOL_UTF))
         {
           keys_str[i].length= res->length();
           keys_str[i].str= thd->strmake(res->ptr(), res->length());
         }
         else
         {
-          uint strlen= res->length() * my_charset_utf8_general_ci.mbmaxlen + 1;
+          uint strlen= res->length() * DYNCOL_UTF->mbmaxlen + 1;
           uint dummy_errors;
-          char *str= (char *) thd->alloc(strlen);
-          if (str)
+          if (char *str= (char *) thd->alloc(strlen))
           {
             keys_str[i].length=
-              copy_and_convert(str, strlen, &my_charset_utf8_general_ci,
+              copy_and_convert(str, strlen, DYNCOL_UTF,
                                res->ptr(), res->length(), res->charset(),
                                &dummy_errors);
               keys_str[i].str= str;
@@ -4750,9 +4763,10 @@ String *Item_func_dyncol_json::val_str(String *str)
     char *ptr;
     size_t length, alloc_length;
     dynstr_reassociate(&json, &ptr, &length, &alloc_length);
-    str->reset(ptr, length, alloc_length, &my_charset_utf8_general_ci);
+    str->reset(ptr, length, alloc_length, DYNCOL_UTF);
     null_value= FALSE;
   }
+  str->set_charset(DYNCOL_UTF);
   return str;
 
 null:
@@ -4852,20 +4866,20 @@ bool Item_dyncol_get::get_dyn_value(THD *thd, DYNAMIC_COLUMN_VALUE *val,
       return 1;
     }
 
-    if (my_charset_same(nm->charset(), &my_charset_utf8_general_ci))
+    if (my_charset_same(nm->charset(), DYNCOL_UTF))
     {
       buf.str= (char *) nm->ptr();
       buf.length= nm->length();
     }
     else
     {
-      uint strlen= nm->length() * my_charset_utf8_general_ci.mbmaxlen + 1;
+      uint strlen= nm->length() * DYNCOL_UTF->mbmaxlen + 1;
       uint dummy_errors;
       buf.str= (char *) thd->alloc(strlen);
       if (buf.str)
       {
         buf.length=
-          copy_and_convert(buf.str, strlen, &my_charset_utf8_general_ci,
+          copy_and_convert(buf.str, strlen, DYNCOL_UTF,
                            nm->ptr(), nm->length(), nm->charset(),
                            &dummy_errors);
       }
@@ -5289,7 +5303,6 @@ String *Item_func_dyncol_list::val_str(String *str)
     goto null;
 
   str->length(0);
-  str->set_charset(&my_charset_utf8_general_ci);
   for (i= 0; i < count; i++)
   {
     append_identifier(current_thd, str, names[i].str, names[i].length);
@@ -5299,6 +5312,7 @@ String *Item_func_dyncol_list::val_str(String *str)
   null_value= FALSE;
   if (names)
     my_free(names);
+  str->set_charset(DYNCOL_UTF);
   return str;
 
 null:
