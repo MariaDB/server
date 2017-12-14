@@ -20,6 +20,5 @@ call mtr.add_suppression("InnoDB: A copy of page \[page id: space=[0-9]+, page n
 START TRANSACTION;
 CALL insert_t1(5000);
 COMMIT;
-# Kill and restart
 drop procedure insert_t1;
 drop table t1;

@@ -3903,6 +3903,17 @@ innobase_init(
 		}
 	}
 
+#ifdef WITH_WSREP
+	/* Currently, Galera does not support VATS lock schedule algorithm. */
+	if (innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS
+	    && global_system_variables.wsrep_on) {
+		/* Do not allow InnoDB startup with VATS and Galera */
+		sql_print_error("In Galera, innodb_lock_schedule_algorithm=vats"
+			" is not supported.");
+		goto error;
+	}
+#endif /* WITH_WSREP */
+
 #ifndef HAVE_LZ4
 	if (innodb_compression_algorithm == PAGE_LZ4_ALGORITHM) {
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
@@ -5454,8 +5465,8 @@ innobase_kill_connection(
 			wsrep_thd_is_BF(current_thd, FALSE),
 			lock_get_info(trx->lock.wait_lock).c_str());
 
-		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
-		    trx->abort_type == TRX_SERVER_ABORT) {
+		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)
+		    && trx->abort_type == TRX_SERVER_ABORT) {
 			ut_ad(!lock_mutex_own());
 			lock_mutex_enter();
 		}
@@ -20463,7 +20474,7 @@ static MYSQL_SYSVAR_ENUM(empty_free_list_algorithm,
   &innodb_empty_free_list_algorithm_typelib);
 
 static MYSQL_SYSVAR_ENUM(lock_schedule_algorithm, innodb_lock_schedule_algorithm,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "The algorithm Innodb uses for deciding which locks to grant next when"
   " a lock is released. Possible values are"
   " FCFS"

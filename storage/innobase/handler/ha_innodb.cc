@@ -3864,8 +3864,7 @@ innobase_init(
 	/* Currently, Galera does not support VATS lock schedule algorithm. */
 	if (innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS
 	    && global_system_variables.wsrep_on) {
-		ib::info() << "In Galera environment Variance-Aware-Transaction-Sheduling Algorithm"
-			   " is not supported. Falling back to First-Come-First-Served order. ";
+		ib::info() << "For Galera, using innodb_lock_schedule_algorithm=fcfs";
 		innodb_lock_schedule_algorithm = INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS;
 	}
 #endif /* WITH_WSREP */
