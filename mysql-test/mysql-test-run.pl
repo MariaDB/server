@@ -329,6 +329,8 @@ my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
 
+my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path';
+
 sub testcase_timeout ($) {
   my ($tinfo)= @_;
   if (exists $tinfo->{'case-timeout'}) {
@@ -2792,10 +2794,12 @@ sub mysql_server_start($) {
     {
       # Some InnoDB options are incompatible with the default bootstrap.
       # If they are used, re-bootstrap
-      if ( $extra_opts and
-           "@$extra_opts" =~ /--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path/ )
+      my @rebootstrap_opts;
+      @rebootstrap_opts = grep {/$rebootstrap_re/o} @$extra_opts if $extra_opts;
+      if (@rebootstrap_opts)
       {
-        mysql_install_db($mysqld, undef, $extra_opts);
+        mtr_verbose("Re-bootstrap with @rebootstrap_opts");
+        mysql_install_db($mysqld, undef, \@rebootstrap_opts);
       }
       else {
         # Copy datadir from installed system db
