@@ -37,11 +37,11 @@ mysql/innodb_table_stats
 mysql/innodb_index_stats
 mysql/transaction_registry
 mysql/vtmd_template
+test/t2
 test/t3
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 NAME
 test/t1
-test/t2
 innodb_system
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobarsecret/ in t1.ibd
