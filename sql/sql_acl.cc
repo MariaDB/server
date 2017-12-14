@@ -2019,7 +2019,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
         user.access|= TRIGGER_ACL;
 
       if (user_table.num_fields() <= 46 && (user.access & DELETE_ACL))
-        user.access|= DELETE_VERSIONING_ROWS_ACL;
+        user.access|= DELETE_HISTORY_ACL;
 
       user.sort= get_sort(2, user.host.hostname, user.user.str);
       user.hostname_length= safe_strlen(user.host.hostname);

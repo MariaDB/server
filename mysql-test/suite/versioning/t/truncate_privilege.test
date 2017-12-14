@@ -26,8 +26,8 @@ show grants;
 truncate mysqltest.t to system_time now();
 
 connection root;
-grant delete versioning rows on mysqltest.* to mysqltest_1@localhost;
-grant delete versioning rows on mysqltest.t to mysqltest_1@localhost;
+grant delete history on mysqltest.* to mysqltest_1@localhost;
+grant delete history on mysqltest.t to mysqltest_1@localhost;
 
 connection user1;
 show grants;
