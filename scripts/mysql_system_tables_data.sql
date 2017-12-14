@@ -35,8 +35,12 @@ INSERT INTO tmp_user_nopasswd VALUES ('localhost','root','','Y','Y','Y','Y','Y',
 REPLACE INTO tmp_user_nopasswd SELECT @current_hostname,'root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N','N','',0 FROM dual WHERE @current_hostname != 'localhost';
 REPLACE INTO tmp_user_nopasswd VALUES ('127.0.0.1','root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N','N','',0);
 REPLACE INTO tmp_user_nopasswd VALUES ('::1','root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N','N', '', 0);
--- More secure root account using unix sucket auth.
+-- More secure root account using unix socket auth.
 INSERT INTO tmp_user_socket VALUES ('localhost',IFNULL(@auth_root_socket, 'root'),'','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'unix_socket','','N', 'N','', 0);
+SET @install_plugin = IF(ISNULL(@auth_root_socket), 'SELECT 1','INSTALL PLUGIN IF NOT EXISTS unix_socket SONAME \'auth_socket\';');
+PREPARE instSt FROM @install_plugin;
+EXECUTE instSt;
+DROP PREPARE instSt;
 
 INSERT INTO user SELECT * FROM tmp_user_nopasswd WHERE @had_user_table=0 AND @skip_auth_root_nopasswd IS NULL;
 INSERT INTO user SELECT * FROM tmp_user_socket WHERE @had_user_table=0 AND @auth_root_socket IS NOT NULL;
