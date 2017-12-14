@@ -5,19 +5,6 @@
 drop table if exists t1;
 --enable_warnings
 
-delimiter ~~;
-create function if not exists non_default_engine()
-returns varchar(255)
-deterministic
-begin
-  if default_engine() = 'InnoDB' then
-    return 'MyISAM';
-  end if;
-  return 'InnoDB';
-end~~
-delimiter ;~~
-
-let $non_default_engine= `select non_default_engine()`;
 let $non_sys_datatype= `select sys_datatype(non_default_engine())`;
 let $non_sys_datatype_uc= `select upper(sys_datatype(non_default_engine()))`;
 let $sys_datatype_null= $sys_datatype NULL DEFAULT NULL;

@@ -1,3 +1,4 @@
+### check System Versioning and conventional partitioning
 create table t1 (x int)
 with system versioning
 partition by range columns (x) (
@@ -27,6 +28,11 @@ x
 select * from t1 partition (p1) for system_time all;
 x
 300
+### Engine change versioned/non-versioned prohibited
+create or replace table t1 (i int) engine=MyISAM with system versioning partition by hash(i);
+alter table t1 engine=InnoDB;
+ERROR HY000: Not allowed for versioned `test`.`t1`. Change to/from native versioning engine is prohibited.
+### check server-level partitioning
 create or replace table t1 (x int)
 partition by system_time (
 partition p0 versioning,

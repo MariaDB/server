@@ -31,6 +31,16 @@ begin
   return e;
 end~~
 
+create function if not exists non_default_engine()
+returns varchar(255)
+deterministic
+begin
+  if default_engine() = 'InnoDB' then
+    return 'MyISAM';
+  end if;
+  return 'InnoDB';
+end~~
+
 create function if not exists sys_datatype(engine varchar(255))
 returns varchar(255)
 deterministic
@@ -99,6 +109,7 @@ end~~
 delimiter ;~~
 
 let $default_engine= `select default_engine()`;
+let $non_default_engine= `select non_default_engine()`;
 let $sys_datatype= `select sys_datatype(default_engine())`;
 let $sys_datatype_uc= `select upper(sys_datatype(default_engine()))`;
 --enable_query_log

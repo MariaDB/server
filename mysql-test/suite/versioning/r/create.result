@@ -1,13 +1,4 @@
 drop table if exists t1;
-create function if not exists non_default_engine()
-returns varchar(255)
-deterministic
-begin
-if default_engine() = 'InnoDB' then
-return 'MyISAM';
-end if;
-return 'InnoDB';
-end~~
 create table t1 (
 x1 int unsigned,
 Sys_start SYS_DATATYPE generated always as row start comment 'start',

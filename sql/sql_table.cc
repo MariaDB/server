@@ -8856,7 +8856,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
   {
     if (handlerton *hton1= create_info->db_type)
     {
-      handlerton *hton2= table->file->ht;
+      handlerton *hton2= table->file->partition_ht();
       if (hton1 != hton2 &&
           (ha_check_storage_engine_flag(hton1, HTON_NATIVE_SYS_VERSIONING) ||
            ha_check_storage_engine_flag(hton2, HTON_NATIVE_SYS_VERSIONING)))

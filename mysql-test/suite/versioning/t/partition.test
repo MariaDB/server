@@ -1,6 +1,6 @@
 -- source suite/versioning/common.inc
 
-### check System Versioning and conventional partitioning
+--echo ### check System Versioning and conventional partitioning
 
 create table t1 (x int)
 with system versioning
@@ -19,7 +19,12 @@ select * from t1 for system_time all;
 select * from t1 partition (p0) for system_time all;
 select * from t1 partition (p1) for system_time all;
 
-### check server-level partitioning
+--echo ### Engine change versioned/non-versioned prohibited
+eval create or replace table t1 (i int) engine=$default_engine with system versioning partition by hash(i);
+--error ER_VERS_ALTER_ENGINE_PROHIBITED
+eval alter table t1 engine=$non_default_engine;
+
+--echo ### check server-level partitioning
 
 # create errors
 --error ER_VERS_ENGINE_UNSUPPORTED

@@ -2,6 +2,7 @@
 drop procedure verify_vtq;
 drop procedure innodb_verify_vtq;
 drop function default_engine;
+drop function non_default_engine;
 drop function sys_commit_ts;
 drop function sys_datatype;
 drop function current_row;
