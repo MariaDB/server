@@ -236,6 +236,26 @@ ALTER TABLE t3 DROP c3, DROP c7;
 --disable_info
 SELECT * FROM t3;
 
+eval CREATE TABLE t4
+(id INT, foo INT DEFAULT 0, c1 VARCHAR(4000),
+ p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+ PRIMARY KEY(id,foo))
+$engine;
+
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000)), (2, REPEAT('a', 4000));
+ALTER TABLE t4 ADD COLUMN d1 INT;
+
+BEGIN;
+UPDATE t4 SET c1 = repeat('1', 4000), foo=1 WHERE id=1;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000));
+UPDATE t4 SET c1 = repeat('2', 4000), foo=1 WHERE id=2;
+ROLLBACK;
+
+BEGIN;
+UPDATE t4 SET d1 = 1,foo=2 WHERE id=1;
+INSERT INTO t4 (id,foo,c1) VALUES (1, 1, REPEAT('1', 4000));
+COMMIT;
+
 eval CREATE TABLE big
 (id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
  p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
@@ -279,7 +299,7 @@ WHERE name = 'test/big';
 connection default;
 
 --source include/wait_all_purged.inc
-DROP TABLE t1,t2,t3,big;
+DROP TABLE t1,t2,t3,t4,big;
 
 dec $format;
 }

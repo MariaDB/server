@@ -3833,8 +3833,9 @@ lock_move_rec_list_start(
 		reset the lock bits on the old */
 
 		while (rec1 != rec) {
-			ut_ad(!page_rec_is_default_row(rec1));
-			ut_ad(!page_rec_is_default_row(rec2));
+			ut_ad(page_rec_is_default_row(rec1)
+			      == page_rec_is_default_row(rec2));
+			ut_d(const rec_t* const prev = rec1);
 
 			ulint	rec1_heap_no;
 			ulint	rec2_heap_no;
@@ -3858,6 +3859,8 @@ lock_move_rec_list_start(
 
 			if (rec1_heap_no < lock->un_member.rec_lock.n_bits
 			    && lock_rec_reset_nth_bit(lock, rec1_heap_no)) {
+				ut_ad(!page_rec_is_default_row(prev));
+
 				if (type_mode & LOCK_WAIT) {
 					lock_reset_lock_and_trx_wait(lock);
 				}

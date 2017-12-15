@@ -353,6 +353,22 @@ id	c2	c4	c5	c6	c8	phrase	b
 3	3	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
 4	0	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	😱
 5	9	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	ääH	binary line of business
+CREATE TABLE t4
+(id INT, foo INT DEFAULT 0, c1 VARCHAR(4000),
+p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+PRIMARY KEY(id,foo))
+ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000)), (2, REPEAT('a', 4000));
+ALTER TABLE t4 ADD COLUMN d1 INT;
+BEGIN;
+UPDATE t4 SET c1 = repeat('1', 4000), foo=1 WHERE id=1;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000));
+UPDATE t4 SET c1 = repeat('2', 4000), foo=1 WHERE id=2;
+ROLLBACK;
+BEGIN;
+UPDATE t4 SET d1 = 1,foo=2 WHERE id=1;
+INSERT INTO t4 (id,foo,c1) VALUES (1, 1, REPEAT('1', 4000));
+COMMIT;
 CREATE TABLE big
 (id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
 p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
@@ -413,7 +429,7 @@ clust_index_size
 3
 connection default;
 InnoDB		0 transactions not purged
-DROP TABLE t1,t2,t3,big;
+DROP TABLE t1,t2,t3,t4,big;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -713,6 +729,22 @@ id	c2	c4	c5	c6	c8	phrase	b
 3	3	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
 4	0	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	😱
 5	9	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	ääH	binary line of business
+CREATE TABLE t4
+(id INT, foo INT DEFAULT 0, c1 VARCHAR(4000),
+p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+PRIMARY KEY(id,foo))
+ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000)), (2, REPEAT('a', 4000));
+ALTER TABLE t4 ADD COLUMN d1 INT;
+BEGIN;
+UPDATE t4 SET c1 = repeat('1', 4000), foo=1 WHERE id=1;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000));
+UPDATE t4 SET c1 = repeat('2', 4000), foo=1 WHERE id=2;
+ROLLBACK;
+BEGIN;
+UPDATE t4 SET d1 = 1,foo=2 WHERE id=1;
+INSERT INTO t4 (id,foo,c1) VALUES (1, 1, REPEAT('1', 4000));
+COMMIT;
 CREATE TABLE big
 (id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
 p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
@@ -773,7 +805,7 @@ clust_index_size
 3
 connection default;
 InnoDB		0 transactions not purged
-DROP TABLE t1,t2,t3,big;
+DROP TABLE t1,t2,t3,t4,big;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -1073,6 +1105,22 @@ id	c2	c4	c5	c6	c8	phrase	b
 3	3	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
 4	0	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	😱
 5	9	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	ääH	binary line of business
+CREATE TABLE t4
+(id INT, foo INT DEFAULT 0, c1 VARCHAR(4000),
+p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+PRIMARY KEY(id,foo))
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000)), (2, REPEAT('a', 4000));
+ALTER TABLE t4 ADD COLUMN d1 INT;
+BEGIN;
+UPDATE t4 SET c1 = repeat('1', 4000), foo=1 WHERE id=1;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000));
+UPDATE t4 SET c1 = repeat('2', 4000), foo=1 WHERE id=2;
+ROLLBACK;
+BEGIN;
+UPDATE t4 SET d1 = 1,foo=2 WHERE id=1;
+INSERT INTO t4 (id,foo,c1) VALUES (1, 1, REPEAT('1', 4000));
+COMMIT;
 CREATE TABLE big
 (id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
 p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
@@ -1133,11 +1181,11 @@ clust_index_size
 3
 connection default;
 InnoDB		0 transactions not purged
-DROP TABLE t1,t2,t3,big;
+DROP TABLE t1,t2,t3,t4,big;
 disconnect analyze;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-30
+33
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
