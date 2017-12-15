@@ -5957,9 +5957,11 @@ rdb_is_index_collation_supported(const my_core::Field *const field) {
   const my_core::enum_field_types type = field->real_type();
   /* Handle [VAR](CHAR|BINARY) or TEXT|BLOB */
   if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_STRING ||
-      type == MYSQL_TYPE_BLOB) {
-    return RDB_INDEX_COLLATIONS.find(field->charset()->number) !=
-           RDB_INDEX_COLLATIONS.end();
+      type == MYSQL_TYPE_BLOB)  {
+
+    return (RDB_INDEX_COLLATIONS.find(field->charset()->number) !=
+            RDB_INDEX_COLLATIONS.end()) ||
+            rdb_is_collation_supported(field->charset());
   }
   return true;
 }
@@ -6118,18 +6120,10 @@ int ha_rocksdb::create_cfs(
             !rdb_is_index_collation_supported(
                 table_arg->key_info[i].key_part[part].field) &&
             !rdb_collation_exceptions->matches(tablename_sys)) {
-          std::string collation_err;
-          for (const auto &coll : RDB_INDEX_COLLATIONS) {
-            if (collation_err != "") {
-              collation_err += ", ";
-            }
-            collation_err += get_charset_name(coll);
-          }
-          my_error(ER_UNSUPPORTED_COLLATION, MYF(0),
+
+          my_error(ER_MYROCKS_COLLATION_IS_LIMITED, MYF(ME_JUST_WARNING),
                    tbl_def_arg->full_tablename().c_str(),
-                   table_arg->key_info[i].key_part[part].field->field_name,
-                   collation_err.c_str());
-          DBUG_RETURN(HA_EXIT_FAILURE);
+                   table_arg->key_info[i].key_part[part].field->field_name);
         }
       }
     }

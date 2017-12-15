@@ -279,8 +279,15 @@ DROP TABLE t1;
 set @tmp_rocksdb_strict_collation_check= @@rocksdb_strict_collation_check;
 set global rocksdb_strict_collation_check=1;
 CREATE TABLE t1 (a INT, b TEXT);
+# MariaDB no longer gives ER_UNSUPPORTED_COLLATION
 ALTER TABLE t1 ADD KEY kb(b(10));
-ERROR HY000: Unsupported collation on string indexed column test.t1.b Use binary collation (latin1_bin, binary, utf8_bin).
+ALTER TABLE t1 ADD PRIMARY KEY(a);
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b TEXT collate utf8_general_ci);
+# MariaDB no longer gives ER_UNSUPPORTED_COLLATION
+ALTER TABLE t1 ADD KEY kb(b(10));
+Warnings:
+Warning	4078	Indexed column test.t1.b uses a collation that does not allow index-only access in secondary key and has reduced disk space efficiency in primary key.
 ALTER TABLE t1 ADD PRIMARY KEY(a);
 DROP TABLE t1;
 set global rocksdb_strict_collation_check= @tmp_rocksdb_strict_collation_check;

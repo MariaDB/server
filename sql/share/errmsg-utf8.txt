@@ -7753,3 +7753,6 @@ ER_GEOJSON_EMPTY_COORDINATES
 ER_MYROCKS_CANT_NOPAD_COLLATION
   eng "MyRocks doesn't currently support collations with \"No pad\" attribute."
 
+ER_MYROCKS_COLLATION_IS_LIMITED
+  eng "Indexed column %s.%s uses a collation that does not allow index-only access in secondary key and has reduced disk space efficiency in primary key."
+
