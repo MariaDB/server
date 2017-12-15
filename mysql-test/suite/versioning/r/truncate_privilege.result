@@ -13,8 +13,8 @@ GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost'
 truncate mysqltest.t to system_time now();
 ERROR 42000: DELETE VERSIONING ROWS command denied to user 'mysqltest_1'@'localhost' for table 't'
 connection root;
-grant delete versioning rows on mysqltest.* to mysqltest_1@localhost;
-grant delete versioning rows on mysqltest.t to mysqltest_1@localhost;
+grant delete history on mysqltest.* to mysqltest_1@localhost;
+grant delete history on mysqltest.t to mysqltest_1@localhost;
 connection user1;
 show grants;
 Grants for mysqltest_1@localhost

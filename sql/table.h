@@ -1886,8 +1886,9 @@ struct vers_select_conds_t
 
   Item *fix_dec(Item *item);
 
-  void init( vers_range_type_t t, vers_range_unit_t u_start,
-    Item * s, vers_range_unit_t u_end, Item * e);
+  void init(vers_range_type_t t, vers_range_unit_t u_start= UNIT_AUTO,
+            Item * s= NULL, vers_range_unit_t u_end= UNIT_AUTO,
+            Item * e= NULL);
 
   bool init_from_sysvar(THD *thd);
 

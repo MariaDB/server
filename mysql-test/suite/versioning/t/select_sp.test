@@ -93,12 +93,12 @@ begin
   delete from t1;
   delete from t2;
 
-  select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x
-  for system_time as of timestamp @t0;
-  select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x
-  for system_time as of timestamp @t0;
-  select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x
-  for system_time as of timestamp @t0;
+  select IJ2_x1,y1,x2,y2 from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
+  for system_time as of timestamp @t0 as t;
+  select LJ2_x1,y1,x2,y2 from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
+  for system_time as of timestamp @t0 as t;
+  select RJ2_x1,y1,x2,y2 from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
+  for system_time as of timestamp @t0 as t;
 
   drop table t1;
   drop table t2;
@@ -192,8 +192,10 @@ delete from t1 where x = 3;
 insert into t2 values (1);
 select * from t1, t2 for system_time all;
 
---error ER_VERS_UNUSED_CLAUSE
-select * from t1 for system_time all, t2 for system_time all for system_time all;
+--error ER_VERS_SYSTEM_TIME_CLASH
+select * from (select * from t1 for system_time all, t2 for system_time all) for system_time all as t;
+--error ER_PARSE_ERROR
+select * from (t1 for system_time all join t2 for system_time all) for system_time all;
 
 drop view v1;
 drop table t1, t2;

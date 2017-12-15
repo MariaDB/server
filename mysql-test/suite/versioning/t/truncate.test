@@ -34,8 +34,8 @@ create or replace table t (a int)
 with system versioning
 engine myisam
 partition by system_time (
-    partition p0 versioning,
-    partition pn as of current_timestamp);
+    partition p0 history,
+    partition pn current);
 
 --error ER_NOT_ALLOWED_COMMAND
 truncate table t to system_time current_timestamp;

@@ -22,10 +22,10 @@ select * from t1 for system_time all;
 x
 3
 300
-select * from t1 partition (p0) for system_time all;
+select * from t1 partition (p0);
 x
 3
-select * from t1 partition (p1) for system_time all;
+select * from t1 partition (p1);
 x
 300
 ### Engine change versioned/non-versioned prohibited
@@ -35,50 +35,50 @@ ERROR HY000: Not allowed for versioned `test`.`t1`. Change to/from native versio
 ### check server-level partitioning
 create or replace table t1 (x int)
 partition by system_time (
-partition p0 versioning,
-partition pn as of current_timestamp);
+partition p0 history,
+partition pn current);
 ERROR HY000: Engine does not support System Versioning for `t1`
 create or replace table t1 (x int);
 alter table t1
 partition by system_time (
-partition p0 versioning,
-partition pn as of current_timestamp);
+partition p0 history,
+partition pn current);
 Got one of the listed errors
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-partition p0 as of current_timestamp);
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+partition p0 current);
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one HISTORY and exactly one last CURRENT
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-partition p0 as of current_timestamp,
-partition p1 as of current_timestamp);
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+partition p0 current,
+partition p1 current);
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one HISTORY and exactly one last CURRENT
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-partition p0 versioning,
-partition p1 versioning);
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+partition p0 history,
+partition p1 history);
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one HISTORY and exactly one last CURRENT
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-partition pn as of current_timestamp,
-partition p0 versioning);
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+partition pn current,
+partition p0 history);
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one HISTORY and exactly one last CURRENT
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-partition p0 versioning,
-partition pn as of current_timestamp);
+partition p0 history,
+partition pn current);
 alter table t1 add partition (
-partition p1 as of current_timestamp);
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+partition p1 current);
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one HISTORY and exactly one last CURRENT
 alter table t1 add partition (
-partition p1 versioning);
+partition p1 history);
 Warnings:
-Warning	4115	Maybe missing parameters: no rotation condition for multiple `VERSIONING` partitions.
+Warning	4115	Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -88,15 +88,15 @@ t1	CREATE TABLE `t1` (
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=${INNODB_OR_MYISAM} DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME 
-(PARTITION `p0` VERSIONING ENGINE = ${INNODB_OR_MYISAM},
- PARTITION `p1` VERSIONING ENGINE = ${INNODB_OR_MYISAM},
- PARTITION `pn` AS OF CURRENT_TIMESTAMP ENGINE = ${INNODB_OR_MYISAM})
+(PARTITION `p0` HISTORY ENGINE = ${INNODB_OR_MYISAM},
+ PARTITION `p1` HISTORY ENGINE = ${INNODB_OR_MYISAM},
+ PARTITION `pn` CURRENT ENGINE = ${INNODB_OR_MYISAM})
 insert into t1 values (1), (2);
 alter table t1 drop partition pn;
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one HISTORY and exactly one last CURRENT
 alter table t1 drop partition p1;
 alter table t1 drop partition p0;
-ERROR HY000: Wrong partitions consistency for `t1`: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'
+ERROR HY000: Wrong partitions consistency for `t1`: must have at least one HISTORY and exactly one last CURRENT
 select x from t1;
 x
 1
@@ -104,15 +104,15 @@ x
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-partition p0 versioning,
-partition pn as of current_timestamp);
+partition p0 history,
+partition pn current);
 set @now= now(6);
 insert into t1 values (1);
 set @ts_start= sys_commit_ts('sys_trx_start');
 set @ts_end= sys_commit_ts('sys_trx_end');
-set @str= concat('select x, ', @ts_start, ' < @now as A, ', @ts_end, ' > @now as B from t1 partition (p0) for system_time all');
+set @str= concat('select x, ', @ts_start, ' < @now as A, ', @ts_end, ' > @now as B from t1 partition (p0)');
 prepare select_p0 from @str;
-set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn) for system_time all');
+set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn)');
 prepare select_pn from @str;
 execute select_p0;
 x	A	B
@@ -133,7 +133,7 @@ x	A	B
 1	1	1
 execute select_pn;
 x	C	D
-set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all into @ts1');
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) into @ts1');
 prepare stmt from @str;
 execute stmt;
 drop prepare stmt;
@@ -163,11 +163,11 @@ x	C	D
 3	1	1
 drop prepare select_p0;
 drop prepare select_pn;
-set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all where x = 2 into @ts1');
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) where x = 2 into @ts1');
 prepare stmt from @str;
 execute stmt;
 drop prepare stmt;
-set @str= concat('select ', @ts_end, ' from t1 partition (p0) for system_time all where x = 2 into @ts2');
+set @str= concat('select ', @ts_end, ' from t1 partition (p0) where x = 2 into @ts2');
 prepare stmt from @str;
 execute stmt;
 drop prepare stmt;
@@ -184,16 +184,16 @@ select @ts2 = @ts3;
 create or replace table t1 (x int)
 with system versioning
 partition by system_time limit 0 (
-partition p0 versioning,
-partition p1 versioning,
-partition pn as of current_timestamp);
+partition p0 history,
+partition p1 history,
+partition pn current);
 ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'LIMIT'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time limit 1 (
-partition p0 versioning,
-partition p1 versioning,
-partition pn as of current_timestamp);
+partition p0 history,
+partition p1 history,
+partition pn current);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -203,9 +203,9 @@ t1	CREATE TABLE `t1` (
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=${INNODB_OR_MYISAM} DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME LIMIT 1
-(PARTITION `p0` VERSIONING ENGINE = ${INNODB_OR_MYISAM},
- PARTITION `p1` VERSIONING ENGINE = ${INNODB_OR_MYISAM},
- PARTITION `pn` AS OF CURRENT_TIMESTAMP ENGINE = ${INNODB_OR_MYISAM})
+(PARTITION `p0` HISTORY ENGINE = ${INNODB_OR_MYISAM},
+ PARTITION `p1` HISTORY ENGINE = ${INNODB_OR_MYISAM},
+ PARTITION `pn` CURRENT ENGINE = ${INNODB_OR_MYISAM})
 alter table t1 drop partition non_existent;
 ERROR HY000: Error in list of partitions to DROP
 insert into t1 values (1), (2);
@@ -215,34 +215,34 @@ x
 2
 delete from t1;
 Warnings:
-Note	4116	Switching from partition `p0` to `p1`
-select * from t1 partition (p0) for system_time all;
+Note	4116	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
+select * from t1 partition (p0);
 x
 1
-select * from t1 partition (p1) for system_time all;
+select * from t1 partition (p1);
 x
 2
 insert into t1 values (3);
 delete from t1;
 Warnings:
-Warning	4114	Using full partition `p1`, need more VERSIONING partitions!
-select * from t1 partition (p1) for system_time all;
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+select * from t1 partition (p1);
 x
 2
 3
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 0 second (
-partition p0 versioning,
-partition p1 versioning,
-partition pn as of current_timestamp);
+partition p0 history,
+partition p1 history,
+partition pn current);
 ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'INTERVAL'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 1 second (
-partition p0 versioning,
-partition p1 versioning,
-partition pn as of current_timestamp);
+partition p0 history,
+partition p1 history,
+partition pn current);
 insert into t1 values (1), (2), (3);
 select * from t1 partition (pn);
 x
@@ -250,7 +250,7 @@ x
 2
 3
 delete from t1;
-select * from t1 partition (p0) for system_time all;
+select * from t1 partition (p0);
 x
 1
 2
@@ -258,8 +258,8 @@ x
 insert into t1 values (4);
 delete from t1;
 Warnings:
-Note	4116	Switching from partition `p0` to `p1`
-select * from t1 partition (p1) for system_time all;
+Note	4116	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
+select * from t1 partition (p1);
 x
 4
 create or replace table t1 (x int)
@@ -267,9 +267,9 @@ with system versioning
 partition by system_time limit 1
 subpartition by key (x)
 subpartitions 2 (
-partition p0 versioning,
-partition p1 versioning,
-partition pn as of current_timestamp);
+partition p0 history,
+partition p1 history,
+partition pn current);
 insert into t1 (x) values (1), (2), (3);
 select * from t1 partition (pnsp0);
 x
@@ -280,17 +280,17 @@ x
 2
 delete from t1;
 Warnings:
-Note	4116	Switching from partition `p0` to `p1`
-Warning	4114	Using full partition `p1`, need more VERSIONING partitions!
-select * from t1 partition (p0sp0) for system_time all;
+Note	4116	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+select * from t1 partition (p0sp0);
 x
 1
-select * from t1 partition (p0sp1) for system_time all;
+select * from t1 partition (p0sp1);
 x
-select * from t1 partition (p1sp0) for system_time all;
+select * from t1 partition (p1sp0);
 x
 3
-select * from t1 partition (p1sp1) for system_time all;
+select * from t1 partition (p1sp1);
 x
 2
 create or replace table t1 (a bigint)

@@ -387,19 +387,19 @@ static Sys_var_charptr Sys_my_bind_addr(
        READ_ONLY GLOBAL_VAR(my_bind_addr_str), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(0));
 
-const char *Sys_var_vers_asof::asof_keywords[]= {"CURRENT", "ALL", NULL};
+const char *Sys_var_vers_asof::asof_keywords[]= {"DEFAULT", NULL};
 static Sys_var_vers_asof Sys_vers_asof_timestamp(
-       "versioning_asof_timestamp", "Default AS OF value for versioned queries",
+       "system_versioning_asof", "Default value for the FOR SYSTEM_TIME AS OF clause",
        SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
        Sys_var_vers_asof::asof_keywords, DEFAULT(FOR_SYSTEM_TIME_UNSPECIFIED));
 
 static Sys_var_mybool Sys_vers_force(
-       "versioning_force", "Force system versioning for all created tables",
+       "system_versioning_force", "Force system versioning for all created tables",
        SESSION_VAR(vers_force), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static const char *vers_hide_keywords[]= {"AUTO", "IMPLICIT", "FULL", "NEVER", NULL};
 static Sys_var_enum Sys_vers_hide(
-       "versioning_hide", "Hide system versioning from being displayed in table info. "
+       "system_versioning_hide", "Hide system versioning from being displayed in table info. "
        "AUTO: hide implicit system fields only in non-versioned and AS OF queries; "
        "IMPLICIT: hide implicit system fields in all queries; "
        "FULL: hide any system fields in all queries and hide versioning info in SHOW commands; "
@@ -408,14 +408,14 @@ static Sys_var_enum Sys_vers_hide(
        vers_hide_keywords, DEFAULT(VERS_HIDE_AUTO));
 
 static Sys_var_mybool Sys_vers_innodb_algorithm_simple(
-       "versioning_innodb_algorithm_simple",
+       "system_versioning_innodb_algorithm_simple",
        "Use simple algorithm of timestamp handling in InnoDB instead of TRX_SEES",
        SESSION_VAR(vers_innodb_algorithm_simple), CMD_LINE(OPT_ARG),
        DEFAULT(TRUE));
 
 static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP",/* "SURVIVE", "DROP",*/ NULL};
 static Sys_var_enum Sys_vers_alter_history(
-       "versioning_alter_history", "Versioning ALTER TABLE mode. "
+       "system_versioning_alter_history", "Versioning ALTER TABLE mode. "
        "ERROR: Fail ALTER with error; " /* TODO: fail only when history non-empty */
        "KEEP: Keep historical system rows and subject them to ALTER; "
        /*"SURVIVE: Keep historical system rows intact; "

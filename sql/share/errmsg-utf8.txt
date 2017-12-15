@@ -7837,13 +7837,13 @@ ER_PARTITION_WRONG_TYPE
         eng "Wrong partition type, expected type: %`s"
 
 WARN_VERS_PART_FULL
-        eng "Using full partition %`s, need more VERSIONING partitions!"
+        eng "Versioned table %`s.%`s: partition %`s is full, add more HISTORY partitions"
 
 WARN_VERS_PARAMETERS
         eng "Maybe missing parameters: %s"
 
 WARN_VERS_PART_ROTATION
-        eng "Switching from partition %`s to %`s"
+        eng "Versioned table %`s.%`s: switching from partition %`s to %`s"
 
 WARN_VERS_TRX_MISSING
         eng "VTQ missing transaction ID %lu"
@@ -7852,7 +7852,7 @@ WARN_VERS_PART_NON_HISTORICAL
         eng "Partition %`s contains non-historical data"
 
 ER_VERS_ALTER_NOT_ALLOWED
-        eng "Not allowed for versioned %`s.%`s. Change `versioning_alter_history` to proceed with ALTER."
+        eng "Not allowed for versioned %`s.%`s. Change @@system_versioning_alter_history to proceed with ALTER."
 
 ER_VERS_ALTER_ENGINE_PROHIBITED
         eng "Not allowed for versioned %`s.%`s. Change to/from native versioning engine is prohibited."
@@ -7897,7 +7897,7 @@ ER_PART_WRONG_VALUE
         eng "Wrong parameters for partitioned %`s: wrong value for '%s'"
 
 ER_VERS_WRONG_PARTS
-        eng "Wrong partitions consistency for %`s: must have at least one 'VERSIONING' and exactly one last 'AS OF NOW'"
+        eng "Wrong partitions consistency for %`s: must have at least one HISTORY and exactly one last CURRENT"
 
 ER_VERS_HISTORY_LOCK
         eng "Versioned SELECT write-locking of history rows"

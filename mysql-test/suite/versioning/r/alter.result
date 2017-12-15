@@ -1,5 +1,5 @@
-select @@versioning_alter_history;
-@@versioning_alter_history
+select @@system_versioning_alter_history;
+@@system_versioning_alter_history
 ERROR
 create table t(
 a int
@@ -21,7 +21,7 @@ t	CREATE TABLE `t` (
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column y int;
-ERROR HY000: Not allowed for versioned `test`.`t`. Change `versioning_alter_history` to proceed with ALTER.
+ERROR HY000: Not allowed for versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
 alter table t engine innodb;
 ERROR HY000: Not allowed for versioned `test`.`t`. Change to/from native versioning engine is prohibited.
 alter table t drop system versioning;
@@ -30,7 +30,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-set versioning_alter_history= keep;
+set system_versioning_alter_history= keep;
 alter table t
 add column trx_start bigint(20) unsigned generated always as row start,
 add column trx_end bigint(20) unsigned generated always as row end,
@@ -398,6 +398,16 @@ t	CREATE TABLE `t` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 call verify_vtq;
 No	A	B	C	D
+create or replace table t (a int);
+insert t values (1),(2),(3),(4);
+alter table t add b int auto_increment null unique;
+select * from t;
+a	b
+1	1
+2	2
+3	3
+4	4
+drop table t;
 create or replace table t (a int) with system versioning engine=innodb;
 insert into t values (1), (2), (3);
 delete from t where a<3;
@@ -493,10 +503,10 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-set versioning_alter_history= SURVIVE;
-ERROR 42000: Variable 'versioning_alter_history' can't be set to the value of 'SURVIVE'
-set versioning_alter_history= DROP;
-ERROR 42000: Variable 'versioning_alter_history' can't be set to the value of 'DROP'
+set system_versioning_alter_history= SURVIVE;
+ERROR 42000: Variable 'system_versioning_alter_history' can't be set to the value of 'SURVIVE'
+set system_versioning_alter_history= DROP;
+ERROR 42000: Variable 'system_versioning_alter_history' can't be set to the value of 'DROP'
 create or replace table t (a int) with system versioning;
 alter table t add system versioning;
 ERROR HY000: Table `t` is already system-versioned table

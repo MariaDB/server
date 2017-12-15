@@ -740,12 +740,8 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   } while(0)
 
 
-inline void vers_select_conds_t::init(
-    vers_range_type_t t,
-    vers_range_unit_t u_start= UNIT_AUTO,
-    Item * s= NULL,
-    vers_range_unit_t u_end= UNIT_AUTO,
-    Item * e= NULL)
+void vers_select_conds_t::init(vers_range_type_t t, vers_range_unit_t u_start,
+                               Item *s, vers_range_unit_t u_end, Item *e)
 {
   type= t;
   unit_start= u_start;
@@ -755,7 +751,7 @@ inline void vers_select_conds_t::init(
   from_query= false;
 }
 
-inline Item *vers_select_conds_t::fix_dec(Item *item)
+Item *vers_select_conds_t::fix_dec(Item *item)
 {
   if (item && item->decimals == 0 && item->type() == Item::FUNC_ITEM &&
       ((Item_func*)item)->functype() == Item_func::NOW_FUNC)
@@ -896,10 +892,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 125 shift/reduce conflicts.
+  Currently there are 122 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 125
+%expect 122
 
 /*
    Comments for TOKENS.
@@ -1161,6 +1157,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  HEX_STRING
 %token  HIGH_PRIORITY
 %token  INVISIBLE_SYM
+%token  HISTORY_SYM                   /* MYSQL */
 %token  HOST_SYM
 %token  HOSTS_SYM
 %token  HOUR_MICROSECOND_SYM
@@ -5465,7 +5462,7 @@ opt_part_values:
               part_info->part_type= LIST_PARTITION;
           }
           part_values_in {}
-        | AS OF_SYM NOW_SYM
+        | CURRENT_SYM
           {
             LEX *lex= Lex;
             partition_info *part_info= lex->part_info;
@@ -5484,7 +5481,7 @@ opt_part_values:
               my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0),
                 Lex->create_last_non_select_table->table_name));
             }
-            elem->type(partition_element::AS_OF_NOW);
+            elem->type(partition_element::CURRENT);
             DBUG_ASSERT(part_info->vers_info);
             part_info->vers_info->now_part= elem;
             if (part_info->init_column_part(thd))
@@ -5492,7 +5489,7 @@ opt_part_values:
               MYSQL_YYABORT;
             }
           }
-        | VERSIONING_SYM
+        | HISTORY_SYM
           {
             LEX *lex= Lex;
             partition_info *part_info= lex->part_info;
@@ -5515,7 +5512,7 @@ opt_part_values:
               DBUG_ASSERT(Lex->create_last_non_select_table->table_name);
               my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0), Lex->create_last_non_select_table->table_name));
             }
-            elem->type(partition_element::VERSIONING);
+            elem->type(partition_element::HISTORY);
             if (part_info->init_column_part(thd))
             {
               MYSQL_YYABORT;
@@ -9135,7 +9132,6 @@ table_expression:
           opt_group_clause
           opt_having_clause
           opt_window_clause
-          opt_system_time_clause
         ;
 
 opt_table_expression:
@@ -9182,32 +9178,6 @@ opt_trans_or_timestamp:
         | TIMESTAMP
           {
             $$ = UNIT_TIMESTAMP;
-          }
-        ;
-
-opt_system_time_clause:
-          /* empty */
-          {}
-        | FOR_SYSTEM_TIME_SYM system_time_expr
-          {
-            DBUG_ASSERT(Select);
-            int used= 0;
-            if (Lex->vers_conditions)
-            {
-              for (TABLE_LIST *table= Select->table_list.first; table; table= table->next_local)
-              {
-                if (!table->vers_conditions)
-                {
-                  table->vers_conditions= Lex->vers_conditions;
-                  table->vers_conditions.from_query= true;
-                  used++;
-                }
-              }
-              if (!used)
-              {
-                my_yyabort_error((ER_VERS_UNUSED_CLAUSE, MYF(0), "SYSTEM_TIME"));
-              }
-            }
           }
         ;
 
@@ -11860,7 +11830,10 @@ table_primary_derived:
                 !$$->derived->first_select()->next_select())
               $$->select_lex->add_where_field($$->derived->first_select());
             if ($5)
+            {
+              MYSQL_YYABORT_UNLESS(!$3);
               $$->vers_conditions= Lex->vers_conditions;
+            }
           }
           /* Represents derived table with WITH clause */
         | '(' get_select_lex subselect_start
@@ -15528,6 +15501,7 @@ keyword_sp_not_data_type:
         | HASH_SYM                 {}
         | HARD_SYM                 {}
         | INVISIBLE_SYM            {}
+        | HISTORY_SYM              {}
         | HOSTS_SYM                {}
         | HOUR_SYM                 {}
         | ID_SYM                   {}
@@ -16558,7 +16532,7 @@ object_privilege:
         | EVENT_SYM               { Lex->grant |= EVENT_ACL;}
         | TRIGGER_SYM             { Lex->grant |= TRIGGER_ACL; }
         | CREATE TABLESPACE       { Lex->grant |= CREATE_TABLESPACE_ACL; }
-        | DELETE_SYM VERSIONING_SYM ROWS_SYM  { Lex->grant |= DELETE_VERSIONING_ROWS_ACL; }
+        | DELETE_SYM HISTORY_SYM  { Lex->grant |= DELETE_HISTORY_ACL; }
         ;
 
 opt_and:

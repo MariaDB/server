@@ -4395,7 +4395,7 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
       uint sub_factor= m_part_info->num_subparts ? m_part_info->num_subparts : 1;
       DBUG_ASSERT(m_tot_parts == m_part_info->num_parts * sub_factor);
       uint lpart_id= new_part_id / sub_factor;
-      // lpart_id is VERSIONING partition because new_part_id != old_part_id
+      // lpart_id is HISTORY partition because new_part_id != old_part_id
       m_part_info->vers_update_stats(thd, lpart_id);
     }
 

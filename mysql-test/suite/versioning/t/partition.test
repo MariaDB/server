@@ -1,3 +1,4 @@
+-- source include/have_partition.inc
 -- source suite/versioning/common.inc
 
 --echo ### check System Versioning and conventional partitioning
@@ -16,8 +17,8 @@ select * from t1 partition (p1);
 delete from t1;
 select * from t1;
 select * from t1 for system_time all;
-select * from t1 partition (p0) for system_time all;
-select * from t1 partition (p1) for system_time all;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
 
 --echo ### Engine change versioned/non-versioned prohibited
 eval create or replace table t1 (i int) engine=$default_engine with system versioning partition by hash(i);
@@ -30,56 +31,56 @@ eval alter table t1 engine=$non_default_engine;
 --error ER_VERS_ENGINE_UNSUPPORTED
 create or replace table t1 (x int)
 partition by system_time (
-    partition p0 versioning,
-    partition pn as of current_timestamp);
+    partition p0 history,
+    partition pn current);
 
 create or replace table t1 (x int);
 --error ER_VERS_ENGINE_UNSUPPORTED,ER_VERS_ENGINE_UNSUPPORTED
 alter table t1
 partition by system_time (
-    partition p0 versioning,
-    partition pn as of current_timestamp);
+    partition p0 history,
+    partition pn current);
 
 --error ER_VERS_WRONG_PARTS
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-    partition p0 as of current_timestamp);
+    partition p0 current);
 
 --error ER_VERS_WRONG_PARTS
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-    partition p0 as of current_timestamp,
-    partition p1 as of current_timestamp);
+    partition p0 current,
+    partition p1 current);
 
 --error ER_VERS_WRONG_PARTS
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-    partition p0 versioning,
-    partition p1 versioning);
+    partition p0 history,
+    partition p1 history);
 
 --error ER_VERS_WRONG_PARTS
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-    partition pn as of current_timestamp,
-    partition p0 versioning);
+    partition pn current,
+    partition p0 history);
 
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-    partition p0 versioning,
-    partition pn as of current_timestamp);
+    partition p0 history,
+    partition pn current);
 
 # alter table
 --error ER_VERS_WRONG_PARTS
 alter table t1 add partition (
-    partition p1 as of current_timestamp);
+    partition p1 current);
 
 alter table t1 add partition (
-    partition p1 versioning);
+    partition p1 history);
 
 --replace_result InnoDB ${INNODB_OR_MYISAM} MyISAM ${INNODB_OR_MYISAM} "bigint(20) unsigned" ${SYS_TRX_TYPE} timestamp(6) ${SYS_TRX_TYPE}
 show create table t1;
@@ -98,16 +99,16 @@ select x from t1;
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-    partition p0 versioning,
-    partition pn as of current_timestamp);
+    partition p0 history,
+    partition pn current);
 
 set @now= now(6);
 insert into t1 values (1);
 set @ts_start= sys_commit_ts('sys_trx_start');
 set @ts_end= sys_commit_ts('sys_trx_end');
-set @str= concat('select x, ', @ts_start, ' < @now as A, ', @ts_end, ' > @now as B from t1 partition (p0) for system_time all');
+set @str= concat('select x, ', @ts_start, ' < @now as A, ', @ts_end, ' > @now as B from t1 partition (p0)');
 prepare select_p0 from @str;
-set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn) for system_time all');
+set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn)');
 prepare select_pn from @str;
 
 execute select_p0;
@@ -125,7 +126,7 @@ delete from t1;
 execute select_p0;
 execute select_pn;
 
-set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all into @ts1');
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) into @ts1');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 
 select @ts0 = @ts1;
@@ -146,9 +147,9 @@ execute select_pn;
 drop prepare select_p0;
 drop prepare select_pn;
 
-set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all where x = 2 into @ts1');
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) where x = 2 into @ts1');
 prepare stmt from @str; execute stmt; drop prepare stmt;
-set @str= concat('select ', @ts_end, ' from t1 partition (p0) for system_time all where x = 2 into @ts2');
+set @str= concat('select ', @ts_end, ' from t1 partition (p0) where x = 2 into @ts2');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts3');
 prepare stmt from @str; execute stmt; drop prepare stmt;
@@ -161,16 +162,16 @@ select @ts2 = @ts3;
 create or replace table t1 (x int)
 with system versioning
 partition by system_time limit 0 (
-    partition p0 versioning,
-    partition p1 versioning,
-    partition pn as of current_timestamp);
+    partition p0 history,
+    partition p1 history,
+    partition pn current);
 
 create or replace table t1 (x int)
 with system versioning
 partition by system_time limit 1 (
-    partition p0 versioning,
-    partition p1 versioning,
-    partition pn as of current_timestamp);
+    partition p0 history,
+    partition p1 history,
+    partition pn current);
 
 --replace_result InnoDB ${INNODB_OR_MYISAM} MyISAM ${INNODB_OR_MYISAM} "bigint(20) unsigned" ${SYS_TRX_TYPE} timestamp(6) ${SYS_TRX_TYPE}
 show create table t1;
@@ -181,38 +182,38 @@ alter table t1 drop partition non_existent;
 insert into t1 values (1), (2);
 select * from t1 partition (pn);
 delete from t1;
-select * from t1 partition (p0) for system_time all;
-select * from t1 partition (p1) for system_time all;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
 
 insert into t1 values (3);
 delete from t1;
-select * from t1 partition (p1) for system_time all;
+select * from t1 partition (p1);
 
 # rotation by INTERVAL
 --error ER_PART_WRONG_VALUE
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 0 second (
-    partition p0 versioning,
-    partition p1 versioning,
-    partition pn as of current_timestamp);
+    partition p0 history,
+    partition p1 history,
+    partition pn current);
 
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 1 second (
-    partition p0 versioning,
-    partition p1 versioning,
-    partition pn as of current_timestamp);
+    partition p0 history,
+    partition p1 history,
+    partition pn current);
 
 insert into t1 values (1), (2), (3);
 select * from t1 partition (pn);
 delete from t1;
-select * from t1 partition (p0) for system_time all;
+select * from t1 partition (p0);
 
 --sleep 2
 insert into t1 values (4);
 delete from t1;
-select * from t1 partition (p1) for system_time all;
+select * from t1 partition (p1);
 
 # Subpartitions
 create or replace table t1 (x int)
@@ -220,19 +221,19 @@ with system versioning
 partition by system_time limit 1
 subpartition by key (x)
 subpartitions 2 (
-    partition p0 versioning,
-    partition p1 versioning,
-    partition pn as of current_timestamp);
+    partition p0 history,
+    partition p1 history,
+    partition pn current);
 
 insert into t1 (x) values (1), (2), (3);
 select * from t1 partition (pnsp0);
 select * from t1 partition (pnsp1);
 
 delete from t1;
-select * from t1 partition (p0sp0) for system_time all;
-select * from t1 partition (p0sp1) for system_time all;
-select * from t1 partition (p1sp0) for system_time all;
-select * from t1 partition (p1sp1) for system_time all;
+select * from t1 partition (p0sp0);
+select * from t1 partition (p0sp1);
+select * from t1 partition (p1sp0);
+select * from t1 partition (p1sp1);
 
 create or replace table t1 (a bigint)
 with system versioning

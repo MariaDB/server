@@ -156,8 +156,8 @@ public:
   enum elem_type
   {
     CONVENTIONAL= 0,
-    AS_OF_NOW,
-    VERSIONING
+    CURRENT,
+    HISTORY
   };
 
   List<partition_element> subpartitions;

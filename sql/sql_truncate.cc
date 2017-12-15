@@ -498,7 +498,7 @@ bool Sql_cmd_truncate_table::execute(THD *thd)
 
   if (table->vers_conditions)
   {
-    if (check_one_table_access(thd, DELETE_VERSIONING_ROWS_ACL, table))
+    if (check_one_table_access(thd, DELETE_HISTORY_ACL, table))
       DBUG_RETURN(res);
     DBUG_RETURN(mysql_delete(thd, table, NULL, NULL, -1, 0, NULL));
   }

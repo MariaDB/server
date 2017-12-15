@@ -57,18 +57,17 @@ as
 select * from ancestors";
 prepare stmt from @tmp; execute stmt; drop prepare stmt;
 
+#385
 with recursive
 ancestors
 as
 (
   select e.emp_id, e.name, e.mgr
-  from emp as e
+  from emp for system_time as of timestamp @ts as e
   where name = 'bill'
-  for system_time as of timestamp @ts
   union
   select ee.emp_id, ee.name, ee.mgr
-  from emp
-  for system_time as of timestamp @ts as ee,
+  from emp for system_time as of timestamp @ts as ee,
   ancestors as a
   where ee.mgr = a.emp_id
 )
@@ -79,9 +78,8 @@ ancestors
 as
 (
   select e.emp_id, e.name, e.mgr
-  from emp as e
+  from emp for system_time as of timestamp @ts as e
   where name = 'bill'
-  for system_time as of timestamp @ts
   union
   select ee.emp_id, ee.name, ee.mgr
   from emp for system_time as of timestamp @ts as ee,
@@ -125,7 +123,7 @@ select * from (select * from vt1, t2) as s0;
 
 --echo ### SYSTEM_TIME clash
 --error ER_VERS_SYSTEM_TIME_CLASH
-select * from (select * from t1 for system_time all) dt0 for system_time all;
+select * from (select * from t1 for system_time all) for system_time all as dt0;
 --error ER_VERS_SYSTEM_TIME_CLASH
 select * from vt1 for system_time all;
 --error ER_VERS_SYSTEM_TIME_CLASH
