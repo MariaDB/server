@@ -43,6 +43,7 @@
 #include "rpl_filter.h"
 #include "sql_cte.h"
 #include "ha_sequence.h"
+#include "sql_show.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -1175,7 +1176,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   const uchar *frm_image_end = frm_image + frm_length;
   uchar *record, *null_flags, *null_pos, *mysql57_vcol_null_pos= 0;
   const uchar *disk_buff, *strpos;
-  ulong pos, record_offset; 
+  ulong pos, record_offset;
   ulong rec_buff_length;
   handler *handler_file= 0;
   KEY	*keyinfo;
@@ -1298,12 +1299,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           goto err;
         system_period = extra2;
         break;
-      case EXTRA2_FIELD_FLAGS:
-        if (extra2_field_flags)
-          goto err;
-        extra2_field_flags= extra2;
-        extra2_field_flags_length= length;
-        break;
       case EXTRA2_VTMD:
         if (vtmd_used)
           goto err;
@@ -1314,6 +1309,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           share->no_replicate= true;
         }
         vtmd_used= true;
+        break;
+      case EXTRA2_FIELD_FLAGS:
+        if (extra2_field_flags)
+          goto err;
+        extra2_field_flags= extra2;
+        extra2_field_flags_length= length;
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -1631,7 +1632,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   memcpy(record, frm_image + record_offset, share->reclength);
 
   disk_buff= frm_image + pos + FRM_FORMINFO_SIZE;
-
   share->fields= uint2korr(forminfo+258);
   if (extra2_field_flags && extra2_field_flags_length != share->fields)
     goto err;
@@ -1645,6 +1645,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   vcol_screen_length= uint2korr(forminfo+286);
   share->virtual_fields= share->default_expressions=
     share->field_check_constraints= share->default_fields= 0;
+  share->visible_fields= 0;
   share->stored_fields= share->fields;
   if (forminfo[46] != (uchar)255)
   {
@@ -2052,9 +2053,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       uchar flags= *extra2_field_flags++;
       if (flags & VERS_OPTIMIZED_UPDATE)
         reg_field->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
-      if (flags & HIDDEN)
-        reg_field->flags|= HIDDEN_FLAG;
+      if (flags & VERS_HIDDEN)
+        reg_field->flags|= VERS_HIDDEN_FLAG;
+
+      reg_field->field_visibility= f_visibility(flags);
     }
+    if (reg_field->field_visibility == USER_DEFINED_INVISIBLE)
+      status_var_increment(thd->status_var.feature_invisible_columns);
+    if (reg_field->field_visibility == NOT_INVISIBLE)
+      share->visible_fields++;
     if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
     {
       null_bits_are_used= 1;
@@ -2306,6 +2313,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
         field= key_part->field= share->field[key_part->fieldnr-1];
         key_part->type= field->key_type();
+        if (field->field_visibility > USER_DEFINED_INVISIBLE)
+          keyinfo->flags |= HA_INVISIBLE_KEY;
         if (field->null_ptr)
         {
           key_part->null_offset=(uint) ((uchar*) field->null_ptr -
@@ -5238,7 +5247,6 @@ int TABLE::verify_constraints(bool ignore_failure)
   }
   return(VIEW_CHECK_OK);
 }
-
 
 /*
   Find table in underlying tables by mask and check that only this

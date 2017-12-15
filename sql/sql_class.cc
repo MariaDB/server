@@ -138,7 +138,7 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   columns(rhs.columns, mem_root),
   name(rhs.name),
   option_list(rhs.option_list),
-  generated(rhs.generated)
+  generated(rhs.generated), invisible(false)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }

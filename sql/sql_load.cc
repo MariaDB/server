@@ -1015,7 +1015,6 @@ continue_loop:;
 }
 
 
-
 static int
 read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                List<Item> &fields_vars, List<Item> &set_fields,
@@ -1094,28 +1093,9 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         }
         else
         {
-          Field *field= real_item->field;
-          if (field->reset())
-          {
-            my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0), field->field_name.str,
-                     thd->get_stmt_da()->current_row_for_warning());
+          DBUG_ASSERT(real_item->field->table == table);
+          if (real_item->field->load_data_set_null(thd))
             DBUG_RETURN(1);
-          }
-          field->set_null();
-          if (!field->maybe_null())
-          {
-            /*
-              Timestamp fields that are NOT NULL are autoupdated if there is no
-              corresponding value in the data file.
-            */
-            if (field->type() == MYSQL_TYPE_TIMESTAMP)
-              field->set_time();
-            else if (field != table->next_number_field)
-              field->set_warning(Sql_condition::WARN_LEVEL_WARN,
-                                 ER_WARN_NULL_TO_NOTNULL, 1);
-          }
-          /* Do not auto-update this field. */
-          field->set_has_explicit_value();
 	}
 
 	continue;
@@ -1262,6 +1242,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   
   for ( ; ; it.rewind())
   {
+    bool err;
     if (thd->killed)
     {
       thd->send_kill_message();
@@ -1313,21 +1294,9 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         }
         else
         {
-          Field *field= real_item->field;
-          field->reset();
-          field->set_null();
-          if (field == table->next_number_field)
-            table->auto_increment_field_not_null= TRUE;
-          if (!field->maybe_null())
-          {
-            if (field->type() == FIELD_TYPE_TIMESTAMP)
-              field->set_time();
-            else if (field != table->next_number_field)
-              field->set_warning(Sql_condition::WARN_LEVEL_WARN,
-                                 ER_WARN_NULL_TO_NOTNULL, 1);
-          }
-          /* Do not auto-update this field. */
-          field->set_has_explicit_value();
+          DBUG_ASSERT(real_item->field->table == table);
+          if (real_item->field->load_data_set_null(thd))
+            DBUG_RETURN(1);
         }
         continue;
       }
@@ -1361,39 +1330,8 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       skip_lines--;
       continue;
     }
-    
-    if (item)
-    {
-      /* Have not read any field, thus input file is simply ended */
-      if (item == fields_vars.head())
-        break;
-      
-      for ( ; item; item= it++)
-      {
-        Item_field *real_item= item->field_for_view_update();
-        if (item->type() == Item::STRING_ITEM)
-          ((Item_user_var_as_out_param *)item)->set_null_value(cs);
-        else if (!real_item)
-        {
-          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
-          DBUG_RETURN(1);
-        }
-        else
-        {
-          /*
-            QQ: We probably should not throw warning for each field.
-            But how about intention to always have the same number
-            of warnings in THD::cuted_fields (and get rid of cuted_fields
-            in the end ?)
-          */
-          thd->cuted_fields++;
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                              ER_WARN_TOO_FEW_RECORDS,
-                              ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
-                              thd->get_stmt_da()->current_row_for_warning());
-        }
-      }
-    }
+
+    DBUG_ASSERT(!item);
 
     if (thd->killed ||
         fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
@@ -1410,7 +1348,9 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
     
-    if (write_record(thd, table, &info))
+    err= write_record(thd, table, &info);
+    table->auto_increment_field_not_null= false;
+    if (err)
       DBUG_RETURN(1);
     
     /*

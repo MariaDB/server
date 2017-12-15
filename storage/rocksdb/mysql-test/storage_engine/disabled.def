@@ -14,6 +14,7 @@ lock_concurrent      : MDEV-13148 - LOCK TABLE on RocksDB table fails with a bog
 optimize_table       : MDEV-13148 - LOCK TABLE on RocksDB table fails with a bogus error message
 repair_table         : MDEV-13148 - LOCK TABLE on RocksDB table fails with a bogus error message
 select_high_prio     : Not supported
+show_engine          : SHOW ENGINE produces different number of lines depending on previous tests
 show_table_status    : MDEV-13152 - Indeterministic row number in SHOW TABLE STATUS on RocksDB table
 tbl_opt_data_dir     : Not supported
 tbl_opt_index_dir    : Not supported

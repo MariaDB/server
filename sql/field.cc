@@ -1253,6 +1253,20 @@ warn:
 }
 
 
+bool Field::load_data_set_null(THD *thd)
+{
+  reset();
+  set_null();
+  if (!maybe_null())
+  {
+    if (this != table->next_number_field)
+      set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_NULL_TO_NOTNULL, 1);
+  }
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
 /**
   Numeric fields base class constructor.
 */
@@ -1589,7 +1603,8 @@ String *Field::val_int_as_str(String *val_buffer, bool unsigned_val)
 Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
 	     uchar null_bit_arg,
 	     utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
-  :ptr(ptr_arg), null_ptr(null_ptr_arg), table(0), orig_table(0),
+  :ptr(ptr_arg), field_visibility(NOT_INVISIBLE),
+  null_ptr(null_ptr_arg), table(0), orig_table(0),
   table_name(0), field_name(*field_name_arg), option_list(0),
   option_struct(0), key_start(0), part_of_key(0),
   part_of_key_not_clustered(0), part_of_sortkey(0),
@@ -2223,8 +2238,9 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
   tmp->flags&= (NOT_NULL_FLAG | BLOB_FLAG | UNSIGNED_FLAG |
                 ZEROFILL_FLAG | BINARY_FLAG | ENUM_FLAG | SET_FLAG |
                 VERS_SYS_START_FLAG | VERS_SYS_END_FLAG |
-                VERS_UPDATE_UNVERSIONED_FLAG | HIDDEN_FLAG);
+                VERS_UPDATE_UNVERSIONED_FLAG | VERS_HIDDEN_FLAG);
   tmp->reset_fields();
+  tmp->field_visibility= NOT_INVISIBLE;
   return tmp;
 }
 
@@ -5215,6 +5231,27 @@ int Field_timestamp::set_time()
   store_TIME(get_thd()->query_start(), 0);
   return 0;
 }
+
+
+bool Field_timestamp::load_data_set_null(THD *thd)
+{
+  if (!maybe_null())
+  {
+    /*
+      Timestamp fields that are NOT NULL are autoupdated if there is no
+      corresponding value in the data file.
+    */
+    set_time();
+  }
+  else
+  {
+    reset();
+    set_null();
+  }
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
 
 #ifdef NOT_USED
 static void store_native(ulonglong num, uchar *to, uint bytes)
@@ -8819,6 +8856,22 @@ bool Field_geom::can_optimize_range(const Item_bool_func *cond,
   return item->cmp_type() == STRING_RESULT;
 }
 
+
+bool Field_geom::load_data_set_null(THD *thd)
+{
+  Field_blob::reset();
+  if (!maybe_null())
+  {
+    my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0), field_name.str,
+             thd->get_stmt_da()->current_row_for_warning());
+    return true;
+  }
+  set_null();
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
 #endif /*HAVE_SPATIAL*/
 
 /****************************************************************************
@@ -10697,6 +10750,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   pack_flag= 0;
   compression_method_ptr= 0;
   versioning= VERSIONING_NOT_SET;
+  field_visibility= old_field->field_visibility;
 
   if (orig_field)
   {
@@ -10834,6 +10888,7 @@ Column_definition::redefine_stage1_common(const Column_definition *dup_field,
   flags=        dup_field->flags;
   interval=     dup_field->interval;
   vcol_info=    dup_field->vcol_info;
+  field_visibility= dup_field->field_visibility;
 }
 
 

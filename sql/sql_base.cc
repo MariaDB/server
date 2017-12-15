@@ -5528,7 +5528,11 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, uint length,
 
   if (field_ptr && *field_ptr)
   {
-    *cached_field_index_ptr= (uint)(field_ptr - table->field);
+    if ((*field_ptr)->field_visibility == COMPLETELY_INVISIBLE &&
+        DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+      DBUG_RETURN((Field*)0);
+
+    *cached_field_index_ptr= field_ptr - table->field;
     field= *field_ptr;
   }
   else
@@ -7613,6 +7617,14 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
     for (; !field_iterator.end_of_fields(); field_iterator.next())
     {
+      /*
+        field() is always NULL for views (see, e.g. Field_iterator_view or
+        Field_iterator_natural_join).
+        But view fields can never be invisible.
+      */
+      if ((field= field_iterator.field()) &&
+          field->field_visibility != NOT_INVISIBLE)
+        continue;
       Item *item;
 
       if (!(item= field_iterator.create_item(thd)))
@@ -7637,12 +7649,12 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
               (sql_command == SQLCOM_CREATE_VIEW ||
               slex->nest_level > 0 ||
               vers_hide == VERS_HIDE_FULL ||
-              ((fl & HIDDEN_FLAG) && (
+              ((fl & VERS_HIDDEN_FLAG) && (
                 vers_hide == VERS_HIDE_IMPLICIT ||
                   (vers_hide == VERS_HIDE_AUTO && (
                     vers_type == FOR_SYSTEM_TIME_UNSPECIFIED ||
                     vers_type == FOR_SYSTEM_TIME_AS_OF))))) :
-            (fl & HIDDEN_FLAG))
+            (fl & VERS_HIDDEN_FLAG))
         {
           if (sql_command != SQLCOM_CREATE_TABLE ||
             !(create_options & HA_VERSIONED_TABLE))
@@ -7658,7 +7670,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         {
           Item_field *f= (Item_field *)i;
           DBUG_ASSERT(f->field);
-          if (f->field->flags & HIDDEN_FLAG)
+          if (f->field->flags & VERS_HIDDEN_FLAG)
             continue;
         }
       }
@@ -8273,7 +8285,6 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
                         ? table->next_number_field->field_index
                         : ~0U;
   DBUG_ENTER("fill_record");
-
   if (!*ptr)
   {
     /* No fields to update, quite strange!*/
@@ -8302,7 +8313,10 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
       goto err;
     }
 
-    value=v++;
+    if (field->field_visibility != NOT_INVISIBLE)
+      continue;
+    else
+      value=v++;
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
     if (field->vcol_info)

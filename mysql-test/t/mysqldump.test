@@ -2646,3 +2646,46 @@ CREATE TRIGGER tt1_t1 BEFORE INSERT ON t1 FOR EACH ROW
 INSERT INTO t1 (a) VALUES (1),(2),(3);
 --exec $MYSQL_DUMP --triggers --no-data --no-create-info --add-drop-trigger --skip-comments --databases test
 DROP TABLE t1;
+--echo #
+--echo # Test for Invisible columns
+--echo #
+create database d;
+use d;
+
+--echo # Invisble field table
+create table t1(a int , b int invisible);
+insert into t1 values(1);
+insert into t1(a,b) values(1,2);
+
+--echo # not invisible field table --complete-insert wont be used
+create table t2(a int , b int);
+insert into t2(a,b) values(1,2);
+insert into t2(a,b) values(1,2);
+
+--echo # Invisble field table
+create table t3(invisible int , `a  b c & $!@#$%^&*( )` int invisible default 4, `ds=~!@ \# $% ^ & * ( ) _ - = +` int invisible default 5);
+insert into t3 values(1);
+insert into t3 values(5);
+insert into t3 values(2);
+insert into t3(`invisible`,  `a  b c & $!@#$%^&*( )`, `ds=~!@ \# $% ^ & * ( ) _ - = +` ) values(1,2,3);
+CREATE TABLE t4(ËÏÌÏÎËÁ1 INT);
+insert into t4 values(1);
+--exec $MYSQL_DUMP --compact d
+
+--echo #Check side effect on --complete insert
+--exec $MYSQL_DUMP --compact --complete-insert d
+--echo #Check xml
+--exec $MYSQL_DUMP --skip-create-options --skip-comments -X d
+
+#import data
+--exec $MYSQL_DUMP --skip-comments d > $MYSQLTEST_VARDIR/tmp/invisible_dump.sql
+DROP table t1,t2,t3;
+
+--exec $MYSQL d < $MYSQLTEST_VARDIR/tmp/invisible_dump.sql
+
+select * from t1;
+select a,b from t1;
+select * from t2;
+select * from t3;
+desc t3;
+drop database d;

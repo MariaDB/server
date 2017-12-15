@@ -997,7 +997,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
           No field list, all fields are set explicitly:
           INSERT INTO t1 VALUES (values)
         */
-        if (thd->lex->used_tables)		      // Column used in values()
+        if (thd->lex->used_tables || // Column used in values()
+                table->s->visible_fields != table->s->fields)
 	  restore_record(table,s->default_values);	// Get empty record
         else
         {

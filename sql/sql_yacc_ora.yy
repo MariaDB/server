@@ -538,6 +538,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  HEX_NUM
 %token  HEX_STRING
 %token  HIGH_PRIORITY
+%token  INVISIBLE_SYM
 %token  HOST_SYM
 %token  HOSTS_SYM
 %token  HOUR_MICROSECOND_SYM
@@ -6132,6 +6133,10 @@ vcol_attribute:
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
+        | INVISIBLE_SYM
+          {
+            Lex->last_field->field_visibility= USER_DEFINED_INVISIBLE;
+          }
         ;
 
 parse_vcol_expr:
@@ -15053,6 +15058,7 @@ keyword_sp_not_data_type:
         | GLOBAL_SYM               {}
         | HASH_SYM                 {}
         | HARD_SYM                 {}
+        | INVISIBLE_SYM            {}
         | HOSTS_SYM                {}
         | HOUR_SYM                 {}
         | ID_SYM                   {}

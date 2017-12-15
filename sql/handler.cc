@@ -6768,7 +6768,7 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name,
   f->field_name.str= field_name;
   f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;
-  f->flags= flags | HIDDEN_FLAG;
+  f->flags= flags | VERS_HIDDEN_FLAG;
   if (integer_fields)
   {
     f->set_handler(&type_handler_longlong);
@@ -7124,13 +7124,13 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       return true;
     }
 
-    if (!(share->vers_start_field()->flags & HIDDEN_FLAG))
+    if (!(share->vers_start_field()->flags & VERS_HIDDEN_FLAG))
     {
       my_error(ER_VERS_SYS_FIELD_NOT_HIDDEN, MYF(0),
                share->vers_start_field()->field_name.str);
       return true;
     }
-    if (!(share->vers_end_field()->flags & HIDDEN_FLAG))
+    if (!(share->vers_end_field()->flags & VERS_HIDDEN_FLAG))
     {
       my_error(ER_VERS_SYS_FIELD_NOT_HIDDEN, MYF(0),
                share->vers_end_field()->field_name.str);
@@ -7259,7 +7259,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
         }
         else
           continue;
-        if (f->flags & HIDDEN_FLAG)
+        if (f->flags & VERS_HIDDEN_FLAG)
         {
           my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), d->type_name(), name);
           return true;

@@ -1192,7 +1192,16 @@ close_table:
 	if (!row_undo_search_clust_to_pcur(node)) {
 		/* As long as this rolling-back transaction exists,
 		the PRIMARY KEY value pointed to by the undo log
-		record must exist. But, it is possible that the record
+		record should exist.
+
+		However, if InnoDB is killed during a rollback, or
+		shut down during the rollback of recovered
+		transactions, then after restart we may try to roll
+		back some of the same undo log records again, because
+		trx_roll_try_truncate() is not being invoked after
+		every undo log record.
+
+		It is also possible that the record
 		was not modified yet (the DB_ROLL_PTR does not match
 		node->roll_ptr) and thus there is nothing to roll back.
 
@@ -1200,8 +1209,11 @@ close_table:
 		record after successfully acquiring an exclusive lock
 		on the the clustered index record. That lock will not
 		be released before the transaction is committed or
-		fully rolled back. */
-		ut_ad(node->pcur.btr_cur.low_match == node->ref->n_fields);
+		fully rolled back. (Exception: if the server was
+		killed, restarted, and shut down again before the
+		rollback of the recovered transaction was completed,
+		it is possible that the transaction was partially
+		rolled back and locks released.) */
 		goto close_table;
 	}
 
