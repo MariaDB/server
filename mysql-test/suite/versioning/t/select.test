@@ -254,9 +254,17 @@ create or replace table t2 (b int);
 create or replace view v1 as select a, sys_trx_start, sys_trx_end from t1 where a > round(rand()*1000);
 select * from v1 natural join t2;
 
+--echo ### Issue #406, MDEV-14633 Assertion on TRT read
+create or replace table t1 (pk int primary key, i int, t time, key (i)) with system versioning;
+insert into t1 values (1, 10, '15:01:53'), (2, 20, '00:00:00');
+delete from t1;
+--disable_warnings
+select * from t1 where t = '00:00:00' and i > 0 and sys_trx_end <> '2012-12-12 00:00:00';
+--enable_warnings
+
 drop view v1;
 drop table t1, t2;
 
-call innodb_verify_vtq(32);
+call innodb_verify_vtq(34);
 
 -- source suite/versioning/common_finish.inc

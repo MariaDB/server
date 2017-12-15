@@ -5736,7 +5736,14 @@ lock_table_wait:
 
 normal_return:
 	/*-------------------------------------------------------------*/
-	que_thr_stop_for_mysql_no_error(thr, trx);
+	{
+		/* handler_index_cond_check() may pull TR_table search
+		   which initates another row_search_mvcc(). */
+		ulint n_active_thrs= trx->lock.n_active_thrs;
+		trx->lock.n_active_thrs= 1;
+		que_thr_stop_for_mysql_no_error(thr, trx);
+		trx->lock.n_active_thrs= n_active_thrs - 1;
+	}
 
 	mtr_commit(&mtr);
 
