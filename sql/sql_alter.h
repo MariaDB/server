@@ -95,7 +95,8 @@ public:
     // Set for ADD [COLUMN] FIRST | AFTER
     ALTER_COLUMN_ORDER          = 1L << 25,
     ALTER_ADD_CHECK_CONSTRAINT  = 1L << 27,
-    ALTER_DROP_CHECK_CONSTRAINT = 1L << 28
+    ALTER_DROP_CHECK_CONSTRAINT = 1L << 28,
+    ALTER_COLUMN_UNVERSIONED    = 1L << 29,
   };
 
   enum enum_enable_or_disable { LEAVE_AS_IS, ENABLE, DISABLE };

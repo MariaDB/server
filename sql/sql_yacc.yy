@@ -7112,11 +7112,13 @@ serial_attribute:
 with_or_without_system:
         WITH_SYSTEM_SYM
           {
+            Lex->alter_info.flags|= Alter_info::ALTER_COLUMN_UNVERSIONED;
             Lex->create_info.vers_info.versioned_fields= true;
             $$= Column_definition::WITH_VERSIONING;
           }
         | WITHOUT SYSTEM
           {
+            Lex->alter_info.flags|= Alter_info::ALTER_COLUMN_UNVERSIONED;
             Lex->create_info.vers_info.unversioned_fields= true;
             $$= Column_definition::WITHOUT_VERSIONING;
           }

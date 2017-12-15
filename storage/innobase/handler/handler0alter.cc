@@ -87,6 +87,7 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_REBUILD
 	/*
 	| Alter_inplace_info::ALTER_STORED_COLUMN_TYPE
 	*/
+	| Alter_inplace_info::ALTER_COLUMN_UNVERSIONED
 	;
 
 /** Operations that require changes to data */

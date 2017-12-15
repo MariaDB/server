@@ -349,5 +349,11 @@ alter table t add system versioning;
 --error ER_VERS_ALREADY_VERSIONED
 alter table t add system versioning, drop system versioning;
 
+set @@versioning_alter_history=keep;
+create or replace table t(x int, y int) with system versioning engine=innodb;
+alter table t modify y int without system versioning;
+insert into t values(1, 1);
+update t set y=2;
+
 drop database test;
 create database test;

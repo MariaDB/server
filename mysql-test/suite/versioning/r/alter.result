@@ -512,5 +512,10 @@ alter table t add system versioning;
 ERROR HY000: Table `t` is already system-versioned table
 alter table t add system versioning, drop system versioning;
 ERROR HY000: Table `t` is already system-versioned table
+set @@versioning_alter_history=keep;
+create or replace table t(x int, y int) with system versioning engine=innodb;
+alter table t modify y int without system versioning;
+insert into t values(1, 1);
+update t set y=2;
 drop database test;
 create database test;
