@@ -2662,6 +2662,7 @@ void Item_datetime_from_unixtime_typecast::fix_length_and_dec()
   case REAL_RESULT:
   case DECIMAL_RESULT:
   {
+    Query_arena_stmt on_stmt_arena(thd);
     Item_func_from_unixtime *a= new (thd->mem_root) Item_func_from_unixtime(thd, args[0]);
     a->fix_length_and_dec();
     args[0]= a;
