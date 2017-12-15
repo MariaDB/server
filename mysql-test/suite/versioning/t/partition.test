@@ -251,6 +251,10 @@ subpartition by hash(f_int1)
 subpartition subpart12 storage engine = 'innodb'));
 insert into t1 values (1);
 
+create or replace table t1 (i int) engine=innodb partition by key(i);
+alter table t1 add system versioning;
+insert into t1 values();
+
 
 drop table t1;
 

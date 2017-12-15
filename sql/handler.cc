@@ -7093,6 +7093,8 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 {
   TABLE_SHARE *share= table->s;
   bool integer_fields= create_info->vers_native(thd);
+  if (create_info->db_type->db_type == DB_TYPE_PARTITION_DB && table->file->native_versioned())
+    integer_fields= true;
   const char *table_name= share->table_name.str;
 
   if (!need_check() && !share->versioned)
