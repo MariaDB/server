@@ -10,7 +10,7 @@ connection user1;
 show grants;
 Grants for mysqltest_1@localhost
 GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost'
-truncate mysqltest.t to system_time now();
+delete history from mysqltest.t before system_time now();
 ERROR 42000: DELETE VERSIONING ROWS command denied to user 'mysqltest_1'@'localhost' for table 't'
 connection root;
 grant delete history on mysqltest.* to mysqltest_1@localhost;
@@ -21,7 +21,7 @@ Grants for mysqltest_1@localhost
 GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost'
 GRANT DELETE VERSIONING ROWS ON `mysqltest`.* TO 'mysqltest_1'@'localhost'
 GRANT DELETE VERSIONING ROWS ON `mysqltest`.`t` TO 'mysqltest_1'@'localhost'
-truncate mysqltest.t to system_time now();
+delete history from mysqltest.t before system_time now();
 connection root;
 grant all on *.* to mysqltest_1@localhost;
 show grants for mysqltest_1@localhost;

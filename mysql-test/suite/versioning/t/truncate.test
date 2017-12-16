@@ -2,7 +2,7 @@
 
 create table t (a int);
 --error ER_VERSIONING_REQUIRED
-truncate t to system_time now();
+delete history from t before system_time now();
 
 # TRUNCATE is not DELETE and trigger must not be called.
 create or replace table t (a int) with system versioning;
@@ -11,7 +11,7 @@ update t set a=2;
 set @test = 'correct';
 create trigger trg_before before delete on t for each row set @test = 'incorrect';
 create trigger trg_after after delete on t for each row set @test = 'incorrect';
-truncate t to system_time now(6);
+delete history from t before system_time now(6);
 select @test from t;
 drop table t;
 
@@ -23,9 +23,9 @@ set @ts1=now(6);
 --real_sleep 0.01
 update t set a=22 where a=2;
 select * from t for system_time all;
-truncate t to system_time timestamp @ts1;
+delete history from t before system_time timestamp @ts1;
 select * from t for system_time all;
-truncate table t to system_time timestamp now(6);
+delete history from t before system_time timestamp now(6);
 select * from t for system_time all;
 
 --echo ### Issue #399, truncate partitioned table is now unimplemented
@@ -38,20 +38,20 @@ partition by system_time (
     partition pn current);
 
 --error ER_NOT_ALLOWED_COMMAND
-truncate table t to system_time current_timestamp;
+delete history from t before system_time current_timestamp;
 
 create or replace table t (i int) with system versioning;
-truncate t to system_time now();
+delete history from t before system_time now();
 create or replace view v as select * from t;
 --error ER_VERS_TRUNCATE_TO_VIEW
-truncate v to system_time now();
+delete history from v before system_time now();
 
 create or replace table t (i int);
 --error ER_VERSIONING_REQUIRED
-truncate t to system_time now();
+delete history from t before system_time now();
 create or replace view v as select * from t;
 --error ER_VERS_TRUNCATE_TO_VIEW
-truncate v to system_time now();
+delete history from v before system_time now();
 
 drop table t;
 drop view v;

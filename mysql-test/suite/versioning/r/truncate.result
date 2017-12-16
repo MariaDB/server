@@ -1,5 +1,5 @@
 create table t (a int);
-truncate t to system_time now();
+delete history from t before system_time now();
 ERROR HY000: System versioning required: t
 create or replace table t (a int) with system versioning;
 insert into t values (1);
@@ -7,7 +7,7 @@ update t set a=2;
 set @test = 'correct';
 create trigger trg_before before delete on t for each row set @test = 'incorrect';
 create trigger trg_after after delete on t for each row set @test = 'incorrect';
-truncate t to system_time now(6);
+delete history from t before system_time now(6);
 select @test from t;
 @test
 correct
@@ -23,17 +23,20 @@ a
 22
 1
 2
-truncate t to system_time timestamp @ts1;
+delete history from t before system_time timestamp @ts1;
 select * from t for system_time all;
 a
 11
 22
+1
 2
-truncate table t to system_time timestamp now(6);
+delete history from t before system_time timestamp now(6);
 select * from t for system_time all;
 a
 11
 22
+1
+2
 ### Issue #399, truncate partitioned table is now unimplemented
 create or replace table t (a int)
 with system versioning
@@ -41,18 +44,18 @@ engine myisam
 partition by system_time (
 partition p0 history,
 partition pn current);
-truncate table t to system_time current_timestamp;
+delete history from t before system_time current_timestamp;
 ERROR 42000: The used command is not allowed with this MariaDB version
 create or replace table t (i int) with system versioning;
-truncate t to system_time now();
+delete history from t before system_time now();
 create or replace view v as select * from t;
-truncate v to system_time now();
+delete history from v before system_time now();
 ERROR HY000: TRUNCATE table_name TO doesn't work with VIEWs
 create or replace table t (i int);
-truncate t to system_time now();
+delete history from t before system_time now();
 ERROR HY000: System versioning required: t
 create or replace view v as select * from t;
-truncate v to system_time now();
+delete history from v before system_time now();
 ERROR HY000: TRUNCATE table_name TO doesn't work with VIEWs
 drop table t;
 drop view v;

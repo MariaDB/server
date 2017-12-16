@@ -9409,10 +9409,18 @@ bool update_precheck(THD *thd, TABLE_LIST *tables)
 bool delete_precheck(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("delete_precheck");
-  if (check_one_table_access(thd, DELETE_ACL, tables))
-    DBUG_RETURN(TRUE);
-  /* Set privilege for the WHERE clause */
-  tables->grant.want_privilege=(SELECT_ACL & ~tables->grant.privilege);
+  if (tables->vers_conditions)
+  {
+    if (check_one_table_access(thd, DELETE_HISTORY_ACL, tables))
+      DBUG_RETURN(TRUE);
+  }
+  else
+  {
+    if (check_one_table_access(thd, DELETE_ACL, tables))
+      DBUG_RETURN(TRUE);
+    /* Set privilege for the WHERE clause */
+    tables->grant.want_privilege=(SELECT_ACL & ~tables->grant.privilege);
+  }
   DBUG_RETURN(FALSE);
 }
 

@@ -892,10 +892,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 122 shift/reduce conflicts.
+  Currently there are 123 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 122
+%expect 123
 
 /*
    Comments for TOKENS.
@@ -13404,10 +13404,20 @@ delete:
             lex->ignore= 0;
             lex->select_lex.init_order();
           }
-          opt_delete_options single_multi
+          delete_part2
+          ;
+
+delete_part2:
+          opt_delete_options single_multi {}
+        | HISTORY_SYM delete_single_table
+          BEFORE_SYM SYSTEM_TIME_SYM opt_trans_or_timestamp simple_expr
+          {
+            Lex->vers_conditions.init(SYSTEM_TIME_BEFORE, $5, $6);
+            Lex->last_table()->vers_conditions= Lex->vers_conditions;
+          }
         ;
 
-single_multi:
+delete_single_table:
           FROM table_ident opt_use_partition
           {
             if (!Select->add_table_to_list(thd, $2, NULL, TL_OPTION_UPDATING,
@@ -13419,8 +13429,13 @@ single_multi:
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
           }
-          opt_where_clause opt_order_clause
-          delete_limit_clause {}
+        ;
+
+single_multi:
+          delete_single_table
+          opt_where_clause
+          opt_order_clause
+          delete_limit_clause
           opt_select_expressions {}
         | table_wild_list
           {
@@ -13501,15 +13516,6 @@ opt_delete_option:
         | IGNORE_SYM   { Lex->ignore= 1; }
         ;
 
-truncate_end:
-          opt_lock_wait_timeout
-          | TO_SYM SYSTEM_TIME_SYM opt_trans_or_timestamp simple_expr
-          {
-            Lex->vers_conditions.init(SYSTEM_TIME_BEFORE, $3, $4);
-            Lex->last_table()->vers_conditions= Lex->vers_conditions;
-          }
-        ;
-
 truncate:
           TRUNCATE_SYM
           {
@@ -13522,7 +13528,7 @@ truncate:
             YYPS->m_lock_type= TL_WRITE;
             YYPS->m_mdl_type= MDL_EXCLUSIVE;
           }
-          opt_table_sym table_name truncate_end
+          opt_table_sym table_name opt_lock_wait_timeout
           {
             LEX* lex= thd->lex;
             DBUG_ASSERT(!lex->m_sql_cmd);
