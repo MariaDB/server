@@ -12499,6 +12499,7 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag,
   its name generation.
 */
 
+
 struct st_mysql_storage_engine rocksdb_storage_engine = {
     MYSQL_HANDLERTON_INTERFACE_VERSION};
 
@@ -12515,7 +12516,7 @@ maria_declare_plugin(rocksdb_se){
     myrocks::rocksdb_status_vars,      /* status variables */
     myrocks::rocksdb_system_variables, /* system variables */
   "1.0",                                        /* string version */
-  MariaDB_PLUGIN_MATURITY_ALPHA                 /* maturity */
+  myrocks::MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 },
     myrocks::rdb_i_s_cfstats, myrocks::rdb_i_s_dbstats,
     myrocks::rdb_i_s_perf_context, myrocks::rdb_i_s_perf_context_global,
