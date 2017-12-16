@@ -2129,37 +2129,42 @@ static void acl_insert_user(const char *user, const char *host,
 }
 
 
-static void acl_update_db(const char *user, const char *host, const char *db,
+static bool acl_update_db(const char *user, const char *host, const char *db,
                           ulong privileges)
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
+
+  bool updated= false;
 
   for (uint i=0 ; i < acl_dbs.elements ; i++)
   {
     ACL_DB *acl_db=dynamic_element(&acl_dbs,i,ACL_DB*);
     if ((!acl_db->user && !user[0]) ||
-	(acl_db->user &&
-	!strcmp(user,acl_db->user)))
+        (acl_db->user &&
+         !strcmp(user,acl_db->user)))
     {
       if ((!acl_db->host.hostname && !host[0]) ||
-	  (acl_db->host.hostname &&
-	   !strcmp(host, acl_db->host.hostname)))
+          (acl_db->host.hostname &&
+           !strcmp(host, acl_db->host.hostname)))
       {
-	if ((!acl_db->db && !db[0]) ||
-	    (acl_db->db && !strcmp(db,acl_db->db)))
+        if ((!acl_db->db && !db[0]) ||
+            (acl_db->db && !strcmp(db,acl_db->db)))
 
-	{
-	  if (privileges)
+        {
+          if (privileges)
           {
             acl_db->access= privileges;
             acl_db->initial_access= acl_db->access;
           }
-	  else
-	    delete_dynamic_element(&acl_dbs,i);
-	}
+          else
+            delete_dynamic_element(&acl_dbs,i);
+          updated= true;
+        }
       }
     }
   }
+
+  return updated;
 }
 
 
@@ -3428,9 +3433,21 @@ static int replace_db_table(TABLE *table, const char *db,
   acl_cache->clear(1);				// Clear privilege cache
   if (old_row_exists)
     acl_update_db(combo.user.str,combo.host.str,db,rights);
-  else
-  if (rights)
-    acl_insert_db(combo.user.str,combo.host.str,db,rights);
+  else if (rights)
+  {
+    /*
+       If we did not have an already existing row, for users, we must always
+       insert an ACL_DB entry. For roles however, it is possible that one was
+       already created when DB privileges were propagated from other granted
+       roles onto the current role. For this case, first try to update the
+       existing entry, otherwise insert a new one.
+    */
+    if (!combo.is_role() ||
+        !acl_update_db(combo.user.str, combo.host.str, db, rights))
+    {
+      acl_insert_db(combo.user.str,combo.host.str,db,rights);
+    }
+  }
   DBUG_RETURN(0);
 
   /* This could only happen if the grant tables got corrupted */
