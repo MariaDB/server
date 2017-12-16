@@ -6121,9 +6121,15 @@ int ha_rocksdb::create_cfs(
                 table_arg->key_info[i].key_part[part].field) &&
             !rdb_collation_exceptions->matches(tablename_sys)) {
 
-          my_error(ER_MYROCKS_COLLATION_IS_LIMITED, MYF(ME_JUST_WARNING),
-                   tbl_def_arg->full_tablename().c_str(),
-                   table_arg->key_info[i].key_part[part].field->field_name);
+          char buf[1024];
+          my_snprintf(buf, sizeof(buf),
+                      "Indexed column %s.%s uses a collation that does not "
+                      "allow index-only access in secondary key and has "
+                      "reduced disk space efficiency in primary key.",
+                       tbl_def_arg->full_tablename().c_str(),
+                       table_arg->key_info[i].key_part[part].field->field_name);
+
+          my_error(ER_INTERNAL_ERROR, MYF(ME_JUST_WARNING), buf);
         }
       }
     }
