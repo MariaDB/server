@@ -83,6 +83,53 @@ select * from t1;
 
 disconnect con1;
 connection default;
+
+# MDEV-14593 human-readable XA RECOVER
+xa start 'tr1';
+insert t1 values (40);
+xa end 'tr1';
+xa prepare 'tr1';
+xa recover format='SQL';
+xa rollback 'tr1';
+
+xa start 'tr1', 'bq';
+insert t1 values (40);
+xa end 'tr1', 'bq';
+xa prepare 'tr1', 'bq';
+xa recover format='SQL';
+xa rollback 'tr1', 'bq';
+
+xa start 'tr1', 'bq', 3;
+insert t1 values (40);
+xa end 'tr1', 'bq', 3;
+xa prepare 'tr1', 'bq', 3;
+xa recover format='SQL';
+xa rollback 'tr1', 'bq', 3;
+
+xa start 'tr1#$';
+insert t1 values (40);
+xa end 'tr1#$';
+xa prepare 'tr1#$';
+xa recover format='SQL';
+xa rollback 'tr1#$';
+
+xa start 'tr1#$', 'bq';
+insert t1 values (40);
+xa end 'tr1#$', 'bq';
+xa prepare 'tr1#$', 'bq';
+xa recover format='SQL';
+xa rollback 'tr1#$', 'bq';
+
+xa start 'tr1#$', 'bq', 3;
+insert t1 values (40);
+xa end 'tr1#$', 'bq', 3;
+xa prepare 'tr1#$', 'bq', 3;
+xa recover format='RAW';
+--error ER_UNKNOWN_EXPLAIN_FORMAT
+xa recover format='PLAIN';
+xa recover format='SQL';
+xa rollback 'tr1#$', 'bq', 3;
+
 drop table t1;
 
 #
@@ -378,7 +425,6 @@ XA ROLLBACK 'xid1';
 connection default;
 DROP TABLE t1, t2;
 disconnect con2;
-
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc

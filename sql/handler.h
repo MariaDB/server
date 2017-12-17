@@ -652,6 +652,15 @@ struct xid_t {
 };
 typedef struct xid_t XID;
 
+/*
+  The size of XID string representation in the form
+  'gtrid', 'bqual', formatID
+  see xid_t::get_sql_string() for details.
+*/
+#define SQL_XIDSIZE (XIDDATASIZE * 2 + 8 + MY_INT64_NUM_DECIMAL_DIGITS)
+/* The 'buf' has to have space for at least SQL_XIDSIZE bytes. */
+uint get_sql_xid(XID *xid, char *buf);
+
 /* for recover() handlerton call */
 #define MIN_XID_LIST_SIZE  128
 #define MAX_XID_LIST_SIZE  (1024*128)
