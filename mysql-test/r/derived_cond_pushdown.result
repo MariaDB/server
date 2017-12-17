@@ -10443,7 +10443,7 @@ EXPLAIN
 }
 drop view v1;
 create table t3 (a int, b int, c int);
-insert into t3 values 
+insert into t3 values
 (1,21,345), (2,33,7), (8,33,114), (3,21,500), (1,19,107), (5,14,787),
 (4,33,123), (9,10,211), (11,16,207), (10,33,988), (5,27,132), (12,21,104),
 (6,20,309), (16,20,315), (16,21,101), (18,33,404), (19,10,800), (10,21,123),
@@ -10451,7 +10451,7 @@ insert into t3 values
 create index i1 on t3(a);
 # conjunctive subformulas : pushing into WHERE
 # pushed condition gives range access
-create view v1 as 
+create view v1 as
 select a, b, max(c) as max_c from t3
 where a>0 group by a;
 set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
