@@ -37,9 +37,6 @@ mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 mysql.user                                         OK
-mysql.vtmd_template
-Error    : Unknown storage engine 'InnoDB'
-error    : Corrupt
 
 Repairing tables
 mysql.innodb_index_stats
@@ -49,9 +46,6 @@ mysql.innodb_table_stats
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 mysql.transaction_registry
-Error    : Unknown storage engine 'InnoDB'
-error    : Corrupt
-mysql.vtmd_template
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
 Phase 2/7: Installing used storage engines... Skipped

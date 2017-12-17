@@ -33,7 +33,6 @@ mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
 mysql.user                                         OK
-mysql.vtmd_template                                OK
 mtr.global_suppressions                            Table is already up to date
 mtr.test_suppressions                              Table is already up to date
 mysql.column_stats                                 OK
@@ -71,10 +70,6 @@ mysql.transaction_registry
 note     : Table does not support optimize, doing recreate + analyze instead
 status   : OK
 mysql.user                                         OK
-mysql.vtmd_template
-note     : Table does not support optimize, doing recreate + analyze instead
-error    : Not allowed for versioned `mysql`.`vtmd_template`. Change `versioning_alter_history` to proceed with ALTER.
-status   : Operation failed
 mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
@@ -104,7 +99,6 @@ mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
 mysql.user                                         OK
-mysql.vtmd_template                                OK
 mysql.column_stats                                 Table is already up to date
 mysql.columns_priv                                 Table is already up to date
 mysql.db                                           Table is already up to date
@@ -140,10 +134,6 @@ mysql.transaction_registry
 note     : Table does not support optimize, doing recreate + analyze instead
 status   : OK
 mysql.user                                         Table is already up to date
-mysql.vtmd_template
-note     : Table does not support optimize, doing recreate + analyze instead
-error    : Not allowed for versioned `mysql`.`vtmd_template`. Change `versioning_alter_history` to proceed with ALTER.
-status   : Operation failed
 create table t1 (a int) engine=myisam;
 create view v1 as select * from t1;
 test.t1                                            OK
@@ -467,7 +457,6 @@ mysql.time_zone_transition                         Table is already up to date
 mysql.time_zone_transition_type                    Table is already up to date
 mysql.transaction_registry                         OK
 mysql.user                                         Table is already up to date
-mysql.vtmd_template                                OK
 mysqltest1.t1
 warning  : Table is marked as crashed
 warning  : Size of datafile is: 4       Should be: 0

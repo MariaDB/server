@@ -146,7 +146,6 @@ def	mysql	commit_id	def	mysql	transaction_registry	commit_id
 def	mysql	PRIMARY	def	mysql	transaction_registry	transaction_id
 def	mysql	PRIMARY	def	mysql	user	Host
 def	mysql	PRIMARY	def	mysql	user	User
-def	mysql	PRIMARY	def	mysql	vtmd_template	end
 ########################################################################################
 # Testcase 3.2.7.2 + 3.2.7.3: INFORMATION_SCHEMA.KEY_COLUMN_USAGE accessible information
 ########################################################################################

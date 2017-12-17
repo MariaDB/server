@@ -144,17 +144,6 @@ SET @create_transaction_registry="CREATE TABLE IF NOT EXISTS transaction_registr
 	INDEX (commit_timestamp, transaction_id)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0";
 
-SET @create_vtmd_template="CREATE OR REPLACE TABLE vtmd_template (
-	start		BIGINT UNSIGNED GENERATED ALWAYS AS ROW START	COMMENT 'TRX_ID of table lifetime start',
-	end		BIGINT UNSIGNED GENERATED ALWAYS AS ROW END	COMMENT 'TRX_ID of table lifetime end',
-	name		VARCHAR(64) NOT NULL				COMMENT 'Table name during current lifetime period',
-	archive_name	VARCHAR(64) NULL				COMMENT 'Name of archive table',
-	col_renames	BLOB						COMMENT 'Column name mappings from previous lifetime',
-	PERIOD FOR SYSTEM_TIME(start, end),
-	PRIMARY KEY (end),
-	INDEX (archive_name)
-) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0 WITH SYSTEM VERSIONING";
-
 SET @str=IF(@have_innodb <> 0, @create_innodb_table_stats, "SET @dummy = 0");
 PREPARE stmt FROM @str;
 EXECUTE stmt;
@@ -166,11 +155,6 @@ EXECUTE stmt;
 DROP PREPARE stmt;
 
 SET @str=IF(@have_innodb <> 0, @create_transaction_registry, "SET @dummy = 0");
-PREPARE stmt FROM @str;
-EXECUTE stmt;
-DROP PREPARE stmt;
-
-SET @str=IF(@have_innodb <> 0, @create_vtmd_template, "SET @dummy = 0");
 PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;

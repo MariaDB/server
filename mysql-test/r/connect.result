@@ -34,7 +34,6 @@ time_zone_transition
 time_zone_transition_type
 transaction_registry
 user
-vtmd_template
 connect  con2,localhost,root,,test;
 show tables;
 Tables_in_test
@@ -83,7 +82,6 @@ time_zone_transition
 time_zone_transition_type
 transaction_registry
 user
-vtmd_template
 connect  con4,localhost,test,gambling,test;
 show tables;
 Tables_in_test
@@ -144,7 +142,6 @@ time_zone_transition
 time_zone_transition_type
 transaction_registry
 user
-vtmd_template
 connect  con6,localhost,test,gambling3,test;
 show tables;
 Tables_in_test

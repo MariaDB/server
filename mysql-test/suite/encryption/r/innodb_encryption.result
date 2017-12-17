@@ -15,7 +15,6 @@ NAME
 mysql/innodb_table_stats
 mysql/innodb_index_stats
 mysql/transaction_registry
-mysql/vtmd_template
 innodb_system
 # Success!
 # Now turn off encryption and wait for threads to decrypt everything
@@ -26,7 +25,6 @@ NAME
 mysql/innodb_table_stats
 mysql/innodb_index_stats
 mysql/transaction_registry
-mysql/vtmd_template
 innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 NAME
@@ -42,7 +40,6 @@ NAME
 mysql/innodb_table_stats
 mysql/innodb_index_stats
 mysql/transaction_registry
-mysql/vtmd_template
 innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 NAME
@@ -57,7 +54,6 @@ NAME
 mysql/innodb_table_stats
 mysql/innodb_index_stats
 mysql/transaction_registry
-mysql/vtmd_template
 innodb_system
 # Success!
 # Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
@@ -73,7 +69,6 @@ NAME
 mysql/innodb_table_stats
 mysql/innodb_index_stats
 mysql/transaction_registry
-mysql/vtmd_template
 innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 NAME

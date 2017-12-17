@@ -39,7 +39,6 @@ NAME
 mysql/innodb_table_stats
 mysql/innodb_index_stats
 mysql/transaction_registry
-mysql/vtmd_template
 test/t1
 test/t2
 innodb_system
