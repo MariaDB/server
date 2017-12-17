@@ -99,16 +99,45 @@ void wsrep_register_hton(THD* thd, bool all)
  */
 void wsrep_post_commit(THD* thd, bool all)
 {
-  if (thd->wsrep_exec_mode == LOCAL_COMMIT)
+  if (!WSREP(thd)) return;
+
+  switch (thd->wsrep_exec_mode)
   {
-    DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
-    if (wsrep->post_commit(wsrep, &thd->wsrep_ws_handle))
+  case LOCAL_COMMIT:
     {
+      DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
+      if (wsrep->post_commit(wsrep, &thd->wsrep_ws_handle))
+      {
         DBUG_PRINT("wsrep", ("set committed fail"));
-        WSREP_WARN("set committed fail: %llu %d", 
+        WSREP_WARN("set committed fail: %llu %d",
                    (long long)thd->real_id, thd->stmt_da->status());
+      }
+      wsrep_cleanup_transaction(thd);
+      break;
     }
-    wsrep_cleanup_transaction(thd);
+ case LOCAL_STATE:
+   {
+     /* non-InnoDB statements may have populated events in stmt cache 
+        => cleanup 
+     */
+     WSREP_DEBUG("cleanup transaction for LOCAL_STATE");
+     /*
+       Run post-rollback hook to clean up in the case if
+       some keys were populated for the transaction in provider
+       but during commit time there was no write set to replicate.
+       This may happen when client sets the SAVEPOINT and immediately
+       rolls back to savepoint after first operation. 
+      */
+     if (all && thd->wsrep_conflict_state != MUST_REPLAY &&
+         wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+     {
+         WSREP_WARN("post_rollback fail: %llu %d",
+                    (long long)thd->thread_id, thd->stmt_da->status());
+     }
+     wsrep_cleanup_transaction(thd);
+     break;
+   }
+  default: break;
   }
 }
 
