@@ -12337,6 +12337,7 @@ void rocksdb_set_update_cf_options(THD *const /* unused */,
   // Basic sanity checking and parsing the options into a map. If this fails
   // then there's no point to proceed.
   if (!Rdb_cf_options::parse_cf_options(val, &option_map)) {
+    my_free(*reinterpret_cast<char**>(var_ptr));
     *reinterpret_cast<char**>(var_ptr) = nullptr;
 
     // NO_LINT_DEBUG
@@ -12405,6 +12406,7 @@ void rocksdb_set_update_cf_options(THD *const /* unused */,
   // the CF options. This will results in consistent behavior and avoids
   // dealing with cases when only a subset of CF-s was successfully updated.
   if (val) {
+    my_free(*reinterpret_cast<char**>(var_ptr));
     *reinterpret_cast<char**>(var_ptr) = my_strdup(val,  MYF(0));
   } else {
     *reinterpret_cast<char**>(var_ptr) = nullptr;
