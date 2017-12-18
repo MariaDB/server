@@ -755,14 +755,14 @@ int my_vfprintf(FILE *stream, const char* format, va_list args)
       and try again.
     */
     if (alloc)
-      (*my_str_free)(p);
+      my_free(p);
     else
       alloc= 1;
     new_len= cur_len*2;
     if (new_len < cur_len)
       return 0;                                 /* Overflow */
     cur_len= new_len;
-    p= (*my_str_malloc)(cur_len);
+    p= my_malloc(cur_len, MYF(MY_FAE));
     if (!p)
       return 0;
   }
@@ -770,7 +770,7 @@ int my_vfprintf(FILE *stream, const char* format, va_list args)
   if (fputs(p, stream) < 0)
     ret= -1;
   if (alloc)
-    (*my_str_free)(p);
+    my_free(p);
   return ret;
 }
 

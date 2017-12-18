@@ -524,7 +524,7 @@ int my_strnncoll_tis620(CHARSET_INFO *cs __attribute__((unused)),
 
   tc1= buf;
   if ((len1 + len2 +2) > (int) sizeof(buf))
-    tc1= (uchar*) my_str_malloc(len1+len2+2);
+    tc1= (uchar*) my_malloc(len1+len2+2, MYF(MY_FAE));
   tc2= tc1 + len1+1;
   memcpy((char*) tc1, (char*) s1, len1);
   tc1[len1]= 0;		/* if length(s1)> len1, need to put 'end of string' */
@@ -534,7 +534,7 @@ int my_strnncoll_tis620(CHARSET_INFO *cs __attribute__((unused)),
   thai2sortable(tc2, len2);
   i= strcmp((char*)tc1, (char*)tc2);
   if (tc1 != buf)
-    my_str_free(tc1);
+    my_free(tc1);
   return i;
 }
 
@@ -555,7 +555,7 @@ int my_strnncollsp_tis620(CHARSET_INFO * cs __attribute__((unused)),
   
   a= buf;
   if ((a_length + b_length +2) > (int) sizeof(buf))
-    alloced= a= (uchar*) my_str_malloc(a_length+b_length+2);
+    alloced= a= (uchar*) my_malloc(a_length+b_length+2, MYF(MY_FAE));
   
   b= a + a_length+1;
   memcpy((char*) a, (char*) a0, a_length);
@@ -604,7 +604,7 @@ int my_strnncollsp_tis620(CHARSET_INFO * cs __attribute__((unused)),
 ret:
   
   if (alloced)
-    my_str_free(alloced);
+    my_free(alloced);
   return res;
 }
 

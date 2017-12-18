@@ -29,8 +29,6 @@ typedef struct st_typelib {	/* Different types saved here */
 extern my_ulonglong find_typeset(char *x, TYPELIB *typelib,int *error_position);
 extern int find_type_with_warning(const char *x, TYPELIB *typelib,
                                   const char *option);
-extern int find_type_or_exit(const char *x, TYPELIB *typelib,
-                             const char *option);
 #define FIND_TYPE_BASIC           0
 /** makes @c find_type() require the whole name, no prefix */
 #define FIND_TYPE_NO_PREFIX      (1 << 0)

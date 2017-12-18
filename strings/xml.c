@@ -17,6 +17,7 @@
 #include "strings_def.h"
 #include "m_string.h"
 #include "my_xml.h"
+#include "my_sys.h"
 
 
 #define MY_XML_UNKNOWN  'U'
@@ -231,13 +232,13 @@ static int my_xml_attr_ensure_space(MY_XML_PARSER *st, size_t len)
 
     if (!st->attr.buffer)
     {
-      st->attr.buffer= (char *) my_str_malloc(st->attr.buffer_size);
+      st->attr.buffer= (char *) my_malloc(st->attr.buffer_size, MYF(0));
       if (st->attr.buffer)
         memcpy(st->attr.buffer, st->attr.static_buffer, ofs + 1 /*term. zero */);
     }
     else
-      st->attr.buffer= (char *) my_str_realloc(st->attr.buffer,
-                                               st->attr.buffer_size);
+      st->attr.buffer= (char *) my_realloc(st->attr.buffer,
+                                           st->attr.buffer_size, MYF(0));
     st->attr.start= st->attr.buffer;
     st->attr.end= st->attr.start + ofs;
     
@@ -507,7 +508,7 @@ void my_xml_parser_free(MY_XML_PARSER *p)
 {
   if (p->attr.buffer)
   {
-    my_str_free(p->attr.buffer);
+    my_free(p->attr.buffer);
     p->attr.buffer= NULL;
   }
 }
