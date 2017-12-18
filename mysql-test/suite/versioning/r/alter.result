@@ -10,7 +10,7 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t drop system versioning;
-ERROR HY000: Table `t` is not temporal
+ERROR HY000: Table `t` is not system-versioned
 alter table t add system versioning;
 show create table t;
 Table	Create Table
@@ -21,9 +21,9 @@ t	CREATE TABLE `t` (
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column y int;
-ERROR HY000: Not allowed for temporal `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
 alter table t engine innodb;
-ERROR HY000: Not allowed for temporal `test`.`t`. Change to/from native system versioning engine is prohibited.
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change to/from native system versioning engine is prohibited.
 alter table t drop system versioning;
 show create table t;
 Table	Create Table
@@ -36,13 +36,13 @@ add column trx_start bigint(20) unsigned generated always as row start,
 add column trx_end bigint(20) unsigned generated always as row end,
 add period for system_time(trx_start, trx_end),
 add system versioning;
-ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for temporal table `t`
+ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for system-versioned table `t`
 alter table t
 add column trx_start timestamp generated always as row start,
 add column trx_end timestamp generated always as row end,
 add period for system_time(trx_start, trx_end),
 add system versioning;
-ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for temporal table `t`
+ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for system-versioned table `t`
 alter table t
 add column trx_start timestamp(6) not null generated always as row start,
 add column trx_end timestamp(6) not null generated always as row end,
@@ -231,9 +231,9 @@ t	CREATE TABLE `t` (
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t modify a int with system versioning;
-ERROR HY000: Table `t` is not temporal
+ERROR HY000: Table `t` is not system-versioned
 alter table t modify a int without system versioning;
-ERROR HY000: Table `t` is not temporal
+ERROR HY000: Table `t` is not system-versioned
 alter table t add system versioning;
 alter table t modify a int without system versioning;
 show create table t;
@@ -464,9 +464,9 @@ set system_versioning_alter_history= DROP;
 ERROR 42000: Variable 'system_versioning_alter_history' can't be set to the value of 'DROP'
 create or replace table t (a int) with system versioning;
 alter table t add system versioning;
-ERROR HY000: Table `t` is already temporal
+ERROR HY000: Table `t` is already system-versioned
 alter table t add system versioning, drop system versioning;
-ERROR HY000: Table `t` is already temporal
+ERROR HY000: Table `t` is already system-versioned
 set @@system_versioning_alter_history=keep;
 create or replace table t(x int, y int) with system versioning engine=innodb;
 alter table t modify y int without system versioning;

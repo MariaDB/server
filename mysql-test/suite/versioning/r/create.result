@@ -99,14 +99,14 @@ Sys_start bigint generated always as row start,
 Sys_end bigint unsigned generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
-ERROR HY000: `Sys_start` must be of type TIMESTAMP(6) for temporal table `t1`
+ERROR HY000: `Sys_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
 create or replace table t1 (
 x14 int unsigned,
 Sys_start bigint unsigned generated always as row start,
 Sys_end bigint generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
-ERROR HY000: `Sys_end` must be of type BIGINT(20) UNSIGNED for temporal table `t1`
+ERROR HY000: `Sys_end` must be of type BIGINT(20) UNSIGNED for system-versioned table `t1`
 create or replace table t1 (
 x15 int with system versioning,
 B int
@@ -182,7 +182,7 @@ x21 int without system versioning
 create or replace table t1 (
 x22 int without system versioning
 ) with system versioning;
-ERROR HY000: Table `t1` must have at least 1 temporal column
+ERROR HY000: Table `t1` must have at least one temporal column
 create or replace table t1 (a int) with system versioning;
 create table tt1 like t1;
 show create table tt1;
@@ -363,7 +363,7 @@ period for system_time (st, en)
 ) with system versioning engine innodb;
 create or replace table t2 with system versioning engine myisam
 as select * from t1;
-ERROR HY000: `st` must be of type TIMESTAMP(6) for temporal table `t2`
+ERROR HY000: `st` must be of type TIMESTAMP(6) for system-versioned table `t2`
 create or replace table t1 (x27 int, id int) with system versioning engine NON_DEFAULT_ENGINE;
 create or replace table t2 (b int, id int);
 create or replace table t3 with system versioning

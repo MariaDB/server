@@ -7822,7 +7822,7 @@ ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING
         eng "Rows matched: %ld  Changed: %ld  Inserted: %ld  Warnings: %ld"
 
 ER_VERS_FIELD_WRONG_TYPE
-        eng "%`s must be of type %s for temporal table %`s"
+        eng "%`s must be of type %s for system-versioned table %`s"
 
 ER_VERS_ENGINE_UNSUPPORTED
         eng "Transaction system versioning for %`s is not supported"
@@ -7852,10 +7852,10 @@ WARN_VERS_PART_NON_HISTORICAL
         eng "Partition %`s contains non-historical data"
 
 ER_VERS_ALTER_NOT_ALLOWED
-        eng "Not allowed for temporal %`s.%`s. Change @@system_versioning_alter_history to proceed with ALTER."
+        eng "Not allowed for system-versioned %`s.%`s. Change @@system_versioning_alter_history to proceed with ALTER."
 
 ER_VERS_ALTER_ENGINE_PROHIBITED
-        eng "Not allowed for temporal %`s.%`s. Change to/from native system versioning engine is prohibited."
+        eng "Not allowed for system-versioned %`s.%`s. Change to/from native system versioning engine is prohibited."
 
 ER_VERS_RANGE_PROHIBITED
         eng "SYSTEM_TIME range selector is prohibited"
@@ -7882,10 +7882,10 @@ ER_VERS_DIFFERENT_TABLES
         eng "Wrong parameters for %`s: system fields selected from different tables"
 
 ER_VERS_TABLE_MUST_HAVE_COLUMNS
-        eng "Table %`s must have at least 1 temporal column"
+        eng "Table %`s must have at least one temporal column"
 
 ER_VERS_NOT_VERSIONED
-        eng "Table %`s is not temporal"
+        eng "Table %`s is not system-versioned"
 
 ER_MISSING
         eng "Wrong parameters for %`s: missing '%s'"
@@ -7927,4 +7927,4 @@ ER_VERS_DUPLICATE_ROW_START_END
 	eng "Duplicate ROW %s column %`s"
 
 ER_VERS_ALREADY_VERSIONED
-        eng "Table %`s is already temporal"
+        eng "Table %`s is already system-versioned"
