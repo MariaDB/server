@@ -18,7 +18,9 @@
 # Inspired from https://gitweb.gentoo.org/repo/gentoo.git/tree/dev-db/mysql-init-scripts/files/mysqld_at.service
 
 [Unit]
-Description=MariaDB database server
+Description=MariaDB @VERSION@ database server (multi-instance)
+Documentation=man:mysqld(8)
+Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
 After=syslog.target
 
