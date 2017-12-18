@@ -1,0 +1,28 @@
+select @@system_versioning_transaction_registry;
+@@system_versioning_transaction_registry
+0
+create or replace table t1 (
+x int,
+sys_trx_start bigint(20) unsigned generated always as row start,
+sys_trx_end bigint(20) unsigned generated always as row end,
+period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning engine innodb;
+ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
+set global system_versioning_transaction_registry= 1;
+Warnings:
+Warning	4145	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
+create or replace table t1 (
+x int,
+sys_trx_start bigint(20) unsigned generated always as row start,
+sys_trx_end bigint(20) unsigned generated always as row end,
+period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning engine innodb;
+insert into t1 (x) values (1);
+set global system_versioning_transaction_registry= 0;
+insert into t1 (x) values (2);
+ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
+delete from t1;
+ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
+update t1 set x= 3;
+ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
+drop table t1;

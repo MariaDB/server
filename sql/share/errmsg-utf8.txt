@@ -7928,3 +7928,6 @@ ER_VERS_DUPLICATE_ROW_START_END
 
 ER_VERS_ALREADY_VERSIONED
         eng "Table %`s is already system-versioned"
+
+WARN_VERS_TRT_EXPERIMENTAL
+        eng "Transaction-based system versioning is EXPERIMENTAL and is subject to change in future."

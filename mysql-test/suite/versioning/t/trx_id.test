@@ -1,0 +1,32 @@
+-- source include/have_innodb.inc
+
+select @@system_versioning_transaction_registry;
+
+--error ER_VERS_TRT_IS_DISABLED
+create or replace table t1 (
+  x int,
+  sys_trx_start bigint(20) unsigned generated always as row start,
+  sys_trx_end bigint(20) unsigned generated always as row end,
+  period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning engine innodb;
+
+set global system_versioning_transaction_registry= 1;
+
+create or replace table t1 (
+  x int,
+  sys_trx_start bigint(20) unsigned generated always as row start,
+  sys_trx_end bigint(20) unsigned generated always as row end,
+  period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning engine innodb;
+
+insert into t1 (x) values (1);
+
+set global system_versioning_transaction_registry= 0;
+--error ER_VERS_TRT_IS_DISABLED
+insert into t1 (x) values (2);
+--error ER_VERS_TRT_IS_DISABLED
+delete from t1;
+--error ER_VERS_TRT_IS_DISABLED
+update t1 set x= 3;
+
+drop table t1;

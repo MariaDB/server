@@ -188,11 +188,11 @@ rollback to a;
 commit;
 call verify_vtq;
 
-set global transaction_registry= off;
+set global system_versioning_transaction_registry= off;
 insert into t2(x) values (1);
 --error ER_VERS_TRT_IS_DISABLED
 insert into t1(x) values (1);
-set global transaction_registry= on;
+set global system_versioning_transaction_registry= on;
 
 # virtual columns
 create or replace table t1 (

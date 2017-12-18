@@ -284,11 +284,13 @@ rollback to a;
 commit;
 call verify_vtq;
 No	A	B	C	D
-set global transaction_registry= off;
+set global system_versioning_transaction_registry= off;
 insert into t2(x) values (1);
 insert into t1(x) values (1);
 ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
-set global transaction_registry= on;
+set global system_versioning_transaction_registry= on;
+Warnings:
+Warning	4145	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
 create or replace table t1 (
 x int,
 y int as (x) virtual,
