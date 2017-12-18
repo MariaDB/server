@@ -420,6 +420,10 @@ ulint
 row_get_background_drop_list_len_low(void);
 /*======================================*/
 
+/** Drop garbage tables during recovery. */
+void
+row_mysql_drop_garbage_tables();
+
 /*********************************************************************//**
 Sets an exclusive lock on a table.
 @return error code or DB_SUCCESS */

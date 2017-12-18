@@ -64,6 +64,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "trx0roll.h"
 #include "trx0undo.h"
 #include "row0ext.h"
+#include "srv0start.h"
 #include "ut0new.h"
 
 #include <algorithm>
@@ -2776,12 +2777,6 @@ row_drop_table_for_mysql_in_background(
 
 	error = row_drop_table_for_mysql(name, trx, FALSE, FALSE);
 
-	/* Flush the log to reduce probability that the .frm files and
-	the InnoDB data dictionary get out-of-sync if the user runs
-	with innodb_flush_log_at_trx_commit = 0 */
-
-	log_buffer_flush_to_disk();
-
 	trx_commit_for_mysql(trx);
 
 	trx_free_for_background(trx);
@@ -2819,8 +2814,11 @@ next:
 		return(n_tables + n_tables_dropped);
 	}
 
-	table = dict_table_open_on_id(drop->table_id, FALSE,
-				      DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
+	/* On fast shutdown, just empty the list without dropping tables. */
+	table = srv_shutdown_state == SRV_SHUTDOWN_NONE || !srv_fast_shutdown
+		? dict_table_open_on_id(drop->table_id, FALSE,
+					DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
+		: NULL;
 
 	if (!table) {
 		n_tables_dropped++;
@@ -2873,6 +2871,74 @@ row_get_background_drop_list_len_low(void)
 	mutex_exit(&row_drop_list_mutex);
 
 	return(len);
+}
+
+/** Drop garbage tables during recovery. */
+void
+row_mysql_drop_garbage_tables()
+{
+	mem_heap_t*	heap = mem_heap_create(FN_REFLEN);
+	btr_pcur_t	pcur;
+	mtr_t		mtr;
+	trx_t*		trx = trx_allocate_for_background();
+	trx->op_info = "dropping garbage tables";
+	row_mysql_lock_data_dictionary(trx);
+
+	mtr.start();
+	btr_pcur_open_at_index_side(
+		true, dict_table_get_first_index(dict_sys->sys_tables),
+		BTR_SEARCH_LEAF, &pcur, true, 0, &mtr);
+
+	for (;;) {
+		const rec_t*	rec;
+		const byte*	field;
+		ulint		len;
+		const char*	table_name;
+
+		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
+
+		if (!btr_pcur_is_on_user_rec(&pcur)) {
+			break;
+		}
+
+		rec = btr_pcur_get_rec(&pcur);
+		if (rec_get_deleted_flag(rec, 0)) {
+			continue;
+		}
+
+		field = rec_get_nth_field_old(rec, 0/*NAME*/, &len);
+		if (len == UNIV_SQL_NULL || len == 0) {
+			/* Corrupted SYS_TABLES.NAME */
+			continue;
+		}
+
+		table_name = mem_heap_strdupl(
+			heap,
+			reinterpret_cast<const char*>(field), len);
+		if (strstr(table_name, "/" TEMP_FILE_PREFIX_INNODB)) {
+			btr_pcur_store_position(&pcur, &mtr);
+			btr_pcur_commit_specify_mtr(&pcur, &mtr);
+
+			if (dict_load_table(table_name, true,
+					    DICT_ERR_IGNORE_ALL)) {
+				row_drop_table_for_mysql(
+					table_name, trx, FALSE, FALSE);
+				trx_commit_for_mysql(trx);
+			}
+
+			mtr.start();
+			btr_pcur_restore_position(BTR_SEARCH_LEAF,
+						  &pcur, &mtr);
+		}
+
+		mem_heap_empty(heap);
+	}
+
+	btr_pcur_close(&pcur);
+	mtr.commit();
+	row_mysql_unlock_data_dictionary(trx);
+	trx_free_for_background(trx);
+	mem_heap_free(heap);
 }
 
 /*********************************************************************//**
@@ -3645,11 +3711,7 @@ row_drop_table_for_mysql(
 	}
 
 
-	DBUG_EXECUTE_IF("row_drop_table_add_to_background",
-		row_add_table_to_background_drop_list(table->id);
-		err = DB_SUCCESS;
-		goto funct_exit;
-	);
+	DBUG_EXECUTE_IF("row_drop_table_add_to_background", goto defer;);
 
 	/* TODO: could we replace the counter n_foreign_key_checks_running
 	with lock checks on the table? Acquire here an exclusive lock on the
@@ -3658,17 +3720,22 @@ row_drop_table_for_mysql(
 	checks take an IS or IX lock on the table. */
 
 	if (table->n_foreign_key_checks_running > 0) {
-		if (row_add_table_to_background_drop_list(table->id)) {
-			ib::info() << "You are trying to drop table "
-				<< table->name
-				<< " though there is a foreign key check"
-				" running on it. Adding the table to the"
-				" background drop queue.";
+defer:
+		if (!strstr(table->name.m_name, "/" TEMP_FILE_PREFIX_INNODB)) {
+			heap = mem_heap_create(FN_REFLEN);
+			const char* tmp_name
+				= dict_mem_create_temporary_tablename(
+					heap, table->name.m_name, table->id);
+			ib::info() << "Deferring DROP TABLE " << table->name
+				   << "; renaming to " << tmp_name;
+			err = row_rename_table_for_mysql(
+				table->name.m_name, tmp_name, trx, false);
+		} else {
+			err = DB_SUCCESS;
 		}
-
-		/* We return DB_SUCCESS to MySQL though the drop will
-		happen lazily later */
-		err = DB_SUCCESS;
+		if (err == DB_SUCCESS) {
+			row_add_table_to_background_drop_list(table->id);
+		}
 		goto funct_exit;
 	}
 
@@ -3689,26 +3756,9 @@ row_drop_table_for_mysql(
 	/* Wait on background threads to stop using table */
 	fil_wait_crypt_bg_threads(table);
 
-	if (table->get_ref_count() == 0) {
-		lock_remove_all_on_table(table, TRUE);
-		ut_a(table->n_rec_locks == 0);
-	} else if (table->get_ref_count() > 0 || table->n_rec_locks > 0) {
-		if (row_add_table_to_background_drop_list(table->id)) {
-			ib::info() << "MySQL is trying to drop table "
-				<< table->name
-				<< " though there are still open handles to"
-				" it. Adding the table to the background drop"
-				" queue.";
-
-			/* We return DB_SUCCESS to MySQL though the drop will
-			happen lazily later */
-			err = DB_SUCCESS;
-		} else {
-			/* The table is already in the background drop list */
-			err = DB_ERROR;
-		}
-
-		goto funct_exit;
+	if (table->get_ref_count() > 0 || table->n_rec_locks > 0
+	    || lock_table_has_locks(table)) {
+		goto defer;
 	}
 
 	/* The "to_be_dropped" marks table that is to be dropped, but
@@ -3717,11 +3767,6 @@ row_drop_table_for_mysql(
 	here since there are no longer any concurrent activities on it,
 	and it is free to be dropped */
 	table->to_be_dropped = false;
-
-	/* If we get this far then the table to be dropped must not have
-	any table or record locks on it. */
-
-	ut_a(!lock_table_has_locks(table));
 
 	switch (trx_get_dict_operation(trx)) {
 	case TRX_DICT_OP_NONE:
