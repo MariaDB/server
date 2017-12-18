@@ -574,6 +574,13 @@ struct TABLE_STATISTICS_CB
 
 class Vers_min_max_stats;
 
+enum vers_sys_type_t
+{
+  VERS_UNDEFINED= 0,
+  VERS_TIMESTAMP,
+  VERS_TRX_ID
+};
+
 #ifndef UINT32_MAX
 #define UINT32_MAX             (4294967295U)
 #endif
@@ -757,7 +764,7 @@ struct TABLE_SHARE
     System versioning support.
    */
 
-  bool versioned;
+  vers_sys_type_t versioned;
   bool vtmd;
   uint16 row_start_field;
   uint16 row_end_field;
@@ -1517,29 +1524,16 @@ public:
    */
   bool vers_write;
 
-  bool versioned() const
+  bool versioned(vers_sys_type_t type= VERS_UNDEFINED) const
   {
     DBUG_ASSERT(s);
-    return s->versioned;
+    return type ? s->versioned == type : s->versioned;
   }
 
-  bool versioned_write() const
+  bool versioned_write(vers_sys_type_t type= VERS_UNDEFINED) const
   {
     DBUG_ASSERT(versioned() || !vers_write);
-    return vers_write;
-  }
-
-  /* Versioned by SQL layer */
-  bool versioned_by_sql() const
-  {
-    DBUG_ASSERT(s && file);
-    return s->versioned && !file->native_versioned();
-  }
-
-  bool versioned_by_engine() const
-  {
-    DBUG_ASSERT(s && file);
-    return s->versioned && file->native_versioned();
+    return versioned(type) ? vers_write : false;
   }
 
   bool vers_vtmd() const
@@ -1861,53 +1855,46 @@ class Item_in_subselect;
   4) jtbm semi-join (jtbm_subselect != NULL)
 */
 
-enum vers_range_unit_t
-{
-  UNIT_AUTO = 0,
-  UNIT_TIMESTAMP,
-  UNIT_TRX_ID
-};
-
 /** last_leaf_for_name_resolutioning support. */
 struct vers_select_conds_t
 {
-  vers_range_type_t type;
-  vers_range_unit_t unit_start, unit_end;
+  vers_system_time_t type;
+  vers_sys_type_t unit_start, unit_end;
   bool from_query:1;
   Item *start, *end;
 
   void empty()
   {
-    type= FOR_SYSTEM_TIME_UNSPECIFIED;
-    unit_start= unit_end= UNIT_AUTO;
+    type= SYSTEM_TIME_UNSPECIFIED;
+    unit_start= unit_end= VERS_UNDEFINED;
     from_query= false;
     start= end= NULL;
   }
 
   Item *fix_dec(Item *item);
 
-  void init(vers_range_type_t t, vers_range_unit_t u_start= UNIT_AUTO,
-            Item * s= NULL, vers_range_unit_t u_end= UNIT_AUTO,
+  void init(vers_system_time_t t, vers_sys_type_t u_start= VERS_UNDEFINED,
+            Item * s= NULL, vers_sys_type_t u_end= VERS_UNDEFINED,
             Item * e= NULL);
 
   bool init_from_sysvar(THD *thd);
 
-  bool operator== (vers_range_type_t b)
+  bool operator== (vers_system_time_t b)
   {
     return type == b;
   }
-  bool operator!= (vers_range_type_t b)
+  bool operator!= (vers_system_time_t b)
   {
     return type != b;
   }
   operator bool() const
   {
-    return type != FOR_SYSTEM_TIME_UNSPECIFIED;
+    return type != SYSTEM_TIME_UNSPECIFIED;
   }
   void resolve_units(bool timestamps_only);
   bool user_defined() const
   {
-    return !from_query && type != FOR_SYSTEM_TIME_UNSPECIFIED;
+    return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
   }
 };
 

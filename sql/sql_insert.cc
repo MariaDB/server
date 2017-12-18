@@ -1161,7 +1161,7 @@ values_loop_end:
           errcode= query_error_code(thd, thd->killed == NOT_KILLED);
 
         ScopedStatementReplication scoped_stmt_rpl(
-            table->versioned_by_engine() ? thd : NULL);
+            table->versioned(VERS_TRX_ID) ? thd : NULL);
        /* bug#22725:
 
 	A query which per-row-loop can not be interrupted with
@@ -1582,7 +1582,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   if (!table)
     table= table_list->table;
 
-  if (table->versioned_by_sql() && duplic == DUP_REPLACE)
+  if (table->versioned(VERS_TIMESTAMP) && duplic == DUP_REPLACE)
   {
     // Additional memory may be required to create historical items.
     if (table_list->set_insert_values(thd->mem_root))
@@ -1648,7 +1648,7 @@ static int last_uniq_key(TABLE *table,uint keynr)
 
 int vers_insert_history_row(TABLE *table)
 {
-  DBUG_ASSERT(table->versioned_by_sql());
+  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
   restore_record(table,record[1]);
 
   // Set Sys_end to now()
@@ -1866,7 +1866,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             info->updated++;
             if (table->versioned())
             {
-              if (table->versioned_by_sql())
+              if (table->versioned(VERS_TIMESTAMP))
               {
                 store_record(table, record[2]);
                 if ((error= vers_insert_history_row(table)))
@@ -1940,7 +1940,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
-          if (table->versioned_by_engine())
+          if (table->versioned(VERS_TRX_ID))
           {
             bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
             table->vers_start_field()->set_notnull();
@@ -1953,7 +1953,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (error != HA_ERR_RECORD_IS_THE_SAME)
           {
             info->deleted++;
-            if (table->versioned_by_sql())
+            if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
               error= vers_insert_history_row(table);
@@ -1978,7 +1978,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                                                 TRG_ACTION_BEFORE, TRUE))
             goto before_trg_err;
 
-          if (!table->versioned_by_sql())
+          if (!table->versioned(VERS_TIMESTAMP))
             error= table->file->ha_delete_row(table->record[1]);
           else
           {
@@ -1996,7 +1996,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           }
           if (error)
             goto err;
-          if (!table->versioned_by_sql())
+          if (!table->versioned(VERS_TIMESTAMP))
             info->deleted++;
           else
             info->updated++;

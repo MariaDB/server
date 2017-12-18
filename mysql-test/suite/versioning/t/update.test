@@ -10,9 +10,9 @@ begin
   create table t1(
     x int unsigned,
     y int unsigned,
-    sys_start ', sys_type, ' generated always as row start,
-    sys_end ', sys_type, ' generated always as row end,
-    period for system_time (sys_start, sys_end))
+    sys_trx_start ', sys_type, ' generated always as row start,
+    sys_trx_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_trx_start, sys_trx_end))
   with system versioning
   engine ', engine);
   prepare stmt from @str; execute stmt; drop prepare stmt;
@@ -44,7 +44,10 @@ begin
   create table t1 (
     id bigint primary key,
     x int,
-    y int without system versioning)
+    y int without system versioning,
+    sys_trx_start ', sys_type, ' as row start,
+    sys_trx_end ', sys_type, ' as row end,
+    period for system_time (sys_trx_start, sys_trx_end))
   with system versioning
   engine ', engine);
   prepare stmt from @str; execute stmt; drop prepare stmt;  
@@ -69,8 +72,11 @@ begin
   set @str= concat('
   create table t1 (
     x int,
-    y int)
-  with system versioning
+    y int,
+    sys_trx_start bigint unsigned as row start,
+    sys_trx_end bigint unsigned as row end,
+    period for system_time (sys_trx_start, sys_trx_end)
+  ) with system versioning
   engine ', engine);
   prepare stmt from @str; execute stmt; drop prepare stmt;
 
@@ -97,7 +103,10 @@ begin
   set @str= concat('
   create table t1 (
     id int primary key auto_increment,
-    x int)
+    x int,
+    sys_trx_start ', sys_type, ' as row start,
+    sys_trx_end ', sys_type, ' as row end,
+    period for system_time (sys_trx_start, sys_trx_end))
   with system versioning
   engine ', engine);
   prepare stmt from @str; execute stmt; drop prepare stmt;
@@ -125,10 +134,10 @@ begin
   set @str= concat('
   create table t1(
     x int unsigned,
-    sys_end ', sys_type, ' generated always as row end,
-    sys_start ', sys_type, ' generated always as row start,
+    sys_trx_end ', sys_type, ' generated always as row end,
+    sys_trx_start ', sys_type, ' generated always as row start,
     y int unsigned,
-    period for system_time (sys_start, sys_end),
+    period for system_time (sys_trx_start, sys_trx_end),
     primary key(x, y))
   with system versioning
   engine ', engine);
@@ -153,9 +162,9 @@ begin
   set @str= concat('(
     x int unsigned,
     y int unsigned,
-    sys_start ', sys_type, ' generated always as row start,
-    sys_end ', sys_type, ' generated always as row end,
-    period for system_time (sys_start, sys_end))
+    sys_trx_start ', sys_type, ' generated always as row start,
+    sys_trx_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_trx_start, sys_trx_end))
   with system versioning
   engine ', engine);
   set @str2= concat('create table t1', @str);
@@ -197,9 +206,13 @@ create procedure test_07(
   fields varchar(255))
 begin
   set @str= concat('(
-    id bigint primary key,
-    name varchar(128) with system versioning,
-    salary bigint)
+    id bigint primary key without system versioning,
+    name varchar(128),
+    salary bigint without system versioning,
+    sys_trx_start ', sys_type, ' as row start,
+    sys_trx_end ', sys_type, ' as row end,
+    period for system_time (sys_trx_start, sys_trx_end))
+  with system versioning
   engine ', engine);
 
   set @str2= concat('create table t1', @str);
@@ -227,34 +240,40 @@ begin
 end~~
 delimiter ;~~
 
-call test_01('timestamp(6)', 'myisam', 'sys_end');
-call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+call test_01('timestamp(6)', 'myisam', 'sys_trx_end');
+call test_01('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
+call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
 call verify_vtq;
 
-call test_02('timestamp(6)', 'myisam', 'sys_end');
-call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+call test_02('timestamp(6)', 'myisam', 'sys_trx_end');
+call test_02('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
+call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
 call verify_vtq;
 
 --echo # Multiple UPDATE of same rows in single transaction create historical
---echo # rows only once (applicable to InnoDB only).
-call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+--echo # rows only once (applicable to transaction-based only).
+call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
 call verify_vtq;
 
-call test_04('timestamp(6)', 'myisam', 'sys_end');
-call test_04('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+call test_04('timestamp(6)', 'myisam', 'sys_trx_end');
+call test_04('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
+call test_04('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
 call verify_vtq;
 
-call test_05('timestamp(6)', 'myisam', 'sys_end');
-call test_05('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+call test_05('timestamp(6)', 'myisam', 'sys_trx_end');
+call test_05('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
+call test_05('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
 call verify_vtq;
 
-call test_06('timestamp(6)', 'myisam', 'sys_end');
-call test_06('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+call test_06('timestamp(6)', 'myisam', 'sys_trx_end');
+call test_06('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
+call test_06('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
 call verify_vtq;
 
-call test_07('timestamp(6)', 'myisam', 'sys_end');
-call test_07('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
-
+--echo # Optimized fields
+call test_07('timestamp(6)', 'myisam', 'sys_trx_end');
+call test_07('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
+call test_07('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
 call verify_vtq;
 
 --echo ### Issue #365, bug 7 (duplicate of historical row)

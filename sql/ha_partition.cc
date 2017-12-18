@@ -2118,7 +2118,7 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
     HA_STATUS_AUTO is optimized so it will not always be forwarded
     to all partitions, but HA_STATUS_VARIABLE will.
   */
-  info(HA_STATUS_VARIABLE);
+  info(HA_STATUS_VARIABLE | HA_STATUS_OPEN);
 
   info(HA_STATUS_AUTO);
 
@@ -3626,7 +3626,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
                             m_part_info->part_expr->get_monotonicity_info();
   else if (m_part_info->list_of_part_fields)
     m_part_func_monotonicity_info= MONOTONIC_STRICT_INCREASING;
-  info(HA_STATUS_VARIABLE | HA_STATUS_CONST);
+  info(HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_OPEN);
   DBUG_RETURN(0);
 
 err_handler:

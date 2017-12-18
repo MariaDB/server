@@ -1198,6 +1198,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   const uchar *system_period= 0;
   bool vtmd_used= false;
   share->vtmd= false;
+  bool vers_can_native= false;
   const uchar *extra2_field_flags= 0;
   size_t extra2_field_flags_length= 0;
 
@@ -1770,9 +1771,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   /* Set system versioning information. */
   if (system_period == NULL)
   {
-    versioned= false;
-    row_start_field = 0;
-    row_end_field = 0;
+    versioned= VERS_UNDEFINED;
+    row_start_field= 0;
+    row_end_field= 0;
   }
   else
   {
@@ -1782,7 +1783,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (row_start >= share->fields || row_end >= share->fields)
       goto err;
     DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
-    versioned= true;
+    versioned= VERS_TIMESTAMP;
+    vers_can_native= plugin_hton(se_plugin)->flags & HTON_NATIVE_SYS_VERSIONING;
     vers_init();
     row_start_field= row_start;
     row_end_field= row_end;
@@ -2018,6 +2020,27 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         flags|= VERS_SYS_START_FLAG;
       else if (i == row_end_field)
         flags|= VERS_SYS_END_FLAG;
+
+      if (flags & VERS_SYSTEM_FIELD)
+      {
+        switch (field_type)
+        {
+        case MYSQL_TYPE_TIMESTAMP2:
+        case MYSQL_TYPE_DATETIME2:
+          break;
+        case MYSQL_TYPE_LONGLONG:
+          if (vers_can_native)
+          {
+            versioned= VERS_TRX_ID;
+            break;
+          }
+        default:
+          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), fieldnames.type_names[i],
+            versioned == VERS_TIMESTAMP ? "TIMESTAMP(6)" : "BIGINT(20) UNSIGNED",
+            table_name.str);
+          goto err;
+        }
+      }
     }
 
     /* Convert pre-10.2.2 timestamps to use Field::default_value */
@@ -7753,7 +7776,7 @@ void TABLE::vers_update_fields()
   bitmap_set_bit(write_set, vers_start_field()->field_index);
   bitmap_set_bit(write_set, vers_end_field()->field_index);
 
-  if (versioned_by_sql())
+  if (versioned(VERS_TIMESTAMP))
   {
     if (!vers_write)
       return;
@@ -8883,25 +8906,25 @@ bool TR_table::check()
 
 void vers_select_conds_t::resolve_units(bool timestamps_only)
 {
-  DBUG_ASSERT(type != FOR_SYSTEM_TIME_UNSPECIFIED);
+  DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
   DBUG_ASSERT(start);
-  if (unit_start == UNIT_AUTO)
+  if (unit_start == VERS_UNDEFINED)
   {
     if (start->type() == Item::FIELD_ITEM)
-      unit_start= UNIT_TIMESTAMP;
+      unit_start= VERS_TIMESTAMP;
     else
       unit_start= (!timestamps_only && (start->result_type() == INT_RESULT ||
         start->result_type() == REAL_RESULT)) ?
-          UNIT_TRX_ID : UNIT_TIMESTAMP;
+          VERS_TRX_ID : VERS_TIMESTAMP;
   }
-  if (end && unit_end == UNIT_AUTO)
+  if (end && unit_end == VERS_UNDEFINED)
   {
     if (start->type() == Item::FIELD_ITEM)
-      unit_start= UNIT_TIMESTAMP;
+      unit_start= VERS_TIMESTAMP;
     else
       unit_end= (!timestamps_only && (end->result_type() == INT_RESULT ||
         end->result_type() == REAL_RESULT)) ?
-          UNIT_TRX_ID : UNIT_TIMESTAMP;
+          VERS_TRX_ID : VERS_TIMESTAMP;
   }
 }
 

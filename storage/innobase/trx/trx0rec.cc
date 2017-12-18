@@ -2028,9 +2028,11 @@ trx_undo_report_row_operation(
 				    && index->table->versioned()
 				    && (!rec /* INSERT */
 					|| !update /* DELETE */
-					|| update->affects_versioned())) {
-
-					time.set_versioned(limit);
+					|| update->affects_versioned()))
+				{
+					dict_col_t &col = index->table->cols[index->table->vers_start];
+					bool by_trx_id = col.mtype == DATA_INT;
+					time.set_versioned(limit, by_trx_id);
 				}
 			}
 

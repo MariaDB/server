@@ -2246,12 +2246,11 @@ end_of_index:
 			ut_ad(add_autoinc
 			      < dict_table_get_n_user_cols(new_table));
 
-			bool historical_row = false;
+			bool history_row = false;
 			if (new_table->versioned()) {
 				const dfield_t* dfield = dtuple_get_nth_field(
 				    row, new_table->vers_end);
-				historical_row
-					= dfield->is_version_historical_end();
+				history_row = dfield->vers_history_row();
 			}
 
 			dfield_t*	dfield;
@@ -2259,7 +2258,7 @@ end_of_index:
 			dfield = dtuple_get_nth_field(row, add_autoinc);
 
 			if (new_table->versioned()) {
-				if (historical_row) {
+				if (history_row) {
 					if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
 						err = DB_UNSUPPORTED;
 						my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),
@@ -2320,19 +2319,9 @@ end_of_index:
 		}
 
 		if (old_table->versioned()) {
-			if (!new_table->versioned() || drop_historical) {
-				const dict_col_t* col =
-				    &old_table->cols[old_table->vers_end];
-				const ulint nfield =
-				    dict_col_get_clust_pos(col, clust_index);
-				ulint len = 0;
-				const rec_t* sys_trx_end = rec_get_nth_field(
-				    rec, offsets, nfield, &len);
-				ut_ad(len == 8);
-				if (mach_read_from_8(sys_trx_end)
-				    != TRX_ID_MAX) {
-					continue;
-				}
+			if ((!new_table->versioned() || drop_historical)
+			    && clust_index->vers_history_row(rec, offsets)) {
+				continue;
 			}
 		} else if (new_table->versioned()) {
 			dfield_t* start =

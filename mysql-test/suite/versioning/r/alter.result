@@ -10,7 +10,7 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t drop system versioning;
-ERROR HY000: Table `t` is not versioned
+ERROR HY000: Table `t` is not temporal
 alter table t add system versioning;
 show create table t;
 Table	Create Table
@@ -21,9 +21,9 @@ t	CREATE TABLE `t` (
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column y int;
-ERROR HY000: Not allowed for versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
+ERROR HY000: Not allowed for temporal `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
 alter table t engine innodb;
-ERROR HY000: Not allowed for versioned `test`.`t`. Change to/from native versioning engine is prohibited.
+ERROR HY000: Not allowed for temporal `test`.`t`. Change to/from native system versioning engine is prohibited.
 alter table t drop system versioning;
 show create table t;
 Table	Create Table
@@ -36,13 +36,13 @@ add column trx_start bigint(20) unsigned generated always as row start,
 add column trx_end bigint(20) unsigned generated always as row end,
 add period for system_time(trx_start, trx_end),
 add system versioning;
-ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for versioned table `t`
+ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for temporal table `t`
 alter table t
 add column trx_start timestamp generated always as row start,
 add column trx_end timestamp generated always as row end,
 add period for system_time(trx_start, trx_end),
 add system versioning;
-ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for versioned table `t`
+ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for temporal table `t`
 alter table t
 add column trx_start timestamp(6) not null generated always as row start,
 add column trx_end timestamp(6) not null generated always as row end,
@@ -231,9 +231,9 @@ t	CREATE TABLE `t` (
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t modify a int with system versioning;
-ERROR HY000: Table `t` is not versioned
+ERROR HY000: Table `t` is not temporal
 alter table t modify a int without system versioning;
-ERROR HY000: Table `t` is not versioned
+ERROR HY000: Table `t` is not temporal
 alter table t add system versioning;
 alter table t modify a int without system versioning;
 show create table t;
@@ -258,21 +258,36 @@ t	CREATE TABLE `t` (
 create or replace table t(
 a int
 ) engine=innodb;
-insert into t values(1);
-select * from t;
-a
-1
 alter table t
-add column trx_start timestamp(6) generated always as row start,
-add column trx_end timestamp(6) generated always as row end,
+add column trx_start timestamp(6) as row start,
+add column trx_end timestamp(6) as row end,
 add period for system_time(trx_start, trx_end),
 add system versioning;
-ERROR HY000: `trx_start` must be of type BIGINT(20) UNSIGNED for versioned table `t`
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+# Issue #211: drop of system columns required before drop system versioning
+alter table t drop column trx_start, drop column trx_end;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t drop system versioning;
+insert into t values(1);
 call verify_vtq;
 No	A	B	C	D
 alter table t
-add column trx_start bigint(20) unsigned generated always as row start,
-add column trx_end bigint(20) unsigned generated always as row end,
+add column trx_start bigint(20) unsigned as row start,
+add column trx_end bigint(20) unsigned as row end,
 add period for system_time(trx_start, trx_end),
 add system versioning;
 call verify_vtq;
@@ -285,12 +300,10 @@ t	CREATE TABLE `t` (
   `trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-alter table t drop column trx_start, drop column trx_end;
-call verify_vtq;
-No	A	B	C	D
-alter table t drop system versioning, algorithm=copy;
-call verify_vtq;
-No	A	B	C	D
+create or replace table t(
+a int
+) engine=innodb;
+insert into t values (1);
 alter table t add system versioning, algorithm=copy;
 call verify_vtq;
 No	A	B	C	D
@@ -298,8 +311,8 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `sys_trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 update t set a= 2;
@@ -307,16 +320,13 @@ select * from t for system_time all;
 a
 2
 1
-call verify_vtq;
-No	A	B	C	D
-1	1	1	1	1
 alter table t add column b int, algorithm=copy;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `sys_trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   `b` int(11) DEFAULT NULL,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
@@ -330,8 +340,8 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `sys_trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t for system_time all;
@@ -343,53 +353,7 @@ No	A	B	C	D
 alter table t drop system versioning, algorithm=inplace;
 call verify_vtq;
 No	A	B	C	D
-alter table t add system versioning, algorithm=inplace;
-call verify_vtq;
-No	A	B	C	D
-show create table t;
-Table	Create Table
-t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `sys_trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-update t set a= 1;
-select * from t for system_time all;
-a
-1
-2
-call verify_vtq;
-No	A	B	C	D
-1	1	1	1	1
-alter table t add column b int, algorithm=inplace;
-show create table t;
-Table	Create Table
-t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `sys_trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
-  `b` int(11) DEFAULT NULL,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-select * from t;
-a	b
-1	NULL
-call verify_vtq;
-No	A	B	C	D
-alter table t drop column b, algorithm=inplace;
-show create table t;
-Table	Create Table
-t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `sys_trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-select * from t for system_time all;
-a
-1
-2
+alter table t add system versioning;
 alter table t drop system versioning, algorithm=copy;
 show create table t;
 Table	Create Table
@@ -411,17 +375,11 @@ drop table t;
 create or replace table t (a int) with system versioning engine=innodb;
 insert into t values (1), (2), (3);
 delete from t where a<3;
-call verify_vtq;
-No	A	B	C	D
-1	1	1	1	1
-2	1	1	1	1
 alter table t add b int not null unique;
-ERROR 23000: Duplicate entry '...' for key 'b'
+Got one of the listed errors
 alter table t add b int auto_increment unique;
-ERROR 42000: Table 'test/t' uses an extension that doesn't exist in this MariaDB version
+Got one of the listed errors
 alter table t add b int auto_increment null unique;
-call verify_vtq;
-No	A	B	C	D
 select * from t;
 a	b
 3	1
@@ -436,17 +394,14 @@ a	b
 1	NULL
 2	NULL
 3	1
-4	2
-call verify_vtq;
-No	A	B	C	D
-1	1	1	1	1
+4	4
 create or replace table t (a int) with system versioning;
 insert into t values (1), (2), (3);
 delete from t where a<3;
 alter table t add b int not null unique;
-ERROR 23000: Duplicate entry '...' for key 'b'
+Got one of the listed errors
 alter table t add b int auto_increment unique;
-ERROR 42000: Table '#sql-temporary' uses an extension that doesn't exist in this MariaDB version
+Got one of the listed errors
 alter table t add b int auto_increment null unique;
 select * from t;
 a	b
@@ -509,10 +464,10 @@ set system_versioning_alter_history= DROP;
 ERROR 42000: Variable 'system_versioning_alter_history' can't be set to the value of 'DROP'
 create or replace table t (a int) with system versioning;
 alter table t add system versioning;
-ERROR HY000: Table `t` is already system-versioned table
+ERROR HY000: Table `t` is already temporal
 alter table t add system versioning, drop system versioning;
-ERROR HY000: Table `t` is already system-versioned table
-set @@versioning_alter_history=keep;
+ERROR HY000: Table `t` is already temporal
+set @@system_versioning_alter_history=keep;
 create or replace table t(x int, y int) with system versioning engine=innodb;
 alter table t modify y int without system versioning;
 insert into t values(1, 1);

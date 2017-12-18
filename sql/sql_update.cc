@@ -930,7 +930,7 @@ update_begin:
 
           if (has_vers_fields && table->versioned())
           {
-            if (table->versioned_by_sql())
+            if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
               if ((error = vers_insert_history_row(table)))
@@ -1119,7 +1119,7 @@ update_end:
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
 
       ScopedStatementReplication scoped_stmt_rpl(
-          table->versioned_by_engine() ? thd : NULL);
+          table->versioned(VERS_TRX_ID) ? thd : NULL);
 
       if (thd->binlog_query(THD::ROW_QUERY_TYPE,
                             thd->query(), thd->query_length(),
@@ -1145,7 +1145,7 @@ update_end:
   if (error < 0 && !thd->lex->analyze_stmt)
   {
     char buff[MYSQL_ERRMSG_SIZE];
-    if (!table->versioned_by_sql())
+    if (!table->versioned(VERS_TIMESTAMP))
       my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
                   (ulong) updated,
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
@@ -2330,7 +2330,7 @@ int multi_update::send_data(List<Item> &not_used_values)
           }
           else if (has_vers_fields && table->versioned())
           {
-            if (table->versioned_by_sql())
+            if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
               if (vers_insert_history_row(table))
@@ -2655,7 +2655,7 @@ int multi_update::do_updates()
 
           if (has_vers_fields && table->versioned())
           {
-            if (table->versioned_by_sql())
+            if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
               if ((local_error= vers_insert_history_row(table)))
@@ -2788,7 +2788,7 @@ bool multi_update::send_eof()
       bool force_stmt= false;
       for (TABLE *table= all_tables->table; table; table= table->next)
       {
-        if (table->versioned_by_engine())
+        if (table->versioned(VERS_TRX_ID))
         {
           force_stmt= true;
           break;

@@ -391,7 +391,7 @@ const char *Sys_var_vers_asof::asof_keywords[]= {"DEFAULT", NULL};
 static Sys_var_vers_asof Sys_vers_asof_timestamp(
        "system_versioning_asof", "Default value for the FOR SYSTEM_TIME AS OF clause",
        SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
-       Sys_var_vers_asof::asof_keywords, DEFAULT(FOR_SYSTEM_TIME_UNSPECIFIED));
+       Sys_var_vers_asof::asof_keywords, DEFAULT(SYSTEM_TIME_UNSPECIFIED));
 
 static Sys_var_mybool Sys_vers_force(
        "system_versioning_force", "Force system versioning for all created tables",

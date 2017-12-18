@@ -155,7 +155,6 @@ extern bool volatile shutdown_in_progress;
 
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd);
 extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
-void thd_vers_update_trt(THD *thd, bool value);
 
 /**
   @class CSET_STRING
@@ -707,7 +706,7 @@ typedef struct system_variables
   uint column_compression_zlib_level;
   ulong in_subquery_conversion_threshold;
 
-  st_vers_asof_timestamp vers_asof_timestamp;
+  vers_asof_timestamp_t vers_asof_timestamp;
   my_bool vers_force;
   ulong vers_hide;
   my_bool vers_innodb_algorithm_simple;

@@ -833,6 +833,12 @@ handle_new_error:
 			<< FK_MAX_CASCADE_DEL << ". Please drop excessive"
 			" foreign constraints and try again";
 		break;
+	case DB_UNSUPPORTED:
+		ib::error() << "Cannot delete/update rows with cascading"
+			" foreign key constraints in timestamp-based temporal"
+			" table. Please drop excessive"
+			" foreign constraints and try again";
+		break;
 	default:
 		ib::fatal() << "Unknown error code " << err << ": "
 			<< ut_strerr(err);
@@ -2042,7 +2048,7 @@ run_again:
 	err = trx->error_state;
 
 	if (err != DB_SUCCESS) {
-
+handle_error:
 		que_thr_stop_for_mysql(thr);
 
 		if (err == DB_RECORD_NOT_FOUND) {
@@ -2124,6 +2130,14 @@ run_again:
 				  && (node->is_delete == PLAIN_DELETE
 				      || node->update->affects_versioned());
 
+		if (vers_set_fields && !prebuilt->versioned_write)
+		{
+			// FIXME: timestamp-based update of sys_trx_end in run_again
+			err = DB_UNSUPPORTED;
+			trx->error_state = err;
+
+			goto handle_error;
+		}
 		goto run_again;
 	}
 

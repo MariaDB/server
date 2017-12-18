@@ -1,4 +1,4 @@
-### check System Versioning and conventional partitioning
+# Check conventional partitioning on temporal tables
 create table t1 (x int)
 with system versioning
 partition by range columns (x) (
@@ -28,16 +28,17 @@ x
 select * from t1 partition (p1);
 x
 300
-### Engine change versioned/non-versioned prohibited
-create or replace table t1 (i int) engine=MyISAM with system versioning partition by hash(i);
-alter table t1 engine=InnoDB;
-ERROR HY000: Not allowed for versioned `test`.`t1`. Change to/from native versioning engine is prohibited.
-### check server-level partitioning
+# Engine change native <-> non-native versioning prohibited
+create or replace table t1 (i int) engine=DEFAULT_ENGINE with system versioning partition by hash(i);
+alter table t1 engine=NON_DEFAULT_ENGINE;
+ERROR HY000: Not allowed for temporal `test`.`t1`. Change to/from native system versioning engine is prohibited.
+# Check server-level partitioning
+## create errors
 create or replace table t1 (x int)
 partition by system_time (
 partition p0 history,
 partition pn current);
-ERROR HY000: Engine does not support System Versioning for `t1`
+ERROR HY000: Transaction system versioning for `t1` is not supported
 create or replace table t1 (x int);
 alter table t1
 partition by system_time (
@@ -72,6 +73,7 @@ with system versioning
 partition by system_time (
 partition p0 history,
 partition pn current);
+## alter table
 alter table t1 add partition (
 partition p1 current);
 ERROR HY000: Wrong partitions consistency for `t1`: must have at least one HISTORY and exactly one last CURRENT
@@ -83,14 +85,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL,
-  `sys_trx_start` ${SYS_TRX_TYPE} GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` ${SYS_TRX_TYPE} GENERATED ALWAYS AS ROW END,
+  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
-) ENGINE=${INNODB_OR_MYISAM} DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME 
-(PARTITION `p0` HISTORY ENGINE = ${INNODB_OR_MYISAM},
- PARTITION `p1` HISTORY ENGINE = ${INNODB_OR_MYISAM},
- PARTITION `pn` CURRENT ENGINE = ${INNODB_OR_MYISAM})
+(PARTITION `p0` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
 insert into t1 values (1), (2);
 alter table t1 drop partition pn;
 ERROR HY000: Wrong partitions consistency for `t1`: must have at least one HISTORY and exactly one last CURRENT
@@ -101,6 +103,14 @@ select x from t1;
 x
 1
 2
+# Bug #260: incorrect IB partitioning warning
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 1 (
+partition p0 history,
+partition pn current);
+alter table t1 change x big int;
+## insert, delete, update
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
@@ -108,21 +118,20 @@ partition p0 history,
 partition pn current);
 set @now= now(6);
 insert into t1 values (1);
-set @ts_start= sys_commit_ts('sys_trx_start');
-set @ts_end= sys_commit_ts('sys_trx_end');
-set @str= concat('select x, ', @ts_start, ' < @now as A, ', @ts_end, ' > @now as B from t1 partition (p0)');
+set @str= concat('select x, sys_trx_start < @now as A, sys_trx_end > @now as B from t1 partition (p0)');
 prepare select_p0 from @str;
-set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn)');
+set @str= concat('select x, sys_trx_start > @now as C, sys_trx_end = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn)');
 prepare select_pn from @str;
 execute select_p0;
 x	A	B
 execute select_pn;
 x	C	D
 1	1	1
-explain partitions select * from t1;
+## pruning check
+explain partitions select * from tN;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	pn	system	NULL	NULL	NULL	NULL	1	
-set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+N	SIMPLE	tN	pn	system	NULL	NULL	NULL	NULL	N	
+set @str= concat('select sys_trx_start from t1 partition (pn) into @ts0');
 prepare stmt from @str;
 execute stmt;
 drop prepare stmt;
@@ -133,7 +142,7 @@ x	A	B
 1	1	1
 execute select_pn;
 x	C	D
-set @str= concat('select ', @ts_start, ' from t1 partition (p0) into @ts1');
+set @str= concat('select sys_trx_start from t1 partition (p0) into @ts1');
 prepare stmt from @str;
 execute stmt;
 drop prepare stmt;
@@ -148,7 +157,7 @@ x	A	B
 execute select_pn;
 x	C	D
 2	1	1
-set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+set @str= concat('select sys_trx_start from t1 partition (pn) into @ts0');
 prepare stmt from @str;
 execute stmt;
 drop prepare stmt;
@@ -163,15 +172,15 @@ x	C	D
 3	1	1
 drop prepare select_p0;
 drop prepare select_pn;
-set @str= concat('select ', @ts_start, ' from t1 partition (p0) where x = 2 into @ts1');
+set @str= concat('select sys_trx_start from t1 partition (p0) where x = 2 into @ts1');
 prepare stmt from @str;
 execute stmt;
 drop prepare stmt;
-set @str= concat('select ', @ts_end, ' from t1 partition (p0) where x = 2 into @ts2');
+set @str= concat('select sys_trx_end from t1 partition (p0) where x = 2 into @ts2');
 prepare stmt from @str;
 execute stmt;
 drop prepare stmt;
-set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts3');
+set @str= concat('select sys_trx_start from t1 partition (pn) into @ts3');
 prepare stmt from @str;
 execute stmt;
 drop prepare stmt;
@@ -181,6 +190,7 @@ select @ts0 = @ts1;
 select @ts2 = @ts3;
 @ts2 = @ts3
 1
+## rotation by LIMIT
 create or replace table t1 (x int)
 with system versioning
 partition by system_time limit 0 (
@@ -190,7 +200,7 @@ partition pn current);
 ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'LIMIT'
 create or replace table t1 (x int)
 with system versioning
-partition by system_time limit 1 (
+partition by system_time limit 2 (
 partition p0 history,
 partition p1 history,
 partition pn current);
@@ -198,38 +208,44 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL,
-  `sys_trx_start` ${SYS_TRX_TYPE} GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` ${SYS_TRX_TYPE} GENERATED ALWAYS AS ROW END,
+  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
-) ENGINE=${INNODB_OR_MYISAM} DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
- PARTITION BY SYSTEM_TIME LIMIT 1
-(PARTITION `p0` HISTORY ENGINE = ${INNODB_OR_MYISAM},
- PARTITION `p1` HISTORY ENGINE = ${INNODB_OR_MYISAM},
- PARTITION `pn` CURRENT ENGINE = ${INNODB_OR_MYISAM})
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 2
+(PARTITION `p0` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
 alter table t1 drop partition non_existent;
 ERROR HY000: Error in list of partitions to DROP
-insert into t1 values (1), (2);
+insert into t1 values (1), (2), (3);
 select * from t1 partition (pn);
 x
 1
 2
+3
+### warn about partition switching
 delete from t1;
 Warnings:
 Note	4116	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
 select * from t1 partition (p0);
 x
 1
+2
 select * from t1 partition (p1);
 x
-2
-insert into t1 values (3);
+3
+insert into t1 values (4), (5);
+### warn about full partition
 delete from t1;
 Warnings:
 Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
-select * from t1 partition (p1);
+select * from t1 partition (p1) order by x;
 x
-2
 3
+4
+5
+## rotation by INTERVAL
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 0 second (
@@ -262,22 +278,26 @@ Note	4116	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
 select * from t1 partition (p1);
 x
 4
+## Subpartitions
 create or replace table t1 (x int)
 with system versioning
-partition by system_time limit 1
+partition by system_time limit 2
 subpartition by key (x)
 subpartitions 2 (
 partition p0 history,
 partition p1 history,
 partition pn current);
-insert into t1 (x) values (1), (2), (3);
+insert into t1 (x) values (1), (2), (3), (4), (5);
 select * from t1 partition (pnsp0);
 x
 1
 3
+5
 select * from t1 partition (pnsp1);
 x
 2
+4
+### warn about partition switching and about full partition
 delete from t1;
 Warnings:
 Note	4116	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
@@ -285,14 +305,16 @@ Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTO
 select * from t1 partition (p0sp0);
 x
 1
+3
 select * from t1 partition (p0sp1);
 x
 select * from t1 partition (p1sp0);
 x
-3
+5
 select * from t1 partition (p1sp1);
 x
 2
+4
 create or replace table t1 (a bigint)
 with system versioning
 partition by range (a)

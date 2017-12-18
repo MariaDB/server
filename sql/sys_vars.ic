@@ -2628,17 +2628,17 @@ public:
     bool res= var->value->get_date(&ltime, 0);
     if (!res)
     {
-      var->save_result.ulonglong_value= FOR_SYSTEM_TIME_AS_OF;
+      var->save_result.ulonglong_value= SYSTEM_TIME_AS_OF;
     }
     return res;
   }
 
 private:
-  bool update(set_var *var, st_vers_asof_timestamp &out)
+  bool update(set_var *var, vers_asof_timestamp_t &out)
   {
     bool res= false;
     out.type= static_cast<enum_var_type>(var->save_result.ulonglong_value);
-    if (out.type == FOR_SYSTEM_TIME_AS_OF)
+    if (out.type == SYSTEM_TIME_AS_OF)
     {
       res= var->value->get_date(&out.ltime, 0);
     }
@@ -2648,27 +2648,28 @@ private:
 public:
   virtual bool global_update(THD *thd, set_var *var)
   {
-    return update(var, global_var(st_vers_asof_timestamp));
+    return update(var, global_var(vers_asof_timestamp_t));
   }
   virtual bool session_update(THD *thd, set_var *var)
   {
-    return update(var, session_var(thd, st_vers_asof_timestamp));
+    return update(var, session_var(thd, vers_asof_timestamp_t));
   }
 
 private:
-  uchar *value_ptr(THD *thd, st_vers_asof_timestamp &val)
+  uchar *value_ptr(THD *thd, vers_asof_timestamp_t &val)
   {
     switch (val.type)
     {
-    case FOR_SYSTEM_TIME_UNSPECIFIED:
-    case FOR_SYSTEM_TIME_ALL:
+    case SYSTEM_TIME_UNSPECIFIED:
+    case SYSTEM_TIME_ALL:
       return (uchar*) thd->strdup(asof_keywords[val.type]);
-    case FOR_SYSTEM_TIME_AS_OF:
+    case SYSTEM_TIME_AS_OF:
     {
       uchar *buf= (uchar*) thd->alloc(MAX_DATE_STRING_REP_LENGTH);
       if (buf &&!my_datetime_to_str(&val.ltime, (char*) buf, 6))
       {
-        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "versioning_asof_timestamp", "NULL (wrong datetime)");
+        // TODO: figure out variable name
+        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "system_versioning_asof_timestamp", "NULL (wrong datetime)");
         return (uchar*) thd->strdup("Error: wrong datetime");
       }
       return buf;
@@ -2676,13 +2677,13 @@ private:
     default:
       break;
     }
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "versioning_asof_timestamp", "NULL (wrong range type)");
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "system_versioning_asof_timestamp", "NULL (wrong range type)");
     return (uchar*) thd->strdup("Error: wrong range type");
   }
 
 public:
   virtual uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
-  { return value_ptr(thd, session_var(thd, st_vers_asof_timestamp)); }
+  { return value_ptr(thd, session_var(thd, vers_asof_timestamp_t)); }
   virtual uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
-  { return value_ptr(thd, global_var(st_vers_asof_timestamp)); }
+  { return value_ptr(thd, global_var(vers_asof_timestamp_t)); }
 };

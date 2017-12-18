@@ -6,7 +6,6 @@ create procedure test_01()
 begin
   declare engine varchar(255) default default_engine();
   declare sys_type varchar(255) default sys_datatype(default_engine());
-  declare fields varchar(255) default sys_commit_ts('sys_start');
 
   set @str= concat('
   create table t1(
@@ -67,7 +66,6 @@ create or replace procedure test_02()
 begin
   declare engine varchar(255) default default_engine();
   declare sys_type varchar(255) default sys_datatype(default_engine());
-  declare fields varchar(255) default sys_commit_ts('sys_start');
 
   set @str0= concat('(
     x int,
@@ -199,8 +197,6 @@ select * from (t1 for system_time all join t2 for system_time all) for system_ti
 
 drop view v1;
 drop table t1, t2;
-
-call innodb_verify_vtq(27);
 
 drop procedure test_01;
 drop procedure test_02;

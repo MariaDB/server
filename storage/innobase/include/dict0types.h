@@ -57,6 +57,7 @@ typedef ib_id_t		index_id_t;
 
 /** The bit pattern corresponding to TRX_ID_MAX */
 extern const char trx_id_max_bytes[8];
+extern const char timestamp_max_bytes[7];
 
 /** Error to ignore when we load table dictionary into memory. However,
 the table and index will be marked as "corrupted", and caller will

@@ -1568,41 +1568,46 @@ private:
 	ulint&		counter;
 };
 
-/** Reads sys_trx_end field from clustered index row.
+/** Check if record in clustered index is historical row.
 @param[in]	rec	clustered row
 @param[in]	offsets	offsets
-@param[in]	index	clustered index
-@return trx_id_t */
-static
-trx_id_t
-row_ins_get_sys_trx_end(
+@return true if row is historical */
+bool
+dict_index_t::vers_history_row(
 	const rec_t*		rec,
-	const ulint*		offsets,
-	const dict_index_t*	index)
+	const ulint*		offsets)
 {
-	ut_a(index->is_clust());
+	ut_a(is_clust());
 
 	ulint len;
-	ulint nfield = dict_col_get_clust_pos(
-		&index->table->cols[index->table->vers_end], index);
-	const byte *field = rec_get_nth_field(rec, offsets, nfield, &len);
-	ut_a(len == 8);
-	return(mach_read_from_8(field));
+	dict_col_t& col= table->cols[table->vers_end];
+	ut_ad(col.vers_sys_end());
+	ulint nfield = dict_col_get_clust_pos(&col, this);
+	const byte *data = rec_get_nth_field(rec, offsets, nfield, &len);
+	if (col.mtype == DATA_FIXBINARY) {
+		ut_ad(len == sizeof timestamp_max_bytes);
+		return 0 != memcmp(data, timestamp_max_bytes, len);
+	} else {
+		ut_ad(col.mtype == DATA_INT);
+		ut_ad(len == sizeof trx_id_max_bytes);
+		return 0 != memcmp(data, trx_id_max_bytes, len);
+	}
+	ut_ad(0);
+	return false;
 }
 
-/** Performs search at clustered index and returns sys_trx_end if row was found.
-@param[in]	index	secondary index of record
+/** Check if record in secondary index is historical row.
 @param[in]	rec	record in a secondary index
-@return sys_trx_end on success or 0 at failure */
-static
-trx_id_t
-row_ins_search_sys_trx_end(
-	dict_index_t*	index,
-	const rec_t* rec)
+@param[out]	history_row true if row is historical
+@return true on error */
+bool
+dict_index_t::vers_history_row(
+	const rec_t* rec,
+	bool &history_row)
 {
-	ut_ad(!index->is_clust());
+	ut_ad(!is_clust());
 
-	trx_id_t result = 0;
+	bool error = false;
 	mem_heap_t* heap = NULL;
 	dict_index_t* clust_index = NULL;
 	ulint offsets_[REC_OFFS_NORMAL_SIZE];
@@ -1613,23 +1618,23 @@ row_ins_search_sys_trx_end(
 	mtr.start();
 
 	rec_t* clust_rec =
-	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, index, &clust_index, &mtr);
+	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, this, &clust_index, &mtr);
 	if (clust_rec) {
 		offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
 					  ULINT_UNDEFINED, &heap);
 
-		result =
-		    row_ins_get_sys_trx_end(clust_rec, offsets, clust_index);
+		history_row = clust_index->vers_history_row(clust_rec, offsets);
         } else {
 		ib::error() << "foreign constraints: secondary index is out of "
 			       "sync";
 		ut_ad(!"secondary index is out of sync");
+		error = true;
 	}
 	mtr.commit();
 	if (heap) {
 		mem_heap_free(heap);
 	}
-	return(result);
+	return(error);
 }
 
 /***************************************************************//**
@@ -1696,7 +1701,7 @@ row_ins_check_foreign_constraint(
 		}
 		/* System Versioning: if sys_trx_end != Inf, we
 		suppress the foreign key check */
-		if (field->is_version_historical_end()) {
+		if (field->type.vers_sys_end() && field->vers_history_row()) {
 			goto exit_func;
 		}
 	}
@@ -1828,19 +1833,18 @@ row_ins_check_foreign_constraint(
 
 		if (cmp == 0) {
 			if (check_table->versioned()) {
-				trx_id_t end_trx_id = 0;
+				bool history_row = false;
 
 				if (check_index->is_clust()) {
-					end_trx_id =
-						row_ins_get_sys_trx_end(
-						rec, offsets, check_index);
-				} else if (!(end_trx_id =
-						 row_ins_search_sys_trx_end(
-						     check_index, rec))) {
+					history_row = check_index->
+						vers_history_row(rec, offsets);
+				} else if (check_index->
+					vers_history_row(rec, history_row))
+				{
 					break;
 				}
 
-				if (end_trx_id != TRX_ID_MAX) {
+				if (history_row) {
 					continue;
 				}
 			}

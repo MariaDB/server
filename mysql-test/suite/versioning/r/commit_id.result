@@ -1,5 +1,9 @@
 create table t1(
-id int auto_increment primary key)
+id int auto_increment primary key,
+sys_trx_start bigint unsigned generated always as row start,
+sys_trx_end bigint unsigned generated always as row end,
+period for system_time (sys_trx_start, sys_trx_end)
+)
 with system versioning
 engine innodb;
 insert into t1 values ();

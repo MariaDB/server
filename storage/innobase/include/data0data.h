@@ -592,17 +592,20 @@ struct dfield_t{
 	@return	the cloned object */
 	dfield_t* clone(mem_heap_t* heap) const;
 
-	/** @return whether this column is the end of the system
-	version history and points to the past, that is, this record
-	does not exist in the current time */
-	bool is_version_historical_end() const
+	/** @return system field indicates history row */
+	bool vers_history_row() const
 	{
-		if (!type.is_version_end()) {
-			return false;
+		ut_ad(type.vers_sys_end());
+		if (type.mtype == DATA_FIXBINARY) {
+			ut_ad(len == sizeof timestamp_max_bytes);
+			return 0 != memcmp(data, timestamp_max_bytes, len);
+		} else {
+			ut_ad(type.mtype == DATA_INT);
+			ut_ad(len == sizeof trx_id_max_bytes);
+			return 0 != memcmp(data, trx_id_max_bytes, len);
 		}
-
-		ut_ad(len == sizeof trx_id_max_bytes);
-		return memcmp(data, trx_id_max_bytes, sizeof trx_id_max_bytes);
+		ut_ad(0);
+		return false;
 	}
 };
 

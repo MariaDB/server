@@ -1,6 +1,6 @@
 --disable_query_log
 drop procedure verify_vtq;
-drop procedure innodb_verify_vtq;
+drop procedure verify_vtq_dummy;
 drop function default_engine;
 drop function non_default_engine;
 drop function sys_commit_ts;

@@ -1372,7 +1372,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   bool versioned= table_list->vers_conditions;
   if (versioned)
   {
-    DBUG_ASSERT(table_list->vers_conditions == FOR_SYSTEM_TIME_AS_OF);
+    DBUG_ASSERT(table_list->vers_conditions == SYSTEM_TIME_AS_OF);
     VTMD_table vtmd(*table_list);
     if (vtmd.setup_select(thd))
       goto exit;

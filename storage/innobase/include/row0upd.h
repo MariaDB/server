@@ -489,7 +489,7 @@ struct upd_t{
 	bool affects_versioned() const
 	{
 		for (ulint i = 0; i < n_fields; i++) {
-			if (fields[i].new_val.type.is_any_versioned()) {
+			if (fields[i].new_val.type.vers_sys_field()) {
 				return true;
 			}
 		}

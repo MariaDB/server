@@ -12507,7 +12507,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
 
   // Handle INSERT.
   // Set vers fields when replicating from not system-versioned table.
-  if (m_type == WRITE_ROWS_EVENT_V1 && table->versioned_by_sql())
+  if (m_type == WRITE_ROWS_EVENT_V1 && table->versioned(VERS_TIMESTAMP))
   {
     ulong sec_part;
     bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
@@ -13442,7 +13442,7 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
     if (!error)
     {
       m_table->mark_columns_per_binlog_row_image();
-      if (m_vers_from_plain && m_table->versioned_by_sql())
+      if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
       {
         Field *end= m_table->vers_end_field();
         bitmap_set_bit(m_table->write_set, end->field_index);
@@ -13711,7 +13711,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   memcpy(m_table->write_set->bitmap, m_cols_ai.bitmap, (m_table->write_set->n_bits + 7) / 8);
 
   m_table->mark_columns_per_binlog_row_image();
-  if (m_vers_from_plain && m_table->versioned_by_sql())
+  if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
   {
     bitmap_set_bit(m_table->write_set,
                    m_table->vers_start_field()->field_index);
@@ -13721,7 +13721,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   error= m_table->file->ha_update_row(m_table->record[1], m_table->record[0]);
   if (error == HA_ERR_RECORD_IS_THE_SAME)
     error= 0;
-  if (m_vers_from_plain && m_table->versioned_by_sql())
+  if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
   {
     store_record(m_table, record[2]);
     error= vers_insert_history_row(m_table);

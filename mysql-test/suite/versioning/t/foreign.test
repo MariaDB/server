@@ -1,8 +1,8 @@
 -- source include/have_innodb.inc
 
-#################
-# Test RESTRICT #
-#################
+--echo #################
+--echo # Test RESTRICT #
+--echo #################
 
 create table parent(
   id int unique key
@@ -34,9 +34,9 @@ select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
 drop table child;
 drop table parent;
 
-##############################################
-# Test when clustered index is a foreign key #
-##############################################
+--echo ##############################################
+--echo # Test when clustered index is a foreign key #
+--echo ##############################################
 
 create table parent(
   id int(10) unsigned unique key
@@ -56,9 +56,9 @@ delete from parent where id = 1;
 drop table child;
 drop table parent;
 
-################
-# Test CASCADE #
-################
+--echo ################
+--echo # Test CASCADE #
+--echo ################
 
 create table parent(
   id int unique key
@@ -74,6 +74,12 @@ create table child(
 insert into parent values(1);
 insert into child values(1);
 
+--echo ## FIXME: #415 update of foreign constraints is disabled
+call mtr.add_suppression("foreign key constraints in timestamp-based temporal table");
+--error ER_UNSUPPORTED_EXTENSION
+delete from parent where id = 1;
+delete from child where parent_id = 1;
+--echo ## FIXME END
 delete from parent where id = 1;
 select * from child;
 select * from child for system_time all;
@@ -127,6 +133,9 @@ engine innodb;
 
 insert into parent (id) values (3);
 insert into child (id, parent_id) values (3, 3);
+--echo ## FIXME: #415 update of foreign constraints is disabled
+delete from child;
+--echo ## FIXME END
 delete from parent;
 select * from child;
 select * from child for system_time all;
@@ -134,9 +143,9 @@ select * from child for system_time all;
 drop table child;
 drop table parent;
 
-#################
-# Test SET NULL #
-#################
+--echo #################
+--echo # Test SET NULL #
+--echo #################
 
 create table parent(
   id int unique key
@@ -154,6 +163,9 @@ insert into child values(1);
 delete from child;
 insert into child values(1);
 
+--echo ## FIXME: #415 update of foreign constraints is disabled
+delete from child where parent_id = 1;
+--echo ## FIXME END
 delete from parent where id = 1;
 select * from child;
 select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
@@ -161,16 +173,21 @@ delete from child;
 
 insert into parent values(1);
 insert into child values(1);
+## FIXME: #415 update of foreign constraints is disabled
+if (0)
+{
 update parent set id=id+1;
 select * from child;
 select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+}
+## FIXME END
 
 drop table child;
 drop table parent;
 
-###########################
-# Parent table is foreign #
-###########################
+--echo ###########################
+--echo # Parent table is foreign #
+--echo ###########################
 
 create or replace table parent(
   id int unique key
@@ -204,10 +221,10 @@ update parent set id=2;
 drop table child;
 drop table parent;
 
+--echo ###################
+--echo # crash on DELETE #
+--echo ###################
 
-###################
-# crash on DELETE #
-###################
 create or replace table a (
   cola int(10) primary key,
   v_cola int(10) as (cola mod 10) virtual

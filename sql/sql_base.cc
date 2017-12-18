@@ -7640,7 +7640,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         TABLE *table= f->field->table;
         DBUG_ASSERT(table && table->pos_in_table_list);
         TABLE_LIST *tl= table->pos_in_table_list;
-        vers_range_type_t vers_type= tl->vers_conditions.type;
+        vers_system_time_t vers_type= tl->vers_conditions.type;
 
         enum_sql_command sql_command= thd->lex->sql_command;
         unsigned int create_options= thd->lex->create_info.options;
@@ -7652,8 +7652,8 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
               ((fl & VERS_HIDDEN_FLAG) && (
                 vers_hide == VERS_HIDE_IMPLICIT ||
                   (vers_hide == VERS_HIDE_AUTO && (
-                    vers_type == FOR_SYSTEM_TIME_UNSPECIFIED ||
-                    vers_type == FOR_SYSTEM_TIME_AS_OF))))) :
+                    vers_type == SYSTEM_TIME_UNSPECIFIED ||
+                    vers_type == SYSTEM_TIME_AS_OF))))) :
             (fl & VERS_HIDDEN_FLAG))
         {
           if (sql_command != SQLCOM_CREATE_TABLE ||

@@ -1,7 +1,7 @@
 -- source include/have_partition.inc
 -- source suite/versioning/common.inc
 
---echo ### check System Versioning and conventional partitioning
+--echo # Check conventional partitioning on temporal tables
 
 create table t1 (x int)
 with system versioning
@@ -20,14 +20,15 @@ select * from t1 for system_time all;
 select * from t1 partition (p0);
 select * from t1 partition (p1);
 
---echo ### Engine change versioned/non-versioned prohibited
+--echo # Engine change native <-> non-native versioning prohibited
+--replace_result $default_engine DEFAULT_ENGINE
 eval create or replace table t1 (i int) engine=$default_engine with system versioning partition by hash(i);
+--replace_result $non_default_engine NON_DEFAULT_ENGINE
 --error ER_VERS_ALTER_ENGINE_PROHIBITED
 eval alter table t1 engine=$non_default_engine;
 
---echo ### check server-level partitioning
-
-# create errors
+--echo # Check server-level partitioning
+--echo ## create errors
 --error ER_VERS_ENGINE_UNSUPPORTED
 create or replace table t1 (x int)
 partition by system_time (
@@ -74,7 +75,7 @@ partition by system_time (
     partition p0 history,
     partition pn current);
 
-# alter table
+--echo ## alter table
 --error ER_VERS_WRONG_PARTS
 alter table t1 add partition (
     partition p1 current);
@@ -82,7 +83,7 @@ alter table t1 add partition (
 alter table t1 add partition (
     partition p1 history);
 
---replace_result InnoDB ${INNODB_OR_MYISAM} MyISAM ${INNODB_OR_MYISAM} "bigint(20) unsigned" ${SYS_TRX_TYPE} timestamp(6) ${SYS_TRX_TYPE}
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t1;
 
 insert into t1 values (1), (2);
@@ -95,7 +96,15 @@ alter table t1 drop partition p0;
 
 select x from t1;
 
-# insert, delete, update
+--echo # Bug #260: incorrect IB partitioning warning
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 1 (
+    partition p0 history,
+    partition pn current);
+alter table t1 change x big int;
+
+--echo ## insert, delete, update
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
@@ -104,21 +113,19 @@ partition by system_time (
 
 set @now= now(6);
 insert into t1 values (1);
-set @ts_start= sys_commit_ts('sys_trx_start');
-set @ts_end= sys_commit_ts('sys_trx_end');
-set @str= concat('select x, ', @ts_start, ' < @now as A, ', @ts_end, ' > @now as B from t1 partition (p0)');
+set @str= concat('select x, sys_trx_start < @now as A, sys_trx_end > @now as B from t1 partition (p0)');
 prepare select_p0 from @str;
-set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn)');
+set @str= concat('select x, sys_trx_start > @now as C, sys_trx_end = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn)');
 prepare select_pn from @str;
 
 execute select_p0;
 execute select_pn;
 
-# pruning check
---replace_result ALL system "Using where" ""
+--echo ## pruning check
+--replace_regex /\d/N/ /ALL/system/ /Using where//
 explain partitions select * from t1;
 
-set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+set @str= concat('select sys_trx_start from t1 partition (pn) into @ts0');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 
 set @now= now(6);
@@ -126,7 +133,7 @@ delete from t1;
 execute select_p0;
 execute select_pn;
 
-set @str= concat('select ', @ts_start, ' from t1 partition (p0) into @ts1');
+set @str= concat('select sys_trx_start from t1 partition (p0) into @ts1');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 
 select @ts0 = @ts1;
@@ -136,7 +143,7 @@ insert into t1 values (2);
 execute select_p0;
 execute select_pn;
 
-set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+set @str= concat('select sys_trx_start from t1 partition (pn) into @ts0');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 
 set @now= now(6);
@@ -147,17 +154,17 @@ execute select_pn;
 drop prepare select_p0;
 drop prepare select_pn;
 
-set @str= concat('select ', @ts_start, ' from t1 partition (p0) where x = 2 into @ts1');
+set @str= concat('select sys_trx_start from t1 partition (p0) where x = 2 into @ts1');
 prepare stmt from @str; execute stmt; drop prepare stmt;
-set @str= concat('select ', @ts_end, ' from t1 partition (p0) where x = 2 into @ts2');
+set @str= concat('select sys_trx_end from t1 partition (p0) where x = 2 into @ts2');
 prepare stmt from @str; execute stmt; drop prepare stmt;
-set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts3');
+set @str= concat('select sys_trx_start from t1 partition (pn) into @ts3');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 
 select @ts0 = @ts1;
 select @ts2 = @ts3;
 
-# rotation by LIMIT
+--echo ## rotation by LIMIT
 --error ER_PART_WRONG_VALUE
 create or replace table t1 (x int)
 with system versioning
@@ -168,28 +175,30 @@ partition by system_time limit 0 (
 
 create or replace table t1 (x int)
 with system versioning
-partition by system_time limit 1 (
+partition by system_time limit 2 (
     partition p0 history,
     partition p1 history,
     partition pn current);
 
---replace_result InnoDB ${INNODB_OR_MYISAM} MyISAM ${INNODB_OR_MYISAM} "bigint(20) unsigned" ${SYS_TRX_TYPE} timestamp(6) ${SYS_TRX_TYPE}
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t1;
 
 --error ER_DROP_PARTITION_NON_EXISTENT
 alter table t1 drop partition non_existent;
 
-insert into t1 values (1), (2);
+insert into t1 values (1), (2), (3);
 select * from t1 partition (pn);
+--echo ### warn about partition switching
 delete from t1;
 select * from t1 partition (p0);
 select * from t1 partition (p1);
 
-insert into t1 values (3);
+insert into t1 values (4), (5);
+--echo ### warn about full partition
 delete from t1;
-select * from t1 partition (p1);
+select * from t1 partition (p1) order by x;
 
-# rotation by INTERVAL
+--echo ## rotation by INTERVAL
 --error ER_PART_WRONG_VALUE
 create or replace table t1 (x int)
 with system versioning
@@ -215,20 +224,21 @@ insert into t1 values (4);
 delete from t1;
 select * from t1 partition (p1);
 
-# Subpartitions
+--echo ## Subpartitions
 create or replace table t1 (x int)
 with system versioning
-partition by system_time limit 1
+partition by system_time limit 2
 subpartition by key (x)
 subpartitions 2 (
     partition p0 history,
     partition p1 history,
     partition pn current);
 
-insert into t1 (x) values (1), (2), (3);
+insert into t1 (x) values (1), (2), (3), (4), (5);
 select * from t1 partition (pnsp0);
 select * from t1 partition (pnsp1);
 
+--echo ### warn about partition switching and about full partition
 delete from t1;
 select * from t1 partition (p0sp0);
 select * from t1 partition (p0sp1);
@@ -255,7 +265,6 @@ insert into t1 values (1);
 create or replace table t1 (i int) engine=innodb partition by key(i);
 alter table t1 add system versioning;
 insert into t1 values();
-
 
 drop table t1;
 

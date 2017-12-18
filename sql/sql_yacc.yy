@@ -740,8 +740,8 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   } while(0)
 
 
-void vers_select_conds_t::init(vers_range_type_t t, vers_range_unit_t u_start,
-                               Item *s, vers_range_unit_t u_end, Item *e)
+void vers_select_conds_t::init(vers_system_time_t t, vers_sys_type_t u_start,
+                               Item *s, vers_sys_type_t u_end, Item *e)
 {
   type= t;
   unit_start= u_start;
@@ -880,7 +880,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   enum Window_frame::Frame_exclusion frame_exclusion;
   enum trigger_order_type trigger_action_order_type;
   DDL_options_st object_ddl_options;
-  enum vers_range_unit_t vers_range_unit;
+  enum vers_sys_type_t vers_range_unit;
   enum Column_definition::enum_column_versioning vers_column_versioning;
 }
 
@@ -9171,15 +9171,15 @@ select_options:
 opt_trans_or_timestamp:
           /* empty */
           {
-            $$ = UNIT_AUTO;
+            $$ = VERS_UNDEFINED;
           }
         | TRANSACTION_SYM
           {
-            $$ = UNIT_TRX_ID;
+            $$ = VERS_TRX_ID;
           }
         | TIMESTAMP
           {
-            $$ = UNIT_TIMESTAMP;
+            $$ = VERS_TIMESTAMP;
           }
         ;
 
@@ -9197,21 +9197,21 @@ opt_for_system_time_clause:
 system_time_expr:
           AS OF_SYM opt_trans_or_timestamp simple_expr
           {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, $3, $4);
+            Lex->vers_conditions.init(SYSTEM_TIME_AS_OF, $3, $4);
           }
         | ALL
           {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_ALL);
+            Lex->vers_conditions.init(SYSTEM_TIME_ALL);
           }
         | FROM opt_trans_or_timestamp simple_expr
           TO_SYM opt_trans_or_timestamp simple_expr
           {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_FROM_TO, $2, $3, $5, $6);
+            Lex->vers_conditions.init(SYSTEM_TIME_FROM_TO, $2, $3, $5, $6);
           }
         | BETWEEN_SYM opt_trans_or_timestamp simple_expr
           AND_SYM opt_trans_or_timestamp simple_expr
           {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, $2, $3, $5, $6);
+            Lex->vers_conditions.init(SYSTEM_TIME_BETWEEN, $2, $3, $5, $6);
           }
         ;
 
@@ -13504,7 +13504,7 @@ truncate_end:
           opt_lock_wait_timeout
           | TO_SYM SYSTEM_TIME_SYM opt_trans_or_timestamp simple_expr
           {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_BEFORE, $3, $4);
+            Lex->vers_conditions.init(SYSTEM_TIME_BEFORE, $3, $4);
             Lex->last_table()->vers_conditions= Lex->vers_conditions;
           }
         ;
@@ -13824,8 +13824,8 @@ show_param:
               MYSQL_YYABORT;
             lex->create_info.storage_media= HA_SM_DEFAULT;
 
-            if (lex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED &&
-                lex->vers_conditions.type != FOR_SYSTEM_TIME_AS_OF)
+            if (lex->vers_conditions.type != SYSTEM_TIME_UNSPECIFIED &&
+                lex->vers_conditions.type != SYSTEM_TIME_AS_OF)
             {
               my_yyabort_error((ER_VERS_RANGE_PROHIBITED, MYF(0)));
             }

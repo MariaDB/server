@@ -7816,22 +7816,22 @@ ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT
 # MariaDB error numbers related to System Versioning
 
 ER_VERSIONING_REQUIRED
-        eng "System Versioning required: %s"
+        eng "System versioning required: %s"
 
 ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING
         eng "Rows matched: %ld  Changed: %ld  Inserted: %ld  Warnings: %ld"
 
 ER_VERS_FIELD_WRONG_TYPE
-        eng "%`s must be of type %s for versioned table %`s"
+        eng "%`s must be of type %s for temporal table %`s"
 
 ER_VERS_ENGINE_UNSUPPORTED
-        eng "Engine does not support System Versioning for %`s"
+        eng "Transaction system versioning for %`s is not supported"
 
 ER_VERS_RANGE_UNITS_MISMATCH
         eng "Range units mismatch"
 
 ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY
-        eng "Attempt to read unversioned field %`s in historical query"
+        eng "Attempt to read non-temporal field %`s in historical query"
 
 ER_PARTITION_WRONG_TYPE
         eng "Wrong partition type, expected type: %`s"
@@ -7852,10 +7852,10 @@ WARN_VERS_PART_NON_HISTORICAL
         eng "Partition %`s contains non-historical data"
 
 ER_VERS_ALTER_NOT_ALLOWED
-        eng "Not allowed for versioned %`s.%`s. Change @@system_versioning_alter_history to proceed with ALTER."
+        eng "Not allowed for temporal %`s.%`s. Change @@system_versioning_alter_history to proceed with ALTER."
 
 ER_VERS_ALTER_ENGINE_PROHIBITED
-        eng "Not allowed for versioned %`s.%`s. Change to/from native versioning engine is prohibited."
+        eng "Not allowed for temporal %`s.%`s. Change to/from native system versioning engine is prohibited."
 
 ER_VERS_RANGE_PROHIBITED
         eng "SYSTEM_TIME range selector is prohibited"
@@ -7881,11 +7881,11 @@ ER_VERS_VTMD_ERROR
 ER_VERS_DIFFERENT_TABLES
         eng "Wrong parameters for %`s: system fields selected from different tables"
 
-ER_VERS_NO_COLS_DEFINED
-        eng "Table %`s has no versioned columns"
+ER_VERS_TABLE_MUST_HAVE_COLUMNS
+        eng "Table %`s must have at least 1 temporal column"
 
 ER_VERS_NOT_VERSIONED
-        eng "Table %`s is not versioned"
+        eng "Table %`s is not temporal"
 
 ER_MISSING
         eng "Wrong parameters for %`s: missing '%s'"
@@ -7921,10 +7921,10 @@ ER_VERS_GENERATED_ALWAYS_NOT_EMPTY
         eng "Can not modify column %`s to GENERATED ALWAYS AS ROW START/END for non-empty table"
 
 ER_VERS_TRT_IS_DISABLED
-        eng "Some versioned DML requires `transaction_registry` to be set to ON."
+        eng "Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry)."
 
 ER_VERS_DUPLICATE_ROW_START_END
 	eng "Duplicate ROW %s column %`s"
 
 ER_VERS_ALREADY_VERSIONED
-        eng "Table %`s is already system-versioned table"
+        eng "Table %`s is already temporal"

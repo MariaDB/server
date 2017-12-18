@@ -3636,7 +3636,7 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 		for (trx_mod_tables_t::const_iterator t
 			     = trx->mod_tables.begin();
 		     t != trx->mod_tables.end(); t++) {
-			if (t->second.is_versioned()) {
+			if (t->second.is_trx_versioned()) {
 				DBUG_ASSERT(t->first->versioned());
 				DBUG_ASSERT(trx->undo_no);
 				DBUG_ASSERT(trx->rsegs.m_redo.rseg);
@@ -6561,7 +6561,7 @@ no_such_table:
 		ut_ad(table->versioned() == m_prebuilt->table->versioned());
 	}
 
-	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
+	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_OPEN);
 	DBUG_RETURN(0);
 }
 
@@ -7782,7 +7782,7 @@ ha_innobase::build_template(
 
 	index = whole_row ? clust_index : m_prebuilt->index;
 
-	m_prebuilt->versioned_write = table->versioned_write();
+	m_prebuilt->versioned_write = table->versioned_write(VERS_TRX_ID);
 	m_prebuilt->need_to_access_clustered = (index == clust_index);
 
 	/* Either m_prebuilt->index should be a secondary index, or it
@@ -8406,8 +8406,8 @@ no_commit:
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	vers_set_fields =
-		table->versioned_write() ? ROW_INS_VERSIONED : ROW_INS_NORMAL;
+	vers_set_fields = table->versioned_write(VERS_TRX_ID) ?
+		ROW_INS_VERSIONED : ROW_INS_NORMAL;
 
 	/* Step-5: Execute insert graph that will result in actual insert. */
 	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
@@ -9196,8 +9196,10 @@ ha_innobase::update_row(
 			    || thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE);
 
 		/* This is not a delete */
-		m_prebuilt->upd_node->is_delete
-			= vers_set_fields && !vers_ins_row
+		m_prebuilt->upd_node->is_delete =
+			(vers_set_fields && !vers_ins_row) ||
+			(thd_sql_command(m_user_thd) == SQLCOM_DELETE &&
+				table->versioned(VERS_TIMESTAMP))
 			? VERSIONED_DELETE
 			: NO_DELETE;
 
@@ -9323,8 +9325,8 @@ ha_innobase::delete_row(
 	}
 
 	/* This is a delete */
-	m_prebuilt->upd_node->is_delete
-		= table->versioned_write() && table->vers_end_field()->is_max()
+	m_prebuilt->upd_node->is_delete = table->versioned_write(VERS_TRX_ID)
+		&& table->vers_end_field()->is_max()
 		? VERSIONED_DELETE
 		: PLAIN_DELETE;
 
@@ -14453,7 +14455,7 @@ ha_innobase::info_low(
 		set. That way SHOW TABLE STATUS will show the best estimate,
 		while the optimizer never sees the table empty. */
 
-		if (n_rows == 0 && !(flag & HA_STATUS_TIME)) {
+		if (n_rows == 0 && !(flag & (HA_STATUS_TIME | HA_STATUS_OPEN))) {
 			n_rows++;
 		}
 

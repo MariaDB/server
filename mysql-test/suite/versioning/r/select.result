@@ -1,6 +1,9 @@
 create or replace table t1 (
 x int unsigned,
-y int unsigned
+y int unsigned,
+sys_trx_start SYS_DATATYPE generated always as row start,
+sys_trx_end SYS_DATATYPE generated always as row end,
+period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning;
 insert into t1 (x, y) values
 (0, 100),
@@ -199,7 +202,7 @@ A
 create or replace table t1 (x int);
 insert into t1 values (1);
 select * from t1 for system_time all;
-ERROR HY000: System Versioning required: t1
+ERROR HY000: System versioning required: t1
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
 select * from t1 for system_time all for update;
@@ -307,8 +310,13 @@ ERROR HY000: SYSTEM_TIME is not allowed outside historical `t`
 # TRANSACTION/TIMESTAMP specifier in SYSTEM_TIME [MDEV-14645, Issue #396]
 create or replace table t1 (x int) with system versioning engine myisam;
 select * from t1 for system_time as of transaction 1;
-ERROR HY000: Engine does not support System Versioning for `t1`
-create or replace table t1 (x int) with system versioning engine innodb;
+ERROR HY000: Transaction system versioning for `t1` is not supported
+create or replace table t1 (
+x int,
+sys_trx_start bigint unsigned generated always as row start,
+sys_trx_end bigint unsigned generated always as row end,
+period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning engine innodb;
 insert into t1 values (1);
 set @ts= now(6);
 delete from t1;
@@ -318,28 +326,29 @@ select @trx_start < unix_timestamp(@ts) - 100 as trx_start_good;
 trx_start_good
 1
 ## TIMESTAMP specifier
-select * from t1 for system_time as of timestamp @ts;
+select x from t1 for system_time as of timestamp @ts;
 x
 1
-select * from t1 for system_time as of timestamp unix_timestamp(@ts);
+select x from t1 for system_time as of timestamp unix_timestamp(@ts);
 x
 1
-select * from t1 for system_time as of timestamp @trx_start;
+select x from t1 for system_time as of timestamp @trx_start;
 x
+set @ts= timestamp'1-1-1 0:0:0';
 ## TRANSACTION specifier
-select * from t1 for system_time as of transaction @ts;
+select x from t1 for system_time as of transaction @ts;
 x
-select * from t1 for system_time as of transaction unix_timestamp(@ts);
+select x from t1 for system_time as of transaction unix_timestamp(@ts);
 x
-select * from t1 for system_time as of transaction @trx_start;
+select x from t1 for system_time as of transaction @trx_start;
 x
 1
 ## no specifier (auto-detection)
-select * from t1 for system_time as of @ts;
+select x from t1 for system_time as of @ts;
 x
-select * from t1 for system_time as of unix_timestamp(@ts);
+select x from t1 for system_time as of unix_timestamp(@ts);
 x
-select * from t1 for system_time as of @trx_start;
+select x from t1 for system_time as of @trx_start;
 x
 1
 ### Issue #365, bug 4 (related to #226, optimized fields)
@@ -398,7 +407,7 @@ select * from t1 where t = '00:00:00' and i > 0 and sys_trx_end <> '2012-12-12 0
 pk	i	t
 drop view v1;
 drop table t1, t2;
-call innodb_verify_vtq(34);
+call verify_vtq_dummy(34);
 No	A	B	C	D
 1	1	1	1	1
 2	1	1	1	1

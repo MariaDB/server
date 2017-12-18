@@ -253,7 +253,7 @@ static bool record_should_be_deleted(THD *thd, TABLE *table, SQL_SELECT *sel,
 inline
 int TABLE::delete_row()
 {
-  if (!versioned_by_sql() || !vers_end_field()->is_max())
+  if (!versioned(VERS_TIMESTAMP) || !vers_end_field()->is_max())
     return file->ha_delete_row(record[0]);
 
   store_record(this, record[1]);
@@ -328,8 +328,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       DBUG_RETURN(TRUE);
 
     // trx_sees() in InnoDB reads sys_trx_start
-    if (!table->versioned_by_sql()) {
-      DBUG_ASSERT(table_list->vers_conditions.type == FOR_SYSTEM_TIME_BEFORE);
+    if (!table->versioned(VERS_TIMESTAMP)) {
+      DBUG_ASSERT(table_list->vers_conditions.type == SYSTEM_TIME_BEFORE);
       bitmap_set_bit(table->read_set, table->vers_end_field()->field_index);
     }
   }
@@ -429,7 +429,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (!with_select && !using_limit && const_cond_result &&
       (!thd->is_current_stmt_binlog_format_row() &&
        !has_triggers)
-      && !table->versioned_by_sql())
+      && !table->versioned(VERS_TIMESTAMP))
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
@@ -837,7 +837,7 @@ cleanup:
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
 
       ScopedStatementReplication scoped_stmt_rpl(
-          table->versioned_by_engine() ? thd : NULL);
+          table->versioned(VERS_TRX_ID) ? thd : NULL);
       /*
         [binlog]: If 'handler::delete_all_rows()' was called and the
         storage engine does not inject the rows itself, we replicate

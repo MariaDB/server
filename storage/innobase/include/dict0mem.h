@@ -653,17 +653,17 @@ struct dict_col_t{
 	/** @return whether NULL is an allowed value for this column */
 	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
 
-	/** @return whether this is any system versioned field */
-	bool is_any_versioned() const { return prtype & DATA_VERSIONED; }
+	/** @return whether this is system field */
+	bool vers_sys_field() const { return prtype & DATA_VERSIONED; }
 	/** @return whether this is system versioned */
 	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
 	/** @return whether this is the system version start */
-	bool is_version_start() const
+	bool vers_sys_start() const
 	{
 		return (prtype & DATA_VERSIONED) == DATA_VERS_START;
 	}
 	/** @return whether this is the system version end */
-	bool is_version_end() const
+	bool vers_sys_end() const
 	{
 		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
 	}
@@ -1133,6 +1133,20 @@ struct dict_index_t{
 		n_core_fields = n_fields;
 		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 	}
+
+	/** Check if record in clustered index is historical row.
+	@param[in]	rec	clustered row
+	@param[in]	offsets	offsets
+	@return true if row is historical */
+	bool
+	vers_history_row(const rec_t* rec, const ulint* offsets);
+
+	/** Check if record in secondary index is historical row.
+	@param[in]	rec	record in a secondary index
+	@param[out]	history_row true if row is historical
+	@return true on error */
+	bool
+	vers_history_row(const rec_t* rec, bool &history_row);
 };
 
 /** The status of online index creation */

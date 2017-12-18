@@ -1757,7 +1757,7 @@ protected:
   bool is_end(const char *name) const;
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
-  bool fix_implicit(THD *thd, Alter_info *alter_info, bool integer_fields, int *added= NULL);
+  bool fix_implicit(THD *thd, Alter_info *alter_info, int *added= NULL);
   operator bool() const
   {
     return as_row.start || as_row.end || system_time.start || system_time.end;
@@ -1772,8 +1772,8 @@ protected:
       *this;
   }
   bool check_with_conditions(const char *table_name) const;
-  bool check_generated_type(const char *table_name, Alter_info *alter_info,
-                            bool integer_fields) const;
+  bool check_sys_fields(const char *table_name, Alter_info *alter_info,
+                        bool native) const;
 
 public:
   static const LString default_start;

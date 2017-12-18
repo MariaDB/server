@@ -197,11 +197,14 @@ set global transaction_registry= on;
 # virtual columns
 create or replace table t1 (
   x int,
-  y int as (x) virtual
+  y int as (x) virtual,
+  sys_trx_start bigint unsigned as row start,
+  sys_trx_end bigint unsigned as row end,
+  period for system_time (sys_trx_start, sys_trx_end)
 ) engine=innodb with system versioning;
 insert into t1 values (1, null);
 update t1 set x= x + 1;
-select *, sys_trx_end = 18446744073709551615 as current from t1 for system_time all;
+select x, y, sys_trx_end = 18446744073709551615 as current from t1 for system_time all;
 
 create or replace table t1 (i int) with system versioning engine innodb;
 insert into t1 values  (1),(2);

@@ -512,7 +512,7 @@ public:
     bool updated;
     mysql_rwlock_wrlock(&table->s->LOCK_stat_serial);
     el->empty= false;
-    if (table->versioned_by_engine())
+    if (table->versioned(VERS_TRX_ID))
     {
       // transaction is not yet pushed to VTQ, so we use now-time
       my_time_t end_ts= my_time_t(0);

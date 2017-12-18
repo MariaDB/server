@@ -1,6 +1,6 @@
 create table t (a int);
 truncate t to system_time now();
-ERROR HY000: System Versioning required: t
+ERROR HY000: System versioning required: t
 create or replace table t (a int) with system versioning;
 insert into t values (1);
 update t set a=2;

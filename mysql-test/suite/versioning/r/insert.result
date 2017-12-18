@@ -263,8 +263,6 @@ No	A	B	C	D
 14	1	1	1	1
 15	1	1	1	1
 16	1	1	1	1
-17	1	1	1	1
-18	1	1	1	1
 create table t1(
 x int unsigned,
 sys_start bigint unsigned generated always as row start,
@@ -289,15 +287,18 @@ No	A	B	C	D
 set global transaction_registry= off;
 insert into t2(x) values (1);
 insert into t1(x) values (1);
-ERROR HY000: Some versioned DML requires `transaction_registry` to be set to ON.
+ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
 set global transaction_registry= on;
 create or replace table t1 (
 x int,
-y int as (x) virtual
+y int as (x) virtual,
+sys_trx_start bigint unsigned as row start,
+sys_trx_end bigint unsigned as row end,
+period for system_time (sys_trx_start, sys_trx_end)
 ) engine=innodb with system versioning;
 insert into t1 values (1, null);
 update t1 set x= x + 1;
-select *, sys_trx_end = 18446744073709551615 as current from t1 for system_time all;
+select x, y, sys_trx_end = 18446744073709551615 as current from t1 for system_time all;
 x	y	current
 2	2	1
 1	1	0

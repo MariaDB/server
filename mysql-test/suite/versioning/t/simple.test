@@ -23,19 +23,19 @@ select now() into @ts_0;
 insert into dept (dept_id, name) values (10, "accounting");
 commit;
 
-select vtq_commit_ts(sys_trx_start) into @ts_1 from dept where dept_id=10;
+select sys_trx_start into @ts_1 from dept where dept_id=10;
 
 insert into emp (emp_id, name, salary, dept_id) values (1, "bill", 1000, 10);
 commit;
 
-select vtq_commit_ts(sys_trx_start) into @ts_2 from emp where name="bill";
+select sys_trx_start into @ts_2 from emp where name="bill";
 
 select * from emp;
 
 update emp set salary=2000 where name="bill";
 commit;
 
-select vtq_commit_ts(sys_trx_start) into @ts_3 from emp where name="bill";
+select sys_trx_start into @ts_3 from emp where name="bill";
 
 select * from emp;
 select * from emp for system_time as of timestamp @ts_2;

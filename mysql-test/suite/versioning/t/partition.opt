@@ -1,1 +1,3 @@
 --system-versioning-hide=implicit
+--system-versioning-alter-history=keep
+

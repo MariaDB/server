@@ -694,6 +694,10 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
+	  if (altered_table->versioned(VERS_TIMESTAMP)) {
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	  }
+
 	/* Before 10.2.2 information about virtual columns was not stored in
 	system tables. We need to do a full alter to rebuild proper 10.2.2+
 	metadata with the information about virtual columns */
@@ -4978,7 +4982,7 @@ new_clustered_failed:
 				field_type |= DATA_UNSIGNED;
 			}
 
-			if (altered_table->versioned()) {
+			if (altered_table->versioned(VERS_TRX_ID)) {
 				if (i == altered_table->s->row_start_field) {
 					field_type |= DATA_VERS_START;
 				} else if (i ==

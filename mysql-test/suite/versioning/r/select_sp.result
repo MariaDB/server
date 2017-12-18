@@ -2,7 +2,6 @@ create procedure test_01()
 begin
 declare engine varchar(255) default default_engine();
 declare sys_type varchar(255) default sys_datatype(default_engine());
-declare fields varchar(255) default sys_commit_ts('sys_start');
 set @str= concat('
   create table t1(
     x int unsigned,
@@ -56,7 +55,6 @@ create or replace procedure test_02()
 begin
 declare engine varchar(255) default default_engine();
 declare sys_type varchar(255) default sys_datatype(default_engine());
-declare fields varchar(255) default sys_commit_ts('sys_start');
 set @str0= concat('(
     x int,
     y int,
@@ -219,7 +217,7 @@ A
 create or replace table t1 (x int);
 insert into t1 values (1);
 select * from t1 for system_time all;
-ERROR HY000: System Versioning required: t1
+ERROR HY000: System versioning required: t1
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
 select * from t1 for system_time all for update;
@@ -327,34 +325,5 @@ select * from (t1 for system_time all join t2 for system_time all) for system_ti
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 drop view v1;
 drop table t1, t2;
-call innodb_verify_vtq(27);
-No	A	B	C	D
-1	1	1	1	1
-2	1	1	1	1
-3	1	1	1	1
-4	1	1	1	1
-5	1	1	1	1
-6	1	1	1	1
-7	1	1	1	1
-8	1	1	1	1
-9	1	1	1	1
-10	1	1	1	1
-11	1	1	1	1
-12	1	1	1	1
-13	1	1	1	1
-14	1	1	1	1
-15	1	1	1	1
-16	1	1	1	1
-17	1	1	1	1
-18	1	1	1	1
-19	1	1	1	1
-20	1	1	1	1
-21	1	1	1	1
-22	1	1	1	1
-23	1	1	1	1
-24	1	1	1	1
-25	1	1	1	1
-26	1	1	1	1
-27	1	1	1	1
 drop procedure test_01;
 drop procedure test_02;

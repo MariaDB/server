@@ -9048,7 +9048,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
       DBUG_RETURN(true);
     }
 
-    if (table_list->table->versioned_by_engine() &&
+    if (table_list->table->versioned(VERS_TRX_ID) &&
         alter_info->requested_algorithm ==
             Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
         !table_list->table->s->partition_info_str)
@@ -9184,8 +9184,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
   if (check_engine(thd, alter_ctx.new_db, alter_ctx.new_name, create_info))
     DBUG_RETURN(true);
 
-  if (create_info->vers_info.fix_alter_info(thd, alter_info, create_info,
-                                                 table))
+  if (create_info->vers_info.fix_alter_info(thd, alter_info, create_info, table))
   {
     DBUG_RETURN(true);
   }
@@ -9799,7 +9798,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
                                  alter_info->keys_onoff,
                                  &alter_ctx))
     {
-      if (vers_survival_mod && new_versioned && table->versioned_by_sql())
+      if (vers_survival_mod && new_versioned && table->versioned(VERS_TIMESTAMP))
       {
         // Failure of this function may result in corruption of an original table.
         vers_reset_alter_copy(thd, table);
@@ -10384,7 +10383,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       error= 1;
       break;
     }
-    if (keep_versioned && to->versioned_by_engine() &&
+    if (keep_versioned && to->versioned(VERS_TRX_ID) &&
         thd->variables.vers_alter_history != VERS_ALTER_HISTORY_SURVIVE)
     {
       to->vers_write= false;

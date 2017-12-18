@@ -181,22 +181,22 @@ extern const char *log_output_str;
 extern const char *log_backup_output_str;
 
 /* System Versioning begin */
-enum vers_range_type_t
+enum vers_system_time_t
 {
-  FOR_SYSTEM_TIME_UNSPECIFIED = 0,
-  FOR_SYSTEM_TIME_ALL,
-  FOR_SYSTEM_TIME_AS_OF,
-  FOR_SYSTEM_TIME_FROM_TO,
-  FOR_SYSTEM_TIME_BETWEEN,
-  FOR_SYSTEM_TIME_BEFORE
+  SYSTEM_TIME_UNSPECIFIED = 0,
+  SYSTEM_TIME_ALL,
+  SYSTEM_TIME_AS_OF,
+  SYSTEM_TIME_FROM_TO,
+  SYSTEM_TIME_BETWEEN,
+  SYSTEM_TIME_BEFORE
 };
 
-struct st_vers_asof_timestamp
+struct vers_asof_timestamp_t
 {
   ulong type;
   MYSQL_TIME ltime;
-  st_vers_asof_timestamp() :
-    type(FOR_SYSTEM_TIME_UNSPECIFIED)
+  vers_asof_timestamp_t() :
+    type(SYSTEM_TIME_UNSPECIFIED)
   {}
 };
 
