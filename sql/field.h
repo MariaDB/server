@@ -745,6 +745,10 @@ public:
   { return store(ls->str, ls->length, cs); }
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
+  virtual ulonglong val_uint(void)
+  {
+    return (ulonglong) val_int();
+  }
   virtual bool val_bool(void)= 0;
   virtual my_decimal *val_decimal(my_decimal *);
   inline String *val_str(String *str) { return val_str(str, str); }
@@ -1999,6 +2003,7 @@ private:
 
 
 class Field_double :public Field_real {
+  longlong val_int_from_real(bool want_unsigned_result);
 public:
   Field_double(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	       uchar null_bit_arg,
@@ -2025,7 +2030,8 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int reset(void) { bzero(ptr,sizeof(double)); return 0; }
   double val_real(void);
-  longlong val_int(void);
+  longlong val_int(void) { return val_int_from_real(false); }
+  ulonglong val_uint(void) { return (ulonglong) val_int_from_real(true); }
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
   int cmp(const uchar *,const uchar *);

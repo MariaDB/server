@@ -4729,7 +4729,7 @@ double Field_double::val_real(void)
   return j;
 }
 
-longlong Field_double::val_int(void)
+longlong Field_double::val_int_from_real(bool want_unsigned_result)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   double j;
@@ -4737,7 +4737,7 @@ longlong Field_double::val_int(void)
   bool error;
   float8get(j,ptr);
 
-  res= double_to_longlong(j, 0, &error);
+  res= double_to_longlong(j, want_unsigned_result, &error);
   if (error)
   {
     THD *thd= get_thd();

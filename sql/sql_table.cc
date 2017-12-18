@@ -4414,10 +4414,7 @@ handler *mysql_create_frm_image(THD *thd,
 
   set_table_default_charset(thd, create_info, (char*) db);
 
-  db_options= create_info->table_options;
-  if (create_info->row_type == ROW_TYPE_DYNAMIC ||
-      create_info->row_type == ROW_TYPE_PAGE)
-    db_options|= HA_OPTION_PACK_RECORD;
+  db_options= create_info->table_options_with_row_type();
 
   if (!(file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root,
                               create_info->db_type)))
