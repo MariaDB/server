@@ -7988,7 +7988,7 @@ no_commit:
 			table->next_number_field);
 
 		/* Get the value that MySQL attempted to store in the table.*/
-		auto_inc = table->next_number_field->val_int();
+		auto_inc = table->next_number_field->val_uint();
 
 		switch (error) {
 		case DB_DUPLICATE_KEY:
@@ -8468,7 +8468,7 @@ ha_innobase::update_row(
 		ulonglong	auto_inc;
 		ulonglong	col_max_value;
 
-		auto_inc = table->next_number_field->val_int();
+		auto_inc = table->next_number_field->val_uint();
 
 		/* We need the upper limit of the col type to check for
 		whether we update the table autoinc counter or not. */
