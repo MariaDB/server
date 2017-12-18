@@ -5528,7 +5528,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, uint length,
 
   if (field_ptr && *field_ptr)
   {
-    if ((*field_ptr)->field_visibility == COMPLETELY_INVISIBLE &&
+    if ((*field_ptr)->invisible == INVISIBLE_FULL &&
         DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
       DBUG_RETURN((Field*)0);
 
@@ -7617,7 +7617,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         But view fields can never be invisible.
       */
       if ((field= field_iterator.field()) &&
-          field->field_visibility != NOT_INVISIBLE)
+          field->invisible)
         continue;
       Item *item;
 
@@ -8247,7 +8247,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     /* Ensure that all fields are from the same table */
     DBUG_ASSERT(field->table == table);
 
-    if (field->field_visibility != NOT_INVISIBLE)
+    if (field->invisible)
       continue;
     else
       value=v++;
