@@ -80,8 +80,9 @@ xa rollback 'testa','testb';
 xa start 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
 
 select * from t1;
-
 disconnect con1;
+--source include/wait_until_count_sessions.inc
+
 connection default;
 
 # MDEV-14593 human-readable XA RECOVER
