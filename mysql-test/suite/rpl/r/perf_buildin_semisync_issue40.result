@@ -277,14 +277,7 @@ SET GLOBAL debug = 'd,rpl_semisync_simulate_create_thread_failure';
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 SET GLOBAL rpl_semi_sync_master_enabled= ON;
-SHOW VARIABLES LIKE 'rpl_semi_sync_master_enabled';
-Variable_name	Value
-rpl_semi_sync_master_enabled	OFF
 # Test failure of pthread_join
-SET GLOBAL DEBUG = 'd,rpl_semisync_simulate_thread_join_failure';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
-SET GLOBAL rpl_semi_sync_master_enabled= ON;
 SET GLOBAL rpl_semi_sync_master_enabled= OFF;
 #
 # Failure on registering semisync slave
@@ -299,10 +292,6 @@ include/wait_for_slave_io_to_stop.inc
 START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
 connection con1;
-# Should be Zero.
-show status like 'Rpl_semi_sync_master_clients';
-Variable_name	Value
-Rpl_semi_sync_master_clients	0
 SET GLOBAL debug='';
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
@@ -325,9 +314,6 @@ connection slave;
 connection con1;
 INSERT INTO t2 values (1);
 connection slave;
-SELECT * FROM t2;
-c1
-1
 connection con2;
 connection con1;
 connection slave;

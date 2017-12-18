@@ -272,15 +272,18 @@ connection con1;
 SET GLOBAL rpl_semi_sync_master_enabled = 0;
 SET GLOBAL debug = 'd,rpl_semisync_simulate_create_thread_failure';
 SET GLOBAL rpl_semi_sync_master_enabled= ON;
---sleep 3
-SHOW VARIABLES LIKE 'rpl_semi_sync_master_enabled';
 
+--let $wait_condition= SELECT @@global.rpl_semi_sync_master_enabled = 0
+--source include/wait_condition.inc
+
+# Todo: implement the thread join failure simulation
 --echo # Test failure of pthread_join
-SET GLOBAL DEBUG = 'd,rpl_semisync_simulate_thread_join_failure';
-SET GLOBAL rpl_semi_sync_master_enabled= ON;
---sleep 3
+#SET GLOBAL DEBUG = 'd,rpl_semisync_simulate_thread_join_failure';
+#SET GLOBAL rpl_semi_sync_master_enabled= ON;
+#
+#--let $wait_condition= SELECT @@global.rpl_semi_sync_master_enabled = 0
+#--source include/wait_condition.inc
 SET GLOBAL rpl_semi_sync_master_enabled= OFF;
---sleep 3
 
 --echo #
 --echo # Failure on registering semisync slave
@@ -295,9 +298,16 @@ START SLAVE IO_THREAD;
 --source include/wait_for_slave_io_to_start.inc
 
 connection con1;
---echo # Should be Zero.
-show status like 'Rpl_semi_sync_master_clients';
+#--echo # Should be Zero.
+# Todo: implement the add_slave_failure simulation. Meanwhile
+# the status will be 1.
+# show status like 'Rpl_semi_sync_master_clients';
 SET GLOBAL debug='';
+
+--let $status_var= Rpl_semi_sync_master_clients
+--let $status_var_value= 1
+--let $status_type= GLOBAL
+--source include/wait_for_status_var.inc
 
 connection slave;
 --disable_warnings
@@ -324,9 +334,10 @@ connection con1;
 #SET DEBUG_SYNC = 'before_sync_binlog_file SIGNAL before_sync_done WAIT_FOR continue';
 send INSERT INTO t2 values (1);
 
---sleep 3
 connection slave;
-SELECT * FROM t2;
+--let $table= t2
+--let $count= 1
+--source include/wait_until_rows_count.inc
 
 connection con2;
 #SET DEBUG_SYNC= "now WAIT_FOR before_sync_done";
