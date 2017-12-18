@@ -5430,6 +5430,9 @@ opt_part_values:
               if (part_info->part_type == LIST_PARTITION)
                 my_yyabort_error((ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0),
                                   "LIST", "IN"));
+              if (part_info->part_type == VERSIONING_PARTITION)
+                my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0),
+                                  lex->create_last_non_select_table->table_name));
             }
             else
               part_info->part_type= HASH_PARTITION;
@@ -5470,8 +5473,7 @@ opt_part_values:
             if (! lex->is_partition_management())
             {
               if (part_info->part_type != VERSIONING_PARTITION)
-                my_yyabort_error((ER_PARTITION_WRONG_TYPE, MYF(0),
-                                  "BY SYSTEM_TIME"));
+                my_yyabort_error((ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME"));
             }
             else
             {
@@ -5497,8 +5499,7 @@ opt_part_values:
             if (! lex->is_partition_management())
             {
               if (part_info->part_type != VERSIONING_PARTITION)
-                my_yyabort_error((ER_PARTITION_WRONG_TYPE, MYF(0),
-                                  "BY SYSTEM_TIME"));
+                my_yyabort_error((ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME"));
             }
             else
             {

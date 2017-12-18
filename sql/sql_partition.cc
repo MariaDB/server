@@ -4737,6 +4737,10 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
             my_error(ER_PARTITION_WRONG_VALUES_ERROR, MYF(0),
                      "LIST", "IN");
           }
+          else if (thd->work_part_info->part_type == VERSIONING_PARTITION)
+          {
+            my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
+          }
           else if (tab_part_info->part_type == RANGE_PARTITION)
           {
             my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0),

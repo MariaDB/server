@@ -27,8 +27,9 @@ eval create or replace table t1 (i int) engine=$default_engine with system versi
 --error ER_VERS_ALTER_ENGINE_PROHIBITED
 eval alter table t1 engine=$non_default_engine;
 
---echo # Check server-level partitioning
---echo ## create errors
+
+--echo ## CREATE TABLE
+
 --error ER_VERS_ENGINE_UNSUPPORTED
 create or replace table t1 (x int)
 partition by system_time (
@@ -69,13 +70,22 @@ partition by system_time (
     partition pn current,
     partition p0 history);
 
+--error ER_VERS_WRONG_PARTS
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+    partition p0,
+    partition pn current);
+
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
     partition p0 history,
     partition pn current);
 
---echo ## alter table
+
+--echo ## ALTER TABLE
+
 --error ER_VERS_WRONG_PARTS
 alter table t1 add partition (
     partition p1 current);
@@ -104,7 +114,13 @@ partition by system_time limit 1 (
     partition pn current);
 alter table t1 change x big int;
 
---echo ## insert, delete, update
+create or replace table t1 (i int) engine myisam partition by hash(i) partitions 2;
+--error ER_PARTITION_WRONG_TYPE
+alter table t1 add partition (partition px history);
+
+
+--echo ## INSERT, UPDATE, DELETE
+
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (

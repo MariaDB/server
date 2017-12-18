@@ -7834,7 +7834,7 @@ ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY
         eng "Attempt to read non-temporal field %`s in historical query"
 
 ER_PARTITION_WRONG_TYPE
-        eng "Wrong partition type, expected type: %`s"
+        eng "Wrong partitioning type, expected type: %`s"
 
 WARN_VERS_PART_FULL
         eng "Versioned table %`s.%`s: partition %`s is full, add more HISTORY partitions"
@@ -7897,7 +7897,7 @@ ER_PART_WRONG_VALUE
         eng "Wrong parameters for partitioned %`s: wrong value for '%s'"
 
 ER_VERS_WRONG_PARTS
-        eng "Wrong partitions consistency for %`s: must have at least one HISTORY and exactly one last CURRENT"
+        eng "Wrong partitions for %`s: must have at least one HISTORY and exactly one last CURRENT"
 
 ER_VERS_HISTORY_LOCK
         eng "Versioned SELECT write-locking of history rows"
