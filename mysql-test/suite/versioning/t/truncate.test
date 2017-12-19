@@ -40,4 +40,18 @@ partition by system_time (
 --error ER_NOT_ALLOWED_COMMAND
 truncate table t to system_time current_timestamp;
 
+create or replace table t (i int) with system versioning;
+truncate t to system_time now();
+create or replace view v as select * from t;
+--error ER_VERS_TRUNCATE_TO_VIEW
+truncate v to system_time now();
+
+create or replace table t (i int);
+--error ER_VERSIONING_REQUIRED
+truncate t to system_time now();
+create or replace view v as select * from t;
+--error ER_VERS_TRUNCATE_TO_VIEW
+truncate v to system_time now();
+
 drop table t;
+drop view v;

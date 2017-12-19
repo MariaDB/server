@@ -312,6 +312,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   bool truncate_history= table_list->vers_conditions;
   if (truncate_history)
   {
+    if (table_list->is_view_or_derived())
+    {
+      my_error(ER_VERS_TRUNCATE_TO_VIEW, MYF(0));
+      DBUG_RETURN(true);
+    }
+
     TABLE *table= table_list->table;
     DBUG_ASSERT(table);
 
@@ -328,7 +334,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       DBUG_RETURN(TRUE);
 
     // trx_sees() in InnoDB reads sys_trx_start
-    if (!table->versioned(VERS_TIMESTAMP)) {
+    if (!table->versioned(VERS_TIMESTAMP))
+    {
       DBUG_ASSERT(table_list->vers_conditions.type == SYSTEM_TIME_BEFORE);
       bitmap_set_bit(table->read_set, table->vers_end_field()->field_index);
     }
