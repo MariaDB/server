@@ -4818,6 +4818,9 @@ end_with_restore_list:
   {
     List<set_var_base> *lex_var_list= &lex->var_list;
 
+    if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
+      goto error;
+
     if ((check_table_access(thd, SELECT_ACL, all_tables, FALSE, UINT_MAX, FALSE)
          || open_and_lock_tables(thd, all_tables, TRUE, 0)))
       goto error;
