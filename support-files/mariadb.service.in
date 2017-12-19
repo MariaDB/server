@@ -13,7 +13,9 @@
 # and probably others
 
 [Unit]
-Description=MariaDB database server
+Description=MariaDB @VERSION@ database server
+Documentation=man:mysqld(8)
+Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
 After=syslog.target
 
@@ -76,7 +78,7 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
 
 # Start main service
 # MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
-# Use the [service] section and Environment="MYSQLD_OPTS=...".
+# Use the [Service] section and Environment="MYSQLD_OPTS=...".
 # This isn't a replacement for my.cnf.
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
 ExecStart=@sbindir@/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
@@ -103,7 +105,8 @@ UMask=007
 ##
 ##
 ## by creating a file in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
-## and adding/setting the following will override this file's settings.
+## and adding/setting the following under [Service] will override this file's
+## settings.
 
 # Useful options not previously available in [mysqld_safe]
 

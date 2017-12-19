@@ -2379,11 +2379,12 @@ com_multi_end:
 
   THD_STAGE_INFO(thd, stage_cleaning_up);
   thd->reset_query();
-  thd->set_examined_row_count(0);                   // For processlist
-  thd->set_command(COM_SLEEP);
 
   /* Performance Schema Interface instrumentation, end */
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+  thd->set_examined_row_count(0);                   // For processlist
+  thd->set_command(COM_SLEEP);
+
   thd->m_statement_psi= NULL;
   thd->m_digest= NULL;
 

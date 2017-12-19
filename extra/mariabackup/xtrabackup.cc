@@ -1060,11 +1060,13 @@ struct my_option xb_server_options[] =
    (G_PTR*) &defaults_group, (G_PTR*) &defaults_group,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
-  {"plugin-dir", OPT_PLUGIN_DIR, "Server plugin directory",
+  {"plugin-dir", OPT_PLUGIN_DIR,
+  "Server plugin directory. Used to load encryption plugin during 'prepare' phase."
+  "Has no effect in the 'backup' phase (plugin directory during backup is the same as server's)",
   &xb_plugin_dir, &xb_plugin_dir,
   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
-  { "plugin-load", OPT_PLUGIN_LOAD, "encrypton plugin to load",
+  { "plugin-load", OPT_PLUGIN_LOAD, "encrypton plugin to load during 'prepare' phase.",
   &xb_plugin_load, &xb_plugin_load,
   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
