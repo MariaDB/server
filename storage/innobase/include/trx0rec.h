@@ -236,17 +236,6 @@ trx_undo_prev_version_build(
 				into this function by purge thread or not.
 				And if we read "after image" of undo log */
 
-/***********************************************************//**
-Parses a redo log record of erasing of an undo page end.
-@return end of log record or NULL */
-byte*
-trx_undo_parse_erase_page_end(
-/*==========================*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr,/*!< in: buffer end */
-	page_t*	page,	/*!< in: page or NULL */
-	mtr_t*	mtr);	/*!< in: mtr or NULL */
-
 /** Read from an undo log record a non-virtual column value.
 @param[in,out]	ptr		pointer to remaining part of the undo record
 @param[in,out]	field		stored field

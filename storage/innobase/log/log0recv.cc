@@ -1394,10 +1394,6 @@ parse_log:
 		page_parse_create(block, type == MLOG_COMP_PAGE_CREATE_RTREE,
 				  true);
 		break;
-	case MLOG_UNDO_ERASE_END:
-		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
-		ptr = trx_undo_parse_erase_page_end(ptr, end_ptr, page, mtr);
-		break;
 	case MLOG_UNDO_HDR_CREATE:
 		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
 		ptr = trx_undo_parse_page_header(ptr, end_ptr, page, mtr);
@@ -3621,9 +3617,6 @@ get_mlog_string(mlog_id_t type)
 
 	case MLOG_PAGE_CREATE:
 		return("MLOG_PAGE_CREATE");
-
-	case MLOG_UNDO_ERASE_END:
-		return("MLOG_UNDO_ERASE_END");
 
 	case MLOG_UNDO_HDR_CREATE:
 		return("MLOG_UNDO_HDR_CREATE");

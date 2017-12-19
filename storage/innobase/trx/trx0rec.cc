@@ -1772,35 +1772,10 @@ trx_undo_erase_page_end(
 
 	first_free = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
 				      + TRX_UNDO_PAGE_FREE);
-	memset(undo_page + first_free, 0xff,
+	memset(undo_page + first_free, 0,
 	       (UNIV_PAGE_SIZE - FIL_PAGE_DATA_END) - first_free);
 
-	mlog_write_initial_log_record(undo_page, MLOG_UNDO_ERASE_END, mtr);
 	return(first_free != TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-}
-
-/***********************************************************//**
-Parses a redo log record of erasing of an undo page end.
-@return end of log record or NULL */
-byte*
-trx_undo_parse_erase_page_end(
-/*==========================*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr MY_ATTRIBUTE((unused)), /*!< in: buffer end */
-	page_t*	page,	/*!< in: page or NULL */
-	mtr_t*	mtr)	/*!< in: mtr or NULL */
-{
-	ut_ad(ptr != NULL);
-	ut_ad(end_ptr != NULL);
-
-	if (page == NULL) {
-
-		return(ptr);
-	}
-
-	trx_undo_erase_page_end(page, mtr);
-
-	return(ptr);
 }
 
 /***********************************************************************//**
