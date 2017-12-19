@@ -683,7 +683,7 @@ public:
 
   uchar		*ptr;			// Position to field in record
 
-  field_visible_type field_visibility;
+  field_visibility_t invisible;
   /**
      Byte where the @c NULL bit is stored inside a record. If this Field is a
      @c NOT @c NULL field, this member is @c NULL.
@@ -1467,6 +1467,8 @@ public:
   {
     return flags & VERS_UPDATE_UNVERSIONED_FLAG;
   }
+
+  bool vers_sys_invisible(THD *thd) const;
 
   virtual bool vers_trx_id() const
   {
@@ -4142,7 +4144,7 @@ public:
     max number of characters. 
   */
   ulonglong length;
-  field_visible_type field_visibility;
+  field_visibility_t invisible;
   /*
     The value of `length' as set by parser: is the number of characters
     for most of the types, or of bytes for BLOBs or numeric types.
@@ -4175,7 +4177,7 @@ public:
    :Type_handler_hybrid_field_type(&type_handler_null),
     compression_method_ptr(0),
     comment(null_clex_str),
-    on_update(NULL), length(0),field_visibility(NOT_INVISIBLE), decimals(0),
+    on_update(NULL), length(0), invisible(VISIBLE), decimals(0),
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
@@ -4654,7 +4656,7 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
 #define f_no_default(x)		((x) & FIELDFLAG_NO_DEFAULT)
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
-#define f_visibility(x)         (static_cast<field_visible_type> ((x) & MAX_BITS_INVISIBLE))
+#define f_visibility(x)         (static_cast<field_visibility_t> ((x) & INVISIBLE_MAX_BITS))
 
 inline
 ulonglong TABLE::vers_end_id() const

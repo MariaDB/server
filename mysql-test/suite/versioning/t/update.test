@@ -10,8 +10,8 @@ begin
   create table t1(
     x int unsigned,
     y int unsigned,
-    sys_trx_start ', sys_type, ' generated always as row start,
-    sys_trx_end ', sys_type, ' generated always as row end,
+    sys_trx_start ', sys_type, ' as row start invisible,
+    sys_trx_end ', sys_type, ' as row end invisible,
     period for system_time (sys_trx_start, sys_trx_end))
   with system versioning
   engine ', engine);
@@ -45,8 +45,8 @@ begin
     id bigint primary key,
     x int,
     y int without system versioning,
-    sys_trx_start ', sys_type, ' as row start,
-    sys_trx_end ', sys_type, ' as row end,
+    sys_trx_start ', sys_type, ' as row start invisible,
+    sys_trx_end ', sys_type, ' as row end invisible,
     period for system_time (sys_trx_start, sys_trx_end))
   with system versioning
   engine ', engine);
@@ -73,8 +73,8 @@ begin
   create table t1 (
     x int,
     y int,
-    sys_trx_start bigint unsigned as row start,
-    sys_trx_end bigint unsigned as row end,
+    sys_trx_start bigint unsigned as row start invisible,
+    sys_trx_end bigint unsigned as row end invisible,
     period for system_time (sys_trx_start, sys_trx_end)
   ) with system versioning
   engine ', engine);
@@ -104,8 +104,8 @@ begin
   create table t1 (
     id int primary key auto_increment,
     x int,
-    sys_trx_start ', sys_type, ' as row start,
-    sys_trx_end ', sys_type, ' as row end,
+    sys_trx_start ', sys_type, ' as row start invisible,
+    sys_trx_end ', sys_type, ' as row end invisible,
     period for system_time (sys_trx_start, sys_trx_end))
   with system versioning
   engine ', engine);
@@ -134,8 +134,8 @@ begin
   set @str= concat('
   create table t1(
     x int unsigned,
-    sys_trx_end ', sys_type, ' generated always as row end,
-    sys_trx_start ', sys_type, ' generated always as row start,
+    sys_trx_end ', sys_type, ' as row end invisible,
+    sys_trx_start ', sys_type, ' as row start invisible,
     y int unsigned,
     period for system_time (sys_trx_start, sys_trx_end),
     primary key(x, y))
@@ -162,8 +162,8 @@ begin
   set @str= concat('(
     x int unsigned,
     y int unsigned,
-    sys_trx_start ', sys_type, ' generated always as row start,
-    sys_trx_end ', sys_type, ' generated always as row end,
+    sys_trx_start ', sys_type, ' as row start invisible,
+    sys_trx_end ', sys_type, ' as row end invisible,
     period for system_time (sys_trx_start, sys_trx_end))
   with system versioning
   engine ', engine);
@@ -209,8 +209,8 @@ begin
     id bigint primary key without system versioning,
     name varchar(128),
     salary bigint without system versioning,
-    sys_trx_start ', sys_type, ' as row start,
-    sys_trx_end ', sys_type, ' as row end,
+    sys_trx_start ', sys_type, ' as row start invisible,
+    sys_trx_end ', sys_type, ' as row end invisible,
     period for system_time (sys_trx_start, sys_trx_end))
   with system versioning
   engine ', engine);

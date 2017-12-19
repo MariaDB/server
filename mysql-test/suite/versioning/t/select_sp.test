@@ -11,8 +11,8 @@ begin
   create table t1(
     x int unsigned,
     y int unsigned,
-    sys_start ', sys_type, ' generated always as row start,
-    sys_end ', sys_type, ' generated always as row end,
+    sys_start ', sys_type, ' as row start invisible,
+    sys_end ', sys_type, ' as row end invisible,
     period for system_time (sys_start, sys_end))
   with system versioning
   engine ', engine);
@@ -70,8 +70,8 @@ begin
   set @str0= concat('(
     x int,
     y int,
-    sys_start ', sys_type, ' generated always as row start,
-    sys_end ', sys_type, ' generated always as row end,
+    sys_start ', sys_type, ' as row start invisible,
+    sys_end ', sys_type, ' as row end invisible,
     period for system_time (sys_start, sys_end))
   with system versioning
   engine ', engine);

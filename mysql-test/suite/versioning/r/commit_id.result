@@ -1,7 +1,7 @@
 create table t1(
 id int auto_increment primary key,
-sys_trx_start bigint unsigned generated always as row start,
-sys_trx_end bigint unsigned generated always as row end,
+sys_trx_start bigint unsigned as row start invisible,
+sys_trx_end bigint unsigned as row end invisible,
 period for system_time (sys_trx_start, sys_trx_end)
 )
 with system versioning

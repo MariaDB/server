@@ -337,15 +337,17 @@ enum enum_vcol_update_mode
 
 /* Field visibility enums */
 
-enum field_visible_type{
-  NOT_INVISIBLE= 0,
-  USER_DEFINED_INVISIBLE,
+enum field_visibility_t {
+  VISIBLE= 0,
+  INVISIBLE_USER,
   /* automatically added by the server. Can be queried explicitly
   in SELECT, otherwise invisible from anything" */
-  SYSTEM_INVISIBLE,
-  COMPLETELY_INVISIBLE,
-  MAX_BITS_INVISIBLE= 3
+  INVISIBLE_SYSTEM,
+  INVISIBLE_FULL
 };
+
+#define INVISIBLE_MAX_BITS 3
+
 
 /**
   Category of table found in the table share.
@@ -1561,13 +1563,6 @@ public:
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
-
-  uint vers_user_fields() const
-  {
-    return s->versioned ?
-      s->visible_fields - VERSIONING_FIELDS :
-      s->visible_fields;
-  }
 };
 
 

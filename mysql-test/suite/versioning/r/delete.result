@@ -6,8 +6,8 @@ begin
 set @str= concat('
   create or replace table t1(
     XNo int unsigned,
-    sys_start ', sys_type, ' generated always as row start,
-    sys_end ', sys_type, ' generated always as row end,
+    sys_start ', sys_type, ' as row start invisible,
+    sys_end ', sys_type, ' as row end invisible,
     period for system_time (sys_start, sys_end))
   with system versioning
   engine ', engine);
@@ -52,8 +52,8 @@ fields varchar(255))
 begin
 set @str= concat('create or replace table t1 (
     x int,
-    sys_start ', sys_type, ' generated always as row start,
-    sys_end ', sys_type, ' generated always as row end,
+    sys_start ', sys_type, ' as row start invisible,
+    sys_end ', sys_type, ' as row end invisible,
     period for system_time (sys_start, sys_end))
   with system versioning
   engine ', engine);
@@ -74,8 +74,8 @@ begin
 set @str0= concat('(
     x int,
     y int,
-    sys_start ', sys_type, ' generated always as row start,
-    sys_end ', sys_type, ' generated always as row end,
+    sys_start ', sys_type, ' as row start invisible,
+    sys_end ', sys_type, ' as row end invisible,
     period for system_time (sys_start, sys_end))
   with system versioning
   engine ', engine);
@@ -239,11 +239,11 @@ No	A	B	C	D
 14	1	1	1	1
 # Check sys_start, sys_end
 call test_02('timestamp(6)', 'myisam', 'sys_end');
-x	sys_start	sys_end
+x
 A	B	C
 1	1	1
 call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
-x	sys_start	sys_end
+x
 A	B	C
 1	1	1
 call verify_vtq;

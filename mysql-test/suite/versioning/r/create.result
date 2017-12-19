@@ -1,16 +1,16 @@
 drop table if exists t1;
 create table t1 (
 x1 int unsigned,
-Sys_start SYS_DATATYPE generated always as row start comment 'start',
-Sys_end SYS_DATATYPE generated always as row end comment 'end',
+Sys_start SYS_DATATYPE as row start invisible comment 'start',
+Sys_end SYS_DATATYPE as row end invisible comment 'end',
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x1` int(10) unsigned DEFAULT NULL,
-  `Sys_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START COMMENT 'start',
-  `Sys_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END COMMENT 'end',
+  `Sys_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START INVISIBLE COMMENT 'start',
+  `Sys_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE COMMENT 'end',
   PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 # Implicit fields test
@@ -20,29 +20,26 @@ x2 int unsigned
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `x2` int(10) unsigned DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `x2` int(10) unsigned DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
 x3 int unsigned,
-Sys_start SYS_DATATYPE generated always as row start,
-Sys_end SYS_DATATYPE generated always as row end,
+Sys_start SYS_DATATYPE as row start invisible,
+Sys_end SYS_DATATYPE as row end invisible,
 period for system_time (x, Sys_end)
 ) with system versioning;
 ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end`
 create or replace table t1 (
 x4 int unsigned,
-Sys_start SYS_DATATYPE generated always as row start,
-Sys_end2 SYS_DATATYPE generated always as row end,
+Sys_start SYS_DATATYPE as row start invisible,
+Sys_end2 SYS_DATATYPE as row end invisible,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end2`
 create or replace table t1 (
 x5 int unsigned,
-Sys_start SYS_DATATYPE generated always as row start,
-Sys_end SYS_DATATYPE generated always as row end,
+Sys_start SYS_DATATYPE as row start invisible,
+Sys_end SYS_DATATYPE as row end invisible,
 period for system_time (Sys_start, x)
 ) with system versioning;
 ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end`
@@ -53,57 +50,57 @@ period for system_time (Sys_start, Sys_end)
 ERROR HY000: Wrong parameters for `t1`: missing 'AS ROW START'
 create or replace table t1 (
 x7 int unsigned,
-Sys_start SYS_DATATYPE generated always as row start,
-Sys_end SYS_DATATYPE generated always as row end,
+Sys_start SYS_DATATYPE as row start invisible,
+Sys_end SYS_DATATYPE as row end invisible,
 period for system_time (Sys_start, Sys_end)
 );
 ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
 create or replace table t1 (
 x8 int unsigned,
-Sys_start SYS_DATATYPE generated always as row start,
-Sys_end SYS_DATATYPE generated always as row end,
+Sys_start SYS_DATATYPE as row start invisible,
+Sys_end SYS_DATATYPE as row end invisible,
 period for system_time (sys_insert, sys_remove)
 ) with system versioning;
 ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end`
 create or replace table t1 (
 x9 int unsigned,
-Sys_start SYS_DATATYPE generated always as row start,
-Sys_end SYS_DATATYPE generated always as row end,
+Sys_start SYS_DATATYPE as row start invisible,
+Sys_end SYS_DATATYPE as row end invisible,
 period for system_time (Sys_start, Sys_end)
 );
 ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
 create or replace table t1 (
 x10 int unsigned,
-Sys_start SYS_DATATYPE generated always as row start,
-Sys_end SYS_DATATYPE generated always as row end,
+Sys_start SYS_DATATYPE as row start invisible,
+Sys_end SYS_DATATYPE as row end invisible,
 period for system_time (Sys_start, Sys_start)
 );
 ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
 create or replace table t1 (
 x11 int unsigned,
-Sys_start bigint unsigned generated always as row start,
-Sys_end timestamp(6) generated always as row end,
+Sys_start bigint unsigned as row start invisible,
+Sys_end timestamp(6) as row end invisible,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 Got one of the listed errors
 create or replace table t1 (
 x12 int unsigned,
-Sys_start timestamp(6) generated always as row start,
-Sys_end bigint unsigned generated always as row end,
+Sys_start timestamp(6) as row start invisible,
+Sys_end bigint unsigned as row end invisible,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 Got one of the listed errors
 create or replace table t1 (
 x13 int unsigned,
-Sys_start bigint generated always as row start,
-Sys_end bigint unsigned generated always as row end,
+Sys_start bigint as row start invisible,
+Sys_end bigint unsigned as row end invisible,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
 ERROR HY000: `Sys_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
 create or replace table t1 (
 x14 int unsigned,
-Sys_start bigint unsigned generated always as row start,
-Sys_end bigint generated always as row end,
+Sys_start bigint unsigned as row start invisible,
+Sys_end bigint as row end invisible,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
 ERROR HY000: `Sys_end` must be of type BIGINT(20) UNSIGNED for system-versioned table `t1`
@@ -115,10 +112,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x15` int(11) DEFAULT NULL,
-  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
 x16 int with system versioning,
@@ -128,10 +122,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x16` int(11) DEFAULT NULL,
-  `B` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `B` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
 x17 int,
@@ -145,10 +136,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x18` int(11) DEFAULT NULL,
-  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
 x19 int with system versioning,
@@ -158,10 +146,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x19` int(11) DEFAULT NULL,
-  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
 x20 int with system versioning,
@@ -171,10 +156,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x20` int(11) DEFAULT NULL,
-  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
 x21 int without system versioning
@@ -188,10 +170,7 @@ create table tt1 like t1;
 show create table tt1;
 Table	Create Table
 tt1	CREATE TABLE `tt1` (
-  `a` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `a` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 drop table tt1;
 create temporary table tt1 like t1;
@@ -207,8 +186,8 @@ tt1	CREATE TEMPORARY TABLE `tt1` (
 create or replace table t1 (x23 int) with system versioning;
 create or replace table t0(
 y int,
-st SYS_DATATYPE generated always as row start,
-en SYS_DATATYPE generated always as row end,
+st SYS_DATATYPE as row start,
+en SYS_DATATYPE as row end,
 period for system_time (st, en)
 ) with system versioning;
 ## For non-versioned table:
@@ -233,17 +212,14 @@ t3	CREATE TABLE `t3` (
 ## For versioned table
 insert into t1 values (1);
 select sys_trx_start from t1 into @sys_trx_start;
-insert into t0 values (2);
+insert into t0 (y) values (2);
 select st from t0 into @st;
 ### 1. implicit system fields are included as implicit
 create or replace table t2 with system versioning as select * from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `x23` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `x23` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 #### sys_trx_start, sys_trx_end are copied; wildcard not expanded
 select * from t2 where sys_trx_start = @sys_trx_start;
@@ -256,10 +232,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `y` int(11) DEFAULT NULL,
   `st` SYS_DATATYPE,
-  `en` SYS_DATATYPE,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `en` SYS_DATATYPE
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 #### st, en are plain fields now
 select * from t3 where y > 2;
@@ -269,16 +242,16 @@ y
 2
 ### 3. explicit system fields are kept as system
 create or replace table t3 (
-st SYS_DATATYPE generated always as row start,
-en SYS_DATATYPE generated always as row end,
+st SYS_DATATYPE as row start invisible,
+en SYS_DATATYPE as row end invisible,
 period for system_time (st, en)
 ) with system versioning as select * from t0;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `y` int(11) DEFAULT NULL,
-  `st` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `en` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
+  `st` SYS_DATATYPE GENERATED ALWAYS AS ROW START INVISIBLE,
+  `en` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`st`, `en`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select y from t3 where st = @st;
@@ -289,10 +262,7 @@ create or replace table t3 with system versioning select x23 from t1;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `x23` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `x23` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t3;
 x23
@@ -314,16 +284,13 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `x23` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  `y` int(11) DEFAULT NULL,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `y` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t3 for system_time all where sys_trx_start = @sys_trx_start and sys_trx_end = @sys_trx_end;
 x23	y
 1	3
 create or replace table t2 like t0;
-insert into t2 values (1), (2);
+insert into t2 (y) values (1), (2);
 delete from t2 where y = 2;
 create or replace table t3 select * from t2 for system_time all;
 select st, en from t3 where y = 1 into @st, @en;
@@ -341,24 +308,19 @@ as select x25, sys_trx_start, sys_trx_end from t1 for system_time all;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `x25` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE,
-  `sys_trx_end` SYS_DATATYPE
+  `x25` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 create or replace table t2 with system versioning
 as select x25, sys_trx_start, sys_trx_end from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `x25` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `x25` int(11) DEFAULT NULL
 ) ENGINE=NON_DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
 x26 int,
-st bigint unsigned generated always as row start,
-en bigint unsigned generated always as row end,
+st bigint unsigned as row start invisible,
+en bigint unsigned as row end invisible,
 period for system_time (st, en)
 ) with system versioning engine innodb;
 create or replace table t2 with system versioning engine myisam
@@ -372,10 +334,7 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `b` int(11) DEFAULT NULL,
-  `x27` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `x27` int(11) DEFAULT NULL
 ) ENGINE=NON_DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 ## Errors
 create or replace table t (sys_trx_start int);
@@ -388,9 +347,9 @@ create or replace temporary table t (x28 int) with system versioning;
 ERROR HY000: Incorrect usage of TEMPORARY and WITH SYSTEM VERSIONING
 create or replace table t1 (
 x29 int unsigned,
-Sys_start0 timestamp(6) generated always as row start,
-Sys_start timestamp(6) generated always as row start,
-Sys_end timestamp(6) generated always as row end,
+Sys_start0 timestamp(6) as row start invisible,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 ERROR HY000: Duplicate ROW START column `Sys_start`
@@ -398,8 +357,8 @@ ERROR HY000: Duplicate ROW START column `Sys_start`
 create or replace table t1 (x30 int) with system versioning;
 create or replace table t2 (
 y int,
-st SYS_DATATYPE generated always as row start,
-en SYS_DATATYPE generated always as row end,
+st SYS_DATATYPE as row start invisible,
+en SYS_DATATYPE as row end invisible,
 period for system_time (st, en)
 ) with system versioning;
 create or replace table t3
@@ -409,15 +368,13 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `x30` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE,
-  `sys_trx_end` SYS_DATATYPE,
-  `st` SYS_DATATYPE,
-  `en` SYS_DATATYPE
+  `st` SYS_DATATYPE NOT NULL INVISIBLE DEFAULT '0000-00-00 00:00:00.000000',
+  `en` SYS_DATATYPE NOT NULL INVISIBLE DEFAULT '0000-00-00 00:00:00.000000'
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 create or replace table t3 (
 y int,
-st SYS_DATATYPE generated always as row start,
-en SYS_DATATYPE generated always as row end,
+st SYS_DATATYPE as row start invisible,
+en SYS_DATATYPE as row end invisible,
 period for system_time (st, en)
 ) with system versioning
 as select x30, y, sys_trx_start, sys_trx_end, st, en from t1, t2;
@@ -426,10 +383,8 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `x30` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE,
-  `sys_trx_end` SYS_DATATYPE,
-  `st` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `en` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
+  `st` SYS_DATATYPE GENERATED ALWAYS AS ROW START INVISIBLE,
+  `en` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`st`, `en`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 drop database test;

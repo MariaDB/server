@@ -182,8 +182,8 @@ enum extra2_frm_value_type {
 };
 
 enum extra2_field_flags {
-  VERS_OPTIMIZED_UPDATE= 1 << MAX_BITS_INVISIBLE,
-  VERS_HIDDEN= 1 << (MAX_BITS_INVISIBLE + 1),
+  VERS_OPTIMIZED_UPDATE= 1 << INVISIBLE_MAX_BITS,
+  VERS_HIDDEN= 1 << (INVISIBLE_MAX_BITS + 1),
 };
 
 int rea_create_table(THD *thd, LEX_CUSTRING *frm,

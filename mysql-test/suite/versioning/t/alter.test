@@ -22,28 +22,28 @@ set system_versioning_alter_history= keep;
 
 --error ER_VERS_FIELD_WRONG_TYPE
 alter table t
-  add column trx_start bigint(20) unsigned generated always as row start,
-  add column trx_end bigint(20) unsigned generated always as row end,
+  add column trx_start bigint(20) unsigned as row start invisible,
+  add column trx_end bigint(20) unsigned as row end invisible,
   add period for system_time(trx_start, trx_end),
   add system versioning;
 
 --error ER_VERS_FIELD_WRONG_TYPE
 alter table t
-  add column trx_start timestamp generated always as row start,
-  add column trx_end timestamp generated always as row end,
+  add column trx_start timestamp as row start invisible,
+  add column trx_end timestamp as row end invisible,
   add period for system_time(trx_start, trx_end),
   add system versioning;
 
 --error ER_PARSE_ERROR
 alter table t
-  add column trx_start timestamp(6) not null generated always as row start,
-  add column trx_end timestamp(6) not null generated always as row end,
+  add column trx_start timestamp(6) not null as row start invisible,
+  add column trx_end timestamp(6) not null as row end invisible,
   add period for system_time(trx_start, trx_end),
   add system versioning;
 
 alter table t
-  add column trx_start timestamp(6) generated always as row start,
-  add column trx_end timestamp(6) generated always as row end,
+  add column trx_start timestamp(6) as row start invisible,
+  add column trx_end timestamp(6) as row end invisible,
   add period for system_time(trx_start, trx_end),
   add system versioning;
 show create table t;
@@ -72,8 +72,8 @@ show create table t;
 
 create or replace table t (
   a int,
-  sys_trx_start timestamp(6) generated always as row start,
-  sys_trx_end timestamp(6) generated always as row end,
+  sys_trx_start timestamp(6) as row start invisible,
+  sys_trx_end timestamp(6) as row end invisible,
   period for system_time(sys_trx_start, sys_trx_end))
 with system versioning;
 
@@ -89,8 +89,8 @@ alter table t drop column sys_trx_end;
 
 create or replace table t (
   a int,
-  sys_trx_start timestamp(6) generated always as row start,
-  sys_trx_end timestamp(6) generated always as row end,
+  sys_trx_start timestamp(6) as row start invisible,
+  sys_trx_end timestamp(6) as row end invisible,
   period for system_time(sys_trx_start, sys_trx_end))
 with system versioning;
 
@@ -142,8 +142,8 @@ create or replace table t(
 ) engine=innodb;
 
 alter table t
-  add column trx_start timestamp(6) as row start,
-  add column trx_end timestamp(6) as row end,
+  add column trx_start timestamp(6) as row start invisible,
+  add column trx_end timestamp(6) as row end invisible,
   add period for system_time(trx_start, trx_end),
   add system versioning;
 
@@ -158,8 +158,8 @@ insert into t values(1);
 
 call verify_vtq;
 alter table t
-  add column trx_start bigint(20) unsigned as row start,
-  add column trx_end bigint(20) unsigned as row end,
+  add column trx_start bigint(20) unsigned as row start invisible,
+  add column trx_end bigint(20) unsigned as row end invisible,
   add period for system_time(trx_start, trx_end),
   add system versioning;
 call verify_vtq;
@@ -262,8 +262,8 @@ select * from t for system_time all;
 
 create or replace table t (
   a int,
-  sys_trx_start bigint(20) unsigned generated always as row start,
-  sys_trx_end bigint(20) unsigned generated always as row end,
+  sys_trx_start bigint(20) unsigned as row start invisible,
+  sys_trx_end bigint(20) unsigned as row end invisible,
   period for system_time(sys_trx_start, sys_trx_end)
 ) with system versioning engine innodb;
 --error ER_VERS_ALTER_SYSTEM_FIELD
@@ -271,8 +271,8 @@ alter table t change column sys_trx_start asdf bigint unsigned;
 
 create or replace table t (
   a int,
-  sys_trx_start timestamp(6) generated always as row start,
-  sys_trx_end timestamp(6) generated always as row end,
+  sys_trx_start timestamp(6) as row start invisible,
+  sys_trx_end timestamp(6) as row end invisible,
   period for system_time(sys_trx_start, sys_trx_end)
 ) with system versioning engine myisam;
 --error ER_VERS_ALTER_SYSTEM_FIELD
@@ -280,8 +280,8 @@ alter table t change column sys_trx_start asdf timestamp(6);
 
 create or replace table t (
   a int,
-  sys_trx_start timestamp(6) generated always as row start,
-  sys_trx_end timestamp(6) generated always as row end,
+  sys_trx_start timestamp(6) as row start invisible,
+  sys_trx_end timestamp(6) as row end invisible,
   period for system_time(sys_trx_start, sys_trx_end)
 ) with system versioning;
 select * from t;
@@ -333,10 +333,10 @@ insert into non_empty values (1, 100, 200);
 
 --error ER_VERS_GENERATED_ALWAYS_NOT_EMPTY
 alter table non_empty
-  change column sys_trx_start sys_trx_start bigint(20) unsigned generated always as row start;
+  change column sys_trx_start sys_trx_start bigint(20) unsigned as row start invisible;
 --error ER_VERS_GENERATED_ALWAYS_NOT_EMPTY
 alter table non_empty
-  change column sys_trx_end sys_trx_end bigint(20) unsigned generated always as row end;
+  change column sys_trx_end sys_trx_end bigint(20) unsigned as row end invisible;
 drop table non_empty;
 
 create or replace table t (a int primary key) with system versioning;

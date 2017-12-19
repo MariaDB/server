@@ -8,8 +8,8 @@ drop table if exists t1;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE NULL ''
 eval create table t1 (
   x1 int unsigned,
-  Sys_start $sys_datatype generated always as row start comment 'start',
-  Sys_end $sys_datatype generated always as row end comment 'end',
+  Sys_start $sys_datatype as row start invisible comment 'start',
+  Sys_end $sys_datatype as row end invisible comment 'end',
   period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
@@ -26,8 +26,8 @@ show create table t1;
 --error ER_VERS_PERIOD_COLUMNS
 eval create or replace table t1 (
   x3 int unsigned,
-  Sys_start $sys_datatype generated always as row start,
-  Sys_end $sys_datatype generated always as row end,
+  Sys_start $sys_datatype as row start invisible,
+  Sys_end $sys_datatype as row end invisible,
   period for system_time (x, Sys_end)
 ) with system versioning;
 
@@ -35,8 +35,8 @@ eval create or replace table t1 (
 --error ER_VERS_PERIOD_COLUMNS
 eval create or replace table t1 (
   x4 int unsigned,
-  Sys_start $sys_datatype generated always as row start,
-  Sys_end2 $sys_datatype generated always as row end,
+  Sys_start $sys_datatype as row start invisible,
+  Sys_end2 $sys_datatype as row end invisible,
   period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 
@@ -44,8 +44,8 @@ eval create or replace table t1 (
 --error ER_VERS_PERIOD_COLUMNS
 eval create or replace table t1 (
   x5 int unsigned,
-  Sys_start $sys_datatype generated always as row start,
-  Sys_end $sys_datatype generated always as row end,
+  Sys_start $sys_datatype as row start invisible,
+  Sys_end $sys_datatype as row end invisible,
   period for system_time (Sys_start, x)
 ) with system versioning;
 
@@ -59,8 +59,8 @@ create or replace table t1 (
 --error ER_MISSING
 eval create or replace table t1 (
   x7 int unsigned,
-  Sys_start $sys_datatype generated always as row start,
-  Sys_end $sys_datatype generated always as row end,
+  Sys_start $sys_datatype as row start invisible,
+  Sys_end $sys_datatype as row end invisible,
   period for system_time (Sys_start, Sys_end)
 );
 
@@ -68,8 +68,8 @@ eval create or replace table t1 (
 --error ER_VERS_PERIOD_COLUMNS
 eval create or replace table t1 (
   x8 int unsigned,
-  Sys_start $sys_datatype generated always as row start,
-  Sys_end $sys_datatype generated always as row end,
+  Sys_start $sys_datatype as row start invisible,
+  Sys_end $sys_datatype as row end invisible,
   period for system_time (sys_insert, sys_remove)
 ) with system versioning;
 
@@ -77,8 +77,8 @@ eval create or replace table t1 (
 --error ER_MISSING
 eval create or replace table t1 (
   x9 int unsigned,
-  Sys_start $sys_datatype generated always as row start,
-  Sys_end $sys_datatype generated always as row end,
+  Sys_start $sys_datatype as row start invisible,
+  Sys_end $sys_datatype as row end invisible,
   period for system_time (Sys_start, Sys_end)
 );
 
@@ -86,40 +86,40 @@ eval create or replace table t1 (
 --error ER_MISSING
 eval create or replace table t1 (
   x10 int unsigned,
-  Sys_start $sys_datatype generated always as row start,
-  Sys_end $sys_datatype generated always as row end,
+  Sys_start $sys_datatype as row start invisible,
+  Sys_end $sys_datatype as row end invisible,
   period for system_time (Sys_start, Sys_start)
 );
 
 --error ER_VERS_FIELD_WRONG_TYPE, ER_VERS_FIELD_WRONG_TYPE
 create or replace table t1 (
   x11 int unsigned,
-  Sys_start bigint unsigned generated always as row start,
-  Sys_end timestamp(6) generated always as row end,
+  Sys_start bigint unsigned as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
   period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 
 --error ER_VERS_FIELD_WRONG_TYPE, ER_VERS_FIELD_WRONG_TYPE
 create or replace table t1 (
   x12 int unsigned,
-  Sys_start timestamp(6) generated always as row start,
-  Sys_end bigint unsigned generated always as row end,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end bigint unsigned as row end invisible,
   period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 
 --error ER_VERS_FIELD_WRONG_TYPE
 create or replace table t1 (
   x13 int unsigned,
-  Sys_start bigint generated always as row start,
-  Sys_end bigint unsigned generated always as row end,
+  Sys_start bigint as row start invisible,
+  Sys_end bigint unsigned as row end invisible,
   period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
 
 --error ER_VERS_FIELD_WRONG_TYPE
 create or replace table t1 (
   x14 int unsigned,
-  Sys_start bigint unsigned generated always as row start,
-  Sys_end bigint generated always as row end,
+  Sys_start bigint unsigned as row start invisible,
+  Sys_end bigint as row end invisible,
   period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
 
@@ -190,8 +190,8 @@ create or replace table t1 (x23 int) with system versioning;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 eval create or replace table t0(
   y int,
-  st $sys_datatype generated always as row start,
-  en $sys_datatype generated always as row end,
+  st $sys_datatype as row start,
+  en $sys_datatype as row end,
   period for system_time (st, en)
 ) with system versioning;
 
@@ -210,7 +210,7 @@ show create table t3;
 --echo ## For versioned table
 insert into t1 values (1);
 select sys_trx_start from t1 into @sys_trx_start;
-insert into t0 values (2);
+insert into t0 (y) values (2);
 select st from t0 into @st;
 
 --echo ### 1. implicit system fields are included as implicit
@@ -231,8 +231,8 @@ select y from t3 where st = @st and sys_trx_start > @st;
 --echo ### 3. explicit system fields are kept as system
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 eval create or replace table t3 (
-  st $sys_datatype generated always as row start,
-  en $sys_datatype generated always as row end,
+  st $sys_datatype as row start invisible,
+  en $sys_datatype as row end invisible,
   period for system_time (st, en)
 ) with system versioning as select * from t0;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
@@ -264,7 +264,7 @@ show create table t3;
 select * from t3 for system_time all where sys_trx_start = @sys_trx_start and sys_trx_end = @sys_trx_end;
 
 create or replace table t2 like t0;
-insert into t2 values (1), (2);
+insert into t2 (y) values (1), (2);
 delete from t2 where y = 2;
 
 create or replace table t3 select * from t2 for system_time all;
@@ -288,8 +288,8 @@ show create table t2;
 
 create or replace table t1 (
   x26 int,
-  st bigint unsigned generated always as row start,
-  en bigint unsigned generated always as row end,
+  st bigint unsigned as row start invisible,
+  en bigint unsigned as row end invisible,
   period for system_time (st, en)
 ) with system versioning engine innodb;
 --error ER_VERS_FIELD_WRONG_TYPE
@@ -319,9 +319,9 @@ create or replace temporary table t (x28 int) with system versioning;
 --error ER_VERS_DUPLICATE_ROW_START_END
 create or replace table t1 (
   x29 int unsigned,
-  Sys_start0 timestamp(6) generated always as row start,
-  Sys_start timestamp(6) generated always as row start,
-  Sys_end timestamp(6) generated always as row end,
+  Sys_start0 timestamp(6) as row start invisible,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
   period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 
@@ -330,8 +330,8 @@ create or replace table t1 (x30 int) with system versioning;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 eval create or replace table t2 (
     y int,
-    st $sys_datatype generated always as row start,
-    en $sys_datatype generated always as row end,
+    st $sys_datatype as row start invisible,
+    en $sys_datatype as row end invisible,
     period for system_time (st, en)
 ) with system versioning;
 
@@ -343,8 +343,8 @@ show create table t3;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 eval create or replace table t3 (
     y int,
-    st $sys_datatype generated always as row start,
-    en $sys_datatype generated always as row end,
+    st $sys_datatype as row start invisible,
+    en $sys_datatype as row end invisible,
     period for system_time (st, en)
 ) with system versioning
 as select x30, y, sys_trx_start, sys_trx_end, st, en from t1, t2;

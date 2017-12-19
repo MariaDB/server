@@ -222,7 +222,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
                table_list->view_db.str, table_list->view_name.str);
       DBUG_RETURN(-1);
     }
-    if (values.elements != table->vers_user_fields())
+    if (values.elements != table->s->visible_fields)
     {
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);

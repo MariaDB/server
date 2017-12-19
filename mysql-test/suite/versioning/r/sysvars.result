@@ -118,8 +118,8 @@ a	sys_trx_start	sys_trx_end
 set system_versioning_hide= FULL;
 create or replace table t (
 x int,
-st timestamp(6) generated always as row start,
-en timestamp(6) generated always as row end,
+st timestamp(6) as row start invisible,
+en timestamp(6) as row end invisible,
 period for system_time (st, en))
 with system versioning;
 show create table t;

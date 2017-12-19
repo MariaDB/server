@@ -3,8 +3,8 @@ select @@system_versioning_transaction_registry;
 0
 create or replace table t1 (
 x int,
-sys_trx_start bigint(20) unsigned generated always as row start,
-sys_trx_end bigint(20) unsigned generated always as row end,
+sys_trx_start bigint(20) unsigned as row start invisible,
+sys_trx_end bigint(20) unsigned as row end invisible,
 period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning engine innodb;
 ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
@@ -13,8 +13,8 @@ Warnings:
 Warning	4145	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
 create or replace table t1 (
 x int,
-sys_trx_start bigint(20) unsigned generated always as row start,
-sys_trx_end bigint(20) unsigned generated always as row end,
+sys_trx_start bigint(20) unsigned as row start invisible,
+sys_trx_end bigint(20) unsigned as row end invisible,
 period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning engine innodb;
 insert into t1 (x) values (1);

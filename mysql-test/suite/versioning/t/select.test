@@ -7,8 +7,8 @@
 eval create or replace table t1 (
   x int unsigned,
   y int unsigned,
-  sys_trx_start $sys_datatype_expl generated always as row start,
-  sys_trx_end $sys_datatype_expl generated always as row end,
+  sys_trx_start $sys_datatype_expl as row start invisible,
+  sys_trx_end $sys_datatype_expl as row end invisible,
   period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning;
 
@@ -203,8 +203,8 @@ select * from t1 for system_time as of transaction 1;
 
 create or replace table t1 (
   x int,
-  sys_trx_start bigint unsigned generated always as row start,
-  sys_trx_end bigint unsigned generated always as row end,
+  sys_trx_start bigint unsigned as row start invisible,
+  sys_trx_end bigint unsigned as row end invisible,
   period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning engine innodb;
 insert into t1 values (1);

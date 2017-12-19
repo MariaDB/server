@@ -2189,12 +2189,17 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
     uint flags = field->flags;
 
-    if (vers_hide == VERS_HIDE_FULL &&
-        (flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG)))
-      continue;
-
-    if (field->field_visibility > USER_DEFINED_INVISIBLE)
+    if (field->vers_sys_field())
+    {
+      if (vers_hide == VERS_HIDE_FULL || (vers_hide != VERS_HIDE_NEVER &&
+          field->invisible > INVISIBLE_USER))
+      {
+        continue;
+      }
+    }
+    else if (field->invisible > INVISIBLE_USER)
        continue;
+
     if (not_the_first_field)
       packet->append(STRING_WITH_LEN(",\n"));
 
@@ -2259,7 +2264,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         packet->append(STRING_WITH_LEN(" NULL"));
       }
 
-      if (field->field_visibility == USER_DEFINED_INVISIBLE)
+      if (field->invisible == INVISIBLE_USER)
       {
         packet->append(STRING_WITH_LEN(" INVISIBLE"));
       }
@@ -2343,8 +2348,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       Field *field= key_part->field;
       if (field && field->vers_sys_field())
       {
-        if (vers_hide == VERS_HIDE_FULL /*|| ((field->flags & HIDDEN_FLAG) &&
-                                            vers_hide != VERS_HIDE_NEVER)*/)
+        if (vers_hide == VERS_HIDE_FULL || (field->invisible &&
+                                            vers_hide != VERS_HIDE_NEVER))
           continue;
       }
 
@@ -2380,11 +2385,17 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   {
     const Field *fs = table->vers_start_field();
     const Field *fe = table->vers_end_field();
-    packet->append(STRING_WITH_LEN(",\n  PERIOD FOR SYSTEM_TIME ("));
-    append_identifier(thd,packet,fs->field_name.str, fs->field_name.length);
-    packet->append(STRING_WITH_LEN(", "));
-    append_identifier(thd,packet,fe->field_name.str, fe->field_name.length);
-    packet->append(STRING_WITH_LEN(")"));
+    DBUG_ASSERT(fs);
+    DBUG_ASSERT(fe);
+    DBUG_ASSERT(!fs->invisible || fe->invisible);
+    if (fe->invisible < INVISIBLE_SYSTEM || vers_hide == VERS_HIDE_NEVER)
+    {
+      packet->append(STRING_WITH_LEN(",\n  PERIOD FOR SYSTEM_TIME ("));
+      append_identifier(thd,packet,fs->field_name.str, fs->field_name.length);
+      packet->append(STRING_WITH_LEN(", "));
+      append_identifier(thd,packet,fe->field_name.str, fe->field_name.length);
+      packet->append(STRING_WITH_LEN(")"));
+    }
   }
 
   /*
@@ -5847,7 +5858,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 
   for (; (field= *ptr) ; ptr++)
   {
-    if(field->field_visibility > USER_DEFINED_INVISIBLE)
+    if(field->invisible > INVISIBLE_USER)
       continue;
     uchar *pos;
     char tmp[MAX_FIELD_WIDTH];
@@ -5928,7 +5939,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     else
       table->field[20]->store(STRING_WITH_LEN("NEVER"), cs);
     /*Invisible can coexist with auto_increment and virtual */
-    if (field->field_visibility == USER_DEFINED_INVISIBLE)
+    if (field->invisible == INVISIBLE_USER)
     {
       if (buf.length())
         buf.append(STRING_WITH_LEN(", "));

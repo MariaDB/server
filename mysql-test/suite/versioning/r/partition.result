@@ -89,10 +89,7 @@ Warning	4115	Maybe missing parameters: no rotation condition for multiple HISTOR
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `x` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `x` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME 
 (PARTITION `p0` HISTORY ENGINE = DEFAULT_ENGINE,
@@ -215,10 +212,7 @@ partition pn current);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `x` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `x` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME LIMIT 2
 (PARTITION `p0` HISTORY ENGINE = DEFAULT_ENGINE,

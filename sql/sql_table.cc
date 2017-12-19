@@ -3316,22 +3316,22 @@ bool Column_definition::prepare_stage1_check_typelib_default()
       field_list               list of all table fields
       field_name               name/prefix of invisible field
                                ( Prefix in the case when it is
-                                *COMPLETELY_INVISIBLE*
+                                *INVISIBLE_FULL*
                                and given name is duplicate)
       type_handler             field data type
-      field_visibility
+      invisible
       default value
     RETURN VALUE
       Create_field pointer
 */
 int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
         const char *field_name, Type_handler *type_handler,
-        field_visible_type field_visibility, Item* default_value)
+        field_visibility_t invisible, Item* default_value)
 {
   Create_field *fld= new(thd->mem_root)Create_field();
   const char *new_name= NULL;
-  /* Get unique field name if field_visibility == COMPLETELY_INVISIBLE */
-  if (field_visibility == COMPLETELY_INVISIBLE)
+  /* Get unique field name if invisible == INVISIBLE_FULL */
+  if (invisible == INVISIBLE_FULL)
   {
     if ((new_name= make_unique_invisible_field_name(thd, field_name,
                                                      field_list)))
@@ -3348,7 +3348,7 @@ int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
     fld->field_name.length= strlen(field_name);
   }
   fld->set_handler(type_handler);
-  fld->field_visibility= field_visibility;
+  fld->invisible= invisible;
   if (default_value)
   {
     Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
@@ -3421,12 +3421,12 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
   DBUG_EXECUTE_IF("test_pseudo_invisible",{
           mysql_add_invisible_field(thd, &alter_info->create_list,
-                      "invisible", &type_handler_long, SYSTEM_INVISIBLE,
+                      "invisible", &type_handler_long, INVISIBLE_SYSTEM,
                       new (thd->mem_root)Item_int(thd, 9));
           });
   DBUG_EXECUTE_IF("test_completely_invisible",{
           mysql_add_invisible_field(thd, &alter_info->create_list,
-                      "invisible", &type_handler_long, COMPLETELY_INVISIBLE,
+                      "invisible", &type_handler_long, INVISIBLE_FULL,
                       new (thd->mem_root)Item_int(thd, 9));
           });
   DBUG_EXECUTE_IF("test_invisible_index",{
@@ -3584,7 +3584,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
-    if (sql_field->field_visibility == USER_DEFINED_INVISIBLE &&
+    if (sql_field->invisible == INVISIBLE_USER &&
         sql_field->flags & NOT_NULL_FLAG &&
         sql_field->flags & NO_DEFAULT_VALUE_FLAG)
     {
@@ -3604,7 +3604,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       sql_field->offset= record_offset;
       record_offset+= sql_field->pack_length;
     }
-    if (sql_field->field_visibility == NOT_INVISIBLE)
+    if (sql_field->invisible == VISIBLE)
       is_all_invisible= false;
   }
   if (is_all_invisible)
@@ -3862,15 +3862,15 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                             &sql_field->field_name))
 	field++;
       /*
-         Either field is not present or field visibility is >
-         USER_DEFINED_INVISIBLE
+         Either field is not present or field visibility is > INVISIBLE_USER
       */
       if (!sql_field)
       {
 	my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
 	DBUG_RETURN(TRUE);
       }
-      if (sql_field->field_visibility > USER_DEFINED_INVISIBLE &&
+      if (sql_field->invisible > INVISIBLE_USER &&
+          !(sql_field->flags & VERS_SYSTEM_FIELD) &&
           !key->invisible && DBUG_EVALUATE_IF("test_invisible_index", 0, 1))
       {
         my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
@@ -5343,11 +5343,11 @@ static void make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
 }
 
 /**
-  COMPLETELY_INVISIBLE are internally created. They are completely invisible
+  INVISIBLE_FULL are internally created. They are completely invisible
   to Alter command (Opposite of SYSTEM_INVISIBLE which throws an
   error when same name column is added by Alter). So in the case of when
-  user added a same column name as of COMPLETELY_INVISIBLE , we change
-  COMPLETELY_INVISIBLE column name.
+  user added a same column name as of INVISIBLE_FULL , we change
+  INVISIBLE_FULL column name.
 */
 static const
 char * make_unique_invisible_field_name(THD *thd, const char *field_name,
@@ -7889,7 +7889,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   bitmap_clear_all(&table->tmp_set);
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
-    if (field->field_visibility == COMPLETELY_INVISIBLE)
+    if (field->invisible == INVISIBLE_FULL)
         continue;
     Alter_drop *drop;
     if (field->type() == MYSQL_TYPE_VARCHAR)
@@ -7902,7 +7902,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           !my_strcasecmp(system_charset_info,field->field_name.str, drop->name))
         break;
     }
-    if (drop && field->field_visibility < SYSTEM_INVISIBLE)
+    if (drop && (field->invisible < INVISIBLE_SYSTEM || field->vers_sys_field()))
     {
       /* Reset auto_increment value if it was dropped */
       if (MTYP_TYPENR(field->unireg_check) == Field::NEXT_NUMBER &&
@@ -7927,7 +7927,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                           &def->change))
 	break;
     }
-    if (def && field->field_visibility < SYSTEM_INVISIBLE)
+    if (def && (field->invisible < INVISIBLE_SYSTEM || field->vers_sys_field()))
     {						// Field is changed
       def->field=field;
       /*

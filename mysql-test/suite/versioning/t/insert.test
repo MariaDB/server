@@ -10,8 +10,8 @@ begin
   create table t1(
     x int unsigned,
     y int unsigned,
-    sys_start ', sys_type, ' generated always as row start,
-    sys_end ', sys_type, ' generated always as row end,
+    sys_start ', sys_type, ' as row start invisible,
+    sys_end ', sys_type, ' as row end invisible,
     period for system_time (sys_start, sys_end))
   with system versioning
   engine ', engine);
@@ -34,8 +34,8 @@ begin
     id int unsigned auto_increment primary key,
     x int unsigned,
     y int unsigned,
-    sys_start ', sys_type, ' generated always as row start,
-    sys_end ', sys_type, ' generated always as row end,
+    sys_start ', sys_type, ' as row start invisible,
+    sys_end ', sys_type, ' as row end invisible,
     period for system_time (sys_start, sys_end))
   with system versioning
   engine ', engine);
@@ -57,8 +57,8 @@ begin
   create table t1(
     x int unsigned,
     y int unsigned,
-    sys_start ', sys_type, ' generated always as row start,
-    sys_end ', sys_type, ' generated always as row end,
+    sys_start ', sys_type, ' as row start invisible,
+    sys_end ', sys_type, ' as row end invisible,
     period for system_time (sys_start, sys_end))
   with system versioning
   engine ', engine);
@@ -101,8 +101,8 @@ begin
   set @str= concat('(
     x int unsigned,
     y int unsigned,
-    sys_start ', sys_type, ' generated always as row start,
-    sys_end ', sys_type, ' generated always as row end,
+    sys_start ', sys_type, ' as row start invisible,
+    sys_end ', sys_type, ' as row end invisible,
     period for system_time (sys_start, sys_end))
   with system versioning
   engine ', engine);
@@ -168,8 +168,8 @@ call verify_vtq;
 
 create table t1(
   x int unsigned,
-  sys_start bigint unsigned generated always as row start,
-  sys_end bigint unsigned generated always as row end,
+  sys_start bigint unsigned as row start invisible,
+  sys_end bigint unsigned as row end invisible,
   period for system_time (sys_start, sys_end))
 with system versioning engine=innodb;
 
@@ -198,8 +198,8 @@ set global system_versioning_transaction_registry= on;
 create or replace table t1 (
   x int,
   y int as (x) virtual,
-  sys_trx_start bigint unsigned as row start,
-  sys_trx_end bigint unsigned as row end,
+  sys_trx_start bigint unsigned as row start invisible,
+  sys_trx_end bigint unsigned as row end invisible,
   period for system_time (sys_trx_start, sys_trx_end)
 ) engine=innodb with system versioning;
 insert into t1 values (1, null);

@@ -15,10 +15,7 @@ alter table t add system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column y int;
 ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
@@ -32,35 +29,35 @@ t	CREATE TABLE `t` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 set system_versioning_alter_history= keep;
 alter table t
-add column trx_start bigint(20) unsigned generated always as row start,
-add column trx_end bigint(20) unsigned generated always as row end,
+add column trx_start bigint(20) unsigned as row start invisible,
+add column trx_end bigint(20) unsigned as row end invisible,
 add period for system_time(trx_start, trx_end),
 add system versioning;
 ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for system-versioned table `t`
 alter table t
-add column trx_start timestamp generated always as row start,
-add column trx_end timestamp generated always as row end,
+add column trx_start timestamp as row start invisible,
+add column trx_end timestamp as row end invisible,
 add period for system_time(trx_start, trx_end),
 add system versioning;
 ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for system-versioned table `t`
 alter table t
-add column trx_start timestamp(6) not null generated always as row start,
-add column trx_end timestamp(6) not null generated always as row end,
+add column trx_start timestamp(6) not null as row start invisible,
+add column trx_end timestamp(6) not null as row end invisible,
 add period for system_time(trx_start, trx_end),
 add system versioning;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'generated always as row start,
-add column trx_end timestamp(6) not null generate' at line 2
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'as row start invisible,
+add column trx_end timestamp(6) not null as row end invi' at line 2
 alter table t
-add column trx_start timestamp(6) generated always as row start,
-add column trx_end timestamp(6) generated always as row end,
+add column trx_start timestamp(6) as row start invisible,
+add column trx_end timestamp(6) as row end invisible,
 add period for system_time(trx_start, trx_end),
 add system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t drop column trx_start, drop column trx_end;
@@ -74,31 +71,22 @@ alter table t add system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column b int;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
-  `b` int(11) DEFAULT NULL,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column c int;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT NULL,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column d int first;
 show create table t;
@@ -106,11 +94,8 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `d` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT NULL,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column e int after d;
 show create table t;
@@ -119,11 +104,8 @@ t	CREATE TABLE `t` (
   `d` int(11) DEFAULT NULL,
   `e` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT NULL,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t drop column a;
 show create table t;
@@ -131,20 +113,17 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `d` int(11) DEFAULT NULL,
   `e` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT NULL,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t (
 a int,
-sys_trx_start timestamp(6) generated always as row start,
-sys_trx_end timestamp(6) generated always as row end,
+sys_trx_start timestamp(6) as row start invisible,
+sys_trx_end timestamp(6) as row end invisible,
 period for system_time(sys_trx_start, sys_trx_end))
 with system versioning;
 select * from t for system_time all;
-a	sys_trx_start	sys_trx_end
+a
 alter table t drop column sys_trx_start;
 alter table t drop column sys_trx_end;
 select * from t for system_time all;
@@ -155,12 +134,12 @@ alter table t drop column sys_trx_end;
 ERROR 42000: Can't DROP COLUMN `sys_trx_end`; check that it exists
 create or replace table t (
 a int,
-sys_trx_start timestamp(6) generated always as row start,
-sys_trx_end timestamp(6) generated always as row end,
+sys_trx_start timestamp(6) as row start invisible,
+sys_trx_end timestamp(6) as row end invisible,
 period for system_time(sys_trx_start, sys_trx_end))
 with system versioning;
 select * from t for system_time all;
-a	sys_trx_start	sys_trx_end
+a
 alter table t drop column sys_trx_start, drop column sys_trx_end;
 select * from t for system_time all;
 a
@@ -172,10 +151,7 @@ alter table t add system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 insert into t values(2);
 select * from t for system_time all;
@@ -205,10 +181,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
-  `b` int(11) DEFAULT NULL,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t;
 a	b
@@ -240,35 +213,29 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
-  `b` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t modify a int with system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t(
 a int
 ) engine=innodb;
 alter table t
-add column trx_start timestamp(6) as row start,
-add column trx_end timestamp(6) as row end,
+add column trx_start timestamp(6) as row start invisible,
+add column trx_end timestamp(6) as row end invisible,
 add period for system_time(trx_start, trx_end),
 add system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 # Issue #211: drop of system columns required before drop system versioning
@@ -276,18 +243,15 @@ alter table t drop column trx_start, drop column trx_end;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
+  `a` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t drop system versioning;
 insert into t values(1);
 call verify_vtq;
 No	A	B	C	D
 alter table t
-add column trx_start bigint(20) unsigned as row start,
-add column trx_end bigint(20) unsigned as row end,
+add column trx_start bigint(20) unsigned as row start invisible,
+add column trx_end bigint(20) unsigned as row end invisible,
 add period for system_time(trx_start, trx_end),
 add system versioning;
 call verify_vtq;
@@ -296,8 +260,8 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
-  `trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
+  `trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START INVISIBLE,
+  `trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t(
@@ -310,10 +274,7 @@ No	A	B	C	D
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `a` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 update t set a= 2;
 select * from t for system_time all;
@@ -325,10 +286,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
-  `b` int(11) DEFAULT NULL,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `b` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t;
 a	b
@@ -339,10 +297,7 @@ alter table t drop column b, algorithm=copy;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+  `a` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t for system_time all;
 a
@@ -420,33 +375,33 @@ a	b
 4	2
 create or replace table t (
 a int,
-sys_trx_start bigint(20) unsigned generated always as row start,
-sys_trx_end bigint(20) unsigned generated always as row end,
+sys_trx_start bigint(20) unsigned as row start invisible,
+sys_trx_end bigint(20) unsigned as row end invisible,
 period for system_time(sys_trx_start, sys_trx_end)
 ) with system versioning engine innodb;
 alter table t change column sys_trx_start asdf bigint unsigned;
 ERROR HY000: Can not change system versioning field `sys_trx_start`
 create or replace table t (
 a int,
-sys_trx_start timestamp(6) generated always as row start,
-sys_trx_end timestamp(6) generated always as row end,
+sys_trx_start timestamp(6) as row start invisible,
+sys_trx_end timestamp(6) as row end invisible,
 period for system_time(sys_trx_start, sys_trx_end)
 ) with system versioning engine myisam;
 alter table t change column sys_trx_start asdf timestamp(6);
 ERROR HY000: Can not change system versioning field `sys_trx_start`
 create or replace table t (
 a int,
-sys_trx_start timestamp(6) generated always as row start,
-sys_trx_end timestamp(6) generated always as row end,
+sys_trx_start timestamp(6) as row start invisible,
+sys_trx_end timestamp(6) as row end invisible,
 period for system_time(sys_trx_start, sys_trx_end)
 ) with system versioning;
 select * from t;
-a	sys_trx_start	sys_trx_end
+a
 alter table t drop system versioning;
 ERROR HY000: System versioning field `sys_trx_start` is not hidden
 alter table t drop column sys_trx_start;
 select * from t;
-a	sys_trx_end
+a
 alter table t drop system versioning;
 ERROR HY000: System versioning field `sys_trx_end` is not hidden
 alter table t drop column sys_trx_end;

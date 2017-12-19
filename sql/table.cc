@@ -2076,14 +2076,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       uchar flags= *extra2_field_flags++;
       if (flags & VERS_OPTIMIZED_UPDATE)
         reg_field->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
-      if (flags & VERS_HIDDEN)
-        reg_field->flags|= VERS_HIDDEN_FLAG;
 
-      reg_field->field_visibility= f_visibility(flags);
+      reg_field->invisible= f_visibility(flags);
     }
-    if (reg_field->field_visibility == USER_DEFINED_INVISIBLE)
+    if (reg_field->invisible == INVISIBLE_USER)
       status_var_increment(thd->status_var.feature_invisible_columns);
-    if (reg_field->field_visibility == NOT_INVISIBLE)
+    if (!reg_field->invisible)
       share->visible_fields++;
     if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
     {
@@ -2336,7 +2334,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
         field= key_part->field= share->field[key_part->fieldnr-1];
         key_part->type= field->key_type();
-        if (field->field_visibility > USER_DEFINED_INVISIBLE)
+        if (field->invisible > INVISIBLE_USER && !field->vers_sys_field())
           keyinfo->flags |= HA_INVISIBLE_KEY;
         if (field->null_ptr)
         {

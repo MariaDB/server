@@ -5528,7 +5528,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, uint length,
 
   if (field_ptr && *field_ptr)
   {
-    if ((*field_ptr)->field_visibility == COMPLETELY_INVISIBLE &&
+    if ((*field_ptr)->invisible == INVISIBLE_FULL &&
         DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
       DBUG_RETURN((Field*)0);
 
@@ -7492,6 +7492,29 @@ bool get_key_map_from_key_list(key_map *map, TABLE *table,
 }
 
 
+inline
+bool Field::vers_sys_invisible(THD *thd) const
+{
+  DBUG_ASSERT(vers_sys_field());
+  enum_sql_command sql_command= thd->lex->sql_command;
+  SELECT_LEX *slex= thd->lex->current_select;
+  ulong vers_hide= thd->variables.vers_hide;
+  DBUG_ASSERT(table);
+  DBUG_ASSERT(table->pos_in_table_list);
+  TABLE_LIST *tl= table->pos_in_table_list;
+  vers_system_time_t vers_type= tl->vers_conditions.type;
+
+  return (sql_command == SQLCOM_CREATE_VIEW ||
+            slex->nest_level > 0 ||
+            vers_hide == VERS_HIDE_FULL ||
+            (invisible && (
+              vers_hide == VERS_HIDE_IMPLICIT ||
+                (vers_hide == VERS_HIDE_AUTO && (
+                  vers_type == SYSTEM_TIME_UNSPECIFIED ||
+                  vers_type == SYSTEM_TIME_AS_OF)))));
+}
+
+
 /*
   Drops in all fields instead of current '*' field
 
@@ -7518,7 +7541,6 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
   Field_iterator_table_ref field_iterator;
   bool found;
   char name_buff[SAFE_NAME_LEN+1];
-  ulong vers_hide= thd->variables.vers_hide;
   DBUG_ENTER("insert_fields");
   DBUG_PRINT("arena", ("stmt arena: %p",thd->stmt_arena));
 
@@ -7623,45 +7645,21 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         But view fields can never be invisible.
       */
       if ((field= field_iterator.field()) &&
-          field->field_visibility != NOT_INVISIBLE)
+          (field->vers_sys_field() ?
+            field->vers_sys_invisible(thd) :
+            field->invisible))
+      {
+        if (thd->lex->sql_command != SQLCOM_CREATE_TABLE ||
+          !(thd->lex->create_info.options & HA_VERSIONED_TABLE))
         continue;
+      }
+
       Item *item;
 
       if (!(item= field_iterator.create_item(thd)))
         DBUG_RETURN(TRUE);
 
-      if (item->type() == Item::FIELD_ITEM)
-      {
-        Item_field *f= static_cast<Item_field *>(item);
-        DBUG_ASSERT(f->field);
-        uint32 fl= f->field->flags;
-        bool sys_field= fl & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
-        SELECT_LEX *slex= thd->lex->current_select;
-        TABLE *table= f->field->table;
-        DBUG_ASSERT(table && table->pos_in_table_list);
-        TABLE_LIST *tl= table->pos_in_table_list;
-        vers_system_time_t vers_type= tl->vers_conditions.type;
-
-        enum_sql_command sql_command= thd->lex->sql_command;
-        unsigned int create_options= thd->lex->create_info.options;
-
-        if (sys_field ?
-              (sql_command == SQLCOM_CREATE_VIEW ||
-              slex->nest_level > 0 ||
-              vers_hide == VERS_HIDE_FULL ||
-              ((fl & VERS_HIDDEN_FLAG) && (
-                vers_hide == VERS_HIDE_IMPLICIT ||
-                  (vers_hide == VERS_HIDE_AUTO && (
-                    vers_type == SYSTEM_TIME_UNSPECIFIED ||
-                    vers_type == SYSTEM_TIME_AS_OF))))) :
-            (fl & VERS_HIDDEN_FLAG))
-        {
-          if (sql_command != SQLCOM_CREATE_TABLE ||
-            !(create_options & HA_VERSIONED_TABLE))
-          continue;
-        }
-      }
-      else if (item->type() == Item::REF_ITEM)
+      if (item->type() == Item::REF_ITEM)
       {
         Item *i= item;
         while (i->type() == Item::REF_ITEM)
@@ -7670,7 +7668,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         {
           Item_field *f= (Item_field *)i;
           DBUG_ASSERT(f->field);
-          if (f->field->flags & VERS_HIDDEN_FLAG)
+          if (f->field->vers_sys_field() && f->field->vers_sys_invisible(thd))
             continue;
         }
       }
@@ -8307,14 +8305,18 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     /* Ensure that all fields are from the same table */
     DBUG_ASSERT(field->table == table);
 
-    if (table->versioned() && field->vers_sys_field() && !ignore_errors)
+    bool vers_sys_field= table->versioned() && field->vers_sys_field();
+
+    if (vers_sys_field && !ignore_errors)
     {
       my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), field->field_name.str);
       goto err;
     }
 
-    if (field->field_visibility != NOT_INVISIBLE)
+    if (field->invisible && !vers_sys_field)
+    {
       continue;
+    }
     else
       value=v++;
     if (field->field_index == autoinc_index)
