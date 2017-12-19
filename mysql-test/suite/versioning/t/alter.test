@@ -262,21 +262,15 @@ select * from t for system_time all;
 
 create or replace table t (
   a int,
-  sys_trx_start bigint(20) unsigned as row start invisible,
-  sys_trx_end bigint(20) unsigned as row end invisible,
-  period for system_time(sys_trx_start, sys_trx_end)
-) with system versioning engine innodb;
---error ER_VERS_ALTER_SYSTEM_FIELD
-alter table t change column sys_trx_start asdf bigint unsigned;
-
-create or replace table t (
-  a int,
   sys_trx_start timestamp(6) as row start invisible,
   sys_trx_end timestamp(6) as row end invisible,
   period for system_time(sys_trx_start, sys_trx_end)
-) with system versioning engine myisam;
+) with system versioning;
 --error ER_VERS_ALTER_SYSTEM_FIELD
 alter table t change column sys_trx_start asdf timestamp(6);
+insert into t values (1);
+--error ER_VERS_ALTER_SYSTEM_FIELD
+alter table t modify column sys_trx_start bigint unsigned;
 
 create or replace table t (
   a int,

@@ -375,19 +375,14 @@ a	b
 4	2
 create or replace table t (
 a int,
-sys_trx_start bigint(20) unsigned as row start invisible,
-sys_trx_end bigint(20) unsigned as row end invisible,
-period for system_time(sys_trx_start, sys_trx_end)
-) with system versioning engine innodb;
-alter table t change column sys_trx_start asdf bigint unsigned;
-ERROR HY000: Can not change system versioning field `sys_trx_start`
-create or replace table t (
-a int,
 sys_trx_start timestamp(6) as row start invisible,
 sys_trx_end timestamp(6) as row end invisible,
 period for system_time(sys_trx_start, sys_trx_end)
-) with system versioning engine myisam;
+) with system versioning;
 alter table t change column sys_trx_start asdf timestamp(6);
+ERROR HY000: Can not change system versioning field `sys_trx_start`
+insert into t values (1);
+alter table t modify column sys_trx_start bigint unsigned;
 ERROR HY000: Can not change system versioning field `sys_trx_start`
 create or replace table t (
 a int,
