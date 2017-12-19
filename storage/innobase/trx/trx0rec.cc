@@ -65,78 +65,15 @@ trx_undof_page_add_undo_rec_log(
 	ulint	new_free,	/*!< in: end offset of the entry */
 	mtr_t*	mtr)		/*!< in: mtr */
 {
-	byte*		log_ptr;
-	const byte*	log_end;
-	ulint		len;
-
-	log_ptr = mlog_open(mtr, 11 + 13 + MLOG_BUF_MARGIN);
-
-	if (log_ptr == NULL) {
-
-		return;
-	}
-
-	log_end = &log_ptr[11 + 13 + MLOG_BUF_MARGIN];
-	log_ptr = mlog_write_initial_log_record_fast(
-		undo_page, MLOG_UNDO_INSERT, log_ptr, mtr);
-	len = new_free - old_free - 4;
-
-	mach_write_to_2(log_ptr, len);
-	log_ptr += 2;
-
-	if (log_ptr + len <= log_end) {
-		memcpy(log_ptr, undo_page + old_free + 2, len);
-		mlog_close(mtr, log_ptr + len);
-	} else {
-		mlog_close(mtr, log_ptr);
-		mlog_catenate_string(mtr, undo_page + old_free + 2, len);
-	}
-}
-
-/***********************************************************//**
-Parses a redo log record of adding an undo log record.
-@return end of log record or NULL */
-byte*
-trx_undo_parse_add_undo_rec(
-/*========================*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr,/*!< in: buffer end */
-	page_t*	page)	/*!< in: page or NULL */
-{
-	ulint	len;
-	byte*	rec;
-	ulint	first_free;
-
-	if (end_ptr < ptr + 2) {
-
-		return(NULL);
-	}
-
-	len = mach_read_from_2(ptr);
-	ptr += 2;
-
-	if (end_ptr < ptr + len) {
-
-		return(NULL);
-	}
-
-	if (page == NULL) {
-
-		return(ptr + len);
-	}
-
-	first_free = mach_read_from_2(page + TRX_UNDO_PAGE_HDR
-				      + TRX_UNDO_PAGE_FREE);
-	rec = page + first_free;
-
-	mach_write_to_2(rec, first_free + 4 + len);
-	mach_write_to_2(rec + 2 + len, first_free);
-
-	mach_write_to_2(page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
-			first_free + 4 + len);
-	ut_memcpy(rec + 2, ptr, len);
-
-	return(ptr + len);
+	ut_ad(old_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
+	ut_ad(new_free >= old_free);
+	ut_ad(new_free < UNIV_PAGE_SIZE);
+	ut_ad(mach_read_from_2(undo_page
+			       + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE)
+	      == new_free);
+	mlog_write_ulint(undo_page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
+			 new_free, MLOG_2BYTES, mtr);
+	mlog_log_string(undo_page + old_free, new_free - old_free, mtr);
 }
 
 /**********************************************************************//**

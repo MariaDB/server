@@ -237,15 +237,6 @@ trx_undo_prev_version_build(
 				And if we read "after image" of undo log */
 
 /***********************************************************//**
-Parses a redo log record of adding an undo log record.
-@return end of log record or NULL */
-byte*
-trx_undo_parse_add_undo_rec(
-/*========================*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr,/*!< in: buffer end */
-	page_t*	page);	/*!< in: page or NULL */
-/***********************************************************//**
 Parses a redo log record of erasing of an undo page end.
 @return end of log record or NULL */
 byte*

@@ -100,9 +100,6 @@ enum mlog_id_t {
 	/** Create an index page */
 	MLOG_PAGE_CREATE = 19,
 
-	/** Insert entry in an undo log */
-	MLOG_UNDO_INSERT = 20,
-
 	/** erase an undo log page end */
 	MLOG_UNDO_ERASE_END = 21,
 
