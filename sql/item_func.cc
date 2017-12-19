@@ -4339,8 +4339,10 @@ longlong Item_func_sleep::val_int()
   mysql_mutex_lock(&LOCK_item_func_sleep);
 
   THD_STAGE_INFO(thd, stage_user_sleep);
+  mysql_mutex_lock(&thd->mysys_var->mutex);
   thd->mysys_var->current_mutex= &LOCK_item_func_sleep;
   thd->mysys_var->current_cond=  &cond;
+  mysql_mutex_unlock(&thd->mysys_var->mutex);
 
   error= 0;
   thd_wait_begin(thd, THD_WAIT_SLEEP);

@@ -1727,18 +1727,12 @@ static void close_connections(void)
       mysql_mutex_lock(&tmp->mysys_var->mutex);
       if (tmp->mysys_var->current_cond)
       {
-        uint i;
-        for (i=0; i < 2; i++)
+        int ret= mysql_mutex_trylock(tmp->mysys_var->current_mutex);
+        mysql_cond_broadcast(tmp->mysys_var->current_cond);
+        if (!ret)
         {
-          int ret= mysql_mutex_trylock(tmp->mysys_var->current_mutex);
-          mysql_cond_broadcast(tmp->mysys_var->current_cond);
-          if (!ret)
-          {
-            /* Thread has surely got the signal, unlock and abort */
-            mysql_mutex_unlock(tmp->mysys_var->current_mutex);
-            break;
-          }
-          sleep(1);
+          /* Thread has surely got the signal, unlock */
+          mysql_mutex_unlock(tmp->mysys_var->current_mutex);
         }
       }
       mysql_mutex_unlock(&tmp->mysys_var->mutex);
@@ -1817,9 +1811,12 @@ static void close_connections(void)
         mysql_mutex_lock(&tmp->mysys_var->mutex);
         if (tmp->mysys_var->current_cond)
         {
-          mysql_mutex_lock(tmp->mysys_var->current_mutex);
+          int ret= mysql_mutex_trylock(tmp->mysys_var->current_mutex);
           mysql_cond_broadcast(tmp->mysys_var->current_cond);
-          mysql_mutex_unlock(tmp->mysys_var->current_mutex);
+          if (!ret)
+          {
+            mysql_mutex_unlock(tmp->mysys_var->current_mutex);
+          }
         }
         mysql_mutex_unlock(&tmp->mysys_var->mutex);
       }

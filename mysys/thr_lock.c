@@ -546,9 +546,11 @@ wait_for_lock(struct st_lock_list *wait, THR_LOCK_DATA *data,
   statistic_increment(locks_waited, &THR_LOCK_lock);
 
   /* Set up control struct to allow others to abort locks */
+  mysql_mutex_lock(&thread_var->mutex);
   thread_var->current_mutex= &data->lock->mutex;
   thread_var->current_cond=  cond;
   data->cond= cond;
+  mysql_mutex_unlock(&thread_var->mutex);
 
   proc_info_hook(NULL, &stage_waiting_for_table_level_lock,
                  &old_stage,

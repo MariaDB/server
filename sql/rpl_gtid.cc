@@ -183,8 +183,11 @@ rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi)
                       &stage_gtid_wait_other_connection, &old_stage);
       did_enter_cond= true;
     }
-    mysql_cond_wait(&elem->COND_gtid_ignore_duplicates,
-                    &LOCK_slave_state);
+    if (!thd->killed)
+    {
+       mysql_cond_wait(&elem->COND_gtid_ignore_duplicates,
+                       &LOCK_slave_state);
+    }
   }
 
 err:

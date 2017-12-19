@@ -2710,14 +2710,15 @@ void kill_delayed_threads(void)
       mysql_mutex_lock(&di->thd.mysys_var->mutex);
       if (di->thd.mysys_var->current_cond)
       {
+	int ret= 1;
 	/*
 	  We need the following test because the main mutex may be locked
 	  in handle_delayed_insert()
 	*/
 	if (&di->mutex != di->thd.mysys_var->current_mutex)
-          mysql_mutex_lock(di->thd.mysys_var->current_mutex);
+          ret= mysql_mutex_trylock(di->thd.mysys_var->current_mutex);
         mysql_cond_broadcast(di->thd.mysys_var->current_cond);
-	if (&di->mutex != di->thd.mysys_var->current_mutex)
+	if (!ret)
           mysql_mutex_unlock(di->thd.mysys_var->current_mutex);
       }
       mysql_mutex_unlock(&di->thd.mysys_var->mutex);

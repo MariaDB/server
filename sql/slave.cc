@@ -1266,7 +1266,10 @@ int start_slave_thread(
         registered, we could otherwise go waiting though thd->killed is
         set.
       */
-      mysql_cond_wait(start_cond, cond_lock);
+      if (!thd->killed)
+      {
+        mysql_cond_wait(start_cond, cond_lock);
+      }
       thd->EXIT_COND(& saved_stage);
       mysql_mutex_lock(cond_lock); // re-acquire it as exit_cond() released
     }
@@ -2676,7 +2679,8 @@ static bool wait_for_relay_log_space(Relay_log_info* rli)
                   &old_stage);
   while (rli->log_space_limit < rli->log_space_total &&
          !(slave_killed=io_slave_killed(mi)) &&
-         !rli->ignore_log_space_limit)
+         !rli->ignore_log_space_limit &&
+         !thd->killed)
     mysql_cond_wait(&rli->log_space_cond, &rli->log_space_lock);
 
   ignore_log_space_limit= rli->ignore_log_space_limit;

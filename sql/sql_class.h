@@ -3244,8 +3244,10 @@ public:
              int src_line)
   {
     mysql_mutex_assert_owner(mutex);
+    mysql_mutex_lock(&mysys_var->mutex);
     mysys_var->current_mutex = mutex;
     mysys_var->current_cond = cond;
+    mysql_mutex_unlock(&mysys_var->mutex);
     if (old_stage)
       backup_stage(old_stage);
     if (stage)

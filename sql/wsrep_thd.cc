@@ -463,9 +463,11 @@ static void wsrep_rollback_process(THD *thd)
   wsrep_aborting_thd= NULL;
 
   while (thd->killed == NOT_KILLED) {
+    mysql_mutex_lock(&thd->mysys_var->mutex);
     thd_proc_info(thd, "WSREP aborter idle");
     thd->mysys_var->current_mutex= &LOCK_wsrep_rollback;
     thd->mysys_var->current_cond=  &COND_wsrep_rollback;
+    mysql_mutex_unlock(&thd->mysys_var->mutex);
 
     mysql_cond_wait(&COND_wsrep_rollback,&LOCK_wsrep_rollback);
 

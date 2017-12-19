@@ -1034,9 +1034,12 @@ static void kill_delayed_threads_for_table(TDC_element *element)
       mysql_mutex_lock(&in_use->mysys_var->mutex);
       if (in_use->mysys_var->current_cond)
       {
-        mysql_mutex_lock(in_use->mysys_var->current_mutex);
+        int ret= mysql_mutex_trylock(in_use->mysys_var->current_mutex);
         mysql_cond_broadcast(in_use->mysys_var->current_cond);
-        mysql_mutex_unlock(in_use->mysys_var->current_mutex);
+        if (!ret)
+        {
+          mysql_mutex_unlock(in_use->mysys_var->current_mutex);
+        }
       }
       mysql_mutex_unlock(&in_use->mysys_var->mutex);
     }

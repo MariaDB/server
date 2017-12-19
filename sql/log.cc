@@ -8253,7 +8253,10 @@ void MYSQL_BIN_LOG::wait_for_update_relay_log(THD* thd)
   thd->ENTER_COND(&COND_relay_log_updated, &LOCK_log,
                   &stage_slave_has_read_all_relay_log,
                   &old_stage);
-  mysql_cond_wait(&COND_relay_log_updated, &LOCK_log);
+  if (!thd->killed)
+  {
+    mysql_cond_wait(&COND_relay_log_updated, &LOCK_log);
+  }
   thd->EXIT_COND(&old_stage);
   DBUG_VOID_RETURN;
 }

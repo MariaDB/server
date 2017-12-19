@@ -768,11 +768,15 @@ Event_scheduler::cond_wait(THD *thd, struct timespec *abstime, const PSI_stage_i
     thd->enter_cond(&COND_state, &LOCK_scheduler_state, stage,
                     NULL, src_func, src_file, src_line);
 
-  DBUG_PRINT("info", ("mysql_cond_%swait", abstime? "timed":""));
-  if (!abstime)
-    mysql_cond_wait(&COND_state, &LOCK_scheduler_state);
-  else
-    mysql_cond_timedwait(&COND_state, &LOCK_scheduler_state, abstime);
+  if (!thd || !thd->killed)
+  {
+    DBUG_PRINT("info", ("mysql_cond_%swait", abstime? "timed":""));
+    if (!abstime)
+      mysql_cond_wait(&COND_state, &LOCK_scheduler_state);
+    else
+      mysql_cond_timedwait(&COND_state, &LOCK_scheduler_state, abstime);
+  }
+
   if (thd)
   {
     /*

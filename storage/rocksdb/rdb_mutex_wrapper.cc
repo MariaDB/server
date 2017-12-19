@@ -105,8 +105,15 @@ Rdb_cond_var::WaitFor(const std::shared_ptr<TransactionDBMutex> mutex_arg,
   bool killed = false;
 
   do {
+#ifndef STANDALONE_UNITTEST
+    if (current_thd)
+    {
+      killed= thd_killed(current_thd);
+      if (killed)
+        break;
+    }
+#endif
     res = mysql_cond_timedwait(&m_cond, mutex_ptr, &wait_timeout);
-
 #ifndef STANDALONE_UNITTEST
     if (current_thd)
       killed= thd_killed(current_thd);

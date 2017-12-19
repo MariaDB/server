@@ -149,7 +149,8 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
     caller_thd->ENTER_COND(&apc_request.COND_request, LOCK_thd_kill_ptr,
                            &stage_show_explain, &old_stage);
     /* todo: how about processing other errors here? */
-    while (!apc_request.processed && (wait_res != ETIMEDOUT))
+    while (!apc_request.processed && (wait_res != ETIMEDOUT) &&
+           !caller_thd->killed)
     {
       /* We own LOCK_thd_kill_ptr */
       wait_res= mysql_cond_timedwait(&apc_request.COND_request,

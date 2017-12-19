@@ -1413,11 +1413,13 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
       */
       if (thd->mysys_var)
       {
+        mysql_mutex_lock(&thd->mysys_var->mutex);
         old_mutex= thd->mysys_var->current_mutex;
         old_cond= thd->mysys_var->current_cond;
-        restore_current_mutex = true;
         thd->mysys_var->current_mutex= &debug_sync_global.ds_mutex;
         thd->mysys_var->current_cond= &debug_sync_global.ds_cond;
+        mysql_mutex_unlock(&thd->mysys_var->mutex);
+        restore_current_mutex = true;
       }
       else
         restore_current_mutex = false;

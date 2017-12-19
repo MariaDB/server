@@ -2090,9 +2090,12 @@ static void wsrep_close_thread(THD *thd)
     mysql_mutex_lock(&thd->mysys_var->mutex);
     if (thd->mysys_var->current_cond)
     {
-      mysql_mutex_lock(thd->mysys_var->current_mutex);
+      int ret= mysql_mutex_trylock(thd->mysys_var->current_mutex);
       mysql_cond_broadcast(thd->mysys_var->current_cond);
-      mysql_mutex_unlock(thd->mysys_var->current_mutex);
+      if (!ret)
+      {
+        mysql_mutex_unlock(thd->mysys_var->current_mutex);
+      }
     }
     mysql_mutex_unlock(&thd->mysys_var->mutex);
   }
