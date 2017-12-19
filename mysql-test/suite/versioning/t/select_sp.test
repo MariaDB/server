@@ -115,7 +115,7 @@ select * from t1;
 
 create or replace table t1 (x int);
 insert into t1 values (1);
---error ER_VERSIONING_REQUIRED
+--error ER_VERS_NOT_VERSIONED
 select * from t1 for system_time all;
 
 create or replace table t1 (x int) with system versioning;

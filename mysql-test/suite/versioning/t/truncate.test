@@ -1,7 +1,7 @@
 --source suite/versioning/engines.inc
 
 create table t (a int);
---error ER_VERSIONING_REQUIRED
+--error ER_VERS_NOT_VERSIONED
 delete history from t before system_time now();
 
 # TRUNCATE is not DELETE and trigger must not be called.
@@ -47,7 +47,7 @@ create or replace view v as select * from t;
 delete history from v before system_time now();
 
 create or replace table t (i int);
---error ER_VERSIONING_REQUIRED
+--error ER_VERS_NOT_VERSIONED
 delete history from t before system_time now();
 create or replace view v as select * from t;
 --error ER_VERS_TRUNCATE_TO_VIEW

@@ -7813,10 +7813,8 @@ ER_INVALID_VALUE_TO_LIMIT
 ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT
         eng "Invisible column %`s must have a default value"
 
-# MariaDB error numbers related to System Versioning
 
-ER_VERSIONING_REQUIRED
-        eng "System versioning required: %s"
+# MariaDB error numbers related to System Versioning
 
 ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING
         eng "Rows matched: %ld  Changed: %ld  Inserted: %ld  Warnings: %ld"

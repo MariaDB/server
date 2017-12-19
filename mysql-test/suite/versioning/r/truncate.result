@@ -1,6 +1,6 @@
 create table t (a int);
 delete history from t before system_time now();
-ERROR HY000: System versioning required: t
+ERROR HY000: Table `t` is not system-versioned
 create or replace table t (a int) with system versioning;
 insert into t values (1);
 update t set a=2;
@@ -53,7 +53,7 @@ delete history from v before system_time now();
 ERROR HY000: TRUNCATE table_name TO doesn't work with VIEWs
 create or replace table t (i int);
 delete history from t before system_time now();
-ERROR HY000: System versioning required: t
+ERROR HY000: Table `t` is not system-versioned
 create or replace view v as select * from t;
 delete history from v before system_time now();
 ERROR HY000: TRUNCATE table_name TO doesn't work with VIEWs

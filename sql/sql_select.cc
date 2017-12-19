@@ -741,7 +741,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         versioned_tables++;
       else if (table->vers_conditions.user_defined())
       {
-        my_error(ER_VERSIONING_REQUIRED, MYF(0), table->alias);
+        my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->alias);
         DBUG_RETURN(-1);
       }
     }
@@ -840,7 +840,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
           char buf[NAME_LEN*2 + sizeof(PART_VERS_ERR_MSG)];
           my_snprintf(buf, sizeof(buf), PART_VERS_ERR_MSG, table->alias,
                       table->partition_names->head()->c_ptr());
-          my_error(ER_VERSIONING_REQUIRED, MYF(0), buf);
+          my_error(ER_VERS_NOT_VERSIONED, MYF(0), buf);
           DBUG_RETURN(-1);
         }
         else

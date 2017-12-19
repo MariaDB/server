@@ -217,7 +217,7 @@ A
 create or replace table t1 (x int);
 insert into t1 values (1);
 select * from t1 for system_time all;
-ERROR HY000: System versioning required: t1
+ERROR HY000: Table `t1` is not system-versioned
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
 select * from t1 for system_time all for update;
