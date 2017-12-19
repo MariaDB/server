@@ -8612,8 +8612,8 @@ no_commit:
 		whether we update the table autoinc counter or not. */
 		col_max_value = innobase_get_int_col_max_value(table->next_number_field);
 
-		/* Get the value that MySQL attempted to store in the table. */
-		auto_inc = table->next_number_field->val_int();
+		/* Get the value that MySQL attempted to store in the table.*/
+		auto_inc = table->next_number_field->val_uint();
 
 		switch (error) {
 		case DB_DUPLICATE_KEY:
@@ -9079,12 +9079,7 @@ calc_row_difference(
 				if (field != table->found_next_number_field
 				    || dfield_is_null(&ufield->new_val)) {
 				} else {
-					auto_inc = row_parse_int(
-						static_cast<const byte*>(
-							ufield->new_val.data),
-						ufield->new_val.len,
-						col->mtype,
-						col->prtype & DATA_UNSIGNED);
+					auto_inc = field->val_uint();
 				}
 			}
 			n_changed++;

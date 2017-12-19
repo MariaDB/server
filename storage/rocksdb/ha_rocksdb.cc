@@ -5957,9 +5957,11 @@ rdb_is_index_collation_supported(const my_core::Field *const field) {
   const my_core::enum_field_types type = field->real_type();
   /* Handle [VAR](CHAR|BINARY) or TEXT|BLOB */
   if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_STRING ||
-      type == MYSQL_TYPE_BLOB) {
-    return RDB_INDEX_COLLATIONS.find(field->charset()->number) !=
-           RDB_INDEX_COLLATIONS.end();
+      type == MYSQL_TYPE_BLOB)  {
+
+    return (RDB_INDEX_COLLATIONS.find(field->charset()->number) !=
+            RDB_INDEX_COLLATIONS.end()) ||
+            rdb_is_collation_supported(field->charset());
   }
   return true;
 }
@@ -6118,18 +6120,16 @@ int ha_rocksdb::create_cfs(
             !rdb_is_index_collation_supported(
                 table_arg->key_info[i].key_part[part].field) &&
             !rdb_collation_exceptions->matches(tablename_sys)) {
-          std::string collation_err;
-          for (const auto &coll : RDB_INDEX_COLLATIONS) {
-            if (collation_err != "") {
-              collation_err += ", ";
-            }
-            collation_err += get_charset_name(coll);
-          }
-          my_error(ER_UNSUPPORTED_COLLATION, MYF(0),
-                   tbl_def_arg->full_tablename().c_str(),
-                   table_arg->key_info[i].key_part[part].field->field_name.str,
-                   collation_err.c_str());
-          DBUG_RETURN(HA_EXIT_FAILURE);
+
+          char buf[1024];
+          my_snprintf(buf, sizeof(buf),
+                      "Indexed column %s.%s uses a collation that does not "
+                      "allow index-only access in secondary key and has "
+                      "reduced disk space efficiency in primary key.",
+                       tbl_def_arg->full_tablename().c_str(),
+                       table_arg->key_info[i].key_part[part].field->field_name.str);
+
+          my_error(ER_INTERNAL_ERROR, MYF(ME_JUST_WARNING), buf);
         }
       }
     }
@@ -12338,6 +12338,7 @@ void rocksdb_set_update_cf_options(THD *const /* unused */,
   // Basic sanity checking and parsing the options into a map. If this fails
   // then there's no point to proceed.
   if (!Rdb_cf_options::parse_cf_options(val, &option_map)) {
+    my_free(*reinterpret_cast<char**>(var_ptr));
     *reinterpret_cast<char**>(var_ptr) = nullptr;
 
     // NO_LINT_DEBUG
@@ -12406,6 +12407,7 @@ void rocksdb_set_update_cf_options(THD *const /* unused */,
   // the CF options. This will results in consistent behavior and avoids
   // dealing with cases when only a subset of CF-s was successfully updated.
   if (val) {
+    my_free(*reinterpret_cast<char**>(var_ptr));
     *reinterpret_cast<char**>(var_ptr) = my_strdup(val,  MYF(0));
   } else {
     *reinterpret_cast<char**>(var_ptr) = nullptr;
@@ -12500,6 +12502,7 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag,
   its name generation.
 */
 
+
 struct st_mysql_storage_engine rocksdb_storage_engine = {
     MYSQL_HANDLERTON_INTERFACE_VERSION};
 
@@ -12516,7 +12519,7 @@ maria_declare_plugin(rocksdb_se){
     myrocks::rocksdb_status_vars,      /* status variables */
     myrocks::rocksdb_system_variables, /* system variables */
   "1.0",                                        /* string version */
-  MariaDB_PLUGIN_MATURITY_ALPHA                 /* maturity */
+  myrocks::MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 },
     myrocks::rdb_i_s_cfstats, myrocks::rdb_i_s_dbstats,
     myrocks::rdb_i_s_perf_context, myrocks::rdb_i_s_perf_context_global,
