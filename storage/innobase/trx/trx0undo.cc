@@ -309,47 +309,6 @@ trx_undo_get_first_rec(
 
 /*============== UNDO LOG FILE COPY CREATION AND FREEING ==================*/
 
-/**********************************************************************//**
-Writes the mtr log entry of an undo log page initialization. */
-UNIV_INLINE
-void
-trx_undo_page_init_log(
-/*===================*/
-	page_t* undo_page,	/*!< in: undo log page */
-	mtr_t*	mtr)		/*!< in: mtr */
-{
-	mlog_write_initial_log_record(undo_page, MLOG_UNDO_INIT, mtr);
-
-	mlog_catenate_ulint_compressed(mtr, 0);
-}
-
-/***********************************************************//**
-Parses the redo log entry of an undo log page initialization.
-@return end of log record or NULL */
-byte*
-trx_undo_parse_page_init(
-/*=====================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	page_t*		page,	/*!< in: page or NULL */
-	mtr_t*		mtr)	/*!< in: mtr or NULL */
-{
-	if (mach_parse_compressed(&ptr, end_ptr)) {
-		recv_sys->found_corrupt_log = true;
-	}
-
-	if (ptr == NULL) {
-
-		return(NULL);
-	}
-
-	if (page) {
-		trx_undo_page_init(page, mtr);
-	}
-
-	return(const_cast<byte*>(ptr));
-}
-
 /********************************************************************//**
 Initializes the fields in an undo log segment page. */
 static
@@ -361,18 +320,18 @@ trx_undo_page_init(
 {
 	trx_upagef_t*	page_hdr;
 
+	mlog_write_ulint(undo_page + FIL_PAGE_TYPE,
+			 FIL_PAGE_UNDO_LOG, MLOG_2BYTES, mtr);
+	compile_time_assert(TRX_UNDO_PAGE_TYPE == 0);
+	compile_time_assert(TRX_UNDO_PAGE_START == 2);
+	compile_time_assert(TRX_UNDO_PAGE_NODE == TRX_UNDO_PAGE_FREE + 2);
+
 	page_hdr = undo_page + TRX_UNDO_PAGE_HDR;
-
-	*reinterpret_cast<uint16*>(page_hdr + TRX_UNDO_PAGE_TYPE) = 0;
-
-	mach_write_to_2(page_hdr + TRX_UNDO_PAGE_START,
-			TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-	mach_write_to_2(page_hdr + TRX_UNDO_PAGE_FREE,
-			TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-
-	fil_page_set_type(undo_page, FIL_PAGE_UNDO_LOG);
-
-	trx_undo_page_init_log(undo_page, mtr);
+	mlog_write_ulint(page_hdr, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE,
+			 MLOG_4BYTES, mtr);
+	mlog_write_ulint(page_hdr + TRX_UNDO_PAGE_FREE,
+			 TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE,
+			 MLOG_2BYTES, mtr);
 }
 
 /***************************************************************//**

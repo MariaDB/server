@@ -1402,10 +1402,6 @@ parse_log:
 		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
 		ptr = trx_undo_parse_erase_page_end(ptr, end_ptr, page, mtr);
 		break;
-	case MLOG_UNDO_INIT:
-		/* Allow anything in page_type when creating a page. */
-		ptr = trx_undo_parse_page_init(ptr, end_ptr, page, mtr);
-		break;
 	case MLOG_UNDO_HDR_CREATE:
 		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
 		ptr = trx_undo_parse_page_header(ptr, end_ptr, page, mtr);
@@ -3635,9 +3631,6 @@ get_mlog_string(mlog_id_t type)
 
 	case MLOG_UNDO_ERASE_END:
 		return("MLOG_UNDO_ERASE_END");
-
-	case MLOG_UNDO_INIT:
-		return("MLOG_UNDO_INIT");
 
 	case MLOG_UNDO_HDR_CREATE:
 		return("MLOG_UNDO_HDR_CREATE");
