@@ -210,7 +210,9 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
     {
       ulonglong keys= memory_available / (param.rec_length + sizeof(char*));
       table_sort.keys= (uint) min(num_rows, keys);
-      sort_buff_sz= table_sort.keys*(param.rec_length+sizeof(char*));
+      /* Cast to size_t to avoid overflow when result is greater than uint. */
+      sort_buff_sz= ((size_t)table_sort.keys) *
+                    (param.rec_length + sizeof(char*));
       set_if_bigger(sort_buff_sz, param.rec_length * MERGEBUFF2);   
 
       DBUG_EXECUTE_IF("make_sort_keys_alloc_fail",
@@ -914,7 +916,8 @@ static void make_sortkey(register SORTPARAM *param,
         if (maybe_null)
           *to++=1;
         char *tmp_buffer= param->tmp_buffer ? param->tmp_buffer : (char*)to;
-        String tmp(tmp_buffer, param->sort_length, cs);
+        String tmp(tmp_buffer, param->tmp_buffer ? param->sort_length :
+                                                   sort_field->length, cs);
         String *res= item->str_result(&tmp);
         if (!res)
         {
