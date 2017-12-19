@@ -3462,6 +3462,8 @@ recv_recovery_rollback_active(void)
 
 		/* Drop partially created indexes. */
 		row_merge_drop_temp_indexes();
+		/* Drop garbage tables. */
+		row_mysql_drop_garbage_tables();
 
 		/* Drop any auxiliary tables that were not dropped when the
 		parent table was dropped. This can happen if the parent table

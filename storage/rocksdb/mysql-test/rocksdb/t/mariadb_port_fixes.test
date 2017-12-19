@@ -67,3 +67,9 @@ set global rocksdb_strict_collation_check=off;
 create table t1 (pk varchar(10) collate latin1_nopad_bin, primary key(pk)) engine=rocksdb;
 
 set global rocksdb_strict_collation_check=@tmp_rscc;
+
+--echo #
+--echo # MDEV-14679: RocksdB plugin fails to load with "Loading of unknown plugin ROCKSDB_CFSTATS
+--echo #
+select plugin_name, plugin_maturity from information_schema.plugins where plugin_name like '%rocksdb%';
+

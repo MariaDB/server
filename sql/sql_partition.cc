@@ -6560,10 +6560,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   lpt->part_info= part_info;
   lpt->alter_info= alter_info;
   lpt->create_info= create_info;
-  lpt->db_options= create_info->table_options;
-  if (create_info->row_type != ROW_TYPE_FIXED &&
-      create_info->row_type != ROW_TYPE_DEFAULT)
-    lpt->db_options|= HA_OPTION_PACK_RECORD;
+  lpt->db_options= create_info->table_options_with_row_type();
   lpt->table= table;
   lpt->key_info_buffer= 0;
   lpt->key_count= 0;

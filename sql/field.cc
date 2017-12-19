@@ -4677,6 +4677,15 @@ double Field_double::val_real(void)
 }
 
 
+longlong Field_double::val_int_from_real(bool want_unsigned_result)
+{
+  Converter_double_to_longlong conv(val_real(), want_unsigned_result);
+  if (!want_unsigned_result && conv.error())
+    conv.push_warning(get_thd(), Field_double::val_real(), false);
+  return conv.result();
+}
+
+
 my_decimal *Field_real::val_decimal(my_decimal *decimal_value)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;

@@ -1993,6 +1993,97 @@ int ha_recover(HASH *commit_list)
 }
 
 /**
+  return the XID as it appears in the SQL function's arguments.
+  So this string can be passed to XA START, XA PREPARE etc...
+
+  @note
+    the 'buf' has to have space for at least SQL_XIDSIZE bytes.
+*/
+
+
+/*
+  'a'..'z' 'A'..'Z', '0'..'9'
+  and '-' '_' ' ' symbols don't have to be
+  converted.
+*/
+
+static const char xid_needs_conv[128]=
+{
+  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+  0,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,
+  0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1
+};
+
+uint get_sql_xid(XID *xid, char *buf)
+{
+  int tot_len= xid->gtrid_length + xid->bqual_length;
+  int i;
+  const char *orig_buf= buf;
+
+  for (i=0; i<tot_len; i++)
+  {
+    uchar c= ((uchar *) xid->data)[i];
+    if (c >= 128 || xid_needs_conv[c])
+      break;
+  }
+
+  if (i >= tot_len)
+  {
+    /* No need to convert characters to hexadecimals. */
+    *buf++= '\'';
+    memcpy(buf, xid->data, xid->gtrid_length);
+    buf+= xid->gtrid_length;
+    *buf++= '\'';
+    if (xid->bqual_length > 0 || xid->formatID != 1)
+    {
+      *buf++= ',';
+      *buf++= '\'';
+      memcpy(buf, xid->data+xid->gtrid_length, xid->bqual_length);
+      buf+= xid->bqual_length;
+      *buf++= '\'';
+    }
+  }
+  else
+  {
+    *buf++= 'X';
+    *buf++= '\'';
+    for (i= 0; i < xid->gtrid_length; i++)
+    {
+      *buf++=_dig_vec_lower[((uchar*) xid->data)[i] >> 4];
+      *buf++=_dig_vec_lower[((uchar*) xid->data)[i] & 0x0f];
+    }
+    *buf++= '\'';
+    if (xid->bqual_length > 0 || xid->formatID != 1)
+    {
+      *buf++= ',';
+      *buf++= 'X';
+      *buf++= '\'';
+      for (; i < tot_len; i++)
+      {
+        *buf++=_dig_vec_lower[((uchar*) xid->data)[i] >> 4];
+        *buf++=_dig_vec_lower[((uchar*) xid->data)[i] & 0x0f];
+      }
+      *buf++= '\'';
+    }
+  }
+
+  if (xid->formatID != 1)
+  {
+    *buf++= ',';
+    buf+= my_longlong10_to_str_8bit(&my_charset_bin, buf,
+            MY_INT64_NUM_DECIMAL_DIGITS, -10, xid->formatID);
+  }
+
+  return buf - orig_buf;
+}
+
+
+/**
   return the list of XID's to a client, the same way SHOW commands do.
 
   @note
@@ -2001,7 +2092,8 @@ int ha_recover(HASH *commit_list)
     It can be easily fixed later, if necessary.
 */
 
-static my_bool xa_recover_callback(XID_STATE *xs, Protocol *protocol)
+static my_bool xa_recover_callback(XID_STATE *xs, Protocol *protocol,
+                  char *data, uint data_len, CHARSET_INFO *data_cs)
 {
   if (xs->xa_state == XA_PREPARED)
   {
@@ -2009,12 +2101,27 @@ static my_bool xa_recover_callback(XID_STATE *xs, Protocol *protocol)
     protocol->store_longlong((longlong) xs->xid.formatID, FALSE);
     protocol->store_longlong((longlong) xs->xid.gtrid_length, FALSE);
     protocol->store_longlong((longlong) xs->xid.bqual_length, FALSE);
-    protocol->store(xs->xid.data, xs->xid.gtrid_length + xs->xid.bqual_length,
-                    &my_charset_bin);
+    protocol->store(data, data_len, data_cs);
     if (protocol->write())
       return TRUE;
   }
   return FALSE;
+}
+
+
+static my_bool xa_recover_callback_short(XID_STATE *xs, Protocol *protocol)
+{
+  return xa_recover_callback(xs, protocol, xs->xid.data,
+      xs->xid.gtrid_length + xs->xid.bqual_length, &my_charset_bin);
+}
+
+
+static my_bool xa_recover_callback_verbose(XID_STATE *xs, Protocol *protocol)
+{
+  char buf[SQL_XIDSIZE];
+  uint len= get_sql_xid(&xs->xid, buf);
+  return xa_recover_callback(xs, protocol, buf, len,
+                             &my_charset_utf8_general_ci);
 }
 
 
@@ -2023,6 +2130,7 @@ bool mysql_xa_recover(THD *thd)
   List<Item> field_list;
   Protocol *protocol= thd->protocol;
   MEM_ROOT *mem_root= thd->mem_root;
+  my_hash_walk_action action;
   DBUG_ENTER("mysql_xa_recover");
 
   field_list.push_back(new (mem_root)
@@ -2034,16 +2142,32 @@ bool mysql_xa_recover(THD *thd)
   field_list.push_back(new (mem_root)
                        Item_int(thd, "bqual_length", 0,
                                 MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_empty_string(thd, "data",
-                                         XIDDATASIZE), mem_root);
+  {
+    uint len;
+    CHARSET_INFO *cs;
+
+    if (thd->lex->verbose)
+    {
+      len= SQL_XIDSIZE;
+      cs= &my_charset_utf8_general_ci;
+      action= (my_hash_walk_action) xa_recover_callback_verbose;
+    }
+    else
+    {
+      len= XIDDATASIZE;
+      cs= &my_charset_bin;
+      action= (my_hash_walk_action) xa_recover_callback_short;
+    }
+
+    field_list.push_back(new (mem_root)
+                         Item_empty_string(thd, "data", len, cs), mem_root);
+  }
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(1);
 
-  if (xid_cache_iterate(thd, (my_hash_walk_action) xa_recover_callback,
-                        protocol))
+  if (xid_cache_iterate(thd, action, protocol))
     DBUG_RETURN(1);
   my_eof(thd);
   DBUG_RETURN(0);

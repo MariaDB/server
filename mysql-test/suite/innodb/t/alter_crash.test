@@ -75,28 +75,22 @@ ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
 --echo # Restart mysqld after the crash and reconnect.
 --source include/start_mysqld.inc
 
-let $temp_table_name = `SELECT SUBSTR(name, 6)
-	FROM information_schema.innodb_sys_tables
-	WHERE table_id = $orig_table_id`;
-
---echo # Manual *.frm recovery begin.
-
---move_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/$temp_table_name.frm
-
+let TABLENAME_INC= $MYSQLTEST_VARDIR/tmp/tablename.inc;
 perl;
-my @frm_file = glob "$ENV{'datadir'}/test/#sql-*.frm";
-my $t1_frm = "$ENV{'datadir'}/test/t1.frm";
-rename($frm_file[0], $t1_frm);
+die unless open OUT, ">$ENV{TABLENAME_INC}";
+chdir "$ENV{'datadir'}/test";
+my @frm_file = map { substr($_, 0, -4) } glob "#sql-*.frm";
+print OUT 'let $tablename=', $frm_file[0], ';';
+close OUT or die;
 EOF
+source $TABLENAME_INC;
+remove_file $TABLENAME_INC;
 
---echo # Manual recovery end
+--replace_result $orig_table_id ID
+eval SELECT * FROM information_schema.innodb_sys_tables
+WHERE table_id = $orig_table_id;
 
-FLUSH TABLES;
-
---echo # Drop the orphaned original table.
---disable_query_log
-eval DROP TABLE `$temp_table_name`;
---enable_query_log
+move_file $datadir/test/$tablename.frm $datadir/test/t1.frm;
 
 --echo # Files in datadir after manual recovery.
 --list_files $MYSQLD_DATADIR/test
@@ -134,16 +128,9 @@ ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
 --echo # Startup the server after the crash
 --source include/start_mysqld.inc
 
---echo # Read and remember the temporary table name
-let $temp_table_name = `SELECT SUBSTRING(name,6)
-	FROM information_schema.innodb_sys_tables
-	WHERE name LIKE "test/#sql-ib$orig_table_id%"`;
+SELECT * FROM information_schema.innodb_sys_tables
+WHERE name LIKE 'test/#sql-ib%';
 
---echo # Manual *.frm recovery begin. The dictionary was not updated
---echo # and the files were not renamed. The rebuilt table
---echo # was left behind on purpose, to faciliate data recovery.
-
-let TABLENAME_INC= $MYSQLTEST_VARDIR/tmp/tablename.inc;
 perl;
 die unless open OUT, ">$ENV{TABLENAME_INC}";
 chdir "$ENV{'datadir'}/test";
@@ -153,8 +140,6 @@ close OUT or die;
 EOF
 source $TABLENAME_INC;
 remove_file $TABLENAME_INC;
-
---echo # Manual recovery end
 
 --echo # Drop the orphaned rebuilt table.
 --disable_query_log
@@ -198,27 +183,23 @@ ALTER TABLE t1 ADD INDEX (b), CHANGE c d int, ALGORITHM=INPLACE;
 --echo # Restart mysqld after the crash and reconnect.
 --source include/start_mysqld.inc
 
-let $temp_table_name = `SELECT SUBSTR(name, 6)
-	FROM information_schema.innodb_sys_tables
-	WHERE table_id = $orig_table_id`;
-
---echo # Manual *.frm recovery begin.
---move_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/$temp_table_name.frm
+--replace_result $orig_table_id ID
+eval SELECT * FROM information_schema.innodb_sys_tables
+WHERE table_id = $orig_table_id;
 
 perl;
-my @frm_file = glob "$ENV{'datadir'}/test/#sql-*.frm";
-my $t1_frm = "$ENV{'datadir'}/test/t1.frm";
-rename($frm_file[0], $t1_frm);
+die unless open OUT, ">$ENV{TABLENAME_INC}";
+chdir "$ENV{'datadir'}/test";
+my @frm_file = map { substr($_, 0, -4) } glob "#sql-*.frm";
+print OUT 'let $tablename=', $frm_file[0], ';';
+close OUT or die;
 EOF
 
---echo # Manual recovery end
+source $TABLENAME_INC;
+remove_file $TABLENAME_INC;
+move_file $datadir/test/$tablename.frm $datadir/test/t1.frm;
 
 FLUSH TABLES;
-
---echo # Drop the orphaned original table.
---disable_query_log
-eval DROP TABLE `#mysql50#$temp_table_name`;
---enable_query_log
 
 --echo # Files in datadir after manual recovery.
 --list_files $MYSQLD_DATADIR/test
