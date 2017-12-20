@@ -83,9 +83,8 @@ ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
 ERROR HY000: Lost connection to MySQL server during query
 # Startup the server after the crash
 SELECT * FROM information_schema.innodb_sys_tables
-WHERE name LIKE 'test/#sql-ib%';
+WHERE name LIKE 'test/#sql-%';
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
-# Drop the orphaned rebuilt table.
 SHOW TABLES;
 Tables_in_test
 t2
@@ -123,7 +122,6 @@ ERROR HY000: Lost connection to MySQL server during query
 SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = ID;
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
-FLUSH TABLES;
 # Files in datadir after manual recovery.
 t1.frm
 t1.ibd
