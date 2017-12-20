@@ -162,6 +162,13 @@ trx_undo_rec_get_partial_row(
 	mem_heap_t*	heap)	/*!< in: memory heap from which the memory
 				needed is allocated */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+/** Report a RENAME TABLE operation.
+@param[in,out]	trx	transaction
+@param[in]	table	table that is being renamed
+@return	DB_SUCCESS or error code */
+dberr_t
+trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************************//**
 Writes information to an undo log about an insert, update, or a delete marking
 of a clustered index record. This information is used in a rollback of the
@@ -285,7 +292,8 @@ trx_undo_read_v_idx(
 compilation info multiplied by 16 is ORed to this value in an undo log
 record */
 
-#define TRX_UNDO_INSERT_DEFAULT	10	/* insert a "default value"
+#define	TRX_UNDO_RENAME_TABLE	9	/*!< RENAME TABLE */
+#define	TRX_UNDO_INSERT_DEFAULT	10	/*!< insert a "default value"
 					pseudo-record for instant ALTER */
 #define	TRX_UNDO_INSERT_REC	11	/* fresh insert into clustered index */
 #define	TRX_UNDO_UPD_EXIST_REC	12	/* update of a non-delete-marked

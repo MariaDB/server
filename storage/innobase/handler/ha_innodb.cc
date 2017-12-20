@@ -13610,16 +13610,12 @@ innobase_rename_table(
 	TrxInInnoDB	trx_in_innodb(trx);
 
 	trx_start_if_not_started(trx, true);
+	ut_ad(trx->will_lock > 0);
 
 	/* Serialize data dictionary operations with dictionary mutex:
 	no deadlocks can occur then in these operations. */
 
 	row_mysql_lock_data_dictionary(trx);
-
-	/* Transaction must be flagged as a locking transaction or it hasn't
-	been started yet. */
-
-	ut_a(trx->will_lock > 0);
 
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, TRUE);
 
@@ -13629,7 +13625,6 @@ innobase_rename_table(
 
 		We are doing a DDL operation. */
 		++trx->will_lock;
-		trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
 		trx_start_if_not_started(trx, true);
 		error = row_rename_partitions_for_mysql(norm_from, norm_to,
 							trx);

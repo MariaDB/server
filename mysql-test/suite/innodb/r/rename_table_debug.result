@@ -1,0 +1,12 @@
+CREATE TABLE t1 (a INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+connect  con1,localhost,root,,test;
+SET DEBUG_SYNC='before_rename_table_commit SIGNAL renamed WAIT_FOR ever';
+RENAME TABLE t1 TO t2;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR renamed';
+disconnect con1;
+SELECT * FROM t1;
+a
+42
+DROP TABLE t1;

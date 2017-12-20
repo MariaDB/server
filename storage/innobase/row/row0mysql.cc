@@ -3511,7 +3511,7 @@ row_drop_single_table_tablespace(
 
 	/* If the tablespace is not in the cache, just delete the file. */
 	if (!fil_space_for_table_exists_in_mem(
-		    space_id, tablename, true, false, NULL, 0, table_flags)) {
+		    space_id, tablename, true, NULL, table_flags)) {
 
 		/* Force a delete of any discarded or temporary files. */
 		fil_delete_file(filepath);
@@ -4522,6 +4522,14 @@ row_rename_table_for_mysql(
 		goto funct_exit;
 	}
 
+	if (!table->is_temporary()) {
+		err = trx_undo_report_rename(trx, table);
+
+		if (err != DB_SUCCESS) {
+			goto funct_exit;
+		}
+	}
+
 	/* We use the private SQL parser of Innobase to generate the query
 	graphs needed in updating the dictionary data from system tables. */
 
@@ -4707,7 +4715,8 @@ row_rename_table_for_mysql(
 		}
 	}
 
-	if (dict_table_has_fts_index(table)
+	if (err == DB_SUCCESS
+	    && dict_table_has_fts_index(table)
 	    && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
 		if (err != DB_TABLE_NOT_FOUND) {
@@ -4862,6 +4871,7 @@ funct_exit:
 	}
 
 	if (commit) {
+		DEBUG_SYNC(trx->mysql_thd, "before_rename_table_commit");
 		trx_commit_for_mysql(trx);
 	}
 
