@@ -7930,5 +7930,5 @@ ER_VERS_ALREADY_VERSIONED
 WARN_VERS_TRT_EXPERIMENTAL
         eng "Transaction-based system versioning is EXPERIMENTAL and is subject to change in future."
 
-ER_VERS_TRUNCATE_TO_VIEW
-        eng "TRUNCATE table_name TO doesn't work with VIEWs"
+ER_VERS_TRUNCATE_VIEW
+        eng "DELETE HISTORY from VIEW is prohibited"

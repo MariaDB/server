@@ -223,25 +223,21 @@ bool Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
 
 
 static bool record_should_be_deleted(THD *thd, TABLE *table, SQL_SELECT *sel,
-                                     Explain_delete *explain)
+                                     Explain_delete *explain, bool truncate_history)
 {
+  bool check_delete= true;
+
   if (table->versioned())
   {
-    bool row_is_alive= table->vers_end_field()->is_max();
-    /* If we are doing TRUNCATE TABLE with SYSTEM_TIME condition then historical
-       record is deleted and current record is kept. Otherwise alive record is
-       deleted and historical record is kept. */
-    if ((thd->lex->sql_command == SQLCOM_TRUNCATE && table->pos_in_table_list->vers_conditions)
-      ? row_is_alive
-      : !row_is_alive)
-      return false;
+    bool historical= !table->vers_end_field()->is_max();
+    check_delete= truncate_history ? historical : !historical;
   }
 
   explain->tracker.on_record_read();
   thd->inc_examined_row_count(1);
   if (table->vfield)
     (void) table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_DELETE);
-  if (!sel || sel->skip_record(thd) > 0)
+  if (check_delete && (!sel || sel->skip_record(thd) > 0))
   {
     explain->tracker.on_record_after_where();
     return true;
@@ -314,7 +310,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   {
     if (table_list->is_view_or_derived())
     {
-      my_error(ER_VERS_TRUNCATE_TO_VIEW, MYF(0));
+      my_error(ER_VERS_TRUNCATE_VIEW, MYF(0));
       DBUG_RETURN(true);
     }
 
@@ -329,7 +325,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     }
 #endif
 
-    DBUG_ASSERT(!conds);
+    DBUG_ASSERT(!conds || thd->stmt_arena->is_stmt_execute());
     if (select_lex->vers_setup_conds(thd, table_list, &conds))
       DBUG_RETURN(TRUE);
 
@@ -708,7 +704,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     while (!(error=info.read_record()) && !thd->killed &&
           ! thd->is_error())
     {
-      if (record_should_be_deleted(thd, table, select, explain))
+      if (record_should_be_deleted(thd, table, select, explain, truncate_history))
       {
         table->file->position(table->record[0]);
         if ((error= deltempfile->unique_add((char*) table->file->ref)))
@@ -735,7 +731,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         ! thd->is_error())
   {
     if (delete_while_scanning)
-      delete_record= record_should_be_deleted(thd, table, select, explain);
+      delete_record= record_should_be_deleted(thd, table, select, explain,
+                                              truncate_history);
     if (delete_record)
     {
       if (!truncate_history && table->triggers &&
@@ -945,6 +942,11 @@ l
                                     select_lex->leaf_tables, FALSE, 
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
+  if (table_list->vers_conditions &&
+    select_lex->vers_setup_conds(thd, table_list, conds))
+  {
+    DBUG_RETURN(TRUE);
+  }
   if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num)) ||
       setup_fields(thd, Ref_ptr_array(),
                    field_list, MARK_COLUMNS_READ, NULL, NULL, 0) ||

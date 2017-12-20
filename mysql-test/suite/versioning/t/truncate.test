@@ -25,8 +25,21 @@ update t set a=22 where a=2;
 select * from t for system_time all;
 delete history from t before system_time timestamp @ts1;
 select * from t for system_time all;
-delete history from t before system_time timestamp now(6);
+prepare stmt from 'delete history from t before system_time timestamp now(6)';
+execute stmt; drop prepare stmt;
 select * from t for system_time all;
+delete from t;
+
+delimiter ~~;
+create or replace procedure truncate_sp()
+begin
+  delete history from t before system_time timestamp now(6);
+end~~
+delimiter ;~~
+call truncate_sp;
+select * from t for system_time all;
+
+drop procedure truncate_sp;
 
 --echo ### Issue #399, truncate partitioned table is now unimplemented
 
@@ -43,15 +56,17 @@ delete history from t before system_time current_timestamp;
 create or replace table t (i int) with system versioning;
 delete history from t before system_time now();
 create or replace view v as select * from t;
---error ER_VERS_TRUNCATE_TO_VIEW
+--error ER_VERS_TRUNCATE_VIEW
 delete history from v before system_time now();
 
 create or replace table t (i int);
 --error ER_VERS_NOT_VERSIONED
 delete history from t before system_time now();
 create or replace view v as select * from t;
---error ER_VERS_TRUNCATE_TO_VIEW
+--error ER_VERS_TRUNCATE_VIEW
 delete history from v before system_time now();
+--error ER_VERS_NOT_VERSIONED
+prepare stmt from 'delete history from t before system_time now()';
 
 drop table t;
 drop view v;
