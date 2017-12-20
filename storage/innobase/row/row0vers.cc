@@ -73,7 +73,7 @@ index record.
 @param[in]	index		secondary index
 @param[in]	offsets		rec_get_offsets(rec, index)
 @param[in,out]	mtr		mini-transaction
-@return	the active transaction; trx_release_reference() must be invoked
+@return	the active transaction; trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 UNIV_INLINE
 trx_t*
@@ -217,7 +217,7 @@ row_vers_impl_x_locked_low(
 				or updated, the leaf page record always is
 				created with a clear delete-mark flag.
 				(We never insert a delete-marked record.) */
-				trx_release_reference(trx);
+				trx->release_reference();
 				trx = 0;
 			}
 
@@ -328,7 +328,7 @@ result_check:
 			/* prev_version was the first version modified by
 			the trx_id transaction: no implicit x-lock */
 
-			trx_release_reference(trx);
+			trx->release_reference();
 			trx = 0;
 			break;
 		}
@@ -350,7 +350,7 @@ index record.
 @param[in]	rec	secondary index record
 @param[in]	index	secondary index
 @param[in]	offsets	rec_get_offsets(rec, index)
-@return	the active transaction; trx_release_reference() must be invoked
+@return	the active transaction; trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 trx_t*
 row_vers_impl_x_locked(
@@ -398,7 +398,7 @@ row_vers_impl_x_locked(
 				caller_trx, clust_rec, clust_index, rec, index,
 				offsets, &mtr);
 
-		ut_ad(trx == 0 || trx_is_referenced(trx));
+		ut_ad(trx == 0 || trx->is_referenced());
 	}
 
 	mtr_commit(&mtr);

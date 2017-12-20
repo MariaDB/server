@@ -598,7 +598,7 @@ public:
 
     With do_ref_count == true caller may dereference trx even if it is not
     holding lock_sys->mutex. Caller is responsible for calling
-    trx_release_reference() when it is done playing with trx.
+    trx->release_reference() when it is done playing with trx.
 
     Ideally this method should get caller rw_trx_hash_pins along with trx
     object as a parameter, similar to insert() and erase(). However most
@@ -646,7 +646,7 @@ public:
       if ((trx= element->trx))
       {
         if (do_ref_count)
-          trx_reference(trx);
+          trx->reference();
 #ifdef UNIV_DEBUG
         mutex_enter(&trx->mutex);
         ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
