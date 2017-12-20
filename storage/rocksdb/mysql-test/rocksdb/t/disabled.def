@@ -41,7 +41,6 @@ rocksdb_deadlock_stress_rr: stress test
 ##
 persistent_cache: Upstream RocksDB bug https://github.com/facebook/mysql-5.6/issues/579
 collation: Fails on gcc 4.8 and before,  MDEV-12433
-col_opt_zerofill: MDEV-14165: not MyRocks -problem in ps-protocol, happens in upstream too
 
 
 ##
