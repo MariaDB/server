@@ -1814,8 +1814,10 @@ bool Item_name_const::fix_fields(THD *thd, Item **ref)
   String s(buf, sizeof(buf), &my_charset_bin);
   s.length(0);
 
-  if (value_item->fix_fields(thd, &value_item) ||
-      name_item->fix_fields(thd, &name_item) ||
+  if ((!value_item->fixed &&
+       value_item->fix_fields(thd, &value_item)) ||
+      (!name_item->fixed &&
+       name_item->fix_fields(thd, &name_item)) ||
       !value_item->const_item() ||
       !name_item->const_item() ||
       !(item_name= name_item->val_str(&s))) // Can't have a NULL name 
