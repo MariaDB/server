@@ -5126,18 +5126,8 @@ opt_part_values:
             partition_info *part_info= lex->part_info;
             if (! lex->is_partition_management())
             {
-              if (part_info->part_type == RANGE_PARTITION)
-              {
-                my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0),
-                         "RANGE", "LESS THAN");
-                MYSQL_YYABORT;
-              }
-              if (part_info->part_type == LIST_PARTITION)
-              {
-                my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0),
-                         "LIST", "IN");
-                MYSQL_YYABORT;
-              }
+              if (part_info->error_if_requires_values())
+                 MYSQL_YYABORT;
             }
             else
               part_info->part_type= HASH_PARTITION;

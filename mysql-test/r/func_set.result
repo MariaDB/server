@@ -221,21 +221,11 @@ NULL
 
 DROP TABLE t1;
 #
-# Start of 5.3 tests
+# MDEV-14596 Crash in INTERVAL(ROW(..),ROW(..))
 #
-#
-# MDEV-4512 Valgrind warnings in my_long10_to_str_8bit on INTERVAL and DATE_ADD with incorrect types
-#
-CREATE TABLE t1 (pk INT PRIMARY KEY);
-INSERT INTO t1 VALUES (10),(11);
-SELECT INTERVAL( 9, 1, DATE_ADD( pk, INTERVAL pk MINUTE_SECOND ), 9, 8, 3, 5, 2, 1 ) FROM t1;
-INTERVAL( 9, 1, DATE_ADD( pk, INTERVAL pk MINUTE_SECOND ), 9, 8, 3, 5, 2, 1 )
-8
-8
-Warnings:
-Warning	1292	Incorrect datetime value: '10'
-Warning	1292	Incorrect datetime value: '11'
-DROP TABLE t1;
-#
-# End of 5.3 tests
-#
+SELECT INTERVAL(ROW(1,1),ROW(1,2));
+ERROR 21000: Operand should contain 1 column(s)
+SELECT INTERVAL(1,ROW(1,2));
+ERROR 21000: Operand should contain 1 column(s)
+SELECT INTERVAL(ROW(1,2),1);
+ERROR 21000: Operand should contain 1 column(s)

@@ -4886,16 +4886,11 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
             my_error(ER_PARTITION_WRONG_VALUES_ERROR, MYF(0),
                      "LIST", "IN");
           }
-          else if (tab_part_info->part_type == RANGE_PARTITION)
-          {
-            my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0),
-                     "RANGE", "LESS THAN");
-          }
           else
           {
-            DBUG_ASSERT(tab_part_info->part_type == LIST_PARTITION);
-            my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0),
-                     "LIST", "IN");
+            DBUG_ASSERT(tab_part_info->part_type == RANGE_PARTITION ||
+                        tab_part_info->part_type == LIST_PARTITION);
+            (void) tab_part_info->error_if_requires_values();
           }
           goto err;
         }

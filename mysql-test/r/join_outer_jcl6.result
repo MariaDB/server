@@ -2353,6 +2353,19 @@ Warnings:
 Note	1003	select `test`.`t1`.`col1` AS `col1`,`test`.`t2`.`col1` AS `col1`,`test`.`t2`.`col3` AS `col3` from `test`.`t1` left join `test`.`t2` on((`test`.`t2`.`col2` = `test`.`t1`.`col1`)) where (`f1`(`test`.`t2`.`col3`,0) = 0)
 DROP FUNCTION f1;
 DROP TABLE t1,t2;
+#
+# MDEV-10397: Server crashes in key_copy with join_cache_level > 2 and join on BIT fields
+#
+CREATE TABLE t1 (b1 BIT NOT NULL);
+INSERT INTO t1 VALUES (0),(1);
+CREATE TABLE t2 (b2 BIT NOT NULL);
+INSERT INTO t2 VALUES (0),(1);
+SET SESSION JOIN_CACHE_LEVEL = 3;
+SELECT t1.b1+'0' , t2.b2 + '0' FROM t1 LEFT JOIN t2 ON b1 = b2;
+t1.b1+'0'	t2.b2 + '0'
+0	0
+1	1
+DROP TABLE t1, t2;
 # end of 5.5 tests
 SET optimizer_switch=@save_optimizer_switch;
 set join_cache_level=default;

@@ -5630,6 +5630,20 @@ PREPARE stmt FROM 'REPLACE INTO v2 SELECT a FROM t3';
 ERROR HY000: Can not insert into join view 'test.v2' without fields list
 drop view v1,v2;
 drop table t3;
+#
+# MDEV-14619: VIEW and GROUP_CONCAT
+#
+CREATE TABLE t1 (str text);
+INSERT INTO t1 VALUES ("My"),("SQL");
+CREATE VIEW v1 AS SELECT GROUP_CONCAT(str  SEPARATOR  '\\') FROM t1;
+SELECT * FROM v1;
+GROUP_CONCAT(str  SEPARATOR  '\\')
+My\SQL
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select group_concat(`t1`.`str` separator '\\') AS `GROUP_CONCAT(str  SEPARATOR  '\\')` from `t1`	latin1	latin1_swedish_ci
+drop view v1;
+drop table t1;
 # -----------------------------------------------------------------
 # -- End of 5.5 tests.
 # -----------------------------------------------------------------
