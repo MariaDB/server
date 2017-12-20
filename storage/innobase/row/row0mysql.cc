@@ -2915,7 +2915,7 @@ row_mysql_drop_garbage_tables()
 		table_name = mem_heap_strdupl(
 			heap,
 			reinterpret_cast<const char*>(field), len);
-		if (strstr(table_name, "/" TEMP_FILE_PREFIX_INNODB)) {
+		if (strstr(table_name, "/" TEMP_FILE_PREFIX "-")) {
 			btr_pcur_store_position(&pcur, &mtr);
 			btr_pcur_commit_specify_mtr(&pcur, &mtr);
 
