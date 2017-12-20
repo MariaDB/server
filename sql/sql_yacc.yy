@@ -6242,7 +6242,7 @@ versioning_option:
             }
             else
             {
-              Lex->vers_get_info().with_system_versioning= true;
+              Lex->alter_info.flags|= Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
               Lex->create_info.options|= HA_VERSIONED_TABLE;
             }
           }
@@ -8250,12 +8250,12 @@ alter_list_item:
         | alter_lock_option
         | ADD SYSTEM VERSIONING_SYM
           {
-            Lex->vers_get_info().with_system_versioning= true;
+            Lex->alter_info.flags|= Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
         | DROP SYSTEM VERSIONING_SYM
           {
-            Lex->vers_get_info().without_system_versioning= true;
+            Lex->alter_info.flags|= Alter_info::ALTER_DROP_SYSTEM_VERSIONING;
           }
         ;
 

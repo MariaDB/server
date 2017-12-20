@@ -1715,8 +1715,6 @@ class Create_field;
 struct Vers_parse_info
 {
   Vers_parse_info() :
-    with_system_versioning(false),
-    without_system_versioning(false),
     versioned_fields(false),
     unversioned_fields(false)
   {}
@@ -1762,15 +1760,7 @@ protected:
   {
     return as_row.start || as_row.end || system_time.start || system_time.end;
   }
-  bool need_check() const
-  {
-    return
-      versioned_fields ||
-      unversioned_fields ||
-      with_system_versioning ||
-      without_system_versioning ||
-      *this;
-  }
+  bool need_check(const Alter_info *alter_info) const;
   bool check_with_conditions(const char *table_name) const;
   bool check_sys_fields(const char *table_name, Alter_info *alter_info,
                         bool native) const;
@@ -1783,10 +1773,6 @@ public:
                        HA_CREATE_INFO *create_info, TABLE *table);
   bool fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
                        TABLE_LIST &src_table, TABLE_LIST &table);
-
-  /** Table definition has 'WITH/WITHOUT SYSTEM VERSIONING' */
-  bool with_system_versioning : 1;
-  bool without_system_versioning : 1;
 
   /**
      At least one field was specified 'WITH/WITHOUT SYSTEM VERSIONING'.
@@ -2169,6 +2155,10 @@ public:
   static const HA_ALTER_FLAGS ALTER_DROP_HISTORICAL      = 1ULL << 41;
 
   static const HA_ALTER_FLAGS ALTER_COLUMN_UNVERSIONED   = 1ULL << 42;
+
+  static const HA_ALTER_FLAGS ALTER_ADD_SYSTEM_VERSIONING= 1ULL << 43;
+
+  static const HA_ALTER_FLAGS ALTER_DROP_SYSTEM_VERSIONING= 1ULL << 44;
 
   /**
     Create options (like MAX_ROWS) for the new version of table.

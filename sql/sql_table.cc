@@ -6564,6 +6564,10 @@ static bool fill_alter_inplace_info(THD *thd,
     ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_HISTORICAL;
   if (alter_info->flags & Alter_info::ALTER_COLUMN_UNVERSIONED)
     ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_UNVERSIONED;
+  if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING)
+    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING;
+  if (alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)
+    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_SYSTEM_VERSIONING;
 
   /*
     If we altering table with old VARCHAR fields we will be automatically

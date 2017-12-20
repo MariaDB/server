@@ -633,7 +633,7 @@ instant_alter_column_possible(
 	const TABLE*			table)
 {
 	// Making table system-versioned instantly is not implemented yet.
-	if (ha_alter_info->create_info->vers_info.with_system_versioning) {
+	if (ha_alter_info->handler_flags & Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING) {
 		return false;
 	}
 
@@ -694,9 +694,10 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
-	  if (altered_table->versioned(VERS_TIMESTAMP)) {
+	if (altered_table->versioned(VERS_TIMESTAMP)
+	    || ha_alter_info->handler_flags & Alter_inplace_info::ALTER_DROP_SYSTEM_VERSIONING) {
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-	  }
+	}
 
 	/* Before 10.2.2 information about virtual columns was not stored in
 	system tables. We need to do a full alter to rebuild proper 10.2.2+
@@ -1224,6 +1225,13 @@ next_column:
 				break;
 			}
 		}
+	}
+
+	// FIXME: implement Online DDL for system-versioned tables
+	DBUG_ASSERT(!altered_table->versioned(VERS_TIMESTAMP));
+	if (altered_table->versioned(VERS_TRX_ID)
+	    || ha_alter_info->handler_flags & Alter_inplace_info::ALTER_DROP_SYSTEM_VERSIONING) {
+		online = false;
 	}
 
 	DBUG_RETURN(online

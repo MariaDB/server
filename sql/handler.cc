@@ -6885,7 +6885,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   List<Item> *items,
   bool *versioned_write)
 {
-  DBUG_ASSERT(!vers_info.without_system_versioning);
+  DBUG_ASSERT(!(alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING));
   int vers_tables= 0;
 
   if (select_tables)
@@ -6901,13 +6901,13 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   // then created table will be versioned.
   if (thd->variables.vers_force)
   {
-    vers_info.with_system_versioning= true;
+    alter_info->flags|= Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
     options|= HA_VERSIONED_TABLE;
   }
 
   // Possibly override default storage engine to match one used in source table.
-  if (vers_tables && vers_info.with_system_versioning &&
-    !(used_fields & HA_CREATE_USED_ENGINE))
+  if (vers_tables && alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING &&
+      !(used_fields & HA_CREATE_USED_ENGINE))
   {
     List_iterator_fast<Create_field> it(alter_info->create_list);
     while (Create_field *f= it++)
@@ -6923,19 +6923,18 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     }
   }
 
-  if (!vers_info.need_check())
+  if (!vers_info.need_check(alter_info))
     return false;
 
-  if (!vers_info.versioned_fields &&
-    vers_info.unversioned_fields &&
-    !vers_info.with_system_versioning)
+  if (!vers_info.versioned_fields && vers_info.unversioned_fields &&
+      !(alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING))
   {
     // All is correct but this table is not versioned.
     options&= ~HA_VERSIONED_TABLE;
     return false;
   }
 
-  if (!vers_info.with_system_versioning && vers_info)
+  if (!(alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING) && vers_info)
   {
     my_error(ER_MISSING, MYF(0), create_table.table_name, "WITH SYSTEM VERSIONING");
     return true;
@@ -6953,7 +6952,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   while (Create_field *f= it++)
   {
     if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
-         !vers_info.with_system_versioning) ||
+         !(alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING)) ||
         f->versioning == Column_definition::WITHOUT_VERSIONING)
     {
       f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
@@ -7110,28 +7109,16 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   TABLE_SHARE *share= table->s;
   const char *table_name= share->table_name.str;
 
-  if (!need_check() && !share->versioned)
+  if (!need_check(alter_info) && !share->versioned)
     return false;
 
-  if (with_system_versioning || without_system_versioning)
-  {
-    // Disable Online DDL which is not implemented yet for ADD/DROP SYSTEM VERSIONING.
-    if (thd->mdl_context.upgrade_shared_lock(table->mdl_ticket, MDL_EXCLUSIVE,
-                                             thd->variables.lock_wait_timeout))
-    {
-      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
-      return true;
-    }
-    alter_info->requested_lock= Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE;
-  }
-
-  if (with_system_versioning && table->versioned())
+  if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING && table->versioned())
   {
     my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
     return true;
   }
 
-  if (without_system_versioning)
+  if (alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)
   {
     if (!share->versioned)
     {
@@ -7300,7 +7287,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (fix_implicit(thd, alter_info))
     return true;
 
-  if (with_system_versioning)
+  if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING)
   {
     if (check_with_conditions(table_name))
       return true;
@@ -7370,6 +7357,12 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
   return false;
 }
 
+bool Vers_parse_info::need_check(const Alter_info *alter_info) const
+{
+  return versioned_fields || unversioned_fields ||
+         alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING ||
+         alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING || *this;
+}
 
 bool Vers_parse_info::check_with_conditions(const char *table_name) const
 {

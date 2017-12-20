@@ -1,0 +1,39 @@
+--source include/have_innodb.inc
+
+set system_versioning_alter_history=keep;
+
+create or replace table t (a int) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t add system versioning, lock=none;
+alter table t add system versioning;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t add index idx(a), lock=none;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t drop system versioning, lock=none;
+
+
+set global system_versioning_transaction_registry=on;
+create or replace table t (a int) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t
+  add s bigint unsigned as row start,
+  add e bigint unsigned as row end,
+  add period for system_time(s, e),
+  add system versioning,
+  lock=none;
+alter table t
+  add s bigint unsigned as row start,
+  add e bigint unsigned as row end,
+  add period for system_time(s, e),
+  add system versioning;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t add index idx(a), lock=none;
+alter table t drop column s, drop column e;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t drop system versioning, lock=none;
+
+set global system_versioning_transaction_registry=off;
+
+drop table t;
