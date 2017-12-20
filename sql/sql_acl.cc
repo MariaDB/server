@@ -9507,13 +9507,13 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       }
     }
 
-    binlog= true;
     if (replace_user_table(thd, tables[USER_TABLE].table, *user_name, 0, 0, 1, 0))
     {
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
       continue;
     }
+    binlog= true;
 
     // every created role is automatically granted to its creator-admin
     if (handle_as_role)

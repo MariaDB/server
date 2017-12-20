@@ -1,0 +1,31 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+if (!$SIMPLE_PASSWORD_CHECK_SO) {
+  skip No SIMPLE_PASSWORD_CHECK plugin;
+}
+
+INSTALL SONAME "simple_password_check";
+SELECT PLUGIN_NAME FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_NAME='simple_password_check';
+
+
+--echo #
+--echo # MDEV-14031 Password policy causes replication failure
+--echo #
+
+--disable_query_log
+RESET MASTER; # get rid of previous tests binlog
+--enable_query_log
+
+CREATE USER user1@localhost IDENTIFIED BY 'BsG9#9.cem#!85';
+
+--error ER_NOT_VALID_PASSWORD
+CREATE USER user2@localhost IDENTIFIED BY 'bsg9#d.cem#!85';
+
+DROP USER user1@localhost;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+UNINSTALL PLUGIN simple_password_check;
