@@ -2331,7 +2331,7 @@ fil_op_write_log(
 @param[in,out]	mtr		mini-transaction */
 static
 void
-fil_name_write_rename(
+fil_name_write_rename_low(
 	ulint		space_id,
 	ulint		first_page_no,
 	const char*	old_name,
@@ -2343,6 +2343,23 @@ fil_name_write_rename(
 	fil_op_write_log(
 		MLOG_FILE_RENAME2,
 		space_id, first_page_no, old_name, new_name, 0, mtr);
+}
+
+/** Write redo log for renaming a file.
+@param[in]	space_id	tablespace id
+@param[in]	old_name	tablespace file name
+@param[in]	new_name	tablespace file name after renaming */
+void
+fil_name_write_rename(
+	ulint		space_id,
+	const char*	old_name,
+	const char*	new_name)
+{
+	mtr_t	mtr;
+	mtr.start();
+	fil_name_write_rename_low(space_id, 0, old_name, new_name, &mtr);
+	mtr.commit();
+	log_write_up_to(mtr.commit_lsn(), true);
 }
 
 /** Write MLOG_FILE_NAME for a file.
@@ -3583,12 +3600,7 @@ func_exit:
 	ut_ad(strchr(new_file_name, OS_PATH_SEPARATOR) != NULL);
 
 	if (!recv_recovery_on) {
-		mtr_t		mtr;
-
-		mtr.start();
-		fil_name_write_rename(
-			id, 0, old_file_name, new_file_name, &mtr);
-		mtr.commit();
+		fil_name_write_rename(id, old_file_name, new_file_name);
 		log_mutex_enter();
 	}
 
@@ -4651,9 +4663,7 @@ startup, there may be many tablespaces which are not yet in the memory cache.
 @param[in]	print_error_if_does_not_exist
 				Print detailed error information to the
 error log if a matching tablespace is not found from memory.
-@param[in]	adjust_space	Whether to adjust space id on mismatch
 @param[in]	heap		Heap memory
-@param[in]	table_id	table id
 @param[in]	table_flags	table flags
 @return true if a matching tablespace exists in the memory cache */
 bool
@@ -4661,9 +4671,7 @@ fil_space_for_table_exists_in_mem(
 	ulint		id,
 	const char*	name,
 	bool		print_error_if_does_not_exist,
-	bool		adjust_space,
 	mem_heap_t*	heap,
-	table_id_t	table_id,
 	ulint		table_flags)
 {
 	fil_space_t*	fnamespace;
@@ -4687,41 +4695,6 @@ fil_space_for_table_exists_in_mem(
 	if (!space) {
 	} else if (!valid || space == fnamespace) {
 		/* Found with the same file name, or got a flag mismatch. */
-		goto func_exit;
-	} else if (adjust_space
-		   && row_is_mysql_tmp_table_name(space->name)
-		   && !row_is_mysql_tmp_table_name(name)) {
-		/* Info from fnamespace comes from the ibd file
-		itself, it can be different from data obtained from
-		System tables since renaming files is not
-		transactional. We shall adjust the ibd file name
-		according to system table info. */
-		mutex_exit(&fil_system->mutex);
-
-		DBUG_EXECUTE_IF("ib_crash_before_adjust_fil_space",
-				DBUG_SUICIDE(););
-
-		const char*	tmp_name = dict_mem_create_temporary_tablename(
-			heap, name, table_id);
-
-		fil_rename_tablespace(
-			fnamespace->id,
-			UT_LIST_GET_FIRST(fnamespace->chain)->name,
-			tmp_name, NULL);
-
-		DBUG_EXECUTE_IF("ib_crash_after_adjust_one_fil_space",
-				DBUG_SUICIDE(););
-
-		fil_rename_tablespace(
-			id, UT_LIST_GET_FIRST(space->chain)->name,
-			name, NULL);
-
-		DBUG_EXECUTE_IF("ib_crash_after_adjust_fil_space",
-				DBUG_SUICIDE(););
-
-		mutex_enter(&fil_system->mutex);
-		fnamespace = fil_space_get_by_name(name);
-		ut_ad(space == fnamespace);
 		goto func_exit;
 	}
 
@@ -6215,7 +6188,7 @@ fil_mtr_rename_log(
 			return(err);
 		}
 
-		fil_name_write_rename(
+		fil_name_write_rename_low(
 			old_table->space, 0, old_path, tmp_path, mtr);
 
 		ut_free(tmp_path);
@@ -6246,7 +6219,7 @@ fil_mtr_rename_log(
 			}
 		}
 
-		fil_name_write_rename(
+		fil_name_write_rename_low(
 			new_table->space, 0, new_path, old_path, mtr);
 
 		ut_free(new_path);

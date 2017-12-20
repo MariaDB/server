@@ -332,16 +332,13 @@ row_undo_ins_parse_undo_rec(
 	byte*		ptr;
 	undo_no_t	undo_no;
 	table_id_t	table_id;
-	ulint		type;
 	ulint		dummy;
 	bool		dummy_extern;
 
 	ut_ad(node);
 
-	ptr = trx_undo_rec_get_pars(node->undo_rec, &type, &dummy,
+	ptr = trx_undo_rec_get_pars(node->undo_rec, &node->rec_type, &dummy,
 				    &dummy_extern, &undo_no, &table_id);
-	ut_ad(type == TRX_UNDO_INSERT_REC);
-	node->rec_type = type;
 
 	node->update = NULL;
 	node->table = dict_table_open_on_id(
@@ -350,6 +347,27 @@ row_undo_ins_parse_undo_rec(
 	/* Skip the UNDO if we can't find the table or the .ibd file. */
 	if (UNIV_UNLIKELY(node->table == NULL)) {
 		return;
+	}
+
+	switch (node->rec_type) {
+	default:
+		ut_ad(!"wrong undo record type");
+		goto close_table;
+	case TRX_UNDO_INSERT_REC:
+		break;
+	case TRX_UNDO_RENAME_TABLE:
+		dict_table_t* table = node->table;
+		ut_ad(!table->is_temporary());
+		ut_ad(dict_table_is_file_per_table(table)
+		      == (table->space != TRX_SYS_SPACE));
+		size_t len = mach_read_from_2(node->undo_rec)
+			+ node->undo_rec - ptr - 2;
+		ptr[len] = 0;
+		const char* name = reinterpret_cast<char*>(ptr);
+		if (strcmp(table->name.m_name, name)) {
+			dict_table_rename_in_cache(table, name, false);
+		}
+		goto close_table;
 	}
 
 	if (UNIV_UNLIKELY(!fil_table_accessible(node->table))) {

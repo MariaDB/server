@@ -423,7 +423,7 @@ dict_table_rename_in_cache(
 					/*!< in: in ALTER TABLE we want
 					to preserve the original table name
 					in constraints which reference it */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull));
 
 /** Removes an index from the dictionary cache.
 @param[in,out]	table	table whose index to remove

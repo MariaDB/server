@@ -869,6 +869,15 @@ fil_create_directory_for_tablename(
 /*===============================*/
 	const char*	name);	/*!< in: name in the standard
 				'databasename/tablename' format */
+/** Write redo log for renaming a file.
+@param[in]	space_id	tablespace id
+@param[in]	old_name	tablespace file name
+@param[in]	new_name	tablespace file name after renaming */
+void
+fil_name_write_rename(
+	ulint		space_id,
+	const char*	old_name,
+	const char*	new_name);
 /********************************************************//**
 Recreates table indexes by applying
 TRUNCATE log record during recovery.
@@ -1144,27 +1153,24 @@ fil_file_readdir_next_file(
 	os_file_dir_t	dir,	/*!< in: directory stream */
 	os_file_stat_t*	info);	/*!< in/out: buffer where the
 				info is returned */
-/*******************************************************************//**
-Returns true if a matching tablespace exists in the InnoDB tablespace memory
-cache. Note that if we have not done a crash recovery at the database startup,
-there may be many tablespaces which are not yet in the memory cache.
+/** Determine if a matching tablespace exists in the InnoDB tablespace
+memory cache. Note that if we have not done a crash recovery at the database
+startup, there may be many tablespaces which are not yet in the memory cache.
+@param[in]	id		Tablespace ID
+@param[in]	name		Tablespace name used in fil_space_create().
+@param[in]	print_error_if_does_not_exist
+				Print detailed error information to the
+error log if a matching tablespace is not found from memory.
+@param[in]	heap		Heap memory
+@param[in]	table_flags	table flags
 @return true if a matching tablespace exists in the memory cache */
 bool
 fil_space_for_table_exists_in_mem(
-/*==============================*/
-	ulint		id,		/*!< in: space id */
-	const char*	name,		/*!< in: table name in the standard
-					'databasename/tablename' format */
+	ulint		id,
+	const char*	name,
 	bool		print_error_if_does_not_exist,
-					/*!< in: print detailed error
-					information to the .err log if a
-					matching tablespace is not found from
-					memory */
-	bool		adjust_space,	/*!< in: whether to adjust space id
-					when find table space mismatch */
-	mem_heap_t*	heap,		/*!< in: heap memory */
-	table_id_t	table_id,	/*!< in: table id */
-	ulint		table_flags);	/*!< in: table flags */
+	mem_heap_t*	heap,
+	ulint		table_flags);
 
 /** Try to extend a tablespace if it is smaller than the specified size.
 @param[in,out]	space	tablespace

@@ -1074,11 +1074,17 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 
 	trx_undo_rec_t*	undo_rec = trx_roll_pop_top_rec(trx, undo, &mtr);
 	const undo_no_t	undo_no = trx_undo_rec_get_undo_no(undo_rec);
-	if (trx_undo_rec_get_type(undo_rec) == TRX_UNDO_INSERT_REC) {
+	switch (trx_undo_rec_get_type(undo_rec)) {
+	case TRX_UNDO_RENAME_TABLE:
+		ut_ad(undo == insert);
+		/* fall through */
+	case TRX_UNDO_INSERT_REC:
 		ut_ad(undo == insert || undo == temp);
 		*roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
-	} else {
+		break;
+	default:
 		ut_ad(undo == update || undo == temp);
+		break;
 	}
 
 	ut_ad(trx_roll_check_undo_rec_ordering(

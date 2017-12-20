@@ -1854,6 +1854,119 @@ trx_undo_parse_erase_page_end(
 	return(ptr);
 }
 
+/** Report a RENAME TABLE operation.
+@param[in,out]	trx	transaction
+@param[in]	table	table that is being renamed
+@param[in,out]	block	undo page
+@param[in,out]	mtr	mini-transaction
+@return	byte offset of the undo log record
+@retval	0	in case of failure */
+static
+ulint
+trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
+			    buf_block_t* block, mtr_t* mtr)
+{
+	ulint	first_free = mach_read_from_2(block->frame + TRX_UNDO_PAGE_HDR
+					      + TRX_UNDO_PAGE_FREE);
+	ut_ad(first_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
+	ut_ad(first_free <= UNIV_PAGE_SIZE);
+	byte* start = block->frame + first_free;
+	size_t len = strlen(table->name.m_name);
+	const size_t fixed = 2 + 1 + 11 + 11 + 2;
+	ut_ad(len <= NAME_LEN * 2 + 1);
+	/* The -10 is used in trx_undo_left() */
+	compile_time_assert((NAME_LEN * 1) * 2 + fixed
+			    + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE
+			    < UNIV_PAGE_SIZE_MIN - 10 - FIL_PAGE_DATA_END);
+
+	if (trx_undo_left(block->frame, start) < fixed + len) {
+		ut_ad(first_free > TRX_UNDO_PAGE_HDR
+		      + TRX_UNDO_PAGE_HDR_SIZE);
+		return 0;
+	}
+
+	byte* ptr = start + 2;
+	*ptr++ = TRX_UNDO_RENAME_TABLE;
+	ptr += mach_u64_write_much_compressed(ptr, trx->undo_no);
+	ptr += mach_u64_write_much_compressed(ptr, table->id);
+	memcpy(ptr, table->name.m_name, len);
+	ptr += len;
+	mach_write_to_2(ptr, first_free);
+	ptr += 2;
+	ulint offset = page_offset(ptr);
+	mach_write_to_2(start, offset);
+	mach_write_to_2(block->frame + TRX_UNDO_PAGE_HDR
+			+ TRX_UNDO_PAGE_FREE, offset);
+
+	trx_undof_page_add_undo_rec_log(block->frame, first_free, offset, mtr);
+	return offset;
+}
+
+/** Report a RENAME TABLE operation.
+@param[in,out]	trx	transaction
+@param[in]	table	table that is being renamed
+@return	DB_SUCCESS or error code */
+dberr_t
+trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
+{
+	ut_ad(!trx->read_only);
+	ut_ad(trx->id);
+	ut_ad(!table->is_temporary());
+
+	trx_rseg_t*	rseg	= trx->rsegs.m_redo.rseg;
+	trx_undo_t**	pundo	= &trx->rsegs.m_redo.insert_undo;
+	mutex_enter(&trx->undo_mutex);
+	dberr_t		err	= *pundo
+		? DB_SUCCESS
+		: trx_undo_assign_undo(trx, rseg, pundo, TRX_UNDO_INSERT);
+	ut_ad((err == DB_SUCCESS) == (*pundo != NULL));
+	if (trx_undo_t* undo = *pundo) {
+		mtr_t	mtr;
+		mtr.start(trx);
+
+		buf_block_t* block = buf_page_get_gen(
+			page_id_t(undo->space, undo->last_page_no),
+			univ_page_size, RW_X_LATCH,
+			buf_pool_is_obsolete(undo->withdraw_clock)
+			? NULL : undo->guess_block,
+			BUF_GET, __FILE__, __LINE__, &mtr, &err);
+		ut_ad((err == DB_SUCCESS) == !!block);
+
+		for (ut_d(int loop_count = 0); block;) {
+			ut_ad(++loop_count < 2);
+			buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
+			ut_ad(undo->last_page_no == block->page.id.page_no());
+
+			if (ulint offset = trx_undo_page_report_rename(
+				    trx, table, block, &mtr)) {
+				undo->withdraw_clock = buf_withdraw_clock;
+				undo->empty = FALSE;
+				undo->top_page_no = undo->last_page_no;
+				undo->top_offset  = offset;
+				undo->top_undo_no = trx->undo_no++;
+				undo->guess_block = block;
+
+				trx->undo_rseg_space = rseg->space;
+				err = DB_SUCCESS;
+				break;
+			} else {
+				mtr.commit();
+				mtr.start(trx);
+				block = trx_undo_add_page(trx, undo, &mtr);
+				if (!block) {
+					err = DB_OUT_OF_FILE_SPACE;
+					break;
+				}
+			}
+		}
+
+		mtr.commit();
+	}
+
+	mutex_exit(&trx->undo_mutex);
+	return err;
+}
+
 /***********************************************************************//**
 Writes information to an undo log about an insert, update, or a delete marking
 of a clustered index record. This information is used in a rollback of the
