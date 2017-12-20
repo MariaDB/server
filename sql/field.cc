@@ -4399,7 +4399,14 @@ longlong Field_double::val_int_from_real(bool want_unsigned_result)
   float8get(j,ptr);
 
   res= double_to_longlong(j, want_unsigned_result, &error);
-  if (error)
+  /*
+    Note, val_uint() is currently used for auto_increment purposes only,
+    and we want to suppress all warnings in such cases.
+    If we ever start using val_uint() for other purposes,
+    val_int_from_real() will need a new separate parameter to
+    suppress warnings.
+  */
+  if (error && !want_unsigned_result)
   {
     ErrConvDouble err(j);
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
