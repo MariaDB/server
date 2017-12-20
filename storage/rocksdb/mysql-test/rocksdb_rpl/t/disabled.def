@@ -4,13 +4,12 @@
 ##
 rpl_no_unique_check_on_lag :  unique_check_lag_threshold is not available in MariaDB
 rpl_no_unique_check_on_lag_mts : unique_check_lag_threshold is not available in MariaDB
-
+consistent_snapshot_mixed_engines : Tests START TRANSACTION WITH CONSISTENT $ENGINE_NAME SNAPSHOT
 
 ##
 ## Tests that are disabled for other reasons 
 ##
 
-consistent_snapshot_mixed_engines : Didn't try with MariaDB, yet
 multiclient_2pc : Didn't try with MariaDB, yet
 rpl_crash_safe_wal_corrupt : Didn't try with MariaDB, yet
 rpl_ddl_high_priority : Didn't try with MariaDB, yet
