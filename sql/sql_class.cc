@@ -2192,6 +2192,8 @@ void THD::nocheck_register_item_tree_change(Item **place, Item *old_value,
                                             MEM_ROOT *runtime_memroot)
 {
   Item_change_record *change;
+  DBUG_ENTER("THD::nocheck_register_item_tree_change");
+  DBUG_PRINT("enter", ("Register %p <- %p", old_value, (*place)));
   /*
     Now we use one node per change, which adds some memory overhead,
     but still is rather fast as we use alloc_root for allocations.
@@ -2204,12 +2206,13 @@ void THD::nocheck_register_item_tree_change(Item **place, Item *old_value,
       OOM, thd->fatal_error() is called by the error handler of the
       memroot. Just return.
     */
-    return;
+    DBUG_VOID_RETURN;
   }
   change= new (change_mem) Item_change_record;
   change->place= place;
   change->old_value= old_value;
   change_list.append(change);
+  DBUG_VOID_RETURN;
 }
 
 /**
@@ -2250,7 +2253,11 @@ void THD::rollback_item_tree_changes()
   DBUG_ENTER("rollback_item_tree_changes");
 
   while ((change= it++))
+  {
+    DBUG_PRINT("info", ("revert %p -> %p",
+                        change->old_value, (*change->place)));
     *change->place= change->old_value;
+  }
   /* We can forget about changes memory: it's allocated in runtime memroot */
   change_list.empty();
   DBUG_VOID_RETURN;

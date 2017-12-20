@@ -4108,6 +4108,9 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   Query_arena *arena, backup;
   bool res= FALSE;
   DBUG_ENTER("TABLE_LIST::create_field_translation");
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                      (alias ? alias : "<NULL>"),
+                       get_unit()));
 
   if (thd->stmt_arena->is_conventional() ||
       thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
