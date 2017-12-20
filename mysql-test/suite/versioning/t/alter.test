@@ -165,20 +165,11 @@ alter table t
 call verify_vtq;
 
 show create table t;
-## FIXME: #413 TRT is not updated on ADD SYSTEM VERSIONING
-# alter table t drop column trx_start, drop column trx_end;
+alter table t drop column trx_start, drop column trx_end;
 
-# call verify_vtq;
-# alter table t drop system versioning, algorithm=copy;
-# call verify_vtq;
-
-create or replace table t(
-  a int
-) engine=innodb;
-
-insert into t values (1);
-
-## FIXME END
+call verify_vtq;
+alter table t drop system versioning, algorithm=copy;
+call verify_vtq;
 
 alter table t add system versioning, algorithm=copy;
 call verify_vtq;

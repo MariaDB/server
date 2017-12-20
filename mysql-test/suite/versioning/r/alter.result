@@ -256,6 +256,7 @@ add period for system_time(trx_start, trx_end),
 add system versioning;
 call verify_vtq;
 No	A	B	C	D
+1	1	1	1	1
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -264,10 +265,12 @@ t	CREATE TABLE `t` (
   `trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-create or replace table t(
-a int
-) engine=innodb;
-insert into t values (1);
+alter table t drop column trx_start, drop column trx_end;
+call verify_vtq;
+No	A	B	C	D
+alter table t drop system versioning, algorithm=copy;
+call verify_vtq;
+No	A	B	C	D
 alter table t add system versioning, algorithm=copy;
 call verify_vtq;
 No	A	B	C	D

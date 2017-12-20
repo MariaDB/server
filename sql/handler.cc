@@ -1415,7 +1415,8 @@ int ha_commit_trans(THD *thd, bool all)
   }
 
 #if 1 // FIXME: This should be done in ha_prepare().
-  if (rw_trans)
+  if (rw_trans || (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+                   thd->lex->alter_info.flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING))
   {
     ulonglong trx_start_id= 0, trx_end_id= 0;
     for (Ha_trx_info *ha_info= trans->ha_list; ha_info; ha_info= ha_info->next())

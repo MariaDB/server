@@ -88,6 +88,8 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_REBUILD
 	| Alter_inplace_info::ALTER_STORED_COLUMN_TYPE
 	*/
 	| Alter_inplace_info::ALTER_COLUMN_UNVERSIONED
+	| Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING
+	| Alter_inplace_info::ALTER_DROP_SYSTEM_VERSIONING
 	;
 
 /** Operations that require changes to data */

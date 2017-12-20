@@ -25,4 +25,60 @@ delete from t1;
 ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
 update t1 set x= 3;
 ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
+# ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
+create function check_result (cond boolean)
+returns char(50) deterministic
+return if(cond = 1, '[CORRECT]', '[INCORRECT]');
+set @@system_versioning_alter_history=keep;
+set global system_versioning_transaction_registry=on;
+Warnings:
+Warning	4144	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
+create or replace table t1 (x int) engine innodb;
+insert into t1 values (1);
+alter table t1
+add column s bigint unsigned as row start,
+add column e bigint unsigned as row end,
+add period for system_time(s, e),
+add system versioning,
+algorithm=inplace;
+select s from t1 into @trx_start;
+select check_result(count(*) = 1) from mysql.transaction_registry where transaction_id = @trx_start;
+check_result(count(*) = 1)
+[CORRECT]
+create or replace table t1 (x int) engine innodb;
+select count(*) from mysql.transaction_registry into @tmp;
+alter table t1
+add column s bigint unsigned as row start,
+add column e bigint unsigned as row end,
+add period for system_time(s, e),
+add system versioning,
+algorithm=inplace;
+select check_result(count(*) = @tmp) from mysql.transaction_registry;
+check_result(count(*) = @tmp)
+[CORRECT]
+create or replace table t1 (x int) engine innodb;
+insert into t1 values (1);
+alter table t1
+add column s bigint unsigned as row start,
+add column e bigint unsigned as row end,
+add period for system_time(s, e),
+add system versioning,
+algorithm=copy;
+select s from t1 into @trx_start;
+select check_result(count(*) = 1) from mysql.transaction_registry where transaction_id = @trx_start;
+check_result(count(*) = 1)
+[CORRECT]
+create or replace table t1 (x int) engine innodb;
+select count(*) from mysql.transaction_registry into @tmp;
+alter table t1
+add column s bigint unsigned as row start,
+add column e bigint unsigned as row end,
+add period for system_time(s, e),
+add system versioning,
+algorithm=copy;
+select check_result(count(*) = @tmp) from mysql.transaction_registry;
+check_result(count(*) = @tmp)
+[CORRECT]
 drop table t1;
+set global system_versioning_transaction_registry=off;
+drop function check_result;

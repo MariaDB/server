@@ -1745,6 +1745,7 @@ row_merge_read_clustered_index(
 	char			new_sys_trx_start[8];
 	char			new_sys_trx_end[8];
 	byte			any_autoinc_data[8] = {0};
+	bool			vers_update_trt = false;
 
 	DBUG_ENTER("row_merge_read_clustered_index");
 
@@ -2330,6 +2331,7 @@ end_of_index:
 			    dtuple_get_nth_field(row, new_table->vers_end);
 			dfield_set_data(start, new_sys_trx_start, 8);
 			dfield_set_data(end, new_sys_trx_end, 8);
+			vers_update_trt = true;
 		}
 
 write_buffers:
@@ -2871,6 +2873,15 @@ wait_again:
 				0, new_table,
 				old_table->name.m_name, max_doc_id);
 		}
+	}
+
+	if (vers_update_trt) {
+		trx_mod_table_time_t& time =
+			trx->mod_tables
+				.insert(trx_mod_tables_t::value_type(
+					const_cast<dict_table_t*>(new_table), 0))
+				.first->second;
+		time.set_versioned(0, true);
 	}
 
 	trx->op_info = "";
