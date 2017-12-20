@@ -698,6 +698,21 @@ id	column_1
 expected -- 1 row(s) returned not ER_BAD_FIELD_ERROR
 drop table t1;
 #
+# mdev-14368: grouping query with alias for aggregate function in HAVING
+#             when sql_mode = 'ONLY_FULL_GROUP_BY'
+set @save_sql_mode= @@sql_mode;
+set sql_mode = 'ONLY_FULL_GROUP_BY';
+create table t1(a int);
+insert  t1 values (4),(1),(2),(1), (3),(4);
+SELECT a, COUNT(a) as ct FROM t1 GROUP BY a HAVING ct>0;
+a	ct
+1	2
+2	1
+3	1
+4	2
+set sql_mode=@save_sql_mode;
+drop table t1;
+#
 # Bug mdev-5160: two-way join with HAVING over the second table
 #
 CREATE TABLE t1 (c1 varchar(6)) ENGINE=MyISAM;
