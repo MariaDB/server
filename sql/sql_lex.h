@@ -1045,8 +1045,6 @@ public:
   bool in_tvc;
 
   /** System Versioning */
-private:
-  Item *vers_saved_where;
 public:
   uint versioned_tables;
   int vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr);

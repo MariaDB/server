@@ -106,8 +106,17 @@ delimiter ;~~
 call test_01();
 call test_02();
 
-# wildcard expansion on hidden fields.
-create table t1(
+--echo # MDEV-14686 Server crashes in Item_field::used_tables on 2nd call of SP [#422]
+create or replace table t1 (called int, bad int) with system versioning;
+create or replace procedure bad() select * from t1 where bad in (select called from t1);
+--disable_query_log
+call bad; call bad; call bad; call bad; call bad; call bad; call bad; call bad;
+drop procedure bad;
+--enable_query_log
+--echo bad() is good.
+
+--echo # wildcard expansion on hidden fields.
+create or replace table t1(
   A int
 ) with system versioning;
 insert into t1 values(1);

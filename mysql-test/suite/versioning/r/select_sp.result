@@ -207,7 +207,20 @@ RJ2_x1	y1	x2	y2
 1	3	1	2
 NULL	NULL	2	1
 NULL	NULL	3	1
-create table t1(
+# MDEV-14686 Server crashes in Item_field::used_tables on 2nd call of SP [#422]
+create or replace table t1 (called int, bad int) with system versioning;
+create or replace procedure bad() select * from t1 where bad in (select called from t1);
+called	bad
+called	bad
+called	bad
+called	bad
+called	bad
+called	bad
+called	bad
+called	bad
+bad() is good.
+# wildcard expansion on hidden fields.
+create or replace table t1(
 A int
 ) with system versioning;
 insert into t1 values(1);

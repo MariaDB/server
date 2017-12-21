@@ -62,6 +62,8 @@
 #include <hash.h>
 #include <ft_global.h>
 #include "sys_vars_shared.h"
+#include "sp_head.h"
+#include "sp_rcontext.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -754,49 +756,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
      because they must outlive execution phase for multiple executions. */
   Query_arena_stmt on_stmt_arena(thd);
 
-  if (vers_saved_where)
-  {
-    DBUG_ASSERT(thd->stmt_arena->is_sp_execute());
-    /* 2. this copy_andor_structure() is also required by the same reason */
-    *where_expr= vers_saved_where->copy_andor_structure(thd);
-  }
-  else if (thd->stmt_arena->is_sp_execute())
-  {
-    if (thd->stmt_arena->is_stmt_execute()) // SP executed second time (STMT_EXECUTED)
-      *where_expr= 0;
-    else if (*where_expr) // SP executed first time (STMT_INITIALIZED_FOR_SP)
-      /* 1. copy_andor_structure() is required since this andor tree
-         is modified later (and on shorter arena) */
-      vers_saved_where= (*where_expr)->copy_andor_structure(thd);
-  }
-
-  /* We have to save also non-versioned on_expr since we may have
-     conjuction of versioned + non-versioned */
-  if (thd->stmt_arena->is_sp_execute())
-  {
-    for (table= tables; table; table= table->next_local)
-    {
-      if (!table->table)
-        continue;
-
-      if (table->saved_on_expr) // same logic as vers_saved_where
-      {
-        if (table->on_expr)
-          table->on_expr= table->saved_on_expr->copy_andor_structure(thd);
-        else
-          // on_expr was moved to WHERE (see below: Add ON expression to the WHERE)
-          *where_expr= and_items(thd,
-            *where_expr,
-            table->saved_on_expr->copy_andor_structure(thd));
-      }
-      else if (table->on_expr &&
-        thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP)
-      {
-        table->saved_on_expr= table->on_expr->copy_andor_structure(thd);
-      }
-    }
-  }
-
   // find outer system_time
   SELECT_LEX *outer_slex= outer_select();
   TABLE_LIST* outer_table= NULL;
@@ -1103,6 +1062,13 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
 
     if (outer_table)
       outer_table->vers_conditions.type= SYSTEM_TIME_ALL;
+
+    // Invalidate current SP [#52, #422]
+    if (thd->spcont)
+    {
+      DBUG_ASSERT(thd->spcont->m_sp);
+      thd->spcont->m_sp->set_sp_cache_version(ULONG_MAX);
+    }
   }
 
   DBUG_RETURN(0);
