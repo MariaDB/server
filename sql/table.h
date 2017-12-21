@@ -1525,10 +1525,17 @@ public:
    */
   bool vers_write;
 
-  bool versioned(vers_sys_type_t type= VERS_UNDEFINED) const
+  bool versioned() const
   {
     DBUG_ASSERT(s);
-    return type ? s->versioned == type : s->versioned;
+    return s->versioned;
+  }
+
+  bool versioned(vers_sys_type_t type) const
+  {
+    DBUG_ASSERT(s);
+    DBUG_ASSERT(type);
+    return s->versioned == type;
   }
 
   bool versioned_write(vers_sys_type_t type= VERS_UNDEFINED) const
