@@ -8343,7 +8343,8 @@ int create_partition_name(char *out, size_t outlen, const char *in1,
                           const char *in2, uint name_variant, bool translate)
 {
   char transl_part_name[FN_REFLEN];
-  const char *transl_part, *end;
+  const char *transl_part;
+  const char *end = out + outlen;
   DBUG_ASSERT(outlen >= FN_REFLEN + 1); // consistency! same limit everywhere
 
   if (translate)
@@ -8390,7 +8391,8 @@ int create_subpartition_name(char *out, size_t outlen,
                              const char *in1, const char *in2,
                              const char *in3, uint name_variant)
 {
-  char transl_part_name[FN_REFLEN], transl_subpart_name[FN_REFLEN], *end;
+  char transl_part_name[FN_REFLEN], transl_subpart_name[FN_REFLEN];
+  char *end = out + outlen;
   DBUG_ASSERT(outlen >= FN_REFLEN + 1); // consistency! same limit everywhere
 
   tablename_to_filename(in2, transl_part_name, FN_REFLEN);
