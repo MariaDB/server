@@ -815,167 +815,6 @@ trx_resurrect_table_locks(
 	}
 }
 
-/****************************************************************//**
-Resurrect the transactions that were doing inserts the time of the
-crash, they need to be undone.
-@return trx_t instance */
-static
-trx_t*
-trx_resurrect_insert(
-/*=================*/
-	trx_undo_t*	undo,		/*!< in: entry to UNDO */
-	trx_rseg_t*	rseg)		/*!< in: rollback segment */
-{
-	trx_t*		trx;
-
-	trx = trx_allocate_for_background();
-
-	ut_d(trx->start_file = __FILE__);
-	ut_d(trx->start_line = __LINE__);
-
-	trx->rsegs.m_redo.rseg = rseg;
-	/* For transactions with active data will not have rseg size = 1
-	or will not qualify for purge limit criteria. So it is safe to increment
-	this trx_ref_count w/o mutex protection. */
-	++trx->rsegs.m_redo.rseg->trx_ref_count;
-	*trx->xid = undo->xid;
-	trx->id = undo->trx_id;
-	trx->rsegs.m_redo.old_insert = undo;
-	trx->is_recovered = true;
-
-	/* This is single-threaded startup code, we do not need the
-	protection of trx->mutex or trx_sys->mutex here. */
-
-	if (undo->state != TRX_UNDO_ACTIVE) {
-
-		/* Prepared transactions are left in the prepared state
-		waiting for a commit or abort decision from MySQL */
-
-		if (undo->state == TRX_UNDO_PREPARED) {
-
-			ib::info() << "Transaction "
-				<< trx_get_id_for_print(trx)
-				<< " was in the XA prepared state.";
-
-			trx->state = TRX_STATE_PREPARED;
-			trx_sys->n_prepared_trx++;
-			trx_sys->n_prepared_recovered_trx++;
-		} else {
-			trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
-		}
-
-		/* We give a dummy value for the trx no; this should have no
-		relevance since purge is not interested in committed
-		transaction numbers, unless they are in the history
-		list, in which case it looks the number from the disk based
-		undo log structure */
-
-		trx->no = trx->id;
-
-	} else {
-		trx->state = TRX_STATE_ACTIVE;
-
-		/* A running transaction always has the number
-		field inited to TRX_ID_MAX */
-
-		trx->no = TRX_ID_MAX;
-	}
-
-	if (undo->dict_operation) {
-		trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
-		trx->table_id = undo->table_id;
-	}
-
-	if (!undo->empty) {
-		trx->undo_no = undo->top_undo_no + 1;
-		trx->undo_rseg_space = undo->rseg->space;
-	}
-
-	return(trx);
-}
-
-/****************************************************************//**
-Prepared transactions are left in the prepared state waiting for a
-commit or abort decision from MySQL */
-static
-void
-trx_resurrect_update_in_prepared_state(
-/*===================================*/
-	trx_t*			trx,	/*!< in,out: transaction */
-	const trx_undo_t*	undo)	/*!< in: update UNDO record */
-{
-	/* This is single-threaded startup code, we do not need the
-	protection of trx->mutex or trx_sys->mutex here. */
-
-	if (undo->state == TRX_UNDO_PREPARED) {
-		ib::info() << "Transaction " << trx_get_id_for_print(trx)
-			<< " was in the XA prepared state.";
-
-		if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
-			trx_sys->n_prepared_trx++;
-			trx_sys->n_prepared_recovered_trx++;
-		} else {
-			ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
-		}
-
-		trx->state = TRX_STATE_PREPARED;
-	} else {
-		trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
-	}
-}
-
-/****************************************************************//**
-Resurrect the transactions that were doing updates the time of the
-crash, they need to be undone. */
-static
-void
-trx_resurrect_update(
-/*=================*/
-	trx_t*		trx,	/*!< in/out: transaction */
-	trx_undo_t*	undo,	/*!< in/out: update UNDO record */
-	trx_rseg_t*	rseg)	/*!< in/out: rollback segment */
-{
-	trx->rsegs.m_redo.rseg = rseg;
-	/* For transactions with active data will not have rseg size = 1
-	or will not qualify for purge limit criteria. So it is safe to increment
-	this trx_ref_count w/o mutex protection. */
-	++trx->rsegs.m_redo.rseg->trx_ref_count;
-	*trx->xid = undo->xid;
-	trx->id = undo->trx_id;
-	trx->rsegs.m_redo.undo = undo;
-	trx->is_recovered = true;
-
-	/* This is single-threaded startup code, we do not need the
-	protection of trx->mutex or trx_sys->mutex here. */
-
-	if (undo->state != TRX_UNDO_ACTIVE) {
-		trx_resurrect_update_in_prepared_state(trx, undo);
-
-		/* We give a dummy value for the trx number */
-
-		trx->no = trx->id;
-
-	} else {
-		trx->state = TRX_STATE_ACTIVE;
-
-		/* A running transaction always has the number field inited to
-		TRX_ID_MAX */
-
-		trx->no = TRX_ID_MAX;
-	}
-
-	if (undo->dict_operation) {
-		trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
-		trx->table_id = undo->table_id;
-	}
-
-	if (!undo->empty && undo->top_undo_no >= trx->undo_no) {
-
-		trx->undo_no = undo->top_undo_no + 1;
-		trx->undo_rseg_space = undo->rseg->space;
-	}
-}
-
 /** Mapping read-write transactions from id to transaction instance, for
 creating read views and during trx id lookup for MVCC and locking. */
 struct TrxTrack {
@@ -1004,30 +843,93 @@ struct TrxTrackCmp {
 typedef std::set<TrxTrack, TrxTrackCmp, ut_allocator<TrxTrack> >
 	TrxIdSet;
 
-static inline void trx_sys_add_trx_at_init(trx_t *trx, trx_undo_t *undo,
-                                           uint64_t *rows_to_undo,
-                                           TrxIdSet *set)
+
+/**
+  Resurrect the transactions that were doing inserts/updates the time of the
+  crash, they need to be undone.
+*/
+
+static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
+                          ib_time_t start_time, uint64_t *rows_to_undo,
+                          TrxIdSet *set, bool is_old_insert)
 {
-  ut_ad(trx->id != 0);
-  ut_ad(trx->is_recovered);
+  trx_state_t state;
+  /*
+    This is single-threaded startup code, we do not need the
+    protection of trx->mutex or trx_sys->mutex here.
+  */
+  switch (undo->state)
+  {
+  case TRX_UNDO_ACTIVE:
+    state= TRX_STATE_ACTIVE;
+    break;
+  case TRX_UNDO_PREPARED:
+    /*
+      Prepared transactions are left in the prepared state
+      waiting for a commit or abort decision from MySQL
+    */
+    ib::info() << "Transaction " << undo->trx_id
+               << " was in the XA prepared state.";
+
+    state= TRX_STATE_PREPARED;
+    trx_sys->n_prepared_trx++;
+    trx_sys->n_prepared_recovered_trx++;
+    break;
+  default:
+    if (is_old_insert && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO)
+      trx_undo_commit_cleanup(undo, false);
+    return;
+  }
+
+  trx_t *trx= trx_allocate_for_background();
+  trx->state= state;
+  ut_d(trx->start_file= __FILE__);
+  ut_d(trx->start_line= __LINE__);
+  ut_ad(trx->no == TRX_ID_MAX);
+
+  if (is_old_insert)
+    trx->rsegs.m_redo.old_insert= undo;
+  else
+    trx->rsegs.m_redo.undo= undo;
+
+  if (!undo->empty)
+  {
+    trx->undo_no= undo->top_undo_no + 1;
+    trx->undo_rseg_space= undo->rseg->space;
+  }
+
+  trx->rsegs.m_redo.rseg= rseg;
+  /*
+    For transactions with active data will not have rseg size = 1
+    or will not qualify for purge limit criteria. So it is safe to increment
+    this trx_ref_count w/o mutex protection.
+  */
+  ++trx->rsegs.m_redo.rseg->trx_ref_count;
+  *trx->xid= undo->xid;
+  trx->id= undo->trx_id;
+  trx->is_recovered= true;
+  trx->start_time= start_time;
+
+  if (undo->dict_operation)
+  {
+    trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
+    trx->table_id= undo->table_id;
+  }
 
   set->insert(TrxTrack(trx->id, trx));
-  if (trx_state_eq(trx, TRX_STATE_ACTIVE) ||
-      trx_state_eq(trx, TRX_STATE_PREPARED))
-  {
-    trx_sys->rw_trx_hash.insert(trx);
-    trx_sys->rw_trx_hash.put_pins(trx);
-    trx_sys->rw_trx_ids.push_back(trx->id);
-    trx_resurrect_table_locks(trx, undo);
-    if (trx_state_eq(trx, TRX_STATE_ACTIVE))
-      *rows_to_undo+= trx->undo_no;
-  }
+  trx_sys->rw_trx_hash.insert(trx);
+  trx_sys->rw_trx_hash.put_pins(trx);
+  trx_sys->rw_trx_ids.push_back(trx->id);
+  trx_resurrect_table_locks(trx, undo);
+  if (trx_state_eq(trx, TRX_STATE_ACTIVE))
+    *rows_to_undo+= trx->undo_no;
 #ifdef UNIV_DEBUG
   trx->in_rw_trx_list= true;
   if (trx->id > trx_sys->rw_max_trx_id)
     trx_sys->rw_max_trx_id= trx->id;
 #endif
 }
+
 
 /** Initialize (resurrect) transactions at startup. */
 void
@@ -1061,36 +963,50 @@ trx_lists_init_at_db_start()
 
 		/* Resurrect transactions that were doing inserts
 		using the old separate insert_undo log. */
-		for (undo = UT_LIST_GET_FIRST(rseg->old_insert_list);
-		     undo != NULL;
-		     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
-			trx_t*	trx = trx_resurrect_insert(undo, rseg);
-			trx->start_time = start_time;
-			trx_sys_add_trx_at_init(trx, undo, &rows_to_undo,
-						&set);
+		undo = UT_LIST_GET_FIRST(rseg->old_insert_list);
+		while (undo) {
+			trx_undo_t* next = UT_LIST_GET_NEXT(undo_list, undo);
+			trx_resurrect(undo, rseg, start_time, &rows_to_undo,
+				      &set, true);
+			undo = next;
 		}
 
 		/* Ressurrect other transactions. */
 		for (undo = UT_LIST_GET_FIRST(rseg->undo_list);
 		     undo != NULL;
 		     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
+			trx_t *trx = trx_sys->rw_trx_hash.find(undo->trx_id);
+			if (!trx) {
+				trx_resurrect(undo, rseg, start_time,
+					      &rows_to_undo, &set, false);
+			} else {
+				ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
+				      trx_state_eq(trx, TRX_STATE_PREPARED));
+				ut_ad(trx->start_time == start_time);
+				ut_ad(trx->is_recovered);
+				ut_ad(trx->rsegs.m_redo.rseg == rseg);
+				ut_ad(trx->rsegs.m_redo.rseg->trx_ref_count);
 
-			/* Check if trx_id was already registered first. */
-			TrxIdSet::iterator it =
-				set.find(TrxTrack(undo->trx_id));
-			trx_t *trx= it == set.end() ? 0 : it->m_trx;
+				trx->rsegs.m_redo.undo = undo;
+				if (!undo->empty
+				    && undo->top_undo_no >= trx->undo_no) {
+					if (trx_state_eq(trx,
+							 TRX_STATE_ACTIVE)) {
+						rows_to_undo -= trx->undo_no;
+						rows_to_undo +=
+							undo->top_undo_no + 1;
+					}
 
-			if (trx == NULL) {
-				trx = trx_allocate_for_background();
-				trx->start_time = start_time;
-
-				ut_d(trx->start_file = __FILE__);
-				ut_d(trx->start_line = __LINE__);
+					trx->undo_no = undo->top_undo_no + 1;
+					trx->undo_rseg_space =
+						undo->rseg->space;
+				}
+				trx_resurrect_table_locks(trx, undo);
+				if (trx_state_eq(trx, TRX_STATE_PREPARED)) {
+					trx_sys->n_prepared_trx++;
+					trx_sys->n_prepared_recovered_trx++;
+				}
 			}
-
-			trx_resurrect_update(trx, undo, rseg);
-			trx_sys_add_trx_at_init(trx, undo, &rows_to_undo,
-						&set);
 		}
 	}
 
@@ -2044,50 +1960,6 @@ trx_commit(
 	}
 
 	trx_commit_low(trx, mtr);
-}
-
-/****************************************************************//**
-Cleans up a transaction at database startup. The cleanup is needed if
-the transaction already got to the middle of a commit when the database
-crashed, and we cannot roll it back. */
-void
-trx_cleanup_at_db_startup(
-/*======================*/
-	trx_t*	trx)	/*!< in: transaction */
-{
-	ut_ad(trx->is_recovered);
-	ut_ad(!trx->rsegs.m_noredo.undo);
-	ut_ad(!trx->rsegs.m_redo.undo);
-
-	if (trx_undo_t*& undo = trx->rsegs.m_redo.old_insert) {
-		ut_ad(undo->rseg == trx->rsegs.m_redo.rseg);
-		trx_undo_commit_cleanup(undo, false);
-		undo = NULL;
-	}
-
-	memset(&trx->rsegs, 0x0, sizeof(trx->rsegs));
-	trx->undo_no = 0;
-	trx->undo_rseg_space = 0;
-	trx->last_sql_stat_start.least_undo_no = 0;
-
-	trx_sys_mutex_enter();
-
-	ut_a(!trx->read_only);
-
-	UT_LIST_REMOVE(trx_sys->rw_trx_list, trx);
-
-	ut_d(trx->in_rw_trx_list = FALSE);
-
-	trx_sys_mutex_exit();
-
-	/* Change the transaction state without mutex protection, now
-	that it no longer is in the trx_list. Recovered transactions
-	are never placed in the mysql_trx_list. */
-	ut_ad(trx->is_recovered);
-	ut_ad(!trx->in_rw_trx_list);
-	ut_ad(!trx->in_mysql_trx_list);
-	DBUG_LOG("trx", "Cleanup at startup: " << trx);
-	trx->state = TRX_STATE_NOT_STARTED;
 }
 
 /********************************************************************//**

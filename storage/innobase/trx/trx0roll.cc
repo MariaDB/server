@@ -54,8 +54,8 @@ Created 3/26/1996 Heikki Tuuri
 rollback */
 static const ulint TRX_ROLL_TRUNC_THRESHOLD = 1;
 
-/** true if trx_rollback_or_clean_all_recovered() thread is active */
-bool			trx_rollback_or_clean_is_active;
+/** true if trx_rollback_all_recovered() thread is active */
+bool			trx_rollback_is_active;
 
 /** In crash recovery, the current trx to be rolled back; NULL otherwise */
 const trx_t*		trx_roll_crash_recv_trx;
@@ -734,7 +734,7 @@ ibool
 trx_rollback_resurrected(
 /*=====================*/
 	trx_t*	trx,	/*!< in: transaction to rollback or clean */
-	ibool*	all)	/*!< in/out: FALSE=roll back dictionary transactions;
+	bool*	all)	/*!< in/out: FALSE=roll back dictionary transactions;
 			TRUE=roll back all non-PREPARED transactions */
 {
 	ut_ad(trx_sys_mutex_own());
@@ -752,14 +752,6 @@ func_exit:
 	}
 
 	switch (trx->state) {
-	case TRX_STATE_COMMITTED_IN_MEMORY:
-		trx_mutex_exit(trx);
-		trx_sys_mutex_exit();
-		ib::info() << "Cleaning up trx with id " << ib::hex(trx->id);
-
-		trx_cleanup_at_db_startup(trx);
-		trx_free_resurrected(trx);
-		return(TRUE);
 	case TRX_STATE_ACTIVE:
 		if (!srv_is_being_started
 		    && !srv_undo_sources && srv_fast_shutdown) {
@@ -767,7 +759,7 @@ fake_prepared:
 			trx->state = TRX_STATE_PREPARED;
 			trx_sys->n_prepared_trx++;
 			trx_sys->n_prepared_recovered_trx++;
-			*all = FALSE;
+			*all = false;
 			goto func_exit;
 		}
 		trx_mutex_exit(trx);
@@ -788,6 +780,8 @@ fake_prepared:
 			return(TRUE);
 		}
 		return(FALSE);
+	case TRX_STATE_COMMITTED_IN_MEMORY:
+		ut_ad(trx->xid);
 	case TRX_STATE_PREPARED:
 		goto func_exit;
 	case TRX_STATE_NOT_STARTED:
@@ -848,12 +842,11 @@ trx_roll_must_shutdown()
 Rollback or clean up any incomplete transactions which were
 encountered in crash recovery.  If the transaction already was
 committed, then we clean up a possible insert undo log. If the
-transaction was not yet committed, then we roll it back. */
+transaction was not yet committed, then we roll it back.
+@param all true=roll back all recovered active transactions;
+false=roll back any incomplete dictionary transaction */
 void
-trx_rollback_or_clean_recovered(
-/*============================*/
-	ibool	all)	/*!< in: FALSE=roll back dictionary transactions;
-			TRUE=roll back all non-PREPARED transactions */
+trx_rollback_recovered(bool all)
 {
 	trx_t*	trx;
 
@@ -917,11 +910,7 @@ Note: this is done in a background thread.
 @return a dummy parameter */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(trx_rollback_or_clean_all_recovered)(
-/*================================================*/
-	void*	arg MY_ATTRIBUTE((unused)))
-			/*!< in: a dummy parameter required by
-			os_thread_create */
+DECLARE_THREAD(trx_rollback_all_recovered)(void*)
 {
 	my_thread_init();
 	ut_ad(!srv_read_only_mode);
@@ -930,9 +919,9 @@ DECLARE_THREAD(trx_rollback_or_clean_all_recovered)(
 	pfs_register_thread(trx_rollback_clean_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
-	trx_rollback_or_clean_recovered(TRUE);
+	trx_rollback_recovered(true);
 
-	trx_rollback_or_clean_is_active = false;
+	trx_rollback_is_active = false;
 
 	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created

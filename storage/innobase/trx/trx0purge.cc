@@ -300,7 +300,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	continue to execute user transactions. */
 	ut_ad(srv_undo_sources
 	      || ((srv_startup_is_before_trx_rollback_phase
-		   || trx_rollback_or_clean_is_active)
+		   || trx_rollback_is_active)
 		  && purge_sys->state == PURGE_STATE_INIT)
 	      || (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND
 		  && purge_sys->state == PURGE_STATE_DISABLED)

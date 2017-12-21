@@ -1643,7 +1643,6 @@ trx_undo_free_prepared(
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
 			/* lock_trx_release_locks() assigns
-			trx->is_recovered=false and
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY,
 			also for transactions that we faked
 			to TRX_STATE_PREPARED in trx_rollback_resurrected(). */
@@ -1673,7 +1672,6 @@ trx_undo_free_prepared(
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
 			/* lock_trx_release_locks() assigns
-			trx->is_recovered=false and
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY,
 			also for transactions that we faked
 			to TRX_STATE_PREPARED in trx_rollback_resurrected(). */

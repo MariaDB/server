@@ -1649,7 +1649,7 @@ innobase_start_or_create_for_mysql()
 			    + 1 /* dict_stats_thread */
 			    + 1 /* fts_optimize_thread */
 			    + 1 /* recv_writer_thread */
-			    + 1 /* trx_rollback_or_clean_all_recovered */
+			    + 1 /* trx_rollback_all_recovered */
 			    + 128 /* added as margin, for use of
 				  InnoDB Memcached etc. */
 			    + max_connections
@@ -2471,7 +2471,7 @@ files_checked:
 		The data dictionary latch should guarantee that there is at
 		most one data dictionary transaction active at a time. */
 		if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
-			trx_rollback_or_clean_recovered(FALSE);
+			trx_rollback_recovered(false);
 		}
 
 		/* Fix-up truncate of tables in the system tablespace

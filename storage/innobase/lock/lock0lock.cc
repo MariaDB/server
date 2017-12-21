@@ -7630,8 +7630,6 @@ lock_trx_release_locks(
 		lock_mutex_enter();
 	}
 
-	trx_mutex_enter(trx);
-
 	/* The following assignment makes the transaction committed in memory
 	and makes its changes to data visible to other transactions.
 	NOTE that there is a small discrepancy from the strict formal
@@ -7647,7 +7645,9 @@ lock_trx_release_locks(
 	committed. */
 
 	/*--------------------------------------*/
+	trx_mutex_enter(trx);
 	trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
+	trx_mutex_exit(trx);
 	/*--------------------------------------*/
 
 	if (trx->is_referenced()) {
@@ -7658,40 +7658,17 @@ lock_trx_release_locks(
 
 		while (trx->is_referenced()) {
 
-			trx_mutex_exit(trx);
-
 			DEBUG_SYNC_C("waiting_trx_is_not_referenced");
 
 			/** Doing an implicit to explicit conversion
 			should not be expensive. */
 			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
-
-			trx_mutex_enter(trx);
 		}
 
-		trx_mutex_exit(trx);
-
 		lock_mutex_enter();
-
-		trx_mutex_enter(trx);
 	}
 
 	ut_ad(!trx->is_referenced());
-
-	/* If the background thread trx_rollback_or_clean_recovered()
-	is still active then there is a chance that the rollback
-	thread may see this trx as COMMITTED_IN_MEMORY and goes ahead
-	to clean it up calling trx_cleanup_at_db_startup(). This can
-	happen in the case we are committing a trx here that is left
-	in PREPARED state during the crash. Note that commit of the
-	rollback of a PREPARED trx happens in the recovery thread
-	while the rollback of other transactions happen in the
-	background thread. To avoid this race we unconditionally unset
-	the is_recovered flag. */
-
-	trx->is_recovered = false;
-
-	trx_mutex_exit(trx);
 
 	if (release_lock) {
 

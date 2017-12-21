@@ -7782,7 +7782,7 @@ btr_free_externally_stored_field(
 					 MLOG_4BYTES, &mtr);
 			/* Zero out the BLOB length.  If the server
 			crashes during the execution of this function,
-			trx_rollback_or_clean_all_recovered() could
+			trx_rollback_all_recovered() could
 			dereference the half-deleted BLOB, fetching a
 			wrong prefix for the BLOB. */
 			mlog_write_ulint(field_ref + BTR_EXTERN_LEN + 4,

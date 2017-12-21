@@ -1949,7 +1949,7 @@ loop:
 		goto wait_suspend_loop;
 	} else if (btr_defragment_thread_active) {
 		thread_name = "btr_defragment_thread";
-	} else if (srv_fast_shutdown != 2 && trx_rollback_or_clean_is_active) {
+	} else if (srv_fast_shutdown != 2 && trx_rollback_is_active) {
 		thread_name = "rollback of recovered transactions";
 	} else {
 		thread_name = NULL;
