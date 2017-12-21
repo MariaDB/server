@@ -5,6 +5,7 @@
 rpl_no_unique_check_on_lag :  unique_check_lag_threshold is not available in MariaDB
 rpl_no_unique_check_on_lag_mts : unique_check_lag_threshold is not available in MariaDB
 consistent_snapshot_mixed_engines : Tests START TRANSACTION WITH CONSISTENT $ENGINE_NAME SNAPSHOT
+rpl_skip_trx_api_binlog_format : requires @@rpl_skip_tx_api
 
 ##
 ## Tests that are disabled for other reasons 
@@ -19,7 +20,6 @@ rpl_gtid_rocksdb_sys_header : Didn't try with MariaDB, yet
 rpl_rocksdb_snapshot : Didn't try with MariaDB, yet
 rpl_rocksdb_snapshot_without_gtid : Didn't try with MariaDB, yet
 rpl_rocksdb_stress_crash : Didn't try with MariaDB, yet
-rpl_skip_trx_api_binlog_format : Didn't try with MariaDB, yet
 singledelete_idempotent_recovery : Didn't try with MariaDB, yet
 singledelete_idempotent_table : Didn't try with MariaDB, yet
 
