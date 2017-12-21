@@ -311,6 +311,11 @@ class Master_info : public Slave_reporting_capability
 
   /* The parallel replication mode. */
   enum_slave_parallel_mode parallel_mode;
+  /*
+    semi_ack is used to identify if the current binlog event needs an
+    ACK from slave, or if delay_master is enabled.
+  */
+  int semi_ack;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,

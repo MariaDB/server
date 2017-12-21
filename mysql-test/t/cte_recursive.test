@@ -1949,6 +1949,57 @@ SELECT *
 FROM cte1;
 
 --echo #
+--echo # mdev-14629: a user-defined variable is defined by the recursive CTE
+--echo #
+
+set @var=
+(
+  with recursive cte_tab(a) as (
+    select 1
+    union
+    select a+1 from cte_tab
+    where a<3)
+  select count(*) from cte_tab
+);
+
+select @var;
+
+create table t1(a int, b int);
+insert into t1 values (3,8),(1,5),(5,7),(7,4),(4,3);
+
+set @var=
+(
+  with recursive summ(a,s) as (
+    select 1, 0 union
+    select t1.b, t1.b+summ.s from summ, t1
+    where summ.a=t1.a)
+  select s from summ
+    order by a desc
+    limit 1
+);
+
+select @var;
+
+--ERROR ER_UNACCEPTABLE_MUTUAL_RECURSION
+set @var=
+(
+  with recursive
+  cte_1 as (
+    select 1
+    union
+    select * from cte_2),
+  cte_2 as (
+    select * from cte_1
+    union
+    select a from t1, cte_2
+    where t1.a=cte_2.a)
+  select * from cte_2
+  limit 1
+);
+
+drop table t1;
+
+--echo #
 --echo # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field
 --echo #
 
@@ -1975,4 +2026,3 @@ DROP TABLE a_tbl;
 
 --error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
 WITH RECURSIVE x AS (SELECT 1,2 UNION ALL SELECT 1 FROM x) SELECT * FROM x;
-

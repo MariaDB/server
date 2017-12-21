@@ -705,7 +705,7 @@ extern "C" void thd_kill_timeout(THD* thd)
   thd->awake(KILL_TIMEOUT);
 }
 
-THD::THD(my_thread_id id, bool is_wsrep_applier)
+THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
@@ -892,7 +892,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
 
-  init();
+  init(skip_global_sys_var_lock);
 #if defined(ENABLED_PROFILING)
   profiling.set_thd(this);
 #endif
@@ -1263,10 +1263,11 @@ const Type_handler *THD::type_handler_for_date() const
   Init common variables that has to be reset on start and on change_user
 */
 
-void THD::init(void)
+void THD::init(bool skip_lock)
 {
   DBUG_ENTER("thd::init");
-  mysql_mutex_lock(&LOCK_global_system_variables);
+  if (!skip_lock)
+    mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
     plugin_thd_var_init() sets variables= global_system_variables, which
@@ -1279,8 +1280,8 @@ void THD::init(void)
   ::strmake(default_master_connection_buff,
             global_system_variables.default_master_connection.str,
             variables.default_master_connection.length);
-
-  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (!skip_lock)
+    mysql_mutex_unlock(&LOCK_global_system_variables);
 
   user_time.val= start_time= start_time_sec_part= 0;
 
@@ -4193,7 +4194,8 @@ my_bool thd_net_is_killed()
 
 void thd_increment_bytes_received(void *thd, ulong length)
 {
-  ((THD*) thd)->status_var.bytes_received+= length;
+  if (thd != NULL) // MDEV-13073 Ack collector having NULL
+    ((THD*) thd)->status_var.bytes_received+= length;
 }
 
 

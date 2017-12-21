@@ -9462,25 +9462,7 @@ static ST_FIELD_INFO	innodb_sys_semaphore_waits_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-	// SYS_SEMAPHORE_WAITS_LAST_READER_FILE 17
-	{STRUCT_FLD(field_name,		"LAST_READER_FILE"),
-	 STRUCT_FLD(field_length,	OS_FILE_MAX_PATH),
-	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
-	 STRUCT_FLD(value,		0),
-	 STRUCT_FLD(field_flags,	MY_I_S_MAYBE_NULL),
-	 STRUCT_FLD(old_name,		""),
-	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
-
-	// SYS_SEMAPHORE_WAITS_LAST_READER_LINE 18
-	{STRUCT_FLD(field_name,		"LAST_READER_LINE"),
-	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
-	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
-	 STRUCT_FLD(value,		0),
-	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
-	 STRUCT_FLD(old_name,		""),
-	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
-
-	// SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE 19
+	// SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE 17
 	{STRUCT_FLD(field_name,		"LAST_WRITER_FILE"),
 	 STRUCT_FLD(field_length,	OS_FILE_MAX_PATH),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
@@ -9489,7 +9471,7 @@ static ST_FIELD_INFO	innodb_sys_semaphore_waits_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-	// SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE 20
+	// SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE 18
 	{STRUCT_FLD(field_name,		"LAST_WRITER_LINE"),
 	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
@@ -9498,7 +9480,7 @@ static ST_FIELD_INFO	innodb_sys_semaphore_waits_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-	// SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT 21
+	// SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT 19
 	{STRUCT_FLD(field_name,		"OS_WAIT_COUNT"),
 	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),

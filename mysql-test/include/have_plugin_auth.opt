@@ -1,1 +1,1 @@
---plugin-load-add=$AUTH_TEST_PLUGIN_SO --plugin-maturity=unknown
+--plugin-load-add=$AUTH_TEST_PLUGIN_SO

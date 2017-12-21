@@ -8430,8 +8430,8 @@ no_commit:
 		whether we update the table autoinc counter or not. */
 		col_max_value = innobase_get_int_col_max_value(table->next_number_field);
 
-		/* Get the value that MySQL attempted to store in the table. */
-		auto_inc = table->next_number_field->val_int();
+		/* Get the value that MySQL attempted to store in the table.*/
+		auto_inc = table->next_number_field->val_uint();
 
 		switch (error) {
 		case DB_DUPLICATE_KEY:
@@ -8897,12 +8897,7 @@ calc_row_difference(
 				if (field != table->found_next_number_field
 				    || dfield_is_null(&ufield->new_val)) {
 				} else {
-					auto_inc = row_parse_int(
-						static_cast<const byte*>(
-							ufield->new_val.data),
-						ufield->new_val.len,
-						col->mtype,
-						col->prtype & DATA_UNSIGNED);
+					auto_inc = field->val_uint();
 				}
 			}
 			n_changed++;
@@ -13698,16 +13693,12 @@ innobase_rename_table(
 	TrxInInnoDB	trx_in_innodb(trx);
 
 	trx_start_if_not_started(trx, true);
+	ut_ad(trx->will_lock > 0);
 
 	/* Serialize data dictionary operations with dictionary mutex:
 	no deadlocks can occur then in these operations. */
 
 	row_mysql_lock_data_dictionary(trx);
-
-	/* Transaction must be flagged as a locking transaction or it hasn't
-	been started yet. */
-
-	ut_a(trx->will_lock > 0);
 
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, TRUE);
 
@@ -13717,7 +13708,6 @@ innobase_rename_table(
 
 		We are doing a DDL operation. */
 		++trx->will_lock;
-		trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
 		trx_start_if_not_started(trx, true);
 		error = row_rename_partitions_for_mysql(norm_from, norm_to,
 							trx);

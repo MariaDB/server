@@ -1726,7 +1726,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_default_time_precision
         case_stmt_body opt_bin_mod opt_for_system_time_clause
         opt_if_exists_table_element opt_if_not_exists_table_element
-	opt_recursive
+	opt_recursive opt_format_xid
 
 %type <object_ddl_options>
         create_or_replace
@@ -17497,9 +17497,26 @@ xa:
           {
             Lex->sql_command = SQLCOM_XA_ROLLBACK;
           }
-        | XA_SYM RECOVER_SYM
+        | XA_SYM RECOVER_SYM opt_format_xid
           {
             Lex->sql_command = SQLCOM_XA_RECOVER;
+            Lex->verbose= $3;
+          }
+        ;
+
+opt_format_xid:
+         /* empty */ { $$= false; }
+        | FORMAT_SYM '=' ident_or_text
+          {
+            if (!my_strcasecmp(system_charset_info, $3.str, "SQL"))
+              $$= true;
+            else if (!my_strcasecmp(system_charset_info, $3.str, "RAW"))
+              $$= false;
+            else
+            {
+              my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0), "XA RECOVER", $3.str));
+              $$= false;
+            }
           }
         ;
 

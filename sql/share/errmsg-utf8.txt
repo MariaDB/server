@@ -6850,8 +6850,8 @@ ER_CANT_SET_GTID_NEXT_WHEN_OWNING_GTID
   eng "GTID_NEXT cannot be changed by a client that owns a GTID. The client owns %s. Ownership is released on COMMIT or ROLLBACK"
 
 ER_UNKNOWN_EXPLAIN_FORMAT
-  eng "Unknown EXPLAIN format name: '%s'"
-  rus "Неизвестное имя формата команды EXPLAIN: '%s'"
+  eng "Unknown %s format name: '%s'"
+  rus "Неизвестное имя формата команды %s: '%s'"
 
 ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION 25006
   eng "Cannot execute statement in a READ ONLY transaction"

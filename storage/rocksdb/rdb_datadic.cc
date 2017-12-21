@@ -2921,7 +2921,7 @@ std::array<const Rdb_collation_codec *, MY_ALL_CHARSETS_SIZE>
     rdb_collation_data;
 mysql_mutex_t rdb_collation_data_mutex;
 
-static bool rdb_is_collation_supported(const my_core::CHARSET_INFO *const cs) {
+bool rdb_is_collation_supported(const my_core::CHARSET_INFO *const cs) {
   return cs->strxfrm_multiply==1 && cs->mbmaxlen == 1 &&
          !(cs->state & (MY_CS_BINSORT | MY_CS_NOPAD));
 }

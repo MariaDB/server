@@ -161,7 +161,7 @@ LF_PINS *lf_pinbox_get_pins(LF_PINBOX *pinbox)
     pinstack_top_ver is 32 bits; 16 low bits are the index in the
     array, to the first element of the list. 16 high bits are a version
     (every time the 16 low bits are updated, the 16 high bits are
-    incremented). Versioniong prevents the ABA problem.
+    incremented). Versioning prevents the ABA problem.
   */
   top_ver= pinbox->pinstack_top_ver;
   do

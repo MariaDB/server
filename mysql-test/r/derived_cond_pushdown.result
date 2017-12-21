@@ -6999,6 +6999,3722 @@ drop view v_union,v2_union,v3_union,v4_union;
 drop view v_double,v_char,v_decimal;
 drop table t1,t2,t1_double,t2_double,t1_char,t2_char,t1_decimal,t2_decimal;
 #
+# MDEV-14579: pushdown conditions into materialized views/derived tables
+# that are defined with EXIST or/and INTERSECT
+#
+create table t1 (a int, b int, c int);
+create table t2 (a int, b int, c int);
+insert into t1 values
+(1,21,345), (1,33,7), (8,33,114), (1,21,500), (1,19,117), (5,14,787),
+(8,33,123), (9,10,211), (5,16,207), (1,33,988), (5,27,132), (1,21,104),
+(6,20,309), (6,20,315), (1,21,101), (4,33,404), (9,10,800), (1,21,123);
+insert into t2 values
+(2,3,207), (1,16,909), (5,14,312),
+(5,33,207), (6,20,211), (1,19,132),
+(8,33,117), (3,21,231), (6,23,303);
+create view v1 as
+select a, b, min(c) as c from t1
+where t1.a<9 group by a,b having c < 300
+intersect
+select a, b, min(c) as c from t1
+where t1.b>10 group by a,b having c > 100;
+# using intersect in view definition
+# conjunctive subformulas : pushing into WHERE
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+a	b	c	a	b	c
+1	21	101	1	16	909
+1	19	117	1	16	909
+1	21	101	1	19	132
+1	19	117	1	19	132
+select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+a	b	c	a	b	c
+1	21	101	1	16	909
+1	19	117	1	16	909
+1	21	101	1	19	132
+1	19	117	1	19	132
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a < 5 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<intersect2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and t1.a < 5"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c > 100",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and t1.a < 5"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using intersect in view definition
+# conjunctive subformulas : pushing into WHERE
+# pushing equalities
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
+a	b	c	a	b	c
+8	33	114	8	33	117
+select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
+a	b	c	a	b	c
+8	33	114	8	33	117
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a = 8"
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived2>",
+        "access_type": "ALL",
+        "rows": 18,
+        "filtered": 100,
+        "attached_condition": "v1.a = 8"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<intersect2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a = 8"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c > 100",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a = 8 and t1.b > 10"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using intersect in view definition
+# conjunctive subformulas : pushing into WHERE using equalities
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
+a	b	c	a	b	c
+8	33	114	8	33	117
+select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
+a	b	c	a	b	c
+8	33	114	8	33	117
+explain select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a = 8"
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived2>",
+        "access_type": "ALL",
+        "rows": 18,
+        "filtered": 100,
+        "attached_condition": "v1.a = 8"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<intersect2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a = 8"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c > 100",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a = 8 and t1.b > 10"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using intersect in view definition
+# conjunctive subformulas : pushing into HAVING
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.c>200);
+a	b	c	a	b	c
+5	16	207	5	14	312
+5	16	207	5	33	207
+select * from v1,t2 where (v1.a=t2.a) and (v1.c>200);
+a	b	c	a	b	c
+5	16	207	5	14	312
+5	16	207	5	33	207
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.c>200);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.c>200);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.c > 200",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<intersect2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300 and c > 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c > 100 and c > 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using intersect in view definition
+# conjunctive subformulas : pushing into WHERE
+# conjunctive subformulas : pushing into HAVING
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);
+a	b	c	a	b	c
+1	19	117	1	16	909
+1	19	117	1	19	132
+select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);
+a	b	c	a	b	c
+1	19	117	1	16	909
+1	19	117	1	19	132
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a < 5 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.c > 110",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<intersect2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300 and c > 110",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and t1.a < 5"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c > 100 and c > 110",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and t1.a < 5"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using intersect in view definition
+# extracted or formula : pushing into WHERE
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+a	b	c	a	b	c
+5	16	207	5	14	312
+5	16	207	5	33	207
+8	33	114	8	33	117
+select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+a	b	c	a	b	c
+5	16	207	5	14	312
+5	16	207	5	33	207
+8	33	114	8	33	117
+explain select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.b > 27 or v1.b < 19",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<intersect2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and (t1.b > 27 or t1.b < 19)"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c > 100",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and (t1.b > 27 or t1.b < 19)"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using intersect in view definition
+# extracted or formula : pushing into HAVING
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
+(v1.a=t2.a) and ((v1.c>200) or (v1.c<105));
+a	b	c	a	b	c
+1	21	101	1	16	909
+5	16	207	5	14	312
+5	16	207	5	33	207
+1	21	101	1	19	132
+select * from v1,t2 where
+(v1.a=t2.a) and ((v1.c>200) or (v1.c<105));
+a	b	c	a	b	c
+1	21	101	1	16	909
+5	16	207	5	14	312
+5	16	207	5	33	207
+1	21	101	1	19	132
+explain select * from v1,t2 where
+(v1.a=t2.a) and ((v1.c>200) or (v1.c<105));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where
+(v1.a=t2.a) and ((v1.c>200) or (v1.c<105));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.c > 200 or v1.c < 105",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<intersect2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300 and (c > 200 or c < 105)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c > 100 and (c > 200 or c < 105)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using intersect in view definition
+# extracted or formula : pushing into WHERE
+# extracted or formula : pushing into HAVING using equalities
+# pushing equalities
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
+((v1.a>3) and (t2.c>110) and (v1.c=t2.c)) or
+((v1.a=1) and (v1.c<110));
+a	b	c	a	b	c
+1	21	101	2	3	207
+1	21	101	1	16	909
+1	21	101	5	14	312
+1	21	101	5	33	207
+1	21	101	6	20	211
+1	21	101	1	19	132
+1	21	101	8	33	117
+1	21	101	3	21	231
+1	21	101	6	23	303
+5	16	207	2	3	207
+5	16	207	5	33	207
+5	27	132	1	19	132
+select * from v1,t2 where
+((v1.a>3) and (t2.c>110) and (v1.c=t2.c)) or
+((v1.a=1) and (v1.c<110));
+a	b	c	a	b	c
+1	21	101	2	3	207
+1	21	101	1	16	909
+1	21	101	5	14	312
+1	21	101	5	33	207
+1	21	101	6	20	211
+1	21	101	1	19	132
+1	21	101	8	33	117
+1	21	101	3	21	231
+1	21	101	6	23	303
+5	16	207	2	3	207
+5	16	207	5	33	207
+5	27	132	1	19	132
+explain select * from v1,t2 where
+((v1.a>3) and (t2.c>110) and (v1.c=t2.c)) or
+((v1.a=1) and (v1.c<110));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where
+((v1.a>3) and (t2.c>110) and (v1.c=t2.c)) or
+((v1.a=1) and (v1.c<110));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived2>",
+        "access_type": "ALL",
+        "rows": 18,
+        "filtered": 100,
+        "attached_condition": "v1.a > 3 or v1.a = 1 and v1.c < 110"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "v1.c = t2.c and v1.a > 3 and t2.c > 110 or v1.a = 1 and v1.c < 110",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<intersect2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300 and (t1.a > 3 and c > 110 or c < 110 and t1.a = 1)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and (t1.a > 3 or t1.a = 1)"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c > 100 and (t1.a > 3 and c > 110 or c < 110 and t1.a = 1)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and (t1.a > 3 or t1.a = 1)"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using intersect in view definition
+# prepare of a query
+# conjunctive subformulas : pushing into WHERE
+# conjunctive subformulas : pushing into HAVING
+prepare stmt from "select * from v1,t2
+                   where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);";
+execute stmt;
+a	b	c	a	b	c
+1	19	117	1	16	909
+1	19	117	1	19	132
+execute stmt;
+a	b	c	a	b	c
+1	19	117	1	16	909
+1	19	117	1	19	132
+deallocate prepare stmt;
+# using intersect in derived table definition
+# extracted or formula : pushing into WHERE using equalities
+# extracted or formula : pushing into HAVING
+# pushing equalities
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select *
+from t2,
+(select a, b, min(c) as c from t1
+where t1.a<9 group by a,b having c < 300
+intersect
+select a, b, min(c) as c from t1
+where t1.b>10 group by a,b having c > 100) as d1
+where
+(d1.b=t2.b) and
+(((t2.b>13) and (t2.c=909)) or
+((d1.a<4) and (d1.c<200)));
+a	b	c	a	b	c
+1	16	909	5	16	207
+1	19	132	1	19	117
+3	21	231	1	21	101
+select *
+from t2,
+(select a, b, min(c) as c from t1
+where t1.a<9 group by a,b having c < 300
+intersect
+select a, b, min(c) as c from t1
+where t1.b>10 group by a,b having c > 100) as d1
+where
+(d1.b=t2.b) and
+(((t2.b>13) and (t2.c=909)) or
+((d1.a<4) and (d1.c<200)));
+a	b	c	a	b	c
+1	16	909	5	16	207
+1	19	132	1	19	117
+3	21	231	1	21	101
+explain select *
+from t2,
+(select a, b, min(c) as c from t1
+where t1.a<9 group by a,b having c < 300
+intersect
+select a, b, min(c) as c from t1
+where t1.b>10 group by a,b having c > 100) as d1
+where
+(d1.b=t2.b) and
+(((t2.b>13) and (t2.c=909)) or
+((d1.a<4) and (d1.c<200)));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select *
+from t2,
+(select a, b, min(c) as c from t1
+where t1.a<9 group by a,b having c < 300
+intersect
+select a, b, min(c) as c from t1
+where t1.b>10 group by a,b having c > 100) as d1
+where
+(d1.b=t2.b) and
+(((t2.b>13) and (t2.c=909)) or
+((d1.a<4) and (d1.c<200)));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.b is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["b"],
+      "ref": ["test.t2.b"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t2.c = 909 and t2.b > 13 or d1.a < 4 and d1.c < 200",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<intersect2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300 and (t1.b > 13 or t1.a < 4 and c < 200)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and (t1.b > 13 or t1.a < 4)"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c > 100 and (t1.b > 13 or t1.a < 4 and c < 200)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and (t1.b > 13 or t1.a < 4)"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+create view v1 as
+select a, b, max(c) as c from t1
+where t1.a<9 group by a,b having c > 200
+except
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300;
+# using except in view definition
+# conjunctive subformulas : pushing into WHERE
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+a	b	c	a	b	c
+1	33	988	1	16	909
+1	21	500	1	16	909
+1	33	988	1	19	132
+1	21	500	1	19	132
+select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+a	b	c	a	b	c
+1	33	988	1	16	909
+1	21	500	1	16	909
+1	33	988	1	19	132
+1	21	500	1	19	132
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a < 5 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and t1.a < 5"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c < 300",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and t1.a < 5"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using except in view definition
+# conjunctive subformulas : pushing into WHERE
+# pushing equalities
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a=6);
+a	b	c	a	b	c
+6	20	315	6	20	211
+6	20	315	6	23	303
+select * from v1,t2 where (v1.a=t2.a) and (v1.a=6);
+a	b	c	a	b	c
+6	20	315	6	20	211
+6	20	315	6	23	303
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a=6);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a=6);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a = 6"
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived2>",
+        "access_type": "ALL",
+        "rows": 18,
+        "filtered": 100,
+        "attached_condition": "v1.a = 6"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a = 6"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c < 300",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a = 6 and t1.b > 10"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using except in view definition
+# conjunctive subformulas : pushing into WHERE using equalities
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (t2.a=6);
+a	b	c	a	b	c
+6	20	315	6	20	211
+6	20	315	6	23	303
+select * from v1,t2 where (v1.a=t2.a) and (t2.a=6);
+a	b	c	a	b	c
+6	20	315	6	20	211
+6	20	315	6	23	303
+explain select * from v1,t2 where (v1.a=t2.a) and (t2.a=6);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (t2.a=6);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a = 6"
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived2>",
+        "access_type": "ALL",
+        "rows": 18,
+        "filtered": 100,
+        "attached_condition": "v1.a = 6"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a = 6"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c < 300",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a = 6 and t1.b > 10"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using except in view definition
+# conjunctive subformulas : pushing into HAVING
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.c>500);
+a	b	c	a	b	c
+1	33	988	1	16	909
+5	14	787	5	14	312
+5	14	787	5	33	207
+1	33	988	1	19	132
+select * from v1,t2 where (v1.a=t2.a) and (v1.c>500);
+a	b	c	a	b	c
+1	33	988	1	16	909
+5	14	787	5	14	312
+5	14	787	5	33	207
+1	33	988	1	19	132
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.c>500);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.c>500);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.c > 500",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200 and c > 500",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c < 300 and c > 500",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using except in view definition
+# conjunctive subformulas : pushing into WHERE
+# conjunctive subformulas : pushing into HAVING
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);
+a	b	c	a	b	c
+1	33	988	1	16	909
+1	33	988	1	19	132
+select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);
+a	b	c	a	b	c
+1	33	988	1	16	909
+1	33	988	1	19	132
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a < 5 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.c > 500",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200 and c > 500",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and t1.a < 5"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c < 300 and c > 500",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and t1.a < 5"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using except in view definition
+# extracted or formula : pushing into WHERE
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+a	b	c	a	b	c
+1	33	988	1	16	909
+5	14	787	5	14	312
+5	14	787	5	33	207
+1	33	988	1	19	132
+select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+a	b	c	a	b	c
+1	33	988	1	16	909
+5	14	787	5	14	312
+5	14	787	5	33	207
+1	33	988	1	19	132
+explain select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.b > 27 or v1.b < 19",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and (t1.b > 27 or t1.b < 19)"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c < 300",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and (t1.b > 27 or t1.b < 19)"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using except in view definition
+# extracted or formula : pushing into HAVING
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
+(v1.a=t2.a) and ((v1.c<400) or (v1.c>800));
+a	b	c	a	b	c
+1	33	988	1	16	909
+6	20	315	6	20	211
+1	33	988	1	19	132
+6	20	315	6	23	303
+select * from v1,t2 where
+(v1.a=t2.a) and ((v1.c<400) or (v1.c>800));
+a	b	c	a	b	c
+1	33	988	1	16	909
+6	20	315	6	20	211
+1	33	988	1	19	132
+6	20	315	6	23	303
+explain select * from v1,t2 where
+(v1.a=t2.a) and ((v1.c<400) or (v1.c>800));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where
+(v1.a=t2.a) and ((v1.c<400) or (v1.c>800));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.c < 400 or v1.c > 800",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200 and (c < 400 or c > 800)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c < 300 and (c < 400 or c > 800)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using except in view definition
+# extracted or formula : pushing into WHERE
+# extracted or formula : pushing into HAVING using equalities
+# pushing equalities
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where
+(v1.c=t2.c) and
+((v1.a>1) and (t2.c<500)) or
+((v1.a=1) and (v1.c>500));
+a	b	c	a	b	c
+1	33	988	2	3	207
+1	33	988	1	16	909
+1	33	988	5	14	312
+1	33	988	5	33	207
+1	33	988	6	20	211
+1	33	988	1	19	132
+1	33	988	8	33	117
+1	33	988	3	21	231
+1	33	988	6	23	303
+select * from v1,t2 where
+(v1.c=t2.c) and
+((v1.a>1) and (t2.c<500)) or
+((v1.a=1) and (v1.c>500));
+a	b	c	a	b	c
+1	33	988	2	3	207
+1	33	988	1	16	909
+1	33	988	5	14	312
+1	33	988	5	33	207
+1	33	988	6	20	211
+1	33	988	1	19	132
+1	33	988	8	33	117
+1	33	988	3	21	231
+1	33	988	6	23	303
+explain select * from v1,t2 where
+(v1.c=t2.c) and
+((v1.a>1) and (t2.c<500)) or
+((v1.a=1) and (v1.c>500));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where
+(v1.c=t2.c) and
+((v1.a>1) and (t2.c<500)) or
+((v1.a=1) and (v1.c>500));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived2>",
+        "access_type": "ALL",
+        "rows": 18,
+        "filtered": 100,
+        "attached_condition": "v1.a > 1 or v1.a = 1 and v1.c > 500"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "v1.c = t2.c and v1.a > 1 and t2.c < 500 or v1.a = 1 and v1.c > 500",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200 and (t1.a > 1 and c < 500 or c > 500 and t1.a = 1)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and (t1.a > 1 or t1.a = 1)"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c < 300 and (t1.a > 1 and c < 500 or c > 500 and t1.a = 1)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and (t1.a > 1 or t1.a = 1)"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using except in view definition
+# prepare of a query
+# conjunctive subformulas : pushing into WHERE
+# conjunctive subformulas : pushing into HAVING
+prepare stmt from "select * from v1,t2
+                   where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);";
+execute stmt;
+a	b	c	a	b	c
+1	33	988	1	16	909
+1	33	988	1	19	132
+execute stmt;
+a	b	c	a	b	c
+1	33	988	1	16	909
+1	33	988	1	19	132
+deallocate prepare stmt;
+# using except in view definition
+# extracted or formula : pushing into WHERE using equalities
+# extracted or formula : pushing into HAVING
+# pushing equalities
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select *
+from t2,
+(select a, b, max(c) as c from t1
+where t1.a<9 group by a,b having c > 200
+except
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300) as d1
+where
+(d1.b=t2.b) and
+(((t2.b>13) and (t2.c=988)) or
+((d1.a>4) and (d1.c>500)));
+a	b	c	a	b	c
+5	14	312	5	14	787
+select *
+from t2,
+(select a, b, max(c) as c from t1
+where t1.a<9 group by a,b having c > 200
+except
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300) as d1
+where
+(d1.b=t2.b) and
+(((t2.b>13) and (t2.c=988)) or
+((d1.a>4) and (d1.c>500)));
+a	b	c	a	b	c
+5	14	312	5	14	787
+explain select *
+from t2,
+(select a, b, max(c) as c from t1
+where t1.a<9 group by a,b having c > 200
+except
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300) as d1
+where
+(d1.b=t2.b) and
+(((t2.b>13) and (t2.c=988)) or
+((d1.a>4) and (d1.c>500)));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select *
+from t2,
+(select a, b, max(c) as c from t1
+where t1.a<9 group by a,b having c > 200
+except
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300) as d1
+where
+(d1.b=t2.b) and
+(((t2.b>13) and (t2.c=988)) or
+((d1.a>4) and (d1.c>500)));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.b is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["b"],
+      "ref": ["test.t2.b"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t2.c = 988 and t2.b > 13 or d1.a > 4 and d1.c > 500",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200 and (t1.b > 13 or t1.a > 4 and c > 500)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and (t1.b > 13 or t1.a > 4)"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c < 300 and (t1.b > 13 or t1.a > 4 and c > 500)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and (t1.b > 13 or t1.a > 4)"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using union and intersect in view definition
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, min(c) as c from t1
+where t1.a<9 group by a,b having c > 200
+union
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300
+intersect
+select a, b, max(c) as c from t1
+where t1.a>3 group by a,b having c < 530;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+a	b	c	a	b	c
+6	20	309	6	20	211
+6	20	309	6	23	303
+select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+a	b	c	a	b	c
+6	20	309	6	20	211
+6	20	309	6	23	303
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
+4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+5	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a > 5 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "v1.c > 200",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200 and c > 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and t1.a > 5"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "table_name": "<derived4>",
+                    "access_type": "ALL",
+                    "rows": 18,
+                    "filtered": 100,
+                    "attached_condition": "__3.a > 5 and __3.c > 200",
+                    "materialized": {
+                      "query_block": {
+                        "union_result": {
+                          "table_name": "<intersect4,5>",
+                          "access_type": "ALL",
+                          "query_specifications": [
+                            {
+                              "query_block": {
+                                "select_id": 4,
+                                "having_condition": "c < 300 and c > 200",
+                                "filesort": {
+                                  "sort_key": "t1.a, t1.b",
+                                  "temporary_table": {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "rows": 18,
+                                      "filtered": 100,
+                                      "attached_condition": "t1.b > 10 and t1.a > 5"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "query_block": {
+                                "select_id": 5,
+                                "operation": "INTERSECT",
+                                "having_condition": "c < 530 and c > 200",
+                                "filesort": {
+                                  "sort_key": "t1.a, t1.b",
+                                  "temporary_table": {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "rows": 18,
+                                      "filtered": 100,
+                                      "attached_condition": "t1.a > 3 and t1.a > 5"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using union and intersect in view definition
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, min(c) as c from t1
+where t1.a<9 group by a,b having c > 200
+intersect
+select a, b, max(c) as c from t1
+where t1.a>3 group by a,b having c < 500
+union
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+a	b	c	a	b	c
+5	27	132	5	14	312
+5	27	132	5	33	207
+8	33	123	8	33	117
+select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+a	b	c	a	b	c
+5	27	132	5	14	312
+5	27	132	5	33	207
+8	33	123	8	33	117
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a > 4 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "v1.c < 200",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<unit2,3,4>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200 and c < 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c < 500 and c < 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a > 3 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 4,
+                  "operation": "UNION",
+                  "having_condition": "c < 300 and c < 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using union and except in view definition
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, min(c) as c from t1
+where t1.a<9 group by a,b having c > 200
+union
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300
+except
+select a, b, max(c) as c from t1
+where t1.a>3 group by a,b having c < 530;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+a	b	c	a	b	c
+6	20	309	6	20	211
+6	20	309	6	23	303
+select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+a	b	c	a	b	c
+6	20	309	6	20	211
+6	20	309	6	23	303
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a > 5 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "v1.c > 200",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<unit2,3,4>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200 and c > 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and t1.a > 5"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "having_condition": "c < 300 and c > 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and t1.a > 5"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 4,
+                  "operation": "EXCEPT",
+                  "having_condition": "c < 530 and c > 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a > 3 and t1.a > 5"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using union and except in view definition
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, min(c) as c from t1
+where t1.a<9 group by a,b having c > 200
+except
+select a, b, max(c) as c from t1
+where t1.a>3 group by a,b having c < 500
+union
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+a	b	c	a	b	c
+5	27	132	5	14	312
+5	27	132	5	33	207
+8	33	123	8	33	117
+select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+a	b	c	a	b	c
+5	27	132	5	14	312
+5	27	132	5	33	207
+8	33	123	8	33	117
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a > 4 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "v1.c < 200",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<unit2,3,4>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 200 and c < 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c < 500 and c < 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a > 3 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 4,
+                  "operation": "UNION",
+                  "having_condition": "c < 300 and c < 200",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using except and intersect in view definition
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300
+intersect
+select a, b, max(c) as c from t1
+where t1.a<7 group by a,b having c < 500
+except
+select a, b, max(c) as c from t1
+where t1.a<9 group by a,b having c > 150;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<150);
+a	b	c	a	b	c
+5	27	132	5	14	312
+5	27	132	5	33	207
+select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<150);
+a	b	c	a	b	c
+5	27	132	5	14	312
+5	27	132	5	33	207
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<150);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<150);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a > 4 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.c < 150",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<unit2,3,4>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300 and c < 150",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c < 500 and c < 150",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 7 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 4,
+                  "operation": "EXCEPT",
+                  "having_condition": "c > 150 and c < 150",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using except and intersect in view definition
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300
+except
+select a, b, max(c) as c from t1
+where t1.a<9 group by a,b having c > 150
+intersect
+select a, b, max(c) as c from t1
+where t1.a<7 group by a,b having c < 500;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+a	b	c	a	b	c
+8	33	123	8	33	117
+select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+a	b	c	a	b	c
+8	33	123	8	33	117
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
+4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+5	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a > 4 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.c < 130",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300 and c < 130",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "table": {
+                    "table_name": "<derived4>",
+                    "access_type": "ALL",
+                    "rows": 18,
+                    "filtered": 100,
+                    "attached_condition": "__3.a > 4 and __3.c < 130",
+                    "materialized": {
+                      "query_block": {
+                        "union_result": {
+                          "table_name": "<intersect4,5>",
+                          "access_type": "ALL",
+                          "query_specifications": [
+                            {
+                              "query_block": {
+                                "select_id": 4,
+                                "having_condition": "c > 150 and c < 130",
+                                "filesort": {
+                                  "sort_key": "t1.a, t1.b",
+                                  "temporary_table": {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "rows": 18,
+                                      "filtered": 100,
+                                      "attached_condition": "t1.a < 9 and t1.a > 4"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "query_block": {
+                                "select_id": 5,
+                                "operation": "INTERSECT",
+                                "having_condition": "c < 500 and c < 130",
+                                "filesort": {
+                                  "sort_key": "t1.a, t1.b",
+                                  "temporary_table": {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "rows": 18,
+                                      "filtered": 100,
+                                      "attached_condition": "t1.a < 7 and t1.a > 4"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using except, intersect and union in view definition
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300
+except
+select a, b, max(c) as c from t1
+where t1.a<9 group by a,b having c > 150
+intersect
+select a, b, max(c) as c from t1
+where t1.a<7 group by a,b having c < 500
+union
+select a, b, max(c) as c from t1
+where t1.a<7 group by a,b having c < 120;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+a	b	c	a	b	c
+8	33	123	8	33	117
+select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+a	b	c	a	b	c
+8	33	123	8	33	117
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
+4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+5	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
+6	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,6>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a > 4 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "v1.c < 130",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<unit2,3,6>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c < 300 and c < 130",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "table": {
+                    "table_name": "<derived4>",
+                    "access_type": "ALL",
+                    "rows": 18,
+                    "filtered": 100,
+                    "attached_condition": "__3.a > 4 and __3.c < 130",
+                    "materialized": {
+                      "query_block": {
+                        "union_result": {
+                          "table_name": "<intersect4,5>",
+                          "access_type": "ALL",
+                          "query_specifications": [
+                            {
+                              "query_block": {
+                                "select_id": 4,
+                                "having_condition": "c > 150 and c < 130",
+                                "filesort": {
+                                  "sort_key": "t1.a, t1.b",
+                                  "temporary_table": {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "rows": 18,
+                                      "filtered": 100,
+                                      "attached_condition": "t1.a < 9 and t1.a > 4"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "query_block": {
+                                "select_id": 5,
+                                "operation": "INTERSECT",
+                                "having_condition": "c < 500 and c < 130",
+                                "filesort": {
+                                  "sort_key": "t1.a, t1.b",
+                                  "temporary_table": {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "rows": 18,
+                                      "filtered": 100,
+                                      "attached_condition": "t1.a < 7 and t1.a > 4"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 6,
+                  "operation": "UNION",
+                  "having_condition": "c < 120 and c < 130",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 7 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using intersect in view definition
+# using embedded view
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300
+intersect
+select a, b, max(c) as c from t1
+where t1.a<9 group by a,b having c > 120;
+create view v2 as
+select a, b, max(c) as c from v1
+where v1.a<7 group by a,b;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+a	b	c	a	b	c
+5	27	132	5	14	312
+5	27	132	5	33	207
+select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+a	b	c	a	b	c
+5	27	132	5	14	312
+5	27	132	5	33	207
+explain select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a > 4 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v2.c < 150",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "c < 150",
+          "filesort": {
+            "sort_key": "v1.a, v1.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "<derived3>",
+                "access_type": "ALL",
+                "rows": 18,
+                "filtered": 100,
+                "attached_condition": "v1.a < 7 and v1.a > 4",
+                "materialized": {
+                  "query_block": {
+                    "union_result": {
+                      "table_name": "<intersect3,4>",
+                      "access_type": "ALL",
+                      "query_specifications": [
+                        {
+                          "query_block": {
+                            "select_id": 3,
+                            "having_condition": "c < 300",
+                            "filesort": {
+                              "sort_key": "t1.a, t1.b",
+                              "temporary_table": {
+                                "table": {
+                                  "table_name": "t1",
+                                  "access_type": "ALL",
+                                  "rows": 18,
+                                  "filtered": 100,
+                                  "attached_condition": "t1.b > 10 and t1.a < 7 and t1.a > 4"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "query_block": {
+                            "select_id": 4,
+                            "operation": "INTERSECT",
+                            "having_condition": "c > 120",
+                            "filesort": {
+                              "sort_key": "t1.a, t1.b",
+                              "temporary_table": {
+                                "table": {
+                                  "table_name": "t1",
+                                  "access_type": "ALL",
+                                  "rows": 18,
+                                  "filtered": 100,
+                                  "attached_condition": "t1.a < 9 and t1.a < 7 and t1.a > 4"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1,v2;
+# using except in view definition
+# using embedded view
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c < 300
+except
+select a, b, max(c) as c from t1
+where t1.a<9 group by a,b having c > 150;
+create view v2 as
+select a, b, max(c) as c from v1
+where v1.a<7 group by a,b;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+a	b	c	a	b	c
+5	27	132	5	14	312
+5	27	132	5	33	207
+select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+a	b	c	a	b	c
+5	27	132	5	14	312
+5	27	132	5	33	207
+explain select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a > 4 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v2.c < 150",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "c < 150",
+          "filesort": {
+            "sort_key": "v1.a, v1.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "<derived3>",
+                "access_type": "ALL",
+                "rows": 18,
+                "filtered": 100,
+                "attached_condition": "v1.a < 7 and v1.a > 4",
+                "materialized": {
+                  "query_block": {
+                    "union_result": {
+                      "table_name": "<except3,4>",
+                      "access_type": "ALL",
+                      "query_specifications": [
+                        {
+                          "query_block": {
+                            "select_id": 3,
+                            "having_condition": "c < 300",
+                            "filesort": {
+                              "sort_key": "t1.a, t1.b",
+                              "temporary_table": {
+                                "table": {
+                                  "table_name": "t1",
+                                  "access_type": "ALL",
+                                  "rows": 18,
+                                  "filtered": 100,
+                                  "attached_condition": "t1.b > 10 and t1.a < 7 and t1.a > 4"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "query_block": {
+                            "select_id": 4,
+                            "operation": "EXCEPT",
+                            "having_condition": "c > 150",
+                            "filesort": {
+                              "sort_key": "t1.a, t1.b",
+                              "temporary_table": {
+                                "table": {
+                                  "table_name": "t1",
+                                  "access_type": "ALL",
+                                  "rows": 18,
+                                  "filtered": 100,
+                                  "attached_condition": "t1.a < 9 and t1.a < 7 and t1.a > 4"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1,v2;
+# using intersect in view definition
+# conditions are pushed in different parts of selects
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, max(c) as c from t1
+where t1.a<9 group by a having c > 300
+intersect
+select a, b, max(c) as c from t1
+where t1.b<21 group by b having c > 200;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.b>12) and (v1.c<450);
+a	b	c	a	b	c
+6	20	315	6	20	211
+6	20	315	6	23	303
+select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.b>12) and (v1.c<450);
+a	b	c	a	b	c
+6	20	315	6	20	211
+6	20	315	6	23	303
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.b>12) and (v1.c<450);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.b>12) and (v1.c<450);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a > 4 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.b > 12 and v1.c < 450",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<intersect2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 300 and t1.b > 12 and c < 450",
+                  "filesort": {
+                    "sort_key": "t1.a",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and t1.a > 4"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c > 200 and t1.a > 4 and c < 450",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b < 21 and t1.b > 12"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using except in view definition
+# conditions are pushed in different parts of selects
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, max(c) as c from t1
+where t1.b>20 group by a having c > 300
+except
+select a, b, max(c) as c from t1
+where t1.a<7 group by b having c > 150;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a<2) and (v1.b<30) and (v1.c>450);
+a	b	c	a	b	c
+1	21	988	1	16	909
+1	21	988	1	19	132
+select * from v1,t2 where (v1.a=t2.a) and (v1.a<2) and (v1.b<30) and (v1.c>450);
+a	b	c	a	b	c
+1	21	988	1	16	909
+1	21	988	1	19	132
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<2) and (v1.b<30) and (v1.c>450);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a<2) and (v1.b<30) and (v1.c>450);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a < 2 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.b < 30 and v1.c > 450",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 300 and t1.b < 30 and c > 450",
+                  "filesort": {
+                    "sort_key": "t1.a",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 20 and t1.a < 2"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c > 150 and t1.a < 2 and c > 450",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 7 and t1.b < 30"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using except and union in view definition
+# conditions are pushed in different parts of selects
+# conjunctive subformulas : pushing into HAVING
+# extracted or formula : pushing into WHERE
+# extracted or formula : pushing into HAVING
+create view v1 as
+select a, b, max(c) as c from t1
+where t1.b>20 group by a having c > 300
+except
+select a, b, max(c) as c from t1
+where t1.a<7 group by b having c > 150;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and ((v1.a<2) or (v1.a<5)) and (v1.c>450);
+a	b	c	a	b	c
+1	21	988	1	16	909
+1	21	988	1	19	132
+select * from v1,t2 where (v1.a=t2.a) and ((v1.a<2) or (v1.a<5)) and (v1.c>450);
+a	b	c	a	b	c
+1	21	988	1	16	909
+1	21	988	1	19	132
+explain select * from v1,t2 where (v1.a=t2.a) and ((v1.a<2) or (v1.a<5)) and (v1.c>450);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and ((v1.a<2) or (v1.a<5)) and (v1.c>450);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "(t2.a < 2 or t2.a < 5) and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.c > 450",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<except2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 300 and c > 450",
+                  "filesort": {
+                    "sort_key": "t1.a",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 20 and (t1.a < 2 or t1.a < 5)"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "EXCEPT",
+                  "having_condition": "c > 150 and (t1.a < 2 or t1.a < 5) and c > 450",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 7"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using union and intersect in view definition
+# conditions are pushed in different parts of selects
+# conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+select a, b, max(c) as c from t1
+where t1.a<9 group by a having c > 100
+intersect
+select a, b, max(c) as c from t1
+where t1.a>3 group by b having c < 800
+union
+select a, b, max(c) as c from t1
+where t1.b>10 group by a,b having c > 300;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) and (v1.c>400);
+a	b	c	a	b	c
+5	14	787	5	14	312
+5	14	787	5	33	207
+select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) and (v1.c>400);
+a	b	c	a	b	c
+5	14	787	5	14	312
+5	14	787	5	33	207
+explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) and (v1.c>400);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) and (v1.c>400);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.a > 1 and t2.a is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "v1.b > 12 and v1.c > 400",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<unit2,3,4>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "c > 100 and t1.b > 12 and c > 400",
+                  "filesort": {
+                    "sort_key": "t1.a",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a < 9 and t1.a > 1"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "INTERSECT",
+                  "having_condition": "c < 800 and t1.a > 1 and c > 400",
+                  "filesort": {
+                    "sort_key": "t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.a > 3 and t1.b > 12"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 4,
+                  "operation": "UNION",
+                  "having_condition": "c > 300 and c > 400",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 18,
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 10 and t1.a > 1 and t1.b > 12"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+create table t3 (a int, b int, c int);
+insert into t3 values
+(1,21,345), (2,33,7), (8,33,114), (3,21,500), (1,19,107), (5,14,787),
+(4,33,123), (9,10,211), (11,16,207), (10,33,988), (5,27,132), (12,21,104),
+(6,20,309), (16,20,315), (16,21,101), (18,33,404), (19,10,800), (10,21,123),
+(17,11,708), (6,20,214);
+create index i1 on t3(a);
+# conjunctive subformulas : pushing into WHERE
+# pushed condition gives range access
+create view v1 as
+select a, b, max(c) as max_c from t3
+where a>0 group by a;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
+a	b	max_c	a	b	c
+4	33	123	5	33	207
+2	33	7	5	33	207
+4	33	123	8	33	117
+2	33	7	8	33	117
+3	21	500	3	21	231
+1	21	345	3	21	231
+select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
+a	b	max_c	a	b	c
+1	21	345	3	21	231
+2	33	7	5	33	207
+2	33	7	8	33	117
+3	21	500	3	21	231
+4	33	123	5	33	207
+4	33	123	8	33	117
+explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t3	range	i1	i1	5	NULL	5	Using index condition
+explain format=json select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived2>",
+        "access_type": "ALL",
+        "rows": 5,
+        "filtered": 80,
+        "attached_condition": "v1.a < 5"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "v1.b = t2.b",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t3",
+            "access_type": "range",
+            "possible_keys": ["i1"],
+            "key": "i1",
+            "key_length": "5",
+            "used_key_parts": ["a"],
+            "rows": 5,
+            "filtered": 100,
+            "index_condition": "t3.a > 0 and t3.a < 5"
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+# using union in view definition
+# conjunctive subformulas : pushing into WHERE
+# pushed condition gives range access
+create view v1 as
+select a, b, max(c) as c from t3
+where t3.a>1 group by a
+union
+select a, b, max(c) as c from t3
+where t3.a>2 group by a;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
+a	b	c	a	b	c
+2	33	7	5	33	207
+2	33	7	8	33	117
+3	21	500	3	21	231
+select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
+a	b	c	a	b	c
+2	33	7	5	33	207
+2	33	7	8	33	117
+3	21	500	3	21	231
+explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t3	range	i1	i1	5	NULL	2	Using index condition
+3	UNION	t3	range	i1	i1	5	NULL	1	Using index condition
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "v1.a < 4",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "table_name": "t3",
+                    "access_type": "range",
+                    "possible_keys": ["i1"],
+                    "key": "i1",
+                    "key_length": "5",
+                    "used_key_parts": ["a"],
+                    "rows": 2,
+                    "filtered": 100,
+                    "index_condition": "t3.a > 1 and t3.a < 4"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "table_name": "t3",
+                    "access_type": "range",
+                    "possible_keys": ["i1"],
+                    "key": "i1",
+                    "key_length": "5",
+                    "used_key_parts": ["a"],
+                    "rows": 1,
+                    "filtered": 100,
+                    "index_condition": "t3.a > 2 and t3.a < 4"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 9,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "t2.b = v1.b"
+    }
+  }
+}
+drop view v1;
+# using union in view definition
+# conjunctive subformulas : pushing into WHERE
+# pushed condition gives range access in one of the selects
+create view v1 as
+select a, b, max(c) as c from t3
+where t3.a>1 group by a
+union
+select a, b, max(c) as c from t3
+where t3.b<21 group by b;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
+a	b	c	a	b	c
+2	33	7	5	33	207
+1	19	107	1	19	132
+2	33	7	8	33	117
+select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
+a	b	c	a	b	c
+2	33	7	5	33	207
+1	19	107	1	19	132
+2	33	7	8	33	117
+explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
+2	DERIVED	t3	range	i1	i1	5	NULL	1	Using index condition
+3	UNION	t3	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "t2.b is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["b"],
+      "ref": ["test.t2.b"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.a < 3",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "table_name": "t3",
+                    "access_type": "range",
+                    "possible_keys": ["i1"],
+                    "key": "i1",
+                    "key_length": "5",
+                    "used_key_parts": ["a"],
+                    "rows": 1,
+                    "filtered": 100,
+                    "index_condition": "t3.a > 1 and t3.a < 3"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "having_condition": "t3.a < 3",
+                  "filesort": {
+                    "sort_key": "t3.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t3",
+                        "access_type": "ALL",
+                        "rows": 20,
+                        "filtered": 100,
+                        "attached_condition": "t3.b < 21"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop view v1;
+alter table t3 drop index i1;
+drop table t1,t2,t3;
+#
 # MDEV-10782: condition extracted from a multiple equality
 #             pushed into HAVING
 #

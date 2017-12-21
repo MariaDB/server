@@ -1,7 +1,6 @@
 # 
 # MDEV-4066 semisync_master + temporary tables causes memory leaks
 #
-source include/have_semisync.inc;
 source include/have_binlog_format_row.inc;
 source include/master-slave.inc;
 

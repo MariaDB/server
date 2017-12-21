@@ -1394,18 +1394,6 @@ parse_log:
 		page_parse_create(block, type == MLOG_COMP_PAGE_CREATE_RTREE,
 				  true);
 		break;
-	case MLOG_UNDO_INSERT:
-		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
-		ptr = trx_undo_parse_add_undo_rec(ptr, end_ptr, page);
-		break;
-	case MLOG_UNDO_ERASE_END:
-		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
-		ptr = trx_undo_parse_erase_page_end(ptr, end_ptr, page, mtr);
-		break;
-	case MLOG_UNDO_INIT:
-		/* Allow anything in page_type when creating a page. */
-		ptr = trx_undo_parse_page_init(ptr, end_ptr, page, mtr);
-		break;
 	case MLOG_UNDO_HDR_CREATE:
 		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
 		ptr = trx_undo_parse_page_header(ptr, end_ptr, page, mtr);
@@ -3474,6 +3462,8 @@ recv_recovery_rollback_active(void)
 
 		/* Drop partially created indexes. */
 		row_merge_drop_temp_indexes();
+		/* Drop garbage tables. */
+		row_mysql_drop_garbage_tables();
 
 		/* Drop any auxiliary tables that were not dropped when the
 		parent table was dropped. This can happen if the parent table
@@ -3629,15 +3619,6 @@ get_mlog_string(mlog_id_t type)
 
 	case MLOG_PAGE_CREATE:
 		return("MLOG_PAGE_CREATE");
-
-	case MLOG_UNDO_INSERT:
-		return("MLOG_UNDO_INSERT");
-
-	case MLOG_UNDO_ERASE_END:
-		return("MLOG_UNDO_ERASE_END");
-
-	case MLOG_UNDO_INIT:
-		return("MLOG_UNDO_INIT");
 
 	case MLOG_UNDO_HDR_CREATE:
 		return("MLOG_UNDO_HDR_CREATE");

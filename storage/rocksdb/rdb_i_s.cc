@@ -1484,7 +1484,7 @@ struct st_maria_plugin rdb_i_s_cfstats = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
 struct st_maria_plugin rdb_i_s_dbstats = {
@@ -1500,7 +1500,7 @@ struct st_maria_plugin rdb_i_s_dbstats = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
 struct st_maria_plugin rdb_i_s_perf_context = {
@@ -1516,7 +1516,7 @@ struct st_maria_plugin rdb_i_s_perf_context = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
 struct st_maria_plugin rdb_i_s_perf_context_global = {
@@ -1532,7 +1532,7 @@ struct st_maria_plugin rdb_i_s_perf_context_global = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
 struct st_maria_plugin rdb_i_s_cfoptions = {
@@ -1548,7 +1548,7 @@ struct st_maria_plugin rdb_i_s_cfoptions = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
 struct st_maria_plugin rdb_i_s_global_info = {
@@ -1564,7 +1564,7 @@ struct st_maria_plugin rdb_i_s_global_info = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
 struct st_maria_plugin rdb_i_s_compact_stats = {
@@ -1580,7 +1580,7 @@ struct st_maria_plugin rdb_i_s_compact_stats = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
 struct st_maria_plugin rdb_i_s_ddl = {
@@ -1596,7 +1596,7 @@ struct st_maria_plugin rdb_i_s_ddl = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
 struct st_maria_plugin rdb_i_s_index_file_map = {
@@ -1612,7 +1612,7 @@ struct st_maria_plugin rdb_i_s_index_file_map = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
 struct st_maria_plugin rdb_i_s_lock_info = {
@@ -1628,7 +1628,7 @@ struct st_maria_plugin rdb_i_s_lock_info = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
 struct st_maria_plugin rdb_i_s_trx_info = {
@@ -1644,6 +1644,6 @@ struct st_maria_plugin rdb_i_s_trx_info = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 } // namespace myrocks

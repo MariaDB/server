@@ -349,6 +349,11 @@ public:
   /* for documentation of mutexes held in various places in code */
 };
 
+/* Tell the io thread if we can delay the master info sync. */
+#define SEMI_SYNC_SLAVE_DELAY_SYNC 1
+/* Tell the io thread if the current event needs a ack. */
+#define SEMI_SYNC_NEED_ACK  2
+
 class MYSQL_QUERY_LOG: public MYSQL_LOG
 {
 public:
@@ -425,14 +430,18 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 #ifdef HAVE_PSI_INTERFACE
   /** The instrumentation key to use for @ LOCK_index. */
   PSI_mutex_key m_key_LOCK_index;
-  /** The instrumentation key to use for @ update_cond. */
-  PSI_cond_key m_key_update_cond;
+  /** The instrumentation key to use for @ COND_relay_log_updated */
+  PSI_cond_key m_key_relay_log_update;
+  /** The instrumentation key to use for @ COND_bin_log_updated */
+  PSI_cond_key m_key_bin_log_update;
   /** The instrumentation key to use for opening the log file. */
   PSI_file_key m_key_file_log;
   /** The instrumentation key to use for opening the log index file. */
   PSI_file_key m_key_file_log_index;
 
   PSI_file_key m_key_COND_queue_busy;
+  /** The instrumentation key to use for LOCK_binlog_end_pos. */
+  PSI_mutex_key m_key_LOCK_binlog_end_pos;
 #endif
 
   struct group_commit_entry
@@ -488,7 +497,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   mysql_mutex_t LOCK_binlog_end_pos;
   mysql_mutex_t LOCK_xid_list;
   mysql_cond_t  COND_xid_list;
-  mysql_cond_t update_cond;
+  mysql_cond_t  COND_relay_log_updated, COND_bin_log_updated;
   ulonglong bytes_written;
   IO_CACHE index_file;
   char index_file_name[FN_REFLEN];
@@ -598,7 +607,7 @@ public:
 
   /* This is relay log */
   bool is_relay_log;
-  ulong signal_cnt;  // update of the counter is checked by heartbeat
+  ulong relay_signal_cnt;  // update of the counter is checked by heartbeat
   enum enum_binlog_checksum_alg checksum_alg_reset; // to contain a new value when binlog is rotated
   /*
     Holds the last seen in Relay-Log FD's checksum alg value.
@@ -661,16 +670,20 @@ public:
 
 #ifdef HAVE_PSI_INTERFACE
   void set_psi_keys(PSI_mutex_key key_LOCK_index,
-                    PSI_cond_key key_update_cond,
+                    PSI_cond_key key_relay_log_update,
+                    PSI_cond_key key_bin_log_update,
                     PSI_file_key key_file_log,
                     PSI_file_key key_file_log_index,
-                    PSI_file_key key_COND_queue_busy)
+                    PSI_file_key key_COND_queue_busy,
+                    PSI_mutex_key key_LOCK_binlog_end_pos)
   {
     m_key_LOCK_index= key_LOCK_index;
-    m_key_update_cond= key_update_cond;
+    m_key_relay_log_update=  key_relay_log_update;
+    m_key_bin_log_update=    key_bin_log_update;
     m_key_file_log= key_file_log;
     m_key_file_log_index= key_file_log_index;
     m_key_COND_queue_busy= key_COND_queue_busy;
+    m_key_LOCK_binlog_end_pos= key_LOCK_binlog_end_pos;
   }
 #endif
 
@@ -707,7 +720,53 @@ public:
     DBUG_VOID_RETURN;
   }
   void set_max_size(ulong max_size_arg);
-  void signal_update();
+
+  /* Handle signaling that relay has been updated */
+  void signal_relay_log_update()
+  {
+    mysql_mutex_assert_owner(&LOCK_log);
+    DBUG_ASSERT(is_relay_log);
+    DBUG_ENTER("MYSQL_BIN_LOG::signal_relay_log_update");
+    relay_signal_cnt++;
+    mysql_cond_broadcast(&COND_relay_log_updated);
+    DBUG_VOID_RETURN;
+  }
+  void signal_bin_log_update()
+  {
+    mysql_mutex_assert_owner(&LOCK_binlog_end_pos);
+    DBUG_ASSERT(!is_relay_log);
+    DBUG_ENTER("MYSQL_BIN_LOG::signal_bin_log_update");
+    mysql_cond_broadcast(&COND_bin_log_updated);
+    DBUG_VOID_RETURN;
+  }
+  void update_binlog_end_pos()
+  {
+    if (is_relay_log)
+      signal_relay_log_update();
+    else
+    {
+      lock_binlog_end_pos();
+      binlog_end_pos= my_b_safe_tell(&log_file);
+      signal_bin_log_update();
+      unlock_binlog_end_pos();
+    }
+  }
+  void update_binlog_end_pos(my_off_t pos)
+  {
+    mysql_mutex_assert_owner(&LOCK_log);
+    mysql_mutex_assert_not_owner(&LOCK_binlog_end_pos);
+    lock_binlog_end_pos();
+    /*
+      Note: it would make more sense to assert(pos > binlog_end_pos)
+      but there are two places triggered by mtr that has pos == binlog_end_pos
+      i didn't investigate but accepted as it should do no harm
+    */
+    DBUG_ASSERT(pos >= binlog_end_pos);
+    binlog_end_pos= pos;
+    signal_bin_log_update();
+    unlock_binlog_end_pos();
+  }
+
   void wait_for_sufficient_commits();
   void binlog_trigger_immediate_group_commit();
   void wait_for_update_relay_log(THD* thd);
@@ -807,7 +866,7 @@ public:
   inline char* get_log_fname() { return log_file_name; }
   inline char* get_name() { return name; }
   inline mysql_mutex_t* get_log_lock() { return &LOCK_log; }
-  inline mysql_cond_t* get_log_cond() { return &update_cond; }
+  inline mysql_cond_t* get_bin_log_cond() { return &COND_bin_log_updated; }
   inline IO_CACHE* get_log_file() { return &log_file; }
 
   inline void lock_index() { mysql_mutex_lock(&LOCK_index);}
@@ -831,23 +890,6 @@ public:
   bool check_strict_gtid_sequence(uint32 domain_id, uint32 server_id,
                                   uint64 seq_no);
 
-
-  void update_binlog_end_pos(my_off_t pos)
-  {
-    mysql_mutex_assert_owner(&LOCK_log);
-    mysql_mutex_assert_not_owner(&LOCK_binlog_end_pos);
-    lock_binlog_end_pos();
-    /**
-     * note: it would make more sense to assert(pos > binlog_end_pos)
-     * but there are two places triggered by mtr that has pos == binlog_end_pos
-     * i didn't investigate but accepted as it should do no harm
-     */
-    DBUG_ASSERT(pos >= binlog_end_pos);
-    binlog_end_pos= pos;
-    signal_update();
-    unlock_binlog_end_pos();
-  }
-
   /**
    * used when opening new file, and binlog_end_pos moves backwards
    */
@@ -858,7 +900,7 @@ public:
     lock_binlog_end_pos();
     binlog_end_pos= pos;
     strcpy(binlog_end_pos_file, file_name);
-    signal_update();
+    signal_bin_log_update();
     unlock_binlog_end_pos();
   }
 

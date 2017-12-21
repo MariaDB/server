@@ -905,12 +905,14 @@ row_purge_parse_undo_rec(
 	node->rec_type = type;
 
 	switch (type) {
+	case TRX_UNDO_RENAME_TABLE:
+		return false;
 	case TRX_UNDO_INSERT_DEFAULT:
 	case TRX_UNDO_INSERT_REC:
 		break;
 	default:
 #ifdef UNIV_DEBUG
-		ut_ad(0);
+		ut_ad(!"unknown undo log record type");
 		return false;
 	case TRX_UNDO_UPD_DEL_REC:
 	case TRX_UNDO_UPD_EXIST_REC:

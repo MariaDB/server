@@ -21,10 +21,9 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "transaction.h"
-#include "rpl_handler.h"
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_acl.h"
-
+#include "semisync_master.h"
 
 #ifndef EMBEDDED_LIBRARY
 /**
@@ -318,9 +317,17 @@ bool trans_commit(THD *thd)
       transaction, so the hooks for rollback will be called.
     */
   if (res)
-    (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+  {
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.wait_after_rollback(thd, FALSE);
+#endif
+  }
   else
-    (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
+  {
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.wait_after_commit(thd, FALSE);
+#endif
+  }
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.reset();
   thd->lex->start_transaction_opt= 0;
@@ -413,7 +420,9 @@ bool trans_rollback(THD *thd)
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_rollback_trans(thd, TRUE);
-  (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+#ifdef HAVE_REPLICATION
+  repl_semisync_master.wait_after_rollback(thd, FALSE);
+#endif
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   /* Reset the binlog transaction marker */
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
@@ -526,9 +535,17 @@ bool trans_commit_stmt(THD *thd)
       transaction, so the hooks for rollback will be called.
     */
   if (res)
-    (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+  {
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.wait_after_rollback(thd, FALSE);
+#endif
+  }
   else
-    (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
+  {
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.wait_after_commit(thd, FALSE);
+#endif
+  }
 
   thd->transaction.stmt.reset();
 
@@ -567,7 +584,9 @@ bool trans_rollback_stmt(THD *thd)
       trans_reset_one_shot_chistics(thd);
   }
 
-  (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+#ifdef HAVE_REPLICATION
+  repl_semisync_master.wait_after_rollback(thd, FALSE);
+#endif
 
   thd->transaction.stmt.reset();
 

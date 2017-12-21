@@ -1088,12 +1088,16 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 		this record can only be present in the main undo log. */
 		ut_ad(undo == update);
 		/* fall through */
+	case TRX_UNDO_RENAME_TABLE:
+		ut_ad(undo == insert || undo == update);
+		/* fall through */
 	case TRX_UNDO_INSERT_REC:
 		ut_ad(undo == insert || undo == update || undo == temp);
 		*roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
 		break;
 	default:
 		ut_ad(undo == update || undo == temp);
+		break;
 	}
 
 	ut_ad(trx_roll_check_undo_rec_ordering(

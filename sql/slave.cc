@@ -43,7 +43,6 @@
 #include <ssl_compat.h>
 #include <mysqld_error.h>
 #include <mysys_err.h>
-#include "rpl_handler.h"
 #include <signal.h>
 #include <mysql.h>
 #include <myisam.h>
@@ -61,6 +60,7 @@
 #include "debug_sync.h"
 #include "rpl_parallel.h"
 #include "sql_show.h"
+#include "semisync_slave.h"
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
@@ -3586,11 +3586,9 @@ static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
   if (opt_log_slave_updates && opt_replicate_annotate_row_events)
     binlog_flags|= BINLOG_SEND_ANNOTATE_ROWS_EVENT;
 
-  if (RUN_HOOK(binlog_relay_io,
-               before_request_transmit,
-               (thd, mi, binlog_flags)))
+  if (repl_semisync_slave.request_transmit(mi))
     DBUG_RETURN(1);
-  
+
   // TODO if big log files: Change next to int8store()
   int4store(buf, (ulong) mi->master_log_pos);
   int2store(buf + 4, binlog_flags);
@@ -4615,7 +4613,8 @@ pthread_handler_t handle_slave_io(void *arg)
   }
 
 
-  if (RUN_HOOK(binlog_relay_io, thread_start, (thd, mi)))
+  if (DBUG_EVALUATE_IF("failed_slave_start", 1, 0)
+      || repl_semisync_slave.slave_start(mi))
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4805,9 +4804,10 @@ Stopping slave I/O thread due to out-of-memory error from master");
       retry_count=0;                    // ok event, reset retry counter
       THD_STAGE_INFO(thd, stage_queueing_master_event_to_the_relay_log);
       event_buf= (const char*)mysql->net.read_pos + 1;
-      if (RUN_HOOK(binlog_relay_io, after_read_event,
-                   (thd, mi,(const char*)mysql->net.read_pos + 1,
-                    event_len, &event_buf, &event_len)))
+      mi->semi_ack= 0;
+      if (repl_semisync_slave.
+          slave_read_sync_header((const char*)mysql->net.read_pos + 1, event_len,
+                                 &(mi->semi_ack), &event_buf, &event_len))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4856,9 +4856,6 @@ Stopping slave I/O thread due to out-of-memory error from master");
         tokenamount -= network_read_len;
       }
 
-      /* XXX: 'synced' should be updated by queue_event to indicate
-         whether event has been synced to disk */
-      bool synced= 0;
       if (queue_event(mi, event_buf, event_len))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
@@ -4867,8 +4864,8 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      if (RUN_HOOK(binlog_relay_io, after_queue_event,
-                   (thd, mi, event_buf, event_len, synced)))
+      if (rpl_semi_sync_slave_status && (mi->semi_ack & SEMI_SYNC_NEED_ACK) &&
+          repl_semisync_slave.slave_reply(mi))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4877,7 +4874,16 @@ Stopping slave I/O thread due to out-of-memory error from master");
       }
 
       if (mi->using_gtid == Master_info::USE_GTID_NO &&
-          flush_master_info(mi, TRUE, TRUE))
+          /*
+            If rpl_semi_sync_slave_delay_master is enabled, we will flush
+            master info only when ack is needed. This may lead to at least one
+            group transaction delay but affords better performance improvement.
+          */
+          (!repl_semisync_slave.get_slave_enabled() ||
+           (!(mi->semi_ack & SEMI_SYNC_SLAVE_DELAY_SYNC) ||
+            (mi->semi_ack & (SEMI_SYNC_NEED_ACK)))) &&
+          (DBUG_EVALUATE_IF("failed_flush_master_info", 1, 0) ||
+           flush_master_info(mi, TRUE, TRUE)))
       {
         sql_print_error("Failed to flush master info file");
         goto err;
@@ -4931,7 +4937,7 @@ err:
                           IO_RPL_LOG_NAME, mi->master_log_pos,
                           tmp.c_ptr_safe());
   }
-  RUN_HOOK(binlog_relay_io, thread_stop, (thd, mi));
+  repl_semisync_slave.slave_stop(mi);
   thd->reset_query();
   thd->reset_db(NULL, 0);
   if (mysql)
@@ -6253,7 +6259,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
         mysql_mutex_unlock(log_lock);
         goto err;
       }
-      rli->relay_log.signal_update();
+      rli->relay_log.signal_relay_log_update();
       mysql_mutex_unlock(log_lock);
 
       mi->gtid_reconnect_event_skip_count= 0;
@@ -6798,7 +6804,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       if (got_gtid_event)
         rli->ign_gtids.update(&event_gtid);
     }
-    rli->relay_log.signal_update(); // the slave SQL thread needs to re-check
+    // the slave SQL thread needs to re-check
+    rli->relay_log.signal_relay_log_update();
     DBUG_PRINT("info", ("master_log_pos: %lu, event originating from %u server, ignored",
                         (ulong) mi->master_log_pos, uint4korr(buf + SERVER_ID_OFFSET)));
   }
@@ -7308,7 +7315,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       MYSQL_BIN_LOG::open() will write the buffered description event.
     */
     old_pos= rli->event_relay_log_pos;
-    if ((ev= Log_event::read_log_event(cur_log,0,
+    if ((ev= Log_event::read_log_event(cur_log,
                                        rli->relay_log.description_event_for_exec,
                                        opt_slave_sql_verify_checksum)))
 

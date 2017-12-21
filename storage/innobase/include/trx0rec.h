@@ -162,6 +162,13 @@ trx_undo_rec_get_partial_row(
 	mem_heap_t*	heap)	/*!< in: memory heap from which the memory
 				needed is allocated */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+/** Report a RENAME TABLE operation.
+@param[in,out]	trx	transaction
+@param[in]	table	table that is being renamed
+@return	DB_SUCCESS or error code */
+dberr_t
+trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************************//**
 Writes information to an undo log about an insert, update, or a delete marking
 of a clustered index record. This information is used in a rollback of the
@@ -236,26 +243,6 @@ trx_undo_prev_version_build(
 				into this function by purge thread or not.
 				And if we read "after image" of undo log */
 
-/***********************************************************//**
-Parses a redo log record of adding an undo log record.
-@return end of log record or NULL */
-byte*
-trx_undo_parse_add_undo_rec(
-/*========================*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr,/*!< in: buffer end */
-	page_t*	page);	/*!< in: page or NULL */
-/***********************************************************//**
-Parses a redo log record of erasing of an undo page end.
-@return end of log record or NULL */
-byte*
-trx_undo_parse_erase_page_end(
-/*==========================*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr,/*!< in: buffer end */
-	page_t*	page,	/*!< in: page or NULL */
-	mtr_t*	mtr);	/*!< in: mtr or NULL */
-
 /** Read from an undo log record a non-virtual column value.
 @param[in,out]	ptr		pointer to remaining part of the undo record
 @param[in,out]	field		stored field
@@ -305,7 +292,8 @@ trx_undo_read_v_idx(
 compilation info multiplied by 16 is ORed to this value in an undo log
 record */
 
-#define TRX_UNDO_INSERT_DEFAULT	10	/* insert a "default value"
+#define	TRX_UNDO_RENAME_TABLE	9	/*!< RENAME TABLE */
+#define	TRX_UNDO_INSERT_DEFAULT	10	/*!< insert a "default value"
 					pseudo-record for instant ALTER */
 #define	TRX_UNDO_INSERT_REC	11	/* fresh insert into clustered index */
 #define	TRX_UNDO_UPD_EXIST_REC	12	/* update of a non-delete-marked

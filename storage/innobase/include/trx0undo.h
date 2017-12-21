@@ -315,16 +315,6 @@ bool
 trx_undo_truncate_tablespace(
 	undo::Truncate*	undo_trunc);
 
-/***********************************************************//**
-Parses the redo log entry of an undo log page initialization.
-@return end of log record or NULL */
-byte*
-trx_undo_parse_page_init(
-/*=====================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	page_t*		page,	/*!< in: page or NULL */
-	mtr_t*		mtr);	/*!< in: mtr or NULL */
 /** Parse the redo log entry of an undo log page header create.
 @param[in]	ptr	redo log record
 @param[in]	end_ptr	end of log buffer
