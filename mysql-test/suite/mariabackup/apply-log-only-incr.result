@@ -3,6 +3,10 @@ CREATE TABLE t(a INT UNSIGNED PRIMARY KEY) ENGINE INNODB;
 INSERT INTO t VALUES(0);
 COMMIT;
 start transaction;
+BEGIN;
+DELETE FROM t LIMIT 1;
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+ROLLBACK;
 NOT FOUND /Rollback of trx with id/ in current_test
 # expect NOT FOUND
 NOT FOUND /Rollback of trx with id/ in current_test
