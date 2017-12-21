@@ -1,7 +1,6 @@
 -- source include/have_debug.inc
 -- source include/have_innodb.inc
-
-let $MYSQLD_DATADIR= `select @@datadir`;
+-- source include/have_debug_sync.inc
 
 let $per_table=`select @@innodb_file_per_table`;
 let $format=`select @@innodb_file_format`;
@@ -82,3 +81,42 @@ SET DEBUG_DBUG = '+d,innobase_tmpfile_creation_failure';
 alter table t1 force, algorithm=inplace;
 SET DEBUG_DBUG = @saved_debug_dbug;
 drop table t1, t480;
+
+--echo #
+--echo # MDEV-12827 Assertion failure when reporting duplicate key error
+--echo # in online table rebuild
+--echo #
+
+CREATE TABLE t1 (j INT UNIQUE, i INT UNIQUE) ENGINE=InnoDB;
+--connect (con1,localhost,root,,test)
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built WAIT_FOR log';
+--send
+ALTER TABLE t1 DROP j, FORCE;
+
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR built';
+--error ER_DUP_ENTRY
+INSERT INTO t1 (i) VALUES (0),(0);
+SET DEBUG_SYNC='now SIGNAL log';
+
+--connection con1
+--error ER_DUP_ENTRY
+reap;
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built2 WAIT_FOR log2';
+--send
+ALTER TABLE t1 DROP j, FORCE;
+
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR built2';
+INSERT INTO t1 (i) VALUES (0),(1);
+--error ER_DUP_ENTRY
+UPDATE t1 SET i=0;
+SET DEBUG_SYNC='now SIGNAL log2';
+
+--connection con1
+--error ER_DUP_ENTRY
+reap;
+--disconnect con1
+--connection default
+SET DEBUG_SYNC='RESET';
+DROP TABLE t1;
