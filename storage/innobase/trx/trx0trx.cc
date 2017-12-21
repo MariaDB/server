@@ -1728,12 +1728,7 @@ trx_commit_in_memory(
 		trx->state = TRX_STATE_NOT_STARTED;
 
 	} else {
-		const bool rw = trx->rsegs.m_redo.rseg != NULL;
-
-		ut_ad(!trx->read_only || !rw);
-		ut_ad(trx->id || !rw);
-
-		if (rw) {
+		if (trx->id > 0) {
 			/* For consistent snapshot, we need to remove current
 			transaction from running transaction id list for mvcc
 			before doing commit and releasing locks. */
@@ -1748,7 +1743,7 @@ trx_commit_in_memory(
 		ut_ad(trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
 		DEBUG_SYNC_C("after_trx_committed_in_memory");
 
-		if (!rw) {
+		if (trx->read_only || trx->rsegs.m_redo.rseg == NULL) {
 			MONITOR_INC(MONITOR_TRX_RO_COMMIT);
 			if (trx->read_view != NULL) {
 				trx_sys->mvcc->view_close(
