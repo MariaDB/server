@@ -645,6 +645,7 @@ trx_free_prepared(
 	trx_undo_free_prepared(trx);
 
 	assert_trx_in_rw_list(trx);
+	UT_LIST_REMOVE(trx_sys->rw_trx_list, trx);
 
 	ut_a(!trx->read_only);
 

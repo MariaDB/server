@@ -591,20 +591,7 @@ trx_sys_close(void)
 		trx_dummy_sess = NULL;
 	}
 
-	/* Only prepared transactions may be left in the system. Free them. */
-	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx
-	     || !srv_was_started
-	     || srv_read_only_mode
-	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
-
-	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
-	     trx != NULL;
-	     trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list)) {
-
-		trx_free_prepared(trx);
-
-		UT_LIST_REMOVE(trx_sys->rw_trx_list, trx);
-	}
+	trx_sys->rw_trx_hash.destroy();
 
 	/* There can't be any active transactions. */
 
@@ -629,7 +616,6 @@ trx_sys_close(void)
 
 	trx_sys->rw_trx_ids.~trx_ids_t();
 
-	trx_sys->rw_trx_hash.destroy();
 	ut_free(trx_sys);
 
 	trx_sys = NULL;
@@ -643,12 +629,9 @@ ulint
 trx_sys_any_active_transactions(void)
 /*=================================*/
 {
-	ulint	total_trx = 0;
+	ulint	total_trx = trx_sys->rw_trx_hash.size();
 
 	trx_sys_mutex_enter();
-
-	total_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list);
-
 	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
 	     trx != NULL;
 	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {

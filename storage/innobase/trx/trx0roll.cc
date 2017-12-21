@@ -852,16 +852,6 @@ trx_rollback_recovered(bool all)
 
 	ut_a(srv_force_recovery < SRV_FORCE_NO_TRX_UNDO);
 
-	if (trx_sys_get_n_rw_trx() == 0) {
-
-		return;
-	}
-
-	if (all) {
-		ib::info() << "Starting in background the rollback"
-			" of recovered transactions";
-	}
-
 	/* Note: For XA recovered transactions, we rely on MySQL to
 	do rollback. They will be in TRX_STATE_PREPARED state. If the server
 	is shutdown and they are still lingering in trx_sys_t::trx_list
@@ -894,11 +884,6 @@ trx_rollback_recovered(bool all)
 		trx_sys_mutex_exit();
 
 	} while (trx != NULL);
-
-	if (all) {
-		ib::info() << "Rollback of non-prepared transactions"
-			" completed";
-	}
 }
 
 /*******************************************************************//**
@@ -919,7 +904,13 @@ DECLARE_THREAD(trx_rollback_all_recovered)(void*)
 	pfs_register_thread(trx_rollback_clean_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
-	trx_rollback_recovered(true);
+	if (trx_sys->rw_trx_hash.size()) {
+		ib::info() << "Starting in background the rollback of"
+			" recovered transactions";
+		trx_rollback_recovered(true);
+		ib::info() << "Rollback of non-prepared transactions"
+			" completed";
+	}
 
 	trx_rollback_is_active = false;
 
