@@ -3659,8 +3659,8 @@ dict_stats_rename_table(
 				new_db_utf8, new_table_utf8, trx);
 			mutex_exit(&dict_sys->mutex);
 			/* fall through */
-		case DB_DEADLOCK:
 		case DB_LOCK_WAIT_TIMEOUT:
+			trx->error_state = DB_SUCCESS;
 			os_thread_sleep(200000 /* 0.2 sec */);
 			continue;
 		case DB_STATS_DO_NOT_EXIST:
@@ -3701,8 +3701,8 @@ dict_stats_rename_table(
 				new_db_utf8, new_table_utf8, trx);
 			mutex_exit(&dict_sys->mutex);
 			/* fall through */
-		case DB_DEADLOCK:
 		case DB_LOCK_WAIT_TIMEOUT:
+			trx->error_state = DB_SUCCESS;
 			os_thread_sleep(200000 /* 0.2 sec */);
 			continue;
 		case DB_STATS_DO_NOT_EXIST:

@@ -2633,8 +2633,6 @@ files_checked:
 		trx_temp_rseg_create();
 	}
 
-	srv_is_being_started = false;
-
 	ut_a(trx_purge_state() == PURGE_STATE_INIT);
 
 	/* Create the master thread which does purge and other utility
@@ -2682,6 +2680,8 @@ files_checked:
 	} else {
 		purge_sys->state = PURGE_STATE_DISABLED;
 	}
+
+	srv_is_being_started = false;
 
 	if (!srv_read_only_mode) {
 		/* wake main loop of page cleaner up */

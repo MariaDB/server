@@ -1358,4 +1358,6 @@ struct Rdb_index_info {
   uint64 m_ttl_duration = 0;
 };
 
+bool rdb_is_collation_supported(const my_core::CHARSET_INFO *const cs);
+
 } // namespace myrocks

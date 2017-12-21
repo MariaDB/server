@@ -3866,8 +3866,7 @@ innobase_init(
 	/* Currently, Galera does not support VATS lock schedule algorithm. */
 	if (innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS
 	    && global_system_variables.wsrep_on) {
-		ib::info() << "In Galera environment Variance-Aware-Transaction-Sheduling Algorithm"
-			   " is not supported. Falling back to First-Come-First-Served order. ";
+		ib::info() << "For Galera, using innodb_lock_schedule_algorithm=fcfs";
 		innodb_lock_schedule_algorithm = INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS;
 	}
 #endif /* WITH_WSREP */
@@ -8614,8 +8613,8 @@ no_commit:
 		whether we update the table autoinc counter or not. */
 		col_max_value = innobase_get_int_col_max_value(table->next_number_field);
 
-		/* Get the value that MySQL attempted to store in the table. */
-		auto_inc = table->next_number_field->val_int();
+		/* Get the value that MySQL attempted to store in the table.*/
+		auto_inc = table->next_number_field->val_uint();
 
 		switch (error) {
 		case DB_DUPLICATE_KEY:
@@ -9081,12 +9080,7 @@ calc_row_difference(
 				if (field != table->found_next_number_field
 				    || dfield_is_null(&ufield->new_val)) {
 				} else {
-					auto_inc = row_parse_int(
-						static_cast<const byte*>(
-							ufield->new_val.data),
-						ufield->new_val.len,
-						col->mtype,
-						col->prtype & DATA_UNSIGNED);
+					auto_inc = field->val_uint();
 				}
 			}
 			n_changed++;

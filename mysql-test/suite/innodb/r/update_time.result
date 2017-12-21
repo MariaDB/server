@@ -43,7 +43,6 @@ XA PREPARE 'xatrx';
 CONNECT  con1,localhost,root,,;
 call mtr.add_suppression("Found 1 prepared XA transactions");
 FLUSH TABLES;
-# Kill and restart
 SELECT update_time FROM information_schema.tables WHERE table_name = 't';
 update_time
 NULL

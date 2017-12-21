@@ -207,3 +207,18 @@ select 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 select _utf8mb4 'Ð²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑÐ²Ð°ÑÑ' as B;
 
 select count(*) from events_statements_history where sql_text like "%...";
+
+
+#
+# MDEV-10486 MariaDB 10.x does not update rows_examined in performance_schema tables
+# Verify that the rows_examined counter is set properly.
+
+use test;
+create table t1 (id int);
+insert into t1 values (1), (2), (3);
+truncate performance_schema.events_statements_history;
+select * from t1;
+insert into t1 select RAND()*10000 from t1;
+select sql_text, rows_examined from performance_schema.events_statements_history;
+drop table t1;
+

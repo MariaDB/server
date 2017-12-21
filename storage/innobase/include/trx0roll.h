@@ -33,7 +33,8 @@ Created 3/26/1996 Heikki Tuuri
 #include "mtr0mtr.h"
 #include "trx0sys.h"
 
-extern bool	trx_rollback_or_clean_is_active;
+extern bool		trx_rollback_or_clean_is_active;
+extern const trx_t*	trx_roll_crash_recv_trx;
 
 /*******************************************************************//**
 Determines if this transaction is rolling back an incomplete transaction
@@ -62,6 +63,10 @@ trx_undo_rec_t*
 trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Report progress when rolling back a row of a recovered transaction.
+@return	whether the rollback should be aborted due to pending shutdown */
+bool
+trx_roll_must_shutdown();
 /*******************************************************************//**
 Rollback or clean up any incomplete transactions which were
 encountered in crash recovery.  If the transaction already was

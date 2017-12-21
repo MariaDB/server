@@ -7749,3 +7749,6 @@ ER_NET_OK_PACKET_TOO_LARGE
 
 ER_GEOJSON_EMPTY_COORDINATES
         eng "Incorrect GeoJSON format - empty 'coordinates' array."
+
+ER_MYROCKS_CANT_NOPAD_COLLATION
+  eng "MyRocks doesn't currently support collations with \"No pad\" attribute."
