@@ -1930,6 +1930,16 @@ struct TABLE_LIST
                      MDL_TRANSACTION);
   }
 
+  TABLE_LIST(TABLE &_table, thr_lock_type lock_type)
+  {
+    DBUG_ASSERT(_table.s);
+    init_one_table(
+      LEX_STRING_WITH_LEN(_table.s->db),
+      LEX_STRING_WITH_LEN(_table.s->table_name),
+      _table.s->table_name.str, lock_type);
+    table= &_table;
+  }
+
   inline void init_one_table_for_prelocking(const char *db_name_arg,
                              size_t db_length_arg,
                              const char *table_name_arg,

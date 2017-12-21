@@ -34,6 +34,7 @@
 #include "sql_base.h"                         // fill_record
 #include "sql_statistics.h"                   // vers_stat_end
 #include "vers_utils.h"
+#include "lock.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -1030,6 +1031,49 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
 }
 
 
+class Table_locker
+{
+  THD *thd;
+  TABLE &table;
+  thr_lock_type saved_mode;
+  TABLE_LIST table_list;
+  MYSQL_LOCK *saved_lock;
+  bool locked;
+
+public:
+  Table_locker(THD *_thd, TABLE &_table, thr_lock_type lock_type) :
+    thd(_thd),
+    table(_table),
+    saved_mode(table.reginfo.lock_type),
+    table_list(_table, lock_type),
+    saved_lock(_thd->lock),
+    locked(false)
+  {
+    table.reginfo.lock_type= lock_type;
+  }
+  bool lock()
+  {
+    DBUG_ASSERT(table.file);
+    // FIXME: check consistency with table.reginfo.lock_type
+    if (table.file->get_lock_type() != F_UNLCK)
+      return false;
+    thd->lock= NULL;
+    bool res= lock_tables(thd, &table_list, 1, 0);
+    locked= !res;
+    return res;
+  }
+  ~Table_locker()
+  {
+    if (locked)
+      mysql_unlock_tables(thd, thd->lock);
+    table.reginfo.lock_type= saved_mode;
+    thd->lock= saved_lock;
+    if (locked && !thd->in_sub_stmt)
+      ha_commit_trans(thd, false);
+  }
+};
+
+
 // scan table for min/max sys_trx_end
 inline
 bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
@@ -1040,22 +1084,24 @@ bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
   DBUG_ASSERT(part->empty);
   DBUG_ASSERT(part->type() == partition_element::HISTORY);
   DBUG_ASSERT(table->s->stat_trx);
+
+  Table_locker l(thd, *table, TL_READ);
+  if (l.lock())
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(0), "min/max scan failed on lock_tables()");
+    return true;
+  }
+
   for (; part_id < part_id_end; ++part_id)
   {
     handler *file= table->file->part_handler(part_id); // requires update_partition() for ha_innopart
     DBUG_ASSERT(file);
-    int rc= file->ha_external_lock(thd, F_RDLCK); // requires ha_commit_trans() for ha_innobase
-    if (rc)
-    {
-      file->update_partition(part_id);
-      goto lock_fail;
-    }
 
     table->default_column_bitmaps();
     bitmap_set_bit(table->read_set, table->vers_end_field()->field_index);
     file->column_bitmaps_signal();
 
-    rc= file->ha_rnd_init(true);
+    int rc= file->ha_rnd_init(true);
     if (!rc)
     {
       while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
@@ -1101,20 +1147,14 @@ bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
       }
       file->ha_rnd_end();
     }
-    file->ha_external_lock(thd, F_UNLCK);
     file->update_partition(part_id);
     if (rc != HA_ERR_END_OF_FILE)
     {
-      if (!thd->in_sub_stmt)
-        ha_commit_trans(thd, false);
-    lock_fail:
       // TODO: print rc code
       my_error(ER_INTERNAL_ERROR, MYF(0), "min/max scan failed in versioned partitions setup (see warnings)");
       return true;
     }
   }
-  if (!thd->in_sub_stmt)
-    ha_commit_trans(thd, false);
   return false;
 }
 
@@ -1171,13 +1211,7 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
 
   bool error= false;
 
-  TABLE_LIST tl;
-  tl.init_one_table(
-    LEX_STRING_WITH_LEN(table->s->db),
-    LEX_STRING_WITH_LEN(table->s->table_name),
-    table->s->table_name.str,
-    TL_WRITE);
-
+  TABLE_LIST tl(*table, TL_READ);
   MDL_auto_lock mdl_lock(thd, tl);
   if (mdl_lock.acquire_error())
     return true;
