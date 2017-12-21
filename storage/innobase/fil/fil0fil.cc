@@ -188,19 +188,19 @@ bool
 fil_validate_skip(void)
 /*===================*/
 {
-	/** The fil_validate() call skip counter. Use a signed type
-	because of the race condition below. */
+	/** The fil_validate() call skip counter. */
 	static int fil_validate_count = FIL_VALIDATE_SKIP;
 
-	/* There is a race condition below, but it does not matter,
-	because this call is only for heuristic purposes. We want to
-	reduce the call frequency of the costly fil_validate() check
-	in debug builds. */
-	if (--fil_validate_count > 0) {
+	/* We want to reduce the call frequency of the costly fil_validate()
+	 * check in debug builds. */
+	int count = my_atomic_add32_explicit(&fil_validate_count, -1,
+					     MY_MEMORY_ORDER_RELAXED);
+	if (count > 0) {
 		return(true);
 	}
 
-	fil_validate_count = FIL_VALIDATE_SKIP;
+	my_atomic_store32_explicit(&fil_validate_count, FIL_VALIDATE_SKIP,
+				   MY_MEMORY_ORDER_RELAXED);
 	return(fil_validate());
 }
 #endif /* UNIV_DEBUG */
