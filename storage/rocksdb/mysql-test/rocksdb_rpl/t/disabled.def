@@ -8,7 +8,7 @@ consistent_snapshot_mixed_engines : Tests START TRANSACTION WITH CONSISTENT $ENG
 rpl_skip_trx_api_binlog_format : requires @@rpl_skip_tx_api
 rpl_ddl_high_priority : DDL commands with HIGH_PRIORITY syntax are not in MariaDB
 rpl_gtid_rocksdb_sys_header : MariaDB doesn't support printing "RocksDB: Last MySQL Gtid UUID" into server stderr on startup
-
+slave_use_idempotent_for_recovery: MariaDB doesn't support --slave-use-idempotent-for-recovery
 
 ##
 ##  Tests that do not fit MariaDB's test environment (Functional tests only,
@@ -26,5 +26,4 @@ rpl_gtid_crash_safe : Didn't try with MariaDB, yet
 rpl_gtid_crash_safe_wal_corrupt : Didn't try with MariaDB, yet
 rpl_rocksdb_snapshot : Didn't try with MariaDB, yet
 rpl_rocksdb_snapshot_without_gtid : Didn't try with MariaDB, yet
-singledelete_idempotent_recovery : Didn't try with MariaDB, yet
 
