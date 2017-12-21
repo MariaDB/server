@@ -11,7 +11,7 @@ update t set a=2;
 set @test = 'correct';
 create trigger trg_before before delete on t for each row set @test = 'incorrect';
 create trigger trg_after after delete on t for each row set @test = 'incorrect';
-delete history from t before system_time now(6);
+delete history from t;
 select @test from t;
 drop table t;
 
@@ -25,7 +25,7 @@ update t set a=22 where a=2;
 select * from t for system_time all;
 delete history from t before system_time timestamp @ts1;
 select * from t for system_time all;
-prepare stmt from 'delete history from t before system_time timestamp now(6)';
+prepare stmt from 'delete history from t';
 execute stmt; drop prepare stmt;
 select * from t for system_time all;
 delete from t;
@@ -51,22 +51,22 @@ partition by system_time (
     partition pn current);
 
 --error ER_NOT_ALLOWED_COMMAND
-delete history from t before system_time current_timestamp;
+delete history from t;
 
 create or replace table t (i int) with system versioning;
-delete history from t before system_time now();
+delete history from t;
 create or replace view v as select * from t;
 --error ER_VERS_TRUNCATE_VIEW
-delete history from v before system_time now();
+delete history from v;
 
 create or replace table t (i int);
 --error ER_VERS_NOT_VERSIONED
-delete history from t before system_time now();
+delete history from t;
 create or replace view v as select * from t;
 --error ER_VERS_TRUNCATE_VIEW
-delete history from v before system_time now();
+delete history from v;
 --error ER_VERS_NOT_VERSIONED
-prepare stmt from 'delete history from t before system_time now()';
+prepare stmt from 'delete history from t';
 
 drop table t;
 drop view v;

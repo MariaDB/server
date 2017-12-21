@@ -13406,12 +13406,21 @@ delete:
           delete_part2
           ;
 
+opt_delete_system_time:
+            /* empty */
+          {
+            Lex->vers_conditions.init(SYSTEM_TIME_ALL);
+          }
+          | BEFORE_SYM SYSTEM_TIME_SYM opt_trans_or_timestamp simple_expr
+          {
+            Lex->vers_conditions.init(SYSTEM_TIME_BEFORE, $3, $4);
+          }
+          ;
+
 delete_part2:
           opt_delete_options single_multi {}
-        | HISTORY_SYM delete_single_table
-          BEFORE_SYM SYSTEM_TIME_SYM opt_trans_or_timestamp simple_expr
+        | HISTORY_SYM delete_single_table opt_delete_system_time
           {
-            Lex->vers_conditions.init(SYSTEM_TIME_BEFORE, $5, $6);
             Lex->last_table()->vers_conditions= Lex->vers_conditions;
           }
         ;
