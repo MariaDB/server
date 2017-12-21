@@ -67,3 +67,25 @@ alter table t1 force, algorithm=inplace;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
 SET DEBUG_DBUG = @saved_debug_dbug;
 drop table t1, t480;
+#
+# MDEV-12827 Assertion failure when reporting duplicate key error
+# in online table rebuild
+#
+CREATE TABLE t1 (j INT UNIQUE, i INT UNIQUE) ENGINE=InnoDB;
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built WAIT_FOR log';
+ALTER TABLE t1 DROP j, FORCE;
+SET DEBUG_SYNC='now WAIT_FOR built';
+INSERT INTO t1 (i) VALUES (0),(0);
+ERROR 23000: Duplicate entry '0' for key 'i'
+SET DEBUG_SYNC='now SIGNAL log';
+ERROR 23000: Duplicate entry '0' for key 'i'
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built2 WAIT_FOR log2';
+ALTER TABLE t1 DROP j, FORCE;
+SET DEBUG_SYNC='now WAIT_FOR built2';
+INSERT INTO t1 (i) VALUES (0),(1);
+UPDATE t1 SET i=0;
+ERROR 23000: Duplicate entry '0' for key 'i'
+SET DEBUG_SYNC='now SIGNAL log2';
+ERROR 23000: Duplicate entry '0' for key 'i'
+SET DEBUG_SYNC='RESET';
+DROP TABLE t1;
