@@ -700,24 +700,36 @@ void JOIN::vers_check_items()
 
   if (conds)
   {
-    conds= conds->transform(thd, transformer, NULL);
+    Item *tmp = conds->transform(thd, transformer, NULL);
+    if (conds != tmp)
+      conds= tmp;
   }
 
   for (ORDER *ord= order; ord; ord= ord->next)
   {
-    ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
-    *ord->item= ord->item_ptr;
+    Item *tmp= (*ord->item)->transform(thd, transformer, NULL);
+    if (*ord->item != tmp)
+    {
+      ord->item_ptr= tmp;
+      *ord->item= ord->item_ptr;
+    }
   }
 
   for (ORDER *ord= group_list; ord; ord= ord->next)
   {
-    ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
-    *ord->item= ord->item_ptr;
+    Item *tmp= (*ord->item)->transform(thd, transformer, NULL);
+    if (*ord->item != tmp)
+    {
+      ord->item_ptr= tmp;
+      *ord->item= ord->item_ptr;
+    }
   }
 
   if (having)
   {
-    having= having->transform(thd, transformer, NULL);
+    Item *tmp= having->transform(thd, transformer, NULL);
+    if (having != tmp)
+      having= tmp;
   }
 }
 

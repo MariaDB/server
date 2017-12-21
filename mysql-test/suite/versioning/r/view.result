@@ -107,5 +107,14 @@ create or replace view vt1 as select * from t1 union select * from t2;
 select * from vt1;
 a
 1
+# MDEV-14689 crash on second PS execute
+create or replace table t1 (a int);
+create or replace view v1 as select * from t1;
+create or replace table t2 (b int) with system versioning;
+prepare stmt from 'select a from v1 inner join t2 group by a order by a';
+execute stmt;
+a
+execute stmt;
+a
 drop database test;
 create database test;
