@@ -1223,6 +1223,26 @@ The following options may be given as the first argument:
  safe-replicable. Since 5.0, SYSDATE() returns a `dynamic'
  value different for different invocations, even within
  the same statement.
+ --system-versioning-alter-history=name 
+ Versioning ALTER TABLE mode. ERROR: Fail ALTER with
+ error; KEEP: Keep historical system rows and subject them
+ to ALTER; 
+ --system-versioning-force 
+ Force system versioning for all created tables
+ --system-versioning-hide=name 
+ Hide system versioning from being displayed in table
+ info. AUTO: hide implicit system fields only in
+ non-versioned and AS OF queries; IMPLICIT: hide implicit
+ system fields in all queries; FULL: hide any system
+ fields in all queries and hide versioning info in SHOW
+ commands; NEVER: don't hide system fields
+ --system-versioning-innodb-algorithm-simple 
+ Use simple algorithm of timestamp handling in InnoDB
+ instead of TRX_SEES
+ (Defaults to on; use --skip-system-versioning-innodb-algorithm-simple to disable.)
+ --system-versioning-transaction-registry 
+ Enable or disable update of
+ `mysql`.`transaction_registry`
  --table-cache=#     Deprecated; use --table-open-cache instead.
  --table-definition-cache=# 
  The number of cached table definitions
@@ -1310,9 +1330,6 @@ The following options may be given as the first argument:
  --transaction-read-only 
  Default transaction access mode. True if transactions are
  read-only.
- --transaction-registry 
- Enable or disable update of transaction_registry
- (Defaults to on; use --skip-transaction-registry to disable.)
  --updatable-views-with-limit=name 
  YES = Don't issue an error message (warning only) if a
  VIEW without presence of a key of the underlying table is
@@ -1330,22 +1347,6 @@ The following options may be given as the first argument:
  -v, --verbose       Used with --help option for detailed help.
  -V, --version[=name] 
  Output version information and exit.
- --versioning-alter-history=name 
- Versioning ALTER TABLE mode. ERROR: Fail ALTER with
- error; KEEP: Keep historical system rows and subject them
- to ALTER; 
- --versioning-force  Force system versioning for all created tables
- --versioning-hide=name 
- Hide system versioning from being displayed in table
- info. AUTO: hide implicit system fields only in
- non-versioned and AS OF queries; IMPLICIT: hide implicit
- system fields in all queries; FULL: hide any system
- fields in all queries and hide versioning info in SHOW
- commands; NEVER: don't hide system fields
- --versioning-innodb-algorithm-simple 
- Use simple algorithm of timestamp handling in InnoDB
- instead of TRX_SEES
- (Defaults to on; use --skip-versioning-innodb-algorithm-simple to disable.)
  --wait-timeout=#    The number of seconds the server waits for activity on a
  connection before closing it
 
@@ -1671,6 +1672,11 @@ sync-master-info 10000
 sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
+system-versioning-alter-history ERROR
+system-versioning-force FALSE
+system-versioning-hide AUTO
+system-versioning-innodb-algorithm-simple TRUE
+system-versioning-transaction-registry FALSE
 table-cache 431
 table-definition-cache 400
 table-open-cache 431
@@ -1696,7 +1702,6 @@ transaction-alloc-block-size 8192
 transaction-isolation REPEATABLE-READ
 transaction-prealloc-size 4096
 transaction-read-only FALSE
-transaction-registry TRUE
 updatable-views-with-limit YES
 use-stat-tables NEVER
 userstat FALSE
