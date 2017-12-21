@@ -7935,3 +7935,6 @@ ER_VERS_TRUNCATE_VIEW
 
 ER_VERS_TEMPORARY
 	eng "%s prohibited for TEMPORARY tables"
+
+ER_VERS_ONLINE_NOT_IMPLEMENTED
+        eng "Not implemented for system-versioned tables"

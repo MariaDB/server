@@ -1,32 +1,38 @@
 set system_versioning_alter_history=keep;
-create or replace table t (a int) engine=innodb;
+create or replace table t (a int, b int) engine=innodb;
 alter table t add system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter table t add system versioning;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+alter table t add system versioning, lock=shared;
+alter table t drop column b, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+alter table t drop column b, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned tables. Try ALGORITHM=COPY
 alter table t add index idx(a), lock=none;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter table t drop system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+alter table t drop system versioning, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned tables. Try ALGORITHM=COPY
 set global system_versioning_transaction_registry=on;
 Warnings:
 Warning	4144	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
-create or replace table t (a int) engine=innodb;
+create or replace table t (a int, b int) engine=innodb;
 alter table t
 add s bigint unsigned as row start,
 add e bigint unsigned as row end,
 add period for system_time(s, e),
 add system versioning,
 lock=none;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
 alter table t
 add s bigint unsigned as row start,
 add e bigint unsigned as row end,
 add period for system_time(s, e),
 add system versioning;
+alter table t drop column b, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
 alter table t add index idx(a), lock=none;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter table t drop column s, drop column e;
 alter table t drop system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
 set global system_versioning_transaction_registry=off;
 drop table t;
