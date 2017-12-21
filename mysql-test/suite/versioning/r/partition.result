@@ -335,4 +335,15 @@ insert into t1 values (1);
 create or replace table t1 (i int) engine=innodb partition by key(i);
 alter table t1 add system versioning;
 insert into t1 values();
+# MDEV-14722 Assertion in ha_commit_trans for sub-statement
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day (
+partition p1 history,
+partition pc current);
+create or replace table t2 (f int);
+create trigger tr before insert on t2
+for each row select table_rows from information_schema.tables
+where table_name = 't1' into @a;
+insert into t2 values (1);
 drop table t1;
+drop table t2;

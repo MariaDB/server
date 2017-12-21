@@ -1105,14 +1105,16 @@ bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
     file->update_partition(part_id);
     if (rc != HA_ERR_END_OF_FILE)
     {
-      ha_commit_trans(thd, false);
+      if (!thd->in_sub_stmt)
+        ha_commit_trans(thd, false);
     lock_fail:
       // TODO: print rc code
       my_error(ER_INTERNAL_ERROR, MYF(0), "min/max scan failed in versioned partitions setup (see warnings)");
       return true;
     }
   }
-  ha_commit_trans(thd, false);
+  if (!thd->in_sub_stmt)
+    ha_commit_trans(thd, false);
   return false;
 }
 
