@@ -3177,25 +3177,6 @@ prev_insert_id(ulonglong nr, struct system_variables *variables)
 #define AUTO_INC_DEFAULT_NB_MAX_BITS 16
 #define AUTO_INC_DEFAULT_NB_MAX ((1 << AUTO_INC_DEFAULT_NB_MAX_BITS) - 1)
 
-// check for ADD COLUMN ... AUTO_INCREMENT query
-static bool is_add_auto_increment(THD *thd)
-{
-  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_ALTER_TABLE);
-
-  bool add_auto_inc= false;
-  List_iterator_fast<Create_field> it(thd->lex->alter_info.create_list);
-  while (Create_field *f= it++)
-  {
-    if (f->flags & AUTO_INCREMENT_FLAG)
-    {
-      add_auto_inc= true;
-      break;
-    }
-  }
-
-  return add_auto_inc;
-}
-
 int handler::update_auto_increment()
 {
   ulonglong nr, nb_reserved_values;
@@ -3205,24 +3186,6 @@ int handler::update_auto_increment()
   int result=0, tmp;
   enum enum_check_fields save_count_cuted_fields;
   DBUG_ENTER("handler::update_auto_increment");
-
-  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE && is_add_auto_increment(thd))
-  {
-    if (table->versioned())
-    {
-      Field *end= table->vers_end_field();
-      DBUG_ASSERT(end);
-      bitmap_set_bit(table->read_set, end->field_index);
-      if (!end->is_max())
-      {
-        if (!table->next_number_field->real_maybe_null())
-          DBUG_RETURN(HA_ERR_UNSUPPORTED);
-        table->next_number_field->set_null();
-        DBUG_RETURN(0);
-      }
-    }
-    table->next_number_field->set_notnull();
-  }
 
   /*
     next_insert_id is a "cursor" into the reserved interval, it may go greater
@@ -3245,6 +3208,25 @@ int handler::update_auto_increment()
       adjust_next_insert_id_after_explicit_value(nr);
     insert_id_for_cur_row= 0; // didn't generate anything
     DBUG_RETURN(0);
+  }
+
+  // ALTER TABLE ... ADD COLUMN ... AUTO_INCREMENT
+  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
+  {
+    if (table->versioned())
+    {
+      Field *end= table->vers_end_field();
+      DBUG_ASSERT(end);
+      bitmap_set_bit(table->read_set, end->field_index);
+      if (!end->is_max())
+      {
+        if (!table->next_number_field->real_maybe_null())
+          DBUG_RETURN(HA_ERR_UNSUPPORTED);
+        table->next_number_field->set_null();
+        DBUG_RETURN(0);
+      }
+    }
+    table->next_number_field->set_notnull();
   }
 
   if ((nr= next_insert_id) >= auto_inc_interval_for_cur_row.maximum())
