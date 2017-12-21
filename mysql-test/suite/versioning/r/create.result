@@ -344,7 +344,7 @@ create or replace table t (sys_trx_end int);
 alter table t with system versioning;
 ERROR 42S21: Duplicate column name 'sys_trx_end'
 create or replace temporary table t (x28 int) with system versioning;
-ERROR HY000: Incorrect usage of TEMPORARY and WITH SYSTEM VERSIONING
+ERROR HY000: WITH SYSTEM VERSIONING prohibited for TEMPORARY tables
 create or replace table t1 (
 x29 int unsigned,
 Sys_start0 timestamp(6) as row start invisible,

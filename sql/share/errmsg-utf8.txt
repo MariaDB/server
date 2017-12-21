@@ -7932,3 +7932,6 @@ WARN_VERS_TRT_EXPERIMENTAL
 
 ER_VERS_TRUNCATE_VIEW
         eng "DELETE HISTORY from VIEW is prohibited"
+
+ER_VERS_TEMPORARY
+	eng "%s prohibited for TEMPORARY tables"

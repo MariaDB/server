@@ -7188,9 +7188,14 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     List_iterator_fast<Create_field> it(alter_info->create_list);
     while (Create_field *f= it++)
     {
-      if (f->change.length &&
-          f->flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG))
+      if (f->change.length && f->flags & VERS_SYSTEM_FIELD)
       {
+        if (share->table_category == TABLE_CATEGORY_TEMPORARY) {
+          my_error(ER_VERS_TEMPORARY, MYF(0),
+                   f->flags & VERS_SYS_START_FLAG ? "GENERATED AS ROW START"
+                                                  : "GENERATED AS ROW END");
+          return true;
+        }
         if (thd->mdl_context.upgrade_shared_lock(
                 table->mdl_ticket, MDL_EXCLUSIVE,
                 thd->variables.lock_wait_timeout))

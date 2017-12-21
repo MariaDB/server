@@ -313,7 +313,7 @@ create or replace table t (sys_trx_end int);
 --error ER_DUP_FIELDNAME
 alter table t with system versioning;
 
---error ER_WRONG_USAGE
+--error ER_VERS_TEMPORARY
 create or replace temporary table t (x28 int) with system versioning;
 
 --error ER_VERS_DUPLICATE_ROW_START_END
