@@ -748,7 +748,6 @@ static void write_header(FILE *sql_file, char *db_name)
             "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n",
             path?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
             compatible_mode_normal_str);
-    fprintf(sql_file, "/*!100300 SET GLOBAL TRANSACTION_REGISTRY=0 */;\n");
     check_io(sql_file);
   }
 } /* write_header */
@@ -763,7 +762,6 @@ static void write_footer(FILE *sql_file)
   }
   else if (!opt_compact)
   {
-    fprintf(sql_file, "/*!100300 SET GLOBAL TRANSACTION_REGISTRY=1 */;\n");
     if (opt_tz_utc)
       fprintf(sql_file,"/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;\n");
 

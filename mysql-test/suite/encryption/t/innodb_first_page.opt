@@ -1,3 +1,2 @@
 --innodb-encrypt-tables
 --innodb-encrypt-log
---transaction-registry=0
