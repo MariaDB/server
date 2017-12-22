@@ -9311,10 +9311,12 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
                                                 &altered_table->s->all_set);
     restore_record(altered_table, s->default_values); // Create empty record
     /* Check that we can call default functions with default field values */
+    thd->count_cuted_fields= CHECK_FIELD_EXPRESSION;
     altered_table->reset_default_fields();
     if (altered_table->default_field &&
         altered_table->update_default_fields(0, 1))
       goto err_new_table_cleanup;
+    thd->count_cuted_fields= CHECK_FIELD_IGNORE;
 
     // Ask storage engine whether to use copy or in-place
     enum_alter_inplace_result inplace_supported=
