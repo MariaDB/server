@@ -21,8 +21,13 @@
 #include "my_global.h"
 #include <m_string.h>
 
+typedef const char* (*tc_version_type)(int*, int*, const char**);
+typedef int (*mallctl_type)(const char*, void*, size_t*, void*, size_t);
+
 char *guess_malloc_library()
 {
+  tc_version_type tc_version_func;
+  mallctl_type mallctl_func;
 #ifndef HAVE_DLOPEN
   return (char*) MALLOC_LIBRARY;
 #else
@@ -34,9 +39,7 @@ char *guess_malloc_library()
   }
 
   /* tcmalloc */
-  typedef const char* (*tc_version_type)(int*, int*, const char**);
-  tc_version_type tc_version_func =
-    (tc_version_type) dlsym(RTLD_DEFAULT, "tc_version");
+  tc_version_func= (tc_version_type) dlsym(RTLD_DEFAULT, "tc_version");
   if (tc_version_func)
   {
     int major, minor;
@@ -46,9 +49,7 @@ char *guess_malloc_library()
   }
 
   /* jemalloc */
-  typedef int (*mallctl_type)(const char*, void*, size_t*, void*, size_t);
-  mallctl_type mallctl_func =
-    (mallctl_type) dlsym(RTLD_DEFAULT, "mallctl");
+  mallctl_func= (mallctl_type) dlsym(RTLD_DEFAULT, "mallctl");
   if (mallctl_func)
   {
     char *ver;
