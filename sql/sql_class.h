@@ -370,8 +370,9 @@ public:
 typedef struct st_mysql_lock
 {
   TABLE **table;
-  uint table_count,lock_count;
   THR_LOCK_DATA **locks;
+  uint table_count,lock_count;
+  uint flags;
 } MYSQL_LOCK;
 
 
@@ -4408,7 +4409,8 @@ public:
                                    const char *path,
                                    const char *db,
                                    const char *table_name,
-                                   bool open_in_engine);
+                                   bool open_in_engine,
+                                   bool open_internal_tables);
 
   TABLE *find_temporary_table(const char *db, const char *table_name);
   TABLE *find_temporary_table(const TABLE_LIST *tl);

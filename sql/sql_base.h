@@ -100,6 +100,7 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
 */
 #define MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK         0x1000
 #define MYSQL_LOCK_NOT_TEMPORARY		0x2000
+#define MYSQL_LOCK_USE_MALLOC                   0x4000
 /**
   Only check THD::killed if waits happen (e.g. wait on MDL, wait on
   table flush, wait on thr_lock.c locks) while opening and locking table.
@@ -257,6 +258,7 @@ bool open_normal_and_derived_tables(THD *thd, TABLE_LIST *tables, uint flags,
                                     uint dt_phases);
 bool open_tables_only_view_structure(THD *thd, TABLE_LIST *tables,
                                      bool can_deadlock);
+bool open_and_lock_internal_tables(TABLE *table, bool lock);
 bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
 void close_thread_table(THD *thd, TABLE **table_ptr);
