@@ -1072,7 +1072,10 @@ public:
     thd->lock= saved_lock;
     thd->locked_tables_mode= saved_mode;
     if (locked && !thd->in_sub_stmt)
+    {
       ha_commit_trans(thd, false);
+      ha_commit_trans(thd, true);
+    }
   }
 };
 
