@@ -18,14 +18,18 @@ x
 delete from t1;
 select * from t1;
 x
+select * from t1 partition (p0);
+x
+select * from t1 partition (p1);
+x
 select * from t1 for system_time all;
 x
 3
 300
-select * from t1 partition (p0);
+select * from t1 partition (p0) for system_time all;
 x
 3
-select * from t1 partition (p1);
+select * from t1 partition (p1) for system_time all;
 x
 300
 # Engine change native <-> non-native versioning prohibited

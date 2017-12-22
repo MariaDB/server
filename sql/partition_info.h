@@ -292,7 +292,7 @@ public:
     part_expr(NULL), subpart_expr(NULL), item_free_list(NULL),
     first_log_entry(NULL), exec_log_entry(NULL), frm_log_entry(NULL),
     bitmaps_are_initialized(FALSE),
-    list_array(NULL), err_value(0),
+    list_array(NULL), vers_info(NULL), err_value(0),
     part_info_string(NULL),
     curr_part_elem(NULL), current_partition(NULL),
     curr_list_object(0), num_columns(0), table(NULL),

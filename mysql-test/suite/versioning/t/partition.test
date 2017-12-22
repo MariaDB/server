@@ -16,9 +16,11 @@ select * from t1 partition (p1);
 
 delete from t1;
 select * from t1;
-select * from t1 for system_time all;
 select * from t1 partition (p0);
 select * from t1 partition (p1);
+select * from t1 for system_time all;
+select * from t1 partition (p0) for system_time all;
+select * from t1 partition (p1) for system_time all;
 
 --echo # Engine change native <-> non-native versioning prohibited
 --replace_result $default_engine DEFAULT_ENGINE
