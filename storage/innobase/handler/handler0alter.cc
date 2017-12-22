@@ -697,9 +697,9 @@ ha_innobase::check_if_supported_inplace_alter(
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
 	if ((table->versioned(VERS_TIMESTAMP) || altered_table->versioned(VERS_TIMESTAMP))
-	    && ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD) {
+	    && innobase_need_rebuild(ha_alter_info, table)) {
 		ha_alter_info->unsupported_reason =
-			innobase_get_err_msg(ER_VERS_ONLINE_NOT_IMPLEMENTED);
+			innobase_get_err_msg(ER_VERS_INPLACE_NOT_IMPLEMENTED);
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -1233,9 +1233,9 @@ next_column:
 
 	// FIXME: implement Online DDL for system-versioned tables
 	if ((table->versioned(VERS_TRX_ID) || altered_table->versioned(VERS_TRX_ID))
-	    && ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD) {
+	    && innobase_need_rebuild(ha_alter_info, table)) {
 		ha_alter_info->unsupported_reason =
-			innobase_get_err_msg(ER_VERS_ONLINE_NOT_IMPLEMENTED);
+			innobase_get_err_msg(ER_VERS_INPLACE_NOT_IMPLEMENTED);
 		online = false;
 	}
 
