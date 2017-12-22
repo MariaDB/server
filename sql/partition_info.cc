@@ -1035,18 +1035,20 @@ class Table_locker
 {
   THD *thd;
   TABLE &table;
-  thr_lock_type saved_mode;
-  TABLE_LIST table_list;
+  thr_lock_type saved_type;
   MYSQL_LOCK *saved_lock;
+  enum_locked_tables_mode saved_mode;
+  TABLE_LIST table_list;
   bool locked;
 
 public:
   Table_locker(THD *_thd, TABLE &_table, thr_lock_type lock_type) :
     thd(_thd),
     table(_table),
-    saved_mode(table.reginfo.lock_type),
-    table_list(_table, lock_type),
+    saved_type(table.reginfo.lock_type),
     saved_lock(_thd->lock),
+    saved_mode(_thd->locked_tables_mode),
+    table_list(_table, lock_type),
     locked(false)
   {
     table.reginfo.lock_type= lock_type;
@@ -1066,8 +1068,9 @@ public:
   {
     if (locked)
       mysql_unlock_tables(thd, thd->lock);
-    table.reginfo.lock_type= saved_mode;
+    table.reginfo.lock_type= saved_type;
     thd->lock= saved_lock;
+    thd->locked_tables_mode= saved_mode;
     if (locked && !thd->in_sub_stmt)
       ha_commit_trans(thd, false);
   }

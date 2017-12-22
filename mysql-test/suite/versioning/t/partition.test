@@ -293,6 +293,16 @@ for each row select table_rows from information_schema.tables
 where table_name = 't1' into @a;
 insert into t2 values (1);
 
+--echo # MDEV-14740 Locking assertion for system_time partitioning
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 week (
+  partition p1 history,
+  partition pn current);
+create or replace table t2 (f int);
+create trigger tr before insert on t2
+for each row select count(*) from t1 into @a;
+insert into t2 values (1);
+
 
 drop table t1;
 drop table t2;
