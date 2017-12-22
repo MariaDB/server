@@ -63,6 +63,7 @@ extern void _db_flush_(void);
 extern void dbug_swap_code_state(void **code_state_store);
 extern void dbug_free_code_state(void **code_state_store);
 extern  const char* _db_get_func_(void);
+extern int (*dbug_sanity)(void);
 
 #define DBUG_LEAVE do { \
     _db_stack_frame_.line= __LINE__; \

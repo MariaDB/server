@@ -330,7 +330,7 @@ static int bad_ptr(const char *where, void *ptr)
       magicend[3] != MAGICEND3)
   {
     DBUG_PRINT("error",("Overrun buffer %p", ptr));
-    warn("Error: %s overrun buffer %p", where);
+    warn("Error: %s overrun buffer %p", where, ptr);
     fprintf(stderr, "Allocated at ");
     print_stack(irem->frame);
     return 1;
@@ -340,7 +340,7 @@ static int bad_ptr(const char *where, void *ptr)
 }
 
 /* check all allocated memory list for consistency */
-static int sf_sanity()
+int sf_sanity()
 {
   struct st_irem *irem;
   int flag= 0;

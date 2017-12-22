@@ -128,7 +128,6 @@
 #define SANITY_CHECK_ON (1U << 12) /* Check memory on every DBUG_ENTER/RETURN */
 #define TRACE_ON        (1U << 31) /* Trace enabled. MUST be the highest bit!*/
 
-#define sf_sanity() (0)
 #define TRACING (cs->stack->flags & TRACE_ON)
 #define DEBUGGING (cs->stack->flags & DEBUG_ON)
 
@@ -272,6 +271,11 @@ static void PushState(CODE_STATE *cs);
 static void FreeState (CODE_STATE *cs, int free_state);
         /* Test for tracing enabled */
 static int DoTrace(CODE_STATE *cs);
+static int default_my_dbug_sanity(void);
+
+int (*dbug_sanity)(void)= default_my_dbug_sanity;
+
+
 /*
   return values of DoTrace.
   Can also be used as bitmask: ret & DO_TRACE
@@ -1121,7 +1125,7 @@ void _db_enter_(const char *_func_, const char *_file_,
     if (!TRACING) break;
     /* fall through */
   case DO_TRACE:
-    if ((cs->stack->flags & SANITY_CHECK_ON) && sf_sanity())
+    if ((cs->stack->flags & SANITY_CHECK_ON) && (*dbug_sanity)())
       cs->stack->flags &= ~SANITY_CHECK_ON;
     if (TRACING)
     {
@@ -1190,7 +1194,7 @@ void _db_return_(struct _db_stack_frame_ *_stack_frame_)
   if (DoTrace(cs) & DO_TRACE)
   {
     int org_cs_locked;
-    if ((cs->stack->flags & SANITY_CHECK_ON) && sf_sanity())
+    if ((cs->stack->flags & SANITY_CHECK_ON) && (*dbug_sanity)())
       cs->stack->flags &= ~SANITY_CHECK_ON;
     if (TRACING)
     {
@@ -2246,6 +2250,12 @@ const char* _db_get_func_(void)
   CODE_STATE *cs;
   get_code_state_or_return NULL;
   return cs->func;
+}
+
+
+static int default_my_dbug_sanity(void)
+{
+  return 0;
 }
 
 #else

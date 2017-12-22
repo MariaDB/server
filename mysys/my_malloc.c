@@ -200,8 +200,6 @@ void *my_realloc(void *oldpoint, size_t size, myf my_flags)
 /**
   Free memory allocated with my_malloc.
 
-  @remark Relies on free being able to handle a NULL argument.
-
   @param ptr Pointer to the memory allocated by my_malloc.
 */
 void my_free(void *ptr)
