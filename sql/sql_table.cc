@@ -4894,7 +4894,8 @@ int create_table_impl(THD *thd,
   if (!frm_only && create_info->tmp_table())
   {
     TABLE *table= thd->create_and_open_tmp_table(create_info->db_type, frm,
-                                                 path, db, table_name, true);
+                                                 path, db, table_name, true,
+                                                 false);
 
     if (!table)
     {
@@ -9296,7 +9297,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
           thd->create_and_open_tmp_table(new_db_type, &frm,
                                          alter_ctx.get_tmp_path(),
                                          alter_ctx.new_db, alter_ctx.tmp_name,
-                                         false)))
+                                         false, true)))
       goto err_new_table_cleanup;
 
     /* Set markers for fields in TABLE object for altered table. */
@@ -9441,7 +9442,8 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
   }
 
   // It's now safe to take the table level lock.
-  if (lock_tables(thd, table_list, alter_ctx.tables_opened, 0))
+  if (lock_tables(thd, table_list, alter_ctx.tables_opened,
+                  MYSQL_LOCK_USE_MALLOC))
     goto err_new_table_cleanup;
 
   if (ha_create_table(thd, alter_ctx.get_tmp_path(),
@@ -9458,7 +9460,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
       thd->create_and_open_tmp_table(new_db_type, &frm,
                                      alter_ctx.get_tmp_path(),
                                      alter_ctx.new_db, alter_ctx.tmp_name,
-                                     true);
+                                     true, true);
     if (!tmp_table)
     {
       goto err_new_table_cleanup;
@@ -9492,7 +9494,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
       thd->create_and_open_tmp_table(new_db_type, &frm,
                                      alter_ctx.get_tmp_path(),
                                      alter_ctx.new_db, alter_ctx.tmp_name,
-                                     true);
+                                     true, true);
   }
   if (!new_table)
     goto err_new_table_cleanup;

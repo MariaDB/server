@@ -4688,7 +4688,7 @@ TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
   {
     if (t->s->db.length == db_len && t->s->table_name.length == table_len &&
         !strcmp(t->s->db.str, db) && !strcmp(t->s->table_name.str, table) &&
-        t->pos_in_table_list->prelocking_placeholder == TABLE_LIST::FK)
+        t->pos_in_table_list->prelocking_placeholder == TABLE_LIST::PRELOCK_FK)
       return t;
   }
   return NULL;
@@ -6081,7 +6081,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       replicated_tables_count++;
 
       if (table->lock_type <= TL_READ_NO_INSERT &&
-          table->prelocking_placeholder != TABLE_LIST::FK)
+          table->prelocking_placeholder != TABLE_LIST::PRELOCK_FK)
         has_read_tables= true;
       else if (table->table->found_next_number_field &&
                 (table->lock_type >= TL_WRITE_ALLOW_WRITE))

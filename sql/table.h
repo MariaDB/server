@@ -1097,6 +1097,8 @@ public:
   TABLE_LIST *pos_in_table_list;/* Element referring to this table */
   /* Position in thd->locked_table_list under LOCK TABLES */
   TABLE_LIST *pos_in_locked_tables;
+  /* Tables used in DEFAULT and CHECK CONSTRAINT (normally sequence tables) */
+  TABLE_LIST *internal_tables;
 
   /*
     Not-null for temporary tables only. Non-null values means this table is
@@ -1748,6 +1750,11 @@ struct TABLE_LIST
 {
   TABLE_LIST() {}                          /* Remove gcc warning */
 
+  enum prelocking_types
+  {
+    PRELOCK_NONE, PRELOCK_ROUTINE, PRELOCK_FK
+  };
+
   /**
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
@@ -1778,7 +1785,7 @@ struct TABLE_LIST
                              size_t table_name_length_arg,
                              const char *alias_arg,
                              enum thr_lock_type lock_type_arg,
-                             bool routine,
+                             prelocking_types prelocking_type,
                              TABLE_LIST *belong_to_view_arg,
                              uint8 trg_event_map_arg,
                              TABLE_LIST ***last_ptr)
@@ -1786,8 +1793,10 @@ struct TABLE_LIST
     init_one_table(db_name_arg, db_length_arg, table_name_arg,
                    table_name_length_arg, alias_arg, lock_type_arg);
     cacheable_table= 1;
-    prelocking_placeholder= routine ? ROUTINE : FK;
-    open_type= routine ? OT_TEMPORARY_OR_BASE : OT_BASE_ONLY;
+    prelocking_placeholder= prelocking_type;
+    open_type= (prelocking_type == PRELOCK_ROUTINE ?
+                OT_TEMPORARY_OR_BASE :
+                OT_BASE_ONLY);
     belong_to_view= belong_to_view_arg;
     trg_event_map= trg_event_map_arg;
 
@@ -2076,7 +2085,7 @@ struct TABLE_LIST
     This TABLE_LIST object is just placeholder for prelocking, it will be
     used for implicit LOCK TABLES only and won't be used in real statement.
   */
-  enum { USER, ROUTINE, FK } prelocking_placeholder;
+  prelocking_types prelocking_placeholder;
   /**
      Indicates that if TABLE_LIST object corresponds to the table/view
      which requires special handling.

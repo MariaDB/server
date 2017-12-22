@@ -3528,7 +3528,7 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
   */
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
       ! has_prelocking_list &&
-      tables->lock_type >= TL_WRITE_ALLOW_WRITE)
+      (tables->lock_type >= TL_WRITE_ALLOW_WRITE || thd->lex->default_used))
   {
     bool need_prelocking= FALSE;
     TABLE_LIST **save_query_tables_last= lex->query_tables_last;
@@ -4234,13 +4234,41 @@ static bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
   for (; tl; tl= tl->next_global )
   {
     if (tl->lock_type >= lock_type &&
-        tl->prelocking_placeholder == TABLE_LIST::FK &&
+        tl->prelocking_placeholder == TABLE_LIST::PRELOCK_FK &&
         strcmp(tl->db, db->str) == 0 &&
         strcmp(tl->table_name, table->str) == 0)
       return true;
   }
   return false;
 }
+
+
+static bool
+add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
+                    TABLE_LIST *global_table_list, TABLE_LIST *tables)
+{
+  do
+  {
+    TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    if (!tl)
+      return TRUE;
+    tl->init_one_table_for_prelocking(tables->db,
+                                      strlen(tables->db),
+                                      tables->table_name,
+                                      strlen(tables->table_name),
+                                      NULL, tables->lock_type,
+                                      TABLE_LIST::PRELOCK_NONE,
+                                      0, 0,
+                                      &prelocking_ctx->query_tables_last);
+    /*
+      Store link to the new table_list that will be used by open so that
+      Item_func_nextval() can find it
+    */
+    tables->next_local= tl;
+  } while ((tables= tables->next_global));
+  return FALSE;
+}
+
 
 
 /**
@@ -4269,21 +4297,23 @@ bool DML_prelocking_strategy::
 handle_table(THD *thd, Query_tables_list *prelocking_ctx,
              TABLE_LIST *table_list, bool *need_prelocking)
 {
+  TABLE *table= table_list->table;
   /* We rely on a caller to check that table is going to be changed. */
-  DBUG_ASSERT(table_list->lock_type >= TL_WRITE_ALLOW_WRITE);
+  DBUG_ASSERT(table_list->lock_type >= TL_WRITE_ALLOW_WRITE ||
+              thd->lex->default_used);
 
   if (table_list->trg_event_map)
   {
-    if (table_list->table->triggers)
+    if (table->triggers)
     {
       *need_prelocking= TRUE;
 
-      if (table_list->table->triggers->
+      if (table->triggers->
           add_tables_and_routines_for_triggers(thd, prelocking_ctx, table_list))
         return TRUE;
     }
 
-    if (table_list->table->file->referenced_by_foreign_key())
+    if (table->file->referenced_by_foreign_key())
     {
       List <FOREIGN_KEY_INFO> fk_list;
       List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
@@ -4292,7 +4322,7 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
 
       arena= thd->activate_stmt_arena_if_needed(&backup);
 
-      table_list->table->file->get_parent_foreign_key_list(thd, &fk_list);
+      table->file->get_parent_foreign_key_list(thd, &fk_list);
       if (thd->is_error())
       {
         if (arena)
@@ -4321,17 +4351,84 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
           continue;
 
         TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-        tl->init_one_table_for_prelocking(fk->foreign_db->str, fk->foreign_db->length,
-                           fk->foreign_table->str, fk->foreign_table->length,
-                           NULL, lock_type, false, table_list->belong_to_view,
-                           op, &prelocking_ctx->query_tables_last);
+        tl->init_one_table_for_prelocking(fk->foreign_db->str,
+                                          fk->foreign_db->length,
+                                          fk->foreign_table->str,
+                                          fk->foreign_table->length,
+                                          NULL, lock_type,
+                                          TABLE_LIST::PRELOCK_FK,
+                                          table_list->belong_to_view, op,
+                                          &prelocking_ctx->query_tables_last);
       }
       if (arena)
         thd->restore_active_arena(arena, &backup);
     }
   }
 
+  /* Open any tables used by DEFAULT (like sequence tables) */
+  if (table->internal_tables &&
+      ((sql_command_flags[thd->lex->sql_command] & CF_INSERTS_DATA) ||
+       thd->lex->default_used) &&
+      add_internal_tables(thd, prelocking_ctx, table_list,
+                          table->internal_tables))
+  {
+    *need_prelocking= TRUE;
+    return TRUE;
+  }
   return FALSE;
+}
+
+
+/**
+  Open all tables used by DEFAULT functions.
+
+  This is different from normal open_and_lock_tables() as we may
+  already have other tables opened and locked and we have to merge the
+  new table with the old ones.
+*/
+
+bool open_and_lock_internal_tables(TABLE *table, bool lock_table)
+{
+  THD *thd= table->in_use;
+  TABLE_LIST *tl;
+  MYSQL_LOCK *save_lock,*new_lock;
+  DBUG_ENTER("open_internal_tables");
+
+  /* remove pointer to old select_lex which is already destroyed */
+  for (tl= table->internal_tables ; tl ; tl= tl->next_global)
+    tl->select_lex= 0;
+
+  uint counter;
+  MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
+  TABLE_LIST *tmp= table->internal_tables;
+  DML_prelocking_strategy prelocking_strategy;
+
+  if (open_tables(thd, thd->lex->create_info, &tmp, &counter, 0,
+                  &prelocking_strategy))
+    goto err;
+
+  if (lock_table)
+  {
+    save_lock= thd->lock;
+    thd->lock= 0;
+    if (lock_tables(thd, table->internal_tables, counter,
+                    MYSQL_LOCK_USE_MALLOC))
+      goto err;
+
+    if (!(new_lock= mysql_lock_merge(save_lock, thd->lock)))
+    {
+      thd->lock= save_lock;
+      mysql_unlock_tables(thd, save_lock, 1);
+      /* We don't have to close tables as caller will do that */
+      goto err;
+    }
+    thd->lock= new_lock;
+  }
+  DBUG_RETURN(0);
+
+err:
+  thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+  DBUG_RETURN(1);
 }
 
 
@@ -4486,7 +4583,7 @@ static bool check_lock_and_start_stmt(THD *thd,
     Prelocking placeholder is not set for TABLE_LIST that
     are directly used by TOP level statement.
   */
-  DBUG_ASSERT(table_list->prelocking_placeholder == false);
+  DBUG_ASSERT(table_list->prelocking_placeholder == TABLE_LIST::PRELOCK_NONE);
 
   /*
     TL_WRITE_DEFAULT and TL_READ_DEFAULT are supposed to be parser only
@@ -4499,7 +4596,6 @@ static bool check_lock_and_start_stmt(THD *thd,
     Last argument routine_modifies_data for read_lock_type_for_table()
     is ignored, as prelocking placeholder will never be set here.
   */
-  DBUG_ASSERT(table_list->prelocking_placeholder == false);
   if (table_list->lock_type == TL_WRITE_DEFAULT)
     lock_type= thd->update_lock_default;
   else if (table_list->lock_type == TL_READ_DEFAULT)
@@ -4507,8 +4603,8 @@ static bool check_lock_and_start_stmt(THD *thd,
   else
     lock_type= table_list->lock_type;
 
-  if ((int) lock_type > (int) TL_WRITE_ALLOW_WRITE &&
-      (int) table_list->table->reginfo.lock_type <= (int) TL_WRITE_ALLOW_WRITE)
+  if ((int) lock_type >= (int) TL_WRITE_ALLOW_WRITE &&
+      (int) table_list->table->reginfo.lock_type < (int) TL_WRITE_ALLOW_WRITE)
   {
     my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0),
              table_list->table->alias.c_ptr());

@@ -2937,6 +2937,7 @@ public:
   st_alter_tablespace *alter_tablespace_info;
   
   bool escape_used;
+  bool default_used;    /* using default() function */
   bool is_lex_started; /* If lex_start() did run. For debugging. */
 
   /*

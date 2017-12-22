@@ -2965,6 +2965,14 @@ unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   if (error)
     goto end;
 
+  if (lex.current_select->table_list.first[0].next_global)
+  {
+    /* We are using NEXT VALUE FOR sequence. Remember table name for open */
+    TABLE_LIST *sequence= lex.current_select->table_list.first[0].next_global;
+    sequence->next_global= table->internal_tables;
+    table->internal_tables= sequence;
+  }
+
   vcol_storage.vcol_info->set_vcol_type(vcol->get_vcol_type());
   vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
   vcol_storage.vcol_info->name=              vcol->name;

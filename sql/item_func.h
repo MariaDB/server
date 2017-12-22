@@ -2981,9 +2981,10 @@ class Item_func_nextval :public Item_longlong_func
 {
 protected:
   TABLE_LIST *table_list;
+  TABLE *table;
 public:
-  Item_func_nextval(THD *thd, TABLE_LIST *table):
-  Item_longlong_func(thd), table_list(table) {}
+  Item_func_nextval(THD *thd, TABLE_LIST *table_list_arg):
+  Item_longlong_func(thd), table_list(table_list_arg) {}
   longlong val_int();
   const char *func_name() const { return "nextval"; }
   void fix_length_and_dec()
@@ -2992,6 +2993,22 @@ public:
     max_length= MAX_BIGINT_WIDTH;
     maybe_null= 1;                              /* In case of errors */
   }
+  /*
+    update_table() function must be called during the value function
+    as in case of DEFAULT the sequence table may not yet be open
+    while fix_fields() are called
+  */
+  void update_table()
+  {
+    if (!(table= table_list->table))
+    {
+      /*
+        If nextval was used in DEFAULT then next_local points to
+        the table_list used by to open the sequence table
+      */
+      table= table_list->next_local->table;
+    }
+  }
   bool const_item() const { return 0; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_nextval>(thd, this); }
@@ -2999,7 +3016,8 @@ public:
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), "()", arg,
-                                     VCOL_NON_DETERMINISTIC);
+                                     (VCOL_NON_DETERMINISTIC |
+                                      VCOL_NOT_VIRTUAL));
   }
 };
 
@@ -3009,8 +3027,8 @@ public:
 class Item_func_lastval :public Item_func_nextval
 {
 public:
-  Item_func_lastval(THD *thd, TABLE_LIST *table):
-  Item_func_nextval(thd, table) {}
+  Item_func_lastval(THD *thd, TABLE_LIST *table_list_arg):
+  Item_func_nextval(thd, table_list_arg) {}
   longlong val_int();
   const char *func_name() const { return "lastval"; }
   Item *get_copy(THD *thd)
@@ -3026,9 +3044,9 @@ class Item_func_setval :public Item_func_nextval
   ulonglong round;
   bool is_used;
 public:
-  Item_func_setval(THD *thd, TABLE_LIST *table, longlong nextval_arg,
+  Item_func_setval(THD *thd, TABLE_LIST *table_list_arg, longlong nextval_arg,
                    ulonglong round_arg, bool is_used_arg)
-    : Item_func_nextval(thd, table),
+    : Item_func_nextval(thd, table_list_arg),
     nextval(nextval_arg), round(round_arg), is_used(is_used_arg)
   {}
   longlong val_int();

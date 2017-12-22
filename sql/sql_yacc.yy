@@ -9670,6 +9670,7 @@ column_default_non_parenthesized_expr:
                                                          $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
+            Lex->default_used= TRUE;
           }
         | VALUE_SYM '(' simple_ident_nospvar ')'
           {

@@ -294,7 +294,8 @@ MYSQL_LOCK *mysql_lock_tables(THD *thd, TABLE **tables, uint count, uint flags)
   if (lock_tables_check(thd, tables, count, flags))
     DBUG_RETURN(NULL);
 
-  if (!(thd->variables.option_bits & OPTION_TABLE_LOCK))
+  if (!(thd->variables.option_bits & OPTION_TABLE_LOCK) &&
+      !(flags & MYSQL_LOCK_USE_MALLOC))
     gld_flags|= GET_LOCK_ON_THD;
 
   if (! (sql_lock= get_lock_data(thd, tables, count, gld_flags)))
@@ -415,7 +416,8 @@ static int lock_external(THD *thd, TABLE **tables, uint count)
 void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock)
 {
   mysql_unlock_tables(thd, sql_lock,
-                      thd->variables.option_bits & OPTION_TABLE_LOCK);
+                      (thd->variables.option_bits & OPTION_TABLE_LOCK) ||
+                      !(sql_lock->flags & GET_LOCK_ON_THD));
 }
 
 
@@ -433,7 +435,10 @@ void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
   if (sql_lock->lock_count)
     thr_multi_unlock(sql_lock->locks, sql_lock->lock_count, 0);
   if (free_lock)
+  {
+    DBUG_ASSERT(!(sql_lock->flags & GET_LOCK_ON_THD));
     my_free(sql_lock);
+  }
   if (!errors)
     thd->clear_error();
   THD_STAGE_INFO(thd, org_stage);
@@ -782,6 +787,7 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
   locks= locks_buf= sql_lock->locks= (THR_LOCK_DATA**) (sql_lock + 1);
   to= table_buf= sql_lock->table= (TABLE**) (locks + lock_count * 2);
   sql_lock->table_count= table_count;
+  sql_lock->flags= flags;
 
   for (i=0 ; i < count ; i++)
   {
