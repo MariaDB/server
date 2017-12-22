@@ -673,6 +673,7 @@ MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a,MYSQL_LOCK *b)
   sql_lock->table_count=a->table_count+b->table_count;
   sql_lock->locks=(THR_LOCK_DATA**) (sql_lock+1);
   sql_lock->table=(TABLE**) (sql_lock->locks+sql_lock->lock_count*2);
+  sql_lock->flags= 0;
   memcpy(sql_lock->locks,a->locks,a->lock_count*sizeof(*a->locks));
   memcpy(sql_lock->locks+a->lock_count,b->locks,
 	 b->lock_count*sizeof(*b->locks));
