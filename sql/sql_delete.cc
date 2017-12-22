@@ -942,10 +942,15 @@ l
                                     select_lex->leaf_tables, FALSE, 
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
-  if (table_list->vers_conditions &&
-    select_lex->vers_setup_conds(thd, table_list, conds))
+  if (table_list->vers_conditions)
   {
-    DBUG_RETURN(TRUE);
+    if (table_list->is_view())
+    {
+      my_error(ER_VERS_TRUNCATE_VIEW, MYF(0));
+      DBUG_RETURN(true);
+    }
+    if (select_lex->vers_setup_conds(thd, table_list, conds))
+      DBUG_RETURN(true);
   }
   if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num)) ||
       setup_fields(thd, Ref_ptr_array(),
