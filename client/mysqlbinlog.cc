@@ -1928,8 +1928,12 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     one_table= 1;
     break;
   case OPT_MYSQL_PROTOCOL:
-    opt_protocol= find_type_or_exit(argument, &sql_protocol_typelib,
-                                    opt->name);
+    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                              opt->name)) <= 0)
+    {
+      sf_leaking_memory= 1; /* no memory leak reports here */
+      exit(1);
+    }
     break;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   case opt_flashback_review:
@@ -1947,8 +1951,15 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       opt_base64_output_mode= BASE64_OUTPUT_ALWAYS;
     else
     {
-      opt_base64_output_mode= (enum_base64_output_mode)
-        (find_type_or_exit(argument, &base64_output_mode_typelib, opt->name)-1);
+      int val;
+
+      if ((val= find_type_with_warning(argument, &base64_output_mode_typelib,
+                                       opt->name)) <= 0)
+      {
+        sf_leaking_memory= 1; /* no memory leak reports here */
+        exit(1);
+      }
+      opt_base64_output_mode= (enum_base64_output_mode) (val - 1);
     }
     break;
   case OPT_REWRITE_DB:    // db_from->db_to

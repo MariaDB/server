@@ -109,7 +109,7 @@ void *my_malloc(size_t size, myf my_flags)
       my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_WAITTANG +
                                    ME_NOREFRESH + ME_FATALERROR),size);
     if (my_flags & MY_FAE)
-      exit(1);
+      abort();
   }
   else
   {

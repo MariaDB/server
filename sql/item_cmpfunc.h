@@ -937,6 +937,7 @@ public:
   {
     allowed_arg_cols= 0;    // Fetch this value from first argument
   }
+  bool fix_fields(THD *, Item **);
   longlong val_int();
   void fix_length_and_dec();
   const char *func_name() const { return "interval"; }
