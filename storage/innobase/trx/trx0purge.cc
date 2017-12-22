@@ -312,7 +312,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	flst_add_first(rseg_header + TRX_RSEG_HISTORY,
 		       undo_header + TRX_UNDO_HISTORY_NODE, mtr);
 
-	my_atomic_addlint(&trx_sys->rseg_history_len, 1);
+	my_atomic_addlint(&trx_sys.rseg_history_len, 1);
 
 	mlog_write_ull(undo_header + TRX_UNDO_TRX_NO, trx->no, mtr);
 	/* This is needed for upgrading old undo log pages from
@@ -354,7 +354,7 @@ trx_purge_remove_log_hdr(
 {
 	flst_remove(rseg_hdr + TRX_RSEG_HISTORY,
 		    log_hdr + TRX_UNDO_HISTORY_NODE, mtr);
-	my_atomic_addlint(&trx_sys->rseg_history_len, -1);
+	my_atomic_addlint(&trx_sys.rseg_history_len, -1);
 }
 
 /** Free an undo log segment, and remove the header from the history list.
@@ -847,7 +847,7 @@ trx_purge_mark_undo_for_truncate(
 	/* Step-3: Iterate over all the rsegs of selected UNDO tablespace
 	and mark them temporarily unavailable for allocation.*/
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		if (trx_rseg_t* rseg = trx_sys->rseg_array[i]) {
+		if (trx_rseg_t* rseg = trx_sys.rseg_array[i]) {
 			ut_ad(rseg->is_persistent());
 			if (rseg->space == undo_trunc->get_marked_space_id()) {
 
@@ -1087,7 +1087,7 @@ trx_purge_truncate_history(
 	ut_ad(limit->trx_no <= purge_sys->view.low_limit_no());
 
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		trx_rseg_t*	rseg = trx_sys->rseg_array[i];
+		trx_rseg_t*	rseg = trx_sys.rseg_array[i];
 
 		if (rseg != NULL) {
 			ut_a(rseg->id == i);
@@ -1524,12 +1524,12 @@ trx_purge_dml_delay(void)
 
 	/* If purge lag is set (ie. > 0) then calculate the new DML delay.
 	Note: we do a dirty read of the trx_sys_t data structure here,
-	without holding trx_sys->mutex. */
+	without holding trx_sys.mutex. */
 
 	if (srv_max_purge_lag > 0) {
 		float	ratio;
 
-		ratio = float(trx_sys->rseg_history_len) / srv_max_purge_lag;
+		ratio = float(trx_sys.rseg_history_len) / srv_max_purge_lag;
 
 		if (ratio > 1.0) {
 			/* If the history list length exceeds the
@@ -1600,7 +1600,7 @@ trx_purge(
 	ut_a(purge_sys->n_submitted == purge_sys->n_completed);
 
 	rw_lock_x_lock(&purge_sys->latch);
-	trx_sys->mvcc->clone_oldest_view(&purge_sys->view);
+	trx_sys.mvcc->clone_oldest_view(&purge_sys->view);
 	rw_lock_x_unlock(&purge_sys->latch);
 
 #ifdef UNIV_DEBUG

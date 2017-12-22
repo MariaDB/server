@@ -609,7 +609,7 @@ lock_report_trx_id_insanity(
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index) */
-	trx_id_t	max_trx_id);	/*!< in: trx_sys->get_max_trx_id() */
+	trx_id_t	max_trx_id);	/*!< in: trx_sys.get_max_trx_id() */
 /*********************************************************************//**
 Prints info of locks for all transactions.
 @return FALSE if not able to obtain lock mutex and exits without

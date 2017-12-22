@@ -1918,7 +1918,7 @@ loop:
 
 	if (ulint total_trx = srv_was_started && !srv_read_only_mode
 	    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
-	    ? trx_sys_any_active_transactions() : 0) {
+	    ? trx_sys.any_active_transactions() : 0) {
 
 		if (srv_print_verbose_log && count > 600) {
 			ib::info() << "Waiting for " << total_trx << " active"

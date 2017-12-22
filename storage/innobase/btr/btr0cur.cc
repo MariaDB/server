@@ -482,10 +482,10 @@ inconsistent:
 	/* In fact, because we only ever append fields to the 'default
 	value' record, it is also OK to perform READ UNCOMMITTED and
 	then ignore any extra fields, provided that
-	trx_sys->rw_trx_hash.find(DB_TRX_ID). */
+	trx_sys.rw_trx_hash.find(DB_TRX_ID). */
 	if (rec_offs_n_fields(offsets) > index->n_fields
-	    && !trx_sys->rw_trx_hash.find(row_get_rec_trx_id(rec, index,
-							     offsets))) {
+	    && !trx_sys.rw_trx_hash.find(row_get_rec_trx_id(rec, index,
+							    offsets))) {
 		goto inconsistent;
 	}
 
@@ -1168,7 +1168,7 @@ btr_cur_search_to_nth_level_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && trx_sys->rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
+		    && trx_sys.rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
 			&& buf_get_n_pending_read_ios()) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else if (dict_index_is_spatial(index)
@@ -2308,7 +2308,7 @@ btr_cur_open_at_index_side_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && trx_sys->rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
+		    && trx_sys.rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
 		    && buf_get_n_pending_read_ios()) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else {
@@ -2654,7 +2654,7 @@ btr_cur_open_at_rnd_pos_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && trx_sys->rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
+		    && trx_sys.rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
 		    && buf_get_n_pending_read_ios()) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else {

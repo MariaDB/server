@@ -48,7 +48,7 @@ Created 3/26/1996 Heikki Tuuri
 #include <mysql/service_wsrep.h>
 
 /** The transaction system */
-trx_sys_t*		trx_sys;
+trx_sys_t		trx_sys;
 
 /** Check whether transaction id is valid.
 @param[in]	id              transaction id to check
@@ -58,7 +58,7 @@ ReadView::check_trx_id_sanity(
 	trx_id_t		id,
 	const table_name_t&	name)
 {
-	if (id >= trx_sys->get_max_trx_id()) {
+	if (id >= trx_sys.get_max_trx_id()) {
 
 		ib::warn() << "A transaction id"
 			   << " in a record of table "
@@ -96,13 +96,13 @@ uint	trx_rseg_n_slots_debug = 0;
 
 void trx_sys_t::flush_max_trx_id()
 {
-  ut_ad(trx_sys->mutex.is_owned());
+  ut_ad(trx_sys.mutex.is_owned());
   if (!srv_read_only_mode)
   {
     mtr_t mtr;
     mtr.start();
     mlog_write_ull(trx_sysf_get(&mtr) + TRX_SYS_TRX_ID_STORE,
-                   trx_sys->get_max_trx_id(), &mtr);
+                   trx_sys.get_max_trx_id(), &mtr);
     mtr.commit();
   }
 }
@@ -424,7 +424,7 @@ trx_sys_init_at_db_start()
 
 	/* VERY important: after the database is started, max_trx_id value is
 	divisible by TRX_SYS_TRX_ID_WRITE_MARGIN, and the 'if' in
-	trx_sys->get_new_trx_id will evaluate to TRUE when the function
+	trx_sys.get_new_trx_id will evaluate to TRUE when the function
 	is first time called, and the value for trx id will be written
 	to the disk-based header! Thus trx id values will not overlap when
 	the database is repeatedly started! */
@@ -434,40 +434,34 @@ trx_sys_init_at_db_start()
 
 	sys_header = trx_sysf_get(&mtr);
 
-	trx_sys->init_max_trx_id(2 * TRX_SYS_TRX_ID_WRITE_MARGIN
+	trx_sys.init_max_trx_id(2 * TRX_SYS_TRX_ID_WRITE_MARGIN
 		+ ut_uint64_align_up(mach_read_from_8(sys_header
 						   + TRX_SYS_TRX_ID_STORE),
 				     TRX_SYS_TRX_ID_WRITE_MARGIN));
 
 	mtr.commit();
-	ut_d(trx_sys->rw_max_trx_id = trx_sys->get_max_trx_id());
+	ut_d(trx_sys.rw_max_trx_id = trx_sys.get_max_trx_id());
 
 	trx_dummy_sess = sess_open();
 
 	trx_lists_init_at_db_start();
-	trx_sys->mvcc->clone_oldest_view(&purge_sys->view);
+	trx_sys.mvcc->clone_oldest_view(&purge_sys->view);
 }
 
-/*****************************************************************//**
-Creates the trx_sys instance and initializes purge_queue and mutex. */
+/** Create the instance */
 void
-trx_sys_create(void)
-/*================*/
+trx_sys_t::create()
 {
-	ut_ad(trx_sys == NULL);
+	ut_ad(this == &trx_sys);
+	ut_ad(!mvcc);
+	mutex_create(LATCH_ID_TRX_SYS, &mutex);
 
-	trx_sys = static_cast<trx_sys_t*>(ut_zalloc_nokey(sizeof(*trx_sys)));
+	UT_LIST_INIT(serialisation_list, &trx_t::no_list);
+	UT_LIST_INIT(mysql_trx_list, &trx_t::mysql_trx_list);
 
-	mutex_create(LATCH_ID_TRX_SYS, &trx_sys->mutex);
+	mvcc = UT_NEW_NOKEY(MVCC(1024));
 
-	UT_LIST_INIT(trx_sys->serialisation_list, &trx_t::no_list);
-	UT_LIST_INIT(trx_sys->mysql_trx_list, &trx_t::mysql_trx_list);
-
-	trx_sys->mvcc = UT_NEW_NOKEY(MVCC(1024));
-
-	new(&trx_sys->rw_trx_ids) trx_ids_t(ut_allocator<trx_id_t>(
-			mem_key_trx_sys_t_rw_trx_ids));
-	trx_sys->rw_trx_hash.init();
+	rw_trx_hash.init();
 }
 
 /*****************************************************************//**
@@ -563,16 +557,16 @@ trx_sys_create_rsegs()
 	return(true);
 }
 
-/*********************************************************************
-Shutdown/Close the transaction system. */
+/** Close the transaction system on shutdown */
 void
-trx_sys_close(void)
-/*===============*/
+trx_sys_t::close()
 {
-	ut_ad(trx_sys != NULL);
 	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
+	if (!mvcc) {
+		return;
+	}
 
-	if (ulint size = trx_sys->mvcc->size()) {
+	if (ulint size = mvcc->size()) {
 		ib::error() << "All read views were not closed before"
 			" shutdown: " << size << " read views open";
 	}
@@ -582,33 +576,27 @@ trx_sys_close(void)
 		trx_dummy_sess = NULL;
 	}
 
-	trx_sys->rw_trx_hash.destroy();
+	rw_trx_hash.destroy();
 
 	/* There can't be any active transactions. */
 
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		if (trx_rseg_t* rseg = trx_sys->rseg_array[i]) {
+		if (trx_rseg_t* rseg = rseg_array[i]) {
 			trx_rseg_mem_free(rseg);
 		}
 
-		if (trx_rseg_t* rseg = trx_sys->temp_rsegs[i]) {
+		if (trx_rseg_t* rseg = temp_rsegs[i]) {
 			trx_rseg_mem_free(rseg);
 		}
 	}
 
-	UT_DELETE(trx_sys->mvcc);
+	UT_DELETE(mvcc);
 
-	ut_a(UT_LIST_GET_LEN(trx_sys->mysql_trx_list) == 0);
-	ut_a(UT_LIST_GET_LEN(trx_sys->serialisation_list) == 0);
+	ut_a(UT_LIST_GET_LEN(mysql_trx_list) == 0);
+	ut_a(UT_LIST_GET_LEN(serialisation_list) == 0);
 
 	/* We used placement new to create this mutex. Call the destructor. */
-	mutex_free(&trx_sys->mutex);
-
-	trx_sys->rw_trx_ids.~trx_ids_t();
-
-	ut_free(trx_sys);
-
-	trx_sys = NULL;
+	mutex_free(&mutex);
 }
 
 
@@ -628,29 +616,24 @@ static my_bool active_count_callback(rw_trx_hash_element_t *element,
 }
 
 
-/*********************************************************************
-Check if there are any active (non-prepared) transactions.
-This is only used to check if it's safe to shutdown.
-@return total number of active transactions or 0 if none */
-ulint
-trx_sys_any_active_transactions(void)
-/*=================================*/
+/** @return total number of active (non-prepared) transactions */
+ulint trx_sys_t::any_active_transactions()
 {
 	uint32_t total_trx = 0;
 
-	trx_sys->rw_trx_hash.iterate_no_dups(
+	trx_sys.rw_trx_hash.iterate_no_dups(
 				reinterpret_cast<my_hash_walk_action>
 				(active_count_callback), &total_trx);
 
-	trx_sys_mutex_enter();
-	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
+	mutex_enter(&trx_sys.mutex);
+	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
 	     trx != NULL;
 	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
 		if (trx->state != TRX_STATE_NOT_STARTED && !trx->id) {
 			total_trx++;
 		}
 	}
-	trx_sys_mutex_exit();
+	mutex_exit(&trx_sys.mutex);
 
 	return(total_trx);
 }

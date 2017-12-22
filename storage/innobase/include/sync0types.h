@@ -160,7 +160,7 @@ V
 lock_sys_mutex				Mutex protecting lock_sys_t
 |
 V
-trx_sys->mutex				Mutex protecting trx_sys_t
+trx_sys.mutex				Mutex protecting trx_sys_t
 |
 V
 Threads mutex				Background thread scheduling mutex

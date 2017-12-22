@@ -172,7 +172,7 @@ struct trx_i_s_cache_t {
 	ha_storage_t*	storage;	/*!< storage for external volatile
 					data that may become unavailable
 					when we release
-					lock_sys->mutex or trx_sys->mutex */
+					lock_sys->mutex or trx_sys.mutex */
 	ulint		mem_allocd;	/*!< the amount of memory
 					allocated with mem_alloc*() */
 	ibool		is_truncated;	/*!< this is TRUE if the memory
@@ -1300,13 +1300,12 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
     Capture the state of the read-write transactions. This includes
     internal transactions too. They are not on mysql_trx_list
   */
-  trx_sys->rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
-                                       (fetch_data_into_cache_callback),
-                                       cache);
+  trx_sys.rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
+                                      (fetch_data_into_cache_callback), cache);
 
   /* Capture the state of the read-only active transactions */
-  trx_sys_mutex_enter();
-  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
+  mutex_enter(&trx_sys.mutex);
+  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
        trx != NULL;
        trx= UT_LIST_GET_NEXT(mysql_trx_list, trx))
   {
@@ -1321,7 +1320,7 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
         break;
      }
   }
-  trx_sys_mutex_exit();
+  mutex_exit(&trx_sys.mutex);
   cache->is_truncated= FALSE;
 }
 

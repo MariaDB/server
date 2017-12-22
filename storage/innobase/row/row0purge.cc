@@ -821,7 +821,7 @@ skip_secondaries:
 						 &is_insert, &rseg_id,
 						 &page_no, &offset);
 
-			rseg = trx_sys->rseg_array[rseg_id];
+			rseg = trx_sys.rseg_array[rseg_id];
 
 			ut_a(rseg != NULL);
 			ut_ad(rseg->id == rseg_id);

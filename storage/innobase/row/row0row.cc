@@ -396,7 +396,7 @@ row_build_low(
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(dict_index_is_clust(index));
-	ut_ad(!trx_sys_mutex_own());
+	ut_ad(!mutex_own(&trx_sys.mutex));
 	ut_ad(!col_map || col_table);
 
 	if (!offsets) {
@@ -415,8 +415,8 @@ row_build_low(
 	times, and the cursor restore can happen multiple times for single
 	insert or update statement.  */
 	ut_a(!rec_offs_any_null_extern(rec, offsets)
-	     || trx_sys->rw_trx_hash.find(row_get_rec_trx_id(rec, index,
-							     offsets)));
+	     || trx_sys.rw_trx_hash.find(row_get_rec_trx_id(rec, index,
+							    offsets)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
 	if (type != ROW_COPY_POINTERS) {

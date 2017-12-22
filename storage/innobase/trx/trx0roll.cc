@@ -198,7 +198,7 @@ dberr_t
 trx_rollback_low(
 	trx_t*	trx)
 {
-	/* We are reading trx->state without holding trx_sys->mutex
+	/* We are reading trx->state without holding trx_sys.mutex
 	here, because the rollback should be invoked for a running
 	active MySQL transaction (or recovered prepared transaction)
 	that is associated with the current thread. */
@@ -306,7 +306,7 @@ trx_rollback_last_sql_stat_for_mysql(
 {
 	dberr_t	err;
 
-	/* We are reading trx->state without holding trx_sys->mutex
+	/* We are reading trx->state without holding trx_sys.mutex
 	here, because the statement rollback should be invoked for a
 	running active MySQL transaction that is associated with the
 	current thread. */
@@ -486,7 +486,7 @@ trx_rollback_to_savepoint_for_mysql(
 {
 	trx_named_savept_t*	savep;
 
-	/* We are reading trx->state without holding trx_sys->mutex
+	/* We are reading trx->state without holding trx_sys.mutex
 	here, because the savepoint rollback should be invoked for a
 	running active MySQL transaction that is associated with the
 	current thread. */
@@ -774,7 +774,7 @@ trx_roll_must_shutdown()
 		/* Get number of recovered active transactions and number of
 		rows they modified. Numbers must be accurate, because only this
 		thread is allowed to touch recovered transactions. */
-		trx_sys->rw_trx_hash.iterate_no_dups(
+		trx_sys.rw_trx_hash.iterate_no_dups(
 			reinterpret_cast<my_hash_walk_action>
 			(trx_roll_count_callback), &arg);
 		ib::info() << "To roll back: " << arg.n_trx
@@ -831,8 +831,9 @@ void trx_rollback_recovered(bool all)
     other thread is allowed to modify or remove these transactions from
     rw_trx_hash.
   */
-  trx_sys->rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
-                                       (trx_rollback_recovered_callback), &trx_list);
+  trx_sys.rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
+                                      (trx_rollback_recovered_callback),
+                                      &trx_list);
 
   while (trx_t *trx= UT_LIST_GET_FIRST(trx_list))
   {
@@ -858,7 +859,7 @@ void trx_rollback_recovered(bool all)
         ut_ad(!srv_undo_sources);
         ut_ad(srv_fast_shutdown);
 discard:
-        trx_sys->rw_trx_hash.erase(trx);
+        trx_sys.rw_trx_hash.erase(trx);
         trx_free_at_shutdown(trx);
       }
       else
@@ -886,7 +887,7 @@ DECLARE_THREAD(trx_rollback_all_recovered)(void*)
 	pfs_register_thread(trx_rollback_clean_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
-	if (trx_sys->rw_trx_hash.size()) {
+	if (trx_sys.rw_trx_hash.size()) {
 		ib::info() << "Starting in background the rollback of"
 			" recovered transactions";
 		trx_rollback_recovered(true);

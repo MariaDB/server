@@ -2192,8 +2192,8 @@ trx_undo_get_undo_rec_low(
 	trx_undo_decode_roll_ptr(roll_ptr, &is_insert, &rseg_id, &page_no,
 				 &offset);
 	rseg = is_temp
-		? trx_sys->temp_rsegs[rseg_id]
-		: trx_sys->rseg_array[rseg_id];
+		? trx_sys.temp_rsegs[rseg_id]
+		: trx_sys.rseg_array[rseg_id];
 	ut_ad(is_temp == !rseg->is_persistent());
 
 	mtr_start(&mtr);
