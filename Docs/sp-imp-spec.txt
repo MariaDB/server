@@ -103,7 +103,7 @@
     - Statements:
         The Lex in THD is replaced by a new Lex structure and the statement,
         is parsed as usual. A sp_instr_stmt is created, containing the new
-        Lex, and added to added to the instructions in  sphead.
+        Lex, and added to the instructions in sphead.
         Afterwards, the procedure's Lex is restored in THD.
     - SET var:
         Setting a local variable generates a sp_instr_set instruction,
@@ -169,7 +169,7 @@
 
   - Parsing CREATE FUNCTION ...
 
-    Creating a functions is essensially the same thing as for a PROCEDURE,
+    Creating a functions is essentially the same thing as for a PROCEDURE,
     with the addition that a FUNCTION has a return type and a RETURN
     statement, but no OUT or INOUT parameters.
 
