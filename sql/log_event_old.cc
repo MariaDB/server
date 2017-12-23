@@ -1845,7 +1845,7 @@ void Old_rows_log_event::pack_info(Protocol *protocol)
 
 
 #ifdef MYSQL_CLIENT
-void Old_rows_log_event::print_helper(FILE *file,
+bool Old_rows_log_event::print_helper(FILE *file,
                                       PRINT_EVENT_INFO *print_event_info,
                                       char const *const name)
 {
@@ -1854,18 +1854,23 @@ void Old_rows_log_event::print_helper(FILE *file,
   if (!print_event_info->short_form)
   {
     bool const last_stmt_event= get_flags(STMT_END_F);
-    print_header(head, print_event_info, !last_stmt_event);
-    my_b_printf(head, "\t%s: table id %lu%s\n",
-                name, m_table_id,
-                last_stmt_event ? " flags: STMT_END_F" : "");
-    print_base64(body, print_event_info, !last_stmt_event);
+    if (print_header(head, print_event_info, !last_stmt_event) ||
+        my_b_printf(head, "\t%s: table id %lu%s\n",
+                    name, m_table_id,
+                    last_stmt_event ? " flags: STMT_END_F" : "") ||
+        print_base64(body, print_event_info, !last_stmt_event))
+      goto err;
   }
 
   if (get_flags(STMT_END_F))
   {
-    copy_event_cache_to_file_and_reinit(head, file);
-    copy_event_cache_to_file_and_reinit(body, file);
+    if (copy_event_cache_to_file_and_reinit(head, file) ||
+        copy_event_cache_to_file_and_reinit(body, file))
+      goto err;
   }
+  return 0;
+err:
+  return 1;
 }
 #endif
 
@@ -2491,10 +2496,11 @@ Write_rows_log_event_old::do_exec_row(rpl_group_info *rgi)
 
 
 #ifdef MYSQL_CLIENT
-void Write_rows_log_event_old::print(FILE *file,
+bool Write_rows_log_event_old::print(FILE *file,
                                      PRINT_EVENT_INFO* print_event_info)
 {
-  Old_rows_log_event::print_helper(file, print_event_info, "Write_rows_old");
+  return Old_rows_log_event::print_helper(file, print_event_info,
+                                          "Write_rows_old");
 }
 #endif
 
@@ -2598,10 +2604,11 @@ int Delete_rows_log_event_old::do_exec_row(rpl_group_info *rgi)
 
 
 #ifdef MYSQL_CLIENT
-void Delete_rows_log_event_old::print(FILE *file,
+bool Delete_rows_log_event_old::print(FILE *file,
                                       PRINT_EVENT_INFO* print_event_info)
 {
-  Old_rows_log_event::print_helper(file, print_event_info, "Delete_rows_old");
+  return Old_rows_log_event::print_helper(file, print_event_info,
+                                          "Delete_rows_old");
 }
 #endif
 
@@ -2736,9 +2743,10 @@ Update_rows_log_event_old::do_exec_row(rpl_group_info *rgi)
 
 
 #ifdef MYSQL_CLIENT
-void Update_rows_log_event_old::print(FILE *file,
+bool Update_rows_log_event_old::print(FILE *file,
                                       PRINT_EVENT_INFO* print_event_info)
 {
-  Old_rows_log_event::print_helper(file, print_event_info, "Update_rows_old");
+  return Old_rows_log_event::print_helper(file, print_event_info,
+                                          "Update_rows_old");
 }
 #endif

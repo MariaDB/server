@@ -607,7 +607,7 @@ bool String::append(IO_CACHE* file, uint32 arg_length)
     return TRUE;
   if (my_b_read(file, (uchar*) Ptr + str_length, arg_length))
   {
-    shrink(str_length);
+    shrink(str_length ? str_length : 1);
     return TRUE;
   }
   str_length+=arg_length;

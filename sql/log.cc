@@ -2992,7 +2992,6 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
   mysql_mutex_lock(&LOCK_log);
   if (is_open())
   {						// Safety agains reopen
-    int tmp_errno= 0;
     char buff[80], *end;
     char query_time_buff[22+7], lock_time_buff[22+7];
     size_t buff_len;
@@ -3014,16 +3013,13 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
 
         /* Note that my_b_write() assumes it knows the length for this */
         if (my_b_write(&log_file, (uchar*) buff, buff_len))
-          tmp_errno= errno;
+          goto err;
       }
       const uchar uh[]= "# User@Host: ";
-      if (my_b_write(&log_file, uh, sizeof(uh) - 1))
-        tmp_errno= errno;
-      if (my_b_write(&log_file, (uchar*) user_host, user_host_len))
-        tmp_errno= errno;
-      if (my_b_write(&log_file, (uchar*) "\n", 1))
-        tmp_errno= errno;
-    }
+      if (my_b_write(&log_file, uh, sizeof(uh) - 1) ||
+          my_b_write(&log_file, (uchar*) user_host, user_host_len) ||
+          my_b_write(&log_file, (uchar*) "\n", 1))
+        goto err;
     
     /* For slow query log */
     sprintf(query_time_buff, "%.6f", ulonglong2double(query_utime)/1000000.0);
@@ -3039,9 +3035,9 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                     (ulong) thd->get_examined_row_count(),
                     thd->get_stmt_da()->is_ok() ?
                     (ulong) thd->get_stmt_da()->affected_rows() :
-                    0) == (size_t) -1)
-      tmp_errno= errno;
-     if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
+                    0))
+      goto err;
+    if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
          (thd->query_plan_flags &
           (QPLAN_FULL_SCAN | QPLAN_FULL_JOIN | QPLAN_TMP_TABLE |
            QPLAN_TMP_DISK | QPLAN_FILESORT | QPLAN_FILESORT_DISK)) &&
@@ -3060,21 +3056,22 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                      thd->query_plan_fsort_passes,
                      ((thd->query_plan_flags & QPLAN_FILESORT_PRIORITY_QUEUE) ? 
                        "Yes" : "No")
-                     ) == (size_t) -1)
-       tmp_errno= errno;
+                     ))
+      goto err;
     if (thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_EXPLAIN &&
         thd->lex->explain)
     {
       StringBuffer<128> buf;
       DBUG_ASSERT(!thd->free_list);
       if (!print_explain_for_slow_log(thd->lex, thd, &buf))
-        my_b_printf(&log_file, "%s", buf.c_ptr_safe());
+        if (my_b_printf(&log_file, "%s", buf.c_ptr_safe()))
+          goto err;
       thd->free_items();
     }
     if (thd->db && strcmp(thd->db, db))
     {						// Database changed
-      if (my_b_printf(&log_file,"use %s;\n",thd->db) == (size_t) -1)
-        tmp_errno= errno;
+      if (my_b_printf(&log_file,"use %s;\n",thd->db))
+        goto err;
       strmov(db,thd->db);
     }
     if (thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt)
@@ -3110,7 +3107,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
       *end='\n';
       if (my_b_write(&log_file, (uchar*) "SET ", 4) ||
           my_b_write(&log_file, (uchar*) buff + 1, (uint) (end-buff)))
-        tmp_errno= errno;
+        goto err;
     }
     if (is_command)
     {
@@ -3119,24 +3116,27 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
       DBUG_EXECUTE_IF("simulate_slow_log_write_error",
                       {DBUG_SET("+d,simulate_file_write_error");});
       if(my_b_write(&log_file, (uchar*) buff, buff_len))
-        tmp_errno= errno;
+        goto err;
     }
     if (my_b_write(&log_file, (uchar*) sql_text, sql_text_len) ||
         my_b_write(&log_file, (uchar*) ";\n",2) ||
         flush_io_cache(&log_file))
-      tmp_errno= errno;
-    if (tmp_errno)
-    {
-      error= 1;
-      if (! write_error)
-      {
-        write_error= 1;
-        sql_print_error(ER_THD(thd, ER_ERROR_ON_WRITE), name, tmp_errno);
-      }
+      goto err;
+
     }
   }
+end:
   mysql_mutex_unlock(&LOCK_log);
   DBUG_RETURN(error);
+
+err:
+  error= 1;
+  if (! write_error)
+  {
+    write_error= 1;
+    sql_print_error(ER_THD(thd, ER_ERROR_ON_WRITE), name, errno);
+  }
+  goto end;
 }
 
 

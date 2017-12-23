@@ -2543,6 +2543,7 @@ BEGIN
 ###   @77=1 /* ENUM(1 byte) meta=63233 nullable=1 is_null=0 */
 ###   @78=b'00000000' /* SET(1 bytes) meta=63489 nullable=1 is_null=0 */
 ###   @79=1 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -2727,6 +2728,7 @@ BEGIN
 ###   @77=3 /* ENUM(1 byte) meta=63233 nullable=1 is_null=0 */
 ###   @78=b'00000111' /* SET(1 bytes) meta=63489 nullable=1 is_null=0 */
 ###   @79=2 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -3076,6 +3078,7 @@ BEGIN
 ###   @77=2 /* ENUM(1 byte) meta=63233 nullable=1 is_null=0 */
 ###   @78=b'00000110' /* SET(1 bytes) meta=63489 nullable=1 is_null=0 */
 ###   @79=4 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 2
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -3417,6 +3420,7 @@ BEGIN
 ###   @77=3 /* ENUM(1 byte) meta=63233 nullable=1 is_null=0 */
 ###   @78=b'00000111' /* SET(1 bytes) meta=63489 nullable=1 is_null=0 */
 ###   @79=1 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -3763,6 +3767,7 @@ BEGIN
 ###   @77=1 /* ENUM(1 byte) meta=63233 nullable=1 is_null=0 */
 ###   @78=b'00000000' /* SET(1 bytes) meta=63489 nullable=1 is_null=0 */
 ###   @79=2 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -4107,6 +4112,7 @@ BEGIN
 ###   @77=2 /* ENUM(1 byte) meta=63233 nullable=1 is_null=0 */
 ###   @78=b'00000110' /* SET(1 bytes) meta=63489 nullable=1 is_null=0 */
 ###   @79=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -4454,6 +4460,7 @@ BEGIN
 ###   @77=NULL /* ENUM(1 byte) meta=63233 nullable=1 is_null=1 */
 ###   @78=NULL /* SET(1 bytes) meta=63489 nullable=1 is_null=1 */
 ###   @79=4 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -4635,6 +4642,7 @@ BEGIN
 ###   @77=3 /* ENUM(1 byte) meta=63233 nullable=1 is_null=0 */
 ###   @78=b'00000111' /* SET(1 bytes) meta=63489 nullable=1 is_null=0 */
 ###   @79=1 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -4813,6 +4821,7 @@ BEGIN
 ###   @77=1 /* ENUM(1 byte) meta=63233 nullable=1 is_null=0 */
 ###   @78=b'00000000' /* SET(1 bytes) meta=63489 nullable=1 is_null=0 */
 ###   @79=2 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -4994,6 +5003,7 @@ BEGIN
 ###   @77=2 /* ENUM(1 byte) meta=63233 nullable=1 is_null=0 */
 ###   @78=b'00000110' /* SET(1 bytes) meta=63489 nullable=1 is_null=0 */
 ###   @79=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -5173,6 +5183,7 @@ BEGIN
 ###   @77=NULL /* ENUM(1 byte) meta=63233 nullable=1 is_null=1 */
 ###   @78=NULL /* SET(1 bytes) meta=63489 nullable=1 is_null=1 */
 ###   @79=4 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -5368,6 +5379,7 @@ BEGIN
 ###   @1='2008:08:09' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @2='VARCHAR-09' /* VARSTRING(24) meta=24 nullable=1 is_null=0 */
 ###   @3=9 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 9
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -5448,6 +5460,7 @@ BEGIN
 ###   @1='2008:08:17' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @2='VARCHAR-07' /* VARSTRING(24) meta=24 nullable=1 is_null=0 */
 ###   @3=7 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 7
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -5500,6 +5513,7 @@ BEGIN
 ###   @1='2008:08:17' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @2='VARCHAR-07' /* VARSTRING(24) meta=24 nullable=1 is_null=0 */
 ###   @3=7 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 7
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -5795,6 +5809,7 @@ BEGIN
 ###   @1='2008:01:09' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @2='VARCHAR-01-09' /* VARSTRING(255) meta=255 nullable=1 is_null=0 */
 ###   @3=19 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 9
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -5866,6 +5881,7 @@ BEGIN
 ###   @1='2008:02:09' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @2='VARCHAR-02-09' /* VARSTRING(255) meta=255 nullable=1 is_null=0 */
 ###   @3=29 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 9
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -5937,6 +5953,7 @@ BEGIN
 ###   @1='2008:03:09' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @2='VARCHAR-03-09' /* VARSTRING(255) meta=255 nullable=1 is_null=0 */
 ###   @3=39 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 9
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -6128,6 +6145,7 @@ BEGIN
 ###   @1='2038:03:07' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @2='VARCHAR-03-07' /* VARSTRING(255) meta=255 nullable=1 is_null=0 */
 ###   @3=7 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 18
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -6244,6 +6262,7 @@ BEGIN
 ###   @1='2038:03:07' /* DATE meta=0 nullable=1 is_null=0 */
 ###   @2='VARCHAR-03-07' /* VARSTRING(255) meta=255 nullable=1 is_null=0 */
 ###   @3=7 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 18
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -6377,6 +6396,7 @@ BEGIN
 ###   @1=5 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @3='Wow' /* VARSTRING(60) meta=60 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;

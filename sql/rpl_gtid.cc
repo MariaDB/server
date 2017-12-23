@@ -1460,7 +1460,6 @@ rpl_binlog_state::write_to_iocache(IO_CACHE *dest)
   mysql_mutex_lock(&LOCK_binlog_state);
   for (i= 0; i < hash.records; ++i)
   {
-    size_t res;
     element *e= (element *)my_hash_element(&hash, i);
     if (!e->last_gtid)
     {
@@ -1480,8 +1479,8 @@ rpl_binlog_state::write_to_iocache(IO_CACHE *dest)
         gtid= e->last_gtid;
 
       longlong10_to_str(gtid->seq_no, buf, 10);
-      res= my_b_printf(dest, "%u-%u-%s\n", gtid->domain_id, gtid->server_id, buf);
-      if (res == (size_t) -1)
+      if (my_b_printf(dest, "%u-%u-%s\n", gtid->domain_id, gtid->server_id,
+                      buf))
       {
         res= 1;
         goto end;

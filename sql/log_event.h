@@ -802,6 +802,8 @@ class Format_description_log_event;
 class Relay_log_info;
 class binlog_cache_data;
 
+bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache, FILE *file);
+
 #ifdef MYSQL_CLIENT
 enum enum_base64_output_mode {
   BASE64_OUTPUT_NEVER= 0,
@@ -812,6 +814,8 @@ enum enum_base64_output_mode {
   /* insert new output modes here */
   BASE64_OUTPUT_MODE_COUNT
 };
+
+bool copy_event_cache_to_string_and_reinit(IO_CACHE *cache, LEX_STRING *to);
 
 /*
   A structure for mysqlbinlog to know how to print events
@@ -832,33 +836,63 @@ typedef struct st_print_event_info
     that was printed.  We cache these so that we don't have to print
     them if they are unchanged.
   */
-  // TODO: have the last catalog here ??
   char db[FN_REFLEN+1]; // TODO: make this a LEX_STRING when thd->db is
-  bool flags2_inited;
-  uint32 flags2;
-  bool sql_mode_inited;
-  sql_mode_t sql_mode;		/* must be same as THD.variables.sql_mode */
-  ulong auto_increment_increment, auto_increment_offset;
-  bool charset_inited;
   char charset[6]; // 3 variables, each of them storable in 2 bytes
   char time_zone_str[MAX_TIME_ZONE_NAME_LENGTH];
+  char delimiter[16];
+  sql_mode_t sql_mode;		/* must be same as THD.variables.sql_mode */
+  my_thread_id thread_id;
+  ulonglong row_events;
+  ulong auto_increment_increment, auto_increment_offset;
   uint lc_time_names_number;
   uint charset_database_number;
-  my_thread_id thread_id;
-  bool thread_id_printed;
+  uint verbose;
+  uint32 flags2;
   uint32 server_id;
-  bool server_id_printed;
   uint32 domain_id;
+  uint8 common_header_len;
+  enum_base64_output_mode base64_output_mode;
+  my_off_t hexdump_from;
+
+  table_mapping m_table_map;
+  table_mapping m_table_map_ignored;
+  bool flags2_inited;
+  bool sql_mode_inited;
+  bool charset_inited;
+  bool thread_id_printed;
+  bool server_id_printed;
   bool domain_id_printed;
   bool allow_parallel;
   bool allow_parallel_printed;
-
+  bool found_row_event;
+  bool print_row_count;
+  /* Settings on how to print the events */
+  bool short_form;
+  /*
+    This is set whenever a Format_description_event is printed.
+    Later, when an event is printed in base64, this flag is tested: if
+    no Format_description_event has been seen, it is unsafe to print
+    the base64 event, so an error message is generated.
+  */
+  bool printed_fd_event;
   /*
     Track when @@skip_replication changes so we need to output a SET
     statement for it.
   */
-  int skip_replication;
+  bool skip_replication;
 
+  /*
+     These two caches are used by the row-based replication events to
+     collect the header information and the main body of the events
+     making up a statement.
+   */
+  IO_CACHE head_cache;
+  IO_CACHE body_cache;
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+  /* Storing the SQL for reviewing */
+  IO_CACHE review_sql_cache;
+#endif
+  FILE *file;
   st_print_event_info();
 
   ~st_print_event_info() {
@@ -874,37 +908,12 @@ typedef struct st_print_event_info
       && my_b_inited(&review_sql_cache)
 #endif
     ; }
-
-
-  /* Settings on how to print the events */
-  bool short_form;
-  enum_base64_output_mode base64_output_mode;
-  /*
-    This is set whenever a Format_description_event is printed.
-    Later, when an event is printed in base64, this flag is tested: if
-    no Format_description_event has been seen, it is unsafe to print
-    the base64 event, so an error message is generated.
-  */
-  bool printed_fd_event;
-  my_off_t hexdump_from;
-  uint8 common_header_len;
-  char delimiter[16];
-
-  uint verbose;
-  table_mapping m_table_map;
-  table_mapping m_table_map_ignored;
-
-  /*
-     These two caches are used by the row-based replication events to
-     collect the header information and the main body of the events
-     making up a statement.
-   */
-  IO_CACHE head_cache;
-  IO_CACHE body_cache;
-#ifdef WHEN_FLASHBACK_REVIEW_READY
-  /* Storing the SQL for reviewing */
-  IO_CACHE review_sql_cache;
-#endif
+  void flush_for_error()
+  {
+    if (!copy_event_cache_to_file_and_reinit(&head_cache, file))
+      copy_event_cache_to_file_and_reinit(&body_cache, file);
+    fflush(file);
+  }
 } PRINT_EVENT_INFO;
 #endif
 
@@ -1250,11 +1259,11 @@ public:
   Log_event() : temp_buf(0), when(0), flags(0) {}
   ha_checksum crc;
   /* print*() functions are used by mysqlbinlog */
-  virtual void print(FILE* file, PRINT_EVENT_INFO* print_event_info) = 0;
-  void print_timestamp(IO_CACHE* file, time_t *ts = 0);
-  void print_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
+  virtual bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) = 0;
+  bool print_timestamp(IO_CACHE* file, time_t *ts = 0);
+  bool print_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
                     bool is_more);
-  void print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
+  bool print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
                     bool is_more);
 #endif /* MYSQL_SERVER */
 
@@ -2113,8 +2122,8 @@ public:
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
-  void print_query_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info);
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print_query_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
   Query_log_event();
@@ -2453,7 +2462,7 @@ protected:
                      const Format_description_log_event* description_event);
 
 public:
-  void print_query(THD *thd, bool need_db, const char *cs, String *buf,
+  bool print_query(THD *thd, bool need_db, const char *cs, String *buf,
                    my_off_t *fn_start, my_off_t *fn_end,
                    const char *qualify_db);
   my_thread_id thread_id;
@@ -2519,8 +2528,8 @@ public:
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info, bool commented);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info, bool commented);
 #endif
 
   /*
@@ -2617,7 +2626,7 @@ public:
 #endif /* HAVE_REPLICATION */
 #else
   Start_log_event_v3() {}
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
   Start_log_event_v3(const char* buf, uint event_len,
@@ -2686,7 +2695,7 @@ public:
            write_data(nonce, BINLOG_NONCE_LENGTH);
   }
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
   Start_encryption_log_event(
@@ -2874,7 +2883,7 @@ Intvar_log_event(THD* thd_arg,uchar type_arg, ulonglong val_arg,
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
   Intvar_log_event(const char* buf,
@@ -2955,7 +2964,7 @@ class Rand_log_event: public Log_event
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
   Rand_log_event(const char* buf,
@@ -3005,7 +3014,7 @@ class Xid_log_event: public Log_event
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
   Xid_log_event(const char* buf,
@@ -3067,7 +3076,7 @@ public:
     }
   void pack_info(Protocol* protocol);
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
   User_var_log_event(const char* buf, uint event_len,
@@ -3115,7 +3124,7 @@ public:
   Stop_log_event() :Log_event()
   {}
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
   Stop_log_event(const char* buf,
@@ -3211,7 +3220,7 @@ public:
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
   Rotate_log_event(const char* buf, uint event_len,
@@ -3251,7 +3260,7 @@ public:
   void pack_info(Protocol *protocol);
 #endif
 #else
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
   Binlog_checkpoint_log_event(const char *buf, uint event_len,
              const Format_description_log_event *description_event);
@@ -3376,7 +3385,7 @@ public:
   virtual enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 #else
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
   Gtid_log_event(const char *buf, uint event_len,
                  const Format_description_log_event *description_event);
@@ -3490,7 +3499,7 @@ public:
   void pack_info(Protocol *protocol);
 #endif
 #else
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
   Gtid_list_log_event(const char *buf, uint event_len,
                       const Format_description_log_event *description_event);
@@ -3554,8 +3563,8 @@ public:
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info,
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info,
              bool enable_local);
 #endif
 
@@ -3627,7 +3636,7 @@ public:
   virtual int get_create_or_append() const;
 #endif /* HAVE_REPLICATION */
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
   Append_block_log_event(const char* buf, uint event_len,
@@ -3667,8 +3676,8 @@ public:
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info,
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info,
              bool enable_local);
 #endif
 
@@ -3708,7 +3717,7 @@ public:
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
   Execute_load_log_event(const char* buf, uint event_len,
@@ -3804,9 +3813,9 @@ public:
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
   /* Prints the query as LOAD DATA LOCAL and with rewritten filename */
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info,
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info,
 	     const char *local_fname);
 #endif
   Execute_load_query_log_event(const char* buf, uint event_len,
@@ -3851,7 +3860,7 @@ public:
   /* constructor for hopelessly corrupted events */
   Unknown_log_event(): Log_event(), what(ENCRYPTED) {}
   ~Unknown_log_event() {}
-  void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
   Log_event_type get_type_code() { return UNKNOWN_EVENT;}
   bool is_valid() const { return 1; }
 };
@@ -3896,7 +3905,7 @@ public:
 #endif
 
 #ifdef MYSQL_CLIENT
-  virtual void print(FILE*, PRINT_EVENT_INFO*);
+  virtual bool print(FILE*, PRINT_EVENT_INFO*);
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
@@ -4316,7 +4325,7 @@ public:
 #endif
 
 #ifdef MYSQL_CLIENT
-  virtual void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  virtual bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
 
@@ -4437,15 +4446,21 @@ public:
 
 #ifdef MYSQL_CLIENT
   /* not for direct call, each derived has its own ::print() */
-  virtual void print(FILE *file, PRINT_EVENT_INFO *print_event_info)= 0;
+  virtual bool print(FILE *file, PRINT_EVENT_INFO *print_event_info)= 0;
   void change_to_flashback_event(PRINT_EVENT_INFO *print_event_info, uchar *rows_buff, Log_event_type ev_type);
-  void print_verbose(IO_CACHE *file,
+  bool print_verbose(IO_CACHE *file,
                      PRINT_EVENT_INFO *print_event_info);
   size_t print_verbose_one_row(IO_CACHE *file, table_def *td,
                                PRINT_EVENT_INFO *print_event_info,
                                MY_BITMAP *cols_bitmap,
                                const uchar *ptr, const uchar *prefix,
                                const my_bool no_fill_output= 0); // if no_fill_output=1, then print result is unnecessary
+  size_t calc_row_event_length(table_def *td,
+                               PRINT_EVENT_INFO *print_event_info,
+                               MY_BITMAP *cols_bitmap,
+                               const uchar *value);
+  void count_row_events(PRINT_EVENT_INFO *print_event_info);
+
 #endif
 
 #ifdef MYSQL_SERVER
@@ -4552,7 +4567,7 @@ protected:
   void uncompress_buf();
 
 #ifdef MYSQL_CLIENT
-  void print_helper(FILE *, PRINT_EVENT_INFO *, char const *const name);
+  bool print_helper(FILE *, PRINT_EVENT_INFO *, char const *const name);
 #endif
 
 #ifdef MYSQL_SERVER
@@ -4756,7 +4771,7 @@ private:
   virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
 
 #ifdef MYSQL_CLIENT
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
@@ -4780,7 +4795,7 @@ public:
 #endif
 private:
 #if defined(MYSQL_CLIENT)
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 };
 
@@ -4843,7 +4858,7 @@ protected:
   virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
 
 #ifdef MYSQL_CLIENT
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
@@ -4867,7 +4882,7 @@ public:
 #endif
 private:
 #if defined(MYSQL_CLIENT)
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 };
 
@@ -4927,7 +4942,7 @@ protected:
   virtual Log_event_type get_general_type_code() { return (Log_event_type)TYPE_CODE; }
 
 #ifdef MYSQL_CLIENT
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
@@ -4950,7 +4965,7 @@ public:
 #endif
 private:
 #if defined(MYSQL_CLIENT)
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 };
 
@@ -5044,7 +5059,7 @@ public:
   virtual ~Incident_log_event();
 
 #ifdef MYSQL_CLIENT
-  virtual void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  virtual bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
@@ -5111,7 +5126,7 @@ public:
 #endif
 
 #ifdef MYSQL_CLIENT
-  virtual void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  virtual bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
   virtual Log_event_type get_type_code() { return IGNORABLE_LOG_EVENT; }
@@ -5120,38 +5135,6 @@ public:
 
   virtual int get_data_size() { return IGNORABLE_HEADER_LEN; }
 };
-
-
-static inline bool copy_event_cache_to_string_and_reinit(IO_CACHE *cache, LEX_STRING *to)
-{
-  String tmp;
-
-  reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE);
-  if (tmp.append(cache, (uint32)cache->end_of_file))
-    goto err;
-  reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);
-
-  /*
-    Can't change the order, because the String::release() will clear the
-    length.
-  */
-  to->length= tmp.length();
-  to->str=    tmp.release();
-
-  return false;
-
-err:
-  perror("Out of memory: can't allocate memory in copy_event_cache_to_string_and_reinit().");
-  return true;
-}
-
-static inline bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache,
-                                                       FILE *file)
-{
-  return         
-    my_b_copy_to_file(cache, file) ||
-    reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);
-}
 
 #ifdef MYSQL_SERVER
 /*****************************************************************************

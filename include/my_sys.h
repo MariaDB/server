@@ -552,12 +552,13 @@ static inline int my_b_get(IO_CACHE *info)
   return _my_b_get(info);
 }
 
-/* my_b_write_byte dosn't have any err-check */
-static inline void my_b_write_byte(IO_CACHE *info, uchar chr)
+static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 {
   if (info->write_pos >= info->write_end)
-    my_b_flush_io_cache(info, 1);
+    if (my_b_flush_io_cache(info, 1))
+      return 1;
   *info->write_pos++= chr;
+  return 0;
 }
 
 /**
@@ -825,9 +826,9 @@ extern int end_io_cache(IO_CACHE *info);
 extern void my_b_seek(IO_CACHE *info,my_off_t pos);
 extern size_t my_b_gets(IO_CACHE *info, char *to, size_t max_length);
 extern my_off_t my_b_filelength(IO_CACHE *info);
-extern size_t my_b_write_backtick_quote(IO_CACHE *info, const char *str,
-                                        size_t len);
-extern size_t my_b_printf(IO_CACHE *info, const char* fmt, ...);
+extern my_bool my_b_write_backtick_quote(IO_CACHE *info, const char *str,
+                                         size_t len);
+extern my_bool my_b_printf(IO_CACHE *info, const char* fmt, ...);
 extern size_t my_b_vprintf(IO_CACHE *info, const char* fmt, va_list ap);
 extern my_bool open_cached_file(IO_CACHE *cache,const char *dir,
 				 const char *prefix, size_t cache_size,

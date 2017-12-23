@@ -249,18 +249,16 @@ my_off_t my_b_filelength(IO_CACHE *info)
 }
 
 
-size_t
+my_bool
 my_b_write_backtick_quote(IO_CACHE *info, const char *str, size_t len)
 {
   const uchar *start;
   const uchar *p= (const uchar *)str;
   const uchar *end= p + len;
   size_t count;
-  size_t total= 0;
 
   if (my_b_write(info, (uchar *)"`", 1))
-    return (size_t)-1;
-  ++total;
+    return 1;
   for (;;)
   {
     start= p;
@@ -269,34 +267,31 @@ my_b_write_backtick_quote(IO_CACHE *info, const char *str, size_t len)
     count= p - start;
     if (count && my_b_write(info, start, count))
       return (size_t)-1;
-    total+= count;
     if (p >= end)
       break;
     if (my_b_write(info, (uchar *)"``", 2))
       return (size_t)-1;
-    total+= 2;
     ++p;
   }
-  if (my_b_write(info, (uchar *)"`", 1))
-    return (size_t)-1;
-  ++total;
-  return total;
+  return (my_b_write(info, (uchar *)"`", 1));
 }
 
 /*
   Simple printf version.  Supports '%s', '%d', '%u', "%ld" and "%lu"
-  Used for logging in MySQL
-  returns number of written character, or (size_t) -1 on error
+  Used for logging in MariaDB
+
+  @return 0 ok
+          1 error
 */
 
-size_t my_b_printf(IO_CACHE *info, const char* fmt, ...)
+my_bool my_b_printf(IO_CACHE *info, const char* fmt, ...)
 {
   size_t result;
   va_list args;
   va_start(args,fmt);
   result=my_b_vprintf(info, fmt, args);
   va_end(args);
-  return result;
+  return result == (size_t) -1;
 }
 
 

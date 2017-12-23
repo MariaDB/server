@@ -701,6 +701,8 @@ public:
   void write(DYNAMIC_STRING* ds)
   {
     DBUG_ENTER("LogFile::write");
+    DBUG_PRINT("enter", ("length: %u", (uint) ds->length));
+
     DBUG_ASSERT(m_file);
 
     if (ds->length == 0)
@@ -6930,6 +6932,7 @@ int read_command(struct st_command** command_ptr)
   if (parser.current_line < parser.read_lines)
   {
     get_dynamic(&q_lines, command_ptr, parser.current_line) ;
+    DBUG_PRINT("info", ("query: %s", (*command_ptr)->query));
     DBUG_RETURN(0);
   }
   if (!(*command_ptr= command=

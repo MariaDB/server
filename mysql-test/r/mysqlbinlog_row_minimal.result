@@ -71,6 +71,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# Number of rows: 1
 # at 1015
 #<date> server id 1  end_log_pos 1088 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -99,6 +100,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9=NULL /* STRING(1) meta=65025 nullable=1 is_null=1 */
+# Number of rows: 1
 # at 1330
 #<date> server id 1  end_log_pos 1403 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -127,6 +129,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# Number of rows: 1
 # at 1646
 #<date> server id 1  end_log_pos 1719 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -155,6 +158,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# Number of rows: 1
 # at 1962
 #<date> server id 1  end_log_pos 2035 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -216,6 +220,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# Number of rows: 4
 # at 2354
 #<date> server id 1  end_log_pos 2427 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -251,6 +256,7 @@ BEGIN
 ###   @5=NULL /* INT meta=0 nullable=1 is_null=1 */
 ### SET
 ###   @5=5 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at 2665
 #<date> server id 1  end_log_pos 2738 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -280,6 +286,7 @@ BEGIN
 ### DELETE FROM `test`.`t1`
 ### WHERE
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
+# Number of rows: 4
 # at 2927
 #<date> server id 1  end_log_pos 3000 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -309,6 +316,7 @@ BEGIN
 ### DELETE FROM `test`.`t2`
 ### WHERE
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
+# Number of rows: 4
 # at 3189
 #<date> server id 1  end_log_pos 3262 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
