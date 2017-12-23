@@ -790,7 +790,7 @@ that modified it is running. */
 typedef std::map<
 	dict_table_t*, trx_mod_table_time_t,
 	std::less<dict_table_t*>,
-	ut_allocator<std::pair<dict_table_t*, trx_mod_table_time_t> > >
+	ut_allocator<std::pair<dict_table_t* const, trx_mod_table_time_t> > >
 	trx_mod_tables_t;
 
 /** The transaction handle
