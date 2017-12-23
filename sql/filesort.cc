@@ -997,7 +997,8 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
   if (maybe_null)
     *to++= 1;
   char *tmp_buffer= param->tmp_buffer ? param->tmp_buffer : (char*) to;
-  String tmp(tmp_buffer, param->sort_length, cs);
+  String tmp(tmp_buffer, param->tmp_buffer ? param->sort_length :
+                                             sort_field->length, cs);
   String *res= item->str_result(&tmp);
   if (!res)
   {

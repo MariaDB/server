@@ -226,10 +226,8 @@ trx_undo_report_row_operation(
 					marking, the record in the clustered
 					index, otherwise NULL */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
-	roll_ptr_t*	roll_ptr)	/*!< out: rollback pointer to the
-					inserted undo log record,
-					0 if BTR_NO_UNDO_LOG
-					flag was specified */
+	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
+					undo log record */
 	MY_ATTRIBUTE((nonnull(1,2,8), warn_unused_result));
 /******************************************************************//**
 Copies an undo record to heap. This function can be called if we know that

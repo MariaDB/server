@@ -146,12 +146,10 @@ trx_sys_flush_max_trx_id(void)
 	mtr_t		mtr;
 	trx_sysf_t*	sys_header;
 
-#ifndef WITH_WSREP
 	/* wsrep_fake_trx_id  violates this assert
 	Copied from trx_sys_get_new_trx_id
 	*/
 	ut_ad(trx_sys_mutex_own());
-#endif /* WITH_WSREP */
 
 	if (!srv_read_only_mode) {
 		mtr_start(&mtr);
