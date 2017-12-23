@@ -325,6 +325,15 @@ create or replace table t1 (
   period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 
+--error ER_VERS_DUPLICATE_ROW_START_END
+create or replace table t1 (
+  x29 int unsigned,
+  Sys_end0 timestamp(6) as row end invisible,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
+  period for system_time (Sys_start, Sys_end)
+) with system versioning;
+
 --echo ## System fields detection
 create or replace table t1 (x30 int) with system versioning;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE

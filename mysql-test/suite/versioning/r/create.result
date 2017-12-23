@@ -353,6 +353,14 @@ Sys_end timestamp(6) as row end invisible,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 ERROR HY000: Duplicate ROW START column `Sys_start`
+create or replace table t1 (
+x29 int unsigned,
+Sys_end0 timestamp(6) as row end invisible,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: Duplicate ROW END column `Sys_end`
 ## System fields detection
 create or replace table t1 (x30 int) with system versioning;
 create or replace table t2 (
