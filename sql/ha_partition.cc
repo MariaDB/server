@@ -2180,38 +2180,19 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
         DBUG_ASSERT(sub_elem);
         part= i * num_subparts + j;
         DBUG_ASSERT(part < m_file_tot_parts && m_file[part]);
-        if (ha_legacy_type(m_file[part]->ht) == DB_TYPE_INNODB)
-        {
-          dummy_info.data_file_name= dummy_info.index_file_name = NULL;
-          m_file[part]->update_create_info(&dummy_info);
-
-          if (dummy_info.data_file_name || sub_elem->data_file_name)
-          {
-            sub_elem->data_file_name = (char*) dummy_info.data_file_name;
-          }
-          if (dummy_info.index_file_name || sub_elem->index_file_name)
-          {
-            sub_elem->index_file_name = (char*) dummy_info.index_file_name;
-          }
-        }
+        dummy_info.data_file_name= dummy_info.index_file_name = NULL;
+        m_file[part]->update_create_info(&dummy_info);
+        sub_elem->data_file_name = (char*) dummy_info.data_file_name;
+        sub_elem->index_file_name = (char*) dummy_info.index_file_name;
       }
     }
     else
     {
       DBUG_ASSERT(m_file[i]);
-      if (ha_legacy_type(m_file[i]->ht) == DB_TYPE_INNODB)
-      {
-        dummy_info.data_file_name= dummy_info.index_file_name= NULL;
-        m_file[i]->update_create_info(&dummy_info);
-        if (dummy_info.data_file_name || part_elem->data_file_name)
-        {
-          part_elem->data_file_name = (char*) dummy_info.data_file_name;
-        }
-        if (dummy_info.index_file_name || part_elem->index_file_name)
-        {
-          part_elem->index_file_name = (char*) dummy_info.index_file_name;
-        }
-      }
+      dummy_info.data_file_name= dummy_info.index_file_name= NULL;
+      m_file[i]->update_create_info(&dummy_info);
+      part_elem->data_file_name = (char*) dummy_info.data_file_name;
+      part_elem->index_file_name = (char*) dummy_info.index_file_name;
     }
   }
   DBUG_VOID_RETURN;
