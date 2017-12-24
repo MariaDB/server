@@ -790,3 +790,66 @@ SHOW CREATE VIEW cte_test;
 SELECT * FROM cte_test;
 
 DROP VIEW cte_test;
+
+--echo #
+--echo # mdev-14755 : PS for query using CTE in select with subquery
+--echo #
+
+create table t1 (a int);
+insert into t1 values
+  (7), (2), (8), (1), (3), (2), (7), (5), (4), (7), (9), (8);
+
+let $q1=
+with cte as
+(select a from t1 where a between 4 and 7 group by a)
+(select a from cte where exists( select a from t1 where cte.a=t1.a ))
+union
+(select a from t1 where a < 2);
+
+eval $q1;
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q2=
+with cte as
+(select a from t1 where a between 4 and 7 group by a)
+(select a from t1 where a < 2)
+union
+(select a from cte where exists( select a from t1 where cte.a=t1.a ));
+
+eval $q2;
+eval prepare stmt from "$q2";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q3=
+with cte as
+(select a from t1 where a between 4 and 7)
+(select a from t1 where a < 2)
+union
+(select a from cte where exists( select a from t1 where cte.a=t1.a ));
+
+eval $q3;
+eval prepare stmt from "$q3";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q4=
+with cte as
+(select a from t1 where a between 4 and 7)
+(select a from cte
+   where exists( select a from t1 where t1.a < 2 and cte.a=t1.a ))
+union
+(select a from cte where exists( select a from t1 where cte.a=t1.a ));
+
+eval $q4;
+eval prepare stmt from "$q4";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table t1;

@@ -2320,10 +2320,8 @@ void st_select_lex_node::move_as_slave(st_select_lex_node *new_master)
     prev= &curr->next;
   }
   else
-  {
     prev= &new_master->slave;
-    new_master->slave= this;
-  }
+  *prev= this;
   next= 0;
   master= new_master;
 }
