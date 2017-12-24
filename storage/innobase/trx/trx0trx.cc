@@ -2668,140 +2668,120 @@ trx_prepare_for_mysql(trx_t* trx)
 	return(DB_SUCCESS);
 }
 
-/**********************************************************************//**
-This function is used to find number of prepared transactions and
-their transaction objects for a recovery.
-@return number of prepared transactions stored in xid_list */
-int
-trx_recover_for_mysql(
-/*==================*/
-	XID*	xid_list,	/*!< in/out: prepared transactions */
-	ulint	len)		/*!< in: number of slots in xid_list */
+
+struct trx_recover_for_mysql_callback_arg
 {
-	const trx_t*	trx;
-	ulint		count = 0;
+  XID *xid_list;
+  uint len;
+  uint count;
+};
 
-	ut_ad(xid_list);
-	ut_ad(len);
 
-	/* We should set those transactions which are in the prepared state
-	to the xid_list */
+static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
+  trx_recover_for_mysql_callback_arg *arg)
+{
+  mutex_enter(&element->mutex);
+  if (trx_t *trx= element->trx)
+  {
+    assert_trx_in_rw_list(element->trx);
 
-	trx_sys_mutex_enter();
-
-	for (trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
-	     trx != NULL;
-	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
-
-		assert_trx_in_rw_list(trx);
-
-		/* The state of a read-write transaction cannot change
-		from or to NOT_STARTED while we are holding the
-		trx_sys->mutex. It may change to PREPARED, but not if
-		trx->is_recovered. It may also change to COMMITTED. */
-		if (trx_state_eq(trx, TRX_STATE_PREPARED)) {
-			xid_list[count] = *trx->xid;
-
-			if (count == 0) {
-				ib::info() << "Starting recovery for"
-					" XA transactions...";
-			}
-
-			ib::info() << "Transaction "
-				<< trx_get_id_for_print(trx)
-				<< " in prepared state after recovery";
-
-			ib::info() << "Transaction contains changes to "
-				<< trx->undo_no << " rows";
-
-			count++;
-
-			if (count == len) {
-				break;
-			}
-		}
-	}
-
-	trx_sys_mutex_exit();
-
-	if (count > 0){
-		ib::info() << count << " transactions in prepared state"
-			" after recovery";
-	}
-
-	return(int (count));
+    /*
+      The state of a read-write transaction can only change from ACTIVE to
+      PREPARED while we are holding the element->mutex. But since it is
+      executed at startup no state change should occur.
+    */
+    if (trx_state_eq(trx, TRX_STATE_PREPARED))
+    {
+      ut_ad(trx->is_recovered);
+      if (arg->count == 0)
+        ib::info() << "Starting recovery for XA transactions...";
+      ib::info() << "Transaction " << trx_get_id_for_print(trx)
+                 << " in prepared state after recovery";
+      ib::info() << "Transaction contains changes to " << trx->undo_no
+                 << " rows";
+      arg->xid_list[arg->count++]= *trx->xid;
+    }
+  }
+  mutex_exit(&element->mutex);
+  return arg->count == arg->len;
 }
 
-/*******************************************************************//**
-This function is used to find one X/Open XA distributed transaction
-which is in the prepared state
-@return trx on match, the trx->xid will be invalidated;
-note that the trx may have been committed, unless the caller is
-holding lock_sys->mutex */
-static MY_ATTRIBUTE((warn_unused_result))
-trx_t*
-trx_get_trx_by_xid_low(
-/*===================*/
-	XID*	xid)		/*!< in: X/Open XA transaction
-					identifier */
+
+/**
+  Find prepared transaction objects for recovery.
+
+  @param[out]  xid_list  prepared transactions
+  @param[in]   len       number of slots in xid_list
+
+  @return number of prepared transactions stored in xid_list
+*/
+
+int trx_recover_for_mysql(XID *xid_list, uint len)
 {
-	trx_t*		trx;
+  trx_recover_for_mysql_callback_arg arg= { xid_list, len, 0 };
 
-	ut_ad(trx_sys_mutex_own());
+  ut_ad(xid_list);
+  ut_ad(len);
 
-	for (trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
-	     trx != NULL;
-	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
-
-		assert_trx_in_rw_list(trx);
-
-		/* Compare two X/Open XA transaction id's: their
-		length should be the same and binary comparison
-		of gtrid_length+bqual_length bytes should be
-		the same */
-
-		if (trx->is_recovered
-		    && trx_state_eq(trx, TRX_STATE_PREPARED)
-			&& xid->eq((XID*)trx->xid)) {
-
-			/* Invalidate the XID, so that subsequent calls
-			will not find it. */
-			trx->xid->null();
-			break;
-		}
-	}
-
-	return(trx);
+  /* Fill xid_list with PREPARED transactions. */
+  trx_sys->rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
+                                       (trx_recover_for_mysql_callback), &arg);
+  if (arg.count)
+    ib::info() << arg.count
+               << " transactions in prepared state after recovery";
+  return(arg.count);
 }
 
-/*******************************************************************//**
-This function is used to find one X/Open XA distributed transaction
-which is in the prepared state
-@return trx or NULL; on match, the trx->xid will be invalidated;
-note that the trx may have been committed, unless the caller is
-holding lock_sys->mutex */
-trx_t*
-trx_get_trx_by_xid(
-/*===============*/
-	XID*	xid)	/*!< in: X/Open XA transaction identifier */
+
+struct trx_get_trx_by_xid_callback_arg
 {
-	trx_t*	trx;
+  XID *xid;
+  trx_t *trx;
+};
 
-	if (xid == NULL) {
 
-		return(NULL);
-	}
-
-	trx_sys_mutex_enter();
-
-	/* Recovered/Resurrected transactions are always only on the
-	trx_sys_t::rw_trx_list. */
-	trx = trx_get_trx_by_xid_low((XID*)xid);
-
-	trx_sys_mutex_exit();
-
-	return(trx);
+static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
+  trx_get_trx_by_xid_callback_arg *arg)
+{
+  my_bool found= 0;
+  mutex_enter(&element->mutex);
+  if (trx_t *trx= element->trx)
+  {
+    assert_trx_in_rw_list(element->trx);
+    if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_PREPARED) &&
+        arg->xid->eq(reinterpret_cast<XID*>(trx->xid)))
+    {
+      /* Invalidate the XID, so that subsequent calls will not find it. */
+      trx->xid->null();
+      arg->trx= trx;
+      found= 1;
+    }
+  }
+  mutex_exit(&element->mutex);
+  return found;
 }
+
+
+/**
+  Finds PREPARED XA transaction by xid.
+
+  trx may have been committed, unless the caller is holding lock_sys->mutex.
+
+  @param[in]  xid  X/Open XA transaction identifier
+
+  @return trx or NULL; on match, the trx->xid will be invalidated;
+*/
+
+trx_t *trx_get_trx_by_xid(XID *xid)
+{
+  trx_get_trx_by_xid_callback_arg arg= { xid, 0 };
+
+  if (xid)
+    trx_sys->rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
+                                 (trx_get_trx_by_xid_callback), &arg);
+  return arg.trx;
+}
+
 
 /*************************************************************//**
 Starts the transaction if it is not yet started. */

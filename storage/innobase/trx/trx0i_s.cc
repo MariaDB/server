@@ -1245,101 +1245,89 @@ trx_i_s_cache_clear(
 	ha_storage_empty(&cache->storage);
 }
 
-/*******************************************************************//**
-Fetches the data needed to fill the 3 INFORMATION SCHEMA tables into the
-table cache buffer. Cache must be locked for write. */
-static
-void
-fetch_data_into_cache_low(
-/*======================*/
-	trx_i_s_cache_t*	cache,		/*!< in/out: cache */
-	bool			read_write,	/*!< in: only read-write
-						transactions */
-	trx_ut_list_t*		trx_list)	/*!< in: trx list */
+
+/**
+  Add transactions to innodb_trx's cache.
+
+  We also add all locks that are relevant to each transaction into
+  innodb_locks' and innodb_lock_waits' caches.
+*/
+
+static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 {
-	const trx_t*		trx;
-	bool			rw_trx_list = trx_list == &trx_sys->rw_trx_list;
+  i_s_locks_row_t *requested_lock_row;
 
-	ut_ad(rw_trx_list || trx_list == &trx_sys->mysql_trx_list);
+  assert_trx_nonlocking_or_in_list(trx);
 
-	/* Iterate over the transaction list and add each one
-	to innodb_trx's cache. We also add all locks that are relevant
-	to each transaction into innodb_locks' and innodb_lock_waits'
-	caches. */
+  if (add_trx_relevant_locks_to_cache(cache, trx, &requested_lock_row))
+  {
+    if (i_s_trx_row_t *trx_row= reinterpret_cast<i_s_trx_row_t*>(
+        table_cache_create_empty_row(&cache->innodb_trx, cache)))
+    {
+      if (fill_trx_row(trx_row, trx, requested_lock_row, cache))
+        return;
+      --cache->innodb_trx.rows_used;
+    }
+  }
 
-	for (trx = UT_LIST_GET_FIRST(*trx_list);
-	     trx != NULL;
-	     trx =
-	     (rw_trx_list
-	      ? UT_LIST_GET_NEXT(trx_list, trx)
-	      : UT_LIST_GET_NEXT(mysql_trx_list, trx))) {
-
-		i_s_trx_row_t*		trx_row;
-		i_s_locks_row_t*	requested_lock_row;
-
-		/* Note: Read only transactions that modify temporary
-		tables an have a transaction ID */
-		if (!trx_is_started(trx)
-		    || (!rw_trx_list && trx->id != 0 && !trx->read_only)) {
-
-			continue;
-		}
-
-		assert_trx_nonlocking_or_in_list(trx);
-
-		ut_ad(trx->in_rw_trx_list == rw_trx_list);
-
-		if (!add_trx_relevant_locks_to_cache(cache, trx,
-						     &requested_lock_row)) {
-
-			cache->is_truncated = TRUE;
-			return;
-		}
-
-		trx_row = reinterpret_cast<i_s_trx_row_t*>(
-			table_cache_create_empty_row(
-				&cache->innodb_trx, cache));
-
-		/* memory could not be allocated */
-		if (trx_row == NULL) {
-
-			cache->is_truncated = TRUE;
-			return;
-		}
-
-		if (!fill_trx_row(trx_row, trx, requested_lock_row, cache)) {
-
-			/* memory could not be allocated */
-			--cache->innodb_trx.rows_used;
-			cache->is_truncated = TRUE;
-			return;
-		}
-	}
+  /* memory could not be allocated */
+  cache->is_truncated= TRUE;
 }
 
-/*******************************************************************//**
-Fetches the data needed to fill the 3 INFORMATION SCHEMA tables into the
-table cache buffer. Cache must be locked for write. */
-static
-void
-fetch_data_into_cache(
-/*==================*/
-	trx_i_s_cache_t*	cache)	/*!< in/out: cache */
+
+static my_bool fetch_data_into_cache_callback(
+  rw_trx_hash_element_t *element, trx_i_s_cache_t *cache)
 {
-	ut_ad(lock_mutex_own());
-	ut_ad(trx_sys_mutex_own());
-
-	trx_i_s_cache_clear(cache);
-
-	/* Capture the state of the read-write transactions. This includes
-	internal transactions too. They are not on mysql_trx_list */
-	fetch_data_into_cache_low(cache, true, &trx_sys->rw_trx_list);
-
-	/* Capture the state of the read-only active transactions */
-	fetch_data_into_cache_low(cache, false, &trx_sys->mysql_trx_list);
-
-	cache->is_truncated = FALSE;
+  mutex_enter(&element->mutex);
+  if (element->trx)
+  {
+    assert_trx_in_rw_list(element->trx);
+    fetch_data_into_cache_low(cache, element->trx);
+  }
+  mutex_exit(&element->mutex);
+  return cache->is_truncated;
 }
+
+
+/**
+  Fetches the data needed to fill the 3 INFORMATION SCHEMA tables into the
+  table cache buffer. Cache must be locked for write.
+*/
+
+static void fetch_data_into_cache(trx_i_s_cache_t *cache)
+{
+  ut_ad(lock_mutex_own());
+  trx_i_s_cache_clear(cache);
+
+  /*
+    Capture the state of the read-write transactions. This includes
+    internal transactions too. They are not on mysql_trx_list
+  */
+  trx_sys->rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
+                                       (fetch_data_into_cache_callback),
+                                       cache);
+
+  /* Capture the state of the read-only active transactions */
+  trx_sys_mutex_enter();
+  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
+       trx != NULL;
+       trx= UT_LIST_GET_NEXT(mysql_trx_list, trx))
+  {
+    /*
+      Skip transactions that have trx->id > 0: they were added in previous
+      iteration. Although we may miss concurrently started transactions.
+    */
+    if (trx_is_started(trx) && trx->id == 0)
+    {
+      fetch_data_into_cache_low(cache, trx);
+      if (cache->is_truncated)
+        break;
+     }
+  }
+  trx_sys_mutex_exit();
+  cache->is_truncated= FALSE;
+}
+
 
 /*******************************************************************//**
 Update the transactions cache if it has not been read for some time.
@@ -1358,13 +1346,7 @@ trx_i_s_possibly_fetch_data_into_cache(
 	/* We need to read trx_sys and record/table lock queues */
 
 	lock_mutex_enter();
-
-	trx_sys_mutex_enter();
-
 	fetch_data_into_cache(cache);
-
-	trx_sys_mutex_exit();
-
 	lock_mutex_exit();
 
 	/* update cache last read time */

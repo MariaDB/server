@@ -791,6 +791,33 @@ fake_prepared:
 	goto func_exit;
 }
 
+
+struct trx_roll_count_callback_arg
+{
+  uint32_t n_trx;
+  uint64_t n_rows;
+  trx_roll_count_callback_arg(): n_trx(0), n_rows(0) {}
+};
+
+
+static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
+                                       trx_roll_count_callback_arg *arg)
+{
+  mutex_enter(&element->mutex);
+  if (trx_t *trx= element->trx)
+  {
+    assert_trx_in_rw_list(trx);
+    if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE))
+    {
+      arg->n_trx++;
+      arg->n_rows+= trx->undo_no;
+    }
+  }
+  mutex_exit(&element->mutex);
+  return 0;
+}
+
+
 /** Report progress when rolling back a row of a recovered transaction.
 @return	whether the rollback should be aborted due to pending shutdown */
 bool
@@ -808,31 +835,24 @@ trx_roll_must_shutdown()
 	}
 
 	ib_time_t time = ut_time();
-	mutex_enter(&trx_sys->mutex);
 	mutex_enter(&recv_sys->mutex);
 
 	if (recv_sys->report(time)) {
-		ulint n_trx = 0;
-		ulonglong n_rows = 0;
-		for (const trx_t* t = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
-		     t != NULL;
-		     t = UT_LIST_GET_NEXT(trx_list, t)) {
+		trx_roll_count_callback_arg arg;
 
-			assert_trx_in_rw_list(t);
-			if (t->is_recovered
-			    && trx_state_eq(t, TRX_STATE_ACTIVE)) {
-				n_trx++;
-				n_rows += t->undo_no;
-			}
-		}
-		ib::info() << "To roll back: " << n_trx << " transactions, "
-			   << n_rows << " rows";
-		sd_notifyf(0, "STATUS=To roll back: " ULINTPF " transactions, "
-			   "%llu rows", n_trx, n_rows);
+		/* Get number of recovered active transactions and number of
+		rows they modified. Numbers must be accurate, because only this
+		thread is allowed to touch recovered transactions. */
+		trx_sys->rw_trx_hash.iterate_no_dups(
+			reinterpret_cast<my_hash_walk_action>
+			(trx_roll_count_callback), &arg);
+		ib::info() << "To roll back: " << arg.n_trx
+			   << " transactions, " << arg.n_rows << " rows";
+		sd_notifyf(0, "STATUS=To roll back: " UINT32PF " transactions,"
+			   " " UINT64PF " rows", arg.n_trx, arg.n_rows);
 	}
 
 	mutex_exit(&recv_sys->mutex);
-	mutex_exit(&trx_sys->mutex);
 	return false;
 }
 

@@ -757,7 +757,20 @@ public:
     @param argument    opque argument passed to action
 
     May return the same element multiple times if hash is under contention.
-    Elements can be added or removed while this method is being executed.
+    If caller doesn't like to see the same transaction multiple times, it has
+    to call iterate_no_dups() instead.
+
+    May return element with committed transaction. If caller doesn't like to
+    see committed transactions, it has to skip those under element mutex:
+
+      mutex_enter(&element->mutex);
+      if (trx_t trx= element->trx)
+      {
+        // trx is protected against commit in this branch
+      }
+      mutex_exit(&element->mutex);
+
+    May miss concurrently inserted transactions.
 
     @return
       @retval 0 iteration completed successfully
