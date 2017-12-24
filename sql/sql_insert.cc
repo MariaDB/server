@@ -1051,9 +1051,6 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         }
       }
 
-      if (table->versioned())
-        table->vers_update_fields();
-
       if ((res= table_list->view_check_option(thd,
                                               (values_list.elements == 1 ?
                                                0 :
@@ -3860,8 +3857,6 @@ int select_insert::send_data(List<Item> &values)
     DBUG_RETURN(1);
   }
   table->vers_write= versioned_write;
-  if (table->versioned())
-    table->vers_update_fields();
   if (table_list)                               // Not CREATE ... SELECT
   {
     switch (table_list->view_check_option(thd, info.ignore)) {

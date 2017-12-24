@@ -191,14 +191,14 @@ en SYS_DATATYPE as row end,
 period for system_time (st, en)
 ) with system versioning;
 ## For non-versioned table:
-### 1. implicit system fields are not included
+### 1. invisible fields are not included
 create or replace table t2 as select * from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x23` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
-### 2. explicit system fields are included
+### 2. all visible fields are included
 create or replace table t3 as select * from t0;
 select * from t0;
 y	st	en
@@ -214,18 +214,19 @@ insert into t1 values (1);
 select sys_trx_start from t1 into @sys_trx_start;
 insert into t0 (y) values (2);
 select st from t0 into @st;
-### 1. implicit system fields are included as implicit
 create or replace table t2 with system versioning as select * from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x23` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-#### sys_trx_start, sys_trx_end are copied; wildcard not expanded
-select * from t2 where sys_trx_start = @sys_trx_start;
+#### invisible fields are not copied
+select * from t2;
 x23
 1
-### 2. explicit system fields are included as non-system
+select * from t2 where sys_trx_start <= @sys_trx_start;
+x23
+### 2. source table with visible system fields, target with invisible
 create or replace table t3 with system versioning as select * from t0;
 show create table t3;
 Table	Create Table
@@ -234,13 +235,12 @@ t3	CREATE TABLE `t3` (
   `st` SYS_DATATYPE,
   `en` SYS_DATATYPE
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-#### st, en are plain fields now
 select * from t3 where y > 2;
 y	st	en
 select y from t3 where st = @st and sys_trx_start > @st;
 y
 2
-### 3. explicit system fields are kept as system
+### 3. source and target table with visible system fields
 create or replace table t3 (
 st SYS_DATATYPE as row start invisible,
 en SYS_DATATYPE as row end invisible,
@@ -254,9 +254,11 @@ t3	CREATE TABLE `t3` (
   `en` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`st`, `en`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-select y from t3 where st = @st;
+select y from t3;
 y
 2
+select y from t3 where st = @st;
+y
 ### 4. system fields not or wrongly selected
 create or replace table t3 with system versioning select x23 from t1;
 show create table t3;
@@ -286,9 +288,11 @@ t3	CREATE TABLE `t3` (
   `x23` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-select * from t3 for system_time all where sys_trx_start = @sys_trx_start and sys_trx_end = @sys_trx_end;
+select * from t3 for system_time all;
 x23	y
 1	3
+select * from t3 for system_time all where sys_trx_start = @sys_trx_start and sys_trx_end = @sys_trx_end;
+x23	y
 create or replace table t2 like t0;
 insert into t2 (y) values (1), (2);
 delete from t2 where y = 2;

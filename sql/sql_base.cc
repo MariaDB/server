@@ -8017,6 +8017,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
   Item_field *field;
+  bool only_unvers_fields= update && table_arg->versioned();
   bool save_abort_on_warning= thd->abort_on_warning;
   bool save_no_errors= thd->no_errors;
   DBUG_ENTER("fill_record");
@@ -8068,6 +8069,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
                           ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           rfield->field_name.str, table->s->table_name.str);
     }
+    if (only_unvers_fields && !rfield->vers_update_unversioned())
+      only_unvers_fields= false;
     if (table->versioned() && rfield->vers_sys_field())
     {
       if (type == Item::DEFAULT_VALUE_ITEM)
@@ -8092,6 +8095,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   if (table_arg->vfield &&
       table_arg->update_virtual_fields(table_arg->file, VCOL_UPDATE_FOR_WRITE))
     goto err;
+  if (table_arg->versioned() && !only_unvers_fields)
+    table_arg->vers_update_fields();
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
   DBUG_RETURN(thd->is_error());
@@ -8350,6 +8355,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   if (table->vfield &&
       table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
     goto err;
+  if (table->versioned())
+    table->vers_update_fields();
   thd->abort_on_warning= abort_on_warning_saved;
   DBUG_RETURN(thd->is_error());
 

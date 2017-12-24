@@ -196,12 +196,12 @@ eval create or replace table t0(
 ) with system versioning;
 
 --echo ## For non-versioned table:
---echo ### 1. implicit system fields are not included
+--echo ### 1. invisible fields are not included
 create or replace table t2 as select * from t1;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t2;
 
---echo ### 2. explicit system fields are included
+--echo ### 2. all visible fields are included
 create or replace table t3 as select * from t0;
 select * from t0;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
@@ -213,22 +213,21 @@ select sys_trx_start from t1 into @sys_trx_start;
 insert into t0 (y) values (2);
 select st from t0 into @st;
 
---echo ### 1. implicit system fields are included as implicit
 create or replace table t2 with system versioning as select * from t1;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t2;
---echo #### sys_trx_start, sys_trx_end are copied; wildcard not expanded
-select * from t2 where sys_trx_start = @sys_trx_start;
+--echo #### invisible fields are not copied
+select * from t2;
+select * from t2 where sys_trx_start <= @sys_trx_start;
 
---echo ### 2. explicit system fields are included as non-system
+--echo ### 2. source table with visible system fields, target with invisible
 create or replace table t3 with system versioning as select * from t0;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
 show create table t3;
---echo #### st, en are plain fields now
 select * from t3 where y > 2;
 select y from t3 where st = @st and sys_trx_start > @st;
 
---echo ### 3. explicit system fields are kept as system
+--echo ### 3. source and target table with visible system fields
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 eval create or replace table t3 (
   st $sys_datatype as row start invisible,
@@ -237,6 +236,7 @@ eval create or replace table t3 (
 ) with system versioning as select * from t0;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
 show create table t3;
+select y from t3;
 select y from t3 where st = @st;
 
 --echo ### 4. system fields not or wrongly selected
@@ -261,6 +261,7 @@ insert into t2 values (3);
 create or replace table t3 with system versioning select * from t1 for system_time all, t2;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t3;
+select * from t3 for system_time all;
 select * from t3 for system_time all where sys_trx_start = @sys_trx_start and sys_trx_end = @sys_trx_end;
 
 create or replace table t2 like t0;

@@ -855,9 +855,6 @@ update_begin:
                                                TRG_EVENT_UPDATE))
         break; /* purecov: inspected */
 
-      if (has_vers_fields && table->versioned())
-        table->vers_update_fields();
-
       found++;
 
       if (!can_compare_record || compare_record(table))
@@ -2277,9 +2274,6 @@ int multi_update::send_data(List<Item> &not_used_values)
 
         if (table->default_field && table->update_default_fields(1, ignore))
           DBUG_RETURN(1);
-
-        if (has_vers_fields && table->versioned())
-          table->vers_update_fields();
 
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
