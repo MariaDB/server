@@ -4947,7 +4947,55 @@ MYSQL_BIN_LOG::is_xidlist_idle_nolock()
   return true;
 }
 
+#ifdef WITH_WSREP
+inline bool
+is_gtid_cached_internal(IO_CACHE *file)
+{
+  uchar data[EVENT_TYPE_OFFSET+1];
+  bool result= false;
+  my_off_t write_pos= my_b_tell(file);
+  if (reinit_io_cache(file, READ_CACHE, 0, 0, 0))
+    return false;
+  /*
+   In the cache we have gtid event if , below condition is true,
+  */
+  my_b_read(file, data, sizeof(data));
+  uint event_type= (uchar)data[EVENT_TYPE_OFFSET];
+  if (event_type == GTID_LOG_EVENT)
+    result= true;
+  /*
+    Cleanup , Why because we have not read the full buffer
+    and this will cause next to next reinit_io_cache(called in write_cache)
+    to make cache empty.
+   */
+  file->read_pos= file->read_end;
+  if (reinit_io_cache(file, WRITE_CACHE, write_pos, 0, 0))
+    return false;
+  return result;
+}
+#endif
 
+#ifdef WITH_WSREP
+inline bool
+MYSQL_BIN_LOG::is_gtid_cached(THD *thd)
+{
+  binlog_cache_mngr *mngr= (binlog_cache_mngr *) thd_get_ha_data(
+          thd, binlog_hton);
+  if (!mngr)
+    return false;
+  binlog_cache_data *cache_trans= mngr->get_binlog_cache_data(
+          use_trans_cache(thd, true));
+  binlog_cache_data *cache_stmt= mngr->get_binlog_cache_data(
+          use_trans_cache(thd, false));
+  if (cache_trans && !cache_trans->empty() &&
+          is_gtid_cached_internal(&cache_trans->cache_log))
+    return true;
+  if (cache_stmt && !cache_stmt->empty() &&
+          is_gtid_cached_internal(&cache_stmt->cache_log))
+    return true;
+  return false;
+}
+#endif
 /**
   Create a new log file name.
 
@@ -5544,7 +5592,37 @@ THD::binlog_start_trans_and_stmt()
       cache_mngr->trx_cache.get_prev_position() == MY_OFF_T_UNDEF)
   {
     this->binlog_set_stmt_begin();
-    if (in_multi_stmt_transaction_mode())
+    bool mstmt_mode= in_multi_stmt_transaction_mode();
+#ifdef WITH_WSREP
+      /* Write Gtid
+         Get domain id only when gtid mode is set
+         If this event is replicate through a master then ,
+         we will forward the same gtid another nodes
+         We have to do this only one time in mysql transaction.
+         Since this function is called multiple times , We will check for
+         ha_info->is_started()
+       */
+    Ha_trx_info *ha_info;
+    ha_info= this->ha_data[binlog_hton->slot].ha_info + (mstmt_mode ? 1 : 0);
+
+    if (!ha_info->is_started() && wsrep_gtid_mode
+            && this->variables.gtid_seq_no)
+    {
+      binlog_cache_mngr *const cache_mngr=
+        (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
+
+      IO_CACHE *file=
+        cache_mngr->get_binlog_cache_log(use_trans_cache(this, true));
+      Log_event_writer writer(file);
+        Gtid_log_event gtid_event(this, this->variables.gtid_seq_no,
+                            this->variables.gtid_domain_id,
+                            true, LOG_EVENT_SUPPRESS_USE_F,
+                            true, 0);
+      gtid_event.server_id= this->variables.server_id;
+      writer.write(&gtid_event);
+    }
+#endif
+    if (mstmt_mode)
       trans_register_ha(this, TRUE, binlog_hton);
     trans_register_ha(this, FALSE, binlog_hton);
     /*
@@ -5826,7 +5904,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   DBUG_PRINT("enter", ("standalone: %d", standalone));
 
 #ifdef WITH_WSREP
-  if (WSREP(thd) && thd->wsrep_trx_meta.gtid.seqno != -1 && wsrep_gtid_mode)
+  if (WSREP(thd) && thd->wsrep_trx_meta.gtid.seqno != -1 && wsrep_gtid_mode && !thd->variables.gtid_seq_no)
   {
     domain_id= wsrep_gtid_domain_id;
   } else {
@@ -5878,6 +5956,12 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
 
   /* Write the event to the binary log. */
   DBUG_ASSERT(this == &mysql_bin_log);
+
+#ifdef WITH_WSREP
+  if (wsrep_gtid_mode && is_gtid_cached(thd))
+    DBUG_RETURN(false);
+#endif
+
   if (write_event(&gtid_event))
     DBUG_RETURN(true);
   status_var_add(thd->status_var.binlog_bytes_written, gtid_event.data_written);
