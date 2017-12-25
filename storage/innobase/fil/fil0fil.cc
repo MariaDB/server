@@ -192,7 +192,7 @@ fil_validate_skip(void)
 	static int fil_validate_count = FIL_VALIDATE_SKIP;
 
 	/* We want to reduce the call frequency of the costly fil_validate()
-	 * check in debug builds. */
+	check in debug builds. */
 	int count = my_atomic_add32_explicit(&fil_validate_count, -1,
 					     MY_MEMORY_ORDER_RELAXED);
 	if (count > 0) {
