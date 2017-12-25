@@ -1079,7 +1079,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     if (thd->spcont)
     {
       DBUG_ASSERT(thd->spcont->m_sp);
-      thd->spcont->m_sp->set_sp_cache_version(ULONG_MAX);
+      thd->spcont->m_sp->set_sp_cache_version(0);
     }
   }
 

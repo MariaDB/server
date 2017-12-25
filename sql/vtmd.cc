@@ -689,7 +689,7 @@ bool VTMD_table::setup_select(THD* thd)
   if (thd->spcont)
   {
     DBUG_ASSERT(thd->spcont->m_sp);
-    thd->spcont->m_sp->set_sp_cache_version(ULONG_MAX);
+    thd->spcont->m_sp->set_sp_cache_version(0);
   }
   return false;
 }

@@ -3161,7 +3161,7 @@ bool Sql_cmd_call::execute(THD *thd)
     if (do_execute_sp(thd, sp))
       return true;
 
-    if (sp->sp_cache_version() == ULONG_MAX)
+    if (sp->sp_cache_version() == 0)
     {
       sp_cache_flush(thd->sp_proc_cache, sp);
     }

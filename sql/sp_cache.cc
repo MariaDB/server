@@ -23,7 +23,7 @@
 #include "sp_head.h"
 
 static mysql_mutex_t Cversion_lock;
-static ulong volatile Cversion= 0;
+static ulong volatile Cversion= 1;
 
 
 /*
