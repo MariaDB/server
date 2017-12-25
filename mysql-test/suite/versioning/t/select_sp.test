@@ -113,7 +113,17 @@ create or replace procedure bad() select * from t1 where bad in (select called f
 call bad; call bad; call bad; call bad; call bad; call bad; call bad; call bad;
 drop procedure bad;
 --enable_query_log
---echo bad() is good.
+--echo # bad() is good.
+
+--echo # MDEV-14751 Server crashes in TABLE::versioned on 2nd execution of SP [#431]
+create or replace table t1 (called_bad int);
+create or replace table t2 (b int);
+create or replace procedure bad() select * from t1 where ( 5, 6 ) in ( select b, b from t2 ) and called_bad in ( select max(b) from t2 );
+--disable_query_log
+call bad; call bad; call bad; call bad; call bad; call bad; call bad; call bad;
+drop procedure bad;
+--enable_query_log
+--echo # bad() is good.
 
 --echo # wildcard expansion on hidden fields.
 create or replace table t1(

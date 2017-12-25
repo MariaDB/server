@@ -218,7 +218,20 @@ called	bad
 called	bad
 called	bad
 called	bad
-bad() is good.
+# bad() is good.
+# MDEV-14751 Server crashes in TABLE::versioned on 2nd execution of SP [#431]
+create or replace table t1 (called_bad int);
+create or replace table t2 (b int);
+create or replace procedure bad() select * from t1 where ( 5, 6 ) in ( select b, b from t2 ) and called_bad in ( select max(b) from t2 );
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+# bad() is good.
 # wildcard expansion on hidden fields.
 create or replace table t1(
 A int

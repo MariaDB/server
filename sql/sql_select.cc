@@ -18828,6 +18828,12 @@ free_tmp_table(THD *thd, TABLE *entry)
   plugin_unlock(0, entry->s->db_plugin);
   entry->alias.free();
 
+  if (entry->pos_in_table_list && entry->pos_in_table_list->table)
+  {
+    DBUG_ASSERT(entry->pos_in_table_list->table == entry);
+    entry->pos_in_table_list->table= NULL;
+  }
+
   free_root(&own_root, MYF(0)); /* the table is allocated in its own root */
   thd_proc_info(thd, save_proc_info);
 
