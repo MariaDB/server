@@ -1057,9 +1057,13 @@ public:
   {
     DBUG_ASSERT(table.file);
     // FIXME: check consistency with table.reginfo.lock_type
-    if (table.file->get_lock_type() != F_UNLCK)
+    if (table.file->get_lock_type() != F_UNLCK
+      || table.s->tmp_table)
+    {
       return false;
+    }
     thd->lock= NULL;
+    thd->locked_tables_mode= LTM_NONE;
     bool res= lock_tables(thd, &table_list, 1, 0);
     locked= !res;
     return res;

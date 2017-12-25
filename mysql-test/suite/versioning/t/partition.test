@@ -314,6 +314,13 @@ set autocommit= off;
 truncate table t1;
 set autocommit= on;
 
+--echo MDEV-14747 ALTER PARTITION BY SYSTEM_TIME after LOCK TABLES
+create or replace table t1 (x int) with system versioning;
+lock table t1 write;
+alter table t1 partition by system_time interval 1 week (
+  partition p1 history,
+  partition pn current);
+
 drop table t1;
 drop table t2;
 
