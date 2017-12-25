@@ -7295,31 +7295,14 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return false;
   }
 
-  if (!share->versioned)
   {
     List_iterator_fast<Create_field> it(alter_info->create_list);
     while (Create_field *f= it++)
     {
       if (f->change.length && f->flags & VERS_SYSTEM_FIELD)
       {
-        if (share->table_category == TABLE_CATEGORY_TEMPORARY) {
-          my_error(ER_VERS_TEMPORARY, MYF(0),
-                   f->flags & VERS_SYS_START_FLAG ? "GENERATED AS ROW START"
-                                                  : "GENERATED AS ROW END");
-          return true;
-        }
-        if (thd->mdl_context.upgrade_shared_lock(
-                table->mdl_ticket, MDL_EXCLUSIVE,
-                thd->variables.lock_wait_timeout))
-          return true;
-        if (table->file->info(HA_STATUS_VARIABLE | HA_STATUS_TIME))
-          return true;
-        if (0 < table->file->records())
-        {
-          my_error(ER_VERS_GENERATED_ALWAYS_NOT_EMPTY, MYF(0), f->change.str);
-          return true;
-        }
-        break;
+        my_error(ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN, MYF(0));
+        return true;
       }
     }
   }

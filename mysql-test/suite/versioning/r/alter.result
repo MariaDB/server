@@ -429,8 +429,8 @@ alter table t1 engine=myisam;
 # MDEV-14692 crash in MDL_context::upgrade_shared_lock()
 create or replace temporary table t (a int);
 alter table t change column if exists b c bigint unsigned generated always as row start;
-ERROR HY000: GENERATED AS ROW START prohibited for TEMPORARY tables
+ERROR HY000: This is not yet supported for generated columns
 alter table t change column if exists b c bigint unsigned generated always as row end;
-ERROR HY000: GENERATED AS ROW END prohibited for TEMPORARY tables
+ERROR HY000: This is not yet supported for generated columns
 drop database test;
 create database test;

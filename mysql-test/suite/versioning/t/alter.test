@@ -316,10 +316,10 @@ create or replace table non_empty (
 ) engine innodb;
 insert into non_empty values (1, 100, 200);
 
---error ER_VERS_GENERATED_ALWAYS_NOT_EMPTY
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table non_empty
   change column sys_trx_start sys_trx_start bigint(20) unsigned as row start invisible;
---error ER_VERS_GENERATED_ALWAYS_NOT_EMPTY
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table non_empty
   change column sys_trx_end sys_trx_end bigint(20) unsigned as row end invisible;
 drop table non_empty;
@@ -364,9 +364,9 @@ alter table t1 engine=myisam;
 
 --echo # MDEV-14692 crash in MDL_context::upgrade_shared_lock()
 create or replace temporary table t (a int);
---error ER_VERS_TEMPORARY
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table t change column if exists b c bigint unsigned generated always as row start;
---error ER_VERS_TEMPORARY
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table t change column if exists b c bigint unsigned generated always as row end;
 
 
