@@ -731,3 +731,8 @@ Warning	4042	Syntax error in JSON path in argument 3 to function 'json_contains_
 select JSON_VALID(0x36f0c8dccd83c5eac156da);
 JSON_VALID(0x36f0c8dccd83c5eac156da)
 0
+create table t1(a double not null);
+insert into t1 values (2),(1);
+select 1 from t1 where json_extract(a,'$','$[81]');
+1
+drop table t1;
