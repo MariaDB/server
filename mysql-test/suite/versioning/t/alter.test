@@ -368,6 +368,12 @@ create or replace temporary table t (a int);
 alter table t change column if exists b c bigint unsigned generated always as row start;
 --error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table t change column if exists b c bigint unsigned generated always as row end;
+drop table t;
+
+--echo # MDEV-14744 trx_id-based and transaction-based mixup in assertion
+create or replace table t (c text) engine=innodb with system versioning;
+show create table t;
+alter table t add fulltext key (c);
 
 
 drop database test;

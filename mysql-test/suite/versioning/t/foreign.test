@@ -1,4 +1,4 @@
--- source include/have_innodb.inc
+--source suite/versioning/common.inc
 
 --echo #################
 --echo # Test RESTRICT #
@@ -8,8 +8,12 @@ create table parent(
   id int unique key
 ) engine innodb;
 
-create table child(
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create table child(
   parent_id int,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time(sys_start, sys_end),
   foreign key(parent_id) references parent(id)
     on delete restrict
     on update restrict
@@ -42,8 +46,12 @@ create table parent(
   id int(10) unsigned unique key
 ) engine innodb;
 
-create table child(
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create table child(
   parent_id int(10) unsigned primary key,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time(sys_start, sys_end),
   foreign key(parent_id) references parent(id)
 ) engine innodb with system versioning;
 
@@ -64,8 +72,12 @@ create table parent(
   id int unique key
 ) engine innodb;
 
-create table child(
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create table child(
   parent_id int,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time(sys_start, sys_end),
   foreign key(parent_id) references parent(id)
     on delete cascade
     on update cascade
@@ -93,8 +105,12 @@ select * from child for system_time all;
 drop table child;
 drop table parent;
 
-create or replace table parent (
-  id int primary key
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table parent (
+  id int primary key,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time(sys_start, sys_end)
 ) with system versioning
 engine innodb;
 
@@ -151,8 +167,12 @@ create table parent(
   id int unique key
 ) engine innodb;
 
-create table child(
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create table child(
   parent_id int,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time(sys_start, sys_end),
   foreign key(parent_id) references parent(id)
     on delete set null
     on update set null
@@ -189,8 +209,12 @@ drop table parent;
 --echo # Parent table is foreign #
 --echo ###########################
 
-create or replace table parent(
-  id int unique key
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table parent(
+  id int unique key,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time(sys_start, sys_end)
 ) engine innodb with system versioning;
 
 create or replace table child(
@@ -225,16 +249,24 @@ drop table parent;
 --echo # crash on DELETE #
 --echo ###################
 
-create or replace table a (
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table a (
   cola int(10) primary key,
-  v_cola int(10) as (cola mod 10) virtual
+  v_cola int(10) as (cola mod 10) virtual,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time(sys_start, sys_end)
 ) engine=innodb with system versioning;
 
 create index v_cola on a (v_cola);
 
-create or replace table b(
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table b(
   cola int(10),
-  v_cola int(10)
+  v_cola int(10),
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time(sys_start, sys_end)
 ) engine=innodb with system versioning;
 
 alter table b add constraint `v_cola_fk`
@@ -246,3 +278,5 @@ insert into b(cola, v_cola) values (10,2);
 delete from a;
 
 drop table b, a;
+
+--source suite/versioning/common_finish.inc

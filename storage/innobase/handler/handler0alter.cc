@@ -4995,7 +4995,7 @@ new_clustered_failed:
 				field_type |= DATA_UNSIGNED;
 			}
 
-			if (altered_table->versioned(VERS_TRX_ID)) {
+			if (altered_table->versioned()) {
 				if (i == altered_table->s->row_start_field) {
 					field_type |= DATA_VERS_START;
 				} else if (i ==

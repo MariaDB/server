@@ -1,0 +1,5 @@
+[timestamp]
+default-storage-engine=innodb
+
+[trx_id]
+default-storage-engine=innodb

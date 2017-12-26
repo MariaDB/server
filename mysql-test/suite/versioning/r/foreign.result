@@ -6,6 +6,9 @@ id int unique key
 ) engine innodb;
 create table child(
 parent_id int,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time(sys_start, sys_end),
 foreign key(parent_id) references parent(id)
 on delete restrict
 on update restrict
@@ -36,6 +39,9 @@ id int(10) unsigned unique key
 ) engine innodb;
 create table child(
 parent_id int(10) unsigned primary key,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time(sys_start, sys_end),
 foreign key(parent_id) references parent(id)
 ) engine innodb with system versioning;
 insert into parent values(1);
@@ -52,6 +58,9 @@ id int unique key
 ) engine innodb;
 create table child(
 parent_id int,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time(sys_start, sys_end),
 foreign key(parent_id) references parent(id)
 on delete cascade
 on update cascade
@@ -83,7 +92,10 @@ parent_id
 drop table child;
 drop table parent;
 create or replace table parent (
-id int primary key
+id int primary key,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time(sys_start, sys_end)
 ) with system versioning
 engine innodb;
 create or replace table child (
@@ -136,6 +148,9 @@ id int unique key
 ) engine innodb;
 create table child(
 parent_id int,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time(sys_start, sys_end),
 foreign key(parent_id) references parent(id)
 on delete set null
 on update set null
@@ -163,7 +178,10 @@ drop table parent;
 # Parent table is foreign #
 ###########################
 create or replace table parent(
-id int unique key
+id int unique key,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time(sys_start, sys_end)
 ) engine innodb with system versioning;
 create or replace table child(
 parent_id int,
@@ -192,12 +210,18 @@ drop table parent;
 ###################
 create or replace table a (
 cola int(10) primary key,
-v_cola int(10) as (cola mod 10) virtual
+v_cola int(10) as (cola mod 10) virtual,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time(sys_start, sys_end)
 ) engine=innodb with system versioning;
 create index v_cola on a (v_cola);
 create or replace table b(
 cola int(10),
-v_cola int(10)
+v_cola int(10),
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time(sys_start, sys_end)
 ) engine=innodb with system versioning;
 alter table b add constraint `v_cola_fk`
 foreign key (v_cola) references a (v_cola);
