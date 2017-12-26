@@ -192,53 +192,6 @@ trx_write_trx_id(
 	mach_write_to_6(ptr, id);
 }
 
-/****************************************************************//**
-Returns the minimum trx id in trx list. This is the smallest id for which
-the trx can possibly be active. (But, you must look at the trx->state
-to find out if the minimum trx id transaction itself is active, or already
-committed.). The caller must be holding the trx_sys_t::mutex in shared mode.
-@return the minimum trx id, or trx_sys->max_trx_id if the trx list is empty */
-UNIV_INLINE
-trx_id_t
-trx_rw_min_trx_id_low(void)
-/*=======================*/
-{
-	trx_id_t	id;
-
-	ut_ad(trx_sys_mutex_own());
-
-	const trx_t*	trx = UT_LIST_GET_LAST(trx_sys->rw_trx_list);
-
-	if (trx == NULL) {
-		id = trx_sys->max_trx_id;
-	} else {
-		assert_trx_in_rw_list(trx);
-		id = trx->id;
-	}
-
-	return(id);
-}
-
-/****************************************************************//**
-Returns the minimum trx id in rw trx list. This is the smallest id for which
-the rw trx can possibly be active. (But, you must look at the trx->state
-to find out if the minimum trx id transaction itself is active, or already
-committed.)
-@return the minimum trx id, or trx_sys->max_trx_id if rw trx list is empty */
-UNIV_INLINE
-trx_id_t
-trx_rw_min_trx_id(void)
-/*===================*/
-{
-	trx_sys_mutex_enter();
-
-	trx_id_t	id = trx_rw_min_trx_id_low();
-
-	trx_sys_mutex_exit();
-
-	return(id);
-}
-
 /*****************************************************************//**
 Allocates a new transaction id.
 @return new, allocated trx id */

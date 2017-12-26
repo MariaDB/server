@@ -188,16 +188,6 @@ inline bool trx_id_check(const void* db_trx_id, trx_id_t trx_id)
 }
 #endif
 
-/****************************************************************//**
-Returns the minimum trx id in rw trx list. This is the smallest id for which
-the trx can possibly be active. (But, you must look at the trx->state to
-find out if the minimum trx id transaction itself is active, or already
-committed.)
-@return the minimum trx id, or trx_sys->max_trx_id if the trx list is empty */
-UNIV_INLINE
-trx_id_t
-trx_rw_min_trx_id(void);
-/*===================*/
 /*****************************************************************//**
 Updates the offset information about the end of the MySQL binlog entry
 which corresponds to the transaction just being committed. In a MySQL
@@ -743,6 +733,38 @@ public:
   {
     return my_atomic_load32_explicit(&hash.count, MY_MEMORY_ORDER_RELAXED);
   }
+
+
+  /**
+    Iterates the hash.
+
+    @param caller_trx  used to get/set pins
+    @param action      called for every element in hash
+    @param argument    opque argument passed to action
+
+    May return the same element multiple times if hash is under contention.
+    Elements can be added or removed while this method is being executed.
+
+    @return
+      @retval 0 iteration completed successfully
+      @retval 1 iteration was interrupted (action returned 1)
+  */
+
+  int iterate(trx_t *caller_trx, my_hash_walk_action action, void *argument)
+  {
+    LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
+    ut_a(pins);
+    int res= lf_hash_iterate(&hash, pins, action, argument);
+    if (!caller_trx)
+      lf_hash_put_pins(pins);
+    return res;
+  }
+
+
+  int iterate(my_hash_walk_action action, void *argument)
+  {
+    return iterate(current_trx(), action, argument);
+  }
 };
 
 
@@ -840,6 +862,40 @@ struct trx_sys_t {
 					while there were XA PREPARED
 					transactions. We disable query cache
 					if such transactions exist. */
+
+  /**
+    Returns the minimum trx id in rw trx list.
+
+    This is the smallest id for which the trx can possibly be active. (But, you
+    must look at the trx->state to find out if the minimum trx id transaction
+    itself is active, or already committed.)
+
+    @return the minimum trx id, or trx_sys->max_trx_id if the trx list is empty
+  */
+
+  trx_id_t get_min_trx_id()
+  {
+    trx_id_t id= trx_sys_get_max_trx_id();
+    rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
+                        (get_min_trx_id_callback), &id);
+    return id;
+  }
+
+
+private:
+  static my_bool get_min_trx_id_callback(rw_trx_hash_element_t *element,
+                                         trx_id_t *id)
+  {
+    if (element->id < *id)
+    {
+      mutex_enter(&element->mutex);
+      /* We don't care about read-only transactions here. */
+      if (element->trx && element->trx->rsegs.m_redo.rseg)
+        *id= element->id;
+      mutex_exit(&element->mutex);
+    }
+    return 0;
+  }
 };
 
 /** When a trx id which is zero modulo this number (which must be a power of
