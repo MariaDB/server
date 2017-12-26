@@ -39,6 +39,7 @@ set system_versioning_asof= 1;
 ERROR 42000: Incorrect argument type to variable 'system_versioning_asof'
 set system_versioning_asof= 1.1;
 ERROR 42000: Incorrect argument type to variable 'system_versioning_asof'
+# GLOBAL @@system_versioning_asof
 set global system_versioning_asof= '1911-11-11 11:11:11.1111119';
 Warnings:
 Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
@@ -61,6 +62,11 @@ set global system_versioning_asof= @ts;
 show global variables like 'system_versioning_asof';
 Variable_name	Value
 system_versioning_asof	1900-01-01 00:00:00.000000
+set global system_versioning_asof= default;
+select @@global.system_versioning_asof;
+@@global.system_versioning_asof
+DEFAULT
+# SESSION @@system_versioning_asof
 set system_versioning_asof= '1911-11-11 11:11:11.1111119';
 Warnings:
 Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
@@ -83,8 +89,21 @@ set system_versioning_asof= @ts;
 show variables like 'system_versioning_asof';
 Variable_name	Value
 system_versioning_asof	1900-01-01 00:00:00.000000
+# DEFAULT: value is copied from GLOBAL to SESSION
+set global system_versioning_asof= timestamp'1911-11-11 11:11:11.111111';
+set system_versioning_asof= '1900-01-01 00:00:00';
+select @@global.system_versioning_asof != @@system_versioning_asof as different;
+different
+1
+set system_versioning_asof= default;
+select @@global.system_versioning_asof = @@system_versioning_asof as equal;
+equal
+1
 set global system_versioning_asof= DEFAULT;
 set system_versioning_asof= DEFAULT;
+select @@global.system_versioning_asof, @@system_versioning_asof;
+@@global.system_versioning_asof	@@system_versioning_asof
+DEFAULT	DEFAULT
 show variables where variable_name = "system_versioning_hide";
 Variable_name	Value
 system_versioning_hide	IMPLICIT

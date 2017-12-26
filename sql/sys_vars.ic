@@ -2640,7 +2640,15 @@ private:
     out.type= static_cast<enum_var_type>(var->save_result.ulonglong_value);
     if (out.type == SYSTEM_TIME_AS_OF)
     {
-      res= var->value->get_date(&out.ltime, 0);
+      if (var->value)
+      {
+        res= var->value->get_date(&out.ltime, 0);
+      }
+      else // set DEFAULT from global var
+      {
+        out= global_var(vers_asof_timestamp_t);
+        res= false;
+      }
     }
     return res;
   }
