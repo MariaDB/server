@@ -621,6 +621,23 @@ trx_sys_close(void)
 	trx_sys = NULL;
 }
 
+
+static my_bool active_count_callback(rw_trx_hash_element_t *element,
+                                     uint32_t *count)
+{
+  mutex_enter(&element->mutex);
+  if (trx_t *trx= element->trx)
+  {
+    mutex_enter(&trx->mutex);
+    if (trx_state_eq(trx, TRX_STATE_ACTIVE))
+      ++*count;
+    mutex_exit(&trx->mutex);
+  }
+  mutex_exit(&element->mutex);
+  return 0;
+}
+
+
 /*********************************************************************
 Check if there are any active (non-prepared) transactions.
 This is only used to check if it's safe to shutdown.
@@ -629,18 +646,20 @@ ulint
 trx_sys_any_active_transactions(void)
 /*=================================*/
 {
-	ulint	total_trx = trx_sys->rw_trx_hash.size();
+	uint32_t total_trx = 0;
+
+	trx_sys->rw_trx_hash.iterate_no_dups(
+				reinterpret_cast<my_hash_walk_action>
+				(active_count_callback), &total_trx);
 
 	trx_sys_mutex_enter();
 	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
 	     trx != NULL;
 	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
-		total_trx += trx->state != TRX_STATE_NOT_STARTED;
+		if (trx->state != TRX_STATE_NOT_STARTED && !trx->id) {
+			total_trx++;
+		}
 	}
-
-	ut_a(total_trx >= trx_sys->n_prepared_trx);
-	total_trx -= trx_sys->n_prepared_trx;
-
 	trx_sys_mutex_exit();
 
 	return(total_trx);

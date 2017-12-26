@@ -697,7 +697,6 @@ trx_disconnect_from_mysql(
 		ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
 
 		trx->is_recovered = true;
-		trx_sys->n_prepared_recovered_trx++;
 	        trx->mysql_thd = NULL;
 		/* todo/fixme: suggest to do it at innodb prepare */
 		trx->will_lock = 0;
@@ -873,8 +872,6 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
                << " was in the XA prepared state.";
 
     state= TRX_STATE_PREPARED;
-    trx_sys->n_prepared_trx++;
-    trx_sys->n_prepared_recovered_trx++;
     break;
   default:
     if (is_old_insert && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO)
@@ -1003,10 +1000,6 @@ trx_lists_init_at_db_start()
 						undo->rseg->space;
 				}
 				trx_resurrect_table_locks(trx, undo);
-				if (trx_state_eq(trx, TRX_STATE_PREPARED)) {
-					trx_sys->n_prepared_trx++;
-					trx_sys->n_prepared_recovered_trx++;
-				}
 			}
 		}
 	}
@@ -2631,7 +2624,6 @@ trx_prepare(
 	ut_a(trx->state == TRX_STATE_ACTIVE);
 	trx_sys_mutex_enter();
 	trx->state = TRX_STATE_PREPARED;
-	trx_sys->n_prepared_trx++;
 	trx_sys_mutex_exit();
 	/*--------------------------------------*/
 

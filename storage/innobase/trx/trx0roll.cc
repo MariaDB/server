@@ -757,8 +757,6 @@ func_exit:
 		    && !srv_undo_sources && srv_fast_shutdown) {
 fake_prepared:
 			trx->state = TRX_STATE_PREPARED;
-			trx_sys->n_prepared_trx++;
-			trx_sys->n_prepared_recovered_trx++;
 			*all = false;
 			goto func_exit;
 		}

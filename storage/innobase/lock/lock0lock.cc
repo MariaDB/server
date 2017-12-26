@@ -7601,27 +7601,10 @@ lock_trx_release_locks(
 	trx_t*	trx)	/*!< in/out: transaction */
 {
 	check_trx_state(trx);
+	ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED)
+              || trx_state_eq(trx, TRX_STATE_ACTIVE));
 
-	if (trx_state_eq(trx, TRX_STATE_PREPARED)) {
-
-		mutex_enter(&trx_sys->mutex);
-
-		ut_a(trx_sys->n_prepared_trx > 0);
-		--trx_sys->n_prepared_trx;
-
-		if (trx->is_recovered) {
-			ut_a(trx_sys->n_prepared_recovered_trx > 0);
-			trx_sys->n_prepared_recovered_trx--;
-		}
-
-		mutex_exit(&trx_sys->mutex);
-	} else {
-		ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-	}
-
-	bool	release_lock;
-
-	release_lock = (UT_LIST_GET_LEN(trx->lock.trx_locks) > 0);
+	bool release_lock = UT_LIST_GET_LEN(trx->lock.trx_locks) > 0;
 
 	/* Don't take lock_sys mutex if trx didn't acquire any lock. */
 	if (release_lock) {
