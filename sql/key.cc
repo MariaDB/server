@@ -52,8 +52,8 @@
 int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
                  uint *key_length, uint *keypart)
 {
-  reg2 int i;
-  reg3 KEY *key_info;
+  int i;
+  KEY *key_info;
   uint fieldpos;
 
   fieldpos= field->offset(record);

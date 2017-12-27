@@ -1167,9 +1167,9 @@ Type_handler_real_result::make_sort_key(uchar *to, Item *item,
 
 static void make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos)
 {
-  reg3 Field *field;
-  reg1 SORT_FIELD *sort_field;
-  reg5 uint length;
+  Field *field;
+  SORT_FIELD *sort_field;
+  uint length;
 
   for (sort_field=param->local_sortorder ;
        sort_field != param->end ;
@@ -1258,7 +1258,7 @@ static void make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos)
 
 static void register_used_fields(Sort_param *param)
 {
-  reg1 SORT_FIELD *sort_field;
+  SORT_FIELD *sort_field;
   TABLE *table=param->sort_form;
 
   for (sort_field= param->local_sortorder ;

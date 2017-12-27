@@ -1008,7 +1008,7 @@ Lex_input_stream::unescape(CHARSET_INFO *cs, char *to,
 bool Lex_input_stream::get_text(LEX_STRING *dst, uint sep,
                                 int pre_skip, int post_skip)
 {
-  reg1 uchar c;
+  uchar c;
   uint found_escape=0;
   CHARSET_INFO *cs= m_thd->charset();
 
@@ -1188,7 +1188,7 @@ static inline uint int_token(const char *str,uint length)
 */
 bool consume_comment(Lex_input_stream *lip, int remaining_recursions_permitted)
 {
-  reg1 uchar c;
+  uchar c;
   while (! lip->eof())
   {
     c= lip->yyGet();
@@ -1286,7 +1286,7 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
 
 static int lex_one_token(YYSTYPE *yylval, THD *thd)
 {
-  reg1	uchar UNINIT_VAR(c);
+  uchar UNINIT_VAR(c);
   bool comment_closed;
   int	tokval, result_state;
   uint length;
