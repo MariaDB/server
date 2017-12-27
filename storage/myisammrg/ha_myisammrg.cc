@@ -1572,7 +1572,7 @@ int ha_myisammrg::create_mrg(const char *name, HA_CREATE_INFO *create_info)
 }
 
 
-int ha_myisammrg::create(const char *name, register TABLE *form,
+int ha_myisammrg::create(const char *name, TABLE *form,
 			 HA_CREATE_INFO *create_info)
 {
   char buff[FN_REFLEN];

@@ -3570,7 +3570,7 @@ partititon_err:
     table		TABLE object to free
 */
 
-int closefrm(register TABLE *table)
+int closefrm(TABLE *table)
 {
   int error=0;
   DBUG_ENTER("closefrm");
@@ -3607,7 +3607,7 @@ int closefrm(register TABLE *table)
 
 /* Deallocate temporary blob storage */
 
-void free_blobs(register TABLE *table)
+void free_blobs(TABLE *table)
 {
   uint *ptr, *end;
   for (ptr= table->s->blob_field, end=ptr + table->s->blob_fields ;

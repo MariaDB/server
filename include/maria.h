@@ -366,7 +366,7 @@ int maria_sort_index(HA_CHECK *param, MARIA_HA *info, char * name);
 int maria_zerofill(HA_CHECK *param, MARIA_HA *info, const char *name);
 int maria_repair_by_sort(HA_CHECK *param, MARIA_HA *info,
 			 const char *name, my_bool rep_quick);
-int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
+int maria_repair_parallel(HA_CHECK *param, MARIA_HA *info,
 			  const char *name, my_bool rep_quick);
 int maria_change_to_newfile(const char *filename, const char *old_ext,
                             const char *new_ext, time_t backup_time,
