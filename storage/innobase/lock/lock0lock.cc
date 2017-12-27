@@ -354,7 +354,7 @@ lock_report_trx_id_insanity(
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index) */
-	trx_id_t	max_trx_id)	/*!< in: trx_sys_get_max_trx_id() */
+	trx_id_t	max_trx_id)	/*!< in: trx_sys->get_max_trx_id() */
 {
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec_is_default_row(rec, index));
@@ -371,11 +371,6 @@ lock_report_trx_id_insanity(
 /*********************************************************************//**
 Checks that a transaction id is sensible, i.e., not in the future.
 @return true if ok */
-#ifdef UNIV_DEBUG
-
-#else
-static MY_ATTRIBUTE((warn_unused_result))
-#endif
 bool
 lock_check_trx_id_sanity(
 /*=====================*/
@@ -387,15 +382,14 @@ lock_check_trx_id_sanity(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec_is_default_row(rec, index));
 
-	trx_id_t	max_trx_id = trx_sys_get_max_trx_id();
-	bool		is_ok = trx_id < max_trx_id;
+	trx_id_t	max_trx_id = trx_sys->get_max_trx_id();
 
-	if (!is_ok) {
+	if (trx_id >= max_trx_id) {
 		lock_report_trx_id_insanity(
 			trx_id, rec, index, offsets, max_trx_id);
+                return false;
 	}
-
-	return(is_ok);
+	return(true);
 }
 
 /*********************************************************************//**
@@ -5215,7 +5209,7 @@ lock_release(
 {
 	lock_t*		lock;
 	ulint		count = 0;
-	trx_id_t	max_trx_id = trx_sys_get_max_trx_id();
+	trx_id_t	max_trx_id = trx_sys->get_max_trx_id();
 
 	ut_ad(lock_mutex_own());
 	ut_ad(!trx_mutex_own(trx));
@@ -5639,7 +5633,7 @@ lock_print_info_summary(
 	      "------------\n", file);
 
 	fprintf(file, "Trx id counter " TRX_ID_FMT "\n",
-		trx_sys_get_max_trx_id());
+		trx_sys->get_max_trx_id());
 
 	fprintf(file,
 		"Purge done for trx's n:o < " TRX_ID_FMT

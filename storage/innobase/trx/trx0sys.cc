@@ -58,7 +58,7 @@ ReadView::check_trx_id_sanity(
 	trx_id_t		id,
 	const table_name_t&	name)
 {
-	if (id >= trx_sys->max_trx_id) {
+	if (id >= trx_sys->get_max_trx_id()) {
 
 		ib::warn() << "A transaction id"
 			   << " in a record of table "
@@ -89,32 +89,24 @@ ReadView::check_trx_id_sanity(
 uint	trx_rseg_n_slots_debug = 0;
 #endif
 
-/*****************************************************************//**
-Writes the value of max_trx_id to the file based trx system header. */
-void
-trx_sys_flush_max_trx_id(void)
-/*==========================*/
+
+/**
+  Writes the value of m_max_trx_id to the file based trx system header.
+*/
+
+void trx_sys_t::flush_max_trx_id()
 {
-	mtr_t		mtr;
-	trx_sysf_t*	sys_header;
-
-	/* wsrep_fake_trx_id  violates this assert
-	Copied from trx_sys_get_new_trx_id
-	*/
-	ut_ad(trx_sys_mutex_own());
-
-	if (!srv_read_only_mode) {
-		mtr_start(&mtr);
-
-		sys_header = trx_sysf_get(&mtr);
-
-		mlog_write_ull(
-			sys_header + TRX_SYS_TRX_ID_STORE,
-			trx_sys->max_trx_id, &mtr);
-
-		mtr_commit(&mtr);
-	}
+  ut_ad(trx_sys->mutex.is_owned());
+  if (!srv_read_only_mode)
+  {
+    mtr_t mtr;
+    mtr.start();
+    mlog_write_ull(trx_sysf_get(&mtr) + TRX_SYS_TRX_ID_STORE,
+                   trx_sys->get_max_trx_id(), &mtr);
+    mtr.commit();
+  }
 }
+
 
 /*****************************************************************//**
 Updates the offset information about the end of the MySQL binlog entry
@@ -432,7 +424,7 @@ trx_sys_init_at_db_start()
 
 	/* VERY important: after the database is started, max_trx_id value is
 	divisible by TRX_SYS_TRX_ID_WRITE_MARGIN, and the 'if' in
-	trx_sys_get_new_trx_id will evaluate to TRUE when the function
+	trx_sys->get_new_trx_id will evaluate to TRUE when the function
 	is first time called, and the value for trx id will be written
 	to the disk-based header! Thus trx id values will not overlap when
 	the database is repeatedly started! */
@@ -442,13 +434,13 @@ trx_sys_init_at_db_start()
 
 	sys_header = trx_sysf_get(&mtr);
 
-	trx_sys->max_trx_id = 2 * TRX_SYS_TRX_ID_WRITE_MARGIN
+	trx_sys->init_max_trx_id(2 * TRX_SYS_TRX_ID_WRITE_MARGIN
 		+ ut_uint64_align_up(mach_read_from_8(sys_header
 						   + TRX_SYS_TRX_ID_STORE),
-				     TRX_SYS_TRX_ID_WRITE_MARGIN);
+				     TRX_SYS_TRX_ID_WRITE_MARGIN));
 
 	mtr.commit();
-	ut_d(trx_sys->rw_max_trx_id = trx_sys->max_trx_id);
+	ut_d(trx_sys->rw_max_trx_id = trx_sys->get_max_trx_id());
 
 	trx_dummy_sess = sess_open();
 

@@ -459,7 +459,7 @@ ReadView::prepare(trx_id_t id)
 
 	m_creator_trx_id = id;
 
-	m_low_limit_no = m_low_limit_id = trx_sys->max_trx_id;
+	m_low_limit_no = m_low_limit_id = trx_sys->get_max_trx_id();
 
 	if (!trx_sys->rw_trx_ids.empty()) {
 		copy_trx_ids(trx_sys->rw_trx_ids);
@@ -580,7 +580,7 @@ MVCC::view_open(ReadView*& view, trx_t* trx)
 
 			view->m_closed = false;
 
-			if (view->m_low_limit_id == trx_sys_get_max_trx_id()) {
+			if (view->m_low_limit_id == trx_sys->get_max_trx_id()) {
 				return;
 			} else {
 				view->m_closed = true;

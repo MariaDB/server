@@ -126,14 +126,7 @@ row_vers_impl_x_locked_low(
 	if (trx == 0) {
 		/* The transaction that modified or inserted clust_rec is no
 		longer active, or it is corrupt: no implicit lock on rec */
-		trx_sys_mutex_enter();
-		bool corrupt = trx_id >= trx_sys->max_trx_id;
-		trx_sys_mutex_exit();
-		if (corrupt) {
-			lock_report_trx_id_insanity(
-				trx_id, clust_rec, clust_index, clust_offsets,
-				trx_sys_get_max_trx_id());
-		}
+		lock_check_trx_id_sanity(trx_id, clust_rec, clust_index, clust_offsets);
 		mem_heap_free(heap);
 		DBUG_RETURN(0);
 	}

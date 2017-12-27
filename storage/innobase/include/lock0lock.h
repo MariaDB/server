@@ -609,7 +609,7 @@ lock_report_trx_id_insanity(
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index) */
-	trx_id_t	max_trx_id);	/*!< in: trx_sys_get_max_trx_id() */
+	trx_id_t	max_trx_id);	/*!< in: trx_sys->get_max_trx_id() */
 /*********************************************************************//**
 Prints info of locks for all transactions.
 @return FALSE if not able to obtain lock mutex and exits without
@@ -827,7 +827,6 @@ Set the lock system timeout event. */
 void
 lock_set_timeout_event();
 /*====================*/
-#ifdef UNIV_DEBUG
 /*********************************************************************//**
 Checks that a transaction id is sensible, i.e., not in the future.
 @return true if ok */
@@ -837,8 +836,8 @@ lock_check_trx_id_sanity(
 	trx_id_t	trx_id,		/*!< in: trx id */
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
-	const ulint*	offsets)	/*!< in: rec_get_offsets(rec, index) */
-	MY_ATTRIBUTE((warn_unused_result));
+	const ulint*	offsets);	/*!< in: rec_get_offsets(rec, index) */
+#ifdef UNIV_DEBUG
 /*******************************************************************//**
 Check if the transaction holds any locks on the sys tables
 or its records.
