@@ -164,7 +164,7 @@ x21 int without system versioning
 create or replace table t1 (
 x22 int without system versioning
 ) with system versioning;
-ERROR HY000: Table `t1` must have at least one temporal column
+ERROR HY000: Table `t1` must have at least one versioned column
 create or replace table t1 (a int) with system versioning;
 create table tt1 like t1;
 show create table tt1;

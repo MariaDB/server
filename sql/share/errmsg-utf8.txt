@@ -7880,7 +7880,7 @@ ER_VERS_DIFFERENT_TABLES
         eng "Wrong parameters for %`s: system fields selected from different tables"
 
 ER_VERS_TABLE_MUST_HAVE_COLUMNS
-        eng "Table %`s must have at least one temporal column"
+        eng "Table %`s must have at least one versioned column"
 
 ER_VERS_NOT_VERSIONED
         eng "Table %`s is not system-versioned"
