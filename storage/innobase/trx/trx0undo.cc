@@ -1622,15 +1622,10 @@ trx_undo_commit_cleanup(trx_undo_t* undo, bool is_temp)
 	mutex_exit(&rseg->mutex);
 }
 
-/********************************************************************//**
-At shutdown, frees the undo logs of a PREPARED transaction. */
+/** At shutdown, frees the undo logs of a transaction. */
 void
-trx_undo_free_prepared(
-/*===================*/
-	trx_t*	trx)	/*!< in/out: PREPARED transaction */
+trx_undo_free_at_shutdown(trx_t *trx)
 {
-	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
-
 	if (trx_undo_t*& undo = trx->rsegs.m_redo.undo) {
 		switch (undo->state) {
 		case TRX_UNDO_PREPARED:
@@ -1643,9 +1638,7 @@ trx_undo_free_prepared(
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
 			/* lock_trx_release_locks() assigns
-			trx->state = TRX_STATE_COMMITTED_IN_MEMORY,
-			also for transactions that we faked
-			to TRX_STATE_PREPARED in trx_rollback_resurrected(). */
+			trx->state = TRX_STATE_COMMITTED_IN_MEMORY. */
 			ut_a(!srv_was_started
 			     || srv_read_only_mode
 			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
@@ -1672,9 +1665,7 @@ trx_undo_free_prepared(
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
 			/* lock_trx_release_locks() assigns
-			trx->state = TRX_STATE_COMMITTED_IN_MEMORY,
-			also for transactions that we faked
-			to TRX_STATE_PREPARED in trx_rollback_resurrected(). */
+			trx->state = TRX_STATE_COMMITTED_IN_MEMORY. */
 			ut_a(!srv_was_started
 			     || srv_read_only_mode
 			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO

@@ -503,7 +503,7 @@ class rw_trx_hash_t
              (!srv_was_started ||
               srv_read_only_mode ||
               srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)));
-      trx_free_prepared(trx);
+      trx_free_at_shutdown(trx);
     }
     element->~rw_trx_hash_element_t();
   }

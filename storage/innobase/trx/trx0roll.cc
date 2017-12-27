@@ -723,74 +723,6 @@ func_exit:
 	trx_roll_crash_recv_trx	= NULL;
 }
 
-/*******************************************************************//**
-Rollback or clean up any resurrected incomplete transactions. It assumes
-that the caller holds the trx_sys_t::mutex and it will release the
-lock if it does a clean up or rollback.
-@return TRUE if the transaction was cleaned up or rolled back
-and trx_sys->mutex was released. */
-static
-ibool
-trx_rollback_resurrected(
-/*=====================*/
-	trx_t*	trx,	/*!< in: transaction to rollback or clean */
-	bool*	all)	/*!< in/out: FALSE=roll back dictionary transactions;
-			TRUE=roll back all non-PREPARED transactions */
-{
-	ut_ad(trx_sys_mutex_own());
-
-	/* The trx->is_recovered flag and trx->state are set
-	atomically under the protection of the trx->mutex (and
-	lock_sys->mutex) in lock_trx_release_locks(). We do not want
-	to accidentally clean up a non-recovered transaction here. */
-
-	trx_mutex_enter(trx);
-	if (!trx->is_recovered) {
-func_exit:
-		trx_mutex_exit(trx);
-		return(FALSE);
-	}
-
-	switch (trx->state) {
-	case TRX_STATE_ACTIVE:
-		if (!srv_is_being_started
-		    && !srv_undo_sources && srv_fast_shutdown) {
-fake_prepared:
-			trx->state = TRX_STATE_PREPARED;
-			*all = false;
-			goto func_exit;
-		}
-		trx_mutex_exit(trx);
-
-		if (*all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE) {
-			trx_sys_mutex_exit();
-			trx_rollback_active(trx);
-			if (trx->error_state != DB_SUCCESS) {
-				ut_ad(trx->error_state == DB_INTERRUPTED);
-				trx->error_state = DB_SUCCESS;
-				ut_ad(!srv_undo_sources);
-				ut_ad(srv_fast_shutdown);
-				mutex_enter(&trx_sys->mutex);
-				trx_mutex_enter(trx);
-				goto fake_prepared;
-			}
-			trx_free_for_background(trx);
-			return(TRUE);
-		}
-		return(FALSE);
-	case TRX_STATE_COMMITTED_IN_MEMORY:
-		ut_ad(trx->xid);
-	case TRX_STATE_PREPARED:
-		goto func_exit;
-	case TRX_STATE_NOT_STARTED:
-	case TRX_STATE_FORCED_ROLLBACK:
-		break;
-	}
-
-	ut_error;
-	goto func_exit;
-}
-
 
 struct trx_roll_count_callback_arg
 {
@@ -856,53 +788,87 @@ trx_roll_must_shutdown()
 	return false;
 }
 
-/*******************************************************************//**
-Rollback or clean up any incomplete transactions which were
-encountered in crash recovery.  If the transaction already was
-committed, then we clean up a possible insert undo log. If the
-transaction was not yet committed, then we roll it back.
-@param all true=roll back all recovered active transactions;
-false=roll back any incomplete dictionary transaction */
-void
-trx_rollback_recovered(bool all)
+
+static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
+                                               trx_ut_list_t *trx_list)
 {
-	trx_t*	trx;
-
-	ut_a(srv_force_recovery < SRV_FORCE_NO_TRX_UNDO);
-
-	/* Note: For XA recovered transactions, we rely on MySQL to
-	do rollback. They will be in TRX_STATE_PREPARED state. If the server
-	is shutdown and they are still lingering in trx_sys_t::trx_list
-	then the shutdown will hang. */
-
-	/* Loop over the transaction list as long as there are
-	recovered transactions to clean up or recover. */
-
-	do {
-		trx_sys_mutex_enter();
-
-		for (trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
-		     trx != NULL;
-		     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
-
-			assert_trx_in_rw_list(trx);
-
-			/* If this function does a cleanup or rollback
-			then it will release the trx_sys->mutex, therefore
-			we need to reacquire it before retrying the loop. */
-
-			if (trx_rollback_resurrected(trx, &all)) {
-
-				trx_sys_mutex_enter();
-
-				break;
-			}
-		}
-
-		trx_sys_mutex_exit();
-
-	} while (trx != NULL);
+  mutex_enter(&element->mutex);
+  if (trx_t *trx= element->trx)
+  {
+    mutex_enter(&trx->mutex);
+    assert_trx_in_rw_list(trx);
+    if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE))
+      UT_LIST_ADD_FIRST(*trx_list, trx);
+    mutex_exit(&trx->mutex);
+  }
+  mutex_exit(&element->mutex);
+  return 0;
 }
+
+
+/**
+  Rollback any incomplete transactions which were encountered in crash recovery.
+
+  If the transaction already was committed, then we clean up a possible insert
+  undo log. If the transaction was not yet committed, then we roll it back.
+
+  Note: For XA recovered transactions, we rely on MySQL to
+  do rollback. They will be in TRX_STATE_PREPARED state. If the server
+  is shutdown and they are still lingering in trx_sys_t::trx_list
+  then the shutdown will hang.
+
+  @param[in]  all  true=roll back all recovered active transactions;
+                   false=roll back any incomplete dictionary transaction
+*/
+
+void trx_rollback_recovered(bool all)
+{
+  trx_ut_list_t trx_list;
+
+  ut_a(srv_force_recovery < SRV_FORCE_NO_TRX_UNDO);
+  UT_LIST_INIT(trx_list, &trx_t::mysql_trx_list);
+
+  /*
+    Collect list of recovered ACTIVE transaction ids first. Once collected, no
+    other thread is allowed to modify or remove these transactions from
+    rw_trx_hash.
+  */
+  trx_sys->rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
+                                       (trx_rollback_recovered_callback), &trx_list);
+
+  while (trx_t *trx= UT_LIST_GET_FIRST(trx_list))
+  {
+    UT_LIST_REMOVE(trx_list, trx);
+
+#ifdef UNIV_DEBUG
+    ut_ad(trx);
+    trx_mutex_enter(trx);
+    ut_ad(trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE));
+    trx_mutex_exit(trx);
+#endif
+
+    if (!srv_is_being_started && !srv_undo_sources && srv_fast_shutdown)
+      goto discard;
+
+    if (all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE)
+    {
+      trx_rollback_active(trx);
+      if (trx->error_state != DB_SUCCESS)
+      {
+        ut_ad(trx->error_state == DB_INTERRUPTED);
+        trx->error_state= DB_SUCCESS;
+        ut_ad(!srv_undo_sources);
+        ut_ad(srv_fast_shutdown);
+discard:
+        trx_sys->rw_trx_hash.erase(trx);
+        trx_free_at_shutdown(trx);
+      }
+      else
+        trx_free_for_background(trx);
+    }
+  }
+}
+
 
 /*******************************************************************//**
 Rollback or clean up any incomplete transactions which were

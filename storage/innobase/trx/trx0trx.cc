@@ -623,26 +623,24 @@ trx_free_for_background(trx_t* trx)
 	trx_free(trx);
 }
 
-/********************************************************************//**
-At shutdown, frees a transaction object that is in the PREPARED state. */
+/** At shutdown, frees a transaction object. */
 void
-trx_free_prepared(
-/*==============*/
-	trx_t*	trx)	/*!< in, own: trx object */
+trx_free_at_shutdown(trx_t *trx)
 {
+	ut_ad(trx->is_recovered);
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
-	     || (trx->is_recovered
-		 && (trx_state_eq(trx, TRX_STATE_ACTIVE)
-		     || trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY))
+	     || (trx_state_eq(trx, TRX_STATE_ACTIVE)
 		 && (!srv_was_started
 		     || srv_operation == SRV_OPERATION_RESTORE
 		     || srv_operation == SRV_OPERATION_RESTORE_EXPORT
 		     || srv_read_only_mode
-		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)));
+		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
+		     || (!srv_is_being_started
+		         && !srv_undo_sources && srv_fast_shutdown))));
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
 	lock_trx_release_locks(trx);
-	trx_undo_free_prepared(trx);
+	trx_undo_free_at_shutdown(trx);
 
 	assert_trx_in_rw_list(trx);
 	UT_LIST_REMOVE(trx_sys->rw_trx_list, trx);

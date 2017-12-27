@@ -295,13 +295,9 @@ the data can be discarded.
 void
 trx_undo_commit_cleanup(trx_undo_t* undo, bool is_temp);
 
-/********************************************************************//**
-At shutdown, frees the undo logs of a PREPARED transaction. */
+/** At shutdown, frees the undo logs of a transaction. */
 void
-trx_undo_free_prepared(
-/*===================*/
-	trx_t*	trx)	/*!< in/out: PREPARED transaction */
-	ATTRIBUTE_COLD __attribute__((nonnull));
+trx_undo_free_at_shutdown(trx_t *trx);
 
 /* Forward declaration. */
 namespace undo {

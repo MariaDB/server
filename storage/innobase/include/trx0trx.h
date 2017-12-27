@@ -114,12 +114,9 @@ trx_free_resurrected(trx_t* trx);
 void
 trx_free_for_background(trx_t* trx);
 
-/********************************************************************//**
-At shutdown, frees a transaction object that is in the PREPARED state. */
+/** At shutdown, frees a transaction object. */
 void
-trx_free_prepared(
-/*==============*/
-	trx_t*	trx);	/*!< in, own: trx object */
+trx_free_at_shutdown(trx_t *trx);
 
 /** Free a transaction object for MySQL.
 @param[in,out]	trx	transaction */
