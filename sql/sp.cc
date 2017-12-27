@@ -1277,8 +1277,8 @@ log:
   {
     thd->clear_error();
 
-    String log_query;
-    log_query.set_charset(system_charset_info);
+    StringBuffer<128> log_query(thd->variables.character_set_client);
+    DBUG_ASSERT(log_query.charset()->mbminlen == 1);
 
     if (!show_create_sp(thd, &log_query,
                        sp->m_type,
