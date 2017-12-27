@@ -30,7 +30,7 @@ Created 3/26/1996 Heikki Tuuri
 Determines if a transaction is in the given state.
 The caller must hold trx_sys->mutex, or it must be the thread
 that is serving a running transaction.
-A running RW transaction must be in trx_sys->rw_trx_list.
+A running RW transaction must be in trx_sys->rw_trx_hash.
 @return TRUE if trx->state == state */
 UNIV_INLINE
 bool
@@ -71,8 +71,6 @@ trx_state_eq(
 		     || state == TRX_STATE_FORCED_ROLLBACK
 		     || (relaxed
 			 && thd_get_error_number(trx->mysql_thd)));
-
-		ut_ad(!trx->in_rw_trx_list);
 
 		return(true);
 	}

@@ -402,7 +402,7 @@ trx_set_dict_operation(
 Determines if a transaction is in the given state.
 The caller must hold trx_sys->mutex, or it must be the thread
 that is serving a running transaction.
-A running RW transaction must be in trx_sys->rw_trx_list.
+A running RW transaction must be in trx_sys->rw_trx_hash.
 @return TRUE if trx->state == state */
 UNIV_INLINE
 bool
@@ -557,15 +557,6 @@ with an explicit check for the read-only status.
 ((t)->read_only && trx_is_autocommit_non_locking((t)))
 
 /**
-Assert that the transaction is in the trx_sys_t::rw_trx_list */
-#define assert_trx_in_rw_list(t) do {					\
-	ut_ad(!(t)->read_only);						\
-	ut_ad((t)->in_rw_trx_list					\
-	      == !((t)->read_only || !(t)->rsegs.m_redo.rseg));		\
-	check_trx_state(t);						\
-} while (0)
-
-/**
 Check transaction state */
 #define check_trx_state(t) do {						\
 	ut_ad(!trx_is_autocommit_non_locking((t)));			\
@@ -605,7 +596,7 @@ transaction pool.
 #ifdef UNIV_DEBUG
 /*******************************************************************//**
 Assert that an autocommit non-locking select cannot be in the
-rw_trx_list and that it is a read-only transaction.
+rw_trx_hash and that it is a read-only transaction.
 The tranasction must be in the mysql_trx_list. */
 # define assert_trx_nonlocking_or_in_list(t)				\
 	do {								\
@@ -613,7 +604,6 @@ The tranasction must be in the mysql_trx_list. */
 			trx_state_t	t_state = (t)->state;		\
 			ut_ad((t)->read_only);				\
 			ut_ad(!(t)->is_recovered);			\
-			ut_ad(!(t)->in_rw_trx_list);			\
 			ut_ad((t)->in_mysql_trx_list);			\
 			ut_ad(t_state == TRX_STATE_NOT_STARTED		\
 			      || t_state == TRX_STATE_FORCED_ROLLBACK	\
@@ -625,7 +615,7 @@ The tranasction must be in the mysql_trx_list. */
 #else /* UNIV_DEBUG */
 /*******************************************************************//**
 Assert that an autocommit non-locking slect cannot be in the
-rw_trx_list and that it is a read-only transaction.
+rw_trx_hash and that it is a read-only transaction.
 The tranasction must be in the mysql_trx_list. */
 # define assert_trx_nonlocking_or_in_list(trx) ((void)0)
 #endif /* UNIV_DEBUG */
@@ -946,7 +936,7 @@ public:
 					transaction is moved to
 					COMMITTED_IN_MEMORY state.
 					Protected by trx_sys_t::mutex
-					when trx->in_rw_trx_list. Initially
+					when trx is in rw_trx_hash. Initially
 					set to TRX_ID_MAX. */
 
 	/** State of the trx from the point of view of concurrency control
@@ -987,11 +977,11 @@ public:
 
 	XA (2PC) transactions are always treated as non-autocommit.
 
-	Transitions to ACTIVE or NOT_STARTED occur when
-	!in_rw_trx_list (no trx_sys->mutex needed).
+	Transitions to ACTIVE or NOT_STARTED occur when transaction
+	is not in rw_trx_hash (no trx_sys->mutex needed).
 
 	Autocommit non-locking read-only transactions move between states
-	without holding any mutex. They are !in_rw_trx_list.
+	without holding any mutex. They are not in rw_trx_hash.
 
 	All transactions, unless they are determined to be ac-nl-ro,
 	explicitly tagged as read-only or read-write, will first be put
@@ -1001,13 +991,13 @@ public:
 	list. During this switch we assign it a rollback segment.
 
 	When a transaction is NOT_STARTED, it can be in_mysql_trx_list if
-	it is a user transaction. It cannot be in rw_trx_list.
+	it is a user transaction. It cannot be in rw_trx_hash.
 
-	ACTIVE->PREPARED->COMMITTED is only possible when trx->in_rw_trx_list.
+	ACTIVE->PREPARED->COMMITTED is only possible when trx is in rw_trx_hash.
 	The transition ACTIVE->PREPARED is protected by trx_sys->mutex.
 
 	ACTIVE->COMMITTED is possible when the transaction is in
-	rw_trx_list.
+	rw_trx_hash.
 
 	Transitions to COMMITTED are protected by both lock_sys->mutex
 	and trx->mutex.
@@ -1022,9 +1012,6 @@ public:
 					transaction, or NULL if not yet set */
 
 	UT_LIST_NODE_T(trx_t)
-			trx_list;	/*!< list of transactions;
-					protected by trx_sys->mutex. */
-	UT_LIST_NODE_T(trx_t)
 			no_list;	/*!< Required during view creation
 					to check for the view limit for
 					transactions that are committing */
@@ -1036,7 +1023,7 @@ public:
 	bool		is_recovered;	/*!< 0=normal transaction,
 					1=recovered, must be rolled back,
 					protected by trx_sys->mutex when
-					trx->in_rw_trx_list holds */
+					trx is in rw_trx_hash */
 
 	hit_list_t	hit_list;	/*!< List of transactions to kill,
 					when a high priority transaction
@@ -1145,13 +1132,6 @@ public:
 					statement uses, except those
 					in consistent read */
 	/*------------------------------*/
-#ifdef UNIV_DEBUG
-	/** The following two fields are mutually exclusive. */
-	/* @{ */
-
-	bool		in_rw_trx_list;	/*!< true if in trx_sys->rw_trx_list */
-	/* @} */
-#endif /* UNIV_DEBUG */
 	UT_LIST_NODE_T(trx_t)
 			mysql_trx_list;	/*!< list of transactions created for
 					MySQL; protected by trx_sys->mutex */

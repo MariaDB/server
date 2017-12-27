@@ -280,7 +280,6 @@ struct TrxFactory {
 	static void destroy(trx_t* trx)
 	{
 		ut_a(trx->magic_n == TRX_MAGIC_N);
-		ut_ad(!trx->in_rw_trx_list);
 		ut_ad(!trx->in_mysql_trx_list);
 
 		ut_a(trx->lock.wait_lock == NULL);
@@ -347,7 +346,6 @@ struct TrxFactory {
 
 		ut_ad(trx->mysql_thd == 0);
 
-		ut_ad(!trx->in_rw_trx_list);
 		ut_ad(!trx->in_mysql_trx_list);
 
 		ut_a(trx->lock.wait_thr == NULL);
@@ -642,12 +640,7 @@ trx_free_at_shutdown(trx_t *trx)
 	lock_trx_release_locks(trx);
 	trx_undo_free_at_shutdown(trx);
 
-	assert_trx_in_rw_list(trx);
-	UT_LIST_REMOVE(trx_sys->rw_trx_list, trx);
-
 	ut_a(!trx->read_only);
-
-	ut_d(trx->in_rw_trx_list = FALSE);
 
 	DBUG_LOG("trx", "Free prepared: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
@@ -811,34 +804,6 @@ trx_resurrect_table_locks(
 	}
 }
 
-/** Mapping read-write transactions from id to transaction instance, for
-creating read views and during trx id lookup for MVCC and locking. */
-struct TrxTrack {
-	explicit TrxTrack(trx_id_t id, trx_t* trx = NULL)
-		:
-		m_id(id),
-		m_trx(trx)
-	{
-		// Do nothing
-	}
-
-	trx_id_t	m_id;
-	trx_t*		m_trx;
-};
-
-/**
-Comparator for TrxMap */
-struct TrxTrackCmp {
-
-	bool operator() (const TrxTrack& lhs, const TrxTrack& rhs) const
-	{
-		return(lhs.m_id < rhs.m_id);
-	}
-};
-
-typedef std::set<TrxTrack, TrxTrackCmp, ut_allocator<TrxTrack> >
-	TrxIdSet;
-
 
 /**
   Resurrect the transactions that were doing inserts/updates the time of the
@@ -847,7 +812,7 @@ typedef std::set<TrxTrack, TrxTrackCmp, ut_allocator<TrxTrack> >
 
 static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
                           ib_time_t start_time, uint64_t *rows_to_undo,
-                          TrxIdSet *set, bool is_old_insert)
+                          bool is_old_insert)
 {
   trx_state_t state;
   /*
@@ -910,7 +875,6 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
     trx->table_id= undo->table_id;
   }
 
-  set->insert(TrxTrack(trx->id, trx));
   trx_sys->rw_trx_hash.insert(trx);
   trx_sys->rw_trx_hash.put_pins(trx);
   trx_sys->rw_trx_ids.push_back(trx->id);
@@ -918,7 +882,6 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   if (trx_state_eq(trx, TRX_STATE_ACTIVE))
     *rows_to_undo+= trx->undo_no;
 #ifdef UNIV_DEBUG
-  trx->in_rw_trx_list= true;
   if (trx->id > trx_sys->rw_max_trx_id)
     trx_sys->rw_max_trx_id= trx->id;
 #endif
@@ -929,7 +892,6 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
 void
 trx_lists_init_at_db_start()
 {
-	TrxIdSet set;
 	uint64_t	rows_to_undo	= 0;
 	ut_a(srv_is_being_started);
 	ut_ad(!srv_was_started);
@@ -961,7 +923,7 @@ trx_lists_init_at_db_start()
 		while (undo) {
 			trx_undo_t* next = UT_LIST_GET_NEXT(undo_list, undo);
 			trx_resurrect(undo, rseg, start_time, &rows_to_undo,
-				      &set, true);
+				      true);
 			undo = next;
 		}
 
@@ -972,7 +934,7 @@ trx_lists_init_at_db_start()
 			trx_t *trx = trx_sys->rw_trx_hash.find(undo->trx_id);
 			if (!trx) {
 				trx_resurrect(undo, rseg, start_time,
-					      &rows_to_undo, &set, false);
+					      &rows_to_undo, false);
 			} else {
 				ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
 				      trx_state_eq(trx, TRX_STATE_PREPARED));
@@ -1000,9 +962,9 @@ trx_lists_init_at_db_start()
 		}
 	}
 
-	if (set.size()) {
+	if (trx_sys->rw_trx_hash.size()) {
 
-		ib::info() << set.size()
+		ib::info() << trx_sys->rw_trx_hash.size()
 			<< " transaction(s) which must be rolled back or"
 			" cleaned up in total " << rows_to_undo
 			<< " row operations to undo";
@@ -1010,14 +972,6 @@ trx_lists_init_at_db_start()
 		ib::info() << "Trx id counter is " << trx_sys->max_trx_id;
 	}
 
-	TrxIdSet::iterator	end = set.end();
-
-	for (TrxIdSet::iterator it = set.begin();
-	     it != end;
-	     ++it) {
-
-		UT_LIST_ADD_FIRST(trx_sys->rw_trx_list, it->m_trx);
-	}
 	std::sort(trx_sys->rw_trx_ids.begin(), trx_sys->rw_trx_ids.end());
 }
 
@@ -1201,8 +1155,6 @@ trx_start_low(
 	change must be protected by the trx_sys->mutex, so that
 	lock_print_info_all_transactions() will have a consistent view. */
 
-	ut_ad(!trx->in_rw_trx_list);
-
 	/* No other thread can access this trx object through rw_trx_hash, thus
 	we don't need trx_sys->mutex protection for that purpose. Still this
 	trx can be found through trx_sys->mysql_trx_list, which means state
@@ -1236,9 +1188,6 @@ trx_start_low(
 		      || srv_read_only_mode
 		      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 
-		UT_LIST_ADD_FIRST(trx_sys->rw_trx_list, trx);
-
-		ut_d(trx->in_rw_trx_list = true);
 #ifdef UNIV_DEBUG
 		if (trx->id > trx_sys->rw_max_trx_id) {
 			trx_sys->rw_max_trx_id = trx->id;
@@ -1591,7 +1540,7 @@ trx_update_mod_tables_timestamp(
 Erase the transaction from running transaction lists and serialization
 list. Active RW transaction list of a MVCC snapshot(ReadView::prepare)
 won't include this transaction after this call. All implicit locks are
-also released by this call as trx is removed from rw_trx_list.
+also released by this call as trx is removed from rw_trx_hash.
 @param[in] trx		Transaction to erase, must have an ID > 0
 @param[in] serialised	true if serialisation log was written */
 static
@@ -1605,13 +1554,9 @@ trx_erase_lists(
 	if (trx->read_only || trx->rsegs.m_redo.rseg == NULL) {
 
 		trx_sys_mutex_enter();
-		ut_ad(!trx->in_rw_trx_list);
 	} else {
 
 		trx_sys_mutex_enter();
-		UT_LIST_REMOVE(trx_sys->rw_trx_list, trx);
-		ut_d(trx->in_rw_trx_list = false);
-
 		if (trx->read_view != NULL) {
 			trx_sys->mvcc->view_close(trx->read_view, true);
 		}
@@ -1652,7 +1597,6 @@ trx_commit_in_memory(
 		ut_ad(trx->read_only);
 		ut_a(!trx->is_recovered);
 		ut_ad(trx->rsegs.m_redo.rseg == NULL);
-		ut_ad(!trx->in_rw_trx_list);
 
 		/* Note: We are asserting without holding the lock mutex. But
 		that is OK because this transaction is not waiting and cannot
@@ -2563,8 +2507,6 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
-    assert_trx_in_rw_list(element->trx);
-
     /*
       The state of a read-write transaction can only change from ACTIVE to
       PREPARED while we are holding the element->mutex. But since it is
@@ -2627,7 +2569,6 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
-    assert_trx_in_rw_list(element->trx);
     if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_PREPARED) &&
         arg->xid->eq(reinterpret_cast<XID*>(trx->xid)))
     {
@@ -2682,7 +2623,7 @@ trx_start_if_not_started_xa_low(
 			/* If the transaction is tagged as read-only then
 			it can only write to temp tables and for such
 			transactions we don't want to move them to the
-			trx_sys_t::rw_trx_list. */
+			trx_sys_t::rw_trx_hash. */
 			if (!trx->read_only) {
 				trx_set_rw_mode(trx);
 			}
@@ -2807,7 +2748,6 @@ trx_set_rw_mode(
 	trx_t*		trx)		/*!< in/out: transaction that is RW */
 {
 	ut_ad(trx->rsegs.m_redo.rseg == 0);
-	ut_ad(!trx->in_rw_trx_list);
 	ut_ad(!trx_is_autocommit_non_locking(trx));
 	ut_ad(!trx->read_only);
 	ut_ad(trx->id == 0);
@@ -2842,11 +2782,6 @@ trx_set_rw_mode(
 		trx_sys->rw_max_trx_id = trx->id;
 	}
 #endif /* UNIV_DEBUG */
-
-	UT_LIST_ADD_FIRST(trx_sys->rw_trx_list, trx);
-
-	ut_d(trx->in_rw_trx_list = true);
-
 	mutex_exit(&trx_sys->mutex);
 	trx_sys->rw_trx_hash.insert(trx);
 }

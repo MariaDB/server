@@ -738,7 +738,6 @@ static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
-    assert_trx_in_rw_list(trx);
     if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE))
     {
       arg->n_trx++;
@@ -796,7 +795,6 @@ static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
   if (trx_t *trx= element->trx)
   {
     mutex_enter(&trx->mutex);
-    assert_trx_in_rw_list(trx);
     if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE))
       UT_LIST_ADD_FIRST(*trx_list, trx);
     mutex_exit(&trx->mutex);

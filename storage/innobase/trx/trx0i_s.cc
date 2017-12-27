@@ -1280,10 +1280,7 @@ static my_bool fetch_data_into_cache_callback(
 {
   mutex_enter(&element->mutex);
   if (element->trx)
-  {
-    assert_trx_in_rw_list(element->trx);
     fetch_data_into_cache_low(cache, element->trx);
-  }
   mutex_exit(&element->mutex);
   return cache->is_truncated;
 }

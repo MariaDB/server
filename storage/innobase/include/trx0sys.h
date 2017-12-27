@@ -575,6 +575,37 @@ class rw_trx_hash_t
   }
 
 
+#ifdef UNIV_DEBUG
+  static void validate_element(trx_t *trx)
+  {
+    ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
+    ut_ad(!trx_is_autocommit_non_locking(trx));
+    mutex_enter(&trx->mutex);
+    ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
+          trx_state_eq(trx, TRX_STATE_PREPARED));
+    mutex_exit(&trx->mutex);
+  }
+
+
+  struct debug_iterator_arg
+  {
+    my_hash_walk_action action;
+    void *argument;
+  };
+
+
+  static my_bool debug_iterator(rw_trx_hash_element_t *element,
+                                debug_iterator_arg *arg)
+  {
+    mutex_enter(&element->mutex);
+    if (element->trx)
+      validate_element(element->trx);
+    mutex_exit(&element->mutex);
+    return arg->action(element, arg->argument);
+  }
+#endif
+
+
 public:
   void init()
   {
@@ -675,12 +706,7 @@ public:
       {
         if (do_ref_count)
           trx->reference();
-#ifdef UNIV_DEBUG
-        mutex_enter(&trx->mutex);
-        ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
-              trx_state_eq(trx, TRX_STATE_PREPARED));
-        mutex_exit(&trx->mutex);
-#endif
+        ut_d(validate_element(trx));
       }
       mutex_exit(&element->mutex);
     }
@@ -704,8 +730,7 @@ public:
 
   void insert(trx_t *trx)
   {
-    ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
-          trx_state_eq(trx, TRX_STATE_PREPARED));
+    ut_d(validate_element(trx));
     int res= lf_hash_insert(&hash, get_pins(trx),
                             reinterpret_cast<void*>(trx));
     ut_a(res == 0);
@@ -722,8 +747,7 @@ public:
 
   void erase(trx_t *trx)
   {
-    ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
-          trx_state_eq(trx, TRX_STATE_PREPARED));
+    ut_d(validate_element(trx));
     mutex_enter(&trx->rw_trx_hash_element->mutex);
     trx->rw_trx_hash_element->trx= 0;
     mutex_exit(&trx->rw_trx_hash_element->mutex);
@@ -781,6 +805,11 @@ public:
   {
     LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
     ut_a(pins);
+#ifdef UNIV_DEBUG
+    debug_iterator_arg debug_arg= { action, argument };
+    action= reinterpret_cast<my_hash_walk_action>(debug_iterator);
+    argument= &debug_arg;
+#endif
     int res= lf_hash_iterate(&hash, pins, action, argument);
     if (!caller_trx)
       lf_hash_put_pins(pins);
@@ -841,17 +870,10 @@ struct trx_sys_t {
 #endif /* UNIV_DEBUG */
 
 	/** Avoid false sharing */
-	const char	pad1[CACHE_LINE_SIZE];
-	trx_ut_list_t	rw_trx_list;	/*!< List of active and committed in
-					memory read-write transactions, sorted
-					on trx id, biggest first. Recovered
-					transactions are always on this list. */
-
-	/** Avoid false sharing */
 	const char	pad2[CACHE_LINE_SIZE];
 	trx_ut_list_t	mysql_trx_list;	/*!< List of transactions created
 					for MySQL. All user transactions are
-					on mysql_trx_list. The rw_trx_list
+					on mysql_trx_list. The rw_trx_hash
 					can contain system transactions and
 					recovered transactions that will not
 					be in the mysql_trx_list.
