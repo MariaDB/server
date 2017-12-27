@@ -1402,14 +1402,14 @@ wsrep_kill_victim(
 					ib::info() << "*** Victim TRANSACTION:";
 				}
 
-				wsrep_trx_print_locking(stderr, trx, 3000);
+				trx_print_latched(stderr, trx, 3000);
 
 				if (bf_other) {
 					ib::info() << "*** Priority TRANSACTION:";
 				} else {
 					ib::info() << "*** Victim TRANSACTION:";
 				}
-                                wsrep_trx_print_locking(stderr, lock->trx, 3000);
+                                trx_print_latched(stderr, lock->trx, 3000);
 
 				ib::info() << "*** WAITING FOR THIS LOCK TO BE GRANTED:";
 
@@ -5714,116 +5714,6 @@ struct	PrintNotStarted {
 	FILE*		m_file;
 };
 
-/** Iterate over a transaction's locks. Keeping track of the
-iterator using an ordinal value. */
-
-class TrxLockIterator {
-public:
-	TrxLockIterator() { rewind(); }
-
-	/** Get the m_index(th) lock of a transaction.
-	@return current lock or 0 */
-	const lock_t* current(const trx_t* trx) const
-	{
-		lock_t*	lock;
-		ulint	i = 0;
-
-		for (lock = UT_LIST_GET_FIRST(trx->lock.trx_locks);
-		     lock != NULL && i < m_index;
-		     lock = UT_LIST_GET_NEXT(trx_locks, lock), ++i) {
-
-			/* No op */
-		}
-
-		return(lock);
-	}
-
-	/** Set the ordinal value to 0 */
-	void rewind()
-	{
-		m_index = 0;
-	}
-
-	/** Increment the ordinal value.
-	@retun the current index value */
-	ulint next()
-	{
-		return(++m_index);
-	}
-
-private:
-	/** Current iterator position */
-	ulint		m_index;
-};
-
-/** This iterates over both the RW and RO trx_sys lists. We need to keep
-track where the iterator was up to and we do that using an ordinal value. */
-
-class TrxListIterator {
-public:
-	TrxListIterator() : m_index()
-	{
-		/* We iterate over the RW trx list first. */
-
-		m_trx_list = &trx_sys->rw_trx_list;
-	}
-
-	/** Get the current transaction whose ordinality is m_index.
-	@return current transaction or 0 */
-
-	const trx_t* current()
-	{
-		return(reposition());
-	}
-
-	/** Advance the transaction current ordinal value and reset the
-	transaction lock ordinal value */
-
-	void next()
-	{
-		++m_index;
-		m_lock_iter.rewind();
-	}
-
-	TrxLockIterator& lock_iter()
-	{
-		return(m_lock_iter);
-	}
-
-private:
-	/** Reposition the "cursor" on the current transaction. If it
-	is the first time then the "cursor" will be positioned on the
-	first transaction.
-
-	@return transaction instance or 0 */
-	const trx_t* reposition() const
-	{
-		ulint	i;
-		trx_t*	trx;
-
-		/* Make the transaction at the ordinal value of m_index
-		the current transaction. ie. reposition/restore */
-
-		for (i = 0, trx = UT_LIST_GET_FIRST(*m_trx_list);
-		     trx != NULL && (i < m_index);
-		     trx = UT_LIST_GET_NEXT(trx_list, trx), ++i) {
-
-			check_trx_state(trx);
-		}
-
-		return(trx);
-	}
-
-	/** Ordinal value of the transaction in the current transaction list */
-	ulint			m_index;
-
-	/** Current transaction list */
-	trx_ut_list_t*		m_trx_list;
-
-	/** For iterating over a transaction's locks */
-	TrxLockIterator		m_lock_iter;
-};
-
 /** Prints transaction lock wait and MVCC state.
 @param[in,out]	file	file where to print
 @param[in]	trx	transaction */
@@ -5860,119 +5750,29 @@ lock_trx_print_wait_and_mvcc_state(
 }
 
 /*********************************************************************//**
-Prints info of locks for a transaction. This function will release the
-lock mutex and the trx_sys_t::mutex if the page was read from disk.
-@return true if page was read from the tablespace */
+Prints info of locks for a transaction. */
 static
-bool
-lock_rec_fetch_page(
-/*================*/
-	const lock_t*	lock)	/*!< in: record lock */
-{
-	ut_ad(lock_get_type_low(lock) == LOCK_REC);
-
-	ulint			space_id = lock->un_member.rec_lock.space;
-	fil_space_t*		space;
-	bool			found;
-	const page_size_t&	page_size = fil_space_get_page_size(space_id,
-								    &found);
-	ulint			page_no = lock->un_member.rec_lock.page_no;
-
-	/* Check if the .ibd file exists. */
-	if (found) {
-		mtr_t	mtr;
-
-		lock_mutex_exit();
-
-		mutex_exit(&trx_sys->mutex);
-
-		DEBUG_SYNC_C("innodb_monitor_before_lock_page_read");
-
-		/* Check if the space is exists or not. only
-		when the space is valid, try to get the page. */
-		space = fil_space_acquire(space_id);
-		if (space) {
-			dberr_t err = DB_SUCCESS;
-			mtr_start(&mtr);
-			buf_page_get_gen(
-				page_id_t(space_id, page_no), page_size,
-				RW_NO_LATCH, NULL,
-				BUF_GET_POSSIBLY_FREED,
-				__FILE__, __LINE__, &mtr, &err);
-			mtr_commit(&mtr);
-			fil_space_release(space);
-		}
-
-		lock_mutex_enter();
-
-		mutex_enter(&trx_sys->mutex);
-
-		return(true);
-	}
-
-	return(false);
-}
-
-/*********************************************************************//**
-Prints info of locks for a transaction.
-@return true if all printed, false if latches were released. */
-static
-bool
+void
 lock_trx_print_locks(
 /*=================*/
 	FILE*		file,		/*!< in/out: File to write */
-	const trx_t*	trx,		/*!< in: current transaction */
-	TrxLockIterator&iter,		/*!< in: transaction lock iterator */
-	bool		load_block)	/*!< in: if true then read block
-					from disk */
+	const trx_t*	trx)		/*!< in: current transaction */
 {
-	const lock_t* lock;
-
+	uint32_t i= 0;
 	/* Iterate over the transaction's locks. */
-	while ((lock = iter.current(trx)) != 0) {
-
+	for (lock_t *lock = UT_LIST_GET_FIRST(trx->lock.trx_locks);
+	     lock != NULL;
+	     lock = UT_LIST_GET_NEXT(trx_locks, lock)) {
 		if (lock_get_type_low(lock) == LOCK_REC) {
 
-			if (load_block) {
-
-				/* Note: lock_rec_fetch_page() will
-				release both the lock mutex and the
-				trx_sys_t::mutex if it does a read
-				from disk. */
-
-				if (lock_rec_fetch_page(lock)) {
-					/* We need to resync the
-					current transaction. */
-					return(false);
-				}
-
-				/* It is a single table tablespace
-				and the .ibd file is missing
-				(TRUNCATE TABLE probably stole the
-				locks): just print the lock without
-				attempting to load the page in the
-				buffer pool. */
-
-				fprintf(file,
-					"RECORD LOCKS on non-existing"
-					" space %u\n",
-					lock->un_member.rec_lock.space);
-			}
-
-			/* Print all the record locks on the page from
-			the record lock bitmap */
-
 			lock_rec_print(file, lock);
-
-			load_block = true;
-
 		} else {
 			ut_ad(lock_get_type_low(lock) & LOCK_TABLE);
 
 			lock_table_print(file, lock);
 		}
 
-		if (iter.next() >= 10) {
+		if (++i == 10) {
 
 			fprintf(file,
 				"10 LOCKS PRINTED FOR THIS TRX:"
@@ -5981,9 +5781,31 @@ lock_trx_print_locks(
 			break;
 		}
 	}
-
-	return(true);
 }
+
+
+static my_bool lock_print_info_all_transactions_callback(
+  rw_trx_hash_element_t *element, FILE *file)
+{
+  mutex_enter(&element->mutex);
+  if (trx_t *trx= element->trx)
+  {
+    check_trx_state(trx);
+    lock_trx_print_wait_and_mvcc_state(file, trx);
+
+    if (srv_print_innodb_lock_monitor)
+    {
+      trx->reference();
+      mutex_exit(&element->mutex);
+      lock_trx_print_locks(file, trx);
+      trx->release_reference();
+      return 0;
+    }
+  }
+  mutex_exit(&element->mutex);
+  return 0;
+}
+
 
 /*********************************************************************//**
 Prints info of locks for each transaction. This function assumes that the
@@ -5998,8 +5820,6 @@ lock_print_info_all_transactions(
 
 	fprintf(file, "LIST OF TRANSACTIONS FOR EACH SESSION:\n");
 
-	mutex_enter(&trx_sys->mutex);
-
 	/* First print info on non-active transactions */
 
 	/* NOTE: information of auto-commit non-locking read-only
@@ -6007,62 +5827,14 @@ lock_print_info_all_transactions(
 	available from INFORMATION_SCHEMA.INNODB_TRX. */
 
 	PrintNotStarted	print_not_started(file);
+	mutex_enter(&trx_sys->mutex);
 	ut_list_map(trx_sys->mysql_trx_list, print_not_started);
-
-	const trx_t*	trx;
-	TrxListIterator	trx_iter;
-	const trx_t*	prev_trx = 0;
-
-	/* Control whether a block should be fetched from the buffer pool. */
-	bool		load_block = true;
-	bool		monitor = srv_print_innodb_lock_monitor;
-
-	while ((trx = trx_iter.current()) != 0) {
-
-		check_trx_state(trx);
-
-		if (trx != prev_trx) {
-			lock_trx_print_wait_and_mvcc_state(file, trx);
-			prev_trx = trx;
-
-			/* The transaction that read in the page is no
-			longer the one that read the page in. We need to
-			force a page read. */
-			load_block = true;
-		}
-
-		/* If we need to print the locked record contents then we
-		need to fetch the containing block from the buffer pool. */
-		if (monitor) {
-
-			/* Print the locks owned by the current transaction. */
-			TrxLockIterator& lock_iter = trx_iter.lock_iter();
-
-			if (!lock_trx_print_locks(
-					file, trx, lock_iter, load_block)) {
-
-				/* Resync trx_iter, the trx_sys->mutex and
-				the lock mutex were released. A page was
-				successfully read in.  We need to print its
-				contents on the next call to
-				lock_trx_print_locks(). On the next call to
-				lock_trx_print_locks() we should simply print
-				the contents of the page just read in.*/
-				load_block = false;
-
-				continue;
-			}
-		}
-
-		load_block = true;
-
-		/* All record lock details were printed without fetching
-		a page from disk, or we didn't need to print the detail. */
-		trx_iter.next();
-	}
-
-	lock_mutex_exit();
 	mutex_exit(&trx_sys->mutex);
+
+	trx_sys->rw_trx_hash.iterate_no_dups(
+		reinterpret_cast<my_hash_walk_action>
+		(lock_print_info_all_transactions_callback), file);
+	lock_mutex_exit();
 
 	ut_ad(lock_validate());
 }
@@ -7992,8 +7764,6 @@ DeadlockChecker::print(const trx_t* trx, ulint max_query_len)
 	ulint	n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
 	ulint	heap_size = mem_heap_get_size(trx->lock.lock_heap);
 
-	mutex_enter(&trx_sys->mutex);
-
 	trx_print_low(lock_latest_err_file, trx, max_query_len,
 		      n_rec_locks, n_trx_locks, heap_size);
 
@@ -8001,8 +7771,6 @@ DeadlockChecker::print(const trx_t* trx, ulint max_query_len)
 		trx_print_low(stderr, trx, max_query_len,
 			      n_rec_locks, n_trx_locks, heap_size);
 	}
-
-	mutex_exit(&trx_sys->mutex);
 }
 
 /** Print lock data to the deadlock file and possibly to stderr.
