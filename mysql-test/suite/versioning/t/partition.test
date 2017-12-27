@@ -290,7 +290,7 @@ partition by system_time interval 1 day (
   partition p1 history,
   partition pc current);
 create or replace table t2 (f int);
-create trigger tr before insert on t2
+create or replace trigger tr before insert on t2
 for each row select table_rows from information_schema.tables
 where table_name = 't1' into @a;
 insert into t2 values (1);
@@ -301,7 +301,7 @@ partition by system_time interval 1 week (
   partition p1 history,
   partition pn current);
 create or replace table t2 (f int);
-create trigger tr before insert on t2
+create or replace trigger tr before insert on t2
 for each row select count(*) from t1 into @a;
 insert into t2 values (1);
 
@@ -314,14 +314,24 @@ set autocommit= off;
 truncate table t1;
 set autocommit= on;
 
---echo MDEV-14747 ALTER PARTITION BY SYSTEM_TIME after LOCK TABLES
+--echo # MDEV-14747 ALTER PARTITION BY SYSTEM_TIME after LOCK TABLES
 create or replace table t1 (x int) with system versioning;
 lock table t1 write;
 alter table t1 partition by system_time interval 1 week (
   partition p1 history,
   partition pn current);
+unlock tables;
 
-drop table t1;
-drop table t2;
+--echo # MDEV-14748 Assertion in ha_myisammrg::attach_children()
+create or replace table t1 (x int) engine=myisam with system versioning
+  partition by system_time interval 1 month (partition p1 history, partition pn current);
+create or replace table t2 (x int) engine=myisam;
+create or replace table t3 (x int) engine=merge union=(t2);
+create or replace table t4 (x int) engine=myisam;
+create or replace trigger tr after insert on t4 for each row insert into t2
+  ( select x from t3 ) union ( select x from t1 );
+insert into t4 values (1);
 
--- source suite/versioning/common_finish.inc
+--echo # Test cleanup
+drop database test;
+create database test;

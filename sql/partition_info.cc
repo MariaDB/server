@@ -1038,6 +1038,7 @@ class Table_locker
   thr_lock_type saved_type;
   MYSQL_LOCK *saved_lock;
   enum_locked_tables_mode saved_mode;
+  TABLE_LIST **saved_query_tables_own_last;
   TABLE_LIST table_list;
   bool locked;
 
@@ -1048,6 +1049,7 @@ public:
     saved_type(table.reginfo.lock_type),
     saved_lock(_thd->lock),
     saved_mode(_thd->locked_tables_mode),
+    saved_query_tables_own_last(_thd->lex->query_tables_own_last),
     table_list(_table, lock_type),
     locked(false)
   {
@@ -1064,6 +1066,7 @@ public:
     }
     thd->lock= NULL;
     thd->locked_tables_mode= LTM_NONE;
+    thd->lex->query_tables_own_last= NULL;
     bool res= lock_tables(thd, &table_list, 1, 0);
     locked= !res;
     return res;
@@ -1075,6 +1078,7 @@ public:
     table.reginfo.lock_type= saved_type;
     thd->lock= saved_lock;
     thd->locked_tables_mode= saved_mode;
+    thd->lex->query_tables_own_last= saved_query_tables_own_last;
     if (locked && !thd->in_sub_stmt)
     {
       ha_commit_trans(thd, false);
