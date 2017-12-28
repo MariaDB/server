@@ -3359,7 +3359,7 @@ CREATE TEMPORARY TABLE t2 (c1 INT) ENGINE=InnoDB;
 START TRANSACTION READ ONLY;
 INSERT INTO t2 VALUES(0);
 INSERT INTO t1 VALUES(0);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 ROLLBACK;
 SELECT * FROM t1;
 c1
@@ -3367,14 +3367,14 @@ SELECT * FROM t2;
 c1
 START TRANSACTION READ ONLY;
 INSERT INTO t1 VALUES(0);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 INSERT INTO t2 VALUES(1);
 COMMIT;
 SET TRANSACTION READ ONLY;
 START TRANSACTION;
 INSERT INTO t2 VALUES(3);
 INSERT INTO t1 VALUES(0);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 COMMIT;
 SELECT * FROM t1;
 c1
@@ -3397,7 +3397,7 @@ t2	CREATE TEMPORARY TABLE `t2` (
 START TRANSACTION READ ONLY;
 INSERT INTO t2 VALUES(NULL,1),(NULL,2),(NULL,3);
 INSERT INTO t1 VALUES(0);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 ROLLBACK;
 SELECT * FROM t1;
 c1
@@ -3405,14 +3405,14 @@ SELECT * FROM t2;
 c1	c2
 START TRANSACTION READ ONLY;
 INSERT INTO t1 VALUES(0);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 INSERT INTO t2 VALUES(NULL,1),(NULL,2),(NULL,3);
 COMMIT;
 SET TRANSACTION READ ONLY;
 START TRANSACTION;
 INSERT INTO t2 VALUES(NULL,1),(NULL,2),(NULL,3);
 INSERT INTO t1 VALUES(0);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 COMMIT;
 SHOW CREATE TABLE t2;
 Table	Create Table
