@@ -42,3 +42,16 @@ PARTITION p3 VALUES IN (4,5,6)
 );
 ERROR HY000: Syntax error: LIST PARTITIONING requires definition of VALUES IN for each partition
 DROP TABLE t1;
+create table t1 ( c1 int, c2 int, c3 varchar(100)) delay_key_write=1
+partition by key(c1) (
+partition p01 data directory = 'MYSQL_TMP_DIR'
+                 index directory = 'MYSQL_TMP_DIR',
+partition p02 data directory = 'MYSQL_TMP_DIR'
+                 index directory = 'MYSQL_TMP_DIR');
+insert into t1 values (1, 1, repeat('a', 100));
+insert into t1 select rand()*1000, rand()*1000, repeat('b', 100) from t1;
+insert into t1 select rand()*1000, rand()*1000, repeat('b', 100) from t1;
+insert into t1 select rand()*1000, rand()*1000, repeat('b', 100) from t1;
+alter online table t1 delay_key_write=0;
+alter online table t1 delay_key_write=1;
+drop table t1;

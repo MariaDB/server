@@ -1,3 +1,22 @@
 --source include/have_partition.inc
 --let $engine=MyISAM
 --source inc/part_alter_values.inc
+
+#
+# MDEV-14026 ALTER TABLE ... DELAY_KEY_WRITE=1 creates table copy for partitioned MyISAM table with DATA DIRECTORY/INDEX DIRECTORY options
+#
+
+replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR;
+eval create table t1 ( c1 int, c2 int, c3 varchar(100)) delay_key_write=1
+  partition by key(c1) (
+    partition p01 data directory = '$MYSQL_TMP_DIR'
+                 index directory = '$MYSQL_TMP_DIR',
+    partition p02 data directory = '$MYSQL_TMP_DIR'
+                 index directory = '$MYSQL_TMP_DIR');
+insert into t1 values (1, 1, repeat('a', 100));
+insert into t1 select rand()*1000, rand()*1000, repeat('b', 100) from t1;
+insert into t1 select rand()*1000, rand()*1000, repeat('b', 100) from t1;
+insert into t1 select rand()*1000, rand()*1000, repeat('b', 100) from t1;
+alter online table t1 delay_key_write=0;
+alter online table t1 delay_key_write=1;
+drop table t1;

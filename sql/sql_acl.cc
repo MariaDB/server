@@ -6301,6 +6301,8 @@ static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
   if (--grantee->counter)
     return 1; // don't recurse into grantee just yet
 
+  grantee->counter= 1; // Mark the grantee as merged.
+
   /* if we'll do db/table/routine privileges, create a hash of role names */
   role_hash_t role_hash(role_key);
   if (data->what != PRIVS_TO_MERGE::GLOBAL)
@@ -7399,14 +7401,16 @@ end_index_init:
   DBUG_RETURN(return_val);
 }
 
-static my_bool collect_leaf_roles(void *role_ptr,
-                                  void *roles_array)
+static my_bool propagate_role_grants_action(void *role_ptr,
+                                            void *ptr __attribute__((unused)))
 {
   ACL_ROLE *role= static_cast<ACL_ROLE *>(role_ptr);
-  Dynamic_array<ACL_ROLE *> *array=
-    static_cast<Dynamic_array<ACL_ROLE *> *>(roles_array);
-  if (!role->counter)
-    array->push(role);
+  if (role->counter)
+    return 0;
+
+  mysql_mutex_assert_owner(&acl_cache->lock);
+  PRIVS_TO_MERGE data= { PRIVS_TO_MERGE::ALL, 0, 0 };
+  traverse_role_graph_up(role, &data, NULL, merge_role_privileges);
   return 0;
 }
 
@@ -7476,15 +7480,7 @@ bool grant_reload(THD *thd)
   }
 
   mysql_mutex_lock(&acl_cache->lock);
-  Dynamic_array<ACL_ROLE *> leaf_roles;
-  my_hash_iterate(&acl_roles, collect_leaf_roles, &leaf_roles);
-  PRIVS_TO_MERGE data= { PRIVS_TO_MERGE::ALL, 0, 0 };
-  for (size_t i= 0; i < leaf_roles.elements(); i++)
-  {
-    traverse_role_graph_up(leaf_roles.at(i), &data, NULL,
-                           merge_role_privileges);
-  }
-
+  my_hash_iterate(&acl_roles, propagate_role_grants_action, NULL);
   mysql_mutex_unlock(&acl_cache->lock);
 
   mysql_rwlock_unlock(&LOCK_grant);
