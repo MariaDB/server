@@ -399,15 +399,12 @@ if ( $opt->{'skip-name-resolve'} and $resolved and $resolved =~ /\s/ )
 }
 
 # ----------------------------------------------------------------------
-# Create database directories mysql & test
+# Create database directory
 # ----------------------------------------------------------------------
 
-foreach my $dir ( $opt->{ldata}, "$opt->{ldata}/mysql", "$opt->{ldata}/test" )
-{
-  # FIXME not really the same as original "mkdir -p", but ok?
-  mkdir($dir, 0700) unless -d $dir;
-  chown($opt->{user}, $dir) if -w "/" and !$opt->{user};
-}
+# FIXME not really the same as original "mkdir -p", but ok?
+mkdir($opt->{ldata}, 0700) unless -d $opt->{ldata};
+chown($opt->{user}, $opt->{ldata}) if -w "/" and !$opt->{user};
 
 push(@args, "--user=$opt->{user}") if $opt->{user};
 
@@ -445,7 +442,6 @@ open(SQL2, $fill_system_tables)
 # FIXME  > /dev/null ?
 if ( open(PIPE, "| $mysqld_install_cmd_line") )
 {
-  print PIPE "use mysql;\n";
   while ( <SQL> )
   {
     # When doing a "cross bootstrap" install, no reference to the current

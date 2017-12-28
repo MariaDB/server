@@ -18,6 +18,10 @@
 -- The system tables of MySQL Server
 --
 
+CREATE DATABASE IF NOT EXISTS mysql;
+
+use mysql;
+
 set sql_mode='';
 
 set @orig_storage_engine=@@storage_engine;

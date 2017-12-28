@@ -36,6 +36,7 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
+skip_install_test_db=@skip_install_test_db@
 install_params=""
 auth_root_authentication_method=normal
 auth_root_socket_user='root'
@@ -84,6 +85,8 @@ Usage: $0 [OPTIONS]
   --skip-name-resolve  Use IP addresses rather than hostnames when creating
                        grant table entries.  This option can be useful if
                        your DNS does not work.
+  --test-db            Install a test database.
+  --skip-test-db       Don't install a test database.
   --srcdir=path        The path to the MariaDB source directory.  This option
                        uses the compiled binaries and support files within the
                        source tree, useful for if you don't want to install
@@ -153,6 +156,8 @@ parse_arguments()
         defaults="$arg" ;;
       --defaults-group-suffix=*)
         defaults_group_suffix="$arg" ;;
+      --test-db) skip_install_test_db=0 ;;
+      --skip-test-db) skip_install_test_db=1 ;;
 
       --cross-bootstrap|--windows)
         # Used when building the MariaDB system tables on a different host than
@@ -414,30 +419,26 @@ then
   hostname=`echo "$resolved" | awk '/ /{print $6}'`
 fi
 
-# Create database directories
-for dir in "$ldata" "$ldata/mysql" "$ldata/test"
-do
-  if test ! -d "$dir"
+if test ! -d "$ldata"
+then
+  if ! mkdir -p "$ldata"
   then
-    if ! `mkdir -p "$dir"`
-    then
-      echo "Fatal error Can't create database directory '$dir'"
-      link_to_help
-      exit 1
-    fi
-    chmod 700 "$dir"
+    echo "Fatal error Can't create database directory '$ldata'"
+    link_to_help
+    exit 1
   fi
-  if test -n "$user"
+  chmod 700 "$ldata"
+fi
+if test -n "$user"
+then
+  chown $user "$ldata"
+  if test $? -ne 0
   then
-    chown $user "$dir"
-    if test $? -ne 0
-    then
-      echo "Cannot change ownership of the database directories to the '$user'"
-      echo "user.  Check that you have the necessary permissions and try again."
-      exit 1
-    fi
+    echo "Cannot change ownership of the database directories to the '$user'"
+    echo "user.  Check that you have the necessary permissions and try again."
+    exit 1
   fi
-done
+fi
 
 if test -n "$user"
 then
@@ -464,6 +465,8 @@ mysqld_install_cmd_line()
   --net_buffer_length=16K
 }
 
+install_params="$install_params
+SET @skip_install_test_db=$skip_install_test_db;"
 
 # Create the system and help tables by passing them to "mysqld --bootstrap"
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
@@ -477,7 +480,8 @@ SET @auth_root_socket=NULL;" ;;
 SET @skip_auth_root_nopasswd=1;
 SET @auth_root_socket='$auth_root_socket_user';" ;;
 esac
-if { echo "use mysql;$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+
+if { echo "$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else

@@ -185,6 +185,12 @@ ELSE()
   SET(localstatedir ${MYSQL_DATADIR})
 ENDIF()
 
+IF(DEB OR RPM)
+  SET(skip_install_test_db "1")
+ELSE()
+  SET(skip_install_test_db "NULL")
+ENDIF()
+
 SET(resolveip_locations "$basedir/${INSTALL_BINDIR} $basedir/bin")
 SET(mysqld_locations "$basedir/${INSTALL_SBINDIR} $basedir/libexec $basedir/sbin $basedir/bin")
 SET(errmsg_locations "$basedir/${INSTALL_MYSQLSHAREDIR}/english $basedir/share/english $basedir/share/mysql/english")
