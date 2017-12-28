@@ -297,13 +297,6 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     }
   }
 
-  List_iterator_fast<Item_window_func> li(win_funcs);
-  Item_window_func *win_func_item;
-  while ((win_func_item= li++))
-  {
-    win_func_item->update_used_tables();
-  }
-
   DBUG_RETURN(0);
 }
 

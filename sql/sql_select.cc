@@ -859,6 +859,22 @@ JOIN::prepare(TABLE_LIST *tables_init,
     }
   }
 
+  /*
+     After setting up window functions, we may have discovered additional
+     used tables from the PARTITION BY and ORDER BY list. Update all items
+     that contain window functions.
+  */
+  if (select_lex->have_window_funcs())
+  {
+    List_iterator_fast<Item> it(select_lex->item_list);
+    Item *item;
+    while ((item= it++))
+    {
+      if (item->with_window_func)
+        item->update_used_tables();
+    }
+  }
+
   With_clause *with_clause=select_lex->get_with_clause();
   if (with_clause && with_clause->prepare_unreferenced_elements(thd))
     DBUG_RETURN(1);
