@@ -19,6 +19,7 @@
 #include "wsrep_priv.h"
 #include "wsrep_sr.h"
 #include "wsrep_thd.h"
+#include "wsrep_trans_observer.h"
 
 #include "transaction.h" // trans_rollback()
 #include "debug_sync.h" // DEBUG_SYNC()
@@ -424,8 +425,6 @@ void wsrep_handle_SR_rollback(void *BF_thd_ptr, void *victim_thd_ptr)
               victim_thd->wsrep_trx_id(),
               victim_thd->wsrep_fragments_sent,
               victim_thd->wsrep_conflict_state_unsafe());
-#ifdef RUN_HOOK_FIX
-  (void)RUN_HOOK(transaction, before_rollback, (victim_thd, true));
-#endif /* RUN_HOOK_FIX */
+  (void)wsrep_before_rollback(victim_thd, true);
   if (BF_thd_ptr) ((THD*) BF_thd_ptr)->store_globals();
 }

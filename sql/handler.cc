@@ -57,6 +57,7 @@
 #include "wsrep_xid.h"
 #include "wsrep_sr.h"
 #include "wsrep_thd.h"
+#include "wsrep_trans_observer.h" /* wsrep transaction hooks */
 #include "log.h"
 
 /*
@@ -1440,13 +1441,11 @@ int ha_commit_trans(THD *thd, bool all)
   need_commit_ordered= FALSE;
   xid= thd->transaction.xid_state.xid.get_my_xid();
 #ifdef WITH_WSREP
-#ifdef RUN_HOOK_FIX
-  if (RUN_HOOK(transaction, before_prepare, (thd, all)))
+  if (WSREP(thd) && wsrep_before_prepare(thd, all))
   {
     wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
     DBUG_RETURN(1);
   }
-#endif /* RUN_HOOK_FIX */
 #endif /* WITH_WSREP */
 
   for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
@@ -1472,13 +1471,11 @@ int ha_commit_trans(THD *thd, bool all)
   DEBUG_SYNC(thd, "ha_commit_trans_after_prepare");
   DBUG_EXECUTE_IF("crash_commit_after_prepare", DBUG_SUICIDE(););
 #ifdef WITH_WSREP
-#ifdef RUN_HOOK_FIX
-  if (RUN_HOOK(transaction, after_prepare, (thd, all)))
+  if (WSREP(thd) && wsrep_after_prepare(thd, all))
   {
     wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
     DBUG_RETURN(1);
   }
-#endif /* RUN_HOOK_FIX */
 #endif /* WITH_WSREP */
 
   if (!error && WSREP_ON && wsrep_is_wsrep_xid(&thd->transaction.xid_state.xid))
@@ -1598,6 +1595,10 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   uint count= 0;
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
   DBUG_ENTER("commit_one_phase_2");
+#ifdef WITH_WSREP
+  if (WSREP(thd) && wsrep_before_commit(thd, all))
+    DBUG_RETURN(1);
+#endif /* WITH_WSREP */
   if (is_real_trans)
     DEBUG_SYNC(thd, "commit_one_phase_2");
   if (ha_info)
@@ -1636,6 +1637,10 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     if (count >= 2)
       statistic_increment(transactions_multi_engine, LOCK_status);
   }
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+    (void) wsrep_after_commit(thd, all);
+#endif /* WITH_WSREP */
 
   DBUG_RETURN(error);
 }
@@ -1704,9 +1709,7 @@ int ha_rollback_trans(THD *thd, bool all)
   }
 
 #ifdef WITH_WSREP
-#ifdef RUN_HOOK_FIX
-  (void) RUN_HOOK(transaction, before_rollback, (thd, all));
-#endif /* RUN_HOOK_FIX */
+  (void) wsrep_before_rollback(thd, all);
 #endif // WITH_WSREP
   if (ha_info)
   {
@@ -2305,9 +2308,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
     if (ht->db_type == DB_TYPE_INNODB)
     {
       WSREP_DEBUG("ha_rollback_to_savepoint: run before_rollback hook");
-#ifdef RUN_HOOK_FIX
-      (void) RUN_HOOK(transaction, before_rollback, (thd, !thd->in_sub_stmt));
-#endif /* RUN_HOOK_FIX */
+      (void) wsrep_before_rollback(thd, !thd->in_sub_stmt);
 
     }
 #endif // WITH_WSREP
@@ -6262,11 +6263,7 @@ static int wsrep_after_row(THD *thd)
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
-#ifdef RUN_HOOK_FIX
-  else if (RUN_HOOK(transaction, after_row, (thd, false)))
-#else
-  else if (false)
-#endif /* RUN_HOOK_FIX */
+  else if (wsrep_after_row(thd, false))
   {
     if (!thd->get_stmt_da()->is_error())
     {

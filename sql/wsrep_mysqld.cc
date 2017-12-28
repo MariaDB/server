@@ -1606,7 +1606,7 @@ bool wsrep_prepare_keys_for_isolation(THD*              thd,
     wsrep_key_t* tmp;
     tmp= (wsrep_key_t*)my_realloc(ka->keys,
                                   (ka->keys_len + 1) * sizeof(wsrep_key_t),
-                                  MYF(0));
+                                  MY_ALLOW_ZERO_PTR);
     if (!tmp)
     {
       WSREP_ERROR("Can't allocate memory for key_array");
@@ -3850,12 +3850,10 @@ bool wsrep_provider_is_SR_capable()
 
 wsrep_status_t wsrep_tc_log_commit(THD* thd)
 {
-#ifdef RUN_HOOK_FIX
-  if (RUN_HOOK(transaction, before_commit, (thd, true)))
+  if (wsrep_before_commit(thd, true))
   {
     return WSREP_TRX_FAIL;
   }
-#endif /* RUN_HOOK_FIX */
   //if (tc_log->commit(thd, 1))
   if (tc_log->log_and_order(thd, thd->transaction.xid_state.xid.get_my_xid(),
                             true, false, false))
@@ -3863,12 +3861,10 @@ wsrep_status_t wsrep_tc_log_commit(THD* thd)
     return WSREP_TRX_FAIL;
   }
 
-#ifdef RUN_HOOK_FIX
-  if (RUN_HOOK(transaction, after_commit, (thd, true)))
+  if (wsrep_after_commit(thd, true))
   {
     return WSREP_TRX_FAIL;
   }
-#endif /* RUN_HOOK_FIX */
 
   /* Set wsrep transaction id if not set. */
   if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
