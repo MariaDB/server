@@ -1461,7 +1461,8 @@ int Rdb_key_def::unpack_record(TABLE *const table, uchar *const buf,
     if (has_covered_bitmap && field->real_type() == MYSQL_TYPE_VARCHAR &&
         !m_pack_info[i].m_covered) {
       covered_column = curr_bitmap_pos < MAX_REF_PARTS &&
-                       bitmap_is_set(&covered_bitmap, curr_bitmap_pos++);
+                       bitmap_is_set(&covered_bitmap, curr_bitmap_pos);
+      curr_bitmap_pos++;
     }
     if (fpi->m_unpack_func && covered_column) {
       /* It is possible to unpack this column. Do it. */
