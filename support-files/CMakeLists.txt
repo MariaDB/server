@@ -104,21 +104,6 @@ IF(UNIX)
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
             DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
 
-    IF(INSTALL_SYSTEMD_SYSUSERSDIR)
-      CONFIGURE_FILE(sysusers.conf.in
-              ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf @ONLY)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf
-              DESTINATION ${INSTALL_SYSTEMD_SYSUSERSDIR} COMPONENT Server)
-    ENDIF()
-
-    IF(INSTALL_SYSTEMD_TMPFILESDIR)
-      get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
-      CONFIGURE_FILE(tmpfiles.conf.in
-              ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf @ONLY)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf
-              DESTINATION ${INSTALL_SYSTEMD_TMPFILESDIR} COMPONENT Server)
-    ENDIF()
-
     # @ in directory name broken between CMake version 2.8.12.2 and 3.3
     # http://public.kitware.com/Bug/view.php?id=14782
     IF(NOT CMAKE_VERSION VERSION_LESS 3.3.0 OR NOT RPM)
@@ -143,6 +128,21 @@ IF(UNIX)
       ENDIF()
 
     ENDIF()
+  ENDIF()
+
+  IF(INSTALL_SYSTEMD_SYSUSERSDIR)
+    CONFIGURE_FILE(sysusers.conf.in
+            ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf @ONLY)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf
+            DESTINATION ${INSTALL_SYSTEMD_SYSUSERSDIR} COMPONENT Server)
+  ENDIF()
+
+  IF(INSTALL_SYSTEMD_TMPFILESDIR)
+    get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+    CONFIGURE_FILE(tmpfiles.conf.in
+            ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf @ONLY)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf
+            DESTINATION ${INSTALL_SYSTEMD_TMPFILESDIR} COMPONENT Server)
   ENDIF()
 
   IF (INSTALL_SYSCONFDIR)
