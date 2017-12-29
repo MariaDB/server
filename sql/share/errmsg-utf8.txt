@@ -7931,7 +7931,7 @@ ER_VERS_TRUNCATE_VIEW
         eng "DELETE HISTORY from VIEW is prohibited"
 
 ER_VERS_TEMPORARY
-	eng "%s prohibited for TEMPORARY tables"
+	eng "System versioning prohibited for TEMPORARY tables"
 
 ER_VERS_INPLACE_NOT_IMPLEMENTED
         eng "Not implemented for system-versioned tables"

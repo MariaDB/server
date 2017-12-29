@@ -6235,7 +6235,7 @@ versioning_option:
             {
               if (!thd->variables.vers_force)
               {
-                my_error(ER_VERS_TEMPORARY, MYF(0), "WITH SYSTEM VERSIONING");
+                my_error(ER_VERS_TEMPORARY, MYF(0));
                 MYSQL_YYABORT;
               }
             }

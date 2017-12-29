@@ -429,9 +429,11 @@ alter table t1 engine=myisam;
 # MDEV-14692 crash in MDL_context::upgrade_shared_lock()
 create or replace temporary table t (a int);
 alter table t change column if exists b c bigint unsigned generated always as row start;
-ERROR HY000: This is not yet supported for generated columns
+ERROR HY000: System versioning prohibited for TEMPORARY tables
 alter table t change column if exists b c bigint unsigned generated always as row end;
-ERROR HY000: This is not yet supported for generated columns
+ERROR HY000: System versioning prohibited for TEMPORARY tables
+alter table t add system versioning;
+ERROR HY000: System versioning prohibited for TEMPORARY tables
 drop table t;
 # MDEV-14744 trx_id-based and transaction-based mixup in assertion
 create or replace table t (c text) engine=innodb with system versioning;
