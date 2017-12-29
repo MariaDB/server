@@ -14904,6 +14904,8 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
   Item_equal *item_equal;
   COND *org_cond= cond;                 // Return this in case of fatal error
 
+  Query_arena_stmt on_stmt_arena(thd);
+
   if (cond->type() == Item::COND_ITEM)
   {
     List<Item> *cond_list= ((Item_cond*) cond)->argument_list();
@@ -16024,6 +16026,8 @@ optimize_cond(JOIN *join, COND *conds,
 {
   THD *thd= join->thd;
   DBUG_ENTER("optimize_cond");
+
+  Query_arena_stmt on_stmt_arena(thd);
 
   if (!conds)
   {

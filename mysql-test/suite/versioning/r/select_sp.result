@@ -232,6 +232,19 @@ called_bad
 called_bad
 called_bad
 # bad() is good.
+# MDEV-14786 Server crashes in Item_cond::transform on 2nd execution of SP querying from a view [#436]
+create or replace table t1 (called_bad int) with system versioning;
+create or replace view v1 as select called_bad from t1 where called_bad < 5;
+create or replace procedure bad() select called_bad from v1;
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+# bad() is good.
 # wildcard expansion on hidden fields.
 create or replace table t1(
 A int
@@ -255,7 +268,7 @@ create or replace table t1 (a int) with system versioning;
 create or replace table t2 (a int) with system versioning;
 insert into t1 values(1);
 insert into t2 values(1);
-create view v1 as select * from t2 inner join t1 using (a);
+create or replace view v1 as select * from t2 inner join t1 using (a);
 select * from v1;
 a
 1
