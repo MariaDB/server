@@ -12,4 +12,4 @@
 ddl : DDL Survival WIP
 vtmd : DDL Survival WIP
 vtmd_show : DDL Survival WIP
-
+cte: MDEV-14820
