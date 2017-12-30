@@ -1870,13 +1870,14 @@ struct vers_select_conds_t
   vers_system_time_t type;
   vers_sys_type_t unit_start, unit_end;
   bool from_query:1;
+  bool used:1;
   Item *start, *end;
 
   void empty()
   {
     type= SYSTEM_TIME_UNSPECIFIED;
     unit_start= unit_end= VERS_UNDEFINED;
-    from_query= false;
+    used= from_query= false;
     start= end= NULL;
   }
 

@@ -10,7 +10,7 @@ period for system_time (sys_trx_start, sys_trx_end)
 ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
 set global system_versioning_transaction_registry= 1;
 Warnings:
-Warning	4143	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
+Warning	4141	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
 create or replace table t1 (
 x int,
 sys_trx_start bigint(20) unsigned as row start invisible,
@@ -32,7 +32,7 @@ return if(cond = 1, '[CORRECT]', '[INCORRECT]');
 set @@system_versioning_alter_history=keep;
 set global system_versioning_transaction_registry=on;
 Warnings:
-Warning	4143	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
+Warning	4141	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
 create or replace table t1 (x int) engine innodb;
 insert into t1 values (1);
 alter table t1

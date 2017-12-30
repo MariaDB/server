@@ -359,7 +359,7 @@ x	y
 1	1
 2	1
 select * from (select * from t1 for system_time all, t2 for system_time all) for system_time all as t;
-ERROR HY000: SYSTEM_TIME is not allowed outside historical `t`
+ERROR HY000: Table `t` is not system-versioned
 select * from (t1 for system_time all join t2 for system_time all) for system_time all;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 drop view v1;

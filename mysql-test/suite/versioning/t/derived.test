@@ -99,16 +99,18 @@ delete from t1;
 insert into t1 values (2);
 insert into t2 values (10);
 
---error ER_VERS_DERIVED_PROHIBITED
+--replace_column 2 # 3 #
 select * from (select *, t1.sys_trx_end, t1.sys_trx_end as endo from t1) as s0;
---error ER_VERS_DERIVED_PROHIBITED
+--replace_column 3 # 4 #
 select * from (select *, t1.sys_trx_end, t2.sys_trx_start from t1, t2) as s0;
 
 --echo # SYSTEM_TIME propagation from inner to outer
 select * from (select * from t1 for system_time as of timestamp @t0, t2) as s0;
 with s1 as (select * from t1 for system_time as of timestamp @t0, t2) select * from s1;
 --echo # leading table selection
+--replace_column 3 #
 select * from (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) as s2;
+--replace_column 3 #
 with s3 as (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) select * from s3;
 
 --echo ### VIEW instead of t1
@@ -122,11 +124,11 @@ select * from vt1;
 select * from (select * from vt1, t2) as s0;
 
 --echo ### SYSTEM_TIME clash
---error ER_VERS_SYSTEM_TIME_CLASH
+--error ER_VERS_NOT_VERSIONED
 select * from (select * from t1 for system_time all) for system_time all as dt0;
---error ER_VERS_SYSTEM_TIME_CLASH
+--error ER_VERS_NOT_VERSIONED
 select * from vt1 for system_time all;
---error ER_VERS_SYSTEM_TIME_CLASH
+--error ER_VERS_NOT_VERSIONED
 with dt1 as (select * from t1 for system_time all)
 select * from dt1 for system_time all;
 

@@ -748,7 +748,7 @@ void vers_select_conds_t::init(vers_system_time_t t, vers_sys_type_t u_start,
   unit_end= u_end;
   start= fix_dec(s);
   end= fix_dec(e);
-  from_query= false;
+  used= from_query= false;
 }
 
 Item *vers_select_conds_t::fix_dec(Item *item)

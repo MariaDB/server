@@ -2108,7 +2108,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   TABLE *table= table_list->table;
   TABLE_SHARE *share= table->s;
   sql_mode_t sql_mode= thd->variables.sql_mode;
-  ulong vers_hide= thd->variables.vers_hide;
   bool foreign_db_mode=  sql_mode & (MODE_POSTGRESQL | MODE_ORACLE |
                                      MODE_MSSQL | MODE_DB2 |
                                      MODE_MAXDB | MODE_ANSI);
@@ -2189,17 +2188,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
     uint flags = field->flags;
 
-    if (field->vers_sys_field())
-    {
-      if (vers_hide == VERS_HIDE_FULL || (vers_hide != VERS_HIDE_NEVER &&
-          field->invisible > INVISIBLE_USER))
-      {
-        continue;
-      }
-    }
-    else if (field->invisible > INVISIBLE_USER)
+    if (field->invisible > INVISIBLE_USER)
        continue;
-
     if (not_the_first_field)
       packet->append(STRING_WITH_LEN(",\n"));
 
@@ -2346,12 +2336,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
     {
       Field *field= key_part->field;
-      if (field && field->vers_sys_field())
-      {
-        if (vers_hide == VERS_HIDE_FULL || (field->invisible &&
-                                            vers_hide != VERS_HIDE_NEVER))
-          continue;
-      }
+      if (field->invisible > INVISIBLE_USER)
+        continue;
 
       if (j)
         packet->append(',');
@@ -2381,20 +2367,25 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                           hton->index_options);
   }
 
-  if (table->versioned() && vers_hide != VERS_HIDE_FULL)
+  if (table->versioned())
   {
     const Field *fs = table->vers_start_field();
     const Field *fe = table->vers_end_field();
     DBUG_ASSERT(fs);
     DBUG_ASSERT(fe);
-    DBUG_ASSERT(!fs->invisible || fe->invisible);
-    if (fe->invisible < INVISIBLE_SYSTEM || vers_hide == VERS_HIDE_NEVER)
+    if (fs->invisible < INVISIBLE_SYSTEM)
     {
+      DBUG_ASSERT(fe->invisible < INVISIBLE_SYSTEM);
       packet->append(STRING_WITH_LEN(",\n  PERIOD FOR SYSTEM_TIME ("));
       append_identifier(thd,packet,fs->field_name.str, fs->field_name.length);
       packet->append(STRING_WITH_LEN(", "));
       append_identifier(thd,packet,fe->field_name.str, fe->field_name.length);
       packet->append(STRING_WITH_LEN(")"));
+    }
+    else
+    {
+      DBUG_ASSERT(fs->invisible == INVISIBLE_SYSTEM);
+      DBUG_ASSERT(fe->invisible == INVISIBLE_SYSTEM);
     }
   }
 
@@ -2436,10 +2427,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     add_table_options(thd, table, create_info_arg,
                       table_list->schema_table != 0, 0, packet);
 
-  if (table->versioned() && vers_hide != VERS_HIDE_FULL)
-  {
+  if (table->versioned())
     packet->append(STRING_WITH_LEN(" WITH SYSTEM VERSIONING"));
-  }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   {
@@ -5027,9 +5016,6 @@ public:
 static bool get_all_archive_tables(THD *thd,
                                    Dynamic_array<String> &all_archive_tables)
 {
-  if (thd->variables.vers_hide == VERS_HIDE_NEVER)
-    return false;
-
   if (thd->variables.vers_alter_history != VERS_ALTER_HISTORY_SURVIVE)
     return false;
 

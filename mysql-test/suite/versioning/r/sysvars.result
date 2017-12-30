@@ -104,14 +104,10 @@ set system_versioning_asof= DEFAULT;
 select @@global.system_versioning_asof, @@system_versioning_asof;
 @@global.system_versioning_asof	@@system_versioning_asof
 DEFAULT	DEFAULT
-show variables where variable_name = "system_versioning_hide";
-Variable_name	Value
-system_versioning_hide	IMPLICIT
 select * from t for system_time all;
 a
 2
 1
-set system_versioning_hide= AUTO;
 select * from t;
 a
 2
@@ -119,39 +115,15 @@ select * from t for system_time as of timestamp current_timestamp(6);
 a
 2
 select * from t for system_time all;
-a	sys_trx_start	sys_trx_end
-2	TIMESTAMP	TIMESTAMP
-1	TIMESTAMP	TIMESTAMP
-select * from t for system_time from '0-0-0' to current_timestamp(6);
-a	sys_trx_start	sys_trx_end
-2	TIMESTAMP	TIMESTAMP
-1	TIMESTAMP	TIMESTAMP
-select * from t for system_time between '0-0-0' and current_timestamp(6);
-a	sys_trx_start	sys_trx_end
-2	TIMESTAMP	TIMESTAMP
-1	TIMESTAMP	TIMESTAMP
-set system_versioning_hide= NEVER;
-select * from t;
-a	sys_trx_start	sys_trx_end
-2	TIMESTAMP	TIMESTAMP
-set system_versioning_hide= FULL;
-create or replace table t (
-x int,
-st timestamp(6) as row start invisible,
-en timestamp(6) as row end invisible,
-period for system_time (st, en))
-with system versioning;
-show create table t;
-Table	Create Table
-t	CREATE TABLE `t` (
-  `x` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t values (2);
-delete from t;
-select * from t;
-x
-select * from t for system_time all;
-x
+a
 2
+1
+select * from t for system_time from '0-0-0' to current_timestamp(6);
+a
+2
+1
+select * from t for system_time between '0-0-0' and current_timestamp(6);
+a
+2
+1
 drop table t;
-set system_versioning_hide= IMPLICIT;

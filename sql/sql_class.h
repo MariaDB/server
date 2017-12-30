@@ -708,7 +708,6 @@ typedef struct system_variables
 
   vers_asof_timestamp_t vers_asof_timestamp;
   my_bool vers_force;
-  ulong vers_hide;
   my_bool vers_innodb_algorithm_simple;
   ulong vers_alter_history;
 } SV;

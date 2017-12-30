@@ -14,62 +14,67 @@ a
 3
 select a, b, b+0 from t for system_time as of timestamp now(6);
 a	b	b+0
-1	NULL	NULL
-3	NULL	NULL
+1	2	2
+3	4	4
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6);
 a	b
-1	NULL
-3	NULL
+1	2
+3	4
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select count(*) from t for system_time as of timestamp now(6) group by b;
 count(*)
-2
+1
+1
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) order by b asc;
 a	b
-1	NULL
-3	NULL
+1	2
+3	4
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) order by b desc;
 a	b
-1	NULL
-3	NULL
+3	4
+1	2
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) group by a having a=2;
 a	b
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) group by b having b=2;
 a	b
+1	2
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select a from t for system_time as of timestamp now(6) where b=2;
 a
+1
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select a from t for system_time as of timestamp now(6) where b=NULL;
 a
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select a from t for system_time as of timestamp now(6) where b is NULL;
 a
-1
-3
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select count(*), b from t for system_time as of timestamp now(6) group by b having b=NULL;
 count(*)	b
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select a, b from t;
 a	b
 1	2
@@ -81,15 +86,12 @@ b int not null without system versioning
 insert into t values (1, 2), (3, 4);
 select * from t for system_time as of timestamp now(6);
 a	b
-1	NULL
-3	NULL
+1	2
+3	4
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) where b is NULL;
 a	b
-1	NULL
-3	NULL
 Warnings:
-Warning	4111	Attempt to read non-temporal field `b` in historical query
-Warning	4111	Attempt to read non-temporal field `b` in historical query
+Note	4111	Non-versioned field `b` in historical query
 drop table t;

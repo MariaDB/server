@@ -753,7 +753,8 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     {
       if (table->table && table->table->versioned())
         versioned_tables++;
-      else if (table->vers_conditions.user_defined())
+      else if (table->vers_conditions.user_defined() &&
+              (table->is_non_derived() || !table->vers_conditions.used))
       {
         my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->alias);
         DBUG_RETURN(-1);
@@ -819,18 +820,11 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       }
 #endif
 
-    if (outer_table && table != outer_table) // inner table may be outer in recursive CTE
+    if (outer_table && !vers_conditions)
     {
-      if (vers_conditions)
-      {
-        my_error(ER_VERS_SYSTEM_TIME_CLASH, MYF(0), outer_table->alias);
-        DBUG_RETURN(-1);
-      }
-      else
-      {
-        // propagate system_time from nearest outer SELECT_LEX
-        vers_conditions= outer_table->vers_conditions;
-      }
+      // propagate system_time from nearest outer SELECT_LEX
+      vers_conditions= outer_table->vers_conditions;
+      outer_table->vers_conditions.used= true;
     }
 
     // propagate system_time from sysvar
@@ -17448,10 +17442,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   List_iterator_fast<Item> li(fields);
   Item *item;
   Field **tmp_from_field=from_field;
-  Field *sys_trx_start= NULL;
-  Field *sys_trx_end= NULL;
-  vers_sys_type_t versioned= VERS_UNDEFINED;
-
   while ((item=li++))
   {
     Item::Type type= item->type();
@@ -17578,44 +17568,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 	continue;				// Some kind of const item
       }
       DBUG_ASSERT(!new_field->field_name.str || strlen(new_field->field_name.str) == new_field->field_name.length);
-
-      if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
-      {
-        if (item->real_item()->type() == Item::FIELD_ITEM)
-        {
-          Item_field *item_field= (Item_field *)item->real_item();
-          Field *field= item_field->field;
-          TABLE_SHARE *s= field->table->s;
-          if (s->versioned)
-          {
-            if (field->flags & VERS_SYS_START_FLAG)
-            {
-              sys_trx_start= new_field;
-              versioned= s->versioned;
-            }
-            else if (field->flags & VERS_SYS_END_FLAG)
-            {
-              sys_trx_end= new_field;
-              versioned= s->versioned;
-            }
-          }
-        }
-      }
-      if (type == Item::TYPE_HOLDER)
-      {
-        Item_type_holder *ith= (Item_type_holder*)item;
-        if (ith->field_flags() & VERS_SYS_START_FLAG)
-        {
-          sys_trx_start= new_field;
-          goto set_versioned;
-        }
-        else if (ith->field_flags() & VERS_SYS_END_FLAG)
-        {
-          sys_trx_end= new_field;
-        set_versioned:
-          versioned= ith->vers_trx_id() ? VERS_TRX_ID : VERS_TIMESTAMP;
-        }
-      }
       if (type == Item::SUM_FUNC_ITEM)
       {
         Item_sum *agg_item= (Item_sum *) item;
@@ -17696,20 +17648,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       total_uneven_bit_length= 0;
     }
   }
-
-  if (sys_trx_start && sys_trx_end)
-  {
-    DBUG_ASSERT(versioned);
-    sys_trx_start->flags|= VERS_SYS_START_FLAG;
-    sys_trx_end->flags|= VERS_SYS_END_FLAG;
-    sys_trx_start->invisible= INVISIBLE_SYSTEM;
-    sys_trx_end->invisible= INVISIBLE_SYSTEM;
-    share->versioned= versioned;
-    share->field= table->field;
-    share->row_start_field= sys_trx_start->field_index;
-    share->row_end_field= sys_trx_end->field_index;
-  }
-
   DBUG_ASSERT(fieldnr == (uint) (reg_field - table->field));
   DBUG_ASSERT(field_count >= (uint) (reg_field - table->field));
   field_count= fieldnr;

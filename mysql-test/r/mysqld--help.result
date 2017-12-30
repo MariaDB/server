@@ -1230,12 +1230,6 @@ The following options may be given as the first argument:
  --system-versioning-force 
  Force system versioning for all created tables
  --system-versioning-hide=name 
- Hide system versioning from being displayed in table
- info. AUTO: hide implicit system fields only in
- non-versioned and AS OF queries; IMPLICIT: hide implicit
- system fields in all queries; FULL: hide any system
- fields in all queries and hide versioning info in SHOW
- commands; NEVER: don't hide system fields
  --system-versioning-innodb-algorithm-simple 
  Use simple algorithm of timestamp handling in InnoDB
  instead of TRX_SEES
@@ -1674,7 +1668,6 @@ sync-relay-log-info 10000
 sysdate-is-now FALSE
 system-versioning-alter-history ERROR
 system-versioning-force FALSE
-system-versioning-hide AUTO
 system-versioning-innodb-algorithm-simple TRUE
 system-versioning-transaction-registry FALSE
 table-cache 431

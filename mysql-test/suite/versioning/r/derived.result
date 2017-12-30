@@ -135,9 +135,11 @@ delete from t1;
 insert into t1 values (2);
 insert into t2 values (10);
 select * from (select *, t1.sys_trx_end, t1.sys_trx_end as endo from t1) as s0;
-ERROR HY000: Derived table is prohibited: multiple end system fields `t1.sys_trx_end`, `t1.sys_trx_end` in query!
+x	sys_trx_end	endo
+2	#	#
 select * from (select *, t1.sys_trx_end, t2.sys_trx_start from t1, t2) as s0;
-ERROR HY000: Derived table is prohibited: system fields from multiple tables `t1`, `t2` in query!
+x	y	sys_trx_end	sys_trx_start
+2	10	#	#
 # SYSTEM_TIME propagation from inner to outer
 select * from (select * from t1 for system_time as of timestamp @t0, t2) as s0;
 x	y
@@ -147,11 +149,11 @@ x	y
 1	10
 # leading table selection
 select * from (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) as s2;
-y	x
-10	1
+y	x	sys_trx_end
+10	1	#
 with s3 as (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) select * from s3;
-y	x
-10	1
+y	x	sys_trx_end
+10	1	#
 ### VIEW instead of t1
 set @q= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t0, "'");
 prepare q from @q;
@@ -168,12 +170,12 @@ x	y
 1	10
 ### SYSTEM_TIME clash
 select * from (select * from t1 for system_time all) for system_time all as dt0;
-ERROR HY000: SYSTEM_TIME is not allowed outside historical `dt0`
+ERROR HY000: Table `dt0` is not system-versioned
 select * from vt1 for system_time all;
-ERROR HY000: SYSTEM_TIME is not allowed outside historical `vt1`
+ERROR HY000: Table `vt1` is not system-versioned
 with dt1 as (select * from t1 for system_time all)
 select * from dt1 for system_time all;
-ERROR HY000: SYSTEM_TIME is not allowed outside historical `dt1`
+ERROR HY000: Table `dt1` is not system-versioned
 ### UNION
 set @t1= now(6);
 delete from t2;

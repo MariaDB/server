@@ -76,37 +76,12 @@ set global system_versioning_asof= DEFAULT;
 set system_versioning_asof= DEFAULT;
 select @@global.system_versioning_asof, @@system_versioning_asof;
 
-show variables where variable_name = "system_versioning_hide";
 select * from t for system_time all;
 
-set system_versioning_hide= AUTO;
 select * from t;
 select * from t for system_time as of timestamp current_timestamp(6);
---replace_regex /\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{6}/TIMESTAMP/
 select * from t for system_time all;
---replace_regex /\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{6}/TIMESTAMP/
 select * from t for system_time from '0-0-0' to current_timestamp(6);
---replace_regex /\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{6}/TIMESTAMP/
 select * from t for system_time between '0-0-0' and current_timestamp(6);
 
-set system_versioning_hide= NEVER;
---replace_regex /\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{6}/TIMESTAMP/
-select * from t;
-
-set system_versioning_hide= FULL;
-create or replace table t (
-  x int,
-  st timestamp(6) as row start invisible,
-  en timestamp(6) as row end invisible,
-  period for system_time (st, en))
-with system versioning;
-
-show create table t;
-insert into t values (2);
-delete from t;
-
-select * from t;
-select * from t for system_time all;
-
 drop table t;
-set system_versioning_hide= IMPLICIT;

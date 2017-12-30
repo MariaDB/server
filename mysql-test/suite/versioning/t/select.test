@@ -192,7 +192,7 @@ delete from t1 where x = 3;
 insert into t2 values (1);
 select * from t1, t2 for system_time all;
 
---error ER_VERS_SYSTEM_TIME_CLASH
+--error ER_VERS_NOT_VERSIONED
 select * from (select * from t1 for system_time all, t2 for system_time all)
 for system_time all as t;
 

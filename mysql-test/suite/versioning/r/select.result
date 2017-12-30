@@ -306,7 +306,7 @@ x	y
 2	1
 select * from (select * from t1 for system_time all, t2 for system_time all)
 for system_time all as t;
-ERROR HY000: SYSTEM_TIME is not allowed outside historical `t`
+ERROR HY000: Table `t` is not system-versioned
 # TRANSACTION/TIMESTAMP specifier in SYSTEM_TIME [MDEV-14645, Issue #396]
 create or replace table t1 (x int) with system versioning engine myisam;
 select * from t1 for system_time as of transaction 1;

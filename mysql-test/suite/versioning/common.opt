@@ -1,3 +1,2 @@
---system-versioning-hide=implicit
 --system-versioning-transaction-registry=1
 --plugin-load=versioning
