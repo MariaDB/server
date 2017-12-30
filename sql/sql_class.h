@@ -5507,8 +5507,6 @@ public:
 };
 
 
-
-
 /*
   Optimizer and executor structure for the materialized semi-join info. This
   structure contains

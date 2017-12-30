@@ -2145,7 +2145,7 @@ drop table t1;
 --echo #
 
 set @save_optimizer_switch= @@optimizer_switch;
-set optimizer_switch='split_grouping_derived=off';
+set optimizer_switch='split_materialized=off';
              
 create table t1 (a int, c varchar(16));
 insert into t1 values
@@ -2256,28 +2256,62 @@ set optimizer_switch= @save_optimizer_switch;
 --echo #
 
 let
-$no_splitting= set statement optimizer_switch='split_grouping_derived=off' for; 
+$no_splitting= set statement optimizer_switch='split_materialized=off' for; 
 
-create table t1 (a int);
+create table t1 (a int, b int, index idx_b(b)) engine=myisam;
 insert into t1 values
-(8), (5), (1), (2), (9), (7), (2), (7);
+(8,3), (5,7), (1,2), (2,1), (9,7), (7,5), (2,2), (7,3),
+(9,3), (8,1), (4,5), (2,3);
 
-create table t2 (a int, b int, index idx(a));
+create table t2 (a int, b int, c char(127), index idx_a(a)) engine=myisam;
 insert into t2 values
-  (7,10), (1,20), (2,23), (7,18), (1,30),
-  (4,71), (3,15), (7,82), (8,12), (4,15),
-  (11,33), (10,42), (4,53), (10,17), (2,90);
+  (7,10,'x'), (1,20,'a'), (2,23,'b'), (7,18,'z'), (1,30,'c'),
+  (4,71,'d'), (3,15,'x'), (7,82,'y'), (8,12,'t'), (4,15,'b'),
+  (11,33,'a'), (10,42,'u'), (4,53,'p'), (10,17,'r'), (2,90,'x'),
+  (17,10,'s'), (11,20,'v'), (12,23,'y'), (17,18,'a'), (11,30,'d'),
+  (24,71,'h'), (23,15,'i'), (27,82,'k'), (28,12,'p'), (24,15,'q'),
+  (31,33,'f'), (30,42,'h'), (40,53,'m'), (30,17,'o'), (21,90,'b'),
+  (37,10,'e'), (31,20,'g'), (32,23,'f'), (37,18,'n'), (41,30,'l'),
+  (54,71,'j'), (53,15,'w'), (57,82,'z'), (58,12,'k'), (54,15,'p'),
+  (61,33,'c'), (60,42,'a'), (62,53,'x'), (67,17,'g'), (64,90,'v');
+
+insert into t2 select a+10, b+10, concat(c,'f') from t2;
+
+analyze table t1,t2;
 
 let $q1=
-select t1.a,t.max,t.min
+select t1.a,t.s,t.m
 from t1 join
-     (select a, max(t2.b) max, min(t2.b) min from t2 group by t2.a) t
-     on t1.a=t.a;
+     (select a, sum(t2.b) as s, min(t2.c) as m from t2 group by t2.a) t
+     on t1.a=t.a
+where t1.b < 3;
 
 eval $no_splitting $q1;
 eval $q1;
 eval explain extended $q1;
-eval explain format=json $q1;  
+eval explain format=json $q1;
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q10=
+select t1.a,t.s,t.m
+from t1 join
+     (select a, sum(t2.b) as s, min(t2.b) as m from t2 group by t2.a) t
+     on t1.a=t.a
+where t1.b <= 5;
+
+eval $no_splitting $q10;
+eval $q10;
+eval explain extended $q10;
+eval explain format=json $q10;
+eval prepare stmt from "$q10";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+delete from t1 where t1.b between 2 and 5;
 
 let $q2=
 select t1.a,t.max,t.min
@@ -2290,67 +2324,121 @@ eval $q2;
 eval explain extended $q2;
 eval explain format=json $q2;
 
-create table t3 (a int, c varchar(16));
+create table t3 (a int, b int, c char(127), index idx_b(b)) engine=myisam;
 insert into t3 values
-(8,'aa'), (5,'cc'), (1,'bb'), (2,'aa'), (9,'cc'),
-(7,'aa'), (2,'aa'), (7,'bb');
+(8,11,'aa'), (5,15,'cc'), (1,14,'bb'), (2,12,'aa'), (7,17,'cc'),
+(7,18,'aa'), (2,11,'aa'), (7,10,'bb'), (3,11,'dd'), (4,12,'ee'),
+(5,14,'dd'), (9,12,'ee');
   
-create table t4 (a int, b int, c varchar(16), index idx(a,c));
+create table t4 (a int, b int, c char(127), index idx(a,c)) engine=myisam;
 insert into t4 values
   (7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
-  (4,71,'xx'), (3,15,'aa'), (7,82,'bb'), (8,12,'dd'), (4,15,'aa'),
-  (11,33,'yy'), (10,42,'zz'), (4,53,'xx'), (10,17,'yy'), (7,12,'bb'),
+  (4,71,'xx'), (3,15,'aa'), (7,82,'aa'), (8,12,'dd'), (4,15,'aa'),
+  (11,33,'yy'), (10,42,'zz'), (4,53,'xx'), (10,17,'yy'), (7,12,'cc'),
   (8,20,'dd'), (7,32,'bb'), (1,50,'aa'), (3,40,'bb'), (3,77,'aa');
+
+insert into t4 select a+10, b+10, concat(c,'f') from t4;
+
+analyze table t3,t4;
 
 let $q3=
 select t3.a,t3.c,t.max,t.min
 from t3 join
      (select a, c, max(b) max, min(b) min from t4 group by a,c) t
-     on t3.a=t.a and t3.c=t.c;
+     on t3.a=t.a and t3.c=t.c
+where t3.b > 15;
 
 eval $no_splitting $q3;
 eval $q3;
 eval explain extended $q3;
 eval explain format=json $q3;  
 
+let $q30=
+select t3.a,t3.c,t.max,t.min
+from t3 join
+     (select a, c, max(b) max, min(b) min from t4 group by a,c) t
+     on t3.a=t.a and t3.c=t.c
+where t3.b <= 15;
+
+eval $no_splitting $q30;
+eval $q30;
+eval explain extended $q30;
+eval explain format=json $q30;  
+
 let $q4=
 select t3.a,t3.c,t.max,t.min
 from t3 join
      (select a, c, max(b) max, min(b) min from t4 group by c,a) t
-     on t3.a=t.a and t3.c=t.c;
+     on t3.a=t.a and t3.c=t.c
+where t3.b > 15;
 
 eval $no_splitting $q4;
 eval $q4;
 eval explain extended $q4;
 eval explain format=json $q4;  
 
-drop index idx on t2;
-create index idx on t2(b);
-create index idx on t3(a);
-create index idx2 on t4(c);
-insert into t3 select a+1, concat(c,'f') from t3;
-insert into t3 select a+1, concat(c,'h')  from t3;
-insert into t4 select a+1, b+10, concat(c,'h') from t4;
+let $q40=
+select t3.a,t3.c,t.max,t.min
+from t3 join
+     (select a, c, max(b) max, min(b) min from t4 group by c,a) t
+     on t3.a=t.a and t3.c=t.c
+where t3.b <= 15;
+
+eval $no_splitting $q40;
+eval $q40;
+eval explain extended $q40;
+eval explain format=json $q40;  
+
+drop index idx_a on t2;
+create index idx on t2(c,b);
+create index idx_a on t3(a);
+create index idx_c on t4(c);
+insert into t3 select a+10, b+10, concat(c,'f') from t3;
+insert into t3 select a+100, b+100, concat(c,'g')  from t3;
+insert into t4 select a+100, b+100, concat(c,'g') from t4;
+insert into t4 select a+1000, b+1000, concat(c,'h') from t4;
+
+analyze table t2,t3,t4;
 
 let $q5=
-select t2.a,t2.b,t3.c,t.max,t.min
+select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
 from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
-where t2.b > 50 and t2.a=t3.a and t3.c=t.c;
+where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
 
 eval $no_splitting $q5;
 eval $q5;
 eval explain extended $q5;
 eval explain format=json $q5;
 
+let $q50=
+select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
+from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
+where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
+
+eval $no_splitting $q50;
+eval $q50;
+eval explain extended $q50;
+eval explain format=json $q50;
+
 let $q6=
 select *
 from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
-where t2.b > 50 and t2.a=t3.a and t3.c=t.c;
+where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
 
 eval $no_splitting $q6;
 eval $q6;
 eval explain extended $q6;
 eval explain format=json $q6;
+
+let $q60=
+select *
+from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
+where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
+
+eval $no_splitting $q60;
+eval $q60;
+eval explain extended $q60;
+eval explain format=json $q60;
 
 drop table t1,t2,t3,t4;
 
@@ -2365,18 +2453,23 @@ INSERT INTO t1 VALUES (1),(9),(3);
 CREATE TABLE t2 (a int, i int);
 INSERT INTO t2 VALUES (1,9),(2,3),(3,7),(4,1);
 
-CREATE TABLE t3 (a int, c varchar(8), index(c));
+CREATE TABLE t3 (a int, c char(127), index(c));
 INSERT INTO t3 VALUES (1,'foo'),(3,'bar'),(4,'foo'),(2,'bar');
+INSERT INTO t3 SELECT a, concat(c,'a') FROM t3;
 
-CREATE TABLE t4 (c varchar(8));
-INSERT INTO t4 VALUES ('abc'),('foo'),('def');
+CREATE TABLE t4 (a int, c char(127), index(a));
+INSERT INTO t4 VALUES
+  (3,'abc'),(1,'foo'),(4,'def'),(8,'xxx'),(3,'yyy'),
+  (5,'zzz'),(9,'xyz'),(2,'yxz'),(5,'zxy'),(7,'zyx') ;
+
+ANALYZE TABLE t1,t2,t3,t4;
 
 CREATE VIEW v1 AS
 SELECT c FROM t3
   WHERE a IN ( SELECT t2.a FROM t1 JOIN t2 WHERE t1.i = t2.i ) GROUP BY c ;
 
 let $q1=
-SELECT * FROM t4 WHERE c IN ( SELECT c FROM v1 );
+SELECT * FROM t4 WHERE c IN ( SELECT c FROM v1 ) and a < 2;
 
 eval $no_splitting $q1;
 eval $q1;

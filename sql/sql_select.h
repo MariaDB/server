@@ -73,8 +73,44 @@ typedef struct keyuse_t {
   */
   uint         sj_pred_no;
 
+  /*
+    If this is NULL than KEYUSE is always enabled.
+    Otherwise it points to the enabling flag for this keyuse (true <=> enabled)
+  */
+  bool *validity_ref;
+
   bool is_for_hash_join() { return is_hash_join_key_no(key); }
 } KEYUSE;
+
+
+struct KEYUSE_EXT: public KEYUSE
+{
+  /*
+    This keyuse can be used only when the partial join being extended
+    contains the tables from this table map
+  */
+  table_map needed_in_prefix;
+  /* The enabling flag for keyuses usable for splitting */
+  bool validity_var;
+};
+
+/// Used when finding key fields
+struct KEY_FIELD {
+  Field		*field;
+  Item_bool_func *cond;
+  Item		*val;			///< May be empty if diff constant
+  uint		level;
+  uint		optimize;
+  bool		eq_func;
+  /**
+    If true, the condition this struct represents will not be satisfied
+    when val IS NULL.
+  */
+  bool          null_rejecting;
+  bool         *cond_guard; /* See KEYUSE::cond_guard */
+  uint          sj_pred_no; /* See KEYUSE::sj_pred_no */
+};
+
 
 #define NO_KEYPART ((uint)(-1))
 
@@ -201,6 +237,8 @@ class SJ_TMP_TABLE;
 class JOIN_TAB_RANGE;
 class AGGR_OP;
 class Filesort;
+struct SplM_plan_info;
+class SplM_opt_info;
 
 typedef struct st_join_table {
   st_join_table() {}
@@ -614,8 +652,10 @@ typedef struct st_join_table {
   bool use_order() const; ///< Use ordering provided by chosen index?
   bool sort_table();
   bool remove_duplicates();
-  Item *get_splitting_cond_for_grouping_derived(THD *thd);
-
+  void add_keyuses_for_splitting();
+  SplM_plan_info *choose_best_splitting(double record_count,
+                                        table_map remaining_tables);
+  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables);
 } JOIN_TAB;
 
 
@@ -920,6 +960,9 @@ typedef struct st_position
   Firstmatch_picker         firstmatch_picker;
   LooseScan_picker          loosescan_picker;
   Sj_materialization_picker sjmat_picker;
+
+  /* Info on splitting plan used at this position */  
+  SplM_plan_info *spl_plan;
 } POSITION;
 
 typedef Bounds_checked_array<Item_null_result*> Item_null_array;
@@ -1053,11 +1096,13 @@ protected:
   /* Support for plan reoptimization with rewritten conditions. */
   enum_reopt_result reoptimize(Item *added_where, table_map join_tables,
                                Join_plan_state *save_to);
+  /* Choose a subquery plan for a table-less subquery. */
+  bool choose_tableless_subquery_plan();
+
+public:
   void save_query_plan(Join_plan_state *save_to);
   void reset_query_plan();
   void restore_query_plan(Join_plan_state *restore_from);
-  /* Choose a subquery plan for a table-less subquery. */
-  bool choose_tableless_subquery_plan();
 
 public:
   JOIN_TAB *join_tab, **best_ref;
@@ -1415,9 +1460,14 @@ public:
   */
   bool implicit_grouping; 
 
-  bool is_for_splittable_grouping_derived;
   bool with_two_phase_optimization;
-  ORDER *partition_list; 
+
+  /* Saved execution plan for this join */
+  Join_plan_state *save_qep;
+  /* Info on splittability of the table materialized by this plan*/
+  SplM_opt_info *spl_opt_info;
+  /* Contains info on keyuses usable for splitting */
+  Dynamic_array<KEYUSE_EXT> *ext_keyuses_for_splitting;
 
   JOIN_TAB *sort_and_group_aggr_tab;
 
@@ -1465,7 +1515,10 @@ public:
     need_distinct= 0;
     skip_sort_order= 0;
     with_two_phase_optimization= 0;
-    is_for_splittable_grouping_derived= 0;
+    save_qep= 0;
+    spl_opt_info= 0;
+    ext_keyuses_for_splitting= 0;
+    spl_opt_info= 0;
     need_tmp= 0;
     hidden_group_fields= 0; /*safety*/
     error= 0;
@@ -1674,10 +1727,12 @@ public:
                                const char *message);
   JOIN_TAB *first_breadth_first_tab() { return join_tab; }
   bool check_two_phase_optimization(THD *thd);
-  bool check_for_splittable_grouping_derived(THD *thd);
   bool inject_cond_into_where(Item *injected_cond);
-  bool push_splitting_cond_into_derived(THD *thd, Item *cond);
-  bool improve_chosen_plan(THD *thd);
+  bool check_for_splittable_materialized();
+  void add_keyuses_for_splitting();
+  bool inject_best_splitting_cond(table_map remaining_tables);
+  bool fix_all_splittings_in_plan();
+
   bool transform_in_predicates_into_in_subq(THD *thd);
 private:
   /**
@@ -2295,6 +2350,11 @@ bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
 double prev_record_reads(POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
+double get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size);
+double get_tmp_table_write_cost(THD *thd, double row_count, uint row_size);
+void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
+bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
+                            bool skip_unprefixed_keyparts);
 
 struct st_cond_statistic
 {

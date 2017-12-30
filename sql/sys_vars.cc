@@ -2457,7 +2457,7 @@ export const char *optimizer_switch_names[]=
   "exists_to_in",
   "orderby_uses_equalities",
   "condition_pushdown_for_derived",
-  "split_grouping_derived",
+  "split_materialized",
   "default", 
   NullS
 };

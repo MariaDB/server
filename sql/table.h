@@ -1033,6 +1033,8 @@ struct st_cond_statistic;
 /* Bitmap of table's fields */
 typedef Bitmap<MAX_FIELDS> Field_map;
 
+class SplM_opt_info;
+
 struct TABLE
 {
   TABLE() {}                               /* Remove gcc warning */
@@ -1312,7 +1314,13 @@ public:
   bool stats_is_read;     /* Persistent statistics is read for the table */
   bool histograms_are_read;
   MDL_ticket *mdl_ticket;
-  List<Field> splitting_fields;
+
+  /*
+    This is used only for potentially splittable materialized tables and it
+    points to the info used by the optimizer to apply splitting optimization
+  */
+  SplM_opt_info *spl_opt_info;
+  key_map keys_usable_for_splitting;
 
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
@@ -1457,6 +1465,10 @@ public:
                                       bool with_cleanup);
   Field *find_field_by_name(LEX_CSTRING *str) const;
   bool export_structure(THD *thd, class Row_definition_list *defs);
+  bool is_splittable() { return spl_opt_info != NULL; }
+  void set_spl_opt_info(SplM_opt_info *spl_info);
+  void deny_splitting();
+  void add_splitting_info_for_key_field(struct KEY_FIELD *key_field);
 };
 
 

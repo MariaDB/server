@@ -85,7 +85,6 @@ LEX_CSTRING distinct_key= {STRING_WITH_LEN("distinct_key")};
 
 struct st_sargable_param;
 
-static void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 static bool make_join_statistics(JOIN *join, List<TABLE_LIST> &leaves, 
                                  DYNAMIC_ARRAY *keyuse);
 static bool update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,
@@ -93,8 +92,6 @@ static bool update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,
                                 uint tables, COND *conds,
                                 table_map table_map, SELECT_LEX *select_lex,
                                 SARGABLE_PARAM **sargables);
-static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
-                                   bool skip_unprefixed_keyparts);
 static int sort_keyuse(KEYUSE *a,KEYUSE *b);
 static bool are_tables_local(JOIN_TAB *jtab, table_map used_tables);
 static bool create_ref_for_key(JOIN *join, JOIN_TAB *j, KEYUSE *org_keyuse,
@@ -1125,7 +1122,6 @@ int JOIN::optimize()
     if (optimization_state != JOIN::NOT_OPTIMIZED)
       return FALSE;
     optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
-    is_for_splittable_grouping_derived= false;
     res= optimize_inner();
   }
   if (!with_two_phase_optimization ||
@@ -1571,9 +1567,6 @@ int JOIN::optimize_stage2()
   if (subq_exit_fl)
     goto setup_subq_exit;
 
-  if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
-    DBUG_RETURN(1);
-
   if (thd->check_killed())
     DBUG_RETURN(1);
   
@@ -1581,6 +1574,9 @@ int JOIN::optimize_stage2()
   if (get_best_combination())
     DBUG_RETURN(1);
   
+  if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
+    DBUG_RETURN(1);
+
   if (optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_WITH_KEYS))
     drop_unused_derived_keys();
 
@@ -3670,7 +3666,11 @@ JOIN::destroy()
   cleanup_item_list(tmp_all_fields1);
   cleanup_item_list(tmp_all_fields3);
   destroy_sj_tmp_tables(this);
-  delete_dynamic(&keyuse); 
+  delete_dynamic(&keyuse);
+  if (save_qep)
+    delete(save_qep);
+  if (ext_keyuses_for_splitting)
+    delete(ext_keyuses_for_splitting);
   delete procedure;
   DBUG_RETURN(error);
 }
@@ -4122,6 +4122,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                                skip_unprefixed_keyparts))
       goto error;
     DBUG_EXECUTE("opt", print_keyuse_array(keyuse_array););
+  }
+
+  for (s= stat; s < stat_end; s++)
+  {
+    if (s->table->is_splittable())
+      s->add_keyuses_for_splitting();
   }
 
   join->const_table_map= no_rows_const_tables;
@@ -4597,9 +4603,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   if (join->choose_subquery_plan(all_table_map & ~join->const_table_map))
     goto error;
 
-  if (join->improve_chosen_plan(join->thd))
-    goto error;
-  
   DEBUG_SYNC(join->thd, "inside_make_join_statistics");
 
   DBUG_RETURN(0);
@@ -4628,23 +4631,6 @@ error:
 	  const_keys Bitmap of all keys with may be used with quick_select
 	  keyuse     Pointer to possible keys
 *****************************************************************************/
-
-/// Used when finding key fields
-struct KEY_FIELD {
-  Field		*field;
-  Item_bool_func *cond;
-  Item		*val;			///< May be empty if diff constant
-  uint		level;
-  uint		optimize;
-  bool		eq_func;
-  /**
-    If true, the condition this struct represents will not be satisfied
-    when val IS NULL.
-  */
-  bool          null_rejecting; 
-  bool         *cond_guard; /* See KEYUSE::cond_guard */
-  uint          sj_pred_no; /* See KEYUSE::sj_pred_no */
-};
 
 
 /**
@@ -5296,7 +5282,7 @@ Item_func_ne::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
     /*
       QQ: perhaps test for !is_local_field(args[1]) is not really needed here.
       Other comparison functions, e.g. Item_func_le, Item_func_gt, etc,
-      do not have this test. See Item_bool_func2::add_key_field_optimize_op().
+      do not have this test. See Item_bool_func2::add_key_fieldoptimize_op().
       Check with the optimizer team.
     */
     if (is_local_field(args[0]) && !is_local_field(args[1]))
@@ -5479,6 +5465,7 @@ add_keyuse(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field,
   keyuse.null_rejecting= key_field->null_rejecting;
   keyuse.cond_guard= key_field->cond_guard;
   keyuse.sj_pred_no= key_field->sj_pred_no;
+  keyuse.validity_ref= 0;
   return (insert_dynamic(keyuse_array,(uchar*) &keyuse));
 }
 
@@ -5524,7 +5511,9 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
         key_field->val->used_tables())
     {
       if (!field->can_optimize_hash_join(key_field->cond, key_field->val))
-        return false;      
+        return false;
+      if (form->is_splittable())
+        form->add_splitting_info_for_key_field(key_field);
       /* 
         If a key use is extracted from an equi-join predicate then it is
         added not only as a key use for every index whose component can
@@ -5537,7 +5526,6 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
   }
   return FALSE;
 }
-
 
 static bool
 add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
@@ -5600,6 +5588,7 @@ add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
   keyuse.optimize= 0;
   keyuse.keypart_map= 0;
   keyuse.sj_pred_no= UINT_MAX;
+  keyuse.validity_ref= 0;
   return insert_dynamic(keyuse_array,(uchar*) &keyuse);
 }
 
@@ -5887,8 +5876,8 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   Special treatment for ft-keys.
 */
 
-static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse, 
-                                   bool skip_unprefixed_keyparts)
+bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse, 
+                            bool skip_unprefixed_keyparts)
 {
   KEYUSE key_end, *prev, *save_pos, *use;
   uint found_eq_constant, i;
@@ -5956,7 +5945,7 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
   Update some values in keyuse for faster choose_plan() loop.
 */
 
-static void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
+void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
 {
   KEYUSE *end,*keyuse= dynamic_element(keyuse_array, 0, KEYUSE*);
 
@@ -5995,7 +5984,6 @@ static void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
       keyuse->ref_table_rows= 1;
   }
 }
-
 
 
 /**
@@ -6305,6 +6293,7 @@ best_access_path(JOIN      *join,
   bool best_uses_jbuf= FALSE;
   MY_BITMAP *eq_join_set= &s->table->eq_join_set;
   KEYUSE *hj_start_key= 0;
+  SplM_plan_info *spl_plan= 0;
 
   disable_jbuf= disable_jbuf || idx == join->const_tables;  
 
@@ -6314,7 +6303,10 @@ best_access_path(JOIN      *join,
   bitmap_clear_all(eq_join_set);
 
   loose_scan_opt.init(join, s, remaining_tables);
-  
+
+  if (s->table->is_splittable())
+    spl_plan= s->choose_best_splitting(record_count, remaining_tables);
+
   if (s->keyuse)
   {                                            /* Use key if possible */
     KEYUSE *keyuse;
@@ -6379,6 +6371,7 @@ best_access_path(JOIN      *join,
                2. we won't get two ref-or-null's
           */
           if (!(remaining_tables & keyuse->used_tables) &&
+              (!keyuse->validity_ref || *keyuse->validity_ref) &&
               s->access_from_tables_is_allowed(keyuse->used_tables,
                                                join->sjm_lookup_tables) &&
               !(ref_or_null_part && (keyuse->optimize &
@@ -6691,6 +6684,7 @@ best_access_path(JOIN      *join,
         tmp += s->startup_cost;
         loose_scan_opt.check_ref_access_part2(key, start_key, records, tmp);
       } /* not ft_key */
+
       if (tmp + 0.0001 < best_time - records/(double) TIME_FOR_COMPARE)
       {
         best_time= tmp + records/(double) TIME_FOR_COMPARE;
@@ -6878,6 +6872,7 @@ best_access_path(JOIN      *join,
   pos->ref_depend_map= best_ref_depends_map;
   pos->loosescan_picker.loosescan_key= MAX_KEY;
   pos->use_join_buffer= best_uses_jbuf;
+  pos->spl_plan= spl_plan;
    
   loose_scan_opt.save_to_position(s, loose_scan_pos);
 
@@ -8932,191 +8927,14 @@ JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab)
   return tab;
 }
 
-static
-bool key_can_be_used_to_split_by_fields(KEY *key_info, uint used_key_parts,
-                                        List<Field> &fields)
-{ 
-  if (used_key_parts < fields.elements)
-    return false;
-  List_iterator_fast<Field> li(fields);
-  Field *fld;
-  KEY_PART_INFO *start= key_info->key_part;
-  KEY_PART_INFO *end= start + fields.elements;
-  while ((fld= li++))
-  {
-    KEY_PART_INFO *key_part;
-    for (key_part= start; key_part < end; key_part++)
-    {
-      if (key_part->fieldnr == fld->field_index + 1)
-        break;
-    }
-    if (key_part == end)
-      return false;
-  }
-  return true;
-}
-
-bool JOIN::check_for_splittable_grouping_derived(THD *thd)
-{
-  partition_list= 0;
-  st_select_lex_unit *unit= select_lex->master_unit();
-  TABLE_LIST *derived= unit->derived;
-  if (!optimizer_flag(thd, OPTIMIZER_SWITCH_SPLIT_GROUPING_DERIVED))
-    return false;
-  if (!(derived && derived->is_materialized_derived()))
-    return false;
-  if (unit->first_select()->next_select())
-    return false;
-  if (derived->prohibit_cond_pushdown)
-    return false;
-  if (derived->is_recursive_with_table())
-    return false;
-  if (group_list)
-  {
-    if (!select_lex->have_window_funcs())
-      partition_list= group_list;
-  }
-  else if (select_lex->have_window_funcs() &&
-           select_lex->window_specs.elements == 1)
-  {
-    partition_list=
-      select_lex->window_specs.head()->partition_list->first;
-  }
-  if (!partition_list)
-    return false;
- 
-  ORDER *ord;
-  TABLE *table= 0;
-  key_map ref_keys;
-  uint group_fields= 0;
-  ref_keys.set_all();
-  for (ord= partition_list; ord; ord= ord->next, group_fields++)
-  {
-    Item *ord_item= *ord->item;
-    if (ord_item->real_item()->type() != Item::FIELD_ITEM)
-      return false;
-    Field *ord_field= ((Item_field *) (ord_item->real_item()))->field;
-    if (!table)
-      table= ord_field->table;
-    else if (table != ord_field->table)
-      return false;
-    ref_keys.intersect(ord_field->part_of_key);
-  }
-  if (ref_keys.is_clear_all())
-    return false;
- 
-  uint i;
-  List<Field> grouping_fields;
-  List<Field> splitting_fields;
-  List_iterator<Item> li(fields_list);
-  for (ord= partition_list; ord; ord= ord->next)
-  {
-    Item *item;
-    i= 0;
-    while ((item= li++))
-    {
-      if ((*ord->item)->eq(item, 0))
-	break;
-      i++;
-    }
-    if (!item) 
-      return false;  
-    if (splitting_fields.push_back(derived->table->field[i], thd->mem_root))
-      return false;
-    Item_field *ord_field= (Item_field *)(item->real_item());
-    if (grouping_fields.push_back(ord_field->field, thd->mem_root)) 
-      return false;
-    li.rewind();
-  }
-
-  for (i= 0; i < table->s->keys; i++)
-  {
-    if (!(ref_keys.is_set(i)))
-	continue;
-    KEY *key_info= table->key_info + i;
-    if (key_can_be_used_to_split_by_fields(key_info,
-                                           table->actual_n_key_parts(key_info),
-                                           grouping_fields))
-      break;
-  }
-  if (i == table->s->keys)
-    return false;
- 
-  derived->table->splitting_fields= splitting_fields;
-  is_for_splittable_grouping_derived= true;
-  return true;
-}
-
 
 bool JOIN::check_two_phase_optimization(THD *thd)
 {
-  if (!check_for_splittable_grouping_derived(thd))
-    return false;
-  return true;
+  if (check_for_splittable_materialized())
+    return true;
+  return false;
 }
   
-
-Item *JOIN_TAB::get_splitting_cond_for_grouping_derived(THD *thd)
-{
-  /* this is a stub */
-  TABLE_LIST *derived= table->pos_in_table_list;
-  st_select_lex *sel= derived->get_unit()->first_select();
-  Item *cond= 0;
-  table_map used_tables= OUTER_REF_TABLE_BIT;
-  POSITION *pos= join->best_positions;
-  for (; pos->table != this; pos++)
-  {
-    used_tables|= pos->table->table->map;
-  }
-
-  if (!pos->key)
-    return 0;
-
-  KEY *key_info= table->key_info + pos->key->key;
-  if (!key_can_be_used_to_split_by_fields(key_info,
-                                          key_info->user_defined_key_parts,
-                                          table->splitting_fields))
-    return 0;
-
-  create_ref_for_key(join, this, pos->key,
-                     false, used_tables);
-  List<Item> cond_list;
-  KEY_PART_INFO *start= key_info->key_part;
-  KEY_PART_INFO *end= start + table->splitting_fields.elements;
-  List_iterator_fast<Field> li(table->splitting_fields);
-  Field *fld= li++;
-  for (ORDER *ord= sel->join->partition_list; ord;
-       ord= ord->next, fld= li++)  
-  {
-    Item *left_item= (*ord->item)->build_clone(thd);
-    uint i= 0;
-    for (KEY_PART_INFO *key_part= start; key_part < end; key_part++, i++)
-    {
-      if (key_part->fieldnr == fld->field_index + 1)
-        break;
-    }
-    Item *right_item= ref.items[i]->build_clone(thd);
-    Item_func_eq *eq_item= 0;
-    right_item= right_item->build_clone(thd);
-    if (left_item && right_item)
-    {
-      right_item->walk(&Item::set_fields_as_dependent_processor,
-                       false, join->select_lex);
-      right_item->update_used_tables();
-      eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item);
-    }
-    if (!eq_item || cond_list.push_back(eq_item, thd->mem_root))
-      return 0;
-  }
-  switch (cond_list.elements) {
-  case 0: break;
-  case 1: cond= cond_list.head(); break;
-  default: cond= new (thd->mem_root) Item_cond_and(thd, cond_list);
-  }
-  if (cond)
-    cond->fix_fields(thd,0);
-  return cond; 
-}
 
 bool JOIN::inject_cond_into_where(Item *injected_cond)
 {
@@ -9150,48 +8968,6 @@ bool JOIN::inject_cond_into_where(Item *injected_cond)
   
   return false;
 
-}
-
-bool JOIN::push_splitting_cond_into_derived(THD *thd, Item *cond) 
-{
-  enum_reopt_result reopt_result= REOPT_NONE;
-  table_map all_table_map= 0;
-  for (JOIN_TAB *tab= join_tab;
-       tab < join_tab + top_join_tab_count; tab++)
-    all_table_map|= tab->table->map;
-  reopt_result= reoptimize(cond, all_table_map & ~const_table_map, NULL);
-  if (reopt_result == REOPT_ERROR)
-    return true;
-  if (inject_cond_into_where(cond))
-    return true;
-  if (cond->used_tables() & OUTER_REF_TABLE_BIT)
-  {
-    select_lex->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
-    st_select_lex_unit *unit= select_lex->master_unit();
-    unit->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
-  }
-  return false;
-}
-
-bool JOIN::improve_chosen_plan(THD *thd)
-{
-  for (JOIN_TAB *tab= join_tab + const_tables;
-       tab < join_tab + table_count; tab++)
-  {
-    TABLE_LIST *tbl= tab->table->pos_in_table_list;
-    if (tbl->is_materialized_derived())
-    {
-      st_select_lex *sel= tbl->get_unit()->first_select();
-      JOIN *derived_join= sel->join;
-      if (derived_join && derived_join->is_for_splittable_grouping_derived)
-      {
-        Item *cond= tab->get_splitting_cond_for_grouping_derived(thd);
-        if (cond && derived_join->push_splitting_cond_into_derived(thd, cond))
-          return true;
-      }
-    }
-  }
-  return false;
 }
 
 
@@ -9261,6 +9037,9 @@ bool JOIN::get_best_combination()
 
   full_join=0;
   hash_join= FALSE;
+
+  if (fix_all_splittings_in_plan())
+    DBUG_RETURN(TRUE);
 
   fix_semijoin_strategies_for_picked_join_order(this);
    
@@ -9602,6 +9381,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
     do
     {
       if (!(~used_tables & keyuse->used_tables) &&
+          (!keyuse->validity_ref || *keyuse->validity_ref) &&
 	  j->keyuse_is_valid_for_access_in_chosen_plan(join, keyuse))
       {
         if  (are_tables_local(j, keyuse->val->used_tables()))
@@ -9672,6 +9452,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
     for (i=0 ; i < keyparts ; keyuse++,i++)
     {
       while (((~used_tables) & keyuse->used_tables) ||
+             (keyuse->validity_ref && !(*keyuse->validity_ref)) ||
 	     !j->keyuse_is_valid_for_access_in_chosen_plan(join, keyuse) ||
              keyuse->keypart == NO_KEYPART ||
 	     (keyuse->keypart != 
@@ -17658,7 +17439,6 @@ err:
     bitmap_lock_clear_bit(&temp_pool, temp_pool_slot);
   DBUG_RETURN(NULL);				/* purecov: inspected */
 }
-
 
 
 /****************************************************************************/
