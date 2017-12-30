@@ -282,6 +282,7 @@ public:
 class Explain_aggr_filesort : public Explain_aggr_node
 {
   List<Item> sort_items;
+  List<ORDER::enum_order> sort_directions;
 public:
   enum_explain_aggr_node_type get_type() { return AGGR_OP_FILESORT; }
   Filesort_tracker tracker;
