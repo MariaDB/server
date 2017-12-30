@@ -7825,9 +7825,6 @@ ER_VERS_FIELD_WRONG_TYPE
 ER_VERS_ENGINE_UNSUPPORTED
         eng "Transaction system versioning for %`s is not supported"
 
-ER_VERS_RANGE_UNITS_MISMATCH
-        eng "Range units mismatch"
-
 ER_NON_VERSIONED_FIELD_IN_HISTORICAL_QUERY
         eng "Non-versioned field %`s in historical query"
 
@@ -7858,20 +7855,8 @@ ER_VERS_ALTER_ENGINE_PROHIBITED
 ER_VERS_RANGE_PROHIBITED
         eng "SYSTEM_TIME range selector is prohibited"
 
-ER_VERS_VIEW_PROHIBITED
-        eng "Creating VIEW %`s is prohibited!"
-
-ER_VERS_UNUSED_CLAUSE
-        eng "Unused clause: '%s'"
-
-WARN_VERS_ALIAS_TOO_LONG
-        eng "Auto generated alias for %`s.%`s is too long; using %`s"
-
 ER_VERS_VTMD_ERROR
         eng "VTMD error: %s"
-
-ER_VERS_DIFFERENT_TABLES
-        eng "Wrong parameters for %`s: system fields selected from different tables"
 
 ER_VERS_TABLE_MUST_HAVE_COLUMNS
         eng "Table %`s must have at least one versioned column"
@@ -7891,20 +7876,14 @@ ER_PART_WRONG_VALUE
 ER_VERS_WRONG_PARTS
         eng "Wrong partitions for %`s: must have at least one HISTORY and exactly one last CURRENT"
 
-ER_VERS_HISTORY_LOCK
-        eng "Versioned SELECT write-locking of history rows"
-
 ER_VERS_NO_TRX_ID
         eng "TRX_ID %lu not found in `mysql.transaction_registry`"
-
-ER_WRONG_TABLESPACE_NAME 42000
-        eng "Incorrect tablespace name %`s"
 
 ER_VERS_ALTER_SYSTEM_FIELD
         eng "Can not change system versioning field %`s"
 
-ER_VERS_SYS_FIELD_NOT_HIDDEN
-        eng "System versioning field %`s is not hidden"
+ER_VERS_SYS_FIELD_EXISTS
+        eng "System versioning field %`s exists"
 
 ER_NOT_LOG_TABLE
         eng "Table %`s.%`s is not a log table"

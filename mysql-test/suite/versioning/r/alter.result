@@ -392,12 +392,12 @@ period for system_time(sys_trx_start, sys_trx_end)
 select * from t;
 a
 alter table t drop system versioning;
-ERROR HY000: System versioning field `sys_trx_start` is not hidden
+ERROR HY000: System versioning field `sys_trx_start` exists
 alter table t drop column sys_trx_start;
 select * from t;
 a
 alter table t drop system versioning;
-ERROR HY000: System versioning field `sys_trx_end` is not hidden
+ERROR HY000: System versioning field `sys_trx_end` exists
 alter table t drop column sys_trx_end;
 select * from t;
 a

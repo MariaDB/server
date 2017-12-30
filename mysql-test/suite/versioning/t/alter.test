@@ -271,12 +271,12 @@ create or replace table t (
 ) with system versioning;
 select * from t;
 
---error ER_VERS_SYS_FIELD_NOT_HIDDEN
+--error ER_VERS_SYS_FIELD_EXISTS
 alter table t drop system versioning;
 alter table t drop column sys_trx_start;
 select * from t;
 
---error ER_VERS_SYS_FIELD_NOT_HIDDEN
+--error ER_VERS_SYS_FIELD_EXISTS
 alter table t drop system versioning;
 alter table t drop column sys_trx_end;
 select * from t;

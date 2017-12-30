@@ -290,7 +290,7 @@ insert into t1(x) values (1);
 ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
 set global system_versioning_transaction_registry= on;
 Warnings:
-Warning	4141	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
+Warning	4134	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
 create or replace table t1 (
 x int,
 y int as (x) virtual,

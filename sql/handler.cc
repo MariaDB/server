@@ -7199,13 +7199,13 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
     if (share->vers_start_field()->invisible < INVISIBLE_SYSTEM)
     {
-      my_error(ER_VERS_SYS_FIELD_NOT_HIDDEN, MYF(0),
+      my_error(ER_VERS_SYS_FIELD_EXISTS, MYF(0),
                share->vers_start_field()->field_name.str);
       return true;
     }
     if (share->vers_end_field()->invisible < INVISIBLE_SYSTEM)
     {
-      my_error(ER_VERS_SYS_FIELD_NOT_HIDDEN, MYF(0),
+      my_error(ER_VERS_SYS_FIELD_EXISTS, MYF(0),
                share->vers_end_field()->field_name.str);
       return true;
     }

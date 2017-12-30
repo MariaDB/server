@@ -89,7 +89,7 @@ ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exact
 alter table t1 add partition (
 partition p1 history);
 Warnings:
-Warning	4114	Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
+Warning	4113	Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -233,7 +233,7 @@ x
 ### warn about partition switching
 delete from t1;
 Warnings:
-Note	4115	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
+Note	4114	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
 select * from t1 partition (p0);
 x
 1
@@ -245,7 +245,7 @@ insert into t1 values (4), (5);
 ### warn about full partition
 delete from t1;
 Warnings:
-Warning	4113	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+Warning	4112	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
 select * from t1 partition (p1) order by x;
 x
 3
@@ -259,7 +259,7 @@ alter table t1 partition by system_time limit 1 (
 partition p1 history,
 partition pn current);
 Warnings:
-Note	4113	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+Note	4112	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
 ## rotation by INTERVAL
 create or replace table t1 (x int)
 with system versioning
@@ -289,7 +289,7 @@ x
 insert into t1 values (4);
 delete from t1;
 Warnings:
-Note	4115	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
+Note	4114	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
 select * from t1 partition (p1);
 x
 4
@@ -315,8 +315,8 @@ x
 ### warn about partition switching and about full partition
 delete from t1;
 Warnings:
-Note	4115	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
-Warning	4113	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+Note	4114	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
+Warning	4112	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
 select * from t1 partition (p0sp0);
 x
 1
@@ -400,13 +400,13 @@ partition p1 history,
 partition p2 history,
 partition pn current);
 Warnings:
-Note	4115	Versioned table `test`.`t1`: switching from partition `p1` to `p2`
+Note	4114	Versioned table `test`.`t1`: switching from partition `p1` to `p2`
 delete from t1 where x = 1;
 Warnings:
-Warning	4113	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
+Warning	4112	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
 delete from t1 where x = 2;
 Warnings:
-Warning	4113	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
+Warning	4112	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
 # Test cleanup
 drop database test;
 create database test;

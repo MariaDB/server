@@ -836,24 +836,11 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
 
     if (vers_conditions)
     {
-      switch (this->lock_type)
-      {
-      case TL_WRITE_ALLOW_WRITE:
-      case TL_WRITE_CONCURRENT_INSERT:
-      case TL_WRITE_DELAYED:
-      case TL_WRITE_DEFAULT:
-      case TL_WRITE_LOW_PRIORITY:
-      case TL_WRITE:
-      case TL_WRITE_ONLY:
-        my_error(ER_VERS_HISTORY_LOCK, MYF(0));
-        DBUG_RETURN(-1);
-      default:
-        break;
-      }
-
       if (vers_conditions == SYSTEM_TIME_ALL)
         continue;
-    } // if (vers_conditions)
+
+      lock_type= TL_READ; // ignore TL_WRITE, history is immutable anyway
+    }
 
     if (table->on_expr)
     {

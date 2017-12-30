@@ -14,7 +14,7 @@ alter table t drop system versioning, algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned tables. Try ALGORITHM=COPY
 set global system_versioning_transaction_registry=on;
 Warnings:
-Warning	4141	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
+Warning	4134	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
 create or replace table t (a int, b int) engine=innodb;
 alter table t
 add s bigint unsigned as row start,
