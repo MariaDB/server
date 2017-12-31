@@ -786,6 +786,8 @@ drop table t45;
 --echo # Now it fails if there is data overlap with what
 --echo # already exists
 --echo #
+
+--replace_regex /[a-f0-9]{40}/#/
 show variables 
 where 
   variable_name like 'rocksdb%' and 
