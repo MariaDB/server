@@ -14,6 +14,10 @@ if [[ "${TRAVIS_OS_NAME}" == 'linux' ]]; then
     export CXX CC=${CXX/++/}
   elif [[ "${CXX}" == 'g++' ]]; then
     CMAKE_OPT=""
+    if [[ "${MYSQL_TEST_SUITES}" == 'rpl' ]]; then
+      CMAKE_OPT="${CMAKE_OPT} -DWITHOUT_TOKUDB_STORAGE_ENGINE=TRUE"
+      CMAKE_OPT="${CMAKE_OPT} -DWITHOUT_MROONGA_STORAGE_ENGINE=TRUE"
+    fi
     export CXX=g++-${GCC_VERSION}
     export CC=gcc-${GCC_VERSION}
   fi
@@ -32,6 +36,9 @@ else
   #CMAKE_OPT="${CMAKE_OPT} -DWITH_ASAN=ON"
   if which ccache ; then
     CMAKE_OPT="${CMAKE_OPT} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+  fi
+  if [[ "${MYSQL_TEST_SUITES}" == 'rpl' ]]; then
+    CMAKE_OPT="${CMAKE_OPT} -DWITHOUT_TOKUDB_STORAGE_ENGINE=ON"
   fi
   CMAKE_OPT="${CMAKE_OPT} -DWITHOUT_MROONGA_STORAGE_ENGINE=ON"
   if [[ "${TYPE}" == "Debug" ]]; then
