@@ -1540,7 +1540,7 @@ end:
   head->file= org_file;
 
   /* Restore head->read_set (and write_set) to what they had before the call */
-  head->column_bitmaps_set(save_read_set, save_write_set);
+  head->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
  
   if (reset())
   {
@@ -11364,7 +11364,10 @@ int QUICK_RANGE_SELECT::reset()
       buf_size/= 2;
     }
     if (!mrr_buf_desc)
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    {
+      error= HA_ERR_OUT_OF_MEM;
+      goto err;
+    }
 
     /* Initialize the handler buffer. */
     mrr_buf_desc->buffer= mrange_buff;
