@@ -70,6 +70,7 @@
 #include "rocksdb/utilities/memory_util.h"
 #include "rocksdb/utilities/sim_cache.h"
 #include "util/stop_watch.h"
+#include "./rdb_source_revision.h"
 
 /* MyRocks includes */
 #include "./event_listener.h"
@@ -494,6 +495,7 @@ static uint32_t rocksdb_table_stats_sampling_pct;
 static my_bool rocksdb_enable_bulk_load_api = 1;
 static my_bool rocksdb_print_snapshot_conflict_queries = 0;
 static my_bool rocksdb_large_prefix = 0;
+static char* rocksdb_git_hash;
 
 char *compression_types_val=
   const_cast<char*>(get_rocksdb_supported_compression_types());
@@ -649,6 +651,11 @@ static MYSQL_SYSVAR_BOOL(enable_bulk_load_api, rocksdb_enable_bulk_load_api,
                          PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
                          "Enables using SstFileWriter for bulk loading",
                          nullptr, nullptr, rocksdb_enable_bulk_load_api);
+
+static MYSQL_SYSVAR_STR(git_hash, rocksdb_git_hash,
+                        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+                        "Git revision of the RocksDB library used by MyRocks",
+                        nullptr, nullptr, ROCKSDB_GIT_HASH);
 
 static MYSQL_THDVAR_STR(tmpdir, PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
                         "Directory for temporary files during DDL operations.",
@@ -1633,6 +1640,7 @@ static struct st_mysql_sys_var *rocksdb_system_variables[] = {
     MYSQL_SYSVAR(table_stats_sampling_pct),
 
     MYSQL_SYSVAR(large_prefix),
+    MYSQL_SYSVAR(git_hash),
     nullptr};
 
 static rocksdb::WriteOptions

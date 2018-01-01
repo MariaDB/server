@@ -406,3 +406,14 @@ explain format=json
 select a, (select max(a) from t1 where t0.a<5 and t1.b<t0.a) from t0;
 drop table t0,t1;
 
+--echo #
+--echo # MDEV-10844: EXPLAIN FORMAT=JSON doesn't show order direction for filesort
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 values (1,2),(3,4),(2,3);
+explain format=json select * from t1 order by a, b desc;
+explain format=json select * from t1 order by a desc, b desc;
+explain format=json select * from t1 order by a desc, b ;
+drop table t1;
+

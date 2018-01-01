@@ -383,6 +383,14 @@ select json_contains_path('{"foo":"bar"}', 'one', '$[]');
 #
 select JSON_VALID(0x36f0c8dccd83c5eac156da);
 
+#
+# MDEV-13970 crash in Item_func_json_extract::read_json.
+#
+create table t1(a double not null);
+insert into t1 values (2),(1);
+select 1 from t1 where json_extract(a,'$','$[81]');
+drop table t1;
+
 --echo #
 --echo # Start of 10.3 tests
 --echo #

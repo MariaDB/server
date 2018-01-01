@@ -2186,38 +2186,19 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
         DBUG_ASSERT(sub_elem);
         part= i * num_subparts + j;
         DBUG_ASSERT(part < m_file_tot_parts && m_file[part]);
-        if (ha_legacy_type(m_file[part]->ht) == DB_TYPE_INNODB)
-        {
-          dummy_info.data_file_name= dummy_info.index_file_name = NULL;
-          m_file[part]->update_create_info(&dummy_info);
-
-          if (dummy_info.data_file_name || sub_elem->data_file_name)
-          {
-            sub_elem->data_file_name = (char*) dummy_info.data_file_name;
-          }
-          if (dummy_info.index_file_name || sub_elem->index_file_name)
-          {
-            sub_elem->index_file_name = (char*) dummy_info.index_file_name;
-          }
-        }
+        dummy_info.data_file_name= dummy_info.index_file_name = NULL;
+        m_file[part]->update_create_info(&dummy_info);
+        sub_elem->data_file_name = (char*) dummy_info.data_file_name;
+        sub_elem->index_file_name = (char*) dummy_info.index_file_name;
       }
     }
     else
     {
       DBUG_ASSERT(m_file[i]);
-      if (ha_legacy_type(m_file[i]->ht) == DB_TYPE_INNODB)
-      {
-        dummy_info.data_file_name= dummy_info.index_file_name= NULL;
-        m_file[i]->update_create_info(&dummy_info);
-        if (dummy_info.data_file_name || part_elem->data_file_name)
-        {
-          part_elem->data_file_name = (char*) dummy_info.data_file_name;
-        }
-        if (dummy_info.index_file_name || part_elem->index_file_name)
-        {
-          part_elem->index_file_name = (char*) dummy_info.index_file_name;
-        }
-      }
+      dummy_info.data_file_name= dummy_info.index_file_name= NULL;
+      m_file[i]->update_create_info(&dummy_info);
+      part_elem->data_file_name = (char*) dummy_info.data_file_name;
+      part_elem->index_file_name = (char*) dummy_info.index_file_name;
     }
   }
   DBUG_VOID_RETURN;
@@ -8165,20 +8146,36 @@ uint ha_partition::alter_table_flags(uint flags)
 bool ha_partition::check_if_incompatible_data(HA_CREATE_INFO *create_info,
                                               uint table_changes)
 {
-  handler **file;
-  bool ret= COMPATIBLE_DATA_YES;
-
   /*
     The check for any partitioning related changes have already been done
     in mysql_alter_table (by fix_partition_func), so it is only up to
     the underlying handlers.
   */
-  for (file= m_file; *file; file++)
-    if ((ret=  (*file)->check_if_incompatible_data(create_info,
-                                                   table_changes)) !=
-        COMPATIBLE_DATA_YES)
-      break;
-  return ret;
+  List_iterator<partition_element> part_it(m_part_info->partitions);
+  HA_CREATE_INFO dummy_info= *create_info;
+  uint i=0;
+  while (partition_element *part_elem= part_it++)
+  {
+    if (m_is_sub_partitioned)
+    {
+      List_iterator<partition_element> subpart_it(part_elem->subpartitions);
+      while (partition_element *sub_elem= subpart_it++)
+      {
+        dummy_info.data_file_name= sub_elem->data_file_name;
+        dummy_info.index_file_name= sub_elem->index_file_name;
+        if (m_file[i++]->check_if_incompatible_data(&dummy_info, table_changes))
+          return COMPATIBLE_DATA_NO;
+      }
+    }
+    else
+    {
+      dummy_info.data_file_name= part_elem->data_file_name;
+      dummy_info.index_file_name= part_elem->index_file_name;
+      if (m_file[i++]->check_if_incompatible_data(&dummy_info, table_changes))
+        return COMPATIBLE_DATA_NO;
+    }
+  }
+  return COMPATIBLE_DATA_YES;
 }
 
 

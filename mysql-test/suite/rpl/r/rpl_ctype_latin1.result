@@ -1,0 +1,28 @@
+include/master-slave.inc
+[connection master]
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-14249 Wrong character set info of Query_log_event and the query in Query_log_event constructed by different charsets cause error when slave apply the event.
+#
+SET NAMES latin1;
+CREATE TABLE `tё` (`tё` INT);
+CREATE VIEW `vё` AS SELECT 'vё';
+CREATE PROCEDURE `pё`() SELECT 'pё';
+connection slave;
+SHOW TABLES LIKE 't%';
+Tables_in_test (t%)
+tё
+SHOW TABLES LIKE 'v%';
+Tables_in_test (v%)
+vё
+SHOW PROCEDURE STATUS LIKE 'p%';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test	pё	PROCEDURE	root@localhost	ts	ts	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+connection master;
+DROP TABLE `tё`;
+DROP VIEW `vё`;
+DROP PROCEDURE `pё`;
+connection slave;
+include/rpl_end.inc

@@ -65,15 +65,6 @@
 extern "C" {
 #endif
 
-/*
-  my_str_malloc(), my_str_realloc() and my_str_free() are assigned to
-  implementations in strings/alloc.c, but can be overridden in
-  the calling program.
- */
-extern void *(*my_str_malloc)(size_t);
-extern void *(*my_str_realloc)(void *, size_t);
-extern void (*my_str_free)(void *);
-
 #ifdef DBUG_OFF
 #if defined(HAVE_STPCPY) && MY_GNUC_PREREQ(3, 4) && !defined(__INTEL_COMPILER)
 #define strmov(A,B) __builtin_stpcpy((A),(B))

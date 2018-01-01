@@ -4990,7 +4990,7 @@ err:
   /* Write log if no error or if we already deleted a table */
   if (!result || thd->log_current_statement)
   {
-    if (result && create_info->table_was_deleted)
+    if (result && create_info->table_was_deleted && pos_in_locked_tables)
     {
       /*
         Possible locked table was dropped. We should remove meta data locks
