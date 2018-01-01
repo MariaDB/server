@@ -8071,8 +8071,11 @@ int create_partition_name(char *out, size_t outlen, const char *in1,
     end= strxnmov(out, outlen-1, in1, "#P#", transl_part, NullS);
   else if (name_variant == TEMP_PART_NAME)
     end= strxnmov(out, outlen-1, in1, "#P#", transl_part, "#TMP#", NullS);
-  else if (name_variant == RENAMED_PART_NAME)
+  else
+  {
+    DBUG_ASSERT(name_variant == RENAMED_PART_NAME);
     end= strxnmov(out, outlen-1, in1, "#P#", transl_part, "#REN#", NullS);
+  }
   if (end - out == static_cast<ptrdiff_t>(outlen-1))
   {
     my_error(ER_PATH_LENGTH, MYF(0), longest_str(in1, transl_part));
@@ -8112,9 +8115,12 @@ int create_subpartition_name(char *out, size_t outlen,
   else if (name_variant == TEMP_PART_NAME)
     end= strxnmov(out, outlen-1, in1, "#P#", transl_part_name,
                   "#SP#", transl_subpart_name, "#TMP#", NullS);
-  else if (name_variant == RENAMED_PART_NAME)
+  else
+  {
+    DBUG_ASSERT(name_variant == RENAMED_PART_NAME);
     end= strxnmov(out, outlen-1, in1, "#P#", transl_part_name,
                   "#SP#", transl_subpart_name, "#REN#", NullS);
+  }
   if (end - out == static_cast<ptrdiff_t>(outlen-1))
   {
     my_error(ER_PATH_LENGTH, MYF(0),

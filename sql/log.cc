@@ -2420,7 +2420,7 @@ static int find_uniq_filename(char *name, ulong next_log_number)
   char                  buff[FN_REFLEN], ext_buf[FN_REFLEN];
   struct st_my_dir     *dir_info;
   reg1 struct fileinfo *file_info;
-  ulong                 max_found, next, number;
+  ulong                 max_found, next, UNINIT_VAR(number);
   size_t		buf_length, length;
   char			*start, *end;
   int                   error= 0;

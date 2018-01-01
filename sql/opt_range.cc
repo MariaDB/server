@@ -6729,7 +6729,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool update_tbl_stats,
                                        double read_time)
 {
-  uint idx, best_idx;
+  uint idx, UNINIT_VAR(best_idx);
   SEL_ARG *key_to_read= NULL;
   ha_rows UNINIT_VAR(best_records);              /* protected by key_to_read */
   uint    UNINIT_VAR(best_mrr_flags),            /* protected by key_to_read */

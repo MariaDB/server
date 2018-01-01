@@ -997,7 +997,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   Virtual_column_info **check_constraint_ptr= table->check_constraints;
   sql_mode_t saved_mode= thd->variables.sql_mode;
   Query_arena backup_arena;
-  Virtual_column_info *vcol;
+  Virtual_column_info *vcol= 0;
   StringBuffer<MAX_FIELD_WIDTH> expr_str;
   bool res= 1;
   DBUG_ENTER("parse_vcol_defs");
@@ -1168,7 +1168,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
   uint interval_count, interval_parts, read_length, int_length;
   uint db_create_options, keys, key_parts, n_length;
-  uint com_length, null_bit_pos, mysql57_vcol_null_bit_pos, bitmap_count;
+  uint com_length, null_bit_pos, UNINIT_VAR(mysql57_vcol_null_bit_pos), bitmap_count;
   uint i;
   bool use_hash, mysql57_null_bits= 0;
   char *keynames, *names, *comment_pos;
@@ -2104,6 +2104,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }   
     }
 
+    key_first_info= keyinfo;
     for (uint key=0 ; key < keys ; key++,keyinfo++)
     {
       uint usable_parts= 0;
@@ -2120,9 +2121,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         memcpy(pos + share->table_cache_key.length, keyinfo->name,
                keyinfo->name_length+1);
       }
-
-      if (!key)
-        key_first_info= keyinfo;
 
       if (ext_key_parts > share->key_parts && key)
       {
