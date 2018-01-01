@@ -190,6 +190,7 @@ storage/myisam/sp_test
 storage/rocksdb/ldb
 storage/rocksdb/mysql_ldb
 storage/rocksdb/sst_dump
+storage/rocksdb/rdb_source_revision.h
 storage/tokudb/PerconaFT/buildheader/db.h
 storage/tokudb/PerconaFT/buildheader/make_tdb
 storage/tokudb/PerconaFT/buildheader/runcat.sh
