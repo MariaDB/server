@@ -323,8 +323,8 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=NON_DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
 x26 int,
-st bigint unsigned as row start invisible,
-en bigint unsigned as row end invisible,
+st bigint unsigned as row start,
+en bigint unsigned as row end,
 period for system_time (st, en)
 ) with system versioning engine innodb;
 create or replace table t2 with system versioning engine myisam

@@ -51,22 +51,6 @@ as
 )
 select * from ancestors;
 
-with recursive
-ancestors
-as
-(
-  select e.emp_id, e.name, e.mgr, e.salary
-  from emp as e
-  where name = 'bill'
-  union
-  select e.emp_id, e.name, e.mgr, e.salary
-  from emp as e,
-       ancestors as a
-  where e.mgr = a.emp_id
-)
-select * from ancestors
-for system_time as of timestamp @ts_1;
-
 /* Expected 3 rows */
 with recursive
 ancestors

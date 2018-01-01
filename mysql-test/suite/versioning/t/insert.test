@@ -206,13 +206,29 @@ insert into t1 values (1, null);
 update t1 set x= x + 1;
 select x, y, sys_trx_end = 18446744073709551615 as current from t1 for system_time all;
 
-create or replace table t1 (i int) with system versioning engine innodb;
-insert into t1 values  (1),(2);
---error ER_NONUPDATEABLE_COLUMN
+create or replace table t1 (x int) with system versioning engine innodb;
+insert into t1 values  (1), (2);
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
 insert into t1 (sys_trx_start) select sys_trx_end from t1;
---error ER_NONUPDATEABLE_COLUMN
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
 insert into t1 (sys_trx_start, sys_trx_end) values (DEFAULT, 1);
+select @@sql_mode into @saved_mode;
+set sql_mode= '';
+insert into t1 (x, sys_trx_start, sys_trx_end) values (3, 4, 5);
+set sql_mode= @saved_mode;
 insert into t1 (sys_trx_start, sys_trx_end) values (DEFAULT, DEFAULT);
+select * from t1;
+
+--echo # MDEV-14792 INSERT without column list into table with explicit versioning columns produces bad data
+create or replace table t1 (
+  i int,
+  s timestamp(6) as row start,
+  e timestamp(6) as row end,
+  c varchar(8),
+  period for system_time(s, e))
+with system versioning;
+insert into t1 values (1, null, null, 'foo');
+select i, c, current_row(e) from t1;
 
 drop table t1;
 drop table t2;

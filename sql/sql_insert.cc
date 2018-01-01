@@ -682,17 +682,6 @@ Field **TABLE::field_to_fill()
 }
 
 
-inline
-Field **TABLE::vers_user_field_to_fill()
-{
-  if (versioned())
-  {
-    return triggers && triggers->vers_user_fields() ? triggers->vers_user_fields() : vers_user_field;
-  }
-  return field_to_fill();
-}
-
-
 /**
   INSERT statement implementation
 
@@ -1020,7 +1009,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         }
         table->reset_default_fields();
         if (fill_record_n_invoke_before_triggers(thd, table,
-                                                 table->vers_user_field_to_fill(),
+                                                 table->field_to_fill(),
                                                  *values, 0, TRG_EVENT_INSERT))
         {
           if (values_list.elements != 1 && ! thd->is_error())
@@ -2612,9 +2601,6 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   }
   *field=0;
 
-  if (copy->versioned() && copy->vers_update_user_field(client_thd->mem_root))
-    goto error;
-
   if (share->virtual_fields || share->default_expressions ||
       share->default_fields)
   {
@@ -3913,7 +3899,7 @@ void select_insert::store_values(List<Item> &values)
     fill_record_n_invoke_before_triggers(thd, table, *fields, values, 1,
                                          TRG_EVENT_INSERT);
   else
-    fill_record_n_invoke_before_triggers(thd, table, table->vers_user_field_to_fill(),
+    fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
                                          values, 1, TRG_EVENT_INSERT);
 
   DBUG_VOID_RETURN;

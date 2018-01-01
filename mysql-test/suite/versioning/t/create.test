@@ -289,8 +289,8 @@ show create table t2;
 
 create or replace table t1 (
   x26 int,
-  st bigint unsigned as row start invisible,
-  en bigint unsigned as row end invisible,
+  st bigint unsigned as row start,
+  en bigint unsigned as row end,
   period for system_time (st, en)
 ) with system versioning engine innodb;
 --error ER_VERS_FIELD_WRONG_TYPE

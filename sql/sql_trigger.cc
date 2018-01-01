@@ -1249,28 +1249,10 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
     *trg_fld= 0;
     DBUG_ASSERT(null_ptr <= extra_null_bitmap + null_bytes);
     bzero(extra_null_bitmap, null_bytes);
-
-    if (table->versioned())
-    {
-      vers_user_field= (Field **)alloc_root(&table->mem_root,
-                                         (table->s->fields - VERSIONING_FIELDS + 1) *
-                                         sizeof(Field*));
-      if (!vers_user_field)
-        return 1;
-      Field **dst= vers_user_field;
-      for (Field **src= record0_field; *src; src++)
-      {
-        if ((*src)->vers_sys_field())
-          continue;
-        *dst++= *src;
-      }
-      *dst= NULL;
-    }
   }
   else
   {
     record0_field= table->field;
-    vers_user_field= table->vers_user_field;
   }
 
   if (has_triggers(TRG_EVENT_UPDATE,TRG_ACTION_BEFORE) ||

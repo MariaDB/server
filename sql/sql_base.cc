@@ -7500,6 +7500,7 @@ bool Field::vers_sys_invisible(THD *thd) const
   SELECT_LEX *slex= thd->lex->current_select;
   ulong vers_hide= thd->variables.vers_hide;
   DBUG_ASSERT(table);
+  DBUG_ASSERT(table->versioned());
   DBUG_ASSERT(table->pos_in_table_list);
   TABLE_LIST *tl= table->pos_in_table_list;
   vers_system_time_t vers_type= tl->vers_conditions.type;
@@ -7508,6 +7509,7 @@ bool Field::vers_sys_invisible(THD *thd) const
             slex->nest_level > 0 ||
             vers_hide == VERS_HIDE_FULL ||
             (invisible && (
+              thd->lex->sql_command != SQLCOM_SELECT ||
               vers_hide == VERS_HIDE_IMPLICIT ||
                 (vers_hide == VERS_HIDE_AUTO && (
                   vers_type == SYSTEM_TIME_UNSPECIFIED ||
@@ -7649,8 +7651,6 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
             field->vers_sys_invisible(thd) :
             field->invisible))
       {
-        if (thd->lex->sql_command != SQLCOM_CREATE_TABLE ||
-          !(thd->lex->create_info.options & HA_VERSIONED_TABLE))
         continue;
       }
 
@@ -8059,25 +8059,21 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
     Item::Type type= value->type();
-    if (rfield->vcol_info &&
+    bool vers_sys_field= table->versioned() && rfield->vers_sys_field();
+    if ((rfield->vcol_info || vers_sys_field) &&
         type != Item::DEFAULT_VALUE_ITEM &&
         type != Item::NULL_ITEM &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN,
-                          ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
+                          ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN,
+                          ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN),
                           rfield->field_name.str, table->s->table_name.str);
+      if (vers_sys_field)
+        continue;
     }
     if (only_unvers_fields && !rfield->vers_update_unversioned())
       only_unvers_fields= false;
-    if (table->versioned() && rfield->vers_sys_field())
-    {
-      if (type == Item::DEFAULT_VALUE_ITEM)
-        continue;
-      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), rfield->field_name.str);
-      goto err;
-    }
 
     if (rfield->stored_in_db() &&
         (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
@@ -8310,23 +8306,18 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     /* Ensure that all fields are from the same table */
     DBUG_ASSERT(field->table == table);
 
-    bool vers_sys_field= table->versioned() && field->vers_sys_field();
-
-    if (vers_sys_field && !ignore_errors)
-    {
-      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), field->field_name.str);
-      goto err;
-    }
-
-    if (field->invisible && !vers_sys_field)
+    if (field->invisible)
     {
       continue;
     }
     else
       value=v++;
+
+    bool vers_sys_field= table->versioned() && field->vers_sys_field();
+
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
-    if (field->vcol_info)
+    if (field->vcol_info || (vers_sys_field && !ignore_errors))
     {
       Item::Type type= value->type();
       if (type != Item::DEFAULT_VALUE_ITEM &&
@@ -8334,9 +8325,11 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
           table->s->table_category != TABLE_CATEGORY_TEMPORARY)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN,
-                            ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
+                            ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN,
+                            ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN),
                             field->field_name.str, table->s->table_name.str);
+        if (vers_sys_field)
+          continue;
       }
     }
 

@@ -47,24 +47,6 @@ emp_id	name	mgr	salary
 1	bill	NULL	1000
 20	john	1	500
 30	jane	1	750
-with recursive
-ancestors
-as
-(
-select e.emp_id, e.name, e.mgr, e.salary
-from emp as e
-where name = 'bill'
-  union
-select e.emp_id, e.name, e.mgr, e.salary
-from emp as e,
-ancestors as a
-where e.mgr = a.emp_id
-)
-select * from ancestors
-for system_time as of timestamp @ts_1;
-emp_id	name	mgr	salary
-1	bill	NULL	1000
-30	jane	1	750
 /* Expected 3 rows */
 with recursive
 ancestors

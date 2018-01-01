@@ -146,10 +146,6 @@ class Table_triggers_list: public Sql_alloc
   Field             **record0_field;
   uchar              *extra_null_bitmap;
   /**
-    System Versioning: record0_field without system fields.
-  */
-  Field             **vers_user_field;
-  /**
     Copy of TABLE::Field array with field pointers set to TABLE::record[1]
     buffer instead of TABLE::record[0] (used for OLD values in on UPDATE
     trigger and DELETE trigger when it is called for REPLACE).
@@ -212,7 +208,7 @@ public:
   /* End of character ser context. */
 
   Table_triggers_list(TABLE *table_arg)
-    :record0_field(0), extra_null_bitmap(0), vers_user_field(0), record1_field(0),
+    :record0_field(0), extra_null_bitmap(0), record1_field(0),
     trigger_table(table_arg),
     m_has_unparseable_trigger(false), count(0)
   {
@@ -277,7 +273,6 @@ public:
                                             TABLE_LIST *table_list);
 
   Field **nullable_fields() { return record0_field; }
-  Field **vers_user_fields() { return vers_user_field; }
   void reset_extra_null_bitmap()
   {
     size_t null_bytes= (trigger_table->s->stored_fields -

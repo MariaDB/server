@@ -3225,17 +3225,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   }
   (*field_ptr)= 0;                              // End marker
 
-  if (share->versioned)
-  {
-    if (outparam->vers_update_user_field())
-      goto err;
-    outparam->vers_write= true;
-  }
-  else
-  {
-    outparam->vers_user_field= NULL;
-    outparam->vers_write= false;
-  }
+  outparam->vers_write= share->versioned;
 
   if (share->found_next_number_field)
     outparam->found_next_number_field=
@@ -7789,27 +7779,6 @@ void TABLE::vers_update_fields()
   }
 
   vers_end_field()->set_max();
-}
-
-
-bool TABLE::vers_update_user_field(MEM_ROOT *_mem_root)
-{
-  DBUG_ASSERT(versioned());
-  Field **dst= (Field **) alloc_root(_mem_root ? _mem_root : &mem_root,
-                                    (s->fields - VERSIONING_FIELDS + 1) *
-                                    sizeof(Field*));
-  if (!dst)
-    return true;
-
-  vers_user_field= dst;
-  for (Field **src= field; *src; src++)
-  {
-    if ((*src)->vers_sys_field())
-      continue;
-    *dst++= *src;
-  }
-  (*dst)= NULL;
-  return false;
 }
 
 

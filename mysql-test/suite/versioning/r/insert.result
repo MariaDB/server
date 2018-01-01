@@ -304,13 +304,38 @@ select x, y, sys_trx_end = 18446744073709551615 as current from t1 for system_ti
 x	y	current
 2	2	1
 1	1	0
-create or replace table t1 (i int) with system versioning engine innodb;
-insert into t1 values  (1),(2);
+create or replace table t1 (x int) with system versioning engine innodb;
+insert into t1 values  (1), (2);
 insert into t1 (sys_trx_start) select sys_trx_end from t1;
-ERROR HY000: Column 'sys_trx_start' is not updatable
+ERROR HY000: The value specified for generated column 'sys_trx_start' in table 't1' ignored
 insert into t1 (sys_trx_start, sys_trx_end) values (DEFAULT, 1);
-ERROR HY000: Column 'sys_trx_end' is not updatable
+ERROR HY000: The value specified for generated column 'sys_trx_end' in table 't1' ignored
+select @@sql_mode into @saved_mode;
+set sql_mode= '';
+insert into t1 (x, sys_trx_start, sys_trx_end) values (3, 4, 5);
+Warnings:
+Warning	1906	The value specified for generated column 'sys_trx_start' in table 't1' ignored
+Warning	1906	The value specified for generated column 'sys_trx_end' in table 't1' ignored
+set sql_mode= @saved_mode;
 insert into t1 (sys_trx_start, sys_trx_end) values (DEFAULT, DEFAULT);
+select * from t1;
+x
+1
+2
+3
+NULL
+# MDEV-14792 INSERT without column list into table with explicit versioning columns produces bad data
+create or replace table t1 (
+i int,
+s timestamp(6) as row start,
+e timestamp(6) as row end,
+c varchar(8),
+period for system_time(s, e))
+with system versioning;
+insert into t1 values (1, null, null, 'foo');
+select i, c, current_row(e) from t1;
+i	c	current_row(e)
+1	foo	1
 drop table t1;
 drop table t2;
 drop procedure test_01;
