@@ -266,11 +266,11 @@ my_b_write_backtick_quote(IO_CACHE *info, const char *str, size_t len)
       ++p;
     count= p - start;
     if (count && my_b_write(info, start, count))
-      return (size_t)-1;
+      return 1;
     if (p >= end)
       break;
     if (my_b_write(info, (uchar *)"``", 2))
-      return (size_t)-1;
+      return 1;
     ++p;
   }
   return (my_b_write(info, (uchar *)"`", 1));

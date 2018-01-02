@@ -3405,9 +3405,12 @@ static size_t calc_field_event_length(const uchar *ptr, uint type, uint meta)
     return (meta <= 4 ? meta : 0);
   case MYSQL_TYPE_VARCHAR:
   case MYSQL_TYPE_VAR_STRING:
-  case MYSQL_TYPE_STRING:
     length= meta;
-    return length < 256 ? length + 1 : length + 2;
+    /* Fall trough */
+  case MYSQL_TYPE_STRING:
+    if (length < 256)
+      return (uint) *ptr + 1;
+    return uint2korr(ptr) + 2;
   case MYSQL_TYPE_DECIMAL:
     break;
   default:
@@ -3506,6 +3509,7 @@ void Rows_log_event::count_row_events(PRINT_EVENT_INFO *print_event_info)
                                         &m_cols, value)))
       break;
     value+= length;
+    DBUG_ASSERT(value <= m_rows_end);
 
     /* Print the second image (for UPDATE only) */
     if (row_events == 2)
@@ -3514,6 +3518,7 @@ void Rows_log_event::count_row_events(PRINT_EVENT_INFO *print_event_info)
                                           &m_cols_ai, value)))
         break;
       value+= length;
+      DBUG_ASSERT(value <= m_rows_end);
     }
   }
   delete td;
@@ -3531,7 +3536,7 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
                                    PRINT_EVENT_INFO *print_event_info)
 {
   Table_map_log_event *map;
-  table_def *td;
+  table_def *td= 0;
   const char *sql_command, *sql_clause1, *sql_clause2;
   const char *sql_command_short __attribute__((unused));
   Log_event_type general_type_code= get_general_type_code();
