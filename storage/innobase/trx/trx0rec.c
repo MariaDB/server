@@ -1100,9 +1100,6 @@ trx_undo_rec_get_partial_row(
 
 	for (; uf != ue; uf++) {
 		ulint c = dict_index_get_nth_col(index, uf->field_no)->ind;
-		ut_ad(uf->orig_len == UNIV_SQL_NULL
-		      || uf->orig_len < UNIV_EXTERN_STORAGE_FIELD);
-		ut_ad(!dfield_is_ext(&uf->new_val));
 		*dtuple_get_nth_field(*row, c) = uf->new_val;
 	}
 
