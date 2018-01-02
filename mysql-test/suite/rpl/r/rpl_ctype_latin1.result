@@ -10,13 +10,19 @@ SET NAMES latin1;
 CREATE TABLE `tё` (`tё` INT);
 CREATE VIEW `vё` AS SELECT 'vё';
 CREATE PROCEDURE `pё`() SELECT 'pё';
+select hex(table_name) from information_schema.tables where table_schema="test" and table_name like "t%";
+hex(table_name)
+74C391E28098
+select  hex(table_name) from information_schema.tables where table_schema="test" and table_name like "v%";
+hex(table_name)
+76C391E28098
 connection slave;
-SHOW TABLES LIKE 't%';
-Tables_in_test (t%)
-tё
-SHOW TABLES LIKE 'v%';
-Tables_in_test (v%)
-vё
+select hex(table_name) from information_schema.tables where table_schema="test" and table_name like "t%";
+hex(table_name)
+74C391E28098
+select  hex(table_name) from information_schema.tables where table_schema="test" and table_name like "v%";
+hex(table_name)
+76C391E28098
 SHOW PROCEDURE STATUS LIKE 'p%';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 test	pё	PROCEDURE	root@localhost	ts	ts	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
