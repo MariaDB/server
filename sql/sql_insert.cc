@@ -4318,8 +4318,9 @@ TABLE *select_create::create_table_from_items(THD *thd,
 
 
 int
-select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
+select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
 {
+  List<Item> values(_values, thd->mem_root);
   MYSQL_LOCK *extra_lock= NULL;
   DBUG_ENTER("select_create::prepare");
 

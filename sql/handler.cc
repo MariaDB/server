@@ -7093,9 +7093,9 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     DBUG_ASSERT(items);
     while (added--)
     {
-      items->push_back(
-        new (thd->mem_root) Item_default_value(thd, thd->lex->current_context()),
-        thd->mem_root);
+      Item_default_value *item= new (thd->mem_root)
+        Item_default_value(thd, thd->lex->current_context());
+      items->push_back(item, thd->mem_root);
     }
   }
 

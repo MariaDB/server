@@ -361,5 +361,11 @@ as select x30, y, sys_trx_start, sys_trx_end, st, en from t1, t2;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
 show create table t3;
 
+--echo # MDEV-14828 Server crashes in JOIN::prepare / setup_fields on 2nd execution of PS [#437]
+create or replace table t1 (x int) with system versioning;
+prepare bad from 'create or replace table t2 with system versioning as select * from t1';
+execute bad; execute bad; execute bad; execute bad; execute bad; execute bad; execute bad; execute bad;
+--echo # bad is good.
+
 drop database test;
 create database test;
