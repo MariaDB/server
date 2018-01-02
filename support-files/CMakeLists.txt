@@ -118,7 +118,8 @@ IF(UNIX)
       CONFIGURE_FILE(sysusers.conf.in
               ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf @ONLY)
       INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf
-              DESTINATION ${INSTALL_SYSTEMD_SYSUSERSDIR} COMPONENT Server)
+              DESTINATION ${INSTALL_SYSTEMD_SYSUSERSDIR}
+              RENAME mariadb.conf COMPONENT Server)
     ENDIF()
 
     IF(INSTALL_SYSTEMD_TMPFILESDIR)
@@ -126,7 +127,8 @@ IF(UNIX)
       CONFIGURE_FILE(tmpfiles.conf.in
               ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf @ONLY)
       INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf
-              DESTINATION ${INSTALL_SYSTEMD_TMPFILESDIR} COMPONENT Server)
+              DESTINATION ${INSTALL_SYSTEMD_TMPFILESDIR}
+              RENAME mariadb.conf COMPONENT Server)
     ENDIF()
 
     # @ in directory name broken between CMake version 2.8.12.2 and 3.3
