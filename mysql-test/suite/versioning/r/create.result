@@ -341,12 +341,6 @@ t3	CREATE TABLE `t3` (
   `x27` int(11) DEFAULT NULL
 ) ENGINE=NON_DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 ## Errors
-create or replace table t (sys_trx_start int);
-alter table t with system versioning;
-ERROR 42S21: Duplicate column name 'sys_trx_start'
-create or replace table t (sys_trx_end int);
-alter table t with system versioning;
-ERROR 42S21: Duplicate column name 'sys_trx_end'
 create or replace temporary table t (x28 int) with system versioning;
 ERROR HY000: System versioning prohibited for TEMPORARY tables
 create or replace table t1 (

@@ -306,13 +306,6 @@ as select t2.b, t1.x27, t1.sys_trx_start, t1.sys_trx_end from t2 inner join t1 o
 show create table t3;
 
 --echo ## Errors
-create or replace table t (sys_trx_start int);
---error ER_DUP_FIELDNAME
-alter table t with system versioning;
-
-create or replace table t (sys_trx_end int);
---error ER_DUP_FIELDNAME
-alter table t with system versioning;
 
 --error ER_VERS_TEMPORARY
 create or replace temporary table t (x28 int) with system versioning;

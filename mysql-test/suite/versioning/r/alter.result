@@ -450,5 +450,20 @@ alter table t drop column a;
 ERROR HY000: Table `t` must have at least one versioned column
 alter table t drop column a, drop column a;
 ERROR 42000: Can't DROP COLUMN `a`; check that it exists
+create or replace table t1 (sys_trx_start int);
+alter table t1 with system versioning;
+ERROR 42S21: Duplicate column name 'sys_trx_start'
+create or replace table t1 (sys_trx_end int);
+alter table t1 with system versioning;
+ERROR 42S21: Duplicate column name 'sys_trx_end'
+create or replace table t1 (a int, sys_trx_start int) with system versioning;
+ERROR 42S21: Duplicate column name 'sys_trx_start'
+create or replace table t1 (a int) with system versioning;
+set statement system_versioning_alter_history=keep for
+alter table t1 add column sys_trx_start int;
+ERROR 42S21: Duplicate column name 'sys_trx_start'
+set statement system_versioning_alter_history=keep for
+alter table t1 add column sys_trx_start timestamp(6);
+ERROR 42S21: Duplicate column name 'sys_trx_start'
 drop database test;
 create database test;

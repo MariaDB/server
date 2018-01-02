@@ -383,6 +383,26 @@ alter table t drop column a;
 --error ER_CANT_DROP_FIELD_OR_KEY
 alter table t drop column a, drop column a;
 
+create or replace table t1 (sys_trx_start int);
+--error ER_DUP_FIELDNAME
+alter table t1 with system versioning;
+
+create or replace table t1 (sys_trx_end int);
+--error ER_DUP_FIELDNAME
+alter table t1 with system versioning;
+
+--error ER_DUP_FIELDNAME
+create or replace table t1 (a int, sys_trx_start int) with system versioning;
+
+create or replace table t1 (a int) with system versioning;
+
+--error ER_DUP_FIELDNAME
+set statement system_versioning_alter_history=keep for
+alter table t1 add column sys_trx_start int;
+
+--error ER_DUP_FIELDNAME
+set statement system_versioning_alter_history=keep for
+alter table t1 add column sys_trx_start timestamp(6);
 
 drop database test;
 create database test;
