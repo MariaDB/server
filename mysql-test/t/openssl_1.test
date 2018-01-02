@@ -260,6 +260,7 @@ set global sql_mode=default;
 # MDEV-9605 mysqlbinlog does not accept ssl-ca option as expected.
 #
 
+--replace_regex /SSL connection error:.*/SSL connection error/
 --error 1
 --exec $MYSQL_BINLOG --read-from-remote-server --ssl-ca --user=root --host=localhost nobinlog.111111 2>&1
 

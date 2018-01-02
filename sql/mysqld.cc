@@ -7240,7 +7240,7 @@ struct my_option my_long_options[]=
    "The value has to be a multiple of 256.",
    &opt_binlog_rows_event_max_size, &opt_binlog_rows_event_max_size,
    0, GET_ULONG, REQUIRED_ARG,
-   /* def_value */ 8192, /* min_value */  256, /* max_value */ UINT32_MAX-1,
+   /* def_value */ 8192, /* min_value */  256, /* max_value */ UINT_MAX32-1,
    /* sub_size */     0, /* block_size */ 256,
    /* app_type */ 0
   },
