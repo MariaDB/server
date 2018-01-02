@@ -14772,3 +14772,19 @@ SELECT * FROM v3 JOIN t1 ON (bmax = b);
 a	bmax	a	b
 DROP VIEW v1,v2,v3;
 DROP TABLE t1,t2;
+#
+# MDEV-14845: Impossible where for derived with GROUP BY
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+WITH cte AS ( SELECT pk FROM t1 WHERE pk IS NULL GROUP BY pk )
+SELECT * FROM cte;
+pk
+EXPLAIN EXTENDED WITH cte AS ( SELECT pk FROM t1 WHERE pk IS NULL GROUP BY pk )
+SELECT * FROM cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	with cte as (/* select#2 */ select `test`.`t1`.`pk` AS `pk` from `test`.`t1` where 0 group by `test`.`t1`.`pk`)/* select#1 */ select NULL AS `pk` from `cte`
+DROP TABLE t1;

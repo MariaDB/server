@@ -2519,3 +2519,19 @@ SELECT * FROM v3 JOIN t1 ON (bmax = b);
 DROP VIEW v1,v2,v3;
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-14845: Impossible where for derived with GROUP BY
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+
+INSERT INTO t1 VALUES (1),(2);
+
+let $q=
+WITH cte AS ( SELECT pk FROM t1 WHERE pk IS NULL GROUP BY pk )
+SELECT * FROM cte;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+DROP TABLE t1;

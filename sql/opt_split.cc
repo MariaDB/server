@@ -291,14 +291,15 @@ struct SplM_field_ext_info: public SplM_field_info
     3. this is the only select in the specification of T
     4. condition pushdown is not prohibited into T
     5. T is not recursive
-    6. T is either
-       6.1. a grouping table with GROUP BY list P
+    6. not all of this join are constant or optimized away
+    7. T is either
+       7.1. a grouping table with GROUP BY list P
        or
-       6.2. a non-grouping table with window functions over the same non-empty
+       7.2. a non-grouping table with window functions over the same non-empty
             partition specified by the PARTITION BY list P
-    7. P contains some references on the columns of the joined tables C
+    8. P contains some references on the columns of the joined tables C
        occurred also in the select list of this join
-    8. There are defined some keys usable for ref access of fields from C
+    9. There are defined some keys usable for ref access of fields from C
        with available statistics. 
 
   @retval
@@ -315,15 +316,16 @@ bool JOIN::check_for_splittable_materialized()
       !(derived && derived->is_materialized_derived()) ||             // !(2)
       (unit->first_select()->next_select()) ||                        // !(3)
       (derived->prohibit_cond_pushdown) ||                            // !(4)
-      (derived->is_recursive_with_table()))                           // !(5)
+      (derived->is_recursive_with_table()) ||                         // !(5)
+      (table_count == 0 || const_tables == top_join_tab_count))       // !(6)
     return false;
-  if (group_list)                                                     // (6.1)
+  if (group_list)                                                     // (7.1)
   {
     if (!select_lex->have_window_funcs())
       partition_list= group_list;
   }
   else if (select_lex->have_window_funcs() &&
-           select_lex->window_specs.elements == 1)                    // (6.2)
+           select_lex->window_specs.elements == 1)                    // (7.2)
   {
     partition_list=
       select_lex->window_specs.head()->partition_list->first;
@@ -337,15 +339,15 @@ bool JOIN::check_for_splittable_materialized()
   /*
     Select from partition_list all candidates for splitting.
     A candidate must be
-    - field item or refer to such (7.1)
-    - item mentioned in the select list (7.2)
+    - field item or refer to such (8.1)
+    - item mentioned in the select list (8.2)
     Put info about such candidates into the array candidates
   */
   table_map usable_tables= 0;  // tables that contains the candidate
   for (ord= partition_list; ord; ord= ord->next)
   {
     Item *ord_item= *ord->item;
-    if (ord_item->real_item()->type() != Item::FIELD_ITEM)   // !(7.1)
+    if (ord_item->real_item()->type() != Item::FIELD_ITEM)   // !(8.1)
       continue;
 
     Field *ord_field= ((Item_field *) (ord_item->real_item()))->field;
@@ -359,7 +361,7 @@ bool JOIN::check_for_splittable_materialized()
     uint item_no= 0;
     while ((item= li++))
     {
-      if ((*ord->item)->eq(item, 0))       // (7.2)
+      if ((*ord->item)->eq(item, 0))       // (8.2)
       {
 	SplM_field_ext_info new_elem;
         new_elem.producing_item= item;
@@ -374,7 +376,7 @@ bool JOIN::check_for_splittable_materialized()
       item_no++;
     }
   }
-  if (candidates.elements() == 0)  // no candidates satisfying (7.1) && (7.2)
+  if (candidates.elements() == 0)  // no candidates satisfying (8.1) && (8.2)
     return false;
 
   /*
@@ -432,7 +434,7 @@ bool JOIN::check_for_splittable_materialized()
       spl_field_cnt--;
   }
 
-  if (!spl_field_cnt)  // No candidate field can be accessed by ref => !(8)
+  if (!spl_field_cnt)  // No candidate field can be accessed by ref => !(9)
     return false;
 
   /*
