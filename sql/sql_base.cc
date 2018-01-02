@@ -4243,12 +4243,33 @@ static bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
 }
 
 
-static bool
-add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
-                    TABLE_LIST *global_table_list, TABLE_LIST *tables)
+static bool internal_table_exists(TABLE_LIST *global_list,
+                                  const char *table_name)
 {
   do
   {
+    if (global_list->table_name == table_name)
+      return 1;
+  } while ((global_list= global_list->next_global));
+  return 0;
+}
+
+
+static bool
+add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
+                    TABLE_LIST *tables)
+{
+  TABLE_LIST *global_table_list= prelocking_ctx->query_tables;
+
+  do
+  {
+    /*
+      Skip table if already in the list. Can happen with prepared statements
+    */
+    if (tables->next_local &&
+        internal_table_exists(global_table_list, tables->table_name))
+      continue;
+
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
     if (!tl)
       return TRUE;
@@ -4368,12 +4389,20 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
   /* Open any tables used by DEFAULT (like sequence tables) */
   if (table->internal_tables &&
       ((sql_command_flags[thd->lex->sql_command] & CF_INSERTS_DATA) ||
-       thd->lex->default_used) &&
-      add_internal_tables(thd, prelocking_ctx, table_list,
-                          table->internal_tables))
+       thd->lex->default_used))
   {
-    *need_prelocking= TRUE;
-    return TRUE;
+    Query_arena *arena, backup;
+    bool error;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+    error= add_internal_tables(thd, prelocking_ctx,
+                               table->internal_tables);
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+    if (error)
+    {
+      *need_prelocking= TRUE;
+      return TRUE;
+    }
   }
   return FALSE;
 }

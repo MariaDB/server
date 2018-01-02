@@ -152,6 +152,22 @@ UNLOCK TABLES;
 drop table t1;
 drop sequence s1;
 #
+# Testing prepared statements
+#
+CREATE or replace SEQUENCE s1 nocache engine=myisam;
+CREATE or replace table t1 (a int default next value for s1, b int);
+PREPARE stmt FROM "insert into t1 (b) values(?)";
+execute stmt using 1;
+execute stmt using 2;
+execute stmt using 3;
+select * from t1;
+a	b
+1	1
+2	2
+3	3
+drop table t1,s1;
+deallocate prepare stmt;
+#
 # Wrong usage of default
 #
 CREATE table t1 (a int default next value for s1, b int);
