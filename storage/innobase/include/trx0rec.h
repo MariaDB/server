@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -193,6 +194,7 @@ trx_undo_rec_get_partial_row(
 				used, as we do NOT copy the data in the
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
+	const upd_t*	update,	/*!< in: updated columns */
 	dtuple_t**	row,	/*!< out, own: partial row */
 	ibool		ignore_prefix, /*!< in: flag to indicate if we
 				expect blob prefixes in undo. Used

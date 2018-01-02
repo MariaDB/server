@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1072,6 +1072,7 @@ trx_undo_rec_get_partial_row(
 				used, as we do NOT copy the data in the
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
+	const upd_t*	update,	/*!< in: updated columns */
 	dtuple_t**	row,	/*!< out, own: partial row */
 	ibool		ignore_prefix, /*!< in: flag to indicate if we
 				expect blob prefixes in undo. Used
@@ -1081,6 +1082,8 @@ trx_undo_rec_get_partial_row(
 {
 	const byte*	end_ptr;
 	ulint		row_len;
+	const upd_field_t* uf = update->fields;
+	const upd_field_t* const ue = update->fields + update->n_fields;
 
 	ut_ad(index);
 	ut_ad(ptr);
@@ -1093,6 +1096,15 @@ trx_undo_rec_get_partial_row(
 	*row = dtuple_create(heap, row_len);
 
 	dict_table_copy_types(*row, index->table);
+
+
+	for (; uf != ue; uf++) {
+		ulint c = dict_index_get_nth_col(index, uf->field_no)->ind;
+		ut_ad(uf->orig_len == UNIV_SQL_NULL
+		      || uf->orig_len < UNIV_EXTERN_STORAGE_FIELD);
+		ut_ad(!dfield_is_ext(&uf->new_val));
+		*dtuple_get_nth_field(*row, c) = uf->new_val;
+	}
 
 	end_ptr = ptr + mach_read_from_2(ptr);
 	ptr += 2;

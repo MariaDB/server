@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -730,7 +731,7 @@ err_exit:
 
 	if (!(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
 		ptr = trx_undo_rec_get_partial_row(
-			ptr, clust_index, &node->row,
+			ptr, clust_index, node->update, &node->row,
 			type == TRX_UNDO_UPD_DEL_REC,
 			node->heap);
 	}
