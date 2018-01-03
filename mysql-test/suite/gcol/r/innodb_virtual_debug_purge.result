@@ -143,20 +143,15 @@ connect prevent_purge, localhost, root;
 start transaction with consistent snapshot;
 connection default;
 update t set a = repeat('m', 16000) where a like "aaa%";
-connect con1, localhost, root;
+connect lock_table, localhost, root;
 lock table t write;
 disconnect prevent_purge;
 connection default;
-select variable_value>1 from information_schema.global_status where variable_name='innodb_purge_trx_id_age';
-variable_value>1
-1
-disconnect con1;
+InnoDB		0 transactions not purged
+disconnect lock_table;
 start transaction with consistent snapshot;
 commit;
 InnoDB		0 transactions not purged
-select variable_value>1 from information_schema.global_status where variable_name='innodb_purge_trx_id_age';
-variable_value>1
-0
 set global debug_dbug=@old_dbug;
 drop table t;
 set debug_sync=reset;

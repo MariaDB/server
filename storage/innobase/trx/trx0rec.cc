@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1199,14 +1199,43 @@ trx_undo_page_report_modify(
 
 			const dict_col_t*	col
 				= dict_table_get_nth_col(table, col_no);
-			const char* col_name = dict_table_get_col_name(table,
-				col_no);
 
 			if (!col->ord_part) {
 				continue;
 			}
 
-			if (update) {
+			const ulint pos = dict_index_get_nth_col_pos(
+				index, col_no, NULL);
+			/* All non-virtual columns must be present in
+			the clustered index. */
+			ut_ad(pos != ULINT_UNDEFINED);
+
+			const bool is_ext = rec_offs_nth_extern(offsets, pos);
+			const spatial_status_t spatial_status = is_ext
+				? dict_col_get_spatial_status(col)
+				: SPATIAL_NONE;
+
+			switch (spatial_status) {
+			case SPATIAL_UNKNOWN:
+				ut_ad(0);
+				/* fall through */
+			case SPATIAL_MIXED:
+			case SPATIAL_ONLY:
+				/* Externally stored spatially indexed
+				columns will be (redundantly) logged
+				again, because we did not write the
+				MBR yet, that is, the previous call to
+				trx_undo_page_report_modify_ext()
+				was with SPATIAL_UNKNOWN. */
+				break;
+			case SPATIAL_NONE:
+				if (!update) {
+					/* This is a DELETE operation. */
+					break;
+				}
+				/* Avoid redundantly logging indexed
+				columns that were updated. */
+
 				for (i = 0; i < update->n_fields; i++) {
 					const ulint field_no
 						= upd_get_nth_field(update, i)
@@ -1221,28 +1250,10 @@ trx_undo_page_report_modify(
 			}
 
 			if (true) {
-				ulint			pos;
-				spatial_status_t	spatial_status;
-
-				spatial_status = SPATIAL_NONE;
-
 				/* Write field number to undo log */
 				if (trx_undo_left(undo_page, ptr) < 5 + 15) {
 
 					return(0);
-				}
-
-				pos = dict_index_get_nth_col_pos(index,
-								 col_no,
-								 NULL);
-				if (pos == ULINT_UNDEFINED) {
-					ib::error() << "Column " << col_no
-						    << " name " << col_name
-						    << " not found from index " << index->name
-						    << " table. " << table->name.m_name
-						    << " Table has " << dict_table_get_n_cols(table)
-						    << " and index has " << dict_index_get_n_fields(index)
-						    << " fields.";
 				}
 
 				ptr += mach_write_compressed(ptr, pos);
@@ -1251,7 +1262,7 @@ trx_undo_page_report_modify(
 				field = rec_get_nth_field(rec, offsets, pos,
 							  &flen);
 
-				if (rec_offs_nth_extern(offsets, pos)) {
+				if (is_ext) {
 					const dict_col_t*	col =
 						dict_index_get_nth_col(
 							index, pos);
@@ -1260,10 +1271,6 @@ trx_undo_page_report_modify(
 							table, col);
 
 					ut_a(prefix_len < sizeof ext_buf);
-
-					spatial_status =
-						dict_col_get_spatial_status(
-							col);
 
 					/* If there is a spatial index on it,
 					log its MBR */
@@ -1662,6 +1669,7 @@ trx_undo_rec_get_partial_row(
 				used, as we do NOT copy the data in the
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
+	const upd_t*	update,	/*!< in: updated columns */
 	dtuple_t**	row,	/*!< out, own: partial row */
 	ibool		ignore_prefix, /*!< in: flag to indicate if we
 				expect blob prefixes in undo. Used
@@ -1691,6 +1699,16 @@ trx_undo_rec_get_partial_row(
 	}
 
 	dtuple_init_v_fld(*row);
+
+	for (const upd_field_t* uf = update->fields, * const ue
+		     = update->fields + update->n_fields;
+	     uf != ue; uf++) {
+		if (uf->old_v_val) {
+			continue;
+		}
+		ulint c = dict_index_get_nth_col(index, uf->field_no)->ind;
+		*dtuple_get_nth_field(*row, c) = uf->new_val;
+	}
 
 	end_ptr = ptr + mach_read_from_2(ptr);
 	ptr += 2;
@@ -1737,6 +1755,13 @@ trx_undo_rec_get_partial_row(
 			col = dict_index_get_nth_col(index, field_no);
 			col_no = dict_col_get_no(col);
 			dfield = dtuple_get_nth_field(*row, col_no);
+			ut_ad(dfield->type.mtype == DATA_MISSING
+			      || dict_col_type_assert_equal(col,
+							    &dfield->type));
+			ut_ad(dfield->type.mtype == DATA_MISSING
+			      || dfield->len == len
+			      || (len != UNIV_SQL_NULL
+				  && len >= UNIV_EXTERN_STORAGE_FIELD));
 			dict_col_copy_type(
 				dict_table_get_nth_col(index->table, col_no),
 				dfield_get_type(dfield));
