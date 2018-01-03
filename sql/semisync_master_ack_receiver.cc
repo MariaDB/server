@@ -17,9 +17,13 @@
 #include "semisync_master.h"
 #include "semisync_master_ack_receiver.h"
 
+#ifdef HAVE_PSI_MUTEX_INTERFACE
 extern PSI_mutex_key key_LOCK_ack_receiver;
 extern PSI_cond_key key_COND_ack_receiver;
+#endif
+#ifdef HAVE_PSI_THREAD_INTERFACE
 extern PSI_thread_key key_thread_ack_receiver;
+#endif
 extern Repl_semi_sync_master repl_semisync;
 
 /* Callback function of ack receive thread */

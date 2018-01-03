@@ -79,7 +79,9 @@ struct st_partition_ft_info
 };
 
 
+#ifdef HAVE_PSI_MUTEX_INTERFACE
 extern PSI_mutex_key key_partition_auto_inc_mutex;
+#endif
 
 /**
   Partition specific Handler_share.
