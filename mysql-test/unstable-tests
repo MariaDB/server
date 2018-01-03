@@ -214,6 +214,7 @@ innodb.lock_deleted                  : Added in 10.2.12
 innodb.log_corruption                : MDEV-13251 - Wrong result
 innodb.log_data_file_size            : MDEV-14204 - Server failed to start
 innodb.log_file_name                 : MDEV-14193 - Exception
+innodb.purge_secondary               : Added in 10.2.12
 innodb.purge_thread_shutdown         : MDEV-13792 - Wrong result
 innodb.read_only_recovery            : MDEV-13886 - Server crash
 innodb.recovery_shutdown             : Added in 10.2.12
