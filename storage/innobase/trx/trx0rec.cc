@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -74,6 +74,49 @@ trx_undof_page_add_undo_rec_log(
 	mlog_write_ulint(undo_page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
 			 new_free, MLOG_2BYTES, mtr);
 	mlog_log_string(undo_page + old_free, new_free - old_free, mtr);
+}
+
+/** Parse MLOG_UNDO_INSERT for crash-upgrade from MariaDB 10.2.
+@param[in]	ptr	log record
+@param[in]	end_ptr	end of log record buffer
+@param[in,out]	page	page or NULL
+@return	end of log record
+@retval	NULL	if the log record is incomplete */
+byte*
+trx_undo_parse_add_undo_rec(
+	const byte*	ptr,
+	const byte*	end_ptr,
+	page_t*		page)
+{
+	ulint	len;
+
+	if (end_ptr < ptr + 2) {
+
+		return(NULL);
+	}
+
+	len = mach_read_from_2(ptr);
+	ptr += 2;
+
+	if (end_ptr < ptr + len) {
+
+		return(NULL);
+	}
+
+	if (page) {
+		ulint first_free = mach_read_from_2(page + TRX_UNDO_PAGE_HDR
+						    + TRX_UNDO_PAGE_FREE);
+		byte* rec = page + first_free;
+
+		mach_write_to_2(rec, first_free + 4 + len);
+		mach_write_to_2(rec + 2 + len, first_free);
+
+		mach_write_to_2(page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
+				first_free + 4 + len);
+		memcpy(rec + 2, ptr, len);
+	}
+
+	return(const_cast<byte*>(ptr + len));
 }
 
 /**********************************************************************//**
@@ -1758,15 +1801,11 @@ trx_undo_rec_get_partial_row(
 	return(const_cast<byte*>(ptr));
 }
 
-/***********************************************************************//**
-Erases the unused undo log page end.
-@return TRUE if the page contained something, FALSE if it was empty */
-static MY_ATTRIBUTE((nonnull))
-ibool
-trx_undo_erase_page_end(
-/*====================*/
-	page_t*	undo_page,	/*!< in/out: undo page whose end to erase */
-	mtr_t*	mtr)		/*!< in/out: mini-transaction */
+/** Erase the unused undo log page end.
+@param[in,out]	undo_page	undo log page
+@return whether the page contained something */
+bool
+trx_undo_erase_page_end(page_t* undo_page)
 {
 	ulint	first_free;
 
@@ -1993,7 +2032,7 @@ trx_undo_report_row_operation(
 			version the replicate page constructed using the log
 			records stays identical to the original page */
 
-			if (!trx_undo_erase_page_end(undo_page, &mtr)) {
+			if (!trx_undo_erase_page_end(undo_page)) {
 				/* The record did not fit on an empty
 				undo page. Discard the freshly allocated
 				page and return an error. */

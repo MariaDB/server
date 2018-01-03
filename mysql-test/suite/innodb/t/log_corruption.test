@@ -204,7 +204,9 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported\. The redo log was created with malicious intentions, or perhaps, and it appears corrupted\.;
+let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
 --source include/search_pattern_in_file.inc
 
 --echo # same, but with current-version header
@@ -339,8 +341,9 @@ perl;
 die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
 binmode OUT;
 # header block
-print OUT pack("Nx[5]nx[5]", 103, 0x1286), "MariaDB 10.3.1";
-print OUT pack("x[478]N", 0x85021a0f);
+print OUT pack("Nx[5]nx[5]", 1, 0x1286);
+print OUT "ibbackup was here!!!1!";
+print OUT pack("x[470]N", 0x52b54540);
 # invalid (all-zero) checkpoint page 1 and an empty log page
 print OUT chr(0) x 1024;
 # valid checkpoint block 2
@@ -362,6 +365,28 @@ EOF
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 --let SEARCH_PATTERN= InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42\$
+--source include/search_pattern_in_file.inc
+
+--echo # Clean 10.2 redo log
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+die unless seek(OUT, 0x800, 0);
+print OUT pack("H*", "800009440022000c00000001");
+# dummy padding (MLOG_DUMMY_RECORD)
+print OUT " " x 6;
+# MLOG_CHECKPOINT record
+print OUT pack("CNN", 56, 0, 0x12860c);
+# padding (MLOG_DUMMY_RECORD) and block checksum
+print OUT " " x 481, pack("N", 0xe9b21b7b);
+close OUT or die;
+EOF
+
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=1m
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN= InnoDB: Upgrading redo log:
 --source include/search_pattern_in_file.inc
 
 --echo # Minimal MariaDB 10.1.21 encrypted redo log

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -99,6 +99,18 @@ enum mlog_id_t {
 
 	/** Create an index page */
 	MLOG_PAGE_CREATE = 19,
+
+	/** insert an undo log record (used in MariaDB 10.2) */
+	MLOG_UNDO_INSERT = 20,
+
+	/** erase an undo log page end (used in MariaDB 10.2) */
+	MLOG_UNDO_ERASE_END = 21,
+
+	/** initialize a page in an undo log (used in MariaDB 10.2) */
+	MLOG_UNDO_INIT = 22,
+
+	/** reuse an insert undo log header (used in MariaDB 10.2) */
+	MLOG_UNDO_HDR_REUSE = 24,
 
 	/** create an undo log header */
 	MLOG_UNDO_HDR_CREATE = 25,
