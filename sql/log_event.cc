@@ -3406,7 +3406,7 @@ static size_t calc_field_event_length(const uchar *ptr, uint type, uint meta)
   case MYSQL_TYPE_VARCHAR:
   case MYSQL_TYPE_VAR_STRING:
     length= meta;
-    /* Fall trough */
+    /* fall through */
   case MYSQL_TYPE_STRING:
     if (length < 256)
       return (uint) *ptr + 1;
