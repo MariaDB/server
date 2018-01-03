@@ -189,7 +189,7 @@ maria_declare_plugin(versioning)
 {
   MYSQL_REPLICATION_PLUGIN, // initialized after MYSQL_STORAGE_ENGINE_PLUGIN
   &versioning_plugin,
-  "versioning",
+  "test_versioning",
   "MariaDB Corp",
   "System Vesioning testing features",
   PLUGIN_LICENSE_GPL,
@@ -199,6 +199,6 @@ maria_declare_plugin(versioning)
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
   "1.0",                      /* string version */
-  MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
 }
 maria_declare_plugin_end;

@@ -1,2 +1,2 @@
 --system-versioning-transaction-registry=1
---plugin-load=versioning
+--plugin-load-add=test_versioning
