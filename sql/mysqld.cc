@@ -2977,13 +2977,11 @@ static bool cache_thread(THD *thd)
     DBUG_PRINT("info", ("Adding thread to cache"));
     cached_thread_count++;
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
     /*
       Delete the instrumentation for the job that just completed,
       before parking this pthread in the cache (blocked on COND_thread_cache).
     */
-    PSI_THREAD_CALL(delete_current_thread)();
-#endif
+    PSI_CALL_delete_current_thread();
 
 #ifndef DBUG_OFF
     while (_db_is_pushed_())
@@ -3030,15 +3028,13 @@ static bool cache_thread(THD *thd)
       */
       thd->store_globals();
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
       /*
         Create new instrumentation for the new THD job,
         and attach it to this running pthread.
       */
-      PSI_thread *psi= PSI_THREAD_CALL(new_thread)(key_thread_one_connection,
+      PSI_thread *psi= PSI_CALL_new_thread(key_thread_one_connection,
                                                    thd, thd->thread_id);
-      PSI_THREAD_CALL(set_thread)(psi);
-#endif
+      PSI_CALL_set_thread(psi);
 
       /* reset abort flag for the thread */
       thd->mysys_var->abort= 0;
@@ -3569,10 +3565,8 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       if (!abort_loop)
       {
 	abort_loop=1;				// mark abort for threads
-#ifdef HAVE_PSI_THREAD_INTERFACE
         /* Delete the instrumentation for the signal thread */
-        PSI_THREAD_CALL(delete_current_thread)();
-#endif
+        PSI_CALL_delete_current_thread();
 #ifdef USE_ONE_SIGNAL_HAND
 	pthread_t tmp;
         if ((error= mysql_thread_create(0, /* Not instrumented */
@@ -5853,8 +5847,8 @@ int mysqld_main(int argc, char **argv)
       */
       init_server_psi_keys();
       /* Instrument the main thread */
-      PSI_thread *psi= PSI_THREAD_CALL(new_thread)(key_thread_main, NULL, 0);
-      PSI_THREAD_CALL(set_thread)(psi);
+      PSI_thread *psi= PSI_CALL_new_thread(key_thread_main, NULL, 0);
+      PSI_CALL_set_thread(psi);
 
       /*
         Now that some instrumentation is in place,
@@ -6203,13 +6197,11 @@ int mysqld_main(int argc, char **argv)
   mysql_mutex_unlock(&LOCK_start_thread);
 #endif /* __WIN__ */
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
   /*
     Disable the main thread instrumentation,
     to avoid recording events during the shutdown.
   */
-  PSI_THREAD_CALL(delete_current_thread)();
-#endif
+  PSI_CALL_delete_current_thread();
 
   /* Wait until cleanup is done */
   mysql_mutex_lock(&LOCK_thread_count);

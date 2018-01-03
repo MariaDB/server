@@ -341,14 +341,12 @@ void my_thread_end(void)
 	  tmp, pthread_self(), tmp ? (long) tmp->id : 0L);
 #endif  
 
-#ifdef HAVE_PSI_INTERFACE
   /*
     Remove the instrumentation for this thread.
     This must be done before trashing st_my_thread_var,
     because the LF_HASH depends on it.
   */
-  PSI_THREAD_CALL(delete_current_thread)();
-#endif
+  PSI_CALL_delete_current_thread();
 
   /*
     We need to disable DBUG early for this thread to ensure that the

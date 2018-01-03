@@ -611,16 +611,16 @@ extern mysql_pfs_key_t	trx_rollback_clean_thread_key;
 schema */
 #  define pfs_register_thread(key)			\
 do {								\
-	struct PSI_thread* psi = PSI_THREAD_CALL(new_thread)(key, NULL, 0);\
+	struct PSI_thread* psi = PSI_CALL_new_thread(key, NULL, 0);\
 	/* JAN: TODO: MYSQL 5.7 PSI                             \
-	PSI_THREAD_CALL(set_thread_os_id)(psi);	*/		\
-	PSI_THREAD_CALL(set_thread)(psi);			\
+	PSI_CALL_set_thread_os_id(psi);	*/		\
+	PSI_CALL_set_thread(psi);			\
 } while (0)
 
 /* This macro delist the current thread from performance schema */
 #  define pfs_delete_thread()				\
 do {								\
-	PSI_THREAD_CALL(delete_current_thread)();		\
+	PSI_CALL_delete_current_thread();		\
 } while (0)
 # else
 #  define pfs_register_thread(key)

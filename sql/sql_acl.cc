@@ -12439,12 +12439,10 @@ read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
   if (length > 65535)
     return true;
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
-  if (PSI_THREAD_CALL(set_thread_connect_attrs)(*ptr, (size_t)length, from_cs) &&
+  if (PSI_CALL_set_thread_connect_attrs(*ptr, (size_t)length, from_cs) &&
       current_thd->variables.log_warnings)
     sql_print_warning("Connection attributes of length %llu were truncated",
                       length);
-#endif
   return false;
 }
 
@@ -13517,11 +13515,9 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   else
     my_ok(thd);
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_THREAD_CALL(set_thread_user_host)
+  PSI_CALL_set_thread_user_host
     (thd->main_security_ctx.user, strlen(thd->main_security_ctx.user),
     thd->main_security_ctx.host_or_ip, strlen(thd->main_security_ctx.host_or_ip));
-#endif
 
   /* Ready to handle queries */
   DBUG_RETURN(0);

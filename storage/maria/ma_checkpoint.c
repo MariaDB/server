@@ -562,9 +562,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
   DBUG_PRINT("info",("Maria background checkpoint thread starts"));
   DBUG_ASSERT(interval > 0);
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_THREAD_CALL(set_thread_user_host)(0,0,0,0);
-#endif
+  PSI_CALL_set_thread_user_host(0,0,0,0);
 
   /*
     Recovery ended with all tables closed and a checkpoint: no need to take

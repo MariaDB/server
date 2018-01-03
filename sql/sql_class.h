@@ -3376,9 +3376,7 @@ public:
       start_time= secs;
       start_time_sec_part= usecs;
     }
-#ifdef HAVE_PSI_THREAD_INTERFACE
-    PSI_THREAD_CALL(set_thread_start_time)(start_time);
-#endif
+    PSI_CALL_set_thread_start_time(start_time);
   }
   inline void set_start_time()
   {
@@ -3386,9 +3384,7 @@ public:
     {
       start_time= hrtime_to_my_time(user_time);
       start_time_sec_part= hrtime_sec_part(user_time);
-#ifdef HAVE_PSI_THREAD_INTERFACE
-      PSI_THREAD_CALL(set_thread_start_time)(start_time);
-#endif
+      PSI_CALL_set_thread_start_time(start_time);
     }
     else
       set_current_time();
@@ -4035,10 +4031,8 @@ public:
     db_length= db ? new_db_len : 0;
     bool result= new_db && !db;
     mysql_mutex_unlock(&LOCK_thd_data);
-#ifdef HAVE_PSI_THREAD_INTERFACE
     if (result)
-      PSI_THREAD_CALL(set_thread_db)(new_db, (int) new_db_len);
-#endif
+      PSI_CALL_set_thread_db(new_db, (int) new_db_len);
     return result;
   }
 
@@ -4061,9 +4055,7 @@ public:
       db= new_db;
       db_length= new_db_len;
       mysql_mutex_unlock(&LOCK_thd_data);
-#ifdef HAVE_PSI_THREAD_INTERFACE
-      PSI_THREAD_CALL(set_thread_db)(new_db, (int) new_db_len);
-#endif
+      PSI_CALL_set_thread_db(new_db, (int) new_db_len);
     }
   }
   /*
@@ -4282,9 +4274,7 @@ public:
     set_query_inner(string_arg);
     mysql_mutex_unlock(&LOCK_thd_data);
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
-    PSI_THREAD_CALL(set_thread_info)(query(), query_length());
-#endif
+    PSI_CALL_set_thread_info(query(), query_length());
   }
   void reset_query()               /* Mutex protected */
   { set_query(CSET_STRING()); }
