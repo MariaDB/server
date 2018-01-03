@@ -114,3 +114,14 @@ insert into t1 values(0, 1, 1, NULL, now(), now());
 alter online table t1 delay_key_write=1;
 show create table t1;
 drop table t1;
+
+#
+# MDEV-14817 Server crashes in prep_alter_part_table() after table lock and multiple add partition
+#
+create or replace table t1 (x int) partition by hash (x) (partition p1, partition p2);
+lock table t1 write;
+--error ER_SAME_NAME_PARTITION
+alter table t1 add partition (partition p1);
+--error ER_SAME_NAME_PARTITION
+alter table t1 add partition (partition p1);
+drop table t1;

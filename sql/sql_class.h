@@ -1797,8 +1797,9 @@ private:
 
 class Locked_tables_list
 {
-private:
+public:
   MEM_ROOT m_locked_tables_root;
+private:
   TABLE_LIST *m_locked_tables;
   TABLE_LIST **m_locked_tables_last;
   /** An auxiliary array used only in reopen_tables(). */
