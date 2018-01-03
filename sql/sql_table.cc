@@ -8363,6 +8363,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
   }
 
+  if (table->versioned() && !(alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING) &&
+      new_create_list.elements == VERSIONING_FIELDS)
+  {
+    my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), table->s->table_name.str);
+    goto err;
+  }
+
   if (!create_info->comment.str)
   {
     create_info->comment.str= table->s->comment.str;

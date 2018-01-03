@@ -377,6 +377,12 @@ create or replace table t (c text) engine=innodb with system versioning;
 show create table t;
 alter table t add fulltext key (c);
 
+create or replace table t (a int) with system versioning;
+--error ER_VERS_TABLE_MUST_HAVE_COLUMNS
+alter table t drop column a;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t drop column a, drop column a;
+
 
 drop database test;
 create database test;

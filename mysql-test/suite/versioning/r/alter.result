@@ -445,5 +445,10 @@ t	CREATE TABLE `t` (
 alter table t add fulltext key (c);
 Warnings:
 Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
+create or replace table t (a int) with system versioning;
+alter table t drop column a;
+ERROR HY000: Table `t` must have at least one temporal column
+alter table t drop column a, drop column a;
+ERROR 42000: Can't DROP COLUMN `a`; check that it exists
 drop database test;
 create database test;
