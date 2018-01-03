@@ -1601,7 +1601,7 @@ err_with_lex_cleanup:
       thd->spcont= save_spcont;
       thd->variables.sql_mode= save_sql_mode;
       thd->reset_db(save_db.str, save_db.length);
-      /* Fall trough to error */
+      /* Fall through to error */
     }
   }
 

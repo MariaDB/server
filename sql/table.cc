@@ -7431,7 +7431,6 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       swap_values= 1;
       break;
     case VCOL_UPDATE_FOR_DELETE:
-      /* Fall trough */
     case VCOL_UPDATE_FOR_WRITE:
       update= bitmap_is_set(vcol_set, vf->field_index);
       break;
