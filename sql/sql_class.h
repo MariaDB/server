@@ -2080,12 +2080,21 @@ struct wait_for_commit
   Structure to store the start time for a query
 */
 
-typedef struct
+struct QUERY_START_TIME_INFO
 {
   my_time_t start_time;
-  ulong      start_time_sec_part;
+  ulong     start_time_sec_part;
   ulonglong start_utime, utime_after_lock;
-} QUERY_START_TIME_INFO;
+
+  void backup_query_start_time(QUERY_START_TIME_INFO *backup)
+  {
+    *backup= *this;
+  }
+  void restore_query_start_time(QUERY_START_TIME_INFO *backup)
+  {
+    *this= *backup;
+  }
+};
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
@@ -2097,7 +2106,8 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
 class THD :public Statement,
            public MDL_context_owner,
-           public Open_tables_state
+           public Open_tables_state,
+           public QUERY_START_TIME_INFO
 {
 private:
   inline bool is_stmt_prepare() const
@@ -2322,12 +2332,10 @@ public:
   uint32     file_id;			// for LOAD DATA INFILE
   /* remote (peer) port */
   uint16     peer_port;
-  my_time_t  start_time;             // start_time and its sec_part 
-  ulong      start_time_sec_part;    // are almost always used separately
   my_hrtime_t user_time;
   // track down slow pthread_create
   ulonglong  prior_thr_create_utime, thr_create_utime;
-  ulonglong  start_utime, utime_after_lock, utime_after_query;
+  ulonglong  utime_after_query;
 
   // Process indicator
   struct {
@@ -3409,20 +3417,6 @@ public:
     utime_after_lock= microsecond_interval_timer();
     MYSQL_SET_STATEMENT_LOCK_TIME(m_statement_psi,
                                   (utime_after_lock - start_utime));
-  }
-  void get_time(QUERY_START_TIME_INFO *time_info)
-  {
-    time_info->start_time=          start_time;
-    time_info->start_time_sec_part= start_time_sec_part;
-    time_info->start_utime=         start_utime;
-    time_info->utime_after_lock=    utime_after_lock;
-  }
-  void set_time(QUERY_START_TIME_INFO *time_info)
-  {
-    start_time=          time_info->start_time;
-    start_time_sec_part= time_info->start_time_sec_part;
-    start_utime=         time_info->start_utime;
-    utime_after_lock=    time_info->utime_after_lock;
   }
   ulonglong current_utime()  { return microsecond_interval_timer(); }
 
