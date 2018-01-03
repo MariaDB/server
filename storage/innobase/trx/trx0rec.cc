@@ -1866,8 +1866,9 @@ ulint
 trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 			    buf_block_t* block, mtr_t* mtr)
 {
-	ulint	first_free = mach_read_from_2(block->frame + TRX_UNDO_PAGE_HDR
-					      + TRX_UNDO_PAGE_FREE);
+	byte*	ptr_first_free  = TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+		+ block->frame;
+	ulint	first_free = mach_read_from_2(ptr_first_free);
 	ut_ad(first_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
 	ut_ad(first_free <= UNIV_PAGE_SIZE);
 	byte* start = block->frame + first_free;
@@ -1895,11 +1896,10 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 	ptr += 2;
 	ulint offset = page_offset(ptr);
 	mach_write_to_2(start, offset);
-	mach_write_to_2(block->frame + TRX_UNDO_PAGE_HDR
-			+ TRX_UNDO_PAGE_FREE, offset);
+	mach_write_to_2(ptr_first_free, offset);
 
 	trx_undof_page_add_undo_rec_log(block->frame, first_free, offset, mtr);
-	return offset;
+	return first_free;
 }
 
 /** Report a RENAME TABLE operation.
