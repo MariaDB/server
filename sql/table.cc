@@ -8621,7 +8621,7 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
     return true;
 
   timeval start_time= {thd->start_time, long(thd->start_time_sec_part)};
-  thd->set_current_time();
+  thd->set_start_time();
   timeval end_time= {thd->start_time, long(thd->start_time_sec_part)};
   store(FLD_TRX_ID, start_id);
   store(FLD_COMMIT_ID, end_id);

@@ -3376,6 +3376,7 @@ public:
   { query_start_sec_part_used=1; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
 
+private:
   void start_time_inc()
   {
     ++start_time_sec_part;
@@ -3392,7 +3393,7 @@ public:
         start_time > secs;
   }
 
-  inline void set_current_time()
+  void set_current_time()
   {
     my_hrtime_t hrtime= my_hrtime();
     my_time_t secs= hrtime_to_my_time(hrtime);
@@ -3408,6 +3409,8 @@ public:
     }
     PSI_CALL_set_thread_start_time(start_time);
   }
+
+public:
   inline void set_start_time()
   {
     if (user_time.val)

@@ -12507,13 +12507,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
     // Check whether a row came from unversioned table and fix vers fields.
     if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
-    {
-      bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
-      bitmap_set_bit(table->write_set, table->vers_end_field()->field_index);
-      thd->set_current_time();
-      table->vers_start_field()->set_time();
-      table->vers_end_field()->set_max();
-    }
+      table->vers_update_fields();
   }
 
   /* 
@@ -13706,12 +13700,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
   m_table->mark_columns_per_binlog_row_image();
   if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
-  {
-    bitmap_set_bit(m_table->write_set,
-                   m_table->vers_start_field()->field_index);
-    thd->set_current_time();
-    m_table->vers_start_field()->set_time();
-  }
+    m_table->vers_update_fields();
   error= m_table->file->ha_update_row(m_table->record[1], m_table->record[0]);
   if (error == HA_ERR_RECORD_IS_THE_SAME)
     error= 0;
