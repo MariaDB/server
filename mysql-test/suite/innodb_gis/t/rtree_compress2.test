@@ -4,8 +4,7 @@
 # Restarting is not supported in embedded
 --source include/not_embedded.inc
 
---source include/have_innodb.inc
---source include/have_innodb_zip.inc
+--source include/innodb_page_size_small.inc
 --source include/big_test.inc
 # Valgrind takes too much time on PB2 even in the --big-test runs.
 --source include/not_valgrind.inc
@@ -29,30 +28,13 @@ delimiter ;|
 
 # Test level 3 rtree.
 CALL insert_t1(70000);
-select count(*) from t1;
-
-# Check table.
-check table t1;
-
-truncate table t1;
-
-# Test crash recovery.
-#
-#
-call mtr.add_suppression("InnoDB: A copy of page \[page id: space=[0-9]+, page number=[0-9]+\] in the doublewrite buffer slot [0-9]+ is not within space bounds");
-
-# Test rtree enlarge recovery.
-START TRANSACTION;
-CALL insert_t1(5000);
-#select count(*) from t1;
-
-# Check table.
-#check table t1;
-
-COMMIT;
 
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
+
+check table t1;
+select count(*) from t1;
+delete from t1;
 
 # Clean up.
 drop procedure insert_t1;

@@ -4,17 +4,15 @@
 # Not supported in embedded
 --source include/not_embedded.inc
 
---source include/have_innodb.inc
---source include/have_innodb_zip.inc
+--source include/innodb_page_size_small.inc
 --source include/have_debug.inc
 --source include/big_test.inc
 # Valgrind takes too much time on PB2 even in the --big-test runs.
 --source include/not_valgrind.inc
 
-# Create table with R-tree index.
-SET GLOBAL innodb_file_per_table=1;
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
-#Create table with R-tree index.
 create table t1 (c1 int, c2 geometry not null, spatial index (c2))engine=innodb ROW_FORMAT=COMPRESSED;
 
 # Insert enough values to let R-tree split.
@@ -53,12 +51,14 @@ select count(*) from t1 where MBRWithin(t1.c2, @g1);
 set @g1 = ST_GeomFromText('Polygon((10 10,10 800,800 800,800 10,10 10))');
 select count(*) from t1 where MBRWithin(t1.c2, @g1);
 
+SET @saved_dbug = @@SESSION.debug_dbug;
 SET DEBUG='+d,page_copy_rec_list_start_compress_fail';
 delete from t1;
-SET DEBUG='-d,page_copy_rec_list_start_compress_fail';
-
-
 select count(*) from t1 where MBRWithin(t1.c2, @g1);
+SET debug_dbug = @saved_dbug;
+
+--source ../../innodb/include/wait_all_purged.inc
 
 # Clean up.
 drop table t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
