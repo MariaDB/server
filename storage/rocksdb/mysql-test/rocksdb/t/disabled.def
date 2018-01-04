@@ -41,7 +41,7 @@ rocksdb_deadlock_stress_rr: stress test
 ##
 persistent_cache: Upstream RocksDB bug https://github.com/facebook/mysql-5.6/issues/579
 collation: Fails on gcc 4.8 and before,  MDEV-12433
-col_opt_zerofill: MDEV-14165: not MyRocks -problem in ps-protocol, happens in upstream too
+col_opt_zerofill: MDEV-14729 (also MDEV-14165 which was fixed): problem in the client
 
 
 ##
@@ -70,17 +70,10 @@ blind_delete_without_tx_api: MDEV-12286: rocksdb.blind_delete_without_tx_api tes
 unique_check: wrong error number
 autoinc_vars_thread: debug sync point wait timed out
 
-# Enabling these didn't seem to cause any trouble:
-# autoinc_vars_thread : MDEV-12474 Regularly fails on buildbot
-# unique_check : MDEV-12474 Regularly fails on buildbot
-# bloomfilter : MDEV-12474 Regularly fails on buildbot
-# unique_sec : Intermittent failures in BB
-
-
 ##
 ## Tests that fail for some other reason
 ##
+
 information_schema : MariaRocks: requires GTIDs
 mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
-#read_only_tx : MariaRocks: requires GTIDs
 rpl_row_triggers : MariaRocks: requires GTIDs

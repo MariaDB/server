@@ -1814,7 +1814,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
           sql++;
           continue;
         }
-        /* fall trough */
+        /* fall through */
       default:
         break;
       }

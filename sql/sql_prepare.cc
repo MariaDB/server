@@ -4732,7 +4732,19 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   if (error == 0 && this->lex->sql_command == SQLCOM_CALL)
   {
     if (is_sql_prepare())
+    {
+      /*
+        Here we have the diagnostics area status already set to DA_OK.
+        sent_out_parameters() can raise errors when assigning OUT parameters:
+          DECLARE a DATETIME;
+          EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
+        when the procedure p1 assigns a DATETIME-incompatible value (e.g. 10)
+        to the out parameter. Allow to overwrite status (to DA_ERROR).
+      */
+      thd->get_stmt_da()->set_overwrite_status(true);
       thd->protocol_text.send_out_parameters(&this->lex->param_list);
+      thd->get_stmt_da()->set_overwrite_status(false);
+    }
     else
       thd->protocol->send_out_parameters(&this->lex->param_list);
   }

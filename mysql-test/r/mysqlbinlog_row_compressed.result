@@ -73,6 +73,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# Number of rows: 1
 # at 967
 #<date> server id 1  end_log_pos 1040 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -101,6 +102,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9=NULL /* STRING(1) meta=65025 nullable=1 is_null=1 */
+# Number of rows: 1
 # at 1281
 #<date> server id 1  end_log_pos 1354 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -129,6 +131,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# Number of rows: 1
 # at 1596
 #<date> server id 1  end_log_pos 1669 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -157,6 +160,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# Number of rows: 1
 # at 1909
 #<date> server id 1  end_log_pos 1982 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -218,6 +222,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# Number of rows: 4
 # at 2225
 #<date> server id 1  end_log_pos 2298 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -298,6 +303,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# Number of rows: 3
 # at 2561
 #<date> server id 1  end_log_pos 2634 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -359,6 +365,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# Number of rows: 4
 # at 2861
 #<date> server id 1  end_log_pos 2934 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
@@ -420,6 +427,7 @@ BEGIN
 ###   @7=6 /* INT meta=0 nullable=1 is_null=0 */
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
+# Number of rows: 4
 # at 3154
 #<date> server id 1  end_log_pos 3227 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;

@@ -820,6 +820,9 @@ Qcache_queries_in_cache	1
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	9
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	21
 insert delayed into t1 values (4);
 select a from t1;
 a
@@ -870,6 +873,9 @@ Qcache_queries_in_cache	0
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	9
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	22
 # On node-2
 connection node_2;
 show global variables like "query_cache_min_res_unit";
@@ -916,12 +922,15 @@ a
 1
 2
 3
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	11
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	2
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	11
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	24
 # On node-2
 connection node_2;
 select * from t1;
@@ -944,12 +953,12 @@ a
 1
 2
 3
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	10
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	2
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	10
 drop table t1;
 select a from t2;
 a
@@ -961,12 +970,15 @@ a
 1
 2
 3
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	11
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	2
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	11
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	18
 set GLOBAL query_cache_min_res_unit=default;
 show global variables like "query_cache_min_res_unit";
 Variable_name	Value
@@ -983,12 +995,15 @@ a
 1
 2
 3
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	12
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	2
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	12
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	25
 drop table t2;
 set GLOBAL query_cache_min_res_unit=default;
 show global variables like "query_cache_min_res_unit";
@@ -1010,6 +1025,9 @@ Qcache_queries_in_cache	2
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	12
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	27
 # On node-2
 connection node_2;
 select "aaa" from t1;
@@ -1024,6 +1042,9 @@ Qcache_queries_in_cache	2
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	11
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	20
 drop table t1;
 # On node-1
 connection node_1;
@@ -1322,6 +1343,9 @@ select count(*) from t1;
 count(*)
 140
 drop table t1;
+#
+# INTO OUTFILE/DUMPFILE test
+#
 # On node-1
 connection node_1;
 create table t1 (a int) engine=innodb;
@@ -1342,7 +1366,13 @@ Qcache_queries_in_cache	0
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	12
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	36
 drop table t1;
+#
+# Test of SQL_SELECT_LIMIT
+#
 # On node-1
 connection node_1;
 create table t1 (a int) engine=innodb;
@@ -1367,6 +1397,9 @@ Qcache_queries_in_cache	2
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	12
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	38
 SET SQL_SELECT_LIMIT=DEFAULT;
 # On node-2
 connection node_2;
@@ -1392,6 +1425,9 @@ Variable_name	Value
 Qcache_hits	11
 SET SQL_SELECT_LIMIT=DEFAULT;
 drop table t1;
+#
+# WRITE LOCK & QC
+#
 # On node-1
 connection node_1;
 create table t1 (a int not null) engine=innodb;
@@ -1408,6 +1444,9 @@ Qcache_queries_in_cache	2
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	12
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	40
 lock table t1 write, t2 read;
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
@@ -1431,6 +1470,9 @@ Qcache_queries_in_cache	2
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	12
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	41
 unlock table;
 drop view v1;
 set query_cache_wlock_invalidate=default;
@@ -1471,10 +1513,16 @@ Qcache_queries_in_cache	2
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	11
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	34
 unlock table;
 drop view v1;
 set query_cache_wlock_invalidate=default;
 drop table t1,t2;
+#
+# Hiding real table stored in query cache by temporary table
+#
 # On node-1
 connection node_1;
 create table t1 (id int primary key) engine=innodb;
@@ -1498,92 +1546,119 @@ SELECT a,'Â','â'='Â' FROM t1;
 a	Â	'â'='Â'
 �	Â	0
 �	Â	0
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	12
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	1
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	12
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	43
 set collation_connection=koi8r_bin;
 SELECT a,'Â','â'='Â' FROM t1;
 a	Â	'â'='Â'
 �	Â	0
 �	Â	0
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	12
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	2
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	12
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	44
 set character_set_client=cp1251;
 SELECT a,'Â','â'='Â' FROM t1;
 a	�?	'�?'='�?'
 �	�?	1
 �	�?	1
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	12
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	3
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	12
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	45
 set character_set_results=cp1251;
 SELECT a,'Â','â'='Â' FROM t1;
 a	�?	'â'='Â'
 �	�?	1
 �	�?	1
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	12
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	4
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	12
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	46
 SET NAMES default;
 # On node-2
 connection node_2;
+#
+# Run select
+#
 SELECT a,'Â','â'='Â' FROM t1;
 a	Â	'â'='Â'
 ?	Â	0
 ?	Â	0
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	11
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	1
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	11
 set collation_connection=koi8r_bin;
 SELECT a,'Â','â'='Â' FROM t1;
 a	??	'â'='Â'
 ?	??	1
 ?	??	1
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	11
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	2
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	11
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	36
 set character_set_client=cp1251;
 SELECT a,'Â','â'='Â' FROM t1;
 a	??	'??'='?�'
 ?	??	1
 ?	??	1
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	11
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	3
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	11
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	37
 set character_set_results=cp1251;
 SELECT a,'Â','â'='Â' FROM t1;
 a	�?	'â'='Â'
 �	�?	1
 �	�?	1
-show status like "Qcache_hits";
-Variable_name	Value
-Qcache_hits	11
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	4
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	11
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	38
 drop table t1;
+#
+# Comments before command
+#
 # On node-1
 connection node_1;
 create table t1 (a int) engine=innodb;
@@ -1634,6 +1709,9 @@ show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	12
 drop table t1;
+#
+# Information schema & query cache test
+#
 # On node-1
 connection node_1;
 set session query_cache_type = 2;

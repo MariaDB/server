@@ -100,6 +100,7 @@ BEGIN
 ###   @6='' /* STRING(10) meta=65034 nullable=1 is_null=0 */
 ###   @7='' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 ###   @8='' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
@@ -125,6 +126,7 @@ BEGIN
 ###   @6='abc' /* STRING(10) meta=65034 nullable=1 is_null=0 */
 ###   @7='abcdefg' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 ###   @8='abcedfghijklmnopqrstuvwxyz' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
@@ -150,6 +152,7 @@ BEGIN
 ###   @6='aaaaaaaaaa' /* STRING(10) meta=65034 nullable=1 is_null=0 */
 ###   @7='aaaaaaaaaaaaaaaaaaaa' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 ###   @8='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
@@ -203,6 +206,7 @@ BEGIN
 ###   @6='abc' /* STRING(10) meta=65034 nullable=1 is_null=0 */
 ###   @7='abcdefg' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 ###   @8='abcedfghijklmnopqrstuvwxyz' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 2
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
@@ -248,6 +252,7 @@ BEGIN
 ###   @6='aaaaaaaaaa' /* STRING(10) meta=65034 nullable=1 is_null=0 */
 ###   @7='aaaaaaaaaaaaaaaaaaaa' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 ###   @8='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
@@ -272,18 +277,23 @@ ROLLBACK/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t1 VALUES(0,0,0,0,0,'','','')
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# Number of rows: 1
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t1 VALUES(1,2,3,4,5, "abc", "abcdefg", "abcedfghijklmnopqrstuvwxyz")
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# Number of rows: 1
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t1 VALUES(127, 32767, 8388607, 2147483647, 9223372036854775807, repeat('a', 10), repeat('a', 20), repeat('a', 255))
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# Number of rows: 1
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> UPDATE t1 SET c01=100 WHERE c02=0 OR c03=3
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# Number of rows: 2
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> DELETE FROM t1
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# Number of rows: 3
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Rotate to master-bin.000002  pos: 4
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 BEGIN/*!*/;

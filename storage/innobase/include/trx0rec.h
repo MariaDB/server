@@ -155,6 +155,7 @@ trx_undo_rec_get_partial_row(
 				used, as we do NOT copy the data in the
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
+	const upd_t*	update,	/*!< in: updated columns */
 	dtuple_t**	row,	/*!< out, own: partial row */
 	ibool		ignore_prefix, /*!< in: flag to indicate if we
 				expect blob prefixes in undo. Used
@@ -195,8 +196,8 @@ trx_undo_report_row_operation(
 					marking, the record in the clustered
 					index; NULL if insert */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
-	roll_ptr_t*	roll_ptr)	/*!< out: rollback pointer to the
-					inserted undo log record */
+	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
+					undo log record */
 	MY_ATTRIBUTE((nonnull(1,2,8), warn_unused_result));
 
 /** status bit used for trx_undo_prev_version_build() */

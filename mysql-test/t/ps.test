@@ -3857,6 +3857,21 @@ deallocate prepare stmt;
 drop view v1,v2,v3;
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-10657: incorrect result returned with binary protocol
+--echo # (prepared statements)
+--echo #
+
+create table  t1 (code varchar(10) primary key);
+INSERT INTO t1(code) VALUES ('LINE1'), ('LINE2'), ('LINE3');
+SELECT X.*
+FROM
+ (SELECT CODE, RN
+   FROM
+     (SELECT A.CODE, @cnt := @cnt + 1 AS RN
+       FROM  t1 A, (SELECT @cnt := 0) C) T
+  ) X;
+drop table t1;
 --echo # End of 5.5 tests
 
 --echo #
@@ -4528,6 +4543,39 @@ DEALLOCATE PREPARE stmt;
 CREATE TABLE t1 AS SELECT @a AS a, @b AS b;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-14426 Assertion in Diagnostics_area::set_error_status when using a bad datetime with PS and SP
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(OUT a VARCHAR(20))
+BEGIN
+  SET a=10;
+END;
+$$
+--error ER_TRUNCATED_WRONG_VALUE
+BEGIN NOT ATOMIC
+  DECLARE a DATETIME;
+  CALL p1(a);
+END;
+$$
+--error ER_TRUNCATED_WRONG_VALUE
+BEGIN NOT ATOMIC
+  DECLARE a DATETIME;
+  EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
+END;
+$$
+--error ER_TRUNCATED_WRONG_VALUE
+BEGIN NOT ATOMIC
+  DECLARE a DATETIME;
+  PREPARE stmt FROM 'CALL p1(?)';
+  EXECUTE stmt  USING a;
+  DEALLOCATE PREPARE stmt;
+END;
+$$
+DELIMITER ;$$
 DROP PROCEDURE p1;
 
 --echo #

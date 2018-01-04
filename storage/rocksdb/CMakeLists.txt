@@ -220,3 +220,18 @@ IF(MSVC)
   # Some checks in C++ runtime that make debug build much slower
   ADD_DEFINITIONS(-D_ITERATOR_DEBUG_LEVEL=0)
 ENDIF()
+
+IF(GIT_EXECUTABLE)
+  EXECUTE_PROCESS(
+    COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb
+       OUTPUT_VARIABLE OUT RESULT_VARIABLE RES)
+  IF(RES EQUAL 0)
+    STRING(REGEX REPLACE "\n$" "" ROCKSDB_GIT_HASH "${OUT}")
+  ENDIF()
+ENDIF()
+IF(ROCKSDB_GIT_HASH OR
+  (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rdb_source_revision.h))
+  CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/rdb_source_revision.h.in
+               ${CMAKE_CURRENT_BINARY_DIR}/rdb_source_revision.h )
+ENDIF()

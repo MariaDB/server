@@ -681,7 +681,7 @@ void With_element::move_anchors_ahead()
 {
   st_select_lex *next_sl;
   st_select_lex *new_pos= spec->first_select();
-  st_select_lex *last_sl;
+  st_select_lex *UNINIT_VAR(last_sl);
   new_pos->linkage= UNION_TYPE;
   for (st_select_lex *sl= new_pos; sl; sl= next_sl)
   {

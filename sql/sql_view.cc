@@ -643,7 +643,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   if (!res && mysql_bin_log.is_open())
   {
-    String buff;
+    StringBuffer<128> buff(thd->variables.character_set_client);
+    DBUG_ASSERT(buff.charset()->mbminlen == 1);
     const LEX_STRING command[3]=
       {{ C_STRING_WITH_LEN("CREATE ") },
        { C_STRING_WITH_LEN("ALTER ") },

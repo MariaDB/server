@@ -364,6 +364,9 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   SELECT_LEX *parent_lex= derived->select_lex;
   Query_arena *arena, backup;
   DBUG_ENTER("mysql_derived_merge");
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                       (derived->alias ? derived->alias : "<NULL>"),
+                       derived->get_unit()));
 
   if (derived->merged)
     DBUG_RETURN(FALSE);
@@ -510,7 +513,9 @@ unconditional_materialization:
 bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_merge_for_insert");
-  DBUG_PRINT("enter", ("derived: %p", derived));
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                       (derived->alias ? derived->alias : "<NULL>"),
+                       derived->get_unit()));
   DBUG_PRINT("info", ("merged_for_insert: %d  is_materialized_derived: %d  "
                       "is_multitable: %d  single_table_updatable: %d  "
                       "merge_underlying_list: %d",
@@ -566,7 +571,9 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   SELECT_LEX_UNIT *unit= derived->get_unit();
   DBUG_ENTER("mysql_derived_init");
-  DBUG_PRINT("enter", ("derived: %p", derived));
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                       (derived->alias ? derived->alias : "<NULL>"),
+                       derived->get_unit()));
 
   // Skip already prepared views/DT
   if (!unit || unit->prepared)
@@ -642,8 +649,9 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   SELECT_LEX_UNIT *unit= derived->get_unit();
   DBUG_ENTER("mysql_derived_prepare");
   bool res= FALSE;
-  DBUG_PRINT("enter", ("unit: %p  table_list: %p  Alias '%s'",
-                       unit, derived, derived->alias));
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                       (derived->alias ? derived->alias : "<NULL>"),
+                       unit));
 
   if (!unit)
     DBUG_RETURN(FALSE);
@@ -876,6 +884,9 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   bool res= FALSE;
   DBUG_ENTER("mysql_derived_optimize");
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                       (derived->alias ? derived->alias : "<NULL>"),
+                       derived->get_unit()));
 
   lex->current_select= first_select;
 
@@ -954,6 +965,9 @@ err:
 bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_create");
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                       (derived->alias ? derived->alias : "<NULL>"),
+                       derived->get_unit()));
   TABLE *table= derived->table;
   SELECT_LEX_UNIT *unit= derived->get_unit();
 
@@ -1047,10 +1061,14 @@ bool TABLE_LIST::fill_recursive(THD *thd)
 
 bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
-  DBUG_ENTER("mysql_derived_fill");
+  Field_iterator_table field_iterator;
   SELECT_LEX_UNIT *unit= derived->get_unit();
   bool derived_is_recursive= derived->is_recursive_with_table();
   bool res= FALSE;
+  DBUG_ENTER("mysql_derived_fill");
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                       (derived->alias ? derived->alias : "<NULL>"),
+                       derived->get_unit()));
 
   if (unit->executed && !unit->uncacheable && !unit->describe &&
       !derived_is_recursive)
@@ -1121,9 +1139,28 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (derived_result->flush())
       res= TRUE;
     unit->executed= TRUE;
+
+    if (derived->field_translation)
+    {
+      /* reset translation table to materialized table */
+      field_iterator.set_table(derived->table);
+      for (uint i= 0;
+           !field_iterator.end_of_fields();
+           field_iterator.next(), i= i + 1)
+      {
+        Item *item;
+
+        if (!(item= field_iterator.create_item(thd)))
+        {
+          res= TRUE;
+          break;
+        }
+        thd->change_item_tree(&derived->field_translation[i].item, item);
+      }
+    }
   }
 err:
-  if (res || (!lex->describe && !derived_is_recursive && !unit->uncacheable)) 
+  if (res || (!lex->describe && !derived_is_recursive && !unit->uncacheable))
     unit->cleanup();
   lex->current_select= save_current_select;
 
@@ -1151,6 +1188,9 @@ err:
 bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_reinit");
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                       (derived->alias ? derived->alias : "<NULL>"),
+                       derived->get_unit()));
   st_select_lex_unit *unit= derived->get_unit();
 
   derived->merged_for_insert= FALSE;

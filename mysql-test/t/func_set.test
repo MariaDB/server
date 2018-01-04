@@ -136,18 +136,14 @@ SELECT * FROM t1 WHERE FIND_IN_SET(NULL, NULL) IS UNKNOWN;
 
 --echo
 DROP TABLE t1;
---echo #
---echo # Start of 5.3 tests
---echo #
 
 --echo #
---echo # MDEV-4512 Valgrind warnings in my_long10_to_str_8bit on INTERVAL and DATE_ADD with incorrect types
+--echo # MDEV-14596 Crash in INTERVAL(ROW(..),ROW(..))
 --echo #
-CREATE TABLE t1 (pk INT PRIMARY KEY);
-INSERT INTO t1 VALUES (10),(11);
-SELECT INTERVAL( 9, 1, DATE_ADD( pk, INTERVAL pk MINUTE_SECOND ), 9, 8, 3, 5, 2, 1 ) FROM t1;
-DROP TABLE t1;
 
---echo #
---echo # End of 5.3 tests
---echo #
+--error ER_OPERAND_COLUMNS
+SELECT INTERVAL(ROW(1,1),ROW(1,2));
+--error ER_OPERAND_COLUMNS
+SELECT INTERVAL(1,ROW(1,2));
+--error ER_OPERAND_COLUMNS
+SELECT INTERVAL(ROW(1,2),1);

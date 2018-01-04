@@ -2861,37 +2861,42 @@ static void acl_insert_user(const char *user, const char *host,
 }
 
 
-static void acl_update_db(const char *user, const char *host, const char *db,
+static bool acl_update_db(const char *user, const char *host, const char *db,
                           ulong privileges)
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
+
+  bool updated= false;
 
   for (uint i=0 ; i < acl_dbs.elements ; i++)
   {
     ACL_DB *acl_db=dynamic_element(&acl_dbs,i,ACL_DB*);
     if ((!acl_db->user && !user[0]) ||
-	(acl_db->user &&
-	!strcmp(user,acl_db->user)))
+        (acl_db->user &&
+         !strcmp(user,acl_db->user)))
     {
       if ((!acl_db->host.hostname && !host[0]) ||
-	  (acl_db->host.hostname &&
-	   !strcmp(host, acl_db->host.hostname)))
+          (acl_db->host.hostname &&
+           !strcmp(host, acl_db->host.hostname)))
       {
-	if ((!acl_db->db && !db[0]) ||
-	    (acl_db->db && !strcmp(db,acl_db->db)))
+        if ((!acl_db->db && !db[0]) ||
+            (acl_db->db && !strcmp(db,acl_db->db)))
 
-	{
-	  if (privileges)
+        {
+          if (privileges)
           {
             acl_db->access= privileges;
             acl_db->initial_access= acl_db->access;
           }
-	  else
-	    delete_dynamic_element(&acl_dbs,i);
-	}
+          else
+            delete_dynamic_element(&acl_dbs,i);
+          updated= true;
+        }
       }
     }
   }
+
+  return updated;
 }
 
 
@@ -4383,9 +4388,21 @@ static int replace_db_table(TABLE *table, const char *db,
   acl_cache->clear(1);				// Clear privilege cache
   if (old_row_exists)
     acl_update_db(combo.user.str,combo.host.str,db,rights);
-  else
-  if (rights)
-    acl_insert_db(combo.user.str,combo.host.str,db,rights);
+  else if (rights)
+  {
+    /*
+       If we did not have an already existing row, for users, we must always
+       insert an ACL_DB entry. For roles however, it is possible that one was
+       already created when DB privileges were propagated from other granted
+       roles onto the current role. For this case, first try to update the
+       existing entry, otherwise insert a new one.
+    */
+    if (!combo.is_role() ||
+        !acl_update_db(combo.user.str, combo.host.str, db, rights))
+    {
+      acl_insert_db(combo.user.str,combo.host.str,db,rights);
+    }
+  }
   DBUG_RETURN(0);
 
   /* This could only happen if the grant tables got corrupted */
@@ -6308,8 +6325,11 @@ static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
 {
   PRIVS_TO_MERGE *data= (PRIVS_TO_MERGE *)context;
 
+  DBUG_ASSERT(grantee->counter > 0);
   if (--grantee->counter)
     return 1; // don't recurse into grantee just yet
+
+  grantee->counter= 1; // Mark the grantee as merged.
 
   /* if we'll do db/table/routine privileges, create a hash of role names */
   role_hash_t role_hash(role_key);
@@ -7402,11 +7422,10 @@ end_index_init:
   DBUG_RETURN(return_val);
 }
 
-
-static my_bool role_propagate_grants_action(void *ptr,
-                                            void *unused __attribute__((unused)))
+static my_bool propagate_role_grants_action(void *role_ptr,
+                                            void *ptr __attribute__((unused)))
 {
-  ACL_ROLE *role= (ACL_ROLE *)ptr;
+  ACL_ROLE *role= static_cast<ACL_ROLE *>(role_ptr);
   if (role->counter)
     return 0;
 
@@ -7482,7 +7501,7 @@ bool grant_reload(THD *thd)
   }
 
   mysql_mutex_lock(&acl_cache->lock);
-  my_hash_iterate(&acl_roles, role_propagate_grants_action, NULL);
+  my_hash_iterate(&acl_roles, propagate_role_grants_action, NULL);
   mysql_mutex_unlock(&acl_cache->lock);
 
   mysql_rwlock_unlock(&LOCK_grant);
@@ -10224,13 +10243,13 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       }
     }
 
-    binlog= true;
     if (replace_user_table(thd, tables.user_table(), *user_name, 0, 0, 1, 0))
     {
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
       continue;
     }
+    binlog= true;
 
     // every created role is automatically granted to its creator-admin
     if (handle_as_role)

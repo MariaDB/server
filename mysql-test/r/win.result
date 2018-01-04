@@ -1779,7 +1779,7 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "filesort": {
-      "sort_key": "row_number() over ( order by t1.s1,t1.s2)",
+      "sort_key": "row_number() over ( order by t1.s1,t1.s2) desc",
       "window_functions_computation": {
         "sorts": {
           "filesort": {

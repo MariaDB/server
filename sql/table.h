@@ -2346,6 +2346,9 @@ struct TABLE_LIST
   inline void set_merged_derived()
   {
     DBUG_ENTER("set_merged_derived");
+    DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                        (alias ? alias : "<NULL>"),
+                         get_unit()));
     derived_type= ((derived_type & DTYPE_MASK) |
                    DTYPE_TABLE | DTYPE_MERGE);
     set_check_merged();
@@ -2358,6 +2361,9 @@ struct TABLE_LIST
   void set_materialized_derived()
   {
     DBUG_ENTER("set_materialized_derived");
+    DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                        (alias ? alias : "<NULL>"),
+                         get_unit()));
     derived_type= ((derived_type & (derived ? DTYPE_MASK : DTYPE_VIEW)) |
                    DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();

@@ -2185,8 +2185,10 @@ bool Item_name_const::fix_fields(THD *thd, Item **ref)
   String s(buf, sizeof(buf), &my_charset_bin);
   s.length(0);
 
-  if (value_item->fix_fields(thd, &value_item) ||
-      name_item->fix_fields(thd, &name_item) ||
+  if ((!value_item->fixed &&
+       value_item->fix_fields(thd, &value_item)) ||
+      (!name_item->fixed &&
+       name_item->fix_fields(thd, &name_item)) ||
       !value_item->const_item() ||
       !name_item->const_item() ||
       !(item_name= name_item->val_str(&s))) // Can't have a NULL name 
@@ -5569,7 +5571,8 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
 
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       select->having_fix_field  &&
-      select_ref != not_found_item && !group_by_ref)
+      select_ref != not_found_item && !group_by_ref &&
+      !ref->alias_name_used)
   {
     /*
       Report the error if fields was found only in the SELECT item list and

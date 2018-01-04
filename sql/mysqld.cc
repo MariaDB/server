@@ -3678,23 +3678,10 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
 
 
 extern "C" void *my_str_malloc_mysqld(size_t size);
-extern "C" void my_str_free_mysqld(void *ptr);
-extern "C" void *my_str_realloc_mysqld(void *ptr, size_t size);
 
 void *my_str_malloc_mysqld(size_t size)
 {
   return my_malloc(size, MYF(MY_FAE));
-}
-
-
-void my_str_free_mysqld(void *ptr)
-{
-  my_free(ptr);
-}
-
-void *my_str_realloc_mysqld(void *ptr, size_t size)
-{
-  return my_realloc(ptr, size, MYF(MY_FAE));
 }
 
 
@@ -3753,14 +3740,8 @@ check_enough_stack_size(int recurse_level)
 }
 
 
-/*
-   Initialize my_str_malloc() and my_str_free()
-*/
 static void init_libstrings()
 {
-  my_str_malloc= &my_str_malloc_mysqld;
-  my_str_free= &my_str_free_mysqld;
-  my_str_realloc= &my_str_realloc_mysqld;
 #ifndef EMBEDDED_LIBRARY
   my_string_stack_guard= check_enough_stack_size;
 #endif
@@ -3771,7 +3752,7 @@ ulonglong my_pcre_frame_size;
 static void init_pcre()
 {
   pcre_malloc= pcre_stack_malloc= my_str_malloc_mysqld;
-  pcre_free= pcre_stack_free= my_str_free_mysqld;
+  pcre_free= pcre_stack_free= my_free;
   pcre_stack_guard= check_enough_stack_size_slow;
   /* See http://pcre.org/original/doc/html/pcrestack.html */
   my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0);
@@ -7336,7 +7317,7 @@ struct my_option my_long_options[]=
    "The value has to be a multiple of 256.",
    &opt_binlog_rows_event_max_size, &opt_binlog_rows_event_max_size,
    0, GET_ULONG, REQUIRED_ARG,
-   /* def_value */ 8192, /* min_value */  256, /* max_value */ ULONG_MAX,
+   /* def_value */ 8192, /* min_value */  256, /* max_value */ UINT_MAX32-1,
    /* sub_size */     0, /* block_size */ 256,
    /* app_type */ 0
   },

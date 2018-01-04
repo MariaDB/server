@@ -4345,6 +4345,24 @@ set join_cache_level=@join_cache_level_save;
 deallocate prepare stmt;
 drop view v1,v2,v3;
 drop table t1,t2,t3;
+#
+# MDEV-10657: incorrect result returned with binary protocol
+# (prepared statements)
+#
+create table  t1 (code varchar(10) primary key);
+INSERT INTO t1(code) VALUES ('LINE1'), ('LINE2'), ('LINE3');
+SELECT X.*
+FROM
+(SELECT CODE, RN
+FROM
+(SELECT A.CODE, @cnt := @cnt + 1 AS RN
+FROM  t1 A, (SELECT @cnt := 0) C) T
+) X;
+CODE	RN
+LINE1	1
+LINE2	2
+LINE3	3
+drop table t1;
 # End of 5.5 tests
 #
 # Start of 10.2 tests
@@ -5073,6 +5091,35 @@ t1	CREATE TABLE `t1` (
   `b` bigint(20) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# MDEV-14426 Assertion in Diagnostics_area::set_error_status when using a bad datetime with PS and SP
+#
+CREATE PROCEDURE p1(OUT a VARCHAR(20))
+BEGIN
+SET a=10;
+END;
+$$
+BEGIN NOT ATOMIC
+DECLARE a DATETIME;
+CALL p1(a);
+END;
+$$
+ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
+BEGIN NOT ATOMIC
+DECLARE a DATETIME;
+EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
+END;
+$$
+ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
+BEGIN NOT ATOMIC
+DECLARE a DATETIME;
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt  USING a;
+DEALLOCATE PREPARE stmt;
+END;
+$$
+ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
 DROP PROCEDURE p1;
 #
 # MDEV-14454 Binary protocol returns wrong collation ID for SP OUT parameters

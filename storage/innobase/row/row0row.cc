@@ -195,13 +195,13 @@ row_build_index_entry_low(
 								dfield2);
 						break;
 
+						case SPATIAL_UNKNOWN:
+							ut_ad(0);
+							/* fall through */
 						case SPATIAL_NONE:
 						/* Undo record is logged before
 						spatial index is created.*/
 						return(NULL);
-
-						case SPATIAL_UNKNOWN:
-						ut_ad(0);
 						}
 
 						memcpy(mbr, ptr, DATA_MBR_LEN);
