@@ -240,3 +240,14 @@ drop procedure test_04;
 drop procedure test_05;
 
 -- source suite/versioning/common_finish.inc
+
+#
+# MDEV-14788 System versioning cannot be based on local timestamps, as it is now
+#
+set timestamp=1000000019;
+select now() < sysdate();
+create table t1 (a int) with system versioning;
+insert t1 values (1);
+select * from t1 for system_time as of now(6);
+select * from t1 for system_time as of sysdate(6);
+drop table t1;

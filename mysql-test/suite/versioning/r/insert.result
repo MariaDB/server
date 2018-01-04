@@ -343,3 +343,15 @@ drop procedure test_02;
 drop procedure test_03;
 drop procedure test_04;
 drop procedure test_05;
+set timestamp=1000000019;
+select now() < sysdate();
+now() < sysdate()
+1
+create table t1 (a int) with system versioning;
+insert t1 values (1);
+select * from t1 for system_time as of now(6);
+a
+select * from t1 for system_time as of sysdate(6);
+a
+1
+drop table t1;
