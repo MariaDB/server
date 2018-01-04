@@ -7570,7 +7570,7 @@ ER_WITH_COL_WRONG_LIST
 ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE
         eng "Too many WITH elements in WITH clause"
 ER_DUP_QUERY_NAME
-        eng "Duplicate query name in WITH clause"
+        eng "Duplicate query name in WITH clause '%s'"
 ER_RECURSIVE_WITHOUT_ANCHORS
         eng "No anchors for recursive WITH element '%s'"
 ER_UNACCEPTABLE_MUTUAL_RECURSION

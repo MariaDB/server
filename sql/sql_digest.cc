@@ -20,7 +20,7 @@
 
 #include "my_global.h"
 #include "my_md5.h"
-#include "mysqld_error.h"
+#include "unireg.h"
 
 #include "sql_string.h"
 #include "sql_class.h"

@@ -1562,7 +1562,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     if (thd->wsrep_conflict_state == ABORTED &&
         command != COM_STMT_CLOSE && command != COM_QUIT)
     {
-      my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
+      my_message(ER_LOCK_DEADLOCK, "Deadlock: wsrep aborted transaction",
+                 MYF(0));
       WSREP_DEBUG("Deadlock error for: %s", thd->query());
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       thd->reset_killed();
@@ -2285,7 +2286,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
         if (server_command_flags[subcommand] & CF_NO_COM_MULTI)
         {
-          my_error(ER_BAD_COMMAND_IN_MULTI, MYF(0), command_name[subcommand]);
+          my_error(ER_BAD_COMMAND_IN_MULTI, MYF(0),
+                   command_name[subcommand].str);
           goto com_multi_end;
         }
 
@@ -7760,7 +7762,8 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                       (longlong) thd->thread_id, is_autocommit,
                       thd->wsrep_retry_counter, 
                       thd->variables.wsrep_retry_autocommit, thd->query());
-          my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
+          my_message(ER_LOCK_DEADLOCK, "Deadlock: wsrep aborted transaction",
+                     MYF(0));
           thd->reset_killed();
           thd->wsrep_conflict_state= NO_CONFLICT;
           if (thd->wsrep_conflict_state != REPLAYING)

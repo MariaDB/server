@@ -1553,8 +1553,8 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
                ret,
                (thd->db ? thd->db : "(null)"),
                (thd->query()) ? thd->query() : "void");
-    my_error(ER_LOCK_DEADLOCK, MYF(0), "WSREP replication failed. Check "
-	     "your wsrep connection state and retry the query.");
+    my_message(ER_LOCK_DEADLOCK, "WSREP replication failed. Check "
+               "your wsrep connection state and retry the query.", MYF(0));
     wsrep_keys_free(&key_arr);
     rc= -1;
   }

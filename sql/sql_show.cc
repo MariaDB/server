@@ -2949,7 +2949,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
   }
   else
   {
-    my_error(ER_NO_SUCH_THREAD, MYF(0), thread_id);
+    my_error(ER_NO_SUCH_THREAD, MYF(0), (ulong) thread_id);
     DBUG_RETURN(1);
   }
 }

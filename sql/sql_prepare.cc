@@ -2287,10 +2287,8 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
   if (!stmt->is_sql_prepare())
   {
     if (!lex->result && !(lex->result= new (stmt->mem_root) select_send(thd)))
-    {
-      my_error(ER_OUTOFMEMORY, MYF(0), sizeof(select_send));
       DBUG_RETURN(1);
-    }
+
     if (send_prep_stmt(stmt, ha_table->fields.elements) ||
         lex->result->send_result_set_metadata(ha_table->fields, Protocol::SEND_EOF) ||
         thd->protocol->flush())
