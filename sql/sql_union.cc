@@ -68,14 +68,14 @@ void select_unit::change_select()
   curr_sel= current_select_number;
   /* New SELECT processing starts */
   DBUG_ASSERT(table->file->inited == 0);
-  switch (thd->lex->current_select->linkage)
+  step= thd->lex->current_select->linkage;
+  switch (step)
   {
   case INTERSECT_TYPE:
     intersect_mark->value= prev_step= curr_step;
     curr_step= current_select_number;
-    /* fall through */
+    break;
   case EXCEPT_TYPE:
-    step= thd->lex->current_select->linkage;
     break;
   default:
     step= UNION_TYPE;

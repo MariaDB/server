@@ -18,7 +18,6 @@
 
 #include "mariadb.h"
 #include "sql_priv.h"
-#include "mysqld_error.h"
 
 #ifndef MYSQL_CLIENT
 #include "unireg.h"
@@ -44,6 +43,8 @@
 #include <strfunc.h>
 #include "compat56.h"
 #include "wsrep_mysqld.h"
+#else
+#include "mysqld_error.h"
 #endif /* MYSQL_CLIENT */
 
 #include <my_bitmap.h>
@@ -1930,9 +1931,9 @@ err:
 #endif
     if (event.length() >= OLD_HEADER_LEN)
       sql_print_error("Error in Log_event::read_log_event(): '%s',"
-                      " data_len: %lu, event_type: %d", error,
-                      uint4korr(&event[EVENT_LEN_OFFSET]),
-                      (uchar)event[EVENT_TYPE_OFFSET]);
+                      " data_len: %lu, event_type: %u", error,
+                      (ulong) uint4korr(&event[EVENT_LEN_OFFSET]),
+                      (uint) (uchar)event[EVENT_TYPE_OFFSET]);
     else
       sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
     /*
@@ -14533,7 +14534,8 @@ st_print_event_info::st_print_event_info()
 bool copy_event_cache_to_string_and_reinit(IO_CACHE *cache, LEX_STRING *to)
 {
   reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE);
-  if (!(to->str= (char*) my_malloc((to->length= cache->end_of_file), MYF(0))))
+  if (cache->end_of_file > SIZE_T_MAX ||
+      !(to->str= (char*) my_malloc((to->length= (size_t)cache->end_of_file), MYF(0))))
   {
     perror("Out of memory: can't allocate memory in copy_event_cache_to_string_and_reinit().");
     goto err;

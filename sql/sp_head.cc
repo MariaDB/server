@@ -2418,10 +2418,9 @@ sp_head::check_unresolved_goto()
   if (m_backpatch_goto.elements > 0)
   {
     List_iterator_fast<bp_t> li(m_backpatch_goto);
-    bp_t *bp;
-    while ((bp= li++))
+    while (bp_t* bp= li++)
     {
-      if ((bp->instr_type == GOTO))
+      if (bp->instr_type == GOTO)
       {
         my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "GOTO", bp->lab->name.str);
         has_unresolved_label=true;
