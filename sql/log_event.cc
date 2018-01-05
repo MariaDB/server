@@ -14536,7 +14536,8 @@ st_print_event_info::st_print_event_info()
 bool copy_event_cache_to_string_and_reinit(IO_CACHE *cache, LEX_STRING *to)
 {
   reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE);
-  if (!(to->str= (char*) my_malloc((to->length= cache->end_of_file), MYF(0))))
+  if (cache->end_of_file > SIZE_T_MAX ||
+      !(to->str= (char*) my_malloc((to->length= (size_t)cache->end_of_file), MYF(0))))
   {
     perror("Out of memory: can't allocate memory in copy_event_cache_to_string_and_reinit().");
     goto err;
