@@ -3485,7 +3485,15 @@ btr_cur_parse_update_in_place(
 	/* We do not need to reserve search latch, as the page is only
 	being recovered, and there cannot be a hash index to it. */
 
-	offsets = rec_get_offsets(rec, index, NULL, true,
+	/* The function rtr_update_mbr_field_in_place() is generating
+	these records on node pointer pages; therefore we have to
+	check if this is a leaf page. */
+
+	offsets = rec_get_offsets(rec, index, NULL,
+				  flags != (BTR_NO_UNDO_LOG_FLAG
+					    | BTR_NO_LOCKING_FLAG
+					    | BTR_KEEP_SYS_FLAG)
+				  || page_is_leaf(page),
 				  ULINT_UNDEFINED, &heap);
 
 	if (!(flags & BTR_KEEP_SYS_FLAG)) {
@@ -3620,6 +3628,7 @@ btr_cur_update_in_place(
 	roll_ptr_t	roll_ptr	= 0;
 	ulint		was_delete_marked;
 
+	ut_ad(page_is_leaf(cursor->page_cur.block->frame));
 	rec = btr_cur_get_rec(cursor);
 	index = cursor->index;
 	ut_ad(rec_offs_validate(rec, index, offsets));

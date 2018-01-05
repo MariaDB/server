@@ -1205,7 +1205,7 @@ JOIN::optimize_inner()
 
   /*
     Needed in case optimizer short-cuts,
-    set properly in make_tmp_tables_info()
+    set properly in make_aggr_tables_info()
   */
   fields= &select_lex->item_list;
 

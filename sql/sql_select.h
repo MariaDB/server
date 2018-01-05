@@ -438,7 +438,7 @@ typedef struct st_join_table {
     will be turned to fields. These variables are pointing to
     tmp_fields_list[123]. Valid only for tmp tables and the last non-tmp
     table in the query plan.
-    @see JOIN::make_tmp_tables_info()
+    @see JOIN::make_aggr_tables_info()
   */
   List<Item> *fields;
   /** List of all expressions in the select list */

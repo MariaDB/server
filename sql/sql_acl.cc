@@ -8596,7 +8596,7 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
                                hostname, NullS) - buff);
   Item_string *field = new (thd->mem_root) Item_string_ascii(thd, "", 0);
   if (!field)
-    DBUG_RETURN(true);
+    DBUG_RETURN(true);                          // Error given my my_alloc()
 
   field->name.str= buff;
   field->name.length= head_length;

@@ -18,7 +18,6 @@
 
 #include <my_global.h>
 #include "sql_priv.h"
-#include "mysqld_error.h"
 
 #ifndef MYSQL_CLIENT
 #include "unireg.h"
@@ -44,6 +43,8 @@
 #include <strfunc.h>
 #include "compat56.h"
 #include "wsrep_mysqld.h"
+#else
+#include "mysqld_error.h"
 #endif /* MYSQL_CLIENT */
 
 #include <my_bitmap.h>
@@ -1935,9 +1936,9 @@ err:
 #endif
     if (event.length() >= OLD_HEADER_LEN)
       sql_print_error("Error in Log_event::read_log_event(): '%s',"
-                      " data_len: %lu, event_type: %d", error,
-                      uint4korr(&event[EVENT_LEN_OFFSET]),
-                      (uchar)event[EVENT_TYPE_OFFSET]);
+                      " data_len: %lu, event_type: %u", error,
+                      (ulong) uint4korr(&event[EVENT_LEN_OFFSET]),
+                      (uint) (uchar)event[EVENT_TYPE_OFFSET]);
     else
       sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
     /*

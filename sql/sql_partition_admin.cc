@@ -378,15 +378,13 @@ static bool exchange_name_with_ddl_log(THD *thd,
   */
   /* call rename table from table to tmp-name */
   DBUG_EXECUTE_IF("exchange_partition_fail_3",
-                  my_error(ER_ERROR_ON_RENAME, MYF(0),
-                           name, tmp_name, 0);
+                  my_error(ER_ERROR_ON_RENAME, MYF(0), name, tmp_name, 0);
                   error_set= TRUE;
                   goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_3", DBUG_SUICIDE(););
   if (file->ha_rename_table(name, tmp_name))
   {
-    my_error(ER_ERROR_ON_RENAME, MYF(0), name, tmp_name,
-             my_errno);
+    my_error(ER_ERROR_ON_RENAME, MYF(0), name, tmp_name, my_errno);
     error_set= TRUE;
     goto err_rename;
   }
@@ -397,8 +395,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
 
   /* call rename table from partition to table */
   DBUG_EXECUTE_IF("exchange_partition_fail_5",
-                  my_error(ER_ERROR_ON_RENAME, MYF(0),
-                           from_name, name, 0);
+                  my_error(ER_ERROR_ON_RENAME, MYF(0), from_name, name, 0);
                   error_set= TRUE;
                   goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_5", DBUG_SUICIDE(););
@@ -415,8 +412,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
 
   /* call rename table from tmp-nam to partition */
   DBUG_EXECUTE_IF("exchange_partition_fail_7",
-                  my_error(ER_ERROR_ON_RENAME, MYF(0),
-                           tmp_name, from_name, 0);
+                  my_error(ER_ERROR_ON_RENAME, MYF(0), tmp_name, from_name, 0);
                   error_set= TRUE;
                   goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_7", DBUG_SUICIDE(););

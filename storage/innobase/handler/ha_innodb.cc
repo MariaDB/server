@@ -15054,7 +15054,7 @@ ha_innobase::defragment_table(
 				"Table %s is encrypted but encryption service or"
 				" used key_id is not available. "
 				" Can't continue checking table.",
-				index->table->name);
+				index->table->name.m_name);
 
 			ret = convert_error_code_to_mysql(err, 0, current_thd);
 			break;
@@ -15274,7 +15274,7 @@ ha_innobase::check(
 						"Table %s is encrypted but encryption service or"
 						" used key_id is not available. "
 						" Can't continue checking table.",
-						index->table->name);
+						index->table->name.m_name);
 				} else {
 					push_warning_printf(
 						thd,
@@ -22977,7 +22977,7 @@ ib_push_frm_error(
 				"InnoDB: Table %s has a "
 				"primary key in InnoDB data "
 				"dictionary, but not in "
-				"MariaDB!", ib_table->name);
+				"MariaDB!", ib_table->name.m_name);
 		}
 		break;
 	case DICT_NO_PK_FRM_HAS:
@@ -22990,7 +22990,7 @@ ib_push_frm_error(
 				"columns, then MariaDB internally treats that "
 				"key as the primary key. You can fix this "
 				"error by dump + DROP + CREATE + reimport "
-				"of the table.", ib_table->name);
+				"of the table.", ib_table->name.m_name);
 
 		if (push_warning) {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -22999,7 +22999,7 @@ ib_push_frm_error(
 				"primary key in InnoDB data "
 				"dictionary, but has one in "
 				"MariaDB!",
-				ib_table->name);
+				ib_table->name.m_name);
 		}
 		break;
 
@@ -23023,7 +23023,7 @@ ib_push_frm_error(
 				"indexes inside InnoDB, which "
 				"is different from the number of "
 				"indexes %u defined in the MariaDB ",
-				ib_table->name, n_keys,
+                                ib_table->name.m_name, n_keys,
 				table->s->keys);
 		}
 		break;
@@ -23033,7 +23033,7 @@ ib_push_frm_error(
 		sql_print_error("InnoDB: Table %s is consistent "
 			"on InnoDB data dictionary and MariaDB "
 			" FRM file.",
-			ib_table->name);
+			ib_table->name.m_name);
 		ut_error;
 		break;
 	}

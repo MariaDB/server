@@ -1926,10 +1926,7 @@ slave_connection_state::load(const char *slave_request, size_t len)
   for (;;)
   {
     if (!(rec= (uchar *)my_malloc(sizeof(entry), MYF(MY_WME))))
-    {
-      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(*gtid));
       return 1;
-    }
     gtid= &((entry *)rec)->gtid;
     if (gtid_parser_helper(&p, end, gtid))
     {
@@ -2546,10 +2543,7 @@ gtid_waiting::get_entry(uint32 domain_id)
     return e;
 
   if (!(e= (hash_element *)my_malloc(sizeof(*e), MYF(MY_WME))))
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(*e));
     return NULL;
-  }
 
   if (init_queue(&e->queue, 8, offsetof(queue_element, wait_seq_no), 0,
                  cmp_queue_elem, NULL, 1+offsetof(queue_element, queue_idx), 1))

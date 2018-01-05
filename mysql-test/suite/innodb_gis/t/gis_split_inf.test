@@ -1,6 +1,4 @@
-
 --source include/have_innodb.inc
---source include/have_debug.inc
 
 create table t1(a geometrycollection not null,spatial key(a))engine=innodb;
 
@@ -21,9 +19,6 @@ insert  into  t1(a)  values( geometrycollection(linestring(point(85,-29), point(
 insert  into  t1(a)  values( geometrycollection(polygon(linestring(point(-9,0), point(-17,-15), point(-9,0)), linestring(point(-11,1), point(18,12), point(15,3), point(7,0), point(-11,1)), linestring(point(19,5), point(19,5)), linestring(point(17,-11), point(8,4), point(17,-11)), linestring(point(14914539334033432000000000000000000000.000000,127247994336690690000000000000000000000.000000), point(-14,-7), point(13,-2))), point(-4,-7), polygon(linestring(point(-18,9), point(11,-1), point(-18,9)), linestring(point(9,-3), point(9,-3)), linestring(point(-7,-9), point(9,-11), point(11,14), point(1.663324e+308,1.572127e+308)), linestring(point(-15,4), point(18,12), point(7,2), point(-15,4)), linestring(point(-15,-18), point(-20,-15), point(1152921504606846972,34359738370))), polygon(linestring(point(-5,-19), point(-11,11), point(10,5), point(-7,13), point(-5,-19)), linestring(point(-8,-6), point(-4,16), point(-8,-6)), linestring(point(-6,-10), point(3,-12), point(-6,-10)), linestring(point(-16,1), point(20,-12), point(-16,1)), linestring(point(-8,5), point(-20,-4), point(4,1), point(-6,-6), point(-8,5)), linestring(point(-8,-11), point(-5,-14), point(-8,-11)), linestring(point(3,-16), point(-15,-13), point(1.166708e+308,1.901147e+307), point(-8,6), point(3,-16))), point(0,-5)) )  ;
 insert  into  t1(a)  values( geometrycollection(linestring(point(-33,99), point(99,-87), point(38,-79), point(33,-39), point(-91,-8), point(46,-87))) )  ;
 
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
 insert into t1 select * from t1;
 insert into t1 select * from t1;
 insert into t1 select * from t1;

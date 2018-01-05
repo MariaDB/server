@@ -4866,7 +4866,8 @@ int mysql_create_table_no_lock(THD *thd,
     // Check if we hit FN_REFLEN bytes along with file extension.
     if (length+reg_ext_length > FN_REFLEN)
     {
-      my_error(ER_IDENT_CAUSES_TOO_LONG_PATH, MYF(0), (int) sizeof(path)-1, path);
+      my_error(ER_IDENT_CAUSES_TOO_LONG_PATH, MYF(0), (int) sizeof(path)-1,
+               path);
       return true;
     }
   }
