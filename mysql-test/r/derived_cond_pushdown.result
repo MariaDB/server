@@ -8807,3 +8807,67 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-13454: consequence of mdev-14368 fixed for 5.5
+#
+SET  sql_mode = 'ONLY_FULL_GROUP_BY';
+create table t1 (id int, id2 int);
+insert into t1 values (1,1),(2,3),(3,4),(7,2);
+create table t2(id2 int);
+insert  t2 values (1),(2),(3);
+SELECT * FROM t1
+LEFT OUTER JOIN
+(SELECT id2, COUNT(*) as ct FROM t2 GROUP BY id2) vc USING (id2)
+WHERE (vc.ct>0);
+id2	id	ct
+1	1	1
+3	2	1
+2	7	1
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+LEFT OUTER JOIN
+(SELECT id2, COUNT(*) as ct FROM t2 GROUP BY id2) vc USING (id2)
+WHERE (vc.ct>0);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "vc.ct > 0",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "ct > 0",
+          "filesort": {
+            "sort_key": "t2.id2",
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 3,
+                "filtered": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t1",
+        "access_type": "ALL",
+        "rows": 4,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "t1.id2 = vc.id2"
+    }
+  }
+}
+DROP TABLE t1,t2;
+SET  sql_mode = DEFAULT;
