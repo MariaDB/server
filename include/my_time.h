@@ -173,8 +173,10 @@ static inline my_bool validate_timestamp_range(const MYSQL_TIME *t)
 }
 
 /* Can't include mysqld_error.h, it needs mysys to build, thus hardcode 2 error values here. */
+#ifndef ER_WARN_DATA_OUT_OF_RANGE
 #define ER_WARN_DATA_OUT_OF_RANGE 1264
 #define ER_WARN_INVALID_TIMESTAMP 1299
+#endif
 
 my_time_t 
 my_system_gmt_sec(const MYSQL_TIME *t, long *my_timezone, uint *error_code);

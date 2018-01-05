@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -751,7 +751,8 @@ trx_roll_must_shutdown()
 	mutex_enter(&recv_sys->mutex);
 
 	if (recv_sys->report(time)) {
-		ulint n_trx = 0, n_rows = 0;
+		ulint n_trx = 0;
+		ulonglong n_rows = 0;
 		for (const trx_t* t = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
 		     t != NULL;
 		     t = UT_LIST_GET_NEXT(trx_list, t)) {
@@ -765,9 +766,9 @@ trx_roll_must_shutdown()
 		}
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"To roll back: " ULINTPF " transactions, "
-			ULINTPF " rows", n_trx, n_rows);
+			"%llu rows", n_trx, n_rows);
 		sd_notifyf(0, "STATUS=To roll back: " ULINTPF " transactions, "
-			   ULINTPF " rows", n_trx, n_rows);
+			   "%llu rows", n_trx, n_rows);
 	}
 
 	mutex_exit(&recv_sys->mutex);

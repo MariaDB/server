@@ -348,7 +348,7 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
 
   if (wsrep_init())
   {
-    my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp);
+    my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, my_error, "wsrep_init failed");
     rcode = true;
   }
   free(tmp);

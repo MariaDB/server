@@ -1651,7 +1651,7 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
 
   if (user->pwhash.length && user->pwhash.length != check_length)
   {
-    my_error(ER_PASSWD_LENGTH, MYF(0), check_length);
+    my_error(ER_PASSWD_LENGTH, MYF(0), (int) check_length);
     return true;
   }
 
@@ -2610,7 +2610,7 @@ static int check_user_can_set_role(const char *user, const char *host,
     acl_user= find_user_wild(host, user, ip);
     if (acl_user == NULL)
     {
-      my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
+      my_error(ER_INVALID_CURRENT_USER, MYF(0));
       result= -1;
     }
     else if (access)
@@ -8557,10 +8557,7 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
   strxmov(buff, "CREATE USER for ", username, "@", hostname, NullS);
   Item_string *field = new (thd->mem_root) Item_string_ascii(thd, "", 0);
   if (!field)
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0));
-    DBUG_RETURN(true);
-  }
+    DBUG_RETURN(true);                          // Error given my my_alloc()
 
   field->name= buff;
   field->max_length= sizeof(buff);

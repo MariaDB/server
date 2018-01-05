@@ -19,7 +19,7 @@
 #include "sql_array.h"
 #include "rpl_rli.h"
 #include <lf.h>
-#include <mysqld_error.h>
+#include "unireg.h"
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>

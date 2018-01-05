@@ -4999,7 +4999,8 @@ int mysql_create_table_no_lock(THD *thd,
     // Check if we hit FN_REFLEN bytes along with file extension.
     if (length+reg_ext_length > FN_REFLEN)
     {
-      my_error(ER_IDENT_CAUSES_TOO_LONG_PATH, MYF(0), sizeof(path)-1, path);
+      my_error(ER_IDENT_CAUSES_TOO_LONG_PATH, MYF(0), (int) sizeof(path)-1,
+               path);
       return true;
     }
   }
@@ -5263,7 +5264,7 @@ mysql_rename_table(handlerton *base, const char *old_db,
   // Check if we hit FN_REFLEN bytes along with file extension.
   if (length+reg_ext_length > FN_REFLEN)
   {
-    my_error(ER_IDENT_CAUSES_TOO_LONG_PATH, MYF(0), sizeof(to)-1, to);
+    my_error(ER_IDENT_CAUSES_TOO_LONG_PATH, MYF(0), (int) sizeof(to)-1, to);
     DBUG_RETURN(TRUE);
   }
 
@@ -10348,7 +10349,7 @@ bool check_engine(THD *thd, const char *db_name,
     if (no_substitution)
     {
       const char *engine_name= ha_resolve_storage_engine_name(req_engine);
-      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), engine_name, engine_name);
+      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), engine_name);
       DBUG_RETURN(TRUE);
     }
     *new_engine= enf_engine;

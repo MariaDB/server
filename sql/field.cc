@@ -9948,7 +9948,7 @@ bool Column_definition::check(THD *thd)
     if (decimals >= NOT_FIXED_DEC)
     {
       my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
-               field_name, static_cast<ulong>(NOT_FIXED_DEC - 1));
+               field_name, static_cast<uint>(NOT_FIXED_DEC - 1));
       DBUG_RETURN(TRUE);
     }
     my_decimal_trim(&length, &decimals);
@@ -10006,7 +10006,7 @@ bool Column_definition::check(THD *thd)
     if (decimals != NOT_FIXED_DEC && decimals >= FLOATING_POINT_DECIMALS)
     {
       my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
-               field_name, static_cast<ulong>(FLOATING_POINT_DECIMALS-1));
+               field_name, static_cast<uint>(FLOATING_POINT_DECIMALS-1));
       DBUG_RETURN(TRUE);
     }
     break;
@@ -10026,7 +10026,7 @@ bool Column_definition::check(THD *thd)
     if (decimals != NOT_FIXED_DEC && decimals >= FLOATING_POINT_DECIMALS)
     {
       my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
-               field_name, static_cast<ulong>(FLOATING_POINT_DECIMALS-1));
+               field_name, static_cast<uint>(FLOATING_POINT_DECIMALS-1));
       DBUG_RETURN(TRUE);
     }
     break;

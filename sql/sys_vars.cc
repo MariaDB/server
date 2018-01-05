@@ -1959,7 +1959,7 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
     if (mi->rli.slave_running)
     {
       my_error(ER_SLAVE_MUST_STOP, MYF(0),
-          mi->connection_name.length, mi->connection_name.str);
+               (int) mi->connection_name.length, mi->connection_name.str);
       res= true;
     }
     else
@@ -4461,7 +4461,7 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
     if (mi->rli.slave_running)
     {
       my_error(ER_SLAVE_MUST_STOP, MYF(0), 
-               mi->connection_name.length,
+               (int) mi->connection_name.length,
                mi->connection_name.str);
       result= true;
     }
@@ -4664,7 +4664,7 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 {
   if (mi->rli.slave_running)
   {
-    my_error(ER_SLAVE_MUST_STOP, MYF(0), mi->connection_name.length,
+    my_error(ER_SLAVE_MUST_STOP, MYF(0), (int) mi->connection_name.length,
              mi->connection_name.str);
     return true;
   }

@@ -853,3 +853,32 @@ execute stmt;
 deallocate prepare stmt;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-14852: CTE using temporary table in query
+--echo #             with two references to the CTE
+--echo #
+
+create temporary table t1 (i int);
+insert into t1 values (5),(4),(1),(2),(3);
+
+with
+c1 as (select i from t1),
+c2 as (select i from c1 where c1.i=2)
+select i from c1 where i > 3 union  select i from c2;
+
+drop table t1;
+
+create table t1 (term char(10));
+create temporary table t2 (term char(10));
+
+insert into t1 values ('TERM01'),('TERM02'),('TERM03');
+insert into t2 values ('TERM02'),('TERM03'),('TERM04');
+
+with c1 as (select * from t1), c2 as (select * from t2)
+(select * from c1 left outer join c2 on c1.term = c2.term)
+union all
+(select * from c1 right outer join c2 on c1.term = c2.term
+  where c1.term is null);
+
+drop table t1,t2;

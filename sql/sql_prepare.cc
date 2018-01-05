@@ -1573,8 +1573,6 @@ static int mysql_test_select(Prepared_statement *stmt,
   lex->select_lex.context.resolve_in_select_list= TRUE;
 
   ulong privilege= lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL;
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-    goto error;
   if (tables)
   {
     if (check_table_access(thd, privilege, tables, FALSE, UINT_MAX, FALSE))
@@ -1839,9 +1837,6 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
   TABLE_LIST *tables= lex->create_last_non_select_table->next_global;
 
   if (create_table_precheck(thd, tables, create_table))
-    DBUG_RETURN(TRUE);
-
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
     DBUG_RETURN(TRUE);
 
   if (select_lex->item_list.elements)
@@ -2234,9 +2229,6 @@ static bool mysql_test_insert_select(Prepared_statement *stmt,
   if (insert_precheck(stmt->thd, tables))
     return 1;
 
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-    return 1;
-
   /* store it, because mysql_insert_select_prepare_tester change it */
   first_local_table= lex->select_lex.table_list.first;
   DBUG_ASSERT(first_local_table != 0);
@@ -2287,10 +2279,8 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
   if (!stmt->is_sql_prepare())
   {
     if (!lex->result && !(lex->result= new (stmt->mem_root) select_send(thd)))
-    {
-      my_error(ER_OUTOFMEMORY, MYF(0), sizeof(select_send));
       DBUG_RETURN(1);
-    }
+
     if (send_prep_stmt(stmt, ha_table->fields.elements) ||
         lex->result->send_result_set_metadata(ha_table->fields, Protocol::SEND_EOF) ||
         thd->protocol->flush())
@@ -2340,6 +2330,9 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   /* Reset warning count for each query that uses tables */
   if (tables)
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
+
+  if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
+    goto error;
 
   if (sql_command_flags[sql_command] & CF_HA_CLOSE)
     mysql_ha_rm_tables(thd, tables);
