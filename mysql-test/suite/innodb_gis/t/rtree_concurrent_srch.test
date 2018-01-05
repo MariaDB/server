@@ -1,9 +1,6 @@
 # WL#6745 InnoDB R-tree support
 # This test case will test R-tree split.
 
-# Not supported in embedded
---source include/not_embedded.inc
-
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
@@ -32,8 +29,7 @@ insert into t1 select * from t1;
 insert into t1 select * from t1;
 
 connect (a,localhost,root,,);
-connection a;
-SET SESSION debug="+d,rtr_pcur_move_to_next_return";
+SET debug_dbug='+d,rtr_pcur_move_to_next_return';
 
 set session transaction isolation level serializable;
 set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
@@ -41,9 +37,7 @@ SET DEBUG_SYNC = 'RESET';
 SET DEBUG_SYNC = 'row_search_for_mysql_before_return SIGNAL started WAIT_FOR go_ahead';
 --send select count(*) from t1 where MBRWithin(t1.c2, @g1);
 
---echo # Establish session con1 (user=root)
 connect (con1,localhost,root,,);
-connection con1;
 set session transaction isolation level serializable;
 
 SET DEBUG_SYNC = 'now WAIT_FOR started';
@@ -92,7 +86,6 @@ select count(*) from t1 where MBRwithin(t1.c2, @g1);
 
 # The split will replicate locks across pages
 connect (b,localhost,root,,);
-connection b;
 set session transaction isolation level serializable;
 set session innodb_lock_wait_timeout = 1;
 
@@ -292,15 +285,8 @@ insert into t1 values (1200, Point(950, 950));
 connection a;
 select sleep(2);
 commit;
-
-connection a;
-SET SESSION debug="-d,rtr_pcur_move_to_next_return";
 disconnect a;
---source include/wait_until_disconnected.inc
-
-connection b;
 disconnect b;
---source include/wait_until_disconnected.inc
 
 # Clean up.
 connection default;
@@ -321,7 +307,6 @@ INSERT INTO t1  VALUES (1, ST_GeomFromText('LineString(7 7, 200 200)'));
 INSERT INTO t1  VALUES (1, ST_GeomFromText('LineString(8 8, 210 210)'));
 
 connect (a,localhost,root,,);
-connection a;
 SET SESSION debug="+d,rtr_pcur_move_to_next_return";
 
 set transaction isolation level serializable;
@@ -330,7 +315,6 @@ set @g1 = ST_GeomFromText('Polygon((100 100, 100 110, 110 110, 110 100, 100 100)
 select count(*) from t1 where MBRwithin(t1.c2, @g1);
 
 connect (b,localhost,root,,);
-connection b;
 
 # This should be successful
 delete from t1 where  c1 = 1;
@@ -432,20 +416,14 @@ rollback;
 SET DEBUG_SYNC= 'now SIGNAL sigb';
 
 connection a;
---reap;
+reap;
 
 connection default;
 drop procedure insert_t1;
 DROP TABLE t1;
 
-connection a;
-SET SESSION debug="-d,rtr_pcur_move_to_next_return";
 disconnect a;
---source include/wait_until_disconnected.inc
-
-connection b;
 disconnect b;
---source include/wait_until_disconnected.inc
 
 connection default;
 SET DEBUG_SYNC = 'RESET';

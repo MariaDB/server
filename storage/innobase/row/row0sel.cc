@@ -3392,8 +3392,14 @@ row_sel_get_clust_rec_for_mysql(
                                 goto func_exit;
 			}
 
-			buf_block_t* block = btr_pcur_get_block(
-				prebuilt->pcur);
+			/* FIXME: Why is this block not the
+			same as btr_pcur_get_block(prebuilt->pcur),
+			and is it not unsafe to use RW_NO_LATCH here? */
+			buf_block_t*	block = buf_page_get_gen(
+				btr_pcur_get_block(prebuilt->pcur)->page.id,
+				dict_table_page_size(sec_index->table),
+				RW_NO_LATCH, NULL, BUF_GET,
+				__FILE__, __LINE__, mtr, &err);
 			mem_heap_t*	heap = mem_heap_create(256);
 			dtuple_t*       tuple = dict_index_build_data_tuple(
 				rec, sec_index, true,
