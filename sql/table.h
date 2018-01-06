@@ -648,6 +648,16 @@ struct TABLE_SHARE
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
 
+  const char* orig_table_name;          /* Original table name for this tmp table */
+  const char* error_table_name() const  /* Get table name for error messages */
+  {
+    return tmp_table ? (
+      orig_table_name ?
+        orig_table_name :
+        "(temporary)") :
+      table_name.str;
+  }
+
   /* 
      Set of keys in use, implemented as a Bitmap.
      Excludes keys disabled by ALTER TABLE ... DISABLE KEYS.

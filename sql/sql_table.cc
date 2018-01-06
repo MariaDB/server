@@ -9780,6 +9780,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
   }
   if (!new_table)
     goto err_new_table_cleanup;
+  new_table->s->orig_table_name= table->s->table_name.str;
   new_versioned= new_table->versioned();
   /*
     Note: In case of MERGE table, we do not attach children. We do not

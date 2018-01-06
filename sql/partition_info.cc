@@ -897,10 +897,12 @@ partition_info::vers_part_rotate(THD * thd)
   {
     DBUG_ASSERT(table->s->hist_part_id == vers_info->now_part->id - 1);
     push_warning_printf(thd,
-      Sql_condition::WARN_LEVEL_WARN,
+      thd->lex->sql_command == SQLCOM_ALTER_TABLE ?
+        Sql_condition::WARN_LEVEL_NOTE :
+        Sql_condition::WARN_LEVEL_WARN,
       WARN_VERS_PART_FULL,
       ER_THD(thd, WARN_VERS_PART_FULL),
-      table->s->db.str, table->s->table_name.str,
+      table->s->db.str, table->s->error_table_name(),
       vers_info->hist_part->partition_name);
     return vers_info->hist_part;
   }
@@ -913,7 +915,7 @@ partition_info::vers_part_rotate(THD * thd)
     Sql_condition::WARN_LEVEL_NOTE,
     WARN_VERS_PART_ROTATION,
     ER_THD(thd, WARN_VERS_PART_ROTATION),
-    table->s->db.str, table->s->table_name.str,
+    table->s->db.str, table->s->error_table_name(),
     old_part_name,
     vers_info->hist_part->partition_name);
 
