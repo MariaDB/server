@@ -2032,3 +2032,56 @@ FROM
 ) K, t3;
 
 drop table t1,t2,t3;
+
+--echo #
+--echo # mdev-14879: subquery with recursive reference in WHERE of CTE
+--echo #
+
+create table flights
+(departure varchar(32),
+ arrival varchar(32),
+ carrier varchar(20),
+ flight_number char(7));
+
+insert into flights values
+('Seattle', 'Frankfurt', 'Lufthansa', 'LH 491'),
+('Seattle', 'Chicago', 'American', 'AA 2573'),
+('Seattle', 'Los Angeles', 'Alaska Air', 'AS 410'),
+('Chicago', 'New York', 'American', 'AA 375'),
+('Chicago', 'Montreal', 'Air Canada', 'AC 3053'),
+('Los Angeles', 'New York', 'Delta', 'DL 1197'),
+('Moscow', 'Tokyo', 'Aeroflot', 'SU 264'),
+('New York', 'Paris', 'Air France', 'AF 23'),
+('Frankfurt', 'Moscow', 'Lufthansa', 'LH 1444'),
+('Tokyo', 'Seattle', 'ANA', 'NH 178'),
+('Los Angeles', 'Tokyo', 'ANA', 'NH 175'),
+('Moscow', 'Los Angeles', 'Aeroflot', 'SU 106'),
+('Montreal', 'Paris', 'Air Canada', 'AC 870'),
+('Cairo', 'Paris', 'Air France', 'AF 503'),
+('New York', 'Seattle', 'American', 'AA 45'),
+('Paris', 'Chicago', 'Air France', 'AF 6734');
+
+with recursive destinations (city) as
+( select a.arrival from flights a where a.departure='Cairo'
+  union
+  select b.arrival from destinations r, flights b where r.city=b.departure)
+select * from destinations;
+
+set standard_compliant_cte=0;
+
+let $q=
+with recursive destinations (city, legs) as
+(
+  select a.arrival, 1 from flights a where a.departure='Cairo'
+  union
+  select b.arrival, r.legs + 1 from destinations r, flights b
+  where r.city=b.departure and b.arrival not in (select city from destinations)
+)
+select * from destinations;
+
+eval $q;
+eval explain extended $q;
+
+set standard_compliant_cte=default;
+
+drop table flights;
