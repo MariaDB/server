@@ -1998,3 +1998,37 @@ set @var=
 );
 
 drop table t1;
+
+--echo #
+--echo # mdev-14777: crash caused by the same as in mdev-14755
+--echo #
+
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (i1 int NOT NULL, i2 int);
+CREATE TABLE t2 (d1 int NOT NULL PRIMARY KEY);
+CREATE TABLE t3 (i int );
+
+insert into t1 select seq,seq from seq_1_to_100000;
+insert into t2 select seq from  seq_1000_to_100000;
+insert into t3 select seq from seq_1_to_1000;
+
+SELECT *
+FROM
+(
+  SELECT *
+  FROM
+  (
+    WITH RECURSIVE rt AS
+    (
+      SELECT i2 P, i1 C FROM t1 WHERE i1 IN (SELECT d1 FROM t2)
+      UNION
+      SELECT t1.i2 P, rt.C C FROM t1, rt
+    )
+    SELECT C,P
+      FROM ( SELECT P,C FROM rt WHERE NOT EXISTS (SELECT 1 FROM t1) ) Y
+  ) X
+  WHERE 1 = 1
+) K, t3;
+
+drop table t1,t2,t3;
