@@ -874,7 +874,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
   */
   for (uint tablenr= 0; tablenr < join->table_count; tablenr++)
   {
-    if (!((1 << tablenr) & tables_usable_for_splitting))
+    if (!((1ULL << tablenr) & tables_usable_for_splitting))
       continue;
     JOIN_TAB *tab= join->map2table[tablenr];
     TABLE *table= tab->table;
@@ -978,7 +978,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
   }
 
   /* Set the cost of the preferred materialization for this partial join */
-  records= spl_opt_info->unsplit_card;
+  records= (ha_rows)spl_opt_info->unsplit_card;
   spl_plan= spl_opt_info->last_plan;
   if (spl_plan)
   {
