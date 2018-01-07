@@ -65,15 +65,12 @@ static const uint STATISTICS_TABLES= 3;
   The names of the statistical tables in this array must correspond the
   definitions of the tables in the file ../scripts/mysql_system_tables.sql
 */
-static const LEX_STRING stat_table_name[STATISTICS_TABLES]=
+static const LEX_CSTRING stat_table_name[STATISTICS_TABLES]=
 {
-  { C_STRING_WITH_LEN("table_stats") },
-  { C_STRING_WITH_LEN("column_stats") },
-  { C_STRING_WITH_LEN("index_stats") }
+  { STRING_WITH_LEN("table_stats") },
+  { STRING_WITH_LEN("column_stats") },
+  { STRING_WITH_LEN("index_stats") }
 };
-
-/* Name of database to which the statistical tables belong */
-static const LEX_STRING stat_tables_db_name= { C_STRING_WITH_LEN("mysql") };
 
 
 /**
@@ -93,10 +90,9 @@ inline void init_table_list_for_stat_tables(TABLE_LIST *tables, bool for_write)
 
   for (i= 0; i < STATISTICS_TABLES; i++)
   {
-    tables[i].db= stat_tables_db_name.str;
-    tables[i].db_length= stat_tables_db_name.length;
-    tables[i].alias= tables[i].table_name= stat_table_name[i].str;
-    tables[i].table_name_length= stat_table_name[i].length;
+    tables[i].db= MYSQL_SCHEMA_NAME;
+    tables[i].table_name= stat_table_name[i];
+    tables[i].alias=      stat_table_name[i];
     tables[i].lock_type= for_write ? TL_WRITE : TL_READ;
     if (i < STATISTICS_TABLES - 1)
     tables[i].next_global= tables[i].next_local=
@@ -115,17 +111,16 @@ inline void init_table_list_for_stat_tables(TABLE_LIST *tables, bool for_write)
   otherwise it is set to TL_WRITE.
 */
 
-static
-inline void init_table_list_for_single_stat_table(TABLE_LIST *tbl,
-                                                  const LEX_STRING *stat_tab_name, 
-                                                  bool for_write)
+static inline
+void init_table_list_for_single_stat_table(TABLE_LIST *tbl,
+                                           const LEX_CSTRING *stat_tab_name,
+                                           bool for_write)
 {
   memset((char *) tbl, 0, sizeof(TABLE_LIST));
 
-  tbl->db= stat_tables_db_name.str;
-  tbl->db_length= stat_tables_db_name.length;
-  tbl->alias= tbl->table_name= stat_tab_name->str;
-  tbl->table_name_length= stat_tab_name->length;
+  tbl->db= MYSQL_SCHEMA_NAME;
+  tbl->table_name= *stat_tab_name;
+  tbl->alias=      *stat_tab_name;
   tbl->lock_type= for_write ? TL_WRITE : TL_READ;
 }
 
@@ -294,7 +289,7 @@ inline int open_stat_tables(THD *thd, TABLE_LIST *tables,
 */
 static
 inline int open_single_stat_table(THD *thd, TABLE_LIST *table,
-                                  const LEX_STRING *stat_tab_name,
+                                  const LEX_CSTRING *stat_tab_name,
                                   Open_tables_backup *backup,
                                   bool for_write)
 {
@@ -472,8 +467,8 @@ protected:
   /* Table for which statistical data is read / updated */
   TABLE *table;
   TABLE_SHARE *table_share; /* Table share for 'table */
-  LEX_CSTRING *db_name;      /* Name of the database containing 'table' */
-  LEX_CSTRING *table_name;   /* Name of the table 'table' */
+  const LEX_CSTRING *db_name;      /* Name of the database containing 'table' */
+  const LEX_CSTRING *table_name;   /* Name of the table 'table' */
 
   void store_record_for_update()
   {
@@ -528,12 +523,10 @@ public:
     by the database name 'db' and the table name 'tab'.
   */  
   
-  Stat_table(TABLE *stat, LEX_CSTRING *db, LEX_CSTRING *tab)
-    :stat_table(stat), table_share(NULL)
+  Stat_table(TABLE *stat, const LEX_CSTRING *db, const LEX_CSTRING *tab)
+    :stat_table(stat), table_share(NULL),db_name(db), table_name(tab)
   {
     common_init_stat_table();
-    db_name= db;
-    table_name= tab;
   } 
 
 
@@ -553,7 +546,7 @@ public:
     The method is called by the update_table_name_key_parts function.
   */      
 
- virtual void change_full_table_name(LEX_CSTRING *db, LEX_CSTRING *tab)= 0;
+ virtual void change_full_table_name(const LEX_CSTRING *db, const LEX_CSTRING *tab)= 0;
 
  
   /**
@@ -709,7 +702,7 @@ public:
     to store the new names in the record buffer used for updates.
   */
 
-  bool update_table_name_key_parts(LEX_CSTRING *db, LEX_CSTRING *tab)
+  bool update_table_name_key_parts(const LEX_CSTRING *db, const LEX_CSTRING *tab)
   {
     store_record_for_update();
     change_full_table_name(db, tab);
@@ -771,7 +764,7 @@ private:
     table_name_field= stat_table->field[TABLE_STAT_TABLE_NAME];
   }
 
-  void change_full_table_name(LEX_CSTRING *db, LEX_CSTRING *tab)
+  void change_full_table_name(const LEX_CSTRING *db, const LEX_CSTRING *tab)
   {
     db_name_field->store(db->str, db->length, system_charset_info);
     table_name_field->store(tab->str, tab->length, system_charset_info);
@@ -801,7 +794,7 @@ public:
     from the database 'db'.
   */
 
-  Table_stat(TABLE *stat, LEX_CSTRING *db, LEX_CSTRING *tab)
+  Table_stat(TABLE *stat, const LEX_CSTRING *db, const LEX_CSTRING *tab)
     :Stat_table(stat, db, tab)
   {
     common_init_table_stat();
@@ -915,7 +908,7 @@ private:
     column_name_field= stat_table->field[COLUMN_STAT_COLUMN_NAME];
   } 
 
-  void change_full_table_name(LEX_CSTRING *db, LEX_CSTRING *tab)
+  void change_full_table_name(const LEX_CSTRING *db, const LEX_CSTRING *tab)
   {
      db_name_field->store(db->str, db->length, system_charset_info);
      table_name_field->store(tab->str, tab->length, system_charset_info);
@@ -945,7 +938,7 @@ public:
     from the database 'db'. 
   */
 
-  Column_stat(TABLE *stat, LEX_CSTRING *db, LEX_CSTRING *tab)
+  Column_stat(TABLE *stat, const LEX_CSTRING *db, const LEX_CSTRING *tab)
     :Stat_table(stat, db, tab)
   {
     common_init_column_stat_table();
@@ -1250,7 +1243,7 @@ private:
     prefix_arity_field= stat_table->field[INDEX_STAT_PREFIX_ARITY];
   } 
 
-  void change_full_table_name(LEX_CSTRING *db, LEX_CSTRING *tab)
+  void change_full_table_name(const LEX_CSTRING *db, const LEX_CSTRING *tab)
   {
      db_name_field->store(db->str, db->length, system_charset_info);
      table_name_field->store(tab->str, tab->length, system_charset_info);
@@ -1282,7 +1275,7 @@ public:
     from the database 'db'. 
   */
 
-  Index_stat(TABLE *stat, LEX_CSTRING *db, LEX_CSTRING *tab)
+  Index_stat(TABLE *stat, const LEX_CSTRING *db, const LEX_CSTRING *tab)
     :Stat_table(stat, db, tab)
   {
     common_init_index_stat_table();
@@ -3526,8 +3519,8 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   The function is called when executing any statement that renames a table
 */
 
-int rename_table_in_stat_tables(THD *thd, LEX_CSTRING *db, LEX_CSTRING *tab,
-                                LEX_CSTRING *new_db, LEX_CSTRING *new_tab)
+int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab,
+                                const LEX_CSTRING *new_db, const LEX_CSTRING *new_tab)
 {
   int err;
   enum_binlog_format save_binlog_format;
@@ -3535,7 +3528,6 @@ int rename_table_in_stat_tables(THD *thd, LEX_CSTRING *db, LEX_CSTRING *tab,
   TABLE_LIST tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
   int rc= 0;
-
   DBUG_ENTER("rename_table_in_stat_tables");
    
   if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
@@ -3984,18 +3976,17 @@ double Histogram::point_selectivity(double pos, double avg_sel)
 /*
   Check whether the table is one of the persistent statistical tables.
 */
-bool is_stat_table(const char *db, const char *table)
+bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table)
 {
-  DBUG_ASSERT(db && table);
+  DBUG_ASSERT(db->str && table->str);
 
-  if (!memcmp(db, stat_tables_db_name.str, stat_tables_db_name.length))
+  if (!cmp(db, &MYSQL_SCHEMA_NAME))
   {
     for (uint i= 0; i < STATISTICS_TABLES; i ++)
     {
-      if (!memcmp(table, stat_table_name[i].str, stat_table_name[i].length))
+      if (cmp(table, &stat_table_name[i]) == 0)
         return true;
     }
   }
   return false;
 }
-

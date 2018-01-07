@@ -229,7 +229,7 @@ private:
   MEM_ROOT main_mem_root;
   sql_mode_t m_sql_mode;
 private:
-  bool set_db(const char *db, uint db_length);
+  bool set_db(const LEX_CSTRING *db);
   bool set_parameters(String *expanded_query,
                       uchar *packet, uchar *packet_end);
   bool execute(String *expanded_query, bool open_cursor);
@@ -1306,7 +1306,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
     {
       my_error(ER_DELAYED_NOT_SUPPORTED, MYF(0), (table_list->view ?
                                                   table_list->view_name.str :
-                                                  table_list->table_name));
+                                                  table_list->table_name.str));
       goto error;
     }
     while ((values= its++))
@@ -1390,7 +1390,7 @@ static int mysql_test_update(Prepared_statement *stmt,
 
   if (!table_list->single_table_updatable())
   {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
     goto error;
   }
 
@@ -1468,7 +1468,7 @@ static bool mysql_test_delete(Prepared_statement *stmt,
 
   if (!table_list->single_table_updatable())
   {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "DELETE");
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "DELETE");
     goto error;
   }
   if (!table_list->table || !table_list->table->is_created())
@@ -3817,24 +3817,22 @@ bool Prepared_statement::set_name(LEX_CSTRING *name_arg)
   a prepared statement since it affects execution environment:
   privileges, @@character_set_database, and other.
 
-  @return Returns an error if out of memory.
+  @return 1 if out of memory.
 */
 
 bool
-Prepared_statement::set_db(const char *db_arg, uint db_length_arg)
+Prepared_statement::set_db(const LEX_CSTRING *db_arg)
 {
   /* Remember the current database. */
-  if (db_arg && db_length_arg)
+  if (db_arg->length)
   {
-    db= this->strmake(db_arg, db_length_arg);
-    db_length= db_length_arg;
+    if (!(db.str= this->strmake(db_arg->str, db_arg->length)))
+      return 1;
+    db.length= db_arg->length;
   }
   else
-  {
-    db= NULL;
-    db_length= 0;
-  }
-  return db_arg != NULL && db == NULL;
+    db= null_clex_str;
+  return 0;
 }
 
 /**************************************************************************
@@ -3882,7 +3880,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   if (! (lex= new (mem_root) st_lex_local))
     DBUG_RETURN(TRUE);
 
-  if (set_db(thd->db, thd->db_length))
+  if (set_db(&thd->db))
     DBUG_RETURN(TRUE);
 
   /*
@@ -4460,7 +4458,7 @@ Prepared_statement::reprepare()
   char saved_cur_db_name_buf[SAFE_NAME_LEN+1];
   LEX_STRING saved_cur_db_name=
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
-  LEX_CSTRING stmt_db_name= { db, db_length };
+  LEX_CSTRING stmt_db_name= db;
   bool cur_db_changed;
   bool error;
 
@@ -4583,8 +4581,7 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   /* Swap names, the old name is allocated in the wrong memory root */
   swap_variables(LEX_CSTRING, name, copy->name);
   /* Ditto */
-  swap_variables(char *, db, copy->db);
-  swap_variables(size_t, db_length, copy->db_length);
+  swap_variables(LEX_CSTRING, db, copy->db);
 
   DBUG_ASSERT(param_count == copy->param_count);
   DBUG_ASSERT(thd == copy->thd);
@@ -4626,7 +4623,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
   bool cur_db_changed;
 
-  LEX_CSTRING stmt_db_name= { db, db_length };
+  LEX_CSTRING stmt_db_name= db;
 
   status_var_increment(thd->status_var.com_stmt_execute);
 
@@ -4727,7 +4724,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
       PSI_statement_locker *parent_locker;
       MYSQL_QUERY_EXEC_START(thd->query(),
                              thd->thread_id,
-                             (char *) (thd->db ? thd->db : ""),
+                             thd->get_db(),
                              &thd->security_ctx->priv_user[0],
                              (char *) thd->security_ctx->host_or_ip,
                              1);

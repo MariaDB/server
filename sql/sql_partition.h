@@ -57,8 +57,8 @@ typedef struct st_lock_param_type
   Alter_info *alter_info;
   TABLE *table;
   KEY *key_info_buffer;
-  const char *db;
-  const char *table_name;
+  LEX_CSTRING db;
+  LEX_CSTRING table_name;
   uchar *pack_frm_data;
   uint key_count;
   uint db_options;
@@ -267,8 +267,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
                                 Alter_info *alter_info,
                                 HA_CREATE_INFO *create_info,
                                 TABLE_LIST *table_list,
-                                const char *db,
-                                const char *table_name);
+                                const LEX_CSTRING *db,
+                                const LEX_CSTRING *table_name);
 bool set_part_state(Alter_info *alter_info, partition_info *tab_part_info,
                     enum partition_state part_state);
 uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,

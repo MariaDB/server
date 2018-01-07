@@ -2501,7 +2501,7 @@ const char *get_canonical_filename(handler *file, const char *path,
   The .frm file will be deleted only if we return 0.
 */
 int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
-                    const char *db, const char *alias, bool generate_warning)
+                    const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning)
 {
   handler *file;
   char tmp_path[FN_REFLEN];
@@ -2534,12 +2534,9 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
       dummy_share.path.str= (char*) path;
       dummy_share.path.length= strlen(path);
       dummy_share.normalized_path= dummy_share.path;
-      dummy_share.db.str= (char*) db;
-      dummy_share.db.length= strlen(db);
-      dummy_share.table_name.str= (char*) alias;
-      dummy_share.table_name.length= strlen(alias);
-      dummy_table.alias.set(alias, dummy_share.table_name.length,
-                            table_alias_charset);
+      dummy_share.db= *db;
+      dummy_share.table_name= *alias;
+      dummy_table.alias.set(alias->str, alias->length, table_alias_charset);
       file->change_table_ptr(&dummy_table, &dummy_share);
       file->print_error(error, MYF(intercept ? ME_JUST_WARNING : 0));
     }
@@ -4875,7 +4872,6 @@ int ha_create_table(THD *thd, const char *path,
   TABLE_SHARE share;
   bool temp_table __attribute__((unused)) =
     create_info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER);
-                                 
   DBUG_ENTER("ha_create_table");
 
   init_tmp_table_share(thd, &share, db, 0, table_name, path);
@@ -4903,7 +4899,7 @@ int ha_create_table(THD *thd, const char *path,
 
   share.m_psi= PSI_CALL_get_table_share(temp_table, &share);
 
-  if (open_table_from_share(thd, &share, "", 0, READ_ALL, 0, &table, true))
+  if (open_table_from_share(thd, &share, &empty_clex_str, 0, READ_ALL, 0, &table, true))
     goto err;
 
   update_create_info_from_table(create_info, &table);
@@ -5214,7 +5210,7 @@ private:
         *hton will be NULL.
 */
 
-bool ha_table_exists(THD *thd, const char *db, const char *table_name,
+bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
                      handlerton **hton, bool *is_sequence)
 {
   handlerton *dummy;
@@ -5229,7 +5225,7 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
     is_sequence= &dummy2;
   *is_sequence= 0;
 
-  TDC_element *element= tdc_lock_share(thd, db, table_name);
+  TDC_element *element= tdc_lock_share(thd, db->str, table_name->str);
   if (element && element != MY_ERRPTR)
   {
     if (hton)
@@ -5241,8 +5237,8 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
 
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
-                                         db, table_name, "", 0);
-  st_discover_existence_args args= {path, path_len, db, table_name, 0, true};
+                                         db->str, table_name->str, "", 0);
+  st_discover_existence_args args= {path, path_len, db->str, table_name->str, 0, true};
 
   if (file_ext_exists(path, path_len, reg_ext))
   {
@@ -5285,14 +5281,12 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
   {
     TABLE_LIST table;
     uint flags = GTS_TABLE | GTS_VIEW;
-
     if (!hton)
       flags|= GTS_NOLOCK;
 
     Table_exists_error_handler no_such_table_handler;
     thd->push_internal_handler(&no_such_table_handler);
-    table.init_one_table(db, strlen(db), table_name, strlen(table_name),
-                         table_name, TL_READ);
+    table.init_one_table(db, table_name, 0, TL_READ);
     TABLE_SHARE *share= tdc_acquire_share(thd, &table, flags);
     thd->pop_internal_handler();
 
@@ -7000,7 +6994,8 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 
   if (!(alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING) && vers_info)
   {
-    my_error(ER_MISSING, MYF(0), create_table.table_name, "WITH SYSTEM VERSIONING");
+    my_error(ER_MISSING, MYF(0), create_table.table_name.str,
+             "WITH SYSTEM VERSIONING");
     return true;
   }
 
@@ -7118,15 +7113,16 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     vers_cols == 0 &&
     (plain_cols == 0 || !vers_info))
   {
-    my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), create_table.table_name);
+    my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0),
+             create_table.table_name.str);
     return true;
   }
 
-  if (vers_info.check_with_conditions(create_table.table_name))
+  if (vers_info.check_with_conditions(create_table.table_name.str))
     return true;
 
   bool native= vers_native(thd);
-  if (vers_info.check_sys_fields(create_table.table_name, alter_info, native))
+  if (vers_info.check_sys_fields(create_table.table_name.str, alter_info, native))
     return true;
 
   return false;
@@ -7188,7 +7184,8 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return true;
   }
 
-  if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING && table->versioned())
+  if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING &&
+      table->versioned())
   {
     my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
     return true;
@@ -7397,7 +7394,7 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_UNKNOWN_ERROR,
                         "System versioning is stripped from temporary `%s.%s`",
-                        table.db, table.table_name);
+                        table.db.str, table.table_name.str);
     return false;
   }
 
@@ -7419,8 +7416,8 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
 
   if (!f_start || !f_end)
   {
-    my_error(ER_MISSING, MYF(0), src_table.table_name,
-      f_start ? "AS ROW END" : "AS ROW START");
+    my_error(ER_MISSING, MYF(0), src_table.table_name.str,
+             f_start ? "AS ROW END" : "AS ROW START");
     return true;
   }
 
@@ -7480,7 +7477,8 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
     if (sys_flag & found_flag)
     {
       my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
-                found_flag & VERS_SYS_START_FLAG ? "START" : "END", f->field_name.str);
+                found_flag & VERS_SYS_START_FLAG ? "START" : "END",
+               f->field_name.str);
       return true;
     }
 
@@ -7521,10 +7519,10 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
         }
       error:
         my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
-                  found == VERS_TIMESTAMP ?
-                    "TIMESTAMP(6)" :
-                    "BIGINT(20) UNSIGNED",
-                  table_name);
+                 found == VERS_TIMESTAMP ?
+                 "TIMESTAMP(6)" :
+                 "BIGINT(20) UNSIGNED",
+                 table_name);
         return true;
       }
       found= check_unit;
@@ -7532,6 +7530,6 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
   }
 
   my_error(ER_MISSING, MYF(0), table_name, found_flag & VERS_SYS_START_FLAG ?
-    "ROW END" : found_flag ? "ROW START" : "ROW START/END");
+           "ROW END" : found_flag ? "ROW START" : "ROW START/END");
   return true;
 }

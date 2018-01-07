@@ -7877,7 +7877,7 @@ ER_VERS_WRONG_PARTS
         eng "Wrong partitions for %`s: must have at least one HISTORY and exactly one last CURRENT"
 
 ER_VERS_NO_TRX_ID
-        eng "TRX_ID %lu not found in `mysql.transaction_registry`"
+        eng "TRX_ID %llu not found in `mysql.transaction_registry`"
 
 ER_VERS_ALTER_SYSTEM_FIELD
         eng "Can not change system versioning field %`s"

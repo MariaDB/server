@@ -692,8 +692,7 @@ void *create_embedded_thd(int client_flag)
   thd->client_capabilities= client_flag;
   thd->real_id= pthread_self();
 
-  thd->db= NULL;
-  thd->db_length= 0;
+  thd->db= null_clex_str;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   thd->security_ctx->db_access= DB_ACLS;
   thd->security_ctx->master_access= ~NO_ACCESS;

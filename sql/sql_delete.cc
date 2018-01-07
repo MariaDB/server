@@ -103,7 +103,7 @@ bool Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
                                            bool is_analyze)
 {
   explain->select_type= "SIMPLE";
-  explain->table_name.append(table->pos_in_table_list->alias);
+  explain->table_name.append(&table->pos_in_table_list->alias);
   
   explain->impossible_where= false;
   explain->no_partitions= false;
@@ -344,7 +344,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   if (!table_list->single_table_updatable())
   {
-     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "DELETE");
+     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "DELETE");
      DBUG_RETURN(TRUE);
   }
   if (!(table= table_list->table) || !table->is_created())
@@ -961,7 +961,7 @@ l
   if (!table_list->single_table_updatable() ||
       check_key_in_view(thd, table_list))
   {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "DELETE");
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "DELETE");
     DBUG_RETURN(TRUE);
   }
 
@@ -1053,7 +1053,7 @@ int mysql_multi_delete_prepare(THD *thd)
         check_key_in_view(thd, target_tbl->correspondent_table))
     {
       my_error(ER_NON_UPDATABLE_TABLE, MYF(0),
-               target_tbl->table_name, "DELETE");
+               target_tbl->table_name.str, "DELETE");
       DBUG_RETURN(TRUE);
     }
     /*

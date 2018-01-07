@@ -2078,7 +2078,7 @@ bool Field_vers_trx_id::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglo
 
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_VERS_NO_TRX_ID, ER_THD(thd, ER_VERS_NO_TRX_ID),
-                      trx_id);
+                      (longlong) trx_id);
   return true;
 }
 

@@ -65,8 +65,7 @@ struct mysql_event_general
   unsigned long long general_rows;
   /* Added in version 0x302 */
   unsigned long long query_id;
-  const char *database;
-  unsigned int database_length;
+  MYSQL_CONST_LEX_STRING database;
 };
 
 
@@ -101,8 +100,7 @@ struct mysql_event_connection
   unsigned int host_length;
   const char *ip;
   unsigned int ip_length;
-  const char *database;
-  unsigned int database_length;
+  MYSQL_CONST_LEX_STRING database;
 };
 
 /*
@@ -137,17 +135,13 @@ struct mysql_event_table
   const char *proxy_user;
   const char *host;
   const char *ip;
-  const char *database;
-  unsigned int database_length;
-  const char *table;
-  unsigned int table_length;
+  MYSQL_CONST_LEX_STRING database;
+  MYSQL_CONST_LEX_STRING table;
+  /* for MYSQL_AUDIT_TABLE_RENAME */
+  MYSQL_CONST_LEX_STRING new_database;
+  MYSQL_CONST_LEX_STRING new_table;
   /* for MYSQL_AUDIT_TABLE_LOCK, true if read-only, false if read/write */
   int read_only;
-  /* for MYSQL_AUDIT_TABLE_RENAME */
-  const char *new_database;
-  unsigned int new_database_length;
-  const char *new_table;
-  unsigned int new_table_length;
   /* Added in version 0x302 */
   unsigned long long query_id;
 };

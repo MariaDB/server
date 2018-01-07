@@ -77,7 +77,7 @@ static int send_check_errmsg(THD *thd, TABLE_LIST* table,
 {
   Protocol *protocol= thd->protocol;
   protocol->prepare_for_resend();
-  protocol->store(table->alias, system_charset_info);
+  protocol->store(table->alias.str, table->alias.length, system_charset_info);
   protocol->store((char*) operator_name, system_charset_info);
   protocol->store(STRING_WITH_LEN("error"), system_charset_info);
   protocol->store(errmsg, system_charset_info);
@@ -123,7 +123,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
     */
 
     table_list->mdl_request.init(MDL_key::TABLE,
-                                 table_list->db, table_list->table_name,
+                                 table_list->db.str, table_list->table_name.str,
                                  MDL_EXCLUSIVE, MDL_TRANSACTION);
 
     if (lock_table_names(thd, table_list, table_list->next_global,
@@ -135,7 +135,8 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
     if (share == NULL)
       DBUG_RETURN(0);				// Can't open frm file
 
-    if (open_table_from_share(thd, share, "", 0, 0, 0, &tmp_table, FALSE))
+    if (open_table_from_share(thd, share, &empty_clex_str, 0, 0, 0,
+                              &tmp_table, FALSE))
     {
       tdc_release_share(share);
       DBUG_RETURN(0);                           // Out of memory
@@ -218,7 +219,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 			     "Failed renaming data file");
     goto end;
   }
-  if (dd_recreate_table(thd, table_list->db, table_list->table_name))
+  if (dd_recreate_table(thd, table_list->db.str, table_list->table_name.str))
   {
     error= send_check_errmsg(thd, table_list, "repair",
 			     "Failed generating table from .frm file");
@@ -492,13 +493,13 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   for (table= tables; table; table= table->next_local)
   {
     char table_name[SAFE_NAME_LEN*2+2];
-    const char *db= table->db;
+    const char *db= table->db.str;
     bool fatal_error=0;
     bool open_error;
     bool collect_eis=  FALSE;
 
-    DBUG_PRINT("admin", ("table: '%s'.'%s'", table->db, table->table_name));
-    strxmov(table_name, db, ".", table->table_name, NullS);
+    DBUG_PRINT("admin", ("table: '%s'.'%s'", db, table->table_name.str));
+    strxmov(table_name, db, ".", table->table_name.str, NullS);
     thd->open_options|= extra_open_options;
     table->lock_type= lock_type;
     /*
@@ -547,7 +548,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       close_thread_tables(thd);
       table->table= NULL;
       thd->mdl_context.release_transactional_locks();
-      table->mdl_request.init(MDL_key::TABLE, table->db, table->table_name,
+      table->mdl_request.init(MDL_key::TABLE, table->db.str, table->table_name.str,
                               MDL_SHARED_NO_READ_WRITE, MDL_TRANSACTION);
     }
 
@@ -818,7 +819,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       close_thread_tables(thd);
       table->table= NULL;
       thd->mdl_context.release_transactional_locks();
-      table->mdl_request.init(MDL_key::TABLE, table->db, table->table_name,
+      table->mdl_request.init(MDL_key::TABLE, table->db.str, table->table_name.str,
                               MDL_SHARED_NO_READ_WRITE, MDL_TRANSACTION);
       table->mdl_request.set_type(MDL_SHARED_READ);
 
@@ -1118,11 +1119,11 @@ send_result_message:
       if (what_to_upgrade)
         length= my_snprintf(buf, sizeof(buf),
                             ER_THD(thd, ER_TABLE_NEEDS_UPGRADE),
-                            what_to_upgrade, table->table_name);
+                            what_to_upgrade, table->table_name.str);
       else
         length= my_snprintf(buf, sizeof(buf),
                             ER_THD(thd, ER_TABLE_NEEDS_REBUILD),
-                            table->table_name);
+                            table->table_name.str);
       protocol->store(buf, length, system_charset_info);
       fatal_error=1;
       break;
@@ -1154,7 +1155,7 @@ send_result_message:
       else if (open_for_modify || fatal_error)
       {
         tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
-                         table->db, table->table_name, FALSE);
+                         table->db.str, table->table_name.str, FALSE);
         /*
           May be something modified. Consequently, we have to
           invalidate the query cache.

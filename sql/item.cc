@@ -616,7 +616,7 @@ void Item::print_item_w_name(String *str, enum_query_type query_type)
     DBUG_ASSERT(name.length == strlen(name.str));
     THD *thd= current_thd;
     str->append(STRING_WITH_LEN(" AS "));
-    append_identifier(thd, str, name.str, name.length);
+    append_identifier(thd, str, &name);
   }
 }
 
@@ -762,10 +762,10 @@ Item_ident::Item_ident(THD *thd, Name_resolution_context *context_arg,
 Item_ident::Item_ident(THD *thd, TABLE_LIST *view_arg,
                        const LEX_CSTRING *field_name_arg)
   :Item_result_field(thd), orig_db_name(NullS),
-   orig_table_name(view_arg->table_name),
+   orig_table_name(view_arg->table_name.str),
    orig_field_name(*field_name_arg),
    context(&view_arg->view->select_lex.context),
-   db_name(NullS), table_name(view_arg->alias),
+   db_name(NullS), table_name(view_arg->alias.str),
    field_name(*field_name_arg),
    alias_name_used(FALSE), cached_field_index(NO_CACHED_FIELD_INDEX),
    cached_table(NULL), depended_from(NULL), can_be_depended(TRUE)
@@ -2770,10 +2770,10 @@ Item_sp::func_name(THD *thd) const
   qname.length(0);
   if (m_name->m_explicit_name)
   {
-    append_identifier(thd, &qname, m_name->m_db.str, m_name->m_db.length);
+    append_identifier(thd, &qname, &m_name->m_db);
     qname.append('.');
   }
-  append_identifier(thd, &qname, m_name->m_name.str, m_name->m_name.length);
+  append_identifier(thd, &qname, &m_name->m_name);
   return qname.c_ptr_safe();
 }
 
@@ -3279,7 +3279,7 @@ void Item_ident::print(String *str, enum_query_type query_type)
   bool use_db_name= use_table_name && db_name && db_name[0] && !alias_name_used;
 
   if (use_db_name && (query_type & QT_ITEM_IDENT_SKIP_DB_NAMES))
-    use_db_name= !thd->db || strcmp(thd->db, db_name);
+    use_db_name= !thd->db.str || strcmp(thd->db.str, db_name);
 
   if (use_db_name)
     use_db_name= !(cached_table && cached_table->belong_to_view &&
@@ -3336,7 +3336,7 @@ void Item_ident::print(String *str, enum_query_type query_type)
     append_identifier(thd, str, t_name, (uint) strlen(t_name));
     str->append('.');
   }
-  append_identifier(thd, str, field_name.str, field_name.length);
+  append_identifier(thd, str, &field_name);
 }
 
 /* ARGSUSED */
@@ -6047,8 +6047,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   
   if (select && select->in_tvc)
   {
-    my_error(ER_FIELD_REFERENCE_IN_TVC, MYF(0),
-             full_name(), thd->where);
+    my_error(ER_FIELD_REFERENCE_IN_TVC, MYF(0), full_name());
     return(1);
   }
 
@@ -8196,8 +8195,7 @@ void Item_ref::print(String *str, enum_query_type query_type)
         !table_name && name.str && alias_name_used)
     {
       THD *thd= current_thd;
-      append_identifier(thd, str, (*ref)->real_item()->name.str,
-                        (*ref)->real_item()->name.length);
+      append_identifier(thd, str, &(*ref)->real_item()->name);
     }
     else
       (*ref)->print(str, query_type);

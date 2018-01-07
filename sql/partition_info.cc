@@ -1071,7 +1071,7 @@ public:
     saved_lock(_thd->lock),
     saved_mode(_thd->locked_tables_mode),
     saved_query_tables_own_last(_thd->lex->query_tables_own_last),
-    table_list(_table, lock_type),
+    table_list(&_table, lock_type),
     locked(false)
   {
     table.reginfo.lock_type= lock_type;
@@ -1246,7 +1246,7 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
 
   bool error= false;
 
-  TABLE_LIST tl(*table, TL_READ);
+  TABLE_LIST tl(table, TL_READ);
   MDL_auto_lock mdl_lock(thd, tl);
   if (mdl_lock.acquire_error())
     return true;
@@ -2077,8 +2077,8 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
     DBUG_ASSERT(vers_info);
     if (num_parts < 2 || !vers_info->now_part)
     {
-      DBUG_ASSERT(info && info->alias);
-      my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias);
+      DBUG_ASSERT(info && info->alias.str);
+      my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias.str);
       goto end;
     }
     DBUG_ASSERT(vers_info->initialized(false));
@@ -2206,7 +2206,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   }
   if (unlikely(now_parts > 1))
   {
-    my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias);
+    my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias.str);
     goto end;
   }
 
@@ -2259,8 +2259,8 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
   THD *thd= current_thd;
 
   bzero(&table_list, sizeof(table_list));
-  table_list.db= table_arg->s->db.str;
-  table_list.table_name= table_arg->s->table_name.str;
+  table_list.db= table_arg->s->db;
+  table_list.table_name= table_arg->s->table_name;
 
   if (check_single_table_access(thd,
                                 SELECT_ACL, &table_list, TRUE))

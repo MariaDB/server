@@ -1142,18 +1142,13 @@ public:
   /**
     Name of the current (default) database.
 
-    If there is the current (default) database, "db" contains its name. If
-    there is no current (default) database, "db" is NULL and "db_length" is
-    0. In other words, "db", "db_length" must either be NULL, or contain a
+    If there is the current (default) database, "db.str" contains its name. If
+    there is no current (default) database, "db.str" is NULL and "db.length" is
+    0. In other words, db must either be NULL, or contain a
     valid database name.
-
-    @note this attribute is set and alloced by the slave SQL thread (for
-    the THD of that thread); that thread is (and must remain, for now) the
-    only responsible for freeing this member.
   */
 
-  char *db;
-  size_t db_length;
+  LEX_CSTRING db;
 
   /* This is set to 1 of last call to send_result_to_client() was ok */
   my_bool query_cache_is_applicable;
@@ -2242,7 +2237,7 @@ public:
     Protects THD data accessed from other threads:
     - thd->query and thd->query_length (used by SHOW ENGINE
       INNODB STATUS and SHOW PROCESSLIST
-    - thd->db and thd->db_length (used in SHOW PROCESSLIST)
+    - thd->db (used in SHOW PROCESSLIST)
     Is locked when THD is deleted.
   */
   mysql_mutex_t LOCK_thd_data;
@@ -4034,70 +4029,33 @@ public:
       @retval FALSE Success
       @retval TRUE  Out-of-memory error
   */
-  bool set_db(const char *new_db, size_t new_db_len)
-  {
-    /*
-      Acquiring mutex LOCK_thd_data as we either free the memory allocated
-      for the database and reallocating the memory for the new db or memcpy
-      the new_db to the db.
-    */
-    mysql_mutex_lock(&LOCK_thd_data);
-    /* Do not reallocate memory if current chunk is big enough. */
-    if (db && new_db && db_length >= new_db_len)
-      memcpy(db, new_db, new_db_len+1);
-    else
-    {
-      my_free(db);
-      if (new_db)
-        db= my_strndup(new_db, new_db_len, MYF(MY_WME | ME_FATALERROR));
-      else
-        db= NULL;
-    }
-    db_length= db ? new_db_len : 0;
-    bool result= new_db && !db;
-    mysql_mutex_unlock(&LOCK_thd_data);
-    if (result)
-      PSI_CALL_set_thread_db(new_db, (int) new_db_len);
-    return result;
-  }
+  bool set_db(const LEX_CSTRING *new_db);
 
-  /**
-    Set the current database; use shallow copy of C-string.
+  /** Set the current database, without copying */
+  void reset_db(const LEX_CSTRING *new_db);
 
-    @param new_db     a pointer to the new database name.
-    @param new_db_len length of the new database name.
-
-    @note This operation just sets {db, db_length}. Switching the current
-    database usually involves other actions, like switching other database
-    attributes including security context. In the future, this operation
-    will be made private and more convenient interface will be provided.
-  */
-  void reset_db(char *new_db, size_t new_db_len)
-  {
-    if (new_db != db || new_db_len != db_length)
-    {
-      mysql_mutex_lock(&LOCK_thd_data);
-      db= new_db;
-      db_length= new_db_len;
-      mysql_mutex_unlock(&LOCK_thd_data);
-      PSI_CALL_set_thread_db(new_db, (int) new_db_len);
-    }
-  }
   /*
     Copy the current database to the argument. Use the current arena to
     allocate memory for a deep copy: current database may be freed after
     a statement is parsed but before it's executed.
+
+    Can only be called by owner of thd (no mutex protection)
   */
-  bool copy_db_to(const char **p_db, size_t *p_db_length)
+  bool copy_db_to(LEX_CSTRING *to)
   {
-    if (db == NULL)
+    if (db.str == NULL)
     {
       my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
       return TRUE;
     }
-    *p_db= strmake(db, db_length);
-    *p_db_length= db_length;
-    return FALSE;
+    to->str= strmake(db.str, db.length);
+    to->length= db.length;
+    return to->str == NULL;                     /* True on error */
+  }
+  /* Get db name or "". Use for printing current db */
+  const char *get_db()
+  {
+    return db.str ? db.str : "";
   }
   thd_scheduler event_scheduler;
 
@@ -4357,7 +4315,7 @@ public:
     {
       Security_context *sctx= &main_security_ctx;
       sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
-                        thread_id, (db ? db : "unconnected"),
+                        thread_id, (db.str ? db.str : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
                         sctx->host_or_ip, reason);
     }
@@ -4500,8 +4458,8 @@ public:
   bool open_temporary_tables(TABLE_LIST *tl);
 
   bool close_temporary_tables();
-  bool rename_temporary_table(TABLE *table, const char *db,
-                              const char *table_name);
+  bool rename_temporary_table(TABLE *table, const LEX_CSTRING *db,
+                              const LEX_CSTRING *table_name);
   bool drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table);
   bool rm_temporary_table(handlerton *hton, const char *path);
   void mark_tmp_tables_as_free_for_reuse();
@@ -5337,7 +5295,7 @@ public:
   void cleanup();
   virtual bool create_result_table(THD *thd, List<Item> *column_types,
                                    bool is_distinct, ulonglong options,
-                                   const char *alias, 
+                                   const LEX_CSTRING *alias,
                                    bool bit_fields_as_long,
                                    bool create_table,
                                    bool keep_row_order,
@@ -5371,7 +5329,7 @@ class select_union_recursive :public select_unit
   int send_data(List<Item> &items);
   bool create_result_table(THD *thd, List<Item> *column_types,
                            bool is_distinct, ulonglong options,
-                           const char *alias, 
+                           const LEX_CSTRING *alias,
                            bool bit_fields_as_long,
                            bool create_table,
                            bool keep_row_order,
@@ -5538,7 +5496,7 @@ public:
   { tmp_table_param.init(); }
   bool create_result_table(THD *thd, List<Item> *column_types,
                            bool is_distinct, ulonglong options,
-                           const char *alias, 
+                           const LEX_CSTRING *alias,
                            bool bit_fields_as_long,
                            bool create_table,
                            bool keep_row_order,
@@ -6338,26 +6296,6 @@ public:
     return err_buffer;
   }
 };
-
-/* Functions to compare if two lex strings are equal */
-inline bool lex_string_cmp(CHARSET_INFO *charset,
-                           const LEX_CSTRING *a,
-                           const LEX_CSTRING *b)
-{
-  return my_strcasecmp(charset, a->str, b->str);
-}
-
-/*
-  Compare if two LEX_CSTRING are equal. Assumption is that
-  character set is ASCII (like for plugin names)
-*/
-inline bool lex_string_eq(const LEX_CSTRING *a,
-                          const LEX_CSTRING *b)
-{
-  if (a->length != b->length)
-    return 1;                                   /* Different */
-  return strcasecmp(a->str, b->str) != 0;
-}
 
 class Type_holder: public Sql_alloc,
                    public Item_args,

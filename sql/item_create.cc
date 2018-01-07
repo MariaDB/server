@@ -3253,7 +3253,7 @@ Create_qfunc::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
 {
   LEX_CSTRING db;
 
-  if (! thd->db && ! thd->lex->sphead)
+  if (! thd->db.str && ! thd->lex->sphead)
   {
     /*
       The proper error message should be in the lines of:
@@ -3271,7 +3271,7 @@ Create_qfunc::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
     return NULL;
   }
 
-  if (thd->lex->copy_db_to(&db.str, &db.length))
+  if (thd->lex->copy_db_to(&db))
     return NULL;
 
   return create_with_db(thd, &db, name, false, item_list);

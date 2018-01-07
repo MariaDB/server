@@ -6033,7 +6033,7 @@ innobase_build_index_translation(
 		if (index_mapping[count] == 0) {
 			sql_print_error("Cannot find index %s in InnoDB"
 					" index dictionary.",
-					table->key_info[count].name);
+					table->key_info[count].name.str);
 			ret = false;
 			goto func_exit;
 		}
@@ -6044,7 +6044,7 @@ innobase_build_index_translation(
 					          index_mapping[count])) {
 			sql_print_error("Found index %s whose column info"
 					" does not match that of MariaDB.",
-					table->key_info[count].name);
+					table->key_info[count].name.str);
 			ret = false;
 			goto func_exit;
 		}

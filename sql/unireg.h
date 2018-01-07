@@ -49,9 +49,11 @@
 #define DEFAULT_ERRMSGS           my_default_lc_messages->errmsgs->errmsgs
 #define CURRENT_THD_ERRMSGS       (current_thd)->variables.errmsgs
 
+#ifndef mysqld_error_find_printf_error_used
 #define ER_DEFAULT(X) DEFAULT_ERRMSGS[((X)-ER_ERROR_FIRST) / ERRORS_PER_RANGE][(X)% ERRORS_PER_RANGE]
 #define ER_THD(thd,X) ((thd)->variables.errmsgs[((X)-ER_ERROR_FIRST) / ERRORS_PER_RANGE][(X) % ERRORS_PER_RANGE])
 #define ER(X)         ER_THD(current_thd, (X))
+#endif
 #define ER_THD_OR_DEFAULT(thd,X) ((thd) ? ER_THD(thd, (X)) : ER_DEFAULT(X))
 
 #define ME_INFO (ME_HOLDTANG | ME_NOREFRESH)
@@ -190,7 +192,7 @@ int rea_create_table(THD *thd, LEX_CUSTRING *frm,
                      const char *path, const char *db, const char *table_name,
                      HA_CREATE_INFO *create_info, handler *file,
                      bool no_ha_create_table);
-LEX_CUSTRING build_frm_image(THD *thd, const char *table,
+LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
                              HA_CREATE_INFO *create_info,
                              List<Create_field> &create_fields,
                              uint keys, KEY *key_info, handler *db_file);

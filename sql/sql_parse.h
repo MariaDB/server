@@ -107,9 +107,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                       bool is_com_multi, bool is_next_command);
 void log_slow_statement(THD *thd);
 bool append_file_to_dir(THD *thd, const char **filename_ptr,
-                        const char *table_name);
-bool append_file_to_dir(THD *thd, const char **filename_ptr,
-                        const char *table_name);
+                        const LEX_CSTRING *table_name);
 void execute_init_command(THD *thd, LEX_STRING *init_command,
                           mysql_rwlock_t *var_lock);
 bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *group, bool asc);
@@ -149,8 +147,9 @@ inline bool check_identifier_name(LEX_CSTRING *str)
 bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *tables);
 bool check_single_table_access(THD *thd, ulong privilege,
 			   TABLE_LIST *tables, bool no_errors);
-bool check_routine_access(THD *thd,ulong want_access,const char *db,
-                          const char *name,
+bool check_routine_access(THD *thd,ulong want_access,
+                          const LEX_CSTRING *db,
+                          const LEX_CSTRING *name,
                           const Sp_handler *sph, bool no_errors);
 bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table);
 bool check_some_routine_access(THD *thd, const char *db, const char *name,
@@ -165,8 +164,9 @@ inline bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *tables
 inline bool check_single_table_access(THD *thd, ulong privilege,
 			   TABLE_LIST *tables, bool no_errors)
 { return false; }
-inline bool check_routine_access(THD *thd,ulong want_access, const char *db,
-                                 const char *name,
+inline bool check_routine_access(THD *thd,ulong want_access,
+                                 const LEX_CSTRING *db,
+                                 const LEX_CSTRING *name,
                                  const Sp_handler *sph, bool no_errors)
 { return false; }
 inline bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table)

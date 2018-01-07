@@ -92,7 +92,7 @@ public:
   static void archive_name(THD *thd, const char *table_name, char *new_name, size_t new_name_size);
   void archive_name(THD *thd, char *new_name, size_t new_name_size)
   {
-    archive_name(thd, about.table_name, new_name, new_name_size);
+    archive_name(thd, about.table_name.str, new_name, new_name_size);
   }
 
   bool find_archive_name(THD *thd, String &out);
@@ -170,15 +170,18 @@ inline
 bool
 VTMD_exists::check_exists(THD *thd)
 {
+  LEX_CSTRING name;
   if (about.vers_vtmd_name(vtmd_name))
     return true;
 
-  exists= ha_table_exists(thd, about.db, vtmd_name, &hton);
+  name.str=    vtmd_name.ptr();
+  name.length= vtmd_name.length();
+  exists= ha_table_exists(thd, &about.db, &name, &hton);
 
   if (exists && !hton)
   {
     my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` handlerton empty!", MYF(0),
-                        about.db, vtmd_name.ptr());
+                        about.db.str, vtmd_name.ptr());
     return true;
   }
   return false;

@@ -363,7 +363,7 @@ bool select_unit::flush()
 bool
 select_unit::create_result_table(THD *thd_arg, List<Item> *column_types,
                                   bool is_union_distinct, ulonglong options,
-                                  const char *alias,
+                                 const LEX_CSTRING *alias,
                                   bool bit_fields_as_long, bool create_table,
                                   bool keep_row_order,
                                   uint hidden)
@@ -397,7 +397,7 @@ select_union_recursive::create_result_table(THD *thd_arg,
                                             List<Item> *column_types,
                                             bool is_union_distinct,
                                             ulonglong options,
-                                            const char *alias,
+                                            const LEX_CSTRING *alias,
                                             bool bit_fields_as_long,
                                             bool create_table,
                                             bool keep_row_order,
@@ -405,14 +405,14 @@ select_union_recursive::create_result_table(THD *thd_arg,
 {
   if (select_unit::create_result_table(thd_arg, column_types,
                                        is_union_distinct, options,
-                                       "", bit_fields_as_long,
+                                       &empty_clex_str, bit_fields_as_long,
                                        create_table, keep_row_order,
                                        hidden))
     return true;
   
   if (! (incr_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                       (ORDER*) 0, false, 1,
-                                      options, HA_POS_ERROR, "",
+                                      options, HA_POS_ERROR, &empty_clex_str,
                                       !create_table, keep_row_order)))
     return true;
 
@@ -1010,7 +1010,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
           goto err;
         if (union_result->create_result_table(thd, &types,
                                               MY_TEST(union_distinct),
-                                              create_options, derived->alias,
+                                              create_options, &derived->alias,
                                               false,
                                               instantiate_tmp_table, false,
                                               0))
@@ -1132,7 +1132,7 @@ cont:
       bool error=
         union_result->create_result_table(thd, &types,
                                           MY_TEST(union_distinct),
-                                          create_options, "", false,
+                                          create_options, &empty_clex_str, false,
                                           instantiate_tmp_table, false,
                                           hidden);
       if (intersect_mark)
@@ -1147,8 +1147,10 @@ cont:
       save_maybe_null= result_table_list.maybe_null_exec;
     }
     bzero((char*) &result_table_list, sizeof(result_table_list));
-    result_table_list.db= (char*) "";
-    result_table_list.table_name= result_table_list.alias= (char*) "union";
+    result_table_list.db.str= (char*) "";
+    result_table_list.db.length= 0;
+    result_table_list.table_name.str= result_table_list.alias.str= "union";
+    result_table_list.table_name.length= result_table_list.alias.length= sizeof("union")-1;
     result_table_list.table= table= union_result->table;
     if (fake_select_lex && !fake_select_lex->first_cond_optimization)
     {

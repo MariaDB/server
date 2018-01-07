@@ -172,7 +172,7 @@
 #if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
 #  define MRN_THD_DB_PATH(thd) ((thd)->db().str)
 #else
-#  define MRN_THD_DB_PATH(thd) ((thd)->db)
+#  define MRN_THD_DB_PATH(thd) ((thd)->db.str)
 #endif
 
 #ifndef INT_MAX64

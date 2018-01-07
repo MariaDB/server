@@ -136,8 +136,8 @@ void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
                              const MDL_savepoint &start_of_statement_svp);
 TABLE_LIST *find_table_in_list(TABLE_LIST *table,
                                TABLE_LIST *TABLE_LIST::*link,
-                               const char *db_name,
-                               const char *table_name);
+                               const LEX_CSTRING *db_name,
+                               const LEX_CSTRING *table_name);
 void close_thread_tables(THD *thd);
 void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *);
 void switch_defaults_to_nullable_trigger_fields(TABLE *table);
@@ -205,8 +205,8 @@ bool setup_tables_and_check_access(THD *thd,
 bool wait_while_table_is_used(THD *thd, TABLE *table,
                               enum ha_extra_function function);
 
-void drop_open_table(THD *thd, TABLE *table, const char *db_name,
-                     const char *table_name);
+void drop_open_table(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
+                     const LEX_CSTRING *table_name);
 void update_non_unique_table_error(TABLE_LIST *update,
                                    const char *operation,
                                    TABLE_LIST *duplicate);
@@ -344,21 +344,12 @@ inline void setup_table_map(TABLE *table, TABLE_LIST *table_list, uint tablenr)
 }
 
 inline TABLE_LIST *find_table_in_global_list(TABLE_LIST *table,
-                                             const char *db_name,
-                                             const char *table_name)
+                                             LEX_CSTRING *db_name,
+                                             LEX_CSTRING *table_name)
 {
   return find_table_in_list(table, &TABLE_LIST::next_global,
                             db_name, table_name);
 }
-
-inline TABLE_LIST *find_table_in_local_list(TABLE_LIST *table,
-                                            const char *db_name,
-                                            const char *table_name)
-{
-  return find_table_in_list(table, &TABLE_LIST::next_local,
-                            db_name, table_name);
-}
-
 
 inline bool setup_fields_with_no_wrap(THD *thd, Ref_ptr_array ref_pointer_array,
                                       List<Item> &item,

@@ -465,27 +465,27 @@ int ha_myisammrg::add_children_list(void)
   */
   if (parent_l->parent_l)
   {
-    my_error(ER_ADMIN_WRONG_MRG_TABLE, MYF(0), parent_l->alias);
+    my_error(ER_ADMIN_WRONG_MRG_TABLE, MYF(0), parent_l->alias.str);
     DBUG_RETURN(1);
   }
 
   while ((mrg_child_def= it++))
   {
     TABLE_LIST  *child_l;
-    char *db;
-    char *table_name;
+    LEX_CSTRING db;
+    LEX_CSTRING table_name;
 
     child_l= (TABLE_LIST*) thd->alloc(sizeof(TABLE_LIST));
-    db= (char*) thd->memdup(mrg_child_def->db.str, mrg_child_def->db.length+1);
-    table_name= (char*) thd->memdup(mrg_child_def->name.str,
-                                    mrg_child_def->name.length+1);
+    db.str= (char*) thd->memdup(mrg_child_def->db.str, mrg_child_def->db.length+1);
+    db.length= mrg_child_def->db.length;
+    table_name.str= (char*) thd->memdup(mrg_child_def->name.str,
+                                        mrg_child_def->name.length+1);
+    table_name.length= mrg_child_def->name.length;
 
-    if (child_l == NULL || db == NULL || table_name == NULL)
+    if (child_l == NULL || db.str == NULL || table_name.str == NULL)
       DBUG_RETURN(1);
 
-    child_l->init_one_table(db, mrg_child_def->db.length,
-                            table_name, mrg_child_def->name.length,
-                            table_name, parent_l->lock_type);
+    child_l->init_one_table(&db, &table_name, 0, parent_l->lock_type);
     /* Set parent reference. Used to detect MERGE in children list. */
     child_l->parent_l= parent_l;
     /* Copy select_lex. Used in unique_table() at least. */
@@ -653,7 +653,7 @@ extern "C" MI_INFO *myisammrg_attach_children_callback(void *callback_param)
   if (! child)
   {
     DBUG_PRINT("error", ("failed to open underlying table '%s'.'%s'",
-                         child_l->db, child_l->table_name));
+                         child_l->db.str, child_l->table_name.str));
     /*
       This should only happen inside of CHECK/REPAIR TABLE or
       for the tables added by the pre-locking code.
@@ -712,7 +712,8 @@ extern "C" MI_INFO *myisammrg_attach_children_callback(void *callback_param)
       (current_thd->open_options & HA_OPEN_FOR_REPAIR))
   {
     char buf[2*NAME_LEN + 1 + 1];
-    strxnmov(buf, sizeof(buf) - 1, child_l->db, ".", child_l->table_name, NULL);
+    strxnmov(buf, sizeof(buf) - 1, child_l->db.str, ".",
+             child_l->table_name.str, NULL);
     /*
       Push an error to be reported as part of CHECK/REPAIR result-set.
       Note that calling my_error() from handler is a hack which is kept
@@ -1482,12 +1483,14 @@ void ha_myisammrg::update_create_info(HA_CREATE_INFO *create_info)
         if (!(ptr= (TABLE_LIST *) thd->calloc(sizeof(TABLE_LIST))))
           goto err;
 
-        if (!(ptr->table_name= thd->strmake(child_table->table_name,
-                                            child_table->table_name_length)))
+        if (!(ptr->table_name.str= thd->strmake(child_table->table_name.str,
+                                                child_table->table_name.length)))
           goto err;
-        if (child_table->db && !(ptr->db= thd->strmake(child_table->db,
-                                   child_table->db_length)))
+        ptr->table_name.length= child_table->table_name.length;
+        if (child_table->db.str && !(ptr->db.str= thd->strmake(child_table->db.str,
+                                                               child_table->db.length)))
           goto err;
+        ptr->db.length= child_table->db.length;
 
         create_info->merge_list.elements++;
         (*create_info->merge_list.next)= ptr;
@@ -1547,7 +1550,7 @@ int ha_myisammrg::create_mrg(const char *name, HA_CREATE_INFO *create_info)
       not by their path name.
     */
     uint length= build_table_filename(buff, sizeof(buff),
-                                      tables->db, tables->table_name, "", 0);
+                                      tables->db.str, tables->table_name.str, "", 0);
     /*
       If a MyISAM table is in the same directory as the MERGE table,
       we use the table name without a path. This means that the
@@ -1609,7 +1612,7 @@ void ha_myisammrg::append_create_info(String *packet)
   for (first= open_table= children_l;;
        open_table= open_table->next_global)
   {
-    LEX_CSTRING db= { open_table->db, open_table->db_length };
+    LEX_CSTRING db= open_table->db;
 
     if (open_table != first)
       packet->append(',');
@@ -1621,8 +1624,7 @@ void ha_myisammrg::append_create_info(String *packet)
       append_identifier(thd, packet, db.str, db.length);
       packet->append('.');
     }
-    append_identifier(thd, packet, open_table->table_name,
-                      open_table->table_name_length);
+    append_identifier(thd, packet, &open_table->table_name);
     if (&open_table->next_global == children_last_l)
       break;
   }

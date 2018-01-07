@@ -827,7 +827,7 @@ retry:
     lf_hash_search_unpin(thd->tdc_hash_pins);
     DBUG_ASSERT(element);
 
-    if (!(share= alloc_table_share(tl->db, tl->table_name, key, key_length)))
+    if (!(share= alloc_table_share(tl->db.str, tl->table_name.str, key, key_length)))
     {
       lf_hash_delete(&tdc_hash, thd->tdc_hash_pins, key, key_length);
       DBUG_RETURN(0);

@@ -21,6 +21,7 @@
 */
 
 #include "mariadb.h"
+#include "mysqld.h"
 #include "sql_priv.h"
 #ifndef __WIN__
 #include <netdb.h>        // getservbyname, servent
@@ -1264,7 +1265,7 @@ void prepare_new_connection_state(THD* thd)
       if (packet_length != packet_error)
         my_error(ER_NEW_ABORTING_CONNECTION, MYF(0),
                  thd->thread_id,
-                 thd->db ? thd->db : "unconnected",
+                 thd->db.str ? thd->db.str : "unconnected",
                  sctx->user ? sctx->user : "unauthenticated",
                  sctx->host_or_ip, "init_connect command failed");
       thd->server_status&= ~SERVER_STATUS_CLEAR_SET;

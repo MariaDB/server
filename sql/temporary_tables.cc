@@ -328,7 +328,7 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, uint key_length)
 bool THD::open_temporary_table(TABLE_LIST *tl)
 {
   DBUG_ENTER("THD::open_temporary_table");
-  DBUG_PRINT("enter", ("table: '%s'.'%s'", tl->db, tl->table_name));
+  DBUG_PRINT("enter", ("table: '%s'.'%s'", tl->db.str, tl->table_name.str));
 
   TMP_TABLE_SHARE *share;
   TABLE *table= NULL;
@@ -391,7 +391,7 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
     if (tl->open_type == OT_TEMPORARY_ONLY &&
         tl->open_strategy == TABLE_LIST::OPEN_NORMAL)
     {
-      my_error(ER_NO_SUCH_TABLE, MYF(0), tl->db, tl->table_name);
+      my_error(ER_NO_SUCH_TABLE, MYF(0), tl->db.str, tl->table_name.str);
       DBUG_RETURN(true);
     }
     DBUG_RETURN(false);
@@ -544,25 +544,21 @@ bool THD::close_temporary_tables()
           true                        Error
 */
 bool THD::rename_temporary_table(TABLE *table,
-                                 const char *db,
-                                 const char *table_name)
+                                 const LEX_CSTRING *db,
+                                 const LEX_CSTRING *table_name)
 {
-  DBUG_ENTER("THD::rename_temporary_table");
-
   char *key;
   uint key_length;
-
   TABLE_SHARE *share= table->s;
+  DBUG_ENTER("THD::rename_temporary_table");
 
   if (!(key= (char *) alloc_root(&share->mem_root, MAX_DBKEY_LENGTH)))
-  {
     DBUG_RETURN(true);
-  }
 
   /*
     Temporary tables are renamed by simply changing their table definition key.
   */
-  key_length= create_tmp_table_def_key(key, db, table_name);
+  key_length= create_tmp_table_def_key(key, db->str, table_name->str);
   share->set_table_cache_key(key, key_length);
 
   DBUG_RETURN(false);
@@ -1102,19 +1098,20 @@ done:
           Failure                     NULL
 */
 TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
-                                 const char *alias,
+                                 const char *alias_arg,
                                  bool open_in_engine)
 {
+  TABLE *table;
+  LEX_CSTRING alias= {alias_arg, strlen(alias_arg) };
   DBUG_ENTER("THD::open_temporary_table");
 
-  TABLE *table;
 
   if (!(table= (TABLE *) my_malloc(sizeof(TABLE), MYF(MY_WME))))
   {
     DBUG_RETURN(NULL);                          /* Out of memory */
   }
 
-  if (open_table_from_share(this, share, alias,
+  if (open_table_from_share(this, share, &alias,
                             open_in_engine ? (uint)HA_OPEN_KEYFILE : 0,
                             EXTRA_RECORD,
                             (ha_open_options |
@@ -1379,8 +1376,7 @@ bool THD::log_events_and_free_tmp_shares()
           We are going to add ` around the table names and possible more
           due to special characters.
         */
-        append_identifier(this, &s_query, share->table_name.str,
-                          share->table_name.length);
+        append_identifier(this, &s_query, &share->table_name);
         s_query.append(',');
         rm_temporary_table(share->db_type(), share->path.str);
         free_table_share(share);

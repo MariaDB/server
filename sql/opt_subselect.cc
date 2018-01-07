@@ -1497,6 +1497,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     {
       TABLE_LIST *outer_tbl= subq_pred->emb_on_expr_nest;
       TABLE_LIST *wrap_nest;
+      LEX_CSTRING sj_wrap_name= { STRING_WITH_LEN("(sj-wrap)") };
       /*
         We're dealing with
 
@@ -1522,7 +1523,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       }
       wrap_nest->embedding= outer_tbl->embedding;
       wrap_nest->join_list= outer_tbl->join_list;
-      wrap_nest->alias= (char*) "(sj-wrap)";
+      wrap_nest->alias= sj_wrap_name;
 
       wrap_nest->nested_join->join_list.empty();
       wrap_nest->nested_join->join_list.push_back(outer_tbl, thd->mem_root);
@@ -1561,6 +1562,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
   TABLE_LIST *sj_nest;
   NESTED_JOIN *nested_join;
+  LEX_CSTRING sj_nest_name= { STRING_WITH_LEN("(sj-nest)") };
   if (!(sj_nest= alloc_join_nest(thd)))
   {
     DBUG_RETURN(TRUE);
@@ -1569,7 +1571,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
   sj_nest->join_list= emb_join_list;
   sj_nest->embedding= emb_tbl_nest;
-  sj_nest->alias= (char*) "(sj-nest)";
+  sj_nest->alias= sj_nest_name;
   sj_nest->sj_subq_pred= subq_pred;
   sj_nest->original_subq_pred_used_tables= subq_pred->used_tables() |
                                            subq_pred->left_expr->used_tables();
@@ -1842,13 +1844,15 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
 const int SUBQERY_TEMPTABLE_NAME_MAX_LEN= 20;
 
-static void create_subquery_temptable_name(char *to, uint number)
+static void create_subquery_temptable_name(LEX_STRING *str, uint number)
 {
+  char *to= str->str;
   DBUG_ASSERT(number < 10000);       
   to= strmov(to, "<subquery");
   to= int10_to_str((int) number, to, 10);
   to[0]= '>';
   to[1]= 0;
+  str->length= (size_t) (to - str->str)+1;
 }
 
 
@@ -1876,7 +1880,7 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
   TABLE_LIST *tl;
   bool optimization_delayed= TRUE;
   TABLE_LIST *jtbm;
-  char *tbl_alias;
+  LEX_STRING tbl_alias;
   THD *thd= parent_join->thd;
   DBUG_ENTER("convert_subq_to_jtbm");
 
@@ -1885,7 +1889,7 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
 
   *remove_item= TRUE;
 
-  if (!(tbl_alias= (char*)thd->calloc(SUBQERY_TEMPTABLE_NAME_MAX_LEN)) ||
+  if (!(tbl_alias.str= (char*)thd->calloc(SUBQERY_TEMPTABLE_NAME_MAX_LEN)) ||
       !(jtbm= alloc_join_nest(thd))) //todo: this is not a join nest!
   {
     DBUG_RETURN(TRUE);
@@ -1925,9 +1929,10 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
 
     jtbm->jtbm_table_no= parent_join->table_count;
 
-    create_subquery_temptable_name(tbl_alias, 
+    create_subquery_temptable_name(&tbl_alias,
                                    subq_pred->unit->first_select()->select_number);
-    jtbm->alias= tbl_alias;
+    jtbm->alias.str=    tbl_alias.str;
+    jtbm->alias.length= tbl_alias.length;
     parent_join->table_count++;
     DBUG_RETURN(thd->is_fatal_error);
   }
@@ -1947,9 +1952,10 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
 
   DBUG_EXECUTE("where", print_where(conds,"SJ-EXPR", QT_ORDINARY););
   
-  create_subquery_temptable_name(tbl_alias, hash_sj_engine->materialize_join->
+  create_subquery_temptable_name(&tbl_alias, hash_sj_engine->materialize_join->
                                               select_lex->select_number);
-  jtbm->alias= tbl_alias;
+  jtbm->alias.str=    tbl_alias.str;
+  jtbm->alias.length= tbl_alias.length;
 
   parent_lex->have_merged_subqueries= TRUE;
 
@@ -3705,6 +3711,7 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
   sjm->sjm_table_param.init();
   sjm->sjm_table_param.bit_fields_as_long= TRUE;
   SELECT_LEX *subq_select= emb_sj_nest->sj_subq_pred->unit->first_select();
+  const LEX_CSTRING sj_materialize_name= { STRING_WITH_LEN("sj-materialize") };
   Ref_ptr_array p_items= subq_select->ref_pointer_array;
   for (uint i= 0; i < subq_select->item_list.elements; i++)
     sjm->sjm_table_cols.push_back(p_items[i], thd->mem_root);
@@ -3718,7 +3725,7 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
                                      1, /*save_sum_fields*/
                                      thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS, 
                                      HA_POS_ERROR /*rows_limit */, 
-                                     (char*)"sj-materialize")))
+                                     &sj_materialize_name)))
     DBUG_RETURN(TRUE); /* purecov: inspected */
   sjm->table->map=  emb_sj_nest->nested_join->used_tables;
   sjm->table->file->extra(HA_EXTRA_WRITE_CACHE);
@@ -5335,6 +5342,7 @@ TABLE *create_dummy_tmp_table(THD *thd)
   sjm_table_param.init();
   sjm_table_param.field_count= 1;
   List<Item> sjm_table_cols;
+  const LEX_CSTRING dummy_name= { STRING_WITH_LEN("dummy") };
   Item *column_item= new (thd->mem_root) Item_int(thd, 1);
   if (!column_item)
     DBUG_RETURN(NULL);
@@ -5347,7 +5355,7 @@ TABLE *create_dummy_tmp_table(THD *thd)
                                 thd->variables.option_bits |
                                 TMP_TABLE_ALL_COLUMNS, 
                                 HA_POS_ERROR /*rows_limit */, 
-                                (char*)"dummy", TRUE /* Do not open */)))
+                                &dummy_name, TRUE /* Do not open */)))
   {
     DBUG_RETURN(NULL);
   }

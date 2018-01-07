@@ -1088,7 +1088,7 @@ static void setup_connection_connect(struct connection_info *cn,
   cn->log_always= 0;
   cn->thread_id= event->thread_id;
   get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-            event->database, event->database_length);
+            event->database.str, event->database.length);
   get_str_n(cn->user, &cn->user_length, sizeof(cn->db),
             event->user, event->user_length);
   get_str_n(cn->host, &cn->host_length, sizeof(cn->host),
@@ -1176,7 +1176,7 @@ static void setup_connection_table(struct connection_info *cn,
   cn->log_always= 0;
   cn->query_length= 0;
   get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-            event->database, event->database_length);
+            event->database.str, event->database.length);
   get_str_n(cn->user, &cn->user_length, sizeof(cn->db),
             event->user, SAFE_STRLEN(event->user));
   get_str_n(cn->host, &cn->host_length, sizeof(cn->host),
@@ -1324,7 +1324,7 @@ static int log_connection_event(const struct mysql_event_connection *event,
                     event->ip, event->ip_length,
                     event->thread_id, 0, type);
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,,%d", event->database_length, event->database, event->status);
+    ",%.*s,,%d", event->database.length, event->database.str, event->status);
   message[csize]= '\n';
   return write_log(message, csize + 1);
 }
@@ -1742,8 +1742,8 @@ static int log_table(const struct connection_info *cn,
                     event->ip, (unsigned int)SAFE_STRLEN(event->ip),
                     event->thread_id, cn->query_id, type);
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-            ",%.*s,%.*s,",event->database_length, event->database,
-                          event->table_length, event->table);
+            ",%.*s,%.*s,",event->database.length, event->database.str,
+                          event->table.length, event->table.str);
   message[csize]= '\n';
   return write_log(message, csize + 1);
 }
@@ -1764,10 +1764,10 @@ static int log_rename(const struct connection_info *cn,
                     event->ip, (unsigned int)SAFE_STRLEN(event->ip),
                     event->thread_id, cn->query_id, "RENAME");
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-            ",%.*s,%.*s|%.*s.%.*s,",event->database_length, event->database,
-                         event->table_length, event->table,
-                         event->new_database_length, event->new_database,
-                         event->new_table_length, event->new_table);
+            ",%.*s,%.*s|%.*s.%.*s,",event->database.length, event->database.str,
+                         event->table.length, event->table.str,
+                         event->new_database.length, event->new_database.str,
+                         event->new_table.length, event->new_table.str);
   message[csize]= '\n';
   return write_log(message, csize + 1);
 }
@@ -1832,7 +1832,7 @@ static void update_connection_info(struct connection_info *cn,
             /* Change DB */
             if (mysql_57_started)
               get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                  event->database, event->database_length);
+                  event->database.str, event->database.length);
             else
               get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
                   event->general_query, event->general_query_length);
@@ -1858,9 +1858,9 @@ static void update_connection_info(struct connection_info *cn,
           if (ci_needs_setup(cn))
             setup_connection_query(cn, event);
 
-          if (mode == 0 && cn->db_length == 0 && event->database_length > 0)
+          if (mode == 0 && cn->db_length == 0 && event->database.length > 0)
             get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                      event->database, event->database_length);
+                      event->database.str, event->database.length);
 
           if (event->general_error_code == 0)
           {
@@ -1875,7 +1875,7 @@ static void update_connection_info(struct connection_info *cn,
                     event->general_query + 4, event->general_query_length - 4);
               else
                 get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                    event->database, event->database_length);
+                    event->database.str, event->database.length);
             }
           }
           update_general_user(cn, event);
@@ -1916,9 +1916,9 @@ static void update_connection_info(struct connection_info *cn,
                 event->ip, SAFE_STRLEN(event->ip));
     }
 
-    if (cn->db_length == 0 && event->database_length != 0)
+    if (cn->db_length == 0 && event->database.length != 0)
       get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                event->database, event->database_length);
+                event->database.str, event->database.length);
 
     if (mode == 0)
       cn->query_id= event->query_id;
@@ -2145,8 +2145,8 @@ static void auditing_v8(MYSQL_THD thd, struct mysql_event_general_v8 *ev_v8)
   event.general_charset= ev_v8->general_charset;
   event.general_time= ev_v8->general_time;
   event.general_rows= ev_v8->general_rows;
-  event.database= 0;
-  event.database_length= 0;
+  event.database.str= 0;
+  event.database.length= 0;
 
   if (event.general_query_length > 0)
   {
@@ -2154,8 +2154,8 @@ static void auditing_v8(MYSQL_THD thd, struct mysql_event_general_v8 *ev_v8)
     event.general_command= "Query";
     event.general_command_length= 5;
 #ifdef __linux__
-    event.database= *(char **) (((char *) thd) + db_off);
-    event.database_length= *(size_t *) (((char *) thd) + db_len_off);
+    event.database.str= *(char **) (((char *) thd) + db_off);
+    event.database.length= *(size_t *) (((char *) thd) + db_len_off);
 #endif /*__linux*/
   }
 #ifdef __linux__

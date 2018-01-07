@@ -22,6 +22,7 @@
 #include "mdl.h"
 #include "datadict.h"
 #include "sql_string.h"                         /* String */
+#include "lex_string.h"
 
 #ifndef MYSQL_CLIENT
 
@@ -1697,7 +1698,7 @@ typedef class Item COND;
 
 typedef struct st_schema_table
 {
-  const char* table_name;
+  const char *table_name;
   ST_FIELD_INFO *fields_info;
   /* for FLUSH table_name */
   int (*reset_table) ();
@@ -1819,8 +1820,8 @@ public:
   LEX_CSTRING *name();
   Item *create_item(THD *thd);
   Field *field();
-  const char *table_name();
-  const char *db_name();
+  const char *safe_table_name();
+  const char *safe_db_name();
   GRANT_INFO *grant();
 };
 
@@ -1934,49 +1935,44 @@ struct TABLE_LIST
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
   */
-  inline void init_one_table(const char *db_name_arg,
-                             size_t db_length_arg,
-                             const char *table_name_arg,
-                             size_t table_name_length_arg,
-                             const char *alias_arg,
-                             enum thr_lock_type lock_type_arg)
+inline void init_one_table(const LEX_CSTRING *db_arg,
+                           const LEX_CSTRING *table_name_arg,
+                           const LEX_CSTRING *alias_arg,
+                           enum thr_lock_type lock_type_arg)
   {
     bzero((char*) this, sizeof(*this));
-    db= (char*) db_name_arg;
-    db_length= db_length_arg;
-    table_name= (char*) table_name_arg;
-    table_name_length= table_name_length_arg;
-    alias= (char*) (alias_arg ? alias_arg : table_name_arg);
+    DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
+    DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
+    DBUG_ASSERT(!alias_arg || strlen(alias_arg->str) == alias_arg->length);
+    db= *db_arg;
+    table_name= *table_name_arg;
+    alias= (alias_arg ? *alias_arg : *table_name_arg);
     lock_type= lock_type_arg;
-    mdl_request.init(MDL_key::TABLE, db, table_name,
+    mdl_request.init(MDL_key::TABLE, db.str, table_name.str,
                      (lock_type >= TL_WRITE_ALLOW_WRITE) ?
                      MDL_SHARED_WRITE : MDL_SHARED_READ,
                      MDL_TRANSACTION);
   }
 
-  TABLE_LIST(TABLE &_table, thr_lock_type lock_type)
+  TABLE_LIST(TABLE *table_arg, thr_lock_type lock_type)
   {
-    DBUG_ASSERT(_table.s);
-    init_one_table(
-      LEX_STRING_WITH_LEN(_table.s->db),
-      LEX_STRING_WITH_LEN(_table.s->table_name),
-      _table.s->table_name.str, lock_type);
-    table= &_table;
+    DBUG_ASSERT(table_arg->s);
+    init_one_table(&table_arg->s->db, &table_arg->s->table_name,
+                   NULL, lock_type);
+    table= table_arg;
   }
 
-  inline void init_one_table_for_prelocking(const char *db_name_arg,
-                             size_t db_length_arg,
-                             const char *table_name_arg,
-                             size_t table_name_length_arg,
-                             const char *alias_arg,
-                             enum thr_lock_type lock_type_arg,
-                             prelocking_types prelocking_type,
-                             TABLE_LIST *belong_to_view_arg,
-                             uint8 trg_event_map_arg,
-                             TABLE_LIST ***last_ptr)
+  inline void init_one_table_for_prelocking(const LEX_CSTRING *db_arg,
+                                            const LEX_CSTRING *table_name_arg,
+                                            const LEX_CSTRING *alias_arg,
+                                            enum thr_lock_type lock_type_arg,
+                                            prelocking_types prelocking_type,
+                                            TABLE_LIST *belong_to_view_arg,
+                                            uint8 trg_event_map_arg,
+                                            TABLE_LIST ***last_ptr)
+
   {
-    init_one_table(db_name_arg, db_length_arg, table_name_arg,
-                   table_name_length_arg, alias_arg, lock_type_arg);
+    init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
     cacheable_table= 1;
     prelocking_placeholder= prelocking_type;
     open_type= (prelocking_type == PRELOCK_ROUTINE ?
@@ -1998,7 +1994,10 @@ struct TABLE_LIST
   TABLE_LIST *next_local;
   /* link in a global list of all queries tables */
   TABLE_LIST *next_global, **prev_global;
-  const char	*db, *alias, *table_name, *schema_table_name;
+  LEX_CSTRING   db;
+  LEX_CSTRING   table_name;
+  LEX_CSTRING   schema_table_name;
+  LEX_CSTRING   alias;
   const char    *option;                /* Used by cache index  */
   Item		*on_expr;		/* Used with outer join */
 
@@ -2232,8 +2231,6 @@ struct TABLE_LIST
   thr_lock_type lock_type;
   uint		outer_join;		/* Which join type */
   uint		shared;			/* Used in multi-upd */
-  size_t        db_length;
-  size_t        table_name_length;
   bool          updatable;		/* VIEW/TABLE can be updated now */
   bool		straight;		/* optimize with prev table */
   bool          updating;               /* for replicate-do/ignore table */
@@ -2331,7 +2328,7 @@ struct TABLE_LIST
     View definition (SELECT-statement) in the UTF-form.
   */
 
-  LEX_STRING view_body_utf8;
+  LEX_CSTRING view_body_utf8;
 
    /* End of view definition context. */
 
@@ -2526,7 +2523,7 @@ struct TABLE_LIST
   {
     DBUG_ENTER("set_merged_derived");
     DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
-                        (alias ? alias : "<NULL>"),
+                        (alias.str ? alias.str : "<NULL>"),
                          get_unit()));
     derived_type= ((derived_type & DTYPE_MASK) |
                    DTYPE_TABLE | DTYPE_MERGE);
@@ -2541,7 +2538,7 @@ struct TABLE_LIST
   {
     DBUG_ENTER("set_materialized_derived");
     DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
-                        (alias ? alias : "<NULL>"),
+                        (alias.str ? alias.str : "<NULL>"),
                          get_unit()));
     derived_type= ((derived_type & (derived ? DTYPE_MASK : DTYPE_VIEW)) |
                    DTYPE_TABLE | DTYPE_MATERIALIZE);
@@ -2570,7 +2567,7 @@ struct TABLE_LIST
      @brief Returns the name of the database that the referenced table belongs
      to.
   */
-  const char *get_db_name() const { return view != NULL ? view_db.str : db; }
+  const char *get_db_name() const { return view != NULL ? view_db.str : db.str; }
 
   /**
      @brief Returns the name of the table that this TABLE_LIST represents.
@@ -2578,7 +2575,7 @@ struct TABLE_LIST
      @details The unqualified table name or view name for a table or view,
      respectively.
    */
-  const char *get_table_name() const { return view != NULL ? view_name.str : table_name; }
+  const char *get_table_name() const { return view != NULL ? view_name.str : table_name.str; }
   bool is_active_sjm();
   bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }
   st_select_lex_unit *get_unit();
@@ -2883,7 +2880,7 @@ size_t max_row_length(TABLE *table, const uchar *data);
 void init_mdl_requests(TABLE_LIST *table_list);
 
 enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
-                       const char *alias, uint db_stat, uint prgflag,
+                       const LEX_CSTRING *alias, uint db_stat, uint prgflag,
                        uint ha_open_flags, TABLE *outparam,
                        bool is_create_table,
                        List<String> *partitions_to_open= NULL);
@@ -2945,19 +2942,15 @@ extern LEX_CSTRING TRANSACTION_REG_NAME;
 extern LEX_CSTRING INFORMATION_SCHEMA_NAME;
 extern LEX_CSTRING MYSQL_SCHEMA_NAME;
 
-inline bool is_infoschema_db(const char *name, size_t len)
+/* table names */
+extern LEX_CSTRING MYSQL_USER_NAME, MYSQL_DB_NAME, MYSQL_PROC_NAME;
+
+inline bool is_infoschema_db(const LEX_CSTRING *name)
 {
-  return (INFORMATION_SCHEMA_NAME.length == len &&
+  return (INFORMATION_SCHEMA_NAME.length == name->length &&
           !my_strcasecmp(system_charset_info,
-                         INFORMATION_SCHEMA_NAME.str, name));
+                         INFORMATION_SCHEMA_NAME.str, name->str));
 }
-
-inline bool is_infoschema_db(const char *name)
-{
-  return !my_strcasecmp(system_charset_info,
-                        INFORMATION_SCHEMA_NAME.str, name);
-}
-
 
 inline void mark_as_null_row(TABLE *table)
 {
@@ -2976,6 +2969,7 @@ class Open_tables_backup;
     transaction-related data which is used for transaction order resolution.
     When versioned table marks its records lifetime with transaction IDs,
     TRT is used to get their actual timestamps. */
+
 class TR_table: public TABLE_LIST
 {
   THD *thd;
@@ -3103,9 +3097,7 @@ public:
   }
   bool operator== (const TABLE_LIST &subj) const
   {
-    if (0 != strcmp(db, subj.db))
-      return false;
-    return (0 == strcmp(table_name, subj.table_name));
+    return (!cmp(&db, &subj.db) && !cmp(&table_name, &subj.table_name));
   }
   bool operator!= (const TABLE_LIST &subj) const
   {

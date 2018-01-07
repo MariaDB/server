@@ -220,8 +220,8 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
 
 err:
   my_error(ER_SEQUENCE_INVALID_TABLE_STRUCTURE, MYF(0),
-           lex->select_lex.table_list.first->db,
-           lex->select_lex.table_list.first->table_name, reason);
+           lex->select_lex.table_list.first->db.str,
+           lex->select_lex.table_list.first->table_name.str, reason);
   DBUG_RETURN(TRUE);
 }
 
@@ -843,7 +843,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   No_such_table_error_handler no_such_table_handler;
   DBUG_ENTER("Sql_cmd_alter_sequence::execute");
 
-  if (check_access(thd, ALTER_ACL, first_table->db,
+  if (check_access(thd, ALTER_ACL, first_table->db.str,
                    &first_table->grant.privilege,
                    &first_table->grant.m_internal,
                    0, 0))
@@ -865,9 +865,9 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
     if (trapped_errors)
     {
       StringBuffer<FN_REFLEN> tbl_name;
-      tbl_name.append(first_table->db);
+      tbl_name.append(&first_table->db);
       tbl_name.append('.');
-      tbl_name.append(first_table->table_name);
+      tbl_name.append(&first_table->table_name);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_UNKNOWN_SEQUENCES,
                           ER_THD(thd, ER_UNKNOWN_SEQUENCES),
@@ -909,8 +909,8 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   if (new_seq->check_and_adjust(0))
   {
     my_error(ER_SEQUENCE_INVALID_DATA, MYF(0),
-             first_table->db,
-             first_table->table_name);
+             first_table->db.str,
+             first_table->table_name.str);
     error= 1;
     goto end;
   }

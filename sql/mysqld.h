@@ -37,7 +37,6 @@ class Time_zone;
 
 struct scheduler_functions;
 
-typedef struct st_mysql_const_lex_string LEX_CSTRING;
 typedef struct st_mysql_show_var SHOW_VAR;
 
 #if MAX_INDEXES <= 64

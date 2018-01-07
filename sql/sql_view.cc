@@ -273,13 +273,13 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     checked that we have not more privileges on correspondent column of view
     table (i.e. user will not get some privileges by view creation)
   */
-  if ((check_access(thd, CREATE_VIEW_ACL, view->db,
+  if ((check_access(thd, CREATE_VIEW_ACL, view->db.str,
                     &view->grant.privilege,
                     &view->grant.m_internal,
                     0, 0) ||
        check_grant(thd, CREATE_VIEW_ACL, view, FALSE, 1, FALSE)) ||
       (mode != VIEW_CREATE_NEW &&
-       (check_access(thd, DROP_ACL, view->db,
+       (check_access(thd, DROP_ACL, view->db.str,
                      &view->grant.privilege,
                      &view->grant.m_internal,
                      0, 0) ||
@@ -298,7 +298,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
       {
         my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
                  "ANY", thd->security_ctx->priv_user,
-                 thd->security_ctx->priv_host, tbl->table_name);
+                 thd->security_ctx->priv_host, tbl->table_name.str);
         goto err;
       }
       /*
@@ -319,8 +319,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
         tbl->table_name will be correct name of table because VIEWs are
         not opened yet.
       */
-      fill_effective_table_privileges(thd, &tbl->grant, tbl->db,
-                                      tbl->table_name);
+      fill_effective_table_privileges(thd, &tbl->grant, tbl->db.str, tbl->table_name.str);
     }
   }
 
@@ -331,7 +330,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     {
       if (!tbl->table_in_first_from_clause)
       {
-        if (check_access(thd, SELECT_ACL, tbl->db,
+        if (check_access(thd, SELECT_ACL, tbl->db.str,
                          &tbl->grant.privilege,
                          &tbl->grant.m_internal,
                          0, 0) ||
@@ -457,9 +456,9 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   view= lex->unlink_first_table(&link_to_local);
 
-  if (check_db_dir_existence(view->db))
+  if (check_db_dir_existence(view->db.str))
   {
-    my_error(ER_BAD_DB_ERROR, MYF(0), view->db);
+    my_error(ER_BAD_DB_ERROR, MYF(0), view->db.str);
     res= TRUE;
     goto err;
   }
@@ -495,8 +494,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   {
     /* is this table view and the same view which we creates now? */
     if (tbl->view &&
-        strcmp(tbl->view_db.str, view->db) == 0 &&
-        strcmp(tbl->view_name.str, view->table_name) == 0)
+        cmp(&tbl->view_db, &view->db) == 0 &&
+        cmp(&tbl->view_name, &view->table_name) == 0)
     {
       my_error(ER_NO_SUCH_TABLE, MYF(0), tbl->view_db.str, tbl->view_name.str);
       res= TRUE;
@@ -516,7 +515,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       if (tbl->table->s->tmp_table != NO_TMP_TABLE && !tbl->view &&
           !tbl->schema_table)
       {
-        my_error(ER_VIEW_SELECT_TMPTABLE, MYF(0), tbl->alias);
+        my_error(ER_VIEW_SELECT_TMPTABLE, MYF(0), tbl->alias.str);
         res= TRUE;
         goto err;
       }
@@ -545,9 +544,9 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   if (lex->view_list.elements)
   {
     List_iterator_fast<Item> it(select_lex->item_list);
-    List_iterator_fast<LEX_STRING> nm(lex->view_list);
+    List_iterator_fast<LEX_CSTRING> nm(lex->view_list);
     Item *item;
-    LEX_STRING *name;
+    LEX_CSTRING *name;
 
     if (lex->view_list.elements != select_lex->item_list.elements)
     {
@@ -577,8 +576,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     Compare/check grants on view with grants of underlying tables
   */
 
-  fill_effective_table_privileges(thd, &view->grant, view->db,
-                                  view->table_name);
+  fill_effective_table_privileges(thd, &view->grant, view->db.str,
+                                  view->table_name.str);
 
   /*
     Make sure that the current user does not have more column-level privileges
@@ -597,14 +596,14 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     
     for (sl= select_lex; sl; sl= sl->next_select())
     {
-      DBUG_ASSERT(view->db);                     /* Must be set in the parser */
+      DBUG_ASSERT(view->db.str);       /* Must be set in the parser */
       List_iterator_fast<Item> it(sl->item_list);
       Item *item;
       while ((item= it++))
       {
         Item_field *fld= item->field_for_view_update();
-        uint priv= (get_column_grant(thd, &view->grant, view->db,
-                                     view->table_name, item->name.str) &
+        uint priv= (get_column_grant(thd, &view->grant, view->db.str,
+                                     view->table_name.str, item->name.str) &
                     VIEW_ANY_ACL);
 
         if (!fld)
@@ -631,7 +630,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       my_error(ER_COLUMNACCESS_DENIED_ERROR, MYF(0),
                "create view", thd->security_ctx->priv_user,
                thd->security_ctx->priv_host, report_item->name.str,
-               view->table_name);
+               view->table_name.str);
       res= TRUE;
       goto err;
     }
@@ -647,7 +646,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   */
 
   if (!res)
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, view->db, view->table_name, false);
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, view->db.str, view->table_name.str, false);
 
   if (!res && mysql_bin_log.is_open())
   {
@@ -667,30 +666,29 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       buff.append(STRING_WITH_LEN("IF NOT EXISTS "));
 
     /* Test if user supplied a db (ie: we did not use thd->db) */
-    if (views->db && views->db[0] &&
-        (thd->db == NULL || strcmp(views->db, thd->db)))
+    if (views->db.str && views->db.str[0] &&
+        (thd->db.str == NULL || cmp(&views->db, &thd->db)))
     {
-      append_identifier(thd, &buff, views->db,
-                        views->db_length);
+      append_identifier(thd, &buff, &views->db);
       buff.append('.');
     }
-    append_identifier(thd, &buff, views->table_name,
-                      views->table_name_length);
+    append_identifier(thd, &buff, &views->table_name);
     if (lex->view_list.elements)
     {
-      List_iterator_fast<LEX_STRING> names(lex->view_list);
-      LEX_STRING *name;
+      List_iterator_fast<LEX_CSTRING> names(lex->view_list);
+      LEX_CSTRING *name;
       int i;
       
       for (i= 0; (name= names++); i++)
       {
         buff.append(i ? ", " : "(");
-        append_identifier(thd, &buff, name->str, name->length);
+        append_identifier(thd, &buff, name);
       }
       buff.append(')');
     }
     buff.append(STRING_WITH_LEN(" AS "));
-    buff.append(&views->source);
+    /* views->source doesn't end with \0 */
+    buff.append(views->source.str, views->source.length);
 
     int errcode= query_error_code(thd, TRUE);
     /*
@@ -733,11 +731,11 @@ static void make_view_filename(LEX_CSTRING *dir, char *dir_buff,
 {
   /* print file name */
   dir->length= build_table_filename(dir_buff, dir_buff_len - 1,
-                                   view->db, "", "", 0);
+                                   view->db.str, "", "", 0);
   dir->str= dir_buff;
 
   path->length= build_table_filename(path_buff, path_buff_len - 1,
-                                     view->db, view->table_name, reg_ext, 0);
+                                     view->db.str, view->table_name.str, reg_ext, 0);
   path->str= path_buff;
 
   file->str= path->str + dir->length;
@@ -850,11 +848,12 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
                                 (uchar*)view, view_parameters))
   {
     sql_print_error("View '%-.192s'.'%-.192s': algorithm swap error.",
-                    view->db, view->table_name);
+                    view->db.str, view->table_name.str);
     DBUG_RETURN(HA_ADMIN_INTERNAL_ERROR);
   }
   sql_print_information("View %`s.%`s: the version is set to %llu%s%s",
-                        view->db, view->table_name, view->mariadb_version,
+                        view->db.str, view->table_name.str,
+                        view->mariadb_version,
                         (wrong_checksum ? ", checksum corrected" : ""),
                         (swap_alg ?
                           ((view->algorithm == VIEW_ALGORITHM_MERGE) ?
@@ -1034,19 +1033,19 @@ loop_out:
     fn_format(path_buff, file.str, dir.str, "", MY_UNPACK_FILENAME);
     path.length= strlen(path_buff);
 
-    if (ha_table_exists(thd, view->db, view->table_name))
+    if (ha_table_exists(thd, &view->db, &view->table_name))
     {
       if (lex->create_info.if_not_exists())
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_TABLE_EXISTS_ERROR,
                             ER_THD(thd, ER_TABLE_EXISTS_ERROR),
-                            view->table_name);
+                            view->table_name.str);
         DBUG_RETURN(0);
       }
       else if (mode == VIEW_CREATE_NEW)
       {
-	my_error(ER_TABLE_EXISTS_ERROR, MYF(0), view->alias);
+	my_error(ER_TABLE_EXISTS_ERROR, MYF(0), view->alias.str);
         error= -1;
         goto err;
       }
@@ -1059,7 +1058,8 @@ loop_out:
 
       if (!parser->ok() || !is_equal(&view_type, parser->type()))
       {
-        my_error(ER_WRONG_OBJECT, MYF(0), view->db, view->table_name, "VIEW");
+        my_error(ER_WRONG_OBJECT, MYF(0), view->db.str, view->table_name.str,
+                 "VIEW");
         error= -1;
         goto err;
       }
@@ -1073,7 +1073,7 @@ loop_out:
    {
       if (mode == VIEW_ALTER)
       {
-	my_error(ER_NO_SUCH_TABLE, MYF(0), view->db, view->alias);
+	my_error(ER_NO_SUCH_TABLE, MYF(0), view->db.str, view->alias.str);
         error= -1;
         goto err;
       }
@@ -1117,8 +1117,8 @@ loop_out:
       !lex->select_lex.master_unit()->is_unit_op() &&
       !(lex->select_lex.table_list.first)->next_local &&
       find_table_in_global_list(lex->query_tables->next_global,
-				lex->query_tables->db,
-				lex->query_tables->table_name))
+				&lex->query_tables->db,
+				&lex->query_tables->table_name))
   {
     view->updatable_view= 0;
   }
@@ -1126,7 +1126,7 @@ loop_out:
   if (view->with_check != VIEW_CHECK_NONE &&
       !view->updatable_view)
   {
-    my_error(ER_VIEW_NONUPD_CHECK, MYF(0), view->db, view->table_name);
+    my_error(ER_VIEW_NONUPD_CHECK, MYF(0), view->db.str, view->table_name.str);
     error= -1;
     goto err;
   }
@@ -1170,7 +1170,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
   bool result, view_is_mergeable;
   TABLE_LIST *UNINIT_VAR(view_main_select_tables);
   DBUG_ENTER("mysql_make_view");
-  DBUG_PRINT("info", ("table: %p (%s)", table, table->table_name));
+  DBUG_PRINT("info", ("table: %p (%s)", table, table->table_name.str));
 
   if (table->required_type == TABLE_TYPE_NORMAL)
   {
@@ -1216,7 +1216,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
   if (table->index_hints && table->index_hints->elements)
   {
     my_error(ER_KEY_DOES_NOT_EXITS, MYF(0),
-             table->index_hints->head()->key_name.str, table->table_name);
+             table->index_hints->head()->key_name.str, table->table_name.str);
     DBUG_RETURN(TRUE);
   }
 
@@ -1225,12 +1225,12 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
        precedent;
        precedent= precedent->referencing_view)
   {
-    if (precedent->view_name.length == table->table_name_length &&
-        precedent->view_db.length == table->db_length &&
+    if (precedent->view_name.length == table->table_name.length &&
+        precedent->view_db.length == table->db.length &&
         my_strcasecmp(system_charset_info,
-                      precedent->view_name.str, table->table_name) == 0 &&
+                      precedent->view_name.str, table->table_name.str) == 0 &&
         my_strcasecmp(system_charset_info,
-                      precedent->view_db.str, table->db) == 0)
+                      precedent->view_db.str, table->db.str) == 0)
     {
       my_error(ER_VIEW_RECURSIVE, MYF(0),
                top_view->view_db.str, top_view->view_name.str);
@@ -1274,7 +1274,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
                 !table->definer.host.length);
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_VIEW_FRM_NO_USER, ER_THD(thd, ER_VIEW_FRM_NO_USER),
-                        table->db, table->table_name);
+                        table->db.str, table->table_name.str);
     get_default_definer(thd, &table->definer, false);
   }
   
@@ -1304,10 +1304,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     Save VIEW parameters, which will be wiped out by derived table
     processing
   */
-  table->view_db.str= table->db;
-  table->view_db.length= table->db_length;
-  table->view_name.str= table->table_name;
-  table->view_name.length= table->table_name_length;
+  table->view_db= table->db;
+  table->view_name= table->table_name;
   /*
     We don't invalidate a prepared statement when a view changes,
     or when someone creates a temporary table.
@@ -1708,7 +1706,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                               ER_VIEW_ORDERBY_IGNORED,
                               ER_THD(thd, ER_VIEW_ORDERBY_IGNORED),
-                              table->db, table->table_name);
+                              table->db.str, table->table_name.str);
         }
       }
       /*
@@ -1811,12 +1809,13 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
   {
     bool not_exist;
     build_table_filename(path, sizeof(path) - 1,
-                         view->db, view->table_name, reg_ext, 0);
+                         view->db.str, view->table_name.str, reg_ext, 0);
 
     if ((not_exist= my_access(path, F_OK)) || !dd_frm_is_view(thd, path))
     {
       char name[FN_REFLEN];
-      my_snprintf(name, sizeof(name), "%s.%s", view->db, view->table_name);
+      my_snprintf(name, sizeof(name), "%s.%s", view->db.str,
+                  view->table_name.str);
       if (thd->lex->if_exists())
       {
 	push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
@@ -1835,8 +1834,8 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       {
         if (!wrong_object_name)
         {
-          wrong_object_db= view->db;
-          wrong_object_name= view->table_name;
+          wrong_object_db= view->db.str;
+          wrong_object_name= view->table_name.str;
         }
       }
       continue;
@@ -1850,7 +1849,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       For a view, there is a TABLE_SHARE object.
       Remove it from the table definition cache, in case the view was cached.
     */
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, view->db, view->table_name,
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, view->db.str, view->table_name.str,
                      FALSE);
     query_cache_invalidate3(thd, view, 0);
     sp_cache_invalidate();
@@ -2053,7 +2052,7 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
     }
     else
     {
-      my_error(ER_NON_INSERTABLE_TABLE, MYF(0), view->alias, "INSERT");
+      my_error(ER_NON_INSERTABLE_TABLE, MYF(0), view->alias.str, "INSERT");
       DBUG_RETURN(TRUE);
     }
   }
@@ -2155,8 +2154,8 @@ int view_repair(THD *thd, TABLE_LIST *view, HA_CHECK_OPT *check_opt)
 */
 bool
 mysql_rename_view(THD *thd,
-                  const char *new_db,
-                  const char *new_name,
+                  const LEX_CSTRING *new_db,
+                  const LEX_CSTRING *new_name,
                   TABLE_LIST *view)
 {
   LEX_CSTRING pathstr;
@@ -2167,7 +2166,7 @@ mysql_rename_view(THD *thd,
 
   pathstr.str= (char *) path_buff;
   pathstr.length= build_table_filename(path_buff, sizeof(path_buff) - 1,
-                                       view->db, view->table_name,
+                                       view->db.str, view->table_name.str,
                                        reg_ext, 0);
 
   if ((parser= sql_parse_prepare(&pathstr, thd->mem_root, 1)) && 
@@ -2194,16 +2193,17 @@ mysql_rename_view(THD *thd,
       goto err;
 
     /* rename view and it's backups */
-    if (rename_in_schema_file(thd, view->db, view->table_name, new_db, new_name))
+    if (rename_in_schema_file(thd, view->db.str, view->table_name.str,
+                              new_db->str, new_name->str))
       goto err;
 
     dir.str= dir_buff;
     dir.length= build_table_filename(dir_buff, sizeof(dir_buff) - 1,
-                                     new_db, "", "", 0);
+                                     new_db->str, "", "", 0);
 
     pathstr.str= path_buff;
     pathstr.length= build_table_filename(path_buff, sizeof(path_buff) - 1,
-                                         new_db, new_name, reg_ext, 0);
+                                         new_db->str, new_name->str, reg_ext, 0);
 
     file.str= pathstr.str + dir.length;
     file.length= pathstr.length - dir.length;
@@ -2212,7 +2212,8 @@ mysql_rename_view(THD *thd,
                                    (uchar*)&view_def, view_parameters))
     {
       /* restore renamed view in case of error */
-      rename_in_schema_file(thd, new_db, new_name, view->db, view->table_name);
+      rename_in_schema_file(thd, new_db->str, new_name->str, view->db.str,
+                            view->table_name.str);
       goto err;
     }
   } else

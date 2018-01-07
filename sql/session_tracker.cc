@@ -974,7 +974,7 @@ bool Current_schema_tracker::store(THD *thd, String *buf)
     It saves length of database name and name of database name +
     length of saved length of database length.
   */
-  length= db_length= thd->db_length;
+  length= db_length= thd->db.length;
   length += net_length_size(length);
 
   compile_time_assert(SESSION_TRACK_SCHEMA < 251);
@@ -991,7 +991,7 @@ bool Current_schema_tracker::store(THD *thd, String *buf)
   buf->q_net_store_length(length);
 
   /* Length and current schema name */
-  buf->q_net_store_data((const uchar *)thd->db, thd->db_length);
+  buf->q_net_store_data((const uchar *)thd->db.str, thd->db.length);
 
   reset();
 

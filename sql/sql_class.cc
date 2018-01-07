@@ -1475,6 +1475,75 @@ void THD::change_user(void)
   sp_cache_clear(&sp_func_cache);
 }
 
+/**
+   Change default database
+
+   @note This is coded to have as few instructions as possible under
+   LOCK_thd_data
+*/
+
+bool THD::set_db(const LEX_CSTRING *new_db)
+{
+  bool result= 0;
+  /*
+    Acquiring mutex LOCK_thd_data as we either free the memory allocated
+    for the database and reallocating the memory for the new db or memcpy
+    the new_db to the db.
+  */
+  /* Do not reallocate memory if current chunk is big enough. */
+  if (db.str && new_db->str && db.length >= new_db->length)
+  {
+    mysql_mutex_lock(&LOCK_thd_data);
+    db.length= new_db->length;
+    memcpy((char*) db.str, new_db->str, new_db->length+1);
+    mysql_mutex_unlock(&LOCK_thd_data);
+  }
+  else
+  {
+    const char *org_db= db.str;
+    const char *tmp= NULL;
+    if (new_db->str)
+    {
+      if (!(tmp= my_strndup(new_db->str, new_db->length, MYF(MY_WME | ME_FATALERROR))))
+        result= 1;
+    }
+
+    mysql_mutex_lock(&LOCK_thd_data);
+    db.str= tmp;
+    db.length= tmp ? new_db->length : 0;
+    mysql_mutex_unlock(&LOCK_thd_data);
+    my_free((char*) org_db);
+  }
+  PSI_CALL_set_thread_db(db.str, (int) db.length);
+  return result;
+}
+
+
+/**
+   Set the current database
+
+   @param new_db     a pointer to the new database name.
+   @param new_db_len length of the new database name.
+
+   @note This operation just sets {db, db_length}. Switching the current
+   database usually involves other actions, like switching other database
+   attributes including security context. In the future, this operation
+   will be made private and more convenient interface will be provided.
+*/
+
+void THD::reset_db(const LEX_CSTRING *new_db)
+{
+  if (new_db->str != db.str || new_db->length != db.length)
+  {
+    if (db.str != 0)
+      DBUG_PRINT("QQ", ("Overwriting: %p", db.str));
+    mysql_mutex_lock(&LOCK_thd_data);
+    db= *new_db;
+    mysql_mutex_unlock(&LOCK_thd_data);
+    PSI_CALL_set_thread_db(db.str, (int) db.length);
+  }
+}
+
 
 /* Do operations that may take a long time */
 
@@ -1553,8 +1622,8 @@ void THD::cleanup(void)
 void THD::free_connection()
 {
   DBUG_ASSERT(free_connection_done == 0);
-  my_free(db);
-  db= NULL;
+  my_free((char*) db.str);
+  db= null_clex_str;
 #ifndef EMBEDDED_LIBRARY
   if (net.vio)
     vio_delete(net.vio);
@@ -3043,8 +3112,7 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
 
   if (!dirname_length(exchange->file_name))
   {
-    strxnmov(path, FN_REFLEN-1, mysql_real_data_home, thd->db ? thd->db : "",
-             NullS);
+    strxnmov(path, FN_REFLEN-1, mysql_real_data_home, thd->get_db(), NullS);
     (void) fn_format(path, exchange->file_name, path, "", option);
   }
   else
@@ -3737,10 +3805,9 @@ Statement::Statement(LEX *lex_arg, MEM_ROOT *mem_root_arg,
   id(id_arg),
   mark_used_columns(MARK_COLUMNS_READ),
   lex(lex_arg),
-  db(NULL),
-  db_length(0)
+  db(null_clex_str)
 {
-  name.str= NULL;
+  name= null_clex_str;
 }
 
 
@@ -4077,7 +4144,7 @@ bool
 select_materialize_with_stats::
 create_result_table(THD *thd_arg, List<Item> *column_types,
                     bool is_union_distinct, ulonglong options,
-                    const char *table_alias, bool bit_fields_as_long,
+                    const LEX_CSTRING *table_alias, bool bit_fields_as_long,
                     bool create_table,
                     bool keep_row_order,
                     uint hidden)
@@ -4088,7 +4155,7 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
 
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                  (ORDER*) 0, is_union_distinct, 1,
-                                 options, HA_POS_ERROR, (char*) table_alias,
+                                 options, HA_POS_ERROR, table_alias,
                                  !create_table, keep_row_order)))
     return TRUE;
 
@@ -4663,8 +4730,10 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 
   Open_table_context ot_ctx(thd, 0);
   TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
+  LEX_CSTRING db_name= {db, dblen };
+  LEX_CSTRING table_name= { tb, tblen };
 
-  tl->init_one_table(db, dblen, tb, tblen, tb, TL_READ);
+  tl->init_one_table(&db_name, &table_name, 0, TL_READ);
   tl->i_s_requested_object= OPEN_TABLE_ONLY;
 
   bool error= open_table(thd, tl, &ot_ctx);
@@ -5057,7 +5126,7 @@ extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)
 
 extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
 {
-  return binlog_filter->db_ok(thd->db);
+  return binlog_filter->db_ok(thd->db.str);
 }
 
 /*
@@ -5959,7 +6028,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
   */
   if (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG) &&
       !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
-        !binlog_filter->db_ok(db)))
+        !binlog_filter->db_ok(db.str)))
   {
 
     if (is_bulk_op())
@@ -6062,7 +6131,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       handler::Table_flags const flags= table->table->file->ha_table_flags();
 
       DBUG_PRINT("info", ("table: %s; ha_table_flags: 0x%llx",
-                          table->table_name, flags));
+                          table->table_name.str, flags));
 
       if (table->table->s->no_replicate)
       {
@@ -6366,7 +6435,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         if (table->table->file->ht->db_type == DB_TYPE_BLACKHOLE_DB &&
             table->lock_type >= TL_WRITE_ALLOW_WRITE)
         {
-            table_names.append(table->table_name);
+            table_names.append(&table->table_name);
             table_names.append(",");
         }
       }
@@ -6398,7 +6467,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                         mysql_bin_log.is_open(),
                         (variables.option_bits & OPTION_BIN_LOG),
                         (uint) wsrep_binlog_format(),
-                        binlog_filter->db_ok(db)));
+                        binlog_filter->db_ok(db.str)));
 #endif
 
   DBUG_RETURN(0);

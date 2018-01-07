@@ -289,7 +289,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         if (tables)
         {
           for (TABLE_LIST *t= tables; t; t= t->next_local)
-            if (!find_table_for_mdl_upgrade(thd, t->db, t->table_name, false))
+            if (!find_table_for_mdl_upgrade(thd, t->db.str, t->table_name.str, false))
               return 1;
         }
         else
@@ -412,11 +412,11 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
    reset_mqh((LEX_USER *) NULL, 0);             /* purecov: inspected */
  if (options & REFRESH_GENERIC)
  {
-   List_iterator_fast<LEX_STRING> li(thd->lex->view_list);
-   LEX_STRING *ls;
+   List_iterator_fast<LEX_CSTRING> li(thd->lex->view_list);
+   LEX_CSTRING *ls;
    while ((ls= li++))
    {
-     ST_SCHEMA_TABLE *table= find_schema_table(thd, ls->str);
+     ST_SCHEMA_TABLE *table= find_schema_table(thd, ls);
      if (table->reset_table())
        result= 1;
    }
@@ -540,8 +540,8 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
     {
       /* Request removal of table from cache. */
       tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
-                       table_list->db,
-                       table_list->table_name, FALSE);
+                       table_list->db.str,
+                       table_list->table_name.str, FALSE);
       /* Reset ticket to satisfy asserts in open_tables(). */
       table_list->mdl_request.ticket= NULL;
     }
@@ -573,7 +573,7 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
       if (!(table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
       {
         my_error(ER_ILLEGAL_HA, MYF(0),table_list->table->file->table_type(),
-                 table_list->db, table_list->table_name);
+                 table_list->db.str, table_list->table_name.str);
         goto error_reset_bits;
       }
     }

@@ -1307,7 +1307,7 @@ sync_arr_fill_sys_semphore_waits_table(
 	ulint		n_items;
 
 	DBUG_ENTER("i_s_sys_semaphore_waits_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {

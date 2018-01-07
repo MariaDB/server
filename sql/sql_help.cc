@@ -689,20 +689,16 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
   uint mlen= strlen(mask);
   size_t i;
   MEM_ROOT *mem_root= thd->mem_root;
+  LEX_CSTRING MYSQL_HELP_TOPIC_NAME=    {STRING_WITH_LEN("help_topic") };
+  LEX_CSTRING MYSQL_HELP_CATEGORY_NAME= {STRING_WITH_LEN("help_category") };
+  LEX_CSTRING MYSQL_HELP_RELATION_NAME= {STRING_WITH_LEN("help_relation") };
+  LEX_CSTRING MYSQL_HELP_KEYWORD_NAME=  {STRING_WITH_LEN("help_keyword") };
   DBUG_ENTER("mysqld_help");
 
-  tables[0].init_one_table(C_STRING_WITH_LEN("mysql"),
-                           C_STRING_WITH_LEN("help_topic"),
-                           "help_topic", TL_READ);
-  tables[1].init_one_table(C_STRING_WITH_LEN("mysql"),
-                           C_STRING_WITH_LEN("help_category"),
-                           "help_category", TL_READ);
-  tables[2].init_one_table(C_STRING_WITH_LEN("mysql"),
-                           C_STRING_WITH_LEN("help_relation"),
-                           "help_relation", TL_READ);
-  tables[3].init_one_table(C_STRING_WITH_LEN("mysql"),
-                           C_STRING_WITH_LEN("help_keyword"),
-                           "help_keyword", TL_READ);
+  tables[0].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_TOPIC_NAME, 0, TL_READ);
+  tables[1].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_CATEGORY_NAME, 0, TL_READ);
+  tables[2].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_RELATION_NAME, 0, TL_READ);
+  tables[3].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HELP_KEYWORD_NAME, 0, TL_READ);
   tables[0].next_global= tables[0].next_local= 
     tables[0].next_name_resolution_table= &tables[1];
   tables[1].next_global= tables[1].next_local= 

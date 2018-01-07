@@ -622,7 +622,8 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     DBUG_RETURN(-1);
   }
 
-  if (enum open_frm_error err= open_table_from_share(thd, share, "",
+  if (enum open_frm_error err= open_table_from_share(thd, share,
+                                                     &empty_clex_str,
                             (uint) (HA_OPEN_KEYFILE | HA_TRY_READ_ONLY),
                             EXTRA_RECORD,
                             thd->open_options, edges, FALSE))

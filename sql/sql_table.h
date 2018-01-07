@@ -191,14 +191,15 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 #define C_ALTER_TABLE_FRM_ONLY   -2
 #define C_ASSISTED_DISCOVERY     -3
 
-int mysql_create_table_no_lock(THD *thd, const char *db,
-                               const char *table_name,
+int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
+                               const LEX_CSTRING *table_name,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
                                int create_table_mode, TABLE_LIST *table);
 
 handler *mysql_create_frm_image(THD *thd,
-                                const char *db, const char *table_name,
+                                const LEX_CSTRING *db,
+                                const LEX_CSTRING *table_name,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info,
                                 int create_table_mode,
@@ -216,7 +217,7 @@ bool mysql_prepare_alter_table(THD *thd, TABLE *table,
                                Alter_table_ctx *alter_ctx);
 bool mysql_trans_prepare_alter_copy_data(THD *thd);
 bool mysql_trans_commit_alter_copy_data(THD *thd);
-bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
+bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *new_name,
                        HA_CREATE_INFO *create_info,
                        TABLE_LIST *table_list,
                        Alter_info *alter_info,
@@ -229,9 +230,9 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy);
 bool mysql_create_like_table(THD *thd, TABLE_LIST *table,
                              TABLE_LIST *src_table,
                              Table_specification_st *create_info);
-bool mysql_rename_table(handlerton *base, const char *old_db,
-                        const char * old_name, const char *new_db,
-                        const char * new_name, uint flags);
+bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
+                        const LEX_CSTRING *old_name, const LEX_CSTRING *new_db,
+                        const LEX_CSTRING *new_name, uint flags);
 
 bool mysql_backup_table(THD* thd, TABLE_LIST* table_list);
 bool mysql_restore_table(THD* thd, TABLE_LIST* table_list);
@@ -244,11 +245,10 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool drop_temporary, bool drop_view,
                             bool drop_sequence,
                             bool log_query, bool dont_free_locks);
-bool log_drop_table(THD *thd, const char *db_name, size_t db_name_length,
-                    const char *table_name, size_t table_name_length,
-                    bool temporary_table);
-bool quick_rm_table(THD *thd, handlerton *base, const char *db,
-                    const char *table_name, uint flags,
+bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
+                    const LEX_CSTRING *table_name, bool temporary_table);
+bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
+                    const LEX_CSTRING *table_name, uint flags,
                     const char *table_path=0);
 void close_cached_table(THD *thd, TABLE *table);
 void sp_prepare_create_field(THD *thd, Column_definition *sql_field);

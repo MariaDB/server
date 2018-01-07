@@ -759,7 +759,7 @@ DATE_TIME_FORMAT
       !parse_date_time_format(format_type, format_str,
 			      format_length, &tmp))
   {
-    tmp.format.str=    (char*) format_str;
+    tmp.format.str=    format_str;
     tmp.format.length= format_length;
     return date_time_format_copy((THD *)0, &tmp);
   }
@@ -787,6 +787,7 @@ DATE_TIME_FORMAT *date_time_format_copy(THD *thd, DATE_TIME_FORMAT *format)
 {
   DATE_TIME_FORMAT *new_format;
   ulong length= sizeof(*format) + format->format.length + 1;
+  char *format_pos;
 
   if (thd)
     new_format= (DATE_TIME_FORMAT *) thd->alloc(length);
@@ -795,14 +796,13 @@ DATE_TIME_FORMAT *date_time_format_copy(THD *thd, DATE_TIME_FORMAT *format)
   if (new_format)
   {
     /* Put format string after current pos */
-    new_format->format.str= (char*) (new_format+1);
+    new_format->format.str= format_pos= (char*) (new_format+1);
     memcpy((char*) new_format->positions, (char*) format->positions,
 	   sizeof(format->positions));
     new_format->time_separator= format->time_separator;
     /* We make the string null terminated for easy printf in SHOW VARIABLES */
-    memcpy((char*) new_format->format.str, format->format.str,
-	   format->format.length);
-    new_format->format.str[format->format.length]= 0;
+    memcpy(format_pos, format->format.str, format->format.length);
+    format_pos[format->format.length]= 0;
     new_format->format.length= format->format.length;
   }
   return new_format;

@@ -1813,9 +1813,9 @@ struct Table_scope_and_contents_source_st
   LEX_CUSTRING tabledef_version;
   LEX_CSTRING connect_string;
   LEX_CSTRING comment;
+  LEX_CSTRING alias;
   const char *password, *tablespace;
   const char *data_file_name, *index_file_name;
-  const char *alias;
   ulonglong max_rows,min_rows;
   ulonglong auto_increment_value;
   ulong table_options;                  ///< HA_OPTION_ values
@@ -4684,7 +4684,7 @@ int ha_create_table(THD *thd, const char *path,
                     const char *db, const char *table_name,
                     HA_CREATE_INFO *create_info, LEX_CUSTRING *frm);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
-                    const char *db, const char *alias, bool generate_warning);
+                    const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning);
 
 /* statistics and info */
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);
@@ -4722,7 +4722,7 @@ public:
 int ha_discover_table(THD *thd, TABLE_SHARE *share);
 int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
-bool ha_table_exists(THD *thd, const char *db, const char *table_name,
+bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
                      handlerton **hton= 0, bool *is_sequence= 0);
 #endif
 
@@ -4773,9 +4773,9 @@ const char *get_canonical_filename(handler *file, const char *path,
 bool mysql_xa_recover(THD *thd);
 void commit_checkpoint_notify_ha(handlerton *hton, void *cookie);
 
-inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
+inline const LEX_CSTRING *table_case_name(HA_CREATE_INFO *info, const LEX_CSTRING *name)
 {
-  return ((lower_case_table_names == 2 && info->alias) ? info->alias : name);
+  return ((lower_case_table_names == 2 && info->alias.str) ? &info->alias : name);
 }
 
 typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);

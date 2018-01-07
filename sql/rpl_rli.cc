@@ -1527,8 +1527,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
   int err= 0;
 
   thd->reset_for_next_command();
-  tlist.init_one_table(STRING_WITH_LEN("mysql"), tablename->str,
-                       tablename->length, NULL, TL_READ);
+  tlist.init_one_table(&MYSQL_SCHEMA_NAME, tablename, NULL, TL_READ);
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
   table_opened= true;
@@ -1642,15 +1641,14 @@ static int
 scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
                               void *cb_data)
 {
-  static LEX_CSTRING mysql_db_name= {C_STRING_WITH_LEN("mysql")};
   char path[FN_REFLEN];
   MY_DIR *dirp;
 
   thd->reset_for_next_command();
-  if (lock_schema_name(thd, mysql_db_name.str))
+  if (lock_schema_name(thd, MYSQL_SCHEMA_NAME.str))
     return 1;
 
-  build_table_filename(path, sizeof(path) - 1, mysql_db_name.str, "", "", 0);
+  build_table_filename(path, sizeof(path) - 1, MYSQL_SCHEMA_NAME.str, "", "", 0);
   if (!(dirp= my_dir(path, MYF(MY_DONT_SORT))))
   {
     my_error(ER_FILE_NOT_FOUND, MYF(0), path, my_errno);
@@ -1665,7 +1663,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
     Discovered_table_list tl(thd, &files);
     int err;
 
-    err= ha_discover_table_names(thd, &mysql_db_name, dirp, &tl, false);
+    err= ha_discover_table_names(thd, &MYSQL_SCHEMA_NAME, dirp, &tl, false);
     my_dirend(dirp);
     close_thread_tables(thd);
     thd->mdl_context.release_transactional_locks();
@@ -1928,8 +1926,7 @@ find_gtid_pos_tables_cb(THD *thd, LEX_CSTRING *table_name, void *arg)
   int err;
 
   thd->reset_for_next_command();
-  tlist.init_one_table(STRING_WITH_LEN("mysql"), table_name->str,
-                       table_name->length, NULL, TL_READ);
+  tlist.init_one_table(&MYSQL_SCHEMA_NAME, table_name, NULL, TL_READ);
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
   table= tlist.table;

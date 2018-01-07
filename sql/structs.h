@@ -39,7 +39,7 @@ typedef struct st_date_time_format {
   uchar positions[8];
   char  time_separator;			/* Separator between hour and minute */
   uint flag;				/* For future */
-  LEX_STRING format;
+  LEX_CSTRING format;
 } DATE_TIME_FORMAT;
 
 

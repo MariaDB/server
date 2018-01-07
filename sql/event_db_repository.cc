@@ -164,6 +164,8 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   }
 };
 
+static LEX_CSTRING MYSQL_EVENT_NAME= { STRING_WITH_LEN("event") };
+
 static const TABLE_FIELD_DEF
 event_table_def= {ET_FIELD_COUNT, event_table_fields, 0, (uint*) 0};
 
@@ -538,7 +540,7 @@ Event_db_repository::fill_schema_events(THD *thd, TABLE_LIST *i_s_table,
   DBUG_ENTER("Event_db_repository::fill_schema_events");
   DBUG_PRINT("info",("db=%s", db? db:"(null)"));
 
-  event_table.init_one_table("mysql", 5, "event", 5, "event", TL_READ);
+  event_table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
 
   if (open_system_tables_for_read(thd, &event_table, &open_tables_backup))
     DBUG_RETURN(TRUE);
@@ -600,7 +602,7 @@ Event_db_repository::open_event_table(THD *thd, enum thr_lock_type lock_type,
   TABLE_LIST tables;
   DBUG_ENTER("Event_db_repository::open_event_table");
 
-  tables.init_one_table("mysql", 5, "event", 5, "event", lock_type);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, lock_type);
 
   if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
     DBUG_RETURN(TRUE);
@@ -1066,7 +1068,7 @@ Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
   DBUG_PRINT("enter",("thd: %p  name: %*s", thd,
                       (int) name->length, name->str));
 
-  event_table.init_one_table("mysql", 5, "event", 5, "event", TL_READ);
+  event_table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
 
   /* Reset sql_mode during data dictionary operations. */
   thd->variables.sql_mode= 0;
@@ -1189,7 +1191,7 @@ Event_db_repository::check_system_tables(THD *thd)
   DBUG_PRINT("enter", ("thd: %p", thd));
 
   /* Check mysql.db */
-  tables.init_one_table("mysql", 5, "db", 2, "db", TL_READ);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_DB_NAME, 0, TL_READ);
 
   if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
@@ -1204,7 +1206,7 @@ Event_db_repository::check_system_tables(THD *thd)
     close_mysql_tables(thd);
   }
   /* Check mysql.user */
-  tables.init_one_table("mysql", 5, "user", 4, "user", TL_READ);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_USER_NAME, 0, TL_READ);
 
   if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
@@ -1224,7 +1226,7 @@ Event_db_repository::check_system_tables(THD *thd)
     close_mysql_tables(thd);
   }
   /* Check mysql.event */
-  tables.init_one_table("mysql", 5, "event", 5, "event", TL_READ);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
 
   if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {

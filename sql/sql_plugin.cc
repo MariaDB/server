@@ -66,6 +66,8 @@ char *opt_plugin_dir_ptr;
 char opt_plugin_dir[FN_REFLEN];
 ulong plugin_maturity;
 
+static LEX_CSTRING MYSQL_PLUGIN_NAME= {STRING_WITH_LEN("plugin") };
+
 /*
   not really needed now, this map will become essential when we add more
   maturity levels. We cannot change existing maturity constants,
@@ -1817,11 +1819,9 @@ static void plugin_load(MEM_ROOT *tmp_root)
 
   new_thd->thread_stack= (char*) &tables;
   new_thd->store_globals();
-  new_thd->db= my_strdup("mysql", MYF(0));
-  new_thd->db_length= 5;
+  new_thd->db= MYSQL_SCHEMA_NAME;
   bzero((char*) &new_thd->net, sizeof(new_thd->net));
-  tables.init_one_table(STRING_WITH_LEN("mysql"), STRING_WITH_LEN("plugin"),
-                        "plugin", TL_READ);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_READ);
   tables.open_strategy= TABLE_LIST::OPEN_NORMAL;
 
   result= open_and_lock_tables(new_thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT);
@@ -1875,6 +1875,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   table->m_needs_reopen= TRUE;                  // Force close to free memory
   close_mysql_tables(new_thd);
 end:
+  new_thd->db= null_clex_str;                 // Avoid free on thd->db
   delete new_thd;
   DBUG_VOID_RETURN;
 }
@@ -2169,7 +2170,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
   DBUG_ENTER("mysql_install_plugin");
 
-  tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_WRITE);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_WRITE);
   if (!opt_noacl && check_table_access(thd, INSERT_ACL, &tables, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);
 
@@ -2312,7 +2313,7 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
   DBUG_ENTER("mysql_uninstall_plugin");
 
-  tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_WRITE);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_WRITE);
 
   if (!opt_noacl && check_table_access(thd, DELETE_ACL, &tables, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);

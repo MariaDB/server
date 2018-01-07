@@ -4265,7 +4265,7 @@ int log_loaded_block(IO_CACHE* file, uchar *Buffer, size_t Count)
     lf_info->last_pos_in_file= my_b_get_pos_in_file(file);
     if (lf_info->wrote_create_file)
     {
-      Append_block_log_event a(lf_info->thd, lf_info->thd->db, buffer,
+      Append_block_log_event a(lf_info->thd, lf_info->thd->db.str, buffer,
                                MY_MIN(block_len, max_event_size),
                                lf_info->log_delayed);
       if (mysql_bin_log.write(&a))
@@ -4273,7 +4273,7 @@ int log_loaded_block(IO_CACHE* file, uchar *Buffer, size_t Count)
     }
     else
     {
-      Begin_load_query_log_event b(lf_info->thd, lf_info->thd->db,
+      Begin_load_query_log_event b(lf_info->thd, lf_info->thd->db.str,
                                    buffer,
                                    MY_MIN(block_len, max_event_size),
                                    lf_info->log_delayed);

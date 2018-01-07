@@ -826,12 +826,12 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
   */
   if (thd->lex->sql_command == SQLCOM_SHOW_EVENTS)
   {
-    DBUG_ASSERT(thd->lex->select_lex.db);
-    if (!is_infoschema_db(thd->lex->select_lex.db) && // There is no events in I_S
-        check_access(thd, EVENT_ACL, thd->lex->select_lex.db,
+    DBUG_ASSERT(thd->lex->select_lex.db.str);
+    if (!is_infoschema_db(&thd->lex->select_lex.db) && // There is no events in I_S
+        check_access(thd, EVENT_ACL, thd->lex->select_lex.db.str,
                      NULL, NULL, 0, 0))
       DBUG_RETURN(1);
-    db= normalize_db_name(thd->lex->select_lex.db, db_tmp, sizeof(db_tmp));
+    db= normalize_db_name(thd->lex->select_lex.db.str, db_tmp, sizeof(db_tmp));
   }
   ret= db_repository->fill_schema_events(thd, tables, db);
 
@@ -1252,7 +1252,7 @@ int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len)
   if (create_query_string(thd, &log_query))
   {
     WSREP_WARN("events create string failed: schema: %s, query: %s",
-               (thd->db ? thd->db : "(null)"), thd->query());
+               thd->get_db(), thd->query());
     return 1;
   }
   return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);

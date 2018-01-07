@@ -132,7 +132,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
 
   MYSQL_QUERY_EXEC_START(thd->query(),
                          thd->thread_id,
-                         (char *) (thd->db ? thd->db : ""),
+                         thd->get_db(),
                          &thd->security_ctx->priv_user[0],
                          (char *) thd->security_ctx->host_or_ip,
                          2);
@@ -440,7 +440,7 @@ bool Select_materialize::send_result_set_metadata(List<Item> &list, uint flags)
   if (create_result_table(unit->thd, unit->get_column_types(true),
                           FALSE,
                           thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS,
-                          "", FALSE, TRUE, TRUE, 0))
+                          &empty_clex_str, FALSE, TRUE, TRUE, 0))
     return TRUE;
 
   materialized_cursor= new (&table->mem_root)

@@ -794,7 +794,7 @@ bool Aggregator_distinct::setup(THD *thd)
     if (!(table= create_tmp_table(thd, tmp_table_param, list, (ORDER*) 0, 1,
                                   0,
                                   (select_lex->options | thd->variables.option_bits),
-                                  HA_POS_ERROR, const_cast<char*>(""))))
+                                  HA_POS_ERROR, &empty_clex_str)))
       return TRUE;
     table->file->extra(HA_EXTRA_NO_ROWS);		// Don't update rows
     table->no_rows=1;
@@ -4026,7 +4026,7 @@ bool Item_func_group_concat::setup(THD *thd)
                                 (ORDER*) 0, 0, TRUE,
                                 (select_lex->options |
                                  thd->variables.option_bits),
-                                HA_POS_ERROR, (char*) "")))
+                                HA_POS_ERROR, &empty_clex_str)))
     DBUG_RETURN(TRUE);
   table->file->extra(HA_EXTRA_NO_ROWS);
   table->no_rows= 1;

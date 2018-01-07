@@ -1232,7 +1232,7 @@ trx_i_s_common_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	const char*		table_name;
+	LEX_CSTRING		table_name;
 	int			ret;
 	trx_i_s_cache_t*	cache;
 
@@ -1252,7 +1252,7 @@ trx_i_s_common_fill_table(
 	table_name = tables->schema_table_name;
 	/* or table_name = tables->schema_table->table_name; */
 
-	RETURN_IF_INNODB_NOT_STARTED(table_name);
+	RETURN_IF_INNODB_NOT_STARTED(table_name.str);
 
 	/* update the cache */
 	trx_i_s_cache_start_write(cache);
@@ -1261,7 +1261,7 @@ trx_i_s_common_fill_table(
 
 	if (trx_i_s_cache_is_truncated(cache)) {
 
-		ib::warn() << "Data in " << table_name << " truncated due to"
+		ib::warn() << "Data in " << table_name.str << " truncated due to"
 			" memory limit of " << TRX_I_S_MEM_LIMIT << " bytes";
 	}
 
@@ -1269,7 +1269,7 @@ trx_i_s_common_fill_table(
 
 	trx_i_s_cache_start_read(cache);
 
-	if (innobase_strcasecmp(table_name, "innodb_trx") == 0) {
+	if (innobase_strcasecmp(table_name.str, "innodb_trx") == 0) {
 
 		if (fill_innodb_trx_from_cache(
 			cache, thd, tables->table) != 0) {
@@ -1277,7 +1277,7 @@ trx_i_s_common_fill_table(
 			ret = 1;
 		}
 
-	} else if (innobase_strcasecmp(table_name, "innodb_locks") == 0) {
+	} else if (innobase_strcasecmp(table_name.str, "innodb_locks") == 0) {
 
 		if (fill_innodb_locks_from_cache(
 			cache, thd, tables->table) != 0) {
@@ -1285,7 +1285,7 @@ trx_i_s_common_fill_table(
 			ret = 1;
 		}
 
-	} else if (innobase_strcasecmp(table_name, "innodb_lock_waits") == 0) {
+	} else if (innobase_strcasecmp(table_name.str, "innodb_lock_waits") == 0) {
 
 		if (fill_innodb_lock_waits_from_cache(
 			cache, thd, tables->table) != 0) {
@@ -1295,7 +1295,7 @@ trx_i_s_common_fill_table(
 
 	} else {
 		ib::error() << "trx_i_s_common_fill_table() was"
-			" called to fill unknown table: " << table_name << "."
+			" called to fill unknown table: " << table_name.str << "."
 			" This function only knows how to fill"
 			" innodb_trx, innodb_locks and"
 			" innodb_lock_waits tables.";
@@ -1399,7 +1399,7 @@ i_s_cmp_fill_low(
 		DBUG_RETURN(0);
 	}
 
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	for (uint i = 0; i < PAGE_ZIP_SSIZE_MAX; i++) {
 		page_zip_stat_t*	zip_stat = &page_zip_stat[i];
@@ -1700,7 +1700,7 @@ i_s_cmp_per_index_fill_low(
 		DBUG_RETURN(0);
 	}
 
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* Create a snapshot of the stats so we do not bump into lock
 	order violations with dict_sys->mutex below. */
@@ -2022,7 +2022,7 @@ i_s_cmpmem_fill_low(
 		DBUG_RETURN(0);
 	}
 
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 		buf_pool_t*		buf_pool;
@@ -4543,7 +4543,7 @@ i_s_innodb_buffer_stats_fill_table(
 	buf_pool_info_t*	pool_info;
 
 	DBUG_ENTER("i_s_innodb_buffer_fill_general");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* Only allow the PROCESS privilege holder to access the stats */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -5273,7 +5273,7 @@ i_s_innodb_buffer_page_fill_table(
 
 	DBUG_ENTER("i_s_innodb_buffer_page_fill_table");
 
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -5817,7 +5817,7 @@ i_s_innodb_buf_page_lru_fill_table(
 
 	DBUG_ENTER("i_s_innodb_buf_page_lru_fill_table");
 
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to any users that do not hold PROCESS_ACL */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -6089,7 +6089,7 @@ i_s_sys_tables_fill_table(
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_tables_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -6389,7 +6389,7 @@ i_s_sys_tables_fill_table_stats(
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_tables_fill_table_stats");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -6663,7 +6663,7 @@ i_s_sys_indexes_fill_table(
 	mtr_t			mtr;
 
 	DBUG_ENTER("i_s_sys_indexes_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -6908,7 +6908,7 @@ i_s_sys_columns_fill_table(
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_columns_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -7119,7 +7119,7 @@ i_s_sys_virtual_fill_table(
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_virtual_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -7321,7 +7321,7 @@ i_s_sys_fields_fill_table(
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_fields_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -7553,7 +7553,7 @@ i_s_sys_foreign_fill_table(
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_foreign_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -7768,7 +7768,7 @@ i_s_sys_foreign_cols_fill_table(
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_foreign_cols_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -8132,7 +8132,7 @@ i_s_sys_tablespaces_fill_table(
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_tablespaces_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -8323,7 +8323,7 @@ i_s_sys_datafiles_fill_table(
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_datafiles_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -8624,7 +8624,7 @@ i_s_tablespaces_encryption_fill_table(
 	bool		found_space_0 = false;
 
 	DBUG_ENTER("i_s_tablespaces_encryption_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, SUPER_ACL)) {
@@ -8945,7 +8945,7 @@ i_s_tablespaces_scrubbing_fill_table(
 	bool		found_space_0 = false;
 
 	DBUG_ENTER("i_s_tablespaces_scrubbing_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without SUPER_ACL privilege */
 	if (check_global_access(thd, SUPER_ACL)) {
@@ -9144,7 +9144,7 @@ i_s_innodb_mutexes_fill_table(
 	Field**		fields = tables->table->field;
 
 	DBUG_ENTER("i_s_innodb_mutexes_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {

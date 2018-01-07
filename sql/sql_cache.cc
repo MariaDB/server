@@ -1498,18 +1498,18 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
     query_length= thd->base_query.length();
 
     /* Key is query + database + flag */
-    if (thd->db_length)
+    if (thd->db.length)
     {
       memcpy((char*) (query + query_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE),
-             thd->db, thd->db_length);
+             thd->db.str, thd->db.length);
       DBUG_PRINT("qcache", ("database: %s  length: %u",
-			    thd->db, (unsigned) thd->db_length)); 
+			    thd->db.str, (unsigned) thd->db.length));
     }
     else
     {
       DBUG_PRINT("qcache", ("No active database"));
     }
-    tot_length= (query_length + thd->db_length + 1 + 
+    tot_length= (query_length + thd->db.length + 1 +
                  QUERY_CACHE_DB_LENGTH_SIZE + QUERY_CACHE_FLAGS_SIZE);
     /*
       We should only copy structure (don't use it location directly)
@@ -1693,7 +1693,7 @@ size_t build_normalized_name(char *buff, size_t bufflen,
   In case of -1, no error is sent to the client.
 
   *) The buffer must be allocated memory of size:
-  tot_length= query_length + thd->db_length + 1 + QUERY_CACHE_FLAGS_SIZE;
+  tot_length= query_length + thd->db.length + 1 + QUERY_CACHE_FLAGS_SIZE;
 */
 
 int
@@ -1852,7 +1852,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
       as the previous one.
     */
     size_t db_len= uint2korr(sql_end+1);
-    if (thd->db_length != db_len)
+    if (thd->db.length != db_len)
     {
       /*
         We should probably reallocate the buffer in this case,
@@ -1886,7 +1886,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
     if (found_brace)
       sql= found_brace;
     make_base_query(&thd->base_query, sql, (size_t) (sql_end - sql),
-                    thd->db_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
+                    thd->db.length + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
                     QUERY_CACHE_FLAGS_SIZE);
     sql=          thd->base_query.ptr();
     query_length= thd->base_query.length();
@@ -1898,14 +1898,14 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   }
 
   tot_length= (query_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
-               thd->db_length + QUERY_CACHE_FLAGS_SIZE);
+               thd->db.length + QUERY_CACHE_FLAGS_SIZE);
 
-  if (thd->db_length)
+  if (thd->db.length)
   {
     memcpy((uchar*) sql + query_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE,
-           thd->db, thd->db_length);
+           thd->db.str, thd->db.length);
     DBUG_PRINT("qcache", ("database: '%s'  length: %u",
-			  thd->db, (uint) thd->db_length));
+			  thd->db.str, (uint) thd->db.length));
   }
   else
   {
@@ -2061,14 +2061,17 @@ lookup:
     }
 
     bzero((char*) &table_list,sizeof(table_list));
-    table_list.db = table->db();
-    table_list.alias= table_list.table_name= table->table();
+    table_list.db.str= table->db();
+    table_list.db.length= strlen(table_list.db.str);
+    table_list.alias.str= table_list.table_name.str= table->table();
+    table_list.alias.length= table_list.table_name.length= strlen(table->table());
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (check_table_access(thd,SELECT_ACL,&table_list, FALSE, 1,TRUE))
     {
       DBUG_PRINT("qcache",
 		 ("probably no SELECT access to %s.%s =>  return to normal processing",
-		  table_list.db, table_list.alias));
+		  table_list.db.str, table_list.alias.str));
       unlock();
       thd->query_cache_is_applicable= 0;        // Query can't be cached
       thd->lex->safe_to_cache_query= 0;         // For prepared statements
@@ -2078,7 +2081,7 @@ lookup:
     if (table_list.grant.want_privilege)
     {
       DBUG_PRINT("qcache", ("Need to check column privileges for %s.%s",
-			    table_list.db, table_list.alias));
+			    table_list.db.str, table_list.alias.str));
       BLOCK_UNLOCK_RD(query_block);
       thd->query_cache_is_applicable= 0;        // Query can't be cached
       thd->lex->safe_to_cache_query= 0;         // For prepared statements
@@ -2138,7 +2141,7 @@ lookup:
     }
     else
       DBUG_PRINT("qcache", ("handler allow caching %s,%s",
-			    table_list.db, table_list.alias));
+			    table_list.db.str, table_list.alias.str));
   }
   move_to_query_list_end(query_block);
   hits++;
@@ -3397,7 +3400,7 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
       if (!insert_table(thd, tables_used->table->s->table_cache_key.length,
                         tables_used->table->s->table_cache_key.str,
                         (*block_table),
-                        tables_used->db_length, 0,
+                        tables_used->db.length, 0,
                         tables_used->table->file->table_cache_type(),
                         tables_used->callback_func,
                         tables_used->engine_data,
@@ -4053,7 +4056,7 @@ Query_cache::process_and_count_tables(THD *thd, TABLE_LIST *tables_used,
     }
     if (tables_used->derived)
     {
-      DBUG_PRINT("qcache", ("table: %s", tables_used->alias));
+      DBUG_PRINT("qcache", ("table: %s", tables_used->alias.str));
       table_count--;
       DBUG_PRINT("qcache", ("derived table skipped"));
       continue;

@@ -1093,8 +1093,8 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
         int ret = wsrep->resync(wsrep);
         if (ret != WSREP_OK)
         {
-          WSREP_WARN("resync failed %d for FTWRL: db: %s, query: %s", ret,
-                     (thd->db ? thd->db : "(null)"), thd->query());
+          WSREP_WARN("resync failed %d for FTWRL: db: %s, query: %s",
+                     ret, thd->get_db(), thd->query());
           DBUG_VOID_RETURN;
         }
       }
@@ -1180,7 +1180,7 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     if (rcode != WSREP_OK)
     {
       WSREP_WARN("FTWRL desync failed %d for schema: %s, query: %s",
-                 rcode, (thd->db ? thd->db : "(null)"), thd->query());
+                 rcode, thd->get_db(), thd->query());
       my_message(ER_LOCK_DEADLOCK, "wsrep desync failed for FTWRL", MYF(0));
       DBUG_RETURN(TRUE);
     }

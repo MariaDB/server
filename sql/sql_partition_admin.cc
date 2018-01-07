@@ -71,15 +71,15 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
     DBUG_RETURN(TRUE);
 
   /* Must be set in the parser */
-  DBUG_ASSERT(select_lex->db);
+  DBUG_ASSERT(select_lex->db.str);
   /* also check the table to be exchanged with the partition */
   DBUG_ASSERT(alter_info.flags & Alter_info::ALTER_EXCHANGE_PARTITION);
 
-  if (check_access(thd, priv_needed, first_table->db,
+  if (check_access(thd, priv_needed, first_table->db.str,
                    &first_table->grant.privilege,
                    &first_table->grant.m_internal,
                    0, 0) ||
-      check_access(thd, priv_needed, first_table->next_local->db,
+      check_access(thd, priv_needed, first_table->next_local->db.str,
                    &first_table->next_local->grant.privilege,
                    &first_table->next_local->grant.m_internal,
                    0, 0))
@@ -552,13 +552,13 @@ bool Sql_cmd_alter_table_exchange_partition::
   /* Will append the partition name later in part_info->get_part_elem() */
   part_file_name_len= build_table_filename(part_file_name,
                                            sizeof(part_file_name),
-                                           table_list->db,
-                                           table_list->table_name,
+                                           table_list->db.str,
+                                           table_list->table_name.str,
                                            "", 0);
   build_table_filename(swap_file_name,
                        sizeof(swap_file_name),
-                       swap_table_list->db,
-                       swap_table_list->table_name,
+                       swap_table_list->db.str,
+                       swap_table_list->table_name.str,
                        "", 0);
   /* create a unique temp name #sqlx-nnnn_nnnn, x for eXchange */
   my_snprintf(temp_name, sizeof(temp_name), "%sx-%lx_%llx",
@@ -566,7 +566,7 @@ bool Sql_cmd_alter_table_exchange_partition::
   if (lower_case_table_names)
     my_casedn_str(files_charset_info, temp_name);
   build_table_filename(temp_file_name, sizeof(temp_file_name),
-                       table_list->next_local->db,
+                       table_list->next_local->db.str,
                        temp_name, "", FN_IS_TMP);
 
   if (!(part_elem= part_table->part_info->get_part_elem(partition_name,
@@ -768,7 +768,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
       (!thd->is_current_stmt_binlog_format_row() ||
        !thd->find_temporary_table(first_table))  &&
       wsrep_to_isolation_begin(
-          thd, first_table->db, first_table->table_name, NULL)
+          thd, first_table->db.str, first_table->table_name.str, NULL)
       )
   {
     WSREP_WARN("ALTER TABLE TRUNCATE PARTITION isolation failure");
@@ -818,8 +818,8 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   if (thd->mdl_context.upgrade_shared_lock(ticket, MDL_EXCLUSIVE, timeout))
     DBUG_RETURN(TRUE);
 
-  tdc_remove_table(thd, TDC_RT_REMOVE_NOT_OWN, first_table->db,
-                   first_table->table_name, FALSE);
+  tdc_remove_table(thd, TDC_RT_REMOVE_NOT_OWN, first_table->db.str,
+                   first_table->table_name.str, FALSE);
 
   partition= (ha_partition*) first_table->table->file;
   /* Invoke the handler method responsible for truncating the partition. */

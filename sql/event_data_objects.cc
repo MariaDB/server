@@ -171,11 +171,11 @@ Event_creation_ctx::load_from_db(THD *thd,
 */
 
 bool
-Event_queue_element_for_exec::init(LEX_CSTRING db, LEX_CSTRING n)
+Event_queue_element_for_exec::init(const LEX_CSTRING *db, const LEX_CSTRING *n)
 {
-  if (!(dbname.str= my_strndup(db.str, dbname.length= db.length, MYF(MY_WME))))
+  if (!(dbname.str= my_strndup(db->str, dbname.length= db->length, MYF(MY_WME))))
     return TRUE;
-  if (!(name.str= my_strndup(n.str, name.length= n.length, MYF(MY_WME))))
+  if (!(name.str= my_strndup(n->str, name.length= n->length, MYF(MY_WME))))
   {
     my_free(const_cast<char*>(dbname.str));
     return TRUE;
@@ -1196,7 +1196,7 @@ Event_timed::get_create_event(THD *thd, String *buf)
   buf->append(STRING_WITH_LEN("CREATE "));
   append_definer(thd, buf, &definer_user, &definer_host);
   buf->append(STRING_WITH_LEN("EVENT "));
-  append_identifier(thd, buf, name.str, name.length);
+  append_identifier(thd, buf, &name);
 
   if (expression)
   {
@@ -1274,7 +1274,7 @@ Event_job_data::construct_sp_sql(THD *thd, String *sp_sql)
     We're using append_identifier here to successfully parse
     events with reserved names.
   */
-  append_identifier(thd, sp_sql, name.str, name.length);
+  append_identifier(thd, sp_sql, &name);
 
   /*
     The default SQL security of a stored procedure is DEFINER. We
@@ -1311,9 +1311,9 @@ Event_job_data::construct_drop_event_sql(THD *thd, String *sp_sql)
   sp_sql->length(0);
 
   sp_sql->append(C_STRING_WITH_LEN("DROP EVENT "));
-  append_identifier(thd, sp_sql, dbname.str, dbname.length);
+  append_identifier(thd, sp_sql, &dbname);
   sp_sql->append('.');
-  append_identifier(thd, sp_sql, name.str, name.length);
+  append_identifier(thd, sp_sql, &name);
 
   DBUG_RETURN(thd->is_fatal_error);
 }
@@ -1355,7 +1355,7 @@ Event_job_data::execute(THD *thd, bool drop)
     mysql_change_db will be invoked anyway later, to activate the
     procedure database before it's executed.
   */
-  thd->set_db(dbname.str, dbname.length);
+  thd->set_db(&dbname);
 
   lex_start(thd);
 

@@ -1393,7 +1393,7 @@ handle_rpl_parallel_thread(void *arg)
   thd->clear_error();
   thd->catalog= 0;
   thd->reset_query();
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&null_clex_str);
   thd_proc_info(thd, "Slave worker thread exiting");
   thd->temporary_tables= 0;
 

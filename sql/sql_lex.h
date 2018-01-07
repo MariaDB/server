@@ -206,7 +206,7 @@ struct LEX_TYPE
 #ifdef MYSQL_SERVER
 
 extern const LEX_STRING  empty_lex_str;
-extern const LEX_CSTRING empty_clex_str;
+extern MYSQL_PLUGIN_IMPORT const LEX_CSTRING empty_clex_str;
 extern const LEX_CSTRING star_clex_str;
 extern const LEX_CSTRING param_clex_str;
 
@@ -837,7 +837,7 @@ class st_select_lex: public st_select_lex_node
 {
 public:
   Name_resolution_context context;
-  const char *db;
+  LEX_CSTRING db;
   Item *where, *having;                         /* WHERE & HAVING clauses */
   Item *prep_where; /* saved WHERE clause for prepared statement processing */
   Item *prep_having;/* saved HAVING clause for prepared statement processing */
@@ -2754,7 +2754,7 @@ public:
 
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
-  List<LEX_STRING>    view_list; // view list (list of field names in view)
+  List<LEX_CSTRING>   view_list; // view list (list of field names in view)
   List<LEX_CSTRING>   with_column_list; // list of column names in with_list_element
   List<LEX_STRING>   *column_list; // list of column names (in ANALYZE)
   List<LEX_STRING>   *index_list;  // list of index names (in ANALYZE)
@@ -3124,7 +3124,7 @@ public:
     context_stack.pop();
   }
 
-  bool copy_db_to(const char **p_db, size_t *p_db_length) const;
+  bool copy_db_to(LEX_CSTRING *to);
 
   Name_resolution_context *current_context()
   {

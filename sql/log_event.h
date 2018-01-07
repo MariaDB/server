@@ -1253,7 +1253,7 @@ public:
 #endif /* HAVE_REPLICATION */
   virtual const char* get_db()
   {
-    return thd ? thd->db : 0;
+    return thd ? thd->db.str : 0;
   }
 #else
   Log_event() : temp_buf(0), when(0), flags(0) {}

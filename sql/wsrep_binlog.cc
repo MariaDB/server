@@ -31,13 +31,13 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
 {
   *buf= NULL;
   *buf_len= 0;
-
   my_off_t const saved_pos(my_b_tell(cache));
+  DBUG_ENTER("wsrep_write_cache_buf");
 
   if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
   {
     WSREP_ERROR("failed to initialize io-cache");
-    return ER_ERROR_ON_WRITE;
+    DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
 
   uint length = my_b_bytes_in_cache(cache);
@@ -86,7 +86,7 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
     goto cleanup;
   }
 
-  return 0;
+  DBUG_RETURN(0);
 
 error:
   if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
@@ -97,7 +97,7 @@ cleanup:
   my_free(*buf);
   *buf= NULL;
   *buf_len= 0;
-  return ER_ERROR_ON_WRITE;
+  DBUG_RETURN(ER_ERROR_ON_WRITE);
 }
 
 #define STACK_SIZE 4096 /* 4K - for buffer preallocated on the stack:
@@ -121,6 +121,7 @@ wsrep_append_data(wsrep_t*           const wsrep,
     struct wsrep_buf const buff = { data, len };
     wsrep_status_t const rc(wsrep->append_data(wsrep, ws, &buff, 1,
                                                WSREP_DATA_ORDERED, true));
+    DBUG_DUMP("buff", (uchar*) data, len);
     if (rc != WSREP_OK)
     {
         WSREP_WARN("append_data() returned %d", rc);
@@ -144,11 +145,12 @@ static int wsrep_write_cache_once(wsrep_t*  const wsrep,
                                   size_t*   const len)
 {
     my_off_t const saved_pos(my_b_tell(cache));
+    DBUG_ENTER("wsrep_write_cache_once");
 
     if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
     {
         WSREP_ERROR("failed to initialize io-cache");
-        return ER_ERROR_ON_WRITE;
+        DBUG_RETURN(ER_ERROR_ON_WRITE);
     }
 
     int err(WSREP_OK);
@@ -230,7 +232,7 @@ cleanup:
     }
 
     my_free(heap_buf);
-    return err;
+    DBUG_RETURN(err);
 }
 
 /*
@@ -247,11 +249,12 @@ static int wsrep_write_cache_inc(wsrep_t*  const wsrep,
                                  size_t*   const len)
 {
     my_off_t const saved_pos(my_b_tell(cache));
+    DBUG_ENTER("wsrep_write_cache_inc");
 
     if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
     {
       WSREP_ERROR("failed to initialize io-cache");
-      return WSREP_TRX_ERROR;
+      DBUG_RETURN(WSREP_TRX_ERROR);
     }
 
     int err(WSREP_OK);
@@ -295,7 +298,7 @@ cleanup:
         WSREP_ERROR("failed to reinitialize io-cache");
     }
 
-    return err;
+    DBUG_RETURN(err);
 }
 
 /*

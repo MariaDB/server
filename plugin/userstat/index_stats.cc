@@ -17,27 +17,26 @@ static int index_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
     INDEX_STATS *index_stats =
       (INDEX_STATS*) my_hash_element(&global_index_stats, i);
     TABLE_LIST tmp_table;
-    char *index_name;
-    size_t schema_name_length, table_name_length, index_name_length;
+    const char *index_name;
+    size_t index_name_length;
 
     bzero((char*) &tmp_table,sizeof(tmp_table));
-    tmp_table.db=         index_stats->index;
-    tmp_table.table_name= strend(index_stats->index)+1;
+    tmp_table.db.str=    index_stats->index;
+    tmp_table.db.length= strlen(index_stats->index);
+    tmp_table.table_name.str= index_stats->index + tmp_table.db.length + 1;
+    tmp_table.table_name.length= strlen(tmp_table.table_name.str);
     tmp_table.grant.privilege= 0;
-    if (check_access(thd, SELECT_ACL, tmp_table.db,
+    if (check_access(thd, SELECT_ACL, tmp_table.db.str,
                       &tmp_table.grant.privilege, NULL, 0, 1) ||
         check_grant(thd, SELECT_ACL, &tmp_table, 1, UINT_MAX, 1))
       continue;
 
-    index_name=         strend(tmp_table.table_name)+1;
-    schema_name_length= (tmp_table.table_name - index_stats->index) -1;
-    table_name_length=  (index_name - tmp_table.table_name)-1;
-    index_name_length=  (index_stats->index_name_length - schema_name_length -
-                         table_name_length - 3);
+    index_name=         tmp_table.table_name.str + tmp_table.table_name.length + 1;
+    index_name_length=  (index_stats->index_name_length - tmp_table.db.length -
+                         tmp_table.table_name.length - 3);
 
-    table->field[0]->store(tmp_table.db, (uint)schema_name_length,
-                           system_charset_info);
-    table->field[1]->store(tmp_table.table_name, (uint) table_name_length,
+    table->field[0]->store(tmp_table.db.str, tmp_table.db.length, system_charset_info);
+    table->field[1]->store(tmp_table.table_name.str, tmp_table.table_name.length,
                            system_charset_info);
     table->field[2]->store(index_name, (uint) index_name_length, system_charset_info);
     table->field[3]->store((longlong)index_stats->rows_read, TRUE);

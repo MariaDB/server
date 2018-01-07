@@ -310,9 +310,9 @@ build_gtid_pos_create_query(THD *thd, String *query,
 {
   bool err= false;
   err|= query->append(gtid_pos_table_definition1);
-  err|= append_identifier(thd, query, table_name->str, table_name->length);
+  err|= append_identifier(thd, query, table_name);
   err|= query->append(gtid_pos_table_definition2);
-  err|= append_identifier(thd, query, engine_name->str, engine_name->length);
+  err|= append_identifier(thd, query, engine_name);
   return err;
 }
 
@@ -331,7 +331,7 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
     return 1;
   }
 
-  thd->set_db("mysql", 5);
+  thd->set_db(&MYSQL_SCHEMA_NAME);
   thd->clear_error();
   ulonglong thd_saved_option= thd->variables.option_bits;
   /* This query shuold not be binlogged. */
@@ -4945,7 +4945,7 @@ err:
   }
   repl_semisync_slave.slave_stop(mi);
   thd->reset_query();
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&null_clex_str);
   if (mysql)
   {
     /*
@@ -5531,7 +5531,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   */
   thd->catalog= 0;
   thd->reset_query();
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&null_clex_str);
   if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
   {
     ulong domain_count;

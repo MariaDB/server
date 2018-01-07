@@ -268,19 +268,19 @@ public:
   Alter_table_ctx();
 
   Alter_table_ctx(THD *thd, TABLE_LIST *table_list, uint tables_opened_arg,
-                  const char *new_db_arg, const char *new_name_arg);
+                  const LEX_CSTRING *new_db_arg, const LEX_CSTRING *new_name_arg);
 
   /**
      @return true if the table is moved to another database, false otherwise.
   */
   bool is_database_changed() const
-  { return (new_db != db); };
+  { return (new_db.str != db.str); };
 
   /**
      @return true if the table is renamed, false otherwise.
   */
   bool is_table_renamed() const
-  { return (is_database_changed() || new_name != table_name); };
+  { return (is_database_changed() || new_name.str != table_name.str); };
 
   /**
      @return filename (including .frm) for the new table.
@@ -330,13 +330,14 @@ public:
   Create_field *datetime_field;
   bool         error_if_not_empty;
   uint         tables_opened;
-  const char   *db;
-  const char   *table_name;
-  const char   *alias;
-  const char   *new_db;
-  const char   *new_name;
-  const char   *new_alias;
-  char         tmp_name[80];
+  LEX_CSTRING  db;
+  LEX_CSTRING  table_name;
+  LEX_CSTRING  alias;
+  LEX_CSTRING  new_db;
+  LEX_CSTRING  new_name;
+  LEX_CSTRING  new_alias;
+  LEX_CSTRING  tmp_name;
+  char         tmp_buff[80];
   /**
     Indicates that if a row is deleted during copying of data from old version
     of table to the new version ER_FK_CANNOT_DELETE_PARENT error should be
@@ -350,7 +351,8 @@ public:
 
 private:
   char new_filename[FN_REFLEN + 1];
-  char new_alias_buff[FN_REFLEN + 1];
+  char new_alias_buff[NAME_LEN + 1];
+  char tmp_name_buff[NAME_LEN + 1];
   char path[FN_REFLEN + 1];
   char new_path[FN_REFLEN + 1];
   char tmp_path[FN_REFLEN + 1];

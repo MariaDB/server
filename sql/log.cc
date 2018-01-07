@@ -608,19 +608,19 @@ int check_if_log_table(const TABLE_LIST *table,
                        const char *error_msg)
 {
   int result= 0;
-  if (table->db_length == 5 &&
-      !my_strcasecmp(table_alias_charset, table->db, "mysql"))
+  if (table->db.length == 5 &&
+      !my_strcasecmp(table_alias_charset, table->db.str, "mysql"))
   {
-    const char *table_name= table->table_name;
+    const char *table_name= table->table_name.str;
 
-    if (table->table_name_length == 11 &&
+    if (table->table_name.length == 11 &&
         !my_strcasecmp(table_alias_charset, table_name, "general_log"))
     {
       result= QUERY_LOG_GENERAL;
       goto end;
     }
 
-    if (table->table_name_length == 8 &&
+    if (table->table_name.length == 8 &&
         !my_strcasecmp(table_alias_charset, table_name, "slow_log"))
     {
       result= QUERY_LOG_SLOW;
@@ -716,9 +716,7 @@ bool Log_to_csv_event_handler::
   save_thd_options= thd->variables.option_bits;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
 
-  table_list.init_one_table(MYSQL_SCHEMA_NAME.str, MYSQL_SCHEMA_NAME.length,
-                            GENERAL_LOG_NAME.str, GENERAL_LOG_NAME.length,
-                            GENERAL_LOG_NAME.str,
+  table_list.init_one_table(&MYSQL_SCHEMA_NAME, &GENERAL_LOG_NAME, 0,
                             TL_WRITE_CONCURRENT_INSERT);
 
   /*
@@ -881,9 +879,7 @@ bool Log_to_csv_event_handler::
   */
   save_time_zone_used= thd->time_zone_used;
 
-  table_list.init_one_table(MYSQL_SCHEMA_NAME.str, MYSQL_SCHEMA_NAME.length,
-                            SLOW_LOG_NAME.str, SLOW_LOG_NAME.length,
-                            SLOW_LOG_NAME.str,
+  table_list.init_one_table(&MYSQL_SCHEMA_NAME, &SLOW_LOG_NAME, 0,
                             TL_WRITE_CONCURRENT_INSERT);
 
   if (!(table= open_log_table(thd, &table_list, &open_tables_backup)))
@@ -937,9 +933,9 @@ bool Log_to_csv_event_handler::
     goto err;
 
   /* fill database field */
-  if (thd->db)
+  if (thd->db.str)
   {
-    if (table->field[6]->store(thd->db, thd->db_length, client_cs))
+    if (table->field[6]->store(thd->db.str, thd->db.length, client_cs))
       goto err;
     table->field[6]->set_notnull();
   }
@@ -1035,9 +1031,7 @@ int Log_to_csv_event_handler::
 
     log_name= &SLOW_LOG_NAME;
   }
-  table_list.init_one_table(MYSQL_SCHEMA_NAME.str, MYSQL_SCHEMA_NAME.length,
-                            log_name->str, log_name->length, log_name->str,
-                            TL_WRITE_CONCURRENT_INSERT);
+  table_list.init_one_table(&MYSQL_SCHEMA_NAME, log_name, 0, TL_WRITE_CONCURRENT_INSERT);
 
   table= open_log_table(thd, &table_list, &open_tables_backup);
   if (table)
@@ -2263,8 +2257,7 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
 
   String log_query(buf, sizeof(buf), &my_charset_bin);
   if (log_query.copy(STRING_WITH_LEN("SAVEPOINT "), &my_charset_bin) ||
-      append_identifier(thd, &log_query,
-                        thd->lex->ident.str, thd->lex->ident.length))
+      append_identifier(thd, &log_query, &thd->lex->ident))
     DBUG_RETURN(1);
   int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
   Query_log_event qinfo(thd, log_query.c_ptr_safe(), log_query.length(),
@@ -2306,8 +2299,7 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
     char buf[1024];
     String log_query(buf, sizeof(buf), &my_charset_bin);
     if (log_query.copy(STRING_WITH_LEN("ROLLBACK TO "), &my_charset_bin) ||
-        append_identifier(thd, &log_query,
-                          thd->lex->ident.str, thd->lex->ident.length))
+        append_identifier(thd, &log_query, &thd->lex->ident))
       DBUG_RETURN(1);
     int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
     Query_log_event qinfo(thd, log_query.ptr(), log_query.length(),
@@ -3029,7 +3021,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                     "# Thread_id: %lu  Schema: %s  QC_hit: %s\n"
                     "# Query_time: %s  Lock_time: %s  Rows_sent: %lu  Rows_examined: %lu\n"
                     "# Rows_affected: %lu  Bytes_sent: %lu\n",
-                    (ulong) thd->thread_id, (thd->db ? thd->db : ""),
+                    (ulong) thd->thread_id, thd->get_db(),
                     ((thd->query_plan_flags & QPLAN_QC) ? "Yes" : "No"),
                     query_time_buff, lock_time_buff,
                     (ulong) thd->get_sent_row_count(),
@@ -3085,11 +3077,11 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
           goto err;
       thd->free_items();
     }
-    if (thd->db && strcmp(thd->db, db))
+    if (thd->db.str && strcmp(thd->db.str, db))
     {						// Database changed
-      if (my_b_printf(&log_file,"use %s;\n",thd->db))
+      if (my_b_printf(&log_file,"use %s;\n",thd->db.str))
         goto err;
-      strmov(db,thd->db);
+      strmov(db,thd->db.str);
     }
     if (thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt)
     {

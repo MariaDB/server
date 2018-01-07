@@ -13,7 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
-#include <my_global.h>
+#include <mariadb.h>
 #include <mysql.h>
 #include <mysql_com.h>
 #include <mysqld_error.h>

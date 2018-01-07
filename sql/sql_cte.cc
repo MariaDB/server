@@ -240,7 +240,7 @@ With_element *With_clause::find_table_def(TABLE_LIST *table,
        with_elem= with_elem->next)
   {
     if (my_strcasecmp(system_charset_info, with_elem->query_name->str,
-		      table->table_name) == 0) 
+		      table->table_name.str) == 0)
     {
       table->set_derived();
       return with_elem;

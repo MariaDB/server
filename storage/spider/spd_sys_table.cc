@@ -38,6 +38,7 @@
 
 extern handlerton *spider_hton_ptr;
 extern Time_zone *spd_tz_system;
+static const LEX_CSTRING empty_clex_string= {"", 0};
 
 #if MYSQL_VERSION_ID < 50500
 TABLE *spider_open_sys_table(
@@ -78,9 +79,9 @@ TABLE *spider_open_sys_table(
   tables.table_name_length = table_name_length;
   tables.lock_type = (write ? TL_WRITE : TL_READ);
 #else
-  tables.init_one_table(
-    "mysql", sizeof("mysql") - 1, table_name, table_name_length, table_name,
-    (write ? TL_WRITE : TL_READ));
+  LEX_CSTRING db_name=  { "mysql", sizeof("mysql") - 1 };
+  LEX_CSTRING tbl_name= { table_name, (size_t) table_name_length };
+  tables.init_one_table( &db_name, &tbl_name, 0, (write ? TL_WRITE : TL_READ));
 #endif
 
 #if MYSQL_VERSION_ID < 50500
@@ -3230,7 +3231,7 @@ TABLE *spider_mk_sys_tmp_table(
 
   if (!(tmp_table = create_tmp_table(thd, tmp_tbl_prm,
     i_list, (ORDER*) NULL, FALSE, FALSE, TMP_TABLE_FORCE_MYISAM,
-    HA_POS_ERROR, (char *) "")))
+    HA_POS_ERROR, &empty_clex_string)))
     goto error_create_tmp_table;
   DBUG_RETURN(tmp_table);
 
@@ -3341,7 +3342,7 @@ TABLE *spider_mk_sys_tmp_table_for_result(
 
   if (!(tmp_table = create_tmp_table(thd, tmp_tbl_prm,
     i_list, (ORDER*) NULL, FALSE, FALSE, TMP_TABLE_FORCE_MYISAM,
-    HA_POS_ERROR, (char *) "")))
+    HA_POS_ERROR, &empty_clex_string)))
     goto error_create_tmp_table;
   DBUG_RETURN(tmp_table);
 

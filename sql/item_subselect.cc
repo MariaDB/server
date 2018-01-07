@@ -4937,11 +4937,10 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     DBUG_RETURN(TRUE);
     
   char buf[32];
-  uint len= my_snprintf(buf, sizeof(buf), "<subquery%u>", subquery_id);
-  char *name;
-  if (!(name= (char*)thd->alloc(len + 1)))
+  LEX_CSTRING name;
+  name.length= my_snprintf(buf, sizeof(buf), "<subquery%u>", subquery_id);
+  if (!(name.str= (char*) thd->memdup(buf, name.length + 1)))
     DBUG_RETURN(TRUE);
-  memcpy(name, buf, len+1);
 
   result_sink->get_tmp_table_param()->materialized_subquery= true;
   if (item->substype() == Item_subselect::IN_SUBS && 
@@ -4951,7 +4950,7 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
   }
   if (result_sink->create_result_table(thd, tmp_columns, TRUE,
                                        tmp_create_options,
-				       name, TRUE, TRUE, FALSE, 0))
+				       &name, TRUE, TRUE, FALSE, 0))
     DBUG_RETURN(TRUE);
 
   tmp_table= result_sink->table;
@@ -5037,7 +5036,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
   /* Name resolution context for all tmp_table columns created below. */
   Name_resolution_context *context;
   Item_in_subselect *item_in= (Item_in_subselect *) item;
-
+  LEX_CSTRING table_name;
   DBUG_ENTER("subselect_hash_sj_engine::make_semi_join_conds");
   DBUG_ASSERT(semi_join_conds == NULL);
 
@@ -5047,10 +5046,9 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
   if (!(tmp_table_ref= (TABLE_LIST*) thd->alloc(sizeof(TABLE_LIST))))
     DBUG_RETURN(TRUE);
 
-  tmp_table_ref->init_one_table(STRING_WITH_LEN(""),
-                                tmp_table->alias.c_ptr(),
-                                tmp_table->alias.length(),
-                                NULL, TL_READ);
+  table_name.str=    tmp_table->alias.c_ptr();
+  table_name.length= tmp_table->alias.length(),
+  tmp_table_ref->init_one_table(&empty_clex_str, &table_name, NULL, TL_READ);
   tmp_table_ref->table= tmp_table;
 
   context= new Name_resolution_context;

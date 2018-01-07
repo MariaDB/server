@@ -5584,7 +5584,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					int      rc;
 					PJDBCDEF jdef = new(g) JDBCDEF();
 
-					jdef->SetName(create_info->alias);
+					jdef->SetName(create_info->alias.str);
 					sjp = (PJPARM)PlugSubAlloc(g, NULL, sizeof(JDBCPARM));
 					sjp->Driver = driver;
 					//		sjp->Properties = prop;
@@ -5628,7 +5628,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					PMYDEF  mydef = new(g) MYSQLDEF();
 
 					dsn = strz(g, create_info->connect_string);
-					mydef->SetName(create_info->alias);
+					mydef->SetName(create_info->alias.str);
 
 					if (!mydef->ParseURL(g, dsn, false)) {
 						if (mydef->GetHostname())
@@ -5670,7 +5670,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			case TAB_TBL:
 			case TAB_XCL:
 			case TAB_OCCUR:
-				if (!src && !stricmp(tab, create_info->alias) &&
+				if (!src && !stricmp(tab, create_info->alias.str) &&
 					(!db || !stricmp(db, table_s->db.str)))
 					sprintf(g->Message, "A %s table cannot refer to itself", topt->type);
 				else
@@ -6241,7 +6241,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     dbf= (GetTypeID(options->type) == TAB_DBF && !options->catfunc);
 
   // Can be null in ALTER TABLE
-  if (create_info->alias)
+  if (create_info->alias.str)
     // Check whether a table is defined on itself
     switch (type) {
       case TAB_PRX:
@@ -6252,7 +6252,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           strcpy(g->Message, "Cannot check looping reference");
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         } else if (options->tabname) {
-          if (!stricmp(options->tabname, create_info->alias) &&
+          if (!stricmp(options->tabname, create_info->alias.str) &&
              (!options->dbname || 
               !stricmp(options->dbname, table_arg->s->db.str))) {
             sprintf(g->Message, "A %s table cannot refer to itself",
@@ -6285,7 +6285,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           char   *dsn= strz(g, create_info->connect_string);
           PMYDEF  mydef= new(g) MYSQLDEF();
 
-          mydef->SetName(create_info->alias);
+          mydef->SetName(create_info->alias.str);
 
           if (!mydef->ParseURL(g, dsn, false)) {
             if (mydef->GetHostname())

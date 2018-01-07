@@ -5439,7 +5439,7 @@ bool Item_func_get_user_var::const_item() const
 void Item_func_get_user_var::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("@"));
-  append_identifier(current_thd, str, name.str, name.length);
+  append_identifier(current_thd, str, &name);
 }
 
 
@@ -6410,8 +6410,8 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
       whether to return "Access denied" or "Routine does not exist".
     */
     res= sp ? sp->check_execute_access(thd) :
-              check_routine_access(thd, EXECUTE_ACL, m_name->m_db.str,
-                                   m_name->m_name.str,
+              check_routine_access(thd, EXECUTE_ACL, &m_name->m_db,
+                                   &m_name->m_name,
                                    &sp_handler_function, false);
     thd->security_ctx= save_security_ctx;
 
@@ -6629,7 +6629,7 @@ void Item_func_last_value::fix_length_and_dec()
 
 void Cursor_ref::print_func(String *str, const char *func_name)
 {
-  append_identifier(current_thd, str, m_cursor_name.str, m_cursor_name.length);
+  append_identifier(current_thd, str, &m_cursor_name);
   str->append(func_name);
 }
 
@@ -6751,8 +6751,9 @@ longlong Item_func_nextval::val_int()
 void Item_func_nextval::print(String *str, enum_query_type query_type)
 {
   char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
-  const char *d_name= table_list->db, *t_name= table_list->table_name;
-  bool use_db_name= d_name && d_name[0];
+  LEX_CSTRING d_name= table_list->db;
+  LEX_CSTRING t_name= table_list->table_name;
+  bool use_db_name= d_name.str && d_name.str[0];
   THD *thd= current_thd;                        // Don't trust 'table'
 
   str->append(func_name());
@@ -6765,23 +6766,23 @@ void Item_func_nextval::print(String *str, enum_query_type query_type)
 
   if (lower_case_table_names > 0)
   {
-    strmake(t_name_buff, t_name, MAX_ALIAS_NAME-1);
-    my_casedn_str(files_charset_info, t_name_buff);
-    t_name= t_name_buff;
+    strmake(t_name_buff, t_name.str, MAX_ALIAS_NAME-1);
+    t_name.length= my_casedn_str(files_charset_info, t_name_buff);
+    t_name.str= t_name_buff;
     if (use_db_name)
     {
-      strmake(d_name_buff, d_name, MAX_ALIAS_NAME-1);
-      my_casedn_str(files_charset_info, d_name_buff);
-      d_name= d_name_buff;
+      strmake(d_name_buff, d_name.str, MAX_ALIAS_NAME-1);
+      d_name.length= my_casedn_str(files_charset_info, d_name_buff);
+      d_name.str= d_name_buff;
     }
   }
 
   if (use_db_name)
   {
-    append_identifier(thd, str, d_name, (uint)strlen(d_name));
+    append_identifier(thd, str, &d_name);
     str->append('.');
   }
-  append_identifier(thd, str, t_name, (uint) strlen(t_name));
+  append_identifier(thd, str, &t_name);
   str->append(')');
 }
 
@@ -6874,8 +6875,9 @@ longlong Item_func_setval::val_int()
 void Item_func_setval::print(String *str, enum_query_type query_type)
 {
   char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
-  const char *d_name= table_list->db, *t_name= table_list->table_name;
-  bool use_db_name= d_name && d_name[0];
+  LEX_CSTRING d_name= table_list->db;
+  LEX_CSTRING t_name= table_list->table_name;
+  bool use_db_name= d_name.str && d_name.str[0];
   THD *thd= current_thd;                        // Don't trust 'table'
 
   str->append(func_name());
@@ -6888,23 +6890,23 @@ void Item_func_setval::print(String *str, enum_query_type query_type)
 
   if (lower_case_table_names > 0)
   {
-    strmake(t_name_buff, t_name, MAX_ALIAS_NAME-1);
-    my_casedn_str(files_charset_info, t_name_buff);
-    t_name= t_name_buff;
+    strmake(t_name_buff, t_name.str, MAX_ALIAS_NAME-1);
+    t_name.length= my_casedn_str(files_charset_info, t_name_buff);
+    t_name.str= t_name_buff;
     if (use_db_name)
     {
-      strmake(d_name_buff, d_name, MAX_ALIAS_NAME-1);
-      my_casedn_str(files_charset_info, d_name_buff);
-      d_name= d_name_buff;
+      strmake(d_name_buff, d_name.str, MAX_ALIAS_NAME-1);
+      d_name.length= my_casedn_str(files_charset_info, d_name_buff);
+      d_name.str= d_name_buff;
     }
   }
 
   if (use_db_name)
   {
-    append_identifier(thd, str, d_name, (uint)strlen(d_name));
+    append_identifier(thd, str, &d_name);
     str->append('.');
   }
-  append_identifier(thd, str, t_name, (uint) strlen(t_name));
+  append_identifier(thd, str, &t_name);
   str->append(',');
   str->append_longlong(nextval);
   str->append(',');

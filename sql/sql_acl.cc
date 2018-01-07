@@ -859,7 +859,7 @@ class Grant_table_base
     if (table_exists())
       return 0;
 
-    my_error(ER_NO_SUCH_TABLE, MYF(0), tl.db, tl.alias);
+    my_error(ER_NO_SUCH_TABLE, MYF(0), tl.db.str, tl.alias.str);
     return 1;
   }
 
@@ -1024,9 +1024,7 @@ class User_table: public Grant_table_base
   void init(enum thr_lock_type lock_type)
   {
     /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
-    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
-                      C_STRING_WITH_LEN("user"),
-                      NULL, lock_type);
+    tl.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_USER_NAME, NULL, lock_type);
     Grant_table_base::init(lock_type, false);
   }
 
@@ -1070,9 +1068,7 @@ class Db_table: public Grant_table_base
   void init(enum thr_lock_type lock_type)
   {
     /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
-    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
-                      C_STRING_WITH_LEN("db"),
-                      NULL, lock_type);
+    tl.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_DB_NAME, NULL, lock_type);
     Grant_table_base::init(lock_type, false);
   }
 };
@@ -1097,9 +1093,8 @@ class Tables_priv_table: public Grant_table_base
   void init(enum thr_lock_type lock_type, Grant_table_base *next_table= NULL)
   {
     /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
-    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
-                      C_STRING_WITH_LEN("tables_priv"),
-                      NULL, lock_type);
+    LEX_CSTRING MYSQL_TABLES_PRIV_NAME={STRING_WITH_LEN("tables_priv") };
+    tl.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_TABLES_PRIV_NAME, NULL, lock_type);
     Grant_table_base::init(lock_type, false);
   }
 };
@@ -1123,9 +1118,8 @@ class Columns_priv_table: public Grant_table_base
   void init(enum thr_lock_type lock_type)
   {
     /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
-    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
-                      C_STRING_WITH_LEN("columns_priv"),
-                      NULL, lock_type);
+    LEX_CSTRING MYSQL_COLUMNS_PRIV_NAME={ STRING_WITH_LEN("columns_priv") };
+    tl.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_COLUMNS_PRIV_NAME, NULL, lock_type);
     Grant_table_base::init(lock_type, false);
   }
 };
@@ -1144,9 +1138,8 @@ class Host_table: public Grant_table_base
   void init(enum thr_lock_type lock_type)
   {
     /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
-    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
-                      C_STRING_WITH_LEN("host"),
-                      NULL, lock_type);
+    LEX_CSTRING MYSQL_HOST_NAME={STRING_WITH_LEN("host") };
+    tl.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_HOST_NAME, NULL, lock_type);
     Grant_table_base::init(lock_type, true);
   }
 };
@@ -1171,9 +1164,8 @@ class Procs_priv_table: public Grant_table_base
   void init(enum thr_lock_type lock_type)
   {
     /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
-    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
-                      C_STRING_WITH_LEN("procs_priv"),
-                      NULL, lock_type);
+    LEX_CSTRING MYSQL_PROCS_PRIV_NAME={STRING_WITH_LEN("procs_priv") };
+    tl.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PROCS_PRIV_NAME, NULL, lock_type);
     Grant_table_base::init(lock_type, true);
   }
 };
@@ -1197,9 +1189,8 @@ class Proxies_priv_table: public Grant_table_base
   void init(enum thr_lock_type lock_type)
   {
     /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
-    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
-                      C_STRING_WITH_LEN("proxies_priv"),
-                      NULL, lock_type);
+    LEX_CSTRING MYSQL_PROXIES_PRIV_NAME={STRING_WITH_LEN("proxies_priv") };
+    tl.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PROXIES_PRIV_NAME, NULL, lock_type);
     Grant_table_base::init(lock_type, true);
   }
 };
@@ -1220,9 +1211,8 @@ class Roles_mapping_table: public Grant_table_base
   void init(enum thr_lock_type lock_type)
   {
     /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
-    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
-                      C_STRING_WITH_LEN("roles_mapping"),
-                      NULL, lock_type);
+    LEX_CSTRING MYSQL_ROLES_MAPPING_NAME={STRING_WITH_LEN("roles_mapping") };
+    tl.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_ROLES_MAPPING_NAME, NULL, lock_type);
     Grant_table_base::init(lock_type, true);
   }
 };
@@ -2691,8 +2681,8 @@ int acl_setrole(THD *thd, const char *rolename, ulonglong access)
   /* merge the privileges */
   Security_context *sctx= thd->security_ctx;
   sctx->master_access= static_cast<ulong>(access);
-  if (thd->db)
-    sctx->db_access= acl_get(sctx->host, sctx->ip, sctx->user, thd->db, FALSE);
+  if (thd->db.str)
+    sctx->db_access= acl_get(sctx->host, sctx->ip, sctx->user, thd->db.str, FALSE);
 
   if (!strcasecmp(rolename, "NONE"))
   {
@@ -2700,8 +2690,8 @@ int acl_setrole(THD *thd, const char *rolename, ulonglong access)
   }
   else
   {
-    if (thd->db)
-      sctx->db_access|= acl_get("", "", rolename, thd->db, FALSE);
+    if (thd->db.str)
+      sctx->db_access|= acl_get("", "", rolename, thd->db.str, FALSE);
     /* mark the current role */
     strmake_buf(thd->security_ctx->priv_role, rolename);
   }
@@ -3973,14 +3963,13 @@ static bool test_if_create_new_users(THD *thd)
   {
     TABLE_LIST tl;
     ulong db_access;
-    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
-                      C_STRING_WITH_LEN("user"), "user", TL_WRITE);
+    tl.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_USER_NAME, NULL, TL_WRITE);
     create_new_users= 1;
 
     db_access=acl_get(sctx->host, sctx->ip,
-		      sctx->priv_user, tl.db, 0);
+		      sctx->priv_user, tl.db.str, 0);
     if (sctx->priv_role[0])
-      db_access|= acl_get("", "", sctx->priv_role, tl.db, 0);
+      db_access|= acl_get("", "", sctx->priv_role, tl.db.str, 0);
     if (!(db_access & INSERT_ACL))
     {
       if (check_grant(thd, INSERT_ACL, &tl, FALSE, UINT_MAX, TRUE))
@@ -6482,7 +6471,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
         if (f == (Field*)0)
         {
           my_error(ER_BAD_FIELD_ERROR, MYF(0),
-                   column->column.c_ptr(), table_list->alias);
+                   column->column.c_ptr(), table_list->alias.str);
           DBUG_RETURN(TRUE);
         }
         if (f == (Field *)-1)
@@ -6495,9 +6484,10 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     {
       if (!(rights & CREATE_ACL))
       {
-        if (!ha_table_exists(thd, table_list->db, table_list->table_name))
+        if (!ha_table_exists(thd, &table_list->db, &table_list->table_name))
         {
-          my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db, table_list->alias);
+          my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db.str,
+                   table_list->alias.str);
           DBUG_RETURN(TRUE);
         }
       }
@@ -6508,7 +6498,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
                            table_list->grant.want_privilege);
         my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
                  command, thd->security_ctx->priv_user,
-                 thd->security_ctx->host_or_ip, table_list->alias);
+                 thd->security_ctx->host_or_ip, table_list->alias.str);
         DBUG_RETURN(-1);
       }
     }
@@ -6584,7 +6574,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       if (revoke_grant)
       {
 	my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
-                 Str->user.str, Str->host.str, table_list->table_name);
+                 Str->user.str, Str->host.str, table_list->table_name.str);
 	result= TRUE;
 	continue;
       }
@@ -6751,8 +6741,8 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
       continue;
     }
 
-    db_name= table_list->db;
-    table_name= table_list->table_name;
+    db_name= table_list->db.str;
+    table_name= table_list->table_name.str;
     grant_name= routine_hash_search(Str->host.str, NullS, db_name,
                                     Str->user.str, table_name, sph, 1);
     if (!grant_name || !grant_name->init_privs)
@@ -8179,13 +8169,13 @@ bool check_grant_routine(THD *thd, ulong want_access,
   for (table= procs; table; table= table->next_global)
   {
     GRANT_NAME *grant_proc;
-    if ((grant_proc= routine_hash_search(host, sctx->ip, table->db, user,
-                                         table->table_name, sph, 0)))
+    if ((grant_proc= routine_hash_search(host, sctx->ip, table->db.str, user,
+                                         table->table_name.str, sph, 0)))
       table->grant.privilege|= grant_proc->privs;
     if (role[0]) /* current role set check */
     {
-      if ((grant_proc= routine_hash_search("", NULL, table->db, role,
-                                           table->table_name, sph, 0)))
+      if ((grant_proc= routine_hash_search("", NULL, table->db.str, role,
+                                           table->table_name.str, sph, 0)))
       table->grant.privilege|= grant_proc->privs;
     }
 
@@ -8204,7 +8194,7 @@ err:
     char buff[1024];
     const char *command="";
     if (table)
-      strxmov(buff, table->db, ".", table->table_name, NullS);
+      strxmov(buff, table->db.str, ".", table->table_name.str, NullS);
     if (want_access & EXECUTE_ACL)
       command= "execute";
     else if (want_access & ALTER_PROC_ACL)
@@ -8267,7 +8257,7 @@ ulong get_table_grant(THD *thd, TABLE_LIST *table)
 {
   ulong privilege;
   Security_context *sctx= thd->security_ctx;
-  const char *db = table->db ? table->db : thd->db;
+  const char *db = table->db.str ? table->db.str : thd->db.str;
   GRANT_TABLE *grant_table;
   GRANT_TABLE *grant_table_role= NULL;
 
@@ -8277,10 +8267,10 @@ ulong get_table_grant(THD *thd, TABLE_LIST *table)
   grant_table_role= NULL;
 #else
   grant_table= table_hash_search(sctx->host, sctx->ip, db, sctx->priv_user,
-				 table->table_name, 0);
+				 table->table_name.str, 0);
   if (sctx->priv_role[0])
     grant_table_role= table_hash_search("", "", db, sctx->priv_role,
-                                        table->table_name, 0);
+                                        table->table_name.str, 0);
 #endif
   table->grant.grant_table_user= grant_table; // Remember for column test
   table->grant.grant_table_role= grant_table_role;
@@ -9194,7 +9184,8 @@ static int show_routine_grants(THD* thd,
 	  }
 	}
 	global.append(STRING_WITH_LEN(" ON "));
-        global.append(sph->type_lex_cstring());
+        LEX_CSTRING tmp= sph->type_lex_cstring();
+        global.append(&tmp);
         global.append(' ');
 	append_identifier(thd, &global, grant_proc->db,
 			  strlen(grant_proc->db));
@@ -11026,8 +11017,10 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   bzero((char*)tables, sizeof(TABLE_LIST));
   user_list.empty();
 
-  tables->db= (char*)sp_db;
-  tables->table_name= tables->alias= (char*)sp_name;
+  tables->db.str= sp_db;
+  tables->db.length= sp_db ? strlen(sp_db) : 0;
+  tables->table_name.str= tables->alias.str= sp_name;
+  tables->table_name.length= tables->alias.length= sp_name ? strlen(sp_name) : 0;
 
   thd->make_lex_string(&combo->user, combo->user.str, strlen(combo->user.str));
   thd->make_lex_string(&combo->host, combo->host.str, strlen(combo->host.str));
@@ -11826,7 +11819,7 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
   /* global privileges */
   grant->privilege= sctx->master_access;
 
-  if (!thd->db || strcmp(db, thd->db))
+  if (!thd->db.str || strcmp(db, thd->db.str))
   {
     /* db privileges */
     grant->privilege|= acl_get(sctx->host, sctx->ip, sctx->priv_user, db, 0);
@@ -12552,7 +12545,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     connection is closed. We don't want to accidentally free a wrong
     pointer if connect failed.
   */
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&null_clex_str);
 
   if (!initialized)
   {
@@ -12803,7 +12796,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     connection is closed. We don't want to accidentally free a wrong
     pointer if connect failed.
   */
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&null_clex_str);
 
   if (!initialized)
   {

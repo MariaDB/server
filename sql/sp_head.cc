@@ -898,13 +898,13 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
             <flags>       Flags struct
   */
   int buf_len= (qbuf.length() + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
-                thd->db_length + QUERY_CACHE_FLAGS_SIZE + 1);
+                thd->db.length + QUERY_CACHE_FLAGS_SIZE + 1);
   if ((pbuf= (char *) alloc_root(thd->mem_root, buf_len)))
   {
     char *ptr= pbuf + qbuf.length();
     memcpy(pbuf, qbuf.ptr(), qbuf.length());
     *ptr= 0;
-    int2store(ptr+1, thd->db_length);
+    int2store(ptr+1, thd->db.length);
   }
   else
     DBUG_RETURN(TRUE);
@@ -1403,7 +1403,7 @@ set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx)
   */
   if (*save_ctx &&
       check_routine_access(thd, EXECUTE_ACL,
-                           sp->m_db.str, sp->m_name.str, sp->m_handler, false))
+                           &sp->m_db, &sp->m_name, sp->m_handler, false))
   {
     sp->m_security_ctx.restore_security_context(thd, *save_ctx);
     *save_ctx= 0;
@@ -1418,7 +1418,7 @@ set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx)
 bool sp_head::check_execute_access(THD *thd) const
 {
   return check_routine_access(thd, EXECUTE_ACL,
-                              m_db.str, m_name.str,
+                              &m_db, &m_name,
                               m_handler, false);
 }
 
@@ -1733,9 +1733,9 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   {
     binlog_buf.length(0);
     binlog_buf.append(STRING_WITH_LEN("SELECT "));
-    append_identifier(thd, &binlog_buf, m_db.str, m_db.length);
+    append_identifier(thd, &binlog_buf, &m_db);
     binlog_buf.append('.');
-    append_identifier(thd, &binlog_buf, m_name.str, m_name.length);
+    append_identifier(thd, &binlog_buf, &m_name);
     binlog_buf.append('(');
     for (arg_no= 0; arg_no < argcount; arg_no++)
     {
@@ -2526,8 +2526,10 @@ bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access)
 {
   TABLE_LIST tables;
   bzero((char*) &tables,sizeof(tables));
-  tables.db= (char*) "mysql";
-  tables.table_name= tables.alias= (char*) "proc";
+  tables.db= MYSQL_SCHEMA_NAME;
+  tables.table_name= MYSQL_PROC_NAME;
+  tables.alias= MYSQL_PROC_NAME;
+
   *full_access= ((!check_table_access(thd, SELECT_ACL, &tables, FALSE,
                                      1, TRUE) &&
                   (tables.grant.privilege & SELECT_ACL) != 0) ||
@@ -3356,7 +3358,7 @@ sp_instr_stmt::exec_core(THD *thd, uint *nextp)
 {
   MYSQL_QUERY_EXEC_START(thd->query(),
                          thd->thread_id,
-                         (char *) (thd->db ? thd->db : ""),
+                         thd->get_db(),
                          &thd->security_ctx->priv_user[0],
                          (char *)thd->security_ctx->host_or_ip,
                          3);
@@ -4454,12 +4456,12 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
       uint temp_table_key_length;
 
       tname.length(0);
-      tname.append(table->db, table->db_length);
+      tname.append(&table->db);
       tname.append('\0');
-      tname.append(table->table_name, table->table_name_length);
+      tname.append(&table->table_name);
       tname.append('\0');
       temp_table_key_length= tname.length();
-      tname.append(table->alias);
+      tname.append(&table->alias);
       tname.append('\0');
 
       /*
@@ -4505,8 +4507,8 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
         tab->qname.str= (char*) thd->memdup(tname.ptr(), tab->qname.length);
         if (!tab->qname.str)
           return FALSE;
-        tab->table_name_length= table->table_name_length;
-        tab->db_length= table->db_length;
+        tab->table_name_length= table->table_name.length;
+        tab->db_length= table->db.length;
         tab->lock_type= table->lock_type;
         tab->lock_count= tab->query_lock_count= 1;
         tab->trg_event_map= table->trg_event_map;
@@ -4563,8 +4565,8 @@ sp_head::add_used_tables_to_table_list(THD *thd,
   for (i=0 ; i < m_sptabs.records ; i++)
   {
     char *tab_buff, *key_buff;
-    TABLE_LIST *table;
     SP_TABLE *stab= (SP_TABLE*) my_hash_element(&m_sptabs, i);
+    LEX_CSTRING db_name;
     if (stab->temp)
       continue;
 
@@ -4574,16 +4576,26 @@ sp_head::add_used_tables_to_table_list(THD *thd,
                                        stab->qname.length)))
       DBUG_RETURN(FALSE);
 
+    db_name.str=    key_buff;
+    db_name.length= stab->db_length;
+
+
     for (uint j= 0; j < stab->lock_count; j++)
     {
-      table= (TABLE_LIST *)tab_buff;
-      table->init_one_table_for_prelocking(key_buff, stab->db_length,
-           key_buff + stab->db_length + 1, stab->table_name_length,
-           key_buff + stab->db_length + stab->table_name_length + 2,
-           stab->lock_type, TABLE_LIST::PRELOCK_ROUTINE, belong_to_view,
-           stab->trg_event_map,
-           query_tables_last_ptr);
+      TABLE_LIST *table= (TABLE_LIST *)tab_buff;
+      LEX_CSTRING table_name= { key_buff + stab->db_length + 1,
+                                stab->table_name_length };
+      LEX_CSTRING alias= { table_name.str + table_name.length + 1,
+                           strlen(table_name.str + table_name.length + 1) };
 
+      table->init_one_table_for_prelocking(&db_name,
+                                           &table_name,
+                                           &alias,
+                                           stab->lock_type,
+                                           TABLE_LIST::PRELOCK_ROUTINE,
+                                           belong_to_view,
+                                           stab->trg_event_map,
+                                           query_tables_last_ptr);
       tab_buff+= ALIGN_SIZE(sizeof(TABLE_LIST));
       result= TRUE;
     }
@@ -4603,7 +4615,7 @@ sp_head::add_used_tables_to_table_list(THD *thd,
 
 TABLE_LIST *
 sp_add_to_query_tables(THD *thd, LEX *lex,
-		       const char *db, const char *name,
+		       const LEX_CSTRING *db, const LEX_CSTRING *name,
                        thr_lock_type locktype,
                        enum_mdl_type mdl_type)
 {
@@ -4611,15 +4623,15 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
 
   if (!(table= (TABLE_LIST *)thd->calloc(sizeof(TABLE_LIST))))
     return NULL;
-  table->db_length= strlen(db);
-  table->db= thd->strmake(db, table->db_length);
-  table->table_name_length= strlen(name);
-  table->table_name= thd->strmake(name, table->table_name_length);
-  table->alias= thd->strdup(name);
+  if (!thd->make_lex_string(&table->db, db->str, db->length) ||
+      !thd->make_lex_string(&table->table_name, name->str, name->length) ||
+      !thd->make_lex_string(&table->alias, name->str, name->length))
+    return NULL;
+
   table->lock_type= locktype;
   table->select_lex= lex->current_select;
   table->cacheable_table= 1;
-  table->mdl_request.init(MDL_key::TABLE, table->db, table->table_name,
+  table->mdl_request.init(MDL_key::TABLE, table->db.str, table->table_name.str,
                           mdl_type, MDL_TRANSACTION);
 
   lex->add_to_query_tables(table);

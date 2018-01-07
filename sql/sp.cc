@@ -35,7 +35,6 @@
 
 #include <my_user.h>
 
-
 sp_cache **Sp_handler_procedure::get_cache(THD *thd) const
 {
   return &thd->sp_proc_cache;
@@ -455,7 +454,7 @@ TABLE *open_proc_table_for_read(THD *thd, Open_tables_backup *backup)
 
   DBUG_ENTER("open_proc_table_for_read");
 
-  table.init_one_table("mysql", 5, "proc", 4, "proc", TL_READ);
+  table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PROC_NAME, NULL, TL_READ);
 
   if (open_system_tables_for_read(thd, &table, backup))
     DBUG_RETURN(NULL);
@@ -490,7 +489,7 @@ static TABLE *open_proc_table_for_update(THD *thd)
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   DBUG_ENTER("open_proc_table_for_update");
 
-  table_list.init_one_table("mysql", 5, "proc", 4, "proc", TL_WRITE);
+  table_list.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PROC_NAME, NULL, TL_WRITE);
 
   if (!(table= open_system_table_for_update(thd, &table_list)))
     DBUG_RETURN(NULL);
@@ -1919,16 +1918,16 @@ Sp_handler::sp_exist_routines(THD *thd, TABLE_LIST *routines) const
     sp_name *name;
     LEX_CSTRING lex_db;
     LEX_CSTRING lex_name;
-    thd->make_lex_string(&lex_db, routine->db, strlen(routine->db));
-    thd->make_lex_string(&lex_name, routine->table_name,
-                         strlen(routine->table_name));
+    thd->make_lex_string(&lex_db, routine->db.str, routine->db.length);
+    thd->make_lex_string(&lex_name, routine->table_name.str,
+                         routine->table_name.length);
     name= new sp_name(&lex_db, &lex_name, true);
     sp_object_found= sp_find_routine(thd, name, false) != NULL;
     thd->get_stmt_da()->clear_warning_info(thd->query_id);
     if (! sp_object_found)
     {
       my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "FUNCTION or PROCEDURE",
-               routine->table_name);
+               routine->table_name.str);
       DBUG_RETURN(TRUE);
     }
   }
@@ -2270,6 +2269,8 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
 {
   sql_mode_t old_sql_mode= thd->variables.sql_mode;
   size_t agglen= (chistics.agg_type == GROUP_AGGREGATE)? 10 : 0;
+  LEX_CSTRING tmp;
+
   /* Make some room to begin with */
   if (buf->alloc(100 + db.length + 1 + name.length +
                  params.length + returns.length +
@@ -2284,19 +2285,20 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
   append_definer(thd, buf, &definer.user, &definer.host);
   if (chistics.agg_type == GROUP_AGGREGATE)
     buf->append(STRING_WITH_LEN("AGGREGATE "));
-  buf->append(type_lex_cstring());
+  tmp= type_lex_cstring();
+  buf->append(&tmp);
   buf->append(STRING_WITH_LEN(" "));
   if (ddl_options.if_not_exists())
     buf->append(STRING_WITH_LEN("IF NOT EXISTS "));
 
   if (db.length > 0)
   {
-    append_identifier(thd, buf, db.str, db.length);
+    append_identifier(thd, buf, &db);
     buf->append('.');
   }
-  append_identifier(thd, buf, name.str, name.length);
+  append_identifier(thd, buf, &name);
   buf->append('(');
-  buf->append(params);
+  buf->append(&params);
   buf->append(')');
   if (type() == TYPE_ENUM_FUNCTION)
   {
@@ -2304,7 +2306,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
       buf->append(STRING_WITH_LEN(" RETURN "));
     else
       buf->append(STRING_WITH_LEN(" RETURNS "));
-    buf->append(returns);
+    buf->append(&returns);
   }
   buf->append('\n');
   switch (chistics.daccess) {
@@ -2326,7 +2328,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
     buf->append(STRING_WITH_LEN("    DETERMINISTIC\n"));
   append_suid(buf, chistics.suid);
   append_comment(buf, chistics.comment);
-  buf->append(body);
+  buf->append(&body);
   thd->variables.sql_mode= old_sql_mode;
   return false;
 }

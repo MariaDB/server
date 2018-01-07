@@ -1476,18 +1476,13 @@ static bool time_zone_tables_exist= 1;
   for dynamical loading of time zone descriptions.
 */
 
-static const LEX_STRING tz_tables_names[MY_TZ_TABLES_COUNT]=
+static const LEX_CSTRING tz_tables_names[MY_TZ_TABLES_COUNT]=
 {
   { C_STRING_WITH_LEN("time_zone_name")},
   { C_STRING_WITH_LEN("time_zone")},
   { C_STRING_WITH_LEN("time_zone_transition_type")},
   { C_STRING_WITH_LEN("time_zone_transition")}
 };
-
-/* Name of database to which those tables belong. */
-
-static const LEX_STRING tz_tables_db_name= { C_STRING_WITH_LEN("mysql")};
-
 
 class Tz_names_entry: public Sql_alloc
 {
@@ -1540,10 +1535,8 @@ tz_init_table_list(TABLE_LIST *tz_tabs)
 
   for (int i= 0; i < MY_TZ_TABLES_COUNT; i++)
   {
-    tz_tabs[i].alias= tz_tabs[i].table_name= tz_tables_names[i].str;
-    tz_tabs[i].table_name_length= tz_tables_names[i].length;
-    tz_tabs[i].db= tz_tables_db_name.str;
-    tz_tabs[i].db_length= tz_tables_db_name.length;
+    tz_tabs[i].alias= tz_tabs[i].table_name= tz_tables_names[i];
+    tz_tabs[i].db= MYSQL_SCHEMA_NAME;
     tz_tabs[i].lock_type= TL_READ;
 
     if (i != MY_TZ_TABLES_COUNT - 1)
@@ -1606,9 +1599,9 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   THD *thd;
   TABLE_LIST tz_tables[1+MY_TZ_TABLES_COUNT];
   TABLE *table;
+  const LEX_CSTRING tmp_table_name= { STRING_WITH_LEN("time_zone_leap_second") };
   Tz_names_entry *tmp_tzname;
   my_bool return_val= 1;
-  char db[]= "mysql";
   int res;
   DBUG_ENTER("my_tz_init");
 
@@ -1669,13 +1662,10 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
     leap seconds shared by all time zones.
   */
 
-  thd->set_db(db, sizeof(db)-1);
+  thd->set_db(&MYSQL_SCHEMA_NAME);
   bzero((char*) &tz_tables[0], sizeof(TABLE_LIST));
-  tz_tables[0].alias= tz_tables[0].table_name=
-    (char*)"time_zone_leap_second";
-  tz_tables[0].table_name_length= 21;
-  tz_tables[0].db= db;
-  tz_tables[0].db_length= sizeof(db)-1;
+  tz_tables[0].alias= tz_tables[0].table_name= tmp_table_name;
+  tz_tables[0].db= MYSQL_SCHEMA_NAME;
   tz_tables[0].lock_type= TL_READ;
 
   tz_init_table_list(tz_tables+1);

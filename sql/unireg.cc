@@ -164,7 +164,7 @@ bool has_extra2_field_flags(List<Create_field> &create_fields)
   or null LEX_CUSTRING (str==0) in case of an error.
 */
 
-LEX_CUSTRING build_frm_image(THD *thd, const char *table,
+LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
                               HA_CREATE_INFO *create_info,
                               List<Create_field> &create_fields,
                               uint keys, KEY *key_info, handler *db_file)
@@ -237,7 +237,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   DBUG_PRINT("info", ("Options length: %u", options_len));
 
   if (validate_comment_length(thd, &create_info->comment, TABLE_COMMENT_MAXLEN,
-                              ER_TOO_LONG_TABLE_COMMENT, table))
+                              ER_TOO_LONG_TABLE_COMMENT, table->str))
      DBUG_RETURN(frm);
   /*
     If table comment is longer than TABLE_COMMENT_INLINE_MAXLEN bytes,
@@ -317,7 +317,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (frm.length > FRM_MAX_SIZE ||
       create_info->expression_length > UINT_MAX32)
   {
-    my_error(ER_TABLE_DEFINITION_TOO_BIG, MYF(0), table);
+    my_error(ER_TABLE_DEFINITION_TOO_BIG, MYF(0), table->str);
     DBUG_RETURN(frm);
   }
 

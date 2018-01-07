@@ -37,7 +37,7 @@ public:
   ~Event_queue_element_for_exec();
 
   bool
-  init(LEX_CSTRING dbname, LEX_CSTRING name);
+  init(const LEX_CSTRING *dbname, const LEX_CSTRING *name);
 
   LEX_CSTRING dbname;
   LEX_CSTRING name;

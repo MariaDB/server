@@ -1940,7 +1940,7 @@ set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx);
 
 TABLE_LIST *
 sp_add_to_query_tables(THD *thd, LEX *lex,
-		       const char *db, const char *name,
+		       const LEX_CSTRING *db, const LEX_CSTRING *name,
                        thr_lock_type locktype,
                        enum_mdl_type mdl_type);
 

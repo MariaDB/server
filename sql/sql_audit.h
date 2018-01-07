@@ -121,15 +121,13 @@ void mysql_audit_general_log(THD *thd, time_t time,
       event.general_thread_id= (unsigned long)thd->thread_id;
       event.general_charset= thd->variables.character_set_client;
       event.database= thd->db;
-      event.database_length= (unsigned int)thd->db_length;
       event.query_id= thd->query_id;
     }
     else
     {
       event.general_thread_id= 0;
       event.general_charset= global_system_variables.character_set_client;
-      event.database= "";
-      event.database_length= 0;
+      event.database= null_clex_str;
       event.query_id= 0;
     }
 
@@ -175,7 +173,6 @@ void mysql_audit_general(THD *thd, uint event_subtype,
       event.general_charset= thd->query_string.charset();
       event.general_rows= thd->get_stmt_da()->current_row_for_warning();
       event.database= thd->db;
-      event.database_length= (uint)thd->db_length;
       event.query_id= thd->query_id;
     }
     else
@@ -187,8 +184,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
       event.general_query_length= 0;
       event.general_charset= &my_charset_bin;
       event.general_rows= 0;
-      event.database= "";
-      event.database_length= 0;
+      event.database= null_clex_str;
       event.query_id= 0;
     }
 
@@ -222,7 +218,6 @@ void mysql_audit_notify_connection_connect(THD *thd)
     event.ip= sctx->ip;
     event.ip_length= safe_strlen_uint(sctx->ip);
     event.database= thd->db;
-    event.database_length= safe_strlen_uint(thd->db);
 
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
@@ -252,7 +247,6 @@ void mysql_audit_notify_connection_disconnect(THD *thd, int errcode)
     event.ip= sctx->ip;
     event.ip_length= safe_strlen_uint(sctx->ip) ;
     event.database= thd->db;
-    event.database_length= safe_strlen_uint(thd->db);
 
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
@@ -283,7 +277,6 @@ void mysql_audit_notify_connection_change_user(THD *thd)
     event.ip= sctx->ip;
     event.ip_length= safe_strlen_uint(sctx->ip);
     event.database= thd->db;
-    event.database_length= safe_strlen_uint(thd->db);
 
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
@@ -307,14 +300,10 @@ void mysql_audit_external_lock(THD *thd, TABLE_SHARE *share, int lock)
     event.proxy_user= sctx->proxy_user;
     event.host= sctx->host;
     event.ip= sctx->ip;
-    event.database= share->db.str;
-    event.database_length= (unsigned int)share->db.length;
-    event.table= share->table_name.str;
-    event.table_length= (unsigned int)share->table_name.length;
-    event.new_database= 0;
-    event.new_database_length= 0;
-    event.new_table= 0;
-    event.new_table_length= 0;
+    event.database= share->db;
+    event.table= share->table_name;
+    event.new_database= null_clex_str;
+    event.new_table= null_clex_str;
     event.query_id= thd->query_id;
 
     mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
@@ -341,15 +330,11 @@ void mysql_audit_create_table(TABLE *table)
     event.proxy_user= sctx->proxy_user;
     event.host= sctx->host;
     event.ip= sctx->ip;
-    event.database= share->db.str;
-    event.database_length= (unsigned int)share->db.length;
-    event.table= share->table_name.str;
-    event.table_length= (unsigned int)share->table_name.length;
-    event.new_database= 0;
-    event.new_database_length= 0;
-    event.new_table= 0;
-    event.new_table_length= 0;
-    event.query_id= thd->query_id;
+    event.database=     share->db;
+    event.table=        share->table_name;
+    event.new_database= null_clex_str;
+    event.new_table=    null_clex_str;
+    event.query_id=     thd->query_id;
 
     mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
   }
@@ -373,23 +358,20 @@ void mysql_audit_drop_table(THD *thd, TABLE_LIST *table)
     event.proxy_user= sctx->proxy_user;
     event.host= sctx->host;
     event.ip= sctx->ip;
-    event.database= table->db;
-    event.database_length= (unsigned int)table->db_length;
-    event.table= table->table_name;
-    event.table_length= (unsigned int)table->table_name_length;
-    event.new_database= 0;
-    event.new_database_length= 0;
-    event.new_table= 0;
-    event.new_table_length= 0;
-    event.query_id= thd->query_id;
+    event.database=     table->db;
+    event.table=        table->table_name;
+    event.new_database= null_clex_str;
+    event.new_table=    null_clex_str;
+    event.query_id=     thd->query_id;
 
     mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
   }
 }
 
 static inline
-void mysql_audit_rename_table(THD *thd, const char *old_db, const char *old_tb,
-                              const char *new_db, const char *new_tb)
+void mysql_audit_rename_table(THD *thd, const LEX_CSTRING *old_db,
+                              const LEX_CSTRING *old_tb,
+                              const LEX_CSTRING *new_db, const LEX_CSTRING *new_tb)
 {
   if (mysql_audit_table_enabled())
   {
@@ -406,14 +388,10 @@ void mysql_audit_rename_table(THD *thd, const char *old_db, const char *old_tb,
     event.proxy_user= sctx->proxy_user;
     event.host= sctx->host;
     event.ip= sctx->ip;
-    event.database= old_db;
-    event.database_length= strlen_uint(old_db);
-    event.table= old_tb;
-    event.table_length= strlen_uint(old_tb);
-    event.new_database= new_db;
-    event.new_database_length= strlen_uint(new_db);
-    event.new_table= new_tb;
-    event.new_table_length= strlen_uint(new_tb);
+    event.database=  *old_db;
+    event.table=     *old_tb;
+    event.new_database= *new_db;
+    event.new_table= *new_tb;
     event.query_id= thd->query_id;
 
     mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
@@ -439,13 +417,9 @@ void mysql_audit_alter_table(THD *thd, TABLE_LIST *table)
     event.host= sctx->host;
     event.ip= sctx->ip;
     event.database= table->db;
-    event.database_length= (unsigned int)table->db_length;
     event.table= table->table_name;
-    event.table_length= (unsigned int)table->table_name_length;
-    event.new_database= 0;
-    event.new_database_length= 0;
-    event.new_table= 0;
-    event.new_table_length= 0;
+    event.new_database= null_clex_str;
+    event.new_table= null_clex_str;
     event.query_id= thd->query_id;
 
     mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);

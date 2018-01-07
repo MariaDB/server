@@ -52,7 +52,7 @@ static bool initialized = 0;
 static MEM_ROOT mem;
 static HASH udf_hash;
 static mysql_rwlock_t THR_LOCK_udf;
-
+static LEX_CSTRING MYSQL_FUNC_NAME= {STRING_WITH_LEN("func") };
 
 static udf_func *add_udf(LEX_CSTRING *name, Item_result ret,
                          const char *dl, Item_udftype typ);
@@ -142,7 +142,6 @@ void udf_init()
   TABLE *table;
   int error;
   DBUG_ENTER("ufd_init");
-  char db[]= "mysql"; /* A subject to casednstr, can't be constant */
 
   if (initialized || opt_noacl)
     DBUG_VOID_RETURN;
@@ -167,9 +166,9 @@ void udf_init()
   initialized = 1;
   new_thd->thread_stack= (char*) &new_thd;
   new_thd->store_globals();
-  new_thd->set_db(db, sizeof(db)-1);
+  new_thd->set_db(&MYSQL_SCHEMA_NAME);
 
-  tables.init_one_table(db, sizeof(db)-1, "func", 4, "func", TL_READ);
+  tables.init_one_table(&new_thd->db, &MYSQL_FUNC_NAME, 0, TL_READ);
 
   if (open_and_lock_tables(new_thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
@@ -504,8 +503,7 @@ int mysql_create_function(THD *thd,udf_func *udf)
   if (check_ident_length(&udf->name))
     DBUG_RETURN(1);
 
-  tables.init_one_table(STRING_WITH_LEN("mysql"), STRING_WITH_LEN("func"),
-                        "func", TL_WRITE);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_FUNC_NAME, 0, TL_WRITE);
   table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
 
   mysql_rwlock_wrlock(&THR_LOCK_udf);
@@ -623,8 +621,7 @@ int mysql_drop_function(THD *thd, const LEX_CSTRING *udf_name)
     DBUG_RETURN(1);
   }
 
-  tables.init_one_table(STRING_WITH_LEN("mysql"), STRING_WITH_LEN("func"),
-                        "func", TL_WRITE);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_FUNC_NAME, 0, TL_WRITE);
   table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
 
   mysql_rwlock_wrlock(&THR_LOCK_udf);
