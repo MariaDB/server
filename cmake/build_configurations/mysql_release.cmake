@@ -137,7 +137,10 @@ IF(UNIX)
           RedHat/Fedora/Oracle Linux: yum install libaio-devel
           SuSE:                       zypper install libaio-devel
 
-        If you really do not want it, pass -DIGNORE_AIO_CHECK to cmake.
+        Please also remember to clear the Cmake cache afterwards, e.g. by
+        removing the CMakeCache.txt file before re-running cmake.
+
+        If you really do not want aio, pass -DIGNORE_AIO_CHECK to cmake.
         ")
       ENDIF()
 
