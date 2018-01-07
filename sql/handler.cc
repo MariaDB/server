@@ -2079,7 +2079,7 @@ uint get_sql_xid(XID *xid, char *buf)
             MY_INT64_NUM_DECIMAL_DIGITS, -10, xid->formatID);
   }
 
-  return buf - orig_buf;
+  return (uint)(buf - orig_buf);
 }
 
 
