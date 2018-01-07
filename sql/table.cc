@@ -1850,7 +1850,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           char tmp[10];
           if (!csname || csname[0] =='?')
           {
-            my_snprintf(tmp, sizeof(tmp), "#%d", cs_new);
+            my_snprintf(tmp, sizeof(tmp), "#%u", cs_new);
             csname= tmp;
           }
           my_printf_error(ER_UNKNOWN_COLLATION,

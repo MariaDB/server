@@ -2740,7 +2740,7 @@ sf_tail_not_aggregate:
         {
           if (Lex->sphead->m_flags & sp_head::HAS_AGGREGATE_INSTR)
           {
-            my_yyabort_error((ER_NOT_AGGREGATE_FUNCTION, MYF(0), ""));
+            my_yyabort_error((ER_NOT_AGGREGATE_FUNCTION, MYF(0)));
           }
           Lex->sphead->set_chistics_agg_type(NOT_AGGREGATE);
         }
@@ -2750,7 +2750,7 @@ sf_tail_aggregate:
         {
           if (!(Lex->sphead->m_flags & sp_head::HAS_AGGREGATE_INSTR))
           {
-            my_yyabort_error((ER_INVALID_AGGREGATE_FUNCTION, MYF(0), ""));
+            my_yyabort_error((ER_INVALID_AGGREGATE_FUNCTION, MYF(0)));
           }
           Lex->sphead->set_chistics_agg_type(GROUP_AGGREGATE);
         }
@@ -14101,7 +14101,7 @@ opt_format_json:
             else if (!my_strcasecmp(system_charset_info, $3.str, "TRADITIONAL"))
               DBUG_ASSERT(Lex->explain_json==false);
             else
-              my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0), "JSON",
+              my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0), "EXPLAIN",
                                 $3.str));
           }
         ;

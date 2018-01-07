@@ -13500,7 +13500,8 @@ void issue_long_find_row_warning(Log_event_type type,
                             "of time (%lld seconds). This is due to the fact that it is %s "
                             "while looking up records to be processed. Consider adding a "
                             "primary key (or unique key) to the table to improve "
-                            "performance.", evt_type, table_name, delta, scan_type);
+                            "performance.",
+                            evt_type, table_name, (long) delta, scan_type);
     }
   }
 }
