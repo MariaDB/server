@@ -46,11 +46,11 @@ void free_key_cache(const char *name, KEY_CACHE *key_cache);
 bool process_key_caches(process_key_cache_t func, void *param);
 
 /* For Rpl_filter */
-extern LEX_STRING default_rpl_filter_base;
+extern LEX_CSTRING default_rpl_filter_base;
 extern NAMED_ILIST rpl_filters;
 
 Rpl_filter *create_rpl_filter(const char *name, uint length);
-Rpl_filter *get_rpl_filter(LEX_STRING *filter_name);
+Rpl_filter *get_rpl_filter(LEX_CSTRING *filter_name);
 Rpl_filter *get_or_create_rpl_filter(const char *name, uint length);
 void free_rpl_filter(const char *name, Rpl_filter *filter);
 void free_all_rpl_filters(void);

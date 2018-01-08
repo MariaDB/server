@@ -1334,10 +1334,10 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     TABLE_LIST *views = first_table;
     LEX_USER *definer;
     String buff;
-    const LEX_STRING command[3]=
-      {{ C_STRING_WITH_LEN("CREATE ") },
-       { C_STRING_WITH_LEN("ALTER ") },
-       { C_STRING_WITH_LEN("CREATE OR REPLACE ") }};
+    const LEX_CSTRING command[3]=
+      {{ STRING_WITH_LEN("CREATE ") },
+       { STRING_WITH_LEN("ALTER ") },
+       { STRING_WITH_LEN("CREATE OR REPLACE ") }};
 
     buff.append(&command[thd->lex->create_view->mode]);
 

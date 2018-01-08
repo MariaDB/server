@@ -15764,14 +15764,14 @@ opt_lock_wait_timeout:
         {}
         | WAIT_SYM ulong_num
         {
-          if (set_statement_var_if_exists(thd, C_STRING_WITH_LEN("lock_wait_timeout"), $2) ||
-              set_statement_var_if_exists(thd, C_STRING_WITH_LEN("innodb_lock_wait_timeout"), $2))
+          if (set_statement_var_if_exists(thd, STRING_WITH_LEN("lock_wait_timeout"), $2) ||
+              set_statement_var_if_exists(thd, STRING_WITH_LEN("innodb_lock_wait_timeout"), $2))
             MYSQL_YYABORT;
         }
         | NOWAIT_SYM
         {
-          if (set_statement_var_if_exists(thd, C_STRING_WITH_LEN("lock_wait_timeout"), 0) ||
-              set_statement_var_if_exists(thd, C_STRING_WITH_LEN("innodb_lock_wait_timeout"), 0))
+          if (set_statement_var_if_exists(thd, STRING_WITH_LEN("lock_wait_timeout"), 0) ||
+              set_statement_var_if_exists(thd, STRING_WITH_LEN("innodb_lock_wait_timeout"), 0))
             MYSQL_YYABORT;
         }
       ;

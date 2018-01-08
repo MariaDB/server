@@ -87,8 +87,8 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all);
 static int binlog_prepare(handlerton *hton, THD *thd, bool all);
 static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
 
-static LEX_STRING const write_error_msg=
-    { C_STRING_WITH_LEN("error writing to the binary log") };
+static const LEX_CSTRING write_error_msg=
+    { STRING_WITH_LEN("error writing to the binary log") };
 
 static my_bool opt_optimize_thread_scheduling= TRUE;
 ulong binlog_checksum_options;
@@ -6318,7 +6318,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       prev_binlog_id= current_binlog_id;
       DBUG_EXECUTE_IF("binlog_force_commit_id",
         {
-          const LEX_STRING commit_name= { C_STRING_WITH_LEN("commit_id") };
+          const LEX_CSTRING commit_name= { STRING_WITH_LEN("commit_id") };
           bool null_value;
           user_var_entry *entry=
             (user_var_entry*) my_hash_search(&thd->user_vars,
@@ -7164,7 +7164,7 @@ bool MYSQL_BIN_LOG::write_incident_already_locked(THD *thd)
   uint error= 0;
   DBUG_ENTER("MYSQL_BIN_LOG::write_incident_already_locked");
   Incident incident= INCIDENT_LOST_EVENTS;
-  Incident_log_event ev(thd, incident, write_error_msg);
+  Incident_log_event ev(thd, incident, &write_error_msg);
 
   if (likely(is_open()))
   {
@@ -7332,7 +7332,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   if (cache_mngr->stmt_cache.has_incident() ||
       cache_mngr->trx_cache.has_incident())
   {
-    Incident_log_event inc_ev(thd, INCIDENT_LOST_EVENTS, write_error_msg);
+    Incident_log_event inc_ev(thd, INCIDENT_LOST_EVENTS, &write_error_msg);
     entry.incident_event= &inc_ev;
     DBUG_RETURN(write_transaction_to_binlog_events(&entry));
   }
@@ -7840,7 +7840,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     commit_id= (last_in_queue == leader ? 0 : (uint64)leader->thd->query_id);
     DBUG_EXECUTE_IF("binlog_force_commit_id",
       {
-        const LEX_STRING commit_name= { C_STRING_WITH_LEN("commit_id") };
+        const LEX_CSTRING commit_name= { STRING_WITH_LEN("commit_id") };
         bool null_value;
         user_var_entry *entry=
           (user_var_entry*) my_hash_search(&leader->thd->user_vars,

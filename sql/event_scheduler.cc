@@ -49,11 +49,11 @@ Event_db_repository *Event_worker_thread::db_repository;
 
 
 static
-const LEX_STRING scheduler_states_names[] =
+const LEX_CSTRING scheduler_states_names[] =
 {
-  { C_STRING_WITH_LEN("INITIALIZED") },
-  { C_STRING_WITH_LEN("RUNNING") },
-  { C_STRING_WITH_LEN("STOPPING") }
+  { STRING_WITH_LEN("INITIALIZED") },
+  { STRING_WITH_LEN("RUNNING") },
+  { STRING_WITH_LEN("STOPPING") }
 };
 
 struct scheduler_param {

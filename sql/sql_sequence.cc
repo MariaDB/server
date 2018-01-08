@@ -54,7 +54,7 @@ static Field_definition sequence_structure[]=
   {"maximum_value", 21, &type_handler_longlong, STRING_WITH_LEN(""), FL},
   {"start_value", 21, &type_handler_longlong, {STRING_WITH_LEN("start value when sequences is created or value if RESTART is used")},  FL},
   {"increment", 21, &type_handler_longlong,
-   {C_STRING_WITH_LEN("increment value")}, FL},
+   {STRING_WITH_LEN("increment value")}, FL},
   {"cache_size", 21, &type_handler_longlong, STRING_WITH_LEN(""),
    FL | UNSIGNED_FLAG},
   {"cycle_option", 1, &type_handler_tiny, {STRING_WITH_LEN("0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed")},

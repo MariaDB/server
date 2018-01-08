@@ -5999,7 +5999,7 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
     {
       restore_record(table, s->default_values);
       table->field[0]->store(plug->name, strlen(plug->name), scs);
-      table->field[1]->store(C_STRING_WITH_LEN("NO"), scs);
+      table->field[1]->store(STRING_WITH_LEN("NO"), scs);
       table->field[2]->store(plug->descr, strlen(plug->descr), scs);
       if (schema_table_store_record(thd, table))
         DBUG_RETURN(1);

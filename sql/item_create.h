@@ -208,7 +208,7 @@ Item *create_temporal_literal(THD *thd, const String *str,
 
 struct Native_func_registry
 {
-  LEX_STRING name;
+  LEX_CSTRING name;
   Create_func *builder;
 };
 

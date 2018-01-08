@@ -132,39 +132,39 @@ static bool check_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
 
 const char *any_db="*any*";	// Special symbol for check_access
 
-const LEX_STRING command_name[257]={
-  { C_STRING_WITH_LEN("Sleep") },           //0
-  { C_STRING_WITH_LEN("Quit") },            //1
-  { C_STRING_WITH_LEN("Init DB") },         //2
-  { C_STRING_WITH_LEN("Query") },           //3
-  { C_STRING_WITH_LEN("Field List") },      //4
-  { C_STRING_WITH_LEN("Create DB") },       //5
-  { C_STRING_WITH_LEN("Drop DB") },         //6
-  { C_STRING_WITH_LEN("Refresh") },         //7
-  { C_STRING_WITH_LEN("Shutdown") },        //8
-  { C_STRING_WITH_LEN("Statistics") },      //9
-  { C_STRING_WITH_LEN("Processlist") },     //10
-  { C_STRING_WITH_LEN("Connect") },         //11
-  { C_STRING_WITH_LEN("Kill") },            //12
-  { C_STRING_WITH_LEN("Debug") },           //13
-  { C_STRING_WITH_LEN("Ping") },            //14
-  { C_STRING_WITH_LEN("Time") },            //15
-  { C_STRING_WITH_LEN("Delayed insert") },  //16
-  { C_STRING_WITH_LEN("Change user") },     //17
-  { C_STRING_WITH_LEN("Binlog Dump") },     //18
-  { C_STRING_WITH_LEN("Table Dump") },      //19
-  { C_STRING_WITH_LEN("Connect Out") },     //20
-  { C_STRING_WITH_LEN("Register Slave") },  //21
-  { C_STRING_WITH_LEN("Prepare") },         //22
-  { C_STRING_WITH_LEN("Execute") },         //23
-  { C_STRING_WITH_LEN("Long Data") },       //24
-  { C_STRING_WITH_LEN("Close stmt") },      //25
-  { C_STRING_WITH_LEN("Reset stmt") },      //26
-  { C_STRING_WITH_LEN("Set option") },      //27
-  { C_STRING_WITH_LEN("Fetch") },           //28
-  { C_STRING_WITH_LEN("Daemon") },          //29
-  { C_STRING_WITH_LEN("Unimpl get tid") },  //30
-  { C_STRING_WITH_LEN("Reset connection") },//31
+const LEX_CSTRING command_name[257]={
+  { STRING_WITH_LEN("Sleep") },           //0
+  { STRING_WITH_LEN("Quit") },            //1
+  { STRING_WITH_LEN("Init DB") },         //2
+  { STRING_WITH_LEN("Query") },           //3
+  { STRING_WITH_LEN("Field List") },      //4
+  { STRING_WITH_LEN("Create DB") },       //5
+  { STRING_WITH_LEN("Drop DB") },         //6
+  { STRING_WITH_LEN("Refresh") },         //7
+  { STRING_WITH_LEN("Shutdown") },        //8
+  { STRING_WITH_LEN("Statistics") },      //9
+  { STRING_WITH_LEN("Processlist") },     //10
+  { STRING_WITH_LEN("Connect") },         //11
+  { STRING_WITH_LEN("Kill") },            //12
+  { STRING_WITH_LEN("Debug") },           //13
+  { STRING_WITH_LEN("Ping") },            //14
+  { STRING_WITH_LEN("Time") },            //15
+  { STRING_WITH_LEN("Delayed insert") },  //16
+  { STRING_WITH_LEN("Change user") },     //17
+  { STRING_WITH_LEN("Binlog Dump") },     //18
+  { STRING_WITH_LEN("Table Dump") },      //19
+  { STRING_WITH_LEN("Connect Out") },     //20
+  { STRING_WITH_LEN("Register Slave") },  //21
+  { STRING_WITH_LEN("Prepare") },         //22
+  { STRING_WITH_LEN("Execute") },         //23
+  { STRING_WITH_LEN("Long Data") },       //24
+  { STRING_WITH_LEN("Close stmt") },      //25
+  { STRING_WITH_LEN("Reset stmt") },      //26
+  { STRING_WITH_LEN("Set option") },      //27
+  { STRING_WITH_LEN("Fetch") },           //28
+  { STRING_WITH_LEN("Daemon") },          //29
+  { STRING_WITH_LEN("Unimpl get tid") },  //30
+  { STRING_WITH_LEN("Reset connection") },//31
   { 0, 0 }, //32
   { 0, 0 }, //33
   { 0, 0 }, //34
@@ -383,12 +383,12 @@ const LEX_STRING command_name[257]={
   { 0, 0 }, //247
   { 0, 0 }, //248
   { 0, 0 }, //249
-  { C_STRING_WITH_LEN("Bulk_execute") }, //250
-  { C_STRING_WITH_LEN("Slave_worker") }, //251
-  { C_STRING_WITH_LEN("Slave_IO") }, //252
-  { C_STRING_WITH_LEN("Slave_SQL") }, //253
-  { C_STRING_WITH_LEN("Com_multi") }, //254
-  { C_STRING_WITH_LEN("Error") }  // Last command number 255
+  { STRING_WITH_LEN("Bulk_execute") }, //250
+  { STRING_WITH_LEN("Slave_worker") }, //251
+  { STRING_WITH_LEN("Slave_IO") }, //252
+  { STRING_WITH_LEN("Slave_SQL") }, //253
+  { STRING_WITH_LEN("Com_multi") }, //254
+  { STRING_WITH_LEN("Error") }  // Last command number 255
 };
 
 const char *xa_state_names[]={

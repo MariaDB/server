@@ -1245,7 +1245,7 @@ uint32 convert_error_message(char *to, uint32 to_length,
                              const char *from, uint32 from_length,
                              CHARSET_INFO *from_cs, uint *errors);
 
-extern const LEX_STRING warning_level_names[];
+extern const LEX_CSTRING warning_level_names[];
 
 bool is_sqlstate_valid(const LEX_CSTRING *sqlstate);
 /**

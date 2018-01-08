@@ -131,18 +131,18 @@ static const
 TABLE_FIELD_TYPE table_stat_fields[TABLE_STAT_N_FIELDS] =
 {
   {
-    { C_STRING_WITH_LEN("db_name") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("db_name") },
+    { STRING_WITH_LEN("varchar(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("table_name") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("table_name") },
+    { STRING_WITH_LEN("varchar(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("cardinality") },
-    { C_STRING_WITH_LEN("bigint(21)") },
+    { STRING_WITH_LEN("cardinality") },
+    { STRING_WITH_LEN("bigint(21)") },
     { NULL, 0 }
   },
 };
@@ -154,58 +154,58 @@ static const
 TABLE_FIELD_TYPE column_stat_fields[COLUMN_STAT_N_FIELDS] =
 {
   {
-    { C_STRING_WITH_LEN("db_name") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("db_name") },
+    { STRING_WITH_LEN("varchar(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("table_name") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("table_name") },
+    { STRING_WITH_LEN("varchar(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("column_name") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("column_name") },
+    { STRING_WITH_LEN("varchar(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("min_value") },
-    { C_STRING_WITH_LEN("varbinary(255)") },
+    { STRING_WITH_LEN("min_value") },
+    { STRING_WITH_LEN("varbinary(255)") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("max_value") },
-    { C_STRING_WITH_LEN("varbinary(255)") },
+    { STRING_WITH_LEN("max_value") },
+    { STRING_WITH_LEN("varbinary(255)") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("nulls_ratio") },
-    { C_STRING_WITH_LEN("decimal(12,4)") },
+    { STRING_WITH_LEN("nulls_ratio") },
+    { STRING_WITH_LEN("decimal(12,4)") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("avg_length") },
-    { C_STRING_WITH_LEN("decimal(12,4)") },
+    { STRING_WITH_LEN("avg_length") },
+    { STRING_WITH_LEN("decimal(12,4)") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("avg_frequency") },
-    { C_STRING_WITH_LEN("decimal(12,4)") },
+    { STRING_WITH_LEN("avg_frequency") },
+    { STRING_WITH_LEN("decimal(12,4)") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("hist_size") },
-    { C_STRING_WITH_LEN("tinyint(3)") },
+    { STRING_WITH_LEN("hist_size") },
+    { STRING_WITH_LEN("tinyint(3)") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("hist_type") },
-    { C_STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("hist_type") },
+    { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("histogram") },
-    { C_STRING_WITH_LEN("varbinary(255)") },
+    { STRING_WITH_LEN("histogram") },
+    { STRING_WITH_LEN("varbinary(255)") },
     { NULL, 0 }
   }
 };
@@ -217,28 +217,28 @@ static const
 TABLE_FIELD_TYPE index_stat_fields[INDEX_STAT_N_FIELDS] =
 {
   {
-    { C_STRING_WITH_LEN("db_name") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("db_name") },
+    { STRING_WITH_LEN("varchar(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("table_name") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("table_name") },
+    { STRING_WITH_LEN("varchar(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("index") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("index") },
+    { STRING_WITH_LEN("varchar(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("prefix_arity") },
-    { C_STRING_WITH_LEN("int(11)") },
+    { STRING_WITH_LEN("prefix_arity") },
+    { STRING_WITH_LEN("int(11)") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("avg_frequency") },
-    { C_STRING_WITH_LEN("decimal(12,4)") },
+    { STRING_WITH_LEN("avg_frequency") },
+    { STRING_WITH_LEN("decimal(12,4)") },
     { NULL, 0 }
   }
 };

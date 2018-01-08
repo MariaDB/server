@@ -41,38 +41,38 @@ static
 const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
 {
   {
-    { C_STRING_WITH_LEN("db") },
-    { C_STRING_WITH_LEN("char(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("db") },
+    { STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("name") },
-    { C_STRING_WITH_LEN("char(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("name") },
+    { STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("body") },
-    { C_STRING_WITH_LEN("longblob") },
+    { STRING_WITH_LEN("body") },
+    { STRING_WITH_LEN("longblob") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("definer") },
-    { C_STRING_WITH_LEN("char(") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("definer") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("execute_at") },
-    { C_STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("execute_at") },
+    { STRING_WITH_LEN("datetime") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("interval_value") },
-    { C_STRING_WITH_LEN("int(11)") },
+    { STRING_WITH_LEN("interval_value") },
+    { STRING_WITH_LEN("int(11)") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("interval_field") },
-    { C_STRING_WITH_LEN("enum('YEAR','QUARTER','MONTH','DAY',"
+    { STRING_WITH_LEN("interval_field") },
+    { STRING_WITH_LEN("enum('YEAR','QUARTER','MONTH','DAY',"
     "'HOUR','MINUTE','WEEK','SECOND','MICROSECOND','YEAR_MONTH','DAY_HOUR',"
     "'DAY_MINUTE','DAY_SECOND','HOUR_MINUTE','HOUR_SECOND','MINUTE_SECOND',"
     "'DAY_MICROSECOND','HOUR_MICROSECOND','MINUTE_MICROSECOND',"
@@ -80,43 +80,43 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("created") },
-    { C_STRING_WITH_LEN("timestamp") },
+    { STRING_WITH_LEN("created") },
+    { STRING_WITH_LEN("timestamp") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("modified") },
-    { C_STRING_WITH_LEN("timestamp") },
+    { STRING_WITH_LEN("modified") },
+    { STRING_WITH_LEN("timestamp") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("last_executed") },
-    { C_STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("last_executed") },
+    { STRING_WITH_LEN("datetime") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("starts") },
-    { C_STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("starts") },
+    { STRING_WITH_LEN("datetime") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("ends") },
-    { C_STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("ends") },
+    { STRING_WITH_LEN("datetime") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("status") },
-    { C_STRING_WITH_LEN("enum('ENABLED','DISABLED','SLAVESIDE_DISABLED')") },
+    { STRING_WITH_LEN("status") },
+    { STRING_WITH_LEN("enum('ENABLED','DISABLED','SLAVESIDE_DISABLED')") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("on_completion") },
-    { C_STRING_WITH_LEN("enum('DROP','PRESERVE')") },
+    { STRING_WITH_LEN("on_completion") },
+    { STRING_WITH_LEN("enum('DROP','PRESERVE')") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("sql_mode") },
-    { C_STRING_WITH_LEN("set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES',"
+    { STRING_WITH_LEN("sql_mode") },
+    { STRING_WITH_LEN("set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES',"
     "'IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY',"
     "'NO_UNSIGNED_SUBTRACTION',"
     "'NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB',"
@@ -128,38 +128,38 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("comment") },
-    { C_STRING_WITH_LEN("char(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("comment") },
+    { STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("originator") },
-    { C_STRING_WITH_LEN("int(10)") },
+    { STRING_WITH_LEN("originator") },
+    { STRING_WITH_LEN("int(10)") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("time_zone") },
-    { C_STRING_WITH_LEN("char(64)") },
-    { C_STRING_WITH_LEN("latin1") }
+    { STRING_WITH_LEN("time_zone") },
+    { STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("latin1") }
   },
   {
-    { C_STRING_WITH_LEN("character_set_client") },
-    { C_STRING_WITH_LEN("char(32)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("character_set_client") },
+    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("collation_connection") },
-    { C_STRING_WITH_LEN("char(32)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("collation_connection") },
+    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("db_collation") },
-    { C_STRING_WITH_LEN("char(32)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("db_collation") },
+    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("body_utf8") },
-    { C_STRING_WITH_LEN("longblob") },
+    { STRING_WITH_LEN("body_utf8") },
+    { STRING_WITH_LEN("longblob") },
     { NULL, 0 }
   }
 };

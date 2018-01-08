@@ -62,119 +62,119 @@ bool mysql_user_table_is_in_short_password_format= false;
 static const
 TABLE_FIELD_TYPE mysql_db_table_fields[MYSQL_DB_FIELD_COUNT] = {
   {
-    { C_STRING_WITH_LEN("Host") },
-    { C_STRING_WITH_LEN("char(60)") },
+    { STRING_WITH_LEN("Host") },
+    { STRING_WITH_LEN("char(60)") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("Db") },
-    { C_STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("Db") },
+    { STRING_WITH_LEN("char(64)") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("User") },
-    { C_STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("User") },
+    { STRING_WITH_LEN("char(") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("Select_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Select_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Insert_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Insert_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Update_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Update_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Delete_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Delete_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Create_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Create_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Drop_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Drop_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Grant_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Grant_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("References_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("References_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Index_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Index_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Alter_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Alter_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Create_tmp_table_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Create_tmp_table_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Lock_tables_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Lock_tables_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Create_view_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Create_view_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Show_view_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Show_view_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Create_routine_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Create_routine_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Alter_routine_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Alter_routine_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Execute_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Execute_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Event_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Event_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Trigger_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Trigger_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("Truncate_versioning_priv") },
-    { C_STRING_WITH_LEN("enum('N','Y')") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("Truncate_versioning_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
   }
 };
 

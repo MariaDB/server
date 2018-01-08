@@ -4565,13 +4565,13 @@ const String *Item_param::value_query_val_str(THD *thd, String *str) const
       /* Create date string inplace */
       switch (value.time.time_type) {
       case MYSQL_TIMESTAMP_DATE:
-        str->append(C_STRING_WITH_LEN("DATE"));
+        str->append(STRING_WITH_LEN("DATE"));
         break;
       case MYSQL_TIMESTAMP_TIME:
-        str->append(C_STRING_WITH_LEN("TIME"));
+        str->append(STRING_WITH_LEN("TIME"));
         break;
       case MYSQL_TIMESTAMP_DATETIME:
-        str->append(C_STRING_WITH_LEN("TIMESTAMP"));
+        str->append(STRING_WITH_LEN("TIMESTAMP"));
         break;
       case MYSQL_TIMESTAMP_ERROR:
       case MYSQL_TIMESTAMP_NONE:

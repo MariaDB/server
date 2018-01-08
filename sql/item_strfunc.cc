@@ -2408,7 +2408,7 @@ String *Item_func_sqlerrm::val_str(String *str)
               system_charset_info);
     return str;
   }
-  str->copy(C_STRING_WITH_LEN("normal, successful completition"),
+  str->copy(STRING_WITH_LEN("normal, successful completition"),
             system_charset_info);
   return str;
 }
@@ -2925,7 +2925,7 @@ void Item_func_char::print(String *str, enum_query_type query_type)
   print_args(str, 0, query_type);
   if (collation.collation != &my_charset_bin)
   {
-    str->append(C_STRING_WITH_LEN(" using "));
+    str->append(STRING_WITH_LEN(" using "));
     str->append(collation.collation->csname);
   }
   str->append(')');

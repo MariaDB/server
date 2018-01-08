@@ -445,7 +445,7 @@ inline void fix_checksum(String *packet, ulong ev_offset)
 
 static user_var_entry * get_binlog_checksum_uservar(THD * thd)
 {
-  LEX_STRING name=  { C_STRING_WITH_LEN("master_binlog_checksum")};
+  LEX_CSTRING name=  { STRING_WITH_LEN("master_binlog_checksum")};
   user_var_entry *entry= 
     (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
                                   name.length);
@@ -695,7 +695,7 @@ void set_read_error(binlog_send_info *info, int error)
 static ulonglong get_heartbeat_period(THD * thd)
 {
   bool null_value;
-  LEX_STRING name=  { C_STRING_WITH_LEN("master_heartbeat_period")};
+  LEX_CSTRING name=  { STRING_WITH_LEN("master_heartbeat_period")};
   user_var_entry *entry= 
     (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
                                   name.length);
@@ -714,7 +714,7 @@ static int
 get_mariadb_slave_capability(THD *thd)
 {
   bool null_value;
-  const LEX_STRING name= { C_STRING_WITH_LEN("mariadb_slave_capability") };
+  const LEX_CSTRING name= { STRING_WITH_LEN("mariadb_slave_capability") };
   const user_var_entry *entry=
     (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
                                   name.length);
@@ -735,7 +735,7 @@ get_slave_connect_state(THD *thd, String *out_str)
 {
   bool null_value;
 
-  const LEX_STRING name= { C_STRING_WITH_LEN("slave_connect_state") };
+  const LEX_CSTRING name= { STRING_WITH_LEN("slave_connect_state") };
   user_var_entry *entry=
     (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
                                   name.length);
@@ -748,7 +748,7 @@ get_slave_gtid_strict_mode(THD *thd)
 {
   bool null_value;
 
-  const LEX_STRING name= { C_STRING_WITH_LEN("slave_gtid_strict_mode") };
+  const LEX_CSTRING name= { STRING_WITH_LEN("slave_gtid_strict_mode") };
   user_var_entry *entry=
     (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
                                   name.length);
@@ -761,7 +761,7 @@ get_slave_gtid_ignore_duplicates(THD *thd)
 {
   bool null_value;
 
-  const LEX_STRING name= { C_STRING_WITH_LEN("slave_gtid_ignore_duplicates") };
+  const LEX_CSTRING name= { STRING_WITH_LEN("slave_gtid_ignore_duplicates") };
   user_var_entry *entry=
     (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
                                      name.length);
@@ -782,7 +782,7 @@ get_slave_until_gtid(THD *thd, String *out_str)
 {
   bool null_value;
 
-  const LEX_STRING name= { C_STRING_WITH_LEN("slave_until_gtid") };
+  const LEX_CSTRING name= { STRING_WITH_LEN("slave_until_gtid") };
   user_var_entry *entry=
     (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
                                   name.length);

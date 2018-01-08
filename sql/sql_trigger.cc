@@ -164,7 +164,7 @@ Trigger_creation_ctx::create(THD *thd,
 /*************************************************************************/
 
 static const LEX_CSTRING triggers_file_type=
-  { C_STRING_WITH_LEN("TRIGGERS") };
+  { STRING_WITH_LEN("TRIGGERS") };
 
 const char * const TRG_EXT= ".TRG";
 

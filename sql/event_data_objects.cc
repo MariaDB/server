@@ -1266,8 +1266,8 @@ Event_job_data::construct_sp_sql(THD *thd, String *sp_sql)
   sp_sql->length(0);
 
 
-  sp_sql->append(C_STRING_WITH_LEN("CREATE "));
-  sp_sql->append(C_STRING_WITH_LEN("PROCEDURE "));
+  sp_sql->append(STRING_WITH_LEN("CREATE "));
+  sp_sql->append(STRING_WITH_LEN("PROCEDURE "));
   /*
     Let's use the same name as the event name to perhaps produce a
     better error message in case it is a part of some parse error.
@@ -1282,7 +1282,7 @@ Event_job_data::construct_sp_sql(THD *thd, String *sp_sql)
     let's execute the procedure with the invoker rights to save on
     resets of security contexts.
   */
-  sp_sql->append(C_STRING_WITH_LEN("() SQL SECURITY INVOKER "));
+  sp_sql->append(STRING_WITH_LEN("() SQL SECURITY INVOKER "));
 
   sp_sql->append(&body);
 
@@ -1310,7 +1310,7 @@ Event_job_data::construct_drop_event_sql(THD *thd, String *sp_sql)
   sp_sql->set(buffer.str, buffer.length, system_charset_info);
   sp_sql->length(0);
 
-  sp_sql->append(C_STRING_WITH_LEN("DROP EVENT "));
+  sp_sql->append(STRING_WITH_LEN("DROP EVENT "));
   append_identifier(thd, sp_sql, &dbname);
   sp_sql->append('.');
   append_identifier(thd, sp_sql, &name);

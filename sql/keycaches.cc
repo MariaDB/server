@@ -100,7 +100,7 @@ void NAMED_ILIST::delete_elements(void (*free_element)(const char *name, uchar*)
 
 /* Key cache functions */
 
-LEX_CSTRING default_key_cache_base= {C_STRING_WITH_LEN("default")};
+LEX_CSTRING default_key_cache_base= {STRING_WITH_LEN("default")};
 
 KEY_CACHE zero_key_cache; ///< @@nonexistent_cache.param->value_ptr() points here
 
@@ -180,9 +180,9 @@ bool process_key_caches(process_key_cache_t func, void *param)
 
 /* Rpl_filter functions */
 
-LEX_STRING default_rpl_filter_base= {C_STRING_WITH_LEN("")};
+LEX_CSTRING default_rpl_filter_base= {STRING_WITH_LEN("")};
 
-Rpl_filter *get_rpl_filter(LEX_STRING *filter_name)
+Rpl_filter *get_rpl_filter(LEX_CSTRING *filter_name)
 {
   if (!filter_name->length)
     filter_name= &default_rpl_filter_base;
@@ -211,7 +211,7 @@ Rpl_filter *create_rpl_filter(const char *name, uint length)
 
 Rpl_filter *get_or_create_rpl_filter(const char *name, uint length)
 {
-  LEX_STRING rpl_filter_name;
+  LEX_CSTRING rpl_filter_name;
   Rpl_filter *filter;
 
   rpl_filter_name.str= (char *) name;

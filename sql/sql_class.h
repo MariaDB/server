@@ -443,7 +443,7 @@ typedef enum enum_diag_condition_item_name
   Name of each diagnostic condition item.
   This array is indexed by Diag_condition_item_name.
 */
-extern const LEX_STRING Diag_condition_item_names[];
+extern const LEX_CSTRING Diag_condition_item_names[];
 
 /**
   These states are bit coded with HARD. For each state there must be a pair
@@ -3567,21 +3567,6 @@ public:
       lex_str->length= 0;
       return 0;
     }
-    lex_str->length= length;
-    return lex_str;
-  }
-
-  LEX_STRING *make_lex_string(const char* str, uint length)
-  {
-    LEX_STRING *lex_str;
-    char *tmp;
-    if (!(lex_str= (LEX_STRING *) alloc_root(mem_root, sizeof(LEX_STRING) +
-                                             length+1)))
-      return 0;
-    tmp= (char*) (lex_str+1);
-    lex_str->str= tmp;
-    memcpy(tmp, str, length);
-    tmp[length]= 0;
     lex_str->length= length;
     return lex_str;
   }

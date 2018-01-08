@@ -652,10 +652,10 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   {
     StringBuffer<128> buff(thd->variables.character_set_client);
     DBUG_ASSERT(buff.charset()->mbminlen == 1);
-    const LEX_STRING command[3]=
-      {{ C_STRING_WITH_LEN("CREATE ") },
-       { C_STRING_WITH_LEN("ALTER ") },
-       { C_STRING_WITH_LEN("CREATE OR REPLACE ") }};
+    const LEX_CSTRING command[3]=
+      {{ STRING_WITH_LEN("CREATE ") },
+       { STRING_WITH_LEN("ALTER ") },
+       { STRING_WITH_LEN("CREATE OR REPLACE ") }};
 
     buff.append(&command[thd->lex->create_view->mode]);
     view_store_options(thd, views, &buff);

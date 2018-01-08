@@ -82,18 +82,18 @@ uint plugin_maturity_map[]=
   When you ad a new plugin type, add both a string and make sure that the
   init and deinit array are correctly updated.
 */
-const LEX_STRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
+const LEX_CSTRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
-  { C_STRING_WITH_LEN("UDF") },
-  { C_STRING_WITH_LEN("STORAGE ENGINE") },
-  { C_STRING_WITH_LEN("FTPARSER") },
-  { C_STRING_WITH_LEN("DAEMON") },
-  { C_STRING_WITH_LEN("INFORMATION SCHEMA") },
-  { C_STRING_WITH_LEN("AUDIT") },
-  { C_STRING_WITH_LEN("REPLICATION") },
-  { C_STRING_WITH_LEN("AUTHENTICATION") },
-  { C_STRING_WITH_LEN("PASSWORD VALIDATION") },
-  { C_STRING_WITH_LEN("ENCRYPTION") }
+  { STRING_WITH_LEN("UDF") },
+  { STRING_WITH_LEN("STORAGE ENGINE") },
+  { STRING_WITH_LEN("FTPARSER") },
+  { STRING_WITH_LEN("DAEMON") },
+  { STRING_WITH_LEN("INFORMATION SCHEMA") },
+  { STRING_WITH_LEN("AUDIT") },
+  { STRING_WITH_LEN("REPLICATION") },
+  { STRING_WITH_LEN("AUTHENTICATION") },
+  { STRING_WITH_LEN("PASSWORD VALIDATION") },
+  { STRING_WITH_LEN("ENCRYPTION") }
 };
 
 extern int initialize_schema_table(st_plugin_int *plugin);
@@ -3693,7 +3693,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
                              my_option *options)
 {
   const char *plugin_name= tmp->plugin->name;
-  const LEX_STRING plugin_dash = { C_STRING_WITH_LEN("plugin-") };
+  const LEX_CSTRING plugin_dash = { STRING_WITH_LEN("plugin-") };
   uint plugin_name_len= strlen(plugin_name);
   uint optnamelen;
   const int max_comment_len= 180;

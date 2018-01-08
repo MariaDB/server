@@ -324,14 +324,14 @@ do {                                                \
       sval.length= sval.str ? strlen(sval.str) : 0; \
       break;                                        \
     case SHOW_LEX_STRING:                           \
-      sval= *(LEX_STRING *) value;                  \
+      sval= *(LEX_CSTRING *) value;                  \
       break
 
 longlong sys_var::val_int(bool *is_null,
                           THD *thd, enum_var_type type,
                           const LEX_CSTRING *base)
 {
-  LEX_STRING sval;
+  LEX_CSTRING sval;
   AutoWLock lock(&PLock_global_system_variables);
   const uchar *value= value_ptr(thd, type, base);
   *is_null= false;
@@ -357,13 +357,13 @@ longlong sys_var::val_int(bool *is_null,
 
 String *sys_var::val_str_nolock(String *str, THD *thd, const uchar *value)
 {
-  static LEX_STRING bools[]=
+  static LEX_CSTRING bools[]=
   {
-    { C_STRING_WITH_LEN("OFF") },
-    { C_STRING_WITH_LEN("ON") }
+    { STRING_WITH_LEN("OFF") },
+    { STRING_WITH_LEN("ON") }
   };
 
-  LEX_STRING sval;
+  LEX_CSTRING sval;
   switch (show_type())
   {
     case_get_string_as_lex_string;
@@ -395,7 +395,7 @@ String *sys_var::val_str(String *str,
 double sys_var::val_real(bool *is_null,
                          THD *thd, enum_var_type type, const LEX_CSTRING *base)
 {
-  LEX_STRING sval;
+  LEX_CSTRING sval;
   AutoWLock lock(&PLock_global_system_variables);
   const uchar *value= value_ptr(thd, type, base);
   *is_null= false;

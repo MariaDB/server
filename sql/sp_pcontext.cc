@@ -423,12 +423,12 @@ static sp_condition_value
 static sp_condition sp_predefined_conditions[]=
 {
   // Warnings
-  sp_condition(C_STRING_WITH_LEN("NO_DATA_FOUND"), &cond_no_data_found),
+  sp_condition(STRING_WITH_LEN("NO_DATA_FOUND"), &cond_no_data_found),
   // Errors
-  sp_condition(C_STRING_WITH_LEN("INVALID_CURSOR"), &cond_invalid_cursor),
-  sp_condition(C_STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index),
-  sp_condition(C_STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index2),
-  sp_condition(C_STRING_WITH_LEN("TOO_MANY_ROWS"), &cond_too_many_rows)
+  sp_condition(STRING_WITH_LEN("INVALID_CURSOR"), &cond_invalid_cursor),
+  sp_condition(STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index),
+  sp_condition(STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index2),
+  sp_condition(STRING_WITH_LEN("TOO_MANY_ROWS"), &cond_too_many_rows)
 };
 
 

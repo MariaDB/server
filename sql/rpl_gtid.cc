@@ -427,17 +427,17 @@ rpl_slave_state::truncate_state_table(THD *thd)
 
 
 static const TABLE_FIELD_TYPE mysql_rpl_slave_state_coltypes[4]= {
-  { { C_STRING_WITH_LEN("domain_id") },
-    { C_STRING_WITH_LEN("int(10) unsigned") },
+  { { STRING_WITH_LEN("domain_id") },
+    { STRING_WITH_LEN("int(10) unsigned") },
     {NULL, 0} },
-  { { C_STRING_WITH_LEN("sub_id") },
-    { C_STRING_WITH_LEN("bigint(20) unsigned") },
+  { { STRING_WITH_LEN("sub_id") },
+    { STRING_WITH_LEN("bigint(20) unsigned") },
     {NULL, 0} },
-  { { C_STRING_WITH_LEN("server_id") },
-    { C_STRING_WITH_LEN("int(10) unsigned") },
+  { { STRING_WITH_LEN("server_id") },
+    { STRING_WITH_LEN("int(10) unsigned") },
     {NULL, 0} },
-  { { C_STRING_WITH_LEN("seq_no") },
-    { C_STRING_WITH_LEN("bigint(20) unsigned") },
+  { { STRING_WITH_LEN("seq_no") },
+    { STRING_WITH_LEN("bigint(20) unsigned") },
     {NULL, 0} },
 };
 

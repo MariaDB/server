@@ -1478,10 +1478,10 @@ static bool time_zone_tables_exist= 1;
 
 static const LEX_CSTRING tz_tables_names[MY_TZ_TABLES_COUNT]=
 {
-  { C_STRING_WITH_LEN("time_zone_name")},
-  { C_STRING_WITH_LEN("time_zone")},
-  { C_STRING_WITH_LEN("time_zone_transition_type")},
-  { C_STRING_WITH_LEN("time_zone_transition")}
+  { STRING_WITH_LEN("time_zone_name")},
+  { STRING_WITH_LEN("time_zone")},
+  { STRING_WITH_LEN("time_zone_transition_type")},
+  { STRING_WITH_LEN("time_zone_transition")}
 };
 
 class Tz_names_entry: public Sql_alloc
