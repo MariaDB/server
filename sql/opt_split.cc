@@ -922,6 +922,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
     }
     while (keyuse_ext->table == table);
   }
+  spl_opt_info->last_plan= 0;
   if (best_table)
   {
     /*
@@ -963,7 +964,6 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                       best_key, remaining_tables, false);
     }
-    spl_opt_info->last_plan= 0;
     if (spl_plan)
     {
       if(record_count * spl_plan->cost < spl_opt_info->unsplit_cost)
