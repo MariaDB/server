@@ -5381,7 +5381,7 @@ bool operator!=(const MYSQL_TIME &lhs, const MYSQL_TIME &rhs)
          lhs.time_type != rhs.time_type;
 }
 
-// Sets sys_trx_end=MAX for rows with sys_trx_end=now(6)
+// Sets row_end=MAX for rows with row_end=now(6)
 static bool vers_reset_alter_copy(THD *thd, TABLE *table)
 {
   const MYSQL_TIME query_start= thd->query_start_TIME();
@@ -10172,7 +10172,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   bool make_versioned= !from->versioned() && to->versioned();
   bool make_unversioned= from->versioned() && !to->versioned();
   bool keep_versioned= from->versioned() && to->versioned();
-  Field *to_sys_trx_start= NULL, *to_sys_trx_end= NULL, *from_sys_trx_end= NULL;
+  Field *to_row_start= NULL, *to_row_end= NULL, *from_row_end= NULL;
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
 
@@ -10277,23 +10277,23 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   if (make_versioned)
   {
     query_start= thd->query_start_TIME();
-    to_sys_trx_start= to->vers_start_field();
-    to_sys_trx_end= to->vers_end_field();
+    to_row_start= to->vers_start_field();
+    to_row_end= to->vers_end_field();
   }
   else if (make_unversioned)
   {
-    from_sys_trx_end= from->vers_end_field();
+    from_row_end= from->vers_end_field();
   }
   else if (keep_versioned)
   {
     if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
     {
       query_start= thd->query_start_TIME();
-      from_sys_trx_end= from->vers_end_field();
-      to_sys_trx_start= to->vers_start_field();
+      from_row_end= from->vers_end_field();
+      to_row_start= to->vers_start_field();
     } else if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_DROP)
     {
-      from_sys_trx_end= from->vers_end_field();
+      from_row_end= from->vers_end_field();
     }
   }
 
@@ -10352,32 +10352,32 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     }
 
     if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_DROP &&
-        from_sys_trx_end && !from_sys_trx_end->is_max())
+        from_row_end && !from_row_end->is_max())
     {
       continue;
     }
 
     if (make_versioned)
     {
-      to_sys_trx_start->set_notnull();
-      to_sys_trx_start->store_time(&query_start);
-      to_sys_trx_end->set_max();
+      to_row_start->set_notnull();
+      to_row_start->store_time(&query_start);
+      to_row_end->set_max();
     }
     else if (make_unversioned)
     {
-      if (!from_sys_trx_end->is_max())
+      if (!from_row_end->is_max())
         continue; // Drop history rows.
     }
     else if (keep_versioned &&
              thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
     {
-      if (!from_sys_trx_end->is_max())
+      if (!from_row_end->is_max())
         continue; // Do not copy history rows.
 
       store_record(from, record[1]);
       from->vers_end_field()->store_time(&query_start);
       from->file->ha_update_row(from->record[1], from->record[0]);
-      to_sys_trx_start->store_time(&query_start);
+      to_row_start->store_time(&query_start);
     }
 
     prev_insert_id= to->file->next_insert_id;

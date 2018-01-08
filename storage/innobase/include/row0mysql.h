@@ -239,9 +239,9 @@ row_lock_table_for_mysql(
 enum ins_mode_t {
 	/* plain row (without versioning) */
 	ROW_INS_NORMAL = 0,
-	/* sys_trx_start = TRX_ID, sys_trx_end = MAX */
+	/* row_start = TRX_ID, row_end = MAX */
 	ROW_INS_VERSIONED,
-	/* sys_trx_end = TRX_ID */
+	/* row_end = TRX_ID */
 	ROW_INS_HISTORICAL
 };
 

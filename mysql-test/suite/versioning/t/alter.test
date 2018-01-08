@@ -72,30 +72,30 @@ show create table t;
 
 create or replace table t (
   a int,
-  sys_trx_start timestamp(6) as row start invisible,
-  sys_trx_end timestamp(6) as row end invisible,
-  period for system_time(sys_trx_start, sys_trx_end))
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end))
 with system versioning;
 
 select * from t for system_time all;
-alter table t drop column sys_trx_start;
-alter table t drop column sys_trx_end;
+alter table t drop column row_start;
+alter table t drop column row_end;
 select * from t for system_time all;
 
 --error ER_CANT_DROP_FIELD_OR_KEY
-alter table t drop column sys_trx_start;
+alter table t drop column row_start;
 --error ER_CANT_DROP_FIELD_OR_KEY
-alter table t drop column sys_trx_end;
+alter table t drop column row_end;
 
 create or replace table t (
   a int,
-  sys_trx_start timestamp(6) as row start invisible,
-  sys_trx_end timestamp(6) as row end invisible,
-  period for system_time(sys_trx_start, sys_trx_end))
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end))
 with system versioning;
 
 select * from t for system_time all;
-alter table t drop column sys_trx_start, drop column sys_trx_end;
+alter table t drop column row_start, drop column row_end;
 select * from t for system_time all;
 
 create or replace table t(
@@ -111,9 +111,9 @@ select * from t;
 update t set a=3 where a=1;
 select * from t;
 select * from t for system_time all;
-select sys_trx_start from t where a=3 into @tm;
+select row_start from t where a=3 into @tm;
 alter table t add column b int;
-select @tm=sys_trx_start from t where a=3;
+select @tm=row_start from t where a=3;
 show create table t;
 select * from t;
 select * from t for system_time all;
@@ -253,32 +253,32 @@ select * from t for system_time all;
 
 create or replace table t (
   a int,
-  sys_trx_start timestamp(6) as row start invisible,
-  sys_trx_end timestamp(6) as row end invisible,
-  period for system_time(sys_trx_start, sys_trx_end)
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end)
 ) with system versioning;
 --error ER_VERS_ALTER_SYSTEM_FIELD
-alter table t change column sys_trx_start asdf timestamp(6);
+alter table t change column row_start asdf timestamp(6);
 insert into t values (1);
 --error ER_VERS_ALTER_SYSTEM_FIELD
-alter table t modify column sys_trx_start bigint unsigned;
+alter table t modify column row_start bigint unsigned;
 
 create or replace table t (
   a int,
-  sys_trx_start timestamp(6) as row start invisible,
-  sys_trx_end timestamp(6) as row end invisible,
-  period for system_time(sys_trx_start, sys_trx_end)
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end)
 ) with system versioning;
 select * from t;
 
 --error ER_VERS_SYS_FIELD_EXISTS
 alter table t drop system versioning;
-alter table t drop column sys_trx_start;
+alter table t drop column row_start;
 select * from t;
 
 --error ER_VERS_SYS_FIELD_EXISTS
 alter table t drop system versioning;
-alter table t drop column sys_trx_end;
+alter table t drop column row_end;
 select * from t;
 
 alter table t drop system versioning;
@@ -311,17 +311,17 @@ select * from t for system_time all;
 
 create or replace table non_empty (
   a int,
-  sys_trx_start bigint(20) unsigned,
-  sys_trx_end bigint(20) unsigned
+  row_start bigint(20) unsigned,
+  row_end bigint(20) unsigned
 ) engine innodb;
 insert into non_empty values (1, 100, 200);
 
 --error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table non_empty
-  change column sys_trx_start sys_trx_start bigint(20) unsigned as row start invisible;
+  change column row_start row_start bigint(20) unsigned as row start invisible;
 --error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table non_empty
-  change column sys_trx_end sys_trx_end bigint(20) unsigned as row end invisible;
+  change column row_end row_end bigint(20) unsigned as row end invisible;
 drop table non_empty;
 
 create or replace table t (a int primary key) with system versioning;
@@ -383,26 +383,26 @@ alter table t drop column a;
 --error ER_CANT_DROP_FIELD_OR_KEY
 alter table t drop column a, drop column a;
 
-create or replace table t1 (sys_trx_start int);
+create or replace table t1 (row_start int);
 --error ER_DUP_FIELDNAME
 alter table t1 with system versioning;
 
-create or replace table t1 (sys_trx_end int);
+create or replace table t1 (row_end int);
 --error ER_DUP_FIELDNAME
 alter table t1 with system versioning;
 
 --error ER_DUP_FIELDNAME
-create or replace table t1 (a int, sys_trx_start int) with system versioning;
+create or replace table t1 (a int, row_start int) with system versioning;
 
 create or replace table t1 (a int) with system versioning;
 
 --error ER_DUP_FIELDNAME
 set statement system_versioning_alter_history=keep for
-alter table t1 add column sys_trx_start int;
+alter table t1 add column row_start int;
 
 --error ER_DUP_FIELDNAME
 set statement system_versioning_alter_history=keep for
-alter table t1 add column sys_trx_start timestamp(6);
+alter table t1 add column row_start timestamp(6);
 
 drop database test;
 create database test;

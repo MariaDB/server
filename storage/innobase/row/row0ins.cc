@@ -1630,7 +1630,7 @@ row_ins_check_foreign_constraint(
 		if (i < foreign->n_fields && dfield_is_null(field)) {
 			goto exit_func;
 		}
-		/* System Versioning: if sys_trx_end != Inf, we
+		/* System Versioning: if row_end != Inf, we
 		suppress the foreign key check */
 		if (field->type.vers_sys_end() && field->vers_history_row()) {
 			goto exit_func;

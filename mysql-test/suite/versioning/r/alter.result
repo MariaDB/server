@@ -118,29 +118,29 @@ t	CREATE TABLE `t` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t (
 a int,
-sys_trx_start timestamp(6) as row start invisible,
-sys_trx_end timestamp(6) as row end invisible,
-period for system_time(sys_trx_start, sys_trx_end))
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end))
 with system versioning;
 select * from t for system_time all;
 a
-alter table t drop column sys_trx_start;
-alter table t drop column sys_trx_end;
+alter table t drop column row_start;
+alter table t drop column row_end;
 select * from t for system_time all;
 a
-alter table t drop column sys_trx_start;
-ERROR 42000: Can't DROP COLUMN `sys_trx_start`; check that it exists
-alter table t drop column sys_trx_end;
-ERROR 42000: Can't DROP COLUMN `sys_trx_end`; check that it exists
+alter table t drop column row_start;
+ERROR 42000: Can't DROP COLUMN `row_start`; check that it exists
+alter table t drop column row_end;
+ERROR 42000: Can't DROP COLUMN `row_end`; check that it exists
 create or replace table t (
 a int,
-sys_trx_start timestamp(6) as row start invisible,
-sys_trx_end timestamp(6) as row end invisible,
-period for system_time(sys_trx_start, sys_trx_end))
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end))
 with system versioning;
 select * from t for system_time all;
 a
-alter table t drop column sys_trx_start, drop column sys_trx_end;
+alter table t drop column row_start, drop column row_end;
 select * from t for system_time all;
 a
 create or replace table t(
@@ -172,10 +172,10 @@ a
 3
 2
 1
-select sys_trx_start from t where a=3 into @tm;
+select row_start from t where a=3 into @tm;
 alter table t add column b int;
-select @tm=sys_trx_start from t where a=3;
-@tm=sys_trx_start
+select @tm=row_start from t where a=3;
+@tm=row_start
 1
 show create table t;
 Table	Create Table
@@ -374,31 +374,31 @@ a	b
 4	2
 create or replace table t (
 a int,
-sys_trx_start timestamp(6) as row start invisible,
-sys_trx_end timestamp(6) as row end invisible,
-period for system_time(sys_trx_start, sys_trx_end)
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end)
 ) with system versioning;
-alter table t change column sys_trx_start asdf timestamp(6);
-ERROR HY000: Can not change system versioning field `sys_trx_start`
+alter table t change column row_start asdf timestamp(6);
+ERROR HY000: Can not change system versioning field `row_start`
 insert into t values (1);
-alter table t modify column sys_trx_start bigint unsigned;
-ERROR HY000: Can not change system versioning field `sys_trx_start`
+alter table t modify column row_start bigint unsigned;
+ERROR HY000: Can not change system versioning field `row_start`
 create or replace table t (
 a int,
-sys_trx_start timestamp(6) as row start invisible,
-sys_trx_end timestamp(6) as row end invisible,
-period for system_time(sys_trx_start, sys_trx_end)
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end)
 ) with system versioning;
 select * from t;
 a
 alter table t drop system versioning;
-ERROR HY000: System versioning field `sys_trx_start` exists
-alter table t drop column sys_trx_start;
+ERROR HY000: System versioning field `row_start` exists
+alter table t drop column row_start;
 select * from t;
 a
 alter table t drop system versioning;
-ERROR HY000: System versioning field `sys_trx_end` exists
-alter table t drop column sys_trx_end;
+ERROR HY000: System versioning field `row_end` exists
+alter table t drop column row_end;
 select * from t;
 a
 alter table t drop system versioning;
@@ -450,20 +450,20 @@ alter table t drop column a;
 ERROR HY000: Table `t` must have at least one versioned column
 alter table t drop column a, drop column a;
 ERROR 42000: Can't DROP COLUMN `a`; check that it exists
-create or replace table t1 (sys_trx_start int);
+create or replace table t1 (row_start int);
 alter table t1 with system versioning;
-ERROR 42S21: Duplicate column name 'sys_trx_start'
-create or replace table t1 (sys_trx_end int);
+ERROR 42S21: Duplicate column name 'row_start'
+create or replace table t1 (row_end int);
 alter table t1 with system versioning;
-ERROR 42S21: Duplicate column name 'sys_trx_end'
-create or replace table t1 (a int, sys_trx_start int) with system versioning;
-ERROR 42S21: Duplicate column name 'sys_trx_start'
+ERROR 42S21: Duplicate column name 'row_end'
+create or replace table t1 (a int, row_start int) with system versioning;
+ERROR 42S21: Duplicate column name 'row_start'
 create or replace table t1 (a int) with system versioning;
 set statement system_versioning_alter_history=keep for
-alter table t1 add column sys_trx_start int;
-ERROR 42S21: Duplicate column name 'sys_trx_start'
+alter table t1 add column row_start int;
+ERROR 42S21: Duplicate column name 'row_start'
 set statement system_versioning_alter_history=keep for
-alter table t1 add column sys_trx_start timestamp(6);
-ERROR 42S21: Duplicate column name 'sys_trx_start'
+alter table t1 add column row_start timestamp(6);
+ERROR 42S21: Duplicate column name 'row_start'
 drop database test;
 create database test;

@@ -211,7 +211,7 @@ t3	CREATE TABLE `t3` (
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 ## For versioned table
 insert into t1 values (1);
-select sys_trx_start from t1 into @sys_trx_start;
+select row_start from t1 into @row_start;
 insert into t0 (y) values (2);
 select st from t0 into @st;
 create or replace table t2 with system versioning as select * from t1;
@@ -224,7 +224,7 @@ t2	CREATE TABLE `t2` (
 select * from t2;
 x23
 1
-select * from t2 where sys_trx_start <= @sys_trx_start;
+select * from t2 where row_start <= @row_start;
 x23
 ### 2. source table with visible system fields, target with invisible
 create or replace table t3 with system versioning as select * from t0;
@@ -237,7 +237,7 @@ t3	CREATE TABLE `t3` (
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t3 where y > 2;
 y	st	en
-select y from t3 where st = @st and sys_trx_start > @st;
+select y from t3 where st = @st and row_start > @st;
 y
 2
 ### 3. source and target table with visible system fields
@@ -269,13 +269,13 @@ t3	CREATE TABLE `t3` (
 select * from t3;
 x23
 1
-create or replace table t3 with system versioning select x23, sys_trx_start from t1;
+create or replace table t3 with system versioning select x23, row_start from t1;
 ERROR HY000: Wrong parameters for `t3`: missing 'AS ROW END'
-create or replace table t3 with system versioning select x23, sys_trx_end from t1;
+create or replace table t3 with system versioning select x23, row_end from t1;
 ERROR HY000: Wrong parameters for `t3`: missing 'AS ROW START'
 # Prepare checking for historical row
 delete from t1;
-select sys_trx_end from t1 for system_time all into @sys_trx_end;
+select row_end from t1 for system_time all into @row_end;
 delete from t0;
 select en from t0 for system_time all into @en;
 ## Combinations of versioned + non-versioned
@@ -291,7 +291,7 @@ t3	CREATE TABLE `t3` (
 select * from t3 for system_time all;
 x23	y
 1	3
-select * from t3 for system_time all where sys_trx_start = @sys_trx_start and sys_trx_end = @sys_trx_end;
+select * from t3 for system_time all where row_start = @row_start and row_end = @row_end;
 x23	y
 create or replace table t2 like t0;
 insert into t2 (y) values (1), (2);
@@ -308,14 +308,14 @@ y
 ## Default engine detection
 create or replace table t1 (x25 int) with system versioning engine NON_DEFAULT_ENGINE;
 create or replace table t2
-as select x25, sys_trx_start, sys_trx_end from t1 for system_time all;
+as select x25, row_start, row_end from t1 for system_time all;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x25` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 create or replace table t2 with system versioning
-as select x25, sys_trx_start, sys_trx_end from t1;
+as select x25, row_start, row_end from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -333,7 +333,7 @@ ERROR HY000: `st` must be of type TIMESTAMP(6) for system-versioned table `t2`
 create or replace table t1 (x27 int, id int) with system versioning engine NON_DEFAULT_ENGINE;
 create or replace table t2 (b int, id int);
 create or replace table t3 with system versioning
-as select t2.b, t1.x27, t1.sys_trx_start, t1.sys_trx_end from t2 inner join t1 on t2.id=t1.id;
+as select t2.b, t1.x27, t1.row_start, t1.row_end from t2 inner join t1 on t2.id=t1.id;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -368,7 +368,7 @@ en SYS_DATATYPE as row end invisible,
 period for system_time (st, en)
 ) with system versioning;
 create or replace table t3
-as select x30, y, sys_trx_start, sys_trx_end, st, en from t1, t2;
+as select x30, y, row_start, row_end, st, en from t1, t2;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -383,7 +383,7 @@ st SYS_DATATYPE as row start invisible,
 en SYS_DATATYPE as row end invisible,
 period for system_time (st, en)
 ) with system versioning
-as select x30, y, sys_trx_start, sys_trx_end, st, en from t1, t2;
+as select x30, y, row_start, row_end, st, en from t1, t2;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (

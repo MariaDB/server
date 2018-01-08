@@ -329,7 +329,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (select_lex->vers_setup_conds(thd, table_list, &conds))
       DBUG_RETURN(TRUE);
 
-    // trx_sees() in InnoDB reads sys_trx_start
+    // trx_sees() in InnoDB reads row_start
     if (!table->versioned(VERS_TIMESTAMP))
     {
       DBUG_ASSERT(table_list->vers_conditions.type == SYSTEM_TIME_BEFORE);

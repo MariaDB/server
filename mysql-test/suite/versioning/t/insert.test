@@ -86,10 +86,10 @@ begin
   engine ', engine);
   prepare stmt from @str; execute stmt; drop prepare stmt;
   insert into t1 values(1, 1, 1);
-  select sys_trx_start, sys_trx_end from t1 into @sys_start, @sys_end;
+  select row_start, row_end from t1 into @sys_start, @sys_end;
   select id, a, b from t1;
   insert into t1 values(2, 2, 2);
-  select id, a, b, sys_trx_start > @sys_start as C, sys_trx_end = @sys_end as D from t1 where id = 2;
+  select id, a, b, row_start > @sys_start as C, row_end = @sys_end as D from t1 where id = 2;
   drop table t1;
 end~~
 
@@ -209,14 +209,14 @@ select x, y, sys_trx_end = 18446744073709551615 as current from t1 for system_ti
 create or replace table t1 (x int) with system versioning engine innodb;
 insert into t1 values  (1), (2);
 --error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
-insert into t1 (sys_trx_start) select sys_trx_end from t1;
+insert into t1 (row_start) select row_end from t1;
 --error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
-insert into t1 (sys_trx_start, sys_trx_end) values (DEFAULT, 1);
+insert into t1 (row_start, row_end) values (DEFAULT, 1);
 select @@sql_mode into @saved_mode;
 set sql_mode= '';
-insert into t1 (x, sys_trx_start, sys_trx_end) values (3, 4, 5);
+insert into t1 (x, row_start, row_end) values (3, 4, 5);
 set sql_mode= @saved_mode;
-insert into t1 (sys_trx_start, sys_trx_end) values (DEFAULT, DEFAULT);
+insert into t1 (row_start, row_end) values (DEFAULT, DEFAULT);
 select * from t1;
 
 --echo # MDEV-14792 INSERT without column list into table with explicit versioning columns produces bad data

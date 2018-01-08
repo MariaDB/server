@@ -287,7 +287,7 @@ x	x
 create or replace table t1 (a int) with system versioning;
 insert into t1 values (1);
 create trigger read_end after update on t1
-for each row set @end = old.sys_trx_end;
+for each row set @end = old.row_end;
 update t1 set a=2;
 select @end;
 @end

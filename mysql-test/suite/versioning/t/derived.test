@@ -24,8 +24,8 @@ with recursive ancestors as (select * from emp) select * from ancestors;
 set @tmp= "with recursive ancestors as (select * from emp) select * from ancestors";
 prepare stmt from @tmp; execute stmt; drop prepare stmt;
 
-select emp_id from (select emp_id from emp where sys_trx_end>'2031-1-1') as tmp;
-set @tmp= "select emp_id from (select emp_id from emp where sys_trx_end>'2031-1-1') as tmp";
+select emp_id from (select emp_id from emp where row_end>'2031-1-1') as tmp;
+set @tmp= "select emp_id from (select emp_id from emp where row_end>'2031-1-1') as tmp";
 prepare stmt from @tmp; execute stmt; drop prepare stmt;
 
 with recursive
@@ -100,18 +100,18 @@ insert into t1 values (2);
 insert into t2 values (10);
 
 --replace_column 2 # 3 #
-select * from (select *, t1.sys_trx_end, t1.sys_trx_end as endo from t1) as s0;
+select * from (select *, t1.row_end, t1.row_end as endo from t1) as s0;
 --replace_column 3 # 4 #
-select * from (select *, t1.sys_trx_end, t2.sys_trx_start from t1, t2) as s0;
+select * from (select *, t1.row_end, t2.row_start from t1, t2) as s0;
 
 --echo # SYSTEM_TIME propagation from inner to outer
 select * from (select * from t1 for system_time as of timestamp @t0, t2) as s0;
 with s1 as (select * from t1 for system_time as of timestamp @t0, t2) select * from s1;
 --echo # leading table selection
 --replace_column 3 #
-select * from (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) as s2;
+select * from (select *, t1.row_end from t2, t1 for system_time as of timestamp @t0) as s2;
 --replace_column 3 #
-with s3 as (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) select * from s3;
+with s3 as (select *, t1.row_end from t2, t1 for system_time as of timestamp @t0) select * from s3;
 
 --echo ### VIEW instead of t1
 set @q= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t0, "'");

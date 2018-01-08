@@ -3161,19 +3161,19 @@ int vers_get_partition_id(partition_info *part_info,
 {
   DBUG_ENTER("vers_get_partition_id");
   DBUG_ASSERT(part_info);
-  Field *sys_trx_end= part_info->part_field_array[STAT_TRX_END];
-  DBUG_ASSERT(sys_trx_end);
+  Field *row_end= part_info->part_field_array[STAT_TRX_END];
+  DBUG_ASSERT(row_end);
   TABLE *table= part_info->table;
   DBUG_ASSERT(table);
   Vers_part_info *vers_info= part_info->vers_info;
   DBUG_ASSERT(vers_info);
   DBUG_ASSERT(vers_info->initialized());
-  DBUG_ASSERT(sys_trx_end->table == table);
+  DBUG_ASSERT(row_end->table == table);
   DBUG_ASSERT(table->versioned());
-  DBUG_ASSERT(table->vers_end_field() == sys_trx_end);
+  DBUG_ASSERT(table->vers_end_field() == row_end);
 
-  // new rows have NULL in sys_trx_end
-  if (sys_trx_end->is_max() || sys_trx_end->is_null())
+  // new rows have NULL in row_end
+  if (row_end->is_max() || row_end->is_null())
   {
     *part_id= vers_info->now_part->id;
   }
@@ -3200,8 +3200,8 @@ int vers_get_partition_id(partition_info *part_info,
         mysql_mutex_unlock(&table->s->LOCK_rotation);
         // transaction is not yet pushed to VTQ, so we use now-time
         ulong sec_part;
-        my_time_t end_ts= sys_trx_end->table->versioned(VERS_TRX_ID) ?
-          my_time_t(0) : sys_trx_end->get_timestamp(&sec_part);
+        my_time_t end_ts= row_end->table->versioned(VERS_TRX_ID) ?
+          my_time_t(0) : row_end->get_timestamp(&sec_part);
         if (part_info->vers_limit_exceed() || part_info->vers_interval_exceed(end_ts))
         {
           part_info->vers_part_rotate(thd);

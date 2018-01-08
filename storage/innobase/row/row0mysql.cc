@@ -1984,7 +1984,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 run_again:
 	if (vers_set_fields) {
 		/* System Versioning: modify update vector to set
-		   sys_trx_start (or sys_trx_end in case of DELETE)
+		   row_start (or row_end in case of DELETE)
 		   to current trx_id. */
 		dict_table_t* table = node->table;
 		dict_index_t* clust_index = dict_table_get_first_index(table);
@@ -2120,7 +2120,7 @@ handle_error:
 
 		if (vers_set_fields && !prebuilt->versioned_write)
 		{
-			// FIXME: timestamp-based update of sys_trx_end in run_again
+			// FIXME: timestamp-based update of row_end in run_again
 			err = DB_UNSUPPORTED;
 			trx->error_state = err;
 

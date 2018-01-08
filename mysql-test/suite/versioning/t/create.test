@@ -209,7 +209,7 @@ show create table t3;
 
 --echo ## For versioned table
 insert into t1 values (1);
-select sys_trx_start from t1 into @sys_trx_start;
+select row_start from t1 into @row_start;
 insert into t0 (y) values (2);
 select st from t0 into @st;
 
@@ -218,14 +218,14 @@ create or replace table t2 with system versioning as select * from t1;
 show create table t2;
 --echo #### invisible fields are not copied
 select * from t2;
-select * from t2 where sys_trx_start <= @sys_trx_start;
+select * from t2 where row_start <= @row_start;
 
 --echo ### 2. source table with visible system fields, target with invisible
 create or replace table t3 with system versioning as select * from t0;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
 show create table t3;
 select * from t3 where y > 2;
-select y from t3 where st = @st and sys_trx_start > @st;
+select y from t3 where st = @st and row_start > @st;
 
 --echo ### 3. source and target table with visible system fields
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
@@ -245,13 +245,13 @@ create or replace table t3 with system versioning select x23 from t1;
 show create table t3;
 select * from t3;
 --error ER_MISSING
-create or replace table t3 with system versioning select x23, sys_trx_start from t1;
+create or replace table t3 with system versioning select x23, row_start from t1;
 --error ER_MISSING
-create or replace table t3 with system versioning select x23, sys_trx_end from t1;
+create or replace table t3 with system versioning select x23, row_end from t1;
 
 --echo # Prepare checking for historical row
 delete from t1;
-select sys_trx_end from t1 for system_time all into @sys_trx_end;
+select row_end from t1 for system_time all into @row_end;
 delete from t0;
 select en from t0 for system_time all into @en;
 
@@ -262,7 +262,7 @@ create or replace table t3 with system versioning select * from t1 for system_ti
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t3;
 select * from t3 for system_time all;
-select * from t3 for system_time all where sys_trx_start = @sys_trx_start and sys_trx_end = @sys_trx_end;
+select * from t3 for system_time all where row_start = @row_start and row_end = @row_end;
 
 create or replace table t2 like t0;
 insert into t2 (y) values (1), (2);
@@ -278,12 +278,12 @@ select y from t2 for system_time all where st = @st and en = @en;
 --replace_result $non_default_engine NON_DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 eval create or replace table t1 (x25 int) with system versioning engine $non_default_engine;
 create or replace table t2
-as select x25, sys_trx_start, sys_trx_end from t1 for system_time all;
+as select x25, row_start, row_end from t1 for system_time all;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE
 show create table t2;
 
 create or replace table t2 with system versioning
-as select x25, sys_trx_start, sys_trx_end from t1;
+as select x25, row_start, row_end from t1;
 --replace_result $non_default_engine NON_DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t2;
 
@@ -301,7 +301,7 @@ as select * from t1;
 eval create or replace table t1 (x27 int, id int) with system versioning engine $non_default_engine;
 create or replace table t2 (b int, id int);
 create or replace table t3 with system versioning
-as select t2.b, t1.x27, t1.sys_trx_start, t1.sys_trx_end from t2 inner join t1 on t2.id=t1.id;
+as select t2.b, t1.x27, t1.row_start, t1.row_end from t2 inner join t1 on t2.id=t1.id;
 --replace_result $non_default_engine NON_DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE
 show create table t3;
 
@@ -339,7 +339,7 @@ eval create or replace table t2 (
 ) with system versioning;
 
 create or replace table t3
-as select x30, y, sys_trx_start, sys_trx_end, st, en from t1, t2;
+as select x30, y, row_start, row_end, st, en from t1, t2;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
 show create table t3;
 
@@ -350,7 +350,7 @@ eval create or replace table t3 (
     en $sys_datatype as row end invisible,
     period for system_time (st, en)
 ) with system versioning
-as select x30, y, sys_trx_start, sys_trx_end, st, en from t1, t2;
+as select x30, y, row_start, row_end, st, en from t1, t2;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
 show create table t3;
 

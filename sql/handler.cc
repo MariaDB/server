@@ -6895,8 +6895,8 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
   return false;
 }
 
-const LString Vers_parse_info::default_start= "sys_trx_start";
-const LString Vers_parse_info::default_end= "sys_trx_end";
+const LString Vers_parse_info::default_start= "row_start";
+const LString Vers_parse_info::default_end= "row_end";
 
 bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info, int *added)
 {

@@ -975,11 +975,11 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
   else
   {
     /* Prepare part_field_list */
-    Field *sys_trx_end= table->vers_end_field();
-    part_field_list.push_back(sys_trx_end->field_name.str, thd->mem_root);
+    Field *row_end= table->vers_end_field();
+    part_field_list.push_back(row_end->field_name.str, thd->mem_root);
     DBUG_ASSERT(part_field_list.elements == num_columns);
     // needed in handle_list_of_fields()
-    sys_trx_end->flags|= GET_FIXED_FIELDS_FLAG;
+    row_end->flags|= GET_FIXED_FIELDS_FLAG;
   }
 
   List_iterator<partition_element> it(partitions);
@@ -1090,7 +1090,7 @@ public:
 };
 
 
-// scan table for min/max sys_trx_end
+// scan table for min/max row_end
 inline
 bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
 {

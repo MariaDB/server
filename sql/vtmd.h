@@ -84,7 +84,7 @@ public:
   }
 
   bool create(THD *thd);
-  bool find_record(ulonglong sys_trx_end, bool &found);
+  bool find_record(ulonglong row_end, bool &found);
   bool open(THD *thd, Local_da &local_da, bool *created= NULL);
   bool update(THD *thd, const char* archive_name= NULL);
   bool setup_select(THD *thd);

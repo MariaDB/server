@@ -51,7 +51,7 @@ VTMD_table::create(THD *thd)
 }
 
 bool
-VTMD_table::find_record(ulonglong sys_trx_end, bool &found)
+VTMD_table::find_record(ulonglong row_end, bool &found)
 {
   int error;
   key_buf_t key;
@@ -62,9 +62,9 @@ VTMD_table::find_record(ulonglong sys_trx_end, bool &found)
   if (key.allocate(vtmd.table->s->max_unique_length))
     return true;
 
-  DBUG_ASSERT(sys_trx_end);
+  DBUG_ASSERT(row_end);
   vtmd.table->vers_end_field()->set_notnull();
-  vtmd.table->vers_end_field()->store(sys_trx_end, true);
+  vtmd.table->vers_end_field()->store(row_end, true);
   key_copy(key, vtmd.table->record[0], vtmd.table->key_info + IDX_TRX_END, 0);
 
   error= vtmd.table->file->ha_index_read_idx_map(vtmd.table->record[1], IDX_TRX_END,
@@ -199,7 +199,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
           else
           {
             DBUG_ASSERT(thd->lex->sql_command == SQLCOM_ALTER_TABLE);
-            ulonglong sys_trx_end= (ulonglong) vtmd.table->vers_start_field()->val_int();
+            ulonglong row_end= (ulonglong) vtmd.table->vers_start_field()->val_int();
             store_record(vtmd.table, record[1]);
             vtmd.table->field[FLD_NAME]->store(TABLE_NAME_WITH_LEN(about), system_charset_info);
             vtmd.table->field[FLD_NAME]->set_notnull();
@@ -212,7 +212,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
             while (true)
             { // fill archive_name of last sequential renames
               bool found;
-              if (find_record(sys_trx_end, found))
+              if (find_record(row_end, found))
                 goto quit;
               if (!found || !vtmd.table->field[FLD_ARCHIVE_NAME]->is_null())
                 break;
@@ -225,7 +225,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
               vtmd.table->vers_write= true;
               if (error)
                 goto err;
-              sys_trx_end= (ulonglong) vtmd.table->vers_start_field()->val_int();
+              row_end= (ulonglong) vtmd.table->vers_start_field()->val_int();
             } // while (true)
           } // else (thd->lex->sql_command != SQLCOM_DROP_TABLE)
         } // if (!error)

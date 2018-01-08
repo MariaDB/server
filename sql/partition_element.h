@@ -90,7 +90,7 @@ typedef struct p_elem_val
 
 struct st_ddl_log_memory_entry;
 
-/* Used for collecting MIN/MAX stats on sys_trx_end for doing pruning
+/* Used for collecting MIN/MAX stats on row_end for doing pruning
    in SYSTEM_TIME partitiong. */
 class Vers_min_max_stats : public Sql_alloc
 {
