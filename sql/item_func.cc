@@ -5476,7 +5476,7 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
   DBUG_ASSERT(fixed == 0);
   DBUG_ASSERT(thd->lex->exchange);
   if (Item::fix_fields(thd, ref) ||
-      !(entry= get_variable(&thd->user_vars, &name, 1)))
+      !(entry= get_variable(&thd->user_vars, &org_name, 1)))
     return TRUE;
   entry->type= STRING_RESULT;
   /*
@@ -5537,7 +5537,7 @@ my_decimal* Item_user_var_as_out_param::val_decimal(my_decimal *decimal_buffer)
 void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
 {
   str->append('@');
-  append_identifier(thd, str, name.str, name.length);
+  append_identifier(thd, str, &org_name);
 }
 
 

@@ -2485,13 +2485,14 @@ public:
 */
 class Item_user_var_as_out_param :public Item
 {
-  LEX_CSTRING name;
+  LEX_CSTRING org_name;
   user_var_entry *entry;
 public:
   Item_user_var_as_out_param(THD *thd, const LEX_CSTRING *a)
-  :Item(thd), name(*a)
+  :Item(thd)
   {
     DBUG_ASSERT(a->length < UINT_MAX32);
+    org_name= *a;
     set_name(thd, a->str, (uint) a->length, system_charset_info);
   }
   /* We should return something different from FIELD_ITEM here */
