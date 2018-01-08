@@ -339,6 +339,22 @@ ERROR 42000: Duplicate key name 'c2h'
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL innodb_monitor_disable = module_ddl;
 DROP TABLE t1;
+#
+# MDEV-13205 assertion !dict_index_is_online_ddl(index) upon ALTER TABLE
+#
+CREATE TABLE t1 (c VARCHAR(64)) ENGINE=InnoDB;
+SET DEBUG_SYNC = 'row_log_apply_before SIGNAL t1u_created WAIT_FOR dup_done';
+ALTER TABLE t1 ADD UNIQUE(c);
+SET DEBUG_SYNC = 'now WAIT_FOR t1u_created';
+BEGIN;
+INSERT INTO t1 VALUES('bar'),('bar');
+SET DEBUG_SYNC = 'now SIGNAL dup_done';
+ERROR 23000: Duplicate entry 'bar' for key 'c'
+SET DEBUG_SYNC = 'RESET';
+CREATE TABLE t2 (c VARCHAR(64)) ENGINE=InnoDB;
+ALTER TABLE t2 ADD FOREIGN KEY (c) REFERENCES t1 (c);
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+DROP TABLE t2,t1;
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;

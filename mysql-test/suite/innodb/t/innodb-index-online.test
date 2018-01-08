@@ -382,8 +382,6 @@ connection default;
 reap;
 --enable_parsing
 #remove below con1 disconnect if above test case is enabled
-connection con1;
-disconnect con1;
 connection default;
 
 SHOW CREATE TABLE t1;
@@ -398,6 +396,31 @@ SET DEBUG_SYNC = 'RESET';
 SET GLOBAL innodb_monitor_disable = module_ddl;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-13205 assertion !dict_index_is_online_ddl(index) upon ALTER TABLE
+--echo #
+CREATE TABLE t1 (c VARCHAR(64)) ENGINE=InnoDB;
+SET DEBUG_SYNC = 'row_log_apply_before SIGNAL t1u_created WAIT_FOR dup_done';
+send ALTER TABLE t1 ADD UNIQUE(c);
+
+connection con1;
+SET DEBUG_SYNC = 'now WAIT_FOR t1u_created';
+BEGIN;
+INSERT INTO t1 VALUES('bar'),('bar');
+SET DEBUG_SYNC = 'now SIGNAL dup_done';
+
+connection default;
+--error ER_DUP_ENTRY
+reap;
+
+SET DEBUG_SYNC = 'RESET';
+disconnect con1;
+CREATE TABLE t2 (c VARCHAR(64)) ENGINE=InnoDB;
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
+--error ER_CANT_CREATE_TABLE
+ALTER TABLE t2 ADD FOREIGN KEY (c) REFERENCES t1 (c);
+DROP TABLE t2,t1;
 
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
