@@ -562,7 +562,10 @@ public:
       Field *f= part_field_array[i];
       bitmap_set_bit(f->table->write_set, f->field_index);
     }
+    MEM_ROOT *old_root= thd->mem_root;
+    thd->mem_root= &table->mem_root;
     result= check_range_constants(thd, false);
+    thd->mem_root= old_root;
     vers_info->stat_serial= table->s->stat_serial;
     mysql_rwlock_unlock(&table->s->LOCK_stat_serial);
     return result;

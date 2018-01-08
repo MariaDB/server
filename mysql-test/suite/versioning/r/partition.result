@@ -391,6 +391,22 @@ create or replace table t4 (x int) engine=myisam;
 create or replace trigger tr after insert on t4 for each row insert into t2
 ( select x from t3 ) union ( select x from t1 );
 insert into t4 values (1);
+# MDEV-14821 Assertion failure
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (0), (1);
+update t1 set x= x + 1;
+alter table t1 partition by system_time limit 1 (
+partition p1 history,
+partition p2 history,
+partition pn current);
+Warnings:
+Note	4115	Versioned table `test`.`t1`: switching from partition `p1` to `p2`
+delete from t1 where x = 1;
+Warnings:
+Warning	4113	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
+delete from t1 where x = 2;
+Warnings:
+Warning	4113	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
 # Test cleanup
 drop database test;
 create database test;
