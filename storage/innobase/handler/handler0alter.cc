@@ -1799,7 +1799,7 @@ innobase_get_foreign_key_info(
 			/* Not possible to add a foreign key without a
 			referenced column */
 			mutex_exit(&dict_sys->mutex);
-			my_error(ER_CANNOT_ADD_FOREIGN, MYF(0));
+			my_error(ER_CANNOT_ADD_FOREIGN, MYF(0), tbl_namep);
 			goto err_exit;
 		}
 
