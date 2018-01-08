@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -73,6 +73,8 @@ log_encrypt_before_write(
 /*=====================*/
 	ib_uint64_t	next_checkpoint_no,	/*!< in: log group to be flushed */
 	byte* 		block,			/*!< in/out: pointer to a log block */
+	lsn_t		lsn,			/*!< in: log sequence number of
+						the start of the buffer */
 	const ulint 	size);			/*!< in: size of log blocks */
 
 /********************************************************
@@ -83,6 +85,8 @@ void
 log_decrypt_after_read(
 /*===================*/
 	byte*		frame,	/*!< in/out: log segment */
+	lsn_t lsn,		/*!< in: log sequence number of the start
+				of the buffer */
 	const ulint	size);	/*!< in: log segment size */
 
 /* Error codes for crypt info */

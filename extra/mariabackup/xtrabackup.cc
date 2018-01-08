@@ -2698,7 +2698,7 @@ xtrabackup_scan_log_recs(
 
 	if (srv_encrypt_log) {
 		log_encrypt_before_write(scanned_checkpoint_no,
-			log_sys->buf, write_size);
+					 log_sys->buf, start_lsn, write_size);
 	}
 
 	if (ds_write(dst_log_file, log_sys->buf, write_size)) {
