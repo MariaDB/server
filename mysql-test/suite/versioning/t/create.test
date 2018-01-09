@@ -5,14 +5,14 @@
 drop table if exists t1;
 --enable_warnings
 
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE NULL ''
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype_expl SYS_DATATYPE NULL ''
 eval create table t1 (
   x1 int unsigned,
-  Sys_start $sys_datatype as row start invisible comment 'start',
-  Sys_end $sys_datatype as row end invisible comment 'end',
+  Sys_start $sys_datatype_expl as row start invisible comment 'start',
+  Sys_end $sys_datatype_expl as row end invisible comment 'end',
   period for system_time (Sys_start, Sys_end)
 ) with system versioning;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype_expl SYS_DATATYPE
 show create table t1;
 
 --echo # Implicit fields test
