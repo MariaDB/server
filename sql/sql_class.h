@@ -3405,26 +3405,21 @@ private:
     }
   }
 
-  void set_current_time()
-  {
-    set_system_time();
-    start_time= system_time;
-    start_time_sec_part= system_time_sec_part;
-    PSI_CALL_set_thread_start_time(start_time);
-  }
-
 public:
   inline void set_start_time()
   {
+    set_system_time();
     if (user_time.val)
     {
-      set_system_time();
       start_time= hrtime_to_my_time(user_time);
       start_time_sec_part= hrtime_sec_part(user_time);
-      PSI_CALL_set_thread_start_time(start_time);
     }
     else
-      set_current_time();
+    {
+      start_time= system_time;
+      start_time_sec_part= system_time_sec_part;
+    }
+    PSI_CALL_set_thread_start_time(start_time);
   }
   inline void set_time()
   {
