@@ -705,6 +705,10 @@ row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 		    == row_get_rec_roll_ptr(rec, index, offsets)) {
 			ut_ad(!rec_get_deleted_flag(rec,
 						    rec_offs_comp(offsets)));
+			DBUG_LOG("purge", "reset DB_TRX_ID="
+				 << ib::hex(row_get_rec_trx_id(
+						    rec, index, offsets)));
+
 			mtr->set_named_space(index->space);
 			if (page_zip_des_t* page_zip
 			    = buf_block_get_page_zip(
