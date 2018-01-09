@@ -1848,7 +1848,7 @@ rec_copy_prefix_to_buf(
 	ulint		null_mask;
 	bool		is_rtr_node_ptr = false;
 
-	ut_ad(n_fields <= index->n_fields);
+	ut_ad(n_fields <= index->n_fields || dict_index_is_ibuf(index));
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	UNIV_PREFETCH_RW(*buf);
 
