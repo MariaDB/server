@@ -1290,7 +1290,17 @@ static double ratio(Bigint *a, Bigint *b)
   dval(&db)= b2d(b, &kb);
   k= ka - kb + 32*(a->wds - b->wds);
   if (k > 0)
-    word0(&da)+= (ULong)(k*Exp_msk1 * 1.0);
+#ifdef _WIN32
+    word0(&da)+= k*Exp_msk1;
+#else
+  /* 
+     TODO(cvicentiu)
+     This is a temporary fix for a possible clang-5 / gcc-7 bug. This
+     should not be required but it makes double results in the end
+     be predictable.
+   */
+    word0(&da)+= k*Exp_msk1 * 1.0;
+#endif
   else
   {
     k= -k;
