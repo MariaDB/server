@@ -3273,7 +3273,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
   int res;
   bool save_enable_slow_log;
   const CSET_STRING query_backup= thd->query_string;
-  QUERY_START_TIME_INFO time_info;
+  Backup_query_start_time time_info;
   Sub_statement_state backup_state;
   DBUG_ENTER("sp_instr_stmt::execute");
   DBUG_PRINT("info", ("command: %d", m_lex_keeper.sql_command()));
@@ -3289,7 +3289,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       Save start time info for the CALL statement and overwrite it with the
       current time for log_slow_statement() to log the individual query timing.
     */
-    thd->backup_query_start_time(&time_info);
+    time_info.backup(*thd);
     thd->set_time();
   }
   thd->store_slow_query_state(&backup_state);
@@ -3355,9 +3355,6 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       thd->get_stmt_da()->reset_diagnostics_area();
     }
   }
-  /* Restore the original query start time */
-  if (thd->enable_slow_log)
-    thd->restore_query_start_time(&time_info);
 
   DBUG_RETURN(res || thd->is_error());
 }
