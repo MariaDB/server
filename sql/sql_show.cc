@@ -5459,7 +5459,10 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     else
     {
       DBUG_ASSERT(share->tmp_table == NO_TMP_TABLE);
-      table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
+      if (share->versioned)
+        table->field[3]->store(STRING_WITH_LEN("SYSTEM VERSIONED"), cs);
+      else
+        table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
     }
 
     for (int i= 4; i < 20; i++)
@@ -5947,6 +5950,15 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         buf.set(STRING_WITH_LEN("STORED GENERATED"), cs);
       else
         buf.set(STRING_WITH_LEN("VIRTUAL GENERATED"), cs);
+    }
+    else if (field->flags & VERS_SYSTEM_FIELD)
+    {
+      if (field->flags & VERS_SYS_START_FLAG)
+        table->field[21]->store(STRING_WITH_LEN("ROW START"), cs);
+      else
+        table->field[21]->store(STRING_WITH_LEN("ROW END"), cs);
+      table->field[21]->set_notnull();
+      table->field[20]->store(STRING_WITH_LEN("ALWAYS"), cs);
     }
     else
       table->field[20]->store(STRING_WITH_LEN("NEVER"), cs);

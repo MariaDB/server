@@ -13,6 +13,70 @@ t1	CREATE TABLE `t1` (
   `Sys_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE COMMENT 'end',
   PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select table_catalog,table_schema,table_name,table_type,version,table_rows,avg_row_length,data_free,auto_increment,check_time,table_collation,checksum,create_options,table_comment from information_schema.tables where table_name='t1';
+table_catalog	def
+table_schema	test
+table_name	t1
+table_type	SYSTEM VERSIONED
+version	10
+table_rows	0
+avg_row_length	0
+data_free	0
+auto_increment	NULL
+check_time	NULL
+table_collation	latin1_swedish_ci
+checksum	NULL
+create_options	
+table_comment	
+select table_catalog,table_schema,table_name,column_name,ordinal_position,column_default,character_maximum_length,character_octet_length,character_set_name,collation_name,column_key,extra,privileges,column_comment,is_generated,generation_expression from information_schema.columns where table_name='t1';
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	x1
+ordinal_position	1
+column_default	NULL
+character_maximum_length	NULL
+character_octet_length	NULL
+character_set_name	NULL
+collation_name	NULL
+column_key	
+extra	
+privileges	select,insert,update,references
+column_comment	
+is_generated	NEVER
+generation_expression	NULL
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	Sys_start
+ordinal_position	2
+column_default	NULL
+character_maximum_length	NULL
+character_octet_length	NULL
+character_set_name	NULL
+collation_name	NULL
+column_key	
+extra	INVISIBLE
+privileges	select,insert,update,references
+column_comment	start
+is_generated	ALWAYS
+generation_expression	ROW START
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	Sys_end
+ordinal_position	3
+column_default	NULL
+character_maximum_length	NULL
+character_octet_length	NULL
+character_set_name	NULL
+collation_name	NULL
+column_key	
+extra	INVISIBLE
+privileges	select,insert,update,references
+column_comment	end
+is_generated	ALWAYS
+generation_expression	ROW END
 # Implicit fields test
 create or replace table t1 (
 x2 int unsigned
