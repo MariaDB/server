@@ -1424,17 +1424,6 @@ row_insert_for_mysql(
 	} else if (high_level_read_only) {
 		return(DB_READ_ONLY);
 	}
-	DBUG_EXECUTE_IF("mark_table_corrupted", {
-		/* Mark the table corrupted for the clustered index */
-		dict_index_t*	index = dict_table_get_first_index(table);
-		ut_ad(dict_index_is_clust(index));
-		dict_set_corrupted(index, trx, "INSERT TABLE"); });
-
-	if (dict_table_is_corrupted(table)) {
-
-		ib::error() << "Table " << table->name << " is corrupt.";
-		return(DB_TABLE_CORRUPT);
-	}
 
 	DBUG_EXECUTE_IF("mark_table_corrupted", {
 		/* Mark the table corrupted for the clustered index */
