@@ -344,9 +344,6 @@ ordinary:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
 		nulls -= REC_N_NEW_EXTRA_BYTES;
-		if (rec_offs_n_fields(offsets) <= n_fields) {
-			goto ordinary;
-		}
 		/* fall through */
 	case REC_LEAF_TEMP_COLUMNS_ADDED:
 		ut_ad(index->is_instant());
@@ -1851,6 +1848,7 @@ rec_copy_prefix_to_buf(
 	ulint		null_mask;
 	bool		is_rtr_node_ptr = false;
 
+	ut_ad(n_fields <= index->n_fields);
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	UNIV_PREFETCH_RW(*buf);
 
@@ -1863,21 +1861,11 @@ rec_copy_prefix_to_buf(
 	}
 
 	switch (rec_get_status(rec)) {
-	case REC_STATUS_COLUMNS_ADDED:
-		/* We would have !index->is_instant() when rolling back
-		an instant ADD COLUMN operation. */
-		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
-		if (n_fields >= index->n_core_fields) {
-			ut_ad(index->is_instant());
-			ut_ad(n_fields <= index->n_fields);
-			nulls = &rec[-REC_N_NEW_EXTRA_BYTES];
-			const ulint n_rec = n_fields + 1
-				+ rec_get_n_add_field(nulls);
-			const uint n_nullable = index->get_n_nullable(n_rec);
-			lens = --nulls - UT_BITS_IN_BYTES(n_nullable);
-			break;
-		}
-		/* fall through */
+	case REC_STATUS_INFIMUM:
+	case REC_STATUS_SUPREMUM:
+		/* infimum or supremum record: no sense to copy anything */
+		ut_error;
+		return(NULL);
 	case REC_STATUS_ORDINARY:
 		ut_ad(n_fields <= index->n_core_fields);
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
@@ -1897,11 +1885,15 @@ rec_copy_prefix_to_buf(
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 		lens = nulls - index->n_core_null_bytes;
 		break;
-	case REC_STATUS_INFIMUM:
-	case REC_STATUS_SUPREMUM:
-		/* infimum or supremum record: no sense to copy anything */
-		ut_error;
-		return(NULL);
+	case REC_STATUS_COLUMNS_ADDED:
+		/* We would have !index->is_instant() when rolling back
+		an instant ADD COLUMN operation. */
+		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
+		nulls = &rec[-REC_N_NEW_EXTRA_BYTES];
+		const ulint n_rec = index->n_core_fields + 1
+			+ rec_get_n_add_field(nulls);
+		const uint n_nullable = index->get_n_nullable(n_rec);
+		lens = --nulls - UT_BITS_IN_BYTES(n_nullable);
 	}
 
 	UNIV_PREFETCH_R(lens);
