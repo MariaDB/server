@@ -22,7 +22,6 @@ select a from t for system_time all;
 
 rmdir $targetdir;
 
-set global system_versioning_transaction_registry=on;
 create or replace table t (
   a int,
   s bigint unsigned as row start invisible,
@@ -48,5 +47,4 @@ select * from t;
 select a from t for system_time all;
 
 drop table t;
-set global system_versioning_transaction_registry=off;
 rmdir $targetdir;

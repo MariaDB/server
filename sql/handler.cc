@@ -1432,7 +1432,7 @@ int ha_commit_trans(THD *thd, bool all)
 
     if (trx_end_id)
     {
-      if (!use_transaction_registry)
+      if (!TR_table::use_transaction_registry)
       {
         my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
         goto err;
@@ -7517,7 +7517,7 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
       {
         if (found == check_unit)
         {
-          if (found == VERS_TRX_ID && !use_transaction_registry)
+          if (found == VERS_TRX_ID && !TR_table::use_transaction_registry)
           {
             my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
             return true;

@@ -2992,6 +2992,10 @@ public:
     FLD_ISO_LEVEL,
     FIELD_COUNT
   };
+
+  enum enabled {NO, MAYBE, YES};
+  static enum enabled use_transaction_registry;
+
   /**
      @param[in,out] Thread handle
      @param[in] Current transaction is read-write.
@@ -3084,7 +3088,7 @@ public:
 
      @retval true if schema is incorrect and false otherwise
    */
-  bool check();
+  bool check(bool error);
 
   TABLE * operator-> () const
   {

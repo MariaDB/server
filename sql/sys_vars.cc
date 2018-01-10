@@ -427,24 +427,6 @@ static Sys_var_enum Sys_vers_alter_history(
        SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_ERROR));
 
-static bool update_transaction_registry(sys_var *self, THD *thd, enum_var_type type)
-{
-  use_transaction_registry= opt_transaction_registry;
-  if (use_transaction_registry)
-  {
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, WARN_VERS_TRT_EXPERIMENTAL,
-                 ER_THD(thd, WARN_VERS_TRT_EXPERIMENTAL));
-  }
-  return false;
-}
-
-static Sys_var_mybool Sys_vers_transaction_registry(
-       "system_versioning_transaction_registry",
-       "Enable or disable update of `mysql`.`transaction_registry`",
-       GLOBAL_VAR(opt_transaction_registry), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       0, ON_UPDATE(update_transaction_registry));
-
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "
        "updates to transactional engines for the binary log. "

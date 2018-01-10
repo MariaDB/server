@@ -1,16 +1,3 @@
-select @@system_versioning_transaction_registry;
-@@system_versioning_transaction_registry
-0
-create or replace table t1 (
-x int,
-sys_trx_start bigint(20) unsigned as row start invisible,
-sys_trx_end bigint(20) unsigned as row end invisible,
-period for system_time (sys_trx_start, sys_trx_end)
-) with system versioning engine innodb;
-ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
-set global system_versioning_transaction_registry= 1;
-Warnings:
-Warning	4134	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
 create or replace table t1 (
 x int,
 sys_trx_start bigint(20) unsigned as row start invisible,
@@ -18,21 +5,11 @@ sys_trx_end bigint(20) unsigned as row end invisible,
 period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning engine innodb;
 insert into t1 (x) values (1);
-set global system_versioning_transaction_registry= 0;
-insert into t1 (x) values (2);
-ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
-delete from t1;
-ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
-update t1 set x= 3;
-ERROR HY000: Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry).
 # ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
 create function check_result (cond boolean)
 returns char(50) deterministic
 return if(cond = 1, '[CORRECT]', '[INCORRECT]');
 set @@system_versioning_alter_history=keep;
-set global system_versioning_transaction_registry=on;
-Warnings:
-Warning	4134	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
 create or replace table t1 (x int) engine innodb;
 insert into t1 values (1);
 alter table t1
@@ -92,5 +69,4 @@ select sys_end = 18446744073709551615 as transaction_based from t1 for system_ti
 transaction_based
 1
 drop table t1;
-set global system_versioning_transaction_registry=off;
 drop function check_result;

@@ -536,8 +536,6 @@ ulonglong slave_skipped_errors;
 ulong feature_files_opened_with_delayed_keys= 0, feature_check_constraint= 0;
 ulonglong denied_connections;
 my_decimal decimal_zero;
-my_bool opt_transaction_registry= 1;
-my_bool use_transaction_registry= 1;
 
 /*
   Maximum length of parameter value which can be set through
@@ -6022,36 +6020,6 @@ int mysqld_main(int argc, char **argv)
   Events::set_original_state(Events::opt_event_scheduler);
   if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
     unireg_abort(1);
-
-  if (opt_transaction_registry)
-  {
-    use_transaction_registry= true;
-    if (opt_bootstrap)
-    {
-      use_transaction_registry= false;
-    }
-    else
-    {
-      THD *thd = new THD(0);
-      thd->thread_stack= (char*) &thd;
-      thd->store_globals();
-      {
-        TR_table trt(thd);
-        if (trt.check())
-        {
-          use_transaction_registry= false;
-        }
-      }
-
-      trans_commit_stmt(thd);
-      delete thd;
-    }
-  }
-  else
-    use_transaction_registry= false;
-
-  if (opt_transaction_registry && !use_transaction_registry)
-    sql_print_information("Disabled transaction registry.");
 
   if (WSREP_ON)
   {
