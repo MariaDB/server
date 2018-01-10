@@ -14,7 +14,7 @@
 # License along with this library; if not, write to the Free
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
 # MA 02110-1301, USA
-
+set -x -v
 cflags="$c_warnings $extra_flags $EXTRA_FLAGS $EXTRA_CFLAGS"
 cxxflags="$cxx_warnings $base_cxxflags $extra_flags $EXTRA_FLAGS $EXTRA_CXXFLAGS"
 extra_configs="$extra_configs $local_infile_configs $EXTRA_CONFIGS"
@@ -32,15 +32,19 @@ then
   configure="$configure --verbose"
 fi
 
+commands=""
 # git clean -fdX removes all ignored (build) files
-commands="\
+if test -d .git
+then
+    commands="\
 git clean -fdX
 cd ./libmariadb
 git submodule update
 cd ../storage/rocksdb/rocksdb
 git submodule update
-cd ../../..
-
+cd ../../.."
+fi
+commands="$commands
 path=`dirname $0`
 . \"$path/autorun.sh\""
 
