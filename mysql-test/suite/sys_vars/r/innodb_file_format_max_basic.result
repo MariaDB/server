@@ -27,7 +27,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 INNODB_FILE_FORMAT_MAX	Barracuda
 SET global innodb_file_format_max='Antelope';
 Warnings:
-Warning	131	Using innodb_file_format_max is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_file_format_max is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 SELECT @@global.innodb_file_format_max;
 @@global.innodb_file_format_max
 Antelope
@@ -41,7 +41,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 INNODB_FILE_FORMAT_MAX	Antelope
 SET @@global.innodb_file_format_max='Barracuda';
 Warnings:
-Warning	131	Using innodb_file_format_max is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_file_format_max is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 SELECT @@global.innodb_file_format_max;
 @@global.innodb_file_format_max
 Barracuda
@@ -65,7 +65,7 @@ SET global innodb_file_format_max='Salmon';
 ERROR 42000: Variable 'innodb_file_format_max' can't be set to the value of 'Salmon'
 SET @@global.innodb_file_format_max = @start_global_value;
 Warnings:
-Warning	131	Using innodb_file_format_max is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_file_format_max is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 SELECT @@global.innodb_file_format_max;
 @@global.innodb_file_format_max
 Barracuda

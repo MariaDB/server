@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -773,8 +773,9 @@ rtr_page_get_father_node_ptr(
 
 		error << ". You should dump + drop + reimport the table to"
 			" fix the corruption. If the crash happens at"
-			" database startup, see " REFMAN
-			"forcing-innodb-recovery.html about forcing"
+			" database startup, see "
+			"https://mariadb.com/kb/en/library/xtradbinnodb-recovery-modes/"
+			" about forcing"
 			" recovery. Then dump + drop + reimport.";
 	}
 

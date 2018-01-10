@@ -842,7 +842,7 @@ recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
 		" This redo log was created before MariaDB 10.2.2,"
 		" and we did not find a valid checkpoint."
 		" Please follow the instructions at"
-		" " REFMAN "upgrading.html";
+		" https://mariadb.com/kb/en/library/upgrading/";
 	return(DB_ERROR);
 }
 
@@ -869,7 +869,7 @@ recv_log_format_0_recover(lsn_t lsn)
 		" This redo log was created before MariaDB 10.2.2";
 	static const char* NO_UPGRADE_RTFM_MSG =
 		". Please follow the instructions at "
-		REFMAN "upgrading.html";
+		"https://mariadb.com/kb/en/library/upgrading/";
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
