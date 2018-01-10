@@ -184,11 +184,11 @@ extern const char *log_backup_output_str;
 enum vers_system_time_t
 {
   SYSTEM_TIME_UNSPECIFIED = 0,
-  SYSTEM_TIME_ALL,
   SYSTEM_TIME_AS_OF,
   SYSTEM_TIME_FROM_TO,
   SYSTEM_TIME_BETWEEN,
-  SYSTEM_TIME_BEFORE
+  SYSTEM_TIME_BEFORE,
+  SYSTEM_TIME_ALL
 };
 
 struct vers_asof_timestamp_t
@@ -200,13 +200,14 @@ struct vers_asof_timestamp_t
   {}
 };
 
-enum vers_hide_enum
+#ifdef VERS_EXPERIMENTAL
+enum vers_show_enum
 {
-  VERS_HIDE_AUTO= 0,
-  VERS_HIDE_IMPLICIT,
-  VERS_HIDE_FULL,
-  VERS_HIDE_NEVER
+  VERS_SHOW_OFF= 0,
+  VERS_SHOW_RANGE,
+  VERS_SHOW_ALWAYS
 };
+#endif
 
 enum vers_alter_history_enum
 {

@@ -9901,8 +9901,10 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if (thread_cache_size > max_connections)
     SYSVAR_AUTOSIZE(thread_cache_size, max_connections);
 
+#ifdef VERS_EXPERIMENTAL
   if (opt_bootstrap)
     global_system_variables.vers_force= 0;
+#endif
 
   return 0;
 }

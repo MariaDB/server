@@ -6962,13 +6962,13 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     }
   }
 
-  // CREATE ... SELECT: if at least one table in SELECT is versioned,
-  // then created table will be versioned.
+#ifdef VERS_EXPERIMENTAL
   if (thd->variables.vers_force)
   {
     alter_info->flags|= Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
     options|= HA_VERSIONED_TABLE;
   }
+#endif
 
   // Possibly override default storage engine to match one used in source table.
   if (vers_tables && alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING &&
@@ -7177,7 +7177,11 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (!need_check(alter_info) && !share->versioned)
     return false;
 
-  if (!thd->variables.vers_force && share->tmp_table && share->tmp_table != INTERNAL_TMP_TABLE)
+  if (share->tmp_table && share->tmp_table != INTERNAL_TMP_TABLE
+#ifdef VERS_EXPERIMENTAL
+    && !thd->variables.vers_force
+#endif
+  )
   {
     my_error(ER_VERS_TEMPORARY, MYF(0));
     return true;

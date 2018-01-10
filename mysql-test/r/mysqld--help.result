@@ -1227,9 +1227,6 @@ The following options may be given as the first argument:
  Versioning ALTER TABLE mode. ERROR: Fail ALTER with
  error; KEEP: Keep historical system rows and subject them
  to ALTER; 
- --system-versioning-force 
- Force system versioning for all created tables
- --system-versioning-hide=name 
  --system-versioning-innodb-algorithm-simple 
  Use simple algorithm of timestamp handling in InnoDB
  instead of TRX_SEES
@@ -1667,7 +1664,6 @@ sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
 system-versioning-alter-history ERROR
-system-versioning-force FALSE
 system-versioning-innodb-algorithm-simple TRUE
 system-versioning-transaction-registry FALSE
 table-cache 431

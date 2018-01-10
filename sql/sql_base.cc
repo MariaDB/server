@@ -7492,6 +7492,35 @@ bool get_key_map_from_key_list(key_map *map, TABLE *table,
 }
 
 
+#ifdef VERS_EXPERIMENTAL
+inline
+bool Field::vers_sys_invisible(THD *thd) const
+{
+  DBUG_ASSERT(vers_sys_field());
+  DBUG_ASSERT(table);
+  DBUG_ASSERT(table->versioned());
+  DBUG_ASSERT(table->pos_in_table_list);
+
+  if (thd->lex->sql_command != SQLCOM_SELECT)
+    return invisible;
+
+  switch (thd->variables.vers_show)
+  {
+    case VERS_SHOW_RANGE:
+    {
+      vers_system_time_t vers_type= table->pos_in_table_list->vers_conditions.type;
+      return vers_type > SYSTEM_TIME_AS_OF ? false : invisible;
+    }
+    case VERS_SHOW_ALWAYS:
+      return false;
+    default:
+      break;
+  };
+  return invisible;
+}
+#endif
+
+
 /*
   Drops in all fields instead of current '*' field
 
@@ -7621,8 +7650,14 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         Field_iterator_natural_join).
         But view fields can never be invisible.
       */
-      if ((field= field_iterator.field()) && field->invisible != VISIBLE)
+      if ((field= field_iterator.field()) && (
+#ifdef VERS_EXPERIMENTAL
+          field->vers_sys_field() && field->table->versioned() ?
+            field->vers_sys_invisible(thd) :
+#endif
+            field->invisible != VISIBLE))
         continue;
+
       Item *item;
 
       if (!(item= field_iterator.create_item(thd)))

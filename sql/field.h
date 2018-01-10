@@ -1472,6 +1472,10 @@ public:
     return flags & VERS_UPDATE_UNVERSIONED_FLAG;
   }
 
+#ifdef VERS_EXPERIMENTAL
+  bool vers_sys_invisible(THD *thd) const;
+#endif
+
   virtual bool vers_trx_id() const
   {
     return false;

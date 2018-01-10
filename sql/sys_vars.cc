@@ -396,9 +396,20 @@ static Sys_var_vers_asof Sys_vers_asof_timestamp(
        SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
        Sys_var_vers_asof::asof_keywords, DEFAULT(SYSTEM_TIME_UNSPECIFIED));
 
+#ifdef VERS_EXPERIMENTAL
 static Sys_var_mybool Sys_vers_force(
-       "system_versioning_force", "Force system versioning for all created tables",
+       "debug_system_versioning_force", "Force system versioning for all created tables",
        SESSION_VAR(vers_force), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static const char *vers_show_keywords[]= {"OFF", "RANGE", "ALWAYS", NULL};
+static Sys_var_enum Sys_vers_show(
+       "debug_system_versioning_show", "Show system fields special rules. "
+       "OFF: don't use special show rules; "
+       "RANGE: show implicit system fields only in range versioned queries; "
+       "ALWAYS: show system fields in all queries",
+       SESSION_VAR(vers_show), CMD_LINE(REQUIRED_ARG),
+       vers_show_keywords, DEFAULT(VERS_SHOW_OFF));
+#endif
 
 static Sys_var_mybool Sys_vers_innodb_algorithm_simple(
        "system_versioning_innodb_algorithm_simple",

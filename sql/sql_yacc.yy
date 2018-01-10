@@ -6233,7 +6233,9 @@ versioning_option:
           {
             if (Lex->create_info.options & HA_LEX_CREATE_TMP_TABLE)
             {
+#ifdef VERS_EXPERIMENTAL
               if (!thd->variables.vers_force)
+#endif
               {
                 my_error(ER_VERS_TEMPORARY, MYF(0));
                 MYSQL_YYABORT;
@@ -16164,6 +16166,12 @@ set_expr_or_default:
         | DROP
           {
             $$=new (thd->mem_root) Item_string_sys(thd, "DROP",  4);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | RANGE_SYM
+          {
+            $$=new (thd->mem_root) Item_string_sys(thd, C_STRING_WITH_LEN("RANGE"));
             if ($$ == NULL)
               MYSQL_YYABORT;
           }

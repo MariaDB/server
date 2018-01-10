@@ -707,7 +707,10 @@ typedef struct system_variables
   ulong in_subquery_conversion_threshold;
 
   vers_asof_timestamp_t vers_asof_timestamp;
+#ifdef VERS_EXPERIMENTAL
   my_bool vers_force;
+  ulong vers_show;
+#endif
   my_bool vers_innodb_algorithm_simple;
   ulong vers_alter_history;
 } SV;

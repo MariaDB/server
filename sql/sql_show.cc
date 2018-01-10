@@ -2108,6 +2108,10 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   TABLE *table= table_list->table;
   TABLE_SHARE *share= table->s;
   sql_mode_t sql_mode= thd->variables.sql_mode;
+#ifdef VERS_EXPERIMENTAL
+  ulong vers_show= thd->variables.vers_show;
+#endif
+  bool explicit_fields= false;
   bool foreign_db_mode=  sql_mode & (MODE_POSTGRESQL | MODE_ORACLE |
                                      MODE_MSSQL | MODE_DB2 |
                                      MODE_MAXDB | MODE_ANSI);
@@ -2188,7 +2192,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
     uint flags = field->flags;
 
-    if (field->invisible > INVISIBLE_USER)
+    if (field->invisible > INVISIBLE_USER
+#ifdef VERS_EXPERIMENTAL
+      && !(field->vers_sys_field() && vers_show == VERS_SHOW_ALWAYS)
+#endif
+    )
        continue;
     if (not_the_first_field)
       packet->append(STRING_WITH_LEN(",\n"));
@@ -2336,7 +2344,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
     {
       Field *field= key_part->field;
-      if (field->invisible > INVISIBLE_USER)
+      if (field->invisible > INVISIBLE_USER
+#ifdef VERS_EXPERIMENTAL
+        && !(field->vers_sys_field() && vers_show == VERS_SHOW_ALWAYS)
+#endif
+      )
         continue;
 
       if (j)
@@ -2373,9 +2385,14 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     const Field *fe = table->vers_end_field();
     DBUG_ASSERT(fs);
     DBUG_ASSERT(fe);
-    if (fs->invisible < INVISIBLE_SYSTEM)
+    explicit_fields= fs->invisible < INVISIBLE_SYSTEM;
+    DBUG_ASSERT(!explicit_fields || fe->invisible < INVISIBLE_SYSTEM);
+    if (explicit_fields
+#ifdef VERS_EXPERIMENTAL
+      || vers_show == VERS_SHOW_ALWAYS
+#endif
+    )
     {
-      DBUG_ASSERT(fe->invisible < INVISIBLE_SYSTEM);
       packet->append(STRING_WITH_LEN(",\n  PERIOD FOR SYSTEM_TIME ("));
       append_identifier(thd,packet,fs->field_name.str, fs->field_name.length);
       packet->append(STRING_WITH_LEN(", "));
@@ -2427,7 +2444,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     add_table_options(thd, table, create_info_arg,
                       table_list->schema_table != 0, 0, packet);
 
-  if (table->versioned())
+  if (table->versioned()
+#ifdef VERS_EXPERIMENTAL
+    && (!thd->variables.vers_force || explicit_fields)
+#endif
+  )
     packet->append(STRING_WITH_LEN(" WITH SYSTEM VERSIONING"));
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -5016,6 +5037,11 @@ public:
 static bool get_all_archive_tables(THD *thd,
                                    Dynamic_array<String> &all_archive_tables)
 {
+#ifdef VERS_EXPERIMENTAL
+  if (thd->variables.vers_show == VERS_SHOW_ALWAYS)
+    return false;
+#endif
+
   if (thd->variables.vers_alter_history != VERS_ALTER_HISTORY_SURVIVE)
     return false;
 
