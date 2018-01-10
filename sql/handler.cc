@@ -7133,11 +7133,17 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   return false;
 }
 
-static bool add_field_to_drop_list(THD *thd, Alter_info *alter_info,
-                                   Field *field)
+static bool add_field_to_drop_list_if_not_exists(THD *thd, Alter_info *alter_info, Field *field)
 {
   DBUG_ASSERT(field);
   DBUG_ASSERT(field->field_name.str);
+  List_iterator_fast<Alter_drop> it(alter_info->drop_list);
+  while (Alter_drop *drop= it++)
+  {
+    if (!my_strcasecmp(system_charset_info, field->field_name.str, drop->name))
+      return false;
+  }
+
   alter_info->flags|= Alter_info::ALTER_DROP_COLUMN;
   Alter_drop *ad= new (thd->mem_root)
       Alter_drop(Alter_drop::COLUMN, field->field_name.str, false);
@@ -7201,21 +7207,8 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       return true;
     }
 
-    if (share->vers_start_field()->invisible < INVISIBLE_SYSTEM)
-    {
-      my_error(ER_VERS_SYS_FIELD_EXISTS, MYF(0),
-               share->vers_start_field()->field_name.str);
-      return true;
-    }
-    if (share->vers_end_field()->invisible < INVISIBLE_SYSTEM)
-    {
-      my_error(ER_VERS_SYS_FIELD_EXISTS, MYF(0),
-               share->vers_end_field()->field_name.str);
-      return true;
-    }
-
-    if (add_field_to_drop_list(thd, alter_info, share->vers_start_field()) ||
-        add_field_to_drop_list(thd, alter_info, share->vers_end_field()))
+    if (add_field_to_drop_list_if_not_exists(thd, alter_info, share->vers_start_field()) ||
+        add_field_to_drop_list_if_not_exists(thd, alter_info, share->vers_end_field()))
       return true;
 
     if (share->primary_key != MAX_KEY && !is_adding_primary_key(alter_info) &&
@@ -7273,6 +7266,15 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   {
     my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name);
     return true;
+  }
+
+  if (add_period)
+  {
+    if (share->versioned)
+    {
+      my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
+      return true;
+    }
   }
 
   if (share->versioned)
@@ -7345,6 +7347,16 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
         if (done_start && done_end)
           break;
+      }
+
+      if ((done_start || done_end) && done_start != done_end)
+      {
+        String tmp;
+        tmp.append("DROP COLUMN ");
+        tmp.append(done_start ? table->vers_end_field()->field_name
+                              : table->vers_start_field()->field_name);
+        my_error(ER_MISSING, MYF(0), table_name, tmp.c_ptr());
+        return true;
       }
     }
 
@@ -7426,7 +7438,7 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
 
 bool Vers_parse_info::need_check(const Alter_info *alter_info) const
 {
-  return versioned_fields || unversioned_fields ||
+  return versioned_fields || unversioned_fields || add_period ||
          alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING ||
          alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING || *this;
 }

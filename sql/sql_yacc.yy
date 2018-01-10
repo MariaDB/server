@@ -8080,6 +8080,7 @@ alter_list_item:
           }
         | ADD period_for_system_time
           {
+            Lex->vers_get_info().add_period= true;
           }
         | add_column '(' create_field_list ')'
           {

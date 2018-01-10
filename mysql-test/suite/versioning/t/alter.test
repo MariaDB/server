@@ -78,8 +78,11 @@ create or replace table t (
 with system versioning;
 
 select * from t for system_time all;
+--error ER_MISSING
 alter table t drop column row_start;
+--error ER_MISSING
 alter table t drop column row_end;
+alter table t drop column row_start, drop column row_end;
 select * from t for system_time all;
 
 --error ER_CANT_DROP_FIELD_OR_KEY
@@ -263,28 +266,6 @@ insert into t values (1);
 --error ER_VERS_ALTER_SYSTEM_FIELD
 alter table t modify column row_start bigint unsigned;
 
-create or replace table t (
-  a int,
-  row_start timestamp(6) as row start invisible,
-  row_end timestamp(6) as row end invisible,
-  period for system_time(row_start, row_end)
-) with system versioning;
-select * from t;
-
---error ER_VERS_SYS_FIELD_EXISTS
-alter table t drop system versioning;
-alter table t drop column row_start;
-select * from t;
-
---error ER_VERS_SYS_FIELD_EXISTS
-alter table t drop system versioning;
-alter table t drop column row_end;
-select * from t;
-
-alter table t drop system versioning;
-show create table t;
-
-
 ## These experimental options are now disabled
 
 --error ER_WRONG_VALUE_FOR_VAR
@@ -403,6 +384,12 @@ alter table t1 add column row_start int;
 --error ER_DUP_FIELDNAME
 set statement system_versioning_alter_history=keep for
 alter table t1 add column row_start timestamp(6);
+
+--echo # MDEV-14798 Add, drop system versioning semantic and syntax
+create or replace table t (a int) with system versioning;
+
+--error ER_VERS_ALREADY_VERSIONED
+alter table t add period for system_time(sys_trx_start, sys_trx_end);
 
 drop database test;
 create database test;
