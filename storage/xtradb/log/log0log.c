@@ -2539,7 +2539,7 @@ loop:
 	start_lsn += len;
 	buf += len;
 
-	if (recv_sys) {
+	if (recv_recovery_is_on()) {
 		ib_time_t time = ut_time();
 
 		if (recv_sys->progress_time - time >= 15) {
