@@ -6229,9 +6229,7 @@ versioning_option:
           {
             if (Lex->create_info.options & HA_LEX_CREATE_TMP_TABLE)
             {
-#ifdef VERS_EXPERIMENTAL
-              if (!thd->variables.vers_force)
-#endif
+              if (DBUG_EVALUATE_IF("sysvers_force", 0, 1))
               {
                 my_error(ER_VERS_TEMPORARY, MYF(0));
                 MYSQL_YYABORT;
@@ -16158,18 +16156,6 @@ set_expr_or_default:
         | BINARY
           {
             $$=new (thd->mem_root) Item_string_sys(thd, "binary", 6);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | DROP
-          {
-            $$=new (thd->mem_root) Item_string_sys(thd, "DROP",  4);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | RANGE_SYM
-          {
-            $$=new (thd->mem_root) Item_string_sys(thd, C_STRING_WITH_LEN("RANGE"));
             if ($$ == NULL)
               MYSQL_YYABORT;
           }

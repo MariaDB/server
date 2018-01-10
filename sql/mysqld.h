@@ -200,15 +200,6 @@ struct vers_asof_timestamp_t
   {}
 };
 
-#ifdef VERS_EXPERIMENTAL
-enum vers_show_enum
-{
-  VERS_SHOW_OFF= 0,
-  VERS_SHOW_RANGE,
-  VERS_SHOW_ALWAYS
-};
-#endif
-
 enum vers_alter_history_enum
 {
   VERS_ALTER_HISTORY_ERROR= 0,

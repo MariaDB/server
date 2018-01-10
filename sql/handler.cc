@@ -6962,13 +6962,9 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     }
   }
 
-#ifdef VERS_EXPERIMENTAL
-  if (thd->variables.vers_force)
-  {
-    alter_info->flags|= Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
-    options|= HA_VERSIONED_TABLE;
-  }
-#endif
+  DBUG_EXECUTE_IF("sysvers_force", if (!tmp_table()) {
+                  alter_info->flags|= Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
+                  options|= HA_VERSIONED_TABLE; });
 
   // Possibly override default storage engine to match one used in source table.
   if (vers_tables && alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING &&
@@ -7183,11 +7179,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (!need_check(alter_info) && !share->versioned)
     return false;
 
-  if (share->tmp_table && share->tmp_table != INTERNAL_TMP_TABLE
-#ifdef VERS_EXPERIMENTAL
-    && !thd->variables.vers_force
-#endif
-  )
+  if (DBUG_EVALUATE_IF("sysvers_force", 0, share->tmp_table))
   {
     my_error(ER_VERS_TEMPORARY, MYF(0));
     return true;
