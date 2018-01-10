@@ -97,7 +97,7 @@ static uchar *extra2_write_additional_field_properties(uchar *pos,
   pos= extra2_write_len(pos, number_of_fields);
   Create_field *cf;
   while((cf=(*it)++))
-    *pos++= cf->field_visibility;
+    *pos++= cf->invisible;
   it->rewind();
   return pos;
 }
@@ -141,7 +141,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   bool have_additional_field_properties= false;
   while ((field=it++))
   {
-    if (field->field_visibility != NOT_INVISIBLE)
+    if (field->invisible)
     {
       have_additional_field_properties= true;
       break;
