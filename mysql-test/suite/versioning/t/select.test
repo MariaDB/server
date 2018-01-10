@@ -283,8 +283,23 @@ delete from t1;
 select * from t1 where t = '00:00:00' and i > 0 and row_end <> '2012-12-12 00:00:00';
 --enable_warnings
 
+--echo ### MDEV-14816 Assertion `join->best_read < double(1.797...e+308L)' failed in bool greedy_search
+create or replace table t1 (f1 int) with system versioning;
+create or replace table t2 (f2 int) with system versioning;
+create or replace table t3 (f3 int);
+create or replace table t4 (f4 int);
+insert into t1 values (1), (2), (3), (4);
+insert into t2 values (1), (2), (3);
+insert into t3 values (1), (2);
+insert into t4 values (1);
+select * from
+  t1 as t1a
+    left join t2 as t2a left join (t3 as t3a inner join t1) on t2a.f2 = t3a.f3  on t1a.f1 = t2a.f2
+    left join (t2 join t3 inner join t4) on t2a.f2 = t1a.f1;
+
+
 drop view v1;
-drop table t1, t2;
+drop table t1, t2, t3, t4;
 
 call verify_vtq_dummy(34);
 

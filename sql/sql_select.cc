@@ -844,12 +844,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       dst_cond= &table->on_expr;
     }
 
-    if (TABLE_LIST *t= table->embedding)
-    {
-      if (t->on_expr)
-        dst_cond= &t->on_expr;
-    }
-
     const LEX_CSTRING *fstart= &table->table->vers_start_field()->field_name;
     const LEX_CSTRING *fend= &table->table->vers_end_field()->field_name;
 
@@ -953,6 +947,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
           curr= newx Item_int(thd, ULONGLONG_MAX);
           cond1= newx Item_func_eq(thd, row_end, curr);
         }
+        cond1= or_items(thd, cond1, newx Item_func_isnull(thd, row_end));
         break;
       case SYSTEM_TIME_AS_OF:
         cond1= newx Item_func_le(thd, row_start,

@@ -139,7 +139,7 @@ x	C	D
 ## pruning check
 explain partitions select * from tN;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-N	SIMPLE	tN	pn	system	NULL	NULL	NULL	NULL	N	
+N	SIMPLE	tN	pN,pn	system	NULL	NULL	NULL	NULL	N	
 set @str= concat('select row_start from t1 partition (pn) into @ts0');
 prepare stmt from @str;
 execute stmt;
