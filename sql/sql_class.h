@@ -2089,36 +2089,14 @@ struct QUERY_START_TIME_INFO
   my_time_t start_time;
   ulong     start_time_sec_part;
   ulonglong start_utime, utime_after_lock;
-};
 
-class Backup_query_start_time : public QUERY_START_TIME_INFO
-{
-  QUERY_START_TIME_INFO *m_origin;
-
-public:
-  Backup_query_start_time() : m_origin(NULL)
-  {}
-  Backup_query_start_time(QUERY_START_TIME_INFO &origin)
+  void backup_query_start_time(QUERY_START_TIME_INFO *backup)
   {
-    backup(origin);
+    *backup= *this;
   }
-  ~Backup_query_start_time()
+  void restore_query_start_time(QUERY_START_TIME_INFO *backup)
   {
-    restore();
-  }
-  void backup(QUERY_START_TIME_INFO &origin)
-  {
-    m_origin= &origin;
-    QUERY_START_TIME_INFO *backup_= this;
-    *backup_= origin;
-  }
-  void restore()
-  {
-    if (m_origin)
-    {
-      *m_origin= *this;
-      m_origin= NULL;
-    }
+    *this= *backup;
   }
 };
 
