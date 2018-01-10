@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -74,6 +74,49 @@ trx_undof_page_add_undo_rec_log(
 	mlog_write_ulint(undo_page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
 			 new_free, MLOG_2BYTES, mtr);
 	mlog_log_string(undo_page + old_free, new_free - old_free, mtr);
+}
+
+/** Parse MLOG_UNDO_INSERT for crash-upgrade from MariaDB 10.2.
+@param[in]	ptr	log record
+@param[in]	end_ptr	end of log record buffer
+@param[in,out]	page	page or NULL
+@return	end of log record
+@retval	NULL	if the log record is incomplete */
+byte*
+trx_undo_parse_add_undo_rec(
+	const byte*	ptr,
+	const byte*	end_ptr,
+	page_t*		page)
+{
+	ulint	len;
+
+	if (end_ptr < ptr + 2) {
+
+		return(NULL);
+	}
+
+	len = mach_read_from_2(ptr);
+	ptr += 2;
+
+	if (end_ptr < ptr + len) {
+
+		return(NULL);
+	}
+
+	if (page) {
+		ulint first_free = mach_read_from_2(page + TRX_UNDO_PAGE_HDR
+						    + TRX_UNDO_PAGE_FREE);
+		byte* rec = page + first_free;
+
+		mach_write_to_2(rec, first_free + 4 + len);
+		mach_write_to_2(rec + 2 + len, first_free);
+
+		mach_write_to_2(page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
+				first_free + 4 + len);
+		memcpy(rec + 2, ptr, len);
+	}
+
+	return(const_cast<byte*>(ptr + len));
 }
 
 /**********************************************************************//**
@@ -1148,14 +1191,43 @@ trx_undo_page_report_modify(
 
 			const dict_col_t*	col
 				= dict_table_get_nth_col(table, col_no);
-			const char* col_name = dict_table_get_col_name(table,
-				col_no);
 
 			if (!col->ord_part) {
 				continue;
 			}
 
-			if (update) {
+			const ulint pos = dict_index_get_nth_col_pos(
+				index, col_no, NULL);
+			/* All non-virtual columns must be present in
+			the clustered index. */
+			ut_ad(pos != ULINT_UNDEFINED);
+
+			const bool is_ext = rec_offs_nth_extern(offsets, pos);
+			const spatial_status_t spatial_status = is_ext
+				? dict_col_get_spatial_status(col)
+				: SPATIAL_NONE;
+
+			switch (spatial_status) {
+			case SPATIAL_UNKNOWN:
+				ut_ad(0);
+				/* fall through */
+			case SPATIAL_MIXED:
+			case SPATIAL_ONLY:
+				/* Externally stored spatially indexed
+				columns will be (redundantly) logged
+				again, because we did not write the
+				MBR yet, that is, the previous call to
+				trx_undo_page_report_modify_ext()
+				was with SPATIAL_UNKNOWN. */
+				break;
+			case SPATIAL_NONE:
+				if (!update) {
+					/* This is a DELETE operation. */
+					break;
+				}
+				/* Avoid redundantly logging indexed
+				columns that were updated. */
+
 				for (i = 0; i < update->n_fields; i++) {
 					const ulint field_no
 						= upd_get_nth_field(update, i)
@@ -1170,28 +1242,10 @@ trx_undo_page_report_modify(
 			}
 
 			if (true) {
-				ulint			pos;
-				spatial_status_t	spatial_status;
-
-				spatial_status = SPATIAL_NONE;
-
 				/* Write field number to undo log */
 				if (trx_undo_left(undo_page, ptr) < 5 + 15) {
 
 					return(0);
-				}
-
-				pos = dict_index_get_nth_col_pos(index,
-								 col_no,
-								 NULL);
-				if (pos == ULINT_UNDEFINED) {
-					ib::error() << "Column " << col_no
-						    << " name " << col_name
-						    << " not found from index " << index->name
-						    << " table. " << table->name.m_name
-						    << " Table has " << dict_table_get_n_cols(table)
-						    << " and index has " << dict_index_get_n_fields(index)
-						    << " fields.";
 				}
 
 				ptr += mach_write_compressed(ptr, pos);
@@ -1200,7 +1254,7 @@ trx_undo_page_report_modify(
 				field = rec_get_nth_cfield(
 					rec, index, offsets, pos, &flen);
 
-				if (rec_offs_nth_extern(offsets, pos)) {
+				if (is_ext) {
 					const dict_col_t*	col =
 						dict_index_get_nth_col(
 							index, pos);
@@ -1209,10 +1263,6 @@ trx_undo_page_report_modify(
 							table, col);
 
 					ut_a(prefix_len < sizeof ext_buf);
-
-					spatial_status =
-						dict_col_get_spatial_status(
-							col);
 
 					/* If there is a spatial index on it,
 					log its MBR */
@@ -1612,6 +1662,7 @@ trx_undo_rec_get_partial_row(
 				used, as we do NOT copy the data in the
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
+	const upd_t*	update,	/*!< in: updated columns */
 	dtuple_t**	row,	/*!< out, own: partial row */
 	ibool		ignore_prefix, /*!< in: flag to indicate if we
 				expect blob prefixes in undo. Used
@@ -1641,6 +1692,16 @@ trx_undo_rec_get_partial_row(
 	}
 
 	dtuple_init_v_fld(*row);
+
+	for (const upd_field_t* uf = update->fields, * const ue
+		     = update->fields + update->n_fields;
+	     uf != ue; uf++) {
+		if (uf->old_v_val) {
+			continue;
+		}
+		ulint c = dict_index_get_nth_col(index, uf->field_no)->ind;
+		*dtuple_get_nth_field(*row, c) = uf->new_val;
+	}
 
 	end_ptr = ptr + mach_read_from_2(ptr);
 	ptr += 2;
@@ -1687,6 +1748,13 @@ trx_undo_rec_get_partial_row(
 			col = dict_index_get_nth_col(index, field_no);
 			col_no = dict_col_get_no(col);
 			dfield = dtuple_get_nth_field(*row, col_no);
+			ut_ad(dfield->type.mtype == DATA_MISSING
+			      || dict_col_type_assert_equal(col,
+							    &dfield->type));
+			ut_ad(dfield->type.mtype == DATA_MISSING
+			      || dfield->len == len
+			      || (len != UNIV_SQL_NULL
+				  && len >= UNIV_EXTERN_STORAGE_FIELD));
 			dict_col_copy_type(
 				dict_table_get_nth_col(index->table, col_no),
 				dfield_get_type(dfield));
@@ -1758,15 +1826,11 @@ trx_undo_rec_get_partial_row(
 	return(const_cast<byte*>(ptr));
 }
 
-/***********************************************************************//**
-Erases the unused undo log page end.
-@return TRUE if the page contained something, FALSE if it was empty */
-static MY_ATTRIBUTE((nonnull))
-ibool
-trx_undo_erase_page_end(
-/*====================*/
-	page_t*	undo_page,	/*!< in/out: undo page whose end to erase */
-	mtr_t*	mtr)		/*!< in/out: mini-transaction */
+/** Erase the unused undo log page end.
+@param[in,out]	undo_page	undo log page
+@return whether the page contained something */
+bool
+trx_undo_erase_page_end(page_t* undo_page)
 {
 	ulint	first_free;
 
@@ -1790,8 +1854,9 @@ ulint
 trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 			    buf_block_t* block, mtr_t* mtr)
 {
-	ulint	first_free = mach_read_from_2(block->frame + TRX_UNDO_PAGE_HDR
-					      + TRX_UNDO_PAGE_FREE);
+	byte*	ptr_first_free  = TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+		+ block->frame;
+	ulint	first_free = mach_read_from_2(ptr_first_free);
 	ut_ad(first_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
 	ut_ad(first_free <= UNIV_PAGE_SIZE);
 	byte* start = block->frame + first_free;
@@ -1819,11 +1884,10 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 	ptr += 2;
 	ulint offset = page_offset(ptr);
 	mach_write_to_2(start, offset);
-	mach_write_to_2(block->frame + TRX_UNDO_PAGE_HDR
-			+ TRX_UNDO_PAGE_FREE, offset);
+	mach_write_to_2(ptr_first_free, offset);
 
 	trx_undof_page_add_undo_rec_log(block->frame, first_free, offset, mtr);
-	return offset;
+	return first_free;
 }
 
 /** Report a RENAME TABLE operation.
@@ -1917,8 +1981,8 @@ trx_undo_report_row_operation(
 					marking, the record in the clustered
 					index; NULL if insert */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
-	roll_ptr_t*	roll_ptr)	/*!< out: rollback pointer to the
-					inserted undo log record */
+	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
+					undo log record */
 {
 	trx_t*		trx;
 	ulint		page_no;
@@ -1993,7 +2057,7 @@ trx_undo_report_row_operation(
 			version the replicate page constructed using the log
 			records stays identical to the original page */
 
-			if (!trx_undo_erase_page_end(undo_page, &mtr)) {
+			if (!trx_undo_erase_page_end(undo_page)) {
 				/* The record did not fit on an empty
 				undo page. Discard the freshly allocated
 				page and return an error. */

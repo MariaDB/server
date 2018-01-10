@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -308,6 +308,88 @@ trx_undo_get_first_rec(
 }
 
 /*============== UNDO LOG FILE COPY CREATION AND FREEING ==================*/
+
+/** Parse MLOG_UNDO_INIT for crash-upgrade from MariaDB 10.2.
+@param[in]	ptr	log record
+@param[in]	end_ptr	end of log record buffer
+@param[in,out]	page	page or NULL
+@param[in,out]	mtr	mini-transaction
+@return	end of log record
+@retval	NULL	if the log record is incomplete */
+byte*
+trx_undo_parse_page_init(
+	const byte*	ptr,
+	const byte*	end_ptr,
+	page_t*		page,
+	mtr_t*		mtr)
+{
+	ulint type = mach_parse_compressed(&ptr, end_ptr);
+
+	if (!ptr) {
+	} else if (type != 1 && type != 2) {
+		recv_sys->found_corrupt_log = true;
+	} else if (page) {
+		mach_write_to_2(FIL_PAGE_TYPE + page, FIL_PAGE_UNDO_LOG);
+		mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE + page,
+				type);
+		mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START + page,
+				TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
+		mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + page,
+				TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
+	}
+
+	return(const_cast<byte*>(ptr));
+}
+
+/** Parse MLOG_UNDO_HDR_REUSE for crash-upgrade from MariaDB 10.2.
+@param[in]	ptr	redo log record
+@param[in]	end_ptr	end of log buffer
+@param[in,out]	page	undo log page or NULL
+@param[in,out]	mtr	mini-transaction
+@return end of log record or NULL */
+byte*
+trx_undo_parse_page_header_reuse(
+	const byte*	ptr,
+	const byte*	end_ptr,
+	page_t*		undo_page,
+	mtr_t*		mtr)
+{
+	trx_id_t	trx_id = mach_u64_parse_compressed(&ptr, end_ptr);
+
+	if (!ptr || !undo_page) {
+		return(const_cast<byte*>(ptr));
+	}
+
+	compile_time_assert(TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE
+			    + TRX_UNDO_LOG_XA_HDR_SIZE
+			    < UNIV_PAGE_SIZE_MIN - 100);
+
+	const ulint new_free = TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE
+		+ TRX_UNDO_LOG_OLD_HDR_SIZE;
+
+	/* Insert undo data is not needed after commit: we may free all
+	the space on the page */
+
+	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
+			       + undo_page)
+	      == TRX_UNDO_INSERT);
+
+	byte*	page_hdr = undo_page + TRX_UNDO_PAGE_HDR;
+	mach_write_to_2(page_hdr + TRX_UNDO_PAGE_START, new_free);
+	mach_write_to_2(page_hdr + TRX_UNDO_PAGE_FREE, new_free);
+	mach_write_to_2(TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + undo_page,
+			TRX_UNDO_ACTIVE);
+
+	byte* log_hdr = undo_page + TRX_UNDO_SEG_HDR + TRX_UNDO_SEG_HDR_SIZE;
+
+	mach_write_to_8(log_hdr + TRX_UNDO_TRX_ID, trx_id);
+	mach_write_to_2(log_hdr + TRX_UNDO_LOG_START, new_free);
+
+	mach_write_to_1(log_hdr + TRX_UNDO_XID_EXISTS, FALSE);
+	mach_write_to_1(log_hdr + TRX_UNDO_DICT_TRANS, FALSE);
+
+	return(const_cast<byte*>(ptr));
+}
 
 /********************************************************************//**
 Initializes the fields in an undo log segment page. */

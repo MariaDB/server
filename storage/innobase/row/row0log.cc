@@ -1695,13 +1695,10 @@ row_log_table_apply_insert_low(
 		return(error);
 	}
 
-	do {
-		n_index++;
+	ut_ad(dict_index_is_clust(index));
 
-		if (!(index = dict_table_get_next_index(index))) {
-			break;
-		}
-
+	for (n_index += index->type != DICT_CLUSTERED;
+	     (index = dict_table_get_next_index(index)); n_index++) {
 		if (index->type & DICT_FTS) {
 			continue;
 		}
@@ -1712,12 +1709,13 @@ row_log_table_apply_insert_low(
 			index, offsets_heap, heap, entry,
 			thr_get_trx(thr)->id, thr, false);
 
-		/* Report correct index name for duplicate key error. */
-		if (error == DB_DUPLICATE_KEY) {
-			thr_get_trx(thr)->error_key_num = n_index;
+		if (error != DB_SUCCESS) {
+			if (error == DB_DUPLICATE_KEY) {
+				thr_get_trx(thr)->error_key_num = n_index;
+			}
+			break;
 		}
-
-	} while (error == DB_SUCCESS);
+	}
 
 	return(error);
 }
@@ -2297,15 +2295,14 @@ func_exit_committed:
 		dtuple_big_rec_free(big_rec);
 	}
 
-	while ((index = dict_table_get_next_index(index)) != NULL) {
-		if (error != DB_SUCCESS) {
-			break;
-		}
-
-		n_index++;
-
+	for (n_index += index->type != DICT_CLUSTERED;
+	     (index = dict_table_get_next_index(index)); n_index++) {
 		if (index->type & DICT_FTS) {
 			continue;
+		}
+
+		if (error != DB_SUCCESS) {
+			break;
 		}
 
 		if (!row_upd_changes_ord_field_binary(

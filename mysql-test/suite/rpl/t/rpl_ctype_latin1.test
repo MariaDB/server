@@ -1,0 +1,44 @@
+--source include/have_lowercase0.inc
+--disable_warnings
+--source include/master-slave.inc
+--enable_warnings
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-14249 Wrong character set info of Query_log_event and the query in Query_log_event constructed by different charsets cause error when slave apply the event.
+--echo #
+
+#
+# The below tests uses a sequence of bytes 0xD191,
+# which in a utf8 console looks like ё (CYRILIC SMALL LETTER YO).
+# Don't be mislead. This sequence is used in latin1 context and
+# represents a sequence of two characters:
+# U+00D1 CAPITAL LATIN LETTER N WITH TILDE (_latin1 0xD1)
+# U+2018 LEFT SINGLE QUOTATION MARK        (_latin1 0x91)
+#
+
+SET NAMES latin1;
+CREATE TABLE `tё` (`tё` INT);
+CREATE VIEW `vё` AS SELECT 'vё';
+CREATE PROCEDURE `pё`() SELECT 'pё';
+
+select hex(table_name) from information_schema.tables where table_schema="test" and table_name like "t%";
+select  hex(table_name) from information_schema.tables where table_schema="test" and table_name like "v%";
+
+--sync_slave_with_master
+select hex(table_name) from information_schema.tables where table_schema="test" and table_name like "t%";
+select  hex(table_name) from information_schema.tables where table_schema="test" and table_name like "v%";
+--replace_column 5 ts 6 ts
+SHOW PROCEDURE STATUS LIKE 'p%';
+
+--connection master
+DROP TABLE `tё`;
+DROP VIEW `vё`;
+DROP PROCEDURE `pё`;
+--sync_slave_with_master
+
+--source include/rpl_end.inc

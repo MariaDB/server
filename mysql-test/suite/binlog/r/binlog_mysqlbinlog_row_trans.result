@@ -193,6 +193,7 @@ BEGIN
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
@@ -221,6 +222,7 @@ BEGIN
 ### SET
 ###   @1=13 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
@@ -232,6 +234,7 @@ BEGIN
 ### WHERE
 ###   @1=12 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-2' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
@@ -275,6 +278,7 @@ BEGIN
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -313,6 +317,7 @@ BEGIN
 ### SET
 ###   @1=13 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -334,6 +339,7 @@ BEGIN
 ### WHERE
 ###   @1=12 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-2' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -363,6 +369,7 @@ BEGIN
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
@@ -391,6 +398,7 @@ BEGIN
 ### SET
 ###   @1=13 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
@@ -402,6 +410,7 @@ BEGIN
 ### WHERE
 ###   @1=12 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-2' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
@@ -445,6 +454,7 @@ BEGIN
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -483,6 +493,7 @@ BEGIN
 ### SET
 ###   @1=13 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -504,6 +515,7 @@ BEGIN
 ### WHERE
 ###   @1=12 /* INT meta=0 nullable=1 is_null=0 */
 ###   @2='varchar-2' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+# Number of rows: 1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;

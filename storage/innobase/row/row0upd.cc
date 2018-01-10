@@ -714,9 +714,19 @@ row_upd_rec_in_place(
 		case REC_STATUS_COLUMNS_ADDED:
 			ut_ad(index->is_instant());
 			break;
+		case REC_STATUS_NODE_PTR:
+			if (recv_recovery_is_on()
+			    && fil_page_get_type(page_align(rec))
+			    == FIL_PAGE_RTREE) {
+				/* The function rtr_update_mbr_field_in_place()
+				is generating MLOG_COMP_REC_UPDATE_IN_PLACE
+				and MLOG_REC_UPDATE_IN_PLACE records for
+				node pointer pages. */
+				break;
+			}
+			/* fall through */
 		case REC_STATUS_INFIMUM:
 		case REC_STATUS_SUPREMUM:
-		case REC_STATUS_NODE_PTR:
 			ut_ad(!"wrong record status in update");
 		}
 #endif /* UNIV_DEBUG */

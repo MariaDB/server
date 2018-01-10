@@ -41,7 +41,7 @@
 #include <sql_common.h>
 #include <errmsg.h>
 #include <ssl_compat.h>
-#include <mysqld_error.h>
+#include "unireg.h"
 #include <mysys_err.h>
 #include <signal.h>
 #include <mysql.h>

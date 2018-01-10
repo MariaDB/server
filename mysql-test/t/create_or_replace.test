@@ -396,3 +396,27 @@ CREATE OR REPLACE TABLE t1 AS SELECT f1();
 UNLOCK TABLES;
 DROP FUNCTION f1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11071 - Assertion `thd->transaction.stmt.is_empty()' failed in
+--echo #              Locked_tables_list::unlock_locked_tables
+--echo #
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2(a INT);
+CREATE TABLE t3(a INT);
+LOCK TABLE t2 WRITE;
+SELECT * FROM t2;
+# drops t2
+--error ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE
+CREATE OR REPLACE TEMPORARY TABLE t1(a INT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+# make sure we didn't leave locked tables mode
+--error ER_TABLE_NOT_LOCKED
+SELECT * FROM t3;
+# drops t1
+--error ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE
+CREATE OR REPLACE TEMPORARY TABLE t2(a INT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+# make sure we didn't leave locked tables mode
+--error ER_TABLE_NOT_LOCKED
+SELECT * FROM t3;
+UNLOCK TABLES;
+DROP TABLE t3;

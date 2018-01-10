@@ -1,0 +1,49 @@
+source include/not_embedded.inc;
+
+--echo #
+--echo # MDEV-13655: SET ROLE does not properly grant privileges.
+--echo #
+--echo # We must test that if aditional db privileges get granted to a role
+--echo # which previously inherited privileges from another granted role
+--echo # keep the internal memory structures intact.
+--echo #
+
+create role simple;
+
+--echo #
+--echo # First we create an entry with privileges for databases for the simple role.
+--echo #
+grant select, insert, update, delete, lock tables, execute on t.* to simple;
+create role admin;
+
+--echo #
+--echo # Now we grant the simple role to admin. This means that db privileges
+--echo # should propagate to admin.
+--echo #
+grant simple to admin;
+show grants for admin;
+
+--echo #
+--echo # Finally, we give the admin all the available privileges for the db.
+--echo #
+grant all on t.* to admin;
+
+--echo #
+--echo # Create a user to test out the new roles;
+--echo #
+create user foo;
+grant admin to foo;
+
+connect (foo,localhost,foo,,,,,);
+--error ER_DBACCESS_DENIED_ERROR
+create database t;
+set role admin;
+show grants;
+create database t;
+drop database t;
+
+connection default;
+
+drop role simple;
+drop role admin;
+drop user foo;

@@ -80,11 +80,11 @@ GCCVERSION=$(gcc -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]
 # x86 32 bit.
 if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
 then
-  sed '/Package: mariadb-plugin-rocksdb/,+11d' -i debian/control
+  sed '/Package: mariadb-plugin-rocksdb/,+13d' -i debian/control
 fi
 if [[ $GCCVERSION -lt 40800 ]] || [[ $TRAVIS ]]
 then
-  sed '/Package: mariadb-plugin-aws-key-management-10.2/,+13d' -i debian/control
+  sed '/Package: mariadb-plugin-aws-key-management-10.3/,+15d' -i debian/control
 fi
 
 

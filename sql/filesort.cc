@@ -710,6 +710,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   handler *file;
   MY_BITMAP *save_read_set, *save_write_set, *save_vcol_set;
   Item *sort_cond;
+  ha_rows retval;
   DBUG_ENTER("find_all_keys");
   DBUG_PRINT("info",("using: %s",
                      (select ? select->quick ? "ranges" : "where":
@@ -767,7 +768,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   if (quick_select)
   {
     if (select->quick->reset())
-      DBUG_RETURN(HA_POS_ERROR);
+      goto err;
   }
 
   DEBUG_SYNC(thd, "after_index_merge_phase1");
@@ -804,7 +805,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
         (void) file->extra(HA_EXTRA_NO_CACHE);
         file->ha_rnd_end();
       }
-      DBUG_RETURN(HA_POS_ERROR);		/* purecov: inspected */
+      goto err;                               /* purecov: inspected */
     }
 
     bool write_record= false;
@@ -852,7 +853,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
         if (idx == param->max_keys_per_buffer)
         {
           if (write_keys(param, fs_info, idx, buffpek_pointers, tempfile))
-             DBUG_RETURN(HA_POS_ERROR);
+            goto err;
 	  idx= 0;
 	  indexpos++;
         }
@@ -878,11 +879,11 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
       file->ha_rnd_end();
   }
 
-  if (thd->is_error())
-    DBUG_RETURN(HA_POS_ERROR);
-  
   /* Signal we should use orignal column read and write maps */
   sort_form->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
+
+  if (thd->is_error())
+    DBUG_RETURN(HA_POS_ERROR);
 
   DBUG_PRINT("test",("error: %d  indexpos: %d",error,indexpos));
   if (error != HA_ERR_END_OF_FILE)
@@ -893,11 +894,15 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   if (indexpos && idx &&
       write_keys(param, fs_info, idx, buffpek_pointers, tempfile))
     DBUG_RETURN(HA_POS_ERROR);			/* purecov: inspected */
-  const ha_rows retval=
-    my_b_inited(tempfile) ?
-    (ha_rows) (my_b_tell(tempfile)/param->rec_length) : idx;
+  retval= (my_b_inited(tempfile) ?
+           (ha_rows) (my_b_tell(tempfile)/param->rec_length) :
+           idx);
   DBUG_PRINT("info", ("find_all_keys return %llu", (ulonglong) retval));
   DBUG_RETURN(retval);
+
+err:
+  sort_form->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
+  DBUG_RETURN(HA_POS_ERROR);
 } /* find_all_keys */
 
 
@@ -995,7 +1000,8 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
   if (maybe_null)
     *to++= 1;
   char *tmp_buffer= param->tmp_buffer ? param->tmp_buffer : (char*) to;
-  String tmp(tmp_buffer, param->sort_length, cs);
+  String tmp(tmp_buffer, param->tmp_buffer ? param->sort_length :
+                                             sort_field->length, cs);
   String *res= item->str_result(&tmp);
   if (!res)
   {

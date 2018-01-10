@@ -31,9 +31,10 @@ insert into t1 select * from t1;
 insert into t1 select * from t1;
 
 #Check second round spliting.
-SET SESSION debug="+d, rtr_page_need_second_split";
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d, rtr_page_need_second_split';
 insert into t1 select * from t1;
-SET SESSION debug="-d, rtr_page_need_second_split";
+SET debug_dbug = @saved_dbug;
 
 delete from t1;
 
@@ -79,24 +80,27 @@ select count(*) from t1 where MBRWithin(t1.c2, @g1);
 drop index c2 on t1;
 
 # Test create index with algorithm=inplace
+--enable_info
 create spatial index idx2 on t1(c2);
+--disable_info
 
 show create table t1;
 
-set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
-select count(*) from t1 where MBRWithin(t1.c2, @g1);
-
 # test read only case
-let $restart_parameters = restart: --innodb-read-only;
+let $restart_parameters = --innodb-read-only;
 --source include/restart_mysqld.inc
 set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
 select count(*) from t1 where MBRWithin(t1.c2, @g1);
-
 set @g1 = ST_GeomFromText('Polygon((2 2,2 800,800 800,800 2,2 2))');
 select count(*) from t1 where MBRWithin(t1.c2, @g1);
 
-let $restart_parameters = restart;
+let $restart_parameters =;
 --source include/restart_mysqld.inc
+
+set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
+select count(*) from t1 where MBRWithin(t1.c2, @g1);
+set @g1 = ST_GeomFromText('Polygon((2 2,2 800,800 800,800 2,2 2))');
+select count(*) from t1 where MBRWithin(t1.c2, @g1);
 
 # Clean up.
 drop table t1;

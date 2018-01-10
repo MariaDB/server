@@ -162,3 +162,16 @@ select next value for s1;
 ERROR HY000: Can't execute the query because you have a conflicting read lock
 unlock tables;
 drop sequence s1;
+#
+# Don't allow SQUENCE to be used with CHECK or virtual fields
+#
+CREATE SEQUENCE s1 nocache engine=myisam;
+CREATE table t1 (a int check (next value for s1 > 0));
+ERROR HY000: Function or expression 'nextval()' cannot be used in the CHECK clause of `a`
+CREATE table t1 (a int check (previous value for s1 > 0));
+ERROR HY000: Function or expression 'lastval()' cannot be used in the CHECK clause of `a`
+CREATE table t1 (a int check (setval(s1,10)));
+ERROR HY000: Function or expression 'setval()' cannot be used in the CHECK clause of `a`
+CREATE TABLE t1 (a int, b int as (next value for s1 > 0));
+ERROR HY000: Function or expression 'nextval()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop sequence s1;

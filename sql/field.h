@@ -50,8 +50,9 @@ class Virtual_tmp_table;
 enum enum_check_fields
 {
   CHECK_FIELD_IGNORE,
+  CHECK_FIELD_EXPRESSION,
   CHECK_FIELD_WARN,
-  CHECK_FIELD_ERROR_FOR_NULL
+  CHECK_FIELD_ERROR_FOR_NULL,
 };
 
 /*
@@ -558,6 +559,7 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
 #define VCOL_TIME_FUNC         8
 #define VCOL_AUTO_INC         16
 #define VCOL_IMPOSSIBLE       32
+#define VCOL_NOT_VIRTUAL      64  /* Function can't be virtual */
 
 #define VCOL_NOT_STRICTLY_DETERMINISTIC                       \
   (VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC | VCOL_SESSION_FUNC)

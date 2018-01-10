@@ -1,4 +1,3 @@
-# restart
 create table t1 (c1 int, c2 geometry not null, spatial index (c2))engine=innodb;
 create procedure insert_t1(IN total int)
 begin
@@ -33,10 +32,9 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 select count(*) from t1;
 count(*)
-18
+17
 select c1, ST_astext(c2) from t1;
 c1	ST_astext(c2)
-350	POINT(10350 10350)
 351	POINT(10351 10351)
 352	POINT(10352 10352)
 353	POINT(10353 10353)

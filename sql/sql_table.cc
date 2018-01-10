@@ -4993,7 +4993,8 @@ int create_table_impl(THD *thd,
   if (!frm_only && create_info->tmp_table())
   {
     TABLE *table= thd->create_and_open_tmp_table(create_info->db_type, frm,
-                                                 path, db, table_name, true);
+                                                 path, db, table_name, true,
+                                                 false);
 
     if (!table)
     {
@@ -5089,7 +5090,8 @@ int mysql_create_table_no_lock(THD *thd,
     // Check if we hit FN_REFLEN bytes along with file extension.
     if (length+reg_ext_length > FN_REFLEN)
     {
-      my_error(ER_IDENT_CAUSES_TOO_LONG_PATH, MYF(0), (int) sizeof(path)-1, path);
+      my_error(ER_IDENT_CAUSES_TOO_LONG_PATH, MYF(0), (int) sizeof(path)-1,
+               path);
       return true;
     }
   }
@@ -5228,7 +5230,7 @@ err:
   /* Write log if no error or if we already deleted a table */
   if (!result || thd->log_current_statement)
   {
-    if (result && create_info->table_was_deleted)
+    if (result && create_info->table_was_deleted && pos_in_locked_tables)
     {
       /*
         Possible locked table was dropped. We should remove meta data locks
@@ -9582,7 +9584,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
           thd->create_and_open_tmp_table(new_db_type, &frm,
                                          alter_ctx.get_tmp_path(),
                                          alter_ctx.new_db, alter_ctx.tmp_name,
-                                         false)))
+                                         false, true)))
       goto err_new_table_cleanup;
 
     /* Set markers for fields in TABLE object for altered table. */
@@ -9597,10 +9599,12 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
                                                 &altered_table->s->all_set);
     restore_record(altered_table, s->default_values); // Create empty record
     /* Check that we can call default functions with default field values */
+    thd->count_cuted_fields= CHECK_FIELD_EXPRESSION;
     altered_table->reset_default_fields();
     if (altered_table->default_field &&
         altered_table->update_default_fields(0, 1))
       goto err_new_table_cleanup;
+    thd->count_cuted_fields= CHECK_FIELD_IGNORE;
 
     // Ask storage engine whether to use copy or in-place
     enum_alter_inplace_result inplace_supported=
@@ -9725,7 +9729,8 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
   }
 
   // It's now safe to take the table level lock.
-  if (lock_tables(thd, table_list, alter_ctx.tables_opened, 0))
+  if (lock_tables(thd, table_list, alter_ctx.tables_opened,
+                  MYSQL_LOCK_USE_MALLOC))
     goto err_new_table_cleanup;
 
   if (ha_create_table(thd, alter_ctx.get_tmp_path(),
@@ -9742,7 +9747,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
       thd->create_and_open_tmp_table(new_db_type, &frm,
                                      alter_ctx.get_tmp_path(),
                                      alter_ctx.new_db, alter_ctx.tmp_name,
-                                     true);
+                                     true, true);
     if (!tmp_table)
     {
       goto err_new_table_cleanup;
@@ -9776,7 +9781,7 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
       thd->create_and_open_tmp_table(new_db_type, &frm,
                                      alter_ctx.get_tmp_path(),
                                      alter_ctx.new_db, alter_ctx.tmp_name,
-                                     true);
+                                     true, true);
   }
   if (!new_table)
     goto err_new_table_cleanup;

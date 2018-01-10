@@ -162,6 +162,7 @@ BEGIN
 ### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -188,6 +189,7 @@ BEGIN
 ### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -214,6 +216,7 @@ BEGIN
 ### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -255,6 +258,7 @@ BEGIN
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 6
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -281,6 +285,7 @@ BEGIN
 ### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -309,6 +314,7 @@ BEGIN
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -386,6 +392,7 @@ BEGIN
 ### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -551,6 +558,7 @@ BEGIN
 ### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -575,6 +583,7 @@ BEGIN
 ### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -599,6 +608,7 @@ BEGIN
 ### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -636,6 +646,7 @@ BEGIN
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 6
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -660,6 +671,7 @@ BEGIN
 ### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -684,6 +696,7 @@ BEGIN
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -773,6 +786,7 @@ BEGIN
 ### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -799,6 +813,7 @@ BEGIN
 ### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -825,6 +840,7 @@ BEGIN
 ### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -866,6 +882,7 @@ BEGIN
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 6
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -892,6 +909,7 @@ BEGIN
 ### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -920,6 +938,7 @@ BEGIN
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -997,6 +1016,7 @@ BEGIN
 ### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -1161,6 +1181,7 @@ BEGIN
 ### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -1184,6 +1205,7 @@ BEGIN
 ### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -1207,6 +1229,7 @@ BEGIN
 ### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -1243,6 +1266,7 @@ BEGIN
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 6
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -1266,6 +1290,7 @@ BEGIN
 ### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -1289,6 +1314,7 @@ BEGIN
 ### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 3
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;

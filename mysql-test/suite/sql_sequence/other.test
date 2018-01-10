@@ -131,3 +131,18 @@ create sequence s2;
 select next value for s1;
 unlock tables;
 drop sequence s1;
+
+--echo #
+--echo # Don't allow SQUENCE to be used with CHECK or virtual fields
+--echo #
+
+CREATE SEQUENCE s1 nocache engine=myisam;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE table t1 (a int check (next value for s1 > 0));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE table t1 (a int check (previous value for s1 > 0));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE table t1 (a int check (setval(s1,10)));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a int, b int as (next value for s1 > 0));
+drop sequence s1;

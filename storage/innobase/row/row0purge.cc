@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -705,6 +705,10 @@ row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 		    == row_get_rec_roll_ptr(rec, index, offsets)) {
 			ut_ad(!rec_get_deleted_flag(rec,
 						    rec_offs_comp(offsets)));
+			DBUG_LOG("purge", "reset DB_TRX_ID="
+				 << ib::hex(row_get_rec_trx_id(
+						    rec, index, offsets)));
+
 			mtr->set_named_space(index->space);
 			if (page_zip_des_t* page_zip
 			    = buf_block_get_page_zip(
@@ -1004,7 +1008,7 @@ err_exit:
 
 	if (!(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
 		ptr = trx_undo_rec_get_partial_row(
-			ptr, clust_index, &node->row,
+			ptr, clust_index, node->update, &node->row,
 			type == TRX_UNDO_UPD_DEL_REC,
 			node->heap);
 	}

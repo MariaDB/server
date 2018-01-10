@@ -258,7 +258,7 @@ void Ack_receiver::run()
     struct timeval tv= {1, 0};
     fds= read_fds;
     /* select requires max fd + 1 for the first argument */
-    ret= select(max_fd+1, &fds, NULL, NULL, &tv);
+    ret= select((int)(max_fd+1), &fds, NULL, NULL, &tv);
     if (ret <= 0)
     {
       mysql_mutex_unlock(&m_mutex);

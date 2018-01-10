@@ -487,8 +487,7 @@ int load_defaults(const char *conf_file, const char **groups,
    easily command line options override options in configuration files
 
    NOTES
-    In case of fatal error, the function will print a warning and do
-    exit(1)
+    In case of fatal error, the function will print a warning and returns 2
  
     To free used memory one should call free_defaults() with the argument
     that was put in *argv
@@ -641,8 +640,7 @@ int my_load_defaults(const char *conf_file, const char **groups,
 
  err:
   fprintf(stderr,"Fatal error in defaults handling. Program aborted\n");
-  exit(1);
-  return 0;					/* Keep compiler happy */
+  return 2;
 }
 
 

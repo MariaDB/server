@@ -2989,6 +2989,25 @@ end:
   DBUG_RETURN(result);
 }
 
+
+bool partition_info::error_if_requires_values() const
+{
+  switch (part_type) {
+  case NOT_A_PARTITION:
+  case HASH_PARTITION:
+  case VERSIONING_PARTITION:
+    break;
+  case RANGE_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "RANGE", "LESS THAN");
+    return true;
+  case LIST_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "LIST", "IN");
+    return true;
+  }
+  return false;
+}
+
+
 /**
   Fix partition data from parser.
 
@@ -3079,6 +3098,8 @@ bool partition_info::fix_parser_data(THD *thd)
     part_elem= it++;
     List_iterator<part_elem_value> list_val_it(part_elem->list_val_list);
     num_elements= part_elem->list_val_list.elements;
+    if (!num_elements && error_if_requires_values())
+      DBUG_RETURN(true);
     DBUG_ASSERT(part_type == RANGE_PARTITION ?
                 num_elements == 1U : TRUE);
 
@@ -3420,33 +3441,6 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
 }
 
 
-static bool has_same_column_order(List<Create_field> *create_list,
-	                          Field** field_array)
-{
-  Field **f_ptr;
-  List_iterator_fast<Create_field> new_field_it;
-  Create_field *new_field= NULL;
-  new_field_it.init(*create_list);
-
-  for (f_ptr= field_array; *f_ptr; f_ptr++)
-  {
-    while ((new_field= new_field_it++))
-    {
-      if (new_field->field == *f_ptr)
-        break;
-    }
-    if (!new_field)
-      break;
-  }
-
-  if (!new_field)
-  {
-    /* Not same order!*/
-    return false;
-  }
-  return true;
-}
-
 bool partition_info::vers_trx_id_to_ts(THD* thd, Field* in_trx_id, Field_timestamp& out_ts)
 {
   DBUG_ASSERT(table);
@@ -3468,32 +3462,6 @@ bool partition_info::vers_trx_id_to_ts(THD* thd, Field* in_trx_id, Field_timesta
   trt[TR_table::FLD_COMMIT_TS]->get_date(&ts, 0);
   out_ts.store_time_dec(&ts, 6);
   return false;
-}
-
-
-/**
-  Check if the partitioning columns are in the same order as the given list.
-
-  Used to see if INPLACE alter can be allowed or not. If the order is
-  different then the rows must be redistributed for KEY [sub]partitioning.
-
-  @param[in] create_list Column list after ALTER TABLE.
-  @return true is same order as before ALTER TABLE, else false.
-*/
-bool partition_info::same_key_column_order(List<Create_field> *create_list)
-{
-  /* Only need to check for KEY [sub] partitioning. */
-  if (list_of_part_fields && !column_list)
-  {
-    if (!has_same_column_order(create_list, part_field_array))
-      return false;
-  }
-  if (list_of_subpart_fields)
-  {
-    if (!has_same_column_order(create_list, subpart_field_array))
-      return false;
-  }
-  return true;
 }
 
 

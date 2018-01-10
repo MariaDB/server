@@ -701,6 +701,8 @@ public:
   void write(DYNAMIC_STRING* ds)
   {
     DBUG_ENTER("LogFile::write");
+    DBUG_PRINT("enter", ("length: %u", (uint) ds->length));
+
     DBUG_ASSERT(m_file);
 
     if (ds->length == 0)
@@ -6959,6 +6961,7 @@ int read_command(struct st_command** command_ptr)
   if (parser.current_line < parser.read_lines)
   {
     get_dynamic(&q_lines, command_ptr, parser.current_line) ;
+    DBUG_PRINT("info", ("query: %s", (*command_ptr)->query));
     DBUG_RETURN(0);
   }
   if (!(*command_ptr= command=
@@ -7320,8 +7323,12 @@ get_one_option(int optid, const struct my_option *opt, char *argument)
     exit(0);
   case OPT_MYSQL_PROTOCOL:
 #ifndef EMBEDDED_LIBRARY
-    opt_protocol= find_type_or_exit(argument, &sql_protocol_typelib,
-                                    opt->name);
+    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                              opt->name)) <= 0)
+    {
+      sf_leaking_memory= 1; /* no memory leak reports here */
+      exit(1);
+    }
 #endif
     break;
   case '?':

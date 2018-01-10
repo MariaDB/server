@@ -26,6 +26,13 @@ eval INSERT t VALUES(201-$n);
 dec $n;
 }
 --enable_query_log
+connect (flush_log,localhost,root,,);
+BEGIN;
+DELETE FROM t LIMIT 1;
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+ROLLBACK;
+disconnect flush_log;
+connection default;
 
 --disable_result_log
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --ftwrl-wait-timeout=5 --ftwrl-wait-threshold=300 --ftwrl-wait-query-type=all --target-dir=$incremental_dir --incremental-basedir=$basedir ;

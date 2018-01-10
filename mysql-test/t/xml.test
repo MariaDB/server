@@ -713,7 +713,7 @@ FROM t1;
 SELECT UPDATEXML(txt, CONCAT('//', REPEAT('b', 63)), '63/63+') FROM t1;
 DROP TABLE t1;
 
-# This will call my_str_realloc_mysqld()
+# This will call realloc()
 CREATE TABLE t1 (a TEXT);
 INSERT INTO t1 VALUES (CONCAT('<a><', REPEAT('b',128),'>b128</',REPEAT('b',128),'><',REPEAT('c',512),'>c512</',REPEAT('c',512),'></a>'));
 SELECT ExtractValue (a, CONCAT('//',REPEAT('c',512))) AS c512 FROM t1;

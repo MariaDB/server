@@ -1056,6 +1056,35 @@ select next value for s1, cycle_count from s1;
 next value for s1	cycle_count
 9223372036854775805	3
 drop sequence s1;
+###########################################
+test default()
+###########################################
+connection master;
+CREATE SEQUENCE s1 nocache engine=myisam;
+CREATE table t1 (a int default next value for s1, b int);
+insert into t1 (b) values (1),(2);
+select default(a) from t1;
+default(a)
+3
+4
+select * from t1;
+a	b
+1	1
+2	2
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+5	1	9223372036854775806	1	1	0	0	0
+connection slave;
+connection s_normal_3;
+select * from t1;
+a	b
+1	1
+2	2
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+5	1	9223372036854775806	1	1	0	0	0
+connection master;
+drop table t1,s1;
 connection master;
 drop database s_db;
 drop user normal_1@'%';

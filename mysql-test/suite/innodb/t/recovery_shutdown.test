@@ -1,6 +1,9 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 
+# Flush any open myisam tables from previous tests
+FLUSH TABLES;
+
 --echo #
 --echo # MDEV-13797 InnoDB may hang if shutdown is initiated soon after startup
 --echo # while rolling back recovered incomplete transactions

@@ -1518,7 +1518,7 @@ bool Field_num::get_int(CHARSET_INFO *cs, const char *from, uint len,
       goto out_of_range;
     }
   }
-  if (get_thd()->count_cuted_fields &&
+  if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION &&
       check_int(cs, from, len, end, error))
     return 1;
   return 0;
@@ -1539,7 +1539,7 @@ double Field_real::get_double(const char *str, uint length, CHARSET_INFO *cs,
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     *error= 1;
   }
-  else if (get_thd()->count_cuted_fields &&
+  else if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION &&
            check_edom_and_truncation("double", str == end,
                                      cs, str, length, end))
     *error= 1;
@@ -1874,7 +1874,7 @@ void Field::make_field(Send_field *field)
   if (orig_table && orig_table->s->db.str && *orig_table->s->db.str)
   {
     field->db_name= orig_table->s->db.str;
-    if (orig_table->pos_in_table_list && 
+    if (orig_table->pos_in_table_list &&
         orig_table->pos_in_table_list->schema_table)
       field->org_table_name= (orig_table->pos_in_table_list->
                               schema_table->table_name);
@@ -2536,7 +2536,7 @@ int Field_decimal::store(const char *from_arg, uint len, CHARSET_INFO *cs)
     it makes the code easer to read.
   */
 
-  if (get_thd()->count_cuted_fields)
+  if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION)
   {
     // Skip end spaces
     for (;from != end && my_isspace(&my_charset_bin, *from); from++) ;
@@ -2706,7 +2706,8 @@ int Field_decimal::store(const char *from_arg, uint len, CHARSET_INFO *cs)
     {
       if (pos == right_wall) 
       {
-        if (get_thd()->count_cuted_fields && !is_cuted_fields_incr) 
+        if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION &&
+            !is_cuted_fields_incr)
           break; // Go on below to see if we lose non zero digits
         return 0;
       }
@@ -3099,7 +3100,7 @@ int Field_new_decimal::store(const char *from, uint length,
     DBUG_RETURN(1);
   }
 
-  if (thd->count_cuted_fields)
+  if (thd->count_cuted_fields > CHECK_FIELD_EXPRESSION)
   {
     if (check_edom_and_important_data_truncation("decimal",
                                                  err && err != E_DEC_TRUNCATED,
@@ -3144,7 +3145,7 @@ int Field_new_decimal::store(const char *from, uint length,
     - in err2: store_value() truncated 1.123 to 1.12, e.g. for DECIMAL(10,2)
     Also, we send a note if a string had some trailing spaces: '1.12 '
   */
-  if (thd->count_cuted_fields &&
+  if (thd->count_cuted_fields > CHECK_FIELD_EXPRESSION &&
       (err == E_DEC_TRUNCATED ||
        err2 == E_DEC_TRUNCATED ||
        end < from + length))
@@ -4221,7 +4222,7 @@ int Field_longlong::store(const char *from,uint len,CHARSET_INFO *cs)
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     error= 1;
   }
-  else if (get_thd()->count_cuted_fields && 
+  else if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION &&
            check_int(cs, from, len, end, error))
     error= 1;
   else
@@ -6162,7 +6163,7 @@ int Field_year::store(const char *from, uint len,CHARSET_INFO *cs)
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     return 1;
   }
-  if (get_thd()->count_cuted_fields && 
+  if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION &&
       (error= check_int(cs, from, len, end, error)))
   {
     if (error == 1)  /* empty or incorrect string */
@@ -6870,7 +6871,7 @@ Field_longstr::report_if_important_data(const char *pstr, const char *end,
                                         bool count_spaces)
 {
   THD *thd= get_thd();
-  if ((pstr < end) && thd->count_cuted_fields)
+  if ((pstr < end) && thd->count_cuted_fields > CHECK_FIELD_EXPRESSION)
   {
     if (test_if_important_data(field_charset, pstr, end))
     {
@@ -8804,7 +8805,7 @@ int Field_geom::store(const char *from, uint length, CHARSET_INFO *cs)
 	wkb_type > (uint32) Geometry::wkb_last)
       goto err;
 
-    if (geom_type != Field::GEOM_GEOMETRY && 
+    if (geom_type != Field::GEOM_GEOMETRY &&
         geom_type != Field::GEOM_GEOMETRYCOLLECTION &&
         (uint32) geom_type != wkb_type)
     {
@@ -8944,7 +8945,7 @@ int Field_enum::store(const char *from,uint length,CHARSET_INFO *cs)
 	set_warning(WARN_DATA_TRUNCATED, 1);
 	err= 1;
       }
-      if (!get_thd()->count_cuted_fields && !length)
+      if ((get_thd()->count_cuted_fields <= CHECK_FIELD_EXPRESSION) && !length)
         err= 0;
     }
     else
@@ -8971,7 +8972,7 @@ int Field_enum::store(longlong nr, bool unsigned_val)
   if ((ulonglong) nr > typelib->count || nr == 0)
   {
     set_warning(WARN_DATA_TRUNCATED, 1);
-    if (nr != 0 || get_thd()->count_cuted_fields)
+    if (nr != 0 || get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION)
     {
       nr= 0;
       error= 1;
@@ -10197,6 +10198,8 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
   uint filter= VCOL_IMPOSSIBLE;
   if (type != VCOL_GENERATED_VIRTUAL && type != VCOL_DEFAULT)
     filter|= VCOL_NOT_STRICTLY_DETERMINISTIC;
+  if (type == VCOL_GENERATED_VIRTUAL)
+    filter|= VCOL_NOT_VIRTUAL;
 
   if (ret || (res.errors & filter))
   {
@@ -11023,11 +11026,12 @@ uint32 Field_blob::max_display_length()
   @param cut_increment    - whenever we should increase cut fields count
 
   @note
-    This function won't produce warning and increase cut fields counter
-    if count_cuted_fields == CHECK_FIELD_IGNORE for current thread.
+    This function won't produce warning or notes or increase cut fields counter
+    if count_cuted_fields == CHECK_FIELD_IGNORE or CHECK_FIELD_EXPRESSION
+    for the current thread.
 
-    if count_cuted_fields == CHECK_FIELD_IGNORE then we ignore notes.
-    This allows us to avoid notes in optimisation, like convert_constant_item().
+    This allows us to avoid notes in optimisation, like
+    convert_constant_item().
 
   @retval
     1 if count_cuted_fields == CHECK_FIELD_IGNORE and error level is not NOTE
@@ -11044,7 +11048,7 @@ Field::set_warning(Sql_condition::enum_warning_level level, uint code,
     will have table == NULL.
   */
   THD *thd= get_thd();
-  if (thd->count_cuted_fields)
+  if (thd->count_cuted_fields > CHECK_FIELD_EXPRESSION)
   {
     thd->cuted_fields+= cut_increment;
     push_warning_printf(thd, level, code, ER_THD(thd, code), field_name.str,

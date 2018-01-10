@@ -227,7 +227,7 @@
 #define OPTIMIZER_SWITCH_EXISTS_TO_IN              (1ULL << 28)
 #define OPTIMIZER_SWITCH_ORDERBY_EQ_PROP           (1ULL << 29)
 #define OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED (1ULL << 30)
-#define OPTIMIZER_SWITCH_SPLIT_GROUPING_DERIVED    (1ULL << 31)
+#define OPTIMIZER_SWITCH_SPLIT_MATERIALIZED        (1ULL << 31)
 
 #define OPTIMIZER_SWITCH_DEFAULT   (OPTIMIZER_SWITCH_INDEX_MERGE | \
                                     OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
@@ -254,7 +254,7 @@
                                     OPTIMIZER_SWITCH_EXISTS_TO_IN | \
                                     OPTIMIZER_SWITCH_ORDERBY_EQ_PROP | \
                                     OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED | \
-                                    OPTIMIZER_SWITCH_SPLIT_GROUPING_DERIVED)
+                                    OPTIMIZER_SWITCH_SPLIT_MATERIALIZED)
 
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you
@@ -326,6 +326,8 @@
 
 /* Used to check GROUP BY list in the MODE_ONLY_FULL_GROUP_BY mode */
 #define UNDEF_POS (-1)
+
+#define IN_SUBQUERY_CONVERSION_THRESHOLD 1000
 
 #endif /* !MYSQL_CLIENT */
 

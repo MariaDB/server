@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -902,58 +902,6 @@ recv_log_format_0_recover(lsn_t lsn)
 	return(DB_SUCCESS);
 }
 
-/** Determine if a redo log from MySQL 5.7.9/MariaDB 10.2.2 is clean.
-@return error code
-@retval	DB_SUCCESS	if the redo log is clean
-@retval	DB_CORRUPTION	if the redo log is corrupted
-@retval DB_ERROR	if the redo log is not empty */
-static
-dberr_t
-recv_log_recover_10_2()
-{
-	log_group_t*	group = &log_sys->log;
-	const lsn_t	lsn = group->lsn;
-	const lsn_t	source_offset = log_group_calc_lsn_offset(lsn, group);
-	const ulint	page_no
-		= (ulint) (source_offset / univ_page_size.physical());
-	byte*		buf = log_sys->buf;
-
-	fil_io(IORequestLogRead, true,
-	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
-	       (ulint) ((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
-			% univ_page_size.physical()),
-	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
-
-	if (log_block_calc_checksum(buf) != log_block_get_checksum(buf)) {
-		return(DB_CORRUPTION);
-	}
-
-	if (group->is_encrypted()) {
-		log_crypt(buf, lsn, OS_FILE_LOG_BLOCK_SIZE, true);
-	}
-
-	/* On a clean shutdown, the redo log will be logically empty
-	after the checkpoint lsn. */
-
-	if (log_block_get_data_len(buf)
-	    != (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
-		return(DB_ERROR);
-	}
-
-	/* Mark the redo log for upgrading. */
-	srv_log_file_size = 0;
-	recv_sys->parse_start_lsn = recv_sys->recovered_lsn
-		= recv_sys->scanned_lsn
-		= recv_sys->mlog_checkpoint_lsn = lsn;
-	log_sys->last_checkpoint_lsn = log_sys->next_checkpoint_lsn
-		= log_sys->lsn = log_sys->write_lsn
-		= log_sys->current_flush_lsn = log_sys->flushed_to_disk_lsn
-		= lsn;
-	log_sys->next_checkpoint_no = 0;
-	return(DB_SUCCESS);
-}
-
 /** Find the latest checkpoint in the log header.
 @param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
 @return error code or DB_SUCCESS */
@@ -1061,20 +1009,6 @@ recv_find_max_checkpoint(ulint* max_field)
 			" You can try --innodb-force-recovery=6"
 			" as a last resort.";
 		return(DB_ERROR);
-	}
-
-	switch (group->format) {
-	case LOG_HEADER_FORMAT_10_2:
-	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
-		dberr_t err = recv_log_recover_10_2();
-		if (err != DB_SUCCESS) {
-			ib::error()
-				<< "Upgrade after a crash is not supported."
-				" The redo log was created with " << creator
-				<< (err == DB_ERROR
-				    ? "." : ", and it appears corrupted.");
-		}
-		return(err);
 	}
 
 	return(DB_SUCCESS);
@@ -1393,6 +1327,25 @@ parse_log:
 	case MLOG_PAGE_CREATE_RTREE: case MLOG_COMP_PAGE_CREATE_RTREE:
 		page_parse_create(block, type == MLOG_COMP_PAGE_CREATE_RTREE,
 				  true);
+		break;
+	case MLOG_UNDO_INSERT:
+		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
+		ptr = trx_undo_parse_add_undo_rec(ptr, end_ptr, page);
+		break;
+	case MLOG_UNDO_ERASE_END:
+		if (page) {
+			ut_ad(page_type == FIL_PAGE_UNDO_LOG);
+			trx_undo_erase_page_end(page);
+		}
+		break;
+	case MLOG_UNDO_INIT:
+		/* Allow anything in page_type when creating a page. */
+		ptr = trx_undo_parse_page_init(ptr, end_ptr, page, mtr);
+		break;
+	case MLOG_UNDO_HDR_REUSE:
+		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
+		ptr = trx_undo_parse_page_header_reuse(ptr, end_ptr, page,
+						       mtr);
 		break;
 	case MLOG_UNDO_HDR_CREATE:
 		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
@@ -3176,10 +3129,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	err = recv_find_max_checkpoint(&max_cp_field);
 
-	if (err != DB_SUCCESS
-	    || (log_sys->log.format != LOG_HEADER_FORMAT_3_23
-		&& (log_sys->log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
-		!= LOG_HEADER_FORMAT_CURRENT)) {
+	if (err != DB_SUCCESS) {
 
 		srv_start_lsn = recv_sys->recovered_lsn = log_sys->lsn;
 		log_mutex_exit();
@@ -3619,6 +3569,18 @@ get_mlog_string(mlog_id_t type)
 
 	case MLOG_PAGE_CREATE:
 		return("MLOG_PAGE_CREATE");
+
+	case MLOG_UNDO_INSERT:
+		return("MLOG_UNDO_INSERT");
+
+	case MLOG_UNDO_ERASE_END:
+		return("MLOG_UNDO_ERASE_END");
+
+	case MLOG_UNDO_INIT:
+		return("MLOG_UNDO_INIT");
+
+	case MLOG_UNDO_HDR_REUSE:
+		return("MLOG_UNDO_HDR_REUSE");
 
 	case MLOG_UNDO_HDR_CREATE:
 		return("MLOG_UNDO_HDR_CREATE");

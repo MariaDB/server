@@ -5424,12 +5424,8 @@ opt_part_values:
             partition_info *part_info= lex->part_info;
             if (! lex->is_partition_management())
             {
-              if (part_info->part_type == RANGE_PARTITION)
-                my_yyabort_error((ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0),
-                                  "RANGE", "LESS THAN"));
-              if (part_info->part_type == LIST_PARTITION)
-                my_yyabort_error((ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0),
-                                  "LIST", "IN"));
+              if (part_info->error_if_requires_values())
+                 MYSQL_YYABORT;
               if (part_info->part_type == VERSIONING_PARTITION)
                 my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0),
                                   lex->create_last_non_select_table->table_name));
@@ -9975,6 +9971,7 @@ column_default_non_parenthesized_expr:
                                                          $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
+            Lex->default_used= TRUE;
           }
         | VALUE_SYM '(' simple_ident_nospvar ')'
           {

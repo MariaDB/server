@@ -1,7 +1,5 @@
 set @mrr_icp_extra_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
-set in_subquery_conversion_threshold=10000;
-drop table if exists t1, t2, t3, t10, t100;
 CREATE TABLE t1 (
 event_date date DEFAULT '0000-00-00' NOT NULL,
 type int(11) DEFAULT '0' NOT NULL,
@@ -1066,7 +1064,9 @@ set @b= concat("explain ", @a);
 prepare stmt1 from @b;
 execute stmt1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	a	a	5	NULL	1003	Using where; Using index
+1	PRIMARY	t2	index	NULL	a	5	NULL	1003	Using where; Using index
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 prepare stmt1 from @a;
 execute stmt1;
 a
@@ -3019,5 +3019,4 @@ drop table t1,t2,t3;
 #
 # End of 10.2 tests
 #
-set in_subquery_conversion_threshold=default;
 set optimizer_switch=@mrr_icp_extra_tmp;

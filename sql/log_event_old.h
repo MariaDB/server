@@ -116,7 +116,7 @@ public:
 
 #ifdef MYSQL_CLIENT
   /* not for direct call, each derived has its own ::print() */
-  virtual void print(FILE *file, PRINT_EVENT_INFO *print_event_info)= 0;
+  virtual bool print(FILE *file, PRINT_EVENT_INFO *print_event_info)= 0;
 #endif
 
 #ifndef MYSQL_CLIENT
@@ -166,7 +166,7 @@ protected:
                      const Format_description_log_event *description_event);
 
 #ifdef MYSQL_CLIENT
-  void print_helper(FILE *, PRINT_EVENT_INFO *, char const *const name);
+  bool print_helper(FILE *, PRINT_EVENT_INFO *, char const *const name);
 #endif
 
 #ifndef MYSQL_CLIENT
@@ -379,7 +379,7 @@ public:
 
 private:
 #ifdef MYSQL_CLIENT
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
@@ -455,7 +455,7 @@ public:
 
 protected:
 #ifdef MYSQL_CLIENT
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
@@ -529,7 +529,7 @@ public:
   
 protected:
 #ifdef MYSQL_CLIENT
-  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+  bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)

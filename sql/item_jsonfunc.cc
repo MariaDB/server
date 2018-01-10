@@ -781,10 +781,10 @@ String *Item_func_json_extract::read_json(String *str,
   {
     str->set_charset(js->charset());
     str->length(0);
-  }
 
-  if (possible_multiple_values && str->append("[", 1))
-    goto error;
+    if (possible_multiple_values && str->append("[", 1))
+      goto error;
+  }
 
   json_get_path_start(&je, js->charset(),(const uchar *) js->ptr(),
                       (const uchar *) js->ptr() + js->length(), &p);

@@ -2,14 +2,10 @@
 
 [mysqld.1]
 log_slave_updates
-gtid_mode=ON
-enforce_gtid_consistency=ON
 
 [mysqld.2]
 relay_log_recovery=1
-relay_log_info_repository=FILE
+#relay_log_info_repository=FILE
 log_slave_updates
-gtid_mode=ON
-enforce_gtid_consistency=ON
-rbr_idempotent_tables='r1'
-
+#rbr_idempotent_tables='r1'
+slave_exec_mode=IDEMPOTENT

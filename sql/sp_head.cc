@@ -2418,10 +2418,9 @@ sp_head::check_unresolved_goto()
   if (m_backpatch_goto.elements > 0)
   {
     List_iterator_fast<bp_t> li(m_backpatch_goto);
-    bp_t *bp;
-    while ((bp= li++))
+    while (bp_t* bp= li++)
     {
-      if ((bp->instr_type == GOTO))
+      if (bp->instr_type == GOTO)
       {
         my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "GOTO", bp->lab->name.str);
         has_unresolved_label=true;
@@ -4652,7 +4651,8 @@ sp_head::add_used_tables_to_table_list(THD *thd,
       table->init_one_table_for_prelocking(key_buff, stab->db_length,
            key_buff + stab->db_length + 1, stab->table_name_length,
            key_buff + stab->db_length + stab->table_name_length + 2,
-           stab->lock_type, true, belong_to_view, stab->trg_event_map,
+           stab->lock_type, TABLE_LIST::PRELOCK_ROUTINE, belong_to_view,
+           stab->trg_event_map,
            query_tables_last_ptr);
 
       tab_buff+= ALIGN_SIZE(sizeof(TABLE_LIST));

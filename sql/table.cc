@@ -997,7 +997,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   Virtual_column_info **check_constraint_ptr= table->check_constraints;
   sql_mode_t saved_mode= thd->variables.sql_mode;
   Query_arena backup_arena;
-  Virtual_column_info *vcol;
+  Virtual_column_info *vcol= 0;
   StringBuffer<MAX_FIELD_WIDTH> expr_str;
   bool res= 1;
   DBUG_ENTER("parse_vcol_defs");
@@ -1168,7 +1168,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
   uint interval_count, interval_parts, read_length, int_length;
   uint db_create_options, keys, key_parts, n_length;
-  uint com_length, null_bit_pos, mysql57_vcol_null_bit_pos, bitmap_count;
+  uint com_length, null_bit_pos, UNINIT_VAR(mysql57_vcol_null_bit_pos), bitmap_count;
   uint i;
   bool use_hash, mysql57_null_bits= 0;
   char *keynames, *names, *comment_pos;
@@ -2214,6 +2214,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }   
     }
 
+    key_first_info= keyinfo;
     for (uint key=0 ; key < keys ; key++,keyinfo++)
     {
       uint usable_parts= 0;
@@ -2230,9 +2231,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         memcpy(pos + share->table_cache_key.length, keyinfo->name.str,
                keyinfo->name.length+1);
       }
-
-      if (!key)
-        key_first_info= keyinfo;
 
       if (ext_key_parts > share->key_parts && key)
       {
@@ -3053,6 +3051,14 @@ unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   error= parse_sql(thd, &parser_state, NULL);
   if (error)
     goto end;
+
+  if (lex.current_select->table_list.first[0].next_global)
+  {
+    /* We are using NEXT VALUE FOR sequence. Remember table name for open */
+    TABLE_LIST *sequence= lex.current_select->table_list.first[0].next_global;
+    sequence->next_global= table->internal_tables;
+    table->internal_tables= sequence;
+  }
 
   vcol_storage.vcol_info->set_vcol_type(vcol->get_vcol_type());
   vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
@@ -4751,6 +4757,9 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   Query_arena *arena, backup;
   bool res= FALSE;
   DBUG_ENTER("TABLE_LIST::create_field_translation");
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                      (alias ? alias : "<NULL>"),
+                       get_unit()));
 
   if (thd->stmt_arena->is_conventional() ||
       thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
@@ -6985,6 +6994,14 @@ void TABLE::create_key_part_by_field(KEY_PART_INFO *key_part_info,
     might be reused.
   */
   key_part_info->store_length= key_part_info->length;
+  /*
+    For BIT fields null_bit is not set to 0 even if the field is defined
+    as NOT NULL, look at Field_bit::Field_bit
+  */
+  if (!field->real_maybe_null())
+  {
+    key_part_info->null_bit= 0;
+  }
 
   /*
      The total store length of the key part is the raw length of the field +
@@ -7624,7 +7641,6 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       swap_values= 1;
       break;
     case VCOL_UPDATE_FOR_DELETE:
-      /* Fall trough */
     case VCOL_UPDATE_FOR_WRITE:
       update= bitmap_is_set(vcol_set, vf->field_index);
       break;

@@ -105,6 +105,10 @@ my_bool my_init(void)
   if (my_thread_global_init())
     return 1;
 
+#if defined(SAFEMALLOC) && !defined(DBUG_OFF)
+  dbug_sanity= sf_sanity;
+#endif
+
   /* $HOME is needed early to parse configuration files located in ~/ */
   if ((home_dir= getenv("HOME")) != 0)
     home_dir= intern_filename(home_dir_buff, home_dir);

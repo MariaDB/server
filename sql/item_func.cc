@@ -6686,14 +6686,22 @@ longlong Item_func_nextval::val_int()
   longlong value;
   int error;
   const char *key;
-  TABLE *table= table_list->table;
   uint length= get_table_def_key(table_list, &key);
-  THD *thd= table->in_use;
+  THD *thd;
   SEQUENCE_LAST_VALUE *entry;
   char buff[80];
   String key_buff(buff,sizeof(buff), &my_charset_bin);
-  DBUG_ASSERT(table && table->s->sequence);
   DBUG_ENTER("Item_func_nextval::val_int");
+  update_table();
+  DBUG_ASSERT(table && table->s->sequence);
+  thd= table->in_use;
+
+  if (thd->count_cuted_fields == CHECK_FIELD_EXPRESSION)
+  {
+    /* Alter table checking if function works */
+    null_value= 0;
+    DBUG_RETURN(0);
+  }
 
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
@@ -6745,7 +6753,7 @@ void Item_func_nextval::print(String *str, enum_query_type query_type)
   char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
   const char *d_name= table_list->db, *t_name= table_list->table_name;
   bool use_db_name= d_name && d_name[0];
-  THD *thd= current_thd;
+  THD *thd= current_thd;                        // Don't trust 'table'
 
   str->append(func_name());
   str->append('(');
@@ -6785,12 +6793,14 @@ longlong Item_func_lastval::val_int()
   const char *key;
   SEQUENCE_LAST_VALUE *entry;
   uint length= get_table_def_key(table_list, &key);
-  THD *thd= table_list->table->in_use;
+  THD *thd;
   char buff[80];
   String key_buff(buff,sizeof(buff), &my_charset_bin);
   DBUG_ENTER("Item_func_lastval::val_int");
+  update_table();
+  thd= table->in_use;
 
-  if (table_list->table->s->tmp_table != NO_TMP_TABLE)
+  if (table->s->tmp_table != NO_TMP_TABLE)
   {
     /*
       Temporary tables has an extra \0 at end to distinguish it from
@@ -6809,7 +6819,7 @@ longlong Item_func_lastval::val_int()
     null_value= 1;
     DBUG_RETURN(0);
   }
-  if (entry->check_version(table_list->table))
+  if (entry->check_version(table))
   {
     /* Table droped and re-created, remove current version */
     my_hash_delete(&thd->sequences, (uchar*) entry);
@@ -6834,9 +6844,19 @@ longlong Item_func_setval::val_int()
 {
   longlong value;
   int error;
-  TABLE *table= table_list->table;
-  DBUG_ASSERT(table && table->s->sequence);
+  THD *thd;
   DBUG_ENTER("Item_func_setval::val_int");
+
+  update_table();
+  DBUG_ASSERT(table && table->s->sequence);
+  thd= table->in_use;
+
+  if (thd->count_cuted_fields == CHECK_FIELD_EXPRESSION)
+  {
+    /* Alter table checking if function works */
+    null_value= 0;
+    DBUG_RETURN(0);
+  }
 
   value= nextval;
   error= table->s->sequence->set_value(table, nextval, round, is_used);
@@ -6856,7 +6876,7 @@ void Item_func_setval::print(String *str, enum_query_type query_type)
   char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
   const char *d_name= table_list->db, *t_name= table_list->table_name;
   bool use_db_name= d_name && d_name[0];
-  THD *thd= table_list->table->in_use;
+  THD *thd= current_thd;                        // Don't trust 'table'
 
   str->append(func_name());
   str->append('(');

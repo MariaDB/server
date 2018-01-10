@@ -1104,6 +1104,8 @@ struct st_cond_statistic;
 /* Bitmap of table's fields */
 typedef Bitmap<MAX_FIELDS> Field_map;
 
+class SplM_opt_info;
+
 struct TABLE
 {
   TABLE() {}                               /* Remove gcc warning */
@@ -1168,6 +1170,8 @@ public:
   TABLE_LIST *pos_in_table_list;/* Element referring to this table */
   /* Position in thd->locked_table_list under LOCK TABLES */
   TABLE_LIST *pos_in_locked_tables;
+  /* Tables used in DEFAULT and CHECK CONSTRAINT (normally sequence tables) */
+  TABLE_LIST *internal_tables;
 
   /*
     Not-null for temporary tables only. Non-null values means this table is
@@ -1381,7 +1385,13 @@ public:
   bool stats_is_read;     /* Persistent statistics is read for the table */
   bool histograms_are_read;
   MDL_ticket *mdl_ticket;
-  List<Field> splitting_fields;
+
+  /*
+    This is used only for potentially splittable materialized tables and it
+    points to the info used by the optimizer to apply splitting optimization
+  */
+  SplM_opt_info *spl_opt_info;
+  key_map keys_usable_for_splitting;
 
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
@@ -1526,6 +1536,10 @@ public:
                                       bool with_cleanup);
   Field *find_field_by_name(LEX_CSTRING *str) const;
   bool export_structure(THD *thd, class Row_definition_list *defs);
+  bool is_splittable() { return spl_opt_info != NULL; }
+  void set_spl_opt_info(SplM_opt_info *spl_info);
+  void deny_splitting();
+  void add_splitting_info_for_key_field(struct KEY_FIELD *key_field);
 
   /**
     System Versioning support
@@ -1914,6 +1928,11 @@ struct TABLE_LIST
 {
   TABLE_LIST() {}                          /* Remove gcc warning */
 
+  enum prelocking_types
+  {
+    PRELOCK_NONE, PRELOCK_ROUTINE, PRELOCK_FK
+  };
+
   /**
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
@@ -1954,7 +1973,7 @@ struct TABLE_LIST
                              size_t table_name_length_arg,
                              const char *alias_arg,
                              enum thr_lock_type lock_type_arg,
-                             bool routine,
+                             prelocking_types prelocking_type,
                              TABLE_LIST *belong_to_view_arg,
                              uint8 trg_event_map_arg,
                              TABLE_LIST ***last_ptr)
@@ -1962,8 +1981,10 @@ struct TABLE_LIST
     init_one_table(db_name_arg, db_length_arg, table_name_arg,
                    table_name_length_arg, alias_arg, lock_type_arg);
     cacheable_table= 1;
-    prelocking_placeholder= routine ? ROUTINE : FK;
-    open_type= routine ? OT_TEMPORARY_OR_BASE : OT_BASE_ONLY;
+    prelocking_placeholder= prelocking_type;
+    open_type= (prelocking_type == PRELOCK_ROUTINE ?
+                OT_TEMPORARY_OR_BASE :
+                OT_BASE_ONLY);
     belong_to_view= belong_to_view_arg;
     trg_event_map= trg_event_map_arg;
 
@@ -2252,7 +2273,7 @@ struct TABLE_LIST
     This TABLE_LIST object is just placeholder for prelocking, it will be
     used for implicit LOCK TABLES only and won't be used in real statement.
   */
-  enum { USER, ROUTINE, FK } prelocking_placeholder;
+  prelocking_types prelocking_placeholder;
   /**
      Indicates that if TABLE_LIST object corresponds to the table/view
      which requires special handling.
@@ -2507,6 +2528,9 @@ struct TABLE_LIST
   inline void set_merged_derived()
   {
     DBUG_ENTER("set_merged_derived");
+    DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                        (alias ? alias : "<NULL>"),
+                         get_unit()));
     derived_type= ((derived_type & DTYPE_MASK) |
                    DTYPE_TABLE | DTYPE_MERGE);
     set_check_merged();
@@ -2519,6 +2543,9 @@ struct TABLE_LIST
   void set_materialized_derived()
   {
     DBUG_ENTER("set_materialized_derived");
+    DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                        (alias ? alias : "<NULL>"),
+                         get_unit()));
     derived_type= ((derived_type & (derived ? DTYPE_MASK : DTYPE_VIEW)) |
                    DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();

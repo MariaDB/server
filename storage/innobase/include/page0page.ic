@@ -1116,7 +1116,7 @@ page_get_instant(const page_t* page)
 		ut_ad(i <= PAGE_NO_DIRECTION || !page_is_comp(page));
 		break;
 	case FIL_PAGE_RTREE:
-		ut_ad(i == PAGE_NO_DIRECTION || i == 0);
+		ut_ad(i <= PAGE_NO_DIRECTION);
 		break;
 	default:
 		ut_ad(!"invalid page type");

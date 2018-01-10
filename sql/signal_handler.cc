@@ -298,7 +298,9 @@ extern "C" sig_handler handle_fatal_signal(int sig)
 #ifdef HAVE_WRITE_CORE
   if (test_flags & TEST_CORE_ON_SIGNAL)
   {
-    my_safe_printf_stderr("%s", "Writing a core file\n");
+    char buff[80];
+    my_getwd(buff, sizeof(buff), 0);
+    my_safe_printf_stderr("Writing a core file at %s\n", buff);
     fflush(stderr);
     my_write_core(sig);
   }
