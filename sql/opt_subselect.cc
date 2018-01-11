@@ -2704,7 +2704,8 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
     LooseScan detector in best_access_path)
   */
   remaining_tables &= ~new_join_tab->table->map;
-  table_map dups_producing_tables;
+  table_map dups_producing_tables, prev_dups_producing_tables,
+            prev_sjm_lookup_tables;
 
   if (idx == join->const_tables)
     dups_producing_tables= 0;
@@ -2715,7 +2716,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
   if ((emb_sj_nest= new_join_tab->emb_sj_nest))
     dups_producing_tables |= emb_sj_nest->sj_inner_tables;
 
-  Semi_join_strategy_picker **strategy;
+  Semi_join_strategy_picker **strategy, **prev_strategy;
   if (idx == join->const_tables)
   {
     /* First table, initialize pickers */
@@ -2767,23 +2768,54 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
                 3. We have no clue what to do about fanount of semi-join Y.
         */
         if ((dups_producing_tables & handled_fanout) ||
-            (read_time < *current_read_time && 
+            (read_time < *current_read_time &&
              !(handled_fanout & pos->inner_tables_handled_with_other_sjs)))
         {
-          /* Mark strategy as used */ 
-          (*strategy)->mark_used();
-          pos->sj_strategy= sj_strategy;
-          if (sj_strategy == SJ_OPT_MATERIALIZE)
-            join->sjm_lookup_tables |= handled_fanout;
+          DBUG_ASSERT(pos->sj_strategy != sj_strategy);
+          /*
+            If the strategy choosen first time or
+            the strategy replace strategy which was used to exectly the same
+            tables
+          */
+          if (pos->sj_strategy == SJ_OPT_NONE ||
+              handled_fanout ==
+                (prev_dups_producing_tables ^ dups_producing_tables))
+          {
+            prev_strategy= strategy;
+            if (pos->sj_strategy == SJ_OPT_NONE)
+            {
+              prev_dups_producing_tables= dups_producing_tables;
+              prev_sjm_lookup_tables= join->sjm_lookup_tables;
+            }
+            /* Mark strategy as used */
+            (*strategy)->mark_used();
+            pos->sj_strategy= sj_strategy;
+            if (sj_strategy == SJ_OPT_MATERIALIZE)
+              join->sjm_lookup_tables |= handled_fanout;
+            else
+              join->sjm_lookup_tables &= ~handled_fanout;
+            *current_read_time= read_time;
+            *current_record_count= rec_count;
+            dups_producing_tables &= ~handled_fanout;
+            //TODO: update bitmap of semi-joins that were handled together with
+            // others.
+            if (is_multiple_semi_joins(join, join->positions, idx,
+                                       handled_fanout))
+              pos->inner_tables_handled_with_other_sjs |= handled_fanout;
+          }
           else
-            join->sjm_lookup_tables &= ~handled_fanout;
-          *current_read_time= read_time;
-          *current_record_count= rec_count;
-          dups_producing_tables &= ~handled_fanout;
-          //TODO: update bitmap of semi-joins that were handled together with
-          // others.
-          if (is_multiple_semi_joins(join, join->positions, idx, handled_fanout))
-            pos->inner_tables_handled_with_other_sjs |= handled_fanout;
+          {
+            /* Conflict fall to most general variant */
+            (*prev_strategy)->set_empty();
+            dups_producing_tables= prev_dups_producing_tables;
+            join->sjm_lookup_tables= prev_sjm_lookup_tables;
+            // mark it 'none' to avpoid loops
+            pos->sj_strategy= SJ_OPT_NONE;
+            // next skip to last;
+            strategy= pickers +
+              (sizeof(pickers)/sizeof(Semi_join_strategy_picker*) - 3);
+            continue;
+          }
         }
         else
         {
