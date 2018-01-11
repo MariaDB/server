@@ -7186,6 +7186,32 @@ NULL
 # SELECT (SELECT MAX(sq.f2) FROM t1) FROM (SELECT * FROM t2) AS sq WHERE f2 = 2;
 #
 drop table t1, t2;
+#
+# MDEV-13933: Wrong results in COUNT() query with EXISTS and exists_to_in
+# (5.5 test)
+#
+SET @optimiser_switch_save= @@optimizer_switch;
+CREATE TABLE t1 (a INT NOT NULL);
+INSERT INTO t1 VALUES (1),(1),(1),(5),(5);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (5),(1);
+CREATE TABLE t3 (c INT, KEY(c));
+INSERT INTO t3 VALUES (5),(5);
+SET optimizer_switch='semijoin=on';
+select t1.a from t1 where t1.a in (select `test`.`t2`.`b` from `test`.`t2`)
+and t1.a in (select `test`.`t3`.`c` from `test`.`t3`);
+a
+5
+5
+SET optimizer_switch='semijoin=off';
+select t1.a from t1 where t1.a in (select `test`.`t2`.`b` from `test`.`t2`)
+and t1.a in (select `test`.`t3`.`c` from `test`.`t3`);
+a
+5
+5
+SET @@optimizer_switch= @optimiser_switch_save;
+DROP TABLE t1, t2, t3;
+End of 5.5 tests
 set optimizer_switch=default;
 select @@optimizer_switch like '%exists_to_in=off%';
 @@optimizer_switch like '%exists_to_in=off%'
