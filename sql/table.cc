@@ -7800,6 +7800,15 @@ void TABLE::vers_update_fields()
 }
 
 
+void TABLE::vers_update_end()
+{
+  vers_end_field()->set_notnull();
+  if (vers_end_field()->store_timestamp(in_use->system_time,
+                                        in_use->system_time_sec_part))
+    DBUG_ASSERT(0);
+}
+
+
 bool TABLE_LIST::vers_vtmd_name(String& out) const
 {
   static const char *vtmd_suffix= "_vtmd";
