@@ -1,0 +1,2 @@
+usr/bin/mariadb_config usr/bin/mysql_config
+usr/share/pkgconfig/mariadb.pc usr/share/pkgconfig/mysqlclient.pc
