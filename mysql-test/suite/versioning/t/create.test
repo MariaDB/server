@@ -1,3 +1,4 @@
+--source include/not_embedded.inc
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
 
