@@ -1,0 +1,4 @@
+usr/lib/*/libmysqlclient.a
+usr/lib/*/libmysqlclient.so
+usr/lib/*/libmysqlclient_r.a
+usr/lib/*/libmysqlclient_r.so
