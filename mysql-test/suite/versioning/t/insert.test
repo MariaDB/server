@@ -245,6 +245,10 @@ set timestamp=1000000019;
 select now() < sysdate();
 create table t1 (a int) with system versioning;
 insert t1 values (1);
+
+--source suite/versioning/wait_system_clock.inc
+set @a=sysdate(6);
+
 select * from t1 for system_time as of now(6);
 select * from t1 for system_time as of sysdate(6);
 
