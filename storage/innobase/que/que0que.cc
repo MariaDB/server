@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1030,6 +1030,7 @@ que_thr_step(
 	} else if (type == QUE_NODE_SELECT) {
 		thr = row_sel_step(thr);
 	} else if (type == QUE_NODE_INSERT) {
+		trx_start_if_not_started_xa(thr_get_trx(thr), true);
 		thr = row_ins_step(thr);
 	} else if (type == QUE_NODE_UPDATE) {
 		trx_start_if_not_started_xa(thr_get_trx(thr), true);

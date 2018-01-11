@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -79,6 +79,10 @@ static const ulint BUF_LRU_SEARCH_SCAN_THRESHOLD = 100;
 /** If we switch on the InnoDB monitor because there are too few available
 frames in the buffer pool, we set this to TRUE */
 static bool buf_lru_switched_on_innodb_mon = false;
+
+/** True if diagnostic message about difficult to find free blocks
+in the buffer bool has already printed. */
+static bool	buf_lru_free_blocks_error_printed;
 
 /******************************************************************//**
 These statistics are not 'of' LRU but 'for' LRU.  We keep count of I/O
@@ -1079,14 +1083,17 @@ buf_LRU_get_free_block(
 	bool		freed		= false;
 	ulint		n_iterations	= 0;
 	ulint		flush_failures	= 0;
-	bool		mon_value_was	= false;
-	bool		started_monitor	= false;
 
 	MONITOR_INC(MONITOR_LRU_GET_FREE_SEARCH);
 loop:
 	buf_pool_mutex_enter(buf_pool);
 
 	buf_LRU_check_size_of_non_data_objects(buf_pool);
+
+	DBUG_EXECUTE_IF("ib_lru_force_no_free_page",
+		if (!buf_lru_free_blocks_error_printed) {
+			n_iterations = 21;
+			goto not_found;});
 
 	/* If there is a block in the free list, take it */
 	block = buf_LRU_get_free_only(buf_pool);
@@ -1096,11 +1103,6 @@ loop:
 		buf_pool_mutex_exit(buf_pool);
 		ut_ad(buf_pool_from_block(block) == buf_pool);
 		memset(&block->page.zip, 0, sizeof block->page.zip);
-
-		if (started_monitor) {
-			srv_print_innodb_monitor =
-				static_cast<my_bool>(mon_value_was);
-		}
 
 		block->skip_flush_check = false;
 		block->page.flush_observer = NULL;
@@ -1131,24 +1133,24 @@ loop:
 		}
 	}
 
+#ifndef DBUG_OFF
+not_found:
+#endif
+
 	buf_pool_mutex_exit(buf_pool);
 
 	if (freed) {
 		goto loop;
 	}
 
-	if (n_iterations > 20
+	if (n_iterations > 20 && !buf_lru_free_blocks_error_printed
 	    && srv_buf_pool_old_size == srv_buf_pool_size) {
 
 		ib::warn() << "Difficult to find free blocks in the buffer pool"
 			" (" << n_iterations << " search iterations)! "
 			<< flush_failures << " failed attempts to"
-			" flush a page! Consider increasing the buffer pool"
-			" size. It is also possible that in your Unix version"
-			" fsync is very slow, or completely frozen inside"
-			" the OS kernel. Then upgrading to a newer version"
-			" of your operating system may help. Look at the"
-			" number of fsyncs in diagnostic info below."
+			" flush a page!"
+			" Consider increasing innodb_buffer_pool_size."
 			" Pending flushes (fsync) log: "
 			<< fil_n_pending_log_flushes
 			<< "; buffer pool: "
@@ -1156,13 +1158,9 @@ loop:
 			<< ". " << os_n_file_reads << " OS file reads, "
 			<< os_n_file_writes << " OS file writes, "
 			<< os_n_fsyncs
-			<< " OS fsyncs. Starting InnoDB Monitor to print"
-			" further diagnostics to the standard output.";
+			<< " OS fsyncs.";
 
-		mon_value_was = srv_print_innodb_monitor;
-		started_monitor = true;
-		srv_print_innodb_monitor = true;
-		os_event_set(srv_monitor_event);
+		buf_lru_free_blocks_error_printed = true;
 	}
 
 	/* If we have scanned the whole LRU and still are unable to

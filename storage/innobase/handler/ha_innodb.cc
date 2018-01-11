@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
@@ -21902,7 +21902,8 @@ const char*	BUG_REPORT_MSG =
 	"Submit a detailed bug report to https://jira.mariadb.org/";
 
 const char*	FORCE_RECOVERY_MSG =
-	"Please refer to " REFMAN "forcing-innodb-recovery.html"
+	"Please refer to "
+	"https://mariadb.com/kb/en/library/xtradbinnodb-recovery-modes/"
 	" for information about forcing recovery.";
 
 const char*	ERROR_CREATING_MSG =
@@ -21910,17 +21911,17 @@ const char*	ERROR_CREATING_MSG =
 
 const char*	OPERATING_SYSTEM_ERROR_MSG =
 	"Some operating system error numbers are described at"
-	" " REFMAN "operating-system-error-codes.html";
+	" https://mariadb.com/kb/en/library/operating-system-error-codes/";
 
 const char*	FOREIGN_KEY_CONSTRAINTS_MSG =
-	"Please refer to " REFMAN "innodb-foreign-key-constraints.html"
+	"Please refer to https://mariadb.com/kb/en/library/foreign-keys/"
 	" for correct foreign key definition.";
 
 const char*	SET_TRANSACTION_MSG =
-	"Please refer to " REFMAN "set-transaction.html";
+	"Please refer to https://mariadb.com/kb/en/library/set-transaction/";
 
 const char*	INNODB_PARAMETERS_MSG =
-	"Please refer to " REFMAN "innodb-parameters.html";
+	"Please refer to https://mariadb.com/kb/en/library/xtradbinnodb-server-system-variables/";
 
 /**********************************************************************
 Converts an identifier from my_charset_filename to UTF-8 charset.

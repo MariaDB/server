@@ -362,6 +362,7 @@ CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10 e
 select next value for t1;
 select previous value for t1;
 CREATE TEMPORARY SEQUENCE t1 start with 100 minvalue 100 maxvalue 200 increment by 1 cache 10 engine=innodb;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
 select previous value for t1;
 select next value for t1;
 select previous value for t1;

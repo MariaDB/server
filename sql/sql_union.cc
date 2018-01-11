@@ -1709,6 +1709,7 @@ bool st_select_lex_unit::exec_recursive()
        sq;
        sq= sq->next_with_rec_ref)
   {
+    sq->reset();
     sq->engine->force_reexecution();
   }   
 

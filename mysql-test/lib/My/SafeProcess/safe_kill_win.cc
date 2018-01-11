@@ -26,7 +26,20 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <psapi.h>
+
+#ifdef _MSC_VER
+/* Silence warning in OS header dbghelp.h */
+#pragma warning(push)
+#pragma warning(disable : 4091)
+#endif
+
 #include <dbghelp.h>
+
+#ifdef _MSC_VER
+/* Silence warning in OS header dbghelp.h */
+#pragma warning(pop)
+#endif
+
 #include <tlhelp32.h>
 #include <vector>
 

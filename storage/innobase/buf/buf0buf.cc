@@ -4350,11 +4350,7 @@ loop:
 				<< ". The most probable cause"
 				" of this error may be that the"
 				" table has been corrupted."
-				" You can try to fix this"
-				" problem by using"
-				" innodb_force_recovery."
-				" Please see " REFMAN " for more"
-				" details. Aborting...";
+				" See https://mariadb.com/kb/en/library/xtradbinnodb-recovery-modes/";
 		}
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG

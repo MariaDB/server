@@ -2343,8 +2343,8 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo, 
                                ulonglong options);
 bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
-                           MARIA_COLUMNDEF *start_recinfo,
-                           MARIA_COLUMNDEF **recinfo, 
+                           TMP_ENGINE_COLUMNDEF *start_recinfo,
+                           TMP_ENGINE_COLUMNDEF **recinfo,
                            ulonglong options);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
