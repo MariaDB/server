@@ -40,6 +40,7 @@
 #include "sql_error.h"
 #include "sp_head.h"
 #include "pfs_digest.h"
+#include <algorithm>
 
 using std::min;
 /**

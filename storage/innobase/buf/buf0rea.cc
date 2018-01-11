@@ -156,7 +156,7 @@ buf_read_page_low(
 		return(0);
 	}
 
-	DBUG_LOG("ib_buf",
+	ut_d_log("ib_buf",
 		 "read page " << page_id << " size=" << page_size.physical()
 		 << " unzip=" << unzip << ',' << (sync ? "sync" : "async"));
 

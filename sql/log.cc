@@ -56,6 +56,7 @@
 #include "wsrep_mysqld.h"
 #include "sp_rcontext.h"
 #include "sp_head.h"
+#include <algorithm>
 
 /* max size of the log message */
 #define MAX_LOG_BUFFER_SIZE 1024

@@ -21,8 +21,6 @@
 #include <mysql_com.h>
 #include <lf.h>
 
-#include <algorithm>
-
 class THD;
 
 class MDL_context;
@@ -366,16 +364,7 @@ public:
   /**
     Compare two MDL keys lexicographically.
   */
-  int cmp(const MDL_key *rhs) const
-  {
-    /*
-      The key buffer is always '\0'-terminated. Since key
-      character set is utf-8, we can safely assume that no
-      character starts with a zero byte.
-    */
-    using std::min;
-    return memcmp(m_ptr, rhs->m_ptr, min(m_length, rhs->m_length));
-  }
+  int cmp(const MDL_key *rhs) const;
 
   MDL_key(const MDL_key *rhs)
   {

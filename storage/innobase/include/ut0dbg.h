@@ -182,4 +182,20 @@ private:
 
 #endif /* !UNIV_INNOCHECKSUM */
 
+#if !defined(UNIV_DEBUG) || defined(DBUG_OFF)
+#define ut_d_log(keyword, v)                                                   \
+	do {                                                                   \
+	} while (0)
+#else
+#include <sstream>
+#define ut_d_log(keyword, v)                                                   \
+	do {                                                                   \
+		if (_db_pargs_(__LINE__, keyword)) {                           \
+			std::ostringstream _db_s;                              \
+			_db_s << v;                                            \
+			_db_doprnt_("%s", _db_s.str().c_str());                \
+		}                                                              \
+	} while (0)
+#endif
+
 #endif

@@ -668,7 +668,7 @@ buf_page_is_checksum_valid_crc32(
 	}
 
 invalid:
-	DBUG_LOG("checksum", "Page checksum crc32 not valid"
+	ut_d_log("checksum", "Page checksum crc32 not valid"
 		   << " field1 " << checksum_field1
 		   << " field2 " << checksum_field2
 		 << " crc32 " << crc32);
@@ -732,7 +732,7 @@ buf_page_is_checksum_valid_innodb(
 
 	if (checksum_field2 != mach_read_from_4(read_buf + FIL_PAGE_LSN)
 	    && checksum_field2 != old_checksum) {
-		DBUG_LOG("checksum",
+		ut_d_log("checksum",
 			 "Page checksum crc32 not valid"
 			 << " field1 " << checksum_field1
 			 << " field2 " << checksum_field2
@@ -748,7 +748,7 @@ buf_page_is_checksum_valid_innodb(
 	(always equal to 0), to FIL_PAGE_SPACE_OR_CHKSUM */
 
 	if (checksum_field1 != 0 && checksum_field1 != new_checksum) {
-		DBUG_LOG("checksum",
+		ut_d_log("checksum",
 			 "Page checksum crc32 not valid"
 			 << " field1 " << checksum_field1
 			 << " field2 " << checksum_field2
@@ -775,7 +775,7 @@ buf_page_is_checksum_valid_none(
 #ifndef DBUG_OFF
 	if (checksum_field1 != checksum_field2
 	    && checksum_field1 != BUF_NO_CHECKSUM_MAGIC) {
-		DBUG_LOG("checksum",
+		ut_d_log("checksum",
 			 "Page checksum crc32 not valid"
 			 << " field1 " << checksum_field1
 			 << " field2 " << checksum_field2

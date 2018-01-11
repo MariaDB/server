@@ -19,6 +19,7 @@
 #include "sql_parse.h"
 #include "pfs_instr_class.h"
 #include "pfs_instr.h"
+#include <algorithm>
 
 THR_LOCK table_threads::m_table_lock;
 

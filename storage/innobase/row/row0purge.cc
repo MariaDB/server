@@ -522,7 +522,7 @@ row_purge_remove_sec_if_poss_leaf(
 					and it has a "page" lock on it,
 					which mean search is still depending
 					on it, so do not delete */
-					DBUG_LOG("purge",
+					ut_d_log("purge",
 						 "skip purging last"
 						 " record on page "
 						 << btr_cur_get_block(btr_cur)
@@ -705,7 +705,7 @@ row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 		    == row_get_rec_roll_ptr(rec, index, offsets)) {
 			ut_ad(!rec_get_deleted_flag(rec,
 						    rec_offs_comp(offsets)));
-			DBUG_LOG("purge", "reset DB_TRX_ID="
+			ut_d_log("purge", "reset DB_TRX_ID="
 				 << ib::hex(row_get_rec_trx_id(
 						    rec, index, offsets)));
 

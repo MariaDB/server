@@ -158,7 +158,7 @@ fil_compress_page(
 		comp_level = page_zip_level;
 	}
 
-	DBUG_LOG("compress", "Preparing for space "
+	ut_d_log("compress", "Preparing for space "
 		 << (space ? space->id : 0) << " '"
 		 << (space ? space->name : "(import)") << "' len " << len);
 
@@ -347,7 +347,7 @@ fil_compress_page(
 #endif
 	}
 
-	DBUG_LOG("compress", "Succeeded for space "
+	ut_d_log("compress", "Succeeded for space "
 		 << (space ? space->id : 0) << " '"
 		 << (space ? space->name : "(import)")
 		 << "' len " << len << " out_len " << write_size);
@@ -490,7 +490,7 @@ fil_decompress_page(
 		*write_size = actual_size;
 	}
 
-	DBUG_LOG("compress", "Preparing for decompress for len "
+	ut_d_log("compress", "Preparing for decompress for len "
 		 << actual_size << ".");
 
 	switch(compression_alg) {

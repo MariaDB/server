@@ -34,6 +34,7 @@
 #include "sp.h"
 #include "sql_parse.h"
 #include "sp_head.h"
+#include <algorithm>
 
 /**
   Calculate the affordable RAM limit for structures like TREE or Unique

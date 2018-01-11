@@ -20,6 +20,7 @@
 #include "sql_priv.h"
 #include "key.h"                                // key_rec_cmp
 #include "field.h"                              // Field
+#include <algorithm>
 
 using std::min;
 using std::max;

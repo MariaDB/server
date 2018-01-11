@@ -3171,7 +3171,7 @@ fseg_free_page_func(
 	fil_space_t*		space = mtr_x_lock_space(space_id, mtr);
 	const page_size_t	page_size(space->flags);
 
-	DBUG_LOG("fseg_free_page", "space_id: " << space_id
+	ut_d_log("fseg_free_page", "space_id: " << space_id
 		 << ", page_no: " << page);
 
 	seg_inode = fseg_inode_get(seg_header, space_id, page_size, mtr,
