@@ -176,7 +176,7 @@ SET(INSTALL_SYSCONF2DIR_DEB             "/etc/mysql/conf.d")
 SET(INSTALL_LIBDIR_DEB                  "lib")
 SET(INSTALL_PLUGINDIR_DEB               "lib/mysql/plugin")
 #
-SET(INSTALL_INCLUDEDIR_DEB              "include/mysql")
+SET(INSTALL_INCLUDEDIR_DEB              "include/mariadb")
 #
 SET(INSTALL_DOCDIR_DEB                  "share/doc")
 SET(INSTALL_DOCREADMEDIR_DEB            "share/doc")

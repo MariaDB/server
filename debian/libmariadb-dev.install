@@ -1,5 +1,5 @@
 usr/bin/mariadb_config
-usr/include/mysql
+usr/include/mariadb
 usr/lib/*/libmariadb.so
 usr/lib/*/libmariadbclient.so
 usr/lib/*/libmariadbclient.a
