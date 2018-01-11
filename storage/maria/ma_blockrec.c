@@ -6129,7 +6129,7 @@ my_bool write_hook_for_undo_row_insert(enum translog_record_type type
 
 
 /**
-   @brief Upates "records" and calls the generic UNDO hook
+   @brief Updates "records" and calls the generic UNDO hook
 
    @return Operation status, always 0 (success)
 */
