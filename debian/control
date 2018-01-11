@@ -50,10 +50,6 @@ Conflicts: mariadb-galera-server-10.0 (<< 10.0.5),
            mariadb-server-5.3,
            mariadb-server-5.5 (<< 5.5.33),
            libmariadbclient18 (<< 10.2.0)
-Replaces: libmysqlclient19,
-          libmysqlclient20
-Provides: libmysqlclient19,
-          libmysqlclient20
 Description: MariaDB database client library
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -61,6 +57,25 @@ Description: MariaDB database client library
  ease of use.
  .
  This package includes the client library.
+
+Package: libmariadb3-compat
+Architecture: any
+Section: libs
+Depends: mariadb-common, libmariadb3, ${misc:Depends}, ${shlibs:Depends}
+Breaks: libmysqlclient19,
+       libmysqlclient20
+Replaces: libmysqlclient19,
+         libmysqlclient20
+Provides: libmysqlclient19,
+         libmysqlclient20
+Description: MariaDB database client library MySQL compat package
+ MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
+ server. SQL (Structured Query Language) is the most popular database query
+ language in the world. The main goals of MariaDB are speed, robustness and
+ ease of use.
+ .
+ This package includes the client runtime libraries that simulate and replace
+ the equivalents found in MySQL 5.6 and 5.7 (mysqlclient19 and 20).
 
 Package: libmariadbclient18
 Section: libs
@@ -74,7 +89,7 @@ Description: Virtual package to satisfy external depends
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This package provides compatibility symlinks for libmariadb3
+ This package provides compatibility symlinks for libmariadb3.
 
 Package: libmysqlclient18
 Section: libs
@@ -88,7 +103,7 @@ Description: Virtual package to satisfy external depends
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This package provides compatibility symlinks for libmariadb3
+ This package provides compatibility symlinks for libmariadb3.
 
 Package: libmariadb-dev
 Architecture: any
