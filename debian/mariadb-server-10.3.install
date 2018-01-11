@@ -19,7 +19,6 @@ usr/bin/myisamchk
 usr/bin/myisamlog
 usr/bin/myisampack
 usr/bin/mysql_convert_table_format
-usr/bin/mysql_install_db
 usr/bin/mysql_plugin
 usr/bin/mysql_secure_installation
 usr/bin/mysql_setpermission
