@@ -8115,11 +8115,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       thus we safely can take table from the first field.
     */
     fld= (Item_field*)f++;
-    if (!(field= fld->field_for_view_update()))
-    {
-      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), fld->name.str);
-      goto err;
-    }
+    field= fld->field_for_view_update();
+    DBUG_ASSERT(field);
     DBUG_ASSERT(field->field->table == table_arg);
     table_arg->auto_increment_field_not_null= FALSE;
     f.rewind();
