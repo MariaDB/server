@@ -626,7 +626,7 @@ Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
 
-Package: mariadb-plugin-aws-key-management-10.3
+Package: mariadb-plugin-aws-key-management
 Section: database
 Architecture: any
 Breaks: mariadb-aws-key-management-10.1,

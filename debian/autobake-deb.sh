@@ -82,9 +82,12 @@ if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
 then
   sed '/Package: mariadb-plugin-rocksdb/,+13d' -i debian/control
 fi
+
+# AWS SDK requires c++11 -capable compiler
+# Minimal supported versions are g++ 4.8 and clang 3.3.
 if [[ $GCCVERSION -lt 40800 ]] || [[ $TRAVIS ]]
 then
-  sed '/Package: mariadb-plugin-aws-key-management-10.3/,+15d' -i debian/control
+  sed '/Package: mariadb-plugin-aws-key-management/,+14d' -i debian/control
 fi
 
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above
