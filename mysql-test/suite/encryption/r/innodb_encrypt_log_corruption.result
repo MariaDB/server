@@ -124,8 +124,8 @@ SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
-0
-FOUND 1 /InnoDB: Upgrading redo log:/ in mysqld.1.err
+1
+FOUND 2 /InnoDB: Upgrading redo log:/ in mysqld.1.err
 # Minimal MariaDB 10.1.21 encrypted redo log
 SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');

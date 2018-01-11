@@ -428,8 +428,15 @@ print OUT pack("Nx[5]nx[5]", 1, 0x1286);
 print OUT "ibbackup was here!!!1!";
 print OUT pack("x[470]N", 0x52b54540);
 # In encryption.innodb_log_corruption the previous step would
-# replace the block with an encrypted one. Rewrite it as it was.
-die unless seek(OUT, 0x800, 0);
+# replace the block with an encrypted one and update the checkpoint.
+# Restore them.
+# invalid (all-zero) checkpoint page 1 and an empty log page
+print OUT chr(0) x 1024;
+# valid checkpoint block 2
+print OUT pack("x[12]NNNx[264]", 0x12860c, 0, 0x80c);
+# pointer to the MLOG_CHECKPOINT record, and checkpoint page checksum
+print OUT pack("H*x[204]NNN", "590DBAACFE922582", 0x128612, 0, 0x101741b);
+# log page
 print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 1, 0x46c8a2a2);
 close OUT or die;
 EOF
