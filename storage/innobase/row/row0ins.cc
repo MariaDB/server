@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3193,9 +3193,9 @@ row_ins_clust_index_entry(
 
 	/* Try first optimistic descent to the B-tree */
 	log_free_check();
-	const ulint	flags = dict_table_is_temporary(index->table)
-		? BTR_NO_LOCKING_FLAG
-		: index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
+	const ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
+		: dict_table_is_temporary(index->table)
+		? BTR_NO_LOCKING_FLAG : 0;
 
 	err = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_LEAF, index, n_uniq, entry,
@@ -3304,7 +3304,7 @@ row_ins_index_entry(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	ut_ad(thr_get_trx(thr)->id != 0);
+	ut_ad(thr_get_trx(thr)->id || index->table->no_rollback());
 
 	DBUG_EXECUTE_IF("row_ins_index_entry_timeout", {
 			DBUG_SET("-d,row_ins_index_entry_timeout");
@@ -3763,8 +3763,6 @@ row_ins_step(
 	DEBUG_SYNC_C("innodb_row_ins_step_enter");
 
 	trx = thr_get_trx(thr);
-
-	trx_start_if_not_started_xa(trx, true);
 
 	node = static_cast<ins_node_t*>(thr->run_node);
 
