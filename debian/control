@@ -83,13 +83,14 @@ Architecture: any
 Depends: libmariadb3 (= ${binary:Version}), ${misc:Depends}
 Replaces: libmariadbclient18
 Provides: libmariadbclient18
-Description: Virtual package to satisfy external depends
+Description: Virtual package to satisfy external libmariadbclient18 depends
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This package provides compatibility symlinks for libmariadb3.
+ This package provides compatibility symlinks for binaries that expect to find
+ libmariadbclient.so.18 will automatically use libmariadb.so.3 instead.
 
 Package: libmysqlclient18
 Section: libs
@@ -97,13 +98,14 @@ Architecture: any
 Depends: libmariadb3 (= ${binary:Version}), ${misc:Depends}
 Replaces: libmysqlclient18
 Provides: libmysqlclient18
-Description: Virtual package to satisfy external depends
+Description: Virtual package to satisfy external libmysqlclient18 depends
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This package provides compatibility symlinks for libmariadb3.
+ This package provides compatibility symlinks for binaries that expect to find
+ libmysqlclient.so.18 will automatically use libmariadb.so.3 instead.
 
 Package: libmariadb-dev
 Architecture: any
@@ -626,6 +628,7 @@ Replaces: mariadb-gssapi-server-10.1,
           mariadb-gssapi-server-10.2,
           mariadb-gssapi-server-10.3
 Description: GSSAPI authentication plugin for MariaDB server
+ This package contains the server components.
 
 Package: mariadb-plugin-gssapi-client
 Architecture: any
@@ -640,9 +643,9 @@ Replaces: mariadb-gssapi-client-10.1,
           mariadb-gssapi-client-10.2,
           mariadb-gssapi-client-10.3
 Description: GSSAPI authentication plugin for MariaDB client
+ This package contains the client components.
 
 Package: mariadb-backup-10.3
-Section: database
 Architecture: any
 Breaks: mariadb-backup-10.1,
         mariadb-backup-10.2
@@ -652,6 +655,7 @@ Depends: mariadb-server-10.3,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server
+ This backup tool is guaranteed to be compatible with MariaDB.
 
 Package: mariadb-plugin-cracklib-password-check
 Architecture: any
@@ -664,7 +668,6 @@ Description: CrackLib Password Validation Plugin for MariaDB
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
 
 Package: mariadb-plugin-aws-key-management
-Section: database
 Architecture: any
 Breaks: mariadb-aws-key-management-10.1,
         mariadb-aws-key-management-10.2
