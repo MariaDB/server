@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1413,7 +1413,11 @@ srv_prepare_to_delete_redo_log_files(
 		{
 			ib::info	info;
 			if (srv_log_file_size == 0) {
-				info << "Upgrading redo log: ";
+				info << ((log_sys->log.format
+					  & ~LOG_HEADER_FORMAT_ENCRYPTED)
+					 != LOG_HEADER_FORMAT_10_3
+					 ? "Upgrading redo log: "
+					 : "Downgrading redo log: ");
 			} else if (n_files != srv_n_log_files
 				   || srv_log_file_size
 				   != srv_log_file_size_requested) {

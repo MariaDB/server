@@ -1567,6 +1567,31 @@ eval explain format=json $q;
 drop table t1;
 
 --echo #
+--echo # MDEV-13454: consequence of mdev-14368 fixed for 5.5
+--echo #
+
+SET  sql_mode = 'ONLY_FULL_GROUP_BY';
+
+create table t1 (id int, id2 int);
+insert into t1 values (1,1),(2,3),(3,4),(7,2);
+
+create table t2(id2 int);
+insert  t2 values (1),(2),(3);
+
+let $q=
+SELECT * FROM t1
+  LEFT OUTER JOIN
+  (SELECT id2, COUNT(*) as ct FROM t2 GROUP BY id2) vc USING (id2)
+WHERE (vc.ct>0);
+
+eval $q;
+eval EXPLAIN FORMAT=JSON $q;
+
+DROP TABLE t1,t2;
+
+SET  sql_mode = DEFAULT;
+
+--echo #
 --echo # MDEV-10855: Pushdown into derived with window functions 
 --echo #
 
@@ -1851,4 +1876,3 @@ SELECT * FROM v3 JOIN t1 ON (bmax = b);
 
 DROP VIEW v1,v2,v3;
 DROP TABLE t1,t2;
-

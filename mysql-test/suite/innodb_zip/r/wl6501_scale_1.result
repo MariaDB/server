@@ -111,7 +111,7 @@ drop procedure populate;
 drop procedure populate_small;
 set global innodb_file_format = Barracuda;
 Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 set global innodb_file_per_table = 1;
 set innodb_strict_mode=OFF;
 create procedure populate()
@@ -224,7 +224,7 @@ drop procedure populate;
 drop procedure populate_small;
 set global innodb_file_format = Barracuda;
 Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 set global innodb_file_per_table = 1;
 set innodb_strict_mode=OFF;
 create procedure populate()
@@ -341,5 +341,5 @@ drop procedure populate;
 drop procedure populate_small;
 set global innodb_file_format = Barracuda;
 Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 set global innodb_file_per_table = 1;

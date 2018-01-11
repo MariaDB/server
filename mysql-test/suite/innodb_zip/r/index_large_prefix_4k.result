@@ -99,7 +99,7 @@ create table worklog5743_2(a1 int, a2 TEXT not null) KEY_BLOCK_SIZE=2;
 create table worklog5743_4(a1 int, a2 TEXT not null) KEY_BLOCK_SIZE=4;
 set global innodb_large_prefix=0;
 Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 create index idx1 on worklog5743_1(a2(4000));
 ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 1982. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
 show warnings;
@@ -124,7 +124,7 @@ show warnings;
 Level	Code	Message
 set global innodb_large_prefix=1;
 Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 SET sql_mode= '';
 create index idx1 on worklog5743_2(a2(4000));
 Warnings:
@@ -161,7 +161,7 @@ show warnings;
 Level	Code	Message
 set global innodb_large_prefix=0;
 Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 create index idx1 on worklog5743_4(a2(4000));
 Warnings:
 Note	1071	Specified key was too long; max key length is 767 bytes
@@ -201,13 +201,13 @@ insert into worklog5743_2 values(9, repeat("a", 10000));
 insert into worklog5743_4 values(9, repeat("a", 10000));
 set global innodb_large_prefix=0;
 Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 insert into worklog5743_1 values(2, repeat("b", 10000));
 insert into worklog5743_2 values(2, repeat("b", 10000));
 insert into worklog5743_4 values(2, repeat("b", 10000));
 set global innodb_large_prefix=1;
 Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 select a1, left(a2, 20) from worklog5743_1;
 a1	left(a2, 20)
 9	aaaaaaaaaaaaaaaaaaaa

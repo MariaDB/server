@@ -25,7 +25,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 INNODB_LARGE_PREFIX	ON
 set global innodb_large_prefix='OFF';
 Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 select @@global.innodb_large_prefix;
 @@global.innodb_large_prefix
 0
@@ -37,7 +37,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 INNODB_LARGE_PREFIX	OFF
 set @@global.innodb_large_prefix=1;
 Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 select @@global.innodb_large_prefix;
 @@global.innodb_large_prefix
 1
@@ -49,7 +49,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 INNODB_LARGE_PREFIX	ON
 set global innodb_large_prefix=0;
 Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 select @@global.innodb_large_prefix;
 @@global.innodb_large_prefix
 0
@@ -61,7 +61,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 INNODB_LARGE_PREFIX	OFF
 set @@global.innodb_large_prefix='ON';
 Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 select @@global.innodb_large_prefix;
 @@global.innodb_large_prefix
 1
@@ -96,7 +96,7 @@ set global innodb_large_prefix='AUTO';
 ERROR 42000: Variable 'innodb_large_prefix' can't be set to the value of 'AUTO'
 SET @@global.innodb_large_prefix = @start_global_value;
 Warnings:
-Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 SELECT @@global.innodb_large_prefix;
 @@global.innodb_large_prefix
 1

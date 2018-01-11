@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -842,7 +842,7 @@ recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
 		" This redo log was created before MariaDB 10.2.2,"
 		" and we did not find a valid checkpoint."
 		" Please follow the instructions at"
-		" " REFMAN "upgrading.html";
+		" https://mariadb.com/kb/en/library/upgrading/";
 	return(DB_ERROR);
 }
 
@@ -869,7 +869,7 @@ recv_log_format_0_recover(lsn_t lsn)
 		" This redo log was created before MariaDB 10.2.2";
 	static const char* NO_UPGRADE_RTFM_MSG =
 		". Please follow the instructions at "
-		REFMAN "upgrading.html";
+		"https://mariadb.com/kb/en/library/upgrading/";
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
@@ -895,6 +895,58 @@ recv_log_format_0_recover(lsn_t lsn)
 	}
 
 	/* Mark the redo log for upgrading. */
+	srv_log_file_size = 0;
+	recv_sys->parse_start_lsn = recv_sys->recovered_lsn
+		= recv_sys->scanned_lsn
+		= recv_sys->mlog_checkpoint_lsn = lsn;
+	log_sys->last_checkpoint_lsn = log_sys->next_checkpoint_lsn
+		= log_sys->lsn = log_sys->write_lsn
+		= log_sys->current_flush_lsn = log_sys->flushed_to_disk_lsn
+		= lsn;
+	log_sys->next_checkpoint_no = 0;
+	return(DB_SUCCESS);
+}
+
+/** Determine if a redo log from MariaDB 10.3 is clean.
+@return	error code
+@retval	DB_SUCCESS	if the redo log is clean
+@retval	DB_CORRUPTION	if the redo log is corrupted
+@retval	DB_ERROR	if the redo log is not empty */
+static
+dberr_t
+recv_log_recover_10_3()
+{
+	log_group_t*	group = &log_sys->log;
+	const lsn_t	lsn = group->lsn;
+	const lsn_t	source_offset = log_group_calc_lsn_offset(lsn, group);
+	const ulint	page_no
+		= (ulint) (source_offset / univ_page_size.physical());
+	byte*		buf = log_sys->buf;
+
+	fil_io(IORequestLogRead, true,
+	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
+	       univ_page_size,
+	       (ulint) ((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
+			% univ_page_size.physical()),
+	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
+
+	if (log_block_calc_checksum(buf) != log_block_get_checksum(buf)) {
+		return(DB_CORRUPTION);
+	}
+
+	if (group->is_encrypted()) {
+		log_crypt(buf, lsn, OS_FILE_LOG_BLOCK_SIZE, true);
+	}
+
+	/* On a clean shutdown, the redo log will be logically empty
+	after the checkpoint lsn. */
+
+	if (log_block_get_data_len(buf)
+	    != (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
+		return(DB_ERROR);
+	}
+
+	/* Mark the redo log for downgrading. */
 	srv_log_file_size = 0;
 	recv_sys->parse_start_lsn = recv_sys->recovered_lsn
 		= recv_sys->scanned_lsn
@@ -938,18 +990,24 @@ recv_find_max_checkpoint(ulint* max_field)
 		return(DB_CORRUPTION);
 	}
 
+	char creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR + 1];
+
+	memcpy(creator, buf + LOG_HEADER_CREATOR, sizeof creator);
+	/* Ensure that the string is NUL-terminated. */
+	creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR] = 0;
+
 	switch (group->format) {
 	case 0:
 		return(recv_find_max_checkpoint_0(&group, max_field));
 	case LOG_HEADER_FORMAT_CURRENT:
 	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
+	case LOG_HEADER_FORMAT_10_3:
+	case LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED:
 		break;
 	default:
-		/* Ensure that the string is NUL-terminated. */
-		buf[LOG_HEADER_CREATOR_END] = 0;
 		ib::error() << "Unsupported redo log format."
 			" The redo log was created"
-			" with " << buf + LOG_HEADER_CREATOR <<
+			" with " << creator <<
 			". Please follow the instructions at "
 			REFMAN "upgrading-downgrading.html";
 		/* Do not issue a message about a possibility
@@ -1016,6 +1074,20 @@ recv_find_max_checkpoint(ulint* max_field)
 			" You can try --innodb-force-recovery=6"
 			" as a last resort.";
 		return(DB_ERROR);
+	}
+
+	switch (group->format) {
+	case LOG_HEADER_FORMAT_10_3:
+	case LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED:
+		dberr_t err = recv_log_recover_10_3();
+		if (err != DB_SUCCESS) {
+			ib::error()
+				<< "Downgrade after a crash is not supported."
+				" The redo log was created with " << creator
+				<< (err == DB_ERROR
+				    ? "." : ", and it appears corrupted.");
+		}
+		return(err);
 	}
 
 	return(DB_SUCCESS);
@@ -1166,6 +1238,8 @@ parse_log:
 				redo log been written with something
 				older than InnoDB Plugin 1.0.4. */
 				ut_ad(0
+				      /* fil_crypt_rotate_page() writes this */
+				      || offs == FIL_PAGE_SPACE_ID
 				      || offs == IBUF_TREE_SEG_HEADER
 				      + IBUF_HEADER + FSEG_HDR_SPACE
 				      || offs == IBUF_TREE_SEG_HEADER

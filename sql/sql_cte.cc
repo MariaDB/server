@@ -816,12 +816,19 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
   parse_status= parse_sql(thd, &parser_state, 0);
   if (parse_status)
     goto err;
+
+  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
+    goto err;
+
   spec_tables= lex->query_tables;
   spec_tables_tail= 0;
   for (TABLE_LIST *tbl= spec_tables;
        tbl;
        tbl= tbl->next_global)
   {
+    if (!tbl->derived && !tbl->schema_table &&
+        thd->open_temporary_table(tbl))
+      goto err;
     spec_tables_tail= tbl;
   }
   if (check_table_access(thd, SELECT_ACL, spec_tables, FALSE, UINT_MAX, FALSE))
