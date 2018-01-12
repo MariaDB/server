@@ -72,7 +72,6 @@ blind_delete_without_tx_api: MDEV-12286: rocksdb.blind_delete_without_tx_api tes
 ## Tests that fail for some other reason
 ##
 
-information_schema : MariaRocks: requires GTIDs
 mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
 rpl_row_triggers : MariaRocks: requires GTIDs
 

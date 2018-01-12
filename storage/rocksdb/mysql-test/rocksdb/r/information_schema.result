@@ -1,6 +1,20 @@
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
 DROP TABLE IF EXISTS t3;
+create table t1 (a int) engine=rocksdb;
+drop table t1;
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
+TYPE	NAME	VALUE
+MAX_INDEX_ID	MAX_INDEX_ID	max_index_id
+CF_FLAGS	0	default [0]
+CF_FLAGS	1	__system__ [0]
+DDL_DROP_INDEX_ONGOING	cf_id:0,index_id:max_index_id	
+select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
+count(*)
+4
+select VALUE into @keysIn from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
+CREATE TABLE t1 (i1 INT, i2 INT, PRIMARY KEY (i1)) ENGINE = ROCKSDB;
+INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
 select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
 TYPE	NAME	VALUE
 MAX_INDEX_ID	MAX_INDEX_ID	max_index_id
@@ -9,20 +23,6 @@ CF_FLAGS	1	__system__ [0]
 select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
 count(*)
 3
-select VALUE into @keysIn from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
-CREATE TABLE t1 (i1 INT, i2 INT, PRIMARY KEY (i1)) ENGINE = ROCKSDB;
-INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
-select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
-TYPE	NAME	VALUE
-BINLOG	FILE	master-bin.000001
-BINLOG	POS	1066
-BINLOG	GTID	uuid:5
-MAX_INDEX_ID	MAX_INDEX_ID	max_index_id
-CF_FLAGS	0	default [0]
-CF_FLAGS	1	__system__ [0]
-select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
-count(*)
-6
 set global rocksdb_force_flush_memtable_now = true;
 set global rocksdb_compact_cf='default';
 select case when VALUE-@keysIn >= 3 then 'true' else 'false' end from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
@@ -66,7 +66,7 @@ SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
 Variable_name	Value
 rocksdb_pause_background_work	ON
 DROP TABLE t3;
-cf_id:0,index_id:267
+cf_id:0,index_id:264
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
 SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
 Variable_name	Value
