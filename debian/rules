@@ -177,7 +177,11 @@ override_dh_installcron-arch:
 get-orig-source:
 	uscan --force-download --verbose
 
+# If a file is not supposed to be included anywhere, add it to the not-installed
+# file and document the reason. Note that dh_install supports the above mentioned
+# white list file only starting from Debian Stretch and Ubuntu Xenial.
+# To find more, grep build logs for 'but is not installed to anywhere'.
 %:
-	dh $@ --parallel --with dpatch --with systemd
+	dh $@ --parallel --with dpatch --with systemd --list-missing
 
 # vim: ts=8
