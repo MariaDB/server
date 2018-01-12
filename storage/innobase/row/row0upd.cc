@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -715,7 +715,7 @@ row_upd_rec_in_place(
 			ut_ad(index->is_instant());
 			break;
 		case REC_STATUS_NODE_PTR:
-			if (recv_recovery_is_on()
+			if (index->is_dummy
 			    && fil_page_get_type(page_align(rec))
 			    == FIL_PAGE_RTREE) {
 				/* The function rtr_update_mbr_field_in_place()

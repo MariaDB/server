@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -459,11 +459,7 @@ lock_sec_rec_cons_read_sees(
 	/* NOTE that we might call this function while holding the search
 	system latch. */
 
-	if (recv_recovery_is_on()) {
-
-		return(false);
-
-	} else if (dict_table_is_temporary(index->table)) {
+	if (dict_table_is_temporary(index->table)) {
 
 		/* Temp-tables are not shared across connections and multiple
 		transactions from different connections cannot simultaneously
@@ -1518,7 +1514,7 @@ lock_sec_rec_some_has_impl(
 	max trx id to the log, and therefore during recovery, this value
 	for a page may be incorrect. */
 
-	if (max_trx_id < trx_rw_min_trx_id() && !recv_recovery_is_on()) {
+	if (max_trx_id < trx_rw_min_trx_id()) {
 
 		trx = 0;
 
@@ -7097,9 +7093,8 @@ lock_sec_rec_read_check_and_lock(
 	if the max trx id for the page >= min trx id for the trx list or a
 	database recovery is running. */
 
-	if ((page_get_max_trx_id(block->frame) >= trx_rw_min_trx_id()
-	     || recv_recovery_is_on())
-	    && !page_rec_is_supremum(rec)) {
+	if (!page_rec_is_supremum(rec)
+	    && page_get_max_trx_id(block->frame) >= trx_rw_min_trx_id()) {
 
 		lock_rec_convert_impl_to_expl(thr_get_trx(thr), block, rec,
 					      index, offsets);
