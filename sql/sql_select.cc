@@ -13980,9 +13980,9 @@ bool cond_is_datetime_is_null(Item *cond)
       ((Item_func*) cond)->functype() == Item_func::ISNULL_FUNC)
   {
     Item **args= ((Item_func_isnull*) cond)->arguments();
-    if (args[0]->type() == Item::FIELD_ITEM)
+    if (args[0]->real_item()->type() == Item::FIELD_ITEM)
     {
-      Field *field=((Item_field*) args[0])->field;
+      Field *field=((Item_field*) (args[0]->real_item()))->field;
 
       if (((field->type() == MYSQL_TYPE_DATE) ||
            (field->type() == MYSQL_TYPE_DATETIME)) &&
@@ -14308,14 +14308,14 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
 
     */
     Item **args= ((Item_func_isnull*) cond)->arguments();
-    Field *field=((Item_field*) args[0])->field;
+    Field *field=((Item_field*) (args[0]->real_item()))->field;
 
     Item *item0= new(thd->mem_root) Item_int((longlong)0, 1);
     Item *eq_cond= new(thd->mem_root) Item_func_eq(args[0], item0);
     if (!eq_cond)
       return cond;
 
-        if (field->table->pos_in_table_list->is_inner_table_of_outer_join())
+    if (field->table->pos_in_table_list->is_inner_table_of_outer_join())
     {
       // outer join: transform "col IS NULL" to "col IS NULL or col=0"
       Item *or_cond= new(thd->mem_root) Item_cond_or(eq_cond, cond);
