@@ -25,7 +25,7 @@ static unsigned min_length, min_digits, min_letters, min_others;
 
 static int validate(MYSQL_LEX_STRING *username, MYSQL_LEX_STRING *password)
 {
-  unsigned digits=0 , uppers=0 , lowers=0, others=0, length= password->length;
+  unsigned digits=0 , uppers=0 , lowers=0, others=0, length= (unsigned)password->length;
   const char *ptr= password->str, *end= ptr + length;
 
   if (strncmp(password->str, username->str, length) == 0)

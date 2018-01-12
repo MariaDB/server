@@ -82,14 +82,14 @@ int read_bootstrap_query(char *query, int *query_length,
     */
     if (query_len + len + 1 >= MAX_BOOTSTRAP_QUERY_SIZE)
     {
-      int new_len= MAX_BOOTSTRAP_QUERY_SIZE - query_len - 1;
+      size_t new_len= MAX_BOOTSTRAP_QUERY_SIZE - query_len - 1;
       if ((new_len > 0) && (query_len < MAX_BOOTSTRAP_QUERY_SIZE))
       {
         memcpy(query + query_len, line, new_len);
         query_len+= new_len;
       }
       query[query_len]= '\0';
-      *query_length= query_len;
+      *query_length= (int)query_len;
       return READ_BOOTSTRAP_QUERY_SIZE;
     }
 
@@ -111,7 +111,7 @@ int read_bootstrap_query(char *query, int *query_length,
         Return the query found.
       */
       query[query_len]= '\0';
-      *query_length= query_len;
+      *query_length= (int)query_len;
       return READ_BOOTSTRAP_SUCCESS;
     }
   }

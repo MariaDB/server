@@ -1296,7 +1296,7 @@ int vio_getnameinfo(const struct sockaddr *sa,
   }
 
   return getnameinfo(sa, sa_length,
-                     hostname, hostname_size,
-                     port, port_size,
+                     hostname, (uint)hostname_size,
+                     port, (uint)port_size,
                      flags);
 }

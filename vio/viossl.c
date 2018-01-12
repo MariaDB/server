@@ -141,10 +141,10 @@ size_t vio_ssl_read(Vio *vio, uchar *buf, size_t size)
                        vio->ssl_arg));
 
   if (vio->async_context && vio->async_context->active)
-    ret= my_ssl_read_async(vio->async_context, (SSL *)vio->ssl_arg, buf, size);
+    ret= my_ssl_read_async(vio->async_context, (SSL *)vio->ssl_arg, buf, (int)size);
   else
   {
-    while ((ret= SSL_read(ssl, buf, size)) < 0)
+    while ((ret= SSL_read(ssl, buf, (int)size)) < 0)
     {
       enum enum_vio_io_event event;
       
@@ -174,10 +174,10 @@ size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
 
   if (vio->async_context && vio->async_context->active)
     ret= my_ssl_write_async(vio->async_context, (SSL *)vio->ssl_arg, buf,
-                            size);
+                            (int)size);
   else
   {
-    while ((ret= SSL_write(ssl, buf, size)) < 0)
+    while ((ret= SSL_write(ssl, buf, (int)size)) < 0)
     {
       enum enum_vio_io_event event;
 
@@ -200,7 +200,7 @@ size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
 static long yassl_recv(void *ptr, void *buf, size_t len,
                        int flag __attribute__((unused)))
 {
-  return vio_read(ptr, buf, len);
+  return (long)vio_read(ptr, buf, len);
 }
 
 
@@ -208,7 +208,7 @@ static long yassl_recv(void *ptr, void *buf, size_t len,
 static long yassl_send(void *ptr, const void *buf, size_t len,
                        int flag __attribute__((unused)))
 {
-  return vio_write(ptr, buf, len);
+  return (long)vio_write(ptr, buf, len);
 }
 
 #endif

@@ -172,7 +172,7 @@ int logger_vprintf(LOGGER_HANDLE *log, const char* fmt, va_list ap)
   if (n_bytes >= sizeof(cvtbuf))
     n_bytes= sizeof(cvtbuf) - 1;
 
-  result= my_write(log->file, (uchar *) cvtbuf, n_bytes, MYF(0));
+  result= (int)my_write(log->file, (uchar *) cvtbuf, n_bytes, MYF(0));
 
 exit:
   flogger_mutex_unlock(&log->lock);
@@ -196,7 +196,7 @@ int logger_write(LOGGER_HANDLE *log, const char *buffer, size_t size)
       goto exit; /* Log rotation needed but failed */
     }
 
-  result= my_write(log->file, (uchar *) buffer, size, MYF(0));
+  result= (int)my_write(log->file, (uchar *) buffer, size, MYF(0));
 
 exit:
   flogger_mutex_unlock(&log->lock);

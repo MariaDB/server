@@ -56,11 +56,11 @@ static int auditing_v4(MYSQL_THD thd, mysql_event_class_t class, const void *ev)
     ev_302.general_error_code= event->general_error_code;
     ev_302.general_thread_id= event->general_thread_id;
     ev_302.general_user= event->general_user.str;
-    ev_302.general_user_length= event->general_user.length;
+    ev_302.general_user_length= (unsigned int)event->general_user.length;
     ev_302.general_command= event->general_command.str;
-    ev_302.general_command_length= event->general_command.length;
+    ev_302.general_command_length= (unsigned int)event->general_command.length;
     ev_302.general_query= event->general_query.str;
-    ev_302.general_query_length= event->general_query.length;
+    ev_302.general_query_length= (unsigned int)event->general_query.length;
     ev_302.general_charset= event->general_charset;
     ev_302.general_time= event->general_time;
     ev_302.general_rows= event->general_rows;
