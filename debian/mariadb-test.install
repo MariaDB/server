@@ -16,9 +16,16 @@ usr/lib/mysql/plugin/mypluglib.so
 usr/lib/mysql/plugin/qa_auth_client.so
 usr/lib/mysql/plugin/qa_auth_interface.so
 usr/lib/mysql/plugin/qa_auth_server.so
+usr/share/man/man1/mysql-stress-test.pl.1
+usr/share/man/man1/mysql-test-run.pl.1
+usr/share/man/man1/mysql_client_test.1
+usr/share/man/man1/mysql_client_test_embedded.1
+usr/share/man/man1/mysqltest.1
+usr/share/man/man1/mysqltest_embedded.1
 usr/share/mysql/mysql-test/README
 usr/share/mysql/mysql-test/README-gcov
 usr/share/mysql/mysql-test/README.stress
+usr/share/mysql/mysql-test/dgcov.pl
 usr/share/mysql/mysql-test/disabled.def
 usr/share/mysql/mysql-test/lib
 usr/share/mysql/mysql-test/mysql-stress-test.pl
@@ -26,10 +33,3 @@ usr/share/mysql/mysql-test/mysql-test-run.pl
 usr/share/mysql/mysql-test/purify.supp
 usr/share/mysql/mysql-test/suite.pm
 usr/share/mysql/mysql-test/valgrind.supp
-usr/share/mysql/mysql-test/dgcov.pl
-usr/share/man/man1/mysql-stress-test.pl.1
-usr/share/man/man1/mysql-test-run.pl.1
-usr/share/man/man1/mysql_client_test.1
-usr/share/man/man1/mysql_client_test_embedded.1
-usr/share/man/man1/mysqltest.1
-usr/share/man/man1/mysqltest_embedded.1
