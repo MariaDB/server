@@ -5,7 +5,7 @@ sudo: false
 dist: trusty
 
 git:
-  depth: 2
+  depth: 50
 
 language: cpp
 os:
@@ -98,51 +98,6 @@ matrix:
       compiler: clang
       env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
 
-addons:
-  apt:
-    sources:
-      - ubuntu-toolchain-r-test
-      - llvm-toolchain-trusty-4.0
-      - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-5.0 main'
-    packages: # make sure these include all compilers and all build dependencies (see list above)
-      - gcc-5
-      - g++-5
-      - gcc-6
-      - g++-6
-      - clang-4.0
-      - llvm-4.0-dev
-      - clang-5.0
-      - llvm-5.0-dev
-      - libasan0
-      - bison
-      - chrpath
-      - cmake
-      - gdb
-      - libaio-dev
-      - libboost-dev
-      - libcurl3-dev
-      - libdbd-mysql
-      - libjudy-dev
-      - libncurses5-dev
-      - libpam0g-dev
-      - libpcre3-dev
-      - libreadline-gplv2-dev
-      - libstemmer-dev
-      - libssl-dev
-      - libnuma-dev
-      - libxml2-dev
-      - lsb-release
-      - perl
-      - psmisc
-      - zlib1g-dev
-      - libcrack2-dev
-      - cracklib-runtime
-      - libjemalloc-dev
-      - libsnappy-dev
-      - liblzma-dev
-      - libzmq-dev
-      - uuid-dev
-
 # libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
 
 before_install:
@@ -150,6 +105,13 @@ before_install:
       brew update;
       brew install gnutls lz4 lzo xz snappy ccache jemalloc curl ossp-uuid pcre;
       brew link ccache;
+    else
+      sudo -E apt-add-repository -y "ppa:ubuntu-toolchain-r/test"
+      travis_retry curl -sSL "http://apt.llvm.org/llvm-snapshot.gpg.key" | sudo -E apt-key add -
+      echo "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-4.0 main" | sudo tee -a /etc/apt/sources.list > /dev/null
+      echo "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-5.0 main" | sudo tee -a /etc/apt/sources.list > /dev/null
+      travis_retry sudo -E apt-get -yq update &>> ~/apt-get-update.log
+      travis_retry sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gcc-5 g++-5 gcc-6 g++-6 clang-4.0 llvm-4.0-dev clang-5.0 llvm-5.0-dev libasan0 bison chrpath cmake gdb libaio-dev libboost-dev libcurl3-dev libdbd-mysql libjudy-dev libncurses5-dev libpam0g-dev libpcre3-dev libreadline-gplv2-dev libstemmer-dev libssl-dev libnuma-dev libxml2-dev lsb-release perl psmisc zlib1g-dev libcrack2-dev cracklib-runtime libjemalloc-dev libsnappy-dev liblzma-dev libzmq-dev uuid-dev
     fi
 
 script:
