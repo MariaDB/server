@@ -39,7 +39,7 @@ else
 endif
 
 # Ignore test suite exit code on unstable platforms
-ifneq (,$(filter $(ARCH), mips mipsel))
+ifneq (,$(filter $(ARCH),mips mipsel mips64el alpha powerpc sh4 hurd-i386 sparc64 kfreebsd-i386 kfreebsd-amd64))
     TESTSUITE_FAIL_CMD:=true
 else
     TESTSUITE_FAIL_CMD:=exit 1
@@ -113,11 +113,6 @@ override_dh_auto_install:
 	@echo "RULES.$@"
 	dh_testdir
 	dh_testroot
-
-# Skip TokuDB if arch is not amd64
-ifneq ($(ARCH), amd64)
-	sed -i -e "/Package: mariadb-plugin-tokudb/,+18d" debian/control
-endif
 
 	# If libthrift-dev was available (manually installed, as it is
 	# not in Debian) and ha_cassandra.so was thus built, create package,
