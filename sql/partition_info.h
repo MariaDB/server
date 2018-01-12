@@ -348,7 +348,7 @@ public:
   bool check_list_constants(THD *thd);
   bool check_partition_info(THD *thd, handlerton **eng_type,
                             handler *file, HA_CREATE_INFO *info,
-                            bool check_partition_function);
+                            partition_info *add_or_reorg_part= NULL);
   void print_no_partition_found(TABLE *table, myf errflag);
   void print_debug(const char *str, uint*);
   Item* get_column_item(Item *item, Field *field);

@@ -1940,7 +1940,7 @@ static void warn_if_dir_in_part_elem(THD *thd, partition_element *part_elem)
 
 bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
                                           handler *file, HA_CREATE_INFO *info,
-                                          bool add_or_reorg_part)
+                                          partition_info *add_or_reorg_part)
 {
   handlerton *table_engine= default_engine_type;
   uint i, tot_partitions;
@@ -2174,6 +2174,24 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
     goto end;
   }
 
+  if (hist_parts > 1)
+  {
+    if (unlikely(vers_info->limit == 0 && vers_info->interval == 0))
+    {
+      push_warning_printf(thd,
+        Sql_condition::WARN_LEVEL_WARN,
+        WARN_VERS_PARAMETERS,
+        ER_THD(thd, WARN_VERS_PARAMETERS),
+        "no rotation condition for multiple HISTORY partitions.");
+    }
+  }
+  if (unlikely(now_parts > 1))
+  {
+    my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias);
+    goto end;
+  }
+
+
   DBUG_ASSERT(table_engine != partition_hton &&
               default_engine_type == table_engine);
   if (eng_type)
@@ -2188,6 +2206,9 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
 
   if (add_or_reorg_part)
   {
+    if (unlikely(part_type == VERSIONING_PARTITION &&
+                 vers_setup_expression(thd, add_or_reorg_part->partitions.elements)))
+      goto end;
     if (unlikely(((part_type == RANGE_PARTITION || part_type == VERSIONING_PARTITION) &&
                   check_range_constants(thd)) ||
                  (part_type == LIST_PARTITION &&
@@ -2195,22 +2216,6 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
       goto end;
   }
 
-  if (hist_parts > 1)
-  {
-    if (vers_info->limit == 0 && vers_info->interval == 0)
-    {
-      push_warning_printf(thd,
-        Sql_condition::WARN_LEVEL_WARN,
-        WARN_VERS_PARAMETERS,
-        ER_THD(thd, WARN_VERS_PARAMETERS),
-        "no rotation condition for multiple HISTORY partitions.");
-    }
-  }
-  if (now_parts > 1)
-  {
-    my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias);
-    goto end;
-  }
   result= FALSE;
 end:
   DBUG_RETURN(result);
