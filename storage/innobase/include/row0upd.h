@@ -577,6 +577,9 @@ struct upd_node_t{
 				/* column assignment list */
 	ulint		magic_n;
 
+	/** System Versioning: modify update vector to set row_start
+	 * (or row_end in case of DELETE) to current trx_id. */
+	void		vers_set_fields(const trx_t* trx);
 };
 
 #define	UPD_NODE_MAGIC_N	1579975

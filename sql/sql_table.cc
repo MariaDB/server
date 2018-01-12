@@ -4469,19 +4469,6 @@ static bool vers_prepare_keys(THD *thd, HA_CREATE_INFO *create_info,
   Key *key= NULL;
   while ((key=key_it++))
   {
-    if (key->type == Key::FOREIGN_KEY &&
-        create_info->vers_info.check_unit == VERS_TIMESTAMP)
-    {
-      Foreign_key *fk_key= (Foreign_key*) key;
-      enum enum_fk_option op;
-      if (fk_modifies_child(op=fk_key->update_opt) ||
-          fk_modifies_child(op=fk_key->delete_opt))
-      {
-        my_error(ER_VERS_NOT_SUPPORTED, MYF(0), fk_option_name(op)->str,
-                 "TIMESTAMP(6) AS ROW START/END");
-        return true;
-      }
-    }
     if (key->type != Key::PRIMARY && key->type != Key::UNIQUE)
       continue;
 

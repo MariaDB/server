@@ -1492,16 +1492,12 @@ dict_index_t::vers_history_row(
 	ut_ad(col.vers_sys_end());
 	ulint nfield = dict_col_get_clust_pos(&col, this);
 	const byte *data = rec_get_nth_field(rec, offsets, nfield, &len);
-	if (col.mtype == DATA_FIXBINARY) {
-		ut_ad(len == sizeof timestamp_max_bytes);
-		return 0 != memcmp(data, timestamp_max_bytes, len);
-	} else {
-		ut_ad(col.mtype == DATA_INT);
+	if (col.vers_native()) {
 		ut_ad(len == sizeof trx_id_max_bytes);
 		return 0 != memcmp(data, trx_id_max_bytes, len);
 	}
-	ut_ad(0);
-	return false;
+	ut_ad(len == sizeof timestamp_max_bytes);
+	return 0 != memcmp(data, timestamp_max_bytes, len);
 }
 
 /** Check if record in secondary index is historical row.

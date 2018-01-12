@@ -93,4 +93,20 @@ returns int
 deterministic
   return sys_trx_end = $sys_datatype_max;
 
+delimiter ~~;
+eval create or replace function check_row(row_start $sys_datatype_expl, row_end $sys_datatype_expl)
+returns varchar(255)
+deterministic
+begin
+  if row_end < row_start then
+    return "ERROR: row_end < row_start";
+  elseif row_end = row_start then
+    return "ERROR: row_end == row_start";
+  elseif current_row(row_end) then
+    return "CURRENT ROW";
+  end if;
+  return "HISTORICAL ROW";
+end~~
+delimiter ;~~
+
 --enable_query_log

@@ -654,6 +654,13 @@ struct dict_col_t{
 
 	/** @return whether this is system field */
 	bool vers_sys_field() const { return prtype & DATA_VERSIONED; }
+	/** @return whether table of this system field is TRX_ID-based */
+	bool vers_native() const
+	{
+		ut_ad(vers_sys_field());
+		ut_ad(mtype == DATA_INT || mtype == DATA_FIXBINARY);
+		return mtype == DATA_INT;
+	}
 	/** @return whether this is system versioned */
 	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
 	/** @return whether this is the system version start */
