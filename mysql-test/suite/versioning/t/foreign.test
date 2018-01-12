@@ -86,12 +86,6 @@ eval create table child(
 insert into parent values(1);
 insert into child values(1);
 
---echo ## FIXME: #415 update of foreign constraints is disabled
-call mtr.add_suppression("foreign key constraints in timestamp-based temporal table");
---error ER_UNSUPPORTED_EXTENSION
-delete from parent where id = 1;
-delete from child where parent_id = 1;
---echo ## FIXME END
 delete from parent where id = 1;
 select * from child;
 select * from child for system_time all;
@@ -149,9 +143,6 @@ engine innodb;
 
 insert into parent (id) values (3);
 insert into child (id, parent_id) values (3, 3);
---echo ## FIXME: #415 update of foreign constraints is disabled
-delete from child;
---echo ## FIXME END
 delete from parent;
 select * from child;
 select * from child for system_time all;
@@ -163,12 +154,12 @@ drop table parent;
 --echo # Test SET NULL #
 --echo #################
 
-create table parent(
+create or replace table parent(
   id int unique key
 ) engine innodb;
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
-eval create table child(
+eval create or replace table child(
   parent_id int,
   sys_start $sys_datatype_expl as row start invisible,
   sys_end $sys_datatype_expl as row end invisible,
@@ -183,24 +174,16 @@ insert into child values(1);
 delete from child;
 insert into child values(1);
 
---echo ## FIXME: #415 update of foreign constraints is disabled
-delete from child where parent_id = 1;
---echo ## FIXME END
 delete from parent where id = 1;
 select * from child;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select *, current_row(sys_end) as current_row from child for system_time all order by sys_end;
 delete from child;
 
 insert into parent values(1);
 insert into child values(1);
-## FIXME: #415 update of foreign constraints is disabled
-if (0)
-{
-update parent set id=id+1;
+update parent set id= id + 1;
 select * from child;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
-}
-## FIXME END
+select *, current_row(sys_end) as current_row from child for system_time all order by sys_end;
 
 drop table child;
 drop table parent;
