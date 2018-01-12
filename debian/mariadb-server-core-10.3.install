@@ -27,3 +27,7 @@ usr/share/mysql/slovak
 usr/share/mysql/spanish
 usr/share/mysql/swedish
 usr/share/mysql/ukrainian
+usr/share/man/man8/mysqld.8
+usr/share/man/man1/innochecksum.1
+usr/share/man/man1/mysql_install_db.1
+usr/share/man/man1/mysql_upgrade.1
