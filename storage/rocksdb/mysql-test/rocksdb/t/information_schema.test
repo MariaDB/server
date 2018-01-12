@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS t3;
 #   is started on a totally empty datadir, where no MyRocks table has
 #   ever been created). In that case, there is no MAX_INDEX_ID.
 #   Create/drop a table so that we do have MAX_INDEX_ID.
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=1;
 create table t1 (a int) engine=rocksdb;
 drop table t1;
 
@@ -20,6 +21,7 @@ drop table t1;
 --replace_result $max_index_id max_index_id
 select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
 select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
 
 select VALUE into @keysIn from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
 
