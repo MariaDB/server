@@ -77,4 +77,26 @@ if ($MTR_COMBINATION_TRX_ID)
   let $sys_datatype_expl_uc= BIGINT(20) UNSIGNED;
   let $sys_datatype_max= 18446744073709551615;
 }
+
+eval create or replace function current_row(sys_trx_end $sys_datatype_expl)
+returns int
+deterministic
+  return sys_trx_end = $sys_datatype_max;
+
+delimiter ~~;
+eval create or replace function check_row(row_start $sys_datatype_expl, row_end $sys_datatype_expl)
+returns varchar(255)
+deterministic
+begin
+  if row_end < row_start then
+    return "ERROR: row_end < row_start";
+  elseif row_end = row_start then
+    return "ERROR: row_end == row_start";
+  elseif current_row(row_end) then
+    return "CURRENT ROW";
+  end if;
+  return "HISTORICAL ROW";
+end~~
+delimiter ;~~
+
 --enable_query_log

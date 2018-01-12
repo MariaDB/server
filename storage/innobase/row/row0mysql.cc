@@ -71,6 +71,15 @@ Created 9/17/2000 Heikki Tuuri
 #include <deque>
 #include <vector>
 
+/**
+  Get query start time as SQL field data.
+  Needed by InnoDB.
+  @param thd	Thread object
+  @param buf	Buffer to hold start time data
+*/
+void thd_get_query_start_data(THD *thd, char *buf);
+
+
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
 ibool	row_rollback_on_timeout	= FALSE;
 
@@ -1781,6 +1790,50 @@ init_fts_doc_id_for_ref(
 	}
 }
 
+/** System Versioning: modify update vector to set row_start
+ * (or row_end in case of DELETE) to current trx_id. */
+void upd_node_t::vers_set_fields(const trx_t* trx)
+{
+	dict_index_t* clust_index = dict_table_get_first_index(table);
+	upd_field_t* ufield;
+	dict_col_t* col;
+	unsigned col_idx;
+	if (is_delete) {
+		ufield = &update->fields[0];
+		update->n_fields = 0;
+		is_delete = VERSIONED_DELETE;
+		col_idx = table->vers_end;
+	} else {
+		ut_ad(update->n_fields < table->n_cols);
+		ufield = &update->fields[update->n_fields];
+		col_idx = table->vers_start;
+	}
+	col = &table->cols[col_idx];
+	UNIV_MEM_INVALID(ufield, sizeof *ufield);
+	{
+		ulint field_no = dict_col_get_clust_pos(col, clust_index);
+		ut_ad(field_no != ULINT_UNDEFINED);
+		ufield->field_no = field_no;
+	}
+	ufield->orig_len = 0;
+	ufield->exp = NULL;
+
+	if (col->vers_native())
+	{
+		mach_write_to_8(update->vers_sys_value, trx->id);
+	} else {
+		thd_get_query_start_data(trx->mysql_thd, (char *)
+					update->vers_sys_value);
+	}
+
+	dfield_t* dfield = &ufield->new_val;
+	dfield_set_data(dfield, update->vers_sys_value, col->len);
+	dict_col_copy_type(col, &dfield->type);
+
+	update->n_fields++;
+	ut_ad(in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
+}
+
 /** Does an update or delete of a row for MySQL.
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
 @return error code or DB_SUCCESS */
@@ -1877,42 +1930,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	for (;;) {
 		if (vers_set_fields) {
-			/* System Versioning: modify update vector to set
-			row_start (or row_end in case of DELETE)
-			to current trx_id. */
-			dict_table_t* table = node->table;
-			dict_index_t* clust_index = dict_table_get_first_index(table);
-			upd_t* uvect = node->update;
-			upd_field_t* ufield;
-			dict_col_t* col;
-			unsigned col_idx;
-			if (node->is_delete) {
-				ufield = &uvect->fields[0];
-				uvect->n_fields = 0;
-				node->is_delete = VERSIONED_DELETE;
-				col_idx = table->vers_end;
-			} else {
-				ut_ad(uvect->n_fields < table->n_cols);
-				ufield = &uvect->fields[uvect->n_fields];
-				col_idx = table->vers_start;
-			}
-			col = &table->cols[col_idx];
-			UNIV_MEM_INVALID(ufield, sizeof *ufield);
-			{
-				ulint field_no = dict_col_get_clust_pos(col, clust_index);
-				ut_ad(field_no != ULINT_UNDEFINED);
-				ufield->field_no = field_no;
-			}
-			ufield->orig_len = 0;
-			ufield->exp = NULL;
-
-			mach_write_to_8(node->update->vers_sys_value, trx->id);
-			dfield_t* dfield = &ufield->new_val;
-			dfield_set_data(dfield, node->update->vers_sys_value, 8);
-			dict_col_copy_type(col, &dfield->type);
-
-			uvect->n_fields++;
-			ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
+			node->vers_set_fields(trx);
 		}
 
 		thr->run_node = node;
@@ -2193,7 +2211,7 @@ row_update_cascade_for_mysql(
                 return(DB_FOREIGN_EXCEED_MAX_CASCADE);
         }
 
-	trx_t* trx = thr_get_trx(thr);
+	const trx_t* trx = thr_get_trx(thr);
 
 	bool vers_set_fields = node->table->versioned()
 				  && (node->is_delete == PLAIN_DELETE
@@ -2201,43 +2219,7 @@ row_update_cascade_for_mysql(
 
 	for (;;) {
 		if (vers_set_fields) {
-			// FIXME: code duplication with row_update_for_mysql()
-			/* System Versioning: modify update vector to set
-			row_start (or row_end in case of DELETE)
-			to current trx_id. */
-			dict_table_t* table = node->table;
-			dict_index_t* clust_index = dict_table_get_first_index(table);
-			upd_t* uvect = node->update;
-			upd_field_t* ufield;
-			dict_col_t* col;
-			unsigned col_idx;
-			if (node->is_delete) {
-				ufield = &uvect->fields[0];
-				uvect->n_fields = 0;
-				node->is_delete = VERSIONED_DELETE;
-				col_idx = table->vers_end;
-			} else {
-				ut_ad(uvect->n_fields < table->n_cols);
-				ufield = &uvect->fields[uvect->n_fields];
-				col_idx = table->vers_start;
-			}
-			col = &table->cols[col_idx];
-			UNIV_MEM_INVALID(ufield, sizeof *ufield);
-			{
-				ulint field_no = dict_col_get_clust_pos(col, clust_index);
-				ut_ad(field_no != ULINT_UNDEFINED);
-				ufield->field_no = field_no;
-			}
-			ufield->orig_len = 0;
-			ufield->exp = NULL;
-
-			mach_write_to_8(node->update->vers_sys_value, trx->id);
-			dfield_t* dfield = &ufield->new_val;
-			dfield_set_data(dfield, node->update->vers_sys_value, 8);
-			dict_col_copy_type(col, &dfield->type);
-
-			uvect->n_fields++;
-			ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
+			node->vers_set_fields(trx);
 		}
 
 		thr->run_node = node;
