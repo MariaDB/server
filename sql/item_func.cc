@@ -27,7 +27,6 @@
 
 #include "sql_plugin.h"
 #include "sql_priv.h"
-#include <algorithm>
 /*
   It is necessary to include set_var.h instead of item.h because there
   are dependencies on include order for set_var.h and item.h. This
@@ -2725,7 +2724,7 @@ bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     ltime->hour+= (ltime->month * 32 + ltime->day) * 24;
     ltime->year= ltime->month= ltime->day= 0;
     if (adjust_time_range_with_warn(ltime,
-                                    std::min<uint>(decimals, TIME_SECOND_PART_DIGITS)))
+                                    MY_MIN(decimals, TIME_SECOND_PART_DIGITS)))
       return (null_value= true);
   }
 

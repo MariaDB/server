@@ -20,10 +20,6 @@
 #include "sql_priv.h"
 #include "key.h"                                // key_rec_cmp
 #include "field.h"                              // Field
-#include <algorithm>
-
-using std::min;
-using std::max;
 
 /*
   Search after a key that starts with 'field'
@@ -136,7 +132,7 @@ void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
           Don't copy data for null values
           The -1 below is to subtract the null byte which is already handled
         */
-        length= min<uint>(key_length, key_part->store_length-1);
+        length= MY_MIN(key_length, key_part->store_length-1);
         if (with_zerofill)
           bzero((char*) to_key, length);
         continue;
@@ -146,7 +142,7 @@ void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
         key_part->key_part_flag & HA_VAR_LENGTH_PART)
     {
       key_length-= HA_KEY_BLOB_LENGTH;
-      length= min<uint>(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       uint bytes= key_part->field->get_key_image(to_key, length, Field::itRAW);
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
@@ -154,7 +150,7 @@ void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
     }
     else
     {
-      length= min<uint>(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       Field *field= key_part->field;
       CHARSET_INFO *cs= field->charset();
       uint bytes= field->get_key_image(to_key, length, Field::itRAW);
@@ -206,7 +202,7 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
           Don't copy data for null bytes
           The -1 below is to subtract the null byte which is already handled
         */
-        length= min<uint>(key_length, key_part->store_length-1);
+        length= MY_MIN(key_length, key_part->store_length-1);
         continue;
       }
     }
@@ -248,7 +244,7 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
       my_ptrdiff_t ptrdiff= to_record - field->table->record[0];
       field->move_field_offset(ptrdiff);
       key_length-= HA_KEY_BLOB_LENGTH;
-      length= min<uint>(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       old_map= dbug_tmp_use_all_columns(field->table, field->table->write_set);
       field->set_key_image(from_key, length);
       dbug_tmp_restore_column_map(field->table->write_set, old_map);
@@ -257,7 +253,7 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
     }
     else
     {
-      length= min<uint>(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       /* skip the byte with 'uneven' bits, if used */
       memcpy(to_record + key_part->offset, from_key + used_uneven_bits
              , (size_t) length - used_uneven_bits);
@@ -315,7 +311,7 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
 	return 1;
       continue;
     }
-    length= min((uint) (key_end-key), store_length);
+    length= MY_MIN((uint) (key_end-key), store_length);
     if (!(key_part->key_type & (FIELDFLAG_NUMBER+FIELDFLAG_BINARY+
                                 FIELDFLAG_PACK)))
     {
@@ -393,7 +389,7 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
         tmp.length(charpos);
     }
     if (max_length < field->pack_length())
-      tmp.length(min(tmp.length(),max_length));
+      tmp.length(MY_MIN(tmp.length(),max_length));
     ErrConvString err(&tmp);
     to->append(err.ptr());
   }

@@ -26,7 +26,6 @@
 #include <mysql/psi/mysql_stage.h>
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
-#include <algorithm>
 
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
@@ -108,17 +107,6 @@ void MDL_key::init_psi_keys()
   }
 }
 #endif
-
-int MDL_key::cmp(const MDL_key *rhs) const
-{
-  /*
-    The key buffer is always '\0'-terminated. Since key
-    character set is utf-8, we can safely assume that no
-    character starts with a zero byte.
-  */
-  using std::min;
-  return memcmp(m_ptr, rhs->m_ptr, min(m_length, rhs->m_length));
-}
 
 static bool mdl_initialized= 0;
 

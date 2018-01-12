@@ -364,7 +364,15 @@ public:
   /**
     Compare two MDL keys lexicographically.
   */
-  int cmp(const MDL_key *rhs) const;
+  int cmp(const MDL_key *rhs) const
+  {
+    /*
+      The key buffer is always '\0'-terminated. Since key
+      character set is utf-8, we can safely assume that no
+      character starts with a zero byte.
+    */
+    return memcmp(m_ptr, rhs->m_ptr, MY_MIN(m_length, rhs->m_length));
+  }
 
   MDL_key(const MDL_key *rhs)
   {

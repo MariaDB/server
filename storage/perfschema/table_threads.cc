@@ -19,7 +19,6 @@
 #include "sql_parse.h"
 #include "pfs_instr_class.h"
 #include "pfs_instr.h"
-#include <algorithm>
 
 THR_LOCK table_threads::m_table_lock;
 
@@ -258,7 +257,7 @@ int table_threads::read_row_values(TABLE *table,
              changed to less than or equal to 64 characters.
            */
           set_field_varchar_utf8(f, m_row.m_processlist_state_ptr,
-                                 std::min<uint>(m_row.m_processlist_state_length,
+                                 MY_MIN(m_row.m_processlist_state_length,
                                                 f->char_length()));
         }
         else
