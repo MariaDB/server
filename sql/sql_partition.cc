@@ -5436,13 +5436,8 @@ the generated partition syntax in a correct manner.
         tab_part_info->use_default_num_subpartitions= FALSE;
       }
 
-      if (alter_info->flags & Alter_info::ALTER_ADD_PARTITION &&
-        tab_part_info->part_type == VERSIONING_PARTITION &&
-        tab_part_info->vers_setup_expression(thd, alt_part_info->partitions.elements))
-        goto err;
-
       if (tab_part_info->check_partition_info(thd, (handlerton**)NULL,
-                                              table->file, 0, TRUE))
+                                              table->file, 0, alt_part_info))
       {
         goto err;
       }

@@ -407,6 +407,14 @@ Warning	4112	Versioned table `test`.`t1`: partition `p2` is full, add more HISTO
 delete from t1 where x = 2;
 Warnings:
 Warning	4112	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
+# MDEV-14923 Assertion upon INSERT into locked versioned partitioned table
+create or replace table t1 (x int) with system versioning
+partition by system_time (partition p1 history, partition pn current);
+lock table t1 write;
+alter table t1 add partition (partition p1 history);
+ERROR HY000: Duplicate partition name p1
+insert into t1 values (1);
+unlock tables;
 # Test cleanup
 drop database test;
 create database test;
