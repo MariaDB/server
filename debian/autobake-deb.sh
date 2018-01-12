@@ -87,6 +87,12 @@ then
   sed '/Package: mariadb-plugin-aws-key-management-10.3/,+15d' -i debian/control
 fi
 
+# Mroonga, TokuDB never built on Travis CI anyway, see build flags above
+if [[ $TRAVIS ]]
+then
+  sed -i -e "/Package: mariadb-plugin-tokudb/,+17d" debian/control
+  sed -i -e "/Package: mariadb-plugin-mroonga/,+16d" debian/control
+fi
 
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
