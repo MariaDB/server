@@ -14,7 +14,7 @@
 # License along with this library; if not, write to the Free
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
 # MA 02110-1301, USA
-set -x -v
+
 cflags="$c_warnings $extra_flags $EXTRA_FLAGS $EXTRA_CFLAGS"
 cxxflags="$cxx_warnings $base_cxxflags $extra_flags $EXTRA_FLAGS $EXTRA_CXXFLAGS"
 extra_configs="$extra_configs $local_infile_configs $EXTRA_CONFIGS"
