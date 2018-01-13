@@ -27,6 +27,7 @@ srcdir=""
 
 args=""
 defaults=""
+defaults_group_suffix=""
 mysqld_opt=""
 user=""
 
@@ -130,8 +131,10 @@ parse_arguments()
       --verbose) verbose=1 ;; # Obsolete
       --rpm) in_rpm=1 ;;
       --help) usage ;;
-      --no-defaults|--defaults-file=*|--defaults-extra-file=*|--defaults-group-suffix=*)
-        defaults="$defaults $arg" ;;
+      --no-defaults|--defaults-file=*|--defaults-extra-file=*)
+        defaults="$arg" ;;
+      --defaults-group-suffix=*)
+        defaults_group_suffix="$arg" ;;
 
       --cross-bootstrap|--windows)
         # Used when building the MariaDB system tables on a different host than
@@ -260,7 +263,7 @@ fi
 
 # Now we can get arguments from the groups [mysqld] and [mysql_install_db]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `"$print_defaults" $defaults --mysqld mysql_install_db`
+parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 # Configure paths to support files
@@ -420,9 +423,9 @@ fi
 mysqld_bootstrap="${MYSQLD_BOOTSTRAP-$mysqld}"
 mysqld_install_cmd_line()
 {
-  "$mysqld_bootstrap" $defaults "$mysqld_opt" --bootstrap \
-  "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 --loose-skip-innodb \
-  --loose-skip-ndbcluster $args --max_allowed_packet=8M \
+  "$mysqld_bootstrap" $defaults $defaults_group_suffix "$mysqld_opt" \
+  --bootstrap "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 \
+  --loose-skip-innodb --loose-skip-ndbcluster $args --max_allowed_packet=8M \
   --default-storage-engine=myisam \
   --net_buffer_length=16K
 }
