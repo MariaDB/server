@@ -7650,7 +7650,7 @@ void Rows_event_tracker::reset()
   well as the end-of-statement status of the last one.
 */
 
-void Rows_event_tracker::update(const char* file_name, size_t pos,
+void Rows_event_tracker::update(const char* file_name, my_off_t pos,
                                 const char* buf,
                                 const Format_description_log_event *fdle)
 {
@@ -7675,7 +7675,7 @@ void Rows_event_tracker::update(const char* file_name, size_t pos,
                 false otherwise.
 */
 bool Rows_event_tracker::check_and_report(const char* file_name,
-                                          size_t pos)
+                                          my_off_t pos)
 {
   if (last_seen)
   {
