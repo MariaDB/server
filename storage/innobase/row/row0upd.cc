@@ -3493,13 +3493,13 @@ void upd_node_t::dbug_trace()
 
 	for (upd_cascade_t::const_iterator i = cascade_upd_nodes->begin();
 	     i != cascade_upd_nodes->end(); ++i) {
-		DBUG_LOG("upd_node_t", "cascade_upd_nodes: Cascade to table: "
+		ut_d_log("upd_node_t", "cascade_upd_nodes: Cascade to table: "
 			 << (*i)->table->name);
 	}
 
 	for (upd_cascade_t::const_iterator j = new_upd_nodes->begin();
 	     j != new_upd_nodes->end(); ++j) {
-		DBUG_LOG("upd_node_t", "new_upd_nodes: Cascade to table: "
+		ut_d_log("upd_node_t", "new_upd_nodes: Cascade to table: "
 			 << (*j)->table->name);
 	}
 

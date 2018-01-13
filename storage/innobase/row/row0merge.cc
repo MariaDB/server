@@ -1018,7 +1018,7 @@ row_merge_buf_write(
 		row_merge_buf_encode(&b, index, entry, n_fields);
 		ut_ad(b < &block[srv_sort_buf_size]);
 
-		DBUG_LOG("ib_merge_sort",
+		ut_d_log("ib_merge_sort",
 			 reinterpret_cast<const void*>(b) << ','
 			 << of->fd << ',' << of->offset << ' ' <<
 			 i << ": " <<
@@ -1034,7 +1034,7 @@ row_merge_buf_write(
 	to avoid bogus warnings. */
 	memset(b, 0xff, &block[srv_sort_buf_size] - b);
 #endif /* UNIV_DEBUG_VALGRIND */
-	DBUG_LOG("ib_merge_sort",
+	ut_d_log("ib_merge_sort",
 		 "write " << reinterpret_cast<const void*>(b) << ','
 		 << of->fd << ',' << of->offset << " EOF");
 	DBUG_VOID_RETURN;
@@ -1087,7 +1087,7 @@ row_merge_read(
 	os_offset_t	ofs = ((os_offset_t) offset) * srv_sort_buf_size;
 
 	DBUG_ENTER("row_merge_read");
-	DBUG_LOG("ib_merge_sort", "fd=" << fd << " ofs=" << ofs);
+	ut_d_log("ib_merge_sort", "fd=" << fd << " ofs=" << ofs);
 	DBUG_EXECUTE_IF("row_merge_read_failure", DBUG_RETURN(FALSE););
 
 	IORequest	request(IORequest::READ);
@@ -1136,7 +1136,7 @@ row_merge_write(
 	void*		out_buf = (void *)buf;
 
 	DBUG_ENTER("row_merge_write");
-	DBUG_LOG("ib_merge_sort", "fd=" << fd << " ofs=" << ofs);
+	ut_d_log("ib_merge_sort", "fd=" << fd << " ofs=" << ofs);
 	DBUG_EXECUTE_IF("row_merge_write_failure", DBUG_RETURN(FALSE););
 
 	/* For encrypted tables, encrypt data before writing */
@@ -1201,7 +1201,7 @@ row_merge_read_rec(
 	if (UNIV_UNLIKELY(!extra_size)) {
 		/* End of list */
 		*mrec = NULL;
-		DBUG_LOG("ib_merge_sort",
+		ut_d_log("ib_merge_sort",
 			 "read " << reinterpret_cast<const void*>(b) << ',' <<
 			 reinterpret_cast<const void*>(block) << ',' <<
 			 fd << ',' << *foffs << " EOF");
@@ -1320,7 +1320,7 @@ err_exit:
 	b += extra_size + data_size - avail_size;
 
 func_exit:
-	DBUG_LOG("ib_merge_sort",
+	ut_d_log("ib_merge_sort",
 		 reinterpret_cast<const void*>(b) << ',' <<
 		 reinterpret_cast<const void*>(block)
 		 << ",fd=" << fd << ',' << *foffs << ": "
@@ -1355,7 +1355,7 @@ row_merge_write_rec_low(
 #endif /* DBUG_OFF */
 	DBUG_ASSERT(e == rec_offs_extra_size(offsets) + 1);
 
-	DBUG_LOG("ib_merge_sort",
+	ut_d_log("ib_merge_sort",
 		 reinterpret_cast<const void*>(b) << ",fd=" << fd << ','
 		 << foffs << ": " << rec_printer(mrec, 0, offsets).str());
 
@@ -1462,7 +1462,7 @@ row_merge_write_eof(
 	ut_ad(foffs);
 
 	DBUG_ENTER("row_merge_write_eof");
-	DBUG_LOG("ib_merge_sort",
+	ut_d_log("ib_merge_sort",
 		 reinterpret_cast<const void*>(b) << ',' <<
 		 reinterpret_cast<const void*>(block) <<
 		 ",fd=" << fd << ',' << *foffs);
@@ -2916,7 +2916,7 @@ row_merge_blocks(
 	ulint*		offsets1;/* offsets of mrec1 */
 
 	DBUG_ENTER("row_merge_blocks");
-	DBUG_LOG("ib_merge_sort",
+	ut_d_log("ib_merge_sort",
 		 "fd=" << file->fd << ',' << *foffs0 << '+' << *foffs1
 		 << " to fd=" << of->fd << ',' << of->offset);
 
@@ -3034,7 +3034,7 @@ row_merge_blocks_copy(
 	ulint*		offsets1;/* dummy offsets */
 
 	DBUG_ENTER("row_merge_blocks_copy");
-	DBUG_LOG("ib_merge_sort",
+	ut_d_log("ib_merge_sort",
 		 "fd=" << file->fd << ',' << foffs0
 		 << " to fd=" << of->fd << ',' << of->offset);
 

@@ -1901,7 +1901,7 @@ buf_flush_batch(
 
 	buf_pool_mutex_exit(buf_pool);
 
-	DBUG_LOG("ib_buf", "flush " << flush_type << " completed");
+	ut_d_log("ib_buf", "flush " << flush_type << " completed");
 }
 
 /******************************************************************//**
@@ -3528,7 +3528,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 	ulint thread_no = page_cleaner->n_workers;
 	page_cleaner->n_workers++;
 
-	DBUG_LOG("ib_buf", "Thread "
+	ut_d_log("ib_buf", "Thread "
 		<< cleaner_thread_id
 		<< " started n_workers "
 		<< page_cleaner->n_workers << ".");
@@ -3563,7 +3563,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 		exit those that are not anymore needed. */
 		if (srv_shutdown_state == SRV_SHUTDOWN_NONE &&
 		    thread_no >= (srv_n_page_cleaners - 1)) {
-			DBUG_LOG("ib_buf", "Exiting "
+			ut_d_log("ib_buf", "Exiting "
 				<< thread_no
 				<< " page cleaner worker thread_id "
 				<< os_thread_pf(cleaner_thread_id)
@@ -3577,7 +3577,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 	mutex_enter(&page_cleaner->mutex);
 	page_cleaner->n_workers--;
 
-	DBUG_LOG("ib_buf", "Thread " << cleaner_thread_id
+	ut_d_log("ib_buf", "Thread " << cleaner_thread_id
 		<< " exiting n_workers " << page_cleaner->n_workers<< ".");
 
 	/* Signal that we have stopped */
@@ -3810,7 +3810,7 @@ FlushObserver::FlushObserver(
 		m_removed->at(i) = 0;
 	}
 
-	DBUG_LOG("flush", "FlushObserver(): trx->id=" << m_trx->id);
+	ut_d_log("flush", "FlushObserver(): trx->id=" << m_trx->id);
 }
 
 /** FlushObserver deconstructor */
@@ -3821,7 +3821,7 @@ FlushObserver::~FlushObserver()
 	UT_DELETE(m_flushed);
 	UT_DELETE(m_removed);
 
-	DBUG_LOG("flush", "~FlushObserver(): trx->id=" << m_trx->id);
+	ut_d_log("flush", "~FlushObserver(): trx->id=" << m_trx->id);
 }
 
 /** Check whether trx is interrupted
@@ -3854,7 +3854,7 @@ FlushObserver::notify_flush(
 		m_stage->inc();
 	}
 
-	DBUG_LOG("flush", "Flush " << bpage->id);
+	ut_d_log("flush", "Flush " << bpage->id);
 }
 
 /** Notify observer of a remove
@@ -3869,7 +3869,7 @@ FlushObserver::notify_remove(
 
 	m_removed->at(buf_pool->instance_no)++;
 
-	DBUG_LOG("flush", "Remove " << bpage->id);
+	ut_d_log("flush", "Remove " << bpage->id);
 }
 
 /** Flush dirty pages and wait. */

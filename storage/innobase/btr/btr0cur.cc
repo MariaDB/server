@@ -3231,7 +3231,7 @@ fail_err:
 
 	page_cursor = btr_cur_get_page_cur(cursor);
 
-	DBUG_LOG("ib_cur",
+	ut_d_log("ib_cur",
 		 "insert " << index->name << " (" << index->id << ") by "
 		 << ib::hex(thr ? trx_get_id_for_print(thr_get_trx(thr)) : 0)
 		 << ' ' << rec_printer(entry).str());
@@ -3875,7 +3875,7 @@ btr_cur_update_in_place(
 	ut_ad(btr_page_get_index_id(btr_cur_get_page(cursor)) == index->id);
 	ut_ad(!(update->info_bits & REC_INFO_MIN_REC_FLAG));
 
-	DBUG_LOG("ib_cur",
+	ut_d_log("ib_cur",
 		 "update-in-place " << index->name << " (" << index->id
 		 << ") by " << ib::hex(trx_id) << ": "
 		 << rec_printer(rec, offsets).str());
@@ -4145,7 +4145,7 @@ any_extern:
 		}
 	}
 
-	DBUG_LOG("ib_cur",
+	ut_d_log("ib_cur",
 		 "update " << index->name << " (" << index->id << ") by "
 		 << ib::hex(trx_id) << ": "
 		 << rec_printer(rec, *offsets).str());
@@ -5043,7 +5043,7 @@ btr_cur_del_mark_set_clust_rec(
 
 	trx = thr_get_trx(thr);
 
-	DBUG_LOG("ib_cur",
+	ut_d_log("ib_cur",
 		 "delete-mark clust " << index->table->name
 		 << " (" << index->id << ") by "
 		 << ib::hex(trx_get_id_for_print(trx)) << ": "

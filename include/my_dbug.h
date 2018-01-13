@@ -209,16 +209,6 @@ void debug_sync_point(const char* lock_name, uint lock_timeout);
 
 #ifdef __cplusplus
 }
-# ifdef DBUG_OFF
-#  define DBUG_LOG(keyword, v) do {} while (0)
-# else
-#  include <sstream>
-#  define DBUG_LOG(keyword, v) do { \
-  if (_db_pargs_(__LINE__, keyword)) { \
-    std::ostringstream _db_s; _db_s << v; \
-    _db_doprnt_("%s", _db_s.str().c_str()); \
-  }} while (0)
-# endif
 #endif
 
 #endif /* _my_dbug_h */

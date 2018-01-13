@@ -738,7 +738,7 @@ handle_new_error:
 
 	trx->error_state = DB_SUCCESS;
 
-	DBUG_LOG("trx", "handle error: " << ut_strerr(err)
+	ut_d_log("trx", "handle error: " << ut_strerr(err)
 		 << ";id=" << ib::hex(trx->id) << ", " << trx);
 
 	switch (err) {

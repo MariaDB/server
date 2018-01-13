@@ -801,7 +801,7 @@ recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
 			    ut_fold_binary(buf + LOG_CHECKPOINT_LSN,
 					   CHECKSUM_2 - LOG_CHECKPOINT_LSN))
 		    != mach_read_from_4(buf + CHECKSUM_2)) {
-			DBUG_LOG("ib_log",
+			ut_d_log("ib_log",
 				 "invalid pre-10.2.2 checkpoint " << field);
 			continue;
 		}

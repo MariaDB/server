@@ -1669,7 +1669,7 @@ row_log_table_apply_insert_low(
 
 	ut_ad(dtuple_validate(row));
 
-	DBUG_LOG("ib_alter_table",
+	ut_d_log("ib_alter_table",
 		 "insert table " << index->table->id << " (index "
 		 << index->id << "): " << rec_printer(row).str());
 
@@ -1794,7 +1794,7 @@ row_log_table_apply_delete_low(
 
 	ut_ad(dict_index_is_clust(index));
 
-	DBUG_LOG("ib_alter_table",
+	ut_d_log("ib_alter_table",
 		 "delete table " << index->table->id << " (index "
 		 << index->id << "): "
 		 << rec_printer(btr_pcur_get_rec(pcur), offsets).str());
@@ -2265,7 +2265,7 @@ func_exit_committed:
 			cur_offsets, NULL, NULL, NULL, &old_ext, heap);
 		ut_ad(old_row);
 
-		DBUG_LOG("ib_alter_table",
+		ut_d_log("ib_alter_table",
 			 "update table " << index->table->id
 			 << " (index " << index->id
 			 << ": " << rec_printer(old_row).str()
@@ -3285,7 +3285,7 @@ row_log_apply_op_low(
 	ut_ad(!dict_index_is_corrupted(index));
 	ut_ad(trx_id != 0 || op == ROW_OP_DELETE);
 
-	DBUG_LOG("ib_create_index",
+	ut_d_log("ib_create_index",
 		 (op == ROW_OP_INSERT ? "insert " : "delete ")
 		 << (has_index_lock ? "locked index " : "unlocked index ")
 		 << index->id << ',' << ib::hex(trx_id) << ": "

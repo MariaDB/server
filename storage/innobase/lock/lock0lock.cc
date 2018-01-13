@@ -2828,7 +2828,7 @@ RecLock::jump_queue(
 		ut_ad(conflict_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT);
 		ut_ad(conflict_lock->trx->lock.wait_lock == conflict_lock);
 
-		DBUG_LOG("trx",
+		ut_d_log("trx",
 			 "Granting High Priority Transaction "
 			<< ib::hex(lock->trx->id) << " a lock jumping over"
 			<< " waiting Transaction " << ib::hex(conflict_lock->trx->id));
@@ -3001,7 +3001,7 @@ RecLock::make_trx_hit_list(
 			/* Assert that it is not waiting for current record. */
 			ut_ad(trx->lock.wait_lock != next);
 
-			DBUG_LOG("trx", "High Priority Transaction "
+			ut_d_log("trx", "High Priority Transaction "
 				<< ib::hex(lock->trx->id)
 				 << " waking up blocking transaction "
 				<< ib::hex(trx->id));

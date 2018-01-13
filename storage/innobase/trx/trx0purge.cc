@@ -840,7 +840,7 @@ trx_purge_mark_undo_for_truncate(
 		return;
 	}
 
-	DBUG_LOG("undo",
+	ut_d_log("undo",
 		 "marking for truncate UNDO tablespace "
 		 << undo_trunc->get_marked_space_id());
 

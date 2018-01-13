@@ -1534,10 +1534,10 @@ fil_space_create(
 	space->magic_n = FIL_SPACE_MAGIC_N;
 	space->crypt_data = crypt_data;
 
-	DBUG_LOG("tablespace",
+	ut_d_log("tablespace",
 		 "Created metadata for " << id << " name " << name);
 	if (crypt_data) {
-		DBUG_LOG("crypt",
+		ut_d_log("crypt",
 			 "Tablespace " << id << " name " << name
 			 << " encryption " << crypt_data->encryption
 			 << " key id " << crypt_data->key_id

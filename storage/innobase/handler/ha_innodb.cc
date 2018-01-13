@@ -4663,7 +4663,7 @@ innobase_rollback(
 #ifndef DBUG_OFF
 			char	buffer[1024];
 
-			DBUG_LOG("trx", "Forced rollback: "
+			ut_d_log("trx", "Forced rollback: "
 				 << thd_get_error_context_description(
 					 thd, buffer, sizeof buffer, 512));
 #endif /* !DBUG_OFF */
