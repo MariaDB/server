@@ -245,11 +245,10 @@ parse_cnf()
     local reval=""
 
     # normalize the variable names specified in cnf file (user can use _ or - for example log-bin or log_bin)
-    # then grep for needed variable
+    # then search for needed variable
     # finally get the variable value (if variables has been specified multiple time use the last value only)
 
-    # TODO: get awk to do the grep/cut bits as well
-    reval=$($MY_PRINT_DEFAULTS "${group}" | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
+    reval=$($MY_PRINT_DEFAULTS "${group}" | awk -v var="${var}" 'BEGIN { OFS=FS="=" } { gsub(/_/,"-",$1); if ( $1=="--"var) lastval=substr($0,length($1)+2) } END { print lastval}')
 
     # use default if we haven't found a value
     if [ -z $reval ]; then
