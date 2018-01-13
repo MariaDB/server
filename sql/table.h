@@ -583,10 +583,6 @@ enum vers_sys_type_t
   VERS_TRX_ID
 };
 
-#ifndef UINT32_MAX
-#define UINT32_MAX             (4294967295U)
-#endif
-
 /**
   This structure is shared between different table objects. There is one
   instance of table share per one table in the database.
@@ -791,7 +787,7 @@ struct TABLE_SHARE
 
   void vers_init()
   {
-    hist_part_id= UINT32_MAX;
+    hist_part_id= UINT_MAX32;
     busy_rotation= false;
     stat_trx= NULL;
     stat_serial= 0;

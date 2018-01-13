@@ -57,11 +57,11 @@ struct Vers_part_info : public Sql_alloc
   {
     if (now_part)
     {
-      DBUG_ASSERT(now_part->id != UINT32_MAX);
+      DBUG_ASSERT(now_part->id != UINT_MAX32);
       DBUG_ASSERT(now_part->type() == partition_element::CURRENT);
       DBUG_ASSERT(!fully || (bool) hist_part);
       DBUG_ASSERT(!hist_part || (
-          hist_part->id != UINT32_MAX &&
+          hist_part->id != UINT_MAX32 &&
           hist_part->type() == partition_element::HISTORY));
       return true;
     }
@@ -406,7 +406,7 @@ public:
   {
     DBUG_ASSERT(table && table->s);
     DBUG_ASSERT(vers_info && vers_info->initialized());
-    DBUG_ASSERT(table->s->hist_part_id != UINT32_MAX);
+    DBUG_ASSERT(table->s->hist_part_id != UINT_MAX32);
     if (table->s->hist_part_id == vers_info->hist_part->id)
       return vers_info->hist_part;
 

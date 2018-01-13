@@ -5500,7 +5500,7 @@ opt_part_values:
             else
             {
               part_info->vers_init_info(thd);
-              elem->id= UINT32_MAX;
+              elem->id= UINT_MAX32;
             }
             DBUG_ASSERT(part_info->vers_info);
             if (part_info->vers_info->now_part)

@@ -1001,7 +1001,7 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
         continue;
       }
       /* Newly added element is inserted before AS_OF_NOW. */
-      if (el->id == UINT32_MAX || el->type() == partition_element::CURRENT)
+      if (el->id == UINT_MAX32 || el->type() == partition_element::CURRENT)
       {
         DBUG_ASSERT(table && table->s);
         Vers_min_max_stats *stat_trx_end= new (&table->s->mem_root)
