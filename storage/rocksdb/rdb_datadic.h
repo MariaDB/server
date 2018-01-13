@@ -46,6 +46,8 @@ class Rdb_field_packing;
 class Rdb_cf_manager;
 class Rdb_ddl_manager;
 
+const uint32_t GTID_BUF_LEN = 60;
+
 /*
   @brief
   Field packing context.
@@ -1158,7 +1160,8 @@ private:
   rocksdb::Slice pack_value(uchar *const buf, const char *const binlog_name,
                             const my_off_t &binlog_pos,
                             const char *const binlog_gtid) const;
-  bool unpack_value(const uchar *const value, char *const binlog_name,
+  bool unpack_value(const uchar *const value, size_t value_size,
+                    char *const binlog_name,
                     my_off_t *const binlog_pos, char *const binlog_gtid) const;
 
   std::atomic<Rdb_tbl_def *> m_slave_gtid_info_tbl;
