@@ -729,7 +729,6 @@ static int rdb_i_s_global_info_fill_table(
   DBUG_ASSERT(tables != nullptr);
 
   static const uint32_t INT_BUF_LEN = 21;
-  static const uint32_t GTID_BUF_LEN = 60;
   static const uint32_t CF_ID_INDEX_BUF_LEN = 60;
 
   int ret = 0;
