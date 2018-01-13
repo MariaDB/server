@@ -1139,7 +1139,7 @@ extern ulonglong transid_get_packed(MARIA_SHARE *share, const uchar *from);
 #ifdef IDENTICAL_PAGES_AFTER_RECOVERY
 void page_cleanup(MARIA_SHARE *share, MARIA_PAGE *page)
 #else
-#define page_cleanup(A,B) while (0)
+#define page_cleanup(A,B) do { } while (0)
 #endif
 
 extern MARIA_KEY *_ma_make_key(MARIA_HA *info, MARIA_KEY *int_key, uint keynr,
