@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -566,7 +566,6 @@ bool
 fil_node_open_file(
 	fil_node_t*	node)
 {
-	os_offset_t	size_bytes;
 	bool		success;
 	bool		read_only_mode;
 	fil_space_t*	space = node->space;
@@ -611,7 +610,7 @@ retry:
 			return(false);
 		}
 
-		size_bytes = os_file_get_size(node->handle);
+		os_offset_t size_bytes = os_file_get_size(node->handle);
 		ut_a(size_bytes != (os_offset_t) -1);
 
 		ut_a(space->purpose != FIL_TYPE_LOG);
@@ -694,20 +693,17 @@ retry:
 		space->free_len = free_len;
 
 		if (first_time_open) {
-			ulint	extent_size;
-
-			extent_size = psize * FSP_EXTENT_SIZE;
-
-			/* After apply-incremental, tablespaces are not extended
-			to a whole megabyte. Do not cut off valid data. */
-
 			/* Truncate the size to a multiple of extent size. */
-			if (size_bytes >= extent_size) {
-				size_bytes = ut_2pow_round(size_bytes,
-							   extent_size);
+			ulint	mask = psize * FSP_EXTENT_SIZE - 1;
+
+			if (size_bytes <= mask) {
+				/* .ibd files start smaller than an
+				extent size. Do not truncate valid data. */
+			} else {
+				size_bytes &= ~os_offset_t(mask);
 			}
 
-			node->size = static_cast<ulint>(size_bytes / psize);
+			node->size = ulint(size_bytes / psize);
 			space->size += node->size;
 		}
 	}
