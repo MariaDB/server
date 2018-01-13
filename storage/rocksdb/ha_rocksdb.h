@@ -1412,6 +1412,6 @@ private:
   Rdb_inplace_alter_ctx &operator=(const Rdb_inplace_alter_ctx &);
 };
 
-const int MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL= MariaDB_PLUGIN_MATURITY_ALPHA;
+const int MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL= MariaDB_PLUGIN_MATURITY_BETA;
 
 } // namespace myrocks
