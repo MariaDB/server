@@ -41,24 +41,6 @@ const char *default_dbug_option="d:t:o,/tmp/my_print_defaults.trace";
 
 static struct my_option my_long_options[] =
 {
-  /*
-    NB: --config-file is troublesome, because get_defaults_options() doesn't
-    know about it, but we pretend --config-file is like --defaults-file.  In
-    fact they behave differently: see the comments at the top of
-    mysys/default.c for how --defaults-file should behave.
-
-    This --config-file option behaves as:
-    - If it has a directory name part (absolute or relative), then only this
-      file is read; no error is given if the file doesn't exist
-    - If the file has no directory name part, the standard locations are
-      searched for a file of this name (and standard filename extensions are
-      added if the file has no extension)
-  */
-  {"config-file", 'c', "Deprecated, please use --defaults-file instead. "
-   "Name of config file to read; if no extension is given, default "
-   "extension (e.g., .ini or .cnf) will be added",
-   (char**) &config_file, (char**) &config_file, 0, GET_STR, REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0},
 #ifdef DBUG_OFF
   {"debug", '#', "This is a non-debug version. Catch this and exit",
    0,0, 0, GET_DISABLED, OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -66,8 +48,8 @@ static struct my_option my_long_options[] =
   {"debug", '#', "Output debug log", (char**) &default_dbug_option,
    (char**) &default_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"defaults-file", 'c', "Like --config-file, except: if first option, "
-   "then read this file only, do not read global or per-user config "
+  {"defaults-file", 'c',
+   "Read this file only, do not read global or per-user config "
    "files; should be the first option",
    (char**) &config_file, (char*) &config_file, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
@@ -80,11 +62,6 @@ static struct my_option my_long_options[] =
    "In addition to the given groups, read also groups with this suffix",
    (char**) &my_defaults_group_suffix, (char**) &my_defaults_group_suffix,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"extra-file", 'e',
-   "Deprecated. Synonym for --defaults-extra-file.",
-   (void *)&my_defaults_extra_file,
-   (void *)&my_defaults_extra_file, 0, GET_STR,
-   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"mysqld", 0, "Read the same set of groups that the mysqld binary does.",
    &opt_mysqld, &opt_mysqld, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"no-defaults", 'n', "Return an empty string (useful for scripts).",
@@ -107,7 +84,7 @@ static void cleanup_and_exit(int exit_code)
 
 static void version()
 {
-  printf("%s  Ver 1.6 for %s at %s\n",my_progname,SYSTEM_TYPE, MACHINE_TYPE);
+  printf("%s  Ver 1.7 for %s at %s\n",my_progname,SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 
