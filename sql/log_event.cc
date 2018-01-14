@@ -55,8 +55,6 @@
 
 #define my_b_write_string(A, B) my_b_write((A), (uchar*)(B), (uint) (sizeof(B) - 1))
 
-using std::max;
-
 /**
   BINLOG_CHECKSUM variable.
 */
@@ -1777,8 +1775,8 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   if (data_len < LOG_EVENT_MINIMAL_HEADER_LEN)
     DBUG_RETURN(LOG_READ_BOGUS);
 
-  if (data_len > max(max_allowed_packet,
-                     opt_binlog_rows_event_max_size + MAX_LOG_EVENT_HEADER))
+  if (data_len > MY_MAX(max_allowed_packet,
+                        opt_binlog_rows_event_max_size + MAX_LOG_EVENT_HEADER))
     DBUG_RETURN(LOG_READ_TOO_LARGE);
 
   if (likely(data_len > LOG_EVENT_MINIMAL_HEADER_LEN))
