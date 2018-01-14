@@ -40,6 +40,8 @@ case "$1" in
         then
             # IPv6 notation
             readonly WSREP_SST_OPT_HOST_UNESCAPED=${WSREP_SST_OPT_HOST:1:-1}
+        else
+            readonly WSREP_SST_OPT_HOST_UNESCAPED=${WSREP_SST_OPT_HOST}
         fi
         readonly WSREP_SST_OPT_PORT=$(echo $WSREP_SST_OPT_ADDR | \
                 cut -d ']' -f 2 | cut -s -d ':' -f 2 | cut -d '/' -f 1)
