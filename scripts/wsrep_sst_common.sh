@@ -35,19 +35,20 @@ case "$1" in
         #
         # Break address string into host:port/path parts
         #
-        if echo $WSREP_SST_OPT_ADDR | grep -qe '^\[.*\]'
+        readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR%%[:/]*}
+        if [ ${WSREP_SST_OPT_HOST:0:1} = '[' ]
         then
             # IPv6 notation
-            readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR/\]*/\]}
-            readonly WSREP_SST_OPT_HOST_UNESCAPED=$(echo $WSREP_SST_OPT_HOST | \
-                 cut -d '[' -f 2 | cut -d ']' -f 1)
-        else
-            # "traditional" notation
-            readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR%%[:/]*}
+            readonly WSREP_SST_OPT_HOST_UNESCAPED=${WSREP_SST_OPT_HOST:1:-1}
         fi
         readonly WSREP_SST_OPT_PORT=$(echo $WSREP_SST_OPT_ADDR | \
                 cut -d ']' -f 2 | cut -s -d ':' -f 2 | cut -d '/' -f 1)
         readonly WSREP_SST_OPT_PATH=${WSREP_SST_OPT_ADDR#*/}
+        readonly WSREP_SST_OPT_MODULE=${WSREP_SST_OPT_PATH%%/*}
+        remain=${WSREP_SST_OPT_PATH#*/}
+        readonly WSREP_SST_OPT_LSN=${remain%%/*}
+        remain=${remain#*/}
+        readonly WSREP_SST_OPT_SST_VER=${remain%%/*}
         shift
         ;;
     '--bypass')
