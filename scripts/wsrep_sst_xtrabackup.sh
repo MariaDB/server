@@ -30,15 +30,13 @@ encrypt=0
 nproc=1
 ecode=0
 XTRABACKUP_PID=""
-SST_PORT=""
-REMOTEIP=""
 tcert=""
 tpem=""
 sockopt=""
 progress=""
 ttime=0
 totime=0
-lsn=""
+lsn="${WSREP_SST_OPT_LSN}"
 incremental=0
 ecmd=""
 rlimit=""
@@ -136,11 +134,7 @@ get_keys()
 
 get_transfer()
 {
-    if [[ -z $SST_PORT ]];then 
-        TSST_PORT=4444
-    else 
-        TSST_PORT=$SST_PORT
-    fi
+    TSST_PORT=${WSREP_SST_OPT_PORT:-4444}
 
     if [[ $tfmt == 'nc' ]];then
         if [[ ! -x `which nc` ]];then 
@@ -155,7 +149,7 @@ get_transfer()
                 tcmd="nc -dl ${TSST_PORT}"
             fi
         else
-            tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+            tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
         fi
     else
         tfmt='socat'
@@ -181,13 +175,13 @@ get_transfer()
                 tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=$tpem,cafile=${tcert}${sockopt} stdio"
             else
                 wsrep_log_info "Encrypting with PEM $tpem, CA: $tcert"
-                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=$tpem,cafile=${tcert}${sockopt}"
+                tcmd="socat -u stdio openssl-connect:${WSREP_SST_OPT_HOST}:${TSST_PORT},cert=$tpem,cafile=${tcert}${sockopt}"
             fi
         else 
             if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
                 tcmd="socat -u TCP-LISTEN:${TSST_PORT},reuseaddr${sockopt} stdio"
             else
-                tcmd="socat -u stdio TCP:${REMOTEIP}:${TSST_PORT}${sockopt}"
+                tcmd="socat -u stdio TCP:${WSREP_SST_OPT_HOST}:${TSST_PORT}${sockopt}"
             fi
         fi
     fi
@@ -343,17 +337,6 @@ kill_xtrabackup()
     rm -f "$XTRABACKUP_PID"
 }
 
-setup_ports()
-{
-    if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
-        SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
-        REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
-        lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
-    else
-        SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $2 }')
-    fi
-}
-
 # waits ~10 seconds for nc to open the port and then reports ready
 # (regardless of timeout)
 wait_for_listen()
@@ -462,7 +445,7 @@ then
 
         check_extra
 
-        wsrep_log_info "Streaming the backup to joiner at ${REMOTEIP} ${SST_PORT}"
+        wsrep_log_info "Streaming the backup to joiner at ${WSREP_SST_OPT_HOST} ${WSREP_SST_OPT_PORT}"
 
         if [[ -n $progress ]];then 
             get_footprint
@@ -542,14 +525,9 @@ then
     # May need xtrabackup_checkpoints later on
     rm -f ${DATA}/xtrabackup_binary ${DATA}/xtrabackup_galera_info  ${DATA}/xtrabackup_logfile
 
-    ADDR=${WSREP_SST_OPT_ADDR}
-    if [ -z "${SST_PORT}" ]
-    then
-        SST_PORT=4444
-        ADDR="$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $1 }'):${SST_PORT}"
-    fi
+    ADDR="${WSREP_SST_OPT_HOST}:${WSREP_SST_OPT_PORT:-4444}"
 
-    wait_for_listen ${SST_PORT} ${ADDR} ${MODULE} &
+    wait_for_listen ${WSREP_SST_OPT_PORT:-4444} ${ADDR} ${MODULE} &
 
     trap sig_joiner_cleanup HUP PIPE INT TERM
     trap cleanup_joiner EXIT
