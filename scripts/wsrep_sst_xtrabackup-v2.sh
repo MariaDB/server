@@ -469,15 +469,15 @@ read_cnf()
     # Pull the parameters needed for encrypt=4
     ssl_ca=$(parse_cnf sst ssl-ca "")
     if [[ -z "$ssl_ca" ]]; then
-        ssl_ca=$(parse_cnf mysqld ssl-ca "")
+        ssl_ca=$(parse_cnf --mysqld ssl-ca "")
     fi
     ssl_cert=$(parse_cnf sst ssl-cert "")
     if [[ -z "$ssl_cert" ]]; then
-        ssl_cert=$(parse_cnf mysqld ssl-cert "")
+        ssl_cert=$(parse_cnf --mysqld ssl-cert "")
     fi
     ssl_key=$(parse_cnf sst ssl-key "")
     if [[ -z "$ssl_key" ]]; then
-        ssl_key=$(parse_cnf mysqld ssl-key "")
+        ssl_key=$(parse_cnf --mysqld ssl-key "")
     fi
 
     rlimit=$(parse_cnf sst rlimit "")
@@ -667,8 +667,8 @@ check_extra()
 {
     local use_socket=1
     if [[ $uextra -eq 1 ]];then 
-        if $MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
-            local eport=$($MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
+        if [ $(parse_cnf --mysqld thread-handling) = 'pool-of-threads'];then
+            local eport=$(parse_cnf --mysqld extra-port)
             if [[ -n $eport ]];then 
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
@@ -901,7 +901,7 @@ then
             exit 93
         fi
 
-        if [[ -z $(parse_cnf mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
+        if [[ -z $(parse_cnf --mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
             xtmpdir=$(mktemp -d)
             tmpopts=" --tmpdir=$xtmpdir "
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
@@ -1015,9 +1015,9 @@ then
     [[ -e $SST_PROGRESS_FILE ]] && wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
     [[ -n $SST_PROGRESS_FILE ]] && touch $SST_PROGRESS_FILE
 
-    ib_home_dir=$(parse_cnf mysqld innodb-data-home-dir "")
-    ib_log_dir=$(parse_cnf mysqld innodb-log-group-home-dir "")
-    ib_undo_dir=$(parse_cnf mysqld innodb-undo-directory "")
+    ib_home_dir=$(parse_cnf --mysqld innodb-data-home-dir "")
+    ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
+    ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
 
     stagemsg="Joiner-Recv"
 
@@ -1079,7 +1079,7 @@ then
         wsrep_log_info "Cleaning the existing datadir and innodb-data/log directories"
         find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1  -regex $cpat  -prune  -o -exec rm -rfv {} 1>&2 \+
 
-        tempdir=$(parse_cnf mysqld log-bin "")
+        tempdir=$(parse_cnf --mysqld log-bin "")
         if [[ -n ${tempdir:-} ]];then
             binlog_dir=$(dirname $tempdir)
             binlog_file=$(basename $tempdir)

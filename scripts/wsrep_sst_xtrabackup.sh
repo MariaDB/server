@@ -377,8 +377,8 @@ check_extra()
 {
     local use_socket=1
     if [[ $uextra -eq 1 ]];then 
-        if $MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
-            local eport=$($MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
+        if [ $(parse_cnf --mysqld thread-handling) = 'pool-of-threads'];then
+            local eport=$(parse_cnf --mysqld extra-port)
             if [[ -n $eport ]];then 
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
