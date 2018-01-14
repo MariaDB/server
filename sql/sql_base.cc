@@ -7997,10 +7997,6 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
   TABLE_LIST *derived= select_lex->master_unit()->derived;
   DBUG_ENTER("setup_conds");
 
-  /* Do not fix conditions for the derived tables that have been merged */
-  if (derived && derived->merged)
-    DBUG_RETURN(0);
-
   select_lex->is_item_list_lookup= 0;
 
   thd->mark_used_columns= MARK_COLUMNS_READ;
