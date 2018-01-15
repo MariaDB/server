@@ -407,7 +407,6 @@ CHECK_FUNCTION_EXISTS (pthread_sigmask HAVE_PTHREAD_SIGMASK)
 CHECK_FUNCTION_EXISTS (pthread_threadmask HAVE_PTHREAD_THREADMASK)
 CHECK_FUNCTION_EXISTS (pthread_yield_np HAVE_PTHREAD_YIELD_NP)
 CHECK_FUNCTION_EXISTS (putenv HAVE_PUTENV)
-CHECK_FUNCTION_EXISTS (readdir_r HAVE_READDIR_R)
 CHECK_FUNCTION_EXISTS (readlink HAVE_READLINK)
 CHECK_FUNCTION_EXISTS (re_comp HAVE_RE_COMP)
 CHECK_FUNCTION_EXISTS (regcomp HAVE_REGCOMP)
@@ -464,6 +463,16 @@ CHECK_FUNCTION_EXISTS (nl_langinfo HAVE_NL_LANGINFO)
 IF(HAVE_SYS_EVENT_H)
 CHECK_FUNCTION_EXISTS (kqueue HAVE_KQUEUE)
 ENDIF()
+
+# readdir_r might exist, but be marked deprecated
+SET(CMAKE_REQUIRED_FLAGS -Werror)
+CHECK_CXX_SOURCE_COMPILES(
+"#include  <dirent.h>
+int main() {
+  readdir_r(0,0,0);
+  return 0;
+  }" HAVE_READDIR_R)
+SET(CMAKE_REQUIRED_FLAGS)
 
 #--------------------------------------------------------------------
 # Support for WL#2373 (Use cycle counter for timing)
