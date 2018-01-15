@@ -1162,6 +1162,7 @@ next_column:
 		/* If the table already contains fulltext indexes,
 		refuse to rebuild the table natively altogether. */
 		if (m_prebuilt->table->fts) {
+cannot_create_many_fulltext_index:
 			ha_alter_info->unsupported_reason = innobase_get_err_msg(
 				ER_INNODB_FT_LIMIT);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -1191,6 +1192,7 @@ next_column:
 
 		We could also do ADD SPATIAL INDEX by implementing
 		row_log_apply() for it. */
+		bool add_fulltext = false;
 
 		for (uint i = 0; i < ha_alter_info->index_add_count; i++) {
 			const KEY* key =
@@ -1202,16 +1204,18 @@ next_column:
 						  | HA_PACK_KEY
 						  | HA_GENERATED_KEY
 						  | HA_BINARY_PACK_KEY)));
+				if (add_fulltext) {
+					goto cannot_create_many_fulltext_index;
+				}
+				add_fulltext = true;
 				ha_alter_info->unsupported_reason = innobase_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
 				online = false;
-				break;
 			}
-			if (key->flags & HA_SPATIAL) {
+			if (online && (key->flags & HA_SPATIAL)) {
 				ha_alter_info->unsupported_reason = innobase_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
 				online = false;
-				break;
 			}
 		}
 	}
@@ -5291,35 +5295,18 @@ new_clustered_failed:
 		ctx->prepare_instant();
 	}
 
-	if (!ctx->is_instant()) {
-		if (num_fts_index > 1) {
-			my_error(ER_INNODB_FT_LIMIT, MYF(0));
-			goto error_handled;
-		}
-
-		if (!ctx->online) {
-			/* This is not an online operation (LOCK=NONE). */
-		} else if (ctx->add_autoinc == ULINT_UNDEFINED
-			   && num_fts_index == 0
-			   && (!innobase_need_rebuild(ha_alter_info, old_table)
-			       || !innobase_fulltext_exist(altered_table))) {
-			/* InnoDB can perform an online operation
-			(LOCK=NONE). */
-		} else {
-			size_t query_length;
-			/* This should have been blocked in
-			check_if_supported_inplace_alter(). */
-			ut_ad(0);
-			my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-				 innobase_get_stmt_unsafe(
-					 ctx->prebuilt->trx->mysql_thd,
-					 &query_length));
-			goto error_handled;
-		}
-	}
-
 	if (ctx->need_rebuild()) {
 not_instant_add_column:
+		DBUG_ASSERT(ctx->need_rebuild());
+		DBUG_ASSERT(!ctx->is_instant());
+		DBUG_ASSERT(num_fts_index <= 1);
+		DBUG_ASSERT(!ctx->online || num_fts_index == 0);
+		DBUG_ASSERT(!ctx->online
+			    || ctx->add_autoinc == ULINT_UNDEFINED);
+		DBUG_ASSERT(!ctx->online
+			    || !innobase_need_rebuild(ha_alter_info, old_table)
+			    || !innobase_fulltext_exist(altered_table));
+
 		uint32_t		key_id	= FIL_DEFAULT_ENCRYPTION_KEY;
 		fil_encryption_t	mode	= FIL_ENCRYPTION_DEFAULT;
 
@@ -5419,7 +5406,7 @@ new_table_failed:
 			ut_ad(index->trx_id == ctx->trx->id);
 
 			if (index->type & DICT_FTS) {
-				DBUG_ASSERT(num_fts_index);
+				DBUG_ASSERT(num_fts_index == 1);
 				DBUG_ASSERT(!fts_index);
 				DBUG_ASSERT(index->type == DICT_FTS);
 				fts_index = ctx->add_index[a];
@@ -5504,7 +5491,7 @@ error_handling_drop_uncached:
 			/* If ADD INDEX with LOCK=NONE has been
 			requested, allocate a modification log. */
 			if (index->type & DICT_FTS) {
-				DBUG_ASSERT(num_fts_index);
+				DBUG_ASSERT(num_fts_index == 1);
 				DBUG_ASSERT(!fts_index);
 				DBUG_ASSERT(index->type == DICT_FTS);
 				fts_index = ctx->add_index[a];
