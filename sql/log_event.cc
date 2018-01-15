@@ -11791,7 +11791,8 @@ int Table_map_log_event::rewrite_db(const char* new_db, size_t new_len,
   cnt += header_len;
 
   // Write new db name length and new name
-  *ptr++ = new_len;
+  DBUG_ASSERT(new_len < 0xff);
+  *ptr++ = (char)new_len;
   memcpy(ptr, new_db, new_len + 1);
   ptr += new_len + 1;
   cnt += m_dblen + 2;
