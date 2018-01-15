@@ -1462,33 +1462,24 @@ row_sel_try_search_shortcut(
 	sel_node_t*	node,	/*!< in: select node for a consistent read */
 	plan_t*		plan,	/*!< in: plan for a unique search in clustered
 				index */
-	ibool		search_latch_locked,
-				/*!< in: whether the search holds latch on
-				search system. */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	dict_index_t*	index;
-	rec_t*		rec;
-	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
-	ulint		ret;
-	rec_offs_init(offsets_);
-
-	index = plan->index;
+	dict_index_t*	index = plan->index;
 
 	ut_ad(node->read_view);
 	ut_ad(plan->unique_search);
 	ut_ad(!plan->must_get_clust);
-	ut_ad(!search_latch_locked
-	      || rw_lock_own(btr_get_search_latch(index), RW_LOCK_S));
 
-	row_sel_open_pcur(plan, search_latch_locked, mtr);
+	rw_lock_t* ahi_latch = btr_get_search_latch(index);
+	rw_lock_s_lock(ahi_latch);
 
-	rec = btr_pcur_get_rec(&(plan->pcur));
+	row_sel_open_pcur(plan, TRUE, mtr);
+
+	const rec_t* rec = btr_pcur_get_rec(&(plan->pcur));
 
 	if (!page_rec_is_user_rec(rec) || rec_is_default_row(rec, index)) {
-
+retry:
+		rw_lock_s_unlock(ahi_latch);
 		return(SEL_RETRY);
 	}
 
@@ -1499,36 +1490,34 @@ row_sel_try_search_shortcut(
 	fields in the user record matched to the search tuple */
 
 	if (btr_pcur_get_up_match(&(plan->pcur)) < plan->n_exact_match) {
-
+exhausted:
+		rw_lock_s_unlock(ahi_latch);
 		return(SEL_EXHAUSTED);
 	}
 
 	/* This is a non-locking consistent read: if necessary, fetch
 	a previous version of the record */
 
+	mem_heap_t*	heap		= NULL;
+	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
+	ulint*		offsets		= offsets_;
+	rec_offs_init(offsets_);
 	offsets = rec_get_offsets(rec, index, offsets, true,
 				  ULINT_UNDEFINED, &heap);
 
 	if (dict_index_is_clust(index)) {
 		if (!lock_clust_rec_cons_read_sees(rec, index, offsets,
 						   node->read_view)) {
-			ret = SEL_RETRY;
-			goto func_exit;
+			goto retry;
 		}
 	} else if (!srv_read_only_mode
 		   && !lock_sec_rec_cons_read_sees(
 			rec, index, node->read_view)) {
-
-		ret = SEL_RETRY;
-		goto func_exit;
+		goto retry;
 	}
 
-	/* Test the deleted flag. */
-
 	if (rec_get_deleted_flag(rec, dict_table_is_comp(plan->table))) {
-
-		ret = SEL_EXHAUSTED;
-		goto func_exit;
+		goto exhausted;
 	}
 
 	/* Fetch the columns needed in test conditions.  The index
@@ -1542,20 +1531,18 @@ row_sel_try_search_shortcut(
 	/* Test the rest of search conditions */
 
 	if (!row_sel_test_other_conds(plan)) {
-
-		ret = SEL_EXHAUSTED;
-		goto func_exit;
+		goto exhausted;
 	}
 
 	ut_ad(plan->pcur.latch_mode == BTR_SEARCH_LEAF);
 
 	plan->n_rows_fetched++;
-	ret = SEL_FOUND;
-func_exit:
+	rw_lock_s_unlock(ahi_latch);
+
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
-	return(ret);
+	return(SEL_FOUND);
 }
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -1601,12 +1588,6 @@ row_sel(
 	rec_offs_init(offsets_);
 
 	ut_ad(thr->run_node == node);
-
-#ifdef BTR_CUR_HASH_ADAPT
-	ibool		search_latch_locked = FALSE;
-#else /* BTR_CUR_HASH_ADAPT */
-# define search_latch_locked false
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (node->read_view) {
 		/* In consistent reads, we try to do with the hash index and
@@ -1656,33 +1637,14 @@ table_loop:
 #ifdef BTR_CUR_HASH_ADAPT
 	if (consistent_read && plan->unique_search && !plan->pcur_is_open
 	    && !plan->must_get_clust) {
-		if (!search_latch_locked) {
-			btr_search_s_lock(index);
-
-			search_latch_locked = TRUE;
-		} else if (rw_lock_get_writer(btr_get_search_latch(index))
-				== RW_LOCK_X_WAIT) {
-
-			/* There is an x-latch request waiting: release the
-			s-latch for a moment; as an s-latch here is often
-			kept for some 10 searches before being released,
-			a waiting x-latch request would block other threads
-			from acquiring an s-latch for a long time, lowering
-			performance significantly in multiprocessors. */
-
-			btr_search_s_unlock(index);
-			btr_search_s_lock(index);
-		}
-
-		switch (row_sel_try_search_shortcut(node, plan,
-						    search_latch_locked,
-						    &mtr)) {
+		switch (row_sel_try_search_shortcut(node, plan, &mtr)) {
 		case SEL_FOUND:
 			goto next_table;
 		case SEL_EXHAUSTED:
 			goto table_exhausted;
 		default:
 			ut_ad(0);
+			/* fall through */
 		case SEL_RETRY:
 			break;
 		}
@@ -1692,19 +1654,13 @@ table_loop:
 		mtr_commit(&mtr);
 		mtr_start(&mtr);
 	}
-
-	if (search_latch_locked) {
-		btr_search_s_unlock(index);
-
-		search_latch_locked = FALSE;
-	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	if (!plan->pcur_is_open) {
 		/* Evaluate the expressions to build the search tuple and
 		open the cursor */
 
-		row_sel_open_pcur(plan, search_latch_locked, &mtr);
+		row_sel_open_pcur(plan, FALSE, &mtr);
 
 		cursor_just_opened = TRUE;
 
@@ -2107,8 +2063,6 @@ skip_lock:
 	}
 
 next_rec:
-	ut_ad(!search_latch_locked);
-
 	if (mtr_has_extra_clust_latch) {
 
 		/* We must commit &mtr if we are moving to the next
@@ -2146,8 +2100,6 @@ next_table:
 
 		plan->cursor_at_end = TRUE;
 	} else {
-		ut_ad(!search_latch_locked);
-
 		plan->stored_cursor_rec_processed = TRUE;
 
 		btr_pcur_store_position(&(plan->pcur), &mtr);
@@ -2238,8 +2190,6 @@ stop_for_a_while:
 	inserted new records which should have appeared in the result set,
 	which would result in the phantom problem. */
 
-	ut_ad(!search_latch_locked);
-
 	plan->stored_cursor_rec_processed = FALSE;
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
@@ -2256,7 +2206,6 @@ commit_mtr_for_a_while:
 
 	plan->stored_cursor_rec_processed = TRUE;
 
-	ut_ad(!search_latch_locked);
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
 	mtr_commit(&mtr);
@@ -2270,7 +2219,6 @@ lock_wait_or_error:
 	/* See the note at stop_for_a_while: the same holds for this case */
 
 	ut_ad(!btr_pcur_is_before_first_on_page(&plan->pcur) || !node->asc);
-	ut_ad(!search_latch_locked);
 
 	plan->stored_cursor_rec_processed = FALSE;
 	btr_pcur_store_position(&(plan->pcur), &mtr);
@@ -2278,11 +2226,6 @@ lock_wait_or_error:
 	mtr_commit(&mtr);
 
 func_exit:
-#ifdef BTR_CUR_HASH_ADAPT
-	if (search_latch_locked) {
-		btr_search_s_unlock(index);
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(!sync_check_iterate(dict_sync_check()));
 
 	if (heap != NULL) {
@@ -3895,12 +3838,15 @@ row_sel_try_search_shortcut_for_mysql(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!prebuilt->templ_contains_blob);
 
+	rw_lock_t* ahi_latch = btr_get_search_latch(index);
+	rw_lock_s_lock(ahi_latch);
 	btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
 				   BTR_SEARCH_LEAF, pcur, RW_S_LATCH, mtr);
 	rec = btr_pcur_get_rec(pcur);
 
 	if (!page_rec_is_user_rec(rec) || rec_is_default_row(rec, index)) {
-
+retry:
+		rw_lock_s_unlock(ahi_latch);
 		return(SEL_RETRY);
 	}
 
@@ -3909,7 +3855,8 @@ row_sel_try_search_shortcut_for_mysql(
 	fields in the user record matched to the search tuple */
 
 	if (btr_pcur_get_up_match(pcur) < dtuple_get_n_fields(search_tuple)) {
-
+exhausted:
+		rw_lock_s_unlock(ahi_latch);
 		return(SEL_EXHAUSTED);
 	}
 
@@ -3921,20 +3868,19 @@ row_sel_try_search_shortcut_for_mysql(
 
 	if (!lock_clust_rec_cons_read_sees(
 			rec, index, *offsets, trx_get_read_view(trx))) {
-
-		return(SEL_RETRY);
+		goto retry;
 	}
 
 	if (rec_get_deleted_flag(rec, dict_table_is_comp(index->table))) {
 		/* In delete-marked records, DB_TRX_ID must
 		always refer to an existing undo log record. */
 		ut_ad(row_get_rec_trx_id(rec, index, *offsets));
-
-		return(SEL_EXHAUSTED);
+		goto exhausted;
 	}
 
 	*out_rec = rec;
 
+	rw_lock_s_unlock(ahi_latch);
 	return(SEL_FOUND);
 }
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -4323,24 +4269,14 @@ row_search_mvcc(
 
 		mode = PAGE_CUR_GE;
 
-		if (trx->mysql_n_tables_locked == 0
-		    && prebuilt->select_lock_type == LOCK_NONE
+		if (prebuilt->select_lock_type == LOCK_NONE
 		    && trx->isolation_level > TRX_ISO_READ_UNCOMMITTED
 		    && MVCC::is_view_active(trx->read_view)) {
 
 			/* This is a SELECT query done as a consistent read,
 			and the read view has already been allocated:
 			let us try a search shortcut through the hash
-			index.
-			NOTE that we must also test that
-			mysql_n_tables_locked == 0, because this might
-			also be INSERT INTO ... SELECT ... or
-			CREATE TABLE ... SELECT ... . Our algorithm is
-			NOT prepared to inserts interleaved with the SELECT,
-			and if we try that, we can deadlock on the adaptive
-			hash index semaphore! */
-
-			rw_lock_s_lock(btr_get_search_latch(index));
+			index. */
 
 			switch (row_sel_try_search_shortcut_for_mysql(
 					&rec, prebuilt, &offsets, &heap,
@@ -4388,27 +4324,17 @@ row_search_mvcc(
 
 			shortcut_match:
 				mtr_commit(&mtr);
-
 				/* NOTE that we do NOT store the cursor
 				position */
-
 				err = DB_SUCCESS;
-
-				rw_lock_s_unlock(btr_get_search_latch(index));
-
 				goto func_exit;
 
 			case SEL_EXHAUSTED:
 			shortcut_mismatch:
 				mtr_commit(&mtr);
-
-				err = DB_RECORD_NOT_FOUND;
-
-				rw_lock_s_unlock(btr_get_search_latch(index));
-
 				/* NOTE that we do NOT store the cursor
 				position */
-
+				err = DB_RECORD_NOT_FOUND;
 				goto func_exit;
 
 			case SEL_RETRY:
@@ -4420,8 +4346,6 @@ row_search_mvcc(
 
 			mtr_commit(&mtr);
 			mtr_start(&mtr);
-
-                        rw_lock_s_unlock(btr_get_search_latch(index));
 		}
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
