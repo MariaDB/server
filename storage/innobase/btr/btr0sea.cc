@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -791,16 +791,14 @@ TRUE, then cursor->up_match and cursor->low_match both have sensible values.
 				previous record to check our guess!
 @param[in]	tuple		data tuple
 @param[in]	mode		PAGE_CUR_L, PAGE_CUR_LE, PAGE_CUR_G, PAGE_CUR_GE
-@param[in]	mtr		mini transaction
-@return TRUE if success */
+@return	whether a match was found */
 static
-ibool
+bool
 btr_search_check_guess(
 	btr_cur_t*	cursor,
-	ibool		can_only_compare_to_cursor_rec,
+	bool		can_only_compare_to_cursor_rec,
 	const dtuple_t*	tuple,
-	ulint		mode,
-	mtr_t*		mtr)
+	ulint		mode)
 {
 	rec_t*		rec;
 	ulint		n_unique;
@@ -862,14 +860,13 @@ btr_search_check_guess(
 	match = 0;
 
 	if ((mode == PAGE_CUR_G) || (mode == PAGE_CUR_GE)) {
-		rec_t*	prev_rec;
-
 		ut_ad(!page_rec_is_infimum(rec));
 
-		prev_rec = page_rec_get_prev(rec);
+		const rec_t* prev_rec = page_rec_get_prev(rec);
 
 		if (page_rec_is_infimum(prev_rec)) {
-			success = btr_page_get_prev(page_align(prev_rec), mtr)
+			success = *reinterpret_cast<const uint32_t*>(
+				page_align(prev_rec) + FIL_PAGE_PREV)
 				== FIL_NULL;
 
 			goto exit_func;
@@ -884,17 +881,14 @@ btr_search_check_guess(
 		} else {
 			success = cmp >= 0;
 		}
-
-		goto exit_func;
 	} else {
-		rec_t*	next_rec;
-
 		ut_ad(!page_rec_is_supremum(rec));
 
-		next_rec = page_rec_get_next(rec);
+		const rec_t* next_rec = page_rec_get_next(rec);
 
 		if (page_rec_is_supremum(next_rec)) {
-			if (btr_page_get_next(page_align(next_rec), mtr)
+			if (*reinterpret_cast<const uint32_t*>(
+				    page_align(next_rec) + FIL_PAGE_NEXT)
 			    == FIL_NULL) {
 
 				cursor->up_match = 0;
@@ -1094,7 +1088,7 @@ btr_search_guess_on_hash(
 	if (index_id != btr_page_get_index_id(block->frame)
 	    || !btr_search_check_guess(cursor,
 				       has_search_latch,
-				       tuple, mode, mtr)) {
+				       tuple, mode)) {
 
 		if (!has_search_latch) {
 			btr_leaf_page_release(block, latch_mode, mtr);
