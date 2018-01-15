@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -132,7 +133,7 @@ void key_copy(uchar *to_key, uchar *from_record, KEY *key_info,
           Don't copy data for null values
           The -1 below is to subtract the null byte which is already handled
         */
-        length= MY_MIN(key_length, key_part->store_length-1);
+        length= MY_MIN(key_length, uint(key_part->store_length)-1);
         if (with_zerofill)
           bzero((char*) to_key, length);
         continue;
@@ -202,7 +203,7 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
           Don't copy data for null bytes
           The -1 below is to subtract the null byte which is already handled
         */
-        length= MY_MIN(key_length, key_part->store_length-1);
+        length= MY_MIN(key_length, uint(key_part->store_length)-1);
         continue;
       }
     }
