@@ -59,7 +59,7 @@ bytes_written: Needs I_S.TABLE_STATISTICS.IO_WRITE_BYTES
 trx_info_rpl : MariaRocks: @@rpl_skip_tx_api doesn't work, yet.
 rpl_read_free: MDEV-10976
 lock_wait_timeout_stats: MDEV-13404
-
+rpl_row_triggers : Requires read-free slave.
 
 ##
 ##  Test failures (in buildbot or else where)
@@ -74,5 +74,4 @@ information_schema: MDEV-14372: unstable testcase
 ##
 
 mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
-rpl_row_triggers : MariaRocks: requires GTIDs
 
