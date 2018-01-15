@@ -2211,7 +2211,7 @@ bool Item_sum_bit::remove_as_window(ulonglong value)
   }
 
   // Prevent overflow;
-  num_values_added = std::min(num_values_added, num_values_added - 1);
+  num_values_added = MY_MIN(num_values_added, num_values_added - 1);
   set_bits_from_counters();
   return 0;
 }
@@ -2224,7 +2224,7 @@ bool Item_sum_bit::add_as_window(ulonglong value)
     bit_counters[i]+= (value & (1ULL << i)) ? 1 : 0;
   }
   // Prevent overflow;
-  num_values_added = std::max(num_values_added, num_values_added + 1);
+  num_values_added = MY_MAX(num_values_added, num_values_added + 1);
   set_bits_from_counters();
   return 0;
 }

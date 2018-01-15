@@ -21,8 +21,6 @@
 #include <mysql_com.h>
 #include <lf.h>
 
-#include <algorithm>
-
 class THD;
 
 class MDL_context;
@@ -373,8 +371,7 @@ public:
       character set is utf-8, we can safely assume that no
       character starts with a zero byte.
     */
-    using std::min;
-    return memcmp(m_ptr, rhs->m_ptr, min(m_length, rhs->m_length));
+    return memcmp(m_ptr, rhs->m_ptr, MY_MIN(m_length, rhs->m_length));
   }
 
   MDL_key(const MDL_key *rhs)

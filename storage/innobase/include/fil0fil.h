@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -935,10 +935,14 @@ fil_table_accessible(const dict_table_t* table)
 
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
-@param[in]	drop_ahi	whether to drop the adaptive hash index
 @return	DB_SUCCESS or error */
 dberr_t
-fil_delete_tablespace(ulint id, bool drop_ahi = false);
+fil_delete_tablespace(
+	ulint id
+#ifdef BTR_CUR_HASH_ADAPT
+	, bool drop_ahi = false /*!< whether to drop the adaptive hash index */
+#endif /* BTR_CUR_HASH_ADAPT */
+	);
 
 /** Truncate the tablespace to needed size.
 @param[in]	space_id	id of tablespace to truncate
