@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1487,18 +1487,9 @@ row_sel_try_search_shortcut(
 
 	rec = btr_pcur_get_rec(&(plan->pcur));
 
-	if (!page_rec_is_user_rec(rec)) {
+	if (!page_rec_is_user_rec(rec) || rec_is_default_row(rec, index)) {
 
 		return(SEL_RETRY);
-	}
-
-	if (rec_is_default_row(rec, index)) {
-		/* Skip the 'default row' pseudo-record. */
-		if (!btr_pcur_move_to_next_user_rec(&plan->pcur, mtr)) {
-			return(SEL_RETRY);
-		}
-
-		rec = btr_pcur_get_rec(&plan->pcur);
 	}
 
 	ut_ad(plan->mode == PAGE_CUR_GE);
@@ -3908,18 +3899,9 @@ row_sel_try_search_shortcut_for_mysql(
 				   BTR_SEARCH_LEAF, pcur, RW_S_LATCH, mtr);
 	rec = btr_pcur_get_rec(pcur);
 
-	if (!page_rec_is_user_rec(rec)) {
+	if (!page_rec_is_user_rec(rec) || rec_is_default_row(rec, index)) {
 
 		return(SEL_RETRY);
-	}
-
-	if (rec_is_default_row(rec, index)) {
-		/* Skip the 'default row' pseudo-record. */
-		if (!btr_pcur_move_to_next_user_rec(pcur, mtr)) {
-			return(SEL_RETRY);
-		}
-
-		rec = btr_pcur_get_rec(pcur);
 	}
 
 	/* As the cursor is now placed on a user record after a search with
