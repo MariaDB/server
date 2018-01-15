@@ -2960,10 +2960,14 @@ fil_table_accessible(const dict_table_t* table)
 
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
-@param[in]	drop_ahi	whether to drop the adaptive hash index
 @return	DB_SUCCESS or error */
 dberr_t
-fil_delete_tablespace(ulint id, bool drop_ahi)
+fil_delete_tablespace(
+	ulint id
+#ifdef BTR_CUR_HASH_ADAPT
+	, bool drop_ahi /*!< whether to drop the adaptive hash index */
+#endif /* BTR_CUR_HASH_ADAPT */
+	)
 {
 	char*		path = 0;
 	fil_space_t*	space = 0;
@@ -3006,7 +3010,11 @@ fil_delete_tablespace(ulint id, bool drop_ahi)
 	To deal with potential read requests, we will check the
 	::stop_new_ops flag in fil_io(). */
 
-	buf_LRU_flush_or_remove_pages(id, NULL, drop_ahi);
+	buf_LRU_flush_or_remove_pages(id, NULL
+#ifdef BTR_CUR_HASH_ADAPT
+				      , drop_ahi
+#endif /* BTR_CUR_HASH_ADAPT */
+				      );
 
 	/* If it is a delete then also delete any generated files, otherwise
 	when we drop the database the remove directory will fail. */
@@ -3286,7 +3294,11 @@ fil_discard_tablespace(
 {
 	dberr_t	err;
 
-	switch (err = fil_delete_tablespace(id, true)) {
+	switch (err = fil_delete_tablespace(id
+#ifdef BTR_CUR_HASH_ADAPT
+					    , true
+#endif /* BTR_CUR_HASH_ADAPT */
+					    )) {
 	case DB_SUCCESS:
 		break;
 

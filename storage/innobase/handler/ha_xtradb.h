@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 Copyright (c) 2009, Percona Inc.
 
 Portions of this file contain modifications contributed and copyrighted
@@ -957,7 +957,9 @@ innodb_check_deprecated(void)
 
 #ifdef HA_XTRADB_SYSVARS
   /* XtraDB compatibility system variables */
+#ifdef BTR_CUR_HASH_ADAPT
   MYSQL_SYSVAR(adaptive_hash_index_partitions),
+#endif /* BTR_CUR_HASH_ADAPT */
   MYSQL_SYSVAR(buffer_pool_populate),
 #if defined UNIV_DEBUG || defined UNIV_PERF_DEBUG
   MYSQL_SYSVAR(cleaner_eviction_factor),
