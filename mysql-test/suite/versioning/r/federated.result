@@ -1,0 +1,22 @@
+install soname 'ha_federatedx';
+create or replace table t1 (x int) with system versioning;
+create or replace table tf engine=FEDERATED connection='mysql://root@127.0.0.1:MASTER_MYPORT/test/t1';
+Warnings:
+Note	4138	System versioning is skipped for FEDERATED `test`.`tf`
+insert into t1 values (1);
+select * from tf;
+x
+1
+create or replace table t1 (
+x int, sys_start SYS_DATATYPE as row start, sys_end SYS_DATATYPE as row end,
+period for system_time (sys_start, sys_end)) with system versioning;
+create or replace table tf engine=FEDERATED connection='mysql://root@127.0.0.1:MASTER_MYPORT/test/t1';
+Warnings:
+Note	4138	System versioning is skipped for FEDERATED `test`.`tf`
+insert into t1 values (2, default, default);
+select x from tf;
+x
+2
+drop database test;
+create database test;
+uninstall soname 'ha_federatedx';

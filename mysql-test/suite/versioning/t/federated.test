@@ -1,0 +1,24 @@
+--source include/not_embedded.inc
+--source suite/versioning/engines.inc
+--source suite/versioning/common.inc
+
+install soname 'ha_federatedx';
+
+create or replace table t1 (x int) with system versioning;
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval create or replace table tf engine=FEDERATED connection='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t1';
+insert into t1 values (1);
+select * from tf;
+
+--replace_result $sys_datatype_expl SYS_DATATYPE NULL ''
+eval create or replace table t1 (
+  x int, sys_start $sys_datatype_expl as row start, sys_end $sys_datatype_expl as row end,
+  period for system_time (sys_start, sys_end)) with system versioning;
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval create or replace table tf engine=FEDERATED connection='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t1';
+insert into t1 values (2, default, default);
+select x from tf;
+
+drop database test;
+create database test;
+uninstall soname 'ha_federatedx';

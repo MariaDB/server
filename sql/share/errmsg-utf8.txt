@@ -7908,3 +7908,6 @@ ER_VERS_TEMPORARY
 
 ER_VERS_INPLACE_NOT_IMPLEMENTED
         eng "Not implemented for system-versioned tables"
+
+WARN_VERS_FEDERATED
+        eng "System versioning is skipped for FEDERATED %`s.%`s"

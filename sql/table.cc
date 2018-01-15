@@ -2777,6 +2777,15 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   if (tabledef_version.str)
     thd->lex->create_info.tabledef_version= tabledef_version;
 
+  if (thd->lex->create_info.versioned())
+  {
+    thd->lex->create_info.options&= ~HA_VERSIONED_TABLE;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        WARN_VERS_FEDERATED,
+                        ER_THD(thd, WARN_VERS_FEDERATED),
+                        db.str, table_name.str);
+  }
+
   promote_first_timestamp_column(&thd->lex->alter_info.create_list);
   file= mysql_create_frm_image(thd, db.str, table_name.str,
                                &thd->lex->create_info, &thd->lex->alter_info,
