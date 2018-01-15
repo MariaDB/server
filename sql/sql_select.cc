@@ -638,6 +638,9 @@ JOIN::prepare(Item ***rref_pointer_array,
   join_list= &select_lex->top_join_list;
   union_part= unit_arg->is_union();
 
+  // simple check that we got usable conds
+  dbug_print_item(conds);
+
   if (select_lex->handle_derived(thd->lex, DT_PREPARE))
     DBUG_RETURN(1);
 

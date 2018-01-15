@@ -50,6 +50,12 @@ bool trace_unsupported_by_check_vcol_func_processor(const char *where)
   return trace_unsupported_func(where, "check_vcol_func_processor");
 }
 
+#ifdef DBUG_OFF
+static inline const char *dbug_print_item(Item *item) { return NULL; }
+#else
+extern const char *dbug_print_item(Item *item);
+#endif
+
 class Protocol;
 struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
