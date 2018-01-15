@@ -1272,23 +1272,18 @@ static
 void
 row_sel_open_pcur(
 /*==============*/
-	plan_t*		plan,		/*!< in: table plan */
-	ibool		search_latch_locked,
-					/*!< in: TRUE if the thread currently
-					has the search latch locked in
-					s-mode */
-	mtr_t*		mtr)		/*!< in: mtr */
+	plan_t*		plan,	/*!< in: table plan */
+#ifdef BTR_CUR_HASH_ADAPT
+	rw_lock_t*	ahi_latch,
+				/*!< in: the adaptive hash index latch */
+#endif /* BTR_CUR_HASH_ADAPT */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	dict_index_t*	index;
 	func_node_t*	cond;
 	que_node_t*	exp;
 	ulint		n_fields;
-	ulint		has_search_latch = 0;	/* RW_S_LATCH or 0 */
 	ulint		i;
-
-	if (search_latch_locked) {
-		has_search_latch = RW_S_LATCH;
-	}
 
 	index = plan->index;
 
@@ -1325,7 +1320,7 @@ row_sel_open_pcur(
 
 		btr_pcur_open_with_no_init(index, plan->tuple, plan->mode,
 					   BTR_SEARCH_LEAF, &plan->pcur,
-					   has_search_latch, mtr);
+					   ahi_latch, mtr);
 	} else {
 		/* Open the cursor to the start or the end of the index
 		(FALSE: no init) */
@@ -1473,7 +1468,7 @@ row_sel_try_search_shortcut(
 	rw_lock_t* ahi_latch = btr_get_search_latch(index);
 	rw_lock_s_lock(ahi_latch);
 
-	row_sel_open_pcur(plan, TRUE, mtr);
+	row_sel_open_pcur(plan, ahi_latch, mtr);
 
 	const rec_t* rec = btr_pcur_get_rec(&(plan->pcur));
 
@@ -1659,8 +1654,11 @@ table_loop:
 	if (!plan->pcur_is_open) {
 		/* Evaluate the expressions to build the search tuple and
 		open the cursor */
-
-		row_sel_open_pcur(plan, FALSE, &mtr);
+		row_sel_open_pcur(plan,
+#ifdef BTR_CUR_HASH_ADAPT
+				  NULL,
+#endif /* BTR_CUR_HASH_ADAPT */
+				  &mtr);
 
 		cursor_just_opened = TRUE;
 
@@ -3841,7 +3839,7 @@ row_sel_try_search_shortcut_for_mysql(
 	rw_lock_t* ahi_latch = btr_get_search_latch(index);
 	rw_lock_s_lock(ahi_latch);
 	btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
-				   BTR_SEARCH_LEAF, pcur, RW_S_LATCH, mtr);
+				   BTR_SEARCH_LEAF, pcur, ahi_latch, mtr);
 	rec = btr_pcur_get_rec(pcur);
 
 	if (!page_rec_is_user_rec(rec) || rec_is_default_row(rec, index)) {

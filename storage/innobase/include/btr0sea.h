@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -91,12 +91,11 @@ both have sensible values.
 				we assume the caller uses his search latch
 				to protect the record!
 @param[out]	cursor		tree cursor
-@param[in]	has_search_latch
-				latch mode the caller currently has on
-				search system: RW_S/X_LATCH or 0
+@param[in]	ahi_latch	the adaptive hash index latch being held,
+				or NULL
 @param[in]	mtr		mini transaction
-@return TRUE if succeeded */
-ibool
+@return whether the search succeeded */
+bool
 btr_search_guess_on_hash(
 	dict_index_t*	index,
 	btr_search_t*	info,
@@ -104,7 +103,7 @@ btr_search_guess_on_hash(
 	ulint		mode,
 	ulint		latch_mode,
 	btr_cur_t*	cursor,
-	ulint		has_search_latch,
+	rw_lock_t*	ahi_latch,
 	mtr_t*		mtr);
 
 /** Move or delete hash entries for moved records, usually in a page split.
@@ -140,17 +139,19 @@ btr_search_drop_page_hash_when_freed(
 /** Updates the page hash index when a single record is inserted on a page.
 @param[in]	cursor	cursor which was positioned to the place to insert
 			using btr_cur_search_, and the new record has been
-			inserted next to the cursor. */
+			inserted next to the cursor.
+@param[in]	ahi_latch	the adaptive hash index latch */
 void
-btr_search_update_hash_node_on_insert(btr_cur_t* cursor);
+btr_search_update_hash_node_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch);
 
 /** Updates the page hash index when a single record is inserted on a page.
-@param[in]	cursor		cursor which was positioned to the
+@param[in,out]	cursor		cursor which was positioned to the
 				place to insert using btr_cur_search_...,
 				and the new record has been inserted next
-				to the cursor */
+				to the cursor
+@param[in]	ahi_latch	the adaptive hash index latch */
 void
-btr_search_update_hash_on_insert(btr_cur_t* cursor);
+btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch);
 
 /** Updates the page hash index when a single record is deleted from a page.
 @param[in]	cursor	cursor which was positioned on the record to delete
@@ -163,18 +164,6 @@ btr_search_update_hash_on_delete(btr_cur_t* cursor);
 bool
 btr_search_validate();
 
-/** X-Lock the search latch (corresponding to given index)
-@param[in]	index	index handler */
-UNIV_INLINE
-void
-btr_search_x_lock(const dict_index_t* index);
-
-/** X-Unlock the search latch (corresponding to given index)
-@param[in]	index	index handler */
-UNIV_INLINE
-void
-btr_search_x_unlock(const dict_index_t* index);
-
 /** Lock all search latches in exclusive mode. */
 UNIV_INLINE
 void
@@ -184,18 +173,6 @@ btr_search_x_lock_all();
 UNIV_INLINE
 void
 btr_search_x_unlock_all();
-
-/** S-Lock the search latch (corresponding to given index)
-@param[in]	index	index handler */
-UNIV_INLINE
-void
-btr_search_s_lock(const dict_index_t* index);
-
-/** S-Unlock the search latch (corresponding to given index)
-@param[in]	index	index handler */
-UNIV_INLINE
-void
-btr_search_s_unlock(const dict_index_t* index);
 
 /** Lock all search latches in shared mode. */
 UNIV_INLINE
@@ -243,15 +220,11 @@ btr_get_search_table(const dict_index_t* index);
 #else /* BTR_CUR_HASH_ADAPT */
 # define btr_search_sys_create(size)
 # define btr_search_drop_page_hash_index(block)
-# define btr_search_s_lock(index)
-# define btr_search_s_unlock(index)
 # define btr_search_s_lock_all(index)
 # define btr_search_s_unlock_all(index)
-# define btr_search_x_lock(index)
-# define btr_search_x_unlock(index)
 # define btr_search_info_update(index, cursor)
 # define btr_search_move_or_delete_hash_entries(new_block, block)
-# define btr_search_update_hash_on_insert(cursor)
+# define btr_search_update_hash_on_insert(cursor, ahi_latch)
 # define btr_search_update_hash_on_delete(cursor)
 # define btr_search_sys_resize(hash_size)
 #endif /* BTR_CUR_HASH_ADAPT */
