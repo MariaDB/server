@@ -3,7 +3,7 @@
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1129,8 +1129,6 @@ btr_cur_search_to_nth_level(
 	    && btr_search_enabled
 	    && !modify_external
 	    && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG)
-	    && rw_lock_get_writer(btr_get_search_latch(index))
-	    == RW_LOCK_NOT_LOCKED
 	    && btr_search_guess_on_hash(index, info, tuple, mode,
 					latch_mode, cursor,
 					has_search_latch, mtr)) {

@@ -1021,8 +1021,7 @@ btr_search_guess_on_hash(
 		}
 	}
 
-	ut_ad(rw_lock_get_writer(btr_get_search_latch(index)) != RW_LOCK_X);
-	ut_ad(rw_lock_get_reader_count(btr_get_search_latch(index)) > 0);
+	ut_ad(rw_lock_own(btr_get_search_latch(index), RW_LOCK_S));
 
 	rec = (rec_t*) ha_search_and_get_data(
 			btr_get_search_table(index), fold);
