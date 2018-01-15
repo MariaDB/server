@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -53,13 +53,15 @@ These are low-level functions
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
 @param[in,out]	observer	flush observer,
-				or NULL if nothing is to be written
-@param[in]	drop_ahi	whether to drop the adaptive hash index */
+				or NULL if nothing is to be written */
 void
 buf_LRU_flush_or_remove_pages(
 	ulint		id,
-	FlushObserver*	observer,
-	bool		drop_ahi = false);
+	FlushObserver*	observer
+#ifdef BTR_CUR_HASH_ADAPT
+	, bool drop_ahi = false /*!< whether to drop the adaptive hash index */
+#endif /* BTR_CUR_HASH_ADAPT */
+	);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /********************************************************************//**

@@ -3922,34 +3922,39 @@ btr_cur_update_in_place(
 	      || row_get_rec_trx_id(rec, index, offsets));
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (block->index) {
-		/* TO DO: Can we skip this if none of the fields
-		index->search_info->curr_n_fields
-		are being updated? */
+	{
+		rw_lock_t* ahi_latch = block->index
+			? btr_get_search_latch(block->index) : NULL;
+		if (ahi_latch) {
+			/* TO DO: Can we skip this if none of the fields
+			index->search_info->curr_n_fields
+			are being updated? */
 
-		/* The function row_upd_changes_ord_field_binary works only
-		if the update vector was built for a clustered index, we must
-		NOT call it if index is secondary */
+			/* The function row_upd_changes_ord_field_binary
+			does not work on a secondary index. */
 
-		if (!dict_index_is_clust(index)
-		    || row_upd_changes_ord_field_binary(index, update, thr,
-							NULL, NULL)) {
-			ut_ad(!(update->info_bits & REC_INFO_MIN_REC_FLAG));
-			/* Remove possible hash index pointer to this record */
-			btr_search_update_hash_on_delete(cursor);
+			if (!dict_index_is_clust(index)
+			    || row_upd_changes_ord_field_binary(
+				    index, update, thr, NULL, NULL)) {
+				ut_ad(!(update->info_bits
+					& REC_INFO_MIN_REC_FLAG));
+				/* Remove possible hash index pointer
+				to this record */
+				btr_search_update_hash_on_delete(cursor);
+			}
+
+			rw_lock_x_lock(ahi_latch);
 		}
 
-		btr_search_x_lock(index);
-	}
-
-	assert_block_ahi_valid(block);
+		assert_block_ahi_valid(block);
 #endif /* BTR_CUR_HASH_ADAPT */
 
-	row_upd_rec_in_place(rec, index, offsets, update, page_zip);
+		row_upd_rec_in_place(rec, index, offsets, update, page_zip);
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (block->index) {
-		btr_search_x_unlock(index);
+		if (ahi_latch) {
+			rw_lock_x_unlock(ahi_latch);
+		}
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
