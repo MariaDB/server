@@ -1446,6 +1446,7 @@ srv_prepare_to_delete_redo_log_files(
 			     << " bytes; LSN=" << flushed_lsn;
 		}
 
+		srv_start_lsn = flushed_lsn;
 		/* Flush the old log files. */
 		log_mutex_exit();
 
