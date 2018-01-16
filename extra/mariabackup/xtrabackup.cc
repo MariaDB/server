@@ -217,7 +217,7 @@ ds_file_t	*dst_log_file = NULL;
 
 static char mysql_data_home_buff[2];
 
-const char *defaults_group = "mysqld";
+const char *defaults_group = "";
 
 /* === static parameters in ha_innodb.cc */
 
@@ -1099,7 +1099,7 @@ Disable with --skip-innodb-doublewrite.", (G_PTR*) &innobase_use_doublewrite,
    (G_PTR*)&srv_undo_tablespaces, (G_PTR*)&srv_undo_tablespaces,
    0, GET_ULONG, REQUIRED_ARG, 0, 0, 126, 0, 1, 0},
 
-  {"defaults_group", OPT_DEFAULTS_GROUP, "defaults group in config file (default \"mysqld\").",
+  {"defaults_group", OPT_DEFAULTS_GROUP, "Additional group to be read from configuration files.",
    (G_PTR*) &defaults_group, (G_PTR*) &defaults_group,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
@@ -1182,11 +1182,16 @@ debug_sync_point(const char *name)
 #endif
 }
 
-static const char *xb_client_default_groups[]=
-	{ "xtrabackup", "client", 0, 0, 0 };
+/* load_default_groups is part of the static library, but we needs its size */
+#define load_default_groups mysqld_groups
+#include <mysqld_default_groups.h>
+#undef load_default_groups
 
-static const char *xb_server_default_groups[]=
-	{ "xtrabackup", "mysqld", 0, 0, 0 };
+static const char *xb_client_default_groups[]=
+	{ "xtrabackup", "mariabackup", "client", 0, 0, 0 };
+
+static const char *xb_server_default_groups[array_elements(mysqld_groups)+4]=
+	{ "xtrabackup", "mariabackup", 0, };
 
 static void print_version(void)
 {
@@ -1213,7 +1218,7 @@ GNU General Public License for more details.\n\
 \n\
 You can download full text of the license on http://www.gnu.org/licenses/gpl-2.0.txt\n");
 
-  printf("Usage: [%s [--defaults-file=#] --backup | %s [--defaults-file=#] --prepare] [OPTIONS]\n",my_progname,my_progname);
+  printf("Usage: [%s [DEFAULTS_OPTIONS] --backup | %s [DEFAULTS_OPTIONS] --prepare] [OTHER_OPTIONS]\n",my_progname,my_progname);
   print_defaults("my", xb_server_default_groups);
   my_print_help(xb_client_options);
   my_print_help(xb_server_options);
@@ -6289,13 +6294,23 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	int	argc_client = argc;
 	int	argc_server = argc;
 
+	/* fill xb_server_default_groups from load_default_groups first */
+	for (i = 2; i < array_elements(xb_server_default_groups)
+		    && load_default_groups[i-2]!=0; i++) {
+		xb_server_default_groups[i] = load_default_groups[i-1];
+	}
+	while (i < array_elements(xb_server_default_groups)) {
+		xb_server_default_groups[i] = NULL;
+		i++;
+	}
+
 	/* scan options for group and config file to load defaults from */
 	for (i = 1; i < argc; i++) {
 
 		char *optend = strcend(argv[i], '=');
 
 		if (strncmp(argv[i], "--defaults-group",
-			    optend - argv[i]) == 0) {
+			    optend - argv[i]) == 0 && *defaults_group) {
 			defaults_group = optend + 1;
 			append_defaults_group(defaults_group,
 				xb_server_default_groups,
