@@ -240,7 +240,7 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
   if (!mp->file)
   {
     fprintf(stderr,
-	    "safe_mutex: Trying to lock unitialized mutex at %s, line %d\n",
+	    "safe_mutex: Trying to lock uninitialized mutex at %s, line %d\n",
 	    file, line);
     fflush(stderr);
     abort();
@@ -585,7 +585,7 @@ int safe_mutex_destroy(safe_mutex_t *mp, const char *file, uint line)
   if (!mp->file)
   {
     fprintf(stderr,
-	    "safe_mutex: Trying to destroy unitialized mutex at %s, line %d\n",
+	    "safe_mutex: Trying to destroy uninitialized mutex at %s, line %d\n",
 	    file, line);
     fflush(stderr);
     abort();

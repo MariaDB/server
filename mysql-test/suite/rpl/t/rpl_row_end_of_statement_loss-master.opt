@@ -1,0 +1,2 @@
+--binlog-row-event-max-size=8192
+

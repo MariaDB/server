@@ -3,7 +3,7 @@
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -482,10 +482,10 @@ inconsistent:
 	/* In fact, because we only ever append fields to the 'default
 	value' record, it is also OK to perform READ UNCOMMITTED and
 	then ignore any extra fields, provided that
-	trx_rw_is_active(DB_TRX_ID). */
+	trx_sys->rw_trx_hash.find(DB_TRX_ID). */
 	if (rec_offs_n_fields(offsets) > index->n_fields
-	    && !trx_rw_is_active(row_get_rec_trx_id(rec, index, offsets),
-				 NULL, false)) {
+	    && !trx_sys->rw_trx_hash.find(row_get_rec_trx_id(rec, index,
+							     offsets))) {
 		goto inconsistent;
 	}
 
@@ -919,8 +919,7 @@ search tuple should be performed in the B-tree. InnoDB does an insert
 immediately after the cursor. Thus, the cursor may end up on a user record,
 or on a page infimum record. */
 dberr_t
-btr_cur_search_to_nth_level(
-/*========================*/
+btr_cur_search_to_nth_level_func(
 	dict_index_t*	index,	/*!< in: index */
 	ulint		level,	/*!< in: the tree level of search */
 	const dtuple_t*	tuple,	/*!< in: data tuple; NOTE: n_fields_cmp in
@@ -935,17 +934,16 @@ btr_cur_search_to_nth_level(
 				cursor->left_block is used to store a pointer
 				to the left neighbor page, in the cases
 				BTR_SEARCH_PREV and BTR_MODIFY_PREV;
-				NOTE that if has_search_latch
-				is != 0, we maybe do not have a latch set
-				on the cursor page, we assume
-				the caller uses his search latch
-				to protect the record! */
+				NOTE that if ahi_latch, we might not have a
+				cursor page latch, we assume that ahi_latch
+				protects the record! */
 	btr_cur_t*	cursor, /*!< in/out: tree cursor; the cursor page is
 				s- or x-latched, but see also above! */
-	ulint		has_search_latch,
-				/*!< in: info on the latch mode the
-				caller currently has on search system:
-				RW_S_LATCH, or 0 */
+#ifdef BTR_CUR_HASH_ADAPT
+	rw_lock_t*	ahi_latch,
+				/*!< in: currently held btr_search_latch
+				(in RW_S_LATCH mode), or NULL */
+#endif /* BTR_CUR_HASH_ADAPT */
 	const char*	file,	/*!< in: file name */
 	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr,	/*!< in: mtr */
@@ -1123,17 +1121,15 @@ btr_cur_search_to_nth_level(
 	    && mode != PAGE_CUR_LE_OR_EXTENDS
 # endif /* PAGE_CUR_LE_OR_EXTENDS */
 	    && !dict_index_is_spatial(index)
-	    /* If !has_search_latch, we do a dirty read of
+	    /* If !ahi_latch, we do a dirty read of
 	    btr_search_enabled below, and btr_search_guess_on_hash()
 	    will have to check it again. */
 	    && btr_search_enabled
 	    && !modify_external
 	    && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG)
-	    && rw_lock_get_writer(btr_get_search_latch(index))
-	    == RW_LOCK_NOT_LOCKED
 	    && btr_search_guess_on_hash(index, info, tuple, mode,
 					latch_mode, cursor,
-					has_search_latch, mtr)) {
+					ahi_latch, mtr)) {
 
 		/* Search using the hash index succeeded */
 
@@ -1154,10 +1150,12 @@ btr_cur_search_to_nth_level(
 	/* If the hash search did not succeed, do binary search down the
 	tree */
 
-	if (has_search_latch) {
+#ifdef BTR_CUR_HASH_ADAPT
+	if (ahi_latch) {
 		/* Release possible search latch to obey latching order */
-		btr_search_s_unlock(index);
+		rw_lock_s_unlock(ahi_latch);
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* Store the position of the tree latch we push to mtr so that we
 	know how to release it when we have latched leaf node(s) */
@@ -2224,14 +2222,16 @@ func_exit:
 		ut_free(prev_tree_savepoints);
 	}
 
-	if (has_search_latch) {
-		btr_search_s_lock(index);
-	}
-
 	if (mbr_adj) {
 		/* remember that we will need to adjust parent MBR */
 		cursor->rtr_info->mbr_adj = true;
 	}
+
+#ifdef BTR_CUR_HASH_ADAPT
+	if (ahi_latch) {
+		rw_lock_s_lock(ahi_latch);
+	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	DBUG_RETURN(err);
 }
@@ -3302,10 +3302,14 @@ fail_err:
 		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(index->is_instant());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
-	} else if (!reorg && cursor->flag == BTR_CUR_HASH) {
-		btr_search_update_hash_node_on_insert(cursor);
 	} else {
-		btr_search_update_hash_on_insert(cursor);
+		rw_lock_t* ahi_latch = btr_get_search_latch(index);
+		if (!reorg && cursor->flag == BTR_CUR_HASH) {
+			btr_search_update_hash_node_on_insert(
+				cursor, ahi_latch);
+		} else {
+			btr_search_update_hash_on_insert(cursor, ahi_latch);
+		}
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -3511,7 +3515,8 @@ btr_cur_pessimistic_insert(
 			ut_ad((flags & ~BTR_KEEP_IBUF_BITMAP)
 			      == BTR_NO_LOCKING_FLAG);
 		} else {
-			btr_search_update_hash_on_insert(cursor);
+			btr_search_update_hash_on_insert(
+				cursor, btr_get_search_latch(index));
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
 		if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
@@ -3922,34 +3927,39 @@ btr_cur_update_in_place(
 	      || row_get_rec_trx_id(rec, index, offsets));
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (block->index) {
-		/* TO DO: Can we skip this if none of the fields
-		index->search_info->curr_n_fields
-		are being updated? */
+	{
+		rw_lock_t* ahi_latch = block->index
+			? btr_get_search_latch(block->index) : NULL;
+		if (ahi_latch) {
+			/* TO DO: Can we skip this if none of the fields
+			index->search_info->curr_n_fields
+			are being updated? */
 
-		/* The function row_upd_changes_ord_field_binary works only
-		if the update vector was built for a clustered index, we must
-		NOT call it if index is secondary */
+			/* The function row_upd_changes_ord_field_binary
+			does not work on a secondary index. */
 
-		if (!dict_index_is_clust(index)
-		    || row_upd_changes_ord_field_binary(index, update, thr,
-							NULL, NULL)) {
-			ut_ad(!(update->info_bits & REC_INFO_MIN_REC_FLAG));
-			/* Remove possible hash index pointer to this record */
-			btr_search_update_hash_on_delete(cursor);
+			if (!dict_index_is_clust(index)
+			    || row_upd_changes_ord_field_binary(
+				    index, update, thr, NULL, NULL)) {
+				ut_ad(!(update->info_bits
+					& REC_INFO_MIN_REC_FLAG));
+				/* Remove possible hash index pointer
+				to this record */
+				btr_search_update_hash_on_delete(cursor);
+			}
+
+			rw_lock_x_lock(ahi_latch);
 		}
 
-		btr_search_x_lock(index);
-	}
-
-	assert_block_ahi_valid(block);
+		assert_block_ahi_valid(block);
 #endif /* BTR_CUR_HASH_ADAPT */
 
-	row_upd_rec_in_place(rec, index, offsets, update, page_zip);
+		row_upd_rec_in_place(rec, index, offsets, update, page_zip);
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (block->index) {
-		btr_search_x_unlock(index);
+		if (ahi_latch) {
+			rw_lock_x_unlock(ahi_latch);
+		}
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 

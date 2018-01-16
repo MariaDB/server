@@ -178,7 +178,7 @@
 
 /*
   The macros below are borrowed from include/linux/compiler.h in the
-  Linux kernel. Use them to indicate the likelyhood of the truthfulness
+  Linux kernel. Use them to indicate the likelihood of the truthfulness
   of a condition. This serves two purposes - newer versions of gcc will be
   able to optimize for branch predication, which could yield siginficant
   performance gains in frequently executed sections of the code, and the
@@ -527,7 +527,7 @@ typedef SOCKET my_socket;
 typedef int	my_socket;	/* File descriptor for sockets */
 #define INVALID_SOCKET -1
 #endif
-/* Type for fuctions that handles signals */
+/* Type for functions that handles signals */
 #define sig_handler RETSIGTYPE
 C_MODE_START
 #ifdef HAVE_SIGHANDLER_T
@@ -857,7 +857,7 @@ static inline double log2(double x)
 
 /*
   Max size that must be added to a so that we know Size to make
-  adressable obj.
+  addressable obj.
 */
 #if SIZEOF_CHARP == 4
 typedef long		my_ptrdiff_t;
@@ -869,7 +869,7 @@ typedef long long	my_ptrdiff_t;
 #define MY_ALIGN_DOWN(A,L) ((A) & ~((L) - 1))
 #define ALIGN_SIZE(A)	MY_ALIGN((A),sizeof(double))
 #define ALIGN_MAX_UNIT  (sizeof(double))
-/* Size to make adressable obj. */
+/* Size to make addressable obj. */
 #define ALIGN_PTR(A, t) ((t*) MY_ALIGN((A), sizeof(double)))
 #define ADD_TO_PTR(ptr,size,type) (type) ((uchar*) (ptr)+size)
 #define PTR_BYTE_DIFF(A,B) (my_ptrdiff_t) ((uchar*) (A) - (uchar*) (B))

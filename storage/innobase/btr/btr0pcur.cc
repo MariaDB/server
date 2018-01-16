@@ -353,7 +353,11 @@ btr_pcur_restore_position_func(
 	}
 
 	btr_pcur_open_with_no_init_func(index, tuple, mode, latch_mode,
-					cursor, 0, file, line, mtr);
+					cursor,
+#ifdef BTR_CUR_HASH_ADAPT
+					NULL,
+#endif /* BTR_CUR_HASH_ADAPT */
+					file, line, mtr);
 
 	/* Restore the old search mode */
 	cursor->search_mode = old_mode;

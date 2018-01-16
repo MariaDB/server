@@ -1,0 +1,3 @@
+debian/additions/enable_encryption.preset etc/mysql/mariadb.conf.d
+etc/mysql/conf.d/aws_key_management.cnf etc/mysql/mariadb.conf.d
+usr/lib/mysql/plugin/aws_key_management.so

@@ -10,6 +10,13 @@ call mtr.add_suppression("Unsafe statement written to the binary log using state
 
 -- source include/not_embedded.inc
 
+#
+# Avoid printing binlog checkpoints
+#
+
+--let $skip_checkpoint_events=1
+
+
 ###
 ### bug#22725 : incorrect killed error in binlogged query
 ###
@@ -362,16 +369,20 @@ connect (con3, localhost, root,,);
 connection con3;
 let $ID= `select connection_id()`;
 
+--let $threads_connected=`select variable_value from information_schema.global_status where variable_name="threads_connected"`
+--let wait_condition=select variable_value < $threads_connected from information_schema.global_status where variable_name="threads_connected"
+
 --echo MI: MyISAM, INNODB
 BEGIN;
 INSERT INTO t2 VALUES (NULL, 1);
-INSERT INTO t1 VALUES (NULL, 1);
+INSERT INTO t1 VALUES (NULL, 2);
 
 #Connection con1 as killer throughout the test
 connection con1;
 --replace_result $ID ID
 --eval KILL $ID
 let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+--source include/wait_condition.inc
 --let $binlog_start= 4
 --source include/show_binlog_events.inc
 --let $binlog_killed_pos=query_get_value(SHOW MASTER STATUS, Position, 1)
@@ -383,12 +394,13 @@ let $ID= `select connection_id()`;
 
 --echo IM: INNODB, MyISAM
 BEGIN;
-INSERT INTO t1 VALUES (NULL, 1);
-INSERT INTO t2 VALUES (NULL, 1);
+INSERT INTO t1 VALUES (NULL, 3);
+INSERT INTO t2 VALUES (NULL, 4);
 
 connection con1;
 --replace_result $ID ID
 --eval KILL $ID
+--source include/wait_condition.inc
 --let $binlog_start= $binlog_killed_pos
 --source include/show_binlog_events.inc
 --let $binlog_killed_pos=query_get_value(SHOW MASTER STATUS, Position, 1)
@@ -400,13 +412,14 @@ let $ID= `select connection_id()`;
 
 --echo IMI: INNODB, MyISAM, INNODB
 BEGIN;
-INSERT INTO t1 VALUES (NULL, 1);
-INSERT INTO t2 VALUES (NULL, 1);
-INSERT INTO t1 VALUES (NULL, 1);
+INSERT INTO t1 VALUES (NULL, 5);
+INSERT INTO t2 VALUES (NULL, 6);
+INSERT INTO t1 VALUES (NULL, 7);
 
 connection con1;
 --replace_result $ID ID
 --eval KILL $ID
+--source include/wait_condition.inc
 --let $binlog_start= $binlog_killed_pos
 --source include/show_binlog_events.inc
 --let $binlog_killed_pos=query_get_value(SHOW MASTER STATUS, Position, 1)
@@ -418,14 +431,15 @@ let $ID= `select connection_id()`;
 
 --echo MI2:  MyISAM, INNODB, MyISAM, INNODB
 BEGIN;
-INSERT INTO t2 VALUES (NULL, 1);
-INSERT INTO t1 VALUES (NULL, 1);
-INSERT INTO t2 VALUES (NULL, 1);
-INSERT INTO t1 VALUES (NULL, 1);
+INSERT INTO t2 VALUES (NULL, 8);
+INSERT INTO t1 VALUES (NULL, 9);
+INSERT INTO t2 VALUES (NULL, 10);
+INSERT INTO t1 VALUES (NULL, 11);
 
 connection con1;
 --replace_result $ID ID
 --eval KILL $ID
+--source include/wait_condition.inc
 --let $binlog_start= $binlog_killed_pos
 --source include/show_binlog_events.inc
 

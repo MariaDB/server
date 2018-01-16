@@ -837,7 +837,7 @@ typedef struct system_status_var
   ulonglong table_open_cache_overflows;
   double last_query_cost;
   double cpu_time, busy_time;
-  uint32_t threads_running;
+  uint32 threads_running;
   /* Don't initialize */
   /* Memory used for thread local storage */
   int64 max_local_memory_used;

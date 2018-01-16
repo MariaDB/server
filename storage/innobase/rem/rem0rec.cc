@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2484,8 +2484,6 @@ rec_get_trx_id(
 	const rec_t*		rec,
 	const dict_index_t*	index)
 {
-	const page_t*	page
-		= page_align(rec);
 	ulint		trx_id_col
 		= dict_index_get_sys_col_pos(index, DATA_TRX_ID);
 	const byte*	trx_id;
@@ -2496,11 +2494,7 @@ rec_get_trx_id(
 	ulint* offsets = offsets_;
 
 	ut_ad(trx_id_col <= MAX_REF_PARTS);
-	ut_ad(fil_page_index_page_check(page));
-	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID)
-	      == index->id);
 	ut_ad(dict_index_is_clust(index));
-	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(trx_id_col > 0);
 	ut_ad(trx_id_col != ULINT_UNDEFINED);
 

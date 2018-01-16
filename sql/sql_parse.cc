@@ -3274,6 +3274,9 @@ mysql_execute_command(THD *thd)
       thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
   }
 
+  if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
+    DBUG_RETURN(1);
+
 #ifdef HAVE_REPLICATION
   if (unlikely(thd->slave_thread))
   {
@@ -3731,14 +3734,6 @@ mysql_execute_command(THD *thd)
     ulong privileges_requested= lex->exchange ? SELECT_ACL | FILE_ACL :
       SELECT_ACL;
 
-    /* 
-      The same function must be called for DML commands
-      when CTEs are supported in DML statements
-    */
-    res= check_dependencies_in_with_clauses(thd->lex->with_clauses_list);
-    if (res)
-      break;
-
     if (all_tables)
       res= check_table_access(thd,
                               privileges_requested,
@@ -4165,8 +4160,7 @@ mysql_execute_command(THD *thd)
       /* Copy temporarily the statement flags to thd for lock_table_names() */
       uint save_thd_create_info_options= thd->lex->create_info.options;
       thd->lex->create_info.options|= create_info.options;
-      if (!(res= check_dependencies_in_with_clauses(lex->with_clauses_list)))
-        res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
+      res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
       thd->lex->create_info.options= save_thd_create_info_options;
       if (res)
       {
@@ -4783,8 +4777,7 @@ end_with_restore_list:
 
     unit->set_limit(select_lex);
 
-    if (!(res= check_dependencies_in_with_clauses(lex->with_clauses_list)) &&
-	!(res=open_and_lock_tables(thd, all_tables, TRUE, 0)))
+    if (!(res=open_and_lock_tables(thd, all_tables, TRUE, 0)))
     {
       MYSQL_INSERT_SELECT_START(thd->query());
       /*
@@ -5114,9 +5107,6 @@ end_with_restore_list:
   case SQLCOM_SET_OPTION:
   {
     List<set_var_base> *lex_var_list= &lex->var_list;
-
-    if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-      goto error;
 
     if ((check_table_access(thd, SELECT_ACL, all_tables, FALSE, UINT_MAX, FALSE)
          || open_and_lock_tables(thd, all_tables, TRUE, 0)))
@@ -6436,8 +6426,6 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         new (thd->mem_root) Item_int(thd,
                                      (ulonglong) thd->variables.select_limit);
   }
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-    return 1;
 
   if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
   {

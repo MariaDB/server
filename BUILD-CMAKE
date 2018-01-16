@@ -97,7 +97,7 @@ shell>cd ../build
 shell>cmake ../src
 
 Note: if a directory was used for in-source build, out-of-source will 
-not work. To reenable out-of-source build, remove <source-root>/CMakeCache.txt
+not work. To re-enable out-of-source build, remove <source-root>/CMakeCache.txt
 file.
 
 

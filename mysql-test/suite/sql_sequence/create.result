@@ -482,6 +482,7 @@ select previous value for t1;
 previous value for t1
 1
 CREATE TEMPORARY SEQUENCE t1 start with 100 minvalue 100 maxvalue 200 increment by 1 cache 10 engine=innodb;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
 select previous value for t1;
 previous value for t1
 NULL

@@ -2928,16 +2928,17 @@ void unlink_thd(THD *thd)
   DBUG_ENTER("unlink_thd");
   DBUG_PRINT("enter", ("thd: %p", thd));
 
+  thd->cleanup();
+  thd->add_status_to_global();
+  unlink_not_visible_thd(thd);
+
   /*
     Do not decrement when its wsrep system thread. wsrep_applier is set for
     applier as well as rollbacker threads.
   */
   if (IF_WSREP(!thd->wsrep_applier, 1))
     dec_connection_count(thd->scheduler);
-  thd->cleanup();
-  thd->add_status_to_global();
 
-  unlink_not_visible_thd(thd);
   thd->free_connection();
 
   DBUG_VOID_RETURN;

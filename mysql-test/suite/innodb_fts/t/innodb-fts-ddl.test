@@ -195,12 +195,13 @@ INSERT INTO articles (FTS_DOC_ID, title, body) VALUES
         (19, 'MySQL vs. YourSQL','In the following database comparison ...'),
         (20, 'MySQL Security','When configured properly, MySQL ...');
 
---error ER_INNODB_FT_LIMIT
-ALTER TABLE articles ADD FULLTEXT INDEX idx3 (title),
-		     ADD FULLTEXT INDEX idx5 (title);
-
-CREATE FULLTEXT INDEX idx on articles (title);
-ALTER TABLE articles ADD FULLTEXT INDEX idx3 (title);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE articles ADD FULLTEXT INDEX idx (title),
+		     ADD FULLTEXT INDEX idx3 (title), ALGORITHM=INPLACE;
+--enable_info
+ALTER TABLE articles ADD FULLTEXT INDEX idx (title),
+		     ADD FULLTEXT INDEX idx3 (title);
+--disable_info
 
 ALTER TABLE articles ADD INDEX t20 (title(20)), LOCK=NONE;
 ALTER TABLE articles DROP INDEX t20;

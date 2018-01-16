@@ -323,7 +323,7 @@
       One "obvious" solution would be to simply push "mysql.proc" to the list
       of tables used by the query, but this implies a "join" with this table
       if the query is a select, so it doesn't work (and we can't exclude this
-      table easily; since a priviledged used might in fact want to search
+      table easily; since a privileged used might in fact want to search
       the proc table).
       Another solution would of course be to allow the opening and closing
       of the mysql.proc table during a query execution, but this it not
@@ -400,7 +400,7 @@
     instruction.
 
     Calling and returning from a CONTINUE handler poses some special
-    problems. Since we need to return to the point after its invokation,
+    problems. Since we need to return to the point after its invocation,
     we push the return location on a stack in the sp_rcontext (this is
     done by the exectution loop). The handler then ends with a special
     instruction, sp_instr_hreturn, which returns to this location.

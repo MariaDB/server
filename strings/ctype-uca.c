@@ -34034,7 +34034,7 @@ apply_one_rule(MY_CHARSET_LOADER *loader,
 
 /**
   Check if collation rules are valid,
-  i.e. characters are not outside of the collation suported range.
+  i.e. characters are not outside of the collation supported range.
 */
 static int
 check_rules(MY_CHARSET_LOADER *loader,
@@ -34170,7 +34170,7 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
   memcpy(dst->weights, src->weights, npages * sizeof(uint16 *));
 
   /*
-    Calculate maximum lenghts for the pages which will be overwritten.
+    Calculate maximum lengths for the pages which will be overwritten.
     Mark pages that will be otherwriten as NULL.
     We'll allocate their own memory.
   */
@@ -34188,7 +34188,7 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
       {
         /*
           Not an expansion and not a contraction.
-          The page correspoding to r->curr[0] in "dst"
+          The page corresponding to r->curr[0] in "dst"
           will need at least the same amount of weights
           that r->base[0] has in "src".
         */

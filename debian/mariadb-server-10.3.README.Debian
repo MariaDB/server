@@ -42,7 +42,7 @@ https://mariadb.com/kb
 It is strongly recommended you create an admin users for your database
 adminstration needs.
 
-If your your local unix account is the one you want to have local super user
+If your local unix account is the one you want to have local super user
 access on your database with you can create the following account that will
 only work for the local unix user connecting to the database locally.
 
@@ -57,14 +57,14 @@ the DB server over the network:
 
   sudo /usr/bin/mysql -e "GRANT ALL ON *.* TO 'USERNAME'@'%' IDENTIFIED BY 'password' WITH GRANT OPTION"
 
-Scripts should run as a user have have the required grants and be identified via unix_socket.
+Scripts should run as a user have the required grants and be identified via unix_socket.
 
 If you are too tired to type the password in every time and unix_socket auth
 doesn't suit your needs, you can store it in the file $HOME/.my.cnf. It should
-be chmod 0600 (-rw------- username username .my.cnf) to ensure that nobody else
+be chmod 0600 (-rw------- username usergroup .my.cnf) to ensure that nobody else
 can read it.  Every other configuration parameter can be stored there, too.
 
-For more information in the MariaDB manual in/usr/share/doc/mariadb-doc or 
+For more information in the MariaDB manual in/usr/share/doc/mariadb-doc or
 https://mariadb.com/kb/en/configuring-mariadb-with-mycnf/.
 
 ATTENTION: It is necessary, that a ~/.my.cnf from root always contains a "user"

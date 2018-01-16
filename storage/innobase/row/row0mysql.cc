@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1449,17 +1449,6 @@ row_insert_for_mysql(
 	} else if (high_level_read_only) {
 		return(DB_READ_ONLY);
 	}
-	DBUG_EXECUTE_IF("mark_table_corrupted", {
-		/* Mark the table corrupted for the clustered index */
-		dict_index_t*	index = dict_table_get_first_index(table);
-		ut_ad(dict_index_is_clust(index));
-		dict_set_corrupted(index, trx, "INSERT TABLE"); });
-
-	if (dict_table_is_corrupted(table)) {
-
-		ib::error() << "Table " << table->name << " is corrupt.";
-		return(DB_TABLE_CORRUPT);
-	}
 
 	DBUG_EXECUTE_IF("mark_table_corrupted", {
 		/* Mark the table corrupted for the clustered index */
@@ -1477,7 +1466,9 @@ row_insert_for_mysql(
 
 	row_mysql_delay_if_needed();
 
-	trx_start_if_not_started_xa(trx, true);
+	if (!table->no_rollback()) {
+		trx_start_if_not_started_xa(trx, true);
+	}
 
 	row_get_prebuilt_insert_row(prebuilt);
 	node = prebuilt->ins_node;

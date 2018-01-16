@@ -429,8 +429,6 @@ void
 trx_sys_init_at_db_start()
 {
 	trx_sysf_t*	sys_header;
-	ib_uint64_t	rows_to_undo	= 0;
-	const char*	unit		= "";
 
 	/* VERY important: after the database is started, max_trx_id value is
 	divisible by TRX_SYS_TRX_ID_WRITE_MARGIN, and the 'if' in
@@ -455,43 +453,6 @@ trx_sys_init_at_db_start()
 	trx_dummy_sess = sess_open();
 
 	trx_lists_init_at_db_start();
-
-	/* This mutex is not strictly required, it is here only to satisfy
-	the debug code (assertions). We are still running in single threaded
-	bootstrap mode. */
-
-	trx_sys_mutex_enter();
-
-	if (UT_LIST_GET_LEN(trx_sys->rw_trx_list) > 0) {
-		const trx_t*	trx;
-
-		for (trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
-		     trx != NULL;
-		     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
-
-			ut_ad(trx->is_recovered);
-			assert_trx_in_rw_list(trx);
-
-			if (trx_state_eq(trx, TRX_STATE_ACTIVE)) {
-				rows_to_undo += trx->undo_no;
-			}
-		}
-
-		if (rows_to_undo > 1000000000) {
-			unit = "M";
-			rows_to_undo = rows_to_undo / 1000000;
-		}
-
-		ib::info() << UT_LIST_GET_LEN(trx_sys->rw_trx_list)
-			<< " transaction(s) which must be rolled back or"
-			" cleaned up in total " << rows_to_undo << unit
-			<< " row operations to undo";
-
-		ib::info() << "Trx id counter is " << trx_sys->max_trx_id;
-	}
-
-	trx_sys_mutex_exit();
-
 	trx_sys->mvcc->clone_oldest_view(&purge_sys->view);
 }
 
@@ -515,8 +476,7 @@ trx_sys_create(void)
 
 	new(&trx_sys->rw_trx_ids) trx_ids_t(ut_allocator<trx_id_t>(
 			mem_key_trx_sys_t_rw_trx_ids));
-
-	new(&trx_sys->rw_trx_set) TrxIdSet();
+	trx_sys->rw_trx_hash.init();
 }
 
 /*****************************************************************//**
@@ -669,8 +629,7 @@ trx_sys_close(void)
 
 	trx_sys->rw_trx_ids.~trx_ids_t();
 
-	trx_sys->rw_trx_set.~TrxIdSet();
-
+	trx_sys->rw_trx_hash.destroy();
 	ut_free(trx_sys);
 
 	trx_sys = NULL;
