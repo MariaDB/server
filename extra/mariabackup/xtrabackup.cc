@@ -1188,10 +1188,10 @@ debug_sync_point(const char *name)
 #undef load_default_groups
 
 static const char *xb_client_default_groups[]=
-	{ "xtrabackup", "client", 0, 0, 0 };
+	{ "xtrabackup", "mariabackup", "client", 0, 0, 0 };
 
 static const char *xb_server_default_groups[array_elements(mysqld_groups)+4]=
-	{ "xtrabackup", 0, };
+	{ "xtrabackup", "mariabackup", 0, };
 
 static void print_version(void)
 {
@@ -6291,8 +6291,8 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	int	argc_server = argc;
 
 	/* fill xb_server_default_groups from load_default_groups first */
-	for (i = 1; i < array_elements(xb_server_default_groups)
-		    && load_default_groups[i-1]!=0; i++) {
+	for (i = 2; i < array_elements(xb_server_default_groups)
+		    && load_default_groups[i-2]!=0; i++) {
 		xb_server_default_groups[i] = load_default_groups[i-1];
 	}
 	while (i < array_elements(xb_server_default_groups)) {
