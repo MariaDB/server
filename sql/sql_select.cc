@@ -15537,7 +15537,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       else
       {
         field->set_notnull();
-        memcpy(field->ptr, orig_field->ptr, field->pack_length());
+        memcpy(field->ptr, orig_field->ptr, field->pack_length_in_rec());
       }
       orig_field->move_field_offset(-diff);     // Back to record[0]
     } 
