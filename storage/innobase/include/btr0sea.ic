@@ -61,8 +61,8 @@ btr_search_info_update(
 	dict_index_t*	index,	/*!< in: index of the cursor */
 	btr_cur_t*	cursor)	/*!< in: cursor which was just positioned */
 {
-	ut_ad(!rw_lock_own(btr_get_search_latch(index), RW_LOCK_S));
-	ut_ad(!rw_lock_own(btr_get_search_latch(index), RW_LOCK_X));
+	ut_ad(!btr_search_own_any(RW_LOCK_S));
+	ut_ad(!btr_search_own_any(RW_LOCK_X));
 
 	if (dict_index_is_spatial(index) || !btr_search_enabled) {
 		return;
