@@ -398,16 +398,9 @@ setup_ports
 get_stream
 get_transfer
 
-# This is as close as innobackupex gets to mysqld defaults. Important note --defaults-extra-file passed to
-# mysqld is not passed to innobackupex.
-# WSREP_SST_OPT_SUFFIX_DEFAULT goes from --defaults-group-suffix=.X to --defaults-group=mysqld.X
-# Ref: https://bugs.launchpad.net/codership-mysql/+bug/1378355
-
-readonly INNOBACKUP_OPT_DEFAULT="${$WSREP_SST_OPT_DEFAULT} ${WSREP_SST_OPT_SUFFIX_DEFAULT/-suffix=/=mysqld}"
-
 INNOEXTRA=""
-INNOAPPLY="${INNOBACKUPEX_BIN} ${INNOBACKUP_OPT_DEFAULT} --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
-INNOBACKUP="${INNOBACKUPEX_BIN} ${INNOBACKUP_OPT_DEFAULT} \$INNOEXTRA --galera-info --stream=\$sfmt \${TMPDIR} 2>\${DATA}/innobackup.backup.log"
+INNOAPPLY="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
+INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} \$INNOEXTRA --galera-info --stream=\$sfmt \${TMPDIR} 2>\${DATA}/innobackup.backup.log"
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
@@ -660,7 +653,7 @@ then
 
         if [[ $incremental -eq 1 ]];then 
             # Added --ibbackup=xtrabackup_55 because it fails otherwise citing connection issues.
-            INNOAPPLY="${INNOBACKUPEX_BIN} ${INNOBACKUP_OPT_DEFAULT} \
+            INNOAPPLY="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} \
                 --ibbackup=xtrabackup_55 --apply-log $rebuildcmd --redo-only $BDATA --incremental-dir=${DATA} &>>${BDATA}/innobackup.prepare.log"
         fi
 

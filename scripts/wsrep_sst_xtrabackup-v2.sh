@@ -852,16 +852,9 @@ fi
 get_stream
 get_transfer
 
-# This is as close as innobackupex gets to mysqld defaults. Important note --defaults-extra-file passed to
-# mysqld is not passed to innobackupex.
-# WSREP_SST_OPT_SUFFIX_DEFAULT goes from --defaults-group-suffix=.X to --defaults-group=mysqld.X
-# Ref: https://bugs.launchpad.net/codership-mysql/+bug/1378355
-
-readonly INNOBACKUP_OPT_DEFAULT="${$WSREP_SST_OPT_DEFAULT} ${WSREP_SST_OPT_SUFFIX_DEFAULT/-suffix=/=mysqld}"
-
 INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts --apply-log \$rebuildcmd \${DATA} ${INNOAPPLY}"
-INNOMOVE="${INNOBACKUPEX_BIN} ${INNOBACKUP_OPT_DEFAULT} $disver $impts  --move-back --force-non-empty-directories \${DATA} ${INNOMOVE}"
-INNOBACKUP="${INNOBACKUPEX_BIN} ${INNOBACKUP_OPT_DEFAULT} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir ${INNOBACKUP}"
+INNOMOVE="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} ${INNOMOVE}"
+INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir ${INNOBACKUP}"
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
