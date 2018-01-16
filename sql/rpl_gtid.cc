@@ -582,7 +582,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   bool table_opened= false;
   TABLE *table;
   list_element *delete_list= 0, *next, *cur, **next_ptr_ptr, **best_ptr_ptr;
-  uint64_t best_sub_id;
+  uint64 best_sub_id;
   element *elem;
   ulonglong thd_saved_option= thd->variables.option_bits;
   Query_tables_list lex_backup;
