@@ -3930,7 +3930,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     If called from a stored procedure, ensure that we won't rollback
     external changes when cleaning up after validation.
   */
-  DBUG_ASSERT(thd->change_list.is_empty());
+  DBUG_ASSERT(thd->Item_change_list::is_empty());
 
   /*
     Marker used to release metadata locks acquired while the prepared
@@ -4407,7 +4407,7 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   bool error;
   Query_arena *save_stmt_arena= thd->stmt_arena;
   Item_change_list save_change_list;
-  thd->change_list.move_elements_to(&save_change_list);
+  thd->Item_change_list::move_elements_to(&save_change_list);
 
   state= STMT_CONVENTIONAL_EXECUTION;
 
@@ -4426,7 +4426,7 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= save_stmt_arena;
 
-  save_change_list.move_elements_to(&thd->change_list);
+  save_change_list.move_elements_to(thd);
 
   /* Items and memory will freed in destructor */
 
@@ -4654,7 +4654,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     If the free_list is not empty, we'll wrongly free some externally
     allocated items when cleaning up after execution of this statement.
   */
-  DBUG_ASSERT(thd->change_list.is_empty());
+  DBUG_ASSERT(thd->Item_change_list::is_empty());
 
   /* 
    The only case where we should have items in the thd->free_list is
