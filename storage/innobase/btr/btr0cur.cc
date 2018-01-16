@@ -3711,9 +3711,9 @@ btr_cur_update_in_place(
 				to this record */
 				btr_search_update_hash_on_delete(cursor);
 			}
-		}
 
-		rw_lock_x_lock(ahi_latch);
+			rw_lock_x_lock(ahi_latch);
+		}
 
 		assert_block_ahi_valid(block);
 #endif /* BTR_CUR_HASH_ADAPT */
