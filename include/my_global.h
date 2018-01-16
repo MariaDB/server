@@ -1373,11 +1373,15 @@ static inline char *dlerror(void)
 #ifndef HAVE_DLERROR
 #define dlerror() ""
 #endif
+#ifndef HAVE_DLADDR
+#define dladdr(A, B) 0
+#endif
 #else
 #define dlerror() "No support for dynamic loading (static build?)"
 #define dlopen(A,B) 0
 #define dlsym(A,B) 0
 #define dlclose(A) 0
+#define dladdr(A, B) 0
 #endif
 
 /*
