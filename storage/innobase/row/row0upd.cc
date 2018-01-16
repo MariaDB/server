@@ -2682,9 +2682,6 @@ row_upd_clust_rec_by_insert(
 	rec_t*		rec;
 	ulint*		offsets			= NULL;
 
-#ifdef WITH_WSREP
-	que_node_t *parent = que_node_get_parent(node);
-#endif /* WITH_WSREP */
 	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 
@@ -2772,7 +2769,6 @@ check_fk:
 			if (err != DB_SUCCESS) {
 				goto err_exit;
 			}
-		}
 #ifdef WITH_WSREP
 		} else if (foreign && wsrep_must_process_fk(node, trx)) {
 			err = wsrep_row_upd_check_foreign_constraints(
@@ -3000,12 +2996,8 @@ row_upd_del_mark_clust_rec(
 
 		err = row_upd_check_references_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
-	}
 #ifdef WITH_WSREP
-	else if (trx && wsrep_on(trx->mysql_thd)  &&  err == DB_SUCCESS  &&
-	    (!parent || (que_node_get_type(parent) != QUE_NODE_UPDATE) ||
-	    ((upd_node_t*)parent)->cascade_upd_nodes->empty())
-	) {
+	} else if (foreign && wsrep_must_process_fk(node, trx)) {
 		err = wsrep_row_upd_check_foreign_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
 

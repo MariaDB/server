@@ -13,6 +13,7 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
+#include <my_global.h>
 #include "wsrep_applier.h"
 
 #include "wsrep_priv.h"
@@ -21,8 +22,6 @@
 
 #include "transaction.h" // trans_rollback()
 #include "debug_sync.h" // DEBUG_SYNC()
-#include "rpl_handler.h" // RUN_hOOK()
-
 
 void wsrep_SR_trx_info::remove(THD* caller, bool persistent)
 {
@@ -425,7 +424,8 @@ void wsrep_handle_SR_rollback(void *BF_thd_ptr, void *victim_thd_ptr)
               victim_thd->wsrep_trx_id(),
               victim_thd->wsrep_fragments_sent,
               victim_thd->wsrep_conflict_state_unsafe());
+#ifdef RUN_HOOK_FIX
   (void)RUN_HOOK(transaction, before_rollback, (victim_thd, true));
-
+#endif /* RUN_HOOK_FIX */
   if (BF_thd_ptr) ((THD*) BF_thd_ptr)->store_globals();
 }

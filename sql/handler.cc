@@ -1440,11 +1440,13 @@ int ha_commit_trans(THD *thd, bool all)
   need_commit_ordered= FALSE;
   xid= thd->transaction.xid_state.xid.get_my_xid();
 #ifdef WITH_WSREP
+#ifdef RUN_HOOK_FIX
   if (RUN_HOOK(transaction, before_prepare, (thd, all)))
   {
     wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
     DBUG_RETURN(1);
   }
+#endif /* RUN_HOOK_FIX */
 #endif /* WITH_WSREP */
 
   for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
@@ -1470,11 +1472,13 @@ int ha_commit_trans(THD *thd, bool all)
   DEBUG_SYNC(thd, "ha_commit_trans_after_prepare");
   DBUG_EXECUTE_IF("crash_commit_after_prepare", DBUG_SUICIDE(););
 #ifdef WITH_WSREP
+#ifdef RUN_HOOK_FIX
   if (RUN_HOOK(transaction, after_prepare, (thd, all)))
   {
     wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
     DBUG_RETURN(1);
   }
+#endif /* RUN_HOOK_FIX */
 #endif /* WITH_WSREP */
 
   if (!error && WSREP_ON && wsrep_is_wsrep_xid(&thd->transaction.xid_state.xid))
@@ -1700,7 +1704,9 @@ int ha_rollback_trans(THD *thd, bool all)
   }
 
 #ifdef WITH_WSREP
+#ifdef RUN_HOOK_FIX
   (void) RUN_HOOK(transaction, before_rollback, (thd, all));
+#endif /* RUN_HOOK_FIX */
 #endif // WITH_WSREP
   if (ha_info)
   {
@@ -2299,7 +2305,10 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
     if (ht->db_type == DB_TYPE_INNODB)
     {
       WSREP_DEBUG("ha_rollback_to_savepoint: run before_rollback hook");
+#ifdef RUN_HOOK_FIX
       (void) RUN_HOOK(transaction, before_rollback, (thd, !thd->in_sub_stmt));
+#endif /* RUN_HOOK_FIX */
+
     }
 #endif // WITH_WSREP
     if ((err= ht->rollback(ht, thd, !thd->in_sub_stmt)))
@@ -6253,7 +6262,11 @@ static int wsrep_after_row(THD *thd)
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
+#ifdef RUN_HOOK_FIX
   else if (RUN_HOOK(transaction, after_row, (thd, false)))
+#else
+  else if (false)
+#endif /* RUN_HOOK_FIX */
   {
     if (!thd->get_stmt_da()->is_error())
     {

@@ -53,7 +53,9 @@
 
 extern "C" uchar *sp_table_key(const uchar *ptr, size_t *plen, my_bool first);
 #ifdef WITH_WSREP
+#ifdef RUN_HOOK_FIX
 #include "rpl_handler.h"       // RUN_HOOK
+#endif /* RUN_HOOK_FIX */
 #endif /* WITH_WSREP */
 
 /**

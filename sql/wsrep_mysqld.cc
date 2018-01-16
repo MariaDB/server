@@ -48,7 +48,6 @@
 #include "log_event.h"
 #include <slave.h>
 #include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
-#include <rpl_handler.h>
 
 wsrep_t *wsrep                  = NULL;
 /*
@@ -1784,7 +1783,7 @@ int wsrep_to_buf_helper(
     THD* thd, const char *query, uint query_len, uchar** buf, size_t* buf_len)
 {
   IO_CACHE tmp_io_cache;
-  Log_event_writer writer(&tmp_io_cache);
+  Log_event_writer writer(&tmp_io_cache, 0);
   if (open_cached_file(&tmp_io_cache, mysql_tmpdir, TEMP_PREFIX,
                        65536, MYF(MY_WME)))
     return 1;
@@ -2183,7 +2182,7 @@ fail:
   -1: TOI replication failed
   -2: NBO begin failed
  */
-static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
+static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
                            const TABLE_LIST* table_list)
 {
   DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_TOI ||

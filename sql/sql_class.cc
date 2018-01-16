@@ -5136,10 +5136,6 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd)
     return (int) WSREP_BINLOG_FORMAT(thd->variables.binlog_format);
   }
 #endif /* WITH_WSREP */
-  if (((WSREP(thd) &&  wsrep_emulate_bin_log) || mysql_bin_log.is_open()) &&
-      thd->variables.option_bits & OPTION_BIN_LOG)
-    return (int) thd->wsrep_binlog_format();
-  }
   if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
     return (int) thd->variables.binlog_format;
   return BINLOG_FORMAT_UNSPEC;

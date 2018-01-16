@@ -3195,7 +3195,7 @@ protected:
 class Create_func_wsrep_sync_wait_upto : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_STRING name, List<Item> *item_list);
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
 
   static Create_func_wsrep_sync_wait_upto s_singleton;
 
@@ -6815,7 +6815,7 @@ Create_func_wsrep_sync_wait_upto::s_singleton;
 
 Item*
 Create_func_wsrep_sync_wait_upto::create_native(THD *thd,
-                                         LEX_STRING name,
+                                         LEX_CSTRING *name,
                                          List<Item> *item_list)
 {
   Item *func= NULL;
@@ -6837,7 +6837,7 @@ Create_func_wsrep_sync_wait_upto::create_native(THD *thd,
     func= new (thd->mem_root) Item_func_wsrep_sync_wait_upto(thd, param_1, param_2);
     break;
   default:
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
     break;
   }
   current_thd->lex->safe_to_cache_query= 0;

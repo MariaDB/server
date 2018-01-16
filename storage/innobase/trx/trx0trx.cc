@@ -2508,9 +2508,6 @@ wsrep_trx_print_locking(
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		fputs(", COMMITTED IN MEMORY", f);
 		goto state_ok;
-	case TRX_STATE_FORCED_ROLLBACK:
-		fputs(", FORCED ROLLBACK", f);
-		goto state_ok;
 	}
 	fprintf(f, ", state %lu", (ulong) trx->state);
 	ut_ad(0);

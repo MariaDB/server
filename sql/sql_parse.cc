@@ -1167,20 +1167,6 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
 #ifndef EMBEDDED_LIBRARY
 
 #ifdef WITH_WSREP
-static bool wsrep_node_is_ready(THD *thd)
-{
-  if (thd->variables.wsrep_on && !(thd->wsrep_applier || thd->wsrep_SR_thd)
-      && !wsrep_ready_get())
-  {
-    my_message(ER_UNKNOWN_COM_ERROR,
-               "WSREP has not yet prepared node for application use",
-               MYF(0));
-    return false;
-  }
-  return true;
-}
-#endif
-#ifdef WITH_WSREP
 static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
   bool has_tables = false;
@@ -1573,11 +1559,13 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         thd->mysys_var->abort       = 0;
         thd->wsrep_retry_counter    = 0;
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#ifdef WSREP_TODO
         /*
           Increment threads running to compensate dec_thread_running() called
           after dispatch_end label.
         */
         inc_thread_running();
+#endif /* WSREP_TODO */
         goto dispatch_end;
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       }
@@ -1834,11 +1822,13 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         thd->mysys_var->abort     = 0;
         thd->wsrep_retry_counter  = 0;
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#ifdef WSREP_TODO
         /*
           Increment threads running to compensate dec_thread_running() called
           after dispatch_end label.
         */
         inc_thread_running();
+#endif /* WSREP_TODO */
         goto dispatch_end;
       }
     }
@@ -1941,11 +1931,14 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
           thd->mysys_var->abort     = 0;
           thd->wsrep_retry_counter  = 0;
           mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#ifdef WSREP_TODO
           /*
             Increment threads running to compensate dec_thread_running() called
             after dispatch_end label.
           */
           inc_thread_running();
+#endif /* WSREP_TODO */
+
           goto dispatch_end;
         }
       }
@@ -4718,7 +4711,6 @@ end_with_restore_list:
     break;
   }
   case SQLCOM_REPLACE:
-  {
 #ifndef DBUG_OFF
     if (mysql_bin_log.is_open())
     {
@@ -5432,8 +5424,8 @@ end_with_restore_list:
   break;
   case SQLCOM_SHOW_CREATE_EVENT:
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
-    res= Events::show_create_event(thd, lex->spname->m_db,
-                                   lex->spname->m_name);
+    res= Events::show_create_event(thd, &lex->spname->m_db,
+                                   &lex->spname->m_name);
     break;
   case SQLCOM_DROP_EVENT:
     if (!(res= Events::drop_event(thd,
@@ -6425,41 +6417,11 @@ finish:
       THD_STAGE_INFO(thd, stage_rollback);
       trans_rollback_stmt(thd);
     }
-#ifdef WITH_WSREP
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-    if (thd->spcont &&
-        (thd->wsrep_conflict_state() == MUST_ABORT ||
-         thd->wsrep_conflict_state() == ABORTED    ||
-         thd->wsrep_conflict_state() == CERT_FAILURE))
-    {
-      /*
-        The error was cleared, but THD was aborted by wsrep and
-        wsrep_conflict_state is still set accordingly. This
-        situation is expected if we are running a stored procedure
-        that declares a handler that catches ER_LOCK_DEADLOCK error.
-        In which case the error may have been cleared in method
-        sp_rcontext::handle_sql_condition().
-      */
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-      trans_rollback_stmt(thd);
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-      thd->set_wsrep_conflict_state(NO_CONFLICT);
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-
-      thd->killed= NOT_KILLED;
-    }
-   else
-    {
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-#endif /* WITH_WSREP */
-      /* If commit fails, we should be able to reset the OK status. */
-      THD_STAGE_INFO(thd, stage_commit);
-      thd->get_stmt_da()->set_overwrite_status(true);
-      trans_commit_stmt(thd);
-      thd->get_stmt_da()->set_overwrite_status(false);
-#ifdef WITH_WSREP
-    }
-#endif /* WITH_WSREP */
+    /* If commit fails, we should be able to reset the OK status. */
+    THD_STAGE_INFO(thd, stage_commit);
+    thd->get_stmt_da()->set_overwrite_status(true);
+    trans_commit_stmt(thd);
+    thd->get_stmt_da()->set_overwrite_status(false);
 #ifdef WITH_ARIA_STORAGE_ENGINE
     ha_maria::implicit_commit(thd, FALSE);
 #endif
@@ -6555,8 +6517,7 @@ finish:
 #endif /* WITH_WSREP */
 
   DBUG_RETURN(res || thd->is_error());
-}
-
+ }
 
 static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 {
@@ -6675,7 +6636,6 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 
   return res;
 }
-
 
 static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
 {
@@ -7927,9 +7887,10 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     mysql_parse(thd, rawbuf, length, parser_state, is_com_multi,
                 is_next_command);
+#ifdef RUN_HOOK_FIX
     (void) RUN_HOOK(transaction, after_command,
                     (thd, !thd->in_active_multi_stmt_transaction()));
-
+#endif /* RUN_HOOK_FIX */
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
 
     /*

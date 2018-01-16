@@ -3232,13 +3232,6 @@ row_ins_clust_index_entry(
 
 	n_uniq = dict_index_is_unique(index) ? index->n_uniq : 0;
 
-	const ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
-		: dict_table_is_temporary(index->table)
-		? BTR_NO_LOCKING_FLAG : 0;
-	const ulint	orig_n_fields = entry->n_fields;
-
-	/* Try first optimistic descent to the B-tree */
-	log_free_check();
 #ifdef WITH_WSREP
 	const bool skip_locking
 		= wsrep_thd_skip_locking(thr_get_trx(thr)->mysql_thd);
@@ -3254,12 +3247,15 @@ row_ins_clust_index_entry(
 		ut_error;
 	}
 #endif /* UNIV_DEBUG */
-
 #else
-	const ulint	flags = dict_table_is_temporary(index->table)
-		? BTR_NO_LOCKING_FLAG
-		: index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
+	const ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
+		: dict_table_is_temporary(index->table)
+		? BTR_NO_LOCKING_FLAG : 0;
 #endif /* WITH_WSREP */
+	const ulint	orig_n_fields = entry->n_fields;
+
+	/* Try first optimistic descent to the B-tree */
+	log_free_check();
 
 	err = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_LEAF, index, n_uniq, entry,
