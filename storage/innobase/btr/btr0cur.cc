@@ -3929,7 +3929,7 @@ btr_cur_update_in_place(
 #ifdef BTR_CUR_HASH_ADAPT
 	{
 		rw_lock_t* ahi_latch = block->index
-			? btr_get_search_latch(block->index) : NULL;
+			? btr_get_search_latch(index) : NULL;
 		if (ahi_latch) {
 			/* TO DO: Can we skip this if none of the fields
 			index->search_info->curr_n_fields
