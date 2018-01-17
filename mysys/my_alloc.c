@@ -325,7 +325,8 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
 
 #define TRASH_MEM(X) TRASH(((char*)(X) + ((X)->size-(X)->left)), (X)->left)
 
-/* Mark all data in blocks free for reusage */
+#if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
+/** Mark all data in blocks free for reusage */
 
 static inline void mark_blocks_free(MEM_ROOT* root)
 {
@@ -355,6 +356,7 @@ static inline void mark_blocks_free(MEM_ROOT* root)
   root->first_block_usage= 0;
   root->block_num= 4;
 }
+#endif
 
 
 /*
