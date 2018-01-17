@@ -360,6 +360,14 @@ alter table t1 add partition (partition p1 history);
 insert into t1 values (1);
 unlock tables;
 
+--echo # MDEV-14932 Transaction not registered for MariaDB 2PC, but transaction is active
+create or replace table t1 (i int) with system versioning
+  partition by system_time interval 1 month (partition p1 history,
+                                             partition pn current);
+create or replace table t2 select * from information_schema.tables;
+insert into t2 select * from information_schema.tables;
+
+
 --echo # Test cleanup
 drop database test;
 create database test;

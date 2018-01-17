@@ -3515,7 +3515,8 @@ partititon_err:
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (outparam->part_info &&
-    outparam->part_info->part_type == VERSIONING_PARTITION)
+      outparam->part_info->part_type == VERSIONING_PARTITION &&
+      thd->lex->sql_command != SQLCOM_SHOW_FIELDS)
   {
     Query_arena *backup_stmt_arena_ptr= thd->stmt_arena;
     Query_arena backup_arena;
