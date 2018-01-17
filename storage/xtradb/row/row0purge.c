@@ -407,7 +407,8 @@ row_purge_remove_sec_if_poss_leaf(
 				goto func_exit;
 			}
 		}
-		/* fall through (the index entry is still needed,
+		// fallthrough
+		/* (the index entry is still needed,
 		or the deletion succeeded) */
 	case ROW_NOT_DELETED_REF:
 		/* The index entry is still needed. */

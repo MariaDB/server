@@ -501,9 +501,9 @@ log_online_make_bitmap_name(
 /*=========================*/
 	ib_uint64_t	start_lsn)	/*!< in: the start LSN name part */
 {
-	ut_snprintf(log_bmp_sys->out.name, FN_REFLEN, bmp_file_name_template,
-		    log_bmp_sys->bmp_file_home, bmp_file_name_stem,
-		    log_bmp_sys->out_seq_num, start_lsn);
+	ut_snprintf(log_bmp_sys->out.name, sizeof(log_bmp_sys->out.name), 
+            bmp_file_name_template, log_bmp_sys->bmp_file_home,
+            bmp_file_name_stem, log_bmp_sys->out_seq_num, start_lsn);
 }
 
 /*********************************************************************//**
