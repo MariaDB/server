@@ -445,7 +445,7 @@ trx_sys_init_at_db_start()
 	trx_dummy_sess = sess_open();
 
 	trx_lists_init_at_db_start();
-	trx_sys.mvcc->clone_oldest_view(&purge_sys->view);
+	trx_sys.mvcc.clone_oldest_view(&purge_sys->view);
 }
 
 /** Create the instance */
@@ -453,13 +453,14 @@ void
 trx_sys_t::create()
 {
 	ut_ad(this == &trx_sys);
-	ut_ad(!mvcc);
+	ut_ad(!is_initialised());
+	m_initialised = true;
 	mutex_create(LATCH_ID_TRX_SYS, &mutex);
 
 	UT_LIST_INIT(serialisation_list, &trx_t::no_list);
 	UT_LIST_INIT(mysql_trx_list, &trx_t::mysql_trx_list);
 
-	mvcc = UT_NEW_NOKEY(MVCC(1024));
+	mvcc.create(1024);
 
 	rw_trx_hash.init();
 }
@@ -562,11 +563,11 @@ void
 trx_sys_t::close()
 {
 	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
-	if (!mvcc) {
+	if (!is_initialised()) {
 		return;
 	}
 
-	if (ulint size = mvcc->size()) {
+	if (ulint size = mvcc.size()) {
 		ib::error() << "All read views were not closed before"
 			" shutdown: " << size << " read views open";
 	}
@@ -590,13 +591,14 @@ trx_sys_t::close()
 		}
 	}
 
-	UT_DELETE(mvcc);
+	mvcc.close();
 
 	ut_a(UT_LIST_GET_LEN(mysql_trx_list) == 0);
 	ut_a(UT_LIST_GET_LEN(serialisation_list) == 0);
 
 	/* We used placement new to create this mutex. Call the destructor. */
 	mutex_free(&mutex);
+	m_initialised = false;
 }
 
 

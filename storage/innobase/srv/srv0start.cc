@@ -2835,7 +2835,7 @@ innodb_shutdown()
 
 	ut_ad(dict_stats_event || !srv_was_started || srv_read_only_mode);
 	ut_ad(dict_sys || !srv_was_started);
-	ut_ad(trx_sys.mvcc || !srv_was_started);
+	ut_ad(trx_sys.is_initialised() || !srv_was_started);
 	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys || !srv_was_started);

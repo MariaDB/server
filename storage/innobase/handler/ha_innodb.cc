@@ -16226,7 +16226,7 @@ ha_innobase::external_lock(
 		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
 			   && MVCC::is_view_active(trx->read_view)) {
 			mutex_enter(&trx_sys.mutex);
-			trx_sys.mvcc->view_close(trx->read_view, true);
+			trx_sys.mvcc.view_close(trx->read_view, true);
 			mutex_exit(&trx_sys.mutex);
 		}
 	}
@@ -16894,7 +16894,7 @@ ha_innobase::store_lock(
 			/* At low transaction isolation levels we let
 			each consistent read set its own snapshot */
 			mutex_enter(&trx_sys.mutex);
-			trx_sys.mvcc->view_close(trx->read_view, true);
+			trx_sys.mvcc.view_close(trx->read_view, true);
 			mutex_enter(&trx_sys.mutex);
 		}
 	}

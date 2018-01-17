@@ -1600,7 +1600,7 @@ trx_purge(
 	ut_a(purge_sys->n_submitted == purge_sys->n_completed);
 
 	rw_lock_x_lock(&purge_sys->latch);
-	trx_sys.mvcc->clone_oldest_view(&purge_sys->view);
+	trx_sys.mvcc.clone_oldest_view(&purge_sys->view);
 	rw_lock_x_unlock(&purge_sys->latch);
 
 #ifdef UNIV_DEBUG

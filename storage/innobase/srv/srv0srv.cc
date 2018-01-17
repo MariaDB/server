@@ -1367,7 +1367,7 @@ srv_printf_innodb_monitor(
 
 	/* This is a dirty read, without holding trx_sys.mutex. */
 	fprintf(file, ULINTPF " read views open inside InnoDB\n",
-		trx_sys.mvcc->size());
+		trx_sys.mvcc.size());
 
 	n_reserved = fil_space_get_n_reserved_extents(0);
 	if (n_reserved > 0) {

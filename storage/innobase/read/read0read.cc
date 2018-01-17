@@ -339,7 +339,7 @@ ReadView::~ReadView()
 
 /** Constructor
 @param size		Number of views to pre-allocate */
-MVCC::MVCC(ulint size)
+void MVCC::create(ulint size)
 {
 	UT_LIST_INIT(m_free, &ReadView::m_view_list);
 	UT_LIST_INIT(m_views, &ReadView::m_view_list);
@@ -351,7 +351,7 @@ MVCC::MVCC(ulint size)
 	}
 }
 
-MVCC::~MVCC()
+void MVCC::close()
 {
 	for (ReadView* view = UT_LIST_GET_FIRST(m_free);
 	     view != NULL;

@@ -5888,7 +5888,7 @@ row_search_check_if_query_cache_permitted(
 		    && !srv_read_only_mode
 		    && !MVCC::is_view_active(trx->read_view)) {
 
-			trx_sys.mvcc->view_open(trx->read_view, trx);
+			trx_sys.mvcc.view_open(trx->read_view, trx);
 		}
 	}
 

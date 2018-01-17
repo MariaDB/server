@@ -30,18 +30,16 @@ Created 2/16/1997 Heikki Tuuri
 
 #include "read0types.h"
 
-#include <algorithm>
-
 /** The MVCC read view manager */
 class MVCC {
 public:
 	/** Constructor
 	@param size		Number of views to pre-allocate */
-	explicit MVCC(ulint size);
+	void create(ulint size);
 
 	/** Destructor.
 	Free all the views in the m_free list */
-	~MVCC();
+	void close();
 
 	/**
 	Allocate and create a view.
@@ -105,11 +103,6 @@ private:
 	marked read views from the views list to the freed list.
 	@return oldest view if found or NULL */
 	inline ReadView* get_oldest_view() const;
-
-private:
-	// Prevent copying
-	MVCC(const MVCC&);
-	MVCC& operator=(const MVCC&);
 
 private:
 	typedef UT_LIST_BASE_NODE_T(ReadView) view_list_t;
