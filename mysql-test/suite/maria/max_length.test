@@ -2,6 +2,7 @@
 # This test will use around 1.3G of disk space!
 
 --source include/have_maria.inc
+--source include/have_sequence.inc
 --source include/big_test.inc
 
 drop table if exists t1,t2;
@@ -50,3 +51,74 @@ insert into t1 (v,b) select v,b from t2;
 check table t1;
 
 drop table t1,t2;
+
+#
+# Check that we don't get table-is-full
+#
+
+create table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=FIXED min_rows=1000000;
+show create table t1;
+insert into t1 select seq,seq from seq_1_to_100000;
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=FIXED;
+show create table t1;
+insert into t1 select seq,seq from seq_1_to_100000;
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=PAGE TRANSACTIONAL=0;
+show create table t1;
+insert into t1 select seq,seq from seq_1_to_100000;
+
+#
+# For these we should get table is full error
+#
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=FIXED MAX_ROWS=10;
+show create table t1;
+--error ER_RECORD_FILE_FULL
+insert into t1 select seq,seq from seq_1_to_100000;
+select count(*) from t1;
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=DYNAMIC MAX_ROWS=10;
+show create table t1;
+--error ER_RECORD_FILE_FULL
+insert into t1 select seq,seq from seq_1_to_100000;
+select count(*) from t1;
+check table t1;
+
+# PAGE uses 3 byte pointers as minimum, which can handle up to 200M files
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=PAGE MAX_ROWS=10;
+show create table t1;
+insert into t1 select seq,seq from seq_1_to_100000;
+select count(*) from t1;
+check table t1;
+drop table t1;
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=PAGE MAX_ROWS=10;
+show create table t1;
+--error ER_RECORD_FILE_FULL
+insert into t1 select seq,seq from seq_1_to_10000000;
+select count(*) from t1;
+check table t1;
+drop table t1;
