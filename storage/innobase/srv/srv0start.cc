@@ -1446,6 +1446,7 @@ srv_prepare_to_delete_redo_log_files(
 			     << " bytes; LSN=" << flushed_lsn;
 		}
 
+		srv_start_lsn = flushed_lsn;
 		/* Flush the old log files. */
 		log_mutex_exit();
 
@@ -2246,17 +2247,32 @@ files_checked:
 
 		recv_sys->dblwr.pages.clear();
 
-		if (err == DB_SUCCESS) {
-			/* Initialize the change buffer. */
-			err = dict_boot();
-		}
-
 		if (err != DB_SUCCESS) {
 			return(srv_init_abort(err));
 		}
 
-		/* This must precede recv_apply_hashed_log_recs(true). */
-		trx_sys_init_at_db_start();
+		switch (srv_operation) {
+		case SRV_OPERATION_NORMAL:
+		case SRV_OPERATION_RESTORE_EXPORT:
+			/* Initialize the change buffer. */
+			err = dict_boot();
+			if (err != DB_SUCCESS) {
+				return(srv_init_abort(err));
+			}
+			/* This must precede
+			recv_apply_hashed_log_recs(true). */
+			trx_sys_init_at_db_start();
+			break;
+		case SRV_OPERATION_RESTORE_DELTA:
+		case SRV_OPERATION_BACKUP:
+			ut_ad(!"wrong mariabackup mode");
+			/* fall through */
+		case SRV_OPERATION_RESTORE:
+			/* mariabackup --prepare only deals with
+			the redo log and the data files, not with
+			transactions or the data dictionary. */
+			break;
+		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 			/* Apply the hashed log records to the
