@@ -3712,7 +3712,7 @@ row_drop_table_for_mysql(
 
 	if (table->n_foreign_key_checks_running > 0) {
 defer:
-		if (!strstr(table->name.m_name, "/" TEMP_FILE_PREFIX_INNODB)) {
+		if (!strstr(table->name.m_name, "/" TEMP_FILE_PREFIX)) {
 			heap = mem_heap_create(FN_REFLEN);
 			const char* tmp_name
 				= dict_mem_create_temporary_tablename(
@@ -4477,7 +4477,7 @@ row_rename_table_for_mysql(
 
 		goto funct_exit;
 
-	} else if (new_is_tmp) {
+	} else if (!old_is_tmp && new_is_tmp) {
 		/* MySQL is doing an ALTER TABLE command and it renames the
 		original table to a temporary table name. We want to preserve
 		the original foreign key constraint definitions despite the

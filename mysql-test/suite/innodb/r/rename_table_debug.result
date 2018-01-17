@@ -1,5 +1,5 @@
-CREATE TABLE t1 (a INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
-INSERT INTO t1 VALUES(42);
+CREATE TABLE t1 (a SERIAL, b INT, c INT, d INT) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES ();
 connect  con1,localhost,root,,test;
 SET DEBUG_SYNC='before_rename_table_commit SIGNAL renamed WAIT_FOR ever';
 RENAME TABLE t1 TO t2;
@@ -7,6 +7,29 @@ connection default;
 SET DEBUG_SYNC='now WAIT_FOR renamed';
 disconnect con1;
 SELECT * FROM t1;
-a
-42
+a	b	c	d
+1	NULL	NULL	NULL
+BEGIN;
+COMMIT;
+UPDATE t1 SET b=a%7, c=a%11, d=a%13;
+SET DEBUG_DBUG='+d,crash_commit_before';
+ALTER TABLE t1
+ADD INDEX(b,c,d,a),ADD INDEX(b,c,a,d),ADD INDEX(b,a,c,d),ADD INDEX(b,a,d,c),
+ADD INDEX(b,d,a,c),ADD INDEX(b,d,c,a),ADD INDEX(a,b,c,d),ADD INDEX(a,b,d,c),
+ADD INDEX(a,c,b,d),ADD INDEX(a,c,d,b),ADD INDEX(a,d,b,c),ADD INDEX(a,d,c,b),
+ADD INDEX(c,a,b,d),ADD INDEX(c,a,d,b),ADD INDEX(c,b,a,d),ADD INDEX(c,b,d,a),
+ADD INDEX(c,d,a,b),ADD INDEX(c,d,b,a),ADD INDEX(d,a,b,c),ADD INDEX(d,a,c,b),
+ADD INDEX(d,b,a,c),ADD INDEX(d,b,c,a),ADD INDEX(d,c,a,b),ADD INDEX(d,c,b,a),
+ADD INDEX(a,b,c), ADD INDEX(a,c,b), ADD INDEX(a,c,d), ADD INDEX(a,d,c),
+ADD INDEX(a,b,d), ADD INDEX(a,d,b), ADD INDEX(b,c,d), ADD INDEX(b,d,c),
+ALGORITHM=COPY;
+ERROR HY000: Lost connection to MySQL server during query
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1000
 DROP TABLE t1;
+SET GLOBAL innodb_background_drop_list_empty=
+@@GLOBAL.innodb_background_drop_list_empty;
