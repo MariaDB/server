@@ -7882,8 +7882,8 @@ ER_VERS_NO_TRX_ID
 ER_VERS_ALTER_SYSTEM_FIELD
         eng "Can not change system versioning field %`s"
 
-ER_VERS_SYS_FIELD_EXISTS
-        eng "System versioning field %`s exists"
+ER_UNUSED_24
+        eng "You should never see it"
 
 ER_NOT_LOG_TABLE
         eng "Table %`s.%`s is not a log table"

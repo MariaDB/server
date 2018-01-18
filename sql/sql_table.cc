@@ -7806,6 +7806,19 @@ blob_length_by_type(enum_field_types type)
 }
 
 
+static void append_drop_column(THD *thd, bool dont, String *str,
+                               Field *field)
+{
+  if (!dont)
+  {
+    if (str->length())
+      str->append(STRING_WITH_LEN(", "));
+    str->append(STRING_WITH_LEN("DROP COLUMN "));
+    append_identifier(thd, str, &field->field_name);
+  }
+}
+
+
 /**
   Prepare column and key definitions for CREATE TABLE in ALTER TABLE.
 
@@ -7976,6 +7989,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (table->s->tmp_table == NO_TMP_TABLE)
         (void) delete_statistics_for_column(thd, table, field);
+      dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
       dropped_fields= &table->tmp_set;
       bitmap_set_bit(dropped_fields, field->field_index);
@@ -8048,7 +8062,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
              field->flags & VERS_SYSTEM_FIELD &&
              field->invisible < INVISIBLE_SYSTEM)
     {
-      my_error(ER_VERS_SYS_FIELD_EXISTS, MYF(0), field->field_name.str);
+      StringBuffer<NAME_LEN*3> tmp;
+      append_drop_column(thd, false, &tmp, field);
+      my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
       goto err;
     }
     else if (drop && field->invisible < INVISIBLE_SYSTEM &&
@@ -8058,13 +8074,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       /* "dropping" a versioning field only hides it from the user */
       def= new (thd->mem_root) Create_field(thd, field, field);
       def->invisible= INVISIBLE_SYSTEM;
-      dropped_sys_vers_fields|= field->flags;
       alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
       if (field->flags & VERS_SYS_START_FLAG)
         create_info->vers_info.as_row.start= def->field_name= Vers_parse_info::default_start;
       else
         create_info->vers_info.as_row.end= def->field_name= Vers_parse_info::default_end;
       new_create_list.push_back(def, thd->mem_root);
+      dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
     }
     else
@@ -8093,18 +8109,21 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
     }
   }
-  if (dropped_sys_vers_fields &&
-      ((dropped_sys_vers_fields & VERS_SYSTEM_FIELD) != VERS_SYSTEM_FIELD))
+  dropped_sys_vers_fields &= VERS_SYSTEM_FIELD;
+  if ((dropped_sys_vers_fields ||
+       alter_info->flags & Alter_info::ALTER_DROP_PERIOD) &&
+      dropped_sys_vers_fields != VERS_SYSTEM_FIELD)
   {
-    StringBuffer<NAME_LEN*2> tmp;
-    tmp.append(STRING_WITH_LEN("DROP COLUMN "));
-    if (dropped_sys_vers_fields & VERS_SYS_START_FLAG)
-      append_identifier(thd, &tmp, &table->vers_end_field()->field_name);
-    else
-      append_identifier(thd, &tmp, &table->vers_start_field()->field_name);
+    StringBuffer<NAME_LEN*3> tmp;
+    append_drop_column(thd, dropped_sys_vers_fields & VERS_SYS_START_FLAG,
+                       &tmp, table->vers_start_field());
+    append_drop_column(thd, dropped_sys_vers_fields & VERS_SYS_END_FLAG,
+                       &tmp, table->vers_end_field());
     my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
     goto err;
   }
+  alter_info->flags &=
+    ~(Alter_info::ALTER_DROP_PERIOD | Alter_info::ALTER_ADD_PERIOD);
   def_it.rewind();
   while ((def=def_it++))			// Add new columns
   {

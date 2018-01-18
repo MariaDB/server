@@ -7183,23 +7183,21 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     }
   }
 
-  if ((versioned_fields || unversioned_fields) && !share->versioned)
+  if ((alter_info->flags & Alter_info::ALTER_DROP_PERIOD ||
+       versioned_fields || unversioned_fields) && !share->versioned)
   {
     my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name);
     return true;
   }
 
-  if (add_period)
+  if (share->versioned)
   {
-    if (share->versioned)
+    if (alter_info->flags & Alter_info::ALTER_ADD_PERIOD)
     {
       my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
       return true;
     }
-  }
 
-  if (share->versioned)
-  {
     // copy info from existing table
     create_info->options|= HA_VERSIONED_TABLE;
 
@@ -7305,7 +7303,9 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
 
 bool Vers_parse_info::need_check(const Alter_info *alter_info) const
 {
-  return versioned_fields || unversioned_fields || add_period ||
+  return versioned_fields || unversioned_fields ||
+         alter_info->flags & Alter_info::ALTER_ADD_PERIOD ||
+         alter_info->flags & Alter_info::ALTER_DROP_PERIOD ||
          alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING ||
          alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING || *this;
 }
