@@ -51,7 +51,7 @@ int check_openssl_compatibility()
   EVP_MD_CTX     *md5_ctx;
 
   if (!CRYPTO_set_mem_functions(coc_malloc, NULL, NULL))
-    return 1;
+    return 0;
 
   testing= 1;
   alloc_size= alloc_count= 0;
