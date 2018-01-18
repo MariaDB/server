@@ -45,15 +45,24 @@ call truncate_sp;
 select * from t for system_time all;
 a
 drop procedure truncate_sp;
-### Issue #399, truncate partitioned table is now unimplemented
+# Truncate partitioned
 create or replace table t (a int)
 with system versioning
 engine myisam
-partition by system_time (
+partition by system_time limit 1 (
 partition p0 history,
+partition p1 history,
 partition pn current);
+insert into t values (1);
+update t set a= 2;
+update t set a= 3;
+Warnings:
+Note	4114	Versioned table `test`.`t`: switching from partition `p0` to `p1`
 delete history from t;
-ERROR 42000: The used command is not allowed with this MariaDB version
+select * from t for system_time all;
+a
+3
+# VIEW
 create or replace table t (i int) with system versioning;
 delete history from t;
 create or replace view v as select * from t;

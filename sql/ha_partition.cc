@@ -4457,10 +4457,23 @@ int ha_partition::delete_row(const uchar *buf)
 
   DBUG_ASSERT(bitmap_is_subset(&m_part_info->full_part_field_set,
                                table->read_set));
+  if (m_part_info->part_type == VERSIONING_PARTITION)
+  {
+    TABLE *table= m_part_info->table;
+    DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
+    if (!table->vers_end_field()->is_max())
+    {
+      // historical record is deleted by DELETE HISTORY
+      error= 0;
+      part_id= m_last_part;
+      goto skip_get_part;
+    }
+  }
   if ((error= get_part_for_delete(buf, m_rec0, m_part_info, &part_id)))
   {
     DBUG_RETURN(error);
   }
+skip_get_part:
   /* Should never call delete_row on a partition which is not read */
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), part_id));
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->lock_partitions), part_id));
