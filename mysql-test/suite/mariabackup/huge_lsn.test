@@ -1,4 +1,5 @@
 --source include/not_embedded.inc
+--source include/have_file_key_management.inc
 
 --echo #
 --echo # MDEV-13416 mariabackup fails with EFAULT "Bad Address"
@@ -16,7 +17,7 @@ binmode FILE;
 my $ps= $ENV{INNODB_PAGE_SIZE};
 my $page;
 die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
-substr($page,26,8) = pack("NN", 4096, 0);
+substr($page,26,8) = pack("NN", 4096, ~1024);
 substr($page,0,4)=pack("N",0xdeadbeef);
 substr($page,$ps-8,4)=pack("N",0xdeadbeef);
 sysseek(FILE, 0, 0) || die "Unable to rewind $file\n";
@@ -27,8 +28,9 @@ EOF
 --remove_files_wildcard $MYSQLD_DATADIR ib_logfile*
 
 --source include/start_mysqld.inc
+let SEARCH_RANGE= -50000;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
---let SEARCH_PATTERN= InnoDB: 5\.7\.\d+ started; log sequence number 17592186044428
+--let SEARCH_PATTERN= InnoDB: New log files created, LSN=175964\d{8}
 --source include/search_pattern_in_file.inc
 
 CREATE TABLE t(i INT) ENGINE INNODB;
@@ -39,6 +41,7 @@ let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
 --enable_result_log
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
 INSERT INTO t VALUES(2);
 echo # xtrabackup prepare;
 --disable_result_log

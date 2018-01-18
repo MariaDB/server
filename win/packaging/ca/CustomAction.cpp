@@ -524,7 +524,7 @@ LExit:
   or 4GB(x64 OS).
   
   Fragmentation due to loaded modules, heap  and stack 
-  limit maximum size of continous memory block further,
+  limit maximum size of continuous memory block further,
   so that limit for 32 bit process is about 1200 on 32 bit OS 
   or 2000 MB on 64 bit OS(found experimentally).
 */

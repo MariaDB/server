@@ -7889,16 +7889,13 @@ ER_NOT_LOG_TABLE
         eng "Table %`s.%`s is not a log table"
 
 ER_VERS_TRT_IS_DISABLED
-        eng "Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry)."
+        eng "Transaction registry is disabled"
 
 ER_VERS_DUPLICATE_ROW_START_END
 	eng "Duplicate ROW %s column %`s"
 
 ER_VERS_ALREADY_VERSIONED
         eng "Table %`s is already system-versioned"
-
-WARN_VERS_TRT_EXPERIMENTAL
-        eng "Transaction-based system versioning is EXPERIMENTAL and is subject to change in future."
 
 ER_VERS_TRUNCATE_VIEW
         eng "DELETE HISTORY from VIEW is prohibited"

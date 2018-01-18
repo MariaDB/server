@@ -1,5 +1,3 @@
-drop procedure if exists test.longprocedure;
-drop table if exists t1;
 create table t1 (a int);
 insert into t1 values (1),(2),(3);
 length
@@ -60,3 +58,30 @@ f1
 This is a test case for for Bug#9819
 drop procedure p1;
 drop table t1, t2;
+create table t1 (
+`id1` int unsigned not null default '0',
+`id2` int unsigned not null default '0',
+`link_type` int unsigned not null default '0',
+`visibility` tinyint not null default '0',
+`data` varchar(255) not null default '',
+`time` int unsigned not null default '0',
+`version` int unsigned not null default '0',
+primary key (id1, link_type, visibility, id2)
+) default collate=latin1_bin;
+create procedure select_test()
+begin
+declare id1_cond int;
+set id1_cond = 1;
+while id1_cond <= 10000 do
+select count(*) as cnt from (select id1 from t1 force index (primary) where id1 = id1_cond and link_type = 1 and visibility = 1 order by id2 desc) as t into @cnt;
+set id1_cond = id1_cond + 1;
+end while;
+end//
+insert t1 select seq, seq, 1, 1, seq, seq, seq from seq_1_to_2000;
+set @before=unix_timestamp();
+call select_test();
+select unix_timestamp() - @before < 60;
+unix_timestamp() - @before < 60
+1
+drop procedure select_test;
+drop table t1;

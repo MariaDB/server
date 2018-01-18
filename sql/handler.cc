@@ -1432,7 +1432,7 @@ int ha_commit_trans(THD *thd, bool all)
 
     if (trx_end_id)
     {
-      if (!use_transaction_registry)
+      if (!TR_table::use_transaction_registry)
       {
         my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
         goto err;
@@ -6874,7 +6874,7 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
     f->set_handler(&type_handler_timestamp2);
     f->length= MAX_DATETIME_PRECISION;
   }
-  f->invisible= INVISIBLE_SYSTEM;
+  f->invisible= DBUG_EVALUATE_IF("sysvers_show", VISIBLE, INVISIBLE_SYSTEM);
 
   if (f->check(thd))
     return NULL;
@@ -6962,13 +6962,9 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     }
   }
 
-#ifdef VERS_EXPERIMENTAL
-  if (thd->variables.vers_force)
-  {
-    alter_info->flags|= Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
-    options|= HA_VERSIONED_TABLE;
-  }
-#endif
+  DBUG_EXECUTE_IF("sysvers_force", if (!tmp_table()) {
+                  alter_info->flags|= Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
+                  options|= HA_VERSIONED_TABLE; });
 
   // Possibly override default storage engine to match one used in source table.
   if (vers_tables && alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING &&
@@ -7183,11 +7179,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (!need_check(alter_info) && !share->versioned)
     return false;
 
-  if (share->tmp_table && share->tmp_table != INTERNAL_TMP_TABLE
-#ifdef VERS_EXPERIMENTAL
-    && !thd->variables.vers_force
-#endif
-  )
+  if (DBUG_EVALUATE_IF("sysvers_force", 0, share->tmp_table))
   {
     my_error(ER_VERS_TEMPORARY, MYF(0));
     return true;
@@ -7559,7 +7551,7 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
       {
         if (found == check_unit)
         {
-          if (found == VERS_TRX_ID && !use_transaction_registry)
+          if (found == VERS_TRX_ID && !TR_table::use_transaction_registry)
           {
             my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
             return true;

@@ -196,7 +196,7 @@ int sigwait(sigset_t *set, int *sig);
 #endif
 
 #if !defined(HAVE_SIGWAIT) && !defined(HAVE_rts_threads) && !defined(sigwait) && !defined(alpha_linux_port) && !defined(_AIX)
-int sigwait(sigset_t *setp, int *sigp);		/* Use our implemention */
+int sigwait(sigset_t *setp, int *sigp);		/* Use our implementation */
 #endif
 
 
@@ -393,7 +393,7 @@ typedef struct st_safe_mutex_deadlock_t
 
 #ifdef SAFE_MUTEX_DETECT_DESTROY
 /*
-  Used to track the destroying of mutexes. This needs to be a seperate
+  Used to track the destroying of mutexes. This needs to be a separate
   structure because the safe_mutex_t structure could be freed before
   the mutexes are destroyed.
 */

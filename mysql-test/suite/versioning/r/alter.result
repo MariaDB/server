@@ -388,7 +388,7 @@ alter table t modify column row_start bigint unsigned;
 ERROR HY000: Can not change system versioning field `row_start`
 set system_versioning_alter_history= SURVIVE;
 ERROR 42000: Variable 'system_versioning_alter_history' can't be set to the value of 'SURVIVE'
-set system_versioning_alter_history= DROP;
+set system_versioning_alter_history= 'DROP';
 ERROR 42000: Variable 'system_versioning_alter_history' can't be set to the value of 'DROP'
 create or replace table t (a int) with system versioning;
 alter table t add system versioning;

@@ -708,10 +708,6 @@ typedef struct system_variables
   uint in_subquery_conversion_threshold;
 
   vers_asof_timestamp_t vers_asof_timestamp;
-#ifdef VERS_EXPERIMENTAL
-  my_bool vers_force;
-  ulong vers_show;
-#endif
   my_bool vers_innodb_algorithm_simple;
   ulong vers_alter_history;
 } SV;
@@ -841,7 +837,7 @@ typedef struct system_status_var
   ulonglong table_open_cache_overflows;
   double last_query_cost;
   double cpu_time, busy_time;
-  uint32_t threads_running;
+  uint32 threads_running;
   /* Don't initialize */
   /* Memory used for thread local storage */
   int64 max_local_memory_used;
@@ -1325,7 +1321,21 @@ public:
 */
 
 struct Item_change_record;
-typedef I_List<Item_change_record> Item_change_list;
+class Item_change_list
+{
+  I_List<Item_change_record> change_list;
+public:
+  void nocheck_register_item_tree_change(Item **place, Item *old_value,
+                                         MEM_ROOT *runtime_memroot);
+  void check_and_register_item_tree_change(Item **place, Item **new_value,
+                                           MEM_ROOT *runtime_memroot);
+  void rollback_item_tree_changes();
+  void move_elements_to(Item_change_list *to)
+  {
+    change_list.move_elements_to(&to->change_list);
+  }
+  bool is_empty() { return change_list.is_empty(); }
+};
 
 
 /**
@@ -2089,36 +2099,14 @@ struct QUERY_START_TIME_INFO
   my_time_t start_time;
   ulong     start_time_sec_part;
   ulonglong start_utime, utime_after_lock;
-};
 
-class Backup_query_start_time : public QUERY_START_TIME_INFO
-{
-  QUERY_START_TIME_INFO *m_origin;
-
-public:
-  Backup_query_start_time() : m_origin(NULL)
-  {}
-  Backup_query_start_time(QUERY_START_TIME_INFO &origin)
+  void backup_query_start_time(QUERY_START_TIME_INFO *backup)
   {
-    backup(origin);
+    *backup= *this;
   }
-  ~Backup_query_start_time()
+  void restore_query_start_time(QUERY_START_TIME_INFO *backup)
   {
-    restore();
-  }
-  void backup(QUERY_START_TIME_INFO &origin)
-  {
-    m_origin= &origin;
-    QUERY_START_TIME_INFO *backup_= this;
-    *backup_= origin;
-  }
-  void restore()
-  {
-    if (m_origin)
-    {
-      *m_origin= *this;
-      m_origin= NULL;
-    }
+    *this= *backup;
   }
 };
 
@@ -2131,6 +2119,14 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 */
 
 class THD :public Statement,
+           /*
+             This is to track items changed during execution of a prepared
+             statement/stored procedure. It's created by
+             nocheck_register_item_tree_change() in memory root of THD,
+             and freed in rollback_item_tree_changes().
+             For conventional execution it's always empty.
+           */
+           public Item_change_list,
            public MDL_context_owner,
            public Open_tables_state,
            public QUERY_START_TIME_INFO
@@ -2612,14 +2608,6 @@ public:
 #ifdef SIGNAL_WITH_VIO_CLOSE
   Vio* active_vio;
 #endif
-  /*
-    This is to track items changed during execution of a prepared
-    statement/stored procedure. It's created by
-    nocheck_register_item_tree_change() in memory root of THD, and freed in
-    rollback_item_tree_changes(). For conventional execution it's always
-    empty.
-  */
-  Item_change_list change_list;
 
   /*
     A permanent memory area of the statement. For conventional
@@ -3811,11 +3799,6 @@ public:
     */
     memcpy((char*) place, new_value, sizeof(*new_value));
   }
-  void nocheck_register_item_tree_change(Item **place, Item *old_value,
-                                         MEM_ROOT *runtime_memroot);
-  void check_and_register_item_tree_change(Item **place, Item **new_value,
-                                           MEM_ROOT *runtime_memroot);
-  void rollback_item_tree_changes();
 
   /*
     Cleanup statement parse state (parse tree, lex) and execution

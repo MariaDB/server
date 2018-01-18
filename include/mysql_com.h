@@ -152,7 +152,7 @@ enum enum_indicator_type
 */
 #define SCRAMBLE_LENGTH 20
 #define SCRAMBLE_LENGTH_323 8
-/* length of password stored in the db: new passwords are preceeded with '*' */
+/* length of password stored in the db: new passwords are preceded with '*' */
 #define SCRAMBLED_PASSWORD_CHAR_LENGTH (SCRAMBLE_LENGTH*2+1)
 #define SCRAMBLED_PASSWORD_CHAR_LENGTH_323 (SCRAMBLE_LENGTH_323*2)
 
@@ -299,7 +299,7 @@ enum enum_indicator_type
 #endif
 
 /*
-  Gather all possible capabilites (flags) supported by the server
+  Gather all possible capabilities (flags) supported by the server
 
   MARIADB_* flags supported only by MariaDB connector(s).
 */

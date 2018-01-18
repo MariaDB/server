@@ -583,10 +583,6 @@ enum vers_sys_type_t
   VERS_TRX_ID
 };
 
-#ifndef UINT32_MAX
-#define UINT32_MAX             (4294967295U)
-#endif
-
 /**
   This structure is shared between different table objects. There is one
   instance of table share per one table in the database.
@@ -791,7 +787,7 @@ struct TABLE_SHARE
 
   void vers_init()
   {
-    hist_part_id= UINT32_MAX;
+    hist_part_id= UINT_MAX32;
     busy_rotation= false;
     stat_trx= NULL;
     stat_serial= 0;
@@ -1588,6 +1584,7 @@ public:
 
   int delete_row();
   void vers_update_fields();
+  void vers_update_end();
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
@@ -2992,6 +2989,10 @@ public:
     FLD_ISO_LEVEL,
     FIELD_COUNT
   };
+
+  enum enabled {NO, MAYBE, YES};
+  static enum enabled use_transaction_registry;
+
   /**
      @param[in,out] Thread handle
      @param[in] Current transaction is read-write.
@@ -3084,7 +3085,7 @@ public:
 
      @retval true if schema is incorrect and false otherwise
    */
-  bool check();
+  bool check(bool error);
 
   TABLE * operator-> () const
   {

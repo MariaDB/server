@@ -2748,8 +2748,10 @@ struct Item_change_record: public ilink
   thd->mem_root (due to possible set_n_backup_active_arena called for thd).
 */
 
-void THD::nocheck_register_item_tree_change(Item **place, Item *old_value,
-                                            MEM_ROOT *runtime_memroot)
+void
+Item_change_list::nocheck_register_item_tree_change(Item **place,
+                                                    Item *old_value,
+                                                    MEM_ROOT *runtime_memroot)
 {
   Item_change_record *change;
   DBUG_ENTER("THD::nocheck_register_item_tree_change");
@@ -2790,8 +2792,10 @@ void THD::nocheck_register_item_tree_change(Item **place, Item *old_value,
     changes to substitute the same reference at both locations L1 and L2.
 */
 
-void THD::check_and_register_item_tree_change(Item **place, Item **new_value,
-                                              MEM_ROOT *runtime_memroot)
+void
+Item_change_list::check_and_register_item_tree_change(Item **place,
+                                                      Item **new_value,
+                                                      MEM_ROOT *runtime_memroot)
 {
   Item_change_record *change;
   I_List_iterator<Item_change_record> it(change_list);
@@ -2806,7 +2810,7 @@ void THD::check_and_register_item_tree_change(Item **place, Item **new_value,
 }
 
 
-void THD::rollback_item_tree_changes()
+void Item_change_list::rollback_item_tree_changes()
 {
   I_List_iterator<Item_change_record> it(change_list);
   Item_change_record *change;

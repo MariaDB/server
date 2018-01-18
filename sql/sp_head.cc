@@ -1133,7 +1133,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     We should also save Item tree change list to avoid rollback something
     too early in the calling query.
   */
-  thd->change_list.move_elements_to(&old_change_list);
+  thd->Item_change_list::move_elements_to(&old_change_list);
   /*
     Cursors will use thd->packet, so they may corrupt data which was prepared
     for sending by upper level. OTOH cursors in the same routine can share this
@@ -1279,8 +1279,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     thd->spcont->instr_ptr= ip;
   thd->server_status= (thd->server_status & ~status_backup_mask) | old_server_status;
   old_packet.swap(thd->packet);
-  DBUG_ASSERT(thd->change_list.is_empty());
-  old_change_list.move_elements_to(&thd->change_list);
+  DBUG_ASSERT(thd->Item_change_list::is_empty());
+  old_change_list.move_elements_to(thd);
   thd->lex= old_lex;
   thd->set_query_id(old_query_id);
   DBUG_ASSERT(!thd->derived_tables);
@@ -3071,7 +3071,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   bool parent_modified_non_trans_table= thd->transaction.stmt.modified_non_trans_table;
   thd->transaction.stmt.modified_non_trans_table= FALSE;
   DBUG_ASSERT(!thd->derived_tables);
-  DBUG_ASSERT(thd->change_list.is_empty());
+  DBUG_ASSERT(thd->Item_change_list::is_empty());
   /*
     Use our own lex.
     We should not save old value since it is saved/restored in
@@ -3272,7 +3272,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
   int res;
   bool save_enable_slow_log;
   const CSET_STRING query_backup= thd->query_string;
-  Backup_query_start_time time_info;
+  QUERY_START_TIME_INFO time_info;
   Sub_statement_state backup_state;
   DBUG_ENTER("sp_instr_stmt::execute");
   DBUG_PRINT("info", ("command: %d", m_lex_keeper.sql_command()));
@@ -3288,7 +3288,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       Save start time info for the CALL statement and overwrite it with the
       current time for log_slow_statement() to log the individual query timing.
     */
-    time_info.backup(*thd);
+    thd->backup_query_start_time(&time_info);
     thd->set_time();
   }
   thd->store_slow_query_state(&backup_state);
@@ -3354,6 +3354,9 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       thd->get_stmt_da()->reset_diagnostics_area();
     }
   }
+  /* Restore the original query start time */
+  if (thd->enable_slow_log)
+    thd->restore_query_start_time(&time_info);
 
   DBUG_RETURN(res || thd->is_error());
 }

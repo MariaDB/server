@@ -1638,8 +1638,7 @@ int vers_insert_history_row(TABLE *table)
   restore_record(table,record[1]);
 
   // Set Sys_end to now()
-  if (table->vers_end_field()->set_time())
-    DBUG_ASSERT(0);
+  table->vers_update_end();
 
   return table->file->ha_write_row(table->record[0]);
 }
@@ -1971,11 +1970,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             DBUG_ASSERT(table->insert_values);
             store_record(table,insert_values);
             restore_record(table,record[1]);
-            if (table->vers_end_field()->set_time())
-            {
-              error= 1;
-              goto err;
-            }
+            table->vers_update_end();
             error= table->file->ha_update_row(table->record[1],
                                               table->record[0]);
             restore_record(table,insert_values);

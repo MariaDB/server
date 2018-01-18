@@ -1,110 +1,92 @@
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
 
-delimiter ~~;
-create procedure test_01()
-begin
-  declare engine varchar(255) default default_engine();
-  declare sys_type varchar(255) default sys_datatype(default_engine());
+let $engine=`select default_engine()`;
+let $sys_type=`select sys_datatype(default_engine())`;
 
-  set @str= concat('
-  create table t1(
-    x int unsigned,
-    y int unsigned,
-    sys_start ', sys_type, ' as row start invisible,
-    sys_end ', sys_type, ' as row end invisible,
-    period for system_time (sys_start, sys_end))
-  with system versioning
-  engine ', engine);
-  prepare stmt from @str; execute stmt; drop prepare stmt;
-  insert into t1 (x, y) values
-    (0, 100),
-    (1, 101),
-    (2, 102),
-    (3, 103),
-    (4, 104),
-    (5, 105),
-    (6, 106),
-    (7, 107),
-    (8, 108),
-    (9, 109);
-  set @t0= now(6);
-  if engine = 'innodb' then
-    select sys_start from t1 limit 1 into @x0;
-  end if;
+replace_result $engine ENGINE $sys_type SYS_TYPE;
+eval create table t1(
+  x int unsigned,
+  y int unsigned,
+  sys_start $sys_type as row start invisible,
+  sys_end $sys_type as row end invisible,
+  period for system_time (sys_start, sys_end))
+with system versioning engine=$engine;
 
-  delete from t1 where x = 3;
-  delete from t1 where x > 7;
+insert into t1 (x, y) values
+  (0, 100),
+  (1, 101),
+  (2, 102),
+  (3, 103),
+  (4, 104),
+  (5, 105),
+  (6, 106),
+  (7, 107),
+  (8, 108),
+  (9, 109);
+set @t0= now(6);
+select sys_start from t1 limit 1 into @x0;
 
-  insert into t1(x, y) values(3, 33);
-  select sys_start from t1 where x = 3 and y = 33 into @t1;
-  if engine = 'innodb' then
-    set @x1= @t1;
-    select vtq_commit_ts(@x1) into @t1;
-  end if;
+delete from t1 where x = 3;
+delete from t1 where x > 7;
 
-  select x, y from t1;
-  select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
-  select x as FROMTO_x, y from t1 for system_time from '0-0-0 0:0:0' to timestamp @t1;
-  select x as BETWAND_x, y from t1 for system_time between '0-0-0 0:0:0' and timestamp @t1;
-  select x as ALL_x, y from t1 for system_time all;
+insert into t1(x, y) values(3, 33);
+select sys_start from t1 where x = 3 and y = 33 into @t1;
+if(`select '$engine' = 'innodb'`) {
+  set @x1= @t1;
+  select vtq_commit_ts(@x1) into @t1;
+}
 
-  if engine = 'innodb' then
-    select x as ASOF2_x, y from t1 for system_time as of @x0;
-    select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
-    select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
-  else
-    select x as ASOF2_x, y from t1 for system_time as of @t0;
-    select x as FROMTO2_x, y from t1 for system_time from '0-0-0 0:0:0' to @t1;
-    select x as BETWAND2_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
-  end if;
+select x, y from t1;
+select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
+select x as FROMTO_x, y from t1 for system_time from '0-0-0 0:0:0' to timestamp @t1;
+select x as BETWAND_x, y from t1 for system_time between '0-0-0 0:0:0' and timestamp @t1;
+select x as ALL_x, y from t1 for system_time all;
 
-  drop table t1;
-end~~
+if(`select '$engine' = 'innodb'`) {
+  select x as ASOF2_x, y from t1 for system_time as of @x0;
+  select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
+  select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
+}
+if(`select '$engine' != 'innodb'`) {
+  select x as ASOF2_x, y from t1 for system_time as of @t0;
+  select x as FROMTO2_x, y from t1 for system_time from '0-0-0 0:0:0' to @t1;
+  select x as BETWAND2_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+}
 
-create or replace procedure test_02()
-begin
-  declare engine varchar(255) default default_engine();
-  declare sys_type varchar(255) default sys_datatype(default_engine());
+drop table t1;
 
-  set @str0= concat('(
-    x int,
-    y int,
-    sys_start ', sys_type, ' as row start invisible,
-    sys_end ', sys_type, ' as row end invisible,
-    period for system_time (sys_start, sys_end))
-  with system versioning
-  engine ', engine);
-  set @str= concat('create or replace table t1', @str0);
-  prepare stmt from @str; execute stmt; drop prepare stmt;
-  set @str= concat('create or replace table t2', @str0);
-  prepare stmt from @str; execute stmt; drop prepare stmt;
+replace_result $engine ENGINE $sys_type SYS_TYPE;
+eval create table t1(
+  x int,
+  y int,
+  sys_start $sys_type as row start invisible,
+  sys_end $sys_type as row end invisible,
+  period for system_time (sys_start, sys_end))
+with system versioning engine=$engine;
 
-  insert into t1 values (1, 1), (1, 2), (1, 3), (4, 4), (5, 5);
-  insert into t2 values (1, 2), (2, 1), (3, 1);
-  set @t0= now(6);
+create table t2 like t1;
 
-  select t1.x as IJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x;
-  select t1.x as LJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x;
-  select t1.x as RJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x;
+insert into t1 values (1, 1), (1, 2), (1, 3), (4, 4), (5, 5);
+insert into t2 values (1, 2), (2, 1), (3, 1);
+set @t0= now(6);
 
-  delete from t1;
-  delete from t2;
+select t1.x as IJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x;
+select t1.x as LJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x;
+select t1.x as RJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x;
 
-  select IJ2_x1,y1,x2,y2 from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
-  for system_time as of timestamp @t0 as t;
-  select LJ2_x1,y1,x2,y2 from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
-  for system_time as of timestamp @t0 as t;
-  select RJ2_x1,y1,x2,y2 from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
-  for system_time as of timestamp @t0 as t;
+delete from t1;
+delete from t2;
 
-  drop table t1;
-  drop table t2;
-end~~
-delimiter ;~~
+select IJ2_x1,y1,x2,y2 from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+select LJ2_x1,y1,x2,y2 from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+select RJ2_x1,y1,x2,y2 from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
 
-call test_01();
-call test_02();
+drop table t1;
+drop table t2;
 
 --echo # MDEV-14686 Server crashes in Item_field::used_tables on 2nd call of SP [#422]
 create or replace table t1 (called int, bad int) with system versioning;
@@ -225,8 +207,5 @@ select * from (t1 for system_time all join t2 for system_time all) for system_ti
 
 drop view v1;
 drop table t1, t2;
-
-drop procedure test_01;
-drop procedure test_02;
 
 -- source suite/versioning/common_finish.inc

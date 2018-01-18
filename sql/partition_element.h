@@ -202,7 +202,7 @@ public:
     engine_type(NULL), connect_string(null_clex_str), part_state(PART_NORMAL),
     nodegroup_id(UNDEF_NODEGROUP), has_null_value(FALSE),
     signed_flag(FALSE), max_value(FALSE),
-    id(UINT32_MAX),
+    id(UINT_MAX32),
     empty(true)
   {}
   partition_element(partition_element *part_elem)

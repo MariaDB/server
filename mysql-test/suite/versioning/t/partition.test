@@ -146,6 +146,8 @@ explain partitions select * from t1;
 set @str= concat('select row_start from t1 partition (pn) into @ts0');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 
+--source suite/versioning/wait_system_clock.inc
+
 set @now= now(6);
 delete from t1;
 execute select_p0;
@@ -158,6 +160,9 @@ select @ts0 = @ts1;
 
 set @now= now(6);
 insert into t1 values (2);
+
+--source suite/versioning/wait_system_clock.inc
+
 execute select_p0;
 execute select_pn;
 
@@ -166,6 +171,9 @@ prepare stmt from @str; execute stmt; drop prepare stmt;
 
 set @now= now(6);
 update t1 set x = x + 1;
+
+--source suite/versioning/wait_system_clock.inc
+
 execute select_p0;
 execute select_pn;
 

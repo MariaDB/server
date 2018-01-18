@@ -7617,35 +7617,6 @@ bool get_key_map_from_key_list(key_map *map, TABLE *table,
 }
 
 
-#ifdef VERS_EXPERIMENTAL
-inline
-bool Field::vers_sys_invisible(THD *thd) const
-{
-  DBUG_ASSERT(vers_sys_field());
-  DBUG_ASSERT(table);
-  DBUG_ASSERT(table->versioned());
-  DBUG_ASSERT(table->pos_in_table_list);
-
-  if (thd->lex->sql_command != SQLCOM_SELECT)
-    return invisible;
-
-  switch (thd->variables.vers_show)
-  {
-    case VERS_SHOW_RANGE:
-    {
-      vers_system_time_t vers_type= table->pos_in_table_list->vers_conditions.type;
-      return vers_type > SYSTEM_TIME_AS_OF ? false : invisible;
-    }
-    case VERS_SHOW_ALWAYS:
-      return false;
-    default:
-      break;
-  };
-  return invisible;
-}
-#endif
-
-
 /*
   Drops in all fields instead of current '*' field
 
@@ -7775,12 +7746,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         Field_iterator_natural_join).
         But view fields can never be invisible.
       */
-      if ((field= field_iterator.field()) && (
-#ifdef VERS_EXPERIMENTAL
-          field->vers_sys_field() && field->table->versioned() ?
-            field->vers_sys_invisible(thd) :
-#endif
-            field->invisible != VISIBLE))
+      if ((field= field_iterator.field()) && field->invisible != VISIBLE)
         continue;
 
       Item *item;
@@ -8031,10 +7997,6 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
   TABLE_LIST *derived= select_lex->master_unit()->derived;
   DBUG_ENTER("setup_conds");
 
-  /* Do not fix conditions for the derived tables that have been merged */
-  if (derived && derived->merged)
-    DBUG_RETURN(0);
-
   select_lex->is_item_list_lookup= 0;
 
   thd->mark_used_columns= MARK_COLUMNS_READ;
@@ -8149,11 +8111,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       thus we safely can take table from the first field.
     */
     fld= (Item_field*)f++;
-    if (!(field= fld->field_for_view_update()))
-    {
-      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), fld->name.str);
-      goto err;
-    }
+    field= fld->field_for_view_update();
+    DBUG_ASSERT(field);
     DBUG_ASSERT(field->field->table == table_arg);
     table_arg->auto_increment_field_not_null= FALSE;
     f.rewind();

@@ -1323,7 +1323,7 @@ resolve_engine_list_item(THD *thd, plugin_ref *list, uint32 *idx,
 {
   LEX_CSTRING item_str;
   plugin_ref ref;
-  uint32_t i;
+  uint32 i;
   THD *thd_or_null = (temp_copy ? thd : NULL);
 
   item_str.str= pos;

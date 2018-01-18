@@ -41,13 +41,15 @@ class ReadView;
 
 /** Determine if an active transaction has inserted or modified a secondary
 index record.
+@param[in,out]	caller_trx	trx of current thread
 @param[in]	rec	secondary index record
 @param[in]	index	secondary index
 @param[in]	offsets	rec_get_offsets(rec, index)
-@return	the active transaction; trx_release_reference() must be invoked
+@return	the active transaction; trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 trx_t*
 row_vers_impl_x_locked(
+	trx_t*		caller_trx,
 	const rec_t*	rec,
 	dict_index_t*	index,
 	const ulint*	offsets);
@@ -126,6 +128,7 @@ which should be seen by a semi-consistent read. */
 void
 row_vers_build_for_semi_consistent_read(
 /*====================================*/
+	trx_t*		caller_trx,/*!<in/out: trx of current thread */
 	const rec_t*	rec,	/*!< in: record in a clustered index; the
 				caller must have a latch on the page; this
 				latch locks the top of the stack of versions

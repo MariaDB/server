@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -459,11 +459,7 @@ lock_sec_rec_cons_read_sees(
 	/* NOTE that we might call this function while holding the search
 	system latch. */
 
-	if (recv_recovery_is_on()) {
-
-		return(false);
-
-	} else if (dict_table_is_temporary(index->table)) {
+	if (dict_table_is_temporary(index->table)) {
 
 		/* Temp-tables are not shared across connections and multiple
 		transactions from different connections cannot simultaneously
@@ -1494,6 +1490,7 @@ static
 trx_t*
 lock_sec_rec_some_has_impl(
 /*=======================*/
+	trx_t*		caller_trx,/*!<in/out: trx of current thread */
 	const rec_t*	rec,	/*!< in: user record */
 	dict_index_t*	index,	/*!< in: secondary index */
 	const ulint*	offsets)/*!< in: rec_get_offsets(rec, index) */
@@ -1517,7 +1514,7 @@ lock_sec_rec_some_has_impl(
 	max trx id to the log, and therefore during recovery, this value
 	for a page may be incorrect. */
 
-	if (max_trx_id < trx_rw_min_trx_id() && !recv_recovery_is_on()) {
+	if (max_trx_id < trx_rw_min_trx_id()) {
 
 		trx = 0;
 
@@ -1530,7 +1527,7 @@ lock_sec_rec_some_has_impl(
 	x-lock. We have to look in the clustered index. */
 
 	} else {
-		trx = row_vers_impl_x_locked(rec, index, offsets);
+		trx = row_vers_impl_x_locked(caller_trx, rec, index, offsets);
 	}
 
 	return(trx);
@@ -1540,6 +1537,11 @@ lock_sec_rec_some_has_impl(
 /*********************************************************************//**
 Checks if some transaction, other than given trx_id, has an explicit
 lock on the given rec, in the given precise_mode.
+
+FIXME: if the current transaction holds implicit lock from INSERT, a
+subsequent locking read should not convert it to explicit. See also
+MDEV-11215.
+
 @return	the transaction, whose id is not equal to trx_id, that has an
 explicit lock on the given rec, in the given precise_mode or NULL.*/
 static
@@ -1558,30 +1560,27 @@ lock_rec_other_trx_holds_expl(
 	ut_ad(!page_rec_is_default_row(rec));
 
 	trx_t* holds = NULL;
+	ulint heap_no = page_rec_get_heap_no(rec);
 
 	lock_mutex_enter();
+	mutex_enter(&trx_sys->mutex);
 
-	if (trx_t* impl_trx = trx_rw_is_active(trx->id, NULL, false)) {
-		ulint heap_no = page_rec_get_heap_no(rec);
-		mutex_enter(&trx_sys->mutex);
+	for (trx_t* t = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
+	     t != NULL;
+	     t = UT_LIST_GET_NEXT(trx_list, t)) {
 
-		for (trx_t* t = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
-		     t != NULL;
-		     t = UT_LIST_GET_NEXT(trx_list, t)) {
+		lock_t* expl_lock = lock_rec_has_expl(
+			precise_mode, block, heap_no, t);
 
-			lock_t* expl_lock = lock_rec_has_expl(
-				precise_mode, block, heap_no, t);
-
-			if (expl_lock && expl_lock->trx != impl_trx) {
-				/* An explicit lock is held by trx other than
-				the trx holding the implicit lock. */
-				holds = expl_lock->trx;
-				break;
-			}
+		if (expl_lock && expl_lock->trx != trx) {
+			/* An explicit lock is held by trx other than
+			the trx holding the implicit lock. */
+			holds = expl_lock->trx;
+			break;
 		}
-
-		mutex_exit(&trx_sys->mutex);
 	}
+
+	mutex_exit(&trx_sys->mutex);
 
 	lock_mutex_exit();
 
@@ -6223,7 +6222,6 @@ lock_rec_queue_validate(
 	const dict_index_t*	index,	/*!< in: index, or NULL if not known */
 	const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
 {
-	const trx_t*	impl_trx;
 	const lock_t*	lock;
 	ulint		heap_no;
 
@@ -6269,13 +6267,11 @@ lock_rec_queue_validate(
 		/* Nothing we can do */
 
 	} else if (dict_index_is_clust(index)) {
-		trx_id_t	trx_id;
-
 		/* Unlike the non-debug code, this invariant can only succeed
 		if the check and assertion are covered by the lock mutex. */
 
-		trx_id = lock_clust_rec_some_has_impl(rec, index, offsets);
-		impl_trx = trx_rw_is_active_low(trx_id, NULL);
+		const trx_t *impl_trx = trx_sys->rw_trx_hash.find(
+			lock_clust_rec_some_has_impl(rec, index, offsets));
 
 		ut_ad(lock_mutex_own());
 		/* impl_trx cannot be committed until lock_mutex_exit()
@@ -6813,7 +6809,7 @@ lock_rec_convert_impl_to_expl_for_trx(
 	trx_t*			trx,	/*!< in/out: active transaction */
 	ulint			heap_no)/*!< in: rec heap number to lock */
 {
-	ut_ad(trx_is_referenced(trx));
+	ut_ad(trx->is_referenced());
 	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(!rec_is_default_row(rec, index));
 
@@ -6837,7 +6833,7 @@ lock_rec_convert_impl_to_expl_for_trx(
 
 	lock_mutex_exit();
 
-	trx_release_reference(trx);
+	trx->release_reference();
 
 	DEBUG_SYNC_C("after_lock_rec_convert_impl_to_expl_for_trx");
 }
@@ -6849,6 +6845,7 @@ static
 void
 lock_rec_convert_impl_to_expl(
 /*==========================*/
+	trx_t*			caller_trx,/*!<in/out: trx of current thread */
 	const buf_block_t*	block,	/*!< in: buffer block of rec */
 	const rec_t*		rec,	/*!< in: user record on page */
 	dict_index_t*		index,	/*!< in: index of record */
@@ -6868,11 +6865,12 @@ lock_rec_convert_impl_to_expl(
 
 		trx_id = lock_clust_rec_some_has_impl(rec, index, offsets);
 
-		trx = trx_rw_is_active(trx_id, NULL, true);
+		trx = trx_sys->rw_trx_hash.find(caller_trx, trx_id, true);
 	} else {
 		ut_ad(!dict_index_is_online_ddl(index));
 
-		trx = lock_sec_rec_some_has_impl(rec, index, offsets);
+		trx = lock_sec_rec_some_has_impl(caller_trx, rec, index,
+						 offsets);
 
 		ut_ad(!trx || !lock_rec_other_trx_holds_expl(
 				LOCK_S | LOCK_REC_NOT_GAP, trx, rec, block));
@@ -6881,7 +6879,7 @@ lock_rec_convert_impl_to_expl(
 	if (trx != 0) {
 		ulint	heap_no = page_rec_get_heap_no(rec);
 
-		ut_ad(trx_is_referenced(trx));
+		ut_ad(trx->is_referenced());
 
 		/* If the transaction is still active and has no
 		explicit x-lock set on the record, set one for it.
@@ -6934,7 +6932,8 @@ lock_clust_rec_modify_check_and_lock(
 	/* If a transaction has no explicit x-lock set on the record, set one
 	for it */
 
-	lock_rec_convert_impl_to_expl(block, rec, index, offsets);
+	lock_rec_convert_impl_to_expl(thr_get_trx(thr), block, rec, index,
+				      offsets);
 
 	lock_mutex_enter();
 
@@ -7094,11 +7093,11 @@ lock_sec_rec_read_check_and_lock(
 	if the max trx id for the page >= min trx id for the trx list or a
 	database recovery is running. */
 
-	if ((page_get_max_trx_id(block->frame) >= trx_rw_min_trx_id()
-	     || recv_recovery_is_on())
-	    && !page_rec_is_supremum(rec)) {
+	if (!page_rec_is_supremum(rec)
+	    && page_get_max_trx_id(block->frame) >= trx_rw_min_trx_id()) {
 
-		lock_rec_convert_impl_to_expl(block, rec, index, offsets);
+		lock_rec_convert_impl_to_expl(thr_get_trx(thr), block, rec,
+					      index, offsets);
 	}
 
 	lock_mutex_enter();
@@ -7173,7 +7172,8 @@ lock_clust_rec_read_check_and_lock(
 
 	if (heap_no != PAGE_HEAP_NO_SUPREMUM) {
 
-		lock_rec_convert_impl_to_expl(block, rec, index, offsets);
+		lock_rec_convert_impl_to_expl(thr_get_trx(thr), block, rec,
+					      index, offsets);
 	}
 
 	lock_mutex_enter();
@@ -7650,13 +7650,13 @@ lock_trx_release_locks(
 	trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
 	/*--------------------------------------*/
 
-	if (trx_is_referenced(trx)) {
+	if (trx->is_referenced()) {
 
 		ut_a(release_lock);
 
 		lock_mutex_exit();
 
-		while (trx_is_referenced(trx)) {
+		while (trx->is_referenced()) {
 
 			trx_mutex_exit(trx);
 
@@ -7676,7 +7676,7 @@ lock_trx_release_locks(
 		trx_mutex_enter(trx);
 	}
 
-	ut_ad(!trx_is_referenced(trx));
+	ut_ad(!trx->is_referenced());
 
 	/* If the background thread trx_rollback_or_clean_recovered()
 	is still active then there is a chance that the rollback

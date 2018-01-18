@@ -1516,8 +1516,6 @@ static int mysql_test_select(Prepared_statement *stmt,
   lex->select_lex.context.resolve_in_select_list= TRUE;
 
   ulong privilege= lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL;
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-    goto error;
   if (tables)
   {
     if (check_table_access(thd, privilege, tables, FALSE, UINT_MAX, FALSE))
@@ -1782,9 +1780,6 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
   TABLE_LIST *tables= lex->create_last_non_select_table->next_global;
 
   if (create_table_precheck(thd, tables, create_table))
-    DBUG_RETURN(TRUE);
-
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
     DBUG_RETURN(TRUE);
 
   if (select_lex->item_list.elements)
@@ -2177,9 +2172,6 @@ static bool mysql_test_insert_select(Prepared_statement *stmt,
   if (insert_precheck(stmt->thd, tables))
     return 1;
 
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-    return 1;
-
   /* store it, because mysql_insert_select_prepare_tester change it */
   first_local_table= lex->select_lex.table_list.first;
   DBUG_ASSERT(first_local_table != 0);
@@ -2281,6 +2273,9 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   /* Reset warning count for each query that uses tables */
   if (tables)
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
+
+  if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
+    goto error;
 
   if (sql_command_flags[sql_command] & CF_HA_CLOSE)
     mysql_ha_rm_tables(thd, tables);
@@ -3881,7 +3876,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     If called from a stored procedure, ensure that we won't rollback
     external changes when cleaning up after validation.
   */
-  DBUG_ASSERT(thd->change_list.is_empty());
+  DBUG_ASSERT(thd->Item_change_list::is_empty());
 
   /*
     Marker used to release metadata locks acquired while the prepared
@@ -4358,7 +4353,7 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   bool error;
   Query_arena *save_stmt_arena= thd->stmt_arena;
   Item_change_list save_change_list;
-  thd->change_list.move_elements_to(&save_change_list);
+  thd->Item_change_list::move_elements_to(&save_change_list);
 
   state= STMT_CONVENTIONAL_EXECUTION;
 
@@ -4377,7 +4372,7 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= save_stmt_arena;
 
-  save_change_list.move_elements_to(&thd->change_list);
+  save_change_list.move_elements_to(thd);
 
   /* Items and memory will freed in destructor */
 
@@ -4605,7 +4600,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     If the free_list is not empty, we'll wrongly free some externally
     allocated items when cleaning up after execution of this statement.
   */
-  DBUG_ASSERT(thd->change_list.is_empty());
+  DBUG_ASSERT(thd->Item_change_list::is_empty());
 
   /* 
    The only case where we should have items in the thd->free_list is

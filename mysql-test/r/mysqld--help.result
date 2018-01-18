@@ -1227,9 +1227,6 @@ The following options may be given as the first argument:
  Use simple algorithm of timestamp handling in InnoDB
  instead of TRX_SEES
  (Defaults to on; use --skip-system-versioning-innodb-algorithm-simple to disable.)
- --system-versioning-transaction-registry 
- Enable or disable update of
- `mysql`.`transaction_registry`
  --table-cache=#     Deprecated; use --table-open-cache instead.
  --table-definition-cache=# 
  The number of cached table definitions
@@ -1660,7 +1657,6 @@ sync-relay-log-info 10000
 sysdate-is-now FALSE
 system-versioning-alter-history ERROR
 system-versioning-innodb-algorithm-simple TRUE
-system-versioning-transaction-registry FALSE
 table-cache 431
 table-definition-cache 400
 table-open-cache 431

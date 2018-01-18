@@ -201,7 +201,7 @@ ALTERNATIVE_NAME("server" "mysql-server")
 ALTERNATIVE_NAME("test"   "mysql-test")
 
 # Argh! Different distributions call packages differently, to be a drop-in
-# replacement we have to fake distribution-speficic dependencies
+# replacement we have to fake distribution-specificic dependencies
 
 IF(RPM MATCHES "(rhel|centos)6")
   ALTERNATIVE_NAME("client" "mysql")

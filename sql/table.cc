@@ -7810,6 +7810,15 @@ void TABLE::vers_update_fields()
 }
 
 
+void TABLE::vers_update_end()
+{
+  vers_end_field()->set_notnull();
+  if (vers_end_field()->store_timestamp(in_use->system_time,
+                                        in_use->system_time_sec_part))
+    DBUG_ASSERT(0);
+}
+
+
 bool TABLE_LIST::vers_vtmd_name(String& out) const
 {
   static const char *vtmd_suffix= "_vtmd";
@@ -8589,6 +8598,8 @@ void TABLE_SHARE::vers_destroy()
   }
 }
 
+enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
+
 TR_table::TR_table(THD* _thd, bool rw) :
   thd(_thd), open_tables_backup(NULL)
 {
@@ -8610,6 +8621,11 @@ bool TR_table::open()
   All_tmp_tables_list *temporary_tables= thd->temporary_tables;
   bool error= !open_log_table(thd, this, open_tables_backup);
   thd->temporary_tables= temporary_tables;
+
+  if (use_transaction_registry == MAYBE)
+    error= check(error);
+
+  use_transaction_registry= error ? NO : YES;
 
   return error;
 }
@@ -8797,27 +8813,21 @@ void TR_table::warn_schema_incorrect(const char *reason)
 {
   if (MYSQL_VERSION_ID == table->s->mysql_version)
   {
-    sql_print_error("`%s.%s` schema is incorrect: %s.", db, table_name, reason);
+    sql_print_error("%`s.%`s schema is incorrect: %s.", db, table_name, reason);
   }
   else
   {
-    sql_print_error("`%s.%s` schema is incorrect: %s. Created with MariaDB %d, "
+    sql_print_error("%`s.%`s schema is incorrect: %s. Created with MariaDB %d, "
                     "now running %d.", db, table_name, reason, MYSQL_VERSION_ID,
                     static_cast<int>(table->s->mysql_version));
   }
 }
 
-bool TR_table::check()
+bool TR_table::check(bool error)
 {
-  if (!ha_resolve_by_legacy_type(thd, DB_TYPE_INNODB))
+  if (error)
   {
-    sql_print_information("`%s.%s` requires InnoDB storage engine.", db, table_name);
-    return true;
-  }
-
-  if (open())
-  {
-    sql_print_warning("`%s.%s` does not exist (open failed).", db, table_name);
+    sql_print_warning("%`s.%`s does not exist (open failed).", db, table_name);
     return true;
   }
 

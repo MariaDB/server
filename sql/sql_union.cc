@@ -645,6 +645,7 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
                                       bool is_union_select)
 {
   DBUG_ENTER("st_select_lex_unit::prepare_join");
+  TABLE_LIST *derived= sl->master_unit()->derived;
   bool can_skip_order_by;
   sl->options|=  SELECT_NO_UNLOCK;
   JOIN *join= new JOIN(thd_arg, sl->item_list,
@@ -660,7 +661,7 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
 
   saved_error= join->prepare(sl->table_list.first,
                              sl->with_wild,
-                             sl->where,
+                             (derived && derived->merged ? NULL : sl->where),
                              (can_skip_order_by ? 0 :
                               sl->order_list.elements) +
                              sl->group_list.elements,
@@ -1709,6 +1710,7 @@ bool st_select_lex_unit::exec_recursive()
        sq;
        sq= sq->next_with_rec_ref)
   {
+    sq->reset();
     sq->engine->force_reexecution();
   }   
 

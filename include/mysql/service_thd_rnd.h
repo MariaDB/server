@@ -18,7 +18,7 @@
   @file
   This service provides access to the thd-local random number generator.
 
-  It's preferrable over the global one, because concurrent threads
+  It's preferable over the global one, because concurrent threads
   can generate random numbers without fighting each other over the access
   to the shared rnd state.
 */

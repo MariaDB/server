@@ -162,11 +162,15 @@ INSERT INTO articles (FTS_DOC_ID, title, body) VALUES
 (14,'1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
 (19, 'MySQL vs. YourSQL','In the following database comparison ...'),
 (20, 'MySQL Security','When configured properly, MySQL ...');
-ALTER TABLE articles ADD FULLTEXT INDEX idx3 (title),
-ADD FULLTEXT INDEX idx5 (title);
-ERROR HY000: InnoDB presently supports one FULLTEXT index creation at a time
-CREATE FULLTEXT INDEX idx on articles (title);
-ALTER TABLE articles ADD FULLTEXT INDEX idx3 (title);
+ALTER TABLE articles ADD FULLTEXT INDEX idx (title),
+ADD FULLTEXT INDEX idx3 (title), ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try ALGORITHM=COPY
+ALTER TABLE articles ADD FULLTEXT INDEX idx (title),
+ADD FULLTEXT INDEX idx3 (title);
+affected rows: 6
+info: Records: 6  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `idx3`. This is deprecated and will be disallowed in a future release
 ALTER TABLE articles ADD INDEX t20 (title(20)), LOCK=NONE;
 ALTER TABLE articles DROP INDEX t20;
 INSERT INTO articles (FTS_DOC_ID, title, body) VALUES

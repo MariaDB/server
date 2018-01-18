@@ -272,7 +272,7 @@ alter table t modify column row_start bigint unsigned;
 set system_versioning_alter_history= SURVIVE;
 
 --error ER_WRONG_VALUE_FOR_VAR
-set system_versioning_alter_history= DROP;
+set system_versioning_alter_history= 'DROP';
 
 if (0)
 {

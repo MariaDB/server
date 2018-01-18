@@ -7609,7 +7609,7 @@ static bool mysql_inplace_alter_table(THD *thd,
       ulonglong trx_end_id= table->file->ht->prepare_commit_versioned(thd, &trx_start_id);
       if (trx_end_id)
       {
-        if (!use_transaction_registry)
+        if (!TR_table::use_transaction_registry)
         {
           my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
           goto rollback;

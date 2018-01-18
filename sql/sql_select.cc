@@ -14677,8 +14677,6 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
   Item_equal *item_equal;
   COND *org_cond= cond;                 // Return this in case of fatal error
 
-  Query_arena_stmt on_stmt_arena(thd);
-
   if (cond->type() == Item::COND_ITEM)
   {
     List<Item> *cond_list= ((Item_cond*) cond)->argument_list();
@@ -15799,8 +15797,6 @@ optimize_cond(JOIN *join, COND *conds,
 {
   THD *thd= join->thd;
   DBUG_ENTER("optimize_cond");
-
-  Query_arena_stmt on_stmt_arena(thd);
 
   if (!conds)
   {
@@ -18362,7 +18358,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   table->in_use->inc_status_created_tmp_disk_tables();
   table->in_use->inc_status_created_tmp_tables();
   share->db_record_offset= 1;
-  table->created= TRUE;
+  table->set_created();
   DBUG_RETURN(0);
  err:
   DBUG_RETURN(1);
@@ -18873,8 +18869,8 @@ int rr_sequential_and_unpack(READ_RECORD *info)
 */
 
 bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
-                           MARIA_COLUMNDEF *start_recinfo,
-                           MARIA_COLUMNDEF **recinfo, 
+                           TMP_ENGINE_COLUMNDEF *start_recinfo,
+                           TMP_ENGINE_COLUMNDEF **recinfo,
                            ulonglong options)
 {
   if (table->s->db_type() == TMP_ENGINE_HTON)

@@ -59,7 +59,7 @@ bytes_written: Needs I_S.TABLE_STATISTICS.IO_WRITE_BYTES
 trx_info_rpl : MariaRocks: @@rpl_skip_tx_api doesn't work, yet.
 rpl_read_free: MDEV-10976
 lock_wait_timeout_stats: MDEV-13404
-
+rpl_row_triggers : Requires read-free slave.
 
 ##
 ##  Test failures (in buildbot or else where)
@@ -69,11 +69,11 @@ compact_deletes: MDEV-12663 : rocksdb.compact_deletes times out and causes other
 blind_delete_without_tx_api: MDEV-12286: rocksdb.blind_delete_without_tx_api test fails
 unique_check: wrong error number
 autoinc_vars_thread: debug sync point wait timed out
+information_schema: MDEV-14372: unstable testcase
 
 ##
 ## Tests that fail for some other reason
 ##
 
-information_schema : MariaRocks: requires GTIDs
 mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
-rpl_row_triggers : MariaRocks: requires GTIDs
+

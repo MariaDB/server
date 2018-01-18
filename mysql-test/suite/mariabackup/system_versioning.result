@@ -18,9 +18,6 @@ select a from t for system_time all;
 a
 2
 1
-set global system_versioning_transaction_registry=on;
-Warnings:
-Warning	4134	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
 create or replace table t (
 a int,
 s bigint unsigned as row start invisible,
@@ -50,4 +47,3 @@ a
 2
 1
 drop table t;
-set global system_versioning_transaction_registry=off;

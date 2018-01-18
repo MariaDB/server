@@ -200,15 +200,6 @@ struct vers_asof_timestamp_t
   {}
 };
 
-#ifdef VERS_EXPERIMENTAL
-enum vers_show_enum
-{
-  VERS_SHOW_OFF= 0,
-  VERS_SHOW_RANGE,
-  VERS_SHOW_ALWAYS
-};
-#endif
-
 enum vers_alter_history_enum
 {
   VERS_ALTER_HISTORY_ERROR= 0,
@@ -315,8 +306,6 @@ extern my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 extern ulong encryption_algorithm;
 extern const char *encryption_algorithm_names[];
 extern const char *quoted_string;
-extern my_bool opt_transaction_registry;
-extern my_bool use_transaction_registry;
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP

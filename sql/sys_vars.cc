@@ -396,21 +396,6 @@ static Sys_var_vers_asof Sys_vers_asof_timestamp(
        SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
        Sys_var_vers_asof::asof_keywords, DEFAULT(SYSTEM_TIME_UNSPECIFIED));
 
-#ifdef VERS_EXPERIMENTAL
-static Sys_var_mybool Sys_vers_force(
-       "debug_system_versioning_force", "Force system versioning for all created tables",
-       SESSION_VAR(vers_force), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
-static const char *vers_show_keywords[]= {"OFF", "RANGE", "ALWAYS", NULL};
-static Sys_var_enum Sys_vers_show(
-       "debug_system_versioning_show", "Show system fields special rules. "
-       "OFF: don't use special show rules; "
-       "RANGE: show implicit system fields only in range versioned queries; "
-       "ALWAYS: show system fields in all queries",
-       SESSION_VAR(vers_show), CMD_LINE(REQUIRED_ARG),
-       vers_show_keywords, DEFAULT(VERS_SHOW_OFF));
-#endif
-
 static Sys_var_mybool Sys_vers_innodb_algorithm_simple(
        "system_versioning_innodb_algorithm_simple",
        "Use simple algorithm of timestamp handling in InnoDB instead of TRX_SEES",
@@ -426,24 +411,6 @@ static Sys_var_enum Sys_vers_alter_history(
        "DROP: Drop historical system rows while processing ALTER"*/,
        SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_ERROR));
-
-static bool update_transaction_registry(sys_var *self, THD *thd, enum_var_type type)
-{
-  use_transaction_registry= opt_transaction_registry;
-  if (use_transaction_registry)
-  {
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, WARN_VERS_TRT_EXPERIMENTAL,
-                 ER_THD(thd, WARN_VERS_TRT_EXPERIMENTAL));
-  }
-  return false;
-}
-
-static Sys_var_mybool Sys_vers_transaction_registry(
-       "system_versioning_transaction_registry",
-       "Enable or disable update of `mysql`.`transaction_registry`",
-       GLOBAL_VAR(opt_transaction_registry), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       0, ON_UPDATE(update_transaction_registry));
 
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "

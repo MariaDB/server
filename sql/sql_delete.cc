@@ -253,7 +253,7 @@ int TABLE::delete_row()
     return file->ha_delete_row(record[0]);
 
   store_record(this, record[1]);
-  vers_end_field()->set_time();
+  vers_update_end();
   return file->ha_update_row(record[1], record[0]);
 }
 

@@ -8533,6 +8533,7 @@ uchar *Field_blob::pack(uchar *to, const uchar *from, uint max_length)
 
    @return  New pointer into memory based on from + length of the data
 */
+
 const uchar *Field_blob::unpack(uchar *to, const uchar *from,
                                 const uchar *from_end, uint param_data)
 {
@@ -8548,7 +8549,6 @@ const uchar *Field_blob::unpack(uchar *to, const uchar *from,
   if (from + master_packlength + length > from_end)
     DBUG_RETURN(0);
   set_ptr(length, const_cast<uchar*> (from) + master_packlength);
-  DBUG_DUMP("record", to, table->s->reclength);
   DBUG_RETURN(from + master_packlength + length);
 }
 

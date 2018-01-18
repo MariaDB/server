@@ -55,6 +55,8 @@ class ReadView;
 // Forward declaration
 class FlushObserver;
 
+struct rw_trx_hash_element_t;
+
 /** Dummy session used currently in MySQL interface */
 extern sess_t*	trx_dummy_sess;
 
@@ -531,31 +533,6 @@ trx_set_rw_mode(
 	trx_t*		trx);
 
 /**
-Increase the reference count. If the transaction is in state
-TRX_STATE_COMMITTED_IN_MEMORY then the transaction is considered
-committed and the reference count is not incremented.
-@param trx Transaction that is being referenced
-@param do_ref_count Increment the reference iff this is true
-@return transaction instance if it is not committed */
-UNIV_INLINE
-trx_t*
-trx_reference(
-	trx_t*		trx,
-	bool		do_ref_count);
-
-/**
-Release the transaction. Decrease the reference count.
-@param trx Transaction that is being released */
-UNIV_INLINE
-void
-trx_release_reference(
-	trx_t*		trx);
-
-/**
-Check if the transaction is being referenced. */
-#define trx_is_referenced(t)	((t)->n_ref > 0)
-
-/**
 @param[in] requestor	Transaction requesting the lock
 @param[in] holder	Transaction holding the lock
 @return the transaction that will be rolled back, null don't care */
@@ -952,6 +929,19 @@ struct TrxVersion {
 typedef std::list<TrxVersion, ut_allocator<TrxVersion> > hit_list_t;
 
 struct trx_t {
+private:
+  /**
+    Count of references.
+
+    We can't release the locks nor commit the transaction until this reference
+    is 0. We can change the state to TRX_STATE_COMMITTED_IN_MEMORY to signify
+    that it is no longer "active".
+  */
+
+  int32_t n_ref;
+
+
+public:
 	TrxMutex	mutex;		/*!< Mutex protecting the fields
 					state and lock (except some fields
 					of lock, which are protected by
@@ -1010,6 +1000,9 @@ struct trx_t {
 
 	Recovered XA:
 	* NOT_STARTED -> PREPARED -> COMMITTED -> (freed)
+
+	Recovered XA followed by XA ROLLBACK:
+	* NOT_STARTED -> PREPARED -> ACTIVE -> COMMITTED -> (freed)
 
 	XA (2PC) (shutdown or disconnect before ROLLBACK or COMMIT):
 	* NOT_STARTED -> PREPARED -> (freed)
@@ -1295,14 +1288,6 @@ struct trx_t {
 	const char*	start_file;	/*!< Filename where it was started */
 #endif /* UNIV_DEBUG */
 
-	lint		n_ref;		/*!< Count of references, protected
-					by trx_t::mutex. We can't release the
-					locks nor commit the transaction until
-					this reference is 0.  We can change
-					the state to COMMITTED_IN_MEMORY to
-					signify that it is no longer
-					"active". */
-
 	/** Version of this instance. It is incremented each time the
 	instance is re-used in trx_start_low(). It is used to track
 	whether a transaction has been restarted since it was tagged
@@ -1337,6 +1322,8 @@ struct trx_t {
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
 #endif /* WITH_WSREP */
 
+	rw_trx_hash_element_t *rw_trx_hash_element;
+	LF_PINS *rw_trx_hash_pins;
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */
@@ -1368,6 +1355,33 @@ struct trx_t {
 
 		return(assign_temp_rseg());
 	}
+
+
+  bool is_referenced()
+  {
+    return my_atomic_load32_explicit(&n_ref, MY_MEMORY_ORDER_RELAXED) > 0;
+  }
+
+
+  void reference()
+  {
+#ifdef UNIV_DEBUG
+  int32_t old_n_ref=
+#endif
+    my_atomic_add32_explicit(&n_ref, 1, MY_MEMORY_ORDER_RELAXED);
+    ut_ad(old_n_ref >= 0);
+  }
+
+
+  void release_reference()
+  {
+#ifdef UNIV_DEBUG
+  int32_t old_n_ref=
+#endif
+    my_atomic_add32_explicit(&n_ref, -1, MY_MEMORY_ORDER_RELAXED);
+    ut_ad(old_n_ref > 0);
+  }
+
 
 private:
 	/** Assign a rollback segment for modifying temporary tables.

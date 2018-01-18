@@ -18,7 +18,6 @@ alter table t drop system versioning, lock=none;
 alter table t drop system versioning, algorithm=inplace;
 
 
-set global system_versioning_transaction_registry=on;
 create or replace table t (a int, b int) engine=innodb;
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
@@ -39,7 +38,5 @@ alter table t add index idx(a), lock=none;
 alter table t drop column s, drop column e;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t drop system versioning, lock=none;
-
-set global system_versioning_transaction_registry=off;
 
 drop table t;
