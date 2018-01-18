@@ -111,6 +111,7 @@
 
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
+#include "wsrep_trans_observer.h"
 
 static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                               Parser_state *parser_state,
@@ -7887,10 +7888,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     mysql_parse(thd, rawbuf, length, parser_state, is_com_multi,
                 is_next_command);
-#ifdef RUN_HOOK_FIX
-    (void) RUN_HOOK(transaction, after_command,
-                    (thd, !thd->in_active_multi_stmt_transaction()));
-#endif /* RUN_HOOK_FIX */
+    (void) wsrep_after_command(thd, !thd->in_active_multi_stmt_transaction());
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
 
     /*

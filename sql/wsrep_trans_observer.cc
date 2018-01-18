@@ -719,11 +719,10 @@ bool wsrep_replicate_GTID(THD *thd)
 /*
   Log some THD info and called context
  */
-static void wsrep_log_thd(Trans_param *param, const char *function)
+static void wsrep_log_thd(THD* thd, bool is_real_trans, const char *function)
 {
-  THD *thd= param->thd;
   char message[10];
-  snprintf(message, sizeof(message), "flags: %x", param->flags);
+  snprintf(message, sizeof(message), "real: %d", is_real_trans);
   message[sizeof(message) - 1] = '\0';
   wsrep_log_thd(thd, message, function);
 }
@@ -735,14 +734,13 @@ static void wsrep_log_thd(Trans_param *param, const char *function)
   @return 0 Failure
   @return 1 Success
 */
-static int wsrep_run_hook(Trans_param *param, bool for_real_trans)
+static int wsrep_run_hook(const THD* thd, bool is_real_trans,
+                          bool for_real_trans)
 {
-  THD *thd= param->thd;
-
   return (WSREP(thd) &&  /* THD is non NULL, wsrep is enabled for thd and is client thread */
           thd->wsrep_exec_mode != TOTAL_ORDER && /* not TOI execution */
           thd->wsrep_exec_mode != REPL_RECV &&   /* not applier or replayer */
-          (for_real_trans == false || param->flags == TRANS_IS_REAL_TRANS) &&
+          (!for_real_trans || is_real_trans) &&
           !(for_real_trans && /* CTAS SELECT phase */
             WSREP_BINLOG_FORMAT(thd->variables.binlog_format) == BINLOG_FORMAT_STMT &&
             thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
@@ -764,15 +762,17 @@ int wsrep_is_effective_not_to_replay(THD *thd)
 }
 
 
-static int wsrep_after_row(Trans_param *param)
+int wsrep_after_row(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_after_row");
+
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
 
   /*
     We want to run this hook for each row, not just ones which
     end autocommits or transactions.
    */
-  if (!wsrep_run_hook(param, false))
+  if (!wsrep_run_hook(thd, is_real_trans, false))
   {
     DBUG_RETURN(0);
   }
@@ -782,9 +782,8 @@ static int wsrep_after_row(Trans_param *param)
   /*
     Logging this hook is disabled, it gets very verbose.
   */
-  wsrep_log_thd(param, "wsrep_after_row enter");
+  wsrep_log_thd(thd, is_real_trans, "wsrep_after_row enter");
 #endif /* 0 */
-  THD *thd= param->thd;
   int ret= 0;
 
   /*
@@ -818,26 +817,27 @@ static int wsrep_after_row(Trans_param *param)
   /*
     Logging this hook is disabled, it gets very verbose.
    */
-  wsrep_log_thd(param, "wsrep_after_row leave");
+  wsrep_log_thd(thd, is_real_trans, "wsrep_after_row leave");
 #endif /* 0 */
 
 
   DBUG_RETURN(ret);
 }
 
-static int wsrep_before_prepare(Trans_param *param)
+int wsrep_before_prepare(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_before_prepare");
-  THD *thd= param->thd;
 
-  if (!wsrep_run_hook(param, true))
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
+
+  if (!wsrep_run_hook(thd, is_real_trans, true))
   {
     DBUG_RETURN(0);
   }
 
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_before_prepare enter");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_before_prepare enter");
   }
 
   int ret= 0;
@@ -879,25 +879,26 @@ static int wsrep_before_prepare(Trans_param *param)
 
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_before_prepare leave");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_before_prepare leave");
   }
   DBUG_RETURN(ret);
 }
 
-static int wsrep_after_prepare(Trans_param *param)
+int wsrep_after_prepare(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_after_prepare");
 
-  if (!wsrep_run_hook(param, true))
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
+
+  if (!wsrep_run_hook(thd, is_real_trans, true))
   {
     DBUG_RETURN(0);
   }
 
-  THD* thd= param->thd;
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_after_prepare enter");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_after_prepare enter");
   }
 
   DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
@@ -930,27 +931,28 @@ static int wsrep_after_prepare(Trans_param *param)
   }
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_after_prepare leave");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_after_prepare leave");
   }
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   DBUG_RETURN(ret);
 }
 
-static int wsrep_before_commit(Trans_param *param)
+int wsrep_before_commit(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_before_commit");
 
-  if (!wsrep_run_hook(param, true))
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
+
+  if (!wsrep_run_hook(thd, is_real_trans, true))
   {
     DBUG_RETURN(0);
   }
 
-  THD* thd= param->thd;
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_before_commit enter");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_before_commit enter");
   }
 
   int ret= 0;
@@ -986,27 +988,28 @@ static int wsrep_before_commit(Trans_param *param)
 
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_before_commit leave");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_before_commit leave");
   }
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   DBUG_RETURN(ret);
 }
 
-static int wsrep_after_commit(Trans_param *param)
+int wsrep_after_commit(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_after_commit");
 
-  if (!wsrep_run_hook(param, true))
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
+
+  if (!wsrep_run_hook(thd, is_real_trans, true))
   {
     DBUG_RETURN(0);
   }
 
-  THD* thd= param->thd;
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_after_commit enter");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_after_commit enter");
   }
 
   DBUG_ASSERT(thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID ||
@@ -1038,23 +1041,24 @@ static int wsrep_after_commit(Trans_param *param)
 
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_after_commit leave");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_after_commit leave");
   }
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   DBUG_RETURN(0);
 }
 
-static int wsrep_before_rollback(Trans_param *param)
+int wsrep_before_rollback(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_before_rollback");
 
-  if (!wsrep_run_hook(param, true))
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
+
+  if (!wsrep_run_hook(thd, is_real_trans, false))
   {
     DBUG_RETURN(0);
   }
 
-  THD* thd= param->thd;
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
   {
@@ -1070,11 +1074,11 @@ static int wsrep_before_rollback(Trans_param *param)
 
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_before_rollback enter");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_before_rollback enter");
   }
   if (thd->wsrep_exec_mode != LOCAL_ROLLBACK &&
       wsrep_is_effective_not_to_replay(thd) &&
-      ((param->flags & TRANS_IS_REAL_TRANS) ||
+      (is_real_trans ||
        (thd->wsrep_is_streaming() &&
         (!wsrep_stmt_rollback_is_safe(thd) ||
          thd->wsrep_conflict_state() != NO_CONFLICT))))
@@ -1105,27 +1109,28 @@ static int wsrep_before_rollback(Trans_param *param)
 
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_before_rollback leave");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_before_rollback leave");
   }
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   DBUG_RETURN(0);
 }
 
-static int wsrep_after_rollback(Trans_param *param)
+int wsrep_after_rollback(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_after_rollback");
 
-  if (!wsrep_run_hook(param, false))
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
+
+  if (!wsrep_run_hook(thd, is_real_trans, false))
   {
     DBUG_RETURN(0);
   }
 
-  THD* thd= param->thd;
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_after_rollback enter");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_after_rollback enter");
   }
 
   DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT || /* voluntary or stmt rollback */
@@ -1136,7 +1141,7 @@ static int wsrep_after_rollback(Trans_param *param)
               (thd->wsrep_conflict_state() == ABORTED) /* trans_rollback_stmt() from mysql_exec_command() */
               );
 
-  if (!(param->flags & TRANS_IS_REAL_TRANS))
+  if (!is_real_trans)
   {
     /*
       Statement rollback
@@ -1191,32 +1196,33 @@ static int wsrep_after_rollback(Trans_param *param)
 
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_after_rollback leave");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_after_rollback leave");
   }
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   DBUG_RETURN(0);
 }
 
-static int wsrep_after_command(Trans_param *param)
+int wsrep_after_command(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_after_command");
+
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
 
   /*
     We want to run this hook for each command, not just ones which
     end autocommits or transactions.
   */
-  if (!wsrep_run_hook(param, false))
+  if (!wsrep_run_hook(thd, is_real_trans, false))
   {
     DBUG_RETURN(0);
   }
 
-  THD* thd= param->thd;
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
 
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-    wsrep_log_thd(param, "wsrep_after_command enter");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_after_command enter");
   }
 
   DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE ||
@@ -1306,7 +1312,7 @@ static int wsrep_after_command(Trans_param *param)
 
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
-      wsrep_log_thd(param, "wsrep_after_command leave");
+    wsrep_log_thd(thd, is_real_trans, "wsrep_after_command leave");
   }
 
 
@@ -1315,17 +1321,17 @@ static int wsrep_after_command(Trans_param *param)
   DBUG_RETURN(ret);
 }
 
-static int wsrep_before_GTID_binlog(Trans_param *param)
+int wsrep_before_GTID_binlog(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_before_GTID_binlogt");
   int ret= 0;
-  
-  if (!wsrep_run_hook(param, true))
+
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
+
+  if (!wsrep_run_hook(thd, is_real_trans, true))
   {
     DBUG_RETURN(0);
   }
-
-  THD* thd= param->thd;
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   if (wsrep_replicate_GTID(thd)) ret = 1;
@@ -1344,39 +1350,12 @@ static int wsrep_before_GTID_binlog(Trans_param *param)
   DBUG_RETURN(ret);
 }
 
-Trans_observer wsrep_trans_observer =
-{
-  sizeof(Trans_observer),
-  wsrep_before_prepare,
-  wsrep_before_commit,
-  wsrep_before_rollback,
-  wsrep_after_row,
-  wsrep_after_prepare,
-  wsrep_after_commit,
-  wsrep_after_rollback,
-  wsrep_after_command,
-  wsrep_before_GTID_binlog
-};
 int wsrep_register_trans_observer(void *p)
 {
-#ifdef RUN_HOOK_FIX
-  int ret= register_trans_observer(&wsrep_trans_observer, p);
-  WSREP_INFO("wsrep_register_trans_observer: %d", ret);
-  return ret;
-#endif /* RUN_HOOK_FIX */
   return 0;  
 }
 
 int wsrep_unregister_trans_observer(void *p)
 {
-#ifdef RUN_HOOK_FIX
-  int ret= unregister_trans_observer(&wsrep_trans_observer, p);
-  WSREP_INFO("wsrep_unregister_trans_observer: %d", ret);
-  if (ret)
-  {
-    WSREP_ERROR("wsrep_unregister_trans_observer failed");
-  }
-  return ret;
-#endif /* RUN_HOOK_FIX */
   return 0;
 }

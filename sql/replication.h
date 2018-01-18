@@ -60,12 +60,6 @@ typedef struct Trans_param {
   */
   const char *log_file;
   my_off_t log_pos;
-#ifdef WITH_WSREP
-  /*
-    Pointer to THD.
-   */
-  THD* thd;
-#endif /* WITH_WSREP */
 } Trans_param;
 
 /**
@@ -74,61 +68,6 @@ typedef struct Trans_param {
 typedef struct Trans_observer {
   uint32 len;
 
-#ifdef WITH_WSREP
-  /**
-     This callback is called before transaction prepare
-
-     This callback is called right before prepare to storage engines
-     for transactional tables.
-
-     @retval 0 Success
-     @retval 1 Failure
-
-   */
-  int (*before_prepare)(Trans_param* param);
-
-  /**
-     This callback is called before transaction commit
-
-     This callback is called right before commit to storage engines
-     for transactional tables.
-
-     @retval 0 Success
-     @retval 1 Failure
-  */
-  int (*before_commit)(Trans_param *param);
-
-  /**
-     This callback is called before transaction rollback
-
-     This callback is called right before rollback for transactional
-     storage engines.
-
-     @retval 0 Success
-     @retval 1 Failure
-  */
-  int (*before_rollback)(Trans_param *param);
-
-  /**
-     This callback is called after each row operation
-
-     @retval 0 Success
-     @retval 1 Failure
-   */
-  int (*after_row)(Trans_param *param);
-
-  /**
-     This callback is called after transaction prepare
-
-     This callback is called right after prepare for transaction
-     storage engines.
-
-     @retval 0 Success
-     @retval 1 Failure
-   */
-  int (*after_prepare)(Trans_param *param);
-
-#endif /* WITH_WSREP */
   /**
      This callback is called after transaction commit
      
@@ -169,19 +108,6 @@ typedef struct Trans_observer {
      @retval 1 Failure
   */
   int (*after_rollback)(Trans_param *param);
-#ifdef WITH_WSREP
-  /**
-     This callback is called after command execution
-
-     This callback is called after command execution after MDL locks
-     have been released.
-
-     @note Return value is currently ignored by server
-   */
-
-  int (*after_command)(Trans_param *param);
-  int (*before_GTID_binlog)(Trans_param *param);
-#endif /* WITH_WSREP */
 } Trans_observer;
 
 /**
