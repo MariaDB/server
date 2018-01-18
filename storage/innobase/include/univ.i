@@ -634,6 +634,18 @@ typedef void* os_thread_ret_t;
 	ut_d(memset(addr, c, size));					\
 	UNIV_MEM_INVALID(addr, size);					\
 	} while (0)
+#elif defined(INSTRUMENT_ASAN)
+# define UNIV_MEM_VALID(addr, size) do {} while(0)
+# define UNIV_MEM_INVALID(addr, size) do {} while(0)
+# define UNIV_MEM_FREE(addr, size) ASAN_POISON_MEMORY_REGION(addr, size)
+# define UNIV_MEM_ALLOC(addr, size) ASAN_UNPOISON_MEMORY_REGION(addr, size)
+# define UNIV_MEM_DESC(addr, size) do {} while(0)
+# define UNIV_MEM_UNDESC(b) do {} while(0)
+# define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {} while(0)
+# define UNIV_MEM_ASSERT_RW(addr, size) do {} while(0)
+# define UNIV_MEM_ASSERT_RW_ABORT(addr, size) do {} while(0)
+# define UNIV_MEM_ASSERT_W(addr, size) do {} while(0)
+# define UNIV_MEM_TRASH(addr, c, size) do {} while(0)
 #else
 # define UNIV_MEM_VALID(addr, size) do {} while(0)
 # define UNIV_MEM_INVALID(addr, size) do {} while(0)

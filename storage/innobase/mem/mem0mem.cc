@@ -325,7 +325,7 @@ mem_heap_create_block_func(
 
 	ut_ad((ulint)MEM_BLOCK_HEADER_SIZE < len);
 
-	ASAN_POISON_MEMORY_REGION(block + 1, len - MEM_BLOCK_HEADER_SIZE);
+	UNIV_MEM_FREE(block + 1, len - MEM_BLOCK_HEADER_SIZE);
 
 	return(block);
 }
@@ -418,7 +418,6 @@ mem_heap_block_free(
 	} else {
 		ut_ad(type & MEM_HEAP_BUFFER);
 
-		ASAN_UNPOISON_MEMORY_REGION(block, len);
 		buf_block_free(buf_block);
 	}
 }
