@@ -342,8 +342,8 @@ static inline void mark_blocks_free(MEM_ROOT* root)
   for (next= root->free; next; next= *(last= &next->next))
   {
     next->left= next->size - ALIGN_SIZE(sizeof(USED_MEM));
-    ASAN_POISON_MEMORY_REGION(next + 1, next->size);
     TRASH_MEM(next);
+    ASAN_POISON_MEMORY_REGION(next + 1, next->left);
   }
 
   /* Combine the free and the used list */
@@ -353,8 +353,8 @@ static inline void mark_blocks_free(MEM_ROOT* root)
   for (; next; next= next->next)
   {
     next->left= next->size - ALIGN_SIZE(sizeof(USED_MEM));
-    ASAN_POISON_MEMORY_REGION(next + 1, next->size);
     TRASH_MEM(next);
+    ASAN_POISON_MEMORY_REGION(next + 1, next->left);
   }
 
   /* Now everything is set; Indicate that nothing is used anymore */
@@ -427,8 +427,8 @@ void free_root(MEM_ROOT *root, myf MyFlags)
   {
     root->free=root->pre_alloc;
     root->free->left=root->pre_alloc->size-ALIGN_SIZE(sizeof(USED_MEM));
-    ASAN_POISON_MEMORY_REGION(root->pre_alloc + 1, root->pre_alloc->size);
     TRASH_MEM(root->pre_alloc);
+    ASAN_POISON_MEMORY_REGION(root->pre_alloc + 1, root->pre_alloc->left);
     root->free->next=0;
   }
   root->block_num= 4;

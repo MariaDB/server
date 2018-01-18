@@ -204,6 +204,10 @@ IF (WITH_ASAN)
   IF(NOT WITH_ASAN_OK)
     MESSAGE(FATAL_ERROR "Do not know how to enable address sanitizer")
   ENDIF()
+
+  IF ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    ADD_DEFINITIONS(-DINSTRUMENT_ASAN)
+  ENDIF()
 ENDIF()
 
 OPTION(WITH_TSAN "Enable thread sanitizer" OFF)
