@@ -3289,3 +3289,13 @@ SELECT id, window
 FROM door as window;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'window' at line 2
 DROP TABLE door;
+#
+# MDEV-13352: Server crashes in st_join_table::remove_duplicates
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+ROW_NUMBER() OVER()	i
+SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+ROW_NUMBER() OVER()	i
+DROP TABLE t1;
