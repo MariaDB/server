@@ -7162,7 +7162,7 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
           int4store(ev + EVENT_LEN_OFFSET, ev_len + writer.checksum_len);
 
           writer.remains= ev_len;
-          if (writer.write(ev, std::min<uint>(ev_len, length - hdr_offs)))
+          if (writer.write(ev, MY_MIN(ev_len, length - hdr_offs)))
             DBUG_RETURN(ER_ERROR_ON_WRITE);
 
           /* next event header at ... */

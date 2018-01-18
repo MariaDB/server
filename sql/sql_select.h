@@ -1768,6 +1768,7 @@ private:
   bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
 
+  void vers_check_items();
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
@@ -2268,6 +2269,10 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key);
 inline Item * and_items(THD *thd, Item* cond, Item *item)
 {
   return (cond ? (new (thd->mem_root) Item_cond_and(thd, cond, item)) : item);
+}
+inline Item * or_items(THD *thd, Item* cond, Item *item)
+{
+  return (cond ? (new (thd->mem_root) Item_cond_or(thd, cond, item)) : item);
 }
 bool choose_plan(JOIN *join, table_map join_tables);
 void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab, 

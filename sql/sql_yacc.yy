@@ -68,6 +68,7 @@
 #include "sql_lex.h"
 #include "sql_sequence.h"
 #include "sql_tvc.h"
+#include "vers_utils.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -738,6 +739,28 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
        MYSQL_YYABORT;                   \
   } while(0)
 
+
+void vers_select_conds_t::init(vers_system_time_t t, vers_sys_type_t u_start,
+                               Item *s, vers_sys_type_t u_end, Item *e)
+{
+  type= t;
+  unit_start= u_start;
+  unit_end= u_end;
+  start= fix_dec(s);
+  end= fix_dec(e);
+  used= from_query= false;
+}
+
+Item *vers_select_conds_t::fix_dec(Item *item)
+{
+  if (item && item->decimals == 0 && item->type() == Item::FUNC_ITEM &&
+      ((Item_func*)item)->functype() == Item_func::NOW_FUNC)
+    item->decimals= 6;
+
+  return item;
+}
+
+
 Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 {
   Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
@@ -857,6 +880,8 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   enum Window_frame::Frame_exclusion frame_exclusion;
   enum trigger_order_type trigger_action_order_type;
   DDL_options_st object_ddl_options;
+  enum vers_sys_type_t vers_range_unit;
+  enum Column_definition::enum_column_versioning vers_column_versioning;
 }
 
 %{
@@ -867,15 +892,16 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 104 shift/reduce conflicts.
+  Currently there are 123 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 104
+%expect 123
 
 /*
    Comments for TOKENS.
    For each token, please include in the same line a comment that contains
    the following tags:
+   SQL-2011-R : Reserved keyword as per SQL-2011
    SQL-2011-N : Non Reserved keyword as per SQL-2011
    SQL-2003-R : Reserved keyword as per SQL-2003
    SQL-2003-N : Non Reserved keyword as per SQL-2003
@@ -1100,6 +1126,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  FORCE_SYM
 %token  FOREIGN                       /* SQL-2003-R */
 %token  FOR_SYM                       /* SQL-2003-R */
+%token  FOR_SYSTEM_TIME_SYM           /* INTERNAL */
 %token  FORMAT_SYM
 %token  FOUND_SYM                     /* SQL-2003-R */
 %token  FROM
@@ -1129,7 +1156,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  HEX_NUM
 %token  HEX_STRING
 %token  HIGH_PRIORITY
-%token  INVISIBLE_SYM
+%token  HISTORY_SYM                   /* MYSQL */
 %token  HOST_SYM
 %token  HOSTS_SYM
 %token  HOUR_MICROSECOND_SYM
@@ -1170,6 +1197,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  ISOPEN_SYM                    /* Oracle-N   */
 %token  ISSUER_SYM
 %token  ITERATE_SYM
+%token  INVISIBLE_SYM
 %token  JOIN_SYM                      /* SQL-2003-R */
 %token  JSON_SYM
 %token  KEYS
@@ -1334,6 +1362,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PERCENT_RANK_SYM
 %token  PERCENTILE_CONT_SYM
 %token  PERCENTILE_DISC_SYM
+%token  PERIOD_SYM                    /* SQL-2011-R */
 %token  PERSISTENT_SYM
 %token  PHASE_SYM
 %token  PLUGINS_SYM
@@ -1500,6 +1529,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SWAPS_SYM
 %token  SWITCHES_SYM
 %token  SYSDATE
+%token  SYSTEM                        /* SQL-2011-R */
+%token  SYSTEM_TIME_SYM               /* SQL-2011-R */
 %token  TABLES
 %token  TABLESPACE
 %token  TABLE_REF_PRIORITY
@@ -1570,6 +1601,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  VARIANCE_SYM
 %token  VARYING                       /* SQL-2003-R */
 %token  VAR_SAMP_SYM
+%token  VERSIONING_SYM                /* SQL-2011-R */
 %token  VIA_SYM
 %token  VIEW_SYM                      /* SQL-2003-N */
 %token  VIRTUAL_SYM
@@ -1583,8 +1615,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  WHILE_SYM
 %token  WITH                          /* SQL-2003-R */
 %token  WITHIN
+%token  WITHOUT                       /* SQL-2003-R */
 %token  WITH_CUBE_SYM                 /* INTERNAL */
 %token  WITH_ROLLUP_SYM               /* INTERNAL */
+%token  WITH_SYSTEM_SYM               /* INTERNAL */
 %token  WORK_SYM                      /* SQL-2003-N */
 %token  WRAPPER_SYM
 %token  WRITE_SYM                     /* SQL-2003-N */
@@ -1690,7 +1724,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         optional_flush_tables_arguments
         opt_time_precision kill_type kill_option int_num
         opt_default_time_precision
-        case_stmt_body opt_bin_mod
+        case_stmt_body opt_bin_mod opt_for_system_time_clause
         opt_if_exists_table_element opt_if_not_exists_table_element
 	opt_recursive opt_format_xid
 
@@ -1920,6 +1954,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 	keep_gcc_happy
         key_using_alg
         part_column_list
+        period_for_system_time
         server_def server_options_list server_option
         definer_opt no_definer definer get_diagnostics
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
@@ -1928,6 +1963,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         explainable_command
 	opt_lock_wait_timeout
         opt_delete_gtid_domain
+	asrow_attribute
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -1948,6 +1984,7 @@ END_OF_INPUT
 
 %type <num> sp_decl_idents sp_decl_idents_init_vars
 %type <num> sp_handler_type sp_hcond_list
+%type <num> start_or_end
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spblock> sp_decls sp_decl sp_decl_body sp_decl_variable_list
 %type <spname> sp_name
@@ -1985,7 +2022,6 @@ END_OF_INPUT
 %type <frame_exclusion> opt_window_frame_exclusion;
 %type <window_frame_bound> window_frame_start window_frame_bound;
 
-
 %type <NONE>
         '-' '+' '*' '/' '%' '(' ')'
         ',' '!' '{' '}' '&' '|' AND_SYM OR_SYM OR_OR_SYM BETWEEN_SYM CASE_SYM
@@ -1998,6 +2034,8 @@ END_OF_INPUT
 
 %type <lex_str_list> opt_with_column_list
 
+%type <vers_range_unit> opt_trans_or_timestamp
+%type <vers_column_versioning> with_or_without_system
 %%
 
 
@@ -4997,7 +5035,7 @@ create_like:
 
 opt_create_select:
           /* empty */ {}
-        | opt_duplicate opt_as create_select_query_expression
+        | opt_duplicate opt_as create_select_query_expression opt_versioning_option
         ;
 
 create_select_query_expression:
@@ -5144,6 +5182,10 @@ part_type_def:
 	  }
         | LIST_SYM part_column_list
           { Lex->part_info->part_type= LIST_PARTITION; }
+        | SYSTEM_TIME_SYM
+          { if (Lex->part_info->vers_init_info(thd)) MYSQL_YYABORT; }
+          opt_versioning_interval
+          opt_versioning_limit
         ;
 
 opt_linear:
@@ -5351,6 +5393,7 @@ part_definition:
               MYSQL_YYABORT;
             }
             p_elem->part_state= PART_NORMAL;
+            p_elem->id= part_info->partitions.elements - 1;
             part_info->curr_part_elem= p_elem;
             part_info->current_partition= p_elem;
             part_info->use_default_partitions= FALSE;
@@ -5383,6 +5426,9 @@ opt_part_values:
             {
               if (part_info->error_if_requires_values())
                  MYSQL_YYABORT;
+              if (part_info->part_type == VERSIONING_PARTITION)
+                my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0),
+                                  lex->create_last_non_select_table->table_name));
             }
             else
               part_info->part_type= HASH_PARTITION;
@@ -5415,6 +5461,60 @@ opt_part_values:
               part_info->part_type= LIST_PARTITION;
           }
           part_values_in {}
+        | CURRENT_SYM
+          {
+            LEX *lex= Lex;
+            partition_info *part_info= lex->part_info;
+            partition_element *elem= part_info->curr_part_elem;
+            if (! lex->is_partition_management())
+            {
+              if (part_info->part_type != VERSIONING_PARTITION)
+                my_yyabort_error((ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME"));
+            }
+            else
+            {
+              DBUG_ASSERT(Lex->create_last_non_select_table);
+              DBUG_ASSERT(Lex->create_last_non_select_table->table_name);
+              // FIXME: other ALTER commands?
+              my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0),
+                Lex->create_last_non_select_table->table_name));
+            }
+            elem->type(partition_element::CURRENT);
+            DBUG_ASSERT(part_info->vers_info);
+            part_info->vers_info->now_part= elem;
+            if (part_info->init_column_part(thd))
+            {
+              MYSQL_YYABORT;
+            }
+          }
+        | HISTORY_SYM
+          {
+            LEX *lex= Lex;
+            partition_info *part_info= lex->part_info;
+            partition_element *elem= part_info->curr_part_elem;
+            if (! lex->is_partition_management())
+            {
+              if (part_info->part_type != VERSIONING_PARTITION)
+                my_yyabort_error((ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME"));
+            }
+            else
+            {
+              part_info->vers_init_info(thd);
+              elem->id= UINT_MAX32;
+            }
+            DBUG_ASSERT(part_info->vers_info);
+            if (part_info->vers_info->now_part)
+            {
+              DBUG_ASSERT(Lex->create_last_non_select_table);
+              DBUG_ASSERT(Lex->create_last_non_select_table->table_name);
+              my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0), Lex->create_last_non_select_table->table_name));
+            }
+            elem->type(partition_element::HISTORY);
+            if (part_info->init_column_part(thd))
+            {
+              MYSQL_YYABORT;
+            }
+          }
         | DEFAULT
          {
             LEX *lex= Lex;
@@ -5660,6 +5760,7 @@ sub_part_definition:
               mem_alloc_error(sizeof(partition_element));
               MYSQL_YYABORT;
             }
+            sub_p_elem->id= curr_part->subpartitions.elements - 1;
             part_info->curr_part_elem= sub_p_elem;
             part_info->use_default_subpartitions= FALSE;
             part_info->use_default_num_subpartitions= FALSE;
@@ -5715,6 +5816,38 @@ opt_part_option:
         | COMMENT_SYM opt_equal TEXT_STRING_sys
           { Lex->part_info->curr_part_elem->part_comment= $3.str; }
         ;
+
+opt_versioning_interval:
+         /* empty */ {}
+       | INTERVAL_SYM expr interval
+         {
+           partition_info *part_info= Lex->part_info;
+           DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
+           INTERVAL interval;
+           if (get_interval_value($2, $3, &interval) ||
+              part_info->vers_set_interval(interval))
+           {
+             my_error(ER_PART_WRONG_VALUE, MYF(0),
+                Lex->create_last_non_select_table->table_name, "INTERVAL");
+             MYSQL_YYABORT;
+           }
+         }
+       ;
+
+opt_versioning_limit:
+         /* empty */ {}
+       | LIMIT ulonglong_num
+         {
+           partition_info *part_info= Lex->part_info;
+           DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
+           if (part_info->vers_set_limit($2))
+           {
+             my_error(ER_PART_WRONG_VALUE, MYF(0),
+                Lex->create_last_non_select_table->table_name, "LIMIT");
+             MYSQL_YYABORT;
+           }
+         }
+       ;
 
 /*
  End of partition parser part
@@ -6082,6 +6215,31 @@ create_table_option:
           {
 	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
             Lex->create_info.sequence= ($3 == HA_CHOICE_YES);
+	  }
+        | versioning_option
+        ;
+
+opt_versioning_option:
+          /* empty */
+        | versioning_option
+        ;
+
+versioning_option:
+        WITH_SYSTEM_SYM VERSIONING_SYM
+          {
+            if (Lex->create_info.options & HA_LEX_CREATE_TMP_TABLE)
+            {
+              if (DBUG_EVALUATE_IF("sysvers_force", 0, 1))
+              {
+                my_error(ER_VERS_TEMPORARY, MYF(0));
+                MYSQL_YYABORT;
+              }
+            }
+            else
+            {
+              Lex->alter_info.flags|= Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
+              Lex->create_info.options|= HA_VERSIONED_TABLE;
+            }
           }
         ;
 
@@ -6182,6 +6340,7 @@ field_list_item:
           column_def { }
         | key_def
         | constraint_def
+        | period_for_system_time
         ;
 
 column_def:
@@ -6281,6 +6440,15 @@ constraint_def:
          }
        ;
 
+period_for_system_time:
+          // If FOR_SYM is followed by SYSTEM_TIME_SYM then they are merged to: FOR_SYSTEM_TIME_SYM .
+          PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' ident ',' ident ')'
+          {
+            Vers_parse_info &info= Lex->vers_get_info();
+            info.set_system_time($4, $6);
+          }
+        ;
+
 opt_check_constraint:
           /* empty */      { $$= (Virtual_column_info*) 0; }
         | check_constraint { $$= $1;}
@@ -6366,6 +6534,15 @@ opt_serial_attribute_list:
         | serial_attribute
         ;
 
+opt_asrow_attribute:
+          /* empty */ {}
+        | opt_asrow_attribute_list {}
+        ;
+
+opt_asrow_attribute_list:
+          opt_asrow_attribute_list asrow_attribute {}
+        | asrow_attribute
+        ;
 
 field_def:
           opt_attribute
@@ -6375,6 +6552,46 @@ field_def:
            Lex->last_field->flags&= ~NOT_NULL_FLAG; // undo automatic NOT NULL for timestamps
          }
           vcol_opt_specifier vcol_opt_attribute
+        | opt_generated_always AS ROW_SYM start_or_end opt_asrow_attribute
+          {
+            LEX *lex= Lex;
+            Vers_parse_info &info= lex->vers_get_info();
+            const LEX_CSTRING &field_name= lex->last_field->field_name;
+
+            LString_i *p;
+            switch ($4)
+            {
+            case 1:
+              p= &info.as_row.start;
+              if (*p)
+              {
+                my_yyabort_error((ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
+                                  "START", field_name.str));
+              }
+              lex->last_field->flags|= VERS_SYS_START_FLAG;
+              break;
+            case 0:
+              p= &info.as_row.end;
+              if (*p)
+              {
+                my_yyabort_error((ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
+                                  "END", field_name.str));
+              }
+              lex->last_field->flags|= VERS_SYS_END_FLAG;
+              break;
+            default:
+              /* Not Reachable */
+              MYSQL_YYABORT;
+              break;
+            }
+            DBUG_ASSERT(p);
+            *p= field_name;
+          }
+        ;
+
+start_or_end:
+          START_SYM { $$ = 1; }
+        | END { $$ = 0; }
         ;
 
 opt_generated_always:
@@ -6427,7 +6644,7 @@ vcol_attribute:
         | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
         | INVISIBLE_SYM
           {
-              Lex->last_field->field_visibility= USER_DEFINED_INVISIBLE;
+              Lex->last_field->invisible= INVISIBLE_USER;
           }
         ;
 
@@ -6838,8 +7055,11 @@ opt_compression_method:
         | equal ident { $$= $2.str; }
         ;
 
-serial_attribute:
-          not NULL_SYM { Lex->last_field->flags|= NOT_NULL_FLAG; }
+asrow_attribute:
+          not NULL_SYM
+          {
+            Lex->last_field->flags|= NOT_NULL_FLAG;
+          }
         | opt_primary KEY_SYM
           {
             LEX *lex=Lex;
@@ -6847,6 +7067,10 @@ serial_attribute:
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | vcol_attribute
+        ;
+
+serial_attribute:
+          asrow_attribute
         | IDENT_sys equal TEXT_STRING_sys
           {
             if ($3.length > ENGINE_OPTION_MAX_LENGTH)
@@ -6873,6 +7097,26 @@ serial_attribute:
           {
             new (thd->mem_root)
               engine_option_value($1, &Lex->last_field->option_list, &Lex->option_list_last);
+          }
+        | with_or_without_system VERSIONING_SYM
+          {
+            Lex->last_field->versioning= $1;
+            Lex->create_info.options|= HA_VERSIONED_TABLE;
+          }
+        ;
+
+with_or_without_system:
+        WITH_SYSTEM_SYM
+          {
+            Lex->alter_info.flags|= Alter_info::ALTER_COLUMN_UNVERSIONED;
+            Lex->create_info.vers_info.versioned_fields= true;
+            $$= Column_definition::WITH_VERSIONING;
+          }
+        | WITHOUT SYSTEM
+          {
+            Lex->alter_info.flags|= Alter_info::ALTER_COLUMN_UNVERSIONED;
+            Lex->create_info.vers_info.unversioned_fields= true;
+            $$= Column_definition::WITHOUT_VERSIONING;
           }
         ;
 
@@ -7832,6 +8076,10 @@ alter_list_item:
             Lex->create_last_non_select_table= Lex->last_table();
             Lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
+        | ADD period_for_system_time
+          {
+            Lex->vers_get_info().add_period= true;
+          }
         | add_column '(' create_field_list ')'
           {
             Lex->alter_info.flags|= Alter_info::ALTER_ADD_COLUMN |
@@ -7996,6 +8244,15 @@ alter_list_item:
           }
         | alter_algorithm_option
         | alter_lock_option
+        | ADD SYSTEM VERSIONING_SYM
+          {
+            Lex->alter_info.flags|= Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
+            Lex->create_info.options|= HA_VERSIONED_TABLE;
+          }
+        | DROP SYSTEM VERSIONING_SYM
+          {
+            Lex->alter_info.flags|= Alter_info::ALTER_DROP_SYSTEM_VERSIONING;
+          }
         ;
 
 opt_index_lock_algorithm:
@@ -8905,6 +9162,53 @@ select_options:
           {
             if (Select->options & SELECT_DISTINCT && Select->options & SELECT_ALL)
               my_yyabort_error((ER_WRONG_USAGE, MYF(0), "ALL", "DISTINCT"));
+          }
+        ;
+
+opt_trans_or_timestamp:
+          /* empty */
+          {
+            $$ = VERS_UNDEFINED;
+          }
+        | TRANSACTION_SYM
+          {
+            $$ = VERS_TRX_ID;
+          }
+        | TIMESTAMP
+          {
+            $$ = VERS_TIMESTAMP;
+          }
+        ;
+
+opt_for_system_time_clause:
+          /* empty */
+          {
+            $$= false;
+          }
+        | FOR_SYSTEM_TIME_SYM system_time_expr
+          {
+            $$= true;
+          }
+        ;
+
+system_time_expr:
+          AS OF_SYM opt_trans_or_timestamp simple_expr
+          {
+            Lex->vers_conditions.init(SYSTEM_TIME_AS_OF, $3, $4);
+          }
+        | ALL
+          {
+            Lex->vers_conditions.init(SYSTEM_TIME_ALL);
+          }
+        | FROM opt_trans_or_timestamp simple_expr
+          TO_SYM opt_trans_or_timestamp simple_expr
+          {
+            Lex->vers_conditions.init(SYSTEM_TIME_FROM_TO, $2, $3, $5, $6);
+          }
+        | BETWEEN_SYM opt_trans_or_timestamp simple_expr
+          AND_SYM opt_trans_or_timestamp simple_expr
+          {
+            Lex->vers_conditions.init(SYSTEM_TIME_BETWEEN, $2, $3, $5, $6);
           }
         ;
 
@@ -11428,12 +11732,13 @@ table_factor:
 
 table_primary_ident:
           {
+            DBUG_ASSERT(Select);
             SELECT_LEX *sel= Select;
             sel->table_join_options= 0;
           }
-          table_ident opt_use_partition opt_table_alias opt_key_definition
+          table_ident opt_use_partition opt_for_system_time_clause opt_table_alias opt_key_definition
           {
-            if (!($$= Select->add_table_to_list(thd, $2, $4,
+            if (!($$= Select->add_table_to_list(thd, $2, $5,
                                                 Select->get_table_join_options(),
                                                 YYPS->m_lock_type,
                                                 YYPS->m_mdl_type,
@@ -11441,6 +11746,8 @@ table_primary_ident:
                                                 $3)))
               MYSQL_YYABORT;
             Select->add_joined_table($$);
+            if ($4)
+              $$->vers_conditions= Lex->vers_conditions;
           }
         ;
 
@@ -11463,11 +11770,11 @@ table_primary_ident:
 */
 
 table_primary_derived:
-          '(' get_select_lex select_derived_union ')' opt_table_alias
+          '(' get_select_lex select_derived_union ')' opt_for_system_time_clause opt_table_alias
           {
             /* Use $2 instead of Lex->current_select as derived table will
                alter value of Lex->current_select. */
-            if (!($3 || $5) && $2->embedding &&
+            if (!($3 || $6) && $2->embedding &&
                 !$2->embedding->nested_join->join_list.elements)
             {
               /* we have a derived table ($3 == NULL) but no alias,
@@ -11490,7 +11797,7 @@ table_primary_derived:
               if (ti == NULL)
                 MYSQL_YYABORT;
               if (!($$= sel->add_table_to_list(thd,
-                                               ti, $5, 0,
+                                               ti, $6, 0,
                                                TL_READ, MDL_SHARED_READ)))
 
                 MYSQL_YYABORT;
@@ -11498,7 +11805,7 @@ table_primary_derived:
               lex->pop_context();
               lex->nest_level--;
             }
-            else if ($5 != NULL)
+            else if ($6 != NULL)
             {
               /*
                 Tables with or without joins within parentheses cannot
@@ -11522,11 +11829,16 @@ table_primary_derived:
             if ($$ && $$->derived &&
                 !$$->derived->first_select()->next_select())
               $$->select_lex->add_where_field($$->derived->first_select());
+            if ($5)
+            {
+              MYSQL_YYABORT_UNLESS(!$3);
+              $$->vers_conditions= Lex->vers_conditions;
+            }
           }
           /* Represents derived table with WITH clause */
         | '(' get_select_lex subselect_start
               with_clause query_expression_body
-              subselect_end ')' opt_table_alias
+              subselect_end ')' opt_for_system_time_clause opt_table_alias
           {
             LEX *lex=Lex;
             SELECT_LEX *sel= $2;
@@ -11537,10 +11849,12 @@ table_primary_derived:
             $5->set_with_clause($4);
             lex->current_select= sel;
             if (!($$= sel->add_table_to_list(lex->thd,
-                                             ti, $8, 0,
+                                             ti, $9, 0,
                                              TL_READ, MDL_SHARED_READ)))
               MYSQL_YYABORT;
             sel->add_joined_table($$);
+            if ($8)
+              $$->vers_conditions= Lex->vers_conditions;
           } 
         ;
 
@@ -13087,10 +13401,29 @@ delete:
             lex->ignore= 0;
             lex->select_lex.init_order();
           }
-          opt_delete_options single_multi
+          delete_part2
+          ;
+
+opt_delete_system_time:
+            /* empty */
+          {
+            Lex->vers_conditions.init(SYSTEM_TIME_ALL);
+          }
+          | BEFORE_SYM SYSTEM_TIME_SYM opt_trans_or_timestamp simple_expr
+          {
+            Lex->vers_conditions.init(SYSTEM_TIME_BEFORE, $3, $4);
+          }
+          ;
+
+delete_part2:
+          opt_delete_options single_multi {}
+        | HISTORY_SYM delete_single_table opt_delete_system_time
+          {
+            Lex->last_table()->vers_conditions= Lex->vers_conditions;
+          }
         ;
 
-single_multi:
+delete_single_table:
           FROM table_ident opt_use_partition
           {
             if (!Select->add_table_to_list(thd, $2, NULL, TL_OPTION_UPDATING,
@@ -13102,8 +13435,13 @@ single_multi:
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
           }
-          opt_where_clause opt_order_clause
-          delete_limit_clause {}
+        ;
+
+single_multi:
+          delete_single_table
+          opt_where_clause
+          opt_order_clause
+          delete_limit_clause
           opt_select_expressions {}
         | table_wild_list
           {
@@ -13185,7 +13523,7 @@ opt_delete_option:
         ;
 
 truncate:
-          TRUNCATE_SYM opt_table_sym
+          TRUNCATE_SYM
           {
             LEX* lex= Lex;
             lex->sql_command= SQLCOM_TRUNCATE;
@@ -13196,7 +13534,7 @@ truncate:
             YYPS->m_lock_type= TL_WRITE;
             YYPS->m_mdl_type= MDL_EXCLUSIVE;
           }
-          table_name opt_lock_wait_timeout
+          opt_table_sym table_name opt_lock_wait_timeout
           {
             LEX* lex= thd->lex;
             DBUG_ASSERT(!lex->m_sql_cmd);
@@ -13491,13 +13829,21 @@ show_param:
             Lex->set_command(SQLCOM_SHOW_CREATE_DB, $3);
             Lex->name= $4;
           }
-        | CREATE TABLE_SYM table_ident
+        | CREATE TABLE_SYM table_ident opt_for_system_time_clause
           {
             LEX *lex= Lex;
             lex->sql_command = SQLCOM_SHOW_CREATE;
             if (!lex->select_lex.add_table_to_list(thd, $3, NULL,0))
               MYSQL_YYABORT;
             lex->create_info.storage_media= HA_SM_DEFAULT;
+
+            if (lex->vers_conditions.type != SYSTEM_TIME_UNSPECIFIED &&
+                lex->vers_conditions.type != SYSTEM_TIME_AS_OF)
+            {
+              my_yyabort_error((ER_VERS_RANGE_PROHIBITED, MYF(0)));
+            }
+            if ($4)
+              Lex->last_table()->vers_conditions= Lex->vers_conditions;
           }
         | CREATE VIEW_SYM table_ident
           {
@@ -14963,6 +15309,7 @@ keyword_alias:
         | OTHERS_SYM            {}
         | OWNER_SYM             {}
         | PARSER_SYM            {}
+        | PERIOD_SYM            {}
         | PORT_SYM              {}
         | PRECEDES_SYM          {}
         | PRECEDING_SYM         {}
@@ -15168,7 +15515,7 @@ keyword_sp_not_data_type:
         | GOTO_SYM                 {}
         | HASH_SYM                 {}
         | HARD_SYM                 {}
-        | INVISIBLE_SYM            {}
+        | HISTORY_SYM              {}
         | HOSTS_SYM                {}
         | HOUR_SYM                 {}
         | ID_SYM                   {}
@@ -15186,6 +15533,7 @@ keyword_sp_not_data_type:
         | ISOPEN_SYM               {}
         | ISSUER_SYM               {}
         | INSERT_METHOD            {}
+        | INVISIBLE_SYM            {}
         | KEY_BLOCK_SIZE           {}
         | LAST_VALUE               {}
         | LAST_SYM                 {}
@@ -15346,6 +15694,8 @@ keyword_sp_not_data_type:
         | SUSPEND_SYM              {}
         | SWAPS_SYM                {}
         | SWITCHES_SYM             {}
+        | SYSTEM                   {}
+        | SYSTEM_TIME_SYM          {}
         | TABLE_NAME_SYM           {}
         | TABLES                   {}
         | TABLE_CHECKSUM_SYM       {}
@@ -15371,6 +15721,7 @@ keyword_sp_not_data_type:
         | USER_SYM                 {}
         | USE_FRM                  {}
         | VARIABLES                {}
+        | VERSIONING_SYM           {}
         | VIEW_SYM                 {}
         | VIRTUAL_SYM              {}
         | VALUE_SYM                {}
@@ -15378,6 +15729,7 @@ keyword_sp_not_data_type:
         | WAIT_SYM                 {}
         | WEEK_SYM                 {}
         | WEIGHT_STRING_SYM        {}
+        | WITHOUT                  {}
         | WORK_SYM                 {}
         | X509_SYM                 {}
         | XML_SYM                  {}
@@ -16189,6 +16541,7 @@ object_privilege:
         | EVENT_SYM               { Lex->grant |= EVENT_ACL;}
         | TRIGGER_SYM             { Lex->grant |= TRIGGER_ACL; }
         | CREATE TABLESPACE       { Lex->grant |= CREATE_TABLESPACE_ACL; }
+        | DELETE_SYM HISTORY_SYM  { Lex->grant |= DELETE_HISTORY_ACL; }
         ;
 
 opt_and:
@@ -16968,9 +17321,14 @@ trigger_tail:
           }
           table_ident /* $10 */
           FOR_SYM
-          remember_name /* $12 */
-          { /* $13 */
-            Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start();
+          remember_name /* $13 */
+          { /* $14 */
+            /*
+              FOR token is already passed through (see 'case FOR_SYM' in sql_lex.cc),
+              so we use _prev() to get it back.
+            */
+            DBUG_ASSERT(YYLIP->lookahead_token >= 0);
+            Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start_prev();
           }
           EACH_SYM
           ROW_SYM

@@ -74,7 +74,7 @@ ALTER TABLE tables_priv
     COLLATE utf8_general_ci DEFAULT '' NOT NULL,
   MODIFY Table_priv set('Select','Insert','Update','Delete','Create',
                         'Drop','Grant','References','Index','Alter',
-                        'Create View','Show view','Trigger')
+                        'Create View','Show view','Trigger','Delete versioning rows')
     COLLATE utf8_general_ci DEFAULT '' NOT NULL,
   COMMENT='Table privileges';
 
@@ -744,3 +744,9 @@ ALTER TABLE help_topic MODIFY url TEXT NOT NULL;
 
 # MDEV-7383 - varbinary on mix/max of column_stats
 alter table column_stats modify min_value varbinary(255) DEFAULT NULL, modify max_value varbinary(255) DEFAULT NULL;
+
+# System versioning
+ALTER TABLE user add Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Trigger_priv;
+ALTER TABLE user modify Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
+ALTER TABLE db add Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Trigger_priv;
+ALTER TABLE db modify Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';

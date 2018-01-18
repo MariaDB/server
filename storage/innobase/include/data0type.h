@@ -189,6 +189,12 @@ be less than 256 */
 				for shorter VARCHARs MySQL uses only 1 byte */
 #define	DATA_VIRTUAL	8192U	/* Virtual column */
 
+/** System Versioning */
+#define DATA_VERS_START	16384U	/* start system field */
+#define DATA_VERS_END	32768U	/* end system field */
+/** system-versioned user data column */
+#define DATA_VERSIONED (DATA_VERS_START|DATA_VERS_END)
+
 /** Check whether locking is disabled (never). */
 #define dict_table_is_locking_disabled(table) false
 
@@ -554,6 +560,21 @@ struct dtype_t{
 					DATA_MBMINMAXLEN(mbminlen,mbmaxlen);
 					mbminlen=DATA_MBMINLEN(mbminmaxlen);
 					mbmaxlen=DATA_MBMINLEN(mbminmaxlen) */
+
+	/** @return whether this is system field */
+	bool vers_sys_field() const { return prtype & DATA_VERSIONED; }
+	/** @return whether this is system versioned user field */
+	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
+	/** @return whether this is the system field start */
+	bool vers_sys_start() const
+	{
+		return (prtype & DATA_VERSIONED) == DATA_VERS_START;
+	}
+	/** @return whether this is the system field end */
+	bool vers_sys_end() const
+	{
+		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
+	}
 };
 
 #include "data0type.ic"

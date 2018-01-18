@@ -773,8 +773,69 @@ struct trx_lock_t {
 	bool		start_stmt;
 };
 
-/** The first modification time of a table in a transaction */
-typedef undo_no_t trx_mod_table_time_t;
+/** Logical first modification time of a table in a transaction */
+class trx_mod_table_time_t
+{
+	/** First modification of the table */
+	undo_no_t	first;
+	/** First modification of a system versioned column */
+	undo_no_t	first_versioned;
+	bool		vers_by_trx;
+
+	/** Magic value signifying that a system versioned column of a
+	table was never modified in a transaction. */
+	static const undo_no_t UNVERSIONED = IB_ID_MAX;
+
+public:
+	/** Constructor
+	@param[in]	rows	number of modified rows so far */
+	trx_mod_table_time_t(undo_no_t rows)
+		: first(rows), first_versioned(UNVERSIONED),
+		vers_by_trx(false) {}
+
+#ifdef UNIV_DEBUG
+	/** Validation
+	@param[in]	rows	number of modified rows so far
+	@return	whether the object is valid */
+	bool valid(undo_no_t rows = UNVERSIONED) const
+	{
+		return first <= first_versioned && first <= rows;
+	}
+#endif /* UNIV_DEBUG */
+	/** @return if versioned columns were modified */
+	bool is_versioned() const { return first_versioned != UNVERSIONED; }
+	bool is_trx_versioned() const
+	{
+		return is_versioned() && vers_by_trx;
+	}
+
+	/** After writing an undo log record, set is_versioned() if needed
+	@param[in]	rows	number of modified rows so far */
+	void set_versioned(undo_no_t rows, bool by_trx_id)
+	{
+		ut_ad(!is_versioned());
+		first_versioned = rows;
+		vers_by_trx = by_trx_id;
+		ut_ad(valid());
+	}
+
+	/** Invoked after partial rollback
+	@param[in]	limit	number of surviving modified rows
+	@return	whether this should be erased from trx_t::mod_tables */
+	bool rollback(undo_no_t limit)
+	{
+		ut_ad(valid());
+		if (first >= limit) {
+			return true;
+		}
+
+		if (first_versioned < limit && is_versioned()) {
+			first_versioned = UNVERSIONED;
+		}
+
+		return false;
+	}
+};
 
 /** Collection of persistent tables and their first modification
 in a transaction.
@@ -834,7 +895,6 @@ typedef enum {
 	TRX_SERVER_ABORT = 0,
 	TRX_WSREP_ABORT  = 1
 } trx_abort_t;
-
 
 /** Represents an instance of rollback segment along with its state variables.*/
 struct trx_undo_ptr_t {

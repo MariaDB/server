@@ -87,6 +87,9 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_REBUILD
 	/*
 	| Alter_inplace_info::ALTER_STORED_COLUMN_TYPE
 	*/
+	| Alter_inplace_info::ALTER_COLUMN_UNVERSIONED
+	| Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING
+	| Alter_inplace_info::ALTER_DROP_SYSTEM_VERSIONING
 	;
 
 /** Operations that require changes to data */
@@ -631,6 +634,11 @@ instant_alter_column_possible(
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			table)
 {
+	// Making table system-versioned instantly is not implemented yet.
+	if (ha_alter_info->handler_flags & Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING) {
+		return false;
+	}
+
 	if (~ha_alter_info->handler_flags
 	    & Alter_inplace_info::ADD_STORED_BASE_COLUMN) {
 		return false;
@@ -687,6 +695,13 @@ ha_innobase::check_if_supported_inplace_alter(
 	Alter_inplace_info*	ha_alter_info)
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
+
+	if ((table->versioned(VERS_TIMESTAMP) || altered_table->versioned(VERS_TIMESTAMP))
+	    && innobase_need_rebuild(ha_alter_info, table)) {
+		ha_alter_info->unsupported_reason =
+			innobase_get_err_msg(ER_VERS_INPLACE_NOT_IMPLEMENTED);
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
 
 	/* Before 10.2.2 information about virtual columns was not stored in
 	system tables. We need to do a full alter to rebuild proper 10.2.2+
@@ -1218,6 +1233,14 @@ cannot_create_many_fulltext_index:
 				online = false;
 			}
 		}
+	}
+
+	// FIXME: implement Online DDL for system-versioned tables
+	if ((table->versioned(VERS_TRX_ID) || altered_table->versioned(VERS_TRX_ID))
+	    && innobase_need_rebuild(ha_alter_info, table)) {
+		ha_alter_info->unsupported_reason =
+			innobase_get_err_msg(ER_VERS_INPLACE_NOT_IMPLEMENTED);
+		online = false;
 	}
 
 	DBUG_RETURN(online
@@ -4976,6 +4999,18 @@ new_clustered_failed:
 				field_type |= DATA_UNSIGNED;
 			}
 
+			if (altered_table->versioned()) {
+				if (i == altered_table->s->row_start_field) {
+					field_type |= DATA_VERS_START;
+				} else if (i ==
+					   altered_table->s->row_end_field) {
+					field_type |= DATA_VERS_END;
+				} else if (!(field->flags
+					     & VERS_UPDATE_UNVERSIONED_FLAG)) {
+					field_type |= DATA_VERSIONED;
+				}
+			}
+
 			if (dtype_is_string_type(col_type)) {
 				charset_no = (ulint) field->charset()->number;
 
@@ -7057,7 +7092,8 @@ ok_exit:
 		ctx->add_index, ctx->add_key_numbers, ctx->num_to_add_index,
 		altered_table, ctx->add_cols, ctx->col_map,
 		ctx->add_autoinc, ctx->sequence, ctx->skip_pk_sort,
-		ctx->m_stage, add_v, eval_table);
+		ctx->m_stage, add_v, eval_table,
+		ha_alter_info->handler_flags & Alter_inplace_info::ALTER_DROP_HISTORICAL);
 
 #ifndef DBUG_OFF
 oom:

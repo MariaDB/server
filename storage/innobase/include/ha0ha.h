@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -210,7 +211,7 @@ struct ha_node_t {
 };
 #endif /* BTR_CUR_HASH_ADAPT */
 
-#ifdef UNIV_DEBUG
+#if defined UNIV_DEBUG && defined BTR_CUR_HASH_ADAPT
 /********************************************************************//**
 Assert that the synchronization object in a hash operation involving
 possible change in the hash table is held.

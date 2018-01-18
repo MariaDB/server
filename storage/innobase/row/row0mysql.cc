@@ -821,6 +821,12 @@ handle_new_error:
 			<< FK_MAX_CASCADE_DEL << ". Please drop excessive"
 			" foreign constraints and try again";
 		break;
+	case DB_UNSUPPORTED:
+		ib::error() << "Cannot delete/update rows with cascading"
+			" foreign key constraints in timestamp-based temporal"
+			" table. Please drop excessive"
+			" foreign constraints and try again";
+		break;
 	default:
 		ib::fatal() << "Unknown error code " << err << ": "
 			<< ut_strerr(err);
@@ -1387,6 +1393,23 @@ row_mysql_get_table_status(
 	return(err);
 }
 
+/** Writes 8 bytes to nth tuple field
+@param[in]	tuple	where to write
+@param[in]	nth	index in tuple
+@param[in]	data	what to write
+@param[in]	buf	field data buffer */
+static
+void
+set_tuple_col_8(dtuple_t* tuple, int col, uint64_t data, byte* buf) {
+	dfield_t* dfield = dtuple_get_nth_field(tuple, col);
+	ut_ad(dfield->type.len == 8);
+	if (dfield->len == UNIV_SQL_NULL) {
+		dfield_set_data(dfield, buf, 8);
+	}
+	ut_ad(dfield->len == dfield->type.len && dfield->data);
+	mach_write_to_8(dfield->data, data);
+}
+
 /** Does an insert for MySQL.
 @param[in]	mysql_rec	row in the MySQL format
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
@@ -1394,7 +1417,8 @@ row_mysql_get_table_status(
 dberr_t
 row_insert_for_mysql(
 	const byte*	mysql_rec,
-	row_prebuilt_t*	prebuilt)
+	row_prebuilt_t*	prebuilt,
+	ins_mode_t	ins_mode)
 {
 	trx_savept_t	savept;
 	que_thr_t*	thr;
@@ -1451,6 +1475,29 @@ row_insert_for_mysql(
 
 	row_mysql_convert_row_to_innobase(node->row, prebuilt, mysql_rec,
 					  &blob_heap);
+
+	if (ins_mode != ROW_INS_NORMAL)
+	{
+		ut_ad(table->vers_start != table->vers_end);
+		/* Return back modified fields into mysql_rec, so that
+		   upper logic may benefit from it (f.ex. 'on duplicate key'). */
+		const mysql_row_templ_t* t = prebuilt->get_template_by_col(table->vers_end);
+		ut_ad(t);
+		ut_ad(t->mysql_col_len == 8);
+
+		if (ins_mode == ROW_INS_HISTORICAL) {
+			set_tuple_col_8(node->row, table->vers_end, trx->id, node->vers_end_buf);
+		}
+		else /* ROW_INS_VERSIONED */ {
+			set_tuple_col_8(node->row, table->vers_end, TRX_ID_MAX, node->vers_end_buf);
+			int8store(&mysql_rec[t->mysql_col_offset], TRX_ID_MAX);
+			t = prebuilt->get_template_by_col(table->vers_start);
+			ut_ad(t);
+			ut_ad(t->mysql_col_len == 8);
+			set_tuple_col_8(node->row, table->vers_start, trx->id, node->vers_start_buf);
+			int8store(&mysql_rec[t->mysql_col_offset], trx->id);
+		}
+	}
 
 	savept = trx_savept_take(trx);
 
@@ -1630,7 +1677,7 @@ row_create_update_node_for_mysql(
 	node = upd_node_create(heap);
 
 	node->in_mysql_interface = TRUE;
-	node->is_delete = FALSE;
+	node->is_delete = NO_DELETE;
 	node->searched_update = FALSE;
 	node->select = NULL;
 	node->pcur = btr_pcur_create_for_mysql();
@@ -1725,7 +1772,7 @@ row_fts_update_or_delete(
 	ut_a(dict_table_has_fts_index(node->table));
 
 	/* Deletes are simple; get them out of the way first. */
-	if (node->is_delete) {
+	if (node->is_delete == PLAIN_DELETE) {
 		/* A delete affects all FTS indexes, so we pass NULL */
 		fts_trx_add_op(trx, table, old_doc_id, FTS_DELETE, NULL);
 	} else {
@@ -1854,7 +1901,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	}
 
 	node = prebuilt->upd_node;
-	const bool is_delete = node->is_delete;
+	const bool is_delete = node->is_delete == PLAIN_DELETE;
 	ut_ad(node->table == table);
 
 	if (node->cascade_heap) {
@@ -1920,7 +1967,51 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	thr->fk_cascade_depth = 0;
 
+	ut_ad(!prebuilt->versioned_write || node->table->versioned());
+
+	bool vers_set_fields = prebuilt->versioned_write
+		&& (node->is_delete ? node->is_delete == VERSIONED_DELETE
+		    : node->update->affects_versioned());
 run_again:
+	if (vers_set_fields) {
+		/* System Versioning: modify update vector to set
+		   row_start (or row_end in case of DELETE)
+		   to current trx_id. */
+		dict_table_t* table = node->table;
+		dict_index_t* clust_index = dict_table_get_first_index(table);
+		upd_t* uvect = node->update;
+		upd_field_t* ufield;
+		dict_col_t* col;
+		unsigned col_idx;
+		if (node->is_delete) {
+			ufield = &uvect->fields[0];
+			uvect->n_fields = 0;
+			node->is_delete = VERSIONED_DELETE;
+			col_idx = table->vers_end;
+		} else {
+			ut_ad(uvect->n_fields < table->n_cols);
+			ufield = &uvect->fields[uvect->n_fields];
+			col_idx = table->vers_start;
+		}
+		col = &table->cols[col_idx];
+		UNIV_MEM_INVALID(ufield, sizeof *ufield);
+		{
+			ulint field_no = dict_col_get_clust_pos(col, clust_index);
+			ut_ad(field_no != ULINT_UNDEFINED);
+			ufield->field_no = field_no;
+		}
+		ufield->orig_len = 0;
+		ufield->exp = NULL;
+
+		mach_write_to_8(node->update->vers_sys_value, trx->id);
+		dfield_t* dfield = &ufield->new_val;
+		dfield_set_data(dfield, node->update->vers_sys_value, 8);
+		dict_col_copy_type(col, &dfield->type);
+
+		uvect->n_fields++;
+		ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
+	}
+
 	if (thr->fk_cascade_depth == 1 && trx->dict_operation_lock_mode == 0) {
 		got_s_lock = true;
 		row_mysql_freeze_data_dictionary(trx);
@@ -1936,7 +2027,7 @@ run_again:
 	err = trx->error_state;
 
 	if (err != DB_SUCCESS) {
-
+handle_error:
 		que_thr_stop_for_mysql(thr);
 
 		if (err == DB_RECORD_NOT_FOUND) {
@@ -2014,7 +2105,18 @@ run_again:
 		node->cascade_upd_nodes = cascade_upd_nodes;
 		cascade_upd_nodes->pop_front();
 		thr->fk_cascade_depth++;
+		vers_set_fields = node->table->versioned()
+				  && (node->is_delete == PLAIN_DELETE
+				      || node->update->affects_versioned());
 
+		if (vers_set_fields && !prebuilt->versioned_write)
+		{
+			// FIXME: timestamp-based update of row_end in run_again
+			err = DB_UNSUPPORTED;
+			trx->error_state = err;
+
+			goto handle_error;
+		}
 		goto run_again;
 	}
 
@@ -2036,7 +2138,7 @@ run_again:
 
 		node = *i;
 
-		if (node->is_delete) {
+		if (node->is_delete == PLAIN_DELETE) {
 			/* Not protected by dict_table_stats_lock() for
 			performance reasons, we would rather get garbage
 			in stat_n_rows (which is just an estimate anyway)
@@ -3714,7 +3816,7 @@ row_drop_table_for_mysql(
 
 	if (table->n_foreign_key_checks_running > 0) {
 defer:
-		if (!strstr(table->name.m_name, "/" TEMP_FILE_PREFIX_INNODB)) {
+		if (!strstr(table->name.m_name, "/" TEMP_FILE_PREFIX)) {
 			heap = mem_heap_create(FN_REFLEN);
 			const char* tmp_name
 				= dict_mem_create_temporary_tablename(
@@ -4478,7 +4580,7 @@ row_rename_table_for_mysql(
 
 		goto funct_exit;
 
-	} else if (new_is_tmp) {
+	} else if (!old_is_tmp && new_is_tmp) {
 		/* MySQL is doing an ALTER TABLE command and it renames the
 		original table to a temporary table name. We want to preserve
 		the original foreign key constraint definitions despite the

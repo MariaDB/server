@@ -5672,7 +5672,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, uint length,
 
   if (field_ptr && *field_ptr)
   {
-    if ((*field_ptr)->field_visibility == COMPLETELY_INVISIBLE &&
+    if ((*field_ptr)->invisible == INVISIBLE_FULL &&
         DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
       DBUG_RETURN((Field*)0);
 
@@ -5886,6 +5886,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
         if (field_to_set)
         {
           TABLE *table= field_to_set->table;
+          DBUG_ASSERT(table);
           if (thd->mark_used_columns == MARK_COLUMNS_READ)
             bitmap_set_bit(table->read_set, field_to_set->field_index);
           else
@@ -6563,6 +6564,10 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     bool is_using_column_1;
     if (!(nj_col_1= it_1.get_or_create_column_ref(thd, leaf_1)))
       goto err;
+
+    if (nj_col_1->field() && nj_col_1->field()->vers_sys_field())
+      continue;
+
     field_name_1= nj_col_1->name();
     is_using_column_1= using_fields && 
       test_if_string_in_list(field_name_1->str, using_fields);
@@ -7257,7 +7262,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->lex->current_select->is_item_list_lookup= 0;
 
   /*
-    To prevent fail on forward lookup we fill it with zerows,
+    To prevent fail on forward lookup we fill it with zeroes,
     then if we got pointer on zero after find_item_in_list we will know
     that it is forward lookup.
 
@@ -7760,9 +7765,9 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         Field_iterator_natural_join).
         But view fields can never be invisible.
       */
-      if ((field= field_iterator.field()) &&
-          field->field_visibility != NOT_INVISIBLE)
+      if ((field= field_iterator.field()) && field->invisible != VISIBLE)
         continue;
+
       Item *item;
 
       if (!(item= field_iterator.create_item(thd)))
@@ -8011,10 +8016,6 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
   TABLE_LIST *derived= select_lex->master_unit()->derived;
   DBUG_ENTER("setup_conds");
 
-  /* Do not fix conditions for the derived tables that have been merged */
-  if (derived && derived->merged)
-    DBUG_RETURN(0);
-
   select_lex->is_item_list_lookup= 0;
 
   thd->mark_used_columns= MARK_COLUMNS_READ;
@@ -8112,6 +8113,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
   Item_field *field;
+  bool only_unvers_fields= update && table_arg->versioned();
   bool save_abort_on_warning= thd->abort_on_warning;
   bool save_no_errors= thd->no_errors;
   DBUG_ENTER("fill_record");
@@ -8128,11 +8130,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       thus we safely can take table from the first field.
     */
     fld= (Item_field*)f++;
-    if (!(field= fld->field_for_view_update()))
-    {
-      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), fld->name.str);
-      goto err;
-    }
+    field= fld->field_for_view_update();
+    DBUG_ASSERT(field);
     DBUG_ASSERT(field->field->table == table_arg);
     table_arg->auto_increment_field_not_null= FALSE;
     f.rewind();
@@ -8146,22 +8145,29 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       goto err;
     }
     value=v++;
+    DBUG_ASSERT(value);
     Field *rfield= field->field;
     TABLE* table= rfield->table;
     if (table->next_number_field &&
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
     Item::Type type= value->type();
-    if (rfield->vcol_info &&
+    bool vers_sys_field= table->versioned() && rfield->vers_sys_field();
+    if ((rfield->vcol_info || vers_sys_field) &&
         type != Item::DEFAULT_VALUE_ITEM &&
         type != Item::NULL_ITEM &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN,
-                          ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
+                          ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN,
+                          ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN),
                           rfield->field_name.str, table->s->table_name.str);
+      if (vers_sys_field)
+        continue;
     }
+    if (only_unvers_fields && !rfield->vers_update_unversioned())
+      only_unvers_fields= false;
+
     if (rfield->stored_in_db() &&
         (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
     {
@@ -8178,6 +8184,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   if (table_arg->vfield &&
       table_arg->update_virtual_fields(table_arg->file, VCOL_UPDATE_FOR_WRITE))
     goto err;
+  if (table_arg->versioned() && !only_unvers_fields)
+    table_arg->vers_update_fields();
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
   DBUG_RETURN(thd->is_error());
@@ -8230,7 +8238,7 @@ void switch_defaults_to_nullable_trigger_fields(TABLE *table)
   Field **trigger_field= table->field_to_fill();
 
  /* True if we have NOT NULL fields and BEFORE triggers */
-  if (trigger_field != table->field)
+  if (*trigger_field != *table->field)
   {
     for (Field **field_ptr= table->default_field; *field_ptr ; field_ptr++)
     {
@@ -8391,13 +8399,18 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     /* Ensure that all fields are from the same table */
     DBUG_ASSERT(field->table == table);
 
-    if (field->field_visibility != NOT_INVISIBLE)
+    if (field->invisible)
+    {
       continue;
+    }
     else
       value=v++;
+
+    bool vers_sys_field= table->versioned() && field->vers_sys_field();
+
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
-    if (field->vcol_info)
+    if (field->vcol_info || (vers_sys_field && !ignore_errors))
     {
       Item::Type type= value->type();
       if (type != Item::DEFAULT_VALUE_ITEM &&
@@ -8405,9 +8418,11 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
           table->s->table_category != TABLE_CATEGORY_TEMPORARY)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN,
-                            ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
+                            ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN,
+                            ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN),
                             field->field_name.str, table->s->table_name.str);
+        if (vers_sys_field)
+          continue;
       }
     }
 
@@ -8426,6 +8441,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   if (table->vfield &&
       table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
     goto err;
+  if (table->versioned())
+    table->vers_update_fields();
   thd->abort_on_warning= abort_on_warning_saved;
   DBUG_RETURN(thd->is_error());
 
@@ -8584,7 +8601,6 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
   {
     List_iterator<Item_func_match> li(*(select_lex->ftfunc_list));
     Item_func_match *ifm;
-    DBUG_PRINT("info",("Performing FULLTEXT search"));
 
     while ((ifm=li++))
       if (ifm->init_search(thd, no_order))
@@ -8774,10 +8790,31 @@ open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup)
 
   if ((table= open_ltable(thd, one_table, one_table->lock_type, flags)))
   {
-    DBUG_ASSERT(table->s->table_category == TABLE_CATEGORY_LOG);
-    /* Make sure all columns get assigned to a default value */
-    table->use_all_columns();
-    DBUG_ASSERT(table->s->no_replicate);
+    if (table->s->table_category == TABLE_CATEGORY_LOG)
+    {
+      /* Make sure all columns get assigned to a default value */
+      table->use_all_columns();
+      DBUG_ASSERT(table->s->no_replicate);
+    }
+    else
+    {
+      my_error(ER_NOT_LOG_TABLE, MYF(0), table->s->db.str, table->s->table_name.str);
+      int error= 0;
+      if (table->current_lock != F_UNLCK)
+      {
+        table->current_lock= F_UNLCK;
+        error= table->file->ha_external_lock(thd, F_UNLCK);
+      }
+      if (error)
+        table->file->print_error(error, MYF(0));
+      else
+      {
+        tc_release_table(table);
+        thd->reset_open_tables_state(thd);
+        thd->restore_backup_open_tables_state(backup);
+        table= NULL;
+      }
+    }
   }
   else
     thd->restore_backup_open_tables_state(backup);

@@ -55,6 +55,7 @@ class Item_char_typecast;
 class Item_time_typecast;
 class Item_date_typecast;
 class Item_datetime_typecast;
+class Item_longlong_typecast;
 class Item_func_plus;
 class Item_func_minus;
 class Item_func_mul;
@@ -983,6 +984,8 @@ public:
   Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const;
   virtual bool
   Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item) const;
+  virtual bool
+  Item_longlong_typecast_fix_length_and_dec(Item_longlong_typecast *item) const;
 
   virtual bool
   Item_func_plus_fix_length_and_dec(Item_func_plus *func) const= 0;
@@ -1888,6 +1891,17 @@ public:
                           TABLE *table) const;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const;
+};
+
+
+class Type_handler_vers_trx_id: public Type_handler_longlong
+{
+public:
+  virtual ~Type_handler_vers_trx_id() {}
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -2844,14 +2858,16 @@ public:
 class Type_handler_hybrid_field_type
 {
   const Type_handler *m_type_handler;
+  bool m_vers_trx_id;
   bool aggregate_for_min_max(const Type_handler *other);
+
 public:
   Type_handler_hybrid_field_type();
   Type_handler_hybrid_field_type(const Type_handler *handler)
-   :m_type_handler(handler)
+   :m_type_handler(handler), m_vers_trx_id(false)
   { }
   Type_handler_hybrid_field_type(const Type_handler_hybrid_field_type *other)
-    :m_type_handler(other->m_type_handler)
+    :m_type_handler(other->m_type_handler), m_vers_trx_id(other->m_vers_trx_id)
   { }
   void swap(Type_handler_hybrid_field_type &other)
   {
@@ -2940,6 +2956,7 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_int24       type_handler_int24;
 extern MYSQL_PLUGIN_IMPORT Type_handler_long        type_handler_long;
 extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_longlong;
 extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_ulonglong;
+extern MYSQL_PLUGIN_IMPORT Type_handler_vers_trx_id type_handler_vers_trx_id;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_newdecimal  type_handler_newdecimal;
 extern MYSQL_PLUGIN_IMPORT Type_handler_olddecimal  type_handler_olddecimal;

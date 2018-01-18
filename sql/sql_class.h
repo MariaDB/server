@@ -727,6 +727,10 @@ typedef struct system_variables
   uint column_compression_threshold;
   uint column_compression_zlib_level;
   uint in_subquery_conversion_threshold;
+
+  vers_asof_timestamp_t vers_asof_timestamp;
+  my_bool vers_innodb_algorithm_simple;
+  ulong vers_alter_history;
 } SV;
 
 /**
@@ -854,7 +858,7 @@ typedef struct system_status_var
   ulonglong table_open_cache_overflows;
   double last_query_cost;
   double cpu_time, busy_time;
-  uint32_t threads_running;
+  uint32 threads_running;
   /* Don't initialize */
   /* Memory used for thread local storage */
   int64 max_local_memory_used;
@@ -969,6 +973,11 @@ public:
 
   enum_state state;
 
+protected:
+  friend class sp_head;
+  bool is_stored_procedure;
+
+public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
   {
@@ -976,7 +985,8 @@ public:
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
-    free_list(0), mem_root(mem_root_arg), state(state_arg)
+    free_list(0), mem_root(mem_root_arg), state(state_arg),
+    is_stored_procedure(state_arg == STMT_INITIALIZED_FOR_SP ? true : false)
   { INIT_ARENA_DBUG_INFO; }
   /*
     This constructor is used only when Query_arena is created as
@@ -996,6 +1006,8 @@ public:
   { return state == STMT_PREPARED || state == STMT_EXECUTED; }
   inline bool is_conventional() const
   { return state == STMT_CONVENTIONAL_EXECUTION; }
+  inline bool is_sp_execute() const
+  { return is_stored_procedure; }
 
   inline void* alloc(size_t size) { return alloc_root(mem_root,size); }
   inline void* calloc(size_t size)
@@ -1037,6 +1049,22 @@ public:
   {}
 
   virtual ~Query_arena_memroot() {}
+};
+
+
+class Query_arena_stmt
+{
+  THD *thd;
+  Query_arena backup;
+  Query_arena *arena;
+
+public:
+  Query_arena_stmt(THD *_thd);
+  ~Query_arena_stmt();
+  bool arena_replaced()
+  {
+    return arena != NULL;
+  }
 };
 
 
@@ -1314,7 +1342,21 @@ public:
 */
 
 struct Item_change_record;
-typedef I_List<Item_change_record> Item_change_list;
+class Item_change_list
+{
+  I_List<Item_change_record> change_list;
+public:
+  void nocheck_register_item_tree_change(Item **place, Item *old_value,
+                                         MEM_ROOT *runtime_memroot);
+  void check_and_register_item_tree_change(Item **place, Item **new_value,
+                                           MEM_ROOT *runtime_memroot);
+  void rollback_item_tree_changes();
+  void move_elements_to(Item_change_list *to)
+  {
+    change_list.move_elements_to(&to->change_list);
+  }
+  bool is_empty() { return change_list.is_empty(); }
+};
 
 
 /**
@@ -1789,8 +1831,9 @@ private:
 
 class Locked_tables_list
 {
-private:
+public:
   MEM_ROOT m_locked_tables_root;
+private:
   TABLE_LIST *m_locked_tables;
   TABLE_LIST **m_locked_tables_last;
   /** An auxiliary array used only in reopen_tables(). */
@@ -2072,12 +2115,21 @@ struct wait_for_commit
   Structure to store the start time for a query
 */
 
-typedef struct
+struct QUERY_START_TIME_INFO
 {
   my_time_t start_time;
-  ulong      start_time_sec_part;
+  ulong     start_time_sec_part;
   ulonglong start_utime, utime_after_lock;
-} QUERY_START_TIME_INFO;
+
+  void backup_query_start_time(QUERY_START_TIME_INFO *backup)
+  {
+    *backup= *this;
+  }
+  void restore_query_start_time(QUERY_START_TIME_INFO *backup)
+  {
+    *this= *backup;
+  }
+};
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
@@ -2088,8 +2140,17 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 */
 
 class THD :public Statement,
+           /*
+             This is to track items changed during execution of a prepared
+             statement/stored procedure. It's created by
+             nocheck_register_item_tree_change() in memory root of THD,
+             and freed in rollback_item_tree_changes().
+             For conventional execution it's always empty.
+           */
+           public Item_change_list,
            public MDL_context_owner,
-           public Open_tables_state
+           public Open_tables_state,
+           public QUERY_START_TIME_INFO
 {
 private:
   inline bool is_stmt_prepare() const
@@ -2314,12 +2375,12 @@ public:
   uint32     file_id;			// for LOAD DATA INFILE
   /* remote (peer) port */
   uint16     peer_port;
-  my_time_t  start_time;             // start_time and its sec_part 
-  ulong      start_time_sec_part;    // are almost always used separately
   my_hrtime_t user_time;
   // track down slow pthread_create
   ulonglong  prior_thr_create_utime, thr_create_utime;
-  ulonglong  start_utime, utime_after_lock, utime_after_query;
+  ulonglong  utime_after_query;
+  my_time_t  system_time;
+  ulong      system_time_sec_part;
 
   // Process indicator
   struct {
@@ -2568,14 +2629,6 @@ public:
 #ifdef SIGNAL_WITH_VIO_CLOSE
   Vio* active_vio;
 #endif
-  /*
-    This is to track items changed during execution of a prepared
-    statement/stored procedure. It's created by
-    nocheck_register_item_tree_change() in memory root of THD, and freed in
-    rollback_item_tree_changes(). For conventional execution it's always
-    empty.
-  */
-  Item_change_list change_list;
 
   /*
     A permanent memory area of the statement. For conventional
@@ -3336,27 +3389,50 @@ public:
   inline my_time_t query_start() { query_start_used=1; return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
-  inline void set_current_time()
+  MYSQL_TIME query_start_TIME();
+
+private:
+  bool system_time_ge(my_time_t secs, ulong usecs)
+  {
+    return (system_time == secs && system_time_sec_part >= usecs) ||
+        system_time > secs;
+  }
+
+  void set_system_time()
   {
     my_hrtime_t hrtime= my_hrtime();
-    start_time= hrtime_to_my_time(hrtime);
-    start_time_sec_part= hrtime_sec_part(hrtime);
-#ifdef HAVE_PSI_THREAD_INTERFACE
-    PSI_THREAD_CALL(set_thread_start_time)(start_time);
-#endif
+    my_time_t secs= hrtime_to_my_time(hrtime);
+    ulong usecs= hrtime_sec_part(hrtime);
+    if (system_time_ge(secs, usecs))
+    {
+      if (++system_time_sec_part == HRTIME_RESOLUTION)
+      {
+        ++system_time;
+        system_time_sec_part= 0;
+      }
+    }
+    else
+    {
+      system_time= secs;
+      system_time_sec_part= usecs;
+    }
   }
+
+public:
   inline void set_start_time()
   {
+    set_system_time();
     if (user_time.val)
     {
       start_time= hrtime_to_my_time(user_time);
       start_time_sec_part= hrtime_sec_part(user_time);
-#ifdef HAVE_PSI_THREAD_INTERFACE
-      PSI_THREAD_CALL(set_thread_start_time)(start_time);
-#endif
     }
     else
-      set_current_time();
+    {
+      start_time= system_time;
+      start_time_sec_part= system_time_sec_part;
+    }
+    PSI_CALL_set_thread_start_time(start_time);
   }
   inline void set_time()
   {
@@ -3378,20 +3454,6 @@ public:
     utime_after_lock= microsecond_interval_timer();
     MYSQL_SET_STATEMENT_LOCK_TIME(m_statement_psi,
                                   (utime_after_lock - start_utime));
-  }
-  void get_time(QUERY_START_TIME_INFO *time_info)
-  {
-    time_info->start_time=          start_time;
-    time_info->start_time_sec_part= start_time_sec_part;
-    time_info->start_utime=         start_utime;
-    time_info->utime_after_lock=    utime_after_lock;
-  }
-  void set_time(QUERY_START_TIME_INFO *time_info)
-  {
-    start_time=          time_info->start_time;
-    start_time_sec_part= time_info->start_time_sec_part;
-    start_utime=         time_info->start_utime;
-    utime_after_lock=    time_info->utime_after_lock;
   }
   ulonglong current_utime()  { return microsecond_interval_timer(); }
 
@@ -3758,11 +3820,6 @@ public:
     */
     memcpy((char*) place, new_value, sizeof(*new_value));
   }
-  void nocheck_register_item_tree_change(Item **place, Item *old_value,
-                                         MEM_ROOT *runtime_memroot);
-  void check_and_register_item_tree_change(Item **place, Item **new_value,
-                                           MEM_ROOT *runtime_memroot);
-  void rollback_item_tree_changes();
 
   /*
     Cleanup statement parse state (parse tree, lex) and execution
@@ -4000,10 +4057,8 @@ public:
     db_length= db ? new_db_len : 0;
     bool result= new_db && !db;
     mysql_mutex_unlock(&LOCK_thd_data);
-#ifdef HAVE_PSI_THREAD_INTERFACE
     if (result)
-      PSI_THREAD_CALL(set_thread_db)(new_db, (int) new_db_len);
-#endif
+      PSI_CALL_set_thread_db(new_db, (int) new_db_len);
     return result;
   }
 
@@ -4026,9 +4081,7 @@ public:
       db= new_db;
       db_length= new_db_len;
       mysql_mutex_unlock(&LOCK_thd_data);
-#ifdef HAVE_PSI_THREAD_INTERFACE
-      PSI_THREAD_CALL(set_thread_db)(new_db, (int) new_db_len);
-#endif
+      PSI_CALL_set_thread_db(new_db, (int) new_db_len);
     }
   }
   /*
@@ -4132,7 +4185,12 @@ public:
     Lex_input_stream *lip= &m_parser_state->m_lip;
     if (!yytext)
     {
-      if (!(yytext= lip->get_tok_start()))
+      if (lip->lookahead_token >= 0)
+        yytext= lip->get_tok_start_prev();
+      else
+        yytext= lip->get_tok_start();
+
+      if (!yytext)
         yytext= "";
     }
     /* Push an error into the error stack */
@@ -4242,9 +4300,7 @@ public:
     set_query_inner(string_arg);
     mysql_mutex_unlock(&LOCK_thd_data);
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
-    PSI_THREAD_CALL(set_thread_info)(query(), query_length());
-#endif
+    PSI_CALL_set_thread_info(query(), query_length());
   }
   void reset_query()               /* Mutex protected */
   { set_query(CSET_STRING()); }
@@ -4828,6 +4884,7 @@ public:
 
   /* Handling of timeouts for commands */
   thr_timer_t query_timer;
+
 public:
   void set_query_timer()
   {
@@ -5325,6 +5382,7 @@ class select_insert :public select_result_interceptor {
   ulonglong autoinc_value_of_last_inserted_row; // autogenerated or not
   COPY_INFO info;
   bool insert_into_view;
+  bool versioned_write;
   select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
 		TABLE *table_par, List<Item> *fields_par,
 		List<Item> *update_fields, List<Item> *update_values,
@@ -5385,6 +5443,12 @@ public:
   const THD *get_thd(void) { return thd; }
   const HA_CREATE_INFO *get_create_info() { return create_info; };
   int prepare2(void) { return 0; }
+
+private:
+  TABLE *create_table_from_items(THD *thd,
+                                  List<Item> *items,
+                                  MYSQL_LOCK **lock,
+                                  TABLEOP_HOOKS *hooks);
 };
 
 #include <myisam.h>
@@ -6046,6 +6110,12 @@ class multi_update :public select_result_interceptor
   
   /* Need this to protect against multiple prepare() calls */
   bool prepared;
+
+  // For System Versioning (may need to insert new fields to a table).
+  ha_rows updated_sys_ver;
+
+  bool has_vers_fields;
+
 public:
   multi_update(THD *thd_arg, TABLE_LIST *ut, List<TABLE_LIST> *leaves_list,
 	       List<Item> *fields, List<Item> *values,
@@ -6632,6 +6702,24 @@ public:
 void dbug_serve_apcs(THD *thd, int n_calls);
 #endif 
 
-#endif /* MYSQL_SERVER */
+class ScopedStatementReplication
+{
+public:
+  ScopedStatementReplication(THD *thd) : thd(thd)
+  {
+    if (thd)
+      saved_binlog_format= thd->set_current_stmt_binlog_format_stmt();
+  }
+  ~ScopedStatementReplication()
+  {
+    if (thd)
+      thd->restore_stmt_binlog_format(saved_binlog_format);
+  }
 
+private:
+  enum_binlog_format saved_binlog_format;
+  THD *thd;
+};
+
+#endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

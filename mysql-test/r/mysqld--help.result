@@ -1219,6 +1219,14 @@ The following options may be given as the first argument:
  safe-replicable. Since 5.0, SYSDATE() returns a `dynamic'
  value different for different invocations, even within
  the same statement.
+ --system-versioning-alter-history=name 
+ Versioning ALTER TABLE mode. ERROR: Fail ALTER with
+ error; KEEP: Keep historical system rows and subject them
+ to ALTER; 
+ --system-versioning-innodb-algorithm-simple 
+ Use simple algorithm of timestamp handling in InnoDB
+ instead of TRX_SEES
+ (Defaults to on; use --skip-system-versioning-innodb-algorithm-simple to disable.)
  --table-cache=#     Deprecated; use --table-open-cache instead.
  --table-definition-cache=# 
  The number of cached table definitions
@@ -1647,6 +1655,8 @@ sync-master-info 10000
 sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
+system-versioning-alter-history ERROR
+system-versioning-innodb-algorithm-simple TRUE
 table-cache 431
 table-definition-cache 400
 table-open-cache 431

@@ -582,6 +582,10 @@ public:
   */
   uint8 uncacheable;
   enum sub_select_type linkage;
+  bool is_linkage_set() const
+  {
+    return linkage == UNION_TYPE || linkage == INTERSECT_TYPE || linkage == EXCEPT_TYPE;
+  }
   bool no_table_names_allowed; /* used for global order by */
 
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
@@ -1039,6 +1043,13 @@ public:
   
   table_value_constr *tvc;
   bool in_tvc;
+
+  /** System Versioning */
+public:
+  uint versioned_tables;
+  int vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr);
+  /* push new Item_field into item_list */
+  bool vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name);
 
   void init_query();
   void init_select();
@@ -1974,6 +1985,18 @@ private:
 };
 
 
+class Query_tables_backup
+{
+  THD *thd;
+  Query_tables_list backup;
+
+public:
+  Query_tables_backup(THD *_thd);
+  ~Query_tables_backup();
+  const Query_tables_list& get() const { return backup; }
+};
+
+
 /*
   st_parsing_options contains the flags for constructions that are
   allowed in the current statement.
@@ -2710,7 +2733,6 @@ struct LEX: public Query_tables_list
 private:
   Query_arena_memroot *arena_for_set_stmt;
   MEM_ROOT *mem_root_for_set_stmt;
-  void parse_error();
   bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
                                    class sp_label **splabel);
   bool sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive);
@@ -2724,6 +2746,7 @@ private:
   bool sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop);
 
 public:
+  void parse_error(uint err_number= ER_SYNTAX_ERROR);
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
   bool set_arena_for_set_stmt(Query_arena *backup);
   void reset_arena_for_set_stmt(Query_arena *backup);
@@ -2981,6 +3004,9 @@ public:
   Window_frame_bound *frame_top_bound;
   Window_frame_bound *frame_bottom_bound;
   Window_spec *win_spec;
+
+  /* System Versioning */
+  vers_select_conds_t vers_conditions;
 
   inline void free_set_stmt_mem_root()
   {
@@ -3686,6 +3712,11 @@ public:
 
   bool add_grant_command(THD *thd, enum_sql_command sql_command_arg,
                          stored_procedure_type type_arg);
+
+  Vers_parse_info &vers_get_info()
+  {
+    return create_info.vers_info;
+  }
 };
 
 

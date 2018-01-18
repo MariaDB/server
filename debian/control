@@ -13,17 +13,17 @@ Build-Depends: bison,
                libaio-dev [linux-any],
                libboost-dev,
                libcrack2-dev (>= 2.9.0),
+               libcurl3-dev,
                libjemalloc-dev (>= 3.0.0~) [linux-any],
                libjudy-dev,
                libkrb5-dev,
-               libcurl3-dev,
                libncurses5-dev (>= 5.0-6~),
                libnuma-dev,
                libpam0g-dev,
                libpcre3-dev (>= 2:8.35-3.2~),
                libreadline-gplv2-dev,
-               libssl-dev | libssl1.0-dev,
                libsnappy-dev,
+               libssl-dev | libssl1.0-dev,
                libsystemd-dev,
                libxml2-dev,
                lsb-release,
@@ -38,22 +38,71 @@ Homepage: http://mariadb.org/
 Vcs-Git: https://github.com/MariaDB/server.git
 Vcs-Browser: https://github.com/MariaDB/server/
 
+Package: libmariadb-dev
+Architecture: any
+Section: libdevel
+Depends: libmariadb3 (= ${binary:Version}),
+         zlib1g-dev,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Breaks: libmariadbclient-dev
+Replaces: libmariadbclient-dev
+Conflicts: libmariadbclient16-dev
+Provides: libmariadbclient-dev
+Description: MariaDB database development files
+ MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
+ server. SQL (Structured Query Language) is the most popular database query
+ language in the world. The main goals of MariaDB are speed, robustness and
+ ease of use.
+ .
+ This package includes development libraries and header files. To allow sources
+ expecting the MariaDB Connector/C to build. Sources that expect the MySQL
+ Client libraries should use files from the libmariadb-dev-compat package.
+
+Package: libmariadb-dev-compat
+Architecture: any
+Multi-Arch: same
+Section: libdevel
+Priority: extra
+Depends: libmariadb-dev (= ${binary:Version}),
+         ${misc:Depends}
+Conflicts: libmariadb-client-lgpl-dev-compat,
+           libmariadbclient-dev-compat,
+           libmysqlclient-dev,
+           libmysqlclient10-dev,
+           libmysqlclient12-dev,
+           libmysqlclient14-dev,
+           libmysqlclient15-dev,
+           libmysqlclient16-dev
+Provides: libmariadb-client-lgpl-dev-compat,
+          libmariadbclient-dev-compat,
+          libmysqlclient-dev
+Replaces: libmariadb-client-lgpl-dev-compat,
+          libmariadbclient-dev-compat,
+          libmysqlclient-dev
+Description: MariaDB Connector/C, compatibility symlinks
+ MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
+ server. SQL (Structured Query Language) is the most popular database query
+ language in the world. The main goals of MariaDB are speed, robustness and
+ ease of use.
+ .
+ This package includes compatibility symlinks to allow sources expecting the
+ MySQL client libraries to be built against MariaDB Connector/C.
+
 Package: libmariadb3
 Architecture: any
 Section: libs
-Depends: mariadb-common, ${misc:Depends}, ${shlibs:Depends}
-Conflicts: mariadb-galera-server-10.0 (<< 10.0.5),
+Depends: mariadb-common,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Conflicts: libmariadbclient18 (<< 10.2.0),
+           mariadb-galera-server-10.0 (<< 10.0.5),
            mariadb-galera-server-5.5 (<< 5.5.33),
            mariadb-server-10.0 (<< 10.0.5),
            mariadb-server-5.1,
            mariadb-server-5.2,
            mariadb-server-5.3,
-           mariadb-server-5.5 (<< 5.5.33),
-           libmariadbclient18 (<< 10.2.0)
-Replaces: libmysqlclient19,
-          libmysqlclient20
-Provides: libmysqlclient19,
-          libmysqlclient20
+           mariadb-server-5.5 (<< 5.5.33)
 Description: MariaDB database client library
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -62,62 +111,84 @@ Description: MariaDB database client library
  .
  This package includes the client library.
 
-Package: libmariadbclient18
-Section: libs
+Package: libmariadb3-compat
 Architecture: any
-Depends: libmariadb3 (= ${binary:Version}), ${misc:Depends}
-Replaces: libmariadbclient18
-Provides: libmariadbclient18
-Description: Virtual package to satisfy external depends
+Section: libs
+Depends: libmariadb3,
+         mariadb-common,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Breaks: libmysqlclient19,
+        libmysqlclient20
+Replaces: libmysqlclient19,
+          libmysqlclient20
+Provides: libmysqlclient19,
+          libmysqlclient20
+Description: MariaDB database client library MySQL compat package
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This package provides compatibility symlinks for libmariadb3
+ This package includes the client runtime libraries that simulate and replace
+ the equivalents found in MySQL 5.6 and 5.7 (mysqlclient19 and 20).
+
+Package: libmariadbclient18
+Section: libs
+Architecture: any
+Depends: libmariadb3 (= ${binary:Version}),
+         ${misc:Depends}
+Replaces: libmariadbclient18
+Provides: libmariadbclient18
+Description: Virtual package to satisfy external libmariadbclient18 depends
+ MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
+ server. SQL (Structured Query Language) is the most popular database query
+ language in the world. The main goals of MariaDB are speed, robustness and
+ ease of use.
+ .
+ This package provides compatibility symlinks for binaries that expect to find
+ libmariadbclient.so.18 will automatically use libmariadb.so.3 instead.
 
 Package: libmysqlclient18
 Section: libs
 Architecture: any
-Depends: libmariadb3 (= ${binary:Version}), ${misc:Depends}
+Depends: libmariadb3 (= ${binary:Version}),
+         ${misc:Depends}
 Replaces: libmysqlclient18
 Provides: libmysqlclient18
-Description: Virtual package to satisfy external depends
+Description: Virtual package to satisfy external libmysqlclient18 depends
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This package provides compatibility symlinks for libmariadb3
+ This package provides compatibility symlinks for binaries that expect to find
+ libmysqlclient.so.18 will automatically use libmariadb.so.3 instead.
 
-Package: libmariadb-dev
+Package: libmariadbd-dev
 Architecture: any
 Section: libdevel
-Depends: libmariadb3 (= ${binary:Version}),
-         zlib1g-dev,
+Provides: libmysqld-dev
+Pre-Depends: ${misc:Pre-Depends}
+Depends: libmariadb-dev (= ${binary:Version}),
+         libmariadbd19 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
-Breaks: libmariadbclient-dev, libmysqlclient-dev
-Replaces: libmariadbclient-dev, libmysqlclient-dev
-Conflicts: libmariadbclient16-dev,
-           libmysqlclient10-dev,
-           libmysqlclient12-dev,
-           libmysqlclient14-dev,
-           libmysqlclient15-dev,
-           libmysqlclient16-dev
-Provides: libmariadbclient-dev, libmariadbclient-dev-compat, libmysqlclient-dev
-Description: MariaDB database development files
+Breaks: libmysqld-dev
+Replaces: libmysqld-dev
+Description: MariaDB embedded database, development files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This package includes development libraries and header files.
+ This package includes the embedded server library development and header files.
 
 Package: libmariadbd19
 Architecture: any
 Section: libs
-Depends: ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends},
+         ${shlibs:Depends}
 Multi-Arch: same
 Breaks: libmariadbd-dev (<< ${source:Version})
 Replaces: libmariadbd-dev (<< ${source:Version})
@@ -129,28 +200,10 @@ Description: MariaDB embedded database, shared library
  .
  This package includes a shared library for embedded MariaDB applications
 
-Package: libmariadbd-dev
-Architecture: any
-Section: libdevel
-Provides: libmysqld-dev
-Pre-Depends: ${misc:Pre-Depends}
-Depends: libmariadb-dev (= ${binary:Version}),
-        libmariadbd19 (= ${binary:Version}),
-        ${misc:Depends},
-        ${shlibs:Depends}
-Breaks: libmysqld-dev
-Replaces: libmysqld-dev
-Description: MariaDB embedded database, development files
- MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
- server. SQL (Structured Query Language) is the most popular database query
- language in the world. The main goals of MariaDB are speed, robustness and
- ease of use.
- .
- This package includes the embedded server library development and header files.
-
 Package: mysql-common
 Architecture: all
-Depends: ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends},
+         ${shlibs:Depends}
 Description: MariaDB database common files (e.g. /etc/mysql/my.cnf)
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -162,7 +215,9 @@ Description: MariaDB database common files (e.g. /etc/mysql/my.cnf)
 
 Package: mariadb-common
 Architecture: all
-Depends: mysql-common, ${misc:Depends}, ${shlibs:Depends}
+Depends: mysql-common,
+         ${misc:Depends},
+         ${shlibs:Depends}
 Description: MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -284,7 +339,9 @@ Provides: default-mysql-client,
           mysql-client-5.6,
           mysql-client-5.7,
           virtual-mysql-client
-Recommends: libdbd-mysql-perl (>= 1.2202), libdbi-perl, libterm-readkey-perl
+Recommends: libdbd-mysql-perl (>= 1.2202),
+            libdbi-perl,
+            libterm-readkey-perl
 Description: MariaDB database client binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -353,9 +410,14 @@ Description: MariaDB database core server files
 
 Package: mariadb-server-10.3
 Architecture: any
-Suggests: mailx, mariadb-test, netcat-openbsd, tinyca
+Suggests: mailx,
+          mariadb-test,
+          netcat-openbsd,
+          tinyca
 Recommends: libhtml-template-perl
-Pre-Depends: adduser (>= 3.40), debconf, mariadb-common (>= ${source:Version})
+Pre-Depends: adduser (>= 3.40),
+             debconf,
+             mariadb-common (>= ${source:Version})
 Depends: bsdutils,
          coreutils,
          findutils,
@@ -416,7 +478,8 @@ Replaces: libmariadbclient-dev (<< 5.5.0),
           mysql-server-5.6,
           mysql-server-5.7,
           virtual-mysql-server
-Provides: default-mysql-server, virtual-mysql-server
+Provides: default-mysql-server,
+          virtual-mysql-server
 Description: MariaDB database server binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -427,7 +490,8 @@ Description: MariaDB database server binaries
 
 Package: mariadb-server
 Architecture: all
-Depends: mariadb-server-10.3 (>= ${source:Version}), ${misc:Depends}
+Depends: mariadb-server-10.3 (>= ${source:Version}),
+         ${misc:Depends}
 Description: MariaDB database server (metapackage depending on the latest version)
  This is an empty package that depends on the current "best" version of
  mariadb-server (currently mariadb-server-10.3), as determined by the MariaDB
@@ -442,7 +506,8 @@ Description: MariaDB database server (metapackage depending on the latest versio
 
 Package: mariadb-client
 Architecture: all
-Depends: mariadb-client-10.3 (>= ${source:Version}), ${misc:Depends}
+Depends: mariadb-client-10.3 (>= ${source:Version}),
+         ${misc:Depends}
 Description: MariaDB database client (metapackage depending on the latest version)
  This is an empty package that depends on the current "best" version of
  mariadb-client (currently mariadb-client-10.3), as determined by the MariaDB
@@ -500,7 +565,7 @@ Description: OQGraph storage engine for MariaDB
  This package contains the OQGraph plugin for MariaDB.
 
 Package: mariadb-plugin-tokudb
-Architecture: any
+Architecture: amd64
 Depends: mariadb-server-10.3 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
@@ -519,7 +584,7 @@ Description: TokuDB storage engine for MariaDB
  This package contains the TokuDB plugin for MariaDB.
 
 Package: mariadb-plugin-mroonga
-Architecture: any
+Architecture: any-alpha any-amd64 any-arm any-arm64 any-i386 any-ia64 any-mips64el any-mips64r6el any-mipsel any-mipsr6el any-nios2 any-powerpcel any-ppc64el any-sh3 any-sh4 any-tilegx
 Depends: mariadb-server-10.3 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
@@ -589,6 +654,7 @@ Replaces: mariadb-gssapi-server-10.1,
           mariadb-gssapi-server-10.2,
           mariadb-gssapi-server-10.3
 Description: GSSAPI authentication plugin for MariaDB server
+ This package contains the server components.
 
 Package: mariadb-plugin-gssapi-client
 Architecture: any
@@ -603,18 +669,19 @@ Replaces: mariadb-gssapi-client-10.1,
           mariadb-gssapi-client-10.2,
           mariadb-gssapi-client-10.3
 Description: GSSAPI authentication plugin for MariaDB client
+ This package contains the client components.
 
 Package: mariadb-backup-10.3
-Section: database
 Architecture: any
 Breaks: mariadb-backup-10.1,
         mariadb-backup-10.2
 Replaces: mariadb-backup-10.1,
-        mariadb-backup-10.2
+          mariadb-backup-10.2
 Depends: mariadb-server-10.3,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server
+ This backup tool is guaranteed to be compatible with MariaDB.
 
 Package: mariadb-plugin-cracklib-password-check
 Architecture: any
@@ -626,15 +693,14 @@ Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
 
-Package: mariadb-plugin-aws-key-management-10.3
-Section: database
+Package: mariadb-plugin-aws-key-management
 Architecture: any
 Breaks: mariadb-aws-key-management-10.1,
         mariadb-aws-key-management-10.2
 Replaces: mariadb-aws-key-management-10.1,
           mariadb-aws-key-management-10.2
-Depends: mariadb-server-10.3,
-         libcurl3,
+Depends: libcurl3,
+         mariadb-server-10.3,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Amazon Web Service Key Management Service Plugin for MariaDB

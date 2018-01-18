@@ -44,6 +44,9 @@
                          // mysql_derived_filling
 
 
+#include "sql_insert.h"  // For vers_insert_history_row() that may be
+                         //   needed for System Versioning.
+
 /**
    True if the table's input and output record buffers are comparable using
    compare_record(TABLE*).
@@ -152,6 +155,23 @@ static bool check_fields(THD *thd, List<Item> &items)
   return FALSE;
 }
 
+static bool check_has_vers_fields(TABLE *table, List<Item> &items)
+{
+  List_iterator<Item> it(items);
+  if (!table->versioned())
+    return false;
+
+  while (Item *item= it++)
+  {
+    if (Item_field *item_field= item->field_for_view_update())
+    {
+      Field *field= item_field->field;
+      if (field->table == table && !field->vers_update_unversioned())
+        return true;
+    }
+  }
+  return false;
+}
 
 /**
   Re-read record if more columns are needed for error message.
@@ -283,6 +303,10 @@ int mysql_update(THD *thd,
   TABLE_LIST *update_source_table;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
+
+  // For System Versioning (may need to insert new fields to a table).
+  ha_rows updated_sys_ver= 0;
+
   DBUG_ENTER("mysql_update");
 
   create_explain_query(thd->lex, thd->mem_root);
@@ -353,11 +377,15 @@ int mysql_update(THD *thd,
   {
     DBUG_RETURN(1);
   }
+  bool has_vers_fields= check_has_vers_fields(table, fields);
   if (check_key_in_view(thd, table_list))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
     DBUG_RETURN(1);
   }
+
+  if (table->default_field)
+    table->mark_default_fields_for_write(false);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Check values */
@@ -808,6 +836,11 @@ update_begin:
   THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record()) && !thd->killed)
   {
+    if (table->versioned() && !table->vers_end_field()->is_max())
+    {
+      continue;
+    }
+
     explain->tracker.on_record_read();
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
@@ -817,6 +850,7 @@ update_begin:
 
       explain->tracker.on_record_after_where();
       store_record(table,record[1]);
+
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))
         break; /* purecov: inspected */
@@ -880,19 +914,35 @@ update_begin:
         else
         {
           /* Non-batched update */
-	  error= table->file->ha_update_row(table->record[1],
+          error= table->file->ha_update_row(table->record[1],
                                             table->record[0]);
         }
-        if (!error || error == HA_ERR_RECORD_IS_THE_SAME)
-	{
-          if (error != HA_ERR_RECORD_IS_THE_SAME)
-            updated++;
-          else
-            error= 0;
-	}
- 	else if (!ignore ||
+        if (error == HA_ERR_RECORD_IS_THE_SAME)
+        {
+          error= 0;
+        }
+        else if (!error)
+        {
+          updated++;
+
+          if (has_vers_fields && table->versioned())
+          {
+            if (table->versioned(VERS_TIMESTAMP))
+            {
+              store_record(table, record[2]);
+              if ((error = vers_insert_history_row(table)))
+              {
+                restore_record(table, record[2]);
+                break;
+              }
+              restore_record(table, record[2]);
+            }
+            updated_sys_ver++;
+          }
+        }
+        else if (!ignore ||
                  table->file->is_fatal_error(error, HA_CHECK_ALL))
-	{
+        {
           /*
             If (ignore && error is ignorable) we don't have to
             do anything; otherwise...
@@ -1065,6 +1115,9 @@ update_end:
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
 
+      ScopedStatementReplication scoped_stmt_rpl(
+          table->versioned(VERS_TRX_ID) ? thd : NULL);
+
       if (thd->binlog_query(THD::ROW_QUERY_TYPE,
                             thd->query(), thd->query_length(),
                             transactional_table, FALSE, FALSE, errcode))
@@ -1089,9 +1142,15 @@ update_end:
   if (error < 0 && !thd->lex->analyze_stmt)
   {
     char buff[MYSQL_ERRMSG_SIZE];
-    my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
-                (ulong) updated,
-                (ulong) thd->get_stmt_da()->current_statement_warn_count());
+    if (!table->versioned(VERS_TIMESTAMP))
+      my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
+                  (ulong) updated,
+                  (ulong) thd->get_stmt_da()->current_statement_warn_count());
+    else
+      my_snprintf(buff, sizeof(buff),
+                  ER_THD(thd, ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING),
+                  (ulong) found, (ulong) updated, (ulong) updated_sys_ver,
+                  (ulong) thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
     DBUG_PRINT("info",("%ld records updated", (long) updated));
@@ -1700,8 +1759,10 @@ multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
    tmp_tables(0), updated(0), found(0), fields(field_list),
    values(value_list), table_count(0), copy_field(0),
    handle_duplicates(handle_duplicates_arg), do_update(1), trans_safe(1),
-   transactional_tables(0), ignore(ignore_arg), error_handled(0), prepared(0)
-{}
+   transactional_tables(0), ignore(ignore_arg), error_handled(0), prepared(0),
+   updated_sys_ver(0)
+{
+}
 
 
 /*
@@ -1952,7 +2013,7 @@ static bool safe_update_on_fly(THD *thd, JOIN_TAB *join_tab,
       return !is_key_used(table, table->s->primary_key, table->write_set);
     return TRUE;
   default:
-    break;					// Avoid compler warning
+    break;					// Avoid compiler warning
   }
   return FALSE;
 
@@ -2005,6 +2066,7 @@ multi_update::initialize_tables(JOIN *join)
       if (safe_update_on_fly(thd, join->join_tab, table_ref, all_tables))
       {
 	table_to_update= table;			// Update table on the fly
+        has_vers_fields= check_has_vers_fields(table, *fields);
 	continue;
       }
     }
@@ -2177,6 +2239,11 @@ int multi_update::send_data(List<Item> &not_used_values)
     if (table->status & (STATUS_NULL_ROW | STATUS_UPDATED))
       continue;
 
+    if (table->versioned() && !table->vers_end_field()->is_max())
+    {
+      continue;
+    }
+
     if (table == table_to_update)
     {
       /*
@@ -2189,6 +2256,7 @@ int multi_update::send_data(List<Item> &not_used_values)
 
       table->status|= STATUS_UPDATED;
       store_record(table,record[1]);
+
       if (fill_record_n_invoke_before_triggers(thd, table,
                                                *fields_for_table[offset],
                                                *values_for_table[offset], 0,
@@ -2254,6 +2322,21 @@ int multi_update::send_data(List<Item> &not_used_values)
             error= 0;
             updated--;
           }
+          else if (has_vers_fields && table->versioned())
+          {
+            if (table->versioned(VERS_TIMESTAMP))
+            {
+              store_record(table, record[2]);
+              if (vers_insert_history_row(table))
+              {
+                restore_record(table, record[2]);
+                error= 1;
+                break;
+              }
+              restore_record(table, record[2]);
+            }
+            updated_sys_ver++;
+          }
           /* non-transactional or transactional table got modified   */
           /* either multi_update class' flag is raised in its branch */
           if (table->file->has_transactions())
@@ -2280,6 +2363,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       */
       uint field_num= 0;
       List_iterator_fast<TABLE> tbl_it(unupdated_check_opt_tables);
+      /* Set first tbl = table and then tbl to tables from tbl_it */
       TABLE *tbl= table;
       do
       {
@@ -2342,10 +2426,6 @@ void multi_update::abort_result_set()
     if (do_update && table_count > 1)
     {
       /* Add warning here */
-      /* 
-         todo/fixme: do_update() is never called with the arg 1.
-         should it change the signature to become argless?
-      */
       (void) do_updates();
     }
   }
@@ -2436,6 +2516,8 @@ int multi_update::do_updates()
     */
     if (table->vfield)
       empty_record(table);
+
+    has_vers_fields= check_has_vers_fields(table, *fields);
 
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)
@@ -2547,19 +2629,40 @@ int multi_update::do_updates()
             goto err2;
           }
         }
-	if ((local_error=table->file->ha_update_row(table->record[1],
-						    table->record[0])) &&
+        if (has_vers_fields && table->versioned())
+          table->vers_update_fields();
+
+        if ((local_error=table->file->ha_update_row(table->record[1],
+                                                    table->record[0])) &&
             local_error != HA_ERR_RECORD_IS_THE_SAME)
 	{
 	  if (!ignore ||
               table->file->is_fatal_error(local_error, HA_CHECK_ALL))
           {
             err_table= table;
-	    goto err;
+            goto err;
           }
-	}
+        }
         if (local_error != HA_ERR_RECORD_IS_THE_SAME)
+        {
           updated++;
+
+          if (has_vers_fields && table->versioned())
+          {
+            if (table->versioned(VERS_TIMESTAMP))
+            {
+              store_record(table, record[2]);
+              if ((local_error= vers_insert_history_row(table)))
+              {
+                restore_record(table, record[2]);
+                err_table = table;
+                goto err;
+              }
+              restore_record(table, record[2]);
+            }
+            updated_sys_ver++;
+          }
+        }
         else
           local_error= 0;
       }
@@ -2675,9 +2778,21 @@ bool multi_update::send_eof()
         thd->clear_error();
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
-      if (thd->binlog_query(THD::ROW_QUERY_TYPE,
-                            thd->query(), thd->query_length(),
-                            transactional_tables, FALSE, FALSE, errcode))
+
+      bool force_stmt= false;
+      for (TABLE *table= all_tables->table; table; table= table->next)
+      {
+        if (table->versioned(VERS_TRX_ID))
+        {
+          force_stmt= true;
+          break;
+        }
+      }
+      ScopedStatementReplication scoped_stmt_rpl(force_stmt ? thd : NULL);
+
+      if (thd->binlog_query(THD::ROW_QUERY_TYPE, thd->query(),
+                            thd->query_length(), transactional_tables, FALSE,
+                            FALSE, errcode))
       {
 	local_error= 1;				// Rollback update
       }

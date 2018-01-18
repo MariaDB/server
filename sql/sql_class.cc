@@ -704,7 +704,6 @@ extern "C" void thd_kill_timeout(THD* thd)
   thd->awake(KILL_TIMEOUT);
 }
 
-
 THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
@@ -813,6 +812,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   // Must be reset to handle error with THD's created for init of mysqld
   lex->current_select= 0;
   start_utime= utime_after_query= 0;
+  system_time= 0;
+  system_time_sec_part= 0;
   utime_after_lock= 0L;
   progress.arena= 0;
   progress.report_to_client= 0;
@@ -2843,8 +2844,10 @@ struct Item_change_record: public ilink
   thd->mem_root (due to possible set_n_backup_active_arena called for thd).
 */
 
-void THD::nocheck_register_item_tree_change(Item **place, Item *old_value,
-                                            MEM_ROOT *runtime_memroot)
+void
+Item_change_list::nocheck_register_item_tree_change(Item **place,
+                                                    Item *old_value,
+                                                    MEM_ROOT *runtime_memroot)
 {
   Item_change_record *change;
   DBUG_ENTER("THD::nocheck_register_item_tree_change");
@@ -2885,8 +2888,10 @@ void THD::nocheck_register_item_tree_change(Item **place, Item *old_value,
     changes to substitute the same reference at both locations L1 and L2.
 */
 
-void THD::check_and_register_item_tree_change(Item **place, Item **new_value,
-                                              MEM_ROOT *runtime_memroot)
+void
+Item_change_list::check_and_register_item_tree_change(Item **place,
+                                                      Item **new_value,
+                                                      MEM_ROOT *runtime_memroot)
 {
   Item_change_record *change;
   I_List_iterator<Item_change_record> it(change_list);
@@ -2901,7 +2906,7 @@ void THD::check_and_register_item_tree_change(Item **place, Item **new_value,
 }
 
 
-void THD::rollback_item_tree_changes()
+void Item_change_list::rollback_item_tree_changes()
 {
   I_List_iterator<Item_change_record> it(change_list);
   Item_change_record *change;
@@ -3809,6 +3814,7 @@ void Query_arena::set_query_arena(Query_arena *set)
   mem_root=  set->mem_root;
   free_list= set->free_list;
   state= set->state;
+  is_stored_procedure= set->is_stored_procedure;
 }
 
 
@@ -4886,7 +4892,7 @@ extern "C" int thd_slave_thread(const MYSQL_THD thd)
   of the current query. */
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)
 {
-  return thd->start_utime;
+  return thd->start_time * 1000000 + thd->start_time_sec_part;
 }
 
 
@@ -7184,6 +7190,15 @@ static bool protect_against_unsafe_warning_flood(int unsafe_type)
   DBUG_RETURN(unsafe_warning_suppression_active[unsafe_type]);
 }
 
+MYSQL_TIME THD::query_start_TIME()
+{
+  MYSQL_TIME res;
+  variables.time_zone->gmt_sec_to_TIME(&res, query_start());
+  res.second_part= query_start_sec_part();
+  time_zone_used= 1;
+  return res;
+}
+
 /**
   Auxiliary method used by @c binlog_query() to raise warnings.
 
@@ -7803,3 +7818,16 @@ void Database_qualified_name::copy(MEM_ROOT *mem_root,
 
 
 #endif /* !defined(MYSQL_CLIENT) */
+
+
+Query_arena_stmt::Query_arena_stmt(THD *_thd) :
+  thd(_thd)
+{
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+}
+
+Query_arena_stmt::~Query_arena_stmt()
+{
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+}

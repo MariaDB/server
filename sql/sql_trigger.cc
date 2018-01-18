@@ -1228,7 +1228,7 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
     uchar null_bit= 1;
     for (fld= table->field, trg_fld= record0_field; *fld; fld++, trg_fld++)
     {
-      if (!(*fld)->null_ptr && !(*fld)->vcol_info)
+      if (!(*fld)->null_ptr && !(*fld)->vcol_info && !(*fld)->vers_sys_field())
       {
         Field *f;
         if (!(f= *trg_fld= (*fld)->make_new_field(&table->mem_root, table,
@@ -1251,7 +1251,9 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
     bzero(extra_null_bitmap, null_bytes);
   }
   else
+  {
     record0_field= table->field;
+  }
 
   if (has_triggers(TRG_EVENT_UPDATE,TRG_ACTION_BEFORE) ||
       has_triggers(TRG_EVENT_UPDATE,TRG_ACTION_AFTER)  ||

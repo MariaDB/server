@@ -27,7 +27,8 @@
 #include "sql_truncate.h"
 #include "wsrep_mysqld.h"
 #include "sql_show.h"    //append_identifier()
-
+#include "sql_select.h"
+#include "sql_delete.h"
 
 /**
   Append a list of field names to a string.
@@ -492,7 +493,6 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   DBUG_RETURN(error);
 }
 
-
 /**
   Execute a TRUNCATE statement at runtime.
 
@@ -504,13 +504,13 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 bool Sql_cmd_truncate_table::execute(THD *thd)
 {
   bool res= TRUE;
-  TABLE_LIST *first_table= thd->lex->select_lex.table_list.first;
+  TABLE_LIST *table= thd->lex->select_lex.table_list.first;
   DBUG_ENTER("Sql_cmd_truncate_table::execute");
 
-  if (check_one_table_access(thd, DROP_ACL, first_table))
+  if (check_one_table_access(thd, DROP_ACL, table))
     DBUG_RETURN(res);
 
-  if (! (res= truncate_table(thd, first_table)))
+  if (! (res= truncate_table(thd, table)))
     my_ok(thd);
 
   DBUG_RETURN(res);

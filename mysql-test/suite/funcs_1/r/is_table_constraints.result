@@ -88,6 +88,8 @@ def	mysql	PRIMARY	mysql	time_zone_leap_second
 def	mysql	PRIMARY	mysql	time_zone_name
 def	mysql	PRIMARY	mysql	time_zone_transition
 def	mysql	PRIMARY	mysql	time_zone_transition_type
+def	mysql	commit_id	mysql	transaction_registry
+def	mysql	PRIMARY	mysql	transaction_registry
 def	mysql	PRIMARY	mysql	user
 #########################################################################################
 # Testcase 3.2.7.2 + 3.2.7.3: INFORMATION_SCHEMA.TABLE_CONSTRAINTS accessible information

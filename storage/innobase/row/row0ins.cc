@@ -431,7 +431,7 @@ row_ins_cascade_ancestor_updates_table(
 
 		upd_node = static_cast<upd_node_t*>(parent);
 
-		if (upd_node->table == table && upd_node->is_delete == FALSE) {
+		if (upd_node->table == table && !upd_node->is_delete) {
 
 			return(TRUE);
 		}
@@ -1149,9 +1149,9 @@ row_ins_foreign_check_on_constraint(
 
 	if (node->is_delete
 	    && (foreign->type & DICT_FOREIGN_ON_DELETE_CASCADE)) {
-		cascade->is_delete = TRUE;
+		cascade->is_delete = PLAIN_DELETE;
 	} else {
-		cascade->is_delete = FALSE;
+		cascade->is_delete = NO_DELETE;
 
 		if (foreign->n_fields > cascade->update_n_fields) {
 			/* We have to make the update vector longer */
@@ -1348,7 +1348,7 @@ row_ins_foreign_check_on_constraint(
 				goto nonstandard_exit_func;
 			}
 		}
-	} else if (table->fts && cascade->is_delete) {
+	} else if (table->fts && cascade->is_delete == PLAIN_DELETE) {
 		/* DICT_FOREIGN_ON_DELETE_CASCADE case */
 		for (i = 0; i < foreign->n_fields; i++) {
 			if (table->fts && dict_table_is_fts_column(
@@ -1627,8 +1627,14 @@ row_ins_check_foreign_constraint(
 	/* If any of the foreign key fields in entry is SQL NULL, we
 	suppress the foreign key check: this is compatible with Oracle,
 	for example */
-	for (ulint i = 0; i < foreign->n_fields; i++) {
-		if (dfield_is_null(dtuple_get_nth_field(entry, i))) {
+	for (ulint i = 0; i < entry->n_fields; i++) {
+		dfield_t* field = dtuple_get_nth_field(entry, i);
+		if (i < foreign->n_fields && dfield_is_null(field)) {
+			goto exit_func;
+		}
+		/* System Versioning: if row_end != Inf, we
+		suppress the foreign key check */
+		if (field->type.vers_sys_end() && field->vers_history_row()) {
 			goto exit_func;
 		}
 	}
@@ -1759,6 +1765,23 @@ row_ins_check_foreign_constraint(
 		cmp = cmp_dtuple_rec(entry, rec, offsets);
 
 		if (cmp == 0) {
+			if (check_table->versioned()) {
+				bool history_row = false;
+
+				if (check_index->is_clust()) {
+					history_row = check_index->
+						vers_history_row(rec, offsets);
+				} else if (check_index->
+					vers_history_row(rec, history_row))
+				{
+					break;
+				}
+
+				if (history_row) {
+					continue;
+				}
+			}
+
 			if (rec_get_deleted_flag(rec,
 						 rec_offs_comp(offsets))) {
 				/* In delete-marked records, DB_TRX_ID must

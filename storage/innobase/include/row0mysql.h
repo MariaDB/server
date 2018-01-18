@@ -235,14 +235,26 @@ row_lock_table_for_mysql(
 					(ignored if table==NULL) */
 	MY_ATTRIBUTE((nonnull(1)));
 
+/** System Versioning: row_insert_for_mysql() modes */
+enum ins_mode_t {
+	/* plain row (without versioning) */
+	ROW_INS_NORMAL = 0,
+	/* row_start = TRX_ID, row_end = MAX */
+	ROW_INS_VERSIONED,
+	/* row_end = TRX_ID */
+	ROW_INS_HISTORICAL
+};
+
 /** Does an insert for MySQL.
 @param[in]	mysql_rec	row in the MySQL format
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
+@param[in]	ins_mode	what row type we're inserting
 @return error code or DB_SUCCESS*/
 dberr_t
 row_insert_for_mysql(
 	const byte*		mysql_rec,
-	row_prebuilt_t*		prebuilt)
+	row_prebuilt_t*		prebuilt,
+	ins_mode_t		ins_mode)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
@@ -266,7 +278,8 @@ row_get_prebuilt_update_vector(
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
 @return error code or DB_SUCCESS */
 dberr_t
-row_update_for_mysql(row_prebuilt_t* prebuilt)
+row_update_for_mysql(
+	row_prebuilt_t*		prebuilt)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this
@@ -672,6 +685,8 @@ struct row_prebuilt_t {
 					not to be confused with InnoDB
 					externally stored columns
 					(VARCHAR can be off-page too) */
+	unsigned	versioned_write:1;/*!< whether this is
+					a versioned write */
 	mysql_row_templ_t* mysql_template;/*!< template used to transform
 					rows fast between MySQL and Innobase
 					formats; memory for this template
@@ -848,6 +863,20 @@ struct row_prebuilt_t {
 
 	/** The MySQL table object */
 	TABLE*		m_mysql_table;
+
+	/** Get template by dict_table_t::cols[] number */
+	const mysql_row_templ_t* get_template_by_col(ulint col) const
+	{
+		ut_ad(col < n_template);
+		ut_ad(mysql_template);
+		for (ulint i = col; i < n_template; ++i) {
+			const mysql_row_templ_t* templ = &mysql_template[i];
+			if (!templ->is_virtual && templ->col_no == col) {
+				return templ;
+			}
+		}
+		return NULL;
+	}
 };
 
 /** Callback for row_mysql_sys_index_iterate() */

@@ -464,6 +464,7 @@ struct upd_t{
 					virtual column update now */
 	ulint		n_fields;	/*!< number of update fields */
 	upd_field_t*	fields;		/*!< array of update fields */
+	byte		vers_sys_value[8]; /*!< buffer for updating system fields */
 
 	/** Append an update field to the end of array
 	@param[in]	field	an update field */
@@ -484,6 +485,17 @@ struct upd_t{
 		return(false);
 	}
 
+	/** Determine if the update affects a system versioned column. */
+	bool affects_versioned() const
+	{
+		for (ulint i = 0; i < n_fields; i++) {
+			if (fields[i].new_val.type.vers_sys_field()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 #ifdef UNIV_DEBUG
         bool validate() const
         {
@@ -500,12 +512,19 @@ struct upd_t{
 
 };
 
+/** Kinds of update operation */
+enum delete_mode_t {
+	NO_DELETE = 0,		/*!< this operation does not delete */
+	PLAIN_DELETE,		/*!< ordinary delete */
+	VERSIONED_DELETE	/*!< update old and insert a new row */
+};
+
 /* Update node structure which also implements the delete operation
 of a row */
 
 struct upd_node_t{
 	que_common_t	common;	/*!< node type: QUE_NODE_UPDATE */
-	ibool		is_delete;/* TRUE if delete, FALSE if update */
+	delete_mode_t	is_delete;	/*!< kind of DELETE */
 	ibool		searched_update;
 				/* TRUE if searched update, FALSE if
 				positioned */

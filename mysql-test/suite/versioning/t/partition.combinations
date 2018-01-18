@@ -1,0 +1,5 @@
+[timestamp]
+default-storage-engine=innodb
+
+[myisam]
+default-storage-engine=myisam

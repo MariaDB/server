@@ -83,6 +83,7 @@ mysql.time_zone_leap_second                        OK
 mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
 mysql.user                                         OK
 Phase 2/7: Installing used storage engines... Skipped
 Phase 3/7: Fixing views
@@ -171,6 +172,7 @@ mysql.time_zone_leap_second                        OK
 mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
 mysql.user                                         OK
 Phase 2/7: Installing used storage engines... Skipped
 Phase 3/7: Fixing views
@@ -259,6 +261,7 @@ mysql.time_zone_leap_second                        OK
 mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
 mysql.user                                         OK
 Upgrading from a version before MariaDB-10.1
 Phase 2/7: Installing used storage engines

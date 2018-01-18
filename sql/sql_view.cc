@@ -608,14 +608,22 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
                                      view->table_name, item->name.str) &
                     VIEW_ANY_ACL);
 
-        if (fld && !fld->field->table->s->tmp_table)
+        if (!fld)
+          continue;
+        TABLE_SHARE *s= fld->field->table->s;
+        const LString_i field_name= fld->field->field_name;
+        if (s->tmp_table ||
+            (s->versioned &&
+             (field_name == s->vers_start_field()->field_name ||
+              field_name == s->vers_end_field()->field_name)))
         {
-
-          final_priv&= fld->have_privileges;
-
-          if (~fld->have_privileges & priv)
-            report_item= item;
+          continue;
         }
+
+        final_priv&= fld->have_privileges;
+
+        if (~fld->have_privileges & priv)
+          report_item= item;
       }
     }
     
@@ -2018,7 +2026,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
 
   RETURN
     FALSE OK
-    TRUE  error (is not sent to cliet)
+    TRUE  error (is not sent to client)
 */
 
 bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
@@ -2035,7 +2043,15 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
   {
     Item_field *fld;
     if ((fld= entry->item->field_for_view_update()))
+    {
+      TABLE_SHARE *s= fld->context->table_list->table->s;
+      LString_i field_name= fld->field_name;
+      if (s->versioned &&
+          (field_name == s->vers_start_field()->field_name ||
+           field_name == s->vers_end_field()->field_name))
+        continue;
       list->push_back(fld, thd->mem_root);
+    }
     else
     {
       my_error(ER_NON_INSERTABLE_TABLE, MYF(0), view->alias, "INSERT");
@@ -2046,7 +2062,7 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
 }
 
 /*
-  checking view md5 check suum
+  checking view md5 check sum
 
   SINOPSYS
     view_checksum()

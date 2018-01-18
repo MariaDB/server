@@ -118,7 +118,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 1
-FOUND 1 /InnoDB: .* started; log sequence number 1213970/ in mysqld.1.err
+FOUND 1 /InnoDB: .* started; log sequence number 121397[09]/ in mysqld.1.err
 # Empty 10.2 redo log
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'

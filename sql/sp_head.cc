@@ -1132,7 +1132,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     We should also save Item tree change list to avoid rollback something
     too early in the calling query.
   */
-  thd->change_list.move_elements_to(&old_change_list);
+  thd->Item_change_list::move_elements_to(&old_change_list);
   /*
     Cursors will use thd->packet, so they may corrupt data which was prepared
     for sending by upper level. OTOH cursors in the same routine can share this
@@ -1285,8 +1285,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     thd->spcont->instr_ptr= ip;
   thd->server_status= (thd->server_status & ~status_backup_mask) | old_server_status;
   old_packet.swap(thd->packet);
-  DBUG_ASSERT(thd->change_list.is_empty());
-  old_change_list.move_elements_to(&thd->change_list);
+  DBUG_ASSERT(thd->Item_change_list::is_empty());
+  old_change_list.move_elements_to(thd);
   thd->lex= old_lex;
   thd->set_query_id(old_query_id);
   DBUG_ASSERT(!thd->derived_tables);
@@ -2547,6 +2547,7 @@ sp_head::restore_thd_mem_root(THD *thd)
   Item *flist= free_list;	// The old list
   set_query_arena(thd);         // Get new free_list and mem_root
   state= STMT_INITIALIZED_FOR_SP;
+  is_stored_procedure= true;
 
   DBUG_PRINT("info", ("mem_root %p returned from thd mem root %p",
                       &mem_root, &thd->mem_root));
@@ -3076,7 +3077,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   bool parent_modified_non_trans_table= thd->transaction.stmt.modified_non_trans_table;
   thd->transaction.stmt.modified_non_trans_table= FALSE;
   DBUG_ASSERT(!thd->derived_tables);
-  DBUG_ASSERT(thd->change_list.is_empty());
+  DBUG_ASSERT(thd->Item_change_list::is_empty());
   /*
     Use our own lex.
     We should not save old value since it is saved/restored in
@@ -3293,7 +3294,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       Save start time info for the CALL statement and overwrite it with the
       current time for log_slow_statement() to log the individual query timing.
     */
-    thd->get_time(&time_info);
+    thd->backup_query_start_time(&time_info);
     thd->set_time();
   }
   thd->store_slow_query_state(&backup_state);
@@ -3361,7 +3362,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
   }
   /* Restore the original query start time */
   if (thd->enable_slow_log)
-    thd->set_time(&time_info);
+    thd->restore_query_start_time(&time_info);
 
   DBUG_RETURN(res || thd->is_error());
 }

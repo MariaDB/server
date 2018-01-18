@@ -32,6 +32,7 @@ Type_handler_long        type_handler_long;
 Type_handler_int24       type_handler_int24;
 Type_handler_longlong    type_handler_longlong;
 Type_handler_longlong    type_handler_ulonglong; // Only used for CAST() for now
+Type_handler_vers_trx_id type_handler_vers_trx_id;
 Type_handler_float       type_handler_float;
 Type_handler_double      type_handler_double;
 Type_handler_bit         type_handler_bit;
@@ -658,7 +659,9 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 
   Item_result a= cmp_type();
   Item_result b= h->cmp_type();
-  if (a == STRING_RESULT && b == STRING_RESULT)
+  if (m_vers_trx_id && (a == STRING_RESULT || b == STRING_RESULT))
+    m_type_handler= &type_handler_datetime;
+  else if (a == STRING_RESULT && b == STRING_RESULT)
     m_type_handler= &type_handler_long_blob;
   else if (a == INT_RESULT && b == INT_RESULT)
     m_type_handler= &type_handler_longlong;
@@ -2057,6 +2060,19 @@ Field *Type_handler_longlong::make_table_field(const LEX_CSTRING *name,
 {
   return new (table->in_use->mem_root)
          Field_longlong(addr.ptr, attr.max_char_length(),
+                        addr.null_ptr, addr.null_bit,
+                        Field::NONE, name,
+                        0/*zerofill*/, attr.unsigned_flag);
+}
+
+
+Field *Type_handler_vers_trx_id::make_table_field(const LEX_CSTRING *name,
+                                               const Record_addr &addr,
+                                               const Type_all_attributes &attr,
+                                               TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_vers_trx_id(addr.ptr, attr.max_char_length(),
                         addr.null_ptr, addr.null_bit,
                         Field::NONE, name,
                         0/*zerofill*/, attr.unsigned_flag);
@@ -4427,6 +4443,14 @@ bool Type_handler::
             item->decimals;
   item->fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
   item->maybe_null= true;
+  return false;
+}
+
+
+bool Type_handler::
+       Item_longlong_typecast_fix_length_and_dec(Item_longlong_typecast *item) const
+{
+  item->fix_length_and_dec_generic();
   return false;
 }
 

@@ -30,6 +30,7 @@
 #include "sql_base.h"   // tdc_remove_table, lock_table_names,
 #include "sql_handler.h"                        // mysql_ha_rm_tables
 #include "sql_statistics.h" 
+#include "vtmd.h"
 
 static TABLE_LIST *rename_tables(THD *thd, TABLE_LIST *table_list,
 				 bool skip_error);
@@ -299,12 +300,23 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const char *new_db,
         LEX_CSTRING new_db_name= { new_db, strlen(new_db)};
         (void) rename_table_in_stat_tables(thd, &db_name, &table_name,
                                            &new_db_name, &new_table);
-        if ((rc= Table_triggers_list::change_table_name(thd, ren_table->db,
-                                                        old_alias,
-                                                        ren_table->table_name,
-                                                        new_db,
-                                                        new_alias)))
+        VTMD_rename vtmd(*ren_table);
+        if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
         {
+          rc= vtmd.try_rename(thd, new_db_name, new_table);
+          if (rc)
+            goto revert_table_name;
+        }
+        rc= Table_triggers_list::change_table_name(thd, ren_table->db,
+                                                      old_alias,
+                                                      ren_table->table_name,
+                                                      new_db,
+                                                      new_alias);
+        if (rc)
+        {
+          if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
+            vtmd.revert_rename(thd, new_db_name);
+revert_table_name:
           /*
             We've succeeded in renaming table's .frm and in updating
             corresponding handler data, but have failed to update table's

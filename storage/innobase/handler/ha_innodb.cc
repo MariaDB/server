@@ -3634,6 +3634,38 @@ static const char* ha_innobase_exts[] = {
 	NullS
 };
 
+/** Determine if system-versioned data was modified by the transaction.
+@param[in,out]	thd	current session
+@param[out]	trx_id	transaction start ID
+@return	transaction commit ID
+@retval	0	if no system-versioned data was affected by the transaction */
+static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
+{
+	if (const trx_t* trx = thd_to_trx(thd)) {
+		*trx_id = trx->id;
+
+		for (trx_mod_tables_t::const_iterator t
+			     = trx->mod_tables.begin();
+		     t != trx->mod_tables.end(); t++) {
+			if (t->second.is_trx_versioned()) {
+				DBUG_ASSERT(t->first->versioned());
+				DBUG_ASSERT(trx->rsegs.m_redo.rseg);
+
+				mutex_enter(&trx_sys->mutex);
+				trx_id_t commit_id = trx_sys_get_new_trx_id();
+				mutex_exit(&trx_sys->mutex);
+
+				return commit_id;
+			}
+		}
+
+		return 0;
+	}
+
+	*trx_id = 0;
+	return 0;
+}
+
 /*********************************************************************//**
 Opens an InnoDB database.
 @return 0 on success, 1 on failure */
@@ -3686,7 +3718,7 @@ innobase_init(
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->flags =
-		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS;
+		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS | HTON_NATIVE_SYS_VERSIONING;
 
 #ifdef WITH_WSREP
         innobase_hton->abort_transaction=wsrep_abort_transaction;
@@ -3700,6 +3732,10 @@ innobase_init(
 	}
 
 	innobase_hton->table_options = innodb_table_option_list;
+
+	/* System Versioning */
+	innobase_hton->prepare_commit_versioned
+		= innodb_prepare_commit_versioned;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -6531,7 +6567,11 @@ no_such_table:
 		}
 	}
 
-	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
+	if (table && m_prebuilt->table) {
+		ut_ad(table->versioned() == m_prebuilt->table->versioned());
+	}
+
+	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_OPEN);
 	DBUG_RETURN(0);
 }
 
@@ -7751,6 +7791,7 @@ ha_innobase::build_template(
 
 	index = whole_row ? clust_index : m_prebuilt->index;
 
+	m_prebuilt->versioned_write = table->versioned_write(VERS_TRX_ID);
 	m_prebuilt->need_to_access_clustered = (index == clust_index);
 
 	/* Either m_prebuilt->index should be a secondary index, or it
@@ -8173,6 +8214,7 @@ ha_innobase::write_row(
 
 	trx_t*		trx = thd_to_trx(m_user_thd);
 	TrxInInnoDB	trx_in_innodb(trx);
+	ins_mode_t	vers_set_fields;
 
 	if (trx_in_innodb.is_aborted()) {
 
@@ -8353,8 +8395,11 @@ no_commit:
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
+	vers_set_fields = table->versioned_write(VERS_TRX_ID) ?
+		ROW_INS_VERSIONED : ROW_INS_NORMAL;
+
 	/* Step-5: Execute insert graph that will result in actual insert. */
-	error = row_insert_for_mysql((byte*) record, m_prebuilt);
+	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
 
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
@@ -9126,12 +9171,34 @@ ha_innobase::update_row(
 			DB_FORCED_ABORT, 0, m_user_thd));
 	}
 
-	/* This is not a delete */
-	m_prebuilt->upd_node->is_delete = FALSE;
+	{
+		const bool vers_set_fields = m_prebuilt->versioned_write
+			&& m_prebuilt->upd_node->update->affects_versioned();
+		const bool vers_ins_row = vers_set_fields
+			&& (table->s->vtmd
+			    || thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE);
 
-	innobase_srv_conc_enter_innodb(m_prebuilt);
+		/* This is not a delete */
+		m_prebuilt->upd_node->is_delete =
+			(vers_set_fields && !vers_ins_row) ||
+			(thd_sql_command(m_user_thd) == SQLCOM_DELETE &&
+				table->versioned(VERS_TIMESTAMP))
+			? VERSIONED_DELETE
+			: NO_DELETE;
 
-	error = row_update_for_mysql(m_prebuilt);
+		innobase_srv_conc_enter_innodb(m_prebuilt);
+
+		error = row_update_for_mysql(m_prebuilt);
+
+		if (error == DB_SUCCESS && vers_ins_row
+		    /* Multiple UPDATE of same rows in single transaction create
+		       historical rows only once. */
+		    && trx->id != table->vers_start_id()) {
+			error = row_insert_for_mysql((byte*) old_row,
+						     m_prebuilt,
+						     ROW_INS_HISTORICAL);
+		}
+	}
 
 	if (error == DB_SUCCESS && autoinc) {
 		/* A value for an AUTO_INCREMENT column
@@ -9241,8 +9308,10 @@ ha_innobase::delete_row(
 	}
 
 	/* This is a delete */
-
-	m_prebuilt->upd_node->is_delete = TRUE;
+	m_prebuilt->upd_node->is_delete = table->versioned_write(VERS_TRX_ID)
+		&& table->vers_end_field()->is_max()
+		? VERSIONED_DELETE
+		: PLAIN_DELETE;
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
@@ -11336,6 +11405,18 @@ create_table_info_t::create_table_def()
 		bool	is_stored = false;
 
 		Field*	field = m_form->field[i];
+		ulint vers_row = 0;
+
+		if (m_form->versioned()) {
+			if (i == m_form->s->row_start_field) {
+				vers_row = DATA_VERS_START;
+			} else if (i == m_form->s->row_end_field) {
+				vers_row = DATA_VERS_END;
+			} else if (!(field->flags
+				     & VERS_UPDATE_UNVERSIONED_FLAG)) {
+				vers_row = DATA_VERSIONED;
+			}
+		}
 
 		col_type = get_innobase_type_from_mysql_type(
 			&unsigned_type, field);
@@ -11426,7 +11507,8 @@ err_col:
 				dtype_form_prtype(
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
-					| binary_type | long_true_varchar,
+					| binary_type | long_true_varchar
+					| vers_row,
 					charset_no),
 				col_len);
 		} else {
@@ -11436,6 +11518,7 @@ err_col:
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
 					| binary_type | long_true_varchar
+					| vers_row
 					| is_virtual,
 					charset_no),
 				col_len, i, 0);
@@ -14350,7 +14433,7 @@ ha_innobase::info_low(
 		set. That way SHOW TABLE STATUS will show the best estimate,
 		while the optimizer never sees the table empty. */
 
-		if (n_rows == 0 && !(flag & HA_STATUS_TIME)) {
+		if (n_rows == 0 && !(flag & (HA_STATUS_TIME | HA_STATUS_OPEN))) {
 			n_rows++;
 		}
 

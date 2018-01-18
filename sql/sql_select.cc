@@ -54,12 +54,16 @@
 #include "sql_statistics.h"
 #include "sql_cte.h"
 #include "sql_window.h"
+#include "tztime.h"
 
 #include "debug_sync.h"          // DEBUG_SYNC
 #include <m_ctype.h>
 #include <my_bit.h>
 #include <hash.h>
 #include <ft_global.h>
+#include "sys_vars_shared.h"
+#include "sp_head.h"
+#include "sp_rcontext.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -666,6 +670,396 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   DBUG_RETURN(res);
 }
 
+bool vers_select_conds_t::init_from_sysvar(THD *thd)
+{
+  vers_asof_timestamp_t &in= thd->variables.vers_asof_timestamp;
+  type= (vers_system_time_t) in.type;
+  unit_start= VERS_TIMESTAMP;
+  from_query= false;
+  if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
+  {
+    DBUG_ASSERT(type == SYSTEM_TIME_AS_OF);
+    start= new (thd->mem_root)
+        Item_datetime_literal(thd, &in.ltime, TIME_SECOND_PART_DIGITS);
+    if (!start)
+      return true;
+  }
+  else
+    start= NULL;
+  end= NULL;
+  return false;
+}
+
+inline
+void JOIN::vers_check_items()
+{
+  Item_transformer transformer= &Item::vers_transformer;
+
+  if (conds)
+  {
+    Item *tmp = conds->transform(thd, transformer, NULL);
+    if (conds != tmp)
+      conds= tmp;
+  }
+
+  for (ORDER *ord= order; ord; ord= ord->next)
+  {
+    Item *tmp= (*ord->item)->transform(thd, transformer, NULL);
+    if (*ord->item != tmp)
+    {
+      ord->item_ptr= tmp;
+      *ord->item= ord->item_ptr;
+    }
+  }
+
+  for (ORDER *ord= group_list; ord; ord= ord->next)
+  {
+    Item *tmp= (*ord->item)->transform(thd, transformer, NULL);
+    if (*ord->item != tmp)
+    {
+      ord->item_ptr= tmp;
+      *ord->item= ord->item_ptr;
+    }
+  }
+
+  if (having)
+  {
+    Item *tmp= having->transform(thd, transformer, NULL);
+    if (having != tmp)
+      having= tmp;
+  }
+}
+
+int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr)
+{
+  DBUG_ENTER("SELECT_LEX::vers_setup_cond");
+#define newx new (thd->mem_root)
+
+  TABLE_LIST *table;
+
+  if (!thd->stmt_arena->is_conventional() &&
+      !thd->stmt_arena->is_stmt_prepare() && !thd->stmt_arena->is_sp_execute())
+  {
+    // statement is already prepared
+    DBUG_RETURN(0);
+  }
+
+  if (!versioned_tables)
+  {
+    for (table= tables; table; table= table->next_local)
+    {
+      if (table->table && table->table->versioned())
+        versioned_tables++;
+      else if (table->vers_conditions.user_defined() &&
+              (table->is_non_derived() || !table->vers_conditions.used))
+      {
+        my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->alias);
+        DBUG_RETURN(-1);
+      }
+    }
+  }
+
+  if (versioned_tables == 0)
+    DBUG_RETURN(0);
+
+  /* For prepared statements we create items on statement arena,
+     because they must outlive execution phase for multiple executions. */
+  Query_arena_stmt on_stmt_arena(thd);
+
+  // find outer system_time
+  SELECT_LEX *outer_slex= outer_select();
+  TABLE_LIST* outer_table= NULL;
+
+  if (outer_slex)
+  {
+    TABLE_LIST* derived= master_unit()->derived;
+    // inner SELECT may not be a derived table (derived == NULL)
+    while (derived && outer_slex && !derived->vers_conditions)
+    {
+      derived= outer_slex->master_unit()->derived;
+      outer_slex= outer_slex->outer_select();
+    }
+    if (derived && outer_slex)
+    {
+      DBUG_ASSERT(derived->vers_conditions);
+      outer_table= derived;
+    }
+  }
+
+  COND** dst_cond= where_expr;
+  COND* vers_cond= NULL;
+
+  for (table= tables; table; table= table->next_local)
+  {
+    if (!table->table || !table->table->versioned())
+      continue;
+
+    vers_select_conds_t &vers_conditions= table->vers_conditions;
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+      /*
+        if the history is stored in partitions, then partitions
+        themselves are not versioned
+      */
+      if (table->partition_names && table->table->part_info->vers_info)
+      {
+        if (vers_conditions)
+        {
+#define PART_VERS_ERR_MSG "%s PARTITION (%s)"
+          char buf[NAME_LEN*2 + sizeof(PART_VERS_ERR_MSG)];
+          my_snprintf(buf, sizeof(buf), PART_VERS_ERR_MSG, table->alias,
+                      table->partition_names->head()->c_ptr());
+          my_error(ER_VERS_NOT_VERSIONED, MYF(0), buf);
+          DBUG_RETURN(-1);
+        }
+        else
+          vers_conditions.init(SYSTEM_TIME_ALL);
+      }
+#endif
+
+    if (outer_table && !vers_conditions)
+    {
+      // propagate system_time from nearest outer SELECT_LEX
+      vers_conditions= outer_table->vers_conditions;
+      outer_table->vers_conditions.used= true;
+    }
+
+    // propagate system_time from sysvar
+    if (!vers_conditions)
+    {
+      if (vers_conditions.init_from_sysvar(thd))
+        DBUG_RETURN(-1);
+    }
+
+    if (vers_conditions)
+    {
+      if (vers_conditions == SYSTEM_TIME_ALL)
+        continue;
+
+      lock_type= TL_READ; // ignore TL_WRITE, history is immutable anyway
+    }
+
+    if (table->on_expr)
+    {
+      dst_cond= &table->on_expr;
+    }
+
+    const LEX_CSTRING *fstart= &table->table->vers_start_field()->field_name;
+    const LEX_CSTRING *fend= &table->table->vers_end_field()->field_name;
+
+    Item *row_start=
+        newx Item_field(thd, &this->context, table->db, table->alias, fstart);
+    Item *row_end=
+        newx Item_field(thd, &this->context, table->db, table->alias, fend);
+
+    bool tmp_from_ib=
+        table->table->s->table_category == TABLE_CATEGORY_TEMPORARY &&
+        table->table->vers_start_field()->type() == MYSQL_TYPE_LONGLONG;
+    bool timestamps_only= table->table->versioned(VERS_TIMESTAMP) && !tmp_from_ib;
+
+    if (vers_conditions)
+    {
+      /* TODO: do resolve fix_length_and_dec(), fix_fields(). This requires
+        storing vers_conditions as Item and make some magic related to
+        vers_system_time_t/VERS_TRX_ID at stage of fix_fields()
+        (this is large refactoring). */
+      vers_conditions.resolve_units(timestamps_only);
+      if (timestamps_only && (vers_conditions.unit_start == VERS_TRX_ID ||
+        vers_conditions.unit_end == VERS_TRX_ID))
+      {
+        my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name);
+        DBUG_RETURN(-1);
+      }
+    }
+
+    Item *cond1= 0, *cond2= 0, *curr= 0;
+    // Temporary tables of can be created from INNODB tables and thus will
+    // have uint64 type of sys_trx_(start|end) field.
+    // They need special handling.
+    TABLE *t= table->table;
+    if (tmp_from_ib || t->versioned(VERS_TIMESTAMP) ||
+        thd->variables.vers_innodb_algorithm_simple)
+    {
+      if (vers_conditions)
+      {
+        if (vers_conditions.start)
+        {
+          if (!vers_conditions.unit_start)
+            vers_conditions.unit_start= t->s->versioned;
+          switch (vers_conditions.unit_start)
+          {
+          case VERS_TIMESTAMP:
+          {
+            vers_conditions.start= newx Item_datetime_from_unixtime_typecast(
+              thd, vers_conditions.start, 6);
+            break;
+          }
+          case VERS_TRX_ID:
+          {
+            vers_conditions.start= newx Item_longlong_typecast(
+              thd, vers_conditions.start);
+            break;
+          }
+          default:
+            DBUG_ASSERT(0);
+            break;
+          }
+        }
+
+        if (vers_conditions.end)
+        {
+          if (!vers_conditions.unit_end)
+            vers_conditions.unit_end= t->s->versioned;
+          switch (vers_conditions.unit_end)
+          {
+          case VERS_TIMESTAMP:
+          {
+            vers_conditions.end= newx Item_datetime_from_unixtime_typecast(
+              thd, vers_conditions.end, 6);
+            break;
+          }
+          case VERS_TRX_ID:
+          {
+            vers_conditions.end= newx Item_longlong_typecast(
+              thd, vers_conditions.end);
+            break;
+          }
+          default:
+            DBUG_ASSERT(0);
+            break;
+          }
+        }
+      }
+      switch (vers_conditions.type)
+      {
+      case SYSTEM_TIME_UNSPECIFIED:
+        if (t->vers_start_field()->real_type() != MYSQL_TYPE_LONGLONG)
+        {
+          MYSQL_TIME max_time;
+          thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
+          max_time.second_part= TIME_MAX_SECOND_PART;
+          curr= newx Item_datetime_literal(thd, &max_time,
+                                            TIME_SECOND_PART_DIGITS);
+          cond1= newx Item_func_eq(thd, row_end, curr);
+        }
+        else
+        {
+          curr= newx Item_int(thd, ULONGLONG_MAX);
+          cond1= newx Item_func_eq(thd, row_end, curr);
+        }
+        cond1= or_items(thd, cond1, newx Item_func_isnull(thd, row_end));
+        break;
+      case SYSTEM_TIME_AS_OF:
+        cond1= newx Item_func_le(thd, row_start,
+          vers_conditions.start);
+        cond2= newx Item_func_gt(thd, row_end,
+          vers_conditions.start);
+        break;
+      case SYSTEM_TIME_FROM_TO:
+        cond1= newx Item_func_lt(thd, row_start,
+          vers_conditions.end);
+        cond2= newx Item_func_ge(thd, row_end,
+          vers_conditions.start);
+        break;
+      case SYSTEM_TIME_BETWEEN:
+        cond1= newx Item_func_le(thd, row_start,
+          vers_conditions.end);
+        cond2= newx Item_func_ge(thd, row_end,
+          vers_conditions.start);
+        break;
+      case SYSTEM_TIME_BEFORE:
+        cond1= newx Item_func_lt(thd, row_end,
+          vers_conditions.start);
+        break;
+      default:
+        DBUG_ASSERT(0);
+      }
+    }
+    else
+    {
+      DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
+
+      Item *trx_id0, *trx_id1;
+
+      switch (vers_conditions.type)
+      {
+      case SYSTEM_TIME_UNSPECIFIED:
+        curr= newx Item_int(thd, ULONGLONG_MAX);
+        cond1= newx Item_func_eq(thd, row_end, curr);
+        break;
+      case SYSTEM_TIME_AS_OF:
+        trx_id0= vers_conditions.unit_start == VERS_TIMESTAMP ?
+          newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
+          vers_conditions.start;
+        cond1= newx Item_func_vtq_trx_sees_eq(thd, trx_id0, row_start);
+        cond2= newx Item_func_vtq_trx_sees(thd, row_end, trx_id0);
+        break;
+      case SYSTEM_TIME_FROM_TO:
+      case SYSTEM_TIME_BETWEEN:
+        trx_id0= vers_conditions.unit_start == VERS_TIMESTAMP ?
+          newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID, true) :
+          vers_conditions.start;
+        trx_id1= vers_conditions.unit_end == VERS_TIMESTAMP ?
+          newx Item_func_vtq_id(thd, vers_conditions.end, TR_table::FLD_TRX_ID, false) :
+          vers_conditions.end;
+        cond1= vers_conditions.type == SYSTEM_TIME_FROM_TO ?
+          newx Item_func_vtq_trx_sees(thd, trx_id1, row_start) :
+          newx Item_func_vtq_trx_sees_eq(thd, trx_id1, row_start);
+        cond2= newx Item_func_vtq_trx_sees_eq(thd, row_end, trx_id0);
+        break;
+      case SYSTEM_TIME_BEFORE:
+        trx_id0= vers_conditions.unit_start == VERS_TIMESTAMP ?
+          newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
+          vers_conditions.start;
+        cond1= newx Item_func_lt(thd, row_end, trx_id0);
+        break;
+      default:
+        DBUG_ASSERT(0);
+      }
+    }
+
+    if (cond1)
+    {
+      vers_cond= and_items(thd,
+        vers_cond,
+        and_items(thd,
+          cond2,
+          cond1));
+      if (table->is_view_or_derived())
+        vers_cond= or_items(thd, vers_cond, newx Item_func_isnull(thd, row_end));
+    }
+  } // for (table= tables; ...)
+
+  if (vers_cond)
+  {
+    COND *all_cond= and_items(thd, *dst_cond, vers_cond);
+    bool from_where= dst_cond == where_expr;
+    if (on_stmt_arena.arena_replaced())
+      *dst_cond= all_cond;
+    else
+      thd->change_item_tree(dst_cond, all_cond);
+
+    if (from_where)
+    {
+      this->where= *dst_cond;
+      this->where->top_level_item();
+    }
+
+    if (outer_table)
+      outer_table->vers_conditions.type= SYSTEM_TIME_ALL;
+
+    // Invalidate current SP [#52, #422]
+    if (thd->spcont)
+    {
+      DBUG_ASSERT(thd->spcont->m_sp);
+      thd->spcont->m_sp->set_sp_cache_version(0);
+    }
+  }
+
+  DBUG_RETURN(0);
+#undef newx
+}
+
 /*****************************************************************************
   Check fields, find best join, do the select and output fields.
   mysql_select assumes that all tables are already opened
@@ -741,7 +1135,11 @@ JOIN::prepare(TABLE_LIST *tables_init,
   {
     remove_redundant_subquery_clauses(select_lex);
   }
-  
+
+  /* System Versioning: handle FOR SYSTEM_TIME clause. */
+  if (select_lex->vers_setup_conds(thd, tables_list, &conds) < 0)
+    DBUG_RETURN(-1);
+
   /*
     TRUE if the SELECT list mixes elements with and without grouping,
     and there is no GROUP BY clause. Mixing non-aggregated fields with
@@ -1040,6 +1438,11 @@ JOIN::prepare(TABLE_LIST *tables_init,
 
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
+
+  if (!thd->stmt_arena->is_stmt_prepare() && select_lex->versioned_tables > 0)
+  {
+    vers_check_items();
+  }
 
   unit= unit_arg;
   if (prepare_stage2())
@@ -3633,6 +4036,18 @@ void JOIN::exec_inner()
   result->send_result_set_metadata(
                  procedure ? procedure_fields_list : *fields,
                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
+
+  {
+    List_iterator<Item> it(*columns_list);
+    while (Item *item= it++)
+    {
+      Item_transformer transformer= &Item::vers_transformer;
+      Item *new_item= item->transform(thd, transformer, NULL);
+      if (new_item) // Item_default_value::transform() may return NULL
+        it.replace(new_item);
+    }
+  }
+
   error= do_select(this, procedure);
   /* Accumulate the counts from all join iterations of all join parts. */
   thd->inc_examined_row_count(join_examined_rows);
@@ -16199,7 +16614,11 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
       item->result_field= new_field;
     else
       new_field->field_name= *name;
-    new_field->flags|= (org_field->flags & NO_DEFAULT_VALUE_FLAG);
+    new_field->flags|= (org_field->flags & (
+      NO_DEFAULT_VALUE_FLAG |
+      VERS_SYS_START_FLAG |
+      VERS_SYS_END_FLAG |
+      VERS_UPDATE_UNVERSIONED_FLAG));
     if (org_field->maybe_null() || (item && item->maybe_null))
       new_field->flags&= ~NOT_NULL_FLAG;	// Because of outer join
     if (org_field->type() == MYSQL_TYPE_VAR_STRING ||
@@ -16459,6 +16878,10 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                                           modify_item ? field :
                                           NULL);
     }
+
+    if (field->field->vers_sys_field())
+      result->invisible= field->field->invisible;
+
     if (orig_type == Item::REF_ITEM && orig_modify)
       ((Item_ref*)orig_item)->set_result_field(result);
     /*
@@ -18120,6 +18543,12 @@ free_tmp_table(THD *thd, TABLE *entry)
 
   plugin_unlock(0, entry->s->db_plugin);
   entry->alias.free();
+
+  if (entry->pos_in_table_list && entry->pos_in_table_list->table)
+  {
+    DBUG_ASSERT(entry->pos_in_table_list->table == entry);
+    entry->pos_in_table_list->table= NULL;
+  }
 
   free_root(&own_root, MYF(0)); /* the table is allocated in its own root */
   thd_proc_info(thd, save_proc_info);
@@ -25548,6 +25977,11 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
         str->append(')');
       }
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
+    }
+    if (table && table->versioned())
+    {
+      // versioning conditions are already unwrapped to WHERE clause
+      str->append(" FOR SYSTEM_TIME ALL");
     }
     if (my_strcasecmp(table_alias_charset, cmp_name, alias))
     {

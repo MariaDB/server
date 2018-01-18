@@ -9,6 +9,8 @@
 --disable_query_log
 call mtr.add_suppression("InnoDB: Failed to find tablespace for table `test`\\.`t1` in the cache\\. Attempting to load the tablespace with space id");
 call mtr.add_suppression("InnoDB: Allocated tablespace ID \\d+ for test.t1, old maximum was");
+call mtr.add_suppression("InnoDB: Failed to find tablespace for table `mysql`\\.`transaction_registry` in the cache\\. Attempting to load the tablespace with space id");
+call mtr.add_suppression("InnoDB: Allocated tablespace ID \\d+ for mysql.transaction_registry, old maximum was");
 --enable_query_log
 
 CREATE TABLE t1(

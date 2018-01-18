@@ -112,6 +112,7 @@
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
+#include "vtmd.h"
 
 static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                               Parser_state *parser_state,
@@ -3230,6 +3231,11 @@ bool Sql_cmd_call::execute(THD *thd)
     if (do_execute_sp(thd, sp))
       return true;
 
+    if (sp->sp_cache_version() == 0)
+    {
+      sp_cache_flush(thd->sp_proc_cache, sp);
+    }
+
     /*
       Disable slow log for the above call(), if calls are disabled.
       Instead we will log the executed statements to the slow log.
@@ -4102,7 +4108,6 @@ mysql_execute_command(THD *thd)
       copy.
     */
     Alter_info alter_info(lex->alter_info, thd->mem_root);
-
     if (thd->is_fatal_error)
     {
       /* If out of memory when creating a copy of alter_info. */
@@ -4130,6 +4135,7 @@ mysql_execute_command(THD *thd)
     */
     if (!(create_info.used_fields & HA_CREATE_USED_ENGINE))
       create_info.use_default_db_type(thd);
+
     /*
       If we are using SET CHARSET without DEFAULT, add an implicit
       DEFAULT to not confuse old users. (This may change).
@@ -4315,6 +4321,10 @@ mysql_execute_command(THD *thd)
       }
       else
       {
+        if (create_info.vers_fix_system_fields(thd, &alter_info, *create_table))
+        {
+          goto end_with_restore_list;
+        }
         /*
           In STATEMENT format, we probably have to replicate also temporary
           tables, like mysql replication does. Also check if the requested
@@ -6534,6 +6544,21 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
                                      (ulonglong) thd->variables.select_limit);
   }
 
+  if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
+  {
+    for (TABLE_LIST *table= all_tables; table; table= table->next_local)
+    {
+      if (table->vers_conditions)
+      {
+        VTMD_exists vtmd(*table);
+        if (vtmd.check_exists(thd))
+          return 1;
+        if (vtmd.exists && vtmd.setup_select(thd))
+          return 1;
+      }
+    }
+  }
+
   if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
   {
     if (lex->describe)
@@ -8130,7 +8155,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     sp_cache_enforce_limit(thd->sp_func_cache, stored_program_cache_size);
     thd->end_statement();
     thd->cleanup_after_query();
-    DBUG_ASSERT(thd->change_list.is_empty());
+    DBUG_ASSERT(thd->Item_change_list::is_empty());
   }
   else
   {
@@ -9532,10 +9557,18 @@ bool update_precheck(THD *thd, TABLE_LIST *tables)
 bool delete_precheck(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("delete_precheck");
-  if (check_one_table_access(thd, DELETE_ACL, tables))
-    DBUG_RETURN(TRUE);
-  /* Set privilege for the WHERE clause */
-  tables->grant.want_privilege=(SELECT_ACL & ~tables->grant.privilege);
+  if (tables->vers_conditions)
+  {
+    if (check_one_table_access(thd, DELETE_HISTORY_ACL, tables))
+      DBUG_RETURN(TRUE);
+  }
+  else
+  {
+    if (check_one_table_access(thd, DELETE_ACL, tables))
+      DBUG_RETURN(TRUE);
+    /* Set privilege for the WHERE clause */
+    tables->grant.want_privilege=(SELECT_ACL & ~tables->grant.privilege);
+  }
   DBUG_RETURN(FALSE);
 }
 

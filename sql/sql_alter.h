@@ -95,10 +95,34 @@ public:
     // Set for ADD [COLUMN] FIRST | AFTER
     ALTER_COLUMN_ORDER          = 1L << 25,
     ALTER_ADD_CHECK_CONSTRAINT  = 1L << 27,
-    ALTER_DROP_CHECK_CONSTRAINT = 1L << 28
+    ALTER_DROP_CHECK_CONSTRAINT = 1L << 28,
+    ALTER_COLUMN_UNVERSIONED    = 1L << 29,
+    ALTER_ADD_SYSTEM_VERSIONING = 1L << 30,
+    ALTER_DROP_SYSTEM_VERSIONING= 1L << 31,
   };
 
   enum enum_enable_or_disable { LEAVE_AS_IS, ENABLE, DISABLE };
+
+  bool data_modifying() const
+  {
+    return flags & (
+      ALTER_ADD_COLUMN |
+      ALTER_DROP_COLUMN |
+      ALTER_CHANGE_COLUMN |
+      ALTER_COLUMN_ORDER);
+  }
+
+  bool partition_modifying() const
+  {
+    return flags & (
+      ALTER_DROP_PARTITION |
+      ALTER_COALESCE_PARTITION |
+      ALTER_REORGANIZE_PARTITION |
+      ALTER_REMOVE_PARTITIONING |
+      ALTER_TABLE_REORG |
+      ALTER_EXCHANGE_PARTITION |
+      ALTER_TRUNCATE_PARTITION);
+  }
 
   /**
      The different values of the ALGORITHM clause.

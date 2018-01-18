@@ -475,6 +475,7 @@ void localtime_to_TIME(MYSQL_TIME *to, struct tm *from)
   to->second=   (int) from->tm_sec;
 }
 
+
 void calc_time_from_sec(MYSQL_TIME *to, long seconds, long microseconds)
 {
   long t_seconds;

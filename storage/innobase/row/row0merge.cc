@@ -1707,7 +1707,8 @@ row_merge_read_clustered_index(
 	ut_stage_alter_t*	stage,
 	double 			pct_cost,
 	row_merge_block_t*	crypt_block,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			drop_historical)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
 	mem_heap_t*		row_heap;	/* Heap memory to create
@@ -1741,6 +1742,10 @@ row_merge_read_clustered_index(
 	double 			curr_progress = 0.0;
 	ib_uint64_t		read_rows = 0;
 	ib_uint64_t		table_total_rows = 0;
+	char			new_sys_trx_start[8];
+	char			new_sys_trx_end[8];
+	byte			any_autoinc_data[8] = {0};
+	bool			vers_update_trt = false;
 
 	DBUG_ENTER("row_merge_read_clustered_index");
 
@@ -1914,6 +1919,9 @@ row_merge_read_clustered_index(
 	} else {
 		prev_fields = NULL;
 	}
+
+	mach_write_to_8(new_sys_trx_start, trx->id);
+	mach_write_to_8(new_sys_trx_end, TRX_ID_MAX);
 
 	/* Scan the clustered index. */
 	for (;;) {
@@ -2239,9 +2247,33 @@ end_of_index:
 			ut_ad(add_autoinc
 			      < dict_table_get_n_user_cols(new_table));
 
-			const dfield_t*	dfield;
+			bool history_row = false;
+			if (new_table->versioned()) {
+				const dfield_t* dfield = dtuple_get_nth_field(
+				    row, new_table->vers_end);
+				history_row = dfield->vers_history_row();
+			}
+
+			dfield_t*	dfield;
 
 			dfield = dtuple_get_nth_field(row, add_autoinc);
+
+			if (new_table->versioned()) {
+				if (history_row) {
+					if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
+						err = DB_UNSUPPORTED;
+						my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),
+							 old_table->name);
+						goto func_exit;
+					}
+					dfield_set_null(dfield);
+				} else {
+					// set not null
+					ulint len = dfield_get_type(dfield)->len;
+					dfield_set_data(dfield, any_autoinc_data, len);
+				}
+			}
+
 			if (dfield_is_null(dfield)) {
 				goto write_buffers;
 			}
@@ -2285,6 +2317,21 @@ end_of_index:
 			default:
 				ut_ad(0);
 			}
+		}
+
+		if (old_table->versioned()) {
+			if ((!new_table->versioned() || drop_historical)
+			    && clust_index->vers_history_row(rec, offsets)) {
+				continue;
+			}
+		} else if (new_table->versioned()) {
+			dfield_t* start =
+			    dtuple_get_nth_field(row, new_table->vers_start);
+			dfield_t* end =
+			    dtuple_get_nth_field(row, new_table->vers_end);
+			dfield_set_data(start, new_sys_trx_start, 8);
+			dfield_set_data(end, new_sys_trx_end, 8);
+			vers_update_trt = true;
 		}
 
 write_buffers:
@@ -2826,6 +2873,15 @@ wait_again:
 				0, new_table,
 				old_table->name.m_name, max_doc_id);
 		}
+	}
+
+	if (vers_update_trt) {
+		trx_mod_table_time_t& time =
+			trx->mod_tables
+				.insert(trx_mod_tables_t::value_type(
+					const_cast<dict_table_t*>(new_table), 0))
+				.first->second;
+		time.set_versioned(0, true);
 	}
 
 	trx->op_info = "";
@@ -4547,6 +4603,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	add_v		new virtual columns added along with indexes
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
+@param[in]	drop_historical	whether to drop historical system rows
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -4565,7 +4622,8 @@ row_merge_build_indexes(
 	bool			skip_pk_sort,
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			drop_historical)
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
@@ -4725,7 +4783,7 @@ row_merge_build_indexes(
 		fts_sort_idx, psort_info, merge_files, key_numbers,
 		n_indexes, add_cols, add_v, col_map, add_autoinc,
 		sequence, block, skip_pk_sort, &tmpfd, stage,
-		pct_cost, crypt_block, eval_table);
+		pct_cost, crypt_block, eval_table, drop_historical);
 
 	stage->end_phase_read_pk();
 

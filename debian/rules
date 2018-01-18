@@ -39,7 +39,7 @@ else
 endif
 
 # Ignore test suite exit code on unstable platforms
-ifneq (,$(filter $(ARCH), mips mipsel))
+ifneq (,$(filter $(ARCH),mips mipsel mips64el alpha powerpc sh4 hurd-i386 sparc64 kfreebsd-i386 kfreebsd-amd64))
     TESTSUITE_FAIL_CMD:=true
 else
     TESTSUITE_FAIL_CMD:=exit 1
@@ -114,11 +114,6 @@ override_dh_auto_install:
 	dh_testdir
 	dh_testroot
 
-# Skip TokuDB if arch is not amd64
-ifneq ($(ARCH), amd64)
-	sed -i -e "/Package: mariadb-plugin-tokudb/,+18d" debian/control
-endif
-
 	# If libthrift-dev was available (manually installed, as it is
 	# not in Debian) and ha_cassandra.so was thus built, create package,
 	# otherwise skip it.
@@ -153,13 +148,13 @@ endif
 	install -D -m 644 debian/mariadb-server-10.3.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.3.py
 
 	# Install libmariadbclient18 compatibility links
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so.18
+	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so
+	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so.18
 
 	# Install libmysqlclientclientXX compatibility links
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.18
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.19
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.20
+	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.18
+	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.19
+	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.20
 
 	touch $@
 
@@ -182,7 +177,11 @@ override_dh_installcron-arch:
 get-orig-source:
 	uscan --force-download --verbose
 
+# If a file is not supposed to be included anywhere, add it to the not-installed
+# file and document the reason. Note that dh_install supports the above mentioned
+# white list file only starting from Debian Stretch and Ubuntu Xenial.
+# To find more, grep build logs for 'but is not installed to anywhere'.
 %:
-	dh $@ --parallel --with dpatch --with systemd
+	dh $@ --parallel --with dpatch --with systemd --list-missing
 
 # vim: ts=8

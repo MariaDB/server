@@ -307,13 +307,6 @@ private:
   }
 };
 
-inline Field **TABLE::field_to_fill()
-{
-  return triggers && triggers->nullable_fields() ? triggers->nullable_fields()
-                                                 : field;
-}
-
-
 bool add_table_for_trigger(THD *thd,
                            const sp_name *trg_name,
                            bool continue_if_not_exist,

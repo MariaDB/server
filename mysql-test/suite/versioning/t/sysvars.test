@@ -1,0 +1,87 @@
+create table t (a int) with system versioning;
+insert into t values (1);
+update t set a= 2;
+
+show global variables like 'system_versioning_asof';
+show variables like 'system_versioning_asof';
+select * from t;
+
+set system_versioning_asof= '2031-1-1 0:0:0';
+show variables like 'system_versioning_asof';
+select * from t;
+
+set system_versioning_asof= '2011-1-1 0:0:0';
+show variables like 'system_versioning_asof';
+select * from t;
+
+# global
+--error ER_WRONG_VALUE_FOR_VAR
+set global system_versioning_asof= 'alley';
+--error ER_WRONG_VALUE_FOR_VAR
+set global system_versioning_asof= null;
+--error ER_WRONG_TYPE_FOR_VAR
+set global system_versioning_asof= 1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global system_versioning_asof= 1.1;
+
+# session
+--error ER_WRONG_VALUE_FOR_VAR
+set system_versioning_asof= 'alley';
+--error ER_WRONG_VALUE_FOR_VAR
+set system_versioning_asof= null;
+--error ER_WRONG_TYPE_FOR_VAR
+set system_versioning_asof= 1;
+--error ER_WRONG_TYPE_FOR_VAR
+set system_versioning_asof= 1.1;
+
+--echo # GLOBAL @@system_versioning_asof
+set global system_versioning_asof= '1911-11-11 11:11:11.1111119';
+show global variables like 'system_versioning_asof';
+
+set global system_versioning_asof= '1900-01-01 00:00:00';
+show global variables like 'system_versioning_asof';
+
+set global system_versioning_asof= timestamp'1911-11-11 11:11:11.1111119';
+show global variables like 'system_versioning_asof';
+
+set @ts= timestamp'1900-01-01 00:00:00';
+set global system_versioning_asof= @ts;
+show global variables like 'system_versioning_asof';
+
+set global system_versioning_asof= default;
+select @@global.system_versioning_asof;
+
+--echo # SESSION @@system_versioning_asof
+set system_versioning_asof= '1911-11-11 11:11:11.1111119';
+show variables like 'system_versioning_asof';
+
+set system_versioning_asof= '1900-01-01 00:00:00';
+show variables like 'system_versioning_asof';
+
+set system_versioning_asof= timestamp'1911-11-11 11:11:11.1111119';
+show variables like 'system_versioning_asof';
+
+set @ts= timestamp'1900-01-01 00:00:00';
+set system_versioning_asof= @ts;
+show variables like 'system_versioning_asof';
+
+--echo # DEFAULT: value is copied from GLOBAL to SESSION
+set global system_versioning_asof= timestamp'1911-11-11 11:11:11.111111';
+set system_versioning_asof= '1900-01-01 00:00:00';
+select @@global.system_versioning_asof != @@system_versioning_asof as different;
+set system_versioning_asof= default;
+select @@global.system_versioning_asof = @@system_versioning_asof as equal;
+
+set global system_versioning_asof= DEFAULT;
+set system_versioning_asof= DEFAULT;
+select @@global.system_versioning_asof, @@system_versioning_asof;
+
+select * from t for system_time all;
+
+select * from t;
+select * from t for system_time as of timestamp current_timestamp(6);
+select * from t for system_time all;
+select * from t for system_time from '0-0-0' to current_timestamp(6);
+select * from t for system_time between '0-0-0' and current_timestamp(6);
+
+drop table t;

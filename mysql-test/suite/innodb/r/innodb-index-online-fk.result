@@ -126,6 +126,7 @@ SYS_TABLESPACES
 SYS_VIRTUAL
 mysql/innodb_index_stats
 mysql/innodb_table_stats
+mysql/transaction_registry
 test/child
 test/parent
 INSERT INTO child VALUES(5,4);
@@ -317,6 +318,7 @@ SYS_TABLESPACES
 SYS_VIRTUAL
 mysql/innodb_index_stats
 mysql/innodb_table_stats
+mysql/transaction_registry
 test/child
 test/parent
 ALTER TABLE child ADD PRIMARY KEY idx (a3), CHANGE a1 a3 INT,
@@ -342,6 +344,7 @@ SYS_TABLESPACES
 SYS_VIRTUAL
 mysql/innodb_index_stats
 mysql/innodb_table_stats
+mysql/transaction_registry
 test/child
 test/parent
 SHOW CREATE TABLE child;
@@ -378,6 +381,7 @@ SYS_TABLESPACES
 SYS_VIRTUAL
 mysql/innodb_index_stats
 mysql/innodb_table_stats
+mysql/transaction_registry
 test/child
 test/parent
 SHOW CREATE TABLE child;
@@ -414,6 +418,7 @@ SYS_TABLESPACES
 SYS_VIRTUAL
 mysql/innodb_index_stats
 mysql/innodb_table_stats
+mysql/transaction_registry
 test/child
 test/parent
 SHOW CREATE TABLE child;

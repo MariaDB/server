@@ -1,0 +1,41 @@
+# Can't test with embedded server
+-- source include/not_embedded.inc
+
+--source include/have_innodb.inc
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+connect (root,localhost,root,,test);
+connection root;
+
+--disable_warnings
+create database mysqltest;
+--enable_warnings
+
+create user mysqltest_1@localhost;
+connect (user1,localhost,mysqltest_1,,test);
+connection user1;
+
+connection root;
+create table mysqltest.t (a int) with system versioning;
+
+connection user1;
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+delete history from mysqltest.t before system_time now();
+
+connection root;
+grant delete history on mysqltest.* to mysqltest_1@localhost;
+grant delete history on mysqltest.t to mysqltest_1@localhost;
+
+connection user1;
+show grants;
+delete history from mysqltest.t before system_time now();
+
+connection root;
+grant all on *.* to mysqltest_1@localhost;
+show grants for mysqltest_1@localhost;
+
+drop user mysqltest_1@localhost;
+drop database mysqltest;

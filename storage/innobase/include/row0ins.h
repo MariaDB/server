@@ -202,6 +202,8 @@ struct ins_node_t{
 	trx_id_t	trx_id;	/*!< trx id or the last trx which executed the
 				node */
 	byte*		trx_id_buf;/* buffer for the trx id sys field in row */
+	byte		vers_start_buf[8]; /* Buffers for System Versioning */
+	byte		vers_end_buf[8];   /* system fields. */
 	mem_heap_t*	entry_sys_heap;
 				/* memory heap used as auxiliary storage;
 				entry_list and sys fields are stored here;
@@ -227,5 +229,4 @@ struct ins_node_t{
 #define INS_NODE_ALLOC_ROW_ID	2	/* row id should be allocated */
 #define	INS_NODE_INSERT_ENTRIES 3	/* index entries should be built and
 					inserted */
-
 #endif

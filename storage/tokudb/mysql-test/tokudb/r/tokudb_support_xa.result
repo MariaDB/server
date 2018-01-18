@@ -43,7 +43,7 @@ SET @@session.tokudb_support_xa = "T";
 ERROR 42000: Variable 'tokudb_support_xa' can't be set to the value of 'T'
 SET @@session.tokudb_support_xa = "Y";
 ERROR 42000: Variable 'tokudb_support_xa' can't be set to the value of 'Y'
-SET @@session.tokudb_support_xa = OF;
+SET @@session.tokudb_support_xa = OFF;
 SELECT @@session.tokudb_support_xa;
 @@session.tokudb_support_xa
 0

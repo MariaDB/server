@@ -125,7 +125,8 @@ trx_rollback_to_savepoint_low(
 		for (trx_mod_tables_t::iterator i = trx->mod_tables.begin();
 		     i != trx->mod_tables.end(); ) {
 			trx_mod_tables_t::iterator j = i++;
-			if (j->second >= limit) {
+			ut_ad(j->second.valid());
+			if (j->second.rollback(limit)) {
 				trx->mod_tables.erase(j);
 			}
 		}

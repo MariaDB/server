@@ -337,14 +337,17 @@ enum enum_vcol_update_mode
 
 /* Field visibility enums */
 
-enum  field_visible_type{
-	NOT_INVISIBLE= 0,
-	USER_DEFINED_INVISIBLE,
-    /* automatically added by the server. Can be queried explicitly
-      in SELECT, otherwise invisible from anything" */
-	SYSTEM_INVISIBLE,
-	COMPLETELY_INVISIBLE
+enum field_visibility_t {
+  VISIBLE= 0,
+  INVISIBLE_USER,
+  /* automatically added by the server. Can be queried explicitly
+  in SELECT, otherwise invisible from anything" */
+  INVISIBLE_SYSTEM,
+  INVISIBLE_FULL
 };
+
+#define INVISIBLE_MAX_BITS 3
+
 
 /**
   Category of table found in the table share.
@@ -571,6 +574,14 @@ struct TABLE_STATISTICS_CB
   bool histograms_are_read;   
 };
 
+class Vers_min_max_stats;
+
+enum vers_sys_type_t
+{
+  VERS_UNDEFINED= 0,
+  VERS_TIMESTAMP,
+  VERS_TRX_ID
+};
 
 /**
   This structure is shared between different table objects. There is one
@@ -632,6 +643,16 @@ struct TABLE_SHARE
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
+
+  const char* orig_table_name;          /* Original table name for this tmp table */
+  const char* error_table_name() const  /* Get table name for error messages */
+  {
+    return tmp_table ? (
+      orig_table_name ?
+        orig_table_name :
+        "(temporary)") :
+      table_name.str;
+  }
 
   /* 
      Set of keys in use, implemented as a Bitmap.
@@ -746,6 +767,52 @@ struct TABLE_SHARE
   uint  partition_info_buffer_size;
   plugin_ref default_part_plugin;
 #endif
+
+  /**
+    System versioning support.
+   */
+
+  vers_sys_type_t versioned;
+  bool vtmd;
+  uint16 row_start_field;
+  uint16 row_end_field;
+  uint32 hist_part_id;
+  Vers_min_max_stats** stat_trx;
+  ulonglong stat_serial; // guards check_range_constants() updates
+
+  bool busy_rotation;
+  mysql_mutex_t LOCK_rotation;
+  mysql_cond_t COND_rotation;
+  mysql_rwlock_t LOCK_stat_serial;
+
+  void vers_init()
+  {
+    hist_part_id= UINT_MAX32;
+    busy_rotation= false;
+    stat_trx= NULL;
+    stat_serial= 0;
+    mysql_mutex_init(key_TABLE_SHARE_LOCK_rotation, &LOCK_rotation, MY_MUTEX_INIT_FAST);
+    mysql_cond_init(key_TABLE_SHARE_COND_rotation, &COND_rotation, NULL);
+    mysql_rwlock_init(key_rwlock_LOCK_stat_serial, &LOCK_stat_serial);
+  }
+
+  void vers_destroy();
+
+  Field *vers_start_field()
+  {
+    return field[row_start_field];
+  }
+
+  Field *vers_end_field()
+  {
+    return field[row_end_field];
+  }
+
+  void vers_wait_rotation()
+  {
+    while (busy_rotation)
+      mysql_cond_wait(&COND_rotation, &LOCK_rotation);
+  }
 
   /**
     Cache the checked structure of this table.
@@ -1059,7 +1126,7 @@ public:
   uint32 instance; /** Table cache instance this TABLE is belonging to */
   THD	*in_use;                        /* Which thread uses this */
 
-  uchar *record[2];			/* Pointer to records */
+  uchar *record[3];			/* Pointer to records */
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */
@@ -1456,7 +1523,7 @@ public:
   bool prepare_triggers_for_delete_stmt_or_event();
   bool prepare_triggers_for_update_stmt_or_event();
 
-  inline Field **field_to_fill();
+  Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 
   bool insert_all_rows_into_tmp_table(THD *thd, 
@@ -1469,6 +1536,58 @@ public:
   void set_spl_opt_info(SplM_opt_info *spl_info);
   void deny_splitting();
   void add_splitting_info_for_key_field(struct KEY_FIELD *key_field);
+
+  /**
+    System Versioning support
+   */
+  bool vers_write;
+
+  bool versioned() const
+  {
+    DBUG_ASSERT(s);
+    return s->versioned;
+  }
+
+  bool versioned(vers_sys_type_t type) const
+  {
+    DBUG_ASSERT(s);
+    DBUG_ASSERT(type);
+    return s->versioned == type;
+  }
+
+  bool versioned_write(vers_sys_type_t type= VERS_UNDEFINED) const
+  {
+    DBUG_ASSERT(versioned() || !vers_write);
+    return versioned(type) ? vers_write : false;
+  }
+
+  bool vers_vtmd() const
+  {
+    DBUG_ASSERT(s);
+    return s->versioned && s->vtmd;
+  }
+
+  Field *vers_start_field() const
+  {
+    DBUG_ASSERT(s && s->versioned);
+    return field[s->row_start_field];
+  }
+
+  Field *vers_end_field() const
+  {
+    DBUG_ASSERT(s && s->versioned);
+    return field[s->row_end_field];
+  }
+
+  ulonglong vers_start_id() const;
+  ulonglong vers_end_id() const;
+
+  int delete_row();
+  void vers_update_fields();
+  void vers_update_end();
+
+/** Number of additional fields used in versioned tables */
+#define VERSIONING_FIELDS 2
 };
 
 
@@ -1756,6 +1875,50 @@ class Item_in_subselect;
   4) jtbm semi-join (jtbm_subselect != NULL)
 */
 
+/** last_leaf_for_name_resolutioning support. */
+struct vers_select_conds_t
+{
+  vers_system_time_t type;
+  vers_sys_type_t unit_start, unit_end;
+  bool from_query:1;
+  bool used:1;
+  Item *start, *end;
+
+  void empty()
+  {
+    type= SYSTEM_TIME_UNSPECIFIED;
+    unit_start= unit_end= VERS_UNDEFINED;
+    used= from_query= false;
+    start= end= NULL;
+  }
+
+  Item *fix_dec(Item *item);
+
+  void init(vers_system_time_t t, vers_sys_type_t u_start= VERS_UNDEFINED,
+            Item * s= NULL, vers_sys_type_t u_end= VERS_UNDEFINED,
+            Item * e= NULL);
+
+  bool init_from_sysvar(THD *thd);
+
+  bool operator== (vers_system_time_t b)
+  {
+    return type == b;
+  }
+  bool operator!= (vers_system_time_t b)
+  {
+    return type != b;
+  }
+  operator bool() const
+  {
+    return type != SYSTEM_TIME_UNSPECIFIED;
+  }
+  void resolve_units(bool timestamps_only);
+  bool user_defined() const
+  {
+    return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
+  }
+};
+
 struct LEX;
 class Index_hint;
 struct TABLE_LIST
@@ -1789,6 +1952,16 @@ struct TABLE_LIST
                      (lock_type >= TL_WRITE_ALLOW_WRITE) ?
                      MDL_SHARED_WRITE : MDL_SHARED_READ,
                      MDL_TRANSACTION);
+  }
+
+  TABLE_LIST(TABLE &_table, thr_lock_type lock_type)
+  {
+    DBUG_ASSERT(_table.s);
+    init_one_table(
+      LEX_STRING_WITH_LEN(_table.s->db),
+      LEX_STRING_WITH_LEN(_table.s->table_name),
+      _table.s->table_name.str, lock_type);
+    table= &_table;
   }
 
   inline void init_one_table_for_prelocking(const char *db_name_arg,
@@ -2220,6 +2393,12 @@ struct TABLE_LIST
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
+
+  /* System Versioning */
+  vers_select_conds_t vers_conditions;
+  bool vers_vtmd_name(String &out) const;
+  bool vers_force_alias;
+
   /**
      @brief
        Find the bottom in the chain of embedded table VIEWs.
@@ -2759,6 +2938,7 @@ extern LEX_CSTRING PERFORMANCE_SCHEMA_DB_NAME;
 
 extern LEX_CSTRING GENERAL_LOG_NAME;
 extern LEX_CSTRING SLOW_LOG_NAME;
+extern LEX_CSTRING TRANSACTION_REG_NAME;
 
 /* information schema */
 extern LEX_CSTRING INFORMATION_SCHEMA_NAME;
@@ -2786,6 +2966,151 @@ inline void mark_as_null_row(TABLE *table)
 }
 
 bool is_simple_order(ORDER *order);
+
+class Open_tables_backup;
+
+/** Transaction Registry Table (TRT)
+
+    This table holds transaction IDs, their corresponding times and other
+    transaction-related data which is used for transaction order resolution.
+    When versioned table marks its records lifetime with transaction IDs,
+    TRT is used to get their actual timestamps. */
+class TR_table: public TABLE_LIST
+{
+  THD *thd;
+  Open_tables_backup *open_tables_backup;
+
+public:
+  enum field_id_t {
+    FLD_TRX_ID= 0,
+    FLD_COMMIT_ID,
+    FLD_BEGIN_TS,
+    FLD_COMMIT_TS,
+    FLD_ISO_LEVEL,
+    FIELD_COUNT
+  };
+
+  enum enabled {NO, MAYBE, YES};
+  static enum enabled use_transaction_registry;
+
+  /**
+     @param[in,out] Thread handle
+     @param[in] Current transaction is read-write.
+   */
+  TR_table(THD *_thd, bool rw= false);
+  /**
+     Opens a transaction_registry table.
+
+     @retval true on error, false otherwise.
+   */
+  bool open();
+  ~TR_table();
+  /**
+     @retval current thd
+  */
+  THD *get_thd() const { return thd; }
+  /**
+     Stores value to internal transaction_registry TABLE object.
+
+     @param[in] field number in a TABLE
+     @param[in] value to store
+   */
+  void store(uint field_id, ulonglong val);
+  /**
+     Stores value to internal transaction_registry TABLE object.
+
+     @param[in] field number in a TABLE
+     @param[in] value to store
+   */
+  void store(uint field_id, timeval ts);
+  /**
+    Update the transaction_registry right before commit.
+    @param start_id    transaction identifier at start
+    @param end_id      transaction identifier at commit
+
+    @retval false      on success
+    @retval true       on error (the transaction must be rolled back)
+  */
+  bool update(ulonglong start_id, ulonglong end_id);
+  // return true if found; false if not found or error
+  bool query(ulonglong trx_id);
+  /**
+     Gets a row from transaction_registry with the closest commit_timestamp to
+     first argument. We can search for a value which a lesser or greater than
+     first argument. Also loads a row into an internal TABLE object.
+
+     @param[in] timestamp
+     @param[in] true if we search for a lesser timestamp, false if greater
+     @retval true if exists, false it not exists or an error occured
+   */
+  bool query(MYSQL_TIME &commit_time, bool backwards);
+  /**
+     Checks whether transaction1 sees transaction0.
+
+     @param[out] true if transaction1 sees transaction0, undefined on error and
+       when transaction1=transaction0 and false otherwise
+     @param[in] transaction_id of transaction1
+     @param[in] transaction_id of transaction0
+     @param[in] commit time of transaction1 or 0 if we want it to be queried
+     @param[in] isolation level (from handler.h) of transaction1
+     @param[in] commit time of transaction0 or 0 if we want it to be queried
+     @retval true on error, false otherwise
+   */
+  bool query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
+                  ulonglong commit_id1= 0,
+                  enum_tx_isolation iso_level1= ISO_READ_UNCOMMITTED,
+                  ulonglong commit_id0= 0);
+
+  /**
+     @retval transaction isolation level of a row from internal TABLE object.
+   */
+  enum_tx_isolation iso_level() const;
+  /**
+     Stores transactioin isolation level to internal TABLE object.
+   */
+  void store_iso_level(enum_tx_isolation iso_level)
+  {
+    DBUG_ASSERT(iso_level <= ISO_SERIALIZABLE);
+    store(FLD_ISO_LEVEL, iso_level + 1);
+  }
+
+  /**
+     Writes a message to MariaDB log about incorrect transaction_registry schema.
+
+     @param[in] a message explained what's incorrect in schema
+   */
+  void warn_schema_incorrect(const char *reason);
+  /**
+     Checks whether transaction_registry table has a correct schema.
+
+     @retval true if schema is incorrect and false otherwise
+   */
+  bool check(bool error);
+
+  TABLE * operator-> () const
+  {
+    return table;
+  }
+  Field * operator[] (uint field_id) const
+  {
+    DBUG_ASSERT(field_id < FIELD_COUNT);
+    return table->field[field_id];
+  }
+  operator bool () const
+  {
+    return table;
+  }
+  bool operator== (const TABLE_LIST &subj) const
+  {
+    if (0 != strcmp(db, subj.db))
+      return false;
+    return (0 == strcmp(table_name, subj.table_name));
+  }
+  bool operator!= (const TABLE_LIST &subj) const
+  {
+    return !(*this == subj);
+  }
+};
 
 #endif /* MYSQL_CLIENT */
 

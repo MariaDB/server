@@ -1,0 +1,71 @@
+create table t (a int);
+delete history from t before system_time now();
+ERROR HY000: Table `t` is not system-versioned
+create or replace table t (a int) with system versioning;
+insert into t values (1);
+update t set a=2;
+set @test = 'correct';
+create trigger trg_before before delete on t for each row set @test = 'incorrect';
+create trigger trg_after after delete on t for each row set @test = 'incorrect';
+delete history from t;
+select @test from t;
+@test
+correct
+drop table t;
+create table t (a int) with system versioning;
+insert into t values (1), (2);
+update t set a=11 where a=1;
+set @ts1=now(6);
+update t set a=22 where a=2;
+select * from t for system_time all;
+a
+11
+22
+1
+2
+delete history from t before system_time timestamp @ts1;
+select * from t for system_time all;
+a
+11
+22
+2
+prepare stmt from 'delete history from t';
+execute stmt;
+drop prepare stmt;
+select * from t for system_time all;
+a
+11
+22
+delete from t;
+create or replace procedure truncate_sp()
+begin
+delete history from t before system_time timestamp now(6);
+end~~
+call truncate_sp;
+select * from t for system_time all;
+a
+drop procedure truncate_sp;
+### Issue #399, truncate partitioned table is now unimplemented
+create or replace table t (a int)
+with system versioning
+engine myisam
+partition by system_time (
+partition p0 history,
+partition pn current);
+delete history from t;
+ERROR 42000: The used command is not allowed with this MariaDB version
+create or replace table t (i int) with system versioning;
+delete history from t;
+create or replace view v as select * from t;
+delete history from v;
+ERROR HY000: DELETE HISTORY from VIEW is prohibited
+create or replace table t (i int);
+delete history from t;
+ERROR HY000: Table `t` is not system-versioned
+create or replace view v as select * from t;
+delete history from v;
+ERROR HY000: DELETE HISTORY from VIEW is prohibited
+prepare stmt from 'delete history from t';
+ERROR HY000: Table `t` is not system-versioned
+drop table t;
+drop view v;

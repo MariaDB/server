@@ -696,22 +696,26 @@ buf_flush_dirty_pages(
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
 @param[in]	observer	flush observer,
-				or NULL if nothing is to be written
-@param[in]	drop_ahi	whether to drop the adaptive hash index */
+				or NULL if nothing is to be written */
 void
 buf_LRU_flush_or_remove_pages(
 	ulint		id,
-	FlushObserver*	observer,
-	bool		drop_ahi)
+	FlushObserver*	observer
+#ifdef BTR_CUR_HASH_ADAPT
+	, bool drop_ahi /*!< whether to drop the adaptive hash index */
+#endif /* BTR_CUR_HASH_ADAPT */
+	)
 {
 	/* Pages in the system tablespace must never be discarded. */
 	ut_ad(id || observer);
 
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 		buf_pool_t* buf_pool = buf_pool_from_array(i);
+#ifdef BTR_CUR_HASH_ADAPT
 		if (drop_ahi) {
 			buf_LRU_drop_page_hash_for_tablespace(buf_pool, id);
 		}
+#endif /* BTR_CUR_HASH_ADAPT */
 		buf_flush_dirty_pages(buf_pool, id, observer);
 	}
 

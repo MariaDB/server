@@ -652,6 +652,22 @@ struct dict_col_t{
 	bool is_virtual() const { return prtype & DATA_VIRTUAL; }
 	/** @return whether NULL is an allowed value for this column */
 	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
+
+	/** @return whether this is system field */
+	bool vers_sys_field() const { return prtype & DATA_VERSIONED; }
+	/** @return whether this is system versioned */
+	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
+	/** @return whether this is the system version start */
+	bool vers_sys_start() const
+	{
+		return (prtype & DATA_VERSIONED) == DATA_VERS_START;
+	}
+	/** @return whether this is the system version end */
+	bool vers_sys_end() const
+	{
+		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
+	}
+
 	/** @return whether this is an instantly-added column */
 	bool is_instant() const
 	{
@@ -1117,6 +1133,20 @@ struct dict_index_t{
 		n_core_fields = n_fields;
 		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 	}
+
+	/** Check if record in clustered index is historical row.
+	@param[in]	rec	clustered row
+	@param[in]	offsets	offsets
+	@return true if row is historical */
+	bool
+	vers_history_row(const rec_t* rec, const ulint* offsets);
+
+	/** Check if record in secondary index is historical row.
+	@param[in]	rec	record in a secondary index
+	@param[out]	history_row true if row is historical
+	@return true on error */
+	bool
+	vers_history_row(const rec_t* rec, bool &history_row);
 };
 
 /** The status of online index creation */
@@ -1512,6 +1542,8 @@ struct dict_table_t {
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
 
+	bool versioned() const { return vers_start || vers_end; }
+
 	/** Id of the table. */
 	table_id_t				id;
 
@@ -1625,7 +1657,10 @@ struct dict_table_t {
 
 	/** Virtual column names */
 	const char*				v_col_names;
-
+	unsigned	vers_start:10;
+				/*!< System Versioning: row start col index */
+	unsigned	vers_end:10;
+				/*!< System Versioning: row end col index */
 	bool		is_system_db;
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or

@@ -1,4 +1,4 @@
 etc/mysql/conf.d/rocksdb.cnf etc/mysql/mariadb.conf.d
-usr/lib/mysql/plugin/ha_rocksdb.so
 usr/bin/mysql_ldb
 usr/bin/sst_dump
+usr/lib/mysql/plugin/ha_rocksdb.so

@@ -675,9 +675,17 @@ public:
   static void operator delete(void *ptr, MEM_ROOT *mem_root)
   { DBUG_ASSERT(0); }
 
+  /**
+     Used by System Versioning.
+   */
+  virtual void set_max()
+  { DBUG_ASSERT(0); }
+  virtual bool is_max()
+  { DBUG_ASSERT(0); return false; }
+
   uchar		*ptr;			// Position to field in record
 
-  field_visible_type field_visibility;
+  field_visibility_t invisible;
   /**
      Byte where the @c NULL bit is stored inside a record. If this Field is a
      @c NOT @c NULL field, this member is @c NULL.
@@ -1007,6 +1015,13 @@ public:
     return bitmap_is_set(&table->has_value_set, field_index);
   }
   bool set_explicit_default(Item *value);
+
+  virtual my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const
+  { DBUG_ASSERT(0); return 0; }
+  my_time_t get_timestamp(ulong *sec_part) const
+  {
+    return get_timestamp(ptr, sec_part);
+  }
 
   /**
      Evaluates the @c UPDATE default function, if one exists, and stores the
@@ -1447,6 +1462,21 @@ public:
     DBUG_ASSERT(column_format() == COLUMN_FORMAT_TYPE_DEFAULT);
     flags |= static_cast<uint32>(column_format_arg) <<
       FIELD_FLAGS_COLUMN_FORMAT;
+  }
+
+  bool vers_sys_field() const
+  {
+    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+  }
+
+  bool vers_update_unversioned() const
+  {
+    return flags & VERS_UPDATE_UNVERSIONED_FLAG;
+  }
+
+  virtual bool vers_trx_id() const
+  {
+    return false;
   }
 
   /*
@@ -2156,6 +2186,57 @@ public:
   {
     return unpack_int64(to, from, from_end);
   }
+
+  void set_max();
+  bool is_max();
+};
+
+
+class Field_vers_trx_id :public Field_longlong {
+  MYSQL_TIME cache;
+  ulonglong cached;
+public:
+  Field_vers_trx_id(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
+                    uchar null_bit_arg, enum utype unireg_check_arg,
+                    const LEX_CSTRING *field_name_arg, bool zero_arg,
+                    bool unsigned_arg)
+      : Field_longlong(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                       unireg_check_arg, field_name_arg, zero_arg,
+                       unsigned_arg),
+        cached(0)
+  {}
+  enum_field_types real_type() const { return MYSQL_TYPE_LONGLONG; }
+  enum_field_types type() const { return MYSQL_TYPE_LONGLONG;}
+  uint size_of() const { return sizeof(*this); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return get_date(ltime, fuzzydate, (ulonglong) val_int());
+  }
+  bool test_if_equality_guarantees_uniqueness(const Item *item) const;
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                      const Item *item) const
+  {
+    return true;
+  }
+
+  bool can_optimize_group_min_max(const Item_bool_func *cond,
+                                        const Item *const_item) const
+  {
+    return true;
+  }
+  bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const
+  {
+    return true;
+  }
+  /* cmp_type() cannot be TIME_RESULT, because we want to compare this field against
+     integers. But in all other cases we treat it as TIME_RESULT! */
+  bool vers_trx_id() const
+  {
+    return true;
+  }
 };
 
 
@@ -2438,7 +2519,7 @@ public:
     return res;
   }
   /* Get TIMESTAMP field value as seconds since begging of Unix Epoch */
-  virtual my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
+  my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   my_time_t get_timestamp(ulong *sec_part) const
   {
     return get_timestamp(ptr, sec_part);
@@ -2568,8 +2649,14 @@ public:
   {
     return memcmp(a_ptr, b_ptr, pack_length());
   }
+  void set_max();
+  bool is_max();
   void store_TIME(my_time_t timestamp, ulong sec_part);
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
+  my_time_t get_timestamp(ulong *sec_part) const
+  {
+    return get_timestamp(ptr, sec_part);
+  }
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -3990,7 +4077,8 @@ Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                   CHARSET_INFO *cs,
                   Field::geometry_type geom_type, uint srid,
                   Field::utype unireg_check,
-                  TYPELIB *interval, const LEX_CSTRING *field_name);
+                  TYPELIB *interval, const LEX_CSTRING *field_name,
+                  uint32 flags);
 
 /*
   Create field class for CREATE TABLE
@@ -4044,13 +4132,19 @@ class Column_definition: public Sql_alloc,
 public:
   LEX_CSTRING field_name;
   LEX_CSTRING comment;			// Comment for field
+  enum enum_column_versioning
+  {
+    VERSIONING_NOT_SET,
+    WITH_VERSIONING,
+    WITHOUT_VERSIONING
+  };
   Item *on_update;		        // ON UPDATE NOW()
   /*
     At various stages in execution this can be length of field in bytes or
     max number of characters. 
   */
   ulonglong length;
-  field_visible_type field_visibility;
+  field_visibility_t invisible;
   /*
     The value of `length' as set by parser: is the number of characters
     for most of the types, or of bytes for BLOBs or numeric types.
@@ -4077,19 +4171,23 @@ public:
     *default_value,                  // Default value
     *check_constraint;               // Check constraint
 
+  enum_column_versioning versioning;
+
   Column_definition()
    :Type_handler_hybrid_field_type(&type_handler_null),
     compression_method_ptr(0),
     comment(null_clex_str),
-    on_update(NULL), length(0),field_visibility(NOT_INVISIBLE), decimals(0),
+    on_update(NULL), length(0), invisible(VISIBLE), decimals(0),
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
     option_list(NULL), pack_flag(0),
-    vcol_info(0), default_value(0), check_constraint(0)
+    vcol_info(0), default_value(0), check_constraint(0),
+    versioning(VERSIONING_NOT_SET)
   {
     interval_list.empty();
   }
+
   Column_definition(THD *thd, Field *field, Field *orig_field);
   void set_attributes(const Lex_field_type_st &type, CHARSET_INFO *cs);
   void create_length_to_internal_length_null()
@@ -4216,7 +4314,7 @@ public:
                         (uint32)length, null_pos, null_bit,
                         pack_flag, type_handler(), charset,
                         geom_type, srid, unireg_check, interval,
-                        field_name_arg);
+                        field_name_arg, flags);
   }
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                     const LEX_CSTRING *field_name_arg) const
@@ -4558,6 +4656,21 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
 #define f_no_default(x)		((x) & FIELDFLAG_NO_DEFAULT)
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
-#define f_visibility(x)         (static_cast<field_visible_type> ((x) & 3))
+#define f_visibility(x)         (static_cast<field_visibility_t> ((x) & INVISIBLE_MAX_BITS))
+
+inline
+ulonglong TABLE::vers_end_id() const
+{
+  DBUG_ASSERT(versioned(VERS_TRX_ID));
+  return static_cast<ulonglong>(vers_end_field()->val_int());
+}
+
+inline
+ulonglong TABLE::vers_start_id() const
+{
+  DBUG_ASSERT(versioned(VERS_TRX_ID));
+  return static_cast<ulonglong>(vers_start_field()->val_int());
+}
+
 
 #endif /* FIELD_INCLUDED */

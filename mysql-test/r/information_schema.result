@@ -121,6 +121,7 @@ time_zone_leap_second
 time_zone_name
 time_zone_transition
 time_zone_transition_type
+transaction_registry
 user
 v1
 select c,table_name from v1 
@@ -145,6 +146,7 @@ time_zone_leap_second	time_zone_leap_second
 time_zone_name	time_zone_name
 time_zone_transition	time_zone_transition
 time_zone_transition_type	time_zone_transition_type
+transaction_registry	transaction_registry
 select c,table_name from v1 
 left join information_schema.TABLES v2 on (v1.c=v2.table_name)
 where v1.c like "t%";
@@ -167,6 +169,7 @@ time_zone_leap_second	time_zone_leap_second
 time_zone_name	time_zone_name
 time_zone_transition	time_zone_transition
 time_zone_transition_type	time_zone_transition_type
+transaction_registry	transaction_registry
 select c, v2.table_name from v1
 right join information_schema.TABLES v2 on (v1.c=v2.table_name)
 where v1.c like "t%";
@@ -189,6 +192,7 @@ time_zone_leap_second	time_zone_leap_second
 time_zone_name	time_zone_name
 time_zone_transition	time_zone_transition
 time_zone_transition_type	time_zone_transition_type
+transaction_registry	transaction_registry
 select table_name from information_schema.TABLES
 where table_schema = "mysqltest" and table_name like "t%";
 table_name
@@ -487,6 +491,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	ALTER ROUTINE	YES
 'mysqltest_1'@'localhost'	def	test	EVENT	YES
 'mysqltest_1'@'localhost'	def	test	TRIGGER	YES
+'mysqltest_1'@'localhost'	def	test	DELETE VERSIONING ROWS	YES
 select * from information_schema.TABLE_PRIVILEGES where grantee like '%mysqltest_1%';
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	t1	SELECT	NO
@@ -744,6 +749,7 @@ Lock_tables_priv	select,insert,update,references
 Show_view_priv	select,insert,update,references
 Create_routine_priv	select,insert,update,references
 Alter_routine_priv	select,insert,update,references
+Truncate_versioning_priv	select,insert,update,references
 max_questions	select,insert,update,references
 max_connections	select,insert,update,references
 max_user_connections	select,insert,update,references

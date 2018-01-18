@@ -52,6 +52,13 @@ DICT_IBUF_ID_MIN plus the space id */
 typedef ib_id_t		table_id_t;
 typedef ib_id_t		index_id_t;
 
+/** Maximum transaction identifier */
+#define TRX_ID_MAX	IB_ID_MAX
+
+/** The bit pattern corresponding to TRX_ID_MAX */
+extern const byte trx_id_max_bytes[8];
+extern const byte timestamp_max_bytes[7];
+
 /** Error to ignore when we load table dictionary into memory. However,
 the table and index will be marked as "corrupted", and caller will
 be responsible to deal with corrupted table or index.
