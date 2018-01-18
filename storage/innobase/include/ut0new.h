@@ -120,9 +120,7 @@ InnoDB:
 #ifndef ut0new_h
 #define ut0new_h
 
-#include <algorithm> /* std::min() */
 #include <limits> /* std::numeric_limits */
-#include <map> /* std::map */
 
 #include <stddef.h>
 #include <stdlib.h> /* malloc() */

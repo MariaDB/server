@@ -77,6 +77,7 @@ void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
 	 (USED_MEM*) my_malloc(pre_alloc_size+ ALIGN_SIZE(sizeof(USED_MEM)),
 			       MYF(my_flags))))
     {
+      ASAN_POISON_MEMORY_REGION(mem_root->free + 1, pre_alloc_size);
       mem_root->free->size= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
       mem_root->total_alloc= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
       mem_root->free->left= pre_alloc_size;
@@ -147,6 +148,7 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
                                        MYF(MALLOC_FLAG(mem_root->
                                                        block_size)))))
       {
+        ASAN_POISON_MEMORY_REGION(mem + 1, size - sizeof(USED_MEM));
         mem->size= size; 
         mem_root->total_alloc+= size;
         mem->left= pre_alloc_size;
@@ -249,6 +251,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
 	(*mem_root->error_handler)();
       DBUG_RETURN((void*) 0);                      /* purecov: inspected */
     }
+    ASAN_POISON_MEMORY_REGION(next + 1, get_size - sizeof(USED_MEM));
     mem_root->block_num++;
     mem_root->total_alloc+= get_size;
     next->next= *prev;
@@ -266,6 +269,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     mem_root->used= next;
     mem_root->first_block_usage= 0;
   }
+  ASAN_UNPOISON_MEMORY_REGION(point, length);
   TRASH_ALLOC(point, length);
   DBUG_PRINT("exit",("ptr: %p", point));
   DBUG_RETURN((void*) point);
@@ -338,6 +342,7 @@ static inline void mark_blocks_free(MEM_ROOT* root)
   for (next= root->free; next; next= *(last= &next->next))
   {
     next->left= next->size - ALIGN_SIZE(sizeof(USED_MEM));
+    ASAN_POISON_MEMORY_REGION(next + 1, next->size);
     TRASH_MEM(next);
   }
 
@@ -348,6 +353,7 @@ static inline void mark_blocks_free(MEM_ROOT* root)
   for (; next; next= next->next)
   {
     next->left= next->size - ALIGN_SIZE(sizeof(USED_MEM));
+    ASAN_POISON_MEMORY_REGION(next + 1, next->size);
     TRASH_MEM(next);
   }
 
@@ -421,6 +427,7 @@ void free_root(MEM_ROOT *root, myf MyFlags)
   {
     root->free=root->pre_alloc;
     root->free->left=root->pre_alloc->size-ALIGN_SIZE(sizeof(USED_MEM));
+    ASAN_POISON_MEMORY_REGION(root->pre_alloc + 1, root->pre_alloc->size);
     TRASH_MEM(root->pre_alloc);
     root->free->next=0;
   }
