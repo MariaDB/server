@@ -32,7 +32,7 @@
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)
 #endif /* HAVE_VALGRIND_MEMCHECK_H */
 
-#if !defined(DBUG_OFF) && !__has_feature(address_sanitizer)
+#if !defined(DBUG_OFF) && !defined(WITH_ASAN)
 #define TRASH_FILL(A,B,C) do { const size_t trash_tmp= (B); memset(A, C, trash_tmp); MEM_UNDEFINED(A, trash_tmp); } while (0)
 #else
 #define TRASH_FILL(A,B,C) do{ const size_t trash_tmp __attribute__((unused)) = (B) ; MEM_CHECK_ADDRESSABLE(A,trash_tmp);MEM_UNDEFINED(A,trash_tmp);} while (0)

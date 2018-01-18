@@ -23,8 +23,7 @@
 #define ALLOC_MAX_BLOCK_TO_DROP			4096
 #define ALLOC_MAX_BLOCK_USAGE_BEFORE_DROP	10
 
-#if defined(__clang__) && __has_feature(address_sanitizer) ||                  \
-    defined(__SANITIZE_ADDRESS__)
+#if defined(__clang__) && defined(__SANITIZE_ADDRESS__)
 #include <sanitizer/asan_interface.h>
 
 #define ASAN_POISON_MEMORY_REGION(addr, size)                                  \
