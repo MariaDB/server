@@ -1169,21 +1169,16 @@ trx_start_low(
 	if (!trx->read_only
 	    && (trx->mysql_thd == 0 || read_write || trx->ddl)) {
 
-		trx->rsegs.m_redo.rseg = trx_assign_rseg_low();
-
 		/* Temporary rseg is assigned only if the transaction
 		updates a temporary table */
-
-		mutex_enter(&trx_sys.mutex);
-
-		trx->id = trx_sys.get_new_trx_id();
-
-		trx_sys.rw_trx_ids.push_back(trx->id);
-
+		trx->rsegs.m_redo.rseg = trx_assign_rseg_low();
 		ut_ad(trx->rsegs.m_redo.rseg != 0
 		      || srv_read_only_mode
 		      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 
+		mutex_enter(&trx_sys.mutex);
+		trx->id = trx_sys.get_new_trx_id();
+		trx_sys.rw_trx_ids.push_back(trx->id);
 		mutex_exit(&trx_sys.mutex);
 		trx_sys.rw_trx_hash.insert(trx);
 
@@ -1541,15 +1536,13 @@ trx_erase_lists(
 {
 	ut_ad(trx->id > 0);
 
-	if (trx->read_only || trx->rsegs.m_redo.rseg == NULL) {
-
+	if (trx->rsegs.m_redo.rseg && trx->read_view) {
+		ut_ad(!trx->read_only);
 		mutex_enter(&trx_sys.mutex);
+		trx_sys.mvcc.view_close(trx->read_view, true);
 	} else {
 
 		mutex_enter(&trx_sys.mutex);
-		if (trx->read_view != NULL) {
-			trx_sys.mvcc.view_close(trx->read_view, true);
-		}
 	}
 
 	if (serialised) {
@@ -2759,12 +2752,11 @@ trx_set_rw_mode(
 
 	mutex_enter(&trx_sys.mutex);
 	trx->id = trx_sys.get_new_trx_id();
-
 	trx_sys.rw_trx_ids.push_back(trx->id);
 
 	/* So that we can see our own changes. */
 	if (MVCC::is_view_active(trx->read_view)) {
-		MVCC::set_view_creator_trx_id(trx->read_view, trx->id);
+		trx->read_view->creator_trx_id(trx->id);
 	}
 	mutex_exit(&trx_sys.mutex);
 	trx_sys.rw_trx_hash.insert(trx);

@@ -769,17 +769,3 @@ MVCC::view_close(ReadView*& view, bool own_mutex)
 		view = NULL;
 	}
 }
-
-/**
-Set the view creator transaction id. Note: This shouldbe set only
-for views created by RW transactions.
-@param view		Set the creator trx id for this view
-@param id		Transaction id to set */
-
-void
-MVCC::set_view_creator_trx_id(ReadView* view, trx_id_t id)
-{
-	ut_ad(id > 0);
-	ut_ad(mutex_own(&trx_sys.mutex));
-	view->creator_trx_id(id);
-}

@@ -80,11 +80,6 @@ public:
 		return(view != NULL && !(intptr_t(view) & 0x1));
 	}
 
-	/**
-	Set the view creator transaction id. Note: This shouldbe set only
-	for views created by RW transactions. */
-	static void set_view_creator_trx_id(ReadView* view, trx_id_t id);
-
 private:
 
 	/**
