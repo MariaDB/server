@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -773,7 +774,25 @@ trx_undo_page_report_modify(
 			const dict_col_t*	col
 				= dict_table_get_nth_col(table, col_no);
 
-			if (col->ord_part) {
+			if (!col->ord_part) {
+				continue;
+			}
+
+			if (update) {
+				for (i = 0; i < update->n_fields; i++) {
+					const dict_field_t* f
+						= dict_index_get_nth_field(
+							index,
+							upd_get_nth_field(
+								update, i)
+							->field_no);
+					if (f->col == col) {
+						goto already_logged;
+					}
+				}
+			}
+
+			if (TRUE) {
 				ulint	pos;
 
 				/* Write field number to undo log */
@@ -823,6 +842,9 @@ trx_undo_page_report_modify(
 					ptr += flen;
 				}
 			}
+
+already_logged:
+			continue;
 		}
 
 		mach_write_to_2(old_ptr, ptr - old_ptr);
@@ -997,7 +1019,7 @@ trx_undo_update_rec_get_update(
 			fprintf(stderr, "\n"
 				"InnoDB: but index has only %lu fields\n"
 				"InnoDB: Submit a detailed bug report"
-				" to http://bugs.mysql.com\n"
+				" to https://jira.mariadb.org/\n"
 				"InnoDB: Run also CHECK TABLE ",
 				(ulong) dict_index_get_n_fields(index));
 			ut_print_name(stderr, trx, TRUE, index->table_name);
@@ -1050,6 +1072,7 @@ trx_undo_rec_get_partial_row(
 				used, as we do NOT copy the data in the
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
+	const upd_t*	update,	/*!< in: updated columns */
 	dtuple_t**	row,	/*!< out, own: partial row */
 	ibool		ignore_prefix, /*!< in: flag to indicate if we
 				expect blob prefixes in undo. Used
@@ -1059,6 +1082,8 @@ trx_undo_rec_get_partial_row(
 {
 	const byte*	end_ptr;
 	ulint		row_len;
+	const upd_field_t* uf = update->fields;
+	const upd_field_t* const ue = update->fields + update->n_fields;
 
 	ut_ad(index);
 	ut_ad(ptr);
@@ -1071,6 +1096,12 @@ trx_undo_rec_get_partial_row(
 	*row = dtuple_create(heap, row_len);
 
 	dict_table_copy_types(*row, index->table);
+
+
+	for (; uf != ue; uf++) {
+		ulint c = dict_index_get_nth_col(index, uf->field_no)->ind;
+		*dtuple_get_nth_field(*row, c) = uf->new_val;
+	}
 
 	end_ptr = ptr + mach_read_from_2(ptr);
 	ptr += 2;
@@ -1511,7 +1542,7 @@ trx_undo_prev_version_build(
 		fprintf(stderr, "InnoDB: Error: trying to access"
 			" update undo rec for non-clustered index %s\n"
 			"InnoDB: Submit a detailed bug report to"
-			" http://bugs.mysql.com\n"
+			" https://jira.mariadb.org/\n"
 			"InnoDB: index record ", index->name);
 		rec_print(stderr, index_rec, index);
 		fputs("\n"
@@ -1588,7 +1619,7 @@ trx_undo_prev_version_build(
 			"InnoDB: but the table id in the"
 			" undo record is wrong\n"
 			"InnoDB: Submit a detailed bug report"
-			" to http://bugs.mysql.com\n"
+			" to https://jira.mariadb.org/\n"
 			"InnoDB: Run also CHECK TABLE %s\n",
 			index->table_name, index->table_name);
 	}

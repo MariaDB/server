@@ -4927,7 +4927,7 @@ int subselect_hash_sj_engine::exec()
 
     if (has_covering_null_row)
     {
-      DBUG_ASSERT(count_partial_match_columns = field_count);
+      DBUG_ASSERT(count_partial_match_columns == field_count);
       count_pm_keys= 0;
     }
     else if (has_covering_null_columns)

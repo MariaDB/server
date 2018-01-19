@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -87,6 +88,28 @@ handle_condition(THD *,
   *cond_hdl= NULL;
   is_handled= (sql_errno == ER_TOO_MANY_FIELDS);
   return is_handled;
+}
+
+/*
+  In ALTER TABLE, mysql_create_frm() gets the temporary table name,
+  like #sql-3696_2. It's used for error messages, when a table cannot
+  be created because of some OS error.
+  If there's a user error (like, too long comment), we want to show
+  the real table name, though.
+*/
+static const char *get_real_table_name(const char *table,
+                                       List<Create_field> &fields)
+{
+  const char *real_table_name= table;
+  List_iterator<Create_field> it(fields);
+  Create_field *field;
+  while ((field=it++))
+  {
+    if (field->field && field->field->table &&
+       (real_table_name= field->field->table->s->table_name.str))
+      break;
+  }
+  return real_table_name;
 }
 
 /*
@@ -232,15 +255,7 @@ bool mysql_create_frm(THD *thd, const char *file_name,
 
   if (tmp_len < create_info->comment.length)
   {
-    char *real_table_name= (char*) table;
-    List_iterator<Create_field> it(create_fields);
-    Create_field *field;
-    while ((field=it++))
-    {
-      if (field->field && field->field->table &&
-         (real_table_name= field->field->table->s->table_name.str))
-        break;
-    }
+    const char *real_table_name= get_real_table_name(table, create_fields);
     if ((thd->variables.sql_mode &
          (MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES)))
     {
@@ -284,6 +299,15 @@ bool mysql_create_frm(THD *thd, const char *file_name,
   key_buff_length= uint4korr(fileinfo+47);
   keybuff=(uchar*) my_malloc(key_buff_length, MYF(0));
   key_info_length= pack_keys(keybuff, keys, key_info, data_offset);
+
+  if (key_info_length > UINT_MAX16)
+  {
+    my_printf_error(ER_CANT_CREATE_TABLE,
+                    "Cannot create table %`s.%`s: index information is too long. "
+                    "Decrease number of indexes or use shorter index names or shorter comments.",
+                    MYF(0), db, get_real_table_name(table, create_fields));
+    goto err;
+  }
 
   /*
     Ensure that there are no forms in this newly created form file.

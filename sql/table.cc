@@ -4117,6 +4117,9 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   Query_arena *arena, backup;
   bool res= FALSE;
   DBUG_ENTER("TABLE_LIST::create_field_translation");
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                      (alias ? alias : "<NULL>"),
+                       get_unit()));
 
   if (thd->stmt_arena->is_conventional() ||
       thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
@@ -5996,6 +5999,14 @@ void TABLE::create_key_part_by_field(KEY_PART_INFO *key_part_info,
     might be reused.
   */
   key_part_info->store_length= key_part_info->length;
+  /*
+    For BIT fields null_bit is not set to 0 even if the field is defined
+    as NOT NULL, look at Field_bit::Field_bit
+  */
+  if (!field->real_maybe_null())
+  {
+    key_part_info->null_bit= 0;
+  }
 
   /*
      The total store length of the key part is the raw length of the field +

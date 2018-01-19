@@ -220,3 +220,12 @@ NULL
 1,2,3,4,5,6,7
 
 DROP TABLE t1;
+#
+# MDEV-14596 Crash in INTERVAL(ROW(..),ROW(..))
+#
+SELECT INTERVAL(ROW(1,1),ROW(1,2));
+ERROR 21000: Operand should contain 1 column(s)
+SELECT INTERVAL(1,ROW(1,2));
+ERROR 21000: Operand should contain 1 column(s)
+SELECT INTERVAL(ROW(1,2),1);
+ERROR 21000: Operand should contain 1 column(s)

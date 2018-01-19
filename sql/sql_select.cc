@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016 Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016 MariaDB
+   Copyright (c) 2009, 2018 MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11222,8 +11222,8 @@ static void update_depend_map(JOIN *join)
     uint i;
     for (i=0 ; i < ref->key_parts ; i++,item++)
       depend_map|=(*item)->used_tables();
-    ref->depend_map=depend_map & ~OUTER_REF_TABLE_BIT;
     depend_map&= ~OUTER_REF_TABLE_BIT;
+    ref->depend_map= depend_map;
     for (JOIN_TAB **tab=join->map2table;
          depend_map ;
          tab++,depend_map>>=1 )
@@ -13980,9 +13980,9 @@ bool cond_is_datetime_is_null(Item *cond)
       ((Item_func*) cond)->functype() == Item_func::ISNULL_FUNC)
   {
     Item **args= ((Item_func_isnull*) cond)->arguments();
-    if (args[0]->type() == Item::FIELD_ITEM)
+    if (args[0]->real_item()->type() == Item::FIELD_ITEM)
     {
-      Field *field=((Item_field*) args[0])->field;
+      Field *field=((Item_field*) (args[0]->real_item()))->field;
 
       if (((field->type() == MYSQL_TYPE_DATE) ||
            (field->type() == MYSQL_TYPE_DATETIME)) &&
@@ -14308,14 +14308,14 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
 
     */
     Item **args= ((Item_func_isnull*) cond)->arguments();
-    Field *field=((Item_field*) args[0])->field;
+    Field *field=((Item_field*) (args[0]->real_item()))->field;
 
     Item *item0= new(thd->mem_root) Item_int((longlong)0, 1);
     Item *eq_cond= new(thd->mem_root) Item_func_eq(args[0], item0);
     if (!eq_cond)
       return cond;
 
-        if (field->table->pos_in_table_list->is_inner_table_of_outer_join())
+    if (field->table->pos_in_table_list->is_inner_table_of_outer_join())
     {
       // outer join: transform "col IS NULL" to "col IS NULL or col=0"
       Item *or_cond= new(thd->mem_root) Item_cond_or(eq_cond, cond);
@@ -15537,7 +15537,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       else
       {
         field->set_notnull();
-        memcpy(field->ptr, orig_field->ptr, field->pack_length());
+        memcpy(field->ptr, orig_field->ptr, field->pack_length_in_rec());
       }
       orig_field->move_field_offset(-diff);     // Back to record[0]
     } 
@@ -21159,6 +21159,7 @@ get_sort_by_table(ORDER *a,ORDER *b, List<TABLE_LIST> &tables,
   if (!map || (map & (RAND_TABLE_BIT | OUTER_REF_TABLE_BIT)))
     DBUG_RETURN(0);
 
+  map&= ~const_tables;
   while ((table= ti++) && !(map & table->table->map)) ;
   if (map != table->table->map)
     DBUG_RETURN(0);				// More than one table

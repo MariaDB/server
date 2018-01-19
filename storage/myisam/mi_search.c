@@ -608,11 +608,11 @@ void _mi_kpointer(register MI_INFO *info, register uchar *buff, my_off_t pos)
   case 5: mi_int5store(buff,pos); break;
 #else
   case 7: *buff++=0;
-    /* fall trough */
+    /* fall through */
   case 6: *buff++=0;
-    /* fall trough */
+    /* fall through */
   case 5: *buff++=0;
-    /* fall trough */
+    /* fall through */
 #endif
   case 4: mi_int4store(buff,pos); break;
   case 3: mi_int3store(buff,pos); break;
@@ -729,13 +729,13 @@ void _mi_dpointer(MI_INFO *info, uchar *buff, my_off_t pos)
   case 5: mi_int5store(buff,pos); break;
 #else
   case 8: *buff++=0;
-    /* fall trough */
+    /* fall through */
   case 7: *buff++=0;
-    /* fall trough */
+    /* fall through */
   case 6: *buff++=0;
-    /* fall trough */
+    /* fall through */
   case 5: *buff++=0;
-    /* fall trough */
+    /* fall through */
 #endif
   case 4: mi_int4store(buff,pos); break;
   case 3: mi_int3store(buff,pos); break;

@@ -2132,6 +2132,24 @@ end:
   DBUG_RETURN(result);
 }
 
+
+bool partition_info::error_if_requires_values() const
+{
+  switch (part_type) {
+  case NOT_A_PARTITION:
+  case HASH_PARTITION:
+    break;
+  case RANGE_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "RANGE", "LESS THAN");
+    return true;
+  case LIST_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "LIST", "IN");
+    return true;
+  }
+  return false;
+}
+
+
 /*
   The parser generates generic data structures, we need to set them up
   as the rest of the code expects to find them. This is in reality part
@@ -2221,6 +2239,8 @@ int partition_info::fix_parser_data(THD *thd)
     part_elem= it++;
     List_iterator<part_elem_value> list_val_it(part_elem->list_val_list);
     num_elements= part_elem->list_val_list.elements;
+    if (!num_elements && error_if_requires_values())
+      DBUG_RETURN(true);
     DBUG_ASSERT(part_type == RANGE_PARTITION ?
                 num_elements == 1U : TRUE);
     for (j= 0; j < num_elements; j++)

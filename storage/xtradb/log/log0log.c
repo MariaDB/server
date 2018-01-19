@@ -2503,7 +2503,6 @@ log_group_read_log_seg(
 	ulint	len;
 	ulint	source_offset;
 	ibool	sync;
-	ib_time_t	time;
 
 	ut_ad(mutex_own(&(log_sys->mutex)));
 
@@ -2540,13 +2539,16 @@ loop:
 	start_lsn += len;
 	buf += len;
 
-	time = ut_time();
+	if (recv_recovery_is_on()) {
+		ib_time_t time = ut_time();
 
-	if (recv_sys->progress_time - time >= 15) {
-		recv_sys->progress_time = time;
-		ut_print_timestamp(stderr);
-		fprintf(stderr, "  InnoDB: Read redo log up to LSN=%llu\n",
-			start_lsn);
+		if (recv_sys->progress_time - time >= 15) {
+			recv_sys->progress_time = time;
+			ut_print_timestamp(stderr);
+			fprintf(stderr,
+				"  InnoDB: Read redo log up to LSN=%llu\n",
+				start_lsn);
+		}
 	}
 
 	if (start_lsn != end_lsn) {

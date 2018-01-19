@@ -30,3 +30,72 @@ drop table t1;
 CREATE TABLE t1 (i INT) ENGINE=Aria;
 LOCK TABLES t1 WRITE, t1 AS t1a WRITE;
 DROP TABLE t1;
+#
+#  MDEV-8200 aria bug with insert select when select is a aria table
+#  (wrong result or assertion failure:
+# `table->file->stats.records > 0 || error')
+#
+CREATE TABLE t1 (f1 INT) ENGINE=Aria;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
+CREATE TABLE tmp (f3 INT) engine=Aria;
+LOCK TABLE t2 WRITE, tmp WRITE, tmp AS tmp_alias WRITE, t1 WRITE;
+INSERT INTO tmp SELECT f1 FROM t1;
+INSERT INTO t2 SELECT f3 FROM tmp AS tmp_alias;
+select * from t2;
+f2
+1
+unlock tables;
+DROP TABLE t1,t2,tmp;
+#
+# Same without transactional
+#
+CREATE TABLE t1 (f1 INT) transactional=0 ENGINE=Aria;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=0
+INSERT INTO t1 VALUES (2);
+CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
+CREATE TABLE tmp (f3 INT) transactional=0 engine=Aria;
+LOCK TABLE t2 WRITE, tmp WRITE, tmp AS tmp_alias WRITE, t1 WRITE;
+INSERT INTO tmp SELECT f1 FROM t1;
+INSERT INTO t2 SELECT f3 FROM tmp AS tmp_alias;
+select * from t2;
+f2
+2
+unlock tables;
+DROP TABLE t1,t2,tmp;
+#
+# Using spatical keys (disables versioning)
+#
+CREATE TABLE t1 (f1 INT, c1 geometry NOT NULL, SPATIAL KEY i1 (c1)) transactional=1 ENGINE=Aria;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL,
+  `c1` geometry NOT NULL,
+  SPATIAL KEY `i1` (`c1`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=1
+INSERT INTO t1 VALUES (3,
+PolygonFromText('POLYGON((-18.6086111000 -66.9327777000,
+                          -18.6055555000 -66.8158332999,
+                          -18.7186111000 -66.8102777000,
+                          -18.7211111000 -66.9269443999,
+                          -18.6086111000 -66.9327777000))'));
+CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
+CREATE TABLE tmp (f3 INT, c1 geometry NOT NULL, SPATIAL KEY i1 (c1)) transactional=1 ENGINE=Aria;
+LOCK TABLE t2 WRITE, tmp WRITE, tmp AS tmp_alias WRITE, t1 WRITE;
+INSERT INTO tmp SELECT f1,c1 FROM t1;
+INSERT INTO t2 (f2) SELECT f3 FROM tmp AS tmp_alias;
+select * from t2;
+f2
+3
+unlock tables;
+DROP TABLE t1,t2,tmp;

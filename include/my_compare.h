@@ -91,17 +91,19 @@ typedef struct st_HA_KEYSEG		/* Key-portion */
 
 #define size_to_store_key_length(length) ((length) < 255 ? 1 : 3)
 
-#define get_rec_bits(bit_ptr, bit_ofs, bit_len) \
-  (((((uint16) (bit_ptr)[1] << 8) | (uint16) (bit_ptr)[0]) >> (bit_ofs)) & \
-   ((1 << (bit_len)) - 1))
+static inline uint16 get_rec_bits(const uchar *ptr, uchar ofs, uint len)
+{
+  uint16 val= ptr[0];
+  if (ofs + len > 8)
+    val|= (uint16)(ptr[1]) << 8;
+  return (val >> ofs) & ((1 << len) - 1);
+}
 
-#define set_rec_bits(bits, bit_ptr, bit_ofs, bit_len) \
-{ \
-  (bit_ptr)[0]= ((bit_ptr)[0] & ~(((1 << (bit_len)) - 1) << (bit_ofs))) | \
-                ((bits) << (bit_ofs)); \
-  if ((bit_ofs) + (bit_len) > 8) \
-    (bit_ptr)[1]= ((bit_ptr)[1] & ~((1 << ((bit_len) - 8 + (bit_ofs))) - 1)) | \
-                  ((bits) >> (8 - (bit_ofs))); \
+static inline void set_rec_bits(uint16 bits, uchar *ptr, uchar ofs, uint len)
+{
+  ptr[0]= (ptr[0] & ~(((1 << len) - 1) << ofs)) | (bits << ofs);
+  if (ofs + len > 8)
+    ptr[1]= (ptr[1] & ~((1 << (len - 8 + ofs)) - 1)) | (bits >> (8 - ofs));
 }
 
 #define clr_rec_bits(bit_ptr, bit_ofs, bit_len) \

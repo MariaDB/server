@@ -103,10 +103,6 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   DBUG_ENTER("my_dir");
   DBUG_PRINT("my",("path: '%s' MyFlags: %d",path,MyFlags));
 
-#if !defined(HAVE_READDIR_R)
-  mysql_mutex_lock(&THR_LOCK_open);
-#endif
-
   dirp = opendir(directory_file_name(tmp_path,(char *) path));
 #if defined(__amiga__)
   if ((dirp->dd_fd) < 0)			/* Directory doesn't exists */
@@ -162,9 +158,6 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   }
 
   (void) closedir(dirp);
-#if !defined(HAVE_READDIR_R)
-  mysql_mutex_unlock(&THR_LOCK_open);
-#endif
   result->dir_entry= (FILEINFO *)dir_entries_storage->buffer;
   result->number_off_files= dir_entries_storage->elements;
   
@@ -174,9 +167,6 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   DBUG_RETURN(result);
 
  error:
-#if !defined(HAVE_READDIR_R)
-  mysql_mutex_unlock(&THR_LOCK_open);
-#endif
   my_errno=errno;
   if (dirp)
     (void) closedir(dirp);
