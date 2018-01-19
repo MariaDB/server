@@ -493,62 +493,6 @@ ReadView::complete()
 }
 
 /**
-Find a free view from the active list, if none found then allocate
-a new view.
-@return a view to use */
-
-ReadView*
-MVCC::get_view()
-{
-	ut_ad(mutex_own(&trx_sys.mutex));
-
-	ReadView*	view;
-
-	if (UT_LIST_GET_LEN(m_free) > 0) {
-		view = UT_LIST_GET_FIRST(m_free);
-		UT_LIST_REMOVE(m_free, view);
-	} else {
-		view = UT_NEW_NOKEY(ReadView());
-
-		if (view == NULL) {
-			ib::error() << "Failed to allocate MVCC view";
-		}
-	}
-
-	return(view);
-}
-
-/**
-Release a view that is inactive but not closed. Caller must own
-the trx_sys_t::mutex.
-@param view		View to release */
-void
-MVCC::view_release(ReadView*& view)
-{
-	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&trx_sys.mutex));
-
-	uintptr_t	p = reinterpret_cast<uintptr_t>(view);
-
-	ut_a(p & 0x1);
-
-	view = reinterpret_cast<ReadView*>(p & ~1);
-
-	ut_ad(view->m_closed);
-
-	/** RW transactions should not free their views here. Their views
-	should freed using view_close() */
-
-	ut_ad(view->m_creator_trx_id == 0);
-
-	UT_LIST_REMOVE(m_views, view);
-
-	UT_LIST_ADD_LAST(m_free, view);
-
-	view = NULL;
-}
-
-/**
 Allocate and create a view.
 @param view		view owned by this class created for the
 			caller. Must be freed by calling view_close()
@@ -593,8 +537,11 @@ MVCC::view_open(ReadView*& view, trx_t* trx)
 
 	} else {
 		mutex_enter(&trx_sys.mutex);
-
-		view = get_view();
+		if ((view = UT_LIST_GET_FIRST(m_free))) {
+			UT_LIST_REMOVE(m_free, view);
+		} else if (!(view = UT_NEW_NOKEY(ReadView()))) {
+			ib::error() << "Failed to allocate MVCC view";
+		}
 	}
 
 	if (view != NULL) {
@@ -611,29 +558,6 @@ MVCC::view_open(ReadView*& view, trx_t* trx)
 	}
 
 	mutex_exit(&trx_sys.mutex);
-}
-
-/**
-Get the oldest (active) view in the system.
-@return oldest view if found or NULL */
-
-ReadView*
-MVCC::get_oldest_view() const
-{
-	ReadView*	view;
-
-	ut_ad(mutex_own(&trx_sys.mutex));
-
-	for (view = UT_LIST_GET_LAST(m_views);
-	     view != NULL;
-	     view = UT_LIST_GET_PREV(m_view_list, view)) {
-
-		if (!view->is_closed()) {
-			break;
-		}
-	}
-
-	return(view);
 }
 
 /**
@@ -696,18 +620,23 @@ void
 MVCC::clone_oldest_view(ReadView* view)
 {
 	mutex_enter(&trx_sys.mutex);
-
-	ReadView*	oldest_view = get_oldest_view();
-
-	if (oldest_view == NULL) {
-		view->prepare(0);
-		mutex_exit(&trx_sys.mutex);
-		view->complete();
-	} else {
-		view->copy_prepare(*oldest_view);
-		mutex_exit(&trx_sys.mutex);
-		view->copy_complete();
+	/* Find oldest view. */
+	for (ReadView *oldest_view = UT_LIST_GET_LAST(m_views);
+	     oldest_view != NULL;
+	     oldest_view = UT_LIST_GET_PREV(m_view_list, oldest_view))
+	{
+		if (!oldest_view->is_closed())
+		{
+			view->copy_prepare(*oldest_view);
+			mutex_exit(&trx_sys.mutex);
+			view->copy_complete();
+			return;
+		}
 	}
+	/* No views in the list: snapshot current state. */
+	view->prepare(0);
+	mutex_exit(&trx_sys.mutex);
+	view->complete();
 }
 
 /**

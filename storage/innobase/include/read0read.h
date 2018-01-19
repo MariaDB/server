@@ -54,12 +54,6 @@ public:
 	@param own_mutex	true if caller owns trx_sys_t::mutex */
 	void view_close(ReadView*& view, bool own_mutex);
 
-	/**
-	Release a view that is inactive but not closed. Caller must own
-	the trx_sys_t::mutex.
-	@param view		View to release */
-	void view_release(ReadView*& view);
-
 	/** Clones the oldest view and stores it in view. No need to
 	call view_close(). The caller owns the view that is passed in.
 	It will also move the closed views from the m_views list to the
@@ -86,20 +80,6 @@ private:
 	Validates a read view list. */
 	bool validate() const;
 
-	/**
-	Find a free view from the active list, if none found then allocate
-	a new view. This function will also attempt to move delete marked
-	views from the active list to the freed list.
-	@return a view to use */
-	inline ReadView* get_view();
-
-	/**
-	Get the oldest view in the system. It will also move the delete
-	marked read views from the views list to the freed list.
-	@return oldest view if found or NULL */
-	inline ReadView* get_oldest_view() const;
-
-private:
 	typedef UT_LIST_BASE_NODE_T(ReadView) view_list_t;
 
 	/** Free views ready for reuse. */
