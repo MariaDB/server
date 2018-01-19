@@ -440,7 +440,6 @@ trx_sys_init_at_db_start()
 				     TRX_SYS_TRX_ID_WRITE_MARGIN));
 
 	mtr.commit();
-	ut_d(trx_sys.rw_max_trx_id = trx_sys.get_max_trx_id());
 
 	trx_dummy_sess = sess_open();
 

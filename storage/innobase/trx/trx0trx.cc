@@ -881,10 +881,6 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   trx_resurrect_table_locks(trx, undo);
   if (trx_state_eq(trx, TRX_STATE_ACTIVE))
     *rows_to_undo+= trx->undo_no;
-#ifdef UNIV_DEBUG
-  if (trx->id > trx_sys.rw_max_trx_id)
-    trx_sys.rw_max_trx_id= trx->id;
-#endif
 }
 
 
@@ -1187,12 +1183,6 @@ trx_start_low(
 		ut_ad(trx->rsegs.m_redo.rseg != 0
 		      || srv_read_only_mode
 		      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
-
-#ifdef UNIV_DEBUG
-		if (trx->id > trx_sys.rw_max_trx_id) {
-			trx_sys.rw_max_trx_id = trx->id;
-		}
-#endif /* UNIV_DEBUG */
 
 		mutex_exit(&trx_sys.mutex);
 		trx_sys.rw_trx_hash.insert(trx);
@@ -2776,12 +2766,6 @@ trx_set_rw_mode(
 	if (MVCC::is_view_active(trx->read_view)) {
 		MVCC::set_view_creator_trx_id(trx->read_view, trx->id);
 	}
-
-#ifdef UNIV_DEBUG
-	if (trx->id > trx_sys.rw_max_trx_id) {
-		trx_sys.rw_max_trx_id = trx->id;
-	}
-#endif /* UNIV_DEBUG */
 	mutex_exit(&trx_sys.mutex);
 	trx_sys.rw_trx_hash.insert(trx);
 }

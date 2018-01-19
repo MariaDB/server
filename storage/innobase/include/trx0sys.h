@@ -835,10 +835,6 @@ public:
 	trx_ut_list_t	serialisation_list;
 					/*!< Ordered on trx_t::no of all the
 					currenrtly active RW transactions */
-#ifdef UNIV_DEBUG
-	trx_id_t	rw_max_trx_id;	/*!< Max trx id of read-write
-					transactions which exist or existed */
-#endif /* UNIV_DEBUG */
 
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	trx_ut_list_t	mysql_trx_list;	/*!< List of transactions created
