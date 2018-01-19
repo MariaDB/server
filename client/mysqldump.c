@@ -212,9 +212,9 @@ TYPELIB compatible_mode_typelib= {array_elements(compatible_mode_names) - 1,
 
 #define MED_ENGINES "MRG_MyISAM, MRG_ISAM, CONNECT, OQGRAPH, SPIDER, VP, FEDERATED"
 
-HASH ignore_table;
+static HASH ignore_table;
 
-HASH ignore_database;
+static HASH ignore_database;
 
 static struct my_option my_long_options[] =
 {
@@ -908,7 +908,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     opt_databases=0;
     break;
   case (int) OPT_IGNORE_DATABASE:
-    if (my_hash_insert(&ignore_database, (uchar*)my_strdup(argument, MYF(0))))
+    if (my_hash_insert(&ignore_database, (uchar*) my_strdup(argument, MYF(0))))
       exit(EX_EOM);
     break;
   case (int) OPT_IGNORE_TABLE:
@@ -1070,9 +1070,10 @@ static int get_options(int *argc, char ***argv)
             my_progname_short);
     return(EX_USAGE);
   }
-  if (ignore_database.records && !opt_alldbs) {
+  if (ignore_database.records && !opt_alldbs)
+  {
     fprintf(stderr, 
-            "%s: --ignore-database can only be used toghether with --all-databases.\n",
+            "%s: --ignore-database can only be used together with --all-databases.\n",
 	    my_progname_short);
     return(EX_USAGE);
   }
@@ -4236,6 +4237,7 @@ static int dump_tablespaces_for_tables(char *db, char **table_names, int tables)
   return r;
 }
 
+
 static int dump_tablespaces_for_databases(char** databases)
 {
   int r;
@@ -4264,6 +4266,7 @@ static int dump_tablespaces_for_databases(char** databases)
   dynstr_free(&dynamic_where);
   return r;
 }
+
 
 static int dump_tablespaces(char* ts_where)
 {
@@ -4451,11 +4454,11 @@ static int dump_tablespaces(char* ts_where)
   DBUG_RETURN(0);
 }
 
-/* Return 1 if we should copy the database */
 
-my_bool include_database(const uchar *hash_key, size_t len)
+/* Return 1 if we should copy the database */
+static my_bool include_database(const char *hash_key)
 {
-  return ! my_hash_search(&ignore_database, hash_key, len);
+  return !my_hash_search(&ignore_database, (uchar*) hash_key, strlen(hash_key));
 }
 
 
@@ -4477,7 +4480,7 @@ static int dump_all_databases()
         !my_strcasecmp(&my_charset_latin1, row[0], PERFORMANCE_SCHEMA_DB_NAME))
       continue;
 
-    if (include_database(row[0], strlen(row[0])))
+    if (include_database(row[0]))
       if (dump_all_tables_in_db(row[0]))
         result=1;
   }
@@ -4501,7 +4504,7 @@ static int dump_all_databases()
           !my_strcasecmp(&my_charset_latin1, row[0], PERFORMANCE_SCHEMA_DB_NAME))
         continue;
 
-      if (include_database(row[0], strlen(row[0])))
+      if (include_database(row[0]))
         if (dump_all_views_in_db(row[0]))
           result=1;
     }
@@ -6087,8 +6090,6 @@ int main(int argc, char **argv)
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
   compatible_mode_normal_str[0]= 0;
   default_charset= (char *)mysql_universal_client_charset;
-  bzero((char*) &ignore_database, sizeof(ignore_database));
-  bzero((char*) &ignore_table, sizeof(ignore_table));
 
   exit_code= get_options(&argc, &argv);
   if (exit_code)

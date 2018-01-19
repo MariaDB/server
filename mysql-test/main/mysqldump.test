@@ -1926,6 +1926,15 @@ TRUNCATE mysql.event;
 SHOW EVENTS;
 --remove_file $MYSQLTEST_VARDIR/tmp/bug29938.sql
 
+--echo #
+--echo # MDEV-13336: add ignore-database option
+--echo #           with --all-databases
+--echo #
+--exec $MYSQL_DUMP --ignore-database test --all-databases > $MYSQLTEST_VARDIR/tmp/mysqldump-MDEV-13336.sql
+DROP DATABASE test;
+--exec $MYSQL < $MYSQLTEST_VARDIR/tmp/mysqldump-MDEV-13336.sql
+SHOW DATABASES LIKE 'test';
+CREATE DATABASE test;
 
 --echo #
 --echo # Bug#31113 mysqldump 5.1 can't handle a dash ("-") in database names
