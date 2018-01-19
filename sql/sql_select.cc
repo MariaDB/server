@@ -9513,7 +9513,7 @@ void JOIN::drop_unused_derived_keys()
       table->use_index(tab->ref.key);
     if (table->s->keys)
     {
-      if (tab->ref.key >= 0)
+      if (tab->ref.key >= 0 && tab->ref.key < MAX_KEY)
         tab->ref.key= 0;
       else
         table->s->keys= 0;

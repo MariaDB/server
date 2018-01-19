@@ -864,5 +864,28 @@ select distinct t1.id, tt.id, tt.data
 
 drop table t1;
 
+--echo #
+--echo # MDEV-14241: Server crash in key_copy / get_matching_chain_by_join_key
+--echo # or valgrind warnings
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10)) ENGINE=MyISAM;
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+CREATE TABLE t2 (b integer auto_increment primary key) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (NULL),(NULL);
+
+CREATE TABLE t3 (c VARCHAR(1024) CHARACTER SET utf8, d INT) ENGINE=MyISAM;
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
+INSERT INTO t3 VALUES ('abc',NULL),('def',4);
+
+SET join_cache_level= 8;
+explain
+SELECT * FROM v1, t2, v3 WHERE a = c AND b = d;
+SELECT * FROM v1, t2, v3 WHERE a = c AND b = d;
+
+DROP VIEW v1, v3;
+DROP TABLE t1, t2, t3;
 
 --echo # end of 5.5
