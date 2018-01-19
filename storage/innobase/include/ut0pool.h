@@ -64,6 +64,8 @@ struct Pool {
 
 		m_start = reinterpret_cast<Element*>(ut_zalloc_nokey(m_size));
 
+		UNIV_MEM_FREE(m_start, m_size);
+
 		m_last = m_start;
 
 		m_end = &m_start[m_size / sizeof(*m_start)];
@@ -85,6 +87,7 @@ struct Pool {
 
 		for (Element* elem = m_start; elem != m_last; ++elem) {
 
+			UNIV_MEM_ALLOC(elem, sizeof(*elem));
 			ut_ad(elem->m_pool == this);
 			Factory::destroy(&elem->m_type);
 		}
@@ -121,6 +124,11 @@ struct Pool {
 		}
 
 		m_lock_strategy.exit();
+
+		if (elem) {
+			// UNIV_MEM_ALLOC(&elem->m_type, sizeof(elem->m_type));
+			UNIV_MEM_ALLOC(elem, sizeof(*elem));
+		}
 
 		return(elem != NULL ? &elem->m_type : 0);
 	}
@@ -160,6 +168,8 @@ private:
 
 		ut_ad(Factory::debug(&elem->m_type));
 
+		// UNIV_MEM_FREE(elem, sizeof(*elem));
+
 		m_pqueue.push(elem);
 
 		m_lock_strategy.exit();
@@ -173,8 +183,10 @@ private:
 
 		for (size_t i = 0; i < n_elems; ++i, ++m_last) {
 
+			UNIV_MEM_ALLOC(m_last, sizeof(*m_last));
 			m_last->m_pool = this;
 			Factory::init(&m_last->m_type);
+			UNIV_MEM_FREE(m_last, sizeof(*m_last));
 			m_pqueue.push(m_last);
 		}
 
