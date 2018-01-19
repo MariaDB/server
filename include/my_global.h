@@ -1375,6 +1375,8 @@ static inline char *dlerror(void)
 #endif
 #ifndef HAVE_DLADDR
 #define dladdr(A, B) 0
+/* Dummy definition in case we're missing dladdr() */
+typedef int Dl_info;
 #endif
 #else
 #define dlerror() "No support for dynamic loading (static build?)"
@@ -1382,6 +1384,8 @@ static inline char *dlerror(void)
 #define dlsym(A,B) 0
 #define dlclose(A) 0
 #define dladdr(A, B) 0
+/* Dummy definition in case we're missing dladdr() */
+typedef int Dl_info;
 #endif
 
 /*
