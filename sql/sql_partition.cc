@@ -7217,7 +7217,7 @@ void append_row_to_str(String &str, const uchar *row, TABLE *table)
   {
     Field *field= *field_ptr;
     str.append(" ");
-    str.append(field->field_name);
+    str.append(&field->field_name);
     str.append(":");
     field_unpack(&str, field, rec, 0, false);
   }

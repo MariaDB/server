@@ -477,18 +477,17 @@ public:
   bool append(const char *s);
   bool append(const LEX_STRING *ls)
   {
-    DBUG_ASSERT(ls->length < UINT_MAX32);
+    DBUG_ASSERT(ls->length < UINT_MAX32 &&
+                ((ls->length == 0 && !ls->str) ||
+                 ls->length == strlen(ls->str)));
     return append(ls->str, (uint32) ls->length);
   }
   bool append(const LEX_CSTRING *ls)
   {
-    DBUG_ASSERT(ls->length < UINT_MAX32);
+    DBUG_ASSERT(ls->length < UINT_MAX32 &&
+                ((ls->length == 0 && !ls->str) ||
+                 ls->length == strlen(ls->str)));
     return append(ls->str, (uint32) ls->length);
-  }
-  bool append(const LEX_CSTRING &ls)
-  {
-    DBUG_ASSERT(ls.length < UINT_MAX32);
-    return append(ls.str, (uint32) ls.length);
   }
   bool append(const char *s, size_t size);
   bool append(const char *s, uint arg_length, CHARSET_INFO *cs);
@@ -582,7 +581,9 @@ public:
   }
   void q_append(const LEX_CSTRING *ls)
   {
-    DBUG_ASSERT(ls->length < UINT_MAX32);
+    DBUG_ASSERT(ls->length < UINT_MAX32 &&
+                ((ls->length == 0 && !ls->str) ||
+                 ls->length == strlen(ls->str)));
     q_append(ls->str, (uint32) ls->length);
   }
 
@@ -595,9 +596,12 @@ public:
   {
     qs_append(str, (uint32)strlen(str));
   }
-  void qs_append(const LEX_CSTRING *str)
+  void qs_append(const LEX_CSTRING *ls)
   {
-    qs_append(str->str, str->length);
+    DBUG_ASSERT(ls->length < UINT_MAX32 &&
+                ((ls->length == 0 && !ls->str) ||
+                 ls->length == strlen(ls->str)));
+    qs_append(ls->str, ls->length);
   }
   void qs_append(const char *str, uint32 len);
   void qs_append_hex(const char *str, uint32 len);

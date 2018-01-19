@@ -7346,8 +7346,8 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       {
         String tmp;
         tmp.append("DROP COLUMN ");
-        tmp.append(done_start ? table->vers_end_field()->field_name
-                              : table->vers_start_field()->field_name);
+        tmp.append(done_start ? &table->vers_end_field()->field_name
+                              : &table->vers_start_field()->field_name);
         my_error(ER_MISSING, MYF(0), table_name, tmp.c_ptr());
         return true;
       }

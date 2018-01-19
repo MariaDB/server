@@ -693,7 +693,13 @@ static void build_trig_stmt_query(THD *thd, TABLE_LIST *tables,
 
   /* Create statement for storing trigger (without trigger order) */
   if (lex->trg_chistics.ordering_clause == TRG_ORDER_NONE)
-    trigger_def->append(&stmt_definition);
+  {
+    /*
+      Not that here stmt_definition doesn't end with a \0, which is
+      normally expected from a LEX_CSTRING
+    */
+    trigger_def->append(stmt_definition.str, stmt_definition.length);
+  }
   else
   {
     /* Copy data before FOLLOWS/PRECEDES trigger_name */

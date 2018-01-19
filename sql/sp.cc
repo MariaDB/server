@@ -2328,7 +2328,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
     buf->append(STRING_WITH_LEN("    DETERMINISTIC\n"));
   append_suid(buf, chistics.suid);
   append_comment(buf, chistics.comment);
-  buf->append(&body);
+  buf->append(body.str, body.length);           // Not \0 terminated
   thd->variables.sql_mode= old_sql_mode;
   return false;
 }

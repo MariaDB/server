@@ -322,7 +322,8 @@ public:
       bool res;
       if (copy_event_cache_to_string_and_reinit(m_cache, &tmp_str))
         return 1;
-      res= m_ev->output_buf.append(&tmp_str) != 0;
+      /* use 2 argument append as tmp_str is not \0 terminated */
+      res= m_ev->output_buf.append(tmp_str.str, tmp_str.length);
       my_free(tmp_str.str);
       return res ? res : 0;
     }
@@ -11783,16 +11784,16 @@ bool Rows_log_event::print_helper(FILE *file,
       LEX_STRING tmp_str;
       if (copy_event_cache_to_string_and_reinit(head, &tmp_str))
         return 1;
-      output_buf.append(&tmp_str);
+      output_buf.append(tmp_str.str, tmp_str.length);  // Not \0 terminated
       my_free(tmp_str.str);
       if (copy_event_cache_to_string_and_reinit(body, &tmp_str))
         return 1;
-      output_buf.append(&tmp_str);
+      output_buf.append(tmp_str.str, tmp_str.length);
       my_free(tmp_str.str);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
       if (copy_event_cache_to_string_and_reinit(sql, &tmp_str))
         return 1;
-      output_buf.append(&tmp_str);
+      output_buf.append(tmp_str.str, tmp_str.length);
       my_free(tmp_str.str);
 #endif
     }
