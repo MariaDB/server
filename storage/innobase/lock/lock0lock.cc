@@ -5719,9 +5719,14 @@ lock_trx_print_wait_and_mvcc_state(
 
 	trx_print_latched(file, trx, 600);
 
-	const ReadView*	read_view = trx_get_read_view(trx);
+	/* Note: this read_view access is data race. Further
+	read_view->is_active() check is race condition. But it should
+	"kind of work" because read_view is freed only at shutdown.
+	Worst thing that may happen is that it'll get transferred to
+	another thread and print wrong values. */
+	const ReadView*	read_view = trx->read_view;
 
-	if (read_view != NULL) {
+	if (read_view != NULL && !read_view->is_closed()) {
 		read_view->print_limits(file);
 	}
 

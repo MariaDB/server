@@ -50,9 +50,8 @@ public:
 
 	/**
 	Close a view created by the above function.
-	@para view		view allocated by trx_open.
-	@param own_mutex	true if caller owns trx_sys_t::mutex */
-	void view_close(ReadView*& view, bool own_mutex);
+	@param view		view allocated by trx_open. */
+	void view_close(ReadView*& view);
 
 	/** Clones the oldest view and stores it in view. No need to
 	call view_close(). The caller owns the view that is passed in.
@@ -69,9 +68,7 @@ public:
 	@return true if the view is active and valid */
 	static bool is_view_active(ReadView* view)
 	{
-		ut_a(view != reinterpret_cast<ReadView*>(0x1));
-
-		return(view != NULL && !(intptr_t(view) & 0x1));
+		return view && !view->is_closed();
 	}
 
 private:

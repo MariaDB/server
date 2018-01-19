@@ -207,6 +207,11 @@ public:
 		return(m_closed);
 	}
 
+	void set_closed(bool closed)
+	{
+		m_closed= closed;
+	}
+
 	/**
 	Write the limits to the file.
 	@param file		file to write to */

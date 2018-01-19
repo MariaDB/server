@@ -665,36 +665,15 @@ MVCC::size() const
 
 /**
 Close a view created by the above function.
-@para view		view allocated by trx_open.
-@param own_mutex	true if caller owns trx_sys_t::mutex */
+@param view		view allocated by trx_open. */
 
 void
-MVCC::view_close(ReadView*& view, bool own_mutex)
+MVCC::view_close(ReadView*& view)
 {
-	uintptr_t	p = reinterpret_cast<uintptr_t>(view);
-
-	/* Note: The assumption here is that AC-NL-RO transactions will
-	call this function with own_mutex == false. */
-	if (!own_mutex) {
-		/* Sanitise the pointer first. */
-		ReadView*	ptr = reinterpret_cast<ReadView*>(p & ~1);
-
-		/* Note this can be called for a read view that
-		was already closed. */
-		ptr->m_closed = true;
-
-		/* Set the view as closed. */
-		view = reinterpret_cast<ReadView*>(p | 0x1);
-	} else {
-		view = reinterpret_cast<ReadView*>(p & ~1);
-
-		view->close();
-
-		UT_LIST_REMOVE(m_views, view);
-		UT_LIST_ADD_LAST(m_free, view);
-
-		ut_ad(validate());
-
-		view = NULL;
-	}
+	ut_ad(mutex_own(&trx_sys.mutex));
+	view->close();
+	UT_LIST_REMOVE(m_views, view);
+	UT_LIST_ADD_LAST(m_free, view);
+	ut_ad(validate());
+	view = NULL;
 }
