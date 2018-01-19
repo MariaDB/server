@@ -2372,13 +2372,11 @@ public:
   bool can_optimize_keypart_ref(const Item_bool_func *cond,
                                 const Item *item) const
   {
-    DBUG_ASSERT(0);
     return false;
   }
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const
   {
-    DBUG_ASSERT(0);
     return false;
   }
 };
