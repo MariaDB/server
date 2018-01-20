@@ -1376,7 +1376,7 @@ static inline char *dlerror(void)
 #ifndef HAVE_DLADDR
 #define dladdr(A, B) 0
 /* Dummy definition in case we're missing dladdr() */
-typedef int Dl_info;
+typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 #endif
 #else
 #define dlerror() "No support for dynamic loading (static build?)"
@@ -1385,7 +1385,7 @@ typedef int Dl_info;
 #define dlclose(A) 0
 #define dladdr(A, B) 0
 /* Dummy definition in case we're missing dladdr() */
-typedef int Dl_info;
+typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 #endif
 
 /*
