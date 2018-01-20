@@ -423,8 +423,6 @@ void my_thread_end(void)
     if (--THR_thread_count == 0)
       mysql_cond_signal(&THR_COND_threads);
     mysql_mutex_unlock(&THR_LOCK_threads);
-
-    TRASH(tmp, sizeof(*tmp));
     free(tmp);
   }
 }

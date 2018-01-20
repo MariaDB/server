@@ -267,7 +267,7 @@ public:
   static void *operator new(size_t size, MEM_ROOT *mem_root)
   { return (void*) alloc_root(mem_root, size); }
   static void operator delete(void *ptr_arg,size_t size)
-  { TRASH(ptr_arg, size); }
+  { TRASH_FREE(ptr_arg, size); }
 
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
                     struct st_mysql_sys_var *plugin_var_arg,

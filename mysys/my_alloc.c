@@ -293,7 +293,7 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
   DBUG_RETURN((void*) start);
 }
 
-#define TRASH_MEM(X) TRASH(((char*)(X) + ((X)->size-(X)->left)), (X)->left)
+#define TRASH_MEM(X) TRASH_FREE(((char*)(X) + ((X)->size-(X)->left)), (X)->left)
 
 /* Mark all data in blocks free for reusage */
 

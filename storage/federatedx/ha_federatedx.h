@@ -169,7 +169,7 @@ public:
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr, size_t size)
-  { TRASH(ptr, size); }
+  { TRASH_FREE(ptr, size); }
 
   virtual int query(const char *buffer, uint length)=0;
   virtual FEDERATEDX_IO_RESULT *store_result()=0;

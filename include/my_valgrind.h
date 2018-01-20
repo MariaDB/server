@@ -45,4 +45,3 @@
 #endif
 #define TRASH_ALLOC(A,B) TRASH_FILL(A,B,0xA5)
 #define TRASH_FREE(A,B) TRASH_FILL(A,B,0x8F)
-#define TRASH(A,B) TRASH_FREE(A,B)
