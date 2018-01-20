@@ -459,8 +459,6 @@ trx_sys_t::create()
 	UT_LIST_INIT(serialisation_list, &trx_t::no_list);
 	UT_LIST_INIT(mysql_trx_list, &trx_t::mysql_trx_list);
 
-	mvcc.create(1024);
-
 	rw_trx_hash.init();
 }
 
@@ -589,8 +587,6 @@ trx_sys_t::close()
 			trx_rseg_mem_free(rseg);
 		}
 	}
-
-	mvcc.close();
 
 	ut_a(UT_LIST_GET_LEN(mysql_trx_list) == 0);
 	ut_a(UT_LIST_GET_LEN(serialisation_list) == 0);

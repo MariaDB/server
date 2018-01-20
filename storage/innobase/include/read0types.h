@@ -198,19 +198,13 @@ public:
 	{
 		ut_ad(m_creator_trx_id != TRX_ID_MAX);
 		m_creator_trx_id = TRX_ID_MAX;
+		set_open(false);
 	}
 
-	/**
-	@return true if the view is closed */
-	bool is_closed() const
-	{
-		return(m_closed);
-	}
-
-	void set_closed(bool closed)
-	{
-		m_closed= closed;
-	}
+	bool is_open() const { return(m_open); }
+	void set_open(bool open) { m_open= open; }
+	bool is_registered() const { return(m_registered); }
+	void set_registered(bool registered) { m_registered= registered; }
 
 	/**
 	Write the limits to the file.
@@ -325,14 +319,15 @@ private:
 	they can be removed in purge if not needed by other views */
 	trx_id_t	m_low_limit_no;
 
-	/** AC-NL-RO transaction view that has been "closed". */
-	bool		m_closed;
+	/** true if view is open. */
+	bool		m_open;
 
-	typedef UT_LIST_NODE_T(ReadView) node_t;
+	/** true if transaction is in MVCC::m_views. Only thread that owns
+	this view may access it. */
+	bool		m_registered;
 
-	/** List of read views in trx_sys */
-	byte		pad1[64 - sizeof(node_t)];
-	node_t		m_view_list;
+	byte		pad1[CACHE_LINE_SIZE];
+	UT_LIST_NODE_T(ReadView)	m_view_list;
 };
 
 #endif

@@ -2101,16 +2101,16 @@ end_of_index:
 			ONLINE_INDEX_COMPLETE state between the time
 			the DML thread has updated the clustered index
 			but has not yet accessed secondary index. */
-			ut_ad(MVCC::is_view_active(trx->read_view));
+			ut_ad(trx->read_view.is_open());
 			ut_ad(rec_trx_id != trx->id);
 
-			if (!trx->read_view->changes_visible(
+			if (!trx->read_view.changes_visible(
 				    rec_trx_id, old_table->name)) {
 				rec_t*	old_vers;
 
 				row_vers_build_for_consistent_read(
 					rec, &mtr, clust_index, &offsets,
-					trx->read_view, &row_heap,
+					&trx->read_view, &row_heap,
 					row_heap, &old_vers, NULL);
 
 				if (!old_vers) {
@@ -4526,8 +4526,8 @@ row_merge_is_index_usable(
 	return(!dict_index_is_corrupted(index)
 	       && (dict_table_is_temporary(index->table)
 		   || index->trx_id == 0
-		   || !MVCC::is_view_active(trx->read_view)
-		   || trx->read_view->changes_visible(
+		   || !trx->read_view.is_open()
+		   || trx->read_view.changes_visible(
 			   index->trx_id,
 			   index->table->name)));
 }

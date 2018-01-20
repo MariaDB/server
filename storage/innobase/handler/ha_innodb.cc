@@ -3503,7 +3503,7 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 
 	/* Assign a read view if the transaction does not have it yet */
 
-	trx_assign_read_view(m_prebuilt->trx);
+	trx_sys.mvcc.view_open(m_prebuilt->trx);
 
 	innobase_register_trx(ht, m_user_thd, m_prebuilt->trx);
 
@@ -4394,7 +4394,7 @@ innobase_start_trx_and_assign_read_view(
 		thd_get_trx_isolation(thd));
 
 	if (trx->isolation_level == TRX_ISO_REPEATABLE_READ) {
-		trx_assign_read_view(trx);
+		trx_sys.mvcc.view_open(trx);
 	} else {
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    HA_ERR_UNSUPPORTED,
@@ -16220,7 +16220,7 @@ ha_innobase::external_lock(
 			}
 
 		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
-			   && MVCC::is_view_active(trx->read_view)) {
+			   && trx->read_view.is_open()) {
 			mutex_enter(&trx_sys.mutex);
 			trx_sys.mvcc.view_close(trx->read_view);
 			mutex_exit(&trx_sys.mutex);
@@ -16885,7 +16885,7 @@ ha_innobase::store_lock(
 			(enum_tx_isolation) thd_tx_isolation(thd));
 
 		if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
-		    && MVCC::is_view_active(trx->read_view)) {
+		    && trx->read_view.is_open()) {
 
 			/* At low transaction isolation levels we let
 			each consistent read set its own snapshot */

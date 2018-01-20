@@ -192,7 +192,7 @@ trx_init(
 
 	trx->last_sql_stat_start.least_undo_no = 0;
 
-	ut_ad(!MVCC::is_view_active(trx->read_view));
+	ut_ad(!trx->read_view.is_open());
 
 	trx->lock.rec_cached = 0;
 
@@ -246,6 +246,7 @@ struct TrxFactory {
 		new(&trx->lock.table_locks) lock_pool_t();
 
 		new(&trx->hit_list) hit_list_t();
+		new(&trx->read_view) ReadView();
 
 		trx->rw_trx_hash_pins = 0;
 		trx_init(trx);
@@ -301,7 +302,7 @@ struct TrxFactory {
 
 		trx->mod_tables.~trx_mod_tables_t();
 
-		ut_ad(trx->read_view == NULL);
+		ut_ad(!trx->read_view.is_open());
 
 		if (!trx->lock.rec_pool.empty()) {
 
@@ -508,7 +509,12 @@ trx_free(trx_t*& trx)
 
 	trx->mod_tables.clear();
 
-	ut_ad(trx->read_view == NULL);
+	ut_ad(!trx->read_view.is_open());
+	if (trx->read_view.is_registered()) {
+		mutex_enter(&trx_sys.mutex);
+		trx_sys.mvcc.view_close(trx->read_view);
+		mutex_exit(&trx_sys.mutex);
+	}
 
 	/* trx locking state should have been reset before returning trx
 	to pool */
@@ -677,7 +683,7 @@ trx_disconnect_from_mysql(
 
 	UT_LIST_REMOVE(trx_sys.mysql_trx_list, trx);
 
-	if (trx->read_view != NULL) {
+	if (trx->read_view.is_open()) {
 		trx_sys.mvcc.view_close(trx->read_view);
 	}
 
@@ -1536,17 +1542,11 @@ trx_erase_lists(
 {
 	ut_ad(trx->id > 0);
 
-	if (trx->rsegs.m_redo.rseg && trx->read_view) {
-		ut_ad(!trx->read_only);
-		mutex_enter(&trx_sys.mutex);
-		trx_sys.mvcc.view_close(trx->read_view);
-	} else {
-
-		mutex_enter(&trx_sys.mutex);
-	}
-
 	if (serialised) {
+		mutex_enter(&trx_sys.mutex);
 		UT_LIST_REMOVE(trx_sys.serialisation_list, trx);
+	} else {
+		mutex_enter(&trx_sys.mutex);
 	}
 
 	trx_ids_t::iterator	it = std::lower_bound(
@@ -1574,6 +1574,8 @@ trx_commit_in_memory(
 				written */
 {
 	trx->must_flush_log_later = false;
+	trx->read_view.set_open(false);
+
 
 	if (trx_is_autocommit_non_locking(trx)) {
 		ut_ad(trx->id == 0);
@@ -1596,10 +1598,6 @@ trx_commit_in_memory(
 		without first acquiring the trx_sys_t::mutex. */
 
 		ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-
-		if (trx->read_view != NULL) {
-			trx->read_view->set_closed(true);
-		}
 
 		MONITOR_INC(MONITOR_TRX_NL_RO_COMMIT);
 
@@ -1629,9 +1627,6 @@ trx_commit_in_memory(
 
 		if (trx->read_only || trx->rsegs.m_redo.rseg == NULL) {
 			MONITOR_INC(MONITOR_TRX_RO_COMMIT);
-			if (trx->read_view != NULL) {
-				trx->read_view->set_closed(true);
-			}
 		} else {
 			trx_update_mod_tables_timestamp(trx);
 			MONITOR_INC(MONITOR_TRX_RW_COMMIT);
@@ -1873,30 +1868,6 @@ trx_commit(
 	}
 
 	trx_commit_low(trx, mtr);
-}
-
-/********************************************************************//**
-Assigns a read view for a consistent read query. All the consistent reads
-within the same transaction will get the same read view, which is created
-when this function is first called for a new started transaction.
-@return consistent read view */
-ReadView*
-trx_assign_read_view(
-/*=================*/
-	trx_t*		trx)	/*!< in/out: active transaction */
-{
-	ut_ad(trx->state == TRX_STATE_ACTIVE);
-
-	if (srv_read_only_mode) {
-
-		ut_ad(trx->read_view == NULL);
-		return(NULL);
-
-	} else if (!MVCC::is_view_active(trx->read_view)) {
-		trx_sys.mvcc.view_open(trx->read_view, trx);
-	}
-
-	return(trx->read_view);
 }
 
 /****************************************************************//**
@@ -2754,8 +2725,8 @@ trx_set_rw_mode(
 	trx_sys.rw_trx_ids.push_back(trx->id);
 
 	/* So that we can see our own changes. */
-	if (MVCC::is_view_active(trx->read_view)) {
-		trx->read_view->creator_trx_id(trx->id);
+	if (trx->read_view.is_open()) {
+		trx->read_view.creator_trx_id(trx->id);
 	}
 	mutex_exit(&trx_sys.mutex);
 	trx_sys.rw_trx_hash.insert(trx);
