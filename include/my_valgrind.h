@@ -39,9 +39,9 @@
 #endif /* HAVE_VALGRIND */
 
 #ifndef DBUG_OFF
-#define TRASH_FILL(A,B,C) do { memset(A, C, B); MEM_UNDEFINED(A, B); } while (0)
+#define TRASH_FILL(A,B,C) do { MEM_UNDEFINED(A,B); memset(A,C,B); } while(0)
 #else
-#define TRASH_FILL(A,B,C) do { MEM_CHECK_ADDRESSABLE(A,B);MEM_UNDEFINED(A,B);} while (0)
+#define TRASH_FILL(A,B,C)  do { MEM_UNDEFINED(A,B); } while(0)
 #endif
-#define TRASH_ALLOC(A,B) TRASH_FILL(A,B,0xA5)
-#define TRASH_FREE(A,B) TRASH_FILL(A,B,0x8F)
+#define TRASH_ALLOC(A,B) do { TRASH_FILL(A,B,0xA5); MEM_UNDEFINED(A,B); } while(0)
+#define TRASH_FREE(A,B) do { TRASH_FILL(A,B,0x8F); MEM_NOACCESS(A,B); } while(0)
