@@ -191,6 +191,7 @@ int main(int argc __attribute__((unused)), char *argv[])
 
   if (maria_log_remove(maria_data_root))
     exit(1);
+  free(long_buffer);
   exit(0);
 }
 
