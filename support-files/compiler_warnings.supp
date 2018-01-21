@@ -176,6 +176,11 @@
 .*/liblzma/lz/lz_encoder\.c : variable.*in_used.*set but not used
 
 #
+# pcre
+#
+.*/pcre/pcre_exec\.c: noclone.*attribute directive ignored
+
+#
 # Unexplanable (?) stuff
 #
 .*/listener\.cc : .*conversion from 'SOCKET' to 'int'.*
