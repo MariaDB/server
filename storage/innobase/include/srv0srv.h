@@ -60,7 +60,7 @@ Created 10/10/1995 Heikki Tuuri
 /** Global counters used inside InnoDB. */
 struct srv_stats_t
 {
-	typedef ib_counter_t<ulint, 64> ulint_ctr_64_t;
+	typedef ib_counter_t ulint_ctr_64_t;
 	typedef simple_counter<lsn_t> lsn_ctr_1_t;
 	typedef simple_counter<ulint> ulint_ctr_1_t;
 	typedef simple_counter<int64_t> int64_ctr_1_t;
