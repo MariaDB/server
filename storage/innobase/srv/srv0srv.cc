@@ -1365,9 +1365,9 @@ srv_printf_innodb_monitor(
 		srv_conc_get_active_threads(),
 		srv_conc_get_waiting_threads());
 
-	/* This is a dirty read, without holding trx_sys->mutex. */
+	/* This is a dirty read, without holding trx_sys.mutex. */
 	fprintf(file, ULINTPF " read views open inside InnoDB\n",
-		trx_sys->mvcc->size());
+		trx_sys.mvcc.size());
 
 	n_reserved = fil_space_get_n_reserved_extents(0);
 	if (n_reserved > 0) {
@@ -1631,32 +1631,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_onlineddl_rowlog_rows = onlineddl_rowlog_rows;
 	export_vars.innodb_onlineddl_rowlog_pct_used = onlineddl_rowlog_pct_used;
 	export_vars.innodb_onlineddl_pct_progress = onlineddl_pct_progress;
-
-#ifdef UNIV_DEBUG
-	rw_lock_s_lock(&purge_sys->latch);
-	trx_id_t	up_limit_id	= purge_sys->view.up_limit_id();;
-	trx_id_t	done_trx_no	= purge_sys->done.trx_no;
-	rw_lock_s_unlock(&purge_sys->latch);
-
-	mutex_enter(&trx_sys->mutex);
-	trx_id_t	max_trx_id	= trx_sys->rw_max_trx_id;
-	mutex_exit(&trx_sys->mutex);
-
-	if (!done_trx_no || max_trx_id < done_trx_no - 1) {
-		export_vars.innodb_purge_trx_id_age = 0;
-	} else {
-		export_vars.innodb_purge_trx_id_age =
-			(ulint) (max_trx_id - done_trx_no + 1);
-	}
-
-	if (!up_limit_id
-	    || max_trx_id < up_limit_id) {
-		export_vars.innodb_purge_view_trx_id_age = 0;
-	} else {
-		export_vars.innodb_purge_view_trx_id_age =
-			(ulint) (max_trx_id - up_limit_id);
-	}
-#endif /* UNIV_DEBUG */
 
 	export_vars.innodb_sec_rec_cluster_reads =
 		srv_stats.n_sec_rec_cluster_reads;
@@ -2006,7 +1980,7 @@ srv_wake_purge_thread_if_not_active()
 
 	if (purge_sys->state == PURGE_STATE_RUN
 	    && !my_atomic_loadlint(&srv_sys.n_threads_active[SRV_PURGE])
-	    && my_atomic_loadlint(&trx_sys->rseg_history_len)) {
+	    && my_atomic_loadlint(&trx_sys.rseg_history_len)) {
 
 		srv_release_threads(SRV_PURGE, 1);
 	}
@@ -2503,7 +2477,7 @@ srv_purge_should_exit(ulint n_purged)
 		return(false);
 	}
 	/* Exit if there are no active transactions to roll back. */
-	return(trx_sys_any_active_transactions() == 0);
+	return(trx_sys.any_active_transactions() == 0);
 }
 
 /*********************************************************************//**
@@ -2645,7 +2619,7 @@ srv_do_purge(ulint* n_total_purged)
 	}
 
 	do {
-		if (trx_sys->rseg_history_len > rseg_history_len
+		if (trx_sys.rseg_history_len > rseg_history_len
 		    || (srv_max_purge_lag > 0
 			&& rseg_history_len > srv_max_purge_lag)) {
 
@@ -2674,7 +2648,7 @@ srv_do_purge(ulint* n_total_purged)
 		ut_a(n_use_threads <= n_threads);
 
 		/* Take a snapshot of the history list before purge. */
-		if ((rseg_history_len = trx_sys->rseg_history_len) == 0) {
+		if ((rseg_history_len = trx_sys.rseg_history_len) == 0) {
 			break;
 		}
 
@@ -2729,7 +2703,7 @@ srv_purge_coordinator_suspend(
 		/* We don't wait right away on the the non-timed wait because
 		we want to signal the thread that wants to suspend purge. */
 		const bool wait = stop
-			|| rseg_history_len <= trx_sys->rseg_history_len;
+			|| rseg_history_len <= trx_sys.rseg_history_len;
 		const bool timeout = srv_resume_thread(
 			slot, sig_count, wait,
 			stop ? 0 : SRV_PURGE_MAX_TIMEOUT);
@@ -2746,8 +2720,8 @@ srv_purge_coordinator_suspend(
 			purge_sys->running = true;
 
 			if (timeout
-			    && rseg_history_len == trx_sys->rseg_history_len
-			    && trx_sys->rseg_history_len < 5000) {
+			    && rseg_history_len == trx_sys.rseg_history_len
+			    && trx_sys.rseg_history_len < 5000) {
 				/* No new records were added since the
 				wait started. Simply wait for new
 				records. The magic number 5000 is an
@@ -2808,7 +2782,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	slot = srv_reserve_slot(SRV_PURGE);
 
-	ulint	rseg_history_len = trx_sys->rseg_history_len;
+	ulint	rseg_history_len = trx_sys.rseg_history_len;
 
 	do {
 		/* If there are no records to purge or the last

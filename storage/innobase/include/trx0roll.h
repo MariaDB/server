@@ -33,7 +33,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "mtr0mtr.h"
 #include "trx0sys.h"
 
-extern bool		trx_rollback_or_clean_is_active;
+extern bool		trx_rollback_is_active;
 extern const trx_t*	trx_roll_crash_recv_trx;
 
 /*******************************************************************//**
@@ -71,12 +71,11 @@ trx_roll_must_shutdown();
 Rollback or clean up any incomplete transactions which were
 encountered in crash recovery.  If the transaction already was
 committed, then we clean up a possible insert undo log. If the
-transaction was not yet committed, then we roll it back. */
+transaction was not yet committed, then we roll it back.
+@param all true=roll back all recovered active transactions;
+false=roll back any incomplete dictionary transaction */
 void
-trx_rollback_or_clean_recovered(
-/*============================*/
-	ibool	all);	/*!< in: FALSE=roll back dictionary transactions;
-			TRUE=roll back all non-PREPARED transactions */
+trx_rollback_recovered(bool all);
 /*******************************************************************//**
 Rollback or clean up any incomplete transactions which were
 encountered in crash recovery.  If the transaction already was
@@ -86,11 +85,7 @@ Note: this is done in a background thread.
 @return a dummy parameter */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(trx_rollback_or_clean_all_recovered)(
-/*================================================*/
-	void*	arg MY_ATTRIBUTE((unused)));
-			/*!< in: a dummy parameter required by
-			os_thread_create */
+DECLARE_THREAD(trx_rollback_all_recovered)(void*);
 /*********************************************************************//**
 Creates a rollback command node struct.
 @return own: rollback node struct */

@@ -319,7 +319,7 @@ thd_destructor_proxy(void *)
 	srv_running = NULL;
 
 	while (srv_fast_shutdown == 0 &&
-	       (trx_sys_any_active_transactions() ||
+	       (trx_sys.any_active_transactions() ||
 		(uint)thread_count > srv_n_purge_threads + 1)) {
 		thd_proc_info(thd, "InnoDB slow shutdown wait");
 		os_thread_sleep(1000);
@@ -1048,10 +1048,6 @@ static SHOW_VAR innodb_status_variables[]= {
   {"available_undo_logs",
   (char*) &export_vars.innodb_available_undo_logs,        SHOW_LONG},
 #ifdef UNIV_DEBUG
-  {"purge_trx_id_age",
-  (char*) &export_vars.innodb_purge_trx_id_age,           SHOW_LONG},
-  {"purge_view_trx_id_age",
-  (char*) &export_vars.innodb_purge_view_trx_id_age,      SHOW_LONG},
   {"ahi_drop_lookups",
   (char*) &export_vars.innodb_ahi_drop_lookups,           SHOW_LONG},
 #endif /* UNIV_DEBUG */
@@ -3160,9 +3156,9 @@ read view to it if there is no read view yet.
 Why a deadlock of threads is not possible: the query cache calls this function
 at the start of a SELECT processing. Then the calling thread cannot be
 holding any InnoDB semaphores. The calling thread is holding the
-query cache mutex, and this function will reserve the InnoDB trx_sys->mutex.
+query cache mutex, and this function will reserve the InnoDB trx_sys.mutex.
 Thus, the 'rank' in sync0mutex.h of the MySQL query cache mutex is above
-the InnoDB trx_sys->mutex.
+the InnoDB trx_sys.mutex.
 @return TRUE if permitted, FALSE if not; note that the value FALSE
 does not mean we should invalidate the query cache: invalidation is
 called explicitly */
@@ -3644,9 +3640,9 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 				DBUG_ASSERT(t->first->versioned());
 				DBUG_ASSERT(trx->rsegs.m_redo.rseg);
 
-				mutex_enter(&trx_sys->mutex);
-				trx_id_t commit_id = trx_sys_get_new_trx_id();
-				mutex_exit(&trx_sys->mutex);
+				mutex_enter(&trx_sys.mutex);
+				trx_id_t commit_id = trx_sys.get_new_trx_id();
+				mutex_exit(&trx_sys.mutex);
 
 				return commit_id;
 			}
@@ -16225,12 +16221,9 @@ ha_innobase::external_lock(
 
 		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
 			   && MVCC::is_view_active(trx->read_view)) {
-
-			mutex_enter(&trx_sys->mutex);
-
-			trx_sys->mvcc->view_close(trx->read_view, true);
-
-			mutex_exit(&trx_sys->mutex);
+			mutex_enter(&trx_sys.mutex);
+			trx_sys.mvcc.view_close(trx->read_view);
+			mutex_exit(&trx_sys.mutex);
 		}
 	}
 
@@ -16896,12 +16889,9 @@ ha_innobase::store_lock(
 
 			/* At low transaction isolation levels we let
 			each consistent read set its own snapshot */
-
-			mutex_enter(&trx_sys->mutex);
-
-			trx_sys->mvcc->view_close(trx->read_view, true);
-
-			mutex_exit(&trx_sys->mutex);
+			mutex_enter(&trx_sys.mutex);
+			trx_sys.mvcc.view_close(trx->read_view);
+			mutex_enter(&trx_sys.mutex);
 		}
 	}
 
@@ -19906,9 +19896,9 @@ wsrep_fake_trx_id(
 	handlerton	*hton,
 	THD		*thd)	/*!< in: user thread handle */
 {
-	mutex_enter(&trx_sys->mutex);
-	trx_id_t trx_id = trx_sys_get_new_trx_id();
-	mutex_exit(&trx_sys->mutex);
+	mutex_enter(&trx_sys.mutex);
+	trx_id_t trx_id = trx_sys.get_new_trx_id();
+	mutex_exit(&trx_sys.mutex);
 	WSREP_DEBUG("innodb fake trx id: " TRX_ID_FMT " thd: %s",
 		    trx_id, wsrep_thd_query(thd));
 	wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd), trx_id);

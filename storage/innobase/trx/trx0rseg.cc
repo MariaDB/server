@@ -190,7 +190,7 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, mtr_t* mtr)
 	len = flst_get_len(rseg_header + TRX_RSEG_HISTORY);
 
 	if (len > 0) {
-		my_atomic_addlint(&trx_sys->rseg_history_len, len);
+		my_atomic_addlint(&trx_sys.rseg_history_len, len);
 
 		node_addr = trx_purge_get_log_from_hist(
 			flst_get_last(rseg_header + TRX_RSEG_HISTORY, mtr));
@@ -240,8 +240,8 @@ trx_rseg_array_init()
 				trx_sysf_rseg_get_space(sys_header, i, &mtr),
 				page_no);
 			ut_ad(rseg->is_persistent());
-			ut_ad(!trx_sys->rseg_array[rseg->id]);
-			trx_sys->rseg_array[rseg->id] = rseg;
+			ut_ad(!trx_sys.rseg_array[rseg->id]);
+			trx_sys.rseg_array[rseg->id] = rseg;
 			trx_rseg_mem_restore(rseg, &mtr);
 		}
 
@@ -262,7 +262,7 @@ trx_rseg_create(ulint space_id)
 	mtr.start();
 
 	/* To obey the latching order, acquire the file space
-	x-latch before the trx_sys->mutex. */
+	x-latch before the trx_sys.mutex. */
 #ifdef UNIV_DEBUG
 	const fil_space_t*	space =
 #endif /* UNIV_DEBUG */
@@ -283,8 +283,8 @@ trx_rseg_create(ulint space_id)
 
 		rseg = trx_rseg_mem_create(slot_no, space_id, page_no);
 		ut_ad(rseg->is_persistent());
-		ut_ad(!trx_sys->rseg_array[rseg->id]);
-		trx_sys->rseg_array[rseg->id] = rseg;
+		ut_ad(!trx_sys.rseg_array[rseg->id]);
+		trx_sys.rseg_array[rseg->id] = rseg;
 		trx_rseg_mem_restore(rseg, &mtr);
 	}
 
@@ -313,8 +313,8 @@ trx_temp_rseg_create()
 		trx_rseg_t* rseg = trx_rseg_mem_create(
 			i, SRV_TMP_SPACE_ID, page_no);
 		ut_ad(!rseg->is_persistent());
-		ut_ad(!trx_sys->temp_rsegs[i]);
-		trx_sys->temp_rsegs[i] = rseg;
+		ut_ad(!trx_sys.temp_rsegs[i]);
+		trx_sys.temp_rsegs[i] = rseg;
 		trx_rseg_mem_restore(rseg, &mtr);
 		mtr.commit();
 	}

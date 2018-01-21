@@ -2706,9 +2706,9 @@ withdraw_retry:
 		}
 
 		lock_mutex_enter();
-		trx_sys_mutex_enter();
+		mutex_enter(&trx_sys.mutex);
 		bool	found = false;
-		for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
+		for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
 		     trx != NULL;
 		     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
 			if (trx->state != TRX_STATE_NOT_STARTED
@@ -2730,7 +2730,7 @@ withdraw_retry:
 					stderr, trx);
 			}
 		}
-		trx_sys_mutex_exit();
+		mutex_exit(&trx_sys.mutex);
 		lock_mutex_exit();
 
 		withdraw_started = ut_time();

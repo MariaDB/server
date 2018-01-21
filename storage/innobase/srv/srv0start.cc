@@ -1649,7 +1649,7 @@ innobase_start_or_create_for_mysql()
 			    + 1 /* dict_stats_thread */
 			    + 1 /* fts_optimize_thread */
 			    + 1 /* recv_writer_thread */
-			    + 1 /* trx_rollback_or_clean_all_recovered */
+			    + 1 /* trx_rollback_all_recovered */
 			    + 128 /* added as margin, for use of
 				  InnoDB Memcached etc. */
 			    + max_connections
@@ -2141,7 +2141,7 @@ files_checked:
 		dict_stats_thread_init();
 	}
 
-	trx_sys_create();
+	trx_sys.create();
 
 	if (create_new_db) {
 		ut_a(!srv_read_only_mode);
@@ -2471,7 +2471,7 @@ files_checked:
 		The data dictionary latch should guarantee that there is at
 		most one data dictionary transaction active at a time. */
 		if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
-			trx_rollback_or_clean_recovered(FALSE);
+			trx_rollback_recovered(false);
 		}
 
 		/* Fix-up truncate of tables in the system tablespace
@@ -2835,7 +2835,7 @@ innodb_shutdown()
 
 	ut_ad(dict_stats_event || !srv_was_started || srv_read_only_mode);
 	ut_ad(dict_sys || !srv_was_started);
-	ut_ad(trx_sys || !srv_was_started);
+	ut_ad(trx_sys.is_initialised() || !srv_was_started);
 	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys || !srv_was_started);
@@ -2873,9 +2873,7 @@ innodb_shutdown()
 	if (log_sys) {
 		log_shutdown();
 	}
-	if (trx_sys) {
-		trx_sys_close();
-	}
+	trx_sys.close();
 	UT_DELETE(purge_sys);
 	purge_sys = NULL;
 	if (buf_dblwr) {

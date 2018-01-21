@@ -207,6 +207,11 @@ public:
 		return(m_closed);
 	}
 
+	void set_closed(bool closed)
+	{
+		m_closed= closed;
+	}
+
 	/**
 	Write the limits to the file.
 	@param file		file to write to */
@@ -237,6 +242,18 @@ public:
 	bool empty() const
 	{
 		return(m_ids.empty());
+	}
+
+	/**
+	Set the creator transaction id, existing id must be 0.
+
+	Note: This shouldbe set only for views created by RW
+	transactions. Caller must own trx_sys.mutex. */
+	void creator_trx_id(trx_id_t id)
+	{
+		ut_ad(id > 0);
+		ut_ad(m_creator_trx_id == 0);
+		m_creator_trx_id = id;
 	}
 
 #ifdef UNIV_DEBUG
@@ -277,14 +294,6 @@ private:
 	Complete the copy, insert the creator transaction id into the
 	m_trx_ids too and adjust the m_up_limit_id *, if required */
 	inline void copy_complete();
-
-	/**
-	Set the creator transaction id, existing id must be 0 */
-	void creator_trx_id(trx_id_t id)
-	{
-		ut_ad(m_creator_trx_id == 0);
-		m_creator_trx_id = id;
-	}
 
 	friend class MVCC;
 

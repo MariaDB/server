@@ -318,3 +318,25 @@ eval explain extended $query;
 drop table t1, t2, t3;
 
 set @@in_predicate_conversion_threshold= default;
+
+--echo #
+--echo # MDEV-14947: conversion of TVC with only NULL values
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3), (2), (7);
+
+let $q=
+SELECT * FROM t1 WHERE i IN (NULL, NULL, NULL, NULL, NULL);
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+SET in_predicate_conversion_threshold= 5;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+SET in_predicate_conversion_threshold= default;
+
+DROP TABLE t1;

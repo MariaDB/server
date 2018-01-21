@@ -30,18 +30,16 @@ Created 2/16/1997 Heikki Tuuri
 
 #include "read0types.h"
 
-#include <algorithm>
-
 /** The MVCC read view manager */
 class MVCC {
 public:
 	/** Constructor
 	@param size		Number of views to pre-allocate */
-	explicit MVCC(ulint size);
+	void create(ulint size);
 
 	/** Destructor.
 	Free all the views in the m_free list */
-	~MVCC();
+	void close();
 
 	/**
 	Allocate and create a view.
@@ -52,15 +50,8 @@ public:
 
 	/**
 	Close a view created by the above function.
-	@para view		view allocated by trx_open.
-	@param own_mutex	true if caller owns trx_sys_t::mutex */
-	void view_close(ReadView*& view, bool own_mutex);
-
-	/**
-	Release a view that is inactive but not closed. Caller must own
-	the trx_sys_t::mutex.
-	@param view		View to release */
-	void view_release(ReadView*& view);
+	@param view		view allocated by trx_open. */
+	void view_close(ReadView*& view);
 
 	/** Clones the oldest view and stores it in view. No need to
 	call view_close(). The caller owns the view that is passed in.
@@ -77,15 +68,8 @@ public:
 	@return true if the view is active and valid */
 	static bool is_view_active(ReadView* view)
 	{
-		ut_a(view != reinterpret_cast<ReadView*>(0x1));
-
-		return(view != NULL && !(intptr_t(view) & 0x1));
+		return view && !view->is_closed();
 	}
-
-	/**
-	Set the view creator transaction id. Note: This shouldbe set only
-	for views created by RW transactions. */
-	static void set_view_creator_trx_id(ReadView* view, trx_id_t id);
 
 private:
 
@@ -93,25 +77,6 @@ private:
 	Validates a read view list. */
 	bool validate() const;
 
-	/**
-	Find a free view from the active list, if none found then allocate
-	a new view. This function will also attempt to move delete marked
-	views from the active list to the freed list.
-	@return a view to use */
-	inline ReadView* get_view();
-
-	/**
-	Get the oldest view in the system. It will also move the delete
-	marked read views from the views list to the freed list.
-	@return oldest view if found or NULL */
-	inline ReadView* get_oldest_view() const;
-
-private:
-	// Prevent copying
-	MVCC(const MVCC&);
-	MVCC& operator=(const MVCC&);
-
-private:
 	typedef UT_LIST_BASE_NODE_T(ReadView) view_list_t;
 
 	/** Free views ready for reuse. */

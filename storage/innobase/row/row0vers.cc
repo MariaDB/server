@@ -121,19 +121,12 @@ row_vers_impl_x_locked_low(
 		DBUG_RETURN(0);
 	}
 
-	trx_t*	trx = trx_sys->rw_trx_hash.find(caller_trx, trx_id, true);
+	trx_t*	trx = trx_sys.rw_trx_hash.find(caller_trx, trx_id, true);
 
 	if (trx == 0) {
 		/* The transaction that modified or inserted clust_rec is no
 		longer active, or it is corrupt: no implicit lock on rec */
-		trx_sys_mutex_enter();
-		bool corrupt = trx_id >= trx_sys->max_trx_id;
-		trx_sys_mutex_exit();
-		if (corrupt) {
-			lock_report_trx_id_insanity(
-				trx_id, clust_rec, clust_index, clust_offsets,
-				trx_sys_get_max_trx_id());
-		}
+		lock_check_trx_id_sanity(trx_id, clust_rec, clust_index, clust_offsets);
 		mem_heap_free(heap);
 		DBUG_RETURN(0);
 	}
@@ -193,7 +186,7 @@ row_vers_impl_x_locked_low(
 		inserting a delete-marked record. */
 		ut_ad(prev_version
 		      || !rec_get_deleted_flag(version, comp)
-		      || !trx_sys->rw_trx_hash.find(caller_trx, trx_id));
+		      || !trx_sys.rw_trx_hash.find(caller_trx, trx_id));
 
 		/* Free version and clust_offsets. */
 		mem_heap_free(old_heap);
@@ -365,7 +358,7 @@ row_vers_impl_x_locked(
 	dict_index_t*	clust_index;
 
 	ut_ad(!lock_mutex_own());
-	ut_ad(!trx_sys_mutex_own());
+	ut_ad(!mutex_own(&trx_sys.mutex));
 
 	mtr_start(&mtr);
 
@@ -1287,7 +1280,7 @@ row_vers_build_for_semi_consistent_read(
 			rec_trx_id = version_trx_id;
 		}
 
-		if (!trx_sys->rw_trx_hash.find(caller_trx, version_trx_id)) {
+		if (!trx_sys.rw_trx_hash.find(caller_trx, version_trx_id)) {
 committed_version_trx:
 			/* We found a version that belongs to a
 			committed transaction: return it. */
