@@ -399,6 +399,8 @@ ReadView::copy_trx_ids(const trx_ids_t& trx_ids)
 		::memmove(p, &trx_ids[0], n);
 	}
 
+	m_up_limit_id = m_ids.front();
+
 #ifdef UNIV_DEBUG
 	/* Original assertion was here to make sure that rw_trx_ids and
 	rw_trx_hash are in sync and they hold either ACTIVE or PREPARED
@@ -434,13 +436,16 @@ ReadView::prepare(trx_id_t id)
 
 	m_creator_trx_id = id;
 
-	m_low_limit_no = m_low_limit_id = trx_sys.get_max_trx_id();
+	m_low_limit_no = m_low_limit_id = m_up_limit_id =
+						trx_sys.get_max_trx_id();
 
 	if (!trx_sys.rw_trx_ids.empty()) {
 		copy_trx_ids(trx_sys.rw_trx_ids);
 	} else {
 		m_ids.clear();
 	}
+
+	ut_ad(m_up_limit_id <= m_low_limit_id);
 
 	if (UT_LIST_GET_LEN(trx_sys.serialisation_list) > 0) {
 		const trx_t*	trx;
@@ -451,19 +456,6 @@ ReadView::prepare(trx_id_t id)
 			m_low_limit_no = trx->no;
 		}
 	}
-}
-
-/**
-Complete the read view creation */
-
-void
-ReadView::complete()
-{
-	/* The first active transaction has the smallest id. */
-	m_up_limit_id = !m_ids.empty() ? m_ids.front() : m_low_limit_id;
-
-	ut_ad(m_up_limit_id <= m_low_limit_id);
-	set_open(true);
 }
 
 
@@ -538,11 +530,11 @@ void MVCC::view_open(trx_t* trx)
 
   mutex_enter(&trx_sys.mutex);
   trx->read_view.prepare(trx->id);
-  trx->read_view.complete();
   if (trx->read_view.is_registered())
     UT_LIST_REMOVE(m_views, &trx->read_view);
   else
     trx->read_view.set_registered(true);
+  trx->read_view.set_open(true);
   UT_LIST_ADD_FIRST(m_views, &trx->read_view);
   ut_ad(validate());
   mutex_exit(&trx_sys.mutex);
@@ -624,7 +616,6 @@ MVCC::clone_oldest_view(ReadView* view)
 	/* No views in the list: snapshot current state. */
 	view->prepare(0);
 	mutex_exit(&trx_sys.mutex);
-	view->complete();
 }
 
 /**

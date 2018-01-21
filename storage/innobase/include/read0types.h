@@ -276,10 +276,6 @@ private:
 	inline void prepare(trx_id_t id);
 
 	/**
-	Complete the read view creation */
-	inline void complete();
-
-	/**
 	Copy state from another view. Must call copy_complete() to finish.
 	@param other		view to copy from */
 	inline void copy_prepare(const ReadView& other);
