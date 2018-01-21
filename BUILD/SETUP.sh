@@ -307,3 +307,4 @@ gprof_compile_flags="-O2 -pg -g"
 
 gprof_link_flags="--disable-shared $static_link"
 
+disable_gprof_plugins="--with-zlib-dir=bundled --without-plugin-oqgraph --without-plugin-mroonga"

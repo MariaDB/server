@@ -70,7 +70,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   myf create_flag;
   uint length,max_key_length,packed,pack_bytes,pointer,real_length_diff,
        key_length,info_length,key_segs,options,min_key_length,
-       base_pos,long_varchar_count,varchar_length,
+       base_pos,long_varchar_count,
        unique_key_parts,fulltext_keys,offset, not_block_record_extra_length;
   uint max_field_lengths, extra_header_size, column_nr;
   uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
@@ -144,9 +144,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       datafile_type= BLOCK_RECORD;
   }
 
-  if (ci->reloc_rows > ci->max_rows)
-    ci->reloc_rows=ci->max_rows;		/* Check if wrong parameter */
-
   if (!(rec_per_key_part=
 	(double*) my_malloc((keys + uniques)*HA_MAX_KEY_SEG*sizeof(double) +
                             (keys + uniques)*HA_MAX_KEY_SEG*sizeof(ulong) +
@@ -160,7 +157,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
 
 
   /* Start by checking fields and field-types used */
-  varchar_length=long_varchar_count=packed= not_block_record_extra_length=
+  long_varchar_count=packed= not_block_record_extra_length=
     pack_reclength= max_field_lengths= 0;
   reclength= min_pack_length= ci->null_bytes;
   forced_packed= 0;
@@ -232,7 +229,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       }
       else if (type == FIELD_VARCHAR)
       {
-	varchar_length+= column->length-1; /* Used for min_pack_length */
 	pack_reclength++;
         not_block_record_extra_length++;
         max_field_lengths++;
@@ -368,6 +364,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
                                 pack_bytes);
   if (!ci->data_file_length && ci->max_rows)
   {
+    set_if_bigger(ci->max_rows, ci->reloc_rows);
     if (pack_reclength == INT_MAX32 ||
              (~(ulonglong) 0)/ci->max_rows < (ulonglong) pack_reclength)
       ci->data_file_length= ~(ulonglong) 0;
@@ -401,13 +398,14 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       else
         ci->max_rows= data_file_length / (min_pack_length +
                                           extra_header_size +
-                                          DIR_ENTRY_SIZE)+1;
+                                          DIR_ENTRY_SIZE);
     }
     else
       ci->max_rows=(ha_rows) (ci->data_file_length/(min_pack_length +
                                                     ((options &
                                                       HA_OPTION_PACK_RECORD) ?
-                                                     3 : 0)))+1;
+                                                     3 : 0)));
+    set_if_smaller(ci->reloc_rows, ci->max_rows);
   }
   max_rows= (ulonglong) ci->max_rows;
   if (datafile_type == BLOCK_RECORD)
@@ -800,6 +798,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     share.state.state.data_file_length= maria_block_size;
     /* Add length of packed fields + length */
     share.base.pack_reclength+= share.base.max_field_lengths+3;
+    share.base.max_pack_length= share.base.pack_reclength;
 
     /* Adjust max_pack_length, to be used if we have short rows */
     if (share.base.max_pack_length < maria_block_size)

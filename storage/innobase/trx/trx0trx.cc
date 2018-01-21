@@ -824,10 +824,6 @@ trx_resurrect_insert(
 	ut_d(trx->start_line = __LINE__);
 
 	trx->rsegs.m_redo.rseg = rseg;
-	/* For transactions with active data will not have rseg size = 1
-	or will not qualify for purge limit criteria. So it is safe to increment
-	this trx_ref_count w/o mutex protection. */
-	++trx->rsegs.m_redo.rseg->trx_ref_count;
 	*trx->xid = undo->xid;
 	trx->id = undo->trx_id;
 	trx->rsegs.m_redo.insert_undo = undo;
@@ -934,10 +930,6 @@ trx_resurrect_update(
 	trx_rseg_t*	rseg)	/*!< in/out: rollback segment */
 {
 	trx->rsegs.m_redo.rseg = rseg;
-	/* For transactions with active data will not have rseg size = 1
-	or will not qualify for purge limit criteria. So it is safe to increment
-	this trx_ref_count w/o mutex protection. */
-	++trx->rsegs.m_redo.rseg->trx_ref_count;
 	*trx->xid = undo->xid;
 	trx->id = undo->trx_id;
 	trx->rsegs.m_redo.update_undo = undo;
@@ -991,9 +983,11 @@ trx_lists_init_at_db_start()
 
 	purge_sys = UT_NEW_NOKEY(purge_sys_t());
 
-	if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
-		trx_rseg_array_init();
+	if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
+		return;
 	}
+
+	trx_rseg_array_init();
 
 	/* Look from the rollback segments if there exist undo logs for
 	transactions. */
@@ -1002,8 +996,9 @@ trx_lists_init_at_db_start()
 		trx_undo_t*	undo;
 		trx_rseg_t*	rseg = trx_sys->rseg_array[i];
 
-		/* At this stage non-redo rseg slots are all NULL as they are
-		re-created on server start and existing slots are not read. */
+		/* Some rollback segment may be unavailable,
+		especially if the server was previously run with a
+		non-default value of innodb_undo_logs. */
 		if (rseg == NULL) {
 			continue;
 		}
@@ -1012,6 +1007,11 @@ trx_lists_init_at_db_start()
 		for (undo = UT_LIST_GET_FIRST(rseg->insert_undo_list);
 		     undo != NULL;
 		     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
+
+			/* trx_purge() will not run before we return,
+			so we can safely increment this without
+			holding rseg->mutex. */
+			++rseg->trx_ref_count;
 
 			trx_t*	trx;
 
@@ -1037,6 +1037,7 @@ trx_lists_init_at_db_start()
 
 			if (trx == NULL) {
 				trx = trx_allocate_for_background();
+				++rseg->trx_ref_count;
 
 				ut_d(trx->start_file = __FILE__);
 				ut_d(trx->start_line = __LINE__);

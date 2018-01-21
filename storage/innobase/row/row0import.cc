@@ -2463,7 +2463,7 @@ row_import_cfg_read_index_fields(
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-				errno, strerror(errno),
+				(ulong) errno, strerror(errno),
 				"while reading index fields.");
 
 			return(DB_IO_ERROR);
@@ -2499,7 +2499,7 @@ row_import_cfg_read_index_fields(
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-				errno, strerror(errno),
+				(ulong) errno, strerror(errno),
 				"while parsing table name.");
 
 			return(err);
@@ -2569,7 +2569,7 @@ row_import_read_index_data(
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-				errno, strerror(errno), msg);
+				(ulong) errno, strerror(errno), msg);
 
 			ib::error() << "IO Error: " << msg;
 
@@ -2644,7 +2644,7 @@ row_import_read_index_data(
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-				errno, strerror(errno),
+				(ulong) errno, strerror(errno),
 				"while parsing index name.");
 
 			return(err);
@@ -2683,7 +2683,7 @@ row_import_read_indexes(
 	if (fread(row, 1, sizeof(row), file) != sizeof(row)) {
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
+			(ulong) errno, strerror(errno),
 			"while reading number of indexes.");
 
 		return(DB_IO_ERROR);
@@ -2769,7 +2769,7 @@ row_import_read_columns(
 		if (fread(row, 1,  sizeof(row), file) != sizeof(row)) {
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-				errno, strerror(errno),
+				(ulong) errno, strerror(errno),
 				"while reading table column meta-data.");
 
 			return(DB_IO_ERROR);
@@ -2833,7 +2833,7 @@ row_import_read_columns(
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-				errno, strerror(errno),
+				(ulong) errno, strerror(errno),
 				"while parsing table column name.");
 
 			return(err);
@@ -2864,7 +2864,7 @@ row_import_read_v1(
 	if (fread(value, 1, sizeof(value), file) != sizeof(value)) {
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
+			(ulong) errno, strerror(errno),
 			"while reading meta-data export hostname length.");
 
 		return(DB_IO_ERROR);
@@ -2892,7 +2892,7 @@ row_import_read_v1(
 
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
+			(ulong) errno, strerror(errno),
 			"while parsing export hostname.");
 
 		return(err);
@@ -2906,7 +2906,7 @@ row_import_read_v1(
 	if (fread(value, 1, sizeof(value), file) != sizeof(value)) {
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
+			(ulong) errno, strerror(errno),
 			"while reading meta-data table name length.");
 
 		return(DB_IO_ERROR);
@@ -2933,7 +2933,7 @@ row_import_read_v1(
 	if (err != DB_SUCCESS) {
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
+			(ulong) errno, strerror(errno),
 			"while parsing table name.");
 
 		return(err);
@@ -2952,7 +2952,7 @@ row_import_read_v1(
 	if (fread(row, 1, sizeof(ib_uint64_t), file) != sizeof(ib_uint64_t)) {
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
+			(ulong) errno, strerror(errno),
 			"while reading autoinc value.");
 
 		return(DB_IO_ERROR);
@@ -2968,7 +2968,7 @@ row_import_read_v1(
 	if (fread(row, 1, sizeof(row), file) != sizeof(row)) {
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
+			(ulong) errno, strerror(errno),
 			"while reading meta-data header.");
 
 		return(DB_IO_ERROR);
@@ -3039,7 +3039,7 @@ row_import_read_meta_data(
 	if (fread(&row, 1, sizeof(row), file) != sizeof(row)) {
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
+			(ulong) errno, strerror(errno),
 			"while reading meta-data version.");
 
 		return(DB_IO_ERROR);
@@ -3090,7 +3090,7 @@ row_import_read_cfg(
 
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_WARN, ER_IO_READ_ERROR,
-			errno, strerror(errno), msg);
+			(ulong) errno, strerror(errno), msg);
 
 		cfg.m_missing = true;
 
