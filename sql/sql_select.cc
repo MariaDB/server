@@ -696,12 +696,11 @@ JOIN::prepare(Item ***rref_pointer_array,
   }
 
   table_count= select_lex->leaf_tables.elements;
- 
+
   TABLE_LIST *tbl;
   List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
   while ((tbl= li++))
   {
-    //table_count++; /* Count the number of tables in the join. */
     /*
       If the query uses implicit grouping where the select list contains both
       aggregate functions and non-aggregate fields, any non-aggregated field
