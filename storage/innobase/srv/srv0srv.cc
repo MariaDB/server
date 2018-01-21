@@ -1162,7 +1162,8 @@ srv_refresh_innodb_monitor_stats(void)
 {
 	mutex_enter(&srv_innodb_monitor_mutex);
 
-	srv_last_monitor_time = time(NULL);
+	my_atomic_store32_explicit(&srv_last_monitor_time, time(NULL),
+				   MY_MEMORY_ORDER_RELAXED);
 
 	os_aio_refresh_stats();
 
@@ -1216,10 +1217,14 @@ srv_printf_innodb_monitor(
 	by zero if two users happen to call SHOW ENGINE INNODB STATUS at the
 	same time */
 
-	time_elapsed = difftime(current_time, srv_last_monitor_time)
+	time_elapsed =
+		difftime(current_time,
+			 my_atomic_load32_explicit(&srv_last_monitor_time,
+						   MY_MEMORY_ORDER_RELAXED))
 		+ 0.001;
 
-	srv_last_monitor_time = time(NULL);
+	my_atomic_store32_explicit(&srv_last_monitor_time, time(NULL),
+				   MY_MEMORY_ORDER_RELAXED);
 
 	fputs("\n=====================================\n", file);
 
@@ -1696,7 +1701,8 @@ DECLARE_THREAD(srv_monitor_thread)(void*)
 	pfs_register_thread(srv_monitor_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
-	srv_last_monitor_time = ut_time();
+	my_atomic_store32_explicit(&srv_last_monitor_time, ut_time(),
+				   MY_MEMORY_ORDER_RELAXED);
 	last_monitor_time = ut_time();
 	mutex_skipped = 0;
 	last_srv_print_monitor = srv_print_innodb_monitor;
@@ -1829,7 +1835,10 @@ loop:
 		old_lsn = new_lsn;
 	}
 
-	if (difftime(time(NULL), srv_last_monitor_time) > 60) {
+	if (difftime(time(NULL),
+		     my_atomic_load32_explicit(&srv_last_monitor_time,
+					       MY_MEMORY_ORDER_RELAXED))
+	    > 60) {
 		/* We referesh InnoDB Monitor values so that averages are
 		printed from at most 60 last seconds */
 
