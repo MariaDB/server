@@ -1384,4 +1384,41 @@ select e,f, (e , f) in (select e,b from t1 union select c,d from t2) as sub from
 select avg(f), (e , f) in (select e,b from t1 union select c,d from t2) as sub from t3 group by sub;
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-14715 Assertion `!table || (!table->read_set ||
+--echo # bitmap_is_set(table->read_set, field_index))'
+--echo # failed in Field_num::val_decimal
+--echo #
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM;
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1, NULL),(3, 4);
+
+--error ER_INVALID_GROUP_FUNC_USE
+(SELECT a, sum(a) AS f FROM v1 group by a ORDER BY b + sum(a))
+UNION
+(SELECT 2, 2);
+
+(SELECT a, sum(a) AS f FROM v1 group by a ORDER BY b + 1)
+UNION
+(SELECT 2, 2);
+
+SELECT a, b FROM t1
+UNION
+(SELECT a, VAR_POP(a) AS f FROM v1 GROUP BY a ORDER BY b/a );
+
+DROP TABLE t1;
+
+--error ER_VIEW_INVALID
+(SELECT a, sum(a) AS f FROM v1 group by a ORDER BY b + 1)
+UNION
+(SELECT 2, 2);
+
+DROP VIEW v1;
+
+--error ER_NO_SUCH_TABLE
+(SELECT a, sum(a) AS f FROM v1 group by a ORDER BY b + 1)
+UNION
+(SELECT 2, 2);
+
 --echo End of 5.5 tests
