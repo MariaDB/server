@@ -1605,6 +1605,7 @@ sub command_line_setup {
        $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
        $opt_debugger || $opt_client_debugger )
   {
+    $ENV{ASAN_OPTIONS}= 'abort_on_error=1:'.($ENV{ASAN_OPTIONS} || '');
     if ( using_extern() )
     {
       mtr_error("Can't use --extern when using debugger");
