@@ -553,6 +553,13 @@ lock_rec_find_set_bit(
 	const lock_t*	lock);	/*!< in: record lock with at least one
 				bit set */
 
+my_bool 
+lock_get_dest_lock_mode(
+/*===============*/
+        trx_t*          trx,    /*!< in: transaction */
+        dict_table_t*   dest,   /*!< in: destination of LOAD DATA */
+        lock_mode*      mode);  /*!< out: lock mode of the destination table */
+
 /*********************************************************************//**
 Gets the source table of an ALTER TABLE transaction.  The table must be
 covered by an IX or IS table lock.

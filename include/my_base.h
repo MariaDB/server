@@ -208,7 +208,15 @@ enum ha_extra_function {
     Used in ha_partition::handle_ordered_index_scan() to inform engine
     that we are starting an ordered index scan. Needed by Spider
   */
-  HA_EXTRA_STARTING_ORDERED_INDEX_SCAN
+  HA_EXTRA_STARTING_ORDERED_INDEX_SCAN,
+  /*
+    Begin of insertion into intermediate table during copy alter operation.
+  */
+  HA_EXTRA_BEGIN_ALTER_COPY,
+  /*
+    Insertion is done in intermediate table during copy alter operation.
+  */
+  HA_EXTRA_END_ALTER_COPY
 };
 
 /* Compatible option, to be deleted in 6.0 */

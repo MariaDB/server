@@ -543,6 +543,12 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
     break;
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
     break;
+  case HA_EXTRA_BEGIN_ALTER_COPY:
+    inspected = "HA_EXTRA_BEGIN_ALTER_COPY";
+    break;
+  case HA_EXTRA_END_ALTER_COPY:
+    inspected = "HA_EXTRA_END_ALTER_COPY";
+    break;
 #ifdef MRN_HAVE_HA_EXTRA_EXPORT
   case HA_EXTRA_EXPORT:
     inspected = "HA_EXTRA_EXPORT";

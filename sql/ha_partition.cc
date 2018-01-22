@@ -8796,6 +8796,10 @@ int ha_partition::extra(enum ha_extra_function operation)
     DBUG_RETURN(ER_UNSUPORTED_LOG_ENGINE);
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
     DBUG_RETURN(loop_extra(operation));
+  case HA_EXTRA_BEGIN_ALTER_COPY:
+    DBUG_RETURN(loop_extra(operation));
+  case HA_EXTRA_END_ALTER_COPY:
+    DBUG_RETURN(loop_extra(operation));
   default:
   {
     /* Temporary crash to discover what is wrong */

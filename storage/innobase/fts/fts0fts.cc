@@ -2309,7 +2309,6 @@ fts_savepoint_create(
 /******************************************************************//**
 Create an FTS trx.
 @return FTS trx */
-static
 fts_trx_t*
 fts_trx_create(
 /*===========*/
@@ -3338,6 +3337,144 @@ fts_fetch_doc_from_rec(
 		processed_doc++;
 		doc_len += doc->text.f_len + 1;
 	}
+}
+
+/** Fetch the data from tuple and tokenize the document.
+@param[in]     get_doc FTS index's get_doc struct
+@param[in]     tuple   tuple should be arranged in table schema order
+@param[out]    doc     fts doc to hold parsed documents. */
+static
+void
+fts_fetch_doc_from_tuple(
+       fts_get_doc_t*  get_doc,
+       const dtuple_t* tuple,
+       fts_doc_t*      doc)
+{
+       dict_index_t*           index;
+       st_mysql_ftparser*      parser;
+       ulint                   doc_len = 0;
+       ulint                   processed_doc = 0;
+       ulint                   num_field;
+
+       if (get_doc == NULL) {
+               return;
+       }
+
+       index = get_doc->index_cache->index;
+       parser = get_doc->index_cache->index->parser;
+       num_field = dict_index_get_n_fields(index);
+
+       for (ulint i = 0; i < num_field; i++) {
+               const dict_field_t*     ifield;
+               const dict_col_t*       col;
+               ulint                   pos;
+               dfield_t*               field;
+
+               ifield = dict_index_get_nth_field(index, i);
+               col = dict_field_get_col(ifield);
+               pos = dict_col_get_no(col);
+               field = dtuple_get_nth_field(tuple, pos);
+
+               if (!get_doc->index_cache->charset) {
+                       get_doc->index_cache->charset = fts_get_charset(
+                               ifield->col->prtype);
+               }
+
+               ut_ad(!dfield_is_ext(field));
+
+               doc->text.f_str = (byte*) dfield_get_data(field);
+               doc->text.f_len = dfield_get_len(field);
+               doc->found = TRUE;
+               doc->charset = get_doc->index_cache->charset;
+
+               /* field data is NULL. */
+               if (doc->text.f_len == UNIV_SQL_NULL || doc->text.f_len == 0) {
+                       continue;
+               }
+
+               if (processed_doc == 0) {
+                       fts_tokenize_document(doc, NULL, parser);
+               } else {
+                       fts_tokenize_document_next(doc, doc_len, NULL, parser);
+               }
+
+               processed_doc++;
+               doc_len += doc->text.f_len + 1;
+       }
+}
+
+/** Fetch the document from tuple, tokenize the text data and
+insert the text data into fts auxiliary table and
+its cache. Moreover this tuple fields doesn't contain any information
+about externally stored field. This tuple contains data directly
+converted from mysql.
+@param[in]     ftt     FTS transaction table
+@param[in]     doc_id  doc id
+@param[in]     tuple   tuple from where data can be retrieved
+                       and tuple should be arranged in table
+                       schema order. */
+void
+fts_add_doc_from_tuple(
+       fts_trx_table_t*ftt,
+       doc_id_t        doc_id,
+       const dtuple_t* tuple)
+{
+       mtr_t           mtr;
+       fts_cache_t*    cache = ftt->table->fts->cache;
+
+       ut_ad(cache->get_docs);
+
+       if (!(ftt->table->fts->fts_status & ADDED_TABLE_SYNCED)) {
+               fts_init_index(ftt->table, FALSE);
+       }
+
+       mtr_start(&mtr);
+
+       ulint   num_idx = ib_vector_size(cache->get_docs);
+
+       for (ulint i = 0; i < num_idx; ++i) {
+               fts_doc_t       doc;
+               dict_table_t*   table;
+               fts_get_doc_t*  get_doc;
+
+               get_doc = static_cast<fts_get_doc_t*>(
+                       ib_vector_get(cache->get_docs, i));
+               table = get_doc->index_cache->index->table;
+
+               fts_doc_init(&doc);
+               fts_fetch_doc_from_tuple(
+                       get_doc, tuple, &doc);
+
+               if (doc.found) {
+                       mtr_commit(&mtr);
+                       rw_lock_x_lock(&table->fts->cache->lock);
+
+                       if (table->fts->cache->stopword_info.status
+                           & STOPWORD_NOT_INIT) {
+                               fts_load_stopword(table, NULL, NULL,
+                                                 NULL, TRUE, TRUE);
+                       }
+
+                       fts_cache_add_doc(
+                               table->fts->cache,
+                               get_doc->index_cache,
+                               doc_id, doc.tokens);
+
+                       rw_lock_x_unlock(&table->fts->cache->lock);
+
+                       if (cache->total_size > fts_max_cache_size / 5
+                           || fts_need_sync) {
+                               fts_sync(cache->sync, true, false, false);
+                       }
+
+                       mtr_start(&mtr);
+
+               }
+
+               fts_doc_free(&doc);
+       }
+
+       mtr_commit(&mtr);
 }
 
 /*********************************************************************//**

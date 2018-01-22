@@ -1599,9 +1599,21 @@ error_exit:
 			}
 		}
 
-		/* Pass NULL for the columns affected, since an INSERT affects
-		all FTS indexes. */
-		fts_trx_add_op(trx, table, doc_id, FTS_INSERT, NULL);
+		if (table->skip_alter_undo) {
+			if (trx->fts_trx == NULL) {
+				trx->fts_trx = fts_trx_create(trx);
+			}
+
+			fts_trx_table_t ftt;
+			ftt.table = table;
+			ftt.fts_trx = trx->fts_trx;
+
+			fts_add_doc_from_tuple(&ftt, doc_id, node->row);
+		} else {
+			/* Pass NULL for the columns affected, since an INSERT affects
+			all FTS indexes. */
+			fts_trx_add_op(trx, table, doc_id, FTS_INSERT, NULL);
+		}
 	}
 
 	que_thr_stop_for_mysql_no_error(thr, trx);

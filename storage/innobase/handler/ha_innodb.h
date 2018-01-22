@@ -436,6 +436,9 @@ public:
 	/* An helper function for index_cond_func_innodb: */
 	bool is_thd_killed();
 
+	row_prebuilt_t* get_prebuilt()
+	{return m_prebuilt;}
+
 protected:
 
 	/**
@@ -514,9 +517,6 @@ protected:
 	/*!< match mode of the latest search: ROW_SEL_EXACT,
 	ROW_SEL_EXACT_PREFIX, or undefined */
 	uint			m_last_match_mode;
-
-	/** number of write_row() calls */
-	uint			m_num_write_row;
 
         /** If mysql has locked with external_lock() */
         bool                    m_mysql_has_locked;
