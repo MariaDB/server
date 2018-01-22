@@ -5800,8 +5800,8 @@ build_template_field(
 	}
 
 	templ->charset = dtype_get_charset_coll(col->prtype);
-	templ->mbminlen = DATA_MBMINLEN(col->mbminmaxlen);
-	templ->mbmaxlen = DATA_MBMAXLEN(col->mbminmaxlen);
+	templ->mbminlen = col->mbminlen;
+	templ->mbmaxlen = col->mbmaxlen;
 	templ->is_unsigned = col->prtype & DATA_UNSIGNED;
 
 	if (!dict_index_is_clust(index)
