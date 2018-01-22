@@ -920,6 +920,14 @@ SELECT COLUMN_JSON(COLUMN_CREATE('a',0 AS DECIMAL,'b',1 AS DECIMAL));
 
 SELECT COLUMN_JSON(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL));
 
+
+--echo #
+--echo # MDEV-7533: COLUMN_JSON() doesn't escape control characters
+--echo # in string values
+--echo #
+SELECT COLUMN_JSON(COLUMN_CREATE('test','"\\\t\n\Z')) AS json;
+SELECT COLUMN_JSON(COLUMN_CREATE('test','First line\nSecond line')) AS json;
+
 --echo #
 --echo # end of 10.0 tests
 --echo #
