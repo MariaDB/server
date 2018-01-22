@@ -440,7 +440,7 @@ else
   echo
   echo "You can also try to start the mysqld daemon with:"
   echo
-  echo "    shell> $mysqld --skip-grant --general-log &"
+  echo "    shell> $mysqld --skip-grant-tables --general-log &"
   echo
   echo "and use the command line tool $bindir/mysql"
   echo "to connect to the mysql database and look at the grant tables:"
