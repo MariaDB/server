@@ -553,7 +553,7 @@ trx_validate_state_before_free(trx_t* trx)
 	ut_ad(!trx->declared_to_be_inside_innodb);
 	ut_ad(!trx->n_mysql_tables_in_use);
 	ut_ad(!trx->mysql_n_tables_locked);
-	ut_ad(!trx->persistent_stats);
+	ut_ad(!trx->internal);
 
 	if (trx->declared_to_be_inside_innodb) {
 
