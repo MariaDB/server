@@ -13,6 +13,14 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+/* clang -> gcc */
+#ifndef __has_feature
+# define __has_feature(x) 0
+#endif
+#if __has_feature(address_sanitizer)
+# define __SANITIZE_ADDRESS__ 1
+#endif
+
 #ifdef HAVE_valgrind
 #define IF_VALGRIND(A,B) A
 #else
