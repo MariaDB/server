@@ -1877,7 +1877,7 @@ Add the lock to the record lock hash and the transaction's lock list
 @param[in,out] lock	Newly created record lock to add to the rec hash
 @param[in] add_to_hash	If the lock should be added to the hash table */
 void
-RecLock::lock_add(lock_t* lock, bool add_to_hash)
+RecLock::lock_add(lock_t* lock, bool add_to_hash) const
 {
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(lock->trx));
@@ -1929,7 +1929,7 @@ RecLock::create(
 #ifdef WITH_WSREP
 	,lock_t* c_lock
 #endif /* WITH_WSREP */
-)
+) const
 {
 	ut_ad(lock_mutex_own());
 	ut_ad(owns_trx_mutex == trx_mutex_own(trx));
@@ -2390,88 +2390,6 @@ lock_rec_add_to_queue(
 }
 
 /*********************************************************************//**
-This is a fast routine for locking a record in the most common cases:
-there are no explicit locks on the page, or there is just one lock, owned
-by this transaction, and of the right type_mode. This is a low-level function
-which does NOT look at implicit locks! Checks lock compatibility within
-explicit locks. This function sets a normal next-key lock, or in the case of
-a page supremum record, a gap type lock.
-@return whether the locking succeeded */
-UNIV_INLINE
-lock_rec_req_status
-lock_rec_lock_fast(
-/*===============*/
-	bool			impl,	/*!< in: if TRUE, no lock is set
-					if no wait is necessary: we
-					assume that the caller will
-					set an implicit lock */
-	ulint			mode,	/*!< in: lock mode: LOCK_X or
-					LOCK_S possibly ORed to either
-					LOCK_GAP or LOCK_REC_NOT_GAP */
-	const buf_block_t*	block,	/*!< in: buffer block containing
-					the record */
-	ulint			heap_no,/*!< in: heap number of record */
-	dict_index_t*		index,	/*!< in: index of record */
-	que_thr_t*		thr)	/*!< in: query thread */
-{
-	ut_ad(lock_mutex_own());
-	ut_ad(!srv_read_only_mode);
-	ut_ad((LOCK_MODE_MASK & mode) != LOCK_S
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IS));
-	ut_ad((LOCK_MODE_MASK & mode) != LOCK_X
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IX)
-	      || srv_read_only_mode);
-	ut_ad((LOCK_MODE_MASK & mode) == LOCK_S
-	      || (LOCK_MODE_MASK & mode) == LOCK_X);
-	ut_ad(mode - (LOCK_MODE_MASK & mode) == LOCK_GAP
-	      || mode - (LOCK_MODE_MASK & mode) == 0
-	      || mode - (LOCK_MODE_MASK & mode) == LOCK_REC_NOT_GAP);
-	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
-
-	DBUG_EXECUTE_IF("innodb_report_deadlock", return(LOCK_REC_FAIL););
-
-	lock_t*	lock = lock_rec_get_first_on_page(lock_sys->rec_hash, block);
-
-	trx_t*	trx = thr_get_trx(thr);
-
-	lock_rec_req_status	status = LOCK_REC_SUCCESS;
-
-	if (lock == NULL) {
-
-		if (!impl) {
-			RecLock	rec_lock(index, block, heap_no, mode);
-
-			/* Note that we don't own the trx mutex. */
-			rec_lock.create(trx, false, true);
-		}
-
-		status = LOCK_REC_SUCCESS_CREATED;
-	} else {
-		trx_mutex_enter(trx);
-
-		if (lock_rec_get_next_on_page(lock)
-		     || lock->trx != trx
-		     || lock->type_mode != (mode | LOCK_REC)
-		     || lock_rec_get_n_bits(lock) <= heap_no) {
-
-			status = LOCK_REC_FAIL;
-		} else if (!impl) {
-			/* If the nth bit of the record lock is already set
-			then we do not set a new lock bit, otherwise we do
-			set */
-			if (!lock_rec_get_nth_bit(lock, heap_no)) {
-				lock_rec_set_nth_bit(lock, heap_no);
-				status = LOCK_REC_SUCCESS_CREATED;
-			}
-		}
-
-		trx_mutex_exit(trx);
-	}
-
-	return(status);
-}
-
-/*********************************************************************//**
 This is the general, and slower, routine for locking a record. This is a
 low-level function which does NOT look at implicit locks! Checks lock
 compatibility within explicit locks. This function sets a normal next-key
@@ -2496,33 +2414,12 @@ lock_rec_lock_slow(
 	que_thr_t*		thr)	/*!< in: query thread */
 {
 	ut_ad(lock_mutex_own());
-	ut_ad(!srv_read_only_mode);
-	ut_ad((LOCK_MODE_MASK & mode) != LOCK_S
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IS));
-	ut_ad((LOCK_MODE_MASK & mode) != LOCK_X
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
-	ut_ad((LOCK_MODE_MASK & mode) == LOCK_S
-	      || (LOCK_MODE_MASK & mode) == LOCK_X);
-	ut_ad(mode - (LOCK_MODE_MASK & mode) == LOCK_GAP
-	      || mode - (LOCK_MODE_MASK & mode) == 0
-	      || mode - (LOCK_MODE_MASK & mode) == LOCK_REC_NOT_GAP);
-	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
 
-	DBUG_EXECUTE_IF("innodb_report_deadlock", return(DB_DEADLOCK););
-
-	dberr_t	err;
 	trx_t*	trx = thr_get_trx(thr);
+	ut_ad(trx_mutex_own(trx));
 
-	trx_mutex_enter(trx);
-
-	if (lock_rec_has_expl(mode, block, heap_no, trx)) {
-
-		/* The trx already has a strong enough lock on rec: do
-		nothing */
-
-		err = DB_SUCCESS;
-
-	} else {
+	/* Do nothing if the trx already has a strong enough lock on rec */
+	if (!lock_rec_has_expl(mode, block, heap_no, trx)) {
 		lock_t* wait_for = lock_rec_other_has_conflicting(
 			mode, block, heap_no, trx);
 
@@ -2535,7 +2432,7 @@ lock_rec_lock_slow(
 
 			RecLock	rec_lock(thr, index, block, heap_no, mode);
 
-			err = rec_lock.add_to_waitq(wait_for);
+			return rec_lock.add_to_waitq(wait_for);
 
 		} else if (!impl) {
 
@@ -2546,15 +2443,10 @@ lock_rec_lock_slow(
 				LOCK_REC | mode, block, heap_no, index, trx,
 				true);
 
-			err = DB_SUCCESS_LOCKED_REC;
-		} else {
-			err = DB_SUCCESS;
+			return DB_SUCCESS_LOCKED_REC;
 		}
 	}
-
-	trx_mutex_exit(trx);
-
-	return(err);
+	return DB_SUCCESS;
 }
 
 /*********************************************************************//**
@@ -2582,33 +2474,61 @@ lock_rec_lock(
 	dict_index_t*		index,	/*!< in: index of record */
 	que_thr_t*		thr)	/*!< in: query thread */
 {
-	ut_ad(lock_mutex_own());
-	ut_ad(!srv_read_only_mode);
-	ut_ad((LOCK_MODE_MASK & mode) != LOCK_S
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IS));
-	ut_ad((LOCK_MODE_MASK & mode) != LOCK_X
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
-	ut_ad((LOCK_MODE_MASK & mode) == LOCK_S
-	      || (LOCK_MODE_MASK & mode) == LOCK_X);
-	ut_ad(mode - (LOCK_MODE_MASK & mode) == LOCK_GAP
-	      || mode - (LOCK_MODE_MASK & mode) == LOCK_REC_NOT_GAP
-	      || mode - (LOCK_MODE_MASK & mode) == 0);
-	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
+  trx_t *trx= thr_get_trx(thr);
+  dberr_t err= DB_SUCCESS;
 
-	/* We try a simplified and faster subroutine for the most
-	common cases */
-	switch (lock_rec_lock_fast(impl, mode, block, heap_no, index, thr)) {
-	case LOCK_REC_SUCCESS:
-		return(DB_SUCCESS);
-	case LOCK_REC_SUCCESS_CREATED:
-		return(DB_SUCCESS_LOCKED_REC);
-	case LOCK_REC_FAIL:
-		return(lock_rec_lock_slow(impl, mode, block,
-					  heap_no, index, thr));
-	}
+  ut_ad(!srv_read_only_mode);
+  ut_ad((LOCK_MODE_MASK & mode) == LOCK_S ||
+        (LOCK_MODE_MASK & mode) == LOCK_X);
+  ut_ad((mode & LOCK_TYPE_MASK) == LOCK_GAP ||
+        (mode & LOCK_TYPE_MASK) == LOCK_REC_NOT_GAP ||
+        (mode & LOCK_TYPE_MASK) == 0);
+  ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
+  DBUG_EXECUTE_IF("innodb_report_deadlock", return DB_DEADLOCK;);
 
-	ut_error;
-	return(DB_ERROR);
+  lock_mutex_enter();
+  ut_ad((LOCK_MODE_MASK & mode) != LOCK_S ||
+        lock_table_has(trx, index->table, LOCK_IS));
+  ut_ad((LOCK_MODE_MASK & mode) != LOCK_X ||
+         lock_table_has(trx, index->table, LOCK_IX));
+
+  if (lock_t *lock= lock_rec_get_first_on_page(lock_sys->rec_hash, block))
+  {
+    trx_mutex_enter(trx);
+    if (lock_rec_get_next_on_page(lock) ||
+        lock->trx != trx ||
+        lock->type_mode != (mode | LOCK_REC) ||
+        lock_rec_get_n_bits(lock) <= heap_no)
+    {
+      err= lock_rec_lock_slow(impl, mode, block, heap_no, index, thr);
+    }
+    else if (!impl)
+    {
+      /*
+        If the nth bit of the record lock is already set then we do not set
+        a new lock bit, otherwise we do set
+      */
+      if (!lock_rec_get_nth_bit(lock, heap_no))
+      {
+        lock_rec_set_nth_bit(lock, heap_no);
+        err= DB_SUCCESS_LOCKED_REC;
+      }
+    }
+    trx_mutex_exit(trx);
+  }
+  else
+  {
+    /*
+      Simplified and faster path for the most common cases
+      Note that we don't own the trx mutex.
+    */
+    if (!impl)
+      RecLock(index, block, heap_no, mode).create(trx, false, true);
+    err= DB_SUCCESS_LOCKED_REC;
+  }
+  lock_mutex_exit();
+  MONITOR_ATOMIC_INC(MONITOR_NUM_RECLOCK_REQ);
+  return err;
 }
 
 /*********************************************************************//**
@@ -6575,16 +6495,8 @@ lock_clust_rec_modify_check_and_lock(
 	lock_rec_convert_impl_to_expl(thr_get_trx(thr), block, rec, index,
 				      offsets);
 
-	lock_mutex_enter();
-
-	ut_ad(lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
-
 	err = lock_rec_lock(TRUE, LOCK_X | LOCK_REC_NOT_GAP,
 			    block, heap_no, index, thr);
-
-	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
-
-	lock_mutex_exit();
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
 
@@ -6638,16 +6550,8 @@ lock_sec_rec_modify_check_and_lock(
 	index record, and this would not have been possible if another active
 	transaction had modified this secondary index record. */
 
-	lock_mutex_enter();
-
-	ut_ad(lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
-
 	err = lock_rec_lock(TRUE, LOCK_X | LOCK_REC_NOT_GAP,
 			    block, heap_no, index, thr);
-
-	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
-
-	lock_mutex_exit();
 
 #ifdef UNIV_DEBUG
 	{
@@ -6740,19 +6644,8 @@ lock_sec_rec_read_check_and_lock(
 					      index, offsets);
 	}
 
-	lock_mutex_enter();
-
-	ut_ad(mode != LOCK_X
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
-	ut_ad(mode != LOCK_S
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IS));
-
 	err = lock_rec_lock(FALSE, mode | gap_mode,
 			    block, heap_no, index, thr);
-
-	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
-
-	lock_mutex_exit();
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
 
@@ -6816,18 +6709,7 @@ lock_clust_rec_read_check_and_lock(
 					      index, offsets);
 	}
 
-	lock_mutex_enter();
-
-	ut_ad(mode != LOCK_X
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
-	ut_ad(mode != LOCK_S
-	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IS));
-
 	err = lock_rec_lock(FALSE, mode | gap_mode, block, heap_no, index, thr);
-
-	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
-
-	lock_mutex_exit();
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
 
