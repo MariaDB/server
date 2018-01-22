@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -939,13 +939,9 @@ trx_sys_close(void)
 	     || srv_read_only_mode
 	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 
-	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
-	     trx != NULL;
-	     trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list)) {
-
-		trx_free_prepared(trx);
-
+	while (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list)) {
 		UT_LIST_REMOVE(trx_sys->rw_trx_list, trx);
+		trx_free_prepared(trx);
 	}
 
 	/* There can't be any active transactions. */

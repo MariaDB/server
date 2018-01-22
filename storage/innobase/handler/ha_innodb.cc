@@ -17881,12 +17881,14 @@ innobase_commit_by_xid(
 	}
 
 	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
-		TrxInInnoDB	trx_in_innodb(trx);
-
-		innobase_commit_low(trx);
-		ut_ad(trx->mysql_thd == NULL);
+		ut_ad(trx->in_innodb & TRX_FORCE_ROLLBACK_DISABLE);
 		/* use cases are: disconnected xa, slave xa, recovery */
-		trx_deregister_from_2pc(trx);
+		{
+			TrxInInnoDB	trx_in_innodb(trx);
+			innobase_commit_low(trx);
+			ut_ad(trx->mysql_thd == NULL);
+			trx_deregister_from_2pc(trx);
+		}
 		ut_ad(!trx->will_lock);    /* trx cache requirement */
 		trx_free_for_background(trx);
 
@@ -17915,12 +17917,14 @@ innobase_rollback_by_xid(
 	}
 
 	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
-		TrxInInnoDB	trx_in_innodb(trx);
-
-		int	ret = innobase_rollback_trx(trx);
-
-		trx_deregister_from_2pc(trx);
-		ut_ad(!trx->will_lock);
+		int ret;
+		ut_ad(trx->in_innodb & TRX_FORCE_ROLLBACK_DISABLE);
+		{
+			TrxInInnoDB	trx_in_innodb(trx);
+			ret = innobase_rollback_trx(trx);
+			trx_deregister_from_2pc(trx);
+			ut_ad(!trx->will_lock);
+		}
 		trx_free_for_background(trx);
 
 		return(ret);
