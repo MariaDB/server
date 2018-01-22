@@ -68,5 +68,72 @@ alter table t1 drop column sys_start, drop column sys_end;
 select sys_end = 18446744073709551615 as transaction_based from t1 for system_time all;
 transaction_based
 1
-drop table t1;
-drop function check_result;
+# Simple vs SEES algorithms
+create or replace table t1 (
+x int,
+sys_start bigint(20) unsigned as row start invisible,
+sys_end bigint(20) unsigned as row end invisible,
+period for system_time (sys_start, sys_end)
+) with system versioning engine innodb;
+select sys_start from t1 where x = 1 into @trx_id1;
+select sys_start from t1 where x = 2 into @trx_id2;
+select sys_start from t1 where x = 3 into @trx_id3;
+select check_result(@trx_id1 < @trx_id2 and @trx_id2 < @trx_id3);
+check_result(@trx_id1 < @trx_id2 and @trx_id2 < @trx_id3)
+[CORRECT]
+select check_result(@ts1 < @ts2 and @ts2 < @ts3);
+check_result(@ts1 < @ts2 and @ts2 < @ts3)
+[CORRECT]
+# MVCC is not resolved
+select * from t1 for system_time as of transaction @trx_id1;
+x
+1
+select * from t1 for system_time as of timestamp @ts1;
+x
+1
+select * from t1 for system_time as of transaction @trx_id2;
+x
+1
+2
+select * from t1 for system_time as of timestamp @ts2;
+x
+1
+2
+select * from t1 for system_time as of transaction @trx_id3;
+x
+1
+2
+3
+select * from t1 for system_time as of timestamp @ts3;
+x
+1
+2
+3
+set system_versioning_innodb_algorithm_simple= off;
+# MVCC is resolved
+select * from t1 for system_time as of transaction @trx_id1;
+x
+1
+2
+3
+select * from t1 for system_time as of timestamp @ts1;
+x
+1
+2
+3
+select * from t1 for system_time as of transaction @trx_id2;
+x
+2
+3
+select * from t1 for system_time as of timestamp @ts2;
+x
+2
+3
+select * from t1 for system_time as of transaction @trx_id3;
+x
+3
+select * from t1 for system_time as of timestamp @ts3;
+x
+3
+drop database test;
+create database test;

@@ -44,6 +44,7 @@
 #include "sql_cte.h"
 #include "ha_sequence.h"
 #include "sql_show.h"
+#include "my_dbug.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -7795,9 +7796,14 @@ void TABLE::vers_update_fields()
     if (!vers_write)
       return;
     vers_start_field()->set_notnull();
-    if (vers_start_field()->store_timestamp(in_use->system_time,
-                                            in_use->system_time_sec_part))
+    if (DBUG_EVALUATE_IF("sysvers_manual_timestamp",
+                    vers_start_field()->store_timestamp(in_use->start_time,
+                                              in_use->start_time_sec_part),
+                    vers_start_field()->store_timestamp(in_use->system_time,
+                                              in_use->system_time_sec_part)))
+    {
       DBUG_ASSERT(0);
+    }
   }
   else
   {
@@ -7813,9 +7819,14 @@ void TABLE::vers_update_fields()
 void TABLE::vers_update_end()
 {
   vers_end_field()->set_notnull();
-  if (vers_end_field()->store_timestamp(in_use->system_time,
-                                        in_use->system_time_sec_part))
+  if (DBUG_EVALUATE_IF("sysvers_manual_timestamp",
+                  vers_end_field()->store_timestamp(in_use->start_time,
+                                            in_use->start_time_sec_part),
+                  vers_end_field()->store_timestamp(in_use->system_time,
+                                            in_use->system_time_sec_part)))
+  {
     DBUG_ASSERT(0);
+  }
 }
 
 
@@ -8659,14 +8670,25 @@ enum_tx_isolation TR_table::iso_level() const
   return res;
 }
 
+static inline
+timeval get_timeval(my_time_t tv_sec, ulong tv_usec)
+{
+  timeval ret= {tv_sec, (long) tv_usec};
+  return ret;
+}
+
 bool TR_table::update(ulonglong start_id, ulonglong end_id)
 {
   if (!table && open())
     return true;
 
-  timeval start_time= {thd->system_time, long(thd->system_time_sec_part)};
+  timeval start_time= DBUG_EVALUATE_IF("sysvers_manual_timestamp",
+                                      get_timeval(thd->start_time, thd->start_time_sec_part),
+                                      get_timeval(thd->system_time, thd->system_time_sec_part));
   thd->set_start_time();
-  timeval end_time= {thd->system_time, long(thd->system_time_sec_part)};
+  timeval end_time= DBUG_EVALUATE_IF("sysvers_manual_timestamp",
+                                      get_timeval(thd->start_time, thd->start_time_sec_part),
+                                      get_timeval(thd->system_time, thd->system_time_sec_part));
   store(FLD_TRX_ID, start_id);
   store(FLD_COMMIT_ID, end_id);
   store(FLD_BEGIN_TS, start_time);
