@@ -8692,27 +8692,41 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
                           1 /* use_record_cache */, true /* print_error */,
                           false /* disable_rr_cache */);
 
-  // With PK by transaction_id the records are ordered by PK
+  // With PK by transaction_id the records are ordered by PK, so we have to
+  // scan TRT fully and collect min (backwards == true)
+  // or max (backwards == false) stats.
   bool found= false;
+  MYSQL_TIME found_ts;
   while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
   {
-    if (select->skip_record(thd) > 0)
+    int res= select->skip_record(thd);
+    if (res > 0)
     {
-      if (backwards)
-        return true;
-      found= true;
-      // TODO: (performance) make ORDER DESC and break after first found.
-      // Otherwise it is O(n) scan (+copy)!
-      store_record(table, record[1]);
-    }
-    else
-    {
-      if (found)
-        restore_record(table, record[1]);
-      if (!backwards)
+      MYSQL_TIME commit_ts;
+      if ((*this)[FLD_COMMIT_TS]->get_date(&commit_ts, 0))
+      {
+        found= false;
         break;
+      }
+      int c;
+      if (!found || ((c= my_time_compare(&commit_ts, &found_ts)) &&
+        (backwards ? c < 0 : c > 0)))
+      {
+        found_ts= commit_ts;
+        found= true;
+        // TODO: (performance) make ORDER DESC and break after first found.
+        // Otherwise it is O(n) scan (+copy)!
+        store_record(table, record[1]);
+      }
     }
-  }
+    else if (res < 0)
+    {
+      found= false;
+      break;
+    }
+ }
+  if (found)
+    restore_record(table, record[1]);
   return found;
 }
 #undef newx

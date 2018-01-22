@@ -65,4 +65,93 @@ alter table t1 drop column sys_start, drop column sys_end;
 select row_end = 18446744073709551615 as transaction_based from t1 for system_time all;
 transaction_based
 1
+# Simple vs SEES algorithms
+create or replace table t1 (
+x int,
+sys_start bigint(20) unsigned as row start invisible,
+sys_end bigint(20) unsigned as row end invisible,
+period for system_time (sys_start, sys_end)
+) with system versioning engine innodb;
+set transaction isolation level read committed;
+start transaction;
+insert into t1 values (1);
+connect  con1,localhost,root,,test;
+set transaction isolation level read committed;
+start transaction;
+insert into t1 values (2);
+connect  con2,localhost,root,,test;
+set transaction isolation level read committed;
+start transaction;
+insert into t1 values (3);
+commit;
+disconnect con2;
+connection default;
+set @ts1= sysdate(6);
+connection con1;
+commit;
+disconnect con1;
+connection default;
+set @ts2= sysdate(6);
+commit;
+set @ts3= sysdate(6);
+select sys_start from t1 where x = 1 into @trx_id1;
+select sys_start from t1 where x = 2 into @trx_id2;
+select sys_start from t1 where x = 3 into @trx_id3;
+select @trx_id1 < @trx_id2, @trx_id2 < @trx_id3;
+@trx_id1 < @trx_id2	@trx_id2 < @trx_id3
+1	1
+select @ts1 < @ts2, @ts2 < @ts3;
+@ts1 < @ts2	@ts2 < @ts3
+1	1
+# MVCC is not resolved
+select * from t1 for system_time as of transaction @trx_id1;
+x
+1
+select * from t1 for system_time as of timestamp @ts1;
+x
+3
+select * from t1 for system_time as of transaction @trx_id2;
+x
+1
+2
+select * from t1 for system_time as of timestamp @ts2;
+x
+2
+3
+select * from t1 for system_time as of transaction @trx_id3;
+x
+1
+2
+3
+select * from t1 for system_time as of timestamp @ts3;
+x
+1
+2
+3
+set system_versioning_innodb_algorithm_simple= off;
+# MVCC is resolved
+select * from t1 for system_time as of transaction @trx_id1;
+x
+1
+2
+3
+select * from t1 for system_time as of timestamp @ts1;
+x
+3
+select * from t1 for system_time as of transaction @trx_id2;
+x
+2
+3
+select * from t1 for system_time as of timestamp @ts2;
+x
+2
+3
+select * from t1 for system_time as of transaction @trx_id3;
+x
+3
+select * from t1 for system_time as of timestamp @ts3;
+x
+1
+2
+3
 drop table t1;
