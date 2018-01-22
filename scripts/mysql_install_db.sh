@@ -451,8 +451,8 @@ else
   echo "Try 'mysqld --help' if you have problems with paths.  Using"
   echo "--general-log gives you a log in $ldata that may be helpful."
   link_to_help
-  echo "MariaDB is hosted on launchpad; You can find the latest source and"
-  echo "email lists at http://launchpad.net/maria"
+  echo "You can find the latest source at https://downloads.mariadb.org and"
+  echo "the maria-discuss email list at https://launchpad.net/~maria-discuss"
   echo
   echo "Please check all of the above before submitting a bug report"
   echo "at http://mariadb.org/jira"
