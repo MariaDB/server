@@ -403,6 +403,8 @@ mem_heap_create_block(
 		heap->total_size += len;
 	}
 
+	UNIV_MEM_FREE(block + 1, len - MEM_BLOCK_HEADER_SIZE);
+
 	ut_ad((ulint)MEM_BLOCK_HEADER_SIZE < len);
 
 	return(block);
@@ -507,7 +509,7 @@ mem_heap_block_free(
 
 		mem_erase_buf((byte*)block, len);
 #else /* UNIV_MEM_DEBUG */
-		UNIV_MEM_ASSERT_AND_FREE(block, len);
+		UNIV_MEM_FREE(block, len);
 #endif /* UNIV_MEM_DEBUG */
 
 	}
