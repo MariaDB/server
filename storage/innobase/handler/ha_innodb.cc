@@ -16740,7 +16740,7 @@ innodb_show_mutex_status(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	mutex_monitor->iterate(collector);
+	mutex_monitor.iterate(collector);
 
 	if (!collector.to_string(hton, thd, stat_print)) {
 		DBUG_RETURN(1);
@@ -18907,7 +18907,7 @@ innodb_monitor_set_option(
 
 		if (MONITOR_IS_ON(MONITOR_LATCHES)) {
 
-			mutex_monitor->enable();
+			mutex_monitor.enable();
 		}
 		break;
 
@@ -18922,7 +18922,7 @@ innodb_monitor_set_option(
 
 		if (!MONITOR_IS_ON(MONITOR_LATCHES)) {
 
-			mutex_monitor->disable();
+			mutex_monitor.disable();
 		}
 		break;
 
@@ -18931,13 +18931,13 @@ innodb_monitor_set_option(
 
 		if (monitor_id == (MONITOR_LATCHES)) {
 
-			mutex_monitor->reset();
+			mutex_monitor.reset();
 		}
 		break;
 
 	case MONITOR_RESET_ALL_VALUE:
 		srv_mon_reset_all(monitor_id);
-		mutex_monitor->reset();
+		mutex_monitor.reset();
 		break;
 
 	default:
