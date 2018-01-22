@@ -1965,23 +1965,13 @@ UNIV_INTERN
 ibool
 fil_inc_pending_ops(
 /*================*/
-	ulint	id,		/*!< in: space id */
-	ibool	print_err)	/*!< in: need to print error or not */
+	ulint	id)		/*!< in: space id */
 {
 	fil_space_t*	space;
 
 	mutex_enter(&fil_system->mutex);
 
 	space = fil_space_get_by_id(id);
-
-	if (space == NULL) {
-		if (print_err) {
-			fprintf(stderr,
-				"InnoDB: Error: trying to do an operation on a"
-				" dropped tablespace %lu\n",
-				(ulong) id);
-		}
-	}
 
 	if (space == NULL || space->stop_new_ops) {
 		mutex_exit(&fil_system->mutex);
