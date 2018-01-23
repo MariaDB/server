@@ -25,6 +25,7 @@
 #include "wsrep_thd_pool.h"
 #include "wsrep_schema.h"
 #include "wsrep_applier.h"
+#include "wsrep_xid.h"
 
 #include <string>
 #include <sstream>
@@ -94,8 +95,8 @@ static int execute_SQL(THD* thd, const char* sql, uint length) {
   PSI_statement_locker *parent_locker= thd->m_statement_psi;
   Parser_state parser_state;
 
-  WSREP_DEBUG("SQL: %d %s thd: %lld", length, sql,
-              (long long)thd->thread_id);
+  WSREP_DEBUG("SQL: %d %s thd: %lld", length, sql, (long long)thd->thread_id);
+
   if (parser_state.init(thd, (char*)sql, length) == 0) {
     thd->reset_for_next_command();
     lex_start(thd);
@@ -539,14 +540,12 @@ static int apply_frag(THD* thd, TABLE* table, wsrep_uuid_t cluster_uuid)
   (void)table->field[4]->val_str(&buf);
 
   wsrep_buf_t const ws = { buf.c_ptr(), buf.length() };
-  void*  err_buf;
-  size_t err_len;
-  if ((ret = wsrep_apply_cb(thd, flags, &ws, &meta, &err_buf, &err_len))
+  wsrep_apply_error err;
+  if ((ret = wsrep_apply(thd, flags, &ws, &meta, err))
       != WSREP_RET_SUCCESS) {
     WSREP_WARN("Failed to apply frag: %d, %s",
-               ret, err_buf ? (char*)err_buf : "(null)");
+               ret, err.c_str() ? err.c_str() : "(null)");
   }
-  free(err_buf);
 
   thd->store_globals(); /* Restore orig thd context */
   return ret;
@@ -610,12 +609,24 @@ int Wsrep_schema::store_view(const wsrep_view_info_t* view)
 #ifdef WSREP_SCHEMA_MEMBERS_HISTORY
   TABLE* members_history_table= 0;
 #endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
+  wsrep_gtid_t last_committed= WSREP_GTID_UNDEFINED;
 
   THD* thd= thd_pool_->get_thd(0);
   if (!thd) {
     WSREP_ERROR("Could not allocate thd");
     DBUG_RETURN(1);
   }
+
+  int wsrep_on= thd->variables.wsrep_on;
+  int sql_log_bin= thd->variables.sql_log_bin;
+  ulonglong option_bits= thd->variables.option_bits;
+
+  /*
+    Disable binlogging.
+  */
+  thd->variables.wsrep_on= 0;
+  thd->variables.sql_log_bin= 0;
+  thd->variables.option_bits&= ~OPTION_BIN_LOG;
 
   if (trans_begin(thd, MYSQL_START_TRANS_OPT_READ_WRITE)) {
     WSREP_ERROR("failed to start transaction");
@@ -708,6 +719,28 @@ int Wsrep_schema::store_view(const wsrep_view_info_t* view)
   Wsrep_schema_impl::finish_stmt(thd);
 #endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
 
+  /*
+    Assign wsrep GTID before commit if view state_id contains unique
+    seqno.
+   */
+  wsrep_last_committed_id(&last_committed);
+  if (last_committed.seqno < view->state_id.seqno)
+  {
+    WSREP_DEBUG("Assigning unique seqno for view %lld",
+                (long long)view->state_id.seqno);
+    thd->wsrep_trx_meta.gtid= view->state_id;
+    if (wsrep_write_dummy_event_low(thd, "view event"))
+    {
+      WSREP_ERROR("Dummy event write failed");
+      goto out;
+    }
+  }
+  else
+  {
+    WSREP_DEBUG("View does not have unique seqno or the view event was "
+                "contained in SST");
+  }
+
   if (!trans_commit(thd)) {
     /* Success */
     ret= 0;
@@ -716,12 +749,19 @@ int Wsrep_schema::store_view(const wsrep_view_info_t* view)
  out:
 
   if (ret) {
+    WSREP_ERROR("Failed to write view event into wsrep_schema");
     trans_rollback_stmt(thd);
     if (!trans_rollback(thd)) {
       close_thread_tables(thd);
     }
   }
   thd->mdl_context.release_transactional_locks();
+
+  /* Restore original thd state */
+  thd->variables.wsrep_on= wsrep_on;
+  thd->variables.sql_log_bin= sql_log_bin;
+  thd->variables.option_bits= option_bits;
+  thd->wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
 
   thd_pool_->release_thd(thd);
 
@@ -852,7 +892,7 @@ int Wsrep_schema::append_frag_apply(THD* thd,
   TABLE* frag_table= 0;
   int wsrep_on= thd->variables.wsrep_on;
   int sql_log_bin= thd->variables.sql_log_bin;
-  int log_bin_option= (thd->variables.option_bits & OPTION_BIN_LOG);
+  ulonglong log_bin_option= (thd->variables.option_bits & OPTION_BIN_LOG);
   my_bool skip_locking= thd->wsrep_skip_locking;
 
   thd->variables.wsrep_on= 0;
@@ -885,6 +925,16 @@ int Wsrep_schema::append_frag_apply(THD* thd,
     goto out;
   }
   Wsrep_schema_impl::finish_stmt(thd);
+
+  if (!(flags & (WSREP_FLAG_TRX_END | WSREP_FLAG_ROLLBACK)) &&
+      meta.gtid.seqno != WSREP_SEQNO_UNDEFINED)
+  {
+      thd->wsrep_trx_meta= meta;
+      if (wsrep_write_dummy_event_low(thd, "fragment"))
+      {
+          goto out;
+      }
+  }
   ret= 0;
 
 out:
@@ -929,14 +979,27 @@ int Wsrep_schema::append_frag_commit(const wsrep_trx_meta_t& meta,
 
   THD* thd;
   int ret= 1;
+  enum durability_properties dur_save;
+
 
   if ((thd= append_frag(meta, flags, frag, frag_len)) == NULL)
     goto out;
+
+  /*
+    We can ignore the storage engine durability setting here:
+    Committing a fragment does not cause actual transaction to
+    be committed, so it will be enough that the fragment is
+    committed in order to be able to recover to consistent state.
+   */
+  dur_save= thd->durability_property;
+  thd->durability_property= HA_IGNORE_DURABILITY;
 
   if (!trans_commit(thd)) {
     /* Success */
     ret= 0;
   }
+
+  thd->durability_property= dur_save;
 
 out:
   if (thd) {
@@ -1003,6 +1066,12 @@ int Wsrep_schema::update_frag_seqno(THD* thd, const wsrep_trx_meta_t& meta)
   }
 
   Wsrep_schema_impl::finish_stmt(thd);
+
+  thd->wsrep_trx_meta= meta;
+  if (wsrep_write_dummy_event_low(thd, "fragment"))
+  {
+      goto out;
+  }
 
   if (!trans_commit(thd)) {
     /* Success */
@@ -1084,7 +1153,7 @@ int Wsrep_schema::remove_trx(THD* thd, wsrep_fragment_set* fragments)
   WSREP_DEBUG("Wsrep_schema::remove_trx(%lld)", thd->thread_id);
   int wsrep_on= thd->variables.wsrep_on;
   int sql_log_bin= thd->variables.sql_log_bin;
-  int log_bin_option= (thd->variables.option_bits & OPTION_BIN_LOG);
+  ulonglong log_bin_option= (thd->variables.option_bits & OPTION_BIN_LOG);
   my_bool skip_locking= thd->wsrep_skip_locking;
 
   thd->variables.wsrep_on= 0;

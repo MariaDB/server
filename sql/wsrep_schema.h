@@ -69,7 +69,7 @@ class Wsrep_schema
     Append transaction fragment to fragment storage.
     Starts a trx using a THD from thd_pool, does not commit.
     Should be followed by a call to update_frag_seqno(), or
-    release_SR_thd() if wsrep->pre_commit() fails.
+    release_SR_thd() if wsrep->certify() fails.
    */
   THD* append_frag(const wsrep_trx_meta_t&, uint32_t,
                    const unsigned char*, size_t);

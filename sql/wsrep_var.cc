@@ -359,7 +359,8 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
   // we sure don't want to use old address with new provider
   wsrep_cluster_address_init(NULL);
   wsrep_provider_options_init(NULL);
-  refresh_provider_options();
+  if (!rcode)
+    refresh_provider_options();
 
   return rcode;
 }

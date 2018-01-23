@@ -16,6 +16,8 @@
 #ifndef WSREP_TRANS_OBSERVER_H
 #define WSREP_TRANS_OBSERVER_H
 
+#include "wsrep_applier.h" /* wsrep_apply_error */
+
 class THD;
 
 /*
@@ -43,6 +45,9 @@ int wsrep_after_prepare(THD*, bool);
 /*
   Called before the transaction is committed.
 
+  This function must be called from both client and
+  applier contexts before commit.
+
   Return zero on succes, non-zero on failure.
  */
 int wsrep_before_commit(THD*, bool);
@@ -50,9 +55,16 @@ int wsrep_before_commit(THD*, bool);
 /*
   Called after the transaction has been ordered for commit.
 
+  This function must be called from both client and
+  applier contexts after the commit has been ordered.
+
+  @param thd Pointer to THD
+  @param all 
+  @param err Error buffer in case of applying error
+
   Return zero on succes, non-zero on failure.
  */
-int wsrep_ordered_commit(THD*, bool);
+int wsrep_ordered_commit(THD* thd, bool all, const wsrep_apply_error& err);
 
 /*
   Called after the transaction has been committed.

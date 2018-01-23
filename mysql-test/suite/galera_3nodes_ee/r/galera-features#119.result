@@ -1,0 +1,19 @@
+CREATE TABLE test.t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET GLOBAL wsrep_on=OFF;
+INSERT INTO t1 VALUES (1);
+LOCK TABLE t1 WRITE;
+SET GLOBAL wsrep_sync_wait=0;
+INSERT INTO t1 VALUES (1);
+SET GLOBAL wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+UNLOCK TABLES;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+SET GLOBAL wsrep_sync_wait=15;
+DROP TABLE test.t1;
+Killing server ...
+CALL mtr.add_suppression("Inconsistent by consensus.");
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '1' for key 'PRIMARY', Error_code: 1062; handler error HA_ERR_FOUND_DUPP_KEY; the event's master log FIRST");
+CALL mtr.add_suppression("WSREP: Event 3 Write_rows apply failed: 121, seqno");
+CALL mtr.add_suppression("WSREP: Failed to apply trx: source: ");
+CALL mtr.add_suppression("WSREP: Failed to apply app buffer: seqno:");
+CALL mtr.add_suppression("WSREP: Node consistency compromized, leaving cluster...");

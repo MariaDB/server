@@ -34,14 +34,22 @@ SELECT LENGTH(@@global.gtid_binlog_state) > 1;
 --source include/wait_condition.inc
 
 --disable_query_log
+<<<<<<< HEAD
 --eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
+=======
+--eval SELECT GTID_SUBSET('$gtid_executed_node1', @@global.gtid_executed) AS gtid_executed_equal;
+>>>>>>> eb43c025a1b... GCF-1037 GCF-1039 Merge final API v26 and group commit patch
 --enable_query_log
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 SELECT COUNT(*) = 1 FROM t1;
 
 --disable_query_log
+<<<<<<< HEAD
 --eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
+=======
+--eval SELECT GTID_SUBSET('$gtid_executed_node1', @@global.gtid_executed) AS gtid_executed_equal;
+>>>>>>> eb43c025a1b... GCF-1037 GCF-1039 Merge final API v26 and group commit patch
 --enable_query_log
 
 --connection node_1

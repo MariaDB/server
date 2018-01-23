@@ -15,7 +15,7 @@
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
-SET SESSION wsrep_trx_fragment_size = 1;
+--eval SET SESSION wsrep_trx_fragment_size = $wsrep_trx_fragment_size
 SET AUTOCOMMIT=OFF;
 
 INSERT INTO t1 VALUES (1);

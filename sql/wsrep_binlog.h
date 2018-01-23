@@ -80,8 +80,17 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
 int wsrep_binlog_close_connection(THD* thd);
 uint wsrep_get_trans_cache_position(THD *thd);
 
-/* Write dummy event to binlog in place of unused GTID */
-int wsrep_write_dummy_event(THD* thd);
+/*
+  Write dummy event into binlog in place of unused GTID.
+  The binlog write is done in thd context.
+*/
+int wsrep_write_dummy_event_low(THD *thd, const char *msg);
+/*
+  Write dummy event to binlog in place of unused GTID and
+  commit. The binlog write and commit are done in temporary
+  thd context, the original thd state is not altered.
+*/
+int wsrep_write_dummy_event(THD* thd, const char *msg);
 
 void wsrep_register_binlog_handler(THD *thd, bool trx);
 

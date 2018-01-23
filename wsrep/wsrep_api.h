@@ -115,6 +115,7 @@ typedef void (*wsrep_log_cb_t)(wsrep_log_level_t, const char *);
 #define WSREP_CAP_SNAPSHOT              ( 1ULL << 16 )
 #define WSREP_CAP_NBO                   ( 1ULL << 17 )
 
+typedef uint32_t wsrep_cap_t; //!< capabilities bitmask
 
 /*!
  *  Writeset flags
@@ -169,7 +170,8 @@ typedef enum wsrep_status
     WSREP_CONN_FAIL,       //!< error in client connection, must abort
     WSREP_NODE_FAIL,       //!< error in node state, wsrep must reinit
     WSREP_FATAL,           //!< fatal error, server must abort
-    WSREP_NOT_IMPLEMENTED  //!< feature not implemented
+    WSREP_NOT_IMPLEMENTED, //!< feature not implemented
+    WSREP_NOT_ALLOWED      //!< operation not allowed
 } wsrep_status_t;
 
 
@@ -288,6 +290,13 @@ typedef struct wsrep_buf
     size_t      len; /*!< Length of buffer */
 } wsrep_buf_t;
 
+/*! Transaction handle struct passed for wsrep transaction handling calls */
+typedef struct wsrep_ws_handle
+{
+    wsrep_trx_id_t trx_id; //!< transaction ID
+    void*          opaque; //!< opaque provider transaction context data
+} wsrep_ws_handle_t;
+
 /*!
  * member status
  */
@@ -327,6 +336,7 @@ typedef struct wsrep_view_info {
     wsrep_gtid_t        state_id;  //!< global state ID
     wsrep_seqno_t       view;      //!< global view number
     wsrep_view_status_t status;    //!< view status
+    wsrep_cap_t         capabilities;//!< capabilities available in the view
     int                 my_idx;    //!< index of this member in the view
     int                 memb_num;  //!< number of members in the view
     int                 proto_ver; //!< application protocol agreed on the view
@@ -420,49 +430,24 @@ typedef enum wsrep_cb_status (*wsrep_sst_request_cb_t) (
  * This handler is called from wsrep library to apply replicated writeset
  * Must support brute force applying for multi-master operation
  *
- * @param recv_ctx receiver context pointer provided by the application
- * @param flags    WSREP_FLAG_... flags
- * @param meta     transaction meta data of the writeset to be applied
- * @param data     data buffer containing the writeset
- * @param err_buf  buffer containing error info (null/empty for no error)
- *                 Callback semantics implies that the buffer is dynamically
- *                 allocated by the callback and must be freed by provider.
- * @param err_len  error buffer size
+ * @param recv_ctx  receiver context pointer provided by the application
+ * @param ws_handle internal provider writeset handle
+ * @param flags     WSREP_FLAG_... flags
+ * @param data      data buffer containing the writeset
+ * @param meta      transaction meta data of the writeset to be applied
+ * @param exit_loop set to true to exit receive loop
  *
  * @return error code:
  * @retval 0 - success
  * @retval non-0 - application-specific error code
  */
-typedef int (*wsrep_apply_cb_t) (
-    void*                   recv_ctx,
-    uint32_t                flags,
-    const wsrep_buf_t*      data,
-    const wsrep_trx_meta_t* meta,
-    void**                  err_buf,
-    size_t*                 err_len
-);
-
-
-/*!
- * @brief commit callback
- *
- * This handler is called to commit the changes made by apply callback.
- *
- * @param recv_ctx receiver context pointer provided by the application
- * @param flags    WSREP_FLAG_... flags
- * @param meta     transaction meta data of the writeset to be committed
- * @param exit     set to true to exit recv loop
- * @param commit   true - commit writeset, false - rollback writeset
- *
- * @return success code:
- * @retval WSREP_CB_SUCCESS
- * @retval WSREP_CB_FAILURE
- */
-typedef enum wsrep_cb_status (*wsrep_commit_cb_t) (
-    void*                   recv_ctx,
-    uint32_t                flags,
-    const wsrep_trx_meta_t* meta,
-    wsrep_bool_t*           exit
+typedef enum wsrep_cb_status (*wsrep_apply_cb_t) (
+    void*                    recv_ctx,
+    const wsrep_ws_handle_t* ws_handle,
+    uint32_t                 flags,
+    const wsrep_buf_t*       data,
+    const wsrep_trx_meta_t*  meta,
+    wsrep_bool_t*            exit_loop
 );
 
 
@@ -548,7 +533,6 @@ struct wsrep_init_args
 
     /* Applier callbacks */
     wsrep_apply_cb_t       apply_cb;        //!< apply  callback
-    wsrep_commit_cb_t      commit_cb;       //!< commit callback
     wsrep_unordered_cb_t   unordered_cb;    //!< callback for unordered actions
 
     /* State Snapshot Transfer callbacks */
@@ -612,13 +596,6 @@ typedef enum wsrep_data_type
 } wsrep_data_type_t;
 
 
-/*! Transaction handle struct passed for wsrep transaction handling calls */
-typedef struct wsrep_ws_handle
-{
-    wsrep_trx_id_t trx_id; //!< transaction ID
-    void*          opaque; //!< opaque provider transaction context data
-} wsrep_ws_handle_t;
-
 /*!
  * @brief Helper method to reset trx writeset handle state when trx id changes
  *
@@ -666,11 +643,15 @@ struct wsrep {
                               const struct wsrep_init_args* args);
 
   /*!
-   * @brief Returns provider capabilities flag bitmap
+   * @brief Returns provider capabilities bitmap
+   *
+   * Note that these are potential provider capabilities. Provider will
+   * offer only capabilities supported by all members in the view
+   * (see wsrep_view_info).
    *
    * @param wsrep provider handle
    */
-    uint64_t       (*capabilities) (wsrep_t* wsrep);
+    wsrep_cap_t    (*capabilities) (wsrep_t* wsrep);
 
   /*!
    * @brief Passes provider-specific configuration string to provider.
@@ -748,52 +729,71 @@ struct wsrep {
                                        const wsrep_gtid_t* rv);
 
   /*!
-   * @brief Replicates/logs result of transaction to other nodes and allocates
-   * required resources.
+   * @brief Certifies transaction with provider.
    *
    * Must be called before transaction commit. Returns success code, which
    * caller must check.
    *
-   * In case of WSREP_OK, starts commit critical section, transaction can
-   * commit. Otherwise transaction must rollback.
+   * In case of WSREP_OK, transaction can proceed to commit.
+   * Otherwise transaction must rollback.
    *
    * In case of a failure there are two conceptually different situations:
-   * - the writeset was not replicated. In that case meta struct shall contain
+   * - the writeset was not ordered. In that case meta struct shall contain
    *   undefined GTID: WSREP_UUID_UNDEFINED:WSREP_SEQNO_UNDEFINED.
-   * - the writeset was successfully replicated. In this case meta struct shall
-   *   contain a valid GTID.
-   * In both cases the call however won't start the critical section and shall
-   * return out of order. In case of a valid GTID the rollback critical section
-   * must be started by subsequent pre_rollback() call
+   * - the writeset was successfully ordered, but failed certification.
+   *   In this case meta struct shall contain a valid GTID.
+   *
+   * Regardless of the return code, if meta struct contains a valid GTID
+   * the commit order critical section must be entered with that GTID.
    *
    * @param wsrep      provider handle
-   * @param ws_handle  writeset of committing transaction
    * @param conn_id    connection ID
+   * @param ws_handle  writeset of committing transaction
    * @param flags      fine tuning the replication WSREP_FLAG_*
    * @param meta       transaction meta data
    *
-   * @retval WSREP_OK         cluster-wide commit succeeded
+   * @retval WSREP_OK         writeset successfully certified, can commit
    * @retval WSREP_TRX_FAIL   must rollback transaction
    * @retval WSREP_CONN_FAIL  must close client connection
    * @retval WSREP_NODE_FAIL  must close all connections and reinit
    */
-    wsrep_status_t (*pre_commit)(wsrep_t*                wsrep,
-                                 wsrep_conn_id_t         conn_id,
-                                 wsrep_ws_handle_t*      ws_handle,
-                                 uint32_t                flags,
-                                 wsrep_trx_meta_t*       meta);
+    wsrep_status_t (*certify)(wsrep_t*                wsrep,
+                              wsrep_conn_id_t         conn_id,
+                              wsrep_ws_handle_t*      ws_handle,
+                              uint32_t                flags,
+                              wsrep_trx_meta_t*       meta);
 
   /*!
-   * @brief Must be called to enter total order critical section after
-   *        local transaction rollback when pre_commit() returned error
-   *        but ordered the transacton (returned non-tirvial GTID in meta).
+   * @brief Enters commit order critical section.
+   *
+   * Anything executed between this call and commit_order_leave() will be
+   * executed in provider enforced order.
    *
    * @param wsrep      provider handle
-   * @param ws_handle  writeset of committing transaction
-   * @retval WSREP_OK  post_rollback succeeded
+   * @param ws_handle  internal provider writeset handle
+   *
+   * @retval WSREP_OK         commit order entered succesfully
+   * @retval WSREP_NODE_FAIL  must close all connections and reinit
    */
-    wsrep_status_t (*post_rollback)(wsrep_t*            wsrep,
-                                    wsrep_ws_handle_t*  ws_handle);
+    wsrep_status_t (*commit_order_enter)(wsrep_t*                 wsrep,
+                                         const wsrep_ws_handle_t* ws_handle);
+
+  /*!
+   * @brief Leaves commit order critical section
+   *
+   * Anything executed between commit_order_enter() and this call will be
+   * executed in provider enforced order.
+   *
+   * @param wsrep      provider handle
+   * @param ws_handle  internal provider writeset handle
+   * @param error      buffer containing error info (null/empty for no error)
+   *
+   * @retval WSREP_OK         commit order left succesfully
+   * @retval WSREP_NODE_FAIL  must close all connections and reinit
+   */
+    wsrep_status_t (*commit_order_leave)(wsrep_t*                 wsrep,
+                                         const wsrep_ws_handle_t* ws_handle,
+                                         const wsrep_buf_t*       error);
 
   /*!
    * @brief Releases resources after transaction commit/rollback.
@@ -839,16 +839,23 @@ struct wsrep {
    * The kill routine checks that abort is not attmpted against a transaction
    * which is front of the caller (in total order).
    *
+   * If the abort was successful, the victim sequence number is stored
+   * into location pointed by the victim_seqno.
+   *
    * @param wsrep      provider handle
    * @param bf_seqno   seqno of brute force trx, running this cancel
    * @param victim_trx transaction to be aborted, and which is committing
+   * @param victim_seqno seqno of the victim transaction if assigned
    *
-   * @retval WSREP_OK       abort secceded
-   * @retval WSREP_WARNING  abort failed
+   * @retval WSREP_OK          abort succeded
+   * @retval WSREP_NOT_ALLOWED the provider declined the abort request
+   * @retval WSREP_TRX_MISSING the victim_trx was missing
+   * @retval WSREP_WARNING     abort failed
    */
-    wsrep_status_t (*abort_pre_commit)(wsrep_t*       wsrep,
-                                       wsrep_seqno_t  bf_seqno,
-                                       wsrep_trx_id_t victim_trx);
+    wsrep_status_t (*abort_certification)(wsrep_t*       wsrep,
+                                          wsrep_seqno_t  bf_seqno,
+                                          wsrep_trx_id_t victim_trx,
+                                          wsrep_seqno_t* victim_seqno);
 
   /*!
    * @brief Send a rollback fragment on behalf of trx

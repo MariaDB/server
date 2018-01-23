@@ -122,9 +122,11 @@ START SLAVE;
 
 --connection node_2
 --let $gtid_executed_node2 = `SELECT @@global.gtid_executed;`
---let $effective_uuid = `SELECT LEFT(@@global.gtid_executed, 36)`
 
---replace_result $effective_uuid <effective_uuid>
+--let $effective_uuid_1 = `SELECT SUBSTRING_INDEX(@@global.gtid_executed, ':', 1)`
+--let $effective_uuid_2 = `SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(@@global.gtid_executed, '\n', -1), ':', 1)`
+
+--replace_result $effective_uuid_1 <effective_uuid_1> $effective_uuid_2 <effective_uuid_2>
 --replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
 SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 120;
 
@@ -140,7 +142,7 @@ USE test2;
 --error 1049
 USE test2;
 
---replace_result $effective_uuid <effective_uuid>
+--replace_result $effective_uuid_1 <effective_uuid_1> $effective_uuid_2 <effective_uuid_2>
 --replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
 SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 120;
 

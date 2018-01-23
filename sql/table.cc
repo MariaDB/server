@@ -247,7 +247,8 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
   DBUG_ASSERT(name != NULL);
 
 #ifdef WITH_WSREP
-  if (!strcmp(db->str, "wsrep_schema"))
+  if (my_strcasecmp(system_charset_info, db->str, "wsrep_schema") == 0 &&
+      my_strcasecmp(system_charset_info, name->str, "SR") == 0)
   {
     return TABLE_CATEGORY_INFORMATION;
   }

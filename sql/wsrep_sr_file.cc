@@ -17,7 +17,7 @@
 #include "wsrep_priv.h"
 #include "wsrep_api.h"
 #include "wsrep_sr_file.h"
-#include "wsrep_applier.h" // wsrep_apply_cb()
+#include "wsrep_applier.h" // wsrep_apply()
 #include "wsrep_thd.h"
 #include "wsrep_utils.h"
 #include <map>
@@ -397,7 +397,7 @@ void SR_storage_file::read_trxs_from_file(
       }
       else if (!(*trxs)[nodetrx])
       {
-        WSREP_WARN("unfinished trx in SR file: trx %ld seqno %ld", 
+        WSREP_WARN("unfinished trx in SR file: trx %ld seqno %ld",
                    trxid, seqno);
       }
 
@@ -413,18 +413,15 @@ void SR_storage_file::read_trxs_from_file(
         WSREP_DEBUG("launching SR trx: %ld", trxid);
 
         wsrep_buf_t const ws= { buf, size_t(len) };
-        void*  err_buf;
-        size_t err_len;
-        if (wsrep_apply_cb(thd, flags, &ws, &meta, &err_buf, &err_len) !=
+        wsrep_apply_error err;
+        if (wsrep_apply(thd, flags, &ws, &meta, err) !=
             WSREP_CB_SUCCESS)
         {
           WSREP_WARN("Streaming Replication fragment restore failed: %s",
-                     err_buf ? (char*)err_buf : "(null)");
-          free(err_buf);
+                     err.c_str() ? err.c_str() : "(null)");
           return;
         }
-        DBUG_ASSERT(NULL == err_buf);
-        free(err_buf);
+        DBUG_ASSERT(err.is_null());
       }
       else if (mode == POPULATE)
         WSREP_DEBUG("not populating trx %ld seqno %ld", trxid, seqno);

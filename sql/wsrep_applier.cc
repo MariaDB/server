@@ -19,7 +19,9 @@
 #include "wsrep_xid.h"
 #include "wsrep_sr.h"
 #include "wsrep_thd.h"
+#include "wsrep_trans_observer.h"
 
+#include "rpl_slave.h" // opt_log_slave_updates
 #include "log_event.h" // class THD, EVENT_LEN_OFFSET, etc.
 #include "wsrep_applier.h"
 #include "debug_sync.h"
@@ -81,7 +83,7 @@ Format_description_log_event* wsrep_get_apply_format(THD* thd)
   return thd->wsrep_rgi->rli->relay_log.description_event_for_exec;
 }
 
-void wsrep_get_thd_error(const THD* const thd, wsrep_error& err)
+void wsrep_apply_error::store(const THD* const thd)
 {
   Diagnostics_area::Sql_condition_iterator it=
     thd->get_stmt_da()->sql_conditions();
@@ -89,14 +91,14 @@ void wsrep_get_thd_error(const THD* const thd, wsrep_error& err)
 
   static size_t const max_len= 2*MAX_SLAVE_ERRMSG; // 2x so that we have enough
 
-  if (NULL == err.str)
+  if (NULL == str_)
   {
     // this must be freeable by standard free()
-    err.str= static_cast<char*>(malloc(max_len));
-    if (NULL == err.str)
+    str_= static_cast<char*>(malloc(max_len));
+    if (NULL == str_)
     {
       WSREP_ERROR("Failed to allocate %zu bytes for error buffer.", max_len);
-      err.len = 0;
+      len_ = 0;
       return;
     }
   }
@@ -108,8 +110,8 @@ void wsrep_get_thd_error(const THD* const thd, wsrep_error& err)
      * so we just overwrite is from scratch */
   }
 
-  char* slider= err.str;
-  const char* const buf_end= err.str + max_len - 1; // -1: leave space for \0
+  char* slider= str_;
+  const char* const buf_end= str_ + max_len - 1; // -1: leave space for \0
 
   for (cond= it++; cond && slider < buf_end; cond= it++)
   {
@@ -121,11 +123,11 @@ void wsrep_get_thd_error(const THD* const thd, wsrep_error& err)
   }
 
   *slider= '\0';
-  err.len= slider - err.str + 1; // +1: add \0
+  len_= slider - str_ + 1; // +1: add \0
 
-  WSREP_INFO("Error buffer for thd %lld seqno %lld, %zu bytes: %s",
-             thd->thread_id, (long long)wsrep_thd_trx_seqno((THD*)thd),
-             err.len, err.str ? err.str : "(null)");
+  WSREP_DEBUG("Error buffer for thd %lu seqno %lld, %zu bytes: %s",
+              thd->thread_id, (long long)wsrep_thd_trx_seqno(thd),
+              len_, str_ ? str_ : "(null)");
 }
 
 int wsrep_apply_events(THD*        thd,
@@ -328,7 +330,7 @@ static inline void wsrep_restore_applier_ctx(wsrep_SR_trx_info* const SR_trx,
 }
 
 
-static wsrep_cb_status_t wsrep_rollback_common(THD* thd, wsrep_error& err)
+static wsrep_cb_status_t wsrep_rollback_common(THD* thd, wsrep_apply_error& err)
 {
   DBUG_ENTER("wsrep_rollback_common");
   wsrep_cb_status_t rcode(WSREP_CB_SUCCESS);
@@ -354,13 +356,8 @@ static wsrep_cb_status_t wsrep_rollback_common(THD* thd, wsrep_error& err)
     if (trans_rollback_stmt(thd) || trans_rollback(thd))
     {
       rcode = WSREP_CB_FAILURE;
-      wsrep_get_thd_error(thd, err);
+      err.store(thd);
     }
-  }
-  else
-  {
-    /* write dummy event to binlog for this GTID */
-    wsrep_write_dummy_event(thd);
   }
 
 //#ifdef WSREP_PROC_INFO
@@ -383,7 +380,7 @@ static wsrep_cb_status_t wsrep_rollback_trx(THD*                    thd,
                                             size_t const            buf_len,
                                             uint32_t const          flags,
                                             const wsrep_trx_meta_t* const meta,
-                                            wsrep_error&            err)
+                                            wsrep_apply_error&      err)
 {
   DBUG_ENTER("wsrep_rollback_trx");
 
@@ -392,6 +389,16 @@ static wsrep_cb_status_t wsrep_rollback_trx(THD*                    thd,
   THD* const orig_thd(thd);
 
   wsrep_SR_trx_info* const SR_trx(wsrep_prepare_applier_ctx(flags, meta, &thd));
+
+  WSREP_DEBUG("Rollback for: %ld", meta->stid.trx);
+
+  // Preempted by rollbacker
+  if (!SR_trx && !(flags & WSREP_FLAG_TRX_START))
+  {
+    WSREP_DEBUG("Pre-empted by rollbacker: %ld",
+                meta->stid.trx);
+    DBUG_RETURN(WSREP_CB_SUCCESS);
+  }
 
   if (SR_trx)
   {
@@ -417,7 +424,7 @@ static int wsrep_apply_trx(THD*                    orig_thd,
                            size_t            const buf_len,
                            uint32_t          const flags,
                            const wsrep_trx_meta_t* meta,
-                           wsrep_error&            err)
+                           wsrep_apply_error&      err)
 {
   THD* thd= orig_thd;
   DBUG_ENTER("wsrep_apply_trx");
@@ -425,6 +432,7 @@ static int wsrep_apply_trx(THD*                    orig_thd,
   DBUG_ASSERT(thd->wsrep_apply_toi == false);
   DBUG_ASSERT(!(flags & WSREP_FLAG_ROLLBACK));
   DBUG_ASSERT(!(flags & WSREP_FLAG_ISOLATION));
+  DBUG_ASSERT(err.is_null());
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   if (thd->wsrep_conflict_state() == REPLAYING &&
@@ -487,7 +495,7 @@ static int wsrep_apply_trx(THD*                    orig_thd,
 
   if (0 != rcode)
   {
-    wsrep_get_thd_error(thd, err);
+    err.store(thd);
     wsrep_rollback_common(thd, err);
   }
   else if (thd->wsrep_SR_thd && wsrep_SR_store)
@@ -542,7 +550,7 @@ static int wsrep_apply_toi(THD*        const thd,
                            size_t      const buf_len,
                            uint32_t    const flags,
                            const wsrep_trx_meta_t* const meta,
-                           wsrep_error&      err)
+                           wsrep_apply_error& err)
 {
   DBUG_ENTER("wsrep_apply_toi");
 
@@ -569,7 +577,7 @@ static int wsrep_apply_toi(THD*        const thd,
     wsrep_dump_rbr_buf_with_header(thd, buf, buf_len);
     thd->wsrep_has_ignored_error= false;
 
-    if (0 != rcode) wsrep_get_thd_error(thd, err);
+    if (0 != rcode) err.store(thd);
   }
 
   thd->close_temporary_tables();
@@ -606,7 +614,7 @@ static void wsrep_apply_non_blocking(THD* thd, void* args)
     Non-blocking operation end is supposed to sync the end result with
     group and abort if the result does not match.
   */
-  wsrep_error err= { NULL, 0 };
+  wsrep_apply_error err;
   if (wsrep_apply_toi(thd, nbo_ctx->buf(), nbo_ctx->buf_len(), nbo_ctx->flags(),
                       &nbo_ctx->meta(), err) != WSREP_CB_SUCCESS)
   {
@@ -621,13 +629,12 @@ static void wsrep_apply_non_blocking(THD* thd, void* args)
 
   /* Non-blocking operation end. No need to take action on error here,
      it is handled by provider. */
-  wsrep_buf_t const tmp= { err.str, err.len };
+  wsrep_buf_t const err_buf= err.get_buf();
   if (thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED &&
-      wsrep->to_execute_end(wsrep, thd->thread_id, &tmp) != WSREP_OK)
+      wsrep->to_execute_end(wsrep, thd->thread_id, &err_buf) != WSREP_OK)
   {
     WSREP_WARN("Non-blocking operation end failed");
   }
-  free(err.str);
 
   if (wsrep->free_connection(wsrep, thd->thread_id) != WSREP_OK)
   {
@@ -695,17 +702,15 @@ static int start_nbo_thd(const void*             const buf,
   return rcode;
 }
 
-int wsrep_apply_cb(void* const              ctx,
-                   uint32_t const           flags,
-                   const wsrep_buf_t* const buf,
-                   const wsrep_trx_meta_t*  meta,
-                   void** const             err_buf,
-                   size_t* const            err_len)
+int wsrep_apply(void* const              ctx,
+                uint32_t const           flags,
+                const wsrep_buf_t* const buf,
+                const wsrep_trx_meta_t*  meta,
+                wsrep_apply_error&       err)
 {
-
   THD* thd= (THD*)ctx;
 
-  DBUG_ENTER("wsrep_apply_cb");
+  DBUG_ENTER("wsrep_apply");
 
   DBUG_ASSERT(!WSREP_NBO_END(flags) || WSREP_FLAG_ROLLBACK & flags);
 
@@ -725,7 +730,6 @@ int wsrep_apply_cb(void* const              ctx,
 
   bool const rollback(WSREP_FLAG_ROLLBACK & flags);
   int rcode= 0;
-  wsrep_error err= { NULL, 0 };
 
   if (!(flags & WSREP_FLAG_ISOLATION))
   {
@@ -741,6 +745,8 @@ int wsrep_apply_cb(void* const              ctx,
                   (NULL == buf->ptr && 0 == buf->len));
       rcode= wsrep_rollback_trx(thd, buf->ptr, buf->len, flags, meta, err);
     }
+    DBUG_ASSERT(rcode == 0 || !err.is_null());
+    DBUG_ASSERT(err.is_null() || rcode != 0);
   }
   else if (WSREP_NBO_START(flags))
   {
@@ -779,15 +785,12 @@ int wsrep_apply_cb(void* const              ctx,
 #endif /* WSREP_PROC_INFO */
   WSREP_DEBUG("apply_cb done with rcode: %d", rcode);
 
-  *err_buf= err.str;
-  *err_len= err.len;
-
-  DBUG_RETURN(rcode != 0 ? rcode : *err_len);
-
-  return rcode;
+  DBUG_RETURN(rcode != 0 ? rcode : err.length());
 }
 
-static wsrep_cb_status_t wsrep_commit(THD* const thd)
+static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
+                                          bool fragment_not_trx_end,
+                                          const wsrep_apply_error& err)
 {
 #ifdef WSREP_PROC_INFO
   snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
@@ -797,8 +800,25 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd)
   thd_proc_info(thd, "Committing");
 #endif /* WSREP_PROC_INFO */
 
-  wsrep_cb_status_t const rcode(trans_commit(thd) ?
-                                WSREP_CB_FAILURE : WSREP_CB_SUCCESS);
+  wsrep_cb_status_t rcode= WSREP_CB_SUCCESS;
+  if (!opt_log_slave_updates && wsrep_before_commit(thd, true))
+    rcode= WSREP_CB_FAILURE;
+
+  /*
+    We can ignore the storage engine durability setting for fragments
+    here: Committing a fragment does not cause actual transaction to
+    be committed, so it will be enough that the fragment is
+    committed in order to be able to recover to consistent state.
+   */
+
+  enum durability_properties dur_save= thd->durability_property;
+  if (fragment_not_trx_end)
+    thd->durability_property= HA_IGNORE_DURABILITY;
+
+  if (rcode == WSREP_CB_SUCCESS && trans_commit(thd))
+    rcode= WSREP_CB_FAILURE;
+
+  thd->durability_property= dur_save;
 
   if (WSREP_CB_SUCCESS == rcode)
   {
@@ -810,6 +830,30 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd)
     {
       wsrep_set_SE_checkpoint(thd->wsrep_trx_meta.gtid.uuid,
                               thd->wsrep_trx_meta.gtid.seqno);
+    }
+    if ((!opt_log_slave_updates || thd->wsrep_apply_toi)
+        && wsrep_ordered_commit(thd, true, err))
+      rcode= WSREP_CB_FAILURE;
+
+    if (rcode == WSREP_CB_SUCCESS)
+    {
+      DBUG_ASSERT(fragment_not_trx_end ||
+                  thd->wsrep_query_state_unsafe() == QUERY_ORDERED_COMMIT);
+      /*
+        FIXME: For some reason fragment commits don't go through
+        binlog commit group commit if log slave updates is on. This
+        effectively disables binlog group commit for dummy events
+        which are logged into binlog.
+       */
+      if (fragment_not_trx_end && opt_log_slave_updates && !gtid_mode)
+      {
+        if (wsrep_before_commit(thd, true) ||
+            wsrep_ordered_commit(thd, true, err))
+        {
+          WSREP_DEBUG("Binlog commit failed (WCT)");
+          rcode= WSREP_CB_FAILURE;
+        }
+      }
     }
   }
 
@@ -824,43 +868,19 @@ static wsrep_cb_status_t wsrep_commit(THD* const thd)
   return rcode;
 }
 
-#ifdef OLD_MARIADB
-static wsrep_cb_status_t wsrep_rollback(THD* const thd)
-{
-#ifdef WSREP_PROC_INFO
-  snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-           "Rolling back %lld", (long long)wsrep_thd_trx_seqno(thd));
-  thd_proc_info(thd, thd->wsrep_info);
-#else
-  thd_proc_info(thd, "Rolling back");
-#endif /* WSREP_PROC_INFO */
-
-  wsrep_cb_status_t const rcode(trans_rollback(thd) ?
-                                WSREP_CB_FAILURE : WSREP_CB_SUCCESS);
-
-#ifdef WSREP_PROC_INFO
-  snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-           "Rolled back %lld", (long long)wsrep_thd_trx_seqno(thd));
-  thd_proc_info(thd, thd->wsrep_info);
-#else
-  thd_proc_info(thd, "Rolled back");
-#endif /* WSREP_PROC_INFO */
-
-  return rcode;
-}
-#endif
- 
-wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
-                                  uint32_t      const     flags,
-                                  const wsrep_trx_meta_t* meta,
-                                  wsrep_bool_t* const     exit)
+static
+wsrep_cb_status_t wsrep_commit(void*         const     ctx,
+                               uint32_t      const     flags,
+                               const wsrep_trx_meta_t* meta,
+                               wsrep_bool_t* const     exit,
+                               const wsrep_apply_error& err)
 {
   DBUG_ENTER("wsrep_commit_cb");
   WSREP_DEBUG("commit_cb with flags: %u seqno: %ld, srctrx: %ld",
               flags, meta->gtid.seqno, meta->stid.trx);
 
   THD* thd((THD*)ctx);
-  wsrep_cb_status_t rcode;
+  wsrep_cb_status_t rcode= WSREP_CB_SUCCESS;
   bool const trx_end(flags & (WSREP_FLAG_TRX_END | WSREP_FLAG_ROLLBACK));
 
   if (WSREP_NBO_START(flags))
@@ -877,9 +897,6 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
   {
     WSREP_DEBUG("SR trxid %ld seqno %lld has been aborted already, skipping "
                 "commit_cb", meta->stid.trx, (long long)meta->gtid.seqno);
-    //gcf487    assert(0); // how can we be here?
-    //gcf487    DBUG_RETURN(WSREP_CB_SUCCESS); still need to binlog the event
-    wsrep_write_dummy_event(thd);
   }
   else
   {
@@ -889,9 +906,14 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
 
   if (SR_trx && trx_end)
   {
-    WSREP_DEBUG("last trx fragment, switching context");
+    void* opaque= thd->wsrep_ws_handle.opaque;
     thd = SR_trx->get_THD();
+    WSREP_DEBUG("last trx fragment, switching context from %p to %p", ctx, thd);
+    thd->wsrep_ws_handle.opaque= opaque;
     thd->store_globals();
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->set_wsrep_query_state(QUERY_EXEC);
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     DBUG_EXECUTE_IF("crash_commit_cb_before_last_fragment_commit",
                     DBUG_SUICIDE(););
   }
@@ -900,12 +922,37 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
   wsrep_xid_init(&thd->wsrep_xid, meta->gtid.uuid, meta->gtid.seqno);
   assert(meta->gtid.seqno == wsrep_thd_trx_seqno(thd));
 
-  /* here if thd == SR_trx->get_thd() we are committing in SR context -
-   * that is SR transaction.
-   * otherwise we are committing in the usual applier context -
-   * that is regular transaction or SR fragment. */
-  rcode = wsrep_commit(thd);
+  /*
+    Failed certification, write a dummy binlog event in gtid_mode
+    to keep GTID sequence continuous. If gtid_mode is off, release
+    commit critical section.
+  */
+  if (!fragment && (flags & WSREP_FLAG_ROLLBACK))
+  {
+    if (gtid_mode)
+    {
+      wsrep_write_dummy_event(thd, "rollback");
+    }
+    else
+    {
+      if (wsrep_before_commit(thd, true) ||
+          wsrep_ordered_commit(thd, true, err))
+      {
+        WSREP_DEBUG("Binlog commit failed (WC)");
+        rcode= WSREP_CB_FAILURE;
+      }
+    }
+  }
+  else
+  {
+    /* here if thd == SR_trx->get_thd() we are committing in SR context -
+     * that is SR transaction.
+     * otherwise we are committing in the usual applier context -
+     * that is regular transaction or SR fragment. */
+    rcode = wsrep_commit_thd(thd, fragment && !trx_end, err);
+  }
 
+  thd->wsrep_ws_handle.opaque= NULL;
   thd->wsrep_xid.null();
 
   wsrep_set_apply_format(thd, NULL);
@@ -936,16 +983,80 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
   /* Cleanup for streaming replication */
   if (SR_trx && trx_end)
   {
-    sr_pool->remove((THD*)ctx, meta->stid.node, meta->stid.trx, false);
-    DBUG_EXECUTE_IF("crash_commit_cb_last_fragment_commit_success",
-                    DBUG_SUICIDE(););
+    SR_trx->release();
+
+    /* Cleanup for streaming replication */
+    if (trx_end)
+    {
+      sr_pool->remove((THD*)ctx, meta->stid.node, meta->stid.trx, false);
+      DBUG_EXECUTE_IF("crash_commit_cb_last_fragment_commit_success",
+                      DBUG_SUICIDE(););
+      /* Set thd to null as it is deleted in sr_pool->remove() */
+      thd= NULL;
+    }
+  }
+
+  if (thd)
+  {
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->set_wsrep_query_state(QUERY_EXEC);
+    if (thd->wsrep_conflict_state() != REPLAYING)
+    {
+      thd->set_wsrep_query_state(QUERY_IDLE);
+    }
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  }
+  if (ctx != thd)
+  {
+    thd= (THD*)ctx;
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    if (thd->wsrep_conflict_state() != REPLAYING)
+    {
+      thd->set_wsrep_query_state(QUERY_IDLE);
+    }
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
 
   DBUG_RETURN(rcode);
-  }
-  
-wsrep_cb_status_t wsrep_unordered_cb(void*  const ctx,
-      const wsrep_buf_t* const data)
+}
+
+wsrep_cb_status_t wsrep_apply_cb(void* const              ctx,
+                                 const wsrep_ws_handle_t* ws_handle,
+                                 uint32_t                 flags,
+                                 const wsrep_buf_t* const buf,
+                                 const wsrep_trx_meta_t*  meta,
+                                 wsrep_bool_t*            exit_loop)
+{
+  assert(meta->gtid.seqno > 0);
+
+  THD *thd= (THD*)ctx;
+  void* opaque_save= thd->wsrep_ws_handle.opaque;
+  thd->wsrep_ws_handle.opaque= ws_handle->opaque;
+
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  if (thd->wsrep_conflict_state() != REPLAYING)
+    thd->set_wsrep_query_state(QUERY_EXEC);
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+
+  wsrep_apply_error err;
+  int const apply_err= wsrep_apply(ctx, flags, buf, meta, err);
+  DBUG_ASSERT(0 == apply_err || !err.is_null());
+  DBUG_ASSERT(0 != apply_err || err.is_null());
+
+  if (0 != apply_err) flags |= WSREP_FLAG_ROLLBACK;
+
+  wsrep_cb_status_t rcode= wsrep_commit(ctx, flags, meta, exit_loop, err);
+
+  thd->wsrep_ws_handle.opaque= opaque_save;
+
+  DBUG_ASSERT(thd->wsrep_conflict_state_unsafe() == REPLAYING ||
+              thd->wsrep_query_state_unsafe() == QUERY_IDLE);
+
+  return rcode;
+}
+
+wsrep_cb_status_t wsrep_unordered_cb(void*              const ctx,
+                                     const wsrep_buf_t* const data)
 {
     return WSREP_CB_SUCCESS;
 }

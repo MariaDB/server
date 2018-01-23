@@ -601,7 +601,6 @@ struct trx_t;
 #ifdef OUT
 extern "C" bool wsrep_thd_is_wsrep_on(THD *thd);
 
-
 extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
 extern "C" void wsrep_thd_set_query_state(
 	THD *thd, enum wsrep_query_state state);

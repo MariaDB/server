@@ -3186,8 +3186,8 @@ public:
       mysql_bin_log.start_union_events() call.
     */
     bool unioned_events_trans;
-
-    /*
+    
+    /* 
       'queries' (actually SP statements) that run under inside this binlog
       union have thd->query_id >= first_query_id.
     */
@@ -4570,14 +4570,10 @@ public:
   const bool                wsrep_applier; /* dedicated slave applier thread */
   bool                      wsrep_applier_closing; /* applier marked to close */
   bool                      wsrep_client_thread; /* to identify client threads*/
-  bool                      wsrep_PA_safe;
-  bool                      wsrep_converted_lock_session;
-  bool                      wsrep_apply_toi; /* applier processing in TOI */
   enum wsrep_exec_mode      wsrep_exec_mode;
   query_id_t                wsrep_last_query_id;
   XID                       wsrep_xid;
-  my_bool                   wsrep_no_gaps;
-  
+
   /** This flag denotes that record locking should be skipped during INSERT
   and gap locking during SELECT. Only used by the streaming replication thread
   that only modifies the wsrep_schema.SR table. */
@@ -4612,22 +4608,23 @@ public:
       QI - QUERY_IDLE
       QX - QUERY_EXEC
       QC - QUERY_COMMITTING
+      QOC - QUERY_ORDERED_COMMIT
       QE - QUERY_EXITING
 
            |---> QE
            |
-      o--> QI -> QX <-> QC
-           ^     |      |
-           |     |      |
-           --------------
+      o--> QI <-> QX -> QC -> QOC 
+                  ^     |      |
+                  |-------------
      */
     static const bool allowed[QUERY_EXITING + 1][QUERY_EXITING + 1] =
     {
-      /* QI     QX     QC     QE  */
-      {  false, true,  false, true  }, /* QI */
-      {  true , false, true,  false }, /* QX */
-      {  true , true , false, false }, /* QC */
-      {  false, false, false, false }  /* QE */
+      /* QI     QX     QC     QOC,   QE    To / From  */
+      {  false, true,  false, false, true   }, /* QI  */
+      {  true , false, true,  false, false  }, /* QX  */
+      {  false, true,  false, true,  false  }, /* QC  */
+      {  false, true,  false, false, false  }, /* QOC */
+      {  false, false, false, false, false  }  /* QE  */
     };
     if (allowed[m_wsrep_query_state][state] == false)
     {
@@ -4701,13 +4698,13 @@ public:
 
     static const bool allowed[CERT_FAILURE + 1][CERT_FAILURE + 1] =
     {
-      /* NC     MA     AB     AD     MR     RI     RA     CF */
-      {  false, true,  false, false, false, false, true, true  }, /* NC */
+      /* NC     MA     AB     AD     MR     RI     RA     CF   To / From */
+      {  false, true,  false, false, false, false, true,  true  }, /* NC */
       {  true,  false, true,  false, true,  false, false, false }, /* MA */
       {  false, false, false, true,  false, false, false, false }, /* AB */
-      {  true , false, false, false, false, false, false,  false }, /* AD */
+      {  true , false, false, false, false, false, false, false }, /* AD */
       {  false, false, false, false, false, true,  false, false }, /* MR */
-      {  true,  false, true, false,  false, false, false, false }, /* RI */
+      {  true,  false, true,  false, false, false, false, false }, /* RI */
       {  true,  false, false, false, false, false, false, false }, /* RA */
       {  true,  false, true,  true,  false, false, false, false }  /* CF */
     };
@@ -4778,7 +4775,6 @@ public:
             wsrep_conflict_state() == ABORTING);
   }
 
-
 private:
   enum wsrep_query_state    m_wsrep_query_state;
   enum wsrep_conflict_state m_wsrep_conflict_state;
@@ -4789,35 +4785,34 @@ public:
 
   mysql_mutex_t             LOCK_wsrep_thd;
   mysql_cond_t              COND_wsrep_thd;
+  // changed from wsrep_seqno_t to wsrep_trx_meta_t in wsrep API rev 75
+  // wsrep_seqno_t             wsrep_trx_seqno;
   wsrep_trx_meta_t          wsrep_trx_meta;
   uint32                    wsrep_rand;
-  Relay_log_info            *wsrep_rli;
-  rpl_group_info            *wsrep_rgi;
+  Relay_log_info*           wsrep_rli;
+  bool                      wsrep_converted_lock_session;
   wsrep_ws_handle_t         wsrep_ws_handle;
+#ifdef WSREP_PROC_INFO
+  char                      wsrep_info[128]; /* string for dynamic proc info */
+#endif /* WSREP_PROC_INFO */
   ulong                     wsrep_retry_counter; // of autocommit
-  char                      *wsrep_retry_query;
+  bool                      wsrep_PA_safe;
+  char*                     wsrep_retry_query;
   size_t                    wsrep_retry_query_len;
   enum enum_server_command  wsrep_retry_command;
-  enum wsrep_consistency_check_mode
+  enum wsrep_consistency_check_mode 
                             wsrep_consistency_check;
   wsrep_stats_var*          wsrep_status_vars;
   int                       wsrep_mysql_replicated;
-  const char                *wsrep_TOI_pre_query; /* a query to apply before
-                                                     the actual TOI query */
+  const char*               wsrep_TOI_pre_query; /* a query to apply before 
+                                                    the actual TOI query */
   size_t                    wsrep_TOI_pre_query_len;
   wsrep_po_handle_t         wsrep_po_handle;
   size_t                    wsrep_po_cnt;
-#ifdef GTID_SUPPORT
+  my_bool                   wsrep_po_in_trans;
   rpl_sid                   wsrep_po_sid;
-#endif /*  GTID_SUPPORT */
-  void                      *wsrep_apply_format;
-  char                      wsrep_info[128]; /* string for dynamic proc info */
-  /*
-    When enabled, do not replicate/binlog updates from the current table that's
-    being processed. At the moment, it is used to keep mysql.gtid_slave_pos
-    table updates from being replicated to other nodes via galera replication.
-  */
-  bool                      wsrep_ignore_table;
+  void*                     wsrep_apply_format;
+  bool                      wsrep_apply_toi; /* applier processing in TOI */
   ulong                     wsrep_fragments_sent; // # of fragments replicated
                                                   //   for trx
   bool                      wsrep_SR_thd; // is applier THD for streaming
@@ -4844,6 +4839,27 @@ public:
   }
 
   /*
+    Return true if the current transaction has been assigned a valid sequence
+    number.
+  */
+  bool wsrep_trx_has_seqno() const
+  {
+      DBUG_ASSERT(wsrep_trx_meta.gtid.seqno == WSREP_SEQNO_UNDEFINED ||
+                  wsrep_trx_meta.gtid.seqno > 0);
+      return (wsrep_trx_meta.gtid.seqno > 0);
+  }
+
+  /*
+    Return true if current transaction must go through commit ordering.
+    This is the case if the transaction has been assigned valid seqno
+    and has been assigned write set handle.
+   */
+  bool wsrep_trx_must_order_commit() const
+  {
+      return (wsrep_ws_handle.opaque && wsrep_trx_has_seqno());
+  }
+
+  /*
     Transaction id:
     * m_wsrep_next_trx_id is assigned on the first query after
       wsrep_next_trx_id() return WSREP_UNDEFINED_TRX_ID
@@ -4866,9 +4882,9 @@ public:
   void set_wsrep_next_trx_id(query_id_t query_id)
   {
     DBUG_ASSERT(wsrep_ws_handle.trx_id == WSREP_UNDEFINED_TRX_ID);
+    //DBUG_ASSERT(query_id != 0);
     m_wsrep_next_trx_id = (wsrep_trx_id_t) query_id;
   }
-
   /*
     Return next trx id
    */

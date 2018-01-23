@@ -111,7 +111,7 @@
 
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
-#include "wsrep_trans_observer.h"
+#include "wsrep_trans_observer.h" /* wsrep transaction hooks */
 #include "vtmd.h"
 
 static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,

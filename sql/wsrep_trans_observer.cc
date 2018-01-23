@@ -20,13 +20,16 @@
   * wsrep_after_row(): called after each row write/update/delete, will run
     SR step
   * wsrep_before_prepare(): SR table cleanup
-  * wsrep_after_prepare(): will run wsrep_pre_commit() which replicates
+  * wsrep_after_prepare(): will run wsrep_certify() which replicates
     and certifies transaction for transactions which have registered
     binlog hton
-  * wsrep_before_commit(): run wsrep_pre_commit() for autocommit
-    DML when binlog_format = STATEMENT
-  * wsrep_after_commit(): release wsrep provider critical section
-    after successful commit
+  * wsrep_before_commit(): run wsrep_certify() for autocommit
+    DML when binlog_format = STATEMENT and grab commit time
+    critical via section wsrep->commit_order_enter()
+  * wsrep_ordered_commit(): release commit time critical section
+    via wsrep->commit_order_leave()
+  * wsrep_after_commit(): release rest of the trx resources from
+    provider
   * wsrep_before_rollback(): on SR rollback construct SR_trx_info
     and send rollback event before actual rollback happens. Set
     wsrep_exec_mode to LOCAL_ROLLBACK
@@ -54,6 +57,7 @@
 */
 
 
+#include "wsrep_trans_observer.h"
 #include "wsrep_mysqld.h"
 #include "wsrep_xid.h"
 #include "wsrep_sr.h"
@@ -70,12 +74,8 @@
 
 #include <map>
 
-
-
 extern class SR_storage *wsrep_SR_store;
 extern Rpl_filter* binlog_filter;
-
-
 
 
 static void wsrep_wait_for_replayers(THD *thd)
@@ -187,15 +187,15 @@ static int wsrep_prepare_data_for_replication(THD *thd)
 
   Asserts thd->LOCK_wsrep_thd ownership
  */
-static int wsrep_pre_commit(THD *thd)
+static wsrep_trx_status wsrep_certify(THD *thd)
 {
   mysql_mutex_assert_owner(&thd->LOCK_wsrep_thd);
-  DBUG_ENTER("wsrep_pre_commit");
+  DBUG_ENTER("wsrep_certify");
   DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT);
   DBUG_ASSERT(thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID);
 
   /*
-    We must not proceed for pre_commit() if there are threads
+    We must not proceed for certify() if there are threads
     replaying transactions. This is because replaying thread
     may have released some locks which this thread then acquired.
 
@@ -213,7 +213,7 @@ static int wsrep_pre_commit(THD *thd)
   {
     // Transaction was BF aborted
     wsrep_override_error(thd, ER_LOCK_DEADLOCK);
-    DBUG_RETURN(1);
+    DBUG_RETURN(WSREP_TRX_ERROR);
   }
 
   thd->set_wsrep_query_state(QUERY_COMMITTING);
@@ -226,9 +226,8 @@ static int wsrep_pre_commit(THD *thd)
     /* Error will be set in function to prepare data */
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     thd->set_wsrep_query_state(QUERY_EXEC);
-    DBUG_RETURN(1);
+    DBUG_RETURN(WSREP_TRX_ERROR);
   }
-
 
   if (thd->killed != NOT_KILLED)
   {
@@ -237,7 +236,7 @@ static int wsrep_pre_commit(THD *thd)
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     wsrep_override_error(thd, ER_LOCK_DEADLOCK);
     thd->set_wsrep_query_state(QUERY_EXEC);
-    DBUG_RETURN(1);
+    DBUG_RETURN(WSREP_TRX_ERROR);
   }
 
   DBUG_ASSERT(thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID);
@@ -253,7 +252,7 @@ static int wsrep_pre_commit(THD *thd)
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
     thd->set_wsrep_query_state(QUERY_EXEC);
-    DBUG_RETURN(1);
+    DBUG_RETURN(WSREP_TRX_ERROR);
   }
 
   uint32_t flags= WSREP_FLAG_TRX_END;
@@ -269,18 +268,17 @@ static int wsrep_pre_commit(THD *thd)
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
       thd->set_wsrep_query_state(QUERY_EXEC);
-      DBUG_RETURN(1);
+      DBUG_RETURN(WSREP_TRX_ERROR);
     }
   }
 
-  wsrep_status_t rcode=
-    wsrep->pre_commit(
-                      wsrep,
-                      (wsrep_conn_id_t) thd->thread_id,
-                      &thd->wsrep_ws_handle,
-                      flags,
-                      &thd->wsrep_trx_meta);
-  WSREP_DEBUG("Trx pre_commit(%lld): rcode %d, seqno %lld, trx %ld, "
+  wsrep_status_t rcode= wsrep->certify(wsrep,
+                                       (wsrep_conn_id_t) thd->thread_id,
+                                       &thd->wsrep_ws_handle,
+                                       flags,
+                                       &thd->wsrep_trx_meta);
+
+  WSREP_DEBUG("Trx certify(%lu): rcode %d, seqno %lld, trx %ld, "
               "flags %u, conf %d, SQL: %s",
               thd->thread_id, rcode,(long long)thd->wsrep_trx_meta.gtid.seqno,
               thd->wsrep_trx_meta.stid.trx, flags, thd->wsrep_conflict_state_unsafe(),
@@ -291,11 +289,25 @@ static int wsrep_pre_commit(THD *thd)
                thd->wsrep_trx_meta.gtid.seqno) ||
               WSREP_OK != rcode);
 
-  int ret= 1;
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
 
   DEBUG_SYNC(thd, "wsrep_after_replication");
-  
+
+  if (WSREP_OK == rcode)
+  {
+    DBUG_ASSERT(wsrep_thd_trx_seqno(thd) > 0);
+
+    if (thd->wsrep_conflict_state() == MUST_ABORT)
+    {
+      rcode= WSREP_BF_ABORT;
+      WSREP_DEBUG("Not calling commit_order_enter() due to conflict state"
+                  " == MUST_ABORT thd: %lu, seqno: %lld",
+                  thd->thread_id, (long long)wsrep_thd_trx_seqno(thd));
+    }
+  }
+
+  wsrep_trx_status ret= WSREP_TRX_ERROR;
+
   switch (rcode)
   {
   case WSREP_TRX_MISSING:
@@ -312,7 +324,6 @@ static int wsrep_pre_commit(THD *thd)
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
     break;
   case WSREP_OK:
-    DBUG_ASSERT(wsrep_thd_trx_seqno(thd) > 0);
     /*
       Ignore BF abort from storage engine in commit phase.
       This however requires that the storage engine BF abort
@@ -321,20 +332,27 @@ static int wsrep_pre_commit(THD *thd)
       TODO: Consider removing this and respecting BF abort.
       Also adjust allowed state transitions in
       THD::set_wsrep_conflict_state().
+
+      NOTE: If we have rcode WSREP_OK here it means that transaction
+      entered commit critical section in wsrep->commit_order_enter()
+      call. It is a bug in a provider/BF abort code if it allowed
+      BF abort after that.
     */
+    DBUG_ASSERT(wsrep_thd_trx_seqno(thd) > 0);
+    DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT);
+
     if (thd->wsrep_conflict_state() == MUST_ABORT)
     {
       thd->killed= NOT_KILLED;
+      WSREP_WARN("Ignoring MUST_ABORT state");
       thd->set_wsrep_conflict_state(NO_CONFLICT);
     }
 
     thd->wsrep_exec_mode= LOCAL_COMMIT;
-    ret= 0;
-    wsrep_xid_init(&thd->wsrep_xid, thd->wsrep_trx_meta.gtid.uuid,
-                   thd->wsrep_trx_meta.gtid.seqno);
     DBUG_PRINT("wsrep", ("replicating commit success"));
     DBUG_EXECUTE_IF("crash_last_fragment_commit_success",
                     DBUG_SUICIDE(););
+    ret= WSREP_TRX_OK;
     break;
   case WSREP_TRX_FAIL:
     if (thd->wsrep_conflict_state() == NO_CONFLICT)
@@ -347,20 +365,21 @@ static int wsrep_pre_commit(THD *thd)
       DBUG_ASSERT(thd->wsrep_conflict_state() == MUST_ABORT);
     }
     my_error(ER_LOCK_DEADLOCK, MYF(0), WSREP_TRX_FAIL);
+    ret= WSREP_TRX_CERT_FAIL;
     break;
   case WSREP_SIZE_EXCEEDED:
-
-    WSREP_ERROR("wsrep_pre_commit(%lld): transaction size exceeded",
+    WSREP_ERROR("wsrep_certify(%lu): transaction size exceeded",
                 thd->thread_id);
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED);
+    ret= WSREP_TRX_SIZE_EXCEEDED;
     break;
   case WSREP_CONN_FAIL:
-    WSREP_DEBUG("wsrep_pre_commit(%lld): replication aborted",
+    WSREP_DEBUG("wsrep_certify(%lu): replication aborted",
                 thd->thread_id);
     my_error(ER_LOCK_DEADLOCK, MYF(0), WSREP_CONN_FAIL);
     break;
   case WSREP_WARNING:
-    WSREP_WARN("pre_commit returned warning");
+    WSREP_WARN("provider returned warning");
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_WARNING);
     break;
   case WSREP_NODE_FAIL:
@@ -368,17 +387,23 @@ static int wsrep_pre_commit(THD *thd)
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_NODE_FAIL);
     break;
   case WSREP_NOT_IMPLEMENTED:
-    WSREP_ERROR("pre_commit not implemented");
+    WSREP_ERROR("certify() or commit_order_enter() not implemented");
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_NOT_IMPLEMENTED);
     break;
   default:
-    WSREP_ERROR("wsrep_pre_commit(%lld): unknown provider failure",
+    WSREP_ERROR("wsrep_certify(%lu): unknown provider failure",
                 thd->thread_id);
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), rcode);
     break;
   }
 
-  thd->set_wsrep_query_state(QUERY_EXEC);
+  /*
+    In case of success we keep the QUERY_COMMITTING
+   */
+  if (rcode != WSREP_OK)
+  {
+    thd->set_wsrep_query_state(QUERY_EXEC);
+  }
 
   DBUG_RETURN(ret);
 }
@@ -500,40 +525,86 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
   my_free(thd->wsrep_rbr_buf);
   thd->wsrep_rbr_buf= NULL;
 
-  DBUG_EXECUTE_IF("crash_replicate_fragment_before_pre_commit",
+  DBUG_EXECUTE_IF("crash_replicate_fragment_before_certify",
                   DBUG_SUICIDE(););
 
-  wsrep_status_t rcode= wsrep->pre_commit(wsrep,
-                                          (wsrep_conn_id_t)thd->thread_id,
-                                          &thd->wsrep_ws_handle,
-                                          flags,
-                                          &thd->wsrep_trx_meta);
+  wsrep_status_t rcode= wsrep->certify(wsrep,
+                                       (wsrep_conn_id_t)thd->thread_id,
+                                       &thd->wsrep_ws_handle,
+                                       flags,
+                                       &thd->wsrep_trx_meta);
 
-
-  WSREP_DEBUG("Fragment pre_commit(%lld): rcode %d, seqno %lld, trx %ld, "
+  WSREP_DEBUG("Fragment certify(%lu): rcode %d, seqno %lld, trx %ld, "
               "flags %u, conf %d, SQL: %s",
               thd->thread_id, rcode,(long long)thd->wsrep_trx_meta.gtid.seqno,
               thd->wsrep_trx_meta.stid.trx, flags,
               thd->wsrep_conflict_state_unsafe(),
               thd->query());
-  DBUG_EXECUTE_IF("crash_replicate_fragment_after_pre_commit",
+  DBUG_EXECUTE_IF("crash_replicate_fragment_after_certify",
                   DBUG_SUICIDE(););
 
-  if (wsrep_thd_trx_seqno(thd) != WSREP_SEQNO_UNDEFINED)
+  bool frag_updated= false;
+  if (WSREP_OK == rcode)
   {
-      wsrep_xid_init(&SR_thd->wsrep_xid, thd->wsrep_trx_meta.gtid.uuid,
-                     thd->wsrep_trx_meta.gtid.seqno);
-      wsrep_SR_store->update_frag_seqno(SR_thd, thd);
+    DBUG_ASSERT(thd->wsrep_trx_has_seqno());
+
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    my_bool const must_abort= (thd->wsrep_conflict_state() == MUST_ABORT);
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+
+    if (must_abort)
+    {
+      rcode= WSREP_BF_ABORT;
+    }
+    else
+    {
+      rcode= wsrep->commit_order_enter(wsrep, &thd->wsrep_ws_handle);
       if (rcode == WSREP_OK)
       {
-        rcode = wsrep->release(wsrep, &thd->wsrep_ws_handle);
+        wsrep_xid_init(&SR_thd->wsrep_xid, thd->wsrep_trx_meta.gtid.uuid,
+                       thd->wsrep_trx_meta.gtid.seqno);
+        wsrep_SR_store->update_frag_seqno(SR_thd, thd);
+        frag_updated= true;
+        rcode= wsrep->commit_order_leave(wsrep, &thd->wsrep_ws_handle, NULL);
+        if (rcode != WSREP_OK && rcode != WSREP_BF_ABORT)
+        {
+          WSREP_ERROR("wsrep_replicate_fragment(%lu): seqno %lld, trx %ld "
+                      "Failed to leave commit order %d",
+                      thd->thread_id,
+                      (long long)thd->wsrep_trx_meta.gtid.seqno,
+                      thd->wsrep_trx_meta.stid.trx,
+                      rcode);
+        }
+        if (rcode == WSREP_OK)
+        {
+          rcode= wsrep->release(wsrep, &thd->wsrep_ws_handle);
+          if (rcode != WSREP_OK)
+          {
+            WSREP_ERROR("wsrep_replicate_fragment(%lu): seqno %lld, trx %ld "
+                        "Failed to release ws handle %d",
+                        thd->thread_id,
+                        (long long)thd->wsrep_trx_meta.gtid.seqno,
+                        thd->wsrep_trx_meta.stid.trx,
+                        rcode);
+          }
+        }
         reset_trx_meta= true;
       }
+      else
+      {
+        DBUG_ASSERT(rcode == WSREP_BF_ABORT || rcode == WSREP_TRX_FAIL);
+      }
+    }
   }
 
-  wsrep_trx_status ret= WSREP_TRX_ERROR;
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  if (!frag_updated)
+  {
+    wsrep_SR_store->release_SR_thd(SR_thd);
+    SR_thd= NULL;
+    thd->store_globals();
+  }
 
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   /*
     If the SR transaction was BF aborted at this stage
     we abort whole transaction.
@@ -542,6 +613,8 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
   {
     rcode= WSREP_BF_ABORT;
   }
+
+  wsrep_trx_status ret;
 
   switch (rcode)
   {
@@ -588,7 +661,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
 
   thd->set_wsrep_query_state(QUERY_EXEC);
 
-  if (wsrep_thd_trx_seqno(thd) == WSREP_SEQNO_UNDEFINED)
+  if (SR_thd && wsrep_thd_trx_seqno(thd) == WSREP_SEQNO_UNDEFINED)
   {
     --thd->wsrep_fragments_sent;
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
@@ -598,12 +671,13 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
   }
 
   /*
-    Reset trx meta if pre_commit succeeded (regardless of conflict state),
+    Reset trx meta if pre_commit certify() (regardless of conflict state),
     new seqno will be used for next fragment.
     In case of failure GTID may be required in rollback process.
   */
   if (reset_trx_meta)
   {
+    WSREP_DEBUG("Reset trx meta for %lu", thd->thread_id);
     thd->wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
     thd->wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
   }
@@ -695,11 +769,22 @@ bool wsrep_replicate_GTID(THD *thd)
                                   thd->wsrep_next_trx_id());
     DBUG_ASSERT (WSREP_UNDEFINED_TRX_ID != thd->wsrep_ws_handle.trx_id);
 
-    int rcode= wsrep_pre_commit(thd);
+    int rcode= wsrep_certify(thd);
     if (rcode)
     {
       WSREP_INFO("GTID replication failed: %d", rcode);
-      wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle);
+      if (wsrep->commit_order_enter(wsrep, &thd->wsrep_ws_handle))
+      {
+          WSREP_ERROR("wsrep::commit_order_enter fail: %llu %d",
+                      (long long)thd->thread_id, thd->get_stmt_da()->status());
+      }
+
+      if (wsrep->commit_order_leave(wsrep, &thd->wsrep_ws_handle, NULL))
+      {
+          WSREP_ERROR("wsrep::commit_order_leave fail: %llu %d",
+                      (long long)thd->thread_id, thd->get_stmt_da()->status());
+      }
+
       thd->wsrep_replicate_GTID= false;
       my_message(ER_ERROR_DURING_COMMIT,
                  "WSREP GTID replication was interrupted", MYF(0));
@@ -903,7 +988,7 @@ int wsrep_after_prepare(THD* thd, bool all)
 
   DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
   /*
-    thd->wsrep_exec_mode will be set in wsrep_pre_commit() according
+    thd->wsrep_exec_mode will be set in wsrep_certify() according
     to outcome
   */
   int ret= 1;
@@ -912,7 +997,7 @@ int wsrep_after_prepare(THD* thd, bool all)
   {
     if (thd->wsrep_conflict_state() == NO_CONFLICT)
     {
-      ret= wsrep_pre_commit(thd);
+      ret= wsrep_certify(thd);
       if (ret)
       {
         DBUG_ASSERT(thd->wsrep_conflict_state() == MUST_REPLAY ||
@@ -942,6 +1027,23 @@ int wsrep_before_commit(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_before_commit");
 
+  /*
+    Applier/replayer codepath
+   */
+  if (thd->wsrep_exec_mode == REPL_RECV)
+  {
+    DBUG_ASSERT(thd->wsrep_trx_must_order_commit());
+    if (wsrep->commit_order_enter(wsrep, &thd->wsrep_ws_handle) != WSREP_OK)
+    {
+      WSREP_ERROR("Failed to enter applier commit order critical section");
+      DBUG_RETURN(1);
+    }
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->set_wsrep_query_state(QUERY_COMMITTING);
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    DBUG_RETURN(0);
+  }
+
   bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
 
   if (!wsrep_run_hook(thd, is_real_trans, true))
@@ -967,7 +1069,7 @@ int wsrep_before_commit(THD* thd, bool all)
     {
       if (thd->wsrep_conflict_state() == NO_CONFLICT)
       {
-        ret= wsrep_pre_commit(thd);
+        ret= wsrep_certify(thd);
       }
       else
       {
@@ -982,6 +1084,42 @@ int wsrep_before_commit(THD* thd, bool all)
     }
   }
 
+
+  if (!ret && wsrep_is_effective_not_to_replay(thd))
+  {
+    if (thd->wsrep_conflict_state() == MUST_ABORT)
+    {
+      ret= 1;
+    }
+    else
+    {
+      DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      wsrep_status_t rcode= wsrep->commit_order_enter(wsrep,
+                                                      &thd->wsrep_ws_handle);
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      switch (rcode)
+      {
+      case WSREP_OK:
+        wsrep_xid_init(&thd->wsrep_xid, thd->wsrep_trx_meta.gtid.uuid,
+                       thd->wsrep_trx_meta.gtid.seqno);
+        break;
+      case WSREP_BF_ABORT:
+        DBUG_ASSERT(wsrep_thd_trx_seqno(thd) > 0);
+        if (thd->wsrep_conflict_state() != MUST_ABORT)
+          thd->set_wsrep_conflict_state(MUST_ABORT);
+        mysql_mutex_lock(&LOCK_wsrep_replaying);
+        ++wsrep_replaying;
+        mysql_mutex_unlock(&LOCK_wsrep_replaying);
+        ret= 1;
+        break;
+      default:
+        WSREP_ERROR("Could not enter commit order critical section");
+        abort();
+      }
+    }
+  }
+
   DBUG_ASSERT(ret ||
               thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID ||
               thd->wsrep_exec_mode == LOCAL_COMMIT);
@@ -990,9 +1128,94 @@ int wsrep_before_commit(THD* thd, bool all)
   {
     wsrep_log_thd(thd, is_real_trans, "wsrep_before_commit leave");
   }
+
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   DBUG_RETURN(ret);
+}
+
+int wsrep_ordered_commit(THD* thd, bool all, const wsrep_apply_error& err)
+{
+  DBUG_ENTER("wsrep_ordered_commit");
+
+  /*
+    Applier/replayer codepath
+  */
+  if (thd->wsrep_exec_mode == REPL_RECV)
+  {
+    int ret= 0;
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    bool run_commit_order_leave=
+      (thd->wsrep_query_state() != QUERY_ORDERED_COMMIT);
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    if (run_commit_order_leave)
+    {
+      wsrep_buf_t const err_buf= err.get_buf();
+      wsrep_status_t const rcode=
+        wsrep->commit_order_leave(wsrep, &thd->wsrep_ws_handle, &err_buf);
+
+      if (rcode != WSREP_OK)
+      {
+        DBUG_ASSERT(rcode == WSREP_NODE_FAIL);
+        if (err.is_null())
+        {
+          WSREP_ERROR("Failed to leave commit order critical section, "
+                      "rcode: %d", rcode);
+        }
+        else
+        {
+          WSREP_WARN("Replication can't continue due to the error in a "
+                     "writeset apply operation: %s", err.c_str());
+        }
+        ret= 1;
+      }
+
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      thd->set_wsrep_query_state(QUERY_ORDERED_COMMIT);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    }
+    DBUG_RETURN(ret);
+  }
+
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
+
+  if (!wsrep_run_hook(thd, is_real_trans, true))
+  {
+    DBUG_RETURN(0);
+  }
+
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
+  {
+    wsrep_log_thd(thd, is_real_trans, "wsrep_ordered_commit enter");
+  }
+
+  DBUG_ASSERT(thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID ||
+              (thd->wsrep_exec_mode == LOCAL_COMMIT &&
+               thd->wsrep_query_state() == QUERY_COMMITTING));
+  DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT);
+  if (wsrep_is_effective_not_to_replay(thd))
+  {
+    thd->wsrep_SR_fragments.clear();
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    if (wsrep_thd_trx_seqno(thd) != WSREP_SEQNO_UNDEFINED &&
+        wsrep->commit_order_leave(wsrep, &thd->wsrep_ws_handle, NULL))
+    {
+      WSREP_ERROR("wsrep::commit_order_leave fail: %llu %d",
+                  (long long)thd->thread_id, thd->get_stmt_da()->status());
+    }
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->set_wsrep_query_state(QUERY_ORDERED_COMMIT);
+  }
+
+  if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
+  {
+    wsrep_log_thd(thd, is_real_trans, "wsrep_ordered_commit leave");
+  }
+
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+
+  DBUG_RETURN(0);
 }
 
 int wsrep_after_commit(THD* thd, bool all)
@@ -1013,14 +1236,30 @@ int wsrep_after_commit(THD* thd, bool all)
   }
 
   DBUG_ASSERT(thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID ||
-              thd->wsrep_exec_mode == LOCAL_COMMIT ||
-              thd->wsrep_exec_mode == LOCAL_ROLLBACK);
+              (thd->wsrep_exec_mode == LOCAL_COMMIT &&
+               (thd->wsrep_query_state() == QUERY_COMMITTING ||
+                thd->wsrep_query_state() == QUERY_ORDERED_COMMIT)));
   DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT ||
               thd->wsrep_conflict_state() == MUST_ABORT);
 
   if (wsrep_is_effective_not_to_replay(thd))
   {
-    thd->wsrep_SR_fragments.clear();
+    if (thd->wsrep_query_state() == QUERY_COMMITTING)
+    {
+      thd->wsrep_SR_fragments.clear();
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      if (wsrep_thd_trx_seqno(thd) != WSREP_SEQNO_UNDEFINED &&
+          wsrep->commit_order_leave(wsrep, &thd->wsrep_ws_handle, NULL))
+      {
+        WSREP_ERROR("wsrep::commit_order_leave fail: %llu %d",
+                    (long long)thd->thread_id, thd->get_stmt_da()->status());
+      }
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      thd->set_wsrep_query_state(QUERY_ORDERED_COMMIT);
+    }
+
+    DBUG_ASSERT(thd->wsrep_query_state() == QUERY_ORDERED_COMMIT);
+
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     if (wsrep->release(wsrep, &thd->wsrep_ws_handle))
     {
@@ -1028,10 +1267,12 @@ int wsrep_after_commit(THD* thd, bool all)
                  (long long)thd->thread_id, thd->get_stmt_da()->status());
     }
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->set_wsrep_query_state(QUERY_EXEC);
   }
 
   if (thd->wsrep_conflict_state() == MUST_ABORT)
   {
+    assert(0);
     WSREP_LOG_THD(thd, "BF aborted at commit phase");
     thd->killed= NOT_KILLED;
     thd->set_wsrep_conflict_state(NO_CONFLICT);
@@ -1076,6 +1317,16 @@ int wsrep_before_rollback(THD* thd, bool all)
   {
     wsrep_log_thd(thd, is_real_trans, "wsrep_before_rollback enter");
   }
+
+  if (thd->wsrep_query_state() == QUERY_COMMITTING)
+  {
+    DBUG_ASSERT(thd->wsrep_conflict_state() == MUST_ABORT);
+    WSREP_DEBUG("Query aborted while committing");
+    thd->set_wsrep_query_state(QUERY_EXEC);
+    thd->set_wsrep_conflict_state(MUST_REPLAY);
+    thd->wsrep_exec_mode= LOCAL_STATE;
+  }
+
   if (thd->wsrep_exec_mode != LOCAL_ROLLBACK &&
       wsrep_is_effective_not_to_replay(thd) &&
       (is_real_trans ||
@@ -1096,6 +1347,8 @@ int wsrep_before_rollback(THD* thd, bool all)
       thd->wsrep_SR_rollback_replicated_for_trx= thd->wsrep_trx_id();
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       DEBUG_SYNC(thd, "wsrep_before_SR_rollback");
+      WSREP_DEBUG("Replicating rollback for %ld %ld",
+                  thd->thread_id, thd->wsrep_trx_id());
       wsrep_status_t rcode= wsrep->rollback(wsrep,
                                             thd->wsrep_trx_id(), NULL);
       if (rcode != WSREP_OK)
@@ -1334,9 +1587,36 @@ int wsrep_before_GTID_binlog(THD* thd, bool all)
   }
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-  if (wsrep_replicate_GTID(thd)) ret = 1;
-  
+  if (wsrep_replicate_GTID(thd))
+  {
+    ret = 1;
+  }
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+
+  wsrep_status_t rcode;
+  if (!ret &&
+      (rcode = wsrep->commit_order_enter(wsrep, &thd->wsrep_ws_handle)))
+  {
+    WSREP_ERROR("wsrep::commit_order_enter fail: %llu %d",
+                (long long)thd->thread_id, rcode);
+    ret= 1;
+  }
+
+  if (!ret &&
+      (rcode = wsrep->commit_order_leave(wsrep, &thd->wsrep_ws_handle, NULL)))
+  {
+    WSREP_ERROR("wsrep::commit_order_leave fail: %llu %d",
+                (long long)thd->thread_id, rcode);
+    ret= 1;
+  }
+
+  if (!ret)
+  {
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->set_wsrep_query_state(QUERY_ORDERED_COMMIT);
+    thd->set_wsrep_query_state(QUERY_EXEC);
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  }
 
   if (wsrep->release(wsrep, &thd->wsrep_ws_handle))
   {
@@ -1352,7 +1632,7 @@ int wsrep_before_GTID_binlog(THD* thd, bool all)
 
 int wsrep_register_trans_observer(void *p)
 {
-  return 0;  
+  return 0;
 }
 
 int wsrep_unregister_trans_observer(void *p)

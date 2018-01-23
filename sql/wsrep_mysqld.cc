@@ -241,6 +241,7 @@ const char* wsrep_provider_name      = provider_name;
 const char* wsrep_provider_version   = provider_version;
 const char* wsrep_provider_vendor    = provider_vendor;
 char* wsrep_provider_capabilities    = NULL;
+char* wsrep_cluster_capabilities     = NULL;
 /* End wsrep status variables */
 
 wsrep_uuid_t               local_uuid        = WSREP_UUID_UNDEFINED;
@@ -321,14 +322,19 @@ void wsrep_init_sidno(const wsrep_uuid_t& wsrep_uuid)
 {
   /* generate new Sid map entry from inverted uuid */
   rpl_sid sid;
-  wsrep_uuid_t ltid_uuid;
-
-  for (size_t i= 0; i < sizeof(ltid_uuid.data); ++i)
+  if (wsrep_protocol_version >= 4)
   {
-      ltid_uuid.data[i] = ~wsrep_uuid.data[i];
+    sid.copy_from(wsrep_uuid.data);
   }
-
-  sid.copy_from(ltid_uuid.data);
+  else
+  {
+    wsrep_uuid_t ltid_uuid;
+    for (size_t i= 0; i < sizeof(ltid_uuid.data); ++i)
+    {
+      ltid_uuid.data[i] = ~wsrep_uuid.data[i];
+    }
+    sid.copy_from(ltid_uuid.data);
+  }
   global_sid_lock->wrlock();
   wsrep_sidno= global_sid_map->add_sid(sid);
   WSREP_INFO("Initialized wsrep sidno %d", wsrep_sidno);
@@ -412,6 +418,62 @@ static void wsrep_rollback_SR_connections()
   mysql_mutex_unlock(&LOCK_thread_count);
 }
 
+/** Export the WSREP provider's capabilities as a human readable string.
+ * The result is saved in a dynamically allocated string of the form:
+ * :cap1:cap2:cap3:
+ */
+static void wsrep_capabilities_export(wsrep_cap_t const cap, char** str)
+{
+  static const char* names[] =
+  {
+    /* Keep in sync with wsrep/wsrep_api.h WSREP_CAP_* macros. */
+    "MULTI_MASTER",
+    "CERTIFICATION",
+    "PARALLEL_APPLYING",
+    "TRX_REPLAY",
+    "ISOLATION",
+    "PAUSE",
+    "CAUSAL_READS",
+    "CAUSAL_TRX",
+    "INCREMENTAL_WRITESET",
+    "SESSION_LOCKS",
+    "DISTRIBUTED_LOCKS",
+    "CONSISTENCY_CHECK",
+    "UNORDERED",
+    "ANNOTATION",
+    "PREORDERED",
+    "STREAMING",
+    "SNAPSHOT",
+    "NBO",
+  };
+
+  std::string s;
+  for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
+  {
+    if (cap & (1ULL << i))
+    {
+      if (s.empty())
+      {
+        s = ":";
+      }
+      s += names[i];
+      s += ":";
+    }
+  }
+
+  /* A read from the string pointed to by *str may be started at any time,
+   * so it must never point to free(3)d memory or non '\0' terminated string. */
+
+  char* const previous = *str;
+
+  *str = strdup(s.c_str());
+
+  if (previous != NULL)
+  {
+    free(previous);
+  }
+}
+
 wsrep_cb_status_t
 wsrep_connected_handler_cb(void* app_ctx,
                            const wsrep_view_info_t* initial_view)
@@ -435,13 +497,13 @@ wsrep_connected_handler_cb(void* app_ctx,
   return WSREP_CB_SUCCESS;
 }
 
-wsrep_cb_status_t
-wsrep_view_handler_cb (void*                    app_ctx,
-                       void*                    recv_ctx,
-                       const wsrep_view_info_t* view,
-                       /* TODO: These are unused, should be removed?*/
-                       const char*              state,
-                       size_t                   state_len)
+static wsrep_cb_status_t
+wsrep_view_handler_cb(void*                    app_ctx,
+                      void*                    recv_ctx,
+                      const wsrep_view_info_t* view,
+                      /* TODO: These are unused, should be removed?*/
+                      const char*              state,
+                      size_t                   state_len)
 {
   /* Allow calling view handler from non-applier threads */
   struct st_my_thread_var* tmp_thread_var= 0;
@@ -595,7 +657,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
   }
 
   { /* capabilities may be updated on new configuration */
-      uint64_t const caps(wsrep->capabilities (wsrep));
+      wsrep_cap_t const caps(view->capabilities);
 
       my_bool const idc((caps & WSREP_CAP_INCREMENTAL_WRITESET) != 0);
       if (TRUE == wsrep_incremental_data_collection && FALSE == idc)
@@ -604,6 +666,8 @@ wsrep_view_handler_cb (void*                    app_ctx,
                    "incremental data collection disabled. Expect abort.");
       }
       wsrep_incremental_data_collection = idc;
+
+      wsrep_capabilities_export(caps, &wsrep_cluster_capabilities);
   }
 
   /*
@@ -796,67 +860,6 @@ static wsrep_cb_status_t wsrep_synced_cb(void* app_ctx)
   return WSREP_CB_SUCCESS;
 }
 
-/** Export the WSREP provider's capabilities as a human readable string.
- * The result is saved in a dynamically allocated string of the form:
- * :cap1:cap2:cap3:
- * and the global variable `wsrep_provider_capabilities` is set to point
- * to it.
- */
-static void wsrep_provider_capabilities_export()
-{
-  static const char* names[] =
-  {
-    /* Keep in sync with wsrep/wsrep_api.h WSREP_CAP_* macros. */
-    "MULTI_MASTER",
-    "CERTIFICATION",
-    "PARALLEL_APPLYING",
-    "TRX_REPLAY",
-    "ISOLATION",
-    "PAUSE",
-    "CAUSAL_READS",
-    "CAUSAL_TRX",
-    "INCREMENTAL_WRITESET",
-    "SESSION_LOCKS",
-    "DISTRIBUTED_LOCKS",
-    "CONSISTENCY_CHECK",
-    "UNORDERED",
-    "ANNOTATION",
-    "PREORDERED",
-    "STREAMING",
-    "SNAPSHOT",
-    "NBO",
-  };
-
-  /* A read from the string pointed to by `wsrep_provider_capabilities` may
-   * be started at any time, so it must never point to free(3)d memory or
-   * non '\0' terminated string. */
-
-  const uint64_t cap = wsrep->capabilities(wsrep);
-
-  std::string s;
-  for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
-  {
-    if (cap & (1ULL << i))
-    {
-      if (s.empty())
-      {
-        s = ":";
-      }
-      s += names[i];
-      s += ":";
-    }
-  }
-
-  char* previous = wsrep_provider_capabilities;
-
-  wsrep_provider_capabilities = strdup(s.c_str());
-
-  if (previous != NULL)
-  {
-    free(previous);
-  }
-}
-
 static void wsrep_init_position()
 {
   /* read XIDs from storage engines */
@@ -959,6 +962,17 @@ int wsrep_init()
     strncpy(provider_vendor,
             wsrep->provider_vendor,  sizeof(provider_vendor) - 1);
   }
+
+  if (gtid_mode && opt_bin_log && !opt_log_slave_updates)
+  {
+    WSREP_ERROR("Option --log-slave-updates is required if "
+                "binlog is enabled, GTID mode is on and wsrep provider "
+                "is specified");
+    return -1;
+  }
+
+  if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
+    wsrep_data_home_dir = mysql_real_data_home;
 
   /* Initialize node address */
   char node_addr[512]= { 0, };
@@ -1074,7 +1088,6 @@ done:
   wsrep_args.view_cb         = wsrep_view_handler_cb;
   wsrep_args.sst_request_cb  = wsrep_sst_request_cb;
   wsrep_args.apply_cb        = wsrep_apply_cb;
-  wsrep_args.commit_cb       = wsrep_commit_cb;
   wsrep_args.unordered_cb    = wsrep_unordered_cb;
   wsrep_args.sst_donate_cb   = wsrep_sst_donate_cb;
   wsrep_args.synced_cb       = wsrep_synced_cb;
@@ -1107,7 +1120,8 @@ done:
   }
   wsrep_inited= 1;
 
-  wsrep_provider_capabilities_export();
+  wsrep_capabilities_export(wsrep->capabilities(wsrep),
+                            &wsrep_provider_capabilities);
 
   WSREP_DEBUG("SR storage init for: %s",
               (wsrep_SR_store_type == WSREP_SR_STORE_TABLE) ? "table" :
@@ -1257,6 +1271,13 @@ void wsrep_thr_deinit()
 
   delete wsrep_config_state;
   wsrep_config_state= 0;                        // Safety
+
+  if (wsrep_cluster_capabilities != NULL)
+  {
+    char* p = wsrep_cluster_capabilities;
+    wsrep_cluster_capabilities = NULL;
+    free(p);
+  }
 }
 
 void wsrep_recover()
@@ -2145,7 +2166,7 @@ static void wsrep_TOI_begin_failed(THD* thd, const wsrep_buf_t* const err)
   {
     /* GTID was granted and TO acquired - need to log event and release TO */
     if (wsrep_emulate_bin_log) wsrep_thd_binlog_trx_reset(thd);
-    if (wsrep_write_dummy_event(thd)) { goto fail; }
+    if (wsrep_write_dummy_event(thd, "TOI begin failed")) { goto fail; }
     wsrep_xid_init(&thd->wsrep_xid,
                    thd->wsrep_trx_meta.gtid.uuid,
                    thd->wsrep_trx_meta.gtid.seqno);
@@ -2385,12 +2406,11 @@ static void wsrep_TOI_end(THD *thd) {
 
     if (thd->is_error() && !wsrep_must_ignore_error(thd))
     {
-      wsrep_error err= { NULL, 0 };
-      wsrep_get_thd_error(thd, err);
+      wsrep_apply_error err;
+      err.store(thd);
 
-      wsrep_buf_t const tmp= { err.str, err.len };
+      wsrep_buf_t const tmp= err.get_buf();
       ret= wsrep->to_execute_end(wsrep, thd->thread_id, &tmp);
-      free(err.str);
     }
     else
     {
@@ -3848,19 +3868,64 @@ bool wsrep_provider_is_SR_capable()
   return wsrep->capabilities(wsrep) & WSREP_CAP_STREAMING;
 }
 
+
+int wsrep_ordered_commit_if_no_binlog(THD* thd)
+{
+  if (!(wsrep_emulate_bin_log && thd->transaction.flags.real_commit &&
+        thd->wsrep_trx_must_order_commit()))
+  {
+    return 0;
+  }
+  int ret= 0;
+  switch (thd->wsrep_exec_mode)
+  {
+  case LOCAL_STATE:
+  case TOTAL_ORDER:
+    /* Statement commit may get us here */
+    break;
+  case LOCAL_COMMIT:
+    ret= wsrep_ordered_commit(thd, true, wsrep_apply_error());
+    break;
+  case REPL_RECV:
+  {
+    wsrep_buf_t const err= { NULL, 0 };
+    wsrep_status_t rcode=
+      wsrep->commit_order_leave(wsrep, &thd->wsrep_ws_handle, &err);
+    if (rcode != WSREP_OK)
+    {
+      DBUG_ASSERT(rcode == WSREP_NODE_FAIL);
+      WSREP_ERROR("Failed to leave commit order critical section (WOKINB), "
+                  "rcode: %d", rcode);
+      ret= 1;
+    }
+    if (!ret)
+    {
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      thd->set_wsrep_query_state(QUERY_ORDERED_COMMIT);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    }
+    break;
+  }
+  default:
+    DBUG_ASSERT(0);
+    WSREP_WARN("Call to wsrep_commit_order_leave_if_no_binlog called in %s",
+               wsrep_thd_exec_mode_str(thd));
+    break;
+  }
+  return ret;
+}
+
 wsrep_status_t wsrep_tc_log_commit(THD* thd)
 {
   if (wsrep_before_commit(thd, true))
   {
     return WSREP_TRX_FAIL;
   }
-  //if (tc_log->commit(thd, 1))
   if (tc_log->log_and_order(thd, thd->transaction.xid_state.xid.get_my_xid(),
-                            true, false, false))
+-                            true, false, false))
   {
     return WSREP_TRX_FAIL;
   }
-
   if (wsrep_after_commit(thd, true))
   {
     return WSREP_TRX_FAIL;

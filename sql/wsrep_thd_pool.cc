@@ -104,8 +104,9 @@ THD* Wsrep_thd_pool::get_thd(THD* thd)
 
 void Wsrep_thd_pool::release_thd(THD* thd)
 {
-  assert(!thd->mdl_context.has_locks());
-  assert(!thd->open_tables);
+  DBUG_ASSERT(!thd->mdl_context.has_locks());
+  DBUG_ASSERT(!thd->open_tables);
+  DBUG_ASSERT(thd->transaction.stmt.is_empty());
 
   wsp::auto_lock lock(&LOCK_wsrep_thd_pool);
   if (pool_.size() < threads_)

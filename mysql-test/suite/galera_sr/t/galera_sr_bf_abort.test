@@ -1,7 +1,7 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-
+--let $wsrep_trx_fragment_size = 1
 
 # Control connection for manipulating sync points on node 1
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1

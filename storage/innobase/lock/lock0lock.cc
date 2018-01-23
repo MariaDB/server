@@ -1383,13 +1383,14 @@ wsrep_kill_victim(
 	}
 
 	my_bool bf_this  = wsrep_thd_is_BF(trx->mysql_thd, FALSE);
+	if (!bf_this) return;
+
 	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE);
 
 	if ((bf_this && !bf_other) ||
 //		(bf_this && bf_other && wsrep_trx_order_before(
 //			trx->mysql_thd, lock->trx->mysql_thd))) {
             (bf_this)) {
-
 
 		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 			if (wsrep_debug) {

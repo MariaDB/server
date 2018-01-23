@@ -30,6 +30,9 @@
 #include "rpl_rli.h"
 #include "rpl_mi.h"
 
+#include "debug_sync.h"
+
+static long long wsrep_bf_aborts_counter = 0;
 static Wsrep_thd_queue* wsrep_rollback_queue = 0;
 static Wsrep_thd_queue* wsrep_post_rollback_queue = 0;
 
@@ -113,23 +116,37 @@ void wsrep_post_rollback(THD *thd)
 
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
-  if (wsrep_thd_trx_seqno(thd) != WSREP_SEQNO_UNDEFINED)
+  if (thd->wsrep_trx_has_seqno())
   {
-    /*
-      Write set was ordered but it needs to roll back. We need a
-      call to post_rollback() to grab critical section.
-    */
-    if (wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+    if (!gtid_mode)
     {
-      WSREP_WARN("wsrep::post_rollback fail");
+      void* ptr= NULL;
+      size_t len= 0;
+      wsrep_buf_t err= {ptr, len};
+      if (wsrep->commit_order_enter(wsrep, &thd->wsrep_ws_handle))
+      {
+        WSREP_WARN("wsrep_post_rollback: failed to enter commit order");
+      }
+      if (wsrep->commit_order_leave(wsrep, &thd->wsrep_ws_handle, &err))
+      {
+        WSREP_WARN("wsrep_post_rollback: failed to leave commit order");
+      }
+    }
+    /*
+      If binlogging is on commit ordering is done when dummy
+      event is written into binlog
+     */
+    else if (wsrep_write_dummy_event(thd, "rollback"))
+    {
+      WSREP_WARN("wsrep_post_rollback: failed to write dummy event");
     }
   }
+
   if (wsrep->release(wsrep, &thd->wsrep_ws_handle))
   {
     WSREP_WARN("wsrep::release fail: %llu %d",
                (long long)thd->thread_id, thd->get_stmt_da()->status());
   }
-
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
 
@@ -238,7 +255,7 @@ void wsrep_client_rollback(THD *thd, bool rollbacker)
     If the seqno is not set there is no need for post rollback
     actions.
    */
-  if (rollbacker && wsrep_thd_trx_seqno(thd) == WSREP_SEQNO_UNDEFINED)
+  if (rollbacker /* && wsrep_thd_trx_seqno(thd) == WSREP_SEQNO_UNDEFINED */)
   {
     wsrep_post_rollback(thd);
   }
@@ -1055,4 +1072,219 @@ bool wsrep_thd_has_explicit_locks(THD *thd)
 {
   assert(thd);
   return thd->mdl_context.has_explicit_locks();
+}
+
+static void
+wsrep_abort_slave_trx(wsrep_seqno_t bf_seqno, wsrep_seqno_t victim_seqno)
+{
+  WSREP_ERROR("Trx %lld tries to abort slave trx %lld. This could be "
+              "caused by:\n\t"
+              "1) unsupported configuration options combination, please check documentation.\n\t"
+              "2) a bug in the code.\n\t"
+              "3) a database corruption.\n Node consistency compromized, "
+              "need to abort. Restart the node to resync with cluster.",
+              (long long)bf_seqno, (long long)victim_seqno);
+  abort();
+}
+
+static bool wsrep_abort_committing(THD *bf_thd, THD *victim_thd)
+{
+  mysql_mutex_assert_owner(&victim_thd->LOCK_wsrep_thd);
+  DBUG_ASSERT(victim_thd->wsrep_query_state() == QUERY_COMMITTING);
+
+  wsrep_seqno_t const bf_seqno= bf_thd->wsrep_trx_meta.gtid.seqno;
+  wsrep_seqno_t victim_seqno= WSREP_SEQNO_UNDEFINED;
+  wsrep_status_t rcode=
+    wsrep->abort_certification(wsrep, bf_seqno, victim_thd->wsrep_trx_id(),
+                               &victim_seqno);
+  bool must_abort= false;
+  switch (rcode)
+  {
+  case WSREP_OK:
+    /* The provider performed BF abort */
+    WSREP_DEBUG("Provider performed BF abort");
+    must_abort= true;
+    break;
+  case WSREP_NOT_ALLOWED:
+    /* The provider declined to do BF abort */
+    WSREP_DEBUG("Provider declined to BF abort, victim is waiting to commit "
+                "with seqno %lld", (long long)victim_seqno );
+    break;
+  case WSREP_TRX_MISSING:
+    /* The provider didn't yet know about the victim */
+    break;
+  case WSREP_WARNING:
+    WSREP_DEBUG("abort_pre_commit warning: %lu",
+                victim_thd->wsrep_trx_id());
+    break;
+  default:
+    WSREP_ERROR("abort_pre_commit bad exit: %d %lu",
+                rcode, victim_thd->wsrep_trx_id());
+    abort();
+    break;
+  }
+
+  return must_abort;
+}
+
+
+/*
+  Function wsrep_bf_abort() should be called by the storage engine
+  whenever a high priority transaction tries to abort another
+  transaction.
+
+  Whether the BF abort should happen depends on the vicim THD
+  state:
+
+  Non-SR transaction:
+  * If the victim THD has been assigned a GTID and the GTID sequence
+    number is smaller than BF THD sequence number, the BF abort
+    request is declined and the caller should wait.
+  * If the victim THD has not been assigned a GTID or the sequence
+    number of the GTID is higher than the BF THD sequence number,
+    the victim must abort in order to allow the BF THD to proceed.
+
+  SR transaction:
+  * If the victim THD has been assigned a GTID and the GTID sequence
+    number is smaller than BF THD sequence number *and* the victim
+    is committing the final fragment, the BF abort request is
+    declined and the caller should wait.
+  * Otherwise the victim transaction is aborted.
+
+  Exactly how the BF abort takes place depends on victim THD
+  wsrep_query_state:
+
+  * QUERY_COMMITTING and QUERY_COMMITTING_FRAGMENT: The victim
+    THD execution is between the provider pre_commit() hook
+    and the commit manager. The victim THD is signalled to abort
+    at server level and the caller should wait until the victim
+    rolls back.
+  * QUERY_EXEC: The victim THD is executing a query and the
+    caller should proceed to abort the transaction inside the
+    storage engine.
+  * QUERY_IDLE: The victim THD is idle and the responsibility
+    or rolling back the victim transaction is transferred to
+    rollbacker thread. The caller should wait until the rollbacker
+    thread finishes.
+  * QUERY_EXITING: The victim THD is in the process of closing the
+    connection. The caller should wait until the ongoing victim
+    transaction is rolled back.
+
+  @return Return value true indicates that the caller should
+          proceed with internal storage engine BF abort sequence,
+          false indicates that the caller should wait for
+          the lock.
+*/
+bool wsrep_bf_abort(void *bf_thd_ptr, void *victim_thd_ptr, bool signal)
+{
+  THD *bf_thd= (THD*)bf_thd_ptr;
+  THD *victim_thd= (THD*)victim_thd_ptr;
+
+  mysql_mutex_assert_owner(&victim_thd->LOCK_wsrep_thd);
+
+  WSREP_LOG_THD(bf_thd, "BF aborter before");
+  WSREP_LOG_THD(victim_thd, "victim before");
+
+  wsrep_seqno_t const bf_seqno= bf_thd->wsrep_trx_meta.gtid.seqno;
+  wsrep_seqno_t victim_seqno= WSREP_SEQNO_UNDEFINED;
+
+  if (victim_thd->wsrep_exec_mode == REPL_RECV)
+  {
+    wsrep_abort_slave_trx(bf_seqno, victim_seqno); /* Does not return */
+  }
+
+  DBUG_EXECUTE_IF("sync.wsrep_after_BF_victim_lock",
+                  {
+                    const char act[]=
+                      "now "
+                      "wait_for signal.wsrep_after_BF_victim_lock";
+                    DBUG_ASSERT(!debug_sync_set_action(bf_thd,
+                                                       STRING_WITH_LEN(act)));
+                  };);
+
+  bool caller_must_bf_abort= false;
+  bool must_bf_abort= false;
+  bool must_fire_rollbacker= false;
+  switch (victim_thd->wsrep_query_state())
+  {
+  case QUERY_COMMITTING:
+    /*
+      The query is committing either transaction or fragment,
+      the BF abort is attempted via provider.
+    */
+    must_bf_abort= wsrep_abort_committing(bf_thd, victim_thd);
+    break;
+  case QUERY_ORDERED_COMMIT:
+    /*
+      Commit order has been grabbed, BF abort is not allowed.
+    */
+    break;
+  case QUERY_EXEC:
+    /*
+      The victim THD is in execution phase and may be executing
+      a query inside storage engine. The control for further actions
+      will be returned to the caller.
+    */
+    caller_must_bf_abort= true;
+    must_bf_abort= true;
+    break;
+  case QUERY_IDLE:
+    /*
+      The victim THD is idle. The victim must be marked as BF aborted
+      and the rollbacker thread must be signalled to do the actual rollback.
+    */
+    must_bf_abort= true;
+    must_fire_rollbacker= true;
+    break;
+  case QUERY_EXITING:
+    /*
+      The victim connection is closing, the caller should wait for the
+      rollback.
+    */
+    break;
+  }
+
+  if (must_bf_abort)
+  {
+    switch (victim_thd->wsrep_conflict_state())
+    {
+    case NO_CONFLICT:
+      wsrep_thd_set_conflict_state(victim_thd, MUST_ABORT);
+      break;
+    case MUST_ABORT:
+      wsrep_thd_awake(victim_thd, signal);
+      /* Fall through */
+    case ABORTING:
+    case ABORTED:
+    case MUST_REPLAY:
+    case CERT_FAILURE:
+      /*
+        The victim is already in process of aborting the transaction,
+        the BF aborter should wait.
+      */
+      must_bf_abort= false;
+      caller_must_bf_abort= false;
+      must_fire_rollbacker= false;
+      break;
+    default:
+      WSREP_WARN("BF abort for victim in state %s",
+                 wsrep_thd_conflict_state_str(victim_thd));
+      DBUG_ASSERT(0); /* Should not be here */
+      must_bf_abort= false;
+      caller_must_bf_abort= false;
+      must_fire_rollbacker= false;
+      break;
+    }
+  }
+
+  if (must_fire_rollbacker)
+  {
+    DBUG_ASSERT(must_bf_abort);
+    wsrep_fire_rollbacker(victim_thd);
+  }
+
+  WSREP_LOG_THD(victim_thd, "victim after");
+
+  return caller_must_bf_abort;
+
 }

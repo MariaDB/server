@@ -20,6 +20,8 @@
 #include "log_event.h"
 #include "wsrep_applier.h"
 
+#include "transaction.h"
+
 const char *wsrep_fragment_units[] = { "bytes", "events", "rows", "statements", NullS };
 const char *wsrep_SR_store_types[] = { "none", "file", "table", NullS };
 
@@ -473,7 +475,113 @@ cleanup1:
   DBUG_VOID_RETURN;
 }
 
-int wsrep_write_dummy_event(THD *thd)
+int wsrep_binlog_savepoint_set(THD *thd,  void *sv)
 {
-  return 0; // stub
+  if (!wsrep_emulate_bin_log) return 0;
+  int rcode = binlog_hton->savepoint_set(binlog_hton, thd, sv);
+  return rcode;
+}
+
+int wsrep_binlog_savepoint_rollback(THD *thd, void *sv)
+{
+  if (!wsrep_emulate_bin_log) return 0;
+  int rcode = binlog_hton->savepoint_rollback(binlog_hton, thd, sv);
+  return rcode;
+}
+
+#include "wsrep_thd_pool.h"
+extern Wsrep_thd_pool *wsrep_thd_pool;
+
+#include "log_event.h"
+#include "binlog.h"
+
+int wsrep_write_dummy_event_low(THD *thd, const char *msg)
+{
+  int ret= 0;
+  if (mysql_bin_log.is_open() && gtid_mode)
+  {
+    DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
+
+    /* For restoring orig thd state before returing it back to pool */
+    int wsrep_on= thd->variables.wsrep_on;
+    int sql_log_bin= thd->variables.sql_log_bin;
+    int option_bits= thd->variables.option_bits;
+    enum wsrep_exec_mode exec_mode= thd->wsrep_exec_mode;
+
+    /*
+      Fake that the connection is local client connection for the duration
+      of mysql_bin_log.write_event(), otherwise the write will fail.
+    */
+    thd->wsrep_exec_mode= LOCAL_STATE;
+    thd->variables.wsrep_on= 1;
+    thd->variables.sql_log_bin= 1;
+    thd->variables.option_bits |= OPTION_BIN_LOG;
+
+    Ignorable_log_event skip_event(thd);
+    ret= mysql_bin_log.write_event(&skip_event);
+
+    /* Restore original thd state */
+    thd->wsrep_exec_mode= exec_mode;
+    thd->variables.wsrep_on= wsrep_on;
+    thd->variables.sql_log_bin= sql_log_bin;
+    thd->variables.option_bits= option_bits;
+
+    if (ret)
+    {
+      WSREP_ERROR("Write to binlog failed: %d", ret);
+      abort();
+      unireg_abort(1);
+    }
+    ret= trans_commit_stmt(thd);
+    if (ret)
+    {
+      WSREP_ERROR("STMT commit failed: %d", ret);
+      abort();
+    }
+  }
+
+  return ret;
+}
+
+int wsrep_write_dummy_event(THD *orig_thd, const char *msg)
+{
+  if (WSREP_EMULATE_BINLOG(orig_thd))
+  {
+    return 0;
+  }
+
+  /* Use tmp thd for the transaction to avoid messing up orig_thd
+     transaction state */
+  THD* thd= wsrep_thd_pool->get_thd(0);
+
+  if (!thd)
+  {
+    return 1;
+  }
+
+  /*
+    Use original THD wsrep TRX meta data and WS handle to make
+    commit generate GTID and go through commit ordering hooks.
+   */
+  wsrep_trx_meta_t meta_save= thd->wsrep_trx_meta;
+  thd->wsrep_trx_meta= orig_thd->wsrep_trx_meta;
+  wsrep_ws_handle_t handle_save= thd->wsrep_ws_handle;
+  thd->wsrep_ws_handle= orig_thd->wsrep_ws_handle;
+
+  int ret= wsrep_write_dummy_event_low(thd, msg);
+
+  if (ret || (ret= trans_commit(thd)))
+  {
+    WSREP_ERROR("Failed to write skip event into binlog");
+    abort();
+    unireg_abort(1);
+  }
+
+  thd->wsrep_trx_meta= meta_save;
+  thd->wsrep_ws_handle= handle_save;
+
+  wsrep_thd_pool->release_thd(thd);
+
+  orig_thd->store_globals();
+  return ret;
 }

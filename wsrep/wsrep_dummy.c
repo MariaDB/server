@@ -63,7 +63,7 @@ static wsrep_status_t dummy_init (wsrep_t* w,
     return WSREP_OK;
 }
 
-static uint64_t dummy_capabilities (wsrep_t* w __attribute__((unused)))
+static wsrep_cap_t dummy_capabilities (wsrep_t* w __attribute__((unused)))
 {
     return 0;
 }
@@ -122,7 +122,7 @@ static wsrep_status_t dummy_assign_read_view(
     return WSREP_OK;
 }
 
-static wsrep_status_t dummy_pre_commit(
+static wsrep_status_t dummy_certify(
     wsrep_t* w,
     const wsrep_conn_id_t   conn_id    __attribute__((unused)),
     wsrep_ws_handle_t*      ws_handle  __attribute__((unused)),
@@ -133,9 +133,18 @@ static wsrep_status_t dummy_pre_commit(
     return WSREP_OK;
 }
 
-static wsrep_status_t dummy_post_rollback(
+static wsrep_status_t dummy_commit_order_enter(
     wsrep_t* w,
-    wsrep_ws_handle_t*  ws_handle  __attribute__((unused)))
+    const wsrep_ws_handle_t* ws_handle  __attribute__((unused)))
+{
+    WSREP_DBUG_ENTER(w);
+    return WSREP_OK;
+}
+
+static wsrep_status_t dummy_commit_order_leave(
+    wsrep_t* w,
+    const wsrep_ws_handle_t* ws_handle  __attribute__((unused)),
+    const wsrep_buf_t*       error      __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
     return WSREP_OK;
@@ -158,10 +167,11 @@ static wsrep_status_t dummy_replay_trx(
     return WSREP_OK;
 }
 
-static wsrep_status_t dummy_abort_pre_commit(
+static wsrep_status_t dummy_abort_certification(
     wsrep_t* w,
     const wsrep_seqno_t  bf_seqno __attribute__((unused)),
-    const wsrep_trx_id_t trx_id   __attribute__((unused)))
+    const wsrep_trx_id_t trx_id   __attribute__((unused)),
+    wsrep_seqno_t *victim_seqno __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
     return WSREP_OK;
@@ -383,11 +393,12 @@ static wsrep_t dummy_iface = {
     &dummy_disconnect,
     &dummy_recv,
     &dummy_assign_read_view,
-    &dummy_pre_commit,
-    &dummy_post_rollback,
+    &dummy_certify,
+    &dummy_commit_order_enter,
+    &dummy_commit_order_leave,
     &dummy_release,
     &dummy_replay_trx,
-    &dummy_abort_pre_commit,
+    &dummy_abort_certification,
     &dummy_rollback,
     &dummy_append_key,
     &dummy_append_data,

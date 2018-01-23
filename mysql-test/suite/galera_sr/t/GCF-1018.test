@@ -14,7 +14,7 @@ INSERT INTO t1 (f2) VALUES ('c');
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2a
 SET SESSION wsrep_sync_wait = 0;
---let $galera_sync_point = after_pre_commit_apply_monitor_enter
+--let $galera_sync_point = after_certify_apply_monitor_enter
 --source include/galera_set_sync_point.inc
 
 --connection node_2

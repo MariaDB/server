@@ -10,9 +10,9 @@
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
 
---let $galera_sync_point = before_pre_commit_commit_monitor_enter
+--let $galera_sync_point = before_local_commit_monitor_enter
 --source GCF-1008.inc
 
---let $galera_sync_point = before_pre_commit_apply_monitor_enter
+--let $galera_sync_point = before_certify_apply_monitor_enter
 --source GCF-1008.inc
 

@@ -57,6 +57,7 @@ enum wsrep_query_state {
     QUERY_IDLE,
     QUERY_EXEC,
     QUERY_COMMITTING,
+    QUERY_ORDERED_COMMIT,
     QUERY_EXITING
 };
 
@@ -181,6 +182,7 @@ extern const char* wsrep_provider_name;
 extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
 extern char*       wsrep_provider_capabilities;
+extern char*       wsrep_cluster_capabilities;
 
 //int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff,
 //                       enum enum_var_type scope);
@@ -445,15 +447,6 @@ int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len);
 
 bool wsrep_stmt_rollback_is_safe(THD* thd);
 
-
-wsrep_cb_status_t
-wsrep_view_handler_cb (void*                    app_ctx,
-                       void*                    recv_ctx,
-                       const wsrep_view_info_t* view,
-                       /* TODO: These are unused, should be removed?*/
-                       const char*              state,
-                       size_t                   state_len);
-
 void wsrep_init_sidno(const wsrep_uuid_t&);
 bool wsrep_node_is_donor();
 bool wsrep_node_is_synced();
@@ -668,6 +661,20 @@ bool wsrep_node_is_synced();
  * @return true if SR capable
  */
 bool wsrep_provider_is_SR_capable();
+
+/**
+ * Mark current commit ordered if binlogging is not enabled.
+ *
+ * The purpose of this function is to leave commit order critical
+ * section if binlog is not enabled.
+ *
+ * The function can be called from inside storage engine during commit.
+ * Binlog options are checked inside the function.
+ *
+ * @return Zero in case of success, non-zero in case of failure.
+ */
+
+int wsrep_ordered_commit_if_no_binlog(THD*);
 
 /**
  * Commit the current transaction with the

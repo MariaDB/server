@@ -39,6 +39,9 @@ struct receiver_context
     char msg[4096];
 };
 
+/* wsrep provider handle (global for simplicty) */
+static wsrep_t* wsrep = NULL;
+
 /*! This is a logger callback which library will be using to log events. */
 static void
 logger_cb (wsrep_log_level_t level __attribute__((unused)), const char* msg)
@@ -89,13 +92,13 @@ sst_request_cb (void**            sst_req,
 /*! This is called to "apply" writeset.
  *  If writesets don't conflict on keys, it may be called concurrently to
  *  utilize several CPU cores. */
-static int
-apply_cb (void*                   recv_ctx,
-          uint32_t                flags   __attribute__((unused)),
-          const wsrep_buf_t*      ws      __attribute__((unused)),
-          const wsrep_trx_meta_t* meta,
-          void**                  err_buf __attribute__((unused)),
-          size_t*                 err_len __attribute__((unused)))
+static wsrep_cb_status_t
+apply_cb (void*                    recv_ctx,
+          const wsrep_ws_handle_t* ws_handle __attribute__((unused)),
+          uint32_t                 flags     __attribute__((unused)),
+          const wsrep_buf_t*       ws        __attribute__((unused)),
+          const wsrep_trx_meta_t*  meta,
+          wsrep_bool_t*            exit_loop __attribute__((unused)))
 {
     struct receiver_context* ctx = (struct receiver_context*)recv_ctx;
 
@@ -103,25 +106,11 @@ apply_cb (void*                   recv_ctx,
               "Got writeset %lld, size %zu", (long long)meta->gtid.seqno,
               ws->len);
 
-    return 0;
-}
-
-/*! This is called to "commit" or "rollback" previously applied writeset,
- *  depending on commit parameter.
- *  By default this callback is called synchronously in the order determined
- *  by seqno. */
-static wsrep_cb_status_t
-commit_cb (void*                   recv_ctx,
-           uint32_t                flags,
-           const wsrep_trx_meta_t* meta __attribute__((unused)),
-           wsrep_bool_t*           exit __attribute__((unused)))
-{
-    struct receiver_context* ctx = (struct receiver_context*)recv_ctx;
-
     bool const commit = flags & (WSREP_FLAG_TRX_END | WSREP_FLAG_ROLLBACK);
-    /* Here we just print it to stdout. Since this callback is synchronous
-     * we don't need to worry about exclusive access to stdout. */
+
+    wsrep->commit_order_enter(wsrep, ws_handle);
     if (commit) puts(ctx->msg);
+    wsrep->commit_order_leave(wsrep, ws_handle, NULL);
 
     return WSREP_CB_SUCCESS;
 }
@@ -149,9 +138,6 @@ static wsrep_cb_status_t synced_cb (void* app_ctx __attribute__((unused)))
 {
     return WSREP_CB_SUCCESS;
 }
-
-/* wsrep provider handle (global for simplicty) */
-static wsrep_t* wsrep = NULL;
 
 /* This is the listening thread. It blocks in wsrep::recv() call until
  * disconnect from cluster. It will apply and commit writesets through the
@@ -218,7 +204,6 @@ int main (int argc, char* argv[])
         .view_cb        = view_cb,
         .sst_request_cb = sst_request_cb,
         .apply_cb       = apply_cb,
-        .commit_cb      = commit_cb,
         .unordered_cb   = unordered_cb,
         .sst_donate_cb  = sst_donate_cb,
         .synced_cb      = synced_cb

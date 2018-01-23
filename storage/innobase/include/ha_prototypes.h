@@ -247,6 +247,7 @@ my_bool wsrep_thd_is_SR(void *thd_ptr);
 my_bool wsrep_thd_skip_locking(void *thd_ptr);
 void wsrep_handle_SR_rollback(void *BF_thd_ptr, void *victim_thd_ptr);
 void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
+bool wsrep_bf_abort(void *bf_thd_ptr, void *victim_thd_ptr, bool signal);
 #endif /* WITH_WSREP */
 
 /**********************************************************************//**

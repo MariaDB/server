@@ -98,15 +98,15 @@ COMMIT;
 --source suite/galera_3nodes/include/galera_sr_crash_post_check.inc
 
 #
-# crash_replicate_fragment_after_pre_commit
+# crash_replicate_fragment_after_certify
 #
 
 --connection node_2
-SET GLOBAL debug="d,crash_replicate_fragment_after_pre_commit";
+SET GLOBAL debug="d,crash_replicate_fragment_after_certify";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
 
---echo crash_replicate_fragment_after_pre_commit
+--echo crash_replicate_fragment_after_certify
 
 --connection node_2
 --error 2006,2013
@@ -116,15 +116,15 @@ COMMIT;
 --source suite/galera_3nodes/include/galera_sr_crash_post_check.inc
 
 #
-# crash_replicate_fragment_before_pre_commit
+# crash_replicate_fragment_before_certify
 #
 
 --connection node_2
-SET GLOBAL debug="d,crash_replicate_fragment_before_pre_commit";
+SET GLOBAL debug="d,crash_replicate_fragment_before_certify";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
 
---echo crash_replicate_fragment_before_pre_commit
+--echo crash_replicate_fragment_before_certify
 
 --connection node_2
 --error 2006,2013

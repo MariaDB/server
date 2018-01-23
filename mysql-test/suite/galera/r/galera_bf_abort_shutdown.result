@@ -1,0 +1,4 @@
+CREATE TABLE t1 (f1 INT PRIMARY KEY);
+SET DEBUG_SYNC = 'wsrep_before_replication WAIT_FOR continue';
+INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
