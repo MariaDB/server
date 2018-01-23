@@ -462,7 +462,6 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
 
   if (check_access(thd, EVENT_ACL, parse_data->dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
@@ -595,8 +594,6 @@ Events::drop_event(THD *thd, const LEX_CSTRING *dbname,
   if (check_access(thd, EVENT_ACL, dbname->str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
-
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
   /*
     Turn off row binlogging of this statement and use statement-based so

@@ -178,7 +178,7 @@ static inline void wsrep_log_thd(THD *thd,
                                  const char *function)
 {
   WSREP_DEBUG("%s %s\n"
-              "    thd: %lu thd_ptr: %p exec_mode: %s query_state: %s conflict_state: %s\n"
+              "    thd: %llu thd_ptr: %p exec_mode: %s query_state: %s conflict_state: %s\n"
               "    next_trx_id: %lld trx_id: %lld seqno: %lld\n"
               "    is_streaming: %d fragments: %zu\n"
               "    sql_errno: %u message: %s\n"

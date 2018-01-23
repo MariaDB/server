@@ -1,3 +1,7 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
 Performing State Transfer on a server that has been temporarily disconnected
 connection node_1;
 CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;

@@ -3186,8 +3186,7 @@ public:
       mysql_bin_log.start_union_events() call.
     */
     bool unioned_events_trans;
-    
-    /* 
+    /*
       'queries' (actually SP statements) that run under inside this binlog
       union have thd->query_id >= first_query_id.
     */
@@ -4789,11 +4788,12 @@ public:
   // wsrep_seqno_t             wsrep_trx_seqno;
   wsrep_trx_meta_t          wsrep_trx_meta;
   uint32                    wsrep_rand;
-  Relay_log_info*           wsrep_rli;
+  Relay_log_info            *wsrep_rli;
+  rpl_group_info            *wsrep_rgi;
   bool                      wsrep_converted_lock_session;
   wsrep_ws_handle_t         wsrep_ws_handle;
 #ifdef WSREP_PROC_INFO
-  char                      wsrep_info[128]; /* string for dynamic proc info */
+  // char                      wsrep_info[128]; /* string for dynamic proc info */
 #endif /* WSREP_PROC_INFO */
   ulong                     wsrep_retry_counter; // of autocommit
   bool                      wsrep_PA_safe;
@@ -4809,9 +4809,18 @@ public:
   size_t                    wsrep_TOI_pre_query_len;
   wsrep_po_handle_t         wsrep_po_handle;
   size_t                    wsrep_po_cnt;
+#ifdef GTID_SUPPORT
   my_bool                   wsrep_po_in_trans;
   rpl_sid                   wsrep_po_sid;
-  void*                     wsrep_apply_format;
+#endif /* GTID_SUPPORT */
+  void                      *wsrep_apply_format;
+  char                      wsrep_info[128]; /* string for dynamic proc info */
+  /*
+    When enabled, do not replicate/binlog updates from the current table that's
+    being processed. At the moment, it is used to keep mysql.gtid_slave_pos
+    table updates from being replicated to other nodes via galera replication.
+  */
+  bool                      wsrep_ignore_table;
   bool                      wsrep_apply_toi; /* applier processing in TOI */
   ulong                     wsrep_fragments_sent; // # of fragments replicated
                                                   //   for trx

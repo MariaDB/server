@@ -963,7 +963,7 @@ int wsrep_init()
             wsrep->provider_vendor,  sizeof(provider_vendor) - 1);
   }
 
-  if (gtid_mode && opt_bin_log && !opt_log_slave_updates)
+  if (wsrep_gtid_mode && opt_bin_log && !opt_log_slave_updates)
   {
     WSREP_ERROR("Option --log-slave-updates is required if "
                 "binlog is enabled, GTID mode is on and wsrep provider "
@@ -3690,10 +3690,12 @@ wsrep_thd_is_streaming(THD* thd)
   return thd && thd->wsrep_is_streaming();
 }
 
+#if 0
 my_bool wsrep_thd_no_gaps(const void *thd_ptr)
 {
   return ((THD*)thd_ptr)->wsrep_no_gaps;
 }
+#endif // 0
 
 void wsrep_copy_query(THD *thd)
 {
@@ -3871,8 +3873,8 @@ bool wsrep_provider_is_SR_capable()
 
 int wsrep_ordered_commit_if_no_binlog(THD* thd)
 {
-  if (!(wsrep_emulate_bin_log && thd->transaction.flags.real_commit &&
-        thd->wsrep_trx_must_order_commit()))
+  return 0;
+  if (!(wsrep_emulate_bin_log && thd->wsrep_trx_must_order_commit()))
   {
     return 0;
   }
@@ -3921,11 +3923,12 @@ wsrep_status_t wsrep_tc_log_commit(THD* thd)
   {
     return WSREP_TRX_FAIL;
   }
-  if (tc_log->log_and_order(thd, thd->transaction.xid_state.xid.get_my_xid(),
--                            true, false, false))
+  if (binlog_hton->commit(binlog_hton, thd, true))
   {
+    WSREP_ERROR("Binlog hton commit fail");
     return WSREP_TRX_FAIL;
   }
+
   if (wsrep_after_commit(thd, true))
   {
     return WSREP_TRX_FAIL;

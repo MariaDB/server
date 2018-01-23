@@ -21,7 +21,7 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 
-#include "rpl_slave.h" // opt_log_slave_updates
+#include "slave.h" // opt_log_slave_updates
 #include "log_event.h" // class THD, EVENT_LEN_OFFSET, etc.
 #include "wsrep_applier.h"
 #include "debug_sync.h"
@@ -125,7 +125,7 @@ void wsrep_apply_error::store(const THD* const thd)
   *slider= '\0';
   len_= slider - str_ + 1; // +1: add \0
 
-  WSREP_DEBUG("Error buffer for thd %lu seqno %lld, %zu bytes: %s",
+  WSREP_DEBUG("Error buffer for thd %llu seqno %lld, %zu bytes: %s",
               thd->thread_id, (long long)wsrep_thd_trx_seqno(thd),
               len_, str_ ? str_ : "(null)");
 }
@@ -801,7 +801,7 @@ static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
 #endif /* WSREP_PROC_INFO */
 
   wsrep_cb_status_t rcode= WSREP_CB_SUCCESS;
-  if (!opt_log_slave_updates && wsrep_before_commit(thd, true))
+  if (thd->wsrep_apply_toi && wsrep_before_commit(thd, true))
     rcode= WSREP_CB_FAILURE;
 
   /*
@@ -831,8 +831,7 @@ static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
       wsrep_set_SE_checkpoint(thd->wsrep_trx_meta.gtid.uuid,
                               thd->wsrep_trx_meta.gtid.seqno);
     }
-    if ((!opt_log_slave_updates || thd->wsrep_apply_toi)
-        && wsrep_ordered_commit(thd, true, err))
+    if (thd->wsrep_apply_toi && wsrep_ordered_commit(thd, true, err))
       rcode= WSREP_CB_FAILURE;
 
     if (rcode == WSREP_CB_SUCCESS)
@@ -845,7 +844,7 @@ static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
         effectively disables binlog group commit for dummy events
         which are logged into binlog.
        */
-      if (fragment_not_trx_end && opt_log_slave_updates && !gtid_mode)
+      if (fragment_not_trx_end && opt_log_slave_updates && !wsrep_gtid_mode)
       {
         if (wsrep_before_commit(thd, true) ||
             wsrep_ordered_commit(thd, true, err))
@@ -923,13 +922,13 @@ wsrep_cb_status_t wsrep_commit(void*         const     ctx,
   assert(meta->gtid.seqno == wsrep_thd_trx_seqno(thd));
 
   /*
-    Failed certification, write a dummy binlog event in gtid_mode
-    to keep GTID sequence continuous. If gtid_mode is off, release
+    Failed certification, write a dummy binlog event in wsrep_gtid_mode
+    to keep GTID sequence continuous. If wsrep_gtid_mode is off, release
     commit critical section.
   */
   if (!fragment && (flags & WSREP_FLAG_ROLLBACK))
   {
-    if (gtid_mode)
+    if (wsrep_gtid_mode)
     {
       wsrep_write_dummy_event(thd, "rollback");
     }

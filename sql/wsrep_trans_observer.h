@@ -16,6 +16,7 @@
 #ifndef WSREP_TRANS_OBSERVER_H
 #define WSREP_TRANS_OBSERVER_H
 
+#include "my_global.h"
 #include "wsrep_applier.h" /* wsrep_apply_error */
 
 class THD;

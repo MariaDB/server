@@ -475,30 +475,16 @@ cleanup1:
   DBUG_VOID_RETURN;
 }
 
-int wsrep_binlog_savepoint_set(THD *thd,  void *sv)
-{
-  if (!wsrep_emulate_bin_log) return 0;
-  int rcode = binlog_hton->savepoint_set(binlog_hton, thd, sv);
-  return rcode;
-}
-
-int wsrep_binlog_savepoint_rollback(THD *thd, void *sv)
-{
-  if (!wsrep_emulate_bin_log) return 0;
-  int rcode = binlog_hton->savepoint_rollback(binlog_hton, thd, sv);
-  return rcode;
-}
-
 #include "wsrep_thd_pool.h"
 extern Wsrep_thd_pool *wsrep_thd_pool;
 
 #include "log_event.h"
-#include "binlog.h"
+// #include "binlog.h"
 
 int wsrep_write_dummy_event_low(THD *thd, const char *msg)
 {
   int ret= 0;
-  if (mysql_bin_log.is_open() && gtid_mode)
+  if (mysql_bin_log.is_open() && wsrep_gtid_mode)
   {
     DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
 
