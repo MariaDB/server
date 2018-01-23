@@ -650,7 +650,7 @@ bool TDBTBM::IsLocal(PTABLE tbp)
 
 	return ((!stricmp(tdbp->Host, "localhost") ||
 		       !strcmp(tdbp->Host, "127.0.0.1")) &&
-		        tdbp->Port == (int)GetDefaultPort());
+                       (int) tdbp->Port == (int)GetDefaultPort());
 }	// end of IsLocal
 
 /***********************************************************************/
