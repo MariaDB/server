@@ -2390,66 +2390,6 @@ lock_rec_add_to_queue(
 }
 
 /*********************************************************************//**
-This is the general, and slower, routine for locking a record. This is a
-low-level function which does NOT look at implicit locks! Checks lock
-compatibility within explicit locks. This function sets a normal next-key
-lock, or in the case of a page supremum record, a gap type lock.
-@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, DB_DEADLOCK,
-or DB_QUE_THR_SUSPENDED */
-static
-dberr_t
-lock_rec_lock_slow(
-/*===============*/
-	ibool			impl,	/*!< in: if TRUE, no lock is set
-					if no wait is necessary: we
-					assume that the caller will
-					set an implicit lock */
-	ulint			mode,	/*!< in: lock mode: LOCK_X or
-					LOCK_S possibly ORed to either
-					LOCK_GAP or LOCK_REC_NOT_GAP */
-	const buf_block_t*	block,	/*!< in: buffer block containing
-					the record */
-	ulint			heap_no,/*!< in: heap number of record */
-	dict_index_t*		index,	/*!< in: index of record */
-	que_thr_t*		thr)	/*!< in: query thread */
-{
-	ut_ad(lock_mutex_own());
-
-	trx_t*	trx = thr_get_trx(thr);
-	ut_ad(trx_mutex_own(trx));
-
-	/* Do nothing if the trx already has a strong enough lock on rec */
-	if (!lock_rec_has_expl(mode, block, heap_no, trx)) {
-		lock_t* wait_for = lock_rec_other_has_conflicting(
-			mode, block, heap_no, trx);
-
-		if (wait_for != NULL) {
-
-			/* If another transaction has a non-gap conflicting
-			request in the queue, as this transaction does not
-			have a lock strong enough already granted on the
-			record, we may have to wait. */
-
-			RecLock	rec_lock(thr, index, block, heap_no, mode);
-
-			return rec_lock.add_to_waitq(wait_for);
-
-		} else if (!impl) {
-
-			/* Set the requested lock on the record, note that
-			we already own the transaction mutex. */
-
-			lock_rec_add_to_queue(
-				LOCK_REC | mode, block, heap_no, index, trx,
-				true);
-
-			return DB_SUCCESS_LOCKED_REC;
-		}
-	}
-	return DB_SUCCESS;
-}
-
-/*********************************************************************//**
 Tries to lock the specified record in the mode requested. If not immediately
 possible, enqueues a waiting lock request. This is a low-level function
 which does NOT look at implicit locks! Checks lock compatibility within
@@ -2500,7 +2440,29 @@ lock_rec_lock(
         lock->type_mode != (mode | LOCK_REC) ||
         lock_rec_get_n_bits(lock) <= heap_no)
     {
-      err= lock_rec_lock_slow(impl, mode, block, heap_no, index, thr);
+      /* Do nothing if the trx already has a strong enough lock on rec */
+      if (!lock_rec_has_expl(mode, block, heap_no, trx))
+      {
+        if (lock_t *wait_for= lock_rec_other_has_conflicting(mode, block,
+                                                             heap_no, trx))
+        {
+          /*
+            If another transaction has a non-gap conflicting
+            request in the queue, as this transaction does not
+            have a lock strong enough already granted on the
+            record, we may have to wait.
+          */
+          RecLock rec_lock(thr, index, block, heap_no, mode);
+          err= rec_lock.add_to_waitq(wait_for);
+        }
+        else if (!impl)
+        {
+          /* Set the requested lock on the record. */
+          lock_rec_add_to_queue(LOCK_REC | mode, block, heap_no, index, trx,
+                                true);
+          err= DB_SUCCESS_LOCKED_REC;
+        }
+      }
     }
     else if (!impl)
     {
