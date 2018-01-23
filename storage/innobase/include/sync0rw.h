@@ -41,7 +41,7 @@ Created 9/11/1995 Heikki Tuuri
 
 /** Counters for RW locks. */
 struct rw_lock_stats_t {
-	typedef ib_counter_t<int64_t, IB_N_SLOTS> int64_counter_t;
+	typedef ib_counter_t	int64_counter_t;
 
 	/** number of spin waits on rw-latches,
 	resulted during shared (read) locks */

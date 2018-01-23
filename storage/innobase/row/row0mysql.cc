@@ -1607,9 +1607,9 @@ error_exit:
 	que_thr_stop_for_mysql_no_error(thr, trx);
 
 	if (table->is_system_db) {
-		srv_stats.n_system_rows_inserted.inc(size_t(trx->id));
+		srv_stats.n_system_rows_inserted.inc();
 	} else {
-		srv_stats.n_rows_inserted.inc(size_t(trx->id));
+		srv_stats.n_rows_inserted.inc();
 	}
 
 	/* Not protected by dict_table_stats_lock() for performance
@@ -2146,11 +2146,11 @@ handle_error:
 			dict_table_n_rows_dec(node->table);
 
 			update_statistics = !srv_stats_include_delete_marked;
-			srv_stats.n_rows_deleted.inc(size_t(trx->id));
+			srv_stats.n_rows_deleted.inc();
 		} else {
 			update_statistics
 				= !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE);
-			srv_stats.n_rows_updated.inc(size_t(trx->id));
+			srv_stats.n_rows_updated.inc();
 		}
 
 		if (update_statistics) {
@@ -2171,17 +2171,17 @@ handle_error:
 		dict_table_n_rows_dec(prebuilt->table);
 
 		if (table->is_system_db) {
-			srv_stats.n_system_rows_deleted.inc(size_t(trx->id));
+			srv_stats.n_system_rows_deleted.inc();
 		} else {
-			srv_stats.n_rows_deleted.inc(size_t(trx->id));
+			srv_stats.n_rows_deleted.inc();
 		}
 
 		update_statistics = !srv_stats_include_delete_marked;
 	} else {
 		if (table->is_system_db) {
-			srv_stats.n_system_rows_updated.inc(size_t(trx->id));
+			srv_stats.n_system_rows_updated.inc();
 		} else {
-			srv_stats.n_rows_updated.inc(size_t(trx->id));
+			srv_stats.n_rows_updated.inc();
 		}
 
 		update_statistics

@@ -86,69 +86,26 @@ struct counter_indexer_t : public generic_indexer_t<Type, N> {
 
 #define	default_indexer_t	counter_indexer_t
 
-/** Class for using fuzzy counters. The counter is not protected by any
-mutex and the results are not guaranteed to be 100% accurate but close
-enough. Creates an array of counters and separates each element by the
-CACHE_LINE_SIZE bytes */
-template <
-	typename Type,
-	int N = IB_N_SLOTS,
-	template<typename, int> class Indexer = default_indexer_t>
+/** Atomic counter */
 struct MY_ALIGNED(CACHE_LINE_SIZE) ib_counter_t
 {
-#ifdef UNIV_DEBUG
-	~ib_counter_t()
-	{
-		size_t	n = (CACHE_LINE_SIZE / sizeof(Type));
-
-		/* Check that we aren't writing outside our defined bounds. */
-		for (size_t i = 0; i < UT_ARR_SIZE(m_counter); i += n) {
-			for (size_t j = 1; j < n - 1; ++j) {
-				ut_ad(m_counter[i + j] == 0);
-			}
-		}
-	}
-#endif /* UNIV_DEBUG */
+	ib_counter_t() : m_counter(0) {}
 
 	/** Increment the counter by 1. */
 	void inc() UNIV_NOTHROW { add(1); }
 
-	/** Increment the counter by 1.
-	@param[in]	index	a reasonably thread-unique identifier */
-	void inc(size_t index) UNIV_NOTHROW { add(index, 1); }
-
 	/** Add to the counter.
 	@param[in]	n	amount to be added */
-	void add(Type n) UNIV_NOTHROW { add(m_policy.get_rnd_offset(), n); }
-
-	/** Add to the counter.
-	@param[in]	index	a reasonably thread-unique identifier
-	@param[in]	n	amount to be added */
-	void add(size_t index, Type n) UNIV_NOTHROW {
-		size_t	i = m_policy.offset(index);
-
-		ut_ad(i < UT_ARR_SIZE(m_counter));
-
-		m_counter[i] += n;
-	}
+	void add(uint64_t n) UNIV_NOTHROW { my_atomic_add64(&m_counter, n); }
 
 	/* @return total value - not 100% accurate, since it is not atomic. */
-	operator Type() const UNIV_NOTHROW {
-		Type	total = 0;
-
-		for (size_t i = 0; i < N; ++i) {
-			total += m_counter[m_policy.offset(i)];
-		}
-
-		return(total);
+	operator uint64_t() const UNIV_NOTHROW {
+		return(my_atomic_load64_explicit(&m_counter,
+						 MY_MEMORY_ORDER_RELAXED));
 	}
 
 private:
-	/** Indexer into the array */
-	Indexer<Type, N>m_policy;
-
-        /** Slot 0 is unused. */
-	Type		m_counter[(N + 1) * (CACHE_LINE_SIZE / sizeof(Type))];
+	uint64_t		m_counter;
 };
 
 #endif /* ut0counter_h */
