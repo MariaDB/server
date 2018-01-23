@@ -97,6 +97,13 @@ MAGIC_FILE="${DATA}/${INFO_FILE}"
 # Setting the path for ss and ip
 export PATH="/usr/sbin:/sbin:$PATH"
 
+OS=$(uname)
+
+if ! which lsof > /dev/null; then
+    wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
+    exit 2 # ENOENT
+fi
+
 timeit(){
     local stage=$1
     shift
@@ -452,7 +459,11 @@ read_cnf()
     progress=$(parse_cnf sst progress "")
     rebuild=$(parse_cnf sst rebuild 0)
     ttime=$(parse_cnf sst time 0)
-    cpat=$(parse_cnf sst cpat '.*\.pem$\|.*init\.ok$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
+    if [ "${OS}" = "FreeBSD" ]; then
+        cpat=$(parse_cnf sst cpat '.*\.pem$|.*init\.ok$|.*galera\.cache$|.*sst_in_progress$|.*\.sst$|.*gvwstate\.dat$|.*grastate\.dat$|.*\.err$|.*\.log$|.*RPM_UPGRADE_MARKER$|.*RPM_UPGRADE_HISTORY$')
+    else
+        cpat=$(parse_cnf sst cpat '.*\.pem$\|.*init\.ok$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
+    fi
     ealgo=$(parse_cnf xtrabackup encrypt "")
     ekey=$(parse_cnf xtrabackup encrypt-key "")
     ekeyfile=$(parse_cnf xtrabackup encrypt-key-file "")
@@ -654,10 +665,12 @@ wait_for_listen()
     local HOST=$1
     local PORT=$2
     local MODULE=$3
+    local LSOF_OUT
 
     for i in {1..300}
     do
-        ss -p state listening "( sport = :$PORT )" | grep -qE 'socat|nc' && break
+        LSOF_OUT=$(lsof -sTCP:LISTEN -i TCP:${PORT} -a -c nc -c socat -F c)
+        [ -n "${LSOF_OUT}" ] && break
         sleep 0.2
     done
 
@@ -1072,7 +1085,11 @@ then
 
 
         wsrep_log_info "Cleaning the existing datadir and innodb-data/log directories"
-        find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
+        if [ "${OS}" = "FreeBSD" ]; then
+            find -E $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
+        else
+            find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
+        fi
 
         tempdir=$(parse_cnf mysqld log-bin "")
         if [[ -n ${tempdir:-} ]];then
