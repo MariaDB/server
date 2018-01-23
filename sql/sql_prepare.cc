@@ -2823,6 +2823,25 @@ void mysql_sql_stmt_prepare(THD *thd)
     DBUG_VOID_RETURN;
   }
 
+  /*
+    Make sure we call Prepared_statement::prepare() with an empty
+    THD::change_list. It can be non-empty as LEX::get_dynamic_sql_string()
+    calls fix_fields() for the Item containing the PS source,
+    e.g. on character set conversion:
+
+    SET NAMES utf8;
+    DELIMITER $$
+    CREATE PROCEDURE p1()
+    BEGIN
+      PREPARE stmt FROM CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+      EXECUTE stmt;
+    END;
+    $$
+    DELIMITER ;
+    CALL p1();
+  */
+  Item_change_list_savepoint change_list_savepoint(thd);
+
   if (stmt->prepare(query.str, (uint) query.length))
   {
     /* Statement map deletes the statement on erase */
@@ -2833,6 +2852,7 @@ void mysql_sql_stmt_prepare(THD *thd)
     SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
     my_ok(thd, 0L, 0L, "Statement prepared");
   }
+  change_list_savepoint.rollback(thd);
 
   DBUG_VOID_RETURN;
 }
@@ -2864,7 +2884,28 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   // See comments on thd->free_list in mysql_sql_stmt_execute()
   Item *free_list_backup= thd->free_list;
   thd->free_list= NULL;
+  /*
+    Make sure we call Prepared_statement::execute_immediate()
+    with an empty THD::change_list. It can be non empty as the above
+    LEX::prepared_stmt_params_fix_fields() and LEX::get_dynamic_str_string()
+    call fix_fields() for the PS source and PS parameter Items and
+    can do Item tree changes, e.g. on character set conversion:
+
+    - Example #1: Item tree changes in get_dynamic_str_string()
+    SET NAMES utf8;
+    CREATE PROCEDURE p1()
+      EXECUTE IMMEDIATE CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+    CALL p1();
+
+    - Example #2: Item tree changes in prepared_stmt_param_fix_fields():
+    SET NAMES utf8;
+    CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+      EXECUTE IMMEDIATE 'SELECT ?' USING CONCAT(a, CONVERT(RAND() USING latin1));
+    CALL p1('x');
+  */
+  Item_change_list_savepoint change_list_savepoint(thd);
   (void) stmt->execute_immediate(query.str, (uint) query.length);
+  change_list_savepoint.rollback(thd);
   thd->free_items();
   thd->free_list= free_list_backup;
 
@@ -3262,7 +3303,27 @@ void mysql_sql_stmt_execute(THD *thd)
   */
   Item *free_list_backup= thd->free_list;
   thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
+  /*
+    Make sure we call Prepared_statement::execute_loop() with an empty
+    THD::change_list. It can be non-empty because the above
+    LEX::prepared_stmt_params_fix_fields() calls fix_fields() for
+    the PS parameter Items and can do some Item tree changes,
+    e.g. on character set conversion:
+
+    SET NAMES utf8;
+    DELIMITER $$
+    CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+    BEGIN
+      PREPARE stmt FROM 'SELECT ?';
+      EXECUTE stmt USING CONCAT(a, CONVERT(RAND() USING latin1));
+    END;
+    $$
+    DELIMITER ;
+    CALL p1('x');
+  */
+  Item_change_list_savepoint change_list_savepoint(thd);
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
+  change_list_savepoint.rollback(thd);
   thd->free_items();    // Free items created by execute_loop()
   /*
     Now restore the "external" (e.g. "SET STATEMENT") Item list.

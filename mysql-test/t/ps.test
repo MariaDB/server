@@ -4578,3 +4578,60 @@ END;
 $$
 DELIMITER ;$$
 DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-14603 signal 11 with short stacktrace
+--echo #
+
+SET NAMES utf8;
+CREATE TABLE t1(i INT);
+CREATE PROCEDURE p1(tn VARCHAR(32))
+  EXECUTE IMMEDIATE CONCAT('ANALYZE TABLE ',tn);
+CALL p1('t1');
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+SET NAMES utf8;
+CREATE PROCEDURE p1()
+  EXECUTE IMMEDIATE CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+--disable_result_log
+CALL p1();
+--enable_result_log
+DROP PROCEDURE p1;
+
+SET NAMES utf8;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  PREPARE stmt FROM CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+$$
+DELIMITER ;$$
+--disable_result_log
+CALL p1();
+--enable_result_log
+DROP PROCEDURE p1;
+
+SET NAMES utf8;
+CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+  EXECUTE IMMEDIATE 'SELECT ?' USING CONCAT(a, CONVERT(RAND() USING latin1));
+--disable_result_log
+CALL p1('x');
+--enable_result_log
+DROP PROCEDURE p1;
+
+SET NAMES utf8;
+DELIMITER $$;
+CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+BEGIN
+  PREPARE stmt FROM 'SELECT ?';
+  EXECUTE stmt USING CONCAT(a, CONVERT(RAND() USING latin1));
+  DEALLOCATE PREPARE stmt;
+END;
+$$
+DELIMITER ;$$
+--disable_result_log
+CALL p1('x');
+DROP PROCEDURE p1;
