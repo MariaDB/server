@@ -213,8 +213,11 @@ static File open_error_msg_file(const char *file_name, const char *language,
                                O_RDONLY | O_SHARE | O_BINARY,
                                MYF(0))) < 0)
       goto err;
-    sql_print_warning("An old style --language or -lc-message-dir value with language specific part detected: %s", lc_messages_dir);
-    sql_print_warning("Use --lc-messages-dir without language specific part instead.");
+    if (global_system_variables.log_warnings > 2)
+    {
+      sql_print_warning("An old style --language or -lc-message-dir value with language specific part detected: %s", lc_messages_dir);
+      sql_print_warning("Use --lc-messages-dir without language specific part instead.");
+    }
   }
   error_pos=1;
   if (mysql_file_read(file, (uchar*) head, 32, MYF(MY_NABP)))
