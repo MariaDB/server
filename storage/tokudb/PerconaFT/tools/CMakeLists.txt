@@ -12,7 +12,7 @@ foreach(tool ${tools})
         (CMAKE_CXX_FLAGS_DEBUG MATCHES " -DENABLED_DEBUG_SYNC"))
       target_link_libraries(${tool} sql)
     endif()
-    target_link_libraries(${tool} perconaserverclient)
+    target_link_libraries(${tool} mysqlclient)
   endif ()
 
   add_space_separated_property(TARGET ${tool} COMPILE_FLAGS -fvisibility=hidden)

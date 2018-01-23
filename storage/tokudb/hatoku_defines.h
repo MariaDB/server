@@ -167,6 +167,14 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #define HA_CAN_WRITE_DURING_OPTIMIZE 0
 #endif
 
+#if !defined(HA_ONLINE_ANALYZE)
+#define HA_ONLINE_ANALYZE 0
+#endif
+
+#if !defined(MY_ATTRIBUTE)
+#define MY_ATTRIBUTE(A) __attribute__(A)
+#endif
+
 #if !defined(HA_OPTION_CREATE_FROM_ENGINE)
 #define HA_OPTION_CREATE_FROM_ENGINE 0
 #endif

@@ -120,8 +120,8 @@ handlerton* tokudb_hton;
 const char* ha_tokudb_ext = ".tokudb";
 DB_ENV* db_env;
 
-#if TOKU_THDVAR_MEMALLOC_BUG
 static tokudb::thread::mutex_t tokudb_map_mutex;
+#if TOKU_THDVAR_MEMALLOC_BUG
 static TREE tokudb_map;
 struct tokudb_map_pair {
     THD* thd;
