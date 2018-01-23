@@ -32,6 +32,20 @@ Created 25/5/2010 Sunny Bains
 #include "srv0start.h"
 #include "ha_prototypes.h"
 #include "lock0priv.h"
+#include "lock0iter.h"
+
+#include <sstream>
+
+extern "C"
+LEX_STRING* thd_query_string(MYSQL_THD thd);
+
+struct blocking_trx_info {
+	uint64_t trx_id;
+	uint32_t thread_id;
+	int64_t query_id;
+};
+
+static const size_t MAX_BLOCKING_TRX_IN_REPORT = 10;
 
 /*********************************************************************//**
 Print the contents of the lock_sys_t::waiting_threads array. */
@@ -184,6 +198,46 @@ lock_wait_table_reserve_slot(
 	return(NULL);
 }
 
+/** Print lock wait timeout info to stderr. It's supposed this function
+is executed in trx's THD thread as it calls some non-thread-safe
+functions to get some info from THD.
+@param[in]	trx	requested trx
+@param[in]	blocking	blocking info array
+@param[in]	blocking_count	blocking info array size */
+void
+print_lock_wait_timeout(
+	const trx_t &trx,
+	blocking_trx_info *blocking,
+	size_t blocking_count)
+{
+	std::ostringstream outs;
+
+	outs << "Lock wait timeout info:\n";
+	outs << "Requested thread id: " <<
+		thd_get_thread_id(trx.mysql_thd) <<
+		"\n";
+	outs << "Requested trx id: " << trx.id << "\n";
+	outs << "Requested query: " <<
+		thd_query_string(trx.mysql_thd)->str << "\n";
+
+	outs << "Total blocking transactions count: " <<
+		blocking_count <<
+		"\n";
+
+	for (size_t i = 0; i < blocking_count; ++i) {
+		outs << "Blocking transaction number: " << (i + 1) << "\n";
+		outs << "Blocking thread id: " <<
+			blocking[i].thread_id <<
+			"\n";
+		outs << "Blocking query id: " <<
+			blocking[i].query_id <<
+			"\n";
+		outs << "Blocking trx id: " << blocking[i].trx_id << "\n";
+	}
+	ut_print_timestamp(stderr);
+	fprintf(stderr, " %s", outs.str().c_str());
+}
+
 /***************************************************************//**
 Puts a user OS thread to wait for a lock to be released. If an error
 occurs during the wait trx->error_state associated with thr is
@@ -207,6 +261,8 @@ lock_wait_suspend_thread(
 	ulint		sec;
 	ulint		ms;
 	ulong		lock_wait_timeout;
+	blocking_trx_info blocking[MAX_BLOCKING_TRX_IN_REPORT];
+	size_t blocking_count = 0;
 
 	trx = thr_get_trx(thr);
 
@@ -272,6 +328,27 @@ lock_wait_suspend_thread(
 
 	if (const lock_t* wait_lock = trx->lock.wait_lock) {
 		lock_type = lock_get_type_low(wait_lock);
+		if (srv_print_lock_wait_timeout_info) {
+			lock_queue_iterator_t	iter;
+			const lock_t*		curr_lock;
+			lock_queue_iterator_reset(&iter, wait_lock, ULINT_UNDEFINED);
+			for (curr_lock = lock_queue_iterator_get_prev(&iter);
+				curr_lock != NULL;
+				curr_lock = lock_queue_iterator_get_prev(&iter)) {
+				if (lock_has_to_wait(trx->lock.wait_lock, curr_lock)) {
+					blocking[blocking_count].trx_id = lock_get_trx_id(curr_lock);
+					blocking[blocking_count].thread_id =
+						curr_lock->trx->mysql_thd ?
+						thd_get_thread_id(curr_lock->trx->mysql_thd) : 0;
+					blocking[blocking_count].query_id =
+					curr_lock->trx->mysql_thd ?
+						thd_get_query_id(curr_lock->trx->mysql_thd) : 0;
+					/* Only limited number of blocking transaction infos is implemented*/
+					if ((++blocking_count) >= MAX_BLOCKING_TRX_IN_REPORT)
+						break;
+				}
+			}
+		}
 	}
 
 	lock_mutex_exit();
@@ -377,6 +454,8 @@ lock_wait_suspend_thread(
 	    && wait_time > (double) lock_wait_timeout) {
 
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+		if (srv_print_lock_wait_timeout_info)
+			print_lock_wait_timeout(*trx, blocking, blocking_count);
 
 		MONITOR_INC(MONITOR_TIMEOUT);
 	}

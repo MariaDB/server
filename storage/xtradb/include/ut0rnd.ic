@@ -236,17 +236,17 @@ ut_fold_binary(
 
 	switch (len & 0x7) {
 	case 7:
-		fold = ut_fold_ulint_pair(fold, (ulint)(*str++));
+		fold = ut_fold_ulint_pair(fold, (ulint)(*str++)); // fallthrough
 	case 6:
-		fold = ut_fold_ulint_pair(fold, (ulint)(*str++));
+		fold = ut_fold_ulint_pair(fold, (ulint)(*str++)); // fallthrough
 	case 5:
-		fold = ut_fold_ulint_pair(fold, (ulint)(*str++));
+		fold = ut_fold_ulint_pair(fold, (ulint)(*str++)); // fallthrough
 	case 4:
-		fold = ut_fold_ulint_pair(fold, (ulint)(*str++));
+		fold = ut_fold_ulint_pair(fold, (ulint)(*str++)); // fallthrough
 	case 3:
-		fold = ut_fold_ulint_pair(fold, (ulint)(*str++));
+		fold = ut_fold_ulint_pair(fold, (ulint)(*str++)); // fallthrough
 	case 2:
-		fold = ut_fold_ulint_pair(fold, (ulint)(*str++));
+		fold = ut_fold_ulint_pair(fold, (ulint)(*str++)); // fallthrough
 	case 1:
 		fold = ut_fold_ulint_pair(fold, (ulint)(*str++));
 	}

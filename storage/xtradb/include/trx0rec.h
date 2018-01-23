@@ -233,7 +233,7 @@ trx_undo_report_row_operation(
 					inserted undo log record,
 					0 if BTR_NO_UNDO_LOG
 					flag was specified */
-	MY_ATTRIBUTE((nonnull(3,4,10), warn_unused_result));
+	MY_ATTRIBUTE((nonnull(4,10), warn_unused_result));
 /******************************************************************//**
 Copies an undo record to heap. This function can be called if we know that
 the undo log record exists.

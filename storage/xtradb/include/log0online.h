@@ -129,7 +129,11 @@ log_online_bitmap_iterator_next(
 
 /** Struct for single bitmap file information */
 struct log_online_bitmap_file_struct {
-	char		name[FN_REFLEN];	/*!< Name with full path */
+	/** Name with full path
+	    61 is a nice magic constant for the extra space needed for the sprintf
+	    template in the cc file
+	*/
+	char		name[FN_REFLEN+61];
 	pfs_os_file_t	file;			/*!< Handle to opened file */
 	ib_uint64_t	size;			/*!< Size of the file */
 	os_offset_t	offset;			/*!< Offset of the next read,

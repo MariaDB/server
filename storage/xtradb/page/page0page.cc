@@ -2832,7 +2832,7 @@ page_warn_strict_checksum(
 	ulint				space_id,
 	ulint				page_no)
 {
-	srv_checksum_algorithm_t	curr_algo_nonstrict;
+	srv_checksum_algorithm_t	curr_algo_nonstrict = srv_checksum_algorithm_t();
 	switch (curr_algo) {
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 		curr_algo_nonstrict = SRV_CHECKSUM_ALGORITHM_CRC32;

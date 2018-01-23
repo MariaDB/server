@@ -488,8 +488,8 @@ row_purge_remove_sec_if_poss_leaf(
 				success = false;
 			}
 		}
-		/* fall through (the index entry is still needed,
-		or the deletion succeeded) */
+		// fallthrough
+		// (the index entry is still needed, or the deletion succeeded)
 	case ROW_NOT_DELETED_REF:
 		/* The index entry is still needed. */
 	case ROW_BUFFERED:

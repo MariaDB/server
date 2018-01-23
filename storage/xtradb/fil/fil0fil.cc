@@ -5253,7 +5253,7 @@ retry:
 		success = os_aio(OS_FILE_WRITE, OS_AIO_SYNC,
 				 node->name, node->handle, buf,
 				 offset, page_size * n_pages,
-				 NULL, NULL, space_id, NULL);
+				 NULL, NULL, space_id, NULL, false);
 #endif /* UNIV_HOTBACKUP */
 		if (success) {
 			os_has_said_disk_full = FALSE;
@@ -5630,7 +5630,12 @@ _fil_io(
 				appropriately aligned */
 	void*	message,	/*!< in: message for aio handler if non-sync
 				aio used, else ignored */
-	trx_t*	trx)
+	trx_t*	trx,
+	bool	should_buffer)	/*!< in: whether to buffer an aio request.
+				AIO read ahead uses this. If you plan to
+				use this parameter, make sure you remember
+				to call os_aio_dispatch_read_array_submit()
+				when you're ready to commit all your requests.*/
 {
 	ulint		mode;
 	fil_space_t*	space;
@@ -5848,7 +5853,7 @@ _fil_io(
 
 	/* Queue the aio request */
 	ret = os_aio(type, mode | wake_later, node->name, node->handle, buf,
-		offset, len, node, message, space_id, trx);
+		offset, len, node, message, space_id, trx, should_buffer);
 
 #else
 	/* In mysqlbackup do normal i/o, not aio */

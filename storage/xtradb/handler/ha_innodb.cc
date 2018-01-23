@@ -1000,6 +1000,24 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_sec_rec_cluster_reads,	  SHOW_LONG},
   {"secondary_index_triggered_cluster_reads_avoided",
   (char*) &export_vars.innodb_sec_rec_cluster_reads_avoided, SHOW_LONG},
+  {"buffered_aio_submitted",
+  (char*) &export_vars.innodb_buffered_aio_submitted,	  SHOW_LONG},
+
+  {"scan_pages_contiguous",
+  (char*) &export_vars.innodb_fragmentation_stats.scan_pages_contiguous,
+  SHOW_LONG},
+  {"scan_pages_disjointed",
+  (char*) &export_vars.innodb_fragmentation_stats.scan_pages_disjointed,
+  SHOW_LONG},
+  {"scan_pages_total_seek_distance",
+  (char*) &export_vars.innodb_fragmentation_stats.scan_pages_total_seek_distance,
+  SHOW_LONG},
+  {"scan_data_size",
+  (char*) &export_vars.innodb_fragmentation_stats.scan_data_size,
+  SHOW_LONG},
+  {"scan_deleted_recs_size",
+  (char*) &export_vars.innodb_fragmentation_stats.scan_deleted_recs_size,
+  SHOW_LONG},
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -2847,7 +2865,7 @@ ha_innobase::ha_innobase(
 		  HA_BINLOG_ROW_CAPABLE |
 		  HA_CAN_GEOMETRY | HA_PARTIAL_COLUMN_READ |
 		  HA_TABLE_SCAN_ON_INDEX | HA_CAN_FULLTEXT |
-		  HA_CAN_FULLTEXT_EXT | HA_CAN_EXPORT),
+		  HA_CAN_FULLTEXT_EXT | HA_CAN_EXPORT | HA_ONLINE_ANALYZE),
 	start_of_scan(0),
 	num_write_row(0)
 {}
@@ -7608,7 +7626,8 @@ ha_innobase::innobase_lock_autoinc(void)
 				break;
 			}
 		}
-		/* Fall through to old style locking. */
+		// fallthrough
+		// to old style locking.
 
 	case AUTOINC_OLD_STYLE_LOCKING:
 		DBUG_EXECUTE_IF("die_if_autoinc_old_lock_style_used",
@@ -10312,7 +10331,8 @@ create_options_are_invalid(
 	case ROW_TYPE_DYNAMIC:
 		CHECK_ERROR_ROW_TYPE_NEEDS_FILE_PER_TABLE(use_tablespace);
 		CHECK_ERROR_ROW_TYPE_NEEDS_GT_ANTELOPE;
-		/* fall through since dynamic also shuns KBS */
+		// fallthrough
+		// since dynamic also shuns KBS
 	case ROW_TYPE_COMPACT:
 	case ROW_TYPE_REDUNDANT:
 		if (kbs_specified) {
@@ -10700,7 +10720,8 @@ index_bad:
 			break;
 		}
 		zip_allowed = FALSE;
-		/* fall through to set row_format = COMPACT */
+		// fallthrough
+		// to set row_format = COMPACT
 	case ROW_TYPE_NOT_USED:
 	case ROW_TYPE_FIXED:
 	case ROW_TYPE_PAGE:
@@ -10709,9 +10730,11 @@ index_bad:
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_ILLEGAL_HA_CREATE_OPTION,
 			"InnoDB: assuming ROW_FORMAT=COMPACT.");
+		// fallthrough
 	case ROW_TYPE_DEFAULT:
 		/* If we fell through, set row format to Compact. */
 		row_format = ROW_TYPE_COMPACT;
+		// fallthrough
 	case ROW_TYPE_COMPACT:
 		break;
 	}
@@ -17537,7 +17560,7 @@ buffer_pool_load_now(
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
-	if (*(my_bool*) save) {
+	if (*(my_bool*) save && !srv_read_only_mode) {
 		buf_load_start();
 	}
 }
@@ -18649,6 +18672,13 @@ static MYSQL_SYSVAR_BOOL(print_all_deadlocks, srv_print_all_deadlocks,
   "Print all deadlocks to MySQL error log (off by default)",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_BOOL(
+  print_lock_wait_timeout_info,
+  srv_print_lock_wait_timeout_info,
+  PLUGIN_VAR_OPCMDARG,
+  "Print lock wait timeout info to MySQL error log (off by default)",
+  NULL, NULL, FALSE);
+
 static MYSQL_SYSVAR_ULONG(compression_failure_threshold_pct,
   zip_failure_threshold_pct, PLUGIN_VAR_OPCMDARG,
   "If the compression failure rate of a table is greater than this number"
@@ -18921,6 +18951,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(foreground_preflush),
   MYSQL_SYSVAR(empty_free_list_algorithm),
   MYSQL_SYSVAR(print_all_deadlocks),
+  MYSQL_SYSVAR(print_lock_wait_timeout_info),
   MYSQL_SYSVAR(cmp_per_index_enabled),
   MYSQL_SYSVAR(undo_logs),
   MYSQL_SYSVAR(rollback_segments),

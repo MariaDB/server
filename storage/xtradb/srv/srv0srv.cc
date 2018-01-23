@@ -428,6 +428,10 @@ UNIV_INTERN ulong	srv_force_recovery_crash;
 
 UNIV_INTERN my_bool	srv_print_all_deadlocks = FALSE;
 
+/** Print lock wait timeout info to mysqld stderr */
+
+my_bool	srv_print_lock_wait_timeout_info = FALSE;
+
 /** Enable INFORMATION_SCHEMA.innodb_cmp_per_index */
 UNIV_INTERN my_bool	srv_cmp_per_index_enabled = FALSE;
 
@@ -1907,6 +1911,12 @@ srv_export_innodb_status(void)
 		srv_sec_rec_cluster_reads;
 	export_vars.innodb_sec_rec_cluster_reads_avoided =
 		srv_sec_rec_cluster_reads_avoided;
+
+	export_vars.innodb_buffered_aio_submitted =
+		srv_stats.n_aio_submitted;
+
+	thd_get_fragmentation_stats(current_thd,
+		&export_vars.innodb_fragmentation_stats);
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 }
