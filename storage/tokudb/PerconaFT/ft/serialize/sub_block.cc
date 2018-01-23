@@ -51,6 +51,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "util/threadpool.h"
 #include "util/x1764.h"
 
+toku_instr_key *workset_lock_mutex_key;
+toku_instr_key *ws_worker_wait_key;
+
 SUB_BLOCK sub_block_creat(void) {
     SUB_BLOCK XMALLOC(sb);
     sub_block_init(sb);

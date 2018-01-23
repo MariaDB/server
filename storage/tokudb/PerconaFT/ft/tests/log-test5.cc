@@ -81,14 +81,14 @@ test_main (int argc __attribute__((__unused__)),
 	struct dirent *dirent;
 	while ((dirent=readdir(dir))) {
 	    if (strncmp(dirent->d_name, "log", 3)!=0) continue;
-	    char fname[TOKU_PATH_MAX+1];
-            toku_path_join(fname, 2, TOKU_TEST_FILENAME, dirent->d_name);
-	    toku_struct_stat statbuf;
-	    r = toku_stat(fname, &statbuf);
-	    assert(r==0);
-	    assert(statbuf.st_size<=LSIZE+10);
-	}
-	r = closedir(dir);
+        char fname[TOKU_PATH_MAX + 1];
+        toku_path_join(fname, 2, TOKU_TEST_FILENAME, dirent->d_name);
+        toku_struct_stat statbuf;
+        r = toku_stat(fname, &statbuf, toku_uninstrumented);
+        assert(r == 0);
+        assert(statbuf.st_size <= LSIZE + 10);
+    }
+    r = closedir(dir);
 	assert(r==0);
     }
     toku_os_recursive_delete(TOKU_TEST_FILENAME);

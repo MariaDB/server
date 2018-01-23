@@ -43,6 +43,8 @@ Warnings:
 Warning	1265	Data truncated for column 'c19' at row 1
 UPDATE t SET c27=0;
 ALTER TABLE t ROW_FORMAT=FIXED KEY_BLOCK_SIZE=1;
+Warnings:
+Warning	1478	TokuDB: invalid ROW_FORMAT specifier.
 UPDATE t SET c27=0;
 set tokudb_disable_hot_alter=0;
 set tokudb_disable_slow_alter=1;

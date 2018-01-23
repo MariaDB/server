@@ -444,14 +444,15 @@ static void print_db_key_range_struct (void) {
     sort_and_dump_fields("db_key_range", false, NULL);
 }
 
-static void print_db_lsn_struct (void) {
-    field_counter=0;
-    /* A dummy field to make sizeof(DB_LSN) equal in C and C++ */
-    const char *extra[] = { "char dummy", NULL };
-    sort_and_dump_fields("db_lsn", false, extra);
+static void print_db_lsn_struct(void) {
+    field_counter = 0;
+    // FT-692
+    STRUCT_SETUP(DB_LSN, file, "uint32_t %s");
+    STRUCT_SETUP(DB_LSN, offset, "uint32_t %s");
+    sort_and_dump_fields("db_lsn", false, NULL);
 }
 
-static void print_dbt_struct (void) {
+static void print_dbt_struct(void) {
     field_counter=0;
 #if 0 && DB_VERSION_MAJOR==4 && DB_VERSION_MINOR==1
     STRUCT_SETUP(DBT, app_private, "void*%s");

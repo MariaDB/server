@@ -174,11 +174,11 @@ bool destroy();
 
 inline void job_manager_t::lock() {
     assert_debug(!_mutex.is_owned_by_me());
-    _mutex.lock();
+    mutex_t_lock(_mutex);
 }
 inline void job_manager_t::unlock() {
     assert_debug(_mutex.is_owned_by_me());
-    _mutex.unlock();
+    mutex_t_unlock(_mutex);
 }
 
 inline void job_manager_t::job_t::run() {

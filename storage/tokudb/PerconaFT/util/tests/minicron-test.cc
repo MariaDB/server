@@ -206,11 +206,12 @@ test_main (int argc, const char *argv[]) {
     toku_pthread_t tests[N];
 
     unsigned int i;
-    for (i=0; i<N; i++) {
-        int r=toku_pthread_create(tests+i, 0, testfuns[i], 0);
-        assert(r==0);
+    for (i = 0; i < N; i++) {
+        int r = toku_pthread_create(
+            toku_uninstrumented, tests + i, nullptr, testfuns[i], nullptr);
+        assert(r == 0);
     }
-    for (i=0; i<N; i++) {
+    for (i = 0; i < N; i++) {
         void *v;
         int r=toku_pthread_join(tests[i], &v);
         assert(r==0);

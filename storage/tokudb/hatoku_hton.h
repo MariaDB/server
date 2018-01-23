@@ -39,6 +39,9 @@ extern handlerton* tokudb_hton;
 
 extern DB_ENV* db_env;
 
+extern pfs_key_t ha_tokudb_mutex_key;
+extern pfs_key_t num_DBs_lock_key;
+
 inline tokudb::sysvars::row_format_t toku_compression_method_to_row_format(
     toku_compression_method method) {
 
@@ -180,9 +183,7 @@ inline bool tokudb_killed_thd_callback(void *extra, uint64_t deleted_rows) {
     return thd_killed(thd) != 0;
 }
 
-
 extern HASH tokudb_open_tables;
-extern tokudb::thread::mutex_t tokudb_mutex;
 extern const char* tokudb_hton_name;
 extern int tokudb_hton_initialized;
 extern tokudb::thread::rwlock_t tokudb_hton_initialized_lock;
