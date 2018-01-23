@@ -1288,6 +1288,25 @@ public:
 };
 
 
+class Item_change_list_savepoint: public Item_change_list
+{
+public:
+  Item_change_list_savepoint(Item_change_list *list)
+  {
+    list->move_elements_to(this);
+  }
+  void rollback(Item_change_list *list)
+  {
+    list->rollback_item_tree_changes();
+    move_elements_to(list);
+  }
+  ~Item_change_list_savepoint()
+  {
+    DBUG_ASSERT(is_empty());
+  }
+};
+
+
 /**
   Type of locked tables mode.
   See comment for THD::locked_tables_mode for complete description.

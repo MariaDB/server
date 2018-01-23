@@ -16742,7 +16742,7 @@ innodb_show_mutex_status(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	mutex_monitor->iterate(collector);
+	mutex_monitor.iterate(collector);
 
 	if (!collector.to_string(hton, thd, stat_print)) {
 		DBUG_RETURN(1);
@@ -17888,12 +17888,14 @@ innobase_commit_by_xid(
 	}
 
 	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
-		TrxInInnoDB	trx_in_innodb(trx);
-
-		innobase_commit_low(trx);
-		ut_ad(trx->mysql_thd == NULL);
+		ut_ad(trx->in_innodb & TRX_FORCE_ROLLBACK_DISABLE);
 		/* use cases are: disconnected xa, slave xa, recovery */
-		trx_deregister_from_2pc(trx);
+		{
+			TrxInInnoDB	trx_in_innodb(trx);
+			innobase_commit_low(trx);
+			ut_ad(trx->mysql_thd == NULL);
+			trx_deregister_from_2pc(trx);
+		}
 		ut_ad(!trx->will_lock);    /* trx cache requirement */
 		trx_free_for_background(trx);
 
@@ -17922,12 +17924,14 @@ innobase_rollback_by_xid(
 	}
 
 	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
-		TrxInInnoDB	trx_in_innodb(trx);
-
-		int	ret = innobase_rollback_trx(trx);
-
-		trx_deregister_from_2pc(trx);
-		ut_ad(!trx->will_lock);
+		int ret;
+		ut_ad(trx->in_innodb & TRX_FORCE_ROLLBACK_DISABLE);
+		{
+			TrxInInnoDB	trx_in_innodb(trx);
+			ret = innobase_rollback_trx(trx);
+			trx_deregister_from_2pc(trx);
+			ut_ad(!trx->will_lock);
+		}
 		trx_free_for_background(trx);
 
 		return(ret);
@@ -18910,7 +18914,7 @@ innodb_monitor_set_option(
 
 		if (MONITOR_IS_ON(MONITOR_LATCHES)) {
 
-			mutex_monitor->enable();
+			mutex_monitor.enable();
 		}
 		break;
 
@@ -18925,7 +18929,7 @@ innodb_monitor_set_option(
 
 		if (!MONITOR_IS_ON(MONITOR_LATCHES)) {
 
-			mutex_monitor->disable();
+			mutex_monitor.disable();
 		}
 		break;
 
@@ -18934,13 +18938,13 @@ innodb_monitor_set_option(
 
 		if (monitor_id == (MONITOR_LATCHES)) {
 
-			mutex_monitor->reset();
+			mutex_monitor.reset();
 		}
 		break;
 
 	case MONITOR_RESET_ALL_VALUE:
 		srv_mon_reset_all(monitor_id);
-		mutex_monitor->reset();
+		mutex_monitor.reset();
 		break;
 
 	default:

@@ -2733,7 +2733,15 @@ bool JOIN::make_aggr_tables_info()
         curr_tab->having= having;
         having->update_used_tables();
       }
-      curr_tab->distinct= true;
+      /*
+        We only need DISTINCT operation if the join is not degenerate.
+        If it is, we must not request DISTINCT processing, because
+        remove_duplicates() assumes there is a preceding computation step (and
+        in the degenerate join, there's none)
+      */
+      if (top_join_tab_count)
+        curr_tab->distinct= true;
+
       having= NULL;
       select_distinct= false;
     }

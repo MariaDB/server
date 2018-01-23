@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4492,7 +4492,7 @@ ibuf_merge_or_delete_for_page(
 			return;
 		}
 
-		space = fil_space_acquire(page_id.space());
+		space = fil_space_acquire_silent(page_id.space());
 
 		if (UNIV_UNLIKELY(!space)) {
 			/* Do not try to read the bitmap page from the
