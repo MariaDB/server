@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -500,7 +501,7 @@ buf_buddy_free_low(
 
 	buf_pool->buddy_stat[i].used--;
 recombine:
-	UNIV_MEM_ASSERT_AND_ALLOC(buf, BUF_BUDDY_LOW << i);
+	UNIV_MEM_ALLOC(buf, BUF_BUDDY_LOW << i);
 	((buf_page_t*) buf)->state = BUF_BLOCK_ZIP_FREE;
 
 	if (i == BUF_BUDDY_SIZES) {
