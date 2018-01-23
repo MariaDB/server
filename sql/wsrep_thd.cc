@@ -24,7 +24,7 @@
 #include "mysqld.h"   // start_wsrep_THD();
 #include "wsrep_applier.h"   // start_wsrep_THD();
 #include "wsrep_sr.h"        // wsrep_abort_SR_THD();
-
+#include "mysql/service_wsrep.h" // wsrep_thd_awake(); 
 #include "slave.h"    // opt_log_slave_updates
 #include "rpl_filter.h"
 #include "rpl_rli.h"
@@ -32,7 +32,6 @@
 
 #include "debug_sync.h"
 
-static long long wsrep_bf_aborts_counter = 0;
 static Wsrep_thd_queue* wsrep_rollback_queue = 0;
 static Wsrep_thd_queue* wsrep_post_rollback_queue = 0;
 
@@ -118,7 +117,7 @@ void wsrep_post_rollback(THD *thd)
 
   if (thd->wsrep_trx_has_seqno())
   {
-    if (!gtid_mode)
+    if (!wsrep_gtid_mode)
     {
       void* ptr= NULL;
       size_t len= 0;

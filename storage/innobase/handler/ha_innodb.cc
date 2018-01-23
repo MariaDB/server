@@ -19650,9 +19650,9 @@ wsrep_innobase_kill_one_trx(
 			wsrep_thd_awake(thd, signal); 
 		} else {
 			/* abort currently executing query */
-			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %ld", 
+			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %llu", 
 				wsrep_thd_thread_id(thd)));
-			WSREP_DEBUG("kill query for: %ld",
+			WSREP_DEBUG("kill query for: %llu",
 				wsrep_thd_thread_id(thd));
 			wsrep_thd_awake(thd, signal); 
 		}
