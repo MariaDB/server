@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -2843,7 +2843,9 @@ pc_flush_slot(void)
 
 	mutex_enter(&page_cleaner->mutex);
 
-	if (page_cleaner->n_slots_requested > 0) {
+	if (!page_cleaner->n_slots_requested) {
+		os_event_reset(page_cleaner->is_requested);
+	} else {
 		page_cleaner_slot_t*	slot = NULL;
 		ulint			i;
 
@@ -2865,14 +2867,14 @@ pc_flush_slot(void)
 		page_cleaner->n_slots_flushing++;
 		slot->state = PAGE_CLEANER_STATE_FLUSHING;
 
-		if (page_cleaner->n_slots_requested == 0) {
-			os_event_reset(page_cleaner->is_requested);
-		}
-
-		if (!page_cleaner->is_running) {
+		if (UNIV_UNLIKELY(!page_cleaner->is_running)) {
 			slot->n_flushed_lru = 0;
 			slot->n_flushed_list = 0;
 			goto finish_mutex;
+		}
+
+		if (page_cleaner->n_slots_requested == 0) {
+			os_event_reset(page_cleaner->is_requested);
 		}
 
 		mutex_exit(&page_cleaner->mutex);
@@ -2885,7 +2887,7 @@ pc_flush_slot(void)
 		lru_tm = ut_time_ms() - lru_tm;
 		lru_pass++;
 
-		if (!page_cleaner->is_running) {
+		if (UNIV_UNLIKELY(!page_cleaner->is_running)) {
 			slot->n_flushed_list = 0;
 			goto finish;
 		}
