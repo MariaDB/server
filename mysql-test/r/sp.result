@@ -8184,3 +8184,31 @@ END
 |
 CALL p1();
 DROP PROCEDURE p1;
+#
+# MDEV-15057 Crash when using an unknown identifier as an SP parameter
+#
+CREATE OR REPLACE PROCEDURE p1 (a VARCHAR(10)) SELECT 1;
+CALL p1(a);
+ERROR 42S22: Unknown column 'a' in 'field list'
+drop procedure p1;
+CREATE OR REPLACE PROCEDURE p1 (a VARCHAR(10)) SELECT a|
+CREATE OR REPLACE PROCEDURE p2 ()
+BEGIN
+DECLARE name VARCHAR(10);
+SET name="hello";
+call p1(name);
+END|
+CREATE OR REPLACE PROCEDURE p3 ()
+BEGIN
+DECLARE name VARCHAR(10);
+SET name="hello";
+call p1(name2);
+END|
+call p2();
+a
+hello
+call p3();
+ERROR 42S22: Unknown column 'name2' in 'field list'
+drop procedure p1;
+drop procedure p2;
+drop procedure p3;
