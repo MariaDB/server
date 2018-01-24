@@ -174,7 +174,7 @@ struct page_cleaner_t {
 						requests for all slots */
 	ulint			flush_pass;	/*!< count to finish to flush
 						requests for all slots */
-	page_cleaner_slot_t*	slots;		/*!< pointer to the slots */
+	page_cleaner_slot_t	slots[MAX_BUFFER_POOLS];
 	bool			is_running;	/*!< false if attempt
 						to shutdown */
 
@@ -185,7 +185,7 @@ struct page_cleaner_t {
 #endif /* UNIV_DEBUG */
 };
 
-static page_cleaner_t*	page_cleaner = NULL;
+static page_cleaner_t	page_cleaner;
 
 #ifdef UNIV_DEBUG
 my_bool innodb_page_cleaner_disabled_debug;
@@ -2514,23 +2514,23 @@ page_cleaner_flush_pages_recommendation(
 		lsn_avg_rate = (lsn_avg_rate + lsn_rate) / 2;
 
 		/* aggregate stats of all slots */
-		mutex_enter(&page_cleaner->mutex);
+		mutex_enter(&page_cleaner.mutex);
 
-		ulint	flush_tm = page_cleaner->flush_time;
-		ulint	flush_pass = page_cleaner->flush_pass;
+		ulint	flush_tm = page_cleaner.flush_time;
+		ulint	flush_pass = page_cleaner.flush_pass;
 
-		page_cleaner->flush_time = 0;
-		page_cleaner->flush_pass = 0;
+		page_cleaner.flush_time = 0;
+		page_cleaner.flush_pass = 0;
 
 		ulint	lru_tm = 0;
 		ulint	list_tm = 0;
 		ulint	lru_pass = 0;
 		ulint	list_pass = 0;
 
-		for (ulint i = 0; i < page_cleaner->n_slots; i++) {
+		for (ulint i = 0; i < page_cleaner.n_slots; i++) {
 			page_cleaner_slot_t*	slot;
 
-			slot = &page_cleaner->slots[i];
+			slot = &page_cleaner.slots[i];
 
 			lru_tm    += slot->flush_lru_time;
 			lru_pass  += slot->flush_lru_pass;
@@ -2543,7 +2543,7 @@ page_cleaner_flush_pages_recommendation(
 			slot->flush_list_pass = 0;
 		}
 
-		mutex_exit(&page_cleaner->mutex);
+		mutex_exit(&page_cleaner.mutex);
 
 		/* minimum values are 1, to avoid dividing by zero. */
 		if (lru_tm < 1) {
@@ -2584,9 +2584,9 @@ page_cleaner_flush_pages_recommendation(
 		MONITOR_SET(MONITOR_FLUSH_AVG_TIME, flush_tm / flush_pass);
 
 		MONITOR_SET(MONITOR_FLUSH_ADAPTIVE_AVG_PASS,
-			    list_pass / page_cleaner->n_slots);
+			    list_pass / page_cleaner.n_slots);
 		MONITOR_SET(MONITOR_LRU_BATCH_FLUSH_AVG_PASS,
-			    lru_pass / page_cleaner->n_slots);
+			    lru_pass / page_cleaner.n_slots);
 		MONITOR_SET(MONITOR_FLUSH_AVG_PASS, flush_pass);
 
 		prev_lsn = cur_lsn;
@@ -2630,12 +2630,12 @@ page_cleaner_flush_pages_recommendation(
 
 		sum_pages_for_lsn += pages_for_lsn;
 
-		mutex_enter(&page_cleaner->mutex);
-		ut_ad(page_cleaner->slots[i].state
+		mutex_enter(&page_cleaner.mutex);
+		ut_ad(page_cleaner.slots[i].state
 		      == PAGE_CLEANER_STATE_NONE);
-		page_cleaner->slots[i].n_pages_requested
+		page_cleaner.slots[i].n_pages_requested
 			= pages_for_lsn / buf_flush_lsn_scan_factor + 1;
-		mutex_exit(&page_cleaner->mutex);
+		mutex_exit(&page_cleaner.mutex);
 	}
 
 	sum_pages_for_lsn /= buf_flush_lsn_scan_factor;
@@ -2655,20 +2655,20 @@ page_cleaner_flush_pages_recommendation(
 	}
 
 	/* Normalize request for each instance */
-	mutex_enter(&page_cleaner->mutex);
-	ut_ad(page_cleaner->n_slots_requested == 0);
-	ut_ad(page_cleaner->n_slots_flushing == 0);
-	ut_ad(page_cleaner->n_slots_finished == 0);
+	mutex_enter(&page_cleaner.mutex);
+	ut_ad(page_cleaner.n_slots_requested == 0);
+	ut_ad(page_cleaner.n_slots_flushing == 0);
+	ut_ad(page_cleaner.n_slots_finished == 0);
 
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 		/* if REDO has enough of free space,
 		don't care about age distribution of pages */
-		page_cleaner->slots[i].n_pages_requested = pct_for_lsn > 30 ?
-			page_cleaner->slots[i].n_pages_requested
+		page_cleaner.slots[i].n_pages_requested = pct_for_lsn > 30 ?
+			page_cleaner.slots[i].n_pages_requested
 			* n_pages / sum_pages_for_lsn + 1
 			: n_pages / srv_buf_pool_instances;
 	}
-	mutex_exit(&page_cleaner->mutex);
+	mutex_exit(&page_cleaner.mutex);
 
 	MONITOR_SET(MONITOR_FLUSH_N_TO_FLUSH_REQUESTED, n_pages);
 
@@ -2727,25 +2727,18 @@ void
 buf_flush_page_cleaner_init(void)
 /*=============================*/
 {
-	ut_ad(page_cleaner == NULL);
+	ut_ad(!page_cleaner.is_running);
 
-	page_cleaner = static_cast<page_cleaner_t*>(
-		ut_zalloc_nokey(sizeof(*page_cleaner)));
+	mutex_create(LATCH_ID_PAGE_CLEANER, &page_cleaner.mutex);
 
-	mutex_create(LATCH_ID_PAGE_CLEANER, &page_cleaner->mutex);
+	page_cleaner.is_requested = os_event_create("pc_is_requested");
+	page_cleaner.is_finished = os_event_create("pc_is_finished");
 
-	page_cleaner->is_requested = os_event_create("pc_is_requested");
-	page_cleaner->is_finished = os_event_create("pc_is_finished");
+	page_cleaner.n_slots = static_cast<ulint>(srv_buf_pool_instances);
 
-	page_cleaner->n_slots = static_cast<ulint>(srv_buf_pool_instances);
+	ut_d(page_cleaner.n_disabled_debug = 0);
 
-	page_cleaner->slots = static_cast<page_cleaner_slot_t*>(
-		ut_zalloc_nokey(page_cleaner->n_slots
-				* sizeof(*page_cleaner->slots)));
-
-	ut_d(page_cleaner->n_disabled_debug = 0);
-
-	page_cleaner->is_running = true;
+	page_cleaner.is_running = true;
 }
 
 /**
@@ -2754,21 +2747,17 @@ static
 void
 buf_flush_page_cleaner_close(void)
 {
+	ut_ad(!page_cleaner.is_running);
+
 	/* waiting for all worker threads exit */
-	while (page_cleaner->n_workers > 0) {
+	while (page_cleaner.n_workers) {
 		os_thread_sleep(10000);
 	}
 
-	mutex_destroy(&page_cleaner->mutex);
+	mutex_destroy(&page_cleaner.mutex);
 
-	ut_free(page_cleaner->slots);
-
-	os_event_destroy(page_cleaner->is_finished);
-	os_event_destroy(page_cleaner->is_requested);
-
-	ut_free(page_cleaner);
-
-	page_cleaner = NULL;
+	os_event_destroy(page_cleaner.is_finished);
+	os_event_destroy(page_cleaner.is_requested);
 }
 
 /**
@@ -2794,17 +2783,17 @@ pc_request(
 			/ srv_buf_pool_instances;
 	}
 
-	mutex_enter(&page_cleaner->mutex);
+	mutex_enter(&page_cleaner.mutex);
 
-	ut_ad(page_cleaner->n_slots_requested == 0);
-	ut_ad(page_cleaner->n_slots_flushing == 0);
-	ut_ad(page_cleaner->n_slots_finished == 0);
+	ut_ad(page_cleaner.n_slots_requested == 0);
+	ut_ad(page_cleaner.n_slots_flushing == 0);
+	ut_ad(page_cleaner.n_slots_finished == 0);
 
-	page_cleaner->requested = (min_n > 0);
-	page_cleaner->lsn_limit = lsn_limit;
+	page_cleaner.requested = (min_n > 0);
+	page_cleaner.lsn_limit = lsn_limit;
 
-	for (ulint i = 0; i < page_cleaner->n_slots; i++) {
-		page_cleaner_slot_t* slot = &page_cleaner->slots[i];
+	for (ulint i = 0; i < page_cleaner.n_slots; i++) {
+		page_cleaner_slot_t* slot = &page_cleaner.slots[i];
 
 		ut_ad(slot->state == PAGE_CLEANER_STATE_NONE);
 
@@ -2820,13 +2809,13 @@ pc_request(
 		slot->state = PAGE_CLEANER_STATE_REQUESTED;
 	}
 
-	page_cleaner->n_slots_requested = page_cleaner->n_slots;
-	page_cleaner->n_slots_flushing = 0;
-	page_cleaner->n_slots_finished = 0;
+	page_cleaner.n_slots_requested = page_cleaner.n_slots;
+	page_cleaner.n_slots_flushing = 0;
+	page_cleaner.n_slots_finished = 0;
 
-	os_event_set(page_cleaner->is_requested);
+	os_event_set(page_cleaner.is_requested);
 
-	mutex_exit(&page_cleaner->mutex);
+	mutex_exit(&page_cleaner.mutex);
 }
 
 /**
@@ -2841,16 +2830,16 @@ pc_flush_slot(void)
 	int	lru_pass = 0;
 	int	list_pass = 0;
 
-	mutex_enter(&page_cleaner->mutex);
+	mutex_enter(&page_cleaner.mutex);
 
-	if (!page_cleaner->n_slots_requested) {
-		os_event_reset(page_cleaner->is_requested);
+	if (!page_cleaner.n_slots_requested) {
+		os_event_reset(page_cleaner.is_requested);
 	} else {
 		page_cleaner_slot_t*	slot = NULL;
 		ulint			i;
 
-		for (i = 0; i < page_cleaner->n_slots; i++) {
-			slot = &page_cleaner->slots[i];
+		for (i = 0; i < page_cleaner.n_slots; i++) {
+			slot = &page_cleaner.slots[i];
 
 			if (slot->state == PAGE_CLEANER_STATE_REQUESTED) {
 				break;
@@ -2858,26 +2847,26 @@ pc_flush_slot(void)
 		}
 
 		/* slot should be found because
-		page_cleaner->n_slots_requested > 0 */
-		ut_a(i < page_cleaner->n_slots);
+		page_cleaner.n_slots_requested > 0 */
+		ut_a(i < page_cleaner.n_slots);
 
 		buf_pool_t* buf_pool = buf_pool_from_array(i);
 
-		page_cleaner->n_slots_requested--;
-		page_cleaner->n_slots_flushing++;
+		page_cleaner.n_slots_requested--;
+		page_cleaner.n_slots_flushing++;
 		slot->state = PAGE_CLEANER_STATE_FLUSHING;
 
-		if (UNIV_UNLIKELY(!page_cleaner->is_running)) {
+		if (UNIV_UNLIKELY(!page_cleaner.is_running)) {
 			slot->n_flushed_lru = 0;
 			slot->n_flushed_list = 0;
 			goto finish_mutex;
 		}
 
-		if (page_cleaner->n_slots_requested == 0) {
-			os_event_reset(page_cleaner->is_requested);
+		if (page_cleaner.n_slots_requested == 0) {
+			os_event_reset(page_cleaner.is_requested);
 		}
 
-		mutex_exit(&page_cleaner->mutex);
+		mutex_exit(&page_cleaner.mutex);
 
 		lru_tm = ut_time_ms();
 
@@ -2887,13 +2876,13 @@ pc_flush_slot(void)
 		lru_tm = ut_time_ms() - lru_tm;
 		lru_pass++;
 
-		if (UNIV_UNLIKELY(!page_cleaner->is_running)) {
+		if (UNIV_UNLIKELY(!page_cleaner.is_running)) {
 			slot->n_flushed_list = 0;
 			goto finish;
 		}
 
 		/* Flush pages from flush_list if required */
-		if (page_cleaner->requested) {
+		if (page_cleaner.requested) {
 			flush_counters_t n;
 			memset(&n, 0, sizeof(flush_counters_t));
 			list_tm = ut_time_ms();
@@ -2901,7 +2890,7 @@ pc_flush_slot(void)
 			slot->succeeded_list = buf_flush_do_batch(
 				buf_pool, BUF_FLUSH_LIST,
 				slot->n_pages_requested,
-				page_cleaner->lsn_limit,
+				page_cleaner.lsn_limit,
 				&n);
 
 			slot->n_flushed_list = n.flushed;
@@ -2913,10 +2902,10 @@ pc_flush_slot(void)
 			slot->succeeded_list = true;
 		}
 finish:
-		mutex_enter(&page_cleaner->mutex);
+		mutex_enter(&page_cleaner.mutex);
 finish_mutex:
-		page_cleaner->n_slots_flushing--;
-		page_cleaner->n_slots_finished++;
+		page_cleaner.n_slots_flushing--;
+		page_cleaner.n_slots_finished++;
 		slot->state = PAGE_CLEANER_STATE_FINISHED;
 
 		slot->flush_lru_time += lru_tm;
@@ -2924,15 +2913,15 @@ finish_mutex:
 		slot->flush_lru_pass += lru_pass;
 		slot->flush_list_pass += list_pass;
 
-		if (page_cleaner->n_slots_requested == 0
-		    && page_cleaner->n_slots_flushing == 0) {
-			os_event_set(page_cleaner->is_finished);
+		if (page_cleaner.n_slots_requested == 0
+		    && page_cleaner.n_slots_flushing == 0) {
+			os_event_set(page_cleaner.is_finished);
 		}
 	}
 
-	ulint	ret = page_cleaner->n_slots_requested;
+	ulint	ret = page_cleaner.n_slots_requested;
 
-	mutex_exit(&page_cleaner->mutex);
+	mutex_exit(&page_cleaner.mutex);
 
 	return(ret);
 }
@@ -2954,16 +2943,16 @@ pc_wait_finished(
 	*n_flushed_lru = 0;
 	*n_flushed_list = 0;
 
-	os_event_wait(page_cleaner->is_finished);
+	os_event_wait(page_cleaner.is_finished);
 
-	mutex_enter(&page_cleaner->mutex);
+	mutex_enter(&page_cleaner.mutex);
 
-	ut_ad(page_cleaner->n_slots_requested == 0);
-	ut_ad(page_cleaner->n_slots_flushing == 0);
-	ut_ad(page_cleaner->n_slots_finished == page_cleaner->n_slots);
+	ut_ad(page_cleaner.n_slots_requested == 0);
+	ut_ad(page_cleaner.n_slots_flushing == 0);
+	ut_ad(page_cleaner.n_slots_finished == page_cleaner.n_slots);
 
-	for (ulint i = 0; i < page_cleaner->n_slots; i++) {
-		page_cleaner_slot_t* slot = &page_cleaner->slots[i];
+	for (ulint i = 0; i < page_cleaner.n_slots; i++) {
+		page_cleaner_slot_t* slot = &page_cleaner.slots[i];
 
 		ut_ad(slot->state == PAGE_CLEANER_STATE_FINISHED);
 
@@ -2976,11 +2965,11 @@ pc_wait_finished(
 		slot->n_pages_requested = 0;
 	}
 
-	page_cleaner->n_slots_finished = 0;
+	page_cleaner.n_slots_finished = 0;
 
-	os_event_reset(page_cleaner->is_finished);
+	os_event_reset(page_cleaner.is_finished);
 
-	mutex_exit(&page_cleaner->mutex);
+	mutex_exit(&page_cleaner.mutex);
 
 	return(all_succeeded);
 }
@@ -3008,20 +2997,18 @@ static
 void
 buf_flush_page_cleaner_disabled_loop(void)
 {
-	ut_ad(page_cleaner != NULL);
-
 	if (!innodb_page_cleaner_disabled_debug) {
 		/* We return to avoid entering and exiting mutex. */
 		return;
 	}
 
-	mutex_enter(&page_cleaner->mutex);
-	page_cleaner->n_disabled_debug++;
-	mutex_exit(&page_cleaner->mutex);
+	mutex_enter(&page_cleaner.mutex);
+	page_cleaner.n_disabled_debug++;
+	mutex_exit(&page_cleaner.mutex);
 
 	while (innodb_page_cleaner_disabled_debug
 	       && srv_shutdown_state == SRV_SHUTDOWN_NONE
-	       && page_cleaner->is_running) {
+	       && page_cleaner.is_running) {
 
 		os_thread_sleep(100000); /* [A] */
 	}
@@ -3039,9 +3026,9 @@ buf_flush_page_cleaner_disabled_loop(void)
 
 	Therefore we are waiting in step 2 for this thread exiting here. */
 
-	mutex_enter(&page_cleaner->mutex);
-	page_cleaner->n_disabled_debug--;
-	mutex_exit(&page_cleaner->mutex);
+	mutex_enter(&page_cleaner.mutex);
+	page_cleaner.n_disabled_debug--;
+	mutex_exit(&page_cleaner.mutex);
 }
 
 /** Disables page cleaner threads (coordinator and workers).
@@ -3057,7 +3044,7 @@ buf_flush_page_cleaner_disabled_debug_update(
 	void*				var_ptr,
 	const void*			save)
 {
-	if (page_cleaner == NULL) {
+	if (!page_cleaner.is_running) {
 		return;
 	}
 
@@ -3070,9 +3057,9 @@ buf_flush_page_cleaner_disabled_debug_update(
 
 		/* Enable page cleaner threads. */
 		while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
-			mutex_enter(&page_cleaner->mutex);
-			const ulint n = page_cleaner->n_disabled_debug;
-			mutex_exit(&page_cleaner->mutex);
+			mutex_enter(&page_cleaner.mutex);
+			const ulint n = page_cleaner.n_disabled_debug;
+			mutex_exit(&page_cleaner.mutex);
 			/* Check if all threads have been enabled, to avoid
 			problem when we decide to re-disable them soon. */
 			if (n == 0) {
@@ -3097,21 +3084,21 @@ buf_flush_page_cleaner_disabled_debug_update(
 
 		That's why we have sleep-loop instead of simply
 		waiting on some disabled_debug_event. */
-		os_event_set(page_cleaner->is_requested);
+		os_event_set(page_cleaner.is_requested);
 
-		mutex_enter(&page_cleaner->mutex);
+		mutex_enter(&page_cleaner.mutex);
 
-		ut_ad(page_cleaner->n_disabled_debug
+		ut_ad(page_cleaner.n_disabled_debug
 		      <= srv_n_page_cleaners);
 
-		if (page_cleaner->n_disabled_debug
+		if (page_cleaner.n_disabled_debug
 		    == srv_n_page_cleaners) {
 
-			mutex_exit(&page_cleaner->mutex);
+			mutex_exit(&page_cleaner.mutex);
 			break;
 		}
 
-		mutex_exit(&page_cleaner->mutex);
+		mutex_exit(&page_cleaner.mutex);
 
 		os_thread_sleep(100000);
 	}
@@ -3265,10 +3252,10 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 		    && srv_flush_sync
 		    && buf_flush_sync_lsn > 0) {
 			/* woke up for flush_sync */
-			mutex_enter(&page_cleaner->mutex);
+			mutex_enter(&page_cleaner.mutex);
 			lsn_t	lsn_limit = buf_flush_sync_lsn;
 			buf_flush_sync_lsn = 0;
-			mutex_exit(&page_cleaner->mutex);
+			mutex_exit(&page_cleaner.mutex);
 
 			/* Request flushing for threads */
 			pc_request(ULINT_MAX, lsn_limit);
@@ -3280,8 +3267,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 
 			/* only coordinator is using these counters,
 			so no need to protect by lock. */
-			page_cleaner->flush_time += ut_time_ms() - tm;
-			page_cleaner->flush_pass++;
+			page_cleaner.flush_time += ut_time_ms() - tm;
+			page_cleaner.flush_pass++;
 
 			/* Wait for all slots to be finished */
 			ulint	n_flushed_lru = 0;
@@ -3326,8 +3313,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 
 			/* only coordinator is using these counters,
 			so no need to protect by lock. */
-			page_cleaner->flush_time += ut_time_ms() - tm;
-			page_cleaner->flush_pass++ ;
+			page_cleaner.flush_time += ut_time_ms() - tm;
+			page_cleaner.flush_pass++ ;
 
 			/* Wait for all slots to be finished */
 			ulint	n_flushed_lru = 0;
@@ -3473,8 +3460,8 @@ thread_exit:
 	/* All worker threads are waiting for the event here,
 	and no more access to page_cleaner structure by them.
 	Wakes worker threads up just to make them exit. */
-	page_cleaner->is_running = false;
-	os_event_set(page_cleaner->is_requested);
+	page_cleaner.is_running = false;
+	os_event_set(page_cleaner.is_requested);
 
 	buf_flush_page_cleaner_close();
 
@@ -3501,9 +3488,9 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 {
 	my_thread_init();
 
-	mutex_enter(&page_cleaner->mutex);
-	page_cleaner->n_workers++;
-	mutex_exit(&page_cleaner->mutex);
+	mutex_enter(&page_cleaner.mutex);
+	page_cleaner.n_workers++;
+	mutex_exit(&page_cleaner.mutex);
 
 #ifdef UNIV_LINUX
 	/* linux might be able to set different setting for each thread
@@ -3517,20 +3504,20 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 #endif /* UNIV_LINUX */
 
 	while (true) {
-		os_event_wait(page_cleaner->is_requested);
+		os_event_wait(page_cleaner.is_requested);
 
 		ut_d(buf_flush_page_cleaner_disabled_loop());
 
-		if (!page_cleaner->is_running) {
+		if (!page_cleaner.is_running) {
 			break;
 		}
 
 		pc_flush_slot();
 	}
 
-	mutex_enter(&page_cleaner->mutex);
-	page_cleaner->n_workers--;
-	mutex_exit(&page_cleaner->mutex);
+	mutex_enter(&page_cleaner.mutex);
+	page_cleaner.n_workers--;
+	mutex_exit(&page_cleaner.mutex);
 
 	my_thread_end();
 
@@ -3565,11 +3552,11 @@ buf_flush_request_force(
 	/* adjust based on lsn_avg_rate not to get old */
 	lsn_t	lsn_target = lsn_limit + lsn_avg_rate * 3;
 
-	mutex_enter(&page_cleaner->mutex);
+	mutex_enter(&page_cleaner.mutex);
 	if (lsn_target > buf_flush_sync_lsn) {
 		buf_flush_sync_lsn = lsn_target;
 	}
-	mutex_exit(&page_cleaner->mutex);
+	mutex_exit(&page_cleaner.mutex);
 
 	os_event_set(buf_flush_event);
 }
