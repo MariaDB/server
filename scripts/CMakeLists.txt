@@ -188,7 +188,7 @@ ENDIF()
 IF(DEB OR RPM)
   SET(skip_install_test_db "1")
 ELSE()
-  SET(skip_install_test_db "NULL")
+  SET(skip_install_test_db "0")
 ENDIF()
 
 SET(resolveip_locations "$basedir/${INSTALL_BINDIR} $basedir/bin")

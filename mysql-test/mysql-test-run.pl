@@ -3183,7 +3183,7 @@ sub mysql_install_db {
     {
       my $sql_dir= dirname($path_sql);
       # Create a test database
-      mtr_tofile($bootstrap_sql_file, "SET \@skip_install_test_db=NULL;\n");
+      mtr_tofile($bootstrap_sql_file, "SET \@skip_install_test_db=0;\n");
 
       # Add the offical mysql system tables
       # for a production system
