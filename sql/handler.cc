@@ -1630,7 +1630,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
   DBUG_ENTER("commit_one_phase_2");
 #ifdef WITH_WSREP
-  if (WSREP(thd) && wsrep_before_commit(thd, all))
+  if (WSREP(thd) && !thd->wsrep_apply_toi && wsrep_before_commit(thd, all))
     DBUG_RETURN(1);
 #endif /* WITH_WSREP */
   if (is_real_trans)
@@ -1672,7 +1672,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
       statistic_increment(transactions_multi_engine, LOCK_status);
   }
 #ifdef WITH_WSREP
-  if (WSREP(thd))
+  if (WSREP(thd) && !thd->wsrep_apply_toi)
   {
     /*
       TODO: Ordered commit should be done after the transaction
