@@ -23,7 +23,7 @@ SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
 
 # Block the commit
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
---let $galera_sync_point = commit_monitor_enter_sync
+--let $galera_sync_point = commit_monitor_master_enter_sync
 --source include/galera_set_sync_point.inc
 
 --connection node_1
@@ -84,7 +84,7 @@ PREPARE stmt1 FROM "UPDATE t1 SET j = 1 where i > 0";
 
 # block the commit of PS
 --connection node_1a
---let $galera_sync_point = commit_monitor_enter_sync
+--let $galera_sync_point = commit_monitor_master_enter_sync
 --source include/galera_set_sync_point.inc
 
 --connection node_1

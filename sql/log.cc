@@ -10882,7 +10882,8 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
   //binlog_cache_mngr *cache_mngr= thd_get_cache_mngr(thd);
   binlog_cache_mngr *cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-  if (cache_mngr->trx_cache.get_prev_position() == MY_OFF_T_UNDEF)
+  /* cache_mngr may be missing e.g. in mtr test ev51914.test */
+  if (cache_mngr && cache_mngr->trx_cache.get_prev_position() == MY_OFF_T_UNDEF)
   {
     /*
       Set an implicit savepoint in order to be able to truncate a trx-cache.

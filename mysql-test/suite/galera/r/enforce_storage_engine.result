@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 #
 # MDEV-8831 : enforce_storage_engine doesn't block table creation on
 # other nodes (galera cluster)

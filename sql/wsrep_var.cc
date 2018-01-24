@@ -848,7 +848,7 @@ static void export_wsrep_status_to_mysql(THD* thd)
 
 int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff)
 {
-  if (WSREP(thd))
+  //if (WSREP(thd))
   {
     export_wsrep_status_to_mysql(thd);
     var->type= SHOW_ARRAY;

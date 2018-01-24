@@ -1,6 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
---source suite/galera/include/galera_have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
 
 #
 # we must open connection node_1a here, MW-369.inc will use it later

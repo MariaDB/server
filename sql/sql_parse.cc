@@ -6428,11 +6428,14 @@ finish:
       THD_STAGE_INFO(thd, stage_rollback);
       trans_rollback_stmt(thd);
     }
-    /* If commit fails, we should be able to reset the OK status. */
-    THD_STAGE_INFO(thd, stage_commit);
-    thd->get_stmt_da()->set_overwrite_status(true);
-    trans_commit_stmt(thd);
-    thd->get_stmt_da()->set_overwrite_status(false);
+    else
+    {
+      /* If commit fails, we should be able to reset the OK status. */
+      THD_STAGE_INFO(thd, stage_commit);
+      thd->get_stmt_da()->set_overwrite_status(true);
+      trans_commit_stmt(thd);
+      thd->get_stmt_da()->set_overwrite_status(false);
+    }
 #ifdef WITH_ARIA_STORAGE_ENGINE
     ha_maria::implicit_commit(thd, FALSE);
 #endif

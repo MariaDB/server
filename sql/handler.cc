@@ -1508,7 +1508,7 @@ int ha_commit_trans(THD *thd, bool all)
   if (WSREP(thd) && wsrep_after_prepare(thd, all))
   {
     wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
-    DBUG_RETURN(1);
+    goto err;
   }
 #endif /* WITH_WSREP */
 
@@ -1707,7 +1707,6 @@ int ha_rollback_trans(THD *thd, bool all)
   */
   DBUG_ASSERT(thd->transaction.stmt.ha_list == NULL ||
               trans == &thd->transaction.stmt);
-
 #ifdef HAVE_REPLICATION
   if (is_real_trans)
   {
@@ -1783,9 +1782,12 @@ int ha_rollback_trans(THD *thd, bool all)
 
 #ifdef WITH_WSREP
   if (thd->is_error())
+  {
     WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
                 thd->thread_id, all?"TRUE":"FALSE", WSREP_QUERY(thd),
                 thd->get_stmt_da()->message(), is_real_trans);
+  }
+  (void) wsrep_after_rollback(thd, all);
 #endif
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
@@ -2341,7 +2343,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
 #ifdef WITH_WSREP
     if (ht->db_type == DB_TYPE_INNODB)
     {
-      WSREP_DEBUG("ha_rollback_to_savepoint: run before_rollback hook");
+      WSREP_DEBUG("ha_rollback_to_savepoint: run before_rollbackha_rollback_trans hook");
       (void) wsrep_before_rollback(thd, !thd->in_sub_stmt);
 
     }
