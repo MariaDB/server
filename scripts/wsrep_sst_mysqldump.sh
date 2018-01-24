@@ -57,10 +57,10 @@ then
 fi
 
 # Check client version
-if ! $MYSQL_CLIENT --version | grep 'Distrib 10.1' >/dev/null
+if ! $MYSQL_CLIENT --version | grep 'Distrib 10\.[1-9]' >/dev/null
 then
     $MYSQL_CLIENT --version >&2
-    wsrep_log_error "this operation requires MySQL client version 10 or newer"
+    wsrep_log_error "this operation requires MySQL client version 10.1 or newer"
     exit $EINVAL
 fi
 
