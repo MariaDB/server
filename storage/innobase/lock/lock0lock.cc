@@ -415,7 +415,8 @@ lock_clust_rec_cons_read_sees(
 	operate on same temp-table and so read of temp-table is
 	always consistent read. */
 	if (srv_read_only_mode || dict_table_is_temporary(index->table)) {
-		ut_ad(view == 0 || dict_table_is_temporary(index->table));
+		ut_ad(!view->is_open()
+		      || dict_table_is_temporary(index->table));
 		return(true);
 	}
 
@@ -1631,7 +1632,18 @@ RecLock::prepare() const
 		ut_error;
 	}
 
-	ut_ad(trx_get_dict_operation(m_trx) == TRX_DICT_OP_NONE);
+	switch (trx_get_dict_operation(m_trx)) {
+	case TRX_DICT_OP_NONE:
+		break;
+	case TRX_DICT_OP_TABLE:
+	case TRX_DICT_OP_INDEX:
+		ib::error() << "A record lock wait happens in a dictionary"
+			" operation. index " << m_index->name
+			<< " of table " << m_index->table->name
+			<< ". " << BUG_REPORT_MSG;
+		ut_ad(0);
+	}
+
 	ut_ad(m_index->table->n_ref_count > 0
 	      || !m_index->table->can_be_evicted);
 }
@@ -2198,24 +2210,6 @@ RecLock::add_to_waitq(lock_t* wait_for, const lock_prdt_t* prdt)
 	m_mode |= LOCK_WAIT;
 
 	/* Do the preliminary checks, and set query thread state */
-
-	switch (UNIV_EXPECT(trx_get_dict_operation(m_trx), TRX_DICT_OP_NONE)) {
-	case TRX_DICT_OP_NONE:
-		break;
-	case TRX_DICT_OP_TABLE:
-	case TRX_DICT_OP_INDEX:
-		ut_ad(!prdt);
-
-		if (m_trx->dict_operation_lock_mode != RW_X_LATCH) {
-		} else if (!strcmp(m_index->table->name.m_name,
-				   "mysql/innodb_table_stats")
-			   || !strcmp(m_index->table->name.m_name,
-				      "mysql/innodb_index_stats")) {
-			/* Statistics can be updated as part of a DDL
-			transaction, but only as the very last operation. */
-			return(DB_QUE_THR_SUSPENDED);
-		}
-	}
 
 	prepare();
 
@@ -4644,16 +4638,6 @@ lock_table_enqueue_waiting(
 		break;
 	case TRX_DICT_OP_TABLE:
 	case TRX_DICT_OP_INDEX:
-		if (trx->dict_operation_lock_mode != RW_X_LATCH) {
-		} else if (!strcmp(table->name.m_name,
-				   "mysql/innodb_table_stats")
-			   || !strcmp(table->name.m_name,
-				      "mysql/innodb_index_stats")) {
-			/* Statistics can be updated as part of a DDL
-			transaction, but only as the very last operation. */
-			return(DB_QUE_THR_SUSPENDED);
-		}
-
 		ib::error() << "A table lock wait happens in a dictionary"
 			" operation. Table " << table->name
 			<< ". " << BUG_REPORT_MSG;
@@ -5719,15 +5703,13 @@ lock_trx_print_wait_and_mvcc_state(
 
 	trx_print_latched(file, trx, 600);
 
-	/* Note: this read_view access is data race. Further
-	read_view->is_active() check is race condition. But it should
-	"kind of work" because read_view is freed only at shutdown.
+	/* Note: read_view->is_active() check is race condition. But it
+	should "kind of work" because read_view is freed only at shutdown.
 	Worst thing that may happen is that it'll get transferred to
 	another thread and print wrong values. */
-	const ReadView*	read_view = trx->read_view;
 
-	if (read_view != NULL && !read_view->is_closed()) {
-		read_view->print_limits(file);
+	if (trx->read_view.is_open()) {
+		trx->read_view.print_limits(file);
 	}
 
 	if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {

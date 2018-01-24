@@ -2268,15 +2268,11 @@ row_sel_step(
 		plan_reset_cursor(sel_node_get_nth_plan(node, 0));
 
 		if (node->consistent_read) {
+			trx_t *trx = thr_get_trx(thr);
 			/* Assign a read view for the query */
-			trx_assign_read_view(thr_get_trx(thr));
-
-			if (thr_get_trx(thr)->read_view != NULL) {
-				node->read_view = thr_get_trx(thr)->read_view;
-			} else {
-				node->read_view = NULL;
-			}
-
+			trx_sys.mvcc.view_open(trx);
+			node->read_view = trx->read_view.is_open() ?
+					  &trx->read_view : NULL;
 		} else {
 			sym_node_t*	table_node;
 			lock_mode	i_lock_mode;
@@ -3440,12 +3436,12 @@ row_sel_get_clust_rec_for_mysql(
 		if (trx->isolation_level > TRX_ISO_READ_UNCOMMITTED
 		    && !lock_clust_rec_cons_read_sees(
 			    clust_rec, clust_index, *offsets,
-			    trx_get_read_view(trx))) {
+			    &trx->read_view)) {
 
 			/* The following call returns 'offsets' associated with
 			'old_vers' */
 			err = row_sel_build_prev_vers_for_mysql(
-				trx->read_view, clust_index, prebuilt,
+				&trx->read_view, clust_index, prebuilt,
 				clust_rec, offsets, offset_heap, &old_vers,
 				vrow, mtr);
 
@@ -3864,8 +3860,8 @@ exhausted:
 	*offsets = rec_get_offsets(rec, index, *offsets, true,
 				   ULINT_UNDEFINED, heap);
 
-	if (!lock_clust_rec_cons_read_sees(
-			rec, index, *offsets, trx_get_read_view(trx))) {
+	if (!lock_clust_rec_cons_read_sees(rec, index, *offsets,
+					   &trx->read_view)) {
 		goto retry;
 	}
 
@@ -4269,7 +4265,7 @@ row_search_mvcc(
 
 		if (prebuilt->select_lock_type == LOCK_NONE
 		    && trx->isolation_level > TRX_ISO_READ_UNCOMMITTED
-		    && MVCC::is_view_active(trx->read_view)) {
+		    && trx->read_view.is_open()) {
 
 			/* This is a SELECT query done as a consistent read,
 			and the read view has already been allocated:
@@ -4367,7 +4363,7 @@ row_search_mvcc(
 
 	ut_ad(prebuilt->sql_stat_start
 	      || prebuilt->select_lock_type != LOCK_NONE
-	      || MVCC::is_view_active(trx->read_view)
+	      || trx->read_view.is_open()
 	      || prebuilt->table->no_rollback()
 	      || srv_read_only_mode);
 
@@ -4414,7 +4410,7 @@ row_search_mvcc(
 	} else if (!prebuilt->sql_stat_start) {
 		/* No need to set an intention lock or assign a read view */
 
-		if (!MVCC::is_view_active(trx->read_view)
+		if (!trx->read_view.is_open()
 		    && !srv_read_only_mode
 		    && prebuilt->select_lock_type == LOCK_NONE) {
 
@@ -4430,9 +4426,7 @@ row_search_mvcc(
 		/* Assign a read view for the query */
 		trx_start_if_not_started(trx, false);
 
-		if (!srv_read_only_mode) {
-			trx_assign_read_view(trx);
-		}
+		trx_sys.mvcc.view_open(trx);
 
 		prebuilt->sql_stat_start = FALSE;
 	} else {
@@ -5036,14 +5030,13 @@ no_gap_lock:
 
 			if (srv_force_recovery < 5
 			    && !lock_clust_rec_cons_read_sees(
-				    rec, index, offsets,
-				    trx_get_read_view(trx))) {
+				    rec, index, offsets, &trx->read_view)) {
 
 				rec_t*	old_vers;
 				/* The following call returns 'offsets'
 				associated with 'old_vers' */
 				err = row_sel_build_prev_vers_for_mysql(
-					trx->read_view, clust_index,
+					&trx->read_view, clust_index,
 					prebuilt, rec, &offsets, &heap,
 					&old_vers, need_vrow ? &vrow : NULL,
 					&mtr);
@@ -5073,7 +5066,7 @@ no_gap_lock:
 
 			if (!srv_read_only_mode
 			    && !lock_sec_rec_cons_read_sees(
-					rec, index, trx->read_view)) {
+					rec, index, &trx->read_view)) {
 				/* We should look at the clustered index.
 				However, as this is a non-locking read,
 				we can skip the clustered index lookup if
@@ -5877,18 +5870,16 @@ row_search_check_if_query_cache_permitted(
 
 	const bool ret = lock_table_get_n_locks(table) == 0
 		&& ((trx->id != 0 && trx->id >= table->query_cache_inv_id)
-		    || !MVCC::is_view_active(trx->read_view)
-		    || trx->read_view->low_limit_id()
+		    || !trx->read_view.is_open()
+		    || trx->read_view.low_limit_id()
 		    >= table->query_cache_inv_id);
 	if (ret) {
 		/* If the isolation level is high, assign a read view for the
 		transaction if it does not yet have one */
 
-		if (trx->isolation_level >= TRX_ISO_REPEATABLE_READ
-		    && !srv_read_only_mode
-		    && !MVCC::is_view_active(trx->read_view)) {
+		if (trx->isolation_level >= TRX_ISO_REPEATABLE_READ) {
 
-			trx_sys.mvcc.view_open(trx->read_view, trx);
+			trx_sys.mvcc.view_open(trx);
 		}
 	}
 

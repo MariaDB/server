@@ -2085,7 +2085,7 @@ convert_error_code_to_mysql(
 
 	case DB_TOO_BIG_INDEX_COL:
 		my_error(ER_INDEX_COLUMN_TOO_LONG, MYF(0),
-			 DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags));
+			 (ulong) DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags));
 		return(HA_ERR_INDEX_COL_TOO_LONG);
 
 	case DB_NO_SAVEPOINT:
@@ -3503,7 +3503,7 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 
 	/* Assign a read view if the transaction does not have it yet */
 
-	trx_assign_read_view(m_prebuilt->trx);
+	trx_sys.mvcc.view_open(m_prebuilt->trx);
 
 	innobase_register_trx(ht, m_user_thd, m_prebuilt->trx);
 
@@ -4394,7 +4394,7 @@ innobase_start_trx_and_assign_read_view(
 		thd_get_trx_isolation(thd));
 
 	if (trx->isolation_level == TRX_ISO_REPEATABLE_READ) {
-		trx_assign_read_view(trx);
+		trx_sys.mvcc.view_open(trx);
 	} else {
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    HA_ERR_UNSUPPORTED,
@@ -5105,7 +5105,6 @@ innobase_close_connection(
 				"MariaDB is closing a connection that has an active "
 				"InnoDB transaction.  " TRX_ID_FMT " row modifications "
 				"will roll back.",
-					" row modifications will roll back.",
 					trx->undo_no);
 				ut_d(ib::warn()
 				     << "trx: " << trx << " started on: "
@@ -6289,22 +6288,7 @@ no_such_table:
 
 	/* No point to init any statistics if tablespace is still encrypted. */
 	if (ib_table->is_readable()) {
-		trx_t* trx = check_trx_exists(thd);
-		bool alloc = !trx_state_eq(trx, TRX_STATE_NOT_STARTED);
-
-		if (alloc) {
-			trx = trx_allocate_for_background();
-		}
-		ut_ad(!trx->persistent_stats);
-		ut_d(trx->persistent_stats = true);
-		trx->error_state = DB_SUCCESS;
-		++trx->will_lock;
-		dict_stats_init(ib_table, trx);
-		innobase_commit_low(trx);
-		ut_d(trx->persistent_stats = false);
-		if (alloc) {
-			trx_free_for_background(trx);
-		}
+		dict_stats_init(ib_table);
 	} else {
 		ib_table->stat_initialized = 1;
 	}
@@ -11972,7 +11956,7 @@ create_table_info_t::create_options_are_invalid()
 				ER_ILLEGAL_HA_CREATE_OPTION,
 				"InnoDB: invalid KEY_BLOCK_SIZE = %u."
 				" Valid values are [1, 2, 4, 8, 16]",
-				m_create_info->key_block_size);
+				(uint) m_create_info->key_block_size);
 			ret = "KEY_BLOCK_SIZE";
 			break;
 		}
@@ -12421,7 +12405,7 @@ index_bad:
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_ILLEGAL_HA_CREATE_OPTION,
 				"InnoDB: ignoring KEY_BLOCK_SIZE=%u.",
-				m_create_info->key_block_size);
+				(uint) m_create_info->key_block_size);
 		}
 	}
 
@@ -12444,7 +12428,7 @@ index_bad:
 				ER_ILLEGAL_HA_CREATE_OPTION,
 				"InnoDB: ignoring KEY_BLOCK_SIZE=%u"
 				" unless ROW_FORMAT=COMPRESSED.",
-				m_create_info->key_block_size);
+				(uint) m_create_info->key_block_size);
 			zip_allowed = false;
 		}
 	} else {
@@ -13070,10 +13054,7 @@ create_table_info_t::create_table_update_dict()
 
 	innobase_copy_frm_flags_from_create_info(innobase_table, m_create_info);
 
-	++m_trx->will_lock;
-	m_trx->error_state = DB_SUCCESS;
-	dict_stats_update(innobase_table, DICT_STATS_EMPTY_TABLE, m_trx);
-	innobase_commit_low(m_trx);
+	dict_stats_update(innobase_table, DICT_STATS_EMPTY_TABLE);
 
 	/* Load server stopword into FTS cache */
 	if (m_flags2 & DICT_TF2_FTS) {
@@ -13330,8 +13311,7 @@ ha_innobase::discard_or_import_tablespace(
 
 		/* Adjust the persistent statistics. */
 		ret = dict_stats_update(dict_table,
-					DICT_STATS_RECALC_PERSISTENT,
-					m_prebuilt->trx);
+					DICT_STATS_RECALC_PERSISTENT);
 
 		if (ret != DB_SUCCESS) {
 			push_warning_printf(
@@ -13339,11 +13319,8 @@ ha_innobase::discard_or_import_tablespace(
 				Sql_condition::WARN_LEVEL_WARN,
 				ER_ALTER_INFO,
 				"Error updating stats for table '%s'"
-				" after table import: %s",
+				" after table rebuild: %s",
 				dict_table->name.m_name, ut_strerr(ret));
-			trx_rollback_to_savepoint(m_prebuilt->trx, NULL);
-		} else {
-			trx_commit_for_mysql(m_prebuilt->trx);
 		}
 	}
 
@@ -13817,6 +13794,8 @@ ha_innobase::rename_table(
 
 	innobase_commit_low(trx);
 
+	trx_free_for_mysql(trx);
+
 	if (error == DB_SUCCESS) {
 		char	norm_from[MAX_FULL_NAME_LEN];
 		char	norm_to[MAX_FULL_NAME_LEN];
@@ -13826,23 +13805,16 @@ ha_innobase::rename_table(
 		normalize_table_name(norm_from, from);
 		normalize_table_name(norm_to, to);
 
-		trx->error_state = DB_SUCCESS;
-		++trx->will_lock;
 		ret = dict_stats_rename_table(norm_from, norm_to,
-					      errstr, sizeof errstr, trx);
+					      errstr, sizeof(errstr));
 
 		if (ret != DB_SUCCESS) {
-			trx_rollback_to_savepoint(trx, NULL);
 			ib::error() << errstr;
 
 			push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
 				     ER_LOCK_WAIT_TIMEOUT, errstr);
-		} else {
-			innobase_commit_low(trx);
 		}
 	}
-
-	trx_free_for_mysql(trx);
 
 	/* Add a special case to handle the Duplicated Key error
 	and return DB_ERROR instead.
@@ -13984,7 +13956,8 @@ ha_innobase::records_in_range(
 		push_warning_printf(
 			ha_thd(), Sql_condition::WARN_LEVEL_WARN,
 			ER_NO_DEFAULT,
-			"btr_estimate_n_rows_in_range(): %f", n_rows);
+			"btr_estimate_n_rows_in_range(): %lld",
+                        (longlong) n_rows);
 	);
 
 func_exit:
@@ -14380,33 +14353,17 @@ ha_innobase::info_low(
 			}
 
 			ut_ad(!mutex_own(&dict_sys->mutex));
-			/* Do not use prebuilt->trx in case this is
-			called in the middle of a transaction. We
-			should commit the transaction after
-			dict_stats_update() in order not to hog locks
-			on the mysql.innodb_table_stats,
-			mysql.innodb_index_stats tables. */
-			trx_t* trx = trx_allocate_for_background();
-			ut_d(trx->persistent_stats = true);
-			++trx->will_lock;
-			ret = dict_stats_update(ib_table, opt, trx);
+			ret = dict_stats_update(ib_table, opt);
 
 			if (ret != DB_SUCCESS) {
 				m_prebuilt->trx->op_info = "";
-				trx_rollback_to_savepoint(trx, NULL);
-			} else {
-				m_prebuilt->trx->op_info =
-					"returning various info to MySQL";
-				trx_commit_for_mysql(trx);
-			}
-
-			ut_d(trx->persistent_stats = false);
-			trx_free_for_background(trx);
-
-			if (ret != DB_SUCCESS) {
 				DBUG_RETURN(HA_ERR_GENERIC);
 			}
+
+			m_prebuilt->trx->op_info =
+				"returning various info to MariaDB";
 		}
+
 
 		stats.update_time = (ulong) ib_table->update_time;
 	}
@@ -16220,7 +16177,7 @@ ha_innobase::external_lock(
 			}
 
 		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
-			   && MVCC::is_view_active(trx->read_view)) {
+			   && trx->read_view.is_open()) {
 			mutex_enter(&trx_sys.mutex);
 			trx_sys.mvcc.view_close(trx->read_view);
 			mutex_exit(&trx_sys.mutex);
@@ -16565,7 +16522,7 @@ innodb_show_mutex_status(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	mutex_monitor->iterate(collector);
+	mutex_monitor.iterate(collector);
 
 	if (!collector.to_string(hton, thd, stat_print)) {
 		DBUG_RETURN(1);
@@ -16885,7 +16842,7 @@ ha_innobase::store_lock(
 			(enum_tx_isolation) thd_tx_isolation(thd));
 
 		if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
-		    && MVCC::is_view_active(trx->read_view)) {
+		    && trx->read_view.is_open()) {
 
 			/* At low transaction isolation levels we let
 			each consistent read set its own snapshot */
@@ -17708,12 +17665,14 @@ innobase_commit_by_xid(
 	}
 
 	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
-		TrxInInnoDB	trx_in_innodb(trx);
-
-		innobase_commit_low(trx);
-		ut_ad(trx->mysql_thd == NULL);
+		ut_ad(trx->in_innodb & TRX_FORCE_ROLLBACK_DISABLE);
 		/* use cases are: disconnected xa, slave xa, recovery */
-		trx_deregister_from_2pc(trx);
+		{
+			TrxInInnoDB	trx_in_innodb(trx);
+			innobase_commit_low(trx);
+			ut_ad(trx->mysql_thd == NULL);
+			trx_deregister_from_2pc(trx);
+		}
 		ut_ad(!trx->will_lock);    /* trx cache requirement */
 		trx_free_for_background(trx);
 
@@ -17742,12 +17701,14 @@ innobase_rollback_by_xid(
 	}
 
 	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
-		TrxInInnoDB	trx_in_innodb(trx);
-
-		int	ret = innobase_rollback_trx(trx);
-
-		trx_deregister_from_2pc(trx);
-		ut_ad(!trx->will_lock);
+		int ret;
+		ut_ad(trx->in_innodb & TRX_FORCE_ROLLBACK_DISABLE);
+		{
+			TrxInInnoDB	trx_in_innodb(trx);
+			ret = innobase_rollback_trx(trx);
+			trx_deregister_from_2pc(trx);
+			ut_ad(!trx->will_lock);
+		}
 		trx_free_for_background(trx);
 
 		return(ret);
@@ -18453,7 +18414,7 @@ innodb_monitor_set_option(
 
 		if (MONITOR_IS_ON(MONITOR_LATCHES)) {
 
-			mutex_monitor->enable();
+			mutex_monitor.enable();
 		}
 		break;
 
@@ -18468,7 +18429,7 @@ innodb_monitor_set_option(
 
 		if (!MONITOR_IS_ON(MONITOR_LATCHES)) {
 
-			mutex_monitor->disable();
+			mutex_monitor.disable();
 		}
 		break;
 
@@ -18477,13 +18438,13 @@ innodb_monitor_set_option(
 
 		if (monitor_id == (MONITOR_LATCHES)) {
 
-			mutex_monitor->reset();
+			mutex_monitor.reset();
 		}
 		break;
 
 	case MONITOR_RESET_ALL_VALUE:
 		srv_mon_reset_all(monitor_id);
-		mutex_monitor->reset();
+		mutex_monitor.reset();
 		break;
 
 	default:
@@ -22364,7 +22325,7 @@ ib_push_frm_error(
 			"installations? See "
 			REFMAN
 			"innodb-troubleshooting.html\n",
-			ib_table->name);
+			ib_table->name.m_name);
 
 		if (push_warning) {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -22408,7 +22369,7 @@ ib_push_frm_error(
 			"installations? See "
 			REFMAN
 			"innodb-troubleshooting.html\n",
-			ib_table->name, n_keys,
+			ib_table->name.m_name, n_keys,
 			table->s->keys);
 
 		if (push_warning) {

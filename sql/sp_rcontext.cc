@@ -67,6 +67,7 @@ sp_rcontext *sp_rcontext::create(THD *thd,
                                  Field *return_value_fld,
                                  Row_definition_list &field_def_lst)
 {
+  SELECT_LEX *save_current_select;
   sp_rcontext *ctx= new (thd->mem_root) sp_rcontext(owner,
                                                     root_parsing_ctx,
                                                     return_value_fld,
@@ -74,14 +75,19 @@ sp_rcontext *sp_rcontext::create(THD *thd,
   if (!ctx)
     return NULL;
 
+  /* Reset current_select as it's checked in Item_ident::Item_ident */
+  save_current_select= thd->lex->current_select;
+  thd->lex->current_select= 0;
+
   if (ctx->alloc_arrays(thd) ||
       ctx->init_var_table(thd, field_def_lst) ||
       ctx->init_var_items(thd, field_def_lst))
   {
     delete ctx;
-    return NULL;
+    ctx= 0;
   }
 
+  thd->lex->current_select= save_current_select;
   return ctx;
 }
 

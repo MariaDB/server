@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -182,8 +183,9 @@ struct	ViewCheck {
 
 	void	operator()(const ReadView* view)
 	{
+		ut_ad(view->is_registered());
 		ut_a(m_prev_view == NULL
-		     || view->is_closed()
+		     || !view->is_open()
 		     || view->le(m_prev_view));
 
 		m_prev_view = view;
@@ -318,54 +320,6 @@ ReadView::ids_t::insert(value_type value)
 }
 
 /**
-ReadView constructor */
-ReadView::ReadView()
-	:
-	m_low_limit_id(),
-	m_up_limit_id(),
-	m_creator_trx_id(),
-	m_ids(),
-	m_low_limit_no()
-{
-	ut_d(::memset(&m_view_list, 0x0, sizeof(m_view_list)));
-}
-
-/**
-ReadView destructor */
-ReadView::~ReadView()
-{
-	// Do nothing
-}
-
-/** Constructor
-@param size		Number of views to pre-allocate */
-void MVCC::create(ulint size)
-{
-	UT_LIST_INIT(m_free, &ReadView::m_view_list);
-	UT_LIST_INIT(m_views, &ReadView::m_view_list);
-
-	for (ulint i = 0; i < size; ++i) {
-		ReadView*	view = UT_NEW_NOKEY(ReadView());
-
-		UT_LIST_ADD_FIRST(m_free, view);
-	}
-}
-
-void MVCC::close()
-{
-	for (ReadView* view = UT_LIST_GET_FIRST(m_free);
-	     view != NULL;
-	     view = UT_LIST_GET_FIRST(m_free)) {
-
-		UT_LIST_REMOVE(m_free, view);
-
-		UT_DELETE(view);
-	}
-
-	ut_a(UT_LIST_GET_LEN(m_views) == 0);
-}
-
-/**
 Copy the transaction ids from the source vector */
 
 void
@@ -424,6 +378,8 @@ ReadView::copy_trx_ids(const trx_ids_t& trx_ids)
 		::memmove(p, &trx_ids[0], n);
 	}
 
+	m_up_limit_id = m_ids.front();
+
 #ifdef UNIV_DEBUG
 	/* Original assertion was here to make sure that rw_trx_ids and
 	rw_trx_hash are in sync and they hold either ACTIVE or PREPARED
@@ -459,13 +415,16 @@ ReadView::prepare(trx_id_t id)
 
 	m_creator_trx_id = id;
 
-	m_low_limit_no = m_low_limit_id = trx_sys.get_max_trx_id();
+	m_low_limit_no = m_low_limit_id = m_up_limit_id =
+						trx_sys.get_max_trx_id();
 
 	if (!trx_sys.rw_trx_ids.empty()) {
 		copy_trx_ids(trx_sys.rw_trx_ids);
 	} else {
 		m_ids.clear();
 	}
+
+	ut_ad(m_up_limit_id <= m_low_limit_id);
 
 	if (UT_LIST_GET_LEN(trx_sys.serialisation_list) > 0) {
 		const trx_t*	trx;
@@ -478,86 +437,86 @@ ReadView::prepare(trx_id_t id)
 	}
 }
 
-/**
-Complete the read view creation */
-
-void
-ReadView::complete()
-{
-	/* The first active transaction has the smallest id. */
-	m_up_limit_id = !m_ids.empty() ? m_ids.front() : m_low_limit_id;
-
-	ut_ad(m_up_limit_id <= m_low_limit_id);
-
-	m_closed = false;
-}
 
 /**
-Allocate and create a view.
-@param view		view owned by this class created for the
-			caller. Must be freed by calling view_close()
-@param trx		transaction instance of caller */
-void
-MVCC::view_open(ReadView*& view, trx_t* trx)
+  Create a view.
+
+  Assigns a read view for a consistent read query. All the consistent reads
+  within the same transaction will get the same read view, which is created
+  when this function is first called for a new started transaction.
+
+  @param trx   transaction instance of caller
+*/
+
+void MVCC::view_open(trx_t* trx)
 {
-	ut_ad(!srv_read_only_mode);
+  if (srv_read_only_mode)
+  {
+    ut_ad(!trx->read_view.is_open());
+    return;
+  }
+  else if (trx->read_view.is_open())
+    return;
 
-	/** If no new RW transaction has been started since the last view
-	was created then reuse the the existing view. */
-	if (view != NULL) {
+  /*
+    Reuse closed view if there were no read-write transactions since (and at) it's
+    creation time.
+  */
+  if (trx->read_view.is_registered() &&
+      trx_is_autocommit_non_locking(trx) &&
+      trx->read_view.empty() &&
+      trx->read_view.m_low_limit_id == trx_sys.get_max_trx_id())
+  {
+    /*
+      Original comment states: there is an inherent race here between purge
+      and this thread.
 
-		uintptr_t	p = reinterpret_cast<uintptr_t>(view);
+      To avoid this race we should've checked trx_sys.get_max_trx_id() and
+      do trx->read_view.set_open(true) atomically under trx_sys.mutex
+      protection. But we're cutting edges to achieve great scalability.
 
-		view = reinterpret_cast<ReadView*>(p & ~1);
+      There're at least two types of concurrent threads interested in this
+      value: purge coordinator thread (see MVCC::clone_oldest_view()) and
+      InnoDB monitor thread (see lock_trx_print_wait_and_mvcc_state()).
 
-		ut_ad(view->m_closed);
+      What bad things can happen because we allow this race?
 
-		/* NOTE: This can be optimised further, for now we only
-		resuse the view iff there are no active RW transactions.
+      First, purge thread may be affected by this race condition only if this
+      view is the oldest open view. In other words this view is either last in
+      m_views list or there're no open views beyond.
 
-		There is an inherent race here between purge and this
-		thread. Purge will skip views that are marked as closed.
-		Therefore we must set the low limit id after we reset the
-		closed status after the check. */
+      In this case purge may not catch this view and clone some younger view
+      instead. It might be kind of alright, because there were no read-write
+      transactions and there should be nothing to purge. Besides younger view
+      must have exactly the same values.
 
-		if (trx_is_autocommit_non_locking(trx) && view->empty()) {
+      Second, scary things start when there's a read-write transaction starting
+      concurrently.
 
-			view->m_closed = false;
+      Speculative execution may reorder set_open() before get_max_trx_id(). In
+      this case purge thread has short gap to clone outdated view. Which is
+      probably not that bad: it just won't be able to purge things that it was
+      actually allowed to purge for a short while.
 
-			if (view->m_low_limit_id == trx_sys.get_max_trx_id()) {
-				return;
-			} else {
-				view->m_closed = true;
-			}
-		}
+      This thread may as well get suspended after trx_sys.get_max_trx_id() and
+      before trx->read_view.set_open(true). New read-write transaction may get
+      started, committed and purged meanwhile. It is acceptable as well, since
+      this view doesn't see it.
+    */
+    trx->read_view.set_open(true);
+    return;
+  }
 
-		mutex_enter(&trx_sys.mutex);
-
-		UT_LIST_REMOVE(m_views, view);
-
-	} else {
-		mutex_enter(&trx_sys.mutex);
-		if ((view = UT_LIST_GET_FIRST(m_free))) {
-			UT_LIST_REMOVE(m_free, view);
-		} else if (!(view = UT_NEW_NOKEY(ReadView()))) {
-			ib::error() << "Failed to allocate MVCC view";
-		}
-	}
-
-	if (view != NULL) {
-
-		view->prepare(trx->id);
-
-		view->complete();
-
-		UT_LIST_ADD_FIRST(m_views, view);
-
-		ut_ad(!view->is_closed());
-
-		ut_ad(validate());
-	}
-
-	mutex_exit(&trx_sys.mutex);
+  mutex_enter(&trx_sys.mutex);
+  trx->read_view.prepare(trx->id);
+  if (trx->read_view.is_registered())
+    UT_LIST_REMOVE(m_views, &trx->read_view);
+  else
+    trx->read_view.set_registered(true);
+  trx->read_view.set_open(true);
+  UT_LIST_ADD_FIRST(m_views, &trx->read_view);
+  ut_ad(validate());
+  mutex_exit(&trx_sys.mutex);
 }
 
 /**
@@ -625,7 +584,7 @@ MVCC::clone_oldest_view(ReadView* view)
 	     oldest_view != NULL;
 	     oldest_view = UT_LIST_GET_PREV(m_view_list, oldest_view))
 	{
-		if (!oldest_view->is_closed())
+		if (oldest_view->is_open())
 		{
 			view->copy_prepare(*oldest_view);
 			mutex_exit(&trx_sys.mutex);
@@ -636,24 +595,23 @@ MVCC::clone_oldest_view(ReadView* view)
 	/* No views in the list: snapshot current state. */
 	view->prepare(0);
 	mutex_exit(&trx_sys.mutex);
-	view->complete();
 }
 
 /**
 @return the number of active views */
 
-ulint
+size_t
 MVCC::size() const
 {
 	mutex_enter(&trx_sys.mutex);
 
-	ulint	size = 0;
+	size_t	size = 0;
 
 	for (const ReadView* view = UT_LIST_GET_FIRST(m_views);
 	     view != NULL;
 	     view = UT_LIST_GET_NEXT(m_view_list, view)) {
 
-		if (!view->is_closed()) {
+		if (view->is_open()) {
 			++size;
 		}
 	}
@@ -661,19 +619,4 @@ MVCC::size() const
 	mutex_exit(&trx_sys.mutex);
 
 	return(size);
-}
-
-/**
-Close a view created by the above function.
-@param view		view allocated by trx_open. */
-
-void
-MVCC::view_close(ReadView*& view)
-{
-	ut_ad(mutex_own(&trx_sys.mutex));
-	view->close();
-	UT_LIST_REMOVE(m_views, view);
-	UT_LIST_ADD_LAST(m_free, view);
-	ut_ad(validate());
-	view = NULL;
 }

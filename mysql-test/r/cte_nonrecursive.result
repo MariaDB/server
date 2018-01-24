@@ -1295,3 +1295,77 @@ TERM03	TERM03
 TERM01	NULL
 NULL	TERM04
 drop table t1,t2;
+#
+# MDEV-14969: view using subquery with attached CTE
+#
+create table region (
+r_regionkey int,
+r_name char(25),
+primary key (r_regionkey)
+);
+insert into region values
+(0,'AFRICA'), (1,'AMERICA'), (2,'ASIA'), (3,'EUROPE'), (4,'MIDDLE EAST');
+create table nation (
+n_nationkey int,
+n_name char(25),
+n_regionkey int,
+primary key (n_nationkey),
+key i_n_regionkey (n_regionkey)
+);
+insert into nation values
+(0,'ALGERIA',0), (1,'ARGENTINA',1), (2,'BRAZIL',1), (3,'CANADA',1),
+(4,'EGYPT',4), (5,'ETHIOPIA',0), (6,'FRANCE',3), (7,'GERMANY',3),
+(8,'INDIA',2), (9,'INDONESIA',2), (10,'IRAN',4), (11,'IRAQ',4),
+(12,'JAPAN',2), (13,'JORDAN',4), (14,'KENYA',0), (15,'MOROCCO',0),
+(16,'MOZAMBIQUE',0), (17,'PERU',1), (18,'CHINA',2), (19,'ROMANIA',3),
+(20,'SAUDI ARABIA',4), (21,'VIETNAM',2), (22,'RUSSIA',3),
+(23,'UNITED KINGDOM',3), (24,'UNITED STATES',1);
+select * from nation n ,region r
+where n.n_regionkey = r.r_regionkey and
+r.r_regionkey in
+(with t as (select * from region where r_regionkey <= 3 )
+select r_regionkey from t where r_name <> "ASIA");
+n_nationkey	n_name	n_regionkey	r_regionkey	r_name
+0	ALGERIA	0	0	AFRICA
+5	ETHIOPIA	0	0	AFRICA
+14	KENYA	0	0	AFRICA
+15	MOROCCO	0	0	AFRICA
+16	MOZAMBIQUE	0	0	AFRICA
+1	ARGENTINA	1	1	AMERICA
+2	BRAZIL	1	1	AMERICA
+3	CANADA	1	1	AMERICA
+17	PERU	1	1	AMERICA
+24	UNITED STATES	1	1	AMERICA
+6	FRANCE	3	3	EUROPE
+7	GERMANY	3	3	EUROPE
+19	ROMANIA	3	3	EUROPE
+22	RUSSIA	3	3	EUROPE
+23	UNITED KINGDOM	3	3	EUROPE
+create view v as
+select * from nation n ,region r
+where n.n_regionkey = r.r_regionkey and
+r.r_regionkey in
+(with t as (select * from region where r_regionkey <= 3)
+select r_regionkey from t where r_name <> "ASIA");
+show create view v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `n`.`n_nationkey` AS `n_nationkey`,`n`.`n_name` AS `n_name`,`n`.`n_regionkey` AS `n_regionkey`,`r`.`r_regionkey` AS `r_regionkey`,`r`.`r_name` AS `r_name` from (`nation` `n` join `region` `r`) where `n`.`n_regionkey` = `r`.`r_regionkey` and `r`.`r_regionkey` in (with t as (select `region`.`r_regionkey` AS `r_regionkey`,`region`.`r_name` AS `r_name` from `region` where `region`.`r_regionkey` <= 3)select `t`.`r_regionkey` from `t` where `t`.`r_name` <> 'ASIA')	latin1	latin1_swedish_ci
+select * from v;
+n_nationkey	n_name	n_regionkey	r_regionkey	r_name
+0	ALGERIA	0	0	AFRICA
+5	ETHIOPIA	0	0	AFRICA
+14	KENYA	0	0	AFRICA
+15	MOROCCO	0	0	AFRICA
+16	MOZAMBIQUE	0	0	AFRICA
+1	ARGENTINA	1	1	AMERICA
+2	BRAZIL	1	1	AMERICA
+3	CANADA	1	1	AMERICA
+17	PERU	1	1	AMERICA
+24	UNITED STATES	1	1	AMERICA
+6	FRANCE	3	3	EUROPE
+7	GERMANY	3	3	EUROPE
+19	ROMANIA	3	3	EUROPE
+22	RUSSIA	3	3	EUROPE
+23	UNITED KINGDOM	3	3	EUROPE
+drop view v;
+drop table region, nation;

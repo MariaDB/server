@@ -54,3 +54,108 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	warning	Datafile is almost full, 268230656 of 268320768 used
 test.t1	check	status	OK
 drop table t1,t2;
+create table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=FIXED min_rows=1000000;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(10) unsigned DEFAULT NULL,
+  `c2` char(80) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 MIN_ROWS=1000000 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
+insert into t1 select seq,seq from seq_1_to_100000;
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=FIXED;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(10) unsigned DEFAULT NULL,
+  `c2` char(80) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
+insert into t1 select seq,seq from seq_1_to_100000;
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=PAGE TRANSACTIONAL=0;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(10) unsigned DEFAULT NULL,
+  `c2` char(80) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE TRANSACTIONAL=0
+insert into t1 select seq,seq from seq_1_to_100000;
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=FIXED MAX_ROWS=10;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(10) unsigned DEFAULT NULL,
+  `c2` char(80) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=FIXED
+insert into t1 select seq,seq from seq_1_to_100000;
+ERROR HY000: The table 't1' is full
+select count(*) from t1;
+count(*)
+65535
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=DYNAMIC MAX_ROWS=10;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(10) unsigned DEFAULT NULL,
+  `c2` char(80) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=DYNAMIC
+insert into t1 select seq,seq from seq_1_to_100000;
+ERROR HY000: The table 't1' is full
+select count(*) from t1;
+count(*)
+3276
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	warning	Datafile is almost full, 65520 of 65535 used
+test.t1	check	status	OK
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=PAGE MAX_ROWS=10;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(10) unsigned DEFAULT NULL,
+  `c2` char(80) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+insert into t1 select seq,seq from seq_1_to_100000;
+select count(*) from t1;
+count(*)
+100000
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=PAGE MAX_ROWS=10;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(10) unsigned DEFAULT NULL,
+  `c2` char(80) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 MAX_ROWS=10 PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
+insert into t1 select seq,seq from seq_1_to_10000000;
+ERROR HY000: The table 't1' is full
+select count(*) from t1;
+count(*)
+6189940
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	warning	Datafile is almost full, 268320768 of 268320768 used
+test.t1	check	status	OK
+drop table t1;

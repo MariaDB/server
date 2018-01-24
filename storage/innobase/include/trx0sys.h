@@ -883,17 +883,6 @@ public:
 
   MY_ALIGNED(CACHE_LINE_SIZE) rw_trx_hash_t rw_trx_hash;
 
-	ulint		n_prepared_trx;	/*!< Number of transactions currently
-					in the XA PREPARED state */
-
-	ulint		n_prepared_recovered_trx; /*!< Number of transactions
-					currently in XA PREPARED state that are
-					also recovered. Such transactions cannot
-					be added during runtime. They can only
-					occur after recovery if mysqld crashed
-					while there were XA PREPARED
-					transactions. We disable query cache
-					if such transactions exist. */
 
   /**
     Constructor.

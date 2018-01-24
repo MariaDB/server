@@ -45,12 +45,10 @@ Created 3/26/1996 Heikki Tuuri
 #include "ut0vec.h"
 #include "fts0fts.h"
 #include "srv0srv.h"
+#include "read0types.h"
 
 // Forward declaration
 struct mtr_t;
-
-// Forward declaration
-class ReadView;
 
 // Forward declaration
 class FlushObserver;
@@ -290,23 +288,6 @@ void
 trx_mark_sql_stat_end(
 /*==================*/
 	trx_t*	trx);	/*!< in: trx handle */
-/********************************************************************//**
-Assigns a read view for a consistent read query. All the consistent reads
-within the same transaction will get the same read view, which is created
-when this function is first called for a new started transaction. */
-ReadView*
-trx_assign_read_view(
-/*=================*/
-	trx_t*	trx);	/*!< in: active transaction */
-
-/****************************************************************//**
-@return the transaction's read view or NULL if one not assigned. */
-UNIV_INLINE
-ReadView*
-trx_get_read_view(
-/*==============*/
-	trx_t*	trx);
-
 /****************************************************************//**
 Prepares a transaction for commit/rollback. */
 void
@@ -571,7 +552,7 @@ Check transaction state */
 	ut_ad(trx_state_eq((t), TRX_STATE_NOT_STARTED)			\
 	      || trx_state_eq((t), TRX_STATE_FORCED_ROLLBACK));		\
 	ut_ad(!trx->has_logged());					\
-	ut_ad(!MVCC::is_view_active((t)->read_view));			\
+	ut_ad(!(t)->read_view.is_open());				\
 	ut_ad((t)->lock.wait_thr == NULL);				\
 	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
 	ut_ad((t)->dict_operation == TRX_DICT_OP_NONE);			\
@@ -783,7 +764,7 @@ that modified it is running. */
 typedef std::map<
 	dict_table_t*, trx_mod_table_time_t,
 	std::less<dict_table_t*>,
-	ut_allocator<std::pair<dict_table_t*, trx_mod_table_time_t> > >
+	ut_allocator<std::pair<dict_table_t* const, trx_mod_table_time_t> > >
 	trx_mod_tables_t;
 
 /** The transaction handle
@@ -1000,7 +981,7 @@ public:
 
 	trx_state_t	state;
 
-	ReadView*	read_view;	/*!< consistent read view used in the
+	ReadView	read_view;	/*!< consistent read view used in the
 					transaction, or NULL if not yet set */
 
 	UT_LIST_NODE_T(trx_t)
@@ -1128,9 +1109,6 @@ public:
 			mysql_trx_list;	/*!< list of transactions created for
 					MySQL; protected by trx_sys.mutex */
 #ifdef UNIV_DEBUG
-	/** whether this transaction is updating persistent statistics
-	(used for silencing a debug assertion at shutdown) */
-	bool		persistent_stats;
 	bool		in_mysql_trx_list;
 					/*!< true if in
 					trx_sys.mysql_trx_list */
