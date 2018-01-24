@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -316,28 +317,6 @@ ReadView::ids_t::insert(value_type value)
 
 		resize(size() + 1);
 	}
-}
-
-/**
-ReadView constructor */
-ReadView::ReadView()
-	:
-	m_low_limit_id(),
-	m_up_limit_id(),
-	m_creator_trx_id(),
-	m_ids(),
-	m_low_limit_no(),
-	m_open(false),
-	m_registered(false)
-{
-	ut_d(::memset(&m_view_list, 0x0, sizeof(m_view_list)));
-}
-
-/**
-ReadView destructor */
-ReadView::~ReadView()
-{
-	// Do nothing
 }
 
 /**
