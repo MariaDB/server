@@ -801,7 +801,9 @@ static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
 #endif /* WSREP_PROC_INFO */
 
   wsrep_cb_status_t rcode= WSREP_CB_SUCCESS;
-  if (!opt_log_slave_updates && wsrep_before_commit(thd, true))
+  if (!opt_log_slave_updates &&
+      thd->wsrep_apply_toi &&
+      wsrep_before_commit(thd, true))
     rcode= WSREP_CB_FAILURE;
 
   /*

@@ -1027,24 +1027,29 @@ int wsrep_before_commit(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_before_commit");
 
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
+
   /*
     Applier/replayer codepath
    */
   if (thd->wsrep_exec_mode == REPL_RECV)
   {
-    DBUG_ASSERT(thd->wsrep_trx_must_order_commit());
-    if (wsrep->commit_order_enter(wsrep, &thd->wsrep_ws_handle) != WSREP_OK)
+    wsrep_log_thd(thd, is_real_trans, "wsrep_before_commit enter");
+    if (is_real_trans)
     {
-      WSREP_ERROR("Failed to enter applier commit order critical section");
-      DBUG_RETURN(1);
+      DBUG_ASSERT(thd->wsrep_trx_must_order_commit());
+      if (wsrep->commit_order_enter(wsrep, &thd->wsrep_ws_handle) != WSREP_OK)
+      {
+        WSREP_ERROR("Failed to enter applier commit order critical section");
+        DBUG_RETURN(1);
+      }
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      thd->set_wsrep_query_state(QUERY_COMMITTING);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     }
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-    thd->set_wsrep_query_state(QUERY_COMMITTING);
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     DBUG_RETURN(0);
   }
 
-  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
 
   if (!wsrep_run_hook(thd, is_real_trans, true))
   {

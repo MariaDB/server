@@ -25,6 +25,7 @@ wsrep_causal_reads=ON
 wsrep_sync_wait = 15
 
 [mysqld.2]
+# debug=d:t:i:o,/tmp/mysqld.2.trace
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
