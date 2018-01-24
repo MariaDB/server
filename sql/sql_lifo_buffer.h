@@ -84,7 +84,7 @@ public:
     start= start_arg;
     end= end_arg;
     if (end != start)
-      TRASH(start, end - start);
+      TRASH_ALLOC(start, end - start);
     reset();
   }
   
@@ -224,7 +224,7 @@ public:
   {
     DBUG_ASSERT(unused_end >= unused_start);
     DBUG_ASSERT(end == unused_start);
-    TRASH(unused_start, unused_end - unused_start);
+    TRASH_ALLOC(unused_start, unused_end - unused_start);
     end= unused_end;
   }
   /* Return pointer to start of the memory area that is occupied by the data */

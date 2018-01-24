@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1285,7 +1285,8 @@ row_import::match_table_columns(
 				err = DB_ERROR;
 			}
 
-			if (cfg_col->mbminmaxlen != col->mbminmaxlen) {
+			if (cfg_col->mbminlen != col->mbminlen
+			    || cfg_col->mbmaxlen != col->mbmaxlen) {
 				ib_errf(thd,
 					 IB_LOG_LEVEL_ERROR,
 					 ER_TABLE_SCHEMA_MISMATCH,
@@ -2896,7 +2897,9 @@ row_import_read_columns(
 		col->len = mach_read_from_4(ptr);
 		ptr += sizeof(ib_uint32_t);
 
-		col->mbminmaxlen = mach_read_from_4(ptr);
+		ulint mbminmaxlen = mach_read_from_4(ptr);
+		col->mbmaxlen = mbminmaxlen / 5;
+		col->mbminlen = mbminmaxlen % 5;
 		ptr += sizeof(ib_uint32_t);
 
 		col->ind = mach_read_from_4(ptr);

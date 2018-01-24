@@ -385,7 +385,6 @@ void my_thread_end(void)
 
     /* Trash variable so that we can detect false accesses to my_thread_var */
     tmp->init= 2;
-    TRASH(tmp, sizeof(*tmp));
     free(tmp);
   }
 }

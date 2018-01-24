@@ -2696,6 +2696,17 @@ count(*)
 13
 drop table t1;
 #
+# MDEV-14690: Assertion `page_link == &fake_link' failed in
+# pagecache_write_part
+#
+CREATE TABLE t1 (a CHAR(8), b CHAR(8), c CHAR(8) NOT NULL DEFAULT '', f FLOAT, KEY(f)) ENGINE=Aria;
+INSERT INTO t1 (a) VALUES ('foo');
+DELETE FROM t1 WHERE c < 'bar';
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 (b) VALUES ('');
+ALTER TABLE t1 ENABLE KEYS;
+DROP TABLE t1;
+#
 # BUG#47444 - --myisam_repair_threads > 1 can result in all index
 #             cardinalities=1
 #

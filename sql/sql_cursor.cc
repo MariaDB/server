@@ -210,7 +210,7 @@ void Server_side_cursor::operator delete(void *ptr, size_t size)
   MEM_ROOT own_root= *cursor->mem_root;
 
   DBUG_ENTER("Server_side_cursor::operator delete");
-  TRASH(ptr, size);
+  TRASH_FREE(ptr, size);
   /*
     If this cursor has never been opened mem_root is empty. Otherwise
     mem_root points to the memory the cursor object was allocated in.

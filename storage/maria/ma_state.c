@@ -58,6 +58,7 @@ my_bool _ma_setup_live_state(MARIA_HA *info)
   MARIA_USED_TABLES *tables;
   MARIA_STATE_HISTORY *history;
   DBUG_ENTER("_ma_setup_live_state");
+  DBUG_PRINT("enter", ("info: %p", info));
 
   DBUG_ASSERT(share->lock_key_trees);
 
@@ -110,6 +111,8 @@ my_bool _ma_setup_live_state(MARIA_HA *info)
 end:
   info->state_start= &tables->state_start;
   info->state= &tables->state_current;
+  info->used_tables= tables;
+  tables->use_count++;
 
   /*
     Mark in transaction state if we are not using transid (versioning)
@@ -118,6 +121,7 @@ end:
   */
   tables->state_current.no_transid|= !(info->row_flag & ROW_FLAG_TRANSID);
 
+  DBUG_PRINT("exit", ("tables: %p  info->state: %p", tables, info->state));
   DBUG_RETURN(0);
 }
 
@@ -241,9 +245,10 @@ void _ma_reset_state(MARIA_HA *info)
   DBUG_ENTER("_ma_reset_state");
 
   /* Always true if share->now_transactional is set */
-  if (history)
+  if (history && share->have_versioning)
   {
     MARIA_STATE_HISTORY *next;
+    DBUG_PRINT("info", ("resetting history"));
 
     /* Set the current history to current state */
     share->state_history->state= share->state.state;
@@ -255,7 +260,7 @@ void _ma_reset_state(MARIA_HA *info)
       my_free(history);
     }
     share->state_history->next= 0;
-    share->state_history->trid= 0;              /* Visibile for all */
+    share->state_history->trid= 0;              /* Visible for all */
   }
   DBUG_VOID_RETURN;
 }
@@ -597,7 +602,7 @@ void _ma_remove_table_from_trnman(MARIA_SHARE *share, TRN *trn)
 
   SYNOPSIS
     _ma_get_status()
-    param		Pointer to Myisam handler
+    param		Pointer to Aria handler
     concurrent_insert	Set to 1 if we are going to do concurrent inserts
 			(THR_WRITE_CONCURRENT_INSERT was used)
 */
@@ -627,6 +632,8 @@ void _ma_block_get_status(void* param, my_bool concurrent_insert)
 my_bool _ma_block_start_trans(void* param)
 {
   MARIA_HA *info=(MARIA_HA*) param;
+  DBUG_ENTER("_ma_block_start_trans");
+
   if (info->s->lock_key_trees)
   {
     /*
@@ -634,7 +641,7 @@ my_bool _ma_block_start_trans(void* param)
       out of memory conditions)
       TODO: Fix this by having one extra state pre-allocated
     */
-    return _ma_setup_live_state(info);
+    DBUG_RETURN(_ma_setup_live_state(info));
   }
   else
   {
@@ -663,9 +670,9 @@ my_bool _ma_block_start_trans(void* param)
       Assume for now that this doesn't fail (It can only fail in
       out of memory conditions)
     */
-    return maria_create_trn_hook(info) != 0;
+    DBUG_RETURN(maria_create_trn_hook(info) != 0);
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
@@ -697,7 +704,7 @@ my_bool _ma_block_check_status(void *param __attribute__((unused)))
 my_bool _ma_block_start_trans_no_versioning(void* param)
 {
   MARIA_HA *info=(MARIA_HA*) param;
-  DBUG_ENTER("_ma_block_get_status_no_version");
+  DBUG_ENTER("_ma_block_start_trans_no_versioning");
   DBUG_ASSERT(info->s->base.born_transactional && !info->s->lock_key_trees);
 
   info->state->changed= 0;              /* from _ma_reset_update_flag() */
@@ -722,6 +729,8 @@ my_bool _ma_block_start_trans_no_versioning(void* param)
 void maria_versioning(MARIA_HA *info, my_bool versioning)
 {
   MARIA_SHARE *share= info->s;
+  DBUG_ENTER("maria_versioning");
+
   /* For now, this is a hack */
   if (share->have_versioning)
   {
@@ -738,6 +747,7 @@ void maria_versioning(MARIA_HA *info, my_bool versioning)
       info->state= &share->state.state;	/* Change global values by default */
     info->state_start= info->state;             /* Initial values */
   }
+  DBUG_VOID_RETURN;
 }
 
 

@@ -2136,11 +2136,16 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
        safety net for now, we don't remove the test of
        file->state->records, because there is uncertainty on what will
        happen during repair if the two states disagree.
+
+       We also have to check in case of transactional tables that the
+       user has not used LOCK TABLE on the table twice.
     */
     if ((file->state->records == 0) &&
         (share->state.state.records == 0) && can_enable_indexes &&
         (!rows || rows >= MARIA_MIN_ROWS_TO_DISABLE_INDEXES) &&
-        (file->lock.type == TL_WRITE || file->lock.type == TL_UNLOCK))
+        (file->lock.type == TL_WRITE || file->lock.type == TL_UNLOCK) &&
+        (!share->have_versioning || !share->now_transactional ||
+         file->used_tables->use_count == 1))
     {
       /**
          @todo for a single-row INSERT SELECT, we will go into repair, which

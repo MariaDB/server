@@ -260,7 +260,7 @@ public:
   static void *operator new(size_t size, MEM_ROOT *mem_root)
   { return (void*) alloc_root(mem_root, size); }
   static void operator delete(void *ptr_arg,size_t size)
-  { TRASH(ptr_arg, size); }
+  { TRASH_FREE(ptr_arg, size); }
 
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
                     struct st_mysql_sys_var *plugin_var_arg,
@@ -466,6 +466,11 @@ static st_plugin_dl *plugin_dl_insert_or_reuse(struct st_plugin_dl *plugin_dl)
       (struct st_plugin_dl *) memdup_root(&plugin_mem_root, (uchar*)plugin_dl,
                                            sizeof(struct st_plugin_dl));
   DBUG_RETURN(tmp);
+}
+#else
+static struct st_plugin_dl *plugin_dl_find(const LEX_STRING *)
+{
+  return 0;
 }
 #endif /* HAVE_DLOPEN */
 

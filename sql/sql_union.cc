@@ -941,22 +941,6 @@ bool st_select_lex_unit::cleanup()
 void st_select_lex_unit::reinit_exec_mechanism()
 {
   prepared= optimized= executed= 0;
-#ifndef DBUG_OFF
-  if (is_union())
-  {
-    List_iterator_fast<Item> it(item_list);
-    Item *field;
-    while ((field= it++))
-    {
-      /*
-	we can't cleanup here, because it broke link to temporary table field,
-	but have to drop fixed flag to allow next fix_field of this field
-	during re-executing
-      */
-      field->fixed= 0;
-    }
-  }
-#endif
 }
 
 

@@ -2948,6 +2948,52 @@ ORDER BY NULL, @a0 := 3, @a1 := 3, @a2 := 3, @a3 := 3, @a4 := 3,
 1
 1
 2
+#
+# mdev-6706: semi-join with duplicate weedout + ORDER BY
+#
+CREATE TABLE t1 (f1 VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo');
+CREATE TABLE t2 (f2 VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('bar'),('baz');
+CREATE TABLE t3
+(i3_key INT, f3_key VARCHAR(3), f3 VARCHAR(3), KEY(f3_key,i3_key))
+ENGINE=MyISAM;
+INSERT INTO t3 VALUES (0,'qux','qux'),(8,'bar','bar');
+SELECT CONCAT( f1, f2 ) AS field FROM t1, t2
+WHERE f1 = ANY ( SELECT f1
+FROM t1
+LEFT JOIN ( t3 AS t3a, t3 AS t3b )
+ON ( t3b.f3_key = t3a.f3 )
+WHERE t3a.f3 < f1 OR t3b.f3 != f1 );
+field
+foobar
+foobaz
+SELECT CONCAT( f1, f2 ) AS field FROM t1, t2
+WHERE f1 = ANY ( SELECT f1
+FROM t1
+LEFT JOIN ( t3 AS t3a, t3 AS t3b )
+ON ( t3b.f3_key = t3a.f3 )
+WHERE t3a.f3 < f1 OR t3b.f3 != f1 )
+ORDER BY field;
+field
+foobar
+foobaz
+EXPLAIN EXTENDED SELECT CONCAT( f1, f2 ) AS field FROM t1, t2
+WHERE f1 = ANY ( SELECT f1
+FROM t1
+LEFT JOIN ( t3 AS t3a, t3 AS t3b )
+ON ( t3b.f3_key = t3a.f3 )
+WHERE t3a.f3 < f1 OR t3b.f3 != f1 )
+ORDER BY field;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	Using temporary; Using filesort
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t3a	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary
+1	PRIMARY	t3b	ref	f3_key	f3_key	6	test.t3a.f3	1	100.00	Using where; End temporary
+Warnings:
+Note	1003	select concat('foo',`test`.`t2`.`f2`) AS `field` from `test`.`t2` semi join ((`test`.`t3` `t3a` join `test`.`t3` `t3b`)) where ((`test`.`t3a`.`f3` < 'foo') or (`test`.`t3b`.`f3` <> 'foo')) order by concat('foo',`test`.`t2`.`f2`)
+DROP TABLE t1,t2,t3;
 End of 5.5 tests
 #
 # MDEV-5884: EXPLAIN UPDATE ... ORDER BY LIMIT shows wrong #rows

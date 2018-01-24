@@ -27,6 +27,7 @@ srcdir=""
 
 args=""
 defaults=""
+defaults_group_suffix=""
 mysqld_opt=""
 user=""
 
@@ -49,6 +50,9 @@ Usage: $0 [OPTIONS]
   --defaults-extra-file=name
                        Read this file after the global files are read.
   --defaults-file=name Only read default options from the given file name.
+  --defaults-group-suffix=name
+                       In addition to the given groups, read also groups with
+                       this suffix
   --force              Causes mysql_install_db to run even if DNS does not
                        work.  In that case, grant table entries that
                        normally use hostnames will use IP addresses.
@@ -129,6 +133,8 @@ parse_arguments()
       --help) usage ;;
       --no-defaults|--defaults-file=*|--defaults-extra-file=*)
         defaults="$arg" ;;
+      --defaults-group-suffix=*)
+        defaults_group_suffix="$arg" ;;
 
       --cross-bootstrap|--windows)
         # Used when building the MariaDB system tables on a different host than
@@ -259,7 +265,7 @@ fi
 
 # Now we can get arguments from the groups [mysqld] and [mysql_install_db]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `"$print_defaults" $defaults --mysqld mysql_install_db`
+parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 # Configure paths to support files
@@ -419,8 +425,8 @@ fi
 mysqld_bootstrap="${MYSQLD_BOOTSTRAP-$mysqld}"
 mysqld_install_cmd_line()
 {
-  "$mysqld_bootstrap" $defaults "$mysqld_opt" --bootstrap \
-  "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 \
+  "$mysqld_bootstrap" $defaults $defaults_group_suffix "$mysqld_opt" \
+  --bootstrap "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 \
   --loose-skip-ndbcluster $args --max_allowed_packet=8M \
   --net_buffer_length=16K
 }
@@ -443,7 +449,7 @@ else
   echo
   echo "You can also try to start the mysqld daemon with:"
   echo
-  echo "    shell> $mysqld --skip-grant --general-log &"
+  echo "    shell> $mysqld --skip-grant-tables --general-log &"
   echo
   echo "and use the command line tool $bindir/mysql"
   echo "to connect to the mysql database and look at the grant tables:"
@@ -454,8 +460,8 @@ else
   echo "Try 'mysqld --help' if you have problems with paths.  Using"
   echo "--general-log gives you a log in $ldata that may be helpful."
   link_to_help
-  echo "MariaDB is hosted on launchpad; You can find the latest source and"
-  echo "email lists at http://launchpad.net/maria"
+  echo "You can find the latest source at https://downloads.mariadb.org and"
+  echo "the maria-discuss email list at https://launchpad.net/~maria-discuss"
   echo
   echo "Please check all of the above before submitting a bug report"
   echo "at http://mariadb.org/jira"

@@ -636,14 +636,6 @@ typedef void* os_thread_ret_t;
 # define UNIV_MEM_ASSERT_W(addr, size) do {} while(0)
 # define UNIV_MEM_TRASH(addr, c, size) do {} while(0)
 #endif
-#define UNIV_MEM_ASSERT_AND_FREE(addr, size) do {	\
-	UNIV_MEM_ASSERT_W(addr, size);			\
-	UNIV_MEM_FREE(addr, size);			\
-} while (0)
-#define UNIV_MEM_ASSERT_AND_ALLOC(addr, size) do {	\
-	UNIV_MEM_ASSERT_W(addr, size);			\
-	UNIV_MEM_ALLOC(addr, size);			\
-} while (0)
 
 extern ulong	srv_page_size_shift;
 extern ulong	srv_page_size;

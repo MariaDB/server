@@ -328,6 +328,20 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-14609 XA Transction unable to ROLLBACK TO SAVEPOINT
+--echo #
+
+CREATE TABLE t1 (c1 INT) ENGINE=INNODB;
+XA START 'xa1';
+SAVEPOINT savepoint1;
+INSERT INTO t1 (c1) VALUES (1),(2),(3),(4);
+ROLLBACK TO SAVEPOINT savepoint1;
+XA END 'xa1';
+XA ROLLBACK 'xa1';
+DROP TABLE t1;
+
+
+--echo #
 --echo # Bug#12352846 - TRANS_XA_START(THD*):
 --echo #                ASSERTION THD->TRANSACTION.XID_STATE.XID.IS_NULL()
 --echo #                FAILED 

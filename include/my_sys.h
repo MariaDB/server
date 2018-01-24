@@ -667,9 +667,7 @@ extern int my_sync_dir(const char *dir_name, myf my_flags);
 extern int my_sync_dir_by_file(const char *file_name, myf my_flags);
 extern const char *my_get_err_msg(uint nr);
 extern void my_error(uint nr,myf MyFlags, ...);
-extern void my_printf_error(uint my_err, const char *format,
-                            myf MyFlags, ...)
-                            ATTRIBUTE_FORMAT(printf, 2, 4);
+extern void my_printf_error(uint my_err, const char *format, myf MyFlags, ...);
 extern void my_printv_error(uint error, const char *format, myf MyFlags,
                             va_list ap);
 extern int my_error_register(const char** (*get_errmsgs) (void),

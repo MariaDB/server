@@ -132,15 +132,79 @@ err:
 
 #include <m_string.h>
 #include <ctype.h>
+
+#include <sys/wait.h>
+
 static int in[2], out[2];
-static int initialized= 0;
+static pid_t pid;
+static char addr2line_binary[1024];
 static char output[1024];
+
+int start_addr2line_fork(const char *binary_path)
+{
+
+  if (pid > 0)
+  {
+    /* Don't leak FDs */
+    close(in[1]);
+    close(out[0]);
+    /* Don't create zombie processes. */
+    waitpid(pid, NULL, 0);
+  }
+
+  if (pipe(in) < 0)
+    return 1;
+  if (pipe(out) < 0)
+    return 1;
+
+  pid = fork();
+  if (pid == -1)
+    return 1;
+
+  if (!pid) /* child */
+  {
+    dup2(in[0], 0);
+    dup2(out[1], 1);
+    close(in[0]);
+    close(in[1]);
+    close(out[0]);
+    close(out[1]);
+    execlp("addr2line", "addr2line", "-C", "-f", "-e", binary_path, NULL);
+    exit(1);
+  }
+
+  close(in[0]);
+  close(out[1]);
+
+  return 0;
+}
+
 int my_addr_resolve(void *ptr, my_addr_loc *loc)
 {
   char input[32], *s;
   size_t len;
 
-  len= my_snprintf(input, sizeof(input), "%p\n", ptr);
+  Dl_info info;
+  void *offset;
+
+  if (!dladdr(ptr, &info))
+    return 1;
+
+  if (strcmp(addr2line_binary, info.dli_fname))
+  {
+    /* We use dli_fname in case the path is longer than the length of our static
+       string. We don't want to allocate anything dynamicaly here as we are in
+       a "crashed" state. */
+    if (start_addr2line_fork(info.dli_fname))
+    {
+      addr2line_binary[0] = '\0';
+      return 1;
+    }
+    /* Save result for future comparisons. */
+    strnmov(addr2line_binary, info.dli_fname, sizeof(addr2line_binary));
+  }
+  offset = info.dli_fbase;
+  len= my_snprintf(input, sizeof(input), "%p\n", ptr - offset);
   if (write(in[1], input, len) <= 0)
     return 1;
   if (read(out[0], output, sizeof(output)) <= 0)
@@ -168,35 +232,6 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
 
 const char *my_addr_resolve_init()
 {
-  if (!initialized)
-  {
-    pid_t pid;
-
-    if (pipe(in) < 0)
-      return "pipe(in)";
-    if (pipe(out) < 0)
-      return "pipe(out)";
-
-    pid = fork();
-    if (pid == -1)
-      return "fork";
-
-    if (!pid) /* child */
-    {
-      dup2(in[0], 0);
-      dup2(out[1], 1);
-      close(in[0]);
-      close(in[1]);
-      close(out[0]);
-      close(out[1]);
-      execlp("addr2line", "addr2line", "-C", "-f", "-e", my_progname, NULL);
-      exit(1);
-    }
-    
-    close(in[0]);
-    close(out[1]);
-    initialized= 1;
-  }
   return 0;
 }
 #endif
