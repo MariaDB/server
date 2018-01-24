@@ -1673,7 +1673,14 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   }
 #ifdef WITH_WSREP
   if (WSREP(thd))
-    (void) wsrep_after_commit(thd, all);
+  {
+    /*
+      TODO: Ordered commit should be done after the transaction
+      has been queued for group commit.
+     */
+    error= wsrep_ordered_commit(thd, all, wsrep_apply_error());
+    if (!error) (void) wsrep_after_commit(thd, all);
+  }
 #endif /* WITH_WSREP */
 
   DBUG_RETURN(error);

@@ -801,9 +801,7 @@ static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
 #endif /* WSREP_PROC_INFO */
 
   wsrep_cb_status_t rcode= WSREP_CB_SUCCESS;
-  if (!opt_log_slave_updates &&
-      thd->wsrep_apply_toi &&
-      wsrep_before_commit(thd, true))
+  if (thd->wsrep_apply_toi && wsrep_before_commit(thd, true))
     rcode= WSREP_CB_FAILURE;
 
   /*
@@ -833,8 +831,7 @@ static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
       wsrep_set_SE_checkpoint(thd->wsrep_trx_meta.gtid.uuid,
                               thd->wsrep_trx_meta.gtid.seqno);
     }
-    if ((!opt_log_slave_updates || thd->wsrep_apply_toi)
-        && wsrep_ordered_commit(thd, true, err))
+    if (thd->wsrep_apply_toi && wsrep_ordered_commit(thd, true, err))
       rcode= WSREP_CB_FAILURE;
 
     if (rcode == WSREP_CB_SUCCESS)

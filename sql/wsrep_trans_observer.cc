@@ -1143,46 +1143,50 @@ int wsrep_ordered_commit(THD* thd, bool all, const wsrep_apply_error& err)
 {
   DBUG_ENTER("wsrep_ordered_commit");
 
+  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
+
   /*
     Applier/replayer codepath
   */
   if (thd->wsrep_exec_mode == REPL_RECV)
   {
     int ret= 0;
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-    bool run_commit_order_leave=
-      (thd->wsrep_query_state() != QUERY_ORDERED_COMMIT);
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-    if (run_commit_order_leave)
+    wsrep_log_thd(thd, is_real_trans, "wsrep_ordered_commit enter");
+    if (is_real_trans)
     {
-      wsrep_buf_t const err_buf= err.get_buf();
-      wsrep_status_t const rcode=
-        wsrep->commit_order_leave(wsrep, &thd->wsrep_ws_handle, &err_buf);
-
-      if (rcode != WSREP_OK)
-      {
-        DBUG_ASSERT(rcode == WSREP_NODE_FAIL);
-        if (err.is_null())
-        {
-          WSREP_ERROR("Failed to leave commit order critical section, "
-                      "rcode: %d", rcode);
-        }
-        else
-        {
-          WSREP_WARN("Replication can't continue due to the error in a "
-                     "writeset apply operation: %s", err.c_str());
-        }
-        ret= 1;
-      }
-
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-      thd->set_wsrep_query_state(QUERY_ORDERED_COMMIT);
+      bool run_commit_order_leave=
+        (thd->wsrep_query_state() != QUERY_ORDERED_COMMIT);
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      if (run_commit_order_leave)
+      {
+        wsrep_buf_t const err_buf= err.get_buf();
+        wsrep_status_t const rcode=
+          wsrep->commit_order_leave(wsrep, &thd->wsrep_ws_handle, &err_buf);
+
+        if (rcode != WSREP_OK)
+        {
+          DBUG_ASSERT(rcode == WSREP_NODE_FAIL);
+          if (err.is_null())
+          {
+            WSREP_ERROR("Failed to leave commit order critical section, "
+                        "rcode: %d", rcode);
+          }
+          else
+          {
+            WSREP_WARN("Replication can't continue due to the error in a "
+                       "writeset apply operation: %s", err.c_str());
+          }
+          ret= 1;
+        }
+
+        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+        thd->set_wsrep_query_state(QUERY_ORDERED_COMMIT);
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      }
     }
     DBUG_RETURN(ret);
   }
-
-  bool is_real_trans= (all || thd->transaction.all.ha_list == 0);
 
   if (!wsrep_run_hook(thd, is_real_trans, true))
   {

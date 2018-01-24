@@ -3873,6 +3873,7 @@ bool wsrep_provider_is_SR_capable()
 
 int wsrep_ordered_commit_if_no_binlog(THD* thd)
 {
+  return 0;
   if (!(wsrep_emulate_bin_log && thd->wsrep_trx_must_order_commit()))
   {
     return 0;
