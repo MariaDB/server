@@ -110,7 +110,7 @@ typedef struct st_maria_sort_param
   int (*key_read)(struct st_maria_sort_param *, uchar *);
   int (*key_write)(struct st_maria_sort_param *, const uchar *);
   void (*lock_in_memory)(HA_CHECK *);
-  int (*write_keys)(struct st_maria_sort_param *, register uchar **,
+  int (*write_keys)(struct st_maria_sort_param *, uchar **,
                          ulonglong , struct st_buffpek *, IO_CACHE *);
   my_off_t (*read_to_buffer)(IO_CACHE *,struct st_buffpek *, uint);
   int (*write_key)(struct st_maria_sort_param *, IO_CACHE *,uchar *,
@@ -1048,7 +1048,7 @@ my_off_t _ma_no_keypos_to_recpos(MARIA_SHARE *share, my_off_t pos);
 extern my_bool _ma_ck_write(MARIA_HA *info, MARIA_KEY *key);
 extern my_bool _ma_enlarge_root(MARIA_HA *info, MARIA_KEY *key,
                                 MARIA_RECORD_POS *root);
-int _ma_insert(register MARIA_HA *info, MARIA_KEY *key,
+int _ma_insert(MARIA_HA *info, MARIA_KEY *key,
                MARIA_PAGE *anc_page, uchar *key_pos, uchar *key_buff,
                MARIA_PAGE *father_page, uchar *father_key_pos,
                my_bool insert_last);
@@ -1090,7 +1090,7 @@ extern void _ma_store_bin_pack_key(MARIA_KEYDEF *keyinfo, uchar *key_pos,
                                    MARIA_KEY_PARAM *s_temp);
 
 extern my_bool _ma_ck_delete(MARIA_HA *info, MARIA_KEY *key);
-extern my_bool _ma_ck_real_delete(register MARIA_HA *info, MARIA_KEY *key,
+extern my_bool _ma_ck_real_delete(MARIA_HA *info, MARIA_KEY *key,
                                   my_off_t *root);
 extern int _ma_readinfo(MARIA_HA *info, int lock_flag, int check_keybuffer);
 extern int _ma_writeinfo(MARIA_HA *info, uint options);
@@ -1162,7 +1162,7 @@ extern my_bool _ma_fetch_keypage(MARIA_PAGE *page, MARIA_HA *info,
 extern my_bool _ma_write_keypage(MARIA_PAGE *page,
                                  enum pagecache_page_lock lock, int level);
 extern int _ma_dispose(MARIA_HA *info, my_off_t pos, my_bool page_not_read);
-extern my_off_t _ma_new(register MARIA_HA *info, int level,
+extern my_off_t _ma_new(MARIA_HA *info, int level,
                         MARIA_PINNED_PAGE **page_link);
 extern my_bool _ma_compact_keypage(MARIA_PAGE *page, TrID min_read_from);
 extern uint transid_store_packed(MARIA_HA *info, uchar *to, ulonglong trid);
@@ -1350,7 +1350,7 @@ extern MARIA_HA *_ma_test_if_reopen(const char *filename);
 my_bool _ma_check_table_is_closed(const char *name, const char *where);
 int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share);
 int _ma_open_keyfile(MARIA_SHARE *share);
-void _ma_setup_functions(register MARIA_SHARE *share);
+void _ma_setup_functions(MARIA_SHARE *share);
 my_bool _ma_dynmap_file(MARIA_HA *info, my_off_t size);
 void _ma_remap_file(MARIA_HA *info, my_off_t size);
 
@@ -1432,7 +1432,7 @@ extern my_bool maria_flush_log_for_page_none(PAGECACHE_IO_HOOK_ARGS *args);
 extern PAGECACHE *maria_log_pagecache;
 extern void ma_set_index_cond_func(MARIA_HA *info, index_cond_func_t func,
                                    void *func_arg);
-ICP_RESULT ma_check_index_cond(register MARIA_HA *info, uint keynr, uchar *record);
+ICP_RESULT ma_check_index_cond(MARIA_HA *info, uint keynr, uchar *record);
 
 extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);

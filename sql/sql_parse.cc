@@ -8123,7 +8123,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
                                              List<String> *partition_names,
                                              LEX_STRING *option)
 {
-  register TABLE_LIST *ptr;
+  TABLE_LIST *ptr;
   TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
   const char *alias_str;
   LEX *lex= thd->lex;

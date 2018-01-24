@@ -338,7 +338,7 @@ static void del_dbopt(const char *path)
 static bool write_db_opt(THD *thd, const char *path,
                          Schema_specification_st *create)
 {
-  register File file;
+  File file;
   char buf[256]; // Should be enough for one option
   bool error=1;
 

@@ -1163,12 +1163,11 @@ Type_handler_real_result::make_sort_key(uchar *to, Item *item,
 
 /** Make a sort-key from record. */
 
-static void make_sortkey(register Sort_param *param,
-                         register uchar *to, uchar *ref_pos)
+static void make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos)
 {
-  reg3 Field *field;
-  reg1 SORT_FIELD *sort_field;
-  reg5 uint length;
+  Field *field;
+  SORT_FIELD *sort_field;
+  uint length;
 
   for (sort_field=param->local_sortorder ;
        sort_field != param->end ;
@@ -1258,7 +1257,7 @@ static void make_sortkey(register Sort_param *param,
 
 static void register_used_fields(Sort_param *param)
 {
-  reg1 SORT_FIELD *sort_field;
+  SORT_FIELD *sort_field;
   TABLE *table=param->sort_form;
 
   for (sort_field= param->local_sortorder ;
@@ -1457,7 +1456,7 @@ bool check_if_pq_applicable(Sort_param *param,
 int merge_many_buff(Sort_param *param, uchar *sort_buffer,
                     BUFFPEK *buffpek, uint *maxbuffer, IO_CACHE *t_file)
 {
-  register uint i;
+  uint i;
   IO_CACHE t_file2,*from_file,*to_file,*temp;
   BUFFPEK *lastbuff;
   DBUG_ENTER("merge_many_buff");
@@ -1512,7 +1511,7 @@ cleanup:
 uint read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
 		    uint rec_length)
 {
-  register uint count;
+  uint count;
   uint length;
 
   if ((count=(uint) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
@@ -1816,7 +1815,7 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
     }
     else
     {
-      register uchar *end;
+      uchar *end;
       src= buffpek->key+offset;
       for (end= src+buffpek->mem_count*rec_length ;
            src != end ;
