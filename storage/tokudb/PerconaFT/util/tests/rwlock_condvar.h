@@ -67,13 +67,13 @@ struct toku_cv_fair_rwlock_waiter_state {
 static __thread struct toku_cv_fair_rwlock_waiter_state waitstate = {0, NULL, {PTHREAD_COND_INITIALIZER} };
 
 void toku_cv_fair_rwlock_init (toku_cv_fair_rwlock_t *rwlock) {
-    rwlock->state=0;
+    rwlock->state = 0;
     rwlock->waiters_head = NULL;
     rwlock->waiters_tail = NULL;
-    toku_mutex_init(&rwlock->mutex, NULL);
+    toku_mutex_init(toku_uninstrumented, &rwlock->mutex, nullptr);
 }
 
-void toku_cv_fair_rwlock_destroy (toku_cv_fair_rwlock_t *rwlock) {
+void toku_cv_fair_rwlock_destroy(toku_cv_fair_rwlock_t *rwlock) {
     toku_mutex_destroy(&rwlock->mutex);
 }
 

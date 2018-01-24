@@ -1,4 +1,4 @@
-SET(TOKUDB_VERSION 5.6.37-82.2)
+SET(TOKUDB_VERSION 5.6.38-83.0)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(CMAKE_VERSION VERSION_LESS "2.8.9")
   MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")

@@ -113,10 +113,14 @@ int test_main(int argc, char * const argv[]) {
     { int chk_r = db->open(db, NULL, "db", NULL, DB_BTREE, DB_CREATE|DB_AUTO_COMMIT, 0666); CKERR(chk_r); }
 
     pthread_t thds[n_threads];
-    int       ids[n_threads];
-    for (int i=0; i<n_threads; i++) {
-	ids[i]=i;
-	{ int chk_r = toku_pthread_create(&thds[i], NULL, start_txns, &ids[i]); CKERR(chk_r); }
+    int ids[n_threads];
+    for (int i = 0; i < n_threads; i++) {
+        ids[i] = i;
+        {
+            int chk_r = toku_pthread_create(
+                toku_uninstrumented, &thds[i], nullptr, start_txns, &ids[i]);
+            CKERR(chk_r);
+        }
     }
     start_checkpoints();
 

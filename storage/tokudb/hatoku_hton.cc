@@ -28,6 +28,17 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #define TOKU_METADB_NAME "tokudb_meta"
 
+static pfs_key_t tokudb_map_mutex_key;
+
+static PSI_mutex_info all_tokudb_mutexes[] = {
+    {&tokudb_map_mutex_key, "tokudb_map_mutex", 0},
+    {&ha_tokudb_mutex_key, "ha_tokudb_mutex", 0},
+};
+
+static PSI_rwlock_info all_tokudb_rwlocks[] = {
+    {&num_DBs_lock_key, "num_DBs_lock", 0},
+};
+
 typedef struct savepoint_info {
     DB_TXN* txn;
     tokudb_trx_data* trx;
@@ -207,6 +218,10 @@ extern "C" {
 // use constructor and destructor functions to create and destroy
 // the lock before and after main(), respectively.
 int tokudb_hton_initialized;
+
+// tokudb_hton_initialized_lock can not be instrumented as it must be
+// initialized before mysql_mutex_register() call to protect
+// some globals from race condition.
 tokudb::thread::rwlock_t tokudb_hton_initialized_lock;
 
 static SHOW_VAR *toku_global_status_variables = NULL;
@@ -262,10 +277,23 @@ static int tokudb_init_func(void *p) {
     int r;
 
     // 3938: lock the handlerton's initialized status flag for writing
-    tokudb_hton_initialized_lock.lock_write();
+    rwlock_t_lock_write(tokudb_hton_initialized_lock);
+
+#ifdef HAVE_PSI_INTERFACE
+    /* Register TokuDB mutex keys with MySQL performance schema */
+    int count;
+
+    count = array_elements(all_tokudb_mutexes);
+    mysql_mutex_register("tokudb", all_tokudb_mutexes, count);
+
+    count = array_elements(all_tokudb_rwlocks);
+    mysql_rwlock_register("tokudb", all_tokudb_rwlocks, count);
+
+    tokudb_map_mutex.reinit(tokudb_map_mutex_key);
+#endif /* HAVE_PSI_INTERFACE */
 
     db_env = NULL;
-    tokudb_hton = (handlerton *) p;
+    tokudb_hton = (handlerton*)p;
 
     if (tokudb::sysvars::check_jemalloc) {
         typedef int (*mallctl_type)(
@@ -662,7 +690,7 @@ int tokudb_end(handlerton* hton, ha_panic_function type) {
     // initialized. grab a writer lock for the duration of the
     // call, so we can drop the flag and destroy the mutexes
     // in isolation.
-    tokudb_hton_initialized_lock.lock_write();
+    rwlock_t_lock_write(tokudb_hton_initialized_lock);
     assert_always(tokudb_hton_initialized);
 
     tokudb::background::destroy();
@@ -742,16 +770,16 @@ static int tokudb_close_connection(handlerton* hton, THD* thd) {
     }
     tokudb::memory::free(trx);
 #if TOKU_THDVAR_MEMALLOC_BUG
-    tokudb_map_mutex.lock();
-    struct tokudb_map_pair key = { thd, NULL };
+    mutex_t_lock(tokudb_map_mutex);
+    struct tokudb_map_pair key = {thd, NULL};
     struct tokudb_map_pair* found_key =
-        (struct tokudb_map_pair*) tree_search(&tokudb_map, &key, NULL);
+        (struct tokudb_map_pair*)tree_search(&tokudb_map, &key, NULL);
 
     if (found_key) {
         tokudb::memory::free(found_key->last_lock_timeout);
         tree_delete(&tokudb_map, found_key, sizeof(*found_key), NULL);
     }
-    tokudb_map_mutex.unlock();
+    mutex_t_unlock(tokudb_map_mutex);
 #endif
     return error;
 }
@@ -1710,12 +1738,12 @@ static void tokudb_lock_timeout_callback(
                 tokudb::memory::strdup(log_str.c_ptr(), MY_FAE);
             tokudb::sysvars::set_last_lock_timeout(thd, new_lock_timeout);
 #if TOKU_THDVAR_MEMALLOC_BUG
-            tokudb_map_mutex.lock();
-            struct tokudb_map_pair old_key = { thd, old_lock_timeout };
+            mutex_t_lock(tokudb_map_mutex);
+            struct tokudb_map_pair old_key = {thd, old_lock_timeout};
             tree_delete(&tokudb_map, &old_key, sizeof old_key, NULL);
-            struct tokudb_map_pair new_key = { thd, new_lock_timeout };
+            struct tokudb_map_pair new_key = {thd, new_lock_timeout};
             tree_insert(&tokudb_map, &new_key, sizeof new_key, NULL);
-            tokudb_map_mutex.unlock();
+            mutex_t_unlock(tokudb_map_mutex);
 #endif
             tokudb::memory::free(old_lock_timeout);
         }

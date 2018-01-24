@@ -112,14 +112,17 @@ cachetable_test (void) {
     CHECKPOINTER cp = toku_cachetable_get_checkpointer(ct);
     toku_cachetable_begin_checkpoint(cp, NULL);
 
-
     clone_flush_started = false;
     clone_flush_completed = false;
     toku_pthread_t checkpoint_tid;
-    r = toku_pthread_create(&checkpoint_tid, NULL, run_end_checkpoint, NULL); 
-    assert_zero(r);    
+    r = toku_pthread_create(toku_uninstrumented,
+                            &checkpoint_tid,
+                            nullptr,
+                            run_end_checkpoint,
+                            nullptr);
+    assert_zero(r);
 
-    usleep(1*1024*1024);
+    usleep(1 * 1024 * 1024);
 
     r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     assert_zero(r);

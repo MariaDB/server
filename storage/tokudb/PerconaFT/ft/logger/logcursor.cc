@@ -85,10 +85,10 @@ static int lc_close_cur_logfile(TOKULOGCURSOR lc) {
 }
 
 static toku_off_t lc_file_len(const char *name) {
-   toku_struct_stat buf;
-   int r = toku_stat(name, &buf); 
-   assert(r == 0);
-   return buf.st_size;
+    toku_struct_stat buf;
+    int r = toku_stat(name, &buf, *tokudb_file_data_key);
+    assert(r == 0);
+    return buf.st_size;
 }
 
 // Cat the file and throw away the contents.  This brings the file into the file system cache

@@ -86,11 +86,14 @@ test_main (int argc __attribute__((__unused__)),
 
     {
         char logname[PATH_MAX];
-	toku_struct_stat statbuf;
-        sprintf(logname, "%s/log000000000000.tokulog%d", TOKU_TEST_FILENAME, TOKU_LOG_VERSION);
-	r = toku_stat(logname, &statbuf);
-	assert(r==0);
-	assert(statbuf.st_size<=LSIZE);
+        toku_struct_stat statbuf;
+        sprintf(logname,
+                "%s/log000000000000.tokulog%d",
+                TOKU_TEST_FILENAME,
+                TOKU_LOG_VERSION);
+        r = toku_stat(logname, &statbuf, toku_uninstrumented);
+        assert(r == 0);
+        assert(statbuf.st_size <= LSIZE);
     }
     toku_os_recursive_delete(TOKU_TEST_FILENAME);
     return 0;

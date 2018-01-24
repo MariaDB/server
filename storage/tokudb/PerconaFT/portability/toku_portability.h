@@ -125,6 +125,33 @@ typedef int64_t toku_off_t;
 
 #define UU(x) x __attribute__((__unused__))
 
+// Branch prediction macros.
+// If supported by the compiler, will hint in inctruction caching for likely
+// branching. Should only be used where there is a very good idea of the correct
+// branch heuristics as determined by profiling. Mostly copied from InnoDB.
+// Use:
+//   "if (FT_LIKELY(x))" where the chances of "x" evaluating true are higher
+//   "if (FT_UNLIKELY(x))" where the chances of "x" evaluating false are higher
+#if defined(__GNUC__) && (__GNUC__ > 2) && !defined(__INTEL_COMPILER)
+
+// Tell the compiler that 'expr' probably evaluates to 'constant'.
+#define FT_EXPECT(expr, constant) __builtin_expect(expr, constant)
+
+#else
+
+#warning "No FT branch prediction operations in use!"
+#define FT_EXPECT(expr, constant) (expr)
+
+#endif  // defined(__GNUC__) && (__GNUC__ > 2) && ! defined(__INTEL_COMPILER)
+
+// Tell the compiler that cond is likely to hold
+#define FT_LIKELY(cond) FT_EXPECT(bool(cond), true)
+
+// Tell the compiler that cond is unlikely to hold
+#define FT_UNLIKELY(cond) FT_EXPECT(bool(cond), false)
+
+#include "toku_instrumentation.h"
+
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -240,28 +267,272 @@ void toku_os_full_write (int fd, const void *buf, size_t len) __attribute__((__v
 
 // os_write returns 0 on success, otherwise an errno.
 ssize_t toku_os_pwrite (int fd, const void *buf, size_t len, toku_off_t off) __attribute__((__visibility__("default")));
-int toku_os_write (int fd, const void *buf, size_t len) __attribute__((__visibility__("default")));
+int toku_os_write(int fd, const void *buf, size_t len)
+    __attribute__((__visibility__("default")));
 
 // wrappers around file system calls
-FILE * toku_os_fdopen(int fildes, const char *mode);    
-FILE * toku_os_fopen(const char *filename, const char *mode);
-int toku_os_open(const char *path, int oflag, int mode);
-int toku_os_open_direct(const char *path, int oflag, int mode);
-int toku_os_close(int fd);
-int toku_os_fclose(FILE * stream);
-int toku_os_rename(const char *old_name, const char *new_name);
-int toku_os_unlink(const char *path);
-ssize_t toku_os_read(int fd, void *buf, size_t count);
-ssize_t toku_os_pread(int fd, void *buf, size_t count, off_t offset);
 void toku_os_recursive_delete(const char *path);
 
+TOKU_FILE *toku_os_fdopen_with_source_location(int fildes,
+                                               const char *mode,
+                                               const char *filename,
+                                               const toku_instr_key &instr_key,
+                                               const char *src_file,
+                                               uint src_line);
+#define toku_os_fdopen(FD, M, FN, K) \
+    toku_os_fdopen_with_source_location(FD, M, FN, K, __FILE__, __LINE__)
+
+TOKU_FILE *toku_os_fopen_with_source_location(const char *filename,
+                                              const char *mode,
+                                              const toku_instr_key &instr_key,
+                                              const char *src_file,
+                                              uint src_line);
+#define toku_os_fopen(F, M, K) \
+    toku_os_fopen_with_source_location(F, M, K, __FILE__, __LINE__)
+
+int toku_os_open_with_source_location(const char *path,
+                                      int oflag,
+                                      int mode,
+                                      const toku_instr_key &instr_key,
+                                      const char *src_file,
+                                      uint src_line);
+#define toku_os_open(FD, F, M, K) \
+    toku_os_open_with_source_location(FD, F, M, K, __FILE__, __LINE__)
+
+int toku_os_open_direct(const char *path,
+                        int oflag,
+                        int mode,
+                        const toku_instr_key &instr_key);
+
+int toku_os_delete_with_source_location(const char *name,
+                                        const char *src_file,
+                                        uint src_line);
+#define toku_os_delete(FN) \
+    toku_os_delete_with_source_location(FN, __FILE__, __LINE__)
+
+int toku_os_rename_with_source_location(const char *old_name,
+                                        const char *new_name,
+                                        const char *src_file,
+                                        uint src_line);
+#define toku_os_rename(old_name, new_name) \
+    toku_os_rename_with_source_location(old_name, new_name, __FILE__, __LINE__)
+
+void toku_os_full_write_with_source_location(int fd,
+                                             const void *buf,
+                                             size_t len,
+                                             const char *src_file,
+                                             uint src_line);
+#define toku_os_full_write(FD, B, L) \
+    toku_os_full_write_with_source_location(FD, B, L, __FILE__, __LINE__)
+
+int toku_os_write_with_source_location(int fd,
+                                       const void *buf,
+                                       size_t len,
+                                       const char *src_file,
+                                       uint src_line);
+#define toku_os_write(FD, B, L) \
+    toku_os_write_with_source_location(FD, B, L, __FILE__, __LINE__)
+
+void toku_os_full_pwrite_with_source_location(int fd,
+                                              const void *buf,
+                                              size_t len,
+                                              toku_off_t off,
+                                              const char *src_file,
+                                              uint src_line);
+#define toku_os_full_pwrite(FD, B, L, O) \
+    toku_os_full_pwrite_with_source_location(FD, B, L, O, __FILE__, __LINE__)
+
+ssize_t toku_os_pwrite_with_source_location(int fd,
+                                            const void *buf,
+                                            size_t len,
+                                            toku_off_t off,
+                                            const char *src_file,
+                                            uint src_line);
+
+#define toku_os_pwrite(FD, B, L, O) \
+    toku_os_pwrite_with_source_location(FD, B, L, O, __FILE__, __LINE__)
+
+int toku_os_fwrite_with_source_location(const void *ptr,
+                                        size_t size,
+                                        size_t nmemb,
+                                        TOKU_FILE *stream,
+                                        const char *src_file,
+                                        uint src_line);
+
+#define toku_os_fwrite(P, S, N, FS) \
+    toku_os_fwrite_with_source_location(P, S, N, FS, __FILE__, __LINE__)
+
+int toku_os_fread_with_source_location(void *ptr,
+                                       size_t size,
+                                       size_t nmemb,
+                                       TOKU_FILE *stream,
+                                       const char *src_file,
+                                       uint src_line);
+#define toku_os_fread(P, S, N, FS) \
+    toku_os_fread_with_source_location(P, S, N, FS, __FILE__, __LINE__)
+
+TOKU_FILE *toku_os_fopen_with_source_location(const char *filename,
+                                              const char *mode,
+                                              const toku_instr_key &instr_key,
+                                              const char *src_file,
+                                              uint src_line);
+
+int toku_os_fclose_with_source_location(TOKU_FILE *stream,
+                                        const char *src_file,
+                                        uint src_line);
+
+#define toku_os_fclose(FS) \
+    toku_os_fclose_with_source_location(FS, __FILE__, __LINE__)
+
+int toku_os_close_with_source_location(int fd,
+                                       const char *src_file,
+                                       uint src_line);
+#define toku_os_close(FD) \
+    toku_os_close_with_source_location(FD, __FILE__, __LINE__)
+
+ssize_t toku_os_read_with_source_location(int fd,
+                                          void *buf,
+                                          size_t count,
+                                          const char *src_file,
+                                          uint src_line);
+
+#define toku_os_read(FD, B, C) \
+    toku_os_read_with_source_location(FD, B, C, __FILE__, __LINE__);
+
+ssize_t inline_toku_os_pread_with_source_location(int fd,
+                                                  void *buf,
+                                                  size_t count,
+                                                  off_t offset,
+                                                  const char *src_file,
+                                                  uint src_line);
+#define toku_os_pread(FD, B, C, O) \
+    inline_toku_os_pread_with_source_location(FD, B, C, O, __FILE__, __LINE__);
+
+void file_fsync_internal_with_source_location(int fd,
+                                              const char *src_file,
+                                              uint src_line);
+
+#define file_fsync_internal(FD) \
+    file_fsync_internal_with_source_location(FD, __FILE__, __LINE__);
+
+int toku_os_get_file_size_with_source_location(int fildes,
+                                               int64_t *fsize,
+                                               const char *src_file,
+                                               uint src_line);
+
+#define toku_os_get_file_size(D, S) \
+    toku_os_get_file_size_with_source_location(D, S, __FILE__, __LINE__)
+
+// TODO: should this prototype be moved to toku_os.h?
+int toku_stat_with_source_location(const char *name,
+                                   toku_struct_stat *buf,
+                                   const toku_instr_key &instr_key,
+                                   const char *src_file,
+                                   uint src_line)
+    __attribute__((__visibility__("default")));
+
+#define toku_stat(N, B, K) \
+    toku_stat_with_source_location(N, B, K, __FILE__, __LINE__)
+
+int toku_os_fstat_with_source_location(int fd,
+                                       toku_struct_stat *buf,
+                                       const char *src_file,
+                                       uint src_line)
+    __attribute__((__visibility__("default")));
+
+#define toku_os_fstat(FD, B) \
+    toku_os_fstat_with_source_location(FD, B, __FILE__, __LINE__)
+
+#ifdef HAVE_PSI_FILE_INTERFACE2
+int inline_toku_os_close(int fd, const char *src_file, uint src_line);
+int inline_toku_os_fclose(TOKU_FILE *stream,
+                          const char *src_file,
+                          uint src_line);
+ssize_t inline_toku_os_read(int fd,
+                            void *buf,
+                            size_t count,
+                            const char *src_file,
+                            uint src_line);
+ssize_t inline_toku_os_pread(int fd,
+                             void *buf,
+                             size_t count,
+                             off_t offset,
+                             const char *src_file,
+                             uint src_line);
+int inline_toku_os_fwrite(const void *ptr,
+                          size_t size,
+                          size_t nmemb,
+                          TOKU_FILE *stream,
+                          const char *src_file,
+                          uint src_line);
+int inline_toku_os_fread(void *ptr,
+                         size_t size,
+                         size_t nmemb,
+                         TOKU_FILE *stream,
+                         const char *src_file,
+                         uint src_line);
+int inline_toku_os_write(int fd,
+                         const void *buf,
+                         size_t len,
+                         const char *src_file,
+                         uint src_line);
+ssize_t inline_toku_os_pwrite(int fd,
+                              const void *buf,
+                              size_t len,
+                              toku_off_t off,
+                              const char *src_file,
+                              uint src_line);
+void inline_toku_os_full_write(int fd,
+                               const void *buf,
+                               size_t len,
+                               const char *src_file,
+                               uint src_line);
+void inline_toku_os_full_pwrite(int fd,
+                                const void *buf,
+                                size_t len,
+                                toku_off_t off,
+                                const char *src_file,
+                                uint src_line);
+int inline_toku_os_delete(const char *name,
+                          const char *srv_file,
+                          uint src_line);
+//#else
+int inline_toku_os_close(int fd);
+int inline_toku_os_fclose(TOKU_FILE *stream);
+ssize_t inline_toku_os_read(int fd, void *buf, size_t count);
+ssize_t inline_toku_os_pread(int fd, void *buf, size_t count, off_t offset);
+int inline_toku_os_fwrite(const void *ptr,
+                          size_t size,
+                          size_t nmemb,
+                          TOKU_FILE *stream);
+int inline_toku_os_fread(void *ptr,
+                         size_t size,
+                         size_t nmemb,
+                         TOKU_FILE *stream);
+int inline_toku_os_write(int fd, const void *buf, size_t len);
+ssize_t inline_toku_os_pwrite(int fd,
+                              const void *buf,
+                              size_t len,
+                              toku_off_t off);
+void inline_toku_os_full_write(int fd, const void *buf, size_t len);
+void inline_toku_os_full_pwrite(int fd,
+                                const void *buf,
+                                size_t len,
+                                toku_off_t off);
+int inline_toku_os_delete(const char *name);
+#endif
+
 // wrapper around fsync
-void toku_file_fsync_without_accounting(int fd);
 void toku_file_fsync(int fd);
 int toku_fsync_directory(const char *fname);
+void toku_file_fsync_without_accounting(int fd);
 
 // get the number of fsync calls and the fsync times (total)
-void toku_get_fsync_times(uint64_t *fsync_count, uint64_t *fsync_time, uint64_t *long_fsync_threshold, uint64_t *long_fsync_count, uint64_t *long_fsync_time);
+void toku_get_fsync_times(uint64_t *fsync_count,
+                          uint64_t *fsync_time,
+                          uint64_t *long_fsync_threshold,
+                          uint64_t *long_fsync_count,
+                          uint64_t *long_fsync_time);
 
 void toku_set_func_fsync (int (*fsync_function)(int));
 void toku_set_func_pwrite (ssize_t (*)(int, const void *, size_t, toku_off_t));
@@ -271,9 +542,11 @@ void toku_set_func_full_write (ssize_t (*)(int, const void *, size_t));
 void toku_set_func_fdopen (FILE * (*)(int, const char *));
 void toku_set_func_fopen (FILE * (*)(const char *, const char *));
 void toku_set_func_open (int (*)(const char *, int, int));
-void toku_set_func_fclose(int (*)(FILE*));
+void toku_set_func_fclose(int (*)(FILE *));
 void toku_set_func_read(ssize_t (*)(int, void *, size_t));
-void toku_set_func_pread (ssize_t (*)(int, void *, size_t, off_t));
+void toku_set_func_pread(ssize_t (*)(int, void *, size_t, off_t));
+void toku_set_func_fwrite(
+    size_t (*fwrite_fun)(const void *, size_t, size_t, FILE *));
 
 int toku_portability_init(void);
 void toku_portability_destroy(void);
@@ -283,28 +556,3 @@ void toku_portability_destroy(void);
 static inline uint64_t roundup_to_multiple(uint64_t alignment, uint64_t v) {
     return (v + alignment - 1) & ~(alignment - 1);
 }
-
-// Branch prediction macros.
-// If supported by the compiler, will hint in inctruction caching for likely
-// branching. Should only be used where there is a very good idea of the correct
-// branch heuristics as determined by profiling. Mostly copied from InnoDB.
-// Use:
-//   "if (FT_LIKELY(x))" where the chances of "x" evaluating true are higher
-//   "if (FT_UNLIKELY(x))" where the chances of "x" evaluating false are higher
-#if defined(__GNUC__) && (__GNUC__ > 2) && ! defined(__INTEL_COMPILER)
-
-// Tell the compiler that 'expr' probably evaluates to 'constant'.
-#define FT_EXPECT(expr,constant) __builtin_expect(expr, constant)
-
-#else
-
-#warning "No FT branch prediction operations in use!"
-#define FT_EXPECT(expr,constant) (expr)
-
-#endif // defined(__GNUC__) && (__GNUC__ > 2) && ! defined(__INTEL_COMPILER)
-
-// Tell the compiler that cond is likely to hold
-#define FT_LIKELY(cond) FT_EXPECT(cond, 1)
-
-// Tell the compiler that cond is unlikely to hold
-#define FT_UNLIKELY(cond) FT_EXPECT(cond, 0)

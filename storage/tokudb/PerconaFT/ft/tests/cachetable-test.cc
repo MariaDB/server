@@ -42,15 +42,13 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 // global data, especially between the test thread and the cachetable
 // writeback threads
 
-toku_mutex_t  test_mutex;
+toku_mutex_t test_mutex;
 
 static inline void test_mutex_init(void) {
-    toku_mutex_init(&test_mutex, 0);
+    toku_mutex_init(toku_uninstrumented, &test_mutex, nullptr);
 }
 
-static inline void test_mutex_destroy(void) {
-    toku_mutex_destroy(&test_mutex);
-}
+static inline void test_mutex_destroy(void) { toku_mutex_destroy(&test_mutex); }
 
 static inline void test_mutex_lock(void) {
     toku_mutex_lock(&test_mutex);

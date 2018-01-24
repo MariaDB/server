@@ -109,7 +109,7 @@ void db_env_set_func_pread (ssize_t (*fun)(int, void *, size_t, off_t)) {
 }
 
 void db_env_set_func_loader_fwrite (size_t (*fwrite_fun)(const void*,size_t,size_t,FILE*)) {
-    ft_loader_set_os_fwrite(fwrite_fun);
+    toku_set_func_fwrite(fwrite_fun);
 }
 
 void db_env_set_func_malloc (void *(*f)(size_t)) {

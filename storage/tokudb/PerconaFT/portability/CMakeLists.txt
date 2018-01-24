@@ -8,6 +8,7 @@ set(tokuportability_srcs
   portability
   toku_assert
   toku_crash
+  toku_instr_mysql
   toku_path
   toku_pthread
   toku_time
@@ -53,6 +54,10 @@ if (NOT DEFINED MYSQL_PROJECT_NAME_DOCSTRING)
     DESTINATION ${INSTALL_LIBDIR}
     COMPONENT tokukv_libs_shared
     )
+else ()
+  set_property(SOURCE toku_pthread portability APPEND PROPERTY
+               COMPILE_DEFINITIONS MYSQL_TOKUDB_ENGINE=1 )
+  target_link_libraries(${LIBTOKUPORTABILITY} LINK_PRIVATE mysys)
 endif ()
 
 add_subdirectory(tests)

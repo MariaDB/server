@@ -91,7 +91,7 @@ run_test (void) {
     const int test_limit = 1000;
     int r;
     CACHETABLE ct;
-    toku_mutex_init(&attr_mutex, NULL);
+    toku_mutex_init(toku_uninstrumented, &attr_mutex, nullptr);
     toku_cachetable_create(&ct, test_limit, ZERO_LSN, nullptr);
 
     const char *fname1 = TOKU_TEST_FILENAME;

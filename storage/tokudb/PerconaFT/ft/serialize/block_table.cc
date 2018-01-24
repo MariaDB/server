@@ -54,6 +54,11 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "util/nb_mutex.h"
 #include "util/scoped_malloc.h"
 
+
+toku_instr_key *block_table_mutex_key;
+toku_instr_key *safe_file_size_lock_mutex_key;
+toku_instr_key *safe_file_size_lock_rwlock_key;
+
 // indicates the end of a freelist
 static const BLOCKNUM freelist_null = {-1};
 
@@ -99,8 +104,10 @@ void block_table::_create_internal() {
     memset(&_checkpointed, 0, sizeof(struct translation));
     memset(&_mutex, 0, sizeof(_mutex));
     _bt_block_allocator = new BlockAllocator();
-    toku_mutex_init(&_mutex, nullptr);
-    nb_mutex_init(&_safe_file_size_lock);
+    toku_mutex_init(*block_table_mutex_key, &_mutex, nullptr);
+    nb_mutex_init(*safe_file_size_lock_mutex_key,
+                  *safe_file_size_lock_rwlock_key,
+                  &_safe_file_size_lock);
 }
 
 // Fill in the checkpointed translation from buffer, and copy checkpointed to
@@ -128,7 +135,7 @@ int block_table::create_from_buffer(
     _copy_translation(&_current, &_checkpointed, TRANSLATION_CURRENT);
 
     // Determine the file size
-    int64_t file_size;
+    int64_t file_size = 0;
     r = toku_os_get_file_size(fd, &file_size);
     lazy_assert_zero(r);
     invariant(file_size >= 0);

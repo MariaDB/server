@@ -95,10 +95,11 @@ static void simple_lockwait(DB_ENV *db_env, DB *db, int do_txn, int nrows, int n
     insert_row(db, txns[0], htonl(0), 0, 0);
 
     toku_pthread_t tids[ntxns];
-    for (int i = 1 ; i < ntxns; i++) {
+    for (int i = 1; i < ntxns; i++) {
         struct insert_one_arg *XMALLOC(arg);
-        *arg = (struct insert_one_arg) { txns[i], db};
-        r = toku_pthread_create(&tids[i], NULL, insert_one, arg);
+        *arg = (struct insert_one_arg){txns[i], db};
+        r = toku_pthread_create(
+            toku_uninstrumented, &tids[i], nullptr, insert_one, arg);
     }
 
     sleep(10);
