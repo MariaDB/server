@@ -225,7 +225,6 @@ purge_sys_t::~purge_sys_t()
 	ut_a(sess->trx->id == 0);
 	sess->trx->state = TRX_STATE_NOT_STARTED;
 	sess_close(sess);
-	view.close();
 	rw_lock_free(&latch);
 	/* rw_lock_free() already called latch.~rw_lock_t(); tame the
 	debug assertions when the destructor will be called once more. */
@@ -1063,23 +1062,21 @@ trx_purge_initiate_truncate(
 			DBUG_SUICIDE(););
 }
 
-/********************************************************************//**
+/**
 Removes unnecessary history data from rollback segments. NOTE that when this
-function is called, the caller must not have any latches on undo log pages! */
-static
-void
-trx_purge_truncate_history(
-/*========================*/
-	purge_iter_t*		limit,		/*!< in: truncate limit */
-	const ReadView*		view)		/*!< in: purge view */
+function is called, the caller must not have any latches on undo log pages!
+
+@param[in] limit  truncate limit
+*/
+static void trx_purge_truncate_history(purge_iter_t *limit)
 {
 	ut_ad(trx_purge_check_limit());
 
 	/* We play safe and set the truncate limit at most to the purge view
 	low_limit number, though this is not necessary */
 
-	if (limit->trx_no >= view->low_limit_no()) {
-		limit->trx_no = view->low_limit_no();
+	if (limit->trx_no >= purge_sys->view.low_limit_no()) {
+		limit->trx_no = purge_sys->view.low_limit_no();
 		limit->undo_no = 0;
 		limit->undo_rseg_space = ULINT_UNDEFINED;
 	}
@@ -1668,8 +1665,7 @@ run_synchronously:
 		trx_purge_truncate_history(
 			purge_sys->limit.trx_no
 			? &purge_sys->limit
-			: &purge_sys->iter,
-			&purge_sys->view);
+			: &purge_sys->iter);
 	}
 
 	MONITOR_INC_VALUE(MONITOR_PURGE_INVOKED, 1);

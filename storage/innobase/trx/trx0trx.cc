@@ -1578,7 +1578,7 @@ trx_commit_in_memory(
 				written */
 {
 	trx->must_flush_log_later = false;
-	trx->read_view.set_open(false);
+	trx->read_view.close();
 
 
 	if (trx_is_autocommit_non_locking(trx)) {
@@ -2727,13 +2727,13 @@ trx_set_rw_mode(
 	mutex_enter(&trx_sys.mutex);
 	trx->id = trx_sys.get_new_trx_id();
 	trx_sys.rw_trx_ids.push_back(trx->id);
+	mutex_exit(&trx_sys.mutex);
+	trx_sys.rw_trx_hash.insert(trx);
 
 	/* So that we can see our own changes. */
 	if (trx->read_view.is_open()) {
-		trx->read_view.creator_trx_id(trx->id);
+		trx->read_view.set_creator_trx_id(trx->id);
 	}
-	mutex_exit(&trx_sys.mutex);
-	trx_sys.rw_trx_hash.insert(trx);
 }
 
 /**
