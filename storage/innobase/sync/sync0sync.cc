@@ -118,7 +118,7 @@ mysql_pfs_key_t	trx_purge_latch_key;
 #endif /* UNIV_PFS_RWLOCK */
 
 /** For monitoring active mutexes */
-MutexMonitor*	mutex_monitor;
+MutexMonitor	mutex_monitor;
 
 /**
 Prints wait info of the sync system.

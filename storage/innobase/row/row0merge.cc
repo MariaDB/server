@@ -4771,8 +4771,8 @@ row_merge_build_indexes(
 			"Table %s is encrypted but encryption service or"
 			" used key_id is not available. "
 			" Can't continue reading table.",
-			!old_table->is_readable() ? old_table->name :
-				new_table->name);
+			!old_table->is_readable() ? old_table->name.m_name :
+				new_table->name.m_name);
 		goto func_exit;
 	}
 

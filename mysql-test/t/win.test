@@ -2059,5 +2059,14 @@ FROM door as window;
 DROP TABLE door;
 
 --echo #
+--echo # MDEV-13352: Server crashes in st_join_table::remove_duplicates
+--echo #
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+DROP TABLE t1;
+
+--echo #
 --echo # Start of 10.3 tests
 --echo #

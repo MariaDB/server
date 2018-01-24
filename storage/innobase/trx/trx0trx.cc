@@ -571,7 +571,7 @@ trx_validate_state_before_free(trx_t* trx)
 	ut_ad(!trx->declared_to_be_inside_innodb);
 	ut_ad(!trx->n_mysql_tables_in_use);
 	ut_ad(!trx->mysql_n_tables_locked);
-	ut_ad(!trx->persistent_stats);
+	ut_ad(!trx->internal);
 
 	if (trx->declared_to_be_inside_innodb) {
 
@@ -901,9 +901,11 @@ trx_lists_init_at_db_start()
 
 	purge_sys = UT_NEW_NOKEY(purge_sys_t());
 
-	if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
-		trx_rseg_array_init();
+	if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
+		return;
 	}
+
+	trx_rseg_array_init();
 
 	/* Look from the rollback segments if there exist undo logs for
 	transactions. */
@@ -913,8 +915,9 @@ trx_lists_init_at_db_start()
 		trx_undo_t*	undo;
 		trx_rseg_t*	rseg = trx_sys.rseg_array[i];
 
-		/* At this stage non-redo rseg slots are all NULL as they are
-		re-created on server start and existing slots are not read. */
+		/* Some rollback segment may be unavailable,
+		especially if the server was previously run with a
+		non-default value of innodb_undo_logs. */
 		if (rseg == NULL) {
 			continue;
 		}

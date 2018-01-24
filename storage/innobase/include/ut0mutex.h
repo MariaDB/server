@@ -164,7 +164,7 @@ public:
 };
 
 /** Defined in sync0sync.cc */
-extern MutexMonitor*	mutex_monitor;
+extern MutexMonitor	mutex_monitor;
 
 /**
 Creates, or rather, initializes a mutex object in a specified memory

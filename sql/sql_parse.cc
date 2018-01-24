@@ -2910,6 +2910,12 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   thd->variables.select_limit= HA_POS_ERROR;
 
   /*
+    Reset current_select as it may point to random data as a
+    result of previous parsing.
+  */
+  thd->lex->current_select= NULL;
+
+  /*
     We never write CALL statements into binlog:
      - If the mode is non-prelocked, each statement will be logged
        separately.

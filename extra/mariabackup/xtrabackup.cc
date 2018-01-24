@@ -434,6 +434,22 @@ datafiles_iter_free(datafiles_iter_t *it)
 	free(it);
 }
 
+void mdl_lock_all()
+{
+	mdl_lock_init();
+	datafiles_iter_t *it = datafiles_iter_new(fil_system);
+	if (!it)
+		return;
+
+	while (fil_node_t *node = datafiles_iter_next(it)){
+		if (fil_is_user_tablespace_id(node->space->id)
+			&& check_if_skip_table(node->space->name))
+			continue;
+
+		mdl_lock_table(node->space->id);
+	}
+	datafiles_iter_free(it);
+}
 /* ======== Date copying thread context ======== */
 
 typedef struct {
@@ -1208,8 +1224,8 @@ static int prepare_export()
   if (strncmp(orig_argv1,"--defaults-file=",16) == 0)
   {
     sprintf(cmdline, 
-     IF_WIN("\"","") "\"%s\" --mysqld \"%s\" --defaults-group-suffix=%s"
-      " --defaults-extra-file=./backup-my.cnf --datadir=."
+     IF_WIN("\"","") "\"%s\" --mysqld \"%s\" "
+      " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
       " --console  --skip-log-error --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
@@ -1221,11 +1237,12 @@ static int prepare_export()
   {
     sprintf(cmdline,
      IF_WIN("\"","") "\"%s\" --mysqld"
-      " --defaults-file=./backup-my.cnf --datadir=."
+      " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
       " --console  --log-error= --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
+      (my_defaults_group_suffix?my_defaults_group_suffix:""),
       xtrabackup_use_memory);
   }
 
@@ -2198,10 +2215,6 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n)
 	    && check_if_skip_table(node_name)) {
 		msg("[%02u] Skipping %s.\n", thread_n, node_name);
 		return(FALSE);
-	}
-
-	if (opt_lock_ddl_per_table) {
-		mdl_lock_table(node->space->id);
 	}
 
 	if (!changed_page_bitmap) {
@@ -3563,9 +3576,7 @@ xtrabackup_backup_func()
 		    "or RENAME TABLE during the backup, inconsistent backup will be "
 		    "produced.\n");
 
-	if (opt_lock_ddl_per_table) {
-		mdl_lock_init();
-	}
+
 
 	/* initialize components */
         if(innodb_init_param()) {
@@ -3878,6 +3889,10 @@ reread_log_header:
 	if (xtrabackup_parallel > 1) {
 		msg("mariabackup: Starting %u threads for parallel data "
 		    "files transfer\n", xtrabackup_parallel);
+	}
+
+	if (opt_lock_ddl_per_table) {
+		mdl_lock_all();
 	}
 
 	it = datafiles_iter_new(fil_system);
