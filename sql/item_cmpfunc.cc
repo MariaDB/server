@@ -1446,7 +1446,7 @@ bool Item_in_optimizer::eval_not_null_tables(uchar *opt_arg)
 
 void Item_in_optimizer::print(String *str, enum_query_type query_type)
 {
-   restore_first_argumet();
+   restore_first_argument();
    Item_func::print(str, query_type);
 }
 
@@ -1461,7 +1461,7 @@ void Item_in_optimizer::print(String *str, enum_query_type query_type)
   call. This call fix the pointer.
 */
 
-void Item_in_optimizer::restore_first_argumet()
+void Item_in_optimizer::restore_first_argument()
 {
   if (args[1]->type() == Item::SUBSELECT_ITEM &&
       ((Item_subselect *)args[1])->is_in_predicate())
