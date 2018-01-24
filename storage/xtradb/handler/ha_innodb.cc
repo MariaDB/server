@@ -1090,22 +1090,6 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_sec_rec_cluster_reads_avoided, SHOW_LONG},
   {"buffered_aio_submitted",
   (char*) &export_vars.innodb_buffered_aio_submitted,	  SHOW_LONG},
-
-  {"scan_pages_contiguous",
-  (char*) &export_vars.innodb_fragmentation_stats.scan_pages_contiguous,
-  SHOW_LONG},
-  {"scan_pages_disjointed",
-  (char*) &export_vars.innodb_fragmentation_stats.scan_pages_disjointed,
-  SHOW_LONG},
-  {"scan_pages_total_seek_distance",
-  (char*) &export_vars.innodb_fragmentation_stats.scan_pages_total_seek_distance,
-  SHOW_LONG},
-  {"scan_data_size",
-  (char*) &export_vars.innodb_fragmentation_stats.scan_data_size,
-  SHOW_LONG},
-  {"scan_deleted_recs_size",
-  (char*) &export_vars.innodb_fragmentation_stats.scan_deleted_recs_size,
-  SHOW_LONG},
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -2940,7 +2924,7 @@ ha_innobase::ha_innobase(
 		  HA_BINLOG_ROW_CAPABLE |
 		  HA_CAN_GEOMETRY | HA_PARTIAL_COLUMN_READ |
 		  HA_TABLE_SCAN_ON_INDEX | HA_CAN_FULLTEXT |
-		  HA_CAN_FULLTEXT_EXT | HA_CAN_EXPORT | HA_ONLINE_ANALYZE),
+		  HA_CAN_FULLTEXT_EXT | HA_CAN_EXPORT),
 	start_of_scan(0),
 	num_write_row(0)
 {}

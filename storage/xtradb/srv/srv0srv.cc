@@ -1996,9 +1996,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffered_aio_submitted =
 		srv_stats.n_aio_submitted;
 
-	thd_get_fragmentation_stats(current_thd,
-		&export_vars.innodb_fragmentation_stats);
-
 	mutex_exit(&srv_innodb_monitor_mutex);
 }
 

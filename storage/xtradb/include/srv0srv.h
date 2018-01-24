@@ -1131,9 +1131,6 @@ struct export_var_t{
 	ulint innodb_sec_rec_cluster_reads_avoided; /*!< srv_sec_rec_cluster_reads_avoided */
 
 	ulint innodb_buffered_aio_submitted;
-
-	fragmentation_stats_t innodb_fragmentation_stats;/*!< Fragmentation
-						statistics */
 };
 
 /** Thread slot in the thread table.  */
