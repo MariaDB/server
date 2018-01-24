@@ -327,6 +327,7 @@ struct TrxFactory {
 		trx->lock.table_locks.~lock_pool_t();
 
 		trx->hit_list.~hit_list_t();
+		trx->read_view.~ReadView();
 	}
 
 	/** Enforce any invariants here, this is called before the transaction
