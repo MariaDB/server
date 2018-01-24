@@ -759,6 +759,7 @@ static void wsrep_rollback_process(THD *rollbacker,
       thd->lex->sql_command= SQLCOM_ROLLBACK;
 
       wsrep_client_rollback(thd, true);
+      thd->reset_globals();
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       WSREP_DEBUG("rollbacker aborted thd: (%lld %llu)",
                   thd->thread_id, (long long)thd->real_id);
