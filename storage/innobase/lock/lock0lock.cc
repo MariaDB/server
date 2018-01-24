@@ -7285,7 +7285,7 @@ lock_trx_release_locks(
 
 			/** Doing an implicit to explicit conversion
 			should not be expensive. */
-			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
+			ut_delay(srv_spin_wait_delay);
 		}
 
 		lock_mutex_enter();

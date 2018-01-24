@@ -5978,17 +5978,6 @@ fil_tablespace_iterate(
 		innodb_data_file_key, filepath,
 		OS_FILE_OPEN, OS_FILE_READ_WRITE, srv_read_only_mode, &success);
 
-	DBUG_EXECUTE_IF("fil_tablespace_iterate_failure",
-	{
-		static bool once;
-
-		if (!once || ut_rnd_interval(0, 10) == 5) {
-			once = true;
-			success = false;
-			os_file_close(file);
-		}
-	});
-
 	if (!success) {
 		/* The following call prints an error message */
 		os_file_get_last_error(true);
