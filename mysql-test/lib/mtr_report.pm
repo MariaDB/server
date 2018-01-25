@@ -384,8 +384,15 @@ sub mtr_report_stats ($$$$) {
    }
   else
   {
-    print "All $tot_tests tests were successful.\n\n";
-  }
+    if($tot_tests>1)
+    {
+     print "All $tot_tests tests were successful.\n\n";
+    }
+    else
+    {
+     print "The entire test was successful. \n\n";    
+    }
+}
 
   if (@$extra_warnings)
   {
