@@ -1827,15 +1827,10 @@ init_fts_doc_id_for_ref(
 	}
 }
 
-/* A functor for decrementing counters. */
-class ib_dec_counter {
-public:
-	ib_dec_counter() {}
-
+struct dec_foreign_key_checks_running
+{
 	void operator() (upd_node_t* node) {
-		ut_ad(node->table->n_foreign_key_checks_running > 0);
-		my_atomic_addlint(
-			&node->table->n_foreign_key_checks_running, -1);
+		node->table->dec_fk_checks();
 	}
 };
 
@@ -2061,7 +2056,7 @@ handle_error:
 		if (was_lock_wait) {
 			std::for_each(new_upd_nodes->begin(),
 				      new_upd_nodes->end(),
-				      ib_dec_counter());
+				      dec_foreign_key_checks_running());
 			std::for_each(new_upd_nodes->begin(),
 				      new_upd_nodes->end(),
 				      que_graph_free_recursive);
@@ -2093,9 +2088,7 @@ handle_error:
 
 	if (thr->fk_cascade_depth > 0) {
 		/* Processing cascade operation */
-		ut_ad(node->table->n_foreign_key_checks_running > 0);
-		my_atomic_addlint(
-			&node->table->n_foreign_key_checks_running, -1);
+		dec_foreign_key_checks_running()(node);
 		node->processed_cascades->push_back(node);
 	}
 
@@ -2209,20 +2202,17 @@ error:
 	}
 
 	if (thr->fk_cascade_depth > 0) {
-		ut_ad(node->table->n_foreign_key_checks_running > 0);
-		my_atomic_addlint(
-			&node->table->n_foreign_key_checks_running, -1);
+		dec_foreign_key_checks_running()(node);
 		thr->fk_cascade_depth = 0;
 	}
 
-	/* Reset the table->n_foreign_key_checks_running counter */
 	std::for_each(cascade_upd_nodes->begin(),
 		      cascade_upd_nodes->end(),
-		      ib_dec_counter());
+		      dec_foreign_key_checks_running());
 
 	std::for_each(new_upd_nodes->begin(),
 		      new_upd_nodes->end(),
-		      ib_dec_counter());
+		      dec_foreign_key_checks_running());
 
 	std::for_each(cascade_upd_nodes->begin(),
 		      cascade_upd_nodes->end(),
@@ -3092,9 +3082,6 @@ row_mysql_table_id_reassign(
 
 	dict_hdr_get_new_id(new_id, NULL, NULL, table, false);
 
-	/* Remove all locks except the table-level S and X locks. */
-	lock_remove_all_on_table(table, FALSE);
-
 	pars_info_add_ull_literal(info, "old_id", table->id);
 	pars_info_add_ull_literal(info, "new_id", *new_id);
 
@@ -3145,7 +3132,7 @@ row_discard_tablespace_begin(
 	if (table) {
 		dict_stats_wait_bg_to_stop_using_table(table, trx);
 		ut_a(!is_system_tablespace(table->space));
-		ut_a(table->n_foreign_key_checks_running == 0);
+		ut_ad(!table->n_foreign_key_checks_running);
 	}
 
 	return(table);
@@ -3264,10 +3251,7 @@ row_discard_tablespace(
 	their operations.
 
 	3) Insert buffer: we remove all entries for the tablespace in
-	the insert buffer tree.
-
-	4) FOREIGN KEY operations: if table->n_foreign_key_checks_running > 0,
-	we do not allow the discard. */
+	the insert buffer tree. */
 
 	ibuf_delete_for_discarded_space(table->space);
 
@@ -3391,19 +3375,9 @@ row_discard_tablespace_for_mysql(
 
 		err = DB_ERROR;
 
-	} else if (table->n_foreign_key_checks_running > 0) {
-		char	table_name[MAX_FULL_NAME_LEN + 1];
-
-		innobase_format_name(
-			table_name, sizeof(table_name),
-			table->name.m_name);
-
-		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			    ER_DISCARD_FK_CHECKS_RUNNING, table_name);
-
-		err = DB_ERROR;
-
 	} else {
+		ut_ad(!table->n_foreign_key_checks_running);
+
 		/* Do foreign key constraint checks. */
 
 		err = row_discard_tablespace_foreign_key_checks(trx, table);

@@ -6899,8 +6899,8 @@ ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2
 ER_SLAVE_SILENT_RETRY_TRANSACTION
   eng "Slave must silently retry current transaction"
 
-ER_DISCARD_FK_CHECKS_RUNNING
-  eng "There is a foreign key check running on table '%-.192s'. Cannot discard the table"
+ER_UNUSED_22
+  eng "You should never see it"
 
 ER_TABLE_SCHEMA_MISMATCH
   eng "Schema mismatch (%s)"

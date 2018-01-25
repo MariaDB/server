@@ -13348,18 +13348,26 @@ ha_innobase::truncate()
 
 	TrxInInnoDB	trx_in_innodb(m_prebuilt->trx);
 
-	if (!trx_is_started(m_prebuilt->trx)) {
-		++m_prebuilt->trx->will_lock;
+	m_prebuilt->trx->ddl = true;
+	trx_start_if_not_started(m_prebuilt->trx, true);
+
+	dberr_t	err = row_mysql_lock_table(m_prebuilt->trx, m_prebuilt->table,
+					   LOCK_X, "truncate table");
+	if (err == DB_SUCCESS) {
+		err = row_truncate_table_for_mysql(m_prebuilt->table,
+						   m_prebuilt->trx);
 	}
 
-	dberr_t	err;
-
-	/* Truncate the table in InnoDB */
-	err = row_truncate_table_for_mysql(m_prebuilt->table, m_prebuilt->trx);
-
-	int	error;
-
 	switch (err) {
+	case DB_FORCED_ABORT:
+	case DB_DEADLOCK:
+		thd_mark_transaction_to_rollback(m_user_thd, 1);
+		DBUG_RETURN(HA_ERR_LOCK_DEADLOCK);
+	case DB_LOCK_TABLE_FULL:
+		thd_mark_transaction_to_rollback(m_user_thd, 1);
+		DBUG_RETURN(HA_ERR_LOCK_TABLE_FULL);
+	case DB_LOCK_WAIT_TIMEOUT:
+		DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
 	case DB_TABLESPACE_DELETED:
 	case DB_TABLESPACE_NOT_FOUND:
 		ib_senderrf(
@@ -13368,19 +13376,14 @@ ha_innobase::truncate()
 			ER_TABLESPACE_DISCARDED : ER_TABLESPACE_MISSING),
 			table->s->table_name.str);
 		table->status = STATUS_NOT_FOUND;
-		error = HA_ERR_TABLESPACE_MISSING;
-		break;
-
+		DBUG_RETURN(HA_ERR_TABLESPACE_MISSING);
 	default:
-		error = convert_error_code_to_mysql(
-			err, m_prebuilt->table->flags,
-			m_prebuilt->trx->mysql_thd);
-
 		table->status = STATUS_NOT_FOUND;
+		DBUG_RETURN(convert_error_code_to_mysql(
+				    err, m_prebuilt->table->flags,
+				    m_user_thd));
 		break;
 	}
-
-	DBUG_RETURN(error);
 }
 
 /*****************************************************************//**
