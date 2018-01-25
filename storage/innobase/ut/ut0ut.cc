@@ -49,7 +49,6 @@ Created 5/11/1994 Heikki Tuuri
 UNIV_INTERN ibool	ut_always_false	= FALSE;
 
 #ifdef __WIN__
-#include <mysql/innodb_priv.h> /* For sql_print_error */
 typedef VOID(WINAPI *time_fn)(LPFILETIME);
 static time_fn ut_get_system_time_as_file_time = GetSystemTimeAsFileTime;
 
@@ -61,25 +60,20 @@ http://support.microsoft.com/kb/167296/ */
 
 
 /**
-Initialise highest available time resolution API on Windows
-@return 0 if all OK else -1 */
-int
+Initialise highest available time resolution API on Windows.
+Crashes if there's an error loading kernel32.dll.
+*/
+void
 ut_win_init_time()
 {
 	HMODULE h = LoadLibrary("kernel32.dll");
-	if (h != NULL)
+	ut_a(h);
+	time_fn pfn = (time_fn)GetProcAddress(h, "GetSystemTimePreciseAsFileTime");
+	if (pfn != NULL)
 	{
-		time_fn pfn = (time_fn)GetProcAddress(h, "GetSystemTimePreciseAsFileTime");
-		if (pfn != NULL)
-		{
-			ut_get_system_time_as_file_time = pfn;
-		}
-		return false;
+		ut_get_system_time_as_file_time = pfn;
 	}
-	DWORD error = GetLastError();
-  sql_print_error(
-		"LoadLibrary(\"kernel32.dll\") failed: GetLastError returns %lu", error);
-	return(-1);
+	return;
 }
 
 /*****************************************************************//**

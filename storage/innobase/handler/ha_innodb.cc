@@ -3645,9 +3645,7 @@ innobase_change_buffering_inited_ok:
 
 #ifndef UNIV_HOTBACKUP
 #ifdef _WIN32
-	if (ut_win_init_time()) {
-		goto mem_free_and_error;
-	}
+	ut_win_init_time();
 #endif /* _WIN32 */
 #endif /* !UNIV_HOTBACKUP */
 
