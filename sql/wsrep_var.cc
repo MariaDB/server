@@ -338,13 +338,14 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
   wsrep_stop_replication(thd);
   mysql_mutex_lock(&LOCK_global_system_variables);
 
-  if (wsrep_inited == 1)
-    wsrep_deinit(false);
   /* provider status variables are allocated in provider library
      and need to freed here, otherwise a dangling reference to
      wsrep_status_vars would remain in THD
   */
   wsrep_free_status(thd);
+
+  if (wsrep_inited == 1)
+    wsrep_deinit(false);
 
   char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider
                                      //when fails
