@@ -19635,6 +19635,7 @@ wsrep_innobase_kill_one_trx(
 
 	if (wsrep_bf_abort(bf_thd, thd, signal))
 	{
+		wsrep_thd_UNLOCK(thd);
 		victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 
 		if (victim_trx->lock.wait_lock) {
@@ -19656,8 +19657,12 @@ wsrep_innobase_kill_one_trx(
 				wsrep_thd_thread_id(thd));
 			wsrep_thd_awake(thd, signal); 
 		}
-        }
-	wsrep_thd_UNLOCK(thd);
+	}
+	else
+	{
+		wsrep_thd_UNLOCK(thd);
+	}
+
 	DBUG_RETURN(0);
 }
 
