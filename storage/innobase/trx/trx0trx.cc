@@ -937,7 +937,7 @@ trx_lists_init_at_db_start()
 		for (undo = UT_LIST_GET_FIRST(rseg->undo_list);
 		     undo != NULL;
 		     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
-			trx_t *trx = trx_sys.rw_trx_hash.find(undo->trx_id);
+			trx_t *trx = trx_sys.rw_trx_hash.find(0, undo->trx_id);
 			if (!trx) {
 				trx_resurrect(undo, rseg, start_time,
 					      &rows_to_undo, false);
@@ -1094,11 +1094,7 @@ trx_t::assign_temp_rseg()
 	rsegs.m_noredo.rseg = rseg;
 
 	if (id == 0) {
-		mutex_enter(&trx_sys.mutex);
-		id = trx_sys.get_new_trx_id();
-		trx_sys.rw_trx_ids.push_back(id);
-		mutex_exit(&trx_sys.mutex);
-		trx_sys.rw_trx_hash.insert(this);
+		trx_sys.register_rw(this);
 	}
 
 	ut_ad(!rseg->is_persistent());
@@ -1186,12 +1182,7 @@ trx_start_low(
 		      || srv_read_only_mode
 		      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 
-		mutex_enter(&trx_sys.mutex);
-		trx->id = trx_sys.get_new_trx_id();
-		trx_sys.rw_trx_ids.push_back(trx->id);
-		mutex_exit(&trx_sys.mutex);
-		trx_sys.rw_trx_hash.insert(trx);
-
+		trx_sys.register_rw(trx);
 	} else {
 		trx->id = 0;
 
@@ -1202,17 +1193,8 @@ trx_start_low(
 			to write to the temporary table. */
 
 			if (read_write) {
-
-				mutex_enter(&trx_sys.mutex);
-
 				ut_ad(!srv_read_only_mode);
-
-				trx->id = trx_sys.get_new_trx_id();
-
-				trx_sys.rw_trx_ids.push_back(trx->id);
-
-				mutex_exit(&trx_sys.mutex);
-				trx_sys.rw_trx_hash.insert(trx);
+				trx_sys.register_rw(trx);
 			}
 		} else {
 			ut_ad(!read_write);
@@ -2721,14 +2703,9 @@ trx_set_rw_mode(
 	based on in-consistent view formed during promotion. */
 
 	trx->rsegs.m_redo.rseg = trx_assign_rseg_low();
-
 	ut_ad(trx->rsegs.m_redo.rseg != 0);
 
-	mutex_enter(&trx_sys.mutex);
-	trx->id = trx_sys.get_new_trx_id();
-	trx_sys.rw_trx_ids.push_back(trx->id);
-	mutex_exit(&trx_sys.mutex);
-	trx_sys.rw_trx_hash.insert(trx);
+	trx_sys.register_rw(trx);
 
 	/* So that we can see our own changes. */
 	if (trx->read_view.is_open()) {

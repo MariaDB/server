@@ -222,7 +222,7 @@ void ReadView::clone()
 	rw_trx_hash are in sync and they hold either ACTIVE or PREPARED
 	transaction.
 
-	Now rw_trx_hash.find() does
+	Now rw_trx_hash_t::find() does
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
 	      trx_state_eq(trx, TRX_STATE_PREPARED)).
 	No need to repeat it here. We even can't repeat it here: it'll be race
@@ -235,7 +235,7 @@ void ReadView::clone()
 	protection. Thus we need repeat this lookup. */
 	for (trx_ids_t::const_iterator it = trx_sys.rw_trx_ids.begin();
 	     it != trx_sys.rw_trx_ids.end(); ++it) {
-		while (!trx_sys.rw_trx_hash.find(*it));
+		while (!trx_sys.is_registered(current_trx(), *it));
 	}
 #endif /* UNIV_DEBUG */
 	m_up_limit_id = m_ids.empty() ? m_low_limit_id : m_ids.front();
