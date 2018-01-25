@@ -124,7 +124,7 @@ class MiscFilesProcessor():
     dirs = [ d for d in os.listdir(self.datadir) \
             if not os.path.isfile(os.path.join(self.datadir,d))]
     for db in dirs:
-      if not db.startswith('.') and not self._is_socket(db):
+      if not db.startswith('.') and not self._is_socket(db) and not db == "#rocksdb":
         dbs.append(db)
     return dbs
 
