@@ -273,15 +273,6 @@ UNIV_INTERN
 ulint
 ut_time_ms(void);
 /*============*/
-#ifdef _WIN32
-/**********************************************************//**
-Initialise highest available time resolution API on Windows.
-Crashes if there's an error loading kernel32.dll.
-*/
-void
-ut_win_init_time();
-
-#endif /* _WIN32 */
 
 #endif /* !UNIV_HOTBACKUP */
 

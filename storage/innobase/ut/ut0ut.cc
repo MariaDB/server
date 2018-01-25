@@ -59,23 +59,6 @@ http://support.microsoft.com/kb/167296/ */
 #define WIN_TO_UNIX_DELTA_USEC  ((ib_int64_t) 11644473600000000ULL)
 
 
-/**
-Initialise highest available time resolution API on Windows.
-Crashes if there's an error loading kernel32.dll.
-*/
-void
-ut_win_init_time()
-{
-	HMODULE h = LoadLibrary("kernel32.dll");
-	ut_a(h);
-	time_fn pfn = (time_fn)GetProcAddress(h, "GetSystemTimePreciseAsFileTime");
-	if (pfn != NULL)
-	{
-		ut_get_system_time_as_file_time = pfn;
-	}
-	return;
-}
-
 /*****************************************************************//**
 This is the Windows version of gettimeofday(2).
 @return	0 if all OK else -1 */
