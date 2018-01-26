@@ -521,8 +521,9 @@ public:
   void vers_update_stats(THD *thd, uint part_id)
   {
     DBUG_ASSERT(vers_info && vers_info->initialized());
-    if (part_id < vers_info->now_part->id)
-      vers_update_stats(thd, get_partition(part_id));
+    uint lpart_id= num_subparts ? part_id / num_subparts : part_id;
+    if (lpart_id < vers_info->now_part->id)
+      vers_update_stats(thd, get_partition(lpart_id));
   }
   bool vers_update_range_constants(THD *thd)
   {
