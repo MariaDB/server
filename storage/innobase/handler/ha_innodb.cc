@@ -3636,8 +3636,8 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 		for (trx_mod_tables_t::const_iterator t
 			     = trx->mod_tables.begin();
 		     t != trx->mod_tables.end(); t++) {
-			if (t->second.is_trx_versioned()) {
-				DBUG_ASSERT(t->first->versioned());
+			if (t->second.is_versioned()) {
+				DBUG_ASSERT(t->first->versioned_by_id());
 				DBUG_ASSERT(trx->rsegs.m_redo.rseg);
 
 				mutex_enter(&trx_sys.mutex);

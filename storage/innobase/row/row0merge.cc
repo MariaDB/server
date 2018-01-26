@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2881,7 +2881,7 @@ wait_again:
 				.insert(trx_mod_tables_t::value_type(
 					const_cast<dict_table_t*>(new_table), 0))
 				.first->second;
-		time.set_versioned(0, true);
+		time.set_versioned(0);
 	}
 
 	trx->op_info = "";

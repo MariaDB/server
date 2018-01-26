@@ -2114,14 +2114,11 @@ trx_undo_report_row_operation(
 				ut_ad(time.valid(limit));
 
 				if (!time.is_versioned()
-				    && index->table->versioned()
+				    && index->table->versioned_by_id()
 				    && (!rec /* INSERT */
 					|| !update /* DELETE */
-					|| update->affects_versioned()))
-				{
-					dict_col_t &col = index->table->cols[index->table->vers_start];
-					bool by_trx_id = col.mtype == DATA_INT;
-					time.set_versioned(limit, by_trx_id);
+					|| update->affects_versioned())) {
+					time.set_versioned(limit);
 				}
 			}
 

@@ -1543,6 +1543,10 @@ struct dict_table_t {
 	void add_to_cache();
 
 	bool versioned() const { return vers_start || vers_end; }
+	bool versioned_by_id() const
+	{
+		return vers_start && cols[vers_start].mtype == DATA_INT;
+	}
 
 	void inc_fk_checks()
 	{
