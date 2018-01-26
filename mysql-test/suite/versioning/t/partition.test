@@ -3,7 +3,10 @@
 
 --echo # Check conventional partitioning on temporal tables
 
-create table t1 (x int)
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug='+d,sysvers_manual_timestamp';
+
+create or replace table t1 (x int)
 with system versioning
 partition by range columns (x) (
     partition p0 values less than (100),
@@ -122,7 +125,6 @@ alter table t1 add partition (partition px history);
 
 
 --echo ## INSERT, UPDATE, DELETE
-
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
@@ -241,6 +243,7 @@ partition by system_time interval 0 second (
     partition p1 history,
     partition pn current);
 
+--echo ### ha_partition::update_row() check
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 1 second (
@@ -248,14 +251,31 @@ partition by system_time interval 1 second (
     partition p1 history,
     partition pn current);
 
-insert into t1 values (1), (2), (3);
+insert into t1 values (1), (2), (3), (4);
 select * from t1 partition (pn);
-delete from t1;
-select * from t1 partition (p0);
+delete from t1 where x < 3;
 
---sleep 2
-insert into t1 values (4);
+set timestamp= unix_timestamp(sysdate(6)) + 2;
 delete from t1;
+set timestamp= 0;
+
+select * from t1 partition (p0) order by x;
+select * from t1 partition (p1) order by x;
+
+--echo ### ha_partition::write_row() check
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 1 second (
+    partition p0 history,
+    partition p1 history,
+    partition pn current);
+
+insert into t1 values (1);
+update t1 set x= 2;
+set timestamp= unix_timestamp(sysdate(6)) + 2;
+update t1 set x= 3;
+set timestamp= 0;
+select * from t1 partition (p0);
 select * from t1 partition (p1);
 
 --echo ## Subpartitions
@@ -377,5 +397,6 @@ insert into t2 select * from information_schema.tables;
 
 
 --echo # Test cleanup
+set global debug_dbug=@old_dbug;
 drop database test;
 create database test;
