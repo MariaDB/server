@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -219,21 +219,11 @@ row_lock_table_autoinc_for_mysql(
 					table handle */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*********************************************************************//**
-Sets a table lock on the table mentioned in prebuilt.
+/** Lock a table.
+@param[in,out]	prebuilt	table handle
 @return error code or DB_SUCCESS */
 dberr_t
-row_lock_table_for_mysql(
-/*=====================*/
-	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct in the MySQL
-					table handle */
-	dict_table_t*	table,		/*!< in: table to lock, or NULL
-					if prebuilt->table should be
-					locked as
-					prebuilt->select_lock_type */
-	ulint		mode)		/*!< in: lock mode of table
-					(ignored if table==NULL) */
-	MY_ATTRIBUTE((nonnull(1)));
+row_lock_table(row_prebuilt_t* prebuilt);
 
 /** Does an insert for MySQL.
 @param[in]	mysql_rec	row in the MySQL format

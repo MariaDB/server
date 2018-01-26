@@ -2236,6 +2236,8 @@ trx_undo_prev_version_build(
 	const bool is_temp = dict_table_is_temporary(index->table);
 	rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
 
+	ut_ad(!index->table->skip_alter_undo);
+
 	if (trx_undo_get_undo_rec(
 		    roll_ptr, is_temp, heap, rec_trx_id, index->table->name,
 		    &undo_rec)) {

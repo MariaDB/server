@@ -538,6 +538,15 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
   case HA_EXTRA_DETACH_CHILDREN:
     inspected = "HA_EXTRA_DETACH_CHILDREN";
     break;
+  case HA_EXTRA_BEGIN_ALTER_COPY:
+    inspected = "HA_EXTRA_BEGIN_ALTER_COPY";
+    break;
+  case HA_EXTRA_END_ALTER_COPY:
+    inspected = "HA_EXTRA_END_ALTER_COPY";
+    break;
+  case HA_EXTRA_FAKE_START_STMT:
+    inspected = "HA_EXTRA_FAKE_START_STMT";
+    break;
 #ifdef MRN_HAVE_HA_EXTRA_EXPORT
   case HA_EXTRA_EXPORT:
     inspected = "HA_EXTRA_EXPORT";
