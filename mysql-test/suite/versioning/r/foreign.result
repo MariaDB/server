@@ -67,12 +67,6 @@ on update cascade
 ) engine innodb with system versioning;
 insert into parent values(1);
 insert into child values(1);
-## FIXME: #415 update of foreign constraints is disabled
-call mtr.add_suppression("foreign key constraints in timestamp-based temporal table");
-delete from parent where id = 1;
-ERROR 42000: Table 'parent' uses an extension that doesn't exist in this MariaDB version
-delete from child where parent_id = 1;
-## FIXME END
 delete from parent where id = 1;
 select * from child;
 parent_id
@@ -129,9 +123,6 @@ on update restrict
 engine innodb;
 insert into parent (id) values (3);
 insert into child (id, parent_id) values (3, 3);
-## FIXME: #415 update of foreign constraints is disabled
-delete from child;
-## FIXME END
 delete from parent;
 select * from child;
 id	parent_id
@@ -143,10 +134,10 @@ drop table parent;
 #################
 # Test SET NULL #
 #################
-create table parent(
+create or replace table parent(
 id int unique key
 ) engine innodb;
-create table child(
+create or replace table child(
 parent_id int,
 sys_start SYS_DATATYPE as row start invisible,
 sys_end SYS_DATATYPE as row end invisible,
@@ -159,19 +150,26 @@ insert into parent values(1);
 insert into child values(1);
 delete from child;
 insert into child values(1);
-## FIXME: #415 update of foreign constraints is disabled
-delete from child where parent_id = 1;
-## FIXME END
 delete from parent where id = 1;
 select * from child;
 parent_id
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
-parent_id
-1
-1
+NULL
+select *, current_row(sys_end) as current_row from child for system_time all order by sys_end;
+parent_id	current_row
+1	0
+NULL	1
 delete from child;
 insert into parent values(1);
 insert into child values(1);
+update parent set id= id + 1;
+select * from child;
+parent_id
+NULL
+select *, current_row(sys_end) as current_row from child for system_time all order by sys_end;
+parent_id	current_row
+1	0
+NULL	0
+NULL	1
 drop table child;
 drop table parent;
 ###########################

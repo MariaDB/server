@@ -317,14 +317,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     TABLE *table= table_list->table;
     DBUG_ASSERT(table);
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (table->part_info)
-    {
-      my_error(ER_NOT_ALLOWED_COMMAND, MYF(0));
-      DBUG_RETURN(true);
-    }
-#endif
-
     DBUG_ASSERT(!conds || thd->stmt_arena->is_stmt_execute());
     if (select_lex->vers_setup_conds(thd, table_list, &conds))
       DBUG_RETURN(TRUE);

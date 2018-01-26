@@ -178,5 +178,10 @@ Item_func_vtq_trx_sees::val_int()
 
   TR_table trt(thd);
   null_value= trt.query_sees(result, trx_id1, trx_id0);
+  if (null_value)
+  {
+    my_error(ER_VERS_NO_TRX_ID, MYF(0), trx_id1);
+    return false;
+  }
   return result;
 }

@@ -4258,6 +4258,10 @@ int ha_partition::write_row(uchar * buf)
   if (have_auto_increment && !table->s->next_number_keypart)
     set_auto_increment_if_higher(table->next_number_field);
   reenable_binlog(thd);
+
+  if (m_part_info->part_type == VERSIONING_PARTITION)
+    m_part_info->vers_update_stats(thd, part_id);
+
 exit:
   thd->variables.sql_mode= saved_sql_mode;
   table->auto_increment_field_not_null= saved_auto_inc_field_not_null;
@@ -4372,13 +4376,7 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
       goto exit;
 
     if (m_part_info->part_type == VERSIONING_PARTITION)
-    {
-      uint sub_factor= m_part_info->num_subparts ? m_part_info->num_subparts : 1;
-      DBUG_ASSERT(m_tot_parts == m_part_info->num_parts * sub_factor);
-      uint lpart_id= new_part_id / sub_factor;
-      // lpart_id is HISTORY partition because new_part_id != old_part_id
-      m_part_info->vers_update_stats(thd, lpart_id);
-    }
+      m_part_info->vers_update_stats(thd, new_part_id);
 
     tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
     error= m_file[old_part_id]->ha_delete_row(old_data);
@@ -4457,10 +4455,23 @@ int ha_partition::delete_row(const uchar *buf)
 
   DBUG_ASSERT(bitmap_is_subset(&m_part_info->full_part_field_set,
                                table->read_set));
+  if (m_part_info->part_type == VERSIONING_PARTITION)
+  {
+    TABLE *table= m_part_info->table;
+    DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
+    if (!table->vers_end_field()->is_max())
+    {
+      // historical record is deleted by DELETE HISTORY
+      error= 0;
+      part_id= m_last_part;
+      goto skip_get_part;
+    }
+  }
   if ((error= get_part_for_delete(buf, m_rec0, m_part_info, &part_id)))
   {
     DBUG_RETURN(error);
   }
+skip_get_part:
   /* Should never call delete_row on a partition which is not read */
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), part_id));
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->lock_partitions), part_id));

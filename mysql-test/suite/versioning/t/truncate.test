@@ -41,18 +41,21 @@ select * from t for system_time all;
 
 drop procedure truncate_sp;
 
---echo ### Issue #399, truncate partitioned table is now unimplemented
-
+--echo # Truncate partitioned
 create or replace table t (a int)
 with system versioning
 engine myisam
-partition by system_time (
+partition by system_time limit 1 (
     partition p0 history,
+    partition p1 history,
     partition pn current);
-
---error ER_NOT_ALLOWED_COMMAND
+insert into t values (1);
+update t set a= 2;
+update t set a= 3;
 delete history from t;
+select * from t for system_time all;
 
+--echo # VIEW
 create or replace table t (i int) with system versioning;
 delete history from t;
 create or replace view v as select * from t;

@@ -7269,6 +7269,48 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     }
   }
 
+  if (drop_period)
+  {
+    if (!share->versioned)
+    {
+      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name);
+      return true;
+    }
+
+    const char *vers_start= table->vers_start_field()->field_name.str;
+    const char *vers_end= table->vers_end_field()->field_name.str;
+
+    bool drop_start= false;
+    bool drop_end= false;
+    List_iterator_fast<Alter_drop> it(alter_info->drop_list);
+    while (Alter_drop *d= it++)
+    {
+      if (!my_strcasecmp(system_charset_info, vers_start, d->name))
+        drop_start= true;
+      else if (!my_strcasecmp(system_charset_info, vers_end, d->name))
+        drop_end= true;
+    }
+
+    if (!drop_start || !drop_end)
+    {
+      String tmp;
+      if (!drop_start)
+      {
+        tmp.append("DROP COLUMN ");
+        tmp.append(vers_start);
+      }
+      if (!drop_start && !drop_end)
+        tmp.append(", ");
+      if (!drop_end)
+      {
+        tmp.append("DROP COLUMN ");
+        tmp.append(vers_end);
+      }
+      my_error(ER_MISSING, MYF(0), table_name, tmp.c_ptr());
+      return true;
+    }
+  }
+
   if (share->versioned)
   {
     // copy info from existing table
@@ -7430,7 +7472,7 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
 
 bool Vers_parse_info::need_check(const Alter_info *alter_info) const
 {
-  return versioned_fields || unversioned_fields || add_period ||
+  return versioned_fields || unversioned_fields || add_period || drop_period ||
          alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING ||
          alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING || *this;
 }
