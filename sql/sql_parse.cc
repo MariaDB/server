@@ -1540,8 +1540,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     /*
       Aborted by background rollbacker thread. Jump straight to dispatch_end
       label where the error handling is performed.
+
+      We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted.
+      (see MDEV-10812).
     */
-    if (thd->wsrep_conflict_state() == ABORTED)
+    if (thd->wsrep_conflict_state() == ABORTED &&
+        command != COM_STMT_CLOSE && command != COM_QUIT)
     {
       thd->store_globals();
       WSREP_LOG_THD(thd, "enter found BF aborted");
