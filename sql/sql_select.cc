@@ -2910,6 +2910,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
     THD_STAGE_INFO(thd, stage_sorting_for_group);
 
     if (ordered_index_usage != ordered_index_group_by &&
+        !only_const_tables() &&
         (join_tab + const_tables)->type != JT_CONST && // Don't sort 1 row
         !implicit_grouping &&
         add_sorting_to_table(join_tab + const_tables, group_list))
@@ -2943,6 +2944,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
       THD_STAGE_INFO(thd, stage_sorting_for_order);
 
       if (ordered_index_usage != ordered_index_order_by &&
+          !only_const_tables() &&
           add_sorting_to_table(join_tab + const_tables, order))
         goto err;
       order= NULL;
