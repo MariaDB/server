@@ -657,6 +657,7 @@ void lex_start(THD *thd)
 {
   LEX *lex= thd->lex;
   DBUG_ENTER("lex_start");
+  DBUG_PRINT("info", ("Lex %p stmt_lex: %p", thd->lex, thd->stmt_lex));
 
   lex->thd= lex->unit.thd= thd;
   
@@ -668,6 +669,7 @@ void lex_start(THD *thd)
   /* 'parent_lex' is used in init_query() so it must be before it. */
   lex->select_lex.parent_lex= lex;
   lex->select_lex.init_query();
+  lex->current_select_number= 1;
   lex->value_list.empty();
   lex->update_list.empty();
   lex->set_var_list.empty();
