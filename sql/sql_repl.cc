@@ -1904,11 +1904,8 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   */
   if (info->thd->variables.option_bits & OPTION_SKIP_REPLICATION)
   {
-    /*
-      The first byte of the packet is a '\0' to distinguish it from an error
-      packet. So the actual event starts at offset +1.
-    */
-    uint16 event_flags= uint2korr(&((*packet)[FLAGS_OFFSET+1]));
+    uint16 event_flags= uint2korr(&((*packet)[FLAGS_OFFSET + ev_offset]));
+
     if (event_flags & LOG_EVENT_SKIP_REPLICATION_F)
       return NULL;
   }
