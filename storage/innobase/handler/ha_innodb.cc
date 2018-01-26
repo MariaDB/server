@@ -13382,7 +13382,6 @@ ha_innobase::truncate()
 		DBUG_RETURN(convert_error_code_to_mysql(
 				    err, m_prebuilt->table->flags,
 				    m_user_thd));
-		break;
 	}
 }
 
