@@ -804,6 +804,10 @@ private:
 
   MY_ALIGNED(CACHE_LINE_SIZE) trx_id_t m_max_trx_id;
 
+
+  /** Solves race condition between register_rw() and snapshot_ids(). */
+  MY_ALIGNED(CACHE_LINE_SIZE) trx_id_t m_rw_trx_hash_version;
+
   bool m_initialised;
 
 public:
@@ -829,16 +833,6 @@ public:
 					mysql_trx_list may additionally contain
 					transactions that have not yet been
 					started in InnoDB. */
-
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	trx_ids_t	rw_trx_ids;	/*!< Array of Read write transaction IDs
-					for MVCC snapshot. A ReadView would take
-					a snapshot of these transactions whose
-					changes are not visible to it. We should
-					remove transactions from the list before
-					committing in memory and releasing locks
-					to ensure right order of removal and
-					consistent snapshot. */
 
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	/** Temporary rollback segments */
@@ -870,13 +864,11 @@ public:
   /**
     Constructor.
 
-    We only initialise rw_trx_ids here as it is impossible to postpone it's
-    initialisation to create().
+    Some members may require late initialisation, thus we just mark object as
+    uninitialised. Real initialisation happens in create().
   */
 
-  trx_sys_t(): m_initialised(false),
-    rw_trx_ids(ut_allocator<trx_id_t>(mem_key_trx_sys_t_rw_trx_ids))
-  {}
+  trx_sys_t(): m_initialised(false) {}
 
 
   /**
@@ -920,15 +912,54 @@ public:
 
   trx_id_t get_new_trx_id()
   {
-    ut_ad(mutex_own(&mutex));
-    return static_cast<trx_id_t>(my_atomic_add64_explicit(
-      reinterpret_cast<int64*>(&m_max_trx_id), 1, MY_MEMORY_ORDER_RELAXED));
+    trx_id_t id= get_new_trx_id_no_refresh();
+    refresh_rw_trx_hash_version();
+    return id;
   }
 
 
+  /**
+    Takes MVCC snapshot.
+
+    To reduce malloc probablility we reserver rw_trx_hash.size() + 32 elements
+    in ids.
+
+    For details about get_rw_trx_hash_version() != get_max_trx_id() spin
+    @sa register_rw().
+
+    We rely on get_rw_trx_hash_version() to issue ACQUIRE memory barrier so
+    that loading of m_rw_trx_hash_version happens before accessing rw_trx_hash.
+
+    To optimise snapshot creation rw_trx_hash.iterate() is being used instead
+    of rw_trx_hash.iterate_no_dups(). It means that some transaction
+    identifiers may appear multiple times in ids.
+
+    @param[in,out] caller_trx used to get access to rw_trx_hash_pins
+    @param[out]    ids        array to store registered transaction identifiers
+    @param[out]    max_trx_id variable to store m_max_trx_id value
+  */
+
+  void snapshot_ids(trx_t *caller_trx, trx_ids_t *ids, trx_id_t *max_trx_id)
+  {
+    snapshot_ids_arg arg(ids);
+
+    while ((arg.m_id= get_rw_trx_hash_version()) != get_max_trx_id())
+      ut_delay(1);
+
+    ids->clear();
+    ids->reserve(rw_trx_hash.size() + 32);
+    *max_trx_id= arg.m_id;
+    rw_trx_hash.iterate(caller_trx,
+                        reinterpret_cast<my_hash_walk_action>(copy_one_id),
+                        &arg);
+    std::sort(ids->begin(), ids->end());
+  }
+
+
+  /** Initialiser for m_max_trx_id and m_rw_trx_hash_version. */
   void init_max_trx_id(trx_id_t value)
   {
-    m_max_trx_id= value;
+    m_max_trx_id= m_rw_trx_hash_version= value;
   }
 
 
@@ -945,14 +976,44 @@ public:
   ulint any_active_transactions();
 
 
-  /** Registers read-write transaction. */
+  /**
+    Registers read-write transaction.
+
+    Transaction becomes visible to MVCC.
+
+    There's a gap between m_max_trx_id increment and transaction becoming
+    visible through rw_trx_hash. While we're in this gap concurrent thread may
+    come and do MVCC snapshot. As a result concurrent read view will be able to
+    observe records owned by this transaction even before it was committed.
+
+    m_rw_trx_hash_version is intended to solve this problem. MVCC snapshot has
+    to wait until m_max_trx_id == m_rw_trx_hash_version, which effectively
+    means that all transactions up to m_max_trx_id are available through
+    rw_trx_hash.
+
+    We rely on refresh_rw_trx_hash_version() to issue RELEASE memory barrier so
+    that m_rw_trx_hash_version increment happens after transaction becomes
+    visible through rw_trx_hash.
+  */
+
   void register_rw(trx_t *trx)
   {
-    mutex_enter(&mutex);
-    trx->id= get_new_trx_id();
-    rw_trx_ids.push_back(trx->id);
-    mutex_exit(&mutex);
+    trx->id= get_new_trx_id_no_refresh();
     rw_trx_hash.insert(trx);
+    refresh_rw_trx_hash_version();
+  }
+
+
+  /**
+    Deregisters read-write transaction.
+
+    Transaction is removed from rw_trx_hash, which releases all implicit locks.
+    MVCC snapshot won't see this transaction anymore.
+  */
+
+  void deregister_rw(trx_t *trx)
+  {
+    rw_trx_hash.erase(trx);
   }
 
 
@@ -981,6 +1042,60 @@ private:
       mutex_exit(&element->mutex);
     }
     return 0;
+  }
+
+
+  struct snapshot_ids_arg
+  {
+    snapshot_ids_arg(trx_ids_t *ids): m_ids(ids) {}
+    trx_ids_t *m_ids;
+    trx_id_t m_id;
+  };
+
+
+  static my_bool copy_one_id(rw_trx_hash_element_t *element,
+                             snapshot_ids_arg *arg)
+  {
+    if (element->id < arg->m_id)
+      arg->m_ids->push_back(element->id);
+    return 0;
+  }
+
+
+  /** Getter for m_rw_trx_hash_version, must issue ACQUIRE memory barrier. */
+  trx_id_t get_rw_trx_hash_version()
+  {
+    return static_cast<trx_id_t>
+           (my_atomic_load64_explicit(reinterpret_cast<int64*>
+                                      (&m_rw_trx_hash_version),
+                                      MY_MEMORY_ORDER_ACQUIRE));
+  }
+
+
+  /** Increments m_rw_trx_hash_version, must issue RELEASE memory barrier. */
+  void refresh_rw_trx_hash_version()
+  {
+    my_atomic_add64_explicit(reinterpret_cast<int64*>(&m_rw_trx_hash_version),
+                             1, MY_MEMORY_ORDER_RELEASE);
+  }
+
+
+  /**
+    Allocates new transaction id without refreshing rw_trx_hash version.
+
+    This method is extracted for exclusive use by register_rw() where
+    transaction must be inserted into rw_trx_hash between new transaction id
+    allocation and rw_trx_hash version refresh.
+
+    @sa get_new_trx_id()
+
+    @return new transaction id
+  */
+
+  trx_id_t get_new_trx_id_no_refresh()
+  {
+    return static_cast<trx_id_t>(my_atomic_add64_explicit(
+      reinterpret_cast<int64*>(&m_max_trx_id), 1, MY_MEMORY_ORDER_RELAXED));
   }
 };
 

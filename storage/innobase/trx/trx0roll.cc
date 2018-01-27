@@ -859,7 +859,7 @@ void trx_rollback_recovered(bool all)
         ut_ad(!srv_undo_sources);
         ut_ad(srv_fast_shutdown);
 discard:
-        trx_sys.rw_trx_hash.erase(trx);
+        trx_sys.deregister_rw(trx);
         trx_free_at_shutdown(trx);
       }
       else

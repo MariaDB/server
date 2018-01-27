@@ -165,8 +165,10 @@ public:
 private:
 	/**
 	Opens a read view where exactly the transactions serialized before this
-	point in time are seen in the view. */
-	inline void clone();
+	point in time are seen in the view.
+
+	@param[in,out] trx transaction */
+	void open(trx_t *trx);
 
 	/**
 	Copy state from another view.

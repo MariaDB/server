@@ -878,7 +878,6 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
 
   trx_sys.rw_trx_hash.insert(trx);
   trx_sys.rw_trx_hash.put_pins(trx);
-  trx_sys.rw_trx_ids.push_back(trx->id);
   trx_resurrect_table_locks(trx, undo);
   if (trx_state_eq(trx, TRX_STATE_ACTIVE))
     *rows_to_undo+= trx->undo_no;
@@ -973,8 +972,6 @@ trx_lists_init_at_db_start()
 
 		ib::info() << "Trx id counter is " << trx_sys.get_max_trx_id();
 	}
-
-	std::sort(trx_sys.rw_trx_ids.begin(), trx_sys.rw_trx_ids.end());
 	trx_sys.mvcc.clone_oldest_view(&purge_sys->view);
 }
 
@@ -1519,9 +1516,7 @@ trx_update_mod_tables_timestamp(
 
 /**
 Erase the transaction from running transaction lists and serialization
-list. Active RW transaction list of a MVCC snapshot(ReadView::prepare)
-won't include this transaction after this call. All implicit locks are
-also released by this call as trx is removed from rw_trx_hash.
+list.
 @param[in] trx		Transaction to erase, must have an ID > 0
 @param[in] serialised	true if serialisation log was written */
 static
@@ -1538,15 +1533,8 @@ trx_erase_lists(
 	} else {
 		mutex_enter(&trx_sys.mutex);
 	}
-
-	trx_ids_t::iterator	it = std::lower_bound(
-		trx_sys.rw_trx_ids.begin(),
-		trx_sys.rw_trx_ids.end(),
-		trx->id);
-	ut_ad(*it == trx->id);
-	trx_sys.rw_trx_ids.erase(it);
 	mutex_exit(&trx_sys.mutex);
-	trx_sys.rw_trx_hash.erase(trx);
+	trx_sys.deregister_rw(trx);
 }
 
 /****************************************************************//**

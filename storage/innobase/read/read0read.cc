@@ -207,49 +207,25 @@ MVCC::validate() const
 }
 #endif /* UNIV_DEBUG */
 
+
 /**
-Opens a read view where exactly the transactions serialized before this
-point in time are seen in the view. */
+  Opens a read view where exactly the transactions serialized before this
+  point in time are seen in the view.
 
-void ReadView::clone()
+  @param[in,out] trx transaction
+*/
+
+void ReadView::open(trx_t *trx)
 {
-	ut_ad(mutex_own(&trx_sys.mutex));
-	m_low_limit_no = m_low_limit_id = trx_sys.get_max_trx_id();
+  ut_ad(mutex_own(&trx_sys.mutex));
+  trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id);
+  m_low_limit_no= m_low_limit_id;
+  m_up_limit_id= m_ids.empty() ? m_low_limit_id : m_ids.front();
+  ut_ad(m_up_limit_id <= m_low_limit_id);
 
-	m_ids= trx_sys.rw_trx_ids;
-#ifdef UNIV_DEBUG
-	/* Original assertion was here to make sure that rw_trx_ids and
-	rw_trx_hash are in sync and they hold either ACTIVE or PREPARED
-	transaction.
-
-	Now rw_trx_hash_t::find() does
-	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
-	      trx_state_eq(trx, TRX_STATE_PREPARED)).
-	No need to repeat it here. We even can't repeat it here: it'll be race
-	condition because we need trx->element->mutex locked to perform this
-	check (see how it is done in find()).
-
-	Now rw_trx_ids and rw_trx_hash may get out of sync for a short while:
-	when transaction is registered it first gets added into rw_trx_ids
-	under trx_sys.mutex protection and then to rw_trx_hash without mutex
-	protection. Thus we need repeat this lookup. */
-	for (trx_ids_t::const_iterator it = trx_sys.rw_trx_ids.begin();
-	     it != trx_sys.rw_trx_ids.end(); ++it) {
-		while (!trx_sys.is_registered(current_trx(), *it));
-	}
-#endif /* UNIV_DEBUG */
-	m_up_limit_id = m_ids.empty() ? m_low_limit_id : m_ids.front();
-	ut_ad(m_up_limit_id <= m_low_limit_id);
-
-	if (UT_LIST_GET_LEN(trx_sys.serialisation_list) > 0) {
-		const trx_t*	trx;
-
-		trx = UT_LIST_GET_FIRST(trx_sys.serialisation_list);
-
-		if (trx->no < m_low_limit_no) {
-			m_low_limit_no = trx->no;
-		}
-	}
+  if (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys.serialisation_list))
+    if (trx->no < m_low_limit_no)
+      m_low_limit_no= trx->no;
 }
 
 
@@ -324,7 +300,7 @@ void MVCC::view_open(trx_t* trx)
   }
 
   mutex_enter(&trx_sys.mutex);
-  trx->read_view.clone();
+  trx->read_view.open(trx);
   if (trx->read_view.is_registered())
     UT_LIST_REMOVE(m_views, &trx->read_view);
   else
@@ -375,7 +351,7 @@ MVCC::clone_oldest_view(ReadView* view)
 {
 	mutex_enter(&trx_sys.mutex);
 	/* Find oldest view. */
-	for (ReadView *oldest_view = UT_LIST_GET_LAST(m_views);
+	for (const ReadView *oldest_view = UT_LIST_GET_LAST(m_views);
 	     oldest_view != NULL;
 	     oldest_view = UT_LIST_GET_PREV(m_view_list, oldest_view))
 	{
@@ -387,7 +363,7 @@ MVCC::clone_oldest_view(ReadView* view)
 		}
 	}
 	/* No views in the list: snapshot current state. */
-	view->clone();
+	view->open(0);
 	mutex_exit(&trx_sys.mutex);
 }
 
