@@ -677,53 +677,37 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
 {
   vers_asof_timestamp_t &in= thd->variables.vers_asof_timestamp;
   type= (vers_system_time_t) in.type;
-  unit_start= VERS_TIMESTAMP;
+  start.unit= VERS_TIMESTAMP;
   from_query= false;
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
   {
     DBUG_ASSERT(type == SYSTEM_TIME_AS_OF);
-    start= new (thd->mem_root)
+    start.item= new (thd->mem_root)
         Item_datetime_literal(thd, &in.ltime, TIME_SECOND_PART_DIGITS);
-    if (!start)
+    if (!start.item)
       return true;
   }
   else
-    start= NULL;
-  end= NULL;
+    start.item= NULL;
+  end.empty();
   return false;
 }
 
 void vers_select_conds_t::print(String *str, enum_query_type query_type)
 {
-  const static LEX_CSTRING unit_type[]=
-  {
-    { STRING_WITH_LEN("") },
-    { STRING_WITH_LEN("TIMESTAMP ") },
-    { STRING_WITH_LEN("TRANSACTION ") }
-  };
   switch (type) {
   case SYSTEM_TIME_UNSPECIFIED:
     break;
   case SYSTEM_TIME_AS_OF:
-    str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME AS OF "));
-    str->append(unit_type + unit_start);
-    start->print(str, query_type);
+    start.print(str, query_type, STRING_WITH_LEN(" FOR SYSTEM_TIME AS OF "));
     break;
   case SYSTEM_TIME_FROM_TO:
-    str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME FROM "));
-    str->append(unit_type + unit_start);
-    start->print(str, query_type);
-    str->append(STRING_WITH_LEN(" TO "));
-    str->append(unit_type + unit_end);
-    end->print(str, query_type);
+    start.print(str, query_type, STRING_WITH_LEN(" FOR SYSTEM_TIME FROM "));
+    end.print(str, query_type, STRING_WITH_LEN(" TO "));
     break;
   case SYSTEM_TIME_BETWEEN:
-    str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME BETWEEN "));
-    str->append(unit_type + unit_start);
-    start->print(str, query_type);
-    str->append(STRING_WITH_LEN(" AND "));
-    str->append(unit_type + unit_end);
-    end->print(str, query_type);
+    start.print(str, query_type, STRING_WITH_LEN(" FOR SYSTEM_TIME BETWEEN "));
+    end.print(str, query_type, STRING_WITH_LEN(" AND "));
     break;
   case SYSTEM_TIME_BEFORE:
     DBUG_ASSERT(0);
@@ -871,8 +855,8 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         vers_system_time_t/VERS_TRX_ID at stage of fix_fields()
         (this is large refactoring). */
       vers_conditions.resolve_units(timestamps_only);
-      if (timestamps_only && (vers_conditions.unit_start == VERS_TRX_ID ||
-        vers_conditions.unit_end == VERS_TRX_ID))
+      if (timestamps_only && (vers_conditions.start.unit == VERS_TRX_ID ||
+        vers_conditions.end.unit == VERS_TRX_ID))
       {
         my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name.str);
         DBUG_RETURN(-1);
@@ -889,53 +873,8 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     {
       if (vers_conditions)
       {
-        if (vers_conditions.start)
-        {
-          if (!vers_conditions.unit_start)
-            vers_conditions.unit_start= t->s->versioned;
-          switch (vers_conditions.unit_start)
-          {
-          case VERS_TIMESTAMP:
-          {
-            vers_conditions.start= newx Item_datetime_from_unixtime_typecast(
-              thd, vers_conditions.start, 6);
-            break;
-          }
-          case VERS_TRX_ID:
-          {
-            vers_conditions.start= newx Item_longlong_typecast(
-              thd, vers_conditions.start);
-            break;
-          }
-          default:
-            DBUG_ASSERT(0);
-            break;
-          }
-        }
-
-        if (vers_conditions.end)
-        {
-          if (!vers_conditions.unit_end)
-            vers_conditions.unit_end= t->s->versioned;
-          switch (vers_conditions.unit_end)
-          {
-          case VERS_TIMESTAMP:
-          {
-            vers_conditions.end= newx Item_datetime_from_unixtime_typecast(
-              thd, vers_conditions.end, 6);
-            break;
-          }
-          case VERS_TRX_ID:
-          {
-            vers_conditions.end= newx Item_longlong_typecast(
-              thd, vers_conditions.end);
-            break;
-          }
-          default:
-            DBUG_ASSERT(0);
-            break;
-          }
-        }
+        vers_conditions.start.add_typecast(thd, t->s->versioned);
+        vers_conditions.end.add_typecast(thd, t->s->versioned);
       }
       switch (vers_conditions.type)
       {
@@ -957,26 +896,19 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         cond1= or_items(thd, cond1, newx Item_func_isnull(thd, row_end));
         break;
       case SYSTEM_TIME_AS_OF:
-        cond1= newx Item_func_le(thd, row_start,
-          vers_conditions.start);
-        cond2= newx Item_func_gt(thd, row_end,
-          vers_conditions.start);
+        cond1= newx Item_func_le(thd, row_start, vers_conditions.start.item);
+        cond2= newx Item_func_gt(thd, row_end, vers_conditions.start.item);
         break;
       case SYSTEM_TIME_FROM_TO:
-        cond1= newx Item_func_lt(thd, row_start,
-          vers_conditions.end);
-        cond2= newx Item_func_ge(thd, row_end,
-          vers_conditions.start);
+        cond1= newx Item_func_lt(thd, row_start, vers_conditions.end.item);
+        cond2= newx Item_func_ge(thd, row_end, vers_conditions.start.item);
         break;
       case SYSTEM_TIME_BETWEEN:
-        cond1= newx Item_func_le(thd, row_start,
-          vers_conditions.end);
-        cond2= newx Item_func_ge(thd, row_end,
-          vers_conditions.start);
+        cond1= newx Item_func_le(thd, row_start, vers_conditions.end.item);
+        cond2= newx Item_func_ge(thd, row_end, vers_conditions.start.item);
         break;
       case SYSTEM_TIME_BEFORE:
-        cond1= newx Item_func_lt(thd, row_end,
-          vers_conditions.start);
+        cond1= newx Item_func_lt(thd, row_end, vers_conditions.start.item);
         break;
       default:
         DBUG_ASSERT(0);
@@ -995,29 +927,29 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         cond1= newx Item_func_eq(thd, row_end, curr);
         break;
       case SYSTEM_TIME_AS_OF:
-        trx_id0= vers_conditions.unit_start == VERS_TIMESTAMP ?
-          newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
-          vers_conditions.start;
+        trx_id0= vers_conditions.start.unit == VERS_TIMESTAMP
+          ?  newx Item_func_vtq_id(thd, vers_conditions.start.item, TR_table::FLD_TRX_ID)
+          : vers_conditions.start.item;
         cond1= newx Item_func_vtq_trx_sees_eq(thd, trx_id0, row_start);
         cond2= newx Item_func_vtq_trx_sees(thd, row_end, trx_id0);
         break;
       case SYSTEM_TIME_FROM_TO:
       case SYSTEM_TIME_BETWEEN:
-        trx_id0= vers_conditions.unit_start == VERS_TIMESTAMP ?
-          newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID, true) :
-          vers_conditions.start;
-        trx_id1= vers_conditions.unit_end == VERS_TIMESTAMP ?
-          newx Item_func_vtq_id(thd, vers_conditions.end, TR_table::FLD_TRX_ID, false) :
-          vers_conditions.end;
-        cond1= vers_conditions.type == SYSTEM_TIME_FROM_TO ?
-          newx Item_func_vtq_trx_sees(thd, trx_id1, row_start) :
-          newx Item_func_vtq_trx_sees_eq(thd, trx_id1, row_start);
+        trx_id0= vers_conditions.start.unit == VERS_TIMESTAMP
+          ? newx Item_func_vtq_id(thd, vers_conditions.start.item, TR_table::FLD_TRX_ID, true)
+          : vers_conditions.start.item;
+        trx_id1= vers_conditions.end.unit == VERS_TIMESTAMP
+          ? newx Item_func_vtq_id(thd, vers_conditions.end.item, TR_table::FLD_TRX_ID, false)
+          : vers_conditions.end.item;
+        cond1= vers_conditions.type == SYSTEM_TIME_FROM_TO
+          ? newx Item_func_vtq_trx_sees(thd, trx_id1, row_start)
+          : newx Item_func_vtq_trx_sees_eq(thd, trx_id1, row_start);
         cond2= newx Item_func_vtq_trx_sees_eq(thd, row_end, trx_id0);
         break;
       case SYSTEM_TIME_BEFORE:
-        trx_id0= vers_conditions.unit_start == VERS_TIMESTAMP ?
-          newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
-          vers_conditions.start;
+        trx_id0= vers_conditions.start.unit == VERS_TIMESTAMP
+          ? newx Item_func_vtq_id(thd, vers_conditions.start.item, TR_table::FLD_TRX_ID)
+          : vers_conditions.start.item;
         cond1= newx Item_func_lt(thd, row_end, trx_id0);
         break;
       default:

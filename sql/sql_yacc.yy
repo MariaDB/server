@@ -752,27 +752,6 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   } while(0)
 
 
-void vers_select_conds_t::init(vers_system_time_t t, vers_sys_type_t u_start,
-                               Item *s, vers_sys_type_t u_end, Item *e)
-{
-  type= t;
-  unit_start= u_start;
-  unit_end= u_end;
-  start= fix_dec(s);
-  end= fix_dec(e);
-  used= from_query= false;
-}
-
-Item *vers_select_conds_t::fix_dec(Item *item)
-{
-  if (item && item->decimals == 0 && item->type() == Item::FUNC_ITEM &&
-      ((Item_func*)item)->functype() == Item_func::NOW_FUNC)
-    item->decimals= 6;
-
-  return item;
-}
-
-
 Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 {
   Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
@@ -813,6 +792,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
     LEX_CSTRING name;
     uint offset;
   } sp_cursor_name_and_offset;
+  vers_history_point_t vers_history_point;
 
   /* pointers */
   Create_field *create_field;
@@ -2046,7 +2026,8 @@ END_OF_INPUT
 
 %type <lex_str_list> opt_with_column_list
 
-%type <vers_range_unit> opt_trans_or_timestamp
+%type <vers_range_unit> opt_history_unit
+%type <vers_history_point> history_point
 %type <vers_column_versioning> with_or_without_system
 %%
 
@@ -9203,18 +9184,25 @@ select_options:
           }
         ;
 
-opt_trans_or_timestamp:
-          /* empty */
+opt_history_unit:
+          /* empty*/
           {
-            $$ = VERS_UNDEFINED;
+            $$= VERS_UNDEFINED;
           }
         | TRANSACTION_SYM
           {
-            $$ = VERS_TRX_ID;
+            $$= VERS_TRX_ID;
           }
         | TIMESTAMP
           {
-            $$ = VERS_TIMESTAMP;
+            $$= VERS_TIMESTAMP;
+          }
+        ;
+
+history_point:
+          opt_history_unit simple_expr
+          {
+            $$= Vers_history_point($1, $2);
           }
         ;
 
@@ -9230,23 +9218,23 @@ opt_for_system_time_clause:
         ;
 
 system_time_expr:
-          AS OF_SYM opt_trans_or_timestamp simple_expr
+          AS OF_SYM history_point
           {
-            Lex->vers_conditions.init(SYSTEM_TIME_AS_OF, $3, $4);
+            Lex->vers_conditions.init(SYSTEM_TIME_AS_OF, $3);
           }
         | ALL
           {
             Lex->vers_conditions.init(SYSTEM_TIME_ALL);
           }
-        | FROM opt_trans_or_timestamp simple_expr
-          TO_SYM opt_trans_or_timestamp simple_expr
+        | FROM history_point
+          TO_SYM history_point
           {
-            Lex->vers_conditions.init(SYSTEM_TIME_FROM_TO, $2, $3, $5, $6);
+            Lex->vers_conditions.init(SYSTEM_TIME_FROM_TO, $2, $4);
           }
-        | BETWEEN_SYM opt_trans_or_timestamp simple_expr
-          AND_SYM opt_trans_or_timestamp simple_expr
+        | BETWEEN_SYM history_point
+          AND_SYM history_point
           {
-            Lex->vers_conditions.init(SYSTEM_TIME_BETWEEN, $2, $3, $5, $6);
+            Lex->vers_conditions.init(SYSTEM_TIME_BETWEEN, $2, $4);
           }
         ;
 
@@ -13447,9 +13435,9 @@ opt_delete_system_time:
           {
             Lex->vers_conditions.init(SYSTEM_TIME_ALL);
           }
-          | BEFORE_SYM SYSTEM_TIME_SYM opt_trans_or_timestamp simple_expr
+          | BEFORE_SYM SYSTEM_TIME_SYM history_point
           {
-            Lex->vers_conditions.init(SYSTEM_TIME_BEFORE, $3, $4);
+            Lex->vers_conditions.init(SYSTEM_TIME_BEFORE, $3);
           }
           ;
 

@@ -8920,27 +8920,67 @@ bool TR_table::check(bool error)
 void vers_select_conds_t::resolve_units(bool timestamps_only)
 {
   DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
-  DBUG_ASSERT(start);
-  if (unit_start == VERS_UNDEFINED)
+  DBUG_ASSERT(start.item);
+  start.resolve_unit(timestamps_only);
+  end.resolve_unit(timestamps_only);
+}
+
+void Vers_history_point::resolve_unit(bool timestamps_only)
+{
+  if (item && unit == VERS_UNDEFINED)
   {
-    if (start->type() == Item::FIELD_ITEM)
-      unit_start= VERS_TIMESTAMP;
+    if (item->type() == Item::FIELD_ITEM || timestamps_only)
+      unit= VERS_TIMESTAMP;
+    else if (item->result_type() == INT_RESULT ||
+             item->result_type() == REAL_RESULT)
+      unit= VERS_TRX_ID;
     else
-      unit_start= (!timestamps_only && (start->result_type() == INT_RESULT ||
-        start->result_type() == REAL_RESULT)) ?
-          VERS_TRX_ID : VERS_TIMESTAMP;
-  }
-  if (end && unit_end == VERS_UNDEFINED)
-  {
-    if (start->type() == Item::FIELD_ITEM)
-      unit_start= VERS_TIMESTAMP;
-    else
-      unit_end= (!timestamps_only && (end->result_type() == INT_RESULT ||
-        end->result_type() == REAL_RESULT)) ?
-          VERS_TRX_ID : VERS_TIMESTAMP;
+      unit= VERS_TIMESTAMP;
   }
 }
 
+void Vers_history_point::fix_item()
+{
+  if (item && item->decimals == 0 && item->type() == Item::FUNC_ITEM &&
+      ((Item_func*)item)->functype() == Item_func::NOW_FUNC)
+    item->decimals= 6;
+}
+
+void Vers_history_point::add_typecast(THD *thd, enum vers_sys_type_t defunit)
+{
+  if (item)
+  {
+    if (!unit)
+      unit= defunit;
+    switch (unit)
+    {
+    case VERS_TIMESTAMP:
+      item= new (thd->mem_root) Item_datetime_from_unixtime_typecast(
+                                    thd, item, MAX_DATETIME_PRECISION);
+      break;
+    case VERS_TRX_ID:
+      item= new (thd->mem_root) Item_longlong_typecast(thd, item);
+      break;
+    default:
+      DBUG_ASSERT(0);
+      break;
+    }
+  }
+}
+
+void Vers_history_point::print(String *str, enum_query_type query_type,
+                               const char *prefix, size_t plen)
+{
+  const static LEX_CSTRING unit_type[]=
+  {
+    { STRING_WITH_LEN("") },
+    { STRING_WITH_LEN("TIMESTAMP ") },
+    { STRING_WITH_LEN("TRANSACTION ") }
+  };
+  str->append(prefix, plen);
+  str->append(unit_type + unit);
+  item->print(str, query_type);
+}
 
 Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
 {

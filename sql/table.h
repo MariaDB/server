@@ -1841,6 +1841,85 @@ class SJ_MATERIALIZATION_INFO;
 class Index_hint;
 class Item_in_subselect;
 
+/* trivial class, for %union in sql_yacc.yy */
+struct vers_history_point_t
+{
+  vers_sys_type_t unit;
+  Item *item;
+};
+
+class Vers_history_point : public vers_history_point_t
+{
+  void fix_item();
+
+public:
+  Vers_history_point() { empty(); }
+  Vers_history_point(vers_sys_type_t unit_arg, Item *item_arg)
+  {
+    unit= unit_arg;
+    item= item_arg;
+    fix_item();
+  }
+  Vers_history_point(vers_history_point_t p)
+  {
+    unit= p.unit;
+    item= p.item;
+    fix_item();
+  }
+  void empty() { unit= VERS_UNDEFINED; item= NULL; }
+  void print(String *str, enum_query_type, const char *prefix, size_t plen);
+  void resolve_unit(bool timestamps_only);
+  void add_typecast(THD *thd, enum vers_sys_type_t defunit);
+};
+
+struct vers_select_conds_t
+{
+  vers_system_time_t type;
+  bool from_query:1;
+  bool used:1;
+  Vers_history_point start;
+  Vers_history_point end;
+
+  void empty()
+  {
+    type= SYSTEM_TIME_UNSPECIFIED;
+    used= from_query= false;
+    start.empty();
+    end.empty();
+  }
+
+  void init(vers_system_time_t _type,
+            Vers_history_point _start= Vers_history_point(),
+            Vers_history_point _end= Vers_history_point())
+  {
+    type= _type;
+    used= from_query= false;
+    start= _start;
+    end= _end;
+  }
+
+  void print(String *str, enum_query_type query_type);
+
+  bool init_from_sysvar(THD *thd);
+
+  bool operator== (vers_system_time_t b)
+  {
+    return type == b;
+  }
+  bool operator!= (vers_system_time_t b)
+  {
+    return type != b;
+  }
+  operator bool() const
+  {
+    return type != SYSTEM_TIME_UNSPECIFIED;
+  }
+  void resolve_units(bool timestamps_only);
+  bool user_defined() const
+  {
+    return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
+  }
+};
 
 /*
   Table reference in the FROM clause.
@@ -1878,50 +1957,6 @@ class Item_in_subselect;
 */
 
 /** last_leaf_for_name_resolutioning support. */
-struct vers_select_conds_t
-{
-  vers_system_time_t type;
-  vers_sys_type_t unit_start, unit_end;
-  bool from_query:1;
-  bool used:1;
-  Item *start, *end;
-
-  void empty()
-  {
-    type= SYSTEM_TIME_UNSPECIFIED;
-    unit_start= unit_end= VERS_UNDEFINED;
-    used= from_query= false;
-    start= end= NULL;
-  }
-
-  Item *fix_dec(Item *item);
-
-  void init(vers_system_time_t t, vers_sys_type_t u_start= VERS_UNDEFINED,
-            Item * s= NULL, vers_sys_type_t u_end= VERS_UNDEFINED,
-            Item * e= NULL);
-
-  void print(String *str, enum_query_type query_type);
-
-  bool init_from_sysvar(THD *thd);
-
-  bool operator== (vers_system_time_t b)
-  {
-    return type == b;
-  }
-  bool operator!= (vers_system_time_t b)
-  {
-    return type != b;
-  }
-  operator bool() const
-  {
-    return type != SYSTEM_TIME_UNSPECIFIED;
-  }
-  void resolve_units(bool timestamps_only);
-  bool user_defined() const
-  {
-    return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
-  }
-};
 
 struct LEX;
 class Index_hint;
