@@ -135,3 +135,15 @@ set global rocksdb_force_flush_memtable_now = true;
 
 select * from t1;
 DROP TABLE t1;
+
+## https://github.com/facebook/mysql-5.6/issues/736
+create table t1 (i int auto_increment, key(i)) engine=rocksdb;
+insert into t1 values();
+insert into t1 values();
+insert into t1 values();
+
+show create table t1;
+--source include/restart_mysqld.inc
+show create table t1;
+
+drop table t1;

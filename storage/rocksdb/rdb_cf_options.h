@@ -64,6 +64,9 @@ public:
   static const rocksdb::Comparator *
   get_cf_comparator(const std::string &cf_name);
 
+  std::shared_ptr<rocksdb::MergeOperator>
+  get_cf_merge_operator(const std::string &cf_name);
+
   void get_cf_options(const std::string &cf_name,
                       rocksdb::ColumnFamilyOptions *const opts)
       MY_ATTRIBUTE((__nonnull__));

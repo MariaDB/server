@@ -54,16 +54,8 @@ Rdb_tbl_prop_coll::Rdb_tbl_prop_coll(Rdb_ddl_manager *const ddl_manager,
     : m_cf_id(cf_id), m_ddl_manager(ddl_manager), m_last_stats(nullptr),
       m_rows(0l), m_window_pos(0l), m_deleted_rows(0l), m_max_deleted_rows(0l),
       m_file_size(0), m_params(params),
-      m_table_stats_sampling_pct(table_stats_sampling_pct),
-      m_seed(time(nullptr)), m_card_adj_extra(1.) {
+      m_cardinality_collector(table_stats_sampling_pct) {
   DBUG_ASSERT(ddl_manager != nullptr);
-
-  // We need to adjust the index cardinality numbers based on the sampling
-  // rate so that the output of "SHOW INDEX" command will reflect reality
-  // more closely. It will still be an approximation, just a better one.
-  if (m_table_stats_sampling_pct > 0) {
-    m_card_adj_extra = 100. / m_table_stats_sampling_pct;
-  }
 
   m_deleted_rows_window.resize(m_params.m_window, false);
 }
@@ -147,7 +139,7 @@ Rdb_index_stats *Rdb_tbl_prop_coll::AccessStats(const rocksdb::Slice &key) {
         m_last_stats->m_name = m_keydef->get_name();
       }
     }
-    m_last_key.clear();
+    m_cardinality_collector.Reset();
   }
 
   return m_last_stats;
@@ -157,7 +149,7 @@ void Rdb_tbl_prop_coll::CollectStatsForRow(const rocksdb::Slice &key,
                                            const rocksdb::Slice &value,
                                            const rocksdb::EntryType &type,
                                            const uint64_t &file_size) {
-  const auto stats = AccessStats(key);
+  auto stats = AccessStats(key);
 
   stats->m_data_size += key.size() + value.size();
 
@@ -183,38 +175,15 @@ void Rdb_tbl_prop_coll::CollectStatsForRow(const rocksdb::Slice &key,
     sql_print_error("RocksDB: Unexpected entry type found: %u. "
                     "This should not happen so aborting the system.",
                     type);
-    abort_with_stack_traces();
+    abort();
     break;
   }
 
   stats->m_actual_disk_size += file_size - m_file_size;
   m_file_size = file_size;
 
-  if (m_keydef != nullptr && ShouldCollectStats()) {
-    std::size_t column = 0;
-    bool new_key = true;
-
-    if (!m_last_key.empty()) {
-      rocksdb::Slice last(m_last_key.data(), m_last_key.size());
-      new_key = (m_keydef->compare_keys(&last, &key, &column) == 0);
-    }
-
-    if (new_key) {
-      DBUG_ASSERT(column <= stats->m_distinct_keys_per_prefix.size());
-
-      for (auto i = column; i < stats->m_distinct_keys_per_prefix.size(); i++) {
-        stats->m_distinct_keys_per_prefix[i]++;
-      }
-
-      // assign new last_key for the next call
-      // however, we only need to change the last key
-      // if one of the first n-1 columns is different
-      // If the n-1 prefix is the same, no sense in storing
-      // the new key
-      if (column < stats->m_distinct_keys_per_prefix.size()) {
-        m_last_key.assign(key.data(), key.size());
-      }
-    }
+  if (m_keydef != nullptr) {
+    m_cardinality_collector.ProcessKey(key, m_keydef.get(), stats);
   }
 }
 
@@ -261,8 +230,10 @@ Rdb_tbl_prop_coll::Finish(rocksdb::UserCollectedProperties *const properties) {
     rocksdb_num_sst_entry_other += num_sst_entry_other;
   }
 
-  properties->insert({INDEXSTATS_KEY,
-                      Rdb_index_stats::materialize(m_stats, m_card_adj_extra)});
+  for (Rdb_index_stats &stat : m_stats) {
+    m_cardinality_collector.AdjustStats(&stat);
+  }
+  properties->insert({INDEXSTATS_KEY, Rdb_index_stats::materialize(m_stats)});
   return rocksdb::Status::OK();
 }
 
@@ -270,23 +241,6 @@ bool Rdb_tbl_prop_coll::NeedCompact() const {
   return m_params.m_deletes && (m_params.m_window > 0) &&
          (m_file_size > m_params.m_file_size) &&
          (m_max_deleted_rows > m_params.m_deletes);
-}
-
-bool Rdb_tbl_prop_coll::ShouldCollectStats() {
-  // Zero means that we'll use all the keys to update statistics.
-  if (!m_table_stats_sampling_pct ||
-      RDB_TBL_STATS_SAMPLE_PCT_MAX == m_table_stats_sampling_pct) {
-    return true;
-  }
-
-  const int val = rand_r(&m_seed) % (RDB_TBL_STATS_SAMPLE_PCT_MAX -
-                                     RDB_TBL_STATS_SAMPLE_PCT_MIN + 1) +
-                  RDB_TBL_STATS_SAMPLE_PCT_MIN;
-
-  DBUG_ASSERT(val >= RDB_TBL_STATS_SAMPLE_PCT_MIN);
-  DBUG_ASSERT(val <= RDB_TBL_STATS_SAMPLE_PCT_MAX);
-
-  return val <= m_table_stats_sampling_pct;
 }
 
 /*
@@ -365,8 +319,7 @@ void Rdb_tbl_prop_coll::read_stats_from_tbl_props(
   Serializes an array of Rdb_index_stats into a network string.
 */
 std::string
-Rdb_index_stats::materialize(const std::vector<Rdb_index_stats> &stats,
-                             const float card_adj_extra) {
+Rdb_index_stats::materialize(const std::vector<Rdb_index_stats> &stats) {
   String ret;
   rdb_netstr_append_uint16(&ret, INDEX_STATS_VERSION_ENTRY_TYPES);
   for (const auto &i : stats) {
@@ -382,8 +335,7 @@ Rdb_index_stats::materialize(const std::vector<Rdb_index_stats> &stats,
     rdb_netstr_append_uint64(&ret, i.m_entry_merges);
     rdb_netstr_append_uint64(&ret, i.m_entry_others);
     for (const auto &num_keys : i.m_distinct_keys_per_prefix) {
-      const float upd_num_keys = num_keys * card_adj_extra;
-      rdb_netstr_append_uint64(&ret, static_cast<int64_t>(upd_num_keys));
+      rdb_netstr_append_uint64(&ret, num_keys);
     }
   }
 
@@ -416,7 +368,7 @@ int Rdb_index_stats::unmaterialize(const std::string &s,
     sql_print_error("Index stats version %d was outside of supported range. "
                     "This should not happen so aborting the system.",
                     version);
-    abort_with_stack_traces();
+    abort();
   }
 
   size_t needed = sizeof(stats.m_gl_index_id.cf_id) +
@@ -518,6 +470,77 @@ void Rdb_index_stats::merge(const Rdb_index_stats &s, const bool &increment,
             s.m_rows >> (m_distinct_keys_per_prefix.size() - i - 1);
       }
     }
+  }
+}
+
+Rdb_tbl_card_coll::Rdb_tbl_card_coll(const uint8_t &table_stats_sampling_pct)
+    : m_table_stats_sampling_pct(table_stats_sampling_pct),
+      m_seed(time(nullptr)) {}
+
+bool Rdb_tbl_card_coll::IsSampingDisabled() {
+  // Zero means that we'll use all the keys to update statistics.
+  return m_table_stats_sampling_pct == 0 ||
+         RDB_TBL_STATS_SAMPLE_PCT_MAX == m_table_stats_sampling_pct;
+}
+
+bool Rdb_tbl_card_coll::ShouldCollectStats() {
+  if (IsSampingDisabled()) {
+    return true;  // collect every key
+  }
+
+  const int val = rand_r(&m_seed) % (RDB_TBL_STATS_SAMPLE_PCT_MAX -
+                                     RDB_TBL_STATS_SAMPLE_PCT_MIN + 1) +
+                  RDB_TBL_STATS_SAMPLE_PCT_MIN;
+
+  DBUG_ASSERT(val >= RDB_TBL_STATS_SAMPLE_PCT_MIN);
+  DBUG_ASSERT(val <= RDB_TBL_STATS_SAMPLE_PCT_MAX);
+
+  return val <= m_table_stats_sampling_pct;
+}
+
+void Rdb_tbl_card_coll::ProcessKey(const rocksdb::Slice &key,
+                                   const Rdb_key_def *keydef,
+                                   Rdb_index_stats *stats) {
+  if (ShouldCollectStats()) {
+    std::size_t column = 0;
+    bool new_key = true;
+
+    if (!m_last_key.empty()) {
+      rocksdb::Slice last(m_last_key.data(), m_last_key.size());
+      new_key = (keydef->compare_keys(&last, &key, &column) == 0);
+    }
+
+    if (new_key) {
+      DBUG_ASSERT(column <= stats->m_distinct_keys_per_prefix.size());
+
+      for (auto i = column; i < stats->m_distinct_keys_per_prefix.size(); i++) {
+        stats->m_distinct_keys_per_prefix[i]++;
+      }
+
+      // assign new last_key for the next call
+      // however, we only need to change the last key
+      // if one of the first n-1 columns is different
+      // If the n-1 prefix is the same, no sense in storing
+      // the new key
+      if (column < stats->m_distinct_keys_per_prefix.size()) {
+        m_last_key.assign(key.data(), key.size());
+      }
+    }
+  }
+}
+
+void Rdb_tbl_card_coll::Reset() { m_last_key.clear(); }
+
+// We need to adjust the index cardinality numbers based on the sampling
+// rate so that the output of "SHOW INDEX" command will reflect reality
+// more closely. It will still be an approximation, just a better one.
+void Rdb_tbl_card_coll::AdjustStats(Rdb_index_stats *stats) {
+  if (IsSampingDisabled()) {
+    // no sampling was done, return as stats is
+    return;
+  }
+  for (int64_t &num_keys : stats->m_distinct_keys_per_prefix) {
+    num_keys = num_keys * 100 / m_table_stats_sampling_pct;
   }
 }
 

@@ -245,6 +245,7 @@ set(ROCKSDB_SOURCES
         table/block_based_table_factory.cc
         table/block_based_table_reader.cc
         table/block_builder.cc
+        table/block_fetcher.cc
         table/block_prefix_index.cc
         table/bloom_block.cc
         table/cuckoo_table_builder.cc
@@ -340,15 +341,16 @@ set(ROCKSDB_SOURCES
         utilities/transactions/optimistic_transaction_db_impl.cc
         utilities/transactions/pessimistic_transaction.cc
         utilities/transactions/pessimistic_transaction_db.cc
+        utilities/transactions/snapshot_checker.cc
         utilities/transactions/transaction_base.cc
         utilities/transactions/transaction_db_mutex_impl.cc
         utilities/transactions/transaction_lock_mgr.cc
         utilities/transactions/transaction_util.cc
         utilities/transactions/write_prepared_txn.cc
+        utilities/transactions/write_prepared_txn_db.cc
         utilities/ttl/db_ttl_impl.cc
         utilities/write_batch_with_index/write_batch_with_index.cc
         utilities/write_batch_with_index/write_batch_with_index_internal.cc
-
 )
 
 if(WIN32)

@@ -1,0 +1,6 @@
+select variable_name, variable_value from information_schema.global_variables where variable_name="rocksdb_ignore_unknown_options";
+variable_name	variable_value
+ROCKSDB_IGNORE_UNKNOWN_OPTIONS	ON
+select variable_name, variable_value from information_schema.global_variables where variable_name="rocksdb_ignore_unknown_options";
+variable_name	variable_value
+ROCKSDB_IGNORE_UNKNOWN_OPTIONS	ON
