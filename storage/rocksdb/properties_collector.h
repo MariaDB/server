@@ -56,8 +56,7 @@ struct Rdb_index_stats {
   std::vector<int64_t> m_distinct_keys_per_prefix;
   std::string m_name; // name is not persisted
 
-  static std::string materialize(const std::vector<Rdb_index_stats> &stats,
-                                 const float card_adj_extra);
+  static std::string materialize(const std::vector<Rdb_index_stats> &stats);
   static int unmaterialize(const std::string &s,
                            std::vector<Rdb_index_stats> *const ret);
 
@@ -69,6 +68,40 @@ struct Rdb_index_stats {
 
   void merge(const Rdb_index_stats &s, const bool &increment = true,
              const int64_t &estimated_data_len = 0);
+};
+
+// The helper class to calculate index cardinality
+class Rdb_tbl_card_coll {
+ public:
+  explicit Rdb_tbl_card_coll(const uint8_t &table_stats_sampling_pct);
+
+ public:
+  void ProcessKey(const rocksdb::Slice &key, const Rdb_key_def *keydef,
+                  Rdb_index_stats *stats);
+  /*
+   * Resets the state of the collector to start calculating statistics for a
+   * next index.
+   */
+  void Reset();
+
+  /*
+   * Cardinality statistics might be calculated using some sampling strategy.
+   * This method adjusts gathered statistics according to the sampling
+   * strategy used. Note that adjusted cardinality value is just an estimate
+   * and can return a value exeeding number of rows in a table, so the
+   * returned value should be capped by row count before using it by
+   * an optrimizer or displaying it to a clent.
+   */
+  void AdjustStats(Rdb_index_stats *stats);
+
+ private:
+  bool ShouldCollectStats();
+  bool IsSampingDisabled();
+
+ private:
+  std::string m_last_key;
+  uint8_t m_table_stats_sampling_pct;
+  unsigned int m_seed;
 };
 
 class Rdb_tbl_prop_coll : public rocksdb::TablePropertiesCollector {
@@ -130,9 +163,7 @@ private:
   uint64_t m_rows, m_window_pos, m_deleted_rows, m_max_deleted_rows;
   uint64_t m_file_size;
   Rdb_compact_params m_params;
-  uint8_t m_table_stats_sampling_pct;
-  unsigned int m_seed;
-  float m_card_adj_extra;
+  Rdb_tbl_card_coll m_cardinality_collector;
 };
 
 class Rdb_tbl_prop_coll_factory

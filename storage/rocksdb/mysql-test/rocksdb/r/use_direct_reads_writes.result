@@ -1,2 +1,9 @@
- RocksDB: Can't enable both use_direct_reads and allow_mmap_reads
- RocksDB: Can't enable both use_direct_io_for_flush_and_compaction and allow_mmap_writes
+Checking direct reads
+Checking direct writes
+Checking rocksdb_flush_log_at_trx_commit
+Validate flush_log settings when direct writes is enabled
+set global rocksdb_flush_log_at_trx_commit=0;
+set global rocksdb_flush_log_at_trx_commit=1;
+ERROR 42000: Variable 'rocksdb_flush_log_at_trx_commit' can't be set to the value of '1'
+set global rocksdb_flush_log_at_trx_commit=2;
+ERROR 42000: Variable 'rocksdb_flush_log_at_trx_commit' can't be set to the value of '2'

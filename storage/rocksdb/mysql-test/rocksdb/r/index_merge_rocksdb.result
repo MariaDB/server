@@ -25,10 +25,10 @@ UPDATE t1 SET filler1='to be deleted' WHERE key1=100 and key2=100;
 DROP TABLE t0, t1;
 create table t1 (key1 int, key2 int, key3 int, key (key1), key (key2), key(key3)) engine=rocksdb;
 insert into t1 values (1, 100, 100), (1, 200, 200), (1, 300, 300);
+set global rocksdb_force_flush_memtable_now=1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-set global rocksdb_force_flush_memtable_now=1;
 explain select * from t1 where key1 = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	key1	key1	5	const	#	NULL

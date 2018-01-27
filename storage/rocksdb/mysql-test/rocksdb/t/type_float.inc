@@ -57,7 +57,18 @@ INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (-9999
 --query_vertical SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1
 
 --sorted_result
---query_vertical SELECT MAX(f), MAX(f0), MAX(r1_1), MAX(f23_0), MAX(f20_3), MAX(d), MAX(d1_0), MAX(d10_10), MAX(d53), MAX(d53_10) FROM t1
+query_vertical
+SELECT
+  CONCAT('', MAX(f)),
+  CONCAT('', MAX(f0)),
+  CONCAT('', MAX(r1_1)),
+  CONCAT('', MAX(f23_0)),
+  CONCAT('', MAX(f20_3)),
+  CONCAT('', MAX(d)),
+  CONCAT('', MAX(d1_0)),
+  CONCAT('', MAX(d10_10)),
+  CONCAT('', MAX(d53)),
+  CONCAT('', MAX(d53_10)) FROM t1;
 
 # Invalid values
 

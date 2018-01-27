@@ -38,8 +38,17 @@ SELECT @@global.rocksdb_update_cf_options;
 SET @@global.rocksdb_update_cf_options = NULL;
 SELECT @@global.rocksdb_update_cf_options;
 
+# Make sure that we do not double free the NULL string
+SET @@global.rocksdb_update_cf_options = NULL;
+SELECT @@global.rocksdb_update_cf_options;
+
+# Attempt setting an empty string
+SET @@global.rocksdb_update_cf_options = '';
+SELECT @@global.rocksdb_update_cf_options;
+
 # Will fail to parse. Value not updated.
-SET @@global.rocksdb_update_cf_options = 'aaaaa';
+--Error ER_WRONG_VALUE_FOR_VAR
+--eval SET @@global.rocksdb_update_cf_options = 'aaaaa';
 SELECT @@global.rocksdb_update_cf_options;
 
 SELECT * FROM ROCKSDB_CF_OPTIONS WHERE CF_NAME='default' AND OPTION_TYPE='WRITE_BUFFER_SIZE';
@@ -86,7 +95,11 @@ SELECT * FROM ROCKSDB_CF_OPTIONS WHERE CF_NAME='cf1' AND OPTION_TYPE='TARGET_FIL
 
 # Will fail to parse. No valid assignments included. Value not updated and
 # reset to NULL.
-SET @@global.rocksdb_update_cf_options = 'default={foo=bar};';
+--Error ER_WRONG_VALUE_FOR_VAR
+--eval SET @@global.rocksdb_update_cf_options = 'default={foo=bar};';
+SELECT @@global.rocksdb_update_cf_options;
+
+SET @@global.rocksdb_update_cf_options = NULL;
 SELECT @@global.rocksdb_update_cf_options;
 
 USE test;

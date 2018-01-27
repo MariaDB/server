@@ -81,34 +81,33 @@ ELSE()
 ENDIF()
 
 SET(rocksdb_static_libs )
-IF (NOT "$ENV{WITH_SNAPPY}" STREQUAL "")
+IF (WITH_SNAPPY)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_SNAPPY}/libsnappy${PIC_EXT}.a)
+  ${WITH_SNAPPY}/lib/libsnappy${PIC_EXT}.a)
   ADD_DEFINITIONS(-DSNAPPY)
 ENDIF()
 
-IF (NOT "$ENV{WITH_LZ4}" STREQUAL "")
+IF (WITH_LZ4)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_LZ4}/liblz4${PIC_EXT}.a)
+  ${WITH_LZ4}/lib/liblz4${PIC_EXT}.a)
   ADD_DEFINITIONS(-DLZ4)
 ENDIF()
 
-IF (NOT "$ENV{WITH_BZ2}" STREQUAL "")
+IF (WITH_BZ2)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_BZ2}/libbz2${PIC_EXT}.a)
+  ${WITH_BZ2}/lib/libbz2${PIC_EXT}.a)
   ADD_DEFINITIONS(-DBZIP2)
 ENDIF()
 
-# link ZSTD only if instructed
-IF (NOT "$ENV{WITH_ZSTD}" STREQUAL "")
+IF (WITH_ZSTD)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_ZSTD}/libzstd${PIC_EXT}.a)
+  ${WITH_ZSTD}/lib/libzstd${PIC_EXT}.a)
   ADD_DEFINITIONS(-DZSTD)
 ENDIF()
 
-IF (NOT "$ENV{WITH_TBB}" STREQUAL "")
+IF (WITH_TBB)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_TBB}/libtbb${PIC_EXT}.a)
+  ${WITH_TBB}/lib/libtbb${PIC_EXT}.a)
   ADD_DEFINITIONS(-DTBB)
 ENDIF()
 

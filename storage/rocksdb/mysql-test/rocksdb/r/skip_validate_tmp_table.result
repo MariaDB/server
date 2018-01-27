@@ -1,4 +1,19 @@
-CREATE TABLE t1 (pk int primary key) ENGINE=ROCKSDB;
+create table t1 (pk int primary key) engine=rocksdb;
+show tables;
+Tables_in_test
+#mysql50#t1#sql-test
+t1
 set session debug="+d,gen_sql_table_name";
 rename table t1 to t2;
 set session debug= "-d,gen_sql_table_name";
+show tables;
+Tables_in_test
+#mysql50#t1#sql-test
+t2
+show tables;
+Tables_in_test
+create table t2 (pk int primary key) engine=rocksdb;
+show tables;
+Tables_in_test
+t2
+drop table t2;

@@ -44,8 +44,13 @@ std::string rdb_pc_stat_types[] = {
     "BLOCK_READ_TIME",
     "BLOCK_CHECKSUM_TIME",
     "BLOCK_DECOMPRESS_TIME",
+    "GET_READ_BYTES",
+    "MULTIGET_READ_BYTES",
+    "ITER_READ_BYTES",
     "INTERNAL_KEY_SKIPPED_COUNT",
     "INTERNAL_DELETE_SKIPPED_COUNT",
+    "INTERNAL_RECENT_SKIPPED_COUNT",
+    "INTERNAL_MERGE_COUNT",
     "GET_SNAPSHOT_TIME",
     "GET_FROM_MEMTABLE_TIME",
     "GET_FROM_MEMTABLE_COUNT",
@@ -53,9 +58,12 @@ std::string rdb_pc_stat_types[] = {
     "GET_FROM_OUTPUT_FILES_TIME",
     "SEEK_ON_MEMTABLE_TIME",
     "SEEK_ON_MEMTABLE_COUNT",
+    "NEXT_ON_MEMTABLE_COUNT",
+    "PREV_ON_MEMTABLE_COUNT",
     "SEEK_CHILD_SEEK_TIME",
     "SEEK_CHILD_SEEK_COUNT",
-    "SEEK_IN_HEAP_TIME",
+    "SEEK_MIN_HEAP_TIME",
+    "SEEK_MAX_HEAP_TIME",
     "SEEK_INTERNAL_SEEK_TIME",
     "FIND_NEXT_USER_ENTRY_TIME",
     "WRITE_WAL_TIME",
@@ -71,6 +79,12 @@ std::string rdb_pc_stat_types[] = {
     "NEW_TABLE_ITERATOR_NANOS",
     "BLOCK_SEEK_NANOS",
     "FIND_TABLE_NANOS",
+    "BLOOM_MEMTABLE_HIT_COUNT",
+    "BLOOM_MEMTABLE_MISS_COUNT",
+    "BLOOM_SST_HIT_COUNT",
+    "BLOOM_SST_MISS_COUNT",
+    "KEY_LOCK_WAIT_TIME",
+    "KEY_LOCK_WAIT_COUNT",
     "IO_THREAD_POOL_ID",
     "IO_BYTES_WRITTEN",
     "IO_BYTES_READ",
@@ -104,8 +118,13 @@ static void harvest_diffs(Rdb_atomic_perf_counters *const counters) {
   IO_PERF_RECORD(block_read_time);
   IO_PERF_RECORD(block_checksum_time);
   IO_PERF_RECORD(block_decompress_time);
+  IO_PERF_RECORD(get_read_bytes);
+  IO_PERF_RECORD(multiget_read_bytes);
+  IO_PERF_RECORD(iter_read_bytes);
   IO_PERF_RECORD(internal_key_skipped_count);
   IO_PERF_RECORD(internal_delete_skipped_count);
+  IO_PERF_RECORD(internal_recent_skipped_count);
+  IO_PERF_RECORD(internal_merge_count);
   IO_PERF_RECORD(get_snapshot_time);
   IO_PERF_RECORD(get_from_memtable_time);
   IO_PERF_RECORD(get_from_memtable_count);
@@ -113,9 +132,12 @@ static void harvest_diffs(Rdb_atomic_perf_counters *const counters) {
   IO_PERF_RECORD(get_from_output_files_time);
   IO_PERF_RECORD(seek_on_memtable_time);
   IO_PERF_RECORD(seek_on_memtable_count);
+  IO_PERF_RECORD(next_on_memtable_count);
+  IO_PERF_RECORD(prev_on_memtable_count);
   IO_PERF_RECORD(seek_child_seek_time);
   IO_PERF_RECORD(seek_child_seek_count);
   IO_PERF_RECORD(seek_min_heap_time);
+  IO_PERF_RECORD(seek_max_heap_time);
   IO_PERF_RECORD(seek_internal_seek_time);
   IO_PERF_RECORD(find_next_user_entry_time);
   IO_PERF_RECORD(write_wal_time);
@@ -131,6 +153,13 @@ static void harvest_diffs(Rdb_atomic_perf_counters *const counters) {
   IO_PERF_RECORD(new_table_iterator_nanos);
   IO_PERF_RECORD(block_seek_nanos);
   IO_PERF_RECORD(find_table_nanos);
+  IO_PERF_RECORD(bloom_memtable_hit_count);
+  IO_PERF_RECORD(bloom_memtable_miss_count);
+  IO_PERF_RECORD(bloom_sst_hit_count);
+  IO_PERF_RECORD(bloom_sst_miss_count);
+  IO_PERF_RECORD(key_lock_wait_time);
+  IO_PERF_RECORD(key_lock_wait_count);
+
   IO_STAT_RECORD(thread_pool_id);
   IO_STAT_RECORD(bytes_written);
   IO_STAT_RECORD(bytes_read);

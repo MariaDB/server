@@ -361,7 +361,7 @@ public:
   }
 
   void truncate(const size_t &pos) {
-    DBUG_ASSERT(0 <= pos && pos < m_data.size());
+    DBUG_ASSERT(pos < m_data.size());
     m_data.resize(pos);
   }
 

@@ -15,6 +15,10 @@ count(b)
 3000000
 ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
 ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
+ERROR HY000: Status error 10 received from RocksDB: Operation aborted: Failed to acquire lock due to max_num_locks limit
+set session rocksdb_bulk_load=1;
+ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
+set session rocksdb_bulk_load=0;
 SELECT COUNT(*) as c FROM
 (SELECT COALESCE(LOWER(CONV(BIT_XOR(CAST(CRC32(CONCAT_WS('#', `b`, CONCAT(ISNULL(`b`)))) AS UNSIGNED)), 10, 16)), 0) AS crc FROM `t1` FORCE INDEX(`kb`)
 UNION DISTINCT

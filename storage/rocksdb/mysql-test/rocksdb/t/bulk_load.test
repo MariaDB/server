@@ -3,4 +3,4 @@
 --let pk_cf=cf1
 --let data_order_desc=0
 
---source bulk_load.inc
+--source ../include/bulk_load.inc

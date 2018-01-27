@@ -8,6 +8,38 @@ SHOW TABLE STATUS LIKE 't1';
 
 INSERT INTO t1 VALUES ('538647864786478647864');
 --replace_column 3 # 6 # 7 # 8 # 9 # 10 #
+SELECT * FROM t1;
+SHOW TABLE STATUS LIKE 't1';
+
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+--replace_column 3 # 6 # 7 # 8 # 9 # 10 #
+SHOW TABLE STATUS LIKE 't1';
+
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+--replace_column 3 # 6 # 7 # 8 # 9 # 10 #
+SHOW TABLE STATUS LIKE 't1';
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (pk TINYINT NOT NULL PRIMARY KEY AUTO_INCREMENT);
+
+INSERT INTO t1 VALUES (5);
+--replace_column 3 # 6 # 7 # 8 # 9 # 10 #
+SHOW TABLE STATUS LIKE 't1';
+
+INSERT INTO t1 VALUES (1000);
+--replace_column 3 # 6 # 7 # 8 # 9 # 10 #
+SELECT * FROM t1;
+SHOW TABLE STATUS LIKE 't1';
+
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+--replace_column 3 # 6 # 7 # 8 # 9 # 10 #
 SHOW TABLE STATUS LIKE 't1';
 
 --error ER_DUP_ENTRY

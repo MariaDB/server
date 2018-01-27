@@ -323,6 +323,13 @@ Rdb_cf_options::get_cf_comparator(const std::string &cf_name) {
   }
 }
 
+std::shared_ptr<rocksdb::MergeOperator>
+Rdb_cf_options::get_cf_merge_operator(const std::string &cf_name) {
+  return (cf_name == DEFAULT_SYSTEM_CF_NAME)
+             ? std::make_shared<Rdb_system_merge_op>()
+             : nullptr;
+}
+
 void Rdb_cf_options::get_cf_options(const std::string &cf_name,
                                     rocksdb::ColumnFamilyOptions *const opts) {
   DBUG_ASSERT(opts != nullptr);
@@ -332,6 +339,7 @@ void Rdb_cf_options::get_cf_options(const std::string &cf_name,
 
   // Set the comparator according to 'rev:'
   opts->comparator = get_cf_comparator(cf_name);
+  opts->merge_operator = get_cf_merge_operator(cf_name);
 }
 
 } // namespace myrocks

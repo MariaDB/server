@@ -1,9 +1,5 @@
 --source include/have_rocksdb.inc
 
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
-
 #
 # VARCHAR column types
 #
@@ -73,3 +69,14 @@ select 'email_i' as index_name, count(*) AS count from t force index(email_i);
 drop table t;
 set global rocksdb_checksums_pct = @save_rocksdb_checksums_pct;
 set session rocksdb_verify_row_debug_checksums = @save_rocksdb_verify_row_debug_checksums;
+
+# Issue #784 - Skip trailing space bytes for non-unpackable fields
+
+drop table if exists t;
+create table t (h varchar(31) character set utf8 collate utf8_bin not null, i varchar(19) collate latin1_bin not null, primary key(i), key(h)) engine=rocksdb;
+insert into t(i,h) values('a','b');
+check table t;
+alter table t modify h varchar(31) character set cp1257 collate cp1257_bin not null;
+check table t;
+drop table t;
+

@@ -42,7 +42,7 @@ void Rdb_io_watchdog::expire_io_callback(union sigval timer_data) {
                   "Shutting the service down.",
                   m_write_timeout);
 
-  abort_with_stack_traces();
+  abort();
 }
 
 void Rdb_io_watchdog::io_check_callback(union sigval timer_data) {

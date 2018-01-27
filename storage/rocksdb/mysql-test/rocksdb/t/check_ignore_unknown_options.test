@@ -1,0 +1,21 @@
+--disable_warnings
+let $MYSQLD_DATADIR= `select @@datadir`;
+let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+let $error_log= $MYSQLTEST_VARDIR/log/my_restart.err;
+select variable_name, variable_value from information_schema.global_variables where variable_name="rocksdb_ignore_unknown_options";
+
+--exec find $MYSQLD_DATADIR/.rocksdb/OPTIONS* | sort -n | tail -1 | xargs -0 -I {} -t sh -c "echo hello=world>>{}"
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server 10
+--error 1
+--exec $MYSQLD_CMD --rocksdb_ignore_unknown_options=0 --loose-console > $error_log 2>&1
+
+let SEARCH_FILE= $error_log;
+let SEARCH_PATTERN= RocksDB: Compatibility check against existing database options failed;
+--source include/search_pattern_in_file.inc
+--enable_reconnect
+--exec echo "restart" > $restart_file
+--source include/wait_until_connected_again.inc
+--exec find $MYSQLD_DATADIR/.rocksdb/OPTIONS* | sort -n | tail -1 | xargs -0 -I {} -t sh -c "sed -i '/hello=world/d' {}"
+select variable_name, variable_value from information_schema.global_variables where variable_name="rocksdb_ignore_unknown_options";

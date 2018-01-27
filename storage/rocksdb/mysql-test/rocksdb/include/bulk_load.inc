@@ -1,6 +1,4 @@
---disable_warnings
-DROP TABLE IF EXISTS t1, t2, t3;
---enable_warnings
+--source include/count_sessions.inc
 
 if ($data_order_desc)
 {
@@ -20,7 +18,7 @@ eval CREATE TABLE t1(
   b CHAR(30),
   PRIMARY KEY(pk) COMMENT "$pk_cf",
   KEY(a)
-) COLLATE 'latin1_bin';
+) ENGINE=ROCKSDB COLLATE 'latin1_bin';
 
 # Create a second identical table to validate that bulk loading different
 # tables in the same session works
@@ -30,7 +28,7 @@ eval CREATE TABLE t2(
   b CHAR(30),
   PRIMARY KEY(pk) COMMENT "$pk_cf",
   KEY(a)
-) COLLATE 'latin1_bin';
+) ENGINE=ROCKSDB COLLATE 'latin1_bin';
 
 # Create a third table using partitions to validate that bulk loading works
 # across a partitioned table
@@ -40,7 +38,7 @@ eval CREATE TABLE t3(
   b CHAR(30),
   PRIMARY KEY(pk) COMMENT "$pk_cf",
   KEY(a)
-) COLLATE 'latin1_bin' PARTITION BY KEY() PARTITIONS 4;
+) ENGINE=ROCKSDB COLLATE 'latin1_bin' PARTITION BY KEY() PARTITIONS 4;
 
 --let $file = `SELECT CONCAT(@@datadir, "test_loadfile.txt")`
 
@@ -154,3 +152,5 @@ EOF
 # Cleanup
 disconnect other;
 DROP TABLE t1, t2, t3;
+
+--source include/wait_until_count_sessions.inc

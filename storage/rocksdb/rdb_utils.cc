@@ -303,4 +303,30 @@ void rdb_log_status_error(const rocksdb::Status &s, const char *msg) {
                   s.ToString().c_str());
 }
 
+bool rdb_check_rocksdb_corruption() {
+  return !my_access(myrocks::rdb_corruption_marker_file_name().c_str(), F_OK);
+}
+
+void rdb_persist_corruption_marker() {
+  const std::string &fileName(myrocks::rdb_corruption_marker_file_name());
+  int fd = my_open(fileName.c_str(), O_CREAT | O_SYNC, MYF(MY_WME));
+  if (fd < 0) {
+    sql_print_error("RocksDB: Can't create file %s to mark rocksdb as "
+                    "corrupted.",
+                    fileName.c_str());
+  } else {
+    sql_print_information("RocksDB: Creating the file %s to abort mysqld "
+                          "restarts. Remove this file from the data directory "
+                          "after fixing the corruption to recover. ",
+                          fileName.c_str());
+  }
+
+  int ret = my_close(fd, MYF(MY_WME));
+  if (ret) {
+    // NO_LINT_DEBUG
+    sql_print_error("RocksDB: Error (%d) closing the file %s", ret,
+                    fileName.c_str());
+  }
+}
+
 } // namespace myrocks

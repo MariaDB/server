@@ -32,10 +32,19 @@ SET @@global.rocksdb_update_cf_options = NULL;
 SELECT @@global.rocksdb_update_cf_options;
 @@global.rocksdb_update_cf_options
 NULL
-SET @@global.rocksdb_update_cf_options = 'aaaaa';
+SET @@global.rocksdb_update_cf_options = NULL;
 SELECT @@global.rocksdb_update_cf_options;
 @@global.rocksdb_update_cf_options
 NULL
+SET @@global.rocksdb_update_cf_options = '';
+SELECT @@global.rocksdb_update_cf_options;
+@@global.rocksdb_update_cf_options
+
+SET @@global.rocksdb_update_cf_options = 'aaaaa';;
+ERROR 42000: Variable 'rocksdb_update_cf_options' can't be set to the value of 'aaaaa'
+SELECT @@global.rocksdb_update_cf_options;
+@@global.rocksdb_update_cf_options
+
 SELECT * FROM ROCKSDB_CF_OPTIONS WHERE CF_NAME='default' AND OPTION_TYPE='WRITE_BUFFER_SIZE';
 CF_NAME	OPTION_TYPE	VALUE
 default	WRITE_BUFFER_SIZE	67108864
@@ -100,7 +109,12 @@ cf1={target_file_size_base=24m};foo={max_bytes_for_level_multiplier=8};
 SELECT * FROM ROCKSDB_CF_OPTIONS WHERE CF_NAME='cf1' AND OPTION_TYPE='TARGET_FILE_SIZE_BASE';
 CF_NAME	OPTION_TYPE	VALUE
 cf1	TARGET_FILE_SIZE_BASE	25165824
-SET @@global.rocksdb_update_cf_options = 'default={foo=bar};';
+SET @@global.rocksdb_update_cf_options = 'default={foo=bar};';;
+ERROR 42000: Variable 'rocksdb_update_cf_options' can't be set to the value of 'default={foo=bar};'
+SELECT @@global.rocksdb_update_cf_options;
+@@global.rocksdb_update_cf_options
+cf1={target_file_size_base=24m};foo={max_bytes_for_level_multiplier=8};
+SET @@global.rocksdb_update_cf_options = NULL;
 SELECT @@global.rocksdb_update_cf_options;
 @@global.rocksdb_update_cf_options
 NULL

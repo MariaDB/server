@@ -166,7 +166,7 @@ public:
       sql_print_error("Decoding ttl from PK value failed in compaction filter, "
                       "for index (%u,%u), val: %s",
                       m_prev_index.cf_id, m_prev_index.index_id, buf.c_str());
-      abort_with_stack_traces();
+      abort();
     }
 
     /*

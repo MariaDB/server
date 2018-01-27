@@ -1,6 +1,8 @@
 --source include/have_rocksdb.inc
 
---let $sys_var=ROCKSDB_MAX_OPEN_FILES
---let $read_only=1
---let $session=0
---source ../include/rocksdb_sys_var.inc
+# We can not use rocksdb_sys_var.inc here as this is a global, read only option
+# whose value is dependent on the servers open_files_limit. It is more fully
+# tested in the rocksdb.max_open_files test.
+
+--replace_column 2 #
+show variables like 'rocksdb_max_open_files';
