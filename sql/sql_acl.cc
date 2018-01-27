@@ -3021,7 +3021,8 @@ exit:
       (entry= (acl_entry*) malloc(sizeof(acl_entry)+key_length)))
   {
     entry->access=(db_access & host_access);
-    entry->length=key_length;
+    DBUG_ASSERT(key_length < 0xffff);
+    entry->length=(uint16)key_length;
     memcpy((uchar*) entry->key,key,key_length);
     acl_cache->add(entry);
   }

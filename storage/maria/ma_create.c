@@ -1197,7 +1197,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     {
       fn_format(dfilename,name,"", MARIA_NAME_DEXT,
                 MY_UNPACK_FILENAME | MY_APPEND_EXT);
-      dlinkname_ptr= NullS;
       create_flag= (flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
     }
     if ((dfile=
@@ -1251,8 +1250,6 @@ err_no_lock:
   switch (errpos) {
   case 3:
     mysql_file_close(dfile, MYF(0));
-    /* fall through */
-  case 2:
     if (! (flags & HA_DONT_TOUCH_DATA))
     {
       mysql_file_delete(key_file_dfile, dfilename, MYF(sync_dir));

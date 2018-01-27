@@ -612,7 +612,8 @@ uchar *engine_option_value::frm_image(uchar *buff)
 {
   if (value.str)
   {
-    *buff++= name.length;
+    DBUG_ASSERT(name.length <= 0xff);
+    *buff++= (uchar)name.length;
     memcpy(buff, name.str, name.length);
     buff+= name.length;
     int2store(buff, value.length | (quoted_value ? FRM_QUOTED_VALUE : 0));

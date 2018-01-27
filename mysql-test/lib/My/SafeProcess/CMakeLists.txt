@@ -13,7 +13,16 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
-IF (NOT INSTALL_MYSQLTESTDIR)
+
+ IF (WIN32)
+  ADD_EXECUTABLE(my_safe_process safe_process_win.cc)
+  ADD_EXECUTABLE(my_safe_kill safe_kill_win.cc)
+  TARGET_LINK_LIBRARIES(my_safe_kill dbghelp psapi)
+ELSE()
+  ADD_EXECUTABLE(my_safe_process safe_process.cc)
+ENDIF()
+
+IF(NOT INSTALL_MYSQLTESTDIR)
   RETURN()
 ENDIF()
 
@@ -22,14 +31,9 @@ SET(INSTALL_ARGS
   COMPONENT Test
 )
 
+INSTALL(TARGETS my_safe_process ${INSTALL_ARGS})
 IF (WIN32)
-  MYSQL_ADD_EXECUTABLE(my_safe_process safe_process_win.cc ${INSTALL_ARGS})
-  MYSQL_ADD_EXECUTABLE(my_safe_kill safe_kill_win.cc ${INSTALL_ARGS})
-  TARGET_LINK_LIBRARIES(my_safe_kill dbghelp psapi)
-ELSE()
-  MYSQL_ADD_EXECUTABLE(my_safe_process safe_process.cc ${INSTALL_ARGS})
+  INSTALL(TARGETS my_safe_kill ${INSTALL_ARGS})
 ENDIF()
 
-INSTALL(FILES Base.pm
-  DESTINATION "${INSTALL_MYSQLTESTDIR}/lib/My/SafeProcess" COMPONENT Test
-)
+INSTALL(FILES Base.pm ${INSTALL_ARGS})

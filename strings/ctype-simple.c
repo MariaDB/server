@@ -78,8 +78,8 @@ size_t my_strnxfrm_simple_internal(CHARSET_INFO * cs,
   const uchar *map= cs->sort_order;
   uchar *d0= dst;
   uint frmlen;
-  if ((frmlen= MY_MIN(dstlen, *nweights)) > srclen)
-    frmlen= srclen;
+  if ((frmlen= (uint)MY_MIN(dstlen, *nweights)) > srclen)
+    frmlen= (uint)srclen;
   if (dst != src)
   {
     const uchar *end;
@@ -321,7 +321,7 @@ size_t my_snprintf_8bit(CHARSET_INFO *cs  __attribute__((unused)),
 		     const char* fmt, ...)
 {
   va_list args;
-  int result;
+  size_t result;
   va_start(args,fmt);
   result= my_vsnprintf(to, n, fmt, args);
   va_end(args);
@@ -1226,13 +1226,13 @@ skip:
 	if (nmatch > 0)
 	{
 	  match[0].beg= 0;
-	  match[0].end= (size_t) (str- (const uchar*)b-1);
+	  match[0].end= (uint) (str- (const uchar*)b-1);
 	  match[0].mb_len= match[0].end;
 	  
 	  if (nmatch > 1)
 	  {
 	    match[1].beg= match[0].end;
-	    match[1].end= match[0].end+s_length;
+	    match[1].end= (uint)(match[0].end+s_length);
 	    match[1].mb_len= match[1].end-match[1].beg;
 	  }
 	}

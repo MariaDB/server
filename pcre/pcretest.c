@@ -1904,7 +1904,7 @@ for (;;)
 
       {
       if (f == stdin) printf("%s", prompt);
-      if (fgets((char *)here, rlen,  f) == NULL)
+      if (fgets((char *)here, (int)rlen,  f) == NULL)
         return (here == start)? NULL : start;
       }
 
@@ -2025,7 +2025,7 @@ pcre_uint32 c = 0;
 int yield = 0;
 
 if (length < 0)
-  length = strlen((char *)p);
+  length = (int)strlen((char *)p);
 
 while (length-- > 0)
   {

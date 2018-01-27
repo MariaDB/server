@@ -2250,10 +2250,10 @@ public:
     return (SQLCHAR *) (m_part[i].length ? m_part[i].str : NULL);
   } // end of ptr
 
-  size_t length(uint i)
+  SQLSMALLINT length(uint i)
   {
     DBUG_ASSERT(i < max_parts);
-    return m_part[i].length;
+    return (SQLSMALLINT)m_part[i].length;
   } // end of length
 
 }; // end of class SQLQualifiedName

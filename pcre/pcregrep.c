@@ -951,7 +951,7 @@ Returns:    TRUE if the path is not excluded
 static BOOL
 test_incexc(char *path, patstr *ip, patstr *ep)
 {
-int plen = strlen(path);
+int plen = (int)strlen(path);
 
 for (; ep != NULL; ep = ep->next)
   {
@@ -2502,7 +2502,7 @@ compile_pattern(patstr *p, int options, int popts, int fromfile,
 char buffer[PATBUFSIZE];
 const char *error;
 char *ps = p->string;
-int patlen = strlen(ps);
+int patlen = (int)strlen(ps);
 int errptr;
 
 if (p->compiled != NULL) return TRUE;

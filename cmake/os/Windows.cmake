@@ -86,8 +86,10 @@ IF(MSVC)
   # Enable debug info also in Release build,
   # and create PDB to be able to analyze crashes.
   FOREACH(type EXE SHARED MODULE)
-   SET(CMAKE_{type}_LINKER_FLAGS_RELEASE
+   SET(CMAKE_${type}_LINKER_FLAGS_RELEASE
      "${CMAKE_${type}_LINKER_FLAGS_RELEASE} /debug")
+   SET(CMAKE_${type}_LINKER_FLAGS_MINSIZEREL
+     "${CMAKE_${type}_LINKER_FLAGS_MINSIZEREL} /debug")
   ENDFOREACH()
   
   # Force static runtime libraries
@@ -108,10 +110,15 @@ IF(MSVC)
    CMAKE_C_FLAGS_RELEASE    CMAKE_C_FLAGS_RELWITHDEBINFO 
    CMAKE_C_FLAGS_DEBUG      CMAKE_C_FLAGS_DEBUG_INIT 
    CMAKE_CXX_FLAGS_RELEASE  CMAKE_CXX_FLAGS_RELWITHDEBINFO
-   CMAKE_CXX_FLAGS_DEBUG    CMAKE_CXX_FLAGS_DEBUG_INIT)
+   CMAKE_CXX_FLAGS_DEBUG    CMAKE_CXX_FLAGS_DEBUG_INIT
+   CMAKE_C_FLAGS_MINSIZEREL  CMAKE_CXX_FLAGS_MINSIZEREL
+   )
    STRING(REGEX REPLACE "/M[TD][d]?"  "${MSVC_CRT_TYPE}" "${flag}"  "${${flag}}" )
    STRING(REGEX REPLACE "/D[ ]?_DEBUG"  "" "${flag}" "${${flag}}")
    STRING(REPLACE "/Zi"  "/Z7" "${flag}" "${${flag}}")
+   IF(NOT "${${flag}}" MATCHES "/Z7")
+    STRING(APPEND ${flag} " /Z7")
+   ENDIF()
   ENDFOREACH()
   
  
@@ -139,9 +146,12 @@ IF(MSVC)
   ENDIF()
   
   #TODO: update the code and remove the disabled warnings
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4800 /wd4805 /wd4996 /we4700 /we4311 /we4477 /we4302 /we4090 /wd4267 ")
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4800 /wd4805 /wd4996 /wd4291 /wd4577 /we4099 /we4700 /we4311 /we4477 /we4302 /we4090 /wd4267")
-
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4805 /wd4996 /we4700 /we4311 /we4477 /we4302 /we4090")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4805 /wd4291 /wd4996 /we4099 /we4700 /we4311 /we4477 /we4302 /we4090")
+  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    # Temporarily disable size_t warnings, due to their amount
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
+  ENDIF()
   IF(MYSQL_MAINTAINER_MODE MATCHES "ERR")
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")
