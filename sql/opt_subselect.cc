@@ -2701,8 +2701,8 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
     LooseScan detector in best_access_path)
   */
   remaining_tables &= ~new_join_tab->table->map;
-  table_map dups_producing_tables, prev_dups_producing_tables,
-            prev_sjm_lookup_tables;
+  table_map dups_producing_tables, UNINIT_VAR(prev_dups_producing_tables),
+    UNINIT_VAR(prev_sjm_lookup_tables);
 
   if (idx == join->const_tables)
     dups_producing_tables= 0;
@@ -2713,7 +2713,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
   if ((emb_sj_nest= new_join_tab->emb_sj_nest))
     dups_producing_tables |= emb_sj_nest->sj_inner_tables;
 
-  Semi_join_strategy_picker **strategy, **prev_strategy;
+  Semi_join_strategy_picker **strategy, **prev_strategy= 0;
   if (idx == join->const_tables)
   {
     /* First table, initialize pickers */

@@ -1174,7 +1174,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   char *keynames, *names, *comment_pos;
   const uchar *forminfo, *extra2;
   const uchar *frm_image_end = frm_image + frm_length;
-  uchar *record, *null_flags, *null_pos, *mysql57_vcol_null_pos;
+  uchar *record, *null_flags, *null_pos, *UNINIT_VAR(mysql57_vcol_null_pos);
   const uchar *disk_buff, *strpos;
   ulong pos, record_offset; 
   ulong rec_buff_length;
@@ -2406,6 +2406,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         DBUG_ASSERT(field_nr < share->fields);
         reg_field= share->field[field_nr];
+      }
+      else
+      {
+        reg_field= 0;
+        DBUG_ASSERT(name_length);
       }
 
       vcol_screen_pos+= FRM_VCOL_NEW_HEADER_SIZE;
@@ -7411,7 +7416,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     DBUG_ASSERT(vcol_info);
     DBUG_ASSERT(vcol_info->expr);
 
-    bool update, swap_values= 0;
+    bool update= 0, swap_values= 0;
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
       update= !vcol_info->stored_in_db
