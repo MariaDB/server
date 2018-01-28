@@ -335,6 +335,21 @@ void MVCC::view_open(trx_t* trx)
   mutex_exit(&trx_sys.mutex);
 }
 
+
+void MVCC::view_close(ReadView &view)
+{
+  view.close();
+  if (view.is_registered())
+  {
+    mutex_enter(&trx_sys.mutex);
+    view.set_registered(false);
+    UT_LIST_REMOVE(m_views, &view);
+    ut_ad(validate());
+    mutex_exit(&trx_sys.mutex);
+  }
+}
+
+
 /**
 Copy state from another view.
 @param other		view to copy from */

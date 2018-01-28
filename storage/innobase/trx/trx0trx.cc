@@ -511,11 +511,7 @@ trx_free(trx_t*& trx)
 	trx->mod_tables.clear();
 
 	ut_ad(!trx->read_view.is_open());
-	if (trx->read_view.is_registered()) {
-		mutex_enter(&trx_sys.mutex);
-		trx_sys.mvcc.view_close(trx->read_view);
-		mutex_exit(&trx_sys.mutex);
-	}
+	trx_sys.mvcc.view_close(trx->read_view);
 
 	/* trx locking state should have been reset before returning trx
 	to pool */
@@ -677,16 +673,14 @@ trx_disconnect_from_mysql(
 	trx_t*	trx,
 	bool	prepared)
 {
+	trx_sys.mvcc.view_close(trx->read_view);
+
 	mutex_enter(&trx_sys.mutex);
 
 	ut_ad(trx->in_mysql_trx_list);
 	ut_d(trx->in_mysql_trx_list = FALSE);
 
 	UT_LIST_REMOVE(trx_sys.mysql_trx_list, trx);
-
-	if (trx->read_view.is_open()) {
-		trx_sys.mvcc.view_close(trx->read_view);
-	}
 
 	if (prepared) {
 
@@ -2388,12 +2382,10 @@ trx_prepare(
 
 	DBUG_EXECUTE_IF("ib_trx_crash_during_xa_prepare_step", DBUG_SUICIDE(););
 
-	/*--------------------------------------*/
 	ut_a(trx->state == TRX_STATE_ACTIVE);
-	mutex_enter(&trx_sys.mutex);
+	trx_mutex_enter(trx);
 	trx->state = TRX_STATE_PREPARED;
-	mutex_exit(&trx_sys.mutex);
-	/*--------------------------------------*/
+	trx_mutex_exit(trx);
 
 	if (lsn) {
 		/* Depending on the my.cnf options, we may now write the log

@@ -55,13 +55,7 @@ public:
     Close a view created by the above function.
     @param view view allocated by view_open.
   */
-  void view_close(ReadView &view)
-  {
-    view.close();
-    view.set_registered(false);
-    UT_LIST_REMOVE(m_views, &view);
-    ut_ad(validate());
-  }
+  void view_close(ReadView &view);
 
 
   /**
