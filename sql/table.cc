@@ -4065,24 +4065,24 @@ bool ok_for_lower_case_names(const char *name)
 /*
   Check if database name is valid
 
-  SYNPOSIS
-    check_db_name()
-    org_name		Name of database
-
-  NOTES
-    If lower_case_table_names is set to 1 then database name is converted
-    to lower case
+  @param org_name             Name of database and length
 
   RETURN
-    0	ok
-    1   error
+  @retval  IDENT_NAME_OK        Identifier name is Ok (Success)
+  @retval  IDENT_NAME_WRONG     Identifier name is Wrong (ER_WRONG_TABLE_NAME)
+  @retval  IDENT_NAME_TOO_LONG  Identifier name is too long if it is greater
+                                than 64 characters (ER_TOO_LONG_IDENT)
+
+  @note In case of IDENT_NAME_WRONG and IDENT_NAME_TOO_LONG, this
+  function reports an error (my_error)
 */
 
-bool check_db_name(LEX_STRING *org_name)
+enum_ident_name_check check_db_name(const LEX_CSTRING *org_name)
 {
-  char *name= org_name->str;
+  const char *name= org_name->str;
   uint name_length= org_name->length;
   bool check_for_path_chars;
+  enum_ident_name_check ident_check_status;
 
   if ((check_for_path_chars= check_mysql50_prefix(name)))
   {
@@ -4090,29 +4090,51 @@ bool check_db_name(LEX_STRING *org_name)
     name_length-= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
   }
 
-  if (!name_length || name_length > NAME_LEN)
-    return 1;
-
-  if (lower_case_table_names == 1 && name != any_db)
+  if (name_length == 0)
   {
-    org_name->length= name_length= my_casedn_str(files_charset_info, name);
-    if (check_for_path_chars)
-      org_name->length+= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
+    my_error(ER_WRONG_DB_NAME, MYF(0), org_name->str);
+    return IDENT_NAME_WRONG;
   }
-  if (db_name_is_in_ignore_db_dirs_list(name))
-    return 1;
 
-  return check_table_name(name, name_length, check_for_path_chars);
+  if (name_length > NAME_LEN)
+  {
+    my_error(ER_TOO_LONG_IDENT, MYF(0), org_name->str);
+    return IDENT_NAME_TOO_LONG;
+  }
+
+  if (db_name_is_in_ignore_db_dirs_list(name))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), org_name->str);
+    return IDENT_NAME_WRONG;
+  }
+
+  ident_check_status= check_table_name(name, name_length, check_for_path_chars);
+  if (ident_check_status == IDENT_NAME_WRONG)
+    my_error(ER_WRONG_DB_NAME, MYF(0), org_name->str);
+  else if (ident_check_status == IDENT_NAME_TOO_LONG)
+    my_error(ER_TOO_LONG_IDENT, MYF(0), org_name->str);
+  return ident_check_status;
 }
 
 
-/*
-  Allow anything as a table name, as long as it doesn't contain an
-  ' ' at the end
-  returns 1 on error
+/**
+  Function to check if table name is valid or not. If it is invalid,
+  return appropriate error in each case to the caller.
+
+  @param name                  Table name
+  @param length                Length of table name
+  @param check_for_path_chars  Check if the table name contains path chars
+
+  @retval  IDENT_NAME_OK        Identifier name is Ok (Success)
+  @retval  IDENT_NAME_WRONG     Identifier name is Wrong (ER_WRONG_TABLE_NAME)
+  @retval  IDENT_NAME_TOO_LONG  Identifier name is too long if it is greater
+                                than 64 characters (ER_TOO_LONG_IDENT)
+
+  @note Reporting error to the user is the responsiblity of the caller.
 */
 
-bool check_table_name(const char *name, size_t length, bool check_for_path_chars)
+enum_ident_name_check check_table_name(const char *name, size_t length,
+                                       bool check_for_path_chars)
 {
   // name length in symbols
   size_t name_length= 0;
@@ -4126,12 +4148,12 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
   }
 
   if (!length || length > NAME_LEN)
-    return 1;
+    return IDENT_NAME_WRONG;
 #if defined(USE_MB) && defined(USE_MB_IDENT)
   bool last_char_is_space= FALSE;
 #else
   if (name[length-1]==' ')
-    return 1;
+    return IDENT_NAME_WRONG;
 #endif
 
   while (name != end)
@@ -4151,15 +4173,17 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
 #endif
     if (check_for_path_chars &&
         (*name == '/' || *name == '\\' || *name == '~' || *name == FN_EXTCHAR))
-      return 1;
+      return IDENT_NAME_WRONG;
     name++;
     name_length++;
   }
 #if defined(USE_MB) && defined(USE_MB_IDENT)
-  return last_char_is_space || (name_length > NAME_CHAR_LEN);
-#else
-  return FALSE;
+  if (last_char_is_space)
+   return IDENT_NAME_WRONG;
+  else if (name_length > NAME_CHAR_LEN)
+   return IDENT_NAME_TOO_LONG;
 #endif
+  return IDENT_NAME_OK;
 }
 
 
