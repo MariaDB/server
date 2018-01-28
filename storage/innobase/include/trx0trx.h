@@ -976,12 +976,6 @@ public:
 
 	ReadView	read_view;	/*!< consistent read view used in the
 					transaction, or NULL if not yet set */
-
-	UT_LIST_NODE_T(trx_t)
-			no_list;	/*!< Required during view creation
-					to check for the view limit for
-					transactions that are committing */
-
 	trx_lock_t	lock;		/*!< Information about the transaction
 					locks and state. Protected by
 					trx->mutex or lock_sys->mutex

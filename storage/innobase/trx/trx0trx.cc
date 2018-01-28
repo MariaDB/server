@@ -1210,52 +1210,42 @@ trx_start_low(
 }
 
 /** Set the serialisation number for a persistent committed transaction.
-@param[in,out]	trx	committed transaction with persistent changes
-@param[in,out]	rseg	rollback segment for undo, or NULL */
+@param[in,out]	trx	committed transaction with persistent changes */
 static
 void
-trx_serialise(trx_t* trx, trx_rseg_t* rseg)
+trx_serialise(trx_t* trx)
 {
-	ut_ad(!rseg || rseg == trx->rsegs.m_redo.rseg);
+	trx_rseg_t *rseg = trx->rsegs.m_redo.rseg;
+	ut_ad(rseg);
+	ut_ad(mutex_own(&rseg->mutex));
 
-	mutex_enter(&trx_sys.mutex);
+	if (rseg->last_page_no == FIL_NULL) {
+		mutex_enter(&purge_sys->pq_mutex);
+	}
 
 	trx->no = trx_sys.get_new_trx_id();
-
-	/* Track the minimum serialisation number. */
-	UT_LIST_ADD_LAST(trx_sys.serialisation_list, trx);
+	my_atomic_store64_explicit(reinterpret_cast<int64*>
+				   (&trx->rw_trx_hash_element->no),
+				   trx->no, MY_MEMORY_ORDER_RELAXED);
 
 	/* If the rollack segment is not empty then the
 	new trx_t::no can't be less than any trx_t::no
 	already in the rollback segment. User threads only
 	produce events when a rollback segment is empty. */
-	if (rseg && rseg->last_page_no == FIL_NULL) {
+	if (rseg->last_page_no == FIL_NULL) {
 		TrxUndoRsegs	elem(trx->no);
 		elem.push_back(rseg);
 
-		mutex_enter(&purge_sys->pq_mutex);
-
-		/* This is to reduce the pressure on the trx_sys_t::mutex
-		though in reality it should make very little (read no)
-		difference because this code path is only taken when the
-		rbs is empty. */
-
-		mutex_exit(&trx_sys.mutex);
-
 		purge_sys->purge_queue.push(elem);
-
 		mutex_exit(&purge_sys->pq_mutex);
-	} else {
-		mutex_exit(&trx_sys.mutex);
 	}
 }
 
 /****************************************************************//**
 Assign the transaction its history serialisation number and write the
-update UNDO log record to the assigned rollback segment.
-@return true if a serialisation log was written */
+update UNDO log record to the assigned rollback segment. */
 static
-bool
+void
 trx_write_serialisation_history(
 /*============================*/
 	trx_t*		trx,	/*!< in/out: transaction */
@@ -1290,26 +1280,24 @@ trx_write_serialisation_history(
 	if (!rseg) {
 		ut_ad(!trx->rsegs.m_redo.undo);
 		ut_ad(!trx->rsegs.m_redo.old_insert);
-		return false;
+		return;
 	}
 
 	trx_undo_t*& undo = trx->rsegs.m_redo.undo;
 	trx_undo_t*& old_insert = trx->rsegs.m_redo.old_insert;
 
 	if (!undo && !old_insert) {
-		return false;
+		return;
 	}
 
 	ut_ad(!trx->read_only);
-	trx_rseg_t*	undo_rseg
-		= undo ? undo->rseg : old_insert ? old_insert->rseg : NULL;
 	ut_ad(!undo || undo->rseg == rseg);
 	ut_ad(!old_insert || old_insert->rseg == rseg);
 	mutex_enter(&rseg->mutex);
 
 	/* Assign the transaction serialisation number and add any
 	undo log to the purge queue. */
-	trx_serialise(trx, undo_rseg);
+	trx_serialise(trx);
 
 	/* It is not necessary to acquire trx->undo_mutex here because
 	only a single OS thread is allowed to commit this transaction.
@@ -1336,7 +1324,7 @@ trx_write_serialisation_history(
 #ifdef WITH_WSREP
 	    && !update_wsrep
 #endif
-	    ) return true;
+	    ) return;
 
 	buf_block_t* block = trx_sysf_get(mtr);
 #ifdef WITH_WSREP
@@ -1357,8 +1345,6 @@ trx_write_serialisation_history(
 
 		trx->mysql_log_file_name = NULL;
 	}
-
-	return(true);
 }
 
 /********************************************************************
@@ -1514,29 +1500,6 @@ trx_update_mod_tables_timestamp(
 	trx->mod_tables.clear();
 }
 
-/**
-Erase the transaction from running transaction lists and serialization
-list.
-@param[in] trx		Transaction to erase, must have an ID > 0
-@param[in] serialised	true if serialisation log was written */
-static
-void
-trx_erase_lists(
-	trx_t*	trx,
-	bool	serialised)
-{
-	ut_ad(trx->id > 0);
-
-	if (serialised) {
-		mutex_enter(&trx_sys.mutex);
-		UT_LIST_REMOVE(trx_sys.serialisation_list, trx);
-	} else {
-		mutex_enter(&trx_sys.mutex);
-	}
-	mutex_exit(&trx_sys.mutex);
-	trx_sys.deregister_rw(trx);
-}
-
 /****************************************************************//**
 Commits a transaction in memory. */
 static
@@ -1544,16 +1507,12 @@ void
 trx_commit_in_memory(
 /*=================*/
 	trx_t*		trx,	/*!< in/out: transaction */
-	const mtr_t*	mtr,	/*!< in: mini-transaction of
+	const mtr_t*	mtr)	/*!< in: mini-transaction of
 				trx_write_serialisation_history(), or NULL if
 				the transaction did not modify anything */
-	bool		serialised)
-				/*!< in: true if serialisation log was
-				written */
 {
 	trx->must_flush_log_later = false;
 	trx->read_view.close();
-
 
 	if (trx_is_autocommit_non_locking(trx)) {
 		ut_ad(trx->id == 0);
@@ -1590,9 +1549,9 @@ trx_commit_in_memory(
 	} else {
 		if (trx->id > 0) {
 			/* For consistent snapshot, we need to remove current
-			transaction from running transaction id list for mvcc
-			before doing commit and releasing locks. */
-			trx_erase_lists(trx, serialised);
+			transaction from rw_trx_hash before doing commit and
+			releasing locks. */
+			trx_sys.deregister_rw(trx);
 		}
 
 		lock_trx_release_locks(trx);
@@ -1769,13 +1728,11 @@ trx_commit_low(
 		}
 	}
 
-	bool	serialised;
-
 	if (mtr != NULL) {
 
 		mtr->set_sync();
 
-		serialised = trx_write_serialisation_history(trx, mtr);
+		trx_write_serialisation_history(trx, mtr);
 
 		/* The following call commits the mini-transaction, making the
 		whole transaction committed in the file-based world, at this
@@ -1803,9 +1760,6 @@ trx_commit_low(
 					DBUG_SUICIDE();
 				});
 		/*--------------*/
-
-	} else {
-		serialised = false;
 	}
 #ifndef DBUG_OFF
 	/* In case of this function is called from a stack executing
@@ -1821,7 +1775,7 @@ trx_commit_low(
 	}
 #endif
 
-	trx_commit_in_memory(trx, mtr, serialised);
+	trx_commit_in_memory(trx, mtr);
 }
 
 /****************************************************************//**

@@ -218,14 +218,9 @@ MVCC::validate() const
 void ReadView::open(trx_t *trx)
 {
   ut_ad(mutex_own(&trx_sys.mutex));
-  trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id);
-  m_low_limit_no= m_low_limit_id;
+  trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id, &m_low_limit_no);
   m_up_limit_id= m_ids.empty() ? m_low_limit_id : m_ids.front();
   ut_ad(m_up_limit_id <= m_low_limit_id);
-
-  if (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys.serialisation_list))
-    if (trx->no < m_low_limit_no)
-      m_low_limit_no= trx->no;
 }
 
 

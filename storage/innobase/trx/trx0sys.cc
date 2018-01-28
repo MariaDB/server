@@ -401,10 +401,7 @@ trx_sys_t::create()
 	ut_ad(!is_initialised());
 	m_initialised = true;
 	mutex_create(LATCH_ID_TRX_SYS, &mutex);
-
-	UT_LIST_INIT(serialisation_list, &trx_t::no_list);
 	UT_LIST_INIT(mysql_trx_list, &trx_t::mysql_trx_list);
-
 	rw_trx_hash.init();
 }
 
@@ -535,7 +532,6 @@ trx_sys_t::close()
 	}
 
 	ut_a(UT_LIST_GET_LEN(mysql_trx_list) == 0);
-	ut_a(UT_LIST_GET_LEN(serialisation_list) == 0);
 
 	/* We used placement new to create this mutex. Call the destructor. */
 	mutex_free(&mutex);
