@@ -212,6 +212,13 @@ void my_free(void *ptr)
     my_bool old_flags;
     old_size= MALLOC_SIZE_AND_FLAG(ptr, &old_flags);
     update_malloc_size(- (longlong) old_size - MALLOC_PREFIX_SIZE, old_flags);
+#ifndef SAFEMALLOC
+    /*
+      Trash memory if not safemalloc. We don't have to do this if safemalloc
+      is used as safemalloc will also do trashing
+    */
+    TRASH_FREE(ptr, old_size);
+#endif
     sf_free(MALLOC_FIX_POINTER_FOR_FREE(ptr));
   }
   DBUG_VOID_RETURN;

@@ -4707,6 +4707,10 @@ public:
   */
   bool restore_from_local_lex_to_old_lex(LEX *oldlex);
 
+  Item *sp_fix_func_item(Item **it_addr);
+  Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
+  bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
+
   inline void prepare_logs_for_admin_command()
   {
     enable_slow_log&= !MY_TEST(variables.log_slow_disabled_statements &
@@ -6408,6 +6412,48 @@ public:
        type_handler()->Item_hybrid_func_fix_attributes(thd,
                                                        "UNION", this, this,
                                                        args, arg_count);
+  }
+};
+
+
+/*
+  A helper class to set THD flags to emit warnings/errors in case of
+  overflow/type errors during assigning values into the SP variable fields.
+  Saves original flags values in constructor.
+  Restores original flags in destructor.
+*/
+class Sp_eval_expr_state
+{
+  THD *m_thd;
+  enum_check_fields m_count_cuted_fields;
+  bool m_abort_on_warning;
+  bool m_stmt_modified_non_trans_table;
+  void start()
+  {
+    m_thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
+    m_thd->abort_on_warning= m_thd->is_strict_mode();
+    m_thd->transaction.stmt.modified_non_trans_table= false;
+  }
+  void stop()
+  {
+    m_thd->count_cuted_fields= m_count_cuted_fields;
+    m_thd->abort_on_warning= m_abort_on_warning;
+    m_thd->transaction.stmt.modified_non_trans_table=
+      m_stmt_modified_non_trans_table;
+  }
+public:
+  Sp_eval_expr_state(THD *thd)
+   :m_thd(thd),
+    m_count_cuted_fields(thd->count_cuted_fields),
+    m_abort_on_warning(thd->abort_on_warning),
+    m_stmt_modified_non_trans_table(thd->transaction.stmt.
+                                    modified_non_trans_table)
+  {
+    start();
+  }
+  ~Sp_eval_expr_state()
+  {
+    stop();
   }
 };
 

@@ -387,22 +387,13 @@ bool Item_field_row::row_create_items(THD *thd, List<Spvar_definition> *list)
 }
 
 
-Field *Item_field_row::get_row_field(uint i) const
-{
-  DBUG_ASSERT(field);
-  Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
-  DBUG_ASSERT(ptable);
-  return ptable[0]->field[i];
-}
-
-
 bool sp_rcontext::set_return_value(THD *thd, Item **return_value_item)
 {
   DBUG_ASSERT(m_return_value_fld);
 
   m_return_value_set = true;
 
-  return sp_eval_expr(thd, NULL, m_return_value_fld, return_value_item);
+  return thd->sp_eval_expr(m_return_value_fld, return_value_item);
 }
 
 
@@ -611,84 +602,31 @@ uint sp_rcontext::exit_handler(Diagnostics_area *da)
 
 int sp_rcontext::set_variable(THD *thd, uint idx, Item **value)
 {
-  Field *field= m_var_table->field[idx];
-  if (!value)
-  {
-    field->set_null();
-    return 0;
-  }
-  Item *dst= m_var_items[idx];
-
-  if (dst->cmp_type() != ROW_RESULT)
-    return sp_eval_expr(thd, dst, m_var_table->field[idx], value);
-
-  DBUG_ASSERT(dst->type() == Item::FIELD_ITEM);
-  if (value[0]->type() == Item::NULL_ITEM)
-  {
-    /*
-      We're in a auto-generated sp_inst_set, to assign
-      the explicit default NULL value to a ROW variable.
-    */
-    for (uint i= 0; i < dst->cols(); i++)
-    {
-      Item_field_row *item_field_row= (Item_field_row*) dst;
-      item_field_row->get_row_field(i)->set_null();
-    }
-    return false;
-  }
-
-  /**
-    - In case if we're assigning a ROW variable from another ROW variable,
-      value[0] points to Item_splocal. sp_prepare_func_item() will return the
-      fixed underlying Item_field_spvar with ROW members in its aguments().
-    - In case if we're assigning from a ROW() value, src and value[0] will
-      point to the same Item_row.
-  */
-  Item *src;
-  if (!(src= sp_prepare_func_item(thd, value, dst->cols())) ||
-      src->cmp_type() != ROW_RESULT)
-  {
-    my_error(ER_OPERAND_COLUMNS, MYF(0), dst->cols());
-    return true;
-  }
-  DBUG_ASSERT(dst->cols() == src->cols());
-  for (uint i= 0; i < src->cols(); i++)
-    set_variable_row_field(thd, idx, i, src->addr(i));
-  return false;
-}
-
-
-void sp_rcontext::set_variable_row_field_to_null(THD *thd,
-                                                 uint var_idx,
-                                                 uint field_idx)
-{
-  Item *dst= get_item(var_idx);
-  DBUG_ASSERT(dst->type() == Item::FIELD_ITEM);
-  DBUG_ASSERT(dst->cmp_type() == ROW_RESULT);
-  Item_field_row *item_field_row= (Item_field_row*) dst;
-  item_field_row->get_row_field(field_idx)->set_null();
+  DBUG_ENTER("sp_rcontext::set_variable");
+  DBUG_ASSERT(value);
+  DBUG_RETURN(thd->sp_eval_expr(m_var_table->field[idx], value));
 }
 
 
 int sp_rcontext::set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
                                         Item **value)
 {
+  DBUG_ENTER("sp_rcontext::set_variable_row_field");
   DBUG_ASSERT(value);
-  Item *dst= get_item(var_idx);
-  DBUG_ASSERT(dst->type() == Item::FIELD_ITEM);
-  DBUG_ASSERT(dst->cmp_type() == ROW_RESULT);
-  Item_field_row *item_field_row= (Item_field_row*) dst;
+  Virtual_tmp_table *vtable= virtual_tmp_table_for_row(var_idx);
+  DBUG_RETURN(thd->sp_eval_expr(vtable->field[field_idx], value));
+}
 
-  Item *expr_item= sp_prepare_func_item(thd, value);
-  if (!expr_item)
-  {
-    DBUG_ASSERT(thd->is_error());
-    return true;
-  }
-  return sp_eval_expr(thd,
-                      item_field_row->arguments()[field_idx],
-                      item_field_row->get_row_field(field_idx),
-                      value);
+
+int sp_rcontext::set_variable_row_field_by_name(THD *thd, uint var_idx,
+                                                const LEX_CSTRING &field_name,
+                                                Item **value)
+{
+  DBUG_ENTER("sp_rcontext::set_variable_row_field_by_name");
+  uint field_idx;
+  if (find_row_field_by_name_or_error(&field_idx, var_idx, field_name))
+    DBUG_RETURN(1);
+  DBUG_RETURN(set_variable_row_field(thd, var_idx, field_idx, value));
 }
 
 
@@ -696,15 +634,32 @@ int sp_rcontext::set_variable_row(THD *thd, uint var_idx, List<Item> &items)
 {
   DBUG_ENTER("sp_rcontext::set_variable_row");
   DBUG_ASSERT(get_item(var_idx)->cols() == items.elements);
-  List_iterator<Item> it(items);
-  Item *item;
-  for (uint i= 0 ; (item= it++) ; i++)
-  {
-    int rc;
-    if ((rc= set_variable_row_field(thd, var_idx, i, &item)))
-      DBUG_RETURN(rc);
-  }
-  DBUG_RETURN(0);
+  Virtual_tmp_table *vtable= virtual_tmp_table_for_row(var_idx);
+  Sp_eval_expr_state state(thd);
+  DBUG_RETURN(vtable->sp_set_all_fields_from_item_list(thd, items));
+}
+
+
+Virtual_tmp_table *sp_rcontext::virtual_tmp_table_for_row(uint var_idx)
+{
+  DBUG_ASSERT(get_item(var_idx)->type() == Item::FIELD_ITEM);
+  DBUG_ASSERT(get_item(var_idx)->cmp_type() == ROW_RESULT);
+  Field *field= m_var_table->field[var_idx];
+  Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
+  DBUG_ASSERT(ptable);
+  DBUG_ASSERT(ptable[0]);
+  return ptable[0];
+}
+
+
+bool sp_rcontext::find_row_field_by_name_or_error(uint *field_idx,
+                                                  uint var_idx,
+                                                  const LEX_CSTRING &field_name)
+{
+  Virtual_tmp_table *vtable= virtual_tmp_table_for_row(var_idx);
+  Field *row= m_var_table->field[var_idx];
+  return vtable->sp_find_field_by_name_or_error(field_idx,
+                                                row->field_name, field_name);
 }
 
 
@@ -727,7 +682,7 @@ Item_cache *sp_rcontext::create_case_expr_holder(THD *thd,
 bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
                                 Item **case_expr_item_ptr)
 {
-  Item *case_expr_item= sp_prepare_func_item(thd, case_expr_item_ptr);
+  Item *case_expr_item= thd->sp_prepare_func_item(case_expr_item_ptr);
   if (!case_expr_item)
     return true;
 

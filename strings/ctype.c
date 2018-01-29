@@ -904,11 +904,11 @@ my_string_metadata_get(MY_STRING_METADATA *metadata,
   if (cs->mbmaxlen == 1 && !(cs->state & MY_CS_NONASCII))
   {
     metadata->char_length= length;
-    metadata->repertoire= my_string_repertoire_8bit(cs, str, length);
+    metadata->repertoire= my_string_repertoire_8bit(cs, str, (ulong)length);
   }
   else
   {
-    my_string_metadata_get_mb(metadata, cs, str, length);
+    my_string_metadata_get_mb(metadata, cs, str, (ulong)length);
   }
 }
 
