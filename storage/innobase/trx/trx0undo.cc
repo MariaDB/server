@@ -424,7 +424,6 @@ static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 trx_undo_seg_create(
 /*================*/
-	trx_rseg_t*	rseg MY_ATTRIBUTE((unused)),/*!< in: rollback segment */
 	trx_rsegf_t*	rseg_hdr,/*!< in: rollback segment header, page
 				x-latched */
 	ulint*		id,	/*!< out: slot index within rseg header */
@@ -440,12 +439,10 @@ trx_undo_seg_create(
 	trx_usegf_t*	seg_hdr;
 	ulint		n_reserved;
 	bool		success;
-	dberr_t		err = DB_SUCCESS;
 
 	ut_ad(mtr != NULL);
 	ut_ad(id != NULL);
 	ut_ad(rseg_hdr != NULL);
-	ut_ad(mutex_own(&(rseg->mutex)));
 
 	slot_no = trx_rsegf_undo_find_free(rseg_hdr, mtr);
 
@@ -505,7 +502,7 @@ trx_undo_seg_create(
 
 	MONITOR_INC(MONITOR_NUM_UNDO_SLOT_USED);
 
-	return(err);
+	return(DB_SUCCESS);
 }
 
 /**********************************************************************//**
@@ -1323,19 +1320,15 @@ trx_undo_create(
 		return(DB_OUT_OF_FILE_SPACE);
 	}
 
-	rseg->curr_size++;
-
 	rseg_header = trx_rsegf_get(rseg->space, rseg->page_no, mtr);
 
-	err = trx_undo_seg_create(rseg, rseg_header, &id, &undo_page, mtr);
+	err = trx_undo_seg_create(rseg_header, &id, &undo_page, mtr);
 
 	if (err != DB_SUCCESS) {
-		/* Did not succeed */
-
-		rseg->curr_size--;
-
 		return(err);
 	}
+
+	rseg->curr_size++;
 
 	page_no = page_get_page_no(undo_page);
 
