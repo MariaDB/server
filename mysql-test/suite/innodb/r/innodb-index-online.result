@@ -37,11 +37,11 @@ connection con1;
 SET @saved_debug_dbug = @@SESSION.debug_dbug;
 SET DEBUG_DBUG = '+d,innodb_OOM_prepare_inplace_alter';
 ALTER TABLE t1 ADD UNIQUE INDEX(c2);
-ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
+ERROR HY000: Out of memory.
 SET DEBUG_DBUG = @saved_debug_dbug;
 SET DEBUG_DBUG = '+d,innodb_OOM_inplace_alter';
 CREATE UNIQUE INDEX c2 ON t1(c2);
-ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
+ERROR HY000: Out of memory.
 SET DEBUG_DBUG = @saved_debug_dbug;
 CREATE UNIQUE INDEX c2 ON t1(c2);
 DROP INDEX c2 ON t1;
