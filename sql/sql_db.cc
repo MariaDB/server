@@ -1447,7 +1447,6 @@ bool mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
                      bool force_switch)
 {
   LEX_CSTRING new_db_file_name;
-
   Security_context *sctx= thd->security_ctx;
   ulong db_access= sctx->db_access;
   CHARSET_INFO *db_default_cl;
@@ -1489,41 +1488,23 @@ bool mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
   }
 
   /*
-    Now we need to make a copy because check_db_name requires a
-    non-constant argument. Actually, it takes database file name.
-
-    TODO: fix check_db_name().
-  */
-
-  new_db_file_name.str= my_strndup(new_db_name->str, new_db_name->length,
-                                   MYF(MY_WME));
-  new_db_file_name.length= new_db_name->length;
-
-  if (new_db_file_name.str == NULL)
-    DBUG_RETURN(TRUE);                             /* the error is set */
-
-  /*
     NOTE: if check_db_name() fails, we should throw an error in any case,
     even if we are called from sp_head::execute().
 
     It's next to impossible however to get this error when we are called
     from sp_head::execute(). But let's switch the current database to NULL
     in this case to be sure.
-    The cast below ok here as new_db_file_name was just allocated
   */
 
-  if (check_db_name((LEX_STRING*) &new_db_file_name))
+  if (check_db_name(new_db_name) != IDENT_NAME_OK)
   {
-    my_error(ER_WRONG_DB_NAME, MYF(0), new_db_file_name.str);
-    my_free(const_cast<char*>(new_db_file_name.str));
-
     if (force_switch)
       mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
 
     DBUG_RETURN(TRUE);
   }
 
-  DBUG_PRINT("info",("Use database: %s", new_db_file_name.str));
+  DBUG_PRINT("info",("Use database: %s", new_db_name->str));
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (test_all_bits(sctx->master_access, DB_ACLS))
@@ -1531,42 +1512,39 @@ bool mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
   else
   {
     db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user,
-                        new_db_file_name.str, FALSE) | sctx->master_access;
+                        new_db_name->str, FALSE) | sctx->master_access;
     if (sctx->priv_role[0])
     {
       /* include a possible currently set role for access */
-      db_access|= acl_get("", "", sctx->priv_role, new_db_file_name.str, FALSE);
+      db_access|= acl_get("", "", sctx->priv_role, new_db_name->str, FALSE);
     }
   }
 
   if (!force_switch &&
       !(db_access & DB_ACLS) &&
-      check_grant_db(thd, new_db_file_name.str))
+      check_grant_db(thd, new_db_name->str))
   {
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
              sctx->priv_user,
              sctx->priv_host,
-             new_db_file_name.str);
+             new_db_name->str);
     general_log_print(thd, COM_INIT_DB, ER_THD(thd, ER_DBACCESS_DENIED_ERROR),
-                      sctx->priv_user, sctx->priv_host, new_db_file_name.str);
-    my_free(const_cast<char*>(new_db_file_name.str));
+                      sctx->priv_user, sctx->priv_host, new_db_name->str);
     DBUG_RETURN(TRUE);
   }
 #endif
 
   DEBUG_SYNC(thd, "before_db_dir_check");
 
-  if (check_db_dir_existence(new_db_file_name.str))
+  if (check_db_dir_existence(new_db_name->str))
   {
     if (force_switch)
     {
-      /* Throw a warning and free new_db_file_name. */
+      /* Throw a warning. */
 
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_BAD_DB_ERROR, ER_THD(thd, ER_BAD_DB_ERROR),
-                          new_db_file_name.str);
-
-      my_free(const_cast<char*>(new_db_file_name.str));
+                          new_db_name->str);
 
       /* Change db to NULL. */
 
@@ -1577,10 +1555,9 @@ bool mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     }
     else
     {
-      /* Report an error and free new_db_file_name. */
+      /* Report an error. */
 
-      my_error(ER_BAD_DB_ERROR, MYF(0), new_db_file_name.str);
-      my_free(const_cast<char*>(new_db_file_name.str));
+      my_error(ER_BAD_DB_ERROR, MYF(0), new_db_name->str);
 
       /* The operation failed. */
 
@@ -1593,7 +1570,13 @@ bool mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     attributes and will be freed in THD::~THD().
   */
 
-  db_default_cl= get_default_db_collation(thd, new_db_file_name.str);
+  db_default_cl= get_default_db_collation(thd, new_db_name->str);
+
+  new_db_file_name.str= my_strndup(new_db_name->str, new_db_name->length,
+                                   MYF(MY_WME));
+  new_db_file_name.length= new_db_name->length;
+  if (new_db_file_name.str == NULL)
+    DBUG_RETURN(TRUE);                             /* the error is set */
 
   mysql_change_db_impl(thd, &new_db_file_name, db_access, db_default_cl);
 

@@ -8203,9 +8203,18 @@ alter_list_item:
             {
               MYSQL_YYABORT;
             }
-            if (check_table_name($3->table.str,$3->table.length, FALSE) ||
-                ($3->db.str && check_db_name((LEX_STRING*) &$3->db)))
+            enum_ident_name_check ident_check_status=
+              check_table_name($3->table.str,$3->table.length, FALSE);
+            if (ident_check_status == IDENT_NAME_WRONG)
+            {
               my_yyabort_error((ER_WRONG_TABLE_NAME, MYF(0), $3->table.str));
+            }
+            else if (ident_check_status == IDENT_NAME_TOO_LONG)
+            {
+              my_yyabort_error((ER_TOO_LONG_IDENT, MYF(0), $3->table.str));
+            }
+            if ($3->db.str && check_db_name(&$3->db) != IDENT_NAME_OK)
+              MYSQL_YYABORT;
             lex->name= $3->table;
             lex->alter_info.flags|= Alter_info::ALTER_RENAME;
           }
@@ -10854,8 +10863,10 @@ function_call_generic:
               version() (a vendor can specify any schema).
             */
 
-            if (!$1.str || check_db_name((LEX_STRING*) &$1))
-              my_yyabort_error((ER_WRONG_DB_NAME, MYF(0), $1.str));
+            if ($1.str && check_db_name(&$1) != IDENT_NAME_OK)
+            {
+              MYSQL_YYABORT;
+            }
             if (check_routine_name(&$3))
             {
               MYSQL_YYABORT;
@@ -12945,8 +12956,8 @@ drop:
           {
             LEX *lex= thd->lex;
             sp_name *spname;
-            if ($4.str && check_db_name((LEX_STRING*) &$4))
-               my_yyabort_error((ER_WRONG_DB_NAME, MYF(0), $4.str));
+            if ($4.str && check_db_name(&$4) != IDENT_NAME_OK)
+              MYSQL_YYABORT;
             if (lex->sphead)
               my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "FUNCTION"));
             lex->set_command(SQLCOM_DROP_FUNCTION, $3);

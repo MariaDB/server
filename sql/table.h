@@ -93,6 +93,16 @@ enum enum_table_ref_type
   TABLE_REF_TMP_TABLE
 };
 
+/**
+ Enumerate possible status of a identifier name while determining
+ its validity
+*/
+enum enum_ident_name_check
+{
+  IDENT_NAME_OK,
+  IDENT_NAME_WRONG,
+  IDENT_NAME_TOO_LONG
+};
 
 /*************************************************************************/
 
@@ -2904,10 +2914,10 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
 void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno);
 void update_create_info_from_table(HA_CREATE_INFO *info, TABLE *form);
-bool check_and_convert_db_name(LEX_STRING *db, bool preserve_lettercase);
-bool check_db_name(LEX_STRING *db);
+enum_ident_name_check check_db_name(const LEX_CSTRING *db);
 bool check_column_name(const char *name);
-bool check_table_name(const char *name, size_t length, bool check_for_path_chars);
+enum_ident_name_check check_table_name(const char *name, size_t length,
+                                       bool check_for_path_chars);
 int rename_file_ext(const char * from,const char * to,const char * ext);
 char *get_field(MEM_ROOT *mem, Field *field);
 bool get_field(MEM_ROOT *mem, Field *field, class String *res);

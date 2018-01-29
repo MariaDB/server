@@ -1957,10 +1957,17 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     }
     thd->convert_string(&table_name, system_charset_info,
 			packet, arg_length, thd->charset());
-    if (check_table_name(table_name.str, table_name.length, FALSE))
+    enum_ident_name_check ident_check_status=
+      check_table_name(table_name.str, table_name.length, FALSE);
+    if (ident_check_status == IDENT_NAME_WRONG)
     {
       /* this is OK due to convert_string() null-terminating the string */
       my_error(ER_WRONG_TABLE_NAME, MYF(0), table_name.str);
+      break;
+    }
+    else if (ident_check_status == IDENT_NAME_TOO_LONG)
+    {
+      my_error(ER_TOO_LONG_IDENT, MYF(0), table_name.str);
       break;
     }
     packet= arg_end + 1;
@@ -2549,7 +2556,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
     DBUG_RETURN(1);
 #else
     {
-      LEX_STRING db;
+      LEX_CSTRING db;
       size_t dummy;
       if (lex->select_lex.db == NULL &&
           lex->copy_db_to(&lex->select_lex.db, &dummy))
@@ -2557,19 +2564,24 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
         DBUG_RETURN(1);
       }
       schema_select_lex= new (thd->mem_root) SELECT_LEX();
+      if (!schema_select_lex)
+      {
+        DBUG_RETURN(1);
+      }
       schema_select_lex->table_list.first= NULL;
       if (lower_case_table_names == 1)
+      {
         lex->select_lex.db= thd->strdup(lex->select_lex.db);
+        if (!lex->select_lex.db)
+        {
+          DBUG_RETURN(1);
+        }
+      }
       schema_select_lex->db= lex->select_lex.db;
-      /*
-        check_db_name() may change db.str if lower_case_table_names == 1,
-        but that's ok as the db is allocted above in this case.
-      */
       db.str= (char*) lex->select_lex.db;
       db.length= strlen(db.str);
-      if (check_db_name(&db))
+      if (check_db_name(&db) != IDENT_NAME_OK)
       {
-        my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
         DBUG_RETURN(1);
       }
       break;
@@ -2950,9 +2962,8 @@ static int mysql_create_routine(THD *thd, LEX *lex)
     Verify that the database name is allowed, optionally
     lowercase it.
   */
-  if (check_db_name((LEX_STRING*) &lex->sphead->m_db))
+  if (check_db_name(&lex->sphead->m_db) != IDENT_NAME_OK)
   {
-    my_error(ER_WRONG_DB_NAME, MYF(0), lex->sphead->m_db.str);
     return true;
   }
 
@@ -3079,9 +3090,8 @@ error: /* Used by WSREP_TO_ISOLATION_BEGIN */
 */
 static bool prepare_db_action(THD *thd, ulong want_access, LEX_CSTRING *dbname)
 {
-  if (check_db_name((LEX_STRING*)dbname))
+  if (check_db_name(dbname) != IDENT_NAME_OK)
   {
-    my_error(ER_WRONG_DB_NAME, MYF(0), dbname->str);
     return true;
   }
   /*
@@ -5234,9 +5244,8 @@ end_with_restore_list:
       }
     }
 #endif
-    if (check_db_name((LEX_STRING*) db))
+    if (check_db_name(db) != IDENT_NAME_OK)
     {
-      my_error(ER_WRONG_DB_NAME, MYF(0), db->str);
       break;
     }
     if (check_access(thd, ALTER_ACL, db->str, NULL, NULL, 1, 0) ||
@@ -5274,9 +5283,8 @@ end_with_restore_list:
 
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
 
-    if (check_db_name((LEX_STRING*) &db_name))
+    if (check_db_name(&db_name) != IDENT_NAME_OK)
     {
-      my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
       break;
     }
     res= mysqld_show_create_db(thd, &db_name, &lex->name, lex->create_info);
@@ -7322,7 +7330,7 @@ bool check_fk_parent_table_access(THD *thd,
 
       // Check if tablename is valid or not.
       DBUG_ASSERT(table_name.str != NULL);
-      if (check_table_name(table_name.str, table_name.length, false))
+      if (check_table_name(table_name.str, table_name.length, false) != IDENT_NAME_OK)
       {
         my_error(ER_WRONG_TABLE_NAME, MYF(0), table_name.str);
         return true;
@@ -7337,9 +7345,8 @@ bool check_fk_parent_table_access(THD *thd,
         db_name.length= fk_key->ref_db.length;
 
         // Check if database name is valid or not.
-        if (check_db_name((LEX_STRING*) &db_name))
+        if (check_db_name(&db_name) != IDENT_NAME_OK)
         {
-          my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
           return true;
         }
       }
@@ -7354,9 +7361,8 @@ bool check_fk_parent_table_access(THD *thd,
             return true;
           is_qualified_table_name= true;
 
-          if (check_db_name((LEX_STRING*) &db_name))
+          if (check_db_name(&db_name) != IDENT_NAME_OK)
           {
-            my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
             return true;
           }
         }
@@ -8139,17 +8145,25 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   if (!table)
     DBUG_RETURN(0);				// End of memory
   alias_str= alias ? alias->str : table->table.str;
-  if (!MY_TEST(table_options & TL_OPTION_ALIAS) &&
-      check_table_name(table->table.str, table->table.length, FALSE))
+  if (!MY_TEST(table_options & TL_OPTION_ALIAS))
   {
-    my_error(ER_WRONG_TABLE_NAME, MYF(0), table->table.str);
-    DBUG_RETURN(0);
+    enum_ident_name_check ident_check_status=
+      check_table_name(table->table.str, table->table.length, FALSE);
+    if (ident_check_status == IDENT_NAME_WRONG)
+    {
+      my_error(ER_WRONG_TABLE_NAME, MYF(0), table->table.str);
+      DBUG_RETURN(0);
+    }
+    else if (ident_check_status == IDENT_NAME_TOO_LONG)
+    {
+      my_error(ER_TOO_LONG_IDENT, MYF(0), table->table.str);
+      DBUG_RETURN(0);
+    }
   }
 
   if (table->is_derived_table() == FALSE && table->db.str &&
-      check_db_name((LEX_STRING*) &table->db))
+      check_db_name(&table->db) != IDENT_NAME_OK)
   {
-    my_error(ER_WRONG_DB_NAME, MYF(0), table->db.str);
     DBUG_RETURN(0);
   }
 

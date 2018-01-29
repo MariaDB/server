@@ -6045,9 +6045,12 @@ sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name1,
 {
   sp_name *res;
   LEX_CSTRING norm_name1;
+  if (check_db_name(name1) != IDENT_NAME_OK)
+  {
+    return NULL;
+  }
   if (!name1->str ||
-      !thd->make_lex_string(&norm_name1, name1->str, name1->length) ||
-      check_db_name((LEX_STRING *) &norm_name1))
+      !thd->make_lex_string(&norm_name1, name1->str, name1->length))
   {
     my_error(ER_WRONG_DB_NAME, MYF(0), name1->str);
     return NULL;
