@@ -26,6 +26,7 @@
 #include <openssl/evp.h>
 #include <openssl/aes.h>
 #include <openssl/err.h>
+#include <openssl/rand.h>
 
 #ifdef HAVE_ERR_remove_thread_state
 #define ERR_remove_state(X) ERR_remove_thread_state(NULL)
@@ -292,31 +293,11 @@ unsigned int my_aes_ctx_size(enum my_aes_mode)
   return MY_AES_CTX_SIZE;
 }
 
-#ifdef HAVE_YASSL
-#include <random.hpp>
-int my_random_bytes(uchar* buf, int num)
-{
-  TaoCrypt::RandomNumberGenerator rand;
-  rand.GenerateBlock((TaoCrypt::byte*) buf, num);
-  return MY_AES_OK;
-}
-#else
-#include <openssl/rand.h>
-
 int my_random_bytes(uchar *buf, int num)
 {
-  /*
-    Unfortunately RAND_bytes manual page does not provide any guarantees
-    in relation to blocking behavior. Here we explicitly use SSLeay random
-    instead of whatever random engine is currently set in OpenSSL. That way
-    we are guaranteed to have a non-blocking random.
-  */
-  RAND_METHOD *rand = RAND_SSLeay();
-  if (rand == NULL || rand->bytes(buf, num) != 1)
+  if (RAND_bytes(buf, num) != 1)
     return MY_AES_OPENSSL_ERROR;
   return MY_AES_OK;
 }
-#endif
 
 }
-
