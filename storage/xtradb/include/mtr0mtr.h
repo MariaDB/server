@@ -35,7 +35,6 @@ Created 11/26/1995 Heikki Tuuri
 #include "ut0byte.h"
 #include "mtr0types.h"
 #include "page0types.h"
-#include "trx0types.h"
 
 /* Logging modes for a mini-transaction */
 #define MTR_LOG_ALL		21	/* default mode: log all operations
@@ -205,22 +204,10 @@ functions).  The page number parameter was originally written as 0. @{ */
 Starts a mini-transaction. */
 UNIV_INLINE
 void
-mtr_start_trx(
-/*======*/
-	mtr_t*	mtr,	/*!< out: mini-transaction */
-	trx_t*	trx)	/*!< in: transaction */
-	__attribute__((nonnull (1)));
-/***************************************************************//**
-Starts a mini-transaction. */
-UNIV_INLINE
-void
 mtr_start(
 /*======*/
 	mtr_t*	mtr)	/*!< out: mini-transaction */
-{
-	mtr_start_trx(mtr, NULL);
-}
-	MY_ATTRIBUTE((nonnull))
+	MY_ATTRIBUTE((nonnull));
 /***************************************************************//**
 Commits a mini-transaction. */
 UNIV_INTERN
@@ -415,7 +402,6 @@ struct mtr_t{
 #ifdef UNIV_DEBUG
 	ulint		magic_n;
 #endif /* UNIV_DEBUG */
-	trx_t*		trx;	/*!< transaction */
 };
 
 #ifdef UNIV_DEBUG

@@ -678,8 +678,7 @@ loop:
 				doc.text.f_str =
 					btr_copy_externally_stored_field(
 						&doc.text.f_len, data,
-						zip_size, data_len, blob_heap,
-						NULL);
+						zip_size, data_len, blob_heap);
 			} else {
 				doc.text.f_str = data;
 				doc.text.f_len = data_len;

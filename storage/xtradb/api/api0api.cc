@@ -398,7 +398,7 @@ ib_read_tuple(
 
 			data = btr_rec_copy_externally_stored_field(
 				copy, offsets, zip_size, i, &len,
-				tuple->heap, NULL);
+				tuple->heap);
 
 			ut_a(len != UNIV_SQL_NULL);
 		}

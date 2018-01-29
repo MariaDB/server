@@ -1311,7 +1311,7 @@ row_ins_foreign_check_on_constraint(
 
 	row_mysql_freeze_data_dictionary(thr_get_trx(thr));
 
-	mtr_start_trx(mtr, trx);
+	mtr_start(mtr);
 
 	/* Restore pcur position */
 
@@ -1339,7 +1339,7 @@ nonstandard_exit_func:
 	btr_pcur_store_position(pcur, mtr);
 
 	mtr_commit(mtr);
-	mtr_start_trx(mtr, trx);
+	mtr_start(mtr);
 
 	btr_pcur_restore_position(BTR_SEARCH_LEAF, pcur, mtr);
 
@@ -1549,7 +1549,7 @@ run_again:
 		}
 	}
 
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 
 	/* Store old value on n_fields_cmp */
 
@@ -2360,7 +2360,7 @@ row_ins_clust_index_entry_low(
 		search_mode = mode;
 	}
 
-	mtr_start_trx(&mtr, thr_get_trx(thr));
+	mtr_start(&mtr);
 
 	if (mode == BTR_MODIFY_LEAF && dict_index_is_online_ddl(index)) {
 
@@ -2592,10 +2592,9 @@ Starts a mini-transaction and checks if the index will be dropped.
 @return true if the index is to be dropped */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
-row_ins_sec_mtr_start_trx_and_check_if_aborted(
+row_ins_sec_mtr_start_and_check_if_aborted(
 /*=======================================*/
 	mtr_t*		mtr,	/*!< out: mini-transaction */
-	trx_t*		trx,	/*!< in: transaction handle */
 	dict_index_t*	index,	/*!< in/out: secondary index */
 	bool		check,	/*!< in: whether to check */
 	ulint		search_mode)
@@ -2603,7 +2602,7 @@ row_ins_sec_mtr_start_trx_and_check_if_aborted(
 {
 	ut_ad(!dict_index_is_clust(index));
 
-	mtr_start_trx(mtr, trx);
+	mtr_start(mtr);
 
 	if (!check) {
 		return(false);
@@ -2661,14 +2660,13 @@ row_ins_sec_index_entry_low(
 	ulint		n_unique;
 	mtr_t		mtr;
 	ulint*		offsets	= NULL;
-	trx_t*		trx = thr_get_trx(thr);
 
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(mode == BTR_MODIFY_LEAF || mode == BTR_MODIFY_TREE);
 
 	cursor.thr = thr;
 	ut_ad(thr_get_trx(thr)->id);
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 
 	/* If running with fake_changes mode on then avoid using insert buffer
 	and also switch from modify to search so that code takes only s-latch
@@ -2753,8 +2751,8 @@ row_ins_sec_index_entry_low(
 
 		DEBUG_SYNC_C("row_ins_sec_index_unique");
 
-		if (row_ins_sec_mtr_start_trx_and_check_if_aborted(
-			    &mtr, trx, index, check, search_mode)) {
+		if (row_ins_sec_mtr_start_and_check_if_aborted(
+			    &mtr, index, check, search_mode)) {
 			goto func_exit;
 		}
 
@@ -2788,8 +2786,8 @@ row_ins_sec_index_entry_low(
 			return(err);
 		}
 
-		if (row_ins_sec_mtr_start_trx_and_check_if_aborted(
-			    &mtr, trx, index, check, search_mode)) {
+		if (row_ins_sec_mtr_start_and_check_if_aborted(
+			    &mtr, index, check, search_mode)) {
 			goto func_exit;
 		}
 
