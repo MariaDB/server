@@ -175,7 +175,7 @@ struct trx_i_s_cache_t {
 					lock_sys->mutex or trx_sys.mutex */
 	ulint		mem_allocd;	/*!< the amount of memory
 					allocated with mem_alloc*() */
-	ibool		is_truncated;	/*!< this is TRUE if the memory
+	bool		is_truncated;	/*!< this is true if the memory
 					limit was hit and thus the data
 					in the cache is truncated */
 };
@@ -1271,7 +1271,7 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
   }
 
   /* memory could not be allocated */
-  cache->is_truncated= TRUE;
+  cache->is_truncated= true;
 }
 
 
@@ -1321,7 +1321,7 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
      }
   }
   mutex_exit(&trx_sys.mutex);
-  cache->is_truncated= FALSE;
+  cache->is_truncated= false;
 }
 
 
@@ -1356,7 +1356,7 @@ trx_i_s_possibly_fetch_data_into_cache(
 Returns TRUE if the data in the cache is truncated due to the memory
 limit posed by TRX_I_S_MEM_LIMIT.
 @return TRUE if truncated */
-ibool
+bool
 trx_i_s_cache_is_truncated(
 /*=======================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
@@ -1403,7 +1403,7 @@ trx_i_s_cache_init(
 
 	cache->mem_allocd = 0;
 
-	cache->is_truncated = FALSE;
+	cache->is_truncated = false;
 }
 
 /*******************************************************************//**
