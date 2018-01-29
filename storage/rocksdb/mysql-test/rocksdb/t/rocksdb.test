@@ -788,7 +788,6 @@ drop table t45;
 # We exclude rocksdb_max_open_files here because it value is dependent on
 # the value of the servers open_file_limit and is expected to be different
 # across distros and installs
-show variables where variable_name like 'rocksdb%' and variable_name not like 'rocksdb_max_open_files';
 
 --replace_regex /[a-f0-9]{40}/#/
 show variables 

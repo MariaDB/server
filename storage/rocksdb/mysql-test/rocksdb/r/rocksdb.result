@@ -862,9 +862,10 @@ ERROR 42S02: Unknown table 'test.t45'
 # Now it fails if there is data overlap with what
 # already exists
 #
-show variables where variable_name like 'rocksdb%' and variable_name not like 'rocksdb_max_open_files';
+show variables 
 where 
 variable_name like 'rocksdb%' and 
+variable_name not like 'rocksdb_max_open_files' and
 variable_name not like 'rocksdb_supported_compression_types';
 Variable_name	Value
 rocksdb_access_hint_on_compaction_start	1
@@ -1461,7 +1462,7 @@ Rocksdb_rows_read	#
 Rocksdb_rows_updated	#
 Rocksdb_rows_deleted_blind	#
 Rocksdb_rows_expired	#
-rocksdb_rows_filtered	#
+Rocksdb_rows_filtered	#
 Rocksdb_system_rows_deleted	#
 Rocksdb_system_rows_inserted	#
 Rocksdb_system_rows_read	#
@@ -1472,31 +1473,31 @@ Rocksdb_queries_point	#
 Rocksdb_queries_range	#
 Rocksdb_covered_secondary_key_lookups	#
 Rocksdb_block_cache_add	#
+Rocksdb_block_cache_add_failures	#
+Rocksdb_block_cache_bytes_read	#
+Rocksdb_block_cache_bytes_write	#
+Rocksdb_block_cache_data_add	#
+Rocksdb_block_cache_data_bytes_insert	#
 Rocksdb_block_cache_data_hit	#
-rocksdb_block_cache_add_failures	#
-rocksdb_block_cache_bytes_read	#
-rocksdb_block_cache_bytes_write	#
-rocksdb_block_cache_data_add	#
-rocksdb_block_cache_data_bytes_insert	#
 Rocksdb_block_cache_data_miss	#
+Rocksdb_block_cache_filter_add	#
+Rocksdb_block_cache_filter_bytes_evict	#
+Rocksdb_block_cache_filter_bytes_insert	#
 Rocksdb_block_cache_filter_hit	#
 Rocksdb_block_cache_filter_miss	#
 Rocksdb_block_cache_hit	#
+Rocksdb_block_cache_index_add	#
+Rocksdb_block_cache_index_bytes_evict	#
+Rocksdb_block_cache_index_bytes_insert	#
 Rocksdb_block_cache_index_hit	#
 Rocksdb_block_cache_index_miss	#
 Rocksdb_block_cache_miss	#
-rocksdb_block_cache_filter_add	#
-rocksdb_block_cache_filter_bytes_evict	#
-rocksdb_block_cache_filter_bytes_insert	#
 Rocksdb_block_cachecompressed_hit	#
 Rocksdb_block_cachecompressed_miss	#
 Rocksdb_bloom_filter_prefix_checked	#
 Rocksdb_bloom_filter_prefix_useful	#
 Rocksdb_bloom_filter_useful	#
 Rocksdb_bytes_read	#
-rocksdb_block_cache_index_add	#
-rocksdb_block_cache_index_bytes_evict	#
-rocksdb_block_cache_index_bytes_insert	#
 Rocksdb_bytes_written	#
 Rocksdb_compact_read_bytes	#
 Rocksdb_compact_write_bytes	#
@@ -1504,7 +1505,11 @@ Rocksdb_compaction_key_drop_new	#
 Rocksdb_compaction_key_drop_obsolete	#
 Rocksdb_compaction_key_drop_user	#
 Rocksdb_flush_write_bytes	#
+Rocksdb_get_hit_l0	#
+Rocksdb_get_hit_l1	#
+Rocksdb_get_hit_l2_and_up	#
 Rocksdb_getupdatessince_calls	#
+Rocksdb_iter_bytes_read	#
 Rocksdb_memtable_hit	#
 Rocksdb_memtable_miss	#
 Rocksdb_no_file_closes	#
@@ -1512,35 +1517,31 @@ Rocksdb_no_file_errors	#
 Rocksdb_no_file_opens	#
 Rocksdb_num_iterators	#
 Rocksdb_number_block_not_compressed	#
+Rocksdb_number_db_next	#
+Rocksdb_number_db_next_found	#
+Rocksdb_number_db_prev	#
+Rocksdb_number_db_prev_found	#
+Rocksdb_number_db_seek	#
+Rocksdb_number_db_seek_found	#
 Rocksdb_number_deletes_filtered	#
 Rocksdb_number_keys_read	#
 Rocksdb_number_keys_updated	#
 Rocksdb_number_keys_written	#
-rocksdb_get_hit_l0	#
-rocksdb_get_hit_l1	#
-rocksdb_get_hit_l2_and_up	#
 Rocksdb_number_merge_failures	#
 Rocksdb_number_multiget_bytes_read	#
 Rocksdb_number_multiget_get	#
 Rocksdb_number_multiget_keys_read	#
 Rocksdb_number_reseeks_iteration	#
 Rocksdb_number_sst_entry_delete	#
-rocksdb_iter_bytes_read	#
 Rocksdb_number_sst_entry_merge	#
 Rocksdb_number_sst_entry_other	#
 Rocksdb_number_sst_entry_put	#
 Rocksdb_number_sst_entry_singledelete	#
-Rocksdb_number_stat_computes	#
 Rocksdb_number_superversion_acquires	#
 Rocksdb_number_superversion_cleanups	#
 Rocksdb_number_superversion_releases	#
-rocksdb_number_db_next	#
-rocksdb_number_db_next_found	#
-rocksdb_number_db_prev	#
-rocksdb_number_db_prev_found	#
-rocksdb_number_db_seek	#
-rocksdb_number_db_seek_found	#
-Rocksdb_rate_limit_delay_millis	#
+Rocksdb_row_lock_deadlocks	#
+Rocksdb_row_lock_wait_timeouts	#
 Rocksdb_snapshot_conflict_errors	#
 Rocksdb_stall_l0_file_count_limit_slowdowns	#
 Rocksdb_stall_locked_l0_file_count_limit_slowdowns	#
@@ -1560,8 +1561,6 @@ Rocksdb_write_other	#
 Rocksdb_write_self	#
 Rocksdb_write_timedout	#
 Rocksdb_write_wal	#
-rocksdb_row_lock_deadlocks	#
-rocksdb_row_lock_wait_timeouts	#
 select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%';
 VARIABLE_NAME
 ROCKSDB_ROWS_DELETED

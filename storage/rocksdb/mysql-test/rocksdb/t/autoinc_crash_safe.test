@@ -4,6 +4,6 @@
 
 create table t (i int primary key auto_increment) engine=rocksdb;
 
---source suite/rocksdb/include/autoinc_crash_safe.inc
+--source include/autoinc_crash_safe.inc
 
 --source include/rpl_end.inc
