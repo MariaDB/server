@@ -5438,7 +5438,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       if (sql_mode_inited)
         thd->variables.sql_mode=
           (sql_mode_t) ((thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE) |
-                        (sql_mode & ~(ulong) MODE_NO_DIR_IN_CREATE));
+                        (sql_mode & ~(sql_mode_t) MODE_NO_DIR_IN_CREATE));
       if (charset_inited)
       {
         rpl_sql_thread_info *sql_info= thd->system_thread_info.rpl_sql_info;
