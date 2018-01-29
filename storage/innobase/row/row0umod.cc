@@ -306,7 +306,7 @@ row_undo_mod_clust(
 		/* We may have to modify tree structure: do a pessimistic
 		descent down the index tree */
 
-		mtr_start_trx(&mtr, thr_get_trx(thr));
+		mtr.start();
 		if (index->table->is_temporary()) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		} else {
@@ -366,7 +366,7 @@ row_undo_mod_clust(
 
 	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_UPD_DEL_REC) {
 
-		mtr_start_trx(&mtr, thr_get_trx(thr));
+		mtr.start();
 		if (index->table->is_temporary()) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		} else {
@@ -384,7 +384,7 @@ row_undo_mod_clust(
 			/* We may have to modify tree structure: do a
 			pessimistic descent down the index tree */
 
-			mtr_start_trx(&mtr, thr_get_trx(thr));
+			mtr.start();
 			if (index->table->is_temporary()) {
 				mtr.set_log_mode(MTR_LOG_NO_REDO);
 			} else {
@@ -498,7 +498,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	which cannot be purged yet, requires its existence. If some requires,
 	we should delete mark the record. */
 
-	mtr_start_trx(&mtr_vers, thr_get_trx(thr));
+	mtr_vers.start();
 
 	success = btr_pcur_restore_position(BTR_SEARCH_LEAF, &(node->pcur),
 					    &mtr_vers);
