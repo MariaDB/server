@@ -385,6 +385,8 @@ private:
   /** partitions that returned HA_ERR_KEY_NOT_FOUND. */
   MY_BITMAP m_key_not_found_partitions;
   bool m_key_not_found;
+  List<String> *m_partitions_to_open;
+  MY_BITMAP m_opened_partitions;
 public:
   handler **get_child_handlers()
   {
@@ -836,6 +838,10 @@ public:
   virtual int info(uint);
   void get_dynamic_partition_info(PARTITION_STATS *stat_info,
                                   uint part_id);
+  void set_partitions_to_open(List<String> *partition_names);
+  int change_partitions_to_open(List<String> *partition_names);
+  int open_read_partitions(char *name_buff, size_t name_buff_size,
+                           handler **sample);
   virtual int extra(enum ha_extra_function operation);
   virtual int extra_opt(enum ha_extra_function operation, ulong cachesize);
   virtual int reset(void);

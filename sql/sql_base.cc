@@ -1512,6 +1512,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   MDL_ticket *mdl_ticket;
   TABLE_SHARE *share;
   uint gts_flags;
+  int part_names_error=0;
   DBUG_ENTER("open_table");
 
   /*
@@ -1609,6 +1610,12 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       table= best_table;
       table->query_id= thd->query_id;
       DBUG_PRINT("info",("Using locked table"));
+      if (table->part_info)
+      {
+        /* Set all [named] partitions as used. */
+        part_names_error=
+          table->file->change_partitions_to_open(table_list->partition_names);
+      }
       goto reset;
     }
     /*
@@ -1892,6 +1899,12 @@ retry_share:
   {
     DBUG_ASSERT(table->file != NULL);
     MYSQL_REBIND_TABLE(table->file);
+    if (table->part_info)
+    {
+      /* Set all [named] partitions as used. */
+      part_names_error=
+        table->file->change_partitions_to_open(table_list->partition_names);
+    }
   }
   else
   {
@@ -1904,7 +1917,8 @@ retry_share:
     error= open_table_from_share(thd, share, alias,
                                  HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
                                  EXTRA_RECORD,
-                                 thd->open_options, table, FALSE);
+                                 thd->open_options, table, FALSE,
+                                 table_list->partition_names);
 
     if (error)
     {
@@ -1953,9 +1967,12 @@ retry_share:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (table->part_info)
   {
-    /* Set all [named] partitions as used. */
-    if (table->part_info->set_partition_bitmaps(table_list))
+    /* Partitions specified were incorrect.*/
+    if (part_names_error)
+    {
+      table->file->print_error(part_names_error, MYF(0));
       DBUG_RETURN(true);
+    }
   }
   else if (table_list->partition_names)
   {
