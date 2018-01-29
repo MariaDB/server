@@ -1544,8 +1544,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted.
       (see MDEV-10812).
     */
-    if (thd->wsrep_conflict_state() == ABORTED &&
-        command != COM_STMT_CLOSE && command != COM_QUIT)
+    if (thd->wsrep_conflict_state() == ABORTED)
     {
       thd->store_globals();
       WSREP_LOG_THD(thd, "enter found BF aborted");
@@ -1554,10 +1553,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       if (command == COM_STMT_PREPARE          ||
           command == COM_STMT_FETCH            ||
           command == COM_STMT_SEND_LONG_DATA   ||
-          command == COM_STMT_CLOSE
+          command == COM_STMT_CLOSE            ||
+          command == COM_QUIT
           )
       {
-        WSREP_DEBUG("Prepared Statement bail out");
+        WSREP_DEBUG("Prepared Statement bail out or COM_QUIT");
       }
       else
       {
@@ -2409,7 +2409,8 @@ com_multi_end:
         !(command == COM_STMT_PREPARE          ||
           command == COM_STMT_FETCH            ||
           command == COM_STMT_SEND_LONG_DATA   ||
-          command == COM_STMT_CLOSE
+          command == COM_STMT_CLOSE            ||
+          command == COM_QUIT
           ))
     {
       wsrep_override_error(thd, ER_LOCK_DEADLOCK);

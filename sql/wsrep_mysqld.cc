@@ -3923,11 +3923,12 @@ wsrep_status_t wsrep_tc_log_commit(THD* thd)
   {
     return WSREP_TRX_FAIL;
   }
-  if (tc_log->log_and_order(thd, thd->transaction.xid_state.xid.get_my_xid(),
--                            true, false, false))
+  if (binlog_hton->commit(binlog_hton, thd, true))
   {
+    WSREP_ERROR("Binlog hton commit fail");
     return WSREP_TRX_FAIL;
   }
+
   if (wsrep_after_commit(thd, true))
   {
     return WSREP_TRX_FAIL;
