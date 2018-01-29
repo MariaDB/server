@@ -1823,7 +1823,7 @@ row_truncate_table_for_mysql(
 		mutex_enter(&trx->undo_mutex);
 		mtr_t mtr;
 		mtr.start();
-		err = trx_undo_assign(trx, &mtr);
+		trx_undo_assign(trx, &err, &mtr);
 		mtr.commit();
 		mutex_exit(&trx->undo_mutex);
 

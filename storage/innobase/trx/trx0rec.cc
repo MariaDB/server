@@ -1902,22 +1902,15 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	ut_ad(!table->is_temporary());
 
 	mtr_t		mtr;
+	dberr_t		err;
 	mtr.start();
 	mutex_enter(&trx->undo_mutex);
-	dberr_t		err	= trx_undo_assign(trx, &mtr);
-	ut_ad((err == DB_SUCCESS) == (trx->rsegs.m_redo.undo != NULL));
-	if (trx_undo_t* undo = trx->rsegs.m_redo.undo) {
-		buf_block_t* block = buf_page_get_gen(
-			page_id_t(undo->space, undo->last_page_no),
-			univ_page_size, RW_X_LATCH,
-			buf_pool_is_obsolete(undo->withdraw_clock)
-			? NULL : undo->guess_block,
-			BUF_GET, __FILE__, __LINE__, &mtr, &err);
-		ut_ad((err == DB_SUCCESS) == !!block);
-
-		for (ut_d(int loop_count = 0); block;) {
+	if (buf_block_t* block = trx_undo_assign(trx, &err, &mtr)) {
+		trx_undo_t*	undo = trx->rsegs.m_redo.undo;
+		ut_ad(err == DB_SUCCESS);
+		ut_ad(undo);
+		for (ut_d(int loop_count = 0);;) {
 			ut_ad(++loop_count < 2);
-			buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 			ut_ad(undo->last_page_no == block->page.id.page_no());
 
 			if (ulint offset = trx_undo_page_report_rename(
@@ -1981,8 +1974,6 @@ trx_undo_report_row_operation(
 					undo log record */
 {
 	trx_t*		trx;
-	ulint		page_no;
-	buf_block_t*	undo_block;
 	mtr_t		mtr;
 #ifdef UNIV_DEBUG
 	int		loop_count	= 0;
@@ -2017,27 +2008,19 @@ trx_undo_report_row_operation(
 	}
 
 	mutex_enter(&trx->undo_mutex);
-	dberr_t		err	= *pundo
-		? DB_SUCCESS : trx_undo_assign_low(trx, rseg, pundo, &mtr);
+	dberr_t		err;
+	buf_block_t*	undo_block = trx_undo_assign_low(trx, rseg, pundo,
+							 &err, &mtr);
 	trx_undo_t*	undo	= *pundo;
 
-	ut_ad((err == DB_SUCCESS) == (undo != NULL));
-	if (undo == NULL) {
+	ut_ad((err == DB_SUCCESS) == (undo_block != NULL));
+	if (undo_block == NULL) {
 		goto err_exit;
 	}
 
-	page_no = undo->last_page_no;
-
-	undo_block = buf_page_get_gen(
-		page_id_t(undo->space, page_no), univ_page_size, RW_X_LATCH,
-		buf_pool_is_obsolete(undo->withdraw_clock)
-		? NULL : undo->guess_block, BUF_GET, __FILE__, __LINE__,
-		&mtr, &err);
-
-	buf_block_dbg_add_level(undo_block, SYNC_TRX_UNDO_PAGE);
+	ut_ad(undo != NULL);
 
 	do {
-		ut_ad(page_no == undo_block->page.id.page_no());
 		page_t*	undo_page = buf_block_get_frame(undo_block);
 		ulint	offset = !rec
 			? trx_undo_page_report_insert(
@@ -2082,7 +2065,7 @@ trx_undo_report_row_operation(
 			mtr_commit(&mtr);
 
 			undo->empty = FALSE;
-			undo->top_page_no = page_no;
+			undo->top_page_no = undo_block->page.id.page_no();
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
@@ -2113,11 +2096,11 @@ trx_undo_report_row_operation(
 			}
 
 			*roll_ptr = trx_undo_build_roll_ptr(
-				!rec, rseg->id, page_no, offset);
+				!rec, rseg->id, undo->top_page_no, offset);
 			return(DB_SUCCESS);
 		}
 
-		ut_ad(page_no == undo->last_page_no);
+		ut_ad(undo_block->page.id.page_no() == undo->last_page_no);
 
 		/* We have to extend the undo log by one page */
 
@@ -2129,7 +2112,6 @@ trx_undo_report_row_operation(
 		}
 
 		undo_block = trx_undo_add_page(trx, undo, &mtr);
-		page_no = undo->last_page_no;
 
 		DBUG_EXECUTE_IF("ib_err_ins_undo_page_add_failure",
 				undo_block = NULL;);

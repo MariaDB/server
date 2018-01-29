@@ -255,28 +255,25 @@ trx_undo_lists_init(
 /** Assign an undo log for a persistent transaction.
 A new undo log is created or a cached undo log reused.
 @param[in,out]	trx	transaction
+@param[out]	err	error code
 @param[in,out]	mtr	mini-transaction
-@retval	DB_SUCCESS	on success
-@retval	DB_TOO_MANY_CONCURRENT_TRXS
-@retval	DB_OUT_OF_FILE_SPACE
-@retval	DB_READ_ONLY
-@retval DB_OUT_OF_MEMORY */
-dberr_t
-trx_undo_assign(trx_t* trx, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+@return	the undo log block
+@retval	NULL	on error */
+buf_block_t*
+trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull));
 /** Assign an undo log for a transaction.
 A new undo log is created or a cached undo log reused.
 @param[in,out]	trx	transaction
 @param[in]	rseg	rollback segment
 @param[out]	undo	the undo log
+@param[out]	err	error code
 @param[in,out]	mtr	mini-transaction
-@retval	DB_SUCCESS	on success
-@retval	DB_TOO_MANY_CONCURRENT_TRXS
-@retval	DB_OUT_OF_FILE_SPACE
-@retval	DB_READ_ONLY
-@retval DB_OUT_OF_MEMORY */
-dberr_t
-trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo, mtr_t*mtr)
+@return	the undo log block
+@retval	NULL	on error */
+buf_block_t*
+trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
+		    dberr_t* err, mtr_t* mtr)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /******************************************************************//**
 Sets the state of the undo log segment at a transaction finish.

@@ -3403,7 +3403,7 @@ row_import_for_mysql(
 	{
 		mtr_t mtr;
 		mtr.start();
-		err = trx_undo_assign(trx, &mtr);
+		trx_undo_assign(trx, &err, &mtr);
 		mtr.commit();
 	}
 
