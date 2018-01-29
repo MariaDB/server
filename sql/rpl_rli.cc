@@ -1719,12 +1719,12 @@ process_gtid_pos_table(THD *thd, LEX_CSTRING *table_name, void *hton,
       if (!is_default)
       {
         /* Ignore the redundant table. */
-        sql_print_warning(warning_msg, table_name->str, entry->table_name);
+        sql_print_warning(warning_msg, table_name->str, entry->table_name.str);
         return 0;
       }
       else
       {
-        sql_print_warning(warning_msg, entry->table_name, table_name->str);
+        sql_print_warning(warning_msg, entry->table_name.str, table_name->str);
         /* Delete the redundant table, and proceed to add this one instead. */
         *next_ptr= entry->next;
         my_free(entry);
