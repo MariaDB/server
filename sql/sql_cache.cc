@@ -2477,6 +2477,7 @@ void Query_cache::init()
   */
   if (global_system_variables.query_cache_type == 0)
   {
+    m_cache_status= DISABLE_REQUEST;
     free_cache();
     m_cache_status= DISABLED;
   }
