@@ -107,8 +107,5 @@ SLEEP 1;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-# Note SET DEBUG = '-d,innodb_page_corruption_retries' is not required
-# because the session information is lost after server restart
-
 --echo # Cleanup
 DROP TABLE t1;
