@@ -11,8 +11,13 @@ create table t1(a1 int invisible);
 create table t1(a1 blob,invisible(a1));
 --error ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT
 create table t1(a1 int primary key invisible ,a2 int unique invisible , a3 blob,a4 int not null invisible unique);
---error ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT
+--error ER_TABLE_MUST_HAVE_COLUMNS
 create table t1(abc int not null invisible);
+--echo MDEV-14849 CREATE + ALTER with user-invisible columns produce invalid table definition
+create or replace table t1 (pk int auto_increment primary key invisible, i int);
+--error ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT
+alter table t1 modify pk int invisible;
+drop table t1;
 create table t1(a int invisible, b int);
 #should automatically add null
 insert into t1 values(1);

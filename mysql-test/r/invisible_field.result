@@ -26,7 +26,12 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 create table t1(a1 int primary key invisible ,a2 int unique invisible , a3 blob,a4 int not null invisible unique);
 ERROR HY000: Invisible column `a1` must have a default value
 create table t1(abc int not null invisible);
-ERROR HY000: Invisible column `abc` must have a default value
+ERROR 42000: A table must have at least 1 column
+MDEV-14849 CREATE + ALTER with user-invisible columns produce invalid table definition
+create or replace table t1 (pk int auto_increment primary key invisible, i int);
+alter table t1 modify pk int invisible;
+ERROR HY000: Invisible column `pk` must have a default value
+drop table t1;
 create table t1(a int invisible, b int);
 insert into t1 values(1);
 insert into t1(a) values(2);
@@ -439,7 +444,7 @@ d	int(11)	YES	UNI	NULL
 drop table t1;
 SHOW STATUS LIKE 'Feature_invisible_columns';
 Variable_name	Value
-Feature_invisible_columns	50
+Feature_invisible_columns	52
 #invisible is non reserved
 create table t1(a int unique , invisible int invisible, c int );
 desc t1;
