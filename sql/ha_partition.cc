@@ -3565,7 +3565,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
                       (PARTITION_ENABLED_TABLE_FLAGS));
   while (*(++file))
   {
-    if (!bitmap_is_set(&m_opened_partitions, file - m_file))
+    if (!bitmap_is_set(&m_opened_partitions, (uint)(file - m_file)))
       continue;
     /* MyISAM can have smaller ref_length for partitions with MAX_ROWS set */
     set_if_bigger(ref_length, ((*file)->ref_length));
@@ -3618,7 +3618,7 @@ err_handler:
   file= &m_file[m_tot_parts - 1];
   while (file-- != m_file)
   {
-    if (bitmap_is_set(&m_opened_partitions, file - m_file))
+    if (bitmap_is_set(&m_opened_partitions, (uint)(file - m_file)))
       (*file)->ha_close();
   }
 err_alloc:
@@ -3801,7 +3801,7 @@ int ha_partition::close(void)
 repeat:
   do
   {
-    if (!first || bitmap_is_set(&m_opened_partitions, file - m_file))
+    if (!first || bitmap_is_set(&m_opened_partitions, (uint)(file - m_file)))
       (*file)->ha_close();
   } while (*(++file));
 
@@ -8255,7 +8255,7 @@ int ha_partition::info(uint flag)
     do
     {
       file= *file_array;
-      if (bitmap_is_set(&(m_opened_partitions), (file_array - m_file)))
+      if (bitmap_is_set(&(m_opened_partitions), (uint)(file_array - m_file)))
       {
         /* Get variables if not already done */
         if (!(flag & HA_STATUS_VARIABLE) ||
@@ -8365,7 +8365,7 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size,
   *sample= NULL;
   do
   {
-    int n_file= file-m_file;
+    int n_file= (int)(file-m_file);
     int is_open= bitmap_is_set(&m_opened_partitions, n_file);
     int should_be_open= bitmap_is_set(&m_part_info->read_partitions, n_file);
 
