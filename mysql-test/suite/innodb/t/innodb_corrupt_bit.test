@@ -8,6 +8,7 @@
 
 -- disable_query_log
 call mtr.add_suppression("Flagged corruption of idx.*in CHECK TABLE");
+-- enable_query_log
 
 set names utf8;
 
@@ -36,9 +37,10 @@ INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+1,z+1 FROM corrupt_bit_test_ā;
 select count(*) from corrupt_bit_test_ā;
 
 # This will flag all secondary indexes corrupted
-SET SESSION debug_dbug="+d,dict_set_index_corrupted";
+SET @save_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d,dict_set_index_corrupted';
 check table corrupt_bit_test_ā;
-SET SESSION debug_dbug="-d,dict_set_index_corrupted";
+SET debug_dbug = @save_dbug;
 
 # Cannot create new indexes while corrupted indexes exist
 --error ER_INDEX_CORRUPT
