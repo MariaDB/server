@@ -1521,6 +1521,7 @@ public:
   {
     return NULL;
   }
+  virtual bool sp_prepare_and_store_item(THD *thd, Item **value);
 
   friend int cre_myisam(char * name, register TABLE *form, uint options,
 			ulonglong auto_increment_value);
@@ -3834,6 +3835,7 @@ public:
     {}
   ~Field_row();
   Virtual_tmp_table **virtual_tmp_table_addr() { return &m_table; }
+  bool sp_prepare_and_store_item(THD *thd, Item **value);
 };
 
 

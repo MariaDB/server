@@ -190,15 +190,20 @@ public:
   /////////////////////////////////////////////////////////////////////////
 
   int set_variable(THD *thd, uint var_idx, Item **value);
-  void set_variable_row_field_to_null(THD *thd, uint var_idx, uint field_idx);
   int set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
                              Item **value);
+  int set_variable_row_field_by_name(THD *thd, uint var_idx,
+                                     const LEX_CSTRING &field_name,
+                                     Item **value);
   int set_variable_row(THD *thd, uint var_idx, List<Item> &items);
   Item *get_item(uint var_idx) const
   { return m_var_items[var_idx]; }
 
   Item **get_item_addr(uint var_idx) const
   { return m_var_items.array() + var_idx; }
+
+  bool find_row_field_by_name_or_error(uint *field_idx, uint var_idx,
+                                       const LEX_CSTRING &field_name);
 
   bool set_return_value(THD *thd, Item **return_value_item);
 
@@ -362,6 +367,8 @@ private:
   ///
   /// @return Pointer to valid object on success, or NULL in case of error.
   Item_cache *create_case_expr_holder(THD *thd, const Item *item) const;
+
+  Virtual_tmp_table *virtual_tmp_table_for_row(uint idx);
 
 private:
   /// Top-level (root) parsing context for this runtime context.

@@ -1968,14 +1968,11 @@ bool Item_splocal_row_field::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
 {
   m_thd= thd;
-  Item *item, *row= m_thd->spcont->get_item(m_var_idx);
-  if (row->element_index_by_name(&m_field_idx, m_field_name))
-  {
-    my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0),
-             m_name.str, m_field_name.str);
+  if (thd->spcont->find_row_field_by_name_or_error(&m_field_idx,
+                                                   m_var_idx,
+                                                   m_field_name))
     return true;
-  }
-  item= row->element_index(m_field_idx);
+  Item *item= thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, it, item);
 }
@@ -7424,26 +7421,6 @@ void Item_field::print(String *str, enum_query_type query_type)
 }
 
 
-bool Item_field_row::element_index_by_name(uint *idx,
-                                           const LEX_CSTRING &name) const
-{
-  Field *field;
-  for (uint i= 0; (field= get_row_field(i)); i++)
-  {
-    // Use the same comparison style with sp_context::find_variable()
-    if (!my_strnncoll(system_charset_info,
-                      (const uchar *) field->field_name.str,
-                      field->field_name.length,
-                      (const uchar *) name.str, name.length))
-    {
-      *idx= i;
-      return false;
-    }
-  }
-  return true;
-}
-
-
 void Item_temptable_field::print(String *str, enum_query_type query_type)
 {
   /*
@@ -9290,7 +9267,7 @@ void Item_trigger_field::set_required_privilege(bool rw)
 
 bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 {
-  Item *item= sp_prepare_func_item(thd, it);
+  Item *item= thd->sp_prepare_func_item(it);
 
   if (!item)
     return true;

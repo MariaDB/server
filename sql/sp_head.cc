@@ -27,6 +27,7 @@
 #include "sql_array.h"         // Dynamic_array
 #include "log_event.h"         // Query_log_event
 #include "sql_derived.h"       // mysql_handle_derived
+#include "sql_select.h"        // Virtual_tmp_table
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation
@@ -337,8 +338,8 @@ sp_get_flags_for_command(LEX *lex)
 /**
   Prepare an Item for evaluation (call of fix_fields).
 
-  @param thd       thread handler
   @param it_addr   pointer on item refernce
+  @param cols      expected number of elements (1 for scalar, >=1 for ROWs)
 
   @retval
     NULL      error
@@ -346,21 +347,32 @@ sp_get_flags_for_command(LEX *lex)
     non-NULL  prepared item
 */
 
-Item *
-sp_prepare_func_item(THD* thd, Item **it_addr, uint cols)
+Item *THD::sp_prepare_func_item(Item **it_addr, uint cols)
 {
-  DBUG_ENTER("sp_prepare_func_item");
+  DBUG_ENTER("THD::sp_prepare_func_item");
+  Item *res= sp_fix_func_item(it_addr);
+  if (res && res->check_cols(cols))
+    DBUG_RETURN(NULL);
+  DBUG_RETURN(res);
+}
+
+
+/**
+  Fix an Item for evaluation for SP.
+*/
+Item *THD::sp_fix_func_item(Item **it_addr)
+{
+  DBUG_ENTER("THD::sp_fix_func_item");
   if (!(*it_addr)->fixed &&
-      (*it_addr)->fix_fields(thd, it_addr))
+      (*it_addr)->fix_fields(this, it_addr))
   {
     DBUG_PRINT("info", ("fix_fields() failed"));
     DBUG_RETURN(NULL);
   }
-  it_addr= (*it_addr)->this_item_addr(thd, it_addr);
+  it_addr= (*it_addr)->this_item_addr(this, it_addr);
 
-  if ((!(*it_addr)->fixed &&
-       (*it_addr)->fix_fields(thd, it_addr)) ||
-      (*it_addr)->check_cols(cols))
+  if (!(*it_addr)->fixed &&
+      (*it_addr)->fix_fields(this, it_addr))
   {
     DBUG_PRINT("info", ("fix_fields() failed"));
     DBUG_RETURN(NULL);
@@ -372,7 +384,6 @@ sp_prepare_func_item(THD* thd, Item **it_addr, uint cols)
 /**
   Evaluate an expression and store the result in the field.
 
-  @param thd                    current thread object
   @param result_field           the field to store the result
   @param expr_item_ptr          the root item of the expression
 
@@ -382,67 +393,13 @@ sp_prepare_func_item(THD* thd, Item **it_addr, uint cols)
     TRUE   on error
 */
 
-bool
-sp_eval_expr(THD *thd, Item *result_item, Field *result_field,
-             Item **expr_item_ptr)
+bool THD::sp_eval_expr(Field *result_field, Item **expr_item_ptr)
 {
-  Item *expr_item;
-  enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
-  bool save_abort_on_warning= thd->abort_on_warning;
-  bool save_stmt_modified_non_trans_table= 
-    thd->transaction.stmt.modified_non_trans_table;
-
-  DBUG_ENTER("sp_eval_expr");
-
-  if (!*expr_item_ptr)
-    goto error;
-
-  if (!(expr_item= sp_prepare_func_item(thd, expr_item_ptr,
-                                        result_item ? result_item->cols() : 1)))
-    goto error;
-
-  /*
-    expr_item is now fixed, it's safe to call cmp_type()
-    If result_item is NULL, then we're setting the RETURN value.
-  */
-  if ((!result_item || result_item->cmp_type() != ROW_RESULT) &&
-      expr_item->cmp_type() == ROW_RESULT)
-  {
-    my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
-    goto error;
-  }
-
-  /*
-    Set THD flags to emit warnings/errors in case of overflow/type errors
-    during saving the item into the field.
-
-    Save original values and restore them after save.
-  */
-
-  thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
-  thd->abort_on_warning= thd->is_strict_mode();
-  thd->transaction.stmt.modified_non_trans_table= FALSE;
-
+  DBUG_ENTER("THD::sp_eval_expr");
+  DBUG_ASSERT(*expr_item_ptr);
+  Sp_eval_expr_state state(this);
   /* Save the value in the field. Convert the value if needed. */
-
-  expr_item->save_in_field(result_field, 0);
-
-  thd->count_cuted_fields= save_count_cuted_fields;
-  thd->abort_on_warning= save_abort_on_warning;
-  thd->transaction.stmt.modified_non_trans_table= save_stmt_modified_non_trans_table;
-
-  if (!thd->is_error())
-    DBUG_RETURN(FALSE);
-
-error:
-  /*
-    In case of error during evaluation, leave the result field set to NULL.
-    Sic: we can't do it in the beginning of the function because the 
-    result field might be needed for its own re-evaluation, e.g. case of 
-    set x = x + 1;
-  */
-  result_field->set_null();
-  DBUG_RETURN (TRUE);
+  DBUG_RETURN(result_field->sp_prepare_and_store_item(this, expr_item_ptr));
 }
 
 
@@ -3371,19 +3328,7 @@ int
 sp_instr_set::exec_core(THD *thd, uint *nextp)
 {
   int res= thd->spcont->set_variable(thd, m_offset, &m_value);
-
-  if (res)
-  {
-    /* Failed to evaluate the value. Reset the variable to NULL. */
-
-    if (thd->spcont->set_variable(thd, m_offset, 0))
-    {
-      /* If this also failed, let's abort. */
-      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
-    }
-  }
   delete_explain_query(thd->lex);
-
   *nextp = m_ip+1;
   return res;
 }
@@ -3422,11 +3367,6 @@ sp_instr_set_row_field::exec_core(THD *thd, uint *nextp)
 {
   int res= thd->spcont->set_variable_row_field(thd, m_offset, m_field_offset,
                                                &m_value);
-  if (res)
-  {
-    /* Failed to evaluate the value. Reset the variable to NULL. */
-    thd->spcont->set_variable_row_field_to_null(thd, m_offset, m_field_offset);
-  }
   delete_explain_query(thd->lex);
   *nextp= m_ip + 1;
   return res;
@@ -3470,23 +3410,9 @@ sp_instr_set_row_field::print(String *str)
 int
 sp_instr_set_row_field_by_name::exec_core(THD *thd, uint *nextp)
 {
-  int res;
-  uint idx;
-  Item_field_row *row= (Item_field_row*) thd->spcont->get_item(m_offset);
-  if ((res= row->element_index_by_name(&idx, m_field_name)))
-  {
-    sp_variable *var= m_ctx->find_variable(m_offset);
-    my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0),
-             var->name.str, m_field_name.str);
-    goto error;
-  }
-  res= thd->spcont->set_variable_row_field(thd, m_offset, idx, &m_value);
-  if (res)
-  {
-    /* Failed to evaluate the value. Reset the variable to NULL. */
-    thd->spcont->set_variable_row_field_to_null(thd, m_offset, idx);
-  }
-error:
+  int res= thd->spcont->set_variable_row_field_by_name(thd, m_offset,
+                                                       m_field_name,
+                                                       &m_value);
   delete_explain_query(thd->lex);
   *nextp= m_ip + 1;
   return res;
@@ -3650,7 +3576,7 @@ sp_instr_jump_if_not::exec_core(THD *thd, uint *nextp)
   Item *it;
   int res;
 
-  it= sp_prepare_func_item(thd, &m_expr);
+  it= thd->sp_prepare_func_item(&m_expr);
   if (! it)
   {
     res= -1;

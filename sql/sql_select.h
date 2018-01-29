@@ -2127,6 +2127,48 @@ public:
     @return true  - on error (e.g. could not allocate the record buffer).
   */
   bool open();
+
+  void set_all_fields_to_null()
+  {
+    for (uint i= 0; i < s->fields; i++)
+      field[i]->set_null();
+  }
+  /**
+    Set all fields from a compatible item list.
+    The number of fields in "this" must be equal to the number
+    of elements in "value".
+  */
+  bool sp_set_all_fields_from_item_list(THD *thd, List<Item> &items);
+
+  /**
+    Set all fields from a compatible item.
+    The number of fields in "this" must be the same with the number
+    of elements in "value".
+  */
+  bool sp_set_all_fields_from_item(THD *thd, Item *value);
+
+  /**
+    Find a ROW element index by its name
+    Assumes that "this" is used as a storage for a ROW-type SP variable.
+    @param [OUT] idx        - the index of the found field is returned here
+    @param [IN]  field_name - find a field with this name
+    @return      true       - on error (the field was not found)
+    @return      false      - on success (idx[0] was set to the field index)
+  */
+  bool sp_find_field_by_name(uint *idx, const LEX_CSTRING &name) const;
+
+  /**
+    Find a ROW element index by its name.
+    If the element is not found, and error is issued.
+    @param [OUT] idx        - the index of the found field is returned here
+    @param [IN]  var_name   - the name of the ROW variable (for error reporting)
+    @param [IN]  field_name - find a field with this name
+    @return      true       - on error (the field was not found)
+    @return      false      - on success (idx[0] was set to the field index)
+  */
+  bool sp_find_field_by_name_or_error(uint *idx,
+                                      const LEX_CSTRING &var_name,
+                                      const LEX_CSTRING &field_name) const;
 };
 
 

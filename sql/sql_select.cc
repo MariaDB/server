@@ -17736,6 +17736,70 @@ bool Virtual_tmp_table::open()
 }
 
 
+bool Virtual_tmp_table::sp_find_field_by_name(uint *idx,
+                                              const LEX_CSTRING &name) const
+{
+  Field *f;
+  for (uint i= 0; (f= field[i]); i++)
+  {
+    // Use the same comparison style with sp_context::find_variable()
+    if (!my_strnncoll(system_charset_info,
+                      (const uchar *) f->field_name.str,
+                      f->field_name.length,
+                      (const uchar *) name.str, name.length))
+    {
+      *idx= i;
+      return false;
+    }
+  }
+  return true;
+}
+
+
+bool
+Virtual_tmp_table::sp_find_field_by_name_or_error(uint *idx,
+                                                  const LEX_CSTRING &var_name,
+                                                  const LEX_CSTRING &field_name)
+                                                  const
+{
+  if (sp_find_field_by_name(idx, field_name))
+  {
+    my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0),
+             var_name.str, field_name.str);
+    return true;
+  }
+  return false;
+}
+
+
+bool Virtual_tmp_table::sp_set_all_fields_from_item_list(THD *thd,
+                                                         List<Item> &items)
+{
+  DBUG_ASSERT(s->fields == items.elements);
+  List_iterator<Item> it(items);
+  Item *item;
+  for (uint i= 0 ; (item= it++) ; i++)
+  {
+    if (field[i]->sp_prepare_and_store_item(thd, &item))
+      return true;
+  }
+  return false;
+}
+
+
+bool Virtual_tmp_table::sp_set_all_fields_from_item(THD *thd, Item *value)
+{
+  DBUG_ASSERT(value->fixed);
+  DBUG_ASSERT(value->cols() == s->fields);
+  for (uint i= 0; i < value->cols(); i++)
+  {
+    if (field[i]->sp_prepare_and_store_item(thd, value->addr(i)))
+      return true;
+  }
+  return false;
+}
+
+
 bool open_tmp_table(TABLE *table)
 {
   int error;

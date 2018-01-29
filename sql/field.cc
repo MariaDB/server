@@ -1267,6 +1267,45 @@ bool Field::load_data_set_null(THD *thd)
 }
 
 
+bool Field::sp_prepare_and_store_item(THD *thd, Item **value)
+{
+  DBUG_ENTER("Field::sp_prepare_and_store_item");
+  DBUG_ASSERT(value);
+
+  Item *expr_item;
+
+  if (!(expr_item= thd->sp_prepare_func_item(value, 1)))
+    goto error;
+
+  /*
+    expr_item is now fixed, it's safe to call cmp_type()
+  */
+  if (expr_item->cmp_type() == ROW_RESULT)
+  {
+    my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
+    goto error;
+  }
+
+  /* Save the value in the field. Convert the value if needed. */
+
+  expr_item->save_in_field(this, 0);
+
+  if (!thd->is_error())
+    DBUG_RETURN(false);
+
+error:
+  /*
+    In case of error during evaluation, leave the result field set to NULL.
+    Sic: we can't do it in the beginning of the function because the 
+    result field might be needed for its own re-evaluation, e.g. case of 
+    set x = x + 1;
+  */
+  set_null();
+  DBUG_ASSERT(thd->is_error());
+  DBUG_RETURN(true);
+}
+
+
 /**
   Numeric fields base class constructor.
 */
@@ -2292,6 +2331,41 @@ void Field_null::sql_type(String &res) const
 Field_row::~Field_row()
 {
   delete m_table;
+}
+
+
+bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
+{
+  DBUG_ENTER("Field_row::sp_prepare_and_store_item");
+
+  if (value[0]->type() == Item::NULL_ITEM)
+  {
+    /*
+      We're in a auto-generated sp_inst_set, to assign
+      the explicit default NULL value to a ROW variable.
+    */
+    m_table->set_all_fields_to_null();
+    DBUG_RETURN(false);
+  }
+
+  /**
+    - In case if we're assigning a ROW variable from another ROW variable,
+      value[0] points to Item_splocal. sp_fix_func_item() will return the
+      fixed underlying Item_field pointing to Field_row.
+    - In case if we're assigning from a ROW() value, src and value[0] will
+      point to the same Item_row.
+  */
+  Item *src;
+  if (!(src= thd->sp_fix_func_item(value)) ||
+      src->cmp_type() != ROW_RESULT ||
+      src->cols() != m_table->s->fields)
+  {
+    my_error(ER_OPERAND_COLUMNS, MYF(0), m_table->s->fields);
+    m_table->set_all_fields_to_null();
+    DBUG_RETURN(true);
+  }
+
+  DBUG_RETURN(m_table->sp_set_all_fields_from_item(thd, src));
 }
 
 
