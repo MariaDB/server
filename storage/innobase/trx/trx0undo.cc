@@ -1299,9 +1299,6 @@ trx_undo_create(
 /*============*/
 	trx_t*		trx,	/*!< in: transaction */
 	trx_rseg_t*	rseg,	/*!< in: rollback segment memory copy */
-	trx_id_t	trx_id,	/*!< in: id of the trx for which the undo log
-				is created */
-	const XID*	xid,	/*!< in: X/Open transaction identification*/
 	trx_undo_t**	undo,	/*!< out: the new undo log object, undefined
 				 * if did not succeed */
 	mtr_t*		mtr)	/*!< in: mtr */
@@ -1332,17 +1329,36 @@ trx_undo_create(
 
 	page_no = page_get_page_no(undo_page);
 
-	offset = trx_undo_header_create(undo_page, trx_id, mtr);
+	offset = trx_undo_header_create(undo_page, trx->id, mtr);
 
 	trx_undo_header_add_space_for_xid(undo_page, undo_page + offset, mtr);
 
-	*undo = trx_undo_mem_create(rseg, id, trx_id, xid, page_no, offset);
+	*undo = trx_undo_mem_create(rseg, id, trx->id, trx->xid,
+				    page_no, offset);
 	if (*undo == NULL) {
 
-		err = DB_OUT_OF_MEMORY;
+		return DB_OUT_OF_MEMORY;
+	} else if (rseg != trx->rsegs.m_redo.rseg) {
+		return DB_SUCCESS;
 	}
 
-	return(err);
+	switch (trx_get_dict_operation(trx)) {
+	case TRX_DICT_OP_NONE:
+		break;
+	case TRX_DICT_OP_INDEX:
+		/* Do not discard the table on recovery. */
+		trx->table_id = 0;
+		/* fall through */
+	case TRX_DICT_OP_TABLE:
+		(*undo)->table_id = trx->table_id;
+		(*undo)->dict_operation = TRUE;
+		mlog_write_ulint(undo_page + offset + TRX_UNDO_DICT_TRANS,
+				 TRUE, MLOG_1BYTE, mtr);
+		mlog_write_ull(undo_page + offset + TRX_UNDO_TABLE_ID,
+			       trx->table_id, mtr);
+	}
+
+	return DB_SUCCESS;
 }
 
 /*================ UNDO LOG ASSIGNMENT AND CLEANUP =====================*/
@@ -1356,9 +1372,6 @@ trx_undo_reuse_cached(
 /*==================*/
 	trx_t*		trx,	/*!< in: transaction */
 	trx_rseg_t*	rseg,	/*!< in: rollback segment memory object */
-	trx_id_t	trx_id,	/*!< in: id of the trx for which the undo log
-				is used */
-	const XID*	xid,	/*!< in: X/Open XA transaction identification */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	trx_undo_t*	undo;
@@ -1380,50 +1393,72 @@ trx_undo_reuse_cached(
 	undo_page = trx_undo_page_get(
 		page_id_t(undo->space, undo->hdr_page_no), mtr);
 
-	offset = trx_undo_header_create(undo_page, trx_id, mtr);
+	offset = trx_undo_header_create(undo_page, trx->id, mtr);
 
 	trx_undo_header_add_space_for_xid(undo_page, undo_page + offset, mtr);
-	trx_undo_mem_init_for_reuse(undo, trx_id, xid, offset);
+
+	trx_undo_mem_init_for_reuse(undo, trx->id, trx->xid, offset);
+
+	if (rseg != trx->rsegs.m_redo.rseg) {
+		return undo;
+	}
+
+	switch (trx_get_dict_operation(trx)) {
+	case TRX_DICT_OP_NONE:
+		return undo;
+	case TRX_DICT_OP_INDEX:
+		/* Do not discard the table on recovery. */
+		trx->table_id = 0;
+		/* fall through */
+	case TRX_DICT_OP_TABLE:
+		undo->table_id = trx->table_id;
+		undo->dict_operation = TRUE;
+		mlog_write_ulint(undo_page + offset + TRX_UNDO_DICT_TRANS,
+				 TRUE, MLOG_1BYTE, mtr);
+		mlog_write_ull(undo_page + offset + TRX_UNDO_TABLE_ID,
+			       trx->table_id, mtr);
+	}
 
 	return(undo);
 }
 
-/**********************************************************************//**
-Marks an undo log header as a header of a data dictionary operation
-transaction. */
-static
-void
-trx_undo_mark_as_dict_operation(
-/*============================*/
-	trx_t*		trx,	/*!< in: dict op transaction */
-	trx_undo_t*	undo,	/*!< in: assigned undo log */
-	mtr_t*		mtr)	/*!< in: mtr */
+/** Assign an undo log for a persistent transaction.
+A new undo log is created or a cached undo log reused.
+@param[in,out]	trx	transaction
+@param[in,out]	mtr	mini-transaction
+@retval	DB_SUCCESS	on success
+@retval	DB_TOO_MANY_CONCURRENT_TRXS
+@retval	DB_OUT_OF_FILE_SPACE
+@retval	DB_READ_ONLY
+@retval DB_OUT_OF_MEMORY */
+dberr_t
+trx_undo_assign(trx_t* trx, mtr_t* mtr)
 {
-	page_t*	hdr_page;
+	dberr_t err = DB_SUCCESS;
 
-	hdr_page = trx_undo_page_get(
-		page_id_t(undo->space, undo->hdr_page_no), mtr);
+	ut_ad(mutex_own(&trx->undo_mutex));
+	ut_ad(mtr->get_log_mode() == MTR_LOG_ALL);
 
-	switch (trx_get_dict_operation(trx)) {
-	case TRX_DICT_OP_NONE:
-		ut_error;
-	case TRX_DICT_OP_INDEX:
-		/* Do not discard the table on recovery. */
-		undo->table_id = 0;
-		break;
-	case TRX_DICT_OP_TABLE:
-		undo->table_id = trx->table_id;
-		break;
+	if (trx->rsegs.m_redo.undo) {
+		return DB_SUCCESS;
 	}
 
-	mlog_write_ulint(hdr_page + undo->hdr_offset
-			 + TRX_UNDO_DICT_TRANS,
-			 TRUE, MLOG_1BYTE, mtr);
+	trx_rseg_t* rseg = trx->rsegs.m_redo.rseg;
 
-	mlog_write_ull(hdr_page + undo->hdr_offset + TRX_UNDO_TABLE_ID,
-		       undo->table_id, mtr);
+	mutex_enter(&rseg->mutex);
+	if (!(trx->rsegs.m_redo.undo= trx_undo_reuse_cached(trx, rseg, mtr))) {
+		err = trx_undo_create(trx, rseg, &trx->rsegs.m_redo.undo, mtr);
+		if (err != DB_SUCCESS) {
+			goto func_exit;
+		}
+	}
 
-	undo->dict_operation = TRUE;
+	UT_LIST_ADD_FIRST(rseg->undo_list, trx->rsegs.m_redo.undo);
+
+func_exit:
+	mutex_exit(&rseg->mutex);
+
+	return err;
 }
 
 /** Assign an undo log for a transaction.
@@ -1431,16 +1466,16 @@ A new undo log is created or a cached undo log reused.
 @param[in,out]	trx	transaction
 @param[in]	rseg	rollback segment
 @param[out]	undo	the undo log
+@param[in,out]	mtr	mini-transaction
 @retval	DB_SUCCESS	on success
 @retval	DB_TOO_MANY_CONCURRENT_TRXS
 @retval	DB_OUT_OF_FILE_SPACE
 @retval	DB_READ_ONLY
 @retval DB_OUT_OF_MEMORY */
 dberr_t
-trx_undo_assign_undo(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo)
+trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo, mtr_t*mtr)
 {
 	const bool	is_temp = rseg == trx->rsegs.m_noredo.rseg;
-	mtr_t		mtr;
 	dberr_t		err = DB_SUCCESS;
 
 	ut_ad(mutex_own(&trx->undo_mutex));
@@ -1449,12 +1484,9 @@ trx_undo_assign_undo(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo)
 	ut_ad(undo == (is_temp
 		       ? &trx->rsegs.m_noredo.undo
 		       : &trx->rsegs.m_redo.undo));
-
-	mtr.start(trx);
-
-	if (is_temp) {
-		mtr.set_log_mode(MTR_LOG_NO_REDO);
-	}
+	ut_ad(!*undo);
+	ut_ad(mtr->get_log_mode()
+	      == (is_temp ? MTR_LOG_NO_REDO : MTR_LOG_ALL));
 
 	mutex_enter(&rseg->mutex);
 
@@ -1464,10 +1496,8 @@ trx_undo_assign_undo(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo)
 		goto func_exit;
 	);
 
-	*undo = trx_undo_reuse_cached(trx, rseg, trx->id, trx->xid, &mtr);
-	if (*undo == NULL) {
-		err = trx_undo_create(trx, rseg, trx->id, trx->xid,
-				      undo, &mtr);
+	if (!(*undo= trx_undo_reuse_cached(trx, rseg, mtr))) {
+		err = trx_undo_create(trx, rseg, undo, mtr);
 		if (err != DB_SUCCESS) {
 			goto func_exit;
 		}
@@ -1475,14 +1505,8 @@ trx_undo_assign_undo(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo)
 
 	UT_LIST_ADD_FIRST(rseg->undo_list, *undo);
 
-	if (!is_temp && trx_get_dict_operation(trx) != TRX_DICT_OP_NONE) {
-		trx_undo_mark_as_dict_operation(trx, *undo, &mtr);
-	}
-
 func_exit:
 	mutex_exit(&rseg->mutex);
-	mtr.commit();
-
 	return(err);
 }
 

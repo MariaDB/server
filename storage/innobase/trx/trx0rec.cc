@@ -1901,17 +1901,12 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	ut_ad(trx->id);
 	ut_ad(!table->is_temporary());
 
-	trx_rseg_t*	rseg	= trx->rsegs.m_redo.rseg;
-	trx_undo_t**	pundo	= &trx->rsegs.m_redo.undo;
+	mtr_t		mtr;
+	mtr.start();
 	mutex_enter(&trx->undo_mutex);
-	dberr_t		err	= *pundo
-		? DB_SUCCESS
-		: trx_undo_assign_undo(trx, rseg, pundo);
-	ut_ad((err == DB_SUCCESS) == (*pundo != NULL));
-	if (trx_undo_t* undo = *pundo) {
-		mtr_t	mtr;
-		mtr.start(trx);
-
+	dberr_t		err	= trx_undo_assign(trx, &mtr);
+	ut_ad((err == DB_SUCCESS) == (trx->rsegs.m_redo.undo != NULL));
+	if (trx_undo_t* undo = trx->rsegs.m_redo.undo) {
 		buf_block_t* block = buf_page_get_gen(
 			page_id_t(undo->space, undo->last_page_no),
 			univ_page_size, RW_X_LATCH,
@@ -1934,12 +1929,13 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 				undo->top_undo_no = trx->undo_no++;
 				undo->guess_block = block;
 
-				trx->undo_rseg_space = rseg->space;
+				trx->undo_rseg_space
+					= trx->rsegs.m_redo.rseg->space;
 				err = DB_SUCCESS;
 				break;
 			} else {
 				mtr.commit();
-				mtr.start(trx);
+				mtr.start();
 				block = trx_undo_add_page(trx, undo, &mtr);
 				if (!block) {
 					err = DB_OUT_OF_FILE_SPACE;
@@ -2006,7 +2002,7 @@ trx_undo_report_row_operation(
 	mtr.start();
 	trx_undo_t**	pundo;
 	trx_rseg_t*	rseg;
-	const bool	is_temp	= dict_table_is_temporary(index->table);
+	const bool	is_temp	= index->table->is_temporary();
 
 	if (is_temp) {
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
@@ -2021,9 +2017,9 @@ trx_undo_report_row_operation(
 	}
 
 	mutex_enter(&trx->undo_mutex);
-	dberr_t	err = *pundo ? DB_SUCCESS : trx_undo_assign_undo(
-		trx, rseg, pundo);
-	trx_undo_t*	undo = *pundo;
+	dberr_t		err	= *pundo
+		? DB_SUCCESS : trx_undo_assign_low(trx, rseg, pundo, &mtr);
+	trx_undo_t*	undo	= *pundo;
 
 	ut_ad((err == DB_SUCCESS) == (undo != NULL));
 	if (undo == NULL) {
@@ -2051,12 +2047,6 @@ trx_undo_report_row_operation(
 				cmpl_info, clust_entry, &mtr);
 
 		if (UNIV_UNLIKELY(offset == 0)) {
-			/* The record did not fit on the page. We erase the
-			end segment of the undo log page and write a log
-			record of it: this is to ensure that in the debug
-			version the replicate page constructed using the log
-			records stays identical to the original page */
-
 			if (!trx_undo_erase_page_end(undo_page)) {
 				/* The record did not fit on an empty
 				undo page. Discard the freshly allocated
@@ -2071,8 +2061,8 @@ trx_undo_report_row_operation(
 				first, because it may be holding lower-level
 				latches, such as SYNC_FSP and SYNC_FSP_PAGE. */
 
-				mtr_commit(&mtr);
-				mtr.start(trx);
+				mtr.commit();
+				mtr.start();
 				if (is_temp) {
 					mtr.set_log_mode(MTR_LOG_NO_REDO);
 				}
@@ -2132,7 +2122,7 @@ trx_undo_report_row_operation(
 		/* We have to extend the undo log by one page */
 
 		ut_ad(++loop_count < 2);
-		mtr.start(trx);
+		mtr.start();
 
 		if (is_temp) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
