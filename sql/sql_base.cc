@@ -8107,6 +8107,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
   Item_field *field;
+  Field *rfield;
+  TABLE *table;
   bool only_unvers_fields= update && table_arg->versioned();
   bool save_abort_on_warning= thd->abort_on_warning;
   bool save_no_errors= thd->no_errors;
@@ -8140,8 +8142,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     }
     value=v++;
     DBUG_ASSERT(value);
-    Field *rfield= field->field;
-    TABLE* table= rfield->table;
+    rfield= field->field;
+    table= rfield->table;
     if (table->next_number_field &&
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
@@ -8162,13 +8164,39 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     if (only_unvers_fields && !rfield->vers_update_unversioned())
       only_unvers_fields= false;
 
-    if (rfield->stored_in_db() &&
-        (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
+    if (rfield->stored_in_db())
     {
-      my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
-      goto err;
+      if (value->save_in_field(rfield, 0) < 0 && !ignore_errors)
+      {
+        my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
+        goto err;
+      }
+      /*
+        In sql MODE_SIMULTANEOUS_ASSIGNMENT,
+        move field pointer on value stored in record[1]
+        which contains row before update (see MDEV-13417)
+      */
+      if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
+        rfield->move_field_offset((my_ptrdiff_t) (table->record[1] -
+                                                  table->record[0]));
     }
     rfield->set_explicit_default(value);
+  }
+
+  if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
+  {
+    // restore fields pointers on record[0]
+    f.rewind();
+    while ((fld= f++))
+    {
+      rfield= fld->field_for_view_update()->field;
+      if (rfield->stored_in_db())
+      {
+        table= rfield->table;
+        rfield->move_field_offset((my_ptrdiff_t) (table->record[0] -
+                                                  table->record[1]));
+      }
+    }
   }
 
   if (!update && table_arg->default_field &&

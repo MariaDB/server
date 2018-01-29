@@ -983,6 +983,10 @@ public:
   {
     return bitmap_is_set(&table->has_value_set, field_index);
   }
+  void clear_has_explicit_value()
+  {
+    bitmap_clear_bit(&table->has_value_set, field_index);
+  }
   bool set_explicit_default(Item *value);
 
   virtual my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const

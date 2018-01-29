@@ -140,6 +140,7 @@ enum enum_binlog_row_image {
 #define MODE_NO_ENGINE_SUBSTITUTION     (1ULL << 30)
 #define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
 #define MODE_EMPTY_STRING_IS_NULL       (1ULL << 32)
+#define MODE_SIMULTANEOUS_ASSIGNMENT    (1ULL << 33)
 
 /* Bits for different old style modes */
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
