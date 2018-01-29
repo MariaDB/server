@@ -6,7 +6,6 @@
 # lost such events.
 # The test verifies the fixes' correctness simulating the 2GB offset.
 
-source include/have_semisync.inc;
 source include/not_embedded.inc;
 source include/have_innodb.inc;
 source include/have_debug.inc;
