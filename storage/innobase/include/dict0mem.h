@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1543,6 +1543,27 @@ struct dict_table_t {
 	void add_to_cache();
 
 	bool versioned() const { return vers_start || vers_end; }
+	bool versioned_by_id() const
+	{
+		return vers_start && cols[vers_start].mtype == DATA_INT;
+	}
+
+	void inc_fk_checks()
+	{
+#ifdef UNIV_DEBUG
+		lint fk_checks=
+#endif
+		my_atomic_addlint(&n_foreign_key_checks_running, 1);
+		ut_ad(fk_checks >= 0);
+	}
+	void dec_fk_checks()
+	{
+#ifdef UNIV_DEBUG
+		lint fk_checks=
+#endif
+		my_atomic_addlint(&n_foreign_key_checks_running, -1);
+		ut_ad(fk_checks > 0);
+	}
 
 	/** Id of the table. */
 	table_id_t				id;

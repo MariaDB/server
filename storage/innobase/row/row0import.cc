@@ -3400,8 +3400,12 @@ row_import_for_mysql(
 	mutex_enter(&trx->undo_mutex);
 
 	/* TODO: Do not write any undo log for the IMPORT cleanup. */
-	err = trx_undo_assign_undo(trx, trx->rsegs.m_redo.rseg,
-				   &trx->rsegs.m_redo.undo);
+	{
+		mtr_t mtr;
+		mtr.start();
+		trx_undo_assign(trx, &err, &mtr);
+		mtr.commit();
+	}
 
 	mutex_exit(&trx->undo_mutex);
 

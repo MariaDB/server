@@ -1944,13 +1944,6 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
                        thr_lock_type locktype,
                        enum_mdl_type mdl_type);
 
-Item *
-sp_prepare_func_item(THD* thd, Item **it_addr, uint cols= 1);
-
-bool
-sp_eval_expr(THD *thd, Item *result_item, Field *result_field,
-             Item **expr_item_ptr);
-
 /**
   @} (end of group Stored_Routines)
 */

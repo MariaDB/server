@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -699,7 +699,6 @@ class trx_mod_table_time_t
 	undo_no_t	first;
 	/** First modification of a system versioned column */
 	undo_no_t	first_versioned;
-	bool		vers_by_trx;
 
 	/** Magic value signifying that a system versioned column of a
 	table was never modified in a transaction. */
@@ -709,8 +708,7 @@ public:
 	/** Constructor
 	@param[in]	rows	number of modified rows so far */
 	trx_mod_table_time_t(undo_no_t rows)
-		: first(rows), first_versioned(UNVERSIONED),
-		vers_by_trx(false) {}
+		: first(rows), first_versioned(UNVERSIONED) {}
 
 #ifdef UNIV_DEBUG
 	/** Validation
@@ -723,18 +721,13 @@ public:
 #endif /* UNIV_DEBUG */
 	/** @return if versioned columns were modified */
 	bool is_versioned() const { return first_versioned != UNVERSIONED; }
-	bool is_trx_versioned() const
-	{
-		return is_versioned() && vers_by_trx;
-	}
 
 	/** After writing an undo log record, set is_versioned() if needed
 	@param[in]	rows	number of modified rows so far */
-	void set_versioned(undo_no_t rows, bool by_trx_id)
+	void set_versioned(undo_no_t rows)
 	{
 		ut_ad(!is_versioned());
 		first_versioned = rows;
-		vers_by_trx = by_trx_id;
 		ut_ad(valid());
 	}
 

@@ -1733,10 +1733,6 @@ public:
   // Row emulation
   virtual uint cols() const { return 1; }
   virtual Item* element_index(uint i) { return this; }
-  virtual bool element_index_by_name(uint *idx, const LEX_CSTRING &name) const
-  {
-    return true; // Error
-  }
   virtual Item** addr(uint i) { return 0; }
   virtual bool check_cols(uint c);
   bool check_type_traditional_scalar(const char *opname) const;
@@ -2980,7 +2976,6 @@ public:
 
   const Type_handler *type_handler() const { return &type_handler_row; }
   uint cols() const { return arg_count; }
-  bool element_index_by_name(uint *idx, const LEX_CSTRING &name) const;
   Item* element_index(uint i) { return arg_count ? args[i] : this; }
   Item** addr(uint i) { return arg_count ? args + i : NULL; }
   bool check_cols(uint c)
@@ -2993,7 +2988,6 @@ public:
     return false;
   }
   bool row_create_items(THD *thd, List<Spvar_definition> *list);
-  Field *get_row_field(uint i) const;
 };
 
 

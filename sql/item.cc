@@ -1973,14 +1973,11 @@ bool Item_splocal_row_field::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
 {
   m_thd= thd;
-  Item *item, *row= m_thd->spcont->get_item(m_var_idx);
-  if (row->element_index_by_name(&m_field_idx, m_field_name))
-  {
-    my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0),
-             m_name.str, m_field_name.str);
+  if (thd->spcont->find_row_field_by_name_or_error(&m_field_idx,
+                                                   m_var_idx,
+                                                   m_field_name))
     return true;
-  }
-  item= row->element_index(m_field_idx);
+  Item *item= thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, it, item);
 }
@@ -5712,7 +5709,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   */
   Name_resolution_context *last_checked_context= context;
   Item **ref= (Item **) not_found_item;
-  SELECT_LEX *current_sel= (SELECT_LEX *) thd->lex->current_select;
+  SELECT_LEX *current_sel= thd->lex->current_select;
   Name_resolution_context *outer_context= 0;
   SELECT_LEX *select= 0;
   /* Currently derived tables cannot be correlated */
@@ -6046,8 +6043,9 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   DBUG_ASSERT(fixed == 0);
   Field *from_field= (Field *)not_found_field;
   bool outer_fixed= false;
+  SELECT_LEX *select= thd->lex->current_select;
   
-  if (thd->lex->current_select->in_tvc)
+  if (select && select->in_tvc)
   {
     my_error(ER_FIELD_REFERENCE_IN_TVC, MYF(0),
              full_name(), thd->where);
@@ -6075,13 +6073,14 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 	not_found_field)
     {
       int ret;
+
       /* Look up in current select's item_list to find aliased fields */
-      if (thd->lex->current_select->is_item_list_lookup)
+      if (select && select->is_item_list_lookup)
       {
         uint counter;
         enum_resolution_type resolution;
         Item** res= find_item_in_list(this,
-                                      thd->lex->current_select->item_list,
+                                      select->item_list,
                                       &counter, REPORT_EXCEPT_NOT_FOUND,
                                       &resolution);
         if (!res)
@@ -6113,7 +6112,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               We can not "move" aggregate function in the place where
               its arguments are not defined.
             */
-            set_max_sum_func_level(thd, thd->lex->current_select);
+            set_max_sum_func_level(thd, select);
             set_field(new_field);
             return 0;
           }
@@ -6132,7 +6131,6 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
             if (err)
               return TRUE;
            
-            SELECT_LEX *select= thd->lex->current_select;
             thd->change_item_tree(reference,
                                   select->context_analysis_place == IN_GROUP_BY && 
 				  alias_name_used  ?  *rf->ref : rf);
@@ -6141,10 +6139,16 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               We can not "move" aggregate function in the place where
               its arguments are not defined.
             */
-            set_max_sum_func_level(thd, thd->lex->current_select);
+            set_max_sum_func_level(thd, select);
             return FALSE;
           }
         }
+      }
+
+      if (!select)
+      {
+        my_error(ER_BAD_FIELD_ERROR, MYF(0), full_name(), thd->where);
+        goto error;
       }
       if ((ret= fix_outer_field(thd, &from_field, reference)) < 0)
         goto error;
@@ -6174,9 +6178,9 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
     if (thd->lex->in_sum_func &&
         thd->lex->in_sum_func->nest_level == 
-        thd->lex->current_select->nest_level)
+        select->nest_level)
       set_if_bigger(thd->lex->in_sum_func->max_arg_level,
-                    thd->lex->current_select->nest_level);
+                    select->nest_level);
     /*
       if it is not expression from merged VIEW we will set this field.
 
@@ -6242,11 +6246,12 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     fix_session_vcol_expr_for_read(thd, field, field->vcol_info);
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
-      thd->lex->current_select->cur_pos_in_select_list != UNDEF_POS &&
-      thd->lex->current_select->join)
+      select &&
+      select->cur_pos_in_select_list != UNDEF_POS &&
+      select->join)
   {
-    thd->lex->current_select->join->non_agg_fields.push_back(this, thd->mem_root);
-    marker= thd->lex->current_select->cur_pos_in_select_list;
+    select->join->non_agg_fields.push_back(this, thd->mem_root);
+    marker= select->cur_pos_in_select_list;
   }
 mark_non_agg_field:
   /*
@@ -6283,7 +6288,7 @@ mark_non_agg_field:
       if (outer_fixed)
         thd->lex->in_sum_func->outer_fields.push_back(this, thd->mem_root);
       else if (thd->lex->in_sum_func->nest_level !=
-          thd->lex->current_select->nest_level)
+          select->nest_level)
         select_lex->set_non_agg_field_used(true);
     }
   }
@@ -7693,26 +7698,6 @@ void Item_field::print(String *str, enum_query_type query_type)
     return;
   }
   Item_ident::print(str, query_type);
-}
-
-
-bool Item_field_row::element_index_by_name(uint *idx,
-                                           const LEX_CSTRING &name) const
-{
-  Field *field;
-  for (uint i= 0; (field= get_row_field(i)); i++)
-  {
-    // Use the same comparison style with sp_context::find_variable()
-    if (!my_strnncoll(system_charset_info,
-                      (const uchar *) field->field_name.str,
-                      field->field_name.length,
-                      (const uchar *) name.str, name.length))
-    {
-      *idx= i;
-      return false;
-    }
-  }
-  return true;
 }
 
 
@@ -9562,7 +9547,7 @@ void Item_trigger_field::set_required_privilege(bool rw)
 
 bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 {
-  Item *item= sp_prepare_func_item(thd, it);
+  Item *item= thd->sp_prepare_func_item(it);
 
   if (!item)
     return true;

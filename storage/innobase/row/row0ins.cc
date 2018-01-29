@@ -1446,15 +1446,11 @@ row_ins_foreign_check_on_constraint(
 #endif /* WITH_WSREP */
 	node->new_upd_nodes->push_back(cascade);
 
-	my_atomic_addlint(&table->n_foreign_key_checks_running, 1);
-
-	ut_ad(foreign->foreign_table->n_foreign_key_checks_running > 0);
+	table->inc_fk_checks();
 
 	/* Release the data dictionary latch for a while, so that we do not
 	starve other threads from doing CREATE TABLE etc. if we have a huge
-	cascaded operation running. The counter n_foreign_key_checks_running
-	will prevent other users from dropping or ALTERing the table when we
-	release the latch. */
+	cascaded operation running. */
 
 	row_mysql_unfreeze_data_dictionary(thr_get_trx(thr));
 
@@ -1552,17 +1548,6 @@ row_ins_set_exclusive_rec_lock(
 
 	return(err);
 }
-
-/* Decrement a counter in the destructor. */
-class ib_dec_in_dtor {
-public:
-	ib_dec_in_dtor(ulint& c): counter(c) {}
-	~ib_dec_in_dtor() {
-		my_atomic_addlint(&counter, -1);
-	}
-private:
-	ulint&		counter;
-};
 
 /***************************************************************//**
 Checks if foreign key constraint fails for an index entry. Sets shared locks
@@ -1911,19 +1896,13 @@ end_scan:
 
 do_possible_lock_wait:
 	if (err == DB_LOCK_WAIT) {
-		/* An object that will correctly decrement the FK check counter
-		when it goes out of this scope. */
-		ib_dec_in_dtor	dec(check_table->n_foreign_key_checks_running);
-
 		trx->error_state = err;
 
 		que_thr_stop_for_mysql(thr);
 
 		thr->lock_state = QUE_THR_LOCK_ROW;
 
-		/* To avoid check_table being dropped, increment counter */
-		my_atomic_addlint(
-			&check_table->n_foreign_key_checks_running, 1);
+		check_table->inc_fk_checks();
 
 		trx_kill_blocking(trx);
 
@@ -1934,6 +1913,8 @@ do_possible_lock_wait:
 		err = check_table->to_be_dropped
 			? DB_LOCK_WAIT_TIMEOUT
 			: trx->error_state;
+
+		check_table->dec_fk_checks();
 	}
 
 exit_func:

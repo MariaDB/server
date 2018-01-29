@@ -121,7 +121,7 @@ row_vers_impl_x_locked_low(
 		DBUG_RETURN(0);
 	}
 
-	trx_t*	trx = trx_sys.rw_trx_hash.find(caller_trx, trx_id, true);
+	trx_t*	trx = trx_sys.find(caller_trx, trx_id);
 
 	if (trx == 0) {
 		/* The transaction that modified or inserted clust_rec is no
@@ -186,7 +186,7 @@ row_vers_impl_x_locked_low(
 		inserting a delete-marked record. */
 		ut_ad(prev_version
 		      || !rec_get_deleted_flag(version, comp)
-		      || !trx_sys.rw_trx_hash.find(caller_trx, trx_id));
+		      || !trx_sys.is_registered(caller_trx, trx_id));
 
 		/* Free version and clust_offsets. */
 		mem_heap_free(old_heap);
@@ -1280,7 +1280,7 @@ row_vers_build_for_semi_consistent_read(
 			rec_trx_id = version_trx_id;
 		}
 
-		if (!trx_sys.rw_trx_hash.find(caller_trx, version_trx_id)) {
+		if (!trx_sys.is_registered(caller_trx, version_trx_id)) {
 committed_version_trx:
 			/* We found a version that belongs to a
 			committed transaction: return it. */

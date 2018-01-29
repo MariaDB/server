@@ -1758,11 +1758,8 @@ dict_stats_analyze_index_for_n_prefix(
 		ut_a(left <= right);
 		ut_a(right <= last_idx_on_level);
 
-		/* we do not pass (left, right) because we do not want to ask
-		ut_rnd_interval() to work with too big numbers since
-		ib_uint64_t could be bigger than ulint */
-		const ulint	rnd = ut_rnd_interval(
-			0, static_cast<ulint>(right - left));
+		const ulint	rnd = right == left ? 0 :
+			ut_rnd_gen_ulint() % (right - left);
 
 		const ib_uint64_t	dive_below_idx
 			= boundaries->at(static_cast<unsigned>(left + rnd));

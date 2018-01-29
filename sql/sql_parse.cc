@@ -2914,6 +2914,7 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
     result of previous parsing.
   */
   thd->lex->current_select= NULL;
+  thd->lex->in_sum_func= 0;                     // For Item_field::fix_fields()
 
   /*
     We never write CALL statements into binlog:

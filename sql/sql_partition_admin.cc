@@ -802,8 +802,8 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
       DBUG_RETURN(true);
     partition_names_list.push_back(str_partition_name, thd->mem_root);
   }
-  first_table->partition_names= &partition_names_list;
-  if (first_table->table->part_info->set_partition_bitmaps(first_table))
+  if (first_table->table->
+        part_info->set_partition_bitmaps(&partition_names_list))
     DBUG_RETURN(true);
 
   if (lock_tables(thd, first_table, table_counter, 0))

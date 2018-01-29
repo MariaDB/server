@@ -317,10 +317,7 @@ lock_loop:
 	while (i < srv_n_spin_wait_rounds &&
 	       my_atomic_load32_explicit(&lock->lock_word,
 					 MY_MEMORY_ORDER_RELAXED) <= 0) {
-		if (srv_spin_wait_delay) {
-			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
-		}
-
+		ut_delay(srv_spin_wait_delay);
 		i++;
 	}
 
@@ -441,9 +438,7 @@ rw_lock_x_lock_wait_func(
 
 	HMT_low();
 	while (my_atomic_load32_explicit(&lock->lock_word, MY_MEMORY_ORDER_RELAXED) < threshold) {
-		if (srv_spin_wait_delay) {
-			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
-		}
+		ut_delay(srv_spin_wait_delay);
 
 		if (i < srv_n_spin_wait_rounds) {
 			i++;
@@ -714,12 +709,7 @@ lock_loop:
 		HMT_low();
 		while (i < srv_n_spin_wait_rounds
 		       && my_atomic_load32_explicit(&lock->lock_word, MY_MEMORY_ORDER_RELAXED) <= X_LOCK_HALF_DECR) {
-
-			if (srv_spin_wait_delay) {
-				ut_delay(ut_rnd_interval(
-						0, srv_spin_wait_delay));
-			}
-
+			ut_delay(srv_spin_wait_delay);
 			i++;
 		}
 
@@ -820,12 +810,7 @@ lock_loop:
 		/* Spin waiting for the lock_word to become free */
 		while (i < srv_n_spin_wait_rounds
 		       && my_atomic_load32_explicit(&lock->lock_word, MY_MEMORY_ORDER_RELAXED) <= X_LOCK_HALF_DECR) {
-
-			if (srv_spin_wait_delay) {
-				ut_delay(ut_rnd_interval(
-						0, srv_spin_wait_delay));
-			}
-
+			ut_delay(srv_spin_wait_delay);
 			i++;
 		}
 

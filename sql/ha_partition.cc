@@ -368,6 +368,7 @@ void ha_partition::init_handler_variables()
   part_share= NULL;
   m_new_partitions_share_refs.empty();
   m_part_ids_sorted_by_num_of_records= NULL;
+  m_partitions_to_open= NULL;
 
   m_range_info= NULL;
   m_mrr_full_buffer_size= 0;
@@ -389,6 +390,7 @@ void ha_partition::init_handler_variables()
   my_bitmap_clear(&m_partitions_to_reset);
   my_bitmap_clear(&m_key_not_found_partitions);
   my_bitmap_clear(&m_mrr_used_partitions);
+  my_bitmap_clear(&m_opened_partitions);
 
 #ifdef DONT_HAVE_TO_BE_INITALIZED
   m_start_key.flag= 0;
@@ -3360,6 +3362,7 @@ void ha_partition::free_partition_bitmaps()
   my_bitmap_free(&m_locked_partitions);
   my_bitmap_free(&m_partitions_to_reset);
   my_bitmap_free(&m_key_not_found_partitions);
+  my_bitmap_free(&m_opened_partitions);
   my_bitmap_free(&m_mrr_used_partitions);
 }
 
@@ -3401,6 +3404,9 @@ bool ha_partition::init_partition_bitmaps()
   if (bitmap_init(&m_mrr_used_partitions, NULL, m_tot_parts, TRUE))
     DBUG_RETURN(true);
 
+  if (my_bitmap_init(&m_opened_partitions, NULL, m_tot_parts, FALSE))
+    DBUG_RETURN(true);
+
   /* Initialize the bitmap for read/lock_partitions */
   if (!m_is_clone_of)
   {
@@ -3437,8 +3443,8 @@ bool ha_partition::init_partition_bitmaps()
 
 int ha_partition::open(const char *name, int mode, uint test_if_locked)
 {
-  char *name_buffer_ptr;
   int error= HA_ERR_INITIALIZATION;
+  handler *file_sample= NULL;
   handler **file;
   char name_buff[FN_REFLEN + 1];
   ulonglong check_table_flags;
@@ -3451,7 +3457,6 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   m_part_field_array= m_part_info->full_part_field_array;
   if (get_from_handler_file(name, &table->mem_root, MY_TEST(m_is_clone_of)))
     DBUG_RETURN(error);
-  name_buffer_ptr= m_name_buffer_ptr;
   if (populate_partition_name_hash())
   {
     DBUG_RETURN(HA_ERR_INITIALIZATION);
@@ -3471,6 +3476,9 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   }
 
   if (init_partition_bitmaps())
+    goto err_alloc;
+
+  if ((error= m_part_info->set_partition_bitmaps(m_partitions_to_open)))
     goto err_alloc;
 
   /* Allocate memory used with MMR */
@@ -3498,6 +3506,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   if (m_is_clone_of)
   {
     uint i, alloc_len;
+    char *name_buffer_ptr;
     DBUG_ASSERT(m_clone_mem_root);
     /* Allocate an array of handler pointers for the partitions handlers. */
     alloc_len= (m_tot_parts + 1) * sizeof(handler*);
@@ -3507,6 +3516,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
       goto err_alloc;
     }
     memset(m_file, 0, alloc_len);
+    name_buffer_ptr= m_name_buffer_ptr;
     /*
       Populate them by cloning the original partitions. This also opens them.
       Note that file->ref is allocated too.
@@ -3514,6 +3524,9 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
     file= m_is_clone_of->m_file;
     for (i= 0; i < m_tot_parts; i++)
     {
+      if (!bitmap_is_set(&m_is_clone_of->m_opened_partitions, i))
+        continue;
+
       if ((error= create_partition_name(name_buff, sizeof(name_buff), name,
                                 name_buffer_ptr, NORMAL_PART_NAME, FALSE)))
         goto err_handler;
@@ -3524,30 +3537,18 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
         file= &m_file[i];
         goto err_handler;
       }
+      if (!file_sample)
+        file_sample= m_file[i];
       name_buffer_ptr+= strlen(name_buffer_ptr) + 1;
+      bitmap_set_bit(&m_opened_partitions, i);
     }
   }
   else
   {
-   file= m_file;
-   do
-   {
-      LEX_CSTRING save_connect_string= table->s->connect_string;
-      if ((error= create_partition_name(name_buff, sizeof(name_buff), name,
-                                name_buffer_ptr, NORMAL_PART_NAME, FALSE)))
-        goto err_handler;
-      if (!((*file)->ht->flags & HTON_CAN_READ_CONNECT_STRING_IN_PARTITION))
-        table->s->connect_string= m_connect_string[(uint)(file-m_file)];
-      error= (*file)->ha_open(table, name_buff, mode,
-                              test_if_locked | HA_OPEN_NO_PSI_CALL);
-      table->s->connect_string= save_connect_string;
-      if (error)
-        goto err_handler;
-      if (m_file == file)
-        m_num_locks= (*file)->lock_count();
-      DBUG_ASSERT(m_num_locks == (*file)->lock_count());
-      name_buffer_ptr+= strlen(name_buffer_ptr) + 1;
-    } while (*(++file));
+    if ((error= open_read_partitions(name_buff, sizeof(name_buff),
+                                     &file_sample)))
+      goto err_handler;
+    m_num_locks= file_sample->lock_count();
   }
   /*
     We want to know the upper bound for locks, to allocate enough memory.
@@ -3558,12 +3559,14 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   m_num_locks*= m_tot_parts;
 
   file= m_file;
-  ref_length= (*file)->ref_length;
-  check_table_flags= (((*file)->ha_table_flags() &
+  ref_length= file_sample->ref_length;
+  check_table_flags= ((file_sample->ha_table_flags() &
                        ~(PARTITION_DISABLED_TABLE_FLAGS)) |
                       (PARTITION_ENABLED_TABLE_FLAGS));
   while (*(++file))
   {
+    if (!bitmap_is_set(&m_opened_partitions, file - m_file))
+      continue;
     /* MyISAM can have smaller ref_length for partitions with MAX_ROWS set */
     set_if_bigger(ref_length, ((*file)->ref_length));
     /*
@@ -3580,8 +3583,8 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
       goto err_handler;
     }
   }
-  key_used_on_scan= m_file[0]->key_used_on_scan;
-  implicit_emptied= m_file[0]->implicit_emptied;
+  key_used_on_scan= file_sample->key_used_on_scan;
+  implicit_emptied= file_sample->implicit_emptied;
   /*
     Add 2 bytes for partition id in position ref length.
     ref_length=max_in_all_partitions(ref_length) + PARTITION_BYTES_IN_POS
@@ -3612,8 +3615,12 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
 
 err_handler:
   DEBUG_SYNC(ha_thd(), "partition_open_error");
+  file= &m_file[m_tot_parts - 1];
   while (file-- != m_file)
-    (*file)->ha_close();
+  {
+    if (bitmap_is_set(&m_opened_partitions, file - m_file))
+      (*file)->ha_close();
+  }
 err_alloc:
   free_partition_bitmaps();
   my_free(m_range_info);
@@ -3744,7 +3751,6 @@ int ha_partition::close(void)
   DBUG_ASSERT(m_part_info);
 
   destroy_record_priority_queue();
-  free_partition_bitmaps();
 
   for (; ft_first ; ft_first= tmp_ft_info)
   {
@@ -3795,8 +3801,11 @@ int ha_partition::close(void)
 repeat:
   do
   {
-    (*file)->ha_close();
+    if (!first || bitmap_is_set(&m_opened_partitions, file - m_file))
+      (*file)->ha_close();
   } while (*(++file));
+
+  free_partition_bitmaps();
 
   if (first && m_added_file && m_added_file[0])
   {
@@ -8246,15 +8255,18 @@ int ha_partition::info(uint flag)
     do
     {
       file= *file_array;
-      /* Get variables if not already done */
-      if (!(flag & HA_STATUS_VARIABLE) ||
-          !bitmap_is_set(&(m_part_info->read_partitions),
-                         (uint)(file_array - m_file)))
-        file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag);
-      if (file->stats.records > max_records)
+      if (bitmap_is_set(&(m_opened_partitions), (file_array - m_file)))
       {
-        max_records= file->stats.records;
-        handler_instance= i;
+        /* Get variables if not already done */
+        if (!(flag & HA_STATUS_VARIABLE) ||
+            !bitmap_is_set(&(m_part_info->read_partitions),
+                           (uint) (file_array - m_file)))
+          file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag);
+        if (file->stats.records > max_records)
+        {
+          max_records= file->stats.records;
+          handler_instance= i;
+        }
       }
       i++;
     } while (*(++file_array));
@@ -8332,6 +8344,96 @@ void ha_partition::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   if (file->ha_table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
     stat_info->check_sum= file->checksum();
   return;
+}
+
+
+void ha_partition::set_partitions_to_open(List<String> *partition_names)
+{
+  m_partitions_to_open= partition_names;
+}
+
+
+int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size,
+                                       handler **sample)
+{
+  handler **file;
+  char *name_buffer_ptr;
+  int error;
+
+  name_buffer_ptr= m_name_buffer_ptr;
+  file= m_file;
+  *sample= NULL;
+  do
+  {
+    int n_file= file-m_file;
+    int is_open= bitmap_is_set(&m_opened_partitions, n_file);
+    int should_be_open= bitmap_is_set(&m_part_info->read_partitions, n_file);
+
+    if (is_open && !should_be_open)
+    {
+      if ((error= (*file)->ha_close()))
+        goto err_handler;
+      bitmap_clear_bit(&m_opened_partitions, n_file);
+    }
+    else if (!is_open && should_be_open)
+    {
+      LEX_CSTRING save_connect_string= table->s->connect_string;
+      if ((error= create_partition_name(name_buff, name_buff_size,
+                            table->s->normalized_path.str,
+                            name_buffer_ptr, NORMAL_PART_NAME, FALSE)))
+        goto err_handler;
+      if (!((*file)->ht->flags & HTON_CAN_READ_CONNECT_STRING_IN_PARTITION))
+        table->s->connect_string= m_connect_string[(uint)(file-m_file)];
+      error= (*file)->ha_open(table, name_buff, m_mode,
+                              m_open_test_lock | HA_OPEN_NO_PSI_CALL);
+      table->s->connect_string= save_connect_string;
+      if (error)
+        goto err_handler;
+      if (!(*sample))
+        *sample= *file;
+      bitmap_set_bit(&m_opened_partitions, n_file);
+    }
+    name_buffer_ptr+= strlen(name_buffer_ptr) + 1;
+  } while (*(++file));
+  
+err_handler:
+  return error;
+}
+
+
+int ha_partition::change_partitions_to_open(List<String> *partition_names)
+{
+  char name_buff[FN_REFLEN+1];
+  int error= 0;
+  handler *sample;
+
+  if (m_is_clone_of)
+    return 0;
+
+  m_partitions_to_open= partition_names;
+  if ((error= m_part_info->set_partition_bitmaps(partition_names)))
+    goto err_handler;
+
+  if (m_lock_type != F_UNLCK)
+  {
+    /*
+      That happens after the LOCK TABLE statement.
+      Do nothing in this case.
+    */
+    return 0;
+  }
+
+  if (bitmap_cmp(&m_opened_partitions, &m_part_info->read_partitions) != 0)
+    return 0;
+
+  if ((error= read_par_file(table->s->normalized_path.str)) ||
+      (error= open_read_partitions(name_buff, sizeof(name_buff), &sample)))
+    goto err_handler;
+
+  clear_handler_file();
+
+err_handler:
+  return error;
 }
 
 
@@ -8831,7 +8933,8 @@ int ha_partition::reset(void)
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_partitions_to_reset, i))
   {
-    if ((tmp= m_file[i]->ha_reset()))
+    if (bitmap_is_set(&m_opened_partitions, i) &&
+        (tmp= m_file[i]->ha_reset()))
       result= tmp;
   }
   bitmap_clear_all(&m_partitions_to_reset);
@@ -8948,7 +9051,12 @@ int ha_partition::loop_extra(enum ha_extra_function operation)
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->lock_partitions, i))
   {
-    if ((tmp= m_file[i]->extra(operation)))
+    /*
+      This can be called after an error in ha_open.
+      In this case calling 'extra' can crash.
+    */
+    if (bitmap_is_set(&m_opened_partitions, i) &&
+        (tmp= m_file[i]->extra(operation)))
       result= tmp;
   }
   /* Add all used partitions to be called in reset(). */

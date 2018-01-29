@@ -682,12 +682,6 @@ public:
   }
 
 
-  trx_t *find(trx_id_t trx_id, bool do_ref_count= false)
-  {
-    return find(current_trx(), trx_id, do_ref_count);
-  }
-
-
   /**
     Inserts trx to lock-free hash.
 
@@ -972,6 +966,29 @@ public:
 
   /** @return total number of active (non-prepared) transactions */
   ulint any_active_transactions();
+
+
+  /** Registers read-write transaction. */
+  void register_rw(trx_t *trx)
+  {
+    mutex_enter(&mutex);
+    trx->id= get_new_trx_id();
+    rw_trx_ids.push_back(trx->id);
+    mutex_exit(&mutex);
+    rw_trx_hash.insert(trx);
+  }
+
+
+  bool is_registered(trx_t *caller_trx, trx_id_t id)
+  {
+    return rw_trx_hash.find(caller_trx, id);
+  }
+
+
+  trx_t *find(trx_t *caller_trx, trx_id_t id)
+  {
+    return rw_trx_hash.find(caller_trx, id, true);
+  }
 
 
 private:
