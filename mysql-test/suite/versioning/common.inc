@@ -53,15 +53,6 @@ begin
   return NULL;
 end~~
 
-create function if not exists current_row(sys_trx_end varbinary(255))
-returns int
-deterministic
-begin
-  declare continue handler for sqlwarning begin end;
-  return sys_trx_end = timestamp'2038-01-19 03:14:07.999999'
-    or sys_trx_end = 18446744073709551615;
-end~~
-
 create function if not exists sys_commit_ts(sys_field varchar(255))
 returns varchar(255)
 deterministic

@@ -225,7 +225,7 @@ create or replace table t1 (
   period for system_time(s, e))
 with system versioning;
 insert into t1 values (1, null, null, 'foo');
-select i, c, current_row(e) from t1;
+select i, c, e>TIMESTAMP'2038-01-01 00:00:00' AS current_row from t1;
 
 drop table t1;
 drop table t2;
