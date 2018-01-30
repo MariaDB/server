@@ -23,7 +23,7 @@ connection node_1;
 COMMIT;
 connection node_2;
 COMMIT;
-ERROR 40001: wsrep aborted transaction
+ERROR 40001: Deadlock: wsrep aborted transaction
 include/diff_servers.inc [servers=1 2]
 DROP SCHEMA test;
 CREATE SCHEMA test;
