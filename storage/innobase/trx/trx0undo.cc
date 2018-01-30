@@ -684,10 +684,7 @@ trx_undo_write_xid(
 Read X/Open XA Transaction Identification (XID) from undo log header */
 static
 void
-trx_undo_read_xid(
-/*==============*/
-	trx_ulogf_t*	log_hdr,/*!< in: undo log header */
-	XID*		xid)	/*!< out: X/Open XA Transaction Identification */
+trx_undo_read_xid(const trx_ulogf_t* log_hdr, XID* xid)
 {
 	xid->formatID=static_cast<long>(mach_read_from_4(
 		log_hdr + TRX_UNDO_XA_FORMAT));
@@ -1102,66 +1099,52 @@ trx_undo_seg_free(
 
 /*========== UNDO LOG MEMORY COPY INITIALIZATION =====================*/
 
-/********************************************************************//**
-Creates and initializes an undo log memory object according to the values
-in the header in file, when the database is started. The memory object is
-inserted in the appropriate list of rseg.
-@return own: the undo log memory object */
-static
-trx_undo_t*
-trx_undo_mem_create_at_db_start(
-/*============================*/
-	trx_rseg_t*	rseg,	/*!< in: rollback segment memory object */
-	ulint		id,	/*!< in: slot index within rseg */
-	ulint		page_no,/*!< in: undo log segment page number */
-	mtr_t*		mtr)	/*!< in: mtr */
+/** Read an undo log when starting up the database.
+@param[in,out]	rseg	rollback segment
+@param[in]	id	rollback segment slot
+@param[in]	page_no	undo log segment page number
+@return	size of the undo log in pages */
+ulint
+trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no)
 {
-	page_t*		undo_page;
-	trx_usegf_t*	seg_header;
-	trx_ulogf_t*	undo_header;
-	trx_undo_t*	undo;
-	ulint		state;
-	trx_id_t	trx_id;
-	ulint		offset;
+	mtr_t		mtr;
 	XID		xid;
 
-	ut_a(id < TRX_RSEG_N_SLOTS);
+	ut_ad(id < TRX_RSEG_N_SLOTS);
 
-	undo_page = trx_undo_page_get(page_id_t(rseg->space, page_no), mtr);
+	mtr.start();
+	const page_t* undo_page = trx_undo_page_get(
+		page_id_t(rseg->space, page_no), &mtr);
 	const ulint type = mach_read_from_2(
 		TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE + undo_page);
 	ut_ad(type == 0 || type == TRX_UNDO_INSERT || type == TRX_UNDO_UPDATE);
-	seg_header = undo_page + TRX_UNDO_SEG_HDR;
 
-	state = mach_read_from_2(seg_header + TRX_UNDO_STATE);
+	uint state = mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_STATE
+				      + undo_page);
+	uint offset = mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG
+				       + undo_page);
 
-	offset = mach_read_from_2(seg_header + TRX_UNDO_LAST_LOG);
-
-	undo_header = undo_page + offset;
-
-	trx_id = mach_read_from_8(undo_header + TRX_UNDO_TRX_ID);
-
-	const bool xid_exists = mtr_read_ulint(
-		undo_header + TRX_UNDO_XID_EXISTS, MLOG_1BYTE, mtr);
+	const trx_ulogf_t*	undo_header = undo_page + offset;
 
 	/* Read X/Open XA transaction identification if it exists, or
 	set it to NULL. */
-	xid.null();
 
-	if (xid_exists) {
+	if (undo_header[TRX_UNDO_XID_EXISTS]) {
 		trx_undo_read_xid(undo_header, &xid);
+	} else {
+		xid.null();
 	}
 
-	mutex_enter(&(rseg->mutex));
+	mutex_enter(&rseg->mutex);
+	trx_undo_t* undo = trx_undo_mem_create(
+		rseg, id, mach_read_from_8(undo_header + TRX_UNDO_TRX_ID),
+		&xid, page_no, offset);
+	mutex_exit(&rseg->mutex);
 
-	undo = trx_undo_mem_create(rseg, id, trx_id, &xid, page_no, offset);
-	mutex_exit(&(rseg->mutex));
-
-	undo->dict_operation =	mtr_read_ulint(
-		undo_header + TRX_UNDO_DICT_TRANS, MLOG_1BYTE, mtr);
-
+	undo->dict_operation = undo_header[TRX_UNDO_DICT_TRANS];
 	undo->table_id = mach_read_from_8(undo_header + TRX_UNDO_TABLE_ID);
-	undo->size = flst_get_len(seg_header + TRX_UNDO_PAGE_LIST);
+	undo->size = flst_get_len(TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST
+				  + undo_page);
 
 	if (UNIV_UNLIKELY(state == TRX_UNDO_TO_FREE)) {
 		/* This is an old-format insert_undo log segment that
@@ -1170,13 +1153,14 @@ trx_undo_mem_create_at_db_start(
 		state = TRX_UNDO_TO_PURGE;
 	} else {
 		fil_addr_t	last_addr = flst_get_last(
-			seg_header + TRX_UNDO_PAGE_LIST, mtr);
+			TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + undo_page,
+			&mtr);
 
 		undo->last_page_no = last_addr.page;
 		undo->top_page_no = last_addr.page;
 
 		page_t* last_page = trx_undo_page_get(
-			page_id_t(rseg->space, undo->last_page_no), mtr);
+			page_id_t(rseg->space, undo->last_page_no), &mtr);
 
 		const trx_undo_rec_t*	rec = trx_undo_page_get_last_rec(
 			last_page, page_no, offset);
@@ -1199,61 +1183,8 @@ trx_undo_mem_create_at_db_start(
 		MONITOR_INC(MONITOR_NUM_UNDO_SLOT_CACHED);
 	}
 
-	return(undo);
-}
-
-/********************************************************************//**
-Initializes the undo log lists for a rollback segment memory copy. This
-function is only called when the database is started or a new rollback
-segment is created.
-@return the combined size of undo log segments in pages */
-ulint
-trx_undo_lists_init(
-/*================*/
-	trx_rseg_t*	rseg)	/*!< in: rollback segment memory object */
-{
-	ulint		size	= 0;
-	trx_rsegf_t*	rseg_header;
-	ulint		i;
-	mtr_t		mtr;
-
-	mtr_start(&mtr);
-
-	rseg_header = trx_rsegf_get_new(rseg->space, rseg->page_no, &mtr);
-
-	for (i = 0; i < TRX_RSEG_N_SLOTS; i++) {
-		uint32_t page_no = trx_rsegf_get_nth_undo(rseg_header, i);
-
-		/* In forced recovery: try to avoid operations which look
-		at database pages; undo logs are rapidly changing data, and
-		the probability that they are in an inconsistent state is
-		high */
-
-		if (page_no != FIL_NULL
-		    && srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
-
-			trx_undo_t*	undo;
-
-			undo = trx_undo_mem_create_at_db_start(
-				rseg, i, page_no, &mtr);
-
-			size += undo->size;
-
-			mtr_commit(&mtr);
-
-			mtr_start(&mtr);
-
-			rseg_header = trx_rsegf_get(
-				rseg->space, rseg->page_no, &mtr);
-
-			/* Found a used slot */
-			MONITOR_INC(MONITOR_NUM_UNDO_SLOT_USED);
-		}
-	}
-
-	mtr_commit(&mtr);
-
-	return(size);
+	mtr.commit();
+	return undo->size;
 }
 
 /********************************************************************//**

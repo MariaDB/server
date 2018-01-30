@@ -415,39 +415,6 @@ trx_sysf_create(
 	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
 }
 
-/** Initialize the transaction system main-memory data structures. */
-void
-trx_sys_init_at_db_start()
-{
-	/* VERY important: after the database is started, max_trx_id value is
-	divisible by TRX_SYS_TRX_ID_WRITE_MARGIN, and the 'if' in
-	trx_sys.get_new_trx_id will evaluate to TRUE when the function
-	is first time called, and the value for trx id will be written
-	to the disk-based header! Thus trx id values will not overlap when
-	the database is repeatedly started! */
-
-	mtr_t	mtr;
-	mtr.start();
-
-	buf_block_t* block = trx_sysf_get(&mtr);
-
-	trx_id_t max_trx_id = block
-		? 2 * TRX_SYS_TRX_ID_WRITE_MARGIN
-		+ ut_uint64_align_up(mach_read_from_8(TRX_SYS
-						      + TRX_SYS_TRX_ID_STORE
-						      + block->frame),
-				     TRX_SYS_TRX_ID_WRITE_MARGIN)
-		: 0;
-	trx_sys.init_max_trx_id(max_trx_id);
-
-	mtr.commit();
-
-	trx_dummy_sess = sess_open();
-
-	trx_lists_init_at_db_start();
-	trx_sys.mvcc.clone_oldest_view(&purge_sys->view);
-}
-
 /** Create the instance */
 void
 trx_sys_t::create()

@@ -2173,7 +2173,7 @@ files_checked:
 		All the remaining rollback segments will be created later,
 		after the double write buffer has been created. */
 		trx_sys_create_sys_pages();
-		trx_sys_init_at_db_start();
+		trx_lists_init_at_db_start();
 
 		err = dict_create();
 
@@ -2234,7 +2234,7 @@ files_checked:
 			}
 			/* This must precede
 			recv_apply_hashed_log_recs(true). */
-			trx_sys_init_at_db_start();
+			trx_lists_init_at_db_start();
 			break;
 		case SRV_OPERATION_RESTORE_DELTA:
 		case SRV_OPERATION_BACKUP:
@@ -2325,7 +2325,7 @@ files_checked:
 		}
 
 		/* recv_recovery_from_checkpoint_finish needs trx lists which
-		are initialized in trx_sys_init_at_db_start(). */
+		are initialized in trx_lists_init_at_db_start(). */
 
 		recv_recovery_from_checkpoint_finish();
 

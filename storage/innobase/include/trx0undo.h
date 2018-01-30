@@ -210,15 +210,6 @@ trx_undo_truncate_start(
 	ulint		hdr_page_no,
 	ulint		hdr_offset,
 	undo_no_t	limit);
-/********************************************************************//**
-Initializes the undo log lists for a rollback segment memory copy.
-This function is only called when the database is started or a new
-rollback segment created.
-@return the combined size of undo log segments in pages */
-ulint
-trx_undo_lists_init(
-/*================*/
-	trx_rseg_t*	rseg);	/*!< in: rollback segment memory object */
 /** Assign an undo log for a persistent transaction.
 A new undo log is created or a cached undo log reused.
 @param[in,out]	trx	transaction
@@ -326,6 +317,13 @@ trx_undo_parse_page_header(
 	const byte*	end_ptr,
 	page_t*		page,
 	mtr_t*		mtr);
+/** Read an undo log when starting up the database.
+@param[in,out]	rseg	rollback segment
+@param[in]	id	rollback segment slot
+@param[in]	page_no	undo log segment page number
+@return	size of the undo log in pages */
+ulint
+trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no);
 /************************************************************************
 Frees an undo log memory copy. */
 void

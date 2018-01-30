@@ -895,22 +895,23 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
 void
 trx_lists_init_at_db_start()
 {
-	uint64_t	rows_to_undo	= 0;
 	ut_a(srv_is_being_started);
 	ut_ad(!srv_was_started);
 	ut_ad(!purge_sys);
-
-	purge_sys = UT_NEW_NOKEY(purge_sys_t());
+	ut_ad(!trx_dummy_sess);
 
 	if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 		return;
 	}
 
+	trx_dummy_sess = sess_open();
+	purge_sys = UT_NEW_NOKEY(purge_sys_t());
 	trx_rseg_array_init();
 
 	/* Look from the rollback segments if there exist undo logs for
 	transactions. */
-	const ib_time_t start_time = ut_time();
+	const ib_time_t	start_time	= ut_time();
+	uint64_t	rows_to_undo	= 0;
 
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
 		trx_undo_t*	undo;
@@ -979,6 +980,7 @@ trx_lists_init_at_db_start()
 	}
 
 	std::sort(trx_sys.rw_trx_ids.begin(), trx_sys.rw_trx_ids.end());
+	trx_sys.mvcc.clone_oldest_view(&purge_sys->view);
 }
 
 /** Assign a persistent rollback segment in a round-robin fashion,

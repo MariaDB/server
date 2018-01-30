@@ -58,9 +58,6 @@ trx_sys_hdr_page(const page_id_t& page_id)
 	       && page_id.page_no() == TRX_SYS_PAGE_NO);
 }
 
-/** Initialize the transaction system main-memory data structures. */
-void trx_sys_init_at_db_start();
-
 /*****************************************************************//**
 Creates and initializes the transaction system at the database creation. */
 void
