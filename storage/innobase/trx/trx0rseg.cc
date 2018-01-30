@@ -154,6 +154,8 @@ trx_rseg_mem_create(ulint id, ulint space, ulint page_no)
 	rseg->space = space;
 	rseg->page_no = page_no;
 	rseg->last_page_no = FIL_NULL;
+	rseg->curr_size = 1;
+	rseg->max_size = ULINT_UNDEFINED;
 
 	mutex_create(rseg->is_persistent()
 		     ? LATCH_ID_REDO_RSEG : LATCH_ID_NOREDO_RSEG,
@@ -289,7 +291,6 @@ trx_rseg_create(ulint space_id)
 			ut_ad(rseg->is_persistent());
 			ut_ad(!trx_sys.rseg_array[rseg->id]);
 			trx_sys.rseg_array[rseg->id] = rseg;
-			trx_rseg_mem_restore(rseg, &mtr);
 		}
 	}
 
@@ -320,7 +321,6 @@ trx_temp_rseg_create()
 		ut_ad(!rseg->is_persistent());
 		ut_ad(!trx_sys.temp_rsegs[i]);
 		trx_sys.temp_rsegs[i] = rseg;
-		trx_rseg_mem_restore(rseg, &mtr);
 		mtr.commit();
 	}
 }
