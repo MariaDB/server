@@ -33,6 +33,7 @@ information_schema.statistics where table_name="t0" and column_name="a";
 FLOOR(@N/cardinality)
 2
 drop table t0;
+DROP TABLE IF EXISTS t1,t10,t11;
 create table t1(
 id bigint not null primary key, 
 i1 bigint, #unique
