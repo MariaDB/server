@@ -280,7 +280,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 			all = true;
 
 	if (Pcg->Pipe) {
-		if (trace)
+		if (trace(1))
 			htrc("Pipeline: %s\n", options);
 
 		p = strrchr(options, ']');
@@ -330,7 +330,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 		*(char*)p = ']';		 // Restore Colist for discovery
 		p = s->GetStr();
 
-		if (trace)
+		if (trace(33))
 			htrc("New Pipeline: %s\n", p);
 
 		Query = bson_new_from_json((const uint8_t *)p, -1, &Error);
@@ -350,7 +350,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 
 	} else {
 		if (Pcg->Filter || filp) {
-			if (trace) {
+			if (trace(1)) {
 				if (Pcg->Filter)
 					htrc("Filter: %s\n", Pcg->Filter);
 
@@ -377,7 +377,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 				tp->SetFilter(NULL);   // Not needed anymore
 			} // endif To_Filter
 
-			if (trace)
+			if (trace(33))
 				htrc("selector: %s\n", s->GetStr());
 
 			s->Resize(s->GetLength() + 1);
@@ -393,7 +393,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 
 		if (!all) {
 			if (options && *options) {
-				if (trace)
+				if (trace(1))
 					htrc("options=%s\n", options);
 
 				p = options;
@@ -450,10 +450,10 @@ int CMgoConn::ReadNext(PGLOBAL g)
 	if (!Cursor && MakeCursor(g)) {
 		rc = RC_FX;
 	} else if (mongoc_cursor_next(Cursor, &Document)) {
-		if (trace > 1) {
+		if (trace(512)) {
 			bson_iter_t iter;
 			ShowDocument(&iter, Document, "");
-		} else if (trace == 1)
+		} else if (trace(1))
 			htrc("%s\n", GetDocument(g));
 
 	} else if (mongoc_cursor_error(Cursor, &Error)) {
@@ -589,7 +589,7 @@ int CMgoConn::Write(PGLOBAL g)
 		if (DocWrite(g, Fpc))
 			return RC_FX;
 
-		if (trace) {
+		if (trace(2)) {
 			char *str = bson_as_json(Fpc->Child, NULL);
 			htrc("Inserting: %s\n", str);
 			bson_free(str);
@@ -623,7 +623,7 @@ int CMgoConn::Write(PGLOBAL g)
 		} // endif iter
 
 		if (b) {
-			if (trace) {
+			if (trace(2)) {
 				char *str = bson_as_json(query, NULL);
 				htrc("update query: %s\n", str);
 				bson_free(str);

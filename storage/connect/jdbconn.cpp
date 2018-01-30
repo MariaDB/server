@@ -270,7 +270,7 @@ PQRYRES JDBCColumns(PGLOBAL g, PCSZ db, PCSZ table, PCSZ colpat,
 		length[11] = 255;
 	} // endif jcp
 
-	if (trace)
+	if (trace(1))
 		htrc("JDBCColumns: max=%d len=%d,%d,%d,%d\n",
 		maxres, length[0], length[1], length[2], length[3]);
 
@@ -287,7 +287,7 @@ PQRYRES JDBCColumns(PGLOBAL g, PCSZ db, PCSZ table, PCSZ colpat,
 	if (info || !qrp)                      // Info table
 		return qrp;
 
-	if (trace)
+	if (trace(1))
 		htrc("Getting col results ncol=%d\n", qrp->Nbcol);
 
 	if (!(cap = AllocCatInfo(g, JCAT_COL, db, table, qrp)))
@@ -303,7 +303,7 @@ PQRYRES JDBCColumns(PGLOBAL g, PCSZ db, PCSZ table, PCSZ colpat,
 		qrp->Nblin = n;
 		//  ResetNullValues(cap);
 
-		if (trace)
+		if (trace(1))
 			htrc("Columns: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
 
 	} else
@@ -394,7 +394,7 @@ PQRYRES JDBCTables(PGLOBAL g, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
 		length[4] = 255;
 	} // endif info
 
-	if (trace)
+	if (trace(1))
 		htrc("JDBCTables: max=%d len=%d,%d\n", maxres, length[0], length[1]);
 
 	/************************************************************************/
@@ -417,7 +417,7 @@ PQRYRES JDBCTables(PGLOBAL g, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
 
 	cap->Pat = tabtyp;
 
-	if (trace)
+	if (trace(1))
 		htrc("Getting table results ncol=%d\n", cap->Qrp->Nbcol);
 
 	/************************************************************************/
@@ -427,7 +427,7 @@ PQRYRES JDBCTables(PGLOBAL g, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
 		qrp->Nblin = n;
 		//  ResetNullValues(cap);
 
-		if (trace)
+		if (trace(1))
 			htrc("Tables: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
 
 	} else
@@ -475,7 +475,7 @@ PQRYRES JDBCDrivers(PGLOBAL g, int maxres, bool info)
 	} else
 		maxres = 0;
 
-	if (trace)
+	if (trace(1))
 		htrc("JDBCDrivers: max=%d len=%d\n", maxres, length[0]);
 
 	/************************************************************************/
@@ -586,7 +586,7 @@ bool JDBConn::Connect(PJPARM sop)
 	int      irc = RC_FX;
 	bool		 err = false;
 	jint     rc;
-	jboolean jt = (trace > 0);
+	jboolean jt = (trace(1));
 	PGLOBAL& g = m_G;
 
 	/*******************************************************************/
@@ -1443,7 +1443,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		// Not used anymore
 		env->DeleteLocalRef(parms);
 
-    if (trace)
+    if (trace(1))
       htrc("Method %s returned %d columns\n", fnc, ncol);
 
 		// n because we no more ignore the first column
@@ -1488,7 +1488,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 				sprintf(g->Message, "Fetch: %s", Msg);
 				return -1;
 			} if (rc == 0) {
-        if (trace)
+        if (trace(1))
           htrc("End of fetches i=%d\n", i);
 
 				break;

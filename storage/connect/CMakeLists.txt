@@ -343,6 +343,13 @@ IF(NOT TARGET connect)
   RETURN()
 ENDIF()
 
+IF(WIN32)
+  IF (libmongoc-1.0_FOUND)
+	  SET_TARGET_PROPERTIES(connect PROPERTIES LINK_FLAGS
+	    "/DELAYLOAD:libbson-1.0.dll /DELAYLOAD:libmongoc-1.0.dll")
+  ENDIF(libmongoc-1.0_FOUND)
+ENDIF(WIN32)
+
 # Install some extra files that belong to connect engine
 IF(WIN32)
   # install ha_connect.lib

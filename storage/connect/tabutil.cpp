@@ -457,7 +457,7 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
     hc->get_table()->s->option_struct->srcdef = sp;
   } // endif s
 
-  if (trace && tdbp)
+  if (trace(1) && tdbp)
     htrc("Subtable %s in %s\n", 
           name, SVP(tdbp->GetDef()->GetDB()));
  
@@ -647,7 +647,7 @@ PRXCOL::PRXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
   Pseudo = false;
   Colnum = cdp->GetOffset();     // If columns are retrieved by number
 
-  if (trace)
+  if (trace(1))
     htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of PRXCOL constructor
@@ -732,7 +732,7 @@ void PRXCOL::Reset(void)
 /***********************************************************************/
 void PRXCOL::ReadColumn(PGLOBAL g)
   {
-  if (trace > 1)
+  if (trace(2))
     htrc("PRX ReadColumn: name=%s\n", Name);
 
   if (Colp) {
@@ -759,7 +759,7 @@ void PRXCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 void PRXCOL::WriteColumn(PGLOBAL g)
   {
-  if (trace > 1)
+  if (trace(2))
     htrc("PRX WriteColumn: name=%s\n", Name);
 
   if (Colp) {

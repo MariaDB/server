@@ -34,7 +34,7 @@ PWMIUT InitWMI(PGLOBAL g, PCSZ nsp, PCSZ classname)
   HRESULT       res;
   PWMIUT        wp = (PWMIUT)PlugSubAlloc(g, NULL, sizeof(WMIUTIL));
 
-  if (trace)
+  if (trace(1))
     htrc("WMIColumns class %s space %s\n", SVP(classname), SVP(nsp));
 
   /*********************************************************************/
@@ -103,7 +103,7 @@ PWMIUT InitWMI(PGLOBAL g, PCSZ nsp, PCSZ classname)
 
   loc->Release();
 
-  if (trace)
+  if (trace(1))
     htrc("Successfully connected to namespace.\n");
 
   /*********************************************************************/

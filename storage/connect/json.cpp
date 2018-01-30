@@ -97,7 +97,7 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
   PJSON jsp = NULL;
   STRG  src;
 
-	if (trace)
+	if (trace(1))
 		htrc("ParseJson: s=%.10s len=%d\n", s, len);
 
   if (!s || !len) {
@@ -178,7 +178,7 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 		} // endif ptyp
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 		jsp = NULL;
 	} catch (const char *msg) {
@@ -652,7 +652,7 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
 		} // endif's
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 		str = NULL;
 	} catch (const char *msg) {

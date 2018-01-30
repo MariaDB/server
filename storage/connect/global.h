@@ -52,7 +52,7 @@
 /***********************************************************************/
 /*  Define access to the thread based trace value.                     */
 /***********************************************************************/
-#define trace  GetTraceValue()
+#define trace(T)  (bool)(GetTraceValue() & (uint)T)
 
 /***********************************************************************/
 /*  Miscellaneous Constants                                            */
@@ -224,7 +224,8 @@ DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
 DllExport char   *PlugDup(PGLOBAL g, const char *str);
 DllExport void   *MakePtr(void *, OFFSET);
 DllExport void    htrc(char const *fmt, ...);
-DllExport int     GetTraceValue(void);
+//DllExport int     GetTraceValue(void);
+DllExport uint    GetTraceValue(void);
 
 #if defined(__cplusplus)
 } // extern "C"
