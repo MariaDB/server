@@ -8376,6 +8376,45 @@ DECLARE v ROW(a INT);
 SELECT 'a' IN ('b',v);
 END $$
 ERROR HY000: Illegal parameter data types varchar and row for operation 'in'
+#
+# MDEV-15112 Inconsistent evaluation of spvariable=0 in strict mode
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 (e TIMESTAMP(6));
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+CREATE FUNCTION f1(a VARBINARY(255))
+RETURNS INT
+DETERMINISTIC
+BEGIN
+RETURN a = timestamp'2038-01-19 03:14:07.999999'
+      OR a = 0;
+END
+$$
+CREATE FUNCTION f2(a VARBINARY(255))
+RETURNS INT
+DETERMINISTIC
+BEGIN
+RETURN a = 0;
+END
+$$
+CREATE OR REPLACE FUNCTION f3(a VARBINARY(255))
+RETURNS INT
+DETERMINISTIC
+BEGIN
+RETURN a = timestamp'2038-01-19 03:14:07.999999'
+      OR a = sleep(0);
+END
+$$
+SELECT f1(e) FROM t1;
+ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30'
+SELECT f2(e) FROM t1;
+ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30'
+SELECT f3(e) FROM t1;
+ERROR 22007: Truncated incorrect DOUBLE value: '2001-01-01 10:20:30'
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP FUNCTION f3;
+DROP TABLE t1;
 # Test affected rows from an sp
 create table t1 (a int);
 create procedure p1()

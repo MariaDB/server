@@ -248,7 +248,7 @@ row_upd_check_references_constraints(
 
 	DEBUG_SYNC_C("foreign_constraint_check_for_update");
 
-	mtr_start_trx(mtr, trx);
+	mtr->start();
 
 	if (trx->dict_operation_lock_mode == 0) {
 		got_s_lock = TRUE;
@@ -2319,7 +2319,7 @@ row_upd_sec_index_entry(
 	DEBUG_SYNC_C_IF_THD(trx->mysql_thd,
 			    "before_row_upd_sec_index_entry");
 
-	mtr_start_trx(&mtr, trx);
+	mtr.start();
 
 	switch (index->space) {
 	case SRV_TMP_SPACE_ID:
@@ -2880,7 +2880,7 @@ row_upd_clust_rec(
 	/* We may have to modify the tree structure: do a pessimistic descent
 	down the index tree */
 
-	mtr_start_trx(mtr, thr_get_trx(thr));
+	mtr->start();
 	mtr->set_named_space(index->space);
 
 	/* Disable REDO logging as lifetime of temp-tables is limited to
@@ -3068,7 +3068,7 @@ row_upd_clust_step(
 
 	/* We have to restore the cursor to its position */
 
-	mtr_start_trx(&mtr, thr_get_trx(thr));
+	mtr.start();
 	mtr.set_named_space(index->space);
 
 	if (dict_table_is_temporary(node->table)) {
@@ -3129,9 +3129,9 @@ row_upd_clust_step(
 		dict_drop_index_tree(
 			btr_pcur_get_rec(pcur), pcur, &mtr);
 
-		mtr_commit(&mtr);
+		mtr.commit();
 
-		mtr_start_trx(&mtr, thr_get_trx(thr));
+		mtr.start();
 		mtr.set_named_space(index->space);
 
 		success = btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur,
@@ -3139,7 +3139,7 @@ row_upd_clust_step(
 		if (!success) {
 			err = DB_ERROR;
 
-			mtr_commit(&mtr);
+			mtr.commit();
 
 			return(err);
 		}
@@ -3154,7 +3154,7 @@ row_upd_clust_step(
 			0, btr_pcur_get_block(pcur),
 			rec, index, offsets, thr);
 		if (err != DB_SUCCESS) {
-			mtr_commit(&mtr);
+			mtr.commit();
 			goto exit_func;
 		}
 	}

@@ -68,7 +68,6 @@ mysql_pfs_key_t	redo_rseg_mutex_key;
 mysql_pfs_key_t	noredo_rseg_mutex_key;
 mysql_pfs_key_t page_zip_stat_per_index_mutex_key;
 # ifdef UNIV_DEBUG
-mysql_pfs_key_t	sync_thread_mutex_key;
 mysql_pfs_key_t	rw_lock_debug_mutex_key;
 # endif /* UNIV_DEBUG */
 mysql_pfs_key_t rtr_active_mutex_key;

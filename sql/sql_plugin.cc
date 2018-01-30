@@ -1430,10 +1430,10 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
 
   mysql_mutex_unlock(&LOCK_plugin);
 
-  mysql_rwlock_wrlock(&LOCK_system_variables_hash);
+  mysql_prlock_wrlock(&LOCK_system_variables_hash);
   if (test_plugin_options(tmp_root, plugin, argc, argv))
     state= PLUGIN_IS_DISABLED;
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   if (options_only || state == PLUGIN_IS_DISABLED)
   {
@@ -2842,11 +2842,11 @@ sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
 
   if (!locked)
     mysql_mutex_lock(&LOCK_plugin);
-  mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
   if ((var= intern_find_sys_var(str, length)) &&
       (pi= var->cast_pluginvar()))
   {
-    mysql_rwlock_unlock(&LOCK_system_variables_hash);
+    mysql_prlock_unlock(&LOCK_system_variables_hash);
     LEX *lex= thd ? thd->lex : 0;
     if (!(plugin= intern_plugin_lock(lex, plugin_int_to_ref(pi->plugin))))
       var= NULL; /* failed to lock it, it must be uninstalling */
@@ -2859,7 +2859,7 @@ sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
     }
   }
   else
-    mysql_rwlock_unlock(&LOCK_system_variables_hash);
+    mysql_prlock_unlock(&LOCK_system_variables_hash);
   if (!locked)
     mysql_mutex_unlock(&LOCK_plugin);
 
@@ -3089,9 +3089,9 @@ static uchar *intern_sys_var_ptr(THD* thd, int offset, bool global_lock)
   if (!thd->variables.dynamic_variables_ptr ||
       (uint)offset > thd->variables.dynamic_variables_head)
   {
-    mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+    mysql_prlock_rdlock(&LOCK_system_variables_hash);
     sync_dynamic_session_variables(thd, global_lock);
-    mysql_rwlock_unlock(&LOCK_system_variables_hash);
+    mysql_prlock_unlock(&LOCK_system_variables_hash);
   }
   DBUG_RETURN((uchar*)thd->variables.dynamic_variables_ptr + offset);
 }
@@ -3206,7 +3206,7 @@ static void cleanup_variables(struct system_variables *vars)
   st_bookmark *v;
   uint idx;
 
-  mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
   for (idx= 0; idx < bookmark_hash.records; idx++)
   {
     v= (st_bookmark*) my_hash_element(&bookmark_hash, idx);
@@ -3225,7 +3225,7 @@ static void cleanup_variables(struct system_variables *vars)
       *ptr= NULL;
     }
   }
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   DBUG_ASSERT(vars->table_plugin == NULL);
   DBUG_ASSERT(vars->tmp_table_plugin == NULL);
@@ -4280,10 +4280,10 @@ int thd_key_create(MYSQL_THD_KEY_T *key)
              PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_NOCMDOPT;
   char namebuf[256];
   snprintf(namebuf, sizeof(namebuf), "%u", thd_key_no++);
-  mysql_rwlock_wrlock(&LOCK_system_variables_hash);
+  mysql_prlock_wrlock(&LOCK_system_variables_hash);
   // non-letters in the name as an extra safety
   st_bookmark *bookmark= register_var("\a\v\a\t\a\r", namebuf, flags);
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
   if (bookmark)
   {
     *key= bookmark->offset;

@@ -5071,7 +5071,7 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	setup_error_messages();
 	sys_var_init();
 	plugin_mutex_init();
-	mysql_rwlock_init(key_rwlock_LOCK_system_variables_hash, &LOCK_system_variables_hash);
+	mysql_prlock_init(key_rwlock_LOCK_system_variables_hash, &LOCK_system_variables_hash);
 	opt_stack_trace = 1;
 	test_flags |=  TEST_SIGINT;
 	init_signals();

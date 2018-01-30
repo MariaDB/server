@@ -1398,11 +1398,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(SRV_MONITOR_FILE, SYNC_NO_ORDER_CHECK,
 			srv_monitor_file_mutex_key);
 
-#ifdef UNIV_DEBUG
-	LATCH_ADD_MUTEX(SYNC_THREAD, SYNC_NO_ORDER_CHECK,
-			sync_thread_mutex_key);
-#endif /* UNIV_DEBUG */
-
 	LATCH_ADD_MUTEX(BUF_DBLWR, SYNC_DOUBLEWRITE, buf_dblwr_mutex_key);
 
 	LATCH_ADD_MUTEX(TRX_UNDO, SYNC_TRX_UNDO, trx_undo_mutex_key);

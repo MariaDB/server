@@ -37,8 +37,6 @@ Created 11/26/1995 Heikki Tuuri
 
 /** Start a mini-transaction. */
 #define mtr_start(m)		(m)->start()
-/** Start a mini-transaction. */
-#define mtr_start_trx(m, t)		(m)->start((t))
 
 /** Start a synchronous mini-transaction */
 #define mtr_start_sync(m)	(m)->start(true)
@@ -217,9 +215,6 @@ struct mtr_t {
 
 		/** Owning mini-transaction */
 		mtr_t*		m_mtr;
-
-		/* Transaction handle */
-		trx_t*			m_trx;
 	};
 
 	mtr_t()
@@ -239,15 +234,7 @@ struct mtr_t {
 	/** Start a mini-transaction.
 	@param sync		true if it is a synchronous mini-transaction
 	@param read_only	true if read only mini-transaction */
-	void start(bool sync = true, bool read_only = false)
-	{
-		start(NULL, sync, read_only);
-	}
-
-	/** Start a mini-transaction.
-	@param sync		true if it is a synchronous mini-transaction
-	@param read_only	true if read only mini-transaction */
-	void start(trx_t* trx, bool sync = true, bool read_only = false);
+	void start(bool sync = true, bool read_only = false);
 
 	/** @return whether this is an asynchronous mini-transaction. */
 	bool is_async() const
