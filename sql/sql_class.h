@@ -284,8 +284,9 @@ class Alter_column :public Sql_alloc {
 public:
   const char *name;
   Virtual_column_info *default_value;
-  Alter_column(const char *par_name, Virtual_column_info *expr)
-    :name(par_name), default_value(expr) {}
+  bool alter_if_exists;
+  Alter_column(const char *par_name, Virtual_column_info *expr, bool par_exists)
+    :name(par_name), default_value(expr), alter_if_exists(par_exists) {}
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone

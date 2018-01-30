@@ -6114,6 +6114,40 @@ drop_create_field:
     }
   }
 
+  /* Handle ALTER COLUMN IF EXISTS SET/DROP DEFAULT. */
+  {
+    List_iterator<Alter_column> it(alter_info->alter_list);
+    Alter_column *acol;
+
+    while ((acol=it++))
+    {
+      if (!acol->alter_if_exists)
+        continue;
+      /*
+         If there is NO field with the same name in the table already,
+         remove the acol from the list.
+      */
+      for (f_ptr=table->field; *f_ptr; f_ptr++)
+      {
+        if (my_strcasecmp(system_charset_info,
+                           acol->name, (*f_ptr)->field_name.str) == 0)
+          break;
+      }
+      if (*f_ptr == NULL)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_BAD_FIELD_ERROR,
+                            ER_THD(thd, ER_BAD_FIELD_ERROR),
+                            acol->name, table->s->table_name.str);
+        it.remove();
+        if (alter_info->alter_list.is_empty())
+        {
+          alter_info->flags&= ~(Alter_info::ALTER_CHANGE_COLUMN_DEFAULT);
+        }
+      }
+    }
+  }
+
   /* Handle DROP COLUMN/KEY IF EXISTS. */
   {
     List_iterator<Alter_drop> drop_it(alter_info->drop_list);
@@ -6142,7 +6176,9 @@ drop_create_field:
       }
       else if (drop->type == Alter_drop::CHECK_CONSTRAINT)
       {
-        for (uint i=table->s->field_check_constraints; i < table->s->table_check_constraints; i++)
+        for (uint i=table->s->field_check_constraints;
+             i < table->s->table_check_constraints;
+             i++)
         {
           if (my_strcasecmp(system_charset_info, drop->name,
                             table->check_constraints[i]->name.str) == 0)

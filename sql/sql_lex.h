@@ -3645,6 +3645,8 @@ public:
     alter_info.check_constraint_list.push_back(constr);
     return false;
   }
+  bool add_alter_list(const char *par_name, Virtual_column_info *expr,
+                      bool par_exists);
   void set_command(enum_sql_command command,
                    DDL_options_st options)
   {

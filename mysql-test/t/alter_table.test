@@ -1882,6 +1882,16 @@ alter table t1 drop column a, drop index a;
 show create table t1;
 drop table t1;
 
+#
+# MDEV-14694 ALTER COLUMN IF EXISTS .. causes syntax error
+#
+
+create table t1 (i int);
+alter table t1 alter column if exists a set default 1;
+alter table t1 alter column if exists a drop default;
+show create table t1;
+drop table t1;
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

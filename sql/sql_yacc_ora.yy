@@ -7735,24 +7735,15 @@ alter_list_item:
             lex->alter_info.keys_onoff= Alter_info::ENABLE;
             lex->alter_info.flags|= Alter_info::ALTER_KEYS_ONOFF;
           }
-        | ALTER opt_column field_ident SET DEFAULT column_default_expr
+        | ALTER opt_column opt_if_exists_table_element field_ident SET DEFAULT column_default_expr
           {
-            LEX *lex=Lex;
-            Alter_column *ac= new (thd->mem_root) Alter_column($3.str,$6);
-            if (ac == NULL)
+            if (Lex->add_alter_list($4.str, $7, $3))
               MYSQL_YYABORT;
-            lex->alter_info.alter_list.push_back(ac, thd->mem_root);
-            lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN_DEFAULT;
           }
-        | ALTER opt_column field_ident DROP DEFAULT
+        | ALTER opt_column opt_if_exists_table_element field_ident DROP DEFAULT
           {
-            LEX *lex=Lex;
-            Alter_column *ac= (new (thd->mem_root)
-                               Alter_column($3.str, (Virtual_column_info*) 0));
-            if (ac == NULL)
+            if (Lex->add_alter_list($4.str, (Virtual_column_info*) 0, $3))
               MYSQL_YYABORT;
-            lex->alter_info.alter_list.push_back(ac, thd->mem_root);
-            lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN_DEFAULT;
           }
         | RENAME opt_to table_ident
           {
