@@ -57,16 +57,6 @@ trx_rsegf_get_new(
 	mtr_t*			mtr);
 
 /***************************************************************//**
-Gets the file page number of the nth undo log slot.
-@return page number of the undo log segment */
-UNIV_INLINE
-ulint
-trx_rsegf_get_nth_undo(
-/*===================*/
-	trx_rsegf_t*	rsegf,	/*!< in: rollback segment header */
-	ulint		n,	/*!< in: index of slot */
-	mtr_t*		mtr);	/*!< in: mtr */
-/***************************************************************//**
 Sets the file page number of the nth undo log slot. */
 UNIV_INLINE
 void
@@ -81,10 +71,7 @@ Looks for a free slot for an undo log segment.
 @return slot index or ULINT_UNDEFINED if not found */
 UNIV_INLINE
 ulint
-trx_rsegf_undo_find_free(
-/*=====================*/
-	trx_rsegf_t*	rsegf,	/*!< in: rollback segment header */
-	mtr_t*		mtr);	/*!< in: mtr */
+trx_rsegf_undo_find_free(const trx_rsegf_t* rsegf);
 
 /** Creates a rollback segment header.
 This function is called only when a new rollback segment is created in
@@ -242,6 +229,18 @@ struct trx_rseg_t {
 #define TRX_RSEG_UNDO_SLOTS	(8 + FLST_BASE_NODE_SIZE + FSEG_HEADER_SIZE)
 					/* Undo log segment slots */
 /*-------------------------------------------------------------*/
+
+/** Read the page number of an undo log slot.
+@param[in]	rsegf	rollback segment header
+@param[in]	n	slot number */
+inline
+uint32_t
+trx_rsegf_get_nth_undo(const trx_rsegf_t* rsegf, ulint n)
+{
+	ut_ad(n < TRX_RSEG_N_SLOTS);
+	return mach_read_from_4(rsegf + TRX_RSEG_UNDO_SLOTS
+				+ n * TRX_RSEG_SLOT_SIZE);
+}
 
 #include "trx0rseg.ic"
 

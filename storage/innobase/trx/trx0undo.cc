@@ -433,7 +433,7 @@ trx_undo_seg_create(trx_rsegf_t* rseg_hdr, ulint* id, dberr_t* err, mtr_t* mtr)
 	ulint		n_reserved;
 	bool		success;
 
-	slot_no = trx_rsegf_undo_find_free(rseg_hdr, mtr);
+	slot_no = trx_rsegf_undo_find_free(rseg_hdr);
 
 	if (slot_no == ULINT_UNDEFINED) {
 		ib::warn() << "Cannot find a free slot for an undo log. Do"
@@ -1150,9 +1150,7 @@ trx_undo_lists_init(
 	rseg_header = trx_rsegf_get_new(rseg->space, rseg->page_no, &mtr);
 
 	for (i = 0; i < TRX_RSEG_N_SLOTS; i++) {
-		ulint	page_no;
-
-		page_no = trx_rsegf_get_nth_undo(rseg_header, i, &mtr);
+		uint32_t page_no = trx_rsegf_get_nth_undo(rseg_header, i);
 
 		/* In forced recovery: try to avoid operations which look
 		at database pages; undo logs are rapidly changing data, and
