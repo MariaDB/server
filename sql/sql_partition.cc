@@ -4713,7 +4713,12 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
     DBUG_RETURN(TRUE);
   }
 
-  thd->work_part_info= thd->lex->part_info;
+  /*
+    One of these is done in handle_if_exists_option():
+        thd->work_part_info= thd->lex->part_info;
+      or
+        thd->work_part_info= NULL;
+  */
 
   if (thd->work_part_info &&
       !(thd->work_part_info= thd->work_part_info->get_clone()))

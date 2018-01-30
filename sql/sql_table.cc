@@ -5997,6 +5997,7 @@ remove_key_no_warn:
   
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *tab_part_info= table->part_info;
+  thd->work_part_info= thd->lex->part_info;
   if (tab_part_info && thd->lex->check_exists)
   {
     /* ALTER TABLE ADD PARTITION IF NOT EXISTS */
@@ -6015,7 +6016,7 @@ remove_key_no_warn:
                 ER_SAME_NAME_PARTITION, ER(ER_SAME_NAME_PARTITION),
                 pe->partition_name);
             alter_info->flags&= ~Alter_info::ALTER_ADD_PARTITION;
-            thd->lex->part_info= NULL;
+            thd->work_part_info= NULL;
             break;
           }
         }
