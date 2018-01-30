@@ -41,6 +41,7 @@
 #include "sql_trigger.h"
 #include "sql_derived.h"
 #include "sql_show.h"
+#include "ha_partition.h"
 
 extern "C" int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t Count);
 
@@ -96,6 +97,34 @@ public:
 
 #define GET (stack_pos != stack ? *--stack_pos : my_b_get(&cache))
 #define PUSH(A) *(stack_pos++)=(A)
+
+#ifdef WITH_WSREP
+extern void wsrep_load_data_spliting_commit(handler** handlers, uint size, THD* thd);
+
+#define WSREP_LOAD_DATA_SPLITTING                                                       \
+    do {                                                                                \
+        legacy_db_type db_type = ha_legacy_type(table->file->ht);                       \
+        handler** files = &(table->file);                                               \
+        uint size = 1;                                                                  \
+        if (db_type == DB_TYPE_PARTITION_DB) {                                          \
+            ha_partition *partition_file = static_cast<ha_partition*>(table->file);     \
+            files = partition_file->get_child_handlers();                               \
+            partition_file->get_no_parts("", &size);                                    \
+            db_type = ha_legacy_type(partition_file->partition_ht());                   \
+        }                                                                               \
+        if (wsrep_load_data_splitting && db_type == DB_TYPE_INNODB                      \
+            && (&info)->records > 0 && (&info)->records % 10000 == 0) {                 \
+            wsrep_load_data_spliting_commit(files, size, thd);                          \
+        }                                                                               \
+    } while (0)                                                                         \
+
+#else /* WITH_WSREP */
+
+#define WSREP_LOAD_DATA_SPLITTING                                                       \
+    do {                                                                                \
+    } while (0)                                                                         \
+
+#endif /* WITH_WSREP */
 
 class READ_INFO {
   File	file;
@@ -989,6 +1018,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
+    WSREP_LOAD_DATA_SPLITTING;
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= FALSE;
     if (err)
@@ -1194,6 +1224,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
+    WSREP_LOAD_DATA_SPLITTING;
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= FALSE;
     if (err)
@@ -1347,7 +1378,8 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     case VIEW_CHECK_ERROR:
       DBUG_RETURN(-1);
     }
-    
+
+    WSREP_LOAD_DATA_SPLITTING;    
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= false;
     if (err)

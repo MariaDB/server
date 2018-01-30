@@ -478,6 +478,10 @@ innobase_fts_find_ranking(
 	uchar*,
 	uint);
 
+static inline
+void
+trx_register_for_2pc(trx_t*  trx);
+
 /* Call back function array defined by MySQL and used to
 retrieve FTS results. */
 const struct _ft_vft ft_vft_result = {NULL,
@@ -1904,6 +1908,77 @@ thd_to_trx_id(
 {
 	return(thd_to_trx(thd)->id);
 }
+
+typedef struct Pair
+{
+	row_prebuilt_t *prebuilt;
+	enum lock_mode	mode;
+} Pair;
+
+/********************************************************************//**
+Intermediate commit for splitting large LOAD DATA commands into more 
+manageable units.*/
+void
+wsrep_load_data_spliting_commit(handler** handlers, uint size, THD* thd)
+{
+	DBUG_ENTER("wsrep_load_data_spliting_commit");
+
+	trx_t* trx = thd_to_trx(thd);
+	if (!wsrep_load_data_splitting || !trx_is_started(trx) || !wsrep_on(thd)
+	    || thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
+		DBUG_VOID_RETURN;
+	}
+
+	TrxInInnoDB	trx_in_innodb(trx);
+	if (trx_in_innodb.is_aborted()) {
+		DBUG_VOID_RETURN;
+	}
+
+	enum wsrep_trx_status status;
+	handlerton* innodb_hton = handlers[0]->ht;
+	Pair* array = static_cast<Pair*>(ut_malloc_nokey(
+					(size + 1) * sizeof(Pair)));
+	WSREP_DEBUG("forced trx split for LOAD: %s", wsrep_thd_query(thd));
+	if (array == NULL) {
+		DBUG_VOID_RETURN;
+	}
+	memset(array, 0x00, (size + 1) * sizeof(Pair));
+	for (uint idx = 0; idx < size; idx++)
+	{
+		ha_innobase* innobase_file = static_cast<ha_innobase*>(handlers[idx]);
+                row_prebuilt_t* prebuilt = innobase_file->get_prebuilt();
+		enum lock_mode  mode;
+
+		DBUG_ASSERT(trx == prebuilt->trx);
+		if (lock_get_dest_lock_mode(trx, prebuilt->table, &mode)) {
+			array[idx].prebuilt = prebuilt;
+			array[idx].mode = mode;
+		}
+	}
+	
+	status = wsrep_run_wsrep_commit(thd, 1);
+	if (status != WSREP_TRX_OK) {
+		ut_free(array);
+		DBUG_VOID_RETURN;
+	}
+	if (binlog_hton->commit(binlog_hton, thd, 1)) {
+		ut_free(array);
+		DBUG_VOID_RETURN;
+	}
+	wsrep_post_commit(thd, TRUE);
+	innobase_commit(innodb_hton, thd, 1);
+	trx_register_for_2pc(trx);
+	for (uint idx = 0; idx < size; idx++) {
+		if (array[idx].prebuilt == NULL) {
+			continue;
+		}
+		row_lock_table_for_mysql(array[idx].prebuilt,
+					 array[idx].prebuilt->table, array[idx].mode);
+	}
+	ut_free(array);
+
+	DBUG_VOID_RETURN;
+}
 #endif /* WITH_WSREP */
 
 /********************************************************************//**
@@ -2999,7 +3074,6 @@ ha_innobase::ha_innobase(
 			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
 		  ),
 	m_start_of_scan(),
-	m_num_write_row(),
         m_mysql_has_locked()
 {}
 
@@ -8180,7 +8254,6 @@ ha_innobase::write_row(
 #ifdef WITH_WSREP
 	ibool		auto_inc_inserted= FALSE; /* if NULL was inserted */
 #endif
-	ulint		sql_command;
 	int		error_result = 0;
 	bool		auto_inc_used = false;
 
@@ -8219,131 +8292,7 @@ ha_innobase::write_row(
 		++trx->will_lock;
 	}
 
-	/* Step-2: Intermediate commit if original operation involves ALTER
-	table with algorithm = copy. Intermediate commit ease pressure on
-	recovery if server crashes while ALTER is active. */
-	sql_command = thd_sql_command(m_user_thd);
-
-	if ((sql_command == SQLCOM_ALTER_TABLE
-	     || sql_command == SQLCOM_OPTIMIZE
-	     || sql_command == SQLCOM_CREATE_INDEX
-#ifdef WITH_WSREP
-	     || (sql_command == SQLCOM_LOAD
-		 && wsrep_load_data_splitting && wsrep_on(m_user_thd)
-		 && !thd_test_options(
-			 m_user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-#endif /* WITH_WSREP */
-	     || sql_command == SQLCOM_DROP_INDEX)
-	    && m_num_write_row >= 10000) {
-#ifdef WITH_WSREP
-		if (sql_command == SQLCOM_LOAD && wsrep_on(m_user_thd)) {
-			WSREP_DEBUG("forced trx split for LOAD: %s",
-				    wsrep_thd_query(m_user_thd));
-		}
-#endif /* WITH_WSREP */
-		/* ALTER TABLE is COMMITted at every 10000 copied rows.
-		The IX table lock for the original table has to be re-issued.
-		As this method will be called on a temporary table where the
-		contents of the original table is being copied to, it is
-		a bit tricky to determine the source table.  The cursor
-		position in the source table need not be adjusted after the
-		intermediate COMMIT, since writes by other transactions are
-		being blocked by a MySQL table lock TL_WRITE_ALLOW_READ. */
-
-		dict_table_t*	src_table;
-		enum lock_mode	mode;
-
-		m_num_write_row = 0;
-
-		/* Commit the transaction.  This will release the table
-		locks, so they have to be acquired again. */
-
-		/* Altering an InnoDB table */
-		/* Get the source table. */
-		src_table = lock_get_src_table(
-				m_prebuilt->trx, m_prebuilt->table, &mode);
-		if (!src_table) {
-no_commit:
-			/* Unknown situation: do not commit */
-			;
-		} else if (src_table == m_prebuilt->table) {
-#ifdef WITH_WSREP
-			if (wsrep_on(m_user_thd)                            &&
-			    wsrep_load_data_splitting                       &&
-			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(m_user_thd,
-			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-			{
-				switch (wsrep_run_wsrep_commit(m_user_thd, 1)) {
-				case WSREP_TRX_OK:
-				  break;
-				case WSREP_TRX_SIZE_EXCEEDED:
-				case WSREP_TRX_CERT_FAIL:
-				case WSREP_TRX_ERROR:
-				  DBUG_RETURN(1);
-				}
-
-				if (binlog_hton->commit(binlog_hton, m_user_thd, 1)) {
-					DBUG_RETURN(1);
-				}
-				wsrep_post_commit(m_user_thd, TRUE);
-			}
-#endif /* WITH_WSREP */
-			/* Source table is not in InnoDB format:
-			no need to re-acquire locks on it. */
-
-			/* Altering to InnoDB format */
-			innobase_commit(ht, m_user_thd, 1);
-			/* Note that this transaction is still active. */
-			trx_register_for_2pc(m_prebuilt->trx);
-			/* We will need an IX lock on the destination table. */
-			m_prebuilt->sql_stat_start = TRUE;
-		} else {
-#ifdef WITH_WSREP
-			if (wsrep_on(m_user_thd)                            &&
-			    wsrep_load_data_splitting                       &&
-			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(m_user_thd,
-			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-				switch (wsrep_run_wsrep_commit(m_user_thd, 1)) {
-				case WSREP_TRX_OK:
-					break;
-				case WSREP_TRX_SIZE_EXCEEDED:
-				case WSREP_TRX_CERT_FAIL:
-				case WSREP_TRX_ERROR:
-					DBUG_RETURN(1);
-				}
-
-				if (binlog_hton->commit(binlog_hton, m_user_thd, 1)) {
-					DBUG_RETURN(1);
-				}
-
-				wsrep_post_commit(m_user_thd, TRUE);
-			}
-#endif /* WITH_WSREP */
-			/* Ensure that there are no other table locks than
-			LOCK_IX and LOCK_AUTO_INC on the destination table. */
-
-			if (!lock_is_table_exclusive(m_prebuilt->table,
-							m_prebuilt->trx)) {
-				goto no_commit;
-			}
-
-			/* Commit the transaction.  This will release the table
-			locks, so they have to be acquired again. */
-			innobase_commit(ht, m_user_thd, 1);
-			/* Note that this transaction is still active. */
-			trx_register_for_2pc(m_prebuilt->trx);
-			/* Re-acquire the table lock on the source table. */
-			row_lock_table_for_mysql(m_prebuilt, src_table, mode);
-			/* We will need an IX lock on the destination table. */
-			m_prebuilt->sql_stat_start = TRUE;
-		}
-	}
-
-	m_num_write_row++;
-
-	/* Step-3: Handling of Auto-Increment Columns. */
+	/* Step-2: Handling of Auto-Increment Columns. */
 	if (table->next_number_field && record == table->record[0]) {
 
 		/* Reset the error code before calling
@@ -8376,7 +8325,7 @@ no_commit:
 		auto_inc_used = true;
 	}
 
-	/* Step-4: Prepare INSERT graph that will be executed for actual INSERT
+	/* Step-3: Prepare INSERT graph that will be executed for actual INSERT
 	(This is a one time operation) */
 	if (m_prebuilt->mysql_template == NULL
 	    || m_prebuilt->template_type != ROW_MYSQL_WHOLE_ROW) {
@@ -8392,12 +8341,12 @@ no_commit:
 	vers_set_fields = table->versioned_write(VERS_TRX_ID) ?
 		ROW_INS_VERSIONED : ROW_INS_NORMAL;
 
-	/* Step-5: Execute insert graph that will result in actual insert. */
+	/* Step-4: Execute insert graph that will result in actual insert. */
 	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
 
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
-	/* Step-6: Handling of errors related to auto-increment. */
+	/* Step-5: Handling of errors related to auto-increment. */
 	if (auto_inc_used) {
 		ulonglong	auto_inc;
 		ulonglong	col_max_value;
@@ -8425,13 +8374,11 @@ no_commit:
 			must update the autoinc counter if we are performing
 			those statements. */
 
-			switch (sql_command) {
+			switch (thd_sql_command(m_user_thd)) {
 			case SQLCOM_LOAD:
-				if (trx->duplicates) {
-
-					goto set_max_autoinc;
+				if (!trx->duplicates) {
+					break;
 				}
-				break;
 
 			case SQLCOM_REPLACE:
 			case SQLCOM_INSERT_SELECT:
@@ -8520,7 +8467,7 @@ set_max_autoinc:
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 
 report_error:
-	/* Step-7: Cleanup and exit. */
+	/* Step-6: Cleanup and exit. */
 	if (error == DB_TABLESPACE_DELETED) {
 		ib_senderrf(
 			trx->mysql_thd, IB_LOG_LEVEL_ERROR,
@@ -15754,6 +15701,12 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
 		thd_to_trx(ha_thd())->duplicates &= ~TRX_DUP_REPLACE;
+		break;
+	case HA_EXTRA_BEGIN_ALTER_COPY:
+		m_prebuilt->table->skip_alter_undo = 1;
+		break;
+	case HA_EXTRA_END_ALTER_COPY:
+		m_prebuilt->table->skip_alter_undo = 0;
 		break;
 	default:/* Do nothing */
 		;

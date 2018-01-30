@@ -10357,6 +10357,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   thd->progress.max_counter= from->file->records();
   time_to_report_progress= MY_HOW_OFTEN_TO_WRITE/10;
+  to->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
 
   while (!(error= info.read_record()))
   {
@@ -10516,6 +10517,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       to->file->print_error(my_errno,MYF(0));
     error= 1;
   }
+  to->file->extra(HA_EXTRA_END_ALTER_COPY);
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
   if (mysql_trans_commit_alter_copy_data(thd))

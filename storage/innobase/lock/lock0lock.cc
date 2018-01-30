@@ -617,6 +617,56 @@ lock_get_size(void)
 	return((ulint) sizeof(lock_t));
 }
 
+my_bool
+lock_get_dest_lock_mode(
+/*===============*/
+        trx_t*          trx,    /*!< in: transaction */
+        dict_table_t*   dest,   /*!< in: destination of LOAD DATA */
+        lock_mode*      mode)   /*!< out: lock mode of the destination table */
+{
+	lock_t*    lock;
+	my_bool   resut = FALSE;
+	ut_ad(!lock_mutex_own());
+
+	*mode = LOCK_NONE;
+	trx_mutex_enter(trx);
+
+	for (lock = UT_LIST_GET_FIRST(trx->lock.trx_locks);
+	     lock != NULL;
+	     lock = UT_LIST_GET_NEXT(trx_locks, lock)) {
+		lock_table_t*	tab_lock;
+		lock_mode	lock_mode;
+		if (!(lock_get_type_low(lock) & LOCK_TABLE)) {
+			/* We are only interested in table locks. */
+			continue;
+		}
+		tab_lock = &lock->un_member.tab_lock;
+		if (dest != tab_lock->table) {
+			continue;
+		}
+		resut = TRUE;
+		if (UT_LIST_GET_LEN(dest->locks) != 1
+		    || UT_LIST_GET_FIRST(dest->locks) != lock) {
+			resut = FALSE;
+			goto func_exit;
+		}
+
+		lock_mode = lock_get_mode(lock);
+		if (lock_mode == LOCK_IX || lock_mode == LOCK_IS) {
+			if (*mode != LOCK_NONE && *mode != lock_mode) {
+				/* There are multiple locks on dest. */
+				resut = FALSE;
+				goto func_exit;
+			}
+			*mode = lock_mode;
+		}
+	}
+
+func_exit:
+	trx_mutex_exit(trx);
+	return resut;
+}
+
 /*********************************************************************//**
 Gets the source table of an ALTER TABLE transaction.  The table must be
 covered by an IX or IS table lock.
