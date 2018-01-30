@@ -1655,6 +1655,12 @@ int TP_pool_generic::init()
     sql_print_error("Can't set threadpool size to %d",threadpool_size);
     DBUG_RETURN(-1);
   }
+  else if (group_count != threadpool_size)
+  {
+    sql_print_warning("Could only set threadpool size to %d, requested size %d",
+                      group_count, threadpool_size);
+    threadpool_size= group_count;
+  }
   PSI_register(mutex);
   PSI_register(cond);
   PSI_register(thread);
