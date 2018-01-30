@@ -358,7 +358,7 @@ static void *native_event_get_userdata(native_event *event)
 #endif
 
 
-TP_file_handle io_poll_create()
+static TP_file_handle io_poll_create()
 {
   return kqueue();
 }
@@ -1064,7 +1064,7 @@ int thread_group_init(thread_group_t *thread_group, pthread_attr_t* thread_attr)
 }
 
 
-void thread_group_destroy(thread_group_t *thread_group)
+static void thread_group_destroy(thread_group_t *thread_group)
 {
   mysql_mutex_destroy(&thread_group->mutex);
   if (thread_group->pollfd != INVALID_HANDLE_VALUE)
