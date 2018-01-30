@@ -1371,6 +1371,7 @@ srv_init_abort_low(
 			" with error " << ut_strerr(err);
 	}
 
+	srv_shutdown_bg_undo_sources();
 	srv_shutdown_all_bg_threads();
 	return(err);
 }
