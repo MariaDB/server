@@ -156,6 +156,7 @@ public:
 class Item_func_concat :public Item_str_func
 {
   String tmp_value;
+  bool realloc_result(String *str, uint length) const;
 public:
   Item_func_concat(List<Item> &list) :Item_str_func(list) {}
   Item_func_concat(Item *a,Item *b) :Item_str_func(a,b) {}
