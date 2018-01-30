@@ -8938,12 +8938,21 @@ void vers_select_conds_t::resolve_units(bool timestamps_only)
 
 Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
 {
+  Field **tmp;
   size_t length= str->length;
-  for (Field **tmp= field; *tmp; tmp++)
+  if (s->name_hash.records)
   {
-    if ((*tmp)->field_name.length == length &&
-        !lex_string_cmp(system_charset_info, &(*tmp)->field_name, str))
-      return *tmp;
+    tmp= (Field**) my_hash_search(&s->name_hash, (uchar*) str->str, length);
+    return tmp ? field[tmp - s->field] : NULL;
+  }
+  else
+  {
+    for (tmp= field; *tmp; tmp++)
+    {
+      if ((*tmp)->field_name.length == length &&
+          !lex_string_cmp(system_charset_info, &(*tmp)->field_name, str))
+        return *tmp;
+    }
   }
   return NULL;
 }
