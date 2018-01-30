@@ -8396,6 +8396,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
 
     if (field->invisible)
     {
+      all_fields_have_values= false;
       continue;
     }
     else

@@ -214,3 +214,11 @@ set @a=2,@b=2, @c=2;
 execute insert_2;
 select a,b,c,d from t1 order by a;
 drop table t1;
+#MDEV-15085 Non constant default getting Null values
+create table t1(a int default 5 invisible, b int);
+create table t2(a int default (b+11) invisible, b int);
+insert into t1 values(1);
+select a,b from t1;
+insert into t2 values(1);
+select a,b from t2;
+drop table t1,t2;
