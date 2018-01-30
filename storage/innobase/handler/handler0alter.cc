@@ -5562,7 +5562,7 @@ error_handling_drop_uncached:
 	if (ctx->online && ctx->num_to_add_index) {
 		/* Assign a consistent read view for
 		row_merge_read_clustered_index(). */
-		trx_sys.mvcc.view_open(ctx->prebuilt->trx);
+		ctx->prebuilt->trx->read_view.open(ctx->prebuilt->trx);
 	}
 
 	if (fts_index) {

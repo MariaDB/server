@@ -42,7 +42,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "log0log.h"
 #include "log0recv.h"
 #include "os0file.h"
-#include "read0read.h"
 #include "fsp0sysspace.h"
 
 #include <mysql/service_wsrep.h>
@@ -402,6 +401,8 @@ trx_sys_t::create()
 	m_initialised = true;
 	mutex_create(LATCH_ID_TRX_SYS, &mutex);
 	UT_LIST_INIT(mysql_trx_list, &trx_t::mysql_trx_list);
+	UT_LIST_INIT(m_views, &ReadView::m_view_list);
+
 	rw_trx_hash.init();
 }
 
@@ -507,7 +508,7 @@ trx_sys_t::close()
 		return;
 	}
 
-	if (ulint size = mvcc.size()) {
+	if (size_t size = view_count()) {
 		ib::error() << "All read views were not closed before"
 			" shutdown: " << size << " read views open";
 	}
@@ -532,6 +533,7 @@ trx_sys_t::close()
 	}
 
 	ut_a(UT_LIST_GET_LEN(mysql_trx_list) == 0);
+	ut_ad(UT_LIST_GET_LEN(m_views) == 0);
 
 	/* We used placement new to create this mutex. Call the destructor. */
 	mutex_free(&mutex);
@@ -564,7 +566,7 @@ ulint trx_sys_t::any_active_transactions()
 				reinterpret_cast<my_hash_walk_action>
 				(active_count_callback), &total_trx);
 
-	mutex_enter(&trx_sys.mutex);
+	mutex_enter(&mutex);
 	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
 	     trx != NULL;
 	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
@@ -572,7 +574,7 @@ ulint trx_sys_t::any_active_transactions()
 			total_trx++;
 		}
 	}
-	mutex_exit(&trx_sys.mutex);
+	mutex_exit(&mutex);
 
 	return(total_trx);
 }

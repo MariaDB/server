@@ -51,7 +51,6 @@ Created 12/19/1997 Heikki Tuuri
 #include "pars0sym.h"
 #include "pars0pars.h"
 #include "row0mysql.h"
-#include "read0read.h"
 #include "buf0lru.h"
 #include "srv0srv.h"
 #include "ha_prototypes.h"
@@ -2270,7 +2269,7 @@ row_sel_step(
 		if (node->consistent_read) {
 			trx_t *trx = thr_get_trx(thr);
 			/* Assign a read view for the query */
-			trx_sys.mvcc.view_open(trx);
+			trx->read_view.open(trx);
 			node->read_view = trx->read_view.is_open() ?
 					  &trx->read_view : NULL;
 		} else {
@@ -4426,7 +4425,7 @@ row_search_mvcc(
 		/* Assign a read view for the query */
 		trx_start_if_not_started(trx, false);
 
-		trx_sys.mvcc.view_open(trx);
+		trx->read_view.open(trx);
 
 		prebuilt->sql_stat_start = FALSE;
 	} else {
@@ -5878,8 +5877,7 @@ row_search_check_if_query_cache_permitted(
 		transaction if it does not yet have one */
 
 		if (trx->isolation_level >= TRX_ISO_REPEATABLE_READ) {
-
-			trx_sys.mvcc.view_open(trx);
+			trx->read_view.open(trx);
 		}
 	}
 

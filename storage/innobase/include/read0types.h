@@ -32,16 +32,154 @@ Created 2/16/1997 Heikki Tuuri
 
 #include "trx0types.h"
 
-// Friend declaration
-class MVCC;
 
-/** Read view lists the trx ids of those transactions for which a consistent
-read should not see the modifications to the database. */
+/** View is not in MVCC and not visible to purge thread. */
+#define READ_VIEW_STATE_CLOSED 0
 
-class ReadView {
+/** View is in MVCC, but not visible to purge thread. */
+#define READ_VIEW_STATE_REGISTERED 1
+
+/** View is in MVCC, purge thread must wait for READ_VIEW_STATE_OPEN. */
+#define READ_VIEW_STATE_SNAPSHOT 2
+
+/** View is in MVCC and is visible to purge thread. */
+#define READ_VIEW_STATE_OPEN 3
+
+
+/**
+  Read view lists the trx ids of those transactions for which a consistent read
+  should not see the modifications to the database.
+*/
+class ReadView
+{
+  /**
+    View state.
+
+    It is not defined as enum as it has to be updated using atomic operations.
+    Possible values are READ_VIEW_STATE_CLOSED, READ_VIEW_STATE_REGISTERED,
+    READ_VIEW_STATE_SNAPSHOT and READ_VIEW_STATE_OPEN.
+
+    Possible state transfers...
+
+    Opening view for the first time:
+    READ_VIEW_STATE_CLOSED -> READ_VIEW_STATE_SNAPSHOT (non-atomic)
+
+    Complete first time open or reopen:
+    READ_VIEW_STATE_SNAPSHOT -> READ_VIEW_STATE_OPEN (atomic)
+
+    Close view but keep it in list:
+    READ_VIEW_STATE_OPEN -> READ_VIEW_STATE_REGISTERED (atomic)
+
+    Close view and remove it from list:
+    READ_VIEW_STATE_OPEN -> READ_VIEW_STATE_CLOSED (non-atomic)
+
+    Reusing view:
+    READ_VIEW_STATE_REGISTERED -> READ_VIEW_STATE_SNAPSHOT (atomic)
+
+    Removing closed view from list:
+    READ_VIEW_STATE_REGISTERED -> READ_VIEW_STATE_CLOSED (non-atomic)
+  */
+  int32_t m_state;
+
+
 public:
-	ReadView() : m_creator_trx_id(TRX_ID_MAX), m_ids(),
-		     m_registered(false) {}
+  ReadView(): m_state(READ_VIEW_STATE_CLOSED) {}
+
+
+  /**
+    Copy state from another view.
+
+    @param other    view to copy from
+  */
+  void copy(const ReadView &other)
+  {
+    ut_ad(&other != this);
+    m_ids= other.m_ids;
+    m_up_limit_id= other.m_up_limit_id;
+    m_low_limit_no= other.m_low_limit_no;
+    m_low_limit_id= other.m_low_limit_id;
+  }
+
+
+  /**
+    Opens a read view where exactly the transactions serialized before this
+    point in time are seen in the view.
+
+    View becomes visible to purge thread via trx_sys.m_views.
+
+    @param[in,out] trx transaction
+  */
+  void open(trx_t *trx);
+
+
+  /**
+    Closes the view.
+
+    View becomes not visible to purge thread via trx_sys.m_views.
+  */
+  void close();
+
+
+  /**
+    Marks view unused.
+
+    View is still in trx_sys.m_views list, but is not visible to purge threads.
+  */
+  void unuse()
+  {
+    ut_ad(m_state == READ_VIEW_STATE_CLOSED ||
+          m_state == READ_VIEW_STATE_REGISTERED ||
+          m_state == READ_VIEW_STATE_OPEN);
+    if (m_state == READ_VIEW_STATE_OPEN)
+      my_atomic_store32_explicit(&m_state, READ_VIEW_STATE_REGISTERED,
+                                 MY_MEMORY_ORDER_RELAXED);
+  }
+
+
+  /** m_state getter for trx_sys::clone_oldest_view() trx_sys::size(). */
+  int32_t get_state() const
+  {
+    return my_atomic_load32_explicit(const_cast<int32*>(&m_state),
+                                     MY_MEMORY_ORDER_ACQUIRE);
+  }
+
+
+  /**
+    Returns true if view is open.
+
+    Only used by view owner thread, thus we can omit atomic operations.
+  */
+  bool is_open() const
+  {
+    ut_ad(m_state == READ_VIEW_STATE_OPEN ||
+          m_state == READ_VIEW_STATE_CLOSED ||
+          m_state == READ_VIEW_STATE_REGISTERED);
+    return m_state == READ_VIEW_STATE_OPEN;
+  }
+
+
+  /**
+    Creates a snapshot where exactly the transactions serialized before this
+    point in time are seen in the view.
+
+    @param[in,out] trx transaction
+  */
+  void snapshot(trx_t *trx);
+
+
+  /**
+    Sets the creator transaction id.
+
+    This should be set only for views created by RW transactions.
+  */
+  void set_creator_trx_id(trx_id_t id)
+  {
+    ut_ad(id > 0);
+    ut_ad(m_creator_trx_id == 0);
+    m_creator_trx_id= id;
+  }
+
+
 	/** Check whether transaction id is valid.
 	@param[in]	id		transaction id to check
 	@param[in]	name		table name */
@@ -86,25 +224,6 @@ public:
 	}
 
 	/**
-	Mark the view as closed */
-	void close()
-	{
-		set_creator_trx_id(TRX_ID_MAX);
-	}
-
-	bool is_open() const
-	{
-		return static_cast<trx_id_t>(my_atomic_load64_explicit(
-				const_cast<int64*>(
-				reinterpret_cast<const int64*>(
-				&m_creator_trx_id)),
-				MY_MEMORY_ORDER_RELAXED)) != TRX_ID_MAX;
-	}
-
-	bool is_registered() const { return(m_registered); }
-	void set_registered(bool registered) { m_registered= registered; }
-
-	/**
 	Write the limits to the file.
 	@param file		file to write to */
 	void print_limits(FILE* file) const
@@ -129,54 +248,8 @@ public:
 		return(m_low_limit_id);
 	}
 
-	/**
-	@return true if there are no transaction ids in the snapshot */
-	bool empty() const
-	{
-		return(m_ids.empty());
-	}
 
-	/**
-	Set the creator transaction id, existing id must be 0.
-
-	Note: This shouldbe set only for views created by RW
-	transactions. */
-	void set_creator_trx_id(trx_id_t id)
-	{
-		my_atomic_store64_explicit(
-				reinterpret_cast<int64*>(&m_creator_trx_id),
-				id, MY_MEMORY_ORDER_RELAXED);
-	}
-
-#ifdef UNIV_DEBUG
-	/**
-	@param rhs		view to compare with
-	@return truen if this view is less than or equal rhs */
-	bool le(const ReadView* rhs) const
-	{
-		return(m_low_limit_no <= rhs->m_low_limit_no);
-	}
-
-	trx_id_t up_limit_id() const
-	{
-		return(m_up_limit_id);
-	}
-#endif /* UNIV_DEBUG */
 private:
-	/**
-	Opens a read view where exactly the transactions serialized before this
-	point in time are seen in the view.
-
-	@param[in,out] trx transaction */
-	void open(trx_t *trx);
-
-	/**
-	Copy state from another view.
-	@param other		view to copy from */
-	inline void copy(const ReadView& other);
-
-	friend class MVCC;
-
 	/** The read should not see any transaction with trx id >= this
 	value. In other words, this is the "high water mark". */
 	trx_id_t	m_low_limit_id;
@@ -199,11 +272,8 @@ private:
 	they can be removed in purge if not needed by other views */
 	trx_id_t	m_low_limit_no;
 
-	/** true if transaction is in MVCC::m_views. Only thread that owns
-	this view may access it. */
-	bool		m_registered;
-
 	byte		pad1[CACHE_LINE_SIZE];
+public:
 	UT_LIST_NODE_T(ReadView)	m_view_list;
 };
 

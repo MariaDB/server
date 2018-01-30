@@ -39,7 +39,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "log0log.h"
 #include "os0proc.h"
 #include "que0que.h"
-#include "read0read.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
 #include "fsp0sysspace.h"
@@ -511,7 +510,7 @@ trx_free(trx_t*& trx)
 	trx->mod_tables.clear();
 
 	ut_ad(!trx->read_view.is_open());
-	trx_sys.mvcc.view_close(trx->read_view);
+	trx->read_view.close();
 
 	/* trx locking state should have been reset before returning trx
 	to pool */
@@ -673,7 +672,7 @@ trx_disconnect_from_mysql(
 	trx_t*	trx,
 	bool	prepared)
 {
-	trx_sys.mvcc.view_close(trx->read_view);
+	trx->read_view.close();
 
 	mutex_enter(&trx_sys.mutex);
 
@@ -972,7 +971,7 @@ trx_lists_init_at_db_start()
 
 		ib::info() << "Trx id counter is " << trx_sys.get_max_trx_id();
 	}
-	trx_sys.mvcc.clone_oldest_view(&purge_sys->view);
+	trx_sys.clone_oldest_view();
 }
 
 /** Assign a persistent rollback segment in a round-robin fashion,
@@ -1512,7 +1511,7 @@ trx_commit_in_memory(
 				the transaction did not modify anything */
 {
 	trx->must_flush_log_later = false;
-	trx->read_view.close();
+	trx->read_view.unuse();
 
 	if (trx_is_autocommit_non_locking(trx)) {
 		ut_ad(trx->id == 0);

@@ -810,17 +810,17 @@ private:
   /** Solves race condition between register_rw() and snapshot_ids(). */
   MY_ALIGNED(CACHE_LINE_SIZE) trx_id_t m_rw_trx_hash_version;
 
+
+  /** Active views. */
+  MY_ALIGNED(CACHE_LINE_SIZE) UT_LIST_BASE_NODE_T(ReadView) m_views;
+
   bool m_initialised;
 
 public:
-	MY_ALIGNED(CACHE_LINE_SIZE)
+	MY_ALIGNED(CACHE_LINE_SIZE) mutable
 	TrxSysMutex	mutex;		/*!< mutex protecting most fields in
 					this structure except when noted
 					otherwise */
-
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	MVCC		mvcc;		/*!< Multi version concurrency control
-					manager */
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	trx_ut_list_t	mysql_trx_list;	/*!< List of transactions created
 					for MySQL. All user transactions are
@@ -1029,6 +1029,59 @@ public:
   trx_t *find(trx_t *caller_trx, trx_id_t id)
   {
     return rw_trx_hash.find(caller_trx, id, true);
+  }
+
+
+  /**
+    Registers view in MVCC.
+
+    @param view    view owned by the caller
+  */
+  void register_view(ReadView *view)
+  {
+    mutex_enter(&mutex);
+    UT_LIST_ADD_FIRST(m_views, view);
+    mutex_exit(&mutex);
+  }
+
+
+  /**
+    Deregisters view in MVCC.
+
+    @param view    view owned by the caller
+  */
+  void deregister_view(ReadView *view)
+  {
+    mutex_enter(&mutex);
+    UT_LIST_REMOVE(m_views, view);
+    mutex_exit(&mutex);
+  }
+
+
+  /**
+    Clones the oldest view and stores it in view.
+
+    No need to call ReadView::close(). The caller owns the view that is passed
+    in. This function is called by purge thread to determine whether it should
+    purge the delete marked record or not.
+  */
+  void clone_oldest_view();
+
+
+  /** @return the number of active views */
+  size_t view_count() const
+  {
+    size_t count= 0;
+
+    mutex_enter(&mutex);
+    for (const ReadView* view= UT_LIST_GET_FIRST(m_views); view;
+         view= UT_LIST_GET_NEXT(m_view_list, view))
+    {
+      if (view->get_state() == READ_VIEW_STATE_OPEN)
+        ++count;
+    }
+    mutex_exit(&mutex);
+    return count;
   }
 
 

@@ -33,7 +33,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "mtr0log.h"
 #include "os0thread.h"
 #include "que0que.h"
-#include "read0read.h"
 #include "row0purge.h"
 #include "row0upd.h"
 #include "srv0mon.h"
@@ -1615,7 +1614,7 @@ trx_purge(
 	ut_a(purge_sys->n_submitted == purge_sys->n_completed);
 
 	rw_lock_x_lock(&purge_sys->latch);
-	trx_sys.mvcc.clone_oldest_view(&purge_sys->view);
+	trx_sys.clone_oldest_view();
 	rw_lock_x_unlock(&purge_sys->latch);
 
 #ifdef UNIV_DEBUG
