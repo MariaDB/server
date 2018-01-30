@@ -1745,6 +1745,7 @@ trx_undo_truncate_tablespace(
 	mtr_start(&mtr);
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
 	mtr_x_lock(fil_space_get_latch(space_id, NULL), &mtr);
+	buf_block_t* sys_header = trx_sysf_get(&mtr);
 
 	for (ulint i = 0; i < undo_trunc->rsegs_size(); ++i) {
 		trx_rsegf_t*	rseg_header;
@@ -1752,7 +1753,7 @@ trx_undo_truncate_tablespace(
 		trx_rseg_t*	rseg = undo_trunc->get_ith_rseg(i);
 
 		rseg->page_no = trx_rseg_header_create(
-			space_id, ULINT_MAX, rseg->id, &mtr);
+			space_id, ULINT_MAX, rseg->id, sys_header, &mtr);
 
 		rseg_header = trx_rsegf_get_new(space_id, rseg->page_no, &mtr);
 

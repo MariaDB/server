@@ -1058,7 +1058,6 @@ srv_undo_tablespaces_init(bool create_new_db)
 
 		/* Step-1: Initialize the tablespace header and rsegs header. */
 		mtr_t		mtr;
-		trx_sysf_t*	sys_header;
 
 		mtr_start(&mtr);
 		/* Turn off REDO logging. We are in server start mode and fixing
@@ -1067,7 +1066,11 @@ srv_undo_tablespaces_init(bool create_new_db)
 		as part of the current recovery process. We surely don't need
 		that as this is fix-up action parallel to REDO logging. */
 		mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-		sys_header = trx_sysf_get(&mtr);
+		buf_block_t* sys_header = trx_sysf_get(&mtr);
+		if (!sys_header) {
+			mtr.commit();
+			return DB_CORRUPTION;
+		}
 
 		for (undo::undo_spaces_t::const_iterator it
 			     = undo::Truncate::s_fix_up_spaces.begin();
@@ -1082,13 +1085,11 @@ srv_undo_tablespaces_init(bool create_new_db)
 			mtr_x_lock(fil_space_get_latch(*it, NULL), &mtr);
 
 			for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
-
-				ulint	space_id = trx_sysf_rseg_get_space(
-						sys_header, i, &mtr);
-
-				if (space_id == *it) {
+				if (trx_sysf_rseg_get_space(sys_header, i)
+				    == *it) {
 					trx_rseg_header_create(
-						*it, ULINT_MAX, i, &mtr);
+						*it, ULINT_MAX, i,
+						sys_header, &mtr);
 				}
 			}
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -91,14 +91,16 @@ This function is called only when a new rollback segment is created in
 the database.
 @param[in]	space		space id
 @param[in]	max_size	max size in pages
-@param[in]	rseg_slot_no	rseg id == slot number in trx sys
+@param[in]	rseg_id		rollback segment identifier
+@param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
 @return page number of the created segment, FIL_NULL if fail */
 ulint
 trx_rseg_header_create(
 	ulint			space,
 	ulint			max_size,
-	ulint			rseg_slot_no,
+	ulint			rseg_id,
+	buf_block_t*		sys_header,
 	mtr_t*			mtr);
 
 /** Initialize the rollback segments in memory at database startup. */

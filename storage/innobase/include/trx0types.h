@@ -144,8 +144,6 @@ struct trx_savept_t{
 
 /** File objects */
 /* @{ */
-/** Transaction system header */
-typedef byte	trx_sysf_t;
 /** Rollback segment header */
 typedef byte	trx_rsegf_t;
 /** Undo segment header */

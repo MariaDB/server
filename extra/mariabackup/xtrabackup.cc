@@ -4849,19 +4849,19 @@ xtrabackup_prepare_func(char** argv)
 	if (ok) {
 		mtr_t			mtr;
 		mtr.start();
-		const trx_sysf_t*	sys_header = trx_sysf_get(&mtr);
+		const buf_block_t*	sys_header = trx_sysf_get(&mtr, false);
 
 		if (mach_read_from_4(TRX_SYS_MYSQL_LOG_INFO
 				     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
-				     + sys_header)
+				     + TRX_SYS + sys_header->frame)
 		    == TRX_SYS_MYSQL_LOG_MAGIC_N) {
 			ulonglong pos = mach_read_from_8(
 				TRX_SYS_MYSQL_LOG_INFO
 				+ TRX_SYS_MYSQL_LOG_OFFSET
-				+ sys_header);
+				+ TRX_SYS + sys_header->frame);
 			const char* name = reinterpret_cast<const char*>(
 				TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_NAME
-				+ sys_header);
+				+ TRX_SYS + sys_header->frame);
 			msg("Last binlog file %s, position %llu\n", name, pos);
 
 			/* output to xtrabackup_binlog_pos_innodb and

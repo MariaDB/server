@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -50,10 +50,13 @@ typedef UT_LIST_BASE_NODE_T(trx_t) trx_ut_list_t;
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
 @return true if trx sys header page */
-UNIV_INLINE
+inline
 bool
-trx_sys_hdr_page(
-	const page_id_t&	page_id);
+trx_sys_hdr_page(const page_id_t& page_id)
+{
+	return(page_id.space() == TRX_SYS_SPACE
+	       && page_id.page_no() == TRX_SYS_PAGE_NO);
+}
 
 /** Initialize the transaction system main-memory data structures. */
 void trx_sys_init_at_db_start();
@@ -63,79 +66,45 @@ Creates and initializes the transaction system at the database creation. */
 void
 trx_sys_create_sys_pages(void);
 /*==========================*/
-/** @return an unallocated rollback segment slot in the TRX_SYS header
+/** Find an available rollback segment.
+@param[in]	sys_header
+@return an unallocated rollback segment slot in the TRX_SYS header
 @retval ULINT_UNDEFINED if not found */
 ulint
-trx_sysf_rseg_find_free(mtr_t* mtr);
-/**********************************************************************//**
-Gets a pointer to the transaction system file copy and x-locks its page.
-@return pointer to system file copy, page x-locked */
-UNIV_INLINE
-trx_sysf_t*
-trx_sysf_get(
-/*=========*/
-	mtr_t*	mtr);	/*!< in: mtr */
-/*****************************************************************//**
-Gets the space of the nth rollback segment slot in the trx system
-file copy.
-@return space id */
-UNIV_INLINE
-ulint
-trx_sysf_rseg_get_space(
-/*====================*/
-	trx_sysf_t*	sys_header,	/*!< in: trx sys file copy */
-	ulint		i,		/*!< in: slot index == rseg id */
-	mtr_t*		mtr);		/*!< in: mtr */
-/*****************************************************************//**
-Gets the page number of the nth rollback segment slot in the trx system
-file copy.
-@return page number, FIL_NULL if slot unused */
-UNIV_INLINE
-ulint
-trx_sysf_rseg_get_page_no(
-/*======================*/
-	trx_sysf_t*	sys_header,	/*!< in: trx sys file copy */
-	ulint		i,		/*!< in: slot index == rseg id */
-	mtr_t*		mtr);		/*!< in: mtr */
-/*****************************************************************//**
-Sets the space id of the nth rollback segment slot in the trx system
-file copy. */
-UNIV_INLINE
-void
-trx_sysf_rseg_set_space(
-/*====================*/
-	trx_sysf_t*	sys_header,	/*!< in: trx sys file copy */
-	ulint		i,		/*!< in: slot index == rseg id */
-	ulint		space,		/*!< in: space id */
-	mtr_t*		mtr);		/*!< in: mtr */
-/*****************************************************************//**
-Sets the page number of the nth rollback segment slot in the trx system
-file copy. */
-UNIV_INLINE
-void
-trx_sysf_rseg_set_page_no(
-/*======================*/
-	trx_sysf_t*	sys_header,	/*!< in: trx sys file copy */
-	ulint		i,		/*!< in: slot index == rseg id */
-	ulint		page_no,	/*!< in: page number, FIL_NULL if
-					the slot is reset to unused */
-	mtr_t*		mtr);		/*!< in: mtr */
+trx_sys_rseg_find_free(const buf_block_t* sys_header);
+/** Request the TRX_SYS page.
+@param[in]	rw	whether to lock the page for writing
+@return the TRX_SYS page
+@retval	NULL	if the page cannot be read */
+inline
+buf_block_t*
+trx_sysf_get(mtr_t* mtr, bool rw = true)
+{
+	buf_block_t* block = buf_page_get(
+		page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
+		univ_page_size, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
+	if (block) {
+		buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
+	}
+	return block;
+}
 
 #ifdef UNIV_DEBUG
 /* Flag to control TRX_RSEG_N_SLOTS behavior debugging. */
 extern uint			trx_rseg_n_slots_debug;
 #endif
 
-/*****************************************************************//**
-Writes a trx id to an index page. In case that the id size changes in
-some future version, this function should be used instead of
-mach_write_... */
+/** Write DB_TRX_ID.
+@param[out]	db_trx_id	the DB_TRX_ID field to be written to
+@param[in]	id		transaction ID */
 UNIV_INLINE
 void
-trx_write_trx_id(
-/*=============*/
-	byte*		ptr,	/*!< in: pointer to memory where written */
-	trx_id_t	id);	/*!< in: id */
+trx_write_trx_id(byte* db_trx_id, trx_id_t id)
+{
+	compile_time_assert(DATA_TRX_ID_LEN == 6);
+	ut_ad(id);
+	mach_write_to_6(db_trx_id, id);
+}
 
 /** Read a transaction identifier.
 @return id */
@@ -143,9 +112,7 @@ inline
 trx_id_t
 trx_read_trx_id(const byte* ptr)
 {
-#if DATA_TRX_ID_LEN != 6
-# error "DATA_TRX_ID_LEN != 6"
-#endif
+	compile_time_assert(DATA_TRX_ID_LEN == 6);
 	return(mach_read_from_6(ptr));
 }
 
@@ -171,23 +138,23 @@ trx_sys_update_mysql_binlog_offset(
 /*===============================*/
 	const char*	file_name,/*!< in: MySQL log file name */
 	int64_t		offset,	/*!< in: position in that log file */
-        trx_sysf_t*     sys_header, /*!< in: trx sys header */
-	mtr_t*		mtr);	/*!< in: mtr */
+	buf_block_t*	sys_header, /*!< in,out: trx sys header */
+	mtr_t*		mtr);	/*!< in,out: mini-transaction */
 /** Display the MySQL binlog offset info if it is present in the trx
 system header. */
 void
 trx_sys_print_mysql_binlog_offset();
 #ifdef WITH_WSREP
 
-/** Update WSREP XID info in sys_header of TRX_SYS_PAGE_NO = 5.
+/** Update WSREP XID info in the TRX_SYS page.
 @param[in]	xid		Transaction XID
-@param[in,out]	sys_header	sys_header
-@param[in]	mtr		minitransaction */
+@param[in,out]	sys_header	TRX_SYS page
+@param[in,out]	mtr		mini-transaction */
 UNIV_INTERN
 void
 trx_sys_update_wsrep_checkpoint(
 	const XID*	xid,
-	trx_sysf_t*	sys_header,
+	buf_block_t*	sys_header,
 	mtr_t*		mtr);
 
 /** Read WSREP checkpoint XID from sys header.
@@ -232,14 +199,49 @@ trx_sys_create_rsegs();
 					slots */
 /*------------------------------------------------------------- @} */
 
-/* Max number of rollback segments: the number of segment specification slots
-in the transaction system array; rollback segment id must fit in one (signed)
-byte, therefore 128; each slot is currently 8 bytes in size. If you want
-to raise the level to 256 then you will need to fix some assertions that
-impose the 7 bit restriction. e.g., mach_write_to_3() */
+/** The number of rollback segments; rollback segment id must fit in
+the 7 bits reserved for it in DB_ROLL_PTR. */
 #define	TRX_SYS_N_RSEGS			128
 /** Maximum number of undo tablespaces (not counting the system tablespace) */
 #define TRX_SYS_MAX_UNDO_SPACES		(TRX_SYS_N_RSEGS - 1)
+
+/* Rollback segment specification slot offsets */
+
+/** the tablespace ID of an undo log header; starting with
+MySQL/InnoDB 5.1.7, this is FIL_NULL if the slot is unused */
+#define	TRX_SYS_RSEG_SPACE	0
+/** the page number of an undo log header, or FIL_NULL if unused */
+#define	TRX_SYS_RSEG_PAGE_NO	4
+/** Size of a rollback segment specification slot */
+#define TRX_SYS_RSEG_SLOT_SIZE	8
+
+/** Read the tablespace ID of a rollback segment slot.
+@param[in]	sys_header	TRX_SYS page
+@param[in]	rseg_id		rollback segment identifier
+@return	undo tablespace id */
+inline
+uint32_t
+trx_sysf_rseg_get_space(const buf_block_t* sys_header, ulint rseg_id)
+{
+	ut_ad(rseg_id < TRX_SYS_N_RSEGS);
+	return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SPACE
+				+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
+				+ sys_header->frame);
+}
+
+/** Read the page number of a rollback segment slot.
+@param[in]	sys_header	TRX_SYS page
+@param[in]	rseg_id		rollback segment identifier
+@return	undo page number */
+inline
+uint32_t
+trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
+{
+	ut_ad(rseg_id < TRX_SYS_N_RSEGS);
+	return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO
+				+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
+				+ sys_header->frame);
+}
 
 /** Maximum length of MySQL binlog file name, in bytes. */
 #define TRX_SYS_MYSQL_LOG_NAME_LEN	512
@@ -1017,7 +1019,5 @@ private:
 
 /** The transaction system */
 extern trx_sys_t trx_sys;
-
-#include "trx0sys.ic"
 
 #endif

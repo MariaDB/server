@@ -19715,17 +19715,18 @@ innobase_wsrep_set_checkpoint(
 {
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-        if (wsrep_is_wsrep_xid(xid)) {
-                mtr_t mtr;
-                mtr_start(&mtr);
-                trx_sysf_t* sys_header = trx_sysf_get(&mtr);
-                trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
-                mtr_commit(&mtr);
-                innobase_flush_logs(hton, false);
-                return 0;
-        } else {
-                return 1;
-        }
+	if (wsrep_is_wsrep_xid(xid)) {
+		mtr_t mtr;
+		mtr_start(&mtr);
+		if (buf_block_t* sys_header = trx_sysf_get(&mtr)) {
+			trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
+		}
+		mtr_commit(&mtr);
+		innobase_flush_logs(hton, false);
+		return 0;
+	} else {
+		return 1;
+	}
 }
 
 static
