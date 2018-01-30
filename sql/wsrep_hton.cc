@@ -120,7 +120,7 @@ void wsrep_post_commit(THD* thd, bool all)
   case LOCAL_COMMIT:
     {
       DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
-      if (wsrep->post_commit(wsrep, &thd->wsrep_ws_handle))
+      if (wsrep && wsrep->post_commit(wsrep, &thd->wsrep_ws_handle))
       {
         DBUG_PRINT("wsrep", ("set committed fail"));
         WSREP_WARN("set committed fail: %llu %d",
@@ -252,7 +252,7 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
   if ((all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       (thd->variables.wsrep_on && thd->wsrep_conflict_state != MUST_REPLAY))
   {
-    if (wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+    if (wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
     {
       DBUG_PRINT("wsrep", ("setting rollback fail"));
       WSREP_ERROR("settting rollback fail: thd: %llu, schema: %s, SQL: %s",
@@ -294,7 +294,7 @@ int wsrep_commit(handlerton *hton, THD *thd, bool all)
         possible changes to clean state.
       */
       if (WSREP_PROVIDER_EXISTS) {
-        if (wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+        if (wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
         {
           DBUG_PRINT("wsrep", ("setting rollback fail"));
           WSREP_ERROR("settting rollback fail: thd: %llu, schema: %s, SQL: %s",
@@ -471,7 +471,7 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
   }
   else if (!rcode)
   {
-    if (WSREP_OK == rcode)
+    if (WSREP_OK == rcode && wsrep)
       rcode = wsrep->pre_commit(wsrep,
                                 (wsrep_conn_id_t)thd->thread_id,
                                 &thd->wsrep_ws_handle,
