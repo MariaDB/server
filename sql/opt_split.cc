@@ -1118,11 +1118,11 @@ bool JOIN::fix_all_splittings_in_plan()
 {
   table_map prev_tables= 0;
   table_map all_tables= (1 << table_count) - 1;
-  for (uint tablenr=0 ; tablenr < table_count ; tablenr++)
+  for (uint tablenr= 0; tablenr < table_count; tablenr++)
   {
     POSITION *cur_pos= &best_positions[tablenr];
     JOIN_TAB *tab= cur_pos->table;
-    if (tab->table->is_splittable())
+    if (tablenr >= const_tables && tab->table->is_splittable())
     {
       SplM_plan_info *spl_plan= cur_pos->spl_plan;
       if (tab->fix_splitting(spl_plan, all_tables & ~prev_tables))

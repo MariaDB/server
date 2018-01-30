@@ -4565,12 +4565,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     DBUG_EXECUTE("opt", print_keyuse_array(keyuse_array););
   }
 
-  for (s= stat; s < stat_end; s++)
-  {
-    if (s->table->is_splittable())
-      s->add_keyuses_for_splitting();
-  }
-
   join->const_table_map= no_rows_const_tables;
   join->const_tables= const_count;
   eliminate_tables(join);
@@ -4876,6 +4870,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     {
        s->scan_time();
     }
+
+    if (s->table->is_splittable())
+      s->add_keyuses_for_splitting();
 
     /*
       Set a max range of how many seeks we can expect when using keys
