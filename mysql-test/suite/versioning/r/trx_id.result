@@ -53,8 +53,8 @@ add column e bigint unsigned as row end,
 add period for system_time(s, e),
 add system versioning,
 algorithm=copy;
-select check_result(count(*) = @tmp) from mysql.transaction_registry;
-check_result(count(*) = @tmp)
+select check_result(count(*) = @tmp + 1) from mysql.transaction_registry;
+check_result(count(*) = @tmp + 1)
 [CORRECT]
 # TRX_ID to TIMESTAMP versioning switch
 create or replace table t1 (

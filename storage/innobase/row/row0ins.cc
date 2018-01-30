@@ -3230,10 +3230,21 @@ row_ins_clust_index_entry(
 
 	n_uniq = dict_index_is_unique(index) ? index->n_uniq : 0;
 
-	const ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
+	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
 		: dict_table_is_temporary(index->table)
 		? BTR_NO_LOCKING_FLAG : 0;
 	const ulint	orig_n_fields = entry->n_fields;
+
+	/* Try first optimistic descent to the B-tree */
+	log_free_check();
+
+	/* For intermediate table during copy alter table,
+	   skip the undo log and record lock checking for
+	   insertion operation.
+	*/
+	if (index->table->skip_alter_undo) {
+		flags |= BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG;
+	}
 
 	/* Try first optimistic descent to the B-tree */
 	log_free_check();
@@ -3283,6 +3294,7 @@ row_ins_sec_index_entry(
 	dberr_t		err;
 	mem_heap_t*	offsets_heap;
 	mem_heap_t*	heap;
+	trx_id_t	trx_id  = 0;
 
 	DBUG_EXECUTE_IF("row_ins_sec_index_entry_timeout", {
 			DBUG_SET("-d,row_ins_sec_index_entry_timeout");
@@ -3305,13 +3317,22 @@ row_ins_sec_index_entry(
 	/* Try first optimistic descent to the B-tree */
 
 	log_free_check();
-	const ulint flags = dict_table_is_temporary(index->table)
+	ulint flags = dict_table_is_temporary(index->table)
 		? BTR_NO_LOCKING_FLAG
 		: 0;
 
+	/* For intermediate table during copy alter table,
+	   skip the undo log and record lock checking for
+	   insertion operation.
+	*/
+	if (index->table->skip_alter_undo) {
+		trx_id = thr_get_trx(thr)->id;
+		flags |= BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG;
+	}
+
 	err = row_ins_sec_index_entry_low(
 		flags, BTR_MODIFY_LEAF, index, offsets_heap, heap, entry,
-		0, thr, dup_chk_only);
+		trx_id, thr, dup_chk_only);
 	if (err == DB_FAIL) {
 		mem_heap_empty(heap);
 

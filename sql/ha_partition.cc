@@ -1,6 +1,6 @@
 /*
   Copyright (c) 2005, 2017, Oracle and/or its affiliates.
-  Copyright (c) 2009, 2017, MariaDB
+  Copyright (c) 2009, 2018, MariaDB
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -8897,6 +8897,9 @@ int ha_partition::extra(enum ha_extra_function operation)
   */
     DBUG_RETURN(ER_UNSUPORTED_LOG_ENGINE);
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
+  case HA_EXTRA_BEGIN_ALTER_COPY:
+  case HA_EXTRA_END_ALTER_COPY:
+  case HA_EXTRA_FAKE_START_STMT:
     DBUG_RETURN(loop_extra(operation));
   default:
   {

@@ -57,8 +57,8 @@ alter table t1
   add period for system_time(s, e),
   add system versioning,
   algorithm=copy;
-select check_result(count(*) = @tmp) from mysql.transaction_registry;
-
+# With MDEV-14511 the transaction will be registered even for empty tables.
+select check_result(count(*) = @tmp + 1) from mysql.transaction_registry;
 
 --echo # TRX_ID to TIMESTAMP versioning switch
 create or replace table t1 (

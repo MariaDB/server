@@ -1144,6 +1144,8 @@ row_undo_mod_parse_undo_rec(
 		return;
 	}
 
+	ut_ad(!node->table->skip_alter_undo);
+
 	if (UNIV_UNLIKELY(!fil_table_accessible(node->table))) {
 close_table:
 		/* Normally, tables should not disappear or become

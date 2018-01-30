@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation
+   Copyright (c) 2010, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -96,6 +96,45 @@ public:
 
 #define GET (stack_pos != stack ? *--stack_pos : my_b_get(&cache))
 #define PUSH(A) *(stack_pos++)=(A)
+
+#ifdef WITH_WSREP
+/** If requested by wsrep_load_data_splitting, commit and restart
+the transaction after every 10,000 inserted rows. */
+
+static bool wsrep_load_data_split(THD *thd, const TABLE *table,
+				  const COPY_INFO &info)
+{
+  extern struct handlerton* innodb_hton_ptr;
+
+  DBUG_ENTER("wsrep_load_data_split");
+
+  if (wsrep_load_data_splitting && wsrep_on(thd)
+      && info.records && !(info.records % 10000)
+      && thd->transaction.stmt.ha_list
+      && thd->transaction.stmt.ha_list->ht() == binlog_hton
+      && thd->transaction.stmt.ha_list->next()
+      && thd->transaction.stmt.ha_list->next()->ht() == innodb_hton_ptr
+      && !thd->transaction.stmt.ha_list->next()->next())
+  {
+    WSREP_DEBUG("intermediate transaction commit in LOAD DATA");
+    if (wsrep_run_wsrep_commit(thd, true) != WSREP_TRX_OK) DBUG_RETURN(true);
+    if (binlog_hton->commit(binlog_hton, thd, true)) DBUG_RETURN(true);
+    wsrep_post_commit(thd, true);
+    innodb_hton_ptr->commit(innodb_hton_ptr, thd, true);
+    table->file->extra(HA_EXTRA_FAKE_START_STMT);
+  }
+
+  DBUG_RETURN(false);
+}
+# define WSREP_LOAD_DATA_SPLIT(thd,table,info)		\
+  if (wsrep_load_data_split(thd,table,info))		\
+  {							\
+    table->auto_increment_field_not_null= FALSE;	\
+    DBUG_RETURN(1);					\
+  }
+#else /* WITH_WSREP */
+#define WSREP_LOAD_DATA_SPLIT(thd,table,info) /* empty */
+#endif /* WITH_WSREP */
 
 class READ_INFO {
   File	file;
@@ -989,6 +1028,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
+    WSREP_LOAD_DATA_SPLIT(thd, table, info);
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= FALSE;
     if (err)
@@ -1194,6 +1234,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
+    WSREP_LOAD_DATA_SPLIT(thd, table, info);
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= FALSE;
     if (err)
@@ -1348,6 +1389,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
     
+    WSREP_LOAD_DATA_SPLIT(thd, table, info);
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= false;
     if (err)

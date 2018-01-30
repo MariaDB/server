@@ -515,9 +515,6 @@ protected:
 	ROW_SEL_EXACT_PREFIX, or undefined */
 	uint			m_last_match_mode;
 
-	/** number of write_row() calls */
-	uint			m_num_write_row;
-
         /** If mysql has locked with external_lock() */
         bool                    m_mysql_has_locked;
 };
