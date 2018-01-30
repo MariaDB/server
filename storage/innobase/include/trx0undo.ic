@@ -193,21 +193,15 @@ inline
 uint16_t
 trx_undo_page_get_end(const page_t* undo_page, ulint page_no, ulint offset)
 {
-	uint16_t end;
-
 	if (page_no == page_get_page_no(undo_page)) {
-		end = mach_read_from_2(offset + TRX_UNDO_NEXT_LOG + undo_page);
-
-		if (end == 0) {
-			end = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
-					       + TRX_UNDO_PAGE_FREE);
+		if (uint16_t end = mach_read_from_2(TRX_UNDO_NEXT_LOG
+						    + offset + undo_page)) {
+			return end;
 		}
-	} else {
-		end = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
-				       + TRX_UNDO_PAGE_FREE);
 	}
 
-	return(end);
+	return mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+				+ undo_page);
 }
 
 /******************************************************************//**
