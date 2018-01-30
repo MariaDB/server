@@ -123,17 +123,6 @@ page_t*
 trx_undo_page_get_s_latched(const page_id_t& page_id, mtr_t* mtr);
 
 /******************************************************************//**
-Returns the previous undo record on the page in the specified log, or
-NULL if none exists.
-@return pointer to record, NULL if none */
-UNIV_INLINE
-trx_undo_rec_t*
-trx_undo_page_get_prev_rec(
-/*=======================*/
-	trx_undo_rec_t*	rec,	/*!< in: undo log record */
-	ulint		page_no,/*!< in: undo log header page number */
-	ulint		offset);/*!< in: undo log header offset on page */
-/******************************************************************//**
 Returns the next undo log record on the page in the specified log, or
 NULL if none exists.
 @return pointer to record, NULL if none */
@@ -144,28 +133,6 @@ trx_undo_page_get_next_rec(
 	trx_undo_rec_t*	rec,	/*!< in: undo log record */
 	ulint		page_no,/*!< in: undo log header page number */
 	ulint		offset);/*!< in: undo log header offset on page */
-/******************************************************************//**
-Returns the last undo record on the page in the specified undo log, or
-NULL if none exists.
-@return pointer to record, NULL if none */
-UNIV_INLINE
-trx_undo_rec_t*
-trx_undo_page_get_last_rec(
-/*=======================*/
-	page_t*	undo_page,/*!< in: undo log page */
-	ulint	page_no,/*!< in: undo log header page number */
-	ulint	offset);	/*!< in: undo log header offset on page */
-/******************************************************************//**
-Returns the first undo record on the page in the specified undo log, or
-NULL if none exists.
-@return pointer to record, NULL if none */
-UNIV_INLINE
-trx_undo_rec_t*
-trx_undo_page_get_first_rec(
-/*========================*/
-	page_t*	undo_page,/*!< in: undo log page */
-	ulint	page_no,/*!< in: undo log header page number */
-	ulint	offset);/*!< in: undo log header offset on page */
 /***********************************************************************//**
 Gets the previous record in an undo log.
 @return undo log record, the page s-latched, NULL if none */

@@ -117,6 +117,53 @@ trx_undo_mem_create(
 	ulint		page_no,/*!< in: undo log header page number */
 	ulint		offset);/*!< in: undo log header byte offset on page */
 
+/** Determine the start offset of undo log records of an undo log page.
+@param[in]	undo_page	undo log page
+@param[in]	page_no		undo log header page number
+@param[in]	offset		undo log header offset
+@return start offset */
+static
+uint16_t
+trx_undo_page_get_start(const page_t* undo_page, ulint page_no, ulint offset)
+{
+	return page_no == page_get_page_no(undo_page)
+		? mach_read_from_2(offset + TRX_UNDO_LOG_START + undo_page)
+		: TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE;
+}
+
+/** Get the first undo log record on a page.
+@param[in]	page	undo log page
+@param[in]	page_no	undo log header page number
+@param[in]	offset	undo log header page offset
+@return	pointer to first record
+@retval	NULL	if none exists */
+static
+trx_undo_rec_t*
+trx_undo_page_get_first_rec(page_t* page, ulint page_no, ulint offset)
+{
+	ulint start = trx_undo_page_get_start(page, page_no, offset);
+	return start == trx_undo_page_get_end(page, page_no, offset)
+		? NULL
+		: page + start;
+}
+
+/** Get the last undo log record on a page.
+@param[in]	page	undo log page
+@param[in]	page_no	undo log header page number
+@param[in]	offset	undo log header page offset
+@return	pointer to last record
+@retval	NULL	if none exists */
+static
+trx_undo_rec_t*
+trx_undo_page_get_last_rec(page_t* page, ulint page_no, ulint offset)
+{
+	ulint end = trx_undo_page_get_end(page, page_no, offset);
+
+	return trx_undo_page_get_start(page, page_no, offset) == end
+		? NULL
+		: page + mach_read_from_2(page + end - 2);
+}
+
 /***********************************************************************//**
 Gets the previous record in an undo log from the previous page.
 @return undo log record, the page s-latched, NULL if none */
@@ -157,6 +204,31 @@ trx_undo_get_prev_rec_from_prev_page(
 	prev_page = buf_block_get_frame(block);
 
 	return(trx_undo_page_get_last_rec(prev_page, page_no, offset));
+}
+
+/** Get the previous undo log record.
+@param[in]	rec	undo log record
+@param[in]	page_no	undo log header page number
+@param[in]	offset	undo log header page offset
+@return	pointer to record
+@retval	NULL if none */
+static
+trx_undo_rec_t*
+trx_undo_page_get_prev_rec(trx_undo_rec_t* rec, ulint page_no, ulint offset)
+{
+	page_t*	undo_page;
+	ulint	start;
+
+	undo_page = (page_t*) ut_align_down(rec, UNIV_PAGE_SIZE);
+
+	start = trx_undo_page_get_start(undo_page, page_no, offset);
+
+	if (start + undo_page == rec) {
+
+		return(NULL);
+	}
+
+	return(undo_page + mach_read_from_2(rec - 2));
 }
 
 /***********************************************************************//**
