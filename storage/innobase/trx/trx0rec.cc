@@ -1947,7 +1947,7 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	ut_ad((err == DB_SUCCESS) == (*pundo != NULL));
 	if (trx_undo_t* undo = *pundo) {
 		mtr_t	mtr;
-		mtr.start(trx);
+		mtr.start();
 
 		buf_block_t* block = buf_page_get_gen(
 			page_id_t(undo->space, undo->last_page_no),
@@ -1976,7 +1976,7 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 				break;
 			} else {
 				mtr.commit();
-				mtr.start(trx);
+				mtr.start();
 				block = trx_undo_add_page(trx, undo, &mtr);
 				if (!block) {
 					err = DB_OUT_OF_FILE_SPACE;
@@ -2124,7 +2124,7 @@ trx_undo_report_row_operation(
 				latches, such as SYNC_FSP and SYNC_FSP_PAGE. */
 
 				mtr_commit(&mtr);
-				mtr.start(trx);
+				mtr.start();
 				if (is_temp) {
 					mtr.set_log_mode(MTR_LOG_NO_REDO);
 				}
@@ -2163,7 +2163,7 @@ trx_undo_report_row_operation(
 		/* We have to extend the undo log by one page */
 
 		ut_ad(++loop_count < 2);
-		mtr.start(trx);
+		mtr.start();
 
 		if (is_temp) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);

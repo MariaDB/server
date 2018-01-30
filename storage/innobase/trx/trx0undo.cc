@@ -1591,7 +1591,7 @@ trx_undo_assign_undo(
 	      || rseg == trx->rsegs.m_noredo.rseg);
 	ut_ad(type == TRX_UNDO_INSERT || type == TRX_UNDO_UPDATE);
 
-	mtr.start(trx);
+	mtr.start();
 
 	if (is_temp) {
 		mtr.set_log_mode(MTR_LOG_NO_REDO);

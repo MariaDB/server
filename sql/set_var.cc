@@ -597,10 +597,10 @@ int mysql_del_sys_var_chain(sys_var *first)
 {
   int result= 0;
 
-  mysql_rwlock_wrlock(&LOCK_system_variables_hash);
+  mysql_prlock_wrlock(&LOCK_system_variables_hash);
   for (sys_var *var= first; var; var= var->next)
     result|= my_hash_delete(&system_variable_hash, (uchar*) var);
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   return result;
 }
@@ -1082,7 +1082,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 
   cond= make_cond_for_info_schema(thd, cond, tables);
   thd->count_cuted_fields= CHECK_FIELD_WARN;
-  mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
 
   for (uint i= 0; i < system_variable_hash.records; i++)
   {
@@ -1244,7 +1244,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
   }
   res= 0;
 end:
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
   thd->count_cuted_fields= save_count_cuted_fields;
   return res;
 }
