@@ -1336,20 +1336,28 @@ trx_write_serialisation_history(
 
 	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 
+#ifdef WITH_WSREP
+	const bool update_wsrep = wsrep_is_wsrep_xid(trx->xid);
+#endif
+	const bool update_binlog_pos = trx->mysql_log_file_name
+		&& *trx->mysql_log_file_name;
+	if (!update_binlog_pos
+#ifdef WITH_WSREP
+	    && !update_wsrep
+#endif
+	    ) return true;
+
 	buf_block_t* block = trx_sysf_get(mtr);
 #ifdef WITH_WSREP
-	/* Update latest MySQL wsrep XID in trx sys header. */
-	if (wsrep_is_wsrep_xid(trx->xid)) {
+	if (update_wsrep)
 		trx_sys_update_wsrep_checkpoint(trx->xid, block, mtr);
-	}
 #endif /* WITH_WSREP */
 
 	/* Update the latest MySQL binlog name and offset info
 	in trx sys header if MySQL binlogging is on or the database
 	server is a MySQL replication slave */
 
-	if (trx->mysql_log_file_name != NULL
-	    && trx->mysql_log_file_name[0] != '\0') {
+	if (update_binlog_pos) {
 
 		trx_sys_update_mysql_binlog_offset(
 			trx->mysql_log_file_name,
