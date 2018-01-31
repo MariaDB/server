@@ -3392,7 +3392,10 @@ Item_param::Item_param(THD *thd, uint pos_in_query_arg):
 void Item_param::set_null()
 {
   DBUG_ENTER("Item_param::set_null");
-  /* These are cleared after each execution by reset() method */
+  /*
+    These are cleared after each execution by reset() method or by setting
+    other value.
+  */
   null_value= 1;
   /* 
     Because of NULL and string values we need to set max_length for each new
@@ -3415,6 +3418,7 @@ void Item_param::set_int(longlong i, uint32 max_length_arg)
   max_length= max_length_arg;
   decimals= 0;
   maybe_null= 0;
+  null_value= 0;
   fix_type(Item::INT_ITEM);
   DBUG_VOID_RETURN;
 }
@@ -3428,6 +3432,7 @@ void Item_param::set_double(double d)
   max_length= DBL_DIG + 8;
   decimals= NOT_FIXED_DEC;
   maybe_null= 0;
+  null_value= 0;
   fix_type(Item::REAL_ITEM);
   DBUG_VOID_RETURN;
 }
@@ -3459,6 +3464,7 @@ void Item_param::set_decimal(const char *str, ulong length)
     my_decimal_precision_to_length_no_truncation(decimal_value.precision(),
                                                  decimals, unsigned_flag);
   maybe_null= 0;
+  null_value= 0;
   fix_type(Item::DECIMAL_ITEM);
   DBUG_VOID_RETURN;
 }
@@ -3474,6 +3480,8 @@ void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
   unsigned_flag= unsigned_arg;
   max_length= my_decimal_precision_to_length(decimal_value.intg + decimals,
                                              decimals, unsigned_flag);
+  maybe_null= 0;
+  null_value= 0;
   fix_type(Item::DECIMAL_ITEM);
 }
 
@@ -3484,6 +3492,8 @@ void Item_param::fix_temporal(uint32 max_length_arg, uint decimals_arg)
   collation.set_numeric();
   max_length= max_length_arg;
   decimals= decimals_arg;
+  maybe_null= 0;
+  null_value= 0;
   fix_type(Item::DATE_ITEM);
 }
 
@@ -3492,6 +3502,8 @@ void Item_param::set_time(const MYSQL_TIME *tm,
                           uint32 max_length_arg, uint decimals_arg)
 {
   value.time= *tm;
+  maybe_null= 0;
+  null_value= 0;
   fix_temporal(max_length_arg, decimals_arg);
 }
 
@@ -3525,6 +3537,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
     set_zero_time(&value.time, MYSQL_TIMESTAMP_ERROR);
   }
   maybe_null= 0;
+  null_value= 0;
   fix_temporal(max_length_arg,
                tm->second_part > 0 ? TIME_SECOND_PART_DIGITS : 0);
   DBUG_VOID_RETURN;
@@ -3545,6 +3558,7 @@ bool Item_param::set_str(const char *str, ulong length)
   state= STRING_VALUE;
   max_length= length;
   maybe_null= 0;
+  null_value= 0;
   /* max_length and decimals are set after charset conversion */
   /* sic: str may be not null-terminated, don't add DBUG_PRINT here */
   fix_type(Item::STRING_ITEM);
@@ -3579,6 +3593,7 @@ bool Item_param::set_longdata(const char *str, ulong length)
     DBUG_RETURN(TRUE);
   state= LONG_DATA_VALUE;
   maybe_null= 0;
+  null_value= 0;
   fix_type(Item::STRING_ITEM);
 
   DBUG_RETURN(FALSE);

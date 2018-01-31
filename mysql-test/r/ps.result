@@ -1738,7 +1738,7 @@ execute stmt using @a;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `?` decimal(2,1) DEFAULT NULL
+  `?` decimal(2,1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 drop table if exists t1;
@@ -4432,7 +4432,7 @@ EXECUTE stmt USING 10.123;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` decimal(5,3) DEFAULT NULL
+  `c1` decimal(5,3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING 10.123e0;
@@ -4446,49 +4446,49 @@ EXECUTE stmt USING CURRENT_DATE;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` date DEFAULT NULL
+  `c1` date NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime DEFAULT NULL
+  `c1` datetime NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP(3);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime(3) DEFAULT NULL
+  `c1` datetime(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP(6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime(6) DEFAULT NULL
+  `c1` datetime(6) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` time DEFAULT NULL
+  `c1` time NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME(3);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` time(3) DEFAULT NULL
+  `c1` time(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME(6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` time(6) DEFAULT NULL
+  `c1` time(6) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DEALLOCATE PREPARE stmt;
@@ -4633,7 +4633,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(21) NOT NULL,
-  `b` decimal(3,1) DEFAULT NULL,
+  `b` decimal(3,1) NOT NULL,
   `c` double NOT NULL,
   `d` varchar(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -4645,7 +4645,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(21) NOT NULL,
-  `b` decimal(3,1) DEFAULT NULL,
+  `b` decimal(3,1) NOT NULL,
   `c` double NOT NULL,
   `d` varchar(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -4660,11 +4660,11 @@ TIMESTAMP'2001-01-01 10:20:30.123';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t1` time DEFAULT NULL,
-  `t2` time(3) DEFAULT NULL,
-  `d1` date DEFAULT NULL,
-  `dt1` datetime DEFAULT NULL,
-  `dt2` datetime(3) DEFAULT NULL
+  `t1` time NOT NULL,
+  `t2` time(3) NOT NULL,
+  `d1` date NOT NULL,
+  `dt1` datetime NOT NULL,
+  `dt2` datetime(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
