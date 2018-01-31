@@ -37,3 +37,4 @@ SELECT * FROM t;
 a
 3
 DROP TABLE t;
+FOUND 1 /Rolled back recovered transaction [^0]/ in mysqld.1.err
