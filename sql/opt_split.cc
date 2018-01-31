@@ -645,7 +645,8 @@ double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
   cost+= get_tmp_table_lookup_cost(thd, join_record_count,rec_len) *
          join_record_count;   // cost to perform post join operation used here
   cost+= get_tmp_table_lookup_cost(thd, join_record_count, rec_len) +
-         join_record_count * log2 (join_record_count) *
+         (join_record_count == 0 ? 0 :
+          join_record_count * log2 (join_record_count)) *
          SORT_INDEX_CMP_COST;             // cost to perform  sorting
   return cost;
 }
@@ -948,7 +949,9 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       spl_plan->table= best_table;
       spl_plan->key= best_key;
       spl_plan->parts= best_key_parts;
-      spl_plan->split_sel= best_rec_per_key / spl_opt_info->unsplit_card;
+      spl_plan->split_sel= best_rec_per_key /
+                           (spl_opt_info->unsplit_card ?
+                            spl_opt_info->unsplit_card : 1); 
 
       uint rec_len= table->s->rec_buff_length;
 
