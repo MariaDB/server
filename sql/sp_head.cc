@@ -1700,7 +1700,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     /* Arguments must be fixed in Item_func_sp::fix_fields */
     DBUG_ASSERT(argp[arg_no]->fixed);
 
-    if ((err_status= nctx->set_variable(thd, arg_no, &(argp[arg_no]))))
+    if ((err_status= nctx->set_parameter(thd, arg_no, &(argp[arg_no]))))
       goto err_with_cleanup;
   }
 
@@ -1732,7 +1732,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       if (arg_no)
         binlog_buf.append(',');
 
-      Item *item= nctx->get_item(arg_no);
+      Item_field *item= nctx->get_parameter(arg_no);
       str_value= item->type_handler()->print_item_value(thd, item,
                                                         &str_value_holder);
       if (str_value)
@@ -1948,7 +1948,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
         Item *tmp_item= null_item;
 
         if (!null_item ||
-            nctx->set_variable(thd, i, &tmp_item))
+            nctx->set_parameter(thd, i, &tmp_item))
         {
           DBUG_PRINT("error", ("set variable failed"));
           err_status= TRUE;
@@ -1957,7 +1957,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       }
       else
       {
-        if (nctx->set_variable(thd, i, it_args.ref()))
+        if (nctx->set_parameter(thd, i, it_args.ref()))
         {
           DBUG_PRINT("error", ("set variable 2 failed"));
           err_status= TRUE;
@@ -2065,7 +2065,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
       DBUG_ASSERT(srp);
 
-      if (srp->set_value(thd, octx, nctx->get_item_addr(i)))
+      if (srp->set_value(thd, octx, nctx->get_variable_addr(i)))
       {
         DBUG_PRINT("error", ("set value failed"));
         err_status= TRUE;
@@ -2073,7 +2073,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       }
 
       Send_field *out_param_info= new (thd->mem_root) Send_field();
-      nctx->get_item(i)->make_field(thd, out_param_info);
+      nctx->get_parameter(i)->make_field(thd, out_param_info);
       out_param_info->db_name= m_db.str;
       out_param_info->table_name= m_name.str;
       out_param_info->org_table_name= m_name.str;
@@ -4116,7 +4116,7 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cursor_copy_struct::exec_core");
   int ret= 0;
-  Item_field_row *row= (Item_field_row*) thd->spcont->get_item(m_var);
+  Item_field_row *row= (Item_field_row*) thd->spcont->get_variable(m_var);
   DBUG_ASSERT(row->type_handler() == &type_handler_row);
 
   /*

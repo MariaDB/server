@@ -3631,7 +3631,7 @@ int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
       mvsp->type_handler() == &type_handler_row)
   {
     // SELECT INTO row_type_sp_variable
-    if (thd->spcont->get_item(mvsp->offset)->cols() != list.elements)
+    if (thd->spcont->get_variable(mvsp->offset)->cols() != list.elements)
       goto error;
     m_var_sp_row= mvsp;
     return 0;

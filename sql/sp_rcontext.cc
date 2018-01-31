@@ -317,7 +317,7 @@ bool sp_rcontext::init_var_items(THD *thd,
   uint num_vars= m_root_parsing_ctx->max_var_index();
 
   m_var_items.reset(
-    static_cast<Item **> (
+    static_cast<Item_field **> (
       thd->alloc(num_vars * sizeof (Item *))),
     num_vars);
 
@@ -634,7 +634,7 @@ int sp_rcontext::set_variable_row_field_by_name(THD *thd, uint var_idx,
 int sp_rcontext::set_variable_row(THD *thd, uint var_idx, List<Item> &items)
 {
   DBUG_ENTER("sp_rcontext::set_variable_row");
-  DBUG_ASSERT(get_item(var_idx)->cols() == items.elements);
+  DBUG_ASSERT(get_variable(var_idx)->cols() == items.elements);
   Virtual_tmp_table *vtable= virtual_tmp_table_for_row(var_idx);
   Sp_eval_expr_state state(thd);
   DBUG_RETURN(vtable->sp_set_all_fields_from_item_list(thd, items));
@@ -643,8 +643,8 @@ int sp_rcontext::set_variable_row(THD *thd, uint var_idx, List<Item> &items)
 
 Virtual_tmp_table *sp_rcontext::virtual_tmp_table_for_row(uint var_idx)
 {
-  DBUG_ASSERT(get_item(var_idx)->type() == Item::FIELD_ITEM);
-  DBUG_ASSERT(get_item(var_idx)->cmp_type() == ROW_RESULT);
+  DBUG_ASSERT(get_variable(var_idx)->type() == Item::FIELD_ITEM);
+  DBUG_ASSERT(get_variable(var_idx)->cmp_type() == ROW_RESULT);
   Field *field= m_var_table->field[var_idx];
   Virtual_tmp_table **ptable= field->virtual_tmp_table_addr();
   DBUG_ASSERT(ptable);
@@ -809,7 +809,7 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars, bool error_on_no_data)
   if (vars->elements != result.get_field_count() &&
       (vars->elements != 1 ||
        result.get_field_count() !=
-       thd->spcont->get_item(vars->head()->offset)->cols()))
+       thd->spcont->get_variable(vars->head()->offset)->cols()))
   {
     my_message(ER_SP_WRONG_NO_OF_FETCH_ARGS,
                ER_THD(thd, ER_SP_WRONG_NO_OF_FETCH_ARGS), MYF(0));
@@ -907,7 +907,7 @@ int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
     on attempt to assign a scalar value to a ROW variable.
   */
   return spvar_list->elements == 1 &&
-         (item= thd->spcont->get_item(spvar_list->head()->offset)) &&
+         (item= thd->spcont->get_variable(spvar_list->head()->offset)) &&
          item->type_handler() == &type_handler_row &&
          item->cols() == items.elements ?
     thd->spcont->set_variable_row(thd, spvar_list->head()->offset, items) :
