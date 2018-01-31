@@ -1,3 +1,4 @@
+--source include/have_partition.inc
 --source include/count_sessions.inc
 
 SET rocksdb_bulk_load_size=3;
