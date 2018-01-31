@@ -1113,12 +1113,7 @@ trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
 		xid.null();
 	}
 
-	trx_id_t trx_id = mach_read_from_8(undo_header + TRX_UNDO_TRX_NO);
-	if (trx_id > max_trx_id) {
-		max_trx_id = trx_id;
-	}
-
-	trx_id = mach_read_from_8(undo_header + TRX_UNDO_TRX_ID);
+	trx_id_t trx_id = mach_read_from_8(undo_header + TRX_UNDO_TRX_ID);
 	if (trx_id > max_trx_id) {
 		max_trx_id = trx_id;
 	}
@@ -1139,6 +1134,15 @@ trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
 		ut_ad(type == TRX_UNDO_INSERT);
 		state = TRX_UNDO_TO_PURGE;
 	} else {
+		if (state == TRX_UNDO_TO_PURGE
+		    || state == TRX_UNDO_CACHED) {
+			trx_id_t id = mach_read_from_8(TRX_UNDO_TRX_NO
+						       + undo_header);
+			if (id > max_trx_id) {
+				max_trx_id = id;
+			}
+		}
+
 		fil_addr_t	last_addr = flst_get_last(
 			TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + undo_page,
 			&mtr);
