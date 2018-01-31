@@ -332,7 +332,8 @@ thd_destructor_proxy(void *)
 	myvar->current_cond = &thd_destructor_cond;
 
 	mysql_mutex_lock(&thd_destructor_mutex);
-	srv_running = myvar;
+	my_atomic_storeptr_explicit(&srv_running, myvar,
+				    MY_MEMORY_ORDER_RELAXED);
 	/* wait until the server wakes the THD to abort and die */
 	while (!srv_running->abort)
 		mysql_cond_wait(&thd_destructor_cond, &thd_destructor_mutex);
@@ -4333,7 +4334,8 @@ innobase_change_buffering_inited_ok:
 		mysql_thread_create(thd_destructor_thread_key,
 				    &thd_destructor_thread,
 				    NULL, thd_destructor_proxy, NULL);
-		while (!srv_running)
+		while (!my_atomic_loadptr_explicit(&srv_running,
+						   MY_MEMORY_ORDER_RELAXED))
 			os_thread_sleep(20);
 	}
 
