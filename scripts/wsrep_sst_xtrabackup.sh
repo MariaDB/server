@@ -103,7 +103,7 @@ get_keys()
         return
     fi
 
-    if [[ $sfmt == 'tar' ]];then
+    if [[ "$sfmt" == 'tar' ]];then
         wsrep_log_info "NOTE: Xtrabackup-based encryption - encrypt=1 - cannot be enabled with tar format"
         encrypt=0
         return
@@ -111,17 +111,17 @@ get_keys()
 
     wsrep_log_info "Xtrabackup based encryption enabled in my.cnf - Supported only from Xtrabackup 2.1.4"
 
-    if [[ -z $ealgo ]];then
+    if [[ -z "$ealgo" ]];then
         wsrep_log_error "FATAL: Encryption algorithm empty from my.cnf, bailing out"
         exit 3
     fi
 
-    if [[ -z $ekey && ! -r $ekeyfile ]];then
+    if [[ -z "$ekey" && ! -r "$ekeyfile" ]];then
         wsrep_log_error "FATAL: Either key or keyfile must be readable"
         exit 3
     fi
 
-    if [[ -z $ekey ]];then
+    if [[ -z "$ekey" ]];then
         ecmd="xbcrypt --encrypt-algo=$ealgo --encrypt-key-file=$ekeyfile"
     else
         ecmd="xbcrypt --encrypt-algo=$ealgo --encrypt-key=$ekey"
@@ -136,7 +136,7 @@ get_transfer()
 {
     TSST_PORT=${WSREP_SST_OPT_PORT:-4444}
 
-    if [[ $tfmt == 'nc' ]];then
+    if [[ "$tfmt" == 'nc' ]];then
         if [[ ! -x `which nc` ]];then 
             wsrep_log_error "nc(netcat) not found in path: $PATH"
             exit 2
@@ -166,7 +166,7 @@ get_transfer()
 
         if [[ $encrypt -eq 2 ]];then 
             wsrep_log_info "Using openssl based encryption with socat"
-            if [[ -z $tpem || -z $tcert ]];then 
+            if [[ -z "$tpem" || -z $tcert ]];then 
                 wsrep_log_error "Both PEM and CRT files required"
                 exit 22
             fi
@@ -204,18 +204,18 @@ get_footprint()
 
 adjust_progress()
 {
-    if [[ -n $progress && $progress != '1' ]];then 
-        if [[ -e $progress ]];then 
+    if [[ -n "$progress" && "$progress" != '1' ]];then 
+        if [[ -e "$progress" ]];then 
             pcmd+=" 2>>$progress"
         else 
             pcmd+=" 2>$progress"
         fi
-    elif [[ -z $progress && -n $rlimit  ]];then 
+    elif [[ -z "$progress" && -n $rlimit  ]];then 
             # When rlimit is non-zero
             pcmd="pv -q"
     fi 
 
-    if [[ -n $rlimit && "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
+    if [[ -n "$rlimit" && "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
         wsrep_log_info "Rate-limiting SST to $rlimit"
         pcmd+=" -L \$rlimit"
     fi
@@ -238,7 +238,7 @@ read_cnf()
     ekeyfile=$(parse_cnf xtrabackup encrypt-key-file "")
 
     # Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html 
-    if [[ -z $ealgo ]];then
+    if [[ -z "$ealgo" ]];then
         ealgo=$(parse_cnf sst encrypt-algo "")
         ekey=$(parse_cnf sst encrypt-key "")
         ekeyfile=$(parse_cnf sst encrypt-key-file "")
@@ -249,7 +249,7 @@ read_cnf()
 
 get_stream()
 {
-    if [[ $sfmt == 'xbstream' ]];then 
+    if [[ "$sfmt" == 'xbstream' ]];then 
         wsrep_log_info "Streaming with xbstream"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             strmcmd="xbstream -x"
@@ -272,7 +272,7 @@ get_proc()
 {
     set +e
     nproc=$(grep -c processor /proc/cpuinfo)
-    [[ -z $nproc || $nproc -eq 0 ]] && nproc=1
+    [[ -z "$nproc" || $nproc -eq 0 ]] && nproc=1
     set -e
 }
 
@@ -293,7 +293,7 @@ cleanup_joiner()
         wsrep_log_info "Removing the sst_in_progress file"
         wsrep_cleanup_progress_file
     fi
-    if [[ -n $progress && -p $progress ]];then 
+    if [[ -n "$progress" && -p "$progress" ]];then 
         wsrep_log_info "Cleaning up fifo file $progress"
         rm $progress
     fi
@@ -313,7 +313,7 @@ cleanup_donor()
         wsrep_log_error "Cleanup after exit with status:$estatus"
     fi
 
-    if [[ -n $XTRABACKUP_PID ]];then 
+    if [[ -n "$XTRABACKUP_PID" ]];then 
         if check_pid $XTRABACKUP_PID
         then
             wsrep_log_error "xtrabackup process is still running. Killing... "
@@ -324,7 +324,7 @@ cleanup_donor()
     fi
     rm -f ${DATA}/${IST_FILE}
 
-    if [[ -n $progress && -p $progress ]];then 
+    if [[ -n "$progress" && -p "$progress" ]];then 
         wsrep_log_info "Cleaning up fifo file $progress"
         rm $progress
     fi
@@ -362,7 +362,7 @@ check_extra()
     if [[ $uextra -eq 1 ]];then 
         if [ $(parse_cnf --mysqld thread-handling) = 'pool-of-threads'];then
             local eport=$(parse_cnf --mysqld extra-port)
-            if [[ -n $eport ]];then 
+            if [[ -n "$eport" ]];then 
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
                 wsrep_log_info "SST through extra_port $eport"
@@ -425,14 +425,14 @@ then
 
         get_keys
         if [[ $encrypt -eq 1 ]];then
-            if [[ -n $ekey ]];then
+            if [[ -n "$ekey" ]];then
                 INNOEXTRA+=" --encrypt=$ealgo --encrypt-key=$ekey "
             else 
                 INNOEXTRA+=" --encrypt=$ealgo --encrypt-key-file=$ekeyfile "
             fi
         fi
 
-        if [[ -n $lsn ]];then 
+        if [[ -n "$lsn" ]];then 
                 INNOEXTRA+=" --incremental --incremental-lsn=$lsn "
         fi
 
@@ -440,10 +440,10 @@ then
 
         wsrep_log_info "Streaming the backup to joiner at ${WSREP_SST_OPT_HOST} ${WSREP_SST_OPT_PORT}"
 
-        if [[ -n $progress ]];then 
+        if [[ -n "$progress" ]];then 
             get_footprint
             tcmd="$pcmd | $tcmd"
-        elif [[ -n $rlimit ]];then 
+        elif [[ -n "$rlimit" ]];then 
             adjust_progress
             tcmd="$pcmd | $tcmd"
         fi
@@ -525,7 +525,7 @@ then
     trap sig_joiner_cleanup HUP PIPE INT TERM
     trap cleanup_joiner EXIT
 
-    if [[ -n $progress ]];then 
+    if [[ -n "$progress" ]];then 
         adjust_progress
         tcmd+=" | $pcmd"
     fi
@@ -548,7 +548,7 @@ then
 
     set -e
 
-    if [[ $sfmt == 'xbstream' ]];then 
+    if [[ "$sfmt" == 'xbstream' ]];then 
         # Special handling till lp:1193240 is fixed"
         if [[ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]];then 
             wsrep_log_error "Xbstream failed"
@@ -616,7 +616,7 @@ then
                 exit 22
             fi
 
-            if [[ -n $progress ]] && pv --help | grep -q 'line-mode';then
+            if [[ -n "$progress" ]] && pv --help | grep -q 'line-mode';then
                 count=$(find ${DATA} -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
                 if pv --help | grep -q FORMAT;then 

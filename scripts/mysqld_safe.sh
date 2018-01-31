@@ -245,7 +245,7 @@ wsrep_recover_position() {
   local wr_logfile=$(mktemp $DATADIR/wsrep_recovery.XXXXXX)
 
   # safety checks
-  if [ -z $wr_logfile ]; then
+  if [ -z "$wr_logfile" ]; then
     log_error "WSREP: mktemp failed"
     return 1
   fi

@@ -93,7 +93,7 @@ BINLOG_TAR_FILE="$WSREP_SST_OPT_DATA/wsrep_sst_binlog.tar"
 BINLOG_N_FILES=1
 rm -f "$BINLOG_TAR_FILE" || :
 
-if ! [ -z $WSREP_SST_OPT_BINLOG ]
+if ! [ -z "$WSREP_SST_OPT_BINLOG" ]
 then
     BINLOG_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
     BINLOG_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
@@ -150,7 +150,7 @@ then
 
         sync
 
-        if ! [ -z $WSREP_SST_OPT_BINLOG ]
+        if ! [ -z "$WSREP_SST_OPT_BINLOG" ]
         then
             # Prepare binlog files
             pushd $BINLOG_DIRNAME &> /dev/null
@@ -306,7 +306,7 @@ EOF
         exit 32
     fi
 
-    if ! [ -z $WSREP_SST_OPT_BINLOG ]
+    if ! [ -z "$WSREP_SST_OPT_BINLOG" ]
     then
 
         pushd $BINLOG_DIRNAME &> /dev/null
