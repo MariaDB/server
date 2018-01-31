@@ -3757,7 +3757,10 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
 void Item_param::set_null()
 {
   DBUG_ENTER("Item_param::set_null");
-  /* These are cleared after each execution by reset() method */
+  /*
+    These are cleared after each execution by reset() method or by setting
+    other value.
+  */
   null_value= 1;
   /* 
     Because of NULL and string values we need to set max_length for each new
@@ -3846,6 +3849,7 @@ void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
   unsigned_flag= unsigned_arg;
   max_length= my_decimal_precision_to_length(value.m_decimal.intg + decimals,
                                              decimals, unsigned_flag);
+  maybe_null= 0;
   null_value= 0;
   fix_type(Item::DECIMAL_ITEM);
 }
@@ -3857,6 +3861,8 @@ void Item_param::fix_temporal(uint32 max_length_arg, uint decimals_arg)
   collation.set_numeric();
   max_length= max_length_arg;
   decimals= decimals_arg;
+  maybe_null= 0;
+  null_value= 0;
   fix_type(Item::DATE_ITEM);
 }
 
@@ -3866,6 +3872,7 @@ void Item_param::set_time(const MYSQL_TIME *tm,
 {
   DBUG_ASSERT(value.type_handler()->cmp_type() == TIME_RESULT);
   value.time= *tm;
+  maybe_null= 0;
   null_value= 0;
   fix_temporal(max_length_arg, decimals_arg);
 }
@@ -4634,7 +4641,9 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     set_null();
     return false;
   }
-  return null_value= false;
+  /* It is wrapper => other set_* shoud set null_value */
+  DBUG_ASSERT(null_value == false);
+  return false;
 }
 
 
