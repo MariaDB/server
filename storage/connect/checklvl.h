@@ -45,6 +45,7 @@ enum USETEMP {TMP_NO    =  0,         /* Never                         */
 /***********************************************************************/
 enum TYPCONV {TPC_NO   =  0,          /* Never                         */
               TPC_YES  =  1,          /* Always                        */
-              TPC_SKIP =  2};         /* Skip TEXT columns             */
+							TPC_FORCE = 2,          /* Also convert BLOBs            */
+							TPC_SKIP =  3};         /* Skip TEXT columns             */
 
 #endif    // _CHKLVL_DEFINED_

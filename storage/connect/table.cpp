@@ -128,7 +128,7 @@ PCOL TDB::ColDB(PGLOBAL g, PSZ name, int num)
 	PCOLDEF cdp;
 	PCOL    cp, colp = NULL, cprec = NULL;
 
-	if (trace)
+	if (trace(1))
 		htrc("ColDB: am=%d colname=%s tabname=%s num=%d\n",
 		GetAmType(), SVP(name), Name, num);
 
@@ -146,7 +146,7 @@ PCOL TDB::ColDB(PGLOBAL g, PSZ name, int num)
 				else if (cp->GetIndex() < i)
 					cprec = cp;
 
-			if (trace)
+			if (trace(1))
 				htrc("cdp(%d).Name=%s cp=%p\n", i, cdp->GetName(), cp);
 
 			/*****************************************************************/
@@ -159,7 +159,7 @@ PCOL TDB::ColDB(PGLOBAL g, PSZ name, int num)
 			else if (Mode != MODE_INSERT)
 				colp = InsertSpcBlk(g, cdp);
 
-			if (trace)
+			if (trace(1))
 				htrc("colp=%p\n", colp);
 
 			if (name || num)
@@ -256,7 +256,7 @@ PCOL TDB::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
 /***********************************************************************/
 void TDB::MarkDB(PGLOBAL, PTDB tdb2)
 {
-	if (trace)
+	if (trace(1))
 		htrc("DOS MarkDB: tdbp=%p tdb2=%p\n", this, tdb2);
 
 } // end of MarkDB
@@ -416,7 +416,7 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
   PCOLDEF cdp;
   PCOL    cp, colp = NULL, cprec = NULL;
 
-  if (trace)
+  if (trace(1))
     htrc("ColDB: am=%d colname=%s tabname=%s num=%d\n",
           GetAmType(), SVP(name), Name, num);
 
@@ -434,7 +434,7 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
         else if (cp->GetIndex() < i)
           cprec = cp;
 
-      if (trace)
+      if (trace(1))
         htrc("cdp(%d).Name=%s cp=%p\n", i, cdp->GetName(), cp);
 
       /*****************************************************************/
@@ -447,7 +447,7 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
       else if (Mode != MODE_INSERT)
         colp = InsertSpcBlk(g, cdp);
 
-      if (trace)
+      if (trace(1))
         htrc("colp=%p\n", colp);
 
       if (name || num)
@@ -592,7 +592,7 @@ void TDBASE::PrintAM(FILE *f, char *m)
 /***********************************************************************/
 void TDBASE::MarkDB(PGLOBAL, PTDB tdb2)
   {
-  if (trace)
+  if (trace(1))
     htrc("DOS MarkDB: tdbp=%p tdb2=%p\n", this, tdb2);
 
   } // end of MarkDB
