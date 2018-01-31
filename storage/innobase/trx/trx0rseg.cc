@@ -38,7 +38,6 @@ Created 3/26/1996 Heikki Tuuri
 This function is called only when a new rollback segment is created in
 the database.
 @param[in]	space		space id
-@param[in]	max_size	max size in pages
 @param[in]	rseg_id		rollback segment identifier
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
@@ -46,7 +45,6 @@ the database.
 ulint
 trx_rseg_header_create(
 	ulint			space,
-	ulint			max_size,
 	ulint			rseg_id,
 	buf_block_t*		sys_header,
 	mtr_t*			mtr)
@@ -76,9 +74,7 @@ trx_rseg_header_create(
 	/* Get the rollback segment file page */
 	rsegf = trx_rsegf_get_new(space, page_no, mtr);
 
-	/* Initialize max size field */
-	mlog_write_ulint(rsegf + TRX_RSEG_MAX_SIZE, max_size,
-			 MLOG_4BYTES, mtr);
+	mlog_write_ulint(rsegf + TRX_RSEG_FORMAT, 0, MLOG_4BYTES, mtr);
 
 	/* Initialize the history list */
 
@@ -155,7 +151,6 @@ trx_rseg_mem_create(ulint id, ulint space, ulint page_no)
 	rseg->page_no = page_no;
 	rseg->last_page_no = FIL_NULL;
 	rseg->curr_size = 1;
-	rseg->max_size = ULINT_UNDEFINED;
 
 	mutex_create(rseg->is_persistent()
 		     ? LATCH_ID_REDO_RSEG : LATCH_ID_NOREDO_RSEG,
@@ -170,13 +165,13 @@ trx_rseg_mem_create(ulint id, ulint space, ulint page_no)
 
 /** Read the undo log lists.
 @param[in,out]	rseg		rollback segment
+@param[in,out]	max_trx_id	maximum observed transaction identifier
 @param[in]	rseg_header	rollback segment header
-@param[in,out]	mtr		mini-transaction
 @return the combined size of undo log segments in pages */
 static
 ulint
-trx_undo_lists_init(trx_rseg_t* rseg, const trx_rsegf_t* rseg_header,
-		    mtr_t* mtr)
+trx_undo_lists_init(trx_rseg_t* rseg, trx_id_t& max_trx_id,
+		    const trx_rsegf_t* rseg_header)
 {
 	ut_ad(srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
 
@@ -186,7 +181,7 @@ trx_undo_lists_init(trx_rseg_t* rseg, const trx_rsegf_t* rseg_header,
 		ulint	page_no = trx_rsegf_get_nth_undo(rseg_header, i);
 		if (page_no != FIL_NULL) {
 			size += trx_undo_mem_create_at_db_start(
-				rseg, i, page_no);
+				rseg, i, page_no, max_trx_id);
 			MONITOR_INC(MONITOR_NUM_UNDO_SLOT_USED);
 		}
 	}
@@ -204,12 +199,18 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 {
 	const trx_rsegf_t*	rseg_header = trx_rsegf_get_new(
 		rseg->space, rseg->page_no, mtr);
-	rseg->max_size = mach_read_from_4(rseg_header + TRX_RSEG_MAX_SIZE);
+	if (mach_read_from_4(rseg_header + TRX_RSEG_FORMAT) == 0) {
+		trx_id_t id = mach_read_from_8(rseg_header
+					       + TRX_RSEG_MAX_TRX_ID);
+		if (id > max_trx_id) {
+			max_trx_id = id;
+		}
+	}
 
 	/* Initialize the undo log lists according to the rseg header */
 
 	rseg->curr_size = mach_read_from_4(rseg_header + TRX_RSEG_HISTORY_SIZE)
-		+ 1 + trx_undo_lists_init(rseg, rseg_header, mtr);
+		+ 1 + trx_undo_lists_init(rseg, max_trx_id, rseg_header);
 
 	if (ulint len = flst_get_len(rseg_header + TRX_RSEG_HISTORY)) {
 		my_atomic_addlint(&trx_sys.rseg_history_len, len);
@@ -262,22 +263,9 @@ trx_rseg_array_init()
 		mtr.start();
 		if (const buf_block_t* sys = trx_sysf_get(&mtr, false)) {
 			if (rseg_id == 0) {
-				/* VERY important: after the database
-				is started, max_trx_id value is
-				divisible by TRX_SYS_TRX_ID_WRITE_MARGIN,
-				and the first call of
-				trx_sys.get_new_trx_id() will invoke
-				flush_max_trx_id()! Thus trx id values
-				will not overlap when the database is
-				repeatedly started! */
-
-				max_trx_id = 2 * TRX_SYS_TRX_ID_WRITE_MARGIN
-					+ ut_uint64_align_up(
-						mach_read_from_8(
-							TRX_SYS
-							+ TRX_SYS_TRX_ID_STORE
-							+ sys->frame),
-						TRX_SYS_TRX_ID_WRITE_MARGIN);
+				max_trx_id = mach_read_from_8(
+					TRX_SYS + TRX_SYS_TRX_ID_STORE
+					+ sys->frame);
 			}
 			const uint32_t	page_no = trx_sysf_rseg_get_page_no(
 				sys, rseg_id);
@@ -297,7 +285,7 @@ trx_rseg_array_init()
 		mtr.commit();
 	}
 
-	trx_sys.init_max_trx_id(max_trx_id);
+	trx_sys.init_max_trx_id(max_trx_id + 1);
 }
 
 /** Create a persistent rollback segment.
@@ -324,8 +312,8 @@ trx_rseg_create(ulint space_id)
 		ulint	rseg_id = trx_sys_rseg_find_free(sys_header);
 		ulint	page_no = rseg_id == ULINT_UNDEFINED
 			? FIL_NULL
-			: trx_rseg_header_create(space_id, ULINT_MAX,
-						 rseg_id, sys_header, &mtr);
+			: trx_rseg_header_create(space_id, rseg_id, sys_header,
+						 &mtr);
 		if (page_no != FIL_NULL) {
 			ut_ad(trx_sysf_rseg_get_space(sys_header, rseg_id)
 			      == space_id);
@@ -358,7 +346,7 @@ trx_temp_rseg_create()
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY);
 
 		ulint page_no = trx_rseg_header_create(
-			SRV_TMP_SPACE_ID, ULINT_MAX, i, NULL, &mtr);
+			SRV_TMP_SPACE_ID, i, NULL, &mtr);
 		trx_rseg_t* rseg = trx_rseg_mem_create(
 			i, SRV_TMP_SPACE_ID, page_no);
 		ut_ad(!rseg->is_persistent());

@@ -900,12 +900,13 @@ trx_lists_init_at_db_start()
 	ut_ad(!purge_sys);
 	ut_ad(!trx_dummy_sess);
 
+	trx_dummy_sess = sess_open();
+	purge_sys = UT_NEW_NOKEY(purge_sys_t());
+
 	if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 		return;
 	}
 
-	trx_dummy_sess = sess_open();
-	purge_sys = UT_NEW_NOKEY(purge_sys_t());
 	trx_rseg_array_init();
 
 	/* Look from the rollback segments if there exist undo logs for

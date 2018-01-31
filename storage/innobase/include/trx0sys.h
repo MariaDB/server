@@ -175,18 +175,13 @@ trx_sys_create_rsegs();
 
 /** Transaction system header */
 /*------------------------------------------------------------- @{ */
-#define	TRX_SYS_TRX_ID_STORE	0	/*!< the maximum trx id or trx
-					number modulo
-					TRX_SYS_TRX_ID_UPDATE_MARGIN
-					written to a file page by any
-					transaction; the assignment of
-					transaction ids continues from
-					this number rounded up by
-					TRX_SYS_TRX_ID_UPDATE_MARGIN
-					plus
-					TRX_SYS_TRX_ID_UPDATE_MARGIN
-					when the database is
-					started */
+/** In old versions of InnoDB, this persisted the value of
+trx_sys.get_max_trx_id(). Starting with MariaDB 10.3.5,
+the field TRX_RSEG_MAX_TRX_ID in rollback segment header pages
+and the fields TRX_UNDO_TRX_ID, TRX_UNDO_TRX_NO in undo log pages
+are used instead. The field only exists for the purpose of upgrading
+from older MySQL or MariaDB versions. */
+#define	TRX_SYS_TRX_ID_STORE	0
 #define TRX_SYS_FSEG_HEADER	8	/*!< segment header for the
 					tablespace segment the trx
 					system is created into */
@@ -379,11 +374,6 @@ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID. */
 
 /** Size of the doublewrite block in pages */
 #define TRX_SYS_DOUBLEWRITE_BLOCK_SIZE	FSP_EXTENT_SIZE
-
-/** When a trx id which is zero modulo this number (which must be a power of
-two) is assigned, the field TRX_SYS_TRX_ID_STORE on the transaction system
-page is updated */
-#define TRX_SYS_TRX_ID_WRITE_MARGIN	((trx_id_t) 256)
 /* @} */
 
 trx_t* current_trx();
@@ -925,26 +915,14 @@ public:
 
   /**
     Allocates a new transaction id.
-
-    VERY important: after the database is started, m_max_trx_id value is
-    divisible by TRX_SYS_TRX_ID_WRITE_MARGIN, and the following if
-    will evaluate to TRUE when this function is first time called,
-    and the value for trx id will be written to disk-based header!
-    Thus trx id values will not overlap when the database is
-    repeatedly started!
-
     @return new, allocated trx id
   */
 
   trx_id_t get_new_trx_id()
   {
     ut_ad(mutex_own(&mutex));
-    trx_id_t id= static_cast<trx_id_t>(my_atomic_add64_explicit(
+    return static_cast<trx_id_t>(my_atomic_add64_explicit(
       reinterpret_cast<int64*>(&m_max_trx_id), 1, MY_MEMORY_ORDER_RELAXED));
-
-    if (UNIV_UNLIKELY(!(id % TRX_SYS_TRX_ID_WRITE_MARGIN)))
-      flush_max_trx_id();
-    return(id);
   }
 
 
@@ -1004,13 +982,6 @@ private:
     }
     return 0;
   }
-
-
-  /**
-    Writes the value of m_max_trx_id to the file based trx system header.
-  */
-
-  void flush_max_trx_id();
 };
 
 

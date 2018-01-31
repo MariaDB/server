@@ -90,24 +90,6 @@ uint	trx_rseg_n_slots_debug = 0;
 #endif
 
 
-/**
-  Writes the value of m_max_trx_id to the file based trx system header.
-*/
-
-void trx_sys_t::flush_max_trx_id()
-{
-  ut_ad(trx_sys.mutex.is_owned());
-  if (!srv_read_only_mode)
-  {
-    mtr_t mtr;
-    mtr.start();
-    mlog_write_ull(TRX_SYS + TRX_SYS_TRX_ID_STORE + trx_sysf_get(&mtr)->frame,
-                   trx_sys.get_max_trx_id(), &mtr);
-    mtr.commit();
-  }
-}
-
-
 /*****************************************************************//**
 Updates the offset information about the end of the MySQL binlog entry
 which corresponds to the transaction just being committed. In a MySQL
@@ -388,9 +370,6 @@ trx_sysf_create(
 	mlog_write_ulint(page + TRX_SYS_DOUBLEWRITE
 			 + TRX_SYS_DOUBLEWRITE_MAGIC, 0, MLOG_4BYTES, mtr);
 
-	/* Start counting transaction ids from number 1 up */
-	mach_write_to_8(TRX_SYS + TRX_SYS_TRX_ID_STORE + page, 1);
-
 	/* Reset the rollback segment slots.  Old versions of InnoDB
 	(before MySQL 5.5) define TRX_SYS_N_RSEGS as 256 and expect
 	that the whole array is initialized. */
@@ -408,8 +387,7 @@ trx_sysf_create(
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
-	page_no = trx_rseg_header_create(TRX_SYS_SPACE,
-					 ULINT_MAX, slot_no, block, mtr);
+	page_no = trx_rseg_header_create(TRX_SYS_SPACE, slot_no, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
 	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);

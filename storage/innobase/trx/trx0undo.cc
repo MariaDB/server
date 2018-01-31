@@ -780,9 +780,6 @@ trx_undo_add_page(trx_t* trx, trx_undo_t* undo, mtr_t* mtr)
 	counterpart of the tree latch, which is the rseg mutex. */
 
 	mutex_enter(&rseg->mutex);
-	if (rseg->curr_size == rseg->max_size) {
-		goto func_exit;
-	}
 
 	header_page = trx_undo_page_get(
 		page_id_t(undo->space, undo->hdr_page_no), mtr);
@@ -891,34 +888,6 @@ trx_undo_free_last_page(trx_undo_t* undo, mtr_t* mtr)
 		undo->hdr_page_no, undo->last_page_no, mtr);
 
 	undo->size--;
-}
-
-/** Empties an undo log header page of undo records for that undo log.
-Other undo logs may still have records on that page, if it is an update
-undo log.
-@param[in]	space		space
-@param[in]	hdr_page_no	header page number
-@param[in]	hdr_offset	header offset
-@param[in,out]	mtr		mini-transaction */
-static
-void
-trx_undo_empty_header_page(
-	ulint			space,
-	ulint			hdr_page_no,
-	ulint			hdr_offset,
-	mtr_t*			mtr)
-{
-	page_t*		header_page;
-	trx_ulogf_t*	log_hdr;
-	ulint		end;
-
-	header_page = trx_undo_page_get(page_id_t(space, hdr_page_no), mtr);
-
-	log_hdr = header_page + hdr_offset;
-
-	end = trx_undo_page_get_end(header_page, hdr_page_no, hdr_offset);
-
-	mlog_write_ulint(log_hdr + TRX_UNDO_LOG_START, end, MLOG_2BYTES, mtr);
 }
 
 /** Truncate the tail of an undo log during rollback.
@@ -1032,9 +1001,16 @@ loop:
 	page_no = page_get_page_no(undo_page);
 
 	if (page_no == hdr_page_no) {
-		trx_undo_empty_header_page(rseg->space,
-					   hdr_page_no, hdr_offset,
-					   &mtr);
+		uint16_t end = mach_read_from_2(hdr_offset + TRX_UNDO_NEXT_LOG
+						+ undo_page);
+		if (end == 0) {
+			end = mach_read_from_2(TRX_UNDO_PAGE_HDR
+					       + TRX_UNDO_PAGE_FREE
+					       + undo_page);
+		}
+
+		mlog_write_ulint(undo_page + hdr_offset + TRX_UNDO_LOG_START,
+				 end, MLOG_2BYTES, &mtr);
 	} else {
 		trx_undo_free_page(rseg, TRUE, rseg->space, hdr_page_no,
 				   page_no, &mtr);
@@ -1100,12 +1076,14 @@ trx_undo_seg_free(
 /*========== UNDO LOG MEMORY COPY INITIALIZATION =====================*/
 
 /** Read an undo log when starting up the database.
-@param[in,out]	rseg	rollback segment
-@param[in]	id	rollback segment slot
-@param[in]	page_no	undo log segment page number
+@param[in,out]	rseg		rollback segment
+@param[in]	id		rollback segment slot
+@param[in]	page_no		undo log segment page number
+@param[in,out]	max_trx_id	the largest observed transaction ID
 @return	size of the undo log in pages */
 ulint
-trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no)
+trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
+				trx_id_t& max_trx_id)
 {
 	mtr_t		mtr;
 	XID		xid;
@@ -1135,10 +1113,19 @@ trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no)
 		xid.null();
 	}
 
+	trx_id_t trx_id = mach_read_from_8(undo_header + TRX_UNDO_TRX_NO);
+	if (trx_id > max_trx_id) {
+		max_trx_id = trx_id;
+	}
+
+	trx_id = mach_read_from_8(undo_header + TRX_UNDO_TRX_ID);
+	if (trx_id > max_trx_id) {
+		max_trx_id = trx_id;
+	}
+
 	mutex_enter(&rseg->mutex);
 	trx_undo_t* undo = trx_undo_mem_create(
-		rseg, id, mach_read_from_8(undo_header + TRX_UNDO_TRX_ID),
-		&xid, page_no, offset);
+		rseg, id, trx_id, &xid, page_no, offset);
 	mutex_exit(&rseg->mutex);
 
 	undo->dict_operation = undo_header[TRX_UNDO_DICT_TRANS];
@@ -1292,11 +1279,6 @@ trx_undo_create(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 	ulint		id;
 
 	ut_ad(mutex_own(&(rseg->mutex)));
-
-	if (rseg->curr_size == rseg->max_size) {
-		*err = DB_OUT_OF_FILE_SPACE;
-		return NULL;
-	}
 
 	buf_block_t*	block = trx_undo_seg_create(
 		trx_rsegf_get(rseg->space, rseg->page_no, mtr), &id, err, mtr);
@@ -1754,7 +1736,7 @@ trx_undo_truncate_tablespace(
 		trx_rseg_t*	rseg = undo_trunc->get_ith_rseg(i);
 
 		rseg->page_no = trx_rseg_header_create(
-			space_id, ULINT_MAX, rseg->id, sys_header, &mtr);
+			space_id, rseg->id, sys_header, &mtr);
 
 		rseg_header = trx_rsegf_get_new(space_id, rseg->page_no, &mtr);
 
@@ -1776,9 +1758,6 @@ trx_undo_truncate_tablespace(
 
 		UT_LIST_INIT(rseg->undo_list, &trx_undo_t::undo_list);
 		UT_LIST_INIT(rseg->undo_cached, &trx_undo_t::undo_list);
-
-		rseg->max_size = mtr_read_ulint(
-			rseg_header + TRX_RSEG_MAX_SIZE, MLOG_4BYTES, &mtr);
 
 		/* Initialize the undo log lists according to the rseg header */
 		rseg->curr_size = mtr_read_ulint(

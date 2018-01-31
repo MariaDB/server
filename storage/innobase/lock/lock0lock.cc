@@ -383,8 +383,9 @@ lock_check_trx_id_sanity(
 	ut_ad(!rec_is_default_row(rec, index));
 
 	trx_id_t	max_trx_id = trx_sys.get_max_trx_id();
+	ut_ad(max_trx_id || srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN);
 
-	if (trx_id >= max_trx_id) {
+	if (max_trx_id && trx_id >= max_trx_id) {
 		lock_report_trx_id_insanity(
 			trx_id, rec, index, offsets, max_trx_id);
                 return false;

@@ -277,10 +277,28 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
 		ut_ad(undo->size == flst_get_len(
 			      seg_header + TRX_UNDO_PAGE_LIST));
+		byte* rseg_format = rseg_header + TRX_RSEG_FORMAT;
+		if (UNIV_UNLIKELY(mach_read_from_4(rseg_format))) {
+			/* This database must have been upgraded from
+			before MariaDB 10.3.5. */
+			mlog_write_ulint(rseg_format, 0, MLOG_4BYTES, mtr);
+			/* Clear also possible garbage at the end of
+			the page. Old InnoDB versions did not initialize
+			unused parts of pages. */
+			ut_ad(page_offset(rseg_header) == TRX_RSEG);
+			byte* b = rseg_header + TRX_RSEG_MAX_TRX_ID + 8;
+			ulint len = UNIV_PAGE_SIZE
+				- (FIL_PAGE_DATA_END
+				   + TRX_RSEG + TRX_RSEG_MAX_TRX_ID + 8);
+			memset(b, 0, len);
+			mlog_log_string(b, len, mtr);
+		}
 
 		mlog_write_ulint(
 			rseg_header + TRX_RSEG_HISTORY_SIZE,
 			hist_size + undo->size, MLOG_4BYTES, mtr);
+		mlog_write_ull(rseg_header + TRX_RSEG_MAX_TRX_ID,
+			       trx_sys.get_max_trx_id(), mtr);
 	}
 
 	/* Before any transaction-generating background threads or the

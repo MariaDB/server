@@ -318,12 +318,14 @@ trx_undo_parse_page_header(
 	page_t*		page,
 	mtr_t*		mtr);
 /** Read an undo log when starting up the database.
-@param[in,out]	rseg	rollback segment
-@param[in]	id	rollback segment slot
-@param[in]	page_no	undo log segment page number
+@param[in,out]	rseg		rollback segment
+@param[in]	id		rollback segment slot
+@param[in]	page_no		undo log segment page number
+@param[in,out]	max_trx_id	the largest observed transaction ID
 @return	size of the undo log in pages */
 ulint
-trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no);
+trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
+				trx_id_t& max_trx_id);
 /************************************************************************
 Frees an undo log memory copy. */
 void
