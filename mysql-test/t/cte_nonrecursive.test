@@ -929,3 +929,18 @@ select * from v;
 
 drop view v;
 drop table region, nation;
+
+--echo #
+--echo # MDEV-15120: cte name used with database name
+--echo #
+
+--error ER_NO_SUCH_TABLE
+WITH cte AS (SELECT 1 AS a) SELECT test.cte.a FROM test.cte;
+
+CREATE DATABASE db1;
+USE db1;
+
+--error ER_NO_SUCH_TABLE
+WITH cte AS (SELECT 1 AS a) SELECT db1.cte.a FROM db1.cte;
+
+DROP DATABASE db1;
