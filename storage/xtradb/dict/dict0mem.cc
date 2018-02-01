@@ -2,6 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -534,7 +535,8 @@ dict_mem_fill_column_struct(
 	column->len = (unsigned int) col_len;
 #ifndef UNIV_HOTBACKUP
         dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
-	dict_col_set_mbminmaxlen(column, mbminlen, mbmaxlen);
+	column->mbminlen = mbminlen;
+	column->mbmaxlen = mbmaxlen;
 #endif /* !UNIV_HOTBACKUP */
 }
 

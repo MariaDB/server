@@ -16,3 +16,6 @@ select * from t1;
 alter table t1 drop partition p20181231;
 select * from t1;
 drop table t1;
+
+--let $engine=Aria
+--source inc/part_alter_values.inc

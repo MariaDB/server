@@ -112,7 +112,7 @@ public:
   {
     (void) ptr_arg;
     (void) size;
-    TRASH(ptr_arg, size);
+    TRASH_FREE(ptr_arg, size);
   }
   static void operator delete(void *, MEM_ROOT *)
   { /* never called */ }

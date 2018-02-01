@@ -3819,6 +3819,58 @@ end:
   DBUG_RETURN(rc);
 }
 
+static
+my_bool dynstr_append_json_quoted(DYNAMIC_STRING *str,
+                                  const char *append, size_t len)
+{
+  uint additional= ((str->alloc_increment && str->alloc_increment > 6) ?
+                    str->alloc_increment :
+                    10);
+  uint lim= additional;
+  uint i;
+  if (dynstr_realloc(str, len + additional + 2))
+    return TRUE;
+  str->str[str->length++]= '"';
+  for (i= 0; i < len; i++)
+  {
+    register char c= append[i];
+    if (unlikely(c <= 0x1F))
+    {
+      if (lim < 5)
+        {
+          if (dynstr_realloc(str, additional))
+            return TRUE;
+          lim+= additional;
+        }
+        lim-= 5;
+        str->str[str->length++]= '\\';
+        str->str[str->length++]= 'u';
+        str->str[str->length++]= '0';
+        str->str[str->length++]= '0';
+        str->str[str->length++]= (c < 0x10 ? '0' : '1');
+        c%= 0x10;
+        str->str[str->length++]= (c < 0xA ? '0' + c  : 'A' + (c - 0xA));
+    }
+    else
+    {
+      if (c == '"' || c == '\\')
+      {
+        if (!lim)
+        {
+          if (dynstr_realloc(str, additional))
+            return TRUE;
+          lim= additional;
+        }
+        lim--;
+        str->str[str->length++]= '\\';
+      }
+      str->str[str->length++]= c;
+    }
+  }
+  str->str[str->length++]= '"';
+  return FALSE;
+}
+
 
 enum enum_dyncol_func_result
 mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
@@ -3884,7 +3936,10 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
             return ER_DYNCOL_RESOURCE;
         }
         if (quote)
-          rc= dynstr_append_quoted(str, from, len, quote);
+          if (quote == DYNCOL_JSON_ESC)
+            rc= dynstr_append_json_quoted(str, from, len);
+          else
+            rc= dynstr_append_quoted(str, from, len, quote);
         else
           rc= dynstr_append_mem(str, from, len);
         if (alloc)
@@ -4184,8 +4239,8 @@ mariadb_dyncol_json_internal(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json,
     }
     else
     {
-      if ((rc= mariadb_dyncol_val_str(json, &val,
-                                      &my_charset_utf8_general_ci, '"')) < 0)
+      if ((rc= mariadb_dyncol_val_str(json, &val, DYNCOL_UTF, DYNCOL_JSON_ESC))
+           < 0)
         goto err;
     }
   }

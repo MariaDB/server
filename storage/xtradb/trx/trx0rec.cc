@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1076,6 +1076,7 @@ trx_undo_rec_get_partial_row(
 				used, as we do NOT copy the data in the
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
+	const upd_t*	update,	/*!< in: updated columns */
 	dtuple_t**	row,	/*!< out, own: partial row */
 	ibool		ignore_prefix, /*!< in: flag to indicate if we
 				expect blob prefixes in undo. Used
@@ -1103,6 +1104,13 @@ trx_undo_rec_get_partial_row(
 			->mtype = DATA_MISSING;
 	}
 
+	for (const upd_field_t* uf = update->fields, * const ue
+		     = update->fields + update->n_fields;
+	     uf != ue; uf++) {
+		ulint c = dict_index_get_nth_col(index, uf->field_no)->ind;
+		*dtuple_get_nth_field(*row, c) = uf->new_val;
+	}
+
 	end_ptr = ptr + mach_read_from_2(ptr);
 	ptr += 2;
 
@@ -1123,6 +1131,10 @@ trx_undo_rec_get_partial_row(
 		ptr = trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
 
 		dfield = dtuple_get_nth_field(*row, col_no);
+		ut_ad(dfield->type.mtype == DATA_MISSING
+		      || dict_col_type_assert_equal(col, &dfield->type));
+		ut_ad(dfield->type.mtype == DATA_MISSING
+		      || dfield->len == len);
 		dict_col_copy_type(
 			dict_table_get_nth_col(index->table, col_no),
 			dfield_get_type(dfield));
@@ -1221,10 +1233,8 @@ trx_undo_report_row_operation(
 					marking, the record in the clustered
 					index, otherwise NULL */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
-	roll_ptr_t*	roll_ptr)	/*!< out: rollback pointer to the
-					inserted undo log record,
-					0 if BTR_NO_UNDO_LOG
-					flag was specified */
+	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
+					undo log record */
 {
 	trx_t*		trx;
 	trx_undo_t*	undo;

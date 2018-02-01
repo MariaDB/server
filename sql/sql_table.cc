@@ -1830,7 +1830,8 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 #endif
     /* Write shadow frm file */
     lpt->create_info->table_options= lpt->db_options;
-    LEX_CUSTRING frm= build_frm_image(lpt->thd, lpt->table_name,
+    LEX_CUSTRING frm= build_frm_image(lpt->thd,
+                                      lpt->table_name,
                                       lpt->create_info,
                                       lpt->alter_info->create_list,
                                       lpt->key_count, lpt->key_info_buffer,
@@ -4417,10 +4418,7 @@ handler *mysql_create_frm_image(THD *thd,
 
   set_table_default_charset(thd, create_info, (char*) db);
 
-  db_options= create_info->table_options;
-  if (create_info->row_type == ROW_TYPE_DYNAMIC ||
-      create_info->row_type == ROW_TYPE_PAGE)
-    db_options|= HA_OPTION_PACK_RECORD;
+  db_options= create_info->table_options_with_row_type();
 
   if (!(file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root,
                               create_info->db_type)))
@@ -8940,7 +8938,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
          TODO don't create the frm in the first place
       */
-      deletefrm(alter_ctx.get_tmp_path());
+      const char *path= alter_ctx.get_tmp_path();
+      table->file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
+      deletefrm(path);
       my_free(const_cast<uchar*>(frm.str));
       goto end_inplace;
     }
@@ -9712,12 +9712,13 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
           if ((int) key_nr >= 0)
           {
             const char *err_msg= ER(ER_DUP_ENTRY_WITH_KEY_NAME);
-            if (key_nr == 0 &&
+            if (key_nr == 0 && to->s->keys > 0 &&
                 (to->key_info[0].key_part[0].field->flags &
                  AUTO_INCREMENT_FLAG))
               err_msg= ER(ER_DUP_ENTRY_AUTOINCREMENT_CASE);
-            print_keydup_error(to, key_nr == MAX_KEY ? NULL :
-                                   &to->key_info[key_nr],
+            print_keydup_error(to,
+                               key_nr >= to->s->keys ? NULL :
+                               &to->key_info[key_nr],
                                err_msg, MYF(0));
           }
           else

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -252,9 +252,9 @@ String *Item_func_sha2::val_str_ascii(String *str)
   size_t input_len;
   uint digest_length= 0;
 
+  input_string= args[0]->val_str(str);
   str->set_charset(&my_charset_bin);
 
-  input_string= args[0]->val_str(str);
   if (input_string == NULL)
   {
     null_value= TRUE;
@@ -2905,6 +2905,20 @@ String *Item_func_make_set::val_str(String *str)
 }
 
 
+void Item_func_char::print(String *str, enum_query_type query_type)
+{
+  str->append(Item_func_char::func_name());
+  str->append('(');
+  print_args(str, 0, query_type);
+  if (collation.collation != &my_charset_bin)
+  {
+    str->append(C_STRING_WITH_LEN(" using "));
+    str->append(collation.collation->csname);
+  }
+  str->append(')');
+}
+
+
 String *Item_func_char::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -4444,7 +4458,7 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
       if (res)
       {
         // guaranty UTF-8 string for names
-        if (my_charset_same(res->charset(), &my_charset_utf8_general_ci))
+        if (my_charset_same(res->charset(), DYNCOL_UTF))
         {
           keys_str[i].length= res->length();
           keys_str[i].str= sql_strmake(res->ptr(), res->length());
@@ -4455,11 +4469,11 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
           uint dummy_errors;
           char *str=
             (char *)sql_alloc((strlen= res->length() *
-                               my_charset_utf8_general_ci.mbmaxlen + 1));
+                               DYNCOL_UTF->mbmaxlen + 1));
           if (str)
           {
             keys_str[i].length=
-              copy_and_convert(str, strlen, &my_charset_utf8_general_ci,
+              copy_and_convert(str, strlen, DYNCOL_UTF,
                                res->ptr(), res->length(), res->charset(),
                                &dummy_errors);
               keys_str[i].str= str;
@@ -4680,9 +4694,10 @@ String *Item_func_dyncol_json::val_str(String *str)
     size_t length, alloc_length;
     dynstr_reassociate(&json, &ptr, &length, &alloc_length);
     str->reassociate(ptr, (uint32) length, (uint32) alloc_length,
-                     &my_charset_utf8_general_ci);
+                     DYNCOL_UTF);
     null_value= FALSE;
   }
+  str->set_charset(DYNCOL_UTF);
   return str;
 
 null:
@@ -4781,7 +4796,7 @@ bool Item_dyncol_get::get_dyn_value(DYNAMIC_COLUMN_VALUE *val, String *tmp)
       return 1;
     }
 
-    if (my_charset_same(nm->charset(), &my_charset_utf8_general_ci))
+    if (my_charset_same(nm->charset(), DYNCOL_UTF))
     {
       buf.str= (char *) nm->ptr();
       buf.length= nm->length();
@@ -4791,11 +4806,11 @@ bool Item_dyncol_get::get_dyn_value(DYNAMIC_COLUMN_VALUE *val, String *tmp)
       uint strlen;
       uint dummy_errors;
       buf.str= (char *)sql_alloc((strlen= nm->length() *
-                                     my_charset_utf8_general_ci.mbmaxlen + 1));
+                                  DYNCOL_UTF->mbmaxlen + 1));
       if (buf.str)
       {
         buf.length=
-          copy_and_convert(buf.str, strlen, &my_charset_utf8_general_ci,
+          copy_and_convert(buf.str, strlen, DYNCOL_UTF,
                            nm->ptr(), nm->length(), nm->charset(),
                            &dummy_errors);
       }
@@ -5229,7 +5244,6 @@ String *Item_func_dyncol_list::val_str(String *str)
     goto null;
 
   str->length(0);
-  str->set_charset(&my_charset_utf8_general_ci);
   for (i= 0; i < count; i++)
   {
     append_identifier(current_thd, str, names[i].str, names[i].length);
@@ -5239,6 +5253,7 @@ String *Item_func_dyncol_list::val_str(String *str)
   null_value= FALSE;
   if (names)
     my_free(names);
+  str->set_charset(DYNCOL_UTF);
   return str;
 
 null:

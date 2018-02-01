@@ -167,6 +167,14 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #define HA_CAN_WRITE_DURING_OPTIMIZE 0
 #endif
 
+#if !defined(HA_ONLINE_ANALYZE)
+#define HA_ONLINE_ANALYZE 0
+#endif
+
+#if !defined(MY_ATTRIBUTE)
+#define MY_ATTRIBUTE(A) __attribute__(A)
+#endif
+
 #if !defined(HA_OPTION_CREATE_FROM_ENGINE)
 #define HA_OPTION_CREATE_FROM_ENGINE 0
 #endif
@@ -247,4 +255,22 @@ inline uint tokudb_uint3korr(const uchar *a) {
     return uint3korr(b);
 }
 
-#endif // _HATOKU_DEFINES_H
+typedef unsigned int pfs_key_t;
+
+#if defined(HAVE_PSI_MUTEX_INTERFACE)
+#define mutex_t_lock(M) M.lock(__FILE__, __LINE__)
+#define mutex_t_unlock(M) M.unlock(__FILE__, __LINE__)
+#else  // HAVE_PSI_MUTEX_INTERFACE
+#define mutex_t_lock(M) M.lock()
+#define mutex_t_unlock(M) M.unlock()
+#endif  // HAVE_PSI_MUTEX_INTERFACE
+
+#if defined(HAVE_PSI_RWLOCK_INTERFACE)
+#define rwlock_t_lock_read(M) M.lock_read(__FILE__, __LINE__)
+#define rwlock_t_lock_write(M) M.lock_write(__FILE__, __LINE__)
+#else  // HAVE_PSI_RWLOCK_INTERFACE
+#define rwlock_t_lock_read(M) M.lock_read()
+#define rwlock_t_lock_write(M) M.lock_write()
+#endif  // HAVE_PSI_RWLOCK_INTERFACE
+
+#endif  // _HATOKU_DEFINES_H

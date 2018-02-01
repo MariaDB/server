@@ -65,7 +65,8 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
        i < (int) key_count ;
        i++, key_info++)
   {
-    if (key_info->key_part[0].offset == fieldpos)
+    if (key_info->key_part[0].offset == fieldpos &&
+            key_info->key_part[0].field->type() != MYSQL_TYPE_BIT)
     {                                  		/* Found key. Calc keylength */
       *key_length= *keypart= 0;
       return i;                                 /* Use this key */
@@ -84,7 +85,8 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
 	 j < key_info->user_defined_key_parts ;
 	 j++, key_part++)
     {
-      if (key_part->offset == fieldpos)
+      if (key_part->offset == fieldpos &&
+            key_part->field->type() != MYSQL_TYPE_BIT)
       {
         *keypart= j;
         return i;                               /* Use this key */

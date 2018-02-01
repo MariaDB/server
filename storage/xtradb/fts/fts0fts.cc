@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -26,6 +26,7 @@ Full Text Search interface
 #include "row0mysql.h"
 #include "row0upd.h"
 #include "dict0types.h"
+#include "dict0stats_bg.h"
 #include "row0sel.h"
 
 #include "fts0fts.h"
@@ -868,18 +869,37 @@ fts_drop_index(
 
 			err = fts_drop_index_tables(trx, index);
 
-			fts_free(table);
-
+			for(;;) {
+				bool retry = false;
+				if (index->index_fts_syncing) {
+					retry = true;
+				}
+				if (!retry){
+					fts_free(table);
+					break;
+				}
+				DICT_BG_YIELD(trx);
+			}
 			return(err);
 		}
 
-		current_doc_id = table->fts->cache->next_doc_id;
-		first_doc_id = table->fts->cache->first_doc_id;
-		fts_cache_clear(table->fts->cache);
-		fts_cache_destroy(table->fts->cache);
-		table->fts->cache = fts_cache_create(table);
-		table->fts->cache->next_doc_id = current_doc_id;
-		table->fts->cache->first_doc_id = first_doc_id;
+		for(;;) {
+			bool retry = false;
+			if (index->index_fts_syncing) {
+				retry = true;
+			}
+			if (!retry){
+				current_doc_id = table->fts->cache->next_doc_id;
+				first_doc_id = table->fts->cache->first_doc_id;
+				fts_cache_clear(table->fts->cache);
+				fts_cache_destroy(table->fts->cache);
+				table->fts->cache = fts_cache_create(table);
+				table->fts->cache->next_doc_id = current_doc_id;
+				table->fts->cache->first_doc_id = first_doc_id;
+				break;
+			}
+			DICT_BG_YIELD(trx);
+		}
 	} else {
 		fts_cache_t*            cache = table->fts->cache;
 		fts_index_cache_t*      index_cache;
@@ -889,9 +909,17 @@ fts_drop_index(
 		index_cache = fts_find_index_cache(cache, index);
 
 		if (index_cache != NULL) {
-			if (index_cache->words) {
-				fts_words_free(index_cache->words);
-				rbt_free(index_cache->words);
+			for(;;) {
+				bool retry = false;
+				if (index->index_fts_syncing) {
+					retry = true;
+				}
+				if (!retry && index_cache->words) {
+					fts_words_free(index_cache->words);
+					rbt_free(index_cache->words);
+					break;
+				}
+				DICT_BG_YIELD(trx);
 			}
 
 			ib_vector_remove(cache->indexes, *(void**) index_cache);
@@ -1973,7 +2001,7 @@ fts_create_one_index_table(
 			       ? DATA_VARCHAR : DATA_VARMYSQL,
 			       field->col->prtype,
 			       FTS_MAX_WORD_LEN_IN_CHAR
-			       * DATA_MBMAXLEN(field->col->mbminmaxlen));
+			       * field->col->mbmaxlen);
 
 	dict_mem_table_add_col(new_table, heap, "first_doc_id", DATA_INT,
 			       DATA_NOT_NULL | DATA_UNSIGNED,
@@ -4568,9 +4596,15 @@ begin_sync:
 		index_cache = static_cast<fts_index_cache_t*>(
 			ib_vector_get(cache->indexes, i));
 
-		if (index_cache->index->to_be_dropped) {
+		if (index_cache->index->to_be_dropped
+		   || index_cache->index->table->to_be_dropped) {
 			continue;
 		}
+
+		index_cache->index->index_fts_syncing = true;
+		DBUG_EXECUTE_IF("fts_instrument_sync_sleep_drop_waits",
+				os_thread_sleep(10000000);
+				);
 
 		error = fts_sync_index(sync, index_cache);
 
@@ -4604,11 +4638,33 @@ begin_sync:
 end_sync:
 	if (error == DB_SUCCESS && !sync->interrupted) {
 		error = fts_sync_commit(sync);
+		if (error == DB_SUCCESS) {
+			for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
+				fts_index_cache_t*      index_cache;
+				index_cache = static_cast<fts_index_cache_t*>(
+					ib_vector_get(cache->indexes, i));
+				if (index_cache->index->index_fts_syncing) {
+					index_cache->index->index_fts_syncing
+								= false;
+				}
+			}
+		}
 	}  else {
 		fts_sync_rollback(sync);
 	}
 
 	rw_lock_x_lock(&cache->lock);
+	/* Clear fts syncing flags of any indexes incase sync is
+	interrupeted */
+	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
+		fts_index_cache_t*      index_cache;
+		index_cache = static_cast<fts_index_cache_t*>(
+                      ib_vector_get(cache->indexes, i));
+		if (index_cache->index->index_fts_syncing == true) {
+			index_cache->index->index_fts_syncing = false;
+                  }
+	}
+
 	sync->interrupted = false;
 	sync->in_progress = false;
 	os_event_set(sync->event);

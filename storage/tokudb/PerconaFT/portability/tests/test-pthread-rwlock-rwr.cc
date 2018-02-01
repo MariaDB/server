@@ -71,13 +71,19 @@ int test_main(int argc , char *const argv[] ) {
     toku_pthread_t tid;
     void *retptr;
 
-    toku_pthread_rwlock_init(&rwlock, NULL);
-    state = 37; if (verbose) printf("%s:%d\n", __FUNCTION__, __LINE__);
+    toku_pthread_rwlock_init(toku_uninstrumented, &rwlock, nullptr);
+    state = 37;
+    if (verbose)
+        printf("%s:%d\n", __FUNCTION__, __LINE__);
     toku_pthread_rwlock_rdlock(&rwlock);
 
-    r = toku_pthread_create(&tid, NULL, f, &rwlock); assert(r == 0);
+    r = toku_pthread_create(toku_uninstrumented, &tid, nullptr, f, &rwlock);
+    assert(r == 0);
 
-    assert(state==37); state = 42; if (verbose) printf("%s:%d\n", __FUNCTION__, __LINE__);
+    assert(state == 37);
+    state = 42;
+    if (verbose)
+        printf("%s:%d\n", __FUNCTION__, __LINE__);
     sleep(4);
     assert(state==16); state = 44; if (verbose) printf("%s:%d\n", __FUNCTION__, __LINE__);
     toku_pthread_rwlock_rdlock(&rwlock);

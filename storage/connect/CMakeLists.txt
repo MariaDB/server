@@ -78,7 +78,7 @@ IF(UNIX)
 
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -fexceptions -fPIC ")
   get_property(inc_dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES} inihandl.c)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} inihandl.cpp)
   SET(IPHLPAPI_LIBRARY "")
 ELSE(NOT UNIX)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES}
@@ -245,7 +245,7 @@ int main() {
 ENDIF(CONNECT_WITH_ODBC)
 
 #
-# JDBC with MongoDB Java Driver included but disabled
+# JDBC with MongoDB Java Driver included but disabled if without MONGO
 #
 # OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
 OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)

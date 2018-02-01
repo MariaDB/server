@@ -2,7 +2,7 @@
 # Copyright Abandoned 1996 TCX DataKonsult AB & Monty Program KB & Detron HB
 # This file is public domain and comes with NO WARRANTY of any kind
 
-# MySQL daemon start/stop script.
+# MariaDB daemon start/stop script.
 
 # Usually this is put in /etc/init.d (at least on machines SYSV R4 based
 # systems) and linked to /etc/rc3.d/S99mysql and /etc/rc0.d/K01mysql.
@@ -21,22 +21,14 @@
 # Required-Stop: $local_fs $network $remote_fs
 # Default-Start:  2 3 4 5
 # Default-Stop: 0 1 6
-# Short-Description: start and stop MySQL
-# Description: MySQL is a very fast and reliable SQL database engine.
+# Short-Description: start and stop MariaDB
+# Description: MariaDB is a very fast and reliable SQL database engine.
 ### END INIT INFO
 
-# Prevent OpenSUSE's init scripts from calling systemd, so that
-# both 'bootstrap' and 'start' are handled entirely within this
-# script
-SYSTEMD_NO_WRAP=1
-
-# Prevent Debian's init scripts from calling systemctl
-_SYSTEMCTL_SKIP_REDIRECT=true
- 
-# If you install MySQL on some other places than @prefix@, then you
+# If you install MariaDB on some other places than @prefix@, then you
 # have to do one of the following things for this script to work:
 #
-# - Run this script from within the MySQL installation directory
+# - Run this script from within the MariaDB installation directory
 # - Create a /etc/my.cnf file with the following information:
 #   [mysqld]
 #   basedir=<path-to-mysql-installation-directory>
@@ -45,11 +37,11 @@ _SYSTEMCTL_SKIP_REDIRECT=true
 # - Add the path to the mysql-installation-directory to the basedir variable
 #   below.
 #
-# If you want to affect other MySQL variables, you should make your changes
-# in the /etc/my.cnf, ~/.my.cnf or other MySQL configuration files.
+# If you want to affect other MariaDB variables, you should make your changes
+# in the /etc/my.cnf, ~/.my.cnf or other MariaDB configuration files.
 
 # If you change base dir, you must also change datadir. These may get
-# overwritten by settings in the MySQL configuration files.
+# overwritten by settings in the MariaDB configuration files.
 
 basedir=
 datadir=
@@ -302,7 +294,7 @@ case "$mode" in
     # Safeguard (relative paths, core dumps..)
     cd $basedir
 
-    echo $echo_n "Starting MySQL"
+    echo $echo_n "Starting MariaDB"
     if test -x $bindir/mysqld_safe
     then
       # Give extra arguments to mysqld with the my.cnf file. This script
@@ -318,7 +310,7 @@ case "$mode" in
 
       exit $return_value
     else
-      log_failure_msg "Couldn't find MySQL server ($bindir/mysqld_safe)"
+      log_failure_msg "Couldn't find MariaDB server ($bindir/mysqld_safe)"
     fi
     ;;
 
@@ -332,12 +324,12 @@ case "$mode" in
 
       if (kill -0 $mysqld_pid 2>/dev/null)
       then
-        echo $echo_n "Shutting down MySQL"
+        echo $echo_n "Shutting down MariaDB"
         kill $mysqld_pid
         # mysqld should remove the pid file when it exits, so wait for it.
         wait_for_gone $mysqld_pid "$mysqld_pid_file_path"; return_value=$?
       else
-        log_failure_msg "MySQL server process #$mysqld_pid is not running!"
+        log_failure_msg "MariaDB server process #$mysqld_pid is not running!"
         rm "$mysqld_pid_file_path"
       fi
 
@@ -348,7 +340,7 @@ case "$mode" in
       fi
       exit $return_value
     else
-      log_failure_msg "MySQL server PID file could not be found!"
+      log_failure_msg "MariaDB server PID file could not be found!"
     fi
     ;;
 
@@ -369,10 +361,10 @@ case "$mode" in
   'reload'|'force-reload')
     if test -s "$mysqld_pid_file_path" ; then
       read mysqld_pid <  "$mysqld_pid_file_path"
-      kill -HUP $mysqld_pid && log_success_msg "Reloading service MySQL"
+      kill -HUP $mysqld_pid && log_success_msg "Reloading service MariaDB"
       touch "$mysqld_pid_file_path"
     else
-      log_failure_msg "MySQL PID file could not be found!"
+      log_failure_msg "MariaDB PID file could not be found!"
       exit 1
     fi
     ;;
@@ -381,10 +373,10 @@ case "$mode" in
     if test -s "$mysqld_pid_file_path" ; then 
       read mysqld_pid < "$mysqld_pid_file_path"
       if kill -0 $mysqld_pid 2>/dev/null ; then 
-        log_success_msg "MySQL running ($mysqld_pid)"
+        log_success_msg "MariaDB running ($mysqld_pid)"
         exit 0
       else
-        log_failure_msg "MySQL is not running, but PID file exists"
+        log_failure_msg "MariaDB is not running, but PID file exists"
         exit 1
       fi
     else
@@ -394,17 +386,17 @@ case "$mode" in
       # test if multiple pids exist
       pid_count=`echo $mysqld_pid | wc -w`
       if test $pid_count -gt 1 ; then
-        log_failure_msg "Multiple MySQL running but PID file could not be found ($mysqld_pid)"
+        log_failure_msg "Multiple MariaDB running but PID file could not be found ($mysqld_pid)"
         exit 5
       elif test -z $mysqld_pid ; then 
         if test -f "$lock_file_path" ; then 
-          log_failure_msg "MySQL is not running, but lock file ($lock_file_path) exists"
+          log_failure_msg "MariaDB is not running, but lock file ($lock_file_path) exists"
           exit 2
         fi 
-        log_failure_msg "MySQL is not running"
+        log_failure_msg "MariaDB is not running"
         exit 3
       else
-        log_failure_msg "MySQL is running but PID file could not be found"
+        log_failure_msg "MariaDB is running but PID file could not be found"
         exit 4
       fi
     fi
@@ -412,7 +404,7 @@ case "$mode" in
   'configtest')
     # Safeguard (relative paths, core dumps..)
     cd $basedir
-    echo $echo_n "Testing MySQL configuration syntax"
+    echo $echo_n "Testing MariaDB configuration syntax"
     daemon=$bindir/mysqld
     if test -x $libexecdir/mysqld
     then
@@ -446,7 +438,7 @@ case "$mode" in
   *)
       # usage
       basename=`basename "$0"`
-      echo "Usage: $basename  {start|stop|restart|reload|force-reload|status|configtest|bootstrap}  [ MySQL server options ]"
+      echo "Usage: $basename  {start|stop|restart|reload|force-reload|status|configtest}  [ MariaDB server options ]"
       exit 1
     ;;
 esac

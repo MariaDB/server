@@ -86,8 +86,16 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "util/frwlock.h"
 #include "util/status.h"
 
-void
-toku_checkpoint_get_status(CACHETABLE ct, CHECKPOINT_STATUS statp) {
+toku_instr_key *checkpoint_safe_mutex_key;
+toku_instr_key *checkpoint_safe_rwlock_key;
+toku_instr_key *multi_operation_lock_key;
+toku_instr_key *low_priority_multi_operation_lock_key;
+
+toku_instr_key *rwlock_cond_key;
+toku_instr_key *rwlock_wait_read_key;
+toku_instr_key *rwlock_wait_write_key;
+
+void toku_checkpoint_get_status(CACHETABLE ct, CHECKPOINT_STATUS statp) {
     cp_status.init();
     CP_STATUS_VAL(CP_PERIOD) = toku_get_checkpoint_period_unlocked(ct);
     *statp = cp_status;
@@ -116,11 +124,14 @@ multi_operation_lock_init(void) {
 #if defined(HAVE_PTHREAD_RWLOCKATTR_SETKIND_NP)
     pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
 #else
-    // TODO: need to figure out how to make writer-preferential rwlocks
-    // happen on osx
+// TODO: need to figure out how to make writer-preferential rwlocks
+// happen on osx
 #endif
-    toku_pthread_rwlock_init(&multi_operation_lock, &attr);
-    toku_pthread_rwlock_init(&low_priority_multi_operation_lock, &attr);
+    toku_pthread_rwlock_init(
+        *multi_operation_lock_key, &multi_operation_lock, &attr);
+    toku_pthread_rwlock_init(*low_priority_multi_operation_lock_key,
+                             &low_priority_multi_operation_lock,
+                             &attr);
     pthread_rwlockattr_destroy(&attr);
     locked_mo = false;
 }
@@ -145,10 +156,15 @@ multi_operation_checkpoint_unlock(void) {
     toku_pthread_rwlock_wrunlock(&low_priority_multi_operation_lock);    
 }
 
-static void
-checkpoint_safe_lock_init(void) {
-    toku_mutex_init(&checkpoint_safe_mutex, NULL);
-    checkpoint_safe_lock.init(&checkpoint_safe_mutex);
+static void checkpoint_safe_lock_init(void) {
+    toku_mutex_init(
+        *checkpoint_safe_mutex_key, &checkpoint_safe_mutex, nullptr);
+    checkpoint_safe_lock.init(&checkpoint_safe_mutex
+#ifdef TOKU_MYSQL_WITH_PFS
+                              ,
+                              *checkpoint_safe_rwlock_key
+#endif
+                              );
     locked_cs = false;
 }
 

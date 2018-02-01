@@ -702,6 +702,7 @@ public:
     max_length= arg_count * 4;
   }
   const char *func_name() const { return "char"; }
+  void print(String *str, enum_query_type query_type);
 };
 
 
@@ -1177,14 +1178,14 @@ public:
 class Item_func_dyncol_json: public Item_str_func
 {
 public:
-  Item_func_dyncol_json(Item *str) :Item_str_func(str) {}
+  Item_func_dyncol_json(Item *str) :Item_str_func(str)
+    {collation.set(DYNCOL_UTF);}
   const char *func_name() const{ return "column_json"; }
   String *val_str(String *);
   void fix_length_and_dec()
   {
     max_length= MAX_BLOB_WIDTH;
     maybe_null= 1;
-    collation.set(&my_charset_bin);
     decimals= 0;
   }
 };
@@ -1218,7 +1219,8 @@ public:
 class Item_func_dyncol_list: public Item_str_func
 {
 public:
-  Item_func_dyncol_list(Item *str) :Item_str_func(str) {};
+  Item_func_dyncol_list(Item *str) :Item_str_func(str)
+    {collation.set(DYNCOL_UTF);};
   void fix_length_and_dec() { maybe_null= 1; max_length= MAX_BLOB_WIDTH; };
   const char *func_name() const{ return "column_list"; }
   String *val_str(String *);

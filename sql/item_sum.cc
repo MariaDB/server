@@ -3670,7 +3670,7 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
     }
   }
   str->append(STRING_WITH_LEN(" separator \'"));
-  str->append(*separator);
+  str->append_for_single_quote(separator->ptr(), separator->length());
   str->append(STRING_WITH_LEN("\')"));
 }
 

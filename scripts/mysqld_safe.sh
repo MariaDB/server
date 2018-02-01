@@ -966,8 +966,8 @@ if expr "${-}" : '.*x' > /dev/null
 then
   :
 else
-  exec 1>&-
-  exec 2>&-
+  exec 1>/dev/null
+  exec 2>/dev/null
 fi
 
 # maximum number of wsrep restarts

@@ -585,32 +585,6 @@ trx_purge_rseg_get_next_history_log(
 
 		mutex_exit(&(rseg->mutex));
 		mtr_commit(&mtr);
-
-		mutex_enter(&trx_sys->mutex);
-
-		/* Add debug code to track history list corruption reported
-		on the MySQL mailing list on Nov 9, 2004. The fut0lst.cc
-		file-based list was corrupt. The prev node pointer was
-		FIL_NULL, even though the list length was over 8 million nodes!
-		We assume that purge truncates the history list in large
-		size pieces, and if we here reach the head of the list, the
-		list cannot be longer than 2000 000 undo logs now. */
-
-		if (trx_sys->rseg_history_len > 2000000) {
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				"  InnoDB: Warning: purge reached the"
-				" head of the history list,\n"
-				"InnoDB: but its length is still"
-				" reported as %lu! Make a detailed bug\n"
-				"InnoDB: report, and submit it"
-				" to https://jira.mariadb.org/\n",
-				(ulong) trx_sys->rseg_history_len);
-			ut_ad(0);
-		}
-
-		mutex_exit(&trx_sys->mutex);
-
 		return;
 	}
 

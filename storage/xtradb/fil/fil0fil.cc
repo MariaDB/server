@@ -2012,23 +2012,13 @@ UNIV_INTERN
 ibool
 fil_inc_pending_ops(
 /*================*/
-	ulint	id,		/*!< in: space id */
-	ibool	print_err)	/*!< in: need to print error or not */
+	ulint	id)		/*!< in: space id */
 {
 	fil_space_t*	space;
 
 	mutex_enter(&fil_system->mutex);
 
 	space = fil_space_get_by_id(id);
-
-	if (space == NULL) {
-		if (print_err) {
-			fprintf(stderr,
-				"InnoDB: Error: trying to do an operation on a"
-				" dropped tablespace %lu\n",
-				(ulong) id);
-		}
-	}
 
 	if (space == NULL || space->stop_new_ops) {
 		mutex_exit(&fil_system->mutex);
@@ -5121,7 +5111,7 @@ retry:
 		success = os_aio(OS_FILE_WRITE, OS_AIO_SYNC,
 				 node->name, node->handle, buf,
 				 offset, page_size * n_pages,
-				 NULL, NULL, space_id, NULL);
+				 NULL, NULL, space_id, NULL, false);
 #endif /* UNIV_HOTBACKUP */
 
 		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
@@ -5495,7 +5485,12 @@ _fil_io(
 				appropriately aligned */
 	void*	message,	/*!< in: message for aio handler if non-sync
 				aio used, else ignored */
-	trx_t*	trx)
+	trx_t*	trx,
+	bool	should_buffer)	/*!< in: whether to buffer an aio request.
+				AIO read ahead uses this. If you plan to
+				use this parameter, make sure you remember
+				to call os_aio_dispatch_read_array_submit()
+				when you're ready to commit all your requests.*/
 {
 	ulint		mode;
 	fil_space_t*	space;
@@ -5715,7 +5710,7 @@ _fil_io(
 	const char* name = node->name == NULL ? space->name : node->name;
 
 	ret = os_aio(type, mode | wake_later, name, node->handle, buf,
-		offset, len, node, message, space_id, trx);
+		offset, len, node, message, space_id, trx, should_buffer);
 
 #else
 	/* In mysqlbackup do normal i/o, not aio */

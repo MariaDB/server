@@ -578,6 +578,7 @@ struct st_maria_handler
   struct st_ma_transaction *trn;        /* Pointer to active transaction */
   MARIA_STATUS_INFO *state, state_save;
   MARIA_STATUS_INFO *state_start;       /* State at start of transaction */
+  MARIA_USED_TABLES *used_tables;
   MARIA_ROW cur_row;                    /* The active row that we just read */
   MARIA_ROW new_row;			/* Storage for a row during update */
   MARIA_KEY last_key;                   /* Last found key */
@@ -1147,7 +1148,7 @@ extern ulonglong transid_get_packed(MARIA_SHARE *share, const uchar *from);
 #ifdef IDENTICAL_PAGES_AFTER_RECOVERY
 void page_cleanup(MARIA_SHARE *share, MARIA_PAGE *page)
 #else
-#define page_cleanup(A,B) while (0)
+#define page_cleanup(A,B) do { } while (0)
 #endif
 
 extern MARIA_KEY *_ma_make_key(MARIA_HA *info, MARIA_KEY *int_key, uint keynr,

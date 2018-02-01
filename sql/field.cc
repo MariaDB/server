@@ -1873,7 +1873,7 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
 {
   uint store_length;
   copy->str= ptr;
-  copy->length= pack_length();
+  copy->length= pack_length_in_rec();
   copy->field= this;
   if (flags & BLOB_FLAG)
   {
@@ -4390,7 +4390,7 @@ double Field_double::val_real(void)
   return j;
 }
 
-longlong Field_double::val_int(void)
+longlong Field_double::val_int_from_real(bool want_unsigned_result)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   double j;
@@ -4398,8 +4398,15 @@ longlong Field_double::val_int(void)
   bool error;
   float8get(j,ptr);
 
-  res= double_to_longlong(j, 0, &error);
-  if (error)
+  res= double_to_longlong(j, want_unsigned_result, &error);
+  /*
+    Note, val_uint() is currently used for auto_increment purposes only,
+    and we want to suppress all warnings in such cases.
+    If we ever start using val_uint() for other purposes,
+    val_int_from_real() will need a new separate parameter to
+    suppress warnings.
+  */
+  if (error && !want_unsigned_result)
   {
     ErrConvDouble err(j);
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -8704,7 +8711,7 @@ int Field_bit::key_cmp(const uchar *str, uint length)
     str++;
     length--;
   }
-  return memcmp(ptr, str, length);
+  return memcmp(ptr, str, bytes_in_rec);
 }
 
 

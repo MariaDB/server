@@ -220,3 +220,29 @@ RESET QUERY CACHE;
 DROP TABLE t1;
 SET GLOBAL query_cache_size= DEFAULT;
 SET GLOBAL query_cache_type= DEFAULT;
+#
+# MDEV-14526: MariaDB keeps crashing under load when
+# query_cache_type is changed
+#
+CREATE TABLE t1 (
+`id` int(10) NOT NULL AUTO_INCREMENT,
+`k` int(10) default '0',
+PRIMARY KEY (`id`))
+ENGINE=MyISAM;
+INSERT IGNORE INTO t1 VALUES
+(NULL,1),(NULL,8),(NULL,NULL),(NULL,NULL),(NULL,4),(NULL,9),(NULL,7),
+(NULL,3),(NULL,NULL),(NULL,2),(NULL,3),(NULL,NULL),(NULL,2),(NULL,7),
+(NULL,1),(NULL,2),(NULL,4),(NULL,NULL),(NULL,1),(NULL,1),(NULL,4);
+SET GLOBAL query_cache_size= 1024*1024;
+SET GLOBAL query_cache_type= 1;
+set debug_sync="wait_in_query_cache_store_query SIGNAL parked WAIT_FOR go";
+SELECT DISTINCT id FROM t1 WHERE id BETWEEN 5603 AND 16218 ORDER BY k;
+set debug_sync="now WAIT_FOR parked";
+SET GLOBAL query_cache_type= 0;
+set debug_sync="now SIGNAL go";
+id
+set debug_sync= 'RESET';
+DROP TABLE t1;
+SEt GLOBAL query_cache_size= DEFAULT;
+SEt GLOBAL query_cache_type= DEFAULT;
+# End of 5.5 tests

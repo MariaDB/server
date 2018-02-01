@@ -1505,23 +1505,16 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 			ml += g->More;
 
 			if (ml > g->Sarea_Size) {
-#if !defined(DEVELOPMENT)
-				if (trace)
-#endif
-					htrc("Freeing Sarea at %p size=%d\n", g->Sarea, g->Sarea_Size);
+				FreeSarea(g);
 
-				free(g->Sarea);
-
-				if (!(g->Sarea = PlugAllocMem(g, ml))) {
+				if (AllocSarea(g, ml)) {
 					char errmsg[MAX_STR];
 
 					sprintf(errmsg, MSG(WORK_AREA), g->Message);
 					strcpy(g->Message, errmsg);
-					g->Sarea_Size = 0;
 					return true;
-					} // endif Alloc
+					} // endif SareaAlloc
 
-				g->Sarea_Size = ml;
 				g->Createas = 0;
 				g->Xchk = NULL;
 				initid->max_length = rl;

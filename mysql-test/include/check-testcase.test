@@ -75,5 +75,10 @@ if (!$tmp) {
 }
 
 call mtr.check_testcase();
+
+let $datadir=`select @@datadir`;
+list_files $datadir/test #sql*;
+list_files $datadir/mysql #sql*;
+
 --enable_query_log
 

@@ -6367,7 +6367,6 @@ my_bool translog_write_record(LSN *lsn,
                                       short_trid, &parts, trn, hook_arg);
       break;
     case LOGRECTYPE_NOT_ALLOWED:
-      DBUG_ASSERT(0);
     default:
       DBUG_ASSERT(0);
       rc= 1;

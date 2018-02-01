@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -181,18 +182,7 @@ store the charset-collation number; one byte is left unused, though */
 #define DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE	6
 
 /* Maximum multi-byte character length in bytes, plus 1 */
-#define DATA_MBMAX	5
-
-/* Pack mbminlen, mbmaxlen to mbminmaxlen. */
-#define DATA_MBMINMAXLEN(mbminlen, mbmaxlen)	\
-	((mbmaxlen) * DATA_MBMAX + (mbminlen))
-/* Get mbminlen from mbminmaxlen. Cast the result of UNIV_EXPECT to ulint
-because in GCC it returns a long. */
-#define DATA_MBMINLEN(mbminmaxlen) ((ulint) \
-                                    UNIV_EXPECT(((mbminmaxlen) % DATA_MBMAX), \
-                                                1))
-/* Get mbmaxlen from mbminmaxlen. */
-#define DATA_MBMAXLEN(mbminmaxlen) ((ulint) ((mbminmaxlen) / DATA_MBMAX))
+#define DATA_MBMAX	8
 
 /* We now support 15 bits (up to 32767) collation number */
 #define MAX_CHAR_COLL_NUM	32767
@@ -219,8 +209,10 @@ ulint
 dtype_get_at_most_n_mbchars(
 /*========================*/
 	ulint		prtype,		/*!< in: precise type */
-	ulint		mbminmaxlen,	/*!< in: minimum and maximum length of
-					a multi-byte character */
+	ulint		mbminlen,	/*!< in: minimum length of
+					a multi-byte character, in bytes */
+	ulint		mbmaxlen,	/*!< in: maximum length of
+					a multi-byte character, in bytes */
 	ulint		prefix_len,	/*!< in: length of the requested
 					prefix, in characters, multiplied by
 					dtype_get_mbmaxlen(dtype) */
@@ -365,19 +357,6 @@ dtype_get_mbmaxlen(
 /*===============*/
 	const dtype_t*	type);	/*!< in: type */
 /*********************************************************************//**
-Sets the minimum and maximum length of a character, in bytes. */
-UNIV_INLINE
-void
-dtype_set_mbminmaxlen(
-/*==================*/
-	dtype_t*	type,		/*!< in/out: type */
-	ulint		mbminlen,	/*!< in: minimum length of a char,
-					in bytes, or 0 if this is not
-					a character type */
-	ulint		mbmaxlen);	/*!< in: maximum length of a char,
-					in bytes, or 0 if this is not
-					a character type */
-/*********************************************************************//**
 Gets the padding character code for the type.
 @return	padding character code, or ULINT_UNDEFINED if no padding specified */
 UNIV_INLINE
@@ -397,7 +376,9 @@ dtype_get_fixed_size_low(
 	ulint	mtype,		/*!< in: main type */
 	ulint	prtype,		/*!< in: precise type */
 	ulint	len,		/*!< in: length */
-	ulint	mbminmaxlen,	/*!< in: minimum and maximum length of a
+	ulint	mbminlen,	/*!< in: minimum length of a
+				multibyte character, in bytes */
+	ulint	mbmaxlen,	/*!< in: maximum length of a
 				multibyte character, in bytes */
 	ulint	comp);		/*!< in: nonzero=ROW_FORMAT=COMPACT  */
 #ifndef UNIV_HOTBACKUP
@@ -411,8 +392,8 @@ dtype_get_min_size_low(
 	ulint	mtype,		/*!< in: main type */
 	ulint	prtype,		/*!< in: precise type */
 	ulint	len,		/*!< in: length */
-	ulint	mbminmaxlen);	/*!< in: minimum and maximum length of a
-				multibyte character */
+	ulint	mbminlen,	/*!< in: minimum length of a character */
+	ulint	mbmaxlen);	/*!< in: maximum length of a character */
 /***********************************************************************//**
 Returns the maximum size of a data type. Note: types in system tables may be
 incomplete and return incorrect information.
@@ -529,11 +510,10 @@ struct dtype_t{
 					the string, MySQL uses 1 or 2
 					bytes to store the string length) */
 #ifndef UNIV_HOTBACKUP
-	unsigned	mbminmaxlen:5;	/*!< minimum and maximum length of a
-					character, in bytes;
-					DATA_MBMINMAXLEN(mbminlen,mbmaxlen);
-					mbminlen=DATA_MBMINLEN(mbminmaxlen);
-					mbmaxlen=DATA_MBMINLEN(mbminmaxlen) */
+	unsigned	mbminlen:3;	/*!< minimum length of a character,
+					in bytes */
+	unsigned	mbmaxlen:3;	/*!< maximum length of a character,
+					in bytes */
 #endif /* !UNIV_HOTBACKUP */
 };
 

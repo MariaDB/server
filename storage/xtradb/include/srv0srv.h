@@ -53,6 +53,8 @@ Created 10/10/1995 Heikki Tuuri
 #include "buf0checksum.h"
 #include "ut0counter.h"
 
+#include <sql_class.h>
+
 /* Global counters used inside InnoDB. */
 struct srv_stats_t {
 	typedef ib_counter_t<ulint, 64> ulint_ctr_64_t;
@@ -145,6 +147,9 @@ struct srv_stats_t {
 	/** Number of lock waits that have been up to max time (i.e.) lock
 	wait timeout */
 	ulint_ctr_1_t		n_lock_max_wait_time;
+
+	/** Number of buffered aio requests submitted */
+	ulint_ctr_64_t		n_aio_submitted;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -611,6 +616,9 @@ extern ulong srv_sync_array_size;
 
 /* print all user-level transactions deadlocks to mysqld stderr */
 extern my_bool srv_print_all_deadlocks;
+
+/* print lock wait timeout info to mysqld stderr */
+extern my_bool srv_print_lock_wait_timeout_info;
 
 extern my_bool	srv_cmp_per_index_enabled;
 
@@ -1125,6 +1133,8 @@ struct export_var_t{
 
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
 	ulint innodb_sec_rec_cluster_reads_avoided; /*!< srv_sec_rec_cluster_reads_avoided */
+
+	ulint innodb_buffered_aio_submitted;
 };
 
 /** Thread slot in the thread table.  */

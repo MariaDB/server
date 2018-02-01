@@ -71,21 +71,26 @@ cachetable_test (void) {
 
   void* v1;
   long s1;
-  r = toku_cachetable_get_and_pin(
-      f1, 
-      make_blocknum(1), 
-      toku_cachetable_hash(f1, make_blocknum(1)), 
-      &v1, 
-      &s1, 
-      def_write_callback(NULL), def_fetch, def_pf_req_callback, def_pf_callback, 
-      true, 
-      NULL
-      );
+  r = toku_cachetable_get_and_pin(f1,
+                                  make_blocknum(1),
+                                  toku_cachetable_hash(f1, make_blocknum(1)),
+                                  &v1,
+                                  &s1,
+                                  def_write_callback(NULL),
+                                  def_fetch,
+                                  def_pf_req_callback,
+                                  def_pf_callback,
+                                  true,
+                                  NULL);
   toku_pthread_t pin_nonblocking_tid;
-  r = toku_pthread_create(&pin_nonblocking_tid, NULL, pin_nonblocking, NULL); 
-  assert_zero(r);    
+  r = toku_pthread_create(toku_uninstrumented,
+                          &pin_nonblocking_tid,
+                          nullptr,
+                          pin_nonblocking,
+                          nullptr);
+  assert_zero(r);
   // sleep 3 seconds
-  usleep(3*1024*1024);
+  usleep(3 * 1024 * 1024);
   r = toku_test_cachetable_unpin_and_remove(f1, make_blocknum(1), NULL, NULL);
   assert_zero(r);
   

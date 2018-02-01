@@ -987,7 +987,8 @@ static void make_sortkey(register Sort_param *param,
         if (maybe_null)
           *to++=1;
         char *tmp_buffer= param->tmp_buffer ? param->tmp_buffer : (char*)to;
-        String tmp(tmp_buffer, param->sort_length, cs);
+        String tmp(tmp_buffer, param->tmp_buffer ? param->sort_length :
+                                                   sort_field->length, cs);
         String *res= item->str_result(&tmp);
         if (!res)
         {

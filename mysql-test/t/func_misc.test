@@ -1091,3 +1091,19 @@ SELECT COERCIBILITY(NAME_CONST('name',TIME'00:00:00'));
 SELECT COERCIBILITY(NAME_CONST('name',15));
 SELECT CONCAT(NAME_CONST('name',15),'오');
 SET NAMES latin1;
+
+--echo #
+--echo # MDEV-14116 INET6_NTOA output is set as null to varchar(39) variable
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE ip_full_addr varchar(39) DEFAULT "";
+  SELECT INET6_NTOA(UNHEX('20000000000000000000000000000000')) into ip_full_addr;
+  SELECT ip_full_addr;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;

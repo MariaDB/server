@@ -215,9 +215,9 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
 PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
-#if defined(MONGO_SUPPORT)
+#if defined(JAVA_SUPPORT)
 PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ url, PTOS topt, bool info);
-#endif   // MONGO_SUPPORT
+#endif   // JAVA_SUPPORT
 int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host, PCSZ db,
@@ -371,13 +371,6 @@ static MYSQL_THDVAR_BOOL(enable_mongo, PLUGIN_VAR_RQCMDARG,
 	NULL, NULL, MONGO_ENABLED);
 #endif   // 0
 
-#if defined(MONGO_SUPPORT)
-// Enabling MONGO table type
-static MYSQL_THDVAR_BOOL(enable_mongo, PLUGIN_VAR_RQCMDARG,
-	"Enabling the MongoDB access",
-	NULL, NULL, MONGO_ENABLED);
-#endif   // MONGO_SUPPORT
-
 #if defined(XMSG) || defined(NEWMSG)
 const char *language_names[]=
 {
@@ -441,10 +434,6 @@ char *GetJavaWrapper(void)
 #if defined(JAVA_SUPPORT)
 //bool MongoEnabled(void) { return THDVAR(current_thd, enable_mongo); }
 #endif   // JAVA_SUPPORT
-
-#if defined(MONGO_SUPPORT)
-bool MongoEnabled(void) { return THDVAR(current_thd, enable_mongo); }
-#endif   // MONGO_SUPPORT
 
 extern "C" const char *msglang(void)
 {
@@ -3020,7 +3009,9 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
           return NULL;
 
         if (!x) {
+					const char *p;
 					char *s = (ishav) ? havg : body;
+					uint	j, k, n;
 
           // Append the value to the filter
           switch (args[i]->field_type()) {
@@ -3076,16 +3067,38 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                     strcat(s, "'}");
                     break;
                   default:
-                    strcat(s, "'");
-                    strncat(s, res->ptr(), res->length());
-                    strcat(s, "'");
-                  } // endswitch field type
+										j = strlen(s);
+										s[j++] = '\'';
+										p = res->ptr();
+										n = res->length();
+
+										for (k = 0; k < n; k++) {
+											if (p[k] == '\'')
+												s[j++] = '\'';
+
+											s[j++] = p[k];
+										} // endfor k
+
+										s[j++] = '\'';
+										s[j] = 0;
+								} // endswitch field type
 
               } else {
-                strcat(s, "'");
-                strncat(s, res->ptr(), res->length());
-                strcat(s, "'");
-              } // endif tty
+								j = strlen(s);
+								s[j++] = '\'';
+								p = res->ptr();
+								n = res->length();
+
+								for (k = 0; k < n; k++) {
+									if (p[k] == '\'')
+										s[j++] = '\'';
+
+									s[j++] = p[k];
+								} // endfor k
+
+								s[j++] = '\'';
+								s[j] = 0;
+							} // endif tty
 
               break;
             default:

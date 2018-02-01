@@ -1955,6 +1955,44 @@ UNION
     ORDER BY NULL, @a0 := 3, @a1 := 3, @a2 := 3, @a3 := 3, @a4 := 3,
              @a5 := 3, @a6 := 3, @a7 := 3, @a8 := 3, @a9 := 3, @a10 := 3 );
 
+
+--echo #
+--echo # mdev-6706: semi-join with duplicate weedout + ORDER BY
+--echo #
+
+CREATE TABLE t1 (f1 VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo');
+
+CREATE TABLE t2 (f2 VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('bar'),('baz');
+
+CREATE TABLE t3
+(i3_key INT, f3_key VARCHAR(3), f3 VARCHAR(3), KEY(f3_key,i3_key))
+ ENGINE=MyISAM;
+INSERT INTO t3 VALUES (0,'qux','qux'),(8,'bar','bar');
+
+let $q1=
+SELECT CONCAT( f1, f2 ) AS field FROM t1, t2
+WHERE f1 = ANY ( SELECT f1
+                 FROM t1
+                 LEFT JOIN ( t3 AS t3a, t3 AS t3b )
+                 ON ( t3b.f3_key = t3a.f3 )
+                 WHERE t3a.f3 < f1 OR t3b.f3 != f1 );
+let $q2=
+SELECT CONCAT( f1, f2 ) AS field FROM t1, t2
+WHERE f1 = ANY ( SELECT f1
+                 FROM t1
+                 LEFT JOIN ( t3 AS t3a, t3 AS t3b )
+                 ON ( t3b.f3_key = t3a.f3 )
+                 WHERE t3a.f3 < f1 OR t3b.f3 != f1 )
+ORDER BY field;
+
+eval $q1;
+eval $q2;
+eval EXPLAIN EXTENDED $q2;
+
+DROP TABLE t1,t2,t3;
+
 --echo End of 5.5 tests
 
 --echo #

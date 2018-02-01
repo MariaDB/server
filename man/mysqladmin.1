@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLADMIN\FR" "1" "04/08/2015" "MariaDB 10\&.0" "MariaDB Database System"
+.TH "\FBMYSQLADMIN\FR" "1" "28 December 2017" "MariaDB 10\&.0" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -106,9 +106,113 @@ Display the server status variables and their values\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+flush\-all\-statistics
+.sp
+Flush all statistics tables\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+flush\-all\-status
+.sp
+Flush all status and statistics\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+flush\-binary\-log
+.sp
+Flush the binary log\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+flush\-client\-statistics
+.sp
+Flush client statistics\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+flush\-engine\-log
+.sp
+Flush engine log\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+flush\-error\-log
+.sp
+Flush error log\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+flush\-general\-log
+.sp
+Flush general query log\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 flush\-hosts
 .sp
 Flush all information in the host cache\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+flush\-index\-statistics
+.sp
+Flush index statistics\&.
 .RE
 .sp
 .RS 4
@@ -146,9 +250,48 @@ reload)\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+flush\-relay\-log
+.sp
+Flush relay log\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+flush\-slow\-log
+.sp
+Flush slow query log\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 flush\-status
 .sp
 Clear status variables\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+flush\-table\-statistics
+.sp
+Flush table statistics\&.
 .RE
 .sp
 .RS 4
@@ -175,6 +318,19 @@ Flush all tables\&.
 flush\-threads
 .sp
 Flush the thread cache\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+flush\-user\-resources
+.sp
+Flush user resources\&.
 .RE
 .sp
 .RS 4
@@ -344,6 +500,19 @@ Stop the server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+start\-all\-slaves
+.sp
+Start all slaves\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 start\-slave
 .sp
 Start replication on a slave server\&.
@@ -360,6 +529,19 @@ Start replication on a slave server\&.
 status
 .sp
 Display a short server status message\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+stop\-all\-slaves
+.sp
+Stop all slaves\&.
 .RE
 .sp
 .RS 4
@@ -821,7 +1003,7 @@ Connect to the MariaDB server on the given host\&.
 \fB\-\-local\fR,
 \fB\-l\fR
 .sp
-Suppress the SQL command(s) from being written to the binary log by enabled sql_log_bin=0 for the session\&.
+Suppress the SQL command(s) from being written to the binary log by using FLUSH LOCAL or enabling sql_log_bin=0 for the session\&.
 .RE
 .sp
 .RS 4

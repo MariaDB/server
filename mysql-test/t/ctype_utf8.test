@@ -1869,5 +1869,17 @@ let $ctype_unescape_combinations=selected;
 --source include/ctype_unescape.inc
 
 --echo #
+--echo # MDEV-12681 Wrong VIEW results for CHAR(0xDF USING latin1)
+--echo #
+
+SET NAMES utf8;
+SELECT CHAR(0xDF USING latin1);
+CREATE OR REPLACE VIEW v1 AS SELECT CHAR(0xDF USING latin1) AS c;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+
+--echo #
 --echo # End of 10.0 tests
 --echo #

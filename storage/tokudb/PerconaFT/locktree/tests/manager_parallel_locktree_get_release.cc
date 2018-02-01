@@ -71,7 +71,8 @@ void manager_unit_test::test_reference_release_lt(void) {
     const int nthreads = 2;
     pthread_t ids[nthreads];
     for (int i = 0; i < nthreads; i++) {
-        r = toku_pthread_create(&ids[i], nullptr, my_tester, &mgr);
+        r = toku_pthread_create(
+            toku_uninstrumented, &ids[i], nullptr, my_tester, &mgr);
         assert(r == 0);
     }
     for (int i = 0; i < nthreads; i++) {

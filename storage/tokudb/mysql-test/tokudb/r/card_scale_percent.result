@@ -1,7 +1,7 @@
-set global tokudb_cardinality_scale_percent = 10;
 analyze table tt;
 Table	Op	Msg_type	Msg_text
 test.tt	analyze	status	OK
+set global tokudb_cardinality_scale_percent = 10;
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 tt	0	PRIMARY	1	a	A	4000	NULL	NULL		BTREE		
@@ -9,9 +9,6 @@ tt	1	b	1	b	A	4000	NULL	NULL	YES	BTREE
 tt	1	c	1	c	A	4000	NULL	NULL	YES	BTREE		
 tt	1	d	1	d	A	4000	NULL	NULL	YES	BTREE		
 set global tokudb_cardinality_scale_percent = 50;
-analyze table tt;
-Table	Op	Msg_type	Msg_text
-test.tt	analyze	status	OK
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 tt	0	PRIMARY	1	a	A	4000	NULL	NULL		BTREE		
@@ -19,9 +16,6 @@ tt	1	b	1	b	A	4000	NULL	NULL	YES	BTREE
 tt	1	c	1	c	A	4000	NULL	NULL	YES	BTREE		
 tt	1	d	1	d	A	2000	NULL	NULL	YES	BTREE		
 set global tokudb_cardinality_scale_percent = 100;
-analyze table tt;
-Table	Op	Msg_type	Msg_text
-test.tt	analyze	status	OK
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 tt	0	PRIMARY	1	a	A	4000	NULL	NULL		BTREE		
@@ -31,9 +25,6 @@ tt	1	d	1	d	A	1000	NULL	NULL	YES	BTREE
 set global tokudb_cardinality_scale_percent = 200;
 Warnings:
 Warning	1292	Truncated incorrect tokudb_cardinality_scale_percent value: '200'
-analyze table tt;
-Table	Op	Msg_type	Msg_text
-test.tt	analyze	status	OK
 show indexes from tt;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 tt	0	PRIMARY	1	a	A	4000	NULL	NULL		BTREE		

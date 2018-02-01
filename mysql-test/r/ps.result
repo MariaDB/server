@@ -4322,4 +4322,22 @@ set join_cache_level=@join_cache_level_save;
 deallocate prepare stmt;
 drop view v1,v2,v3;
 drop table t1,t2,t3;
+#
+# MDEV-10657: incorrect result returned with binary protocol
+# (prepared statements)
+#
+create table  t1 (code varchar(10) primary key);
+INSERT INTO t1(code) VALUES ('LINE1'), ('LINE2'), ('LINE3');
+SELECT X.*
+FROM
+(SELECT CODE, RN
+FROM
+(SELECT A.CODE, @cnt := @cnt + 1 AS RN
+FROM  t1 A, (SELECT @cnt := 0) C) T
+) X;
+CODE	RN
+LINE1	1
+LINE2	2
+LINE3	3
+drop table t1;
 # End of 5.5 tests

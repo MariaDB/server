@@ -1037,4 +1037,45 @@ id	id	data
 2	2	yes
 1	NULL	NULL
 drop table t1;
+#
+# MDEV-14241: Server crash in key_copy / get_matching_chain_by_join_key
+# or valgrind warnings
+#
+CREATE TABLE t1 (a VARCHAR(10)) ENGINE=MyISAM;
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE TABLE t2 (b integer auto_increment primary key) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (NULL),(NULL);
+CREATE TABLE t3 (c VARCHAR(1024) CHARACTER SET utf8, d INT) ENGINE=MyISAM;
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
+INSERT INTO t3 VALUES ('abc',NULL),('def',4);
+SET join_cache_level= 8;
+explain
+SELECT * FROM v1, t2, v3 WHERE a = c AND b = d;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<derived3>	hash_ALL	NULL	#hash#$hj	3075	func	2	Using where; Using join buffer (flat, BNLH join)
+1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	v3.d	1	Using index
+3	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+SELECT * FROM v1, t2, v3 WHERE a = c AND b = d;
+a	b	c	d
+DROP VIEW v1, v3;
+DROP TABLE t1, t2, t3;
+#
+# MDEV-14786: Server crashes in Item_cond::transform on 2nd
+# execution of SP querying from a view
+#
+create table t1 (i int, row_start timestamp(6) not null default now(),
+row_end timestamp(6) not null default '2030-01-01 0:0:0');
+create view v1 as select i from t1 where i < 5 and (row_end =
+TIMESTAMP'2030-01-01 0:0:0' or row_end is null);
+create procedure pr(x int) select i from v1;
+call pr(1);
+i
+call pr(2);
+i
+drop procedure pr;
+drop view v1;
+drop table t1;
 # end of 5.5

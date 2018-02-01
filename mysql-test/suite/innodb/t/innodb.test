@@ -1,24 +1,13 @@
-#######################################################################
-#                                                                     #
-# Please, DO NOT TOUCH this file as well as the innodb.result file.   #
-# These files are to be modified ONLY BY INNOBASE guys.               #
-#                                                                     #
-# Use innodb_mysql.[test|result] files instead.                       #
-#                                                                     #
-# If nevertheless you need to make some changes here, please, forward #
-# your commit message                                                 #
-# To: innodb_dev_ww@oracle.com                                        #
-# Cc: dev-innodb@mysql.com                                            #
-# (otherwise your changes may be erased).                             #
-#                                                                     #
-#######################################################################
-
 -- source include/have_innodb.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 let collation=utf8_unicode_ci;
 --source include/have_collation.inc
+
+create temporary table t (a char(1) character set filename) engine=innodb;
+drop temporary table t;
+
 set optimizer_switch = 'mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 
 # Save the original values of some variables in order to be able to
@@ -2528,17 +2517,73 @@ select f1 from t1;
 show status like "handler_read_key";
 drop table t1;
 
-#######################################################################
-#                                                                     #
-# Please, DO NOT TOUCH this file as well as the innodb.result file.   #
-# These files are to be modified ONLY BY INNOBASE guys.               #
-#                                                                     #
-# Use innodb_mysql.[test|result] files instead.                       #
-#                                                                     #
-# If nevertheless you need to make some changes here, please, forward #
-# your commit message                                                 #
-# To: innodb_dev_ww@oracle.com                                        #
-# Cc: dev-innodb@mysql.com                                            #
-# (otherwise your changes may be erased).                             #
-#                                                                     #
-#######################################################################
+#
+# Test handling of writes to TEMPORARY tables for read-only transactions
+#
+CREATE TABLE t1 (c1 INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2 (c1 INT) ENGINE=InnoDB;
+
+# Check that the rollback works
+START TRANSACTION READ ONLY;
+INSERT INTO t2 VALUES(0);
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+INSERT INTO t1 VALUES(0);
+ROLLBACK;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+START TRANSACTION READ ONLY;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+INSERT INTO t1 VALUES(0);
+INSERT INTO t2 VALUES(1);
+COMMIT;
+
+SET TRANSACTION READ ONLY;
+START TRANSACTION;
+INSERT INTO t2 VALUES(3);
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+INSERT INTO t1 VALUES(0);
+COMMIT;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TABLE t2;
+
+# This time with some indexes
+CREATE TEMPORARY TABLE t2 (
+	c1 INT AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB;
+
+SHOW CREATE TABLE t2;
+
+# Check that the rollback works
+START TRANSACTION READ ONLY;
+INSERT INTO t2 VALUES(NULL,1),(NULL,2),(NULL,3);
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+INSERT INTO t1 VALUES(0);
+ROLLBACK;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+START TRANSACTION READ ONLY;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+INSERT INTO t1 VALUES(0);
+INSERT INTO t2 VALUES(NULL,1),(NULL,2),(NULL,3);
+COMMIT;
+
+SET TRANSACTION READ ONLY;
+START TRANSACTION;
+INSERT INTO t2 VALUES(NULL,1),(NULL,2),(NULL,3);
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+INSERT INTO t1 VALUES(0);
+COMMIT;
+
+SHOW CREATE TABLE t2;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TABLE t1;
+DROP TABLE t2;

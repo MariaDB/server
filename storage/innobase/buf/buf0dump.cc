@@ -605,6 +605,7 @@ buf_load()
 
 	if (dump_n == 0) {
 		ut_free(dump);
+		ut_free(dump_tmp);
 		ut_sprintf_timestamp(now);
 		buf_load_status(STATUS_NOTICE,
 				"Buffer pool(s) load completed at %s "

@@ -1,0 +1,3 @@
+--source include/have_partition.inc
+--let $engine=MyISAM
+--source inc/part_alter_values.inc

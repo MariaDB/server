@@ -1316,9 +1316,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   extra_rec_buf_length= uint2korr(frm_image+59);
   rec_buff_length= ALIGN_SIZE(share->reclength + 1 + extra_rec_buf_length);
   share->rec_buff_length= rec_buff_length;
-  if (!(record= (uchar *) alloc_root(&share->mem_root,
-                                     rec_buff_length)))
+  if (!(record= (uchar *) alloc_root(&share->mem_root, rec_buff_length)))
     goto err;                          /* purecov: inspected */
+  MEM_NOACCESS(record, rec_buff_length);
+  MEM_UNDEFINED(record, share->reclength);
   share->default_values= record;
   memcpy(record, frm_image + record_offset, share->reclength);
 
@@ -2609,6 +2610,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   if (!(record= (uchar*) alloc_root(&outparam->mem_root,
                                    share->rec_buff_length * records)))
     goto err;                                   /* purecov: inspected */
+  MEM_NOACCESS(record, share->rec_buff_length * records);
 
   if (records == 0)
   {
@@ -2623,6 +2625,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     else
       outparam->record[1]= outparam->record[0];   // Safety
   }
+  MEM_UNDEFINED(outparam->record[0], share->reclength);
+  MEM_UNDEFINED(outparam->record[1], share->reclength);
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*
@@ -4058,7 +4062,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   DBUG_ASSERT(key_read == 0);
 
   /* mark the record[0] uninitialized */
-  TRASH(record[0], s->reclength);
+  TRASH_ALLOC(record[0], s->reclength);
 
   /*
     Initialize the null marker bits, to ensure that if we are doing a read
@@ -4176,6 +4180,9 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   Query_arena *arena, backup;
   bool res= FALSE;
   DBUG_ENTER("TABLE_LIST::create_field_translation");
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                      (alias ? alias : "<NULL>"),
+                       get_unit()));
 
   if (thd->stmt_arena->is_conventional() ||
       thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
@@ -6126,6 +6133,14 @@ void TABLE::create_key_part_by_field(KEY_PART_INFO *key_part_info,
     might be reused.
   */
   key_part_info->store_length= key_part_info->length;
+  /*
+    For BIT fields null_bit is not set to 0 even if the field is defined
+    as NOT NULL, look at Field_bit::Field_bit
+  */
+  if (!field->real_maybe_null())
+  {
+    key_part_info->null_bit= 0;
+  }
 
   /*
      The total store length of the key part is the raw length of the field +

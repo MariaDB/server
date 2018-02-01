@@ -1860,12 +1860,11 @@ recv_recover_page_func(
 	recv_addr->state = RECV_PROCESSED;
 
 	ut_a(recv_sys->n_addrs > 0);
-	if (--recv_sys->n_addrs && recv_sys->progress_time - time >= 15) {
-		recv_sys->progress_time = time;
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: To recover: " ULINTPF " pages from log\n",
-			recv_sys->n_addrs);
+	if (ulint n = --recv_sys->n_addrs) {
+		if (recv_sys->report(time)) {
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"To recover: " ULINTPF " pages from log", n);
+		}
 	}
 
 	mutex_exit(&recv_sys->mutex);

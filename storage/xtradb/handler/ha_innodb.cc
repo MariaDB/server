@@ -1126,6 +1126,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_sec_rec_cluster_reads,	  SHOW_LONG},
   {"secondary_index_triggered_cluster_reads_avoided",
   (char*) &export_vars.innodb_sec_rec_cluster_reads_avoided, SHOW_LONG},
+  {"buffered_aio_submitted",
+  (char*) &export_vars.innodb_buffered_aio_submitted,	  SHOW_LONG},
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -8599,7 +8601,7 @@ no_commit:
 			table->next_number_field);
 
 		/* Get the value that MySQL attempted to store in the table.*/
-		auto_inc = table->next_number_field->val_int();
+		auto_inc = table->next_number_field->val_uint();
 
 		switch (error) {
 		case DB_DUPLICATE_KEY:
@@ -9210,7 +9212,7 @@ ha_innobase::update_row(
 		ulonglong	auto_inc;
 		ulonglong	col_max_value;
 
-		auto_inc = table->next_number_field->val_int();
+		auto_inc = table->next_number_field->val_uint();
 
 		/* We need the upper limit of the col type to check for
 		whether we update the table autoinc counter or not. */
@@ -12058,6 +12060,7 @@ index_bad:
 	case ROW_TYPE_DEFAULT:
 		/* If we fell through, set row format to Compact. */
 		row_format = ROW_TYPE_COMPACT;
+		/* fall through */
 	case ROW_TYPE_COMPACT:
 		break;
 	}
@@ -20331,6 +20334,13 @@ static MYSQL_SYSVAR_BOOL(print_all_deadlocks, srv_print_all_deadlocks,
   "Print all deadlocks to MySQL error log (off by default)",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_BOOL(
+  print_lock_wait_timeout_info,
+  srv_print_lock_wait_timeout_info,
+  PLUGIN_VAR_OPCMDARG,
+  "Print lock wait timeout info to MySQL error log (off by default)",
+  NULL, NULL, FALSE);
+
 static MYSQL_SYSVAR_ULONG(compression_failure_threshold_pct,
   zip_failure_threshold_pct, PLUGIN_VAR_OPCMDARG,
   "If the compression failure rate of a table is greater than this number"
@@ -20604,6 +20614,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(foreground_preflush),
   MYSQL_SYSVAR(empty_free_list_algorithm),
   MYSQL_SYSVAR(print_all_deadlocks),
+  MYSQL_SYSVAR(print_lock_wait_timeout_info),
   MYSQL_SYSVAR(cmp_per_index_enabled),
   MYSQL_SYSVAR(undo_logs),
   MYSQL_SYSVAR(rollback_segments),

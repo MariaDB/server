@@ -1,3 +1,4 @@
+--source include/have_partition.inc
 
 --disable_warnings
 drop table if exists t1,t2,t3,t4,t5,t6,t9,`t1a``b`,v1,v2,v3,v4,v5,v6;
@@ -5577,6 +5578,18 @@ CREATE ALGORITHM = MERGE VIEW v2 AS SELECT * FROM v1;
 PREPARE stmt FROM 'REPLACE INTO v2 SELECT a FROM t3';
 drop view v1,v2;
 drop table t3;
+
+--echo #
+--echo # MDEV-14619: VIEW and GROUP_CONCAT
+--echo #
+
+CREATE TABLE t1 (str text);
+INSERT INTO t1 VALUES ("My"),("SQL");
+CREATE VIEW v1 AS SELECT GROUP_CONCAT(str  SEPARATOR  '\\') FROM t1;
+SELECT * FROM v1;
+SHOW CREATE VIEW v1;
+drop view v1;
+drop table t1;
 
 --echo # -----------------------------------------------------------------
 --echo # -- End of 5.5 tests.

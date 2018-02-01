@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation
+   Copyright (c) 2010, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2745,7 +2745,8 @@ table_map Item_field::all_used_tables() const
   return (get_depended_from() ? OUTER_REF_TABLE_BIT : field->table->map);
 }
 
-void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
+                                   bool merge)
 {
   if (new_parent == get_depended_from())
     depended_from= NULL;
@@ -2788,6 +2789,19 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref)
     }
     if (!need_change)
       return;
+
+    if (!merge)
+    {
+      /*
+        It is transformation without merge.
+        This field was "outer" for the inner SELECT where it was taken and
+        moved up.
+        "Outer" fields uses normal SELECT_LEX context of upper SELECTs for
+        name resolution, so we can switch everything to it safely.
+      */
+      this->context= &new_parent->context;
+      return;
+    }
 
     Name_resolution_context *ctx= new Name_resolution_context();
     if (context->select_lex == new_parent)
@@ -4719,7 +4733,8 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
 
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       select->having_fix_field  &&
-      select_ref != not_found_item && !group_by_ref)
+      select_ref != not_found_item && !group_by_ref &&
+      !ref->alias_name_used)
   {
     /*
       Report the error if fields was found only in the SELECT item list and
@@ -8107,18 +8122,20 @@ bool Item_outer_ref::fix_fields(THD *thd, Item **reference)
 }
 
 
-void Item_outer_ref::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_outer_ref::fix_after_pullout(st_select_lex *new_parent,
+                                       Item **ref, bool merge)
 {
   if (get_depended_from() == new_parent)
   {
     *ref= outer_ref;
-    (*ref)->fix_after_pullout(new_parent, ref);
+    (*ref)->fix_after_pullout(new_parent, ref, merge);
   }
 }
 
-void Item_ref::fix_after_pullout(st_select_lex *new_parent, Item **refptr)
+void Item_ref::fix_after_pullout(st_select_lex *new_parent, Item **refptr,
+                                 bool merge)
 {
-  (*ref)->fix_after_pullout(new_parent, ref);
+  (*ref)->fix_after_pullout(new_parent, ref, merge);
   if (get_depended_from() == new_parent)
     depended_from= NULL;
 }
@@ -8463,7 +8480,7 @@ Item *Item_default_value::transform(Item_transformer transformer, uchar *args)
 bool Item_insert_value::eq(const Item *item, bool binary_cmp) const
 {
   return item->type() == INSERT_VALUE_ITEM &&
-    ((Item_default_value *)item)->arg->eq(arg, binary_cmp);
+    ((Item_insert_value *)item)->arg->eq(arg, binary_cmp);
 }
 
 
@@ -9987,7 +10004,7 @@ const char *dbug_print_item(Item *item)
   if (!item)
     return "(Item*)NULL";
   item->print(&str ,QT_ORDINARY);
-  if (str.c_ptr() == buf)
+  if (str.c_ptr_safe() == buf)
     return buf;
   else
     return "Couldn't fit into buffer";

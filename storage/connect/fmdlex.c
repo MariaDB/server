@@ -529,7 +529,7 @@ YY_DECL
   pp->Num = 0;
   if (pp->InFmt) {*pp->InFmt = '\0'; pp->InFmt[pp->Outsize -1] = '\0'; }
   if (pp->OutFmt) {*pp->OutFmt = '\0'; pp->OutFmt[pp->Outsize -1] = '\0'; }
-  pp->Curp = pp->Format;
+  pp->Curp = (char*) pp->Format;
   yy_init = 1;   /* This is a new input */
 
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1130,7 +1130,7 @@ row_log_table_get_pk(
 			dict_field_t*	ifield;
 			dfield_t*	dfield;
 			ulint		prtype;
-			ulint		mbminmaxlen;
+			ulint		mbminlen, mbmaxlen;
 
 			ifield = dict_index_get_nth_field(new_index, new_i);
 			dfield = dtuple_get_nth_field(tuple, new_i);
@@ -1159,7 +1159,8 @@ err_exit:
 					goto func_exit;
 				}
 
-				mbminmaxlen = col->mbminmaxlen;
+				mbminlen = col->mbminlen;
+				mbmaxlen = col->mbmaxlen;
 				prtype = col->prtype;
 			} else {
 				/* No matching column was found in the old
@@ -1169,7 +1170,8 @@ err_exit:
 
 				dfield_copy(dfield, dtuple_get_nth_field(
 						    log->add_cols, col_no));
-				mbminmaxlen = dfield->type.mbminmaxlen;
+				mbminlen = dfield->type.mbminlen;
+				mbmaxlen = dfield->type.mbmaxlen;
 				prtype = dfield->type.prtype;
 			}
 
@@ -1178,7 +1180,7 @@ err_exit:
 
 			if (ifield->prefix_len) {
 				ulint	len = dtype_get_at_most_n_mbchars(
-					prtype, mbminmaxlen,
+					prtype, mbminlen, mbmaxlen,
 					ifield->prefix_len,
 					dfield_get_len(dfield),
 					static_cast<const char*>(
@@ -1520,13 +1522,10 @@ row_log_table_apply_insert_low(
 		return(error);
 	}
 
-	do {
-		n_index++;
+	ut_ad(dict_index_is_clust(index));
 
-		if (!(index = dict_table_get_next_index(index))) {
-			break;
-		}
-
+	for (n_index += index->type != DICT_CLUSTERED;
+	     (index = dict_table_get_next_index(index)); n_index++) {
 		if (index->type & DICT_FTS) {
 			continue;
 		}
@@ -1536,12 +1535,13 @@ row_log_table_apply_insert_low(
 			flags, BTR_MODIFY_TREE,
 			index, offsets_heap, heap, entry, trx_id, thr);
 
-		/* Report correct index name for duplicate key error. */
-		if (error == DB_DUPLICATE_KEY) {
-			thr_get_trx(thr)->error_key_num = n_index;
+		if (error != DB_SUCCESS) {
+			if (error == DB_DUPLICATE_KEY) {
+				thr_get_trx(thr)->error_key_num = n_index;
+			}
+			break;
 		}
-
-	} while (error == DB_SUCCESS);
+	}
 
 	return(error);
 }
@@ -2120,15 +2120,14 @@ func_exit_committed:
 		dtuple_big_rec_free(big_rec);
 	}
 
-	while ((index = dict_table_get_next_index(index)) != NULL) {
-		if (error != DB_SUCCESS) {
-			break;
-		}
-
-		n_index++;
-
+	for (n_index += index->type != DICT_CLUSTERED;
+	     (index = dict_table_get_next_index(index)); n_index++) {
 		if (index->type & DICT_FTS) {
 			continue;
+		}
+
+		if (error != DB_SUCCESS) {
+			break;
 		}
 
 		if (!row_upd_changes_ord_field_binary(

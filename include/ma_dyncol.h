@@ -63,6 +63,15 @@ typedef struct st_mysql_lex_string LEX_STRING;
 /* NO and OK is the same used just to show semantics */
 #define ER_DYNCOL_NO ER_DYNCOL_OK
 
+#ifdef HAVE_CHARSET_utf8mb4
+#define DYNCOL_UTF (&my_charset_utf8mb4_general_ci)
+#else
+#define DYNCOL_UTF (&my_charset_utf8_general_ci)
+#endif
+
+/* escape json strings */
+#define DYNCOL_JSON_ESC ((char)1)
+
 enum enum_dyncol_func_result
 {
   ER_DYNCOL_OK= 0,

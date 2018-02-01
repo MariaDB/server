@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -83,7 +83,7 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
   return extra2_write(pos, type, reinterpret_cast<LEX_STRING *>(str));
 }
 
-/**
+/*
   Create a frm (table definition) file
 
   @param thd                    Thread handler
@@ -156,7 +156,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   DBUG_PRINT("info", ("Options length: %u", options_len));
 
   if (validate_comment_length(thd, &create_info->comment, TABLE_COMMENT_MAXLEN,
-                              ER_TOO_LONG_TABLE_COMMENT, table))
+                              ER_TOO_LONG_TABLE_COMMENT,
+                              table))
      DBUG_RETURN(frm);
   /*
     If table comment is longer than TABLE_COMMENT_INLINE_MAXLEN bytes,
@@ -246,6 +247,14 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
   DBUG_ASSERT(pos == frm_ptr + uint2korr(fileinfo+6));
   key_info_length= pack_keys(pos, keys, key_info, data_offset);
+  if (key_info_length > UINT_MAX16)
+  {
+    my_printf_error(ER_CANT_CREATE_TABLE,
+                    "Cannot create table %`s: index information is too long. "
+                    "Decrease number of indexes or use shorter index names or shorter comments.",
+                    MYF(0), table);
+    goto err;
+  }
 
   int2store(forminfo+2, frm.length - filepos);
   int4store(fileinfo+10, frm.length);

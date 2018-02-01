@@ -2001,7 +2001,7 @@ fts_create_one_index_table(
 			       ? DATA_VARCHAR : DATA_VARMYSQL,
 			       field->col->prtype,
 			       FTS_MAX_WORD_LEN_IN_CHAR
-			       * DATA_MBMAXLEN(field->col->mbminmaxlen));
+			       * field->col->mbmaxlen);
 
 	dict_mem_table_add_col(new_table, heap, "first_doc_id", DATA_INT,
 			       DATA_NOT_NULL | DATA_UNSIGNED,
@@ -4761,9 +4761,17 @@ fts_process_token(
 		t_str.f_str = static_cast<byte*>(
 			mem_heap_alloc(heap, t_str.f_len));
 
-		newlen = innobase_fts_casedn_str(
-			doc->charset, (char*) str.f_str, str.f_len,
-			(char*) t_str.f_str, t_str.f_len);
+		/* For binary collations, a case sensitive search is
+		performed. Hence don't convert to lower case. */
+		if (my_binary_compare(result_doc->charset)) {
+			memcpy(t_str.f_str, str.f_str, str.f_len);
+			t_str.f_str[str.f_len]= 0;
+			newlen= str.f_len;
+		} else {
+			newlen = innobase_fts_casedn_str(
+				doc->charset, (char*) str.f_str, str.f_len,
+				(char*) t_str.f_str, t_str.f_len);
+		}
 
 		t_str.f_len = newlen;
 		t_str.f_str[newlen] = 0;

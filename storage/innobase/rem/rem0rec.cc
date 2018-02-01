@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -861,13 +862,10 @@ rec_get_converted_size_comp_prefix_low(
 
 		if (fixed_len) {
 #ifdef UNIV_DEBUG
-			ulint	mbminlen = DATA_MBMINLEN(col->mbminmaxlen);
-			ulint	mbmaxlen = DATA_MBMAXLEN(col->mbminmaxlen);
-
 			ut_ad(len <= fixed_len);
 
-			ut_ad(!mbmaxlen || len >= mbminlen
-			      * (fixed_len / mbmaxlen));
+			ut_ad(!col->mbmaxlen || len >= col->mbminlen
+			      * (fixed_len / col->mbmaxlen));
 
 			/* dict_index_add_col() should guarantee this */
 			ut_ad(!field->prefix_len
@@ -1254,14 +1252,10 @@ rec_convert_dtuple_to_rec_comp(
 		it is 128 or more, or when the field is stored externally. */
 		if (fixed_len) {
 #ifdef UNIV_DEBUG
-			ulint	mbminlen = DATA_MBMINLEN(
-				ifield->col->mbminmaxlen);
-			ulint	mbmaxlen = DATA_MBMAXLEN(
-				ifield->col->mbminmaxlen);
-
 			ut_ad(len <= fixed_len);
-			ut_ad(!mbmaxlen || len >= mbminlen
-			      * (fixed_len / mbmaxlen));
+			ut_ad(!ifield->col->mbmaxlen
+			      || len >= ifield->col->mbminlen
+			      * (fixed_len / ifield->col->mbmaxlen));
 			ut_ad(!dfield_is_ext(field));
 #endif /* UNIV_DEBUG */
 		} else if (dfield_is_ext(field)) {

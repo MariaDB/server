@@ -246,6 +246,9 @@ pfs_os_aio_func(
                                 OS_AIO_SYNC */
 	ulint		space_id,
 	trx_t*		trx,
+	bool		should_buffer,
+				/*!< in: whether to buffer an aio request.
+				Only used by aio read ahead*/
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -261,7 +264,8 @@ pfs_os_aio_func(
 				   src_file, src_line);
 
 	result = os_aio_func(type, mode, name, file, buf, offset,
-			     n, message1, message2, space_id, trx);
+			     n, message1, message2, space_id, trx,
+			     should_buffer);
 
 	register_pfs_file_io_end(locker, n);
 

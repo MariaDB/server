@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -5981,7 +5981,6 @@ loop:
 			ulint	space	= lock->un_member.rec_lock.space;
 			ulint	zip_size= fil_space_get_zip_size(space);
 			ulint	page_no = lock->un_member.rec_lock.page_no;
-			ibool	tablespace_being_deleted = FALSE;
 
 			if (UNIV_UNLIKELY(zip_size == ULINT_UNDEFINED)) {
 
@@ -6004,9 +6003,7 @@ loop:
 
 			/* Check if the space is exists or not. only when the space
 			is valid, try to get the page. */
-			tablespace_being_deleted = fil_inc_pending_ops(space, false);
-
-			if (!tablespace_being_deleted) {
+			if (!fil_inc_pending_ops(space)) {
 				mtr_start(&mtr);
 
 				buf_page_get_gen(space, zip_size, page_no,
@@ -6447,7 +6444,7 @@ lock_rec_block_validate(
 
 	/* Make sure that the tablespace is not deleted while we are
 	trying to access the page. */
-	if (!fil_inc_pending_ops(space, true)) {
+	if (!fil_inc_pending_ops(space)) {
 		mtr_start(&mtr);
 		block = buf_page_get_gen(
 			space, fil_space_get_zip_size(space),

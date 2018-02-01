@@ -3791,6 +3791,51 @@ set join_cache_level = default;
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-14960: BNLH used for materialized semi-join
+--echo #
+
+CREATE TABLE t1 (i1 int);
+CREATE TABLE t2 (e1 int);
+CREATE TABLE t4 (e1 int);
+CREATE TABLE t5 (e1 int);
+
+INSERT INTO t1 VALUES
+  (1),(2),(3),(4),(5),(6),(7),(8);
+INSERT INTO t1 SELECT i1+8 FROM t1;
+INSERT INTO t1 SELECT i1+16 FROM t1;
+INSERT INTO t1 SELECT i1+32 FROM t1;
+INSERT INTO t1 SELECT i1+64 FROM t1;
+INSERT INTO t2 SELECT * FROM t1;
+INSERT INTO t4 SELECT * FROM t1;
+INSERT INTO t5 SELECT * FROM t1;
+
+set @save_optimizer_switch= @@optimizer_switch;
+SET join_cache_level = 6;
+SET join_buffer_size=4096;
+SET join_buffer_space_limit=4096;
+SET optimizer_switch = 'join_cache_hashed=on,optimize_join_buffer_size=on';
+
+let $q=
+SELECT * FROM t1
+WHERE
+  i1 < 10 AND
+  i1 IN
+  (SELECT i1 FROM
+    (SELECT  (t4.e1) i1  FROM   t4
+      LEFT JOIN t5  ON t4.e1 = t5.e1
+      LEFT JOIN  (SELECT e1  FROM t2 ) AS d ON  t4.e1 = d.e1) a);
+
+eval EXPLAIN $q;
+eval $q;
+
+SET join_cache_level = default;
+SET join_buffer_size = default;
+SET join_buffer_space_limit= default;
+set optimizer_switch=@save_optimizer_switch;
+
+DROP TABLE t1,t4,t5,t2;
+
+--echo #
 --echo # MDEV-5123 Remove duplicated conditions pushed both to join_tab->select_cond and join_tab->cache_select->cond for blocked joins.
 --echo #
 

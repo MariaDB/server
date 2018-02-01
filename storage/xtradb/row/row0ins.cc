@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -571,7 +571,8 @@ row_ins_cascade_calc_update_vec(
 
 				if (!dfield_is_null(&ufield->new_val)
 				    && dtype_get_at_most_n_mbchars(
-					col->prtype, col->mbminmaxlen,
+					col->prtype,
+					col->mbminlen, col->mbmaxlen,
 					col->len,
 					ufield_len,
 					static_cast<char*>(
@@ -3022,6 +3023,10 @@ row_ins_sec_index_entry(
 	mem_heap_t*	offsets_heap;
 	mem_heap_t*	heap;
 
+	DBUG_EXECUTE_IF("row_ins_sec_index_entry_timeout", {
+ 			DBUG_SET("-d,row_ins_sec_index_entry_timeout");
+ 			return(DB_LOCK_WAIT);});
+
 	if (!index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(index->table, index,
 							entry, thr);
@@ -3124,7 +3129,7 @@ row_ins_index_entry_set_vals(
 				= dict_field_get_col(ind_field);
 
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminmaxlen,
+				col->prtype, col->mbminlen, col->mbmaxlen,
 				ind_field->prefix_len,
 				len,
 				static_cast<const char*>(

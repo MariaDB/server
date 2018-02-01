@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -49,6 +49,9 @@ Created 5/11/1994 Heikki Tuuri
 UNIV_INTERN ibool	ut_always_false	= FALSE;
 
 #ifdef __WIN__
+typedef VOID(WINAPI *time_fn)(LPFILETIME);
+static time_fn ut_get_system_time_as_file_time = GetSystemTimeAsFileTime;
+
 /*****************************************************************//**
 NOTE: The Windows epoch starts from 1601/01/01 whereas the Unix
 epoch starts from 1970/1/1. For selection of constant see:
@@ -74,7 +77,7 @@ ut_gettimeofday(
 		return(-1);
 	}
 
-	GetSystemTimeAsFileTime(&ft);
+	ut_get_system_time_as_file_time(&ft);
 
 	tm = (ib_int64_t) ft.dwHighDateTime << 32;
 	tm |= ft.dwLowDateTime;

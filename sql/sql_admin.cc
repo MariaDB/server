@@ -638,8 +638,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     */
     if (lock_type == TL_WRITE && !table->table->s->tmp_table)
     {
-      if (wait_while_table_is_used(thd, table->table,
-                                   HA_EXTRA_PREPARE_FOR_RENAME))
+      if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
         goto err;
       DEBUG_SYNC(thd, "after_admin_flush");
       /* Flush entries in the query cache involving this table. */

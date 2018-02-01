@@ -6129,7 +6129,7 @@ my_bool write_hook_for_undo_row_insert(enum translog_record_type type
 
 
 /**
-   @brief Upates "records" and calls the generic UNDO hook
+   @brief Updates "records" and calls the generic UNDO hook
 
    @return Operation status, always 0 (success)
 */
@@ -6279,8 +6279,8 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
   uchar      *buff, *dir;
   uint      result;
   MARIA_PINNED_PAGE page_link;
-  enum pagecache_page_lock unlock_method;
-  enum pagecache_page_pin unpin_method;
+  enum pagecache_page_lock lock_method;
+  enum pagecache_page_pin pin_method;
   my_off_t end_of_page;
   uint error;
   DBUG_ENTER("_ma_apply_redo_insert_row_head_or_tail");
@@ -6308,8 +6308,8 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
       fill it entirely with zeroes, then the REDO will put correct data on
       it.
     */
-    unlock_method= PAGECACHE_LOCK_WRITE;
-    unpin_method=  PAGECACHE_PIN;
+    lock_method= PAGECACHE_LOCK_WRITE;
+    pin_method=  PAGECACHE_PIN;
 
     DBUG_ASSERT(rownr == 0 && new_page);
     if (rownr != 0 || !new_page)
@@ -6324,8 +6324,8 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
   }
   else
   {
-    unlock_method= PAGECACHE_LOCK_LEFT_WRITELOCKED;
-    unpin_method=  PAGECACHE_PIN_LEFT_PINNED;
+    lock_method= PAGECACHE_LOCK_LEFT_WRITELOCKED;
+    pin_method=  PAGECACHE_PIN_LEFT_PINNED;
 
     share->pagecache->readwrite_flags&= ~MY_WME;
     buff= pagecache_read(share->pagecache, &info->dfile,
@@ -6427,11 +6427,11 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
     this group, for this page, would be skipped) and unpin then.
   */
   result= 0;
-  if (unlock_method == PAGECACHE_LOCK_WRITE &&
+  if (lock_method == PAGECACHE_LOCK_WRITE &&
       pagecache_write(share->pagecache,
                       &info->dfile, page, 0,
                       buff, PAGECACHE_PLAIN_PAGE,
-                      unlock_method, unpin_method,
+                      lock_method, pin_method,
                       PAGECACHE_WRITE_DELAY, &page_link.link,
                       LSN_IMPOSSIBLE))
     result= my_errno;
@@ -6452,7 +6452,7 @@ crashed_file:
   _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
 err:
   error= my_errno;
-  if (unlock_method == PAGECACHE_LOCK_LEFT_WRITELOCKED)
+  if (lock_method == PAGECACHE_LOCK_LEFT_WRITELOCKED)
     pagecache_unlock_by_link(share->pagecache, page_link.link,
                              PAGECACHE_LOCK_WRITE_UNLOCK,
                              PAGECACHE_UNPIN, LSN_IMPOSSIBLE,

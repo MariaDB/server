@@ -4530,3 +4530,24 @@ latin2_general_ci
 #
 # End of 5.6 tests
 #
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-12681 Wrong VIEW results for CHAR(0xDF USING latin1)
+#
+EXPLAIN EXTENDED SELECT CHAR(0xDF USING latin1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select char(0xdf using latin1) AS `CHAR(0xDF USING latin1)`
+EXPLAIN EXTENDED SELECT CHAR(0xDF USING `binary`);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select char(0xdf) AS `CHAR(0xDF USING ``binary``)`
+EXPLAIN EXTENDED SELECT CHAR(0xDF);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select char(0xdf) AS `CHAR(0xDF)`

@@ -85,7 +85,13 @@ macro(set_ldflags_if_supported)
   endforeach(flag)
 endmacro(set_ldflags_if_supported)
 
+if (NOT DEFINED MYSQL_PROJECT_NAME_DOCSTRING)
+  set (OPTIONAL_CFLAGS "${OPTIONAL_CFLAGS} -Wmissing-format-attribute")
+endif()
+
 ## disable some warnings
+## missing-format-attribute causes warnings in some MySQL include files
+## if the library is built as a part of TokuDB MySQL storage engine
 set_cflags_if_supported(
   -Wno-missing-field-initializers
   -Wstrict-null-sentinel
@@ -93,7 +99,7 @@ set_cflags_if_supported(
   -Wswitch
   -Wtrampolines
   -Wlogical-op
-  -Wmissing-format-attribute
+  ${OPTIONAL_CFLAGS}
   -Wno-error=missing-format-attribute
   -Wno-error=address-of-array-temporary
   -Wno-error=tautological-constant-out-of-range-compare
@@ -178,8 +184,8 @@ set_cflags_if_supported(
   -Wmissing-prototypes
   -Wmissing-declarations
   -Wpointer-arith
-  -Wmissing-format-attribute
   -Wshadow
+  ${OPTIONAL_CFLAGS}
   ## other flags to try:
   #-Wunsafe-loop-optimizations
   #-Wpointer-arith
@@ -196,9 +202,9 @@ if (NOT CMAKE_CXX_COMPILER_ID STREQUAL Clang)
   set_cflags_if_supported(-Wcast-align)
 endif ()
 
-## always want these
-set(CMAKE_C_FLAGS "-Wall -Werror ${CMAKE_C_FLAGS}")
-set(CMAKE_CXX_FLAGS "-Wall -Werror ${CMAKE_CXX_FLAGS}")
+## always want these in debug builds
+set(CMAKE_C_FLAGS_DEBUG "-Wall -Werror ${CMAKE_C_FLAGS_DEBUG}")
+set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Werror ${CMAKE_CXX_FLAGS_DEBUG}")
 
 # pick language dialect
 set(CMAKE_C_FLAGS "-std=c99 ${CMAKE_C_FLAGS}")

@@ -1877,5 +1877,25 @@ SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-8949: COLUMN_CREATE unicode name breakage
+--echo #
+
+SET NAMES utf8mb4;
+SELECT COLUMN_JSON(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1));
+SELECT COLUMN_LIST(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1));
+SELECT COLUMN_GET(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1), _utf8mb4 0xF09F988E
+as int);
+
+CREATE TABLE t1 AS SELECT
+  COLUMN_LIST(COLUMN_CREATE('a',1)),
+  COLUMN_JSON(COLUMN_CREATE('b',1));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SET NAMES default;
+
+--echo # End of 10.0 tests
+
+--echo #
 --echo # End of tests
 --echo #
