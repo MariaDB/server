@@ -8101,18 +8101,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     only one row.
   */
   if (fields.elements)
-  {
-    /*
-      On INSERT or UPDATE fields are checked to be from the same table,
-      thus we safely can take table from the first field.
-    */
-    fld= (Item_field*)f++;
-    field= fld->field_for_view_update();
-    DBUG_ASSERT(field);
-    DBUG_ASSERT(field->field->table == table_arg);
     table_arg->auto_increment_field_not_null= FALSE;
-    f.rewind();
-  }
 
   while ((fld= f++))
   {
