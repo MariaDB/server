@@ -1775,7 +1775,7 @@ struct st_maria_plugin rdb_i_s_trx_info = {
     MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
-struct st_mysql_plugin rdb_i_s_deadlock_info = {
+struct st_maria_plugin rdb_i_s_deadlock_info = {
     MYSQL_INFORMATION_SCHEMA_PLUGIN,
     &rdb_i_s_info,
     "ROCKSDB_DEADLOCK",
@@ -1788,6 +1788,6 @@ struct st_mysql_plugin rdb_i_s_deadlock_info = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 } // namespace myrocks
