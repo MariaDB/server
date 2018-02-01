@@ -20,6 +20,11 @@ show create table t;
 
 set system_versioning_alter_history= keep;
 
+alter table t add system versioning;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t drop system versioning, drop column row_start;
+alter table t drop system versioning;
+
 --error ER_VERS_FIELD_WRONG_TYPE
 alter table t
   add column trx_start bigint(20) unsigned as row start invisible,

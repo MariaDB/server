@@ -7135,23 +7135,6 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   return false;
 }
 
-static bool add_field_to_drop_list_if_not_exists(THD *thd, Alter_info *alter_info, Field *field)
-{
-  DBUG_ASSERT(field);
-  DBUG_ASSERT(field->field_name.str);
-  List_iterator_fast<Alter_drop> it(alter_info->drop_list);
-  while (Alter_drop *drop= it++)
-  {
-    if (!my_strcasecmp(system_charset_info, field->field_name.str, drop->name))
-      return false;
-  }
-
-  alter_info->flags|= Alter_info::ALTER_DROP_COLUMN;
-  Alter_drop *ad= new (thd->mem_root)
-      Alter_drop(Alter_drop::COLUMN, field->field_name.str, false);
-  return !ad || alter_info->drop_list.push_back(ad, thd->mem_root);
-}
-
 static bool is_dropping_primary_key(Alter_info *alter_info)
 {
   List_iterator_fast<Alter_drop> it(alter_info->drop_list);
@@ -7176,8 +7159,7 @@ static bool is_adding_primary_key(Alter_info *alter_info)
 }
 
 bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
-                                          HA_CREATE_INFO *create_info,
-                                          TABLE *table)
+                                     HA_CREATE_INFO *create_info, TABLE *table)
 {
   TABLE_SHARE *share= table->s;
   const char *table_name= share->table_name.str;
@@ -7205,10 +7187,6 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name);
       return true;
     }
-
-    if (add_field_to_drop_list_if_not_exists(thd, alter_info, share->vers_start_field()) ||
-        add_field_to_drop_list_if_not_exists(thd, alter_info, share->vers_end_field()))
-      return true;
 
     if (share->primary_key != MAX_KEY && !is_adding_primary_key(alter_info) &&
         !is_dropping_primary_key(alter_info))

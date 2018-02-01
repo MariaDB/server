@@ -7950,7 +7950,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           !my_strcasecmp(system_charset_info,field->field_name.str, drop->name))
         break;
     }
-    if (drop && (field->invisible < INVISIBLE_SYSTEM || field->vers_sys_field()))
+    if (drop && field->invisible < INVISIBLE_SYSTEM)
     {
       /* Reset auto_increment value if it was dropped */
       if (MTYP_TYPENR(field->unireg_check) == Field::NEXT_NUMBER &&
@@ -7966,6 +7966,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       bitmap_set_bit(dropped_fields, field->field_index);
       continue;
     }
+    if (!drop && field->invisible == INVISIBLE_SYSTEM &&
+        field->flags & VERS_SYSTEM_FIELD &&
+        alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)
+    {
+      if (table->s->tmp_table == NO_TMP_TABLE)
+        (void) delete_statistics_for_column(thd, table, field);
+      continue;
+    }
     /* Check if field is changed */
     def_it.rewind();
     while ((def=def_it++))
@@ -7975,7 +7983,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                           &def->change))
 	break;
     }
-    if (def && (field->invisible < INVISIBLE_SYSTEM || field->vers_sys_field()))
+    if (def && field->invisible < INVISIBLE_SYSTEM)
     {						// Field is changed
       def->field=field;
       /*

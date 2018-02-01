@@ -28,6 +28,10 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 set system_versioning_alter_history= keep;
+alter table t add system versioning;
+alter table t drop system versioning, drop column row_start;
+ERROR 42000: Can't DROP COLUMN `row_start`; check that it exists
+alter table t drop system versioning;
 alter table t
 add column trx_start bigint(20) unsigned as row start invisible,
 add column trx_end bigint(20) unsigned as row end invisible,
