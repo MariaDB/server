@@ -4214,6 +4214,10 @@ public:
     length*= charset->mbmaxlen;
     key_length= pack_length;
   }
+  bool vers_sys_field() const
+  {
+    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+  }
   void create_length_to_internal_length_bit();
   void create_length_to_internal_length_newdecimal();
 

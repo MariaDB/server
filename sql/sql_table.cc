@@ -4206,7 +4206,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         !sql_field->has_default_function() &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (!sql_field->is_timestamp_type() ||
-         opt_explicit_defaults_for_timestamp))
+         opt_explicit_defaults_for_timestamp)&&
+        !sql_field->vers_sys_field())
     {
       sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
       sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;

@@ -10475,8 +10475,8 @@ bool Column_definition::check(THD *thd)
       TIMESTAMP columns get implicit DEFAULT value when
       explicit_defaults_for_timestamp is not set.
     */
-    if (opt_explicit_defaults_for_timestamp ||
-        !is_timestamp_type())
+    if ((opt_explicit_defaults_for_timestamp ||
+        !is_timestamp_type()) && !vers_sys_field())
     {
       flags|= NO_DEFAULT_VALUE_FLAG;
     }

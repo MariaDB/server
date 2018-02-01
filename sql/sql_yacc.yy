@@ -6586,7 +6586,7 @@ field_def:
                 my_yyabort_error((ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
                                   "START", field_name.str));
               }
-              lex->last_field->flags|= VERS_SYS_START_FLAG;
+              lex->last_field->flags|= VERS_SYS_START_FLAG | NOT_NULL_FLAG;
               break;
             case 0:
               p= &info.as_row.end;
@@ -6595,7 +6595,7 @@ field_def:
                 my_yyabort_error((ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
                                   "END", field_name.str));
               }
-              lex->last_field->flags|= VERS_SYS_END_FLAG;
+              lex->last_field->flags|= VERS_SYS_END_FLAG | NOT_NULL_FLAG;
               break;
             default:
               /* Not Reachable */
