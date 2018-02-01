@@ -1135,6 +1135,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   uint old_server_status;
   const uint status_backup_mask= SERVER_STATUS_CURSOR_EXISTS |
                                  SERVER_STATUS_LAST_ROW_SENT;
+  MEM_ROOT *user_var_events_alloc_saved= 0;
   Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
   Object_creation_ctx *UNINIT_VAR(saved_creation_ctx);
   Diagnostics_area *da= thd->get_stmt_da();
@@ -1326,9 +1327,11 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       Will write this SP statement into binlog separately.
       TODO: consider changing the condition to "not inside event union".
     */
-    MEM_ROOT *user_var_events_alloc_saved= thd->user_var_events_alloc;
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
+    {
+      user_var_events_alloc_saved= thd->user_var_events_alloc;
       thd->user_var_events_alloc= thd->mem_root;
+    }
 
     sql_digest_state *parent_digest= thd->m_digest;
     thd->m_digest= NULL;

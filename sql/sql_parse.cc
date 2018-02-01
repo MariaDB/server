@@ -7483,10 +7483,9 @@ void THD::reset_for_next_command(bool do_clear_error)
   thd->thread_specific_used= FALSE;
 
   if (opt_bin_log)
-  {
     reset_dynamic(&thd->user_var_events);
-    thd->user_var_events_alloc= thd->mem_root;
-  }
+  DBUG_ASSERT(thd->user_var_events_alloc == &thd->main_mem_root);
+
   thd->get_stmt_da()->reset_for_next_command();
   thd->rand_used= 0;
   thd->m_sent_row_count= thd->m_examined_row_count= 0;

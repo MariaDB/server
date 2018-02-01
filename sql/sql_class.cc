@@ -772,6 +772,12 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   init_sql_alloc(&main_mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
                  MYF(MY_THREAD_SPECIFIC));
 
+  /*
+    Allocation of user variables for binary logging is always done with main
+    mem root
+  */
+  user_var_events_alloc= mem_root;
+
   stmt_arena= this;
   thread_stack= 0;
   scheduler= thread_scheduler;                 // Will be fixed later
