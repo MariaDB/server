@@ -2011,7 +2011,7 @@ trx_undo_report_row_operation(
 				latches, such as SYNC_FSP and SYNC_FSP_PAGE. */
 
 				mtr_commit(&mtr);
-				mtr.start(trx);
+				mtr.start();
 				if (is_temp) {
 					mtr.set_log_mode(MTR_LOG_NO_REDO);
 				}
@@ -2050,7 +2050,7 @@ trx_undo_report_row_operation(
 		/* We have to extend the undo log by one page */
 
 		ut_ad(++loop_count < 2);
-		mtr.start(trx);
+		mtr.start();
 
 		if (is_temp) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
