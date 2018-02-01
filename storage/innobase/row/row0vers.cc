@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -258,12 +258,14 @@ row_vers_impl_x_locked_low(
 
 		entry = row_build_index_entry(row, ext, index, heap);
 
-		/* entry may be NULL if a record was inserted in place
-		of a deleted record, and the BLOB pointers of the new
-		record were not initialized yet.  But in that case,
-		prev_version should be NULL. */
-
-		ut_a(entry != NULL);
+		/* entry could only be NULL (the clustered index
+		record could contain BLOB pointers that are NULL) if
+		we were accessing a freshly inserted record before it
+		was fully inserted.  prev_version cannot possibly be
+		such an incomplete record, because its transaction
+		would have to be committed in order for later versions
+		of the record to be able to exist. */
+		ut_ad(entry);
 
 		/* If we get here, we know that the trx_id transaction
 		modified prev_version. Let us check if prev_version
