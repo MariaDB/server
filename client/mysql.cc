@@ -4593,8 +4593,11 @@ static char *get_arg(char *line, get_arg_mode mode)
   }
   for (start=ptr ; *ptr; ptr++)
   {
-    if ((*ptr == '\\' && ptr[1]) ||  // escaped character
-        (!short_cmd && qtype && *ptr == qtype && ptr[1] == qtype)) // quote
+    /* if short_cmd use historical rules (only backslash) otherwise SQL rules */
+    if (short_cmd
+        ? (*ptr == '\\' && ptr[1])                     // escaped character
+        : (*ptr == '\\' && ptr[1] && qtype != '`') ||  // escaped character
+          (qtype && *ptr == qtype && ptr[1] == qtype)) // quote
     {
       // Remove (or skip) the backslash (or a second quote)
       if (mode != CHECK)

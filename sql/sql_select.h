@@ -1839,7 +1839,7 @@ SORT_FIELD *make_unireg_sortorder(THD *thd, JOIN *join,
                                   ORDER *order, uint *length,
                                   SORT_FIELD *sortorder);
 int setup_order(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
-		List<Item> &fields, List <Item> &all_fields, ORDER *order);
+                List<Item> &fields, List <Item> &all_fields, ORDER *order);
 int setup_group(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List<Item> &all_fields, ORDER *order,
 		bool *hidden_group_fields);

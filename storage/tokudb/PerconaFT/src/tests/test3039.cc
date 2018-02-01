@@ -184,30 +184,36 @@ void do_threads (unsigned long long N, int do_nonlocal) {
     toku_pthread_t ths[2];
     struct reader_thread_state rstates[2] = {{.elapsed_time = 0.0,
                                               .n_did_read = 0,
-                                              .n_to_read = (long long signed) N,
-                                              .do_local  = 1,
-                                              .finish    = 0},
+                                              .n_to_read = (long long signed)N,
+                                              .do_local = 1,
+                                              .finish = 0},
                                              {.elapsed_time = 0.0,
                                               .n_did_read = 0,
                                               .n_to_read = -1,
-                                              .do_local  = 0,
-                                              .finish    = 0}};
+                                              .do_local = 0,
+                                              .finish = 0}};
     int n_to_create = do_nonlocal ? 2 : 1;
-    for (int i=0; i<n_to_create; i++) {
-	int r =  toku_pthread_create(&ths[i], 0, reader_thread, (void*)&rstates[i]);
-	CKERR(r);
+    for (int i = 0; i < n_to_create; i++) {
+        int r = toku_pthread_create(toku_uninstrumented,
+                                    &ths[i],
+                                    nullptr,
+                                    reader_thread,
+                                    static_cast<void *>(&rstates[i]));
+        CKERR(r);
     }
-    for (int i=0; i<n_to_create; i++) {
-	void *retval;
-	int r = toku_pthread_join(ths[i], &retval);
-	CKERR(r);
-	assert(retval==0);
-	if (verbose) {
-	    printf("%9s thread time = %8.2fs on %9lld reads (%.3f us/read)\n",
-		   (i==0 ? "local" : "nonlocal"),
-		   rstates[i].elapsed_time, rstates[i].n_did_read, rstates[i].elapsed_time/rstates[i].n_did_read * 1e6);
-	}
-	rstates[1].finish = 1;
+    for (int i = 0; i < n_to_create; i++) {
+        void *retval;
+        int r = toku_pthread_join(ths[i], &retval);
+        CKERR(r);
+        assert(retval == 0);
+        if (verbose) {
+            printf("%9s thread time = %8.2fs on %9lld reads (%.3f us/read)\n",
+                   (i == 0 ? "local" : "nonlocal"),
+                   rstates[i].elapsed_time,
+                   rstates[i].n_did_read,
+                   rstates[i].elapsed_time / rstates[i].n_did_read * 1e6);
+        }
+        rstates[1].finish = 1;
     }
     if (verbose && do_nonlocal) {
 	printf("total                                %9lld reads (%.3f us/read)\n",

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1193,12 +1193,14 @@ _fil_io(
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
-	trx_t*	trx)  		/*!< in: trx */
+	trx_t*	trx,  		/*!< in: trx */
+	bool	should_buffer)	/*!< in: whether to buffer an aio request.
+				Only used by aio read ahead*/
 
 	__attribute__((nonnull(8)));
 
 #define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size) \
-	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL)
+	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL, false)
 
 /** Determine the block size of the data file.
 @param[in]	space		tablespace

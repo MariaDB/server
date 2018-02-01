@@ -383,10 +383,10 @@ The wrapper functions have the prefix of "innodb_". */
 
 # define os_aio(type, is_log, mode, name, file, buf, offset,		\
 	n, page_size, message1, message2, space_id,			\
-	trx, write_size) 					 	\
+	trx, write_size, should_buffer)				 	\
 	pfs_os_aio_func(type, is_log, mode, name, file, buf, offset,	\
 		n, page_size, message1, message2, space_id, trx, write_size, \
-		__FILE__, __LINE__)
+		should_buffer, __FILE__, __LINE__)
 
 # define os_file_read(file, buf, offset, n)				\
 	pfs_os_file_read_func(file, buf, offset, n, NULL,		\
@@ -457,7 +457,7 @@ to original un-instrumented file I/O APIs */
 # define os_aio(type, is_log, mode, name, file, buf, offset, n, page_size, message1, \
 	message2, space_id, trx, write_size)				\
 	os_aio_func(type, is_log, mode, name, file, buf, offset, n,	\
-		page_size, message1, message2, space_id, trx, write_size)
+		page_size, message1, message2, space_id, trx, write_size, should_buffer)
 
 # define os_file_read(file, buf, offset, n)				\
 	os_file_read_func(file, buf, offset, n, NULL)
@@ -939,6 +939,12 @@ pfs_os_aio_func(
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+	bool		should_buffer,
+				/*!< in: Whether to buffer an aio request.
+				AIO read ahead uses this. If you plan to
+				use this parameter, make sure you remember
+				to call os_aio_dispatch_read_array_submit()
+				when you're ready to commit all your requests.*/
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 /*******************************************************************//**
@@ -1359,11 +1365,17 @@ os_aio_func(
 				OS_AIO_SYNC */
 	ulint		space_id,
 	trx_t*		trx,
-	ulint*		write_size);/*!< in/out: Actual write size initialized
+	ulint*		write_size,/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+	bool		should_buffer);
+				/*!< in: Whether to buffer an aio request.
+				AIO read ahead uses this. If you plan to
+				use this parameter, make sure you remember
+				to call os_aio_dispatch_read_array_submit()
+				when you're ready to commit all your requests.*/
 /************************************************************************//**
 Wakes up all async i/o threads so that they know to exit themselves in
 shutdown. */
@@ -1547,6 +1559,10 @@ os_file_handle_error_no_exit(
 	ibool		on_error_silent);/*!< in: if TRUE then don't print
 					any message to the log. */
 
+/** Submit buffered AIO requests on the given segment to the kernel. */
+UNIV_INTERN
+void
+os_aio_dispatch_read_array_submit();
 
 /***********************************************************************//**
 Try to get number of bytes per sector from file system.

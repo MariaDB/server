@@ -99,12 +99,14 @@ static void *blocking_first_thread(void *arg) {
 static void run_test(DB_ENV *db_env, DB *db, int nthreads, uint64_t nrows, long sleeptime) {
     int r;
     toku_pthread_t tids[nthreads];
-    struct blocking_first_args a = { db_env, db, nrows, sleeptime };
-    for (int i = 0; i < nthreads-1; i++) {
-        r = toku_pthread_create(&tids[i], NULL, blocking_first_thread, &a); assert(r == 0);
+    struct blocking_first_args a = {db_env, db, nrows, sleeptime};
+    for (int i = 0; i < nthreads - 1; i++) {
+        r = toku_pthread_create(
+            toku_uninstrumented, &tids[i], nullptr, blocking_first_thread, &a);
+        assert(r == 0);
     }
     blocking_first(db_env, db, nrows, sleeptime);
-    for (int i = 0; i < nthreads-1; i++) {
+    for (int i = 0; i < nthreads - 1; i++) {
         void *ret;
         r = toku_pthread_join(tids[i], &ret); assert(r == 0);
     }

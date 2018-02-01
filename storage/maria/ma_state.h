@@ -34,6 +34,7 @@ typedef struct st_used_tables {
   struct st_maria_share *share;
   MARIA_STATUS_INFO state_current;
   MARIA_STATUS_INFO state_start;
+  uint use_count;
 } MARIA_USED_TABLES;
 
 

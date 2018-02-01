@@ -114,14 +114,14 @@ unpin_two (void* UU(v)) {
         );
     assert_zero(r);
 
-    // at this point, we have p1 pinned, want to start a thread to do an unpin_and_remove
-    // on p1    
-    r = toku_pthread_create(
-        &unpin_and_remove_tid, 
-        NULL, 
-        unpin_and_remove_one, 
-        NULL
-        ); 
+    // at this point, we have p1 pinned, want to start a thread to do an
+    // unpin_and_remove
+    // on p1
+    r = toku_pthread_create(toku_uninstrumented,
+                            &unpin_and_remove_tid,
+                            nullptr,
+                            unpin_and_remove_one,
+                            nullptr);
     assert_zero(r);
     // sleep to give a chance for the unpin_and_remove to get going
     usleep(512*1024);
@@ -173,9 +173,9 @@ cachetable_test (void) {
     r = toku_cachetable_get_and_pin(f1, make_blocknum(2), 2, &v1, &s1, wc, fetch_two, def_pf_req_callback, def_pf_callback, true, NULL);
     assert_zero(r);
 
-
     toku_pthread_t tid1;
-    r = toku_pthread_create(&tid1, NULL, repin_one, NULL); 
+    r = toku_pthread_create(
+        toku_uninstrumented, &tid1, nullptr, repin_one, nullptr);
     assert_zero(r);
 
     void *ret;

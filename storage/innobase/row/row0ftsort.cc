@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -103,8 +103,9 @@ row_merge_create_fts_sort_index(
 	field->col->prtype = idx_field->col->prtype | DATA_NOT_NULL;
 	field->col->mtype = charset == &my_charset_latin1
 		? DATA_VARCHAR : DATA_VARMYSQL;
-	field->col->mbminmaxlen = idx_field->col->mbminmaxlen;
-	field->col->len = HA_FT_MAXCHARLEN * DATA_MBMAXLEN(field->col->mbminmaxlen);
+	field->col->mbminlen = idx_field->col->mbminlen;
+	field->col->mbmaxlen = idx_field->col->mbmaxlen;
+	field->col->len = HA_FT_MAXCHARLEN * field->col->mbmaxlen;
 
 	field->fixed_len = 0;
 
@@ -147,7 +148,8 @@ row_merge_create_fts_sort_index(
 
 	field->col->prtype = DATA_NOT_NULL | DATA_BINARY_TYPE;
 
-	field->col->mbminmaxlen = 0;
+	field->col->mbminlen = 0;
+	field->col->mbmaxlen = 0;
 
 	/* The third field is on the word's position in the original doc */
 	field = dict_index_get_nth_field(new_index, 2);
@@ -159,7 +161,8 @@ row_merge_create_fts_sort_index(
 	field->col->len = 4 ;
 	field->fixed_len = 4;
 	field->col->prtype = DATA_NOT_NULL;
-	field->col->mbminmaxlen = 0;
+	field->col->mbminlen = 0;
+	field->col->mbmaxlen = 0;
 
 	return(new_index);
 }
@@ -537,7 +540,8 @@ row_merge_fts_doc_tokenize(
 		field->type.mtype = DATA_INT;
 		field->type.prtype = DATA_NOT_NULL | DATA_BINARY_TYPE;
 		field->type.len = len;
-		field->type.mbminmaxlen = 0;
+		field->type.mbminlen = 0;
+		field->type.mbmaxlen = 0;
 
 		cur_len += len;
 		dfield_dup(field, buf->heap);
@@ -556,7 +560,8 @@ row_merge_fts_doc_tokenize(
 		field->type.mtype = DATA_INT;
 		field->type.prtype = DATA_NOT_NULL;
 		field->type.len = len;
-		field->type.mbminmaxlen = 0;
+		field->type.mbminlen = 0;
+		field->type.mbmaxlen = 0;
 		cur_len += len;
 		dfield_dup(field, buf->heap);
 
@@ -706,8 +711,7 @@ loop:
 				doc.text.f_str =
 					btr_copy_externally_stored_field(
 						&doc.text.f_len, data,
-						zip_size, data_len, blob_heap,
-						NULL);
+						zip_size, data_len, blob_heap);
 			} else {
 				doc.text.f_str = data;
 				doc.text.f_len = data_len;

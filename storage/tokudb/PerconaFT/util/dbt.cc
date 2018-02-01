@@ -199,7 +199,8 @@ int toku_dbt_set(uint32_t len, const void *val, DBT *d, struct simple_dbt *sdbt)
         case (DB_DBT_MALLOC):
             d->data = NULL;
             d->ulen = 0;
-            //Fall through to DB_DBT_REALLOC
+            // fallthrough
+            // to DB_DBT_REALLOC
         case (DB_DBT_REALLOC):
             if (d->ulen < len) {
                 d->ulen = len*2;

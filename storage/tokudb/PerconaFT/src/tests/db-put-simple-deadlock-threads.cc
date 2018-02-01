@@ -57,8 +57,8 @@ struct test_seq {
 
 static void test_seq_init(struct test_seq *seq) {
     seq->state = 0;
-    toku_mutex_init(&seq->lock, NULL);
-    toku_cond_init(&seq->cv, NULL);
+    toku_mutex_init(toku_uninstrumented, &seq->lock, nullptr);
+    toku_cond_init(toku_uninstrumented, &seq->cv, nullptr);
 }
 
 static void test_seq_destroy(struct test_seq *seq) {
@@ -146,8 +146,9 @@ static void simple_deadlock(DB_ENV *db_env, DB *db, int do_txn, int n) {
     struct test_seq test_seq; ZERO_STRUCT(test_seq); test_seq_init(&test_seq);
 
     toku_pthread_t tid;
-    struct run_txn_b_arg arg = { &test_seq, txn_b, db, n};
-    r = toku_pthread_create(&tid, NULL, run_txn_b, &arg);
+    struct run_txn_b_arg arg = {&test_seq, txn_b, db, n};
+    r = toku_pthread_create(
+        toku_uninstrumented, &tid, nullptr, run_txn_b, &arg);
 
     test_seq_sleep(&test_seq, 0);
     insert_row(db, txn_a, htonl(0), 0, 0);

@@ -1,12 +1,9 @@
 /************* TabTbl C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABTBL                                                */
 /* -------------                                                       */
-/*  Version 1.8                                                        */
+/*  Version 1.9                                                        */
 /*                                                                     */
-/* COPYRIGHT:                                                          */
-/* ----------                                                          */
-/*  (C) Copyright to PlugDB Software Development          2008-2017    */
-/*  Author: Olivier BERTRAND                                           */
+/*  Author: Olivier BERTRAND                              2008-2018    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -168,9 +165,14 @@ PTDB TBLDEF::GetTable(PGLOBAL g, MODE)
   {
   if (Catfunc == FNC_COL)
     return new(g) TDBTBC(this);
-  else if (Thread)
-    return new(g) TDBTBM(this);
-  else
+	else if (Thread) {
+#if defined(DEVELOPMENT)
+		return new(g) TDBTBM(this);
+#else
+		strcpy(g->Message, "Option THREAD is no more supported");
+		return NULL;
+#endif   // DEVELOPMENT
+	} else
     return new(g) TDBTBL(this);
 
   } // end of GetTable
@@ -560,6 +562,7 @@ void TBTBLK::ReadColumn(PGLOBAL)
 
   } // end of ReadColumn
 
+#if defined(DEVELOPMENT)
 /* ------------------------- Class TDBTBM ---------------------------- */
 
 /***********************************************************************/
@@ -650,7 +653,7 @@ bool TDBTBM::IsLocal(PTABLE tbp)
 
 	return ((!stricmp(tdbp->Host, "localhost") ||
 		       !strcmp(tdbp->Host, "127.0.0.1")) &&
-		        tdbp->Port == (int)GetDefaultPort());
+                       (int) tdbp->Port == (int)GetDefaultPort());
 }	// end of IsLocal
 
 /***********************************************************************/
@@ -865,5 +868,6 @@ int TDBTBM::ReadNextRemote(PGLOBAL g)
 
   return RC_OK;
   } // end of ReadNextRemote
+#endif   // DEVELOPMENT
 
 /* ------------------------------------------------------------------- */

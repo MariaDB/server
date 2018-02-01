@@ -748,6 +748,15 @@ SELECT *,IF(@i:=c1,ExtractValue('<a><b>b1</b><b>b2</b></a>','//b[$@i]'),0) AS xp
 SELECT * FROM t1 WHERE c2=IF(@i:=c1,ExtractValue('<a><b>b1</b><b>b2</b></a>','//b[$@i]'),0);
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-15118 ExtractValue(xml,something_complex) does not work
+--echo #
+
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES (CONCAT('<a>aaa</a>'));
+SELECT ExtractValue(a, '/a') AS a FROM t1;
+SELECT ExtractValue(a, FROM_BASE64(TO_BASE64('/a'))) AS a FROM t1;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.0 tests

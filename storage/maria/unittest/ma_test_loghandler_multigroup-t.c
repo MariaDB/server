@@ -233,7 +233,7 @@ int main(int argc __attribute__((unused)), char *argv[])
     0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA,
     0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55
   };
-  uchar *long_buffer= malloc(LONG_BUFFER_SIZE + LSN_STORE_SIZE * 2 + 2);
+  uchar *long_buffer;
   char **default_argv;
   PAGECACHE pagecache;
   LSN lsn, lsn_base, first_lsn;
@@ -255,6 +255,7 @@ int main(int argc __attribute__((unused)), char *argv[])
   }
 #endif
 
+  long_buffer= malloc(LONG_BUFFER_SIZE + LSN_STORE_SIZE * 2 + 2);
   load_defaults("my", load_default_groups, &argc, &argv);
   default_argv= argv;
   get_options(&argc, &argv);
@@ -758,9 +759,12 @@ err:
   if (maria_log_remove(maria_data_root))
     exit(1);
 
+  free(long_buffer);
+
   my_uuid_end();
   my_free_open_file_info();
   my_end(0);
+
   return (MY_TEST(exit_status()));
 }
 
