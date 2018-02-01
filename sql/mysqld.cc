@@ -2054,7 +2054,7 @@ extern "C" sig_handler print_signal_warning(int sig)
 {
   if (global_system_variables.log_warnings)
     sql_print_warning("Got signal %d from thread %u", sig,
-                      my_thread_id());
+                      (uint)my_thread_id());
 #ifdef SIGNAL_HANDLER_RESET_ON_DELIVERY
   my_sigset(sig,print_signal_warning);		/* int. thread system calls */
 #endif
