@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4595,6 +4595,8 @@ row_merge_build_indexes(
 	if (block == NULL) {
 		DBUG_RETURN(DB_OUT_OF_MEMORY);
 	}
+
+	TRASH(&crypt_pfx, sizeof crypt_pfx);
 
 	if (log_tmp_is_encrypted()) {
 		crypt_block = static_cast<row_merge_block_t*>(
