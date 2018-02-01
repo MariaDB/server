@@ -699,7 +699,7 @@ bool UNZIPUTL::openEntry(PGLOBAL g)
 		entryopen = true;
 	} // endif rc
 
-	if (trace)
+	if (trace(1))
 		htrc("Openning entry%s %s\n", fn, (entryopen) ? "oked" : "failed");
 
 	return !entryopen;
@@ -751,7 +751,7 @@ int UNZFAM::GetFileLength(PGLOBAL g)
 	int len = (zutp && zutp->entryopen) ? Top - Memory
 		                                  : TXTFAM::GetFileLength(g) * 3;
 
-	if (trace)
+	if (trace(1))
 		htrc("Zipped file length=%d\n", len);
 
 	return len;

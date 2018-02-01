@@ -142,7 +142,7 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 		return NULL;
 	} // endif Fn
 
-	if (trace)
+	if (trace(1))
     htrc("File %s objname=%s pretty=%d lvl=%d\n", 
           tdp->Fn, tdp->Objname, tdp->Pretty, lvl);
 
@@ -422,7 +422,7 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
     tjnp->CloseDB(g);
 
  skipit:
-  if (trace)
+  if (trace(1))
     htrc("JSONColumns: n=%d len=%d\n", n, length[0]);
 
   /*********************************************************************/
@@ -1591,14 +1591,14 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
   vp->Reset();
 	ars = MY_MIN(Tjp->Limit, arp->size());
 
-	if (trace)
+	if (trace(1))
 		htrc("CalculateArray: size=%d op=%d nextsame=%d\n",
 			ars, op, nextsame);
 
 	for (i = 0; i < ars; i++) {
 		jvrp = arp->GetValue(i);
 
-		if (trace)
+		if (trace(1))
 			htrc("i=%d nv=%d\n", i, nv);
 
 		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) do {
@@ -1612,7 +1612,7 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
       } else
         jvp = jvrp;
   
-			if (trace)
+			if (trace(1))
 				htrc("jvp=%s null=%d\n",
 					jvp->GetString(g), jvp->IsNull() ? 1 : 0);
 
@@ -1648,7 +1648,7 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
         if (err)
           vp->Reset();
     
-				if (trace) {
+				if (trace(1)) {
 					char buf(32);
 
 					htrc("vp='%s' err=%d\n",

@@ -298,7 +298,7 @@ int JMGFAM::ReadBuffer(PGLOBAL g)
 		PSZ str = Jcp->GetDocument();
 
 		if (str) {
-			if (trace == 1)
+			if (trace(1))
 				htrc("%s\n", str);
 
 			strncpy(Tdbp->GetLine(), str, Lrecl);

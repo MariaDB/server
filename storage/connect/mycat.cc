@@ -94,9 +94,9 @@
 #if defined(XML_SUPPORT)
 #include "tabxml.h"
 #endif   // XML_SUPPORT
-#if defined(JAVA_SUPPORT)
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 #include "mongo.h"
-#endif   // JAVA_SUPPORT
+#endif   // JAVA_SUPPORT || CMGO_SUPPORT
 #if defined(ZIP_SUPPORT)
 #include "tabzip.h"
 #endif   // ZIP_SUPPORT
@@ -109,9 +109,10 @@
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !__WIN__
 
-#if defined(JAVA_SUPPORT)
-//bool MongoEnabled(void);
-#endif   // JAVA_SUPPORT
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
+bool MongoEnabled(void);
+#endif   // JAVA_SUPPORT || CMGO_SUPPORT
+
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 
 /***********************************************************************/
@@ -144,7 +145,9 @@ TABTYPE GetTypeID(const char *type)
 #endif
 #if defined(JAVA_SUPPORT)
 								 : (!stricmp(type, "JDBC"))  ? TAB_JDBC
-		             : (!stricmp(type, "MONGO")) ? TAB_MONGO
+#endif
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
+		             : (!stricmp(type, "MONGO") && MongoEnabled()) ? TAB_MONGO
 #endif
 								 : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
                  : (!stricmp(type, "MYPRX")) ? TAB_MYSQL
@@ -488,7 +491,7 @@ void MYCAT::Reset(void)
 PRELDEF MYCAT::GetTableDesc(PGLOBAL g, PTABLE tablep,
                                        LPCSTR type, PRELDEF *)
   {
-	if (trace)
+	if (trace(1))
 		printf("GetTableDesc: name=%s am=%s\n", tablep->GetName(), SVP(type));
 
  	// If not specified get the type of this table
@@ -509,7 +512,7 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
 	LPCSTR  schema = (PSZ)PlugDup(g, tablep->GetSchema());
   PRELDEF tdp= NULL;
 
-	if (trace)
+	if (trace(1))
 		printf("MakeTableDesc: name=%s schema=%s am=%s\n",
 		                       name, SVP(schema), SVP(am));
 
@@ -552,18 +555,17 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
     case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
     case TAB_VIR: tdp= new(g) VIRDEF;   break;
     case TAB_JSON: tdp= new(g) JSONDEF; break;
-#if defined(MONGO_SUPPORT)
-		case TAB_MONGO:
-//		if (MongoEnabled())
-			  tdp = new(g) MGODEF;
-//		else
-//			strcpy(g->Message, "MONGO type not enabled");
-
-			break;
-#endif   // MONGO_SUPPORT
 #if defined(ZIP_SUPPORT)
-		case TAB_ZIP: tdp= new(g) ZIPDEF;   break;
+		case TAB_ZIP: tdp = new(g) ZIPDEF;   break;
 #endif   // ZIP_SUPPORT
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
+		case TAB_MONGO:
+			if (MongoEnabled()) {
+				tdp = new(g) MGODEF;
+				break;
+			}	// endif enabled
+			// fall through
+#endif   // JAVA_SUPPORT || CMGO_SUPPORT
 		default:
 			sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
     } // endswitch
@@ -584,14 +586,14 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
   PTDB    tdbp= NULL;
 //  LPCSTR  name= tablep->GetName();
 
-	if (trace)
+	if (trace(1))
 		printf("GetTableDB: name=%s\n", tablep->GetName());
 
   // Look for the description of the requested table
   tdp= GetTableDesc(g, tablep, type);
 
   if (tdp) {
-		if (trace)
+		if (trace(1))
 			printf("tdb=%p type=%s\n", tdp, tdp->GetType());
 
 		if (tablep->GetSchema())
@@ -601,7 +603,7 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
 		} // endif tdp
 
   if (tdbp) {
-		if (trace)
+		if (trace(1))
 			printf("tdbp=%p name=%s amtype=%d\n", tdbp, tdbp->GetName(),
 																						tdbp->GetAmType());
     tablep->SetTo_Tdb(tdbp);

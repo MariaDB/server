@@ -450,7 +450,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
       } // endswitch tc
 
 		// lrecl must be at least recln to avoid buffer overflow
-		if (trace)
+		if (trace(1))
 			htrc("Lrecl: Calculated=%d defined=%d\n", 
 			  recln, Hc->GetIntegerOption("Lrecl"));
 

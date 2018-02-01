@@ -90,7 +90,7 @@ int MAPFAM::GetFileLength(PGLOBAL g)
 
   len = (To_Fb && To_Fb->Count) ? To_Fb->Length : TXTFAM::GetFileLength(g);
 
-  if (trace)
+  if (trace(1))
     htrc("Mapped file length=%d\n", len);
 
   return len;
@@ -128,7 +128,7 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
                      && fp->Count && fp->Mode == mode)
         break;
 
-		if (trace)
+		if (trace(1))
       htrc("Mapping file, fp=%p\n", fp);
 
   } else
@@ -166,7 +166,7 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
                 "map", (int) rc, filename);
 
-      if (trace)
+      if (trace(1))
         htrc("CreateFileMap: %s\n", g->Message);
 
       return (mode == MODE_READ && rc == ENOENT)
@@ -227,7 +227,7 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
   Fpos = Mempos = Memory;
   Top = Memory + len;
 
-  if (trace)
+  if (trace(1))
     htrc("fp=%p count=%d MapView=%p len=%d Top=%p\n",
           fp, fp->Count, Memory, len, Top);
 
@@ -407,7 +407,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   int    n;
 
-  if (trace)
+  if (trace(1))
     htrc("MAP DeleteDB: irc=%d mempos=%p tobuf=%p Tpos=%p Spos=%p\n",
          irc, Mempos, To_Buf, Tpos, Spos);
 
@@ -417,7 +417,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     Fpos = Top;
 
-    if (trace)
+    if (trace(1))
       htrc("Fpos placed at file top=%p\n", Fpos);
 
     } // endif irc
@@ -435,7 +435,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
     memmove(Tpos, Spos, n);
     Tpos += n;
 
-    if (trace)
+    if (trace(1))
       htrc("move %d bytes\n", n);
 
   } // endif n
@@ -443,7 +443,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
   if (irc == RC_OK) {
     Spos = Mempos;                               // New start position
 
-    if (trace)
+    if (trace(1))
       htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
 
   } else if (To_Fb) {                 // Can be NULL for deleted files
@@ -473,7 +473,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
         return RC_FX;
         } // endif
 
-      if (trace)
+      if (trace(1))
        htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
 
       if (!SetEndOfFile(fp->Handle)) {
@@ -511,7 +511,7 @@ void MAPFAM::CloseTableFile(PGLOBAL g, bool)
   PlugCloseFile(g, To_Fb);
 //To_Fb = NULL;              // To get correct file size in Cardinality
 
-  if (trace)
+  if (trace(1))
     htrc("MAP Close: closing %s count=%d\n",
          To_File, (To_Fb) ? To_Fb->Count : 0);
 

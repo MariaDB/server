@@ -91,7 +91,7 @@ void CntEndDB(PGLOBAL g)
 
     free(dbuserp);
 
-		if (trace)
+		if (trace(1))
 			htrc("CntEndDB: Freeing Dup\n");
 
 		g->Activityp->Aptr = NULL;
@@ -111,14 +111,14 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
   bool    rc= false;
   PDBUSER dbuserp= PlgGetUser(g);
 
-  if (trace) {
+  if (trace(1)) {
     printf("CntCheckDB: dbuserp=%p\n", dbuserp);
     } // endif trace
 
   if (!dbuserp || !handler)
     return true;
 
-  if (trace)
+  if (trace(1))
     printf("cat=%p oldhandler=%p newhandler=%p\n", dbuserp->Catalog,
     (dbuserp->Catalog) ? ((MYCAT*)dbuserp->Catalog)->GetHandler() : NULL,
            handler);
@@ -149,7 +149,7 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
   /*********************************************************************/
   sprintf(g->Message, MSG(DATABASE_LOADED), "???");
 
-  if (trace)
+  if (trace(1))
     printf("msg=%s\n", g->Message);
 
   return rc;
@@ -197,7 +197,7 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
 	PDBUSER dup = PlgGetUser(g);
 	volatile PCATLG  cat = (dup) ? dup->Catalog : NULL;  // Safe over throw
 
-	if (trace)
+	if (trace(1))
 		printf("CntGetTDB: name=%s mode=%d cat=%p\n", name, mode, cat);
 
 	if (!cat)
@@ -207,7 +207,7 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
 		// Get table object from the catalog
 		tabp = new(g) XTAB(name);
 
-		if (trace)
+		if (trace(1))
 			printf("CntGetTDB: tabp=%p\n", tabp);
 
 		// Perhaps this should be made thread safe
@@ -217,13 +217,13 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
 			printf("CntGetTDB: %s\n", g->Message);
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
   } catch (const char *msg) {
 		strcpy(g->Message, msg);
 	}	// end catch
 
-  if (trace)
+  if (trace(1))
     printf("Returning tdbp=%p mode=%d\n", tdbp, mode);
 
   return tdbp;
@@ -242,7 +242,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 //PCOLUMN cp;
   PDBUSER dup= PlgGetUser(g);
 
-  if (trace)
+  if (trace(1))
     printf("CntOpenTable: tdbp=%p mode=%d\n", tdbp, mode);
 
   if (!tdbp) {
@@ -259,7 +259,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
 		} else for (p = c1; *p; p += n) {
 			// Allocate only used column blocks
-			if (trace)
+			if (trace(1))
 				printf("Allocating column %s\n", p);
 
 			g->Message[0] = 0;    // To check whether ColDB made an error message
@@ -324,7 +324,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 			tdbp->SetSetCols(tdbp->GetColumns());
 
 		// Now do open the physical table
-		if (trace)
+		if (trace(1))
 			printf("Opening table %s in mode %d tdbp=%p\n",
 				tdbp->GetName(), mode, tdbp);
 
@@ -340,7 +340,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 		} // endif del
 
 
-		if (trace)
+		if (trace(1))
 			printf("About to open the table: tdbp=%p\n", tdbp);
 
 		if (mode != MODE_ANY && mode != MODE_ALTER) {
@@ -355,7 +355,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 		rcop = false;
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 	} catch (const char *msg) {
 		strcpy(g->Message, msg);
@@ -398,7 +398,7 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
 		} // endfor colp
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			printf("Error %d reading columns: %s\n", n, g->Message);
 
 		rc = RC_FX;
@@ -548,7 +548,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 		return rc;
 	} // endif !USE_OPEN
 
-	if (trace)
+	if (trace(1))
 		printf("CntCloseTable: tdbp=%p mode=%d nox=%d abort=%d\n",
 			tdbp, tdbp->GetMode(), nox, abort);
 
@@ -578,11 +578,11 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 		tdbp->CloseDB(g);
 		tdbp->SetAbort(false);
 
-		if (trace > 1)
+		if (trace(2))
 			printf("Table %s closed\n", tdbp->GetName());
 
 		if (!nox && tdbp->GetMode() != MODE_READ && tdbp->GetMode() != MODE_ANY) {
-			if (trace > 1)
+			if (trace(2))
 				printf("About to reset opt\n");
 
 			if (!tdbp->IsRemote()) {
@@ -602,7 +602,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 		rc = RC_FX;
 	} // end catch
 
-	if (trace > 1)
+	if (trace(2))
 		htrc("Done rc=%d\n", rc);
 
 	return (rc == RC_OK || rc == RC_INFO) ? 0 : rc;
@@ -921,7 +921,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
             valp->SetBinValue((void*)p);
 #endif  // !WORDS_BIGENDIAN
 
-          if (trace) {
+          if (trace(1)) {
             char bf[32];
             printf("i=%d n=%d key=%s\n", i, n, valp->GetCharString(bf));
             } // endif trace
@@ -943,7 +943,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
       xbp->SetNval(n);
 
-      if (trace)
+      if (trace(1))
         printf("xbp=%p Nval=%d i=%d incl=%d\n", xbp, n, i, incl[i]);
 
       k[i]= xbp->Range(g, i + 1, incl[i]);
@@ -952,7 +952,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
     } // endfor i
 
-  if (trace)
+  if (trace(1))
     printf("k1=%d k0=%d\n", k[1], k[0]);
 
   return k[1] - k[0];

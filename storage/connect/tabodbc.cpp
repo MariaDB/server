@@ -538,7 +538,7 @@ bool TDBODBC::OpenDB(PGLOBAL g)
   {
   bool rc = true;
 
-  if (trace)
+  if (trace(1))
     htrc("ODBC OpenDB: tdbp=%p tdb=R%d use=%dmode=%d\n",
             this, Tdb_No, Use, Mode);
 
@@ -750,7 +750,7 @@ bool TDBODBC::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 		Mode = MODE_READ;
 	} // endif's op
 
-	if (trace)
+	if (trace(33))
 		htrc("ODBC ReadKey: Query=%s\n", Query->GetStr());
 
 	Rows = Ocp->ExecDirectSQL((char*)Query->GetStr(), (PODBCCOL)Columns);
@@ -765,7 +765,7 @@ int TDBODBC::ReadDB(PGLOBAL g)
   {
   int   rc;
 
-  if (trace > 1)
+  if (trace(2))
 		htrc("ODBC ReadDB: R%d Mode=%d\n", GetTdb_No(), Mode);
 
   if (Mode == MODE_UPDATE || Mode == MODE_DELETE) {
@@ -776,7 +776,7 @@ int TDBODBC::ReadDB(PGLOBAL g)
     if (!Ocp->ExecSQLcommand(Query->GetStr())) {
       sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
 
-      if (trace)
+      if (trace(1))
         htrc("%s\n", g->Message);
 
       PushWarning(g, this, 0);    // 0 means a Note
@@ -817,7 +817,7 @@ int TDBODBC::ReadDB(PGLOBAL g)
 
   } // endif Placed
 
-  if (trace > 1)
+  if (trace(2))
     htrc(" Read: Rbuf=%d rc=%d\n", Rbuf, rc);
 
   return rc;
@@ -852,7 +852,7 @@ int TDBODBC::DeleteDB(PGLOBAL g, int irc)
     if (!Ocp->ExecSQLcommand(Query->GetStr())) {
       sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
 
-      if (trace)
+      if (trace(1))
         htrc("%s\n", g->Message);
 
       PushWarning(g, this, 0);    // 0 means a Note
@@ -874,7 +874,7 @@ void TDBODBC::CloseDB(PGLOBAL g)
 
     Ocp->Close();
 
-  if (trace)
+  if (trace(1))
     htrc("ODBC CloseDB: closing %s\n", Name);
 
   } // end of CloseDB
@@ -975,7 +975,7 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
 
   } // endif Buf_Type
 
-  if (trace > 1) {
+  if (trace(2)) {
     char buf[64];
 
     htrc("ODBC Column %s: rows=%d buf=%p type=%d value=%s\n",
@@ -1214,7 +1214,7 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
   {
   bool rc = false;
 
-  if (trace)
+  if (trace(1))
     htrc("ODBC OpenDB: tdbp=%p tdb=R%d use=%dmode=%d\n",
             this, Tdb_No, Use, Mode);
 
