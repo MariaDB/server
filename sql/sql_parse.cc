@@ -7505,22 +7505,21 @@ bool my_yyoverflow(short **yyss, YYSTYPE **yyvs, ulong *yystacksize)
 
 void THD::reset_for_next_command(bool do_clear_error)
 {
-  THD *thd= this;
   DBUG_ENTER("THD::reset_for_next_command");
-  DBUG_ASSERT(!thd->spcont); /* not for substatements of routines */
-  DBUG_ASSERT(! thd->in_sub_stmt);
+  DBUG_ASSERT(!spcont); /* not for substatements of routines */
+  DBUG_ASSERT(!in_sub_stmt);
 
   if (do_clear_error)
     clear_error(1);
 
-  thd->free_list= 0;
-  thd->select_number= 1;
+  free_list= 0;
+  select_number= 1;
   /*
     Those two lines below are theoretically unneeded as
     THD::cleanup_after_query() should take care of this already.
   */
-  thd->auto_inc_intervals_in_cur_stmt_for_binlog.empty();
-  thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
+  auto_inc_intervals_in_cur_stmt_for_binlog.empty();
+  stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
 
 #ifdef WITH_WSREP
   /*
@@ -7531,59 +7530,59 @@ void THD::reset_for_next_command(bool do_clear_error)
     use autoinc values passed in binlog events, not the values forced by
     the cluster.
   */
-  if (WSREP(thd) && thd->wsrep_exec_mode == LOCAL_STATE &&
-      !thd->slave_thread && wsrep_auto_increment_control)
+  if (WSREP(this) && wsrep_exec_mode == LOCAL_STATE &&
+      !slave_thread && wsrep_auto_increment_control)
   {
-    thd->variables.auto_increment_offset=
+    variables.auto_increment_offset=
       global_system_variables.auto_increment_offset;
-    thd->variables.auto_increment_increment=
+    variables.auto_increment_increment=
       global_system_variables.auto_increment_increment;
   }
 #endif /* WITH_WSREP */
-  thd->query_start_used= 0;
-  thd->query_start_sec_part_used= 0;
-  thd->is_fatal_error= thd->time_zone_used= 0;
-  thd->log_current_statement= 0;
+  query_start_used= 0;
+  query_start_sec_part_used= 0;
+  is_fatal_error= time_zone_used= 0;
+  log_current_statement= 0;
 
   /*
     Clear the status flag that are expected to be cleared at the
     beginning of each SQL statement.
   */
-  thd->server_status&= ~SERVER_STATUS_CLEAR_SET;
+  server_status&= ~SERVER_STATUS_CLEAR_SET;
   /*
     If in autocommit mode and not in a transaction, reset
     OPTION_STATUS_NO_TRANS_UPDATE | OPTION_KEEP_LOG to not get warnings
     in ha_rollback_trans() about some tables couldn't be rolled back.
   */
-  if (!thd->in_multi_stmt_transaction_mode())
+  if (!in_multi_stmt_transaction_mode())
   {
-    thd->variables.option_bits&= ~OPTION_KEEP_LOG;
-    thd->transaction.all.reset();
+    variables.option_bits&= ~OPTION_KEEP_LOG;
+    transaction.all.reset();
   }
-  DBUG_ASSERT(thd->security_ctx== &thd->main_security_ctx);
-  thd->thread_specific_used= FALSE;
+  DBUG_ASSERT(security_ctx== &main_security_ctx);
+  thread_specific_used= FALSE;
 
   if (opt_bin_log)
   {
-    reset_dynamic(&thd->user_var_events);
-    thd->user_var_events_alloc= thd->mem_root;
+    reset_dynamic(&user_var_events);
+    user_var_events_alloc= mem_root;
   }
-  thd->enable_slow_log= thd->variables.sql_log_slow;
-  thd->get_stmt_da()->reset_for_next_command();
-  thd->rand_used= 0;
-  thd->m_sent_row_count= thd->m_examined_row_count= 0;
-  thd->accessed_rows_and_keys= 0;
+  enable_slow_log= variables.sql_log_slow;
+  get_stmt_da()->reset_for_next_command();
+  rand_used= 0;
+  m_sent_row_count= m_examined_row_count= 0;
+  accessed_rows_and_keys= 0;
 
   reset_slow_query_state();
 
-  thd->reset_current_stmt_binlog_format_row();
-  thd->binlog_unsafe_warning_flags= 0;
+  reset_current_stmt_binlog_format_row();
+  binlog_unsafe_warning_flags= 0;
 
-  thd->save_prep_leaf_list= false;
+  save_prep_leaf_list= false;
 
   DBUG_PRINT("debug",
              ("is_current_stmt_binlog_format_row(): %d",
-              thd->is_current_stmt_binlog_format_row()));
+              is_current_stmt_binlog_format_row()));
 
   DBUG_VOID_RETURN;
 }
