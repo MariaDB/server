@@ -6061,7 +6061,7 @@ Reads or writes data. This operation is asynchronous (aio).
 i/o on a tablespace which does not exist */
 UNIV_INTERN
 dberr_t
-_fil_io(
+fil_io(
 /*===*/
 	ulint	type,		/*!< in: OS_FILE_READ or OS_FILE_WRITE,
 				ORed to OS_FILE_LOG, if a log i/o
@@ -6318,8 +6318,8 @@ _fil_io(
 
 	/* Queue the aio request */
 	ret = os_aio(type, is_log, mode | wake_later, name, node->handle, buf,
-		offset, len, zip_size ? zip_size : UNIV_PAGE_SIZE, node,
-		message, space_id, trx, write_size, should_buffer);
+		     offset, len, zip_size ? zip_size : UNIV_PAGE_SIZE, node,
+		     message, space_id, trx, write_size, should_buffer);
 
 #else
 	/* In mysqlbackup do normal i/o, not aio */

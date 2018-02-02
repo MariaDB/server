@@ -1161,7 +1161,7 @@ Reads or writes data. This operation is asynchronous (aio).
 i/o on a tablespace which does not exist */
 UNIV_INTERN
 dberr_t
-_fil_io(
+fil_io(
 /*===*/
 	ulint	type,		/*!< in: OS_FILE_READ or OS_FILE_WRITE,
 				ORed to OS_FILE_LOG, if a log i/o
@@ -1189,18 +1189,18 @@ _fil_io(
 	void*	message,	/*!< in: message for aio handler if non-sync
  				aio used, else ignored */
 	ulint*	write_size,	/*!< in/out: Actual write size initialized
-			       after fist successfull trim
-			       operation for this page and if
-			       initialized we do not trim again if
-			       actual page size does not decrease. */
-	trx_t*	trx,  		/*!< in: trx */
-	bool	should_buffer)	/*!< in: whether to buffer an aio request.
-				Only used by aio read ahead*/
-
-	__attribute__((nonnull(8)));
-
-#define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size) \
-	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL, false)
+				after fist successfull trim
+				operation for this page and if
+				initialized we do not trim again if
+				actual page size does not decrease. */
+	trx_t*	trx = NULL,	/*!< in: trx */
+	bool	should_buffer = false)
+				/*!< in: whether to buffer an aio request.
+				AIO read ahead uses this. If you plan to
+				use this parameter, make sure you remember
+				to call os_aio_dispatch_read_array_submit()
+				when you're ready to commit all your requests.*/
+	MY_ATTRIBUTE((nonnull(8)));
 
 /** Determine the block size of the data file.
 @param[in]	space		tablespace

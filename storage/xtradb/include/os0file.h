@@ -382,11 +382,12 @@ The wrapper functions have the prefix of "innodb_". */
 	pfs_os_file_close_no_error_handling_func(file, __FILE__, __LINE__)
 
 # define os_aio(type, is_log, mode, name, file, buf, offset,		\
-	n, page_size, message1, message2, space_id,			\
-	trx, write_size, should_buffer)				 	\
+		n, page_size, message1, message2, space_id,		\
+		trx, write_size, should_buffer)				\
 	pfs_os_aio_func(type, is_log, mode, name, file, buf, offset,	\
-		n, page_size, message1, message2, space_id, trx, write_size, \
-		should_buffer, __FILE__, __LINE__)
+			n, page_size, message1, message2, space_id,	\
+			trx, write_size, should_buffer,			\
+			__FILE__, __LINE__)
 
 # define os_file_read(file, buf, offset, n)				\
 	pfs_os_file_read_func(file, buf, offset, n, NULL,		\
@@ -454,10 +455,12 @@ to original un-instrumented file I/O APIs */
 # define os_file_close_no_error_handling(file)				\
 	os_file_close_no_error_handling_func(file)
 
-# define os_aio(type, is_log, mode, name, file, buf, offset, n, page_size, message1, \
-	message2, space_id, trx, write_size)				\
+# define os_aio(type, is_log, mode, name, file, buf, offset,		\
+		n, page_size, message1,					\
+		message2, space_id, trx, write_size, should_buffer)	\
 	os_aio_func(type, is_log, mode, name, file, buf, offset, n,	\
-		page_size, message1, message2, space_id, trx, write_size, should_buffer)
+		    page_size, message1, message2, space_id,		\
+		    trx, write_size, should_buffer)
 
 # define os_file_read(file, buf, offset, n)				\
 	os_file_read_func(file, buf, offset, n, NULL)

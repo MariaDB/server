@@ -82,9 +82,6 @@ Created 10/8/1995 Heikki Tuuri
 /* prototypes for new functions added to ha_innodb.cc */
 ibool	innobase_get_slow_log();
 
-#ifdef WITH_WSREP
-extern int wsrep_trx_is_aborting(void *thd_ptr);
-#endif
 /* The following counter is incremented whenever there is some user activity
 in the server */
 UNIV_INTERN ulint	srv_activity_count	= 0;

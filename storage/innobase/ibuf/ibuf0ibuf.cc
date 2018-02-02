@@ -4603,7 +4603,7 @@ ibuf_merge_or_delete_for_page(
 		function. When the counter is > 0, that prevents tablespace
 		from being dropped. */
 
-		space = fil_space_acquire(space_id);
+		space = fil_space_acquire_silent(space_id);
 
 		if (UNIV_UNLIKELY(!space)) {
 			/* Do not try to read the bitmap page from space;
