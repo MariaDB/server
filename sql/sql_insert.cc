@@ -1640,6 +1640,11 @@ int vers_insert_history_row(TABLE *table)
   // Set Sys_end to now()
   table->vers_update_end();
 
+  Field *row_start= table->vers_start_field();
+  Field *row_end= table->vers_end_field();
+  if (row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
+    return 0;
+
   return table->file->ha_write_row(table->record[0]);
 }
 
