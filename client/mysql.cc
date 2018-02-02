@@ -1140,6 +1140,7 @@ int main(int argc,char *argv[])
   current_prompt = my_strdup(default_prompt,MYF(MY_WME));
   prompt_counter=0;
   aborted= 0;
+  sf_leaking_memory= 1; /* no memory leak reports yet */
 
   outfile[0]=0;			// no (default) outfile
   strmov(pager, "stdout");	// the default, if --pager wasn't given
@@ -1200,6 +1201,7 @@ int main(int argc,char *argv[])
     my_end(0);
     exit(1);
   }
+  sf_leaking_memory= 0;
   glob_buffer.realloc(512);
   completion_hash_init(&ht, 128);
   init_alloc_root(&hash_mem_root, 16384, 0, MYF(0));
@@ -1795,10 +1797,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
 #ifndef EMBEDDED_LIBRARY
     if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
                                               opt->name)) <= 0)
-    {
-      sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
-    }
 #endif
     break;
   case OPT_SERVER_ARG:
