@@ -186,13 +186,13 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
 
   ssize_t total_bytes_read = 0;
   ssize_t extra_bytes_read = 0;
+  ssize_t parsed = 0;
 
   fd_set set;
   struct timeval timeout;
 
   int filename_start = -1;
   int line_number_start = -1;
-  ssize_t i;
 
   Dl_info info;
   void *offset;
@@ -221,11 +221,12 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
   FD_ZERO(&set);
   FD_SET(out[0], &set);
 
-  /* 10 ms should be plenty of time for addr2line to issue a response. */
+  /* 100 ms should be plenty of time for addr2line to issue a response. */
   timeout.tv_sec = 0;
-  timeout.tv_usec = 10000;
+  timeout.tv_usec = 100000;
   /* Read in a loop till all the output from addr2line is complete. */
-  while (select(out[0] + 1, &set, NULL, NULL, &timeout) > 0)
+  while (parsed == total_bytes_read &&
+         select(out[0] + 1, &set, NULL, NULL, &timeout) > 0)
   {
     extra_bytes_read= read(out[0], output + total_bytes_read,
                            sizeof(output) - total_bytes_read);
@@ -236,35 +237,33 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
       break;
 
     total_bytes_read += extra_bytes_read;
+
+    /* Go through the addr2line response and get the required data.
+       The response is structured in 2 lines. The first line contains the function
+       name, while the second one contains <filename>:<line number> */
+    for (; parsed < total_bytes_read; parsed++)
+    {
+      if (output[parsed] == '\n')
+      {
+        filename_start = parsed + 1;
+        output[parsed] = '\0';
+      }
+      if (filename_start != -1 && output[parsed] == ':')
+      {
+        line_number_start = parsed + 1;
+        output[parsed] = '\0';
+        break;
+      }
+    }
   }
 
-  /* Failed starting addr2line. */
-  if (total_bytes_read == 0)
-    return 1;
-
-  /* Go through the addr2line response and get the required data.
-     The response is structured in 2 lines. The first line contains the function
-     name, while the second one contains <filename>:<line number> */
-  for (i = 0; i < total_bytes_read; i++) {
-    if (output[i] == '\n') {
-      filename_start = i + 1;
-      output[i] = '\0';
-    }
-    if (filename_start != -1 && output[i] == ':') {
-      line_number_start = i + 1;
-      output[i] = '\0';
-    }
-    if (line_number_start != -1) {
-      loc->line= atoi(output + line_number_start);
-      break;
-    }
-  }
   /* Response is malformed. */
   if (filename_start == -1 || line_number_start == -1)
    return 1;
 
   loc->func= output;
   loc->file= output + filename_start;
+  loc->line= atoi(output + line_number_start);
 
   /* Addr2line was unable to extract any meaningful information. */
   if (strcmp(loc->file, "??") == 0)
