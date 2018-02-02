@@ -22566,8 +22566,19 @@ innodb_buffer_pool_size_validate(
 
 	*static_cast<longlong*>(save) = requested_buf_pool_size;
 
+	if (srv_buf_pool_size == static_cast<ulint>(intbuf)) {
+		buf_pool_mutex_exit_all();
+		/* nothing to do */
+		return(0);
+	}
+
 	if (srv_buf_pool_size == requested_buf_pool_size) {
 		buf_pool_mutex_exit_all();
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    ER_WRONG_ARGUMENTS,
+				    "innodb_buffer_pool_size must be at least"
+				    " innodb_buffer_pool_chunk_size=%lu",
+				    srv_buf_pool_chunk_unit);
 		/* nothing to do */
 		return(0);
 	}
