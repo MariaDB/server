@@ -2104,7 +2104,7 @@ public:
       DBUG_ASSERT(s->blob_fields <= m_alloced_field_count);
       s->blob_field[s->blob_fields - 1]= s->fields;
     }
-    s->fields++;
+    new_field->field_index= s->fields++;
     return false;
   }
 
