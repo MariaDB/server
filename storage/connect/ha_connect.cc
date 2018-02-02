@@ -174,7 +174,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0006 January 31, 2018";
+       char version[]= "Version 1.06.0006 February 02, 2018";
 #if defined(__WIN__)
        char compver[]= "Version 1.06.0006 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -5431,7 +5431,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // __WIN__
 //int      hdr, mxe;
 	int      port = 0, mxr = 0, rc = 0, mul = 0, lrecl = 0;
-	PCSZ     tabtyp = NULL;
+//PCSZ     tabtyp = NULL;
 #if defined(ODBC_SUPPORT)
   POPARM   sop= NULL;
 	PCSZ     ucnc= NULL;
@@ -5495,7 +5495,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // __WIN__
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
 #if defined(ODBC_SUPPORT)
-		tabtyp = GetListOption(g, "Tabtype", topt->oplist, NULL);
+//	tabtyp = GetListOption(g, "Tabtype", topt->oplist, NULL);
 		mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
     cto= atoi(GetListOption(g,"ConnectTimeout", topt->oplist, "-1"));
     qto= atoi(GetListOption(g,"QueryTimeout", topt->oplist, "-1"));
@@ -5808,7 +5808,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 							break;
 						case FNC_TABLE:
-							qrp = JDBCTables(g, shm, tab, tabtyp, mxr, true, sjp);
+//						qrp = JDBCTables(g, shm, tab, tabtyp, mxr, true, sjp);
+							qrp = JDBCTables(g, shm, tab, NULL, mxr, true, sjp);
 							break;
 #if 0
 						case FNC_DSN:
