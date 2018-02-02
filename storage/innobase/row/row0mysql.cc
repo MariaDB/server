@@ -4837,59 +4837,6 @@ funct_exit:
 	return(err);
 }
 
-/** Renames a partitioned table for MySQL.
-@param[in]	old_name	Old table name.
-@param[in]	new_name	New table name.
-@param[in,out]	trx		Transaction.
-@return error code or DB_SUCCESS */
-dberr_t
-row_rename_partitions_for_mysql(
-	const char*	old_name,
-	const char*	new_name,
-	trx_t*		trx)
-{
-	char		from_name[FN_REFLEN];
-	char		to_name[FN_REFLEN];
-	ulint		from_len = strlen(old_name);
-	ulint		to_len = strlen(new_name);
-	char*		table_name;
-	dberr_t		error = DB_TABLE_NOT_FOUND;
-
-	ut_a(from_len < (FN_REFLEN - 4));
-	ut_a(to_len < (FN_REFLEN - 4));
-	memcpy(from_name, old_name, from_len);
-	from_name[from_len] = '#';
-	from_name[from_len + 1] = 0;
-	while ((table_name = dict_get_first_table_name_in_db(from_name))) {
-		ut_a(memcmp(table_name, from_name, from_len) == 0);
-		/* Must match #[Pp]#<partition_name> */
-		if (strlen(table_name) <= (from_len + 3)
-		    || table_name[from_len] != '#'
-		    || table_name[from_len + 2] != '#'
-		    || (table_name[from_len + 1] != 'P'
-			&& table_name[from_len + 1] != 'p')) {
-
-			ut_ad(0);
-			ut_free(table_name);
-			continue;
-		}
-		memcpy(to_name, new_name, to_len);
-		memcpy(to_name + to_len, table_name + from_len,
-			strlen(table_name) - from_len + 1);
-		error = row_rename_table_for_mysql(table_name, to_name,
-						trx, false);
-		if (error != DB_SUCCESS) {
-			/* Rollback and return. */
-			trx_rollback_for_mysql(trx);
-			ut_free(table_name);
-			return(error);
-		}
-		ut_free(table_name);
-	}
-	trx_commit_for_mysql(trx);
-	return(error);
-}
-
 /*********************************************************************//**
 Scans an index for either COUNT(*) or CHECK TABLE.
 If CHECK TABLE; Checks that the index contains entries in an ascending order,
