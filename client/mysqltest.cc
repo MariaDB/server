@@ -9117,7 +9117,7 @@ int main(int argc, char **argv)
 #endif
 
   init_dynamic_string(&ds_res, "", 2048, 2048);
-  init_alloc_root(&require_file_root, 1024, 1024, MYF(0));
+  init_alloc_root(&require_file_root, "require_file", 1024, 1024, MYF(0));
 
   parse_args(argc, argv);
 

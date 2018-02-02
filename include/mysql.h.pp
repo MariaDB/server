@@ -240,6 +240,7 @@ typedef struct st_mem_root
   unsigned int block_num;
   unsigned int first_block_usage;
   void (*error_handler)(void);
+  const char *name;
 } MEM_ROOT;
 typedef struct st_typelib {
   unsigned int count;

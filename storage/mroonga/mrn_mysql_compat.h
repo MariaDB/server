@@ -60,7 +60,10 @@
 #  define KEY_N_KEY_PARTS(key) (key)->key_parts
 #endif
 
-#if defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100000
+#if defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100213
+#  define mrn_init_alloc_root(PTR, SZ1, SZ2, FLAG) \
+  init_alloc_root(PTR, "mroonga", SZ1, SZ2, FLAG)
+#elif defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100000
 #  define mrn_init_alloc_root(PTR, SZ1, SZ2, FLAG) \
   init_alloc_root(PTR, SZ1, SZ2, FLAG)
 #elif MYSQL_VERSION_ID >= 50706
@@ -238,7 +241,13 @@
 #endif
 
 #if defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100000
-#  if MYSQL_VERSION_ID >= 100104
+#  if MYSQL_VERSION_ID >= 100213
+#    define mrn_init_sql_alloc(thd, mem_root)                           \
+  init_sql_alloc(mem_root, "Mroonga",                                   \
+                 TABLE_ALLOC_BLOCK_SIZE,                                \
+                 0,                                                     \
+                 MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC))
+#elif MYSQL_VERSION_ID >= 100104
 #    define mrn_init_sql_alloc(thd, mem_root)                           \
   init_sql_alloc(mem_root,                                              \
                  TABLE_ALLOC_BLOCK_SIZE,                                \

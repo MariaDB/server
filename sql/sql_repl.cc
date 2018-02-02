@@ -1196,8 +1196,9 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
   const char *errormsg= NULL;
   char buf[FN_REFLEN];
 
-  init_alloc_root(&memroot, 10*(FN_REFLEN+sizeof(binlog_file_entry)), 0,
-                  MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&memroot, "gtid_find_binlog_file",
+                  10*(FN_REFLEN+sizeof(binlog_file_entry)),
+                  0, MYF(MY_THREAD_SPECIFIC));
   if (!(list= get_binlog_list(&memroot)))
   {
     errormsg= "Out of memory while looking for GTID position in binlog";

@@ -1791,7 +1791,8 @@ public:
     m_reopen_array(NULL),
     m_locked_tables_count(0)
   {
-    init_sql_alloc(&m_locked_tables_root, MEM_ROOT_BLOCK_SIZE, 0,
+    init_sql_alloc(&m_locked_tables_root, "Locked_tables_list",
+                   MEM_ROOT_BLOCK_SIZE, 0,
                    MYF(MY_THREAD_SPECIFIC));
   }
   void unlock_locked_tables(THD *thd);
@@ -2540,7 +2541,8 @@ public:
     {
       bzero((char*)this, sizeof(*this));
       xid_state.xid.null();
-      init_sql_alloc(&mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
+      init_sql_alloc(&mem_root, "THD::transactions",
+                     ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
                      MYF(MY_THREAD_SPECIFIC));
     }
   } transaction;

@@ -249,7 +249,7 @@ ha_partition::ha_partition(handlerton *hton, TABLE_SHARE *share)
   :handler(hton, share)
 {
   DBUG_ENTER("ha_partition::ha_partition(table)");
-  init_alloc_root(&m_mem_root, 512, 512, MYF(0));
+  init_alloc_root(&m_mem_root, "ha_partition", 512, 512, MYF(0));
   init_handler_variables();
   DBUG_VOID_RETURN;
 }
@@ -271,7 +271,7 @@ ha_partition::ha_partition(handlerton *hton, partition_info *part_info)
 {
   DBUG_ENTER("ha_partition::ha_partition(part_info)");
   DBUG_ASSERT(part_info);
-  init_alloc_root(&m_mem_root, 512, 512, MYF(0));
+  init_alloc_root(&m_mem_root, "ha_partition", 512, 512, MYF(0));
   init_handler_variables();
   m_part_info= part_info;
   m_create_handler= TRUE;
@@ -298,7 +298,7 @@ ha_partition::ha_partition(handlerton *hton, TABLE_SHARE *share,
   :handler(hton, share)
 {
   DBUG_ENTER("ha_partition::ha_partition(clone)");
-  init_alloc_root(&m_mem_root, 512, 512, MYF(0));
+  init_alloc_root(&m_mem_root, "ha_partition", 512, 512, MYF(0));
   init_handler_variables();
   m_part_info= part_info_arg;
   m_create_handler= TRUE;

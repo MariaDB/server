@@ -471,7 +471,8 @@ sp_head::operator new(size_t size) throw()
   MEM_ROOT own_root;
   sp_head *sp;
 
-  init_sql_alloc(&own_root, MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
+  init_sql_alloc(&own_root, "sp_head",
+                 MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
   sp= (sp_head *) alloc_root(&own_root, size);
   if (sp == NULL)
     DBUG_RETURN(NULL);
@@ -993,7 +994,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   thd->select_number+= m_select_number;
 
   /* init per-instruction memroot */
-  init_sql_alloc(&execute_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&execute_mem_root, "per_instruction_memroot",
+                 MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
 
   DBUG_ASSERT(!(m_flags & IS_INVOKED));
   m_flags|= IS_INVOKED;
@@ -1507,7 +1509,6 @@ sp_head::execute_trigger(THD *thd,
   MEM_ROOT call_mem_root;
   Query_arena call_arena(&call_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
   Query_arena backup_arena;
-
   DBUG_ENTER("sp_head::execute_trigger");
   DBUG_PRINT("info", ("trigger %s", m_name.str));
 
@@ -1563,7 +1564,8 @@ sp_head::execute_trigger(THD *thd,
     TODO: we should create sp_rcontext once per command and reuse it
     on subsequent executions of a trigger.
   */
-  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&call_mem_root, "execute_trigger", MEM_ROOT_BLOCK_SIZE, 0,
+                 MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   Row_definition_list defs;
@@ -1676,7 +1678,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     TODO: we should create sp_rcontext once per command and reuse
     it on subsequent executions of a function/trigger.
   */
-  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&call_mem_root, "execute_function", MEM_ROOT_BLOCK_SIZE, 0,
+                 MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   if (!(nctx= rcontext_create(thd, return_value_fld, argp, argcount)))

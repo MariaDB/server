@@ -154,7 +154,8 @@ bool servers_init(bool dont_read_servers_table)
   }
 
   /* Initialize the mem root for data */
-  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&mem, "servers", ACL_ALLOC_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
 
   if (dont_read_servers_table)
     goto end;
@@ -203,7 +204,7 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
 
   my_hash_reset(&servers_cache);
   free_root(&mem, MYF(0));
-  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&mem, "servers_load", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if (init_read_record(&read_record_info,thd,table=tables[0].table, NULL, NULL,
                        1,0, FALSE))

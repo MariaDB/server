@@ -4938,7 +4938,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   if (init_dumping(db, init_dumping_tables))
     DBUG_RETURN(1);
 
-  init_alloc_root(&glob_root, 8192, 0, MYF(0));
+  init_alloc_root(&glob_root, "glob_root", 8192, 0, MYF(0));
   if (!(dump_tables= pos= (char**) alloc_root(&glob_root,
                                               tables * sizeof(char *))))
      die(EX_EOM, "alloc_root failure.");

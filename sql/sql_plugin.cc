@@ -1152,7 +1152,7 @@ static bool plugin_add(MEM_ROOT *tmp_root,
       goto err;
     if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
       tmp_plugin_ptr->state= PLUGIN_IS_FREED;
-    init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096, MYF(0));
+    init_alloc_root(&tmp_plugin_ptr->mem_root, "plugin", 4096, 4096, MYF(0));
 
     if (name->str)
       DBUG_RETURN(FALSE); // all done
@@ -1542,9 +1542,9 @@ int plugin_init(int *argc, char **argv, int flags)
 
   dlopen_count =0;
 
-  init_alloc_root(&plugin_mem_root, 4096, 4096, MYF(0));
-  init_alloc_root(&plugin_vars_mem_root, 4096, 4096, MYF(0));
-  init_alloc_root(&tmp_root, 4096, 4096, MYF(0));
+  init_alloc_root(&plugin_mem_root, "plugin", 4096, 4096, MYF(0));
+  init_alloc_root(&plugin_vars_mem_root, "plugin_vars", 4096, 4096, MYF(0));
+  init_alloc_root(&tmp_root, "plugin_tmp", 4096, 4096, MYF(0));
 
   if (my_hash_init(&bookmark_hash, &my_charset_bin, 32, 0, 0,
                    get_bookmark_hash_key, NULL, HASH_UNIQUE))

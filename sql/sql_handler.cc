@@ -324,7 +324,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     /* copy data to sql_handler */
     if (!(sql_handler= new SQL_HANDLER(thd)))
       goto err;
-    init_alloc_root(&sql_handler->mem_root, 1024, 0, MYF(MY_THREAD_SPECIFIC));
+    init_alloc_root(&sql_handler->mem_root, "sql_handler", 1024, 0,
+                    MYF(MY_THREAD_SPECIFIC));
 
     sql_handler->db.length= strlen(tables->db);
     sql_handler->table_name.length= strlen(tables->table_name);

@@ -32,6 +32,7 @@
   SYNOPSIS
     init_alloc_root()
       mem_root       - memory root to initialize
+      name           - name of memroot (for debugging)
       block_size     - size of chunks (blocks) used for memory allocation
                        (It is external size of chunk i.e. it should include
                         memory required for internal structures, thus it
@@ -51,13 +52,13 @@
     Because of this, we store in MY_THREAD_SPECIFIC as bit 1 in block_size
 */
 
-void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
+void init_alloc_root(MEM_ROOT *mem_root, const char *name, size_t block_size,
 		     size_t pre_alloc_size __attribute__((unused)),
                      myf my_flags)
 {
   DBUG_ENTER("init_alloc_root");
-  DBUG_PRINT("enter",("root: %p  prealloc: %zu", mem_root,
-                      pre_alloc_size));
+  DBUG_PRINT("enter",("root: %p  name: %s  prealloc: %zu", mem_root,
+                      name, pre_alloc_size));
 
   mem_root->free= mem_root->used= mem_root->pre_alloc= 0;
   mem_root->min_malloc= 32;
@@ -69,6 +70,7 @@ void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
   mem_root->block_num= 4;			/* We shift this with >>2 */
   mem_root->first_block_usage= 0;
   mem_root->total_alloc= 0;
+  mem_root->name= name;
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
   if (pre_alloc_size)
@@ -172,7 +174,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
 #if defined(HAVE_valgrind) && defined(EXTRA_DEBUG)
   reg1 USED_MEM *next;
   DBUG_ENTER("alloc_root");
-  DBUG_PRINT("enter",("root: %p", mem_root));
+  DBUG_PRINT("enter",("root: %p  name: %s", mem_root, mem_root->name));
 
   DBUG_ASSERT(alloc_root_inited(mem_root));
 
@@ -207,7 +209,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   reg1 USED_MEM *next= 0;
   reg2 USED_MEM **prev;
   DBUG_ENTER("alloc_root");
-  DBUG_PRINT("enter",("root: %p", mem_root));
+  DBUG_PRINT("enter",("root: %p  name: %s", mem_root, mem_root->name));
   DBUG_ASSERT(alloc_root_inited(mem_root));
 
   DBUG_EXECUTE_IF("simulate_out_of_memory",
@@ -298,6 +300,10 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
   char **ptr, *start, *res;
   size_t tot_length, length;
   DBUG_ENTER("multi_alloc_root");
+  /*
+    We  don't need to do DBUG_PRINT here as it will be done when alloc_root
+    is called
+  */
 
   va_start(args, root);
   tot_length= 0;
@@ -382,7 +388,8 @@ void free_root(MEM_ROOT *root, myf MyFlags)
 {
   reg1 USED_MEM *next,*old;
   DBUG_ENTER("free_root");
-  DBUG_PRINT("enter",("root: %p  flags: %u", root, (uint) MyFlags));
+  DBUG_PRINT("enter",("root: %p  name: %s  flags: %u", root, root->name,
+                      (uint) MyFlags));
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
   /*

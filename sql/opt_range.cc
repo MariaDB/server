@@ -1253,7 +1253,8 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   if (!no_alloc && !parent_alloc)
   {
     // Allocates everything through the internal memroot
-    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+    init_sql_alloc(&alloc, "QUICK_RANGE_SELECT",
+                   thd->variables.range_alloc_block_size, 0,
                    MYF(MY_THREAD_SPECIFIC));
     thd->mem_root= &alloc;
   }
@@ -1350,7 +1351,8 @@ QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT(THD *thd_param,
   index= MAX_KEY;
   head= table;
   bzero(&read_record, sizeof(read_record));
-  init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+  init_sql_alloc(&alloc, "QUICK_INDEX_SORT_SELECT",
+                 thd->variables.range_alloc_block_size, 0,
                  MYF(MY_THREAD_SPECIFIC));
   DBUG_VOID_RETURN;
 }
@@ -1421,7 +1423,8 @@ QUICK_ROR_INTERSECT_SELECT::QUICK_ROR_INTERSECT_SELECT(THD *thd_param,
   head= table;
   record= head->record[0];
   if (!parent_alloc)
-    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+    init_sql_alloc(&alloc, "QUICK_ROR_INTERSECT_SELECT",
+                   thd->variables.range_alloc_block_size, 0,
                    MYF(MY_THREAD_SPECIFIC));
   else
     bzero(&alloc, sizeof(MEM_ROOT));
@@ -1697,7 +1700,8 @@ QUICK_ROR_UNION_SELECT::QUICK_ROR_UNION_SELECT(THD *thd_param,
   head= table;
   rowid_length= table->file->ref_length;
   record= head->record[0];
-  init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+  init_sql_alloc(&alloc, "QUICK_ROR_UNION_SELECT",
+                 thd->variables.range_alloc_block_size, 0,
                  MYF(MY_THREAD_SPECIFIC));
   thd_param->mem_root= &alloc;
 }
@@ -2452,7 +2456,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.possible_keys.clear_all();
 
     thd->no_errors=1;				// Don't warn about NULL
-    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+    init_sql_alloc(&alloc, "test_quick_select",
+                   thd->variables.range_alloc_block_size, 0,
                    MYF(MY_THREAD_SPECIFIC));
     if (!(param.key_parts=
            (KEY_PART*) alloc_root(&alloc,
@@ -3026,7 +3031,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     SEL_TREE *tree;
     double rows;
   
-    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+    init_sql_alloc(&alloc, "calculate_cond_selectivity_for_table",
+                   thd->variables.range_alloc_block_size, 0,
                    MYF(MY_THREAD_SPECIFIC));
     param.thd= thd;
     param.mem_root= &alloc;
@@ -3443,7 +3449,8 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   my_bitmap_map *old_sets[2];
 
   prune_param.part_info= part_info;
-  init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+  init_sql_alloc(&alloc, "prune_partitions",
+                 thd->variables.range_alloc_block_size, 0,
                  MYF(MY_THREAD_SPECIFIC));
   range_par->mem_root= &alloc;
   range_par->old_root= thd->mem_root;
@@ -13611,7 +13618,8 @@ QUICK_GROUP_MIN_MAX_SELECT(TABLE *table, JOIN *join_arg, bool have_min_arg,
   DBUG_ASSERT(!parent_alloc);
   if (!parent_alloc)
   {
-    init_sql_alloc(&alloc, join->thd->variables.range_alloc_block_size, 0,
+    init_sql_alloc(&alloc, "QUICK_GROUP_MIN_MAX_SELECT",
+                   join->thd->variables.range_alloc_block_size, 0,
                    MYF(MY_THREAD_SPECIFIC));
     join->thd->mem_root= &alloc;
   }
