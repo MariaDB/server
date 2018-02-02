@@ -13762,26 +13762,6 @@ innobase_rename_table(
 
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, TRUE);
 
-	if (error == DB_TABLE_NOT_FOUND) {
-		/* May be partitioned table, which consists of partitions
-		named table_name#P#partition_name[#SP#subpartition_name].
-
-		We are doing a DDL operation. */
-		++trx->will_lock;
-		trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
-		trx_start_if_not_started(trx, true);
-		error = row_rename_partitions_for_mysql(norm_from, norm_to,
-							trx);
-		if (error == DB_TABLE_NOT_FOUND) {
-			ib::error() << "Table " << ut_get_name(trx, norm_from)
-				<< " does not exist in the InnoDB internal"
-				" data dictionary though MariaDB is trying to"
-				" rename the table. Have you copied the .frm"
-				" file of the table to the MariaDB database"
-				" directory from another database? "
-				<< TROUBLESHOOTING_MSG;
-		}
-	}
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
 		    && innobase_get_lower_case_table_names() == 1) {
