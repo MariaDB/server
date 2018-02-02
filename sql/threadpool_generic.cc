@@ -1692,31 +1692,35 @@ TP_pool_generic::~TP_pool_generic()
 int TP_pool_generic::set_pool_size(uint size)
 {
   bool success= true;
+  uint i;
+  int poll_errno;
  
-  for(uint i=0; i< size; i++)
+  /* Setting this high so we don't shutdown the entire pool */
+  shutdown_group_count= threadpool_max_size + 1;
+  for(i=size; i< threadpool_max_size; i++)
+  {
+    thread_group_close(&all_groups[i]);
+  }
+  for(i=0; i< size && success; i++)
   {
     thread_group_t *group= &all_groups[i];
     mysql_mutex_lock(&group->mutex);
     if (group->pollfd == INVALID_HANDLE_VALUE)
     {
       group->pollfd= io_poll_create();
+      poll_errno= errno;
       success= (group->pollfd != INVALID_HANDLE_VALUE);
-      if(!success)
-      {
-        sql_print_error("io_poll_create() failed, errno=%d\n", errno);
-        break;
-      }
     }  
-    mysql_mutex_unlock(&all_groups[i].mutex);
-    if (!success)
-    {
-      group_count= i;
-      return -1;
-    }
+    mysql_mutex_unlock(&group->mutex);
   }
-  group_count= size;
-  return 0;
+  if(!success)
+  {
+    sql_print_error("io_poll_create() failed, errno=%d\n", poll_errno);
+  }
+  group_count= i;
+  return success ? 0 : -1;
 }
+
 
 int TP_pool_generic::set_stall_limit(uint limit)
 {
