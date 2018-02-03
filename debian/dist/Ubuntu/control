@@ -12,8 +12,8 @@ Build-Depends: procps | hurd, debhelper, libncurses5-dev (>= 5.0-6),
                ${CMAKE_DEP}libaio-dev, libjemalloc-dev (>= 3.0.0)
 Standards-Version: 3.8.2
 Homepage: http://mariadb.org/
-Vcs-Browser: http://bazaar.launchpad.net/~maria-captains/maria/5.5/files
-Vcs-Bzr: bzr://lp:maria
+Vcs-Git: https://github.com/MariaDB/server.git
+Vcs-Browser: https://github.com/MariaDB/server/
 
 Package: libmariadbclient18
 Section: libs
