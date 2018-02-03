@@ -4246,15 +4246,10 @@ xtrabackup_init_temp_log(void)
 
 	ib_int64_t	file_size;
 
-	lsn_t		max_no;
-	lsn_t		max_lsn;
-	lsn_t		checkpoint_no;
+	lsn_t		max_no	= 0;
+	lsn_t		max_lsn	= 0;
 
 	ulint		fold;
-
-	bool		checkpoint_found;
-
-	max_no = 0;
 
 	if (!log_buf) {
 		goto error;
@@ -4354,34 +4349,28 @@ retry:
 		//		' ', 4);
 	}
 
-	checkpoint_found = false;
-
 	/* read last checkpoint lsn */
 	for (field = LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
 			field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1) {
 		if (!recv_check_cp_is_consistent(const_cast<const byte *>
 						 (log_buf + field)))
-			goto not_consistent;
+			continue;
 
-		checkpoint_no = mach_read_from_8(log_buf + field +
-						 LOG_CHECKPOINT_NO);
+		lsn_t checkpoint_no = mach_read_from_8(log_buf + field +
+						       LOG_CHECKPOINT_NO);
 
 		if (checkpoint_no >= max_no) {
 
 			max_no = checkpoint_no;
 			max_lsn = mach_read_from_8(log_buf + field +
 						   LOG_CHECKPOINT_LSN);
-			checkpoint_found = true;
 		}
-not_consistent:
-		;
 	}
 
-	if (!checkpoint_found) {
+	if (!max_lsn) {
 		msg("mariabackup: No valid checkpoint found.\n");
 		goto error;
 	}
-
 
 	/* It seems to be needed to overwrite the both checkpoint area. */
 	mach_write_to_8(log_buf + LOG_CHECKPOINT_1 + LOG_CHECKPOINT_LSN,
