@@ -1,6 +1,10 @@
 INCLUDE (CheckIncludeFiles)
 INCLUDE (CheckFunctionExists)
 
+SET(CPACK_RPM_BUILDREQUIRES "${CPACK_RPM_BUILDREQUIRES}"
+  "pam-devel"
+)
+
 CHECK_INCLUDE_FILES (security/pam_appl.h HAVE_PAM_APPL_H)
 CHECK_FUNCTION_EXISTS (strndup HAVE_STRNDUP)
 

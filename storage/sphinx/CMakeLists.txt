@@ -1,3 +1,9 @@
+SET(CPACK_RPM_BUILDREQUIRES "${CPACK_RPM_BUILDREQUIRES}"
+  "sphinx"
+  "libsphinxclient"
+  "libsphinxclient-devel"
+)
+
 INCLUDE(CheckCCompilerFlag)
 
 ADD_DEFINITIONS(-DMYSQL_SERVER)

@@ -1,3 +1,8 @@
+SET(CPACK_RPM_BUILDREQUIRES "${CPACK_RPM_BUILDREQUIRES}"
+  "boost-devel"
+  "Judy-devel"
+)
+
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 MESSAGE(STATUS "Configuring OQGraph")

@@ -1,3 +1,7 @@
+SET(CPACK_RPM_BUILDREQUIRES "${CPACK_RPM_BUILDREQUIRES}"
+  "jemalloc-devel"
+)
+
 SET(TOKUDB_VERSION 5.6.38-83.0)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(CMAKE_VERSION VERSION_LESS "2.8.9")

@@ -36,6 +36,43 @@ ELSE()
   SET(CPACK_RPM_DEBUGINFO_PACKAGE ON)
 ENDIF()
 
+SET(CPACK_RPM_BUILDREQUIRES
+  "${CPACK_RPM_BUILDREQUIRES}"
+  "cmake"
+  "gcc-c++"
+  "zlib-devel"
+  "multilib-rpm-config"
+  "selinux-policy-devel"
+  "jemalloc-devel"
+  "libaio-devel"
+  "libedit-devel"
+  "ncurses-devel"
+  "systemtap-sdt-devel"
+  "bison"
+  "bison-devel"
+  "pcre-devel >= 8.35"
+  "pkgconf"
+  "perl-interpreter"
+  "perl-generators"
+  "python3"
+  "procps"
+  "time"
+  "perl(Env)"
+  "perl(Exporter)"
+  "perl(Fcntl)"
+  "perl(File::Temp)"
+  "perl(Data::Dumper)"
+  "perl(Getopt::Long)"
+  "perl(IPC::Open3)"
+  "perl(Memoize)"
+  "perl(Socket)"
+  "perl(Sys::Hostname)"
+  "perl(Test::More)"
+  "perl(Time::HiRes)"
+  "perl(Symbol)"
+  "openssl-devel"
+  )
+
 SET(CPACK_RPM_PACKAGE_RELEASE "1%{?dist}")
 SET(CPACK_RPM_PACKAGE_LICENSE "GPLv2")
 SET(CPACK_RPM_PACKAGE_RELOCATABLE FALSE)

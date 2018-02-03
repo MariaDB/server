@@ -19,6 +19,11 @@ INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckCSourceRuns)
 
+SET(CPACK_RPM_BUILDREQUIRES
+  "${CPACK_RPM_BUILDREQUIRES}"
+  "numa-devel"
+)
+
 IF(CMAKE_CROSSCOMPILING)
   # Use CHECK_C_SOURCE_COMPILES instead of CHECK_C_SOURCE_RUNS when
   # cross-compiling. Not as precise, but usually good enough.

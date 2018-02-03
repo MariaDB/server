@@ -343,6 +343,12 @@ IF(NOT TARGET connect)
   RETURN()
 ENDIF()
 
+SET(CPACK_RPM_BUILDREQUIRES
+  "${CPACK_RPM_BUILDREQUIRES}"
+  "unixODBC-devel"
+  "libxml2-devel"
+)
+
 # Install some extra files that belong to connect engine
 IF(WIN32)
   # install ha_connect.lib
