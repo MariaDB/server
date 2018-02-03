@@ -365,6 +365,19 @@ case "$mode" in
       exit 1
     fi
     ;;
+
+  'condrestart')
+    # restart if already running
+    # concept ported from Fedora and used to restart in package upgrade
+    # where we want the restart only if the server is currently running
+    if test -f "$lock_file_path"
+    then
+      $0 restart
+    else
+      exit 0
+    fi
+    ;;
+
   'status')
     # First, check to see if pid file exists
     if test -s "$mysqld_pid_file_path" ; then 
@@ -398,6 +411,7 @@ case "$mode" in
       fi
     fi
     ;;
+
   'configtest')
     # Safeguard (relative paths, core dumps..)
     cd $basedir
@@ -425,6 +439,7 @@ case "$mode" in
     fi
     exit $r
     ;;
+
   'bootstrap')
       if test "$_use_systemctl" == 1 ; then
         log_failure_msg "Please use galera_new_cluster to start the mariadb service with --wsrep-new-cluster"
@@ -439,7 +454,7 @@ case "$mode" in
   *)
       # usage
       basename=`basename "$0"`
-      echo "Usage: $basename  {start|stop|restart|reload|force-reload|status|configtest|bootstrap}  [ MariaDB server options ]"
+      echo "Usage: $basename  {start|stop|restart|condrestart|reload|force-reload|status|configtest|bootstrap}  [ MariaDB server options ]"
       exit 1
     ;;
 esac

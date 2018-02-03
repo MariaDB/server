@@ -144,8 +144,6 @@ INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
 INCLUDE(wsrep)
-INCLUDE(cpack_rpm)
-INCLUDE(cpack_deb)
 
 # Add macros
 INCLUDE(character_sets)
@@ -344,6 +342,9 @@ CHECK_JEMALLOC()
 CHECK_PCRE()
 
 CHECK_SYSTEMD()
+# cpack_rpm makes decisions based on HAVE_SYSTEMD
+INCLUDE(cpack_rpm)
+INCLUDE(cpack_deb)
 
 IF(CMAKE_CROSSCOMPILING)
   SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Path to import_executables.cmake from a native build")

@@ -69,6 +69,26 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define _sysconfdir ${INSTALL_SYSCONFDIR}
 ")
 
+# Take care on the logic of this syntax
+# %bcond_with means you add a "--with" option, default is "without this feature"
+# %bcond_without adds a"--without" so the feature is enabled by default
+# As cmake doesn't pass --with{out} X on rpmbuild we rely on defaults.
+IF(HAVE_SYSTEMD)
+  SET(CPACK_RPM_SPEC_MORE_DEFINE "
+${CPACK_RPM_SPEC_MORE_DEFINE}
+%bcond_without init_systemd
+%bcond_with init_sysv
+%global daemon_name mariadb"
+  )
+ELSE()
+  SET(CPACK_RPM_SPEC_MORE_DEFINE "
+${CPACK_RPM_SPEC_MORE_DEFINE}
+%bcond_with init_systemd
+%bcond_without init_sysv
+%global daemon_name mysql"
+  )
+ENDIF()
+
 # this creative hack is described here: http://www.cmake.org/pipermail/cmake/2012-January/048416.html
 # both /etc and /etc/init.d should be ignored as of 2.8.7
 # only /etc/init.d as of 2.8.8
