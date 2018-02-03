@@ -17,10 +17,6 @@
 
 # This is a reference script for mysqldump-based state snapshot tansfer
 
-# This variable is not used in mysqldump sst, so better initialize it
-# to avoid shell's "parameter not set" message.
-WSREP_SST_OPT_CONF=""
-
 . $(dirname $0)/wsrep_sst_common
 PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -118,7 +114,7 @@ $MYSQL_CLIENT $AUTH -S$WSREP_SST_OPT_SOCKET --disable-reconnect --connect_timeou
 tail -1 | awk -F ' ' '{ print $2 }')
 
 MYSQL="$MYSQL_CLIENT $WSREP_SST_OPT_CONF "\
-"$AUTH -h${WSREP_SST_OPT_HOST_UNESCAPED:-$WSREP_SST_OPT_HOST} "\
+"$AUTH -h${WSREP_SST_OPT_HOST_UNESCAPED} "\
 "-P$WSREP_SST_OPT_PORT --disable-reconnect --connect_timeout=10"
 
 # Check if binary logging is enabled on the joiner node.
