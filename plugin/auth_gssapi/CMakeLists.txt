@@ -32,6 +32,9 @@ ELSE()
  ENDIF()
 ENDIF ()
 
+SET(CPACK_RPM_BUILDREQUIRES "${CPACK_RPM_BUILDREQUIRES}"
+  "krb5-devel"
+)
 
 MYSQL_ADD_PLUGIN(auth_gssapi server_plugin.cc ${GSSAPI_SERVER} ${GSSAPI_ERRMSG}
                  LINK_LIBRARIES ${GSSAPI_LIBS} 

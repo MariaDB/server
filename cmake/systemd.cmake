@@ -13,6 +13,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
+SET(CPACK_RPM_BUILDREQUIRES "${CPACK_RPM_BUILDREQUIRES}"
+  "systemd-devel"
+)
+
 INCLUDE(FindPkgConfig)
 # http://www.cmake.org/cmake/help/v3.0/module/FindPkgConfig.html
 

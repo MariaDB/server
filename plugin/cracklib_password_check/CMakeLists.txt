@@ -1,6 +1,11 @@
 INCLUDE (CheckIncludeFiles)
 INCLUDE (CheckLibraryExists)
 
+SET(CPACK_RPM_BUILDREQUIRES "${CPACK_RPM_BUILDREQUIRES}"
+  "cracklib-dicts"
+  "cracklib-devel"
+)
+
 CHECK_LIBRARY_EXISTS(crack FascistCheckUser "" HAVE_LIBCRACK)
 
 SET(CMAKE_REQUIRED_DEFINITIONS -Dsize_t=int) # debian hack, debian bug.
