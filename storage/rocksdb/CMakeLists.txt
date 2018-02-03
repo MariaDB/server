@@ -1,4 +1,11 @@
 # TODO: Copyrights
+SET(CPACK_RPM_BUILDREQUIRES
+  "${CPACK_RPM_BUILDREQUIRES}"
+  "snappy-devel"
+  "bzip2-devel"
+  "lz4-devel"
+  "libzstd-devel"
+)
 
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
   MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
