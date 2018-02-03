@@ -2196,7 +2196,7 @@ bool Field::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
     Needs to be changed if/when we want to support different time formats.
 */
 
-int Field::store_time_dec(MYSQL_TIME *ltime, uint dec)
+int Field::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   char buff[MAX_DATE_STRING_REP_LENGTH];
@@ -3241,7 +3241,7 @@ int Field_new_decimal::store_decimal(const my_decimal *decimal_value)
 }
 
 
-int Field_new_decimal::store_time_dec(MYSQL_TIME *ltime, uint dec_arg)
+int Field_new_decimal::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
 {
   my_decimal decimal_value;
   return store_value(date2my_decimal(ltime, &decimal_value));
@@ -3480,7 +3480,7 @@ Item *Field_new_decimal::get_equal_const_item(THD *thd, const Context &ctx,
 }
 
 
-int Field_num::store_time_dec(MYSQL_TIME *ltime, uint dec_arg)
+int Field_num::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
 {
   longlong v= TIME_to_ulonglong(ltime);
   if (ltime->neg == 0)
@@ -4734,7 +4734,7 @@ int Field_real::store_decimal(const my_decimal *dm)
   return store(dbl);
 }
 
-int Field_real::store_time_dec(MYSQL_TIME *ltime, uint dec_arg)
+int Field_real::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
 {
   return store(TIME_to_double(ltime));
 }
@@ -5016,7 +5016,7 @@ copy_or_convert_to_datetime(THD *thd, const MYSQL_TIME *from, MYSQL_TIME *to)
 }
 
 
-int Field_timestamp::store_time_dec(MYSQL_TIME *ltime, uint dec)
+int Field_timestamp::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
   int unused;
   ErrConvTime str(ltime);
@@ -5582,7 +5582,7 @@ int Field_temporal_with_date::store(longlong nr, bool unsigned_val)
 }
 
 
-int Field_temporal_with_date::store_time_dec(MYSQL_TIME *ltime, uint dec)
+int Field_temporal_with_date::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
   int error= 0, have_smth_to_conv= 1;
   ErrConvTime str(ltime);
@@ -5774,7 +5774,7 @@ static void calc_datetime_days_diff(MYSQL_TIME *ltime, long days)
 }
 
 
-int Field_time::store_time_dec(MYSQL_TIME *ltime, uint dec)
+int Field_time::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
   MYSQL_TIME l_time= *ltime;
   ErrConvTime str(ltime);
@@ -6234,7 +6234,7 @@ int Field_year::store(longlong nr, bool unsigned_val)
 }
 
 
-int Field_year::store_time_dec(MYSQL_TIME *ltime, uint dec_arg)
+int Field_year::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
 {
   ErrConvTime str(ltime);
   if (Field_year::store(ltime->year, 0))

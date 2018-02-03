@@ -815,9 +815,9 @@ public:
   virtual int  store(double nr)=0;
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
-  virtual int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  virtual int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   virtual int  store_timestamp(my_time_t timestamp, ulong sec_part);
-  int store_time(MYSQL_TIME *ltime)
+  int store_time(const MYSQL_TIME *ltime)
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, uint length, CHARSET_INFO *cs,
             enum_check_fields check_level);
@@ -1673,7 +1673,7 @@ public:
                           field_metadata, length));
     return length;
   }
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   double pos_in_interval(Field *min, Field *max)
   {
     return pos_in_interval_val_real(min, max);
@@ -1813,7 +1813,7 @@ public:
            field_length >= from->field_length;
   }
   int store_decimal(const my_decimal *);
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_real() != 0e0; }
@@ -1903,7 +1903,7 @@ public:
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
   double val_real(void);
   longlong val_int(void);
@@ -2382,7 +2382,7 @@ public:
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
   bool validate_value_in_record(THD *thd, const uchar *record) const;
 };
@@ -2404,7 +2404,7 @@ public:
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
   int  store_timestamp(my_time_t timestamp, ulong sec_part);
   int  save_in_field(Field *to);
@@ -2601,7 +2601,7 @@ public:
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
@@ -2711,7 +2711,7 @@ public:
     return real_type() == from->real_type() &&
            decimals() == from->decimals();
   }
-  int store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int store(const char *to,uint length,CHARSET_INFO *charset);
   int store(double nr);
   int store(longlong nr, bool unsigned_val);
