@@ -2682,9 +2682,14 @@ class Field_time :public Field_temporal {
   */
   long curdays;
 protected:
-  virtual void store_TIME(MYSQL_TIME *ltime);
+  virtual void store_TIME(const MYSQL_TIME *ltime);
   int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
                               int was_cut, int have_smth_to_conv);
+  void set_warnings(Sql_condition::enum_warning_level level,
+                    const ErrConv *str, int was_cut)
+  {
+    Field_temporal::set_warnings(level, str, was_cut, MYSQL_TIMESTAMP_TIME);
+  }
   bool check_zero_in_date_with_warn(ulonglong fuzzydate);
   static void do_field_time(Copy_field *copy);
 public:
@@ -2766,7 +2771,7 @@ public:
 */
 class Field_time_hires :public Field_time_with_dec {
   longlong zero_point;
-  void store_TIME(MYSQL_TIME *ltime);
+  void store_TIME(const MYSQL_TIME *);
 public:
   Field_time_hires(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
@@ -2792,7 +2797,7 @@ public:
   TIME(0..6) - MySQL56 version
 */
 class Field_timef :public Field_time_with_dec {
-  void store_TIME(MYSQL_TIME *ltime);
+  void store_TIME(const MYSQL_TIME *);
   int do_save_field_metadata(uchar *metadata_ptr)
   {
     *metadata_ptr= (uchar) decimals();

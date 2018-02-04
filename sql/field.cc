@@ -5699,34 +5699,38 @@ int Field_time::store_TIME_with_warning(MYSQL_TIME *ltime,
                                         int was_cut,
                                         int have_smth_to_conv)
 {
-  Sql_condition::enum_warning_level trunc_level= Sql_condition::WARN_LEVEL_WARN;
-  int ret= 2;
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
 
   if (!have_smth_to_conv)
   {
     bzero(ltime, sizeof(*ltime));
-    was_cut= MYSQL_TIME_WARN_TRUNCATED;
-    ret= 1;
+    store_TIME(ltime);
+    set_warnings(Sql_condition::WARN_LEVEL_WARN, str, MYSQL_TIME_WARN_TRUNCATED);
+    return 1;
   }
-  else if (!MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut) &&
-           ((ltime->year || ltime->month) ||
-            MYSQL_TIME_WARN_HAVE_NOTES(was_cut)))
+  if (ltime->year != 0 || ltime->month != 0)
   {
-    if (ltime->year || ltime->month)
-      ltime->year= ltime->month= ltime->day= 0;
-    trunc_level= Sql_condition::WARN_LEVEL_NOTE;
-    was_cut|=  MYSQL_TIME_WARN_TRUNCATED;
-    ret= 3;
+    ltime->year= ltime->month= ltime->day= 0;
+    was_cut|= MYSQL_TIME_NOTE_TRUNCATED;
   }
-  set_warnings(trunc_level, str, was_cut, MYSQL_TIMESTAMP_TIME);
+  my_time_trunc(ltime, decimals());
   store_TIME(ltime);
-  return was_cut ? ret : 0;
+  if (!MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut) &&
+      MYSQL_TIME_WARN_HAVE_NOTES(was_cut))
+  {
+    set_warnings(Sql_condition::WARN_LEVEL_NOTE, str,
+                 was_cut | MYSQL_TIME_WARN_TRUNCATED);
+    return 3;
+  }
+  set_warnings(Sql_condition::WARN_LEVEL_WARN, str, was_cut);
+  return was_cut ? 2 : 0;
 }
 
 
-void Field_time::store_TIME(MYSQL_TIME *ltime)
+void Field_time::store_TIME(const MYSQL_TIME *ltime)
 {
+  DBUG_ASSERT(ltime->year == 0);
+  DBUG_ASSERT(ltime->month == 0);
   long tmp= (ltime->day*24L+ltime->hour)*10000L +
             (ltime->minute*100+ltime->second);
   if (ltime->neg)
@@ -5960,8 +5964,10 @@ int Field_time_hires::reset()
 }
 
 
-void Field_time_hires::store_TIME(MYSQL_TIME *ltime)
+void Field_time_hires::store_TIME(const MYSQL_TIME *ltime)
 {
+  DBUG_ASSERT(ltime->year == 0);
+  DBUG_ASSERT(ltime->month == 0);
   ulonglong packed= sec_part_shift(pack_time(ltime), dec) + zero_point;
   store_bigendian(packed, ptr, Field_time_hires::pack_length());
 }
@@ -6143,9 +6149,8 @@ int Field_timef::reset()
   return 0;
 }
 
-void Field_timef::store_TIME(MYSQL_TIME *ltime)
+void Field_timef::store_TIME(const MYSQL_TIME *ltime)
 {
-  my_time_trunc(ltime, decimals());
   longlong tmp= TIME_to_longlong_time_packed(ltime);
   my_time_packed_to_binary(tmp, ptr, dec);
 }

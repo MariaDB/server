@@ -1283,3 +1283,132 @@ a
 10:20:32
 DROP TABLE t1;
 SET timestamp=DEFAULT;
+#
+# MDEV-15176 Storing DATETIME-alike VARCHAR data into TIME produces wrong results
+#
+SET sql_mode='';
+CREATE OR REPLACE TABLE t0 (d VARCHAR(64));
+INSERT INTO t0 VALUES ('0000-00-00 10:20:30');
+INSERT INTO t0 VALUES ('0000-00-01 10:20:30');
+INSERT INTO t0 VALUES ('0000-01-00 10:20:30');
+INSERT INTO t0 VALUES ('0000-01-01 10:20:30');
+INSERT INTO t0 VALUES ('0001-00-00 10:20:30');
+INSERT INTO t0 VALUES ('0001-00-01 10:20:30');
+INSERT INTO t0 VALUES ('0001-01-00 10:20:30');
+INSERT INTO t0 VALUES ('0001-01-01 10:20:30');
+SET @@global.mysql56_temporal_format=false;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT d,d,d FROM t0;
+Warnings:
+Note	1265	Data truncated for column 't0' at row 3
+Note	1265	Data truncated for column 't1' at row 3
+Note	1265	Data truncated for column 't0' at row 4
+Note	1265	Data truncated for column 't1' at row 4
+Note	1265	Data truncated for column 't0' at row 5
+Note	1265	Data truncated for column 't1' at row 5
+Note	1265	Data truncated for column 't0' at row 6
+Note	1265	Data truncated for column 't1' at row 6
+Note	1265	Data truncated for column 't0' at row 7
+Note	1265	Data truncated for column 't1' at row 7
+Note	1265	Data truncated for column 't0' at row 8
+Note	1265	Data truncated for column 't1' at row 8
+SELECT * FROM t1 ORDER BY d;
+d	t0	t1
+0000-00-00 10:20:30	10:20:30	10:20:30.0
+0000-00-01 10:20:30	34:20:30	34:20:30.0
+0000-01-00 10:20:30	10:20:30	10:20:30.0
+0000-01-01 10:20:30	10:20:30	10:20:30.0
+0001-00-00 10:20:30	10:20:30	10:20:30.0
+0001-00-01 10:20:30	10:20:30	10:20:30.0
+0001-01-00 10:20:30	10:20:30	10:20:30.0
+0001-01-01 10:20:30	10:20:30	10:20:30.0
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT CONCAT(d,'x'),CONCAT(d,'x'),CONCAT(d,'x') FROM t0;
+Warnings:
+Warning	1265	Data truncated for column 't0' at row 1
+Warning	1265	Data truncated for column 't1' at row 1
+Warning	1265	Data truncated for column 't0' at row 2
+Warning	1265	Data truncated for column 't1' at row 2
+Warning	1265	Data truncated for column 't0' at row 3
+Warning	1265	Data truncated for column 't1' at row 3
+Warning	1265	Data truncated for column 't0' at row 4
+Warning	1265	Data truncated for column 't1' at row 4
+Warning	1265	Data truncated for column 't0' at row 5
+Warning	1265	Data truncated for column 't1' at row 5
+Warning	1265	Data truncated for column 't0' at row 6
+Warning	1265	Data truncated for column 't1' at row 6
+Warning	1265	Data truncated for column 't0' at row 7
+Warning	1265	Data truncated for column 't1' at row 7
+Warning	1265	Data truncated for column 't0' at row 8
+Warning	1265	Data truncated for column 't1' at row 8
+SELECT * FROM t1;
+d	t0	t1
+0000-00-00 10:20:30x	10:20:30	10:20:30.0
+0000-00-01 10:20:30x	34:20:30	34:20:30.0
+0000-01-00 10:20:30x	10:20:30	10:20:30.0
+0000-01-01 10:20:30x	10:20:30	10:20:30.0
+0001-00-00 10:20:30x	10:20:30	10:20:30.0
+0001-00-01 10:20:30x	10:20:30	10:20:30.0
+0001-01-00 10:20:30x	10:20:30	10:20:30.0
+0001-01-01 10:20:30x	10:20:30	10:20:30.0
+DROP TABLE t1;
+SET @@global.mysql56_temporal_format=true;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT d,d,d FROM t0;
+Warnings:
+Note	1265	Data truncated for column 't0' at row 3
+Note	1265	Data truncated for column 't1' at row 3
+Note	1265	Data truncated for column 't0' at row 4
+Note	1265	Data truncated for column 't1' at row 4
+Note	1265	Data truncated for column 't0' at row 5
+Note	1265	Data truncated for column 't1' at row 5
+Note	1265	Data truncated for column 't0' at row 6
+Note	1265	Data truncated for column 't1' at row 6
+Note	1265	Data truncated for column 't0' at row 7
+Note	1265	Data truncated for column 't1' at row 7
+Note	1265	Data truncated for column 't0' at row 8
+Note	1265	Data truncated for column 't1' at row 8
+SELECT * FROM t1;
+d	t0	t1
+0000-00-00 10:20:30	10:20:30	10:20:30.0
+0000-00-01 10:20:30	34:20:30	34:20:30.0
+0000-01-00 10:20:30	10:20:30	10:20:30.0
+0000-01-01 10:20:30	10:20:30	10:20:30.0
+0001-00-00 10:20:30	10:20:30	10:20:30.0
+0001-00-01 10:20:30	10:20:30	10:20:30.0
+0001-01-00 10:20:30	10:20:30	10:20:30.0
+0001-01-01 10:20:30	10:20:30	10:20:30.0
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT CONCAT(d,'x'),CONCAT(d,'x'),CONCAT(d,'x') FROM t0;
+Warnings:
+Warning	1265	Data truncated for column 't0' at row 1
+Warning	1265	Data truncated for column 't1' at row 1
+Warning	1265	Data truncated for column 't0' at row 2
+Warning	1265	Data truncated for column 't1' at row 2
+Warning	1265	Data truncated for column 't0' at row 3
+Warning	1265	Data truncated for column 't1' at row 3
+Warning	1265	Data truncated for column 't0' at row 4
+Warning	1265	Data truncated for column 't1' at row 4
+Warning	1265	Data truncated for column 't0' at row 5
+Warning	1265	Data truncated for column 't1' at row 5
+Warning	1265	Data truncated for column 't0' at row 6
+Warning	1265	Data truncated for column 't1' at row 6
+Warning	1265	Data truncated for column 't0' at row 7
+Warning	1265	Data truncated for column 't1' at row 7
+Warning	1265	Data truncated for column 't0' at row 8
+Warning	1265	Data truncated for column 't1' at row 8
+SELECT * FROM t1 ORDER BY d;
+d	t0	t1
+0000-00-00 10:20:30x	10:20:30	10:20:30.0
+0000-00-01 10:20:30x	34:20:30	34:20:30.0
+0000-01-00 10:20:30x	10:20:30	10:20:30.0
+0000-01-01 10:20:30x	10:20:30	10:20:30.0
+0001-00-00 10:20:30x	10:20:30	10:20:30.0
+0001-00-01 10:20:30x	10:20:30	10:20:30.0
+0001-01-00 10:20:30x	10:20:30	10:20:30.0
+0001-01-01 10:20:30x	10:20:30	10:20:30.0
+DROP TABLE t1;
+DROP TABLE t0;
+SET sql_mode=DEFAULT;
