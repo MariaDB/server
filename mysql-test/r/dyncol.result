@@ -1873,5 +1873,15 @@ SELECT COLUMN_JSON(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL));
 COLUMN_JSON(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL))
 {"a":1,"b":1}
 #
+# MDEV-7533: COLUMN_JSON() doesn't escape control characters
+# in string values
+#
+SELECT COLUMN_JSON(COLUMN_CREATE('test','"\\\t\n\Z')) AS json;
+json
+{"test":"\"\\\u0009\u000A\u001A"}
+SELECT COLUMN_JSON(COLUMN_CREATE('test','First line\nSecond line')) AS json;
+json
+{"test":"First line\u000ASecond line"}
+#
 # end of 10.0 tests
 #

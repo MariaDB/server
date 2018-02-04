@@ -42,6 +42,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include "cachetable/background_job_manager.h"
 
+toku_instr_key *bjm_jobs_lock_mutex_key;
+toku_instr_key *bjm_jobs_wait_key;
+
 struct background_job_manager_struct {
     bool accepting_jobs;
     uint32_t num_jobs;
@@ -49,10 +52,10 @@ struct background_job_manager_struct {
     toku_mutex_t jobs_lock;
 };
 
-void bjm_init(BACKGROUND_JOB_MANAGER* pbjm) {
+void bjm_init(BACKGROUND_JOB_MANAGER *pbjm) {
     BACKGROUND_JOB_MANAGER XCALLOC(bjm);
-    toku_mutex_init(&bjm->jobs_lock, 0);    
-    toku_cond_init(&bjm->jobs_wait, NULL);
+    toku_mutex_init(*bjm_jobs_lock_mutex_key, &bjm->jobs_lock, nullptr);
+    toku_cond_init(*bjm_jobs_wait_key, &bjm->jobs_wait, nullptr);
     bjm->accepting_jobs = true;
     bjm->num_jobs = 0;
     *pbjm = bjm;

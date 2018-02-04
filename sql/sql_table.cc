@@ -1829,7 +1829,8 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 #endif
     /* Write shadow frm file */
     lpt->create_info->table_options= lpt->db_options;
-    LEX_CUSTRING frm= build_frm_image(lpt->thd, lpt->table_name,
+    LEX_CUSTRING frm= build_frm_image(lpt->thd,
+                                      lpt->table_name,
                                       lpt->create_info,
                                       lpt->alter_info->create_list,
                                       lpt->key_count, lpt->key_info_buffer,
@@ -6037,6 +6038,7 @@ remove_key:
   
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *tab_part_info= table->part_info;
+  thd->work_part_info= thd->lex->part_info;
   if (tab_part_info)
   {
     /* ALTER TABLE ADD PARTITION IF NOT EXISTS */
@@ -6057,7 +6059,7 @@ remove_key:
                                 ER_THD(thd, ER_SAME_NAME_PARTITION),
                                 pe->partition_name);
             alter_info->flags&= ~Alter_info::ALTER_ADD_PARTITION;
-            thd->lex->part_info= NULL;
+            thd->work_part_info= NULL;
             break;
           }
         }
@@ -9679,11 +9681,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
           if ((int) key_nr >= 0)
           {
             const char *err_msg= ER_THD(thd, ER_DUP_ENTRY_WITH_KEY_NAME);
-            if (key_nr == 0 &&
+            if (key_nr == 0 && to->s->keys > 0 &&
                 (to->key_info[0].key_part[0].field->flags &
                  AUTO_INCREMENT_FLAG))
               err_msg= ER_THD(thd, ER_DUP_ENTRY_AUTOINCREMENT_CASE);
-            print_keydup_error(to, key_nr == MAX_KEY ? NULL :
+            print_keydup_error(to,
+                               key_nr >= to->s->keys ? NULL :
                                    &to->key_info[key_nr],
                                err_msg, MYF(0));
           }

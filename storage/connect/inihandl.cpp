@@ -37,7 +37,7 @@
 // The types and variables used locally
 //typedef int bool;
 typedef unsigned int uint;
-#define SVP(S)  ((S) ? S : "<null>")
+//#define SVP(S)  ((S) ? S : "<null>")
 #define _strlwr(P)  strlwr(P)  //OB: changed this line
 #define MAX_PATHNAME_LEN  256
 #define N_CACHED_PROFILES  10
@@ -61,8 +61,8 @@ void    htrc(char const *fmt, ...)
 } /* end of htrc */
 #else   // !TEST_MODULE
 // Normal included functions
-extern  int trace;
-void    htrc(char const *fmt, ...);
+//extern  int trace;
+//void    htrc(char const *fmt, ...);
 #endif  // !TEST MODULE
 
 
@@ -112,10 +112,11 @@ static PROFILE *MRUProfile[N_CACHED_PROFILES] = {NULL};
 
 //static CRITICAL_SECTION PROFILE_CritSect = CRITICAL_SECTION_INIT("PROFILE_CritSect");
 
-static const char hex[16] = "0123456789ABCDEF";
+static const char hex[17] = "0123456789ABCDEF";
 
 BOOL  WritePrivateProfileString(LPCSTR section, LPCSTR entry,
-                                LPCSTR string, LPCSTR filename );
+                                LPCSTR string, LPCSTR filename);
+
 /***********************************************************************
  *           PROFILE_CopyEntry
  *
@@ -254,7 +255,7 @@ static PROFILESECTION *PROFILE_Load( FILE *file )
   PROFILESECTION* *next_section;
   PROFILEKEY      *key, *prev_key, **next_key;
 
-  first_section = malloc(sizeof(*section));
+  first_section = (PROFILESECTION*)malloc(sizeof(*section));
 
   if (first_section == NULL)
     return NULL;
@@ -281,7 +282,7 @@ static PROFILESECTION *PROFILE_Load( FILE *file )
         *p2 = '\0';
         p++;
 
-        if (!(section = malloc(sizeof(*section) + strlen(p))))
+        if (!(section = (PROFILESECTION*)malloc(sizeof(*section) + strlen(p))))
           break;
 
         strcpy(section->name, p);
@@ -319,13 +320,13 @@ static PROFILESECTION *PROFILE_Load( FILE *file )
       } // endif p2
 
     if (*p || !prev_key || *prev_key->name) {
-      if (!(key = malloc(sizeof(*key) + strlen(p))))
+      if (!(key = (PROFILEKEY*)malloc(sizeof(*key) + strlen(p))))
         break;
 
       strcpy(key->name, p);
 
       if (p2) {
-        key->value = malloc(strlen(p2)+1);
+        key->value = (char*)malloc(strlen(p2)+1);
         strcpy(key->value, p2);
       } else
         key->value = NULL;
@@ -452,7 +453,7 @@ static BOOL PROFILE_Open(LPCSTR filename)
   /* First time around */
   if (!CurProfile)
     for (i = 0; i < N_CACHED_PROFILES; i++) {
-      MRUProfile[i] = malloc(sizeof(PROFILE));
+      MRUProfile[i] = (PROFILE*)malloc(sizeof(PROFILE));
       
       if (MRUProfile[i] == NULL)
         break;
@@ -520,7 +521,7 @@ static BOOL PROFILE_Open(LPCSTR filename)
 //  strcpy(newdos_name, filename);
 
 //  CurProfile->dos_name = newdos_name;
-  CurProfile->filename = malloc(strlen(filename) + 1);
+  CurProfile->filename = (char*)malloc(strlen(filename) + 1);
   strcpy(CurProfile->filename, filename);
 
   /* Try to open the profile file, first in $HOME/.wine */
@@ -783,7 +784,7 @@ static PROFILEKEY *PROFILE_Find(PROFILESECTION* *section,
       if (!create)
         return NULL;
 
-      if (!(*key = malloc(sizeof(PROFILEKEY) + strlen(key_name))))
+      if (!(*key = (PROFILEKEY*)malloc(sizeof(PROFILEKEY) + strlen(key_name))))
         return NULL;
 
       strcpy((*key)->name, key_name);
@@ -798,7 +799,7 @@ static PROFILEKEY *PROFILE_Find(PROFILESECTION* *section,
   if (!create)
     return NULL;
 
-  *section = malloc(sizeof(PROFILESECTION) + strlen(section_name));
+  *section = (PROFILESECTION*)malloc(sizeof(PROFILESECTION) + strlen(section_name));
 
   if (*section == NULL)
     return NULL;
@@ -806,7 +807,7 @@ static PROFILEKEY *PROFILE_Find(PROFILESECTION* *section,
   strcpy((*section)->name, section_name);
   (*section)->next = NULL;
 
-  if (!((*section)->key = malloc(sizeof(PROFILEKEY) + strlen(key_name)))) {
+  if (!((*section)->key = (tagPROFILEKEY*)malloc(sizeof(PROFILEKEY) + strlen(key_name)))) {
     free(*section);
     return NULL;
     }  // endif malloc
@@ -1052,7 +1053,7 @@ static BOOL PROFILE_SetString(LPCSTR section_name, LPCSTR key_name,
     }  else if (trace > 1)
       htrc("  creating key\n" );
 
-    key->value = malloc(strlen(value) + 1);
+    key->value = (char*)malloc(strlen(value) + 1);
     strcpy(key->value, value);
     CurProfile->changed = TRUE;
   } // endelse
@@ -1125,7 +1126,7 @@ static int PROFILE_GetPrivateProfileString(LPCSTR section, LPCSTR entry,
     if (*p == ' ') {        /* ouch, contained trailing ' ' */
       int len = p - (LPSTR)def_val;
 
-      pDefVal = malloc(len + 1);
+      pDefVal = (LPSTR)malloc(len + 1);
       strncpy(pDefVal, def_val, len);
       pDefVal[len] = '\0';
       } // endif *p
@@ -1277,7 +1278,7 @@ BOOL WritePrivateProfileSection(LPCSTR section,
       ret = TRUE;
 
       while (*string) {
-        LPSTR buf = malloc(strlen(string) + 1);
+        LPSTR buf = (LPSTR)malloc(strlen(string) + 1);
         strcpy(buf, string);
 
         if ((p = strchr(buf, '='))) {

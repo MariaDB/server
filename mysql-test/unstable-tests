@@ -23,87 +23,74 @@
 #
 ##############################################################################
 
-main.alter_table                   : Modified in 10.1.29
 main.alter_table_trans             : MDEV-12084 - timeout
 main.analyze_stmt_slow_query_log   : MDEV-12237 - Wrong result
 main.auth_named_pipe               : MDEV-14724 - System error 2
-main.bootstrap                     : Include files modified in 10.1.29
-main.case                          : Modified in 10.1.29
+main.create                        : Modified in 10.1.31
 main.create_delayed                : MDEV-10605 - failed with timeout
-main.ctype_gbk                     : Modified in 10.1.29
-main.ctype_latin1                  : Modified in 10.1.29
-main.ctype_ucs                     : Modified in 10.1.29
 main.ctype_utf16le                 : MDEV-10675: timeout or extra warnings
-main.ctype_utf32                   : Modified in 10.1.29
 main.ctype_utf8                    : Modified in 10.1.30
 main.ctype_utf8mb4                 : Modified in 10.1.30
-main.delete_returning              : Modified in 10.1.29
-main.delimiter_command_case_sensitivity : Added in 10.1.29
+main.derived                       : Modified in 10.1.31
+main.dyncol                        : Modified in 10.1.31
 main.events_2                      : MDEV-13277 - Server crash
 main.events_bugs                   : MDEV-12892 - Crash in fill_schema_processlist
 main.events_restart                : MDEV-12236 - Server shutdown problem
-main.func_in                       : Modified in 10.1.29
-main.func_misc                     : Modified in 10.1.29
-main.func_regexp_pcre              : Modified in 10.1.29
+main.fulltext                      : Modified in 10.1.31
+main.func_concat                   : Modified in 10.1.31
+main.func_isnull                   : Modified in 10.1.31
 main.func_set                      : Modified in 10.1.30
 main.func_str                      : Modified in 10.1.30
-main.func_time                     : Modified in 10.1.29
-main.gis-precise                   : Modified in 10.1.29
 main.group_by                      : Modified in 10.1.30
 main.having                        : Modified in 10.1.30
 main.host_cache_size_functionality : MDEV-10606 - sporadic failure on shutdown
 main.index_intersect_innodb        : MDEV-10643 - failed with timeout
 main.index_merge_innodb            : MDEV-7142 - Wrong execution plan, timeout with valgrind
-main.information_schema            : Modified in 10.1.29
 main.innodb_mysql_lock             : MDEV-7861 - sporadic lock detection failure
+main.join_cache                    : Modified in 10.1.31
 main.join_outer                    : Modified in 10.1.30
 main.kill_processlist-6619         : MDEV-10793 - wrong result in processlist
+main.mdev_14586                    : Added in 10.1.31
 main.mdev-504                      : MDEV-10607 - sporadic "can't connect"
-main.mdev13607                     : Added in 10.1.29
 main.mdev375                       : MDEV-10607 - sporadic "can't connect"
-main.merge                         : MDEV-10607 - sporadic "can't connect"
-main.myisam                        : Modified in 10.1.29
+main.merge                         : MDEV-10607 - sporadic "can't connect"; modified in 10.1.31
+main.myisam_optimize               : Modified in 10.1.31
+main.mysql_client_test_nonblock    : MDEV-15096 - exec failed
 main.mysql_upgrade_noengine        : MDEV-14355 - Plugin is busy
-main.mysqlbinlog                   : Modified in 10.1.29
+main.mysqldump-nl                  : Modified in 10.1.31
 main.mysqlslap                     : MDEV-11801 - timeout
 main.mysqltest                     : MDEV-9269 - fails on Alpha
+main.order_by                      : Modified in 10.1.31
 main.order_by_optimizer_innodb     : MDEV-10683 - wrong execution plan
-main.partition_datatype            : Modified in 10.1.29
-main.partition_example             : Include files modified in 10.1.29
+main.partition                     : Modified in 10.1.31
 main.partition_innodb_plugin       : MDEV-12901 - Valgrind warnings
-main.plugin                        : Include files modified in 10.1.29
-main.plugin_innodb                 : Include files modified in 10.1.29
-main.plugin_load                   : Include files modified in 10.1.29
-main.plugin_load_option            : Include files modified in 10.1.29
-main.plugin_maturity               : Include files modified in 10.1.29
-main.plugin_not_embedded           : Include files modified in 10.1.29
-main.ps                            : MDEV-11017 - sporadic wrong Prepared_stmt_count; modified in 10.1.29
+main.ps                            : MDEV-11017 - sporadic wrong Prepared_stmt_count; modified in 10.1.31
 main.query_cache                   : MDEV-12895 - Wrong result
-main.range_vs_index_merge          : Modified in 10.1.29
+main.query_cache_debug             : Modified in 10.1.31
 main.range_vs_index_merge_innodb   : MDEV-12637 - Timeout
-main.read_only                     : Modified in 10.1.29
+main.repair                        : Modified in 10.1.31
 main.set_statement                 : MDEV-13183 - Wrong result
 main.show_explain                  : MDEV-10674 - sporadic failure
-main.show_function_with_pad_char_to_full_length : Added in 10.1.29
-main.sp                            : Modified in 10.1.30
+main.sp                            : Modified in 10.1.31
 main.sp-security                   : MDEV-10607 - sporadic "can't connect"
 main.status                        : MDEV-8510 - sporadic wrong result
-main.subselect_exists2in           : Modified in 10.1.29
+main.subselect                     : Modified in 10.1.31
 main.subselect_innodb              : MDEV-10614 - sporadic wrong results
-main.subselect_mat_cost_bugs       : Modified in 10.1.29
-main.table_options-5867            : Include files modified in 10.1.29
+main.symlink-aria-11902            : MDEV-15098 - error 40 from storage engine
+main.symlink-myisam-11902          : MDEV-15098 - error 40 from storage engine
+main.tc_heuristic_recover          : MDEV-15200 - wrong error on mysqld_stub_cmd
 main.trigger                       : Modified in 10.1.30
-main.truncate_badse                : Include files modified in 10.1.29
-main.type_bit                      : Modified in 10.1.29
-main.type_date                     : Modified in 10.1.29
+main.type_blob                     : MDEV-15195 - Wrong result
 main.type_datetime_hires           : MDEV-10687 - timeout
-main.type_varchar                  : Modified in 10.1.29
-main.user_var                      : Modified in 10.1.29
+main.union                         : Modified in 10.1.31
+main.update_innodb                 : Modified in 10.1.31
 main.view                          : Modified in 10.1.30
-main.xml                           : Modified in 10.1.30
+main.xa                            : Modified in 10.1.31
+main.xml                           : Modified in 10.1.31
 
 #----------------------------------------------------------------
 
+archive.archive_bitfield     : MDEV-11771 - Extra warning
 archive.discover    : MDEV-10510 - Table is marked as crashed
 archive.mysqlhotcopy_archive : MDEV-14726 - Table is marked as crashed
 
@@ -113,7 +100,6 @@ binlog.binlog_commit_wait                 : MDEV-10150 - Error: too much time el
 binlog.binlog_flush_binlogs_delete_domain : MDEV-14431 - Wrong error code; added in 10.1.30
 binlog.binlog_gtid_delete_domain_debug    : Added in 10.1.30
 binlog.binlog_killed                      : MDEV-12925 - Wrong result
-binlog.binlog_spurious_ddl_errors         : Include files modified in 10.1.29
 binlog.binlog_xa_recover                  : MDEV-8517 - Extra checkpoint
 
 #----------------------------------------------------------------
@@ -121,34 +107,25 @@ binlog.binlog_xa_recover                  : MDEV-8517 - Extra checkpoint
 binlog_encryption.binlog_xa_recover : MDEV-12908 - Extra checkpoint
 binlog_encryption.encrypted_master : MDEV-12906 - Failed to sync
 binlog_encryption.rpl_parallel     : MDEV-10653 - Timeout
+binlog_encryption.rpl_relayrotate  : MDEV-15194 - Timeout
 binlog_encryption.rpl_semi_sync    : MDEV-11220 - Wrong result, MDEV-11673 - Valgrind warning
 binlog_encryption.rpl_ssl          : MDEV-14507 - Timeout on SLES 11.4
 binlog_encryption.rpl_typeconv     : MDEV-14362 - Lost connection to MySQL server during query
 
 #----------------------------------------------------------------
 
-connect.json_java_2     : Include file modified in 10.1.29
-connect.json_java_3     : Include file modified in 10.1.29
-connect.json_mongo_c    : Include file modified in 10.1.29
-connect.mongo_c         : Include file modified in 10.1.29
-connect.mongo_java_2    : Include file modified in 10.1.29
-connect.mongo_java_3    : Include file modified in 10.1.29
-connect.tbl             : MDEV-9844, MDEV-10179 - sporadic crashes, valgrind warnings, wrong results
-connect.tbl_thread      : MDEV-9844, MDEV-10179, MDEV-14214 - sporadic crashes, valgrind warnings, wrong results
+connect.pivot           : MDEV-14803 - failed to discover table
 connect.zip             : MDEV-13884 - Wrong result
 
 #----------------------------------------------------------------
 
 encryption.create_or_replace                : MDEV-9359 - Assertion failure, MDEV-13516 - Assertion failure
-encryption.debug_key_management             : MDEV-13841 - Timeout on wait condition
-encryption.encrypt_and_grep                 : MDEV-13765 - Wrong result
-encryption.encryption_force                 : Modified in 10.1.29
-encryption.filekeys_encfile                 : Include file modified in 10.1.29
-encryption.filekeys_encfile_file            : Include file modified in 10.1.29
+encryption.debug_key_management             : MDEV-13841 - Timeout on wait condition; modified in 10.1.31
+encryption.encrypt_and_grep                 : MDEV-13765 - Wrong result; modified in 10.1.31
 encryption.innodb-bad-key-change2           : MDEV-12632 - Valgrind warnings
 encryption.innodb-compressed-blob           : MDEV-14728 - Unable to get certificate
 encryption.innodb-discard-import-change     : MDEV-12632 - Valgrind warnings
-encryption.innodb-encryption-alter          : Modified in 10.1.29
+encryption.innodb_encryption                : Modified in 10.1.31
 encryption.innodb_encryption_discard_import : MDEV-12903 - Wrong result
 encryption.innodb_encryption_filekeys       : MDEV-9962 - timeouts
 encryption.innodb_encryption-page-compression : MDEV-12630 - crash or assertion failure
@@ -170,11 +147,12 @@ engines/funcs.*                  : Not maintained in timely manner
 
 #----------------------------------------------------------------
 
-federated.federated_bug_585688   : MDEV-12907 - Valgrind
+federated.federated_bug_585688   : MDEV-12907 - Valgrind, MDEV-14805 - server crash
 federated.federated_innodb       : MDEV-10617, MDEV-10417 - Wrong checksum, timeouts, fails on Mips
 federated.federated_partition    : MDEV-10417 - Fails on Mips
 federated.federated_transactions : MDEV-10617, MDEV-10417 - Wrong checksum, timeouts, fails on Mips
 federated.federatedx             : MDEV-10617 - Wrong checksum, timeouts
+federated.net_thd_crash-12951    : Added in 10.1.31
 
 #----------------------------------------------------------------
 
@@ -204,60 +182,50 @@ galera.MW-328A                          : MDEV-13876 - Wrong result
 #----------------------------------------------------------------
 
 innodb.binlog_consistent              : MDEV-10618 - Server fails to start
-innodb.doublewrite                    : MDEV-12905, MDEV-14205 - Lost connection to MySQL server
+innodb.doublewrite                    : MDEV-12905 - Lost connection to MySQL server
 innodb_fts.fulltext2                  : MDEV-14727 - Long semaphore wait
-innodb.innodb-16k                     : Modified in 10.1.29
-innodb.innodb-32k                     : Modified in 10.1.29
-innodb.innodb-64k                     : Modified in 10.1.29
+innodb.innodb                         : Opt file modified in 10.1.31
 innodb.innodb-64k-crash               : MDEV-13872 - Failure and crash on startup
-innodb.innodb-alter                   : Modified in 10.1.29
 innodb.innodb-alter-debug             : MDEV-13182 - InnoDB: adjusting FSP_SPACE_FLAGS
-innodb.innodb-alter-table             : MDEV-10619 - Testcase timeout; modified in 10.1.29
+innodb.innodb-alter-table             : MDEV-10619 - Testcase timeout
 innodb.innodb-autoinc                 : Modified in 10.1.30
 innodb.innodb-blob                    : MDEV-12053 - Client crash
 innodb.innodb_bug14147491             : MDEV-11808 - wrong error codes
 innodb.innodb_bug30423                : MDEV-7311 - Wrong number of rows in the plan
 innodb.innodb_bug48024                : MDEV-14352 - Assertion failure
+innodb.innodb_corrupt_bit             : Modified in 10.1.31
 innodb.innodb-fk                      : MDEV-13832 - Assertion failure on shutdown
-innodb.innodb-get-fk                  : Modified in 10.1.29
+innodb.innodb-index-online            : Modified in 10.1.31
+innodb.innodb-lru-force-no-free-page  : Added in 10.1.31
+innodb.innodb_max_recordsize_64k      : MDEV-15203 - wrong result
 innodb.innodb-page_compression_lzma   : MDEV-14353 - wrong result on Fedora 25
-innodb.innodb-page_compression_tables : Modified in 10.1.29
 innodb.innodb-page_compression_zip    : MDEV-10641 - mutex problem
-innodb.innodb-replace-debug           : Added in 10.1.30
+innodb.innodb-replace-debug           : Modified in 10.1.31
 innodb.innodb_stats                   : MDEV-10682 - wrong result
 innodb.innodb_sys_semaphore_waits     : MDEV-10331 - wrong result
-innodb.innodb-table-online            : Modified in 10.1.29
-innodb.innodb-wl5522-debug            : Modified in 10.1.29
-innodb.innodb-wl5980-alter            : Modified in 10.1.29
 innodb.innodb_zip_innochecksum2       : MDEV-13882 - Warning: difficult to find free blocks
+innodb.log_file_size                  : MDEV-15202 - Cannot resize log files in read-only mode
 innodb.recovery_shutdown              : Added in 10.1.30
-innodb.table_definition_cache_debug   : MDEV-14206 - Extra warning; opt file modified in 10.1.30
+innodb.row_format_redundant           : MDEV-15192 - Trying to access missing tablespace
+innodb.table_definition_cache_debug   : MDEV-14206 - Extra warning; opt file modified in 10.1.31
 innodb.table_flags                    : MDEV-14363 - Operating system error number 2
-innodb.undo_log                       : Modified in 10.1.29
 
-innodb_fts.concurrent_insert          : Added in 10.1.29
-innodb_fts.fulltext                   : Modified in 10.1.29
 innodb_fts.fulltext_misc              : MDEV-12636 - Valgrind warnings
 
-innodb_zip.innodb_prefix_index_liftedlimit : Modified in 10.1.29
-innodb_zip.wl5522_debug_zip                : Added in 10.1.29
+#----------------------------------------------------------------
+
+maria.lock                            : Modified in 10.1.31
+maria.maria                           : MDEV-14430 - Wrong result; modified in 10.1.31
+maria.repair                          : Added in 10.1.31
 
 #----------------------------------------------------------------
 
-maria.maria                           : MDEV-14430 - Wrong result; modified in 10.1.29
+mariabackup.huge_lsn                  : Added in 10.1.31
+mariabackup.mdev-14447                : MDEV-15201 - Timeout; added in 10.1.30
+mariabackup.missing_ibd               : Added in 10.1.31
+mariabackup.xb_compressed_encrypted   : MDEV-14812 - Segfault
 
 #----------------------------------------------------------------
-
-mariabackup.compress_qpress           : Added in 10.1.29
-mariabackup.data_directory            : Added in 10.1.29
-mariabackup.incremental_backup        : Modified in 10.1.29
-mariabackup.mdev-14447                : Added in 10.1.30
-mariabackup.partition_datadir         : Added in 10.1.29
-
-#----------------------------------------------------------------
-
-mroonga.*                             : Many tests and include files added and modified in 10.1.29
-mroonga/storage.*                     : Many tests and include files added and modified in 10.1.29
 
 mroonga/storage.column_datetime_32bit_2038                         : Wrong result on Alpha
 mroonga/storage.column_datetime_32bit_before_unix_epoch            : Wrong result on Alpha
@@ -266,13 +234,15 @@ mroonga/storage.column_datetime_32bit_out_of_range                 : Wrong resul
 mroonga/storage.index_multiple_column_unique_date_32bit_equal      : Wrong result on Alpha
 mroonga/storage.index_multiple_column_unique_date_order_32bit_desc : Wrong result on Alpha
 mroonga/storage.index_multiple_column_unique_datetime_index_read   : MDEV-8643 - valgrind warnings
-mroonga/storage.repair_table_no_index_file                         : MDEV-9364 - wrong result
+mroonga/storage.repair_table_no_index_file                         : MDEV-9364 - wrong result, MDEV-14807 - wrong error message
 mroonga/storage.variable_query_log_file_disabled_empty_value       : Modified in 10.1.30
 mroonga/storage.variable_query_log_file_disabled_null_value        : Modified in 10.1.30
 mroonga/storage.variable_query_log_file_enabled_empty_value        : Modified in 10.1.30
 mroonga/storage.variable_query_log_file_enabled_null_value         : Modified in 10.1.30
 mroonga/storage.variable_query_log_file_new_value                  : Modified in 10.1.30
 mroonga/storage.variable_query_log_file_same_value                 : Modified in 10.1.30
+
+mroonga/wrapper.repair_table_no_index_file                         : MDEV-14807 - Wrong error message
 
 #----------------------------------------------------------------
 
@@ -287,9 +257,10 @@ multi_source.status_vars : MDEV-4632 - failed while waiting for Slave_received_h
 
 parts.partition_alter_innodb         : Added in 10.1.30
 parts.partition_alter_maria          : Modified in 10.1.30
-parts.partition_alter_myisam         : Added in 10.1.30
+parts.partition_alter_myisam         : Modified in 10.1.31
 parts.partition_alter2_2_maria       : MDEV-14364 - Lost connection to MySQL server during query
 parts.partition_auto_increment_maria : MDEV-14430 - Wrong result
+parts.partition_debug_innodb         : MDEV-15095 - table does not exist
 parts.partition_innodb_status_file   : MDEV-12901 - Valgrind
 
 #----------------------------------------------------------------
@@ -308,12 +279,11 @@ perfschema.threads_mysql                     : MDEV-10677 - sporadic wrong resul
 
 plugins.binlog-simple_plugin_check : Added in 10.1.30
 plugins.feedback_plugin_send     : MDEV-7932 - ssl failed for url
-plugins.server_audit             : MDEV-9562 - crashes on sol10-sparc; modified in 10.1.29
-plugins.thread_pool_server_audit : MDEV-9562 - crashes on sol10-sparc; modified in 10.1.29
+plugins.server_audit             : MDEV-9562 - crashes on sol10-sparc
+plugins.thread_pool_server_audit : MDEV-9562 - crashes on sol10-sparc
 
 #----------------------------------------------------------------
 
-roles.definer                    : Modified in 10.1.29
 roles.flush_roles-12366          : Added in 10.1.30
 roles.set_role-13655             : Added in 10.1.30
 
@@ -324,7 +294,6 @@ rpl.rpl_auto_increment                : MDEV-10417 - Fails on Mips
 rpl.rpl_auto_increment_bug45679       : MDEV-10417 - Fails on Mips
 rpl.rpl_auto_increment_update_failure : MDEV-10625 - warnings in error log
 rpl.rpl_binlog_index                  : MDEV-9501 - Warning: failed registering on master
-rpl.rpl_checksum_cache                : MDEV-12173 - Unexpected error
 rpl.rpl_ddl                           : MDEV-10417 - Fails on Mips
 rpl.rpl_domain_id_filter_io_crash     : MDEV-14357 - Wrong result
 rpl.rpl_domain_id_filter_restart      : MDEV-10684 - Wrong result
@@ -338,8 +307,10 @@ rpl.rpl_gtid_until                    : MDEV-10625 - warnings in error log
 rpl.rpl_innodb_bug30888               : MDEV-10417 - Fails on Mips
 rpl.rpl_insert                        : MDEV-9329 - Fails on Ubuntu/s390x
 rpl.rpl_insert_delayed                : MDEV-9329 - Fails on Ubuntu/s390x
+rpl.rpl_insert_id                     : MDEV-15197 - Wrong result
 rpl.rpl_insert_ignore                 : MDEV-14365 - Lost connection to MySQL server during query
 rpl.rpl_invoked_features              : MDEV-10417 - Fails on Mips
+rpl.rpl_manual_change_index_file      : Modified in 10.1.31
 rpl.rpl_mariadb_slave_capability      : MDEV-11018 - sporadic wrong events in binlog
 rpl.rpl_mdev6020                      : MDEV-10630, MDEV-10417 - Timeouts, fails on Mips
 rpl.rpl_mixed_mixing_engines          : MDEV-14489 - Sync slave with master failed
@@ -354,11 +325,11 @@ rpl.rpl_parallel_retry                : MDEV-11119 - Server crash
 rpl.rpl_parallel_temptable            : MDEV-10356 - Crash in close_thread_tables
 rpl.rpl_partition_innodb              : MDEV-10417 - Fails on Mips
 rpl.rpl_password_boundaries           : MDEV-11534 - Slave IO warnings
-rpl.rpl_plugin_load                   : Include files modified in 10.1.29
 rpl.rpl_row_drop_create_temp_table    : MDEV-14487 - Wrong result
 rpl.rpl_row_img_blobs                 : MDEV-13875 - command "diff_files" failed
 rpl.rpl_row_img_eng_min               : MDEV-13875 - command "diff_files" failed
 rpl.rpl_row_img_eng_noblob            : MDEV-13875 - command "diff_files" failed
+rpl.rpl_row_index_choice              : MDEV-15196 - Slave crash
 rpl.rpl_row_log                       : Include file modified in 10.1.30
 rpl.rpl_row_log_innodb                : Include file modified in 10.1.30
 rpl.rpl_row_mixing_engines            : MDEV-14491 - Long semaphore wait
@@ -377,7 +348,6 @@ rpl.rpl_stm_log                       : Include file modified in 10.1.30
 rpl.rpl_stm_mixing_engines            : MDEV-14489 - Sync slave with master failed
 rpl.rpl_stm_relay_ign_space           : MDEV-14360 - Test assertion
 rpl.rpl_sync                          : MDEV-10633 - Database page corruption
-rpl.rpl_table_options                 : Include files modified in 10.1.29
 rpl.rpl_temporary_error2              : MDEV-10634 - Wrong number of retries
 rpl.sec_behind_master-5114            : MDEV-13878 - Wrong result
 
@@ -415,21 +385,17 @@ stress.ddl_innodb : MDEV-10635 - Testcase timeout
 #----------------------------------------------------------------
 
 sys_vars.autocommit_func2                      : MDEV-9329 - Fails on Ubuntu/s390x
-sys_vars.explicit_defaults_for_timestamp_off   : Include file modified in 10.1.29
-sys_vars.explicit_defaults_for_timestamp_on    : Include file modified in 10.1.29
 sys_vars.keep_files_on_create_basic            : MDEV-10676 - timeout
-sys_vars.innodb_buffer_pool_dump_now_basic     : Modified in 10.1.29
-sys_vars.innodb_buffer_pool_dump_pct_basic     : Modified in 10.1.29
-sys_vars.innodb_buffer_pool_load_now_basic     : Modified in 10.1.29
 sys_vars.innodb_fatal_semaphore_wait_threshold : MDEV-10513 - crashes
+sys_vars.innodb_print_lock_wait_timeout_info_basic : Added in 10.1.31
 sys_vars.log_slow_admin_statements_func        : MDEV-12235 - Server crash
 sys_vars.rpl_init_slave_func                   : MDEV-10149 - wrong results
-sys_vars.sysvars_wsrep                         : MDEV-12522 - Dependency on specific wsrep_provider
 sys_vars.thread_cache_size_func                : MDEV-11775 - Wrong result
 sys_vars.wait_timeout_func                     : MDEV-12896 - Wrong result
 
 #----------------------------------------------------------------
 
+tokudb.card_scale_percent            : Modified in 10.1.31
 tokudb.change_column_all_1000_10     : MDEV-12640 - Crash
 tokudb.change_column_bin             : MDEV-12640 - Crash
 tokudb.change_column_char            : MDEV-12822 - Lost connection to MySQL server
@@ -440,15 +406,26 @@ tokudb.dir_per_db                    : MDEV-11537 - Wrong result
 tokudb.dir_per_db_rename_to_nonexisting_schema : MDEV-14359 - Directory not empty
 tokudb.hotindex-insert-bigchar       : MDEV-12640 - Crash
 tokudb.hotindex-insert-1             : MDEV-13870 - Lost connection to MySQL server
+tokudb.hotindex-update-0             : MDEV-15198 - Timeout
 tokudb.hotindex-update-1             : MDEV-12640 - Crash
+tokudb.locking-read-repeatable-read-1 : Added in 10.1.31
+tokudb.locking-read-repeatable-read-2 : Added in 10.1.31
+tokudb.nonflushing_analyze_debug     : Added in 10.1.31
+tokudb.row_format                    : Modified in 10.1.31
 tokudb.rows-32m-rand-insert          : MDEV-12640 - Crash
 tokudb.rows-32m-seq-insert           : MDEV-12640 - Crash
+tokudb.type_datetime                 : MDEV-15193 - Wrong result
 
 tokudb_bugs.checkpoint_lock          : MDEV-10637 - Wrong processlist output
 tokudb_bugs.checkpoint_lock_3        : MDEV-10637 - Wrong processlist output
 tokudb_bugs.xa                       : MDEV-11804 - Lock wait timeout
 
 tokudb_mariadb.mdev6657              : MDEV-12737 - Wrong plan, valgrind warnings
+
+tokudb_parts.nonflushing_analyze_debug : Added in 10.1.31
+
+tokudb_perfschema.crash_tokudb         : Added in 10.1.31
+tokudb_perfschema.start_server_tokudb  : Added in 10.1.31
 
 rpl-tokudb.rpl_tokudb_row_log        : Include file modified in 10.1.30
 rpl-tokudb.rpl_tokudb_stm_log        : Include file modified in 10.1.30
@@ -462,7 +439,6 @@ unit.ma_test_loghandler : MDEV-10638 - record read not ok
 
 vcol.not_supported    : MDEV-10639 - Testcase timeout
 vcol.vcol_keys_innodb : MDEV-10639 - Testcase timeout
-vcol.vcol_misc        : Modified in 10.1.29
 
 #----------------------------------------------------------------
 

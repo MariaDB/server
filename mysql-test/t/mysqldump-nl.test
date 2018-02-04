@@ -36,3 +36,23 @@ show tables from `mysqltest1
 
 drop database `mysqltest1
 1tsetlqsym`;
+
+create database `test```;
+create database `test\``
+\! ls
+#`;
+
+show databases like 'test%';
+
+exec $MYSQL_DUMP --compact --comment --add-drop-database --databases 'test`' 'test\`
+\! ls
+#';
+
+exec $MYSQL_DUMP --compact --comment --add-drop-database --databases 'test`' 'test\`
+\! ls
+#' | $MYSQL;
+
+drop database `test```;
+drop database `test\``
+\! ls
+#`;

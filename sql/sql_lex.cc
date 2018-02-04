@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -657,6 +657,7 @@ void lex_start(THD *thd)
 {
   LEX *lex= thd->lex;
   DBUG_ENTER("lex_start");
+  DBUG_PRINT("info", ("Lex %p stmt_lex: %p", thd->lex, thd->stmt_lex));
 
   lex->thd= lex->unit.thd= thd;
   
@@ -668,6 +669,7 @@ void lex_start(THD *thd)
   /* 'parent_lex' is used in init_query() so it must be before it. */
   lex->select_lex.parent_lex= lex;
   lex->select_lex.init_query();
+  lex->current_select_number= 1;
   lex->value_list.empty();
   lex->update_list.empty();
   lex->set_var_list.empty();

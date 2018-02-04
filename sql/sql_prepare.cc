@@ -164,20 +164,6 @@ public:
   uint param_count;
   uint last_errno;
   uint flags;
-  /*
-    The value of thd->select_number at the end of the PREPARE phase.
-
-    The issue is: each statement execution opens VIEWs, which may cause 
-    select_lex objects to be created, and select_number values to be assigned.
-
-    On the other hand, PREPARE assigns select_number values for triggers and
-    subqueries.
-
-    In order for select_number values from EXECUTE not to conflict with
-    select_number values from PREPARE, we keep the number and set it at each
-    execution.
-  */
-  uint select_number_after_prepare;
   char last_error[MYSQL_ERRMSG_SIZE];
 #ifndef EMBEDDED_LIBRARY
   bool (*set_params)(Prepared_statement *st, uchar *data, uchar *data_end,
@@ -3563,9 +3549,9 @@ void Prepared_statement::cleanup_stmt()
   DBUG_ENTER("Prepared_statement::cleanup_stmt");
   DBUG_PRINT("enter",("stmt: 0x%lx", (long) this));
   thd->restore_set_statement_var();
+  thd->rollback_item_tree_changes();
   cleanup_items(free_list);
   thd->cleanup_after_query();
-  thd->rollback_item_tree_changes();
 
   DBUG_VOID_RETURN;
 }
@@ -3649,6 +3635,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
 
   if (! (lex= new (mem_root) st_lex_local))
     DBUG_RETURN(TRUE);
+  stmt_lex= lex;
 
   if (set_db(thd->db, thd->db_length))
     DBUG_RETURN(TRUE);
@@ -3754,8 +3741,6 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     trans_rollback_implicit(thd);
     thd->mdl_context.release_transactional_locks();
   }
-  
-  select_number_after_prepare= thd->select_number;
 
   /* Preserve CHANGE MASTER attributes */
   lex_end_stage1(lex);
@@ -3891,7 +3876,6 @@ Prepared_statement::execute_loop(String *expanded_query,
   */
   DBUG_ASSERT(thd->free_list == NULL);
 
-  thd->select_number= select_number_after_prepare;
   /* Check if we got an error when sending long data */
   if (state == Query_arena::STMT_ERROR)
   {

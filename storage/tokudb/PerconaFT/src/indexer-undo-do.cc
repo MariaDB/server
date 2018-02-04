@@ -571,6 +571,7 @@ indexer_ft_delete_committed(DB_INDEXER *indexer, DB *hotdb, DBT *hotkey, XIDS xi
                                 oldest_referenced_xid_estimate,
                                 true);
             toku_ft_send_delete(db_struct_i(hotdb)->ft_handle, hotkey, xids, &gc_info);
+            toku_ft_adjust_logical_row_count(db_struct_i(hotdb)->ft_handle->ft, -1);
         }
     }
     return result;
@@ -616,6 +617,7 @@ indexer_ft_insert_committed(DB_INDEXER *indexer, DB *hotdb, DBT *hotkey, DBT *ho
                                 oldest_referenced_xid_estimate,
                                 true);
             toku_ft_send_insert(db_struct_i(hotdb)->ft_handle, hotkey, hotval, xids, FT_INSERT, &gc_info);
+            toku_ft_adjust_logical_row_count(db_struct_i(hotdb)->ft_handle->ft, 1);
         }
     }
     return result;

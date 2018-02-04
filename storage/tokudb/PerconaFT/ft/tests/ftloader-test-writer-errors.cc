@@ -154,7 +154,7 @@ static int write_dbfile (char *tf_template, int n, char *output_name, bool expec
 
     toku_set_func_malloc_only(my_malloc);
     toku_set_func_realloc_only(my_realloc);
-    ft_loader_set_os_fwrite(bad_fwrite);
+    toku_set_func_fwrite(bad_fwrite);
     toku_set_func_write(bad_write);
     toku_set_func_pwrite(bad_pwrite);
     ft_loader_set_error_function(&bl.error_callback, NULL, NULL);
@@ -164,7 +164,7 @@ static int write_dbfile (char *tf_template, int n, char *output_name, bool expec
 
     toku_set_func_malloc_only(NULL);
     toku_set_func_realloc_only(NULL);
-    ft_loader_set_os_fwrite(NULL);
+    toku_set_func_fwrite(nullptr);
     toku_set_func_write(NULL);
     toku_set_func_pwrite(NULL);
 

@@ -186,9 +186,35 @@ basement nodes, bulk fetch,  and partial fetch:
  */
 
 static toku_mutex_t ft_open_close_lock;
+static toku_instr_key *ft_open_close_lock_mutex_key;
+// FIXME: the instrumentation keys below are defined here even though they
+// belong to other modules, because they are registered here. If desired, they
+// can be moved to their proper modules and registration done there in a
+// one-time init function
+// locktree
+toku_instr_key *treenode_mutex_key;
+toku_instr_key *manager_mutex_key;
+toku_instr_key *manager_escalation_mutex_key;
+toku_instr_key *manager_escalator_mutex_key;
+// src
+toku_instr_key *db_txn_struct_i_txn_mutex_key;
+toku_instr_key *indexer_i_indexer_lock_mutex_key;
+toku_instr_key *indexer_i_indexer_estimate_lock_mutex_key;
+toku_instr_key *result_i_open_dbs_rwlock_key;
+// locktree
+toku_instr_key *lock_request_m_wait_cond_key;
+toku_instr_key *manager_m_escalator_done_key;
+toku_instr_key *locktree_request_info_mutex_key;
+toku_instr_key *locktree_request_info_retry_mutex_key;
+toku_instr_key *locktree_request_info_retry_cv_key;
 
-void
-toku_ft_get_status(FT_STATUS s) {
+// this is a sample probe for custom instrumentation
+static toku_instr_key *fti_probe_1_key;
+
+// This is a sample probe for custom instrumentation
+toku_instr_probe *toku_instr_probe_1;
+
+void toku_ft_get_status(FT_STATUS s) {
     ft_status.init();
     *s = ft_status;
 
@@ -2643,11 +2669,14 @@ void toku_ft_set_direct_io (bool direct_io_on) {
     use_direct_io = direct_io_on;
 }
 
-static inline int ft_open_maybe_direct(const char *filename, int oflag, int mode) {
+static inline int ft_open_maybe_direct(const char *filename,
+                                       int oflag,
+                                       int mode) {
     if (use_direct_io) {
-        return toku_os_open_direct(filename, oflag, mode);
+        return toku_os_open_direct(
+            filename, oflag, mode, *tokudb_file_data_key);
     } else {
-        return toku_os_open(filename, oflag, mode);
+        return toku_os_open(filename, oflag, mode, *tokudb_file_data_key);
     }
 }
 
@@ -2721,7 +2750,7 @@ bool toku_create_subdirs_if_needed(const char *path) {
     if (!subdir.get())
         return true;
 
-    if (toku_stat(subdir.get(), &stat) == -1) {
+    if (toku_stat(subdir.get(), &stat, toku_uninstrumented) == -1) {
         if (ENOENT == get_error_errno())
             subdir_exists = false;
         else
@@ -2933,6 +2962,8 @@ ft_handle_open(FT_HANDLE ft_h, const char *fname_in_env, int is_create, int only
     CACHEFILE cf = NULL;
     FT ft = NULL;
     bool did_create = false;
+    bool was_already_open = false;
+
     toku_ft_open_close_lock();
 
     if (ft_h->did_set_flags) {
@@ -2944,7 +2975,6 @@ ft_handle_open(FT_HANDLE ft_h, const char *fname_in_env, int is_create, int only
     FILENUM reserved_filenum;
     reserved_filenum = use_filenum;
     fname_in_cwd = toku_cachetable_get_fname_in_cwd(cachetable, fname_in_env);
-    bool was_already_open;
     {
         int fd = -1;
         r = ft_open_file(fname_in_cwd, &fd);
@@ -4614,20 +4644,265 @@ int toku_dump_ft(FILE *f, FT_HANDLE ft_handle) {
     return toku_dump_ftnode(f, ft_handle, root_key, 0, 0, 0);
 }
 
+
+static void toku_pfs_keys_init(const char *toku_instr_group_name) {
+    kibbutz_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name, "kibbutz_mutex");
+    minicron_p_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "minicron_p_mutex");
+    queue_result_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "queue_result_mutex");
+    tpool_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "tpool_lock_mutex");
+    workset_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "workset_lock_mutex");
+    bjm_jobs_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "bjm_jobs_lock_mutex");
+    log_internal_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "log_internal_lock_mutex");
+    cachetable_ev_thread_lock_mutex_key =
+        new toku_instr_key(toku_instr_object_type::mutex,
+                           toku_instr_group_name,
+                           "cachetable_ev_thread_lock_mutex");
+    cachetable_disk_nb_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "cachetable_disk_nb_mutex");
+    safe_file_size_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "safe_file_size_lock_mutex");
+    cachetable_m_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "cachetable_m_mutex_key");
+    checkpoint_safe_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "checkpoint_safe_mutex");
+    ft_ref_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "ft_ref_lock_mutex");
+    ft_open_close_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "ft_open_close_lock_mutex");
+    loader_error_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "loader_error_mutex");
+    bfs_mutex_key =
+        new toku_instr_key(toku_instr_object_type::mutex, toku_instr_group_name,
+        "bfs_mutex");
+    loader_bl_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "loader_bl_mutex");
+    loader_fi_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "loader_fi_lock_mutex");
+    loader_out_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "loader_out_mutex");
+    result_output_condition_lock_mutex_key =
+        new toku_instr_key(toku_instr_object_type::mutex,
+                           toku_instr_group_name,
+                           "result_output_condition_lock_mutex");
+    block_table_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "block_table_mutex");
+    rollback_log_node_cache_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "rollback_log_node_cache_mutex");
+    txn_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name, "txn_lock_mutex");
+    txn_state_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "txn_state_lock_mutex");
+    txn_child_manager_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "txn_child_manager_mutex");
+    txn_manager_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "txn_manager_lock_mutex");
+    treenode_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name, "treenode_mutex");
+    locktree_request_info_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "locktree_request_info_mutex");
+    locktree_request_info_retry_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "locktree_request_info_retry_mutex_key");
+    manager_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name, "manager_mutex");
+    manager_escalation_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "manager_escalation_mutex");
+    db_txn_struct_i_txn_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "db_txn_struct_i_txn_mutex");
+    manager_escalator_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "manager_escalator_mutex");
+    indexer_i_indexer_lock_mutex_key = new toku_instr_key(
+        toku_instr_object_type::mutex, toku_instr_group_name,
+        "indexer_i_indexer_lock_mutex");
+    indexer_i_indexer_estimate_lock_mutex_key =
+        new toku_instr_key(toku_instr_object_type::mutex,
+                           toku_instr_group_name,
+                           "indexer_i_indexer_estimate_lock_mutex");
+
+    tokudb_file_data_key = new toku_instr_key(
+        toku_instr_object_type::file, toku_instr_group_name, "tokudb_data_file");
+    tokudb_file_load_key = new toku_instr_key(
+        toku_instr_object_type::file, toku_instr_group_name, "tokudb_load_file");
+    tokudb_file_tmp_key = new toku_instr_key(
+        toku_instr_object_type::file, toku_instr_group_name, "tokudb_tmp_file");
+    tokudb_file_log_key = new toku_instr_key(
+        toku_instr_object_type::file, toku_instr_group_name, "tokudb_log_file");
+
+    fti_probe_1_key =
+        new toku_instr_key(toku_instr_object_type::mutex, toku_instr_group_name,
+        "fti_probe_1");
+
+    extractor_thread_key = new toku_instr_key(
+        toku_instr_object_type::thread, toku_instr_group_name,
+        "extractor_thread");
+    fractal_thread_key = new toku_instr_key(
+        toku_instr_object_type::thread, toku_instr_group_name, "fractal_thread");
+    io_thread_key =
+        new toku_instr_key(toku_instr_object_type::thread, toku_instr_group_name,
+        "io_thread");
+    eviction_thread_key = new toku_instr_key(
+        toku_instr_object_type::thread, toku_instr_group_name,
+        "eviction_thread");
+    kibbutz_thread_key = new toku_instr_key(
+        toku_instr_object_type::thread, toku_instr_group_name, "kibbutz_thread");
+    minicron_thread_key = new toku_instr_key(
+        toku_instr_object_type::thread, toku_instr_group_name,
+        "minicron_thread");
+    tp_internal_thread_key = new toku_instr_key(
+        toku_instr_object_type::thread, toku_instr_group_name,
+        "tp_internal_thread");
+
+    result_state_cond_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "result_state_cond");
+    bjm_jobs_wait_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name, "bjm_jobs_wait");
+    cachetable_p_refcount_wait_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "cachetable_p_refcount_wait");
+    cachetable_m_flow_control_cond_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "cachetable_m_flow_control_cond");
+    cachetable_m_ev_thread_cond_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "cachetable_m_ev_thread_cond");
+    bfs_cond_key =
+        new toku_instr_key(toku_instr_object_type::cond, toku_instr_group_name,
+        "bfs_cond");
+    result_output_condition_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "result_output_condition");
+    manager_m_escalator_done_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "manager_m_escalator_done");
+    lock_request_m_wait_cond_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "lock_request_m_wait_cond");
+    queue_result_cond_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "queue_result_cond");
+    ws_worker_wait_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name, "ws_worker_wait");
+    rwlock_wait_read_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name, "rwlock_wait_read");
+    rwlock_wait_write_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "rwlock_wait_write");
+    rwlock_cond_key =
+        new toku_instr_key(toku_instr_object_type::cond, toku_instr_group_name,
+        "rwlock_cond");
+    tp_thread_wait_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name, "tp_thread_wait");
+    tp_pool_wait_free_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "tp_pool_wait_free");
+    frwlock_m_wait_read_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "frwlock_m_wait_read");
+    kibbutz_k_cond_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name, "kibbutz_k_cond");
+    minicron_p_condvar_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "minicron_p_condvar");
+    locktree_request_info_retry_cv_key = new toku_instr_key(
+        toku_instr_object_type::cond, toku_instr_group_name,
+        "locktree_request_info_retry_cv_key");
+
+    multi_operation_lock_key = new toku_instr_key(
+        toku_instr_object_type::rwlock, toku_instr_group_name,
+        "multi_operation_lock");
+    low_priority_multi_operation_lock_key =
+        new toku_instr_key(toku_instr_object_type::rwlock,
+                           toku_instr_group_name,
+                           "low_priority_multi_operation_lock");
+    cachetable_m_list_lock_key = new toku_instr_key(
+        toku_instr_object_type::rwlock, toku_instr_group_name,
+        "cachetable_m_list_lock");
+    cachetable_m_pending_lock_expensive_key =
+        new toku_instr_key(toku_instr_object_type::rwlock,
+                           toku_instr_group_name,
+                           "cachetable_m_pending_lock_expensive");
+    cachetable_m_pending_lock_cheap_key =
+        new toku_instr_key(toku_instr_object_type::rwlock,
+                           toku_instr_group_name,
+                           "cachetable_m_pending_lock_cheap");
+    cachetable_m_lock_key = new toku_instr_key(
+        toku_instr_object_type::rwlock, toku_instr_group_name,
+        "cachetable_m_lock");
+    result_i_open_dbs_rwlock_key = new toku_instr_key(
+        toku_instr_object_type::rwlock, toku_instr_group_name,
+        "result_i_open_dbs_rwlock");
+    checkpoint_safe_rwlock_key = new toku_instr_key(
+        toku_instr_object_type::rwlock, toku_instr_group_name,
+        "checkpoint_safe_rwlock");
+    cachetable_value_key = new toku_instr_key(
+        toku_instr_object_type::rwlock, toku_instr_group_name,
+        "cachetable_value");
+    safe_file_size_lock_rwlock_key = new toku_instr_key(
+        toku_instr_object_type::rwlock, toku_instr_group_name,
+        "safe_file_size_lock_rwlock");
+    cachetable_disk_nb_rwlock_key = new toku_instr_key(
+        toku_instr_object_type::rwlock, toku_instr_group_name,
+        "cachetable_disk_nb_rwlock");
+
+    toku_instr_probe_1 = new toku_instr_probe(*fti_probe_1_key);
+}
+
 int toku_ft_layer_init(void) {
     int r = 0;
-    //Portability must be initialized first
+
+    // Portability must be initialized first
     r = toku_portability_init();
-    if (r) { goto exit; }
+    if (r) {
+        goto exit;
+    }
+
+    toku_pfs_keys_init("fti");
+
     r = db_env_set_toku_product_name("tokudb");
-    if (r) { goto exit; }
+    if (r) {
+        goto exit;
+    }
 
     partitioned_counters_init();
     toku_status_init();
     toku_context_status_init();
     toku_checkpoint_init();
     toku_ft_serialize_layer_init();
-    toku_mutex_init(&ft_open_close_lock, NULL);
+    toku_mutex_init(
+        *ft_open_close_lock_mutex_key, &ft_open_close_lock, nullptr);
     toku_scoped_malloc_init();
 exit:
     return r;
@@ -4641,7 +4916,10 @@ void toku_ft_layer_destroy(void) {
     toku_status_destroy();
     partitioned_counters_destroy();
     toku_scoped_malloc_destroy();
-    //Portability must be cleaned up last
+
+    delete toku_instr_probe_1;
+
+    // Portability must be cleaned up last
     toku_portability_destroy();
 }
 

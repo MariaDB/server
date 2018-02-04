@@ -199,9 +199,11 @@ cachetable_test (void) {
 
     toku_pthread_t tid1;
     toku_pthread_t tid2;
-    r = toku_pthread_create(&tid1, NULL, repin_one, NULL); 
+    r = toku_pthread_create(
+        toku_uninstrumented, &tid1, nullptr, repin_one, nullptr);
     assert_zero(r);
-    r = toku_pthread_create(&tid2, NULL, repin_two, NULL); 
+    r = toku_pthread_create(
+        toku_uninstrumented, &tid2, nullptr, repin_two, nullptr);
     assert_zero(r);
 
     // unpin 1 and 2 so tid1 and tid2 can make progress

@@ -236,3 +236,9 @@ SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT TRIM(t) t2 FROM t1) sub;
 DROP TABLE t1;
 
 SET optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # MDEV-13790 UNHEX() of a somewhat complicated CONCAT() returns NULL
+--echo #
+
+SELECT UNHEX(CONCAT('414C2', HEX(8 + ROUND(RAND()*7)), SUBSTR(SHA(UUID()),6,33),HEX(2+ROUND(RAND()*8)))) IS NULL AS c1;

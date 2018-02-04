@@ -62,7 +62,7 @@ void lock_request::create(void) {
     m_state = state::UNINITIALIZED;
     m_info = nullptr;
 
-    toku_cond_init(&m_wait_cond, nullptr);
+    toku_cond_init(*lock_request_m_wait_cond_key, &m_wait_cond, nullptr);
 
     m_start_test_callback = nullptr;
     m_start_before_pending_test_callback = nullptr;

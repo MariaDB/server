@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -506,13 +507,13 @@ mem_heap_block_free(
 #ifndef UNIV_HOTBACKUP
 	if (!srv_use_sys_malloc) {
 #ifdef UNIV_MEM_DEBUG
+		UNIV_MEM_ALLOC(block, len);
 		/* In the debug version we set the memory to a random
 		combination of hex 0xDE and 0xAD. */
 
-		mem_erase_buf((byte*) block, len);
-#else /* UNIV_MEM_DEBUG */
-		UNIV_MEM_ASSERT_AND_FREE(block, len);
+		mem_erase_buf((byte*)block, len);
 #endif /* UNIV_MEM_DEBUG */
+		UNIV_MEM_FREE(block, len);
 
 	}
 	if (type == MEM_HEAP_DYNAMIC || len < UNIV_PAGE_SIZE / 2) {
@@ -526,13 +527,13 @@ mem_heap_block_free(
 	}
 #else /* !UNIV_HOTBACKUP */
 #ifdef UNIV_MEM_DEBUG
+	UNIV_MEM_ALLOC(block, len);
 	/* In the debug version we set the memory to a random
 	combination of hex 0xDE and 0xAD. */
 
-	mem_erase_buf((byte*) block, len);
-#else /* UNIV_MEM_DEBUG */
-	UNIV_MEM_ASSERT_AND_FREE(block, len);
+	mem_erase_buf((byte*)block, len);
 #endif /* UNIV_MEM_DEBUG */
+	UNIV_MEM_FREE(block, len);
 	ut_free(block);
 #endif /* !UNIV_HOTBACKUP */
 }

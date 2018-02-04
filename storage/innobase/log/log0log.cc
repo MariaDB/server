@@ -1380,7 +1380,7 @@ loop:
 		ut_a(next_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
 
 		log_encrypt_before_write(log_sys->next_checkpoint_no,
-					 buf, write_len);
+					 buf, start_lsn, write_len);
 
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->space_id, 0,
 		       (ulint) (next_offset / UNIV_PAGE_SIZE),
@@ -2335,7 +2335,7 @@ loop:
 		log_block_get_checksum(buf), source_offset);
 #endif
 
-	log_decrypt_after_read(buf, len);
+	log_decrypt_after_read(buf, start_lsn, len);
 
 #ifdef DEBUG_CRYPT
 	fprintf(stderr, "AFTER DECRYPT: block: %lu checkpoint: %lu %.8lx %.8lx\n",
@@ -2576,7 +2576,8 @@ loop:
 	MONITOR_INC(MONITOR_LOG_IO);
 
 	//TODO (jonaso): This must be dead code??
-	log_encrypt_before_write(log_sys->next_checkpoint_no, buf, len);
+	log_encrypt_before_write(log_sys->next_checkpoint_no,
+				 buf, start_lsn, len);
 
 	fil_io(OS_FILE_WRITE | OS_FILE_LOG, false, group->archive_space_id,
 	       (ulint) (next_offset / UNIV_PAGE_SIZE),

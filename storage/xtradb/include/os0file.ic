@@ -258,6 +258,9 @@ pfs_os_aio_func(
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+	bool		should_buffer,
+				/*!< in: whether to buffer an aio request.
+				Only used by aio read ahead*/
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -274,7 +277,7 @@ pfs_os_aio_func(
 
 	result = os_aio_func(type, is_log, mode, name, file, buf, offset,
 			     n, page_size, message1, message2, space_id, trx,
-			     write_size);
+			     write_size, should_buffer);
 
 	register_pfs_file_io_end(locker, n);
 

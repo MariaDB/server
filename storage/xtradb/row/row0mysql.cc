@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -58,6 +58,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "btr0sea.h"
 #include "btr0defragment.h"
 #include "fil0fil.h"
+#include "srv0srv.h"
 #include "fil0crypt.h"
 #include "ibuf0ibuf.h"
 #include "fts0fts.h"
@@ -1998,7 +1999,7 @@ row_unlock_for_mysql(
 		trx_id_t	rec_trx_id;
 		mtr_t		mtr;
 
-		mtr_start_trx(&mtr, trx);
+		mtr_start(&mtr);
 
 		/* Restore the cursor position and find the record */
 
@@ -2888,7 +2889,7 @@ func_exit:
 /*********************************************************************//**
 Reassigns the table identifier of a table.
 @return	error code or DB_SUCCESS */
-UNIV_INTERN
+static
 dberr_t
 row_mysql_table_id_reassign(
 /*========================*/
@@ -3585,7 +3586,7 @@ row_truncate_table_for_mysql(
 				index = dict_table_get_next_index(index);
 			} while (index);
 
-			mtr_start_trx(&mtr, trx);
+			mtr_start(&mtr);
 			fsp_header_init(space_id,
 					FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 			mtr_commit(&mtr);
@@ -3614,7 +3615,7 @@ row_truncate_table_for_mysql(
 	sys_index = dict_table_get_first_index(dict_sys->sys_indexes);
 	dict_index_copy_types(tuple, sys_index, 1);
 
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
 				  BTR_MODIFY_LEAF, &pcur, &mtr);
 	for (;;) {
@@ -3661,7 +3662,7 @@ row_truncate_table_for_mysql(
 			a page in this mini-transaction, and the rest of
 			this loop could latch another index page. */
 			mtr_commit(&mtr);
-			mtr_start_trx(&mtr, trx);
+			mtr_start(&mtr);
 			btr_pcur_restore_position(BTR_MODIFY_LEAF,
 						  &pcur, &mtr);
 		}
@@ -4003,6 +4004,16 @@ row_drop_table_for_mysql(
 			ut_ad(!table->fts->add_wq);
 			ut_ad(lock_trx_has_sys_table_locks(trx) == 0);
 
+			for (;;) {
+				bool retry = false;
+				if (dict_fts_index_syncing(table)) {
+					retry = true;
+				}
+				if (!retry) {
+					break;
+				}
+				DICT_BG_YIELD(trx);
+			}
 			row_mysql_unlock_data_dictionary(trx);
 			fts_optimize_remove_table(table);
 			row_mysql_lock_data_dictionary(trx);

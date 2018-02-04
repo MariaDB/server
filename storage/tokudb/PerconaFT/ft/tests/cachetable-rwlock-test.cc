@@ -40,24 +40,22 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 // test create and destroy
 
-static void
-test_create_destroy (void) {
-    struct rwlock the_rwlock, *rwlock = &the_rwlock;
+static void test_create_destroy(void) {
+    struct st_rwlock the_rwlock, *rwlock = &the_rwlock;
 
-    rwlock_init(rwlock);
+    rwlock_init(toku_uninstrumented, rwlock);
     rwlock_destroy(rwlock);
 }
 
 // test read lock and unlock with no writers
 
-static void
-test_simple_read_lock (int n) {
-    struct rwlock the_rwlock, *rwlock = &the_rwlock;
+static void test_simple_read_lock(int n) {
+    struct st_rwlock the_rwlock, *rwlock = &the_rwlock;
 
-    rwlock_init(rwlock);
+    rwlock_init(toku_uninstrumented, rwlock);
     assert(rwlock_readers(rwlock) == 0);
     int i;
-    for (i=1; i<=n; i++) {
+    for (i = 1; i <= n; i++) {
         rwlock_read_lock(rwlock, 0);
         assert(rwlock_readers(rwlock) == i);
         assert(rwlock_users(rwlock) == i);
@@ -72,11 +70,10 @@ test_simple_read_lock (int n) {
 
 // test write lock and unlock with no readers
 
-static void
-test_simple_write_lock (void) {
-    struct rwlock the_rwlock, *rwlock = &the_rwlock;
+static void test_simple_write_lock(void) {
+    struct st_rwlock the_rwlock, *rwlock = &the_rwlock;
 
-    rwlock_init(rwlock);
+    rwlock_init(toku_uninstrumented, rwlock);
     assert(rwlock_users(rwlock) == 0);
     rwlock_write_lock(rwlock, 0);
     assert(rwlock_writers(rwlock) == 1);
@@ -88,19 +85,17 @@ test_simple_write_lock (void) {
 
 struct rw_event {
     int e;
-    struct rwlock the_rwlock;
+    struct st_rwlock the_rwlock;
     toku_mutex_t mutex;
 };
 
-static void
-rw_event_init (struct rw_event *rwe) {
+static void rw_event_init(struct rw_event *rwe) {
     rwe->e = 0;
-    rwlock_init(&rwe->the_rwlock);
-    toku_mutex_init(&rwe->mutex, 0);
+    rwlock_init(toku_uninstrumented, &rwe->the_rwlock);
+    toku_mutex_init(toku_uninstrumented, &rwe->mutex, nullptr);
 }
 
-static void
-rw_event_destroy (struct rw_event *rwe) {
+static void rw_event_destroy(struct rw_event *rwe) {
     rwlock_destroy(&rwe->the_rwlock);
     toku_mutex_destroy(&rwe->mutex);
 }
@@ -138,10 +133,12 @@ test_writer_priority (void) {
     toku_mutex_unlock(&rwe->mutex);
 
     toku_pthread_t tid;
-    r = toku_pthread_create(&tid, 0, test_writer_priority_thread, rwe);
+    r = toku_pthread_create(
+        toku_uninstrumented, &tid, 0, test_writer_priority_thread, rwe);
     sleep(1);
     toku_mutex_lock(&rwe->mutex);
-    rwe->e++; assert(rwe->e == 2);
+    rwe->e++;
+    assert(rwe->e == 2);
     toku_mutex_unlock(&rwe->mutex);
 
     sleep(1);
@@ -196,10 +193,12 @@ test_single_writer (void) {
     toku_mutex_unlock(&rwe->mutex);
 
     toku_pthread_t tid;
-    r = toku_pthread_create(&tid, 0, test_single_writer_thread, rwe);
+    r = toku_pthread_create(
+        toku_uninstrumented, &tid, 0, test_single_writer_thread, rwe);
     sleep(1);
     toku_mutex_lock(&rwe->mutex);
-    rwe->e++; assert(rwe->e == 2);
+    rwe->e++;
+    assert(rwe->e == 2);
     assert(rwlock_writers(&rwe->the_rwlock) == 1);
     assert(rwlock_users(&rwe->the_rwlock) == 2);
     rwlock_write_unlock(&rwe->the_rwlock);

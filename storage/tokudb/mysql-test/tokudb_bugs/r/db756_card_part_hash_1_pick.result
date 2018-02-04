@@ -17,5 +17,5 @@ test.t	analyze	status	OK
 show indexes from t;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t	0	PRIMARY	1	id	A	7	NULL	NULL		BTREE		
-t	1	x	1	x	A	3	NULL	NULL	YES	BTREE		
+t	1	x	1	x	A	7	NULL	NULL	YES	BTREE		
 drop table t;

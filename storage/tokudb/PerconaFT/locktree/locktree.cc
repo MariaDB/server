@@ -51,7 +51,6 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 // the locktree source file instead of the header.
 #include "concurrent_tree.h"
 
-
 namespace toku {
 
 // A locktree represents the set of row locks owned by all transactions
@@ -87,12 +86,13 @@ void lt_lock_request_info::init(void) {
     pending_lock_requests.create();
     pending_is_empty = true;
     ZERO_STRUCT(mutex);
-    toku_mutex_init(&mutex, nullptr);
+    toku_mutex_init(*locktree_request_info_mutex_key, &mutex, nullptr);
     retry_want = retry_done = 0;
     ZERO_STRUCT(counters);
     ZERO_STRUCT(retry_mutex);
-    toku_mutex_init(&retry_mutex, nullptr);
-    toku_cond_init(&retry_cv, nullptr);
+    toku_mutex_init(
+        *locktree_request_info_retry_mutex_key, &retry_mutex, nullptr);
+    toku_cond_init(*locktree_request_info_retry_cv_key, &retry_cv, nullptr);
     running_retry = false;
 
     TOKU_VALGRIND_HG_DISABLE_CHECKING(&pending_is_empty,

@@ -682,6 +682,21 @@ SELECT * FROM t1 WHERE MATCH (txt1,txt2) AGAINST ('ööö1' IN BOOLEAN MODE);
 SELECT * FROM t1 WHERE MATCH (txt1,txt2) AGAINST ('ùùù2' IN BOOLEAN MODE);
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-14743: Server crashes in Item_func_match::init_search
+--echo #
+
+CREATE TABLE t1 (f VARCHAR(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+SELECT 'foo' IN (  SELECT f FROM t1 GROUP BY MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE ) );
+SELECT 'foo' IN (  SELECT f FROM t1 GROUP BY MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE )) as f1, MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE ) as f2 from t1 ;
+explain extended
+SELECT 'foo' IN (  SELECT f FROM t1 GROUP BY MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE )) as f1, MATCH(f) AGAINST ( 'qux' IN BOOLEAN MODE ) as f2 from t1 ;
+
+drop table t1;
+
 --echo #
 --echo # End of 5.5 tests
 --echo #

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -502,7 +502,7 @@ public:
   }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return (void*) alloc_root(mem_root, (uint) size); }
-  static void operator delete(void *ptr,size_t size) { TRASH(ptr, size); }
+  static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
 
   // Ensures that at least all members used during cleanup() are initialized.
@@ -727,7 +727,13 @@ public:
   Item *prep_having;/* saved HAVING clause for prepared statement processing */
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;
-  /* point on lex in which it was created, used in view subquery detection */
+  /*
+    Point to the LEX in which it was created, used in view subquery detection.
+
+    TODO: make also st_select_lex::parent_stmt_lex (see THD::stmt_lex)
+    and use st_select_lex::parent_lex & st_select_lex::parent_stmt_lex
+    instead of global (from THD) references where it is possible.
+  */
   LEX *parent_lex;
   enum olap_type olap;
   /* FROM clause - points to the beginning of the TABLE_LIST::next_local list. */
@@ -2452,7 +2458,7 @@ struct LEX: public Query_tables_list
   /** SELECT of CREATE VIEW statement */
   LEX_STRING create_view_select;
 
-  uint number_of_selects; // valid only for view
+  uint current_select_number; // valid for statment LEX (not view)
 
   /** Start of 'ON table', in trigger statements.  */
   const char* raw_trg_on_table_name_begin;

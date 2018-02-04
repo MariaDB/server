@@ -195,6 +195,9 @@ struct srv_stats_t {
 	wait timeout */
 	ulint_ctr_1_t		n_lock_max_wait_time;
 
+	/** Number of buffered aio requests submitted */
+	ulint_ctr_64_t		n_aio_submitted;
+
 	/** Number of times page 0 is read from tablespace */
 	ulint_ctr_64_t		page0_read;
 
@@ -719,6 +722,9 @@ extern ulong srv_sync_array_size;
 
 /* print all user-level transactions deadlocks to mysqld stderr */
 extern my_bool srv_print_all_deadlocks;
+
+/* print lock wait timeout info to mysqld stderr */
+extern my_bool srv_print_lock_wait_timeout_info;
 
 extern my_bool	srv_cmp_per_index_enabled;
 
@@ -1294,7 +1300,9 @@ struct export_var_t{
 	ib_int64_t innodb_n_rowlog_blocks_decrypted;
 
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
-	ulint innodb_sec_rec_cluster_reads_avoided;/*!< srv_sec_rec_cluster_reads_avoided */
+	ulint innodb_sec_rec_cluster_reads_avoided; /*!< srv_sec_rec_cluster_reads_avoided */
+
+	ulint innodb_buffered_aio_submitted;
 
 	ulint innodb_encryption_rotation_pages_read_from_cache;
 	ulint innodb_encryption_rotation_pages_read_from_disk;

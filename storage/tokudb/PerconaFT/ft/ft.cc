@@ -50,9 +50,10 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include <toku_assert.h>
 #include <portability/toku_atomic.h>
 
-void 
-toku_reset_root_xid_that_created(FT ft, TXNID new_root_xid_that_created) {
-    // Reset the root_xid_that_created field to the given value.  
+toku_instr_key *ft_ref_lock_mutex_key;
+
+void toku_reset_root_xid_that_created(FT ft, TXNID new_root_xid_that_created) {
+    // Reset the root_xid_that_created field to the given value.
     // This redefines which xid created the dictionary.
 
     // hold lock around setting and clearing of dirty bit
@@ -100,15 +101,11 @@ toku_ft_free (FT ft) {
     toku_free(ft);
 }
 
-void
-toku_ft_init_reflock(FT ft) {
-    toku_mutex_init(&ft->ft_ref_lock, NULL);
+void toku_ft_init_reflock(FT ft) {
+    toku_mutex_init(*ft_ref_lock_mutex_key, &ft->ft_ref_lock, nullptr);
 }
 
-void
-toku_ft_destroy_reflock(FT ft) {
-    toku_mutex_destroy(&ft->ft_ref_lock);
-}
+void toku_ft_destroy_reflock(FT ft) { toku_mutex_destroy(&ft->ft_ref_lock); }
 
 void
 toku_ft_grab_reflock(FT ft) {
