@@ -5489,11 +5489,9 @@ void Field_temporal::set_warnings(Sql_condition::enum_warning_level trunc_level,
     a DATE field and non-zero time part is thrown away.
   */
   if (was_cut & MYSQL_TIME_WARN_TRUNCATED)
-    set_datetime_warning(trunc_level, WARN_DATA_TRUNCATED,
-                         str, mysql_type_to_time_type(type()), 1);
+    set_datetime_warning(trunc_level, WARN_DATA_TRUNCATED, str, ts_type, 1);
   if (was_cut & MYSQL_TIME_WARN_OUT_OF_RANGE)
-    set_datetime_warning(ER_WARN_DATA_OUT_OF_RANGE,
-                         str, mysql_type_to_time_type(type()), 1);
+    set_datetime_warning(ER_WARN_DATA_OUT_OF_RANGE, str, ts_type, 1);
 }
 
 
@@ -5529,14 +5527,15 @@ int Field_temporal_with_date::store_TIME_with_warning(MYSQL_TIME *ltime,
   }
   else if (!MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut) &&
            (MYSQL_TIME_WARN_HAVE_NOTES(was_cut) ||
-            (mysql_type_to_time_type(type()) == MYSQL_TIMESTAMP_DATE &&
+            (type_handler()->mysql_timestamp_type() == MYSQL_TIMESTAMP_DATE &&
              (ltime->hour || ltime->minute || ltime->second || ltime->second_part))))
   {
     trunc_level= Sql_condition::WARN_LEVEL_NOTE;
     was_cut|=  MYSQL_TIME_WARN_TRUNCATED;
     ret= 3;
   }
-  set_warnings(trunc_level, str, was_cut, mysql_type_to_time_type(type()));
+  set_warnings(trunc_level, str, was_cut,
+               type_handler()->mysql_timestamp_type());
   store_TIME(ltime);
   return was_cut ? ret : 0;
 }
@@ -5626,7 +5625,7 @@ my_decimal *Field_temporal::val_decimal(my_decimal *d)
   if (get_date(&ltime, 0))
   {
     bzero(&ltime, sizeof(ltime));
-    ltime.time_type= mysql_type_to_time_type(type());
+    ltime.time_type= type_handler()->mysql_timestamp_type();
   }
   return TIME_to_my_decimal(&ltime, d);
 }
