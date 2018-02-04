@@ -11,7 +11,9 @@ if [ -f /usr/lib/systemd/system/mariadb.service -a -x /usr/bin/systemctl ]; then
     # Make sure old possibly non-systemd instance is down
     if [ $1 = 2 ]; then
       SYSTEMCTL_SKIP_REDIRECT=1 %{_sysconfdir}/init.d/mysql stop >/dev/null 2>&1 || :
+      systemctl start %{daemon_name}.service >/dev/null 2>&1 || :
     fi
+    systemctl enable %{daemon_name}.service >/dev/null 2>&1 || :
   fi
 fi
 
