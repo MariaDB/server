@@ -17,7 +17,8 @@ if [ $? -eq 0 -a -n "$installed" ]; then
   [ -z "$new_family" ] && new_family="<bad package specification: version $myversion>"
 
   error_text=
-  if [ "$vendor" != "$myvendor" ]; then
+  if [ "$vendor" != "$myvendor" ] &&
+     [ "$vendor" != "Monty Program AB"  ]; then
     error_text="$error_text
 The current MariaDB server package is provided by a different
 vendor ($vendor) than $myvendor.  Some files may be installed
