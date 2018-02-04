@@ -5853,8 +5853,11 @@ lock_rec_block_validate(
 	buf_block_t*	block;
 	mtr_t		mtr;
 
-	/* Make sure that the tablespace is not deleted while we are
-	trying to access the page. */
+	/* Transactional locks should never refer to dropped
+	tablespaces, because all DDL operations that would drop or
+	discard or rebuild a tablespace do hold an exclusive table
+	lock, which would conflict with any locks referring to the
+	tablespace from other transactions. */
 	if (fil_space_t* space = fil_space_acquire(space_id)) {
 		dberr_t err = DB_SUCCESS;
 		mtr_start(&mtr);
