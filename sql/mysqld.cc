@@ -1375,7 +1375,7 @@ private:
 
 void Buffered_logs::init()
 {
-  init_alloc_root(&m_root, 1024, 0, MYF(0));
+  init_alloc_root(&m_root, "Buffered_logs", 1024, 0, MYF(0));
 }
 
 void Buffered_logs::cleanup()
@@ -8753,7 +8753,7 @@ static int option_cmp(my_option *a, my_option *b)
 static void print_help()
 {
   MEM_ROOT mem_root;
-  init_alloc_root(&mem_root, 4096, 4096, MYF(0));
+  init_alloc_root(&mem_root, "help", 4096, 4096, MYF(0));
 
   pop_dynamic(&all_options);
   add_many_options(&all_options, pfs_early_options,

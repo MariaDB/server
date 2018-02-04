@@ -1052,7 +1052,8 @@ private:
 public:
   Blob_mem_storage() :truncated_value(false)
   {
-    init_alloc_root(&storage, MAX_FIELD_VARCHARLENGTH, 0, MYF(0));
+    init_alloc_root(&storage, "Blob_mem_storage", MAX_FIELD_VARCHARLENGTH, 0,
+                    MYF(0));
   }
   ~ Blob_mem_storage()
   {

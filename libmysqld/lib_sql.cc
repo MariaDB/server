@@ -655,7 +655,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
   thd->mysql= mysql;
   mysql->server_version= server_version;
   mysql->client_flag= client_flag;
-  init_alloc_root(&mysql->field_alloc, 8192, 0, MYF(0));
+  init_alloc_root(&mysql->field_alloc, "fields", 8192, 0, MYF(0));
 }
 
 /**
@@ -971,7 +971,7 @@ int Protocol::begin_dataset()
     return 1;
   alloc= &data->alloc;
   /* Assume rowlength < 8192 */
-  init_alloc_root(alloc, 8192, 0, MYF(0));
+  init_alloc_root(alloc, "protocol", 8192, 0, MYF(0));
   alloc->min_malloc= sizeof(MYSQL_ROWS);
   return 0;
 }

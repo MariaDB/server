@@ -1520,7 +1520,7 @@ static FEDERATEDX_SERVER *get_server(FEDERATEDX_SHARE *share, TABLE *table)
 
   mysql_mutex_assert_owner(&federatedx_mutex);
 
-  init_alloc_root(&mem_root, 4096, 4096, MYF(0));
+  init_alloc_root(&mem_root, "federated", 4096, 4096, MYF(0));
 
   fill_server(&mem_root, &tmp_server, share, table ? table->s->table_charset : 0);
 
@@ -1578,7 +1578,7 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
   query.length(0);
 
   bzero(&tmp_share, sizeof(tmp_share));
-  init_alloc_root(&mem_root, 256, 0, MYF(0));
+  init_alloc_root(&mem_root, "federated", 256, 0, MYF(0));
 
   mysql_mutex_lock(&federatedx_mutex);
 

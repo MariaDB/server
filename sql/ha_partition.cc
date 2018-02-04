@@ -244,7 +244,7 @@ ha_partition::ha_partition(handlerton *hton, TABLE_SHARE *share)
 
 void ha_partition::ha_partition_init()
 {
-  init_alloc_root(&m_mem_root, 512, 512, MYF(0));
+  init_alloc_root(&m_mem_root, "ha_partition", 512, 512, MYF(0));
   init_handler_variables();
 }
 

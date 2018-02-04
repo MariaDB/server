@@ -1793,7 +1793,7 @@ Item_splocal::Item_splocal(THD *thd, const LEX_CSTRING *sp_var_name,
 
 bool Item_splocal::fix_fields(THD *thd, Item **ref)
 {
-  Item *item= thd->spcont->get_item(m_var_idx);
+  Item_field *item= thd->spcont->get_variable(m_var_idx);
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, ref, item);
 }
@@ -1804,7 +1804,7 @@ Item_splocal::this_item()
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_item(m_var_idx);
+  return m_thd->spcont->get_variable(m_var_idx);
 }
 
 const Item *
@@ -1812,7 +1812,7 @@ Item_splocal::this_item() const
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_item(m_var_idx);
+  return m_thd->spcont->get_variable(m_var_idx);
 }
 
 
@@ -1821,7 +1821,7 @@ Item_splocal::this_item_addr(THD *thd, Item **)
 {
   DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return thd->spcont->get_item_addr(m_var_idx);
+  return thd->spcont->get_variable_addr(m_var_idx);
 }
 
 
@@ -1918,7 +1918,7 @@ bool Item_splocal::check_cols(uint n)
 
 bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
 {
-  Item *item= thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
+  Item *item= thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
   return fix_fields_from_item(thd, ref, item);
 }
 
@@ -1928,7 +1928,7 @@ Item_splocal_row_field::this_item()
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
+  return m_thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
 }
 
 
@@ -1937,7 +1937,7 @@ Item_splocal_row_field::this_item() const
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
+  return m_thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
 }
 
 
@@ -1946,7 +1946,7 @@ Item_splocal_row_field::this_item_addr(THD *thd, Item **)
 {
   DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return thd->spcont->get_item(m_var_idx)->addr(m_field_idx);
+  return thd->spcont->get_variable(m_var_idx)->addr(m_field_idx);
 }
 
 
@@ -1977,7 +1977,7 @@ bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
                                                    m_var_idx,
                                                    m_field_name))
     return true;
-  Item *item= thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
+  Item *item= thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, it, item);
 }
@@ -2899,7 +2899,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
               (m_sp->agg_type() == NOT_AGGREGATE && !func_ctx));
   if (!func_ctx)
   {
-    init_sql_alloc(&sp_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
+    init_sql_alloc(&sp_mem_root, "Item_sp", MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
     *sp_query_arena= Query_arena(&sp_mem_root,
                                  Query_arena::STMT_INITIALIZED_FOR_SP);
   }
@@ -4009,7 +4009,10 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
 void Item_param::set_null()
 {
   DBUG_ENTER("Item_param::set_null");
-  /* These are cleared after each execution by reset() method */
+  /*
+    These are cleared after each execution by reset() method or by setting
+    other value.
+  */
   null_value= 1;
   /* 
     Because of NULL and string values we need to set max_length for each new
@@ -4033,6 +4036,7 @@ void Item_param::set_int(longlong i, uint32 max_length_arg)
   max_length= max_length_arg;
   decimals= 0;
   maybe_null= 0;
+  null_value= 0;
   fix_type(Item::INT_ITEM);
   DBUG_VOID_RETURN;
 }
@@ -4047,6 +4051,7 @@ void Item_param::set_double(double d)
   max_length= DBL_DIG + 8;
   decimals= NOT_FIXED_DEC;
   maybe_null= 0;
+  null_value= 0;
   fix_type(Item::REAL_ITEM);
   DBUG_VOID_RETURN;
 }
@@ -4079,6 +4084,7 @@ void Item_param::set_decimal(const char *str, ulong length)
     my_decimal_precision_to_length_no_truncation(value.m_decimal.precision(),
                                                  decimals, unsigned_flag);
   maybe_null= 0;
+  null_value= 0;
   fix_type(Item::DECIMAL_ITEM);
   DBUG_VOID_RETURN;
 }
@@ -4095,6 +4101,8 @@ void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
   unsigned_flag= unsigned_arg;
   max_length= my_decimal_precision_to_length(value.m_decimal.intg + decimals,
                                              decimals, unsigned_flag);
+  maybe_null= 0;
+  null_value= 0;
   fix_type(Item::DECIMAL_ITEM);
 }
 
@@ -4105,6 +4113,8 @@ void Item_param::fix_temporal(uint32 max_length_arg, uint decimals_arg)
   collation.set_numeric();
   max_length= max_length_arg;
   decimals= decimals_arg;
+  maybe_null= 0;
+  null_value= 0;
   fix_type(Item::DATE_ITEM);
 }
 
@@ -4114,6 +4124,8 @@ void Item_param::set_time(const MYSQL_TIME *tm,
 {
   DBUG_ASSERT(value.type_handler()->cmp_type() == TIME_RESULT);
   value.time= *tm;
+  maybe_null= 0;
+  null_value= 0;
   fix_temporal(max_length_arg, decimals_arg);
 }
 
@@ -4148,6 +4160,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
     set_zero_time(&value.time, MYSQL_TIMESTAMP_ERROR);
   }
   maybe_null= 0;
+  null_value= 0;
   fix_temporal(max_length_arg,
                tm->second_part > 0 ? TIME_SECOND_PART_DIGITS : 0);
   DBUG_VOID_RETURN;
@@ -4184,6 +4197,7 @@ bool Item_param::set_str(const char *str, ulong length,
   collation.set(tocs, DERIVATION_COERCIBLE);
   max_length= length;
   maybe_null= 0;
+  null_value= 0;
   /* max_length and decimals are set after charset conversion */
   /* sic: str may be not null-terminated, don't add DBUG_PRINT here */
   fix_type(Item::STRING_ITEM);
@@ -4219,6 +4233,7 @@ bool Item_param::set_longdata(const char *str, ulong length)
     DBUG_RETURN(TRUE);
   state= LONG_DATA_VALUE;
   maybe_null= 0;
+  null_value= 0;
   fix_type(Item::STRING_ITEM);
 
   DBUG_RETURN(FALSE);
@@ -4878,7 +4893,9 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     set_null();
     return false;
   }
-  return null_value= false;
+  /* It is wrapper => other set_* shoud set null_value */
+  DBUG_ASSERT(null_value == false);
+  return false;
 }
 
 

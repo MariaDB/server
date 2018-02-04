@@ -1631,7 +1631,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
     my_hash_free(&tz_names);
     goto end;
   }
-  init_sql_alloc(&tz_storage, 32 * 1024, 0, MYF(0));
+  init_sql_alloc(&tz_storage, "timezone_storage", 32 * 1024, 0, MYF(0));
   mysql_mutex_init(key_tz_LOCK, &tz_LOCK, MY_MUTEX_INIT_FAST);
   tz_inited= 1;
 
@@ -2554,7 +2554,8 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
       }
       else if (MY_S_ISREG(cur_dir->dir_entry[i].mystat->st_mode))
       {
-        init_alloc_root(&tz_storage, 32768, 0, MYF(MY_THREAD_SPECIFIC));
+        init_alloc_root(&tz_storage, "timezone_storage", 32768, 0,
+                        MYF(MY_THREAD_SPECIFIC));
         if (!tz_load(fullname, &tz_info, &tz_storage))
           print_tz_as_sql(root_name_end + 1, &tz_info);
         else
@@ -2728,7 +2729,7 @@ main(int argc, char **argv)
       First argument is timezonefile.
       The second is timezonename if opt_leap is not given
     */
-    init_alloc_root(&tz_storage, 32768, 0, MYF(0));
+    init_alloc_root(&tz_storage, "timezone_storage", 32768, 0, MYF(0));
 
     if (tz_load(argv[0], &tz_info, &tz_storage))
     {
@@ -2802,7 +2803,7 @@ main(int argc, char **argv)
 
   MY_INIT(argv[0]);
 
-  init_alloc_root(&tz_storage, 32768, MYF(0));
+  init_alloc_root(&tz_storage, "timezone_storage", 32768, MYF(0));
 
   /* let us set some well known timezone */
   setenv("TZ", "MET", 1);

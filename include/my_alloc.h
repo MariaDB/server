@@ -52,6 +52,7 @@ typedef struct st_mem_root
   unsigned int first_block_usage;
 
   void (*error_handler)(void);
+  const char *name;
 } MEM_ROOT;
 
 #ifdef  __cplusplus

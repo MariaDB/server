@@ -829,9 +829,9 @@ public:
   virtual int  store(double nr)=0;
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
-  virtual int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  virtual int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   virtual int  store_timestamp(my_time_t timestamp, ulong sec_part);
-  int store_time(MYSQL_TIME *ltime)
+  int store_time(const MYSQL_TIME *ltime)
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, uint length, CHARSET_INFO *cs,
             enum_check_fields check_level);
@@ -1711,7 +1711,7 @@ public:
                           field_metadata, length));
     return length;
   }
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   double pos_in_interval(Field *min, Field *max)
   {
     return pos_in_interval_val_real(min, max);
@@ -1856,7 +1856,7 @@ public:
            field_length >= from->field_length;
   }
   int store_decimal(const my_decimal *);
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_real() != 0e0; }
@@ -1946,7 +1946,7 @@ public:
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
   double val_real(void);
   longlong val_int(void);
@@ -2474,7 +2474,7 @@ public:
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
   bool validate_value_in_record(THD *thd, const uchar *record) const;
 };
@@ -2496,7 +2496,7 @@ public:
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
   int  store_timestamp(my_time_t timestamp, ulong sec_part);
   int  save_in_field(Field *to);
@@ -2699,7 +2699,7 @@ public:
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
-  int  store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
@@ -2780,9 +2780,14 @@ class Field_time :public Field_temporal {
   */
   long curdays;
 protected:
-  virtual void store_TIME(MYSQL_TIME *ltime);
+  virtual void store_TIME(const MYSQL_TIME *ltime);
   int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
                               int was_cut, int have_smth_to_conv);
+  void set_warnings(Sql_condition::enum_warning_level level,
+                    const ErrConv *str, int was_cut)
+  {
+    Field_temporal::set_warnings(level, str, was_cut, MYSQL_TIMESTAMP_TIME);
+  }
   bool check_zero_in_date_with_warn(ulonglong fuzzydate);
   static void do_field_time(Copy_field *copy);
 public:
@@ -2809,7 +2814,7 @@ public:
     return real_type() == from->real_type() &&
            decimals() == from->decimals();
   }
-  int store_time_dec(MYSQL_TIME *ltime, uint dec);
+  int store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int store(const char *to,uint length,CHARSET_INFO *charset);
   int store(double nr);
   int store(longlong nr, bool unsigned_val);
@@ -2864,7 +2869,7 @@ public:
 */
 class Field_time_hires :public Field_time_with_dec {
   longlong zero_point;
-  void store_TIME(MYSQL_TIME *ltime);
+  void store_TIME(const MYSQL_TIME *);
 public:
   Field_time_hires(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
@@ -2890,7 +2895,7 @@ public:
   TIME(0..6) - MySQL56 version
 */
 class Field_timef :public Field_time_with_dec {
-  void store_TIME(MYSQL_TIME *ltime);
+  void store_TIME(const MYSQL_TIME *ltime);
   int save_field_metadata(uchar *metadata_ptr)
   {
     *metadata_ptr= (uchar) decimals();

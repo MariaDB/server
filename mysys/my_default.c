@@ -518,7 +518,7 @@ int my_load_defaults(const char *conf_file, const char **groups,
   uint args_sep= my_getopt_use_args_separator ? 1 : 0;
   DBUG_ENTER("load_defaults");
 
-  init_alloc_root(&alloc, 512, 0, MYF(0));
+  init_alloc_root(&alloc, "my_load_defaults", 512, 0, MYF(0));
   if ((dirs= init_default_directories(&alloc)) == NULL)
     goto err;
   /*
@@ -1041,7 +1041,7 @@ void my_print_default_files(const char *conf_file)
   {
     const char **dirs;
     MEM_ROOT alloc;
-    init_alloc_root(&alloc, 512, 0, MYF(0));
+    init_alloc_root(&alloc, "my_print_defaults", 512, 0, MYF(0));
 
     if ((dirs= init_default_directories(&alloc)) == NULL)
     {

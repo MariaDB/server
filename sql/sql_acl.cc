@@ -1818,7 +1818,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   grant_version++; /* Privileges updated */
 
   const Host_table& host_table= tables.host_table();
-  init_sql_alloc(&acl_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&acl_memroot, "ACL", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
   if (host_table.table_exists()) // "host" table may not exist (e.g. in MySQL 5.6.7+)
   {
     if (host_table.init_read_record(&read_record_info, thd))
@@ -2237,7 +2237,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       DBUG_RETURN(TRUE);
 
     MEM_ROOT temp_root;
-    init_alloc_root(&temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+    init_alloc_root(&temp_root, "ACL_tmp", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
     while (!(read_record_info.read_record()))
     {
       char *hostname= safe_str(get_field(&temp_root, roles_mapping_table.host()));
@@ -7304,7 +7304,7 @@ static bool grant_load(THD *thd,
                       0,0,0, (my_hash_get_key) get_grant_table, 0,0);
   (void) my_hash_init(&func_priv_hash, &my_charset_utf8_bin,
                       0,0,0, (my_hash_get_key) get_grant_table, 0,0);
-  init_sql_alloc(&grant_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&grant_memroot, "GRANT", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   t_table= tables_priv.table();
   c_table= columns_priv.table();

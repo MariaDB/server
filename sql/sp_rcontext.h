@@ -191,6 +191,11 @@ public:
   // SP-variables.
   /////////////////////////////////////////////////////////////////////////
 
+  uint argument_count() const
+  {
+    return m_root_parsing_ctx->context_var_count();
+  }
+
   int set_variable(THD *thd, uint var_idx, Item **value);
   int set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
                              Item **value);
@@ -198,11 +203,24 @@ public:
                                      const LEX_CSTRING &field_name,
                                      Item **value);
   int set_variable_row(THD *thd, uint var_idx, List<Item> &items);
-  Item *get_item(uint var_idx) const
+
+  int set_parameter(THD *thd, uint var_idx, Item **value)
+  {
+    DBUG_ASSERT(var_idx < argument_count());
+    return set_variable(thd, var_idx, value);
+  }
+
+  Item_field *get_variable(uint var_idx) const
   { return m_var_items[var_idx]; }
 
-  Item **get_item_addr(uint var_idx) const
-  { return m_var_items.array() + var_idx; }
+  Item **get_variable_addr(uint var_idx) const
+  { return ((Item **) m_var_items.array()) + var_idx; }
+
+  Item_field *get_parameter(uint var_idx) const
+  {
+    DBUG_ASSERT(var_idx < argument_count());
+    return get_variable(var_idx);
+  }
 
   bool find_row_field_by_name_or_error(uint *field_idx, uint var_idx,
                                        const LEX_CSTRING &field_name);
@@ -381,7 +399,7 @@ private:
 
   /// Collection of Item_field proxies, each of them points to the
   /// corresponding field in m_var_table.
-  Bounds_checked_array<Item *> m_var_items;
+  Bounds_checked_array<Item_field *> m_var_items;
 
   /// This is a pointer to a field, which should contain return value for
   /// stored functions (only). For stored procedures, this pointer is NULL.

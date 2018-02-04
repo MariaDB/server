@@ -4891,7 +4891,8 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
 
   if (schema_table->i_s_requested_object & OPEN_TRIGGER_ONLY)
   {
-    init_sql_alloc(&tbl.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+    init_sql_alloc(&tbl.mem_root, "fill_schema_table_from_frm",
+                   TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
     if (!Table_triggers_list::check_n_load(thd, db_name,
                                            table_name, &tbl, 1))
     {
@@ -5174,8 +5175,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
 
   /* Use tmp_mem_root to allocate data for opened tables */
-  init_alloc_root(&tmp_mem_root, SHOW_ALLOC_BLOCK_SIZE, SHOW_ALLOC_BLOCK_SIZE,
-                  MY_THREAD_SPECIFIC);
+  init_alloc_root(&tmp_mem_root, "get_all_tables", SHOW_ALLOC_BLOCK_SIZE,
+                  SHOW_ALLOC_BLOCK_SIZE, MY_THREAD_SPECIFIC);
 
   for (size_t i=0; i < db_names.elements(); i++)
   {

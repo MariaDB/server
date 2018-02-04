@@ -342,7 +342,8 @@ MYSQL_FTPARSER_PARAM* ftparser_alloc_param(MI_INFO *info)
     info->ftparser_param= (MYSQL_FTPARSER_PARAM *)
       my_malloc(MAX_PARAM_NR * sizeof(MYSQL_FTPARSER_PARAM) *
                 info->s->ftkeys, MYF(MY_WME | MY_ZEROFILL));
-    init_alloc_root(&info->ft_memroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0, MYF(0));
+    init_alloc_root(&info->ft_memroot, "fulltext_parser",
+                    FTPARSER_MEMROOT_ALLOC_SIZE, 0, MYF(0));
   }
   return info->ftparser_param;
 }

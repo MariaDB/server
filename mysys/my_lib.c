@@ -136,7 +136,7 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
                             MYF(MyFlags)))
     goto error;
   
-  init_alloc_root(&dirh->root, NAMES_START_SIZE, NAMES_START_SIZE,
+  init_alloc_root(&dirh->root, "dir", NAMES_START_SIZE, NAMES_START_SIZE,
                   MYF(MyFlags));
 
   dp= (struct dirent*) dirent_tmp;
@@ -245,7 +245,7 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
                             MYF(MyFlags)))
     goto error;
 
-  init_alloc_root(&dirh->root, NAMES_START_SIZE, NAMES_START_SIZE,
+  init_alloc_root(&dirh->root, "dir", NAMES_START_SIZE, NAMES_START_SIZE,
                   MYF(MyFlags));
 
   if ((handle=_findfirst(tmp_path,&find)) == -1L)

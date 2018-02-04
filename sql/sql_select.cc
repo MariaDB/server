@@ -17145,7 +17145,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   if (param->precomputed_group_by)
     copy_func_count+= param->sum_func_count;
   
-  init_sql_alloc(&own_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&own_root, "tmp_table", TABLE_ALLOC_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
 
   if (!multi_alloc_root(&own_root,
                         &table, sizeof(*table),
@@ -17899,18 +17900,19 @@ bool Virtual_tmp_table::init(uint field_count)
 {
   uint *blob_field;
   uchar *bitmaps;
+  DBUG_ENTER("Virtual_tmp_table::init");
   if (!multi_alloc_root(in_use->mem_root,
                         &s, sizeof(*s),
                         &field, (field_count + 1) * sizeof(Field*),
                         &blob_field, (field_count + 1) * sizeof(uint),
                         &bitmaps, bitmap_buffer_size(field_count) * 6,
                         NullS))
-    return true;
+    DBUG_RETURN(true);
   bzero(s, sizeof(*s));
   s->blob_field= blob_field;
   setup_tmp_table_column_bitmaps(this, bitmaps, field_count);
   m_alloced_field_count= field_count;
-  return false;
+  DBUG_RETURN(false);
 };
 
 
@@ -17919,17 +17921,18 @@ bool Virtual_tmp_table::add(List<Spvar_definition> &field_list)
   /* Create all fields and calculate the total length of record */
   Spvar_definition *cdef;            /* column definition */
   List_iterator_fast<Spvar_definition> it(field_list);
-  for ( ; (cdef= it++); )
+  DBUG_ENTER("Virtual_tmp_table::add");
+  while ((cdef= it++))
   {
     Field *tmp;
     if (!(tmp= cdef->make_field(s, in_use->mem_root, 0,
                              (uchar*) (f_maybe_null(cdef->pack_flag) ? "" : 0),
                              f_maybe_null(cdef->pack_flag) ? 1 : 0,
                              &cdef->field_name)))
-      return true;
-    add(tmp);
+      DBUG_RETURN(true);
+     add(tmp);
   }
-  return false;
+  DBUG_RETURN(false);
 }
 
 

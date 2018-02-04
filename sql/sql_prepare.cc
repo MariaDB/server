@@ -3699,8 +3699,10 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   read_types(0),
   m_sql_mode(thd->variables.sql_mode)
 {
-  init_sql_alloc(&main_mem_root, thd_arg->variables.query_alloc_block_size,
-                 thd_arg->variables.query_prealloc_size, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&main_mem_root, "Prepared_statement",
+                 thd_arg->variables.query_alloc_block_size,
+                 thd_arg->variables.query_prealloc_size,
+                 MYF(MY_THREAD_SPECIFIC));
   *last_error= '\0';
 }
 
@@ -5359,7 +5361,8 @@ bool Protocol_local::send_result_set_metadata(List<Item> *columns, uint)
 {
   DBUG_ASSERT(m_rset == 0 && !alloc_root_inited(&m_rset_root));
 
-  init_sql_alloc(&m_rset_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&m_rset_root, "send_result_set_metadata",
+                 MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
 
   if (! (m_rset= new (&m_rset_root) List<Ed_row>))
     return TRUE;

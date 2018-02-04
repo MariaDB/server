@@ -130,7 +130,8 @@ void init_tree(TREE *tree, size_t default_alloc_size, size_t memory_limit,
   }
   if (!(tree->with_delete= MY_TEST(my_flags & MY_TREE_WITH_DELETE)))
   {
-    init_alloc_root(&tree->mem_root, default_alloc_size, 0, MYF(my_flags));
+    init_alloc_root(&tree->mem_root, "tree", default_alloc_size, 0,
+                    MYF(my_flags));
     tree->mem_root.min_malloc= sizeof(TREE_ELEMENT)+tree->size_of_element;
   }
   DBUG_VOID_RETURN;
