@@ -120,6 +120,14 @@ SET(ignored
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/pkgconfig"
   )
 
+IF(HAVE_SYSTEMD)
+  SET(ignored
+    "${ignored}"
+    "%ignore ${INSTALL_SYSTEMD_SYSUSERSDIR_RPM}"
+    "%ignore ${INSTALL_SYSTEMD_TMPFILESDIR_RPM}"
+    )
+ENDIF()
+
 SET(CPACK_RPM_server_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
 SET(CPACK_RPM_common_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONFDIR}/my.cnf")
 SET(CPACK_RPM_shared_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
