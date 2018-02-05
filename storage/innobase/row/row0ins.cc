@@ -3696,12 +3696,24 @@ row_ins(
 						placing all gaplocks. */
 						err = DB_DUPLICATE_KEY;
 						break;
-					} else if (!node->duplicate) {
+					} else if (err == DB_DUPLICATE_KEY &&
+						   !node->duplicate) {
 						/* Save 1st dup error. Ignore
 						subsequent dup errors. */
 						node->duplicate = node->index;
 						thr_get_trx(thr)->error_state
 							= DB_DUPLICATE_KEY;
+					} else if (err == DB_NO_REFERENCED_ROW) {
+						/* As a example consider
+						case INSERT INTO child (id)
+						VALUES (1) ON DUPLICATE
+						KEY UPDATE id =
+						VALUES(id);
+						where (1) does not cause
+						duplicate key. Thus
+						we should return original
+						DB_NO_REFERENCED_ROW */
+						DBUG_RETURN(err);
 					}
 					break;
 				}

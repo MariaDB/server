@@ -61,3 +61,26 @@ INSERT into t2 VALUES (1, 1, 100);
 INSERT INTO t2 (i,m) VALUES (1, 2) ON DUPLICATE KEY UPDATE m=3;
 SELECT * FROM t2;
 DROP TABLE t2, t1;
+
+#
+# MDEV-15042: INSERT ON DUPLICATE KEY UPDATE produces error 1032 (Can't find record)
+#
+CREATE TABLE parent (
+    id INT PRIMARY KEY AUTO_INCREMENT
+) ENGINE=INNODB;
+ 
+CREATE TABLE child (
+    parent_id INT NOT NULL PRIMARY KEY,
+    id INT NOT NULL,
+    CONSTRAINT fk_c_parent FOREIGN KEY (parent_id) REFERENCES parent (id) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=INNODB;
+ 
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO child (id, parent_id) VALUES (1, 1);
+ 
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO child (id, parent_id) VALUES (1, 1) ON DUPLICATE KEY UPDATE id = VALUES(id);
+
+select * from parent;
+select * from child;
+drop table child, parent;
