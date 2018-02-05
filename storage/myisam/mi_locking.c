@@ -114,7 +114,7 @@ int mi_lock_database(MI_INFO *info, int lock_type)
 	  if (myisam_flush)
 	  {
             if (share->file_map)
-              my_msync(info->dfile, share->file_map, (size_t)share->mmaped_length, MS_SYNC);
+              my_msync(info->dfile, share->file_map, share->mmaped_length, MS_SYNC);
             if (mysql_file_sync(share->kfile, MYF(0)))
 	      mark_crashed= error= my_errno;
             if (mysql_file_sync(info->dfile, MYF(0)))
@@ -529,7 +529,7 @@ int _mi_writeinfo(register MI_INFO *info, uint operation)
       if (myisam_flush)
       {
         if (share->file_map)
-          my_msync(info->dfile, share->file_map, (size_t)share->mmaped_length, MS_SYNC);
+          my_msync(info->dfile, share->file_map, share->mmaped_length, MS_SYNC);
         mysql_file_sync(share->kfile, 0);
         mysql_file_sync(info->dfile, 0);
       }
