@@ -25,6 +25,8 @@ IF(HAVE_C__Wno_format_truncation)
   SET(MY_WARNING_FLAGS "${MY_WARNING_FLAGS} -Wno-format-truncation")
 ENDIF()
 
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-nonnull-compare")
+
 # Common warning flags for GCC and Clang
 SET(MY_C_WARNING_FLAGS
     "${MY_WARNING_FLAGS} -Wwrite-strings -Wdeclaration-after-statement")
