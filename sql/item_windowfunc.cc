@@ -440,5 +440,10 @@ void Item_window_func::print(String *str, enum_query_type query_type)
 {
   window_func()->print(str, query_type);
   str->append(" over ");
+#ifndef DBUG_OFF
+  if (!window_spec) // one can call dbug_print_item() anytime in gdb
+    str->append(window_name);
+  else
+#endif
   window_spec->print(str, query_type);
 }
