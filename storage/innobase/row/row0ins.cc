@@ -1881,9 +1881,10 @@ do_possible_lock_wait:
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
-		err = check_table->to_be_dropped
-			? DB_LOCK_WAIT_TIMEOUT
-			: trx->error_state;
+		if (check_table->to_be_dropped
+		    || trx->error_state == DB_LOCK_WAIT_TIMEOUT) {
+			err = DB_LOCK_WAIT_TIMEOUT;
+		}
 
 		my_atomic_addlint(&check_table->n_foreign_key_checks_running,
 				  -1);
