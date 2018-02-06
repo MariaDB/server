@@ -306,29 +306,6 @@ row_mysql_store_geometry(
 	mach_write_to_n_little_endian(dest, dest_len - 8, src_len);
 
 	memcpy(dest + dest_len - 8, &src, sizeof src);
-
-	DBUG_EXECUTE_IF("row_print_geometry_data",
-	{
-		String  res;
-		Geometry_buffer buffer;
-		String  wkt;
-
-		/** Show the meaning of geometry data. */
-		Geometry* g = Geometry::construct(
-			&buffer, (const char*)src, (uint32) src_len);
-
-		if (g)
-		{
-			/*
-			if (g->as_wkt(&wkt) == 0)
-			{
-				ib::info() << "Write geometry data to"
-					" MySQL WKT format: "
-					<< wkt.c_ptr_safe() << ".";
-			}
-			*/
-		}
-	});
 }
 
 /*******************************************************************//**
@@ -348,29 +325,6 @@ row_mysql_read_geometry(
 	*len = mach_read_from_n_little_endian(ref, col_len - 8);
 
 	memcpy(&data, ref + col_len - 8, sizeof data);
-
-	DBUG_EXECUTE_IF("row_print_geometry_data",
-	{
-		String  res;
-		Geometry_buffer buffer;
-		String  wkt;
-
-		/** Show the meaning of geometry data. */
-		Geometry* g = Geometry::construct(
-			&buffer, (const char*) data, (uint32) *len);
-
-		if (g)
-		{
-			/*
-			if (g->as_wkt(&wkt) == 0)
-			{
-				ib::info() << "Read geometry data in"
-					" MySQL's WKT format: "
-					<< wkt.c_ptr_safe() << ".";
-			}
-			*/
-		}
-	});
 
 	return(data);
 }
