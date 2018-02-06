@@ -2085,3 +2085,15 @@ eval explain extended $q;
 set standard_compliant_cte=default;
 
 drop table flights;
+
+--echo #
+--echo # MDEV-15162: Setting user variable in recursive CTE
+--echo #
+
+SET @c=1;
+
+WITH RECURSIVE cte AS
+	(SELECT 5
+	UNION
+	SELECT @c:=@c+1 FROM cte WHERE @c<3)
+SELECT * FROM cte;

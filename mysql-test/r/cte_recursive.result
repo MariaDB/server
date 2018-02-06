@@ -3050,3 +3050,16 @@ Warnings:
 Note	1003	with recursive destinations as (select `test`.`a`.`arrival` AS `city`,1 AS `legs` from `test`.`flights` `a` where `test`.`a`.`departure` = 'Cairo' union select `test`.`b`.`arrival` AS `arrival`,`r`.`legs` + 1 AS `r.legs + 1` from `destinations` `r` join `test`.`flights` `b` where `r`.`city` = `test`.`b`.`departure` and !<in_optimizer>(`test`.`b`.`arrival`,<exists>(select `destinations`.`city` from `destinations` where trigcond(`test`.`b`.`arrival` = `destinations`.`city` or `destinations`.`city` is null) having trigcond(`destinations`.`city` is null))))select `destinations`.`city` AS `city`,`destinations`.`legs` AS `legs` from `destinations`
 set standard_compliant_cte=default;
 drop table flights;
+#
+# MDEV-15162: Setting user variable in recursive CTE
+#
+SET @c=1;
+WITH RECURSIVE cte AS
+(SELECT 5
+UNION
+SELECT @c:=@c+1 FROM cte WHERE @c<3)
+SELECT * FROM cte;
+5
+5
+2
+3
