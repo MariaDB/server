@@ -2245,25 +2245,6 @@ row_upd_store_row(
 }
 
 /***********************************************************//**
-Print a MBR data from disk */
-static
-void
-srv_mbr_print(const byte* data)
-{
-        double a, b, c, d;
-        a = mach_double_read(data);
-        data += sizeof(double);
-        b = mach_double_read(data);
-        data += sizeof(double);
-        c = mach_double_read(data);
-        data += sizeof(double);
-        d = mach_double_read(data);
-
-        ib::info() << "GIS MBR INFO: " << a << " and " << b << ", " << c
-		<< ", " << d << "\n";
-}
-
-/***********************************************************//**
 Updates a secondary index entry of a row.
 @return DB_SUCCESS if operation successfully completed, else error
 code or DB_LOCK_WAIT */
@@ -2426,8 +2407,6 @@ row_upd_sec_index_entry(
 			<< " of table " << index->table->name
 			<< " was not found on update: " << *entry
 			<< " at: " << rec_index_print(rec, index);
-		if (entry->fields[0].data)
-			srv_mbr_print((unsigned char*)entry->fields[0].data);
 #ifdef UNIV_DEBUG
 		mtr_commit(&mtr);
 		mtr_start(&mtr);
