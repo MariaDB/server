@@ -657,7 +657,7 @@ dict_tf_is_valid(
 		bit. For ROW_FORMAT=REDUNDANT, only the DATA_DIR flag
 		(which we cleared above) can be set. If any other flags
 		are set, the flags are invalid. */
-		return(flags == 0);
+		return(flags == 0 || flags == DICT_TF_MASK_NO_ROLLBACK);
 	}
 
 	return(dict_tf_is_valid_not_redundant(flags));

@@ -357,19 +357,19 @@ static bool number_to_time_with_warn(bool neg, ulonglong nr, ulong sec_part,
 {
   int was_cut;
   longlong res;
-  enum_field_types f_type;
+  enum_mysql_timestamp_type ts_type;
   bool have_warnings;
 
   if (fuzzydate & TIME_TIME_ONLY)
   {
     fuzzydate= TIME_TIME_ONLY; // clear other flags
-    f_type= MYSQL_TYPE_TIME;
+    ts_type= MYSQL_TIMESTAMP_TIME;
     res= number_to_time(neg, nr, sec_part, ltime, &was_cut);
     have_warnings= MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut);
   }
   else
   {
-    f_type= MYSQL_TYPE_DATETIME;
+    ts_type= MYSQL_TIMESTAMP_DATETIME;
     if (neg)
     {
       res= -1;
@@ -385,8 +385,7 @@ static bool number_to_time_with_warn(bool neg, ulonglong nr, ulong sec_part,
   {
     make_truncated_value_warning(current_thd,
                                  Sql_condition::WARN_LEVEL_WARN, str,
-                                 res < 0 ? MYSQL_TIMESTAMP_ERROR
-                                         : mysql_type_to_time_type(f_type),
+                                 res < 0 ? MYSQL_TIMESTAMP_ERROR : ts_type,
                                  field_name);
   }
   return res < 0;
