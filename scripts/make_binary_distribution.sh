@@ -371,7 +371,7 @@ done
 
 echo "Using $tar to create archive"
 OPT=cvf
-if [ x$SILENT = x1 ] ; then
+if [ "$SILENT" = "1" ] ; then
   OPT=cf
 fi
 

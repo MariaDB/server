@@ -125,7 +125,7 @@ get_keys()
         return
     fi
 
-    if [[ $sfmt == 'tar' ]];then
+    if [[ "$sfmt" == 'tar' ]];then
         wsrep_log_info "NOTE: Xtrabackup-based encryption - encrypt=1 - cannot be enabled with tar format"
         encrypt=-1
         return
@@ -133,17 +133,17 @@ get_keys()
 
     wsrep_log_info "Xtrabackup based encryption enabled in my.cnf - Supported only from Xtrabackup 2.1.4"
 
-    if [[ -z $ealgo ]];then
+    if [[ -z "$ealgo" ]];then
         wsrep_log_error "FATAL: Encryption algorithm empty from my.cnf, bailing out"
         exit 3
     fi
 
-    if [[ -z $ekey && ! -r $ekeyfile ]];then
+    if [[ -z "$ekey" && ! -r "$ekeyfile" ]];then
         wsrep_log_error "FATAL: Either key or keyfile must be readable"
         exit 3
     fi
 
-    if [[ -z $ekey ]];then
+    if [[ -z "$ekey" ]];then
         ecmd="xbcrypt --encrypt-algo=$ealgo --encrypt-key-file=$ekeyfile"
     else
         wsrep_log_warning "Using the 'encrypt-key' option causes the encryption key"
@@ -244,7 +244,7 @@ get_transfer()
 {
     TSST_PORT=${WSREP_SST_OPT_PORT:-4444}
 
-    if [[ $tfmt == 'nc' ]];then
+    if [[ "$tfmt" == 'nc' ]];then
         if [[ ! -x `which nc` ]];then 
             wsrep_log_error "nc(netcat) not found in path: $PATH"
             exit 2
@@ -410,18 +410,18 @@ adjust_progress()
         return
     fi
 
-    if [[ -n $progress && $progress != '1' ]];then 
-        if [[ -e $progress ]];then 
+    if [[ -n "$progress" && "$progress" != '1' ]];then 
+        if [[ -e "$progress" ]];then 
             pcmd+=" 2>>$progress"
         else 
             pcmd+=" 2>$progress"
         fi
-    elif [[ -z $progress && -n $rlimit  ]];then 
+    elif [[ -z "$progress" && -n "$rlimit"  ]];then 
             # When rlimit is non-zero
             pcmd="pv -q"
     fi 
 
-    if [[ -n $rlimit && "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
+    if [[ -n "$rlimit" && "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
         wsrep_log_info "Rate-limiting SST to $rlimit"
         pcmd+=" -L \$rlimit"
     fi
@@ -448,7 +448,7 @@ read_cnf()
 
 
     # Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html 
-    if [[ -z $ealgo ]];then
+    if [[ -z "$ealgo" ]];then
         ealgo=$(parse_cnf sst encrypt-algo "")
         ekey=$(parse_cnf sst encrypt-key "")
         ekeyfile=$(parse_cnf sst encrypt-key-file "")
@@ -487,7 +487,7 @@ read_cnf()
 
 get_stream()
 {
-    if [[ $sfmt == 'xbstream' ]];then 
+    if [[ "$sfmt" == 'xbstream' ]];then 
         wsrep_log_info "Streaming with xbstream"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             strmcmd="xbstream -x"
@@ -510,7 +510,7 @@ get_proc()
 {
     set +e
     nproc=$(grep -c processor /proc/cpuinfo)
-    [[ -z $nproc || $nproc -eq 0 ]] && nproc=1
+    [[ -z "$nproc" || $nproc -eq 0 ]] && nproc=1
     set -e
 }
 
@@ -570,7 +570,7 @@ cleanup_donor()
         wsrep_log_error "Cleanup after exit with status:$estatus"
     fi
 
-    if [[ -n ${XTRABACKUP_PID:-} ]];then 
+    if [[ -n "${XTRABACKUP_PID:-}" ]];then 
         if check_pid $XTRABACKUP_PID
         then
             wsrep_log_error "xtrabackup process is still running. Killing... "
@@ -580,19 +580,19 @@ cleanup_donor()
     fi
     rm -f ${DATA}/${IST_FILE} || true
 
-    if [[ -n $progress && -p $progress ]];then 
+    if [[ -n "$progress" && -p "$progress" ]];then 
         wsrep_log_info "Cleaning up fifo file $progress"
         rm -f $progress || true
     fi
 
     wsrep_log_info "Cleaning up temporary directories"
 
-    if [[ -n $xtmpdir ]];then 
-       [[ -d $xtmpdir ]] &&  rm -rf $xtmpdir || true
+    if [[ -n "$xtmpdir" ]];then 
+       [[ -d "$xtmpdir" ]] &&  rm -rf "$xtmpdir" || true
     fi
 
-    if [[ -n $itmpdir ]];then 
-       [[ -d $itmpdir ]] &&  rm -rf $itmpdir || true
+    if [[ -n "$itmpdir" ]];then 
+       [[ -d "$itmpdir" ]] &&  rm -rf "$itmpdir" || true
     fi
 
     # Final cleanup 
@@ -645,7 +645,7 @@ check_extra()
     if [[ $uextra -eq 1 ]];then 
         if [ $(parse_cnf --mysqld thread-handling) = 'pool-of-threads'];then
             local eport=$(parse_cnf --mysqld extra-port)
-            if [[ -n $eport ]];then 
+            if [[ -n "$eport" ]];then 
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
                 wsrep_log_info "SST through extra_port $eport"
@@ -750,7 +750,7 @@ normalize_version()
 
     # Only parses purely numeric version numbers, 1.2.3 
     # Everything after the first three values are ignored
-    if [[ $1 =~ ^([0-9]+)\.([0-9]+)\.?([0-9]*)([\.0-9])*$ ]]; then
+    if [[ "$1" =~ ^([0-9]+)\.([0-9]+)\.?([0-9]*)([\.0-9])*$ ]]; then
         major=${BASH_REMATCH[1]}
         minor=${BASH_REMATCH[2]}
         patch=${BASH_REMATCH[3]}
@@ -786,7 +786,7 @@ fi
 XB_REQUIRED_VERSION="2.3.5"
 
 XB_VERSION=`$INNOBACKUPEX_BIN --version 2>&1 | grep -oe '[0-9]\.[0-9][\.0-9]*' | head -n1`
-if [[ -z $XB_VERSION ]]; then
+if [[ -z "$XB_VERSION" ]]; then
     wsrep_log_error "FATAL: Cannot determine the $INNOBACKUPEX_BIN version. Needs xtrabackup-$XB_REQUIRED_VERSION or higher to perform SST"
     exit 2
 fi
@@ -863,7 +863,7 @@ then
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
         usrst=0
-        if [[ -z $WSREP_SST_OPT_SST_VER ]];then
+        if [[ -z "$WSREP_SST_OPT_SST_VER" ]];then
             wsrep_log_error "Upgrade joiner to 5.6.21 or higher for backup locks support"
             wsrep_log_error "The joiner is not supported for this version of donor"
             exit 93
@@ -900,12 +900,12 @@ then
         ttcmd="$tcmd"
 
         if [[ $encrypt -eq 1 ]];then
-            if [[ -n $scomp ]];then 
+            if [[ -n "$scomp" ]];then 
                 tcmd=" \$ecmd | $scomp | $tcmd "
             else 
                 tcmd=" \$ecmd | $tcmd "
             fi
-        elif [[ -n $scomp ]];then 
+        elif [[ -n "$scomp" ]];then 
             tcmd=" $scomp | $tcmd "
         fi
 
@@ -913,10 +913,10 @@ then
 
         # Restore the transport commmand to its original state
         tcmd="$ttcmd"
-        if [[ -n $progress ]];then 
+        if [[ -n "$progress" ]];then 
             get_footprint
             tcmd="$pcmd | $tcmd"
-        elif [[ -n $rlimit ]];then 
+        elif [[ -n "$rlimit" ]];then 
             adjust_progress
             tcmd="$pcmd | $tcmd"
         fi
@@ -927,7 +927,7 @@ then
         wsrep_log_info "Streaming the backup to joiner at ${WSREP_SST_OPT_HOST} ${WSREP_SST_OPT_PORT:-4444}"
 
         # Add compression to the head of the stream (if specified)
-        if [[ -n $scomp ]]; then
+        if [[ -n "$scomp" ]]; then
             tcmd="$scomp | $tcmd"
         fi
 
@@ -961,12 +961,12 @@ then
         echo "1" > "${DATA}/${IST_FILE}"
         get_keys
         if [[ $encrypt -eq 1 ]];then
-            if [[ -n $scomp ]];then 
+            if [[ -n "$scomp" ]];then 
                 tcmd=" \$ecmd | $scomp | $tcmd "
             else
                 tcmd=" \$ecmd | $tcmd "
             fi
-        elif [[ -n $scomp ]];then 
+        elif [[ -n "$scomp" ]];then 
             tcmd=" $scomp | $tcmd "
         fi
         strmcmd+=" \${IST_FILE}"
@@ -981,7 +981,7 @@ then
 elif [ "${WSREP_SST_OPT_ROLE}" = "joiner" ]
 then
     [[ -e $SST_PROGRESS_FILE ]] && wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
-    [[ -n $SST_PROGRESS_FILE ]] && touch $SST_PROGRESS_FILE
+    [[ -n "$SST_PROGRESS_FILE" ]] && touch "$SST_PROGRESS_FILE"
 
     ib_home_dir=$(parse_cnf --mysqld innodb-data-home-dir "")
     ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
@@ -1004,19 +1004,19 @@ then
     trap sig_joiner_cleanup HUP PIPE INT TERM
     trap cleanup_joiner EXIT
 
-    if [[ -n $progress ]];then 
+    if [[ -n "$progress" ]];then 
         adjust_progress
         tcmd+=" | $pcmd"
     fi
 
     get_keys
     if [[ $encrypt -eq 1 && $sencrypted -eq 1 ]];then
-        if [[ -n $sdecomp ]];then 
+        if [[ -n "$sdecomp" ]];then 
             strmcmd=" $sdecomp | \$ecmd | $strmcmd"
         else 
             strmcmd=" \$ecmd | $strmcmd"
         fi
-    elif [[ -n $sdecomp ]];then 
+    elif [[ -n "$sdecomp" ]];then 
             strmcmd=" $sdecomp | $strmcmd"
     fi
 
@@ -1048,10 +1048,10 @@ then
         find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1  -regex $cpat  -prune  -o -exec rm -rfv {} 1>&2 \+
 
         tempdir=$(parse_cnf --mysqld log-bin "")
-        if [[ -n ${tempdir:-} ]];then
+        if [[ -n "${tempdir:-}" ]];then
             binlog_dir=$(dirname $tempdir)
             binlog_file=$(basename $tempdir)
-            if [[ -n ${binlog_dir:-} && $binlog_dir != '.' && $binlog_dir != $DATA ]];then
+            if [[ -n "${binlog_dir:-}" && $binlog_dir != '.' && $binlog_dir != $DATA ]];then
                 pattern="$binlog_dir/$binlog_file\.[0-9]+$"
                 wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
                 find $binlog_dir -maxdepth 1 -type f -regex $pattern -exec rm -fv {} 1>&2 \+ || true
@@ -1097,7 +1097,7 @@ then
                 exit 22
             fi
 
-            if [[ -n $progress ]] && pv --help | grep -q 'line-mode';then
+            if [[ -n "$progress" ]] && pv --help | grep -q 'line-mode';then
                 count=$(find ${DATA} -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
                 if pv --help | grep -q FORMAT;then 
