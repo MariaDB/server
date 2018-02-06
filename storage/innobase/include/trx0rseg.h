@@ -212,12 +212,12 @@ struct trx_rseg_t {
 
 /* Transaction rollback segment header */
 /*-------------------------------------------------------------*/
-#define	TRX_RSEG_FORMAT		0	/* -2 = pre-MariaDB 10.3.5 format;
-					0=MariaDB 10.3.5 or later */
-#define	TRX_RSEG_HISTORY_SIZE	4	/* Number of file pages occupied
-					by the logs in the history list */
-#define	TRX_RSEG_HISTORY	8	/* The update undo logs for committed
-					transactions */
+/** 0xfffffffe = pre-MariaDB 10.3.5 format; 0=MariaDB 10.3.5 or later */
+#define	TRX_RSEG_FORMAT		0
+/** Number of pages in the TRX_RSEG_HISTORY list */
+#define	TRX_RSEG_HISTORY_SIZE	4
+/** Committed transaction logs that have not been purged yet */
+#define	TRX_RSEG_HISTORY	8
 #define	TRX_RSEG_FSEG_HEADER	(8 + FLST_BASE_NODE_SIZE)
 					/* Header for the file segment where
 					this page is placed */
