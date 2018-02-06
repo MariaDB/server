@@ -151,10 +151,18 @@ int test_main(int argc, char * const argv[]) {
     { int chk_r = db->open(db, NULL, "db", NULL, DB_BTREE, DB_CREATE, 0666); CKERR(chk_r); }
     DBT desc;
     dbt_init(&desc, "foo", sizeof("foo"));
-    IN_TXN_COMMIT(env, NULL, txn, 0,
-                  { int chk_r = db->change_descriptor(db, txn, &desc, DB_UPDATE_CMP_DESCRIPTOR); CKERR(chk_r); });
+    IN_TXN_COMMIT(env, NULL, txn, 0, {
+        int chk_r =
+            db->change_descriptor(db, txn, &desc, DB_UPDATE_CMP_DESCRIPTOR);
+        CKERR(chk_r);
+    });
     pthread_t thd;
-    { int chk_r = toku_pthread_create(&thd, NULL, startA, NULL); CKERR(chk_r); }
+    {
+        int chk_r =
+            toku_pthread_create(
+                toku_uninstrumented, &thd, nullptr, startA, nullptr);
+        CKERR(chk_r);
+    }
 
     startB();
 

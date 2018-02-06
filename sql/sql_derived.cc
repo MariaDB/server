@@ -369,7 +369,11 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
                        derived->get_unit()));
 
   if (derived->merged)
+  {
+
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
     DBUG_RETURN(FALSE);
+  }
 
   if (dt_select->uncacheable & UNCACHEABLE_RAND)
   {
@@ -745,6 +749,17 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
 
   unit->derived= derived;
+
+  /*
+    Above cascade call of prepare is important for PS protocol, but after it
+    is called we can check if we really need prepare for this derived
+  */
+  if (derived->merged)
+  {
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
+    DBUG_RETURN(FALSE);
+  }
+
   derived->fill_me= FALSE;
 
   if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
@@ -886,6 +901,11 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                        (derived->alias ? derived->alias : "<NULL>"),
                        derived->get_unit()));
+  if (derived->merged)
+  {
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
+    DBUG_RETURN(FALSE);
+  }
 
   if (unit->optimized)
     DBUG_RETURN(FALSE);

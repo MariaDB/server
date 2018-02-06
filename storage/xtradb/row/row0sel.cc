@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -98,8 +98,10 @@ row_sel_sec_rec_is_for_blob(
 /*========================*/
 	ulint		mtype,		/*!< in: main type */
 	ulint		prtype,		/*!< in: precise type */
-	ulint		mbminmaxlen,	/*!< in: minimum and maximum length of
-					a multi-byte character */
+	ulint		mbminlen,	/*!< in: minimum length of
+					a character, in bytes */
+	ulint		mbmaxlen,	/*!< in: maximum length of
+					a character, in bytes */
 	const byte*	clust_field,	/*!< in: the locally stored part of
 					the clustered index column, including
 					the BLOB pointer; the clustered
@@ -138,8 +140,7 @@ row_sel_sec_rec_is_for_blob(
 
 	len = btr_copy_externally_stored_field_prefix(buf, prefix_len,
 						      zip_size,
-						      clust_field, clust_len,
-						      NULL);
+						      clust_field, clust_len);
 
 	if (UNIV_UNLIKELY(len == 0)) {
 		/* The BLOB was being deleted as the server crashed.
@@ -150,7 +151,7 @@ row_sel_sec_rec_is_for_blob(
 		return(FALSE);
 	}
 
-	len = dtype_get_at_most_n_mbchars(prtype, mbminmaxlen,
+	len = dtype_get_at_most_n_mbchars(prtype, mbminlen, mbmaxlen,
 					  prefix_len, len, (const char*) buf);
 
 	return(!cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len));
@@ -234,14 +235,14 @@ row_sel_sec_rec_is_for_clust_rec(
 			}
 
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminmaxlen,
+				col->prtype, col->mbminlen, col->mbmaxlen,
 				ifield->prefix_len, len, (char*) clust_field);
 
 			if (rec_offs_nth_extern(clust_offs, clust_pos)
 			    && len < sec_len) {
 				if (!row_sel_sec_rec_is_for_blob(
 					    col->mtype, col->prtype,
-					    col->mbminmaxlen,
+					    col->mbminlen, col->mbmaxlen,
 					    clust_field, clust_len,
 					    sec_field, sec_len,
 					    ifield->prefix_len,
@@ -458,7 +459,7 @@ row_sel_fetch_columns(
 				data = btr_rec_copy_externally_stored_field(
 					rec, offsets,
 					dict_table_zip_size(index->table),
-					field_no, &len, heap, NULL);
+					field_no, &len, heap);
 
 				/* data == NULL means that the
 				externally stored field was not
@@ -1406,7 +1407,7 @@ table_loop:
 
 	/* Open a cursor to index, or restore an open cursor position */
 
-	mtr_start_trx(&mtr, thr_get_trx(thr));
+	mtr_start(&mtr);
 
 	if (consistent_read && plan->unique_search && !plan->pcur_is_open
 	    && !plan->must_get_clust
@@ -1447,7 +1448,7 @@ table_loop:
 		plan_reset_cursor(plan);
 
 		mtr_commit(&mtr);
-		mtr_start_trx(&mtr, thr_get_trx(thr));
+		mtr_start(&mtr);
 	}
 
 	if (search_latch_locked) {
@@ -2828,7 +2829,7 @@ row_sel_store_mysql_field_func(
 		data = btr_rec_copy_externally_stored_field(
 			rec, offsets,
 			dict_table_zip_size(prebuilt->table),
-			field_no, &len, heap, NULL);
+			field_no, &len, heap);
 
 		if (UNIV_UNLIKELY(!data)) {
 			/* The externally stored field was not written
@@ -3933,7 +3934,7 @@ row_search_for_mysql(
 		}
 	}
 
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 
 	/*-------------------------------------------------------------*/
 	/* PHASE 2: Try fast adaptive hash index search if possible */
@@ -5159,7 +5160,7 @@ next_rec:
 		mtr_commit(&mtr);
 		mtr_has_extra_clust_latch = FALSE;
 
-		mtr_start_trx(&mtr, trx);
+		mtr_start(&mtr);
 		if (sel_restore_position_for_mysql(&same_user_rec,
 						   BTR_SEARCH_LEAF,
 						   pcur, moves_up, &mtr)) {
@@ -5226,7 +5227,7 @@ lock_table_wait:
 		/* It was a lock wait, and it ended */
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
-		mtr_start_trx(&mtr, trx);
+		mtr_start(&mtr);
 
 		/* Table lock waited, go try to obtain table lock
 		again */

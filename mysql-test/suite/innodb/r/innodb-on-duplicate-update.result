@@ -58,20 +58,3 @@ SELECT * FROM t2;
 i	vi	m
 1	1	3
 DROP TABLE t2, t1;
-CREATE TABLE parent (
-id INT PRIMARY KEY AUTO_INCREMENT
-) ENGINE=INNODB;
-CREATE TABLE child (
-parent_id INT NOT NULL PRIMARY KEY,
-id INT NOT NULL,
-CONSTRAINT fk_c_parent FOREIGN KEY (parent_id) REFERENCES parent (id) ON UPDATE CASCADE ON DELETE CASCADE
-) ENGINE=INNODB;
-INSERT INTO child (id, parent_id) VALUES (1, 1);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `fk_c_parent` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`) ON DELETE CASCADE ON UPDATE CASCADE)
-INSERT INTO child (id, parent_id) VALUES (1, 1) ON DUPLICATE KEY UPDATE id = VALUES(id);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `fk_c_parent` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`) ON DELETE CASCADE ON UPDATE CASCADE)
-select * from parent;
-id
-select * from child;
-parent_id	id
-drop table child, parent;

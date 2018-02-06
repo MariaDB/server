@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1261,7 +1261,7 @@ row_upd_index_replace_new_col_val(
 		}
 
 		len = dtype_get_at_most_n_mbchars(col->prtype,
-						  col->mbminmaxlen,
+						  col->mbminlen, col->mbmaxlen,
 						  field->prefix_len, len,
 						  (const char*) data);
 
@@ -1514,12 +1514,7 @@ row_upd_replace_vcol(
 				dfield_copy_data(dfield, upd_field->old_v_val);
 			}
 
-			dfield_get_type(dfield)->mtype =
-				upd_field->new_val.type.mtype;
-			dfield_get_type(dfield)->prtype =
-				upd_field->new_val.type.prtype;
-			dfield_get_type(dfield)->mbminmaxlen =
-				upd_field->new_val.type.mbminmaxlen;
+			dfield->type = upd_field->new_val.type;
 			break;
 		}
 	}
@@ -2875,15 +2870,14 @@ row_upd_clust_rec(
 	down the index tree */
 
 	mtr->start();
-	mtr->set_named_space(index->space);
 
-	/* Disable REDO logging as lifetime of temp-tables is limited to
-	server or connection lifetime and so REDO information is not needed
-	on restart for recovery.
-	Disable locking as temp-tables are not shared across connection. */
-	if (dict_table_is_temporary(index->table)) {
+	if (index->table->is_temporary()) {
+		/* Disable locking, because temporary tables are never
+		shared between transactions or connections. */
 		flags |= BTR_NO_LOCKING_FLAG;
 		mtr->set_log_mode(MTR_LOG_NO_REDO);
+	} else {
+		mtr->set_named_space(index->space);
 	}
 
 	/* NOTE: this transaction has an s-lock or x-lock on the record and
@@ -3062,16 +3056,13 @@ row_upd_clust_step(
 	/* We have to restore the cursor to its position */
 
 	mtr.start();
-	mtr.set_named_space(index->space);
 
-	/* Disable REDO logging as lifetime of temp-tables is limited to
-	server or connection lifetime and so REDO information is not needed
-	on restart for recovery.
-	Disable locking as temp-tables are not shared across connection. */
-	const ulint flags = dict_table_is_temporary(index->table)
+	const ulint flags = index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG : 0;
 	if (flags) {
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
+	} else {
+		mtr.set_named_space(index->space);
 	}
 
 	/* If the restoration does not succeed, then the same

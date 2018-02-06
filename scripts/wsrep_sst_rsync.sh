@@ -135,19 +135,7 @@ fi
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
 # if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
 if [ -z "$WSREP_LOG_DIR" ]; then
-    WSREP_LOG_DIR=$(parse_cnf mariadb-10.0 innodb_log_group_home_dir "")
-fi
-if [ -z "$WSREP_LOG_DIR" ]; then
-    WSREP_LOG_DIR=$(parse_cnf mysqld innodb_log_group_home_dir "")
-fi
-if [ -z "$WSREP_LOG_DIR" ]; then
-    WSREP_LOG_DIR=$(parse_cnf server innodb_log_group_home_dir "")
-fi
-if [ -z "$WSREP_LOG_DIR" ]; then
-    WSREP_LOG_DIR=$(parse_cnf mariadb innodb_log_group_home_dir "")
-fi
-if [ -z "$WSREP_LOG_DIR" ]; then
-    WSREP_LOG_DIR=$(parse_cnf mysqld-10.0 innodb_log_group_home_dir "")
+    WSREP_LOG_DIR=$(parse_cnf --mysqld innodb-log-group-home-dir '')
 fi
 
 if [ -n "$WSREP_LOG_DIR" ]; then

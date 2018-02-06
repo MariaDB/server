@@ -124,3 +124,46 @@ v1
 1v
 drop database `mysqltest1
 1tsetlqsym`;
+create database `test```;
+create database `test\``
+\! ls
+#`;
+show databases like 'test%';
+Database (test%)
+test
+test\`
+\! ls
+#
+test`
+
+--
+-- Current Database: `test```
+--
+
+/*!40000 DROP DATABASE IF EXISTS `test```*/;
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test``` /*!40100 DEFAULT CHARACTER SET latin1 */;
+
+USE `test```;
+
+--
+-- Current Database: `test\``
+-- \! ls
+-- #`
+--
+
+/*!40000 DROP DATABASE IF EXISTS `test\``
+\! ls
+#`*/;
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test\``
+\! ls
+#` /*!40100 DEFAULT CHARACTER SET latin1 */;
+
+USE `test\``
+\! ls
+#`;
+drop database `test```;
+drop database `test\``
+\! ls
+#`;

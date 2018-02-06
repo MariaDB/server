@@ -67,10 +67,11 @@ struct my_threadpool {
 static void
 my_threadpool_init (struct my_threadpool *my_threadpool, int max_threads) {
     int r;
-    r = toku_thread_pool_create(&my_threadpool->threadpool, max_threads); assert(r == 0);
+    r = toku_thread_pool_create(&my_threadpool->threadpool, max_threads);
+    assert(r == 0);
     assert(my_threadpool != 0);
-    toku_mutex_init(&my_threadpool->mutex, 0);
-    toku_cond_init(&my_threadpool->wait, 0);
+    toku_mutex_init(toku_uninstrumented, &my_threadpool->mutex, nullptr);
+    toku_cond_init(toku_uninstrumented, &my_threadpool->wait, nullptr);
     my_threadpool->closed = 0;
     my_threadpool->counter = 0;
 }

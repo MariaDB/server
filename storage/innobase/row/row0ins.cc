@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -581,7 +581,8 @@ row_ins_cascade_calc_update_vec(
 
 				if (!dfield_is_null(&ufield->new_val)
 				    && dtype_get_at_most_n_mbchars(
-					col->prtype, col->mbminmaxlen,
+					col->prtype,
+					col->mbminlen, col->mbmaxlen,
 					col->len,
 					ufield_len,
 					static_cast<char*>(
@@ -2859,21 +2860,18 @@ row_ins_sec_index_entry_low(
 	cursor.rtr_info = NULL;
 	ut_ad(thr_get_trx(thr)->id != 0);
 
-	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
+	mtr.start();
 
-	if (dict_table_is_temporary(index->table)) {
-		/* Disable REDO logging as the lifetime of temp-tables is
-		limited to server or connection lifetime and so REDO
-		information is not needed on restart for recovery.
-		Disable locking as temp-tables are local to a connection. */
-
+	if (index->table->is_temporary()) {
+		/* Disable locking, because temporary tables are never
+		shared between transactions or connections. */
 		ut_ad(flags & BTR_NO_LOCKING_FLAG);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-	} else if (!dict_index_is_spatial(index)) {
-		/* Enable insert buffering if it's neither temp-table
-		nor spatial index. */
-		search_mode |= BTR_INSERT;
+	} else {
+		mtr.set_named_space(index->space);
+		if (!dict_index_is_spatial(index)) {
+			search_mode |= BTR_INSERT;
+		}
 	}
 
 	/* Ensure that we acquire index->lock when inserting into an
@@ -2945,10 +2943,8 @@ row_ins_sec_index_entry_low(
 	}
 
 	if (err != DB_SUCCESS) {
-		trx_t* trx = thr_get_trx(thr);
-
 		if (err == DB_DECRYPTION_FAILED) {
-			ib_push_warning(trx->mysql_thd,
+			ib_push_warning(thr_get_trx(thr)->mysql_thd,
 				DB_DECRYPTION_FAILED,
 				"Table %s is encrypted but encryption service or"
 				" used key_id is not available. "
@@ -3424,7 +3420,7 @@ row_ins_index_entry_set_vals(
 				= dict_field_get_col(ind_field);
 
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminmaxlen,
+				col->prtype, col->mbminlen, col->mbmaxlen,
 				ind_field->prefix_len,
 				len,
 				static_cast<const char*>(
@@ -3696,24 +3692,12 @@ row_ins(
 						placing all gaplocks. */
 						err = DB_DUPLICATE_KEY;
 						break;
-					} else if (err == DB_DUPLICATE_KEY &&
-						   !node->duplicate) {
+					} else if (!node->duplicate) {
 						/* Save 1st dup error. Ignore
 						subsequent dup errors. */
 						node->duplicate = node->index;
 						thr_get_trx(thr)->error_state
 							= DB_DUPLICATE_KEY;
-					} else if (err == DB_NO_REFERENCED_ROW) {
-						/* As a example consider
-						case INSERT INTO child (id)
-						VALUES (1) ON DUPLICATE
-						KEY UPDATE id =
-						VALUES(id);
-						where (1) does not cause
-						duplicate key. Thus
-						we should return original
-						DB_NO_REFERENCED_ROW */
-						DBUG_RETURN(err);
 					}
 					break;
 				}

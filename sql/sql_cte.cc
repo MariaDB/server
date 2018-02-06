@@ -813,7 +813,7 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
     goto err;
   lex_start(thd);
   with_select= &lex->select_lex;
-  with_select->select_number= ++thd->select_number;
+  with_select->select_number= ++thd->stmt_lex->current_select_number;
   parse_status= parse_sql(thd, &parser_state, 0);
   if (parse_status)
     goto err;

@@ -70,11 +70,11 @@ struct mylock {
 };
 
 static inline void ml_init(struct mylock *l) {
-    toku_mutex_init(&l->lock, 0);
+    toku_mutex_init(*log_internal_lock_mutex_key, &l->lock, nullptr);
 }
-static inline void ml_lock(struct mylock *l) {
-    toku_mutex_lock(&l->lock);
-}
+// TODO: source location info might have be to be pulled up one caller
+// to be useful
+static inline void ml_lock(struct mylock *l) { toku_mutex_lock(&l->lock); }
 static inline void ml_unlock(struct mylock *l) {
     toku_mutex_unlock(&l->lock);
 }

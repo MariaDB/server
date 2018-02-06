@@ -578,7 +578,7 @@ sp_head::sp_head()
    m_flags(0),
    m_sp_cache_version(0),
    m_creation_ctx(0),
-   unsafe_flags(0), m_select_number(1),
+   unsafe_flags(0),
    m_recursion_level(0),
    m_next_cached_sp(0),
    m_cont_level(0)
@@ -822,7 +822,7 @@ sp_head::~sp_head()
     thd->lex->sphead= NULL;
     lex_end(thd->lex);
     delete thd->lex;
-    thd->lex= lex;
+    thd->lex= thd->stmt_lex= lex;
   }
 
   my_hash_free(&m_sptabs);
@@ -1129,7 +1129,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
               backup_arena;
   query_id_t old_query_id;
   TABLE *old_derived_tables;
-  LEX *old_lex;
+  LEX *old_lex, *old_stmt_lex;
   Item_change_list old_change_list;
   String old_packet;
   uint old_server_status;
@@ -1144,19 +1144,6 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   /* this 7*STACK_MIN_SIZE is a complex matter with a long history (see it!) */
   if (check_stack_overrun(thd, 7 * STACK_MIN_SIZE, (uchar*)&old_packet))
     DBUG_RETURN(TRUE);
-
-  /*
-     Normally the counter is not reset between parsing and first execution,
-     but it is possible in case of error to have parsing on one CALL and
-     first execution (where VIEW will be parsed and added). So we store the
-     counter after parsing and restore it before execution just to avoid
-     repeating SELECT numbers.
-
-     Other problem is that it can be more SELECTs parsed in case of fixing
-     error causes previous interruption of the SP. So it is save not just
-     assign old value but add it.
-   */
-  thd->select_number+= m_select_number;
 
   /* init per-instruction memroot */
   init_sql_alloc(&execute_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
@@ -1246,6 +1233,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     do it in each instruction
   */
   old_lex= thd->lex;
+  old_stmt_lex= thd->stmt_lex;
   /*
     We should also save Item tree change list to avoid rollback something
     too early in the calling query.
@@ -1395,6 +1383,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   DBUG_ASSERT(thd->Item_change_list::is_empty());
   old_change_list.move_elements_to(thd);
   thd->lex= old_lex;
+  thd->stmt_lex= old_stmt_lex;
   thd->set_query_id(old_query_id);
   DBUG_ASSERT(!thd->derived_tables);
   thd->derived_tables= old_derived_tables;
@@ -1492,16 +1481,6 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
                m_first_instance->m_first_free_instance->m_recursion_level ==
                m_recursion_level + 1));
   m_first_instance->m_first_free_instance= this;
-
-  /*
-     This execution of the SP was aborted with an error (e.g. "Table not
-     found").  However it might still have consumed some numbers from the
-     thd->select_number counter.  The next sp->exec() call must not use the
-     consumed numbers, so we remember the first free number (We know that
-     nobody will use it as this execution has stopped with an error).
-   */
-  if (err_status)
-    set_select_number(thd->select_number);
 
   DBUG_RETURN(err_status);
 }
@@ -2241,7 +2220,7 @@ sp_head::reset_lex(THD *thd)
   if (sublex == 0)
     DBUG_RETURN(TRUE);
 
-  thd->lex= sublex;
+  thd->lex= thd->stmt_lex= sublex;
   (void)m_lex.push_front(oldlex);
 
   /* Reset most stuff. */
@@ -2985,7 +2964,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     We should not save old value since it is saved/restored in
     sp_head::execute() when we are entering/leaving routine.
   */
-  thd->lex= m_lex;
+  thd->lex= thd->stmt_lex= m_lex;
 
   thd->set_query_id(next_query_id());
 

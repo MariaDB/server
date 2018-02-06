@@ -38,9 +38,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include <toku_race_tools.h>
 
-void treenode::mutex_lock(void) {
-    toku_mutex_lock(&m_mutex);
-}
+// TODO: source location info might have to be pulled up one caller
+// to be useful
+void treenode::mutex_lock(void) { toku_mutex_lock(&m_mutex); }
 
 void treenode::mutex_unlock(void) {
     toku_mutex_unlock(&m_mutex);
@@ -58,7 +58,7 @@ void treenode::init(const comparator *cmp) {
     toku_pthread_mutexattr_t attr;
     toku_mutexattr_init(&attr);
     toku_mutexattr_settype(&attr, TOKU_MUTEX_ADAPTIVE);
-    toku_mutex_init(&m_mutex, &attr);
+    toku_mutex_init(*treenode_mutex_key, &m_mutex, &attr);
     toku_mutexattr_destroy(&attr);
     m_left_child.set(nullptr);
     m_right_child.set(nullptr);

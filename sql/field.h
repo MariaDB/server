@@ -706,7 +706,7 @@ public:
   { return alloc_root(mem_root, size); }
   static void *operator new(size_t size) throw ()
   { return thd_alloc(current_thd, size); }
-  static void operator delete(void *ptr_arg, size_t size) { TRASH(ptr_arg, size); }
+  static void operator delete(void *ptr_arg, size_t size) { TRASH_FREE(ptr_arg, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root)
   { DBUG_ASSERT(0); }
 

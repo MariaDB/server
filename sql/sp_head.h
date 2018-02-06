@@ -229,7 +229,6 @@ private:
   */
   uint32 unsafe_flags;
 
-  uint m_select_number;
 public:
   inline Stored_program_creation_ctx *get_creation_ctx()
   {
@@ -517,8 +516,6 @@ public:
   }
 
   sp_pcontext *get_parse_context() { return m_pcont; }
-
-  void set_select_number(uint num) { m_select_number= num; }
 
 private:
 

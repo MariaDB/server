@@ -22208,7 +22208,7 @@ innobase_get_computed_value(
 	if (max_prefix) {
 		len = dtype_get_at_most_n_mbchars(
 			col->m_col.prtype,
-			col->m_col.mbminmaxlen,
+			col->m_col.mbminlen, col->m_col.mbmaxlen,
 			max_prefix,
 			field->len,
 			static_cast<char*>(dfield_get_data(field)));

@@ -280,8 +280,7 @@ mem_heap_free_heap_top(
 	mem_block_set_free(block, old_top - (byte*) block);
 
 	ut_ad(mem_block_get_start(block) <= mem_block_get_free(block));
-	UNIV_MEM_ASSERT_W(old_top, (byte*) block + block->len - old_top);
-	UNIV_MEM_ALLOC(old_top, (byte*) block + block->len - old_top);
+	UNIV_MEM_FREE(old_top, (byte*) block + block->len - old_top);
 
 	/* If free == start, we may free the block if it is not the first
 	one */
@@ -445,7 +444,6 @@ mem_heap_free_top(
 	/* Subtract the free field of block */
 	mem_block_set_free(block, mem_block_get_free(block)
 			   - MEM_SPACE_NEEDED(n));
-	UNIV_MEM_ASSERT_W((byte*) block + mem_block_get_free(block), n);
 
 	/* If free == start, we may free the block if it is not the first
 	one */
@@ -454,11 +452,7 @@ mem_heap_free_top(
 				== mem_block_get_start(block))) {
 		mem_heap_block_free(heap, block);
 	} else {
-		/* Avoid a bogus UNIV_MEM_ASSERT_W() warning in a
-		subsequent invocation of mem_heap_free_top().
-		Originally, this was UNIV_MEM_FREE(), to catch writes
-		to freed memory. */
-		UNIV_MEM_ALLOC((byte*) block + mem_block_get_free(block), n);
+		UNIV_MEM_FREE((byte*) block + mem_block_get_free(block), n);
 	}
 }
 

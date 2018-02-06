@@ -169,8 +169,10 @@ int main(int argc, const char *argv[]) {
     struct arg big_arg[n_big];
     pthread_t big_ids[n_big];
     for (int i = 0; i < n_big; i++) {
-        big_arg[i] = { &mgr, lt[i % n_lt], (TXNID)(1000+i), i == 0 ? 1 : -1000000000 };
-        r = toku_pthread_create(&big_ids[i], nullptr, big_f, &big_arg[i]);
+        big_arg[i] = {
+            &mgr, lt[i % n_lt], (TXNID)(1000 + i), i == 0 ? 1 : -1000000000};
+        r = toku_pthread_create(
+            toku_uninstrumented, &big_ids[i], nullptr, big_f, &big_arg[i]);
         assert(r == 0);
     }
 

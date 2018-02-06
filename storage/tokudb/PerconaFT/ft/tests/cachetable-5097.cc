@@ -153,13 +153,16 @@ cachetable_test (void) {
         assert(r == 0);
     }
 
-    // at this point, we have a dirty PAIR in the cachetable associated with cachefile f1
-    // launch a thread that will put another PAIR in the cachetable, and get partial eviction started
+    // at this point, we have a dirty PAIR in the cachetable associated with
+    // cachefile f1
+    // launch a thread that will put another PAIR in the cachetable, and get
+    // partial eviction started
     toku_pthread_t tid;
-    r = toku_pthread_create(&tid, NULL, f2_pin, NULL); 
+    r = toku_pthread_create(
+        toku_uninstrumented, &tid, nullptr, f2_pin, nullptr);
     assert_zero(r);
 
-    usleep(2*1024*1024);
+    usleep(2 * 1024 * 1024);
     check_flush = true;
     toku_cachefile_close(&f1, false, ZERO_LSN); 
     if (enable_partial_eviction)

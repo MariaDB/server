@@ -142,11 +142,14 @@ run_test(void) {
     }
 
     // run the indexer
-    struct indexer_arg indexer_arg = { env, src_db, 1, &dest_db };
+    struct indexer_arg indexer_arg = {env, src_db, 1, &dest_db};
     toku_pthread_t pid;
-    r = toku_pthread_create(&pid, NULL, indexer_thread, &indexer_arg); assert_zero(r);
+    r = toku_pthread_create(
+        toku_uninstrumented, &pid, nullptr, indexer_thread, &indexer_arg);
+    assert_zero(r);
 
-    r = txn->abort(txn); assert_zero(r);
+    r = txn->abort(txn);
+    assert_zero(r);
 
     void *ret;
     r = toku_pthread_join(pid, &ret); assert_zero(r);

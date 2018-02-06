@@ -38,8 +38,9 @@ struct show_table_contributors_st {
 struct show_table_contributors_st show_table_contributors[]= {
   /* MariaDB foundation sponsors, in contribution, size , time order */
   {"Booking.com", "https://www.booking.com", "Founding member, Platinum Sponsor of the MariaDB Foundation"},
-  {"Alibaba Cloud", "https://intl.aliyun.com", "Platinum Sponsor of the MariaDB Foundation"},
+  {"Alibaba Cloud", "https://www.alibabacloud.com/", "Platinum Sponsor of the MariaDB Foundation"},
   {"Tencent Cloud", "https://cloud.tencent.com", "Platinum Sponsor of the MariaDB Foundation"},
+  {"Microsoft", "https://microsoft.com/", "Platinum Sponsor of the MariaDB Foundation"},
   {"MariaDB Corporation", "https://mariadb.com", "Founding member, Gold Sponsor of the MariaDB Foundation"},
   {"Visma", "https://visma.com", "Gold Sponsor of the MariaDB Foundation"},
   {"DBS", "https://dbs.com", "Gold Sponsor of the MariaDB Foundation"},

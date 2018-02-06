@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -6447,7 +6447,7 @@ lock_rec_block_validate(
 
 	/* Make sure that the tablespace is not deleted while we are
 	trying to access the page. */
-	if (fil_space_t* space = fil_space_acquire(space_id)) {
+	if (fil_space_t* space = fil_space_acquire_silent(space_id)) {
 		dberr_t err = DB_SUCCESS;
 		mtr_start(&mtr);
 
