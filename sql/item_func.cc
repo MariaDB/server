@@ -54,6 +54,7 @@
 #include "set_var.h"
 #include "debug_sync.h"
 #include "sql_base.h"
+#include "sql_cte.h"
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
 #define sp_restore_security_context(A,B) while (0) {}
@@ -4514,10 +4515,13 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     TABLE_LIST *derived;
     for (derived= unit->derived;
          derived;
-         derived= derived->select_lex->master_unit()->derived)
+         derived= unit->derived)
     {
       derived->set_materialized_derived();
       derived->prohibit_cond_pushdown= true;
+      if (unit->with_element && unit->with_element->is_recursive)
+        break;
+      unit= derived->select_lex->master_unit();
     }
   }
 

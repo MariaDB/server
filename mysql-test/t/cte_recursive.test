@@ -2113,3 +2113,15 @@ DROP TABLE a_tbl;
 
 --error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
 WITH RECURSIVE x AS (SELECT 1,2 UNION ALL SELECT 1 FROM x) SELECT * FROM x;
+
+--echo #
+--echo # MDEV-15162: Setting user variable in recursive CTE
+--echo #
+
+SET @c=1;
+
+WITH RECURSIVE cte AS
+	(SELECT 5
+	UNION
+	SELECT @c:=@c+1 FROM cte WHERE @c<3)
+SELECT * FROM cte;

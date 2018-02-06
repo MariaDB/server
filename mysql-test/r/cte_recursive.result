@@ -3079,3 +3079,16 @@ ERROR 21000: The used SELECT statements have a different number of columns
 DROP TABLE a_tbl;
 WITH RECURSIVE x AS (SELECT 1,2 UNION ALL SELECT 1 FROM x) SELECT * FROM x;
 ERROR 21000: The used SELECT statements have a different number of columns
+#
+# MDEV-15162: Setting user variable in recursive CTE
+#
+SET @c=1;
+WITH RECURSIVE cte AS
+(SELECT 5
+UNION
+SELECT @c:=@c+1 FROM cte WHERE @c<3)
+SELECT * FROM cte;
+5
+5
+2
+3
