@@ -62,6 +62,7 @@ public:
   virtual ~Server_side_cursor();
 
   static void operator delete(void *ptr, size_t size);
+  static void operator delete(void *, MEM_ROOT *){}
 };
 
 

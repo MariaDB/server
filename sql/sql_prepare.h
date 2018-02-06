@@ -130,6 +130,7 @@ public:
   size_t get_field_count() const { return m_column_count; }
 
   static void operator delete(void *ptr, size_t size) throw ();
+  static void operator delete(void *, MEM_ROOT *){}
 private:
   Ed_result_set(const Ed_result_set &);        /* not implemented */
   Ed_result_set &operator=(Ed_result_set &);   /* not implemented */

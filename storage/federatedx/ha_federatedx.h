@@ -170,6 +170,8 @@ public:
   { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr, size_t size)
   { TRASH(ptr, size); }
+  static void operator delete(void *, MEM_ROOT *)
+  { }
 
   virtual int query(const char *buffer, size_t length)=0;
   virtual FEDERATEDX_IO_RESULT *store_result()=0;

@@ -13355,6 +13355,8 @@ public:
                               size_t size __attribute__((unused)))
   { TRASH(ptr, size); }
 
+  static void operator delete(void *, MEM_ROOT*) {}
+
   Item *and_level;
   Item_bool_func2 *cmp_func;
   COND_CMP(Item *a,Item_bool_func2 *b) :and_level(a),cmp_func(b) {}

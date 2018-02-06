@@ -2115,6 +2115,7 @@ public:
   */
   static void *operator new(size_t size, THD *thd) throw();
   static void operator delete(void *ptr, size_t size) { TRASH(ptr, size); }
+  static void operator delete(void *, THD *) throw(){}
 
   Virtual_tmp_table(THD *thd)
   {
