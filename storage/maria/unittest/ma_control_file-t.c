@@ -123,7 +123,7 @@ static char *create_tmpdir(const char *progname)
 {
   static char test_dirname[FN_REFLEN];
   char tmp_name[FN_REFLEN];
-  uint length;
+  size_t length;
 
   /* Create a temporary directory of name TMP-'executable', but without the -t extension */
   fn_format(tmp_name, progname, "", "", MY_REPLACE_DIR | MY_REPLACE_EXT);

@@ -330,7 +330,7 @@ typedef struct st_user_stats
 typedef struct st_table_stats
 {
   char table[NAME_LEN * 2 + 2];  // [db] + '\0' + [table] + '\0'
-  uint table_name_length;
+  size_t table_name_length;
   ulonglong rows_read, rows_changed;
   ulonglong rows_changed_x_indexes;
   /* Stores enum db_type, but forward declarations cannot be done */
@@ -341,7 +341,7 @@ typedef struct st_index_stats
 {
   // [db] + '\0' + [table] + '\0' + [index] + '\0'
   char index[NAME_LEN * 3 + 3];
-  uint index_name_length;                       /* Length of 'index' */
+  size_t index_name_length;                       /* Length of 'index' */
   ulonglong rows_read;
 } INDEX_STATS;
 

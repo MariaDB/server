@@ -1296,7 +1296,7 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
   *buf_end= '\0';
 
   normalized_filename= buffer;
-  normalized_length= strlen(normalized_filename);
+  normalized_length= (int)strlen(normalized_filename);
 
   PFS_file **entry;
   uint retry_count= 0;

@@ -85,7 +85,7 @@ static uchar *servers_cache_get_key(FOREIGN_SERVER *server, size_t *length,
 			       my_bool not_used __attribute__((unused)))
 {
   DBUG_ENTER("servers_cache_get_key");
-  DBUG_PRINT("info", ("server_name_length %d server_name %s",
+  DBUG_PRINT("info", ("server_name_length %zd server_name %s",
                       server->server_name_length,
                       server->server_name));
 
@@ -433,7 +433,7 @@ insert_server_record_into_cache(FOREIGN_SERVER *server)
     We succeded in insertion of the server to the table, now insert
     the server to the cache
   */
-  DBUG_PRINT("info", ("inserting server %s at %p, length %d",
+  DBUG_PRINT("info", ("inserting server %s at %p, length %zd",
                         server->server_name, server,
                         server->server_name_length));
   if (my_hash_insert(&servers_cache, (uchar*) server))
@@ -689,7 +689,7 @@ delete_server_record_in_cache(LEX_SERVER_OPTIONS *server_options)
     We succeded in deletion of the server to the table, now delete
     the server from the cache
   */
-  DBUG_PRINT("info",("deleting server %s length %d",
+  DBUG_PRINT("info",("deleting server %s length %zd",
                      server->server_name,
                      server->server_name_length));
 

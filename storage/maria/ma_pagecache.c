@@ -667,7 +667,7 @@ static my_bool pagecache_fwrite(PAGECACHE *pagecache,
     DBUG_PRINT("error", ("write callback problem"));
     DBUG_RETURN(1);
   }
-  res= my_pwrite(filedesc->file, args.page, pagecache->block_size,
+  res= (int)my_pwrite(filedesc->file, args.page, pagecache->block_size,
                  ((my_off_t) pageno << pagecache->shift), flags);
   (*filedesc->post_write_hook)(res, &args);
   DBUG_RETURN(res);
@@ -810,7 +810,7 @@ size_t init_pagecache(PAGECACHE *pagecache, size_t use_mem,
       goto err;
     }
     /* Set my_hash_entries to the next bigger 2 power */
-    if ((pagecache->hash_entries= next_power(blocks)) <
+    if ((pagecache->hash_entries= next_power((uint)blocks)) <
         (blocks) * 5/4)
       pagecache->hash_entries<<= 1;
     hash_links= 2 * blocks;

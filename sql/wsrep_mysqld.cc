@@ -2660,11 +2660,10 @@ static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
   append_definer(thd, &stmt_query, &definer_user, &definer_host);
 
   LEX_CSTRING stmt_definition;
-  uint not_used;
   stmt_definition.str= (char*) thd->lex->stmt_definition_begin;
   stmt_definition.length= thd->lex->stmt_definition_end
     - thd->lex->stmt_definition_begin;
-  trim_whitespace(thd->charset(), &stmt_definition, &not_used);
+  trim_whitespace(thd->charset(), &stmt_definition);
 
   stmt_query.append(stmt_definition.str, stmt_definition.length);
 

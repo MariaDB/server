@@ -553,7 +553,7 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   String str(buffer, length, &my_charset_latin1);
   const Security_context *sctx= &thd->main_security_ctx;
   char header[256];
-  int len;
+  size_t len;
 
   /*
     The pointers thd->query and thd->proc_info might change since they are
@@ -567,8 +567,8 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   const char *proc_info= thd->proc_info;
 
   len= my_snprintf(header, sizeof(header),
-                   "MySQL thread id %lu, OS thread handle %lu, query id %lu",
-                   (ulong) thd->thread_id, (ulong) thd->real_id, (ulong) thd->query_id);
+                   "MySQL thread id %u, OS thread handle %lu, query id %llu",
+                    (uint)thd->thread_id, (ulong) thd->real_id, (ulonglong) thd->query_id);
   str.length(0);
   str.append(header, len);
 
@@ -2356,7 +2356,7 @@ void THD::cleanup_after_query()
 */
 
 bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
-			 const char *from, uint from_length,
+			 const char *from, size_t from_length,
 			 CHARSET_INFO *from_cs)
 {
   DBUG_ENTER("THD::convert_string");
@@ -2383,7 +2383,7 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
   dstcs and srccs cannot be &my_charset_bin.
 */
 bool THD::convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                      CHARSET_INFO *srccs, const char *src, uint src_length,
+                      CHARSET_INFO *srccs, const char *src, size_t src_length,
                       String_copier *status)
 {
   DBUG_ENTER("THD::convert_fix");
@@ -2401,7 +2401,7 @@ bool THD::convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
   Copy or convert a string.
 */
 bool THD::copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   CHARSET_INFO *srccs, const char *src, size_t src_length,
                    String_copier *status)
 {
   DBUG_ENTER("THD::copy_fix");
@@ -2418,7 +2418,7 @@ bool THD::copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
 class String_copier_with_error: public String_copier
 {
 public:
-  bool check_errors(CHARSET_INFO *srccs, const char *src, uint src_length)
+  bool check_errors(CHARSET_INFO *srccs, const char *src, size_t src_length)
   {
     if (most_important_error_pos())
     {
@@ -2433,7 +2433,7 @@ public:
 
 bool THD::convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                              CHARSET_INFO *srccs,
-                             const char *src, uint src_length)
+                             const char *src, size_t src_length)
 {
   String_copier_with_error status;
   return convert_fix(dstcs, dst, srccs, src, src_length, &status) ||
@@ -2443,7 +2443,7 @@ bool THD::convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
 
 bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
-                          const char *src, uint src_length)
+                          const char *src, size_t src_length)
 {
   String_copier_with_error status;
   return copy_fix(dstcs, dst, srccs, src, src_length, &status) ||
@@ -2498,7 +2498,7 @@ Item *THD::make_string_literal(const char *str, size_t length,
     str= to.str;
     length= to.length;
   }
-  return new (mem_root) Item_string(this, str, length,
+  return new (mem_root) Item_string(this, str, (uint)length,
                                     variables.collation_connection,
                                     DERIVATION_COERCIBLE, repertoire);
 }
@@ -2510,7 +2510,7 @@ Item *THD::make_string_literal_nchar(const Lex_string_with_metadata_st &str)
   if (!str.length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, national_charset_info);
 
-  return new (mem_root) Item_string(this, str.str, str.length,
+  return new (mem_root) Item_string(this, str.str, (uint)str.length,
                                     national_charset_info,
                                     DERIVATION_COERCIBLE,
                                     str.repertoire());
@@ -2523,7 +2523,7 @@ Item *THD::make_string_literal_charset(const Lex_string_with_metadata_st &str,
   if (!str.length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, cs);
   return new (mem_root) Item_string_with_introducer(this,
-                                                    str.str, str.length, cs);
+                                                    str.str, (uint)str.length, cs);
 }
 
 
@@ -2536,7 +2536,7 @@ Item *THD::make_string_literal_concat(Item *item, const LEX_CSTRING &str)
     {
       CHARSET_INFO *cs= variables.collation_connection;
       uint repertoire= my_string_repertoire(cs, str.str, str.length);
-      return new (mem_root) Item_string(this, str.str, str.length, cs,
+      return new (mem_root) Item_string(this, str.str, (uint)str.length, cs,
                                         DERIVATION_COERCIBLE, repertoire);
     }
     return item;
@@ -2544,7 +2544,7 @@ Item *THD::make_string_literal_concat(Item *item, const LEX_CSTRING &str)
 
   DBUG_ASSERT(item->type() == Item::STRING_ITEM);
   DBUG_ASSERT(item->basic_const_item());
-  static_cast<Item_string*>(item)->append(str.str, str.length);
+  static_cast<Item_string*>(item)->append(str.str, (uint)str.length);
   if (!(item->collation.repertoire & MY_REPERTOIRE_EXTENDED))
   {
     // If the string has been pure ASCII so far, check the new part.
@@ -2606,7 +2606,7 @@ void THD::add_changed_table(TABLE *table)
 }
 
 
-void THD::add_changed_table(const char *key, long key_length)
+void THD::add_changed_table(const char *key, size_t key_length)
 {
   DBUG_ENTER("THD::add_changed_table(key)");
   CHANGED_TABLE_LIST **prev_changed = &transaction.changed_tables;
@@ -2619,7 +2619,7 @@ void THD::add_changed_table(const char *key, long key_length)
     {
       list_include(prev_changed, curr, changed_table_dup(key, key_length));
       DBUG_PRINT("info", 
-		 ("key_length: %ld  %u", key_length,
+		 ("key_length: %zu  %zu", key_length,
                   (*prev_changed)->key_length));
       DBUG_VOID_RETURN;
     }
@@ -2630,7 +2630,7 @@ void THD::add_changed_table(const char *key, long key_length)
       {
 	list_include(prev_changed, curr, changed_table_dup(key, key_length));
 	DBUG_PRINT("info", 
-		   ("key_length:  %ld  %u", key_length,
+		   ("key_length:  %zu  %zu", key_length,
 		    (*prev_changed)->key_length));
 	DBUG_VOID_RETURN;
       }
@@ -2642,13 +2642,13 @@ void THD::add_changed_table(const char *key, long key_length)
     }
   }
   *prev_changed = changed_table_dup(key, key_length);
-  DBUG_PRINT("info", ("key_length: %ld  %u", key_length,
+  DBUG_PRINT("info", ("key_length: %zu  %zu", key_length,
 		      (*prev_changed)->key_length));
   DBUG_VOID_RETURN;
 }
 
 
-CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
+CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, size_t key_length)
 {
   CHANGED_TABLE_LIST* new_table = 
     (CHANGED_TABLE_LIST*) trans_alloc(ALIGN_SIZE(sizeof(CHANGED_TABLE_LIST))+
@@ -4256,7 +4256,7 @@ void TMP_TABLE_PARAM::init()
 }
 
 
-void thd_increment_bytes_sent(void *thd, ulong length)
+void thd_increment_bytes_sent(void *thd, size_t length)
 {
   /* thd == 0 when close_connection() calls net_send_error() */
   if (likely(thd != 0))
@@ -4272,16 +4272,10 @@ my_bool thd_net_is_killed()
 }
 
 
-void thd_increment_bytes_received(void *thd, ulong length)
+void thd_increment_bytes_received(void *thd, size_t length)
 {
   if (thd != NULL) // MDEV-13073 Ack collector having NULL
     ((THD*) thd)->status_var.bytes_received+= length;
-}
-
-
-void thd_increment_net_big_packet_count(void *thd, ulong length)
-{
-  ((THD*) thd)->status_var.net_big_packet_count+= length;
 }
 
 

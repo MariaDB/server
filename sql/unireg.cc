@@ -172,12 +172,13 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
   LEX_CSTRING str_db_type;
   uint reclength, key_info_length, i;
   ulong key_buff_length;
-  ulong filepos, data_offset;
+  size_t filepos;
+  ulong data_offset;
   uint options_len;
   uint gis_extra2_len= 0;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
   const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
-  int error;
+  bool error;
   uchar *frm_ptr, *pos;
   LEX_CUSTRING frm= {0,0};
   StringBuffer<MAX_FIELD_WIDTH> vcols;
@@ -200,7 +201,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
     create_info->expression_length= vcols.length() + FRM_VCOL_NEW_BASE_SIZE;
 
   error= pack_header(thd, forminfo, create_fields, create_info,
-                     data_offset, db_file);
+                     (ulong)data_offset, db_file);
   if (error)
     DBUG_RETURN(frm);
 
@@ -209,7 +210,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
   /* Calculate extra data segment length */
   str_db_type= *hton_name(create_info->db_type);
   /* str_db_type */
-  create_info->extra_size= (2 + str_db_type.length +
+  create_info->extra_size= (uint)(2 + str_db_type.length +
                             2 + create_info->connect_string.length);
   /*
     Partition:
@@ -220,12 +221,12 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
   */
   create_info->extra_size+= 6;
   if (part_info)
-    create_info->extra_size+= part_info->part_info_len;
+    create_info->extra_size+= (uint)part_info->part_info_len;
 
   for (i= 0; i < keys; i++)
   {
     if (key_info[i].parser_name)
-      create_info->extra_size+= key_info[i].parser_name->length + 1;
+      create_info->extra_size+= (uint)key_info[i].parser_name->length + 1;
   }
 
   options_len= engine_table_options_frm_length(create_info->option_list,
@@ -247,7 +248,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
   if (create_info->comment.length > TABLE_COMMENT_INLINE_MAXLEN)
   {
     forminfo[46]=255;
-    create_info->extra_size+= 2 + create_info->comment.length;
+    create_info->extra_size+= 2 + (uint)create_info->comment.length;
   }
   else
   {
@@ -271,7 +272,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
   prepare_frm_header(thd, reclength, fileinfo, create_info, keys, key_info);
 
   /* one byte for a type, one or three for a length */
-  uint extra2_size= 1 + 1 + create_info->tabledef_version.length;
+  size_t extra2_size= 1 + 1 + create_info->tabledef_version.length;
   if (options_len)
     extra2_size+= 1 + (options_len > 255 ? 3 : 1) + options_len;
 
@@ -762,10 +763,10 @@ static bool pack_header(THD *thd, uchar *forminfo,
         {
           char *dst;
           const char *src= field->save_interval->type_names[pos];
-          uint hex_length;
+          size_t hex_length;
           length= field->save_interval->type_lengths[pos];
           hex_length= length * 2;
-          field->interval->type_lengths[pos]= hex_length;
+          field->interval->type_lengths[pos]= (uint)hex_length;
           field->interval->type_names[pos]= dst=
             (char*) thd->alloc(hex_length + 1);
           octet2hex(dst, src, length);
@@ -889,7 +890,8 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
                         ulong data_offset)
 {
   uchar *buff= *buff_arg;
-  uint int_count, comment_length= 0;
+  uint int_count;
+  size_t comment_length= 0;
   Create_field *field;
   DBUG_ENTER("pack_fields");
 

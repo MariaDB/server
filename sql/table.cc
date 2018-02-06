@@ -87,7 +87,7 @@ static void fix_type_pointers(const char ***array, TYPELIB *point_to_type,
 			      uint types, char **names);
 static uint find_field(Field **fields, uchar *record, uint start, uint length);
 
-inline bool is_system_table_name(const char *name, uint length);
+inline bool is_system_table_name(const char *name, size_t length);
 
 /**************************************************************************
   Object_creation_ctx implementation.
@@ -509,7 +509,7 @@ void free_table_share(TABLE_SHARE *share)
   and should not contain user tables.
 */
 
-inline bool is_system_table_name(const char *name, uint length)
+inline bool is_system_table_name(const char *name, size_t length)
 {
   CHARSET_INFO *ci= system_charset_info;
 
@@ -1190,10 +1190,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   enum legacy_db_type legacy_db_type;
   my_bitmap_map *bitmaps;
   bool null_bits_are_used;
-  uint vcol_screen_length, UNINIT_VAR(options_len);
+  uint vcol_screen_length;
+  size_t UNINIT_VAR(options_len);
   uchar *vcol_screen_pos;
   const uchar *options= 0;
-  uint UNINIT_VAR(gis_options_len);
+  size_t UNINIT_VAR(gis_options_len);
   const uchar *gis_options= 0;
   KEY first_keyinfo;
   uint len;
@@ -1711,7 +1712,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       for (count= 0; count < interval->count; count++)
       {
         char *val= (char*) interval->type_names[count];
-        interval->type_lengths[count]= strlen(val);
+        interval->type_lengths[count]= (uint)strlen(val);
       }
       interval->type_lengths[count]= 0;
     }
@@ -3804,7 +3805,7 @@ static uint find_field(Field **fields, uchar *record, uint start, uint length)
     May fail with some multibyte charsets though.
 */
 
-void append_unescaped(String *res, const char *pos, uint length)
+void append_unescaped(String *res, const char *pos, size_t length)
 {
   const char *end= pos+length;
   res->append('\'');
@@ -3855,7 +3856,7 @@ void append_unescaped(String *res, const char *pos, uint length)
 void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
                         HA_CREATE_INFO *create_info, uint keys, KEY *key_info)
 {
-  ulong key_comment_total_bytes= 0;
+  size_t key_comment_total_bytes= 0;
   uint i;
   DBUG_ENTER("prepare_frm_header");
 
@@ -3865,7 +3866,7 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   if (create_info->min_rows > UINT_MAX32)
     create_info->min_rows= UINT_MAX32;
 
-  uint key_length, tmp_key_length, tmp, csid;
+  size_t key_length, tmp_key_length, tmp, csid;
   bzero((char*) fileinfo, FRM_HEADER_SIZE);
   /* header */
   fileinfo[0]=(uchar) 254;
@@ -4091,7 +4092,7 @@ bool ok_for_lower_case_names(const char *name)
 bool check_db_name(LEX_STRING *org_name)
 {
   char *name= org_name->str;
-  uint name_length= org_name->length;
+  size_t name_length= org_name->length;
   bool check_for_path_chars;
 
   if ((check_for_path_chars= check_mysql50_prefix(name)))
@@ -8937,7 +8938,7 @@ void vers_select_conds_t::resolve_units(bool timestamps_only)
 
 Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
 {
-  uint length= str->length;
+  size_t length= str->length;
   for (Field **tmp= field; *tmp; tmp++)
   {
     if ((*tmp)->field_name.length == length &&

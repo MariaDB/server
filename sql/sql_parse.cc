@@ -923,7 +923,7 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
   save_vio= thd->net.vio;
   thd->net.vio= 0;
   thd->clear_error(1);
-  dispatch_command(COM_QUERY, thd, buf, len, FALSE, FALSE);
+  dispatch_command(COM_QUERY, thd, buf, (uint)len, FALSE, FALSE);
   thd->client_capabilities= save_client_capabilities;
   thd->net.vio= save_vio;
 
@@ -936,7 +936,7 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
 static char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error)
 {
   MYSQL_FILE *in= static_cast<MYSQL_FILE*> (input);
-  char *line= mysql_file_fgets(buffer, size, in);
+  char *line= mysql_file_fgets(buffer, (int)size, in);
   if (error)
     *error= (line == NULL) ? ferror(in->m_file) : 0;
   return line;
@@ -1483,7 +1483,7 @@ static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
   @retval # - Number of commands in the batch
 */
 
-uint maria_multi_check(THD *thd, char *packet, uint packet_length)
+uint maria_multi_check(THD *thd, char *packet, size_t packet_length)
 {
   uint counter= 0;
   DBUG_ENTER("maria_multi_check");
@@ -2166,7 +2166,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   {
     STATUS_VAR *current_global_status_var;      // Big; Don't allocate on stack
     ulong uptime;
-    uint length __attribute__((unused));
     ulonglong queries_per_second1000;
     char buff[250];
     uint buff_len= sizeof(buff);
@@ -2181,8 +2180,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       queries_per_second1000= 0;
     else
       queries_per_second1000= thd->query_id * 1000 / uptime;
-
-    length= my_snprintf(buff, buff_len - 1,
+#ifndef EMBEDDED_LIBRARY
+    size_t length=
+#endif
+    my_snprintf(buff, buff_len - 1,
                         "Uptime: %lu  Threads: %d  Questions: %lu  "
                         "Slow queries: %lu  Opens: %lu  Flush tables: %lld  "
                         "Open tables: %u  Queries per second avg: %u.%03u",
@@ -2309,7 +2310,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         }
 
         if (dispatch_command(subcommand, thd, packet + (1 + length_length),
-                             subpacket_length - (1 + length_length), TRUE,
+                             (uint)(subpacket_length - (1 + length_length)), TRUE,
                              (current_com != counter)))
         {
           DBUG_ASSERT(thd->is_error());
@@ -2318,7 +2319,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
         DBUG_ASSERT(subpacket_length <= packet_length);
         packet+= subpacket_length;
-        packet_length-= subpacket_length;
+        packet_length-= (uint)subpacket_length;
       }
 
 com_multi_end:
@@ -2627,7 +2628,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
     TRUE  error;  In this case thd->fatal_error is set
 */
 
-bool alloc_query(THD *thd, const char *packet, uint packet_length)
+bool alloc_query(THD *thd, const char *packet, size_t packet_length)
 {
   char *query;
   /* Remove garbage at start and end of query */
@@ -7455,16 +7456,16 @@ bool check_stack_overrun(THD *thd, long margin,
 #define MY_YACC_INIT 1000			// Start with big alloc
 #define MY_YACC_MAX  32000			// Because of 'short'
 
-bool my_yyoverflow(short **yyss, YYSTYPE **yyvs, ulong *yystacksize)
+bool my_yyoverflow(short **yyss, YYSTYPE **yyvs, size_t *yystacksize)
 {
   Yacc_state *state= & current_thd->m_parser_state->m_yacc;
-  ulong old_info=0;
+  size_t old_info=0;
   DBUG_ASSERT(state);
-  if ((uint) *yystacksize >= MY_YACC_MAX)
+  if ( *yystacksize >= MY_YACC_MAX)
     return 1;
   if (!state->yacc_yyvs)
     old_info= *yystacksize;
-  *yystacksize= set_zone((*yystacksize)*2,MY_YACC_INIT,MY_YACC_MAX);
+  *yystacksize= set_zone((int)(*yystacksize)*2,MY_YACC_INIT,MY_YACC_MAX);
   if (!(state->yacc_yyvs= (uchar*)
         my_realloc(state->yacc_yyvs,
                    *yystacksize*sizeof(**yyvs),
@@ -9760,7 +9761,7 @@ LEX_USER *create_definer(THD *thd, LEX_CSTRING *user_name,
 */
 
 bool check_string_byte_length(const LEX_CSTRING *str, uint err_msg,
-                              uint max_byte_length)
+                              size_t max_byte_length)
 {
   if (str->length <= max_byte_length)
     return FALSE;
@@ -9790,7 +9791,7 @@ bool check_string_byte_length(const LEX_CSTRING *str, uint err_msg,
 
 
 bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
-                              uint max_char_length, CHARSET_INFO *cs,
+                              size_t max_char_length, CHARSET_INFO *cs,
                               bool no_error)
 {
   Well_formed_prefix prefix(cs, str->str, str->length, max_char_length);
@@ -9834,7 +9835,7 @@ extern "C" {
 
 int path_starts_from_data_home_dir(const char *path)
 {
-  int dir_len= strlen(path);
+  size_t dir_len= strlen(path);
   DBUG_ENTER("path_starts_from_data_home_dir");
 
   if (mysql_unpacked_real_data_home_len<= dir_len)

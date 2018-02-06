@@ -258,7 +258,7 @@ class ACL_USER :public ACL_USER_BASE
 {
 public:
   acl_host_and_ip host;
-  uint hostname_length;
+  size_t hostname_length;
   USER_RESOURCES user_resource;
   uint8 salt[SCRAMBLE_LENGTH + 1];       // scrambled password in binary form
   uint8 salt_len;        // 0 - no password, 4 - 3.20, 8 - 4.0,  20 - 4.1.1
@@ -744,7 +744,7 @@ static ACL_ROLE *find_acl_role(const char *user);
 static ROLE_GRANT_PAIR *find_role_grant_pair(const LEX_CSTRING *u, const LEX_CSTRING *h, const LEX_CSTRING *r);
 static ACL_USER_BASE *find_acl_user_base(const char *user, const char *host);
 static bool update_user_table(THD *, const User_table &, const char *, const char *, const
-                              char *, uint);
+                              char *, size_t new_password_len);
 static bool acl_load(THD *thd, const Grant_tables& grant_tables);
 static inline void get_grantor(THD *thd, char* grantor);
 static bool add_role_user_mapping(const char *uname, const char *hname, const char *rname);
@@ -1545,7 +1545,7 @@ static bool validate_password(LEX_USER *user, THD *thd)
 */
 
 static void
-set_user_salt(ACL_USER *acl_user, const char *password, uint password_len)
+set_user_salt(ACL_USER *acl_user, const char *password, size_t password_len)
 {
   if (password_len == SCRAMBLED_PASSWORD_CHAR_LENGTH)
   {
@@ -1768,7 +1768,7 @@ bool acl_init(bool dont_read_acl_tables)
   Choose from either native or old password plugins when assigning a password
 */
 
-static bool set_user_plugin (ACL_USER *user, int password_len)
+static bool set_user_plugin (ACL_USER *user, size_t password_len)
 {
   switch (password_len)
   {
@@ -1962,7 +1962,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     char *password= const_cast<char*>("");
     if (user_table.password())
       password= get_field(&acl_memroot, user_table.password());
-    uint password_len= safe_strlen(password);
+    size_t password_len= safe_strlen(password);
     user.auth_string.str= safe_str(password);
     user.auth_string.length= password_len;
     set_user_salt(&user, password, password_len);
@@ -2715,7 +2715,7 @@ static void acl_update_role(const char *rolename, ulong privileges)
 
 
 static void acl_update_user(const char *user, const char *host,
-			    const char *password, uint password_len,
+			    const char *password, size_t password_len,
 			    enum SSL_type ssl_type,
 			    const char *ssl_cipher,
 			    const char *x509_issuer,
@@ -2793,7 +2793,7 @@ static void acl_insert_role(const char *rolename, ulong privileges)
 
 
 static void acl_insert_user(const char *user, const char *host,
-			    const char *password, uint password_len,
+			    const char *password, size_t password_len,
 			    enum SSL_type ssl_type,
 			    const char *ssl_cipher,
 			    const char *x509_issuer,
@@ -3409,6 +3409,7 @@ bool change_password(THD *thd, LEX_USER *user)
     acl_user->auth_string.str= strmake_root(&acl_memroot, user->pwhash.str, user->pwhash.length);
     acl_user->auth_string.length= user->pwhash.length;
     set_user_salt(acl_user, user->pwhash.str, user->pwhash.length);
+
     set_user_plugin(acl_user, user->pwhash.length);
   }
   else
@@ -3869,8 +3870,7 @@ bool hostname_requires_resolving(const char *hostname)
 
 
 void set_authentication_plugin_from_password(const User_table& user_table,
-                                             const char* password,
-                                             uint password_length)
+                                             const char* password, size_t password_length)
 {
   if (password_length == SCRAMBLED_PASSWORD_CHAR_LENGTH)
   {
@@ -3904,7 +3904,7 @@ void set_authentication_plugin_from_password(const User_table& user_table,
 
 static bool update_user_table(THD *thd, const User_table& user_table,
                               const char *host, const char *user,
-                              const char *new_password, uint new_password_len)
+                              const char *new_password, size_t new_password_len)
 {
   char user_key[MAX_KEY_LENGTH];
   int error;
@@ -5016,7 +5016,7 @@ table_hash_search(const char *host, const char *ip, const char *db,
 
 
 static GRANT_COLUMN *
-column_hash_search(GRANT_TABLE *t, const char *cname, uint length)
+column_hash_search(GRANT_TABLE *t, const char *cname, size_t length)
 {
   if (!my_hash_inited(&t->hash_columns))
     return (GRANT_COLUMN*) 0;
@@ -7775,7 +7775,7 @@ err:
 
 bool check_grant_column(THD *thd, GRANT_INFO *grant,
 			const char *db_name, const char *table_name,
-			const char *name, uint length,  Security_context *sctx)
+			const char *name, size_t length,  Security_context *sctx)
 {
   GRANT_TABLE *grant_table;
   GRANT_TABLE *grant_table_role;
@@ -7870,7 +7870,7 @@ err:
 */
 
 bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
-                                     const char *name, uint length)
+                                     const char *name, size_t length)
 {
   GRANT_INFO *grant;
   const char *db_name;
@@ -12414,7 +12414,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   }
 
   mpvio->auth_info.user_name= sctx->user;
-  mpvio->auth_info.user_name_length= strlen(sctx->user);
+  mpvio->auth_info.user_name_length= (uint)strlen(sctx->user);
   mpvio->auth_info.auth_string= mpvio->acl_user->auth_string.str;
   mpvio->auth_info.auth_string_length= (unsigned long) mpvio->acl_user->auth_string.length;
   strmake_buf(mpvio->auth_info.authenticated_as, safe_str(mpvio->acl_user->user.str));
@@ -12452,7 +12452,7 @@ read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
   if (length > 65535)
     return true;
 
-  if (PSI_CALL_set_thread_connect_attrs(*ptr, (size_t)length, from_cs) &&
+  if (PSI_CALL_set_thread_connect_attrs(*ptr, (uint)length, from_cs) &&
       current_thd->variables.log_warnings)
     sql_print_warning("Connection attributes of length %llu were truncated",
                       length);
@@ -12497,7 +12497,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     *passwd > 127 and become 2**32-127+ after casting to uint.
   */
   uint passwd_len= (thd->client_capabilities & CLIENT_SECURE_CONNECTION ?
-                    (uchar) (*passwd++) : strlen(passwd));
+                    (uchar) (*passwd++) : (uint)strlen(passwd));
 
   db+= passwd_len + 1;
   /*
@@ -12511,7 +12511,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     DBUG_RETURN (1);
   }
 
-  uint db_len= strlen(db);
+  size_t db_len= strlen(db);
 
   char *next_field= db + db_len + 1;
 
@@ -12711,7 +12711,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   char *user= end;
   char *passwd= strend(user)+1;
-  uint user_len= (uint)(passwd - user - 1), db_len;
+  size_t user_len= (size_t)(passwd - user - 1), db_len;
   char *db= passwd;
   char user_buff[USERNAME_LENGTH + 1];	// buffer to store user in utf8
   uint dummy_errors;
@@ -12854,7 +12854,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
                     plugin_name(mpvio->plugin)) != 0)
   {
     mpvio->cached_client_reply.pkt= passwd;
-    mpvio->cached_client_reply.pkt_len= passwd_len;
+    mpvio->cached_client_reply.pkt_len= (uint)passwd_len;
     mpvio->cached_client_reply.plugin= client_plugin;
     mpvio->status= MPVIO_EXT::RESTART;
     return packet_error;
@@ -12883,7 +12883,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   }
 
   *buff= (uchar*) passwd;
-  return passwd_len;
+  return (ulong)passwd_len;
 #else
   return 0;
 #endif
@@ -13529,8 +13529,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     my_ok(thd);
 
   PSI_CALL_set_thread_user_host
-    (thd->main_security_ctx.user, strlen(thd->main_security_ctx.user),
-    thd->main_security_ctx.host_or_ip, strlen(thd->main_security_ctx.host_or_ip));
+    (thd->main_security_ctx.user, (uint)strlen(thd->main_security_ctx.user),
+    thd->main_security_ctx.host_or_ip, (uint)strlen(thd->main_security_ctx.host_or_ip));
 
   /* Ready to handle queries */
   DBUG_RETURN(0);
@@ -13660,7 +13660,7 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
     We need to figure out the correct scramble length here.
   */
   if (pkt_len == SCRAMBLE_LENGTH_323 + 1)
-    pkt_len= strnlen((char*)pkt, pkt_len);
+    pkt_len= (int)strnlen((char*)pkt, pkt_len);
 
   if (pkt_len == 0) /* no password */
     return info->auth_string[0] ? CR_AUTH_USER_CREDENTIALS : CR_OK;

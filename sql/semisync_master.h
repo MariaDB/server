@@ -310,7 +310,7 @@ private:
 
   inline void assert_lock_owner();
 
-  inline unsigned int calc_hash(const unsigned char *key,unsigned int length);
+  inline unsigned int calc_hash(const unsigned char *key, size_t length);
   unsigned int get_hash_value(const char *log_file_name, my_off_t log_file_pos);
 
   int compare(const char *log_file_name1, my_off_t log_file_pos1,

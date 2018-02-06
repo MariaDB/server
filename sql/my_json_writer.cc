@@ -221,7 +221,7 @@ bool Single_line_formatting_helper::on_add_member(const char *name)
       buf_ptr+=len;
       *(buf_ptr++)= 0;
 
-      line_len= owner->indent_level + len + 1;
+      line_len= owner->indent_level + (uint)len + 1;
       state= ADD_MEMBER;
       return true; // handled
     }
@@ -286,7 +286,7 @@ bool Single_line_formatting_helper::on_add_str(const char *str)
     memcpy(buf_ptr, str, len);
     buf_ptr+=len;
     *(buf_ptr++)= 0;
-    line_len += len + 4;
+    line_len += (uint)len + 4;
     return true; // handled
   }
 

@@ -653,7 +653,7 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   }
 
   newsv->name= strmake_root(&thd->transaction.mem_root, name.str, name.length);
-  newsv->length= name.length;
+  newsv->length= (uint)name.length;
 
   /*
     if we'll get an error here, don't add new savepoint to the list.

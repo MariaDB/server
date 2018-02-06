@@ -673,7 +673,7 @@ SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type scope)
     0           Unknown variable (error message is given)
 */
 
-sys_var *intern_find_sys_var(const char *str, uint length)
+sys_var *intern_find_sys_var(const char *str, size_t length)
 {
   sys_var *var;
 
@@ -853,7 +853,7 @@ set_var::set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
     // names are utf8
     if (!(value= new (thd->mem_root) Item_string_sys(thd,
                                                      item->field_name.str,
-                                                     item->field_name.length)))
+                                                     (uint)item->field_name.length)))
       value=value_arg;                        /* Give error message later */
   }
   else

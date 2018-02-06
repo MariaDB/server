@@ -240,7 +240,7 @@ ulong dlopen_count;
   the following variables/structures
 */
 static MEM_ROOT plugin_vars_mem_root;
-static uint global_variables_dynamic_size= 0;
+static size_t global_variables_dynamic_size= 0;
 static HASH bookmark_hash;
 
 
@@ -730,7 +730,8 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, int report)
 {
 #ifdef HAVE_DLOPEN
   char dlpath[FN_REFLEN];
-  uint plugin_dir_len, dummy_errors, i;
+  size_t plugin_dir_len,i;
+  uint dummy_errors;
   struct st_plugin_dl *tmp= 0, plugin_dl;
   void *sym;
   st_ptr_backup tmp_backup[array_elements(list_of_services)];
@@ -1518,14 +1519,14 @@ uchar *get_bookmark_hash_key(const uchar *buff, size_t *length,
   return (uchar*) var->key;
 }
 
-static inline void convert_dash_to_underscore(char *str, int len)
+static inline void convert_dash_to_underscore(char *str, size_t len)
 {
   for (char *p= str; p <= str+len; p++)
     if (*p == '-')
       *p= '_';
 }
 
-static inline void convert_underscore_to_dash(char *str, int len)
+static inline void convert_underscore_to_dash(char *str, size_t len)
 {
   for (char *p= str; p <= str+len; p++)
     if (*p == '_')
@@ -2885,7 +2886,7 @@ static st_bookmark *find_bookmark(const char *plugin, const char *name,
                                   int flags)
 {
   st_bookmark *result= NULL;
-  uint namelen, length, pluginlen= 0;
+  size_t namelen, length, pluginlen= 0;
   char *varname, *p;
 
   if (!(flags & PLUGIN_VAR_THDLOCAL))
@@ -2941,7 +2942,7 @@ static size_t var_storage_size(int flags)
 static st_bookmark *register_var(const char *plugin, const char *name,
                                  int flags)
 {
-  uint length= strlen(plugin) + strlen(name) + 3, size, offset, new_size;
+  size_t length= strlen(plugin) + strlen(name) + 3, size, offset, new_size;
   st_bookmark *result;
   char *varname, *p;
 
@@ -2960,7 +2961,7 @@ static st_bookmark *register_var(const char *plugin, const char *name,
                                       sizeof(struct st_bookmark) + length-1);
     varname[0]= plugin_var_bookmark_key(flags);
     memcpy(result->key, varname, length);
-    result->name_len= length - 2;
+    result->name_len= (uint)(length - 2);
     result->offset= -1;
 
     DBUG_ASSERT(size && !(size & (size-1))); /* must be power of 2 */
@@ -2993,10 +2994,10 @@ static st_bookmark *register_var(const char *plugin, const char *name,
       global_variables_dynamic_size= new_size;
     }
 
-    global_system_variables.dynamic_variables_head= offset;
-    max_system_variables.dynamic_variables_head= offset;
-    global_system_variables.dynamic_variables_size= offset + size;
-    max_system_variables.dynamic_variables_size= offset + size;
+    global_system_variables.dynamic_variables_head= (uint)offset;
+    max_system_variables.dynamic_variables_head= (uint)offset;
+    global_system_variables.dynamic_variables_size= (uint)(offset + size);
+    max_system_variables.dynamic_variables_size= (uint)(offset + size);
     global_system_variables.dynamic_variables_version++;
     max_system_variables.dynamic_variables_version++;
 
@@ -3694,8 +3695,8 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
 {
   const char *plugin_name= tmp->plugin->name;
   const LEX_CSTRING plugin_dash = { STRING_WITH_LEN("plugin-") };
-  uint plugin_name_len= strlen(plugin_name);
-  uint optnamelen;
+  size_t plugin_name_len= strlen(plugin_name);
+  size_t optnamelen;
   const int max_comment_len= 180;
   char *comment= (char *) alloc_root(mem_root, max_comment_len + 1);
   char *optname;
@@ -4020,7 +4021,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   my_option *opts= NULL;
   int error= 1;
   struct st_bookmark *var;
-  uint len=0, count= EXTRA_OPTIONS;
+  size_t len=0, count= EXTRA_OPTIONS;
   st_ptr_backup *tmp_backup= 0;
   DBUG_ENTER("test_plugin_options");
   DBUG_ASSERT(tmp->plugin && tmp->name.str);

@@ -1172,7 +1172,7 @@ bool Item::check_type_scalar(const char *opname) const
 }
 
 
-void Item::set_name(THD *thd, const char *str, uint length, CHARSET_INFO *cs)
+void Item::set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs)
 {
   if (!length)
   {
@@ -2757,7 +2757,7 @@ const char *
 Item_sp::func_name(THD *thd) const
 {
   /* Calculate length to avoid reallocation of string for sure */
-  uint len= (((m_name->m_explicit_name ? m_name->m_db.length : 0) +
+  size_t len= (((m_name->m_explicit_name ? m_name->m_db.length : 0) +
               m_name->m_name.length)*2 + //characters*quoting
              2 +                         // ` and `
              (m_name->m_explicit_name ?
@@ -3609,7 +3609,7 @@ longlong Item_field::val_int_endpoint(bool left_endp, bool *incl_endp)
   This is always 'signed'. Unsigned values are created with Item_uint()
 */
 
-Item_int::Item_int(THD *thd, const char *str_arg, uint length):
+Item_int::Item_int(THD *thd, const char *str_arg, size_t length):
   Item_num(thd)
 {
   char *end_ptr= (char*) str_arg + length;
@@ -3656,7 +3656,7 @@ Item *Item_bool::neg_transformer(THD *thd)
 }
 
 
-Item_uint::Item_uint(THD *thd, const char *str_arg, uint length):
+Item_uint::Item_uint(THD *thd, const char *str_arg, size_t length):
   Item_int(thd, str_arg, length)
 {
   unsigned_flag= 1;
@@ -3687,7 +3687,7 @@ void Item_uint::print(String *str, enum_query_type query_type)
 }
 
 
-Item_decimal::Item_decimal(THD *thd, const char *str_arg, uint length,
+Item_decimal::Item_decimal(THD *thd, const char *str_arg, size_t length,
                            CHARSET_INFO *charset):
   Item_num(thd)
 {
@@ -7102,7 +7102,7 @@ static uint nr_of_decimals(const char *str, const char *end)
   Item->name should be fixed to use LEX_STRING eventually.
 */
 
-Item_float::Item_float(THD *thd, const char *str_arg, uint length):
+Item_float::Item_float(THD *thd, const char *str_arg, size_t length):
   Item_num(thd)
 {
   int error;
@@ -7112,13 +7112,13 @@ Item_float::Item_float(THD *thd, const char *str_arg, uint length):
   if (error)
   {
     char tmp[NAME_LEN + 1];
-    my_snprintf(tmp, sizeof(tmp), "%.*s", length, str_arg);
+    my_snprintf(tmp, sizeof(tmp), "%.*s", (int)length, str_arg);
     my_error(ER_ILLEGAL_VALUE_FOR_TYPE, MYF(0), "double", tmp);
   }
   presentation= name.str= str_arg;
   name.length= strlen(str_arg);
   decimals=(uint8) nr_of_decimals(str_arg, str_arg+length);
-  max_length=length;
+  max_length=(uint32)length;
   fixed= 1;
 }
 
@@ -7155,10 +7155,9 @@ inline uint char_val(char X)
 }
 
 
-void Item_hex_constant::hex_string_init(THD *thd, const char *str,
-                                        uint str_length)
+void Item_hex_constant::hex_string_init(THD *thd, const char *str, size_t str_length)
 {
-  max_length=(str_length+1)/2;
+  max_length=(uint)((str_length+1)/2);
   char *ptr=(char*) thd->alloc(max_length+1);
   if (!ptr)
   {
@@ -7220,7 +7219,7 @@ void Item_hex_string::print(String *str, enum_query_type query_type)
   In number context this is a longlong value.
 */
   
-Item_bin_string::Item_bin_string(THD *thd, const char *str, uint str_length):
+Item_bin_string::Item_bin_string(THD *thd, const char *str, size_t str_length):
   Item_hex_hybrid(thd)
 {
   const char *end= str + str_length - 1;
@@ -7228,7 +7227,7 @@ Item_bin_string::Item_bin_string(THD *thd, const char *str, uint str_length):
   uchar bits= 0;
   uint power= 1;
 
-  max_length= (str_length + 7) >> 3;
+  max_length= (uint)((str_length + 7) >> 3);
   if (!(ptr= (char*) thd->alloc(max_length + 1)))
     return;
   str_value.set(ptr, max_length, &my_charset_bin);

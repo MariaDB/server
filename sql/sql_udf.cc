@@ -312,7 +312,7 @@ static void del_udf(udf_func *udf)
       doesn't use it anymore
     */
     const char *name= udf->name.str;
-    uint name_length=udf->name.length;
+    size_t name_length=udf->name.length;
     udf->name.str= "*";
     udf->name.length=1;
     my_hash_update(&udf_hash,(uchar*) udf,(uchar*) name,name_length);
@@ -347,7 +347,7 @@ void free_udf(udf_func *udf)
 
 /* This is only called if using_udf_functions != 0 */
 
-udf_func *find_udf(const char *name,uint length,bool mark_used)
+udf_func *find_udf(const char *name,size_t length,bool mark_used)
 {
   udf_func *udf=0;
   DBUG_ENTER("find_udf");
@@ -432,7 +432,7 @@ static int mysql_drop_function_internal(THD *thd, udf_func *udf, TABLE *table)
   DBUG_ENTER("mysql_drop_function_internal");
 
   const char *exact_name_str= udf->name.str;
-  uint exact_name_len= udf->name.length;
+  size_t exact_name_len= udf->name.length;
 
   del_udf(udf);
   /*

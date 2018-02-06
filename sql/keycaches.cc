@@ -30,17 +30,17 @@ class NAMED_ILINK :public ilink
 {
 public:
   const char *name;
-  uint name_length;
+  size_t name_length;
   uchar* data;
 
   NAMED_ILINK(I_List<NAMED_ILINK> *links, const char *name_arg,
-             uint name_length_arg, uchar* data_arg)
+             size_t name_length_arg, uchar* data_arg)
     :name_length(name_length_arg), data(data_arg)
   {
     name= my_strndup(name_arg, name_length, MYF(MY_WME));
     links->push_back(this);
   }
-  inline bool cmp(const char *name_cmp, uint length)
+  inline bool cmp(const char *name_cmp, size_t length)
   {
     return length == name_length && !memcmp(name, name_cmp, length);
   }
@@ -50,7 +50,7 @@ public:
   }
 };
 
-uchar* find_named(I_List<NAMED_ILINK> *list, const char *name, uint length,
+uchar* find_named(I_List<NAMED_ILINK> *list, const char *name, size_t length,
                 NAMED_ILINK **found)
 {
   I_List_iterator<NAMED_ILINK> it(*list);
@@ -68,7 +68,7 @@ uchar* find_named(I_List<NAMED_ILINK> *list, const char *name, uint length,
 }
 
 
-bool NAMED_ILIST::delete_element(const char *name, uint length, void (*free_element)(const char *name, uchar*))
+bool NAMED_ILIST::delete_element(const char *name, size_t length, void (*free_element)(const char *name, uchar*))
 {
   I_List_iterator<NAMED_ILINK> it(*this);
   NAMED_ILINK *element;
@@ -112,11 +112,11 @@ KEY_CACHE *get_key_cache(const LEX_CSTRING *cache_name)
                                   cache_name->str, cache_name->length, 0));
 }
 
-KEY_CACHE *create_key_cache(const char *name, uint length)
+KEY_CACHE *create_key_cache(const char *name, size_t length)
 {
   KEY_CACHE *key_cache;
   DBUG_ENTER("create_key_cache");
-  DBUG_PRINT("enter",("name: %.*s", length, name));
+  DBUG_PRINT("enter",("name: %.*s", (int)length, name));
   
   if ((key_cache= (KEY_CACHE*) my_malloc(sizeof(KEY_CACHE),
                                              MYF(MY_ZEROFILL | MY_WME))))
@@ -144,7 +144,7 @@ KEY_CACHE *create_key_cache(const char *name, uint length)
 }
 
 
-KEY_CACHE *get_or_create_key_cache(const char *name, uint length)
+KEY_CACHE *get_or_create_key_cache(const char *name, size_t length)
 {
   LEX_CSTRING key_cache_name;
   KEY_CACHE *key_cache;
@@ -190,11 +190,11 @@ Rpl_filter *get_rpl_filter(LEX_CSTRING *filter_name)
                                    filter_name->str, filter_name->length, 0));
 }
 
-Rpl_filter *create_rpl_filter(const char *name, uint length)
+Rpl_filter *create_rpl_filter(const char *name, size_t length)
 {
   Rpl_filter *filter;
   DBUG_ENTER("create_rpl_filter");
-  DBUG_PRINT("enter",("name: %.*s", length, name));
+  DBUG_PRINT("enter",("name: %.*s", (int)length, name));
   
   filter= new Rpl_filter;
   if (filter) 
@@ -209,7 +209,7 @@ Rpl_filter *create_rpl_filter(const char *name, uint length)
 }
 
 
-Rpl_filter *get_or_create_rpl_filter(const char *name, uint length)
+Rpl_filter *get_or_create_rpl_filter(const char *name, size_t length)
 {
   LEX_CSTRING rpl_filter_name;
   Rpl_filter *filter;

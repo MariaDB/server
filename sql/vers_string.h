@@ -54,20 +54,20 @@ struct LEX_STRING_u : public Storage
     Storage::str= NULL;
     Storage::length= 0;
   }
-  LEX_STRING_u(const char *_str, uint32 _len, CHARSET_INFO *)
+  LEX_STRING_u(const char *_str, size_t _len, CHARSET_INFO *)
   {
     Storage::str= _str;
     Storage::length= _len;
   }
   uint32 length() const
   {
-    return Storage::length;
+    return (uint32)Storage::length;
   }
   const char *ptr() const
   {
     return Storage::str;
   }
-  void set(const char *_str, uint32 _len, CHARSET_INFO *)
+  void set(const char *_str, size_t _len, CHARSET_INFO *)
   {
     Storage::str= _str;
     Storage::length= _len;

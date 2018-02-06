@@ -68,7 +68,7 @@ int maria_rename(const char *old_name, const char *new_name)
   {
     LSN lsn;
     LEX_CUSTRING log_array[TRANSLOG_INTERNAL_PARTS + 2];
-    uint old_name_len= strlen(old_name)+1, new_name_len= strlen(new_name)+1;
+    size_t old_name_len= strlen(old_name)+1, new_name_len= strlen(new_name)+1;
     log_array[TRANSLOG_INTERNAL_PARTS + 0].str= (uchar*)old_name;
     log_array[TRANSLOG_INTERNAL_PARTS + 0].length= old_name_len;
     log_array[TRANSLOG_INTERNAL_PARTS + 1].str= (uchar*)new_name;
@@ -83,7 +83,7 @@ int maria_rename(const char *old_name, const char *new_name)
     */
     if (unlikely(translog_write_record(&lsn, LOGREC_REDO_RENAME_TABLE,
                                        &dummy_transaction_object, NULL,
-                                       old_name_len + new_name_len,
+                                       (translog_size_t)(old_name_len + new_name_len),
                                        sizeof(log_array)/sizeof(log_array[0]),
                                        log_array, NULL, NULL) ||
                  translog_flush(lsn)))

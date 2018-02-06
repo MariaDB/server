@@ -293,7 +293,7 @@ static void get_microseconds(ulong *val, MYSQL_TIME_STATUS *status,
 #define MAX_DATE_PARTS 8
 
 my_bool
-str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
+str_to_datetime(const char *str, size_t length, MYSQL_TIME *l_time,
                 ulonglong flags, MYSQL_TIME_STATUS *status)
 {
   const char *end=str+length, *pos;
@@ -457,7 +457,7 @@ err:
      TRUE  on error
 */
 
-my_bool str_to_time(const char *str, uint length, MYSQL_TIME *l_time,
+my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time,
                     ulonglong fuzzydate, MYSQL_TIME_STATUS *status)
 {
   ulong date[5];

@@ -413,7 +413,7 @@ bool sp_rcontext::push_cursor(THD *thd, sp_lex_keeper *lex_keeper)
 }
 
 
-void sp_rcontext::pop_cursors(uint count)
+void sp_rcontext::pop_cursors(size_t count)
 {
   DBUG_ASSERT(m_ccount >= count);
 

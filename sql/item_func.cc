@@ -3204,7 +3204,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
     DBUG_RETURN(TRUE);				// Fatal error flag is set!
 
-  udf_func *tmp_udf=find_udf(u_d->name.str,(uint) u_d->name.length,1);
+  udf_func *tmp_udf=find_udf(u_d->name.str,u_d->name.length,1);
 
   if (!tmp_udf)
   {
@@ -3299,7 +3299,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       f_args.lengths[i]= arguments[i]->max_length;
       f_args.maybe_null[i]= (char) arguments[i]->maybe_null;
       f_args.attributes[i]= arguments[i]->name.str;
-      f_args.attribute_lengths[i]= arguments[i]->name.length;
+      f_args.attribute_lengths[i]= (ulong)arguments[i]->name.length;
 
       if (arguments[i]->const_item())
       {
@@ -4386,7 +4386,7 @@ user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
                                                  name->length)) &&
       create_if_not_exists)
   {
-    uint size=ALIGN_SIZE(sizeof(user_var_entry))+name->length+1+extra_size;
+    size_t size=ALIGN_SIZE(sizeof(user_var_entry))+name->length+1+extra_size;
     if (!my_hash_inited(hash))
       return 0;
     if (!(entry = (user_var_entry*) my_malloc(size,
@@ -4607,7 +4607,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
 */
 
 static bool
-update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
+update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
             Item_result type, CHARSET_INFO *cs,
             bool unsigned_arg)
 {
@@ -4668,7 +4668,7 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
 
 
 bool
-Item_func_set_user_var::update_hash(void *ptr, uint length,
+Item_func_set_user_var::update_hash(void *ptr, size_t length,
                                     Item_result res_type,
                                     CHARSET_INFO *cs,
                                     bool unsigned_arg)
@@ -5332,7 +5332,7 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     return 0;
   }
 
-  uint size;
+  size_t size;
   /*
     First we need to store value of var_entry, when the next situation
     appears:
@@ -5399,7 +5399,7 @@ void Item_func_get_user_var::fix_length_and_dec()
   if (!error && m_var_entry)
   {
     unsigned_flag= m_var_entry->unsigned_flag;
-    max_length= m_var_entry->length;
+    max_length= (uint32)m_var_entry->length;
     collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
     set_handler_by_result_type(m_var_entry->type);
     switch (result_type()) {
@@ -5613,7 +5613,7 @@ void Item_func_get_system_var::fix_length_and_dec()
         (char*) var->value_ptr(current_thd, var_type, &component) :
         *(char**) var->value_ptr(current_thd, var_type, &component);
       if (cptr)
-        max_length= system_charset_info->cset->numchars(system_charset_info,
+        max_length= (uint32)system_charset_info->cset->numchars(system_charset_info,
                                                         cptr,
                                                         cptr + strlen(cptr));
       mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -5625,7 +5625,7 @@ void Item_func_get_system_var::fix_length_and_dec()
       {
         mysql_mutex_lock(&LOCK_global_system_variables);
         LEX_STRING *ls= ((LEX_STRING*)var->value_ptr(current_thd, var_type, &component));
-        max_length= system_charset_info->cset->numchars(system_charset_info,
+        max_length= (uint32)system_charset_info->cset->numchars(system_charset_info,
                                                         ls->str,
                                                         ls->str + ls->length);
         mysql_mutex_unlock(&LOCK_global_system_variables);

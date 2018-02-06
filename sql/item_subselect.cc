@@ -3098,7 +3098,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
                                            new (thd->mem_root)
                                            Item_direct_ref(thd,
                                                            &unit->outer_select()->context,
-                                                           optimizer->arguments()[0]->addr(i),
+                                                           optimizer->arguments()[0]->addr((int)i),
                                                            (char *)"<no matter>",
                                                            &exists_outer_expr_name)),
                        thd->mem_root);

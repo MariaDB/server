@@ -493,8 +493,8 @@ static my_bool _ma_log_compact_keypage(MARIA_PAGE *ma_page,
 
   if (translog_write_record(&lsn, LOGREC_REDO_INDEX,
                             info->trn, info,
-                            log_array[TRANSLOG_INTERNAL_PARTS +
-                                      0].length + extra_length,
+                            (translog_size_t)(log_array[TRANSLOG_INTERNAL_PARTS +
+                                      0].length + extra_length),
                             TRANSLOG_INTERNAL_PARTS + translog_parts,
                             log_array, log_data, NULL))
     DBUG_RETURN(1);

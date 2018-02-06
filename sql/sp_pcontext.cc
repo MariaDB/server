@@ -171,12 +171,12 @@ uint sp_pcontext::diff_handlers(const sp_pcontext *ctx, bool exclusive) const
 
   while (pctx && pctx != ctx)
   {
-    n+= pctx->m_handlers.elements();
+    n+= (uint)pctx->m_handlers.elements();
     last_ctx= pctx;
     pctx= pctx->parent_context();
   }
   if (pctx)
-    return (exclusive && last_ctx ? n - last_ctx->m_handlers.elements() : n);
+    return (exclusive && last_ctx ? n -(uint) last_ctx->m_handlers.elements() : n);
   return 0;			// Didn't find ctx
 }
 
@@ -189,12 +189,12 @@ uint sp_pcontext::diff_cursors(const sp_pcontext *ctx, bool exclusive) const
 
   while (pctx && pctx != ctx)
   {
-    n+= pctx->m_cursors.elements();
+    n+= (uint)pctx->m_cursors.elements();
     last_ctx= pctx;
     pctx= pctx->parent_context();
   }
   if (pctx)
-    return  (exclusive && last_ctx ? n - last_ctx->m_cursors.elements() : n);
+    return  (exclusive && last_ctx ? (uint)(n - last_ctx->m_cursors.elements()) : n);
   return 0;			// Didn't find ctx
 }
 
@@ -202,7 +202,7 @@ uint sp_pcontext::diff_cursors(const sp_pcontext *ctx, bool exclusive) const
 sp_variable *sp_pcontext::find_variable(const LEX_CSTRING *name,
                                         bool current_scope_only) const
 {
-  uint i= m_vars.elements() - m_pboundary;
+  size_t i= m_vars.elements() - m_pboundary;
 
   while (i--)
   {
@@ -392,7 +392,7 @@ bool sp_pcontext::add_condition(THD *thd,
 sp_condition_value *sp_pcontext::find_condition(const LEX_CSTRING *name,
                                                 bool current_scope_only) const
 {
-  uint i= m_conditions.elements();
+  size_t i= m_conditions.elements();
 
   while (i--)
   {
@@ -605,7 +605,7 @@ const sp_pcursor *sp_pcontext::find_cursor(const LEX_CSTRING *name,
                                            uint *poff,
                                            bool current_scope_only) const
 {
-  uint i= m_cursors.elements();
+  uint i= (uint)m_cursors.elements();
 
   while (i--)
   {

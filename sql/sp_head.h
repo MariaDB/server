@@ -731,7 +731,7 @@ public:
   void set_info(longlong created, longlong modified,
 		const st_sp_chistics &chistics, sql_mode_t sql_mode);
 
-  void set_definer(const char *definer, uint definerlen)
+  void set_definer(const char *definer, size_t definerlen)
   {
     AUTHID tmp;
     tmp.parse(definer, definerlen);

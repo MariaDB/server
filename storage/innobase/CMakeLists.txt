@@ -180,6 +180,11 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
   ENDIF()
 ENDIF()
 IF(MSVC)
+  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+   ADD_COMPILE_FLAGS(
+      pars/lexyy.cc
+      COMPILE_FLAGS "/wd4267")
+  ENDIF()
   # silence "switch statement contains 'default' but no 'case' label
   # on generated file.
   TARGET_COMPILE_OPTIONS(innobase PRIVATE "/wd4065")

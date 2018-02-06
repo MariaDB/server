@@ -148,10 +148,6 @@ IF(MSVC)
   #TODO: update the code and remove the disabled warnings
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4805 /wd4996 /we4700 /we4311 /we4477 /we4302 /we4090")
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4805 /wd4291 /wd4996 /we4099 /we4700 /we4311 /we4477 /we4302 /we4090")
-  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    # Temporarily disable size_t warnings, due to their amount
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
-  ENDIF()
   IF(MYSQL_MAINTAINER_MODE MATCHES "ERR")
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")

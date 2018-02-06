@@ -419,7 +419,6 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
   {
     sys_var *svar;
     LEX_CSTRING var;
-    uint not_used;
 
     lasts= (char *) memchr(token, separator, rest);
 
@@ -433,7 +432,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
       var.length= rest;
 
     /* Remove leading/trailing whitespace. */
-    trim_whitespace(char_set, &var, &not_used);
+    trim_whitespace(char_set, &var);
 
     if(!strcmp(var.str, "*"))
     {
@@ -501,7 +500,6 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
   for (;;)
   {
     LEX_CSTRING var;
-    uint not_used;
 
     lasts= (char *) memchr(token, separator, rest);
 
@@ -515,7 +513,7 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
       var.length= rest;
 
     /* Remove leading/trailing whitespace. */
-    trim_whitespace(char_set, &var, &not_used);
+    trim_whitespace(char_set, &var);
 
     if(!strcmp(var.str, "*") &&
        !find_sys_var_ex(thd, var.str, var.length, throw_error, true))

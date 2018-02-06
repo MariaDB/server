@@ -82,8 +82,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);
 
-bool append_identifier(THD *thd, String *packet, const char *name,
-		       uint length);
+bool append_identifier(THD *thd, String *packet, const char *name, size_t length);
 static inline bool append_identifier(THD *thd, String *packet, const LEX_CSTRING *name)
 {
   return append_identifier(thd, packet, name->str, name->length);
@@ -143,7 +142,7 @@ const char* get_one_variable(THD *thd, const SHOW_VAR *variable,
                              size_t *length);
 
 /* These functions were under INNODB_COMPATIBILITY_HOOKS */
-int get_quote_char_for_identifier(THD *thd, const char *name, uint length);
+int get_quote_char_for_identifier(THD *thd, const char *name, size_t length);
 THD *find_thread_by_id(longlong id, bool query_id= false);
 
 class select_result_explain_buffer;

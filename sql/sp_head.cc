@@ -604,7 +604,6 @@ sp_head::set_stmt_end(THD *thd)
 {
   Lex_input_stream *lip= & thd->m_parser_state->m_lip; /* shortcut */
   const char *end_ptr= lip->get_cpp_ptr(); /* shortcut */
-  uint not_used;
 
   /* Make the string of parameters. */
 
@@ -622,7 +621,7 @@ sp_head::set_stmt_end(THD *thd)
 
   m_body.length= end_ptr - m_body_begin;
   m_body.str= thd->strmake(m_body_begin, m_body.length);
-  trim_whitespace(thd->charset(), &m_body, &not_used);
+  trim_whitespace(thd->charset(), &m_body);
 
   /* Make the string of UTF-body. */
 
@@ -630,7 +629,7 @@ sp_head::set_stmt_end(THD *thd)
 
   m_body_utf8.length= lip->get_body_utf8_length();
   m_body_utf8.str= thd->strmake(lip->get_body_utf8_str(), m_body_utf8.length);
-  trim_whitespace(thd->charset(), &m_body_utf8, &not_used);
+  trim_whitespace(thd->charset(), &m_body_utf8);
 
   /*
     Make the string of whole stored-program-definition query (in the
@@ -639,7 +638,7 @@ sp_head::set_stmt_end(THD *thd)
 
   m_defstr.length= end_ptr - lip->get_cpp_buf();
   m_defstr.str= thd->strmake(lip->get_cpp_buf(), m_defstr.length);
-  trim_whitespace(thd->charset(), &m_defstr, &not_used);
+  trim_whitespace(thd->charset(), &m_defstr);
 }
 
 
@@ -875,7 +874,7 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
 
   rewritables.sort(cmp_rqp_locations);
 
-  thd->query_name_consts= rewritables.elements();
+  thd->query_name_consts= (uint)rewritables.elements();
 
   for (Rewritable_query_parameter **rqp= rewritables.front();
        rqp <= rewritables.back(); rqp++)
@@ -898,7 +897,7 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
             <db_name>     Name of current database
             <flags>       Flags struct
   */
-  int buf_len= (qbuf.length() + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
+  size_t buf_len= (qbuf.length() + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
                 thd->db.length + QUERY_CACHE_FLAGS_SIZE + 1);
   if ((pbuf= (char *) alloc_root(thd->mem_root, buf_len)))
   {
@@ -2332,7 +2331,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       }
       if (bp->instr_type == CPOP)
       {
-        int n= lab->ctx->diff_cursors(lab_begin_block->ctx, true);
+        uint n= lab->ctx->diff_cursors(lab_begin_block->ctx, true);
         if (n == 0)
         {
           // Remove cpop instr
@@ -2349,7 +2348,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       }
       if (bp->instr_type == HPOP)
       {
-        int n= lab->ctx->diff_handlers(lab_begin_block->ctx, true);
+        uint n= lab->ctx->diff_handlers(lab_begin_block->ctx, true);
         if (n == 0)
         {
           // Remove hpop instr
@@ -2655,7 +2654,7 @@ sp_head::show_create_routine(THD *thd, const Sp_handler *sph)
                    Item_empty_string(thd, col1_caption, NAME_CHAR_LEN),
                    thd->mem_root);
   fields.push_back(new (mem_root)
-                   Item_empty_string(thd, "sql_mode", sql_mode.length),
+                   Item_empty_string(thd, "sql_mode", (uint)sql_mode.length),
                    thd->mem_root);
 
   {
@@ -2666,7 +2665,7 @@ sp_head::show_create_routine(THD *thd, const Sp_handler *sph)
 
     Item_empty_string *stmt_fld=
       new (mem_root) Item_empty_string(thd, col3_caption,
-                            MY_MAX(m_defstr.length, 1024));
+                            (uint)MY_MAX(m_defstr.length, 1024));
 
     stmt_fld->maybe_null= TRUE;
 
@@ -3326,7 +3325,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
 void
 sp_instr_stmt::print(String *str)
 {
-  uint i, len;
+  size_t i, len;
 
   /* stmt CMD "..." */
   if (str->reserve(SP_STMT_PRINT_MAXLEN+SP_INSTR_UINT_MAXLEN+8))
@@ -3398,7 +3397,7 @@ void
 sp_instr_set::print(String *str)
 {
   /* set name@offset ... */
-  int rsrv = SP_INSTR_UINT_MAXLEN+6;
+  size_t rsrv = SP_INSTR_UINT_MAXLEN+6;
   sp_variable *var = m_ctx->find_variable(m_offset);
 
   /* 'var' should always be non-null, but just in case... */
@@ -3438,7 +3437,7 @@ void
 sp_instr_set_row_field::print(String *str)
 {
   /* set name@offset[field_offset] ... */
-  int rsrv= SP_INSTR_UINT_MAXLEN + 6 + 6 + 3;
+  size_t rsrv= SP_INSTR_UINT_MAXLEN + 6 + 6 + 3;
   sp_variable *var= m_ctx->find_variable(m_offset);
   DBUG_ASSERT(var);
   DBUG_ASSERT(var->field_def.is_row());
@@ -3484,7 +3483,7 @@ void
 sp_instr_set_row_field_by_name::print(String *str)
 {
   /* set name.field@offset["field"] ... */
-  int rsrv= SP_INSTR_UINT_MAXLEN + 6 + 6 + 3 + 2;
+  size_t rsrv= SP_INSTR_UINT_MAXLEN + 6 + 6 + 3 + 2;
   sp_variable *var= m_ctx->find_variable(m_offset);
   DBUG_ASSERT(var);
   DBUG_ASSERT(var->field_def.is_table_rowtype_ref() ||
@@ -3962,7 +3961,7 @@ sp_instr_cpush::print(String *str)
   const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* cpush name@offset */
-  uint rsrv= SP_INSTR_UINT_MAXLEN+7;
+  size_t rsrv= SP_INSTR_UINT_MAXLEN+7;
 
   if (cursor_name)
     rsrv+= cursor_name->length;
@@ -4050,7 +4049,7 @@ sp_instr_copen::print(String *str)
   const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* copen name@offset */
-  uint rsrv= SP_INSTR_UINT_MAXLEN+7;
+  size_t rsrv= SP_INSTR_UINT_MAXLEN+7;
 
   if (cursor_name)
     rsrv+= cursor_name->length;
@@ -4092,7 +4091,7 @@ sp_instr_cclose::print(String *str)
   const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* cclose name@offset */
-  uint rsrv= SP_INSTR_UINT_MAXLEN+8;
+  size_t rsrv= SP_INSTR_UINT_MAXLEN+8;
 
   if (cursor_name)
     rsrv+= cursor_name->length;
@@ -4135,7 +4134,7 @@ sp_instr_cfetch::print(String *str)
   const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* cfetch name@offset vars... */
-  uint rsrv= SP_INSTR_UINT_MAXLEN+8;
+  size_t rsrv= SP_INSTR_UINT_MAXLEN+8;
 
   if (cursor_name)
     rsrv+= cursor_name->length;
@@ -4390,7 +4389,7 @@ typedef struct st_sp_table
       db_name\0table_name\0        - for temporary tables
   */
   LEX_STRING qname;
-  uint db_length, table_name_length;
+  size_t db_length, table_name_length;
   bool temp;               /* true if corresponds to a temporary table */
   thr_lock_type lock_type; /* lock type used for prelocking */
   uint lock_count;

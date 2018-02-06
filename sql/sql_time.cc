@@ -256,8 +256,8 @@ adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec)
 */
 static uint
 to_ascii(CHARSET_INFO *cs,
-         const char *src, uint src_length,
-         char *dst, uint dst_length)
+         const char *src, size_t src_length,
+         char *dst, size_t dst_length)
                      
 {
   int cnvres;
@@ -280,7 +280,7 @@ to_ascii(CHARSET_INFO *cs,
 
 /* Character set-aware version of str_to_time() */
 bool
-str_to_time(CHARSET_INFO *cs, const char *str,uint length,
+str_to_time(CHARSET_INFO *cs, const char *str, size_t length,
             MYSQL_TIME *l_time, ulonglong fuzzydate, MYSQL_TIME_STATUS *status)
 {
   char cnv[32];
@@ -294,7 +294,7 @@ str_to_time(CHARSET_INFO *cs, const char *str,uint length,
 
 
 /* Character set-aware version of str_to_datetime() */
-bool str_to_datetime(CHARSET_INFO *cs, const char *str, uint length,
+bool str_to_datetime(CHARSET_INFO *cs, const char *str, size_t length,
                      MYSQL_TIME *l_time, ulonglong flags,
                      MYSQL_TIME_STATUS *status)
 {
@@ -318,7 +318,7 @@ bool str_to_datetime(CHARSET_INFO *cs, const char *str, uint length,
 
 bool
 str_to_datetime_with_warn(CHARSET_INFO *cs,
-                          const char *str, uint length, MYSQL_TIME *l_time,
+                          const char *str, size_t length, MYSQL_TIME *l_time,
                           ulonglong flags)
 {
   MYSQL_TIME_STATUS status;
@@ -786,7 +786,7 @@ DATE_TIME_FORMAT
 DATE_TIME_FORMAT *date_time_format_copy(THD *thd, DATE_TIME_FORMAT *format)
 {
   DATE_TIME_FORMAT *new_format;
-  ulong length= sizeof(*format) + format->format.length + 1;
+  size_t length= sizeof(*format) + format->format.length + 1;
   char *format_pos;
 
   if (thd)

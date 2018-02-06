@@ -95,7 +95,7 @@ static uint blob_length_by_type(enum_field_types type);
   @param name_len     Length of the name, in bytes
 */
 static char* add_identifier(THD* thd, char *to_p, const char * end_p,
-                            const char* name, uint name_len)
+                            const char* name, size_t name_len)
 {
   uint res;
   uint errors;
@@ -215,13 +215,13 @@ uint explain_filename(THD* thd,
   char *to_p= to;
   char *end_p= to_p + to_length;
   const char *db_name= NULL;
-  int  db_name_len= 0;
+  size_t  db_name_len= 0;
   const char *table_name;
-  int  table_name_len= 0;
+  size_t  table_name_len= 0;
   const char *part_name= NULL;
-  int  part_name_len= 0;
+  size_t  part_name_len= 0;
   const char *subpart_name= NULL;
-  int  subpart_name_len= 0;
+  size_t  subpart_name_len= 0;
   uint part_type= NORMAL_PART_NAME;
 
   const char *tmp_p;
@@ -381,7 +381,7 @@ uint explain_filename(THD* thd,
     Table name length.
 */
 
-uint filename_to_tablename(const char *from, char *to, uint to_length, 
+uint filename_to_tablename(const char *from, char *to, size_t to_length, 
                            bool stay_quiet)
 {
   uint errors;
@@ -400,7 +400,7 @@ uint filename_to_tablename(const char *from, char *to, uint to_length,
   }
 
   DBUG_PRINT("exit", ("to '%s'", to));
-  DBUG_RETURN(res);
+  DBUG_RETURN((uint)res);
 }
 
 
@@ -436,7 +436,7 @@ bool check_mysql50_prefix(const char *name)
     non-0  result string length
 */
 
-uint check_n_cut_mysql50_prefix(const char *from, char *to, uint to_length)
+uint check_n_cut_mysql50_prefix(const char *from, char *to, size_t to_length)
 {
   if (check_mysql50_prefix(from))
     return (uint) (strmake(to, from + MYSQL50_TABLE_NAME_PREFIX_LENGTH,
@@ -465,7 +465,7 @@ static bool check_if_frm_exists(char *path, const char *db, const char *table)
     File name length.
 */
 
-uint tablename_to_filename(const char *from, char *to, uint to_length)
+uint tablename_to_filename(const char *from, char *to, size_t to_length)
 {
   uint errors, length;
   DBUG_ENTER("tablename_to_filename");
@@ -608,7 +608,7 @@ uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen)
 
   size_t length= unpack_filename(buff, buff);
   DBUG_PRINT("exit", ("buff: '%s'", buff));
-  DBUG_RETURN(length);
+  DBUG_RETURN((uint)length);
 }
 
 /*
@@ -2603,8 +2603,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     else
     {
-      PSI_CALL_drop_table_share(false, table->db.str, table->db.length,
-                                table->table_name.str, table->table_name.length);
+      PSI_CALL_drop_table_share(false, table->db.str, (uint)table->db.length,
+                                table->table_name.str, (uint)table->table_name.length);
       mysql_audit_drop_table(thd, table);
     }
 
@@ -2825,8 +2825,8 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
 
   if (likely(error == 0))
   {
-    PSI_CALL_drop_table_share(flags & FN_IS_TMP, db->str, db->length,
-                              table_name->str, table_name->length);
+    PSI_CALL_drop_table_share(flags & FN_IS_TMP, db->str, (uint)db->length,
+                              table_name->str, (uint)table_name->length);
   }
 
   DBUG_RETURN(error);
@@ -4329,7 +4329,7 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
                              uint err_code, const char *name)
 {
   DBUG_ENTER("validate_comment_length");
-  uint tmp_len= my_charpos(system_charset_info, comment->str,
+  size_t tmp_len= my_charpos(system_charset_info, comment->str,
                            comment->str + comment->length, max_len);
   if (tmp_len < comment->length)
   {
@@ -5563,8 +5563,8 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
   if (likely(error == 0))
   {
     PSI_CALL_drop_table_share(flags & FN_FROM_IS_TMP,
-                              old_db->str, old_db->length,
-                              old_name->str, old_name->length);
+                              old_db->str, (uint)old_db->length,
+                              old_name->str, (uint)old_name->length);
   }
 
   // Restore options bits to the original value

@@ -240,7 +240,7 @@ rec_get_n_extern_new(
 /** Get the length of added field count in a REC_STATUS_COLUMNS_ADDED record.
 @param[in]	n_add_field	number of added fields, minus one
 @return	storage size of the field count, in bytes */
-static inline unsigned rec_get_n_add_field_len(unsigned n_add_field)
+static inline unsigned rec_get_n_add_field_len(ulint n_add_field)
 {
 	ut_ad(n_add_field < REC_MAX_N_FIELDS);
 	return n_add_field < 0x80 ? 1 : 2;
@@ -268,7 +268,7 @@ static inline unsigned rec_get_n_add_field(const byte*& header)
 @param[in,out]	header	variable header of a REC_STATUS_COLUMNS_ADDED record
 @param[in]	n_add	number of added fields, minus 1
 @return	record header before the number of added fields */
-static inline void rec_set_n_add_field(byte*& header, unsigned n_add)
+static inline void rec_set_n_add_field(byte*& header, ulint n_add)
 {
 	ut_ad(n_add < REC_MAX_N_FIELDS);
 

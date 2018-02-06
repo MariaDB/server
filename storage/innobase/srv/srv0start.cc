@@ -2348,7 +2348,7 @@ files_checked:
 					== SRV_OPERATION_RESTORE;
 				/* Delete subsequent log files. */
 				delete_log_files(logfilename, dirnamelen,
-						 srv_n_log_files_found, trunc);
+						 (uint)srv_n_log_files_found, trunc);
 				if (trunc) {
 					/* Truncate the first log file. */
 					strcpy(logfilename + dirnamelen,

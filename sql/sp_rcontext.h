@@ -305,7 +305,7 @@ public:
   /// Pop and delete given number of sp_cursor instance from the cursor stack.
   ///
   /// @param count Number of cursors to pop & delete.
-  void pop_cursors(uint count);
+  void pop_cursors(size_t count);
 
   void pop_all_cursors()
   { pop_cursors(m_ccount); }

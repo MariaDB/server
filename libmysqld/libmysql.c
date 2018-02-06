@@ -3151,8 +3151,7 @@ static void read_binary_date(MYSQL_TIME *tm, uchar **pos)
     length  data length
 */
 
-static void fetch_string_with_conversion(MYSQL_BIND *param, char *value,
-                                         uint length)
+static void fetch_string_with_conversion(MYSQL_BIND *param, char *value, size_t length)
 {
   char *buffer= (char *)param->buffer;
   int err= 0;
@@ -3264,7 +3263,7 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value,
       param->length will always contain length of entire column;
       number of copied bytes may be way different:
     */
-    *param->length= length;
+    *param->length= (ulong)length;
     break;
   }
   }

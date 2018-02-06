@@ -78,7 +78,7 @@ int yylex(void *yylval, void *yythd);
 
 #define yyoverflow(A,B,C,D,E,F)               \
   {                                           \
-    ulong val= *(F);                          \
+    size_t val= *(F);                          \
     if (my_yyoverflow((B), (D), &val))        \
     {                                         \
       yyerror(thd, (char*) (A));              \
@@ -268,7 +268,7 @@ void ORAerror(THD *thd, const char *s)
 }
 
 %{
-bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
+bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %}
 
 %pure-parser                                    /* We have threads */
@@ -4631,7 +4631,7 @@ size_number:
             uint text_shift_number= 0;
             longlong prefix_number;
             const char *start_ptr= $1.str;
-            uint str_len= $1.length;
+            size_t str_len= $1.length;
             const char *end_ptr= start_ptr + str_len;
             int error;
             prefix_number= my_strtoll10(start_ptr, (char**) &end_ptr, &error);
@@ -14547,7 +14547,7 @@ IDENT_sys:
             if (thd->charset_is_system_charset)
             {
               CHARSET_INFO *cs= system_charset_info;
-              uint wlen= Well_formed_prefix(cs, $1.str, $1.length).length();
+              size_t wlen= Well_formed_prefix(cs, $1.str, $1.length).length();
               if (wlen < $1.length)
               {
                 ErrConvString err($1.str, $1.length, &my_charset_bin);
@@ -16789,13 +16789,11 @@ view_select:
           {
             LEX *lex= Lex;
             size_t len= YYLIP->get_cpp_ptr() - lex->create_view->select.str;
-            uint not_used;
             void *create_view_select= thd->memdup(lex->create_view->select.str, len);
             lex->create_view->select.length= len;
             lex->create_view->select.str= (char *) create_view_select;
             trim_whitespace(thd->charset(),
-                            &lex->create_view->select,
-                            &not_used);
+                            &lex->create_view->select);
             lex->create_view->check= $4;
             lex->parsing_options.allows_variable= TRUE;
             lex->current_select->set_with_clause($2);

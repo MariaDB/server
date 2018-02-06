@@ -1591,7 +1591,7 @@ innodb_init_param(void)
         changes the value so that it becomes the number of database pages. */
 
 	srv_buf_pool_size = (ulint) xtrabackup_use_memory;
-	srv_buf_pool_chunk_unit = srv_buf_pool_size;
+	srv_buf_pool_chunk_unit = (ulong)srv_buf_pool_size;
 	srv_buf_pool_instances = 1;
 
 	srv_n_file_io_threads = (ulint) innobase_file_io_threads;
@@ -5545,7 +5545,7 @@ static int main_low(char** argv)
 static int get_exepath(char *buf, size_t size, const char *argv0)
 {
 #ifdef _WIN32
-  DWORD ret = GetModuleFileNameA(NULL, buf, size);
+  DWORD ret = GetModuleFileNameA(NULL, buf, (DWORD)size);
   if (ret > 0)
     return 0;
 #elif defined(__linux__)

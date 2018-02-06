@@ -587,17 +587,17 @@ static void lf_alloc_destructor(uchar *arg)
 }
 
 
-static void tdc_hash_initializer(LF_HASH *hash __attribute__((unused)),
+static void tdc_hash_initializer(LF_HASH *,
                                  TDC_element *element, LEX_STRING *key)
 {
   memcpy(element->m_key, key->str, key->length);
-  element->m_key_length= key->length;
+  element->m_key_length= (uint)key->length;
   tdc_assert_clean_share(element);
 }
 
 
 static uchar *tdc_hash_key(const TDC_element *element, size_t *length,
-                           my_bool not_used __attribute__((unused)))
+                           my_bool)
 {
   *length= element->m_key_length;
   return (uchar*) element->m_key;

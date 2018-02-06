@@ -482,7 +482,7 @@ int federatedx_done(void *p)
         in sql_show.cc except that quoting always occurs.
 */
 
-bool append_ident(String *string, const char *name, uint length,
+bool append_ident(String *string, const char *name, size_t length,
                   const char quote_char)
 {
   bool result;
@@ -520,7 +520,7 @@ static int parse_url_error(FEDERATEDX_SHARE *share, TABLE_SHARE *table_s,
                            int error_num)
 {
   char buf[FEDERATEDX_QUERY_BUFFER_SIZE];
-  int buf_len;
+  size_t buf_len;
   DBUG_ENTER("ha_federatedx parse_url_error");
 
   buf_len= MY_MIN(table_s->connect_string.length,
@@ -1583,7 +1583,7 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
   mysql_mutex_lock(&federatedx_mutex);
 
   tmp_share.share_key= table_name;
-  tmp_share.share_key_length= strlen(table_name);
+  tmp_share.share_key_length= (int)strlen(table_name);
   if (parse_url(&mem_root, &tmp_share, table->s, 0))
     goto error;
 
@@ -1768,7 +1768,7 @@ int ha_federatedx::open(const char *name, int mode, uint test_if_locked)
     DBUG_RETURN(error);
   }
 
-  ref_length= io->get_ref_length();
+  ref_length= (uint)io->get_ref_length();
 
   txn->release(&io);
 
@@ -3066,7 +3066,7 @@ int ha_federatedx::info(uint flag)
       stats.block_size= 4096;
 
     if ((*iop)->table_metadata(&stats, share->table_name,
-                               share->table_name_length, flag))
+                               (uint)share->table_name_length, flag))
       goto error;
   }
 

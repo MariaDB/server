@@ -98,9 +98,10 @@ int pthread_attr_init(pthread_attr_t *connect_att)
   return 0;
 }
 
-int pthread_attr_setstacksize(pthread_attr_t *connect_att,DWORD stack)
+int pthread_attr_setstacksize(pthread_attr_t *connect_att,size_t stack)
 {
-  connect_att->dwStackSize=stack;
+  DBUG_ASSERT(stack < UINT_MAX);
+  connect_att->dwStackSize=(DWORD)stack;
   return 0;
 }
 

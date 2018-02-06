@@ -326,6 +326,14 @@ IF(NOT TARGET connect)
   RETURN()
 ENDIF()
 
+
+IF(MSVC)
+  # Temporarily disable "conversion from size_t .."
+  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
+  ENDIF()
+ENDIF()
+
 # Install some extra files that belong to connect engine
 IF(WIN32)
   # install ha_connect.lib

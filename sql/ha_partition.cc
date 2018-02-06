@@ -1296,8 +1296,8 @@ bool print_admin_msg(THD* thd, uint len,
 {
   va_list args;
   Protocol *protocol= thd->protocol;
-  uint length;
-  uint msg_length;
+  size_t length;
+  size_t msg_length;
   char name[NAME_LEN*2+2];
   char *msgbuf;
   bool error= true;
@@ -1318,7 +1318,7 @@ bool print_admin_msg(THD* thd, uint len,
     goto err;
   }
 
-  length=(uint) (strxmov(name, db_name, ".", table_name.c_ptr_safe(), NullS) - name);
+  length=(size_t)(strxmov(name, db_name, ".", table_name.c_ptr_safe(), NullS) - name);
   /*
      TODO: switch from protocol to push_warning here. The main reason we didn't
      it yet is parallel repair, which threads have no THD object accessible via
@@ -2438,7 +2438,7 @@ reg_query_cache_dependant_table(THD *thd,
   (++(*block_table))->n= ++(*n);
   if (!cache->insert_table(thd, cache_key_len,
                            cache_key, (*block_table),
-                           table_share->db.length,
+                           (uint32) table_share->db.length,
                            (uint8) (cache_key_len -
                                     table_share->table_cache_key.length),
                            type,
@@ -2643,10 +2643,10 @@ static uint name_add(char *dest, const char *first_name, const char *sec_name)
 bool ha_partition::create_handler_file(const char *name)
 {
   partition_element *part_elem, *subpart_elem;
-  uint i, j, part_name_len, subpart_name_len;
-  uint tot_partition_words, tot_name_len, num_parts;
-  uint tot_parts= 0;
-  uint tot_len_words, tot_len_byte, chksum, tot_name_words;
+  size_t i, j, part_name_len, subpart_name_len;
+  size_t tot_partition_words, tot_name_len, num_parts;
+  size_t tot_parts= 0;
+  size_t tot_len_words, tot_len_byte, chksum, tot_name_words;
   char *name_buffer_ptr;
   uchar *file_buffer, *engine_array;
   bool result= TRUE;
@@ -2658,7 +2658,7 @@ bool ha_partition::create_handler_file(const char *name)
   DBUG_ENTER("create_handler_file");
 
   num_parts= m_part_info->partitions.elements;
-  DBUG_PRINT("enter", ("table name: %s  num_parts: %u", name, num_parts));
+  DBUG_PRINT("enter", ("table name: %s  num_parts: %zu", name, num_parts));
   tot_name_len= 0;
   for (i= 0; i < num_parts; i++)
   {
@@ -2777,7 +2777,7 @@ bool ha_partition::create_handler_file(const char *name)
     {
       uchar buffer[4];
       part_elem= part_it++;
-      uint length= part_elem->connect_string.length;
+      size_t length= part_elem->connect_string.length;
       int4store(buffer, length);
       if (my_write(file, buffer, 4, MYF(MY_WME | MY_NABP)) ||
           my_write(file, (uchar *) part_elem->connect_string.str, length,
@@ -3168,7 +3168,7 @@ bool ha_partition::insert_partition_name_in_hash(const char *name, uint part_id,
 {
   PART_NAME_DEF *part_def;
   uchar *part_name;
-  uint part_name_length;
+  size_t part_name_length;
   DBUG_ENTER("ha_partition::insert_partition_name_in_hash");
   /*
     Calculate and store the length here, to avoid doing it when
@@ -3188,7 +3188,7 @@ bool ha_partition::insert_partition_name_in_hash(const char *name, uint part_id,
     DBUG_RETURN(true);
   memcpy(part_name, name, part_name_length + 1);
   part_def->partition_name= part_name;
-  part_def->length= part_name_length;
+  part_def->length= (uint)part_name_length;
   part_def->part_id= part_id;
   part_def->is_subpart= is_subpart;
   if (my_hash_insert(&part_share->partition_name_hash, (uchar *) part_def))
@@ -5102,7 +5102,7 @@ end_dont_reset_start_part:
 void ha_partition::position(const uchar *record)
 {
   handler *file= m_file[m_last_part];
-  uint pad_length;
+  size_t pad_length;
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
   DBUG_ENTER("ha_partition::position");
 
@@ -5217,7 +5217,7 @@ bool ha_partition::init_record_priority_queue()
   */
   if (!m_ordered_rec_buffer)
   {
-    uint alloc_len;
+    size_t alloc_len;
     uint used_parts= bitmap_bits_set(&m_part_info->read_partitions);
     DBUG_ASSERT(used_parts > 0);
     /* Allocate record buffer for each used partition. */

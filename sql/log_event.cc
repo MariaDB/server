@@ -221,7 +221,7 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
   const char *handler_error= (ha_error ? HA_ERR(ha_error) : NULL);
   char buff[MAX_SLAVE_ERRMSG], *slider;
   const char *buff_end= buff + sizeof(buff);
-  uint len;
+  size_t len;
   Diagnostics_area::Sql_condition_iterator it=
     thd->get_stmt_da()->sql_conditions();
   Relay_log_info const *rli= rgi->rli;
@@ -715,7 +715,7 @@ static inline int read_str(const char **buf, const char *buf_end,
   Transforms a string into "" or its expression in X'HHHH' form.
 */
 
-char *str_to_hex(char *to, const char *from, uint len)
+char *str_to_hex(char *to, const char *from, size_t len)
 {
   if (len)
   {
@@ -1605,13 +1605,13 @@ int Log_event_writer::encrypt_and_write(const uchar *pos, size_t len)
 
   if (ctx)
   {
-    dstsize= encryption_encrypted_length(len, ENCRYPTION_KEY_SYSTEM_DATA,
+    dstsize= encryption_encrypted_length((uint)len, ENCRYPTION_KEY_SYSTEM_DATA,
                                          crypto->key_version);
     if (!(dst= (uchar*)my_safe_alloca(dstsize)))
       return 1;
 
     uint dstlen;
-    if (encryption_ctx_update(ctx, pos, len, dst, &dstlen))
+    if (encryption_ctx_update(ctx, pos, (uint)len, dst, &dstlen))
       goto err;
     if (maybe_write_event_len(dst, dstlen))
       return 1;
@@ -1699,12 +1699,12 @@ int Log_event_writer::write_footer()
   Log_event::write_header()
 */
 
-bool Log_event::write_header(ulong event_data_length)
+bool Log_event::write_header(size_t event_data_length)
 {
   uchar header[LOG_EVENT_HEADER_LEN];
   ulong now;
   DBUG_ENTER("Log_event::write_header");
-  DBUG_PRINT("enter", ("filepos: %lld  length: %lu type: %d",
+  DBUG_PRINT("enter", ("filepos: %lld  length: %zu type: %d",
                        (longlong) writer->pos(), event_data_length,
                        (int) get_type_code()));
 
@@ -3074,7 +3074,7 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
     if (my_b_printf(file, "%s", prefix))
       goto err;
 
-  for (size_t i= 0; i < td->size(); i ++)
+  for (uint i= 0; i < (uint)td->size(); i ++)
   {
     size_t size;
     int is_null= (null_bits[null_bit_index / 8] 
@@ -3435,7 +3435,7 @@ Rows_log_event::calc_row_event_length(table_def *td,
 
   value+= (bitmap_bits_set(cols_bitmap) + 7) / 8;
 
-  for (size_t i= 0; i < td->size(); i ++)
+  for (uint i= 0; i < (uint)td->size(); i ++)
   {
     int is_null;
     is_null= (null_bits[null_bit_index / 8] >> (null_bit_index % 8)) & 0x01;
@@ -4262,8 +4262,7 @@ Query_log_event::Query_log_event()
   Creates an event for binlogging
   The value for `errcode' should be supplied by caller.
 */
-Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
-				 ulong query_length, bool using_trans,
+Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg, size_t query_length, bool using_trans,
 				 bool direct, bool suppress_use, int errcode)
 
   :Log_event(thd_arg,
@@ -4489,7 +4488,7 @@ get_str_len_and_pointer(const Log_event::Byte **src,
 
 static void copy_str_and_move(const char **src, 
                               Log_event::Byte **dst, 
-                              uint len)
+                              size_t len)
 {
   memcpy(*dst, *src, len);
   *src= (const char *)*dst;
@@ -4622,7 +4621,7 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
       event from the relay log.
     */
     DBUG_ASSERT(description_event->binlog_version < 4);
-    master_data_written= data_written;
+    master_data_written= (uint32)data_written;
   }
   /*
     We have parsed everything we know in the post header for QUERY_EVENT,
@@ -4938,7 +4937,7 @@ Query_log_event::dummy_event(String *packet, ulong ev_offset,
       possibly just @`!`).
     */
     static const char var_name[]= "!dummyvar";
-    uint name_len= data_len - (min_user_var_event_len - 1);
+    size_t name_len= data_len - (min_user_var_event_len - 1);
 
     p[EVENT_TYPE_OFFSET]= USER_VAR_EVENT;
     int4store(p + LOG_EVENT_HEADER_LEN, name_len);
@@ -8394,7 +8393,7 @@ err:
   fully contruct the event object.
 */
 bool
-Gtid_list_log_event::peek(const char *event_start, uint32 event_len,
+Gtid_list_log_event::peek(const char *event_start, size_t event_len,
                           enum enum_binlog_checksum_alg checksum_alg,
                           rpl_gtid **out_gtid_list, uint32 *out_list_len,
                           const Format_description_log_event *fdev)
@@ -9125,7 +9124,7 @@ bool User_var_log_event::write()
   uchar buf2[MY_MAX(8, DECIMAL_MAX_FIELD_SIZE + 2)], *pos= buf2;
   uint unsigned_len= 0;
   uint buf1_length;
-  ulong event_length;
+  size_t event_length;
 
   int4store(buf, name_len);
   
@@ -9368,7 +9367,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
       break;
     }
     case STRING_RESULT:
-      it= new (thd->mem_root) Item_string(thd, val, val_len, charset);
+      it= new (thd->mem_root) Item_string(thd, val, (uint)val_len, charset);
       break;
     case ROW_RESULT:
     default:
@@ -10411,7 +10410,7 @@ bool Execute_load_query_log_event::print(FILE* file,
   {
     if (my_b_write(&cache, (uchar*) query, fn_pos_start) ||
         my_b_write_string(&cache, " LOCAL INFILE ") ||
-        pretty_print_str(&cache, local_fname, strlen(local_fname)))
+        pretty_print_str(&cache, local_fname, (int)strlen(local_fname)))
       goto err;
 
     if (dup_handling == LOAD_DUP_REPLACE)
@@ -12284,7 +12283,7 @@ int Table_map_log_event::rewrite_db(const char* new_db, size_t new_len,
                        LOG_EVENT_MINIMAL_HEADER_LEN) + TABLE_MAP_HEADER_LEN;
   int len_diff;
 
-  if (!(len_diff= new_len - m_dblen))
+  if (!(len_diff= (int)(new_len - m_dblen)))
   {
     memcpy((void*) (temp_buf + header_len + 1), new_db, m_dblen + 1);
     memcpy((void*) m_dbnam, new_db, m_dblen + 1);
@@ -12306,7 +12305,7 @@ int Table_map_log_event::rewrite_db(const char* new_db, size_t new_len,
 
   // Rewrite temp_buf
   char* ptr= new_temp_buf;
-  ulong cnt= 0;
+  size_t cnt= 0;
 
   // Copy header and change event length
   memcpy(ptr, temp_buf, header_len);

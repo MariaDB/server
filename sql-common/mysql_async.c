@@ -135,7 +135,7 @@ my_recv_async(struct mysql_async_context *b, my_socket fd,
 
   for (;;)
   {
-    res= recv(fd, buf, size, IF_WIN(0, MSG_DONTWAIT));
+    res= recv(fd, buf, (int)size, IF_WIN(0, MSG_DONTWAIT));
     if (res >= 0 || IS_BLOCKING_ERROR())
       return res;
     b->events_to_wait_for= MYSQL_WAIT_READ;
@@ -163,7 +163,7 @@ my_send_async(struct mysql_async_context *b, my_socket fd,
 
   for (;;)
   {
-    res= send(fd, buf, size, IF_WIN(0, MSG_DONTWAIT));
+    res= send(fd, buf, (int)size, IF_WIN(0, MSG_DONTWAIT));
     if (res >= 0 || IS_BLOCKING_ERROR())
       return res;
     b->events_to_wait_for= MYSQL_WAIT_WRITE;

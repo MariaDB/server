@@ -2607,7 +2607,7 @@ double handler::keyread_time(uint index, uint ranges, ha_rows rows)
     engines that support that (e.g. InnoDB) may want to overwrite this method.
     The model counts in the time to read index entries from cache.
   */
-  ulong len= table->key_info[index].key_length + ref_length;
+  size_t len= table->key_info[index].key_length + ref_length;
   if (index == table->s->primary_key && table->file->primary_key_is_clustered())
     len= table->s->stored_rec_length;
   double keys_per_block= (stats.block_size/2.0/len+1);
@@ -3989,7 +3989,7 @@ static bool update_frm_version(TABLE *table)
 
     int4store(version, MYSQL_VERSION_ID);
 
-    if ((result= mysql_file_pwrite(file, (uchar*) version, 4, 51L, MYF_RW)))
+    if ((result= (int)mysql_file_pwrite(file, (uchar*) version, 4, 51L, MYF_RW)))
       goto err;
 
     table->s->mysql_version= MYSQL_VERSION_ID;
@@ -4770,7 +4770,7 @@ void handler::update_global_table_stats()
     }
     memcpy(table_stats->table, table->s->table_cache_key.str,
            table->s->table_cache_key.length);
-    table_stats->table_name_length= table->s->table_cache_key.length;
+    table_stats->table_name_length= (uint)table->s->table_cache_key.length;
     table_stats->engine_type= ht->db_type;
     /* No need to set variables to 0, as we use MY_ZEROFILL above */
 
@@ -4813,7 +4813,7 @@ void handler::update_global_index_stats()
     if (index_rows_read[index])
     {
       INDEX_STATS* index_stats;
-      uint key_length;
+      size_t key_length;
       KEY *key_info = &table->key_info[index];  // Rows were read using this
 
       DBUG_ASSERT(key_info->cache_name);
@@ -4914,8 +4914,8 @@ int ha_create_table(THD *thd, const char *path,
     if (!thd->is_error())
       my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
     table.file->print_error(error, MYF(ME_JUST_WARNING));
-    PSI_CALL_drop_table_share(temp_table, share.db.str, share.db.length,
-                              share.table_name.str, share.table_name.length);
+    PSI_CALL_drop_table_share(temp_table, share.db.str, (uint)share.db.length,
+                              share.table_name.str, (uint)share.table_name.length);
   }
 
   (void) closefrm(&table);
@@ -5426,7 +5426,7 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
 
   if (ht->state == SHOW_OPTION_YES && ht->discover_table_names)
   {
-    uint old_elements= args->result->tables->elements();
+    size_t old_elements= args->result->tables->elements();
     if (ht->discover_table_names(ht, args->db, args->dirp, args->result))
       return 1;
 
@@ -5435,7 +5435,7 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
       a corresponding .frm file; but custom engine discover methods might
     */
     if (ht->discover_table_names != hton_ext_based_table_discovery)
-      args->possible_duplicates+= args->result->tables->elements() - old_elements;
+      args->possible_duplicates+= (uint)(args->result->tables->elements() - old_elements);
   }
 
   return 0;
@@ -6739,7 +6739,7 @@ bool HA_CREATE_INFO::check_conflicting_charset_declarations(CHARSET_INFO *cs)
 /* Remove all indexes for a given table from global index statistics */
 
 static
-int del_global_index_stats_for_table(THD *thd, uchar* cache_key, uint cache_key_length)
+int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_key_length)
 {
   int res = 0;
   DBUG_ENTER("del_global_index_stats_for_table");
@@ -6780,7 +6780,7 @@ int del_global_table_stat(THD *thd, LEX_CSTRING *db, LEX_CSTRING *table)
   TABLE_STATS *table_stats;
   int res = 0;
   uchar *cache_key;
-  uint cache_key_length;
+  size_t cache_key_length;
   DBUG_ENTER("del_global_table_stat");
 
   cache_key_length= db->length + 1 + table->length + 1;
@@ -6817,7 +6817,7 @@ end:
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
 {
   INDEX_STATS *index_stats;
-  uint key_length= table->s->table_cache_key.length + key_info->name.length + 1;
+  size_t key_length= table->s->table_cache_key.length + key_info->name.length + 1;
   int res = 0;
   DBUG_ENTER("del_global_index_stat");
   mysql_mutex_lock(&LOCK_global_index_stats);

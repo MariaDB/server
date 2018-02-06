@@ -258,7 +258,7 @@ st_parsing_options::reset()
 
 bool Lex_input_stream::init(THD *thd,
 			    char* buff,
-			    unsigned int length)
+			    size_t length)
 {
   DBUG_EXECUTE_IF("bug42064_simulate_oom",
                   DBUG_SET("+d,simulate_out_of_memory"););
@@ -269,12 +269,12 @@ bool Lex_input_stream::init(THD *thd,
                   DBUG_SET("-d,bug42064_simulate_oom");); 
 
   if (m_cpp_buf == NULL)
-    return TRUE;
+    return true;
 
   m_thd= thd;
   reset(buff, length);
 
-  return FALSE;
+  return false;
 }
 
 
@@ -287,7 +287,7 @@ bool Lex_input_stream::init(THD *thd,
 */
 
 void
-Lex_input_stream::reset(char *buffer, unsigned int length)
+Lex_input_stream::reset(char *buffer, size_t length)
 {
   yylineno= 1;
   yylval= NULL;
@@ -334,7 +334,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
   DBUG_ASSERT(begin_ptr);
   DBUG_ASSERT(m_cpp_buf <= begin_ptr && begin_ptr <= m_cpp_buf + m_buf_length);
 
-  uint body_utf8_length= get_body_utf8_maximum_length(thd);
+  size_t body_utf8_length= get_body_utf8_maximum_length(thd);
 
   m_body_utf8= (char *) thd->alloc(body_utf8_length + 1);
   m_body_utf8_ptr= m_body_utf8;
@@ -344,7 +344,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
 }
 
 
-uint Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
+size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
 {
   /*
     String literals can grow during escaping:
@@ -2151,7 +2151,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 }
 
 
-void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, uint *prefix_length)
+void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, size_t * prefix_length)
 {
   /*
     TODO:
@@ -2159,14 +2159,15 @@ void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, uint *prefix_length)
     that can be considered white-space.
   */
 
-  *prefix_length= 0;
+  size_t plen= 0;
   while ((str->length > 0) && (my_isspace(cs, str->str[0])))
   {
-    (*prefix_length)++;
+    plen++;
     str->length --;
     str->str ++;
   }
-
+  if (prefix_length)
+    *prefix_length= plen;
   /*
     FIXME:
     Also, parsing backward is not safe with multi bytes characters
@@ -3871,7 +3872,7 @@ void st_select_lex::alloc_index_hints (THD *thd)
   RETURN VALUE
     0 on success, non-zero otherwise
 */
-bool st_select_lex::add_index_hint (THD *thd, const char *str, uint length)
+bool st_select_lex::add_index_hint (THD *thd, const char *str, size_t length)
 {
   return index_hints->push_front(new (thd->mem_root) 
                                  Index_hint(current_index_hint_type,

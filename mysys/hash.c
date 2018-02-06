@@ -380,7 +380,7 @@ static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
 my_bool my_hash_insert(HASH *info, const uchar *record)
 {
   int flag;
-  uint idx, halfbuff, first_index;
+  size_t idx, halfbuff, first_index;
   size_t length;
   my_hash_value_type current_hash_nr, UNINIT_VAR(rec_hash_nr),
     UNINIT_VAR(rec2_hash_nr);

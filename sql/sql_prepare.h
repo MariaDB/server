@@ -215,21 +215,6 @@ public:
   bool execute_direct(Server_runnable *server_runnable);
 
   /**
-    Get the number of result set fields.
-
-    This method is valid only if we have a result:
-    execute_direct() has been called. Otherwise
-    the returned value is undefined.
-
-    @sa Documentation for C API function
-    mysql_field_count()
-  */
-  ulong get_field_count() const
-  {
-    return m_current_rset ? m_current_rset->get_field_count() : 0;
-  }
-
-  /**
     Get the number of affected (deleted, updated)
     rows for the current statement. Can be
     used for statements with get_field_count() == 0.

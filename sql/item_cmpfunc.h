@@ -2766,7 +2766,7 @@ public:
   {
     return !m_is_const && compile(item, false);
   }
-  bool exec(const char *str, int length, int offset);
+  bool exec(const char *str, size_t length, size_t offset);
   bool exec(String *str, int offset, uint n_result_offsets_to_convert);
   bool exec(Item *item, int offset, uint n_result_offsets_to_convert);
   bool match() const { return m_pcre_exec_rc < 0 ? 0 : 1; }

@@ -106,7 +106,7 @@ int maria_assign_to_pagecache(MARIA_HA *info,
 
   /* store the key cache in the global hash structure for future opens */
   if (multi_pagecache_set((uchar*) share->unique_file_name.str,
-                          share->unique_file_name.length,
+                          (uint)share->unique_file_name.length,
 			  share->pagecache))
     error= my_errno;
   mysql_mutex_unlock(&share->intern_lock);

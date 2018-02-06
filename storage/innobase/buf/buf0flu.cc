@@ -3480,8 +3480,8 @@ buf_flush_set_page_cleaner_thread_cnt(ulong new_cnt)
 	if (new_cnt > page_cleaner.n_workers) {
 		/* User has increased the number of page
 		cleaner threads. */
-		uint add = new_cnt - page_cleaner.n_workers;
-		for (uint i = 0; i < add; i++) {
+		ulint add = new_cnt - page_cleaner.n_workers;
+		for (ulint i = 0; i < add; i++) {
 			os_thread_id_t cleaner_thread_id;
 			os_thread_create(buf_flush_page_cleaner_worker, NULL, &cleaner_thread_id);
 		}

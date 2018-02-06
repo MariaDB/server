@@ -673,7 +673,7 @@ public:
   { return m_cursor_offset; }
 
   uint frame_cursor_count() const
-  { return m_cursors.elements(); }
+  { return (uint)m_cursors.elements(); }
 
   uint max_cursor_index() const
   { return m_max_cursor_index + (uint)m_cursors.elements(); }

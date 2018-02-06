@@ -340,7 +340,7 @@ void purge_digest(PFS_thread* thread, PFS_digest_key *hash_key)
   return;
 }
 
-void PFS_statements_digest_stat::reset_data(unsigned char *token_array, uint length)
+void PFS_statements_digest_stat::reset_data(unsigned char *token_array, size_t length)
 {
   m_lock.set_dirty();
   m_digest_storage.reset(token_array, length);

@@ -20,8 +20,8 @@
 #include <my_compare.h>
 #include <my_sys.h>
 
-int ha_compare_text(CHARSET_INFO *charset_info, const uchar *a, uint a_length,
-		    const uchar *b, uint b_length, my_bool part_key)
+int ha_compare_text(CHARSET_INFO *charset_info, const uchar *a, size_t a_length,
+		    const uchar *b, size_t b_length, my_bool part_key)
 {
   if (!part_key)
     return charset_info->coll->strnncollsp(charset_info, a, a_length,

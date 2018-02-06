@@ -263,7 +263,7 @@ private:
 
     underlying_table_rowid is only stored when the table has no extended keys.
   */
-  uint m_priority_queue_rec_len;
+  size_t m_priority_queue_rec_len;
 
   /*
     If true, then sorting records by key value also sorts them by their

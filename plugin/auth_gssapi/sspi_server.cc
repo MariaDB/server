@@ -108,7 +108,7 @@ static int get_client_name_from_context(CtxtHandle *ctxt,
   sspi_ret= ImpersonateSecurityContext(ctxt);
   if (sspi_ret == SEC_E_OK)
   {
-    ULONG len= name_len;
+    ULONG len= (ULONG)name_len;
     if (!GetUserNameEx(NameSamCompatible, name, &len))
     {
       log_error(GetLastError(), "GetUserNameEx");

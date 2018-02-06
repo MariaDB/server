@@ -141,10 +141,10 @@ static const uint SKIP_SYMDIR_ACCESS= 1 << 5;
 /** Don't check foreign key constraints while renaming table */
 static const uint NO_FK_CHECKS=    1 << 6;
 
-uint filename_to_tablename(const char *from, char *to, uint to_length,
+uint filename_to_tablename(const char *from, char *to, size_t to_length,
                            bool stay_quiet = false);
-uint tablename_to_filename(const char *from, char *to, uint to_length);
-uint check_n_cut_mysql50_prefix(const char *from, char *to, uint to_length);
+uint tablename_to_filename(const char *from, char *to, size_t to_length);
+uint check_n_cut_mysql50_prefix(const char *from, char *to, size_t to_length);
 bool check_mysql50_prefix(const char *name);
 uint build_table_filename(char *buff, size_t bufflen, const char *db,
                           const char *table, const char *ext, uint flags);

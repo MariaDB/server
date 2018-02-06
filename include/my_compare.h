@@ -84,7 +84,7 @@ typedef struct st_HA_KEYSEG		/* Key-portion */
 
 #define store_key_length_inc(key,length) \
 { if ((length) < 255) \
-  { *(key)++= (length); } \
+  { *(key)++= (uchar)(length); } \
   else \
   { *(key)=255; mi_int2store((key)+1,(length)); (key)+=3; } \
 }
@@ -107,8 +107,8 @@ typedef struct st_HA_KEYSEG		/* Key-portion */
 #define clr_rec_bits(bit_ptr, bit_ofs, bit_len) \
   set_rec_bits(0, bit_ptr, bit_ofs, bit_len)
 
-extern int ha_compare_text(CHARSET_INFO *, const uchar *, uint,
-                           const uchar *, uint , my_bool);
+extern int ha_compare_text(CHARSET_INFO *, const uchar *, size_t,
+                           const uchar *, size_t , my_bool);
 extern int ha_key_cmp(HA_KEYSEG *keyseg, const uchar *a,
 		      const uchar *b, uint key_length, uint nextflag,
 		      uint *diff_pos);

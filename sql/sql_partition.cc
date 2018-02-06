@@ -1863,7 +1863,7 @@ static int add_keyword_path(String *str, const char *keyword,
 #ifdef __WIN__
   /* Convert \ to / to be able to create table on unix */
   char *pos, *end;
-  uint length= strlen(temp_path);
+  size_t length= strlen(temp_path);
   for (pos= temp_path, end= pos+length ; pos < end ; pos++)
   {
     if (*pos == '\\')

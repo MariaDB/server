@@ -828,8 +828,8 @@ static int send_heartbeat_event(binlog_send_info *info,
 
   char* p= coord->file_name + dirname_length(coord->file_name);
 
-  uint ident_len = strlen(p);
-  ulong event_len = ident_len + LOG_EVENT_HEADER_LEN +
+  size_t ident_len = strlen(p);
+  size_t event_len = ident_len + LOG_EVENT_HEADER_LEN +
     (do_checksum ? BINLOG_CHECKSUM_LEN : 0);
   int4store(header + SERVER_ID_OFFSET, global_system_variables.server_id);
   int4store(header + EVENT_LEN_OFFSET, event_len);
@@ -3409,7 +3409,7 @@ static bool get_string_parameter(char *to, const char *from, size_t length,
   if (from)                                     // Empty paramaters allowed
   {
     size_t from_length= strlen(from);
-    uint from_numchars= cs->cset->numchars(cs, from, from + from_length);
+    size_t from_numchars= cs->cset->numchars(cs, from, from + from_length);
     if (from_numchars > length / cs->mbmaxlen)
     {
       my_error(ER_WRONG_STRING_LENGTH, MYF(0), from, name,
@@ -4124,7 +4124,7 @@ bool show_binlog_info(THD* thd)
   {
     LOG_INFO li;
     mysql_bin_log.get_current_log(&li);
-    int dir_len = dirname_length(li.log_file_name);
+    size_t dir_len = dirname_length(li.log_file_name);
     protocol->store(li.log_file_name + dir_len, &my_charset_bin);
     protocol->store((ulonglong) li.pos);
     protocol->store(binlog_filter->get_do_db());
@@ -4166,8 +4166,8 @@ bool show_binlogs(THD* thd)
   File file;
   char fname[FN_REFLEN];
   List<Item> field_list;
-  uint length;
-  int cur_dir_len;
+  size_t length;
+  size_t cur_dir_len;
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("show_binlogs");
 
@@ -4197,7 +4197,7 @@ bool show_binlogs(THD* thd)
   /* The file ends with EOF or empty line */
   while ((length=my_b_gets(index_file, fname, sizeof(fname))) > 1)
   {
-    int dir_len;
+    size_t dir_len;
     ulonglong file_length= 0;                   // Length if open fails
     fname[--length] = '\0';                     // remove the newline
 

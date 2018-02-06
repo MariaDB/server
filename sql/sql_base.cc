@@ -245,7 +245,7 @@ static my_bool list_open_tables_callback(TDC_element *element,
                                          list_open_tables_arg *arg)
 {
   const char *db= (char*) element->m_key;
-  uint db_length= strlen(db);
+  size_t db_length= strlen(db);
   const char *table_name= db + db_length + 1;
 
   if (arg->db && my_strcasecmp(system_charset_info, arg->db, db))
@@ -644,7 +644,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
   DBUG_ASSERT(!share->tmp_table);
 
   char key[MAX_DBKEY_LENGTH];
-  uint key_length= share->table_cache_key.length;
+  size_t key_length= share->table_cache_key.length;
   const char *db= key;
   const char *table_name= db + share->db.length + 1;
 
@@ -2404,7 +2404,7 @@ bool
 Locked_tables_list::reopen_tables(THD *thd)
 {
   Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
-  size_t reopen_count= 0;
+  uint reopen_count= 0;
   MYSQL_LOCK *lock;
   MYSQL_LOCK *merged_lock;
   DBUG_ENTER("Locked_tables_list::reopen_tables");
@@ -5424,7 +5424,7 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
 
 static Field *
 find_field_in_view(THD *thd, TABLE_LIST *table_list,
-                   const char *name, uint length,
+                   const char *name, size_t length,
                    const char *item_name, Item **ref,
                    bool register_tree_change)
 {
@@ -5505,8 +5505,7 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
 */
 
 static Field *
-find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name,
-                           uint length, Item **ref, bool register_tree_change,
+find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name, size_t length, Item **ref, bool register_tree_change,
                            TABLE_LIST **actual_table)
 {
   List_iterator_fast<Natural_join_column>
@@ -5626,7 +5625,7 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name,
 */
 
 Field *
-find_field_in_table(THD *thd, TABLE *table, const char *name, uint length,
+find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
                     bool allow_rowid, uint *cached_field_index_ptr)
 {
   Field **field_ptr, *field;
@@ -5734,7 +5733,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, uint length,
 
 Field *
 find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
-                        const char *name, uint length,
+                        const char *name, size_t length,
                         const char *item_name, const char *db_name,
                         const char *table_name, Item **ref,
                         bool check_privileges, bool allow_rowid,
@@ -5987,7 +5986,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
   const char *db= item->db_name;
   const char *table_name= item->table_name;
   const char *name= item->field_name.str;
-  uint length= item->field_name.length;
+  size_t length= item->field_name.length;
   char name_buff[SAFE_NAME_LEN+1];
   TABLE_LIST *cur_table= first_table;
   TABLE_LIST *actual_table;
@@ -8530,8 +8529,8 @@ my_bool mysql_rm_tmp_tables(void)
                   tmp_file_prefix_length))
       {
         char *ext= fn_ext(file->name);
-        uint ext_len= strlen(ext);
-        uint filePath_len= my_snprintf(filePath, sizeof(filePath),
+        size_t ext_len= strlen(ext);
+        size_t filePath_len= my_snprintf(filePath, sizeof(filePath),
                                        "%s%c%s", tmpdir, FN_LIBCHAR,
                                        file->name);
         if (!strcmp(reg_ext, ext))

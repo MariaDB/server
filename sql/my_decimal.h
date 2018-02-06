@@ -365,11 +365,11 @@ int str2my_decimal(uint mask, const char *str, my_decimal *d, char **end)
 }
 
 
-int str2my_decimal(uint mask, const char *from, uint length,
+int str2my_decimal(uint mask, const char *from, size_t length,
                    CHARSET_INFO *charset, my_decimal *decimal_value,
                    const char **end);
 
-inline int str2my_decimal(uint mask, const char *from, uint length,
+inline int str2my_decimal(uint mask, const char *from, size_t length,
                           CHARSET_INFO *charset, my_decimal *decimal_value)
 {
   const char *end;

@@ -561,7 +561,7 @@ extern uint _mi_pack_key(MI_INFO *info, uint keynr, uchar *key,
                          HA_KEYSEG ** last_used_keyseg);
 extern int _mi_read_key_record(MI_INFO *info, my_off_t filepos, uchar *buf);
 extern int _mi_read_cache(IO_CACHE *info, uchar *buff, my_off_t pos,
-                          uint length, int re_read_if_possibly);
+                          size_t length, int re_read_if_possibly);
 extern ulonglong retrieve_auto_increment(MI_INFO *info, const uchar *record);
 
 extern uchar *mi_alloc_rec_buff(MI_INFO *, ulong, uchar **);

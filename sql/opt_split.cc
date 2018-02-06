@@ -427,7 +427,7 @@ bool JOIN::check_for_splittable_materialized()
   }
 
   /* Count the candidate fields that can be accessed by ref */
-  uint spl_field_cnt= candidates.elements();
+  uint spl_field_cnt= (uint)candidates.elements();
   for (cand= cand_start; cand < cand_end; cand++)
   {
     if (!cand->is_usable_for_ref_access)
@@ -694,7 +694,7 @@ void JOIN::add_keyuses_for_splitting()
     (void) add_ext_keyuses_for_splitting_field(ext_keyuses_for_splitting,
                                                added_key_field);
   }
-  added_keyuse_count= ext_keyuses_for_splitting->elements();
+  added_keyuse_count= (uint)ext_keyuses_for_splitting->elements();
   if (!added_keyuse_count)
     goto err;
   sort_ext_keyuses(ext_keyuses_for_splitting);

@@ -6214,7 +6214,7 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
                              &key_ptr, 0);
         keypart_map= (keypart_map << 1) | 1;
       }
-      min_range.length= max_range.length= (size_t) (key_ptr - key_val);
+      min_range.length= max_range.length= (uint) (key_ptr - key_val);
       min_range.keypart_map= max_range.keypart_map= keypart_map;
       records= (info->param->table->file->
                 records_in_range(scan->keynr, &min_range, &max_range));
@@ -7966,7 +7966,7 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
   }
 
   uint maybe_null= (uint) field->real_maybe_null();
-  uint field_length= field->pack_length() + maybe_null;
+  size_t field_length= field->pack_length() + maybe_null;
   size_t offset= maybe_null;
   size_t length= key_part->store_length;
 

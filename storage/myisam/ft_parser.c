@@ -295,7 +295,7 @@ static int ft_parse_internal(MYSQL_FTPARSER_PARAM *param,
   DBUG_ENTER("ft_parse_internal");
 
   while (ft_simple_get_word(wtree->custom_arg, &doc, end, &w, TRUE))
-    if (param->mysql_add_word(param, (char*) w.pos, w.len, 0))
+    if (param->mysql_add_word(param, (char*) w.pos, (int)w.len, 0))
       DBUG_RETURN(1);
   DBUG_RETURN(0);
 }

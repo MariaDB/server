@@ -2819,7 +2819,7 @@ static Sys_var_enum Sys_thread_handling(
 #ifdef HAVE_QUERY_CACHE
 static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
 {
-  ulong new_cache_size= query_cache.resize((ulong)query_cache_size);
+  size_t new_cache_size= query_cache.resize((size_t)query_cache_size);
   /*
      Note: query_cache_size is a global variable reflecting the
      requested cache size. See also query_cache_size_arg
@@ -2827,7 +2827,7 @@ static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
   if (query_cache_size != new_cache_size)
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_QC_RESIZE, ER_THD(thd, ER_WARN_QC_RESIZE),
-                        query_cache_size, new_cache_size);
+                        query_cache_size, (ulong)new_cache_size);
 
   query_cache_size= new_cache_size;
 
@@ -2858,7 +2858,7 @@ static Sys_var_ulong Sys_query_cache_limit(
 static bool fix_qcache_min_res_unit(sys_var *self, THD *thd, enum_var_type type)
 {
   query_cache_min_res_unit=
-    query_cache.set_min_res_unit(query_cache_min_res_unit);
+    (ulong)query_cache.set_min_res_unit(query_cache_min_res_unit);
   return false;
 }
 static Sys_var_ulong Sys_query_cache_min_res_unit(

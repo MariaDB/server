@@ -5,6 +5,13 @@ ADD_DEFINITIONS(-DMYSQL_SERVER)
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-write-strings")
 
 IF(MSVC)
+  # Temporarily disable "conversion from size_t .." warnings
+  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
+  ENDIF()
+ENDIF()
+
+IF(MSVC)
   LINK_LIBRARIES(ws2_32)
 ENDIF(MSVC)
 

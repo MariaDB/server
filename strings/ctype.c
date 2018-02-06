@@ -831,7 +831,7 @@ my_parse_charset_xml(MY_CHARSET_LOADER *loader, const char *buf, size_t len)
 
 
 uint
-my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, ulong length)
+my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, size_t length)
 {
   const char *strend;
   if ((cs->state & MY_CS_NONASCII) && length > 0)
@@ -917,7 +917,7 @@ my_string_metadata_get(MY_STRING_METADATA *metadata,
   Check repertoire: detect pure ascii strings
 */
 uint
-my_string_repertoire(CHARSET_INFO *cs, const char *str, ulong length)
+my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
 {
   if (cs->mbminlen == 1 && !(cs->state & MY_CS_NONASCII))
   {
@@ -1001,9 +1001,9 @@ my_charset_is_ascii_based(CHARSET_INFO *cs)
 */
 
 uint32
-my_convert_using_func(char *to, uint32 to_length,
+my_convert_using_func(char *to, size_t to_length,
                       CHARSET_INFO *to_cs, my_charset_conv_wc_mb wc_mb,
-                      const char *from, uint32 from_length,
+                      const char *from, size_t from_length,
                       CHARSET_INFO *from_cs, my_charset_conv_mb_wc mb_wc,
                       uint *errors)
 {

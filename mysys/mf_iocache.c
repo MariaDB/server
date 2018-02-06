@@ -557,7 +557,7 @@ int _my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
   }
   res= info->read_function(info, Buffer, Count);
   if (res && info->error >= 0)
-    info->error+= left_length; /* update number or read bytes */
+    info->error+= (int)left_length; /* update number or read bytes */
   return res;
 }
 

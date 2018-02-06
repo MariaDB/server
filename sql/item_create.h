@@ -192,7 +192,7 @@ protected:
 
 
 Item *create_temporal_literal(THD *thd,
-                              const char *str, uint length,
+                              const char *str, size_t length,
                               CHARSET_INFO *cs,
                               enum_field_types type,
                               bool send_error);

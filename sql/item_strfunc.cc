@@ -527,14 +527,14 @@ String *Item_func_decode_histogram::val_str(String *str)
       DBUG_ASSERT(0);
     }
     /* show delta with previous value */
-    int size= my_snprintf(numbuf, sizeof(numbuf),
+    size_t size= my_snprintf(numbuf, sizeof(numbuf),
                           representation_by_type[type], val - prev);
     str->append(numbuf, size);
     str->append(",");
     prev= val;
   }
   /* show delta with max */
-  int size= my_snprintf(numbuf, sizeof(numbuf),
+  size_t size= my_snprintf(numbuf, sizeof(numbuf),
                         representation_by_type[type], 1.0 - prev);
   str->append(numbuf, size);
 
@@ -1651,7 +1651,7 @@ String *Item_str_conv::val_str(String *str)
   null_value=0;
   if (multiply == 1)
   {
-    uint len;
+    size_t len;
     res= copy_if_not_alloced(&tmp_value, res, res->length());
     len= converter(collation.collation, (char*) res->ptr(), res->length(),
                                         (char*) res->ptr(), res->length());
@@ -1660,7 +1660,7 @@ String *Item_str_conv::val_str(String *str)
   }
   else
   {
-    uint len= res->length() * multiply;
+    size_t len= res->length() * multiply;
     tmp_value.alloc(len);
     tmp_value.set_charset(collation.collation);
     len= converter(collation.collation, (char*) res->ptr(), res->length(),
@@ -3618,10 +3618,10 @@ void Item_func_weight_string::fix_length_and_dec()
   */
   if (!(max_length= result_length))
   {
-    uint char_length;
+    size_t char_length;
     char_length= ((cs->state & MY_CS_STRNXFRM_BAD_NWEIGHTS) || !nweights) ?
                  args[0]->max_char_length() : nweights * cs->levels_for_order;
-    max_length= cs->coll->strnxfrmlen(cs, char_length * cs->mbmaxlen);
+    max_length= (uint32)cs->coll->strnxfrmlen(cs, char_length * cs->mbmaxlen);
   }
   maybe_null= 1;
 }
@@ -3632,7 +3632,7 @@ String *Item_func_weight_string::val_str(String *str)
 {
   String *res;
   CHARSET_INFO *cs= args[0]->collation.collation;
-  uint tmp_length, frm_length;
+  size_t tmp_length, frm_length;
   DBUG_ASSERT(fixed == 1);
 
   if (args[0]->result_type() != STRING_RESULT ||
@@ -3646,7 +3646,7 @@ String *Item_func_weight_string::val_str(String *str)
   */
   if (!(tmp_length= result_length))
   {
-    uint char_length;
+    size_t char_length;
     if (cs->state & MY_CS_STRNXFRM_BAD_NWEIGHTS)
     {
       /*
@@ -3692,7 +3692,7 @@ String *Item_func_weight_string::val_str(String *str)
 
   frm_length= cs->coll->strnxfrm(cs,
                                  (uchar *) str->ptr(), tmp_length,
-                                 nweights ? nweights : tmp_length,
+                                 nweights ? nweights : (uint)tmp_length,
                                  (const uchar *) res->ptr(), res->length(),
                                  flags);
   DBUG_ASSERT(frm_length <= tmp_length);

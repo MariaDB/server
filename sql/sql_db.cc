@@ -122,12 +122,12 @@ uchar* dboptions_get_key(my_dbopt_t *opt, size_t *length,
   Helper function to write a query to binlog used by mysql_rm_db()
 */
 
-static inline int write_to_binlog(THD *thd, const char *query, uint q_len,
-                                  const char *db, uint db_len)
+static inline int write_to_binlog(THD *thd, const char *query, size_t q_len,
+                                  const char *db, size_t db_len)
 {
   Query_log_event qinfo(thd, query, q_len, FALSE, TRUE, FALSE, 0);
   qinfo.db= db;
-  qinfo.db_len= db_len;
+  qinfo.db_len= (uint32)db_len;
   return mysql_bin_log.write(&qinfo);
 }  
 
@@ -388,7 +388,7 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
   char buf[256];
   DBUG_ENTER("load_db_opt");
   bool error=1;
-  uint nbytes;
+  size_t nbytes;
 
   bzero((char*) create,sizeof(*create));
   create->default_table_charset= thd->variables.collation_server;
@@ -688,7 +688,7 @@ not_silent:
                                       # database does not exist.
       */
       qinfo.db     = db->str;
-      qinfo.db_len = db->length;
+      qinfo.db_len = (uint32)db->length;
 
       /*
         These DDL methods and logging are protected with the exclusive
@@ -748,7 +748,7 @@ mysql_alter_db_internal(THD *thd, const LEX_CSTRING *db,
       default.
     */
     qinfo.db=     db->str;
-    qinfo.db_len= db->length;
+    qinfo.db_len= (uint)db->length;
 
     /*
       These DDL methods and logging are protected with the exclusive
@@ -958,7 +958,7 @@ update_binlog:
         default.
       */
       qinfo.db     = db->str;
-      qinfo.db_len = db->length;
+      qinfo.db_len = (uint32)db->length;
 
       /*
         These DDL methods and logging are protected with the exclusive
@@ -986,7 +986,7 @@ update_binlog:
 
     for (tbl= tables; tbl; tbl= tbl->next_local)
     {
-      uint tbl_name_len;
+      size_t tbl_name_len;
       char quoted_name[FN_REFLEN+3];
 
       // Only write drop table to the binlog for tables that no longer exist.

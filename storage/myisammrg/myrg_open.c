@@ -36,7 +36,8 @@
 MYRG_INFO *myrg_open(const char *name, int mode, int handle_locking)
 {
   int save_errno,errpos=0;
-  uint files= 0, i, dir_length, length, UNINIT_VAR(key_parts), min_keys= 0;
+  uint files= 0, i, UNINIT_VAR(key_parts), min_keys= 0;
+  size_t length, dir_length;
   ulonglong file_offset=0;
   char name_buff[FN_REFLEN*2],buff[FN_REFLEN],*end;
   MYRG_INFO *m_info=0;
@@ -228,7 +229,7 @@ MYRG_INFO *myrg_parent_open(const char *parent_name,
   int       errpos;
   int       save_errno;
   int       insert_method;
-  uint      length;
+  size_t      length;
   uint      child_count;
   File      fd;
   IO_CACHE  file_cache;

@@ -61,7 +61,7 @@ struct PFS_ALIGNED PFS_statements_digest_stat
   ulonglong m_last_seen;
 
   /** Reset data for this record. */
-  void reset_data(unsigned char* token_array, uint length);
+  void reset_data(unsigned char* token_array, size_t length);
   /** Reset data and remove index for this record. */
   void reset_index(PFS_thread *thread);
 };

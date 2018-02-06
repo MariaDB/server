@@ -3284,7 +3284,7 @@ Create_udf_func Create_udf_func::s_singleton;
 Item*
 Create_udf_func::create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
 {
-  udf_func *udf= find_udf(name->str, (uint) name->length);
+  udf_func *udf= find_udf(name->str,  name->length);
   DBUG_ASSERT(udf);
   return create(thd, udf, item_list);
 }
@@ -7276,7 +7276,7 @@ have_important_literal_warnings(const MYSQL_TIME_STATUS *status)
 */
 
 Item *create_temporal_literal(THD *thd,
-                              const char *str, uint length,
+                              const char *str, size_t length,
                               CHARSET_INFO *cs,
                               enum_field_types type,
                               bool send_error)

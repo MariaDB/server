@@ -3597,7 +3597,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       as this is never used to limit the length of the data.
       Cut is done with the third argument.
     */
-    uint add_length= Well_formed_prefix(cs,
+    size_t add_length= Well_formed_prefix(cs,
                                         ptr + old_length,
                                         ptr + max_length,
                                         result->length()).length();

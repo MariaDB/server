@@ -174,7 +174,7 @@ static bool is_show_command(THD *thd)
 
 static int make_version_string(char *buf, int buf_length, uint version)
 {
-  return my_snprintf(buf, buf_length, "%d.%d", version>>8,version&0xff);
+  return (int)my_snprintf(buf, buf_length, "%d.%d", version>>8,version&0xff);
 }
 
 
@@ -1627,7 +1627,7 @@ static const char *require_quotes(const char *name, uint name_length)
 */
 
 bool
-append_identifier(THD *thd, String *packet, const char *name, uint length)
+append_identifier(THD *thd, String *packet, const char *name, size_t length)
 {
   const char *name_end;
   char quote_char;
@@ -1706,11 +1706,11 @@ append_identifier(THD *thd, String *packet, const char *name, uint length)
     #	  Quote character
 */
 
-int get_quote_char_for_identifier(THD *thd, const char *name, uint length)
+int get_quote_char_for_identifier(THD *thd, const char *name, size_t length)
 {
   if (length &&
-      !is_keyword(name,length) &&
-      !require_quotes(name, length) &&
+      !is_keyword(name,(uint)length) &&
+      !require_quotes(name, (uint)length) &&
       !(thd->variables.option_bits & OPTION_QUOTE_SHOW_CREATE))
     return EOF;
   if (thd->variables.sql_mode & MODE_ANSI_QUOTES)
@@ -1726,7 +1726,7 @@ static void append_directory(THD *thd, String *packet, const char *dir_type,
 {
   if (filename && !(thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE))
   {
-    uint length= dirname_length(filename);
+    size_t length= dirname_length(filename);
     packet->append(' ');
     packet->append(dir_type);
     packet->append(STRING_WITH_LEN(" DIRECTORY='"));
@@ -6736,7 +6736,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
 static bool
 store_constraints(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
                   const LEX_CSTRING *table_name, const char *key_name,
-                  uint key_len, const char *con_type, uint con_len)
+                  size_t key_len, const char *con_type, size_t con_len)
 {
   CHARSET_INFO *cs= system_charset_info;
   restore_record(table, s->default_values);
@@ -6932,7 +6932,7 @@ ret:
 static void
 store_key_column_usage(TABLE *table, const LEX_CSTRING *db_name,
                        const LEX_CSTRING *table_name, const char *key_name,
-                       uint key_len, const char *con_type, uint con_len,
+                       size_t key_len, const char *con_type, size_t con_len,
                        longlong idx)
 {
   CHARSET_INFO *cs= system_charset_info;
@@ -7965,7 +7965,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
 
   for (; fields_info->field_name; fields_info++)
   {
-    uint field_name_length= strlen(fields_info->field_name);
+    size_t field_name_length= strlen(fields_info->field_name);
     switch (fields_info->field_type) {
     case MYSQL_TYPE_TINY:
     case MYSQL_TYPE_LONG:
@@ -7985,14 +7985,14 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     case MYSQL_TYPE_DATE:
       if (!(item=new (mem_root)
             Item_return_date_time(thd, fields_info->field_name,
-                                  field_name_length,
+                                  (uint)field_name_length,
                                   fields_info->field_type)))
         DBUG_RETURN(0);
       break;
     case MYSQL_TYPE_TIME:
       if (!(item=new (mem_root)
             Item_return_date_time(thd, fields_info->field_name,
-                                  field_name_length,
+                                  (uint)field_name_length,
                                   fields_info->field_type)))
         DBUG_RETURN(0);
       break;
@@ -8000,7 +8000,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     case MYSQL_TYPE_DATETIME:
       if (!(item=new (mem_root)
             Item_return_date_time(thd, fields_info->field_name,
-                                  field_name_length,
+                                  (uint)field_name_length,
                                   fields_info->field_type,
                                   fields_info->field_length)))
         DBUG_RETURN(0);
@@ -8721,7 +8721,7 @@ int hton_fill_schema_table(THD *thd, TABLE_LIST *tables, COND *cond)
 
 static
 int store_key_cache_table_record(THD *thd, TABLE *table,
-                                 const char *name, uint name_length,
+                                 const char *name, size_t name_length,
                                  KEY_CACHE *key_cache,
                                  uint partitions, uint partition_no)
 {
@@ -9816,7 +9816,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
   fields.push_back(new (mem_root) Item_empty_string(thd, "Trigger", NAME_LEN),
                    mem_root);
   fields.push_back(new (mem_root)
-                   Item_empty_string(thd, "sql_mode", trg_sql_mode_str.length),
+                   Item_empty_string(thd, "sql_mode", (uint)trg_sql_mode_str.length),
                    mem_root);
 
   {
@@ -9827,7 +9827,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
 
     Item_empty_string *stmt_fld=
       new (mem_root) Item_empty_string(thd, "SQL Original Statement",
-                                       MY_MAX(trg_sql_original_stmt.length,
+                                       (uint)MY_MAX(trg_sql_original_stmt.length,
                                               1024));
 
     stmt_fld->maybe_null= TRUE;

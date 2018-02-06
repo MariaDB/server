@@ -645,7 +645,7 @@ SQL_SELECT *prepare_simple_select(THD *thd, Item *cond,
     #  created SQL_SELECT
 */
 
-SQL_SELECT *prepare_select_for_name(THD *thd, const char *mask, uint mlen,
+SQL_SELECT *prepare_select_for_name(THD *thd, const char *mask, size_t mlen,
 				    TABLE_LIST *tables, TABLE *table,
 				    Field *pfname, int *error)
 {
@@ -654,7 +654,7 @@ SQL_SELECT *prepare_select_for_name(THD *thd, const char *mask, uint mlen,
     Item_func_like(thd,
                    new (mem_root)
                    Item_field(thd, pfname),
-                   new (mem_root) Item_string(thd, mask, mlen,
+                   new (mem_root) Item_string(thd, mask, (uint)mlen,
                                               pfname->charset()),
                    new (mem_root) Item_string_ascii(thd, "\\"),
                    FALSE);
@@ -686,7 +686,7 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
   List<String> topics_list, categories_list, subcategories_list;
   String name, description, example;
   int count_topics, count_categories, error;
-  uint mlen= strlen(mask);
+  size_t mlen= strlen(mask);
   size_t i;
   MEM_ROOT *mem_root= thd->mem_root;
   LEX_CSTRING MYSQL_HELP_TOPIC_NAME=    {STRING_WITH_LEN("help_topic") };

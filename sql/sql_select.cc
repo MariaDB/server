@@ -24972,7 +24972,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   if (table->derived_select_number)
   {
     /* Derived table name generation */
-    int len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
+    size_t len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
                          "<derived%u>",
                          table->derived_select_number);
     eta->table_name.copy(table_name_buffer, len, cs);
@@ -24981,7 +24981,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   {
     JOIN_TAB *ctab= bush_children->start;
     /* table */
-    int len= my_snprintf(table_name_buffer, 
+    size_t len= my_snprintf(table_name_buffer, 
                          sizeof(table_name_buffer)-1,
                          "<subquery%d>", 
                          ctab->emb_sj_nest->sj_subq_pred->get_identifier());
@@ -25330,7 +25330,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
         {
           char namebuf[NAME_LEN];
           /* Derived table name generation */
-          int len= my_snprintf(namebuf, sizeof(namebuf)-1,
+          size_t len= my_snprintf(namebuf, sizeof(namebuf)-1,
                                "<derived%u>",
                                prev_table->derived_select_number);
           eta->firstmatch_table_name.append(namebuf, len);

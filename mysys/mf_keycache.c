@@ -2429,7 +2429,7 @@ restart:
                 The call is thread safe because only the current
                 thread might change the block->hash_link value
               */
-              error= my_pwrite(block->hash_link->file,
+              error= (int)my_pwrite(block->hash_link->file,
                                block->buffer + block->offset,
                                block->length - block->offset,
                                block->hash_link->diskpos + block->offset,
@@ -2674,7 +2674,7 @@ static void read_block_primary(SIMPLE_KEY_CACHE_CB *keycache,
   else
   {
     block->status|= BLOCK_READ;
-    block->length= got_length;
+    block->length= (uint)got_length;
     /*
       Do not set block->offset here. If this block is marked
       BLOCK_CHANGED later, we want to flush only the modified part. So
@@ -3809,7 +3809,7 @@ static int flush_cached_blocks(SIMPLE_KEY_CACHE_CB *keycache,
                   (BLOCK_READ | BLOCK_IN_FLUSH | BLOCK_CHANGED | BLOCK_IN_USE));
       block->status|= BLOCK_IN_FLUSHWRITE;
       keycache_pthread_mutex_unlock(&keycache->cache_lock);
-      error= my_pwrite(file, block->buffer + block->offset,
+      error= (int)my_pwrite(file, block->buffer + block->offset,
                        block->length - block->offset,
                        block->hash_link->diskpos + block->offset,
                        MYF(MY_NABP | MY_WAIT_IF_FULL));

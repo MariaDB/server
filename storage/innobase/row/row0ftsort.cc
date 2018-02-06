@@ -669,7 +669,7 @@ row_merge_fts_doc_tokenize(
 		MySQL 5.7 changed the fulltext parser plugin interface
 		by adding MYSQL_FTPARSER_BOOLEAN_INFO::position.
 		Below we assume that the field is always 0. */
-		unsigned	pos = t_ctx->init_pos;
+		ulint	pos = t_ctx->init_pos;
 		byte		position[4];
 		if (parser == NULL) {
 			pos += t_ctx->processed_len + inc - str.f_len;

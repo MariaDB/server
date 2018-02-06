@@ -171,7 +171,7 @@ err:
 void make_valid_column_names(THD *thd, List<Item> &item_list)
 {
   Item *item;
-  uint name_len;
+  size_t name_len;
   List_iterator_fast<Item> it(item_list);
   char buff[NAME_LEN];
   DBUG_ENTER("make_valid_column_names");
@@ -1348,7 +1348,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     bool dbchanged;
     Parser_state parser_state;
     if (parser_state.init(thd, table->select_stmt.str,
-                          table->select_stmt.length))
+                          (uint)table->select_stmt.length))
         goto err;
 
     /* 

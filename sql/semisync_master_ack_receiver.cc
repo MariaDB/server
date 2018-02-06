@@ -252,7 +252,7 @@ void Ack_receiver::run()
 
       max_fd= get_slave_sockets(&read_fds, &slave_count);
       m_slaves_changed= false;
-      DBUG_PRINT("info", ("fd count %u, max_fd %d", slave_count, max_fd));
+      DBUG_PRINT("info", ("fd count %u, max_fd %d", slave_count,(int) max_fd));
     }
 
     struct timeval tv= {1, 0};

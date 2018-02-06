@@ -28,9 +28,9 @@ FT_INFO *maria_ft_init_search(uint flags, void *info, uint keynr,
   FT_INFO *res;
   if (flags & FT_BOOL)
     res= maria_ft_init_boolean_search((MARIA_HA *) info, keynr, query,
-				      query_len, cs);
+				      (uint)query_len, cs);
   else
-    res= maria_ft_init_nlq_search((MARIA_HA *) info, keynr, query, query_len,
+    res= maria_ft_init_nlq_search((MARIA_HA *) info, keynr, query, (uint)query_len,
 				  flags, record);
   return res;
 }

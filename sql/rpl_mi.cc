@@ -1360,7 +1360,7 @@ Master_info_index::get_master_info(const LEX_CSTRING *connection_name,
 {
   Master_info *mi;
   char buff[MAX_CONNECTION_NAME+1], *res;
-  uint buff_length;
+  size_t buff_length;
   DBUG_ENTER("get_master_info");
   DBUG_PRINT("enter",
              ("connection_name: '%.*s'", (int) connection_name->length,
@@ -1914,7 +1914,7 @@ char *Domain_id_filter::as_string(enum_list_type type)
     return NULL;
 
   // Store the total number of elements followed by the individual elements.
-  ulong cur_len= sprintf(buf, "%u", ids->elements);
+  size_t cur_len= sprintf(buf, "%u", ids->elements);
   sz-= cur_len;
 
   for (uint i= 0; i < ids->elements; i++)

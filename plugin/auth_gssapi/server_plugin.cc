@@ -110,7 +110,7 @@ static int initialize_plugin(void *unused)
 
   strcpy(first_packet, srv_principal_name);
   strcpy(first_packet + strlen(srv_principal_name) + 1,srv_mech_name);
-  first_packet_len = strlen(srv_principal_name) + strlen(srv_mech_name) + 2;
+  first_packet_len = (int)(strlen(srv_principal_name) + strlen(srv_mech_name) + 2);
 
   return 0;
 }

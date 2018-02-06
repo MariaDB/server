@@ -149,7 +149,7 @@ inline void store_token_identifier(sql_digest_storage* digest_storage,
     /* Write the string data */
     if (id_length > 0)
       memcpy((char *)(dest + 4), id_name, id_length);
-    digest_storage->m_byte_count+= bytes_needed;
+    digest_storage->m_byte_count+= (uint)bytes_needed;
   }
   else
   {

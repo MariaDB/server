@@ -2407,7 +2407,7 @@ public:
   String *str_result(String *str);
   my_decimal *val_decimal_result(my_decimal *);
   bool is_null_result();
-  bool update_hash(void *ptr, uint length, enum Item_result type,
+  bool update_hash(void *ptr, size_t length, enum Item_result type,
                    CHARSET_INFO *cs, bool unsigned_arg);
   bool send(Protocol *protocol, st_value *buffer);
   void make_field(THD *thd, Send_field *tmp_field);
@@ -2493,7 +2493,7 @@ public:
   {
     DBUG_ASSERT(a->length < UINT_MAX32);
     org_name= *a;
-    set_name(thd, a->str, (uint) a->length, system_charset_info);
+    set_name(thd, a->str, a->length, system_charset_info);
   }
   /* We should return something different from FIELD_ITEM here */
   enum Type type() const { return STRING_ITEM;}

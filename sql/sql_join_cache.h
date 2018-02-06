@@ -107,7 +107,7 @@ protected:
   /* 3 functions below actually do not use the hidden parameter 'this' */ 
 
   /* Calculate the number of bytes used to store an offset value */
-  uint offset_size(uint len)
+  uint offset_size(size_t len)
   { return (len < 256 ? 1 : len < 256*256 ? 2 : 4); }
 
   /* Get the offset value that takes ofs_sz bytes at the position ptr */
@@ -420,7 +420,7 @@ protected:
     incremented when a new record is added to the join buffer.
     If no auxiliary buffer is needed the function should return 0.
   */
-  virtual uint aux_buffer_incr(ulong recno);
+  virtual uint aux_buffer_incr(size_t recno);
 
   /* Shall calculate how much space is remaining in the join buffer */ 
   virtual size_t rem_space() 
@@ -606,9 +606,9 @@ public:
   void set_join_buffer_size(size_t sz) { buff_size= sz; }
 
   /* Get the minimum possible size of the cache join buffer */
-  virtual ulong get_min_join_buffer_size();
+  virtual size_t get_min_join_buffer_size();
   /* Get the maximum possible size of the cache join buffer */ 
-  virtual ulong get_max_join_buffer_size(bool optimize_buff_size);
+  virtual size_t get_max_join_buffer_size(bool optimize_buff_size);
 
   /* Shrink the size if the cache join buffer in a given ratio */
   bool shrink_join_buffer_in_ratio(ulonglong n, ulonglong d);
@@ -1069,7 +1069,7 @@ public:
     Shall calculate the increment of the auxiliary buffer for a record
     write if such a buffer is used by the table scan object 
   */
-  virtual uint aux_buffer_incr(ulong recno) { return 0; }
+  virtual uint aux_buffer_incr(size_t recno) { return 0; }
 
   /* Initiate the process of iteration over the joined table */
   virtual int open();
@@ -1244,7 +1244,7 @@ public:
   JOIN_TAB_SCAN_MRR(JOIN *j, JOIN_TAB *tab, uint flags, RANGE_SEQ_IF rs_funcs)
     :JOIN_TAB_SCAN(j, tab), range_seq_funcs(rs_funcs), mrr_mode(flags) {}
 
-  uint aux_buffer_incr(ulong recno);
+  uint aux_buffer_incr(size_t recno);
 
   int open();
  

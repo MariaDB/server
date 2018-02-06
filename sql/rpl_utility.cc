@@ -414,7 +414,7 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
   case MYSQL_TYPE_VARCHAR_COMPRESSED:
     {
       CHARSET_INFO *cs= str->charset();
-      uint32 length=
+      size_t length=
         cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
                            "varchar(%u)%s", metadata,
                            type == MYSQL_TYPE_VARCHAR_COMPRESSED ? " compressed"
@@ -427,7 +427,7 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
     {
       CHARSET_INFO *cs= str->charset();
       int bit_length= 8 * (metadata >> 8) + (metadata & 0xFF);
-      uint32 length=
+      size_t length=
         cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
                            "bit(%d)", bit_length);
       str->length(length);
@@ -437,7 +437,7 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
   case MYSQL_TYPE_DECIMAL:
     {
       CHARSET_INFO *cs= str->charset();
-      uint32 length=
+      size_t length=
         cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
                            "decimal(%d,?)/*old*/", metadata);
       str->length(length);
@@ -447,7 +447,7 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
   case MYSQL_TYPE_NEWDECIMAL:
     {
       CHARSET_INFO *cs= str->charset();
-      uint32 length=
+      size_t length=
         cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
                            "decimal(%d,%d)", metadata >> 8, metadata & 0xff);
       str->length(length);
@@ -503,7 +503,7 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
       */
       CHARSET_INFO *cs= str->charset();
       uint bytes= (((metadata >> 4) & 0x300) ^ 0x300) + (metadata & 0x00ff);
-      uint32 length=
+      size_t length=
         cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
                            "char(%d)", bytes / field_cs->mbmaxlen);
       str->length(length);

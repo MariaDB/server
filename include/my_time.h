@@ -109,9 +109,9 @@ static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut);
-my_bool str_to_time(const char *str, uint length, MYSQL_TIME *l_time, 
+my_bool str_to_time(const char *str, size_t length, MYSQL_TIME *l_time, 
                     ulonglong flag, MYSQL_TIME_STATUS *status);
-my_bool str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
+my_bool str_to_datetime(const char *str, size_t length, MYSQL_TIME *l_time,
                         ulonglong flags, MYSQL_TIME_STATUS *status);
 longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
                             ulonglong flags, int *was_cut);

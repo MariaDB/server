@@ -86,7 +86,7 @@ int get_or_create_user_conn(THD *thd, const char *user,
     uc->user=(char*) (uc+1);
     memcpy(uc->user,temp_user,temp_len+1);
     uc->host= uc->user + user_len +  1;
-    uc->len= temp_len;
+    uc->len= (uint)temp_len;
     uc->connections= uc->questions= uc->updates= uc->conn_per_hour= 0;
     uc->user_resources= *mqh;
     uc->reset_utime= thd->thr_create_utime;
@@ -339,7 +339,7 @@ void reset_mqh(LEX_USER *lu, bool get_them= 0)
   if (lu)  // for GRANT
   {
     USER_CONN *uc;
-    uint temp_len=lu->user.length+lu->host.length+2;
+    size_t temp_len=lu->user.length+lu->host.length+2;
     char temp_user[USER_HOST_BUFF_SIZE];
 
     memcpy(temp_user,lu->user.str,lu->user.length);
@@ -445,7 +445,7 @@ void init_user_stats(USER_STATS *user_stats,
   user_length= MY_MIN(user_length, sizeof(user_stats->user)-1);
   memcpy(user_stats->user, user, user_length);
   user_stats->user[user_length]= 0;
-  user_stats->user_name_length= user_length;
+  user_stats->user_name_length= (uint)user_length;
   strmake_buf(user_stats->priv_user, priv_user);
 
   user_stats->total_connections= total_connections;

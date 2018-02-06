@@ -263,7 +263,7 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const TABLE_LIST *tl)
   @return Success                     A pointer to table share object
           Failure                     NULL
 */
-TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, uint key_length)
+TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length)
 {
   DBUG_ENTER("THD::find_tmp_table_share");
 

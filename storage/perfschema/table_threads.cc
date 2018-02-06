@@ -228,7 +228,7 @@ int table_threads::read_row_values(TABLE *table,
       case 7: /* PROCESSLIST_COMMAND */
         if (m_row.m_processlist_id != 0)
           set_field_varchar_utf8(f, command_name[m_row.m_command].str,
-                                 command_name[m_row.m_command].length);
+                                 (uint)command_name[m_row.m_command].length);
         else
           f->set_null();
         break;

@@ -3202,7 +3202,7 @@ static int write_page(MARIA_SHARE *share, File file,
   args.pageno= (pgcache_page_no_t) (pos / share->block_size);
   args.data= (uchar*) share;
   (* share->kfile.pre_write_hook)(&args);
-  res= my_pwrite(file, args.page, block_size, pos, myf_rw);
+  res= (int)my_pwrite(file, args.page, block_size, pos, myf_rw);
   (* share->kfile.post_write_hook)(res, &args);
   return res;
 }

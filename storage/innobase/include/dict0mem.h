@@ -1107,7 +1107,7 @@ struct dict_index_t{
 	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
 	@return	default value
 	@retval	NULL	if the default value is SQL NULL (len=UNIV_SQL_NULL) */
-	const byte* instant_field_value(uint n, ulint* len) const
+	const byte* instant_field_value(ulint n, ulint* len) const
 	{
 		DBUG_ASSERT(is_instant() || id == DICT_INDEXES_ID);
 		DBUG_ASSERT(n + (id == DICT_INDEXES_ID) >= n_core_fields);

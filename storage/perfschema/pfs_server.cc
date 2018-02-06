@@ -249,8 +249,8 @@ void cleanup_instrument_config()
 
 int add_pfs_instr_to_array(const char* name, const char* value)
 {
-  int name_length= strlen(name);
-  int value_length= strlen(value);
+  size_t name_length= strlen(name);
+  size_t value_length= strlen(value);
 
   /* Allocate structure plus string buffers plus null terminators */
   PFS_instr_config* e = (PFS_instr_config*)my_malloc(sizeof(PFS_instr_config)
@@ -260,7 +260,7 @@ int add_pfs_instr_to_array(const char* name, const char* value)
   /* Copy the instrument name */
   e->m_name= (char*)e + sizeof(PFS_instr_config);
   memcpy(e->m_name, name, name_length);
-  e->m_name_length= name_length;
+  e->m_name_length= (uint)name_length;
   e->m_name[name_length]= '\0';
   
   /* Set flags accordingly */

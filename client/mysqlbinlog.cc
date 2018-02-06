@@ -439,7 +439,7 @@ File Load_log_processor::prepare_new_file_for_old_format(Load_log_event *le,
     return -1;
   }
   
-  le->set_fname_outside_temp_buf(filename,len+(uint) strlen(tail));
+  le->set_fname_outside_temp_buf(filename,len+strlen(tail));
   
   return file;
 }
@@ -537,7 +537,7 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
                                                     uint file_id,
                                                     Create_file_log_event *ce)
 {
-  uint full_len= target_dir_name_len + blen + 9 + 9 + 1;
+  size_t full_len= target_dir_name_len + blen + 9 + 9 + 1;
   Exit_status retval= OK_CONTINUE;
   char *fname, *ptr;
   File file;
@@ -583,7 +583,7 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
   }
 
   if (ce)
-    ce->set_fname_outside_temp_buf(fname, (uint) strlen(fname));
+    ce->set_fname_outside_temp_buf(fname, strlen(fname));
 
   if (my_write(file, (uchar*)block, block_len, MYF(MY_WME|MY_NABP)))
   {

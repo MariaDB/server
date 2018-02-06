@@ -194,7 +194,7 @@ typedef struct st_user_var_events
 {
   user_var_entry *user_var_event;
   char *value;
-  ulong length;
+  size_t length;
   Item_result type;
   uint charset_number;
   bool unsigned_flag;
@@ -775,7 +775,6 @@ typedef struct system_status_var
   ulong ha_savepoint_rollback_count;
   ulong ha_external_lock_count;
 
-  ulong net_big_packet_count;
   ulong opened_tables;
   ulong opened_shares;
   ulong opened_views;               /* +1 opening a view */
@@ -1002,7 +1001,7 @@ public:
   { return strmake_root(mem_root,str,size); }
   inline void *memdup(const void *str, size_t size)
   { return memdup_root(mem_root,str,size); }
-  inline void *memdup_w_gap(const void *str, size_t size, uint gap)
+  inline void *memdup_w_gap(const void *str, size_t size, size_t gap)
   {
     void *ptr;
     if ((ptr= alloc_root(mem_root,size+gap)))
@@ -3547,12 +3546,12 @@ public:
   {
     return !stmt_arena->is_stmt_prepare();
   }
-  inline void* trans_alloc(unsigned int size)
+  inline void* trans_alloc(size_t size)
   {
     return alloc_root(&transaction.mem_root,size);
   }
 
-  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, uint length)
+  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, size_t length)
   {
     if (!(lex_str->str= strmake_root(mem_root, str, length)))
     {
@@ -3562,7 +3561,7 @@ public:
     lex_str->length= length;
     return lex_str;
   }
-  LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str, const char* str, uint length)
+  LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str, const char* str, size_t length)
   {
     if (!(lex_str->str= strmake_root(mem_root, str, length)))
     {
@@ -3573,7 +3572,7 @@ public:
     return lex_str;
   }
 
-  LEX_CSTRING *make_clex_string(const char* str, uint length)
+  LEX_CSTRING *make_clex_string(const char* str, size_t length)
   {
     LEX_CSTRING *lex_str;
     char *tmp;
@@ -3589,7 +3588,7 @@ public:
   }
 
   // Allocate LEX_STRING for character set conversion
-  bool alloc_lex_string(LEX_STRING *dst, uint length)
+  bool alloc_lex_string(LEX_STRING *dst, size_t length)
   {
     if ((dst->str= (char*) alloc(length)))
       return false;
@@ -3597,7 +3596,7 @@ public:
     return true;     // EOM
   }
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
-		      const char *from, uint from_length,
+		      const char *from, size_t from_length,
 		      CHARSET_INFO *from_cs);
   /*
     Convert a strings between character sets.
@@ -3605,7 +3604,7 @@ public:
     dstcs and srccs cannot be &my_charset_bin.
   */
   bool convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   CHARSET_INFO *srccs, const char *src, size_t src_length,
                    String_copier *status);
 
   /*
@@ -3614,7 +3613,7 @@ public:
   */
   bool convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
-                          const char *src, uint src_length);
+                          const char *src, size_t src_length);
 
   /*
     If either "dstcs" or "srccs" is &my_charset_bin,
@@ -3622,7 +3621,7 @@ public:
     Otherwise, performs Unicode conversion using convert_fix().
   */
   bool copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                CHARSET_INFO *srccs, const char *src, uint src_length,
+                CHARSET_INFO *srccs, const char *src, size_t src_length,
                 String_copier *status);
 
   /*
@@ -3630,7 +3629,7 @@ public:
     in case of bad byte sequences or Unicode conversion problems.
   */
   bool copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                       CHARSET_INFO *srccs, const char *src, uint src_length);
+                       CHARSET_INFO *srccs, const char *src, size_t src_length);
 
   bool convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs);
 
@@ -3652,8 +3651,8 @@ public:
                                     CHARSET_INFO *cs);
   Item *make_string_literal_concat(Item *item1, const LEX_CSTRING &str);
   void add_changed_table(TABLE *table);
-  void add_changed_table(const char *key, long key_length);
-  CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
+  void add_changed_table(const char *key, size_t key_length);
+  CHANGED_TABLE_LIST * changed_table_dup(const char *key, size_t key_length);
   int send_explain_fields(select_result *result, uint8 explain_flags,
                           bool is_analyze);
   void make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
@@ -4233,12 +4232,12 @@ public:
     Assign a new value to thd->query and thd->query_id and mysys_var.
     Protected with LOCK_thd_data mutex.
   */
-  void set_query(char *query_arg, uint32 query_length_arg,
+  void set_query(char *query_arg, size_t query_length_arg,
                  CHARSET_INFO *cs_arg)
   {
     set_query(CSET_STRING(query_arg, query_length_arg, cs_arg));
   }
-  void set_query(char *query_arg, uint32 query_length_arg) /*Mutex protected*/
+  void set_query(char *query_arg, size_t query_length_arg) /*Mutex protected*/
   {
     set_query(CSET_STRING(query_arg, query_length_arg, charset()));
   }
@@ -4443,7 +4442,7 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const char *db,
                                         const char *table_name);
   TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl);
-  TMP_TABLE_SHARE *find_tmp_table_share(const char *key, uint key_length);
+  TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
 
   bool open_temporary_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
@@ -5704,7 +5703,7 @@ class user_var_entry
   user_var_entry() {}                         /* Remove gcc warning */
   LEX_CSTRING name;
   char *value;
-  ulong length;
+  size_t length;
   query_id_t update_query_id, used_query_id;
   Item_result type;
   bool unsigned_flag;
@@ -6187,7 +6186,7 @@ void thd_exit_cond(MYSQL_THD thd, const PSI_stage_info *stage,
 #define THD_EXIT_COND(P1, P2) \
   thd_exit_cond(P1, P2, __func__, __FILE__, __LINE__)
 
-inline bool binlog_should_compress(ulong len)
+inline bool binlog_should_compress(size_t len)
 {
   return opt_bin_log_compress &&
     len >= opt_bin_log_compress_min_len;

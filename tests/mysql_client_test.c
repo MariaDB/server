@@ -31,6 +31,9 @@
   The fw.c file includes all the mysql_client_test framework; this file
   contains only the actual tests, plus the list of test functions to call.
 */
+#ifdef _MSC_VER
+#pragma warning (disable : 4267)
+#endif
 
 #include "mysql_client_fw.c"
 #ifndef _WIN32

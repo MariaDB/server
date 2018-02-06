@@ -420,7 +420,7 @@ public:
   LEX_CSTRING key_name;
 
   Index_hint (enum index_hint_type type_arg, index_clause_map clause_arg,
-              const char *str, uint length) :
+              const char *str, size_t length) :
     type(type_arg), clause(clause_arg)
   {
     key_name.str= str;
@@ -1169,7 +1169,7 @@ public:
    Add a index hint to the tagged list of hints. The type and clause of the
    hint will be the current ones (set by set_index_hint()) 
   */
-  bool add_index_hint (THD *thd, const char *str, uint length);
+  bool add_index_hint (THD *thd, const char *str, size_t length);
 
   /* make a list to hold index hints */
   void alloc_index_hints (THD *thd);
@@ -2069,9 +2069,9 @@ public:
      @retval FALSE OK
      @retval TRUE  Error
   */
-  bool init(THD *thd, char *buff, unsigned int length);
+  bool init(THD *thd, char *buff, size_t length);
 
-  void reset(char *buff, unsigned int length);
+  void reset(char *buff, size_t length);
 
   /**
     Set the echo mode.
@@ -2344,16 +2344,16 @@ public:
   }
 
   /** Get the utf8-body length. */
-  uint get_body_utf8_length()
+  size_t get_body_utf8_length()
   {
-    return (uint) (m_body_utf8_ptr - m_body_utf8);
+    return (size_t) (m_body_utf8_ptr - m_body_utf8);
   }
 
   /**
     Get the maximum length of the utf8-body buffer.
     The utf8 body can grow because of the character set conversion and escaping.
   */
-  uint get_body_utf8_maximum_length(THD *thd);
+  size_t get_body_utf8_maximum_length(THD *thd);
 
   void body_utf8_start(THD *thd, const char *begin_ptr);
   void body_utf8_append(const char *ptr);
@@ -2413,7 +2413,7 @@ private:
   const char *m_buf;
 
   /** Length of the raw buffer. */
-  uint m_buf_length;
+  size_t m_buf_length;
 
   /** Echo the parsed stream to the pre-processed buffer. */
   bool m_echo;
@@ -3865,7 +3865,7 @@ public:
      @retval FALSE OK
      @retval TRUE  Error
   */
-  bool init(THD *thd, char *buff, unsigned int length)
+  bool init(THD *thd, char *buff, size_t length)
   {
     return m_lip.init(thd, buff, length);
   }
@@ -3997,10 +3997,9 @@ int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
 extern int MYSQLlex(union YYSTYPE *yylval, THD *thd);
 extern int ORAlex(union YYSTYPE *yylval, THD *thd);
 
-extern void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str,
-                            uint *prefix_removed);
+extern void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, size_t * prefix_length = 0);
 
-extern bool is_lex_native_function(const LEX_CSTRING *name);
+extern bool is_lex_native_function(const LEX_CSTRING *name); 
 extern bool is_native_function(THD *thd, const LEX_CSTRING *name);
 extern bool is_native_function_with_warn(THD *thd, const LEX_CSTRING *name);
 

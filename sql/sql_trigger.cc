@@ -35,7 +35,7 @@
 #include <mysys_err.h>
 
 LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str,
-                             const char* str, uint length,
+                             const char* str, size_t length,
                              MEM_ROOT *mem_root)
 {
   if (!(lex_str->str= strmake_root(mem_root, str, length)))
@@ -654,7 +654,7 @@ static void build_trig_stmt_query(THD *thd, TABLE_LIST *tables,
 {
   LEX_CSTRING stmt_definition;
   LEX *lex= thd->lex;
-  uint prefix_trimmed, suffix_trimmed;
+  size_t prefix_trimmed, suffix_trimmed;
   size_t original_length;
 
   /*

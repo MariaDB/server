@@ -184,7 +184,7 @@ static uint opt_connect_timeout= 0;
 static uint opt_wait_for_pos_timeout= 0;
 
 static char delimiter[MAX_DELIMITER_LENGTH]= ";";
-static uint delimiter_length= 1;
+static size_t delimiter_length= 1;
 
 static char TMPDIR[FN_REFLEN];
 static char global_subst_from[200];
@@ -265,8 +265,8 @@ static void free_re(void);
 static char *get_string(char **to_ptr, char **from_ptr,
                         struct st_command *command);
 static int replace(DYNAMIC_STRING *ds_str,
-                   const char *search_str, ulong search_len,
-                   const char *replace_str, ulong replace_len);
+                   const char *search_str, size_t search_len,
+                   const char *replace_str, size_t replace_len);
 
 static uint opt_protocol=0;
 
@@ -291,11 +291,11 @@ const char *result_file_name= 0;
 typedef struct
 {
   char *name;
-  int name_len;
+  size_t name_len;
   char *str_val;
-  int str_val_len;
+  size_t str_val_len;
   int int_val;
-  int alloced_len;
+  size_t alloced_len;
   bool int_dirty; /* do not update string if int is updated until first read */
   bool is_int;
   bool alloced;
@@ -572,7 +572,7 @@ struct st_replace_regex *glob_replace_regex= 0;
 struct st_replace;
 struct st_replace *glob_replace= 0;
 void replace_strings_append(struct st_replace *rep, DYNAMIC_STRING* ds,
-const char *from, int len);
+const char *from);
 
 ATTRIBUTE_NORETURN
 static void cleanup_and_exit(int exit_code);
@@ -589,20 +589,19 @@ void verbose_msg(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 void log_msg(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 
 VAR* var_from_env(const char *, const char *);
-VAR* var_init(VAR* v, const char *name, int name_len, const char *val,
-              int val_len);
+VAR* var_init(VAR* v, const char *name, size_t name_len, const char *val, size_t val_len);
 VAR* var_get(const char *var_name, const char** var_name_end,
              my_bool raw, my_bool ignore_not_existing);
 void eval_expr(VAR* v, const char *p, const char** p_end,
                bool open_end=false, bool do_eval=true);
-my_bool match_delimiter(int c, const char *delim, uint length);
+my_bool match_delimiter(int c, const char *delim, size_t length);
 void dump_result_to_reject_file(char *buf, int size);
 void dump_warning_messages();
 
 void do_eval(DYNAMIC_STRING *query_eval, const char *query,
              const char *query_end, my_bool pass_through_escape_chars);
-void str_to_file(const char *fname, char *str, int size);
-void str_to_file2(const char *fname, char *str, int size, my_bool append);
+void str_to_file(const char *fname, char *str, size_t size);
+void str_to_file2(const char *fname, char *str, size_t size, my_bool append);
 
 void fix_win_paths(char *val, size_t len);
 const char *get_errname_from_code (uint error_code);
@@ -1077,9 +1076,9 @@ static void init_connection_thd(struct st_connection *cn)
 #else /* ! EMBEDDED_LIBRARY*/
 
 #define init_connection_thd(X)    do { } while(0)
-#define do_send_query(cn,q,q_len) mysql_send_query(cn->mysql, q, q_len)
+#define do_send_query(cn,q,q_len) mysql_send_query(cn->mysql, q, (ulong)q_len)
 #define do_read_query_result(cn) mysql_read_query_result(cn->mysql)
-#define do_stmt_prepare(cn, q, q_len) mysql_stmt_prepare(cn->stmt, q, q_len)
+#define do_stmt_prepare(cn, q, q_len) mysql_stmt_prepare(cn->stmt, q, (ulong)q_len)
 #define do_stmt_execute(cn) mysql_stmt_execute(cn->stmt)
 #define do_stmt_close(cn) mysql_stmt_close(cn->stmt)
 
@@ -2139,8 +2138,8 @@ int compare_files2(File fd1, const char* filename2)
        trees when Maria is merged into them.
          --global-subst should be removed.
     */
-    uint global_subst_from_len= strlen(global_subst_from);
-    uint global_subst_to_len=   strlen(global_subst_to);
+    size_t global_subst_from_len= strlen(global_subst_from);
+    size_t global_subst_to_len=   strlen(global_subst_to);
     while (replace(&fd1_result,
                    global_subst_from, global_subst_from_len,
                    global_subst_to,   global_subst_to_len) == 0)
@@ -2422,10 +2421,9 @@ void var_check_int(VAR *v)
 }
 
 
-VAR *var_init(VAR *v, const char *name, int name_len, const char *val,
-              int val_len)
+VAR *var_init(VAR *v, const char *name, size_t name_len, const char *val, size_t val_len)
 {
-  int val_alloc_len;
+  size_t val_alloc_len;
   VAR *tmp_var;
   if (!name_len && name)
     name_len = strlen(name);
@@ -2726,7 +2724,7 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
   init_dynamic_string(&ds_query, 0, (end - query) + 32, 256);
   do_eval(&ds_query, query, end, FALSE);
 
-  if (mysql_real_query(mysql, ds_query.str, ds_query.length)) 
+  if (mysql_real_query(mysql, ds_query.str, (ulong)ds_query.length)) 
   {
     handle_error(curr_command, mysql_errno(mysql), mysql_error(mysql),
                  mysql_sqlstate(mysql), &ds_res);
@@ -2763,7 +2761,7 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
       {
         /* Add column to tab separated string */
 	char *val= row[i];
-	int len= lengths[i];
+	size_t len= lengths[i];
 	
 	if (glob_replace_regex)
 	{
@@ -2776,7 +2774,7 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
 	}
 	
 	if (glob_replace)
-	  replace_strings_append(glob_replace, &result, val, len);
+	  replace_strings_append(glob_replace, &result, val);
 	else
 	  dynstr_append_mem(&result, val, len);
       }
@@ -2914,7 +2912,7 @@ void var_set_query_get_value(struct st_command *command, VAR *var)
     die("Mismatched \"'s around query '%s'", ds_query.str);
 
   /* Run the query */
-  if (mysql_real_query(mysql, ds_query.str, ds_query.length))
+  if (mysql_real_query(mysql, ds_query.str, (ulong)ds_query.length))
   {
     handle_error(curr_command, mysql_errno(mysql), mysql_error(mysql),
                  mysql_sqlstate(mysql), &ds_res);
@@ -3061,7 +3059,7 @@ void eval_expr(VAR *v, const char *p, const char **p_end,
       struct st_command command;
       memset(&command, 0, sizeof(command));
       command.query= (char*)p;
-      command.first_word_len= len;
+      command.first_word_len= (int)len;
       command.first_argument= command.query + len;
       command.end= (char*)*p_end;
       command.abort_on_error= 1; /* avoid uninitialized variables */
@@ -3072,11 +3070,11 @@ void eval_expr(VAR *v, const char *p, const char **p_end,
 
  NO_EVAL:
   {
-    int new_val_len = (p_end && *p_end) ?
-      (int) (*p_end - p) : (int) strlen(p);
+    size_t new_val_len = (p_end && *p_end) ?
+      (size_t)(*p_end - p) : strlen(p);
     if (new_val_len + 1 >= v->alloced_len)
     {
-      static int MIN_VAR_ALLOC= 32;
+      static size_t MIN_VAR_ALLOC= 32;
       v->alloced_len = (new_val_len < MIN_VAR_ALLOC - 1) ?
         MIN_VAR_ALLOC : new_val_len + 1;
       if (!(v->str_val =
@@ -3332,8 +3330,8 @@ static void init_builtin_echo(void)
 */
 
 static int replace(DYNAMIC_STRING *ds_str,
-                   const char *search_str, ulong search_len,
-                   const char *replace_str, ulong replace_len)
+                   const char *search_str, size_t search_len,
+                   const char *replace_str, size_t replace_len)
 {
   DYNAMIC_STRING ds_tmp;
   const char *start= strstr(ds_str->str, search_str);
@@ -6540,7 +6538,7 @@ void do_delimiter(struct st_command* command)
 }
 
 
-my_bool match_delimiter(int c, const char *delim, uint length)
+my_bool match_delimiter(int c, const char *delim, size_t length)
 {
   uint i;
   char tmp[MAX_DELIMITER_LENGTH];
@@ -7400,7 +7398,7 @@ int parse_args(int argc, char **argv)
   append - append to file instead of overwriting old file
 */
 
-void str_to_file2(const char *fname, char *str, int size, my_bool append)
+void str_to_file2(const char *fname, char *str, size_t size, my_bool append)
 {
   int fd;
   char buff[FN_REFLEN];
@@ -7434,7 +7432,7 @@ void str_to_file2(const char *fname, char *str, int size, my_bool append)
   size - size of content witten to file
 */
 
-void str_to_file(const char *fname, char *str, int size)
+void str_to_file(const char *fname, char *str, size_t size)
 {
   str_to_file2(fname, str, size, FALSE);
 }
@@ -7897,7 +7895,7 @@ static void handle_no_active_connection(struct st_command *command,
 */
 
 void run_query_normal(struct st_connection *cn, struct st_command *command,
-                      int flags, char *query, int query_len,
+                      int flags, char *query, size_t query_len,
                       DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings)
 {
   MYSQL_RES *res= 0;
@@ -8239,7 +8237,7 @@ void handle_no_error(struct st_command *command)
 */
 
 void run_query_stmt(struct st_connection *cn, struct st_command *command,
-                    char *query, int query_len, DYNAMIC_STRING *ds,
+                    char *query, size_t query_len, DYNAMIC_STRING *ds,
                     DYNAMIC_STRING *ds_warnings)
 {
   MYSQL_RES *res= NULL;     /* Note that here 'res' is meta data result set */
@@ -8516,7 +8514,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   DYNAMIC_STRING ds_sorted;
   DYNAMIC_STRING ds_warnings;
   char *query;
-  int query_len;
+  size_t query_len;
   my_bool view_created= 0, sp_created= 0;
   my_bool complete_query= ((flags & QUERY_SEND_FLAG) &&
                            (flags & QUERY_REAP_FLAG));
@@ -8572,7 +8570,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   if (!disable_query_log && (flags & QUERY_SEND_FLAG))
   {
     char *print_query= query;
-    int print_len= query_len;
+    size_t print_len= query_len;
     if (flags & QUERY_PRINT_ORIGINAL_FLAG)
     {
       print_query= command->query;
@@ -8769,7 +8767,7 @@ void init_re_comp(regex_t *re, const char* str)
   if (err)
   {
     char erbuf[100];
-    int len= regerror(err, re, erbuf, sizeof(erbuf));
+    size_t len= regerror(err, re, erbuf, sizeof(erbuf));
     die("error %s, %d/%d `%s'\n",
 	re_eprint(err), (int)len, (int)sizeof(erbuf), erbuf);
   }
@@ -8835,7 +8833,7 @@ int match_re(regex_t *re, char *str)
 
   {
     char erbuf[100];
-    int len= regerror(err, re, erbuf, sizeof(erbuf));
+    size_t len= regerror(err, re, erbuf, sizeof(erbuf));
     die("error %s, %d/%d `%s'\n",
 	re_eprint(err), (int)len, (int)sizeof(erbuf), erbuf);
   }
@@ -9970,8 +9968,7 @@ typedef struct st_replace_found {
 
 
 void replace_strings_append(REPLACE *rep, DYNAMIC_STRING* ds,
-                            const char *str,
-                            int len __attribute__((unused)))
+                            const char *str)
 {
   REPLACE *rep_pos;
   REPLACE_STRING *rep_str;
@@ -10014,7 +10011,6 @@ void replace_strings_append(REPLACE *rep, DYNAMIC_STRING* ds,
       DBUG_PRINT("exit", ("Found end of from string"));
       DBUG_VOID_RETURN;
     }
-    DBUG_ASSERT(from <= str+len);
     start= from;
     rep_pos=rep;
   }
@@ -10078,7 +10074,7 @@ struct st_replace_regex* init_replace_regex(char* expr)
 {
   char *expr_end, *buf_p;
   struct st_replace_regex* res;
-  uint expr_len= strlen(expr);
+  size_t expr_len= strlen(expr);
 
   /* my_malloc() will die on fail with MY_FAE */
   res=(struct st_replace_regex*)my_malloc(
@@ -10461,7 +10457,7 @@ int reg_replace(char** buf_p, int* buf_len_p, char *pattern,
   regfree(&r);
   *res_p= 0;
   *buf_p= buf;
-  *buf_len_p= buf_len;
+  *buf_len_p= (int)buf_len;
   return 0;
 }
 
@@ -11104,7 +11100,7 @@ void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val, size_t len)
   if (glob_replace)
   {
     /* Normal replace */
-    replace_strings_append(glob_replace, ds, val, len);
+    replace_strings_append(glob_replace, ds, val);
   }
   else
     dynstr_append_mem(ds, val, len);

@@ -99,8 +99,7 @@ Active_tranx::~Active_tranx()
   m_num_entries      = 0;
 }
 
-unsigned int Active_tranx::calc_hash(const unsigned char *key,
-                                     unsigned int length)
+unsigned int Active_tranx::calc_hash(const unsigned char *key, size_t length)
 {
   unsigned int nr = 1, nr2 = 4;
 

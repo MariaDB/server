@@ -740,7 +740,7 @@ public:
     name.length= 0;
 #endif
   }		/*lint -e1509 */
-  void set_name(THD *thd, const char *str, uint length, CHARSET_INFO *cs);
+  void set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs);
   void set_name_no_truncate(THD *thd, const char *str, uint length,
                             CHARSET_INFO *cs);
   void init_make_field(Send_field *tmp_field,enum enum_field_types type);
@@ -3476,31 +3476,31 @@ class Item_int :public Item_num
 {
 public:
   longlong value;
-  Item_int(THD *thd, int32 i,uint length= MY_INT32_NUM_DECIMAL_DIGITS):
+  Item_int(THD *thd, int32 i,size_t length= MY_INT32_NUM_DECIMAL_DIGITS):
     Item_num(thd), value((longlong) i)
-    { max_length=length; fixed= 1; }
-  Item_int(THD *thd, longlong i,uint length= MY_INT64_NUM_DECIMAL_DIGITS):
+    { max_length=(uint32)length; fixed= 1; }
+  Item_int(THD *thd, longlong i,size_t length= MY_INT64_NUM_DECIMAL_DIGITS):
     Item_num(thd), value(i)
-    { max_length=length; fixed= 1; }
-  Item_int(THD *thd, ulonglong i, uint length= MY_INT64_NUM_DECIMAL_DIGITS):
+    { max_length=(uint32)length; fixed= 1; }
+  Item_int(THD *thd, ulonglong i, size_t length= MY_INT64_NUM_DECIMAL_DIGITS):
     Item_num(thd), value((longlong)i)
-    { max_length=length; fixed= 1; unsigned_flag= 1; }
-  Item_int(THD *thd, const char *str_arg,longlong i,uint length):
+    { max_length=(uint32)length; fixed= 1; unsigned_flag= 1; }
+  Item_int(THD *thd, const char *str_arg,longlong i,size_t length):
     Item_num(thd), value(i)
     {
-      max_length=length;
+      max_length=(uint32)length;
       name.str= str_arg; name.length= safe_strlen(name.str);
       fixed= 1;
     }
-  Item_int(THD *thd, const char *str_arg,longlong i,uint length, bool flag):
+  Item_int(THD *thd, const char *str_arg,longlong i,size_t length, bool flag):
     Item_num(thd), value(i)
     {
-      max_length=length;
+      max_length=(uint32)length;
       name.str= str_arg; name.length= safe_strlen(name.str);
       fixed= 1;
       unsigned_flag= flag;
     }
-  Item_int(THD *thd, const char *str_arg, uint length=64);
+  Item_int(THD *thd, const char *str_arg, size_t length=64);
   enum Type type() const { return INT_ITEM; }
   const Type_handler *type_handler() const
   { return type_handler_long_or_longlong(); }
@@ -3545,7 +3545,7 @@ public:
 class Item_uint :public Item_int
 {
 public:
-  Item_uint(THD *thd, const char *str_arg, uint length);
+  Item_uint(THD *thd, const char *str_arg, size_t length);
   Item_uint(THD *thd, ulonglong i): Item_int(thd, i, 10) {}
   Item_uint(THD *thd, const char *str_arg, longlong i, uint length);
   double val_real()
@@ -3579,7 +3579,7 @@ class Item_decimal :public Item_num
 protected:
   my_decimal decimal_value;
 public:
-  Item_decimal(THD *thd, const char *str_arg, uint length,
+  Item_decimal(THD *thd, const char *str_arg, size_t length,
                CHARSET_INFO *charset);
   Item_decimal(THD *thd, const char *str, const my_decimal *val_arg,
                uint decimal_par, uint length);
@@ -3612,7 +3612,7 @@ class Item_float :public Item_num
   const char *presentation;
 public:
   double value;
-  Item_float(THD *thd, const char *str_arg, uint length);
+  Item_float(THD *thd, const char *str_arg, size_t length);
   Item_float(THD *thd, const char *str, double val_arg, uint decimal_par,
              uint length): Item_num(thd), value(val_arg)
   {
@@ -3723,7 +3723,7 @@ public:
     str_value.set_or_copy_aligned(str, length, cs);
     fix_and_set_name_from_value(thd, dv, Metadata(&str_value, repertoire));
   }
-  Item_string(THD *thd, const char *str, uint length,
+  Item_string(THD *thd, const char *str, size_t length,
               CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE):
     Item_basic_constant(thd)
   {
@@ -3739,21 +3739,21 @@ public:
     fix_and_set_name_from_value(thd, dv, Metadata(&str_value, repertoire));
   }
   // Constructors with an externally provided item name
-  Item_string(THD *thd, const char *name_par, const char *str, uint length,
+  Item_string(THD *thd, const char *name_par, const char *str, size_t length,
               CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE):
     Item_basic_constant(thd)
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_from_value(dv, Metadata(&str_value));
-    set_name(thd, name_par, (uint) safe_strlen(name_par), system_charset_info);
+    set_name(thd, name_par,safe_strlen(name_par), system_charset_info);
   }
-  Item_string(THD *thd, const char *name_par, const char *str, uint length,
+  Item_string(THD *thd, const char *name_par, const char *str, size_t length,
               CHARSET_INFO *cs, Derivation dv, uint repertoire):
     Item_basic_constant(thd)
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_from_value(dv, Metadata(&str_value, repertoire));
-    set_name(thd, name_par, (uint) safe_strlen(name_par), system_charset_info);
+    set_name(thd, name_par, safe_strlen(name_par), system_charset_info);
   }
   void print_value(String *to) const
   {
@@ -4029,13 +4029,13 @@ public:
 class Item_hex_constant: public Item_basic_constant
 {
 private:
-  void hex_string_init(THD *thd, const char *str, uint str_length);
+  void hex_string_init(THD *thd, const char *str, size_t str_length);
 public:
   Item_hex_constant(THD *thd): Item_basic_constant(thd)
   {
     hex_string_init(thd, "", 0);
   }
-  Item_hex_constant(THD *thd, const char *str, uint str_length):
+  Item_hex_constant(THD *thd, const char *str, size_t str_length):
     Item_basic_constant(thd)
   {
     hex_string_init(thd, str, str_length);
@@ -4067,7 +4067,7 @@ class Item_hex_hybrid: public Item_hex_constant
 {
 public:
   Item_hex_hybrid(THD *thd): Item_hex_constant(thd) {}
-  Item_hex_hybrid(THD *thd, const char *str, uint str_length):
+  Item_hex_hybrid(THD *thd, const char *str, size_t str_length):
     Item_hex_constant(thd, str, str_length) {}
   uint decimal_precision() const;
   double val_real()
@@ -4117,7 +4117,7 @@ class Item_hex_string: public Item_hex_constant
 {
 public:
   Item_hex_string(THD *thd): Item_hex_constant(thd) {}
-  Item_hex_string(THD *thd, const char *str, uint str_length):
+  Item_hex_string(THD *thd, const char *str, size_t str_length):
     Item_hex_constant(thd, str, str_length) {}
   longlong val_int()
   {
@@ -4148,7 +4148,7 @@ public:
 class Item_bin_string: public Item_hex_hybrid
 {
 public:
-  Item_bin_string(THD *thd, const char *str,uint str_length);
+  Item_bin_string(THD *thd, const char *str, size_t str_length);
 };
 
 

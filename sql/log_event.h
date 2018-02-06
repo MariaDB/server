@@ -1203,7 +1203,7 @@ public:
   /* The number of seconds the query took to run on the master. */
   ulong exec_time;
   /* Number of bytes written by write() function */
-  ulong data_written;
+  size_t data_written;
 
   /*
     The master's server id (is preserved in the relay log; used to
@@ -1364,10 +1364,10 @@ public:
   static void operator delete(void*, void*) { }
 
 #ifdef MYSQL_SERVER
-  bool write_header(ulong data_length);
-  bool write_data(const uchar *buf, ulong data_length)
+  bool write_header(size_t event_data_length);
+  bool write_data(const uchar *buf, size_t data_length)
   { return writer->write_data(buf, data_length); }
-  bool write_data(const char *buf, ulong data_length)
+  bool write_data(const char *buf, size_t data_length)
   { return write_data((uchar*)buf, data_length); }
   bool write_footer()
   { return writer->write_footer(); }
@@ -2114,7 +2114,7 @@ public:
 
 #ifdef MYSQL_SERVER
 
-  Query_log_event(THD* thd_arg, const char* query_arg, ulong query_length,
+  Query_log_event(THD* thd_arg, const char* query_arg, size_t query_length,
                   bool using_trans, bool direct, bool suppress_use, int error);
   const char* get_db() { return db; }
 #ifdef HAVE_REPLICATION
@@ -2498,10 +2498,10 @@ public:
   bool is_concurrent;
 
   /* fname doesn't point to memory inside Log_event::temp_buf  */
-  void set_fname_outside_temp_buf(const char *afname, uint alen)
+  void set_fname_outside_temp_buf(const char *afname, size_t alen)
   {
     fname= afname;
-    fname_len= alen;
+    fname_len= (uint)alen;
     local_fname= TRUE;
   }
   /* fname doesn't point to memory inside Log_event::temp_buf  */
@@ -3050,9 +3050,9 @@ public:
     UNSIGNED_F= 1
   };
   const char *name;
-  uint name_len;
+  size_t name_len;
   const char *val;
-  ulong val_len;
+  size_t val_len;
   Item_result type;
   uint charset_number;
   bool is_null;
@@ -3060,8 +3060,8 @@ public:
 #ifdef MYSQL_SERVER
   bool deferred;
   query_id_t query_id;
-  User_var_log_event(THD* thd_arg, const char *name_arg, uint name_len_arg,
-                     const char *val_arg, ulong val_len_arg, Item_result type_arg,
+  User_var_log_event(THD* thd_arg, const char *name_arg, size_t name_len_arg,
+                     const char *val_arg, size_t val_len_arg, Item_result type_arg,
 		     uint charset_number_arg, uchar flags_arg,
                      bool using_trans, bool direct)
     :Log_event(thd_arg, 0, using_trans),
@@ -3519,7 +3519,7 @@ public:
   virtual int do_apply_event(rpl_group_info *rgi);
   enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
-  static bool peek(const char *event_start, uint32 event_len,
+  static bool peek(const char *event_start, size_t event_len,
                    enum enum_binlog_checksum_alg checksum_alg,
                    rpl_gtid **out_gtid_list, uint32 *out_list_len,
                    const Format_description_log_event *fdev);
@@ -3864,7 +3864,7 @@ public:
   bool is_valid() const { return 1; }
 };
 #endif
-char *str_to_hex(char *to, const char *from, uint len);
+char *str_to_hex(char *to, const char *from, size_t len);
 
 /**
   @class Annotate_rows_log_event

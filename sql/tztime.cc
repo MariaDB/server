@@ -166,7 +166,7 @@ static my_bool
 tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
 {
   uchar *p;
-  int read_from_file;
+  ssize_t read_from_file;
   uint i;
   MYSQL_FILE *file;
 
@@ -187,7 +187,7 @@ tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
     uint ttisgmtcnt;
     char *tzinfo_buf;
 
-    read_from_file= mysql_file_fread(file, u.buf, sizeof(u.buf), MYF(MY_WME));
+    read_from_file= (ssize_t)mysql_file_fread(file, u.buf, sizeof(u.buf), MYF(MY_WME));
 
     if (mysql_file_fclose(file, MYF(MY_WME)) != 0)
       return 1;
@@ -1333,7 +1333,7 @@ Time_zone_offset::Time_zone_offset(long tz_offset_arg):
 {
   uint hours= abs((int)(offset / SECS_PER_HOUR));
   uint minutes= abs((int)(offset % SECS_PER_HOUR / SECS_PER_MIN));
-  ulong length= my_snprintf(name_buff, sizeof(name_buff), "%s%02d:%02d",
+  size_t length= my_snprintf(name_buff, sizeof(name_buff), "%s%02d:%02d",
                             (offset>=0) ? "+" : "-", hours, minutes);
   name.set(name_buff, length, &my_charset_latin1);
 }

@@ -28,9 +28,9 @@ FT_INFO *ft_init_search(uint flags, void *info, uint keynr,
 {
   FT_INFO *res;
   if (flags & FT_BOOL)
-    res= ft_init_boolean_search((MI_INFO *)info, keynr, query, query_len,cs);
+    res= ft_init_boolean_search((MI_INFO *)info, keynr, query, (uint)query_len,cs);
   else
-    res= ft_init_nlq_search((MI_INFO *)info, keynr, query, query_len, flags,
+    res= ft_init_nlq_search((MI_INFO *)info, keynr, query, (uint)query_len, flags,
 			    record);
   return res;
 }

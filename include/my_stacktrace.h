@@ -44,7 +44,7 @@ C_MODE_START
 void my_init_stacktrace();
 void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack,
                          my_bool silent);
-int my_safe_print_str(const char* val, int max_len);
+int my_safe_print_str(const char* val, size_t max_len);
 void my_write_core(int sig);
 #if BACKTRACE_DEMANGLE
 char *my_demangle(const char *mangled_name, int *status);

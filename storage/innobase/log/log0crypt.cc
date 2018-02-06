@@ -393,9 +393,9 @@ log_tmp_block_encrypt(
 	aes_ctr_iv[1] = offs;
 
 	int rc = encryption_crypt(
-		src, size, dst, &dst_len,
-		const_cast<byte*>(info.crypt_key.bytes), sizeof info.crypt_key,
-		reinterpret_cast<byte*>(aes_ctr_iv), sizeof aes_ctr_iv,
+		src, (uint)size, dst, &dst_len,
+		const_cast<byte*>(info.crypt_key.bytes), (uint)(sizeof info.crypt_key),
+		reinterpret_cast<byte*>(aes_ctr_iv), (uint)(sizeof aes_ctr_iv),
 		encrypt
 		? ENCRYPTION_FLAG_ENCRYPT|ENCRYPTION_FLAG_NOPAD
 		: ENCRYPTION_FLAG_DECRYPT|ENCRYPTION_FLAG_NOPAD,

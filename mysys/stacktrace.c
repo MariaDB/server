@@ -70,7 +70,7 @@ static void print_buffer(char *buffer, size_t count)
 
   @return Zero on success.
 */
-static int safe_print_str(const char *addr, int max_len)
+static int safe_print_str(const char *addr, size_t max_len)
 {
   int fd;
   pid_t tid;
@@ -147,7 +147,7 @@ static int safe_print_str(const char *addr, int max_len)
     returns 1, it does not mean 100% that the pointer is corrupted.
 */
 
-int my_safe_print_str(const char* val, int max_len)
+int my_safe_print_str(const char* val, size_t max_len)
 {
   char *heap_end;
 
@@ -763,7 +763,7 @@ void my_write_core(int unused)
 }
 
 
-int my_safe_print_str(const char *val, int len)
+int my_safe_print_str(const char *val, size_t len)
 {
   __try
   {
@@ -780,7 +780,7 @@ int my_safe_print_str(const char *val, int len)
 
 size_t my_write_stderr(const void *buf, size_t count)
 {
-  return (size_t) write(fileno(stderr), buf, count);
+  return (size_t) write(fileno(stderr), buf, (uint)count);
 }
 
 
