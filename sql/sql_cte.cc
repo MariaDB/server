@@ -990,23 +990,20 @@ bool With_element::is_anchor(st_select_lex *sel)
 
 With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
 {
-  st_select_lex_unit *master_unit= NULL;
   With_element *found= NULL;
-  for (st_select_lex *sl= this;
-       sl;
-       sl= master_unit->outer_select())
+  st_select_lex_unit *master_unit;
+  st_select_lex *outer_sl;
+  for (st_select_lex *sl= this; sl; sl= outer_sl)
   {
-    With_element *with_elem= sl->get_with_element();
     /* 
       If sl->master_unit() is the spec of a with element then the search for 
       a definition was already done by With_element::check_dependencies_in_spec
       and it was unsuccesful. Yet for units cloned from the spec it has not 
       been done yet.
     */
-    With_clause *attached_with_clause=sl->get_with_clause();
-    if (attached_with_clause &&
-        (found= attached_with_clause->find_table_def(table, NULL)))
-      break;
+    master_unit= sl->master_unit();
+    outer_sl= master_unit->outer_select();
+    With_element *with_elem= sl->get_with_element();
     if (with_elem)
     {
       With_clause *containing_with_clause= with_elem->get_owner();
@@ -1014,9 +1011,16 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
                                NULL : with_elem;
       if ((found= containing_with_clause->find_table_def(table, barrier)))
         break;
-      sl= sl->master_unit()->outer_select(); 
+      if (outer_sl && !outer_sl->get_with_element())
+        break;
     }
-    master_unit= sl->master_unit();
+    else
+    {
+      With_clause *attached_with_clause= sl->get_with_clause();
+      if (attached_with_clause &&
+          (found= attached_with_clause->find_table_def(table, NULL)))
+        break;
+    }
     /* Do not look for the table's definition beyond the scope of the view */
     if (master_unit->is_view)
       break; 
