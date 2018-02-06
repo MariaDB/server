@@ -2103,6 +2103,7 @@ row_upd_eval_new_vals(
 @param[in]	update		an update vector if it is update
 @param[in]	thd		mysql thread handle
 @param[in,out]	mysql_table	mysql table object */
+static
 void
 row_upd_store_v_row(
 	upd_node_t*	node,
@@ -2637,7 +2638,9 @@ row_upd_clust_rec_by_insert(
 	que_thr_t*	thr,	/*!< in: query thread */
 	ibool		referenced,/*!< in: TRUE if index may be referenced in
 				a foreign key constraint */
-	ibool		foreign, /*!< in: TRUE if index is foreign key index */
+#ifdef WITH_WSREP
+	bool		foreign,/*!< in: whether this is a foreign key */
+#endif
 	mtr_t*		mtr)	/*!< in/out: mtr; gets committed here */
 {
 	mem_heap_t*	heap;
@@ -2925,7 +2928,9 @@ row_upd_del_mark_clust_rec(
 	ibool		referenced,
 				/*!< in: TRUE if index may be referenced in
 				a foreign key constraint */
-	ibool		foreign,/*!< in: TRUE if index is foreign key index */
+#ifdef WITH_WSREP
+	bool		foreign,/*!< in: whether this is a foreign key */
+#endif
 	mtr_t*		mtr)	/*!< in: mtr; gets committed here */
 {
 	btr_pcur_t*	pcur;
@@ -3016,7 +3021,6 @@ row_upd_clust_step(
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*		offsets;
 	ibool		referenced;
-	ibool		foreign = FALSE;
 	trx_t*		trx = thr_get_trx(thr);
 
 	rec_offs_init(offsets_);
@@ -3026,8 +3030,7 @@ row_upd_clust_step(
 	referenced = row_upd_index_is_referenced(index, trx);
 
 #ifdef WITH_WSREP
-	foreign = wsrep_row_upd_index_is_foreign(
-		index, thr_get_trx(thr));
+	const bool foreign = wsrep_row_upd_index_is_foreign(index, trx);
 #endif
 
 	pcur = node->pcur;
@@ -3127,7 +3130,11 @@ row_upd_clust_step(
 
 	if (node->is_delete) {
 		err = row_upd_del_mark_clust_rec(
-			node, index, offsets, thr, referenced, foreign, &mtr);
+			node, index, offsets, thr, referenced,
+#ifdef WITH_WSREP
+			foreign,
+#endif
+			&mtr);
 
 		if (err == DB_SUCCESS) {
 			node->state = UPD_NODE_UPDATE_ALL_SEC;
@@ -3173,7 +3180,11 @@ row_upd_clust_step(
 		externally! */
 
 		err = row_upd_clust_rec_by_insert(
-			node, index, thr, referenced, foreign, &mtr);
+			node, index, thr, referenced,
+#ifdef WITH_WSREP
+			foreign,
+#endif
+			&mtr);
 		if (err != DB_SUCCESS) {
 
 			goto exit_func;
