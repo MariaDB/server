@@ -1,3 +1,6 @@
+select @@encrypt_tmp_files;
+@@encrypt_tmp_files
+1
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES(1),(2);
 DELETE FROM t1 WHERE a=1;

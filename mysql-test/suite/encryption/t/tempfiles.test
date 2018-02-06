@@ -11,6 +11,8 @@ source include/have_binlog_format_row.inc;
 # engine. But there's no need to run it twice for InnoDB and XtraDB.
 source include/have_xtradb.inc;
 
+select @@encrypt_tmp_files;
+
 #
 # MyISAM messing around with IO_CACHE::file
 #
