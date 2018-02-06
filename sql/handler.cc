@@ -3679,9 +3679,15 @@ void handler::print_error(int error, myf errflag)
     textno=ER_UNSUPPORTED_EXTENSION;
     break;
   case HA_ERR_RECORD_FILE_FULL:
-  case HA_ERR_INDEX_FILE_FULL:
   {
     textno=ER_RECORD_FILE_FULL;
+    /* Write the error message to error log */
+    errflag|= ME_NOREFRESH;
+    break;
+  }
+  case HA_ERR_INDEX_FILE_FULL:
+  {
+    textno=ER_INDEX_FILE_FULL;
     /* Write the error message to error log */
     errflag|= ME_NOREFRESH;
     break;
