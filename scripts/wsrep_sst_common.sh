@@ -36,13 +36,7 @@ case "$1" in
         # Break address string into host:port/path parts
         #
         readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR%%[:/]*}
-        if [ ${WSREP_SST_OPT_HOST:0:1} = '[' ]
-        then
-            # IPv6 notation
-            readonly WSREP_SST_OPT_HOST_UNESCAPED=${WSREP_SST_OPT_HOST:1:-1}
-        else
-            readonly WSREP_SST_OPT_HOST_UNESCAPED=${WSREP_SST_OPT_HOST}
-        fi
+        readonly WSREP_SST_OPT_HOST_UNESCAPED=`echo "$WSREP_SST_OPT_HOST"|awk '{if(match($0,/^\[.*\]$/)) $0=substr($0,2,RLENGTH-2);print}'`
         readonly WSREP_SST_OPT_ADDR_PORT=$(echo $WSREP_SST_OPT_ADDR | \
                 cut -d ']' -f 2 | cut -s -d ':' -f 2 | cut -d '/' -f 1)
         readonly WSREP_SST_OPT_PATH=${WSREP_SST_OPT_ADDR#*/}
