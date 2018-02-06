@@ -2746,7 +2746,7 @@ bool Type_handler_int_result::
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
-  uint unsigned_flag= items[0]->unsigned_flag;
+  bool unsigned_flag= items[0]->unsigned_flag;
   for (uint i= 1; i < nitems; i++)
   {
     if (unsigned_flag != items[i]->unsigned_flag)

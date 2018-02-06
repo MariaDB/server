@@ -906,7 +906,7 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
 {
   long period, sign;
 
-  sign= (interval.neg == ltime->neg ? 1 : -1);
+  sign= (interval.neg == (bool)ltime->neg ? 1 : -1);
 
   switch (int_type) {
   case INTERVAL_SECOND:

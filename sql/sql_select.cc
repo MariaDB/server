@@ -4269,7 +4269,7 @@ err:
   if (free_join)
   {
     THD_STAGE_INFO(thd, stage_end);
-    err|= select_lex->cleanup();
+    err|= (int)(select_lex->cleanup());
     DBUG_RETURN(err || thd->is_error());
   }
   DBUG_RETURN(join->error ? join->error: err);

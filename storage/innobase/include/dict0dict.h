@@ -929,7 +929,7 @@ dict_index_get_min_size(
 Check whether the table uses the compact page format.
 @return TRUE if table uses the compact page format */
 UNIV_INLINE
-ibool
+bool
 dict_table_is_comp(
 /*===============*/
 	const dict_table_t*	table)	/*!< in: table */
@@ -1275,7 +1275,7 @@ Returns TRUE if the index contains a column or a prefix of that column.
 @param[in]	n		column number
 @param[in]	is_virtual	whether it is a virtual col
 @return TRUE if contains the column or its prefix */
-ibool
+bool
 dict_index_contains_col_or_prefix(
 /*==============================*/
 	const dict_index_t*	index,	/*!< in: index */

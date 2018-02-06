@@ -6493,7 +6493,7 @@ void TABLE::mark_columns_needed_for_update()
     for (KEY *k= key_info; k < end; k++)
     {
       KEY_PART_INFO *kpend= k->key_part + k->ext_key_parts;
-      bool any_written= false, all_read= true;
+      int any_written= 0, all_read= 1;
       for (KEY_PART_INFO *kp= k->key_part; kp < kpend; kp++)
       {
         int idx= kp->fieldnr - 1;

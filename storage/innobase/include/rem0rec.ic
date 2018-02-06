@@ -731,7 +731,7 @@ rec_set_deleted_flag_new(
 The following function tells if a new-style record is a node pointer.
 @return TRUE if node pointer */
 UNIV_INLINE
-ibool
+bool
 rec_get_node_ptr_flag(
 /*==================*/
 	const rec_t*	rec)	/*!< in: physical record */

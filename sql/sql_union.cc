@@ -1725,7 +1725,7 @@ err:
 
 bool st_select_lex_unit::cleanup()
 {
-  int error= 0;
+  bool error= 0;
   DBUG_ENTER("st_select_lex_unit::cleanup");
 
   if (cleaned)

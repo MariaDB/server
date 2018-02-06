@@ -7602,8 +7602,8 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
       we need to modify the requested access rights depending on how the
       sequence is used.
     */
-    if (t_ref->sequence &
-        (orig_want_access &
+    if (t_ref->sequence &&
+        (bool)(orig_want_access &
          (SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
     {
       /*

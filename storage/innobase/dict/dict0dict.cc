@@ -895,7 +895,7 @@ dict_index_get_nth_col_or_prefix_pos(
 @param[in]	n		column number
 @param[in]	is_virtual	whether it is a virtual col
 @return TRUE if contains the column or its prefix */
-ibool
+bool
 dict_index_contains_col_or_prefix(
 	const dict_index_t*	index,
 	ulint			n,
@@ -926,11 +926,11 @@ dict_index_contains_col_or_prefix(
 
 		if (col == field->col) {
 
-			return(TRUE);
+			return(true);
 		}
 	}
 
-	return(FALSE);
+	return(false);
 }
 
 /********************************************************************//**

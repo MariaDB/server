@@ -5544,10 +5544,10 @@ lock_table_queue_validate(
 Validates the lock queue on a single record.
 @return TRUE if ok */
 static
-ibool
+bool
 lock_rec_queue_validate(
 /*====================*/
-	ibool			locked_lock_trx_sys,
+	bool			locked_lock_trx_sys,
 					/*!< in: if the caller holds
 					both the lock mutex and
 					trx_sys_t->lock. */

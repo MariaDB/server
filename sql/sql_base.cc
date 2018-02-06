@@ -8303,7 +8303,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
                                      List<Item> &values, bool ignore_errors,
                                      enum trg_event_type event)
 {
-  bool result;
+  int result;
   Table_triggers_list *triggers= table->triggers;
 
   result= fill_record(thd, table, fields, values, ignore_errors,

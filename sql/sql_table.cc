@@ -2803,7 +2803,7 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
                     const LEX_CSTRING *table_name, uint flags, const char *table_path)
 {
   char path[FN_REFLEN + 1];
-  bool error= 0;
+  int error= 0;
   DBUG_ENTER("quick_rm_table");
 
   size_t path_length= table_path ?

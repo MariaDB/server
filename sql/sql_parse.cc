@@ -4964,7 +4964,7 @@ end_with_restore_list:
                           SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
                           OPTION_SETUP_TABLES_DONE) & ~OPTION_BUFFER_RESULT,
                           result, unit, select_lex);
-        res|= thd->is_error();
+        res|= (int)(thd->is_error());
 
         MYSQL_MULTI_DELETE_DONE(res, result->num_deleted());
         if (res)

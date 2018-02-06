@@ -1653,7 +1653,7 @@ bool mysql_opt_change_db(THD *thd,
 
 bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
 {
-  int error= 0, change_to_newdb= 0;
+  bool error= 0, change_to_newdb= 0;
   char path[FN_REFLEN+16];
   uint length;
   Schema_specification_st create_info;

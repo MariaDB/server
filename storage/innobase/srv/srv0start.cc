@@ -1415,7 +1415,7 @@ srv_prepare_to_delete_redo_log_files(
 				   || srv_log_file_size
 				   != srv_log_file_size_requested) {
 				if (srv_encrypt_log
-				    == log_sys->is_encrypted()) {
+				    == (my_bool)log_sys->is_encrypted()) {
 					info << (srv_encrypt_log
 						 ? "Resizing encrypted"
 						 : "Resizing");

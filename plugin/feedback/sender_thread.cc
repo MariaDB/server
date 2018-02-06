@@ -40,7 +40,7 @@ ulong interval= 60*60*24*7;       ///< in seconds (one week)
 */
 static int table_to_string(TABLE *table, String *result)
 {
-  bool res;
+  int res;
   char buff1[MAX_FIELD_WIDTH], buff2[MAX_FIELD_WIDTH];
   String str1(buff1, sizeof(buff1), system_charset_info);
   String str2(buff2, sizeof(buff2), system_charset_info);
@@ -64,7 +64,7 @@ static int table_to_string(TABLE *table, String *result)
     }
   }
 
-  res = res || result->append('\n');
+  res = res || (int)result->append('\n');
 
   /*
     Note, "|=" and not "||" - because we want to call ha_rnd_end()

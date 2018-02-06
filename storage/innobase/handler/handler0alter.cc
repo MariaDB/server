@@ -4742,7 +4742,7 @@ prepare_inplace_alter_table_dict(
 	index_def_t*		index_defs;	/* index definitions */
 	dict_table_t*		user_table;
 	dict_index_t*		fts_index	= NULL;
-	ulint			new_clustered	= 0;
+	bool			new_clustered	= false;
 	dberr_t			error;
 	ulint			num_fts_index;
 	dict_add_v_col_t*	add_v = NULL;
@@ -4819,7 +4819,7 @@ prepare_inplace_alter_table_dict(
 		fts_doc_id_col, add_fts_doc_id, add_fts_doc_id_idx,
 		old_table);
 
-	new_clustered = DICT_CLUSTERED & index_defs[0].ind_type;
+	new_clustered = (DICT_CLUSTERED & index_defs[0].ind_type) != 0;
 
 	/* The primary index would be rebuilt if a FTS Doc ID
 	column is to be added, and the primary index definition

@@ -374,11 +374,11 @@ static my_bool rocksdb_pause_background_work = 0;
 static mysql_mutex_t rdb_sysvars_mutex;
 
 static void rocksdb_set_pause_background_work(
-    my_core::THD *const thd MY_ATTRIBUTE((__unused__)),
-    struct st_mysql_sys_var *const var MY_ATTRIBUTE((__unused__)),
-    void *const var_ptr MY_ATTRIBUTE((__unused__)), const void *const save) {
+    my_core::THD *const,
+    struct st_mysql_sys_var *const,
+    void *const, const void *const save) {
   RDB_MUTEX_LOCK_CHECK(rdb_sysvars_mutex);
-  const bool pause_requested = *static_cast<const bool *>(save);
+  const my_bool pause_requested = *static_cast<const my_bool *>(save);
   if (rocksdb_pause_background_work != pause_requested) {
     if (pause_requested) {
       rdb->PauseBackgroundWork();

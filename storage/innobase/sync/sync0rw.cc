@@ -1011,7 +1011,7 @@ rw_lock_remove_debug_info(
 Checks if the thread has locked the rw-lock in the specified mode, with
 the pass value == 0.
 @return TRUE if locked */
-ibool
+bool
 rw_lock_own(
 /*========*/
 	rw_lock_t*	lock,		/*!< in: rw-lock */
@@ -1034,12 +1034,12 @@ rw_lock_own(
 			rw_lock_debug_mutex_exit();
 			/* Found! */
 
-			return(TRUE);
+			return(true);
 		}
 	}
 	rw_lock_debug_mutex_exit();
 
-	return(FALSE);
+	return(false);
 }
 
 /** For collecting the debug information for a thread's rw-lock */
