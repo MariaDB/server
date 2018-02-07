@@ -142,6 +142,10 @@ typedef long long longlong;
 #ifdef _WIN32
 /* inet_aton needs winsock library */
 #pragma comment(lib, "ws2_32")
+#if _MSC_VER
+/* Silence warning about deprecated functions , gethostbyname etc*/
+#pragma warning(disable : 4996)
+#endif
 #endif
 
 #ifdef HAVE_DLOPEN

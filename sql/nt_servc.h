@@ -45,8 +45,6 @@ class NTService
     int     nError;
     DWORD   dwState;
 
-    BOOL GetOS();	      // returns TRUE if WinNT
-    BOOL IsNT() { return bOsNT;}
     //init service entry point
     long Init(LPCSTR szInternName,void *ServiceThread);
 

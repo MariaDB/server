@@ -524,28 +524,6 @@ static int set_directory_permissions(const char *dir, const char *os_user)
 }
 
 
-/* 
-  Give directory permissions for special service user NT SERVICE\servicename
-  this user is available only on Win7 and later.
-*/
-
-void grant_directory_permissions_to_service()
-{
-  char service_user[MAX_PATH+ 12];
-  OSVERSIONINFO info;
-  info.dwOSVersionInfoSize= sizeof(info);
-  GetVersionEx(&info);
-  if (info.dwMajorVersion >6 || 
-    (info.dwMajorVersion== 6 && info.dwMinorVersion > 0)
-    && opt_service)
-  {
-    my_snprintf(service_user,sizeof(service_user), "NT SERVICE\\%s", 
-      opt_service);
-    set_directory_permissions(opt_datadir, service_user);
-  }
-}
-
-
 /* Create database instance (including registering as service etc) .*/
 
 static int create_db_instance()
@@ -668,7 +646,6 @@ static int create_db_instance()
   if (opt_service && opt_service[0])
   {
     ret= register_service();
-    grant_directory_permissions_to_service();
     if (ret)
       goto end;
   }

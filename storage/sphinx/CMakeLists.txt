@@ -9,6 +9,8 @@ IF(MSVC)
   IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
   ENDIF()
+  # Disable warning about deprecated functions, inet_aton
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4996")
 ENDIF()
 
 IF(MSVC)

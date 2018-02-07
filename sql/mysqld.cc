@@ -2738,7 +2738,7 @@ static void network_init(void)
 
 #ifdef _WIN32
   /* create named pipe */
-  if (Service.IsNT() && mysqld_unix_port[0] && !opt_bootstrap &&
+  if (mysqld_unix_port[0] && !opt_bootstrap &&
       opt_enable_named_pipe)
   {
 
@@ -6162,7 +6162,7 @@ int mysqld_main(int argc, char **argv)
   mysql_mutex_unlock(&LOCK_thread_count);
 
 #if defined(__WIN__) && !defined(EMBEDDED_LIBRARY)
-  if (Service.IsNT() && start_mode)
+  if (start_mode)
     Service.Stop();
   else
   {
@@ -6305,87 +6305,86 @@ int mysqld_main(int argc, char **argv)
     return 1;
   }
 
-  if (Service.GetOS())	/* true NT family */
-  {
-    char file_path[FN_REFLEN];
-    my_path(file_path, argv[0], "");		      /* Find name in path */
-    fn_format(file_path,argv[0],file_path,"",
-	      MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_RESOLVE_SYMLINKS);
 
-    if (argc == 2)
-    {
-      if (!default_service_handling(argv, MYSQL_SERVICENAME, MYSQL_SERVICENAME,
-				   file_path, "", NULL))
-	return 0;
-      if (Service.IsService(argv[1]))        /* Start an optional service */
-      {
-	/*
-	  Only add the service name to the groups read from the config file
-	  if it's not "MySQL". (The default service name should be 'mysqld'
-	  but we started a bad tradition by calling it MySQL from the start
-	  and we are now stuck with it.
-	*/
-	if (my_strcasecmp(system_charset_info, argv[1],"mysql"))
-	  load_default_groups[load_default_groups_sz-2]= argv[1];
-        start_mode= 1;
-        Service.Init(argv[1], mysql_service);
-        return 0;
-      }
-    }
-    else if (argc == 3) /* install or remove any optional service */
-    {
-      if (!default_service_handling(argv, argv[2], argv[2], file_path, "",
-                                    NULL))
-	return 0;
-      if (Service.IsService(argv[2]))
-      {
-	/*
-	  mysqld was started as
-	  mysqld --defaults-file=my_path\my.ini service-name
-	*/
-	use_opt_args=1;
-	opt_argc= 2;				// Skip service-name
-	opt_argv=argv;
-	start_mode= 1;
-	if (my_strcasecmp(system_charset_info, argv[2],"mysql"))
-	  load_default_groups[load_default_groups_sz-2]= argv[2];
-	Service.Init(argv[2], mysql_service);
-	return 0;
-      }
-    }
-    else if (argc == 4 || argc == 5)
+  char file_path[FN_REFLEN];
+  my_path(file_path, argv[0], "");		      /* Find name in path */
+  fn_format(file_path,argv[0],file_path,"",   MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_RESOLVE_SYMLINKS);
+
+  if (argc == 2)
+  {
+    if (!default_service_handling(argv, MYSQL_SERVICENAME, MYSQL_SERVICENAME,
+      file_path, "", NULL))
+      return 0;
+
+    if (Service.IsService(argv[1]))        /* Start an optional service */
     {
       /*
-        This may seem strange, because we handle --local-service while
-        preserving 4.1's behavior of allowing any one other argument that is
-        passed to the service on startup. (The assumption is that this is
-        --defaults-file=file, but that was not enforced in 4.1, so we don't
-        enforce it here.)
+      Only add the service name to the groups read from the config file
+      if it's not "MySQL". (The default service name should be 'mysqld'
+      but we started a bad tradition by calling it MySQL from the start
+      and we are now stuck with it.
       */
-      const char *extra_opt= NullS;
-      const char *account_name = NullS;
-      int index;
-      for (index = 3; index < argc; index++)
-      {
-        if (!strcmp(argv[index], "--local-service"))
-          account_name= "NT AUTHORITY\\LocalService";
-        else
-          extra_opt= argv[index];
-      }
-
-      if (argc == 4 || account_name)
-        if (!default_service_handling(argv, argv[2], argv[2], file_path,
-                                      extra_opt, account_name))
-          return 0;
-    }
-    else if (argc == 1 && Service.IsService(MYSQL_SERVICENAME))
-    {
-      /* start the default service */
+      if (my_strcasecmp(system_charset_info, argv[1],"mysql"))
+        load_default_groups[load_default_groups_sz-2]= argv[1];
       start_mode= 1;
-      Service.Init(MYSQL_SERVICENAME, mysql_service);
+      Service.Init(argv[1], mysql_service);
       return 0;
     }
   }
+  else if (argc == 3) /* install or remove any optional service */
+  {
+    if (!default_service_handling(argv, argv[2], argv[2], file_path, "",
+                                  NULL))
+      return 0;
+    if (Service.IsService(argv[2]))
+    {
+      /*
+       mysqld was started as
+       mysqld --defaults-file=my_path\my.ini service-name
+      */
+      use_opt_args=1;
+      opt_argc= 2;				// Skip service-name
+      opt_argv=argv;
+      start_mode= 1;
+      if (my_strcasecmp(system_charset_info, argv[2],"mysql"))
+        load_default_groups[load_default_groups_sz-2]= argv[2];
+      Service.Init(argv[2], mysql_service);
+      return 0;
+    }
+  }
+  else if (argc == 4 || argc == 5)
+  {
+    /*
+      This may seem strange, because we handle --local-service while
+      preserving 4.1's behavior of allowing any one other argument that is
+      passed to the service on startup. (The assumption is that this is
+      --defaults-file=file, but that was not enforced in 4.1, so we don't
+      enforce it here.)
+    */
+    const char *extra_opt= NullS;
+    const char *account_name = NullS;
+    int index;
+    for (index = 3; index < argc; index++)
+    {
+      if (!strcmp(argv[index], "--local-service"))
+        account_name= "NT AUTHORITY\\LocalService";
+      else
+        extra_opt= argv[index];
+    }
+
+    if (argc == 4 || account_name)
+      if (!default_service_handling(argv, argv[2], argv[2], file_path,
+                                    extra_opt, account_name))
+        return 0;
+  }
+  else if (argc == 1 && Service.IsService(MYSQL_SERVICENAME))
+  {
+    /* start the default service */
+    start_mode= 1;
+    Service.Init(MYSQL_SERVICENAME, mysql_service);
+    return 0;
+  }
+
   /* Start as standalone server */
   Service.my_argc=argc;
   Service.my_argv=argv;
