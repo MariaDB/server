@@ -1742,7 +1742,7 @@ row_ins_check_foreign_constraint(
 			if (check_table->versioned()) {
 				bool history_row = false;
 
-				if (check_index->is_clust()) {
+				if (check_index->is_primary()) {
 					history_row = check_index->
 						vers_history_row(rec, offsets);
 				} else if (check_index->
@@ -3370,7 +3370,7 @@ row_ins_index_entry(
 			DBUG_SET("-d,row_ins_index_entry_timeout");
 			return(DB_LOCK_WAIT);});
 
-	if (index->is_clust()) {
+	if (index->is_primary()) {
 		return(row_ins_clust_index_entry(index, entry, thr, 0, false));
 	} else {
 		return(row_ins_sec_index_entry(index, entry, thr, false));

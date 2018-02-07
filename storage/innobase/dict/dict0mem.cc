@@ -1199,8 +1199,8 @@ dict_mem_table_is_system(
 @param[in]	clustered index definition after instant ADD COLUMN */
 inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 {
-	DBUG_ASSERT(is_clust());
-	DBUG_ASSERT(instant.is_clust());
+	DBUG_ASSERT(is_primary());
+	DBUG_ASSERT(instant.is_primary());
 	DBUG_ASSERT(!instant.is_instant());
 	DBUG_ASSERT(n_def == n_fields);
 	DBUG_ASSERT(instant.n_def == instant.n_fields);
@@ -1485,7 +1485,7 @@ dict_index_t::vers_history_row(
 	const rec_t*		rec,
 	const ulint*		offsets)
 {
-	ut_a(is_clust());
+	ut_ad(is_primary());
 
 	ulint len;
 	dict_col_t& col= table->cols[table->vers_end];
@@ -1513,7 +1513,7 @@ dict_index_t::vers_history_row(
 	const rec_t* rec,
 	bool &history_row)
 {
-	ut_ad(!is_clust());
+	ut_ad(!is_primary());
 
 	bool error = false;
 	mem_heap_t* heap = NULL;

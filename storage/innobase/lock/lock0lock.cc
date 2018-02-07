@@ -449,7 +449,7 @@ lock_sec_rec_cons_read_sees(
 	const ReadView*	view)	/*!< in: consistent read view */
 {
 	ut_ad(page_rec_is_user_rec(rec));
-	ut_ad(!index->is_clust());
+	ut_ad(!index->is_primary());
 	ut_ad(!rec_is_default_row(rec, index));
 
 	/* NOTE that we might call this function while holding the search

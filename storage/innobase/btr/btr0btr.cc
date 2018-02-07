@@ -4324,7 +4324,7 @@ btr_discard_only_page_on_level(
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!page_get_instant(block->frame));
 
-	if (index->is_clust()) {
+	if (index->is_primary()) {
 		/* Concurrent access is prevented by the root_block->lock
 		X-latch, so this should be safe. */
 		index->remove_instant();

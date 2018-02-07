@@ -404,7 +404,7 @@ static
 dberr_t
 btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 {
-	ut_ad(index->is_clust());
+	ut_ad(index->is_primary());
 	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
 	ut_ad(index->table->supports_instant());
 	ut_ad(index->table->is_readable());
@@ -554,7 +554,7 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 {
 	ut_ad(page_is_root(page));
 	ut_ad(!page_is_comp(page) == !dict_table_is_comp(index->table));
-	ut_ad(index->is_clust());
+	ut_ad(index->is_primary());
 	ut_ad(!index->is_instant());
 	ut_ad(index->table->supports_instant());
 	/* This is normally executed as part of btr_cur_instant_init()
@@ -5363,7 +5363,7 @@ btr_cur_optimistic_delete_func(
 			index->is_instant() will hold until the
 			insert into SYS_COLUMNS is rolled back. */
 			ut_ad(index->table->supports_instant());
-			ut_ad(index->is_clust());
+			ut_ad(index->is_primary());
 		} else {
 			lock_update_delete(block, rec);
 		}
@@ -5371,7 +5371,7 @@ btr_cur_optimistic_delete_func(
 			       index, 0, mtr);
 		page_cur_set_after_last(block, btr_cur_get_page_cur(cursor));
 
-		if (index->is_clust()) {
+		if (index->is_primary()) {
 			/* Concurrent access is prevented by
 			root_block->lock X-latch, so this should be
 			safe. */
@@ -5400,7 +5400,7 @@ btr_cur_optimistic_delete_func(
 			index->is_instant() will hold until the
 			insert into SYS_COLUMNS is rolled back. */
 			ut_ad(cursor->index->table->supports_instant());
-			ut_ad(cursor->index->is_clust());
+			ut_ad(cursor->index->is_primary());
 			ut_ad(!page_zip);
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
 					    cursor->index, offsets, mtr);
@@ -5567,7 +5567,7 @@ btr_cur_pessimistic_delete(
 			insert into SYS_COLUMNS is rolled back. */
 			ut_ad(rollback);
 			ut_ad(index->table->supports_instant());
-			ut_ad(index->is_clust());
+			ut_ad(index->is_primary());
 		} else if (flags == 0) {
 			lock_update_delete(block, rec);
 		}
@@ -5593,7 +5593,7 @@ btr_cur_pessimistic_delete(
 			btr_page_empty(block, page_zip, index, 0, mtr);
 			page_cur_set_after_last(block,
 						btr_cur_get_page_cur(cursor));
-			if (index->is_clust()) {
+			if (index->is_primary()) {
 				/* Concurrent access is prevented by
 				index->lock and root_block->lock
 				X-latch, so this should be safe. */

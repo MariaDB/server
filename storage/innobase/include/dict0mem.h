@@ -1080,8 +1080,6 @@ struct dict_index_t{
 	/** @return whether instant ADD COLUMN is in effect */
 	inline bool is_instant() const;
 
-	/** @return whether the index is the clustered index */
-	bool is_clust() const { return type & DICT_CLUSTERED; }
 	/** @return whether the index is the primary key index
 	(not the clustered index of the change buffer) */
 	bool is_primary() const
@@ -1129,7 +1127,7 @@ struct dict_index_t{
 	Protected by index root page x-latch or table X-lock. */
 	void remove_instant()
 	{
-		DBUG_ASSERT(is_clust());
+		DBUG_ASSERT(is_primary());
 		if (!is_instant()) {
 			return;
 		}
