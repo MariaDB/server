@@ -1082,6 +1082,12 @@ struct dict_index_t{
 
 	/** @return whether the index is the clustered index */
 	bool is_clust() const { return type & DICT_CLUSTERED; }
+	/** @return whether the index is the primary key index
+	(not the clustered index of the change buffer) */
+	bool is_primary() const
+	{
+		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
+	}
 
 	/** Determine how many fields of a given prefix can be set NULL.
 	@param[in]	n_prefix	number of fields in the prefix

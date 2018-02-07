@@ -63,12 +63,6 @@ float my_log2f(float n)
 # define posix_fadvise(fd, offset, len, advice) /* nothing */
 #endif /* _WIN32 */
 
-/** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
-const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN] = {
-	0, 0, 0, 0, 0, 0,
-	0x80, 0, 0, 0, 0, 0, 0
-};
-
 /* Whether to disable file system cache */
 char	srv_disable_sort_file_cache;
 

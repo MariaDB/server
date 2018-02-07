@@ -722,13 +722,8 @@ row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 				byte*	ptr = rec_get_nth_field(
 					rec, offsets, trx_id_pos, &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
-				memset(ptr, 0, DATA_TRX_ID_LEN
-				       + DATA_ROLL_PTR_LEN);
-				ptr[DATA_TRX_ID_LEN] = 1U
-					<< (ROLL_PTR_INSERT_FLAG_POS - CHAR_BIT
-					    * (DATA_ROLL_PTR_LEN - 1));
-				mlog_log_string(ptr, DATA_TRX_ID_LEN
-						+ DATA_ROLL_PTR_LEN, mtr);
+				mlog_write_string(ptr, reset_trx_id,
+						  sizeof reset_trx_id, mtr);
 			}
 		}
 	}

@@ -577,6 +577,9 @@ struct dtype_t{
 	}
 };
 
+/** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
+extern const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN];
+
 #include "data0type.ic"
 
 #endif
