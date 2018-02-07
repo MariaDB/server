@@ -18,6 +18,6 @@ connection node_1;
 COMMIT;
 connection node_2;
 COMMIT;
-ERROR 40001: wsrep aborted transaction
+ERROR 40001: Deadlock: wsrep aborted transaction
 DROP SCHEMA test;
 CREATE SCHEMA test;
