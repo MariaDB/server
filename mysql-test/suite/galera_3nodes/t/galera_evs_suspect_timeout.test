@@ -50,6 +50,7 @@ SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_N
 --enable_query_log
 
 --source include/wait_until_connected_again.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
 SELECT COUNT(*) = 1 FROM t1;
 DROP TABLE t1;
 
