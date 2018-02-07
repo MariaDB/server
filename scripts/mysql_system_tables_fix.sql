@@ -645,6 +645,21 @@ ALTER TABLE user MODIFY Create_tablespace_priv enum('N','Y') COLLATE utf8_genera
 
 UPDATE user SET Create_tablespace_priv = Super_priv WHERE @hadCreateTablespacePriv = 0;
 
+#
+# System versioning
+#
+
+SET @had_truncate_versioning_priv := 0;
+SELECT @had_truncate_versioning_priv :=1 FROM user WHERE Truncate_versioning_priv LIKE '%';
+
+ALTER TABLE user add Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
+ALTER TABLE user modify Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
+ALTER TABLE db add Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Trigger_priv;
+ALTER TABLE db modify Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
+
+UPDATE user SET Truncate_versioning_priv = Super_priv WHERE @had_truncate_versioning_priv = 0;
+
+
 ALTER TABLE user ADD plugin char(64) DEFAULT '',  ADD authentication_string TEXT;
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
@@ -744,9 +759,3 @@ ALTER TABLE help_topic MODIFY url TEXT NOT NULL;
 
 # MDEV-7383 - varbinary on mix/max of column_stats
 alter table column_stats modify min_value varbinary(255) DEFAULT NULL, modify max_value varbinary(255) DEFAULT NULL;
-
-# System versioning
-ALTER TABLE user add Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Trigger_priv;
-ALTER TABLE user modify Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
-ALTER TABLE db add Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Trigger_priv;
-ALTER TABLE db modify Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';

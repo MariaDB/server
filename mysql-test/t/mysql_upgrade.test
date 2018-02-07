@@ -219,3 +219,23 @@ DROP TABLE test.t1;
 SET GLOBAL enforce_storage_engine=NULL;
 
 --echo End of 10.1 tests
+
+--echo Start of 10.3 tests
+
+--echo #
+--echo # Ensure that mysql_upgrade correctly sets truncate_versioning_priv
+--echo # on upgrade from 10.2
+--echo #
+
+flush privileges;
+CREATE USER 'user3'@'%';
+GRANT USAGE ON *.* TO 'user3'@'%';
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
+alter table mysql.user drop column Truncate_versioning_priv;
+flush privileges;
+--echo Run mysql_upgrade with all privileges on a user
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+flush privileges;
+SHOW GRANTS FOR 'user3'@'%';
+DROP USER 'user3'@'%';
