@@ -210,6 +210,10 @@ START SLAVE IO_THREAD;
 --source include/wait_for_slave_io_to_start.inc
 
 connection con1;
+--let $status_var= Rpl_semi_sync_master_status
+--let $status_var_value=ON
+--source include/wait_for_status_var.inc
+
 SET GLOBAL rpl_semi_sync_master_timeout= 10000000;
 SET GLOBAL rpl_semi_sync_master_wait_no_slave= 1;
 INSERT INTO t1 values (4);
