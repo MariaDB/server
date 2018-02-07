@@ -37,7 +37,7 @@ typedef enum
 
 extern unsigned long srv_mech;
 extern char *srv_principal_name;
-extern char *srv_mech_name;
+extern const char *srv_mech_name;
 extern char *srv_keytab_path;
 /*
   Check, with GSSAPI/SSPI username of logged on user.

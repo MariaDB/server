@@ -60,13 +60,13 @@ extern "C" UINT __stdcall RemoveDataDirectory(MSIHANDLE hInstall)
 {
   HRESULT hr = S_OK;
   UINT er = ERROR_SUCCESS;
+  wchar_t dir[MAX_PATH];
+  DWORD len = MAX_PATH;
 
   hr = WcaInitialize(hInstall, __FUNCTION__);
   ExitOnFailure(hr, "Failed to initialize");
   WcaLog(LOGMSG_STANDARD, "Initialized.");
 
-  wchar_t dir[MAX_PATH];
-  DWORD len = MAX_PATH;
   MsiGetPropertyW(hInstall, L"CustomActionData", dir, &len);
 
   er= ExecRemoveDataDirectory(dir);
@@ -160,20 +160,21 @@ extern "C" UINT __stdcall CheckDirectoryEmpty(MSIHANDLE hInstall,
 {
   HRESULT hr = S_OK;
   UINT er = ERROR_SUCCESS;
+  wchar_t buf[MAX_PATH];
+  DWORD len = MAX_PATH;
+  WIN32_FIND_DATAW data;
+  HANDLE h;
+  bool empty;
+  
   hr = WcaInitialize(hInstall, __FUNCTION__);
   ExitOnFailure(hr, "Failed to initialize");
   WcaLog(LOGMSG_STANDARD, "Initialized.");
 
-  
-  wchar_t buf[MAX_PATH];
-  DWORD len = MAX_PATH;
   MsiGetPropertyW(hInstall, PropertyName, buf, &len);
   wcscat_s(buf, MAX_PATH, L"*.*");
   
   WcaLog(LOGMSG_STANDARD, "Checking files in %S", buf);
-  WIN32_FIND_DATAW data;
-  HANDLE h;
-  bool empty;
+
   h= FindFirstFile(buf, &data);
   if (h !=  INVALID_HANDLE_VALUE)
   {
@@ -342,6 +343,12 @@ void CheckServiceConfig(
   wchar_t * commandline= config->lpBinaryPathName;
   int numargs;
   wchar_t **argv= CommandLineToArgvW(commandline, &numargs);
+  wchar_t current_datadir_buf[MAX_PATH]={0};
+  wchar_t normalized_current_datadir[MAX_PATH+1];
+  wchar_t *current_datadir;
+  wchar_t *defaults_file;
+  bool is_my_service;
+
   WcaLog(LOGMSG_VERBOSE, "CommandLine= %S", commandline);
   if(!argv  ||  !argv[0]  || ! wcsstr(argv[0], L"mysqld"))
   {
@@ -356,7 +363,7 @@ void CheckServiceConfig(
     same_bindir = true;
   }
 
-  bool is_my_service = (_wcsicmp(my_servicename, other_servicename) == 0);
+  is_my_service = (_wcsicmp(my_servicename, other_servicename) == 0);
   if(!is_my_service)
   {
     WcaLog(LOGMSG_STANDARD, "service does not match current service");
@@ -379,10 +386,8 @@ void CheckServiceConfig(
     goto end;
   }
 
-  wchar_t current_datadir_buf[MAX_PATH]={0};
-  wchar_t normalized_current_datadir[MAX_PATH+1];
-  wchar_t *current_datadir= current_datadir_buf;
-  wchar_t *defaults_file= argv[1]+16;
+  current_datadir= current_datadir_buf;
+  defaults_file= argv[1]+16;
   defaults_file= strip_quotes(defaults_file);
 
   WcaLog(LOGMSG_STANDARD, "parsed defaults file is %S", defaults_file);
@@ -453,6 +458,7 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
   ULONG  bufneed   = 0x00; 
   ULONG  num_services = 0x00; 
   LPENUM_SERVICE_STATUS_PROCESS info = NULL;  
+  BOOL ok;
 
   hr = WcaInitialize(hInstall, __FUNCTION__);
   ExitOnFailure(hr, "Failed to initialize");
@@ -471,7 +477,7 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
     ExitOnFailure(E_FAIL, "OpenSCManager failed");
   }
 
-  BOOL ok= EnumServicesStatusExW(  scm,
+  ok = EnumServicesStatusExW(  scm,
     SC_ENUM_PROCESS_INFO, 
     SERVICE_WIN32,
     SERVICE_STATE_ALL,  
@@ -559,13 +565,16 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
   const wchar_t *ErrorMsg=0;
   HRESULT hr= S_OK;
   UINT er= ERROR_SUCCESS;
-
+  DWORD ServiceNameLen = MAX_PATH;
+  DWORD QuickConfigLen = MAX_PATH;
+  DWORD PasswordLen= MAX_PATH;
+  DWORD SkipNetworkingLen= MAX_PATH;
 
   hr = WcaInitialize(hInstall, __FUNCTION__);
   ExitOnFailure(hr, "Failed to initialize");
   WcaLog(LOGMSG_STANDARD, "Initialized.");
 
-  DWORD ServiceNameLen = MAX_PATH;
+ 
   MsiGetPropertyW (hInstall, L"SERVICENAME", ServiceName, &ServiceNameLen);
   if(ServiceName[0])
   {
@@ -594,13 +603,11 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
     }
   }
 
-  DWORD PasswordLen= MAX_PATH;
   MsiGetPropertyW (hInstall, L"PASSWORD", Password, &PasswordLen);
   EscapeCommandLine(Password, EscapedPassword,
     sizeof(EscapedPassword)/sizeof(EscapedPassword[0]));
   MsiSetPropertyW(hInstall,L"ESCAPEDPASSWORD",EscapedPassword);
 
-  DWORD SkipNetworkingLen= MAX_PATH;
   MsiGetPropertyW(hInstall, L"SKIPNETWORKING", SkipNetworking, 
     &SkipNetworkingLen);
   MsiGetPropertyW(hInstall, L"PORT", Port, &PortLen);
@@ -644,8 +651,6 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
     }
   }
   
-  
-  DWORD QuickConfigLen = MAX_PATH;
   MsiGetPropertyW (hInstall, L"STDCONFIG", QuickConfig, &QuickConfigLen);
   if(QuickConfig[0] !=0)
   {
@@ -722,12 +727,12 @@ extern "C" UINT __stdcall PresetDatabaseProperties(MSIHANDLE hInstall)
   UINT er = ERROR_SUCCESS;
   HRESULT hr= S_OK;
   MEMORYSTATUSEX memstatus;
+  DWORD BufferPoolsizeParamLen = MAX_PATH;
   hr = WcaInitialize(hInstall, __FUNCTION__);
   ExitOnFailure(hr, "Failed to initialize");
   WcaLog(LOGMSG_STANDARD, "Initialized.");
 
   /* Check if bufferpoolsize parameter was given on the command line*/
-  DWORD BufferPoolsizeParamLen = MAX_PATH;
   MsiGetPropertyW(hInstall, L"BUFFERPOOLSIZE", buff, &BufferPoolsizeParamLen);
 
   if (BufferPoolsizeParamLen && buff[0])
@@ -817,11 +822,13 @@ extern "C" UINT __stdcall CreateDatabaseRollback(MSIHANDLE hInstall)
   UINT er = ERROR_SUCCESS;
   wchar_t* service= 0;
   wchar_t* dir= 0;
+  wchar_t data[2*MAX_PATH];
+  DWORD len= MAX_PATH;
+
   hr = WcaInitialize(hInstall, __FUNCTION__);
   ExitOnFailure(hr, "Failed to initialize");
   WcaLog(LOGMSG_STANDARD, "Initialized.");
-  wchar_t data[2*MAX_PATH];
-  DWORD len= MAX_PATH;
+
   MsiGetPropertyW(hInstall, L"CustomActionData", data, &len);
 
   /* Property is encoded as [SERVICENAME]\[DBLOCATION] */
@@ -871,6 +878,11 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
   DWORD size =MAX_VERSION_PROPERTY_SIZE;
   int installerMajorVersion, installerMinorVersion, installerPatchVersion;
   bool upgradableServiceFound=false;
+  LPENUM_SERVICE_STATUS_PROCESSW info;
+  DWORD bufsize;
+  int index;
+  BOOL ok;
+  SC_HANDLE scm;
 
   hr = WcaInitialize(hInstall, __FUNCTION__);
    WcaLog(LOGMSG_STANDARD, "Initialized.");
@@ -895,7 +907,7 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
   }
  
 
-  SC_HANDLE scm = OpenSCManager(NULL, NULL, 
+  scm = OpenSCManager(NULL, NULL, 
     SC_MANAGER_ENUMERATE_SERVICE | SC_MANAGER_CONNECT);  
   if (scm == NULL) 
   { 
@@ -906,19 +918,19 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
   static BYTE buf[64*1024];
   static BYTE config_buffer[8*1024];
 
-  DWORD bufsize= sizeof(buf);
+  bufsize= sizeof(buf);
   DWORD bufneed;
   DWORD num_services;
-  BOOL ok= EnumServicesStatusExW(scm, SC_ENUM_PROCESS_INFO,  SERVICE_WIN32,
+  ok= EnumServicesStatusExW(scm, SC_ENUM_PROCESS_INFO,  SERVICE_WIN32,
     SERVICE_STATE_ALL,  buf, bufsize,  &bufneed, &num_services, NULL, NULL);
   if(!ok) 
   {
     hr = HRESULT_FROM_WIN32(GetLastError());
     ExitOnFailure(hr,"EnumServicesStatusEx failed");
   }
-  LPENUM_SERVICE_STATUS_PROCESSW info =
+  info =
     (LPENUM_SERVICE_STATUS_PROCESSW)buf;
-  int index=-1;
+  index=-1;
   for (ULONG i=0; i < num_services; i++)
   {
     SC_HANDLE service= OpenServiceW(scm, info[i].lpServiceName, 
@@ -928,7 +940,7 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
     QUERY_SERVICE_CONFIGW *config= 
       (QUERY_SERVICE_CONFIGW*)(void *)config_buffer;
     DWORD needed;
-    BOOL ok= QueryServiceConfigW(service, config,sizeof(config_buffer),
+    ok= QueryServiceConfigW(service, config,sizeof(config_buffer),
       &needed) && (config->dwStartType != SERVICE_DISABLED);
     CloseServiceHandle(service);
     if (ok)

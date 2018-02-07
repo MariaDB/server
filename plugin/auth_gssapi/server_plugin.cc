@@ -56,7 +56,7 @@ static int  first_packet_len;
 */
 char *srv_principal_name;
 char *srv_keytab_path;
-char *srv_mech_name=(char *)"";
+const char *srv_mech_name="";
 unsigned long srv_mech;
 
 /**

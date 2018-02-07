@@ -163,7 +163,7 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, const char *user, size_t user_len, int co
   }
   sspi_ret= AcquireCredentialsHandle(
     srv_principal_name,
-    srv_mech_name,
+    (LPSTR)srv_mech_name,
     SECPKG_CRED_INBOUND,
     NULL,
     NULL,
@@ -287,7 +287,7 @@ int plugin_init()
 
   ret = AcquireCredentialsHandle(
     srv_principal_name,
-    srv_mech_name,
+    (LPSTR)srv_mech_name,
     SECPKG_CRED_INBOUND,
     NULL,
     NULL,
