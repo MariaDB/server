@@ -82,7 +82,7 @@ GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g
 # x86 32 bit.
 if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]]
 then
-  sed '/Package: mariadb-plugin-rocksdb/,+9d' -i debian/control
+  sed '/Package: mariadb-plugin-rocksdb/,+10d' -i debian/control
 fi
 if [[ $GCCVERSION -lt 40800 ]]
 then
