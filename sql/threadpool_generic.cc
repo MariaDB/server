@@ -63,9 +63,6 @@ typedef OVERLAPPED_ENTRY native_event;
 #error threadpool is not available on this platform
 #endif
 
-#ifdef _MSC_VER
-#pragma warning (disable : 4312)
-#endif
 
 static void io_poll_close(TP_file_handle fd)
 {
