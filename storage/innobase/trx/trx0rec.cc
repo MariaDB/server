@@ -954,6 +954,7 @@ trx_undo_page_report_modify(
 				  dict_index_get_sys_col_pos(
 					  index, DATA_ROLL_PTR), &flen);
 	ut_ad(flen == DATA_ROLL_PTR_LEN);
+	ut_ad(memcmp(field, field_ref_zero, DATA_ROLL_PTR_LEN));
 
 	ptr += mach_u64_write_compressed(ptr, trx_read_roll_ptr(field));
 
@@ -2106,6 +2107,8 @@ trx_undo_get_undo_rec_low(
 
 	trx_undo_decode_roll_ptr(roll_ptr, &is_insert, &rseg_id, &page_no,
 				 &offset);
+	ut_ad(page_no > FSP_FIRST_INODE_PAGE_NO);
+	ut_ad(offset >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
 	rseg = is_temp
 		? trx_sys->temp_rsegs[rseg_id]
 		: trx_sys->rseg_array[rseg_id];

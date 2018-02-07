@@ -973,6 +973,13 @@ struct dict_index_t{
 			and the .ibd file is missing, or a
 			page cannot be read or decrypted */
 	inline bool is_readable() const;
+
+	/** @return whether the index is the primary key index
+	(not the clustered index of the change buffer) */
+	bool is_primary() const
+	{
+		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
+	}
 };
 
 /** The status of online index creation */
