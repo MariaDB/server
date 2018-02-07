@@ -2874,6 +2874,12 @@ sub have_wsrep() {
   return defined $wsrep_on
 }
 
+sub wsrep_is_bootstrap_server($) {
+  my $mysqld= shift;
+  return $mysqld->if_exist('wsrep_cluster_address') &&
+    ($mysqld->value('wsrep_cluster_address') eq "gcomm://" ||
+     $mysqld->value('wsrep_cluster_address') eq "'gcomm://'");
+}
 
 sub check_wsrep_support() {
   if (have_wsrep())
@@ -5479,7 +5485,8 @@ sub start_servers($) {
     # configuration should always be the first which has
     # wsrep_on=ON and should be tagged with "#wsrep-new-cluster".
     # option
-    if (have_wsrep() && defined $_->option("#wsrep-new-cluster"))
+    if (have_wsrep() && (defined $_->option("#wsrep-new-cluster") ||
+                         wsrep_is_bootstrap_server($_)))
     {
       mtr_debug("Waiting the first wsrep server to start");
       if ($_->{WAIT}->($_) && !wait_wsrep_ready($tinfo, $_))
