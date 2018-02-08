@@ -6514,6 +6514,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
   Query_arena *arena, backup;
   bool result= TRUE;
   bool first_outer_loop= TRUE;
+  Field *field_1, *field_2;
   /*
     Leaf table references to which new natural join columns are added
     if the leaves are != NULL.
@@ -6541,6 +6542,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     if (!(nj_col_1= it_1.get_or_create_column_ref(thd, leaf_1)))
       goto err;
 
+    field_1= nj_col_1->field();
     if (nj_col_1->field() && nj_col_1->field()->vers_sys_field())
       continue;
 
@@ -6565,6 +6567,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       const LEX_CSTRING *cur_field_name_2;
       if (!(cur_nj_col_2= it_2.get_or_create_column_ref(thd, leaf_2)))
         goto err;
+
+      field_2= cur_nj_col_2->field();
       cur_field_name_2= cur_nj_col_2->name();
       DBUG_PRINT ("info", ("cur_field_name_2=%s.%s", 
                            cur_nj_col_2->safe_table_name(),
@@ -6585,14 +6589,17 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
                           cur_field_name_2))
       {
         DBUG_PRINT ("info", ("match c1.is_common=%d", nj_col_1->is_common));
-        if (cur_nj_col_2->is_common ||
-            (found && (!using_fields || is_using_column_1)))
+        if (cur_nj_col_2->is_common || found)
         {
           my_error(ER_NON_UNIQ_ERROR, MYF(0), field_name_1->str, thd->where);
           goto err;
         }
-        nj_col_2= cur_nj_col_2;
-        found= TRUE;
+        if (!using_fields || is_using_column_1)
+        {
+          DBUG_ASSERT(nj_col_2 == NULL);
+          nj_col_2= cur_nj_col_2;
+          found= TRUE;
+        }
       }
     }
     if (first_outer_loop && leaf_2)
@@ -6612,7 +6619,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       clause (if present), mark them as common fields, and add a new
       equi-join condition to the ON clause.
     */
-    if (nj_col_2 && (!using_fields ||is_using_column_1))
+    if (nj_col_2)
     {
       /*
         Create non-fixed fully qualified field and let fix_fields to
@@ -6620,8 +6627,6 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       */
       Item *item_1=   nj_col_1->create_item(thd);
       Item *item_2=   nj_col_2->create_item(thd);
-      Field *field_1= nj_col_1->field();
-      Field *field_2= nj_col_2->field();
       Item_ident *item_ident_1, *item_ident_2;
       Item_func_eq *eq_cond;
 
@@ -6661,11 +6666,6 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       if (!(eq_cond= new (thd->mem_root) Item_func_eq(thd, item_ident_1, item_ident_2)))
         goto err;                               /* Out of memory. */
 
-      if (field_1 && field_1->vcol_info)
-        field_1->table->mark_virtual_col(field_1);
-      if (field_2 && field_2->vcol_info)
-        field_2->table->mark_virtual_col(field_2);
-
       /*
         Add the new equi-join condition to the ON clause. Notice that
         fix_fields() is applied to all ON conditions in setup_conds()
@@ -6683,19 +6683,9 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
                            nj_col_2->name()->str));
 
       if (field_1)
-      {
-        TABLE *table_1= nj_col_1->table_ref->table;
-        /* Mark field_1 used for table cache. */
-        bitmap_set_bit(table_1->read_set, field_1->field_index);
-        table_1->covering_keys.intersect(field_1->part_of_key);
-      }
+        update_field_dependencies(thd, field_1, field_1->table);
       if (field_2)
-      {
-        TABLE *table_2= nj_col_2->table_ref->table;
-        /* Mark field_2 used for table cache. */
-        bitmap_set_bit(table_2->read_set, field_2->field_index);
-        table_2->covering_keys.intersect(field_2->part_of_key);
-      }
+        update_field_dependencies(thd, field_2, field_2->table);
 
       if (using_fields != NULL)
         ++(*found_using_fields);
