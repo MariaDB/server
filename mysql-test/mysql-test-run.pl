@@ -3416,16 +3416,14 @@ sub wait_wsrep_ready($$) {
 
   for (my $loop= 1; $loop <= $loops; $loop++)
   {
-    if (run_query_output($mysqld, $query, $outfile) != 0)
-    {
-      $tinfo->{logfile}= "WSREP error while trying to determine node state";
-      return 0;
-    }
 
-    if (mtr_grab_file($outfile) =~ /^ON/)
+    if (run_query_output($mysqld, $query, $outfile) == 0)
     {
-      unlink($outfile);
-      return 1;
+      if (mtr_grab_file($outfile) =~ /^ON/)
+      {
+        unlink($outfile);
+        return 1;
+      }
     }
 
     mtr_milli_sleep($sleeptime);
