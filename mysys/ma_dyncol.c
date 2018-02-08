@@ -3833,7 +3833,7 @@ my_bool dynstr_append_json_quoted(DYNAMIC_STRING *str,
   for (i= 0; i < len; i++)
   {
     register char c= append[i];
-    if (unlikely(c <= 0x1F))
+    if (unlikely(((uchar)c) <= 0x1F))
     {
       if (lim < 5)
         {
