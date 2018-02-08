@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1055,7 +1056,7 @@ func_start:
 
 	page_no = block->page.id.page_no();
 
-	if (btr_page_get_prev(page, mtr) == FIL_NULL && !page_is_leaf(page)) {
+	if (!page_has_prev(page) && !page_is_leaf(page)) {
 		first_rec = page_rec_get_next(
 			page_get_infimum_rec(buf_block_get_frame(block)));
 	}

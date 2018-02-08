@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2149,7 +2149,7 @@ btr_root_raise_and_insert(
 	they should already have been set.  The previous node field
 	must be FIL_NULL if root_page_zip != NULL, because the
 	REC_INFO_MIN_REC_FLAG (of the first user record) will be
-	set if and only if btr_page_get_prev() == FIL_NULL. */
+	set if and only if !page_has_prev(). */
 	btr_page_set_next(root, root_page_zip, FIL_NULL, mtr);
 	btr_page_set_prev(root, root_page_zip, FIL_NULL, mtr);
 
@@ -3542,8 +3542,7 @@ btr_lift_page_up(
 	bool		lift_father_up;
 	buf_block_t*	block_orig	= block;
 
-	ut_ad(btr_page_get_prev(page, mtr) == FIL_NULL);
-	ut_ad(btr_page_get_next(page, mtr) == FIL_NULL);
+	ut_ad(!page_has_siblings(page));
 	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
 
 	page_level = btr_page_get_level(page, mtr);
@@ -3610,8 +3609,7 @@ btr_lift_page_up(
 			page = buf_block_get_frame(block);
 			page_level = btr_page_get_level(page, mtr);
 
-			ut_ad(btr_page_get_prev(page, mtr) == FIL_NULL);
-			ut_ad(btr_page_get_next(page, mtr) == FIL_NULL);
+			ut_ad(!page_has_siblings(page));
 			ut_ad(mtr_is_block_fix(
 				mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
 
@@ -4276,8 +4274,7 @@ btr_discard_only_page_on_level(
 
 		ut_a(page_get_n_recs(page) == 1);
 		ut_a(page_level == btr_page_get_level(page, mtr));
-		ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
-		ut_a(btr_page_get_next(page, mtr) == FIL_NULL);
+		ut_a(!page_has_siblings(page));
 
 		ut_ad(mtr_is_block_fix(
 			mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
@@ -5281,13 +5278,13 @@ loop:
 		if (left_page_no == FIL_NULL) {
 			ut_a(node_ptr == page_rec_get_next(
 				     page_get_infimum_rec(father_page)));
-			ut_a(btr_page_get_prev(father_page, &mtr) == FIL_NULL);
+			ut_a(!page_has_prev(father_page));
 		}
 
 		if (right_page_no == FIL_NULL) {
 			ut_a(node_ptr == page_rec_get_prev(
 				     page_get_supremum_rec(father_page)));
-			ut_a(btr_page_get_next(father_page, &mtr) == FIL_NULL);
+			ut_a(!page_has_next(father_page));
 		} else {
 			const rec_t*	right_node_ptr;
 

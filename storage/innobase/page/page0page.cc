@@ -2768,8 +2768,7 @@ page_delete_rec(
 	if (!rec_offs_any_extern(offsets)
 	    && ((page_get_data_size(page) - rec_offs_size(offsets)
 		< BTR_CUR_PAGE_COMPRESS_LIMIT(index))
-		|| (mach_read_from_4(page + FIL_PAGE_NEXT) == FIL_NULL
-		    && mach_read_from_4(page + FIL_PAGE_PREV) == FIL_NULL)
+		|| !page_has_siblings(page)
 		|| (page_get_n_recs(page) < 2))) {
 
 		ulint	root_page_no = dict_index_get_page(index);

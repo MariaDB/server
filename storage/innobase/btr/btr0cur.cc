@@ -804,10 +804,10 @@ btr_cur_will_modify_tree(
 
 		/* is first, 2nd or last record */
 		if (page_rec_is_first(rec, page)
-		    || (mach_read_from_4(page + FIL_PAGE_NEXT) != FIL_NULL
+		    || (page_has_next(page)
 			&& (page_rec_is_last(rec, page)
 			    || page_rec_is_second_last(rec, page)))
-		    || (mach_read_from_4(page + FIL_PAGE_PREV) != FIL_NULL
+		    || (page_has_prev(page)
 			&& page_rec_is_second(rec, page))) {
 			return(true);
 		}
@@ -892,13 +892,10 @@ btr_cur_need_opposite_intention(
 {
 	switch (lock_intention) {
 	case BTR_INTENTION_DELETE:
-		return((mach_read_from_4(page + FIL_PAGE_PREV) != FIL_NULL
-			&& page_rec_is_first(rec, page))
-		       || (mach_read_from_4(page + FIL_PAGE_NEXT) != FIL_NULL
-			   && page_rec_is_last(rec, page)));
+		return (page_has_prev(page) && page_rec_is_first(rec, page)) ||
+			(page_has_next(page) && page_rec_is_last(rec, page));
 	case BTR_INTENTION_INSERT:
-		return(mach_read_from_4(page + FIL_PAGE_NEXT) != FIL_NULL
-		       && page_rec_is_last(rec, page));
+		return page_has_next(page) && page_rec_is_last(rec, page);
 	case BTR_INTENTION_BOTH:
 		return(false);
 	}
@@ -1970,7 +1967,7 @@ need_opposite_intention:
 				MTR_MEMO_PAGE_S_FIX
 				| MTR_MEMO_PAGE_X_FIX));
 
-			if (btr_page_get_prev(page, mtr) != FIL_NULL
+			if (page_has_prev(page)
 			    && page_rec_is_first(node_ptr, page)) {
 
 				if (leftmost_from_level == 0) {
@@ -2087,7 +2084,7 @@ need_opposite_intention:
 	} else if (!dict_index_is_spatial(index)
 		   && latch_mode == BTR_MODIFY_TREE
 		   && lock_intention == BTR_INTENTION_INSERT
-		   && mach_read_from_4(page + FIL_PAGE_NEXT) != FIL_NULL
+		   && page_has_next(page)
 		   && page_rec_is_last(page_cur_get_rec(page_cursor), page)) {
 
 		/* btr_insert_into_right_sibling() might cause
@@ -5632,7 +5629,7 @@ discard_page:
 
 		rec_t*	next_rec = page_rec_get_next(rec);
 
-		if (btr_page_get_prev(page, mtr) == FIL_NULL) {
+		if (!page_has_prev(page)) {
 
 			/* If we delete the leftmost node pointer on a
 			non-leaf level, we must mark the new leftmost node
@@ -6614,7 +6611,8 @@ btr_estimate_number_of_different_key_vals(
 			}
 		}
 
-		if (n_cols == dict_index_get_n_unique_in_tree(index)) {
+		if (n_cols == dict_index_get_n_unique_in_tree(index)
+		    && page_has_siblings(page)) {
 
 			/* If there is more than one leaf page in the tree,
 			we add one because we know that the first record
@@ -6625,11 +6623,7 @@ btr_estimate_number_of_different_key_vals(
 			algorithm grossly underestimated the number of rows
 			in the table. */
 
-			if (btr_page_get_prev(page, &mtr) != FIL_NULL
-			    || btr_page_get_next(page, &mtr) != FIL_NULL) {
-
-				n_diff[n_cols - 1]++;
-			}
+			n_diff[n_cols - 1]++;
 		}
 
 		mtr_commit(&mtr);

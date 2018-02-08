@@ -3323,8 +3323,7 @@ ibuf_get_entry_counter_func(
 		return(ULINT_UNDEFINED);
 	} else if (!page_rec_is_infimum(rec)) {
 		return(ibuf_get_entry_counter_low(mtr, rec, space, page_no));
-	} else if (only_leaf
-		   || fil_page_get_prev(page_align(rec)) == FIL_NULL) {
+	} else if (only_leaf || !page_has_prev(page_align(rec))) {
 		/* The parent node pointer did not contain the
 		searched for (space, page_no), which means that the
 		search ended on the correct page regardless of the

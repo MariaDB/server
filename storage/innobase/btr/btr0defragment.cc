@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2017, MariaDB Corporation.
+Copyright (C) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -650,7 +650,7 @@ btr_defragment_n_pages(
 	}
 
 	if (n_pages == 1) {
-		if (btr_page_get_prev(first_page, mtr) == FIL_NULL) {
+		if (!page_has_prev(first_page)) {
 			/* last page in the index */
 			if (dict_index_get_page(index)
 			    == page_get_page_no(first_page))

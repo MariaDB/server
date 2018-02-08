@@ -521,7 +521,7 @@ up_rec_match:
 				ulint   rec_info = rec_get_info_bits(mid_rec,
                                                      rec_offs_comp(offsets));
 				ut_ad(rec_info & REC_INFO_MIN_REC_FLAG);
-				ut_ad(btr_page_get_prev(page, &mtr) == FIL_NULL);
+				ut_ad(!page_has_prev(page));
 				mtr_commit(&mtr);
 #endif
 
@@ -735,9 +735,7 @@ up_slot_match:
 					  mid_rec,
 					  dict_table_is_comp(index->table))
 				  & REC_INFO_MIN_REC_FLAG)) {
-			ut_ad(mach_read_from_4(FIL_PAGE_PREV
-					       + page_align(mid_rec))
-			      == FIL_NULL);
+			ut_ad(!page_has_prev(page_align(mid_rec)));
 			ut_ad(!page_rec_is_leaf(mid_rec)
 			      || rec_is_default_row(mid_rec, index));
 			cmp = 1;

@@ -1716,7 +1716,7 @@ rtr_cur_search_with_match(
 		first page as much as possible, as there will be problem
 		when update MIN_REC rec in compress table */
 		if (buf_block_get_page_zip(block)
-		    && mach_read_from_4(page + FIL_PAGE_PREV) == FIL_NULL
+		    && !page_has_prev(page)
 		    && page_get_n_recs(page) >= 2) {
 
 			rec = page_rec_get_next_const(rec);
