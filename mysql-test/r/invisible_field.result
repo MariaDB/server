@@ -540,3 +540,14 @@ select a,b from t2;
 a	b
 12	1
 drop table t1,t2;
+create table t1 (a int invisible, b int, c int);
+create table t2 (a int, b int, d int);
+insert t1 (a,b,c) values (0,2,3), (10, 20, 30);
+insert t2 (a,b,d) values (1,2,4), (10, 30, 40);
+select * from t1 join t2 using (a);
+b	c	b	d
+20	30	30	40
+select * from t1 natural join t2;
+b	c	a	d
+2	3	1	4
+drop table t1, t2;

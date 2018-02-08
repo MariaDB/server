@@ -227,3 +227,14 @@ select a,b from t1;
 insert into t2 values(1);
 select a,b from t2;
 drop table t1,t2;
+
+#
+# natural join and using
+#
+create table t1 (a int invisible, b int, c int);
+create table t2 (a int, b int, d int);
+insert t1 (a,b,c) values (0,2,3), (10, 20, 30);
+insert t2 (a,b,d) values (1,2,4), (10, 30, 40);
+select * from t1 join t2 using (a);
+select * from t1 natural join t2;
+drop table t1, t2;

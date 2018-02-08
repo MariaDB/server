@@ -6515,6 +6515,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
   bool result= TRUE;
   bool first_outer_loop= TRUE;
   Field *field_1, *field_2;
+  field_visibility_t field_1_invisible, field_2_invisible;
   /*
     Leaf table references to which new natural join columns are added
     if the leaves are != NULL.
@@ -6543,7 +6544,9 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       goto err;
 
     field_1= nj_col_1->field();
-    if (nj_col_1->field() && nj_col_1->field()->vers_sys_field())
+    field_1_invisible= field_1 ? field_1->invisible : VISIBLE;
+
+    if (field_1_invisible == INVISIBLE_FULL)
       continue;
 
     field_name_1= nj_col_1->name();
@@ -6552,6 +6555,9 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     DBUG_PRINT ("info", ("field_name_1=%s.%s", 
                          nj_col_1->safe_table_name(),
                          field_name_1->str));
+
+    if (field_1_invisible && !is_using_column_1)
+      continue;
 
     /*
       Find a field with the same name in table_ref_2.
@@ -6569,6 +6575,11 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
         goto err;
 
       field_2= cur_nj_col_2->field();
+      field_2_invisible= field_2 ? field_2->invisible : VISIBLE;
+
+      if (field_2_invisible == INVISIBLE_FULL)
+        continue;
+
       cur_field_name_2= cur_nj_col_2->name();
       DBUG_PRINT ("info", ("cur_field_name_2=%s.%s", 
                            cur_nj_col_2->safe_table_name(),
@@ -6594,7 +6605,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
           my_error(ER_NON_UNIQ_ERROR, MYF(0), field_name_1->str, thd->where);
           goto err;
         }
-        if (!using_fields || is_using_column_1)
+        if ((!using_fields && !field_2_invisible) || is_using_column_1)
         {
           DBUG_ASSERT(nj_col_2 == NULL);
           nj_col_2= cur_nj_col_2;

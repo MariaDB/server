@@ -40,7 +40,21 @@ select invisible ,a from t1;
 invisible	a
 9	1
 set debug_dbug=@old_debug;
-drop table t1;
+create table t2 (invisible int);
+select * from t1 join t2 using (invisible);
+ERROR 42S22: Unknown column 'invisible' in 'from clause'
+select * from t2 join t1 using (invisible);
+ERROR 42S22: Unknown column 'invisible' in 'from clause'
+insert t2 values (8),(9);
+select * from t1 natural join t2;
+a	invisible
+1	8
+1	9
+select * from t2 natural join t1;
+invisible	a
+8	1
+9	1
+drop table t1, t2;
 set debug_dbug= "+d,test_pseudo_invisible";
 create table t1(a int);
 set debug_dbug=@old_debug;

@@ -30,7 +30,17 @@ set debug_dbug= "+d,test_completely_invisible";
 select invisible ,a from t1;
 set debug_dbug=@old_debug;
 
-drop table t1;
+create table t2 (invisible int);
+--error ER_BAD_FIELD_ERROR
+select * from t1 join t2 using (invisible);
+--error ER_BAD_FIELD_ERROR
+select * from t2 join t1 using (invisible);
+
+insert t2 values (8),(9);
+select * from t1 natural join t2;
+select * from t2 natural join t1;
+
+drop table t1, t2;
 
 ##TEST for Alter table for invisibleness level 2
 
