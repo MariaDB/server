@@ -139,49 +139,44 @@ row_ins_alloc_sys_fields(
 {
 	dtuple_t*		row;
 	dict_table_t*		table;
-	mem_heap_t*		heap;
 	const dict_col_t*	col;
 	dfield_t*		dfield;
-	byte*			ptr;
 
 	row = node->row;
 	table = node->table;
-	heap = node->entry_sys_heap;
 
-	ut_ad(row && table && heap);
 	ut_ad(dtuple_get_n_fields(row) == dict_table_get_n_cols(table));
 
 	/* allocate buffer to hold the needed system created hidden columns. */
-	const uint len = DATA_ROW_ID_LEN + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
-	ptr = static_cast<byte*>(mem_heap_zalloc(heap, len));
+	compile_time_assert(DATA_ROW_ID_LEN
+			    + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN
+			    == sizeof node->sys_buf);
+	memset(node->sys_buf, 0, sizeof node->sys_buf);
+	/* Assign DB_ROLL_PTR to 1 << ROLL_PTR_INSERT_FLAG_POS */
+	node->sys_buf[DATA_ROW_ID_LEN + DATA_TRX_ID_LEN] = 0x80;
 
 	/* 1. Populate row-id */
 	col = dict_table_get_sys_col(table, DATA_ROW_ID);
 
 	dfield = dtuple_get_nth_field(row, dict_col_get_no(col));
 
-	dfield_set_data(dfield, ptr, DATA_ROW_ID_LEN);
-
-	node->row_id_buf = ptr;
-
-	ptr += DATA_ROW_ID_LEN;
+	dfield_set_data(dfield, node->sys_buf, DATA_ROW_ID_LEN);
 
 	/* 2. Populate trx id */
 	col = dict_table_get_sys_col(table, DATA_TRX_ID);
 
 	dfield = dtuple_get_nth_field(row, dict_col_get_no(col));
 
-	dfield_set_data(dfield, ptr, DATA_TRX_ID_LEN);
-
-	node->trx_id_buf = ptr;
-
-	ptr += DATA_TRX_ID_LEN;
+	dfield_set_data(dfield, &node->sys_buf[DATA_ROW_ID_LEN],
+			DATA_TRX_ID_LEN);
 
 	col = dict_table_get_sys_col(table, DATA_ROLL_PTR);
 
 	dfield = dtuple_get_nth_field(row, dict_col_get_no(col));
 
-	dfield_set_data(dfield, ptr, DATA_ROLL_PTR_LEN);
+	dfield_set_data(dfield, &node->sys_buf[DATA_ROW_ID_LEN
+					       + DATA_TRX_ID_LEN],
+			DATA_ROLL_PTR_LEN);
 }
 
 /*********************************************************************//**
@@ -3474,7 +3469,7 @@ row_ins_alloc_row_id_step(
 
 	row_id = dict_sys_get_new_row_id();
 
-	dict_sys_write_row_id(node->row_id_buf, row_id);
+	dict_sys_write_row_id(node->sys_buf, row_id);
 }
 
 /***********************************************************//**
@@ -3765,7 +3760,7 @@ row_ins_step(
 	This happens, for example, when a row update moves it to another
 	partition. In that case, we have already set the IX lock on the
 	table during the search operation, and there is no need to set
-	it again here. But we must write trx->id to node->trx_id_buf. */
+	it again here. But we must write trx->id to node->sys_buf. */
 
 	if (node->table->no_rollback()) {
 		/* No-rollback tables should only be written to by a
@@ -3780,15 +3775,13 @@ row_ins_step(
 		restarting here. In theory, we could allow resumption
 		from the INS_NODE_INSERT_ENTRIES state here. */
 		DBUG_ASSERT(node->state == INS_NODE_SET_IX_LOCK);
-		memset(node->trx_id_buf, 0, DATA_TRX_ID_LEN);
-		memset(node->row_id_buf, 0, DATA_ROW_ID_LEN);
 		node->index = dict_table_get_first_index(node->table);
 		node->entry = UT_LIST_GET_FIRST(node->entry_list);
 		node->state = INS_NODE_INSERT_ENTRIES;
 		goto do_insert;
 	}
 
-	trx_write_trx_id(node->trx_id_buf, trx->id);
+	trx_write_trx_id(&node->sys_buf[DATA_ROW_ID_LEN], trx->id);
 
 	if (node->state == INS_NODE_SET_IX_LOCK) {
 

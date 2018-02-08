@@ -58,6 +58,7 @@ main.innodb_mysql_lock             : MDEV-7861 - Wrong result
 main.join_outer                    : Modified in 10.2.12
 main.kill-2                        : MDEV-13257 - Wrong result
 main.log_slow                      : MDEV-13263 - Wrong result
+main.mdev-504                      : MDEV-15171 - warning 
 main.mysql_client_test_nonblock    : CONC-208 - Error on Power
 main.mysql_upgrade_noengine        : MDEV-14355 - Wrong result
 main.mysql_upgrade_ssl             : MDEV-13492 - Unknown SSL error

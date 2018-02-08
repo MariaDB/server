@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -198,10 +198,11 @@ struct ins_node_t{
 				this should be reset to NULL */
 	UT_LIST_BASE_NODE_T(dtuple_t)
 			entry_list;/* list of entries, one for each index */
-	byte*		row_id_buf;/* buffer for the row id sys field in row */
+	/** buffer for the system columns */
+	byte		sys_buf[DATA_ROW_ID_LEN
+				+ DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN];
 	trx_id_t	trx_id;	/*!< trx id or the last trx which executed the
 				node */
-	byte*		trx_id_buf;/* buffer for the trx id sys field in row */
 	mem_heap_t*	entry_sys_heap;
 				/* memory heap used as auxiliary storage;
 				entry_list and sys fields are stored here;

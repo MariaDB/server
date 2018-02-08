@@ -2811,7 +2811,7 @@ btr_cur_ins_lock_and_undo(
 	}
 
 	if (flags & BTR_NO_UNDO_LOG_FLAG) {
-		roll_ptr = 0;
+		roll_ptr = roll_ptr_t(1) << ROLL_PTR_INSERT_FLAG_POS;
 	} else {
 		err = trx_undo_report_row_operation(thr, index, entry,
 						    NULL, 0, NULL, NULL,
@@ -3016,7 +3016,7 @@ fail_err:
 
 	DBUG_LOG("ib_cur",
 		 "insert " << index->name << " (" << index->id << ") by "
-		 << ib::hex(thr ? trx_get_id_for_print(thr_get_trx(thr)) : 0)
+		 << ib::hex(thr ? thr->graph->trx->id : 0)
 		 << ' ' << rec_printer(entry).str());
 	DBUG_EXECUTE_IF("do_page_reorganize",
 			btr_page_reorganize(page_cursor, index, mtr););
@@ -3032,6 +3032,29 @@ fail_err:
 		if (err != DB_SUCCESS) {
 			goto fail_err;
 		}
+
+#ifdef UNIV_DEBUG
+		if (!(flags & BTR_CREATE_FLAG)
+		    && index->is_primary() && page_is_leaf(page)) {
+			const dfield_t* trx_id = dtuple_get_nth_field(
+				entry, dict_col_get_clust_pos(
+					dict_table_get_sys_col(index->table,
+							       DATA_TRX_ID),
+					index));
+
+			ut_ad(trx_id->len == DATA_TRX_ID_LEN);
+			ut_ad(trx_id[1].len == DATA_ROLL_PTR_LEN);
+			ut_ad(*static_cast<const byte*>
+			      (trx_id[1].data) & 0x80);
+			if (!(flags & BTR_NO_UNDO_LOG_FLAG)) {
+				ut_ad(thr->graph->trx->id);
+				ut_ad(thr->graph->trx->id
+				      == trx_read_trx_id(
+					      static_cast<const byte*>(
+						      trx_id->data)));
+			}
+		}
+#endif
 
 		*rec = page_cur_tuple_insert(
 			page_cursor, entry, index, offsets, heap,

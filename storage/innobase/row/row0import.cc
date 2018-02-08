@@ -897,13 +897,11 @@ private:
 	@param index the index being converted
 	@param rec record to update
 	@param offsets column offsets for the record
-	@param deleted true if row is delete marked
 	@return DB_SUCCESS or error code. */
 	dberr_t	adjust_cluster_record(
 		const dict_index_t*	index,
 		rec_t*			rec,
-		const ulint*		offsets,
-		bool			deleted) UNIV_NOTHROW;
+		const ulint*		offsets) UNIV_NOTHROW;
 
 	/** Find an index with the matching id.
 	@return row_index_t* instance or 0 */
@@ -1675,14 +1673,12 @@ PageConverter::purge(const ulint* offsets) UNIV_NOTHROW
 /** Adjust the BLOB references and sys fields for the current record.
 @param rec record to update
 @param offsets column offsets for the record
-@param deleted true if row is delete marked
 @return DB_SUCCESS or error code. */
 dberr_t
 PageConverter::adjust_cluster_record(
 	const dict_index_t*	index,
 	rec_t*			rec,
-	const ulint*		offsets,
-	bool			deleted) UNIV_NOTHROW
+	const ulint*		offsets) UNIV_NOTHROW
 {
 	dberr_t	err;
 
@@ -1694,7 +1690,7 @@ PageConverter::adjust_cluster_record(
 
 		row_upd_rec_sys_fields(
 			rec, m_page_zip_ptr, m_cluster_index, m_offsets,
-			m_trx, 0);
+			m_trx, roll_ptr_t(1) << ROLL_PTR_INSERT_FLAG_POS);
 	}
 
 	return(err);
@@ -1737,8 +1733,7 @@ PageConverter::update_records(
 		if (clust_index) {
 
 			dberr_t err = adjust_cluster_record(
-				m_index->m_srv_index, rec, m_offsets,
-				deleted);
+				m_index->m_srv_index, rec, m_offsets);
 
 			if (err != DB_SUCCESS) {
 				return(err);

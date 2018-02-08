@@ -1523,7 +1523,7 @@ error_exit:
 
 	if (prebuilt->clust_index_was_generated) {
 		/* set row id to prebuilt */
-		ut_memcpy(prebuilt->row_id, node->row_id_buf, DATA_ROW_ID_LEN);
+		memcpy(prebuilt->row_id, node->sys_buf, DATA_ROW_ID_LEN);
 	}
 
 	dict_stats_update_if_needed(table);
