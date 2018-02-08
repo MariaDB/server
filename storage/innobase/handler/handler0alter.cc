@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4278,6 +4278,7 @@ innobase_add_instant_try(
 
 	buf_block_t* block = btr_pcur_get_block(&pcur);
 	ut_ad(page_is_leaf(block->frame));
+	ut_ad(!page_has_prev(block->frame));
 	ut_ad(!buf_block_get_page_zip(block));
 	const rec_t* rec = btr_pcur_get_rec(&pcur);
 	que_thr_t* thr = pars_complete_graph_for_exec(
@@ -4285,7 +4286,8 @@ innobase_add_instant_try(
 
 	if (rec_is_default_row(rec, index)) {
 		ut_ad(page_rec_is_user_rec(rec));
-		if (page_rec_is_last(rec, block->frame)) {
+		if (!page_has_next(block->frame)
+		    && page_rec_is_last(rec, block->frame)) {
 			goto empty_table;
 		}
 		/* Extend the record with the instantly added columns. */
