@@ -65,7 +65,7 @@ trx_undo_rec_copy(
 
 	len = mach_read_from_2(undo_rec)
 		- ut_align_offset(undo_rec, UNIV_PAGE_SIZE);
-	ut_a(len < UNIV_PAGE_SIZE);
+	ut_ad(len < UNIV_PAGE_SIZE);
 	trx_undo_rec_t* rec = static_cast<trx_undo_rec_t*>(
 		mem_heap_dup(heap, undo_rec, len));
 	mach_write_to_2(rec, len);
