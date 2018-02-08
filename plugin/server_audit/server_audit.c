@@ -1237,7 +1237,7 @@ static int write_log(const char *message, size_t len)
   if (output_type == OUTPUT_FILE)
   {
     if (logfile &&
-        (is_active= (logger_write(logfile, message, len) == len)))
+        (is_active= (logger_write(logfile, message, len) == (int)len)))
       return 0;
     ++log_write_failures;
     return 1;

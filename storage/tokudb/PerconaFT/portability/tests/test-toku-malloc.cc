@@ -53,10 +53,12 @@ int main(void) {
     int i;
     const int max_threads = 2;
     toku_pthread_t tids[max_threads];
-    for (i=0; i<max_threads; i++) {
-        r = toku_pthread_create(&tids[i], NULL, f, 0); assert(r == 0);
+    for (i = 0; i < max_threads; i++) {
+        r = toku_pthread_create(
+            toku_uninstrumented, &tids[i], nullptr, f, nullptr);
+        assert(r == 0);
     }
-    for (i=0; i<max_threads; i++) {
+    for (i = 0; i < max_threads; i++) {
         void *ret;
         r = toku_pthread_join(tids[i], &ret); assert(r == 0);
     }

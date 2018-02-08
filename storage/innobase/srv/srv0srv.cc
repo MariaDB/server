@@ -78,10 +78,7 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
 #include "btr0scrub.h"
-#ifdef WITH_WSREP
-extern int wsrep_debug;
-extern int wsrep_trx_is_aborting(void *thd_ptr);
-#endif
+
 /* The following is the maximum allowed duration of a lock wait. */
 UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
 

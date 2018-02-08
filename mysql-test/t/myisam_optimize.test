@@ -46,3 +46,20 @@ connection default;
 drop table t1;
 set debug_sync='reset';
 
+--echo # End of 5.5 tests
+
+#
+# MDEV-11539 test_if_reopen: Assertion `strcmp(share->unique_file_name,filename) || share->last_version' failed upon select from I_S
+#
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT t1 VALUES (1);
+LOCK TABLE t1 WRITE;
+OPTIMIZE TABLE t1;
+--disable_result_log
+SELECT * FROM INFORMATION_SCHEMA.TABLES;
+--enable_result_log
+SELECT * FROM t1;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo # End of 10.0 tests

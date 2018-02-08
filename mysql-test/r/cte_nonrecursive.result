@@ -1369,3 +1369,32 @@ n_nationkey	n_name	n_regionkey	r_regionkey	r_name
 23	UNITED KINGDOM	3	3	EUROPE
 drop view v;
 drop table region, nation;
+#
+# MDEV-15120: cte name used with database name
+#
+WITH cte AS (SELECT 1 AS a) SELECT test.cte.a FROM test.cte;
+ERROR 42S02: Table 'test.cte' doesn't exist
+CREATE DATABASE db1;
+USE db1;
+WITH cte AS (SELECT 1 AS a) SELECT db1.cte.a FROM db1.cte;
+ERROR 42S02: Table 'db1.cte' doesn't exist
+DROP DATABASE db1;
+USE test;
+#
+# MDEV-15119: CTE c2 specified after CTE c1 and is used in
+#             CTE c3 that is embedded into the spec of c1
+#
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+WITH c1 AS (WITH c3 AS (SELECT * FROM c2) SELECT * FROM c3),
+c2 AS (SELECT * FROM t1)
+SELECT * FROM c1;
+ERROR 42S02: Table 'test.c2' doesn't exist
+WITH RECURSIVE c1 AS (WITH c3 AS (SELECT * FROM c2) SELECT * FROM c3),
+c2 AS (SELECT * FROM t1)
+SELECT * FROM c1;
+i
+1
+2
+3
+DROP TABLE t1;

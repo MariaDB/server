@@ -1551,7 +1551,7 @@ void _mi_unmap_file(MI_INFO *info)
 {
   DBUG_ASSERT(info->s->options & HA_OPTION_COMPRESS_RECORD);
 
-  (void) my_munmap((char*) info->s->file_map, (size_t) info->s->mmaped_length);
+  (void) my_munmap((char*) info->s->file_map, info->s->mmaped_length);
 
   if (myisam_mmap_size != SIZE_T_MAX)
   {

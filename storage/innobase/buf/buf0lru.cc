@@ -1883,7 +1883,7 @@ buf_LRU_block_free_non_file_page(
 		ut_d(block->page.in_free_list = TRUE);
 	}
 
-	UNIV_MEM_ASSERT_AND_FREE(block->frame, UNIV_PAGE_SIZE);
+	UNIV_MEM_FREE(block->frame, UNIV_PAGE_SIZE);
 }
 
 /******************************************************************//**

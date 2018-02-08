@@ -263,3 +263,46 @@ SELECT * FROM t2;
 id	ref_id	f
 2	2	20
 DROP TABLE t2, t1;
+#
+# MDEV-15199 Referential integrity broken in ON DELETE CASCADE
+#
+CREATE TABLE member (id int AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO member VALUES (1);
+CREATE TABLE address (
+id int AUTO_INCREMENT PRIMARY KEY,
+member_id int NOT NULL,
+KEY address_FI_1 (member_id),
+CONSTRAINT address_FK_1 FOREIGN KEY (member_id) REFERENCES member (id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO address VALUES (2,1);
+CREATE TABLE payment_method (
+id int AUTO_INCREMENT PRIMARY KEY,
+member_id int NOT NULL,
+cardholder_address_id int DEFAULT NULL,
+KEY payment_method_FI_1 (member_id),
+KEY payment_method_FI_2 (cardholder_address_id),
+CONSTRAINT payment_method_FK_1 FOREIGN KEY (member_id) REFERENCES member (id) ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT payment_method_FK_2 FOREIGN KEY (cardholder_address_id) REFERENCES address (id) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO payment_method VALUES (3,1,2);
+BEGIN;
+UPDATE member SET id=42;
+SELECT * FROM member;
+id
+42
+SELECT * FROM address;
+id	member_id
+2	42
+SELECT * FROM payment_method;
+id	member_id	cardholder_address_id
+3	42	2
+DELETE FROM member;
+COMMIT;
+SELECT * FROM member;
+id
+SELECT * FROM address;
+id	member_id
+SELECT * FROM payment_method;
+id	member_id	cardholder_address_id
+DROP TABLE payment_method,address,member;

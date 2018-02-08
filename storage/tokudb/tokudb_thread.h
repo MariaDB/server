@@ -34,95 +34,68 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 namespace tokudb {
 namespace thread {
 
-#if (defined(__MACH__) || defined(__APPLE__)) && _POSIX_TIMERS <= 0
-
-#define _x_min(a, b) ((a) < (b) ? (a) : (b))
-
-#define timed_lock_define(timed_func_name, lock_type_name, lock_func_name)     \
-inline int timed_func_name(lock_type_name *mutex,                              \
-                     const struct timespec *abs_timeout) {                     \
-    int pthread_rc;                                                            \
-    struct timespec remaining, slept, ts;                                      \
-    static const int sleep_step = 1000000;                                     \
-                                                                               \
-    remaining = *abs_timeout;                                                  \
-    while ((pthread_rc = lock_func_name(mutex)) == EBUSY) {                    \
-        ts.tv_sec = 0;                                                         \
-        ts.tv_nsec = (remaining.tv_sec > 0 ?                                   \
-                      sleep_step :                                             \
-                      _x_min(remaining.tv_nsec,sleep_step));                   \
-        nanosleep(&ts, &slept);                                                \
-        ts.tv_nsec -= slept.tv_nsec;                                           \
-        if (ts.tv_nsec <= remaining.tv_nsec) {                                 \
-            remaining.tv_nsec -= ts.tv_nsec;                                   \
-        } else {                                                               \
-            remaining.tv_sec--;                                                \
-            remaining.tv_nsec =                                                \
-              (sleep_step - (ts.tv_nsec - remaining.tv_nsec));                 \
-        }                                                                      \
-        if (remaining.tv_sec < 0 ||                                            \
-            (!remaining.tv_sec && remaining.tv_nsec <= 0)) {                   \
-            return ETIMEDOUT;                                                  \
-        }                                                                      \
-    }                                                                          \
-                                                                               \
-    return pthread_rc;                                                         \
-}
-
-timed_lock_define(pthread_mutex_timedlock,
-                  pthread_mutex_t,
-                  pthread_mutex_trylock);
-
-timed_lock_define(pthread_rwlock_timedrdlock,
-                  pthread_rwlock_t,
-                  pthread_rwlock_tryrdlock);
-
-timed_lock_define(pthread_rwlock_timedwrlock,
-                  pthread_rwlock_t,
-                  pthread_rwlock_trywrlock);
-
-#endif //(defined(__MACH__) || defined(__APPLE__)) && _POSIX_TIMERS <= 0
+extern const pfs_key_t pfs_not_instrumented;
 
 uint my_tid(void);
 
 // Your basic mutex
 class mutex_t {
 public:
-    mutex_t(void);
+    explicit mutex_t(pfs_key_t key);
+    mutex_t(void) : mutex_t(pfs_not_instrumented) {}
     ~mutex_t(void);
 
-    void lock(void);
-    int lock(ulonglong microseconds);
-    void unlock(void);
+    void reinit(pfs_key_t key);
+    void lock(
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+        const char* src_file,
+        uint src_line
+#endif  // HAVE_PSI_MUTEX_INTERFACE
+        );
+    void unlock(
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+        const char* src_file,
+        uint src_line
+#endif  // HAVE_PSI_MUTEX_INTERFACE
+        );
 #ifdef TOKUDB_DEBUG
     bool is_owned_by_me(void) const;
 #endif
 private:
     static pthread_t _null_owner;
-    pthread_mutex_t _mutex;
+    mysql_mutex_t _mutex;
 #ifdef TOKUDB_DEBUG
-    uint            _owners;
-    pthread_t       _owner;
+    uint _owners;
+    pthread_t _owner;
 #endif
 };
 
 // Simple read write lock
 class rwlock_t {
 public:
-    rwlock_t(void);
+    explicit rwlock_t(pfs_key_t key);
+    rwlock_t(void) : rwlock_t(pfs_not_instrumented) {}
     ~rwlock_t(void);
 
-    void lock_read(void);
-    int lock_read(ulonglong microseconds);
-    void lock_write(void);
-    int lock_write(ulonglong microseconds);
+    void lock_read(
+#ifdef HAVE_PSI_RWLOCK_INTERFACE
+        const char* src_file,
+        uint src_line
+#endif  // HAVE_PSI_RWLOCK_INTERFACE
+        );
+    void lock_write(
+#ifdef HAVE_PSI_RWLOCK_INTERFACE
+        const char* src_file,
+        uint src_line
+#endif  // HAVE_PSI_RWLOCK_INTERFACE
+        );
     void unlock(void);
 
 private:
     rwlock_t(const rwlock_t&);
     rwlock_t& operator=(const rwlock_t&);
 
-    pthread_rwlock_t	_rwlock;
+    mysql_rwlock_t _rwlock;
 };
 
 // Simple event signal/wait class
@@ -224,57 +197,76 @@ private:
     pthread_t   _thread;
 };
 
+inline uint my_tid(void) { return (uint)toku_os_gettid(); }
 
-inline uint my_tid(void) {
-    return (uint)toku_os_gettid();
-}
-
-
-inline mutex_t::mutex_t(void) {
-    #ifdef TOKUDB_DEBUG
-        _owners = 0;
-        _owner = _null_owner;
-    #endif
-    int r = pthread_mutex_init(&_mutex, MY_MUTEX_INIT_FAST);
+inline mutex_t::mutex_t(pfs_key_t key) {
+#ifdef TOKUDB_DEBUG
+    _owners = 0;
+    _owner = _null_owner;
+#endif
+    int  r MY_ATTRIBUTE((unused)) = mysql_mutex_init(key, &_mutex, MY_MUTEX_INIT_FAST);
     assert_debug(r == 0);
 }
 inline mutex_t::~mutex_t(void) {
-    #ifdef TOKUDB_DEBUG
-        assert_debug(_owners == 0);
-    #endif
-    int r = pthread_mutex_destroy(&_mutex);
+#ifdef TOKUDB_DEBUG
+    assert_debug(_owners == 0);
+#endif
+    int  r MY_ATTRIBUTE((unused)) = mysql_mutex_destroy(&_mutex);
     assert_debug(r == 0);
 }
-inline void mutex_t::lock(void) {
-    assert_debug(is_owned_by_me() == false);
-    int r = pthread_mutex_lock(&_mutex);
+inline void mutex_t::reinit(pfs_key_t key) {
+#ifdef TOKUDB_DEBUG
+    assert_debug(_owners == 0);
+#endif
+    int  r MY_ATTRIBUTE((unused));
+    r = mysql_mutex_destroy(&_mutex);
     assert_debug(r == 0);
-    #ifdef TOKUDB_DEBUG
-        _owners++;
-        _owner = pthread_self();
-    #endif
+    r = mysql_mutex_init(key, &_mutex, MY_MUTEX_INIT_FAST);
+    assert_debug(r == 0);
 }
-inline int mutex_t::lock(ulonglong microseconds) {
+inline void mutex_t::lock(
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+    const char* src_file,
+    uint src_line
+#endif  // HAVE_PSI_MUTEX_INTERFACE
+    ) {
     assert_debug(is_owned_by_me() == false);
-    timespec waittime = time::offset_timespec(microseconds);
-    int r = pthread_mutex_timedlock(&_mutex, &waittime);
-    #ifdef TOKUDB_DEBUG
-        if (r == 0) {
-            _owners++;
-            _owner = pthread_self();
-        }
-    #endif
-    assert_debug(r == 0 || r == ETIMEDOUT);
-    return r;
+    int r MY_ATTRIBUTE((unused)) = inline_mysql_mutex_lock(&_mutex
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+                                    ,
+                                    src_file,
+                                    src_line
+#endif  // HAVE_PSI_MUTEX_INTERFACE
+                                    );
+    assert_debug(r == 0);
+#ifdef TOKUDB_DEBUG
+    _owners++;
+    _owner = pthread_self();
+#endif
 }
-inline void mutex_t::unlock(void) {
-    #ifdef TOKUDB_DEBUG
-        assert_debug(_owners > 0);
-        assert_debug(is_owned_by_me());
-        _owners--;
-        _owner = _null_owner;
-    #endif
-    int r = pthread_mutex_unlock(&_mutex);
+inline void mutex_t::unlock(
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+    const char* src_file,
+    uint src_line
+#endif  // HAVE_PSI_MUTEX_INTERFACE
+    ) {
+#ifndef SAFE_MUTEX
+    (void)(src_file);
+    (void)(src_line);
+#endif  // SAFE_MUTEX
+#ifdef TOKUDB_DEBUG
+    assert_debug(_owners > 0);
+    assert_debug(is_owned_by_me());
+    _owners--;
+    _owner = _null_owner;
+#endif
+    int r MY_ATTRIBUTE((unused)) = inline_mysql_mutex_unlock(&_mutex
+#ifdef SAFE_MUTEX
+                                      ,
+                                      src_file,
+                                      src_line
+#endif  // SAFE_MUTEX
+                                      );
     assert_debug(r == 0);
 }
 #ifdef TOKUDB_DEBUG
@@ -283,18 +275,28 @@ inline bool mutex_t::is_owned_by_me(void) const {
 }
 #endif
 
-
-inline rwlock_t::rwlock_t(void) {
-    int r = pthread_rwlock_init(&_rwlock, NULL);
+inline rwlock_t::rwlock_t(pfs_key_t key) {
+    int r MY_ATTRIBUTE((unused)) = mysql_rwlock_init(key, &_rwlock);
     assert_debug(r == 0);
 }
 inline rwlock_t::~rwlock_t(void) {
-    int r = pthread_rwlock_destroy(&_rwlock);
+    int r MY_ATTRIBUTE((unused)) = mysql_rwlock_destroy(&_rwlock);
     assert_debug(r == 0);
 }
-inline void rwlock_t::lock_read(void) {
+inline void rwlock_t::lock_read(
+#ifdef HAVE_PSI_RWLOCK_INTERFACE
+    const char* src_file,
+    uint src_line
+#endif  // HAVE_PSI_RWLOCK_INTERFACE
+    ) {
     int r;
-    while ((r = pthread_rwlock_rdlock(&_rwlock)) != 0) {
+    while ((r = inline_mysql_rwlock_rdlock(&_rwlock
+#ifdef HAVE_PSI_RWLOCK_INTERFACE
+                                           ,
+                                           src_file,
+                                           src_line
+#endif  // HAVE_PSI_RWLOCK_INTERFACE
+                                           )) != 0) {
         if (r == EBUSY || r == EAGAIN) {
             time::sleep_microsec(1000);
             continue;
@@ -303,24 +305,20 @@ inline void rwlock_t::lock_read(void) {
     }
     assert_debug(r == 0);
 }
-inline int rwlock_t::lock_read(ulonglong microseconds) {
+inline void rwlock_t::lock_write(
+#ifdef HAVE_PSI_RWLOCK_INTERFACE
+    const char* src_file,
+    uint src_line
+#endif  // HAVE_PSI_RWLOCK_INTERFACE
+    ) {
     int r;
-    timespec waittime = time::offset_timespec(microseconds);
-    while ((r = pthread_rwlock_timedrdlock(&_rwlock, &waittime)) != 0) {
-        if (r == EBUSY || r == EAGAIN) {
-            time::sleep_microsec(1000);
-            continue;
-        } else if (r == ETIMEDOUT) {
-            return ETIMEDOUT;
-        }
-        break;
-    }
-    assert_debug(r == 0);
-    return r;
-}
-inline void rwlock_t::lock_write(void) {
-    int r;
-    while ((r = pthread_rwlock_wrlock(&_rwlock)) != 0) {
+    while ((r = inline_mysql_rwlock_wrlock(&_rwlock
+#ifdef HAVE_PSI_RWLOCK_INTERFACE
+                                           ,
+                                           src_file,
+                                           src_line
+#endif  // HAVE_PSI_RWLOCK_INTERFACE
+                                           )) != 0) {
         if (r == EBUSY || r == EAGAIN) {
             time::sleep_microsec(1000);
             continue;
@@ -328,28 +326,12 @@ inline void rwlock_t::lock_write(void) {
         break;
     }
     assert_debug(r == 0);
-}
-inline int rwlock_t::lock_write(ulonglong microseconds) {
-    int r;
-    timespec waittime = time::offset_timespec(microseconds);
-    while ((r = pthread_rwlock_timedwrlock(&_rwlock, &waittime)) != 0) {
-        if (r == EBUSY || r == EAGAIN) {
-            time::sleep_microsec(1000);
-            continue;
-        } else if (r == ETIMEDOUT) {
-            return ETIMEDOUT;
-        }
-        break;
-    }
-    assert_debug(r == 0);
-    return r;
 }
 inline void rwlock_t::unlock(void) {
-    int r = pthread_rwlock_unlock(&_rwlock);
+    int r MY_ATTRIBUTE((unused)) = mysql_rwlock_unlock(&_rwlock);
     assert_debug(r == 0);
 }
-inline rwlock_t::rwlock_t(const rwlock_t&) {
-}
+inline rwlock_t::rwlock_t(const rwlock_t&) {}
 inline rwlock_t& rwlock_t::operator=(const rwlock_t&) {
     return *this;
 }
@@ -358,7 +340,7 @@ inline rwlock_t& rwlock_t::operator=(const rwlock_t&) {
 inline event_t::event_t(bool create_signalled, bool manual_reset) :
     _manual_reset(manual_reset) {
 
-    int r = pthread_mutex_init(&_mutex, NULL);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_init(&_mutex, NULL);
     assert_debug(r == 0);
     r = pthread_cond_init(&_cond, NULL);
     assert_debug(r == 0);
@@ -370,13 +352,13 @@ inline event_t::event_t(bool create_signalled, bool manual_reset) :
     _pulsed = false;
 }
 inline event_t::~event_t(void) {
-    int r = pthread_mutex_destroy(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_destroy(&_mutex);
     assert_debug(r == 0);
     r = pthread_cond_destroy(&_cond);
     assert_debug(r == 0);
 }
 inline void event_t::wait(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     while (_signalled == false && _pulsed == false) {
         r = pthread_cond_wait(&_cond, &_mutex);
@@ -413,7 +395,7 @@ inline int event_t::wait(ulonglong microseconds) {
     return 0;
 }
 inline void event_t::signal(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _signalled = true;
     if (_manual_reset) {
@@ -427,7 +409,7 @@ inline void event_t::signal(void) {
     assert_debug(r == 0);
 }
 inline void event_t::pulse(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _pulsed = true;
     r = pthread_cond_signal(&_cond);
@@ -437,7 +419,7 @@ inline void event_t::pulse(void) {
 }
 inline bool event_t::signalled(void) {
     bool ret = false;
-    int r = pthread_mutex_lock(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     ret = _signalled;
     r = pthread_mutex_unlock(&_mutex);
@@ -445,7 +427,7 @@ inline bool event_t::signalled(void) {
     return ret;
 }
 inline void event_t::reset(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _signalled = false;
     _pulsed = false;
@@ -467,21 +449,21 @@ inline semaphore_t::semaphore_t(
     _initial_count(initial_count),
     _max_count(max_count) {
 
-    int r = pthread_mutex_init(&_mutex, NULL);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_init(&_mutex, NULL);
     assert_debug(r == 0);
     r = pthread_cond_init(&_cond, NULL);
     assert_debug(r == 0);
     _signalled = _initial_count;
 }
 inline semaphore_t::~semaphore_t(void) {
-    int r = pthread_mutex_destroy(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_destroy(&_mutex);
     assert_debug(r == 0);
     r = pthread_cond_destroy(&_cond);
     assert_debug(r == 0);
 }
 inline semaphore_t::E_WAIT semaphore_t::wait(void) {
     E_WAIT ret;
-    int r = pthread_mutex_lock(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     while (_signalled == 0 && _interrupted == false) {
         r = pthread_cond_wait(&_cond, &_mutex);
@@ -524,7 +506,7 @@ inline semaphore_t::E_WAIT semaphore_t::wait(ulonglong microseconds) {
 }
 inline bool semaphore_t::signal(void) {
     bool ret = false;
-    int r = pthread_mutex_lock(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     if (_signalled < _max_count) {
         _signalled++;
@@ -538,7 +520,7 @@ inline bool semaphore_t::signal(void) {
 }
 inline int semaphore_t::signalled(void) {
     int ret = 0;
-    int r = pthread_mutex_lock(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     ret = _signalled;
     r = pthread_mutex_unlock(&_mutex);
@@ -546,7 +528,7 @@ inline int semaphore_t::signalled(void) {
     return ret;
 }
 inline void semaphore_t::reset(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _signalled = 0;
     r = pthread_mutex_unlock(&_mutex);
@@ -554,7 +536,7 @@ inline void semaphore_t::reset(void) {
     return;
 }
 inline void semaphore_t::set_interrupt(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _interrupted = true;
     r = pthread_cond_broadcast(&_cond);
@@ -563,7 +545,7 @@ inline void semaphore_t::set_interrupt(void) {
     assert_debug(r == 0);
 }
 inline void semaphore_t::clear_interrupt(void) {
-    int r = pthread_mutex_lock(&_mutex);
+    int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
     _interrupted = false;
     r = pthread_mutex_unlock(&_mutex);

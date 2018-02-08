@@ -38,5 +38,51 @@ INSERT INTO t1( id ) VALUES ( NULL );
 SELECT t1.id  FROM t1  WHERE (id  is not null and id is null );
 DROP TABLE t1;
 
-# End of 5.1 tests
+--echo # End of 5.1 tests
 
+--echo #
+--echo # MDEV-14911: IS NULL for field from mergeable view
+--echo #
+
+CREATE TABLE t1 (d1 datetime NOT NULL);
+INSERT INTO t1 VALUES
+  ('0000-00-00 00:00:00'), ('0000-00-00 00:00:00'), ('1979-09-03 20:49:36');
+
+SELECT * FROM t1;
+SELECT * FROM t1 WHERE d1 IS NULL;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE d1 IS NULL;
+SELECT count(*) FROM t1 WHERE d1 IS NULL;
+
+CREATE VIEW v1 AS (SELECT * FROM t1);
+SELECT * FROM v1;
+SELECT * FROM v1 WHERE d1 IS NULL;
+EXPLAIN EXTENDED SELECT * FROM v1 WHERE d1 IS NULL;
+SELECT count(*) FROM v1 WHERE d1 IS NULL;
+
+SET @save_optimizer_switch=@@optimizer_switch;
+
+SET SESSION optimizer_switch='derived_merge=off';
+SELECT count(*) FROM ( SELECT * FROM t1 ) AS a1 WHERE d1 IS NULL;
+SET SESSION optimizer_switch='derived_merge=on';
+SELECT count(*) FROM ( SELECT * FROM t1 ) AS a1 WHERE d1 IS NULL;
+
+SET optimizer_switch=@save_optimizer_switch;
+
+CREATE TABLE t2 (d1 datetime NOT NULL);
+INSERT INTO t2 VALUES
+  ('1980-09-03 20:49:36'),  ('0000-00-00 00:00:00'), ('1979-09-03 20:49:36');
+
+SELECT * FROM t2 LEFT JOIN t1 ON t2.d1=t1.d1 WHERE t1.d1 IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t2 LEFT JOIN t1 ON t2.d1=t1.d1 WHERE t1.d1 IS NULL;
+
+SELECT * FROM t2 LEFT JOIN v1 ON t2.d1=v1.d1 WHERE v1.d1 IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t2 LEFT JOIN v1 ON t2.d1=v1.d1 WHERE v1.d1 IS NULL;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #

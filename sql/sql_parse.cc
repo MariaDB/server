@@ -7476,7 +7476,12 @@ void THD::reset_for_next_command(bool do_clear_error)
     clear_error(1);
 
   thd->free_list= 0;
-  thd->select_number= 1;
+  /*
+    We also assign thd->stmt_lex in lex_start(), but during bootstrap this
+    code is executed first.
+  */
+  thd->stmt_lex= &main_lex; thd->stmt_lex->current_select_number= 1;
+  DBUG_PRINT("info", ("Lex %p stmt_lex: %p", thd->lex, thd->stmt_lex));
   /*
     Those two lines below are theoretically unneeded as
     THD::cleanup_after_query() should take care of this already.
@@ -7526,10 +7531,9 @@ void THD::reset_for_next_command(bool do_clear_error)
   thd->thread_specific_used= FALSE;
 
   if (opt_bin_log)
-  {
     reset_dynamic(&thd->user_var_events);
-    thd->user_var_events_alloc= thd->mem_root;
-  }
+  DBUG_ASSERT(thd->user_var_events_alloc == &thd->main_mem_root);
+
   thd->get_stmt_da()->reset_for_next_command();
   thd->rand_used= 0;
   thd->m_sent_row_count= thd->m_examined_row_count= 0;
@@ -7596,7 +7600,7 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
   {
     if (!(select_lex= new (thd->mem_root) SELECT_LEX()))
       DBUG_RETURN(1);
-    select_lex->select_number= ++thd->select_number;
+    select_lex->select_number= ++thd->stmt_lex->current_select_number;
     select_lex->parent_lex= lex; /* Used in init_query. */
     select_lex->init_query();
     select_lex->init_select();

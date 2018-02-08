@@ -48,12 +48,13 @@ f (void *arg) {
     return arg;
 }
 
-int
-test_main(int argc, char *const argv[]) {
+int test_main(int argc, char *const argv[]) {
     parse_args(argc, argv);
     toku_pthread_t t;
-    int r = toku_pthread_create(&t, 0, f, 0); assert(r == 0);
+    int r = toku_pthread_create(toku_uninstrumented, &t, nullptr, f, nullptr);
+    assert(r == 0);
     void *ret;
-    r = toku_pthread_join(t, &ret); assert(r == 0);
+    r = toku_pthread_join(t, &ret);
+    assert(r == 0);
     return 0;
 }

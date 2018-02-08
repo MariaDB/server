@@ -195,14 +195,14 @@ int toku_rollback_frename(BYTESTRING old_iname,
         toku_cachetable_get_fname_in_cwd(cachetable, new_iname.data),
         &toku_free);
 
-    if (toku_stat(old_iname_full.get(), &stat) == -1) {
+    if (toku_stat(old_iname_full.get(), &stat, toku_uninstrumented) == -1) {
         if (ENOENT == errno)
             old_exist = false;
         else
             return 1;
     }
 
-    if (toku_stat(new_iname_full.get(), &stat) == -1) {
+    if (toku_stat(new_iname_full.get(), &stat, toku_uninstrumented) == -1) {
         if (ENOENT == errno || ENAMETOOLONG == errno)
             new_exist = false;
         else
@@ -220,7 +220,7 @@ int toku_rollback_frename(BYTESTRING old_iname,
     // removed
     // and the new file is renamed.
     if (old_exist && new_exist &&
-        (toku_os_unlink(old_iname_full.get()) == -1 ||
+        (toku_os_delete(old_iname_full.get()) == -1 ||
          toku_os_rename(new_iname_full.get(), old_iname_full.get()) == -1 ||
          toku_fsync_directory(new_iname_full.get()) == -1 ||
          toku_fsync_directory(old_iname_full.get()) == -1))

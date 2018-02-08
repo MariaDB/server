@@ -91,6 +91,15 @@ ha_heap::ha_heap(handlerton *hton, TABLE_SHARE *table_arg)
 
 int ha_heap::open(const char *name, int mode, uint test_if_locked)
 {
+  if (table->s->reclength < sizeof (char*))
+  {
+    MEM_UNDEFINED(table->s->default_values + table->s->reclength,
+                  sizeof(char*) - table->s->reclength);
+    table->s->reclength= sizeof(char*);
+    MEM_UNDEFINED(table->record[0], table->s->reclength);
+    MEM_UNDEFINED(table->record[1], table->s->reclength);
+  }
+
   internal_table= MY_TEST(test_if_locked & HA_OPEN_INTERNAL_TABLE);
   if (internal_table || (!(file= heap_open(name, mode)) && my_errno == ENOENT))
   {

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -124,7 +124,12 @@ not exist or is being dropped
 			use to stop dangling page reads from a tablespace
 			which we have DISCARDed + IMPORTed back
 @param[in]	offset		page number
-@param[in]	trx		transaction
+@param[in,out]	trx		transaction
+@param[in]	should_buffer	whether to buffer an aio request.
+				AIO read ahead uses this. If you plan to
+				use this parameter, make sure you remember
+				to call os_aio_dispatch_read_array_submit()
+				when you're ready to commit all your requests
 @return 1 if read request is issued. 0 if it is not */
 static
 ulint
@@ -137,7 +142,8 @@ buf_read_page_low(
 	ibool		unzip,
 	ib_int64_t	tablespace_version,
 	ulint		offset,
-	trx_t*		trx = NULL)
+	trx_t*		trx = NULL,
+	bool		should_buffer = false)
 {
 	buf_page_t*	bpage;
 	ulint		wake_later;
@@ -240,17 +246,18 @@ not_to_recover:
 	}
 
 	if (zip_size) {
-		*err = _fil_io(OS_FILE_READ | wake_later
-			       | ignore_nonexistent_pages,
-			       sync, space, zip_size, offset, 0, zip_size,
-			       frame, bpage, 0, trx);
+		*err = fil_io(OS_FILE_READ | wake_later
+			      | ignore_nonexistent_pages,
+			      sync, space, zip_size, offset, 0, zip_size,
+			      frame, bpage, 0, trx, should_buffer);
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 
-		*err = _fil_io(OS_FILE_READ | wake_later
+		*err = fil_io(OS_FILE_READ | wake_later
 			      | ignore_nonexistent_pages,
 			      sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
-			      frame, bpage, &bpage->write_size, trx);
+			      frame, bpage, &bpage->write_size,
+			      trx, should_buffer);
 	}
 
 	if (sync) {
@@ -848,7 +855,7 @@ buf_read_ahead_linear(
 				&err, false,
 				ibuf_mode,
 				space, zip_size, FALSE, tablespace_version,
-				i, trx);
+				i, trx, true);
 
 			switch(err) {
 			case DB_SUCCESS:
@@ -876,6 +883,7 @@ buf_read_ahead_linear(
 			}
 		}
 	}
+	os_aio_dispatch_read_array_submit();
 
 	/* In simulated aio we wake the aio handler threads only after
 	queuing all aio requests, in native aio the following call does
@@ -952,7 +960,7 @@ buf_read_ibuf_merge_pages(
 		buf_read_page_low(&err, sync && (i + 1 == n_stored),
 				  BUF_READ_ANY_PAGE, space_ids[i],
 				  zip_size, TRUE, space_versions[i],
-				  page_nos[i], NULL);
+				  page_nos[i]);
 
 		switch(err) {
 		case DB_SUCCESS:
@@ -1100,13 +1108,12 @@ not_to_recover:
 		if ((i + 1 == n_stored) && sync) {
 			buf_read_page_low(&err, true, BUF_READ_ANY_PAGE, space,
 					  zip_size, TRUE, tablespace_version,
-					  page_nos[i], NULL);
+					  page_nos[i]);
 		} else {
 			buf_read_page_low(&err, false, BUF_READ_ANY_PAGE
 					  | OS_AIO_SIMULATED_WAKE_LATER,
 					  space, zip_size, TRUE,
-					  tablespace_version, page_nos[i],
-					  NULL);
+					  tablespace_version, page_nos[i]);
 		}
 
 		if (err == DB_DECRYPTION_FAILED) {

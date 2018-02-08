@@ -393,13 +393,17 @@ static void test (const char *directory, bool is_error) {
     toku_pthread_t consumer;
     struct consumer_thunk cthunk = {q, 0};
     {
-	int r = toku_pthread_create(&consumer, NULL, consumer_thread, (void*)&cthunk);
-	assert(r==0);
+        int r = toku_pthread_create(toku_uninstrumented,
+                                    &consumer,
+                                    nullptr,
+                                    consumer_thread,
+                                    static_cast<void *>(&cthunk));
+        assert(r == 0);
     }
 
     toku_set_func_malloc_only(my_malloc);
     toku_set_func_realloc_only(my_realloc);
-    ft_loader_set_os_fwrite(bad_fwrite);
+    toku_set_func_fwrite(bad_fwrite);
     toku_set_func_write(bad_write);
     toku_set_func_pwrite(bad_pwrite);
     toku_set_func_fdopen(bad_fdopen);
@@ -427,7 +431,7 @@ static void test (const char *directory, bool is_error) {
 
     toku_set_func_malloc(NULL);
     toku_set_func_realloc(NULL);
-    ft_loader_set_os_fwrite(NULL);
+    toku_set_func_fwrite(nullptr);
     toku_set_func_write(NULL);
     toku_set_func_pwrite(NULL);
     toku_set_func_fdopen(NULL);

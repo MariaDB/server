@@ -48,6 +48,11 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include "threadpool.h"
 
+toku_instr_key *tpool_lock_mutex_key;
+toku_instr_key *tp_thread_wait_key;
+toku_instr_key *tp_pool_wait_free_key;
+toku_instr_key *tp_internal_thread_key;
+
 struct toku_thread {
     struct toku_thread_pool *pool;
     toku_pthread_t tid;
@@ -84,8 +89,12 @@ toku_thread_create(struct toku_thread_pool *pool, struct toku_thread **toku_thre
     } else {
         memset(thread, 0, sizeof *thread);
         thread->pool = pool;
-        toku_cond_init(&thread->wait, nullptr);
-        r = toku_pthread_create(&thread->tid, nullptr, toku_thread_run_internal, thread);
+        toku_cond_init(*tp_thread_wait_key, &thread->wait, nullptr);
+        r = toku_pthread_create(*tp_internal_thread_key,
+                                &thread->tid,
+                                nullptr,
+                                toku_thread_run_internal,
+                                thread);
         if (r) {
             toku_cond_destroy(&thread->wait);
             toku_free(thread);
@@ -105,11 +114,11 @@ toku_thread_run(struct toku_thread *thread, void *(*f)(void *arg), void *arg) {
     toku_thread_pool_unlock(thread->pool);
 }
 
-static void 
-toku_thread_destroy(struct toku_thread *thread) {
+static void toku_thread_destroy(struct toku_thread *thread) {
     int r;
     void *ret;
-    r = toku_pthread_join(thread->tid, &ret); invariant(r == 0 && ret == thread);
+    r = toku_pthread_join(thread->tid, &ret);
+    invariant(r == 0 && ret == thread);
     struct toku_thread_pool *pool = thread->pool;
     toku_thread_pool_lock(pool);
     toku_list_remove(&thread->free_link);
@@ -147,20 +156,20 @@ toku_thread_run_internal(void *arg) {
         thread->f = nullptr;
         toku_list_push(&pool->free_threads, &thread->free_link);
     }
-    return arg;
-}      
+    return toku_pthread_done(arg);
+}
 
-int 
-toku_thread_pool_create(struct toku_thread_pool **pool_return, int max_threads) {
+int toku_thread_pool_create(struct toku_thread_pool **pool_return,
+                            int max_threads) {
     int r;
     struct toku_thread_pool *CALLOC(pool);
     if (pool == nullptr) {
         r = get_error_errno();
     } else {
-        toku_mutex_init(&pool->lock, nullptr);
+        toku_mutex_init(*tpool_lock_mutex_key, &pool->lock, nullptr);
         toku_list_init(&pool->free_threads);
         toku_list_init(&pool->all_threads);
-        toku_cond_init(&pool->wait_free, nullptr);
+        toku_cond_init(*tp_pool_wait_free_key, &pool->wait_free, nullptr);
         pool->cur_threads = 0;
         pool->max_threads = max_threads;
         *pool_return = pool;

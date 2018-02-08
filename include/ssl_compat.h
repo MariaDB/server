@@ -51,14 +51,6 @@
 #define HAVE_OPENSSL10 1
 #define SSL_LIBRARY SSLeay_version(SSLEAY_VERSION)
 
-/*
-  Unfortunately RAND_bytes manual page does not provide any guarantees
-  in relation to blocking behavior. Here we explicitly use SSLeay random
-  instead of whatever random engine is currently set in OpenSSL. That way
-  we are guaranteed to have a non-blocking random.
-*/
-#define RAND_OpenSSL() RAND_SSLeay()
-
 #ifdef HAVE_ERR_remove_thread_state
 #define ERR_remove_state(X) ERR_remove_thread_state(NULL)
 #endif /* HAVE_ERR_remove_thread_state */

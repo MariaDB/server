@@ -1,16 +1,24 @@
 INSTALL SONAME 'auth_gssapi';
+Warnings:
+Note	1105	SSPI: using principal name 'localhost', mech 'Negotiate'
 CREATE USER 'GSSAPI_SHORTNAME' IDENTIFIED WITH gssapi;
+connect  con1,localhost,$GSSAPI_SHORTNAME,,;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 GSSAPI_SHORTNAME@localhost	GSSAPI_SHORTNAME@%
+disconnect con1;
+connection default;
 DROP USER 'GSSAPI_SHORTNAME';
 CREATE USER nosuchuser IDENTIFIED WITH gssapi;
 ERROR 28000: GSSAPI name mismatch, requested 'nosuchuser', actual name 'GSSAPI_SHORTNAME'
 DROP USER nosuchuser;
 CREATE USER usr1 IDENTIFIED WITH gssapi as 'GSSAPI_FULLNAME';
+connect  con1,localhost,usr1,,;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 usr1@localhost	usr1@%
+disconnect con1;
+connection default;
 DROP USER usr1;
 CREATE USER nosuchuser IDENTIFIED WITH gssapi AS 'nosuchuser@EXAMPLE.COM';
 ERROR 28000: GSSAPI name mismatch, requested 'nosuchuser@EXAMPLE.COM', actual name 'GSSAPI_FULLNAME'

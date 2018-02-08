@@ -8128,6 +8128,129 @@ SET @aux = f1();
 DROP FUNCTION f1;
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-14857: problem with 10.2.11 server crashing when
+# executing stored procedure
+#
+SET max_sp_recursion_depth=10;
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE PROCEDURE proc_0()
+BEGIN
+CALL empty_1();
+CALL proc_1();
+END ||
+CREATE PROCEDURE proc_1()
+BEGIN
+CALL proc_2();
+CALL proc_3();
+CALL proc_4();
+CALL proc_5();
+END ||
+CREATE PROCEDURE proc_2()
+CALL proc_6();
+||
+CREATE PROCEDURE proc_3()
+BEGIN
+CALL empty_2();
+CALL empty_3();
+END ||
+CREATE PROCEDURE proc_4()
+CALL proc_7();
+||
+CREATE PROCEDURE proc_5()
+CALL proc_select();
+||
+CREATE PROCEDURE proc_6()
+BEGIN
+CALL empty_4();
+CALL empty_5();
+CALL empty_6();
+CALL empty_7();
+CALL proc_8();
+END ||
+CREATE PROCEDURE proc_7()
+CALL proc_9('foo');
+||
+CREATE PROCEDURE proc_8()
+CALL proc_10();
+||
+CREATE PROCEDURE proc_9(IN opt VARCHAR(40))
+IF LEFT(opt,1) <> '_' THEN
+CALL proc_11();
+END IF;
+||
+CREATE PROCEDURE proc_10()
+CALL proc_12();
+||
+CREATE PROCEDURE proc_11()
+BEGIN
+CALL empty_8();
+CALL empty_9();
+CALL empty_10();
+CALL proc_13();
+END ||
+CREATE PROCEDURE proc_12()
+BEGIN
+CALL empty_11();
+CALL empty_12();
+CALL empty_13();
+END ||
+CREATE PROCEDURE proc_13()
+BEGIN
+CALL proc_9('_bar');
+CALL empty_14();
+END ||
+CREATE PROCEDURE empty_1() BEGIN END ;
+CREATE PROCEDURE empty_2() BEGIN END ;
+CREATE PROCEDURE empty_3() BEGIN END ;
+CREATE PROCEDURE empty_4() BEGIN END ;
+CREATE PROCEDURE empty_5() BEGIN END ;
+CREATE PROCEDURE empty_6() BEGIN END ;
+CREATE PROCEDURE empty_7() BEGIN END ;
+CREATE PROCEDURE empty_8() BEGIN END ;
+CREATE PROCEDURE empty_9() BEGIN END ;
+CREATE PROCEDURE empty_10() BEGIN END ;
+CREATE PROCEDURE empty_11() BEGIN END ;
+CREATE PROCEDURE empty_12() BEGIN END ;
+CREATE PROCEDURE empty_13() BEGIN END ;
+CREATE PROCEDURE empty_14() BEGIN END ;
+CREATE PROCEDURE proc_select()
+SELECT * FROM t1 WHERE NOT EXISTS ( SELECT * FROM t2)
+;
+CALL proc_0();
+a
+DROP PROCEDURE empty_1;
+DROP PROCEDURE empty_2;
+DROP PROCEDURE empty_3;
+DROP PROCEDURE empty_4;
+DROP PROCEDURE empty_5;
+DROP PROCEDURE empty_6;
+DROP PROCEDURE empty_7;
+DROP PROCEDURE empty_8;
+DROP PROCEDURE empty_9;
+DROP PROCEDURE empty_10;
+DROP PROCEDURE empty_11;
+DROP PROCEDURE empty_12;
+DROP PROCEDURE empty_13;
+DROP PROCEDURE empty_14;
+DROP PROCEDURE proc_0;
+DROP PROCEDURE proc_1;
+DROP PROCEDURE proc_2;
+DROP PROCEDURE proc_3;
+DROP PROCEDURE proc_4;
+DROP PROCEDURE proc_5;
+DROP PROCEDURE proc_6;
+DROP PROCEDURE proc_7;
+DROP PROCEDURE proc_8;
+DROP PROCEDURE proc_9;
+DROP PROCEDURE proc_10;
+DROP PROCEDURE proc_11;
+DROP PROCEDURE proc_12;
+DROP PROCEDURE proc_13;
+DROP PROCEDURE proc_select;
+DROP TABLE t1, t2;
+SET max_sp_recursion_depth=default;
 #End of 10.1 tests
 #
 # MDEV-11081: CURSOR for query with GROUP BY

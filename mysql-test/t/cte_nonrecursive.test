@@ -929,3 +929,38 @@ select * from v;
 
 drop view v;
 drop table region, nation;
+
+--echo #
+--echo # MDEV-15120: cte name used with database name
+--echo #
+
+--error ER_NO_SUCH_TABLE
+WITH cte AS (SELECT 1 AS a) SELECT test.cte.a FROM test.cte;
+
+CREATE DATABASE db1;
+USE db1;
+
+--error ER_NO_SUCH_TABLE
+WITH cte AS (SELECT 1 AS a) SELECT db1.cte.a FROM db1.cte;
+
+DROP DATABASE db1;
+USE test;
+
+--echo #
+--echo # MDEV-15119: CTE c2 specified after CTE c1 and is used in
+--echo #             CTE c3 that is embedded into the spec of c1
+--echo #
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+--error ER_NO_SUCH_TABLE
+WITH c1 AS (WITH c3 AS (SELECT * FROM c2) SELECT * FROM c3),
+     c2 AS (SELECT * FROM t1)
+SELECT * FROM c1;
+
+WITH RECURSIVE c1 AS (WITH c3 AS (SELECT * FROM c2) SELECT * FROM c3),
+     c2 AS (SELECT * FROM t1)
+SELECT * FROM c1;
+
+DROP TABLE t1;

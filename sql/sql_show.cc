@@ -2611,7 +2611,7 @@ public:
   { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr __attribute__((unused)),
                               size_t size __attribute__((unused)))
-  { TRASH(ptr, size); }
+  { TRASH_FREE(ptr, size); }
 
   my_thread_id thread_id;
   uint32 os_thread_id;

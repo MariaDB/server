@@ -244,37 +244,14 @@ class Item_func_concat :public Item_str_func
 protected:
   String tmp_value;
   /*
-     Get the i-th argument val_str() and its const_item()
-     @param i[IN]            - The argument number
-     @param str[IN]          - The buffer for val_str()
-     @param is_const[IN/OUT] - If args[i]->val_str() returned a non-null value,
-                               then args[i]->const_item() is returned here.
-                               Otherwise, the value of is_const is not touched.
-     @retval                 - the result of val_str().
-  */
-  String *arg_val_str(uint i, String *str, bool *is_const)
-  {
-    String *res= args[i]->val_str(str);
-    if (res)
-      *is_const= args[i]->const_item();
-    return res;
-  }
-  /*
     Append a non-NULL value to the result.
     @param [IN]     thd          - The current thread.
     @param [IN/OUT] res          - The current val_str() return value.
-    @param [IN]     res_is_const - If "false", then OK to append to "res"
-    @param [IN/OUT] str          - The val_str() argument.
-    @param [IN]     res2         - The value to be appended.
-    @param [IN/OUT] use_as_buff  - Which buffer to use for the next argument:
-                                     args[next_arg]->val_str(use_as_buff)
+    @param [IN]     app          - The value to be appended.
+    @retval                      - false on success, true on error
   */
-  String *append_value(THD *thd,
-                       String *res,
-                       bool res_is_const,
-                       String *str,
-                       String **use_as_buff,
-                       const String *res2);
+  bool append_value(THD *thd, String *res, const String *app);
+  bool realloc_result(String *str, uint length) const;
 public:
   Item_func_concat(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
   Item_func_concat(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}

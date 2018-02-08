@@ -54,7 +54,6 @@ galera_pc_ignore_sb : MDEV-13549 Galera test failures 10.1
 galera_lock_table : MDEV-13549 Galera test failures 10.1
 MW-284 : MDEV-13549 Galera test failures 10.1
 galera_as_slave : MDEV-13549 Galera test failures 10.1
-galera_var_innodb_disallow_writes : MDEV-10949
 galera_kill_applier : race condition at the start of the test
 GAL-480 : "Lost connection to MySQL"
 MW-328C: MDEV-13549 Galera test failures 10.1
@@ -62,3 +61,4 @@ MW-328A: MDEV-13549 Galera test failures 10.1
 MW-328B: MDEV-13549 Galera test failures 10.1
 MW-328: MDEV-13549 Galera test failures 10.1
 galera_suspend_slave: MDEV-13549 Galera test failures 10.1
+galera_ist_progress: MDEV-15236 galera_ist_progress fails when trying to read transfer status

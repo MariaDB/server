@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -297,7 +297,7 @@ result in recursive cascading calls. This defines the maximum number of
 such cascading deletes/updates allowed. When exceeded, the delete from
 parent table will fail, and user has to drop excessive foreign constraint
 before proceeds. */
-#define FK_MAX_CASCADE_DEL		255
+#define FK_MAX_CASCADE_DEL		15
 
 /**********************************************************************//**
 Creates a table memory object.
@@ -616,11 +616,10 @@ struct dict_col_t{
 					the string, MySQL uses 1 or 2
 					bytes to store the string length) */
 
-	unsigned	mbminmaxlen:5;	/*!< minimum and maximum length of a
-					character, in bytes;
-					DATA_MBMINMAXLEN(mbminlen,mbmaxlen);
-					mbminlen=DATA_MBMINLEN(mbminmaxlen);
-					mbmaxlen=DATA_MBMINLEN(mbminmaxlen) */
+	unsigned	mbminlen:3;	/*!< minimum length of a
+					character, in bytes */
+	unsigned	mbmaxlen:3;	/*!< maximum length of a
+					character, in bytes */
 	/*----------------------*/
 	/* End of definitions copied from dtype_t */
 	/* @} */

@@ -2109,7 +2109,7 @@ fil_write_flushed_lsn(
 {
 	byte*	buf1;
 	byte*	buf;
-	dberr_t	err;
+	dberr_t	err = DB_TABLESPACE_NOT_FOUND;
 
 	buf1 = static_cast<byte*>(ut_malloc_nokey(2 * UNIV_PAGE_SIZE));
 	buf = static_cast<byte*>(ut_align(buf1, UNIV_PAGE_SIZE));

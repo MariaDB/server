@@ -33,6 +33,7 @@ Created 2/23/1996 Heikki Tuuri
 #include "rem0cmp.h"
 #include "trx0trx.h"
 #include "srv0srv.h"
+
 /**************************************************************//**
 Allocates memory for a persistent cursor object and initializes the cursor.
 @return	own: persistent cursor */
@@ -511,7 +512,7 @@ btr_pcur_move_backward_from_page(
 
 	mtr_commit(mtr);
 
-	mtr_start_trx(mtr, mtr->trx);
+	mtr_start(mtr);
 
 	btr_pcur_restore_position(latch_mode2, cursor, mtr);
 

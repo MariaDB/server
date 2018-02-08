@@ -79,10 +79,12 @@ test_abort_create (void) {
             CAST_FROM_VOIDP(filename, iname.data);
             assert(filename);
         }
-	toku_struct_stat statbuf;
-        char fullfile[TOKU_PATH_MAX+1];
-	r = toku_stat(toku_path_join(fullfile, 2, TOKU_TEST_FILENAME, filename), &statbuf);
-	assert(r==0);
+        toku_struct_stat statbuf;
+        char fullfile[TOKU_PATH_MAX + 1];
+        r = toku_stat(toku_path_join(fullfile, 2, TOKU_TEST_FILENAME, filename),
+                      &statbuf,
+                      toku_uninstrumented);
+        assert(r == 0);
         toku_free(filename);
     }
 
@@ -100,10 +102,13 @@ test_abort_create (void) {
             CKERR2(r, DB_NOTFOUND);
         }
         toku_struct_stat statbuf;
-        char fullfile[TOKU_PATH_MAX+1];
-	r = toku_stat(toku_path_join(fullfile, 2, TOKU_TEST_FILENAME, "test.db"), &statbuf);
-        assert(r!=0);
-        assert(errno==ENOENT);
+        char fullfile[TOKU_PATH_MAX + 1];
+        r = toku_stat(
+            toku_path_join(fullfile, 2, TOKU_TEST_FILENAME, "test.db"),
+            &statbuf,
+            toku_uninstrumented);
+        assert(r != 0);
+        assert(errno == ENOENT);
     }
 
     r = env->close(env, 0); assert(r == 0);

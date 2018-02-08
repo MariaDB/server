@@ -108,7 +108,6 @@ ExecStart=@sbindir@/mysqld --defaults-file=@sysconf2dir@/my%I.cnf \
 # Unset _WSREP_START_POSITION environment variable.
 ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
 
-KillMode=process
 KillSignal=SIGTERM
 
 # Don't want to see an automated SIGKILL ever

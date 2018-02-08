@@ -3057,6 +3057,19 @@ Note	1003	with recursive destinations as (/* select#2 */ select `test`.`a`.`arri
 set standard_compliant_cte=default;
 drop table flights;
 #
+# MDEV-15162: Setting user variable in recursive CTE
+#
+SET @c=1;
+WITH RECURSIVE cte AS
+(SELECT 5
+UNION
+SELECT @c:=@c+1 FROM cte WHERE @c<3)
+SELECT * FROM cte;
+5
+5
+2
+3
+#
 # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field
 #
 CREATE TEMPORARY TABLE a_tbl (

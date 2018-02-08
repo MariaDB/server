@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -105,27 +105,6 @@ dtype_get_mblen(
 }
 
 /*********************************************************************//**
-Sets the minimum and maximum length of a character, in bytes. */
-UNIV_INLINE
-void
-dtype_set_mbminmaxlen(
-/*==================*/
-	dtype_t*	type,		/*!< in/out: type */
-	ulint		mbminlen,	/*!< in: minimum length of a char,
-					in bytes, or 0 if this is not
-					a character type */
-	ulint		mbmaxlen)	/*!< in: maximum length of a char,
-					in bytes, or 0 if this is not
-					a character type */
-{
-	ut_ad(mbminlen < DATA_MBMAX);
-	ut_ad(mbmaxlen < DATA_MBMAX);
-	ut_ad(mbminlen <= mbmaxlen);
-
-	type->mbminmaxlen = DATA_MBMINMAXLEN(mbminlen, mbmaxlen);
-}
-
-/*********************************************************************//**
 Compute the mbminlen and mbmaxlen members of a data type structure. */
 UNIV_INLINE
 void
@@ -137,7 +116,8 @@ dtype_set_mblen(
 	ulint	mbmaxlen;
 
 	dtype_get_mblen(type->mtype, type->prtype, &mbminlen, &mbmaxlen);
-	dtype_set_mbminmaxlen(type, mbminlen, mbmaxlen);
+	type->mbminlen = mbminlen;
+	type->mbmaxlen = mbmaxlen;
 
 	ut_ad(dtype_validate(type));
 }
@@ -233,8 +213,7 @@ dtype_get_mbminlen(
 /*===============*/
 	const dtype_t*	type)	/*!< in: type */
 {
-	ut_ad(type);
-	return(DATA_MBMINLEN(type->mbminmaxlen));
+	return type->mbminlen;
 }
 /*********************************************************************//**
 Gets the maximum length of a character, in bytes.
@@ -246,8 +225,7 @@ dtype_get_mbmaxlen(
 /*===============*/
 	const dtype_t*	type)	/*!< in: type */
 {
-	ut_ad(type);
-	return(DATA_MBMAXLEN(type->mbminmaxlen));
+	return type->mbmaxlen;
 }
 
 /*********************************************************************//**
@@ -523,8 +501,10 @@ dtype_get_fixed_size_low(
 	ulint	mtype,		/*!< in: main type */
 	ulint	prtype,		/*!< in: precise type */
 	ulint	len,		/*!< in: length */
-	ulint	mbminmaxlen,	/*!< in: minimum and maximum length of
-				a multibyte character, in bytes */
+	ulint	mbminlen,	/*!< in: minimum length of a
+				multibyte character, in bytes */
+	ulint	mbmaxlen,	/*!< in: maximum length of a
+				multibyte character, in bytes */
 	ulint	comp)		/*!< in: nonzero=ROW_FORMAT=COMPACT  */
 {
 	switch (mtype) {
@@ -565,11 +545,10 @@ dtype_get_fixed_size_low(
 				dtype_get_charset_coll(prtype),
 				&i_mbminlen, &i_mbmaxlen);
 
-			ut_ad(DATA_MBMINMAXLEN(i_mbminlen, i_mbmaxlen)
-			      == mbminmaxlen);
+			ut_ad(i_mbminlen == mbminlen);
+			ut_ad(i_mbmaxlen == mbmaxlen);
 #endif /* UNIV_DEBUG */
-			if (DATA_MBMINLEN(mbminmaxlen)
-			    == DATA_MBMAXLEN(mbminmaxlen)) {
+			if (mbminlen == mbmaxlen) {
 				return(len);
 			}
 		}
@@ -602,8 +581,8 @@ dtype_get_min_size_low(
 	ulint	mtype,		/*!< in: main type */
 	ulint	prtype,		/*!< in: precise type */
 	ulint	len,		/*!< in: length */
-	ulint	mbminmaxlen)	/*!< in: minimum and maximum length of a
-				multi-byte character */
+	ulint	mbminlen,	/*!< in: minimum length of a character */
+	ulint	mbmaxlen)	/*!< in: maximum length of a character */
 {
 	switch (mtype) {
 	case DATA_SYS:
@@ -633,9 +612,6 @@ dtype_get_min_size_low(
 		if (prtype & DATA_BINARY_TYPE) {
 			return(len);
 		} else {
-			ulint	mbminlen = DATA_MBMINLEN(mbminmaxlen);
-			ulint	mbmaxlen = DATA_MBMAXLEN(mbminmaxlen);
-
 			if (mbminlen == mbmaxlen) {
 				return(len);
 			}
@@ -706,9 +682,9 @@ dtype_get_sql_null_size(
 {
 #ifndef UNIV_HOTBACKUP
 	return(dtype_get_fixed_size_low(type->mtype, type->prtype, type->len,
-					type->mbminmaxlen, comp));
+					type->mbminlen, type->mbmaxlen, comp));
 #else /* !UNIV_HOTBACKUP */
 	return(dtype_get_fixed_size_low(type->mtype, type->prtype, type->len,
-					0, 0));
+					0, 0, 0));
 #endif /* !UNIV_HOTBACKUP */
 }

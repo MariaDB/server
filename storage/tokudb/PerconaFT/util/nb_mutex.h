@@ -49,35 +49,67 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 // increase parallelism at the expense of single thread performance, we
 // are experimenting with a single higher level lock.
 
+extern toku_instr_key *nb_mutex_key;
+
 typedef struct nb_mutex *NB_MUTEX;
 struct nb_mutex {
-    struct rwlock lock;
+    struct st_rwlock lock;
+#if defined(TOKU_MYSQL_WITH_PFS)
+    toku_mutex_t toku_mutex;
+#endif
 };
 
+#if defined(TOKU_MYSQL_WITH_PFS)
+#define nb_mutex_init(MK, RK, M)                                 \
+    inline_nb_mutex_init(MK, RK, M)
+#else
+#define nb_mutex_init(MK, RK, M) inline_nb_mutex_init(M)
+#endif
+
 // initialize an nb mutex
-static __attribute__((__unused__))
-void
-nb_mutex_init(NB_MUTEX nb_mutex) {
-    rwlock_init(&nb_mutex->lock);
+inline void inline_nb_mutex_init(
+#if defined(TOKU_MYSQL_WITH_PFS)
+    const toku_instr_key &mutex_instr_key,
+    const toku_instr_key &rwlock_instr_key,
+#endif
+    NB_MUTEX nb_mutex) {
+#if defined(TOKU_MYSQL_WITH_PFS)
+    toku_mutex_init(mutex_instr_key, &nb_mutex->toku_mutex, nullptr);
+#endif
+    rwlock_init(rwlock_instr_key, &nb_mutex->lock);
 }
 
 // destroy a read write lock
-static __attribute__((__unused__))
-void
-nb_mutex_destroy(NB_MUTEX nb_mutex) {
+inline void nb_mutex_destroy(NB_MUTEX nb_mutex) {
+#if defined(TOKU_MYSQL_WITH_PFS)
+    toku_instr_mutex_destroy(nb_mutex->toku_mutex.psi_mutex);
+#endif
     rwlock_destroy(&nb_mutex->lock);
 }
 
 // obtain a write lock
 // expects: mutex is locked
-static inline void nb_mutex_lock(NB_MUTEX nb_mutex, toku_mutex_t *mutex) {
+inline void nb_mutex_lock(NB_MUTEX nb_mutex, toku_mutex_t *mutex) {
+#ifdef TOKU_MYSQL_WITH_PFS
+    toku_mutex_instrumentation mutex_instr;
+    toku_instr_mutex_lock_start(mutex_instr,
+                                *mutex,
+                                __FILE__,
+                                __LINE__);  // TODO: pull these to caller?
+#endif
     rwlock_write_lock(&nb_mutex->lock, mutex);
+#if defined(TOKU_MYSQL_WITH_PFS)
+    toku_instr_mutex_lock_end(mutex_instr, 0);
+#endif
 }
 
 // release a write lock
 // expects: mutex is locked
 
-static inline void nb_mutex_unlock(NB_MUTEX nb_mutex) {
+inline void nb_mutex_unlock(NB_MUTEX nb_mutex) {
+#if defined(TOKU_MYSQL_WITH_PFS)
+    toku_instr_mutex_unlock(nb_mutex->toku_mutex.psi_mutex);
+#endif
     rwlock_write_unlock(&nb_mutex->lock);
 }
 

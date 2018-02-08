@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3141,11 +3141,26 @@ buf_pool_clear_hash_index()
 				see the comments in buf0buf.h */
 
 				if (!index) {
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+					ut_a(!block->n_pointers);
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 					continue;
 				}
 
-				ut_ad(buf_block_get_state(block)
-                                      == BUF_BLOCK_FILE_PAGE);
+				ut_d(buf_page_state state
+				     = buf_block_get_state(block));
+				/* Another thread may have set the
+				state to BUF_BLOCK_REMOVE_HASH in
+				buf_LRU_block_remove_hashed().
+
+				The state change in buf_page_realloc()
+				is not observable here, because in
+				that case we would have !block->index.
+
+				In the end, the entire adaptive hash
+				index will be removed. */
+				ut_ad(state == BUF_BLOCK_FILE_PAGE
+				      || state == BUF_BLOCK_REMOVE_HASH);
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 				block->n_pointers = 0;
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
