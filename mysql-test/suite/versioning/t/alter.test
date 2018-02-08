@@ -57,6 +57,9 @@ alter table t drop column trx_start, drop column trx_end;
 alter table t drop system versioning;
 show create table t;
 
+--error ER_VERS_NOT_VERSIONED
+alter table t add column trx_start timestamp(6) as row start;
+
 alter table t add system versioning;
 show create table t;
 

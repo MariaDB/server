@@ -71,6 +71,8 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t add column trx_start timestamp(6) as row start;
+ERROR HY000: Table `t` is not system-versioned
 alter table t add system versioning;
 show create table t;
 Table	Create Table

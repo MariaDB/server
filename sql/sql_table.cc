@@ -3090,7 +3090,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
           column_definition->default_value == NULL &&   // no constant default,
           column_definition->unireg_check == Field::NONE && // no function default
           column_definition->vcol_info == NULL &&
-          !(column_definition->flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG))) // column isn't generated
+          !(column_definition->flags & VERS_SYSTEM_FIELD)) // column isn't generated
       {
         DBUG_PRINT("info", ("First TIMESTAMP column '%s' was promoted to "
                             "DEFAULT CURRENT_TIMESTAMP ON UPDATE "
@@ -8078,6 +8078,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
         alter_ctx->datetime_field= def;
         alter_ctx->error_if_not_empty= TRUE;
+    }
+    if (def->flags & VERS_SYSTEM_FIELD &&
+        !(alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING))
+    {
+      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->s->table_name.str);
+      goto err;
     }
     if (!def->after.str)
       new_create_list.push_back(def, thd->mem_root);
