@@ -1,2 +1,4 @@
 usr/lib/*/libmysqld.a
+usr/lib/*/libmariadbd.a
 usr/lib/*/libmysqld.so
+usr/lib/*/libmariadbd.so
