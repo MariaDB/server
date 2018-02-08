@@ -889,7 +889,7 @@ wsrep_cb_status_t wsrep_commit(void*         const     ctx,
 
   bool const toi(flags & WSREP_FLAG_ISOLATION); // ineffective NBO end
   bool const fragment(!((flags & WSREP_FLAG_TRX_START) && trx_end) && !toi);
-  const wsrep_SR_trx_info* const SR_trx
+  wsrep_SR_trx_info* const SR_trx
       (fragment ? sr_pool->find(meta->stid.node, meta->stid.trx) : NULL);
 
   if (!SR_trx && trx_end && fragment)
