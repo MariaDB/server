@@ -61,8 +61,8 @@ static volatile bool	buf_load_should_start;
 static ibool	buf_load_abort_flag = FALSE;
 
 /* Used to temporary store dump info in order to avoid IO while holding
-buffer pool mutex during dump and also to sort the contents of the dump
-before reading the pages from disk during load.
+buffer pool LRU list mutex during dump and also to sort the contents of the
+dump before reading the pages from disk during load.
 We store the space id in the high 32 bits and page no in low 32 bits. */
 typedef ib_uint64_t	buf_dump_t;
 
@@ -245,18 +245,16 @@ buf_dump_generate_path(
 	}
 }
 
-/*****************************************************************//**
-Perform a buffer pool dump into the file specified by
+/** Perform a buffer pool dump into the file specified by
 innodb_buffer_pool_filename. If any errors occur then the value of
 innodb_buffer_pool_dump_status will be set accordingly, see buf_dump_status().
 The dump filename can be specified by (relative to srv_data_home):
-SET GLOBAL innodb_buffer_pool_filename='filename'; */
+SET GLOBAL innodb_buffer_pool_filename='filename';
+@param[in]	obey_shutdown	quit if we are in a shutting down state */
 static
 void
 buf_dump(
-/*=====*/
-	ibool	obey_shutdown)	/*!< in: quit if we are in a shutting down
-				state */
+	ibool	obey_shutdown)
 {
 #define SHOULD_QUIT()	(SHUTTING_DOWN() && obey_shutdown)
 
@@ -294,15 +292,15 @@ buf_dump(
 
 		buf_pool = buf_pool_from_array(i);
 
-		/* obtain buf_pool mutex before allocate, since
+		/* obtain buf_pool LRU list mutex before allocate, since
 		UT_LIST_GET_LEN(buf_pool->LRU) could change */
-		buf_pool_mutex_enter(buf_pool);
+		mutex_enter(&buf_pool->LRU_list_mutex);
 
 		n_pages = UT_LIST_GET_LEN(buf_pool->LRU);
 
 		/* skip empty buffer pools */
 		if (n_pages == 0) {
-			buf_pool_mutex_exit(buf_pool);
+			mutex_exit(&buf_pool->LRU_list_mutex);
 			continue;
 		}
 
@@ -335,7 +333,7 @@ buf_dump(
 				n_pages * sizeof(*dump)));
 
 		if (dump == NULL) {
-			buf_pool_mutex_exit(buf_pool);
+			mutex_exit(&buf_pool->LRU_list_mutex);
 			fclose(f);
 			buf_dump_status(STATUS_ERR,
 					"Cannot allocate " ULINTPF " bytes: %s",
@@ -357,7 +355,7 @@ buf_dump(
 
 		ut_a(j == n_pages);
 
-		buf_pool_mutex_exit(buf_pool);
+		mutex_exit(&buf_pool->LRU_list_mutex);
 
 		for (j = 0; j < n_pages && !SHOULD_QUIT(); j++) {
 			ret = fprintf(f, ULINTPF "," ULINTPF "\n",

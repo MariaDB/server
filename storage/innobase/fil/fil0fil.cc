@@ -5341,6 +5341,7 @@ fil_aio_wait(
 		/* async single page writes from the dblwr buffer don't have
 		access to the page */
 		buf_page_t* bpage = static_cast<buf_page_t*>(message);
+
 		if (!bpage) {
 			return;
 		}
