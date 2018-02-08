@@ -8009,6 +8009,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 	def_it.remove();
       }
     }
+    else if (alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING &&
+             field->flags & VERS_SYSTEM_FIELD &&
+             field->invisible < INVISIBLE_SYSTEM)
+    {
+      my_error(ER_VERS_SYS_FIELD_EXISTS, MYF(0), field->field_name.str);
+      goto err;
+    }
     else
     {
       /*
