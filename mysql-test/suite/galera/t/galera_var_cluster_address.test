@@ -19,12 +19,12 @@
 SET GLOBAL wsrep_cluster_address = 'foo://';
 
 # With wsrep_sync_wait, this returns an error
-#--error ER_LOCK_WAIT_TIMEOUT
-#SHOW STATUS;
+--error ER_LOCK_WAIT_TIMEOUT
+SHOW STATUS;
 
 SET SESSION wsrep_sync_wait=0;
 
---error ER_UNKNOWN_COM_ERROR
+--error 0
 SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
 
 # Must return 'OFF'
