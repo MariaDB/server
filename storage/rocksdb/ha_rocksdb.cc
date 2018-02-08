@@ -13141,7 +13141,6 @@ rocksdb_set_update_cf_options(THD *const /* unused */,
     }
   }
 
-    my_free(*reinterpret_cast<char**>(var_ptr));
   // Our caller (`plugin_var_memalloc_global_update`) will call `my_free` to
   // free up resources used before.
 
