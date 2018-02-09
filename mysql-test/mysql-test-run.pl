@@ -3416,14 +3416,11 @@ sub wait_wsrep_ready($$) {
 
   for (my $loop= 1; $loop <= $loops; $loop++)
   {
-
-    if (run_query_output($mysqld, $query, $outfile) == 0)
+    if (run_query_output($mysqld, $query, $outfile) == 0 &&
+        mtr_grab_file($outfile) =~ /^ON/)
     {
-      if (mtr_grab_file($outfile) =~ /^ON/)
-      {
-        unlink($outfile);
-        return 1;
-      }
+      unlink($outfile);
+      return 1;
     }
 
     mtr_milli_sleep($sleeptime);
