@@ -3369,6 +3369,8 @@ evict_from_pool:
 				mutex_enter(&buf_pool->LRU_list_mutex);
 				buf_block_unfix(fix_block);
 				mutex_exit(&buf_pool->LRU_list_mutex);
+
+				*err = DB_PAGE_CORRUPTED;
 				return NULL;
 			}
 		}

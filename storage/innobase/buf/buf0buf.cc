@@ -3453,6 +3453,8 @@ evict_from_pool:
 				buf_block_unfix(fix_block);
 				buf_pool_mutex_exit(buf_pool);
 				rw_lock_x_unlock(&fix_block->lock);
+
+				*err = DB_PAGE_CORRUPTED;
 				return NULL;
 			}
 		}
