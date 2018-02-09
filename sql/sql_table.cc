@@ -8260,9 +8260,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     bool delete_index_stat= FALSE;
     for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
     {
-      if (!key_part->field)
+      Field *kfield= key_part->field;
+      if (!kfield)
 	continue;				// Wrong field (from UNIREG)
-      const char *key_part_name=key_part->field->field_name.str;
+      const char *key_part_name=kfield->field_name.str;
       Create_field *cfield;
       uint key_part_length;
 
@@ -8284,7 +8285,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if (table->s->primary_key == i)
           modified_primary_key= TRUE;
         delete_index_stat= TRUE;
-        dropped_key_part= key_part_name;
+        if (!(kfield->flags & VERS_SYSTEM_FIELD))
+          dropped_key_part= key_part_name;
 	continue;				// Field is removed
       }
       key_part_length= key_part->length;
@@ -8321,10 +8323,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                 cfield->real_field_type() <= MYSQL_TYPE_BLOB) ?
                 blob_length_by_type(cfield->real_field_type()) :
                 cfield->length) <
-	     key_part_length / key_part->field->charset()->mbmaxlen)))
+	     key_part_length / kfield->charset()->mbmaxlen)))
 	  key_part_length= 0;			// Use whole field
       }
-      key_part_length /= key_part->field->charset()->mbmaxlen;
+      key_part_length /= kfield->charset()->mbmaxlen;
       key_parts.push_back(new Key_part_spec(&cfield->field_name,
 					    key_part_length),
                           thd->mem_root);

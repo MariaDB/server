@@ -267,6 +267,12 @@ select * from t for system_time all;
 insert into t values (4, 0);
 select * from t for system_time all;
 
+create or replace table t (a int, b int primary key, c int unique) with system versioning;
+insert t values (1,2,3),(1,3,4),(1,4,5);
+alter table t drop system versioning;
+show create table t;
+select * from t;
+
 create or replace table t (
   a int,
   row_start timestamp(6) as row start invisible,
