@@ -7283,60 +7283,6 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       }
     }
 
-    if (alter_info->drop_list.elements)
-    {
-      bool done_start= false;
-      bool done_end= false;
-      List_iterator<Alter_drop> it(alter_info->drop_list);
-      while (Alter_drop *d= it++)
-      {
-        const char *name= d->name;
-        Field *f= NULL;
-        if (!done_start && is_start(name))
-        {
-          f= share->vers_start_field();
-          done_start= true;
-        }
-        else if (!done_end && is_end(name))
-        {
-          f= share->vers_end_field();
-          done_end= true;
-        }
-        else
-          continue;
-        if (f->invisible > INVISIBLE_USER)
-        {
-          my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), d->type_name(), name);
-          return true;
-        }
-
-        bool integer= table->vers_start_field()->type() == MYSQL_TYPE_LONGLONG;
-        Create_field *field= vers_init_sys_field(thd, name, f->flags & VERS_SYSTEM_FIELD, integer);
-        if (!field)
-          return true;
-
-        field->change= f->field_name;
-
-        alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
-        alter_info->create_list.push_back(field);
-
-        it.remove();
-
-        if (done_start && done_end)
-          break;
-      }
-
-      if ((done_start || done_end) && done_start != done_end)
-      {
-        String tmp;
-        tmp.append("DROP COLUMN ");
-        tmp.append(done_start ? &table->vers_end_field()->field_name
-                              : &table->vers_start_field()->field_name);
-        my_error(ER_MISSING, MYF(0), table_name, tmp.c_ptr());
-        return true;
-      }
-    }
-
     return false;
   }
 
@@ -7369,7 +7315,7 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
     int remove= 2;
     while (remove && (f= it++))
     {
-      if (f->flags & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+      if (f->flags & VERS_SYSTEM_FIELD)
       {
         it.remove();
         remove--;

@@ -7868,7 +7868,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List<Virtual_column_info> new_constraint_list;
   uint db_create_options= (table->s->db_create_options
                            & ~(HA_OPTION_PACK_RECORD));
-  uint used_fields;
+  uint used_fields, dropped_sys_vers_fields= 0;
   KEY *key_info=table->key_info;
   bool rc= TRUE;
   bool modified_primary_key= FALSE;
@@ -7950,7 +7950,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           !my_strcasecmp(system_charset_info,field->field_name.str, drop->name))
         break;
     }
-    if (drop && field->invisible < INVISIBLE_SYSTEM)
+    /*
+      DROP COLULMN xxx
+      1. it does not see INVISIBLE_SYSTEM columns
+      2. otherwise, normally a column is dropped
+      3. unless it's a system versioning column (but see below).
+    */
+    if (drop && field->invisible < INVISIBLE_SYSTEM &&
+        !(field->flags & VERS_SYSTEM_FIELD &&
+          !(alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)))
     {
       /* Reset auto_increment value if it was dropped */
       if (MTYP_TYPENR(field->unireg_check) == Field::NEXT_NUMBER &&
@@ -7966,7 +7974,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       bitmap_set_bit(dropped_fields, field->field_index);
       continue;
     }
-    if (!drop && field->invisible == INVISIBLE_SYSTEM &&
+    /* invisible versioning column is dropped automatically on DROP SYSTEM VERSIONING */
+    if (!drop && field->invisible >= INVISIBLE_SYSTEM &&
         field->flags & VERS_SYSTEM_FIELD &&
         alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)
     {
@@ -8016,6 +8025,22 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       my_error(ER_VERS_SYS_FIELD_EXISTS, MYF(0), field->field_name.str);
       goto err;
     }
+    else if (drop && field->invisible < INVISIBLE_SYSTEM &&
+             field->flags & VERS_SYSTEM_FIELD &&
+             !(alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING))
+    {
+      /* "dropping" a versioning field only hides it from the user */
+      def= new (thd->mem_root) Create_field(thd, field, field);
+      def->invisible= INVISIBLE_SYSTEM;
+      dropped_sys_vers_fields|= field->flags;
+      alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
+      if (field->flags & VERS_SYS_START_FLAG)
+        create_info->vers_info.as_row.start= def->field_name= Vers_parse_info::default_start;
+      else
+        create_info->vers_info.as_row.end= def->field_name= Vers_parse_info::default_end;
+      new_create_list.push_back(def, thd->mem_root);
+      drop_it.remove();
+    }
     else
     {
       /*
@@ -8041,6 +8066,18 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 	alter_it.remove();
       }
     }
+  }
+  if (dropped_sys_vers_fields &&
+      ((dropped_sys_vers_fields & VERS_SYSTEM_FIELD) != VERS_SYSTEM_FIELD))
+  {
+    StringBuffer<NAME_LEN*2> tmp;
+    tmp.append(STRING_WITH_LEN("DROP COLUMN "));
+    if (dropped_sys_vers_fields & VERS_SYS_START_FLAG)
+      append_identifier(thd, &tmp, &table->vers_end_field()->field_name);
+    else
+      append_identifier(thd, &tmp, &table->vers_start_field()->field_name);
+    my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
+    goto err;
   }
   def_it.rewind();
   while ((def=def_it++))			// Add new columns

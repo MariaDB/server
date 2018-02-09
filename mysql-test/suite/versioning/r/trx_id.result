@@ -65,7 +65,7 @@ period for system_time (sys_start, sys_end)
 ) engine innodb with system versioning;
 insert into t1 values (1);
 alter table t1 drop column sys_start, drop column sys_end;
-select sys_end = 18446744073709551615 as transaction_based from t1 for system_time all;
+select row_end = 18446744073709551615 as transaction_based from t1 for system_time all;
 transaction_based
 1
 drop table t1;
