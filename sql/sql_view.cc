@@ -1934,19 +1934,19 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
       this operation should not have influence on Field::query_id, to avoid
       marking as used fields which are not used
     */
-    enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
-    thd->mark_used_columns= MARK_COLUMNS_NONE;
-    DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+    enum_column_usage saved_column_usage= thd->column_usage;
+    thd->column_usage= MARK_COLUMNS_NONE;
+    DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
     for (Field_translator *fld= trans; fld < end_of_trans; fld++)
     {
       if (!fld->item->fixed && fld->item->fix_fields(thd, &fld->item))
       {
-        thd->mark_used_columns= save_mark_used_columns;
+        thd->column_usage= saved_column_usage;
         DBUG_RETURN(TRUE);
       }
     }
-    thd->mark_used_columns= save_mark_used_columns;
-    DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+    thd->column_usage= saved_column_usage;
+    DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   }
   /* Loop over all keys to see if a unique-not-null key is used */
   for (;key_info != key_info_end ; key_info++)

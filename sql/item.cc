@@ -6214,11 +6214,11 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
     set_field(from_field);
   }
-  else if (thd->mark_used_columns != MARK_COLUMNS_NONE)
+  else if (thd->column_usage != MARK_COLUMNS_NONE)
   {
     TABLE *table= field->table;
     MY_BITMAP *current_bitmap, *other_bitmap;
-    if (thd->mark_used_columns == MARK_COLUMNS_READ)
+    if (thd->column_usage == MARK_COLUMNS_READ)
     {
       current_bitmap= table->read_set;
       other_bitmap=   table->write_set;
@@ -8947,7 +8947,7 @@ bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
       */
       Field *fld= ((Item_field*) ref_item)->field;
       DBUG_ASSERT(fld && fld->table);
-      if (thd->mark_used_columns == MARK_COLUMNS_READ)
+      if (thd->column_usage == MARK_COLUMNS_READ)
         bitmap_set_bit(fld->table->read_set, fld->field_index);
     }
   }
@@ -9248,7 +9248,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     if (!newptr)
       goto error;
     fix_session_vcol_expr_for_read(thd, def_field, def_field->default_value);
-    if (thd->mark_used_columns != MARK_COLUMNS_NONE)
+    if (thd->column_usage != MARK_COLUMNS_NONE)
       def_field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
     def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
   }
@@ -9526,15 +9526,15 @@ void Item_trigger_field::setup_field(THD *thd, TABLE *table,
     So instead we do it in Table_triggers_list::mark_fields_used()
     method which is called during execution of these statements.
   */
-  enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
-  thd->mark_used_columns= MARK_COLUMNS_NONE;
+  enum_column_usage saved_column_usage= thd->column_usage;
+  thd->column_usage= MARK_COLUMNS_NONE;
   /*
     Try to find field by its name and if it will be found
     set field_idx properly.
   */
   (void)find_field_in_table(thd, table, field_name.str, field_name.length,
                             0, &field_idx);
-  thd->mark_used_columns= save_mark_used_columns;
+  thd->column_usage= saved_column_usage;
   triggers= table->triggers;
   table_grants= table_grant_info;
 }

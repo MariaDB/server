@@ -5352,7 +5352,7 @@ Field *view_ref_found= (Field*) 0x2;
 static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
 {
   DBUG_ENTER("update_field_dependencies");
-  if (thd->mark_used_columns != MARK_COLUMNS_NONE)
+  if (thd->column_usage != MARK_COLUMNS_NONE)
   {
     MY_BITMAP *bitmap;
 
@@ -5366,7 +5366,7 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
     if (field->vcol_info)
       table->mark_virtual_col(field);
 
-    if (thd->mark_used_columns == MARK_COLUMNS_READ)
+    if (thd->column_usage == MARK_COLUMNS_READ)
       bitmap= table->read_set;
     else
       bitmap= table->write_set;
@@ -5374,13 +5374,13 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
     /* 
        The test-and-set mechanism in the bitmap is not reliable during
        multi-UPDATE statements under MARK_COLUMNS_READ mode
-       (thd->mark_used_columns == MARK_COLUMNS_READ), as this bitmap contains
+       (thd->column_usage == MARK_COLUMNS_READ), as this bitmap contains
        only those columns that are used in the SET clause. I.e they are being
        set here. See multi_update::prepare()
     */
     if (bitmap_fast_test_and_set(bitmap, field->field_index))
     {
-      if (thd->mark_used_columns == MARK_COLUMNS_WRITE)
+      if (thd->column_usage == MARK_COLUMNS_WRITE)
       {
         DBUG_PRINT("warning", ("Found duplicated field"));
         thd->dup_field= field;
@@ -5834,7 +5834,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
       fld= WRONG_GRANT;
     else
 #endif
-      if (thd->mark_used_columns != MARK_COLUMNS_NONE)
+      if (thd->column_usage != MARK_COLUMNS_NONE)
       {
         /*
           Get rw_set correct for this field so that the handler
@@ -5851,7 +5851,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
             field_to_set= ((Item_field*)it)->field;
           else
           {
-            if (thd->mark_used_columns == MARK_COLUMNS_READ)
+            if (thd->column_usage == MARK_COLUMNS_READ)
               it->walk(&Item::register_field_in_read_map, 0, 0);
             else
               it->walk(&Item::register_field_in_write_map, 0, 0);
@@ -5863,7 +5863,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
         {
           TABLE *table= field_to_set->table;
           DBUG_ASSERT(table);
-          if (thd->mark_used_columns == MARK_COLUMNS_READ)
+          if (thd->column_usage == MARK_COLUMNS_READ)
             bitmap_set_bit(table->read_set, field_to_set->field_index);
           else
             bitmap_set_bit(table->write_set, field_to_set->field_index);
@@ -7213,12 +7213,12 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 ****************************************************************************/
 
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
-                  List<Item> &fields, enum_mark_columns mark_used_columns,
+                  List<Item> &fields, enum_column_usage column_usage,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
                   bool allow_sum_func)
 {
   reg2 Item *item;
-  enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
+  enum_column_usage saved_column_usage= thd->column_usage;
   nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
   List_iterator<Item> it(fields);
   bool save_is_item_list_lookup;
@@ -7226,8 +7226,8 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   DBUG_ENTER("setup_fields");
   DBUG_PRINT("enter", ("ref_pointer_array: %p", ref_pointer_array.array()));
 
-  thd->mark_used_columns= mark_used_columns;
-  DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+  thd->column_usage= column_usage;
+  DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   if (allow_sum_func)
     thd->lex->allow_sum_func|=
       (nesting_map)1 << thd->lex->current_select->nest_level;
@@ -7280,8 +7280,8 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     {
       thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
       thd->lex->allow_sum_func= save_allow_sum_func;
-      thd->mark_used_columns= save_mark_used_columns;
-      DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+      thd->column_usage= saved_column_usage;
+      DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
       DBUG_RETURN(TRUE); /* purecov: inspected */
     }
     if (!ref.is_null())
@@ -7308,8 +7308,8 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->lex->current_select->cur_pos_in_select_list= UNDEF_POS;
 
   thd->lex->allow_sum_func= save_allow_sum_func;
-  thd->mark_used_columns= save_mark_used_columns;
-  DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+  thd->column_usage= saved_column_usage;
+  DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   DBUG_RETURN(MY_TEST(thd->is_error()));
 }
 
@@ -7992,8 +7992,8 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
 
   select_lex->is_item_list_lookup= 0;
 
-  thd->mark_used_columns= MARK_COLUMNS_READ;
-  DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+  thd->column_usage= MARK_COLUMNS_READ;
+  DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   select_lex->cond_count= 0;
   select_lex->between_count= 0;
   select_lex->max_equal_elems= 0;

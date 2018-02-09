@@ -1583,15 +1583,15 @@ bool fix_partition_func(THD *thd, TABLE *table,
 {
   bool result= TRUE;
   partition_info *part_info= table->part_info;
-  enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
+  enum_column_usage saved_column_usage= thd->column_usage;
   DBUG_ENTER("fix_partition_func");
 
   if (part_info->fixed)
   {
     DBUG_RETURN(FALSE);
   }
-  thd->mark_used_columns= MARK_COLUMNS_NONE;
-  DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+  thd->column_usage= MARK_COLUMNS_NONE;
+  DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
 
   if (!is_create_table_ind ||
        thd->lex->sql_command != SQLCOM_CREATE_TABLE)
@@ -1756,8 +1756,8 @@ bool fix_partition_func(THD *thd, TABLE *table,
   table->file->set_part_info(part_info);
   result= FALSE;
 end:
-  thd->mark_used_columns= save_mark_used_columns;
-  DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+  thd->column_usage= saved_column_usage;
+  DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   DBUG_RETURN(result);
 }
 

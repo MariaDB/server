@@ -16,7 +16,7 @@
 #ifndef SQL_BASE_INCLUDED
 #define SQL_BASE_INCLUDED
 
-#include "sql_class.h"                          /* enum_mark_columns */
+#include "sql_class.h"                          /* enum_column_usage */
 #include "sql_trigger.h"                        /* trg_event_type */
 #include "mysqld.h"                             /* key_map */
 #include "table_cache.h"
@@ -159,7 +159,7 @@ void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
 int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 	       List<Item> *sum_func_list, uint wild_num);
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
-                  List<Item> &item, enum_mark_columns mark_used_columns,
+                  List<Item> &item, enum_column_usage column_usage,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
                   bool allow_sum_func);
 void unfix_fields(List<Item> &items);
@@ -353,13 +353,13 @@ inline TABLE_LIST *find_table_in_global_list(TABLE_LIST *table,
 
 inline bool setup_fields_with_no_wrap(THD *thd, Ref_ptr_array ref_pointer_array,
                                       List<Item> &item,
-                                      enum_mark_columns mark_used_columns,
+                                      enum_column_usage column_usage,
                                       List<Item> *sum_func_list,
                                       bool allow_sum_func)
 {
   bool res;
   thd->lex->select_lex.no_wrap_view_item= TRUE;
-  res= setup_fields(thd, ref_pointer_array, item, mark_used_columns,
+  res= setup_fields(thd, ref_pointer_array, item, column_usage,
                     sum_func_list, NULL,  allow_sum_func);
   thd->lex->select_lex.no_wrap_view_item= FALSE;
   return res;

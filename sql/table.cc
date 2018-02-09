@@ -2858,12 +2858,12 @@ static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
 {
   DBUG_ENTER("fix_vcol_expr");
 
-  const enum enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
-  thd->mark_used_columns= MARK_COLUMNS_NONE;
+  const enum enum_column_usage saved_column_usage= thd->column_usage;
+  thd->column_usage= MARK_COLUMNS_NONE;
 
   int error= vcol->expr->fix_fields(thd, &vcol->expr);
 
-  thd->mark_used_columns= save_mark_used_columns;
+  thd->column_usage= saved_column_usage;
 
   if (unlikely(error))
   {
