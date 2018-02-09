@@ -46,6 +46,8 @@ class Item_func;
 class Item_bool_func;
 class Item_equal;
 class Virtual_tmp_table;
+class Qualified_column_ident;
+class Table_ident;
 
 enum enum_check_fields
 {
@@ -4377,7 +4379,6 @@ public:
   bool resolve_type_refs(THD *);
 };
 
-
 /**
   This class is used during a stored routine or a trigger execution,
   at sp_rcontext::create() time.
@@ -4399,8 +4400,8 @@ public:
 */
 class Spvar_definition: public Column_definition
 {
-  class Qualified_column_ident *m_column_type_ref; // for %TYPE
-  class Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
+  Qualified_column_ident *m_column_type_ref; // for %TYPE
+  Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
   bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
   uint m_cursor_rowtype_offset;                    // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
@@ -4427,20 +4428,20 @@ public:
   bool is_column_type_ref() const { return m_column_type_ref != 0; }
   bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }
   bool is_cursor_rowtype_ref() const { return m_cursor_rowtype_ref; }
-  class Qualified_column_ident *column_type_ref() const
+  Qualified_column_ident *column_type_ref() const
   {
     return m_column_type_ref;
   }
-  void set_column_type_ref(class Qualified_column_ident *ref)
+  void set_column_type_ref(Qualified_column_ident *ref)
   {
     m_column_type_ref= ref;
   }
 
-  class Table_ident *table_rowtype_ref() const
+  Table_ident *table_rowtype_ref() const
   {
     return m_table_rowtype_ref;
   }
-  void set_table_rowtype_ref(class Table_ident *ref)
+  void set_table_rowtype_ref(Table_ident *ref)
   {
     DBUG_ASSERT(ref);
     set_handler(&type_handler_row);
