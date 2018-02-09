@@ -5330,6 +5330,13 @@ static void calc_datetime_days_diff(MYSQL_TIME *ltime, long days)
                            ltime->second) * 1000000LL +
                            ltime->second_part);
     unpack_time(timediff, ltime);
+    /*
+      unpack_time() broke down hours into ltime members hour,day,month.
+      Mix them back to ltime->hour using the same factors
+      that pack_time()/unpack_time() use (i.e. 32 for month).
+    */
+    ltime->hour+= (ltime->month * 32 + ltime->day) * 24;
+    ltime->month= ltime->day= 0;
   }
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
 }
