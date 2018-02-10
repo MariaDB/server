@@ -1883,5 +1883,23 @@ show create table t1;
 drop table t1;
 
 --echo #
+--echo # MDEV-13508 Check that rename of columns changes defaults, virtual
+--echo # columns and constraints
+--echo #
+
+create table t1 (a int, b int, check(a>b));
+alter table t1 change column a b int, change column b a int;
+show create table t1;
+drop table t1;
+
+create table t1 (a int primary key, b int, c int default (a+b) check (a+b>0),
+                d int as (a+b),
+	        key (b),
+	        constraint test check (a+b > 1));
+alter table t1 change b new_b int not null, add column b char(1), add constraint new check (length(b) > 0);
+show create table t1;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

@@ -885,6 +885,34 @@ bool Item_field::add_field_to_set_processor(void *arg)
   DBUG_RETURN(FALSE);
 }
 
+
+/**
+   Rename fields in an expression to new field name as speficied by ALTER TABLE
+*/
+
+bool Item_field::rename_fields_processor(void *arg)
+{
+  Item::func_processor_rename *rename= (Item::func_processor_rename*) arg;
+  List_iterator<Create_field> def_it(rename->fields);
+  Create_field *def;
+
+  while ((def=def_it++))
+  {
+    if (def->change &&
+        (!db_name || !db_name[0] ||
+         !my_strcasecmp(table_alias_charset, db_name, rename->db_name.str)) &&
+        (!table_name || !table_name[0] ||
+         !my_strcasecmp(table_alias_charset, table_name, rename->table_name.str)) &&
+        !my_strcasecmp(system_charset_info, field_name, def->change))
+    {
+      field_name= def->field_name;
+      break;
+    }
+  }
+  return 0;
+}
+
+
 /**
   Check if an Item_field references some field from a list of fields.
 
