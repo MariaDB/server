@@ -23,6 +23,8 @@ TABLE_COLLATION	NULL
 CHECKSUM	NULL
 CREATE_OPTIONS	NULL
 TABLE_COMMENT	File './test/t1.CSM' not found (Errcode: 13 "Permission denied")
+MAX_INDEX_LENGTH	NULL
+TEMPORARY	NULL
 Warnings:
 Level	Warning
 Code	29

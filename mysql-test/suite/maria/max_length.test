@@ -121,4 +121,9 @@ show create table t1;
 insert into t1 select seq,seq from seq_1_to_10000000;
 select count(*) from t1;
 check table t1;
+--replace_column 12 # 13 # 14 #
+show table status like "t1";
+create index seq on t1(c1);
+--replace_column 12 # 13 # 14 #
+show table status like "t1";
 drop table t1;

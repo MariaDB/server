@@ -87,7 +87,7 @@ explain extended select c from v6;
 # show table/table status test
 show tables;
 show full tables;
---replace_column 8 # 12 # 13 # 14 #
+--replace_column 8 # 12 # 13 # 14 # 19 #
 show table status;
 
 drop view v1,v2,v3,v4,v5,v6;
@@ -738,7 +738,7 @@ create view v1 as select x1() from t1;
 drop function x1;
 -- error ER_VIEW_INVALID
 select * from v1;
---replace_column 8 # 12 # 13 #
+--replace_column 8 # 12 # 13 # 19 #
 show table status;
 drop view v1;
 drop table t1;
@@ -751,7 +751,7 @@ create view v1 as select a from t1;
 alter table t1 change a aa int;
 --error ER_VIEW_INVALID
 select * from v1;
---replace_column 8 # 12 # 13 #
+--replace_column 8 # 12 # 13 # 19 #
 show table status;
 show create view v1;
 drop view v1;

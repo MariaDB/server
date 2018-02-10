@@ -1407,8 +1407,8 @@ drop table t1;
 create table t1 (i int primary key auto_increment) engine=RocksDB;
 insert into t1 values (null),(null);
 show table status like 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	ROCKSDB	10	Fixed	1000	0	#	0	0	0	3	NULL	NULL	NULL	latin1_swedish_ci	NULL		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	10	Fixed	1000	0	#	0	0	0	3	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
 drop table t1;
 #
 # Fix Issue #4: Crash when using pseudo-unique keys
@@ -2501,8 +2501,8 @@ DROP TABLE t1;
 CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
 INSERT INTO t1 VALUES(0),(-1),(0);
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	ROCKSDB	10	Fixed	1000	0	0	0	0	0	3	NULL	NULL	NULL	latin1_swedish_ci	NULL		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	10	Fixed	1000	0	0	0	0	0	3	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
 SELECT * FROM t1;
 a
 -1
@@ -2512,8 +2512,8 @@ DROP TABLE t1;
 CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
 INSERT INTO t1 VALUES(0),(10),(0);
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	ROCKSDB	10	Fixed	1000	0	0	0	0	0	12	NULL	NULL	NULL	latin1_swedish_ci	NULL		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	10	Fixed	1000	0	0	0	0	0	12	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
 SELECT * FROM t1;
 a
 1
