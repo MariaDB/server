@@ -1041,8 +1041,8 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 	bool bOk = true;
 	bool bQL = false;
 	char * sScheme = NULL;
-	char * sHost = SPHINXAPI_DEFAULT_HOST;
-	char * sIndex = SPHINXAPI_DEFAULT_INDEX;
+	char * sHost = (char*) SPHINXAPI_DEFAULT_HOST;
+	char * sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
 	int iPort = SPHINXAPI_DEFAULT_PORT;
 
 	// parse connection string, if any
@@ -1068,12 +1068,12 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 			sHost--; // reuse last slash
 			iPort = 0;
 			if (!( sIndex = strrchr ( sHost, ':' ) ))
-				sIndex = SPHINXAPI_DEFAULT_INDEX;
+                          sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
 			else
 			{
 				*sIndex++ = '\0';
 				if ( !*sIndex )
-					sIndex = SPHINXAPI_DEFAULT_INDEX;
+                                  sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
 			}
 			bOk = true;
 			break;
@@ -1095,11 +1095,11 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 					if ( sIndex )
 						*sIndex++ = '\0';
 					else
-						sIndex = SPHINXAPI_DEFAULT_INDEX;
+                                          sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
 
 					iPort = atoi(sPort);
 					if ( !iPort )
-						iPort = SPHINXAPI_DEFAULT_PORT;
+                                          iPort = SPHINXAPI_DEFAULT_PORT;
 				}
 			} else
 			{
@@ -1107,7 +1107,7 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 				if ( sIndex )
 					*sIndex++ = '\0';
 				else
-					sIndex = SPHINXAPI_DEFAULT_INDEX;
+                                  sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
 			}
 			bOk = true;
 			break;
@@ -1303,8 +1303,8 @@ CSphSEQuery::CSphSEQuery ( const char * sQuery, int iLength, const char * sIndex
 	, m_sGeoLongAttr ( "" )
 	, m_fGeoLatitude ( 0.0f )
 	, m_fGeoLongitude ( 0.0f )
-	, m_sComment ( "" )
-	, m_sSelect ( "*" )
+	, m_sComment ( (char*) "" )
+	, m_sSelect ( (char*) "*" )
 
 	, m_pBuf ( NULL )
 	, m_pCur ( NULL )
