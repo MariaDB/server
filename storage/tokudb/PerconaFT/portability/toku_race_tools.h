@@ -40,6 +40,11 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include <portability/toku_config.h>
 
+#ifdef HAVE_valgrind
+#undef USE_VALGRIND
+#define USE_VALGRIND 1
+#endif
+
 #if defined(__linux__) && USE_VALGRIND
 
 # include <valgrind/helgrind.h>
