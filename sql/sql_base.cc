@@ -5352,7 +5352,7 @@ Field *view_ref_found= (Field*) 0x2;
 static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
 {
   DBUG_ENTER("update_field_dependencies");
-  if (thd->column_usage != MARK_COLUMNS_NONE)
+  if (should_mark_column(thd->column_usage))
   {
     MY_BITMAP *bitmap;
 
@@ -5834,7 +5834,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
       fld= WRONG_GRANT;
     else
 #endif
-      if (thd->column_usage != MARK_COLUMNS_NONE)
+      if (should_mark_column(thd->column_usage))
       {
         /*
           Get rw_set correct for this field so that the handler

@@ -6214,7 +6214,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
     set_field(from_field);
   }
-  else if (thd->column_usage != MARK_COLUMNS_NONE)
+  else if (should_mark_column(thd->column_usage))
   {
     TABLE *table= field->table;
     MY_BITMAP *current_bitmap, *other_bitmap;
@@ -9248,7 +9248,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     if (!newptr)
       goto error;
     fix_session_vcol_expr_for_read(thd, def_field, def_field->default_value);
-    if (thd->column_usage != MARK_COLUMNS_NONE)
+    if (should_mark_column(thd->column_usage))
       def_field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
     def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
   }
@@ -9527,7 +9527,8 @@ void Item_trigger_field::setup_field(THD *thd, TABLE *table,
     method which is called during execution of these statements.
   */
   enum_column_usage saved_column_usage= thd->column_usage;
-  thd->column_usage= MARK_COLUMNS_NONE;
+  thd->column_usage= want_privilege == SELECT_ACL ? COLUMNS_READ
+                                                  : COLUMNS_WRITE;
   /*
     Try to find field by its name and if it will be found
     set field_idx properly.

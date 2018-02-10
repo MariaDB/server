@@ -1318,7 +1318,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
         goto error;
       }
       if (setup_fields(thd, Ref_ptr_array(),
-                       *values, MARK_COLUMNS_NONE, 0, NULL, 0))
+                       *values, COLUMNS_READ, 0, NULL, 0))
         goto error;
     }
   }
@@ -1424,7 +1424,7 @@ static int mysql_test_update(Prepared_statement *stmt,
   table_list->register_want_access(SELECT_ACL);
 #endif
   if (setup_fields(thd, Ref_ptr_array(),
-                   stmt->lex->value_list, MARK_COLUMNS_NONE, 0, NULL, 0) ||
+                   stmt->lex->value_list, COLUMNS_READ, 0, NULL, 0) ||
       check_unique_table(thd, table_list))
     goto error;
   /* TODO: here we should send types of placeholders to the client. */
@@ -1597,7 +1597,7 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
                                      DT_PREPARE | DT_CREATE))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
-                           *values, MARK_COLUMNS_NONE, 0, NULL, 0));
+                           *values, COLUMNS_READ, 0, NULL, 0));
 }
 
 

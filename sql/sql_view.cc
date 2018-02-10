@@ -1935,7 +1935,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
       marking as used fields which are not used
     */
     enum_column_usage saved_column_usage= thd->column_usage;
-    thd->column_usage= MARK_COLUMNS_NONE;
+    thd->column_usage= COLUMNS_WRITE;
     DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
     for (Field_translator *fld= trans; fld < end_of_trans; fld++)
     {

@@ -1315,7 +1315,7 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
     we must not set query_id for fields as they're not 
     really used in this context
   */
-  thd->column_usage= MARK_COLUMNS_NONE;
+  thd->column_usage= COLUMNS_WRITE;
   /* check simplicity and prepare unique test of view */
   for (trans= trans_start; trans != trans_end; trans++)
   {

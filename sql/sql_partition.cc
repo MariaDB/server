@@ -1590,7 +1590,7 @@ bool fix_partition_func(THD *thd, TABLE *table,
   {
     DBUG_RETURN(FALSE);
   }
-  thd->column_usage= MARK_COLUMNS_NONE;
+  thd->column_usage= COLUMNS_WRITE;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
 
   if (!is_create_table_ind ||
