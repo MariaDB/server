@@ -1461,9 +1461,7 @@ DROP TABLE t1, m1;
 #             and there is incorrect merge table
 #
 CREATE TABLE tm1 (c1 INT) ENGINE=MRG_MYISAM UNION=(t1) INSERT_METHOD=FIRST;
---replace_column 8 # 9 # 10 # 11 # 12 # 13 # 14 # 15 # 16 # 17 # 19 # 20 #
-SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE
-TABLE_SCHEMA = 'test' and TABLE_NAME='tm1';
+SELECT table_schema, table_name, table_type, engine, version, row_format, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='tm1';
 
 DROP TABLE tm1;
 

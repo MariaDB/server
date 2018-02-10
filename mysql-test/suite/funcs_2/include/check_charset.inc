@@ -17,7 +17,7 @@ if ($std_cset)
  eval CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET $cset COLLATE $coll) ENGINE=$engine_type CHARACTER SET $cset COLLATE $coll;
 }
 
---replace_column 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 11 # 12 # 13 # 14 # 16 # 17 # 18 #
+--replace_column 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 11 # 12 # 13 # 14 # 16 # 17 # 18 # 19 #
 SHOW TABLE STATUS LIKE 't1';
 
 --disable_warnings

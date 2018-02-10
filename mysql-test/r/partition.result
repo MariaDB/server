@@ -1693,8 +1693,8 @@ PARTITION BY RANGE(id)
 PARTITION p1 VALUES LESS THAN (20) ENGINE = MyISAM,
 PARTITION p2 VALUES LESS THAN (30) ENGINE = MyISAM);
 SHOW TABLE STATUS;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Dynamic	0	0	0	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned	
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Dynamic	0	0	0	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 DROP TABLE t1;
 create table t1 (a bigint unsigned)
 partition by list (a)
@@ -1790,18 +1790,18 @@ drop table t1;
 CREATE TABLE t1 (a int) ENGINE = MYISAM PARTITION BY KEY(a);
 INSERT into t1 values (1), (2);
 SHOW TABLE STATUS;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	2	7	14	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned	
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	2	7	14	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 DELETE from t1 where a = 1;
 SHOW TABLE STATUS;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	1	14	14	0	0	7	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned	
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	14	14	0	0	7	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 ALTER TABLE t1 OPTIMIZE PARTITION p0;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 SHOW TABLE STATUS;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	1	7	7	0	1024	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned	
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	7	7	0	1024	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 DROP TABLE t1;
 CREATE TABLE t1 (a int, index(a)) PARTITION BY KEY(a);
 ALTER TABLE t1 DISABLE KEYS;
@@ -1982,15 +1982,15 @@ create table t1(a int auto_increment, b int, primary key (b, a))
 partition by hash(b) partitions 2;
 insert into t1 values (null, 1);
 show table status;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	1	9	9	0	0	0	1	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned	
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	9	9	0	0	0	1	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 drop table t1;
 create table t1(a int auto_increment primary key)
 partition by key(a) partitions 2;
 insert into t1 values (null), (null), (null);
 show table status;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	3	7	21	0	0	0	4	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned	
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	3	7	21	0	0	0	4	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 drop table t1;
 CREATE TABLE t1(a INT NOT NULL, b TINYBLOB, KEY(a))
 PARTITION BY RANGE(a) ( PARTITION p0 VALUES LESS THAN (32));

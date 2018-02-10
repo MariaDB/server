@@ -4686,6 +4686,7 @@ void handler::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->data_file_length=     stats.data_file_length;
   stat_info->max_data_file_length= stats.max_data_file_length;
   stat_info->index_file_length=    stats.index_file_length;
+  stat_info->max_index_file_length=stats.max_index_file_length;
   stat_info->delete_length=        stats.delete_length;
   stat_info->create_time=          stats.create_time;
   stat_info->update_time=          stats.update_time;

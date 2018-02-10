@@ -901,7 +901,7 @@ CREATE TABLE t1 (
 PRIMARY KEY  (`_id`),
 UNIQUE KEY `sequence_name_index` (`name`(50)),
 KEY (`length_`)
-) DEFAULT CHARSET=latin1;
+) DEFAULT CHARSET=latin1 row_format=dynamic;
 INSERT INTO t1 VALUES
 (1,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'sample1',''),
 (2,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'sample2',''),
@@ -924,9 +924,9 @@ _id
 8
 9
 DELETE FROM t1 WHERE _id < 8;
-SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	Aria	10	Page	2	#	#	#	#	0	#	#	#	#	#	#		
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
+table_name	engine	version	row_format	Table_rows	Data_free	create_options	table_comment
+t1	Aria	10	Dynamic	2	140	row_format=DYNAMIC	
 CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -936,9 +936,9 @@ test.t1	optimize	status	OK
 CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
-SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	Aria	10	Page	2	#	#	#	#	0	#	#	#	#	#	#		
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
+table_name	engine	version	row_format	Table_rows	Data_free	create_options	table_comment
+t1	Aria	10	Dynamic	2	0	row_format=DYNAMIC	
 SELECT _id FROM t1;
 _id
 8
@@ -960,7 +960,7 @@ CREATE TABLE t1 (
 PRIMARY KEY  (`_id`),
 UNIQUE KEY `sequence_name_index` (`name`(50)),
 KEY (`length_`)
-) DEFAULT CHARSET=latin1;
+) DEFAULT CHARSET=latin1 row_format=dynamic;
 INSERT INTO t1 VALUES
 (1,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'sample1',''),
 (2,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'sample2',''),
@@ -983,9 +983,9 @@ _id
 8
 9
 DELETE FROM t1 WHERE _id < 8;
-SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	Aria	10	Page	2	#	#	#	#	0	#	#	#	#	#	#		
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
+table_name	engine	version	row_format	Table_rows	Data_free	create_options	table_comment
+t1	Aria	10	Dynamic	2	140	row_format=DYNAMIC	
 CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -995,9 +995,9 @@ test.t1	repair	status	OK
 CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
-SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	Aria	10	Page	2	#	#	#	#	0	#	#	#	#	#	#		
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
+table_name	engine	version	row_format	Table_rows	Data_free	create_options	table_comment
+t1	Aria	10	Dynamic	2	140	row_format=DYNAMIC	
 SELECT _id FROM t1;
 _id
 8
@@ -1761,28 +1761,28 @@ a
 DROP TABLE t1;
 CREATE TABLE t1 (c1 INT, c2 INT, UNIQUE INDEX (c1), INDEX (c2));
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	Aria	10	Page	0	#	#	#	8192	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	Aria	10	Page	0	#	#	#	8192	#	#	#	#	#	#	#			#	N
 INSERT INTO t1 VALUES (1,1);
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	Aria	10	Page	1	#	#	#	24576	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	Aria	10	Page	1	#	#	#	24576	#	#	#	#	#	#	#			#	N
 ALTER TABLE t1 DISABLE KEYS;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	Aria	10	Page	1	#	#	#	24576	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	Aria	10	Page	1	#	#	#	24576	#	#	#	#	#	#	#			#	N
 ALTER TABLE t1 ENABLE KEYS;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	Aria	10	Page	1	#	#	#	24576	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	Aria	10	Page	1	#	#	#	24576	#	#	#	#	#	#	#			#	N
 ALTER TABLE t1 DISABLE KEYS;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	Aria	10	Page	1	#	#	#	24576	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	Aria	10	Page	1	#	#	#	24576	#	#	#	#	#	#	#			#	N
 ALTER TABLE t1 ENABLE KEYS;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	Aria	10	Page	1	#	#	#	24576	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	Aria	10	Page	1	#	#	#	24576	#	#	#	#	#	#	#			#	N
 # Enable keys with parallel repair
 SET @@aria_repair_threads=2;
 ALTER TABLE t1 DISABLE KEYS;

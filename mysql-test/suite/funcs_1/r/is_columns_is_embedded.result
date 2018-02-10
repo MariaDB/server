@@ -373,6 +373,7 @@ def	information_schema	TABLES	DATA_LENGTH	10	NULL	YES	bigint	NULL	NULL	20	0	NULL
 def	information_schema	TABLES	ENGINE	5	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
 def	information_schema	TABLES	INDEX_LENGTH	12	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned					NEVER	NULL
 def	information_schema	TABLES	MAX_DATA_LENGTH	11	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned					NEVER	NULL
+def	information_schema	TABLES	MAX_INDEX_LENGTH	22	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned					NEVER	NULL
 def	information_schema	TABLES	ROW_FORMAT	7	NULL	YES	varchar	10	30	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(10)					NEVER	NULL
 def	information_schema	TABLES	TABLE_CATALOG	1	''	NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)					NEVER	NULL
 def	information_schema	TABLES	TABLE_COLLATION	18	NULL	YES	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)					NEVER	NULL
@@ -381,6 +382,7 @@ def	information_schema	TABLES	TABLE_NAME	3	''	NO	varchar	64	192	NULL	NULL	NULL	u
 def	information_schema	TABLES	TABLE_ROWS	8	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned					NEVER	NULL
 def	information_schema	TABLES	TABLE_SCHEMA	2	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
 def	information_schema	TABLES	TABLE_TYPE	4	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
+def	information_schema	TABLES	TEMPORARY	23	NULL	YES	varchar	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1)					NEVER	NULL
 def	information_schema	TABLES	UPDATE_TIME	16	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime					NEVER	NULL
 def	information_schema	TABLES	VERSION	6	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned					NEVER	NULL
 def	information_schema	TABLESPACES	AUTOEXTEND_SIZE	6	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned					NEVER	NULL
@@ -914,6 +916,8 @@ NULL	information_schema	TABLES	CHECK_TIME	datetime	NULL	NULL	NULL	NULL	datetime
 NULL	information_schema	TABLES	CHECKSUM	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
 3.0000	information_schema	TABLES	CREATE_OPTIONS	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
 3.0000	information_schema	TABLES	TABLE_COMMENT	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
+NULL	information_schema	TABLES	MAX_INDEX_LENGTH	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
+3.0000	information_schema	TABLES	TEMPORARY	varchar	1	3	utf8	utf8_general_ci	varchar(1)
 3.0000	information_schema	TABLESPACES	TABLESPACE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	TABLESPACES	ENGINE	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	TABLESPACES	TABLESPACE_TYPE	varchar	64	192	utf8	utf8_general_ci	varchar(64)

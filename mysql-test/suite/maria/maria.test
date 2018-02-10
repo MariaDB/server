@@ -839,7 +839,7 @@ CREATE TABLE t1 (
   PRIMARY KEY  (`_id`),
   UNIQUE KEY `sequence_name_index` (`name`(50)),
   KEY (`length_`)
-) DEFAULT CHARSET=latin1;
+) DEFAULT CHARSET=latin1 row_format=dynamic;
 #
 INSERT INTO t1 VALUES
   (1,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'sample1',''),
@@ -854,13 +854,11 @@ INSERT INTO t1 VALUES
 #
 SELECT _id FROM t1;
 DELETE FROM t1 WHERE _id < 8;
---replace_column 6 # 7 # 8 # 9 # 11 # 12 # 13 # 14 # 15 # 16 #
-SHOW TABLE STATUS LIKE 't1';
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
 CHECK TABLE t1 EXTENDED;
 OPTIMIZE TABLE t1;
 CHECK TABLE t1 EXTENDED;
---replace_column 6 # 7 # 8 # 9 # 11 # 12 # 13 # 14 # 15 # 16 #
-SHOW TABLE STATUS LIKE 't1';
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
 SELECT _id FROM t1;
 DROP TABLE t1;
 #
@@ -881,7 +879,7 @@ CREATE TABLE t1 (
   PRIMARY KEY  (`_id`),
   UNIQUE KEY `sequence_name_index` (`name`(50)),
   KEY (`length_`)
-) DEFAULT CHARSET=latin1;
+) DEFAULT CHARSET=latin1 row_format=dynamic;
 #
 INSERT INTO t1 VALUES
   (1,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'sample1',''),
@@ -896,13 +894,11 @@ INSERT INTO t1 VALUES
 #
 SELECT _id FROM t1;
 DELETE FROM t1 WHERE _id < 8;
---replace_column 6 # 7 # 8 # 9 # 11 # 12 # 13 # 14 # 15 # 16 #
-SHOW TABLE STATUS LIKE 't1';
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
 CHECK TABLE t1 EXTENDED;
 REPAIR TABLE t1 QUICK;
 CHECK TABLE t1 EXTENDED;
---replace_column 6 # 7 # 8 # 9 # 11 # 12 # 13 # 14 # 15 # 16 #
-SHOW TABLE STATUS LIKE 't1';
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
 SELECT _id FROM t1;
 DROP TABLE t1;
 #
@@ -1082,22 +1078,22 @@ DROP TABLE t1;
 # Bug#4692 - DISABLE/ENABLE KEYS waste a space
 #
 CREATE TABLE t1 (c1 INT, c2 INT, UNIQUE INDEX (c1), INDEX (c2));
---replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 #
+--replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 # 19 #
 SHOW TABLE STATUS LIKE 't1';
 INSERT INTO t1 VALUES (1,1);
---replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 #
+--replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 # 19 #
 SHOW TABLE STATUS LIKE 't1';
 ALTER TABLE t1 DISABLE KEYS;
---replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 #
+--replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 # 19 #
 SHOW TABLE STATUS LIKE 't1';
 ALTER TABLE t1 ENABLE KEYS;
---replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 #
+--replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 # 19 #
 SHOW TABLE STATUS LIKE 't1';
 ALTER TABLE t1 DISABLE KEYS;
---replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 #
+--replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 # 19 #
 SHOW TABLE STATUS LIKE 't1';
 ALTER TABLE t1 ENABLE KEYS;
---replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 #
+--replace_column 6 # 7 # 8 # 10 # 11 # 12 # 13 # 14 # 15 # 16 # 19 #
 SHOW TABLE STATUS LIKE 't1';
 #--exec ls -log var/mysqld.1/data/test/t1
 #--exec aria_chk -dvv var/mysqld.1/data/test/t1

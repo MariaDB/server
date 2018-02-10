@@ -5288,7 +5288,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
     }
 
-    for (int i= 4; i < 20; i++)
+    for (uint i= 4; i < table->s->fields; i++)
     {
       if (i == 7 || (i > 12 && i < 17) || i == 18)
         continue;
@@ -5466,8 +5466,15 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       {
         table->field[10]->store((longlong) file->stats.max_data_file_length,
                                 TRUE);
+        table->field[10]->set_notnull();
       }
       table->field[11]->store((longlong) file->stats.index_file_length, TRUE);
+      if (file->stats.max_index_file_length)
+      {
+        table->field[21]->store((longlong) file->stats.max_index_file_length,
+                                TRUE);
+        table->field[21]->set_notnull();
+      }
       table->field[12]->store((longlong) file->stats.delete_length, TRUE);
       if (show_table->found_next_number_field)
       {
@@ -5502,6 +5509,11 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
         table->field[18]->set_notnull();
       }
     }
+    /* If table is a temporary table */
+    LEX_CSTRING tmp= { STRING_WITH_LEN("N") };
+    if (show_table->s->tmp_table != NO_TMP_TABLE)
+      tmp.str= "Y";
+    table->field[22]->store(tmp.str, tmp.length, cs);
   }
 
 err:
@@ -8685,6 +8697,9 @@ ST_FIELD_INFO tables_fields_info[]=
    OPEN_FULL_TABLE},
   {"TABLE_COMMENT", TABLE_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 
    "Comment", OPEN_FRM_ONLY},
+  {"MAX_INDEX_LENGTH", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
+   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Max_index_length", OPEN_FULL_TABLE},
+  {"TEMPORARY", 1, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, "Temporary", OPEN_FRM_ONLY},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 
