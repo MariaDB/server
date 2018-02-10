@@ -5372,6 +5372,7 @@ end:
 			trx_rollback_to_savepoint(trx, NULL);
 			trx->error_state = DB_SUCCESS;
 		}
+		table->data_dir_path= NULL;
 	}
 
 funct_exit:
