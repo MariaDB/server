@@ -173,7 +173,7 @@ SET(INSTALL_SBINDIR_DEB                 "sbin")
 SET(INSTALL_SCRIPTDIR_DEB               "bin")
 SET(INSTALL_SYSCONF2DIR_DEB             "/etc/mysql/conf.d")
 #
-SET(INSTALL_LIBDIR_DEB                  "lib")
+SET(INSTALL_LIBDIR_DEB                  "lib/${CMAKE_CXX_LIBRARY_ARCHITECTURE}")
 SET(INSTALL_PLUGINDIR_DEB               "lib/mysql/plugin")
 #
 SET(INSTALL_INCLUDEDIR_DEB              "include/mysql")
@@ -185,7 +185,7 @@ SET(INSTALL_INFODIR_DEB                 "share/info")
 #
 SET(INSTALL_SHAREDIR_DEB                "share")
 SET(INSTALL_MYSQLSHAREDIR_DEB           "share/mysql")
-SET(INSTALL_MYSQLTESTDIR_DEB            "mysql-test")
+SET(INSTALL_MYSQLTESTDIR_DEB            "share/mysql/mysql-test")
 SET(INSTALL_SQLBENCHDIR_DEB             ".")
 SET(INSTALL_SUPPORTFILESDIR_DEB         "share/mysql")
 #
