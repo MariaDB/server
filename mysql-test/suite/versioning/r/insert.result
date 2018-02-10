@@ -298,7 +298,12 @@ select x, y, sys_trx_end = 18446744073709551615 as current from t1 for system_ti
 x	y	current
 2	2	1
 1	1	0
-create or replace table t1 (x int) with system versioning engine innodb;
+create or replace table t1 (
+x int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
 insert into t1 values  (1), (2);
 insert into t1 (row_start) select row_end from t1;
 ERROR HY000: The value specified for generated column 'row_start' in table 't1' ignored
