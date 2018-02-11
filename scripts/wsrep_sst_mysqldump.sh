@@ -21,7 +21,13 @@
 # to avoid shell's "parameter not set" message.
 WSREP_SST_OPT_CONF=""
 
-. $(dirname $0)/wsrep_sst_common
+if [ -x "@CMAKE_INSTALL_PREFIX@/@INSTALL_LIBEXECDIR@"/wsrep_sst_common ]
+then
+    . "@CMAKE_INSTALL_PREFIX@/@INSTALL_LIBEXECDIR@"/wsrep_sst_common
+else
+    . $(dirname $0)/wsrep_sst_common
+fi
+
 PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
 
 EINVAL=22
