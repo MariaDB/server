@@ -1763,8 +1763,6 @@ public:
 
   virtual Item_field *field_for_view_update() { return 0; }
 
-  virtual Item *vers_transformer(THD *thd, uchar *)
-  { return this; }
   virtual bool vers_trx_id() const
   { return false; }
   virtual Item *neg_transformer(THD *thd) { return NULL; }
@@ -2928,7 +2926,6 @@ public:
   uint32 max_display_length() const { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
-  virtual Item *vers_transformer(THD *thd, uchar *);
   virtual bool vers_trx_id() const;
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);

@@ -1767,8 +1767,6 @@ private:
   void cleanup_item_list(List<Item> &items) const;
   bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
-
-  void vers_check_items();
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};

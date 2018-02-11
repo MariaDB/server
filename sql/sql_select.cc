@@ -690,46 +690,6 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   return false;
 }
 
-inline
-void JOIN::vers_check_items()
-{
-  Item_transformer transformer= &Item::vers_transformer;
-
-  if (conds)
-  {
-    Item *tmp = conds->transform(thd, transformer, NULL);
-    if (conds != tmp)
-      conds= tmp;
-  }
-
-  for (ORDER *ord= order; ord; ord= ord->next)
-  {
-    Item *tmp= (*ord->item)->transform(thd, transformer, NULL);
-    if (*ord->item != tmp)
-    {
-      ord->item_ptr= tmp;
-      *ord->item= ord->item_ptr;
-    }
-  }
-
-  for (ORDER *ord= group_list; ord; ord= ord->next)
-  {
-    Item *tmp= (*ord->item)->transform(thd, transformer, NULL);
-    if (*ord->item != tmp)
-    {
-      ord->item_ptr= tmp;
-      *ord->item= ord->item_ptr;
-    }
-  }
-
-  if (having)
-  {
-    Item *tmp= having->transform(thd, transformer, NULL);
-    if (having != tmp)
-      having= tmp;
-  }
-}
-
 int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr)
 {
   DBUG_ENTER("SELECT_LEX::vers_setup_cond");
@@ -1143,7 +1103,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   /*
     TRUE if the SELECT list mixes elements with and without grouping,
     and there is no GROUP BY clause. Mixing non-aggregated fields with
-    aggregate functions in the SELECT list is a MySQL exptenstion that
+    aggregate functions in the SELECT list is a MySQL extenstion that
     is allowed only if the ONLY_FULL_GROUP_BY sql mode is not set.
   */
   mixed_implicit_grouping= false;
@@ -1438,11 +1398,6 @@ JOIN::prepare(TABLE_LIST *tables_init,
 
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
-
-  if (!thd->stmt_arena->is_stmt_prepare() && select_lex->versioned_tables > 0)
-  {
-    vers_check_items();
-  }
 
   unit= unit_arg;
   if (prepare_stage2())
@@ -4046,17 +4001,6 @@ void JOIN::exec_inner()
   result->send_result_set_metadata(
                  procedure ? procedure_fields_list : *fields,
                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
-
-  {
-    List_iterator<Item> it(*columns_list);
-    while (Item *item= it++)
-    {
-      Item_transformer transformer= &Item::vers_transformer;
-      Item *new_item= item->transform(thd, transformer, NULL);
-      if (new_item) // Item_default_value::transform() may return NULL
-        it.replace(new_item);
-    }
-  }
 
   error= do_select(this, procedure);
   /* Accumulate the counts from all join iterations of all join parts. */

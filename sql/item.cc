@@ -10626,24 +10626,6 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
   return find_matching_grouping_field(this, sel) != NULL;
 }
 
-Item *Item_field::vers_transformer(THD *thd, uchar *)
-{
-  if (!field)
-    return this;
-
-  if (field->vers_update_unversioned() && context &&
-      field->table->pos_in_table_list &&
-      field->table->pos_in_table_list->vers_conditions)
-  {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-        ER_NON_VERSIONED_FIELD_IN_HISTORICAL_QUERY,
-        ER_THD(thd, ER_NON_VERSIONED_FIELD_IN_HISTORICAL_QUERY),
-        field_name.str);
-  }
-
-  return this;
-}
-
 bool Item_field::vers_trx_id() const
 {
   DBUG_ASSERT(field);
