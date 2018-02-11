@@ -27,7 +27,12 @@ STUNNEL_REAL_PID=0 # stunnel process id
 OS="$(uname)"
 [ "$OS" = 'Darwin' ] && export -n LD_LIBRARY_PATH
 
-. $(dirname "$0")/wsrep_sst_common
+if [ -x "@CMAKE_INSTALL_PREFIX@/@INSTALL_LIBEXECDIR@"/wsrep_sst_common ]
+then
+    . "@CMAKE_INSTALL_PREFIX@/@INSTALL_LIBEXECDIR@"/wsrep_sst_common
+else
+    . $(dirname $0)/wsrep_sst_common
+fi
 wsrep_check_datadir
 
 wsrep_check_programs rsync
