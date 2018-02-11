@@ -45,6 +45,7 @@
 # - INSTALL_SYSCONF2DIR     (additional config files, e.g. /etc/mysql/conf.d)
 #
 # - INSTALL_LIBDIR          (directory with client end embedded libraries)
+# - INSTALL_LIBEXECDIR      (directory of script helpers)
 # - INSTALL_PLUGINDIR       (directory for plugins)
 #
 # - INSTALL_INCLUDEDIR      (directory for MySQL headers)
@@ -110,6 +111,7 @@ SET(INSTALL_SBINDIR_STANDALONE          "bin")
 SET(INSTALL_SCRIPTDIR_STANDALONE        "scripts")
 #
 SET(INSTALL_LIBDIR_STANDALONE           "lib")
+SET(INSTALL_LIBEXECDIR_STANDALONE       "libexec")
 SET(INSTALL_PLUGINDIR_STANDALONE        "lib/plugin")
 #
 SET(INSTALL_INCLUDEDIR_STANDALONE       "include/mysql")
@@ -144,6 +146,7 @@ ELSE()
   SET(INSTALL_LIBDIR_RPM                "lib")
   SET(INSTALL_PLUGINDIR_RPM             "lib/mysql/plugin")
 ENDIF()
+SET(INSTALL_LIBEXECDIR_RPM              "libexec")
 #
 SET(INSTALL_INCLUDEDIR_RPM              "include/mysql")
 #
@@ -174,6 +177,7 @@ SET(INSTALL_SCRIPTDIR_DEB               "bin")
 SET(INSTALL_SYSCONF2DIR_DEB             "/etc/mysql/conf.d")
 #
 SET(INSTALL_LIBDIR_DEB                  "lib")
+SET(INSTALL_LIBEXECDIR_DEV              "libexec")
 SET(INSTALL_PLUGINDIR_DEB               "lib/mysql/plugin")
 #
 SET(INSTALL_INCLUDEDIR_DEB              "include/mariadb")
@@ -204,6 +208,7 @@ SET(INSTALL_SBINDIR_SVR4                "bin")
 SET(INSTALL_SCRIPTDIR_SVR4              "scripts")
 #
 SET(INSTALL_LIBDIR_SVR4                 "lib")
+SET(INSTALL_LIBEXECDIR_SRV4             "libexec")
 SET(INSTALL_PLUGINDIR_SVR4              "lib/plugin")
 #
 SET(INSTALL_INCLUDEDIR_SVR4             "include/mysql")
@@ -234,7 +239,7 @@ SET(OLD_INSTALL_LAYOUT ${INSTALL_LAYOUT} CACHE INTERNAL "")
 # Set INSTALL_FOODIR variables for chosen layout (for example, INSTALL_BINDIR
 # will be defined  as ${INSTALL_BINDIR_STANDALONE} by default if STANDALONE
 # layout is chosen)
-FOREACH(var BIN SBIN LIB MYSQLSHARE SHARE PLUGIN INCLUDE SCRIPT DOC MAN SYSCONF SYSCONF2
+FOREACH(var BIN SBIN LIB LIBEXEC MYSQLSHARE SHARE PLUGIN INCLUDE SCRIPT DOC MAN SYSCONF SYSCONF2
     INFO MYSQLTEST SQLBENCH DOCREADME SUPPORTFILES MYSQLDATA UNIX_ADDR
     SYSTEMD_UNIT SYSTEMD_SYSUSERS SYSTEMD_TMPFILES)
   SET(INSTALL_${var}DIR  ${INSTALL_${var}DIR_${INSTALL_LAYOUT}}
