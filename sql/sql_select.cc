@@ -690,6 +690,47 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   return false;
 }
 
+void vers_select_conds_t::print(String *str, enum_query_type query_type)
+{
+  const static LEX_CSTRING unit_type[]=
+  {
+    { STRING_WITH_LEN("") },
+    { STRING_WITH_LEN("TIMESTAMP ") },
+    { STRING_WITH_LEN("TRANACTION ") }
+  };
+  switch (type) {
+  case SYSTEM_TIME_UNSPECIFIED:
+    break;
+  case SYSTEM_TIME_AS_OF:
+    str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME AS OF "));
+    str->append(unit_type + unit_start);
+    start->print(str, query_type);
+    break;
+  case SYSTEM_TIME_FROM_TO:
+    str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME FROM "));
+    str->append(unit_type + unit_start);
+    start->print(str, query_type);
+    str->append(STRING_WITH_LEN(" TO "));
+    str->append(unit_type + unit_end);
+    end->print(str, query_type);
+    break;
+  case SYSTEM_TIME_BETWEEN:
+    str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME BETWEEN "));
+    str->append(unit_type + unit_start);
+    start->print(str, query_type);
+    str->append(STRING_WITH_LEN(" AND "));
+    str->append(unit_type + unit_end);
+    end->print(str, query_type);
+    break;
+  case SYSTEM_TIME_BEFORE:
+    DBUG_ASSERT(0);
+    break;
+  case SYSTEM_TIME_ALL:
+    str->append(" FOR SYSTEM_TIME ALL");
+    break;
+  }
+}
+
 int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr)
 {
   DBUG_ENTER("SELECT_LEX::vers_setup_cond");
@@ -703,6 +744,9 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     // statement is already prepared
     DBUG_RETURN(0);
   }
+
+  if (thd->lex->is_view_context_analysis())
+    DBUG_RETURN(0);
 
   if (!versioned_tables)
   {
@@ -977,6 +1021,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         DBUG_ASSERT(0);
       }
     }
+    vers_conditions.type= SYSTEM_TIME_ALL;
 
     if (cond1)
     {
@@ -1004,9 +1049,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       this->where= *dst_cond;
       this->where->top_level_item();
     }
-
-    if (outer_table)
-      outer_table->vers_conditions.type= SYSTEM_TIME_ALL;
 
     // Invalidate current SP [#52, #422]
     if (thd->spcont)
@@ -25998,10 +26040,8 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
     }
     if (table && table->versioned())
-    {
-      // versioning conditions are already unwrapped to WHERE clause
-      str->append(" FOR SYSTEM_TIME ALL");
-    }
+      vers_conditions.print(str, query_type);
+
     if (my_strcasecmp(table_alias_charset, cmp_name, alias.str))
     {
       char t_alias_buff[MAX_ALIAS_NAME];

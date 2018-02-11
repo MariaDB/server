@@ -7825,7 +7825,7 @@ ER_VERS_FIELD_WRONG_TYPE
 ER_VERS_ENGINE_UNSUPPORTED
         eng "Transaction system versioning for %`s is not supported"
 
-ER_UNUSED_22
+ER_UNUSED_23
         eng "You should never see it"
 
 ER_PARTITION_WRONG_TYPE

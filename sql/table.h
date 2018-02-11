@@ -1900,6 +1900,8 @@ struct vers_select_conds_t
             Item * s= NULL, vers_sys_type_t u_end= VERS_UNDEFINED,
             Item * e= NULL);
 
+  void print(String *str, enum_query_type query_type);
+
   bool init_from_sysvar(THD *thd);
 
   bool operator== (vers_system_time_t b)
