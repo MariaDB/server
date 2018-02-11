@@ -47,7 +47,7 @@ static char *field_escape(char *to,const char *from,uint length);
 static char *add_load_option(char *ptr,const char *object,
 			     const char *statement);
 
-static my_bool	verbose=0,lock_tables=0,ignore_errors=0,opt_delete=0,
+static my_bool	verbose=0,lock_tables=0,ignore_errors=0,opt_delete=0, ignore_foreign_keys=0,
 		replace=0,silent=0,ignore=0,opt_compress=0,
                 opt_low_priority= 0, tty_password= 0;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
@@ -121,6 +121,10 @@ static struct my_option my_long_options[] =
    0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", &current_host,
    &current_host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"ignore-foreign-keys", 'k',
+   "Ignore foreign key checks while importing data.",
+   (uchar**) &ignore_foreign_keys, (uchar**) &ignore_foreign_keys, 0, GET_BOOL, NO_ARG,
+   0, 0, 0, 0, 0, 0},
   {"ignore", 'i', "If duplicate unique key was found, keep old row.",
    &ignore, &ignore, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-lines", OPT_IGN_LINES, "Ignore first n lines of data infile.",
@@ -488,6 +492,9 @@ static MYSQL *db_connect(char *host, char *database,
   {
     ignore_errors=0;
     db_error(mysql);
+  }
+  if (ignore_foreign_keys) {
+    mysql_query(mysql, "SET FOREIGN_KEY_CHECKS = 0;");
   }
   return mysql;
 }
