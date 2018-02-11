@@ -372,7 +372,7 @@ ELSE()
     # install script
     INSTALL_SCRIPT(
       ${CMAKE_CURRENT_BINARY_DIR}/${file}
-      DESTINATION ${INSTALL_BINDIR}
+      DESTINATION ${INSTALL_LIBEXECDIR}
       COMPONENT ${${file}_COMPONENT}
     )
 
