@@ -1496,6 +1496,7 @@ public:
   longlong val_int_native();
   my_decimal *val_decimal_native(my_decimal *);
   bool get_date_native(MYSQL_TIME *res, ulonglong fuzzydate);
+  bool get_time_native(MYSQL_TIME *res);
 
   double val_real()
   {

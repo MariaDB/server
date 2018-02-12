@@ -2739,6 +2739,29 @@ bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 }
 
 
+bool Item_func_min_max::get_time_native(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(fixed == 1);
+
+  Time value(args[0]);
+  if (!value.is_valid_time())
+    return (null_value= true);
+
+  for (uint i= 1; i < arg_count ; i++)
+  {
+    Time tmp(args[i]);
+    if (!tmp.is_valid_time())
+      return (null_value= true);
+
+    int cmp= value.cmp(&tmp);
+    if ((cmp_sign < 0 ? cmp : -cmp) < 0)
+      value= tmp;
+  }
+  value.copy_to_mysql_time(ltime);
+  return (null_value= 0);
+}
+
+
 String *Item_func_min_max::val_str_native(String *str)
 {
   String *UNINIT_VAR(res);

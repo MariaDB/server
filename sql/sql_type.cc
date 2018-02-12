@@ -121,6 +121,15 @@ bool Type_handler_data::init()
 Type_handler_data *type_handler_data= NULL;
 
 
+void Time::make_from_item(Item *item)
+{
+  if (item->get_time(this))
+    time_type= MYSQL_TIMESTAMP_NONE;
+  else
+    valid_MYSQL_TIME_to_valid_value();
+}
+
+
 void Type_std_attributes::set(const Field *field)
 {
   decimals= field->decimals();
@@ -3900,6 +3909,13 @@ bool Type_handler_temporal_result::
                                   MYSQL_TIME *ltime, ulonglong fuzzydate) const
 {
   return func->get_date_native(ltime, fuzzydate);
+}
+
+bool Type_handler_time_common::
+       Item_func_min_max_get_date(Item_func_min_max *func,
+                                  MYSQL_TIME *ltime, ulonglong fuzzydate) const
+{
+  return func->get_time_native(ltime);
 }
 
 /***************************************************************************/

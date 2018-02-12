@@ -1412,3 +1412,78 @@ d	t0	t1
 DROP TABLE t1;
 DROP TABLE t0;
 SET sql_mode=DEFAULT;
+#
+# MDEV-15287 Bad result for LEAST/GREATEST(datetime_alike_string, time)
+#
+SELECT
+GREATEST('2010-01-01 10:10:10',TIME('-20:20:20')) AS gt_minus20_implicit,
+GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20')) AS gt_minis20_explicit,
+GREATEST('2010-01-01 10:10:10',TIME('20:20:20')) AS gt_plus20_implicit,
+GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20')) AS gt_plus20_explicit;
+gt_minus20_implicit	10:10:10.000000
+gt_minis20_explicit	10:10:10.000000
+gt_plus20_implicit	20:20:20.000000
+gt_plus20_explicit	20:20:20.000000
+SELECT
+HOUR(GREATEST('2010-01-01 10:10:10',TIME('-20:20:20'))) AS gt_minus20_implicit,
+HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20'))) AS gt_minis20_explicit,
+HOUR(GREATEST('2010-01-01 10:10:10',TIME('20:20:20'))) AS gt_plus20_implicit,
+HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20'))) AS gt_plus20_explicit;
+gt_minus20_implicit	10
+gt_minis20_explicit	10
+gt_plus20_implicit	20
+gt_plus20_explicit	20
+SELECT
+LEAST('2010-01-01 10:10:10',TIME('-20:20:20')) AS lt_minus20_implicit,
+LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20')) AS lt_minus20_explicit,
+LEAST('2010-01-01 10:10:10',TIME('20:20:20')) AS lt_plus20_implicit,
+LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20')) AS lt_plus20_explicit;
+lt_minus20_implicit	-20:20:20.000000
+lt_minus20_explicit	-20:20:20.000000
+lt_plus20_implicit	10:10:10.000000
+lt_plus20_explicit	10:10:10.000000
+SELECT
+HOUR(LEAST('2010-01-01 10:10:10',TIME('-20:20:20'))) AS lt_minus20_implicit,
+HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20'))) AS lt_minus20_explicit,
+HOUR(LEAST('2010-01-01 10:10:10',TIME('20:20:20'))) AS lt_plus20_implicit,
+HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20'))) AS lt_plus20_explicit;
+lt_minus20_implicit	20
+lt_minus20_explicit	20
+lt_plus20_implicit	10
+lt_plus20_explicit	10
+SELECT
+GREATEST('2010-01-01 10:10:10',TIME('-200:20:20')) AS gt_minus200_implicit,
+GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20')) AS gt_minus200_explictit,
+GREATEST('2010-01-01 10:10:10',TIME('200:20:20')) AS gt_plus200_implicit,
+GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20')) AS gt_plus200_explicit;
+gt_minus200_implicit	10:10:10.000000
+gt_minus200_explictit	10:10:10.000000
+gt_plus200_implicit	200:20:20.000000
+gt_plus200_explicit	200:20:20.000000
+SELECT
+HOUR(GREATEST('2010-01-01 10:10:10',TIME('-200:20:20'))) AS gt_minus200_implicit,
+HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20'))) AS gt_minus200_explictit,
+HOUR(GREATEST('2010-01-01 10:10:10',TIME('200:20:20'))) AS gt_plus200_implicit,
+HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20'))) AS gt_plus200_explicit;
+gt_minus200_implicit	10
+gt_minus200_explictit	10
+gt_plus200_implicit	200
+gt_plus200_explicit	200
+SELECT
+LEAST('2010-01-01 10:10:10',TIME('-200:20:20')) AS lt_minus200_implicit,
+LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20')) AS lt_minus200_explictit,
+LEAST('2010-01-01 10:10:10',TIME('200:20:20')) AS lt_plus200_implicit,
+LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20')) AS lt_plus200_explicit;
+lt_minus200_implicit	-200:20:20.000000
+lt_minus200_explictit	-200:20:20.000000
+lt_plus200_implicit	10:10:10.000000
+lt_plus200_explicit	10:10:10.000000
+SELECT
+HOUR(LEAST('2010-01-01 10:10:10',TIME('-200:20:20'))) AS lt_minus200_implicit,
+HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20'))) AS lt_minus200_explictit,
+HOUR(LEAST('2010-01-01 10:10:10',TIME('200:20:20'))) AS lt_plus200_implicit,
+HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20'))) AS lt_plus200_explicit;
+lt_minus200_implicit	200
+lt_minus200_explictit	200
+lt_plus200_implicit	10
+lt_plus200_explicit	10

@@ -74,6 +74,126 @@ struct TABLE;
 struct SORT_FIELD_ATTR;
 
 
+/**
+  Class Time is designed to store valid TIME values.
+
+  1. Valid value:
+    a. MYSQL_TIMESTAMP_TIME - a valid TIME within the supported TIME range
+    b. MYSQL_TIMESTAMP_NONE - an undefined value
+
+  2. Invalid value (internally only):
+    a. MYSQL_TIMESTAMP_TIME outside of the supported TIME range
+    a. MYSQL_TIMESTAMP_{DATE|DATETIME|ERROR}
+
+  Temporarily Time is allowed to have an invalid value, but only internally,
+  during initialization time. All constructors and modification methods must
+  leave the Time value as described above (see "Valid values").
+
+  Time derives from MYSQL_TIME privately to make sure it is accessed
+  externally only in the valid state.
+*/
+class Time: private MYSQL_TIME
+{
+  bool is_valid_value_slow() const
+  {
+    return time_type == MYSQL_TIMESTAMP_NONE || is_valid_time_slow();
+  }
+  bool is_valid_time_slow() const
+  {
+    return time_type == MYSQL_TIMESTAMP_TIME &&
+           year == 0 && month == 0 && day == 0 &&
+           minute <= TIME_MAX_MINUTE &&
+           second <= TIME_MAX_SECOND &&
+           second_part <= TIME_MAX_SECOND_PART;
+  }
+
+  /*
+    Convert a valid DATE or DATETIME to TIME.
+    Before this call, "this" must be a valid DATE or DATETIME value,
+    e.g. returned from Item::get_date().
+    After this call, "this" is a valid TIME value.
+  */
+  void valid_datetime_to_valid_time()
+  {
+    DBUG_ASSERT(time_type == MYSQL_TIMESTAMP_DATE ||
+                time_type == MYSQL_TIMESTAMP_DATETIME);
+    /*
+      Make sure that day and hour are valid, so the result hour value
+      after mixing days to hours does not go out of the valid TIME range.
+    */
+    DBUG_ASSERT(day < 32);
+    DBUG_ASSERT(hour < 24);
+    if (year == 0 && month == 0)
+    {
+      /*
+        The maximum hour value after mixing days will be 31*24+23=767,
+        which is within the supported TIME range.
+        Thus no adjust_time_range_or_invalidate() is needed here.
+      */
+      hour+= day * 24;
+    }
+    year= month= day= 0;
+    time_type= MYSQL_TIMESTAMP_TIME;
+    DBUG_ASSERT(is_valid_time_slow());
+  }
+  /**
+    Convert valid DATE/DATETIME to valid TIME if needed.
+    This method is called after Item::get_date(),
+    which can return only valid TIME/DATE/DATETIME values.
+    Before this call, "this" is:
+    - either a valid TIME/DATE/DATETIME value
+      (within the supported range for the corresponding type),
+    - or MYSQL_TIMESTAMP_NONE
+    After this call, "this" is:
+    - either a valid TIME (within the supported TIME range),
+    - or MYSQL_TIMESTAMP_NONE
+  */
+  void valid_MYSQL_TIME_to_valid_value()
+  {
+    switch (time_type) {
+    case MYSQL_TIMESTAMP_DATE:
+    case MYSQL_TIMESTAMP_DATETIME:
+      valid_datetime_to_valid_time();
+      break;
+    case MYSQL_TIMESTAMP_NONE:
+      break;
+    case MYSQL_TIMESTAMP_ERROR:
+      set_zero_time(this, MYSQL_TIMESTAMP_TIME);
+      break;
+    case MYSQL_TIMESTAMP_TIME:
+      DBUG_ASSERT(is_valid_time_slow());
+      break;
+    }
+  }
+  void make_from_item(class Item *item);
+public:
+  Time() { time_type= MYSQL_TIMESTAMP_NONE; }
+  Time(Item *item) { make_from_item(item); }
+  bool is_valid_time() const
+  {
+    DBUG_ASSERT(is_valid_value_slow());
+    return time_type == MYSQL_TIMESTAMP_TIME;
+  }
+  void copy_to_mysql_time(MYSQL_TIME *ltime) const
+  {
+    DBUG_ASSERT(is_valid_time_slow());
+    *ltime= *this;
+  }
+  int cmp(const Time *other) const
+  {
+    DBUG_ASSERT(is_valid_time_slow());
+    DBUG_ASSERT(other->is_valid_time_slow());
+    longlong p0= pack_time(this);
+    longlong p1= pack_time(other);
+    if (p0 < p1)
+      return -1;
+    if (p0 > p1)
+      return 1;
+    return 0;
+  }
+};
+
+
 /*
   Flags for collation aggregation modes, used in TDCollation::agg():
 
@@ -2086,6 +2206,8 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
+  bool Item_func_min_max_get_date(Item_func_min_max*,
+                                  MYSQL_TIME *, ulonglong fuzzydate) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
