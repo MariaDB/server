@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1471,8 +1471,6 @@ dict_check_sys_tables(
 		char*	filepath = dict_get_first_path(space_id);
 
 		/* Check that the .ibd file exists. */
-		validate = true; /* Encryption */
-
 		dberr_t	err = fil_ibd_open(
 			validate,
 			!srv_read_only_mode && srv_log_file_size != 0,
@@ -3078,6 +3076,12 @@ err_exit:
 		} else {
 			dict_mem_table_fill_foreign_vcol_set(table);
 			table->fk_max_recusive_level = 0;
+
+			if (table->space
+			    && !fil_space_get_size(table->space)) {
+				table->corrupted = true;
+				table->file_unreadable = true;
+			}
 		}
 	} else {
 		dict_index_t*   index;
