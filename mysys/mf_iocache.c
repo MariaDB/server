@@ -512,7 +512,7 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
           info->read_end= info->buffer;
           _my_b_encr_read(info, 0, 0); /* prefill the buffer */
           info->write_pos= info->read_pos;
-          info->pos_in_file+= info->buffer_length;
+          info->seek_not_done=1;
         }
       }
       else

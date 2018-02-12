@@ -1641,6 +1641,7 @@ public:
   */
   virtual bool check_partition_func_processor(void *arg) { return 1;}
   virtual bool vcol_in_partition_func_processor(void *arg) { return 0; }
+  virtual bool rename_fields_processor(void *arg) { return 0; }
   /** Processor used to check acceptability of an item in the defining
       expression for a virtual column 
 
@@ -1653,6 +1654,12 @@ public:
   {
     uint errors;                                /* Bits of possible errors */
     const char *name;                           /* Not supported function */
+  };
+  struct func_processor_rename
+  {
+    LEX_CSTRING db_name;
+    LEX_CSTRING table_name;
+    List<Create_field> fields;
   };
   virtual bool check_vcol_func_processor(void *arg)
   {
@@ -2869,6 +2876,7 @@ public:
   bool update_table_bitmaps_processor(void *arg);
   bool switch_to_nullable_fields_processor(void *arg);
   bool update_vcol_processor(void *arg);
+  bool rename_fields_processor(void *arg);
   bool check_vcol_func_processor(void *arg)
   {
     context= 0;

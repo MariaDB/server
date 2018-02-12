@@ -455,6 +455,7 @@ Architecture: any
 Depends: mariadb-server-10.2 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
+Recommends: python-mysqldb
 Description: RocksDB storage engine for MariaDB
  The RocksDB storage engine is a high performance storage engine, aimed
  at maximising storage efficiency while maintaining InnoDB-like performance.
