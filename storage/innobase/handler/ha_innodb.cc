@@ -18571,7 +18571,7 @@ innodb_make_page_dirty(
 		return;
 	}
 
-	if (srv_saved_page_number_debug > space->size) {
+	if (srv_saved_page_number_debug >= space->size) {
 		fil_space_release(space);
 		return;
 	}
