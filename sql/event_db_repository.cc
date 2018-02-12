@@ -1186,46 +1186,9 @@ Event_db_repository::check_system_tables(THD *thd)
 {
   TABLE_LIST tables;
   int ret= FALSE;
-  const unsigned int event_priv_column_position= 29;
-
   DBUG_ENTER("Event_db_repository::check_system_tables");
   DBUG_PRINT("enter", ("thd: %p", thd));
 
-  /* Check mysql.db */
-  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_DB_NAME, 0, TL_READ);
-
-  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
-  {
-    ret= 1;
-    sql_print_error("Cannot open mysql.db");
-  }
-  else
-  {
-    if (table_intact.check(tables.table, &mysql_db_table_def))
-      ret= 1;
-
-    close_mysql_tables(thd);
-  }
-  /* Check mysql.user */
-  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_USER_NAME, 0, TL_READ);
-
-  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
-  {
-    ret= 1;
-    sql_print_error("Cannot open mysql.user");
-  }
-  else
-  {
-    if (tables.table->s->fields < event_priv_column_position ||
-        strncmp(tables.table->field[event_priv_column_position]->field_name.str,
-                STRING_WITH_LEN("Event_priv")))
-    {
-      sql_print_error("mysql.user has no `Event_priv` column at position %d",
-                      event_priv_column_position);
-      ret= 1;
-    }
-    close_mysql_tables(thd);
-  }
   /* Check mysql.event */
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
 
