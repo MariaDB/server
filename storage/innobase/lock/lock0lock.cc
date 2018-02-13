@@ -914,7 +914,7 @@ lock_rec_has_to_wait(
 /*********************************************************************//**
 Checks if a lock request lock1 has to wait for request lock2.
 @return TRUE if lock1 has to wait for lock2 to be removed */
-ibool
+bool
 lock_has_to_wait(
 /*=============*/
 	const lock_t*	lock1,	/*!< in: waiting lock */
@@ -925,32 +925,27 @@ lock_has_to_wait(
 {
 	ut_ad(lock1 && lock2);
 
-	if (lock1->trx != lock2->trx
-	    && !lock_mode_compatible(lock_get_mode(lock1),
-				     lock_get_mode(lock2))) {
-		if (lock_get_type_low(lock1) == LOCK_REC) {
-			ut_ad(lock_get_type_low(lock2) == LOCK_REC);
-
-			/* If this lock request is for a supremum record
-			then the second bit on the lock bitmap is set */
-
-			if (lock1->type_mode
-			    & (LOCK_PREDICATE | LOCK_PRDT_PAGE)) {
-				return(lock_prdt_has_to_wait(
-					lock1->trx, lock1->type_mode,
-					lock_get_prdt_from_lock(lock1),
-					lock2));
-			} else {
-				return(lock_rec_has_to_wait(false,
-					lock1->trx, lock1->type_mode, lock2,
-					lock_rec_get_nth_bit(lock1, true)));
-			}
-		}
-
-		return(TRUE);
+	if (lock1->trx == lock2->trx
+	    || lock_mode_compatible(lock_get_mode(lock1),
+				    lock_get_mode(lock2))) {
+		return(false);
 	}
 
-	return(FALSE);
+	if (lock_get_type_low(lock1) != LOCK_REC) {
+		return(true);
+	}
+
+	ut_ad(lock_get_type_low(lock2) == LOCK_REC);
+
+	if (lock1->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)) {
+		return(lock_prdt_has_to_wait(lock1->trx, lock1->type_mode,
+					     lock_get_prdt_from_lock(lock1),
+					     lock2));
+	}
+
+	return(lock_rec_has_to_wait(
+	       false, lock1->trx, lock1->type_mode, lock2,
+	       lock_rec_get_nth_bit(lock1, PAGE_HEAP_NO_SUPREMUM)));
 }
 
 /*============== RECORD LOCK BASIC FUNCTIONS ============================*/

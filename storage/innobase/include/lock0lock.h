@@ -555,8 +555,8 @@ lock_rec_find_set_bit(
 
 /*********************************************************************//**
 Checks if a lock request lock1 has to wait for request lock2.
-@return TRUE if lock1 has to wait for lock2 to be removed */
-ibool
+@return true if lock1 has to wait for lock2 to be removed */
+bool
 lock_has_to_wait(
 /*=============*/
 	const lock_t*	lock1,	/*!< in: waiting lock */
