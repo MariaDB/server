@@ -288,11 +288,10 @@ Gets the node level field in an index page.
 @return level, leaf level == 0 */
 UNIV_INLINE
 ulint
-btr_page_get_level_low(
+btr_page_get_level(
 /*===================*/
 	const page_t*	page)	/*!< in: index page */
 	MY_ATTRIBUTE((warn_unused_result));
-#define btr_page_get_level(page, mtr) btr_page_get_level_low(page)
 /********************************************************//**
 Gets the next index page number.
 @return next page number */

@@ -1080,7 +1080,7 @@ dict_stats_analyze_index_level(
 	      == page_rec_get_next_const(page_get_infimum_rec(page)));
 
 	/* check that we are indeed on the desired level */
-	ut_a(btr_page_get_level(page, mtr) == level);
+	ut_a(btr_page_get_level(page) == level);
 
 	/* there should not be any pages on the left */
 	ut_a(!page_has_prev(page));
@@ -1701,7 +1701,7 @@ dict_stats_analyze_index_for_n_prefix(
 	ut_ad(first_rec == page_rec_get_next_const(page_get_infimum_rec(page)));
 
 	/* check that we are indeed on the desired level */
-	ut_a(btr_page_get_level(page, mtr) == n_diff_data->level);
+	ut_a(btr_page_get_level(page) == n_diff_data->level);
 
 	/* there should not be any pages on the left */
 	ut_a(!page_has_prev(page));

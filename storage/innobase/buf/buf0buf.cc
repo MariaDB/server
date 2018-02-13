@@ -5668,7 +5668,7 @@ buf_page_monitor(
 	case FIL_PAGE_TYPE_INSTANT:
 	case FIL_PAGE_INDEX:
 	case FIL_PAGE_RTREE:
-		level = btr_page_get_level_low(frame);
+		level = btr_page_get_level(frame);
 
 		/* Check if it is an index page for insert buffer */
 		if (fil_page_get_type(frame) == FIL_PAGE_INDEX

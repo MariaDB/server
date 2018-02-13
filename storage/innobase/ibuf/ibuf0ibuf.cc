@@ -483,7 +483,7 @@ ibuf_size_update(
 	ibuf->free_list_len = flst_get_len(root + PAGE_HEADER
 					   + PAGE_BTR_IBUF_FREE_LIST);
 
-	ibuf->height = 1 + btr_page_get_level_low(root);
+	ibuf->height = 1 + btr_page_get_level(root);
 
 	/* the '1 +' is the ibuf header page */
 	ibuf->size = ibuf->seg_size - (1 + ibuf->free_list_len);
