@@ -479,7 +479,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
 	  return true;
       }
     }
-    else if (tvc_value->push_back(args[i]))
+    else if (tvc_value->push_back(args[i]->real_item()))
       return true;
 
     if (values->push_back(tvc_value, thd->mem_root))

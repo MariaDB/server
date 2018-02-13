@@ -638,3 +638,21 @@ Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`i` AS `i` from `test`.`t1` semi join ((values (NULL),(NULL),(NULL),(NULL),(NULL)) `tvc_0`) where `test`.`t1`.`i` = `tvc_0`.`NULL`
 SET in_predicate_conversion_threshold= default;
 DROP TABLE t1;
+#
+# MDEV-14835: conversion of TVC with BIGINT or YEAR values
+#
+SET @@in_predicate_conversion_threshold= 2;
+CREATE TABLE t1 (a BIGINT);
+CREATE TABLE t2 (y YEAR);
+INSERT INTO t1 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (2009), (2010), (2011);
+SELECT * FROM t1 WHERE a IN ('1','5','3');
+a
+1
+3
+SELECT * FROM t2 WHERE y IN ('2009','2011');
+y
+2009
+2011
+DROP TABLE t1,t2;
+SET @@in_predicate_conversion_threshold= default;

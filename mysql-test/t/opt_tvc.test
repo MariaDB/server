@@ -340,3 +340,23 @@ eval EXPLAIN EXTENDED $q;
 SET in_predicate_conversion_threshold= default;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14835: conversion of TVC with BIGINT or YEAR values
+--echo #
+
+SET @@in_predicate_conversion_threshold= 2;
+
+CREATE TABLE t1 (a BIGINT);
+CREATE TABLE t2 (y YEAR);
+
+INSERT INTO t1 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (2009), (2010), (2011);
+
+SELECT * FROM t1 WHERE a IN ('1','5','3');
+
+SELECT * FROM t2 WHERE y IN ('2009','2011');
+
+DROP TABLE t1,t2;
+
+SET @@in_predicate_conversion_threshold= default;
