@@ -391,6 +391,7 @@ void ha_partition::init_handler_variables()
   my_bitmap_clear(&m_key_not_found_partitions);
   my_bitmap_clear(&m_mrr_used_partitions);
   my_bitmap_clear(&m_opened_partitions);
+  m_file_sample= NULL;
 
 #ifdef DONT_HAVE_TO_BE_INITALIZED
   m_start_key.flag= 0;
@@ -3408,6 +3409,8 @@ bool ha_partition::init_partition_bitmaps()
   if (my_bitmap_init(&m_opened_partitions, NULL, m_tot_parts, FALSE))
     DBUG_RETURN(true);
 
+  m_file_sample= NULL;
+
   /* Initialize the bitmap for read/lock_partitions */
   if (!m_is_clone_of)
   {
@@ -3445,7 +3448,6 @@ bool ha_partition::init_partition_bitmaps()
 int ha_partition::open(const char *name, int mode, uint test_if_locked)
 {
   int error= HA_ERR_INITIALIZATION;
-  handler *file_sample= NULL;
   handler **file;
   char name_buff[FN_REFLEN + 1];
   ulonglong check_table_flags;
@@ -3538,18 +3540,17 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
         file= &m_file[i];
         goto err_handler;
       }
-      if (!file_sample)
-        file_sample= m_file[i];
+      if (!m_file_sample)
+        m_file_sample= m_file[i];
       name_buffer_ptr+= strlen(name_buffer_ptr) + 1;
       bitmap_set_bit(&m_opened_partitions, i);
     }
   }
   else
   {
-    if ((error= open_read_partitions(name_buff, sizeof(name_buff),
-                                     &file_sample)))
+    if ((error= open_read_partitions(name_buff, sizeof(name_buff))))
       goto err_handler;
-    m_num_locks= file_sample->lock_count();
+    m_num_locks= m_file_sample->lock_count();
   }
   /*
     We want to know the upper bound for locks, to allocate enough memory.
@@ -3560,8 +3561,8 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   m_num_locks*= m_tot_parts;
 
   file= m_file;
-  ref_length= file_sample->ref_length;
-  check_table_flags= ((file_sample->ha_table_flags() &
+  ref_length= get_open_file_sample()->ref_length;
+  check_table_flags= ((get_open_file_sample()->ha_table_flags() &
                        ~(PARTITION_DISABLED_TABLE_FLAGS)) |
                       (PARTITION_ENABLED_TABLE_FLAGS));
   while (*(++file))
@@ -3584,8 +3585,8 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
       goto err_handler;
     }
   }
-  key_used_on_scan= file_sample->key_used_on_scan;
-  implicit_emptied= file_sample->implicit_emptied;
+  key_used_on_scan= get_open_file_sample()->key_used_on_scan;
+  implicit_emptied= get_open_file_sample()->implicit_emptied;
   /*
     Add 2 bytes for partition id in position ref length.
     ref_length=max_in_all_partitions(ref_length) + PARTITION_BYTES_IN_POS
@@ -5223,7 +5224,7 @@ bool ha_partition::init_record_priority_queue()
     /* Allocate record buffer for each used partition. */
     m_priority_queue_rec_len= m_rec_length + PARTITION_BYTES_IN_POS;
     if (!m_using_extended_keys)
-       m_priority_queue_rec_len += m_file[0]->ref_length;
+       m_priority_queue_rec_len += get_open_file_sample()->ref_length;
     alloc_len= used_parts * m_priority_queue_rec_len;
     /* Allocate a key for temporary use when setting up the scan. */
     alloc_len+= table_share->max_key_length;
@@ -6481,7 +6482,8 @@ int ha_partition::multi_range_read_explain_info(uint mrr_mode, char *str,
                                                 size_t size)
 {
   DBUG_ENTER("ha_partition::multi_range_read_explain_info");
-  DBUG_RETURN(m_file[0]->multi_range_read_explain_info(mrr_mode, str, size));
+  DBUG_RETURN(get_open_file_sample()->
+                multi_range_read_explain_info(mrr_mode, str, size));
 }
 
 
@@ -8354,8 +8356,7 @@ void ha_partition::set_partitions_to_open(List<String> *partition_names)
 }
 
 
-int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size,
-                                       handler **sample)
+int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
 {
   handler **file;
   char *name_buffer_ptr;
@@ -8363,7 +8364,7 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size,
 
   name_buffer_ptr= m_name_buffer_ptr;
   file= m_file;
-  *sample= NULL;
+  m_file_sample= NULL;
   do
   {
     int n_file= (int)(file-m_file);
@@ -8390,10 +8391,10 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size,
       table->s->connect_string= save_connect_string;
       if (error)
         goto err_handler;
-      if (!(*sample))
-        *sample= *file;
       bitmap_set_bit(&m_opened_partitions, n_file);
     }
+    if (!m_file_sample && should_be_open)
+      m_file_sample= *file;
     name_buffer_ptr+= strlen(name_buffer_ptr) + 1;
   } while (*(++file));
   
@@ -8406,7 +8407,6 @@ int ha_partition::change_partitions_to_open(List<String> *partition_names)
 {
   char name_buff[FN_REFLEN+1];
   int error= 0;
-  handler *sample;
 
   if (m_is_clone_of)
     return 0;
@@ -8428,7 +8428,7 @@ int ha_partition::change_partitions_to_open(List<String> *partition_names)
     return 0;
 
   if ((error= read_par_file(table->s->normalized_path.str)) ||
-      (error= open_read_partitions(name_buff, sizeof(name_buff), &sample)))
+      (error= open_read_partitions(name_buff, sizeof(name_buff))))
     goto err_handler;
 
   clear_handler_file();
@@ -9150,7 +9150,7 @@ void ha_partition::late_extra_no_cache(uint partition_id)
 const key_map *ha_partition::keys_to_use_for_scanning()
 {
   DBUG_ENTER("ha_partition::keys_to_use_for_scanning");
-  DBUG_RETURN(m_file[0]->keys_to_use_for_scanning());
+  DBUG_RETURN(get_open_file_sample()->keys_to_use_for_scanning());
 }
 
 
@@ -9373,7 +9373,7 @@ double ha_partition::read_time(uint index, uint ranges, ha_rows rows)
 {
   DBUG_ENTER("ha_partition::read_time");
 
-  DBUG_RETURN(m_file[0]->read_time(index, ranges, rows));
+  DBUG_RETURN(get_open_file_sample()->read_time(index, ranges, rows));
 }
 
 
@@ -10181,8 +10181,8 @@ int ha_partition::cmp_ref(const uchar *ref1, const uchar *ref2)
   uint32 diff1, diff2;
   DBUG_ENTER("ha_partition::cmp_ref");
 
-  cmp= m_file[0]->cmp_ref((ref1 + PARTITION_BYTES_IN_POS),
-                          (ref2 + PARTITION_BYTES_IN_POS));
+  cmp= get_open_file_sample()->cmp_ref((ref1 + PARTITION_BYTES_IN_POS),
+                                       (ref2 + PARTITION_BYTES_IN_POS));
   if (cmp)
     DBUG_RETURN(cmp);
 
