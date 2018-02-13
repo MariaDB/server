@@ -404,6 +404,7 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
 		rc = RC_FX;
 	} catch (const char *msg) {
 		strcpy(g->Message, msg);
+		rc = RC_NF;
 	} // end catch
 
   return rc;
