@@ -2972,7 +2972,7 @@ btr_cur_ins_lock_and_undo(
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
 	que_thr_t*	thr,	/*!< in: query thread or NULL */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
-	ibool*		inherit)/*!< out: TRUE if the inserted new record maybe
+	bool*		inherit)/*!< out: true if the inserted new record maybe
 				should inherit LOCK_GAP type locks from the
 				successor record */
 {
@@ -3114,9 +3114,9 @@ btr_cur_optimistic_insert(
 	buf_block_t*	block;
 	page_t*		page;
 	rec_t*		dummy;
-	ibool		leaf;
-	ibool		reorg;
-	ibool		inherit = TRUE;
+	bool		leaf;
+	bool		reorg;
+	bool		inherit = true;
 	ulint		rec_size;
 	dberr_t		err;
 
@@ -3407,7 +3407,7 @@ btr_cur_pessimistic_insert(
 	dict_index_t*	index		= cursor->index;
 	big_rec_t*	big_rec_vec	= NULL;
 	dberr_t		err;
-	ibool		inherit = FALSE;
+	bool		inherit = false;
 	bool		success;
 	ulint		n_reserved	= 0;
 
@@ -3518,7 +3518,7 @@ btr_cur_pessimistic_insert(
 			       == FIL_NULL) {
 				/* split and inserted need to call
 				lock_update_insert() always. */
-				inherit = TRUE;
+				inherit = true;
 			}
 		}
 	}

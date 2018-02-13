@@ -296,7 +296,7 @@ lock_rec_insert_check_and_lock(
 	dict_index_t*	index,	/*!< in: index */
 	que_thr_t*	thr,	/*!< in: query thread */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
-	ibool*		inherit)/*!< out: set to TRUE if the new
+	bool*		inherit)/*!< out: set to true if the new
 				inserted record maybe should inherit
 				LOCK_GAP type locks from the successor
 				record */

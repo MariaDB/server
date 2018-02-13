@@ -5981,7 +5981,7 @@ lock_rec_insert_check_and_lock(
 	dict_index_t*	index,	/*!< in: index */
 	que_thr_t*	thr,	/*!< in: query thread */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
-	ibool*		inherit)/*!< out: set to TRUE if the new
+	bool*		inherit)/*!< out: set to true if the new
 				inserted record maybe should inherit
 				LOCK_GAP type locks from the successor
 				record */
@@ -6002,7 +6002,7 @@ lock_rec_insert_check_and_lock(
 
 	dberr_t		err;
 	lock_t*		lock;
-	ibool		inherit_in = *inherit;
+	bool		inherit_in = *inherit;
 	trx_t*		trx = thr_get_trx(thr);
 	const rec_t*	next_rec = page_rec_get_next_const(rec);
 	ulint		heap_no = page_rec_get_heap_no(next_rec);
@@ -6032,7 +6032,7 @@ lock_rec_insert_check_and_lock(
 					       trx->id, mtr);
 		}
 
-		*inherit = FALSE;
+		*inherit = false;
 
 		return(DB_SUCCESS);
 	}
@@ -6043,7 +6043,7 @@ lock_rec_insert_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	*inherit = TRUE;
+	*inherit = true;
 
 	/* If another transaction has an explicit lock request which locks
 	the gap, waiting or granted, on the successor, the insert has to wait.
