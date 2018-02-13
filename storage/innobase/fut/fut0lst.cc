@@ -40,7 +40,7 @@ flst_add_to_empty(
 {
 	ulint		space;
 	fil_addr_t	node_addr;
-	ulint		len;
+	ulint		len = 0;
 
 	ut_ad(mtr && base && node);
 	ut_ad(base != node);
@@ -50,7 +50,7 @@ flst_add_to_empty(
 	ut_ad(mtr_memo_contains_page_flagged(mtr, node,
 					     MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_SX_FIX));
-	len = flst_get_len(base);
+	ut_d(len = flst_get_len(base));
 	ut_a(len == 0);
 
 	buf_ptr_get_fsp_addr(node, &space, &node_addr);
