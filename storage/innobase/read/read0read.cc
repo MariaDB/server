@@ -182,8 +182,8 @@ will mark their views as closed but not actually free their views.
 */
 void ReadView::snapshot(trx_t *trx)
 {
-  ut_ad(!mutex_own(&trx_sys.mutex));
   trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id, &m_low_limit_no);
+  std::sort(m_ids.begin(), m_ids.end());
   m_up_limit_id= m_ids.empty() ? m_low_limit_id : m_ids.front();
   ut_ad(m_up_limit_id <= m_low_limit_id);
 }
@@ -219,7 +219,7 @@ void ReadView::open(trx_t *trx)
       protection. But we're cutting edges to achieve great scalability.
 
       There're at least two types of concurrent threads interested in this
-      value: purge coordinator thread (see MVCC::clone_oldest_view()) and
+      value: purge coordinator thread (see trx_sys_t::clone_oldest_view()) and
       InnoDB monitor thread (see lock_trx_print_wait_and_mvcc_state()).
 
       What bad things can happen because we allow this race?
@@ -319,10 +319,7 @@ void ReadView::close()
 */
 void trx_sys_t::clone_oldest_view()
 {
-  const ReadView *oldest_view= &purge_sys->view;
-
   purge_sys->view.snapshot(0);
-
   mutex_enter(&mutex);
   /* Find oldest view. */
   for (const ReadView *v= UT_LIST_GET_FIRST(m_views); v;
@@ -333,11 +330,8 @@ void trx_sys_t::clone_oldest_view()
     while ((state= v->get_state()) == READ_VIEW_STATE_SNAPSHOT)
       ut_delay(1);
 
-    if (state == READ_VIEW_STATE_OPEN &&
-        v->low_limit_no() < oldest_view->low_limit_no())
-      oldest_view= v;
+    if (state == READ_VIEW_STATE_OPEN)
+      purge_sys->view.copy(*v);
   }
-  if (oldest_view != &purge_sys->view)
-    purge_sys->view.copy(*oldest_view);
   mutex_exit(&mutex);
 }

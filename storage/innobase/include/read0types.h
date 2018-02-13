@@ -89,15 +89,46 @@ public:
   /**
     Copy state from another view.
 
+    This method is used to find min(m_low_limit_no), min(m_low_limit_id) and
+    all transaction ids below min(m_low_limit_id). These values effectively
+    form oldest view.
+
     @param other    view to copy from
   */
   void copy(const ReadView &other)
   {
     ut_ad(&other != this);
-    m_ids= other.m_ids;
-    m_up_limit_id= other.m_up_limit_id;
-    m_low_limit_no= other.m_low_limit_no;
-    m_low_limit_id= other.m_low_limit_id;
+    if (m_low_limit_no > other.m_low_limit_no)
+      m_low_limit_no= other.m_low_limit_no;
+    if (m_low_limit_id > other.m_low_limit_id)
+      m_low_limit_id= other.m_low_limit_id;
+
+    trx_ids_t::iterator dst= m_ids.begin();
+    for (trx_ids_t::const_iterator src= other.m_ids.begin();
+         src != other.m_ids.end(); src++)
+    {
+      if (*src >= m_low_limit_id)
+        break;
+loop:
+      if (dst == m_ids.end())
+      {
+        m_ids.push_back(*src);
+        dst= m_ids.end();
+        continue;
+      }
+      if (*dst < *src)
+      {
+        dst++;
+        goto loop;
+      }
+      else if (*dst > *src)
+        dst= m_ids.insert(dst, *src) + 1;
+    }
+    m_ids.erase(std::lower_bound(dst, m_ids.end(), m_low_limit_id),
+                m_ids.end());
+
+    m_up_limit_id= m_ids.empty() ? m_low_limit_id : m_ids.front();
+    ut_ad(m_up_limit_id <= m_low_limit_id);
   }
 
 

@@ -797,17 +797,23 @@ public:
 
 
 /** The transaction system central memory data structure. */
-struct trx_sys_t {
-private:
+class trx_sys_t
+{
   /**
     The smallest number not yet assigned as a transaction id or transaction
     number. Accessed and updated with atomic operations.
   */
-
   MY_ALIGNED(CACHE_LINE_SIZE) trx_id_t m_max_trx_id;
 
 
-  /** Solves race condition between register_rw() and snapshot_ids(). */
+  /**
+    Solves race conditions between register_rw() and snapshot_ids() as well as
+    race condition between assign_new_trx_no() and snapshot_ids().
+
+    @sa register_rw()
+    @sa assign_new_trx_no()
+    @sa snapshot_ids()
+  */
   MY_ALIGNED(CACHE_LINE_SIZE) trx_id_t m_rw_trx_hash_version;
 
 
@@ -895,7 +901,7 @@ public:
             next call to trx_sys.get_new_trx_id()
   */
 
-  trx_id_t get_max_trx_id(void)
+  trx_id_t get_max_trx_id()
   {
     return static_cast<trx_id_t>
            (my_atomic_load64_explicit(reinterpret_cast<int64*>(&m_max_trx_id),
@@ -917,13 +923,45 @@ public:
 
 
   /**
+    Allocates and assigns new transaction serialisation number.
+
+    There's a gap between m_max_trx_id increment and transaction serialisation
+    number becoming visible through rw_trx_hash. While we're in this gap
+    concurrent thread may come and do MVCC snapshot without seeing allocated
+    but not yet assigned serialisation number. Then at some point purge thread
+    may clone this view. As a result it won't see newly allocated serialisation
+    number and may remove "unnecessary" history data of this transaction from
+    rollback segments.
+
+    m_rw_trx_hash_version is intended to solve this problem. MVCC snapshot has
+    to wait until m_max_trx_id == m_rw_trx_hash_version, which effectively
+    means that all transaction serialisation numbers up to m_max_trx_id are
+    available through rw_trx_hash.
+
+    We rely on refresh_rw_trx_hash_version() to issue RELEASE memory barrier so
+    that m_rw_trx_hash_version increment happens after
+    trx->rw_trx_hash_element->no becomes visible through rw_trx_hash.
+
+    @param trx transaction
+  */
+  void assign_new_trx_no(trx_t *trx)
+  {
+    trx->no= get_new_trx_id_no_refresh();
+    my_atomic_store64_explicit(reinterpret_cast<int64*>
+                               (&trx->rw_trx_hash_element->no),
+                               trx->no, MY_MEMORY_ORDER_RELAXED);
+    refresh_rw_trx_hash_version();
+  }
+
+
+  /**
     Takes MVCC snapshot.
 
     To reduce malloc probablility we reserver rw_trx_hash.size() + 32 elements
     in ids.
 
     For details about get_rw_trx_hash_version() != get_max_trx_id() spin
-    @sa register_rw().
+    @sa register_rw() and @sa assign_new_trx_no().
 
     We rely on get_rw_trx_hash_version() to issue ACQUIRE memory barrier so
     that loading of m_rw_trx_hash_version happens before accessing rw_trx_hash.
@@ -941,6 +979,7 @@ public:
   void snapshot_ids(trx_t *caller_trx, trx_ids_t *ids, trx_id_t *max_trx_id,
                     trx_id_t *min_trx_no)
   {
+    ut_ad(!mutex_own(&mutex));
     snapshot_ids_arg arg(ids);
 
     while ((arg.m_id= get_rw_trx_hash_version()) != get_max_trx_id())
@@ -952,7 +991,6 @@ public:
     rw_trx_hash.iterate(caller_trx,
                         reinterpret_cast<my_hash_walk_action>(copy_one_id),
                         &arg);
-    std::sort(ids->begin(), ids->end());
 
     *max_trx_id= arg.m_id;
     *min_trx_no= arg.m_no;
@@ -1146,11 +1184,12 @@ private:
   /**
     Allocates new transaction id without refreshing rw_trx_hash version.
 
-    This method is extracted for exclusive use by register_rw() where
-    transaction must be inserted into rw_trx_hash between new transaction id
-    allocation and rw_trx_hash version refresh.
+    This method is extracted for exclusive use by register_rw() and
+    assign_new_trx_no() where new id must be allocated atomically with
+    payload of these methods from MVCC snapshot point of view.
 
     @sa get_new_trx_id()
+    @sa assign_new_trx_no()
 
     @return new transaction id
   */
