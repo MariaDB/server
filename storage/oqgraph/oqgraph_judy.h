@@ -63,7 +63,7 @@ namespace open_query
       if (!val)
         return reset(n);
       else
-        return setbit(n);
+        return jsetbit(n);
     }
 
     judy_bitset& set(const judy_bitset& src);
@@ -115,7 +115,7 @@ namespace open_query
   private:
     mutable void* array;
 
-    judy_bitset& setbit(size_type n);
+    judy_bitset& jsetbit(size_type n);
   };
 }
 

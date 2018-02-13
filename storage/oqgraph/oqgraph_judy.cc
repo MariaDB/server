@@ -27,7 +27,7 @@
 /*
   Currently the only active code that can return error is:
     judy_bitset::reset()/J1U()
-    judy_bitset::setbit()/J1S()
+    judy_bitset::jsetbit()/J1S()
 
   In most cases errors are either about wrong parameters passed to Judy
   functions or internal structures corruption. These definitely deserve
@@ -60,7 +60,7 @@ bool open_query::judy_bitset::test(size_type n) const
   return rc == 1;
 }
 
-open_query::judy_bitset& open_query::judy_bitset::setbit(size_type n)
+open_query::judy_bitset& open_query::judy_bitset::jsetbit(size_type n)
 {
   int rc;
   J1S(rc, array, n);
