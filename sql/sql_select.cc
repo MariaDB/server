@@ -699,7 +699,7 @@ void vers_select_conds_t::print(String *str, enum_query_type query_type)
   {
     { STRING_WITH_LEN("") },
     { STRING_WITH_LEN("TIMESTAMP ") },
-    { STRING_WITH_LEN("TRANACTION ") }
+    { STRING_WITH_LEN("TRANSACTION ") }
   };
   switch (type) {
   case SYSTEM_TIME_UNSPECIFIED:
