@@ -462,6 +462,26 @@ create or replace table t (a int) with system versioning
 --error ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
 alter table t drop system versioning;
 
+--echo # MDEV-15191 Assertion `bit < (map)->n_bits' failed in bitmap_is_set upon INSERT
+create or replace table t1 (i int) with system versioning;
+insert into t1 values (1), (2);
+update t1 set i= 3;
+alter table t1 partition by system_time interval 1 month (partition p1 history, partition pn current);
+lock table t1 write;
+alter table t1 add partition (partition p2 history);
+insert into t1 values (4);
+unlock tables;
+
+--echo # MDEV-15036 Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' in Diagnostics_area::set_ok_status or unexpected ER_RANGE_NOT_INCREASING_ERROR
+create or replace table t1 (a int) with system versioning
+partition by system_time limit 2 (
+    partition p1 history, partition p2 history,
+    partition p3 history, partition pn current);
+insert into t1 values (1),(2),(3);
+update t1 set a = 4;
+delete from t1;
+delete from t1 where a is not null;
+
 --echo # Test cleanup
 drop database test;
 create database test;
