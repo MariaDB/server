@@ -5551,6 +5551,13 @@ my_decimal* Item_user_var_as_out_param::val_decimal(my_decimal *decimal_buffer)
 }
 
 
+bool Item_user_var_as_out_param::get_date(MYSQL_TIME *ltime, ulonglong fuzzy)
+{
+  DBUG_ASSERT(0);
+  return true;
+}
+
+
 void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
 {
   str->append('@');
@@ -6779,6 +6786,15 @@ my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
   my_decimal *tmp;
   evaluate_sideeffects();
   tmp= last_value->val_decimal(decimal_value);
+  null_value= last_value->null_value;
+  return tmp;
+}
+
+
+bool Item_func_last_value::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  evaluate_sideeffects();
+  bool tmp= last_value->get_date(ltime, fuzzydate);
   null_value= last_value->null_value;
   return tmp;
 }

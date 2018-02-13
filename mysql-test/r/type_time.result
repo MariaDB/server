@@ -1487,3 +1487,45 @@ lt_minus200_implicit	200
 lt_minus200_explictit	200
 lt_plus200_implicit	10
 lt_plus200_explicit	10
+#
+# MDEV-15293 CAST(AS TIME) returns bad results for LAST_VALUE(),NAME_CONST(),SP variable
+#
+SELECT CAST(DATE'2001-01-01' AS TIME);
+CAST(DATE'2001-01-01' AS TIME)
+00:00:00
+SELECT CAST(LAST_VALUE(DATE'2001-01-01') AS TIME);
+CAST(LAST_VALUE(DATE'2001-01-01') AS TIME)
+00:00:00
+SELECT CAST(NAME_CONST('name',DATE'2001-01-01') AS TIME);
+CAST(NAME_CONST('name',DATE'2001-01-01') AS TIME)
+00:00:00
+BEGIN NOT ATOMIC
+DECLARE a DATE DEFAULT '2001-01-01';
+SELECT CAST(a AS TIME);
+END;
+$$
+CAST(a AS TIME)
+00:00:00
+CREATE OR REPLACE TABLE t1 (dt DATE,country VARCHAR(10), amount INT);
+INSERT INTO t1 VALUES ('2000-01-01','DE',102);
+SELECT
+dt, country, amount,
+FIRST_VALUE(dt) OVER () AS first,
+MINUTE(FIRST_VALUE(dt) OVER ()) AS m_first,
+LAST_VALUE(dt) OVER () AS last,
+MINUTE(LAST_VALUE(dt) OVER ()) AS m_last
+FROM t1
+ORDER BY country, dt;
+dt	country	amount	first	m_first	last	m_last
+2000-01-01	DE	102	2000-01-01	0	2000-01-01	0
+SELECT
+dt, country, amount,
+FIRST_VALUE(dt) OVER () AS first,
+CAST(FIRST_VALUE(dt) OVER () AS TIME) AS t_first,
+LAST_VALUE(dt) OVER () AS last,
+CAST(LAST_VALUE(dt) OVER () AS TIME) AS t_last
+FROM t1
+ORDER BY country, dt;
+dt	country	amount	first	t_first	last	t_last
+2000-01-01	DE	102	2000-01-01	00:00:00	2000-01-01	00:00:00
+DROP TABLE t1;

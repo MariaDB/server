@@ -181,6 +181,10 @@ public:
     str->set(nr, collation.collation);
     return str;
   }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return get_date_from_int(ltime, fuzzydate);
+  }
   const char *func_name() const { return "month"; }
   const Type_handler *type_handler() const { return &type_handler_long; }
   void fix_length_and_dec()
@@ -440,6 +444,10 @@ public:
   const char *func_name() const
   {
      return (odbc_type ? "dayofweek" : "weekday");
+  }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
   }
   const Type_handler *type_handler() const { return &type_handler_long; }
   void fix_length_and_dec()

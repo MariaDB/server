@@ -1026,6 +1026,8 @@ public:
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const= 0;
 
   virtual bool Item_val_bool(Item *item) const= 0;
+  virtual bool Item_get_date(Item *item, MYSQL_TIME *ltime,
+                             ulonglong fuzzydate) const= 0;
   virtual longlong Item_val_int_signed_typecast(Item *item) const= 0;
   virtual longlong Item_val_int_unsigned_typecast(Item *item) const= 0;
 
@@ -1286,6 +1288,11 @@ public:
     DBUG_ASSERT(0);
     return false;
   }
+  bool Item_get_date(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
   longlong Item_val_int_signed_typecast(Item *item) const
   {
     DBUG_ASSERT(0);
@@ -1492,6 +1499,7 @@ public:
   bool Item_func_signed_fix_length_and_dec(Item_func_signed *item) const;
   bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const;
   bool Item_val_bool(Item *item) const;
+  bool Item_get_date(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate) const;
   longlong Item_val_int_signed_typecast(Item *item) const;
   longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
@@ -1570,6 +1578,7 @@ public:
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
   bool Item_val_bool(Item *item) const;
+  bool Item_get_date(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate) const;
   longlong Item_val_int_signed_typecast(Item *item) const;
   longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
@@ -1638,6 +1647,7 @@ public:
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
   bool Item_val_bool(Item *item) const;
+  bool Item_get_date(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate) const;
   longlong Item_val_int_signed_typecast(Item *item) const;
   longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
@@ -1708,6 +1718,7 @@ public:
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
   bool Item_val_bool(Item *item) const;
+  bool Item_get_date(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate) const;
   longlong Item_val_int_signed_typecast(Item *item) const;
   longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
@@ -1821,6 +1832,7 @@ public:
   bool Item_func_signed_fix_length_and_dec(Item_func_signed *item) const;
   bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const;
   bool Item_val_bool(Item *item) const;
+  bool Item_get_date(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate) const;
   longlong Item_val_int_signed_typecast(Item *item) const;
   longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
@@ -2063,6 +2075,8 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const;
+  bool Item_get_date(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate) const;
 };
 
 

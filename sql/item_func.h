@@ -386,6 +386,8 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value);
   longlong val_int()
     { DBUG_ASSERT(fixed == 1); return (longlong) rint(val_real()); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_real(ltime, fuzzydate); }
   const Type_handler *type_handler() const { return &type_handler_double; }
   void fix_length_and_dec()
   { decimals= NOT_FIXED_DEC; max_length= float_length(decimals); }
@@ -755,6 +757,8 @@ public:
   { collation.set_numeric(); }
   double val_real();
   String *val_str(String*str);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_int(ltime, fuzzydate); }
   const Type_handler *type_handler() const= 0;
   void fix_length_and_dec() {}
 };
@@ -948,6 +952,8 @@ public:
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal*);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_decimal(ltime, fuzzydate); }
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   void fix_length_and_dec_generic() {}
   void fix_length_and_dec()
@@ -1591,6 +1597,10 @@ public:
   longlong val_int() { return args[0]->val_int(); }
   String *val_str(String *str) { return args[0]->val_str(str); }
   my_decimal *val_decimal(my_decimal *dec) { return args[0]->val_decimal(dec); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return args[0]->get_date(ltime, fuzzydate);
+  }
   const char *func_name() const { return "rollup_const"; }
   bool const_item() const { return 0; }
   const Type_handler *type_handler() const { return args[0]->type_handler(); }
@@ -2033,6 +2043,10 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
   }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+  }
 };
 
 
@@ -2330,6 +2344,8 @@ public:
   Field *create_field_for_create_select(TABLE *table)
   { return create_table_field_from_handler(table); }
   bool check_vcol_func_processor(void *arg);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return type_handler()->Item_get_date(this, ltime, fuzzydate); }
 };
 
 
@@ -2473,6 +2489,7 @@ public:
   double val_real();
   longlong val_int();
   String *val_str(String *str);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   my_decimal *val_decimal(my_decimal *decimal_buffer);
   /* fix_fields() binds variable name with its entry structure */
   bool fix_fields(THD *thd, Item **ref);
@@ -2520,6 +2537,10 @@ public:
   String* val_str(String*);
   my_decimal *val_decimal(my_decimal *dec_buf)
   { return val_decimal_from_real(dec_buf); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+  }
   /* TODO: fix to support views */
   const char *func_name() const { return "get_system_var"; }
   /**
@@ -2971,6 +2992,7 @@ public:
   longlong val_int();
   String *val_str(String *);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   void fix_length_and_dec();
   const char *func_name() const { return "last_value"; }
   const Type_handler *type_handler() const { return last_value->type_handler(); }

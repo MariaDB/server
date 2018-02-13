@@ -344,6 +344,17 @@ Item_sum_hybrid_simple::val_str(String *str)
   return retval;
 }
 
+bool Item_sum_hybrid_simple::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return 0;
+  bool retval= value->get_date(ltime, fuzzydate);
+  if ((null_value= value->null_value))
+    DBUG_ASSERT(retval == true);
+  return retval;
+}
+
 Field *Item_sum_hybrid_simple::create_tmp_field(bool group, TABLE *table)
 {
   DBUG_ASSERT(0);

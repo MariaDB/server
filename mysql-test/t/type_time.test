@@ -866,3 +866,39 @@ SELECT
   HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20'))) AS lt_plus200_explicit;
 
 --horizontal_results
+
+
+--echo #
+--echo # MDEV-15293 CAST(AS TIME) returns bad results for LAST_VALUE(),NAME_CONST(),SP variable
+--echo #
+
+SELECT CAST(DATE'2001-01-01' AS TIME);
+SELECT CAST(LAST_VALUE(DATE'2001-01-01') AS TIME);
+SELECT CAST(NAME_CONST('name',DATE'2001-01-01') AS TIME);
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a DATE DEFAULT '2001-01-01';
+  SELECT CAST(a AS TIME);
+END;
+$$
+DELIMITER ;$$
+
+CREATE OR REPLACE TABLE t1 (dt DATE,country VARCHAR(10), amount INT);
+INSERT INTO t1 VALUES ('2000-01-01','DE',102);
+SELECT
+  dt, country, amount,
+  FIRST_VALUE(dt) OVER () AS first,
+  MINUTE(FIRST_VALUE(dt) OVER ()) AS m_first,
+  LAST_VALUE(dt) OVER () AS last,
+  MINUTE(LAST_VALUE(dt) OVER ()) AS m_last
+FROM t1
+ORDER BY country, dt;
+SELECT
+  dt, country, amount,
+  FIRST_VALUE(dt) OVER () AS first,
+  CAST(FIRST_VALUE(dt) OVER () AS TIME) AS t_first,
+  LAST_VALUE(dt) OVER () AS last,
+  CAST(LAST_VALUE(dt) OVER () AS TIME) AS t_last
+FROM t1
+ORDER BY country, dt;
+DROP TABLE t1;
