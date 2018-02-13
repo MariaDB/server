@@ -7484,7 +7484,10 @@ lock_trx_release_locks(
 
 		mutex_exit(&trx_sys->mutex);
 	} else {
-		ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
+		ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE)
+		      || (trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)
+			  && trx->is_recovered
+			  && !UT_LIST_GET_LEN(trx->lock.trx_locks)));
 	}
 
 	bool	release_lock;
