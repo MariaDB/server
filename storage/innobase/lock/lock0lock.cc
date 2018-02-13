@@ -738,7 +738,7 @@ lock_rec_get_insert_intention(
 Checks if a lock request for a new lock has to wait for request lock2.
 @return TRUE if new lock has to wait for lock2 to be removed */
 UNIV_INLINE
-ibool
+bool
 lock_rec_has_to_wait(
 /*=================*/
 	bool		for_locking,
@@ -761,154 +761,156 @@ lock_rec_has_to_wait(
 	ut_ad(trx && lock2);
 	ut_ad(lock_get_type_low(lock2) == LOCK_REC);
 
-	if (trx != lock2->trx
-	    && !lock_mode_compatible(static_cast<lock_mode>(
-			             LOCK_MODE_MASK & type_mode),
-				     lock_get_mode(lock2))) {
-
-		/* We have somewhat complex rules when gap type record locks
-		cause waits */
-
-		if ((lock_is_on_supremum || (type_mode & LOCK_GAP))
-		    && !(type_mode & LOCK_INSERT_INTENTION)) {
-
-			/* Gap type locks without LOCK_INSERT_INTENTION flag
-			do not need to wait for anything. This is because
-			different users can have conflicting lock types
-			on gaps. */
-
-			return(FALSE);
-		}
-
-		if (!(type_mode & LOCK_INSERT_INTENTION)
-		    && lock_rec_get_gap(lock2)) {
-
-			/* Record lock (LOCK_ORDINARY or LOCK_REC_NOT_GAP
-			does not need to wait for a gap type lock */
-
-			return(FALSE);
-		}
-
-		if ((type_mode & LOCK_GAP)
-		    && lock_rec_get_rec_not_gap(lock2)) {
-
-			/* Lock on gap does not need to wait for
-			a LOCK_REC_NOT_GAP type lock */
-
-			return(FALSE);
-		}
-
-		if (lock_rec_get_insert_intention(lock2)) {
-
-			/* No lock request needs to wait for an insert
-			intention lock to be removed. This is ok since our
-			rules allow conflicting locks on gaps. This eliminates
-			a spurious deadlock caused by a next-key lock waiting
-			for an insert intention lock; when the insert
-			intention lock was granted, the insert deadlocked on
-			the waiting next-key lock.
-
-			Also, insert intention locks do not disturb each
-			other. */
-
-			return(FALSE);
-		}
-
-		if ((type_mode & LOCK_GAP || lock_rec_get_gap(lock2)) &&
-		    !thd_need_ordering_with(trx->mysql_thd,
-					    lock2->trx->mysql_thd)) {
-			/* If the upper server layer has already decided on the
-			commit order between the transaction requesting the
-			lock and the transaction owning the lock, we do not
-			need to wait for gap locks. Such ordeering by the upper
-			server layer happens in parallel replication, where the
-			commit order is fixed to match the original order on the
-			master.
-
-			Such gap locks are mainly needed to get serialisability
-			between transactions so that they will be binlogged in
-			the correct order so that statement-based replication
-			will give the correct results. Since the right order
-			was already determined on the master, we do not need
-			to enforce it again here.
-
-			Skipping the locks is not essential for correctness,
-			since in case of deadlock we will just kill the later
-			transaction and retry it. But it can save some
-			unnecessary rollbacks and retries. */
-
-			return (FALSE);
-		}
-
-#ifdef WITH_WSREP
-		/* if BF thread is locking and has conflict with another BF
-		   thread, we need to look at trx ordering and lock types */
-		if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
-		    wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
-
-			if (wsrep_debug) {
-				ib::info() <<
-					"BF-BF lock conflict, locking: " << for_locking;
-				lock_rec_print(stderr, lock2);
-				ib::info() << " SQL1: "
-					   << wsrep_thd_query(trx->mysql_thd);
-				ib::info() << " SQL2: "
-					   << wsrep_thd_query(lock2->trx->mysql_thd);
-			}
-
-			if (wsrep_trx_order_before(trx->mysql_thd,
-						   lock2->trx->mysql_thd) &&
-			    (type_mode & LOCK_MODE_MASK) == LOCK_X        &&
-			    (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X) {
-				if (for_locking || wsrep_debug) {
-					/* exclusive lock conflicts are not
-					   accepted */
-					ib::info() <<
-						"BF-BF X lock conflict,"
-						"mode: " << type_mode <<
-						" supremum: " << lock_is_on_supremum;
-					ib::info() <<
-						"conflicts states: my "
-						   << wsrep_thd_conflict_state(trx->mysql_thd, FALSE)
-						   << " locked "
-						   << wsrep_thd_conflict_state(lock2->trx->mysql_thd, FALSE);
-					lock_rec_print(stderr, lock2);
-					ib::info() << " SQL1: "
-						   << wsrep_thd_query(trx->mysql_thd);
-					ib::info() << " SQL2: "
-						   << wsrep_thd_query(lock2->trx->mysql_thd);
-
-					if (for_locking) {
-						return FALSE;
-					}
-				}
-			} else {
-				/* if lock2->index->n_uniq <=
-				   lock2->index->n_user_defined_cols
-				   operation is on uniq index
-				*/
-				if (wsrep_debug) {
-					ib::info() <<
-						"BF conflict, modes: "
-						   << type_mode << ":" << lock2->type_mode
-						   << " idx: " << lock2->index->name()
-						   << " table: " << lock2->index->table->name.m_name
-						   << " n_uniq: " << lock2->index->n_uniq
-						   << " n_user: " << lock2->index->n_user_defined_cols;
-					ib::info() << " SQL1: "
-						   << wsrep_thd_query(trx->mysql_thd);
-					ib::info() << " SQL2: "
-						   << wsrep_thd_query(lock2->trx->mysql_thd);
-				}
-				return FALSE;
-			}
-		}
-#endif /* WITH_WSREP */
-
-		return(TRUE);
+	if (trx == lock2->trx
+	    || lock_mode_compatible(
+		       static_cast<lock_mode>(LOCK_MODE_MASK & type_mode),
+		       lock_get_mode(lock2))) {
+		return(false);
 	}
 
-	return(FALSE);
+	/* We have somewhat complex rules when gap type record locks
+	cause waits */
+
+	if ((lock_is_on_supremum || (type_mode & LOCK_GAP))
+	    && !(type_mode & LOCK_INSERT_INTENTION)) {
+
+		/* Gap type locks without LOCK_INSERT_INTENTION flag
+		do not need to wait for anything. This is because
+		different users can have conflicting lock types
+		on gaps. */
+
+		return(false);
+	}
+
+	if (!(type_mode & LOCK_INSERT_INTENTION) && lock_rec_get_gap(lock2)) {
+
+		/* Record lock (LOCK_ORDINARY or LOCK_REC_NOT_GAP
+		does not need to wait for a gap type lock */
+
+		return(false);
+	}
+
+	if ((type_mode & LOCK_GAP) && lock_rec_get_rec_not_gap(lock2)) {
+
+		/* Lock on gap does not need to wait for
+		a LOCK_REC_NOT_GAP type lock */
+
+		return(false);
+	}
+
+	if (lock_rec_get_insert_intention(lock2)) {
+
+		/* No lock request needs to wait for an insert
+		intention lock to be removed. This is ok since our
+		rules allow conflicting locks on gaps. This eliminates
+		a spurious deadlock caused by a next-key lock waiting
+		for an insert intention lock; when the insert
+		intention lock was granted, the insert deadlocked on
+		the waiting next-key lock.
+
+		Also, insert intention locks do not disturb each
+		other. */
+
+		return(false);
+	}
+
+	if ((type_mode & LOCK_GAP || lock_rec_get_gap(lock2))
+	    && !thd_need_ordering_with(trx->mysql_thd, lock2->trx->mysql_thd)) {
+		/* If the upper server layer has already decided on the
+		commit order between the transaction requesting the
+		lock and the transaction owning the lock, we do not
+		need to wait for gap locks. Such ordeering by the upper
+		server layer happens in parallel replication, where the
+		commit order is fixed to match the original order on the
+		master.
+
+		Such gap locks are mainly needed to get serialisability
+		between transactions so that they will be binlogged in
+		the correct order so that statement-based replication
+		will give the correct results. Since the right order
+		was already determined on the master, we do not need
+		to enforce it again here.
+
+		Skipping the locks is not essential for correctness,
+		since in case of deadlock we will just kill the later
+		transaction and retry it. But it can save some
+		unnecessary rollbacks and retries. */
+
+		return(false);
+	}
+
+#ifdef WITH_WSREP
+	/* if BF thread is locking and has conflict with another BF
+	   thread, we need to look at trx ordering and lock types */
+	if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)
+	    && wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
+
+		if (wsrep_debug) {
+			ib::info() << "BF-BF lock conflict, locking: "
+				   << for_locking;
+			lock_rec_print(stderr, lock2);
+			ib::info()
+				<< " SQL1: " << wsrep_thd_query(trx->mysql_thd)
+				<< " SQL2: "
+				<< wsrep_thd_query(lock2->trx->mysql_thd);
+		}
+
+		if (wsrep_trx_order_before(trx->mysql_thd,
+					   lock2->trx->mysql_thd)
+		    && (type_mode & LOCK_MODE_MASK) == LOCK_X
+		    && (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X) {
+			if (for_locking || wsrep_debug) {
+				/* exclusive lock conflicts are not
+				   accepted */
+				ib::info()
+					<< "BF-BF X lock conflict,mode: "
+					<< type_mode
+					<< " supremum: " << lock_is_on_supremum
+					<< "conflicts states: my "
+					<< wsrep_thd_conflict_state(
+						   trx->mysql_thd, FALSE)
+					<< " locked "
+					<< wsrep_thd_conflict_state(
+						   lock2->trx->mysql_thd,
+						   FALSE);
+				lock_rec_print(stderr, lock2);
+				ib::info() << " SQL1: "
+					   << wsrep_thd_query(trx->mysql_thd)
+					   << " SQL2: "
+					   << wsrep_thd_query(
+						      lock2->trx->mysql_thd);
+
+				if (for_locking) {
+					return FALSE;
+				}
+			}
+		} else {
+			/* if lock2->index->n_uniq <=
+			   lock2->index->n_user_defined_cols
+			   operation is on uniq index
+			*/
+			if (wsrep_debug) {
+				ib::info()
+					<< "BF conflict, modes: " << type_mode
+					<< ":" << lock2->type_mode
+					<< " idx: " << lock2->index->name()
+					<< " table: "
+					<< lock2->index->table->name.m_name
+					<< " n_uniq: " << lock2->index->n_uniq
+					<< " n_user: "
+					<< lock2->index->n_user_defined_cols
+					<< " SQL1: "
+					<< wsrep_thd_query(trx->mysql_thd)
+					<< " SQL2: "
+					<< wsrep_thd_query(
+						   lock2->trx->mysql_thd);
+			}
+			return FALSE;
+		}
+	}
+#endif /* WITH_WSREP */
+
+	return(true);
 }
 
 /*********************************************************************//**
