@@ -2351,8 +2351,11 @@ Use these instead of accessing buf_pool->mutex directly. */
 
 
 /** Get appropriate page_hash_lock. */
-# define buf_page_hash_lock_get(buf_pool, page_id)	\
-	hash_get_lock((buf_pool)->page_hash, (page_id).fold())
+inline rw_lock_t*
+buf_page_hash_lock_get(const buf_pool_t* buf_pool, page_id_t page_id)
+{
+	return hash_get_lock(buf_pool->page_hash, page_id.fold());
+}
 
 /** If not appropriate page_hash_lock, relock until appropriate. */
 # define buf_page_hash_lock_s_confirm(hash_lock, buf_pool, page_id)\
