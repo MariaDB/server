@@ -6743,9 +6743,9 @@ Item *Item_int::clone_item(THD *thd)
 }
 
 
-void Item_datetime::set(longlong packed)
+void Item_datetime::set(longlong packed, enum_mysql_timestamp_type ts_type)
 {
-  unpack_time(packed, &ltime);
+  unpack_time(packed, &ltime, ts_type);
 }
 
 int Item_datetime::save_in_field(Field *field, bool no_conversions)
@@ -9801,13 +9801,7 @@ bool Item_cache_temporal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
     return 1;
   }
 
-  unpack_time(value, ltime);
-  ltime->time_type= mysql_timestamp_type();
-  if (ltime->time_type == MYSQL_TIMESTAMP_TIME)
-  {
-    ltime->hour+= (ltime->month*32+ltime->day)*24;
-    ltime->month= ltime->day= 0;
-  }
+  unpack_time(value, ltime, mysql_timestamp_type());
   return 0;
  
 }
@@ -9852,7 +9846,7 @@ Item *Item_cache_temporal::convert_to_basic_const_item(THD *thd)
   else
   {
     MYSQL_TIME ltime;
-    unpack_time(val_datetime_packed(), &ltime);
+    unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATETIME);
     new_item= (Item*) new (thd->mem_root) Item_datetime_literal(thd, &ltime,
                                                                 decimals);
   }

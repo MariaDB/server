@@ -233,4 +233,8 @@ bool make_date_with_warn(MYSQL_TIME *ltime,
                          ulonglong fuzzy_date, timestamp_type ts_type);
 bool adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec);
 
+longlong pack_time(const MYSQL_TIME *my_time);
+void unpack_time(longlong packed, MYSQL_TIME *my_time,
+                 enum_mysql_timestamp_type ts_type);
+
 #endif /* SQL_TIME_INCLUDED */

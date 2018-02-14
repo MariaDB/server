@@ -1425,31 +1425,3 @@ double TIME_to_double(const MYSQL_TIME *my_time)
   d+= my_time->second_part/(double)TIME_SECOND_PART_FACTOR;
   return my_time->neg ? -d : d;
 }
-
-longlong pack_time(const MYSQL_TIME *my_time)
-{
-  return  ((((((my_time->year     * 13ULL +
-               my_time->month)    * 32ULL +
-               my_time->day)      * 24ULL +
-               my_time->hour)     * 60ULL +
-               my_time->minute)   * 60ULL +
-               my_time->second)   * 1000000ULL +
-               my_time->second_part) * (my_time->neg ? -1 : 1);
-}
-
-#define get_one(WHERE, FACTOR) WHERE= (ulong)(packed % FACTOR); packed/= FACTOR
-
-MYSQL_TIME *unpack_time(longlong packed, MYSQL_TIME *my_time)
-{
-  if ((my_time->neg= packed < 0))
-    packed= -packed;
-  get_one(my_time->second_part, 1000000ULL);
-  get_one(my_time->second,           60U);
-  get_one(my_time->minute,           60U);
-  get_one(my_time->hour,             24U);
-  get_one(my_time->day,              32U);
-  get_one(my_time->month,            13U);
-  my_time->year= (uint)packed;
-  my_time->time_type= MYSQL_TIMESTAMP_DATETIME;
-  return my_time;
-}

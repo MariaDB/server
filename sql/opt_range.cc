@@ -7055,7 +7055,7 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
 
   if (negated)
   {
-    if (array && array->result_type() != ROW_RESULT)
+    if (array && array->type_handler()->result_type() != ROW_RESULT)
     {
       /*
         We get here for conditions in form "t.key NOT IN (c1, c2, ...)",
