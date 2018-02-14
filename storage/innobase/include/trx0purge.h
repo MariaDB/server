@@ -517,9 +517,9 @@ public:
 					parallelized purge operation */
 	ReadView	view;		/*!< The purge will not remove undo logs
 					which are >= this view (purge view) */
-	volatile ulint	n_submitted;	/*!< Count of total tasks submitted
+	ulint	n_submitted;	/*!< Count of total tasks submitted
 					to the task queue */
-	volatile ulint	n_completed;	/*!< Count of total tasks completed */
+	ulint	n_completed;	/*!< Count of total tasks completed */
 
 	/*------------------------------*/
 	/* The following two fields form the 'purge pointer' which advances

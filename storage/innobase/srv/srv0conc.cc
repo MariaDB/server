@@ -78,11 +78,11 @@ struct srv_conc_t {
 	This is no longer true. We'll, however, keep the lint datatype to add
 	assertions to catch any corner cases that we may have missed. */
 
-	volatile lint	n_active;
+	ulint	n_active;
 
 	/** Number of OS threads waiting in the FIFO for permission to
 	enter InnoDB */
-	volatile lint	n_waiting;
+	ulint	n_waiting;
 };
 
 /* Control variables for tracking concurrency. */
@@ -152,7 +152,7 @@ srv_conc_enter_innodb_with_atomics(
 			return;
 		}
 
-		if (srv_conc.n_active < (lint) srv_thread_concurrency) {
+		if (srv_conc.n_active < srv_thread_concurrency) {
 			ulint	n_active;
 
 			/* Check if there are any free tickets. */
