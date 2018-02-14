@@ -3847,7 +3847,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                            key->key_create_info.block_size :
                            create_info->key_block_size);
 
-    if (key_info->block_size)
+    /*
+      Remember block_size for the future if the block size was given
+      either for key or table and it was given for the key during
+      create/alter table or we have an active key_block_size for the
+      table.
+      The idea is that table specific key_block_size > 0 will only affect
+      new keys and old keys will remember their original value.
+    */
+    if (key_info->block_size &&
+        ((key->key_create_info.flags & HA_USES_BLOCK_SIZE) ||
+         create_info->key_block_size))
       key_info->flags|= HA_USES_BLOCK_SIZE;
 
     List_iterator<Key_part_spec> cols(key->columns), cols2(key->columns);
@@ -8408,8 +8418,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       LEX_CSTRING tmp_name;
       bzero((char*) &key_create_info, sizeof(key_create_info));
       key_create_info.algorithm= key_info->algorithm;
-      if (key_info->flags & HA_USES_BLOCK_SIZE)
-        key_create_info.block_size= key_info->block_size;
+      /*
+        We copy block size directly as some engines, like Area, sets this
+        automatically
+      */
+      key_create_info.block_size= key_info->block_size;
+      key_create_info.flags=      key_info->flags;  // HA_USE_BLOCK_SIZE
       if (key_info->flags & HA_USES_PARSER)
         key_create_info.parser_name= *plugin_name(key_info->parser);
       if (key_info->flags & HA_USES_COMMENT)

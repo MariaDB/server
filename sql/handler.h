@@ -2347,6 +2347,7 @@ typedef struct st_key_create_information
 {
   enum ha_key_alg algorithm;
   ulong block_size;
+  uint flags;                                   /* HA_USE.. flags */
   LEX_CSTRING parser_name;
   LEX_CSTRING comment;
   /**

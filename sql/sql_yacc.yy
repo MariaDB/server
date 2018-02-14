@@ -69,6 +69,7 @@
 #include "sql_sequence.h"
 #include "sql_tvc.h"
 #include "vers_utils.h"
+#include "my_base.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -7518,7 +7519,10 @@ key_using_alg:
 
 all_key_opt:
           KEY_BLOCK_SIZE opt_equal ulong_num
-          { Lex->last_key->key_create_info.block_size= $3; }
+          {
+            Lex->last_key->key_create_info.block_size= $3;
+            Lex->last_key->key_create_info.flags|= HA_USES_BLOCK_SIZE;
+         }
         | COMMENT_SYM TEXT_STRING_sys
           { Lex->last_key->key_create_info.comment= $2; }
         | IDENT_sys equal TEXT_STRING_sys
