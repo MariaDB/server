@@ -162,3 +162,12 @@ select next value for s1;
 ERROR HY000: Can't execute the query because you have a conflicting read lock
 unlock tables;
 drop sequence s1;
+#
+# MDEV-14761
+# Assertion `!mysql_parse_status || thd->is_error() ||
+# thd->get_internal_handler()' failed in parse_sql
+#
+CREATE SEQUENCE s1;
+ALTER SEQUENCE s1 MAXVALUE 100 NO MAXVALUE;
+ERROR HY000: Option 'MAXVALUE' used twice in statement
+DROP SEQUENCE s1;
