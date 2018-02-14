@@ -155,7 +155,11 @@ IF(MSVC)
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")
   ENDIF()
-
+  IF(MSVC_VERSION LESS 1910)
+    # Noisy warning C4800: 'type': forcing value to bool 'true' or 'false' (performance warning),
+    # removed in VS2017
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4800")
+  ENDIF()
 ENDIF()
 
 # Always link with socket library
