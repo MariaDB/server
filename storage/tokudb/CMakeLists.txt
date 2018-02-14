@@ -4,6 +4,8 @@ IF(CMAKE_VERSION VERSION_LESS "2.8.9")
   MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
 ELSEIF(NOT HAVE_DLOPEN)
   MESSAGE(STATUS "dlopen is required by TokuDB")
+ELSEIF(NOT TARGET perfschema)
+  MESSAGE(STATUS "Performance Schema is required by TokuDB")
 ELSEIF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
        CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
 # tokudb requires F_NOCACHE or O_DIRECT, and designated initializers
