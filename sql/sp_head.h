@@ -831,7 +831,7 @@ public:
     */
     DBUG_PRINT("info", ("lex->get_stmt_unsafe_flags(): 0x%x",
                         prelocking_ctx->get_stmt_unsafe_flags()));
-    DBUG_PRINT("info", ("sp_head(0x%p=%s)->unsafe_flags: 0x%x",
+    DBUG_PRINT("info", ("sp_head(%p=%s)->unsafe_flags: 0x%x",
                         this, name()->str, unsafe_flags));
     prelocking_ctx->set_stmt_unsafe_flags(unsafe_flags);
     DBUG_VOID_RETURN;

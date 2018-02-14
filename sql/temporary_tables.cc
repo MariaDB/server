@@ -1140,7 +1140,8 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
     thread_safe_increment32(&slave_open_temp_tables);
   }
 
-  DBUG_PRINT("tmptable", ("Opened table: '%s'.'%s'%p", table->s->db.str,
+  DBUG_PRINT("tmptable", ("Opened table: '%s'.'%s  table: %p",
+                          table->s->db.str,
                           table->s->table_name.str, table));
   DBUG_RETURN(table);
 }
