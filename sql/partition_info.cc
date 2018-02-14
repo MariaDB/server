@@ -2744,23 +2744,6 @@ end:
 }
 
 
-bool partition_info::error_if_requires_values() const
-{
-  switch (part_type) {
-  case NOT_A_PARTITION:
-  case HASH_PARTITION:
-    break;
-  case RANGE_PARTITION:
-    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "RANGE", "LESS THAN");
-    return true;
-  case LIST_PARTITION:
-    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "LIST", "IN");
-    return true;
-  }
-  return false;
-}
-
-
 /**
   Fix partition data from parser.
 
@@ -3211,3 +3194,19 @@ bool check_partition_dirs(partition_info *part_info)
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
+
+bool partition_info::error_if_requires_values() const
+{
+  switch (part_type) {
+  case NOT_A_PARTITION:
+  case HASH_PARTITION:
+    break;
+  case RANGE_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "RANGE", "LESS THAN");
+    return true;
+  case LIST_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "LIST", "IN");
+    return true;
+  }
+  return false;
+}
