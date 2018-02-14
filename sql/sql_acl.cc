@@ -7603,7 +7603,7 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     sctx= t_ref->security_ctx ? t_ref->security_ctx : thd->security_ctx;
     ulong orig_want_access= original_want_access;
 
-    if (t_ref->sequence)
+    if (t_ref->sequence && !(want_access & ~(INSERT_ACL | SELECT_ACL)))
     {
       /* We want to have either SELECT or INSERT rights to sequences depending
          on how they are accessed
