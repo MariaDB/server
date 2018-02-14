@@ -13,8 +13,9 @@ def _add_my_conf_files(report, filename):
     report[key] = ""
     for line in read_file(filename).split('\n'):
         try:
-            if 'password' in line.split('=')[0]:
-                line = "%s = @@APPORTREPLACED@@" % (line.split('=')[0])
+            sysvar = line.split('=')[0]
+            if sysvar in ['password', 'wsrep_sst_auth']:
+                line = "%s = @@APPORTREPLACED@@" % (sysvar)
             report[key] += line + '\n'
         except IndexError:
             continue
