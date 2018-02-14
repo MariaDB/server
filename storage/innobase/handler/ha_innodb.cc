@@ -154,11 +154,8 @@ innodb_check_deprecated(void);
 
 #ifdef WITH_WSREP
 #include "dict0priv.h"
-#include "../storage/innobase/include/ut0byte.h"
+#include "ut0byte.h"
 #include <mysql/service_md5.h>
-
-class  binlog_trx_data;
-extern handlerton *binlog_hton;
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 
@@ -1961,14 +1958,11 @@ thd_innodb_tmpdir(
 }
 
 /** Obtain the InnoDB transaction of a MySQL thread.
-@param[in,out]	thd	MySQL thread handler.
+@param[in,out]	thd	thread handle
 @return reference to transaction pointer */
-MY_ATTRIBUTE((warn_unused_result))
-trx_t*&
-thd_to_trx(
-	THD*	thd)
+static trx_t* thd_to_trx(THD* thd)
 {
-	return(*(trx_t**) thd_ha_data(thd, innodb_hton_ptr));
+	return *reinterpret_cast<trx_t**>(thd_ha_data(thd, innodb_hton_ptr));
 }
 
 #ifdef WITH_WSREP
@@ -2877,20 +2871,19 @@ check_trx_exists(
 /*=============*/
 	THD*	thd)	/*!< in: user thread handle */
 {
-	trx_t*&	trx = thd_to_trx(thd);
-
-	if (trx == NULL) {
+	if (trx_t* trx = thd_to_trx(thd)) {
+		ut_a(trx->magic_n == TRX_MAGIC_N);
+		innobase_trx_init(thd, trx);
+		return trx;
+	} else {
 		trx = innobase_trx_allocate(thd);
 		/* User trx can be forced to rollback,
 		so we unset the disable flag. */
 		ut_ad(trx->in_innodb & TRX_FORCE_ROLLBACK_DISABLE);
 		trx->in_innodb &= TRX_FORCE_ROLLBACK_MASK;
-	} else {
-		ut_a(trx->magic_n == TRX_MAGIC_N);
-		innobase_trx_init(thd, trx);
+		thd_set_ha_data(thd, innodb_hton_ptr, trx);
+		return trx;
 	}
-
-	return(trx);
 }
 
 /*************************************************************************
@@ -2900,8 +2893,7 @@ innobase_get_trx()
 {
 	THD *thd=current_thd;
 	if (likely(thd != 0)) {
-		trx_t*& trx = thd_to_trx(thd);
-		return(trx);
+		return thd_to_trx(thd);
 	} else {
 		return(NULL);
 	}
