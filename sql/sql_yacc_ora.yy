@@ -7066,7 +7066,10 @@ key_using_alg:
 
 all_key_opt:
           KEY_BLOCK_SIZE opt_equal ulong_num
-          { Lex->last_key->key_create_info.block_size= $3; }
+          {
+            Lex->create_info.used_fields|= HA_USES_BLOCK_SIZE;
+            Lex->create_info.key_block_size= $3;
+          }
         | COMMENT_SYM TEXT_STRING_sys
           { Lex->last_key->key_create_info.comment= $2; }
         | IDENT_sys equal TEXT_STRING_sys
