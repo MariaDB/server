@@ -54,7 +54,7 @@ Created 5/7/1996 Heikki Tuuri
 #endif /* WITH_WSREP */
 
 /** Lock scheduling algorithm */
-ulong innodb_lock_schedule_algorithm = INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS;
+ulong innodb_lock_schedule_algorithm;
 
 /** The value of innodb_deadlock_detect */
 my_bool	innobase_deadlock_detect;
