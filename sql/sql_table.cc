@@ -9196,7 +9196,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
     {
       vers_survival_mod= alter_info->data_modifying() || alter_info->partition_modifying();
     }
-    else if (vers_data_mod && thd->variables.vers_alter_history == VERS_ALTER_HISTORY_ERROR)
+    else if (vers_data_mod && !thd->slave_thread &&
+      thd->variables.vers_alter_history == VERS_ALTER_HISTORY_ERROR)
     {
       my_error(ER_VERS_ALTER_NOT_ALLOWED, MYF(0),
                table_list->db.str, table_list->table_name.str);
