@@ -989,7 +989,6 @@ fts_table_fetch_doc_ids(
 
 	if (!trx) {
 		trx = trx_allocate_for_background();
-		trx_start_internal(trx);
 		alloc_bk_trx = TRUE;
 	}
 
@@ -1018,17 +1017,14 @@ fts_table_fetch_doc_ids(
 		"CLOSE c;");
 
 	error = fts_eval_sql(trx, graph);
+	fts_sql_commit(trx);
 
 	mutex_enter(&dict_sys->mutex);
 	que_graph_free(graph);
 	mutex_exit(&dict_sys->mutex);
 
 	if (error == DB_SUCCESS) {
-		fts_sql_commit(trx);
-
 		ib_vector_sort(doc_ids->doc_ids, fts_update_doc_id_cmp);
-	} else {
-		fts_sql_rollback(trx);
 	}
 
 	if (alloc_bk_trx) {
@@ -2442,6 +2438,10 @@ fts_optimize_table(
 /*===============*/
 	dict_table_t*	table)	/*!< in: table to optimiza */
 {
+	if (srv_read_only_mode) {
+		return DB_READ_ONLY;
+	}
+
 	dberr_t		error = DB_SUCCESS;
 	fts_optimize_t*	optim = NULL;
 	fts_t*		fts = table->fts;
