@@ -3,6 +3,10 @@
 # Note that replication.test also does some grant testing
 #
 
+# Grant tests not performed with embedded server
+-- source include/not_embedded.inc
+
+
 SET @@SQL_MODE = REPLACE(@@SQL_MODE, 'NO_AUTO_CREATE_USER', '');
 create database mysqltest_1;
 use mysqltest_1;
