@@ -269,13 +269,13 @@ parse_cnf()
     fi
 
     # look in group
-    if [ -z $reval ]; then
+    if [ -z "$reval" ]; then
         reval=$($MY_PRINT_DEFAULTS $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
     fi
 
     # use default if we haven't found a value
-    if [ -z $reval ]; then
-        [ -n $3 ] && reval=$3
+    if [ -z "$reval" ]; then
+        [ -n "$3" ] && reval=$3
     fi
     echo $reval
 }
