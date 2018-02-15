@@ -167,7 +167,6 @@ ut_new_boot()
 		"trx0sys",
 		"trx0trx",
 		"trx0undo",
-		"usr0sess",
 		"ut0list",
 		"ut0mem",
 		"ut0mutex",

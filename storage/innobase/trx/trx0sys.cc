@@ -500,8 +500,6 @@ trx_sys_init_at_db_start()
 	mtr.commit();
 	ut_d(trx_sys->rw_max_trx_id = trx_sys->max_trx_id);
 
-	trx_dummy_sess = sess_open();
-
 	trx_lists_init_at_db_start();
 
 	/* This mutex is not strictly required, it is here only to satisfy
@@ -926,11 +924,6 @@ trx_sys_close(void)
 	if (ulint size = trx_sys->mvcc->size()) {
 		ib::error() << "All read views were not closed before"
 			" shutdown: " << size << " read views open";
-	}
-
-	if (trx_dummy_sess) {
-		sess_close(trx_dummy_sess);
-		trx_dummy_sess = NULL;
 	}
 
 	/* Only prepared transactions may be left in the system. Free them. */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,7 +33,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0sys.h"
 #include "que0types.h"
 #include "page0page.h"
-#include "usr0sess.h"
 #include "fil0fil.h"
 #include "read0types.h"
 
@@ -494,8 +493,6 @@ public:
 	/** Destruct the purge system. */
 	~purge_sys_t();
 
-	sess_t*		sess;		/*!< System session running the purge
-					query */
 	rw_lock_t	latch;		/*!< The latch protecting the purge
 					view. A purge operation must acquire an
 					x-latch here for the instant at which

@@ -35,7 +35,6 @@ Created 5/7/1996 Heikki Tuuri
 #include "lock0lock.h"
 #include "lock0priv.h"
 #include "dict0mem.h"
-#include "usr0sess.h"
 #include "trx0purge.h"
 #include "trx0sys.h"
 #include "srv0mon.h"
