@@ -4709,7 +4709,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       if (!(tab_part_info= tab_part_info->get_clone(thd)))
         DBUG_RETURN(TRUE);
     }
-    DBUG_PRINT("info", ("*fast_alter_table flags: 0x%x", flags));
+    DBUG_PRINT("info", ("*fast_alter_table flags: 0x%llx", flags));
     if ((alter_info->flags & Alter_info::ALTER_ADD_PARTITION) ||
         (alter_info->flags & Alter_info::ALTER_REORGANIZE_PARTITION))
     {
