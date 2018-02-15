@@ -3569,7 +3569,9 @@ xtrabackup_backup_func()
         if(innodb_init_param()) {
 fail:
 		stop_backup_threads();
-		innodb_shutdown();
+		if (fil_system) {
+			innodb_shutdown();
+		}
 		return(false);
 	}
 
