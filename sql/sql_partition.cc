@@ -3112,6 +3112,8 @@ int vers_get_partition_id(partition_info *part_info,
     switch (thd->lex->sql_command)
     {
     case SQLCOM_DELETE:
+      if (thd->lex->vers_conditions)
+        break; // DELETE HISTORY
     case SQLCOM_DELETE_MULTI:
     case SQLCOM_UPDATE:
     case SQLCOM_UPDATE_MULTI:
