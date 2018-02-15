@@ -4791,8 +4791,7 @@ static int replace_data_file(HA_CHECK *param, MI_INFO *info, File new_file)
   */
   if (info->s->file_map)
   {
-    (void) my_munmap((char*) info->s->file_map,
-                     (size_t) info->s->mmaped_length);
+    (void) my_munmap((char*) info->s->file_map, info->s->mmaped_length);
     info->s->file_map= NULL;
   }
 

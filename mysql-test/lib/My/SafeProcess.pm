@@ -84,7 +84,7 @@ sub is_child {
 }
 
 
-my @safe_process_cmd;
+our @safe_process_cmd;
 my $safe_kill;
 my $bindir;
 

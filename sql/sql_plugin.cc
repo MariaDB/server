@@ -490,6 +490,11 @@ static st_plugin_dl *plugin_dl_insert_or_reuse(struct st_plugin_dl *plugin_dl)
                                            sizeof(struct st_plugin_dl));
   DBUG_RETURN(tmp);
 }
+#else
+static struct st_plugin_dl *plugin_dl_find(const LEX_STRING *)
+{
+  return 0;
+}
 #endif /* HAVE_DLOPEN */
 
 

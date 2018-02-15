@@ -84,12 +84,16 @@ test_groupcommit (int nthreads) {
     int i;
     toku_pthread_t threads[nthreads];
     int whichthread[nthreads];
-    for (i=0; i<nthreads; i++) {
-	whichthread[i]=i;
-	r=toku_pthread_create(&threads[i], 0, start_a_thread, &whichthread[i]);
+    for (i = 0; i < nthreads; i++) {
+        whichthread[i] = i;
+        r = toku_pthread_create(toku_uninstrumented,
+                                &threads[i],
+                                nullptr,
+                                start_a_thread,
+                                &whichthread[i]);
     }
-    for (i=0; i<nthreads; i++) {
-	toku_pthread_join(threads[i], 0);
+    for (i = 0; i < nthreads; i++) {
+        toku_pthread_join(threads[i], 0);
     }
 #if 0
     r=env->txn_begin(env, 0, &tid, 0); CKERR(r);

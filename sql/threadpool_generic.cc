@@ -1695,10 +1695,9 @@ int TP_pool_generic::set_pool_size(uint size)
       if(!success)
       {
         sql_print_error("io_poll_create() failed, errno=%d\n", errno);
-        break;
       }
     }  
-    mysql_mutex_unlock(&all_groups[i].mutex);
+    mysql_mutex_unlock(&group->mutex);
     if (!success)
     {
       group_count= i;

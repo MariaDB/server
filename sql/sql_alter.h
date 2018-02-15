@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2013, 2014, Monty Program Ab.
+   Copyright (c) 2013, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -38,68 +38,66 @@ public:
     type of index to be added/dropped.
   */
 
-  enum operations_used_flags
-  {
-    // Set for ADD [COLUMN]
-    ALTER_ADD_COLUMN            = 1L <<  0,
-    // Set for DROP [COLUMN]
-    ALTER_DROP_COLUMN           = 1L <<  1,
-    // Set for CHANGE [COLUMN] | MODIFY [CHANGE] & mysql_recreate_table
-    ALTER_CHANGE_COLUMN         = 1L <<  2,
-    // Set for ADD INDEX | ADD KEY | ADD PRIMARY KEY | ADD UNIQUE KEY |
-    //         ADD UNIQUE INDEX | ALTER ADD [COLUMN]
-    ALTER_ADD_INDEX             = 1L <<  3,
-    // Set for DROP PRIMARY KEY | DROP FOREIGN KEY | DROP KEY | DROP INDEX
-    ALTER_DROP_INDEX            = 1L <<  4,
-    // Set for RENAME [TO]
-    ALTER_RENAME                = 1L <<  5,
-    // Set for ORDER BY
-    ALTER_ORDER                 = 1L <<  6,
-    // Set for table_options
-    ALTER_OPTIONS               = 1L <<  7,
-    // Set for ALTER [COLUMN] ... SET DEFAULT ... | DROP DEFAULT
-    ALTER_CHANGE_COLUMN_DEFAULT = 1L <<  8,
-    // Set for DISABLE KEYS | ENABLE KEYS
-    ALTER_KEYS_ONOFF            = 1L <<  9,
-    // Set for FORCE, ENGINE(same engine), by mysql_recreate_table()
-    ALTER_RECREATE              = 1L << 10,
-    // Set for ADD PARTITION
-    ALTER_ADD_PARTITION         = 1L << 11,
-    // Set for DROP PARTITION
-    ALTER_DROP_PARTITION        = 1L << 12,
-    // Set for COALESCE PARTITION
-    ALTER_COALESCE_PARTITION    = 1L << 13,
-    // Set for REORGANIZE PARTITION ... INTO
-    ALTER_REORGANIZE_PARTITION  = 1L << 14,
-    // Set for partition_options
-    ALTER_PARTITION             = 1L << 15,
-    // Set for LOAD INDEX INTO CACHE ... PARTITION
-    // Set for CACHE INDEX ... PARTITION
-    ALTER_ADMIN_PARTITION       = 1L << 16,
-    // Set for REORGANIZE PARTITION
-    ALTER_TABLE_REORG           = 1L << 17,
-    // Set for REBUILD PARTITION
-    ALTER_REBUILD_PARTITION     = 1L << 18,
-    // Set for partitioning operations specifying ALL keyword
-    ALTER_ALL_PARTITION         = 1L << 19,
-    // Set for REMOVE PARTITIONING
-    ALTER_REMOVE_PARTITIONING   = 1L << 20,
-    // Set for ADD FOREIGN KEY
-    ADD_FOREIGN_KEY             = 1L << 21,
-    // Set for DROP FOREIGN KEY
-    DROP_FOREIGN_KEY            = 1L << 22,
-    // Set for EXCHANGE PARITION
-    ALTER_EXCHANGE_PARTITION    = 1L << 23,
-    // Set by Sql_cmd_alter_table_truncate_partition::execute()
-    ALTER_TRUNCATE_PARTITION    = 1L << 24,
-    // Set for ADD [COLUMN] FIRST | AFTER
-    ALTER_COLUMN_ORDER          = 1L << 25,
-    ALTER_ADD_CHECK_CONSTRAINT  = 1L << 27,
-    ALTER_DROP_CHECK_CONSTRAINT = 1L << 28,
-    ALTER_COLUMN_UNVERSIONED    = 1L << 29,
-    ALTER_ADD_SYSTEM_VERSIONING = 1L << 30,
-    ALTER_DROP_SYSTEM_VERSIONING= 1L << 31,
-  };
+  /** Set for ADD [COLUMN] */
+  static const ulonglong ALTER_ADD_COLUMN            = 1ULL <<  0;
+  /** Set for DROP [COLUMN] */
+  static const ulonglong ALTER_DROP_COLUMN           = 1ULL <<  1;
+  /** Set for CHANGE [COLUMN] | MODIFY [CHANGE] & mysql_recreate_table */
+  static const ulonglong ALTER_CHANGE_COLUMN         = 1ULL <<  2;
+  /** Set for ADD INDEX | ADD KEY | ADD PRIMARY KEY | ADD UNIQUE KEY |
+              ADD UNIQUE INDEX | ALTER ADD [COLUMN] */
+  static const ulonglong ALTER_ADD_INDEX             = 1ULL <<  3;
+  /** Set for DROP PRIMARY KEY | DROP FOREIGN KEY | DROP KEY | DROP INDEX */
+  static const ulonglong ALTER_DROP_INDEX            = 1ULL <<  4;
+  /** Set for RENAME [TO] */
+  static const ulonglong ALTER_RENAME                = 1ULL <<  5;
+  /** Set for ORDER BY */
+  static const ulonglong ALTER_ORDER                 = 1ULL <<  6;
+  /** Set for table_options */
+  static const ulonglong ALTER_OPTIONS               = 1ULL <<  7;
+  /** Set for ALTER [COLUMN] ... SET DEFAULT ... | DROP DEFAULT */
+  static const ulonglong ALTER_CHANGE_COLUMN_DEFAULT = 1ULL <<  8;
+  /** Set for DISABLE KEYS | ENABLE KEYS */
+  static const ulonglong ALTER_KEYS_ONOFF            = 1ULL <<  9;
+  /** Set for FORCE, ENGINE(same engine), by mysql_recreate_table() */
+  static const ulonglong ALTER_RECREATE              = 1ULL << 10;
+  /** Set for ADD PARTITION */
+  static const ulonglong ALTER_ADD_PARTITION         = 1ULL << 11;
+  /** Set for DROP PARTITION */
+  static const ulonglong ALTER_DROP_PARTITION        = 1ULL << 12;
+  /** Set for COALESCE PARTITION */
+  static const ulonglong ALTER_COALESCE_PARTITION    = 1ULL << 13;
+  /** Set for REORGANIZE PARTITION ... INTO */
+  static const ulonglong ALTER_REORGANIZE_PARTITION  = 1ULL << 14;
+  /** Set for partition_options */
+  static const ulonglong ALTER_PARTITION             = 1ULL << 15;
+  /** Set for LOAD INDEX INTO CACHE ... PARTITION
+      and     CACHE INDEX ... PARTITION */
+  static const ulonglong ALTER_ADMIN_PARTITION       = 1ULL << 16;
+  /** Set for REORGANIZE PARTITION */
+  static const ulonglong ALTER_TABLE_REORG           = 1ULL << 17;
+  /** Set for REBUILD PARTITION */
+  static const ulonglong ALTER_REBUILD_PARTITION     = 1ULL << 18;
+  /** Set for partitioning operations specifying ALL keyword */
+  static const ulonglong ALTER_ALL_PARTITION         = 1ULL << 19;
+  /** Set for REMOVE PARTITIONING */
+  static const ulonglong ALTER_REMOVE_PARTITIONING   = 1ULL << 20;
+  /** Set for ADD FOREIGN KEY */
+  static const ulonglong ADD_FOREIGN_KEY             = 1ULL << 21;
+  /** Set for DROP FOREIGN KEY */
+  static const ulonglong DROP_FOREIGN_KEY            = 1ULL << 22;
+  /** Set for EXCHANGE PARITION */
+  static const ulonglong ALTER_EXCHANGE_PARTITION    = 1ULL << 23;
+  /** Set by Sql_cmd_alter_table_truncate_partition::execute() */
+  static const ulonglong ALTER_TRUNCATE_PARTITION    = 1ULL << 24;
+  /** Set for ADD [COLUMN] FIRST | AFTER */
+  static const ulonglong ALTER_COLUMN_ORDER          = 1ULL << 25;
+  static const ulonglong ALTER_ADD_CHECK_CONSTRAINT  = 1ULL << 27;
+  static const ulonglong ALTER_DROP_CHECK_CONSTRAINT = 1ULL << 28;
+  static const ulonglong ALTER_RENAME_COLUMN         = 1ULL << 29;
+  static const ulonglong ALTER_COLUMN_UNVERSIONED    = 1ULL << 30;
+  static const ulonglong ALTER_ADD_SYSTEM_VERSIONING = 1ULL << 31;
+  static const ulonglong ALTER_DROP_SYSTEM_VERSIONING= 1ULL << 32;
 
   enum enum_enable_or_disable { LEAVE_AS_IS, ENABLE, DISABLE };
 
@@ -176,7 +174,7 @@ public:
   };
   List<Virtual_column_info>     check_constraint_list;
   // Type of ALTER TABLE operation.
-  uint                          flags;
+  ulonglong                     flags;
   // Enable or disable keys.
   enum_enable_or_disable        keys_onoff;
   // List of partitions.

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -333,7 +334,7 @@ row_build_index_entry_low(
 		/* If a column prefix index, take only the prefix. */
 		if (ind_field->prefix_len) {
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminmaxlen,
+				col->prtype, col->mbminlen, col->mbmaxlen,
 				ind_field->prefix_len, len,
 				static_cast<char*>(dfield_get_data(dfield)));
 			dfield_set_len(dfield, len);
@@ -876,7 +877,8 @@ row_build_row_ref(
 				dfield_set_len(dfield,
 					       dtype_get_at_most_n_mbchars(
 						       dtype->prtype,
-						       dtype->mbminmaxlen,
+						       dtype->mbminlen,
+						       dtype->mbmaxlen,
 						       clust_col_prefix_len,
 						       len, (char*) field));
 			}
@@ -977,7 +979,8 @@ row_build_row_ref_in_tuple(
 				dfield_set_len(dfield,
 					       dtype_get_at_most_n_mbchars(
 						       dtype->prtype,
-						       dtype->mbminmaxlen,
+						       dtype->mbminlen,
+						       dtype->mbmaxlen,
 						       clust_col_prefix_len,
 						       len, (char*) field));
 			}

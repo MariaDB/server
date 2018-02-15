@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -4995,7 +4995,7 @@ os_file_write_func(
 	if ((ulint) n_bytes != n && !os_has_said_disk_full) {
 
 		ib::error()
-			<< "Write to file " << name << "failed at offset "
+			<< "Write to file " << name << " failed at offset "
 			<< offset << ", " << n
 			<< " bytes should have been written,"
 			" only " << n_bytes << " were written."

@@ -52,8 +52,8 @@ struct test_sync {
 static void test_sync_init(struct test_sync *UU(sync)) {
 #if TOKU_DEBUG_TXN_SYNC
     sync->state = 0;
-    toku_mutex_init(&sync->lock, NULL);
-    toku_cond_init(&sync->cv, NULL);
+    toku_mutex_init(toku_uninstrumented, &sync->lock, nullptr);
+    toku_cond_init(toku_uninstrumented, &sync->cv, nullptr);
 #endif
 }
 

@@ -225,7 +225,7 @@ typedef struct st_mi_isam_share
   THR_LOCK lock;
   mysql_mutex_t intern_lock;            /* Locking for use with _locking */
   mysql_rwlock_t *key_root_lock;
-  my_off_t mmaped_length;
+  size_t mmaped_length;
   uint     nonmmaped_inserts;           /* counter of writing in non-mmaped
                                            area */
   mysql_rwlock_t mmap_lock;

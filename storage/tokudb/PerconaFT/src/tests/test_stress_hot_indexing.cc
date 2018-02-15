@@ -312,12 +312,11 @@ stress_table(DB_ENV *env, DB **dbp, struct cli_args *cli_args) {
     run_workers(myargs, num_threads, cli_args->num_seconds, false, cli_args);
 }
 
-int
-test_main(int argc, char *const argv[]) {
+int test_main(int argc, char *const argv[]) {
     gid_count = 0;
     memset(hi_gid, 0, sizeof(hi_gid));
-    toku_mutex_init(&hi_lock, NULL);
-    toku_mutex_init(&fops_lock, NULL);
+    toku_mutex_init(toku_uninstrumented, &hi_lock, nullptr);
+    toku_mutex_init(toku_uninstrumented, &fops_lock, nullptr);
     hot_db = NULL;
     struct cli_args args = get_default_args();
     // let's make default checkpointing period really slow

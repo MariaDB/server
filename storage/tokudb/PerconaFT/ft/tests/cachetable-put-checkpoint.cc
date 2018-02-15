@@ -518,19 +518,28 @@ cachetable_test (void) {
     run_test = true;
 
     for (int i = 0; i < NUM_MOVER_THREADS; i++) {
-        r = toku_pthread_create(&move_tid[i], NULL, move_numbers, NULL); 
+        r = toku_pthread_create(toku_uninstrumented,
+                                &move_tid[i],
+                                nullptr,
+                                move_numbers,
+                                nullptr);
         assert_zero(r);
     }
     for (int i = 0; i < NUM_MOVER_THREADS; i++) {
-        r = toku_pthread_create(&merge_and_split_tid[i], NULL, merge_and_split, NULL); 
+        r = toku_pthread_create(toku_uninstrumented,
+                                &merge_and_split_tid[i],
+                                nullptr,
+                                merge_and_split,
+                                nullptr);
         assert_zero(r);
     }
-    r = toku_pthread_create(&checkpoint_tid, NULL, checkpoints, NULL); 
-    assert_zero(r);    
-    r = toku_pthread_create(&time_tid, NULL, test_time, NULL); 
+    r = toku_pthread_create(
+        toku_uninstrumented, &checkpoint_tid, nullptr, checkpoints, nullptr);
+    assert_zero(r);
+    r = toku_pthread_create(
+        toku_uninstrumented, &time_tid, nullptr, test_time, nullptr);
     assert_zero(r);
 
-    
     void *ret;
     r = toku_pthread_join(time_tid, &ret); 
     assert_zero(r);

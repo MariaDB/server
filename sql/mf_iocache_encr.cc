@@ -145,9 +145,10 @@ static int my_b_encr_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 
   if (info->seek_not_done)
   {
-    DBUG_ASSERT(info->pos_in_file == 0);
+    DBUG_ASSERT(info->pos_in_file % info->buffer_length == 0);
+    my_off_t wpos= info->pos_in_file / info->buffer_length * crypt_data->block_length;
 
-    if ((mysql_file_seek(info->file, 0, MY_SEEK_SET, MYF(0)) == MY_FILEPOS_ERROR))
+    if ((mysql_file_seek(info->file, wpos, MY_SEEK_SET, MYF(0)) == MY_FILEPOS_ERROR))
     {
       info->error= -1;
       DBUG_RETURN(1);

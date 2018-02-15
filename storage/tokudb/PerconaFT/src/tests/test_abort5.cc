@@ -191,10 +191,12 @@ verify_and_tear_down(int close_first) {
             CAST_FROM_VOIDP(filename, iname.data);
             assert(filename);
         }
-	toku_struct_stat statbuf;
-        char fullfile[TOKU_PATH_MAX+1];
-	r = toku_stat(toku_path_join(fullfile, 2, TOKU_TEST_FILENAME, filename), &statbuf);
-	assert(r==0);
+        toku_struct_stat statbuf;
+        char fullfile[TOKU_PATH_MAX + 1];
+        r = toku_stat(toku_path_join(fullfile, 2, TOKU_TEST_FILENAME, filename),
+                      &statbuf,
+                      toku_uninstrumented);
+        assert(r == 0);
         toku_free(filename);
     }
     if (close_first) {

@@ -3257,21 +3257,17 @@ fail_err:
 
 			ut_ad(trx_id->len == DATA_TRX_ID_LEN);
 			ut_ad(trx_id[1].len == DATA_ROLL_PTR_LEN);
+			ut_ad(*static_cast<const byte*>
+			      (trx_id[1].data) & 0x80);
 			if (flags & BTR_NO_UNDO_LOG_FLAG) {
 				ut_ad(!memcmp(trx_id->data, reset_trx_id,
 					      DATA_TRX_ID_LEN));
-				ut_ad(!memcmp(trx_id[1].data,
-					      reset_trx_id + DATA_TRX_ID_LEN,
-					      DATA_ROLL_PTR_LEN));
 			} else {
 				ut_ad(thr->graph->trx->id);
 				ut_ad(thr->graph->trx->id
 				      == trx_read_trx_id(
 					      static_cast<const byte*>(
 						      trx_id->data)));
-				ut_ad(!memcmp(field_ref_zero, trx_id[1].data,
-					      DATA_ROLL_PTR_LEN)
-				      == !(~flags & BTR_NO_UNDO_LOG_FLAG));
 			}
 		}
 #endif

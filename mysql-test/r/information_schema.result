@@ -210,11 +210,11 @@ t2
 t3
 t5
 show table status;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t2	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL		
-t3	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL		
-t5	MyISAM	10	Fixed	1	7	7	#	2048	0	11	#	#	NULL	latin1_swedish_ci	NULL		
-v1	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	NULL	NULL	NULL	NULL	VIEW
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t2	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			#	N
+t3	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			#	N
+t5	MyISAM	10	Fixed	1	7	7	#	2048	0	11	#	#	NULL	latin1_swedish_ci	NULL			#	N
+v1	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	NULL	NULL	NULL	NULL	VIEW	#	NULL
 show full columns from t3 like "a%";
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
 a	int(11)	NULL	YES	MUL	NULL		select,insert,update,references	
@@ -1164,9 +1164,9 @@ CREATE TABLE t2 (b int);
 SHOW TABLE STATUS FROM test
 WHERE name IN ( SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA='test' AND TABLE_TYPE='BASE TABLE');
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL		
-t2	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			#	N
+t2	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			#	N
 DROP TABLE t1,t2;
 create table t1(f1 int);
 create view v1 (c) as select f1 from t1;
@@ -1482,7 +1482,7 @@ SELECT *
 FROM tables ta
 JOIN collations co ON ( co.collation_name = ta.table_catalog )
 JOIN character_sets cs ON ( cs.character_set_name = ta.table_catalog );
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	CHARACTER_SET_NAME	DEFAULT_COLLATE_NAME	DESCRIPTION	MAXLEN
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY	COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	CHARACTER_SET_NAME	DEFAULT_COLLATE_NAME	DESCRIPTION	MAXLEN
 DROP TABLE test.t1;
 SET max_heap_table_size = DEFAULT;
 USE test;
@@ -1584,7 +1584,7 @@ AS SELECT *
 FROM information_schema.tables;
 SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS where TABLE_NAME = 'v1';
 VIEW_DEFINITION
-select `information_schema`.`tables`.`TABLE_CATALOG` AS `TABLE_CATALOG`,`information_schema`.`tables`.`TABLE_SCHEMA` AS `TABLE_SCHEMA`,`information_schema`.`tables`.`TABLE_NAME` AS `TABLE_NAME`,`information_schema`.`tables`.`TABLE_TYPE` AS `TABLE_TYPE`,`information_schema`.`tables`.`ENGINE` AS `ENGINE`,`information_schema`.`tables`.`VERSION` AS `VERSION`,`information_schema`.`tables`.`ROW_FORMAT` AS `ROW_FORMAT`,`information_schema`.`tables`.`TABLE_ROWS` AS `TABLE_ROWS`,`information_schema`.`tables`.`AVG_ROW_LENGTH` AS `AVG_ROW_LENGTH`,`information_schema`.`tables`.`DATA_LENGTH` AS `DATA_LENGTH`,`information_schema`.`tables`.`MAX_DATA_LENGTH` AS `MAX_DATA_LENGTH`,`information_schema`.`tables`.`INDEX_LENGTH` AS `INDEX_LENGTH`,`information_schema`.`tables`.`DATA_FREE` AS `DATA_FREE`,`information_schema`.`tables`.`AUTO_INCREMENT` AS `AUTO_INCREMENT`,`information_schema`.`tables`.`CREATE_TIME` AS `CREATE_TIME`,`information_schema`.`tables`.`UPDATE_TIME` AS `UPDATE_TIME`,`information_schema`.`tables`.`CHECK_TIME` AS `CHECK_TIME`,`information_schema`.`tables`.`TABLE_COLLATION` AS `TABLE_COLLATION`,`information_schema`.`tables`.`CHECKSUM` AS `CHECKSUM`,`information_schema`.`tables`.`CREATE_OPTIONS` AS `CREATE_OPTIONS`,`information_schema`.`tables`.`TABLE_COMMENT` AS `TABLE_COMMENT` from `information_schema`.`tables`
+select `information_schema`.`tables`.`TABLE_CATALOG` AS `TABLE_CATALOG`,`information_schema`.`tables`.`TABLE_SCHEMA` AS `TABLE_SCHEMA`,`information_schema`.`tables`.`TABLE_NAME` AS `TABLE_NAME`,`information_schema`.`tables`.`TABLE_TYPE` AS `TABLE_TYPE`,`information_schema`.`tables`.`ENGINE` AS `ENGINE`,`information_schema`.`tables`.`VERSION` AS `VERSION`,`information_schema`.`tables`.`ROW_FORMAT` AS `ROW_FORMAT`,`information_schema`.`tables`.`TABLE_ROWS` AS `TABLE_ROWS`,`information_schema`.`tables`.`AVG_ROW_LENGTH` AS `AVG_ROW_LENGTH`,`information_schema`.`tables`.`DATA_LENGTH` AS `DATA_LENGTH`,`information_schema`.`tables`.`MAX_DATA_LENGTH` AS `MAX_DATA_LENGTH`,`information_schema`.`tables`.`INDEX_LENGTH` AS `INDEX_LENGTH`,`information_schema`.`tables`.`DATA_FREE` AS `DATA_FREE`,`information_schema`.`tables`.`AUTO_INCREMENT` AS `AUTO_INCREMENT`,`information_schema`.`tables`.`CREATE_TIME` AS `CREATE_TIME`,`information_schema`.`tables`.`UPDATE_TIME` AS `UPDATE_TIME`,`information_schema`.`tables`.`CHECK_TIME` AS `CHECK_TIME`,`information_schema`.`tables`.`TABLE_COLLATION` AS `TABLE_COLLATION`,`information_schema`.`tables`.`CHECKSUM` AS `CHECKSUM`,`information_schema`.`tables`.`CREATE_OPTIONS` AS `CREATE_OPTIONS`,`information_schema`.`tables`.`TABLE_COMMENT` AS `TABLE_COMMENT`,`information_schema`.`tables`.`MAX_INDEX_LENGTH` AS `MAX_INDEX_LENGTH`,`information_schema`.`tables`.`TEMPORARY` AS `TEMPORARY` from `information_schema`.`tables`
 DROP VIEW v1;
 SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA
 WHERE SCHEMA_NAME ='information_schema';
@@ -1617,11 +1617,11 @@ TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_
 select * from `information_schema`.`STATISTICS` where `TABLE_NAME` = NULL;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
 select * from information_schema.tables where table_schema = NULL;
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
 select * from information_schema.tables where table_catalog = NULL;
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
 select * from information_schema.tables where table_name = NULL;
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
 select * from `information_schema`.`TABLE_CONSTRAINTS` where `TABLE_SCHEMA` = NULL;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_TYPE
 select * from `information_schema`.`TABLE_CONSTRAINTS` where `TABLE_NAME` = NULL;

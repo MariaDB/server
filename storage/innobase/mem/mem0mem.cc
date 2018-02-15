@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -407,15 +407,11 @@ mem_heap_block_free(
 	len = block->len;
 	block->magic_n = MEM_FREED_BLOCK_MAGIC_N;
 
-	UNIV_MEM_ASSERT_W(block, len);
-
 	if (type == MEM_HEAP_DYNAMIC || len < UNIV_PAGE_SIZE / 2) {
-
 		ut_ad(!buf_block);
 		ut_free(block);
 	} else {
 		ut_ad(type & MEM_HEAP_BUFFER);
-
 		buf_block_free(buf_block);
 	}
 }

@@ -369,7 +369,11 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
                        derived->get_unit()));
 
   if (derived->merged)
+  {
+
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
     DBUG_RETURN(FALSE);
+  }
 
   if (dt_select->uncacheable & UNCACHEABLE_RAND)
   {
@@ -384,7 +388,6 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
    thd->save_prep_leaf_list= TRUE;
 
   arena= thd->activate_stmt_arena_if_needed(&backup);  // For easier test
-  derived->merged= TRUE;
 
   if (!derived->merged_for_insert || 
       (derived->is_multitable() && 
@@ -448,6 +451,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (parent_lex->join) 
       parent_lex->join->table_count+= dt_select->join->table_count - 1;
   }
+  derived->merged= TRUE;
   if (derived->get_unit()->prepared)
   {
     Item *expr= derived->on_expr;
@@ -744,6 +748,17 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
 
   unit->derived= derived;
+
+  /*
+    Above cascade call of prepare is important for PS protocol, but after it
+    is called we can check if we really need prepare for this derived
+  */
+  if (derived->merged)
+  {
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
+    DBUG_RETURN(FALSE);
+  }
+
   derived->fill_me= FALSE;
 
   if (!(derived->derived_result= new (thd->mem_root) select_unit(thd)))
@@ -885,6 +900,11 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                        (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
+  if (derived->merged)
+  {
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
+    DBUG_RETURN(FALSE);
+  }
 
   lex->current_select= first_select;
 

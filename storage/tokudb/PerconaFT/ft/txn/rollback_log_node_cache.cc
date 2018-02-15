@@ -41,7 +41,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include "txn/rollback_log_node_cache.h"
 
-void rollback_log_node_cache::init (uint32_t max_num_avail_nodes) {
+toku_instr_key* rollback_log_node_cache_mutex_key;
+
+void rollback_log_node_cache::init(uint32_t max_num_avail_nodes) {
     XMALLOC_N(max_num_avail_nodes, m_avail_blocknums);
     m_max_num_avail = max_num_avail_nodes;
     m_first = 0;
@@ -49,7 +51,7 @@ void rollback_log_node_cache::init (uint32_t max_num_avail_nodes) {
     toku_pthread_mutexattr_t attr;
     toku_mutexattr_init(&attr);
     toku_mutexattr_settype(&attr, TOKU_MUTEX_ADAPTIVE);
-    toku_mutex_init(&m_mutex, &attr);
+    toku_mutex_init(*rollback_log_node_cache_mutex_key, &m_mutex, &attr);
     toku_mutexattr_destroy(&attr);
 }
 

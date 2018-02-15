@@ -72,14 +72,18 @@ struct kibbutz {
     uint64_t total_execution_time;
 };
 
-static void *work_on_kibbutz (void *);
+static void *work_on_kibbutz(void *);
 
-int toku_kibbutz_create (int n_workers, KIBBUTZ *kb_ret) {
+toku_instr_key *kibbutz_mutex_key;
+toku_instr_key *kibbutz_k_cond_key;
+toku_instr_key *kibbutz_thread_key;
+
+int toku_kibbutz_create(int n_workers, KIBBUTZ *kb_ret) {
     int r = 0;
     *kb_ret = NULL;
     KIBBUTZ XCALLOC(k);
-    toku_mutex_init(&k->mutex, NULL);
-    toku_cond_init(&k->cond, NULL);
+    toku_mutex_init(*kibbutz_mutex_key, &k->mutex, nullptr);
+    toku_cond_init(*kibbutz_k_cond_key, &k->cond, nullptr);
     k->please_shutdown = false;
     k->head = NULL;
     k->tail = NULL;
@@ -93,7 +97,11 @@ int toku_kibbutz_create (int n_workers, KIBBUTZ *kb_ret) {
     XMALLOC_N(n_workers, k->ids);
     for (int i = 0; i < n_workers; i++) {
         k->ids[i].k = k;
-        r = toku_pthread_create(&k->workers[i], NULL, work_on_kibbutz, &k->ids[i]);
+        r = toku_pthread_create(*kibbutz_thread_key,
+                                &k->workers[i],
+                                nullptr,
+                                work_on_kibbutz,
+                                &k->ids[i]);
         if (r != 0) {
             k->n_workers = i;
             toku_kibbutz_destroy(k);
@@ -153,10 +161,14 @@ static void *work_on_kibbutz (void *kidv) {
             // if there's another item on k->head, then we'll just go grab it now, without waiting for a signal.
         }
         if (k->please_shutdown) {
-            // Don't follow this unless the work is all done, so that when we set please_shutdown, all the work finishes before any threads quit.
-            ksignal(k); // must wake up anyone else who is waiting, so they can shut down.
+            // Don't follow this unless the work is all done, so that when we
+            // set please_shutdown, all the work finishes before any threads
+            // quit.
+            ksignal(k);  // must wake up anyone else who is waiting, so they can
+                         // shut down.
             kunlock(k);
-            return NULL;
+            toku_instr_delete_current_thread();
+            return nullptr;
         }
         // There is no work to do and it's not time to shutdown, so wait.
         kwait(k);

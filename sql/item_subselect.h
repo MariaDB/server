@@ -401,6 +401,8 @@ public:
   String *val_str(String*);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_int(ltime, fuzzydate); }
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   void print(String *str, enum_query_type query_type);

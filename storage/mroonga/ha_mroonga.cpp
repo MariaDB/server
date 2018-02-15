@@ -1754,9 +1754,9 @@ static int mrn_set_geometry(grn_ctx *ctx, grn_obj *buf,
 #endif
 
 #ifdef MRN_HAVE_HTON_ALTER_TABLE_FLAGS
-static uint mrn_alter_table_flags(uint flags)
+static ulonglong mrn_alter_table_flags(ulonglong flags)
 {
-  uint alter_flags = 0;
+  ulonglong alter_flags = 0;
 #ifdef HA_INPLACE_ADD_INDEX_NO_READ_WRITE
   bool is_inplace_index_change;
 #  ifdef MRN_HAVE_ALTER_INFO

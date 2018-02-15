@@ -148,6 +148,147 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-14611 ALTER TABLE EXCHANGE PARTITION does not work
+--echo #                 properly when used with DATA DIRECTORY
+--echo #
+let $data_dir_path= $MYSQLTEST_VARDIR/mysql-test-data-dir;
+let $alt_data_dir_path= $MYSQLTEST_VARDIR/mysql-test-idx-dir;
+SET GLOBAL innodb_file_per_table = ON;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval CREATE TABLE t1
+(
+    myid INT(11) NOT NULL,
+    myval VARCHAR(10),
+    PRIMARY KEY (myid)
+) ENGINE=INNODB PARTITION BY KEY (myid)
+  (
+   PARTITION p0001 DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB,
+   PARTITION p0002 DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB,
+   PARTITION p0003 DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB,
+   PARTITION p0004 DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB
+  );
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval CREATE TABLE t2
+(
+   myid INT(11) NOT NULL,
+   myval VARCHAR(10),
+   PRIMARY KEY (myid)
+) ENGINE=INNODB DATA DIRECTORY = '$data_dir_path';
+  
+ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+SHOW CREATE TABLE t1;
+DROP TABLE t1, t2;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval CREATE TABLE t1
+(
+    myid INT(11) NOT NULL,
+    myval VARCHAR(10),
+    PRIMARY KEY (myid)
+) ENGINE=INNODB PARTITION BY RANGE (myid)
+  (
+   PARTITION p0001 VALUES LESS THAN (50) DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB,
+   PARTITION p0002 VALUES LESS THAN (150) DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB,
+   PARTITION p0003 VALUES LESS THAN (1050) DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB,
+   PARTITION p0004 VALUES LESS THAN (10050) DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB
+  );
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval CREATE TABLE t2
+(
+   myid INT(11) NOT NULL,
+   myval VARCHAR(10),
+   PRIMARY KEY (myid)
+) ENGINE=INNODB DATA DIRECTORY = '$alt_data_dir_path';
+
+insert into t1 values (1, 'one');
+insert into t2 values (2, 'two'), (3, 'threee'), (4, 'four');
+  
+select * from t1;
+ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+SHOW CREATE TABLE t1;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+SHOW CREATE TABLE t2;
+select * from t1;
+select * from t2;
+DROP TABLE t1, t2;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval CREATE TABLE t1
+(
+    myid INT(11) NOT NULL,
+    myval VARCHAR(10),
+    PRIMARY KEY (myid)
+) ENGINE=INNODB PARTITION BY RANGE (myid)
+  (
+   PARTITION p0001 VALUES LESS THAN (50) DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB,
+   PARTITION p0002 VALUES LESS THAN (150) DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB,
+   PARTITION p0003 VALUES LESS THAN (1050) DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB,
+   PARTITION p0004 VALUES LESS THAN (10050) DATA DIRECTORY = '$data_dir_path' ENGINE = INNODB
+  );
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval CREATE TABLE t2
+(
+   myid INT(11) NOT NULL,
+   myval VARCHAR(10),
+   PRIMARY KEY (myid)
+) ENGINE=INNODB;
+
+insert into t1 values (1, 'one');
+insert into t2 values (2, 'two'), (3, 'threee'), (4, 'four');
+  
+select * from t1;
+ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+SHOW CREATE TABLE t1;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+SHOW CREATE TABLE t2;
+select * from t1;
+select * from t2;
+DROP TABLE t1, t2;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval CREATE TABLE t1
+(
+    myid INT(11) NOT NULL,
+    myval VARCHAR(10),
+    PRIMARY KEY (myid)
+) ENGINE=INNODB PARTITION BY RANGE (myid)
+  (
+   PARTITION p0001 VALUES LESS THAN (50) ENGINE = INNODB,
+   PARTITION p0002 VALUES LESS THAN (150) ENGINE = INNODB,
+   PARTITION p0003 VALUES LESS THAN (1050) ENGINE = INNODB,
+   PARTITION p0004 VALUES LESS THAN (10050) ENGINE = INNODB
+  );
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval CREATE TABLE t2
+(
+   myid INT(11) NOT NULL,
+   myval VARCHAR(10),
+   PRIMARY KEY (myid)
+) ENGINE=INNODB DATA DIRECTORY = '$alt_data_dir_path';
+
+insert into t1 values (1, 'one');
+insert into t2 values (2, 'two'), (3, 'threee'), (4, 'four');
+  
+select * from t1;
+ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+SHOW CREATE TABLE t1;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+SHOW CREATE TABLE t2;
+select * from t1;
+select * from t2;
+DROP TABLE t1, t2;
+--echo #
 --echo # Cleanup
 --echo #
 
@@ -159,6 +300,4 @@ DROP TABLE t1;
 EVAL SET GLOBAL innodb_file_per_table=$innodb_file_per_table_orig;
 EVAL SET SESSION innodb_strict_mode=$innodb_strict_mode_orig;
 --enable_query_log
-
-
 

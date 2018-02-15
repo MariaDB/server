@@ -828,7 +828,6 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   else
   {
     sp= thd->lex->sphead;
-    sp->set_select_number(thd->select_number);
   }
 
   thd->pop_internal_handler();

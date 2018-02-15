@@ -39,6 +39,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "ft/logger/log-internal.h"
 #include "ft/txn/txn_child_manager.h"
 
+toku_instr_key *txn_child_manager_mutex_key;
+
 //
 // initialized a txn_child_manager,
 // when called, root->txnid.parent_id64 may not yet be set
@@ -53,7 +55,7 @@ void txn_child_manager::init(TOKUTXN root) {
     toku_pthread_mutexattr_t attr;
     toku_mutexattr_init(&attr);
     toku_mutexattr_settype(&attr, TOKU_MUTEX_ADAPTIVE);
-    toku_mutex_init(&m_mutex, &attr);
+    toku_mutex_init(*txn_child_manager_mutex_key, &m_mutex, &attr);
     toku_mutexattr_destroy(&attr);
 }
 

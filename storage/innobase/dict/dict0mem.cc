@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -456,8 +456,8 @@ dict_mem_table_col_rename_low(
 	ut_ad(from_len <= NAME_LEN);
 	ut_ad(to_len <= NAME_LEN);
 
-	char from[NAME_LEN];
-	strncpy(from, s, NAME_LEN);
+	char from[NAME_LEN + 1];
+	strncpy(from, s, NAME_LEN + 1);
 
 	if (from_len == to_len) {
 		/* The easy case: simply replace the column name in
@@ -684,11 +684,11 @@ dict_mem_fill_column_struct(
 	column->mtype = (unsigned int) mtype;
 	column->prtype = (unsigned int) prtype;
 	column->len = (unsigned int) col_len;
+	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
+	column->mbminlen = mbminlen;
+	column->mbmaxlen = mbmaxlen;
 	column->def_val.data = NULL;
 	column->def_val.len = UNIV_SQL_DEFAULT;
-
-	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
-	dict_col_set_mbminmaxlen(column, mbminlen, mbmaxlen);
 }
 
 /**********************************************************************//**

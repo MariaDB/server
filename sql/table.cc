@@ -1631,9 +1631,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   rec_buff_length= ALIGN_SIZE(share->reclength + 1);
   share->rec_buff_length= rec_buff_length;
-  if (!(record= (uchar *) alloc_root(&share->mem_root,
-                                     rec_buff_length)))
+  if (!(record= (uchar *) alloc_root(&share->mem_root, rec_buff_length)))
     goto err;                          /* purecov: inspected */
+  MEM_NOACCESS(record, rec_buff_length);
+  MEM_UNDEFINED(record, share->reclength);
   share->default_values= record;
   memcpy(record, frm_image + record_offset, share->reclength);
 
@@ -3211,6 +3212,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (!(record= (uchar*) alloc_root(&outparam->mem_root,
                                       share->rec_buff_length * records)))
       goto err;                                   /* purecov: inspected */
+    MEM_NOACCESS(record, share->rec_buff_length * records);
   }
 
   for (i= 0; i < 3;)
@@ -3219,6 +3221,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (++i < records)
       record+= share->rec_buff_length;
   }
+  MEM_UNDEFINED(outparam->record[0], share->reclength);
+  MEM_UNDEFINED(outparam->record[1], share->reclength);
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*

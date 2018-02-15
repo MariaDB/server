@@ -734,6 +734,10 @@ public:
   longlong val_int() { return val_int_from_real();  /* Real as default */ }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+  }
   void reset_field();
 };
 
@@ -1343,6 +1347,10 @@ public:
   void update_field(){DBUG_ASSERT(0);}
   void clear();
   void cleanup();
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return execute() || sp_result_field->get_date(ltime, fuzzydate);
+  }
   inline Field *get_sp_result_field()
   {
     return sp_result_field;
@@ -1373,6 +1381,10 @@ public:
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(name.str, arg, VCOL_IMPOSSIBLE);
+  }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
   }
 };
 
@@ -1523,6 +1535,10 @@ public:
   void update_field() {};
   void cleanup();
   virtual void print(String *str, enum_query_type query_type);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+  }
 };
 
 
@@ -1818,6 +1834,10 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value)
   {
     return val_decimal_from_string(decimal_value);
+  }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return get_date_from_string(ltime, fuzzydate);
   }
   String* val_str(String* str);
   Item *copy_or_same(THD* thd);

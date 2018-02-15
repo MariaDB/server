@@ -151,9 +151,11 @@ row_ins_alloc_sys_fields(
 	compile_time_assert(DATA_ROW_ID_LEN
 			    + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN
 			    == sizeof node->sys_buf);
-	memset(node->sys_buf, 0, DATA_ROW_ID_LEN);
-	memcpy(node->sys_buf + DATA_ROW_ID_LEN, reset_trx_id,
-	       sizeof reset_trx_id);
+	memset(node->sys_buf, 0, sizeof node->sys_buf);
+	/* Assign DB_ROLL_PTR to 1 << ROLL_PTR_INSERT_FLAG_POS */
+	node->sys_buf[DATA_ROW_ID_LEN + DATA_TRX_ID_LEN] = 0x80;
+	ut_ad(!memcmp(node->sys_buf + DATA_ROW_ID_LEN, reset_trx_id,
+		      sizeof reset_trx_id));
 
 	/* 1. Populate row-id */
 	col = dict_table_get_sys_col(table, DATA_ROW_ID);
@@ -459,12 +461,9 @@ row_ins_cascade_n_ancestors(
 /******************************************************************//**
 Calculates the update vector node->cascade->update for a child table in
 a cascaded update.
-@return number of fields in the calculated update vector; the value
-can also be 0 if no foreign key fields changed; the returned value is
-ULINT_UNDEFINED if the column type in the child table is too short to
-fit the new value in the parent table: that means the update fails */
+@return whether any FULLTEXT INDEX is affected */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
-ulint
+bool
 row_ins_cascade_calc_update_vec(
 /*============================*/
 	upd_node_t*	node,		/*!< in: update node of the parent
@@ -473,11 +472,9 @@ row_ins_cascade_calc_update_vec(
 					type is != 0 */
 	mem_heap_t*	heap,		/*!< in: memory heap to use as
 					temporary storage */
-	trx_t*		trx,		/*!< in: update transaction */
-	ibool*		fts_col_affected,
-					/*!< out: is FTS column affected */
-	upd_node_t*	cascade)	/*!< in: cascade update node */
+	trx_t*		trx)		/*!< in: update transaction */
 {
+	upd_node_t*     cascade         = node->cascade_node;
 	dict_table_t*	table		= foreign->foreign_table;
 	dict_index_t*	index		= foreign->foreign_index;
 	upd_t*		update;
@@ -488,7 +485,7 @@ row_ins_cascade_calc_update_vec(
 	ulint		parent_field_no;
 	ulint		i;
 	ulint		j;
-	ibool		doc_id_updated = FALSE;
+	bool		doc_id_updated = false;
 	ulint		doc_id_pos = 0;
 	doc_id_t	new_doc_id = FTS_NULL_DOC_ID;
 	ulint		prefix_col;
@@ -515,7 +512,7 @@ row_ins_cascade_calc_update_vec(
 
 	n_fields_updated = 0;
 
-	*fts_col_affected = FALSE;
+	bool affects_fulltext = false;
 
 	if (table->fts) {
 		doc_id_pos = dict_table_get_nth_col_pos(
@@ -567,8 +564,7 @@ row_ins_cascade_calc_update_vec(
 
 				if (dfield_is_null(&ufield->new_val)
 				    && (col->prtype & DATA_NOT_NULL)) {
-
-					return(ULINT_UNDEFINED);
+					goto err_exit;
 				}
 
 				/* If the new value would not fit in the
@@ -576,15 +572,15 @@ row_ins_cascade_calc_update_vec(
 
 				if (!dfield_is_null(&ufield->new_val)
 				    && dtype_get_at_most_n_mbchars(
-					col->prtype, col->mbminmaxlen,
+					col->prtype,
+					col->mbminlen, col->mbmaxlen,
 					col->len,
 					ufield_len,
 					static_cast<char*>(
 						dfield_get_data(
 							&ufield->new_val)))
 				    < ufield_len) {
-
-					return(ULINT_UNDEFINED);
+					goto err_exit;
 				}
 
 				/* If the parent column type has a different
@@ -628,7 +624,7 @@ row_ins_cascade_calc_update_vec(
 						    col->prtype)
 					    == DATA_MYSQL_BINARY_CHARSET_COLL) {
 						/* Do not pad BINARY columns */
-						return(ULINT_UNDEFINED);
+						goto err_exit;
 					}
 
 					row_mysql_pad_col(mbminlen,
@@ -645,7 +641,7 @@ row_ins_cascade_calc_update_vec(
 					dict_col_get_no(col),
 					dict_col_is_virtual(col))
 					!= ULINT_UNDEFINED) {
-					*fts_col_affected = TRUE;
+					affects_fulltext = true;
 				}
 
 				/* If Doc ID is updated, check whether the
@@ -662,11 +658,14 @@ row_ins_cascade_calc_update_vec(
 							dfield_get_data(
 							&ufield->new_val)));
 
+					affects_fulltext = true;
+					doc_id_updated = true;
+
 					if (new_doc_id <= 0) {
 						ib::error() << "FTS Doc ID"
 							" must be larger than"
 							" 0";
-						return(ULINT_UNDEFINED);
+						goto err_exit;
 					}
 
 					if (new_doc_id < n_doc_id) {
@@ -675,12 +674,8 @@ row_ins_cascade_calc_update_vec(
 							<< n_doc_id - 1
 							<< " for table "
 							<< table->name;
-
-						return(ULINT_UNDEFINED);
+						goto err_exit;
 					}
-
-					*fts_col_affected = TRUE;
-					doc_id_updated = TRUE;
 				}
 
 				n_fields_updated++;
@@ -688,8 +683,9 @@ row_ins_cascade_calc_update_vec(
 		}
 	}
 
-	/* Generate a new Doc ID if FTS index columns get updated */
-	if (table->fts && *fts_col_affected) {
+	if (affects_fulltext) {
+		ut_ad(table->fts);
+
 		if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID)) {
 			doc_id_t	doc_id;
 			doc_id_t*	next_doc_id;
@@ -703,24 +699,25 @@ row_ins_cascade_calc_update_vec(
 			fts_get_next_doc_id(table, next_doc_id);
 			doc_id = fts_update_doc_id(table, ufield, next_doc_id);
 			n_fields_updated++;
-			cascade->fts_next_doc_id = doc_id;
+			fts_trx_add_op(trx, table, doc_id, FTS_INSERT, NULL);
 		} else  {
 			if (doc_id_updated) {
 				ut_ad(new_doc_id);
-				cascade->fts_next_doc_id = new_doc_id;
+				fts_trx_add_op(trx, table, new_doc_id,
+					       FTS_INSERT, NULL);
 			} else {
-				cascade->fts_next_doc_id = FTS_NULL_DOC_ID;
 				ib::error() << "FTS Doc ID must be updated"
 					" along with FTS indexed column for"
 					" table " << table->name;
-				return(ULINT_UNDEFINED);
+err_exit:
+				n_fields_updated = ULINT_UNDEFINED;
 			}
 		}
 	}
 
 	update->n_fields = n_fields_updated;
 
-	return(n_fields_updated);
+	return affects_fulltext;
 }
 
 /*********************************************************************//**
@@ -1070,13 +1067,10 @@ row_ins_foreign_check_on_constraint(
 	const rec_t*	clust_rec;
 	const buf_block_t* clust_block;
 	upd_t*		update;
-	ulint		n_to_update;
 	dberr_t		err;
-	ulint		i;
 	trx_t*		trx;
 	mem_heap_t*	tmp_heap	= NULL;
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
-	ibool		fts_col_affacted = FALSE;
 
 	DBUG_ENTER("row_ins_foreign_check_on_constraint");
 	ut_a(thr);
@@ -1120,20 +1114,15 @@ row_ins_foreign_check_on_constraint(
 		DBUG_RETURN(DB_ROW_IS_REFERENCED);
 	}
 
-	cascade = row_create_update_node_for_mysql(table, node->cascade_heap);
-	que_node_set_parent(cascade, node);
+	if (node->cascade_node == NULL) {
+		node->cascade_heap = mem_heap_create(128);
+		node->cascade_node = row_create_update_node_for_mysql(
+			table, node->cascade_heap);
+		que_node_set_parent(node->cascade_node, node);
 
-	/* For the cascaded operation, all the update nodes are allocated in
-	the same heap.  All the update nodes will point to the same heap.
-	This heap is owned by the first update node. And it must be freed
-	only in the first update node */
-	cascade->cascade_heap = node->cascade_heap;
-	cascade->cascade_upd_nodes = node->cascade_upd_nodes;
-	cascade->new_upd_nodes = node->new_upd_nodes;
-	cascade->processed_cascades = node->processed_cascades;
-
+	}
+	cascade = node->cascade_node;
 	cascade->table = table;
-
 	cascade->foreign = foreign;
 
 	if (node->is_delete
@@ -1149,31 +1138,32 @@ row_ins_foreign_check_on_constraint(
 						     node->cascade_heap);
 			cascade->update_n_fields = foreign->n_fields;
 		}
-	}
 
-	/* We do not allow cyclic cascaded updating (DELETE is allowed,
-	but not UPDATE) of the same table, as this can lead to an infinite
-	cycle. Check that we are not updating the same table which is
-	already being modified in this cascade chain. We have to check
-	this also because the modification of the indexes of a 'parent'
-	table may still be incomplete, and we must avoid seeing the indexes
-	of the parent table in an inconsistent state! */
+		/* We do not allow cyclic cascaded updating (DELETE is
+		allowed, but not UPDATE) of the same table, as this
+		can lead to an infinite cycle. Check that we are not
+		updating the same table which is already being
+		modified in this cascade chain. We have to check this
+		also because the modification of the indexes of a
+		'parent' table may still be incomplete, and we must
+		avoid seeing the indexes of the parent table in an
+		inconsistent state! */
 
-	if (!cascade->is_delete
-	    && row_ins_cascade_ancestor_updates_table(cascade, table)) {
+		if (row_ins_cascade_ancestor_updates_table(cascade, table)) {
 
-		/* We do not know if this would break foreign key
-		constraints, but play safe and return an error */
+			/* We do not know if this would break foreign key
+			constraints, but play safe and return an error */
 
-		err = DB_ROW_IS_REFERENCED;
+			err = DB_ROW_IS_REFERENCED;
 
-		row_ins_foreign_report_err(
-			"Trying an update, possibly causing a cyclic"
-			" cascaded update\n"
-			"in the child table,", thr, foreign,
-			btr_pcur_get_rec(pcur), entry);
+			row_ins_foreign_report_err(
+				"Trying an update, possibly causing a cyclic"
+				" cascaded update\n"
+				"in the child table,", thr, foreign,
+				btr_pcur_get_rec(pcur), entry);
 
-		goto nonstandard_exit_func;
+			goto nonstandard_exit_func;
+		}
 	}
 
 	if (row_ins_cascade_n_ancestors(cascade) >= FK_MAX_CASCADE_DEL) {
@@ -1278,17 +1268,8 @@ row_ins_foreign_check_on_constraint(
 	if (node->is_delete
 	    ? (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL)
 	    : (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL)) {
-
 		/* Build the appropriate update vector which sets
 		foreign->n_fields first fields in rec to SQL NULL */
-		if (table->fts) {
-
-			/* For the clause ON DELETE SET NULL, the cascade
-			operation is actually an update operation with the new
-			values being null.  For FTS, this means that the old
-			values be deleted and no new values to be added.*/
-			cascade->fts_next_doc_id = FTS_NULL_DOC_ID;
-		}
 
 		update = cascade->update;
 
@@ -1297,7 +1278,9 @@ row_ins_foreign_check_on_constraint(
 		UNIV_MEM_INVALID(update->fields,
 				 update->n_fields * sizeof *update->fields);
 
-		for (i = 0; i < foreign->n_fields; i++) {
+		bool affects_fulltext = false;
+
+		for (ulint i = 0; i < foreign->n_fields; i++) {
 			upd_field_t*	ufield = &update->fields[i];
 			ulint		col_no = dict_index_get_nth_col_no(
 						index, i);
@@ -1313,18 +1296,19 @@ row_ins_foreign_check_on_constraint(
 			ufield->exp = NULL;
 			dfield_set_null(&ufield->new_val);
 
-			if (table->fts && dict_table_is_fts_column(
-				table->fts->indexes,
-				dict_index_get_nth_col_no(index, i),
-				dict_col_is_virtual(
-					dict_index_get_nth_col(index, i)))
+			if (!affects_fulltext
+			    && table->fts && dict_table_is_fts_column(
+				    table->fts->indexes,
+				    dict_index_get_nth_col_no(index, i),
+				    dict_col_is_virtual(
+					    dict_index_get_nth_col(index, i)))
 			    != ULINT_UNDEFINED) {
-				fts_col_affacted = TRUE;
+				affects_fulltext = true;
 			}
 		}
 
-		if (fts_col_affacted) {
-			cascade->fts_doc_id = doc_id;
+		if (affects_fulltext) {
+			fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
 		}
 
 		if (foreign->v_cols != NULL
@@ -1339,19 +1323,22 @@ row_ins_foreign_check_on_constraint(
 		}
 	} else if (table->fts && cascade->is_delete == PLAIN_DELETE) {
 		/* DICT_FOREIGN_ON_DELETE_CASCADE case */
-		for (i = 0; i < foreign->n_fields; i++) {
-			if (table->fts && dict_table_is_fts_column(
+		bool affects_fulltext = false;
+
+		for (ulint i = 0; i < foreign->n_fields; i++) {
+			if (dict_table_is_fts_column(
 				table->fts->indexes,
 				dict_index_get_nth_col_no(index, i),
 				dict_col_is_virtual(
 					dict_index_get_nth_col(index, i)))
 			    != ULINT_UNDEFINED) {
-				fts_col_affacted = TRUE;
+				affects_fulltext = true;
+				break;
 			}
 		}
 
-		if (fts_col_affacted) {
-			cascade->fts_doc_id = doc_id;
+		if (affects_fulltext) {
+			fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
 		}
 	}
 
@@ -1361,13 +1348,10 @@ row_ins_foreign_check_on_constraint(
 		/* Build the appropriate update vector which sets changing
 		foreign->n_fields first fields in rec to new values */
 
-		n_to_update = row_ins_cascade_calc_update_vec(
-			node, foreign, cascade->cascade_heap,
-			trx, &fts_col_affacted, cascade);
+		bool affects_fulltext = row_ins_cascade_calc_update_vec(
+			node, foreign, tmp_heap, trx);
 
-
-		if (foreign->v_cols != NULL
-		    && foreign->v_cols->size() > 0) {
+		if (foreign->v_cols && !foreign->v_cols->empty()) {
 			row_ins_foreign_fill_virtual(
 				cascade, clust_rec, clust_index,
 				node, foreign, &err);
@@ -1377,7 +1361,8 @@ row_ins_foreign_check_on_constraint(
 			}
 		}
 
-		if (n_to_update == ULINT_UNDEFINED) {
+		switch (cascade->update->n_fields) {
+		case ULINT_UNDEFINED:
 			err = DB_ROW_IS_REFERENCED;
 
 			row_ins_foreign_report_err(
@@ -1390,10 +1375,7 @@ row_ins_foreign_check_on_constraint(
 				thr, foreign, btr_pcur_get_rec(pcur), entry);
 
 			goto nonstandard_exit_func;
-		}
-
-		if (cascade->update->n_fields == 0) {
-
+		case 0:
 			/* The update does not change any columns referred
 			to in this foreign key constraint: no need to do
 			anything */
@@ -1404,9 +1386,9 @@ row_ins_foreign_check_on_constraint(
 		}
 
 		/* Mark the old Doc ID as deleted */
-		if (fts_col_affacted) {
+		if (affects_fulltext) {
 			ut_ad(table->fts);
-			cascade->fts_doc_id = doc_id;
+			fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
 		}
 	}
 
@@ -1428,20 +1410,15 @@ row_ins_foreign_check_on_constraint(
 	cascade->state = UPD_NODE_UPDATE_CLUSTERED;
 
 #ifdef WITH_WSREP
-	err = wsrep_append_foreign_key(
-				       thr_get_trx(thr),
-				       foreign,
-				       clust_rec,
-				       clust_index,
+	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
 				       FALSE, FALSE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
 	} else
 #endif /* WITH_WSREP */
-	node->new_upd_nodes->push_back(cascade);
-
-	table->inc_fk_checks();
+	err = row_update_cascade_for_mysql(thr, cascade,
+					   foreign->foreign_table);
 
 	/* Release the data dictionary latch for a while, so that we do not
 	starve other threads from doing CREATE TABLE etc. if we have a huge
@@ -1466,7 +1443,6 @@ row_ins_foreign_check_on_constraint(
 	DBUG_RETURN(err);
 
 nonstandard_exit_func:
-	que_graph_free_recursive(cascade);
 
 	if (tmp_heap) {
 		mem_heap_free(tmp_heap);
@@ -1616,7 +1592,8 @@ row_ins_check_foreign_constraint(
 	if (que_node_get_type(thr->run_node) == QUE_NODE_UPDATE) {
 		upd_node = static_cast<upd_node_t*>(thr->run_node);
 
-		if (!(upd_node->is_delete) && upd_node->foreign == foreign) {
+		if (upd_node->is_delete != PLAIN_DELETE
+		    && upd_node->foreign == foreign) {
 			/* If a cascaded update is done as defined by a
 			foreign key constraint, do not check that
 			constraint for the child row. In ON UPDATE CASCADE
@@ -1905,9 +1882,10 @@ do_possible_lock_wait:
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
-		err = check_table->to_be_dropped
-			? DB_LOCK_WAIT_TIMEOUT
-			: trx->error_state;
+		if (check_table->to_be_dropped
+		    || trx->error_state == DB_LOCK_WAIT_TIMEOUT) {
+			err = DB_LOCK_WAIT_TIMEOUT;
+		}
 
 		check_table->dec_fk_checks();
 	}
@@ -1970,6 +1948,10 @@ row_ins_check_foreign_constraints(
 				row_mysql_freeze_data_dictionary(trx);
 			}
 
+			if (referenced_table) {
+				foreign->foreign_table->inc_fk_checks();
+			}
+
 			/* NOTE that if the thread ends up waiting for a lock
 			we will release dict_operation_lock temporarily!
 			But the counter on the table protects the referenced
@@ -1977,6 +1959,10 @@ row_ins_check_foreign_constraints(
 
 			err = row_ins_check_foreign_constraint(
 				TRUE, foreign, table, entry, thr);
+
+			if (referenced_table) {
+				foreign->foreign_table->dec_fk_checks();
+			}
 
 			if (got_s_lock) {
 				row_mysql_unfreeze_data_dictionary(trx);
@@ -2893,21 +2879,18 @@ row_ins_sec_index_entry_low(
 	cursor.rtr_info = NULL;
 	ut_ad(thr_get_trx(thr)->id != 0);
 
-	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
+	mtr.start();
 
-	if (dict_table_is_temporary(index->table)) {
-		/* Disable REDO logging as the lifetime of temp-tables is
-		limited to server or connection lifetime and so REDO
-		information is not needed on restart for recovery.
-		Disable locking as temp-tables are local to a connection. */
-
+	if (index->table->is_temporary()) {
+		/* Disable locking, because temporary tables are never
+		shared between transactions or connections. */
 		ut_ad(flags & BTR_NO_LOCKING_FLAG);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-	} else if (!dict_index_is_spatial(index)) {
-		/* Enable insert buffering if it's neither temp-table
-		nor spatial index. */
-		search_mode |= BTR_INSERT;
+	} else {
+		mtr.set_named_space(index->space);
+		if (!dict_index_is_spatial(index)) {
+			search_mode |= BTR_INSERT;
+		}
 	}
 
 	/* Ensure that we acquire index->lock when inserting into an
@@ -2979,10 +2962,8 @@ row_ins_sec_index_entry_low(
 	}
 
 	if (err != DB_SUCCESS) {
-		trx_t* trx = thr_get_trx(thr);
-
 		if (err == DB_DECRYPTION_FAILED) {
-			ib_push_warning(trx->mysql_thd,
+			ib_push_warning(thr_get_trx(thr)->mysql_thd,
 				DB_DECRYPTION_FAILED,
 				"Table %s is encrypted but encryption service or"
 				" used key_id is not available. "
@@ -3465,7 +3446,7 @@ row_ins_index_entry_set_vals(
 				= dict_field_get_col(ind_field);
 
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminmaxlen,
+				col->prtype, col->mbminlen, col->mbmaxlen,
 				ind_field->prefix_len,
 				len,
 				static_cast<const char*>(

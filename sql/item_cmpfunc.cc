@@ -1226,6 +1226,7 @@ bool Item_in_optimizer::is_top_level_item()
 void Item_in_optimizer::fix_after_pullout(st_select_lex *new_parent,
                                           Item **ref, bool merge)
 {
+  DBUG_ASSERT(fixed);
   /* This will re-calculate attributes of our Item_in_subselect: */
   Item_bool_func::fix_after_pullout(new_parent, ref, merge);
 
@@ -1246,6 +1247,33 @@ bool Item_in_optimizer::eval_not_null_tables(void *opt_arg)
     not_null_tables_cache= args[0]->not_null_tables();
   }
   return FALSE;
+}
+
+
+void Item_in_optimizer::print(String *str, enum_query_type query_type)
+{
+   restore_first_argument();
+   Item_func::print(str, query_type);
+}
+
+
+/**
+  "Restore" first argument before fix_fields() call (after it is harmless).
+
+  @Note: Main pointer to left part of IN/ALL/ANY subselect is subselect's
+  lest_expr (see Item_in_optimizer::fix_left) so changes made during
+  fix_fields will be rolled back there which can make
+  Item_in_optimizer::args[0] unusable on second execution before fix_left()
+  call. This call fix the pointer.
+*/
+
+void Item_in_optimizer::restore_first_argument()
+{
+  if (args[1]->type() == Item::SUBSELECT_ITEM &&
+      ((Item_subselect *)args[1])->is_in_predicate())
+  {
+    args[0]= ((Item_in_subselect *)args[1])->left_expr;
+  }
 }
 
 
@@ -1422,6 +1450,7 @@ bool Item_in_optimizer::invisible_mode()
 Item *Item_in_optimizer::expr_cache_insert_transformer(THD *thd, uchar *unused)
 {
   DBUG_ENTER("Item_in_optimizer::expr_cache_insert_transformer");
+  DBUG_ASSERT(fixed);
 
   if (invisible_mode())
     DBUG_RETURN(this);
@@ -1446,6 +1475,7 @@ Item *Item_in_optimizer::expr_cache_insert_transformer(THD *thd, uchar *unused)
 
 void Item_in_optimizer::get_cache_parameters(List<Item> &parameters)
 {
+  DBUG_ASSERT(fixed);
   /* Add left expression to the list of the parameters of the subquery */
   if (!invisible_mode())
   {
@@ -1683,6 +1713,7 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
 {
   Item *new_item;
 
+  DBUG_ASSERT(fixed);
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   DBUG_ASSERT(arg_count == 2);
 
@@ -1734,6 +1765,7 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
 
 bool Item_in_optimizer::is_expensive_processor(void *arg)
 {
+  DBUG_ASSERT(fixed);
   return args[0]->is_expensive_processor(arg) ||
          args[1]->is_expensive_processor(arg);
 }
@@ -1741,6 +1773,7 @@ bool Item_in_optimizer::is_expensive_processor(void *arg)
 
 bool Item_in_optimizer::is_expensive()
 {
+  DBUG_ASSERT(fixed);
   return args[0]->is_expensive() || args[1]->is_expensive();
 }
 
@@ -2683,7 +2716,9 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
     Therefore, after equal field propagation args[0] and args[2] can point
     to different items.
   */
-  if ((query_type & QT_ITEM_ORIGINAL_FUNC_NULLIF) || args[0] == args[2])
+  if ((query_type & QT_ITEM_ORIGINAL_FUNC_NULLIF) ||
+      (arg_count == 2) ||
+      (args[0] == args[2]))
   {
     /*
       If QT_ITEM_ORIGINAL_FUNC_NULLIF is requested,
@@ -2701,10 +2736,14 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
       - one "a" for comparison
       - another "a" for the returned value!
     */
-    DBUG_ASSERT(args[0] == args[2] || current_thd->lex->context_analysis_only);
+    DBUG_ASSERT(arg_count == 2 ||
+                args[0] == args[2] || current_thd->lex->context_analysis_only);
     str->append(func_name());
     str->append('(');
-    args[2]->print(str, query_type);
+    if (arg_count == 2)
+      args[0]->print(str, query_type);
+    else
+      args[2]->print(str, query_type);
     str->append(',');
     args[1]->print(str, query_type);
     str->append(')');

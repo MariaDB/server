@@ -13546,25 +13546,6 @@ innobase_rename_table(
 
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, TRUE);
 
-	if (error == DB_TABLE_NOT_FOUND) {
-		/* May be partitioned table, which consists of partitions
-		named table_name#P#partition_name[#SP#subpartition_name].
-
-		We are doing a DDL operation. */
-		++trx->will_lock;
-		trx_start_if_not_started(trx, true);
-		error = row_rename_partitions_for_mysql(norm_from, norm_to,
-							trx);
-		if (error == DB_TABLE_NOT_FOUND) {
-			ib::error() << "Table " << ut_get_name(trx, norm_from)
-				<< " does not exist in the InnoDB internal"
-				" data dictionary though MariaDB is trying to"
-				" rename the table. Have you copied the .frm"
-				" file of the table to the MariaDB database"
-				" directory from another database? "
-				<< TROUBLESHOOTING_MSG;
-		}
-	}
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
 		    && innobase_get_lower_case_table_names() == 1) {
@@ -18100,7 +18081,7 @@ innodb_make_page_dirty(
 		return;
 	}
 
-	if (srv_saved_page_number_debug > space->size) {
+	if (srv_saved_page_number_debug >= space->size) {
 		fil_space_release(space);
 		return;
 	}
@@ -21631,7 +21612,7 @@ innobase_get_computed_value(
 	if (max_prefix) {
 		len = dtype_get_at_most_n_mbchars(
 			col->m_col.prtype,
-			col->m_col.mbminmaxlen,
+			col->m_col.mbminlen, col->m_col.mbmaxlen,
 			max_prefix,
 			field->len,
 			static_cast<char*>(dfield_get_data(field)));
@@ -21968,8 +21949,19 @@ innodb_buffer_pool_size_validate(
 
 	*static_cast<longlong*>(save) = requested_buf_pool_size;
 
+	if (srv_buf_pool_size == static_cast<ulint>(intbuf)) {
+		buf_pool_mutex_exit_all();
+		/* nothing to do */
+		return(0);
+	}
+
 	if (srv_buf_pool_size == requested_buf_pool_size) {
 		buf_pool_mutex_exit_all();
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    ER_WRONG_ARGUMENTS,
+				    "innodb_buffer_pool_size must be at least"
+				    " innodb_buffer_pool_chunk_size=%lu",
+				    srv_buf_pool_chunk_unit);
 		/* nothing to do */
 		return(0);
 	}

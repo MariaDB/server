@@ -29,9 +29,10 @@
 #include <cstdio>
 #include <cstdlib>
 
-char wsrep_defaults_file[FN_REFLEN * 2 + 10 +
-                         sizeof(WSREP_SST_OPT_CONF) +
-                         sizeof(WSREP_SST_OPT_EXTRA_CONF)] = {0};
+static char wsrep_defaults_file[FN_REFLEN * 2 + 10 + 30 +
+                                sizeof(WSREP_SST_OPT_CONF) +
+                                sizeof(WSREP_SST_OPT_CONF_SUFFIX) +
+                                sizeof(WSREP_SST_OPT_CONF_EXTRA)] = {0};
 
 // container for real auth string
 static const char* sst_auth_real      = NULL;
@@ -68,7 +69,11 @@ static void make_wsrep_defaults_file()
 
     if (my_defaults_extra_file)
       ptr= strxnmov(ptr, end - ptr,
-                    WSREP_SST_OPT_EXTRA_CONF, " '", my_defaults_extra_file, "' ", NULL);
+                    WSREP_SST_OPT_CONF_EXTRA, " '", my_defaults_extra_file, "' ", NULL);
+
+    if (my_defaults_group_suffix)
+      ptr= strxnmov(ptr, end - ptr,
+                    WSREP_SST_OPT_CONF_SUFFIX, " '", my_defaults_group_suffix, "' ", NULL);
   }
 }
 
@@ -629,8 +634,8 @@ static ssize_t sst_prepare_other (const char*  method,
                  WSREP_SST_OPT_PARENT" '%d'"
                  " %s '%s' ",
                  method, addr_in, mysql_real_data_home,
-                 wsrep_defaults_file, (int)getpid(),
-                 binlog_opt, binlog_opt_val);
+                 wsrep_defaults_file,
+                 (int)getpid(), binlog_opt, binlog_opt_val);
   my_free(binlog_opt_val);
 
   if (ret < 0 || ret >= cmd_len)
@@ -912,7 +917,7 @@ static int sst_donate_mysqldump (const char*         addr,
                      WSREP_SST_OPT_PORT" '%d' "
                      WSREP_SST_OPT_LPORT" '%u' "
                      WSREP_SST_OPT_SOCKET" '%s' "
-                     " %s "
+                     " '%s' "
                      WSREP_SST_OPT_GTID" '%s:%lld' "
                      WSREP_SST_OPT_GTID_DOMAIN_ID" '%d'"
                      "%s",

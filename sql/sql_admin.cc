@@ -703,8 +703,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (lock_type == TL_WRITE && !table->table->s->tmp_table &&
                         table->mdl_request.type > MDL_SHARED_WRITE)
     {
-      if (wait_while_table_is_used(thd, table->table,
-                                   HA_EXTRA_PREPARE_FOR_RENAME))
+      if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
         goto err;
       DEBUG_SYNC(thd, "after_admin_flush");
       /* Flush entries in the query cache involving this table. */
@@ -1042,7 +1041,7 @@ send_result_message:
         if (!thd->open_temporary_tables(table) &&
             (table->table= open_ltable(thd, table, lock_type, 0)))
         {
-          uint save_flags;
+          ulonglong save_flags;
           /* Store the original value of alter_info->flags */
           save_flags= alter_info->flags;
 

@@ -954,14 +954,14 @@ static int toku_recover_frename(struct logtype_frename *l, RECOVER_ENV renv) {
     std::unique_ptr<char[], decltype(&toku_free)> new_iname_full(
         toku_construct_full_name(2, data_dir, l->new_iname.data), &toku_free);
 
-    if (toku_stat(old_iname_full.get(), &stat) == -1) {
+    if (toku_stat(old_iname_full.get(), &stat, toku_uninstrumented) == -1) {
         if (ENOENT == errno)
             old_exist = false;
         else
             return 1;
     }
 
-    if (toku_stat(new_iname_full.get(), &stat) == -1) {
+    if (toku_stat(new_iname_full.get(), &stat, toku_uninstrumented) == -1) {
         if (ENOENT == errno)
             new_exist = false;
         else
@@ -980,7 +980,7 @@ static int toku_recover_frename(struct logtype_frename *l, RECOVER_ENV renv) {
     // 'stalled cachefiles' container the new file is removed
     // and the old file is renamed.
     if (old_exist && new_exist &&
-        (toku_os_unlink(new_iname_full.get()) == -1 ||
+        (toku_os_delete(new_iname_full.get()) == -1 ||
          toku_os_rename(old_iname_full.get(), new_iname_full.get()) == -1 ||
          toku_fsync_directory(old_iname_full.get()) == -1 ||
          toku_fsync_directory(new_iname_full.get()) == -1))
@@ -1473,9 +1473,13 @@ static int do_recovery(RECOVER_ENV renv, const char *env_dir, const char *log_di
 
     {
         toku_struct_stat buf;
-        if (toku_stat(env_dir, &buf)!=0) {
+        if (toku_stat(env_dir, &buf, toku_uninstrumented)) {
             rr = get_error_errno();
-            fprintf(stderr, "%.24s PerconaFT recovery error: directory does not exist: %s\n", ctime(&tnow), env_dir);
+            fprintf(stderr,
+                    "%.24s PerconaFT recovery error: directory does not exist: "
+                    "%s\n",
+                    ctime(&tnow),
+                    env_dir);
             goto errorexit;
         } else if (!S_ISDIR(buf.st_mode)) {
             fprintf(stderr, "%.24s PerconaFT recovery error: this file is supposed to be a directory, but is not: %s\n", ctime(&tnow), env_dir);

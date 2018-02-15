@@ -830,7 +830,7 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
     goto err;
   lex_start(thd);
   with_select= &lex->select_lex;
-  with_select->select_number= ++thd->select_number;
+  with_select->select_number= ++thd->stmt_lex->current_select_number;
   parse_status= parse_sql(thd, &parser_state, 0);
   if (parse_status)
     goto err;
@@ -1017,6 +1017,10 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
       and it was unsuccesful. Yet for units cloned from the spec it has not 
       been done yet.
     */
+    With_clause *attached_with_clause= sl->get_with_clause();
+    if (attached_with_clause &&
+        (found= attached_with_clause->find_table_def(table, NULL)))
+      break;
     master_unit= sl->master_unit();
     outer_sl= master_unit->outer_select();
     With_element *with_elem= sl->get_with_element();
@@ -1028,13 +1032,6 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
       if ((found= containing_with_clause->find_table_def(table, barrier)))
         break;
       if (outer_sl && !outer_sl->get_with_element())
-        break;
-    }
-    else
-    {
-      With_clause *attached_with_clause= sl->get_with_clause();
-      if (attached_with_clause &&
-          (found= attached_with_clause->find_table_def(table, NULL)))
         break;
     }
     /* Do not look for the table's definition beyond the scope of the view */
@@ -1078,7 +1075,7 @@ bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
   if (!with_elem->is_referenced() || with_elem->is_recursive)
   {
     derived= with_elem->spec;
-    if (derived->get_master() != select_lex &&
+    if (derived != select_lex->master_unit() &&
         !is_with_table_recursive_reference())
     {
        derived->move_as_slave(select_lex);
@@ -1088,7 +1085,6 @@ bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
   {
     if(!(derived= with_elem->clone_parsed_spec(thd, this)))
       return true;
-    derived->with_element= with_elem;
   }
   derived->first_select()->linkage= DERIVED_TABLE_TYPE;
   with_elem->inc_references();

@@ -32,7 +32,6 @@ Created 11/26/1995 Heikki Tuuri
 #include "log0types.h"
 #include "mtr0types.h"
 #include "buf0types.h"
-#include "trx0types.h"
 #include "dyn0buf.h"
 
 /** Start a mini-transaction. */
@@ -320,7 +319,7 @@ struct mtr_t {
 	the same set of tablespaces as this one */
 	void set_spaces(const mtr_t& mtr)
 	{
-		ut_ad(m_impl.m_user_space_id == TRX_SYS_SPACE);
+		ut_ad(!m_impl.m_user_space_id);
 		ut_ad(!m_impl.m_user_space);
 		ut_ad(!m_impl.m_undo_space);
 		ut_ad(!m_impl.m_sys_space);
@@ -337,9 +336,9 @@ struct mtr_t {
 	@return	the tablespace */
 	fil_space_t* set_named_space(ulint space_id)
 	{
-		ut_ad(m_impl.m_user_space_id == TRX_SYS_SPACE);
+		ut_ad(!m_impl.m_user_space_id);
 		ut_d(m_impl.m_user_space_id = space_id);
-		if (space_id == TRX_SYS_SPACE) {
+		if (!space_id) {
 			return(set_sys_modified());
 		} else {
 			lookup_user_space(space_id);

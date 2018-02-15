@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -41,7 +41,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	7
-#define INNODB_VERSION_BUGFIX	20
+#define INNODB_VERSION_BUGFIX	21
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -647,14 +647,6 @@ typedef void* os_thread_ret_t;
 # define UNIV_MEM_ASSERT_W(addr, size) do {} while(0)
 # define UNIV_MEM_TRASH(addr, c, size) do {} while(0)
 #endif
-#define UNIV_MEM_ASSERT_AND_FREE(addr, size) do {	\
-	UNIV_MEM_ASSERT_W(addr, size);			\
-	UNIV_MEM_FREE(addr, size);			\
-} while (0)
-#define UNIV_MEM_ASSERT_AND_ALLOC(addr, size) do {	\
-	UNIV_MEM_ASSERT_W(addr, size);			\
-	UNIV_MEM_ALLOC(addr, size);			\
-} while (0)
 
 extern ulong	srv_page_size_shift;
 extern ulong	srv_page_size;

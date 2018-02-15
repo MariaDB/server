@@ -125,6 +125,15 @@ bool Type_handler_data::init()
 Type_handler_data *type_handler_data= NULL;
 
 
+void Time::make_from_item(Item *item)
+{
+  if (item->get_time(this))
+    time_type= MYSQL_TIMESTAMP_NONE;
+  else
+    valid_MYSQL_TIME_to_valid_value();
+}
+
+
 void Type_std_attributes::set(const Field *field)
 {
   decimals= field->decimals();
@@ -2696,6 +2705,12 @@ Type_handler_int_result::Item_get_cache(THD *thd, const Item *item) const
 }
 
 Item_cache *
+Type_handler_year::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_year(thd);
+}
+
+Item_cache *
 Type_handler_real_result::Item_get_cache(THD *thd, const Item *item) const
 {
   return new (thd->mem_root) Item_cache_real(thd);
@@ -3216,6 +3231,53 @@ bool Type_handler_temporal_result::Item_val_bool(Item *item) const
 bool Type_handler_string_result::Item_val_bool(Item *item) const
 {
   return item->val_real() != 0.0;
+}
+
+
+/*************************************************************************/
+
+bool Type_handler_int_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  return item->get_date_from_int(ltime, fuzzydate);
+}
+
+
+bool Type_handler_year::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  return item->get_date_from_year(ltime, fuzzydate);
+}
+
+
+bool Type_handler_real_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  return item->get_date_from_real(ltime, fuzzydate);
+}
+
+
+bool Type_handler_decimal_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  return item->get_date_from_decimal(ltime, fuzzydate);
+}
+
+
+bool Type_handler_string_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  return item->get_date_from_string(ltime, fuzzydate);
+}
+
+
+bool Type_handler_temporal_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  DBUG_ASSERT(0); // Temporal type items must implement native get_date()
+  item->null_value= true;
+  set_zero_time(ltime, mysql_timestamp_type());
+  return true;
 }
 
 
@@ -3936,7 +3998,7 @@ bool Type_handler_string_result::
     ::get_date() can be called for non-temporal values,
     for example, SELECT MONTH(GREATEST("2011-11-21", "2010-10-09"))
   */
-  return func->Item::get_date(ltime, fuzzydate);
+  return func->get_date_from_string(ltime, fuzzydate);
 }
 
 
@@ -3944,7 +4006,7 @@ bool Type_handler_numeric::
        Item_func_min_max_get_date(Item_func_min_max *func,
                                   MYSQL_TIME *ltime, ulonglong fuzzydate) const
 {
-  return func->Item::get_date(ltime, fuzzydate);
+  return Item_get_date(func, ltime, fuzzydate);
 }
 
 
@@ -3953,6 +4015,13 @@ bool Type_handler_temporal_result::
                                   MYSQL_TIME *ltime, ulonglong fuzzydate) const
 {
   return func->get_date_native(ltime, fuzzydate);
+}
+
+bool Type_handler_time_common::
+       Item_func_min_max_get_date(Item_func_min_max *func,
+                                  MYSQL_TIME *ltime, ulonglong fuzzydate) const
+{
+  return func->get_time_native(ltime);
 }
 
 /***************************************************************************/

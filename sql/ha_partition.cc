@@ -89,7 +89,7 @@ static handler *partition_create_handler(handlerton *hton,
                                          TABLE_SHARE *share,
                                          MEM_ROOT *mem_root);
 static uint partition_flags();
-static uint alter_table_flags(uint flags);
+static ulonglong alter_table_flags(ulonglong flags);
 
 /*
   If frm_error() is called then we will use this to to find out what file
@@ -214,7 +214,7 @@ static uint partition_flags()
   return HA_CAN_PARTITION;
 }
 
-static uint alter_table_flags(uint flags __attribute__((unused)))
+static ulonglong alter_table_flags(ulonglong /* flags */)
 {
   return (HA_PARTITION_FUNCTION_SUPPORTED |
           HA_FAST_CHANGE_PARTITION);
@@ -8339,6 +8339,7 @@ void ha_partition::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->data_file_length=     file->stats.data_file_length;
   stat_info->max_data_file_length= file->stats.max_data_file_length;
   stat_info->index_file_length=    file->stats.index_file_length;
+  stat_info->max_index_file_length= file->stats.max_index_file_length;
   stat_info->delete_length=        file->stats.delete_length;
   stat_info->create_time=          file->stats.create_time;
   stat_info->update_time=          file->stats.update_time;
@@ -9778,9 +9779,9 @@ handler::Table_flags ha_partition::table_flags() const
   alter_table_flags must be on handler/table level, not on hton level
   due to the ha_partition hton does not know what the underlying hton is.
 */
-uint ha_partition::alter_table_flags(uint flags)
+ulonglong ha_partition::alter_table_flags(ulonglong flags)
 {
-  uint flags_to_return;
+  ulonglong flags_to_return;
   DBUG_ENTER("ha_partition::alter_table_flags");
 
   flags_to_return= ht->alter_table_flags(flags);

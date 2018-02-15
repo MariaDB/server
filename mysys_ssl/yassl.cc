@@ -26,6 +26,7 @@
 #include "aes.hpp"
 
 using yaSSL::yaERR_remove_state;
+using yaSSL::yaRAND_bytes;
 
 #define EVP_CIPH_ECB_MODE     0x1U
 #define EVP_CIPH_CBC_MODE     0x2U

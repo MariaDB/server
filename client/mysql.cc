@@ -1138,6 +1138,7 @@ int main(int argc,char *argv[])
   current_prompt = my_strdup(default_prompt,MYF(MY_WME));
   prompt_counter=0;
   aborted= 0;
+  sf_leaking_memory= 1; /* no memory leak reports yet */
 
   outfile[0]=0;			// no (default) outfile
   strmov(pager, "stdout");	// the default, if --pager wasn't given
@@ -1203,6 +1204,7 @@ int main(int argc,char *argv[])
     my_end(0);
     exit(1);
   }
+  sf_leaking_memory= 0;
   glob_buffer.realloc(512);
   completion_hash_init(&ht, 128);
   init_alloc_root(&hash_mem_root, "hash", 16384, 0, MYF(0));
@@ -1797,10 +1799,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
 #ifndef EMBEDDED_LIBRARY
     if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
                                               opt->name)) <= 0)
-    {
-      sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
-    }
 #endif
     break;
   case OPT_SERVER_ARG:
@@ -4595,8 +4594,11 @@ static char *get_arg(char *line, get_arg_mode mode)
   }
   for (start=ptr ; *ptr; ptr++)
   {
-    if ((*ptr == '\\' && ptr[1]) ||  // escaped character
-        (!short_cmd && qtype && *ptr == qtype && ptr[1] == qtype)) // quote
+    /* if short_cmd use historical rules (only backslash) otherwise SQL rules */
+    if (short_cmd
+        ? (*ptr == '\\' && ptr[1])                     // escaped character
+        : (*ptr == '\\' && ptr[1] && qtype != '`') ||  // escaped character
+          (qtype && *ptr == qtype && ptr[1] == qtype)) // quote
     {
       // Remove (or skip) the backslash (or a second quote)
       if (mode != CHECK)

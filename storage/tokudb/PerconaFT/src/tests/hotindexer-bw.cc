@@ -302,12 +302,19 @@ static void test_indexer(DB *src, DB **dbs)
     CKERR(r);
     toku_mutex_unlock(&put_lock);
 
-    // start threads doing additional inserts - no lock issues since indexer already created
-    r = toku_pthread_create(&client_threads[0], 0, client, (void *)&client_specs[0]);  CKERR(r);
-//    r = toku_pthread_create(&client_threads[1], 0, client, (void *)&client_specs[1]);  CKERR(r);
+    // start threads doing additional inserts - no lock issues since indexer
+    // already created
+    r = toku_pthread_create(toku_uninstrumented,
+                            &client_threads[0],
+                            nullptr,
+                            client,
+                            static_cast<void *>(&client_specs[0]));
+    CKERR(r);
+    //    r = toku_pthread_create(toku_uninstrumented, &client_threads[1], 0,
+    //    client, (void *)&client_specs[1]);  CKERR(r);
 
     struct timeval start, now;
-    if ( verbose ) {
+    if (verbose) {
         printf("test_indexer build\n");
         gettimeofday(&start,0);
     }
@@ -342,14 +349,13 @@ static void test_indexer(DB *src, DB **dbs)
     if ( verbose ) printf("test_indexer done\n");
 }
 
-
-static void run_test(void) 
-{
+static void run_test(void) {
     int r;
-    toku_mutex_init(&put_lock, NULL);
+    toku_mutex_init(toku_uninstrumented, &put_lock, nullptr);
     toku_os_recursive_delete(TOKU_TEST_FILENAME);
-    r = toku_os_mkdir(TOKU_TEST_FILENAME, S_IRWXU+S_IRWXG+S_IRWXO);                          CKERR(r);
-    char logname[TOKU_PATH_MAX+1];
+    r = toku_os_mkdir(TOKU_TEST_FILENAME, S_IRWXU + S_IRWXG + S_IRWXO);
+    CKERR(r);
+    char logname[TOKU_PATH_MAX + 1];
     r = toku_os_mkdir(toku_path_join(logname, 2, TOKU_TEST_FILENAME, "log"), S_IRWXU+S_IRWXG+S_IRWXO);                   CKERR(r);
 
     r = db_env_create(&env, 0);                                                  CKERR(r);

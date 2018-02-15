@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -202,9 +202,9 @@ String *Item_func_sha2::val_str_ascii(String *str)
   const char *input_ptr;
   size_t input_len;
 
+  input_string= args[0]->val_str(str);
   str->set_charset(&my_charset_bin);
 
-  input_string= args[0]->val_str(str);
   if (input_string == NULL)
   {
     null_value= TRUE;
@@ -545,99 +545,69 @@ String *Item_func_decode_histogram::val_str(String *str)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+/*
+  Realloc the result buffer.
+  NOTE: We should be prudent in the initial allocation unit -- the
+  size of the arguments is a function of data distribution, which
+  can be any. Instead of overcommitting at the first row, we grow
+  the allocated amount by the factor of 2. This ensures that no
+  more than 25% of memory will be overcommitted on average.
+
+  @param IN/OUT str    - the result string
+  @param IN     length - new total space required in "str"
+  @retval       false  - on success
+  @retval       true   - on error
+*/
+
+bool Item_func_concat::realloc_result(String *str, uint length) const
+{
+  if (str->alloced_length() >= length)
+    return false; // Alloced space is big enough, nothing to do.
+
+  if (str->alloced_length() == 0)
+    return str->alloc(length);
+
+  /*
+    Item_func_concat::val_str() makes sure the result length does not grow
+    higher than max_allowed_packet. So "length" is limited to 1G here.
+    We can't say anything about the current value of str->alloced_length(),
+    as str was initially set by args[0]->val_str(str).
+    So multiplication by 2 can overflow, if args[0] for some reasons
+    did not limit the result to max_alloced_packet. But it's not harmful,
+    "str" will be realloced exactly to "length" bytes in case of overflow.
+  */
+  uint new_length= MY_MAX(str->alloced_length() * 2, length);
+  return str->realloc(new_length);
+}
+
+
 /**
   Concatenate args with the following premises:
   If only one arg (which is ok), return value of arg;
-  Don't reallocate val_str() if not absolute necessary.
 */
 
 String *Item_func_concat::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   THD *thd= current_thd;
-  String *res,*use_as_buff;
-  uint i;
-  bool is_const= 0;
+  String *res;
 
   null_value=0;
-  if (!(res= arg_val_str(0, str, &is_const)))
-    goto null;
-  use_as_buff= &tmp_value;
-  for (i=1 ; i < arg_count ; i++)
-  {
-    if (res->length() == 0)
-    {
-      /*
-       CONCAT accumulates its result in the result of its the first
-       non-empty argument. Because of this we need is_const to be 
-       evaluated only for it.
-      */
-      if (!(res= arg_val_str(i, str, &is_const)))
-        goto null;
-    }
-    else
-    {
-      const String *res2;
-      if (!(res2=args[i]->val_str(use_as_buff)))
-        goto null;
-      if (res2->length() == 0)
-        continue;
-      if (!(res= append_value(thd, res, is_const, str, &use_as_buff, res2)))
-        goto null;
-      is_const= 0;
-    }
-  }
-  res->set_charset(collation.collation);
-  return res;
-
-null:
-  null_value=1;
-  return 0;
-}
-
-
-String *Item_func_concat_operator_oracle::val_str(String *str)
-{
-  THD *thd= current_thd;
-  DBUG_ASSERT(fixed == 1);
-  String *res, *use_as_buff;
-  uint i;
-  bool is_const= false;
-
-  null_value= 0;
-  // Search first non null argument
-  for (i= 0; i < arg_count; i++)
-  {
-    if ((res= arg_val_str(i, str, &is_const)))
-      break;
-  }
-  if (i == arg_count)
+  if (!(res= args[0]->val_str(str)))
     goto null;
 
-  use_as_buff= &tmp_value;
+  if (res != str)
+    str->copy(res->ptr(), res->length(), res->charset());
 
-  for (i++ ; i < arg_count ; i++)
+  for (uint i= 1 ; i < arg_count ; i++)
   {
-    if (res->length() == 0)
-    {
-      // See comments in Item_func_concat::val_str()
-      String *tmp;
-      if (!(tmp= arg_val_str(i, str, &is_const)))
-        continue;
-      res= tmp;
-    }
-    else
-    {
-      const String *res2;
-      if (!(res2= args[i]->val_str(use_as_buff)) || res2->length() == 0)
-        continue;
-      if (!(res= append_value(thd, res, is_const, str, &use_as_buff, res2)))
-        goto null;
-      is_const= 0;
-    }
+    if (!(res= args[i]->val_str(&tmp_value)) ||
+        append_value(thd, str, res))
+      goto null;
   }
-  res->set_charset(collation.collation);
-  return res;
+
+  str->set_charset(collation.collation);
+  return str;
 
 null:
   null_value= true;
@@ -645,115 +615,58 @@ null:
 }
 
 
-String *Item_func_concat::append_value(THD *thd,
-                                       String *res,
-                                       bool res_is_const,
-                                       String *str,
-                                       String **use_as_buff,
-                                       const String *res2)
+String *Item_func_concat_operator_oracle::val_str(String *str)
 {
-  DBUG_ASSERT(res2->length() > 0);
+  DBUG_ASSERT(fixed == 1);
+  THD *thd= current_thd;
+  String *res;
+  uint i;
 
-  if ((ulong) res->length() + (ulong) res2->length() >
+  null_value=0;
+  // Search first non null argument
+  for (i= 0; i < arg_count; i++)
+  {
+    if ((res= args[i]->val_str(str)))
+      break;
+  }
+  if (i == arg_count)
+    goto null;
+
+  if (res != str)
+    str->copy(res->ptr(), res->length(), res->charset());
+
+  for (i++ ; i < arg_count ; i++)
+  {
+    if (!(res= args[i]->val_str(&tmp_value)) || res->length() == 0)
+     continue;
+    if (append_value(thd, str, res))
+      goto null;
+  }
+
+  str->set_charset(collation.collation);
+  return str;
+
+null:
+  null_value= true;
+  return 0;
+}
+
+
+bool Item_func_concat::append_value(THD *thd, String *res, const String *app)
+{
+  uint concat_len;
+  if ((concat_len= res->length() + app->length()) >
       thd->variables.max_allowed_packet)
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-                        ER_THD(thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
-                        func_name(),
+                        ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
                         thd->variables.max_allowed_packet);
-    return NULL;
+    return true;
   }
-
-  uint32 concat_len= res->length() + res2->length();
-
-  if (!res_is_const && res->alloced_length() >= concat_len)
-  {                                         // Use old buffer
-    return res->append(*res2) ? NULL : res;
-  }
-
-  if (str->alloced_length() >= concat_len)
-  {
-    if (str->ptr() == res2->ptr())
-    {
-      if (str->replace(0, 0, *res))
-        return NULL;
-    }
-    else
-    {
-      if (str->copy(*res) || str->append(*res2))
-        return NULL;
-    }
-    *use_as_buff= &tmp_value;
-    return str;
-  }
-
-  if (res == &tmp_value)
-  {
-    if (res->append(*res2))                 // Must be a blob
-      return NULL;
-    return res;
-  }
-
-  if (res2 == &tmp_value)
-  {                                         // This can happend only 1 time
-    if (tmp_value.replace(0, 0, *res))
-      return NULL;
-    *use_as_buff= str;                      // Put next arg here
-    return &tmp_value;
-  }
-
-  if (tmp_value.is_alloced() && res2->ptr() >= tmp_value.ptr() &&
-      res2->ptr() <= tmp_value.ptr() + tmp_value.alloced_length())
-  {
-    /*
-      This happens really seldom:
-      In this case res2 is sub string of tmp_value.  We will
-      now work in place in tmp_value to set it to res | res2
-    */
-    /* Chop the last characters in tmp_value that isn't in res2 */
-    tmp_value.length((uint32) (res2->ptr() - tmp_value.ptr()) +
-                     res2->length());
-    /* Place res2 at start of tmp_value, remove chars before res2 */
-    if (tmp_value.replace(0,(uint32) (res2->ptr() - tmp_value.ptr()),
-                          *res))
-      return NULL;
-    *use_as_buff= str;                      // Put next arg here
-    return &tmp_value;
-  }
-
-  /*
-    Two big const strings
-    NOTE: We should be prudent in the initial allocation unit -- the
-    size of the arguments is a function of data distribution, which
-    can be any. Instead of overcommitting at the first row, we grow
-    the allocated amount by the factor of 2. This ensures that no
-    more than 25% of memory will be overcommitted on average.
-  */
-
-  if (tmp_value.alloced_length() < concat_len)
-  {
-    if (tmp_value.alloced_length() == 0)
-    {
-      if (tmp_value.alloc(concat_len))
-        return NULL;
-    }
-    else
-    {
-      uint32 new_len= tmp_value.alloced_length() > INT_MAX32 ?
-                      UINT_MAX32 - 1 :
-                      tmp_value.alloced_length() * 2;
-      set_if_bigger(new_len, concat_len);
-      if (tmp_value.realloc(new_len))
-        return NULL;
-    }
-  }
-
-  if (tmp_value.copy(*res) || tmp_value.append(*res2))
-    return NULL;
-
-  *use_as_buff= str;
-  return &tmp_value;
+  DBUG_ASSERT(!res->uses_buffer_owned_by(app));
+  DBUG_ASSERT(!app->uses_buffer_owned_by(res));
+  return realloc_result(res, concat_len) || res->append(*app);
 }
 
 

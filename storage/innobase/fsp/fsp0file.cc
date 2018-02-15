@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -770,6 +770,10 @@ the double write buffer.
 bool
 Datafile::restore_from_doublewrite()
 {
+	if (srv_operation != SRV_OPERATION_NORMAL) {
+		return true;
+	}
+
 	/* Find if double write buffer contains page_no of given space id. */
 	const byte*	page = recv_sys->dblwr.find_page(m_space_id, 0);
 	const page_id_t	page_id(m_space_id, 0);

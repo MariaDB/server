@@ -50,14 +50,19 @@ check_logmax (int max) {
     struct dirent *ent;
     while ((ent=readdir(dir))) {
 	if ((ent->d_type==DT_REG || ent->d_type==DT_UNKNOWN) && strncmp(ent->d_name, "log", 3)==0) {
-	    // It is a "log*" file
-	    char full_fname[TOKU_PATH_MAX+1];
-	    toku_struct_stat sbuf;
-	    int r = toku_stat(toku_path_join(full_fname, 2, TOKU_TEST_FILENAME, ent->d_name), &sbuf);
-	    assert(r==0);
-	    if (verbose)
-		printf("%s is of size %" PRId64 "\n", ent->d_name, (int64_t)sbuf.st_size);
-	    if (sbuf.st_size > max) any_too_big=1;
+        // It is a "log*" file
+        char full_fname[TOKU_PATH_MAX + 1];
+        toku_struct_stat sbuf;
+        int r = toku_stat(
+            toku_path_join(full_fname, 2, TOKU_TEST_FILENAME, ent->d_name),
+            &sbuf,
+            toku_uninstrumented);
+        assert(r == 0);
+        if (verbose)
+            printf("%s is of size %" PRId64 "\n",
+                   ent->d_name,
+                   (int64_t)sbuf.st_size);
+        if (sbuf.st_size > max) any_too_big=1;
 	}
     }
     assert(!any_too_big);

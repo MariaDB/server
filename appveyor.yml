@@ -1,17 +1,21 @@
-version: 10.2-{build}
+version: build-{build}~branch-{branch}
+
 before_build:
-- md %APPVEYOR_BUILD_FOLDER%\win_build
-- cd %APPVEYOR_BUILD_FOLDER%\win_build
-- cmake ..  -G "Visual Studio 15 2017" -DBISON_EXECUTABLE=C:\cygwin\bin\bison
-- dir
+  - md %APPVEYOR_BUILD_FOLDER%\win_build
+  - cd %APPVEYOR_BUILD_FOLDER%\win_build
+  - cmake ..  -G "Visual Studio 15 2017 Win64" -DWITH_UNIT_TESTS=0 -DBISON_EXECUTABLE=C:\cygwin\bin\bison
+
 build:
   project: win_build\MySQL.sln
   parallel: true
   verbosity: minimal
-configuration:
-  - Debug
-test:
+
+configuration: RelWithDebInfo
+platform: x64
+
 test_script:
-- cd %APPVEYOR_BUILD_FOLDER%\win_build\mysql-test
-- perl mysql-test-run.pl --force --max-test-fail=20 --parallel=6 --testcase-timeout=4 --skip-test-list=unstable-tests --suite=main,innodb,plugins,mariabackup
+  - set PATH=%PATH%;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64
+  - cd %APPVEYOR_BUILD_FOLDER%\win_build\mysql-test
+  - perl mysql-test-run.pl --force --max-test-fail=10 --parallel=auto --testcase-timeout=10 --skip-test-list=unstable-tests --suite=main,innodb,plugins,mariabackup
+
 image: Visual Studio 2017

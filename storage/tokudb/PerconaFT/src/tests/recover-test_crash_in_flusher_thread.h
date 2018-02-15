@@ -70,13 +70,18 @@ static void *do_checkpoint_and_crash(void *arg) {
 static void flt_callback(int flt_state, void* extra) {
     cnt++;
         if (verbose) printf("flt_state!! %d\n", flt_state);
-    if (cnt > 0 && !starting_a_chkpt && flt_state == state_to_crash) {
-        starting_a_chkpt = true;
-        if (verbose) printf("flt_state %d\n", flt_state);
-        int r = toku_pthread_create(&checkpoint_tid, NULL, do_checkpoint_and_crash, extra); 
-        assert(r==0);
-        usleep(2*1000*1000);
-    }
+        if (cnt > 0 && !starting_a_chkpt && flt_state == state_to_crash) {
+            starting_a_chkpt = true;
+            if (verbose)
+                printf("flt_state %d\n", flt_state);
+            int r = toku_pthread_create(toku_uninstrumented,
+                                        &checkpoint_tid,
+                                        nullptr,
+                                        do_checkpoint_and_crash,
+                                        extra);
+            assert(r == 0);
+            usleep(2 * 1000 * 1000);
+        }
 }
 
 

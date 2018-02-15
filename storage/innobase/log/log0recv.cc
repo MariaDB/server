@@ -3079,7 +3079,9 @@ recv_init_crash_recovery_spaces()
 			<< "', but there were no modifications either.";
 	}
 
-	buf_dblwr_process();
+	if (srv_operation == SRV_OPERATION_NORMAL) {
+		buf_dblwr_process();
+	}
 
 	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 		/* Spawn the background thread to flush dirty pages

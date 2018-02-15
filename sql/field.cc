@@ -2190,7 +2190,7 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
 {
   uint store_length;
   copy->str= ptr;
-  copy->length= pack_length();
+  copy->length= pack_length_in_rec();
   copy->field= this;
   if (flags & BLOB_FLAG)
   {
@@ -5828,6 +5828,13 @@ static void calc_datetime_days_diff(MYSQL_TIME *ltime, long days)
                            ltime->second) * 1000000LL +
                            ltime->second_part);
     unpack_time(timediff, ltime);
+    /*
+      unpack_time() broke down hours into ltime members hour,day,month.
+      Mix them back to ltime->hour using the same factors
+      that pack_time()/unpack_time() use (i.e. 32 for month).
+    */
+    ltime->hour+= (ltime->month * 32 + ltime->day) * 24;
+    ltime->month= ltime->day= 0;
   }
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
 }
@@ -9759,7 +9766,7 @@ int Field_bit::key_cmp(const uchar *str, uint length)
     str++;
     length--;
   }
-  return memcmp(ptr, str, length);
+  return memcmp(ptr, str, bytes_in_rec);
 }
 
 

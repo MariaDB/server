@@ -207,6 +207,9 @@ public:
 
   Explain_select(MEM_ROOT *root, bool is_analyze) : 
   Explain_basic_join(root),
+#ifndef DBUG_OFF
+    select_lex(NULL),
+#endif
     linkage(UNSPECIFIED_TYPE),
     message(NULL),
     having(NULL), having_value(Item::COND_UNDEF),
@@ -218,6 +221,9 @@ public:
   void add_linkage(Json_writer *writer);
 
 public:
+#ifndef DBUG_OFF
+  SELECT_LEX *select_lex;
+#endif
   const char *select_type;
   enum sub_select_type linkage;
 

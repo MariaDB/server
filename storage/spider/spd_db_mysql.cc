@@ -656,9 +656,10 @@ int spider_db_mysql_result::fetch_table_status(
   }
   if (mode == 1)
   {
-    if (num_fields() != 18)
+    /* Ok to test for 18 fields as all new fields are added last */
+    if (num_fields() < 18)
     {
-      DBUG_PRINT("info",("spider field_count != 18"));
+      DBUG_PRINT("info",("spider field_count < 18"));
       DBUG_RETURN(ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM);
     }
 

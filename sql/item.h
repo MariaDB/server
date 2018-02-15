@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -87,7 +87,11 @@ public:
 };
 
 
+#ifdef DBUG_OFF
+static inline const char *dbug_print_item(Item *item) { return NULL; }
+#else
 const char *dbug_print_item(Item *item);
+#endif
 
 class Virtual_tmp_table;
 class sp_head;
@@ -583,7 +587,7 @@ class Item: public Value_source,
 public:
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
-  static void operator delete(void *ptr,size_t size) { TRASH(ptr, size); }
+  static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
 
   enum Type {FIELD_ITEM= 0, FUNC_ITEM, SUM_FUNC_ITEM,
@@ -687,6 +691,12 @@ protected:
     DBUG_ASSERT(fixed == 1);
     return (null_value= item->get_date_with_conversion(ltime, fuzzydate));
   }
+  /*
+    This method is used if the item was not null but convertion to
+    TIME/DATE/DATETIME failed. We return a zero date if allowed,
+    otherwise - null.
+  */
+  bool make_zero_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
 
 public:
   /*
@@ -1369,7 +1379,12 @@ public:
   void split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
                        List<Item> &fields,
                        Item **ref, uint flags);
-  virtual bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  virtual bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)= 0;
+  bool get_date_from_int(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date_from_year(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date_from_real(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date_from_decimal(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date_from_string(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime)
   { return get_date(ltime, TIME_TIME_ONLY | TIME_INVALID_DATES); }
   // Get date with automatic TIME->DATETIME conversion
@@ -1660,6 +1675,7 @@ public:
   */
   virtual bool check_partition_func_processor(void *arg) { return 1;}
   virtual bool vcol_in_partition_func_processor(void *arg) { return 0; }
+  virtual bool rename_fields_processor(void *arg) { return 0; }
   /** Processor used to check acceptability of an item in the defining
       expression for a virtual column 
 
@@ -1672,6 +1688,12 @@ public:
   {
     uint errors;                                /* Bits of possible errors */
     const char *name;                           /* Not supported function */
+  };
+  struct func_processor_rename
+  {
+    LEX_CSTRING db_name;
+    LEX_CSTRING table_name;
+    List<Create_field> fields;
   };
   virtual bool check_vcol_func_processor(void *arg)
   {
@@ -2324,6 +2346,7 @@ public:
   longlong val_int();
   String *val_str(String *sp);
   my_decimal *val_decimal(my_decimal *decimal_value);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool is_null();
 
 public:
@@ -2586,6 +2609,7 @@ public:
   longlong val_int();
   String *val_str(String *sp);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool is_null();
   virtual void print(String *str, enum_query_type query_type);
 
@@ -2622,6 +2646,10 @@ public:
   Item_num(THD *thd): Item_basic_constant(thd) { collation.set_numeric(); }
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool check_partition_func_processor(void *int_arg) { return FALSE;}
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+  }
 };
 
 #define NO_CACHED_FIELD_INDEX ((uint)(-1))
@@ -2743,6 +2771,10 @@ public:
   longlong val_int() { return field->val_int(); }
   String *val_str(String *str) { return field->val_str(str); }
   my_decimal *val_decimal(my_decimal *dec) { return field->val_decimal(dec); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return field->get_date(ltime, fuzzydate);
+  }
   void make_field(THD *thd, Send_field *tmp_field);
   const Type_handler *type_handler() const
   {
@@ -2898,6 +2930,7 @@ public:
   bool update_table_bitmaps_processor(void *arg);
   bool switch_to_nullable_fields_processor(void *arg);
   bool update_vcol_processor(void *arg);
+  bool rename_fields_processor(void *arg);
   bool check_vcol_func_processor(void *arg)
   {
     context= 0;
@@ -3047,6 +3080,7 @@ public:
   longlong val_int();
   String *val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);
   int save_safe_in_field(Field *field);
   bool send(Protocol *protocol, st_value *buffer);
@@ -3765,6 +3799,10 @@ public:
     return (String*) &str_value;
   }
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return get_date_from_string(ltime, fuzzydate);
+  }
   int save_in_field(Field *field, bool no_conversions);
   const Type_handler *type_handler() const { return &type_handler_varchar; }
   bool basic_const_item() const { return 1; }
@@ -4052,6 +4090,10 @@ public:
            str_value.bin_eq(&((Item_hex_constant*)item)->str_value);
   }
   String *val_str(String*) { DBUG_ASSERT(fixed == 1); return &str_value; }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+  }
 };
 
 
@@ -5397,6 +5439,8 @@ public:
   my_decimal *val_decimal(my_decimal *);
   double val_real();
   longlong val_int();
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_string(ltime, fuzzydate); }
   void copy();
   int save_in_field(Field *field, bool no_conversions);
   Item *get_copy(THD *thd)
@@ -5422,6 +5466,8 @@ public:
   {
     return null_value ? 0 : cached_value;
   }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_int(ltime, fuzzydate); }
   virtual void copy();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_copy_int>(thd, this); }
@@ -5464,6 +5510,10 @@ public:
   {
     return (longlong) rint(val_real());
   }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return get_date_from_real(ltime, fuzzydate);
+  }
   void copy()
   {
     cached_value= item->val_real();
@@ -5489,6 +5539,10 @@ public:
   }
   double val_real();
   longlong val_int();
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return get_date_from_decimal(ltime, fuzzydate);
+  }
   void copy();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_copy_decimal>(thd, this); }
@@ -5983,11 +6037,22 @@ public:
   longlong val_int();
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_int(ltime, fuzzydate); }
   bool cache_value();
   int save_in_field(Field *field, bool no_conversions);
   Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cache_int>(thd, this); }
+};
+
+
+class Item_cache_year: public Item_cache_int
+{
+public:
+  Item_cache_year(THD *thd): Item_cache_int(thd, &type_handler_year) { }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_year(ltime, fuzzydate); }
 };
 
 
@@ -6058,6 +6123,8 @@ public:
   longlong val_int();
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_real(ltime, fuzzydate); }
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd)
@@ -6076,6 +6143,8 @@ public:
   longlong val_int();
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_decimal(ltime, fuzzydate); }
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd)
@@ -6102,6 +6171,8 @@ public:
   longlong val_int();
   String* val_str(String *);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_string(ltime, fuzzydate); }
   CHARSET_INFO *charset() const { return value->charset(); };
   int save_in_field(Field *field, bool no_conversions);
   bool cache_value();
@@ -6182,6 +6253,11 @@ public:
     illegal_method_call((const char*)"val_decimal");
     return 0;
   };
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    illegal_method_call((const char*)"val_decimal");
+    return true;
+  }
 
   uint cols() const { return item_count; }
   Item *element_index(uint i) { return values[i]; }
@@ -6282,6 +6358,7 @@ public:
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   Field *create_tmp_field(bool group, TABLE *table)
   {
     return Item_type_holder::real_type_handler()->

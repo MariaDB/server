@@ -163,6 +163,7 @@ call mtr.add_suppression("InnoDB: Cannot rename.*because the target file exists"
 call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
 # The following are for the --innodb-force-recovery=1 with broken u* tables:
 call mtr.add_suppression("InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd");
+call mtr.add_suppression("InnoDB: The size of the file .*u1\\.ibd is only 16384 bytes, should be at least 65536");
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
 call mtr.add_suppression("InnoDB: .*you must create directories");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: '.*u[1-5]\.ibd'");

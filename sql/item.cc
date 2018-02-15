@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation
+   Copyright (c) 2010, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -887,6 +887,34 @@ bool Item_field::add_field_to_set_processor(void *arg)
   DBUG_RETURN(FALSE);
 }
 
+
+/**
+   Rename fields in an expression to new field name as speficied by ALTER TABLE
+*/
+
+bool Item_field::rename_fields_processor(void *arg)
+{
+  Item::func_processor_rename *rename= (Item::func_processor_rename*) arg;
+  List_iterator<Create_field> def_it(rename->fields);
+  Create_field *def;
+
+  while ((def=def_it++))
+  {
+    if (def->change.str &&
+        (!db_name || !db_name[0] ||
+         !my_strcasecmp(table_alias_charset, db_name, rename->db_name.str)) &&
+        (!table_name || !table_name[0] ||
+         !my_strcasecmp(table_alias_charset, table_name, rename->table_name.str)) &&
+        !my_strcasecmp(system_charset_info, field_name.str, def->change.str))
+    {
+      field_name= def->field_name;
+      break;
+    }
+  }
+  return 0;
+}
+
+
 /**
   Check if an Item_field references some field from a list of fields.
 
@@ -1431,67 +1459,73 @@ Item *Item_param::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   As a extra convenience the time structure is reset on error or NULL values!
 */
 
-bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+bool Item::get_date_from_int(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
-  if (field_type() == MYSQL_TYPE_TIME)
-    fuzzydate|= TIME_TIME_ONLY;
+  longlong value= val_int();
+  bool neg= !unsigned_flag && value < 0;
+  if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
+                                              ltime, fuzzydate,
+                                              field_name_or_null()))
+    return null_value|= make_zero_date(ltime, fuzzydate);
+  return null_value= false;
+}
 
-  switch (result_type()) {
-  case INT_RESULT:
-  {
-    longlong value= val_int();
-    bool neg= !unsigned_flag && value < 0;
-    if (field_type() == MYSQL_TYPE_YEAR)
-    {
-      if (max_length == 2)
-      {
-        if (value < 70)
-          value+= 2000;
-        else if (value <= 1900)
-          value+= 1900;
-      }
-      value*= 10000; /* make it YYYYMMHH */
-    }
-    if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
-                                                ltime, fuzzydate,
-                                                field_name_or_null()))
-      goto err;
-    break;
-  }
-  case REAL_RESULT:
-  {
-    double value= val_real();
-    if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate,
-                                                   field_name_or_null()))
-      goto err;
-    break;
-  }
-  case DECIMAL_RESULT:
-  {
-    my_decimal value, *res;
-    if (!(res= val_decimal(&value)) ||
-        decimal_to_datetime_with_warn(res, ltime, fuzzydate,
-                                      field_name_or_null()))
-      goto err;
-    break;
-  }
-  case STRING_RESULT:
-  {
-    char buff[40];
-    String tmp(buff,sizeof(buff), &my_charset_bin),*res;
-    if (!(res=val_str(&tmp)) ||
-        str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
-                                  ltime, fuzzydate))
-      goto err;
-    break;
-  }
-  default:
-    DBUG_ASSERT(0);
-  }
 
-  return null_value= 0;
+bool Item::get_date_from_year(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  longlong value= val_int();
+  DBUG_ASSERT(unsigned_flag || value >= 0);
+  if (max_length == 2)
+  {
+    if (value < 70)
+      value+= 2000;
+    else if (value <= 1900)
+      value+= 1900;
+  }
+  value*= 10000; /* make it YYYYMMHH */
+  if (null_value || int_to_datetime_with_warn(false, value,
+                                              ltime, fuzzydate,
+                                              field_name_or_null()))
+    return null_value|= make_zero_date(ltime, fuzzydate);
+  return null_value= false;
+}
 
-err:
+
+bool Item::get_date_from_real(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  double value= val_real();
+  if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate,
+                                                 field_name_or_null()))
+    return null_value|= make_zero_date(ltime, fuzzydate);
+  return null_value= false;
+}
+
+
+bool Item::get_date_from_decimal(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  my_decimal value, *res;
+  if (!(res= val_decimal(&value)) ||
+      decimal_to_datetime_with_warn(res, ltime, fuzzydate,
+                                    field_name_or_null()))
+    return null_value|= make_zero_date(ltime, fuzzydate);
+  return null_value= false;
+}
+
+
+bool Item::get_date_from_string(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  char buff[40];
+  String tmp(buff,sizeof(buff), &my_charset_bin),*res;
+  if (!(res=val_str(&tmp)) ||
+      str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
+                                ltime, fuzzydate))
+    return null_value|= make_zero_date(ltime, fuzzydate);
+  return null_value= false;
+}
+
+
+bool Item::make_zero_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
   /*
     if the item was not null and convertion failed, we return a zero date
     if allowed, otherwise - null.
@@ -1513,7 +1547,7 @@ err:
     */
     ltime->time_type= MYSQL_TIMESTAMP_TIME;
   }
-  return null_value|= !(fuzzydate & TIME_FUZZY_DATES);
+  return !(fuzzydate & TIME_FUZZY_DATES);
 }
 
 bool Item::get_seconds(ulonglong *sec, ulong *sec_part)
@@ -1752,6 +1786,16 @@ my_decimal *Item_sp_variable::val_decimal(my_decimal *decimal_value)
   DBUG_ASSERT(fixed);
   Item *it= this_item();
   my_decimal *val= it->val_decimal(decimal_value);
+  null_value= it->null_value;
+  return val;
+}
+
+
+bool Item_sp_variable::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  DBUG_ASSERT(fixed);
+  Item *it= this_item();
+  bool val= it->get_date(ltime, fuzzydate);
   null_value= it->null_value;
   return val;
 }
@@ -2102,6 +2146,13 @@ my_decimal *Item_name_const::val_decimal(my_decimal *decimal_value)
   return val;
 }
 
+bool Item_name_const::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  DBUG_ASSERT(fixed);
+  bool rc= value_item->get_date(ltime, fuzzydate);
+  null_value= value_item->null_value;
+  return rc;
+}
 
 bool Item_name_const::is_null()
 {
@@ -3955,6 +4006,15 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 }
 
 
+bool Item_null::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  // following assert is redundant, because fixed=1 assigned in constructor
+  DBUG_ASSERT(fixed == 1);
+  make_zero_date(ltime, fuzzydate);
+  return (null_value= true);
+}
+
+
 Item *Item_null::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 {
   return this;
@@ -4425,7 +4485,7 @@ bool Item_param::get_date(MYSQL_TIME *res, ulonglong fuzzydate)
     *res= value.time;
     return 0;
   }
-  return Item::get_date(res, fuzzydate);
+  return type_handler()->Item_get_date(this, res, fuzzydate);
 }
 
 
@@ -9430,7 +9490,7 @@ bool Item_ignore_value::send(Protocol *protocol, st_value *buffer)
 bool Item_insert_value::eq(const Item *item, bool binary_cmp) const
 {
   return item->type() == INSERT_VALUE_ITEM &&
-    ((Item_default_value *)item)->arg->eq(arg, binary_cmp);
+    ((Item_insert_value *)item)->arg->eq(arg, binary_cmp);
 }
 
 
@@ -10441,6 +10501,12 @@ String *Item_type_holder::val_str(String*)
   return 0;
 }
 
+bool Item_type_holder::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  DBUG_ASSERT(0); // should never be called
+  return true;
+}
+
 void Item_result_field::cleanup()
 {
   DBUG_ENTER("Item_result_field::cleanup()");
@@ -10557,11 +10623,11 @@ const char *dbug_print_item(Item *item)
   ulonglong save_option_bits= thd->variables.option_bits;
   thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
 
-  item->print(&str ,QT_EXPLAIN);
+  item->print(&str, QT_EXPLAIN);
 
   thd->variables.option_bits= save_option_bits;
 
-  if (str.c_ptr() == buf)
+  if (str.c_ptr_safe() == buf)
     return buf;
   else
     return "Couldn't fit into buffer";

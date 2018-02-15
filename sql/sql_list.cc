@@ -39,21 +39,21 @@ void free_list(I_List <i_string> *list)
 }
 
 
-base_list::base_list(const base_list &rhs, MEM_ROOT *mem_root)
+bool base_list::copy(const base_list *rhs, MEM_ROOT *mem_root)
 {
-  if (rhs.elements)
+  bool error= 0;
+  if (rhs->elements)
   {
     /*
       It's okay to allocate an array of nodes at once: we never
       call a destructor for list_node objects anyway.
     */
-    first= (list_node*) alloc_root(mem_root,
-                                   sizeof(list_node) * rhs.elements);
-    if (first)
+    if ((first= (list_node*) alloc_root(mem_root,
+                                        sizeof(list_node) * rhs->elements)))
     {
-      elements= rhs.elements;
+      elements= rhs->elements;
       list_node *dst= first;
-      list_node *src= rhs.first;
+      list_node *src= rhs->first;
       for (; dst < first + elements - 1; dst++, src= src->next)
       {
         dst->info= src->info;
@@ -64,10 +64,12 @@ base_list::base_list(const base_list &rhs, MEM_ROOT *mem_root)
       dst->next= &end_of_list;
       /* Setup 'last' member */
       last= &dst->next;
-      return;
+      return 0;
     }
+    error= 1;
   }
   elements= 0;
   first= &end_of_list;
   last= &first;
+  return error;
 }

@@ -87,8 +87,10 @@ row_sel_sec_rec_is_for_blob(
 /*========================*/
 	ulint		mtype,		/*!< in: main type */
 	ulint		prtype,		/*!< in: precise type */
-	ulint		mbminmaxlen,	/*!< in: minimum and maximum length of
-					a multi-byte character */
+	ulint		mbminlen,	/*!< in: minimum length of
+					a character, in bytes */
+	ulint		mbmaxlen,	/*!< in: maximum length of
+					a character, in bytes */
 	const byte*	clust_field,	/*!< in: the locally stored part of
 					the clustered index column, including
 					the BLOB pointer; the clustered
@@ -136,7 +138,7 @@ row_sel_sec_rec_is_for_blob(
 		return(FALSE);
 	}
 
-	len = dtype_get_at_most_n_mbchars(prtype, mbminmaxlen,
+	len = dtype_get_at_most_n_mbchars(prtype, mbminlen, mbmaxlen,
 					  prefix_len, len, (const char*) buf);
 
 	return(!cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len));
@@ -258,14 +260,14 @@ row_sel_sec_rec_is_for_clust_rec(
 			}
 
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminmaxlen,
+				col->prtype, col->mbminlen, col->mbmaxlen,
 				ifield->prefix_len, len, (char*) clust_field);
 
 			if (rec_offs_nth_extern(clust_offs, clust_pos)
 			    && len < sec_len) {
 				if (!row_sel_sec_rec_is_for_blob(
 					    col->mtype, col->prtype,
-					    col->mbminmaxlen,
+					    col->mbminlen, col->mbmaxlen,
 					    clust_field, clust_len,
 					    sec_field, sec_len,
 					    ifield->prefix_len,
@@ -1026,7 +1028,7 @@ row_sel_get_clust_rec(
 	/* Fetch the columns needed in test conditions.  The clustered
 	index record is protected by a page latch that was acquired
 	when plan->clust_pcur was positioned.  The latch will not be
-	released until mtr_commit(mtr). */
+	released until mtr->commit(). */
 
 	ut_ad(!rec_get_deleted_flag(clust_rec, rec_offs_comp(offsets)));
 	row_sel_fetch_columns(index, clust_rec, offsets,
@@ -1093,14 +1095,14 @@ retry:
 
 	if (err == DB_LOCK_WAIT) {
 re_scan:
-		mtr_commit(mtr);
+		mtr->commit();
 		trx->error_state = err;
 		que_thr_stop_for_mysql(thr);
 		thr->lock_state = QUE_THR_LOCK_ROW;
 		if (row_mysql_handle_errors(
 			&err, trx, thr, NULL)) {
 			thr->lock_state = QUE_THR_LOCK_NOLOCK;
-			mtr_start(mtr);
+			mtr->start();
 
 			mutex_enter(&match->rtr_match_mutex);
 			if (!match->valid && match->matched_recs->empty()) {
@@ -1120,7 +1122,7 @@ re_scan:
 				RW_X_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 		} else {
-			mtr_start(mtr);
+			mtr->start();
 			goto func_end;
 		}
 
@@ -1128,8 +1130,8 @@ re_scan:
 
 		if (!match->valid) {
 			/* Page got deleted */
-			mtr_commit(mtr);
-			mtr_start(mtr);
+			mtr->commit();
+			mtr->start();
 			err = DB_RECORD_NOT_FOUND;
 			goto func_end;
 		}
@@ -1147,8 +1149,8 @@ re_scan:
 			/* Page got splitted and promoted (only for
 			root page it is possible).  Release the
 			page and ask for a re-search */
-			mtr_commit(mtr);
-			mtr_start(mtr);
+			mtr->commit();
+			mtr->start();
 			err = DB_RECORD_NOT_FOUND;
 			goto func_end;
 		}
@@ -1160,8 +1162,8 @@ re_scan:
 
 		/* No match record */
 		if (page_rec_is_supremum(rec) || !match->valid) {
-			mtr_commit(mtr);
-			mtr_start(mtr);
+			mtr->commit();
+			mtr->start();
 			err = DB_RECORD_NOT_FOUND;
 			goto func_end;
 		}
@@ -1517,7 +1519,7 @@ exhausted:
 	/* Fetch the columns needed in test conditions.  The index
 	record is protected by a page latch that was acquired when
 	plan->pcur was positioned.  The latch will not be released
-	until mtr_commit(mtr). */
+	until mtr->commit(). */
 
 	row_sel_fetch_columns(index, rec, offsets,
 			      UT_LIST_GET_FIRST(plan->columns));
@@ -1626,7 +1628,7 @@ table_loop:
 
 	/* Open a cursor to index, or restore an open cursor position */
 
-	mtr_start(&mtr);
+	mtr.start();
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (consistent_read && plan->unique_search && !plan->pcur_is_open
@@ -1645,8 +1647,8 @@ table_loop:
 
 		plan_reset_cursor(plan);
 
-		mtr_commit(&mtr);
-		mtr_start(&mtr);
+		mtr.commit();
+		mtr.start();
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -1910,7 +1912,7 @@ skip_lock:
 					by row_sel_open_pcur() or
 					row_sel_restore_pcur_pos().
 					The latch will not be released
-					until mtr_commit(mtr). */
+					until mtr.commit(). */
 
 					row_sel_fetch_columns(
 						index, rec, offsets,
@@ -1940,7 +1942,7 @@ skip_lock:
 	/* Fetch the columns needed in test conditions.  The record is
 	protected by a page latch that was acquired by
 	row_sel_open_pcur() or row_sel_restore_pcur_pos().  The latch
-	will not be released until mtr_commit(mtr). */
+	will not be released until mtr.commit(). */
 
 	row_sel_fetch_columns(index, rec, offsets,
 			      UT_LIST_GET_FIRST(plan->columns));
@@ -2102,7 +2104,7 @@ next_table:
 		btr_pcur_store_position(&(plan->pcur), &mtr);
 	}
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	mtr_has_extra_clust_latch = FALSE;
 
@@ -2142,7 +2144,7 @@ table_exhausted:
 
 	plan->cursor_at_end = TRUE;
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	mtr_has_extra_clust_latch = FALSE;
 
@@ -2190,7 +2192,7 @@ stop_for_a_while:
 	plan->stored_cursor_rec_processed = FALSE;
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
-	mtr_commit(&mtr);
+	mtr.commit();
 	ut_ad(!sync_check_iterate(sync_check()));
 
 	err = DB_SUCCESS;
@@ -2205,7 +2207,7 @@ commit_mtr_for_a_while:
 
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	mtr_has_extra_clust_latch = FALSE;
 	ut_ad(!sync_check_iterate(dict_sync_check()));
@@ -2220,7 +2222,7 @@ lock_wait_or_error:
 	plan->stored_cursor_rec_processed = FALSE;
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 func_exit:
 	ut_ad(!sync_check_iterate(dict_sync_check()));
@@ -4240,7 +4242,7 @@ row_search_mvcc(
 		goto func_exit;
 	}
 
-	mtr_start(&mtr);
+	mtr.start();
 
 #ifdef BTR_CUR_HASH_ADAPT
 	/*-------------------------------------------------------------*/
@@ -4279,7 +4281,7 @@ row_search_mvcc(
 				a page latch that was acquired by
 				row_sel_try_search_shortcut_for_mysql().
 				The latch will not be released until
-				mtr_commit(&mtr). */
+				mtr.commit(). */
 				ut_ad(!rec_get_deleted_flag(rec, comp));
 
 				if (prebuilt->idx_cond) {
@@ -4316,7 +4318,8 @@ row_search_mvcc(
 				}
 
 			shortcut_match:
-				mtr_commit(&mtr);
+				mtr.commit();
+
 				/* NOTE that we do NOT store the cursor
 				position */
 				err = DB_SUCCESS;
@@ -4324,7 +4327,7 @@ row_search_mvcc(
 
 			case SEL_EXHAUSTED:
 			shortcut_mismatch:
-				mtr_commit(&mtr);
+				mtr.commit();
 				/* NOTE that we do NOT store the cursor
 				position */
 				err = DB_RECORD_NOT_FOUND;
@@ -4337,8 +4340,8 @@ row_search_mvcc(
 				ut_ad(0);
 			}
 
-			mtr_commit(&mtr);
-			mtr_start(&mtr);
+			mtr.commit();
+			mtr.start();
 		}
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -5318,7 +5321,7 @@ requires_clust_rec:
 	/* Decide whether to prefetch extra rows.
 	At this point, the clustered index record is protected
 	by a page latch that was acquired when pcur was positioned.
-	The latch will not be released until mtr_commit(&mtr). */
+	The latch will not be released until mtr.commit(). */
 
 	if ((match_mode == ROW_SEL_EXACT
 	     || prebuilt->n_rows_fetched >= MYSQL_FETCH_CACHE_THRESHOLD)
@@ -5510,10 +5513,10 @@ next_rec:
 			btr_pcur_store_position(pcur, &mtr);
 		}
 
-		mtr_commit(&mtr);
+		mtr.commit();
 		mtr_has_extra_clust_latch = FALSE;
 
-		mtr_start(&mtr);
+		mtr.start();
 
 		if (!spatial_search
 		    && sel_restore_position_for_mysql(&same_user_rec,
@@ -5571,7 +5574,7 @@ lock_wait_or_error:
 	}
 
 lock_table_wait:
-	mtr_commit(&mtr);
+	mtr.commit();
 	mtr_has_extra_clust_latch = FALSE;
 
 	trx->error_state = err;
@@ -5588,7 +5591,7 @@ lock_table_wait:
 		/* It was a lock wait, and it ended */
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
-		mtr_start(&mtr);
+		mtr.start();
 
 		/* Table lock waited, go try to obtain table lock
 		again */
@@ -5647,7 +5650,7 @@ normal_return:
 		trx->lock.n_active_thrs= n_active_thrs - 1;
 	}
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	/* Rollback blocking transactions from hit list for high priority
 	transaction, if any. We should not be holding latches here as

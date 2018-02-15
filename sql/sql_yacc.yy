@@ -8113,7 +8113,8 @@ alter_list_item:
         | CHANGE opt_column opt_if_exists_table_element field_ident
           field_spec opt_place
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN;
+            Lex->alter_info.flags|= (Alter_info::ALTER_CHANGE_COLUMN |
+                                     Alter_info::ALTER_RENAME_COLUMN);
             Lex->create_last_non_select_table= Lex->last_table();
             $5->change= $4;
             $5->after= $6;

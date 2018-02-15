@@ -638,6 +638,9 @@ trx_rollback_active(
 	roll_node_t*	roll_node;
 	dict_table_t*	table;
 	ibool		dictionary_locked = FALSE;
+	const trx_id_t	trx_id = trx->id;
+
+	ut_ad(trx_id);
 
 	heap = mem_heap_create(512);
 
@@ -709,13 +712,12 @@ trx_rollback_active(
 		}
 	}
 
+	ib::info() << "Rolled back recovered transaction " << trx_id;
+
 func_exit:
 	if (dictionary_locked) {
 		row_mysql_unlock_data_dictionary(trx);
 	}
-
-	ib::info() << "Rollback of trx with id " << ib::hex(trx->id)
-		<< " completed";
 
 	mem_heap_free(heap);
 

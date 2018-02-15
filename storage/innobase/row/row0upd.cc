@@ -319,9 +319,16 @@ row_upd_check_references_constraints(
 			But the counter on the table protects 'foreign' from
 			being dropped while the check is running. */
 
+			if (foreign_table) {
+				foreign_table->inc_fk_checks();
+			}
+
 			err = row_ins_check_foreign_constraint(
 				FALSE, foreign, table, entry, thr);
 
+			if (foreign_table) {
+				foreign_table->dec_fk_checks();
+			}
 			if (ref_table != NULL) {
 				dict_table_close(ref_table, FALSE, FALSE);
 			}
@@ -342,11 +349,6 @@ func_exit:
 	mem_heap_free(heap);
 
 	DEBUG_SYNC_C("foreign_constraint_check_for_update_done");
-
-	DBUG_EXECUTE_IF("row_upd_cascade_lock_wait_err",
-		err = DB_LOCK_WAIT;
-		DBUG_SET("-d,row_upd_cascade_lock_wait_err"););
-
 	DBUG_RETURN(err);
 }
 
@@ -469,9 +471,8 @@ wsrep_must_process_fk(const upd_node_t* node, const trx_t* trx)
 		return false;
 	}
 
-	const upd_node_t* parent = static_cast<const upd_node_t*>(node->common.parent);
-
-	return parent->cascade_upd_nodes->empty();
+	return static_cast<upd_node_t*>(node->common.parent)->cascade_node
+		== node;
 }
 #endif /* WITH_WSREP */
 
@@ -1295,7 +1296,7 @@ row_upd_index_replace_new_col_val(
 		}
 
 		len = dtype_get_at_most_n_mbchars(col->prtype,
-						  col->mbminmaxlen,
+						  col->mbminlen, col->mbmaxlen,
 						  field->prefix_len, len,
 						  (const char*) data);
 
@@ -1532,12 +1533,7 @@ row_upd_replace_vcol(
 				dfield_copy_data(dfield, upd_field->old_v_val);
 			}
 
-			dfield_get_type(dfield)->mtype =
-				upd_field->new_val.type.mtype;
-			dfield_get_type(dfield)->prtype =
-				upd_field->new_val.type.prtype;
-			dfield_get_type(dfield)->mbminmaxlen =
-				upd_field->new_val.type.mbminmaxlen;
+			dfield->type = upd_field->new_val.type;
 			break;
 		}
 	}
@@ -2129,6 +2125,7 @@ row_upd_eval_new_vals(
 @param[in]	update		an update vector if it is update
 @param[in]	thd		mysql thread handle
 @param[in,out]	mysql_table	mysql table object */
+static
 void
 row_upd_store_v_row(
 	upd_node_t*	node,
@@ -2176,7 +2173,6 @@ row_upd_store_v_row(
 						cascade update. And virtual
 						column can't be affected,
 						so it is Ok to set it to NULL */
-						ut_ad(!node->cascade_top);
 						dfield_set_null(dfield);
 					} else {
 						dfield_t*       vfield
@@ -2268,25 +2264,6 @@ row_upd_store_row(
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
-}
-
-/***********************************************************//**
-Print a MBR data from disk */
-static
-void
-srv_mbr_print(const byte* data)
-{
-        double a, b, c, d;
-        a = mach_double_read(data);
-        data += sizeof(double);
-        b = mach_double_read(data);
-        data += sizeof(double);
-        c = mach_double_read(data);
-        data += sizeof(double);
-        d = mach_double_read(data);
-
-        ib::info() << "GIS MBR INFO: " << a << " and " << b << ", " << c
-		<< ", " << d << "\n";
 }
 
 /***********************************************************//**
@@ -2452,8 +2429,6 @@ row_upd_sec_index_entry(
 			<< " of table " << index->table->name
 			<< " was not found on update: " << *entry
 			<< " at: " << rec_index_print(rec, index);
-		if (entry->fields[0].data)
-			srv_mbr_print((unsigned char*)entry->fields[0].data);
 #ifdef UNIV_DEBUG
 		mtr_commit(&mtr);
 		mtr_start(&mtr);
@@ -2684,7 +2659,9 @@ row_upd_clust_rec_by_insert(
 	que_thr_t*	thr,	/*!< in: query thread */
 	ibool		referenced,/*!< in: TRUE if index may be referenced in
 				a foreign key constraint */
-	ibool		foreign, /*!< in: TRUE if index is foreign key index */
+#ifdef WITH_WSREP
+	bool		foreign,/*!< in: whether this is a foreign key */
+#endif
 	mtr_t*		mtr)	/*!< in/out: mtr; gets committed here */
 {
 	mem_heap_t*	heap;
@@ -2897,15 +2874,14 @@ row_upd_clust_rec(
 	down the index tree */
 
 	mtr->start();
-	mtr->set_named_space(index->space);
 
-	/* Disable REDO logging as lifetime of temp-tables is limited to
-	server or connection lifetime and so REDO information is not needed
-	on restart for recovery.
-	Disable locking as temp-tables are not shared across connection. */
-	if (dict_table_is_temporary(index->table)) {
+	if (index->table->is_temporary()) {
+		/* Disable locking, because temporary tables are never
+		shared between transactions or connections. */
 		flags |= BTR_NO_LOCKING_FLAG;
 		mtr->set_log_mode(MTR_LOG_NO_REDO);
+	} else {
+		mtr->set_named_space(index->space);
 	}
 
 	/* NOTE: this transaction has an s-lock or x-lock on the record and
@@ -2974,7 +2950,9 @@ row_upd_del_mark_clust_rec(
 	ibool		referenced,
 				/*!< in: TRUE if index may be referenced in
 				a foreign key constraint */
-	ibool		foreign,/*!< in: TRUE if index is foreign key index */
+#ifdef WITH_WSREP
+	bool		foreign,/*!< in: whether this is a foreign key */
+#endif
 	mtr_t*		mtr)	/*!< in: mtr; gets committed here */
 {
 	btr_pcur_t*	pcur;
@@ -3066,7 +3044,6 @@ row_upd_clust_step(
 	ulint*		offsets;
 	ibool		referenced;
 	ulint		flags;
-	ibool		foreign = FALSE;
 	trx_t*		trx = thr_get_trx(thr);
 
 	rec_offs_init(offsets_);
@@ -3076,8 +3053,7 @@ row_upd_clust_step(
 	referenced = row_upd_index_is_referenced(index, trx);
 
 #ifdef WITH_WSREP
-	foreign = wsrep_row_upd_index_is_foreign(
-		index, thr_get_trx(thr));
+	const bool foreign = wsrep_row_upd_index_is_foreign(index, trx);
 #endif
 
 	pcur = node->pcur;
@@ -3085,7 +3061,6 @@ row_upd_clust_step(
 	/* We have to restore the cursor to its position */
 
 	mtr.start();
-	mtr.set_named_space(index->space);
 
 	if (dict_table_is_temporary(node->table)) {
 		/* Disable locking, because temporary tables are
@@ -3097,6 +3072,7 @@ row_upd_clust_step(
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
 		flags = node->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
+		mtr.set_named_space(index->space);
 	}
 
 	/* If the restoration does not succeed, then the same
@@ -3184,7 +3160,11 @@ row_upd_clust_step(
 
 	if (node->is_delete == PLAIN_DELETE) {
 		err = row_upd_del_mark_clust_rec(
-			node, index, offsets, thr, referenced, foreign, &mtr);
+			node, index, offsets, thr, referenced,
+#ifdef WITH_WSREP
+			foreign,
+#endif
+			&mtr);
 
 		if (err == DB_SUCCESS) {
 			node->state = UPD_NODE_UPDATE_ALL_SEC;
@@ -3230,7 +3210,11 @@ row_upd_clust_step(
 		externally! */
 
 		err = row_upd_clust_rec_by_insert(
-			node, index, thr, referenced, foreign, &mtr);
+			node, index, thr, referenced,
+#ifdef WITH_WSREP
+			foreign,
+#endif
+			&mtr);
 		if (err != DB_SUCCESS) {
 
 			goto exit_func;
@@ -3470,56 +3454,3 @@ error_handling:
 
 	DBUG_RETURN(thr);
 }
-
-#ifndef DBUG_OFF
-
-/** Ensure that the member cascade_upd_nodes has only one update node
-for each of the tables.  This is useful for testing purposes. */
-void upd_node_t::check_cascade_only_once()
-{
-	DBUG_ENTER("upd_node_t::check_cascade_only_once");
-
-	dbug_trace();
-
-	for (upd_cascade_t::const_iterator i = cascade_upd_nodes->begin();
-	     i != cascade_upd_nodes->end(); ++i) {
-
-		const upd_node_t*	update_node = *i;
-		std::string	table_name(update_node->table->name.m_name);
-		ulint	count = 0;
-
-		for (upd_cascade_t::const_iterator j
-			= cascade_upd_nodes->begin();
-		     j != cascade_upd_nodes->end(); ++j) {
-
-			const upd_node_t*	node = *j;
-
-			if (table_name == node->table->name.m_name) {
-				DBUG_ASSERT(count++ == 0);
-			}
-		}
-	}
-
-	DBUG_VOID_RETURN;
-}
-
-/** Print information about this object into the trace log file. */
-void upd_node_t::dbug_trace()
-{
-	DBUG_ENTER("upd_node_t::dbug_trace");
-
-	for (upd_cascade_t::const_iterator i = cascade_upd_nodes->begin();
-	     i != cascade_upd_nodes->end(); ++i) {
-		DBUG_LOG("upd_node_t", "cascade_upd_nodes: Cascade to table: "
-			 << (*i)->table->name);
-	}
-
-	for (upd_cascade_t::const_iterator j = new_upd_nodes->begin();
-	     j != new_upd_nodes->end(); ++j) {
-		DBUG_LOG("upd_node_t", "new_upd_nodes: Cascade to table: "
-			 << (*j)->table->name);
-	}
-
-	DBUG_VOID_RETURN;
-}
-#endif /* !DBUG_OFF */

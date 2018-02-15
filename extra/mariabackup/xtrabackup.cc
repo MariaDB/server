@@ -1265,10 +1265,10 @@ end:
 
 
 static const char *xb_client_default_groups[]=
-	{ "xtrabackup", "client", 0, 0, 0 };
+	{ "xtrabackup", "mariabackup", "client", 0, 0, 0 };
 
 static const char *xb_server_default_groups[]=
-	{ "xtrabackup", "mysqld", 0, 0, 0 };
+	{ "xtrabackup", "mariabackup", "mysqld", 0, 0, 0 };
 
 static void print_version(void)
 {
@@ -1295,7 +1295,7 @@ GNU General Public License for more details.\n\
 \n\
 You can download full text of the license on http://www.gnu.org/licenses/gpl-2.0.txt\n");
 
-  printf("Usage: [%s [--defaults-file=#] --backup | %s [--defaults-file=#] --prepare] [OPTIONS]\n",my_progname,my_progname);
+  printf("Usage: %s [--defaults-file=#] [--backup | --prepare | --copy-back | --move-back] [OPTIONS]\n",my_progname);
   print_defaults("my", xb_server_default_groups);
   my_print_help(xb_client_options);
   my_print_help(xb_server_options);
@@ -2909,19 +2909,7 @@ xb_load_tablespaces()
 					   &flush_lsn);
 
 	if (err != DB_SUCCESS) {
-		msg("mariabackup: Could not open or create data files.\n"
-		    "mariabackup: If you tried to add new data files, and it "
-		    "failed here,\n"
-		    "mariabackup: you should now edit innodb_data_file_path in "
-		    "my.cnf back\n"
-		    "mariabackup: to what it was, and remove the new ibdata "
-		    "files InnoDB created\n"
-		    "mariabackup: in this failed attempt. InnoDB only wrote "
-		    "those files full of\n"
-		    "mariabackup: zeros, but did not yet use them in any way. "
-		    "But be careful: do not\n"
-		    "mariabackup: remove old data files which contain your "
-		    "precious data!\n");
+		msg("mariabackup: Could not open data files.\n");
 		return(err);
 	}
 
@@ -3860,7 +3848,7 @@ reread_log_header:
 	err = xb_load_tablespaces();
 	if (err != DB_SUCCESS) {
 		msg("mariabackup: error: xb_load_tablespaces() failed with"
-		    "error code %u\n", err);
+		    " error code %u\n", err);
 		goto fail;
 	}
 
@@ -4971,9 +4959,19 @@ xb_init()
 		return(false);
 	}
 
-	if (opt_rsync && xtrabackup_stream_fmt) {
-		msg("Error: --rsync doesn't work with --stream\n");
-		return(false);
+	if (xtrabackup_backup && opt_rsync)
+	{
+		if (xtrabackup_stream_fmt)
+		{
+			msg("Error: --rsync doesn't work with --stream\n");
+			return(false);
+		}
+		bool have_rsync = IF_WIN(false, (system("rsync --version > /dev/null 2>&1") == 0));
+		if (!have_rsync)
+		{
+			msg("Error: rsync executable not found, cannot run backup with --rsync\n");
+			return false;
+		}
 	}
 
 	n_mixed_options = 0;

@@ -3490,9 +3490,11 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
 
   if (key == NULL)
   {
-    /* Key is unknown */
-    str.copy("", 0, system_charset_info);
-    my_printf_error(ER_DUP_ENTRY, msg, errflag, str.c_ptr(), "*UNKNOWN*");
+    /*
+      Key is unknown. Should only happen if storage engine reports wrong
+      duplicate key number.
+    */
+    my_printf_error(ER_DUP_ENTRY, msg, errflag, "", "*UNKNOWN*");
   }
   else
   {
@@ -3593,11 +3595,9 @@ void handler::print_error(int error, myf errflag)
     if (table)
     {
       uint key_nr=get_dup_key(error);
-      if ((int) key_nr >= 0)
+      if ((int) key_nr >= 0 && key_nr < table->s->keys)
       {
-        print_keydup_error(table,
-                           key_nr == MAX_KEY ? NULL : &table->key_info[key_nr],
-                           errflag);
+        print_keydup_error(table, &table->key_info[key_nr], errflag);
         DBUG_VOID_RETURN;
       }
     }
@@ -4727,6 +4727,7 @@ void handler::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->data_file_length=     stats.data_file_length;
   stat_info->max_data_file_length= stats.max_data_file_length;
   stat_info->index_file_length=    stats.index_file_length;
+  stat_info->max_index_file_length=stats.max_index_file_length;
   stat_info->delete_length=        stats.delete_length;
   stat_info->create_time=          stats.create_time;
   stat_info->update_time=          stats.update_time;

@@ -1,7 +1,7 @@
 #ifndef SQL_ALLOC_INCLUDED
 #define SQL_ALLOC_INCLUDED
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2017, MariaDB AB
+   Copyright (c) 2017, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,11 +39,11 @@ public:
   { return alloc_root(mem_root, size); }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw()
   { return alloc_root(mem_root, size); }
-  static void operator delete(void *ptr, size_t size) { TRASH(ptr, size); }
+  static void operator delete(void *ptr, size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *, MEM_ROOT *){}
   static void operator delete[](void *ptr, MEM_ROOT *mem_root)
   { /* never called */ }
-  static void operator delete[](void *ptr, size_t size) { TRASH(ptr, size); }
+  static void operator delete[](void *ptr, size_t size) { TRASH_FREE(ptr, size); }
 #ifdef HAVE_valgrind
   bool dummy_for_valgrind;
   inline Sql_alloc() :dummy_for_valgrind(0) {}

@@ -115,7 +115,7 @@ SET myisam_repair_threads=@@global.myisam_repair_threads;
 SET myisam_sort_buffer_size=@@global.myisam_sort_buffer_size;
 DROP TABLE t1;
 
---echo End of 4.1 tests
+--echo # End of 4.1 tests
 
 #
 # BUG#36055 - mysql_upgrade doesn't really 'upgrade' tables
@@ -147,7 +147,8 @@ REPAIR TABLE t1 USE_FRM;
 SELECT * FROM t1;
 
 DROP TABLE t1;
-# End of 5.0 tests
+
+--echo # End of 5.0 tests
 
 #
 # Bug#18775 - Temporary table from alter table visible to other threads
@@ -219,3 +220,21 @@ create view v1 as select * from t1;
 repair view v1;
 drop view v1;
 drop table t1;
+
+--echo # End of 5.5 tests
+
+#
+# MDEV-11539 test_if_reopen: Assertion `strcmp(share->unique_file_name,filename) || share->last_version' failed upon select from I_S
+#
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT t1 VALUES (1);
+LOCK TABLE t1 WRITE;
+REPAIR TABLE t1;
+--disable_result_log
+SELECT * FROM INFORMATION_SCHEMA.TABLES;
+--enable_result_log
+SELECT * FROM t1;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo # End of 10.0 tests

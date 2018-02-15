@@ -1461,9 +1461,7 @@ DROP TABLE t1, m1;
 #             and there is incorrect merge table
 #
 CREATE TABLE tm1 (c1 INT) ENGINE=MRG_MYISAM UNION=(t1) INSERT_METHOD=FIRST;
---replace_column 8 # 9 # 10 # 11 # 12 # 13 # 14 # 15 # 16 # 17 # 19 # 20 #
-SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE
-TABLE_SCHEMA = 'test' and TABLE_NAME='tm1';
+SELECT table_schema, table_name, table_type, engine, version, row_format, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='tm1';
 
 DROP TABLE tm1;
 
@@ -1559,7 +1557,7 @@ CREATE TABLE m1 (
 ) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(t1);
 
 insert into m1 (col1) values (1);
---error ER_DUP_ENTRY
+--error ER_DUP_KEY
 insert into m1 (col1) values (1);
 
 drop table m1, t1;
@@ -1593,7 +1591,7 @@ CREATE TABLE t1 (c1 INT, c2 INT, UNIQUE (c1), UNIQUE (c2));
 CREATE TABLE m1 (c1 INT, c2 INT, UNIQUE (c1)) ENGINE=MRG_MyISAM INSERT_METHOD=LAST UNION=(t1);
 INSERT INTO m1 VALUES (1,2);
 --echo # insert the duplicate value into the merge table
---error ER_DUP_ENTRY
+--error ER_DUP_KEY
 INSERT INTO m1 VALUES (3,2);
 DROP TABLE m1,t1;
 

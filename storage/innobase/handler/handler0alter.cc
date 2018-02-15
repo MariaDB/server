@@ -1919,8 +1919,7 @@ innobase_col_to_mysql(
 #ifdef UNIV_DEBUG
 	case DATA_MYSQL:
 		ut_ad(flen >= len);
-		ut_ad(DATA_MBMAXLEN(col->mbminmaxlen)
-		      >= DATA_MBMINLEN(col->mbminmaxlen));
+		ut_ad(col->mbmaxlen >= col->mbminlen);
 		memcpy(dest, data, len);
 		break;
 
@@ -5255,8 +5254,10 @@ new_clustered_failed:
 				     = user_table->indexes.start);
 				DBUG_ASSERT(col->mtype == old_col->mtype);
 				DBUG_ASSERT(col->prtype == old_col->prtype);
-				DBUG_ASSERT(col->mbminmaxlen
-					    == old_col->mbminmaxlen);
+				DBUG_ASSERT(col->mbminlen
+					    == old_col->mbminlen);
+				DBUG_ASSERT(col->mbmaxlen
+					    == old_col->mbmaxlen);
 				DBUG_ASSERT(col->len >= old_col->len);
 				DBUG_ASSERT(old_col->is_instant()
 					    == (dict_col_get_clust_pos(

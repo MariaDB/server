@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2017, MariaDB Corporation
+   Copyright (c) 2012, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -53,6 +53,7 @@
 #ifdef EXTRA_DEBUG
 #define EXTRA_DEBUG_fprintf fprintf
 #define EXTRA_DEBUG_fflush fflush
+#define EXTRA_DEBUG_ASSERT DBUG_ASSERT
 #else
 static void inline EXTRA_DEBUG_fprintf(...) {}
 #ifndef MYSQL_SERVER
@@ -68,6 +69,9 @@ static int inline EXTRA_DEBUG_fflush(...) { return 0; }
 static void inline MYSQL_SERVER_my_error(...) {}
 #endif
 
+#ifndef EXTRA_DEBUG_ASSERT
+# define EXTRA_DEBUG_ASSERT(X) do {} while(0)
+#endif
 
 /*
   The following handles the differences when this is linked between the
@@ -1160,7 +1164,7 @@ packets_out_of_order:
                ("Packets out of order (Found: %d, expected %u)",
                 (int) net->buff[net->where_b + 3],
                 net->pkt_nr));
-    DBUG_ASSERT(0);
+    EXTRA_DEBUG_ASSERT(0);
     /*
        We don't make noise server side, since the client is expected
        to break the protocol for e.g. --send LOAD DATA .. LOCAL where

@@ -62,6 +62,7 @@ protected:
       return parse(res, cache);
     }
   };
+  String m_xpath_query; // XPath query text
   Item *nodeset_func;
   XML xml;
   bool get_xml(XML *xml_arg, bool cache= false)

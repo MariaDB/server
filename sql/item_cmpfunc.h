@@ -378,6 +378,8 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool invisible_mode();
   void reset_cache() { cache= NULL; }
+  virtual void print(String *str, enum_query_type query_type);
+  void restore_first_argument();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_in_optimizer>(thd, this); }
 };
@@ -2486,9 +2488,9 @@ public:
   bool arg_is_datetime_notnull_field()
   {
     Item **args= arguments();
-    if (args[0]->type() == Item::FIELD_ITEM)
+    if (args[0]->real_item()->type() == Item::FIELD_ITEM)
     {
-      Field *field=((Item_field*) args[0])->field;
+      Field *field=((Item_field*) args[0]->real_item())->field;
 
       if (((field->type() == MYSQL_TYPE_DATE) ||
           (field->type() == MYSQL_TYPE_DATETIME)) &&

@@ -162,7 +162,8 @@ public:
     need to copy elements by value, you should employ
     list_copy_and_replace_each_value after creating a copy.
   */
-  base_list(const base_list &rhs, MEM_ROOT *mem_root);
+  bool copy(const base_list *rhs, MEM_ROOT *mem_root);
+  base_list(const base_list &rhs, MEM_ROOT *mem_root) { copy(&rhs, mem_root); }
   inline base_list(bool error) { }
   inline bool push_back(void *info)
   {
@@ -496,6 +497,8 @@ public:
   inline void disjoin(List<T> *list) { base_list::disjoin(list); }
   inline bool add_unique(T *a, bool (*eq)(T *a, T *b))
   { return base_list::add_unique(a, (List_eq *)eq); }
+  inline bool copy(const List<T> *list, MEM_ROOT *root)
+  { return base_list::copy(list, root); }
   void delete_elements(void)
   {
     list_node *element,*next;

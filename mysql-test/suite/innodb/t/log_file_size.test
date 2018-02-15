@@ -17,7 +17,8 @@ call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE faile
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("InnoDB: innodb_read_only prevents crash recovery");
 call mtr.add_suppression("InnoDB: Are you sure you are using the right ib_logfiles");
-call mtr.add_suppression("InnoDB: Cannot create log files in read-only mode");
+call mtr.add_suppression("InnoDB: Cannot (create|resize) log files in read-only mode");
+call mtr.add_suppression("InnoDB: Can't initiate database recovery, running in read-only-mode");
 call mtr.add_suppression("InnoDB: Only one log file found");
 call mtr.add_suppression("InnoDB: Log file .*ib_logfile[01].* size");
 call mtr.add_suppression("InnoDB: Unable to open .*ib_logfile0. to check native AIO read support");

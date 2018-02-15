@@ -39,6 +39,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include <toku_assert.h>
+#include <toku_portability.h>
+#include <toku_instrumentation.h>
 
 /* Readers/writers locks implementation
  *
@@ -147,53 +149,81 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 // increase parallelism at the expense of single thread performance, we
 // are experimenting with a single higher level lock.
 
-typedef struct rwlock *RWLOCK;
-struct rwlock {
-    int reader;                  // the number of readers
-    int want_read;                // the number of blocked readers
+extern toku_instr_key *rwlock_cond_key;
+extern toku_instr_key *rwlock_wait_read_key;
+extern toku_instr_key *rwlock_wait_write_key;
+
+typedef struct st_rwlock *RWLOCK;
+struct st_rwlock {
+    int reader;     // the number of readers
+    int want_read;  // the number of blocked readers
     toku_cond_t wait_read;
     int writer;                  // the number of writers
     int want_write;              // the number of blocked writers
     toku_cond_t wait_write;
-    toku_cond_t* wait_users_go_to_zero;
+    toku_cond_t *wait_users_go_to_zero;
+#if defined(TOKU_MYSQL_WITH_PFS)
+    toku_pthread_rwlock_t prwlock;
+#endif
 };
 
 // returns: the sum of the number of readers, pending readers, writers, and
 // pending writers
 
 static inline int rwlock_users(RWLOCK rwlock) {
-    return rwlock->reader + rwlock->want_read + rwlock->writer + rwlock->want_write;
+    return rwlock->reader + rwlock->want_read + rwlock->writer +
+           rwlock->want_write;
 }
 
-// initialize a read write lock
+#if defined(TOKU_MYSQL_WITH_PFS)
+#define rwlock_init(K, R) inline_rwlock_init(K, R)
+#else
+#define rwlock_init(K, R) inline_rwlock_init(R)
+#endif
 
-static __attribute__((__unused__))
-void
-rwlock_init(RWLOCK rwlock) {
+// initialize a read write lock
+static inline __attribute__((__unused__)) void inline_rwlock_init(
+#if defined(TOKU_MYSQL_WITH_PFS)
+    const toku_instr_key &rwlock_instr_key,
+#endif
+    RWLOCK rwlock) {
+#if defined(TOKU_MYSQL_WITH_PFS)
+    toku_pthread_rwlock_init(rwlock_instr_key, &rwlock->prwlock, nullptr);
+#endif
     rwlock->reader = rwlock->want_read = 0;
-    toku_cond_init(&rwlock->wait_read, 0);
     rwlock->writer = rwlock->want_write = 0;
-    toku_cond_init(&rwlock->wait_write, 0);
+    toku_cond_init(toku_uninstrumented, &rwlock->wait_read, nullptr);
+    toku_cond_init(toku_uninstrumented, &rwlock->wait_write, nullptr);
     rwlock->wait_users_go_to_zero = NULL;
 }
 
 // destroy a read write lock
 
-static __attribute__((__unused__))
-void
-rwlock_destroy(RWLOCK rwlock) {
+static inline __attribute__((__unused__)) void rwlock_destroy(RWLOCK rwlock) {
     paranoid_invariant(rwlock->reader == 0);
     paranoid_invariant(rwlock->want_read == 0);
     paranoid_invariant(rwlock->writer == 0);
     paranoid_invariant(rwlock->want_write == 0);
     toku_cond_destroy(&rwlock->wait_read);
     toku_cond_destroy(&rwlock->wait_write);
+#if defined(TOKU_MYSQL_WITH_PFS)
+    toku_pthread_rwlock_destroy(&rwlock->prwlock);
+#endif
 }
 
 // obtain a read lock
 // expects: mutex is locked
 
 static inline void rwlock_read_lock(RWLOCK rwlock, toku_mutex_t *mutex) {
+#ifdef TOKU_MYSQL_WITH_PFS
+    /* Instrumentation start */
+    toku_rwlock_instrumentation rwlock_instr;
+    // TODO: pull location information up to caller
+    toku_instr_rwlock_rdlock_wait_start(
+        rwlock_instr, rwlock->prwlock, __FILE__, __LINE__);
+
+#endif
+
     paranoid_invariant(!rwlock->wait_users_go_to_zero);
     if (rwlock->writer || rwlock->want_write) {
         rwlock->want_read++;
@@ -203,12 +233,19 @@ static inline void rwlock_read_lock(RWLOCK rwlock, toku_mutex_t *mutex) {
         rwlock->want_read--;
     }
     rwlock->reader++;
+#ifdef TOKU_MYSQL_WITH_PFS
+    /* Instrumentation end */
+    toku_instr_rwlock_wrlock_wait_end(rwlock_instr, 0);
+#endif
 }
 
 // release a read lock
 // expects: mutex is locked
 
 static inline void rwlock_read_unlock(RWLOCK rwlock) {
+#ifdef TOKU_MYSQL_WITH_PFS
+    toku_instr_rwlock_unlock(rwlock->prwlock);
+#endif
     paranoid_invariant(rwlock->reader > 0);
     paranoid_invariant(rwlock->writer == 0);
     rwlock->reader--;
@@ -224,6 +261,12 @@ static inline void rwlock_read_unlock(RWLOCK rwlock) {
 // expects: mutex is locked
 
 static inline void rwlock_write_lock(RWLOCK rwlock, toku_mutex_t *mutex) {
+#ifdef TOKU_MYSQL_WITH_PFS
+    /* Instrumentation start */
+    toku_rwlock_instrumentation rwlock_instr;
+    toku_instr_rwlock_wrlock_wait_start(
+        rwlock_instr, rwlock->prwlock, __FILE__, __LINE__);
+#endif
     paranoid_invariant(!rwlock->wait_users_go_to_zero);
     if (rwlock->reader || rwlock->writer) {
         rwlock->want_write++;
@@ -233,12 +276,19 @@ static inline void rwlock_write_lock(RWLOCK rwlock, toku_mutex_t *mutex) {
         rwlock->want_write--;
     }
     rwlock->writer++;
+#if defined(TOKU_MYSQL_WITH_PFS)
+    /* Instrumentation end */
+    toku_instr_rwlock_wrlock_wait_end(rwlock_instr, 0);
+#endif
 }
 
 // release a write lock
 // expects: mutex is locked
 
 static inline void rwlock_write_unlock(RWLOCK rwlock) {
+#if defined(TOKU_MYSQL_WITH_PFS)
+    toku_instr_rwlock_unlock(rwlock->prwlock);
+#endif
     paranoid_invariant(rwlock->reader == 0);
     paranoid_invariant(rwlock->writer == 1);
     rwlock->writer--;
@@ -284,14 +334,10 @@ static inline int rwlock_read_will_block(RWLOCK rwlock) {
     return (rwlock->writer > 0 || rwlock->want_write > 0);
 }
 
-static inline void rwlock_wait_for_users(
-    RWLOCK rwlock,
-    toku_mutex_t *mutex
-    )
-{
+static inline void rwlock_wait_for_users(RWLOCK rwlock, toku_mutex_t *mutex) {
     paranoid_invariant(!rwlock->wait_users_go_to_zero);
     toku_cond_t cond;
-    toku_cond_init(&cond, NULL);
+    toku_cond_init(toku_uninstrumented, &cond, nullptr);
     while (rwlock_users(rwlock) > 0) {
         rwlock->wait_users_go_to_zero = &cond;
         toku_cond_wait(&cond, mutex);

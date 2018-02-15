@@ -2133,7 +2133,10 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
   }
   else
   {
-    Item *item= (Item*) select_lex->item_list.head()->real_item();
+    Item *item= (Item*) select_lex->item_list.head();
+    if (item->type() != REF_ITEM ||
+        ((Item_ref*)item)->ref_type() != Item_ref::VIEW_REF)
+      item= item->real_item();
 
     if (select_lex->table_list.elements)
     {
@@ -5499,7 +5502,7 @@ int subselect_hash_sj_engine::exec()
 
     if (has_covering_null_row)
     {
-      DBUG_ASSERT(count_partial_match_columns = field_count);
+      DBUG_ASSERT(count_partial_match_columns == field_count);
       count_pm_keys= 0;
     }
     else if (has_covering_null_columns)

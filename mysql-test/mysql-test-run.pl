@@ -1590,6 +1590,7 @@ sub command_line_setup {
        $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
        $opt_debugger || $opt_client_debugger )
   {
+    $ENV{ASAN_OPTIONS}= 'abort_on_error=1:'.($ENV{ASAN_OPTIONS} || '');
     if ( using_extern() )
     {
       mtr_error("Can't use --extern when using debugger");
@@ -3179,6 +3180,9 @@ sub mysql_install_db {
       mtr_appendfile_to_file("$sql_dir/mysql_performance_tables.sql",
                             $bootstrap_sql_file);
 
+      # Don't install anonymous users
+      mtr_tofile($bootstrap_sql_file, "set \@skip_auth_anonymous=1;\n");
+
       # Add the mysql system tables initial data
       # for a production system
       mtr_appendfile_to_file("$sql_dir/mysql_system_tables_data.sql",
@@ -3212,10 +3216,6 @@ sub mysql_install_db {
       mtr_tofile($bootstrap_sql_file,
            sql_to_bootstrap($text));
     }
-
-    # Remove anonymous users
-    mtr_tofile($bootstrap_sql_file,
-         "DELETE FROM mysql.user where user= '';\n");
 
     # Create mtr database
     mtr_tofile($bootstrap_sql_file,
@@ -5042,7 +5042,7 @@ sub mysqld_start ($$) {
   my $args;
   mtr_init_args(\$args);
 
-  if ( $opt_valgrind_mysqld )
+  if ( $opt_valgrind_mysqld and not $opt_gdb and not $opt_manual_gdb )
   {
     valgrind_arguments($args, \$exe);
   }
@@ -5631,11 +5631,20 @@ sub gdb_arguments {
   unlink($gdb_init_file);
 
   # Put $args into a single string
-  my $str= join(" ", @$$args);
   $input = $input ? "< $input" : "";
 
-  # write init file for mysqld or client
-  mtr_tofile($gdb_init_file, "set args $str $input\n");
+  if ($type ne 'client' and $opt_valgrind_mysqld) {
+    my $v = $$exe;
+    my $vargs = [];
+    valgrind_arguments($vargs, \$v);
+    mtr_tofile($gdb_init_file, <<EOF);
+shell @My::SafeProcess::safe_process_cmd --parent-pid=`pgrep -x gdb` -- $v --vgdb-error=0 @$vargs @$$args &
+shell sleep 1
+target remote | /usr/lib64/valgrind/../../bin/vgdb
+EOF
+  } else {
+    mtr_tofile($gdb_init_file, "set args @$$args $input\n");
+  }
 
   if ( $opt_manual_gdb )
   {

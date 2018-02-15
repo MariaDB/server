@@ -772,15 +772,7 @@ inline query_id_t get_query_id()
 }
 
 /* increment global_thread_id and return it.  */
-inline __attribute__((warn_unused_result)) my_thread_id next_thread_id()
-{
-  return my_atomic_add64_explicit((int64*) &global_thread_id, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-#if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)
-extern "C" my_thread_id next_thread_id_noinline();
-#define next_thread_id() next_thread_id_noinline()
-#endif
+extern __attribute__((warn_unused_result)) my_thread_id next_thread_id(void);
 
 /*
   TODO: Replace this with an inline function.

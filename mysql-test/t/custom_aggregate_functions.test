@@ -771,3 +771,15 @@ drop function f4;
 drop function f5;
 drop function f6;
 drop function f7;
+
+delimiter |;
+create aggregate function f1(x date) returns date
+begin
+  declare continue handler for not found return x;
+  loop
+    fetch group next row;
+  end loop;
+end|
+delimiter ;|
+select f1('2001-01-01'),cast(f1('2001-01-01') as time);
+drop function f1;

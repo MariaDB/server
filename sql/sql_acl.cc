@@ -5834,8 +5834,8 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
     (that should be merged) are sorted together. The grantee's ACL_DB element
     is not necessarily the first and may be not present at all.
   */
-  ACL_DB **first= NULL, *UNINIT_VAR(merged);
-  ulong UNINIT_VAR(access), update_flags= 0;
+  ACL_DB **first= NULL, *merged= NULL;
+  ulong access= 0, update_flags= 0;
   for (ACL_DB **cur= dbs.front(); cur <= dbs.back(); cur++)
   {
     if (!first || (!dbname && strcmp(cur[0]->db, cur[-1]->db)))
@@ -6040,8 +6040,8 @@ static bool merge_role_table_and_column_privileges(ACL_ROLE *grantee,
   }
   grants.sort(table_name_sort);
 
-  GRANT_TABLE **first= NULL, *UNINIT_VAR(merged), **cur;
-  ulong UNINIT_VAR(privs), UNINIT_VAR(cols), update_flags= 0;
+  GRANT_TABLE **first= NULL, *merged= NULL, **cur;
+  ulong privs= 0, cols= 0, update_flags= 0;
   for (cur= grants.front(); cur <= grants.back(); cur++)
   {
     if (!first ||
@@ -6164,8 +6164,8 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
   }
   grants.sort(routine_name_sort);
 
-  GRANT_NAME **first= NULL, *UNINIT_VAR(merged);
-  ulong UNINIT_VAR(privs);
+  GRANT_NAME **first= NULL, *merged= NULL;
+  ulong privs= 0 ;
   for (GRANT_NAME **cur= grants.front(); cur <= grants.back(); cur++)
   {
     if (!first ||

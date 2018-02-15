@@ -642,7 +642,7 @@ public:
     DBUG_ASSERT(size < UINT_MAX32);
     return thd_alloc(current_thd, (uint) size);
   }
-  static void operator delete(void *ptr_arg, size_t size) { TRASH(ptr_arg, size); }
+  static void operator delete(void *ptr_arg, size_t size) { TRASH_FREE(ptr_arg, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root)
   { DBUG_ASSERT(0); }
 

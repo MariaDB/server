@@ -2,8 +2,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES armscii8;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET armscii8 COLLATE armscii8_bin) ENGINE=Memory CHARACTER SET armscii8 COLLATE armscii8_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	armscii8_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	armscii8_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -232,8 +232,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES armscii8;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET armscii8 COLLATE armscii8_general_ci) ENGINE=Memory CHARACTER SET armscii8 COLLATE armscii8_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	armscii8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	armscii8_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -462,8 +462,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES ascii;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET ascii COLLATE ascii_bin) ENGINE=Memory CHARACTER SET ascii COLLATE ascii_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	ascii_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	ascii_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -692,8 +692,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES ascii;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET ascii COLLATE ascii_general_ci) ENGINE=Memory CHARACTER SET ascii COLLATE ascii_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	ascii_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	ascii_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -922,8 +922,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES big5;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET big5 COLLATE big5_bin) ENGINE=Memory CHARACTER SET big5 COLLATE big5_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	big5_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	big5_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -1026,8 +1026,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES big5;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET big5 COLLATE big5_chinese_ci) ENGINE=Memory CHARACTER SET big5 COLLATE big5_chinese_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	big5_chinese_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	big5_chinese_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -1130,8 +1130,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES binary;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET binary) ENGINE=Memory CHARACTER SET binary;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	binary	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	binary	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -1360,8 +1360,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1250;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1250 COLLATE cp1250_bin) ENGINE=Memory CHARACTER SET cp1250 COLLATE cp1250_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1250_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1250_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -1590,8 +1590,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1250;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1250 COLLATE cp1250_croatian_ci) ENGINE=Memory CHARACTER SET cp1250 COLLATE cp1250_croatian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1250_croatian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1250_croatian_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -1820,8 +1820,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1250;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1250 COLLATE cp1250_czech_cs) ENGINE=Memory CHARACTER SET cp1250 COLLATE cp1250_czech_cs;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1250_czech_cs	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1250_czech_cs	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 7F	1
@@ -2050,8 +2050,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1250;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1250 COLLATE cp1250_general_ci) ENGINE=Memory CHARACTER SET cp1250 COLLATE cp1250_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1250_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1250_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 A0	1
@@ -2280,8 +2280,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1251;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1251 COLLATE cp1251_bin) ENGINE=Memory CHARACTER SET cp1251 COLLATE cp1251_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1251_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1251_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -2510,8 +2510,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1251;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1251 COLLATE cp1251_bulgarian_ci) ENGINE=Memory CHARACTER SET cp1251 COLLATE cp1251_bulgarian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1251_bulgarian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1251_bulgarian_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -2740,8 +2740,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1251;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1251 COLLATE cp1251_general_ci) ENGINE=Memory CHARACTER SET cp1251 COLLATE cp1251_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1251_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1251_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -2970,8 +2970,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1251;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1251 COLLATE cp1251_general_cs) ENGINE=Memory CHARACTER SET cp1251 COLLATE cp1251_general_cs;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1251_general_cs	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1251_general_cs	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -3200,8 +3200,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1251;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1251 COLLATE cp1251_ukrainian_ci) ENGINE=Memory CHARACTER SET cp1251 COLLATE cp1251_ukrainian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1251_ukrainian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1251_ukrainian_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 60	1
@@ -3430,8 +3430,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1256;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1256 COLLATE cp1256_bin) ENGINE=Memory CHARACTER SET cp1256 COLLATE cp1256_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1256_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1256_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -3660,8 +3660,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1256;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1256 COLLATE cp1256_general_ci) ENGINE=Memory CHARACTER SET cp1256 COLLATE cp1256_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1256_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1256_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -3890,8 +3890,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1257;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1257 COLLATE cp1257_bin) ENGINE=Memory CHARACTER SET cp1257 COLLATE cp1257_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1257_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1257_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -4120,8 +4120,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1257;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1257 COLLATE cp1257_general_ci) ENGINE=Memory CHARACTER SET cp1257 COLLATE cp1257_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1257_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1257_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -4350,8 +4350,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp1257;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp1257 COLLATE cp1257_lithuanian_ci) ENGINE=Memory CHARACTER SET cp1257 COLLATE cp1257_lithuanian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1257_lithuanian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp1257_lithuanian_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -4580,8 +4580,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp850;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp850 COLLATE cp850_bin) ENGINE=Memory CHARACTER SET cp850 COLLATE cp850_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp850_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp850_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -4810,8 +4810,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp850;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp850 COLLATE cp850_general_ci) ENGINE=Memory CHARACTER SET cp850 COLLATE cp850_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp850_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp850_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -5040,8 +5040,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp852;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp852 COLLATE cp852_bin) ENGINE=Memory CHARACTER SET cp852 COLLATE cp852_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp852_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp852_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -5270,8 +5270,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp852;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp852 COLLATE cp852_general_ci) ENGINE=Memory CHARACTER SET cp852 COLLATE cp852_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp852_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp852_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -5500,8 +5500,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp866;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp866 COLLATE cp866_bin) ENGINE=Memory CHARACTER SET cp866 COLLATE cp866_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp866_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp866_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -5730,8 +5730,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp866;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp866 COLLATE cp866_general_ci) ENGINE=Memory CHARACTER SET cp866 COLLATE cp866_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp866_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp866_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -5960,8 +5960,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp932;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp932 COLLATE cp932_bin) ENGINE=Memory CHARACTER SET cp932 COLLATE cp932_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp932_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp932_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -6127,8 +6127,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES cp932;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET cp932 COLLATE cp932_japanese_ci) ENGINE=Memory CHARACTER SET cp932 COLLATE cp932_japanese_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp932_japanese_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	cp932_japanese_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -6294,8 +6294,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES dec8;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET dec8 COLLATE dec8_bin) ENGINE=Memory CHARACTER SET dec8 COLLATE dec8_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	dec8_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	dec8_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -6524,8 +6524,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES dec8;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET dec8 COLLATE dec8_swedish_ci) ENGINE=Memory CHARACTER SET dec8 COLLATE dec8_swedish_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	dec8_swedish_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	dec8_swedish_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -6754,8 +6754,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES eucjpms;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET eucjpms COLLATE eucjpms_bin) ENGINE=Memory CHARACTER SET eucjpms COLLATE eucjpms_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	eucjpms_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	eucjpms_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -6858,8 +6858,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES eucjpms;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET eucjpms COLLATE eucjpms_japanese_ci) ENGINE=Memory CHARACTER SET eucjpms COLLATE eucjpms_japanese_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	eucjpms_japanese_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	eucjpms_japanese_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -6962,8 +6962,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES euckr;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET euckr COLLATE euckr_bin) ENGINE=Memory CHARACTER SET euckr COLLATE euckr_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	euckr_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	euckr_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -7066,8 +7066,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES euckr;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET euckr COLLATE euckr_korean_ci) ENGINE=Memory CHARACTER SET euckr COLLATE euckr_korean_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	euckr_korean_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	euckr_korean_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -7170,8 +7170,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES gb2312;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET gb2312 COLLATE gb2312_bin) ENGINE=Memory CHARACTER SET gb2312 COLLATE gb2312_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	gb2312_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	gb2312_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -7274,8 +7274,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES gb2312;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET gb2312 COLLATE gb2312_chinese_ci) ENGINE=Memory CHARACTER SET gb2312 COLLATE gb2312_chinese_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	gb2312_chinese_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	gb2312_chinese_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -7378,8 +7378,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES gbk;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET gbk COLLATE gbk_bin) ENGINE=Memory CHARACTER SET gbk COLLATE gbk_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	gbk_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	gbk_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -7482,8 +7482,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES gbk;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET gbk COLLATE gbk_chinese_ci) ENGINE=Memory CHARACTER SET gbk COLLATE gbk_chinese_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	gbk_chinese_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	gbk_chinese_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -7586,8 +7586,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES geostd8;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET geostd8 COLLATE geostd8_bin) ENGINE=Memory CHARACTER SET geostd8 COLLATE geostd8_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	geostd8_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	geostd8_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -7816,8 +7816,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES geostd8;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET geostd8 COLLATE geostd8_general_ci) ENGINE=Memory CHARACTER SET geostd8 COLLATE geostd8_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	geostd8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	geostd8_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -8046,8 +8046,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES greek;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET greek COLLATE greek_bin) ENGINE=Memory CHARACTER SET greek COLLATE greek_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	greek_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	greek_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -8276,8 +8276,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES greek;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET greek COLLATE greek_general_ci) ENGINE=Memory CHARACTER SET greek COLLATE greek_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	greek_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	greek_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -8506,8 +8506,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES hebrew;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET hebrew COLLATE hebrew_bin) ENGINE=Memory CHARACTER SET hebrew COLLATE hebrew_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	hebrew_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	hebrew_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -8736,8 +8736,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES hebrew;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET hebrew COLLATE hebrew_general_ci) ENGINE=Memory CHARACTER SET hebrew COLLATE hebrew_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	hebrew_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	hebrew_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -8966,8 +8966,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES hp8;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET hp8 COLLATE hp8_bin) ENGINE=Memory CHARACTER SET hp8 COLLATE hp8_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	hp8_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	hp8_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -9196,8 +9196,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES hp8;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET hp8 COLLATE hp8_english_ci) ENGINE=Memory CHARACTER SET hp8 COLLATE hp8_english_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	hp8_english_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	hp8_english_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -9426,8 +9426,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES keybcs2;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET keybcs2 COLLATE keybcs2_bin) ENGINE=Memory CHARACTER SET keybcs2 COLLATE keybcs2_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	keybcs2_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	keybcs2_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -9656,8 +9656,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES keybcs2;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET keybcs2 COLLATE keybcs2_general_ci) ENGINE=Memory CHARACTER SET keybcs2 COLLATE keybcs2_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	keybcs2_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	keybcs2_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -9886,8 +9886,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES koi8r;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET koi8r COLLATE koi8r_bin) ENGINE=Memory CHARACTER SET koi8r COLLATE koi8r_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	koi8r_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	koi8r_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -10116,8 +10116,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES koi8r;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET koi8r COLLATE koi8r_general_ci) ENGINE=Memory CHARACTER SET koi8r COLLATE koi8r_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	koi8r_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	koi8r_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -10346,8 +10346,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES koi8u;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET koi8u COLLATE koi8u_bin) ENGINE=Memory CHARACTER SET koi8u COLLATE koi8u_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	koi8u_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	koi8u_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -10576,8 +10576,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES koi8u;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET koi8u COLLATE koi8u_general_ci) ENGINE=Memory CHARACTER SET koi8u COLLATE koi8u_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	koi8u_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	koi8u_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 60	1
@@ -10806,8 +10806,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin1;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin1 COLLATE latin1_bin) ENGINE=Memory CHARACTER SET latin1 COLLATE latin1_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -11036,8 +11036,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin1;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin1 COLLATE latin1_danish_ci) ENGINE=Memory CHARACTER SET latin1 COLLATE latin1_danish_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_danish_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_danish_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -11266,8 +11266,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin1;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin1 COLLATE latin1_general_ci) ENGINE=Memory CHARACTER SET latin1 COLLATE latin1_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -11496,8 +11496,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin1;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin1 COLLATE latin1_general_cs) ENGINE=Memory CHARACTER SET latin1 COLLATE latin1_general_cs;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_general_cs	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_general_cs	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -11726,8 +11726,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin1;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin1 COLLATE latin1_german1_ci) ENGINE=Memory CHARACTER SET latin1 COLLATE latin1_german1_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_german1_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_german1_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -11956,8 +11956,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin1;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin1 COLLATE latin1_german2_ci) ENGINE=Memory CHARACTER SET latin1 COLLATE latin1_german2_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_german2_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_german2_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -12186,8 +12186,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin1;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin1 COLLATE latin1_spanish_ci) ENGINE=Memory CHARACTER SET latin1 COLLATE latin1_spanish_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_spanish_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_spanish_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -12416,8 +12416,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin1;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci) ENGINE=Memory CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_swedish_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin1_swedish_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -12646,8 +12646,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin2;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin2 COLLATE latin2_bin) ENGINE=Memory CHARACTER SET latin2 COLLATE latin2_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin2_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin2_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -12876,8 +12876,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin2;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin2 COLLATE latin2_croatian_ci) ENGINE=Memory CHARACTER SET latin2 COLLATE latin2_croatian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin2_croatian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin2_croatian_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -13106,8 +13106,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin2;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin2 COLLATE latin2_czech_cs) ENGINE=Memory CHARACTER SET latin2 COLLATE latin2_czech_cs;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin2_czech_cs	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin2_czech_cs	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 2E	1
@@ -13336,8 +13336,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin2;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin2 COLLATE latin2_general_ci) ENGINE=Memory CHARACTER SET latin2 COLLATE latin2_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin2_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin2_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -13566,8 +13566,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin2;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin2 COLLATE latin2_hungarian_ci) ENGINE=Memory CHARACTER SET latin2 COLLATE latin2_hungarian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin2_hungarian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin2_hungarian_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 7F	1
@@ -13796,8 +13796,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin5;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin5 COLLATE latin5_bin) ENGINE=Memory CHARACTER SET latin5 COLLATE latin5_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin5_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin5_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -14026,8 +14026,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin5;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin5 COLLATE latin5_turkish_ci) ENGINE=Memory CHARACTER SET latin5 COLLATE latin5_turkish_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin5_turkish_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin5_turkish_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -14256,8 +14256,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin7;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin7 COLLATE latin7_bin) ENGINE=Memory CHARACTER SET latin7 COLLATE latin7_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin7_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin7_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -14486,8 +14486,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin7;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin7 COLLATE latin7_estonian_cs) ENGINE=Memory CHARACTER SET latin7 COLLATE latin7_estonian_cs;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin7_estonian_cs	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin7_estonian_cs	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 80	1
@@ -14716,8 +14716,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin7;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin7 COLLATE latin7_general_ci) ENGINE=Memory CHARACTER SET latin7 COLLATE latin7_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin7_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin7_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 7F	1
@@ -14946,8 +14946,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES latin7;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET latin7 COLLATE latin7_general_cs) ENGINE=Memory CHARACTER SET latin7 COLLATE latin7_general_cs;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin7_general_cs	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	latin7_general_cs	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 7F	1
@@ -15176,8 +15176,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES macce;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET macce COLLATE macce_bin) ENGINE=Memory CHARACTER SET macce COLLATE macce_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	macce_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	macce_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -15406,8 +15406,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES macce;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET macce COLLATE macce_general_ci) ENGINE=Memory CHARACTER SET macce COLLATE macce_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	macce_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	macce_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -15636,8 +15636,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES macroman;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET macroman COLLATE macroman_bin) ENGINE=Memory CHARACTER SET macroman COLLATE macroman_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	macroman_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	macroman_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -15866,8 +15866,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES macroman;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET macroman COLLATE macroman_general_ci) ENGINE=Memory CHARACTER SET macroman COLLATE macroman_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	macroman_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	macroman_general_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -16096,8 +16096,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES sjis;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET sjis COLLATE sjis_bin) ENGINE=Memory CHARACTER SET sjis COLLATE sjis_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	sjis_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	sjis_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -16263,8 +16263,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES sjis;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET sjis COLLATE sjis_japanese_ci) ENGINE=Memory CHARACTER SET sjis COLLATE sjis_japanese_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	sjis_japanese_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	sjis_japanese_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -16430,8 +16430,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES swe7;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET swe7 COLLATE swe7_bin) ENGINE=Memory CHARACTER SET swe7 COLLATE swe7_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	swe7_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	swe7_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -16660,8 +16660,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES swe7;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET swe7 COLLATE swe7_swedish_ci) ENGINE=Memory CHARACTER SET swe7 COLLATE swe7_swedish_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	swe7_swedish_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	swe7_swedish_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -16890,8 +16890,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES tis620;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET tis620 COLLATE tis620_bin) ENGINE=Memory CHARACTER SET tis620 COLLATE tis620_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	tis620_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	tis620_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -17120,8 +17120,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES tis620;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET tis620 COLLATE tis620_thai_ci) ENGINE=Memory CHARACTER SET tis620 COLLATE tis620_thai_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	tis620_thai_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	tis620_thai_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -17350,8 +17350,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES ujis;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET ujis COLLATE ujis_bin) ENGINE=Memory CHARACTER SET ujis COLLATE ujis_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	ujis_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	ujis_bin	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -17454,8 +17454,8 @@ DROP TABLE IF EXISTS test.t1;
 SET NAMES ujis;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET ujis COLLATE ujis_japanese_ci) ENGINE=Memory CHARACTER SET ujis COLLATE ujis_japanese_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	ujis_japanese_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	ujis_japanese_ci	#	#	#	#	N
 SELECT HEX(ASCII(a)) AS a_ascii, CHAR_LENGTH(a) AS a_len FROM test.t1 ORDER BY a, ORD(a);
 a_ascii	a_len
 21	1
@@ -17561,8 +17561,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_bin;
@@ -20102,8 +20102,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_czech_ci;
@@ -22643,8 +22643,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_danish_ci;
@@ -25184,8 +25184,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_estonian_ci;
@@ -27725,8 +27725,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_general_ci;
@@ -30266,8 +30266,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_hungarian_ci;
@@ -32807,8 +32807,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_icelandic_ci;
@@ -35348,8 +35348,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_latvian_ci;
@@ -37889,8 +37889,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_lithuanian_ci;
@@ -40430,8 +40430,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_persian_ci;
@@ -42971,8 +42971,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_polish_ci;
@@ -45512,8 +45512,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_roman_ci;
@@ -48053,8 +48053,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_romanian_ci;
@@ -50594,8 +50594,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_slovak_ci;
@@ -53135,8 +53135,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_slovenian_ci;
@@ -55676,8 +55676,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_spanish2_ci;
@@ -58217,8 +58217,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_spanish_ci;
@@ -60758,8 +60758,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_swedish_ci;
@@ -63299,8 +63299,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_turkish_ci;
@@ -65840,8 +65840,8 @@ USE test;
 SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_unicode_ci;
@@ -68380,8 +68380,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_bin) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_bin;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_bin	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_bin	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -70919,8 +70919,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_czech_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_czech_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_czech_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_czech_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -73458,8 +73458,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_danish_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_danish_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_danish_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_danish_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -75997,8 +75997,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_estonian_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_estonian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_estonian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_estonian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -78536,8 +78536,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_general_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_general_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -81075,8 +81075,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_hungarian_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_hungarian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_hungarian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_hungarian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -83614,8 +83614,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_icelandic_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_icelandic_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_icelandic_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_icelandic_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -86153,8 +86153,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_latvian_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_latvian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_latvian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_latvian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -88692,8 +88692,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_lithuanian_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_lithuanian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_lithuanian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_lithuanian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -91231,8 +91231,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_persian_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_persian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_persian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_persian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -93770,8 +93770,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_polish_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_polish_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_polish_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_polish_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -96309,8 +96309,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_roman_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_roman_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_roman_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_roman_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -98848,8 +98848,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_romanian_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_romanian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_romanian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_romanian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -101387,8 +101387,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_slovak_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_slovak_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_slovak_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_slovak_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -103926,8 +103926,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_slovenian_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_slovenian_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_slovenian_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_slovenian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -106465,8 +106465,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_spanish2_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_spanish2_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_spanish2_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_spanish2_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -109004,8 +109004,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_spanish_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_spanish_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_spanish_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_spanish_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -111543,8 +111543,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_swedish_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_swedish_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_swedish_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_swedish_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -114082,8 +114082,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_turkish_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_turkish_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_turkish_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_turkish_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -116621,8 +116621,8 @@ CREATE DATABASE test CHARACTER SET utf8;
 USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_unicode_ci) ENGINE=Memory CHARACTER SET utf8 COLLATE utf8_unicode_ci;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_unicode_ci	#	#	#
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8_unicode_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;

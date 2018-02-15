@@ -4566,8 +4566,14 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       !thd->lex->part_info->num_columns)
     thd->lex->part_info->num_columns= 1; // to make correct clone
 
-  if ((thd->work_part_info= thd->lex->part_info) &&
-      !(thd->work_part_info= thd->lex->part_info->get_clone(thd)))
+  /*
+    One of these is done in handle_if_exists_option():
+        thd->work_part_info= thd->lex->part_info;
+      or
+        thd->work_part_info= NULL;
+  */
+  if (thd->work_part_info &&
+      !(thd->work_part_info= thd->work_part_info->get_clone(thd)))
     DBUG_RETURN(TRUE);
 
   /* ALTER_ADMIN_PARTITION is handled in mysql_admin_table */
@@ -4584,7 +4590,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
        Alter_info::ALTER_REBUILD_PARTITION))
   {
     partition_info *tab_part_info;
-    uint flags= 0;
+    ulonglong flags= 0;
     bool is_last_partition_reorged= FALSE;
     part_elem_value *tab_max_elem_val= NULL;
     part_elem_value *alt_max_elem_val= NULL;

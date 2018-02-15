@@ -542,6 +542,7 @@ Breaks: mariadb-rocksdb-engine-10.2,
         mariadb-rocksdb-engine-10.3
 Replaces: mariadb-rocksdb-engine-10.2,
           mariadb-rocksdb-engine-10.3
+Recommends: python-mysqldb
 Description: RocksDB storage engine for MariaDB
  The RocksDB storage engine is a high performance storage engine, aimed
  at maximising storage efficiency while maintaining InnoDB-like performance.
