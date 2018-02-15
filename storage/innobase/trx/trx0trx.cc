@@ -51,7 +51,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0rseg.h"
 #include "trx0undo.h"
 #include "trx0xa.h"
-#include "usr0sess.h"
 #include "ut0new.h"
 #include "ut0pool.h"
 #include "ut0vec.h"
@@ -69,9 +68,6 @@ typedef std::set<
 	table_id_t,
 	std::less<table_id_t>,
 	ut_allocator<table_id_t> >	table_id_set;
-
-/** Dummy session used currently in MySQL interface */
-sess_t*	trx_dummy_sess = NULL;
 
 /** Constructor */
 TrxVersion::TrxVersion(trx_t* trx)
@@ -517,8 +513,6 @@ trx_allocate_for_background(void)
 	trx_t*	trx;
 
 	trx = trx_create_low();
-
-	trx->sess = trx_dummy_sess;
 
 	return(trx);
 }
