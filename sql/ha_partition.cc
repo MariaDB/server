@@ -4303,29 +4303,15 @@ exit:
 int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
 {
   THD *thd= ha_thd();
-  uint32 new_part_id, old_part_id;
+  uint32 new_part_id, old_part_id= m_last_part;
   int error= 0;
-  longlong func_value;
   DBUG_ENTER("ha_partition::update_row");
   m_err_rec= NULL;
 
   // Need to read partition-related columns, to locate the row's partition:
   DBUG_ASSERT(bitmap_is_subset(&m_part_info->full_part_field_set,
                                table->read_set));
-  if ((error= get_parts_for_update(old_data, new_data, table->record[0],
-                                   m_part_info, &old_part_id, &new_part_id,
-                                   &func_value)))
-  {
-    m_part_info->err_value= func_value;
-    goto exit;
-  }
-  DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), old_part_id));
-  if (!bitmap_is_set(&(m_part_info->lock_partitions), new_part_id))
-  {
-    error= HA_ERR_NOT_IN_LOCK_PARTITIONS;
-    goto exit;
-  }
-
+#ifndef DBUG_OFF
   /*
     The protocol for updating a row is:
     1) position the handler (cursor) on the row to be updated,
@@ -4343,11 +4329,20 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     Notice that HA_READ_BEFORE_WRITE_REMOVAL does not require this protocol,
     so this is not supported for this engine.
   */
-  if (old_part_id != m_last_part)
+  error= get_part_for_buf(old_data, m_rec0, m_part_info, &old_part_id);
+  DBUG_ASSERT(!error);
+  DBUG_ASSERT(old_part_id == m_last_part);
+  DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), old_part_id));
+#endif
+
+  if ((error= get_part_for_buf(new_data, m_rec0, m_part_info, &new_part_id)))
+    goto exit;
+  if (!bitmap_is_set(&(m_part_info->lock_partitions), new_part_id))
   {
-    m_err_rec= old_data;
-    DBUG_RETURN(HA_ERR_ROW_IN_WRONG_PARTITION);
+    error= HA_ERR_NOT_IN_LOCK_PARTITIONS;
+    goto exit;
   }
+
 
   m_last_part= new_part_id;
   start_part_bulk_insert(thd, new_part_id);
@@ -4395,12 +4390,7 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     error= m_file[old_part_id]->ha_delete_row(old_data);
     reenable_binlog(thd);
     if (error)
-    {
-#ifdef IN_THE_FUTURE
-      (void) m_file[new_part_id]->delete_last_inserted_row(new_data);
-#endif
       goto exit;
-    }
   }
 
 exit:
@@ -4460,7 +4450,6 @@ exit:
 
 int ha_partition::delete_row(const uchar *buf)
 {
-  uint32 part_id;
   int error;
   THD *thd= ha_thd();
   DBUG_ENTER("ha_partition::delete_row");
@@ -4468,16 +4457,7 @@ int ha_partition::delete_row(const uchar *buf)
 
   DBUG_ASSERT(bitmap_is_subset(&m_part_info->full_part_field_set,
                                table->read_set));
-  if ((error= get_part_for_delete(buf, m_rec0, m_part_info, &part_id)))
-  {
-    DBUG_RETURN(error);
-  }
-  /* Should never call delete_row on a partition which is not read */
-  DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), part_id));
-  DBUG_ASSERT(bitmap_is_set(&(m_part_info->lock_partitions), part_id));
-  if (!bitmap_is_set(&(m_part_info->lock_partitions), part_id))
-    DBUG_RETURN(HA_ERR_NOT_IN_LOCK_PARTITIONS);
-
+#ifndef DBUG_OFF
   /*
     The protocol for deleting a row is:
     1) position the handler (cursor) on the row to be deleted,
@@ -4494,19 +4474,20 @@ int ha_partition::delete_row(const uchar *buf)
 
     Notice that HA_READ_BEFORE_WRITE_REMOVAL does not require this protocol,
     so this is not supported for this engine.
-
-    TODO: change the assert in InnoDB into an error instead and make this one
-    an assert instead and remove the get_part_for_delete()!
   */
-  if (part_id != m_last_part)
-  {
-    m_err_rec= buf;
-    DBUG_RETURN(HA_ERR_ROW_IN_WRONG_PARTITION);
-  }
+  uint32 part_id;
+  error= get_part_for_buf(buf, m_rec0, m_part_info, &part_id);
+  DBUG_ASSERT(!error);
+  DBUG_ASSERT(part_id == m_last_part);
+  DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
+  DBUG_ASSERT(bitmap_is_set(&(m_part_info->lock_partitions), m_last_part));
+#endif
 
-  m_last_part= part_id;
+  if (!bitmap_is_set(&(m_part_info->lock_partitions), m_last_part))
+    DBUG_RETURN(HA_ERR_NOT_IN_LOCK_PARTITIONS);
+
   tmp_disable_binlog(thd);
-  error= m_file[part_id]->ha_delete_row(buf);
+  error= m_file[m_last_part]->ha_delete_row(buf);
   reenable_binlog(thd);
   DBUG_RETURN(error);
 }
@@ -5178,7 +5159,7 @@ int ha_partition::rnd_pos_by_record(uchar *record)
 {
   DBUG_ENTER("ha_partition::rnd_pos_by_record");
 
-  if (unlikely(get_part_for_delete(record, m_rec0, m_part_info, &m_last_part)))
+  if (unlikely(get_part_for_buf(record, m_rec0, m_part_info, &m_last_part)))
     DBUG_RETURN(1);
 
   DBUG_RETURN(handler::rnd_pos_by_record(record));
@@ -9687,7 +9668,7 @@ void ha_partition::print_error(int error, myf errflag)
       str.append("(");
       str.append_ulonglong(m_last_part);
       str.append(" != ");
-      if (get_part_for_delete(m_err_rec, m_rec0, m_part_info, &part_id))
+      if (get_part_for_buf(m_err_rec, m_rec0, m_part_info, &part_id))
         str.append("?");
       else
         str.append_ulonglong(part_id);

@@ -246,82 +246,11 @@ bool partition_default_handling(THD *thd, TABLE *table, partition_info *part_inf
 
 
 /*
-  A useful routine used by update_row for partition handlers to calculate
-  the partition ids of the old and the new record.
+  A useful routine used by update/delete_row for partition handlers to
+  calculate the partition id.
 
   SYNOPSIS
-    get_part_for_update()
-    old_data                Buffer of old record
-    new_data                Buffer of new record
-    rec0                    Reference to table->record[0]
-    part_info               Reference to partition information
-    out:old_part_id         The returned partition id of old record 
-    out:new_part_id         The returned partition id of new record
-
-  RETURN VALUE
-    0                       Success
-    > 0                     Error code
-*/
-
-int get_parts_for_update(const uchar *old_data, const uchar *new_data,
-                         const uchar *rec0, partition_info *part_info,
-                         uint32 *old_part_id, uint32 *new_part_id,
-                         longlong *new_func_value)
-{
-  Field **part_field_array= part_info->full_part_field_array;
-  int error;
-  longlong old_func_value;
-  DBUG_ENTER("get_parts_for_update");
-
-  DBUG_ASSERT(new_data == rec0);             // table->record[0]
-  part_info->table->move_fields(part_field_array, old_data, rec0);
-  error= part_info->get_partition_id(part_info, old_part_id,
-                                     &old_func_value);
-  part_info->table->move_fields(part_field_array, rec0, old_data);
-  if (unlikely(error))                             // Should never happen
-  {
-    DBUG_ASSERT(0);
-    DBUG_RETURN(error);
-  }
-#ifdef NOT_NEEDED
-  if (new_data == rec0)
-#endif
-  {
-    if (unlikely(error= part_info->get_partition_id(part_info,
-                                                    new_part_id,
-                                                    new_func_value)))
-    {
-      DBUG_RETURN(error);
-    }
-  }
-#ifdef NOT_NEEDED
-  else
-  {
-    /*
-      This branch should never execute but it is written anyways for
-      future use. It will be tested by ensuring that the above
-      condition is false in one test situation before pushing the code.
-    */
-    part_info->table->move_fields(part_field_array, new_data, rec0);
-    error= part_info->get_partition_id(part_info, new_part_id,
-                                       new_func_value);
-    part_info->table->move_fields(part_field_array, rec0, new_data);
-    if (unlikely(error))
-    {
-      DBUG_RETURN(error);
-    }
-  }
-#endif
-  DBUG_RETURN(0);
-}
-
-
-/*
-  A useful routine used by delete_row for partition handlers to calculate
-  the partition id.
-
-  SYNOPSIS
-    get_part_for_delete()
+    get_part_for_buf()
     buf                     Buffer of old record
     rec0                    Reference to table->record[0]
     part_info               Reference to partition information
@@ -337,21 +266,19 @@ int get_parts_for_update(const uchar *old_data, const uchar *new_data,
     calculate the partition id.
 */
 
-int get_part_for_delete(const uchar *buf, const uchar *rec0,
-                        partition_info *part_info, uint32 *part_id)
+int get_part_for_buf(const uchar *buf, const uchar *rec0,
+                     partition_info *part_info, uint32 *part_id)
 {
   int error;
   longlong func_value;
-  DBUG_ENTER("get_part_for_delete");
+  DBUG_ENTER("get_part_for_buf");
 
-  if (likely(buf == rec0))
+  if (buf == rec0)
   {
-    if (unlikely((error= part_info->get_partition_id(part_info, part_id,
-                                                     &func_value))))
-    {
-      DBUG_RETURN(error);
-    }
-    DBUG_PRINT("info", ("Delete from partition %d", *part_id));
+    error= part_info->get_partition_id(part_info, part_id, &func_value);
+    if (unlikely((error)))
+      goto err;
+    DBUG_PRINT("info", ("Partition %d", *part_id));
   }
   else
   {
@@ -360,12 +287,13 @@ int get_part_for_delete(const uchar *buf, const uchar *rec0,
     error= part_info->get_partition_id(part_info, part_id, &func_value);
     part_info->table->move_fields(part_field_array, rec0, buf);
     if (unlikely(error))
-    {
-      DBUG_RETURN(error);
-    }
-    DBUG_PRINT("info", ("Delete from partition %d (path2)", *part_id));
+      goto err;
+    DBUG_PRINT("info", ("Partition %d (path2)", *part_id));
   }
   DBUG_RETURN(0);
+err:
+  part_info->err_value= func_value;
+  DBUG_RETURN(error);
 }
 
 
