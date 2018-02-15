@@ -11,10 +11,6 @@ create or replace table t1 (
 insert into t1 (x) values (1);
 
 --echo # ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
-create function check_result (cond boolean)
-    returns char(50) deterministic
-    return if(cond = 1, '[CORRECT]', '[INCORRECT]');
-
 set @@system_versioning_alter_history=keep;
 
 create or replace table t1 (x int) engine innodb;
@@ -26,7 +22,7 @@ alter table t1
   add system versioning,
   algorithm=inplace;
 select s from t1 into @trx_start;
-select check_result(count(*) = 1) from mysql.transaction_registry where transaction_id = @trx_start;
+select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
 
 create or replace table t1 (x int) engine innodb;
 select count(*) from mysql.transaction_registry into @tmp;
@@ -36,7 +32,7 @@ alter table t1
   add period for system_time(s, e),
   add system versioning,
   algorithm=inplace;
-select check_result(count(*) = @tmp) from mysql.transaction_registry;
+select count(*) = @tmp from mysql.transaction_registry;
 
 create or replace table t1 (x int) engine innodb;
 insert into t1 values (1);
@@ -47,7 +43,7 @@ alter table t1
   add system versioning,
   algorithm=copy;
 select s from t1 into @trx_start;
-select check_result(count(*) = 1) from mysql.transaction_registry where transaction_id = @trx_start;
+select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
 
 create or replace table t1 (x int) engine innodb;
 select count(*) from mysql.transaction_registry into @tmp;
@@ -58,7 +54,7 @@ alter table t1
   add system versioning,
   algorithm=copy;
 # With MDEV-14511 the transaction will be registered even for empty tables.
-select check_result(count(*) = @tmp + 1) from mysql.transaction_registry;
+select count(*) = @tmp + 1 from mysql.transaction_registry;
 
 --echo # TRX_ID to TIMESTAMP versioning switch
 create or replace table t1 (
@@ -72,4 +68,3 @@ alter table t1 drop column sys_start, drop column sys_end;
 select row_end = 18446744073709551615 as transaction_based from t1 for system_time all;
 
 drop table t1;
-drop function check_result;

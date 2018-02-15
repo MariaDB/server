@@ -6,9 +6,6 @@ period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning engine innodb;
 insert into t1 (x) values (1);
 # ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
-create function check_result (cond boolean)
-returns char(50) deterministic
-return if(cond = 1, '[CORRECT]', '[INCORRECT]');
 set @@system_versioning_alter_history=keep;
 create or replace table t1 (x int) engine innodb;
 insert into t1 values (1);
@@ -19,9 +16,9 @@ add period for system_time(s, e),
 add system versioning,
 algorithm=inplace;
 select s from t1 into @trx_start;
-select check_result(count(*) = 1) from mysql.transaction_registry where transaction_id = @trx_start;
-check_result(count(*) = 1)
-[CORRECT]
+select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
+count(*) = 1
+1
 create or replace table t1 (x int) engine innodb;
 select count(*) from mysql.transaction_registry into @tmp;
 alter table t1
@@ -30,9 +27,9 @@ add column e bigint unsigned as row end,
 add period for system_time(s, e),
 add system versioning,
 algorithm=inplace;
-select check_result(count(*) = @tmp) from mysql.transaction_registry;
-check_result(count(*) = @tmp)
-[CORRECT]
+select count(*) = @tmp from mysql.transaction_registry;
+count(*) = @tmp
+1
 create or replace table t1 (x int) engine innodb;
 insert into t1 values (1);
 alter table t1
@@ -42,9 +39,9 @@ add period for system_time(s, e),
 add system versioning,
 algorithm=copy;
 select s from t1 into @trx_start;
-select check_result(count(*) = 1) from mysql.transaction_registry where transaction_id = @trx_start;
-check_result(count(*) = 1)
-[CORRECT]
+select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
+count(*) = 1
+1
 create or replace table t1 (x int) engine innodb;
 select count(*) from mysql.transaction_registry into @tmp;
 alter table t1
@@ -53,9 +50,9 @@ add column e bigint unsigned as row end,
 add period for system_time(s, e),
 add system versioning,
 algorithm=copy;
-select check_result(count(*) = @tmp + 1) from mysql.transaction_registry;
-check_result(count(*) = @tmp + 1)
-[CORRECT]
+select count(*) = @tmp + 1 from mysql.transaction_registry;
+count(*) = @tmp + 1
+1
 # TRX_ID to TIMESTAMP versioning switch
 create or replace table t1 (
 x int,
@@ -69,4 +66,3 @@ select row_end = 18446744073709551615 as transaction_based from t1 for system_ti
 transaction_based
 1
 drop table t1;
-drop function check_result;
