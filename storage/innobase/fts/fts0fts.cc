@@ -2699,6 +2699,7 @@ retry:
 	fts_table.parent = table->name.m_name;
 
 	trx = trx_allocate_for_background();
+	trx_start_internal(trx);
 
 	trx->op_info = "update the next FTS document id";
 
@@ -2819,6 +2820,7 @@ fts_update_sync_doc_id(
 
 	if (!trx) {
 		trx = trx_allocate_for_background();
+		trx_start_internal(trx);
 
 		trx->op_info = "setting last FTS document id";
 		local_trx = TRUE;
@@ -3055,6 +3057,8 @@ fts_commit_table(
 	dberr_t			error = DB_SUCCESS;
 	fts_cache_t*		cache = ftt->table->fts->cache;
 	trx_t*			trx = trx_allocate_for_background();
+
+	trx_start_internal(trx);
 
 	rows = ftt->rows;
 
@@ -3792,6 +3796,7 @@ fts_doc_fetch_by_doc_id(
 	trx_t*		trx = trx_allocate_for_background();
 	que_t*          graph;
 
+	trx_start_internal(trx);
 	trx->op_info = "fetching indexed FTS document";
 
 	/* The FTS index can be supplied by caller directly with
@@ -4138,6 +4143,7 @@ fts_sync_begin(
 	sync->start_time = ut_time();
 
 	sync->trx = trx_allocate_for_background();
+	trx_start_internal(sync->trx);
 
 	if (fts_enable_diag_print) {
 		ib::info() << "FTS SYNC for table " << sync->table->name
@@ -5008,7 +5014,6 @@ fts_get_rows_count(
 	char		table_name[MAX_FULL_NAME_LEN];
 
 	trx = trx_allocate_for_background();
-
 	trx->op_info = "fetching FT table rows count";
 
 	info = pars_info_create();
@@ -7330,6 +7335,7 @@ fts_load_stopword(
 
 	if (!trx) {
 		trx = trx_allocate_for_background();
+		trx_start_internal(trx);
 		trx->op_info = "upload FTS stopword";
 		new_trx = TRUE;
 	}

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -165,21 +165,15 @@ TrxUndoRsegsIterator::set_next()
 
 /** Build a purge 'query' graph. The actual purge is performed by executing
 this query graph.
-@param[in,out]	sess	the purge session
 @return own: the query graph */
 static
 que_t*
-trx_purge_graph_build(sess_t* sess)
+purge_graph_build()
 {
 	ut_a(srv_n_purge_threads > 0);
-	/* A purge transaction is not a real transaction, we use a transaction
-	here only because the query threads code requires it. It is otherwise
-	quite unnecessary. We should get rid of it eventually. */
-	trx_t* trx = sess->trx;
 
-	ut_ad(trx->sess == sess);
-
-	trx->id = 0;
+	trx_t* trx = trx_allocate_for_background();
+	ut_ad(!trx->id);
 	trx->start_time = ut_time();
 	trx->state = TRX_STATE_ACTIVE;
 	trx->op_info = "purge trx";
@@ -199,9 +193,9 @@ trx_purge_graph_build(sess_t* sess)
 
 /** Construct the purge system. */
 purge_sys_t::purge_sys_t()
-	: sess(sess_open()), latch(), event(os_event_create(0)),
+	: latch(), event(os_event_create(0)),
 	  n_stop(0), running(false), state(PURGE_STATE_INIT),
-	  query(trx_purge_graph_build(sess)),
+	  query(purge_graph_build()),
 	  view(), n_submitted(0), n_completed(0),
 	  iter(), limit(),
 #ifdef UNIV_DEBUG
@@ -221,10 +215,12 @@ purge_sys_t::~purge_sys_t()
 {
 	ut_ad(this == purge_sys);
 
+	trx_t* trx = query->trx;
 	que_graph_free(query);
-	ut_a(sess->trx->id == 0);
-	sess->trx->state = TRX_STATE_NOT_STARTED;
-	sess_close(sess);
+	ut_ad(!trx->id);
+	ut_ad(trx->state == TRX_STATE_ACTIVE);
+	trx->state = TRX_STATE_NOT_STARTED;
+	trx_free_for_background(trx);
 	view.close();
 	rw_lock_free(&latch);
 	/* rw_lock_free() already called latch.~rw_lock_t(); tame the

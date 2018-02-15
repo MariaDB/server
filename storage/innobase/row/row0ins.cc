@@ -45,7 +45,6 @@ Created 4/20/1996 Heikki Tuuri
 #include "log0log.h"
 #include "eval0eval.h"
 #include "data0data.h"
-#include "usr0sess.h"
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"

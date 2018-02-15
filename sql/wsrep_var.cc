@@ -42,7 +42,10 @@ int wsrep_init_vars()
   return 0;
 }
 
-extern ulong innodb_lock_schedule_algorithm;
+/* This is intentionally declared as a weak global symbol, so that
+linking will succeed even if the server is built with a dynamically
+linked InnoDB. */
+ulong innodb_lock_schedule_algorithm __attribute__((weak));
 
 bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 {

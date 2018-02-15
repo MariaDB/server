@@ -27,7 +27,6 @@ Created 5/27/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "que0que.h"
-#include "usr0sess.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "row0undo.h"

@@ -47,7 +47,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0sys.h"
 #include "trx0trx.h"
 #include "trx0undo.h"
-#include "usr0sess.h"
 #include "ha_prototypes.h"
 
 /** This many pages must be undone before a truncate is tried within
