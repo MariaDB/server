@@ -163,7 +163,16 @@ ERROR HY000: Can't execute the query because you have a conflicting read lock
 unlock tables;
 drop sequence s1;
 #
-# Don't allow SQUENCE to be used with CHECK or virtual fields
+# MDEV-14761
+# Assertion `!mysql_parse_status || thd->is_error() ||
+# thd->get_internal_handler()' failed in parse_sql
+#
+CREATE SEQUENCE s1;
+ALTER SEQUENCE s1 MAXVALUE 100 NO MAXVALUE;
+ERROR HY000: Option 'MAXVALUE' used twice in statement
+DROP SEQUENCE s1;
+#
+# Don't allow SEQUENCE to be used with CHECK or virtual fields
 #
 CREATE SEQUENCE s1 nocache engine=myisam;
 CREATE table t1 (a int check (next value for s1 > 0));

@@ -133,7 +133,18 @@ unlock tables;
 drop sequence s1;
 
 --echo #
---echo # Don't allow SQUENCE to be used with CHECK or virtual fields
+--echo # MDEV-14761
+--echo # Assertion `!mysql_parse_status || thd->is_error() ||
+--echo # thd->get_internal_handler()' failed in parse_sql
+--echo #
+
+CREATE SEQUENCE s1;
+--error ER_DUP_ARGUMENT
+ALTER SEQUENCE s1 MAXVALUE 100 NO MAXVALUE;
+DROP SEQUENCE s1;
+
+--echo #
+--echo # Don't allow SEQUENCE to be used with CHECK or virtual fields
 --echo #
 
 CREATE SEQUENCE s1 nocache engine=myisam;

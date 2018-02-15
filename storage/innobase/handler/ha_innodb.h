@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -910,11 +910,6 @@ innodb_base_col_setup_for_stored(
 #define normalize_table_name(norm_name, name)           \
 	create_table_info_t::normalize_table_name_low(norm_name, name, FALSE)
 #endif /* _WIN32 */
-
-/** Obtain the InnoDB transaction of a MySQL thread.
-@param[in,out]	thd	MySQL thread handler.
-@return reference to transaction pointer */
-trx_t*& thd_to_trx(THD*	thd);
 
 /** Converts an InnoDB error code to a MySQL error code.
 Also tells to MySQL about a possible transaction rollback inside InnoDB caused

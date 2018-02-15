@@ -1392,3 +1392,46 @@ bool datetime_to_time_with_warn(THD *thd, const MYSQL_TIME *dt,
   int warnings= 0;
   return check_time_range(tm, dec, &warnings);
 }
+
+
+longlong pack_time(const MYSQL_TIME *my_time)
+{
+  return  ((((((my_time->year     * 13ULL +
+               my_time->month)    * 32ULL +
+               my_time->day)      * 24ULL +
+               my_time->hour)     * 60ULL +
+               my_time->minute)   * 60ULL +
+               my_time->second)   * 1000000ULL +
+               my_time->second_part) * (my_time->neg ? -1 : 1);
+}
+
+#define get_one(WHERE, FACTOR) WHERE= (ulong)(packed % FACTOR); packed/= FACTOR
+
+void unpack_time(longlong packed, MYSQL_TIME *my_time,
+                     enum_mysql_timestamp_type ts_type)
+{
+  if ((my_time->neg= packed < 0))
+    packed= -packed;
+  get_one(my_time->second_part, 1000000ULL);
+  get_one(my_time->second,           60U);
+  get_one(my_time->minute,           60U);
+  get_one(my_time->hour,             24U);
+  get_one(my_time->day,              32U);
+  get_one(my_time->month,            13U);
+  my_time->year= (uint)packed;
+  my_time->time_type= ts_type;
+  switch (ts_type) {
+  case MYSQL_TIMESTAMP_TIME:
+    my_time->hour+= (my_time->month * 32 + my_time->day) * 24;
+    my_time->month= my_time->day= 0;
+    break;
+  case MYSQL_TIMESTAMP_DATE:
+    my_time->hour= my_time->minute= my_time->second= my_time->second_part= 0;
+    break;
+  case MYSQL_TIMESTAMP_NONE:
+  case MYSQL_TIMESTAMP_ERROR:
+    DBUG_ASSERT(0);
+  case MYSQL_TIMESTAMP_DATETIME:
+    break;
+  }
+}

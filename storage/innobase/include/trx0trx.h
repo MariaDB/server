@@ -38,7 +38,6 @@ Created 3/26/1996 Heikki Tuuri
 
 #include "lock0types.h"
 #include "log0log.h"
-#include "usr0types.h"
 #include "que0types.h"
 #include "mem0mem.h"
 #include "trx0xa.h"
@@ -54,9 +53,6 @@ struct mtr_t;
 class FlushObserver;
 
 struct rw_trx_hash_element_t;
-
-/** Dummy session used currently in MySQL interface */
-extern sess_t*	trx_dummy_sess;
 
 /** Set flush observer for the transaction
 @param[in/out]	trx		transaction struct
@@ -1112,7 +1108,6 @@ public:
 	ulint		error_key_num;	/*!< if the index creation fails to a
 					duplicate key error, a mysql key
 					number of that index is stored here */
-	sess_t*		sess;		/*!< session of the trx, NULL if none */
 	que_t*		graph;		/*!< query currently run in the session,
 					or NULL if none; NOTE that the query
 					belongs to the session, and it can

@@ -3600,7 +3600,12 @@ public:
   int save_in_field(Field *field, bool no_conversions);
   longlong val_int();
   double val_real() { return (double)val_int(); }
-  void set(longlong packed);
+  void set(longlong packed, enum_mysql_timestamp_type ts_type);
+  bool get_date(MYSQL_TIME *to, ulonglong fuzzydate)
+  {
+    *to= ltime;
+    return false;
+  }
 };
 
 

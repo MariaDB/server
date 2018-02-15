@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -70,7 +70,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "sync0sync.h"
 #include "trx0i_s.h"
 #include "trx0purge.h"
-#include "usr0sess.h"
 #include "ut0crc32.h"
 #include "btr0defragment.h"
 #include "ut0mem.h"

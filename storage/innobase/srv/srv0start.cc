@@ -87,7 +87,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "dict0load.h"
 #include "dict0stats_bg.h"
 #include "que0que.h"
-#include "usr0sess.h"
 #include "lock0lock.h"
 #include "trx0roll.h"
 #include "trx0purge.h"

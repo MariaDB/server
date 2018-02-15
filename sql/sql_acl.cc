@@ -7476,13 +7476,12 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     ulong orig_want_access= original_want_access;
 
     /*
-      If sequence is used as part of NEXT VALUE, PREVIUS VALUE or SELECT,
+      If sequence is used as part of NEXT VALUE, PREVIOUS VALUE or SELECT,
       we need to modify the requested access rights depending on how the
       sequence is used.
     */
     if (t_ref->sequence &&
-        (bool)(orig_want_access &
-         (SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
+        !(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
     {
       /*
         We want to have either SELECT or INSERT rights to sequences depending

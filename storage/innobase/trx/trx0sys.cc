@@ -513,11 +513,6 @@ trx_sys_t::close()
 			" shutdown: " << size << " read views open";
 	}
 
-	if (trx_dummy_sess) {
-		sess_close(trx_dummy_sess);
-		trx_dummy_sess = NULL;
-	}
-
 	rw_trx_hash.destroy();
 
 	/* There can't be any active transactions. */

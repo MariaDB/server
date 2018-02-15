@@ -136,7 +136,6 @@ SET(INNOBASE_SOURCES
 	trx/trx0sys.cc
 	trx/trx0trx.cc
 	trx/trx0undo.cc
-	usr/usr0sess.cc
 	ut/ut0crc32.cc
 	ut/ut0dbg.cc
 	ut/ut0list.cc
@@ -150,6 +149,7 @@ SET(INNOBASE_SOURCES
 	ut/ut0timer.cc)
 
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
+  MODULE_OUTPUT_NAME ha_innodb
   DEFAULT RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES
 	${ZLIB_LIBRARY}

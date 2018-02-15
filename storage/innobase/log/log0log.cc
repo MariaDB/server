@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1583,8 +1583,6 @@ log_write_checkpoint_info(bool sync, lsn_t end_lsn)
 		/* Wait for the checkpoint write to complete */
 		rw_lock_s_lock(&log_sys->checkpoint_lock);
 		rw_lock_s_unlock(&log_sys->checkpoint_lock);
-
-		DEBUG_SYNC_C("checkpoint_completed");
 
 		DBUG_EXECUTE_IF(
 			"crash_after_checkpoint",

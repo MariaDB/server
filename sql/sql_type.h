@@ -24,7 +24,7 @@
 #include "mysqld.h"
 #include "sql_array.h"
 #include "sql_const.h"
-#include "my_time.h"
+#include "sql_time.h"
 
 class Field;
 class Column_definition;

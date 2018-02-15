@@ -23,8 +23,6 @@ Query graph
 Created 5/27/1996 Heikki Tuuri
 *******************************************************/
 
-#include "usr0sess.h"
-
 /***********************************************************************//**
 Gets the trx of a query thread. */
 UNIV_INLINE

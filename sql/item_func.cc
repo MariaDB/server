@@ -2714,13 +2714,7 @@ bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     if (i == 0 || (res < min_max ? cmp_sign : -cmp_sign) > 0)
       min_max= res;
   }
-  unpack_time(min_max, ltime);
-
-  if (Item_func_min_max::field_type() == MYSQL_TYPE_DATE)
-  {
-    ltime->time_type= MYSQL_TIMESTAMP_DATE;
-    ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
-  }
+  unpack_time(min_max, ltime, mysql_timestamp_type());
 
   if (!(fuzzy_date & TIME_TIME_ONLY) &&
       ((null_value= check_date_with_warn(ltime, fuzzy_date,

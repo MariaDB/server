@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation. All Rights reserved.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -989,6 +989,7 @@ fts_table_fetch_doc_ids(
 
 	if (!trx) {
 		trx = trx_allocate_for_background();
+		trx_start_internal(trx);
 		alloc_bk_trx = TRUE;
 	}
 
@@ -1619,6 +1620,7 @@ fts_optimize_create(
 	optim->table = table;
 
 	optim->trx = trx_allocate_for_background();
+	trx_start_internal(optim->trx);
 
 	optim->fts_common_table.parent = table->name.m_name;
 	optim->fts_common_table.table_id = table->id;
@@ -1741,6 +1743,7 @@ fts_optimize_free(
 {
 	mem_heap_t*	heap = static_cast<mem_heap_t*>(optim->self_heap->arg);
 
+	trx_commit_for_mysql(optim->trx);
 	trx_free_for_background(optim->trx);
 
 	fts_doc_ids_free(optim->to_delete);

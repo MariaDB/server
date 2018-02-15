@@ -5819,7 +5819,10 @@ static void calc_datetime_days_diff(MYSQL_TIME *ltime, long days)
   long daydiff= calc_daynr(ltime->year, ltime->month, ltime->day) - days;
   ltime->year= ltime->month= 0;
   if (daydiff >=0 )
+  {
     ltime->day= daydiff;
+    ltime->time_type= MYSQL_TIMESTAMP_TIME;
+  }
   else
   {
     longlong timediff= ((((daydiff        * 24LL +
@@ -5827,16 +5830,8 @@ static void calc_datetime_days_diff(MYSQL_TIME *ltime, long days)
                            ltime->minute) * 60LL +
                            ltime->second) * 1000000LL +
                            ltime->second_part);
-    unpack_time(timediff, ltime);
-    /*
-      unpack_time() broke down hours into ltime members hour,day,month.
-      Mix them back to ltime->hour using the same factors
-      that pack_time()/unpack_time() use (i.e. 32 for month).
-    */
-    ltime->hour+= (ltime->month * 32 + ltime->day) * 24;
-    ltime->month= ltime->day= 0;
+    unpack_time(timediff, ltime, MYSQL_TIMESTAMP_TIME);
   }
-  ltime->time_type= MYSQL_TIMESTAMP_TIME;
 }
 
 
@@ -6167,14 +6162,7 @@ bool Field_time_hires::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 
   packed= sec_part_unshift(packed - zero_point, dec);
 
-  unpack_time(packed, ltime);
-  /*
-    unpack_time() returns MYSQL_TIMESTAMP_DATETIME.
-    To get MYSQL_TIMESTAMP_TIME we need few adjustments
-  */
-  ltime->time_type= MYSQL_TIMESTAMP_TIME;
-  ltime->hour+= (ltime->month*32+ltime->day)*24;
-  ltime->month= ltime->day= 0;
+  unpack_time(packed, ltime, MYSQL_TIMESTAMP_TIME);
   return false;
 }
 
@@ -6837,7 +6825,7 @@ bool Field_datetime_hires::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   ulonglong packed= read_bigendian(pos, Field_datetime_hires::pack_length());
-  unpack_time(sec_part_unshift(packed, dec), ltime);
+  unpack_time(sec_part_unshift(packed, dec), ltime, MYSQL_TIMESTAMP_DATETIME);
   return validate_MMDD(packed, ltime->month, ltime->day, fuzzydate);
 }
 
