@@ -33,7 +33,7 @@ insert into child values(1);
 update parent set id=id+1;
 delete from child;
 update parent set id=id+1;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp 0 to timestamp now(6);
 
 drop table child;
 drop table parent;
@@ -188,7 +188,7 @@ delete from child where parent_id = 1;
 --echo ## FIXME END
 delete from parent where id = 1;
 select * from child;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp 0 to timestamp now(6);
 delete from child;
 
 insert into parent values(1);
@@ -198,7 +198,7 @@ if (0)
 {
 update parent set id=id+1;
 select * from child;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp 0 to timestamp now(6);
 }
 ## FIXME END
 

@@ -67,7 +67,7 @@ begin
   delete from t1;
   select * from t1;
   select x = 1 as A, sys_start = @sys_start as B, sys_end > sys_start as C
-  from t1 for system_time between timestamp '0-0-0' and timestamp '2038-01-19 04:14:07';
+  from t1 for system_time all;
   drop table t1;
 end~~
 
@@ -96,8 +96,8 @@ begin
   delete t1, t2 from t1 join t2 where t1.x = t2.x;
   select x as t1_x from t1;
   select x as t2_x from t2;
-  select x as t1_x_all from t1 for system_time between timestamp '0-0-0' and timestamp '2038-01-19 04:14:07';
-  select x as t2_x_all from t2 for system_time between timestamp '0-0-0' and timestamp '2038-01-19 04:14:07';
+  select x as t1_x_all from t1 for system_time all;
+  select x as t2_x_all from t2 for system_time all;
   drop table t1;
   drop table t2;
 end~~

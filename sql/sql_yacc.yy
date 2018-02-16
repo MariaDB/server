@@ -884,10 +884,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 125 shift/reduce conflicts.
+  Currently there are 139 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 125
+%expect 139
 
 /*
    Comments for TOKENS.
@@ -1776,6 +1776,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         percentile_function
         inverse_distribution_function_def
         function_call_keyword
+        function_call_keyword_timestamp
         function_call_nonkeyword
         function_call_generic
         function_call_conflict kill_expr
@@ -9200,7 +9201,15 @@ opt_history_unit:
         ;
 
 history_point:
-          opt_history_unit simple_expr
+          temporal_literal
+          {
+            $$= Vers_history_point(VERS_TIMESTAMP, $1);
+          }
+        | function_call_keyword_timestamp
+          {
+            $$= Vers_history_point(VERS_TIMESTAMP, $1);
+          }
+        | opt_history_unit simple_expr
           {
             $$= Vers_history_point($1, $2);
           }
@@ -10099,6 +10108,21 @@ simple_expr:
           }
         ;
 
+function_call_keyword_timestamp:
+          TIMESTAMP '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_datetime_typecast(thd, $3,
+                                      AUTO_SEC_PART_DIGITS);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | TIMESTAMP '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_add_time(thd, $3, $5, 1, 0);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        ;
 /*
   Function call syntax using official SQL 2003 keywords.
   Because the function name is an official token,
@@ -10222,18 +10246,9 @@ function_call_keyword:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | TIMESTAMP '(' expr ')'
+        | function_call_keyword_timestamp
           {
-            $$= new (thd->mem_root) Item_datetime_typecast(thd, $3,
-                                      AUTO_SEC_PART_DIGITS);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TIMESTAMP '(' expr ',' expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_add_time(thd, $3, $5, 1, 0);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
+            $$= $1;
           }
         | TRIM '(' expr ')'
           {

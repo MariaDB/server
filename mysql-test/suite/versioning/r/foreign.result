@@ -25,7 +25,7 @@ update parent set id=id+1;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 delete from child;
 update parent set id=id+1;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp 0 to timestamp now(6);
 parent_id
 1
 1
@@ -165,7 +165,7 @@ delete from child where parent_id = 1;
 delete from parent where id = 1;
 select * from child;
 parent_id
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp 0 to timestamp now(6);
 parent_id
 1
 1

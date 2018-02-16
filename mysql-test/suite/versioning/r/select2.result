@@ -273,7 +273,7 @@ a	b
 select * from (select * from (select * from t1 cross join t2) as tmp1) as tmp2;
 a	b
 1	2
-select * from (select * from t1 cross join t2 for system_time as of timestamp '0-0-0') as tmp;
+select * from (select * from t1 cross join t2 for system_time as of timestamp ('0-0-0')) as tmp;
 a	b
 create or replace table t1(a1 int) with system versioning;
 create or replace table t2(a2 int) with system versioning;
