@@ -5037,8 +5037,8 @@ int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
 bool LEX::is_partition_management() const
 {
   return (sql_command == SQLCOM_ALTER_TABLE &&
-          (alter_info.flags ==  Alter_info::ALTER_ADD_PARTITION ||
-           alter_info.flags ==  Alter_info::ALTER_REORGANIZE_PARTITION));
+          (alter_info.flags ==  ALTER_ADD_PARTITION ||
+           alter_info.flags ==  ALTER_REORGANIZE_PARTITION));
 }
 
 

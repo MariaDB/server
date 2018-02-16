@@ -1419,7 +1419,7 @@ int ha_commit_trans(THD *thd, bool all)
 
 #if 1 // FIXME: This should be done in ha_prepare().
   if (rw_trans || (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
-                   thd->lex->alter_info.flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING))
+                   thd->lex->alter_info.flags & ALTER_ADD_SYSTEM_VERSIONING))
   {
     ulonglong trx_start_id= 0, trx_end_id= 0;
     for (Ha_trx_info *ha_info= trans->ha_list; ha_info; ha_info= ha_info->next())
@@ -4420,21 +4420,26 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
   if (altered_table->versioned(VERS_TIMESTAMP))
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
-  Alter_inplace_info::HA_ALTER_FLAGS inplace_offline_operations=
-    Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH |
-    Alter_inplace_info::ALTER_COLUMN_NAME |
-    Alter_inplace_info::ALTER_COLUMN_DEFAULT |
-    Alter_inplace_info::ALTER_COLUMN_OPTION |
-    Alter_inplace_info::CHANGE_CREATE_OPTION |
-    Alter_inplace_info::ALTER_PARTITIONED |
-    Alter_inplace_info::ALTER_VIRTUAL_GCOL_EXPR |
-    Alter_inplace_info::ALTER_RENAME;
+  alter_table_operations inplace_offline_operations=
+    ALTER_COLUMN_EQUAL_PACK_LENGTH |
+    ALTER_COLUMN_NAME |
+    ALTER_RENAME_COLUMN |
+    ALTER_CHANGE_COLUMN_DEFAULT |
+    ALTER_COLUMN_DEFAULT |
+    ALTER_COLUMN_OPTION |
+    ALTER_CHANGE_CREATE_OPTION |
+    ALTER_DROP_CHECK_CONSTRAINT |
+    ALTER_PARTITIONED |
+    ALTER_VIRTUAL_GCOL_EXPR |
+    ALTER_RENAME;
 
   /* Is there at least one operation that requires copy algorithm? */
   if (ha_alter_info->handler_flags & ~inplace_offline_operations)
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   /*
+    The following checks for changes related to ALTER_OPTIONS
+
     ALTER TABLE tbl_name CONVERT TO CHARACTER SET .. and
     ALTER TABLE table_name DEFAULT CHARSET = .. most likely
     change column charsets and so not supported in-place through
@@ -4446,12 +4451,13 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
   if (create_info->used_fields & (HA_CREATE_USED_CHARSET |
                                   HA_CREATE_USED_DEFAULT_CHARSET |
                                   HA_CREATE_USED_PACK_KEYS |
+                                  HA_CREATE_USED_CHECKSUM |
                                   HA_CREATE_USED_MAX_ROWS) ||
       (table->s->row_type != create_info->row_type))
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   uint table_changes= (ha_alter_info->handler_flags &
-                       Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH) ?
+                       ALTER_COLUMN_EQUAL_PACK_LENGTH) ?
     IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
   if (table->file->check_if_incompatible_data(create_info, table_changes)
       == COMPATIBLE_DATA_YES)
@@ -6896,7 +6902,7 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
   if (!f)
     return true;
 
-  alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
+  alter_info->flags|= ALTER_PARSER_ADD_COLUMN;
   alter_info->create_list.push_back(f);
 
   return false;
@@ -6911,7 +6917,7 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info, int *added)
   if (*this)
     return false;
 
-  alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
+  alter_info->flags|= ALTER_PARSER_ADD_COLUMN;
 
   system_time= start_end_t(default_start, default_end);
   as_row= system_time;
@@ -6957,7 +6963,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   List<Item> *items,
   bool *versioned_write)
 {
-  DBUG_ASSERT(!(alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING));
+  DBUG_ASSERT(!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING));
   int vers_tables= 0;
 
   if (select_tables)
@@ -6970,11 +6976,11 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   }
 
   DBUG_EXECUTE_IF("sysvers_force", if (!tmp_table()) {
-                  alter_info->flags|= Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
+                  alter_info->flags|= ALTER_ADD_SYSTEM_VERSIONING;
                   options|= HA_VERSIONED_TABLE; });
 
   // Possibly override default storage engine to match one used in source table.
-  if (vers_tables && alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING &&
+  if (vers_tables && alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING &&
       !(used_fields & HA_CREATE_USED_ENGINE))
   {
     List_iterator_fast<Create_field> it(alter_info->create_list);
@@ -6995,14 +7001,14 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     return false;
 
   if (!vers_info.versioned_fields && vers_info.unversioned_fields &&
-      !(alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING))
+      !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
   {
     // All is correct but this table is not versioned.
     options&= ~HA_VERSIONED_TABLE;
     return false;
   }
 
-  if (!(alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING) && vers_info)
+  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING) && vers_info)
   {
     my_error(ER_MISSING, MYF(0), create_table.table_name.str,
              "WITH SYSTEM VERSIONING");
@@ -7021,7 +7027,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   while (Create_field *f= it++)
   {
     if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
-         !(alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING)) ||
+         !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)) ||
         f->versioning == Column_definition::WITHOUT_VERSIONING)
     {
       f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
@@ -7153,14 +7159,14 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return true;
   }
 
-  if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING &&
+  if (alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING &&
       table->versioned())
   {
     my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
     return true;
   }
 
-  if (alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)
+  if (alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING)
   {
     if (!share->versioned)
     {
@@ -7233,7 +7239,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (fix_implicit(thd, alter_info))
     return true;
 
-  if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING)
+  if (alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)
   {
     if (check_with_conditions(table_name))
       return true;
@@ -7306,8 +7312,8 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
 bool Vers_parse_info::need_check(const Alter_info *alter_info) const
 {
   return versioned_fields || unversioned_fields || add_period ||
-         alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING ||
-         alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING || *this;
+         alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING ||
+         alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING || *this;
 }
 
 bool Vers_parse_info::check_with_conditions(const char *table_name) const

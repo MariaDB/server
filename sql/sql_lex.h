@@ -3634,7 +3634,7 @@ public:
                                            MDL_SHARED_UPGRADABLE))
       return true;
     alter_info.reset();
-    alter_info.flags= Alter_info::ALTER_ADD_INDEX;
+    alter_info.flags= ALTER_ADD_INDEX;
     option_list= NULL;
     return false;
   }

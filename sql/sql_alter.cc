@@ -225,14 +225,13 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     We also require DROP priv for ALTER TABLE ... DROP PARTITION, as well
     as for RENAME TO, as being done by SQLCOM_RENAME_TABLE
   */
-  if (alter_info.flags & (Alter_info::ALTER_DROP_PARTITION |
-                          Alter_info::ALTER_RENAME))
+  if (alter_info.flags & (ALTER_DROP_PARTITION | ALTER_RENAME))
     priv_needed|= DROP_ACL;
 
   /* Must be set in the parser */
   DBUG_ASSERT(select_lex->db.str);
-  DBUG_ASSERT(!(alter_info.flags & Alter_info::ALTER_EXCHANGE_PARTITION));
-  DBUG_ASSERT(!(alter_info.flags & Alter_info::ALTER_ADMIN_PARTITION));
+  DBUG_ASSERT(!(alter_info.flags & ALTER_EXCHANGE_PARTITION));
+  DBUG_ASSERT(!(alter_info.flags & ALTER_ADMIN_PARTITION));
   if (check_access(thd, priv_needed, first_table->db.str,
                    &first_table->grant.privilege,
                    &first_table->grant.m_internal,

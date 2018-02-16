@@ -6910,21 +6910,23 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
   outward= (!IsFileType(type) || (oldopt->filename && *oldopt->filename));
 
   // Index operations
-  Alter_inplace_info::HA_ALTER_FLAGS index_operations=
-    Alter_inplace_info::ADD_INDEX |
-    Alter_inplace_info::DROP_INDEX |
-    Alter_inplace_info::ADD_UNIQUE_INDEX |
-    Alter_inplace_info::DROP_UNIQUE_INDEX |
-    Alter_inplace_info::ADD_PK_INDEX |
-    Alter_inplace_info::DROP_PK_INDEX;
+  alter_table_operations index_operations=
+    ALTER_ADD_INDEX |
+    ALTER_DROP_INDEX |
+    ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+    ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX |
+    ALTER_ADD_UNIQUE_INDEX |
+    ALTER_DROP_UNIQUE_INDEX |
+    ALTER_ADD_PK_INDEX |
+    ALTER_DROP_PK_INDEX;
 
-  Alter_inplace_info::HA_ALTER_FLAGS inplace_offline_operations=
-    Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH |
-    Alter_inplace_info::ALTER_COLUMN_NAME |
-    Alter_inplace_info::ALTER_COLUMN_DEFAULT |
-    Alter_inplace_info::CHANGE_CREATE_OPTION |
-    Alter_inplace_info::ALTER_RENAME |
-    Alter_inplace_info::ALTER_PARTITIONED | index_operations;
+  alter_table_operations inplace_offline_operations=
+    ALTER_COLUMN_EQUAL_PACK_LENGTH |
+    ALTER_COLUMN_NAME |
+    ALTER_COLUMN_DEFAULT |
+    ALTER_CHANGE_CREATE_OPTION |
+    ALTER_RENAME |
+    ALTER_PARTITIONED | index_operations;
 
   if (ha_alter_info->handler_flags & index_operations ||
       !SameString(altered_table, "optname") ||
@@ -7018,7 +7020,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
 
 #if 0
   uint table_changes= (ha_alter_info->handler_flags &
-                       Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH) ?
+                       ALTER_COLUMN_EQUAL_PACK_LENGTH) ?
     IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
 
   if (table->file->check_if_incompatible_data(create_info, table_changes)

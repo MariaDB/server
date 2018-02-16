@@ -11263,7 +11263,7 @@ int ha_spider::create(
     trx->tmp_flg = TRUE;
 
     DBUG_PRINT("info",
-      ("spider alter_info.flags=%llu", thd->lex->alter_info.flags));
+      ("spider alter_info.flags: %llu", thd->lex->alter_info.flags));
     if (
       (thd->lex->alter_info.flags &
         (
@@ -11459,7 +11459,7 @@ int ha_spider::rename_table(
     }
 
     DBUG_PRINT("info",
-      ("spider alter_info.flags=%llu", thd->lex->alter_info.flags));
+      ("spider alter_info.flags: %llu", thd->lex->alter_info.flags));
     if (
       (thd->lex->alter_info.flags &
         (
@@ -11654,7 +11654,7 @@ int ha_spider::delete_table(
       DBUG_RETURN(0);
 
     DBUG_PRINT("info",
-      ("spider alter_info.flags=%llu", thd->lex->alter_info.flags));
+      ("spider alter_info.flags: %llu", thd->lex->alter_info.flags));
     if (
       sql_command == SQLCOM_ALTER_TABLE &&
       (thd->lex->alter_info.flags &

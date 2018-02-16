@@ -10871,17 +10871,17 @@ my_core::enum_alter_inplace_result ha_rocksdb::check_if_supported_inplace_alter(
   DBUG_ASSERT(ha_alter_info != nullptr);
 
   if (ha_alter_info->handler_flags &
-      ~(my_core::Alter_inplace_info::DROP_INDEX |
-        my_core::Alter_inplace_info::DROP_UNIQUE_INDEX |
-        my_core::Alter_inplace_info::ADD_INDEX |
-        my_core::Alter_inplace_info::ALTER_PARTITIONED |
-        my_core::Alter_inplace_info::ADD_UNIQUE_INDEX)) {
+      ~(ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX |
+        ALTER_DROP_UNIQUE_INDEX |
+        ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+        ALTER_PARTITIONED |
+        ALTER_ADD_UNIQUE_INDEX)) {
     DBUG_RETURN(my_core::HA_ALTER_INPLACE_NOT_SUPPORTED);
   }
 
   /* We don't support unique keys on table w/ no primary keys */
   if ((ha_alter_info->handler_flags &
-       my_core::Alter_inplace_info::ADD_UNIQUE_INDEX) &&
+       ALTER_ADD_UNIQUE_INDEX) &&
       has_hidden_pk(altered_table)) {
     DBUG_RETURN(my_core::HA_ALTER_INPLACE_NOT_SUPPORTED);
   }
@@ -10947,10 +10947,10 @@ bool ha_rocksdb::prepare_inplace_alter_table(
       m_tbl_def->m_hidden_pk_val.load(std::memory_order_relaxed);
 
   if (ha_alter_info->handler_flags &
-          (my_core::Alter_inplace_info::DROP_INDEX |
-           my_core::Alter_inplace_info::DROP_UNIQUE_INDEX |
-           my_core::Alter_inplace_info::ADD_INDEX |
-           my_core::Alter_inplace_info::ADD_UNIQUE_INDEX) &&
+          (ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX |
+           ALTER_DROP_UNIQUE_INDEX |
+           ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+           ALTER_ADD_UNIQUE_INDEX) &&
       create_key_defs(altered_table, new_tdef, table, m_tbl_def)) {
     /* Delete the new key descriptors */
     delete[] new_key_descr;
@@ -11066,8 +11066,8 @@ bool ha_rocksdb::inplace_alter_table(
       static_cast<Rdb_inplace_alter_ctx *>(ha_alter_info->handler_ctx);
 
   if (ha_alter_info->handler_flags &
-      (my_core::Alter_inplace_info::ADD_INDEX |
-       my_core::Alter_inplace_info::ADD_UNIQUE_INDEX)) {
+      (ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+       ALTER_ADD_UNIQUE_INDEX)) {
     /*
       Buffers need to be set up again to account for new, possibly longer
       secondary keys.
@@ -11083,7 +11083,7 @@ bool ha_rocksdb::inplace_alter_table(
     if ((err = alloc_key_buffers(
              altered_table, ctx->m_new_tdef,
              ha_alter_info->handler_flags &
-                 my_core::Alter_inplace_info::ADD_UNIQUE_INDEX))) {
+                 ALTER_ADD_UNIQUE_INDEX))) {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       DBUG_RETURN(err);
     }
@@ -11422,10 +11422,10 @@ bool ha_rocksdb::commit_inplace_alter_table(
   ha_alter_info->group_commit_ctx = nullptr;
 
   if (ha_alter_info->handler_flags &
-      (my_core::Alter_inplace_info::DROP_INDEX |
-       my_core::Alter_inplace_info::DROP_UNIQUE_INDEX |
-       my_core::Alter_inplace_info::ADD_INDEX |
-       my_core::Alter_inplace_info::ADD_UNIQUE_INDEX)) {
+      (ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX |
+       ALTER_DROP_UNIQUE_INDEX |
+       ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+       ALTER_ADD_UNIQUE_INDEX)) {
     const std::unique_ptr<rocksdb::WriteBatch> wb = dict_manager.begin();
     rocksdb::WriteBatch *const batch = wb.get();
     std::unordered_set<GL_INDEX_ID> create_index_ids;
