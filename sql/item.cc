@@ -3965,7 +3965,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
     ErrConvTime str(&value.time);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  &str, time_type, 0);
-    set_zero_time(&value.time, MYSQL_TIMESTAMP_ERROR);
+    set_zero_time(&value.time, time_type);
   }
   maybe_null= 0;
   null_value= 0;
