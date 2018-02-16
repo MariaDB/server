@@ -1,22 +1,61 @@
-create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
+create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=myisam;
 insert into t1 (a) values (1),(2),(3);
-alter online table t1 modify b int default 5;
+alter online table t1 modify b int default 5, alter c set default 'X';
 alter online table t1 change b new_name int;
 alter online table t1 modify e enum('a','b','c');
 alter online table t1 comment "new comment";
+alter table t1 add constraint q check (a > 0);
+alter online table t1 drop constraint q;
 alter online table t1 algorithm=INPLACE, lock=NONE;
 alter online table t1;
 alter table t1 algorithm=INPLACE;
 alter table t1 lock=NONE;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `new_name` int(11) DEFAULT NULL,
+  `c` varchar(80) DEFAULT 'X',
+  `e` enum('a','b','c') DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='new comment'
 drop table t1;
 create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
+insert into t1 (a) values (1),(2),(3);
+alter online table t1 modify b int default 5, alter c set default 'X';
+alter online table t1 change b new_name int;
+alter online table t1 modify e enum('a','b','c');
+alter online table t1 comment "new comment";
+alter online table t1 rename to t2;
+show create table t2;
+Table	Create Table
+t2	CREATE TEMPORARY TABLE `t2` (
+  `a` int(11) NOT NULL,
+  `new_name` int(11) DEFAULT NULL,
+  `c` varchar(80) DEFAULT 'X',
+  `e` enum('a','b','c') DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='new comment'
+drop table t2;
+create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=aria;
 insert into t1 (a) values (1),(2),(3);
 alter online table t1 modify b int default 5;
 alter online table t1 change b new_name int;
 alter online table t1 modify e enum('a','b','c');
 alter online table t1 comment "new comment";
-alter online table t1 rename to t2;
-drop table t2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `new_name` int(11) DEFAULT NULL,
+  `c` varchar(80) DEFAULT NULL,
+  `e` enum('a','b','c') DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new comment'
+alter online table t1 page_checksum=1;
+alter online table t1 page_checksum=0;
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
+drop table t1;
 create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 alter online table t1 drop column b, add b int;
@@ -35,11 +74,25 @@ alter online table t1 engine=memory;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 alter online table t1 rename to t2;
 ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
+alter online table t1 checksum=1;
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
+alter online table t1 add constraint check (b > 0);
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter table t1 engine=innodb;
 alter table t1 add index (b);
 alter online table t1 add index c (c);
 alter online table t1 drop index b;
 alter online table t1 comment "new comment";
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` varchar(80) DEFAULT NULL,
+  `e` enum('a','b') DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `c` (`c`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='new comment'
 drop table t1;
 create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);

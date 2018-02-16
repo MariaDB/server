@@ -6098,10 +6098,9 @@ drop_create_field:
       it.remove();
       if (alter_info->create_list.is_empty())
       {
-        alter_info->flags&= ~Alter_info::ALTER_ADD_COLUMN;
+        alter_info->flags&= ~ALTER_PARSER_ADD_COLUMN;
         if (alter_info->key_list.is_empty())
-          alter_info->flags&= ~(Alter_info::ALTER_ADD_INDEX |
-              Alter_info::ADD_FOREIGN_KEY);
+          alter_info->flags&= ~(ALTER_ADD_INDEX | ALTER_ADD_FOREIGN_KEY);
       }
     }
   }
@@ -6137,10 +6136,9 @@ drop_create_field:
         it.remove();
         if (alter_info->create_list.is_empty())
         {
-          alter_info->flags&= ~(Alter_info::ALTER_ADD_COLUMN |
-                                Alter_info::ALTER_CHANGE_COLUMN);
+          alter_info->flags&= ~(ALTER_PARSER_ADD_COLUMN | ALTER_CHANGE_COLUMN);
           if (alter_info->key_list.is_empty())
-            alter_info->flags&= ~Alter_info::ALTER_ADD_INDEX;
+            alter_info->flags&= ~ALTER_ADD_INDEX;
         }
       }
     }
@@ -6174,7 +6172,7 @@ drop_create_field:
         it.remove();
         if (alter_info->alter_list.is_empty())
         {
-          alter_info->flags&= ~(Alter_info::ALTER_CHANGE_COLUMN_DEFAULT);
+          alter_info->flags&= ~(ALTER_CHANGE_COLUMN_DEFAULT);
         }
       }
     }
@@ -6281,9 +6279,9 @@ drop_create_field:
                             drop->type_name(), drop->name);
         drop_it.remove();
         if (alter_info->drop_list.is_empty())
-          alter_info->flags&= ~(Alter_info::ALTER_DROP_COLUMN |
-                                Alter_info::ALTER_DROP_INDEX  |
-                                Alter_info::DROP_FOREIGN_KEY);
+          alter_info->flags&= ~(ALTER_PARSER_DROP_COLUMN |
+                                ALTER_DROP_INDEX  |
+                                ALTER_DROP_FOREIGN_KEY);
       }
     }
   }
@@ -6382,8 +6380,7 @@ remove_key:
           key_it.remove();
         }
         if (alter_info->key_list.is_empty())
-          alter_info->flags&= ~(Alter_info::ALTER_ADD_INDEX |
-              Alter_info::ADD_FOREIGN_KEY);
+          alter_info->flags&= ~(ALTER_ADD_INDEX | ALTER_ADD_FOREIGN_KEY);
       }
       else
       {
@@ -6394,7 +6391,7 @@ remove_key:
         if (ad != NULL)
         {
           // Adding the index into the drop list for replacing
-          alter_info->flags |= Alter_info::ALTER_DROP_INDEX;
+          alter_info->flags |= ALTER_DROP_INDEX;
           alter_info->drop_list.push_back(ad, thd->mem_root);
         }
       }
@@ -6407,7 +6404,7 @@ remove_key:
   if (tab_part_info)
   {
     /* ALTER TABLE ADD PARTITION IF NOT EXISTS */
-    if ((alter_info->flags & Alter_info::ALTER_ADD_PARTITION) &&
+    if ((alter_info->flags & ALTER_ADD_PARTITION) &&
         thd->lex->create_info.if_not_exists())
     {
       partition_info *alt_part_info= thd->lex->part_info;
@@ -6423,7 +6420,7 @@ remove_key:
                                 ER_SAME_NAME_PARTITION,
                                 ER_THD(thd, ER_SAME_NAME_PARTITION),
                                 pe->partition_name);
-            alter_info->flags&= ~Alter_info::ALTER_ADD_PARTITION;
+            alter_info->flags&= ~ALTER_ADD_PARTITION;
             thd->work_part_info= NULL;
             break;
           }
@@ -6431,7 +6428,7 @@ remove_key:
       }
     }
     /* ALTER TABLE DROP PARTITION IF EXISTS */
-    if ((alter_info->flags & Alter_info::ALTER_DROP_PARTITION) &&
+    if ((alter_info->flags & ALTER_DROP_PARTITION) &&
         thd->lex->if_exists())
     {
       List_iterator<const char> names_it(alter_info->partition_names);
@@ -6457,7 +6454,7 @@ remove_key:
         }
       }
       if (alter_info->partition_names.elements == 0)
-        alter_info->flags&= ~Alter_info::ALTER_DROP_PARTITION;
+        alter_info->flags&= ~ALTER_DROP_PARTITION;
     }
   }
 #endif /*WITH_PARTITION_STORAGE_ENGINE*/
@@ -6487,7 +6484,7 @@ remove_key:
             "CHECK", check->name.str);
           it.remove();
           if (alter_info->check_constraint_list.elements == 0)
-            alter_info->flags&= ~Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+            alter_info->flags&= ~ALTER_ADD_CHECK_CONSTRAINT;
 
           break;
         }
@@ -6580,6 +6577,7 @@ static bool fill_alter_inplace_info(THD *thd,
   uint candidate_key_count= 0;
   Alter_info *alter_info= ha_alter_info->alter_info;
   DBUG_ENTER("fill_alter_inplace_info");
+  DBUG_PRINT("info", ("alter_info->flags: %llu", alter_info->flags));
 
   /* Allocate result buffers. */
   if (! (ha_alter_info->index_drop_buffer=
@@ -6590,61 +6588,47 @@ static bool fill_alter_inplace_info(THD *thd,
     DBUG_RETURN(true);
 
   /*
+    Copy parser flags, but remove some flags that handlers doesn't
+    need to care about (old engines may not ignore these parser flags).
+    ALTER_RENAME_COLUMN is replaced by ALTER_COLUMN_NAME.
+    ALTER_CHANGE_COLUMN_DEFAULT is replaced by ALTER_CHANGE_COLUMN
+    ALTER_PARSE_ADD_COLUMN, ALTER_PARSE_DROP_COLUMN, ALTER_ADD_INDEX and
+    ALTER_DROP_INDEX are replaced with versions that have higher granuality.
+  */
+
+  ha_alter_info->handler_flags|= (alter_info->flags &
+                                  ~(ALTER_ADD_INDEX |
+                                    ALTER_DROP_INDEX |
+                                    ALTER_PARSER_ADD_COLUMN |
+                                    ALTER_PARSER_DROP_COLUMN |
+                                    ALTER_COLUMN_ORDER |
+                                    ALTER_RENAME_COLUMN |
+                                    ALTER_CHANGE_COLUMN |
+                                    ALTER_ADMIN_PARTITION |
+                                    ALTER_REBUILD_PARTITION |
+                                    ALTER_EXCHANGE_PARTITION |
+                                    ALTER_TRUNCATE_PARTITION |
+                                    ALTER_COLUMN_UNVERSIONED));
+  /*
     Comparing new and old default values of column is cumbersome.
     So instead of using such a comparison for detecting if default
     has really changed we rely on flags set by parser to get an
     approximate value for storage engine flag.
   */
-  if (alter_info->flags & (Alter_info::ALTER_CHANGE_COLUMN |
-                           Alter_info::ALTER_CHANGE_COLUMN_DEFAULT))
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_DEFAULT;
-  if (alter_info->flags & Alter_info::ADD_FOREIGN_KEY)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ADD_FOREIGN_KEY;
-  if (alter_info->flags & Alter_info::DROP_FOREIGN_KEY)
-    ha_alter_info->handler_flags|= Alter_inplace_info::DROP_FOREIGN_KEY;
-  if (alter_info->flags & Alter_info::ALTER_OPTIONS)
-    ha_alter_info->handler_flags|= Alter_inplace_info::CHANGE_CREATE_OPTION;
-  if (alter_info->flags & Alter_info::ALTER_RENAME)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_RENAME;
-  /* Check partition changes */
-  if (alter_info->flags & Alter_info::ALTER_ADD_PARTITION)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ADD_PARTITION;
-  if (alter_info->flags & Alter_info::ALTER_DROP_PARTITION)
-    ha_alter_info->handler_flags|= Alter_inplace_info::DROP_PARTITION;
-  if (alter_info->flags & Alter_info::ALTER_PARTITION)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_PARTITION;
-  if (alter_info->flags & Alter_info::ALTER_COALESCE_PARTITION)
-    ha_alter_info->handler_flags|= Alter_inplace_info::COALESCE_PARTITION;
-  if (alter_info->flags & Alter_info::ALTER_REORGANIZE_PARTITION)
-    ha_alter_info->handler_flags|= Alter_inplace_info::REORGANIZE_PARTITION;
-  if (alter_info->flags & Alter_info::ALTER_TABLE_REORG)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_TABLE_REORG;
-  if (alter_info->flags & Alter_info::ALTER_REMOVE_PARTITIONING)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_REMOVE_PARTITIONING;
-  if (alter_info->flags & Alter_info::ALTER_ALL_PARTITION)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ALL_PARTITION;
-  /* Check for: ALTER TABLE FORCE, ALTER TABLE ENGINE and OPTIMIZE TABLE. */
-  if (alter_info->flags & Alter_info::ALTER_RECREATE)
-    ha_alter_info->handler_flags|= Alter_inplace_info::RECREATE_TABLE;
-  if (alter_info->flags & Alter_info::ALTER_ADD_CHECK_CONSTRAINT)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_CHECK_CONSTRAINT;
-  if (alter_info->flags & Alter_info::ALTER_DROP_CHECK_CONSTRAINT)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_CHECK_CONSTRAINT;
-  if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_DROP)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_HISTORICAL;
-  if (alter_info->flags & Alter_info::ALTER_COLUMN_UNVERSIONED)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_UNVERSIONED;
-  if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING;
-  if (alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_SYSTEM_VERSIONING;
+  if (alter_info->flags & ALTER_CHANGE_COLUMN)
+    ha_alter_info->handler_flags|= ALTER_COLUMN_DEFAULT;
 
   /*
     If we altering table with old VARCHAR fields we will be automatically
     upgrading VARCHAR column types.
   */
   if (table->s->frm_version < FRM_VER_TRUE_VARCHAR && varchar)
-    ha_alter_info->handler_flags|=  Alter_inplace_info::ALTER_STORED_COLUMN_TYPE;
+    ha_alter_info->handler_flags|=  ALTER_STORED_COLUMN_TYPE;
+
+  if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_DROP)
+    ha_alter_info->handler_flags|= ALTER_DROP_HISTORICAL;
+
+  DBUG_PRINT("info", ("handler_flags: %llu", ha_alter_info->handler_flags));
 
   /*
     Go through fields in old version of table and detect changes to them.
@@ -6690,11 +6674,9 @@ static bool fill_alter_inplace_info(THD *thd,
       case IS_EQUAL_NO:
         /* New column type is incompatible with old one. */
         if (field->stored_in_db())
-          ha_alter_info->handler_flags|=
-            Alter_inplace_info::ALTER_STORED_COLUMN_TYPE;
+          ha_alter_info->handler_flags|= ALTER_STORED_COLUMN_TYPE;
         else
-          ha_alter_info->handler_flags|=
-            Alter_inplace_info::ALTER_VIRTUAL_COLUMN_TYPE;
+          ha_alter_info->handler_flags|= ALTER_VIRTUAL_COLUMN_TYPE;
         if (table->s->tmp_table == NO_TMP_TABLE)
         {
           delete_statistics_for_column(thd, table, field);
@@ -6733,38 +6715,35 @@ static bool fill_alter_inplace_info(THD *thd,
           be carried out by simply updating data dictionary without changing
           actual data (for example, VARCHAR(300) is changed to VARCHAR(400)).
         */
-        ha_alter_info->handler_flags|= Alter_inplace_info::
-                                         ALTER_COLUMN_EQUAL_PACK_LENGTH;
+        ha_alter_info->handler_flags|= ALTER_COLUMN_EQUAL_PACK_LENGTH;
         break;
       default:
         DBUG_ASSERT(0);
         /* Safety. */
-        ha_alter_info->handler_flags|=
-          Alter_inplace_info::ALTER_STORED_COLUMN_TYPE;
+        ha_alter_info->handler_flags|= ALTER_STORED_COLUMN_TYPE;
       }
 
       if (field->vcol_info || new_field->vcol_info)
       {
         /* base <-> virtual or stored <-> virtual */
         if (field->stored_in_db() != new_field->stored_in_db())
-          ha_alter_info->handler_flags|=
-                    Alter_inplace_info::ALTER_STORED_COLUMN_TYPE |
-                    Alter_inplace_info::ALTER_VIRTUAL_COLUMN_TYPE;
+          ha_alter_info->handler_flags|= ( ALTER_STORED_COLUMN_TYPE |
+                                           ALTER_VIRTUAL_COLUMN_TYPE);
         if (field->vcol_info && new_field->vcol_info)
         {
           bool value_changes= is_equal == IS_EQUAL_NO;
-          Alter_inplace_info::HA_ALTER_FLAGS alter_expr;
+          alter_table_operations alter_expr;
           if (field->stored_in_db())
-            alter_expr= Alter_inplace_info::ALTER_STORED_GCOL_EXPR;
+            alter_expr= ALTER_STORED_GCOL_EXPR;
           else
-            alter_expr= Alter_inplace_info::ALTER_VIRTUAL_GCOL_EXPR;
+            alter_expr= ALTER_VIRTUAL_GCOL_EXPR;
           if (!field->vcol_info->is_equal(new_field->vcol_info))
           {
             ha_alter_info->handler_flags|= alter_expr;
             value_changes= true;
           }
 
-          if ((ha_alter_info->handler_flags & Alter_inplace_info::ALTER_COLUMN_DEFAULT)
+          if ((ha_alter_info->handler_flags & ALTER_COLUMN_DEFAULT)
               && !(ha_alter_info->handler_flags & alter_expr))
           { /*
               a DEFAULT value of a some column was changed.  see if this vcol
@@ -6783,15 +6762,13 @@ static bool fill_alter_inplace_info(THD *thd,
               field->flags & PART_KEY_FLAG)
           {
             if (value_changes)
-              ha_alter_info->handler_flags|=
-                Alter_inplace_info::ALTER_COLUMN_VCOL;
+              ha_alter_info->handler_flags|= ALTER_COLUMN_VCOL;
             else
               maybe_alter_vcol= true;
           }
         }
         else /* base <-> stored */
-          ha_alter_info->handler_flags|=
-            Alter_inplace_info::ALTER_STORED_COLUMN_TYPE;
+          ha_alter_info->handler_flags|= ALTER_STORED_COLUMN_TYPE;
       }
 
       /* Check if field was renamed */
@@ -6799,7 +6776,7 @@ static bool fill_alter_inplace_info(THD *thd,
                          &new_field->field_name))
       {
         field->flags|= FIELD_IS_RENAMED;
-        ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_NAME;
+        ha_alter_info->handler_flags|= ALTER_COLUMN_NAME;
         rename_column_in_stat_tables(thd, table, field,
                                      new_field->field_name.str);
       }
@@ -6809,11 +6786,9 @@ static bool fill_alter_inplace_info(THD *thd,
           (uint) (field->flags & NOT_NULL_FLAG))
       {
         if (new_field->flags & NOT_NULL_FLAG)
-          ha_alter_info->handler_flags|=
-            Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE;
+          ha_alter_info->handler_flags|= ALTER_COLUMN_NOT_NULLABLE;
         else
-          ha_alter_info->handler_flags|=
-            Alter_inplace_info::ALTER_COLUMN_NULLABLE;
+          ha_alter_info->handler_flags|= ALTER_COLUMN_NULLABLE;
       }
 
       /*
@@ -6827,30 +6802,26 @@ static bool fill_alter_inplace_info(THD *thd,
       if (field->stored_in_db())
       {
         if (field_stored_index != new_field_stored_index)
-          ha_alter_info->handler_flags|=
-            Alter_inplace_info::ALTER_STORED_COLUMN_ORDER;
+          ha_alter_info->handler_flags|= ALTER_STORED_COLUMN_ORDER;
       }
       else
       {
         if (field->field_index != new_field_index)
-          ha_alter_info->handler_flags|=
-            Alter_inplace_info::ALTER_VIRTUAL_COLUMN_ORDER;
+          ha_alter_info->handler_flags|= ALTER_VIRTUAL_COLUMN_ORDER;
       }
 
       /* Detect changes in storage type of column */
       if (new_field->field_storage_type() != field->field_storage_type())
-        ha_alter_info->handler_flags|=
-          Alter_inplace_info::ALTER_COLUMN_STORAGE_TYPE;
+        ha_alter_info->handler_flags|= ALTER_COLUMN_STORAGE_TYPE;
 
       /* Detect changes in column format of column */
       if (new_field->column_format() != field->column_format())
-        ha_alter_info->handler_flags|=
-          Alter_inplace_info::ALTER_COLUMN_COLUMN_FORMAT;
+        ha_alter_info->handler_flags|= ALTER_COLUMN_COLUMN_FORMAT;
 
       if (engine_options_differ(field->option_struct, new_field->option_struct,
                                 table->file->ht->field_options))
       {
-        ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_OPTION;
+        ha_alter_info->handler_flags|= ALTER_COLUMN_OPTION;
         ha_alter_info->create_info->fields_option_struct[f_ptr - table->field]=
           new_field->option_struct;
       }
@@ -6861,9 +6832,9 @@ static bool fill_alter_inplace_info(THD *thd,
       // Field is not present in new version of table and therefore was dropped.
       field->flags|= FIELD_IS_DROPPED;
       if (field->stored_in_db())
-        ha_alter_info->handler_flags|= Alter_inplace_info::DROP_STORED_COLUMN;
+        ha_alter_info->handler_flags|= ALTER_DROP_STORED_COLUMN;
       else
-        ha_alter_info->handler_flags|= Alter_inplace_info::DROP_VIRTUAL_COLUMN;
+        ha_alter_info->handler_flags|= ALTER_DROP_VIRTUAL_COLUMN;
     }
   }
 
@@ -6875,12 +6846,11 @@ static bool fill_alter_inplace_info(THD *thd,
       (FIXME), so let's just say that a vcol *might* be affected if any other
       column was altered.
     */
-    if (ha_alter_info->handler_flags &
-                   ( Alter_inplace_info::ALTER_STORED_COLUMN_TYPE
-                   | Alter_inplace_info::ALTER_VIRTUAL_COLUMN_TYPE
-                   | Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE
-                   | Alter_inplace_info::ALTER_COLUMN_OPTION ))
-      ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
+    if (ha_alter_info->handler_flags & (ALTER_STORED_COLUMN_TYPE |
+                                        ALTER_VIRTUAL_COLUMN_TYPE |
+                                        ALTER_COLUMN_NOT_NULLABLE |
+                                        ALTER_COLUMN_OPTION))
+      ha_alter_info->handler_flags|= ALTER_COLUMN_VCOL;
   }
 
   new_field_it.init(alter_info->create_list);
@@ -6890,15 +6860,14 @@ static bool fill_alter_inplace_info(THD *thd,
     {
       // Field is not present in old version of table and therefore was added.
       if (new_field->vcol_info)
+      {
         if (new_field->stored_in_db())
-          ha_alter_info->handler_flags|=
-            Alter_inplace_info::ADD_STORED_GENERATED_COLUMN;
+          ha_alter_info->handler_flags|= ALTER_ADD_STORED_GENERATED_COLUMN;
         else
-          ha_alter_info->handler_flags|=
-            Alter_inplace_info::ADD_VIRTUAL_COLUMN;
+          ha_alter_info->handler_flags|= ALTER_ADD_VIRTUAL_COLUMN;
+      }
       else
-        ha_alter_info->handler_flags|=
-          Alter_inplace_info::ADD_STORED_BASE_COLUMN;
+        ha_alter_info->handler_flags|= ALTER_ADD_STORED_BASE_COLUMN;
     }
   }
 
@@ -7080,18 +7049,18 @@ static bool fill_alter_inplace_info(THD *thd,
       */
       if ((uint) (table_key - table->key_info) == table->s->primary_key)
       {
-        ha_alter_info->handler_flags|= Alter_inplace_info::DROP_PK_INDEX;
+        ha_alter_info->handler_flags|= ALTER_DROP_PK_INDEX;
         candidate_key_count--;
       }
       else
       {
-        ha_alter_info->handler_flags|= Alter_inplace_info::DROP_UNIQUE_INDEX;
+        ha_alter_info->handler_flags|= ALTER_DROP_UNIQUE_INDEX;
         if (is_candidate_key(table_key))
           candidate_key_count--;
       }
     }
     else
-      ha_alter_info->handler_flags|= Alter_inplace_info::DROP_INDEX;
+      ha_alter_info->handler_flags|= ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX;
   }
 
   /* Now figure out what kind of indexes we are adding. */
@@ -7110,20 +7079,21 @@ static bool fill_alter_inplace_info(THD *thd,
       {
         /* Candidate key or primary key! */
         if (candidate_key_count == 0 || is_pk)
-          ha_alter_info->handler_flags|= Alter_inplace_info::ADD_PK_INDEX;
+          ha_alter_info->handler_flags|= ALTER_ADD_PK_INDEX;
         else
-          ha_alter_info->handler_flags|= Alter_inplace_info::ADD_UNIQUE_INDEX;
+          ha_alter_info->handler_flags|= ALTER_ADD_UNIQUE_INDEX;
         candidate_key_count++;
       }
       else
       {
-        ha_alter_info->handler_flags|= Alter_inplace_info::ADD_UNIQUE_INDEX;
+        ha_alter_info->handler_flags|= ALTER_ADD_UNIQUE_INDEX;
       }
     }
     else
-      ha_alter_info->handler_flags|= Alter_inplace_info::ADD_INDEX;
+      ha_alter_info->handler_flags|= ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX;
   }
 
+  DBUG_PRINT("exit", ("handler_flags: %llu", ha_alter_info->handler_flags));
   DBUG_RETURN(false);
 }
 
@@ -7425,8 +7395,7 @@ static bool is_inplace_alter_impossible(TABLE *table,
     not supported for in-place in combination with other operations.
     Alone, it will be done by simple_rename_or_index_change().
   */
-  if (alter_info->flags & (Alter_info::ALTER_ORDER |
-                           Alter_info::ALTER_KEYS_ONOFF))
+  if (alter_info->flags & (ALTER_ORDER | ALTER_KEYS_ONOFF))
     DBUG_RETURN(true);
 
   /*
@@ -7527,7 +7496,7 @@ static bool mysql_inplace_alter_table(THD *thd,
         inplace_supported == HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE) &&
        (thd->locked_tables_mode == LTM_LOCK_TABLES ||
         thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)) ||
-       alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
+      alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
   {
     if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
       goto cleanup;
@@ -8003,7 +7972,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     */
     if (drop && field->invisible < INVISIBLE_SYSTEM &&
         !(field->flags & VERS_SYSTEM_FIELD &&
-          !(alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)))
+          !(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING)))
     {
       /* Reset auto_increment value if it was dropped */
       if (MTYP_TYPENR(field->unireg_check) == Field::NEXT_NUMBER &&
@@ -8024,7 +7993,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     /* invisible versioning column is dropped automatically on DROP SYSTEM VERSIONING */
     if (!drop && field->invisible >= INVISIBLE_SYSTEM &&
         field->flags & VERS_SYSTEM_FIELD &&
-        alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)
+        alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING)
     {
       if (table->s->tmp_table == NO_TMP_TABLE)
         (void) delete_statistics_for_column(thd, table, field);
@@ -8035,7 +8004,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       If we are doing a rename of a column, update all references in virtual
       column expressions, constraints and defaults to use the new column name
     */
-    if (alter_info->flags & Alter_info::ALTER_RENAME_COLUMN)
+    if (alter_info->flags & ALTER_RENAME_COLUMN)
     {
       if (field->vcol_info)
         field->vcol_info->expr->walk(&Item::rename_fields_processor, 1,
@@ -8083,7 +8052,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 	def_it.remove();
       }
     }
-    else if (alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING &&
+    else if (alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING &&
              field->flags & VERS_SYSTEM_FIELD &&
              field->invisible < INVISIBLE_SYSTEM)
     {
@@ -8094,12 +8063,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     else if (drop && field->invisible < INVISIBLE_SYSTEM &&
              field->flags & VERS_SYSTEM_FIELD &&
-             !(alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING))
+             !(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING))
     {
       /* "dropping" a versioning field only hides it from the user */
       def= new (thd->mem_root) Create_field(thd, field, field);
       def->invisible= INVISIBLE_SYSTEM;
-      alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
+      alter_info->flags|= ALTER_CHANGE_COLUMN;
       if (field->flags & VERS_SYS_START_FLAG)
         create_info->vers_info.as_row.start= def->field_name= Vers_parse_info::default_start;
       else
@@ -8136,7 +8105,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   }
   dropped_sys_vers_fields &= VERS_SYSTEM_FIELD;
   if ((dropped_sys_vers_fields ||
-       alter_info->flags & Alter_info::ALTER_DROP_PERIOD) &&
+       alter_info->flags & ALTER_DROP_PERIOD) &&
       dropped_sys_vers_fields != VERS_SYSTEM_FIELD)
   {
     StringBuffer<NAME_LEN*3> tmp;
@@ -8147,8 +8116,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
     goto err;
   }
-  alter_info->flags &=
-    ~(Alter_info::ALTER_DROP_PERIOD | Alter_info::ALTER_ADD_PERIOD);
+  alter_info->flags &= ~(ALTER_DROP_PERIOD | ALTER_ADD_PERIOD);
   def_it.rewind();
   while ((def=def_it++))			// Add new columns
   {
@@ -8194,7 +8162,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         alter_ctx->error_if_not_empty= TRUE;
     }
     if (def->flags & VERS_SYSTEM_FIELD &&
-        !(alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING))
+        !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
     {
       my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->s->table_name.str);
       goto err;
@@ -8545,7 +8513,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
   }
 
-  if (table->versioned() && !(alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING) &&
+  if (table->versioned() && !(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING) &&
       new_create_list.elements == VERSIONING_FIELDS)
   {
     my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), table->s->table_name.str);
@@ -9169,7 +9137,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
     }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (alter_info->flags & Alter_info::ALTER_PARTITION)
+    if (alter_info->flags & ALTER_PARTITION)
     {
       my_error(ER_WRONG_USAGE, MYF(0), "PARTITION", "log table");
       DBUG_RETURN(true);
@@ -9240,7 +9208,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
 
     if (table_list->table->versioned(VERS_TRX_ID) &&
         alter_info->requested_algorithm ==
-            Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
+        Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
         !table_list->table->s->partition_info_str)
     {
       // Changle default ALGORITHM to COPY for INNODB
@@ -9380,7 +9348,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
   }
 
   if ((create_info->db_type != table->s->db_type() ||
-       alter_info->flags & Alter_info::ALTER_PARTITION) &&
+       alter_info->flags & ALTER_PARTITION) &&
       !table->file->can_switch_engines())
   {
     my_error(ER_ROW_IS_REFERENCED, MYF(0));
@@ -9395,7 +9363,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
    create_info->db_type is set here, check to parent table access is delayed
    till this point for the alter operation.
   */
-  if ((alter_info->flags & Alter_info::ADD_FOREIGN_KEY) &&
+  if ((alter_info->flags & ALTER_ADD_FOREIGN_KEY) &&
       check_fk_parent_table_access(thd, create_info, alter_info, new_db->str))
     DBUG_RETURN(true);
 
@@ -9469,8 +9437,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
      Test if we are only doing RENAME or KEYS ON/OFF. This works
      as we are testing if flags == 0 above.
   */
-  if (!(alter_info->flags & ~(Alter_info::ALTER_RENAME |
-                              Alter_info::ALTER_KEYS_ONOFF)) &&
+  if (!(alter_info->flags & ~(ALTER_RENAME | ALTER_KEYS_ONOFF)) &&
       alter_info->requested_algorithm !=
       Alter_info::ALTER_TABLE_ALGORITHM_COPY)   // No need to touch frm.
   {
@@ -9608,7 +9575,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
   */
   if (create_info->db_type == table->s->db_type() &&
       create_info->used_fields & HA_CREATE_USED_ENGINE)
-    alter_info->flags|= Alter_info::ALTER_RECREATE;
+    alter_info->flags|= ALTER_RECREATE;
 
   /*
     If the old table had partitions and we are doing ALTER TABLE ...
@@ -9732,7 +9699,15 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
     if (fill_alter_inplace_info(thd, table, varchar, &ha_alter_info))
       goto err_new_table_cleanup;
 
-    if (ha_alter_info.handler_flags == 0)
+    /*
+      We can ignore ALTER_COLUMN_ORDER and instead check
+      ALTER_STORED_COLUMN_ORDER & ALTER_VIRTUAL_COLUMN_ORDER. This
+      is ok as ALTER_COLUMN_ORDER may be wrong if we use AFTER last_field
+      ALTER_COLUMN_NAME is set if field really was renamed.
+    */
+
+    if (!(ha_alter_info.handler_flags &
+          ~(ALTER_COLUMN_ORDER | ALTER_RENAME_COLUMN)))
     {
       /*
         No-op ALTER, no need to call handler API functions.
@@ -10139,7 +10114,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
   {
     DBUG_ASSERT(alter_info && table_list);
     VTMD_rename vtmd(*table_list);
-    bool rc= alter_info->flags & Alter_info::ALTER_RENAME ?
+    bool rc= alter_info->flags & ALTER_RENAME ?
       vtmd.try_rename(thd, alter_ctx.new_db.str, alter_ctx.new_alias.str, backup_name.str) :
       vtmd.update(thd, backup_name.str);
     if (rc)
@@ -10729,8 +10704,7 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
   create_info.row_type=ROW_TYPE_NOT_USED;
   create_info.default_table_charset=default_charset_info;
   /* Force alter table to recreate table */
-  alter_info.flags= (Alter_info::ALTER_CHANGE_COLUMN |
-                     Alter_info::ALTER_RECREATE);
+  alter_info.flags= (ALTER_CHANGE_COLUMN | ALTER_RECREATE);
 
   if (table_copy)
     alter_info.requested_algorithm= Alter_info::ALTER_TABLE_ALGORITHM_COPY;

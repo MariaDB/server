@@ -68,63 +68,64 @@ static const char *MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN=
 			"combined with other ALTER TABLE actions";
 
 /** Operations for creating secondary indexes (no rebuild needed) */
-static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ONLINE_CREATE
-	= Alter_inplace_info::ADD_INDEX
-	| Alter_inplace_info::ADD_UNIQUE_INDEX;
+static const alter_table_operations INNOBASE_ONLINE_CREATE
+	= ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX
+	| ALTER_ADD_UNIQUE_INDEX;
 
 /** Operations for rebuilding a table in place */
-static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_REBUILD
-	= Alter_inplace_info::ADD_PK_INDEX
-	| Alter_inplace_info::DROP_PK_INDEX
-	| Alter_inplace_info::CHANGE_CREATE_OPTION
+static const alter_table_operations INNOBASE_ALTER_REBUILD
+	= ALTER_ADD_PK_INDEX
+	| ALTER_DROP_PK_INDEX
+	| ALTER_CHANGE_CREATE_OPTION
 	/* CHANGE_CREATE_OPTION needs to check create_option_need_rebuild() */
-	| Alter_inplace_info::ALTER_COLUMN_NULLABLE
-	| Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE
-	| Alter_inplace_info::ALTER_STORED_COLUMN_ORDER
-	| Alter_inplace_info::DROP_STORED_COLUMN
-	| Alter_inplace_info::ADD_STORED_BASE_COLUMN
-	| Alter_inplace_info::RECREATE_TABLE
+	| ALTER_COLUMN_NULLABLE
+	| ALTER_COLUMN_NOT_NULLABLE
+	| ALTER_STORED_COLUMN_ORDER
+	| ALTER_DROP_STORED_COLUMN
+	| ALTER_ADD_STORED_BASE_COLUMN
+	| ALTER_RECREATE_TABLE
 	/*
-	| Alter_inplace_info::ALTER_STORED_COLUMN_TYPE
+	| ALTER_STORED_COLUMN_TYPE
 	*/
-	| Alter_inplace_info::ALTER_COLUMN_UNVERSIONED
-	| Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING
-	| Alter_inplace_info::ALTER_DROP_SYSTEM_VERSIONING
+	| ALTER_COLUMN_UNVERSIONED
+	| ALTER_ADD_SYSTEM_VERSIONING
+	| ALTER_DROP_SYSTEM_VERSIONING
 	;
 
 /** Operations that require changes to data */
-static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_DATA
+static const alter_table_operations INNOBASE_ALTER_DATA
 	= INNOBASE_ONLINE_CREATE | INNOBASE_ALTER_REBUILD;
 
 /** Operations for altering a table that InnoDB does not care about */
-static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_INPLACE_IGNORE
-	= Alter_inplace_info::ALTER_COLUMN_DEFAULT
-	| Alter_inplace_info::ALTER_PARTITIONED
-	| Alter_inplace_info::ALTER_COLUMN_COLUMN_FORMAT
-	| Alter_inplace_info::ALTER_COLUMN_STORAGE_TYPE
-	| Alter_inplace_info::ALTER_VIRTUAL_GCOL_EXPR
-	| Alter_inplace_info::ALTER_RENAME;
+static const alter_table_operations INNOBASE_INPLACE_IGNORE
+	= ALTER_COLUMN_DEFAULT
+	| ALTER_CHANGE_COLUMN_DEFAULT
+	| ALTER_PARTITIONED
+	| ALTER_COLUMN_COLUMN_FORMAT
+	| ALTER_COLUMN_STORAGE_TYPE
+	| ALTER_VIRTUAL_GCOL_EXPR
+	| ALTER_DROP_CHECK_CONSTRAINT
+	| ALTER_RENAME;
 
 /** Operations on foreign key definitions (changing the schema only) */
-static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_FOREIGN_OPERATIONS
-	= Alter_inplace_info::DROP_FOREIGN_KEY
-	| Alter_inplace_info::ADD_FOREIGN_KEY;
+static const alter_table_operations INNOBASE_FOREIGN_OPERATIONS
+	= ALTER_DROP_FOREIGN_KEY
+	| ALTER_ADD_FOREIGN_KEY;
 
 /** Operations that InnoDB cares about and can perform without rebuild */
-static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_NOREBUILD
+static const alter_table_operations INNOBASE_ALTER_NOREBUILD
 	= INNOBASE_ONLINE_CREATE
 	| INNOBASE_FOREIGN_OPERATIONS
-	| Alter_inplace_info::DROP_INDEX
-	| Alter_inplace_info::DROP_UNIQUE_INDEX
+	| ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX
+	| ALTER_DROP_UNIQUE_INDEX
 #ifdef MYSQL_RENAME_INDEX
-	| Alter_inplace_info::RENAME_INDEX
+	| ALTER_RENAME_INDEX
 #endif
-	| Alter_inplace_info::ALTER_COLUMN_NAME
-	| Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH
-	//| Alter_inplace_info::ALTER_INDEX_COMMENT
-	| Alter_inplace_info::ADD_VIRTUAL_COLUMN
-	| Alter_inplace_info::DROP_VIRTUAL_COLUMN
-	| Alter_inplace_info::ALTER_VIRTUAL_COLUMN_ORDER;
+	| ALTER_COLUMN_NAME
+	| ALTER_COLUMN_EQUAL_PACK_LENGTH
+	| ALTER_ADD_VIRTUAL_COLUMN
+	| ALTER_DROP_VIRTUAL_COLUMN
+	| ALTER_VIRTUAL_COLUMN_ORDER;
 
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 {
@@ -477,7 +478,7 @@ static bool create_option_need_rebuild(
 	const TABLE*			table)
 {
 	DBUG_ASSERT(ha_alter_info->handler_flags
-		    & Alter_inplace_info::CHANGE_CREATE_OPTION);
+		    & ALTER_CHANGE_CREATE_OPTION);
 
 	if (ha_alter_info->create_info->used_fields
 	    & (HA_CREATE_USED_ROW_FORMAT
@@ -518,7 +519,7 @@ innobase_need_rebuild(
 	const TABLE*			table)
 {
 	if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
-	    == Alter_inplace_info::CHANGE_CREATE_OPTION) {
+	    == ALTER_CHANGE_CREATE_OPTION) {
 		return create_option_need_rebuild(ha_alter_info, table);
 	}
 
@@ -546,7 +547,7 @@ check_v_col_in_order(
 	/* We don't support any adding new virtual column before
 	existed virtual column. */
 	if (ha_alter_info->handler_flags
-              & Alter_inplace_info::ADD_VIRTUAL_COLUMN) {
+              & ALTER_ADD_VIRTUAL_COLUMN) {
 		bool			has_new = false;
 
 		List_iterator_fast<Create_field> cf_it(
@@ -576,7 +577,7 @@ check_v_col_in_order(
 
 	/* directly return true if ALTER_VIRTUAL_COLUMN_ORDER is not on */
 	if (!(ha_alter_info->handler_flags
-              & Alter_inplace_info::ALTER_VIRTUAL_COLUMN_ORDER)) {
+              & ALTER_VIRTUAL_COLUMN_ORDER)) {
 		return(true);
 	}
 
@@ -635,12 +636,12 @@ instant_alter_column_possible(
 	const TABLE*			table)
 {
 	// Making table system-versioned instantly is not implemented yet.
-	if (ha_alter_info->handler_flags & Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING) {
+	if (ha_alter_info->handler_flags & ALTER_ADD_SYSTEM_VERSIONING) {
 		return false;
 	}
 
 	if (~ha_alter_info->handler_flags
-	    & Alter_inplace_info::ADD_STORED_BASE_COLUMN) {
+	    & ALTER_ADD_STORED_BASE_COLUMN) {
 		return false;
 	}
 
@@ -663,13 +664,13 @@ instant_alter_column_possible(
 	columns. */
 	if (ha_alter_info->handler_flags
 	    & ((INNOBASE_ALTER_REBUILD | INNOBASE_ONLINE_CREATE)
-	       & ~Alter_inplace_info::ADD_STORED_BASE_COLUMN
-	       & ~Alter_inplace_info::CHANGE_CREATE_OPTION)) {
+	       & ~ALTER_ADD_STORED_BASE_COLUMN
+	       & ~ALTER_CHANGE_CREATE_OPTION)) {
 		return false;
 	}
 
 	return !(ha_alter_info->handler_flags
-		 & Alter_inplace_info::CHANGE_CREATE_OPTION)
+		 & ALTER_CHANGE_CREATE_OPTION)
 		|| !create_option_need_rebuild(ha_alter_info, table);
 }
 
@@ -738,7 +739,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		| INNOBASE_ALTER_REBUILD)) {
 
 		if (ha_alter_info->handler_flags
-		    & Alter_inplace_info::ALTER_STORED_COLUMN_TYPE) {
+		    & ALTER_STORED_COLUMN_TYPE) {
 			ha_alter_info->unsupported_reason = innobase_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COLUMN_TYPE);
 		}
@@ -747,7 +748,7 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	/* Only support online add foreign key constraint when
 	check_foreigns is turned off */
-	if ((ha_alter_info->handler_flags & Alter_inplace_info::ADD_FOREIGN_KEY)
+	if ((ha_alter_info->handler_flags & ALTER_ADD_FOREIGN_KEY)
 	    && m_prebuilt->trx->check_foreigns) {
 		ha_alter_info->unsupported_reason = innobase_get_err_msg(
 			ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_CHECK);
@@ -771,7 +772,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	In-Place will fail with an error when trying to convert
 	NULL to a NOT NULL value. */
 	if ((ha_alter_info->handler_flags
-	     & Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE)
+	     & ALTER_COLUMN_NOT_NULLABLE)
 	    && !thd_is_strict_mode(m_user_thd)) {
 		ha_alter_info->unsupported_reason = innobase_get_err_msg(
 			ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
@@ -781,9 +782,8 @@ ha_innobase::check_if_supported_inplace_alter(
 	/* DROP PRIMARY KEY is only allowed in combination with ADD
 	PRIMARY KEY. */
 	if ((ha_alter_info->handler_flags
-	     & (Alter_inplace_info::ADD_PK_INDEX
-		| Alter_inplace_info::DROP_PK_INDEX))
-	    == Alter_inplace_info::DROP_PK_INDEX) {
+	     & (ALTER_ADD_PK_INDEX | ALTER_DROP_PK_INDEX))
+	    == ALTER_DROP_PK_INDEX) {
 		ha_alter_info->unsupported_reason = innobase_get_err_msg(
 			ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOPK);
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -794,7 +794,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	table should be rebuild. The change should
 	only go through the "Copy" method. */
 	if ((ha_alter_info->handler_flags
-	     & Alter_inplace_info::ALTER_COLUMN_NULLABLE)) {
+	     & ALTER_COLUMN_NULLABLE)) {
 		const uint my_primary_key = altered_table->s->primary_key;
 
 		/* See if MYSQL table has no pk but we do. */
@@ -860,27 +860,27 @@ ha_innobase::check_if_supported_inplace_alter(
 	with these 2 options alone with inplace interface for now */
 
 	if (ha_alter_info->handler_flags
-	    & (Alter_inplace_info::ADD_VIRTUAL_COLUMN
-	       | Alter_inplace_info::DROP_VIRTUAL_COLUMN
-	       | Alter_inplace_info::ALTER_VIRTUAL_COLUMN_ORDER)) {
+	    & (ALTER_ADD_VIRTUAL_COLUMN
+	       | ALTER_DROP_VIRTUAL_COLUMN
+	       | ALTER_VIRTUAL_COLUMN_ORDER)) {
 		ulonglong flags = ha_alter_info->handler_flags;
 
 		/* TODO: uncomment the flags below, once we start to
 		support them */
 
-		flags &= ~(Alter_inplace_info::ADD_VIRTUAL_COLUMN
-			   | Alter_inplace_info::DROP_VIRTUAL_COLUMN
-			   | Alter_inplace_info::ALTER_VIRTUAL_COLUMN_ORDER
-		           | Alter_inplace_info::ALTER_VIRTUAL_GCOL_EXPR
-		           | Alter_inplace_info::ALTER_COLUMN_VCOL
+		flags &= ~(ALTER_ADD_VIRTUAL_COLUMN
+			   | ALTER_DROP_VIRTUAL_COLUMN
+			   | ALTER_VIRTUAL_COLUMN_ORDER
+		           | ALTER_VIRTUAL_GCOL_EXPR
+		           | ALTER_COLUMN_VCOL
 		/*
-			   | Alter_inplace_info::ADD_STORED_BASE_COLUMN
-			   | Alter_inplace_info::DROP_STORED_COLUMN
-			   | Alter_inplace_info::ALTER_STORED_COLUMN_ORDER
-			   | Alter_inplace_info::ADD_UNIQUE_INDEX
+			   | ALTER_ADD_STORED_BASE_COLUMN
+			   | ALTER_DROP_STORED_COLUMN
+			   | ALTER_STORED_COLUMN_ORDER
+			   | ALTER_ADD_UNIQUE_INDEX
 		*/
-			   | Alter_inplace_info::ADD_INDEX
-			   | Alter_inplace_info::DROP_INDEX);
+			   | ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX
+			   | ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX);
 
 		if (flags != 0
 		    || IF_PARTITIONING((altered_table->s->partition_info_str
@@ -953,7 +953,7 @@ ha_innobase::check_if_supported_inplace_alter(
 
 			/* This is an added column. */
 			DBUG_ASSERT(ha_alter_info->handler_flags
-				    & Alter_inplace_info::ADD_COLUMN);
+				    & ALTER_ADD_COLUMN);
 
 			/* We cannot replace a hidden FTS_DOC_ID
 			with a user-visible FTS_DOC_ID. */
@@ -988,7 +988,7 @@ ha_innobase::check_if_supported_inplace_alter(
 				virtual column, while there is also a drop
 				virtual column in the same clause */
 				if (ha_alter_info->handler_flags
-				    & Alter_inplace_info::DROP_VIRTUAL_COLUMN) {
+				    & ALTER_DROP_VIRTUAL_COLUMN) {
 					ha_alter_info->unsupported_reason =
 						MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN;
 
@@ -1058,7 +1058,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	while (Create_field* cf = cf_it++) {
 		DBUG_ASSERT(cf->field
 			    || (ha_alter_info->handler_flags
-				& Alter_inplace_info::ADD_COLUMN));
+				& ALTER_ADD_COLUMN));
 
 		if (const Field* f = cf->field) {
 			/* This could be changing an existing column
@@ -1166,7 +1166,7 @@ next_column:
 		/* We already determined that only a non-locking
 		operation is possible. */
 	} else if (((ha_alter_info->handler_flags
-		     & Alter_inplace_info::ADD_PK_INDEX)
+		     & ALTER_ADD_PK_INDEX)
 		    || innobase_need_rebuild(ha_alter_info, table))
 		   && (innobase_fulltext_exist(altered_table)
 		       || innobase_spatial_exist(altered_table)
@@ -1197,7 +1197,7 @@ cannot_create_many_fulltext_index:
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
 		}
 	} else if ((ha_alter_info->handler_flags
-		    & Alter_inplace_info::ADD_INDEX)) {
+		    & ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX)) {
 		/* ADD FULLTEXT|SPATIAL INDEX requires a lock.
 
 		We could do ADD FULLTEXT INDEX without a lock if the
@@ -3208,7 +3208,7 @@ innobase_build_col_map(
 		    + dict_table_get_n_v_cols(old_table)
 		    >= table->s->fields + DATA_N_SYS_COLS);
 	DBUG_ASSERT(!!add_cols == !!(ha_alter_info->handler_flags
-				     & Alter_inplace_info::ADD_COLUMN));
+				     & ALTER_ADD_COLUMN));
 	DBUG_ASSERT(!add_cols || dtuple_get_n_fields(add_cols)
 		    == dict_table_get_n_cols(new_table));
 
@@ -3371,7 +3371,7 @@ innobase_get_col_names(
 	DBUG_ENTER("innobase_get_col_names");
 	DBUG_ASSERT(user_table->n_t_def > table->s->fields);
 	DBUG_ASSERT(ha_alter_info->handler_flags
-		    & Alter_inplace_info::ALTER_COLUMN_NAME);
+		    & ALTER_COLUMN_NAME);
 
 	cols = static_cast<const char**>(
 		mem_heap_zalloc(heap, user_table->n_def * sizeof *cols));
@@ -4773,7 +4773,7 @@ prepare_inplace_alter_table_dict(
 	trx_start_if_not_started_xa(ctx->prebuilt->trx, true);
 
 	if (ha_alter_info->handler_flags
-	    & Alter_inplace_info::DROP_VIRTUAL_COLUMN) {
+	    & ALTER_DROP_VIRTUAL_COLUMN) {
 		if (prepare_inplace_drop_virtual(
 			    ha_alter_info, altered_table, old_table)) {
 			DBUG_RETURN(true);
@@ -4781,7 +4781,7 @@ prepare_inplace_alter_table_dict(
 	}
 
 	if (ha_alter_info->handler_flags
-	    & Alter_inplace_info::ADD_VIRTUAL_COLUMN) {
+	    & ALTER_ADD_VIRTUAL_COLUMN) {
 		if (prepare_inplace_add_virtual(
 			    ha_alter_info, altered_table, old_table)) {
 			DBUG_RETURN(true);
@@ -4791,7 +4791,7 @@ prepare_inplace_alter_table_dict(
 		for create index */
 
 		if (ha_alter_info->handler_flags
-		    & Alter_inplace_info::ADD_INDEX) {
+		    & ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX) {
 			add_v = static_cast<dict_add_v_col_t*>(
 				mem_heap_alloc(ctx->heap, sizeof *add_v));
 			add_v->n_v_col = ctx->num_to_add_vcol;
@@ -5103,7 +5103,7 @@ new_clustered_failed:
 		dict_table_add_system_columns(ctx->new_table, ctx->heap);
 
 		if (ha_alter_info->handler_flags
-		    & Alter_inplace_info::ADD_COLUMN) {
+		    & ALTER_ADD_COLUMN) {
 			add_cols = dtuple_create_with_vcol(
 				ctx->heap,
 				dict_table_get_n_cols(ctx->new_table),
@@ -5359,7 +5359,7 @@ not_instant_add_column:
 		}
 
 		if (ha_alter_info->handler_flags
-		    & Alter_inplace_info::CHANGE_CREATE_OPTION) {
+		    & ALTER_CHANGE_CREATE_OPTION) {
 			const ha_table_option_struct& alt_opt=
 				*ha_alter_info->create_info->option_struct;
 			const ha_table_option_struct& opt=
@@ -5492,7 +5492,7 @@ new_table_failed:
 				ctx->prebuilt->trx,
 				clust_index, ctx->new_table,
 				!(ha_alter_info->handler_flags
-				  & Alter_inplace_info::ADD_PK_INDEX),
+				  & ALTER_ADD_PK_INDEX),
 				ctx->add_cols, ctx->col_map, path);
 			rw_lock_x_unlock(&clust_index->lock);
 
@@ -6190,7 +6190,7 @@ ha_innobase::prepare_inplace_alter_table(
 
 	info.set_tablespace_type(indexed_table->space != TRX_SYS_SPACE);
 
-	if (ha_alter_info->handler_flags & Alter_inplace_info::ADD_INDEX) {
+	if (ha_alter_info->handler_flags & ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX) {
 		if (info.gcols_in_fulltext_or_spatial()) {
 			goto err_exit_no_heap;
 		}
@@ -6274,7 +6274,7 @@ err_exit_no_heap:
 	/* Prohibit renaming a column to something that the table
 	already contains. */
 	if (ha_alter_info->handler_flags
-	    & Alter_inplace_info::ALTER_COLUMN_NAME) {
+	    & ALTER_COLUMN_NAME) {
 		List_iterator_fast<Create_field> cf_it(
 			ha_alter_info->alter_info->create_list);
 
@@ -6418,7 +6418,7 @@ check_if_ok_to_rename:
 		heap = mem_heap_create(1024);
 
 		if (ha_alter_info->handler_flags
-		    & Alter_inplace_info::ALTER_COLUMN_NAME) {
+		    & ALTER_COLUMN_NAME) {
 			col_names = innobase_get_col_names(
 				ha_alter_info, altered_table, table,
 				indexed_table, heap);
@@ -6431,7 +6431,7 @@ check_if_ok_to_rename:
 	}
 
 	if (ha_alter_info->handler_flags
-	    & Alter_inplace_info::DROP_FOREIGN_KEY) {
+	    & ALTER_DROP_FOREIGN_KEY) {
 		DBUG_ASSERT(ha_alter_info->alter_info->drop_list.elements > 0);
 
 		drop_fk = static_cast<dict_foreign_t**>(
@@ -6488,9 +6488,9 @@ found_fk:
 		dict_index_t*	drop_primary = NULL;
 
 		DBUG_ASSERT(ha_alter_info->handler_flags
-			    & (Alter_inplace_info::DROP_INDEX
-			       | Alter_inplace_info::DROP_UNIQUE_INDEX
-			       | Alter_inplace_info::DROP_PK_INDEX));
+			    & (ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX
+			       | ALTER_DROP_UNIQUE_INDEX
+			       | ALTER_DROP_PK_INDEX));
 		/* Check which indexes to drop. */
 		drop_index = static_cast<dict_index_t**>(
 			mem_heap_alloc(
@@ -6610,7 +6610,7 @@ check_if_can_drop_indexes:
 
 	/* Check if any of the existing indexes are marked as corruption
 	and if they are, refuse adding more indexes. */
-	if (ha_alter_info->handler_flags & Alter_inplace_info::ADD_INDEX) {
+	if (ha_alter_info->handler_flags & ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX) {
 		for (dict_index_t* index = dict_table_get_first_index(indexed_table);
 		     index != NULL; index = dict_table_get_next_index(index)) {
 
@@ -6664,7 +6664,7 @@ check_if_can_drop_indexes:
 	n_add_fk = 0;
 
 	if (ha_alter_info->handler_flags
-	    & Alter_inplace_info::ADD_FOREIGN_KEY) {
+	    & ALTER_ADD_FOREIGN_KEY) {
 		ut_ad(!m_prebuilt->trx->check_foreigns);
 
 		alter_fill_stored_column(altered_table, m_prebuilt->table,
@@ -6716,7 +6716,7 @@ err_exit:
 
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 	    || ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
-		== Alter_inplace_info::CHANGE_CREATE_OPTION
+		== ALTER_CHANGE_CREATE_OPTION
 		&& !create_option_need_rebuild(ha_alter_info, table))) {
 
 		if (heap) {
@@ -6741,14 +6741,14 @@ err_exit:
 		}
 
 		if ((ha_alter_info->handler_flags
-		     & Alter_inplace_info::DROP_VIRTUAL_COLUMN)
+		     & ALTER_DROP_VIRTUAL_COLUMN)
 		    && prepare_inplace_drop_virtual(
 			    ha_alter_info, altered_table, table)) {
 			DBUG_RETURN(true);
 		}
 
 		if ((ha_alter_info->handler_flags
-		     & Alter_inplace_info::ADD_VIRTUAL_COLUMN)
+		     & ALTER_ADD_VIRTUAL_COLUMN)
 		    && prepare_inplace_add_virtual(
 			    ha_alter_info, altered_table, table)) {
 			DBUG_RETURN(true);
@@ -6797,9 +6797,9 @@ err_exit:
 				doc_col_no == fts_doc_col_no
 				|| doc_col_no == ULINT_UNDEFINED
 				|| (ha_alter_info->handler_flags
-				    & (Alter_inplace_info::ALTER_STORED_COLUMN_ORDER
-				       | Alter_inplace_info::DROP_STORED_COLUMN
-				       | Alter_inplace_info::ADD_STORED_BASE_COLUMN)));
+				    & (ALTER_STORED_COLUMN_ORDER
+				       | ALTER_DROP_STORED_COLUMN
+				       | ALTER_ADD_STORED_BASE_COLUMN)));
 		}
 	}
 
@@ -6822,7 +6822,7 @@ err_exit:
 		/* This is an added column. */
 		DBUG_ASSERT(!new_field->field);
 		DBUG_ASSERT(ha_alter_info->handler_flags
-			    & Alter_inplace_info::ADD_COLUMN);
+			    & ALTER_ADD_COLUMN);
 
 		field = altered_table->field[i];
 
@@ -7001,7 +7001,7 @@ ok_exit:
 	}
 
 	if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
-	    == Alter_inplace_info::CHANGE_CREATE_OPTION
+	    == ALTER_CHANGE_CREATE_OPTION
 	    && !create_option_need_rebuild(ha_alter_info, table)) {
 		goto ok_exit;
 	}
@@ -7041,7 +7041,7 @@ ok_exit:
 	rebuild_templ
 	     = ctx->need_rebuild()
 	       || ((ha_alter_info->handler_flags
-		& Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH)
+		& ALTER_COLUMN_EQUAL_PACK_LENGTH)
 		&& alter_templ_needs_rebuild(
 		   altered_table, ha_alter_info, ctx->new_table));
 
@@ -7098,7 +7098,7 @@ ok_exit:
 		altered_table, ctx->add_cols, ctx->col_map,
 		ctx->add_autoinc, ctx->sequence, ctx->skip_pk_sort,
 		ctx->m_stage, add_v, eval_table,
-		ha_alter_info->handler_flags & Alter_inplace_info::ALTER_DROP_HISTORICAL);
+		ha_alter_info->handler_flags & ALTER_DROP_HISTORICAL);
 
 #ifndef DBUG_OFF
 oom:
@@ -7377,7 +7377,7 @@ rollback_inplace_alter_table(
 		}
 	} else {
 		DBUG_ASSERT(!(ha_alter_info->handler_flags
-			      & Alter_inplace_info::ADD_PK_INDEX));
+			      & ALTER_ADD_PK_INDEX));
 		DBUG_ASSERT(ctx->new_table == prebuilt->table);
 
 		innobase_rollback_sec_index(
@@ -7740,7 +7740,7 @@ innobase_rename_columns_try(
 
 	DBUG_ASSERT(ctx);
 	DBUG_ASSERT(ha_alter_info->handler_flags
-		    & Alter_inplace_info::ALTER_COLUMN_NAME);
+		    & ALTER_COLUMN_NAME);
 
 	for (Field** fp = table->field; *fp; fp++, i++) {
 		bool	is_virtual = innobase_is_v_fld(*fp);
@@ -7949,8 +7949,8 @@ innobase_rename_or_enlarge_columns_cache(
 	dict_table_t*		user_table)
 {
 	if (!(ha_alter_info->handler_flags
-	      & (Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH
-		 | Alter_inplace_info::ALTER_COLUMN_NAME))) {
+	      & (ALTER_COLUMN_EQUAL_PACK_LENGTH
+		 | ALTER_COLUMN_NAME))) {
 		return;
 	}
 
@@ -8029,7 +8029,7 @@ commit_set_autoinc(
 		btr_write_autoinc(dict_table_get_first_index(ctx->new_table),
 				  autoinc - 1, true);
 	} else if ((ha_alter_info->handler_flags
-		    & Alter_inplace_info::CHANGE_CREATE_OPTION)
+		    & ALTER_CHANGE_CREATE_OPTION)
 		   && (ha_alter_info->create_info->used_fields
 		       & HA_CREATE_USED_AUTO)) {
 		/* An AUTO_INCREMENT value was supplied by the user.
@@ -8339,7 +8339,7 @@ commit_try_rebuild(
 	DBUG_ASSERT(ctx->need_rebuild());
 	DBUG_ASSERT(trx->dict_operation_lock_mode == RW_X_LATCH);
 	DBUG_ASSERT(!(ha_alter_info->handler_flags
-		      & Alter_inplace_info::DROP_FOREIGN_KEY)
+		      & ALTER_DROP_FOREIGN_KEY)
 		    || ctx->num_to_drop_fk > 0);
 
 	for (dict_index_t* index = dict_table_get_first_index(rebuilt_table);
@@ -8438,7 +8438,7 @@ commit_try_rebuild(
 	}
 
 	if ((ha_alter_info->handler_flags
-	     & Alter_inplace_info::ALTER_COLUMN_NAME)
+	     & ALTER_COLUMN_NAME)
 	    && innobase_rename_columns_try(ha_alter_info, ctx, old_table,
 					   trx, table_name)) {
 		DBUG_RETURN(true);
@@ -8585,7 +8585,7 @@ commit_try_norebuild(
 	DBUG_ASSERT(!ctx->need_rebuild());
 	DBUG_ASSERT(trx->dict_operation_lock_mode == RW_X_LATCH);
 	DBUG_ASSERT(!(ha_alter_info->handler_flags
-		      & Alter_inplace_info::DROP_FOREIGN_KEY)
+		      & ALTER_DROP_FOREIGN_KEY)
 		    || ctx->num_to_drop_fk > 0);
 	DBUG_ASSERT(ctx->num_to_drop_fk
 		    == ha_alter_info->alter_info->drop_list.elements
@@ -8675,14 +8675,14 @@ commit_try_norebuild(
 	}
 
 	if ((ha_alter_info->handler_flags
-	     & Alter_inplace_info::ALTER_COLUMN_NAME)
+	     & ALTER_COLUMN_NAME)
 	    && innobase_rename_columns_try(ha_alter_info, ctx, old_table,
 					   trx, table_name)) {
 		DBUG_RETURN(true);
 	}
 
 	if ((ha_alter_info->handler_flags
-	     & Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH)
+	     & ALTER_COLUMN_EQUAL_PACK_LENGTH)
 	    && innobase_enlarge_columns_try(ha_alter_info, old_table,
 					    ctx->old_table, trx, table_name)) {
 		DBUG_RETURN(true);
@@ -8690,14 +8690,14 @@ commit_try_norebuild(
 
 #ifdef MYSQL_RENAME_INDEX
 	if ((ha_alter_info->handler_flags
-	     & Alter_inplace_info::RENAME_INDEX)
+	     & ALTER_RENAME_INDEX)
 	    && rename_indexes_in_data_dictionary(ctx, ha_alter_info, trx)) {
 		DBUG_RETURN(true);
 	}
 #endif /* MYSQL_RENAME_INDEX */
 
 	if ((ha_alter_info->handler_flags
-	     & Alter_inplace_info::DROP_VIRTUAL_COLUMN)
+	     & ALTER_DROP_VIRTUAL_COLUMN)
 	    && innobase_drop_virtual_try(
 		    ha_alter_info, altered_table, old_table,
 		    ctx->old_table, trx)) {
@@ -8705,7 +8705,7 @@ commit_try_norebuild(
 	}
 
 	if ((ha_alter_info->handler_flags
-	     & Alter_inplace_info::ADD_VIRTUAL_COLUMN)
+	     & ALTER_ADD_VIRTUAL_COLUMN)
 	    && innobase_add_virtual_try(
 		    ha_alter_info, altered_table, old_table,
 		    ctx->old_table, trx)) {

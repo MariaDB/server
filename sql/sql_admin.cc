@@ -339,7 +339,7 @@ static bool open_only_one_table(THD* thd, TABLE_LIST* table,
     to differentiate from ALTER TABLE...CHECK PARTITION on which view is not
     allowed.
   */
-  if (lex->alter_info.flags & Alter_info::ALTER_ADMIN_PARTITION ||
+  if (lex->alter_info.flags & ALTER_ADMIN_PARTITION ||
       !is_view_operator_func)
   {
     table->required_type= TABLE_TYPE_NORMAL;
@@ -562,7 +562,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         */
         Alter_info *alter_info= &lex->alter_info;
 
-        if (alter_info->flags & Alter_info::ALTER_ADMIN_PARTITION)
+        if (alter_info->flags & ALTER_ADMIN_PARTITION)
         {
           if (!table->table->part_info)
           {
@@ -1002,7 +1002,7 @@ send_result_message:
       Alter_info *alter_info= &lex->alter_info;
 
       protocol->store(STRING_WITH_LEN("note"), system_charset_info);
-      if (alter_info->flags & Alter_info::ALTER_ADMIN_PARTITION)
+      if (alter_info->flags & ALTER_ADMIN_PARTITION)
       {
         protocol->store(STRING_WITH_LEN(
         "Table does not support optimize on partitions. All partitions "
@@ -1049,7 +1049,7 @@ send_result_message:
            Reset the ALTER_ADMIN_PARTITION bit in alter_info->flags
            to force analyze on all partitions.
           */
-          alter_info->flags &= ~(Alter_info::ALTER_ADMIN_PARTITION);
+          alter_info->flags &= ~(ALTER_ADMIN_PARTITION);
           result_code= table->table->file->ha_analyze(thd, check_opt);
           if (result_code == HA_ADMIN_ALREADY_DONE)
             result_code= HA_ADMIN_OK;

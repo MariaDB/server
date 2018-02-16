@@ -928,7 +928,7 @@ ha_example::check_if_supported_inplace_alter(TABLE* altered_table,
   HA_CREATE_INFO *info= ha_alter_info->create_info;
   DBUG_ENTER("ha_example::check_if_supported_inplace_alter");
 
-  if (ha_alter_info->handler_flags & Alter_inplace_info::CHANGE_CREATE_OPTION)
+  if (ha_alter_info->handler_flags & ALTER_CHANGE_CREATE_OPTION)
   {
     /*
       This example shows how custom engine specific table and field
@@ -964,7 +964,7 @@ ha_example::check_if_supported_inplace_alter(TABLE* altered_table,
     }
   }
 
-  if (ha_alter_info->handler_flags & Alter_inplace_info::ALTER_COLUMN_OPTION)
+  if (ha_alter_info->handler_flags & ALTER_COLUMN_OPTION)
   {
     for (uint i= 0; i < table->s->fields; i++)
     {
