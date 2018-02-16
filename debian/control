@@ -684,6 +684,20 @@ Depends: mariadb-server-10.3,
 Description: Backup tool for MariaDB server
  This backup tool is guaranteed to be compatible with MariaDB.
 
+Package: mariadb-backup
+Architecture: all
+Depends: mariadb-backup-10.3,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Backup tool for MariaDB server (metapackage depending on the latest version)
+ This is an empty package that depends on the current "best" version of
+ mariadb-backup (currently mariadb-backup-10.3), as determined by the MariaDB
+ maintainers. Install this package if in doubt about which MariaDB
+ version you need. That will install the version recommended by the
+ package maintainers.
+ .
+ This backup tool is guaranteed to be compatible with MariaDB.
+
 Package: mariadb-plugin-cracklib-password-check
 Architecture: any
 Depends: libcrack2 (>= 2.9.0),
