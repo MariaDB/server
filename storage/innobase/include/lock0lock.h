@@ -555,7 +555,7 @@ lock_rec_find_set_bit(
 
 /*********************************************************************//**
 Checks if a lock request lock1 has to wait for request lock2.
-@return true if lock1 has to wait for lock2 to be removed */
+@return whether lock1 has to wait for lock2 to be removed */
 bool
 lock_has_to_wait(
 /*=============*/

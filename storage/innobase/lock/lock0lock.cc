@@ -765,7 +765,7 @@ lock_rec_has_to_wait(
 	    || lock_mode_compatible(
 		       static_cast<lock_mode>(LOCK_MODE_MASK & type_mode),
 		       lock_get_mode(lock2))) {
-		return(false);
+		return false;
 	}
 
 	/* We have somewhat complex rules when gap type record locks
@@ -779,7 +779,7 @@ lock_rec_has_to_wait(
 		different users can have conflicting lock types
 		on gaps. */
 
-		return(false);
+		return false;
 	}
 
 	if (!(type_mode & LOCK_INSERT_INTENTION) && lock_rec_get_gap(lock2)) {
@@ -787,7 +787,7 @@ lock_rec_has_to_wait(
 		/* Record lock (LOCK_ORDINARY or LOCK_REC_NOT_GAP
 		does not need to wait for a gap type lock */
 
-		return(false);
+		return false;
 	}
 
 	if ((type_mode & LOCK_GAP) && lock_rec_get_rec_not_gap(lock2)) {
@@ -795,7 +795,7 @@ lock_rec_has_to_wait(
 		/* Lock on gap does not need to wait for
 		a LOCK_REC_NOT_GAP type lock */
 
-		return(false);
+		return false;
 	}
 
 	if (lock_rec_get_insert_intention(lock2)) {
@@ -811,7 +811,7 @@ lock_rec_has_to_wait(
 		Also, insert intention locks do not disturb each
 		other. */
 
-		return(false);
+		return false;
 	}
 
 	if ((type_mode & LOCK_GAP || lock_rec_get_gap(lock2))
@@ -836,7 +836,7 @@ lock_rec_has_to_wait(
 		transaction and retry it. But it can save some
 		unnecessary rollbacks and retries. */
 
-		return(false);
+		return false;
 	}
 
 #ifdef WITH_WSREP
@@ -881,7 +881,7 @@ lock_rec_has_to_wait(
 						      lock2->trx->mysql_thd);
 
 				if (for_locking) {
-					return FALSE;
+					return false;
 				}
 			}
 		} else {
@@ -905,12 +905,12 @@ lock_rec_has_to_wait(
 					<< wsrep_thd_query(
 						   lock2->trx->mysql_thd);
 			}
-			return FALSE;
+			return false;
 		}
 	}
 #endif /* WITH_WSREP */
 
-	return(true);
+	return true;
 }
 
 /*********************************************************************//**
@@ -930,24 +930,24 @@ lock_has_to_wait(
 	if (lock1->trx == lock2->trx
 	    || lock_mode_compatible(lock_get_mode(lock1),
 				    lock_get_mode(lock2))) {
-		return(false);
+		return false;
 	}
 
 	if (lock_get_type_low(lock1) != LOCK_REC) {
-		return(true);
+		return true;
 	}
 
 	ut_ad(lock_get_type_low(lock2) == LOCK_REC);
 
 	if (lock1->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)) {
-		return(lock_prdt_has_to_wait(lock1->trx, lock1->type_mode,
+		return lock_prdt_has_to_wait(lock1->trx, lock1->type_mode,
 					     lock_get_prdt_from_lock(lock1),
-					     lock2));
+					     lock2);
 	}
 
-	return(lock_rec_has_to_wait(
-	       false, lock1->trx, lock1->type_mode, lock2,
-	       lock_rec_get_nth_bit(lock1, PAGE_HEAP_NO_SUPREMUM)));
+	return lock_rec_has_to_wait(
+		false, lock1->trx, lock1->type_mode, lock2,
+		lock_rec_get_nth_bit(lock1, PAGE_HEAP_NO_SUPREMUM));
 }
 
 /*============== RECORD LOCK BASIC FUNCTIONS ============================*/

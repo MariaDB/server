@@ -49,7 +49,7 @@ flst_add_to_empty(
 	ut_ad(mtr_memo_contains_page_flagged(mtr, node,
 					     MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_SX_FIX));
-	ut_ad(!flst_get_len(base));
+	ut_a(!flst_get_len(base));
 
 	buf_ptr_get_fsp_addr(node, &space, &node_addr);
 

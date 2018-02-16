@@ -37,6 +37,12 @@ Created 6/2/1994 Heikki Tuuri
 #include "btr0types.h"
 #include "gis0type.h"
 
+#define BTR_MAX_NODE_LEVEL	50	/*!< Maximum B-tree page level
+					(not really a hard limit).
+					Used in debug assertions
+					in btr_page_set_level and
+					btr_page_get_level */
+
 /** Maximum record size which can be stored on a page, without using the
 special big record storage structure */
 #define	BTR_PAGE_MAX_REC_SIZE	(UNIV_PAGE_SIZE / 2 - 200)
@@ -285,13 +291,22 @@ btr_page_get_index_id(
 	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************//**
 Gets the node level field in an index page.
+@param[in]	page	index page
 @return level, leaf level == 0 */
 UNIV_INLINE
 ulint
-btr_page_get_level(
-/*===================*/
-	const page_t*	page)	/*!< in: index page */
-	MY_ATTRIBUTE((warn_unused_result));
+btr_page_get_level(const page_t* page)
+{
+	ulint	level;
+
+	ut_ad(page);
+
+	level = mach_read_from_2(page + PAGE_HEADER + PAGE_LEVEL);
+
+	ut_ad(level <= BTR_MAX_NODE_LEVEL);
+
+	return(level);
+} MY_ATTRIBUTE((warn_unused_result))
 /********************************************************//**
 Gets the next index page number.
 @return next page number */
