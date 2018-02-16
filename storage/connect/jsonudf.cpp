@@ -1760,6 +1760,41 @@ static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, uint i, PJSON *top = NULL)
 } // end of MakeValue
 
 /*********************************************************************************/
+/*  Try making a JSON value of the passed type from the passed argument.         */
+/*********************************************************************************/
+static PJVAL MakeTypedValue(PGLOBAL g, UDF_ARGS *args, uint i, 
+	JTYP type, PJSON *top = NULL)
+{
+	char *sap;
+	PJSON jsp;
+	PJVAL jvp = MakeValue(g, args, i, top);
+
+	//if (type == TYPE_JSON) {
+	//	if (jvp->GetValType() >= TYPE_JSON)
+	//		return jvp;
+
+	//} else if (jvp->GetValType() == type)
+	//	return jvp;
+	
+	if (jvp->GetValType() == TYPE_STRG) {
+		sap = jvp->GetString(g);
+
+		if ((jsp = ParseJson(g, sap, strlen(sap)))) {
+			if (type == TYPE_JSON || jsp->GetType() == type) {
+				if (top)
+					*top = jsp;
+
+				jvp->SetValue(jsp);
+			} // endif Type
+
+		} // endif jsp
+
+	} // endif Type
+
+	return jvp;
+} // end of MakeTypedValue
+
+/*********************************************************************************/
 /*  Make a Json value containing the parameter.                                  */
 /*********************************************************************************/
 my_bool jsonvalue_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
@@ -1953,9 +1988,9 @@ my_bool json_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	if (args->arg_count < 2) {
 		strcpy(message, "This function must have at least 2 arguments");
     return true;
-  } else if (!IsJson(args, 0)) {
-    strcpy(message, "First argument must be a json item");
-    return true;
+  //} else if (!IsJson(args, 0)) {
+  //  strcpy(message, "First argument must be a json item");
+  //  return true;
 	} else
     CalcLen(args, false, reslen, memlen, true);
 
@@ -1994,22 +2029,32 @@ char *json_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		PJVAL jvp;
 		PJAR  arp;
 
-		jvp = MakeValue(g, args, 0, &top);
+		jvp = MakeTypedValue(g, args, 0, TYPE_JSON, &top);
 		jsp = jvp->GetJson();
 		x = GetIntArgPtr(g, args, n);
 
 		if (CheckPath(g, args, jsp, jvp, 2))
 			PUSH_WARNING(g->Message);
-		else if (jvp && jvp->GetValType() == TYPE_JAR) {
+		else if (jvp) {
 			PGLOBAL gb = GetMemPtr(g, args, 0);
 
-			arp = jvp->GetArray();
+			if (jvp->GetValType() != TYPE_JAR) {
+				arp = new(gb)JARRAY;
+				arp->AddValue(gb, new(gb) JVALUE(jvp));
+				jvp->SetValue(arp);
+
+				if (!top)
+					top = arp;
+
+			} else
+				arp = jvp->GetArray();
+
 			arp->AddValue(gb, MakeValue(gb, args, 1), x);
 			arp->InitArray(gb);
 			str = MakeResult(g, args, top, n);
 		} else {
-			PUSH_WARNING("First argument target is not an array");
-//		if (g->Mrr) *error = 1;			 (only if no path)
+			PUSH_WARNING("Target is not an array");
+			//		if (g->Mrr) *error = 1;			 (only if no path)
 		} // endif jvp
 
 	} // endif CheckMemory
@@ -4458,9 +4503,9 @@ my_bool jbin_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	if (args->arg_count < 2) {
 		strcpy(message, "This function must have at least 2 arguments");
 		return true;
-	} else if (!IsJson(args, 0)) {
-		strcpy(message, "First argument must be a json item");
-		return true;
+	//} else if (!IsJson(args, 0)) {
+	//	strcpy(message, "First argument must be a json item");
+	//	return true;
 	} else
 		CalcLen(args, false, reslen, memlen, true);
 

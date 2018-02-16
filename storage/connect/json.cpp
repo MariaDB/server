@@ -1224,6 +1224,7 @@ PJVAL JARRAY::AddValue(PGLOBAL g, PJVAL jvp, int *x)
 			Last->Next = jvp;
 
 		Last = jvp;
+		Last->Next = NULL;
 	} // endif x
 
   return jvp;
@@ -1317,6 +1318,24 @@ bool JARRAY::IsNull(void)
 } // end of IsNull
 
 /* -------------------------- Class JVALUE- -------------------------- */
+
+/***********************************************************************/
+/* Constructor for a JSON.                                             */
+/***********************************************************************/
+JVALUE::JVALUE(PJSON jsp) : JSON()
+{
+	if (jsp->GetType() == TYPE_JVAL) {
+		Jsp = NULL;
+		Value = jsp->GetValue();
+	} else {
+		Jsp = jsp; 
+		Value = NULL;
+	}	// endif Type
+
+	Next = NULL; 
+	Del = false; 
+	Size = 1;
+}	// end of JVALUE constructor
 
 /***********************************************************************/
 /* Constructor for a Value with a given string or numeric value.       */

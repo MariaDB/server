@@ -258,8 +258,7 @@ class JVALUE : public JSON {
   friend bool  SerializeValue(JOUT *, PJVAL);
  public:
   JVALUE(void) : JSON() {Clear();}
-  JVALUE(PJSON jsp) : JSON()
-		{Jsp = jsp; Value = NULL; Next = NULL; Del = false; Size = 1;}
+	JVALUE(PJSON jsp);
 	JVALUE(PGLOBAL g, PVAL valp);
 	JVALUE(PGLOBAL g, PCSZ strp);
 
