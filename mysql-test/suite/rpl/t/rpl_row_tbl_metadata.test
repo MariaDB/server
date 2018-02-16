@@ -26,9 +26,9 @@
 #   with mysqlbinlog reporting that it was unable to succeed in
 #   reading the event.
 
--- source include/master-slave.inc
 -- source include/have_innodb.inc
 -- source include/have_binlog_format_row.inc
+-- source include/master-slave.inc
 
 -- disable_warnings
 DROP TABLE IF EXISTS `t1`;

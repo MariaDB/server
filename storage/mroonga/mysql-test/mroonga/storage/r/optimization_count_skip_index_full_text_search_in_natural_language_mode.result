@@ -1,0 +1,19 @@
+DROP TABLE IF EXISTS memos;
+FLUSH STATUS;
+CREATE TABLE memos (
+content TEXT,
+FULLTEXT INDEX (content)
+) DEFAULT CHARSET=UTF8;
+INSERT INTO memos (content) VALUES ('Groonga is good.');
+INSERT INTO memos (content) VALUES ('Groonga is very good.');
+INSERT INTO memos (content) VALUES ('Mroonga is good.');
+INSERT INTO memos (content) VALUES ('Mroonga is very good.');
+INSERT INTO memos (content) VALUES ('Mroonga uses Groonga.');
+SELECT COUNT(*) FROM memos
+WHERE MATCH(content) AGAINST('Groonga');
+COUNT(*)
+3
+SHOW STATUS LIKE 'mroonga_count_skip';
+Variable_name	Value
+Mroonga_count_skip	1
+DROP TABLE memos;

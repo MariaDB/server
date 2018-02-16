@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -466,7 +467,7 @@ trx_undo_page_fetch_ext(
 {
 	/* Fetch the BLOB. */
 	ulint	ext_len = btr_copy_externally_stored_field_prefix(
-		ext_buf, prefix_len, zip_size, field, *len, NULL);
+		ext_buf, prefix_len, zip_size, field, *len);
 	/* BLOBs should always be nonempty. */
 	ut_a(ext_len);
 	/* Append the BLOB pointer to the prefix. */
@@ -771,7 +772,25 @@ trx_undo_page_report_modify(
 			const dict_col_t*	col
 				= dict_table_get_nth_col(table, col_no);
 
-			if (col->ord_part) {
+			if (!col->ord_part) {
+				continue;
+			}
+
+			if (update) {
+				for (i = 0; i < update->n_fields; i++) {
+					const dict_field_t* f
+						= dict_index_get_nth_field(
+							index,
+							upd_get_nth_field(
+								update, i)
+							->field_no);
+					if (f->col == col) {
+						goto already_logged;
+					}
+				}
+			}
+
+			if (TRUE) {
 				ulint	pos;
 
 				/* Write field number to undo log */
@@ -822,6 +841,9 @@ trx_undo_page_report_modify(
 					ptr += flen;
 				}
 			}
+
+already_logged:
+			continue;
 		}
 
 		mach_write_to_2(old_ptr, ptr - old_ptr);
@@ -1000,7 +1022,7 @@ trx_undo_update_rec_get_update(
 			fprintf(stderr, "\n"
 				"InnoDB: but index has only %lu fields\n"
 				"InnoDB: Submit a detailed bug report"
-				" to http://bugs.mysql.com\n"
+				" to https://jira.mariadb.org/\n"
 				"InnoDB: Run also CHECK TABLE ",
 				(ulong) dict_index_get_n_fields(index));
 			ut_print_name(stderr, trx, TRUE, index->table_name);
@@ -1054,6 +1076,7 @@ trx_undo_rec_get_partial_row(
 				used, as we do NOT copy the data in the
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
+	const upd_t*	update,	/*!< in: updated columns */
 	dtuple_t**	row,	/*!< out, own: partial row */
 	ibool		ignore_prefix, /*!< in: flag to indicate if we
 				expect blob prefixes in undo. Used
@@ -1081,6 +1104,13 @@ trx_undo_rec_get_partial_row(
 			->mtype = DATA_MISSING;
 	}
 
+	for (const upd_field_t* uf = update->fields, * const ue
+		     = update->fields + update->n_fields;
+	     uf != ue; uf++) {
+		ulint c = dict_index_get_nth_col(index, uf->field_no)->ind;
+		*dtuple_get_nth_field(*row, c) = uf->new_val;
+	}
+
 	end_ptr = ptr + mach_read_from_2(ptr);
 	ptr += 2;
 
@@ -1101,6 +1131,10 @@ trx_undo_rec_get_partial_row(
 		ptr = trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
 
 		dfield = dtuple_get_nth_field(*row, col_no);
+		ut_ad(dfield->type.mtype == DATA_MISSING
+		      || dict_col_type_assert_equal(col, &dfield->type));
+		ut_ad(dfield->type.mtype == DATA_MISSING
+		      || dfield->len == len);
 		dict_col_copy_type(
 			dict_table_get_nth_col(index->table, col_no),
 			dfield_get_type(dfield));
@@ -1199,10 +1233,8 @@ trx_undo_report_row_operation(
 					marking, the record in the clustered
 					index, otherwise NULL */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
-	roll_ptr_t*	roll_ptr)	/*!< out: rollback pointer to the
-					inserted undo log record,
-					0 if BTR_NO_UNDO_LOG
-					flag was specified */
+	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
+					undo log record */
 {
 	trx_t*		trx;
 	trx_undo_t*	undo;
@@ -1236,7 +1268,7 @@ trx_undo_report_row_operation(
 
 	rseg = trx->rseg;
 
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 	mutex_enter(&trx->undo_mutex);
 
 	/* If the undo log is not assigned yet, assign one */
@@ -1313,7 +1345,7 @@ trx_undo_report_row_operation(
 				latches, such as SYNC_FSP and SYNC_FSP_PAGE. */
 
 				mtr_commit(&mtr);
-				mtr_start_trx(&mtr, trx);
+				mtr_start(&mtr);
 
 				mutex_enter(&rseg->mutex);
 				trx_undo_free_last_page(trx, undo, &mtr);
@@ -1350,7 +1382,7 @@ trx_undo_report_row_operation(
 		/* We have to extend the undo log by one page */
 
 		ut_ad(++loop_count < 2);
-		mtr_start_trx(&mtr, trx);
+		mtr_start(&mtr);
 
 		/* When we add a page to an undo log, this is analogous to
 		a pessimistic insert in a B-tree, and we must reserve the

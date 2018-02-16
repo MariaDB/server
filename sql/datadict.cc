@@ -45,6 +45,8 @@ static int read_string(File file, uchar**to, size_t length)
 
   engine_name is a LEX_STRING, where engine_name->str must point to
   a buffer of at least NAME_CHAR_LEN+1 bytes.
+  If engine_name is 0, then the function will only test if the file is a
+  view or not
 
   @retval  FRMTYPE_ERROR        error
   @retval  FRMTYPE_TABLE        table
@@ -72,12 +74,23 @@ frm_type_enum dd_frm_type(THD *thd, char *path, LEX_STRING *engine_name)
     goto err;
   }
 
+  /*
+    We return FRMTYPE_TABLE if we can read the .frm file. This allows us
+    to drop a bad .frm file with DROP TABLE
+  */
   type= FRMTYPE_TABLE;
 
-  if (!is_binary_frm_header(header) || !engine_name)
+  /* engine_name is 0 if we only want to know if table is view or not */
+  if (!engine_name)
     goto err;
 
+  /* Initialize engine name in case we are not able to find it out */
   engine_name->length= 0;
+  engine_name->str[0]= 0;
+
+  if (!is_binary_frm_header(header))
+    goto err;
+
   dbt= header[3];
 
   /* cannot use ha_resolve_by_legacy_type without a THD */

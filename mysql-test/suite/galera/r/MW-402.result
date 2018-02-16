@@ -1,0 +1,192 @@
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER, f2 INTEGER,
+CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1) ON DELETE CASCADE);
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+INSERT INTO c VALUES (1, 1, 0);
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE c SET f2=1 where f1=1;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+DELETE FROM p WHERE f1 = 1;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+COMMIT;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM p;
+f1	f2
+2	0
+SELECT * FROM c;
+f1	p_id	f2
+DROP TABLE c;
+DROP TABLE p;
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER, f2 INTEGER,
+CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1) ON UPDATE CASCADE);
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+INSERT INTO c VALUES (1, 1, 0);
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE c SET f2=2 where f1=1;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+UPDATE p set f1=11 WHERE f1 = 1;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+COMMIT;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM p;
+f1	f2
+2	0
+11	0
+SELECT * FROM c;
+f1	p_id	f2
+1	11	0
+DROP TABLE c;
+DROP TABLE p;
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER, f2 INTEGER,
+CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1) ON UPDATE CASCADE);
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+INSERT INTO c VALUES (1, 1, 0);
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE c SET p_id=2 where f1=1;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+UPDATE p set f1=11 WHERE f1 = 1;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+COMMIT;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM p;
+f1	f2
+2	0
+11	0
+SELECT * FROM c;
+f1	p_id	f2
+1	11	0
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE p set f1=21 WHERE f1 = 11;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+UPDATE c SET p_id=2 where f1=1;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+COMMIT;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM p;
+f1	f2
+2	0
+11	0
+SELECT * FROM c;
+f1	p_id	f2
+1	2	0
+DROP TABLE c;
+DROP TABLE p;
+CREATE TABLE p1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE p2 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p1_id INTEGER, p2_id INTEGER,
+f2 INTEGER,
+CONSTRAINT fk_1 FOREIGN KEY (p1_id) REFERENCES p1 (f1)
+ON DELETE CASCADE,
+CONSTRAINT fk_2 FOREIGN KEY (p2_id) REFERENCES p2 (f1));
+INSERT INTO p1 VALUES (1, 0);
+INSERT INTO p2 VALUES (1, 0);
+INSERT INTO c VALUES (1, 1, 1, 0);
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE p2 SET f2=2 where f1=1;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+DELETE FROM p1 WHERE f1 = 1;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+COMMIT;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SELECT * FROM p1;
+f1	f2
+SELECT * FROM p2;
+f1	f2
+1	2
+SELECT * FROM c;
+f1	p1_id	p2_id	f2
+DROP TABLE c;
+DROP TABLE p1;
+DROP TABLE p2;
+CREATE TABLE p1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE p2 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p1_id INTEGER, p2_id INTEGER,
+f2 INTEGER,
+CONSTRAINT fk_1 FOREIGN KEY (p1_id) REFERENCES p1 (f1)
+ON DELETE CASCADE,
+CONSTRAINT fk_2 FOREIGN KEY (p2_id) REFERENCES p2 (f1)
+ON DELETE CASCADE);
+INSERT INTO p1 VALUES (1, 0);
+INSERT INTO p2 VALUES (1, 0);
+INSERT INTO c VALUES (1, 1, 1, 0);
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+DELETE FROM p2 WHERE f1=1;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+DELETE FROM p1 WHERE f1=1;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+COMMIT;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM p1;
+f1	f2
+SELECT * FROM p2;
+f1	f2
+1	0
+SELECT * FROM c;
+f1	p1_id	p2_id	f2
+DROP TABLE c;
+DROP TABLE p1;
+DROP TABLE p2;

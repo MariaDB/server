@@ -1249,6 +1249,7 @@ else
 
     if ((c = *ptr) >= CHAR_8) break;
 
+    /* fall through */
     /* Fall through with a digit less than 8 */
 
     /* \0 always starts an octal number, but we may drop through to here with a
@@ -5097,6 +5098,8 @@ for (;; ptr++)
             either not match or match, depending on whether the class is or is
             not negated. */
 
+            /* fall through */
+
             default:
             if (local_negate &&
                 (xclass || tempptr[2] != CHAR_RIGHT_SQUARE_BRACKET))
@@ -7165,7 +7168,7 @@ for (;; ptr++)
           goto FAILED;
           }
         /* Fall through to handle (?P< as (?< is handled */
-
+        /* fall through */
 
         /* ------------------------------------------------------------ */
         DEFINE_NAME:    /* Come here from (?< handling */

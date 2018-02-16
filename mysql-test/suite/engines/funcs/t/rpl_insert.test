@@ -2,9 +2,9 @@
 --echo # Bug#20821: INSERT DELAYED fails to write some rows to binlog
 --echo #
 
---source include/master-slave.inc
 --source include/not_embedded.inc
 --source include/not_windows.inc
+--source include/master-slave.inc
 
 --disable_warnings
 CREATE SCHEMA IF NOT EXISTS mysqlslap;

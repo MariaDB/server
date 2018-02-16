@@ -20,6 +20,7 @@
 
 #include "grn_normalizer.h"
 #include "grn_string.h"
+#include "grn_nfkc.h"
 #include <groonga/normalizer.h>
 #include <groonga/tokenizer.h>
 
@@ -559,9 +560,6 @@ sjis_normalize(grn_ctx *ctx, grn_string *nstr)
 }
 
 #ifdef GRN_WITH_NFKC
-const char *grn_nfkc_map1(const unsigned char *str);
-const char *grn_nfkc_map2(const unsigned char *prefix, const unsigned char *suffix);
-
 static inline int
 grn_str_charlen_utf8(grn_ctx *ctx, const unsigned char *str, const unsigned char *end)
 {
@@ -661,13 +659,13 @@ utf8_normalize(grn_ctx *ctx, grn_string *nstr)
                                              GRN_ENC_UTF8)) {
       continue;
     }
-    if ((p = (unsigned char *)grn_nfkc_map1(s))) {
+    if ((p = (unsigned char *)grn_nfkc_decompose(s))) {
       pe = p + strlen((char *)p);
     } else {
       p = s;
       pe = p + ls;
     }
-    if (d_ && (p2 = (unsigned char *)grn_nfkc_map2(d_, p))) {
+    if (d_ && (p2 = (unsigned char *)grn_nfkc_compose(d_, p))) {
       p = p2;
       pe = p + strlen((char *)p);
       if (cp) { cp--; }

@@ -336,14 +336,17 @@ trx_sys_print_mysql_binlog_offset(void);
 @param[in]	xid		Transaction XID
 @param[in,out]	sys_header	sys_header
 @param[in]	mtr		minitransaction */
+UNIV_INTERN
 void
 trx_sys_update_wsrep_checkpoint(
 	const XID*	xid,
 	trx_sysf_t*	sys_header,
 	mtr_t*		mtr);
 
-/** Read WSREP checkpoint XID from sys header. 
+/** Read WSREP checkpoint XID from sys header.
+@param[out]	xid	Transaction XID
 @return  true on success, false on error. */
+UNIV_INTERN
 bool
 trx_sys_read_wsrep_checkpoint(
         XID* xid); /*!< out: WSREP XID */

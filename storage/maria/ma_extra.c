@@ -314,7 +314,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     share->state.open_count= 1;
     share->changed= 1;
     _ma_mark_file_changed_now(share);
-    /* Fall through */
+    /* fall through */
   case HA_EXTRA_PREPARE_FOR_RENAME:
   {
     my_bool do_flush= MY_TEST(function != HA_EXTRA_PREPARE_FOR_DROP);
@@ -660,4 +660,3 @@ my_bool ma_killed_standalone(MARIA_HA *info __attribute__((unused)))
 {
   return 0;
 }
-

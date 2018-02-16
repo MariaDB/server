@@ -1229,10 +1229,12 @@ bool Item_in_optimizer::is_top_level_item()
 }
 
 
-void Item_in_optimizer::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_in_optimizer::fix_after_pullout(st_select_lex *new_parent,
+                                          Item **ref, bool merge)
 {
+  DBUG_ASSERT(fixed);
   /* This will re-calculate attributes of our Item_in_subselect: */
-  Item_bool_func::fix_after_pullout(new_parent, ref);
+  Item_bool_func::fix_after_pullout(new_parent, ref, merge);
 
   /* Then, re-calculate not_null_tables_cache: */
   eval_not_null_tables(NULL);
@@ -1251,6 +1253,33 @@ bool Item_in_optimizer::eval_not_null_tables(uchar *opt_arg)
     not_null_tables_cache= args[0]->not_null_tables();
   }
   return FALSE;
+}
+
+
+void Item_in_optimizer::print(String *str, enum_query_type query_type)
+{
+   restore_first_argument();
+   Item_func::print(str, query_type);
+}
+
+
+/**
+  "Restore" first argument before fix_fields() call (after it is harmless).
+
+  @Note: Main pointer to left part of IN/ALL/ANY subselect is subselect's
+  lest_expr (see Item_in_optimizer::fix_left) so changes made during
+  fix_fields will be rolled back there which can make
+  Item_in_optimizer::args[0] unusable on second execution before fix_left()
+  call. This call fix the pointer.
+*/
+
+void Item_in_optimizer::restore_first_argument()
+{
+  if (args[1]->type() == Item::SUBSELECT_ITEM &&
+      ((Item_subselect *)args[1])->is_in_predicate())
+  {
+    args[0]= ((Item_in_subselect *)args[1])->left_expr;
+  }
 }
 
 
@@ -1428,6 +1457,7 @@ bool Item_in_optimizer::invisible_mode()
 Item *Item_in_optimizer::expr_cache_insert_transformer(THD *thd, uchar *unused)
 {
   DBUG_ENTER("Item_in_optimizer::expr_cache_insert_transformer");
+  DBUG_ASSERT(fixed);
 
   if (invisible_mode())
     DBUG_RETURN(this);
@@ -1452,6 +1482,7 @@ Item *Item_in_optimizer::expr_cache_insert_transformer(THD *thd, uchar *unused)
 
 void Item_in_optimizer::get_cache_parameters(List<Item> &parameters)
 {
+  DBUG_ASSERT(fixed);
   /* Add left expression to the list of the parameters of the subquery */
   if (!invisible_mode())
   {
@@ -1689,6 +1720,7 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
 {
   Item *new_item;
 
+  DBUG_ASSERT(fixed);
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   DBUG_ASSERT(arg_count == 2);
 
@@ -1740,6 +1772,7 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
 
 bool Item_in_optimizer::is_expensive_processor(uchar *arg)
 {
+  DBUG_ASSERT(fixed);
   return args[0]->is_expensive_processor(arg) ||
          args[1]->is_expensive_processor(arg);
 }
@@ -1747,6 +1780,7 @@ bool Item_in_optimizer::is_expensive_processor(uchar *arg)
 
 bool Item_in_optimizer::is_expensive()
 {
+  DBUG_ASSERT(fixed);
   return args[0]->is_expensive() || args[1]->is_expensive();
 }
 
@@ -1845,6 +1879,19 @@ bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
     if (!args[i]->eq(item_func->arguments()[i], binary_cmp))
       return 0;
   return 1;
+}
+
+
+bool Item_func_interval::fix_fields(THD *thd, Item **ref)
+{
+  if (Item_int_func::fix_fields(thd, ref))
+    return true;
+  for (uint i= 0 ; i < row->cols(); i++)
+  {
+    if (row->element_index(i)->check_cols(1))
+      return true;
+  }
+  return false;
 }
 
 
@@ -2060,10 +2107,11 @@ bool Item_func_between::count_sargable_conds(uchar *arg)
 }
 
 
-void Item_func_between::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_func_between::fix_after_pullout(st_select_lex *new_parent,
+                                          Item **ref, bool merge)
 {
   /* This will re-calculate attributes of the arguments */
-  Item_func_opt_neg::fix_after_pullout(new_parent, ref);
+  Item_func_opt_neg::fix_after_pullout(new_parent, ref, merge);
   /* Then, re-calculate not_null_tables_cache according to our special rules */
   eval_not_null_tables(NULL);
 }
@@ -2406,10 +2454,11 @@ Item_func_if::eval_not_null_tables(uchar *opt_arg)
 }
 
 
-void Item_func_if::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_func_if::fix_after_pullout(st_select_lex *new_parent,
+                                     Item **ref, bool merge)
 {
   /* This will re-calculate attributes of the arguments */
-  Item_func::fix_after_pullout(new_parent, ref);
+  Item_func::fix_after_pullout(new_parent, ref, merge);
   /* Then, re-calculate not_null_tables_cache according to our special rules */
   eval_not_null_tables(NULL);
 }
@@ -2777,7 +2826,9 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
     Therefore, after equal field propagation args[0] and args[2] can point
     to different items.
   */
-  if ((query_type & QT_ITEM_ORIGINAL_FUNC_NULLIF) || args[0] == args[2])
+  if ((query_type & QT_ITEM_ORIGINAL_FUNC_NULLIF) ||
+      (arg_count == 2) ||
+      (args[0] == args[2]))
   {
     /*
       If QT_ITEM_ORIGINAL_FUNC_NULLIF is requested,
@@ -2795,10 +2846,14 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
       - one "a" for comparison
       - another "a" for the returned value!
     */
-    DBUG_ASSERT(args[0] == args[2] || current_thd->lex->context_analysis_only);
+    DBUG_ASSERT(arg_count == 2 ||
+                args[0] == args[2] || current_thd->lex->context_analysis_only);
     str->append(func_name());
     str->append('(');
-    args[2]->print(str, query_type);
+    if (arg_count == 2)
+      args[0]->print(str, query_type);
+    else
+      args[2]->print(str, query_type);
     str->append(',');
     args[1]->print(str, query_type);
     str->append(')');
@@ -4138,10 +4193,11 @@ Item_func_in::eval_not_null_tables(uchar *opt_arg)
 }
 
 
-void Item_func_in::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_func_in::fix_after_pullout(st_select_lex *new_parent, Item **ref,
+                                     bool merge)
 {
   /* This will re-calculate attributes of the arguments */
-  Item_func_opt_neg::fix_after_pullout(new_parent, ref);
+  Item_func_opt_neg::fix_after_pullout(new_parent, ref, merge);
   /* Then, re-calculate not_null_tables_cache according to our special rules */
   eval_not_null_tables(NULL);
 }
@@ -4663,7 +4719,8 @@ Item_cond::eval_not_null_tables(uchar *opt_arg)
 }
 
 
-void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref)
+void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref,
+                                  bool merge)
 {
   List_iterator<Item> li(list);
   Item *item;
@@ -4676,7 +4733,7 @@ void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref)
   while ((item=li++))
   {
     table_map tmp_table_map;
-    item->fix_after_pullout(new_parent, li.ref());
+    item->fix_after_pullout(new_parent, li.ref(), merge);
     item= *li.ref();
     used_tables_and_const_cache_join(item);
 
@@ -5412,7 +5469,7 @@ void Regexp_processor_pcre::pcre_exec_warn(int rc) const
   switch (rc)
   {
   case PCRE_ERROR_NULL:
-    errmsg= "pcre_exec: null arguement passed";
+    errmsg= "pcre_exec: null argument passed";
     break;
   case PCRE_ERROR_BADOPTION:
     errmsg= "pcre_exec: bad option";
@@ -6885,7 +6942,7 @@ longlong Item_func_dyncol_exists::val_int()
       null_value= 1;
       return 1;
     }
-    if (my_charset_same(nm->charset(), &my_charset_utf8_general_ci))
+    if (my_charset_same(nm->charset(), DYNCOL_UTF))
     {
       buf.str= (char *) nm->ptr();
       buf.length= nm->length();
@@ -6895,11 +6952,11 @@ longlong Item_func_dyncol_exists::val_int()
       uint strlen;
       uint dummy_errors;
       buf.str= (char *)sql_alloc((strlen= nm->length() *
-                                     my_charset_utf8_general_ci.mbmaxlen + 1));
+                                  DYNCOL_UTF->mbmaxlen + 1));
       if (buf.str)
       {
         buf.length=
-          copy_and_convert(buf.str, strlen, &my_charset_utf8_general_ci,
+          copy_and_convert(buf.str, strlen, DYNCOL_UTF,
                            nm->ptr(), nm->length(), nm->charset(),
                            &dummy_errors);
       }

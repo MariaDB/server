@@ -1,0 +1,26 @@
+SET NAMES UTF8;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS queries;
+CREATE TABLE users (
+id INT
+);
+CREATE TABLE queries (
+user_id INT,
+query TEXT
+);
+INSERT INTO users VALUES (1);
+INSERT INTO users VALUES (2);
+INSERT INTO users VALUES (3);
+INSERT INTO queries VALUES (1, '(a)');
+INSERT INTO queries VALUES (2, '(b)');
+INSERT INTO queries VALUES (3, '(c)');
+SELECT users.id, mroonga_escape(queries.query) AS escaped_query
+FROM queries
+LEFT JOIN users ON users.id = queries.user_id
+ORDER BY users.id;
+id	escaped_query
+1	\(a\)
+2	\(b\)
+3	\(c\)
+DROP TABLE queries;
+DROP TABLE users;

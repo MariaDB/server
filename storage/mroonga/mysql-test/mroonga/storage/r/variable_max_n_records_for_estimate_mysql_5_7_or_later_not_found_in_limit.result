@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS ids;
+CREATE TABLE ids (
+id INT,
+INDEX (id)
+) DEFAULT CHARSET=UTF8;
+INSERT INTO ids VALUES (1);
+INSERT INTO ids VALUES (2);
+INSERT INTO ids VALUES (3);
+DELETE FROM ids WHERE id < 2;
+SET mroonga_max_n_records_for_estimate = 1;
+EXPLAIN SELECT * FROM ids WHERE id > 0;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	ids	NULL	range	id	id	5	NULL	1	100.00	Using where; Using index
+Warnings:
+Note	1003	/* select#1 */ select `test`.`ids`.`id` AS `id` from `test`.`ids` where (`test`.`ids`.`id` > 0)
+SET mroonga_max_n_records_for_estimate = DEFAULT;
+DROP TABLE ids;

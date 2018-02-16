@@ -1,0 +1,21 @@
+DROP TABLE IF EXISTS memos;
+SET NAMES utf8;
+CREATE TABLE memos (
+id INT NOT NULL PRIMARY KEY,
+content TEXT NOT NULL,
+FULLTEXT INDEX (content) COMMENT 'normalizer "NormalizerAuto"'
+) COMMENT='ENGINE "InnoDB"' DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+SHOW CREATE TABLE memos;
+Table	Create Table
+memos	CREATE TABLE `memos` (
+  `id` int(11) NOT NULL,
+  `content` text COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`id`),
+  FULLTEXT KEY `content` (`content`) COMMENT 'normalizer "NormalizerAuto"'
+) ENGINE=Mroonga DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='ENGINE "InnoDB"'
+INSERT INTO memos VALUES (1, "1日の消費㌍は約2000㌔㌍");
+SELECT * FROM memos
+WHERE MATCH (content) AGAINST ("+カロリー" IN BOOLEAN MODE);
+id	content
+1	1日の消費㌍は約2000㌔㌍
+DROP TABLE memos;

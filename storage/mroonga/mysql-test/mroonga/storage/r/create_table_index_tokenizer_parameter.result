@@ -4,14 +4,6 @@ id int PRIMARY KEY AUTO_INCREMENT,
 body text,
 FULLTEXT INDEX body_index (body) TOKENIZER='TokenBigramSplitSymbolAlphaDigit'
 ) DEFAULT CHARSET utf8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `body` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `body_index` (`body`) `TOKENIZER`='TokenBigramSplitSymbolAlphaDigit'
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (body) VALUES ("will start Groonga!");
 INSERT INTO diaries (body) VALUES ("starting Groonga...");
 INSERT INTO diaries (body) VALUES ("started Groonga.");

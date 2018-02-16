@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2009-2015 Brazil
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_MSGPACK_H
-#define GRN_MSGPACK_H
+
+#pragma once
 
 #ifdef GRN_WITH_MESSAGE_PACK
 # include <msgpack.h>
@@ -44,5 +44,3 @@ typedef size_t msgpack_size_t;
 #  define MSGPACK_OBJECT_FLOAT_VALUE(object) (object)->via.f64
 # endif /* MSGPACK_VERSION_MAJOR < 1 */
 #endif /* GRN_WITH_MESSAGE_PACK */
-
-#endif /* GRN_MSGPACK_H */

@@ -336,7 +336,7 @@ dict_stats_wait_bg_to_stop_using_table(
 				unlocking/locking the data dict */
 {
 	while (!dict_stats_stop_bg(table)) {
-		DICT_STATS_BG_YIELD(trx);
+		DICT_BG_YIELD(trx);
 	}
 }
 
@@ -478,7 +478,6 @@ stats and eventually save its stats. */
 static
 void
 dict_stats_process_entry_from_defrag_pool()
-/*=======================================*/
 {
 	table_id_t	table_id;
 	index_id_t	index_id;
@@ -500,31 +499,19 @@ dict_stats_process_entry_from_defrag_pool()
 	table = dict_table_open_on_id(table_id, TRUE,
 				      DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
 
-	if (table == NULL) {
+	dict_index_t* index = table && !table->corrupted
+		? dict_table_find_index_on_id(table, index_id)
+		: NULL;
+
+	if (!index || dict_index_is_corrupted(index)) {
+		if (table) {
+			dict_table_close(table, TRUE, FALSE);
+		}
 		mutex_exit(&dict_sys->mutex);
 		return;
 	}
 
-	/* Check whether table is corrupted */
-	if (table->corrupted) {
-		dict_table_close(table, TRUE, FALSE);
-		mutex_exit(&dict_sys->mutex);
-		return;
-	}
 	mutex_exit(&dict_sys->mutex);
-
-	dict_index_t*	index = dict_table_find_index_on_id(table, index_id);
-
-	if (index == NULL) {
-		return;
-	}
-
-	/* Check whether index is corrupted */
-	if (dict_index_is_corrupted(index)) {
-		dict_table_close(table, FALSE, FALSE);
-		return;
-	}
-
 	dict_stats_save_defrag_stats(index);
 	dict_table_close(table, FALSE, FALSE);
 }

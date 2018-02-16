@@ -8,15 +8,6 @@ content TEXT,
 FULLTEXT INDEX(content),
 KEY(writing_time)
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE memos;
-Table	Create Table
-memos	CREATE TABLE `memos` (
-  `id` int(10) unsigned NOT NULL,
-  `writing_time` time DEFAULT NULL,
-  `content` text,
-  KEY `writing_time` (`writing_time`),
-  FULLTEXT KEY `content` (`content`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO memos VALUES(1, "1:23:30", "Today is fine.");
 INSERT INTO memos VALUES(2, "1:23:31", "Today's lucky item is flower!"  );
 INSERT INTO memos VALUES(3, "1:23:32", "I will do something today!");

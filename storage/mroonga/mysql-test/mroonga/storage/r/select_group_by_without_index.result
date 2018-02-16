@@ -7,11 +7,8 @@ age int
 INSERT INTO users VALUES ("Alice",  20);
 INSERT INTO users VALUES ("Bob",    20);
 INSERT INTO users VALUES ("Charry", 29);
-EXPLAIN SELECT *, COUNT(*) FROM users GROUP BY age;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	users	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
-SELECT *, COUNT(*) FROM users GROUP BY age;
-name	age	COUNT(*)
-Alice	20	2
-Charry	29	1
+SELECT age, COUNT(*) FROM users GROUP BY age;
+age	COUNT(*)
+20	2
+29	1
 DROP TABLE users;

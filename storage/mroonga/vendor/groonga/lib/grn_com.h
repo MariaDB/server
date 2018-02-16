@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2012 Brazil
+/*
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,8 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef GRN_COM_H
-#define GRN_COM_H
+#pragma once
 
 #include "grn.h"
 #include "grn_str.h"
@@ -83,11 +83,7 @@ GRN_API grn_com_queue_entry *grn_com_queue_deque(grn_ctx *ctx, grn_com_queue *q)
 #   define GRN_COM_POLLIN  EVFILT_READ
 #   define GRN_COM_POLLOUT EVFILT_WRITE
 #  else /* USE_KQUEUE */
-#    if defined(HAVE_POLL_H)
-#      include <poll.h>
-#    elif defined(HAVE_SYS_POLL_H)
-#      include <sys/poll.h>
-#    endif /* defined(HAVE_POLL_H) */
+#   include <poll.h>
 #   define GRN_COM_POLLIN  POLLIN
 #   define GRN_COM_POLLOUT POLLOUT
 #  endif /* USE_KQUEUE */
@@ -252,5 +248,3 @@ void grn_edge_dispatch(grn_ctx *ctx, grn_edge *edge, grn_obj *msg);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_COM_H */

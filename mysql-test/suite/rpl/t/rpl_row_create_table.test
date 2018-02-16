@@ -1,8 +1,8 @@
 # Testing table creations for row-based replication.
 
 --source include/have_binlog_format_row.inc
---source include/master-slave.inc
 --source include/have_innodb.inc
+--source include/master-slave.inc
 connection slave;
 --source include/have_innodb.inc
 connection master;

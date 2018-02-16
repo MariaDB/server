@@ -4,26 +4,11 @@ id INT PRIMARY KEY AUTO_INCREMENT,
 title TEXT,
 body TEXT
 ) DEFAULT CHARSET UTF8 COMMENT = 'ENGINE "InnoDB"';
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
-  PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='ENGINE "InnoDB"'
 INSERT INTO diaries (title, body) VALUES ("survey", "will start groonga!");
 SELECT * FROM diaries;
 id	title	body
 1	survey	will start groonga!
 ALTER TABLE diaries DROP COLUMN body;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  PRIMARY KEY (`id`)
-) ENGINE=Mroonga AUTO_INCREMENT=2 DEFAULT CHARSET=utf8 COMMENT='ENGINE "InnoDB"'
 SELECT * FROM diaries;
 id	title
 1	survey

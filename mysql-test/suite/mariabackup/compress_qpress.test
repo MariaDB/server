@@ -1,0 +1,24 @@
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --compress --target-dir=$targetdir;
+--enable_result_log
+
+INSERT INTO t VALUES(2);
+
+
+echo # xtrabackup prepare;
+--disable_result_log
+list_files  $targetdir/test *.qp;
+exec $XTRABACKUP --decompress --remove-original --target-dir=$targetdir;
+list_files  $targetdir/test *.qp;
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+SELECT * FROM t;
+DROP TABLE t;
+rmdir $targetdir;

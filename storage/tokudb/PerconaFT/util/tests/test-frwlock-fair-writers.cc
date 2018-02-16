@@ -66,9 +66,9 @@ static void *t1_func(void *arg) {
 int main(void) {
     int r;
 
-    toku_mutex_init(&rwlock_mutex, NULL);
+    toku_mutex_init(toku_uninstrumented, &rwlock_mutex, nullptr);
     rwlock.init(&rwlock_mutex);
-    
+
     const int nthreads = 2;
     pthread_t tids[nthreads];
     for (int i = 0; i < nthreads; i++) {

@@ -1,4 +1,4 @@
-# Copyright(C) 2012 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2012-2016 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source ../../include/mroonga/have_mroonga.inc
 
@@ -20,7 +20,7 @@
 DROP TABLE IF EXISTS diaries;
 --enable_warnings
 
-# MySQL <= 5.5 reports wrong a warning. :<
+# MySQL <= 5.5 reports a wrong warning. :<
 # It has been fixed in MySQL >= 5.6 and MariaDB >= 5.3.
 --disable_warnings
 SET GLOBAL mroonga_match_escalation_threshold = -1;
@@ -30,24 +30,31 @@ CREATE TABLE diaries (
   id INT PRIMARY KEY AUTO_INCREMENT,
   title TEXT,
   tags TEXT,
-  FULLTEXT INDEX tags_index (tags) COMMENT 'parser "TokenDelimit"'
+  FULLTEXT INDEX tags_index (tags) COMMENT 'tokenizer "TokenDelimit"'
 ) DEFAULT CHARSET=UTF8;
-SHOW CREATE TABLE diaries;
 
-INSERT INTO diaries (title, tags) VALUES ("Hello groonga!", "groonga install");
-INSERT INTO diaries (title, tags) VALUES ("Hello mroonga!", "mroonga install");
+INSERT INTO diaries (title, tags) VALUES ("Hello Groonga!", "groonga install");
+INSERT INTO diaries (title, tags) VALUES ("Hello Mroonga!", "mroonga install");
 
+disable_query_log;
+CONNECT (new_connection, localhost, root, ,);
+CONNECTION new_connection;
+enable_query_log;
 
-SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("install" IN BOOLEAN MODE);
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("+install" IN BOOLEAN MODE);
 
-SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("+gr" IN BOOLEAN MODE);
 
 SET GLOBAL mroonga_match_escalation_threshold = 0;
-SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("+gr" IN BOOLEAN MODE);
 
 SET mroonga_match_escalation_threshold = 0;
-SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("+gr" IN BOOLEAN MODE);
 
+disable_query_log;
+CONNECTION default;
+DISCONNECT new_connection;
+enable_query_log;
 
 DROP TABLE diaries;
 

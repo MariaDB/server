@@ -188,8 +188,8 @@ common_1_lev_code:
 
     expr= tmp_expr - (tmp_expr/60)*60;
     /* the code after the switch will finish */
-  }
     break;
+  }
   case INTERVAL_HOUR_SECOND:
   {
     ulonglong tmp_expr= expr;
@@ -205,8 +205,8 @@ common_1_lev_code:
 
     expr= tmp_expr - (tmp_expr/60)*60;
     /* the code after the switch will finish */
-  }
     break;
+  }
   case INTERVAL_DAY_SECOND:
   {
     ulonglong tmp_expr= expr;
@@ -228,8 +228,8 @@ common_1_lev_code:
 
     expr= tmp_expr - (tmp_expr/60)*60;
     /* the code after the switch will finish */
-  }
     break;
+  }
   case INTERVAL_DAY_MICROSECOND:
   case INTERVAL_HOUR_MICROSECOND:
   case INTERVAL_MINUTE_MICROSECOND:
@@ -243,7 +243,8 @@ common_1_lev_code:
     break;
   case INTERVAL_WEEK:
     expr/= 7;
-    /* fall through */
+    close_quote= FALSE;
+    break;
   default:
     close_quote= FALSE;
     break;
@@ -334,6 +335,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
 
   if (check_access(thd, EVENT_ACL, parse_data->dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
   if (lock_object_name(thd, MDL_key::EVENT,
                        parse_data->dbname.str, parse_data->name.str))
@@ -416,6 +418,10 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
   thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(ret);
+#ifdef WITH_WSREP
+ error:
+  DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
 }
 
 
@@ -456,6 +462,9 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
 
   if (check_access(thd, EVENT_ACL, parse_data->dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
+
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+
   if (lock_object_name(thd, MDL_key::EVENT,
                        parse_data->dbname.str, parse_data->name.str))
     DBUG_RETURN(TRUE);
@@ -540,6 +549,10 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
 
   thd->restore_stmt_binlog_format(save_binlog_format);
   DBUG_RETURN(ret);
+#ifdef WITH_WSREP
+error:
+  DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
 }
 
 
@@ -580,6 +593,8 @@ Events::drop_event(THD *thd, LEX_STRING dbname, LEX_STRING name, bool if_exists)
   if (check_access(thd, EVENT_ACL, dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
 
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+
   /*
     Turn off row binlogging of this statement and use statement-based so
     that all supporting tables are updated for DROP EVENT command.
@@ -601,6 +616,10 @@ Events::drop_event(THD *thd, LEX_STRING dbname, LEX_STRING name, bool if_exists)
 
   thd->restore_stmt_binlog_format(save_binlog_format);
   DBUG_RETURN(ret);
+#ifdef WITH_WSREP
+error:
+  DBUG_RETURN(TRUE);
+#endif
 }
 
 

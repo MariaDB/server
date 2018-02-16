@@ -674,9 +674,7 @@ SELECT ExtractValue('<a><b>xxx</c></a>','/a/b');
 --echo # Bug#58175 xml functions read initialized bytes when conversions happen
 --echo #
 SET NAMES latin1;
---enable_prepare_warnings
 SELECT UPDATEXML(CONVERT('' USING swe7), TRUNCATE('',1), 0);
---disable_prepare_warnings
 
 --echo #
 --echo # Bug#12375190: UPDATEXML CRASHES ON SIMPLE INPUTS
@@ -715,7 +713,7 @@ FROM t1;
 SELECT UPDATEXML(txt, CONCAT('//', REPEAT('b', 63)), '63/63+') FROM t1;
 DROP TABLE t1;
 
-# This will call my_str_realloc_mysqld()
+# This will call realloc()
 CREATE TABLE t1 (a TEXT);
 INSERT INTO t1 VALUES (CONCAT('<a><', REPEAT('b',128),'>b128</',REPEAT('b',128),'><',REPEAT('c',512),'>c512</',REPEAT('c',512),'></a>'));
 SELECT ExtractValue (a, CONCAT('//',REPEAT('c',512))) AS c512 FROM t1;
@@ -750,6 +748,15 @@ SELECT *,IF(@i:=c1,ExtractValue('<a><b>b1</b><b>b2</b></a>','//b[$@i]'),0) AS xp
 SELECT * FROM t1 WHERE c2=IF(@i:=c1,ExtractValue('<a><b>b1</b><b>b2</b></a>','//b[$@i]'),0);
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-15118 ExtractValue(xml,something_complex) does not work
+--echo #
+
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES (CONCAT('<a>aaa</a>'));
+SELECT ExtractValue(a, '/a') AS a FROM t1;
+SELECT ExtractValue(a, FROM_BASE64(TO_BASE64('/a'))) AS a FROM t1;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.0 tests

@@ -25,6 +25,7 @@
 #include <mruby/data.h>
 
 #include "../grn_db.h"
+#include "mrb_ctx.h"
 #include "mrb_accessor.h"
 #include "mrb_converter.h"
 
@@ -71,6 +72,30 @@ mrb_grn_accessor_object(mrb_state *mrb, mrb_value self)
   return grn_mrb_value_from_grn_obj(mrb, accessor->obj);
 }
 
+static mrb_value
+mrb_grn_accessor_name(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_rc rc;
+  grn_obj *accessor;
+  grn_obj name;
+  mrb_value mrb_name;
+
+  accessor = DATA_PTR(self);
+  GRN_TEXT_INIT(&name, 0);
+  rc = grn_column_name_(ctx, accessor, &name);
+  if (rc == GRN_SUCCESS) {
+    mrb_name = mrb_str_new(mrb, GRN_TEXT_VALUE(&name), GRN_TEXT_LEN(&name));
+    GRN_OBJ_FIN(ctx, &name);
+  } else {
+    mrb_name = mrb_nil_value();
+    GRN_OBJ_FIN(ctx, &name);
+    grn_mrb_ctx_check(mrb);
+  }
+
+  return mrb_name;
+}
+
 void
 grn_mrb_accessor_init(grn_ctx *ctx)
 {
@@ -89,5 +114,8 @@ grn_mrb_accessor_init(grn_ctx *ctx)
                     mrb_grn_accessor_have_next_p, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "object",
                     mrb_grn_accessor_object, MRB_ARGS_NONE());
+
+  mrb_define_method(mrb, klass, "name",
+                    mrb_grn_accessor_name, MRB_ARGS_NONE());
 }
 #endif

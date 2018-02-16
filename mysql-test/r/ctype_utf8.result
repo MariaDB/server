@@ -1945,7 +1945,7 @@ Warnings:
 Warning	1300	Invalid utf8 character string: 'FD'
 select convert(char(0xff,0x8f) using utf8);
 convert(char(0xff,0x8f) using utf8)
-NULL
+??
 Warnings:
 Warning	1300	Invalid utf8 character string: '\xFF\x8F'
 select hex(convert(char(2557 using latin1) using utf8));
@@ -2114,7 +2114,7 @@ Warnings:
 Warning	1300	Invalid utf8 character string: 'FF'
 select hex(convert(0xFF using utf8));
 hex(convert(0xFF using utf8))
-NULL
+3F
 Warnings:
 Warning	1300	Invalid utf8 character string: '\xFF'
 select hex(_utf8 0x616263FF);
@@ -6274,6 +6274,28 @@ Warnings:
 SET sql_mode=DEFAULT;
 DROP TABLE t1;
 #
+# MDEV-13530 VARBINARY doesn't convert to to BLOB for sizes 65533, 65534 and 65535
+#
+CREATE TABLE t1 (c1 VARCHAR(21844) CHARACTER SET utf8);
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	varchar(21844)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(21845) CHARACTER SET utf8);
+Warnings:
+Note	1246	Converting column 'c1' from VARCHAR to TEXT
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	text	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(21846) CHARACTER SET utf8);
+Warnings:
+Note	1246	Converting column 'c1' from VARCHAR to TEXT
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	mediumtext	YES		NULL	
+DROP TABLE t1;
+#
 # End of 5.5 tests
 #
 #
@@ -10242,6 +10264,21 @@ DROP FUNCTION iswellformed;
 DROP TABLE allbytes;
 # End of ctype_backslash.inc
 #
+# MDEV-12681 Wrong VIEW results for CHAR(0xDF USING latin1)
+#
+SET NAMES utf8;
+SELECT CHAR(0xDF USING latin1);
+CHAR(0xDF USING latin1)
+ß
+CREATE OR REPLACE VIEW v1 AS SELECT CHAR(0xDF USING latin1) AS c;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select char(0xdf using latin1) AS `c`	utf8	utf8_general_ci
+SELECT * FROM v1;
+c
+ß
+DROP VIEW v1;
+#
 # End of 10.0 tests
 #
 #
@@ -10472,6 +10509,31 @@ SELECT N'tëst\0';
 END
 DROP PROCEDURE p1;
 SET @@SQL_MODE=default;
+#
+# MDEV-10191 non convertible chars convert() resulted in Null instead "?" on Windows
+#
+SET sql_mode='STRICT_TRANS_TABLES';
+SELECT CONVERT(_utf8 0xC499 USING latin1);
+CONVERT(_utf8 0xC499 USING latin1)
+?
+Warnings:
+Warning	1977	Cannot convert 'utf8' character 0xC499 to 'latin1'
+SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
+CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1)
+?
+Warnings:
+Warning	1977	Cannot convert 'utf8' character 0xC499 to 'latin1'
+SET sql_mode=default;
+SELECT CONVERT(_utf8 0xC499 USING latin1);
+CONVERT(_utf8 0xC499 USING latin1)
+?
+Warnings:
+Warning	1977	Cannot convert 'utf8' character 0xC499 to 'latin1'
+SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
+CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1)
+?
+Warnings:
+Warning	1977	Cannot convert 'utf8' character 0xC499 to 'latin1'
 #
 # End of 10.1 tests
 #

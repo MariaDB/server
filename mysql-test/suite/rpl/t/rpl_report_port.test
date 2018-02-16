@@ -17,8 +17,8 @@
 # case on doing SHOW SLAVE HOSTS on the master, we get the actual port number
 # of the slave (ie. SLAVE_PORT).
 
-source include/master-slave.inc;
 source include/have_binlog_format_mixed.inc;
+source include/master-slave.inc;
 
 connection master;
 

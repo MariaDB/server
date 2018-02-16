@@ -1,0 +1,43 @@
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES(1);
+BEGIN;
+INSERT INTO t VALUES(2);
+DELETE FROM t WHERE a=2;
+# Normal MariaDB shutdown would roll back the above transaction.
+# We want the transaction to remain open, so we will kill the server
+# after ensuring that any non-transactional files are clean.
+FLUSH TABLES;
+# Create another transaction that will be recovered as COMMITTED.
+BEGIN;
+SET DEBUG_SYNC='after_trx_committed_in_memory SIGNAL committed WAIT_FOR ever';
+COMMIT;
+SET DEBUG_SYNC='now WAIT_FOR committed';
+# Ensure that the above incomplete transactions become durable.
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+BEGIN;
+INSERT INTO t VALUES(-10000);
+ROLLBACK;
+SELECT * FROM t;
+a
+1
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t;
+a
+1
+UPDATE t SET a=3 WHERE a=1;
+ERROR HY000: Table 't' is read only
+# Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.
+# In earlier versions, this would return the last committed version
+# (empty table)!
+SELECT * FROM t;
+a
+1
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t;
+a
+1
+SELECT * FROM t;
+a
+1
+DROP TABLE t;
+NOT FOUND /Rolled back recovered transaction [^0]/ in mysqld.1.err

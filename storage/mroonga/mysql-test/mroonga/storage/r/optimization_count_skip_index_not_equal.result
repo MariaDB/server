@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS users;
+FLUSH STATUS;
+CREATE TABLE users (
+age INT,
+INDEX (age)
+) DEFAULT CHARSET=UTF8;
+INSERT INTO users (age) VALUES (28);
+INSERT INTO users (age) VALUES (28);
+INSERT INTO users (age) VALUES (29);
+INSERT INTO users (age) VALUES (29);
+INSERT INTO users (age) VALUES (29);
+SELECT COUNT(*) FROM users WHERE age <> 29;
+COUNT(*)
+2
+SHOW STATUS LIKE 'mroonga_count_skip';
+Variable_name	Value
+Mroonga_count_skip	2
+DROP TABLE users;

@@ -6,16 +6,6 @@ average TIME(6),
 max TIME(6),
 KEY (average)
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE running_records;
-Table	Create Table
-running_records	CREATE TABLE `running_records` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `average` time(6) DEFAULT NULL,
-  `max` time(6) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `average` (`average`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO running_records (title, average, max)
 VALUES ("normal condition", "01:00:00.000001", "01:05:00.000001");
 INSERT INTO running_records (title, average, max)

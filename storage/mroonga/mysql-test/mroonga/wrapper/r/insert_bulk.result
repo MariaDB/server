@@ -5,14 +5,6 @@ id int primary key,
 content text,
 fulltext index (content)
 ) default charset utf8 comment = 'engine "innodb"';
-show create table diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL,
-  `content` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `content` (`content`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='engine "innodb"'
 LOCK TABLE diaries WRITE;
 insert into diaries values(1, "今日からはじめました。");
 insert into diaries values(2, "明日の富士山の天気について");

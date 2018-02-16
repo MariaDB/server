@@ -1,5 +1,5 @@
 /******************************************************
-XtraBackup: hot backup tool for InnoDB
+MariaBackup: hot backup tool for InnoDB
 (c) 2009-2013 Percona LLC and/or its affiliates.
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
@@ -173,7 +173,7 @@ xb_fil_cur_open(
 			/* The following call prints an error message */
 			os_file_get_last_error(TRUE);
 
-			msg("[%02u] xtrabackup: error: cannot open "
+			msg("[%02u] mariabackup: error: cannot open "
 			    "tablespace %s\n",
 			    thread_n, cursor->abs_path);
 
@@ -202,7 +202,7 @@ xb_fil_cur_open(
 	cursor->file = node->handle;
 
 	if (stat(cursor->abs_path, &cursor->statinfo)) {
-		msg("[%02u] xtrabackup: error: cannot stat %s\n",
+		msg("[%02u] mariabackup: error: cannot stat %s\n",
 		    thread_n, cursor->abs_path);
 
 		xb_fil_cur_close(cursor);
@@ -229,7 +229,7 @@ xb_fil_cur_open(
 		msg("[%02u] %s is compressed with page size = "
 		    "%lu bytes\n", thread_n, node->name, page_size);
 		if (page_size_shift < 10 || page_size_shift > 14) {
-			msg("[%02u] xtrabackup: Error: Invalid "
+			msg("[%02u] mariabackup: Error: Invalid "
 			    "page size: %lu.\n", thread_n, page_size);
 			ut_error;
 		}
@@ -300,9 +300,9 @@ xb_fil_cur_read(
 	    offset + to_read == cursor->statinfo.st_size) {
 
 		if (to_read < (ib_int64_t) cursor->page_size) {
-			msg("[%02u] xtrabackup: Warning: junk at the end of "
+			msg("[%02u] mariabackup: Warning: junk at the end of "
 			    "%s:\n", cursor->thread_n, cursor->abs_path);
-			msg("[%02u] xtrabackup: Warning: offset = %llu, "
+			msg("[%02u] mariabackup: Warning: offset = %llu, "
 			    "to_read = %llu\n",
 			    cursor->thread_n,
 			    (unsigned long long) offset,
@@ -356,13 +356,13 @@ read_retry:
 			    page_no < (ib_int64_t) FSP_EXTENT_SIZE * 3) {
 				/* skip doublewrite buffer pages */
 				xb_a(cursor->page_size == UNIV_PAGE_SIZE);
-				msg("[%02u] xtrabackup: "
+				msg("[%02u] mariabackup: "
 				    "Page %lu is a doublewrite buffer page, "
 				    "skipping.\n", cursor->thread_n, page_no);
 			} else {
 				retry_count--;
 				if (retry_count == 0) {
-					msg("[%02u] xtrabackup: "
+					msg("[%02u] mariabackup: "
 					    "Error: failed to read page after "
 					    "10 retries. File %s seems to be "
 					    "corrupted.\n", cursor->thread_n,
@@ -370,7 +370,7 @@ read_retry:
 					ret = XB_FIL_CUR_ERROR;
 					break;
 				}
-				msg("[%02u] xtrabackup: "
+				msg("[%02u] mariabackup: "
 				    "Database page corruption detected at page "
 				    "%lu, retrying...\n", cursor->thread_n,
 				    page_no);

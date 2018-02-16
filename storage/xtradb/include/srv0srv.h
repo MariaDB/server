@@ -137,6 +137,14 @@ struct srv_stats_t {
 	ulint_ctr_64_t          pages_encrypted;
    	/* Number of pages decrypted */
 	ulint_ctr_64_t          pages_decrypted;
+	/* Number of merge blocks encrypted */
+	ulint_ctr_64_t          n_merge_blocks_encrypted;
+	/* Number of merge blocks decrypted */
+	ulint_ctr_64_t          n_merge_blocks_decrypted;
+	/* Number of row log blocks encrypted */
+	ulint_ctr_64_t          n_rowlog_blocks_encrypted;
+	/* Number of row log blocks decrypted */
+	ulint_ctr_64_t          n_rowlog_blocks_decrypted;
 
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
@@ -186,6 +194,9 @@ struct srv_stats_t {
 	/** Number of lock waits that have been up to max time (i.e.) lock
 	wait timeout */
 	ulint_ctr_1_t		n_lock_max_wait_time;
+
+	/** Number of buffered aio requests submitted */
+	ulint_ctr_64_t		n_aio_submitted;
 
 	/** Number of times page 0 is read from tablespace */
 	ulint_ctr_64_t		page0_read;
@@ -711,6 +722,9 @@ extern ulong srv_sync_array_size;
 
 /* print all user-level transactions deadlocks to mysqld stderr */
 extern my_bool srv_print_all_deadlocks;
+
+/* print lock wait timeout info to mysqld stderr */
+extern my_bool srv_print_lock_wait_timeout_info;
 
 extern my_bool	srv_cmp_per_index_enabled;
 
@@ -1276,8 +1290,19 @@ struct export_var_t{
 	ib_int64_t innodb_pages_decrypted;      /*!< Number of pages
 						decrypted */
 
+	/*!< Number of merge blocks encrypted */
+	ib_int64_t innodb_n_merge_blocks_encrypted;
+	/*!< Number of merge blocks decrypted */
+	ib_int64_t innodb_n_merge_blocks_decrypted;
+	/*!< Number of row log blocks encrypted */
+	ib_int64_t innodb_n_rowlog_blocks_encrypted;
+	/*!< Number of row log blocks decrypted */
+	ib_int64_t innodb_n_rowlog_blocks_decrypted;
+
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
-	ulint innodb_sec_rec_cluster_reads_avoided;/*!< srv_sec_rec_cluster_reads_avoided */
+	ulint innodb_sec_rec_cluster_reads_avoided; /*!< srv_sec_rec_cluster_reads_avoided */
+
+	ulint innodb_buffered_aio_submitted;
 
 	ulint innodb_encryption_rotation_pages_read_from_cache;
 	ulint innodb_encryption_rotation_pages_read_from_disk;

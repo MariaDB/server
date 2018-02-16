@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2015 Brazil
+  Copyright(C) 2015-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,8 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef GRN_MRB_TABLE_SORT_FLAGS_H
-#define GRN_MRB_TABLE_SORT_FLAGS_H
+#pragma once
 
 #include "../grn_ctx.h"
 
@@ -30,5 +29,3 @@ void grn_mrb_table_sort_flags_init(grn_ctx *ctx);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_MRB_TABLE_SORT_FLAGS_H */

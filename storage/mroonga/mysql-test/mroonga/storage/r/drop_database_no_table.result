@@ -1,0 +1,20 @@
+SET NAMES UTF8;
+DROP DATABASE IF EXISTS another;
+CREATE DATABASE another;
+USE another;
+CREATE TABLE diaries (
+title TEXT,
+FULLTEXT INDEX (title)
+);
+DROP TABLE diaries;
+USE test;
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+title TEXT,
+FULLTEXT INDEX (title)
+);
+DROP DATABASE another;
+SELECT mroonga_command('object_exist mroonga_operations');
+mroonga_command('object_exist mroonga_operations')
+true
+DROP TABLE diaries;

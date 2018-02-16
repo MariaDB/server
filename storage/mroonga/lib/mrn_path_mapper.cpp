@@ -222,4 +222,8 @@ namespace mrn {
     mysql_path_[i] = '\0';
     return mysql_path_;
   }
+
+  bool PathMapper::is_internal_table_name() {
+    return mysql_table_name()[0] == '#';
+  }
 }

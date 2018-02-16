@@ -1,0 +1,4 @@
+SELECT mroonga_snippet_html('Mroonga is the Groonga based storage engine.',
+'Mroonga', 'Groonga') as snippet;
+snippet
+<div class="snippet"><span class="keyword">Mroonga</span> is the <span class="keyword">Groonga</span> based storage engine.</div>

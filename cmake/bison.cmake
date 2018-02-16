@@ -47,6 +47,21 @@ MACRO (RUN_BISON input_yy output_cc output_h)
     ENDIF()
   ENDIF()
   IF(BISON_USABLE)
+    # Workaround for VS regenerating output even
+    # when outputs are up-to-date. At least, fix output timestamp
+    # after build so that files that depend on generated header are
+    # not rebuilt.
+    IF(CMAKE_GENERATOR MATCHES "Visual Studio")
+      FIND_PROGRAM(TOUCH_EXECUTABLE touch DOC "Path to touch executable"
+        PATHS "C:/Program Files/Git/usr/bin"
+              "C:/Program Files (x86)/Git/usr/bin")
+      IF(TOUCH_EXECUTABLE)
+        SET(VS_FIX_OUTPUT_TIMESTAMPS
+          COMMAND ${TOUCH_EXECUTABLE} -r ${input_yy} ${output_cc}
+          COMMAND ${TOUCH_EXECUTABLE} -r ${input_yy} ${output_h})
+      ENDIF()
+    ENDIF()
+
     ADD_CUSTOM_COMMAND(
       OUTPUT ${output_cc}
              ${output_h}
@@ -54,8 +69,9 @@ MACRO (RUN_BISON input_yy output_cc output_h)
        --output=${output_cc}
        --defines=${output_h}
         ${input_yy}
-        DEPENDS ${input_yy}
-	)
+      ${VS_FIX_OUTPUT_TIMESTAMPS}
+      DEPENDS ${input_yy}
+    )
   ELSE()
     # Bison is missing or not usable, e.g too old
     IF(EXISTS  ${output_cc} AND EXISTS ${output_h})

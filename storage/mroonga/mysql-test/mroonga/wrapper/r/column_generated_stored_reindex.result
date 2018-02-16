@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS logs;
+CREATE TABLE logs (
+id INT PRIMARY KEY,
+record JSON,
+message VARCHAR(255) GENERATED ALWAYS AS (json_extract(`record`, '$.message')) STORED,
+FULLTEXT INDEX(message) comment 'tokenizer "TokenBigramSplitSymbolAlphaDigit"'
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4 COMMENT = 'ENGINE "InnoDB"';
+INSERT INTO logs(id, record) VALUES (1, '{"level": "info", "message": "start"}');
+INSERT INTO logs(id, record) VALUES (2, '{"level": "info", "message": "restart"}');
+INSERT INTO logs(id, record) VALUES (3, '{"level": "warn", "message": "abort"}');
+ALTER TABLE logs DISABLE KEYS;
+ALTER TABLE logs ENABLE KEYS;
+SELECT * FROM logs WHERE MATCH(message) AGAINST("ar" IN BOOLEAN MODE);
+id	record	message
+1	{"level": "info", "message": "start"}	"start"
+2	{"level": "info", "message": "restart"}	"restart"
+DROP TABLE logs;

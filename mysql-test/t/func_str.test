@@ -1757,6 +1757,18 @@ set global max_allowed_packet=default;
 --echo #
 
 --echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-12681 Wrong VIEW results for CHAR(0xDF USING latin1)
+--echo #
+
+EXPLAIN EXTENDED SELECT CHAR(0xDF USING latin1);
+EXPLAIN EXTENDED SELECT CHAR(0xDF USING `binary`);
+EXPLAIN EXTENDED SELECT CHAR(0xDF);
+
+--echo #
 --echo # Start of 10.1 tests
 --echo #
 
@@ -1799,7 +1811,6 @@ SELECT f1,HEX(f2) FROM t1 ignore index(k1) WHERE f1='YQ==' AND (f2= from_base64(
 SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64("YQ==") OR f2= from_base64("Yq=="));
 SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64("Yq==") OR f2= from_base64("YQ=="));
 DROP TABLE t1;
-
 
 --echo #
 --echo # End of 10.1 tests

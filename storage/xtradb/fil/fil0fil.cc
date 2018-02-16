@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1045,156 +1045,24 @@ fil_space_extend_must_retry(
 		page_size = UNIV_PAGE_SIZE;
 	}
 
-#ifdef _WIN32
-	const ulint	io_completion_type = OS_FILE_READ;
-	/* Logically or physically extend the file with zero bytes,
-	depending on whether it is sparse. */
+	/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
+	fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.*/
+	os_offset_t new_size = std::max(
+		os_offset_t(size - file_start_page_no) * page_size,
+		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE));
 
-	/* FIXME: Call DeviceIoControl(node->handle, FSCTL_SET_SPARSE, ...)
-	when opening a file when FSP_FLAGS_HAS_PAGE_COMPRESSION(). */
-	{
-		FILE_END_OF_FILE_INFO feof;
-		/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
-		fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.
-		Do not shrink short ROW_FORMAT=COMPRESSED files. */
-		feof.EndOfFile.QuadPart = std::max(
-			os_offset_t(size - file_start_page_no) * page_size,
-			os_offset_t(FIL_IBD_FILE_INITIAL_SIZE
-				    * UNIV_PAGE_SIZE));
-		*success = SetFileInformationByHandle(node->handle,
-						      FileEndOfFileInfo,
-						      &feof, sizeof feof);
-		if (!*success) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "extending file %s"
-				" from " INT64PF
-				" to " INT64PF " bytes failed with %u",
-				node->name,
-				os_offset_t(node->size) * page_size,
-				feof.EndOfFile.QuadPart, GetLastError());
-		} else {
-			start_page_no = size;
-		}
+	*success = os_file_set_size(node->name, node->handle, new_size,
+		FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
+
+
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+		*success = FALSE;
+		os_has_said_disk_full = TRUE;);
+
+	if (*success) {
+		os_has_said_disk_full = FALSE;
+		start_page_no = size;
 	}
-#else
-	/* We will logically extend the file with ftruncate() if
-	page_compression is enabled, because the file is expected to
-	be sparse in that case. Make sure that ftruncate() can deal
-	with large files. */
-	const bool is_sparse	= sizeof(off_t) >= 8
-		&& FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
-
-# ifdef HAVE_POSIX_FALLOCATE
-	/* We must complete the I/O request after invoking
-	posix_fallocate() to avoid an assertion failure at shutdown.
-	Because no actual writes were dispatched, a read operation
-	will suffice. */
-	const ulint	io_completion_type = srv_use_posix_fallocate
-		|| is_sparse ? OS_FILE_READ : OS_FILE_WRITE;
-
-	if (srv_use_posix_fallocate && !is_sparse) {
-		const os_offset_t	start_offset
-			= os_offset_t(start_page_no - file_start_page_no)
-			* page_size;
-		const ulint		n_pages = size - start_page_no;
-		const os_offset_t	len = os_offset_t(n_pages) * page_size;
-
-		int err;
-		do {
-			err = posix_fallocate(node->handle, start_offset, len);
-		} while (err == EINTR
-			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
-
-		*success = !err;
-		if (!*success) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "extending file %s"
-				" from " INT64PF " to " INT64PF " bytes"
-				" failed with error %d",
-				node->name, start_offset, len + start_offset,
-				err);
-		}
-
-		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-				*success = FALSE;
-				os_has_said_disk_full = TRUE;);
-
-		if (*success) {
-			os_has_said_disk_full = FALSE;
-			start_page_no = size;
-		}
-	} else
-# else
-	const ulint io_completion_type = is_sparse
-		? OS_FILE_READ : OS_FILE_WRITE;
-# endif
-	if (is_sparse) {
-		/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
-		fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.
-		Do not shrink short ROW_FORMAT=COMPRESSED files. */
-		off_t	s = std::max(off_t(size - file_start_page_no)
-				     * off_t(page_size),
-				     off_t(FIL_IBD_FILE_INITIAL_SIZE
-					   * UNIV_PAGE_SIZE));
-		*success = !ftruncate(node->handle, s);
-		if (!*success) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "ftruncate of file %s"
-				" from " INT64PF " to " INT64PF " bytes"
-				" failed with error %d",
-				node->name,
-				os_offset_t(start_page_no - file_start_page_no)
-				* page_size, os_offset_t(s), errno);
-		} else {
-			start_page_no = size;
-		}
-	} else {
-		/* Extend at most 64 pages at a time */
-		ulint	buf_size = ut_min(64, size - start_page_no)
-			* page_size;
-		byte*	buf2 = static_cast<byte*>(
-			calloc(1, buf_size + page_size));
-		*success = buf2 != NULL;
-		if (!buf2) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "Cannot allocate " ULINTPF
-				" bytes to extend file",
-				buf_size + page_size);
-		}
-		byte* const	buf = static_cast<byte*>(
-			ut_align(buf2, page_size));
-
-		while (*success && start_page_no < size) {
-			ulint		n_pages
-				= ut_min(buf_size / page_size,
-					 size - start_page_no);
-
-			os_offset_t	offset = static_cast<os_offset_t>(
-				start_page_no - file_start_page_no)
-				* page_size;
-
-			*success = os_aio(OS_FILE_WRITE, 0, OS_AIO_SYNC,
-					  node->name, node->handle, buf,
-					  offset, page_size * n_pages,
-					  page_size, node, NULL,
-					  space->id, NULL, 0);
-
-			DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-					*success = FALSE;
-					os_has_said_disk_full = TRUE;);
-
-			if (*success) {
-				os_has_said_disk_full = FALSE;
-			}
-			/* Let us measure the size of the file
-			to determine how much we were able to
-			extend it */
-			os_offset_t	fsize = os_file_get_size(node->handle);
-			ut_a(fsize != os_offset_t(-1));
-
-			start_page_no = ulint(fsize / page_size)
-				+ file_start_page_no;
-		}
-
-		free(buf2);
-	}
-#endif
 	mutex_enter(&fil_system->mutex);
 
 	ut_a(node->being_extended);
@@ -1204,7 +1072,7 @@ fil_space_extend_must_retry(
 	space->size += file_size - node->size;
 	node->size = file_size;
 
-	fil_node_complete_io(node, fil_system, io_completion_type);
+	fil_node_complete_io(node, fil_system, OS_FILE_READ);
 
 	node->being_extended = FALSE;
 
@@ -2257,7 +2125,7 @@ fil_write_flushed_lsn(
 {
 	byte*	buf1;
 	byte*	buf;
-	dberr_t	err;
+	dberr_t	err = DB_TABLESPACE_NOT_FOUND;
 
 	buf1 = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
 	buf = static_cast<byte*>(ut_align(buf1, UNIV_PAGE_SIZE));
@@ -2268,7 +2136,8 @@ fil_write_flushed_lsn(
 	/* If tablespace is not encrypted, stamp flush_lsn to
 	first page of all system tablespace datafiles to avoid
 	unnecessary error messages on possible downgrade. */
-	if (!space->crypt_data || space->crypt_data->min_key_version == 0) {
+	if (!space->crypt_data
+	    || !space->crypt_data->should_encrypt()) {
 		fil_node_t*     node;
 		ulint   sum_of_sizes = 0;
 
@@ -2704,8 +2573,7 @@ fil_op_log_parse_or_replay(
 	switch (type) {
 	case MLOG_FILE_DELETE:
 		if (fil_tablespace_exists_in_mem(space_id)) {
-			dberr_t	err = fil_delete_tablespace(
-				space_id, BUF_REMOVE_FLUSH_NO_WRITE);
+			dberr_t	err = fil_delete_tablespace(space_id);
 			ut_a(err == DB_SUCCESS);
 		}
 
@@ -2983,7 +2851,7 @@ fil_close_tablespace(
 	completely and permanently. The flag stop_new_ops also prevents
 	fil_flush() from being applied to this tablespace. */
 
-	buf_LRU_flush_or_remove_pages(id, BUF_REMOVE_FLUSH_WRITE, trx);
+	buf_LRU_flush_or_remove_pages(id, trx);
 #endif
 	mutex_enter(&fil_system->mutex);
 
@@ -3010,18 +2878,13 @@ fil_close_tablespace(
 	return(err);
 }
 
-/*******************************************************************//**
-Deletes a single-table tablespace. The tablespace must be cached in the
-memory cache.
+/** Delete a tablespace and associated .ibd file.
+@param[in]	id		tablespace identifier
+@param[in]	drop_ahi	whether to drop the adaptive hash index
 @return	DB_SUCCESS or error */
 UNIV_INTERN
 dberr_t
-fil_delete_tablespace(
-/*==================*/
-	ulint		id,		/*!< in: space id */
-	buf_remove_t	buf_remove)	/*!< in: specify the action to take
-					on the tables pages in the buffer
-					pool */
+fil_delete_tablespace(ulint id, bool drop_ahi)
 {
 	char*		path = 0;
 	fil_space_t*	space = 0;
@@ -3077,7 +2940,7 @@ fil_delete_tablespace(
 	To deal with potential read requests by checking the
 	::stop_new_ops flag in fil_io() */
 
-	buf_LRU_flush_or_remove_pages(id, buf_remove, 0);
+	buf_LRU_flush_or_remove_pages(id, NULL, drop_ahi);
 
 #endif /* !UNIV_HOTBACKUP */
 
@@ -3188,7 +3051,7 @@ fil_discard_tablespace(
 {
 	dberr_t	err;
 
-	switch (err = fil_delete_tablespace(id, BUF_REMOVE_ALL_NO_WRITE)) {
+	switch (err = fil_delete_tablespace(id, true)) {
 	case DB_SUCCESS:
 		break;
 
@@ -4995,7 +4858,7 @@ fil_load_single_table_tablespace(
 
 
 	/* Check for a link file which locates a remote tablespace. */
-	remote.success = fil_open_linked_file(
+	remote.success = (IS_XTRABACKUP() && !srv_backup_mode) ? 0 : fil_open_linked_file(
 		tablename, &remote.filepath, &remote.file, FALSE);
 
 	/* Read the first page of the remote tablespace */
@@ -5101,6 +4964,11 @@ will_not_choose:
 				"Continuing crash recovery even though we "
 				"cannot access the .ibd file of this table.",
 				srv_force_recovery);
+			return;
+		}
+
+		/* In mariabackup lets not crash. */
+		if (IS_XTRABACKUP()) {
 			return;
 		}
 
@@ -6193,7 +6061,7 @@ Reads or writes data. This operation is asynchronous (aio).
 i/o on a tablespace which does not exist */
 UNIV_INTERN
 dberr_t
-_fil_io(
+fil_io(
 /*===*/
 	ulint	type,		/*!< in: OS_FILE_READ or OS_FILE_WRITE,
 				ORed to OS_FILE_LOG, if a log i/o
@@ -6225,7 +6093,12 @@ _fil_io(
 				operation for this page and if
 				initialized we do not trim again if
 				actual page size does not decrease. */
-	trx_t*	trx)
+	trx_t*	trx,
+	bool	should_buffer)	/*!< in: whether to buffer an aio request.
+				AIO read ahead uses this. If you plan to
+				use this parameter, make sure you remember
+				to call os_aio_dispatch_read_array_submit()
+				when you're ready to commit all your requests.*/
 {
 	ulint		mode;
 	fil_space_t*	space;
@@ -6445,8 +6318,8 @@ _fil_io(
 
 	/* Queue the aio request */
 	ret = os_aio(type, is_log, mode | wake_later, name, node->handle, buf,
-		offset, len, zip_size ? zip_size : UNIV_PAGE_SIZE, node,
-		message, space_id, trx, write_size);
+		     offset, len, zip_size ? zip_size : UNIV_PAGE_SIZE, node,
+		     message, space_id, trx, write_size, should_buffer);
 
 #else
 	/* In mysqlbackup do normal i/o, not aio */

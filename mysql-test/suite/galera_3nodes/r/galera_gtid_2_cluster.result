@@ -1,0 +1,231 @@
+cluster 1 node 1
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+cluster 1 node 2
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+cluster 1 node 3
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+cluster 2 node 1
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+cluster 2 node 2
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+cluster 2 node 3
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_4, master_use_gtid=current_pos, ignore_server_ids=(12,13);;
+start slave;
+include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+
+select @@gtid_slave_pos;
+@@gtid_slave_pos
+
+change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_1, master_use_gtid=current_pos, ignore_server_ids=(22,23);;
+start slave;
+include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+
+select @@gtid_slave_pos;
+@@gtid_slave_pos
+
+cluster 1 node 1
+create table t1 (cluster_domain_id int ,node_server_id int, seq_no int);
+insert into t1 values (1, 11, 2);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2
+#wait for sync  cluster 1 and 2
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 2 node 1
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2
+insert into t1 values (2, 21, 1);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,2-21-1
+select * from t1;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+2	21	1
+#wait for sync  cluster 1 and 2
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 1 node 2
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,2-21-1
+insert into t1 values (1, 12, 3);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,1-12-3,2-21-1
+#wait for sync  cluster 1 and 2
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 1 node 3
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,1-12-3,2-21-1
+insert into t1 values (1, 13, 4);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1
+#wait for sync  cluster 1 and 2
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 2 node 2
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1
+insert into t1 values (2, 22, 2);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
+#wait for sync  cluster 2 and 1
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 2 node 3
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
+insert into t1 values (2, 23, 3);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
+#wait for sync  cluster 2 and 1
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 1 node 1
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
+drop table t1;
+stop slave;
+reset slave;
+change master to master_use_gtid=no, ignore_server_ids=();
+reset master;
+set global GTID_SLAVE_POS="";
+cluster 2 node 1
+stop slave;
+reset slave;
+change master to master_use_gtid=no, ignore_server_ids=();
+reset master;
+set global GTID_SLAVE_POS="";
+reset master;
+reset master;
+reset master;
+reset master;
+change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_6, master_use_gtid=current_pos, ignore_server_ids=(12,13);;
+start slave;
+include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+
+select @@gtid_slave_pos;
+@@gtid_slave_pos
+
+change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_3, master_use_gtid=current_pos, ignore_server_ids=(22,23);;
+start slave;
+include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+
+select @@gtid_slave_pos;
+@@gtid_slave_pos
+
+cluster 1 node 1
+create table t1 (cluster_domain_id int ,node_server_id int, seq_no int);
+insert into t1 values (1, 11, 2);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2
+#wait for sync  cluster 1 and 2
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 2 node 1
+insert into t1 values (2, 21, 1);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,2-21-1
+select * from t1;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+2	21	1
+#wait for sync  cluster 1 and 2
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 1 node 2
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,2-21-1
+insert into t1 values (1, 12, 3);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,1-12-3,2-21-1
+#wait for sync  cluster 1 and 2
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 1 node 3
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,1-12-3,2-21-1
+insert into t1 values (1, 13, 4);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1
+#wait for sync  cluster 1 and 2
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 2 node 2
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1
+insert into t1 values (2, 22, 2);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
+#wait for sync  cluster 2 and 1
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 2 node 3
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
+insert into t1 values (2, 23, 3);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
+#wait for sync  cluster 2 and 1
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+cluster 1 node 1
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
+drop table t1;
+stop slave;
+change master to master_use_gtid=no, ignore_server_ids=();
+reset master;
+set global GTID_SLAVE_POS="";
+cluster 2 node 1
+stop slave;
+change master to master_use_gtid=no, ignore_server_ids=();
+reset master;
+set global GTID_SLAVE_POS="";
+reset master;
+reset master;
+reset master;
+reset master;

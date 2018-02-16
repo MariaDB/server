@@ -1,5 +1,5 @@
-source include/master-slave.inc;
 source include/have_binlog_format_row.inc;
+source include/master-slave.inc;
 
 #
 # Bug#48776, Bug#43784

@@ -316,3 +316,28 @@ eval CREATE TABLE test.t1(id INT(11)) ENGINE MYISAM
 DATA DIRECTORY "$MYSQLTEST_VARDIR/tmp";
 
 DROP TABLE test.t1;
+use test;
+
+#
+# End of 5.5 tests
+#
+
+#
+# End of 10.0 tests
+#
+
+#
+# MDEV-13636 ALTER TABLE ... DELAY_KEY_WRITE=1 creates table copy for MyISAM table with DATA DIRECTORY/INDEX DIRECTORY options
+#
+replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR;
+eval
+create table t1(c1 int, c2 int, c3 varchar(100)) engine=MyISAM data directory='$MYSQL_TMP_DIR' index directory = '$MYSQL_TMP_DIR';
+insert t1 values (1,2,3), (2,3,4), (3,4,5), (4,5,6), (5,6,7), (6,7,8), (7,8,9);
+alter online table t1 delay_key_write=1;
+replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR;
+show create table t1;
+drop table t1;
+
+#
+# End of 10.1 tests
+#

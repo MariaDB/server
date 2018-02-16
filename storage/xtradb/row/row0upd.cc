@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -261,7 +262,7 @@ row_upd_check_references_constraints(
 
 	DEBUG_SYNC_C("foreign_constraint_check_for_update");
 
-	mtr_start_trx(mtr, trx);
+	mtr_start(mtr);
 
 	if (trx->dict_operation_lock_mode == 0) {
 		got_s_lock = TRUE;
@@ -1155,7 +1156,7 @@ row_upd_ext_fetch(
 	byte*	buf = static_cast<byte*>(mem_heap_alloc(heap, *len));
 
 	*len = btr_copy_externally_stored_field_prefix(
-		buf, *len, zip_size, data, local_len, NULL);
+		buf, *len, zip_size, data, local_len);
 
 	/* We should never update records containing a half-deleted BLOB. */
 	ut_a(*len);
@@ -1207,7 +1208,7 @@ row_upd_index_replace_new_col_val(
 		}
 
 		len = dtype_get_at_most_n_mbchars(col->prtype,
-						  col->mbminmaxlen,
+						  col->mbminlen, col->mbmaxlen,
 						  field->prefix_len, len,
 						  (const char*) data);
 
@@ -1855,7 +1856,7 @@ row_upd_sec_index_entry(
 	}
 #endif /* UNIV_DEBUG */
 
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 
 	if (*index->name == TEMP_INDEX_PREFIX) {
 		/* The index->online_status may change if the
@@ -1958,7 +1959,7 @@ row_upd_sec_index_entry(
 		trx_print(stderr, trx, 0);
 		fputs("\n"
 		      "InnoDB: Submit a detailed bug report"
-		      " to http://bugs.mysql.com\n", stderr);
+		      " to https://jira.mariadb.org/\n", stderr);
 		ut_ad(0);
 		break;
 	case ROW_FOUND:
@@ -1988,9 +1989,9 @@ row_upd_sec_index_entry(
 					index, offsets, thr, &mtr);
 			}
 #ifdef WITH_WSREP
-			if (wsrep_on(trx->mysql_thd)                          &&
+			if (err == DB_SUCCESS && !referenced                  &&
+			    wsrep_on_trx(trx)                                 &&
 			    !wsrep_thd_is_BF(trx->mysql_thd, FALSE)           &&
-			    err == DB_SUCCESS && !referenced                  &&
 			    !(parent && que_node_get_type(parent) ==
 				QUE_NODE_UPDATE                               &&
 			      ((upd_node_t*)parent)->cascade_node == node)    &&
@@ -2279,7 +2280,7 @@ err_exit:
 			}
 		}
 #ifdef WITH_WSREP
-		if (wsrep_on(trx->mysql_thd) && !referenced                  &&
+		if (!referenced && wsrep_on_trx(trx) &&
 		    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
 		      ((upd_node_t*)parent)->cascade_node == node)           &&
 		    foreign
@@ -2398,7 +2399,7 @@ row_upd_clust_rec(
 	/* We may have to modify the tree structure: do a pessimistic descent
 	down the index tree */
 
-	mtr_start_trx(mtr, thr_get_trx(thr));
+	mtr_start(mtr);
 
 	/* NOTE: this transaction has an s-lock or x-lock on the record and
 	therefore other transactions cannot modify the record when we have no
@@ -2548,8 +2549,7 @@ row_upd_del_mark_clust_rec(
 	}
 #ifdef WITH_WSREP
 	trx_t* trx = thr_get_trx(thr) ;
-
-	if (err == DB_SUCCESS && !referenced && trx && wsrep_on(trx->mysql_thd) &&
+	if (err == DB_SUCCESS && !referenced && wsrep_on_trx(trx) &&
 	    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
 	      ((upd_node_t*)parent)->cascade_node == node)           &&
 	    foreign
@@ -2614,7 +2614,7 @@ row_upd_clust_step(
 
 	/* We have to restore the cursor to its position */
 
-	mtr_start_trx(&mtr, thr_get_trx(thr));
+	mtr_start(&mtr);
 
 	/* If the restoration does not succeed, then the same
 	transaction has deleted the record on which the cursor was,
@@ -2687,7 +2687,7 @@ row_upd_clust_step(
 
 		mtr_commit(&mtr);
 
-		mtr_start_trx(&mtr, thr_get_trx(thr));
+		mtr_start(&mtr);
 
 		success = btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur,
 						    &mtr);

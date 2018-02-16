@@ -1,0 +1,7 @@
+[crypt]
+innodb_encrypt_log=ON
+innodb_encryption_rotate_key_age=1
+plugin_load_add=$DEBUG_KEY_MANAGEMENT_SO
+
+[clear]
+skip_innodb_encrypt_log

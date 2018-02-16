@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2015 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2015-2017 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -36,6 +36,16 @@
 #endif
 
 namespace mrn {
+  struct CheckResult {
+    CheckResult() :
+      is_crashed(false),
+      is_corrupt(false) {
+    }
+
+    bool is_crashed;
+    bool is_corrupt;
+  };
+
   DatabaseRepairer::DatabaseRepairer(grn_ctx *ctx, THD *thd)
     : ctx_(ctx),
       thd_(thd),
@@ -53,10 +63,19 @@ namespace mrn {
   bool DatabaseRepairer::is_crashed(void) {
     MRN_DBUG_ENTER_METHOD();
 
-    bool is_crashed = false;
-    each_database(&DatabaseRepairer::is_crashed_body, &is_crashed);
+    CheckResult result;
+    each_database(&DatabaseRepairer::check_body, &result);
 
-    DBUG_RETURN(is_crashed);
+    DBUG_RETURN(result.is_crashed);
+  }
+
+  bool DatabaseRepairer::is_corrupt(void) {
+    MRN_DBUG_ENTER_METHOD();
+
+    CheckResult result;
+    each_database(&DatabaseRepairer::check_body, &result);
+
+    DBUG_RETURN(result.is_corrupt);
   }
 
   bool DatabaseRepairer::repair(void) {
@@ -81,9 +100,19 @@ namespace mrn {
       DBUG_VOID_RETURN;
     }
 
-    do {
-      each_database_body(data.cFileName, each_body_func, user_data);
-    } while (FindNextFile(finder, &data) != 0);
+    grn_ctx ctx;
+    grn_rc rc = grn_ctx_init(&ctx, 0);
+    if (rc == GRN_SUCCESS) {
+      do {
+        each_database_body(data.cFileName, &ctx, each_body_func, user_data);
+      } while (FindNextFile(finder, &data) != 0);
+      grn_ctx_fin(&ctx);
+    } else {
+      GRN_LOG(ctx_, GRN_LOG_WARNING,
+              "[mroonga][database][repairer][each] "
+              "failed to initialize grn_ctx: %d: %s",
+              rc, grn_rc_to_string(rc));
+    }
     FindClose(finder);
 #else
     DIR *dir = opendir(base_directory_);
@@ -91,8 +120,18 @@ namespace mrn {
       DBUG_VOID_RETURN;
     }
 
-    while (struct dirent *entry = readdir(dir)) {
-      each_database_body(entry->d_name, each_body_func, user_data);
+    grn_ctx ctx;
+    grn_rc rc = grn_ctx_init(&ctx, 0);
+    if (rc == GRN_SUCCESS) {
+      while (struct dirent *entry = readdir(dir)) {
+        each_database_body(entry->d_name, &ctx, each_body_func, user_data);
+      }
+      grn_ctx_fin(&ctx);
+    } else {
+      GRN_LOG(ctx_, GRN_LOG_WARNING,
+              "[mroonga][database][repairer][each] "
+              "failed to initialize grn_ctx: %d: %s",
+              rc, grn_rc_to_string(rc));
     }
     closedir(dir);
 #endif
@@ -101,6 +140,7 @@ namespace mrn {
   }
 
   void DatabaseRepairer::each_database_body(const char *base_path,
+                                            grn_ctx *ctx,
                                             EachBodyFunc each_body_func,
                                             void *user_data) {
     MRN_DBUG_ENTER_METHOD();
@@ -123,14 +163,14 @@ namespace mrn {
     char db_path[MRN_MAX_PATH_SIZE];
     snprintf(db_path, MRN_MAX_PATH_SIZE,
              "%s%c%s", base_directory_, FN_LIBCHAR, base_path);
-    grn_obj *db = grn_db_open(ctx_, db_path);
+    grn_obj *db = grn_db_open(ctx, db_path);
     if (!db) {
       DBUG_VOID_RETURN;
     }
 
-    (this->*each_body_func)(db, db_path, user_data);
+    (this->*each_body_func)(ctx, db, db_path, user_data);
 
-    grn_obj_close(ctx_, db);
+    grn_obj_close(ctx, db);
 
     DBUG_VOID_RETURN;
   }
@@ -150,8 +190,7 @@ namespace mrn {
     size_t raw_path_prefix_length = strlen(raw_path_prefix);
     size_t separator_position = raw_path_prefix_length;
     for (; separator_position > 0; separator_position--) {
-      if (base_directory_buffer_[separator_position] == FN_LIBCHAR ||
-          base_directory_buffer_[separator_position] == FN_LIBCHAR2) {
+      if (mrn_is_directory_separator(base_directory_buffer_[separator_position])) {
         break;
       }
     }
@@ -169,34 +208,46 @@ namespace mrn {
     DBUG_VOID_RETURN;
   }
 
-  void DatabaseRepairer::is_crashed_body(grn_obj *db,
-                                         const char *db_path,
-                                         void *user_data) {
+  void DatabaseRepairer::check_body(grn_ctx *ctx,
+                                    grn_obj *db,
+                                    const char *db_path,
+                                    void *user_data) {
     MRN_DBUG_ENTER_METHOD();
 
-    bool *is_crashed = static_cast<bool *>(user_data);
+    CheckResult *result = static_cast<CheckResult *>(user_data);
 
-    if (grn_obj_is_locked(ctx_, db)) {
-      *is_crashed = true;
+    if (grn_obj_is_locked(ctx, db)) {
+      result->is_crashed = true;
+      result->is_corrupt = true;
       DBUG_VOID_RETURN;
     }
 
     grn_table_cursor *cursor;
-    cursor = grn_table_cursor_open(ctx_, db,
+    cursor = grn_table_cursor_open(ctx, db,
                                    NULL, 0,
                                    NULL, 0,
                                    0, -1, GRN_CURSOR_BY_ID);
     if (!cursor) {
-      *is_crashed = true;
+      result->is_crashed = true;
+      result->is_corrupt = true;
       DBUG_VOID_RETURN;
     }
 
     grn_id id;
-    while ((id = grn_table_cursor_next(ctx_, cursor)) != GRN_ID_NIL) {
-      grn_obj *object = grn_ctx_at(ctx_, id);
+    while ((id = grn_table_cursor_next(ctx, cursor)) != GRN_ID_NIL) {
+      if (grn_id_is_builtin(ctx, id)) {
+        continue;
+      }
+
+      grn_obj *object = grn_ctx_at(ctx, id);
 
       if (!object) {
-        continue;
+        if (ctx->rc == GRN_SUCCESS) {
+          continue;
+        } else {
+          result->is_corrupt = true;
+          break;
+        }
       }
 
       switch (object->header.type) {
@@ -207,37 +258,40 @@ namespace mrn {
       case GRN_COLUMN_FIX_SIZE:
       case GRN_COLUMN_VAR_SIZE:
       case GRN_COLUMN_INDEX:
-        grn_obj_is_locked(ctx_, object);
-        *is_crashed = true;
+        if (grn_obj_is_locked(ctx_, object)) {
+          result->is_crashed = true;
+          result->is_corrupt = true;
+        }
         break;
       default:
         break;
       }
 
-      grn_obj_unlink(ctx_, object);
+      grn_obj_unlink(ctx, object);
 
-      if (*is_crashed) {
+      if (result->is_crashed || result->is_corrupt) {
         break;
       }
     }
-    grn_table_cursor_close(ctx_, cursor);
+    grn_table_cursor_close(ctx, cursor);
 
     DBUG_VOID_RETURN;
   }
 
-  void DatabaseRepairer::repair_body(grn_obj *db,
+  void DatabaseRepairer::repair_body(grn_ctx *ctx,
+                                     grn_obj *db,
                                      const char *db_path,
                                      void *user_data) {
     MRN_DBUG_ENTER_METHOD();
 
     bool *succeeded = static_cast<bool *>(user_data);
-    if (grn_db_recover(ctx_, db) != GRN_SUCCESS) {
+    if (grn_db_recover(ctx, db) != GRN_SUCCESS) {
       push_warning_printf(thd_,
                           MRN_SEVERITY_WARNING,
                           ER_NOT_KEYFILE,
                           "mroonga: repair: "
                           "Failed to recover database: <%s>: <%s>",
-                          db_path, ctx_->errbuf);
+                          db_path, ctx->errbuf);
       *succeeded = false;
     }
 

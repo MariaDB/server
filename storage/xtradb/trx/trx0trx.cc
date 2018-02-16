@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -480,9 +480,11 @@ trx_free_prepared(
 	trx_t*	trx)	/*!< in, own: trx object */
 {
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
-	     || (trx_state_eq(trx, TRX_STATE_ACTIVE)
-		 && trx->is_recovered
+	     || (trx->is_recovered
+		 && (trx_state_eq(trx, TRX_STATE_ACTIVE)
+		     || trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY))
 		 && (srv_read_only_mode
+		     || srv_apply_log_only
 		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)));
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
@@ -1469,6 +1471,8 @@ trx_commit_in_memory(
 
 	if (lsn) {
 		ulint	flush_log_at_trx_commit;
+
+		DEBUG_SYNC_C("after_trx_committed_in_memory");
 
 		if (trx->insert_undo != NULL) {
 

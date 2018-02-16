@@ -22,13 +22,11 @@ show create table t2;
 show create table t3;
 show create table t4;
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
---error ER_CANT_CREATE_TABLE
+--error ER_ILLEGAL_HA_CREATE_OPTION
 alter table t1 encrypted=no;
 alter table t2 encrypted=yes;
 alter table t3 encrypted=default;
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
---error ER_CANT_CREATE_TABLE
+--error ER_ILLEGAL_HA_CREATE_OPTION
 alter table t4 encrypted=no;
 
 show create table t1;

@@ -405,10 +405,10 @@ to original un-instrumented file I/O APIs */
 	os_file_read_no_error_handling_func(file, buf, offset, n)
 # define os_file_read_no_error_handling_int_fd(                         \
 		file, buf, offset, n)                                   \
-	 os_file_read_no_error_handling_func(file, buf, offset, n)
+	 os_file_read_no_error_handling_func(OS_FILE_FROM_FD(file), buf, offset, n)
 
 # define os_file_write_int_fd(name, file, buf, offset, n)               \
-	os_file_write_func(name, file, buf, offset, n)
+	os_file_write_func(name, OS_FILE_FROM_FD(file), buf, offset, n)
 # define os_file_write(name, file, buf, offset, n)			\
 	os_file_write_func(name, file, buf, offset, n)
 

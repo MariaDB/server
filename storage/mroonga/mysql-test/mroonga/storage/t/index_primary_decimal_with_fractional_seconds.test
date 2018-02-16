@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source ../../include/mroonga/have_mroonga.inc
 
@@ -24,7 +24,6 @@ CREATE TABLE releases (
   version DECIMAL(6, 3) PRIMARY KEY,
   message TEXT
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE releases;
 
 INSERT INTO releases (version, message) VALUES (10.000, "10th release!");
 INSERT INTO releases (version, message) VALUES (10.001, "minor fix.");

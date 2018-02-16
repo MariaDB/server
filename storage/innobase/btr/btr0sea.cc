@@ -1982,9 +1982,7 @@ btr_search_validate(void)
 					(ulong) block->curr_left_side);
 
 				if (n_page_dumps < 20) {
-					buf_page_print(
-						page, 0,
-						BUF_PAGE_PRINT_NO_CRASH);
+					buf_page_print(page, 0);
 					n_page_dumps++;
 				}
 			}

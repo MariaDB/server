@@ -3,7 +3,6 @@ include $(top_srcdir)/build/makefiles/sphinx-build.am
 
 $(html_files): html-build-stamp
 $(html_files_relative_from_locale_dir): html-build-stamp
-$(man_files): man-build-stamp
 
 am__nobase_dist_doc_locale_DATA_DIST =
 if DOCUMENT_AVAILABLE
@@ -22,41 +21,16 @@ document_source_files =				\
 
 required_build_stamps =				\
 	html-build-stamp			\
-	man-build-stamp				\
 	mo-build-stamp
 
 if DOCUMENT_BUILDABLE
 EXTRA_DIST += $(required_build_stamps)
 endif
 
-man_files =					\
-	man/$(PACKAGE_NAME).1
-
 generated_files =				\
 	$(DOCTREES_BASE)			\
-	man					\
-	man-build-stamp				\
 	html					\
-	html-build-stamp			\
-	pdf					\
-	pdf-build-stamp				\
-	dirhtml					\
-	dirhtml-build-stamp			\
-	pickle					\
-	pikcle-build-stamp			\
-	json					\
-	json-build-stamp			\
-	htmlhelp				\
-	htmlhelp-build-stamp			\
-	qthelp					\
-	qthelp-build-stamp			\
-	latex					\
-	latex-build-stamp			\
-	changes					\
-	changes-build-stamp			\
-	linkcheck				\
-	linkcheck-build-stamp			\
-	doctest
+	html-build-stamp
 
 $(mo_files_relative_from_locale_dir): mo-build-stamp
 
@@ -75,83 +49,24 @@ maintainer-clean-local:
 endif
 
 .PHONY: help
-.PHONY: man clean-man
 .PHONY: html clean-html
-.PHONY: pdf
-.PHONY: dirhtml
-.PHONY: pickle
-.PHONY: json
-.PHONY: htmlhelp
-.PHONY: qthelp
-.PHONY: latex
-.PHONY: changes
-.PHONY: linkcheck
-.PHONY: doctest
 
 if DOCUMENT_BUILDABLE
 help:
 	@echo "Please use \`make <target>' where <target> is one of"
-	@echo "  man       to make man files"
 	@echo "  html      to make standalone HTML files"
-	@echo "  dirhtml   to make HTML files named index.html in directories"
-	@echo "  pickle    to make pickle files"
-	@echo "  json      to make JSON files"
-	@echo "  htmlhelp  to make HTML files and a HTML help project"
-	@echo "  qthelp    to make HTML files and a qthelp project"
-	@echo "  latex     to make LaTeX files, you can set PAPER=a4 or PAPER=letter"
-	@echo "  rdoc      to make RDoc files"
-	@echo "  textile   to make Textile files"
-	@echo "  changes   to make an overview of all changed/added/deprecated items"
-	@echo "  linkcheck to check all external links for integrity"
-	@echo "  doctest   to run all doctests embedded in the documentation (if enabled)"
 
-man: man-build-stamp
 html: html-recursive html-build-stamp
-dirhtml: dirhtml-build-stamp
-pickle: pickle-build-stamp
-json: json-build-stamp
-htmlhelp: htmlhelp-build-stamp
-qthelp: qthelp-build-stamp
-latex: latex-build-stamp
-rdoc: rdoc-build-stamp
-textile: textile-build-stamp
-changes: changes-build-stamp
-linkcheck: linkcheck-build-stamp
-doctest: doctest-build-stamp
 
 clean_targets =					\
-	clean-man				\
-	clean-html				\
-	clean-dirhtml				\
-	clean-pickle				\
-	clean-json				\
-	clean-htmlhelp				\
-	clean-qthelp				\
-	clean-latex				\
-	clean-rdoc				\
-	clean-textile				\
-	clean-changes				\
-	clean-linkcheck				\
-	clean-doctest
+	clean-html
 
 $(clean_targets):
 	target=`echo $@ | sed -e 's/^clean-//'`;	\
 	  rm -rf $${target}-build-stamp $${target}
 
 build_stamps =					\
-	man-build-stamp				\
-	html-build-stamp			\
-	dirhtml-build-stamp			\
-	pickle-build-stamp			\
-	json-build-stamp			\
-	htmlhelp-build-stamp			\
-	qthelp-build-stamp			\
-	latex-build-stamp			\
-	rdoc-build-stamp			\
-	textile-build-stamp			\
-	changes-build-stamp			\
-	linkcheck-build-stamp			\
-	doctest-build-stamp
+	html-build-stamp
 
 $(build_stamps): $(document_source_files)
 	target=`echo $@ | sed -e 's/-build-stamp$$//'`;	\
@@ -162,18 +77,4 @@ $(build_stamps): $(document_source_files)
 	    $(ALLSPHINXOPTS)				\
 	    $${target}
 	@touch $@
-
-qthelp: qthelp-message
-qthelp-message: qthelp-build-stamp
-	@echo "Build finished; now you can run 'qcollectiongenerator' with the" \
-	      ".qhcp project file in qthelp/*, like this:"
-	@echo "# qcollectiongenerator qthelp/groonga.qhcp"
-	@echo "To view the help file:"
-	@echo "# assistant -collectionFile qthelp/groonga.qhc"
-
-latex: latex-message
-latex-message: latex-build-stamp
-	@echo "Build finished; the LaTeX files are in latex/*."
-	@echo "Run \`make all-pdf' or \`make all-ps' in that directory to" \
-	      "run these through (pdf)latex."
 endif

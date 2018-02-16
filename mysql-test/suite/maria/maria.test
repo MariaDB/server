@@ -927,8 +927,9 @@ show create table t1;
 drop table t1;
 
 # ARIA specific varchar tests
---error 1118
 create table t1 (v varchar(65535));
+show create table t1;
+drop table t1;
 
 #
 # Test concurrent insert
@@ -1965,6 +1966,21 @@ alter table t1 enable keys;
 unlock tables;
 select count(*) from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-14690: Assertion `page_link == &fake_link' failed in
+--echo # pagecache_write_part
+--echo #
+
+CREATE TABLE t1 (a CHAR(8), b CHAR(8), c CHAR(8) NOT NULL DEFAULT '', f FLOAT, KEY(f)) ENGINE=Aria;
+INSERT INTO t1 (a) VALUES ('foo');
+DELETE FROM t1 WHERE c < 'bar';
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 (b) VALUES ('');
+ALTER TABLE t1 ENABLE KEYS;
+
+# Cleanup
+DROP TABLE t1;
 
 --echo #
 --echo # BUG#47444 - --myisam_repair_threads > 1 can result in all index

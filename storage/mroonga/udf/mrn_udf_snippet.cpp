@@ -2,7 +2,7 @@
 /*
   Copyright(C) 2010 Tetsuro IKEDA
   Copyright(C) 2010-2013 Kentoku SHIBA
-  Copyright(C) 2011-2014 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2017 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -26,13 +26,21 @@
 #include <mrn_windows.hpp>
 #include <mrn_table.hpp>
 #include <mrn_macro.hpp>
+#include <mrn_database_manager.hpp>
+#include <mrn_context_pool.hpp>
 #include <mrn_variables.hpp>
+#include <mrn_current_thread.hpp>
 
 MRN_BEGIN_DECLS
 
+extern mrn::DatabaseManager *mrn_db_manager;
+extern mrn::ContextPool *mrn_context_pool;
+
 struct st_mrn_snip_info
 {
-  grn_ctx ctx;
+  grn_ctx *ctx;
+  grn_obj *db;
+  bool use_shared_db;
   grn_obj *snippet;
   String result_str;
 };
@@ -42,7 +50,7 @@ static my_bool mrn_snippet_prepare(st_mrn_snip_info *snip_info, UDF_ARGS *args,
 {
   unsigned int i;
   CHARSET_INFO *cs;
-  grn_ctx *ctx = &snip_info->ctx;
+  grn_ctx *ctx = snip_info->ctx;
   long long snip_max_len;
   long long snip_max_num;
   long long skip_leading_spaces;
@@ -121,12 +129,12 @@ error:
   return TRUE;
 }
 
-MRN_API my_bool mroonga_snippet_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+MRN_API my_bool mroonga_snippet_init(UDF_INIT *init, UDF_ARGS *args, char *message)
 {
   uint i;
   st_mrn_snip_info *snip_info = NULL;
   bool can_open_snippet = TRUE;
-  initid->ptr = NULL;
+  init->ptr = NULL;
   if (args->arg_count < 11 || (args->arg_count - 11) % 3)
   {
     sprintf(message, "Incorrect number of arguments for mroonga_snippet(): %u",
@@ -168,8 +176,7 @@ MRN_API my_bool mroonga_snippet_init(UDF_INIT *initid, UDF_ARGS *args, char *mes
       goto error;
     }
   }
-  initid->maybe_null = 1;
-  initid->const_item = 1;
+  init->maybe_null = 1;
 
   if (!(snip_info = (st_mrn_snip_info *) mrn_my_malloc(sizeof(st_mrn_snip_info),
                                                        MYF(MY_WME | MY_ZEROFILL))))
@@ -177,8 +184,32 @@ MRN_API my_bool mroonga_snippet_init(UDF_INIT *initid, UDF_ARGS *args, char *mes
     strcpy(message, "mroonga_snippet() out of memory");
     goto error;
   }
-  grn_ctx_init(&snip_info->ctx, 0);
-  grn_db_create(&snip_info->ctx, NULL, 0);
+  snip_info->ctx = mrn_context_pool->pull();
+  {
+    const char *current_db_path = MRN_THD_DB_PATH(current_thd);
+    const char *action;
+    if (current_db_path) {
+      action = "open database";
+      mrn::Database *db;
+      int error = mrn_db_manager->open(current_db_path, &db);
+      if (error == 0) {
+        snip_info->db = db->get();
+        grn_ctx_use(snip_info->ctx, snip_info->db);
+        snip_info->use_shared_db = true;
+      }
+    } else {
+      action = "create anonymous database";
+      snip_info->db = grn_db_create(snip_info->ctx, NULL, NULL);
+      snip_info->use_shared_db = false;
+    }
+    if (!snip_info->db) {
+      sprintf(message,
+              "mroonga_snippet(): failed to %s: %s",
+              action,
+              snip_info->ctx->errbuf);
+      goto error;
+    }
+  }
 
   for (i = 1; i < args->arg_count; i++) {
     if (!args->args[i]) {
@@ -191,24 +222,26 @@ MRN_API my_bool mroonga_snippet_init(UDF_INIT *initid, UDF_ARGS *args, char *mes
       goto error;
     }
   }
-  initid->ptr = (char *) snip_info;
+  init->ptr = (char *) snip_info;
 
   return FALSE;
 
 error:
   if (snip_info) {
-    grn_obj_close(&snip_info->ctx, grn_ctx_db(&snip_info->ctx));
-    grn_ctx_fin(&snip_info->ctx);
+    if (!snip_info->use_shared_db) {
+      grn_obj_close(snip_info->ctx, snip_info->db);
+    }
+    mrn_context_pool->release(snip_info->ctx);
     my_free(snip_info);
   }
   return TRUE;
 }
 
-MRN_API char *mroonga_snippet(UDF_INIT *initid, UDF_ARGS *args, char *result,
-                      unsigned long *length, char *is_null, char *error)
+MRN_API char *mroonga_snippet(UDF_INIT *init, UDF_ARGS *args, char *result,
+                              unsigned long *length, char *is_null, char *error)
 {
-  st_mrn_snip_info *snip_info = (st_mrn_snip_info *) initid->ptr;
-  grn_ctx *ctx = &snip_info->ctx;
+  st_mrn_snip_info *snip_info = (st_mrn_snip_info *) init->ptr;
+  grn_ctx *ctx = snip_info->ctx;
   String *result_str = &snip_info->result_str;
   char *target;
   unsigned int target_length;
@@ -286,16 +319,18 @@ error:
   return NULL;
 }
 
-MRN_API void mroonga_snippet_deinit(UDF_INIT *initid)
+MRN_API void mroonga_snippet_deinit(UDF_INIT *init)
 {
-  st_mrn_snip_info *snip_info = (st_mrn_snip_info *) initid->ptr;
+  st_mrn_snip_info *snip_info = (st_mrn_snip_info *) init->ptr;
   if (snip_info) {
     if (snip_info->snippet) {
-      grn_obj_close(&snip_info->ctx, snip_info->snippet);
+      grn_obj_close(snip_info->ctx, snip_info->snippet);
     }
     MRN_STRING_FREE(snip_info->result_str);
-    grn_obj_close(&snip_info->ctx, grn_ctx_db(&snip_info->ctx));
-    grn_ctx_fin(&snip_info->ctx);
+    if (!snip_info->use_shared_db) {
+      grn_obj_close(snip_info->ctx, snip_info->db);
+    }
+    mrn_context_pool->release(snip_info->ctx);
     my_free(snip_info);
   }
 }

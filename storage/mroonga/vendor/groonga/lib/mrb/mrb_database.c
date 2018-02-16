@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2014 Brazil
+  Copyright(C) 2014-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -25,6 +25,7 @@
 
 #include "mrb_ctx.h"
 #include "mrb_database.h"
+#include "mrb_converter.h"
 
 static struct mrb_data_type mrb_grn_database_type = {
   "Groonga::Database",
@@ -43,7 +44,7 @@ mrb_grn_database_initialize(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
-mrb_grn_database_singleton_open(mrb_state *mrb, mrb_value klass)
+mrb_grn_database_class_open(mrb_state *mrb, mrb_value klass)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   grn_obj *database;
@@ -58,7 +59,7 @@ mrb_grn_database_singleton_open(mrb_state *mrb, mrb_value klass)
 }
 
 static mrb_value
-mrb_grn_database_singleton_create(mrb_state *mrb, mrb_value klass)
+mrb_grn_database_class_create(mrb_state *mrb, mrb_value klass)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   grn_obj *database;
@@ -95,6 +96,81 @@ mrb_grn_database_is_locked(mrb_state *mrb, mrb_value self)
   return mrb_bool_value(is_locked != 0);
 }
 
+static mrb_value
+mrb_grn_database_get_last_modified(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  uint32_t last_modified;
+  struct RClass *time_class;
+
+  last_modified = grn_db_get_last_modified(ctx, DATA_PTR(self));
+
+  time_class = mrb_class_get(mrb, "Time");
+  return mrb_funcall(mrb,
+                     mrb_obj_value(time_class),
+                     "at",
+                     1,
+                     mrb_float_value(mrb, last_modified));
+}
+
+static mrb_value
+mrb_grn_database_is_dirty(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_bool is_dirty;
+
+  is_dirty = grn_db_is_dirty(ctx, DATA_PTR(self));
+
+  return mrb_bool_value(is_dirty);
+}
+
+static mrb_value
+mrb_grn_database_array_reference(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *database;
+  mrb_value mrb_id_or_key;
+
+  mrb_get_args(mrb, "o", &mrb_id_or_key);
+
+  database = DATA_PTR(self);
+
+  if (mrb_fixnum_p(mrb_id_or_key)) {
+    char name[GRN_TABLE_MAX_KEY_SIZE];
+    int name_size;
+
+    name_size = grn_table_get_key(ctx,
+                                  grn_ctx_db(ctx),
+                                  mrb_fixnum(mrb_id_or_key),
+                                  name,
+                                  GRN_TABLE_MAX_KEY_SIZE);
+    if (name_size == 0) {
+      return mrb_nil_value();
+    } else {
+      return mrb_str_new(mrb, name, name_size);
+    }
+  } else {
+    grn_id name_domain_id = GRN_DB_SHORT_TEXT;
+    grn_id id;
+    grn_mrb_value_to_raw_data_buffer buffer;
+    void *name;
+    unsigned int name_size;
+
+    grn_mrb_value_to_raw_data_buffer_init(mrb, &buffer);
+    grn_mrb_value_to_raw_data(mrb, "name", mrb_id_or_key,
+                              name_domain_id, &buffer,
+                              &name, &name_size);
+    id = grn_table_get(ctx, database, name, name_size);
+    grn_mrb_value_to_raw_data_buffer_fin(mrb, &buffer);
+
+    if (id == GRN_ID_NIL) {
+      return mrb_nil_value();
+    } else {
+      return mrb_fixnum_value(id);
+    }
+  }
+}
+
 void
 grn_mrb_database_init(grn_ctx *ctx)
 {
@@ -107,12 +183,12 @@ grn_mrb_database_init(grn_ctx *ctx)
   klass = mrb_define_class_under(mrb, module, "Database", object_class);
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
 
-  mrb_define_singleton_method(mrb, (struct RObject *)klass, "open",
-                              mrb_grn_database_singleton_open,
-                              MRB_ARGS_REQ(1));
-  mrb_define_singleton_method(mrb, (struct RObject *)klass, "create",
-                              mrb_grn_database_singleton_create,
-                              MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb, klass, "open",
+                          mrb_grn_database_class_open,
+                          MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb, klass, "create",
+                          mrb_grn_database_class_create,
+                          MRB_ARGS_REQ(1));
 
   mrb_define_method(mrb, klass, "initialize",
                     mrb_grn_database_initialize, MRB_ARGS_REQ(1));
@@ -120,5 +196,11 @@ grn_mrb_database_init(grn_ctx *ctx)
                     mrb_grn_database_recover, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "locked?",
                     mrb_grn_database_is_locked, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "last_modified",
+                    mrb_grn_database_get_last_modified, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "dirty?",
+                    mrb_grn_database_is_dirty, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "[]",
+                    mrb_grn_database_array_reference, MRB_ARGS_REQ(1));
 }
 #endif

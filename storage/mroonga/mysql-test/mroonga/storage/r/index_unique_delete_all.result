@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS ids;
+CREATE TABLE ids (
+id int,
+UNIQUE KEY (id)
+);
+INSERT INTO ids VALUES (1);
+DELETE FROM ids;
+INSERT INTO ids VALUES (1);
+SELECT * FROM ids;
+id
+1
+INSERT INTO ids VALUES (1);
+ERROR 23000: Duplicate entry '1' for key 'id'
+DROP TABLE ids;

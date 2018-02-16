@@ -30,7 +30,7 @@
 #include <my_dir.h>
 #include "rpl_handler.h"
 #include "debug_sync.h"
-
+#include "log.h"                                // get_gtid_list_event
 
 enum enum_gtid_until_state {
   GTID_UNTIL_NOT_DONE,
@@ -873,72 +873,6 @@ get_binlog_list(MEM_ROOT *memroot)
   mysql_bin_log.unlock_index();
 
   DBUG_RETURN(current_list);
-}
-
-/*
-  Find the Gtid_list_log_event at the start of a binlog.
-
-  NULL for ok, non-NULL error message for error.
-
-  If ok, then the event is returned in *out_gtid_list. This can be NULL if we
-  get back to binlogs written by old server version without GTID support. If
-  so, it means we have reached the point to start from, as no GTID events can
-  exist in earlier binlogs.
-*/
-static const char *
-get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
-{
-  Format_description_log_event init_fdle(BINLOG_VERSION);
-  Format_description_log_event *fdle;
-  Log_event *ev;
-  const char *errormsg = NULL;
-
-  *out_gtid_list= NULL;
-
-  if (!(ev= Log_event::read_log_event(cache, 0, &init_fdle,
-                                      opt_master_verify_checksum)) ||
-      ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
-  {
-    if (ev)
-      delete ev;
-    return "Could not read format description log event while looking for "
-      "GTID position in binlog";
-  }
-
-  fdle= static_cast<Format_description_log_event *>(ev);
-
-  for (;;)
-  {
-    Log_event_type typ;
-
-    ev= Log_event::read_log_event(cache, 0, fdle, opt_master_verify_checksum);
-    if (!ev)
-    {
-      errormsg= "Could not read GTID list event while looking for GTID "
-        "position in binlog";
-      break;
-    }
-    typ= ev->get_type_code();
-    if (typ == GTID_LIST_EVENT)
-      break;                                    /* Done, found it */
-    if (typ == START_ENCRYPTION_EVENT)
-    {
-      if (fdle->start_decryption((Start_encryption_log_event*) ev))
-        errormsg= "Could not set up decryption for binlog.";
-    }
-    delete ev;
-    if (typ == ROTATE_EVENT || typ == STOP_EVENT ||
-        typ == FORMAT_DESCRIPTION_EVENT || typ == START_ENCRYPTION_EVENT)
-      continue;                                 /* Continue looking */
-
-    /* We did not find any Gtid_list_log_event, must be old binlog. */
-    ev= NULL;
-    break;
-  }
-
-  delete fdle;
-  *out_gtid_list= static_cast<Gtid_list_log_event *>(ev);
-  return errormsg;
 }
 
 

@@ -66,7 +66,6 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
   if (thd->get_stmt_da()->is_ok())
     thd->get_stmt_da()->reset_diagnostics_area();
   table_list->table= NULL;
-  result_code= result_code ? HA_ADMIN_FAILED : HA_ADMIN_OK;
   DBUG_RETURN(result_code);
 }
 
@@ -664,8 +663,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (lock_type == TL_WRITE && !table->table->s->tmp_table &&
                         table->mdl_request.type > MDL_SHARED_WRITE)
     {
-      if (wait_while_table_is_used(thd, table->table,
-                                   HA_EXTRA_PREPARE_FOR_RENAME))
+      if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
         goto err;
       DEBUG_SYNC(thd, "after_admin_flush");
       /* Flush entries in the query cache involving this table. */

@@ -1148,7 +1148,7 @@ void mysql_read_default_options(struct st_mysql_options *options,
 	  break;
         case OPT_pipe:
           options->protocol = MYSQL_PROTOCOL_PIPE;
-	  break;
+          break;
         case OPT_connect_timeout: 
 	case OPT_timeout:
 	  if (opt_arg)
@@ -1232,11 +1232,12 @@ void mysql_read_default_options(struct st_mysql_options *options,
 	    options->max_allowed_packet= atoi(opt_arg);
 	  break;
         case OPT_protocol:
-          if ((options->protocol= find_type(opt_arg, &sql_protocol_typelib,
+          if (options->protocol != UINT_MAX32 &&
+              (options->protocol= find_type(opt_arg, &sql_protocol_typelib,
                                             FIND_TYPE_BASIC)) <= 0)
           {
             fprintf(stderr, "Unknown option to protocol: %s\n", opt_arg);
-            exit(1);
+            options->protocol= UINT_MAX32;
           }
           break;
         case OPT_shared_memory_base_name:
@@ -3133,6 +3134,8 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     my_free(mysql->options.my_cnf_file);
     my_free(mysql->options.my_cnf_group);
     mysql->options.my_cnf_file=mysql->options.my_cnf_group=0;
+    if (mysql->options.protocol == UINT_MAX32)
+      goto error;
   }
 
   /* Some empty-string-tests are done because of ODBC */

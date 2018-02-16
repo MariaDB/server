@@ -122,9 +122,11 @@ trx_rseg_mem_free(
 
 	mutex_free(&rseg->mutex);
 
+	if (!srv_apply_log_only) {
 	/* There can't be any active transactions. */
 	ut_a(UT_LIST_GET_LEN(rseg->update_undo_list) == 0);
 	ut_a(UT_LIST_GET_LEN(rseg->insert_undo_list) == 0);
+	}
 
 	for (undo = UT_LIST_GET_FIRST(rseg->update_undo_cached);
 	     undo != NULL;

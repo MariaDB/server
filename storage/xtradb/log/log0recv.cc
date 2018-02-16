@@ -842,10 +842,8 @@ not_consistent:
 
 		fprintf(stderr,
 			"InnoDB: No valid checkpoint found.\n"
-			"InnoDB: If you are attempting downgrade"
-			" from MySQL 5.7.9 or later,\n"
-			"InnoDB: please refer to " REFMAN
-			"upgrading-downgrading.html\n"
+			"InnoDB: A downgrade from MariaDB 10.2.2"
+			" or later is not supported.\n"
 			"InnoDB: If this error appears when you are"
 			" creating an InnoDB database,\n"
 			"InnoDB: the problem may be that during"
@@ -1982,7 +1980,7 @@ recv_apply_hashed_log_recs(bool last_batch)
 
 		mutex_enter(&(log_sys->mutex));
 		mutex_enter(&(recv_sys->mutex));
-		ut_d(recv_no_log_write = FALSE);
+		ut_d(recv_no_log_write = srv_apply_log_only);
 
 		recv_no_ibuf_operations = FALSE;
 	}
@@ -3463,7 +3461,8 @@ recv_recovery_from_checkpoint_finish(void)
 	that the data dictionary tables will be free of any locks.
 	The data dictionary latch should guarantee that there is at
 	most one data dictionary transaction active at a time. */
-	if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+	if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
+	    && !srv_apply_log_only) {
 		trx_rollback_or_clean_recovered(FALSE);
 	}
 }
@@ -3566,6 +3565,7 @@ recv_reset_logs(
 
 	log_sys->tracked_lsn = log_sys->lsn;
 
+	memset(log_sys->buf, 0, log_sys->buf_size);
 	log_block_init(log_sys->buf, log_sys->lsn);
 	log_block_set_first_rec_group(log_sys->buf, LOG_BLOCK_HDR_SIZE);
 

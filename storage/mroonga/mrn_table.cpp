@@ -1,7 +1,7 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
   Copyright(C) 2011-2013 Kentoku SHIBA
-  Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2017 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -202,7 +202,6 @@ void mrn_get_partition_info(const char *table_name, uint table_name_length,
                             const TABLE *table, partition_element **part_elem,
                             partition_element **sub_elem)
 {
-  char tmp_name[FN_REFLEN + 1];
   partition_info *part_info = table->part_info;
   partition_element *tmp_part_elem = NULL, *tmp_sub_elem = NULL;
   bool tmp_flg = FALSE, tmp_find_flg = FALSE;
@@ -224,18 +223,24 @@ void mrn_get_partition_info(const char *table_name, uint table_name_length,
       List_iterator<partition_element> sub_it((*part_elem)->subpartitions);
       while ((*sub_elem = sub_it++))
       {
-        if (create_subpartition_name(tmp_name, sizeof(tmp_name), table->s->path.str,
-            (*part_elem)->partition_name, (*sub_elem)->partition_name,
-          NORMAL_PART_NAME))
+        char subpartition_name[FN_REFLEN + 1];
+        int error = mrn_create_subpartition_name(subpartition_name,
+                                                 sizeof(subpartition_name),
+                                                 table->s->path.str,
+                                                 (*part_elem)->partition_name,
+                                                 (*sub_elem)->partition_name,
+                                                 NORMAL_PART_NAME);
+        if (error != 0)
           DBUG_VOID_RETURN;
-        DBUG_PRINT("info", ("mroonga tmp_name=%s", tmp_name));
-        if (table_name && !memcmp(table_name, tmp_name, table_name_length + 1))
+        DBUG_PRINT("info", ("mroonga subpartition name=%s", subpartition_name));
+        if (table_name &&
+            memcmp(table_name, subpartition_name, table_name_length + 1) == 0)
           DBUG_VOID_RETURN;
         if (
           tmp_flg &&
           table_name &&
-          *(tmp_name + table_name_length - 5) == '\0' &&
-          !memcmp(table_name, tmp_name, table_name_length - 5)
+          *(subpartition_name + table_name_length - 5) == '\0' &&
+          memcmp(table_name, subpartition_name, table_name_length - 5) == 0
         ) {
           tmp_part_elem = *part_elem;
           tmp_sub_elem = *sub_elem;
@@ -244,17 +249,24 @@ void mrn_get_partition_info(const char *table_name, uint table_name_length,
         }
       }
     } else {
-      if (create_partition_name(tmp_name, sizeof(tmp_name), table->s->path.str,
-          (*part_elem)->partition_name, NORMAL_PART_NAME, TRUE))
+      char partition_name[FN_REFLEN + 1];
+      int error = mrn_create_partition_name(partition_name,
+                                            sizeof(partition_name),
+                                            table->s->path.str,
+                                            (*part_elem)->partition_name,
+                                            NORMAL_PART_NAME,
+                                            TRUE);
+      if (error != 0)
         DBUG_VOID_RETURN;
-      DBUG_PRINT("info", ("mroonga tmp_name=%s", tmp_name));
-      if (table_name && !memcmp(table_name, tmp_name, table_name_length + 1))
+      DBUG_PRINT("info", ("mroonga partition name=%s", partition_name));
+      if (table_name &&
+          memcmp(table_name, partition_name, table_name_length + 1) == 0)
         DBUG_VOID_RETURN;
       if (
         tmp_flg &&
         table_name &&
-        *(tmp_name + table_name_length - 5) == '\0' &&
-        !memcmp(table_name, tmp_name, table_name_length - 5)
+        *(partition_name + table_name_length - 5) == '\0' &&
+        memcmp(table_name, partition_name, table_name_length - 5) == 0
       ) {
         tmp_part_elem = *part_elem;
         tmp_flg = FALSE;
@@ -518,6 +530,7 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
   char *sprit_ptr[2];
   char *tmp_ptr, *start_ptr;
 #endif
+  THD *thd = current_thd;
   MRN_DBUG_ENTER_FUNCTION();
 
 #if MYSQL_VERSION_ID >= 50500
@@ -580,6 +593,10 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
         MRN_PARAM_STR_LIST("table", index_table, i);
         break;
       case 6:
+        push_warning_printf(thd, MRN_SEVERITY_WARNING,
+                            ER_WARN_DEPRECATED_SYNTAX,
+                            ER(ER_WARN_DEPRECATED_SYNTAX),
+                            "parser", "tokenizer");
         MRN_PARAM_STR_LIST("parser", key_tokenizer, i);
         break;
       case 9:
@@ -1000,29 +1017,34 @@ int mrn_free_share(MRN_SHARE *share)
 
 TABLE_SHARE *mrn_get_table_share(TABLE_LIST *table_list, int *error)
 {
-  uint key_length;
   TABLE_SHARE *share;
   THD *thd = current_thd;
   MRN_DBUG_ENTER_FUNCTION();
-#ifdef MRN_HAVE_GET_TABLE_DEF_KEY
+#if defined(MRN_HAVE_TDC_ACQUIRE_SHARE) &&      \
+  !defined(MRN_TDC_ACQUIRE_SHARE_REQUIRE_KEY)
+  share = tdc_acquire_share(thd, table_list, GTS_TABLE);
+#else
+  uint key_length;
+#  ifdef MRN_HAVE_GET_TABLE_DEF_KEY
   const char *key;
   key_length = get_table_def_key(table_list, &key);
-#else
+#  else
   char key[MAX_DBKEY_LENGTH];
   key_length = create_table_def_key(thd, key, table_list, FALSE);
-#endif
-#ifdef MRN_HAVE_TABLE_DEF_CACHE
+#  endif
+#  ifdef MRN_HAVE_TABLE_DEF_CACHE
   my_hash_value_type hash_value;
   hash_value = my_calc_hash(mrn_table_def_cache, (uchar*) key, key_length);
   share = get_table_share(thd, table_list, key, key_length, 0, error,
                           hash_value);
-#elif defined(MRN_HAVE_TDC_ACQUIRE_SHARE)
+#  elif defined(MRN_HAVE_TDC_ACQUIRE_SHARE)
   share = tdc_acquire_share(thd, table_list->db, table_list->table_name, key,
                             key_length,
                             table_list->mdl_request.key.tc_hash_value(),
                             GTS_TABLE, NULL);
-#else
+#  else
   share = get_table_share(thd, table_list, key, key_length, 0, error);
+#  endif
 #endif
   DBUG_RETURN(share);
 }
@@ -1053,7 +1075,7 @@ TABLE_SHARE *mrn_create_tmp_table_share(TABLE_LIST *table_list, const char *path
     *error = ER_CANT_OPEN_FILE;
     DBUG_RETURN(NULL);
   }
-  share->tmp_table = INTERNAL_TMP_TABLE; // TODO: is this right?
+  share->tmp_table = NO_TMP_TABLE; // TODO: is this right?
   share->path.str = (char *) path;
   share->path.length = strlen(share->path.str);
   share->normalized_path.str = mrn_my_strdup(path, MYF(MY_WME));

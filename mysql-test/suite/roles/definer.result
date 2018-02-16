@@ -626,3 +626,117 @@ show grants for utest;
 Grants for utest
 GRANT SELECT ON *.* TO 'utest'
 drop role utest;
+#
+# MDEV-13676: Field "create Procedure" is NULL, even if the the user
+# has role which is the definer. (SHOW CREATE PROCEDURE)
+#
+create database rtest;
+create role r1;
+create role r2;
+create role r3;
+grant all privileges  on rtest.*  to r1;
+create user user1;
+grant r1 to user1;
+grant r1 to r2;
+grant r2 to user1;
+grant r3 to user1;
+set role r2;
+use rtest;
+CREATE DEFINER=current_role() PROCEDURE user1_proc() SQL SECURITY INVOKER
+BEGIN
+SELECT NOW(), VERSION();
+END;//
+set role r2;
+show create procedure user1_proc;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+user1_proc	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`r2` PROCEDURE `user1_proc`()
+    SQL SECURITY INVOKER
+BEGIN
+SELECT NOW(), VERSION();
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+#
+# Currently one can not use as definer any role except CURRENT_ROLE
+#
+CREATE DEFINER='r1' PROCEDURE user1_proc2() SQL SECURITY INVOKER
+BEGIN
+SELECT NOW(), VERSION();
+END;//
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+set role r1;
+CREATE DEFINER='r1' PROCEDURE user1_proc2() SQL SECURITY INVOKER
+BEGIN
+SELECT NOW(), VERSION();
+END;//
+show create procedure user1_proc2;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+user1_proc2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`r1` PROCEDURE `user1_proc2`()
+    SQL SECURITY INVOKER
+BEGIN
+SELECT NOW(), VERSION();
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+#
+# Test to see if the user can still see the procedure code if the
+# role that owns it is granted to him indirectly.
+#
+set role r2;
+show create procedure user1_proc2;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+user1_proc2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`r1` PROCEDURE `user1_proc2`()
+    SQL SECURITY INVOKER
+BEGIN
+SELECT NOW(), VERSION();
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+#
+# One should not be able to see the procedure code if the role that owns
+# the procedure is not set by the user or is not in the subgraph of the
+# currently active role.
+#
+set role r3;
+show create procedure user1_proc2;
+ERROR 42000: PROCEDURE user1_proc2 does not exist
+use rtest;
+#
+# Try a few edge cases, with usernames identical to role name;
+#
+create user user_like_role;
+create user foo;
+create role user_like_role;
+grant select on rtest.* to user_like_role;
+grant select on rtest.* to foo;
+grant select on rtest.* to user_like_role@'%';
+grant user_like_role to foo;
+#
+# Here we have a procedure that is owned by user_like_role USER
+# We don't want user_like_role ROLE to have access to its code.
+#
+CREATE DEFINER=`user_like_role`@`%` PROCEDURE sensitive_proc() SQL SECURITY INVOKER
+BEGIN
+SELECT NOW(), VERSION();
+END;//
+use rtest;
+show create procedure sensitive_proc;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+sensitive_proc	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user_like_role`@`%` PROCEDURE `sensitive_proc`()
+    SQL SECURITY INVOKER
+BEGIN
+SELECT NOW(), VERSION();
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+set role user_like_role;
+use rtest;
+#
+# Foo has the set rolename identical to the procedure's definer's username.
+# Foo should not have access to this procedure.
+#
+show create procedure sensitive_proc;
+ERROR 42000: PROCEDURE sensitive_proc does not exist
+drop role r1;
+drop role r2;
+drop role r3;
+drop role user_like_role;
+drop user user1;
+drop user foo;
+drop user user_like_role;
+drop procedure user1_proc;
+drop procedure user1_proc2;
+drop procedure sensitive_proc;
+drop database rtest;

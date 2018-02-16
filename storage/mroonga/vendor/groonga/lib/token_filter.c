@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2014 Brazil
+  Copyright(C) 2014-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -38,7 +38,7 @@ grn_token_filter_register(grn_ctx *ctx,
     grn_obj *token_filter_object = grn_proc_create(ctx,
                                                    plugin_name_ptr,
                                                    plugin_name_length,
-                                                   GRN_PROC_TOKENIZER,
+                                                   GRN_PROC_TOKEN_FILTER,
                                                    NULL, NULL, NULL, 0, NULL);
     if (token_filter_object == NULL) {
       GRN_PLUGIN_ERROR(ctx, GRN_TOKEN_FILTER_ERROR,

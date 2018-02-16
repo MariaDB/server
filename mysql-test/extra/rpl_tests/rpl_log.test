@@ -65,6 +65,8 @@ flush logs;
 # To make it predictable, we do a useless update now, but which has the
 # interest of making the slave catch both rotate events.
 
+let $skip_checkpoint_events=1;
+
 eval create table t3 (a int)ENGINE=$engine_type;
 
 # Sync slave and force it to start on another binary log

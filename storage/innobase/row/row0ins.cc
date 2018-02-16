@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -565,7 +565,8 @@ row_ins_cascade_calc_update_vec(
 
 				if (!dfield_is_null(&ufield->new_val)
 				    && dtype_get_at_most_n_mbchars(
-					col->prtype, col->mbminmaxlen,
+					col->prtype,
+					col->mbminlen, col->mbmaxlen,
 					col->len,
 					ufield_len,
 					static_cast<char*>(
@@ -1137,7 +1138,7 @@ row_ins_foreign_check_on_constraint(
 			rec_print(stderr, clust_rec, clust_index);
 			fputs("\n"
 			      "InnoDB: Submit a detailed bug report to"
-			      " http://bugs.mysql.com\n", stderr);
+			      " https://jira.mariadb.org/\n", stderr);
 			ut_ad(0);
 			err = DB_SUCCESS;
 
@@ -1291,12 +1292,11 @@ row_ins_foreign_check_on_constraint(
 
 #ifdef WITH_WSREP
 	err = wsrep_append_foreign_key(
-					thr_get_trx(thr),
-					foreign,
-					clust_rec,
-					clust_index,
-					FALSE,
-					(node) ? TRUE : FALSE);
+				       thr_get_trx(thr),
+				       foreign,
+				       clust_rec,
+				       clust_index,
+				       FALSE, FALSE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
@@ -1325,7 +1325,7 @@ row_ins_foreign_check_on_constraint(
 
 	row_mysql_freeze_data_dictionary(thr_get_trx(thr));
 
-	mtr_start_trx(mtr, trx);
+	mtr_start(mtr);
 
 	/* Restore pcur position */
 
@@ -1353,7 +1353,7 @@ nonstandard_exit_func:
 	btr_pcur_store_position(pcur, mtr);
 
 	mtr_commit(mtr);
-	mtr_start_trx(mtr, trx);
+	mtr_start(mtr);
 
 	btr_pcur_restore_position(BTR_SEARCH_LEAF, pcur, mtr);
 
@@ -1566,7 +1566,7 @@ run_again:
 		}
 	}
 
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 
 	/* Store old value on n_fields_cmp */
 
@@ -2361,7 +2361,7 @@ row_ins_clust_index_entry_low(
 	      || n_uniq == dict_index_get_n_unique(index));
 	ut_ad(!n_uniq || n_uniq == dict_index_get_n_unique(index));
 
-	mtr_start_trx(&mtr, thr_get_trx(thr));
+	mtr_start(&mtr);
 
 	if (mode == BTR_MODIFY_LEAF && dict_index_is_online_ddl(index)) {
 		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
@@ -2580,10 +2580,9 @@ Starts a mini-transaction and checks if the index will be dropped.
 @return true if the index is to be dropped */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
-row_ins_sec_mtr_start_trx_and_check_if_aborted(
+row_ins_sec_mtr_start_and_check_if_aborted(
 /*=======================================*/
 	mtr_t*		mtr,	/*!< out: mini-transaction */
-	trx_t*		trx,	/*!< in: transaction handle */
 	dict_index_t*	index,	/*!< in/out: secondary index */
 	bool		check,	/*!< in: whether to check */
 	ulint		search_mode)
@@ -2591,7 +2590,7 @@ row_ins_sec_mtr_start_trx_and_check_if_aborted(
 {
 	ut_ad(!dict_index_is_clust(index));
 
-	mtr_start_trx(mtr, trx);
+	mtr_start(mtr);
 
 	if (!check) {
 		return(false);
@@ -2649,14 +2648,13 @@ row_ins_sec_index_entry_low(
 	ulint		n_unique;
 	mtr_t		mtr;
 	ulint*		offsets	= NULL;
-	trx_t*		trx = thr_get_trx(thr);
 
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(mode == BTR_MODIFY_LEAF || mode == BTR_MODIFY_TREE);
 
 	cursor.thr = thr;
 	ut_ad(thr_get_trx(thr)->id);
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 
 	/* Ensure that we acquire index->lock when inserting into an
 	index with index->online_status == ONLINE_INDEX_COMPLETE, but
@@ -2694,7 +2692,7 @@ row_ins_sec_index_entry_low(
 
 	if (err != DB_SUCCESS) {
 		if (err == DB_DECRYPTION_FAILED) {
-			ib_push_warning(trx->mysql_thd,
+			ib_push_warning(thr_get_trx(thr)->mysql_thd,
 				DB_DECRYPTION_FAILED,
 				"Table %s is encrypted but encryption service or"
 				" used key_id is not available. "
@@ -2730,8 +2728,8 @@ row_ins_sec_index_entry_low(
 
 		DEBUG_SYNC_C("row_ins_sec_index_unique");
 
-		if (row_ins_sec_mtr_start_trx_and_check_if_aborted(
-			    &mtr, trx, index, check, search_mode)) {
+		if (row_ins_sec_mtr_start_and_check_if_aborted(
+			    &mtr, index, check, search_mode)) {
 			goto func_exit;
 		}
 
@@ -2765,8 +2763,8 @@ row_ins_sec_index_entry_low(
 			return(err);
 		}
 
-		if (row_ins_sec_mtr_start_trx_and_check_if_aborted(
-			    &mtr, trx, index, check, search_mode)) {
+		if (row_ins_sec_mtr_start_and_check_if_aborted(
+			    &mtr, index, check, search_mode)) {
 			goto func_exit;
 		}
 
@@ -2969,6 +2967,10 @@ row_ins_sec_index_entry(
 	mem_heap_t*	offsets_heap;
 	mem_heap_t*	heap;
 
+	DBUG_EXECUTE_IF("row_ins_sec_index_entry_timeout", {
+ 			DBUG_SET("-d,row_ins_sec_index_entry_timeout");
+ 			return(DB_LOCK_WAIT);});
+
 	if (!index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(index->table, index,
 							entry, thr);
@@ -3071,7 +3073,7 @@ row_ins_index_entry_set_vals(
 				= dict_field_get_col(ind_field);
 
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminmaxlen,
+				col->prtype, col->mbminlen, col->mbmaxlen,
 				ind_field->prefix_len,
 				len,
 				static_cast<const char*>(

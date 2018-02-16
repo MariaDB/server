@@ -33,11 +33,15 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/tmp/'
 INSERT INTO t1 VALUES (0), (1), (2);
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Tables have different definitions
 ALTER TABLE t1 EXCHANGE PARTITION p2 WITH TABLE t2;
 ERROR HY000: Tables have different definitions
+SELECT * FROM t1;
+a
+1
+2
 SELECT * FROM t2;
 a
+0
 DROP TABLE t1, t2;
 # Creating two non colliding tables mysqltest2.t1 and test.t1
 # test.t1 have partitions in mysqltest2-directory!

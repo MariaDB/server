@@ -128,9 +128,9 @@ SET(PCREGREP_BUFSIZE "20480" CACHE STRING
 SET(PCRE_NEWLINE "LF" CACHE STRING
     "What to recognize as a newline (one of CR, LF, CRLF, ANY, ANYCRLF).")
 
-# MARIADB: Changed the default from OFF to ON as pcre_test.bat on Windows
-# MARIADB: fails complaining about too small stack size on Windows.
-SET(PCRE_NO_RECURSE ON CACHE BOOL
+# Windows has much smaller stack (pcre recursion limit of 112, vs
+# 250-500 on Linuxes)
+SET(PCRE_NO_RECURSE "${WIN32}" CACHE BOOL
     "If ON, then don't use stack recursion when matching. See NO_RECURSE in config.h.in for details.")
 
 SET(PCRE_POSIX_MALLOC_THRESHOLD "10" CACHE STRING

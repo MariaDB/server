@@ -7,20 +7,12 @@ VAGRANTFILE_API_VERSION = "2"
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   vms = [
     {
-      :id => "debian-wheezy-i386",
-      :box_url => "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_debian-7.8-i386_chef-provisionerless.box",
-    },
-    {
-      :id => "debian-wheezy-amd64",
-      :box_url => "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_debian-7.8_chef-provisionerless.box",
-    },
-    {
       :id => "debian-jessie-i386",
-      :box_url => "http://packages.groonga.org/tmp/opscode_debian-8.0-i386_chef-provisionerless.box",
+      :box_url => "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_debian-8.2-i386_chef-provisionerless.box",
     },
     {
       :id => "debian-jessie-amd64",
-      :box_url => "http://packages.groonga.org/tmp/opscode_debian-8.0_chef-provisionerless.box",
+      :box_url => "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_debian-8.2_chef-provisionerless.box",
     },
   ]
 

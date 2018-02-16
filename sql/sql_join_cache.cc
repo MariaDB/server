@@ -394,7 +394,7 @@ void JOIN_CACHE::create_flag_fields()
     TABLE *table= tab->table;
 
     /* Create a field for the null bitmap from table if needed */
-    if (tab->used_null_fields || tab->used_uneven_bit_fields)			    
+    if (tab->used_null_fields || tab->used_uneven_bit_fields)
       length+= add_flag_field_to_join_cache(table->null_flags,
                                             table->s->null_bytes,
                                             &copy);
@@ -3877,6 +3877,7 @@ int JOIN_TAB_SCAN_MRR::open()
   /* Dynamic range access is never used with BKA */
   DBUG_ASSERT(join_tab->use_quick != 2);
 
+  join_tab->tracker->r_scans++;
   save_or_restore_used_tabs(join_tab, FALSE);
 
   init_mrr_buff();
@@ -3920,6 +3921,8 @@ int JOIN_TAB_SCAN_MRR::next()
   int rc= join_tab->table->file->multi_range_read_next((range_id_t*)ptr) ? -1 : 0;
   if (!rc)
   {
+    join_tab->tracker->r_rows++;
+    join_tab->tracker->r_rows_after_where++;
     /*
       If a record in in an incremental cache contains no fields then the
       association for the last record in cache will be equal to cache->end_pos

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,6 +29,7 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "univ.i"
 #include "ut0byte.h"
 #include "my_crypt.h"
+#include "os0file.h"
 
 typedef int Crypt_result;
 
@@ -72,6 +73,8 @@ log_encrypt_before_write(
 /*=====================*/
 	ib_uint64_t	next_checkpoint_no,	/*!< in: log group to be flushed */
 	byte* 		block,			/*!< in/out: pointer to a log block */
+	lsn_t		lsn,			/*!< in: log sequence number of
+						the start of the buffer */
 	const ulint 	size);			/*!< in: size of log blocks */
 
 /********************************************************
@@ -82,6 +85,8 @@ void
 log_decrypt_after_read(
 /*===================*/
 	byte*		frame,	/*!< in/out: log segment */
+	lsn_t lsn,		/*!< in: log sequence number of the start
+				of the buffer */
 	const ulint	size);	/*!< in: log segment size */
 
 /* Error codes for crypt info */
@@ -125,4 +130,45 @@ log_crypt_print_checkpoint_keys(
 /*============================*/
 	const byte* log_block);
 
+/** Encrypt temporary log block.
+@param[in]	src_block	block to encrypt or decrypt
+@param[in]	size		size of the block
+@param[out]	dst_block	destination block
+@param[in]	offs		offset to block
+@param[in]	space_id	tablespace id
+@return true if successfull, false in case of failure
+*/
+UNIV_INTERN
+bool
+log_tmp_block_encrypt(
+	const byte*		src_block,
+	ulint			size,
+	byte*			dst_block,
+	os_offset_t		offs,
+	ulint			space_id)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Decrypt temporary log block.
+@param[in]	src_block	block to encrypt or decrypt
+@param[in]	size		size of the block
+@param[out]	dst_block	destination block
+@param[in]	offs		offset to block
+@param[in]	space_id	tablespace id
+@return true if successfull, false in case of failure
+*/
+UNIV_INTERN
+bool
+log_tmp_block_decrypt(
+	const byte*		src_block,
+	ulint			size,
+	byte*			dst_block,
+	os_offset_t		offs,
+	ulint			space_id)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Find out is temporary log files encrypted.
+@return true if temporary log file should be encrypted, false if not */
+UNIV_INTERN
+bool
+log_tmp_is_encrypted() MY_ATTRIBUTE((warn_unused_result));
 #endif  // log0crypt.h

@@ -122,8 +122,7 @@ toku_db_destruct_autotxn(DB_TXN *txn, int r, bool changed) {
     return r; 
 }
 
-void create_iname_hint_for_dbdir(const char *dname, char *hint);
-void create_iname_hint(const char *dname, char *hint);
+void create_iname_hint(DB_ENV *env, const char *dname, char *hint);
 char *create_iname(DB_ENV *env,
                    uint64_t id1,
                    uint64_t id2,

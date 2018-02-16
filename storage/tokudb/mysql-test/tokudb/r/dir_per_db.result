@@ -1,3 +1,4 @@
+SET @orig_tokudb_dir_per_db=@@global.tokudb_dir_per_db;
 ########
 #  tokudb_dir_per_db = 1
 ########
@@ -177,4 +178,11 @@ t1_status_id.tokudb
 DROP TABLE t2;
 ## Looking for *.tokudb files in data_dir
 ## Looking for *.tokudb files in data_dir/test
-SET GLOBAL tokudb_dir_per_db=default;
+CREATE DATABASE `a::a@@`;
+CREATE TABLE `a::a@@`.`t1` (a INT) ENGINE=TOKUDB;
+CREATE DATABASE `!@#$%^&*()`;
+ALTER TABLE `a::a@@`.`t1` RENAME `!@#$%^&*()`.`t1`;
+DROP TABLE `!@#$%^&*()`.`t1`;
+DROP DATABASE `!@#$%^&*()`;
+DROP DATABASE `a::a@@`;
+SET GLOBAL tokudb_dir_per_db=@orig_tokudb_dir_per_db;

@@ -22,3 +22,17 @@ a	left(b,10)
 4	CCCCCCCCCC
 drop table t1;
 set debug_sync='reset';
+# End of 5.5 tests
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT t1 VALUES (1);
+LOCK TABLE t1 WRITE;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+SELECT * FROM INFORMATION_SCHEMA.TABLES;
+SELECT * FROM t1;
+i
+1
+UNLOCK TABLES;
+DROP TABLE t1;
+# End of 10.0 tests

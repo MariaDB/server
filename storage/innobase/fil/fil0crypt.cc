@@ -742,11 +742,12 @@ fil_space_encrypt(
 			fprintf(stderr, "ok %d corrupted %d corrupted1 %d err %d different %d\n",
 				ok , corrupted, corrupted1, err, different);
 			fprintf(stderr, "src_frame\n");
-			buf_page_print(src_frame, zip_size, BUF_PAGE_PRINT_NO_CRASH);
+			buf_page_print(src_frame, zip_size);
 			fprintf(stderr, "encrypted_frame\n");
-			buf_page_print(tmp, zip_size, BUF_PAGE_PRINT_NO_CRASH);
+			buf_page_print(tmp, zip_size);
 			fprintf(stderr, "decrypted_frame\n");
-			buf_page_print(tmp_mem, zip_size, 0);
+			buf_page_print(tmp_mem, zip_size);
+			ut_ad(0);
 		}
 
 		free(tmp_mem);
@@ -2127,7 +2128,8 @@ fil_crypt_complete_rotate_space(
 		mutex_exit(&crypt_data->mutex);
 
 		/* all threads must call btr_scrub_complete_space wo/ mutex held */
-		if (btr_scrub_complete_space(&state->scrub_data) == true) {
+		if (state->scrub_data.scrubbing) {
+			btr_scrub_complete_space(&state->scrub_data);
 			if (should_flush) {
 				/* only last thread updates last_scrub_completed */
 				ut_ad(crypt_data);

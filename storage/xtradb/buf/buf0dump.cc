@@ -41,9 +41,7 @@ Created April 08, 2011 Vasil Dimov
 #include "sync0rw.h" /* rw_lock_s_lock() */
 #include "ut0byte.h" /* ut_ull_create() */
 #include "ut0sort.h" /* UT_SORT_FUNCTION_BODY */
-#ifdef WITH_WSREP
-extern my_bool wsrep_recovery;
-#endif /* WITH_WSREP */
+#include "mysql/service_wsrep.h" /* wsrep_recovery */
 
 enum status_severity {
 	STATUS_INFO,

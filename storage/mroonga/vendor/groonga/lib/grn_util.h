@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2010-2015 Brazil
+/*
+  Copyright(C) 2010-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_UTIL_H
-#define GRN_UTIL_H
+
+#pragma once
 
 #include "grn.h"
 #include "grn_ctx.h"
@@ -26,13 +27,23 @@ extern "C" {
 
 GRN_API grn_rc grn_normalize_offset_and_limit(grn_ctx *ctx, int size, int *offset, int *limit);
 
-GRN_API const char *grn_win32_base_dir(void);
 GRN_API char *grn_path_separator_to_system(char *dest, char *groonga_path);
 
+void grn_p_record(grn_ctx *ctx, grn_obj *table, grn_id id);
+
+/*
+ * grn_mkstemp generates a unique filename from path_template, creates a
+ * file with permissions 0600 and returns a open file desciptor for the file.
+ * The last 6 bytes of path_template must be "XXXXXX" and these are replaced
+ * with a string that makes the filename unique.
+ */
 int grn_mkstemp(char *path_template);
+grn_bool grn_path_exist(const char *path);
+
+int grn_tokenize(const char *str, size_t str_len,
+                 const char **tokbuf, int buf_size,
+                 const char **rest);
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_UTIL_H */

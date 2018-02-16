@@ -6,8 +6,8 @@
 # table was binlogged in RBR.
 #
 
---source include/master-slave.inc
 --source include/have_binlog_format_row.inc
+--source include/master-slave.inc
 
 #This statement is not binlogged in RBR.
 CREATE TEMPORARY TABLE t1(c1 INTEGER);

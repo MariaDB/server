@@ -101,7 +101,8 @@ static void *do_read_wait(void *arg) {
 
 static void launch_cheap_waiter(void) {
     toku_pthread_t tid;
-    int r = toku_pthread_create(&tid, NULL, do_cheap_wait, NULL); 
+    int r = toku_pthread_create(
+        toku_uninstrumented, &tid, nullptr, do_cheap_wait, nullptr);
     assert_zero(r);
     toku_pthread_detach(tid);
     sleep(1);
@@ -109,7 +110,8 @@ static void launch_cheap_waiter(void) {
 
 static void launch_expensive_waiter(void) {
     toku_pthread_t tid;
-    int r = toku_pthread_create(&tid, NULL, do_expensive_wait, NULL); 
+    int r = toku_pthread_create(
+        toku_uninstrumented, &tid, nullptr, do_expensive_wait, nullptr);
     assert_zero(r);
     toku_pthread_detach(tid);
     sleep(1);
@@ -117,7 +119,8 @@ static void launch_expensive_waiter(void) {
 
 static void launch_reader(void) {
     toku_pthread_t tid;
-    int r = toku_pthread_create(&tid, NULL, do_read_wait, NULL); 
+    int r = toku_pthread_create(
+        toku_uninstrumented, &tid, nullptr, do_read_wait, nullptr);
     assert_zero(r);
     toku_pthread_detach(tid);
     sleep(1);
@@ -132,7 +135,7 @@ static bool locks_are_expensive(void) {
 }
 
 static void test_write_cheapness(void) {
-    toku_mutex_init(&mutex, NULL);    
+    toku_mutex_init(toku_uninstrumented, &mutex, nullptr);
     w.init(&mutex);
 
     // single expensive write lock

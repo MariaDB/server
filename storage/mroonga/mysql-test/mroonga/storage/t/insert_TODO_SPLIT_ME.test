@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source include/not_embedded.inc
 --source ../../include/mroonga/have_mroonga.inc
@@ -76,22 +76,6 @@ create table t1 (c1 datetime);
 insert into t1 values("2010/03/26 11:22:33");
 select * from t1;
 drop table t1;
-
-
-# for virtual columns
-create table t1 (c1 int, _id int);
-set sql_mode="";
-# warning WARN_DATA_TRUNCATED
-insert into t1 (c1,_id) values (1,1);
-set sql_mode="strict_all_tables";
-# We can't use WARN_DATA_TRUNCATED here because "WXXX" isn't supported
-# MySQL 5.5, 5.6 and MariaDB 5.6. MariaDB 10.0 only supports it.
-# We share this test with all MySQL servers. So we use number here.
---error 1265
-insert into t1 (c1,_id) values (4,1);
-select * from t1;
-drop table t1;
-
 
 # duplicated key error
 create table t1 (c1 int primary key, c2 int);

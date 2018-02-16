@@ -45,10 +45,10 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	6
-#define INNODB_VERSION_BUGFIX	36
+#define INNODB_VERSION_BUGFIX	38
 
 #ifndef PERCONA_INNODB_VERSION
-#define PERCONA_INNODB_VERSION 82.1
+#define PERCONA_INNODB_VERSION 83.0
 #endif
 
 /* Enable UNIV_LOG_ARCHIVE in XtraDB */
@@ -691,14 +691,6 @@ typedef void* os_thread_ret_t;
 # define UNIV_MEM_ASSERT_W(addr, size) do {} while(0)
 # define UNIV_MEM_TRASH(addr, c, size) do {} while(0)
 #endif
-#define UNIV_MEM_ASSERT_AND_FREE(addr, size) do {	\
-	UNIV_MEM_ASSERT_W(addr, size);			\
-	UNIV_MEM_FREE(addr, size);			\
-} while (0)
-#define UNIV_MEM_ASSERT_AND_ALLOC(addr, size) do {	\
-	UNIV_MEM_ASSERT_W(addr, size);			\
-	UNIV_MEM_ALLOC(addr, size);			\
-} while (0)
 
 extern ulong	srv_page_size_shift;
 extern ulong	srv_page_size;

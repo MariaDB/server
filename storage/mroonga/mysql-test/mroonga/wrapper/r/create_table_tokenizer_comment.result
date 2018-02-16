@@ -5,14 +5,6 @@ body text,
 fulltext index body_index (body)
 comment 'tokenizer "TokenBigramSplitSymbolAlphaDigit"'
 ) comment = 'engine "innodb"' default charset utf8;
-show create table diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `body` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `body_index` (`body`) COMMENT 'tokenizer "TokenBigramSplitSymbolAlphaDigit"'
-) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='engine "innodb"'
 insert into diaries (body) values ("will start Groonga!");
 insert into diaries (body) values ("starting Groonga...");
 insert into diaries (body) values ("started Groonga.");

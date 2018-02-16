@@ -15,8 +15,9 @@
 # BUG#55322: SHOW BINLOG EVENTS increases @@SESSION.MAX_ALLOWED_PACKET
 
 # max-out size db name 
-source include/master-slave.inc;
 source include/have_binlog_format_row.inc;
+source include/master-slave.inc;
+
 call mtr.add_suppression("Slave I/O: Got a packet bigger than 'slave_max_allowed_packet' bytes, .*error.* 1153");
 call mtr.add_suppression("Log entry on master is longer than slave_max_allowed_packet");
 let $db= DB_NAME_OF_MAX_LENGTH_AKA_NAME_LEN_64_BYTES_____________________;

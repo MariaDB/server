@@ -14,12 +14,12 @@ AM_LDFLAGS =					\
 LIBS =						\
 	$(top_builddir)/lib/libgroonga.la
 
-tokenizers_plugins_LTLIBRARIES =
+tokenizer_plugins_LTLIBRARIES =
 if WITH_MECAB
-tokenizers_plugins_LTLIBRARIES += mecab.la
+tokenizer_plugins_LTLIBRARIES += mecab.la
 endif
 if WITH_KYTEA
-tokenizers_plugins_LTLIBRARIES += kytea.la
+tokenizer_plugins_LTLIBRARIES += kytea.la
 endif
 
 include mecab_sources.am

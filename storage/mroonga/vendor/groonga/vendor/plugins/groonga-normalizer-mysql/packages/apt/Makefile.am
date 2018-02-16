@@ -1,7 +1,7 @@
 REPOSITORIES_PATH = repositories
 DISTRIBUTIONS = debian
 ARCHITECTURES = i386 amd64
-CODE_NAMES = wheezy jessie
+CODE_NAMES = jessie
 
 all:
 

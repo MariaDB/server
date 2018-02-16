@@ -104,7 +104,14 @@ let $script=
   s{DOLLARmysqltest_vardir}{MYSQLTEST_VARDIR}g;
 ||
 --let $pre_script= my DOLLARmysqltest_vardir = DOLLARENV{'MYSQLTEST_VARDIR'};
+
 --delimiter ;
+
+if ($skip_checkpoint_events)
+{
+  let $filter_script=Binlog_checkpoint;
+}
+
 
 #--let $select_columns= 1 3 6
 --let $input_file= $output_file

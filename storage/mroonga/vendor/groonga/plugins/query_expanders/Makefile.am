@@ -14,7 +14,7 @@ AM_LDFLAGS =					\
 LIBS =						\
 	$(top_builddir)/lib/libgroonga.la
 
-query_expanders_plugins_LTLIBRARIES =
-query_expanders_plugins_LTLIBRARIES += tsv.la
+query_expander_plugins_LTLIBRARIES =
+query_expander_plugins_LTLIBRARIES += tsv.la
 
 include tsv_sources.am

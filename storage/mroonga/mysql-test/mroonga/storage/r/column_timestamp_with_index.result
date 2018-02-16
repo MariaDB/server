@@ -2,20 +2,10 @@ DROP TABLE IF EXISTS diaries;
 CREATE TABLE diaries (
 id INT PRIMARY KEY AUTO_INCREMENT,
 title TEXT,
-created_at TIMESTAMP,
-updated_at TIMESTAMP,
+created_at TIMESTAMP DEFAULT '2016-04-21 00:00:00',
+updated_at TIMESTAMP DEFAULT '2016-04-21 00:00:00',
 KEY (updated_at)
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  PRIMARY KEY (`id`),
-  KEY `updated_at` (`updated_at`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (title, created_at, updated_at)
 VALUES ("clear day", "2012-01-29 21:51:01", "2012-01-29 21:51:02");
 INSERT INTO diaries (title, created_at, updated_at)

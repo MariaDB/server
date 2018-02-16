@@ -1970,7 +1970,7 @@ Warnings:
 Warning	1300	Invalid utf8mb4 character string: 'FD'
 select convert(char(0xff,0x8f) using utf8mb4);
 convert(char(0xff,0x8f) using utf8mb4)
-NULL
+??
 Warnings:
 Warning	1300	Invalid utf8mb4 character string: '\xFF\x8F'
 select hex(convert(char(2557 using latin1) using utf8mb4));
@@ -2139,7 +2139,7 @@ Warnings:
 Warning	1300	Invalid utf8mb4 character string: 'FF'
 select hex(convert(0xFF using utf8mb4));
 hex(convert(0xFF using utf8mb4))
-NULL
+3F
 Warnings:
 Warning	1300	Invalid utf8mb4 character string: '\xFF'
 select hex(_utf8mb4 0x616263FF);
@@ -3420,6 +3420,32 @@ SELECT * FROM t1;
 a	b
 a 😁 b	a ? b
 DROP TABLE t1;
+#
+# MDEV-8949: COLUMN_CREATE unicode name breakage
+#
+SET NAMES utf8mb4;
+SELECT COLUMN_JSON(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1));
+COLUMN_JSON(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1))
+{"😎":1}
+SELECT COLUMN_LIST(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1));
+COLUMN_LIST(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1))
+`😎`
+SELECT COLUMN_GET(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1), _utf8mb4 0xF09F988E
+as int);
+COLUMN_GET(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1), _utf8mb4 0xF09F988E
+as int)
+1
+CREATE TABLE t1 AS SELECT
+COLUMN_LIST(COLUMN_CREATE('a',1)),
+COLUMN_JSON(COLUMN_CREATE('b',1));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `COLUMN_LIST(COLUMN_CREATE('a',1))` longtext CHARACTER SET utf8mb4,
+  `COLUMN_JSON(COLUMN_CREATE('b',1))` longtext CHARACTER SET utf8mb4
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET NAMES default;
 #
 # End of 10.0 tests
 #

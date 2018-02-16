@@ -2,7 +2,7 @@
 
 LOCALES = ja
 
-ACLOCAL_AMFLAGS = ${ACLOCAL_ARGS} -I .
+ACLOCAL_AMFLAGS = -I m4
 AUTOMAKE_OPTIONS = 1.9.6
 SUBDIRS =					\
 	build					\
@@ -20,16 +20,23 @@ SUBDIRS =					\
 	doc
 #dist_data_DATA =
 EXTRA_DIST =					\
-	README.md				\
-	bindings				\
-	version-gen.sh				\
-	base_version				\
-	gpg_uid					\
 	CMakeLists.txt				\
-	config.h.cmake
+	README.md				\
+	base_version				\
+	bindings				\
+	bundled_lz4_version			\
+	bundled_mecab_naist_jdic_version	\
+	bundled_mecab_version			\
+	config.h.cmake				\
+	gpg_uid					\
+	nginx_version				\
+	version-gen.sh
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = groonga.pc
+if GRN_WITH_ARROW
+pkgconfig_DATA += groonga-arrow.pc
+endif
 
 .PHONY: FORCE
 
@@ -42,6 +49,7 @@ include $(srcdir)/version.sh
 
 dist-hook:
 	echo "$(GRN_VERSION)" > $(distdir)/version
+	cd $(distdir) && autoreconf --install --force && find . -name autom4te.cache | xargs rm -fr
 
 benchmark:
 	cd test/benchmark && $(MAKE) benchmark
@@ -74,8 +82,7 @@ update-latest-release: misc
 	  doc/source/install.rst				\
 	  doc/source/install/*.rst				\
 	  doc/locale/*/LC_MESSAGES/install.po			\
-	  $(GROONGA_ORG_PATH)/index.html			\
-	  $(GROONGA_ORG_PATH)/ja/index.html
+	  $(GROONGA_ORG_PATH)/_config.yml
 
 update-po:
 	@for lang in $(LOCALES); do						\

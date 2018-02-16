@@ -118,3 +118,19 @@ B
 select count(*) from events_statements_history where sql_text like "%...";
 count(*)
 2
+use test;
+create table t1 (id int);
+insert into t1 values (1), (2), (3);
+truncate performance_schema.events_statements_history;
+select * from t1;
+id
+1
+2
+3
+insert into t1 select RAND()*10000 from t1;
+select sql_text, rows_examined from performance_schema.events_statements_history;
+sql_text	rows_examined
+truncate performance_schema.events_statements_history	0
+select * from t1	3
+insert into t1 select RAND()*10000 from t1	6
+drop table t1;

@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011-2015 Brazil
+/*
+  Copyright(C) 2011-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -36,10 +37,11 @@
 #include <algorithm>
 #include <limits>
 
+/* Must be the same value as GRN_OPEN_CREATE_MODE */
 #ifdef WIN32
 # define GRN_IO_FILE_CREATE_MODE (GENERIC_READ | GENERIC_WRITE)
 #else /* WIN32 */
-# define GRN_IO_FILE_CREATE_MODE 0644
+# define GRN_IO_FILE_CREATE_MODE 0640
 #endif /* WIN32 */
 
 namespace grn {
@@ -128,14 +130,23 @@ void FileImpl::flush() {
     return;
   }
 
-  BOOL succeeded = ::FlushViewOfFile(addr_, size_);
+  BOOL succeeded = ::FlushViewOfFile(addr_, static_cast<SIZE_T>(size_));
+  GRN_DAT_THROW_IF(IO_ERROR, !succeeded);
+
+  SYSTEMTIME system_time;
+  GetSystemTime(&system_time);
+  FILETIME file_time;
+  succeeded = SystemTimeToFileTime(&system_time, &file_time);
+  GRN_DAT_THROW_IF(IO_ERROR, !succeeded);
+
+  succeeded = SetFileTime(file_, NULL, NULL, &file_time);
   GRN_DAT_THROW_IF(IO_ERROR, !succeeded);
 }
 
 void FileImpl::create_(const char *path, UInt64 size) {
   if ((path != NULL) && (path[0] != '\0')) {
     file_ = ::CreateFileA(path, GRN_IO_FILE_CREATE_MODE,
-                          FILE_SHARE_READ | FILE_SHARE_WRITE,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                           NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     GRN_DAT_THROW_IF(IO_ERROR, file_ == INVALID_HANDLE_VALUE);
 
@@ -178,7 +189,7 @@ void FileImpl::open_(const char *path) {
       static_cast<UInt64>(st.st_size) > std::numeric_limits< ::size_t>::max());
 
   file_ = ::CreateFileA(path, GRN_IO_FILE_CREATE_MODE,
-                        FILE_SHARE_READ | FILE_SHARE_WRITE,
+                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                         NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
   GRN_DAT_THROW_IF(IO_ERROR, file_ == NULL);
 

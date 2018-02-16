@@ -1,16 +1,11 @@
 # truncate a giving file, all contents of the file are be cleared
 
-if (!$file)
+if (!$TRUNCATE_FILE)
 {
-  --echo Please assign a file name to $file!!
-  exit;
+  die TRUNCATE_FILE is not set;
 }
 
-let TRUNCATE_FILE= $file;
-
 perl;
-use Env;
-Env::import('TRUNCATE_FILE');
-open FILE, '>', $TRUNCATE_FILE || die "Can not open file $file";
+open FILE, '>', $ENV{TRUNCATE_FILE} or die "open(>$ENV{TRUNCATE_FILE}): $!";
 close FILE;
 EOF

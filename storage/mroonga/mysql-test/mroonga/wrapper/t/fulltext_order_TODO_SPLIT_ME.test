@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source include/have_innodb.inc
 --source ../../include/mroonga/have_mroonga.inc
@@ -23,14 +23,13 @@ DROP TABLE IF EXISTS diaries;
 
 SET NAMES UTF8;
 CREATE TABLE ft(
-  a INT,
+  a INT DEFAULT 0,
   b TEXT,
   c TEXT,
   PRIMARY KEY(a),
   FULLTEXT KEY ftx1(b),
   FULLTEXT KEY ftx2(c)
 )ENGINE=Mroonga DEFAULT CHARSET=UTF8 COMMENT = 'engine "innodb"';
-SHOW CREATE TABLE ft;
 
 INSERT INTO ft VALUES(1,'aaaaa','abcde');
 INSERT INTO ft VALUES(2,'bbbbb','bcdef');

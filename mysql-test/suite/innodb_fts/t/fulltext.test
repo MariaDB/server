@@ -4,10 +4,6 @@
 
 --source include/have_innodb.inc
 
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
-
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b)) ENGINE = InnoDB;
 INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
                        ('Full-text indexes', 'are called collections'),
@@ -679,3 +675,45 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo End of 5.1 tests
+
+# This is an adapted and extended version of an Oracle test for
+# Bug#21140111: Explain ... match against: Assertion failed: ret ...
+# No bug was repeatable for MariaDB.
+
+CREATE TABLE z(a INTEGER) engine=innodb;
+CREATE TABLE q(b TEXT CHARSET latin1, fulltext(b)) engine=innodb;
+
+--error ER_PARSE_ERROR
+EXPLAIN SELECT 1 FROM q WHERE (SELECT MATCH(b) AGAINST ('*') FROM z);
+--error ER_PARSE_ERROR
+SELECT 1 FROM q WHERE (SELECT MATCH(b) AGAINST ('*') FROM z);
+--error ER_BAD_FIELD_ERROR
+EXPLAIN SELECT MATCH(b) AGAINST ('*') FROM z;
+--error ER_BAD_FIELD_ERROR
+SELECT MATCH(b) AGAINST ('*') FROM z;
+--error ER_FT_MATCHING_KEY_NOT_FOUND
+EXPLAIN SELECT MATCH(a) AGAINST ('*') FROM z;
+--error ER_FT_MATCHING_KEY_NOT_FOUND
+SELECT MATCH(a) AGAINST ('*') FROM z;
+EXPLAIN SELECT MATCH(b) AGAINST ('*') FROM q;
+--error ER_PARSE_ERROR
+SELECT MATCH(b) AGAINST ('*') FROM q;
+
+DROP TABLE z, q;
+
+create table t (
+  FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY, t TEXT, FULLTEXT KEY (t)
+) ENGINE=InnoDB;
+
+INSERT INTO t values (1, 'foo bar'), (2, 'foo bar'), (3, 'foo');
+let $limit=0;
+let $N=6;
+while ($N)
+{
+ eval SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+ LIMIT $limit;
+ inc $limit;
+ dec $N;
+}
+
+DROP TABLE t;

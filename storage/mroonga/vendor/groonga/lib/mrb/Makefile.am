@@ -4,7 +4,8 @@ SUBDIRS =					\
 AM_CPPFLAGS =					\
 	-I$(top_builddir)			\
 	-I$(top_srcdir)/include			\
-	-I$(top_srcdir)/lib
+	-I$(top_srcdir)/lib			\
+	$(MRUBY_CPPFLAGS)
 
 AM_CFLAGS =					\
 	$(NO_STRICT_ALIASING_CFLAGS)		\

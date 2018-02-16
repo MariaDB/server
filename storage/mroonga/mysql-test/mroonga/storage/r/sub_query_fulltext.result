@@ -9,15 +9,6 @@ user_id INT UNSIGNED NOT NULL,
 title TEXT,
 FULLTEXT INDEX (title)
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `user_id` int(10) unsigned NOT NULL,
-  `title` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `title` (`title`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO users (name) VALUES ("alice");
 INSERT INTO users (name) VALUES ("bob");
 INSERT INTO users (name) VALUES ("carlos");

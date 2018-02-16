@@ -52,11 +52,27 @@ int wsrep_init_vars()
   return 0;
 }
 
+extern ulong innodb_lock_schedule_algorithm;
+
 bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
   if (var_type == OPT_GLOBAL) {
     // FIXME: this variable probably should be changed only per session
     thd->variables.wsrep_on = global_system_variables.wsrep_on;
+  }
+
+  return false;
+}
+
+bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
+{
+  bool new_wsrep_on= (bool)var->save_result.ulonglong_value;
+
+  if (new_wsrep_on && innodb_lock_schedule_algorithm != 0) {
+    my_message(ER_WRONG_ARGUMENTS, " WSREP (galera) can't be enabled "
+	    "if innodb_lock_schedule_algorithm=VATS. Please configure"
+	    " innodb_lock_schedule_algorithm=FCFS and restart.", MYF(0));
+    return true;
   }
   return false;
 }
@@ -301,8 +317,9 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
   if (wsrep_inited == 1)
     wsrep_deinit(false);
 
-  char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider 
+  char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider
                                      //when fails
+
   if (wsrep_init())
   {
     my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp);

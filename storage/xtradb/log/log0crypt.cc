@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -68,22 +68,6 @@ struct crypt_info_t {
 };
 
 static std::deque<crypt_info_t> crypt_info;
-
-/*********************************************************************//**
-Get a log block's start lsn.
-@return a log block's start lsn */
-static inline
-lsn_t
-log_block_get_start_lsn(
-/*====================*/
-	lsn_t lsn,			/*!< in: checkpoint lsn */
-	ulint log_block_no)		/*!< in: log block number */
-{
-	lsn_t start_lsn =
-		(lsn & (lsn_t)0xffffffff00000000ULL) |
-		(((log_block_no - 1) & (lsn_t)0x3fffffff) << 9);
-	return start_lsn;
-}
 
 /*********************************************************************//**
 Get crypt info from checkpoint.
@@ -161,6 +145,8 @@ Crypt_result
 log_blocks_crypt(
 /*=============*/
 	const byte* block,	/*!< in: blocks before encrypt/decrypt*/
+	lsn_t lsn,		/*!< in: log sequence number of the start
+				of the buffer */
 	ulint size,		/*!< in: size of block */
 	byte* dst_block,	/*!< out: blocks after encrypt/decrypt */
 	int what,		/*!< in: encrypt or decrypt*/
@@ -170,21 +156,18 @@ log_blocks_crypt(
 	Crypt_result rc = MY_AES_OK;
 	uint dst_len;
 	byte aes_ctr_counter[MY_AES_BLOCK_SIZE];
-	byte is_encrypt= what == ENCRYPTION_FLAG_ENCRYPT;
-	lsn_t lsn = is_encrypt ? log_sys->lsn : srv_start_lsn;
 
 	const uint src_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE;
-	for (ulint i = 0; i < size ; i += OS_FILE_LOG_BLOCK_SIZE) {
+	for (ulint i = 0; i < size ; i += OS_FILE_LOG_BLOCK_SIZE,
+	     lsn += OS_FILE_LOG_BLOCK_SIZE) {
 		ulint log_block_no = log_block_get_hdr_no(log_block);
-		lsn_t log_block_start_lsn = log_block_get_start_lsn(
-			lsn, log_block_no);
 
 		const crypt_info_t* info = crypt_info == NULL ? get_crypt_info(log_block) :
 			crypt_info;
 #ifdef DEBUG_CRYPT
 		fprintf(stderr,
 			"%s %lu chkpt: %lu key: %u lsn: %lu\n",
-			is_encrypt ? "crypt" : "decrypt",
+			what == ENCRYPTION_FLAG_ENCRYPT ? "crypt" : "decrypt",
 			log_block_no,
 			log_block_get_checkpoint_no(log_block),
 			info ? info->key_version : 0,
@@ -213,7 +196,7 @@ log_blocks_crypt(
 		// (1-byte, only 5 bits are used). "+" means concatenate.
 		bzero(aes_ctr_counter, MY_AES_BLOCK_SIZE);
 		memcpy(aes_ctr_counter, info->crypt_nonce, 3);
-		mach_write_to_8(aes_ctr_counter + 3, log_block_start_lsn);
+		mach_write_to_8(aes_ctr_counter + 3, lsn);
 		mach_write_to_4(aes_ctr_counter + 11, log_block_no);
 		bzero(aes_ctr_counter + 15, 1);
 
@@ -234,6 +217,129 @@ next:
 	}
 
 	return rc;
+}
+
+/** Encrypt/decrypt temporary log blocks.
+
+@param[in]	src_block	block to encrypt or decrypt
+@param[in]	size		size of the block
+@param[out]	dst_block	destination block
+@param[in]	what		ENCRYPTION_FLAG_ENCRYPT or
+				ENCRYPTION_FLAG_DECRYPT
+@param[in]	offs		offset to block
+@param[in]	space_id	tablespace id
+@return true if successful, false in case of failure
+*/
+static
+bool
+log_tmp_blocks_crypt(
+	const byte*		src_block,
+	ulint			size,
+	byte*			dst_block,
+	int			what,
+	os_offset_t		offs,
+	ulint			space_id)
+{
+	Crypt_result rc = MY_AES_OK;
+	uint dst_len;
+	byte aes_ctr_counter[MY_AES_BLOCK_SIZE];
+	byte is_encrypt= what == ENCRYPTION_FLAG_ENCRYPT;
+	const crypt_info_t* info = static_cast<const crypt_info_t*>(&crypt_info[0]);
+
+	// AES_CTR_COUNTER = space_id + offs
+
+	bzero(aes_ctr_counter, MY_AES_BLOCK_SIZE);
+	mach_write_to_8(aes_ctr_counter, space_id);
+	mach_write_to_8(aes_ctr_counter + 8, offs);
+
+	rc = encryption_crypt(src_block, size,
+				dst_block, &dst_len,
+				(unsigned char*)(info->crypt_key), 16,
+				aes_ctr_counter, MY_AES_BLOCK_SIZE,
+				what | ENCRYPTION_FLAG_NOPAD,
+				LOG_DEFAULT_ENCRYPTION_KEY,
+				info->key_version);
+
+	if (rc != MY_AES_OK) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"%s failed for temporary log file with rc = %d",
+			is_encrypt ? "Encryption" : "Decryption",
+			rc);
+		return false;
+	}
+
+	return true;
+}
+
+/** Get crypt info
+@return pointer to log crypt info or NULL
+*/
+inline
+const crypt_info_t*
+get_crypt_info()
+{
+	mutex_enter(&log_sys->mutex);
+	const crypt_info_t* info = get_crypt_info(log_sys->next_checkpoint_no);
+	mutex_exit(&log_sys->mutex);
+
+	return info;
+}
+
+/** Find out is temporary log files encrypted.
+@return true if temporary log file should be encrypted, false if not */
+UNIV_INTERN
+bool
+log_tmp_is_encrypted()
+{
+	const crypt_info_t* info = get_crypt_info();
+
+	if (info == NULL || info->key_version == UNENCRYPTED_KEY_VER) {
+		return false;
+	}
+
+	return true;
+}
+
+/** Encrypt temporary log block.
+@param[in]	src_block	block to encrypt or decrypt
+@param[in]	size		size of the block
+@param[out]	dst_block	destination block
+@param[in]	offs		offset to block
+@param[in]	space_id	tablespace id
+@return true if successfull, false in case of failure
+*/
+UNIV_INTERN
+bool
+log_tmp_block_encrypt(
+	const byte*		src_block,
+	ulint			size,
+	byte*			dst_block,
+	os_offset_t		offs,
+	ulint			space_id)
+{
+	return (log_tmp_blocks_crypt(src_block, size, dst_block,
+				ENCRYPTION_FLAG_ENCRYPT, offs, space_id));
+}
+
+/** Decrypt temporary log block.
+@param[in]	src_block	block to encrypt or decrypt
+@param[in]	size		size of the block
+@param[out]	dst_block	destination block
+@param[in]	offs		offset to block
+@param[in]	space_id	tablespace id
+@return true if successfull, false in case of failure
+*/
+UNIV_INTERN
+bool
+log_tmp_block_decrypt(
+	const byte*		src_block,
+	ulint			size,
+	byte*			dst_block,
+	os_offset_t		offs,
+	ulint			space_id)
+{
+	return (log_tmp_blocks_crypt(src_block, size, dst_block,
+				ENCRYPTION_FLAG_DECRYPT, offs, space_id));
 }
 
 /*********************************************************************//**
@@ -336,19 +442,6 @@ add_crypt_info(
 }
 
 /*********************************************************************//**
-Encrypt log blocks. */
-UNIV_INTERN
-Crypt_result
-log_blocks_encrypt(
-/*===============*/
-	const byte* block,		/*!< in: blocks before encryption */
-	const ulint size,		/*!< in: size of blocks, must be multiple of a log block */
-	byte* dst_block)		/*!< out: blocks after encryption */
-{
-	return log_blocks_crypt(block, size, dst_block, ENCRYPTION_FLAG_ENCRYPT, NULL);
-}
-
-/*********************************************************************//**
 Set next checkpoint's key version to latest one, and generate current
 key. Key version 0 means no encryption. */
 UNIV_INTERN
@@ -399,6 +492,8 @@ log_encrypt_before_write(
 /*=====================*/
 	ib_uint64_t next_checkpoint_no,	/*!< in: log group to be flushed */
 	byte* block,			/*!< in/out: pointer to a log block */
+	lsn_t lsn,			/*!< in: log sequence number of
+					the start of the buffer */
 	const ulint size)		/*!< in: size of log blocks */
 {
 	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
@@ -417,7 +512,8 @@ log_encrypt_before_write(
 	byte* dst_frame = (byte*)malloc(size);
 
 	//encrypt log blocks content
-	Crypt_result result = log_blocks_crypt(block, size, dst_frame, ENCRYPTION_FLAG_ENCRYPT, NULL);
+	Crypt_result result = log_blocks_crypt(
+		block, lsn, size, dst_frame, ENCRYPTION_FLAG_ENCRYPT, NULL);
 
 	if (result == MY_AES_OK) {
 		ut_ad(block[0] == dst_frame[0]);
@@ -437,13 +533,16 @@ void
 log_decrypt_after_read(
 /*===================*/
 	byte* frame,	        /*!< in/out: log segment */
+	lsn_t lsn,		/*!< in: log sequence number of the start
+				of the buffer */
 	const ulint size)	/*!< in: log segment size */
 {
 	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
 	byte* dst_frame = (byte*)malloc(size);
 
 	// decrypt log blocks content
-	Crypt_result result = log_blocks_crypt(frame, size, dst_frame, ENCRYPTION_FLAG_DECRYPT, NULL);
+	Crypt_result result = log_blocks_crypt(
+		frame, lsn, size, dst_frame, ENCRYPTION_FLAG_DECRYPT, NULL);
 
 	if (result == MY_AES_OK) {
 		memcpy(frame, dst_frame, size);

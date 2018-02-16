@@ -1,0 +1,28 @@
+source include/master-slave.inc;
+
+--echo #
+--echo # MDEV-13685 Can not replay binary log due to Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8mb4_general_ci,COERCIBLE) for operation 'concat'
+--echo #
+
+connection master;
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v_id INT DEFAULT 2017;
+  INSERT INTO test.t1 SELECT CONCAT(v_id, '오');
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+SELECT * FROM t1;
+sync_slave_with_master;
+SET NAMES utf8;
+SELECT * FROM t1;
+connection master;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+sync_slave_with_master;
+
+--source include/rpl_end.inc

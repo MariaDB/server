@@ -12,12 +12,12 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 --source include/have_geometry.inc
---source ../../include/mroonga/have_version_56_or_later.inc
+--source ../../include/mroonga/have_version_5_6_or_later.inc
 --source ../../include/mroonga/have_mroonga.inc
 
 --disable_warnings
@@ -143,8 +143,6 @@ ALTER TABLE shops ADD SPATIAL KEY location_index (location);
 
 SELECT id, name, ST_AsText(location) AS location_text FROM shops
   WHERE MBRContains(ST_GeomFromText('LineString(139.7727 35.6684, 139.7038 35.7121)'), location);
-
-SHOW CREATE TABLE shops;
 
 DROP TABLE shops;
 

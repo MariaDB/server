@@ -1,15 +1,15 @@
 DROP TABLE IF EXISTS diaries;
 CREATE TABLE diaries (
 id INT PRIMARY KEY AUTO_INCREMENT,
-title TEXT,
-body TEXT
+title VARCHAR(40),
+body VARCHAR(140)
 ) DEFAULT CHARSET UTF8;
 SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
+  `title` varchar(40) DEFAULT NULL,
+  `body` varchar(140) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (title, body) VALUES ("survey", "will start groonga!");
