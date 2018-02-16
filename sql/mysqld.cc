@@ -5299,10 +5299,7 @@ static int init_server_components()
     {
       unireg_abort(1);
     }
-  }
 
-  if (opt_bin_log)
-  {
     log_bin_basename=
       rpl_make_log_name(opt_bin_logname, pidfile_name,
                         opt_bin_logname ? "" : "-bin");
