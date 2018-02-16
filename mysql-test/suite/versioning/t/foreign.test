@@ -137,9 +137,13 @@ create or replace table parent (
 )
 engine innodb;
 
-create or replace table child (
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table child (
   id int primary key,
   parent_id int not null,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time(row_start, row_end),
   constraint `parent-fk`
   foreign key (parent_id) references parent (id)
       on delete cascade
@@ -154,7 +158,8 @@ delete from child;
 --echo ## FIXME END
 delete from parent;
 select * from child;
-select * from child for system_time all;
+--replace_result $sys_datatype_max MAXVAL
+eval select *, row_start < row_end, row_end < $sys_datatype_max from child for system_time all;
 
 drop table child;
 drop table parent;

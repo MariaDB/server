@@ -121,6 +121,9 @@ engine innodb;
 create or replace table child (
 id int primary key,
 parent_id int not null,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end),
 constraint `parent-fk`
   foreign key (parent_id) references parent (id)
 on delete cascade
@@ -135,9 +138,9 @@ delete from child;
 delete from parent;
 select * from child;
 id	parent_id
-select * from child for system_time all;
-id	parent_id
-3	3
+select *, row_start < row_end, row_end < MAXVAL from child for system_time all;
+id	parent_id	row_start < row_end	row_end < MAXVAL
+3	3	1	1
 drop table child;
 drop table parent;
 #################
