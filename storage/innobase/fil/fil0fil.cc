@@ -4215,7 +4215,8 @@ skip_validate:
 			err = DB_ERROR;
 		}
 
-		if (purpose != FIL_TYPE_IMPORT && !srv_read_only_mode) {
+		if (err == DB_SUCCESS && validate
+		    && purpose != FIL_TYPE_IMPORT && !srv_read_only_mode) {
 			df_remote.close();
 			df_dict.close();
 			df_default.close();
