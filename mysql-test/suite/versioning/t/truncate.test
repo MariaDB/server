@@ -1,3 +1,4 @@
+--source include/have_partition.inc
 --source suite/versioning/engines.inc
 
 create table t (a int);

@@ -1,6 +1,7 @@
 -- source include/have_partition.inc
 -- source suite/versioning/common.inc
 
+set system_versioning_alter_history=keep;
 --echo # Check conventional partitioning on temporal tables
 
 create table t1 (x int)
