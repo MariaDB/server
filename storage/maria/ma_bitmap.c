@@ -145,6 +145,11 @@ static my_bool _ma_bitmap_create_missing(MARIA_HA *info,
                                          MARIA_FILE_BITMAP *bitmap,
                                          pgcache_page_no_t page);
 static void _ma_bitmap_unpin_all(MARIA_SHARE *share);
+#ifndef DBUG_OFF
+static void _ma_check_bitmap(MARIA_FILE_BITMAP *bitmap);
+#else
+#define _ma_check_bitmap(A) do { } while(0)
+#endif
 
 
 /* Write bitmap page to key cache */
@@ -266,6 +271,13 @@ my_bool _ma_bitmap_init(MARIA_SHARE *share, File file,
   bitmap->sizes[5]= max_page_size - max_page_size * 40 / 100;
   bitmap->sizes[6]= max_page_size - max_page_size * 80 / 100;
   bitmap->sizes[7]= 0;
+
+  /*
+    If a record size will fit into the smallest empty page, return first
+   found page in find_head()
+  */
+  if (bitmap->sizes[3] >= share->base.max_pack_length)
+    bitmap->return_first_match= 1;
 
   mysql_mutex_init(key_SHARE_BITMAP_lock,
                    &share->bitmap.bitmap_lock, MY_MUTEX_INIT_SLOW);
@@ -677,7 +689,8 @@ void _ma_bitmap_delete_all(MARIA_SHARE *share)
     bzero(bitmap->map, bitmap->block_size);
     bitmap->changed= 1;
     bitmap->page= 0;
-    bitmap->used_size= bitmap->total_size= bitmap->max_total_size;
+    bitmap->used_size= bitmap->full_tail_size= bitmap->full_head_size= 0;
+    bitmap->total_size= bitmap->max_total_size;
   }
   DBUG_VOID_RETURN;
 }
@@ -715,6 +728,7 @@ void _ma_bitmap_reset_cache(MARIA_SHARE *share)
     */
     bitmap->page= ((pgcache_page_no_t) 0) - bitmap->pages_covered;
     bitmap->used_size= bitmap->total_size= bitmap->max_total_size;
+    bitmap->full_head_size= bitmap->full_tail_size= bitmap->max_total_size;
     bfill(bitmap->map, share->block_size, 255);
 #ifndef DBUG_OFF
     memcpy(bitmap->map + bitmap->block_size, bitmap->map, bitmap->block_size);
@@ -1016,9 +1030,6 @@ static void adjust_total_size(MARIA_HA *info, pgcache_page_no_t page)
     bitmap              Bitmap handler
     page                Page to read
 
-  TODO
-    Update 'bitmap->used_size' to real size of used bitmap
-
   NOTE
     We don't always have share->bitmap.bitmap_lock here
     (when called from_ma_check_bitmap_data() for example).
@@ -1035,6 +1046,9 @@ static my_bool _ma_read_bitmap_page(MARIA_HA *info,
   MARIA_SHARE *share= info->s;
   my_bool res;
   DBUG_ENTER("_ma_read_bitmap_page");
+  DBUG_PRINT("enter", ("page: %lld  data_file_length: %lld",
+                       (longlong) page,
+                       (longlong) share->state.state.data_file_length));
   DBUG_ASSERT(page % bitmap->pages_covered == 0);
   DBUG_ASSERT(!bitmap->changed);
 
@@ -1049,13 +1063,22 @@ static my_bool _ma_read_bitmap_page(MARIA_HA *info,
   }
 
   adjust_total_size(info, page);
-  bitmap->used_size= bitmap->total_size;
+  bitmap->full_head_size=  bitmap->full_tail_size= 0;
   DBUG_ASSERT(share->pagecache->block_size == bitmap->block_size);
   res= pagecache_read(share->pagecache,
                       &bitmap->file, page, 0,
                       bitmap->map, PAGECACHE_PLAIN_PAGE,
                       PAGECACHE_LOCK_LEFT_UNLOCKED, 0) == NULL;
 
+  if (!res)
+  {
+    /* Calculate used_size */
+    const uchar *data, *end=  bitmap->map;
+    for (data= bitmap->map + bitmap->total_size; --data >= end && *data == 0; )
+    {}
+    bitmap->used_size= (uint) ((data + 1) - end);
+    DBUG_ASSERT(bitmap->used_size <= bitmap->total_size);
+  }
   /*
     We can't check maria_bitmap_marker here as if the bitmap page
     previously had a true checksum and the user switched mode to not checksum
@@ -1067,7 +1090,10 @@ static my_bool _ma_read_bitmap_page(MARIA_HA *info,
 
 #ifndef DBUG_OFF
   if (!res)
+  {
     memcpy(bitmap->map + bitmap->block_size, bitmap->map, bitmap->block_size);
+    _ma_check_bitmap(bitmap);
+  }
 #endif
   DBUG_RETURN(res);
 }
@@ -1096,6 +1122,8 @@ static my_bool _ma_change_bitmap_page(MARIA_HA *info,
                                       pgcache_page_no_t page)
 {
   DBUG_ENTER("_ma_change_bitmap_page");
+
+  _ma_check_bitmap(bitmap);
 
   /*
     We have to mark the file changed here, as otherwise the following
@@ -1228,6 +1256,9 @@ static void fill_block(MARIA_FILE_BITMAP *bitmap,
      This is defined as the first page of the set of pages
      with the smallest free space that can hold 'size'.
 
+   NOTES
+     Updates bitmap->full_head_size while scanning data
+
    RETURN
     0   ok    (block is updated)
     1   error (no space in bitmap; block is not touched)
@@ -1238,10 +1269,11 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
                              MARIA_BITMAP_BLOCK *block)
 {
   uint min_bits= size_to_head_pattern(bitmap, size);
-  uchar *data= bitmap->map, *end= data + bitmap->used_size;
+  uchar *data, *end;
   uchar *best_data= 0;
   uint best_bits= (uint) -1, UNINIT_VAR(best_pos);
-  uint first_pattern= 0; /* if doing insert_order */
+  my_bool first_pattern= 0; /* if doing insert_order */
+  my_bool first_found= 1;
   MARIA_SHARE *share= bitmap->share;
   my_bool insert_order=
       MY_TEST(share->base.extra_options & MA_EXTRA_OPTIONS_INSERT_ORDER);
@@ -1249,16 +1281,19 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
 
   DBUG_ASSERT(size <= FULL_PAGE_SIZE(share));
 
+  end= bitmap->map + bitmap->used_size;
   if (insert_order && bitmap->page == share->last_insert_bitmap)
   {
     uint last_insert_page= share->last_insert_page;
     uint byte= 6 * (last_insert_page / 16);
     first_pattern= last_insert_page % 16;
-    DBUG_ASSERT(data + byte < end);
-    data+= byte;
+    data= bitmap->map+byte;
+    DBUG_ASSERT(data <= end);
   }
+  else
+    data= bitmap->map + (bitmap->full_head_size/6)*6;
 
-  for (; data < end; data+= 6)
+  for (; data < end; data+= 6, first_pattern= 0)
   {
     ulonglong bits= uint6korr(data);    /* 6 bytes = 6*8/3= 16 patterns */
     uint i;
@@ -1271,17 +1306,24 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
     */
     if ((!bits && best_data) ||
         ((bits & 04444444444444444LL) == 04444444444444444LL))
-    {
-      first_pattern= 0; // always restart from 0 when moving to new 6-byte
       continue;
-    }
+
     for (i= first_pattern, bits >>= (3 * first_pattern); i < 16 ;
 	 i++, bits >>= 3)
     {
       uint pattern= (uint) (bits & 7);
+
+      if (pattern <= 3)                       /* Room for more data */
+      {
+        if (first_found)
+        {
+          first_found= 0;
+          bitmap->full_head_size= (data - bitmap->map);
+        }
+      }
       if (pattern <= min_bits)
       {
-        /* There is enough space here */
+        /* There is enough space here, check if we have found better */
         if ((int) pattern > (int) best_bits)
         {
           /*
@@ -1292,23 +1334,32 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
           best_bits= pattern;
           best_data= data;
           best_pos= i;
-          if (pattern == min_bits)
+          if (pattern == min_bits || bitmap->return_first_match)
             goto found;                         /* Best possible match */
         }
       }
     }
-    first_pattern= 0; // always restart from 0 when moving to new 6-byte
   }
   if (!best_data)                               /* Found no place */
   {
     if (data >= bitmap->map + bitmap->total_size)
       DBUG_RETURN(1);                           /* No space in bitmap */
+    DBUG_ASSERT(uint6korr(data) == 0);
     /* Allocate data at end of bitmap */
-    bitmap->used_size+= 6;
-    set_if_smaller(bitmap->used_size, bitmap->total_size);
+    bitmap->used_size= (uint) (data - bitmap->map) + 6;
     best_data= data;
     best_pos= best_bits= 0;
   }
+  else
+  {
+    /*
+      This is not stricly needed as used_size should be alligned on 6,
+       but for easier debugging lets try to keep it more accurate
+    */
+    uint position= (uint)  (best_data - bitmap->map) + 6;
+    set_if_bigger(bitmap->used_size, position);
+  }
+  DBUG_ASSERT(bitmap->used_size <= bitmap->total_size);
 
 found:
   if (insert_order)
@@ -1341,11 +1392,14 @@ static my_bool allocate_tail(MARIA_FILE_BITMAP *bitmap, uint size,
                              MARIA_BITMAP_BLOCK *block)
 {
   uint min_bits= size_to_tail_pattern(bitmap, size);
-  uchar *data= bitmap->map, *end= data + bitmap->used_size;
-  uchar *best_data= 0;
+  uchar *data, *end, *best_data= 0;
+  my_bool first_found= 1;
   uint best_bits= (uint) -1, UNINIT_VAR(best_pos);
   DBUG_ENTER("allocate_tail");
   DBUG_PRINT("enter", ("size: %u", size));
+
+  data= bitmap->map + (bitmap->full_tail_size/6)*6;
+  end=  bitmap->map + bitmap->used_size;
 
   /*
     We have to add DIR_ENTRY_SIZE here as this is not part of the data size
@@ -1375,7 +1429,19 @@ static my_bool allocate_tail(MARIA_FILE_BITMAP *bitmap, uint size,
     for (i= 0; i < 16; i++, bits >>= 3)
     {
       uint pattern= (uint) (bits & 7);
-      if (pattern <= min_bits && (!pattern || pattern >= 5))
+
+      if (pattern == 0 ||
+          (pattern > FULL_HEAD_PAGE && pattern < FULL_TAIL_PAGE))
+      {
+        /* There is room for tail data */
+        if (first_found)
+        {
+          first_found= 0;
+          bitmap->full_tail_size= (data - bitmap->map);
+        }
+      }
+
+      if (pattern <= min_bits && (!pattern || pattern > FULL_HEAD_PAGE))
       {
         if ((int) pattern > (int) best_bits)
         {
@@ -1392,10 +1458,11 @@ static my_bool allocate_tail(MARIA_FILE_BITMAP *bitmap, uint size,
   {
     if (data >= bitmap->map + bitmap->total_size)
       DBUG_RETURN(1);
+    DBUG_ASSERT(uint6korr(data) == 0);
     /* Allocate data at end of bitmap */
     best_data= data;
-    bitmap->used_size+= 6;
-    set_if_smaller(bitmap->used_size, bitmap->total_size);
+    bitmap->used_size= (uint) (data - bitmap->map) + 6;
+    DBUG_ASSERT(bitmap->used_size <= bitmap->total_size);
     best_pos= best_bits= 0;
   }
 
@@ -1434,8 +1501,7 @@ static ulong allocate_full_pages(MARIA_FILE_BITMAP *bitmap,
                                  ulong pages_needed,
                                  MARIA_BITMAP_BLOCK *block, my_bool full_page)
 {
-  uchar *data= bitmap->map, *data_end= data + bitmap->used_size;
-  uchar *page_end= data + bitmap->total_size;
+  uchar *data, *data_end, *page_end;
   uchar *best_data= 0;
   uint min_size;
   uint best_area_size, UNINIT_VAR(best_prefix_area_size);
@@ -1448,6 +1514,10 @@ static ulong allocate_full_pages(MARIA_FILE_BITMAP *bitmap,
   if (!full_page && min_size > BLOB_SEGMENT_MIN_SIZE)
     min_size= BLOB_SEGMENT_MIN_SIZE;
   best_area_size= ~(uint) 0;
+
+  data= bitmap->map + (bitmap->full_head_size/6)*6;
+  data_end= bitmap->map + bitmap->used_size;
+  page_end= bitmap->map + bitmap->total_size;
 
   for (; data < page_end; data+= 6)
   {
@@ -1466,6 +1536,12 @@ static ulong allocate_full_pages(MARIA_FILE_BITMAP *bitmap,
       if ((bits= uint6korr(data)))
         break;
     }
+    /*
+      Check if we are end of bitmap. In this case we know that
+      the rest of the bitmap is usable
+    */
+    if (data >= data_end)
+      data= page_end;
     area_size= (uint) (data - data_start) / 6 * 16;
     if (area_size >= best_area_size)
       continue;
@@ -1823,7 +1899,7 @@ static my_bool allocate_blobs(MARIA_HA *info, MARIA_ROW *row)
 
 
 /*
-  Store in the bitmap the new size for a head page
+  Reserve the current head page
 
   SYNOPSIS
     use_head()
@@ -2225,7 +2301,7 @@ static my_bool set_page_bits(MARIA_HA *info, MARIA_FILE_BITMAP *bitmap,
                              pgcache_page_no_t page, uint fill_pattern)
 {
   pgcache_page_no_t bitmap_page;
-  uint offset_page, offset, tmp, org_tmp;
+  uint offset_page, offset, tmp, org_tmp, used_offset;
   uchar *data;
   DBUG_ENTER("set_page_bits");
   DBUG_ASSERT(fill_pattern <= 7);
@@ -2237,6 +2313,7 @@ static my_bool set_page_bits(MARIA_HA *info, MARIA_FILE_BITMAP *bitmap,
 
   /* Find page number from start of bitmap */
   offset_page= (uint) (page - bitmap->page - 1);
+
   /*
     Mark place used by reading/writing 2 bytes at a time to handle
     bitmaps in overlapping bytes
@@ -2248,11 +2325,37 @@ static my_bool set_page_bits(MARIA_HA *info, MARIA_FILE_BITMAP *bitmap,
   tmp= (tmp & ~(7 << offset)) | (fill_pattern << offset);
   if (tmp == org_tmp)
     DBUG_RETURN(0);                             /* No changes */
-  int2store(data, tmp);
 
+  /*
+    Take care to not write bytes outside of bitmap.
+    fill_pattern is 3 bits, so we need to write two bytes
+    if bit position we write to is > (8-3)
+   */
+  if (offset > 5)
+    int2store(data, tmp);
+  else
+    data[0]= tmp;
+
+  /*
+    Reset full_head_size or full_tail_size if we are releasing data before
+    it. Increase used_size if we are allocating data.
+  */
+  used_offset= (uint) (data - bitmap->map);
+  if (fill_pattern < 4)
+    set_if_smaller(bitmap->full_head_size, used_offset);
+  if (fill_pattern == 0 || (fill_pattern > 4 && fill_pattern < 7))
+    set_if_smaller(bitmap->full_tail_size, used_offset);
+  if (fill_pattern != 0)
+  {
+    /* Calulcate which was the last changed byte */
+    used_offset+= offset > 5 ? 2 : 1;
+    set_if_bigger(bitmap->used_size, used_offset);
+  }
+
+  _ma_check_bitmap(bitmap);
   bitmap->changed= 1;
   DBUG_EXECUTE("bitmap", _ma_print_bitmap_changes(bitmap););
-  if (fill_pattern != 3 && fill_pattern != 7)
+  if (fill_pattern != FULL_HEAD_PAGE && fill_pattern != FULL_TAIL_PAGE)
     set_if_smaller(info->s->state.first_bitmap_with_space, bitmap_page);
   /*
     Note that if the condition above is false (page is full), and all pages of
@@ -2345,7 +2448,7 @@ my_bool _ma_bitmap_reset_full_page_bits(MARIA_HA *info,
                                         uint page_count)
 {
   ulonglong bitmap_page;
-  uint offset, bit_start, bit_count, tmp;
+  uint offset, bit_start, bit_count, tmp, byte_offset;
   uchar *data;
   DBUG_ENTER("_ma_bitmap_reset_full_page_bits");
   DBUG_PRINT("enter", ("page: %lu  page_count: %u", (ulong) page, page_count));
@@ -2365,7 +2468,8 @@ my_bool _ma_bitmap_reset_full_page_bits(MARIA_HA *info,
   bit_start= offset * 3;
   bit_count= page_count * 3;
 
-  data= bitmap->map + bit_start / 8;
+  byte_offset= bit_start/8;
+  data= bitmap->map + byte_offset;
   offset= bit_start & 7;
 
   tmp= (255 << offset);                         /* Bits to keep */
@@ -2375,6 +2479,9 @@ my_bool _ma_bitmap_reset_full_page_bits(MARIA_HA *info,
     tmp^= (255 << (offset + bit_count));
   }
   *data&= ~tmp;
+
+  set_if_smaller(bitmap->full_head_size, byte_offset);
+  set_if_smaller(bitmap->full_tail_size, byte_offset);
 
   if ((int) (bit_count-= (8 - offset)) > 0)
   {
@@ -2477,6 +2584,8 @@ my_bool _ma_bitmap_set_full_page_bits(MARIA_HA *info,
     tmp= (1 << bit_count) - 1;
     *data|= tmp;
   }
+  set_if_bigger(bitmap->used_size, (uint) (data - bitmap->map) + 1);
+  _ma_check_bitmap(bitmap);
   bitmap->changed= 1;
   DBUG_EXECUTE("bitmap", _ma_print_bitmap_changes(bitmap););
   DBUG_RETURN(0);
@@ -2835,6 +2944,72 @@ my_bool _ma_check_bitmap_data(MARIA_HA *info, enum en_page_type page_type,
   return (bitmap_pattern != bits);
 }
 
+/**
+   Check that bitmap looks correct
+
+   - All data before full_head_size and full_tail_size are allocated
+   - There is no allocated data after used_size
+     All of the above need to be correct only according to 6 byte
+     alignment as all loops reads 6 bytes at a time and we check both
+     start and end position according to the current 6 byte position.
+*/
+
+#ifndef DBUG_OFF
+static void _ma_check_bitmap(MARIA_FILE_BITMAP *bitmap)
+{
+  uchar *data= bitmap->map;
+  uchar *end=  bitmap->map + bitmap->total_size;
+  uchar *full_head_end=0, *full_tail_end=0, *first_empty= bitmap->map;
+
+  for (; data < end; data+= 6)
+  {
+    ulonglong bits= uint6korr(data);    /* 6 bytes = 6*8/3= 16 patterns */
+    uint i;
+
+    if (bits == 04444444444444444LL || bits == 0xffffffffffffLL)
+    {
+      first_empty= data + 6;
+      continue;                                 /* block fully used */
+    }
+    if (bits == 0)
+    {
+      if (!full_head_end)
+        full_head_end= data;
+      if (!full_tail_end)
+        full_tail_end= data;
+      continue;
+    }
+
+    first_empty= data + 6;
+    if (!full_head_end || !full_tail_end)
+    {
+      for (i= 0, bits >>= 0; i < 16 ; i++, bits >>= 3)
+      {
+        uint pattern= (uint) (bits & 7);
+        if (pattern == FULL_HEAD_PAGE || pattern == FULL_TAIL_PAGE)
+          continue;
+
+        if (pattern < 4 && !full_head_end)
+          full_head_end= data;
+        if ((pattern == 0 || (pattern > 4 && pattern < 7)) && !full_tail_end)
+          full_tail_end= data;
+      }
+    }
+  }
+  if (!full_head_end)
+    full_head_end= data;
+  if (!full_tail_end)
+    full_tail_end= data;
+
+  /* used_size must point after the last byte that had some data) */
+  DBUG_ASSERT(bitmap->used_size <= bitmap->total_size);
+  DBUG_ASSERT((bitmap->map + (bitmap->used_size+5)/6*6) >= first_empty);
+  /* full_xxxx_size can't point after the first block that has free data */
+  DBUG_ASSERT((bitmap->map + (bitmap->full_head_size/6*6)) <= full_head_end);
+  DBUG_ASSERT((bitmap->map + (bitmap->full_tail_size/6*6)) <= full_tail_end);
+}
+#endif
+
 
 /*
   Check if the page type matches the one that we have in the bitmap
@@ -3072,6 +3247,7 @@ static my_bool _ma_bitmap_create_missing(MARIA_HA *info,
   pgcache_page_no_t from, to;
   my_off_t data_file_length= share->state.state.data_file_length;
   DBUG_ENTER("_ma_bitmap_create_missing");
+  DBUG_PRINT("enter", ("page: %lld", (longlong) page));
 
   /* First (in offset order) bitmap page to create */
   if (data_file_length < block_size)
@@ -3124,7 +3300,8 @@ static my_bool _ma_bitmap_create_missing(MARIA_HA *info,
     only later as we are going to modify it very soon.
   */
   bzero(bitmap->map, bitmap->block_size);
-  bitmap->used_size= 0;
+  bitmap->used_size= bitmap->full_head_size= bitmap->full_tail_size= 0;
+  bitmap->changed=1;
 #ifndef DBUG_OFF
   /*
     Make a copy of the page to be able to print out bitmap changes during
