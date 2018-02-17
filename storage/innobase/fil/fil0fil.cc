@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4278,17 +4278,7 @@ cleanup_and_exit:
 
 	mem_free(def.filepath);
 
-	/* We need to check fsp flags when no errors has happened and
-	server was not started on read only mode and tablespace validation
-	was requested or flags contain other table options except
-	low order bits to FSP_FLAGS_POS_PAGE_SSIZE position.
-	Note that flag comparison is pessimistic. Adjust is required
-	only when flags contain buggy MariaDB 10.1.0 -
-	MariaDB 10.1.20 flags.  */
-	if (err == DB_SUCCESS
-	    && !srv_read_only_mode
-	    && (validate
-		|| flags >= (1U << FSP_FLAGS_POS_PAGE_SSIZE))) {
+	if (err == DB_SUCCESS && validate && !srv_read_only_mode) {
 		fsp_flags_try_adjust(id, flags & ~FSP_FLAGS_MEM_MASK);
 	}
 

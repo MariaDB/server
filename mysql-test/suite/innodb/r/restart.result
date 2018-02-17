@@ -1,0 +1,26 @@
+SET GLOBAL innodb_file_format=Barracuda;
+SET GLOBAL innodb_file_per_table=1;
+#
+# MDEV-15333 MariaDB (still) slow start
+#
+# FIXME: Unlike MySQL, maybe MariaDB should not read the .ibd files
+# of tables with .isl file or DATA DIRECTORY attribute.
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Invalid flags 0x7a207879 in tablespace 2048948345");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Error invalid tablespace flags in file '.*td\\.ibd'");
+CREATE TABLE tr(a INT)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+CREATE TABLE tc(a INT)ENGINE=InnoDB ROW_FORMAT=COMPACT
+PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL=9;
+CREATE TABLE td(a INT)ENGINE=InnoDB ROW_FORMAT=DYNAMIC
+STATS_PERSISTENT=0 DATA DIRECTORY='MYSQL_TMP_DIR';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+COUNT(*)
+1
+SELECT * FROM tr;
+a
+SELECT * FROM tc;
+a
+SELECT * FROM td;
+a
+DROP TABLE tr,tc,td;
