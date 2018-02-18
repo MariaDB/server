@@ -8017,7 +8017,7 @@ int ha_partition::compare_number_of_records(ha_partition *me,
     ::info() is used to return information to the optimizer.
     Currently this table handler doesn't implement most of the fields
     really needed. SHOW also makes use of this data
-    Another note, if your handler doesn't proved exact record count,
+    Another note, if your handler doesn't provide exact record count,
     you will probably want to have the following in your code:
     if (records < 2)
       records = 2;

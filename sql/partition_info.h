@@ -27,11 +27,10 @@
 class partition_info;
 struct TABLE_LIST;
 /* Some function typedefs */
-typedef int (*get_part_id_func)(partition_info *part_info,
-                                 uint32 *part_id,
+typedef int (*get_part_id_func)(partition_info *part_info, uint32 *part_id,
                                  longlong *func_value);
-typedef int (*get_subpart_id_func)(partition_info *part_info,
-                                   uint32 *part_id);
+typedef int (*get_subpart_id_func)(partition_info *part_info, uint32 *part_id);
+typedef bool (*check_constants_func)(THD *thd, partition_info *part_info);
  
 struct st_ddl_log_memory_entry;
 
@@ -113,6 +112,8 @@ public:
   */
   get_part_id_func get_part_partition_id_charset;
   get_subpart_id_func get_subpartition_id_charset;
+
+  check_constants_func check_constants;
 
   /* NULL-terminated array of fields used in partitioned expression */
   Field **part_field_array;
@@ -345,8 +346,6 @@ public:
   const char *find_duplicate_field();
   char *find_duplicate_name();
   bool check_engine_mix(handlerton *engine_type, bool default_engine);
-  bool check_range_constants(THD *thd, bool alloc= true);
-  bool check_list_constants(THD *thd);
   bool check_partition_info(THD *thd, handlerton **eng_type,
                             handler *file, HA_CREATE_INFO *info,
                             partition_info *add_or_reorg_part= NULL);
@@ -366,7 +365,6 @@ public:
   part_column_list_val *add_column_value(THD *thd);
   bool set_part_expr(THD *thd, char *start_token, Item *item_ptr,
                      char *end_token, bool is_subpart);
-  static int compare_column_values(const void *a, const void *b);
   bool set_up_charset_field_preps(THD *thd);
   bool check_partition_field_length();
   bool init_column_part(THD *thd);
@@ -377,7 +375,6 @@ public:
   bool has_same_partitioning(partition_info *new_part_info);
   bool error_if_requires_values() const;
 private:
-  static int list_part_cmp(const void* a, const void* b);
   bool set_up_default_partitions(THD *thd, handler *file, HA_CREATE_INFO *info,
                                  uint start_no);
   bool set_up_default_subpartitions(THD *thd, handler *file,
@@ -545,7 +542,7 @@ public:
     }
     MEM_ROOT *old_root= thd->mem_root;
     thd->mem_root= &table->mem_root;
-    result= check_range_constants(thd, false);
+    //result= check_range_constants(thd, false);
     thd->mem_root= old_root;
     vers_info->stat_serial= table->s->stat_serial;
     mysql_rwlock_unlock(&table->s->LOCK_stat_serial);
