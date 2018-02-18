@@ -20,7 +20,16 @@ IF(CMAKE_SYSTEM_NAME MATCHES "SunOS")
    SET(BISON_EXECUTABLE /opt/csw/bin/bison)
  ENDIF()
 ENDIF()
-FIND_PROGRAM(BISON_EXECUTABLE bison DOC "path to the bison executable")
+IF(WIN32)
+  SET(BISON_PATH_HINTS
+    HINTS
+    C:/gnuwin32/bin
+    C:/cygwin64/bin
+    C:/cygwin/bin)
+ENDIF()
+FIND_PROGRAM(BISON_EXECUTABLE bison
+  ${BISON_PATH_HINTS}
+  DOC "path to the bison executable")
 MARK_AS_ADVANCED(BISON_EXECUTABLE "")
 IF(NOT BISON_EXECUTABLE)
   MESSAGE("Warning: Bison executable not found in PATH")

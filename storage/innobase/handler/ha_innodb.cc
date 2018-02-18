@@ -15046,7 +15046,7 @@ ha_innobase::check(
 		    && !dict_index_is_corrupted(index)) {
 			/* Enlarge the fatal lock wait timeout during
 			CHECK TABLE. */
-			my_atomic_addlint(
+			my_atomic_addlong(
 				&srv_fatal_semaphore_wait_threshold,
 				SRV_SEMAPHORE_WAIT_EXTENSION);
 
@@ -15055,7 +15055,7 @@ ha_innobase::check(
 
 			/* Restore the fatal lock wait timeout after
 			CHECK TABLE. */
-			my_atomic_addlint(
+			my_atomic_addlong(
 				&srv_fatal_semaphore_wait_threshold,
 				-SRV_SEMAPHORE_WAIT_EXTENSION);
 

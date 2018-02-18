@@ -3513,7 +3513,13 @@ xtrabackup_backup_low()
 			    "to '%s'.\n", filename);
 			return false;
 		}
-
+		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
+			XTRABACKUP_INFO);
+		if (!write_xtrabackup_info(mysql_connection, filename, false)) {
+			msg("mariabackup: Error: failed to write info "
+			 "to '%s'.\n", filename);
+			return false;
+		}
 	}
 
 	return true;
@@ -3569,7 +3575,9 @@ xtrabackup_backup_func()
         if(innodb_init_param()) {
 fail:
 		stop_backup_threads();
-		innodb_shutdown();
+		if (fil_system) {
+			innodb_shutdown();
+		}
 		return(false);
 	}
 
