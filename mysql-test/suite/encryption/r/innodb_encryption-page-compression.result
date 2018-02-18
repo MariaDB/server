@@ -141,6 +141,7 @@ innodb_page_compressed5, innodb_page_compressed6,
 innodb_page_compressed7, innodb_page_compressed8,
 innodb_page_compressed9 for export;
 unlock tables;
+# Wait until dirty pages are compressed and encrypted
 SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
 variable_value > 0
 1
@@ -164,9 +165,8 @@ innodb_page_compressed5, innodb_page_compressed6,
 innodb_page_compressed7, innodb_page_compressed8,
 innodb_page_compressed9 for export;
 unlock tables;
-SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
-variable_value > 0
-1
+# Wait until dirty pages are compressed and encrypted 2
+unlock tables;
 SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 variable_value > 0
 1
