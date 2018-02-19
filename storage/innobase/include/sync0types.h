@@ -1156,9 +1156,41 @@ enum rw_lock_flag_t {
 #endif /* UNIV_INNOCHECKSUM */
 
 #ifdef _WIN64
-#define my_atomic_addlint(A,B) my_atomic_add64((int64*) (A), (B))
-#define my_atomic_loadlint(A) my_atomic_load64((int64*) (A))
-#define my_atomic_caslint(A,B,C) my_atomic_cas64((int64*) (A), (int64*) (B), (C))
+static inline ulint my_atomic_addlint(ulint *A, ulint B)
+{
+  return ulint(my_atomic_add64((volatile int64*)A, B));
+}
+
+static inline ulint my_atomic_loadlint(const ulint *A)
+{
+  return ulint(my_atomic_load64((volatile int64*)A));
+}
+
+static inline lint my_atomic_addlint(volatile lint *A, lint B)
+{
+  return my_atomic_add64((volatile int64*)A, B);
+}
+
+static inline lint my_atomic_loadlint(const lint *A)
+{
+  return lint(my_atomic_load64((volatile int64*)A));
+}
+
+static inline void my_atomic_storelint(ulint *A, ulint B)
+{
+  my_atomic_store64((volatile int64*)A, B);
+}
+
+static inline lint my_atomic_caslint(volatile lint *A, lint *B, lint C)
+{
+  return my_atomic_cas64((volatile int64*)A, (int64 *)B, C);
+}
+
+static inline ulint my_atomic_caslint(ulint *A, ulint *B, ulint C)
+{
+  return my_atomic_cas64((volatile int64*)A, (int64 *)B, (int64)C);
+}
+
 #else
 #define my_atomic_addlint my_atomic_addlong
 #define my_atomic_loadlint my_atomic_loadlong
@@ -1188,7 +1220,7 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 #pragma warning (push)
 #pragma warning (disable : 4244)
 #endif
-			return Type(my_atomic_addlint(reinterpret_cast<lint*>
+			return Type(my_atomic_addlint(reinterpret_cast<ulint*>
 						      (&m_counter), i));
 #ifdef _MSC_VER
 #pragma warning (pop)
