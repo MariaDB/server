@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1108,7 +1108,7 @@ fsp_fill_free_list(
 			skip_resize = !srv_sys_space.can_auto_extend_last_file();
 			break;
 		case SRV_TMP_SPACE_ID:
-			skip_resize = srv_tmp_space.can_auto_extend_last_file();
+			skip_resize = !srv_tmp_space.can_auto_extend_last_file();
 			break;
 		}
 
