@@ -2626,7 +2626,6 @@ bool show_master_info(THD *thd, Master_info *mi, bool full)
 void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                                  bool full, size_t gtid_pos_length)
 {
-  Master_info *mi;
   MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("show_master_info_get_fields");
 
@@ -2645,10 +2644,10 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                         Item_empty_string(thd, "Slave_IO_State", 30),
                         mem_root);
   field_list->push_back(new (mem_root)
-                        Item_empty_string(thd, "Master_Host", sizeof(mi->host)),
+                        Item_empty_string(thd, "Master_Host", sizeof(Master_info::host)),
                         mem_root);
   field_list->push_back(new (mem_root)
-                        Item_empty_string(thd, "Master_User", sizeof(mi->user)),
+                        Item_empty_string(thd, "Master_User", sizeof(Master_info::user)),
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_return_int(thd, "Master_Port", 7, MYSQL_TYPE_LONG),
@@ -2733,23 +2732,23 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Master_SSL_CA_File",
-                                          sizeof(mi->ssl_ca)),
+                                          sizeof(Master_info::ssl_ca)),
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Master_SSL_CA_Path",
-                                          sizeof(mi->ssl_capath)),
+                                          sizeof(Master_info::ssl_capath)),
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Master_SSL_Cert",
-                                          sizeof(mi->ssl_cert)),
+                                          sizeof(Master_info::ssl_cert)),
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Master_SSL_Cipher",
-                                          sizeof(mi->ssl_cipher)),
+                                          sizeof(Master_info::ssl_cipher)),
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Master_SSL_Key",
-                                          sizeof(mi->ssl_key)),
+                                          sizeof(Master_info::ssl_key)),
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_return_int(thd, "Seconds_Behind_Master", 10,
@@ -2783,11 +2782,11 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Master_SSL_Crl",
-                                          sizeof(mi->ssl_crl)),
+                                          sizeof(Master_info::ssl_crl)),
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Master_SSL_Crlpath",
-                                          sizeof(mi->ssl_crlpath)),
+                                          sizeof(Master_info::ssl_crlpath)),
                         mem_root);
   field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Using_Gtid",
