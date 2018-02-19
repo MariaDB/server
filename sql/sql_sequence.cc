@@ -440,7 +440,7 @@ int SEQUENCE::read_initial_values(TABLE *table)
     DBUG_ASSERT(table->reginfo.lock_type == TL_READ);
     if (!(error= read_stored_values(table)))
       initialized= SEQ_READY_TO_USE;
-    mysql_unlock_tables(thd, lock, 0);
+    mysql_unlock_tables(thd, lock);
     if (mdl_lock_used)
       thd->mdl_context.release_lock(mdl_request.ticket);
 

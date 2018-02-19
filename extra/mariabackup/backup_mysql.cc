@@ -1398,7 +1398,7 @@ PERCONA_SCHEMA.xtrabackup_history and writes a new history record to the
 table containing all the history info particular to the just completed
 backup. */
 bool
-write_xtrabackup_info(MYSQL *connection)
+write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
 {
 
 	char *uuid = NULL;
@@ -1426,7 +1426,7 @@ write_xtrabackup_info(MYSQL *connection)
 		|| xtrabackup_databases_exclude
 		);
 
-	backup_file_printf(XTRABACKUP_INFO,
+	backup_file_printf(filename,
 		"uuid = %s\n"
 		"name = %s\n"
 		"tool_name = %s\n"
@@ -1463,7 +1463,7 @@ write_xtrabackup_info(MYSQL *connection)
 		xb_stream_name[xtrabackup_stream_fmt], /* format */
 		xtrabackup_compress ? "compressed" : "N"); /* compressed */
 
-	if (!opt_history) {
+	if (!history) {
 		goto cleanup;
 	}
 

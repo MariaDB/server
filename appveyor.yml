@@ -3,7 +3,7 @@ version: build-{build}~branch-{branch}
 before_build:
   - md %APPVEYOR_BUILD_FOLDER%\win_build
   - cd %APPVEYOR_BUILD_FOLDER%\win_build
-  - cmake ..  -G "Visual Studio 15 2017 Win64" -DWITH_UNIT_TESTS=0 -DBISON_EXECUTABLE=C:\cygwin\bin\bison
+  - cmake ..  -G "Visual Studio 15 2017 Win64" -DWITH_UNIT_TESTS=0
 
 build:
   project: win_build\MySQL.sln

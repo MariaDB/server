@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -957,7 +957,8 @@ bool partition_info::vers_set_expression(THD *thd, partition_element *el, MYSQL_
       col_val->fixed= 1;
       continue;
     }
-    Item *item_expression= new (thd->mem_root) Item_datetime_literal(thd, &t);
+    Item *item_expression= new (thd->mem_root)
+      Item_datetime_literal(thd, &t, 0);
     if (!item_expression)
       return true;
     /* We initialize col_val with bogus max value to make fix_partition_func() and check_range_constants() happy.

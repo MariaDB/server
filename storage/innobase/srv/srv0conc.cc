@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -73,16 +73,12 @@ ulong	srv_thread_concurrency	= 0;
 struct srv_conc_t {
 	char		pad[CACHE_LINE_SIZE  - (sizeof(ulint) + sizeof(lint))];
 
-	/** Number of transactions that have declared_to_be_inside_innodb set.
-	It used to be a non-error for this value to drop below zero temporarily.
-	This is no longer true. We'll, however, keep the lint datatype to add
-	assertions to catch any corner cases that we may have missed. */
-
-	volatile lint	n_active;
+	/** Number of transactions that have declared_to_be_inside_innodb */
+	ulint	n_active;
 
 	/** Number of OS threads waiting in the FIFO for permission to
 	enter InnoDB */
-	volatile lint	n_waiting;
+	ulint	n_waiting;
 };
 
 /* Control variables for tracking concurrency. */
@@ -152,7 +148,7 @@ srv_conc_enter_innodb_with_atomics(
 			return;
 		}
 
-		if (srv_conc.n_active < (lint) srv_thread_concurrency) {
+		if (srv_conc.n_active < srv_thread_concurrency) {
 			ulint	n_active;
 
 			/* Check if there are any free tickets. */
@@ -272,8 +268,6 @@ srv_conc_force_enter_innodb(
 
 		return;
 	}
-
-	ut_ad(srv_conc.n_active >= 0);
 
 	(void) my_atomic_addlint(&srv_conc.n_active, 1);
 

@@ -4205,13 +4205,14 @@ public:
     Constructor for Item_date_literal.
     @param ltime  DATE value.
   */
-  Item_temporal_literal(THD *thd, MYSQL_TIME *ltime): Item_basic_constant(thd)
+  Item_temporal_literal(THD *thd, const MYSQL_TIME *ltime)
+   :Item_basic_constant(thd)
   {
     collation.set(&my_charset_numeric, DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
     decimals= 0;
     cached_time= *ltime;
   }
-  Item_temporal_literal(THD *thd, MYSQL_TIME *ltime, uint dec_arg):
+  Item_temporal_literal(THD *thd, const MYSQL_TIME *ltime, uint dec_arg):
     Item_basic_constant(thd)
   {
     collation.set(&my_charset_numeric, DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
@@ -4254,7 +4255,7 @@ public:
 class Item_date_literal: public Item_temporal_literal
 {
 public:
-  Item_date_literal(THD *thd, MYSQL_TIME *ltime)
+  Item_date_literal(THD *thd, const MYSQL_TIME *ltime)
     :Item_temporal_literal(thd, ltime)
   {
     max_length= MAX_DATE_WIDTH;
@@ -4283,7 +4284,7 @@ public:
 class Item_time_literal: public Item_temporal_literal
 {
 public:
-  Item_time_literal(THD *thd, MYSQL_TIME *ltime, uint dec_arg):
+  Item_time_literal(THD *thd, const MYSQL_TIME *ltime, uint dec_arg):
     Item_temporal_literal(thd, ltime, dec_arg)
   {
     max_length= MIN_TIME_WIDTH + (decimals ? decimals + 1 : 0);
@@ -4304,7 +4305,7 @@ public:
 class Item_datetime_literal: public Item_temporal_literal
 {
 public:
-  Item_datetime_literal(THD *thd, MYSQL_TIME *ltime, uint dec_arg= 0):
+  Item_datetime_literal(THD *thd, const MYSQL_TIME *ltime, uint dec_arg):
     Item_temporal_literal(thd, ltime, dec_arg)
   {
     max_length= MAX_DATETIME_WIDTH + (decimals ? decimals + 1 : 0);
@@ -4350,7 +4351,7 @@ class Item_date_literal_for_invalid_dates: public Item_date_literal
     in sql_mode=TRADITIONAL.
   */
 public:
-  Item_date_literal_for_invalid_dates(THD *thd, MYSQL_TIME *ltime)
+  Item_date_literal_for_invalid_dates(THD *thd, const MYSQL_TIME *ltime)
    :Item_date_literal(thd, ltime) { }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {
@@ -4368,7 +4369,7 @@ class Item_datetime_literal_for_invalid_dates: public Item_datetime_literal
 {
 public:
   Item_datetime_literal_for_invalid_dates(THD *thd,
-                                          MYSQL_TIME *ltime, uint dec_arg)
+                                          const MYSQL_TIME *ltime, uint dec_arg)
    :Item_datetime_literal(thd, ltime, dec_arg) { }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {

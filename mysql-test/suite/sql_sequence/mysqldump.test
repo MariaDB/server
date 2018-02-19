@@ -13,3 +13,14 @@ insert into t1 values (1),(2);
 CREATE SEQUENCE x1 engine=innodb;
 --exec $MYSQL_DUMP --compact test
 DROP TABLE a1,t1,x1;
+
+#
+# MDEV-12887 UT_LIST_GET_LEN(trx->lock.trx_locks) == 0 when mysqldump sequence
+#
+
+set default_storage_engine=InnoDB;
+create sequence t1;
+LOCK TABLES t1 READ;
+SELECT * FROM t1;
+unlock tables;
+drop table t1;
