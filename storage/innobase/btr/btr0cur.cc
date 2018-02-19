@@ -1513,7 +1513,7 @@ retry_page_get:
 	if (height == ULINT_UNDEFINED) {
 		/* We are in the root node */
 
-		height = btr_page_get_level(page, mtr);
+		height = btr_page_get_level(page);
 		root_height = height;
 		cursor->tree_height = root_height + 1;
 
@@ -1707,8 +1707,7 @@ retry_page_get:
 
 	/* If this is the desired level, leave the loop */
 
-	ut_ad(height == btr_page_get_level(page_cur_get_page(page_cursor),
-					   mtr));
+	ut_ad(height == btr_page_get_level(page_cur_get_page(page_cursor)));
 
 	/* Add Predicate lock if it is serializable isolation
 	and only if it is in the search case */
@@ -2408,12 +2407,12 @@ btr_cur_open_at_index_side_func(
 		if (height == ULINT_UNDEFINED) {
 			/* We are in the root node */
 
-			height = btr_page_get_level(page, mtr);
+			height = btr_page_get_level(page);
 			root_height = height;
 			ut_a(height >= level);
 		} else {
 			/* TODO: flag the index corrupted if this fails */
-			ut_ad(height == btr_page_get_level(page, mtr));
+			ut_ad(height == btr_page_get_level(page));
 		}
 
 		if (height == level) {
@@ -2768,7 +2767,7 @@ btr_cur_open_at_rnd_pos_func(
 		if (height == ULINT_UNDEFINED) {
 			/* We are in the root node */
 
-			height = btr_page_get_level(page, mtr);
+			height = btr_page_get_level(page);
 		}
 
 		if (height == 0) {
@@ -2973,7 +2972,7 @@ btr_cur_ins_lock_and_undo(
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
 	que_thr_t*	thr,	/*!< in: query thread or NULL */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
-	ibool*		inherit)/*!< out: TRUE if the inserted new record maybe
+	bool*		inherit)/*!< out: true if the inserted new record maybe
 				should inherit LOCK_GAP type locks from the
 				successor record */
 {
@@ -3115,9 +3114,9 @@ btr_cur_optimistic_insert(
 	buf_block_t*	block;
 	page_t*		page;
 	rec_t*		dummy;
-	ibool		leaf;
-	ibool		reorg;
-	ibool		inherit = TRUE;
+	bool		leaf;
+	bool		reorg;
+	bool		inherit = true;
 	ulint		rec_size;
 	dberr_t		err;
 
@@ -3408,7 +3407,7 @@ btr_cur_pessimistic_insert(
 	dict_index_t*	index		= cursor->index;
 	big_rec_t*	big_rec_vec	= NULL;
 	dberr_t		err;
-	ibool		inherit = FALSE;
+	bool		inherit = false;
 	bool		success;
 	ulint		n_reserved	= 0;
 
@@ -3519,7 +3518,7 @@ btr_cur_pessimistic_insert(
 			       == FIL_NULL) {
 				/* split and inserted need to call
 				lock_update_insert() always. */
-				inherit = TRUE;
+				inherit = true;
 			}
 		}
 	}
@@ -5677,7 +5676,7 @@ discard_page:
 			on the page */
 
 			btr_node_ptr_delete(index, block, mtr);
-			const ulint	level = btr_page_get_level(page, mtr);
+			const ulint	level = btr_page_get_level(page);
 
 			dtuple_t*	node_ptr = dict_index_build_node_ptr(
 				index, next_rec, block->page.id.page_no(),
@@ -5767,7 +5766,7 @@ btr_cur_add_path_info(
 	slot->nth_rec = page_rec_get_n_recs_before(rec);
 	slot->n_recs = page_get_n_recs(page);
 	slot->page_no = page_get_page_no(page);
-	slot->page_level = btr_page_get_level_low(page);
+	slot->page_level = btr_page_get_level(page);
 }
 
 /*******************************************************************//**
@@ -5884,7 +5883,7 @@ btr_estimate_n_rows_in_range_on_level(
 		reuses them. */
 		if (!fil_page_index_page_check(page)
 		    || btr_page_get_index_id(page) != index->id
-		    || btr_page_get_level_low(page) != level) {
+		    || btr_page_get_level(page) != level) {
 
 			/* The page got reused for something else */
 			mtr_commit(&mtr);

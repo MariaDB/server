@@ -40,7 +40,6 @@ flst_add_to_empty(
 {
 	ulint		space;
 	fil_addr_t	node_addr;
-	ulint		len;
 
 	ut_ad(mtr && base && node);
 	ut_ad(base != node);
@@ -50,8 +49,7 @@ flst_add_to_empty(
 	ut_ad(mtr_memo_contains_page_flagged(mtr, node,
 					     MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_SX_FIX));
-	len = flst_get_len(base);
-	ut_a(len == 0);
+	ut_a(!flst_get_len(base));
 
 	buf_ptr_get_fsp_addr(node, &space, &node_addr);
 
@@ -64,7 +62,7 @@ flst_add_to_empty(
 	flst_write_addr(node + FLST_NEXT, fil_addr_null, mtr);
 
 	/* Update len of base node */
-	mlog_write_ulint(base + FLST_LEN, len + 1, MLOG_4BYTES, mtr);
+	mlog_write_ulint(base + FLST_LEN, 1, MLOG_4BYTES, mtr);
 }
 
 /********************************************************************//**
