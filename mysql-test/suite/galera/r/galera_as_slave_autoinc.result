@@ -1,5 +1,7 @@
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2;
+connection node_1;
+connection node_2;
 START SLAVE;
 connection node_1;
 SET SESSION binlog_format='STATEMENT';
@@ -85,4 +87,6 @@ connection node_2;
 STOP SLAVE;
 RESET SLAVE ALL;
 connection node_1;
+SET GLOBAL wsrep_on=OFF;
 RESET MASTER;
+SET GLOBAL wsrep_on=ON;

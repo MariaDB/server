@@ -10,7 +10,9 @@ wsrep-provider=@ENV.WSREP_PROVIDER
 wsrep_node_address=127.0.0.1
 # enforce read-committed characteristics across the cluster
 wsrep-sync-wait=15
-
+# lock schedule alg appears to be VATS by default, and it is not
+# yet compatible with galera
+innodb_lock_schedule_algorithm=FCFS
 [mysqld.1]
 #galera_port=@OPT.port
 #ist_port=@OPT.port
@@ -24,6 +26,9 @@ wsrep_sst_receive_address='127.0.0.1:@mysqld.1.#sst_port'
 # enforce read-committed characteristics across the cluster
 wsrep_causal_reads=ON
 wsrep_sync_wait = 15
+# lock schedule alg appears to be VATS by default, and it is not
+# yet compatible with galera
+innodb_lock_schedule_algorithm=FCFS
 
 [mysqld.2]
 # debug=d:t:i:o,/tmp/mysqld.2.trace
@@ -46,6 +51,9 @@ wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
 # enforce read-committed characteristics across the cluster
 wsrep_causal_reads=ON
 wsrep_sync_wait = 15
+# lock schedule alg appears to be VATS by default, and it is not
+# yet compatible with galera
+innodb_lock_schedule_algorithm=FCFS
 
 [ENV]
 NODE_MYPORT_1= @mysqld.1.port

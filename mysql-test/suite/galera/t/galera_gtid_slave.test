@@ -52,7 +52,9 @@ SELECT @@global.gtid_binlog_state;
 
 --connection node_1
 DROP TABLE t1,t2;
+SET GLOBAL wsrep_on=OFF;
 reset master;
+SET GLOBAL wsrep_on=ON;
 #
 # Unfortunately without the sleep below the following statement fails with "query returned no rows", which
 # is difficult to understand given that it is an aggregate query. A "query execution was interrupted"
@@ -72,7 +74,11 @@ reset master;
 --connection node_2
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL wsrep_on=OFF;
 reset master;
+SET GLOBAL wsrep_on=ON;
 
 --connection node_3
+SET GLOBAL wsrep_on=OFF;
 reset master;
+SET GLOBAL wsrep_on=ON;

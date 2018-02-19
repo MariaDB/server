@@ -7,6 +7,9 @@
 
 [mysqld]
 default-storage-engine=InnoDB
+# lock schedule alg appears to be VATS by default, and it is not
+# yet compatible with galera
+innodb_lock_schedule_algorithm=FCFS
 
 [mysqld.1]
 server-id=1
@@ -33,6 +36,9 @@ wsrep_node_incoming_address=127.0.0.1:@mysqld.1.port
 innodb_autoinc_lock_mode=2
 
 innodb_flush_log_at_trx_commit=2
+# lock schedule alg appears to be VATS by default, and it is not
+# yet compatible with galera
+innodb_lock_schedule_algorithm=FCFS
 
 [mysqld.2]
 server-id=2
@@ -59,6 +65,9 @@ wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
 innodb_autoinc_lock_mode=2
 
 innodb_flush_log_at_trx_commit=2
+# lock schedule alg appears to be VATS by default, and it is not
+# yet compatible with galera
+innodb_lock_schedule_algorithm=FCFS
 
 [mysqld.3]
 server-id=3
@@ -69,6 +78,9 @@ log_slave_updates
 gtid-mode=on
 enforce-gtid-consistency=true
 event-scheduler=1
+# lock schedule alg appears to be VATS by default, and it is not
+# yet compatible with galera
+innodb_lock_schedule_algorithm=FCFS
 
 [ENV]
 NODE_MYPORT_1= @mysqld.1.port
