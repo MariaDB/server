@@ -43,14 +43,14 @@ public:
 
   bool partition_modifying() const
   {
-    return flags & (
-      ALTER_DROP_PARTITION |
-      ALTER_COALESCE_PARTITION |
-      ALTER_REORGANIZE_PARTITION |
-      ALTER_REMOVE_PARTITIONING |
-      ALTER_TABLE_REORG |
-      ALTER_EXCHANGE_PARTITION |
-      ALTER_TRUNCATE_PARTITION);
+    return partition_flags & (
+      ALTER_PARTITION_DROP |
+      ALTER_PARTITION_COALESCE |
+      ALTER_PARTITION_REORGANIZE |
+      ALTER_PARTITION_REMOVE |
+      ALTER_PARTITION_TABLE_REORG |
+      ALTER_PARTITION_EXCHANGE |
+      ALTER_PARTITION_TRUNCATE);
   }
 
   /**
@@ -106,6 +106,7 @@ public:
   List<Virtual_column_info>     check_constraint_list;
   // Type of ALTER TABLE operation.
   alter_table_operations        flags;
+  ulong                         partition_flags;
   // Enable or disable keys.
   enum_enable_or_disable        keys_onoff;
   // List of partitions.
@@ -119,7 +120,7 @@ public:
 
 
   Alter_info() :
-    flags(0),
+  flags(0), partition_flags(0),
     keys_onoff(LEAVE_AS_IS),
     num_parts(0),
     requested_algorithm(ALTER_TABLE_ALGORITHM_DEFAULT),
@@ -134,6 +135,7 @@ public:
     create_list.empty();
     check_constraint_list.empty();
     flags= 0;
+    partition_flags= 0;
     keys_onoff= LEAVE_AS_IS;
     num_parts= 0;
     partition_names.empty();

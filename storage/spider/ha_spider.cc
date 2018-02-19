@@ -11263,13 +11263,13 @@ int ha_spider::create(
     trx->tmp_flg = TRUE;
 
     DBUG_PRINT("info",
-      ("spider alter_info.flags: %llu", thd->lex->alter_info.flags));
-    if (
-      (thd->lex->alter_info.flags &
+      ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
+       thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
+    if ((thd->lex->alter_info.partition_flags &
         (
-          SPIDER_ALTER_ADD_PARTITION | SPIDER_ALTER_DROP_PARTITION |
-          SPIDER_ALTER_COALESCE_PARTITION | SPIDER_ALTER_REORGANIZE_PARTITION |
-          SPIDER_ALTER_TABLE_REORG | SPIDER_ALTER_REBUILD_PARTITION
+          SPIDER_ALTER_PARTITION_ADD | SPIDER_ALTER_PARTITION_DROP |
+          SPIDER_ALTER_PARTITION_COALESCE | SPIDER_ALTER_PARTITION_REORGANIZE |
+          SPIDER_ALTER_PARTITION_TABLE_REORG | SPIDER_ALTER_PARTITION_REBUILD
         )
       ) &&
       memcmp(name + strlen(name) - 5, "#TMP#", 5)
@@ -11459,13 +11459,14 @@ int ha_spider::rename_table(
     }
 
     DBUG_PRINT("info",
-      ("spider alter_info.flags: %llu", thd->lex->alter_info.flags));
+      ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
+       thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
     if (
-      (thd->lex->alter_info.flags &
+      (thd->lex->alter_info.partition_flags &
         (
-          SPIDER_ALTER_ADD_PARTITION | SPIDER_ALTER_DROP_PARTITION |
-          SPIDER_ALTER_COALESCE_PARTITION | SPIDER_ALTER_REORGANIZE_PARTITION |
-          SPIDER_ALTER_TABLE_REORG | SPIDER_ALTER_REBUILD_PARTITION
+          SPIDER_ALTER_PARTITION_ADD | SPIDER_ALTER_PARTITION_DROP |
+          SPIDER_ALTER_PARTITION_COALESCE | SPIDER_ALTER_PARTITION_REORGANIZE |
+          SPIDER_ALTER_PARTITION_TABLE_REORG | SPIDER_ALTER_PARTITION_REBUILD
         )
       )
     )
@@ -11654,14 +11655,15 @@ int ha_spider::delete_table(
       DBUG_RETURN(0);
 
     DBUG_PRINT("info",
-      ("spider alter_info.flags: %llu", thd->lex->alter_info.flags));
+      ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
+       thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
     if (
       sql_command == SQLCOM_ALTER_TABLE &&
-      (thd->lex->alter_info.flags &
+      (thd->lex->alter_info.partition_flags &
         (
-          SPIDER_ALTER_ADD_PARTITION | SPIDER_ALTER_DROP_PARTITION |
-          SPIDER_ALTER_COALESCE_PARTITION | SPIDER_ALTER_REORGANIZE_PARTITION |
-          SPIDER_ALTER_TABLE_REORG | SPIDER_ALTER_REBUILD_PARTITION
+          SPIDER_ALTER_PARTITION_ADD | SPIDER_ALTER_PARTITION_DROP |
+          SPIDER_ALTER_PARTITION_COALESCE | SPIDER_ALTER_PARTITION_REORGANIZE |
+          SPIDER_ALTER_PARTITION_TABLE_REORG | SPIDER_ALTER_PARTITION_REBUILD
         )
       )
     )
