@@ -236,7 +236,7 @@ static inline void my_timeval_trunc(struct timeval *tv, uint decimals)
   order of elements in 'interval_type_to_name' and 'interval_names' 
   arrays 
   
-  See also interval_type_to_name, get_interval_value, interval_names
+  See also interval_type_to_name, get_interval_value, interval_names, append_interval
 */
 
 enum interval_type
