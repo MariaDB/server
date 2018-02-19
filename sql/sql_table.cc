@@ -6404,7 +6404,7 @@ remove_key:
   if (tab_part_info)
   {
     /* ALTER TABLE ADD PARTITION IF NOT EXISTS */
-    if ((alter_info->flags & ALTER_ADD_PARTITION) &&
+    if ((alter_info->partition_flags & ALTER_PARTITION_ADD) &&
         thd->lex->create_info.if_not_exists())
     {
       partition_info *alt_part_info= thd->lex->part_info;
@@ -6420,7 +6420,7 @@ remove_key:
                                 ER_SAME_NAME_PARTITION,
                                 ER_THD(thd, ER_SAME_NAME_PARTITION),
                                 pe->partition_name);
-            alter_info->flags&= ~ALTER_ADD_PARTITION;
+            alter_info->partition_flags&= ~ALTER_PARTITION_ADD;
             thd->work_part_info= NULL;
             break;
           }
@@ -6428,7 +6428,7 @@ remove_key:
       }
     }
     /* ALTER TABLE DROP PARTITION IF EXISTS */
-    if ((alter_info->flags & ALTER_DROP_PARTITION) &&
+    if ((alter_info->partition_flags & ALTER_PARTITION_DROP) &&
         thd->lex->if_exists())
     {
       List_iterator<const char> names_it(alter_info->partition_names);
@@ -6454,7 +6454,7 @@ remove_key:
         }
       }
       if (alter_info->partition_names.elements == 0)
-        alter_info->flags&= ~ALTER_DROP_PARTITION;
+        alter_info->partition_flags&= ~ALTER_PARTITION_DROP;
     }
   }
 #endif /*WITH_PARTITION_STORAGE_ENGINE*/
@@ -6604,10 +6604,6 @@ static bool fill_alter_inplace_info(THD *thd,
                                     ALTER_COLUMN_ORDER |
                                     ALTER_RENAME_COLUMN |
                                     ALTER_CHANGE_COLUMN |
-                                    ALTER_ADMIN_PARTITION |
-                                    ALTER_REBUILD_PARTITION |
-                                    ALTER_EXCHANGE_PARTITION |
-                                    ALTER_TRUNCATE_PARTITION |
                                     ALTER_COLUMN_UNVERSIONED));
   /*
     Comparing new and old default values of column is cumbersome.
@@ -9137,7 +9133,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
     }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (alter_info->flags & ALTER_PARTITION)
+    if (alter_info->partition_flags & ALTER_PARTITION_INFO)
     {
       my_error(ER_WRONG_USAGE, MYF(0), "PARTITION", "log table");
       DBUG_RETURN(true);
@@ -9348,7 +9344,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
   }
 
   if ((create_info->db_type != table->s->db_type() ||
-       alter_info->flags & ALTER_PARTITION) &&
+       (alter_info->partition_flags & ALTER_PARTITION_INFO)) &&
       !table->file->can_switch_engines())
   {
     my_error(ER_ROW_IS_REFERENCED, MYF(0));
@@ -9415,7 +9411,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
     ALTER can become NOOP after handling
     the IF (NOT) EXISTS options.
   */
-  if (alter_info->flags == 0)
+  if (alter_info->flags == 0 && alter_info->partition_flags == 0)
   {
     my_snprintf(alter_ctx.tmp_buff, sizeof(alter_ctx.tmp_buff),
                 ER_THD(thd, ER_INSERT_INFO), 0L, 0L,
@@ -9438,6 +9434,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
      as we are testing if flags == 0 above.
   */
   if (!(alter_info->flags & ~(ALTER_RENAME | ALTER_KEYS_ONOFF)) &&
+      alter_info->partition_flags == 0 &&
       alter_info->requested_algorithm !=
       Alter_info::ALTER_TABLE_ALGORITHM_COPY)   // No need to touch frm.
   {
@@ -9498,7 +9495,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
     /*
       ALGORITHM and LOCK clauses are generally not allowed by the
       parser for operations related to partitioning.
-      The exceptions are ALTER_PARTITION and ALTER_REMOVE_PARTITIONING.
+      The exceptions are ALTER_PARTITION_INFO and ALTER_PARTITION_REMOVE.
       For consistency, we report ER_ALTER_OPERATION_NOT_SUPPORTED here.
     */
     if (alter_info->requested_lock !=

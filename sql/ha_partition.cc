@@ -1380,7 +1380,7 @@ int ha_partition::handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt,
       when ALTER TABLE <CMD> PARTITION ...
       it should only do named partitions, otherwise all partitions
     */
-    if (!(thd->lex->alter_info.flags & ALTER_ADMIN_PARTITION) ||
+    if (!(thd->lex->alter_info.partition_flags & ALTER_PARTITION_ADMIN) ||
         part_elem->part_state == PART_ADMIN)
     {
       if (m_is_sub_partitioned)
@@ -9655,7 +9655,7 @@ void ha_partition::print_error(int error, myf errflag)
 
   /* Should probably look for my own errors first */
   if ((error == HA_ERR_NO_PARTITION_FOUND) &&
-      ! (thd->lex->alter_info.flags & ALTER_TRUNCATE_PARTITION))
+      ! (thd->lex->alter_info.partition_flags & ALTER_PARTITION_TRUNCATE))
   {
     m_part_info->print_no_partition_found(table, errflag);
     DBUG_VOID_RETURN;
@@ -9871,8 +9871,11 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
     Any other change would set partition_changed in
     prep_alter_part_table() in mysql_alter_table().
   */
-  if (ha_alter_info->alter_info->flags == ALTER_PARTITION)
+  if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
+  {
+    DBUG_ASSERT(ha_alter_info->alter_info->flags == 0);
     DBUG_RETURN(HA_ALTER_INPLACE_NO_LOCK);
+  }
 
   part_inplace_ctx=
     new (thd->mem_root) ha_partition_inplace_ctx(thd, m_tot_parts);
@@ -9938,8 +9941,11 @@ bool ha_partition::prepare_inplace_alter_table(TABLE *altered_table,
     Changing to similar partitioning, only update metadata.
     Non allowed changes would be catched in prep_alter_part_table().
   */
-  if (ha_alter_info->alter_info->flags == ALTER_PARTITION)
+  if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
+  {
+    DBUG_ASSERT(ha_alter_info->alter_info->flags == 0);
     DBUG_RETURN(false);
+  }
 
   part_inplace_ctx=
     static_cast<class ha_partition_inplace_ctx*>(ha_alter_info->handler_ctx);
@@ -9971,8 +9977,11 @@ bool ha_partition::inplace_alter_table(TABLE *altered_table,
     Changing to similar partitioning, only update metadata.
     Non allowed changes would be catched in prep_alter_part_table().
   */
-  if (ha_alter_info->alter_info->flags == ALTER_PARTITION)
+  if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
+  {
+    DBUG_ASSERT(ha_alter_info->alter_info->flags == 0);
     DBUG_RETURN(false);
+  }
 
   part_inplace_ctx=
     static_cast<class ha_partition_inplace_ctx*>(ha_alter_info->handler_ctx);
@@ -10011,8 +10020,11 @@ bool ha_partition::commit_inplace_alter_table(TABLE *altered_table,
     Changing to similar partitioning, only update metadata.
     Non allowed changes would be catched in prep_alter_part_table().
   */
-  if (ha_alter_info->alter_info->flags == ALTER_PARTITION)
+  if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
+  {
+    DBUG_ASSERT(ha_alter_info->alter_info->flags == 0);
     DBUG_RETURN(false);
+  }
 
   part_inplace_ctx=
     static_cast<class ha_partition_inplace_ctx*>(ha_alter_info->handler_ctx);

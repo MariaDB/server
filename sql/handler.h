@@ -597,35 +597,10 @@ typedef ulonglong alter_table_operations;
 #define ALTER_KEYS_ONOFF            (1ULL <<  9)
 // Set for FORCE, ENGINE(same engine), by mysql_recreate_table()
 #define ALTER_RECREATE              (1ULL << 10)
-// Set for ADD PARTITION
-#define ALTER_ADD_PARTITION         (1ULL << 11)
-// Set for DROP PARTITION
-#define ALTER_DROP_PARTITION        (1ULL << 12)
-// Set for COALESCE PARTITION
-#define ALTER_COALESCE_PARTITION    (1ULL << 13)
-// Set for REORGANIZE PARTITION ... INTO
-#define ALTER_REORGANIZE_PARTITION  (1ULL << 14)
-// Set for partition_options
-#define ALTER_PARTITION             (1ULL << 15)
-// Set for LOAD INDEX INTO CACHE ... PARTITION
-// Set for CACHE INDEX ... PARTITION
-#define ALTER_ADMIN_PARTITION       (1ULL << 16)
-// Set for REORGANIZE PARTITION
-#define ALTER_TABLE_REORG           (1ULL << 17)
-// Set for REBUILD PARTITION
-#define ALTER_REBUILD_PARTITION     (1ULL << 18)
-// Set for partitioning operations specifying ALL keyword
-#define ALTER_ALL_PARTITION         (1ULL << 19)
-// Set for REMOVE PARTITIONING
-#define ALTER_REMOVE_PARTITIONING   (1ULL << 20)
 // Set for ADD FOREIGN KEY
 #define ALTER_ADD_FOREIGN_KEY       (1ULL << 21)
 // Set for DROP FOREIGN KEY
 #define ALTER_DROP_FOREIGN_KEY      (1ULL << 22)
-// Set for EXCHANGE PARITION
-#define ALTER_EXCHANGE_PARTITION    (1ULL << 23)
-// Set by Sql_cmd_alter_table_truncate_partition::execute()
-#define ALTER_TRUNCATE_PARTITION    (1ULL << 24)
 // Set for ADD [COLUMN] FIRST | AFTER
 #define ALTER_COLUMN_ORDER          (1ULL << 25)
 #define ALTER_ADD_CHECK_CONSTRAINT  (1ULL << 27)
@@ -713,30 +688,60 @@ typedef ulonglong alter_table_operations;
 #define ALTER_COLUMN_NOT_NULLABLE            (1ULL << 54)
 
 // Change column generation expression
-#define ALTER_VIRTUAL_GCOL_EXPR              (1ULL << 56)
-#define ALTER_STORED_GCOL_EXPR               (1ULL << 57)
+#define ALTER_VIRTUAL_GCOL_EXPR              (1ULL << 55)
+#define ALTER_STORED_GCOL_EXPR               (1ULL << 56)
 
 // column's engine options changed, something in field->option_struct
-#define ALTER_COLUMN_OPTION                  (1ULL << 59)
+#define ALTER_COLUMN_OPTION                  (1ULL << 57)
 
 // MySQL alias for the same thing:
-#define ALTER_COLUMN_STORAGE_TYPE            (1ULL << 60)
+#define ALTER_COLUMN_STORAGE_TYPE            (1ULL << 58)
 
 // Change the column format of column
-#define ALTER_COLUMN_COLUMN_FORMAT           (1ULL << 61)
+#define ALTER_COLUMN_COLUMN_FORMAT           (1ULL << 59)
 
 /**
   Changes in generated columns that affect storage,
   for example, when a vcol type or expression changes
   and this vcol is indexed or used in a partitioning expression
 */
-#define ALTER_COLUMN_VCOL                    (1ULL << 62)
+#define ALTER_COLUMN_VCOL                    (1ULL << 60)
 
 /**
   ALTER TABLE for a partitioned table. The engine needs to commit
   online alter of all partitions atomically (using group_commit_ctx)
 */
-#define ALTER_PARTITIONED                    (1ULL << 63)
+#define ALTER_PARTITIONED                    (1ULL << 61)
+
+/*
+  Flags set in partition_flags when altering partitions
+*/
+
+// Set for ADD PARTITION
+#define ALTER_PARTITION_ADD         (1ULL << 1)
+// Set for DROP PARTITION
+#define ALTER_PARTITION_DROP        (1ULL << 2)
+// Set for COALESCE PARTITION
+#define ALTER_PARTITION_COALESCE    (1ULL << 3)
+// Set for REORGANIZE PARTITION ... INTO
+#define ALTER_PARTITION_REORGANIZE  (1ULL << 4)
+// Set for partition_options
+#define ALTER_PARTITION_INFO        (1ULL << 5)
+// Set for LOAD INDEX INTO CACHE ... PARTITION
+// Set for CACHE INDEX ... PARTITION
+#define ALTER_PARTITION_ADMIN       (1ULL << 6)
+// Set for REBUILD PARTITION
+#define ALTER_PARTITION_REBUILD     (1ULL << 7)
+// Set for partitioning operations specifying ALL keyword
+#define ALTER_PARTITION_ALL         (1ULL << 8)
+// Set for REMOVE PARTITIONING
+#define ALTER_PARTITION_REMOVE      (1ULL << 9)
+// Set for EXCHANGE PARITION
+#define ALTER_PARTITION_EXCHANGE    (1ULL << 10)
+// Set by Sql_cmd_alter_table_truncate_partition::execute()
+#define ALTER_PARTITION_TRUNCATE    (1ULL << 11)
+// Set for REORGANIZE PARTITION
+#define ALTER_PARTITION_TABLE_REORG           (1ULL << 12)
 
 /*
   This is master database for most of system tables. However there
@@ -2284,6 +2289,9 @@ public:
      execute. Flags are defined in sql_alter.h
   */
   alter_table_operations handler_flags;
+
+  /* Alter operations involving parititons are strored here */
+  ulong partition_flags;
 
   /**
      Partition_info taking into account the partition changes to be performed.

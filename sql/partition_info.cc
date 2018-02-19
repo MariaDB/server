@@ -2442,7 +2442,7 @@ static bool strcmp_null(const char *a, const char *b)
   such partitioned tables using numeric colums in the partitioning expression.
   For more info see bug#14521864.
   Does not check if columns etc has changed, i.e. only for
-  alter_info->flags == ALTER_PARTITION.
+  alter_info->partition_flags == ALTER_PARTITION_INFO.
 */
 
 bool partition_info::has_same_partitioning(partition_info *new_part_info)

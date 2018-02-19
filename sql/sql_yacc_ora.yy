@@ -5092,7 +5092,7 @@ partitioning:
             }
             if (lex->sql_command == SQLCOM_ALTER_TABLE)
             {
-              lex->alter_info.flags|= ALTER_PARTITION;
+              lex->alter_info.partition_flags|= ALTER_PARTITION_INFO;
             }
           }
           partition
@@ -7727,7 +7727,7 @@ alter_commands:
         | add_partition_rule
         | DROP PARTITION_SYM opt_if_exists alt_part_name_list
           {
-            Lex->alter_info.flags|= ALTER_DROP_PARTITION;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_DROP;
             DBUG_ASSERT(!Lex->if_exists());
             Lex->create_info.add($3);
           }
@@ -7735,7 +7735,7 @@ alter_commands:
           all_or_alt_part_name_list
           {
             LEX *lex= Lex;
-            lex->alter_info.flags|= ALTER_REBUILD_PARTITION;
+            lex->alter_info.partition_flags|= ALTER_PARTITION_REBUILD;
             lex->no_write_to_binlog= $3;
           }
         | OPTIMIZE PARTITION_SYM opt_no_write_to_binlog
@@ -7790,7 +7790,7 @@ alter_commands:
         | COALESCE PARTITION_SYM opt_no_write_to_binlog real_ulong_num
           {
             LEX *lex= Lex;
-            lex->alter_info.flags|= ALTER_COALESCE_PARTITION;
+            lex->alter_info.partition_flags|= ALTER_PARTITION_COALESCE;
             lex->no_write_to_binlog= $3;
             lex->alter_info.num_parts= $4;
           }
@@ -7816,7 +7816,7 @@ alter_commands:
               MYSQL_YYABORT;
             }
             lex->name= $6->table;
-            lex->alter_info.flags|= ALTER_EXCHANGE_PARTITION;
+            lex->alter_info.partition_flags|= ALTER_PARTITION_EXCHANGE;
             if (!lex->select_lex.add_table_to_list(thd, $6, NULL,
                                                    TL_OPTION_UPDATING,
                                                    TL_READ_NO_INSERT,
@@ -7833,14 +7833,14 @@ alter_commands:
 remove_partitioning:
           REMOVE_SYM PARTITIONING_SYM
           {
-            Lex->alter_info.flags|= ALTER_REMOVE_PARTITIONING;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_REMOVE;
           }
         ;
 
 all_or_alt_part_name_list:
           ALL
           {
-            Lex->alter_info.flags|= ALTER_ALL_PARTITION;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_ALL;
           }
         | alt_part_name_list
         ;
@@ -7856,7 +7856,7 @@ add_partition_rule:
               mem_alloc_error(sizeof(partition_info));
               MYSQL_YYABORT;
             }
-            lex->alter_info.flags|= ALTER_ADD_PARTITION;
+            lex->alter_info.partition_flags|= ALTER_PARTITION_ADD;
             DBUG_ASSERT(!Lex->create_info.if_not_exists());
             lex->create_info.set($3);
             lex->no_write_to_binlog= $4;
@@ -7896,11 +7896,11 @@ reorg_partition_rule:
 reorg_parts_rule:
           /* empty */
           {
-            Lex->alter_info.flags|= ALTER_TABLE_REORG;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_TABLE_REORG;
           }
         | alt_part_name_list
           {
-            Lex->alter_info.flags|= ALTER_REORGANIZE_PARTITION;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_REORGANIZE;
           }
           INTO '(' part_def_list ')'
           {
@@ -8733,7 +8733,7 @@ preload_keys_parts:
 adm_partition:
           PARTITION_SYM have_partitioning
           {
-            Lex->alter_info.flags|= ALTER_ADMIN_PARTITION;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_ADMIN;
           }
           '(' all_or_alt_part_name_list ')'
         ;

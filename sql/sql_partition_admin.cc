@@ -73,7 +73,7 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
   /* Must be set in the parser */
   DBUG_ASSERT(select_lex->db.str);
   /* also check the table to be exchanged with the partition */
-  DBUG_ASSERT(alter_info.flags & ALTER_EXCHANGE_PARTITION);
+  DBUG_ASSERT(alter_info.partition_flags & ALTER_PARTITION_EXCHANGE);
 
   if (check_access(thd, priv_needed, first_table->db.str,
                    &first_table->grant.privilege,
@@ -501,7 +501,7 @@ bool Sql_cmd_alter_table_exchange_partition::
   uint table_counter;
   bool error= TRUE;
   DBUG_ENTER("mysql_exchange_partition");
-  DBUG_ASSERT(alter_info->flags & ALTER_EXCHANGE_PARTITION);
+  DBUG_ASSERT(alter_info->partition_flags & ALTER_PARTITION_EXCHANGE);
 
   /* Don't allow to exchange with log table */
   swap_table_list= table_list->next_local;
@@ -671,7 +671,7 @@ bool Sql_cmd_alter_table_analyze_partition::execute(THD *thd)
     Flag that it is an ALTER command which administrates partitions, used
     by ha_partition
   */
-  thd->lex->alter_info.flags|= ALTER_ADMIN_PARTITION;
+  thd->lex->alter_info.partition_flags|= ALTER_PARTITION_ADMIN;
 
   res= Sql_cmd_analyze_table::execute(thd);
     
@@ -688,7 +688,7 @@ bool Sql_cmd_alter_table_check_partition::execute(THD *thd)
     Flag that it is an ALTER command which administrates partitions, used
     by ha_partition
   */
-  thd->lex->alter_info.flags|= ALTER_ADMIN_PARTITION;
+  thd->lex->alter_info.partition_flags|= ALTER_PARTITION_ADMIN;
 
   res= Sql_cmd_check_table::execute(thd);
 
@@ -705,7 +705,7 @@ bool Sql_cmd_alter_table_optimize_partition::execute(THD *thd)
     Flag that it is an ALTER command which administrates partitions, used
     by ha_partition
   */
-  thd->lex->alter_info.flags|= ALTER_ADMIN_PARTITION;
+  thd->lex->alter_info.partition_flags|= ALTER_PARTITION_ADMIN;
 
   res= Sql_cmd_optimize_table::execute(thd);
 
@@ -722,7 +722,7 @@ bool Sql_cmd_alter_table_repair_partition::execute(THD *thd)
     Flag that it is an ALTER command which administrates partitions, used
     by ha_partition
   */
-  thd->lex->alter_info.flags|= ALTER_ADMIN_PARTITION;
+  thd->lex->alter_info.partition_flags|= ALTER_PARTITION_ADMIN;
 
   res= Sql_cmd_repair_table::execute(thd);
 
@@ -746,8 +746,8 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
     Flag that it is an ALTER command which administrates partitions, used
     by ha_partition.
   */
-  thd->lex->alter_info.flags|= ALTER_ADMIN_PARTITION |
-                               ALTER_TRUNCATE_PARTITION;
+  thd->lex->alter_info.partition_flags|= (ALTER_PARTITION_ADMIN |
+                                          ALTER_PARTITION_TRUNCATE);
 
   /* Fix the lock types (not the same as ordinary ALTER TABLE). */
   first_table->lock_type= TL_WRITE;

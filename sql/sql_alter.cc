@@ -27,7 +27,7 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   key_list(rhs.key_list, mem_root),
   create_list(rhs.create_list, mem_root),
   check_constraint_list(rhs.check_constraint_list, mem_root),
-  flags(rhs.flags),
+  flags(rhs.flags), partition_flags(rhs.partition_flags),
   keys_onoff(rhs.keys_onoff),
   partition_names(rhs.partition_names, mem_root),
   num_parts(rhs.num_parts),
@@ -225,13 +225,14 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     We also require DROP priv for ALTER TABLE ... DROP PARTITION, as well
     as for RENAME TO, as being done by SQLCOM_RENAME_TABLE
   */
-  if (alter_info.flags & (ALTER_DROP_PARTITION | ALTER_RENAME))
+  if ((alter_info.partition_flags & ALTER_PARTITION_DROP) ||
+      (alter_info.flags & ALTER_RENAME))
     priv_needed|= DROP_ACL;
 
   /* Must be set in the parser */
   DBUG_ASSERT(select_lex->db.str);
-  DBUG_ASSERT(!(alter_info.flags & ALTER_EXCHANGE_PARTITION));
-  DBUG_ASSERT(!(alter_info.flags & ALTER_ADMIN_PARTITION));
+  DBUG_ASSERT(!(alter_info.partition_flags & ALTER_PARTITION_EXCHANGE));
+  DBUG_ASSERT(!(alter_info.partition_flags & ALTER_PARTITION_ADMIN));
   if (check_access(thd, priv_needed, first_table->db.str,
                    &first_table->grant.privilege,
                    &first_table->grant.m_internal,
