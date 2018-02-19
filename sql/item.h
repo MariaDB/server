@@ -665,13 +665,6 @@ protected:
       value= NULL;
     return value;
   }
-  bool get_date_with_conversion_from_item(Item *item,
-                                          MYSQL_TIME *ltime,
-                                          ulonglong fuzzydate)
-  {
-    DBUG_ASSERT(fixed == 1);
-    return (null_value= item->get_date_with_conversion(ltime, fuzzydate));
-  }
   /*
     This method is used if the item was not null but convertion to
     TIME/DATE/DATETIME failed. We return a zero date if allowed,
@@ -1363,17 +1356,16 @@ public:
   bool get_date_from_decimal(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_from_string(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime)
-  { return get_date(ltime, TIME_TIME_ONLY | TIME_INVALID_DATES); }
-  // Get date with automatic TIME->DATETIME conversion
-  bool get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  { return get_date(ltime, Time::flags_for_get_date()); }
   /*
-    Get time with automatic DATE/DATETIME to TIME conversion.
+    Get time with automatic DATE/DATETIME to TIME conversion,
+    by subtracting CURRENT_DATE.
 
-    Performce a reserve operation to get_date_with_conversion().
+    Performce a reverse operation to CAST(time AS DATETIME)
     Suppose:
     - we have a set of items (typically with the native MYSQL_TYPE_TIME type)
       whose item->get_date() return TIME1 value, and
-    - item->get_date_with_conversion() for the same Items return DATETIME1,
+    - CAST(AS DATETIME) for the same Items return DATETIME1,
       after applying time-to-datetime conversion to TIME1.
 
     then all items (typically of the native MYSQL_TYPE_{DATE|DATETIME} types)
@@ -1402,22 +1394,21 @@ public:
   // Get a DATE or DATETIME value in numeric packed format for comparison
   virtual longlong val_datetime_packed()
   {
-    MYSQL_TIME ltime;
     ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
-    return get_date_with_conversion(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
+    Datetime dt(current_thd, this, fuzzydate);
+    return dt.is_valid_datetime() ? pack_time(dt.get_mysql_time()) : 0;
   }
   // Get a TIME value in numeric packed format for comparison
   virtual longlong val_time_packed()
   {
-    MYSQL_TIME ltime;
-    ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
-    return get_date(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
+    Time tm(this, Time::comparison_flags_for_get_date());
+    return tm.is_valid_time() ? pack_time(tm.get_mysql_time()) : 0;
   }
   longlong val_datetime_packed_result();
   longlong val_time_packed_result()
   {
     MYSQL_TIME ltime;
-    ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
+    ulonglong fuzzydate= Time::comparison_flags_for_get_date();
     return get_date_result(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
   }
 

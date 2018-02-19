@@ -124,38 +124,6 @@ longlong Item::val_datetime_packed_result()
 
 /**
   Get date/time/datetime.
-  Optionally extend TIME result to DATETIME.
-*/
-bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
-{
-  THD *thd= current_thd;
-
-  /*
-    Some TIME type items return error when trying to do get_date()
-    without TIME_TIME_ONLY set (e.g. Item_field for Field_time).
-    In the SQL standard time->datetime conversion mode we add TIME_TIME_ONLY.
-    In the legacy time->datetime conversion mode we do not add TIME_TIME_ONLY
-    and leave it to get_date() to check date.
-  */
-  ulonglong time_flag= (field_type() == MYSQL_TYPE_TIME &&
-           !(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
-           TIME_TIME_ONLY : 0;
-  if (get_date(ltime, fuzzydate | time_flag))
-    return true;
-  if (ltime->time_type == MYSQL_TIMESTAMP_TIME &&
-      !(fuzzydate & TIME_TIME_ONLY))
-  {
-    MYSQL_TIME tmp;
-    if (time_to_datetime_with_warn(thd, ltime, &tmp, fuzzydate))
-      return null_value= true;
-    *ltime= tmp;
-  }
-  return false;
-}
-
-
-/**
-  Get date/time/datetime.
   If DATETIME or DATE result is returned, it's converted to TIME.
 */
 bool Item::get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,

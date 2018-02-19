@@ -1005,6 +1005,7 @@ public:
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool time_op(MYSQL_TIME *ltime);
   void fix_length_and_dec()
   {
     if (!aggregate_for_result(func_name(), args, arg_count, true))
@@ -1077,6 +1078,7 @@ public:
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool time_op(MYSQL_TIME *ltime);
   void fix_length_and_dec()
   {
     Item_func_case_abbreviation2::fix_length_and_dec2(args);
@@ -1110,7 +1112,12 @@ public:
 
   bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
   {
-    return get_date_with_conversion_from_item(find_item(), ltime, fuzzydate);
+    Datetime dt(current_thd, find_item(), fuzzydate);
+    return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
+  }
+  bool time_op(MYSQL_TIME *ltime)
+  {
+    return (null_value= Time(find_item()).copy_to_mysql_time(ltime));
   }
   longlong int_op()
   {
@@ -1222,6 +1229,7 @@ public:
     arg_count= 2; // See the comment to the constructor
   }
   bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool time_op(MYSQL_TIME *ltime);
   double real_op();
   longlong int_op();
   String *str_op(String *str);
@@ -2111,6 +2119,7 @@ public:
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool time_op(MYSQL_TIME *ltime);
   bool fix_fields(THD *thd, Item **ref);
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }

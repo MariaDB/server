@@ -5655,30 +5655,28 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
          const_item->field_type() != MYSQL_TYPE_TIMESTAMP) ||
         const_item->decimals != decimals())
     {
-      MYSQL_TIME ltime;
-      if (const_item->field_type() == MYSQL_TYPE_TIME ?
-          const_item->get_date_with_conversion(&ltime, 0) :
-          const_item->get_date(&ltime, 0))
+      Datetime dt(thd, const_item, 0);
+      if (!dt.is_valid_datetime())
         return NULL;
       /*
         See comments about truncation in the same place in
         Field_time::get_equal_const_item().
       */
-      return new (thd->mem_root) Item_datetime_literal(thd, &ltime,
+      return new (thd->mem_root) Item_datetime_literal(thd,
+                                                       dt.get_mysql_time(),
                                                        decimals());
     }
     break;
   case ANY_SUBST:
     if (!is_temporal_type_with_date(const_item->field_type()))
     {
-      MYSQL_TIME ltime;
-      if (const_item->get_date_with_conversion(&ltime,
-                                               TIME_FUZZY_DATES |
-                                               TIME_INVALID_DATES))
+      Datetime dt(thd, const_item, TIME_FUZZY_DATES | TIME_INVALID_DATES);
+      if (!dt.is_valid_datetime())
         return NULL;
       return new (thd->mem_root)
-        Item_datetime_literal_for_invalid_dates(thd, &ltime,
-                                                ltime.second_part ?
+        Item_datetime_literal_for_invalid_dates(thd, dt.get_mysql_time(),
+                                                dt.get_mysql_time()->
+                                                second_part ?
                                                 TIME_SECOND_PART_DIGITS : 0);
     }
     break;
@@ -6030,10 +6028,8 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
     {
       MYSQL_TIME ltime;
       // Get the value of const_item with conversion from DATETIME to TIME
-      if (const_item->get_time_with_conversion(thd, &ltime,
-                                               TIME_TIME_ONLY |
-                                               TIME_FUZZY_DATES |
-                                               TIME_INVALID_DATES))
+      ulonglong fuzzydate= Time::comparison_flags_for_get_date();
+      if (const_item->get_time_with_conversion(thd, &ltime, fuzzydate))
         return NULL;
       /*
         Replace a DATE/DATETIME constant to a TIME constant:
@@ -6506,10 +6502,9 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
   case ANY_SUBST:
     if (!is_temporal_type_with_date(const_item->field_type()))
     {
-      MYSQL_TIME ltime;
       // Get the value of const_item with conversion from TIME to DATETIME
-      if (const_item->get_date_with_conversion(&ltime,
-                                        TIME_FUZZY_DATES | TIME_INVALID_DATES))
+      Datetime dt(thd, const_item, TIME_FUZZY_DATES | TIME_INVALID_DATES);
+      if (!dt.is_valid_datetime())
         return NULL;
       /*
         Replace the constant to a DATE or DATETIME constant.
@@ -6522,26 +6517,23 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
 
         (assuming CURRENT_DATE is '2015-08-30'
       */
-      if (non_zero_hhmmssuu(&ltime))
+      if (!dt.hhmmssff_is_zero())
         return new (thd->mem_root)
-          Item_datetime_literal_for_invalid_dates(thd, &ltime,
-                                                  ltime.second_part ?
+          Item_datetime_literal_for_invalid_dates(thd, dt.get_mysql_time(),
+                                                  dt.get_mysql_time()->
+                                                    second_part ?
                                                   TIME_SECOND_PART_DIGITS : 0);
-      datetime_to_date(&ltime);
       return new (thd->mem_root)
-        Item_date_literal_for_invalid_dates(thd, &ltime);
+        Item_date_literal_for_invalid_dates(thd, Date(&dt).get_mysql_time());
     }
     break;
   case IDENTITY_SUBST:
     if (const_item->field_type() != MYSQL_TYPE_DATE)
     {
-      MYSQL_TIME ltime;
-      if (const_item->field_type() == MYSQL_TYPE_TIME ?
-          const_item->get_date_with_conversion(&ltime, 0) :
-          const_item->get_date(&ltime, 0))
+      Date d(thd, const_item, 0);
+      if (!d.is_valid_date())
         return NULL;
-      datetime_to_date(&ltime);
-      return new (thd->mem_root) Item_date_literal(thd, &ltime);
+      return new (thd->mem_root) Item_date_literal(thd, d.get_mysql_time());
     }
     break;
   }

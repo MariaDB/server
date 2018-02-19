@@ -2368,9 +2368,25 @@ Item_func_ifnull::str_op(String *str)
 bool Item_func_ifnull::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
-  if (!args[0]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES))
-    return (null_value= false);
-  return (null_value= args[1]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES));
+  for (uint i= 0; i < 2; i++)
+  {
+    Datetime dt(current_thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    if (!(dt.copy_to_mysql_time(ltime, mysql_timestamp_type())))
+      return (null_value= false);
+  }
+  return (null_value= true);
+}
+
+
+bool Item_func_ifnull::time_op(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(fixed == 1);
+  for (uint i= 0; i < 2; i++)
+  {
+    if (!Time(args[i]).copy_to_mysql_time(ltime))
+      return (null_value= false);
+  }
+  return (null_value= true);
 }
 
 
@@ -2850,7 +2866,19 @@ Item_func_nullif::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
   DBUG_ASSERT(fixed == 1);
   if (!compare())
     return (null_value= true);
-  return (null_value= args[2]->get_date(ltime, fuzzydate));
+  Datetime dt(current_thd, args[2], fuzzydate);
+  return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
+}
+
+
+bool
+Item_func_nullif::time_op(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (!compare())
+    return (null_value= true);
+  return (null_value= Time(args[2]).copy_to_mysql_time(ltime));
+
 }
 
 
@@ -2991,7 +3019,18 @@ bool Item_func_case::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
   Item *item= find_item();
   if (!item)
     return (null_value= true);
-  return (null_value= item->get_date_with_conversion(ltime, fuzzydate));
+  Datetime dt(current_thd, item, fuzzydate);
+  return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
+}
+
+
+bool Item_func_case::time_op(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(fixed == 1);
+  Item *item= find_item();
+  if (!item)
+    return (null_value= true);
+  return (null_value= Time(item).copy_to_mysql_time(ltime));
 }
 
 
@@ -3401,7 +3440,20 @@ bool Item_func_coalesce::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < arg_count; i++)
   {
-    if (!args[i]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES))
+    Datetime dt(current_thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    if (!dt.copy_to_mysql_time(ltime, mysql_timestamp_type()))
+      return (null_value= false);
+  }
+  return (null_value= true);
+}
+
+
+bool Item_func_coalesce::time_op(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(fixed == 1);
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (!Time(args[i]).copy_to_mysql_time(ltime))
       return (null_value= false);
   }
   return (null_value= true);

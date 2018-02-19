@@ -160,14 +160,17 @@ public:
   void print_args(String *str, uint from, enum_query_type query_type);
   inline bool get_arg0_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {
-    return (null_value=args[0]->get_date_with_conversion(ltime, fuzzy_date));
+    return fuzzy_date & TIME_TIME_ONLY ? get_arg0_time(ltime) :
+                                         get_arg0_datetime(ltime, fuzzy_date);
+  }
+  inline bool get_arg0_datetime(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+  {
+    Datetime dt(current_thd, args[0], fuzzy_date);
+    return (null_value= dt.copy_to_mysql_time(ltime));
   }
   inline bool get_arg0_time(MYSQL_TIME *ltime)
   {
-    null_value= args[0]->get_time(ltime);
-    DBUG_ASSERT(null_value ||
-                ltime->time_type != MYSQL_TIMESTAMP_TIME || ltime->day == 0);
-    return null_value;
+    return (null_value= Time(args[0]).copy_to_mysql_time(ltime));
   }
   bool is_null() { 
     update_null_value();
@@ -447,9 +450,15 @@ class Item_func_hybrid_field_type: public Item_hybrid_func
   */
   bool date_op_with_null_check(MYSQL_TIME *ltime)
   {
-     bool rc= date_op(ltime,
-                      field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0);
+     bool rc= date_op(ltime, 0);
      DBUG_ASSERT(!rc ^ null_value);
+     return rc;
+  }
+  bool time_op_with_null_check(MYSQL_TIME *ltime)
+  {
+     bool rc= time_op(ltime);
+     DBUG_ASSERT(!rc ^ null_value);
+     DBUG_ASSERT(rc || ltime->time_type == MYSQL_TIMESTAMP_TIME);
      return rc;
   }
   String *str_op_with_null_check(String *str)
@@ -488,32 +497,30 @@ public:
   {
     return real_op();
   }
-  bool get_date_from_date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
-  {
-    return date_op(ltime,
-                   (fuzzydate |
-                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0)));
-  }
 
   // Value methods that involve conversion
   String *val_str_from_decimal_op(String *str);
   String *val_str_from_real_op(String *str);
   String *val_str_from_int_op(String *str);
   String *val_str_from_date_op(String *str);
+  String *val_str_from_time_op(String *str);
 
   my_decimal *val_decimal_from_str_op(my_decimal *dec);
   my_decimal *val_decimal_from_real_op(my_decimal *dec);
   my_decimal *val_decimal_from_int_op(my_decimal *dec);
   my_decimal *val_decimal_from_date_op(my_decimal *dec);
+  my_decimal *val_decimal_from_time_op(my_decimal *dec);
 
   longlong val_int_from_str_op();
   longlong val_int_from_real_op();
   longlong val_int_from_decimal_op();
   longlong val_int_from_date_op();
+  longlong val_int_from_time_op();
 
   double val_real_from_str_op();
   double val_real_from_decimal_op();
   double val_real_from_date_op();
+  double val_real_from_time_op();
   double val_real_from_int_op();
 
   bool get_date_from_str_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
@@ -609,10 +616,17 @@ public:
 
   /**
      @brief Performs the operation that this functions implements when
-     field type is a temporal type.
+     field type is DATETIME or DATE.
      @return The result of the operation.
   */
   virtual bool date_op(MYSQL_TIME *res, ulonglong fuzzy_date)= 0;
+
+  /**
+     @brief Performs the operation that this functions implements when
+     field type is TIME.
+     @return The result of the operation.
+  */
+  virtual bool time_op(MYSQL_TIME *res)= 0;
 
 };
 
@@ -672,6 +686,11 @@ public:
   { }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
   bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool time_op(MYSQL_TIME *ltime)
   {
     DBUG_ASSERT(0);
     return true;

@@ -165,19 +165,35 @@ class Time: private MYSQL_TIME
       break;
     }
   }
-  void make_from_item(class Item *item);
+  void make_from_item(class Item *item, sql_mode_t flags);
 public:
   Time() { time_type= MYSQL_TIMESTAMP_NONE; }
-  Time(Item *item) { make_from_item(item); }
+  Time(Item *item) { make_from_item(item, flags_for_get_date()); }
+  Time(Item *item, sql_mode_t flags) { make_from_item(item, flags); }
+  static sql_mode_t flags_for_get_date()
+  { return TIME_TIME_ONLY | TIME_INVALID_DATES; }
+  static sql_mode_t comparison_flags_for_get_date()
+  { return TIME_TIME_ONLY | TIME_INVALID_DATES | TIME_FUZZY_DATES; }
   bool is_valid_time() const
   {
     DBUG_ASSERT(is_valid_value_slow());
     return time_type == MYSQL_TIMESTAMP_TIME;
   }
-  void copy_to_mysql_time(MYSQL_TIME *ltime) const
+  const MYSQL_TIME *get_mysql_time() const
   {
     DBUG_ASSERT(is_valid_time_slow());
+    return this;
+  }
+  bool copy_to_mysql_time(MYSQL_TIME *ltime) const
+  {
+    if (time_type == MYSQL_TIMESTAMP_NONE)
+    {
+      ltime->time_type= MYSQL_TIMESTAMP_NONE;
+      return true;
+    }
+    DBUG_ASSERT(is_valid_time_slow());
     *ltime= *this;
+    return false;
   }
   int cmp(const Time *other) const
   {
@@ -193,6 +209,163 @@ public:
   }
 };
 
+
+/**
+  Class Temporal_with_date is designed to store valid DATE or DATETIME values.
+  See also class Time.
+
+  1. Valid value:
+    a. MYSQL_TIMESTAMP_{DATE|DATETIME} - a valid DATE or DATETIME value
+    b. MYSQL_TIMESTAMP_NONE            - an undefined value
+
+  2. Invalid value (internally only):
+    a. MYSQL_TIMESTAMP_{DATE|DATETIME} - a DATE or DATETIME value, but with
+                                         MYSQL_TIME members outside of the
+                                         valid/supported range
+    b. MYSQL_TIMESTAMP_TIME            - a TIME value
+    c. MYSQL_TIMESTAMP_ERROR           - error
+
+  Temporarily is allowed to have an invalid value, but only internally,
+  during initialization time. All constructors and modification methods must
+  leave the value as described above (see "Valid value").
+
+  Derives from MYSQL_TIME using "protected" inheritance to make sure
+  it is accessed externally only in the valid state.
+*/
+
+class Temporal_with_date: protected MYSQL_TIME
+{
+protected:
+  void make_from_item(THD *thd, Item *item, sql_mode_t flags);
+  Temporal_with_date(THD *thd, Item *item, sql_mode_t flags)
+  {
+    make_from_item(thd, item, flags);
+  }
+};
+
+
+/**
+  Class Date is designed to store valid DATE values.
+  All constructors and modification methods leave instances
+  of this class in one of the following valid states:
+    a. MYSQL_TIMESTAMP_DATE - a DATE with all MYSQL_TIME members properly set
+    b. MYSQL_TIMESTAMP_NONE - an undefined value.
+  Other MYSQL_TIMESTAMP_XXX are not possible.
+  MYSQL_TIMESTAMP_DATE with MYSQL_TIME members improperly set is not possible.
+*/
+class Date: public Temporal_with_date
+{
+  bool is_valid_value_slow() const
+  {
+    return time_type == MYSQL_TIMESTAMP_NONE || is_valid_date_slow();
+  }
+  bool is_valid_date_slow() const
+  {
+    DBUG_ASSERT(time_type == MYSQL_TIMESTAMP_DATE);
+    return !check_datetime_range(this);
+  }
+public:
+  Date(THD *thd, Item *item, sql_mode_t flags)
+   :Temporal_with_date(thd, item, flags)
+  {
+    if (time_type == MYSQL_TIMESTAMP_DATETIME)
+      datetime_to_date(this);
+    DBUG_ASSERT(is_valid_value_slow());
+  }
+  Date(const Temporal_with_date *d)
+   :Temporal_with_date(*d)
+  {
+    datetime_to_date(this);
+    DBUG_ASSERT(is_valid_date_slow());
+  }
+  bool is_valid_date() const
+  {
+    DBUG_ASSERT(is_valid_value_slow());
+    return time_type == MYSQL_TIMESTAMP_DATE;
+  }
+  const MYSQL_TIME *get_mysql_time() const
+  {
+    DBUG_ASSERT(is_valid_date_slow());
+    return this;
+  }
+};
+
+
+/**
+  Class Datetime is designed to store valid DATETIME values.
+  All constructors and modification methods leave instances
+  of this class in one of the following valid states:
+    a. MYSQL_TIMESTAMP_DATETIME - a DATETIME with all members properly set
+    b. MYSQL_TIMESTAMP_NONE     - an undefined value.
+  Other MYSQL_TIMESTAMP_XXX are not possible.
+  MYSQL_TIMESTAMP_DATETIME with MYSQL_TIME members
+  improperly set is not possible.
+*/
+class Datetime: public Temporal_with_date
+{
+  bool is_valid_value_slow() const
+  {
+    return time_type == MYSQL_TIMESTAMP_NONE || is_valid_datetime_slow();
+  }
+  bool is_valid_datetime_slow() const
+  {
+    DBUG_ASSERT(time_type == MYSQL_TIMESTAMP_DATETIME);
+    return !check_datetime_range(this);
+  }
+public:
+  Datetime(THD *thd, Item *item, sql_mode_t flags)
+   :Temporal_with_date(thd, item, flags)
+  {
+    if (time_type == MYSQL_TIMESTAMP_DATE)
+      date_to_datetime(this);
+    DBUG_ASSERT(is_valid_value_slow());
+  }
+  bool is_valid_datetime() const
+  {
+    /*
+      Here we quickly check for the type only.
+      If the type is valid, the rest of value must also be valid.
+    */
+    DBUG_ASSERT(is_valid_value_slow());
+    return time_type == MYSQL_TIMESTAMP_DATETIME;
+  }
+  bool hhmmssff_is_zero() const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return hour == 0 && minute == 0 && second == 0 && second_part == 0;
+  }
+  const MYSQL_TIME *get_mysql_time() const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return this;
+  }
+  bool copy_to_mysql_time(MYSQL_TIME *ltime) const
+  {
+    if (time_type == MYSQL_TIMESTAMP_NONE)
+    {
+      ltime->time_type= MYSQL_TIMESTAMP_NONE;
+      return true;
+    }
+    DBUG_ASSERT(is_valid_datetime_slow());
+    *ltime= *this;
+    return false;
+  }
+  /**
+    Copy without data loss, with an optional DATETIME to DATE conversion.
+    If the value of the "type" argument is MYSQL_TIMESTAMP_DATE,
+    then "this" must be a datetime with a zero hhmmssff part.
+  */
+  bool copy_to_mysql_time(MYSQL_TIME *ltime, timestamp_type type)
+  {
+    DBUG_ASSERT(type == MYSQL_TIMESTAMP_DATE ||
+                type == MYSQL_TIMESTAMP_DATETIME);
+    if (copy_to_mysql_time(ltime))
+      return true;
+    DBUG_ASSERT(type != MYSQL_TIMESTAMP_DATE || hhmmssff_is_zero());
+    ltime->time_type= type;
+    return false;
+  }
+};
 
 /*
   Flags for collation aggregation modes, used in TDCollation::agg():
@@ -2220,6 +2393,18 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
+                                              String *) const;
+  double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
+                                              const;
+  longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
+                                               const;
+  my_decimal *Item_func_hybrid_field_type_val_decimal(
+                                              Item_func_hybrid_field_type *,
+                                              my_decimal *) const;
+  bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
+                                            MYSQL_TIME *,
+                                            ulonglong fuzzydate) const;
   bool Item_func_min_max_get_date(Item_func_min_max*,
                                   MYSQL_TIME *, ulonglong fuzzydate) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;

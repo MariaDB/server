@@ -2771,7 +2771,7 @@ bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     // ADDTIME function AND the first argument is TIME
     if (args[0]->get_time(&l_time1) || 
         args[1]->get_time(&l_time2) ||
-        l_time2.time_type == MYSQL_TIMESTAMP_DATETIME)
+        l_time2.time_type != MYSQL_TIMESTAMP_TIME)
       return (null_value= 1);
     is_time= (l_time1.time_type == MYSQL_TIMESTAMP_TIME);
   }
@@ -2950,14 +2950,13 @@ longlong Item_func_timestamp_diff::val_int()
   long microseconds;
   long months= 0;
   int neg= 1;
+  THD *thd= current_thd;
+  ulonglong fuzzydate= TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE;
 
-  null_value= 0;  
-  if (args[0]->get_date_with_conversion(&ltime1,
-                                        TIME_NO_ZERO_DATE |
-                                        TIME_NO_ZERO_IN_DATE) ||
-      args[1]->get_date_with_conversion(&ltime2,
-                                        TIME_NO_ZERO_DATE |
-                                        TIME_NO_ZERO_IN_DATE))
+  null_value= 0;
+
+  if (Datetime(thd, args[0], fuzzydate).copy_to_mysql_time(&ltime1) ||
+      Datetime(thd, args[1], fuzzydate).copy_to_mysql_time(&ltime2))
     goto null_date;
 
   if (calc_time_diff(&ltime2,&ltime1, 1,
