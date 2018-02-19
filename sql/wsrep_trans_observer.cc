@@ -1047,6 +1047,7 @@ int wsrep_before_commit(THD* thd, bool all)
       thd->set_wsrep_query_state(QUERY_COMMITTING);
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     }
+    wsrep_log_thd(thd, is_real_trans, "wsrep_before_commit leave");
     DBUG_RETURN(0);
   }
 

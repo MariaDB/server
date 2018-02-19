@@ -799,11 +799,21 @@ static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
 #else
   thd_proc_info(thd, "Committing");
 #endif /* WSREP_PROC_INFO */
+  DBUG_ENTER("wsrep_commit_thd");
 
   wsrep_cb_status_t rcode= WSREP_CB_SUCCESS;
-  if (thd->wsrep_apply_toi && wsrep_before_commit(thd, true))
+  if (!opt_log_slave_updates && wsrep_before_commit(thd, true))
     rcode= WSREP_CB_FAILURE;
 
+  /*
+    This is needed because the applying of DDL, does not call for binlog log_and_order
+    MySQL version is different, where at the end of DDL applyin, trans_commit_stmt has
+    a call for tc_log:commit(), and DDL binlogging happens there.
+   */
+  if (opt_log_slave_updates && thd->wsrep_apply_toi && wsrep_before_commit(thd, true))
+  {
+    rcode= WSREP_CB_FAILURE;
+  }
   /*
     We can ignore the storage engine durability setting for fragments
     here: Committing a fragment does not cause actual transaction to
@@ -817,7 +827,6 @@ static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
 
   if (rcode == WSREP_CB_SUCCESS && trans_commit(thd))
     rcode= WSREP_CB_FAILURE;
-
   thd->durability_property= dur_save;
 
   if (WSREP_CB_SUCCESS == rcode)
@@ -831,7 +840,8 @@ static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
       wsrep_set_SE_checkpoint(thd->wsrep_trx_meta.gtid.uuid,
                               thd->wsrep_trx_meta.gtid.seqno);
     }
-    if (thd->wsrep_apply_toi && wsrep_ordered_commit(thd, true, err))
+    if ((!opt_log_slave_updates || thd->wsrep_apply_toi)
+        && wsrep_ordered_commit(thd, true, err))
       rcode= WSREP_CB_FAILURE;
 
     if (rcode == WSREP_CB_SUCCESS)
@@ -864,7 +874,7 @@ static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
   thd_proc_info(thd, "Committed");
 #endif /* WSREP_PROC_INFO */
 
-  return rcode;
+  DBUG_RETURN(rcode);
 }
 
 static
@@ -874,7 +884,7 @@ wsrep_cb_status_t wsrep_commit(void*         const     ctx,
                                wsrep_bool_t* const     exit,
                                const wsrep_apply_error& err)
 {
-  DBUG_ENTER("wsrep_commit_cb");
+  DBUG_ENTER("wsrep_commit");
   WSREP_DEBUG("commit_cb with flags: %u seqno: %ld, srctrx: %ld",
               flags, meta->gtid.seqno, meta->stid.trx);
 
@@ -1027,6 +1037,7 @@ wsrep_cb_status_t wsrep_apply_cb(void* const              ctx,
                                  wsrep_bool_t*            exit_loop)
 {
   assert(meta->gtid.seqno > 0);
+  DBUG_ENTER("wsrep_apply_cb");
 
   THD *thd= (THD*)ctx;
   void* opaque_save= thd->wsrep_ws_handle.opaque;
@@ -1051,7 +1062,7 @@ wsrep_cb_status_t wsrep_apply_cb(void* const              ctx,
   DBUG_ASSERT(thd->wsrep_conflict_state_unsafe() == REPLAYING ||
               thd->wsrep_query_state_unsafe() == QUERY_IDLE);
 
-  return rcode;
+  DBUG_RETURN(rcode);
 }
 
 wsrep_cb_status_t wsrep_unordered_cb(void*              const ctx,

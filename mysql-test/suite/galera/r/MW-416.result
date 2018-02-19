@@ -2,9 +2,6 @@ connection node_2;
 connection node_1;
 CREATE USER 'userMW416'@'localhost';
 GRANT SELECT, INSERT, UPDATE ON test.* TO 'userMW416'@'localhost';
-SHOW GLOBAL STATUS LIKE 'wsrep_replicated';
-Variable_name	Value
-wsrep_replicated	2
 connect userMW416, localhost, userMW416,, test, $NODE_MYPORT_1;
 connection userMW416;
 ALTER DATABASE db CHARACTER SET = utf8;
@@ -109,6 +106,5 @@ mysql
 performance_schema
 test
 wsrep_schema
-SHOW GLOBAL STATUS LIKE 'wsrep_replicated';
-Variable_name	Value
-wsrep_replicated	3
+wsrep_replicated_after_diff
+1

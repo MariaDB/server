@@ -1478,7 +1478,7 @@ int ha_commit_trans(THD *thd, bool all)
   if (WSREP(thd) && wsrep_before_prepare(thd, all))
   {
     wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
-    DBUG_RETURN(1);
+    goto wsrep_err;
   }
 #endif /* WITH_WSREP */
 
@@ -1528,13 +1528,29 @@ int ha_commit_trans(THD *thd, bool all)
   cookie= tc_log->log_and_order(thd, xid, all, need_prepare_ordered,
                                 need_commit_ordered);
   if (!cookie)
+    {
+      WSREP_DEBUG("log_and_order has failed %lu %d", thd->thread_id, cookie);
     goto err;
+    }
 
   DEBUG_SYNC(thd, "ha_commit_trans_after_log_and_order");
   DBUG_EXECUTE_IF("crash_commit_after_log", DBUG_SUICIDE(););
 
   error= commit_one_phase_2(thd, all, trans, is_real_trans) ? 2 : 0;
-
+#ifdef WITH_WSREP
+  if (error)
+  {
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    if (thd->wsrep_exec_mode == LOCAL_COMMIT &&
+        thd->wsrep_conflict_state() == MUST_ABORT)
+    {
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      (void)tc_log->unlog(cookie, xid);
+      goto wsrep_err;
+    }
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+}
+#endif /* WITH_WSREP */
   DBUG_EXECUTE_IF("crash_commit_before_unlog", DBUG_SUICIDE(););
   if (tc_log->unlog(cookie, xid))
   {
@@ -1556,6 +1572,20 @@ done:
   goto end;
 
   /* Come here if error and we need to rollback. */
+#ifdef WITH_WSREP
+ wsrep_err:
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  if (thd->wsrep_exec_mode == LOCAL_COMMIT &&
+      thd->wsrep_conflict_state() == MUST_ABORT)
+  {
+    WSREP_DEBUG("BF abort has happened after prepare & certify");
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    ha_rollback_trans(thd, TRUE);
+  }
+  else
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+
+#endif /* WITH_WSREP */
 err:
   error= 1;                                  /* Transaction was rolled back */
   /*
@@ -1565,7 +1595,10 @@ err:
   */
   if (!(thd->rgi_slave && thd->rgi_slave->is_parallel_exec))
     ha_rollback_trans(thd, all);
-
+  else
+    {
+      WSREP_DEBUG("WTF, rollback skipped %d %d",thd->rgi_slave, thd->rgi_slave->is_parallel_exec);
+    }
 end:
   if (rw_trans && mdl_request.ticket)
   {
@@ -1629,10 +1662,6 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   uint count= 0;
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
   DBUG_ENTER("commit_one_phase_2");
-#ifdef WITH_WSREP
-  if (WSREP(thd) && !thd->wsrep_apply_toi && wsrep_before_commit(thd, all))
-    DBUG_RETURN(1);
-#endif /* WITH_WSREP */
   if (is_real_trans)
     DEBUG_SYNC(thd, "commit_one_phase_2");
   if (ha_info)
@@ -1671,17 +1700,6 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     if (count >= 2)
       statistic_increment(transactions_multi_engine, LOCK_status);
   }
-#ifdef WITH_WSREP
-  if (WSREP(thd) && !thd->wsrep_apply_toi)
-  {
-    /*
-      TODO: Ordered commit should be done after the transaction
-      has been queued for group commit.
-     */
-    error= wsrep_ordered_commit(thd, all, wsrep_apply_error());
-    if (!error) (void) wsrep_after_commit(thd, all);
-  }
-#endif /* WITH_WSREP */
 
   DBUG_RETURN(error);
 }

@@ -3507,10 +3507,11 @@ const char *wsrep_thd_query_state_str(THD *thd)
 {
   switch (thd->wsrep_query_state_unsafe())
   {
-  case QUERY_IDLE:        return "idle";
-  case QUERY_EXEC:        return "executing";
-  case QUERY_COMMITTING:  return "committing";
-  case QUERY_EXITING:     return "exiting";
+  case QUERY_IDLE:           return "idle";
+  case QUERY_EXEC:           return "executing";
+  case QUERY_COMMITTING:     return "committing";
+  case QUERY_ORDERED_COMMIT: return "ordered_commit";
+  case QUERY_EXITING:        return "exiting";
 
   }
   return "void";

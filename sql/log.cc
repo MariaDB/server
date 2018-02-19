@@ -57,6 +57,8 @@
 #include "sp_rcontext.h"
 #include "sp_head.h"
 
+#include "wsrep_trans_observer.h"
+
 /* max size of the log message */
 #define MAX_LOG_BUFFER_SIZE 1024
 #define MAX_TIME_SIZE 32
@@ -7752,7 +7754,30 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
     DEBUG_SYNC(entry->thd, "commit_loop_entry_commit_ordered");
     ++num_commits;
     if (entry->cache_mngr->using_xa && !entry->error)
+#ifdef WITH_WSREP
+    {
+      if (WSREP(entry->thd) && entry->thd->wsrep_trx_must_order_commit() &&
+          wsrep_before_commit(entry->thd, entry->all))
+      {
+        return (true);
+      }
+#endif /* WITH_WSREP */
       run_commit_ordered(entry->thd, entry->all);
+#ifdef WITH_WSREP
+      if (WSREP(entry->thd) && entry->thd->wsrep_trx_must_order_commit())
+      {
+        /*
+          TODO: Ordered commit should be done after the transaction
+          has been queued for group commit.
+        */
+        int error= wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error());
+        if (!error)
+        {
+          (void) wsrep_after_commit(entry->thd, entry->all);
+        }
+      }
+    }
+#endif /* WITH_WSREP */
 
     group_commit_entry *next= entry->next;
     if (!next)
@@ -8134,7 +8159,31 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     ++num_commits;
     if (current->cache_mngr->using_xa && !current->error &&
         DBUG_EVALUATE_IF("skip_commit_ordered", 0, 1))
+#ifdef WITH_WSREP
+    {
+      if (WSREP(current->thd) && current_thd->wsrep_trx_must_order_commit() &&
+          wsrep_before_commit(current->thd, current->all))
+      {
+        DBUG_VOID_RETURN;
+      }
+#endif /* WITH_WSREP */
       run_commit_ordered(current->thd, current->all);
+#ifdef WITH_WSREP
+      if (WSREP(current->thd) && current_thd->wsrep_trx_must_order_commit())
+      {
+        /*
+          TODO: Ordered commit should be done after the transaction
+          has been queued for group commit.
+        */
+        int error= wsrep_ordered_commit(current->thd, current->all, wsrep_apply_error());
+        //if (!error) (void) wsrep_after_commit(current->thd, current->all);
+        if (!error)
+        {
+          (void) wsrep_after_commit(current->thd, current->all);
+        }
+      }
+    }
+#endif /* WITH_WSREP */
     current->thd->wakeup_subsequent_commits(current->error);
 
     /*
@@ -8970,9 +9019,31 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
     /* Only run commit_ordered() if log_xid was successful. */
     if (cookie)
     {
+#ifdef WITH_WSREP
+      if (WSREP(thd) && thd->wsrep_trx_must_order_commit() &&
+          wsrep_before_commit(thd, all))
+      {
+        return(0);
+      }
+#endif /* WITH_WSREP */
       mysql_mutex_lock(&LOCK_commit_ordered);
       run_commit_ordered(thd, all);
       mysql_mutex_unlock(&LOCK_commit_ordered);
+#ifdef WITH_WSREP
+      //if (WSREP(thd) && !thd->wsrep_apply_toi)
+      if (WSREP(thd) && thd->wsrep_trx_must_order_commit())
+      {
+        /*
+          TODO: Ordered commit should be done after the transaction
+          has been queued for group commit.
+        */
+        int error= wsrep_ordered_commit(thd, all, wsrep_apply_error());
+        if (!error)
+        {
+          (void) wsrep_after_commit(thd, all);
+        }
+      }
+#endif /* WITH_WSREP */
     }
 
     if (need_prepare_ordered)
