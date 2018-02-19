@@ -5468,6 +5468,20 @@ sub start_servers($) {
 
   for (all_servers()) {
     $_->{START}->($_, $tinfo) if $_->{START};
+    # If wsrep is on, we need to wait until the first
+    # server starts and bootstraps the cluster before
+    # starting other servers. The bootsrap server in the
+    # configuration should always be the first which has
+    # wsrep_on=ON and should be tagged with "#wsrep-new-cluster".
+    # option
+    if (have_wsrep() && defined $_->option("#wsrep-new-cluster"))
+    {
+      mtr_debug("Waiting the first wsrep server to start");
+      if ($_->{WAIT}->($_) && !wait_wsrep_ready($tinfo, $_))
+      {
+	return 1;
+      }
+    }
   }
 
   for (all_servers()) {

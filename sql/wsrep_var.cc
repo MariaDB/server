@@ -478,20 +478,17 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
   */
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
   mysql_mutex_unlock(&LOCK_global_system_variables);
+
   wsrep_stop_replication(thd);
 
-  /*
-    Unlock and lock LOCK_wsrep_slave_threads to maintain lock order & avoid
-    any potential deadlock.
-  */
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
 
   if (wsrep_start_replication())
   {
     wsrep_create_rollbacker();
     wsrep_create_appliers(wsrep_slave_threads);
   }
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
 
   return false;
 }
@@ -851,6 +848,7 @@ static void export_wsrep_status_to_mysql(THD* thd)
 int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff)
 {
   //if (WSREP(thd))
+  if (wsrep)
   {
     export_wsrep_status_to_mysql(thd);
     var->type= SHOW_ARRAY;

@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CALL mtr.add_suppression("Aborting");
 CALL mtr.add_suppression("unknown option '--galera-unknown-option'");
 connection node_1;
