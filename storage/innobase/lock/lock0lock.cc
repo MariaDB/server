@@ -5294,7 +5294,7 @@ lock_print_info_summary(
 	fprintf(file, "\n");
 
 	fprintf(file,
-		"History list length " ULINTPF "\n", trx_sys.rseg_history_len);
+		"History list length " ULINTPF "\n", trx_sys.history_size());
 
 #ifdef PRINT_NUM_OF_LOCK_STRUCTS
 	fprintf(file,

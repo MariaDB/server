@@ -817,6 +817,11 @@ class trx_sys_t
   MY_ALIGNED(CACHE_LINE_SIZE) trx_id_t m_rw_trx_hash_version;
 
 
+  /**
+    TRX_RSEG_HISTORY list length (number of committed transactions to purge)
+  */
+  MY_ALIGNED(CACHE_LINE_SIZE) int32 rseg_history_len;
+
   /** Active views. */
   MY_ALIGNED(CACHE_LINE_SIZE) UT_LIST_BASE_NODE_T(ReadView) m_views;
 
@@ -850,11 +855,6 @@ public:
 					single-threaded mode; not protected
 					by any mutex, because it is read-only
 					during multi-threaded operation */
-	ulint		rseg_history_len;
-					/*!< Length of the TRX_RSEG_HISTORY
-					list (update undo logs for committed
-					transactions), protected by
-					rseg->mutex */
 
 
   /**
@@ -1122,6 +1122,20 @@ public:
     return count;
   }
 
+  /** @return number of committed transactions waiting for purge */
+  ulint history_size() const
+  {
+    return uint32(my_atomic_load32(&rseg_history_len));
+  }
+  /** Add to the TRX_RSEG_HISTORY length (on database startup). */
+  void history_add(int32 len)
+  {
+    my_atomic_add32(&rseg_history_len, len);
+  }
+  /** Register a committed transaction. */
+  void history_insert() { history_add(1); }
+  /** Note that a committed transaction was purged. */
+  void history_remove() { history_add(-1); }
 
 private:
   static my_bool get_min_trx_id_callback(rw_trx_hash_element_t *element,

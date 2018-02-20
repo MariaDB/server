@@ -1975,7 +1975,7 @@ srv_wake_purge_thread_if_not_active()
 
 	if (purge_sys->state == PURGE_STATE_RUN
 	    && !my_atomic_loadlint(&srv_sys.n_threads_active[SRV_PURGE])
-	    && my_atomic_loadlint(&trx_sys.rseg_history_len)) {
+	    && trx_sys.history_size()) {
 
 		srv_release_threads(SRV_PURGE, 1);
 	}
@@ -2614,7 +2614,7 @@ srv_do_purge(ulint* n_total_purged)
 	}
 
 	do {
-		if (trx_sys.rseg_history_len > rseg_history_len
+		if (trx_sys.history_size() > rseg_history_len
 		    || (srv_max_purge_lag > 0
 			&& rseg_history_len > srv_max_purge_lag)) {
 
@@ -2643,7 +2643,7 @@ srv_do_purge(ulint* n_total_purged)
 		ut_a(n_use_threads <= n_threads);
 
 		/* Take a snapshot of the history list before purge. */
-		if ((rseg_history_len = trx_sys.rseg_history_len) == 0) {
+		if (!(rseg_history_len = trx_sys.history_size())) {
 			break;
 		}
 
@@ -2698,7 +2698,7 @@ srv_purge_coordinator_suspend(
 		/* We don't wait right away on the the non-timed wait because
 		we want to signal the thread that wants to suspend purge. */
 		const bool wait = stop
-			|| rseg_history_len <= trx_sys.rseg_history_len;
+			|| rseg_history_len <= trx_sys.history_size();
 		const bool timeout = srv_resume_thread(
 			slot, sig_count, wait,
 			stop ? 0 : SRV_PURGE_MAX_TIMEOUT);
@@ -2715,8 +2715,8 @@ srv_purge_coordinator_suspend(
 			purge_sys->running = true;
 
 			if (timeout
-			    && rseg_history_len == trx_sys.rseg_history_len
-			    && trx_sys.rseg_history_len < 5000) {
+			    && rseg_history_len < 5000
+			    && rseg_history_len == trx_sys.history_size()) {
 				/* No new records were added since the
 				wait started. Simply wait for new
 				records. The magic number 5000 is an
@@ -2777,7 +2777,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	slot = srv_reserve_slot(SRV_PURGE);
 
-	ulint	rseg_history_len = trx_sys.rseg_history_len;
+	ulint	rseg_history_len = trx_sys.history_size();
 
 	do {
 		/* If there are no records to purge or the last
