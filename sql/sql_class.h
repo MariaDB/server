@@ -5767,7 +5767,6 @@ class user_var_entry
 user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
 				    bool create_if_not_exists);
 
-class SORT_INFO;
 class multi_delete :public select_result_interceptor
 {
   TABLE_LIST *delete_tables, *table_being_deleted;

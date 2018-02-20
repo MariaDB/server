@@ -27,6 +27,7 @@ class Filesort_tracker;
 struct SORT_FIELD;
 typedef struct st_order ORDER;
 class JOIN;
+class Copy_field;
  
 
 /**
@@ -87,7 +88,8 @@ class SORT_INFO
 
 public:
   SORT_INFO()
-    :addon_field(0), record_pointers(0)
+    :addon_field(0), record_pointers(0),
+     fs_tmp_table(NULL), tmp_field(NULL), tmp_fields(0)
   {
     buffpek.str= 0;
     my_b_clear(&io_cache);
@@ -101,6 +103,9 @@ public:
     my_free(record_pointers);
     my_free(buffpek.str);
     my_free(addon_field);
+    fs_tmp_table= NULL;         // Freed in end_read_record()
+    tmp_field= NULL;            // Freed in end_read_record()
+    tmp_fields= 0;
   }
 
   void reset()
@@ -119,6 +124,11 @@ public:
   /* To unpack back */
   void    (*unpack)(struct st_sort_addon_field *, uchar *, uchar *);
   uchar     *record_pointers;    /* If sorted in memory */
+  TABLE   *fs_tmp_table;         /* Optional temp table used by filesort to */
+                                 /* eliminate rnd_pos() calls to the table
+                                 /* being sorted */
+  Copy_field *tmp_field;         /* Filesort temp table field array */
+  uint tmp_fields;               /* Number of filesort temp table fields */
   /*
     How many rows in final result.
     Also how many rows in record_pointers, if used

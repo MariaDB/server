@@ -429,6 +429,15 @@ public:
     KEY_MULTI_RANGE **found_range_p
   );
 #endif
+  /**
+    Spider's implementation of rnd_pos() is inherently inefficient.
+    A call to rnd_pos() needs to access a table on a remote data node
+    to retrieve the single table row.
+  */
+  virtual bool is_rnd_pos_expensive()
+  {
+    return TRUE;
+  }
   int rnd_init(
     bool scan
   );

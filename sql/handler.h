@@ -3536,6 +3536,17 @@ public:
     position(record);
     return rnd_pos(record, ref);
   }
+  /**
+    Some engines are unable to provide an efficient implementation
+    for rnd_pos().  Spider is such an engine, as a call to rnd_pos()
+    needs to access a table on a remote data node to retrieve the
+    single table row.
+  */
+  virtual bool is_rnd_pos_expensive()
+  {
+    /* Engine's rnd_pos() implementation has no inherent inefficiencies */
+    return FALSE;
+  }
   virtual int read_first_row(uchar *buf, uint primary_key);
 public:
 
@@ -3545,6 +3556,10 @@ public:
   int ha_rnd_next(uchar *buf);
   int ha_rnd_pos(uchar *buf, uchar *pos);
   inline int ha_rnd_pos_by_record(uchar *buf);
+  inline bool ha_is_rnd_pos_expensive()
+  {
+    return is_rnd_pos_expensive();
+  }
   inline int ha_read_first_row(uchar *buf, uint primary_key);
 
   /**

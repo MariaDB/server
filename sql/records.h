@@ -27,6 +27,8 @@ class SQL_SELECT;
 class Copy_field;
 class SORT_INFO;
 
+#include "my_bitmap.h"
+
 struct READ_RECORD;
 
 void end_read_record(READ_RECORD *info);
@@ -53,7 +55,9 @@ struct READ_RECORD
 
   TABLE *table;                                 /* Head-form */
   //handler *file;
-  TABLE **forms;                                /* head and ref forms */
+  TABLE *copy_table;                            /* Original table that a */
+                                                /* filesort temp table */
+                                                /* row is copied to */
   Unlock_row_func unlock_row;
   Read_func read_record_func;
   THD *thd;
@@ -61,25 +65,38 @@ struct READ_RECORD
   uint cache_records;
   uint ref_length,struct_length,reclength,rec_cache_size,error_offset;
   uint index;
-  uchar *ref_pos;				/* pointer to form->refpos */
+  uint tmp_fields;                              /* Number of filesort temp
+                                                   table fields */
+  MY_BITMAP *save_write_set;                    /* Original write set when */
+                                                /* records are read from /*
+                                                /* the filesort temp table */
+                                                /* and copied to the */
+                                                /* original table */
+  uchar *ref_pos;                               /* Pointer to form->refpos */
   uchar *record;
   uchar *rec_buf;                /* to read field values  after filesort */
   uchar	*cache,*cache_pos,*cache_end,*read_positions;
-  struct st_sort_addon_field *addon_field;     /* Pointer to the fields info */
+  struct st_sort_addon_field *addon_field;      /* Pointer to the fields info */
+  Copy_field *tmp_field;                        /* Filesort temp table */
+                                                /* field array */
   struct st_io_cache *io_cache;
-  bool print_error, ignore_not_found_rows;
+  bool print_error, ignore_not_found_rows, free_tmp_table;
   void    (*unpack)(struct st_sort_addon_field *, uchar *, uchar *);
 
   int read_record() { return read_record_func(this); }
 
-  /* 
+  /*
     SJ-Materialization runtime may need to read fields from the materialized
-    table and unpack them into original table fields:
+    table and unpack them into original table fields.
+    Read following a filesort may need to read fields from its temp table
+    and unpack them into the corresponding original table fields.
   */
   Copy_field *copy_field;
   Copy_field *copy_field_end;
+
 public:
-  READ_RECORD() : table(NULL), cache(NULL) {}
+  READ_RECORD()
+    : table(NULL), cache(NULL), copy_field(NULL), copy_field_end(NULL) {}
   ~READ_RECORD() { end_read_record(this); }
 };
 

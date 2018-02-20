@@ -93,7 +93,24 @@ public:
   }
   void init_for_filesort(uint sortlen, TABLE *table,
                          ulong max_length_for_sort_data,
-                         ha_rows maxrows, bool sort_positions);
+                         ha_rows maxrows, bool sort_positions,
+                         uint *tmp_fields);
+  void update_ref_length(uint new_ref_length)
+  {
+    if (!addon_field)
+    {
+      if (ref_length)
+      {
+        res_length-= ref_length;
+        sort_length-= ref_length;
+        rec_length-= ref_length;
+      }
+      res_length+= new_ref_length;
+      sort_length+= new_ref_length;
+      rec_length+= new_ref_length;
+      ref_length= new_ref_length;
+    }
+  }
 };
 
 

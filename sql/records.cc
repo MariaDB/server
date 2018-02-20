@@ -38,16 +38,21 @@
 static int rr_quick(READ_RECORD *info);
 int rr_sequential(READ_RECORD *info);
 static int rr_from_tempfile(READ_RECORD *info);
+static int rr_from_tempfile_and_copy(READ_RECORD *info);
 static int rr_unpack_from_tempfile(READ_RECORD *info);
 static int rr_unpack_from_buffer(READ_RECORD *info);
 int rr_from_pointers(READ_RECORD *info);
+int rr_from_pointers_and_copy(READ_RECORD *info);
 static int rr_from_cache(READ_RECORD *info);
+static int rr_from_cache_and_copy(READ_RECORD *info);
 static int init_rr_cache(THD *thd, READ_RECORD *info);
 static int rr_cmp(uchar *a,uchar *b);
 static int rr_index_first(READ_RECORD *info);
 static int rr_index_last(READ_RECORD *info);
 static int rr_index(READ_RECORD *info);
 static int rr_index_desc(READ_RECORD *info);
+static int init_copy(READ_RECORD *info);
+static void end_copy(READ_RECORD *info);
 
 
 /**
@@ -77,6 +82,11 @@ bool init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
   bzero((char*) info,sizeof(*info));
   info->thd= thd;
   info->table= table;
+  info->copy_table= NULL;
+  info->tmp_field= NULL;
+  info->tmp_fields= 0;
+  info->free_tmp_table= FALSE;
+  info->addon_field= NULL;
   info->record= table->record[0];
   info->print_error= print_error;
   info->unlock_row= rr_unlock_row;
@@ -188,13 +198,39 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
                       bool disable_rr_cache)
 {
   IO_CACHE *tempfile;
-  SORT_ADDON_FIELD *addon_field= filesort ? filesort->addon_field : 0;
+  SORT_ADDON_FIELD *addon_field;
+  bool has_fs_tmp_table;
   DBUG_ENTER("init_read_record");
 
   bzero((char*) info,sizeof(*info));
   info->thd=thd;
+  if (filesort)
+  {
+    if (filesort->fs_tmp_table)
+    {
+      has_fs_tmp_table= TRUE;
+      info->copy_table= table;
+      table= filesort->fs_tmp_table;
+    }
+    else
+    {
+      has_fs_tmp_table= FALSE;
+      info->copy_table= NULL;
+    }
+    info->tmp_field= filesort->tmp_field;
+    info->tmp_fields= filesort->tmp_fields;
+    addon_field= filesort->addon_field;
+  }
+  else
+  {
+    has_fs_tmp_table= FALSE;
+    info->copy_table= NULL;
+    info->tmp_field= NULL;
+    info->tmp_fields= 0;
+    addon_field= NULL;
+  }
+  info->free_tmp_table= has_fs_tmp_table;
   info->table=table;
-  info->forms= &info->table;		/* Only one table */
   info->addon_field= addon_field;
   
   if ((table->s->tmp_table == INTERNAL_TMP_TABLE ||
@@ -230,12 +266,17 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   {
     DBUG_PRINT("info",("using rr_from_tempfile"));
     info->read_record_func=
-        addon_field ? rr_unpack_from_tempfile : rr_from_tempfile;
+        addon_field ? rr_unpack_from_tempfile :
+        has_fs_tmp_table ? rr_from_tempfile_and_copy :
+                           rr_from_tempfile;
     info->io_cache= tempfile;
     reinit_io_cache(info->io_cache,READ_CACHE,0L,0,0);
-    info->ref_pos=table->file->ref;
+    info->ref_pos= table->file->ref;
     if (!table->file->inited)
       if (table->file->ha_rnd_init_with_error(0))
+        DBUG_RETURN(1);
+    if (has_fs_tmp_table)
+      if (init_copy(info))
         DBUG_RETURN(1);
 
     /*
@@ -245,22 +286,26 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
     */
     if (!disable_rr_cache &&
         !addon_field &&
-	thd->variables.read_rnd_buff_size &&
-	!(table->file->ha_table_flags() & HA_FAST_KEY_READ) &&
-	(table->db_stat & HA_READ_ONLY ||
-	 table->reginfo.lock_type <= TL_READ_NO_INSERT) &&
-	(ulonglong) table->s->reclength* (table->file->stats.records+
-                                          table->file->stats.deleted) >
-	(ulonglong) MIN_FILE_LENGTH_TO_USE_ROW_CACHE &&
-	info->io_cache->end_of_file/info->ref_length * table->s->reclength >
-	(my_off_t) MIN_ROWS_TO_USE_TABLE_CACHE &&
-	!table->s->blob_fields &&
+        thd->variables.read_rnd_buff_size &&
+        !(table->file->ha_table_flags() & HA_FAST_KEY_READ) &&
+        (table->db_stat & HA_READ_ONLY ||
+         table->reginfo.lock_type <= TL_READ_NO_INSERT) &&
+        (ulonglong) table->s->reclength*
+                    (table->file->stats.records+
+                     table->file->stats.deleted) >
+                      (ulonglong) MIN_FILE_LENGTH_TO_USE_ROW_CACHE &&
+        info->io_cache->end_of_file/info->ref_length *
+          table->s->reclength >
+            (my_off_t) MIN_ROWS_TO_USE_TABLE_CACHE &&
+        !table->s->blob_fields &&
         info->ref_length <= MAX_REFLENGTH)
     {
       if (! init_rr_cache(thd, info))
       {
-	DBUG_PRINT("info",("using rr_from_cache"));
-        info->read_record_func= rr_from_cache;
+        info->read_record_func=
+            has_fs_tmp_table ? rr_from_cache_and_copy :
+                               rr_from_cache;
+        DBUG_PRINT("info",("using rr_from_cache"));
       }
     }
   }
@@ -272,13 +317,19 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   else if (filesort && filesort->record_pointers)
   {
     DBUG_PRINT("info",("using record_pointers"));
-    if (table->file->ha_rnd_init_with_error(0))
-      DBUG_RETURN(1);
+    if (!table->file->inited)
+      if (table->file->ha_rnd_init_with_error(0))
+        DBUG_RETURN(1);
     info->cache_pos= filesort->record_pointers;
     info->cache_end= (info->cache_pos+ 
                       filesort->return_rows * info->ref_length);
     info->read_record_func=
-        addon_field ? rr_unpack_from_buffer : rr_from_pointers;
+        addon_field ? rr_unpack_from_buffer :
+        has_fs_tmp_table ? rr_from_pointers_and_copy :
+                           rr_from_pointers;
+    if (has_fs_tmp_table)
+      if (init_copy(info))
+        DBUG_RETURN(1);
   }
   else if (table->file->keyread_enabled())
   {
@@ -300,11 +351,11 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
       DBUG_RETURN(1);
     /* We can use record cache if we don't update dynamic length tables */
     if (!table->no_cache &&
-	(use_record_cache > 0 ||
-	 (int) table->reginfo.lock_type <= (int) TL_READ_HIGH_PRIORITY ||
-	 !(table->s->db_options_in_use & HA_OPTION_PACK_RECORD) ||
-	 (use_record_cache < 0 &&
-	  !(table->file->ha_table_flags() & HA_NOT_DELETE_WITH_CACHE))))
+        (use_record_cache > 0 ||
+         (int) table->reginfo.lock_type <= (int) TL_READ_HIGH_PRIORITY ||
+         !(table->s->db_options_in_use & HA_OPTION_PACK_RECORD) ||
+         (use_record_cache < 0 &&
+          !(table->file->ha_table_flags() & HA_NOT_DELETE_WITH_CACHE))))
       (void) table->file->extra_opt(HA_EXTRA_CACHE,
                                     thd->variables.read_buff_size);
   }
@@ -333,6 +384,15 @@ void end_read_record(READ_RECORD *info)
       (void) info->table->file->extra(HA_EXTRA_NO_CACHE);
     if (info->read_record_func != rr_quick) // otherwise quick_range does it
       (void) info->table->file->ha_index_or_rnd_end();
+    if (info->free_tmp_table)
+    {
+      free_tmp_table(info->thd, info->table);
+      end_copy(info);
+      my_free(info->tmp_field);
+      info->tmp_field= NULL;
+      info->tmp_fields= 0;
+      info->free_tmp_table= FALSE;
+    }
     info->table=0;
   }
 }
@@ -521,7 +581,35 @@ static int rr_from_tempfile(READ_RECORD *info)
 /**
   Read a result set record from a temporary file after sorting.
 
-  The function first reads the next sorted record from the temporary file.
+  The function first reads the next sorted record from the temporary file
+  into a buffer. If successful, it copies the fields to the
+  table being sorted.
+
+  @param info          Reference to the context including record descriptors
+
+  @retval
+    0                  Record successfully read.
+  @retval
+    -1                 No more records to read or record read failed.
+*/
+
+int rr_from_tempfile_and_copy(READ_RECORD *info)
+{
+  int error;
+  if ((error= rr_from_tempfile(info)))
+    return error;
+
+  for (Copy_field *cp= info->copy_field; cp != info->copy_field_end; cp++)
+    (*cp->do_copy)(cp);
+
+  return error;
+}
+
+
+/**
+  Read a result set record from a temporary file after sorting.
+
+  The function first reads the next sorted record from the temporary file
   into a buffer. If a success it calls a callback function that unpacks 
   the fields values use in the result set from this buffer into their
   positions in the regular record buffer.
@@ -568,6 +656,35 @@ int rr_from_pointers(READ_RECORD *info)
   }
   return tmp;
 }
+
+
+/**
+  Read a result set record from a temporary file after sorting.
+
+  The function first reads the next sorted record from the temporary file
+  into a buffer. If successful, it copies the fields to the
+  table being sorted.
+
+  @param info          Reference to the context including record descriptors
+
+  @retval
+    0                  Record successfully read.
+  @retval
+    -1                 No more records to read or record read failed.
+*/
+
+int rr_from_pointers_and_copy(READ_RECORD *info)
+{
+  int error;
+  if ((error= rr_from_pointers(info)))
+    return error;
+
+  for (Copy_field *cp= info->copy_field; cp != info->copy_field_end; cp++)
+    (*cp->do_copy)(cp);
+
+  return error;
+}
+
 
 /**
   Read a result set record from a buffer after sorting.
@@ -701,6 +818,114 @@ static int rr_from_cache(READ_RECORD *info)
     info->cache_end=(info->cache_pos=info->cache)+length*info->reclength;
   }
 } /* rr_from_cache */
+
+
+/**
+  Read a result set record from cache after sorting.
+
+  The function first reads the next sorted record from cache.
+  If successful, it copies the fields to the table being sorted.
+
+  @param info          Reference to the context including record descriptors
+
+  @retval
+    0                  Record successfully read.
+  @retval
+    -1                 No more records to read or record read failed.
+*/
+
+int rr_from_cache_and_copy(READ_RECORD *info)
+{
+  int error;
+  if ((error= rr_from_cache(info)))
+    return error;
+
+  for (Copy_field *cp= info->copy_field; cp != info->copy_field_end; cp++)
+    (*cp->do_copy)(cp);
+
+  return error;
+}
+
+
+/**
+  Set up for copying the fields of the current row
+  from the filesort temp table to the table being sorted.
+
+  @param info          Reference to the context including record descriptors
+
+  @retval
+    0                  Success.
+  @retval
+    1                  Memory allocation failure.
+*/
+
+static int init_copy(READ_RECORD *info)
+{
+  TABLE *table= info->copy_table;
+  Copy_field *tmp_field;
+  Copy_field *copy_field;
+  MY_BITMAP *write_set;
+  my_bitmap_map *column_bitmap= NULL;
+
+  /* Allocate the memory for the copy_field descriptors */
+  copy_field= (Copy_field *) my_malloc(sizeof(Copy_field) * info->tmp_fields,
+                                       MYF(MY_WME | MY_THREAD_SPECIFIC));
+  if (!copy_field)
+    return 1;
+  info->copy_field= copy_field;
+
+  /* Allocate the memory for the updated table write set */
+  if (!(write_set= (MY_BITMAP *)
+                   my_malloc(sizeof(MY_BITMAP),
+                             MYF(MY_WME | MY_THREAD_SPECIFIC))))
+  {
+    my_free(copy_field);
+    return 1;
+  }
+  /* Initialize the column bitmap for the updated table write set */
+  my_bitmap_init(write_set, column_bitmap, table->s->fields, FALSE);
+  info->save_write_set= table->write_set;
+  table->column_bitmaps_set_no_signal(table->read_set, write_set);
+
+  /*
+    Each column value present in the temp table needs to be copied
+    to the table being sorted
+  */
+  for (tmp_field= info->tmp_field; tmp_field->from_field; tmp_field++)
+  {
+    bitmap_fast_test_and_set(table->write_set,
+                             tmp_field->from_field->field_index);
+    copy_field->set(tmp_field->from_field, tmp_field->to_field, FALSE);
+    copy_field++;
+  }
+  table->file->column_bitmaps_signal();
+  info->copy_field_end= copy_field;
+
+  return 0;
+}
+
+
+/**
+  Do cleanup at the completion of copying field values from the
+  filesort temp table to the table being sorted.
+
+  @param info          Reference to the context including record descriptors
+*/
+
+static void end_copy(READ_RECORD *info)
+{
+  TABLE *table= info->copy_table;
+  MY_BITMAP *write_set= table->write_set;
+
+  table->column_bitmaps_set(table->read_set, info->save_write_set);
+
+  my_bitmap_free(write_set);
+  my_free(write_set);
+  my_free(info->copy_field);
+  info->copy_table= NULL;
+  info->save_write_set= NULL;
+  info->copy_field= info->copy_field_end= NULL;
+}
 
 
 static int rr_cmp(uchar *a,uchar *b)

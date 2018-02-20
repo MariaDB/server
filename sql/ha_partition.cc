@@ -5185,6 +5185,36 @@ int ha_partition::rnd_pos_by_record(uchar *record)
 }
 
 
+/*
+  Determine whether a call to rnd_pos() is expensive
+
+  SYNOPSIS
+    is_rnd_pos_expensive()
+
+  RETURN VALUE
+    FALSE                       No inherent inefficiencies in rnd_pos()
+    TRUE                        rnd_pos() call is inefficient
+
+  DESCRIPTION
+    Some engines, such as Spider, have an inefficient implementation of
+    rnd_pos(), because they need to do a remote access to fetch the
+    single table row.  Determine whether the rnd_pos() implementation
+    for any of the partitions is expensive.
+*/
+
+bool ha_partition::is_rnd_pos_expensive()
+{
+  DBUG_ENTER("ha_partition::is_rnd_pos_expensive");
+  uint i;
+
+  for (i= 0; i < m_tot_parts; i++)
+    if (m_file[i]->ha_is_rnd_pos_expensive())
+      DBUG_RETURN(TRUE);
+
+  DBUG_RETURN(FALSE);
+}
+
+
 /****************************************************************************
                 MODULE index scan
 ****************************************************************************/

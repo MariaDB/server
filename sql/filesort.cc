@@ -55,6 +55,11 @@ static bool write_keys(Sort_param *param, SORT_INFO *fs_info,
                       uint count, IO_CACHE *buffer_file, IO_CACHE *tempfile);
 static void make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos);
 static void register_used_fields(Sort_param *param);
+static void register_tmp_table_fields(SORT_INFO *fs_info);
+static int create_fs_tmp_table_if_needed(THD *thd, Sort_param *param,
+                                         SORT_INFO *fs_info);
+static int write_fs_tmp_table_row(THD *thd, SORT_INFO *fs_info);
+static void free_fs_tmp_table(THD *thd, SORT_INFO *fs_info);
 static bool save_index(Sort_param *param, uint count,
                        SORT_INFO *table_sort);
 static uint suffix_length(ulong string_length);
@@ -63,7 +68,8 @@ static uint sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
 static SORT_ADDON_FIELD *get_addon_fields(ulong max_length_for_sort_data,
                                           Field **ptabfield,
                                           uint sortlength,
-                                          LEX_STRING *addon_buf);
+                                          LEX_STRING *addon_buf,
+                                          uint *ptmp_fields);
 static void unpack_addon_fields(struct st_sort_addon_field *addon_field,
                                 uchar *buff, uchar *buff_end);
 static bool check_if_pq_applicable(Sort_param *param, SORT_INFO *info,
@@ -72,7 +78,8 @@ static bool check_if_pq_applicable(Sort_param *param, SORT_INFO *info,
 
 void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
                                    ulong max_length_for_sort_data,
-                                   ha_rows maxrows, bool sort_positions)
+                                   ha_rows maxrows, bool sort_positions,
+                                   uint *tmp_fields)
 {
   DBUG_ASSERT(addon_field == 0 && addon_buf.length == 0);
 
@@ -86,7 +93,8 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
       to sorted fields and get its total length in addon_buf.length
     */
     addon_field= get_addon_fields(max_length_for_sort_data,
-                                  table->field, sort_length, &addon_buf);
+                                  table->field, sort_length, &addon_buf,
+                                  tmp_fields);
   }
   if (addon_field)
   {
@@ -189,10 +197,11 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   sort->found_rows= HA_POS_ERROR;
 
   param.init_for_filesort(sortlength(thd, filesort->sortorder, s_length,
-                                     &multi_byte_charset),
+                          &multi_byte_charset),
                           table,
                           thd->variables.max_length_for_sort_data,
-                          max_rows, filesort->sort_positions);
+                          max_rows, filesort->sort_positions,
+                          &sort->tmp_fields);
 
   sort->addon_buf=    param.addon_buf;
   sort->addon_field=  param.addon_field;
@@ -273,7 +282,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   num_rows= find_all_keys(thd, &param, select,
                           sort,
                           &buffpek_pointers,
-                          &tempfile, 
+                          &tempfile,
                           pq.is_initialized() ? &pq : NULL,
                           &sort->found_rows);
   if (num_rows == HA_POS_ERROR)
@@ -345,7 +354,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   }
   error= 0;
 
-  err:
+err:
   my_free(param.tmp_buffer);
   if (!subselect || !subselect->is_uncacheable())
   {
@@ -700,7 +709,7 @@ static void dbug_print_record(TABLE *table, bool print_rowid)
 
 static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                              SORT_INFO *fs_info,
-			     IO_CACHE *buffpek_pointers,
+                             IO_CACHE *buffpek_pointers,
                              IO_CACHE *tempfile,
                              Bounded_queue<uchar, uchar> *pq,
                              ha_rows *found_rows)
@@ -709,8 +718,10 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   uint idx,indexpos,ref_length;
   uchar *ref_pos,*next_pos,ref_buff[MAX_REFLENGTH];
   my_off_t record;
+  TABLE *fs_tmp_table;
   TABLE *sort_form;
   handler *file;
+  handler *ref_file;
   MY_BITMAP *save_read_set, *save_write_set, *save_vcol_set;
   Item *sort_cond;
   ha_rows retval;
@@ -728,9 +739,24 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   quick_select=select && select->quick;
   record=0;
   *found_rows= 0;
+
+  if (!quick_select)
+  {
+    /*
+      Potentially create a temp table to avoid rnd_pos() calls on the
+      table to be sorted
+    */
+    if (create_fs_tmp_table_if_needed(thd, param, fs_info))
+      goto err;
+    fs_tmp_table= fs_info->fs_tmp_table;
+  }
+  else
+    fs_tmp_table= NULL;
+  ref_file= (fs_tmp_table ? fs_tmp_table->file : file);
+
   flag= ((file->ha_table_flags() & HA_REC_NOT_IN_SEQ) || quick_select);
   if (flag)
-    ref_pos= &file->ref[0];
+    ref_pos= &ref_file->ref[0];
   next_pos=ref_pos;
 
   DBUG_EXECUTE_IF("show_explain_in_find_all_keys", 
@@ -760,6 +786,8 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   register_used_fields(param);
   if (quick_select)
     select->quick->add_used_key_part_to_set();
+  else
+    register_tmp_table_fields(fs_info);
 
   sort_cond= (!select ? 0 :
               (!select->pre_idx_push_select_cond ?
@@ -786,18 +814,25 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
     }
     else					/* Not quick-select */
     {
+      error= file->ha_rnd_next(sort_form->record[0]);
+      if (!flag)
       {
-	error= file->ha_rnd_next(sort_form->record[0]);
-	if (!flag)
-	{
-	  my_store_ptr(ref_pos,ref_length,record); // Position to row
-	  record+= sort_form->s->db_record_offset;
-	}
-	else if (!error)
-	  file->position(sort_form->record[0]);
+        my_store_ptr(ref_pos,ref_length,record); // Position to row
+        record+= sort_form->s->db_record_offset;
+      }
+      else if (!error)
+      {
+        /*
+          If filesort is using a temp table, write the row to the temp table,
+          and save its row position
+        */
+        if (fs_tmp_table)
+          error= write_fs_tmp_table_row(thd, fs_info);
+        else
+          file->position(sort_form->record[0]);
       }
       if (error && error != HA_ERR_RECORD_DELETED)
-	break;
+        break;
     }
 
     if (thd->check_killed())
@@ -904,7 +939,19 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   DBUG_RETURN(retval);
 
 err:
+  if (!quick_select)
+  {
+    if (file->inited)
+    {
+      (void)file->extra(HA_EXTRA_NO_CACHE);	/* End cacheing of records */
+      if (!next_pos)
+        file->ha_rnd_end();
+    }
+    if (fs_tmp_table && fs_tmp_table->file->inited)
+      fs_tmp_table->file->ha_rnd_end();
+  }
   sort_form->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
+  free_fs_tmp_table(thd, fs_info);
   DBUG_RETURN(HA_POS_ERROR);
 } /* find_all_keys */
 
@@ -1292,6 +1339,199 @@ static void register_used_fields(Sort_param *param)
     /* Save filepos last */
     table->prepare_for_position();
   }
+}
+
+
+/**
+  Register the filesort temp table fields in the sorted table's read set
+
+  @param fs_info       Filesort information that includes the filesort
+                       temp table and an array of its fields.
+*/
+
+static void register_tmp_table_fields(SORT_INFO *fs_info)
+{
+  DBUG_ENTER("register_tmp_table_fields");
+
+  if (fs_info->fs_tmp_table)
+  {
+    Copy_field *tmp_field= fs_info->tmp_field;
+
+    for (; tmp_field->from_field; tmp_field++)
+    {
+      /* Register the corresponding field in the original table */
+      bitmap_fast_test_and_set(tmp_field->from_field->table->read_set,
+                               tmp_field->from_field->field_index);
+    }
+  }
+
+  DBUG_VOID_RETURN;
+}
+
+
+/**
+  Potentially create a filesort temp table to avoid rnd_pos() calls on the
+  table to be sorted
+
+  @param param         Sort information and parameters.
+  @param fs_info       Filesort information that includes the filesort
+                       temp table and an array of its fields.
+
+  @retval
+    0                  Temp table creation succeeded or temp table is
+                       unnecessary.
+  @retval
+    1                  Memory allocation failed or temp table creation failed.
+*/
+
+static int create_fs_tmp_table_if_needed(THD *thd, Sort_param *param,
+                                         SORT_INFO *fs_info)
+{
+  TABLE *table= param->sort_form;
+  DBUG_ENTER("create_fs_tmp_table_if_needed");
+
+  if (fs_info->tmp_fields && table->file->ha_is_rnd_pos_expensive())
+  {
+    /*
+      Create a filesort temp table to avoid expensive rnd_pos() calls
+      on the table to be sorted
+    */
+    Copy_field *tmp_field;
+    List<Item> tmp_field_list;
+    Item_field *item_field;
+    Field **pfield;
+    Field *field;
+
+    /* Allocate memory for the temp table field array */
+    tmp_field= (Copy_field *)
+               my_malloc(sizeof(Copy_field) * (fs_info->tmp_fields + 1),
+                         MYF(MY_WME | MY_THREAD_SPECIFIC));
+    if (!tmp_field)
+      DBUG_RETURN(1);
+    fs_info->tmp_field= tmp_field;
+
+    /* Initialize the field array elements */
+    for (pfield= table->field; (field= *pfield); pfield++)
+    {
+      if (!bitmap_is_set(table->read_set, field->field_index))
+        continue;
+      /*
+        All fields referenced in the query are to be written
+        to the temp table
+      */
+      tmp_field->from_field= field;
+      tmp_field++;
+    }
+    tmp_field->from_field= 0; // Put end marker
+
+    /* Create the temp table field list */
+    for (tmp_field= fs_info->tmp_field; tmp_field->from_field; tmp_field++)
+    {
+      item_field= new (thd->mem_root) Item_field(thd, tmp_field->from_field);
+      if (tmp_field_list.push_back(item_field, thd->mem_root))
+      {
+        free_fs_tmp_table(thd, fs_info);
+        DBUG_RETURN(1);
+      }
+    }
+
+    TMP_TABLE_PARAM tmp_table_param;
+    tmp_table_param.init();
+    tmp_table_param.field_count= fs_info->tmp_fields;
+    tmp_table_param.table_charset= table->s->table_charset;
+    tmp_table_param.skip_create_table= TRUE;
+
+    /* Create the filesort temp table */
+    TABLE *fs_tmp_table= create_tmp_table(thd, &tmp_table_param,
+                                          tmp_field_list,
+                                          NULL,
+                                          FALSE,
+                                          FALSE,
+                                          thd->variables.option_bits |
+                                            TMP_TABLE_ALL_COLUMNS,
+                                          param->max_rows, &empty_clex_str,
+                                          FALSE, FALSE);
+
+    if (!fs_tmp_table)
+    {
+      free_fs_tmp_table(thd, fs_info);
+      DBUG_RETURN(1);
+    }
+
+    /* Fill in the pointers to the temp table fields in the field array */
+    for (tmp_field= fs_info->tmp_field, pfield= fs_tmp_table->field;
+         (field= *pfield);
+         tmp_field++, pfield++)
+      tmp_field->set(field, tmp_field->from_field, FALSE);
+    fs_info->fs_tmp_table= fs_tmp_table;
+
+    /* Fix up the sort buffer parameters */
+    param->update_ref_length(fs_tmp_table->file->ref_length);
+
+    fs_tmp_table->prepare_for_position();
+  }
+
+  DBUG_RETURN(0);
+}
+
+
+/**
+  Copy column values from the current row of the table being sorted
+  to the current filesort temp table row.  Write the row to the
+  filesort temp table.
+
+  @param fs_info       Filesort information that includes the filesort
+                       temp table and an array of its fields.
+
+  @retval
+    0                  Temp table row was created and successfully written.
+  @retval
+    <> 0               Temp table write failed.
+*/
+
+static int write_fs_tmp_table_row(THD *thd, SORT_INFO *fs_info)
+{
+  TABLE *fs_tmp_table= fs_info->fs_tmp_table;
+  Copy_field *tmp_field;
+  int error;
+  DBUG_ENTER("write_fs_tmp_table_row");
+
+  /*
+    Copy each column value present in the temp table
+    from the table being sorted
+  */
+  for (tmp_field= fs_info->tmp_field; tmp_field->from_field; tmp_field++)
+    tmp_field->do_copy(tmp_field);
+
+  /* Write the temp table row */
+  error= fs_tmp_table->file->ha_write_tmp_row(fs_tmp_table->record[0]);
+  if (error)
+    DBUG_RETURN(error);
+
+  /* Save the written row's position in the temp table */
+  fs_tmp_table->file->position(fs_tmp_table->record[0]);
+  DBUG_RETURN(0);
+}
+
+
+/**
+  Free the filesort temp table and its information structures.
+
+  @param thd           Thread handle.
+  @param fs_info       Filesort information that includes the filesort
+                       temp table and an array of its fields.
+*/
+
+static void free_fs_tmp_table(THD *thd, SORT_INFO *fs_info)
+{
+  if (fs_info->fs_tmp_table)
+  {
+    free_tmp_table(thd, fs_info->fs_tmp_table);
+    fs_info->fs_tmp_table= NULL;
+  }
+  my_free(fs_info->tmp_field);
+  fs_info->tmp_field= NULL;
+  fs_info->tmp_fields= 0;
 }
 
 
@@ -2010,6 +2250,8 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
   @param ptabfield           Array of references to the table fields
   @param sortlength          Total length of sorted fields
   @param [out] addon_buf     Buffer to us for appended fields
+  @param [out] ptmp_fields   Pointer to the number of temp table fields,
+                             if any
 
   @note
     The null bits for the appended values are supposed to be put together
@@ -2023,20 +2265,25 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
 
 static SORT_ADDON_FIELD *
 get_addon_fields(ulong max_length_for_sort_data,
-                 Field **ptabfield, uint sortlength, LEX_STRING *addon_buf)
+                 Field **ptabfield, uint sortlength, LEX_STRING *addon_buf,
+                 uint *ptmp_fields)
 {
   Field **pfield;
   Field *field;
-  SORT_ADDON_FIELD *addonf;
-  uint length= 0;
-  uint fields= 0;
+  SORT_ADDON_FIELD *addonf= NULL;
+  uint addon_length= 0;
+  uint addon_fields= 0;
   uint null_fields= 0;
+  uint nonaddon_fields= 0;
+  bool has_blob_field= FALSE;
   MY_BITMAP *read_set= (*ptabfield)->table->read_set;
   DBUG_ENTER("get_addon_fields");
 
   /*
-    If there is a reference to a field in the query add it
-    to the the set of appended fields.
+    If there is a reference to a field in the query that is not a blob/text
+    field, add it to the the set of appended fields.
+    We cannot use addons if there is a blob/text field.
+    All referenced fields are written to the temp table.
     Note for future refinement:
     This this a too strong condition.
     Actually we need only the fields referred in the
@@ -2051,34 +2298,52 @@ get_addon_fields(ulong max_length_for_sort_data,
   {
     if (!bitmap_is_set(read_set, field->field_index))
       continue;
-    if (field->flags & BLOB_FLAG)
-      DBUG_RETURN(0);
-    length+= field->max_packed_col_length(field->pack_length());
-    if (field->maybe_null())
-      null_fields++;
-    fields++;
-  } 
-  if (!fields)
-    DBUG_RETURN(0);
-  length+= (null_fields+7)/8;
+    if (has_blob_field)
+      nonaddon_fields++;
+    else if (field->flags & BLOB_FLAG)
+    {
+      has_blob_field= TRUE;
+      nonaddon_fields= (addon_fields + 1);
+      null_fields= 0;
+      addon_fields= 0;
+      addon_length= 0;
+    }
+    else
+    {
+      addon_length+= field->max_packed_col_length(field->pack_length());
+      addon_fields++;
+      if (field->maybe_null())
+        null_fields++;
+    }
+  }
+  if (nonaddon_fields)
+    *ptmp_fields= addon_fields + nonaddon_fields; // Total number of fields
+  else
+    *ptmp_fields= 0;                              // Temp table is unnecessary
+  if (!addon_fields)
+    DBUG_RETURN(NULL);
 
-  if (length+sortlength > max_length_for_sort_data ||
+  addon_length+= (null_fields+7)/8;
+
+  if (addon_length+sortlength > max_length_for_sort_data ||
       !my_multi_malloc(MYF(MY_WME | MY_THREAD_SPECIFIC),
-                       &addonf, sizeof(SORT_ADDON_FIELD) * (fields+1),
-                       &addon_buf->str, length,
+                       &addonf, sizeof(SORT_ADDON_FIELD) * (addon_fields+1),
+                       &addon_buf->str, addon_length,
                        NullS))
+  {
+    *ptmp_fields= addon_fields + nonaddon_fields; // Total number of fields
+    DBUG_RETURN(NULL);
+  }
 
-    DBUG_RETURN(0);
-
-  addon_buf->length= length;
-  length= (null_fields+7)/8;
+  addon_buf->length= addon_length;
+  addon_length= (null_fields+7)/8;
   null_fields= 0;
   for (pfield= ptabfield; (field= *pfield) ; pfield++)
   {
     if (!bitmap_is_set(read_set, field->field_index))
       continue;
     addonf->field= field;
-    addonf->offset= length;
+    addonf->offset= addon_length;
     if (field->maybe_null())
     {
       addonf->null_offset= null_fields/8;
@@ -2091,13 +2356,13 @@ get_addon_fields(ulong max_length_for_sort_data,
       addonf->null_bit= 0;
     }
     addonf->length= field->max_packed_col_length(field->pack_length());
-    length+= addonf->length;
+    addon_length+= addonf->length;
     addonf++;
   }
   addonf->field= 0;     // Put end marker
   
-  DBUG_PRINT("info",("addon_length: %d",length));
-  DBUG_RETURN(addonf-fields);
+  DBUG_PRINT("info",("addon_length: %d",addon_length));
+  DBUG_RETURN(addonf-addon_fields);
 }
 
 
