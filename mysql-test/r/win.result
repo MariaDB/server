@@ -3300,5 +3300,18 @@ SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
 ROW_NUMBER() OVER()	i
 DROP TABLE t1;
 #
+# MDEV-15204: LAG function doesn't require ORDER BY 
+#             in OVER clause
+#
+create table t1 (a int);
+insert into t1 values (1), (2), (10), (0);
+select a, lag(a, 1) over (order by a) from t1;
+a	lag(a, 1) over (order by a)
+1	0
+2	1
+10	2
+0	NULL
+drop table t1;
+#
 # Start of 10.3 tests
 #

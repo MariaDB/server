@@ -2068,5 +2068,16 @@ SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-15204: LAG function doesn't require ORDER BY 
+--echo #             in OVER clause
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1), (2), (10), (0);
+select a, lag(a, 1) over (order by a) from t1;
+
+drop table t1;
+
+--echo #
 --echo # Start of 10.3 tests
 --echo #
