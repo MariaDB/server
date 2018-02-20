@@ -141,26 +141,6 @@ trx_sys_update_mysql_binlog_offset(
 system header. */
 void
 trx_sys_print_mysql_binlog_offset();
-#ifdef WITH_WSREP
-
-/** Update WSREP XID info in the TRX_SYS page.
-@param[in]	xid		Transaction XID
-@param[in,out]	sys_header	TRX_SYS page
-@param[in,out]	mtr		mini-transaction */
-UNIV_INTERN
-void
-trx_sys_update_wsrep_checkpoint(
-	const XID*	xid,
-	buf_block_t*	sys_header,
-	mtr_t*		mtr);
-
-/** Read WSREP checkpoint XID from sys header.
-@param[out]	xid	WSREP XID
-@return	whether the checkpoint was present */
-UNIV_INTERN
-bool
-trx_sys_read_wsrep_checkpoint(XID* xid);
-#endif /* WITH_WSREP */
 
 /** Create the rollback segments.
 @return	whether the creation succeeded */
@@ -235,7 +215,8 @@ trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
 				+ sys_header->frame);
 }
 
-/** Maximum length of MySQL binlog file name, in bytes. */
+/** Maximum length of MySQL binlog file name, in bytes.
+(Used before MariaDB 10.3.5.) */
 #define TRX_SYS_MYSQL_LOG_NAME_LEN	512
 /** Contents of TRX_SYS_MYSQL_LOG_MAGIC_N_FLD */
 #define TRX_SYS_MYSQL_LOG_MAGIC_N	873422344
@@ -312,7 +293,7 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 
 */
 #ifdef WITH_WSREP
-/** The offset to WSREP XID headers */
+/** The offset to WSREP XID headers (used before MariaDB 10.3.5) */
 #define TRX_SYS_WSREP_XID_INFO std::max(srv_page_size - 3500, 1596UL)
 #define TRX_SYS_WSREP_XID_MAGIC_N_FLD 0
 #define TRX_SYS_WSREP_XID_MAGIC_N 0x77737265
@@ -856,13 +837,22 @@ public:
 					by any mutex, because it is read-only
 					during multi-threaded operation */
 
-
   /**
     Lock-free hash of in memory read-write transactions.
     Works faster when it is on it's own cache line (tested).
   */
 
   MY_ALIGNED(CACHE_LINE_SIZE) rw_trx_hash_t rw_trx_hash;
+
+
+#ifdef WITH_WSREP
+  /** Latest recovered XID during startup */
+  XID recovered_wsrep_xid;
+#endif
+  /** Latest recovered binlog offset */
+  int64_t recovered_binlog_offset;
+  /** Latest recovred binlog file name */
+  char recovered_binlog_filename[TRX_SYS_MYSQL_LOG_NAME_LEN];
 
 
   /**

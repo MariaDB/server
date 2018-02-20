@@ -34,6 +34,214 @@ Created 3/26/1996 Heikki Tuuri
 
 #include <algorithm>
 
+#ifdef WITH_WSREP
+
+#ifdef UNIV_DEBUG
+static long long trx_sys_cur_xid_seqno = -1;
+static unsigned char trx_sys_cur_xid_uuid[16];
+
+/** Read WSREP XID seqno */
+static inline long long read_wsrep_xid_seqno(const XID* xid)
+{
+	long long seqno;
+	memcpy(&seqno, xid->data + 24, sizeof(long long));
+	return seqno;
+}
+
+/** Read WSREP XID UUID */
+static inline void read_wsrep_xid_uuid(const XID* xid, unsigned char* buf)
+{
+	memcpy(buf, xid->data + 8, 16);
+}
+
+#endif /* UNIV_DEBUG */
+
+/** Update the WSREP XID information in rollback segment header.
+@param[in,out]	rseg_header	rollback segment header
+@param[in]	xid		WSREP XID
+@param[in,out]	mtr		mini-transaction */
+void
+trx_rseg_update_wsrep_checkpoint(
+	trx_rsegf_t*	rseg_header,
+	const XID*	xid,
+	mtr_t*		mtr)
+{
+	ut_ad(xid->formatID == 1);
+
+#ifdef UNIV_DEBUG
+	/* Check that seqno is monotonically increasing */
+	unsigned char xid_uuid[16];
+	long long xid_seqno = read_wsrep_xid_seqno(xid);
+	read_wsrep_xid_uuid(xid, xid_uuid);
+
+	if (!memcmp(xid_uuid, trx_sys_cur_xid_uuid, 8)) {
+		ut_ad(xid_seqno > trx_sys_cur_xid_seqno);
+		trx_sys_cur_xid_seqno = xid_seqno;
+	} else {
+		memcpy(trx_sys_cur_xid_uuid, xid_uuid, 16);
+	}
+	trx_sys_cur_xid_seqno = xid_seqno;
+#endif /* UNIV_DEBUG */
+
+	mlog_write_ulint(TRX_RSEG_WSREP_XID_FORMAT + rseg_header,
+			 uint32_t(xid->formatID),
+			 MLOG_4BYTES, mtr);
+
+	mlog_write_ulint(TRX_RSEG_WSREP_XID_GTRID_LEN + rseg_header,
+			 uint32_t(xid->gtrid_length),
+			 MLOG_4BYTES, mtr);
+
+	mlog_write_ulint(TRX_RSEG_WSREP_XID_BQUAL_LEN + rseg_header,
+			 uint32_t(xid->bqual_length),
+			 MLOG_4BYTES, mtr);
+
+	mlog_write_string(TRX_RSEG_WSREP_XID_DATA + rseg_header,
+			  reinterpret_cast<const byte*>(xid->data),
+			  XIDDATASIZE, mtr);
+}
+
+/** Update WSREP checkpoint XID in first rollback segment header.
+@param[in]	xid		WSREP XID */
+void trx_rseg_update_wsrep_checkpoint(const XID* xid)
+{
+	mtr_t	mtr;
+	mtr.start();
+
+	const trx_rseg_t* rseg = trx_sys.rseg_array[0];
+
+	trx_rsegf_t* rseg_header = trx_rsegf_get(rseg->space, rseg->page_no,
+						 &mtr);
+	if (UNIV_UNLIKELY(mach_read_from_4(rseg_header + TRX_RSEG_FORMAT))) {
+		trx_rseg_format_upgrade(rseg_header, &mtr);
+	}
+
+	mlog_write_ull(rseg_header + TRX_RSEG_MAX_TRX_ID,
+		       trx_sys.get_max_trx_id(), &mtr);
+	trx_rseg_update_wsrep_checkpoint(rseg_header, xid, &mtr);
+	mtr.commit();
+}
+
+/** Read the WSREP XID information in rollback segment header.
+@param[in]	rseg_header	Rollback segment header
+@param[out]	xid		Transaction XID
+@return	whether the WSREP XID was present */
+bool trx_rseg_read_wsrep_checkpoint(const trx_rsegf_t* rseg_header, XID& xid)
+{
+	xid.formatID = (int)mach_read_from_4(
+		TRX_RSEG_WSREP_XID_FORMAT + rseg_header);
+
+	if (xid.formatID == 0) {
+		memset(&xid, 0, sizeof(xid));
+		long long seqno= -1;
+		memcpy(xid.data + 24, &seqno, sizeof(long long));
+		xid.formatID = -1;
+		return false;
+	}
+
+	xid.gtrid_length = (int)mach_read_from_4(
+		TRX_RSEG_WSREP_XID_GTRID_LEN + rseg_header);
+
+	xid.bqual_length = (int)mach_read_from_4(
+		TRX_RSEG_WSREP_XID_BQUAL_LEN + rseg_header);
+
+	memcpy(xid.data, TRX_RSEG_WSREP_XID_DATA + rseg_header, XIDDATASIZE);
+
+	return true;
+}
+
+/** Read the WSREP XID from the TRX_SYS page (in case of upgrade).
+@param[in]	page	TRX_SYS page
+@param[out]	xid	WSREP XID (if present)
+@return	whether the WSREP XID is present */
+static bool trx_rseg_init_wsrep_xid(const page_t* page, XID& xid)
+{
+	if (mach_read_from_4(TRX_SYS + TRX_SYS_WSREP_XID_INFO
+			     + TRX_SYS_WSREP_XID_MAGIC_N_FLD
+			     + page)
+	    != TRX_SYS_WSREP_XID_MAGIC_N) {
+		return false;
+	}
+
+	xid.formatID = (int)mach_read_from_4(
+		TRX_SYS + TRX_SYS_WSREP_XID_INFO
+		+ TRX_SYS_WSREP_XID_FORMAT + page);
+	xid.gtrid_length = (int)mach_read_from_4(
+		TRX_SYS + TRX_SYS_WSREP_XID_INFO
+		+ TRX_SYS_WSREP_XID_GTRID_LEN + page);
+	xid.bqual_length = (int)mach_read_from_4(
+		TRX_SYS + TRX_SYS_WSREP_XID_INFO
+		+ TRX_SYS_WSREP_XID_BQUAL_LEN + page);
+	memcpy(xid.data,
+	       TRX_SYS + TRX_SYS_WSREP_XID_INFO
+	       + TRX_SYS_WSREP_XID_DATA + page, XIDDATASIZE);
+	return true;
+}
+
+/** Recover the latest WSREP checkpoint XID.
+@param[out]	xid	WSREP XID
+@return	whether the WSREP XID was found */
+bool trx_rseg_read_wsrep_checkpoint(XID& xid)
+{
+	mtr_t		mtr;
+	trx_id_t	max_id = 0;
+	bool		found = false;
+
+	for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS;
+	     rseg_id++, mtr.commit()) {
+		mtr.start();
+		const buf_block_t* sys = trx_sysf_get(&mtr, false);
+		if (rseg_id == 0) {
+			found = trx_rseg_init_wsrep_xid(sys->frame, xid);
+		}
+
+		const uint32_t page_no = trx_sysf_rseg_get_page_no(
+			sys, rseg_id);
+
+		if (page_no == FIL_NULL) {
+			continue;
+		}
+
+		const trx_rsegf_t* rseg_header = trx_rsegf_get_new(
+			trx_sysf_rseg_get_space(sys, rseg_id), page_no, &mtr);
+
+		if (mach_read_from_4(rseg_header + TRX_RSEG_FORMAT)) {
+			continue;
+		}
+
+		trx_id_t id = mach_read_from_8(rseg_header
+					       + TRX_RSEG_MAX_TRX_ID);
+
+		if (id < max_id) {
+			continue;
+		}
+
+		max_id = id;
+		found = trx_rseg_read_wsrep_checkpoint(rseg_header, xid)
+			|| found;
+	}
+
+	return found;
+}
+#endif /* WITH_WSREP */
+
+/** Upgrade a rollback segment header page to MariaDB 10.3 format.
+@param[in,out]	rseg_header	rollback segment header page
+@param[in,out]	mtr		mini-transaction */
+void trx_rseg_format_upgrade(trx_rsegf_t* rseg_header, mtr_t* mtr)
+{
+	ut_ad(page_offset(rseg_header) == TRX_RSEG);
+	byte* rseg_format = TRX_RSEG_FORMAT + rseg_header;
+	mlog_write_ulint(rseg_format, 0, MLOG_4BYTES, mtr);
+	/* Clear also possible garbage at the end of the page. Old
+	InnoDB versions did not initialize unused parts of pages. */
+	byte* b = rseg_header + TRX_RSEG_MAX_TRX_ID + 8;
+	ulint len = UNIV_PAGE_SIZE
+		- (FIL_PAGE_DATA_END
+		   + TRX_RSEG + TRX_RSEG_MAX_TRX_ID + 8);
+	memset(b, 0, len);
+	mlog_log_string(b, len, mtr);
+}
+
 /** Creates a rollback segment header.
 This function is called only when a new rollback segment is created in
 the database.
@@ -192,19 +400,51 @@ trx_undo_lists_init(trx_rseg_t* rseg, trx_id_t& max_trx_id,
 /** Restore the state of a persistent rollback segment.
 @param[in,out]	rseg		persistent rollback segment
 @param[in,out]	max_trx_id	maximum observed transaction identifier
+@param[in,out]	max_rseg_trx_id	maximum observed TRX_RSEG_MAX_TRX_ID
 @param[in,out]	mtr		mini-transaction */
 static
 void
-trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
+trx_rseg_mem_restore(
+	trx_rseg_t*	rseg,
+	trx_id_t&	max_trx_id,
+	trx_id_t&	max_rseg_trx_id,
+	mtr_t*		mtr)
 {
-	const trx_rsegf_t*	rseg_header = trx_rsegf_get_new(
+	trx_rsegf_t*	rseg_header = trx_rsegf_get_new(
 		rseg->space, rseg->page_no, mtr);
+
 	if (mach_read_from_4(rseg_header + TRX_RSEG_FORMAT) == 0) {
 		trx_id_t id = mach_read_from_8(rseg_header
 					       + TRX_RSEG_MAX_TRX_ID);
+
 		if (id > max_trx_id) {
 			max_trx_id = id;
 		}
+
+		if (id > max_rseg_trx_id) {
+			max_rseg_trx_id = id;
+
+			if (rseg_header[TRX_RSEG_BINLOG_NAME]) {
+				memcpy(trx_sys.recovered_binlog_filename,
+				       rseg_header + TRX_RSEG_BINLOG_NAME,
+				       TRX_RSEG_BINLOG_NAME_LEN);
+				trx_sys.recovered_binlog_offset = mach_read_from_8(
+						rseg_header
+						+ TRX_RSEG_BINLOG_OFFSET);
+			}
+
+#ifdef WITH_WSREP
+			trx_rseg_read_wsrep_checkpoint(
+				rseg_header, trx_sys.recovered_wsrep_xid);
+#endif
+		}
+	}
+
+	if (srv_operation == SRV_OPERATION_RESTORE) {
+		/* mariabackup --prepare only deals with
+		the redo log and the data files, not with
+		transactions or the data dictionary. */
+		return;
 	}
 
 	/* Initialize the undo log lists according to the rseg header */
@@ -252,21 +492,55 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 	}
 }
 
+/** Read binlog metadata from the TRX_SYS page, in case we are upgrading
+from MySQL or a MariaDB version older than 10.3.5. */
+static void trx_rseg_init_binlog_info(const page_t* page)
+{
+	if (mach_read_from_4(TRX_SYS + TRX_SYS_MYSQL_LOG_INFO
+			     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
+			     + page)
+	    == TRX_SYS_MYSQL_LOG_MAGIC_N) {
+		memcpy(trx_sys.recovered_binlog_filename,
+		       TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_NAME
+		       + TRX_SYS + page, TRX_SYS_MYSQL_LOG_NAME_LEN);
+		trx_sys.recovered_binlog_offset = mach_read_from_8(
+			TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_OFFSET
+			+ TRX_SYS + page);
+	}
+
+#ifdef WITH_WSREP
+	trx_rseg_init_wsrep_xid(page, trx_sys.recovered_wsrep_xid);
+#endif
+}
+
 /** Initialize the rollback segments in memory at database startup. */
 void
 trx_rseg_array_init()
 {
-	trx_id_t max_trx_id = 0;
+	trx_id_t max_trx_id = 0, max_rseg_trx_id = 0;
+
+	*trx_sys.recovered_binlog_filename = '\0';
+	trx_sys.recovered_binlog_offset = -1;
+#ifdef WITH_WSREP
+	memset(&trx_sys.recovered_wsrep_xid, 0,
+	       sizeof trx_sys.recovered_wsrep_xid);
+	trx_sys.recovered_wsrep_xid.formatID = -1;
+#endif
 
 	for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
 		mtr_t mtr;
 		mtr.start();
 		if (const buf_block_t* sys = trx_sysf_get(&mtr, false)) {
 			if (rseg_id == 0) {
+				/* In case this is an upgrade from
+				before MariaDB 10.3.5, fetch the base
+				information from the TRX_SYS page. */
 				max_trx_id = mach_read_from_8(
 					TRX_SYS + TRX_SYS_TRX_ID_STORE
 					+ sys->frame);
+				trx_rseg_init_binlog_info(sys->frame);
 			}
+
 			const uint32_t	page_no = trx_sysf_rseg_get_page_no(
 				sys, rseg_id);
 			if (page_no != FIL_NULL) {
@@ -278,7 +552,9 @@ trx_rseg_array_init()
 				ut_ad(rseg->id == rseg_id);
 				ut_ad(!trx_sys.rseg_array[rseg_id]);
 				trx_sys.rseg_array[rseg_id] = rseg;
-				trx_rseg_mem_restore(rseg, max_trx_id, &mtr);
+				trx_rseg_mem_restore(
+					rseg, max_trx_id, max_rseg_trx_id,
+					&mtr);
 			}
 		}
 
@@ -403,4 +679,35 @@ trx_rseg_get_n_undo_tablespaces(
 	std::sort(space_ids, end);
 
 	return ulint(end - space_ids);
+}
+
+/** Update the offset information about the end of the binlog entry
+which corresponds to the transaction just being committed.
+In a replication slave, this updates the master binlog position
+up to which replication has proceeded.
+@param[in,out]	rseg_header	rollback segment header
+@param[in]	trx		committing transaction
+@param[in,out]	mtr		mini-transaction */
+void
+trx_rseg_update_binlog_offset(byte* rseg_header, const trx_t* trx, mtr_t* mtr)
+{
+	DBUG_LOG("trx", "trx_mysql_binlog_offset: " << trx->mysql_log_offset);
+
+	const size_t len = strlen(trx->mysql_log_file_name) + 1;
+
+	ut_ad(len > 1);
+
+	if (UNIV_UNLIKELY(len > TRX_RSEG_BINLOG_NAME_LEN)) {
+		return;
+	}
+
+	mlog_write_ull(rseg_header + TRX_RSEG_BINLOG_OFFSET,
+		       trx->mysql_log_offset, mtr);
+	byte* p = rseg_header + TRX_RSEG_BINLOG_NAME;
+	const byte* binlog_name = reinterpret_cast<const byte*>
+		(trx->mysql_log_file_name);
+
+	if (memcmp(binlog_name, p, len)) {
+		mlog_write_string(p, binlog_name, len, mtr);
+	}
 }

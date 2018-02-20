@@ -111,10 +111,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "trx0purge.h"
 #endif /* UNIV_DEBUG */
 #include "trx0roll.h"
-#include "trx0sys.h"
+#include "trx0rseg.h"
 #include "trx0trx.h"
 #include "fil0pagecompress.h"
-#include "trx0xa.h"
 #include "ut0mem.h"
 #include "row0ext.h"
 
@@ -19679,12 +19678,8 @@ innobase_wsrep_set_checkpoint(
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	if (wsrep_is_wsrep_xid(xid)) {
-		mtr_t mtr;
-		mtr_start(&mtr);
-		if (buf_block_t* sys_header = trx_sysf_get(&mtr)) {
-			trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
-		}
-		mtr_commit(&mtr);
+
+		trx_rseg_update_wsrep_checkpoint(xid);
 		innobase_flush_logs(hton, false);
 		return 0;
 	} else {
@@ -19700,7 +19695,7 @@ innobase_wsrep_get_checkpoint(
 	XID* xid)
 {
 	DBUG_ASSERT(hton == innodb_hton_ptr);
-        trx_sys_read_wsrep_checkpoint(xid);
+        trx_rseg_read_wsrep_checkpoint(*xid);
         return 0;
 }
 

@@ -27,10 +27,8 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0rseg_h
 #define trx0rseg_h
 
-#include "trx0types.h"
 #include "trx0sys.h"
 #include "fut0lst.h"
-#include <vector>
 
 /** Gets a rollback segment header.
 @param[in]	space		space where placed
@@ -226,6 +224,30 @@ struct trx_rseg_t {
 /** Maximum transaction ID (valid only if TRX_RSEG_FORMAT is 0) */
 #define TRX_RSEG_MAX_TRX_ID	(TRX_RSEG_UNDO_SLOTS + TRX_RSEG_N_SLOTS	\
 				 * TRX_RSEG_SLOT_SIZE)
+
+/** 8 bytes offset within the binlog file */
+#define TRX_RSEG_BINLOG_OFFSET		TRX_RSEG_MAX_TRX_ID + 8
+/** MySQL log file name, 512 bytes, including terminating NUL
+(valid only if TRX_RSEG_FORMAT is 0).
+If no binlog information is present, the first byte is NUL. */
+#define TRX_RSEG_BINLOG_NAME		TRX_RSEG_MAX_TRX_ID + 16
+/** Maximum length of binlog file name, including terminating NUL, in bytes */
+#define TRX_RSEG_BINLOG_NAME_LEN	512
+
+#ifdef WITH_WSREP
+/** The offset to WSREP XID headers */
+#define	TRX_RSEG_WSREP_XID_INFO		TRX_RSEG_MAX_TRX_ID + 16 + 512
+
+/** WSREP XID format (1 if present and valid, 0 if not present) */
+#define TRX_RSEG_WSREP_XID_FORMAT	TRX_RSEG_WSREP_XID_INFO
+/** WSREP XID GTRID length */
+#define TRX_RSEG_WSREP_XID_GTRID_LEN	TRX_RSEG_WSREP_XID_INFO + 4
+/** WSREP XID bqual length */
+#define TRX_RSEG_WSREP_XID_BQUAL_LEN	TRX_RSEG_WSREP_XID_INFO + 8
+/** WSREP XID data (XIDDATASIZE bytes) */
+#define TRX_RSEG_WSREP_XID_DATA		TRX_RSEG_WSREP_XID_INFO + 12
+#endif /* WITH_WSREP*/
+
 /*-------------------------------------------------------------*/
 
 /** Read the page number of an undo log slot.
@@ -239,6 +261,48 @@ trx_rsegf_get_nth_undo(const trx_rsegf_t* rsegf, ulint n)
 	return mach_read_from_4(rsegf + TRX_RSEG_UNDO_SLOTS
 				+ n * TRX_RSEG_SLOT_SIZE);
 }
+
+#ifdef WITH_WSREP
+/** Update the WSREP XID information in rollback segment header.
+@param[in,out]	rseg_header	rollback segment header
+@param[in]	xid		WSREP XID
+@param[in,out]	mtr		mini-transaction */
+void
+trx_rseg_update_wsrep_checkpoint(
+	trx_rsegf_t*	rseg_header,
+	const XID*	xid,
+	mtr_t*		mtr);
+
+/** Update WSREP checkpoint XID in first rollback segment header.
+@param[in]	xid		WSREP XID */
+void trx_rseg_update_wsrep_checkpoint(const XID* xid);
+
+/** Read the WSREP XID information in rollback segment header.
+@param[in]	rseg_header	Rollback segment header
+@param[out]	xid		Transaction XID
+@return	whether the WSREP XID was present */
+bool trx_rseg_read_wsrep_checkpoint(const trx_rsegf_t* rseg_header, XID& xid);
+
+/** Recover the latest WSREP checkpoint XID.
+@param[out]	xid	WSREP XID
+@return	whether the WSREP XID was found */
+bool trx_rseg_read_wsrep_checkpoint(XID& xid);
+#endif /* WITH_WSREP */
+
+/** Upgrade a rollback segment header page to MariaDB 10.3 format.
+@param[in,out]	rseg_header	rollback segment header page
+@param[in,out]	mtr		mini-transaction */
+void trx_rseg_format_upgrade(trx_rsegf_t* rseg_header, mtr_t* mtr);
+
+/** Update the offset information about the end of the binlog entry
+which corresponds to the transaction just being committed.
+In a replication slave, this updates the master binlog position
+up to which replication has proceeded.
+@param[in,out]	rseg_header	rollback segment header
+@param[in]	trx		committing transaction
+@param[in,out]	mtr		mini-transaction */
+void
+trx_rseg_update_binlog_offset(byte* rseg_header, const trx_t* trx, mtr_t* mtr);
 
 #include "trx0rseg.ic"
 

@@ -4843,37 +4843,23 @@ xtrabackup_prepare_func(char** argv)
 	}
 
 	if (ok) {
-		mtr_t			mtr;
-		mtr.start();
-		const buf_block_t*	sys_header = trx_sysf_get(&mtr, false);
+		msg("Last binlog file %s, position %lld\n",
+		    trx_sys.recovered_binlog_filename,
+		    longlong(trx_sys.recovered_binlog_offset));
 
-		if (mach_read_from_4(TRX_SYS_MYSQL_LOG_INFO
-				     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
-				     + TRX_SYS + sys_header->frame)
-		    == TRX_SYS_MYSQL_LOG_MAGIC_N) {
-			ulonglong pos = mach_read_from_8(
-				TRX_SYS_MYSQL_LOG_INFO
-				+ TRX_SYS_MYSQL_LOG_OFFSET
-				+ TRX_SYS + sys_header->frame);
-			const char* name = reinterpret_cast<const char*>(
-				TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_NAME
-				+ TRX_SYS + sys_header->frame);
-			msg("Last binlog file %s, position %llu\n", name, pos);
-
-			/* output to xtrabackup_binlog_pos_innodb and
-			(if backup_safe_binlog_info was available on
-			the server) to xtrabackup_binlog_info. In the
-			latter case xtrabackup_binlog_pos_innodb
-			becomes redundant and is created only for
-			compatibility. */
-			ok = store_binlog_info(
-				"xtrabackup_binlog_pos_innodb", name, pos)
-				&& (!recover_binlog_info || store_binlog_info(
-					    XTRABACKUP_BINLOG_INFO,
-					    name, pos));
-		}
-
-		mtr.commit();
+		/* output to xtrabackup_binlog_pos_innodb and
+		   (if backup_safe_binlog_info was available on
+		   the server) to xtrabackup_binlog_info. In the
+		   latter case xtrabackup_binlog_pos_innodb
+		   becomes redundant and is created only for
+		   compatibility. */
+		ok = store_binlog_info("xtrabackup_binlog_pos_innodb",
+				       trx_sys.recovered_binlog_filename,
+				       trx_sys.recovered_binlog_offset)
+		  && (!recover_binlog_info
+		      || store_binlog_info(XTRABACKUP_BINLOG_INFO,
+					   trx_sys.recovered_binlog_filename,
+					   trx_sys.recovered_binlog_offset));
 	}
 
 	/* Check whether the log is applied enough or not. */

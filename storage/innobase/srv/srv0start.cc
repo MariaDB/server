@@ -2230,6 +2230,8 @@ files_checked:
 			if (err != DB_SUCCESS) {
 				return(srv_init_abort(err));
 			}
+			/* fall through */
+		case SRV_OPERATION_RESTORE:
 			/* This must precede
 			recv_apply_hashed_log_recs(true). */
 			trx_lists_init_at_db_start();
@@ -2237,12 +2239,6 @@ files_checked:
 		case SRV_OPERATION_RESTORE_DELTA:
 		case SRV_OPERATION_BACKUP:
 			ut_ad(!"wrong mariabackup mode");
-			/* fall through */
-		case SRV_OPERATION_RESTORE:
-			/* mariabackup --prepare only deals with
-			the redo log and the data files, not with
-			transactions or the data dictionary. */
-			break;
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {

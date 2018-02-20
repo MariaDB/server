@@ -885,6 +885,14 @@ trx_lists_init_at_db_start()
 	ut_ad(!srv_was_started);
 	ut_ad(!purge_sys);
 
+	if (srv_operation == SRV_OPERATION_RESTORE) {
+		/* mariabackup --prepare only deals with
+		the redo log and the data files, not with
+		transactions or the data dictionary. */
+		trx_rseg_array_init();
+		return;
+	}
+
 	purge_sys = UT_NEW_NOKEY(purge_sys_t());
 
 	if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
@@ -1303,36 +1311,7 @@ trx_write_serialisation_history(
 
 	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 
-#ifdef WITH_WSREP
-	const bool update_wsrep = wsrep_is_wsrep_xid(trx->xid);
-#endif
-	const bool update_binlog_pos = trx->mysql_log_file_name
-		&& *trx->mysql_log_file_name;
-	if (!update_binlog_pos
-#ifdef WITH_WSREP
-	    && !update_wsrep
-#endif
-	    ) return;
-
-	buf_block_t* block = trx_sysf_get(mtr);
-#ifdef WITH_WSREP
-	if (update_wsrep)
-		trx_sys_update_wsrep_checkpoint(trx->xid, block, mtr);
-#endif /* WITH_WSREP */
-
-	/* Update the latest MySQL binlog name and offset info
-	in trx sys header if MySQL binlogging is on or the database
-	server is a MySQL replication slave */
-
-	if (update_binlog_pos) {
-
-		trx_sys_update_mysql_binlog_offset(
-			trx->mysql_log_file_name,
-			trx->mysql_log_offset,
-			block, mtr);
-
-		trx->mysql_log_file_name = NULL;
-	}
+	trx->mysql_log_file_name = NULL;
 }
 
 /********************************************************************

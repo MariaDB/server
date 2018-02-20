@@ -44,6 +44,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0roll.h"
 #include "trx0rseg.h"
 #include "trx0trx.h"
+#include <mysql/service_wsrep.h>
 
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
 ulong		srv_max_purge_lag = 0;
@@ -239,6 +240,8 @@ Remove the undo log segment from the rseg slot if it is too big for reuse.
 void
 trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 {
+	DBUG_PRINT("trx", ("commit(" TRX_ID_FMT "," TRX_ID_FMT ")",
+			   trx->id, trx->no));
 	ut_ad(undo == trx->rsegs.m_redo.undo
 	      || undo == trx->rsegs.m_redo.old_insert);
 	trx_rseg_t*	rseg		= trx->rsegs.m_redo.rseg;
@@ -251,6 +254,12 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
 	ut_ad(mach_read_from_2(undo_header + TRX_UNDO_NEEDS_PURGE) <= 1);
 
+	if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG_FORMAT + rseg_header))) {
+		/* This database must have been upgraded from
+		before MariaDB 10.3.5. */
+		trx_rseg_format_upgrade(rseg_header, mtr);
+	}
+
 	if (undo->state != TRX_UNDO_CACHED) {
 		ulint		hist_size;
 #ifdef UNIV_DEBUG
@@ -258,11 +267,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 #endif /* UNIV_DEBUG */
 
 		/* The undo log segment will not be reused */
-
-		if (UNIV_UNLIKELY(undo->id >= TRX_RSEG_N_SLOTS)) {
-			ib::fatal() << "undo->id is " << undo->id;
-		}
-
+		ut_a(undo->id < TRX_RSEG_N_SLOTS);
 		trx_rsegf_set_nth_undo(rseg_header, undo->id, FIL_NULL, mtr);
 
 		MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_USED);
@@ -272,29 +277,16 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
 		ut_ad(undo->size == flst_get_len(
 			      seg_header + TRX_UNDO_PAGE_LIST));
-		byte* rseg_format = rseg_header + TRX_RSEG_FORMAT;
-		if (UNIV_UNLIKELY(mach_read_from_4(rseg_format))) {
-			/* This database must have been upgraded from
-			before MariaDB 10.3.5. */
-			mlog_write_ulint(rseg_format, 0, MLOG_4BYTES, mtr);
-			/* Clear also possible garbage at the end of
-			the page. Old InnoDB versions did not initialize
-			unused parts of pages. */
-			ut_ad(page_offset(rseg_header) == TRX_RSEG);
-			byte* b = rseg_header + TRX_RSEG_MAX_TRX_ID + 8;
-			ulint len = UNIV_PAGE_SIZE
-				- (FIL_PAGE_DATA_END
-				   + TRX_RSEG + TRX_RSEG_MAX_TRX_ID + 8);
-			memset(b, 0, len);
-			mlog_log_string(b, len, mtr);
-		}
 
 		mlog_write_ulint(
 			rseg_header + TRX_RSEG_HISTORY_SIZE,
 			hist_size + undo->size, MLOG_4BYTES, mtr);
-		mlog_write_ull(rseg_header + TRX_RSEG_MAX_TRX_ID,
-			       trx_sys.get_max_trx_id(), mtr);
 	}
+
+	/* This field now also serves as an identifier for the latest
+	binlog and WSREP XID information. */
+	mlog_write_ull(rseg_header + TRX_RSEG_MAX_TRX_ID,
+		       trx_sys.get_max_trx_id(), mtr);
 
 	/* Before any transaction-generating background threads or the
 	purge have been started, recv_recovery_rollback_active() can
@@ -319,6 +311,19 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	      || ((trx->undo_no == 0 || trx->in_mysql_trx_list
 		   || trx->internal)
 		  && srv_fast_shutdown));
+
+#ifdef	WITH_WSREP
+	if (wsrep_is_wsrep_xid(trx->xid)) {
+		trx_rseg_update_wsrep_checkpoint(rseg_header, trx->xid, mtr);
+	}
+#endif
+
+	if (trx->mysql_log_file_name && *trx->mysql_log_file_name) {
+		/* Update the latest MySQL binlog name and offset info
+		in rollback segment header if MySQL binlogging is on
+		or the database server is a MySQL replication save. */
+		trx_rseg_update_binlog_offset(rseg_header, trx, mtr);
+	}
 
 	/* Add the log as the first in the history list */
 	flst_add_first(rseg_header + TRX_RSEG_HISTORY,
