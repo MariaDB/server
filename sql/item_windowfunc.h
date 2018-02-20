@@ -1077,6 +1077,7 @@ public:
   bool is_order_list_mandatory() const
   {
     switch (window_func()->sum_func()) {
+    case Item_sum::LAG_FUNC:
     case Item_sum::RANK_FUNC:
     case Item_sum::DENSE_RANK_FUNC:
     case Item_sum::PERCENT_RANK_FUNC:
