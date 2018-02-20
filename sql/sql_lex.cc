@@ -206,6 +206,7 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   table->map= 1; //To ensure correct calculation of const item
   table_list->table= table;
   table_list->cacheable_table= false;
+  lex->create_last_non_select_table= table_list;
   return FALSE;
 }
 
