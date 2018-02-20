@@ -6335,15 +6335,16 @@ int handler::ha_write_row(uchar *buf)
     rows_changed++;
     if (table->file->check_table_binlog_row_based(1))
       error= binlog_log_row(table, 0, buf, log_func);
-  }
 #ifdef WITH_WSREP
-  THD *thd= current_thd;
-  if (table_share->tmp_table == NO_TMP_TABLE &&
-      WSREP(thd) && (error= wsrep_after_row(thd)))
-  {
-    DBUG_RETURN(error);
-  }
+    THD *thd= current_thd;
+    if (table_share->tmp_table == NO_TMP_TABLE &&
+        WSREP(thd) && (error= wsrep_after_row(thd)))
+    {
+      DBUG_RETURN(error);
+    }
 #endif /* WITH_WSREP */
+  }
+
   DEBUG_SYNC_C("ha_write_row_end");
   DBUG_RETURN(error);
 }
