@@ -1365,7 +1365,7 @@ int bin2decimal(const uchar *from, decimal_t *to, int precision, int scale)
       case 2: x=mi_sint2korr(from); break;
       case 3: x=mi_sint3korr(from); break;
       case 4: x=mi_sint4korr(from); break;
-      default: DBUG_ASSERT(0);
+      default: abort();
     }
     from+=i;
     *buf=x ^ mask;
@@ -1406,7 +1406,7 @@ int bin2decimal(const uchar *from, decimal_t *to, int precision, int scale)
       case 2: x=mi_sint2korr(from); break;
       case 3: x=mi_sint3korr(from); break;
       case 4: x=mi_sint4korr(from); break;
-      default: DBUG_ASSERT(0);
+      default: abort();
     }
     *buf=(x ^ mask) * powers10[DIG_PER_DEC1 - frac0x];
     if (((uint32)*buf) > DIG_MAX)

@@ -32,14 +32,14 @@ my_bool _ma_update_no_record(MARIA_HA *info __attribute__((unused)),
                              const uchar *oldrec __attribute__((unused)),
                              const uchar *record __attribute__((unused)))
 {
-  return HA_ERR_WRONG_COMMAND;
+  return (my_bool)HA_ERR_WRONG_COMMAND;
 }
 
 
 my_bool _ma_delete_no_record(MARIA_HA *info __attribute__((unused)),
                              const uchar *record __attribute__((unused)))
 {
-  return HA_ERR_WRONG_COMMAND;
+  return (my_bool)HA_ERR_WRONG_COMMAND;
 }
 
 

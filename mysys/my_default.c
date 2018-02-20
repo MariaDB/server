@@ -1184,7 +1184,7 @@ static const char **init_default_directories(MEM_ROOT *alloc)
     {
       errors += add_directory(alloc, fname_buffer, dirs);
 
-      strncat(fname_buffer, "/data", sizeof(fname_buffer));
+      strcat_s(fname_buffer, sizeof(fname_buffer), "/data");
       errors += add_directory(alloc, fname_buffer, dirs);
     }
   }

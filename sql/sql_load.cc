@@ -142,14 +142,12 @@ class READ_INFO {
   File	file;
   String data;                          /* Read buffer */
   uint fixed_length;                    /* Length of the fixed length record */
-  uint max_length;                      /* Max length of row */
   Term_string m_field_term;             /* FIELDS TERMINATED BY 'string' */
   Term_string m_line_term;              /* LINES TERMINATED BY 'string' */
   Term_string m_line_start;             /* LINES STARTING BY 'string' */
   int	enclosed_char,escape_char;
   int	*stack,*stack_pos;
   bool	found_end_of_line,start_of_line,eof;
-  NET *io_net;
   int level; /* for load xml */
 
   bool getbyte(char *to)

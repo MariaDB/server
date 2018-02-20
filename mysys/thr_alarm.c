@@ -36,13 +36,6 @@
 #define ETIME ETIMEDOUT
 #endif
 
-uint thr_client_alarm;
-static int alarm_aborted=1;			/* No alarm thread */
-my_bool thr_alarm_inited= 0, my_disable_thr_alarm= 0;
-volatile my_bool alarm_thread_running= 0;
-time_t next_alarm_expire_time= ~ (time_t) 0;
-static sig_handler process_alarm_part2(int sig);
-
 #ifdef DBUG_OFF
 #define reset_index_in_queue(alarm_data)
 #else
@@ -55,8 +48,15 @@ static sig_handler process_alarm_part2(int sig);
 #define one_signal_hand_sigmask(A,B,C)
 #endif
 
+my_bool thr_alarm_inited= 0, my_disable_thr_alarm= 0;
 
 #if !defined(__WIN__)
+
+uint thr_client_alarm;
+static int alarm_aborted=1;			/* No alarm thread */
+volatile my_bool alarm_thread_running= 0;
+time_t next_alarm_expire_time= ~ (time_t) 0;
+static sig_handler process_alarm_part2(int sig);
 
 static mysql_mutex_t LOCK_alarm;
 static mysql_cond_t COND_alarm;

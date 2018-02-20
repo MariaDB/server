@@ -7951,7 +7951,7 @@ static bool get_row_event_stmt_end(const char* buf,
     The term 4 below signifies that master is of 'an intermediate source', see
     Rows_log_event::Rows_log_event.
   */
-  flag_start += RW_MAPID_OFFSET + (post_header_len == 6) ? 4 :  RW_FLAGS_OFFSET;
+  flag_start += RW_MAPID_OFFSET + ((post_header_len == 6) ? 4 :  RW_FLAGS_OFFSET);
 
   return (uint2korr(flag_start) & Rows_log_event::STMT_END_F) != 0;
 }

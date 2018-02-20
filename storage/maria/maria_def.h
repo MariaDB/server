@@ -1202,8 +1202,8 @@ extern my_bool _ma_read_cache(MARIA_HA *, IO_CACHE *info, uchar *buff,
 extern ulonglong ma_retrieve_auto_increment(const uchar *key, uint8 key_type);
 extern my_bool _ma_alloc_buffer(uchar **old_addr, size_t *old_size,
                                 size_t new_size);
-extern ulong _ma_rec_unpack(MARIA_HA *info, uchar *to, uchar *from,
-                            ulong reclength);
+extern size_t _ma_rec_unpack(MARIA_HA *info, uchar *to, uchar *from,
+                            size_t reclength);
 extern my_bool _ma_rec_check(MARIA_HA *info, const uchar *record,
                              uchar *packpos, ulong packed_length,
                              my_bool with_checkum, ha_checksum checksum);

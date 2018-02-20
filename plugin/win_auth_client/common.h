@@ -77,8 +77,8 @@ void error_log_print(const char *fmt, ...)
   error_log_vprint(Level, fmt, args);
   va_end(args);
 }
-
-typedef char Error_message_buf[1024];
+#define ERRMSG_BUFSIZE 1024
+typedef char Error_message_buf[ERRMSG_BUFSIZE];
 const char* get_last_error_message(Error_message_buf);
 
 

@@ -1567,7 +1567,6 @@ public:
 */
 class Sys_var_pluginlist: public sys_var
 {
-  int plugin_type;
 public:
   Sys_var_pluginlist(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,

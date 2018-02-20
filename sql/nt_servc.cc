@@ -73,18 +73,18 @@ NTService::~NTService()
 */
 
 
-long NTService::Init(LPCSTR szInternName,void *ServiceThread)
+long NTService::Init(LPCSTR szInternName, THREAD_FC ServiceThread)
 {
 
   pService = this;
 
-  fpServiceThread = (THREAD_FC)ServiceThread;
+  fpServiceThread = ServiceThread;
   ServiceName = new char[lstrlen(szInternName)+1];
   lstrcpy(ServiceName,szInternName);
 
   SERVICE_TABLE_ENTRY stb[] =
   {
-    { (char *)szInternName,(LPSERVICE_MAIN_FUNCTION) ServiceMain} ,
+    { (char *)szInternName, ServiceMain} ,
     { NULL, NULL }
   };
 
@@ -219,7 +219,6 @@ void NTService::ServiceMain(DWORD argc, LPTSTR *argv)
   // registration function
   if (!(pService->hServiceStatusHandle =
 	RegisterServiceCtrlHandler(pService->ServiceName,
-				   (LPHANDLER_FUNCTION)
 				   NTService::ServiceCtrlHandler)))
     goto error;
 
@@ -280,7 +279,7 @@ void NTService::SetSlowStarting(unsigned long timeout)
 BOOL NTService::StartService()
 {
   // Start the real service's thread (application)
-  if (!(hThreadHandle = (HANDLE) _beginthread((THREAD_FC)fpServiceThread,0,
+  if (!(hThreadHandle = (HANDLE) _beginthread(fpServiceThread,0,
 					      (void *) this)))
     return FALSE;
   bRunning = TRUE;

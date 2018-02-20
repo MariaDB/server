@@ -52,7 +52,7 @@ IF(NOT SYSTEM_TYPE)
   ENDIF()
 ENDIF()
 
-IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND (NOT MSVC))
   # MySQL "canonical" GCC flags. At least -fno-rtti flag affects
   # ABI and cannot be simply removed. 
   SET(CMAKE_CXX_FLAGS 

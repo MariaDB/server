@@ -19549,7 +19549,9 @@ static void test_mdev4326()
   myquery(rc);
 }
 
+/* Test uses MYSQL_PROTOCOL_SOCKET, not on Windows */
 
+#ifndef _WIN32
 /**
    BUG#17512527: LIST HANDLING INCORRECT IN MYSQL_PRUNE_STMT_LIST()
 */
@@ -19590,7 +19592,7 @@ static void test_bug17512527()
   mysql_stmt_close(stmt2);
   mysql_stmt_close(stmt1);
 }
-
+#endif
 
 
 /*

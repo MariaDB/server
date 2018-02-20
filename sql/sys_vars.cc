@@ -4642,14 +4642,13 @@ static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type)
     oldval=    logger.get_log_file_handler()->is_open();
     log_type=  QUERY_LOG_GENERAL;
   }
-  else if (self == &Sys_slow_query_log)
+  else
   {
+    DBUG_ASSERT(self == &Sys_slow_query_log);
     newvalptr= &global_system_variables.sql_log_slow;
     oldval=    logger.get_slow_log_file_handler()->is_open();
     log_type=  QUERY_LOG_SLOW;
   }
-  else
-    DBUG_ASSERT(FALSE);
 
   newval= *newvalptr;
   if (oldval == newval)

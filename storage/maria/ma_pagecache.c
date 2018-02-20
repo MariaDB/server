@@ -890,9 +890,9 @@ size_t init_pagecache(PAGECACHE *pagecache, size_t use_mem,
   DBUG_PRINT("exit",
              ("disk_blocks: %zu  block_root: %p  hash_entries: %zu\
  hash_root: %p  hash_links: %zu  hash_link_root: %p",
-              pagecache->disk_blocks, pagecache->block_root,
+              (size_t)pagecache->disk_blocks, pagecache->block_root,
               pagecache->hash_entries, pagecache->hash_root,
-              pagecache->hash_links, pagecache->hash_link_root));
+              (size_t)pagecache->hash_links, pagecache->hash_link_root));
 
   pagecache->blocks= pagecache->disk_blocks > 0 ? pagecache->disk_blocks : 0;
   DBUG_RETURN((size_t)pagecache->disk_blocks);

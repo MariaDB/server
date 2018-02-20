@@ -54,7 +54,7 @@ int test_file(PAGECACHE_FILE file, char *file_name,
   LARGE_INTEGER li;
   if(GetFileAttributesEx(file_name, GetFileExInfoStandard, &file_attr) == 0)
   {
-    diag("Can't GetFileAttributesEx %s (errno: %d)\n", file_name,
+    diag("Can't GetFileAttributesEx %s (errno: %lu)\n", file_name,
       GetLastError());
     res= 0;
     goto err;

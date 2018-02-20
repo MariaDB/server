@@ -88,7 +88,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
                         tm.tm_hour, tm.tm_min, tm.tm_sec);
   if (opt_expect_abort
 #ifdef _WIN32
-    && sig == EXCEPTION_BREAKPOINT /* __debugbreak in my_sigabrt_hander() */
+    && sig == (int)EXCEPTION_BREAKPOINT /* __debugbreak in my_sigabrt_hander() */
 #else
     && sig == SIGABRT
 #endif

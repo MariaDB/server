@@ -3510,7 +3510,9 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 			os_thread_create */
 {
 	my_thread_init();
+#ifndef DBUG_OFF
 	os_thread_id_t cleaner_thread_id = os_thread_get_curr_id();
+#endif
 
 	mutex_enter(&page_cleaner.mutex);
 	ulint thread_no = page_cleaner.n_workers++;

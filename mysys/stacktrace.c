@@ -703,7 +703,7 @@ void my_print_stacktrace(uchar* unused1, ulong unused2, my_bool silent)
     if(have_source)
     {
       const char *base_file_name= my_basename(line.FileName);
-      my_safe_printf_stderr("[%s:%u]",
+      my_safe_printf_stderr("[%s:%lu]",
                             base_file_name, line.LineNumber);
     }
     my_safe_printf_stderr("%s", "\n");
@@ -733,7 +733,7 @@ void my_write_core(int unused)
   if(GetModuleFileName(NULL, path, sizeof(path)))
   {
     _splitpath(path, NULL, NULL,dump_fname,NULL);
-    strncat(dump_fname, ".dmp", sizeof(dump_fname));
+    strcat_s(dump_fname, sizeof(dump_fname), ".dmp");
   }
 
   hFile= CreateFile(dump_fname, GENERIC_WRITE, 0, 0, CREATE_ALWAYS,

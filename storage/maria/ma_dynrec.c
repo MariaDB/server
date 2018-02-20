@@ -1208,8 +1208,8 @@ err:
           my_errno is set to HA_ERR_WRONG_IN_RECORD
 */
 
-ulong _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
-		     ulong found_length)
+size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
+		     size_t found_length)
 {
   uint flag,bit,length,min_pack_length, column_length;
   enum en_fieldtype type;

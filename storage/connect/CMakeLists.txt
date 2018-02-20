@@ -69,6 +69,10 @@ ELSE(NOT UNIX)
   # Add exception handling to the CONNECT project)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   SET(IPHLPAPI_LIBRARY iphlpapi.lib)
+  IF(MSVC AND (CMAKE_CXX_COMPILER_ID MATCHES Clang))
+    # Connect does not work with clang-cl
+    RETURN()
+  ENDIF()
 ENDIF(UNIX)
 
 

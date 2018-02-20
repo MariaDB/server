@@ -800,7 +800,7 @@ wait_for_no_updates(MYSQL *connection, uint timeout, uint threshold)
 
 static
 os_thread_ret_t
-kill_query_thread(
+DECLARE_THREAD(kill_query_thread)(
 /*===============*/
 	void *arg __attribute__((unused)))
 {

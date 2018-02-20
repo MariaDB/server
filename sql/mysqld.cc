@@ -2510,10 +2510,9 @@ static void set_user(const char *user, struct passwd *user_info_arg)
   allow_coredumps();
 }
 
-
+#if !defined(__WIN__)
 static void set_effective_user(struct passwd *user_info_arg)
 {
-#if !defined(__WIN__)
   DBUG_ASSERT(user_info_arg != 0);
   if (setregid((gid_t)-1, user_info_arg->pw_gid) == -1)
   {
@@ -2526,9 +2525,8 @@ static void set_effective_user(struct passwd *user_info_arg)
     unireg_abort(1);
   }
   allow_coredumps();
-#endif
 }
-
+#endif
 
 /** Change root user if started with @c --chroot . */
 static void set_root(const char *path)
@@ -6191,10 +6189,10 @@ int mysqld_main(int argc, char **argv)
 ****************************************************************************/
 
 #if defined(__WIN__) && !defined(EMBEDDED_LIBRARY)
-int mysql_service(void *p)
+void  mysql_service(void *p)
 {
   if (my_thread_init())
-    return 1;
+    abort();
   
   if (use_opt_args)
     win_main(opt_argc, opt_argv);
@@ -6202,7 +6200,6 @@ int mysql_service(void *p)
     win_main(Service.my_argc, Service.my_argv);
 
   my_thread_end();
-  return 0;
 }
 
 
@@ -6253,7 +6250,7 @@ default_service_handling(char **argv,
      the option name) should be quoted if it contains a string.  
     */
     *pos++= ' ';
-    if (opt_delim= strchr(extra_opt, '='))
+    if ((opt_delim= strchr(extra_opt, '=')))
     {
       size_t length= ++opt_delim - extra_opt;
       pos= strnmov(pos, extra_opt, length);

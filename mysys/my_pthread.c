@@ -21,6 +21,7 @@
 #include <signal.h>
 #include <m_string.h>
 #include <thr_alarm.h>
+#include <my_pthread.h>
 
 #if (defined(__BSD__) || defined(_BSDI_VERSION))
 #define SCHED_POLICY SCHED_RR

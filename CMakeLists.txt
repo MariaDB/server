@@ -182,7 +182,8 @@ OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system librar
 INCLUDE(check_compiler_flag)
 
 OPTION(WITH_ASAN "Enable address sanitizer" OFF)
-IF (WITH_ASAN)
+
+IF (WITH_ASAN AND NOT MSVC)
   # gcc 4.8.1 and new versions of clang
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=address -fPIC"
     DEBUG RELWITHDEBINFO)
