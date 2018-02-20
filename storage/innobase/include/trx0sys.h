@@ -1125,7 +1125,8 @@ public:
   /** @return number of committed transactions waiting for purge */
   ulint history_size() const
   {
-    return uint32(my_atomic_load32(&rseg_history_len));
+    return uint32(my_atomic_load32(&const_cast<trx_sys_t*>(this)
+                                   ->rseg_history_len));
   }
   /** Add to the TRX_RSEG_HISTORY length (on database startup). */
   void history_add(int32 len)
