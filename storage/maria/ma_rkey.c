@@ -46,7 +46,7 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
   info->last_key_func= search_flag;
   keyinfo= info->last_key.keyinfo;
 
-  key_buff= info->lastkey_buff+info->s->base.max_key_length;
+  key_buff= info->lastkey_buff2;
 
   if (info->once_flags & USE_PACKED_KEYS)
   {
@@ -55,7 +55,8 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
       key is already packed!;  This happens when we are using a MERGE TABLE
       In this key 'key_part_map' is the length of the key !
     */
-    bmove(key_buff, key_data, keypart_map);
+    if (key_buff != key_data)
+      bmove(key_buff, key_data, keypart_map);
     key.data=    key_buff;
     key.keyinfo= keyinfo;
     key.data_length= keypart_map;
