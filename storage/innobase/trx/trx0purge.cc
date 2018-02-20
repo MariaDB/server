@@ -347,7 +347,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		MONITOR_INC(MONITOR_NUM_UNDO_SLOT_CACHED);
 	} else {
 		ut_ad(undo->state == TRX_UNDO_TO_PURGE);
-		trx_undo_mem_free(undo);
+		ut_free(undo);
 	}
 
 	undo = NULL;

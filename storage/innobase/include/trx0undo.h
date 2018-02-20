@@ -326,12 +326,6 @@ trx_undo_parse_page_header(
 ulint
 trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
 				trx_id_t& max_trx_id);
-/************************************************************************
-Frees an undo log memory copy. */
-void
-trx_undo_mem_free(
-/*==============*/
-	trx_undo_t*	undo);		/* in: the undo object to be freed */
 
 #endif /* !UNIV_INNOCHECKSUM */
 

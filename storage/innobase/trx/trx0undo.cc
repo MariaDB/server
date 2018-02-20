@@ -1255,18 +1255,6 @@ trx_undo_mem_init_for_reuse(
 	undo->empty = TRUE;
 }
 
-/********************************************************************//**
-Frees an undo log memory copy. */
-void
-trx_undo_mem_free(
-/*==============*/
-	trx_undo_t*	undo)	/*!< in: the undo object to be freed */
-{
-	ut_a(undo->id < TRX_RSEG_N_SLOTS);
-
-	ut_free(undo);
-}
-
 /** Create an undo log.
 @param[in,out]	trx	transaction
 @param[in,out]	rseg	rollback segment
@@ -1626,7 +1614,7 @@ trx_undo_commit_cleanup(trx_undo_t* undo, bool is_temp)
 		ut_ad(rseg->curr_size > undo->size);
 		rseg->curr_size -= undo->size;
 
-		trx_undo_mem_free(undo);
+		ut_free(undo);
 	}
 
 	mutex_exit(&rseg->mutex);
@@ -1659,7 +1647,7 @@ trx_undo_free_at_shutdown(trx_t *trx)
 		}
 
 		UT_LIST_REMOVE(trx->rsegs.m_redo.rseg->undo_list, undo);
-		trx_undo_mem_free(undo);
+		ut_free(undo);
 		undo = NULL;
 	}
 
@@ -1686,7 +1674,7 @@ trx_undo_free_at_shutdown(trx_t *trx)
 		}
 
 		UT_LIST_REMOVE(trx->rsegs.m_redo.rseg->old_insert_list, undo);
-		trx_undo_mem_free(undo);
+		ut_free(undo);
 		undo = NULL;
 	}
 
@@ -1694,7 +1682,7 @@ trx_undo_free_at_shutdown(trx_t *trx)
 		ut_a(undo->state == TRX_UNDO_PREPARED);
 
 		UT_LIST_REMOVE(trx->rsegs.m_noredo.rseg->undo_list, undo);
-		trx_undo_mem_free(undo);
+		ut_free(undo);
 		undo = NULL;
 	}
 }
@@ -1757,7 +1745,7 @@ trx_undo_truncate_tablespace(
 			next_undo = UT_LIST_GET_NEXT(undo_list, undo);
 			UT_LIST_REMOVE(rseg->undo_cached, undo);
 			MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_CACHED);
-			trx_undo_mem_free(undo);
+			ut_free(undo);
 		}
 
 		UT_LIST_INIT(rseg->undo_list, &trx_undo_t::undo_list);

@@ -129,7 +129,7 @@ trx_rseg_mem_free(trx_rseg_t* rseg)
 
 		MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_CACHED);
 
-		trx_undo_mem_free(undo);
+		ut_free(undo);
 	}
 
 	ut_free(rseg);
