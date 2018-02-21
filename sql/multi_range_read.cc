@@ -1656,10 +1656,10 @@ int DsMrr_impl::dsmrr_explain_info(uint mrr_mode, char *str, size_t size)
     else if (mrr_mode & DSMRR_IMPL_SORT_ROWIDS)
       used_str= rowid_ordered;
 
-    uint used_str_len= strlen(used_str);
-    uint copy_len= MY_MIN(used_str_len, size);
+    size_t used_str_len= strlen(used_str);
+    size_t copy_len= MY_MIN(used_str_len, size);
     memcpy(str, used_str, copy_len);
-    return copy_len;
+    return (int)copy_len;
   }
   return 0;
 }
@@ -1718,7 +1718,7 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
   else
   {
     cost->reset();
-    *buffer_size= MY_MAX(*buffer_size, 
+    *buffer_size= (uint)MY_MAX(*buffer_size, 
                       (size_t)(1.2*rows_in_last_step) * elem_size + 
                       primary_file->ref_length + table->key_info[keynr].key_length);
   }

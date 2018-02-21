@@ -23,7 +23,7 @@
 /* Definitions for MariaDB global transaction ID (GTID). */
 
 
-extern const LEX_STRING rpl_gtid_slave_state_table_name;
+extern const LEX_CSTRING rpl_gtid_slave_state_table_name;
 
 class String;
 

@@ -427,7 +427,7 @@ bool JOIN::check_for_splittable_materialized()
   }
 
   /* Count the candidate fields that can be accessed by ref */
-  uint spl_field_cnt= candidates.elements();
+  uint spl_field_cnt= (uint)candidates.elements();
   for (cand= cand_start; cand < cand_end; cand++)
   {
     if (!cand->is_usable_for_ref_access)
@@ -645,7 +645,8 @@ double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
   cost+= get_tmp_table_lookup_cost(thd, join_record_count,rec_len) *
          join_record_count;   // cost to perform post join operation used here
   cost+= get_tmp_table_lookup_cost(thd, join_record_count, rec_len) +
-         join_record_count * log2 (join_record_count) *
+         (join_record_count == 0 ? 0 :
+          join_record_count * log2 (join_record_count)) *
          SORT_INDEX_CMP_COST;             // cost to perform  sorting
   return cost;
 }
@@ -693,7 +694,7 @@ void JOIN::add_keyuses_for_splitting()
     (void) add_ext_keyuses_for_splitting_field(ext_keyuses_for_splitting,
                                                added_key_field);
   }
-  added_keyuse_count= ext_keyuses_for_splitting->elements();
+  added_keyuse_count= (uint)ext_keyuses_for_splitting->elements();
   if (!added_keyuse_count)
     goto err;
   sort_ext_keyuses(ext_keyuses_for_splitting);
@@ -948,7 +949,9 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       spl_plan->table= best_table;
       spl_plan->key= best_key;
       spl_plan->parts= best_key_parts;
-      spl_plan->split_sel= best_rec_per_key / spl_opt_info->unsplit_card;
+      spl_plan->split_sel= best_rec_per_key /
+                           (spl_opt_info->unsplit_card ?
+                            spl_opt_info->unsplit_card : 1); 
 
       uint rec_len= table->s->rec_buff_length;
 
@@ -1118,11 +1121,11 @@ bool JOIN::fix_all_splittings_in_plan()
 {
   table_map prev_tables= 0;
   table_map all_tables= (1 << table_count) - 1;
-  for (uint tablenr=0 ; tablenr < table_count ; tablenr++)
+  for (uint tablenr= 0; tablenr < table_count; tablenr++)
   {
     POSITION *cur_pos= &best_positions[tablenr];
     JOIN_TAB *tab= cur_pos->table;
-    if (tab->table->is_splittable())
+    if (tablenr >= const_tables && tab->table->is_splittable())
     {
       SplM_plan_info *spl_plan= cur_pos->spl_plan;
       if (tab->fix_splitting(spl_plan, all_tables & ~prev_tables))

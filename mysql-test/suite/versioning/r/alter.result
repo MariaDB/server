@@ -28,6 +28,10 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 set system_versioning_alter_history= keep;
+alter table t add system versioning;
+alter table t drop system versioning, drop column row_start;
+ERROR 42000: Can't DROP COLUMN `row_start`; check that it exists
+alter table t drop system versioning;
 alter table t
 add column trx_start bigint(20) unsigned as row start invisible,
 add column trx_end bigint(20) unsigned as row end invisible,
@@ -60,13 +64,19 @@ t	CREATE TABLE `t` (
   `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t drop system versioning;
+ERROR HY000: System versioning field `trx_start` exists
 alter table t drop column trx_start, drop column trx_end;
+select row_start from t;
+row_start
 alter table t drop system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t add column trx_start timestamp(6) as row start;
+ERROR HY000: Table `t` is not system-versioned
 alter table t add system versioning;
 show create table t;
 Table	Create Table
@@ -125,12 +135,17 @@ with system versioning;
 select * from t for system_time all;
 a
 alter table t drop column row_start;
-ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN row_end'
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `row_end`'
 alter table t drop column row_end;
-ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN row_start'
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `row_start`'
 alter table t drop column row_start, drop column row_end;
 select * from t for system_time all;
 a
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t drop column row_start;
 ERROR 42000: Can't DROP COLUMN `row_start`; check that it exists
 alter table t drop column row_end;
@@ -375,6 +390,23 @@ a	b
 2	NULL
 3	1
 4	2
+create or replace table t (a int, b int primary key, c int unique) with system versioning;
+insert t values (1,2,3),(1,3,4),(1,4,5);
+alter table t drop system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`b`),
+  UNIQUE KEY `c` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from t;
+a	b	c
+1	2	3
+1	3	4
+1	4	5
 create or replace table t (
 a int,
 row_start timestamp(6) as row start invisible,

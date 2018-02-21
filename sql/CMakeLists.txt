@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2016, MariaDB Corporation
+# Copyright (c) 2010, 2018, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -115,7 +115,7 @@ SET (SQL_SOURCE
                debug_sync.cc
                sql_repl.cc sql_select.cc sql_show.cc sql_state.c
                group_by_handler.cc
-               sql_statistics.cc sql_string.cc 
+               sql_statistics.cc sql_string.cc lex_string.h
                sql_table.cc sql_test.cc sql_trigger.cc sql_udf.cc sql_union.cc
                sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc 
                sql_time.cc tztime.cc unireg.cc item_xmlfunc.cc 

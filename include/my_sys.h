@@ -893,8 +893,9 @@ extern void my_free_lock(void *ptr);
 #define alloc_root_inited(A) ((A)->min_malloc != 0)
 #define ALLOC_ROOT_MIN_BLOCK_SIZE (MALLOC_OVERHEAD + sizeof(USED_MEM) + 8)
 #define clear_alloc_root(A) do { (A)->free= (A)->used= (A)->pre_alloc= 0; (A)->min_malloc=0;} while(0)
-extern void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
-			    size_t pre_alloc_size, myf my_flags);
+extern void init_alloc_root(MEM_ROOT *mem_root, const char *name,
+                            size_t block_size, size_t pre_alloc_size,
+                            myf my_flags);
 extern void *alloc_root(MEM_ROOT *mem_root, size_t Size);
 extern void *multi_alloc_root(MEM_ROOT *mem_root, ...);
 extern void free_root(MEM_ROOT *root, myf MyFLAGS);
@@ -1046,9 +1047,9 @@ extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
 
-extern void thd_increment_bytes_sent(void *thd, ulong length);
-extern void thd_increment_bytes_received(void *thd, ulong length);
-extern void thd_increment_net_big_packet_count(void *thd, ulong length);
+extern void thd_increment_bytes_sent(void *thd, size_t length);
+extern void thd_increment_bytes_received(void *thd, size_t length);
+extern void thd_increment_net_big_packet_count(void *thd, size_t length);
 
 #ifdef __WIN__
 extern my_bool have_tcpip;		/* Is set if tcpip is used */

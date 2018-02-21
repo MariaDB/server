@@ -142,7 +142,7 @@ static void get_point(double *x, double *y, const char *data)
 
 /***************************** Geometry *******************************/
 
-Geometry::Class_info *Geometry::find_class(const char *name, uint32 len)
+Geometry::Class_info *Geometry::find_class(const char *name, size_t len)
 {
   for (Class_info **cur_rt= ci_collection;
        cur_rt < ci_collection_end; cur_rt++)

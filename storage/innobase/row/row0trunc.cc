@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1271,6 +1271,10 @@ row_truncate_complete(
 		}
 	}
 
+	if (err == DB_SUCCESS) {
+		dict_stats_update(table, DICT_STATS_EMPTY_TABLE);
+	}
+
 	trx->op_info = "";
 
 	/* For temporary tables or if there was an error, we need to reset
@@ -1647,19 +1651,7 @@ row_truncate_foreign_key_checks(
 		return(DB_ERROR);
 	}
 
-	/* TODO: could we replace the counter n_foreign_key_checks_running
-	with lock checks on the table? Acquire here an exclusive lock on the
-	table, and rewrite lock0lock.cc and the lock wait in srv0srv.cc so that
-	they can cope with the table having been truncated here? Foreign key
-	checks take an IS or IX lock on the table. */
-
-	if (table->n_foreign_key_checks_running > 0) {
-		ib::warn() << "Cannot truncate table " << table->name
-			<< " because there is a foreign key check running on"
-			" it.";
-
-		return(DB_ERROR);
-	}
+	ut_ad(!table->n_foreign_key_checks_running);
 
 	return(DB_SUCCESS);
 }
@@ -1714,9 +1706,6 @@ row_truncate_table_for_mysql(
 	Step-1: Perform intiial sanity check to ensure table can be truncated.
 	This would include check for tablespace discard status, ibd file
 	missing, etc ....
-
-	Step-2: Start transaction (only for non-temp table as temp-table don't
-	modify any data on disk doesn't need transaction object).
 
 	Step-3: Validate ownership of needed locks (Exclusive lock).
 	Ownership will also ensure there is no active SQL queries, INSERT,
@@ -1798,11 +1787,8 @@ row_truncate_table_for_mysql(
 
 	}
 
-	/* Step-2: Start transaction (only for non-temp table as temp-table
-	don't modify any data on disk doesn't need transaction object). */
 	if (!dict_table_is_temporary(table)) {
-		/* Avoid transaction overhead for temporary table DDL. */
-		trx_start_for_ddl(trx, TRX_DICT_OP_TABLE);
+		trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 	}
 
 	/* Step-3: Validate ownership of needed locks (Exclusive lock).
@@ -1828,17 +1814,17 @@ row_truncate_table_for_mysql(
 				table, trx, fsp_flags, logger, err));
 	}
 
-	/* Remove all locks except the table-level X lock. */
-	lock_remove_all_on_table(table, FALSE);
 	trx->table_id = table->id;
 	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 
 	/* Step-6: Truncate operation can be rolled back in case of error
 	till some point. Associate rollback segment to record undo log. */
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 		mutex_enter(&trx->undo_mutex);
-		err = trx_undo_assign_undo(trx, trx->rsegs.m_redo.rseg,
-					   &trx->rsegs.m_redo.undo);
+		mtr_t mtr;
+		mtr.start();
+		trx_undo_assign(trx, &err, &mtr);
+		mtr.commit();
 		mutex_exit(&trx->undo_mutex);
 
 		DBUG_EXECUTE_IF("ib_err_trunc_assigning_undo_log",
@@ -2098,17 +2084,8 @@ row_truncate_table_for_mysql(
 	dict_table_autoinc_unlock(table);
 
 	if (trx_is_started(trx)) {
-		char	errstr[1024];
-		if (dict_stats_drop_table(table->name.m_name, errstr,
-					  sizeof errstr, trx) != DB_SUCCESS) {
-			ib::warn() << "Deleting persistent "
-				"statistics for table " << table->name
-				   << " failed: " << errstr;
-		}
 
 		trx_commit_for_mysql(trx);
-
-		dict_stats_empty_table(table);
 	}
 
 	ut_ad(!table->is_instant());

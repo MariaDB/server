@@ -587,17 +587,17 @@ static void lf_alloc_destructor(uchar *arg)
 }
 
 
-static void tdc_hash_initializer(LF_HASH *hash __attribute__((unused)),
+static void tdc_hash_initializer(LF_HASH *,
                                  TDC_element *element, LEX_STRING *key)
 {
   memcpy(element->m_key, key->str, key->length);
-  element->m_key_length= key->length;
+  element->m_key_length= (uint)key->length;
   tdc_assert_clean_share(element);
 }
 
 
 static uchar *tdc_hash_key(const TDC_element *element, size_t *length,
-                           my_bool not_used __attribute__((unused)))
+                           my_bool)
 {
   *length= element->m_key_length;
   return (uchar*) element->m_key;
@@ -827,7 +827,7 @@ retry:
     lf_hash_search_unpin(thd->tdc_hash_pins);
     DBUG_ASSERT(element);
 
-    if (!(share= alloc_table_share(tl->db, tl->table_name, key, key_length)))
+    if (!(share= alloc_table_share(tl->db.str, tl->table_name.str, key, key_length)))
     {
       lf_hash_delete(&tdc_hash, thd->tdc_hash_pins, key, key_length);
       DBUG_RETURN(0);
@@ -1301,7 +1301,8 @@ int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
 
   if (no_dups)
   {
-    init_alloc_root(&no_dups_argument.root, 4096, 4096, MYF(alloc_flags));
+    init_alloc_root(&no_dups_argument.root, "no_dups", 4096, 4096,
+                    MYF(alloc_flags));
     my_hash_init(&no_dups_argument.hash, &my_charset_bin, tdc_records(), 0, 0,
                  eliminate_duplicates_get_key, 0, hash_flags);
     no_dups_argument.action= action;

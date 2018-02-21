@@ -75,12 +75,15 @@ fi
 
 # Convert gcc version to numberical value. Format is Mmmpp where M is Major
 # version, mm is minor version and p is patch.
-GCCVERSION=$(gcc -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$/&00/')
+# -dumpfullversion & -dumpversion to make it uniform across old and new (>=7)
+GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' \
+                                                     -e 's/\.\([0-9]\)/0\1/g'     \
+						     -e 's/^[0-9]\{3,4\}$/&00/')
 # Don't build rocksdb package if gcc version is less than 4.8 or we are running on
 # x86 32 bit.
 if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
 then
-  sed '/Package: mariadb-plugin-rocksdb/,+13d' -i debian/control
+  sed '/Package: mariadb-plugin-rocksdb/,+14d' -i debian/control
 fi
 
 # AWS SDK requires c++11 -capable compiler

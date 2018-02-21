@@ -1393,7 +1393,7 @@ handle_rpl_parallel_thread(void *arg)
   thd->clear_error();
   thd->catalog= 0;
   thd->reset_query();
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&null_clex_str);
   thd_proc_info(thd, "Slave worker thread exiting");
   thd->temporary_tables= 0;
 
@@ -1622,10 +1622,19 @@ int rpl_parallel_resize_pool_if_no_slaves(void)
 }
 
 
+/**
+   Resize pool if not active or busy (in which case we may be in
+   resize to 0
+*/
+
 int
 rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool)
 {
-  if (!pool->count)
+  bool resize;
+  mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
+  resize= !pool->count || pool->busy;
+  mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
+  if (resize)
     return rpl_parallel_change_thread_count(pool, opt_slave_parallel_threads,
                                             0);
   return 0;

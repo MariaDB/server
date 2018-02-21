@@ -866,7 +866,7 @@ static void alloc_strings_memroot(MEM_ROOT *mem_root)
       The mem_root used to allocate UUID (of length 36 + \0) so make
       appropriate allocated size
     */
-    init_alloc_root(mem_root,
+    init_alloc_root(mem_root, "cassandra",
                     (36 + 1 + ALIGN_SIZE(sizeof(USED_MEM))) * 10 +
                     ALLOC_ROOT_MIN_BLOCK_SIZE,
                     (36 + 1 + ALIGN_SIZE(sizeof(USED_MEM))) * 10 +

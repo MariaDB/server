@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB
+   Copyright (c) 2010, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -168,9 +168,9 @@ static bool check_view_single_update(List<Item> &fields, List<Item> *values,
   if (!tbl->single_table_updatable())
   {
     if (insert)
-      my_error(ER_NON_INSERTABLE_TABLE, MYF(0), view->alias, "INSERT");
+      my_error(ER_NON_INSERTABLE_TABLE, MYF(0), view->alias.str, "INSERT");
     else
-      my_error(ER_NON_UPDATABLE_TABLE, MYF(0), view->alias, "UPDATE");
+      my_error(ER_NON_UPDATABLE_TABLE, MYF(0), view->alias.str, "UPDATE");
     return TRUE;
   }
   *map= tables;
@@ -210,7 +210,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 
   if (!table_list->single_table_updatable())
   {
-    my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias, "INSERT");
+    my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias.str, "INSERT");
     DBUG_RETURN(-1);
   }
 
@@ -304,7 +304,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
       (table_list->view &&
        check_view_insertability(thd, table_list)))
   {
-    my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias, "INSERT");
+    my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias.str, "INSERT");
     DBUG_RETURN(-1);
   }
 
@@ -742,11 +742,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   */
   if (table_list->lock_type == TL_WRITE_DELAYED &&
       thd->locked_tables_mode &&
-      find_locked_table(thd->open_tables, table_list->db,
-                        table_list->table_name))
+      find_locked_table(thd->open_tables, table_list->db.str,
+                        table_list->table_name.str))
   {
     my_error(ER_DELAYED_INSERT_TABLE_LOCKED, MYF(0),
-             table_list->table_name);
+             table_list->table_name.str);
     DBUG_RETURN(TRUE);
   }
   /*
@@ -1299,7 +1299,7 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
   uint used_fields_buff_size= bitmap_buffer_size(table->s->fields);
   uint32 *used_fields_buff= (uint32*)thd->alloc(used_fields_buff_size);
   MY_BITMAP used_fields;
-  enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
+  enum_column_usage saved_column_usage= thd->column_usage;
   DBUG_ENTER("check_key_in_view");
 
   if (!used_fields_buff)
@@ -1315,20 +1315,20 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
     we must not set query_id for fields as they're not 
     really used in this context
   */
-  thd->mark_used_columns= MARK_COLUMNS_NONE;
+  thd->column_usage= COLUMNS_WRITE;
   /* check simplicity and prepare unique test of view */
   for (trans= trans_start; trans != trans_end; trans++)
   {
     if (!trans->item->fixed && trans->item->fix_fields(thd, &trans->item))
     {
-      thd->mark_used_columns= save_mark_used_columns;
+      thd->column_usage= saved_column_usage;
       DBUG_RETURN(TRUE);
     }
     Item_field *field;
     /* simple SELECT list entry (field without expression) */
     if (!(field= trans->item->field_for_view_update()))
     {
-      thd->mark_used_columns= save_mark_used_columns;
+      thd->column_usage= saved_column_usage;
       DBUG_RETURN(TRUE);
     }
     if (field->field->unireg_check == Field::NEXT_NUMBER)
@@ -1340,7 +1340,7 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
     */
     trans->item= field;
   }
-  thd->mark_used_columns= save_mark_used_columns;
+  thd->column_usage= saved_column_usage;
   /* unique test */
   for (trans= trans_start; trans != trans_end; trans++)
   {
@@ -1381,7 +1381,7 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
 
   if (!table_list->single_table_updatable())
   {
-    my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias, "INSERT");
+    my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias.str, "INSERT");
     DBUG_RETURN(TRUE);
   }
   /*
@@ -2262,8 +2262,8 @@ Delayed_insert *find_handler(THD *thd, TABLE_LIST *table_list)
   Delayed_insert *di;
   while ((di= it++))
   {
-    if (!strcmp(table_list->db, di->table_list.db) &&
-	!strcmp(table_list->table_name, di->table_list.table_name))
+    if (!cmp(&table_list->db, &di->table_list.db) &&
+	!cmp(&table_list->table_name, &di->table_list.table_name))
     {
       di->lock();
       break;
@@ -2327,7 +2327,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
   DBUG_ENTER("delayed_get_table");
 
   /* Must be set in the parser */
-  DBUG_ASSERT(table_list->db);
+  DBUG_ASSERT(table_list->db.str);
 
   /* Find the thread which handles this table. */
   if (!(di= find_handler(thd, table_list)))
@@ -2354,11 +2354,12 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       */
       di->thd.variables.binlog_annotate_row_events= 0;
 
-      di->thd.set_db(table_list->db, (uint) strlen(table_list->db));
-      di->thd.set_query(my_strdup(table_list->table_name,
-                                  MYF(MY_WME | ME_FATALERROR)),
-                        0, system_charset_info);
-      if (di->thd.db == NULL || di->thd.query() == NULL)
+      di->thd.set_db(&table_list->db);
+      di->thd.set_query(my_strndup(table_list->table_name.str,
+                                   table_list->table_name.length,
+                                   MYF(MY_WME | ME_FATALERROR)),
+                        table_list->table_name.length, system_charset_info);
+      if (di->thd.db.str == NULL || di->thd.query() == NULL)
       {
         /* The error is reported */
 	delete di;
@@ -2366,7 +2367,8 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       }
       di->table_list= *table_list;			// Needed to open table
       /* Replace volatile strings with local copies */
-      di->table_list.alias= di->table_list.table_name= di->thd.query();
+      di->table_list.alias.str=    di->table_list.table_name.str=    di->thd.query();
+      di->table_list.alias.length= di->table_list.table_name.length= di->thd.query_length();
       di->table_list.db= di->thd.db;
       /* We need the tickets so that they can be cloned in handle_delayed_insert */
       di->grl_protection.init(MDL_key::GLOBAL, "", "",
@@ -2848,7 +2850,7 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
 
   if (!(table_list->table->file->ha_table_flags() & HA_CAN_INSERT_DELAYED))
   {
-    my_error(ER_DELAYED_NOT_SUPPORTED, MYF(0), table_list->table_name);
+    my_error(ER_DELAYED_NOT_SUPPORTED, MYF(0), table_list->table_name.str);
     return TRUE;
   }
   return FALSE;
@@ -4222,8 +4224,8 @@ TABLE *select_create::create_table_from_items(THD *thd,
     open_table().
   */
 
-  if (!mysql_create_table_no_lock(thd, create_table->db,
-                                  create_table->table_name,
+  if (!mysql_create_table_no_lock(thd, &create_table->db,
+                                  &create_table->table_name,
                                   create_info, alter_info, NULL,
                                   select_field_count, create_table))
   {
@@ -4249,8 +4251,8 @@ TABLE *select_create::create_table_from_items(THD *thd,
       */
       if (open_table(thd, create_table, &ot_ctx))
       {
-        quick_rm_table(thd, create_info->db_type, create_table->db,
-                       table_case_name(create_info, create_table->table_name),
+        quick_rm_table(thd, create_info->db_type, &create_table->db,
+                       table_case_name(create_info, &create_table->table_name),
                        0);
       }
       /* Restore */
@@ -4307,7 +4309,7 @@ TABLE *select_create::create_table_from_items(THD *thd,
       mysql_unlock_tables(thd, *lock);
       *lock= 0;
     }
-    drop_open_table(thd, table, create_table->db, create_table->table_name);
+    drop_open_table(thd, table, &create_table->db, &create_table->table_name);
     DBUG_RETURN(0);
     /* purecov: end */
   }
@@ -4583,8 +4585,8 @@ bool select_create::send_eof()
       */
       wsrep_key_arr_t key_arr= {0, 0};
       wsrep_prepare_keys_for_isolation(thd,
-                                       create_table->db,
-                                       create_table->table_name,
+                                       create_table->db.str,
+                                       create_table->table_name.str,
                                        table_list,
                                        &key_arr);
       int rcode = wsrep->append_key(wsrep,
@@ -4733,16 +4735,14 @@ void select_create::abort_result_set()
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
     table->auto_increment_field_not_null= FALSE;
-    drop_open_table(thd, table, create_table->db, create_table->table_name);
+    drop_open_table(thd, table, &create_table->db, &create_table->table_name);
     table=0;                                    // Safety
     if (thd->log_current_statement && mysql_bin_log.is_open())
     {
       /* Remove logging of drop, create + insert rows */
       binlog_reset_cache(thd);
       /* Original table was deleted. We have to log it */
-      log_drop_table(thd, create_table->db, create_table->db_length,
-                     create_table->table_name, create_table->table_name_length,
-                     tmp_table);
+      log_drop_table(thd, &create_table->db, &create_table->table_name, tmp_table);
     }
   }
   DBUG_VOID_RETURN;

@@ -655,7 +655,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
   thd->mysql= mysql;
   mysql->server_version= server_version;
   mysql->client_flag= client_flag;
-  init_alloc_root(&mysql->field_alloc, 8192, 0, MYF(0));
+  init_alloc_root(&mysql->field_alloc, "fields", 8192, 0, MYF(0));
 }
 
 /**
@@ -692,8 +692,7 @@ void *create_embedded_thd(int client_flag)
   thd->client_capabilities= client_flag;
   thd->real_id= pthread_self();
 
-  thd->db= NULL;
-  thd->db_length= 0;
+  thd->db= null_clex_str;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   thd->security_ctx->db_access= DB_ACLS;
   thd->security_ctx->master_access= ~NO_ACCESS;
@@ -972,7 +971,7 @@ int Protocol::begin_dataset()
     return 1;
   alloc= &data->alloc;
   /* Assume rowlength < 8192 */
-  init_alloc_root(alloc, 8192, 0, MYF(0));
+  init_alloc_root(alloc, "protocol", 8192, 0, MYF(0));
   alloc->min_malloc= sizeof(MYSQL_ROWS);
   return 0;
 }

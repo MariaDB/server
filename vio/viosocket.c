@@ -653,18 +653,15 @@ my_socket vio_fd(Vio* vio)
   @param src_length [in] length of the src.
   @param dst        [out] a buffer to store normalized IP address
                           (sockaddr_storage).
-  @param dst_length [out] actual length of the normalized IP address.
+  @param dst_length [out] optional - actual length of the normalized IP address.
 */
 
-void vio_get_normalized_ip(const struct sockaddr *src,
-                                  int src_length,
-                                  struct sockaddr *dst,
-                                  int *dst_length)
+void vio_get_normalized_ip(const struct sockaddr *src, size_t src_length,
+                                  struct sockaddr *dst)
 {
   switch (src->sa_family) {
   case AF_INET:
     memcpy(dst, src, src_length);
-    *dst_length= src_length;
     break;
 
 #ifdef HAVE_IPV6
@@ -683,9 +680,7 @@ void vio_get_normalized_ip(const struct sockaddr *src,
         be converted to the IPv4 form.
       */
 
-      *dst_length= sizeof (struct sockaddr_in);
-
-      memset(dst_ip4, 0, *dst_length);
+      memset(dst_ip4, 0, sizeof (struct sockaddr_in));
       dst_ip4->sin_family= AF_INET;
       dst_ip4->sin_port= src_addr6->sin6_port;
 
@@ -699,9 +694,7 @@ void vio_get_normalized_ip(const struct sockaddr *src,
     else
     {
       /* This is a "native" IPv6 address. */
-
       memcpy(dst, src, src_length);
-      *dst_length= src_length;
     }
 
     break;
@@ -732,17 +725,15 @@ void vio_get_normalized_ip(const struct sockaddr *src,
   @retval FALSE on success.
 */
 
-my_bool vio_get_normalized_ip_string(const struct sockaddr *addr,
-                                     int addr_length,
+my_bool vio_get_normalized_ip_string(const struct sockaddr *addr, size_t addr_length,
                                      char *ip_string,
                                      size_t ip_string_size)
 {
   struct sockaddr_storage norm_addr_storage;
   struct sockaddr *norm_addr= (struct sockaddr *) &norm_addr_storage;
-  int norm_addr_length;
   int err_code;
 
-  vio_get_normalized_ip(addr, addr_length, norm_addr, &norm_addr_length);
+  vio_get_normalized_ip(addr, addr_length, norm_addr);
 
   err_code= vio_getnameinfo(norm_addr, ip_string, ip_string_size, NULL, 0,
                             NI_NUMERICHOST);
@@ -781,9 +772,7 @@ my_bool vio_peer_addr(Vio *vio, char *ip_buffer, uint16 *port,
       address.
     */
     struct in_addr *ip4= &((struct sockaddr_in *) &(vio->remote))->sin_addr;
-
     vio->remote.ss_family= AF_INET;
-    vio->addrLen= sizeof (struct sockaddr_in);
 
     ip4->s_addr= htonl(INADDR_LOOPBACK);
 
@@ -800,7 +789,6 @@ my_bool vio_peer_addr(Vio *vio, char *ip_buffer, uint16 *port,
     struct sockaddr_storage addr_storage;
     struct sockaddr *addr= (struct sockaddr *) &addr_storage;
     size_socket addr_length= sizeof (addr_storage);
-
     /* Get sockaddr by socked fd. */
 
     err_code= mysql_socket_getpeername(vio->mysql_socket, addr, &addr_length);
@@ -814,7 +802,7 @@ my_bool vio_peer_addr(Vio *vio, char *ip_buffer, uint16 *port,
     /* Normalize IP address. */
 
     vio_get_normalized_ip(addr, addr_length,
-                          (struct sockaddr *) &vio->remote, &vio->addrLen);
+                          (struct sockaddr *) &vio->remote);
 
     /* Get IP address & port number. */
 
@@ -1325,7 +1313,7 @@ int vio_getnameinfo(const struct sockaddr *sa,
   }
 
   return getnameinfo(sa, sa_length,
-                     hostname, hostname_size,
-                     port, port_size,
+                     hostname, (uint)hostname_size,
+                     port, (uint)port_size,
                      flags);
 }

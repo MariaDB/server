@@ -63,7 +63,8 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
        i < (int) key_count ;
        i++, key_info++)
   {
-    if (key_info->key_part[0].offset == fieldpos)
+    if (key_info->key_part[0].offset == fieldpos &&
+            key_info->key_part[0].field->type() != MYSQL_TYPE_BIT)
     {                                  		/* Found key. Calc keylength */
       *key_length= *keypart= 0;
       return i;                                 /* Use this key */
@@ -82,7 +83,8 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
 	 j < key_info->user_defined_key_parts ;
 	 j++, key_part++)
     {
-      if (key_part->offset == fieldpos)
+      if (key_part->offset == fieldpos &&
+            key_part->field->type() != MYSQL_TYPE_BIT)
       {
         *keypart= j;
         return i;                               /* Use this key */
@@ -317,7 +319,7 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
                                 FIELDFLAG_PACK)))
     {
       CHARSET_INFO *cs= key_part->field->charset();
-      uint char_length= key_part->length / cs->mbmaxlen;
+      size_t char_length= key_part->length / cs->mbmaxlen;
       const uchar *pos= table->record[0] + key_part->offset;
       if (length > char_length)
       {
@@ -383,7 +385,7 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
         which can break a multi-byte characters in the middle.
         Align, returning not more than "char_length" characters.
       */
-      uint charpos, char_length= max_length / cs->mbmaxlen;
+      size_t charpos, char_length= max_length / cs->mbmaxlen;
       if ((charpos= my_charpos(cs, tmp.ptr(),
                                tmp.ptr() + tmp.length(),
                                char_length)) < tmp.length())
@@ -695,7 +697,7 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
   {
     uchar *pos= (uchar*)key;
     CHARSET_INFO *UNINIT_VAR(cs);
-    uint UNINIT_VAR(length), UNINIT_VAR(pack_length);
+    size_t UNINIT_VAR(length), UNINIT_VAR(pack_length);
     bool is_string= TRUE;
 
     key+= key_part->length;
@@ -752,7 +754,7 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
     {
       if (cs->mbmaxlen > 1)
       {
-        uint char_length= my_charpos(cs, pos + pack_length,
+        size_t char_length= my_charpos(cs, pos + pack_length,
                                      pos + pack_length + length,
                                      length / cs->mbmaxlen);
         set_if_smaller(length, char_length);
@@ -799,7 +801,7 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
     uchar *pos1= (uchar*)key1;
     uchar *pos2= (uchar*)key2;
     CHARSET_INFO *UNINIT_VAR(cs);
-    uint UNINIT_VAR(length1), UNINIT_VAR(length2), UNINIT_VAR(pack_length);
+    size_t UNINIT_VAR(length1), UNINIT_VAR(length2), UNINIT_VAR(pack_length);
     bool is_string= TRUE;
 
     key1+= key_part->length;
@@ -863,13 +865,13 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
         Compare the strings taking into account length in characters
         and collation
       */
-      uint byte_len1= length1, byte_len2= length2;
+      size_t byte_len1= length1, byte_len2= length2;
       if (cs->mbmaxlen > 1)
       {
-        uint char_length1= my_charpos(cs, pos1 + pack_length,
+        size_t char_length1= my_charpos(cs, pos1 + pack_length,
                                       pos1 + pack_length + length1,
                                       length1 / cs->mbmaxlen);
-        uint char_length2= my_charpos(cs, pos2 + pack_length,
+        size_t char_length2= my_charpos(cs, pos2 + pack_length,
                                       pos2 + pack_length + length2,
                                       length2 / cs->mbmaxlen);
         set_if_smaller(length1, char_length1);

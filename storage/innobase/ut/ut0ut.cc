@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -40,6 +40,9 @@ Created 5/11/1994 Heikki Tuuri
 #include "my_cpu.h"
 
 #ifdef _WIN32
+typedef VOID(WINAPI *time_fn)(LPFILETIME);
+static time_fn ut_get_system_time_as_file_time = GetSystemTimeAsFileTime;
+
 /*****************************************************************//**
 NOTE: The Windows epoch starts from 1601/01/01 whereas the Unix
 epoch starts from 1970/1/1. For selection of constant see:
@@ -65,7 +68,7 @@ ut_gettimeofday(
 		return(-1);
 	}
 
-	GetSystemTimeAsFileTime(&ft);
+	ut_get_system_time_as_file_time(&ft);
 
 	tm = (int64_t) ft.dwHighDateTime << 32;
 	tm |= ft.dwLowDateTime;

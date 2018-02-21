@@ -72,6 +72,7 @@ void dump_single_process(DWORD pid)
   char path[MAX_PATH];
   char working_dir[MAX_PATH];
   char tmpname[MAX_PATH];
+  char *filename= 0;
 
   process= OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
   if (!process)
@@ -88,7 +89,7 @@ void dump_single_process(DWORD pid)
     goto exit;
   }
 
-  char *filename= strrchr(path, '\\');
+  filename= strrchr(path, '\\');
   if (filename)
   {
     filename++;

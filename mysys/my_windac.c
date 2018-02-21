@@ -17,21 +17,6 @@
 #include "m_string.h"
 #ifdef __WIN__
 
-/* Windows NT/2000 discretionary access control utility functions. */
-
-/*
-  Check if the operating system is built on NT technology.
-
-  RETURN
-    0   Windows 95/98/Me
-    1   otherwise
-*/
-
-static my_bool is_nt()
-{
-  return GetVersion() < 0x80000000;
-}
-
 /*
   Auxiliary structure to store pointers to the data which we need to keep
   around while SECURITY_ATTRIBUTES is in use.
@@ -85,12 +70,6 @@ int my_security_attr_create(SECURITY_ATTRIBUTES **psa, const char **perror,
   PTOKEN_USER owner_token;
   PSID owner_sid;
   My_security_attr *attr;
-
-  if (! is_nt())
-  {
-    *psa= 0;
-    return 0;
-  }
 
   /*
     Get SID of Everyone group. Easier to retrieve all SIDs each time

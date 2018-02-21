@@ -553,7 +553,7 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   String str(buffer, length, &my_charset_latin1);
   const Security_context *sctx= &thd->main_security_ctx;
   char header[256];
-  int len;
+  size_t len;
 
   /*
     The pointers thd->query and thd->proc_info might change since they are
@@ -567,8 +567,8 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   const char *proc_info= thd->proc_info;
 
   len= my_snprintf(header, sizeof(header),
-                   "MySQL thread id %lu, OS thread handle %lu, query id %lu",
-                   (ulong) thd->thread_id, (ulong) thd->real_id, (ulong) thd->query_id);
+                   "MySQL thread id %u, OS thread handle %lu, query id %llu",
+                    (uint)thd->thread_id, (ulong) thd->real_id, (ulonglong) thd->query_id);
   str.length(0);
   str.append(header, len);
 
@@ -780,8 +780,14 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
     the destructor works OK in case of an error. The main_mem_root
     will be re-initialized in init_for_queries().
   */
-  init_sql_alloc(&main_mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
-                 MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&main_mem_root, "THD::main_mem_root",
+                 ALLOC_ROOT_MIN_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+
+  /*
+    Allocation of user variables for binary logging is always done with main
+    mem root
+  */
+  user_var_events_alloc= mem_root;
 
   stmt_arena= this;
   thread_stack= 0;
@@ -1495,6 +1501,75 @@ void THD::change_user(void)
   sp_cache_clear(&sp_func_cache);
 }
 
+/**
+   Change default database
+
+   @note This is coded to have as few instructions as possible under
+   LOCK_thd_data
+*/
+
+bool THD::set_db(const LEX_CSTRING *new_db)
+{
+  bool result= 0;
+  /*
+    Acquiring mutex LOCK_thd_data as we either free the memory allocated
+    for the database and reallocating the memory for the new db or memcpy
+    the new_db to the db.
+  */
+  /* Do not reallocate memory if current chunk is big enough. */
+  if (db.str && new_db->str && db.length >= new_db->length)
+  {
+    mysql_mutex_lock(&LOCK_thd_data);
+    db.length= new_db->length;
+    memcpy((char*) db.str, new_db->str, new_db->length+1);
+    mysql_mutex_unlock(&LOCK_thd_data);
+  }
+  else
+  {
+    const char *org_db= db.str;
+    const char *tmp= NULL;
+    if (new_db->str)
+    {
+      if (!(tmp= my_strndup(new_db->str, new_db->length, MYF(MY_WME | ME_FATALERROR))))
+        result= 1;
+    }
+
+    mysql_mutex_lock(&LOCK_thd_data);
+    db.str= tmp;
+    db.length= tmp ? new_db->length : 0;
+    mysql_mutex_unlock(&LOCK_thd_data);
+    my_free((char*) org_db);
+  }
+  PSI_CALL_set_thread_db(db.str, (int) db.length);
+  return result;
+}
+
+
+/**
+   Set the current database
+
+   @param new_db     a pointer to the new database name.
+   @param new_db_len length of the new database name.
+
+   @note This operation just sets {db, db_length}. Switching the current
+   database usually involves other actions, like switching other database
+   attributes including security context. In the future, this operation
+   will be made private and more convenient interface will be provided.
+*/
+
+void THD::reset_db(const LEX_CSTRING *new_db)
+{
+  if (new_db->str != db.str || new_db->length != db.length)
+  {
+    if (db.str != 0)
+      DBUG_PRINT("QQ", ("Overwriting: %p", db.str));
+    mysql_mutex_lock(&LOCK_thd_data);
+    db= *new_db;
+    mysql_mutex_unlock(&LOCK_thd_data);
+    PSI_CALL_set_thread_db(db.str, (int) db.length);
+  }
+}
+
 
 /* Do operations that may take a long time */
 
@@ -1637,8 +1712,8 @@ void THD::cleanup(void)
 void THD::free_connection()
 {
   DBUG_ASSERT(free_connection_done == 0);
-  my_free(db);
-  db= NULL;
+  my_free((char*) db.str);
+  db= null_clex_str;
 #ifndef EMBEDDED_LIBRARY
   if (net.vio)
     vio_delete(net.vio);
@@ -2383,7 +2458,7 @@ void THD::cleanup_after_query()
 */
 
 bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
-			 const char *from, uint from_length,
+			 const char *from, size_t from_length,
 			 CHARSET_INFO *from_cs)
 {
   DBUG_ENTER("THD::convert_string");
@@ -2410,7 +2485,7 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
   dstcs and srccs cannot be &my_charset_bin.
 */
 bool THD::convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                      CHARSET_INFO *srccs, const char *src, uint src_length,
+                      CHARSET_INFO *srccs, const char *src, size_t src_length,
                       String_copier *status)
 {
   DBUG_ENTER("THD::convert_fix");
@@ -2428,7 +2503,7 @@ bool THD::convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
   Copy or convert a string.
 */
 bool THD::copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   CHARSET_INFO *srccs, const char *src, size_t src_length,
                    String_copier *status)
 {
   DBUG_ENTER("THD::copy_fix");
@@ -2445,7 +2520,7 @@ bool THD::copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
 class String_copier_with_error: public String_copier
 {
 public:
-  bool check_errors(CHARSET_INFO *srccs, const char *src, uint src_length)
+  bool check_errors(CHARSET_INFO *srccs, const char *src, size_t src_length)
   {
     if (most_important_error_pos())
     {
@@ -2460,7 +2535,7 @@ public:
 
 bool THD::convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                              CHARSET_INFO *srccs,
-                             const char *src, uint src_length)
+                             const char *src, size_t src_length)
 {
   String_copier_with_error status;
   return convert_fix(dstcs, dst, srccs, src, src_length, &status) ||
@@ -2470,7 +2545,7 @@ bool THD::convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
 
 bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
-                          const char *src, uint src_length)
+                          const char *src, size_t src_length)
 {
   String_copier_with_error status;
   return copy_fix(dstcs, dst, srccs, src, src_length, &status) ||
@@ -2525,7 +2600,7 @@ Item *THD::make_string_literal(const char *str, size_t length,
     str= to.str;
     length= to.length;
   }
-  return new (mem_root) Item_string(this, str, length,
+  return new (mem_root) Item_string(this, str, (uint)length,
                                     variables.collation_connection,
                                     DERIVATION_COERCIBLE, repertoire);
 }
@@ -2537,7 +2612,7 @@ Item *THD::make_string_literal_nchar(const Lex_string_with_metadata_st &str)
   if (!str.length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, national_charset_info);
 
-  return new (mem_root) Item_string(this, str.str, str.length,
+  return new (mem_root) Item_string(this, str.str, (uint)str.length,
                                     national_charset_info,
                                     DERIVATION_COERCIBLE,
                                     str.repertoire());
@@ -2550,7 +2625,7 @@ Item *THD::make_string_literal_charset(const Lex_string_with_metadata_st &str,
   if (!str.length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, cs);
   return new (mem_root) Item_string_with_introducer(this,
-                                                    str.str, str.length, cs);
+                                                    str.str, (uint)str.length, cs);
 }
 
 
@@ -2563,7 +2638,7 @@ Item *THD::make_string_literal_concat(Item *item, const LEX_CSTRING &str)
     {
       CHARSET_INFO *cs= variables.collation_connection;
       uint repertoire= my_string_repertoire(cs, str.str, str.length);
-      return new (mem_root) Item_string(this, str.str, str.length, cs,
+      return new (mem_root) Item_string(this, str.str, (uint)str.length, cs,
                                         DERIVATION_COERCIBLE, repertoire);
     }
     return item;
@@ -2571,7 +2646,7 @@ Item *THD::make_string_literal_concat(Item *item, const LEX_CSTRING &str)
 
   DBUG_ASSERT(item->type() == Item::STRING_ITEM);
   DBUG_ASSERT(item->basic_const_item());
-  static_cast<Item_string*>(item)->append(str.str, str.length);
+  static_cast<Item_string*>(item)->append(str.str, (uint)str.length);
   if (!(item->collation.repertoire & MY_REPERTOIRE_EXTENDED))
   {
     // If the string has been pure ASCII so far, check the new part.
@@ -2633,7 +2708,7 @@ void THD::add_changed_table(TABLE *table)
 }
 
 
-void THD::add_changed_table(const char *key, long key_length)
+void THD::add_changed_table(const char *key, size_t key_length)
 {
   DBUG_ENTER("THD::add_changed_table(key)");
   CHANGED_TABLE_LIST **prev_changed = &transaction.changed_tables;
@@ -2646,7 +2721,7 @@ void THD::add_changed_table(const char *key, long key_length)
     {
       list_include(prev_changed, curr, changed_table_dup(key, key_length));
       DBUG_PRINT("info", 
-		 ("key_length: %ld  %u", key_length,
+		 ("key_length: %zu  %zu", key_length,
                   (*prev_changed)->key_length));
       DBUG_VOID_RETURN;
     }
@@ -2657,7 +2732,7 @@ void THD::add_changed_table(const char *key, long key_length)
       {
 	list_include(prev_changed, curr, changed_table_dup(key, key_length));
 	DBUG_PRINT("info", 
-		   ("key_length:  %ld  %u", key_length,
+		   ("key_length:  %zu  %zu", key_length,
 		    (*prev_changed)->key_length));
 	DBUG_VOID_RETURN;
       }
@@ -2669,13 +2744,13 @@ void THD::add_changed_table(const char *key, long key_length)
     }
   }
   *prev_changed = changed_table_dup(key, key_length);
-  DBUG_PRINT("info", ("key_length: %ld  %u", key_length,
+  DBUG_PRINT("info", ("key_length: %zu  %zu", key_length,
 		      (*prev_changed)->key_length));
   DBUG_VOID_RETURN;
 }
 
 
-CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
+CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, size_t key_length)
 {
   CHANGED_TABLE_LIST* new_table = 
     (CHANGED_TABLE_LIST*) trans_alloc(ALIGN_SIZE(sizeof(CHANGED_TABLE_LIST))+
@@ -2894,6 +2969,9 @@ Item_change_list::check_and_register_item_tree_change(Item **place,
                                                       MEM_ROOT *runtime_memroot)
 {
   Item_change_record *change;
+  DBUG_ENTER("THD::check_and_register_item_tree_change");
+  DBUG_PRINT("enter", ("Register: %p (%p) <- %p (%p)",
+                       *place, place, *new_value, new_value));
   I_List_iterator<Item_change_record> it(change_list);
   while ((change= it++))
   {
@@ -2903,6 +2981,7 @@ Item_change_list::check_and_register_item_tree_change(Item **place,
   if (change)
     nocheck_register_item_tree_change(place, change->old_value,
                                       runtime_memroot);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -2910,17 +2989,13 @@ void Item_change_list::rollback_item_tree_changes()
 {
   I_List_iterator<Item_change_record> it(change_list);
   Item_change_record *change;
-  DBUG_ENTER("rollback_item_tree_changes");
 
   while ((change= it++))
   {
-    DBUG_PRINT("info", ("revert %p -> %p",
-                        change->old_value, (*change->place)));
     *change->place= change->old_value;
   }
   /* We can forget about changes memory: it's allocated in runtime memroot */
   change_list.empty();
-  DBUG_VOID_RETURN;
 }
 
 
@@ -3139,8 +3214,7 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
 
   if (!dirname_length(exchange->file_name))
   {
-    strxnmov(path, FN_REFLEN-1, mysql_real_data_home, thd->db ? thd->db : "",
-             NullS);
+    strxnmov(path, FN_REFLEN-1, mysql_real_data_home, thd->get_db(), NullS);
     (void) fn_format(path, exchange->file_name, path, "", option);
   }
   else
@@ -3755,7 +3829,7 @@ int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
       mvsp->type_handler() == &type_handler_row)
   {
     // SELECT INTO row_type_sp_variable
-    if (thd->spcont->get_item(mvsp->offset)->cols() != list.elements)
+    if (thd->spcont->get_variable(mvsp->offset)->cols() != list.elements)
       goto error;
     m_var_sp_row= mvsp;
     return 0;
@@ -3831,12 +3905,11 @@ Statement::Statement(LEX *lex_arg, MEM_ROOT *mem_root_arg,
                      enum enum_state state_arg, ulong id_arg)
   :Query_arena(mem_root_arg, state_arg),
   id(id_arg),
-  mark_used_columns(MARK_COLUMNS_READ),
+  column_usage(MARK_COLUMNS_READ),
   lex(lex_arg),
-  db(NULL),
-  db_length(0)
+  db(null_clex_str)
 {
-  name.str= NULL;
+  name= null_clex_str;
 }
 
 
@@ -3849,8 +3922,8 @@ Query_arena::Type Statement::type() const
 void Statement::set_statement(Statement *stmt)
 {
   id=             stmt->id;
-  mark_used_columns=   stmt->mark_used_columns;
-  lex=            stmt->lex;
+  column_usage=   stmt->column_usage;
+  stmt_lex= lex=  stmt->lex;
   query_string=   stmt->query_string;
 }
 
@@ -4173,7 +4246,7 @@ bool
 select_materialize_with_stats::
 create_result_table(THD *thd_arg, List<Item> *column_types,
                     bool is_union_distinct, ulonglong options,
-                    const char *table_alias, bool bit_fields_as_long,
+                    const LEX_CSTRING *table_alias, bool bit_fields_as_long,
                     bool create_table,
                     bool keep_row_order,
                     uint hidden)
@@ -4184,7 +4257,7 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
 
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                  (ORDER*) 0, is_union_distinct, 1,
-                                 options, HA_POS_ERROR, (char*) table_alias,
+                                 options, HA_POS_ERROR, table_alias,
                                  !create_table, keep_row_order)))
     return TRUE;
 
@@ -4285,7 +4358,7 @@ void TMP_TABLE_PARAM::init()
 }
 
 
-void thd_increment_bytes_sent(void *thd, ulong length)
+void thd_increment_bytes_sent(void *thd, size_t length)
 {
   /* thd == 0 when close_connection() calls net_send_error() */
   if (likely(thd != 0))
@@ -4301,16 +4374,10 @@ my_bool thd_net_is_killed()
 }
 
 
-void thd_increment_bytes_received(void *thd, ulong length)
+void thd_increment_bytes_received(void *thd, size_t length)
 {
   if (thd != NULL) // MDEV-13073 Ack collector having NULL
     ((THD*) thd)->status_var.bytes_received+= length;
-}
-
-
-void thd_increment_net_big_packet_count(void *thd, ulong length)
-{
-  ((THD*) thd)->status_var.net_big_packet_count+= length;
 }
 
 
@@ -4759,8 +4826,10 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 
   Open_table_context ot_ctx(thd, 0);
   TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
+  LEX_CSTRING db_name= {db, dblen };
+  LEX_CSTRING table_name= { tb, tblen };
 
-  tl->init_one_table(db, dblen, tb, tblen, tb, TL_READ);
+  tl->init_one_table(&db_name, &table_name, 0, TL_READ);
   tl->i_s_requested_object= OPEN_TABLE_ONLY;
 
   bool error= open_table(thd, tl, &ot_ctx);
@@ -5155,7 +5224,7 @@ extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)
 
 extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
 {
-  return binlog_filter->db_ok(thd->db);
+  return binlog_filter->db_ok(thd->db.str);
 }
 
 /*
@@ -6077,11 +6146,11 @@ int THD::decide_logging_format(TABLE_LIST *tables)
   if ((WSREP_EMULATE_BINLOG_NNULL(this) ||
        (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG))) &&
       !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
-        !binlog_filter->db_ok(db)))
+        !binlog_filter->db_ok(db.str)))
 #else
   if (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG) &&
       !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
-        !binlog_filter->db_ok(db)))
+        !binlog_filter->db_ok(db.str)))
 #endif /* WITH_WSREP */
   {
 
@@ -6185,7 +6254,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       handler::Table_flags const flags= table->table->file->ha_table_flags();
 
       DBUG_PRINT("info", ("table: %s; ha_table_flags: 0x%llx",
-                          table->table_name, flags));
+                          table->table_name.str, flags));
 
       if (table->table->s->no_replicate)
       {
@@ -6489,7 +6558,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         if (table->table->file->ht->db_type == DB_TYPE_BLACKHOLE_DB &&
             table->lock_type >= TL_WRITE_ALLOW_WRITE)
         {
-            table_names.append(table->table_name);
+            table_names.append(&table->table_name);
             table_names.append(",");
         }
       }
@@ -6521,7 +6590,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                         mysql_bin_log.is_open(),
                         (variables.option_bits & OPTION_BIN_LOG),
                         (uint) wsrep_binlog_format(),
-                        binlog_filter->db_ok(db)));
+                        binlog_filter->db_ok(db.str)));
 #endif
 
   DBUG_RETURN(0);

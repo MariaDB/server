@@ -87,7 +87,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "dict0load.h"
 #include "dict0stats_bg.h"
 #include "que0que.h"
-#include "usr0sess.h"
 #include "lock0lock.h"
 #include "trx0roll.h"
 #include "trx0purge.h"
@@ -1058,7 +1057,6 @@ srv_undo_tablespaces_init(bool create_new_db)
 
 		/* Step-1: Initialize the tablespace header and rsegs header. */
 		mtr_t		mtr;
-		trx_sysf_t*	sys_header;
 
 		mtr_start(&mtr);
 		/* Turn off REDO logging. We are in server start mode and fixing
@@ -1067,7 +1065,11 @@ srv_undo_tablespaces_init(bool create_new_db)
 		as part of the current recovery process. We surely don't need
 		that as this is fix-up action parallel to REDO logging. */
 		mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-		sys_header = trx_sysf_get(&mtr);
+		buf_block_t* sys_header = trx_sysf_get(&mtr);
+		if (!sys_header) {
+			mtr.commit();
+			return DB_CORRUPTION;
+		}
 
 		for (undo::undo_spaces_t::const_iterator it
 			     = undo::Truncate::s_fix_up_spaces.begin();
@@ -1082,13 +1084,10 @@ srv_undo_tablespaces_init(bool create_new_db)
 			mtr_x_lock(fil_space_get_latch(*it, NULL), &mtr);
 
 			for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
-
-				ulint	space_id = trx_sysf_rseg_get_space(
-						sys_header, i, &mtr);
-
-				if (space_id == *it) {
+				if (trx_sysf_rseg_get_space(sys_header, i)
+				    == *it) {
 					trx_rseg_header_create(
-						*it, ULINT_MAX, i, &mtr);
+						*it, i, sys_header, &mtr);
 				}
 			}
 
@@ -1371,6 +1370,7 @@ srv_init_abort_low(
 			" with error " << ut_strerr(err);
 	}
 
+	srv_shutdown_bg_undo_sources();
 	srv_shutdown_all_bg_threads();
 	return(err);
 }
@@ -1414,7 +1414,7 @@ srv_prepare_to_delete_redo_log_files(
 				   || srv_log_file_size
 				   != srv_log_file_size_requested) {
 				if (srv_encrypt_log
-				    == log_sys->is_encrypted()) {
+				    == (my_bool)log_sys->is_encrypted()) {
 					info << (srv_encrypt_log
 						 ? "Resizing encrypted"
 						 : "Resizing");
@@ -1649,7 +1649,7 @@ innobase_start_or_create_for_mysql()
 			    + 1 /* dict_stats_thread */
 			    + 1 /* fts_optimize_thread */
 			    + 1 /* recv_writer_thread */
-			    + 1 /* trx_rollback_or_clean_all_recovered */
+			    + 1 /* trx_rollback_all_recovered */
 			    + 128 /* added as margin, for use of
 				  InnoDB Memcached etc. */
 			    + max_connections
@@ -2141,7 +2141,7 @@ files_checked:
 		dict_stats_thread_init();
 	}
 
-	trx_sys_create();
+	trx_sys.create();
 
 	if (create_new_db) {
 		ut_a(!srv_read_only_mode);
@@ -2171,7 +2171,7 @@ files_checked:
 		All the remaining rollback segments will be created later,
 		after the double write buffer has been created. */
 		trx_sys_create_sys_pages();
-		trx_sys_init_at_db_start();
+		trx_lists_init_at_db_start();
 
 		err = dict_create();
 
@@ -2230,19 +2230,15 @@ files_checked:
 			if (err != DB_SUCCESS) {
 				return(srv_init_abort(err));
 			}
+			/* fall through */
+		case SRV_OPERATION_RESTORE:
 			/* This must precede
 			recv_apply_hashed_log_recs(true). */
-			trx_sys_init_at_db_start();
+			trx_lists_init_at_db_start();
 			break;
 		case SRV_OPERATION_RESTORE_DELTA:
 		case SRV_OPERATION_BACKUP:
 			ut_ad(!"wrong mariabackup mode");
-			/* fall through */
-		case SRV_OPERATION_RESTORE:
-			/* mariabackup --prepare only deals with
-			the redo log and the data files, not with
-			transactions or the data dictionary. */
-			break;
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
@@ -2323,7 +2319,7 @@ files_checked:
 		}
 
 		/* recv_recovery_from_checkpoint_finish needs trx lists which
-		are initialized in trx_sys_init_at_db_start(). */
+		are initialized in trx_lists_init_at_db_start(). */
 
 		recv_recovery_from_checkpoint_finish();
 
@@ -2347,7 +2343,7 @@ files_checked:
 					== SRV_OPERATION_RESTORE;
 				/* Delete subsequent log files. */
 				delete_log_files(logfilename, dirnamelen,
-						 srv_n_log_files_found, trunc);
+						 (uint)srv_n_log_files_found, trunc);
 				if (trunc) {
 					/* Truncate the first log file. */
 					strcpy(logfilename + dirnamelen,
@@ -2471,7 +2467,7 @@ files_checked:
 		The data dictionary latch should guarantee that there is at
 		most one data dictionary transaction active at a time. */
 		if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
-			trx_rollback_or_clean_recovered(FALSE);
+			trx_rollback_recovered(false);
 		}
 
 		/* Fix-up truncate of tables in the system tablespace
@@ -2677,8 +2673,9 @@ files_checked:
 
 	if (srv_print_verbose_log) {
 		ib::info() << INNODB_VERSION_STR
-			<< " started; log sequence number "
-			<< srv_start_lsn;
+			   << " started; log sequence number "
+			   << srv_start_lsn
+			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
 
 	if (srv_force_recovery > 0) {
@@ -2835,7 +2832,7 @@ innodb_shutdown()
 
 	ut_ad(dict_stats_event || !srv_was_started || srv_read_only_mode);
 	ut_ad(dict_sys || !srv_was_started);
-	ut_ad(trx_sys || !srv_was_started);
+	ut_ad(trx_sys.is_initialised() || !srv_was_started);
 	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys || !srv_was_started);
@@ -2873,9 +2870,7 @@ innodb_shutdown()
 	if (log_sys) {
 		log_shutdown();
 	}
-	if (trx_sys) {
-		trx_sys_close();
-	}
+	trx_sys.close();
 	UT_DELETE(purge_sys);
 	purge_sys = NULL;
 	if (buf_dblwr) {
@@ -2929,7 +2924,8 @@ innodb_shutdown()
 
 	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "
-			<< srv_shutdown_lsn;
+			   << srv_shutdown_lsn
+			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
 
 	srv_start_state = SRV_START_STATE_NONE;

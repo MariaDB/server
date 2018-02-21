@@ -69,6 +69,9 @@ LEX_CSTRING GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
 LEX_CSTRING SLOW_LOG_NAME= {STRING_WITH_LEN("slow_log")};
 
 LEX_CSTRING TRANSACTION_REG_NAME= {STRING_WITH_LEN("transaction_registry")};
+LEX_CSTRING MYSQL_USER_NAME= {STRING_WITH_LEN("user")};
+LEX_CSTRING MYSQL_DB_NAME= {STRING_WITH_LEN("db")};
+LEX_CSTRING MYSQL_PROC_NAME= {STRING_WITH_LEN("proc")};
 
 /* 
   Keyword added as a prefix when parsing the defining expression for a
@@ -84,7 +87,7 @@ static void fix_type_pointers(const char ***array, TYPELIB *point_to_type,
 			      uint types, char **names);
 static uint find_field(Field **fields, uchar *record, uint start, uint length);
 
-inline bool is_system_table_name(const char *name, uint length);
+inline bool is_system_table_name(const char *name, size_t length);
 
 /**************************************************************************
   Object_creation_ctx implementation.
@@ -163,8 +166,8 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_VIEW_NO_CREATION_CTX,
                         ER_THD(thd, ER_VIEW_NO_CREATION_CTX),
-                        (const char *) view->db,
-                        (const char *) view->table_name);
+                        view->db.str,
+                        view->table_name.str);
 
     ctx->m_client_cs= system_charset_info;
     ctx->m_connection_cl= system_charset_info;
@@ -189,16 +192,16 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
   {
     sql_print_warning("View '%s'.'%s': there is unknown charset/collation "
                       "names (client: '%s'; connection: '%s').",
-                      (const char *) view->db,
-                      (const char *) view->table_name,
+                      view->db.str,
+                      view->table_name.str,
                       (const char *) view->view_client_cs_name.str,
                       (const char *) view->view_connection_cl_name.str);
 
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_VIEW_INVALID_CREATION_CTX,
                         ER_THD(thd, ER_VIEW_INVALID_CREATION_CTX),
-                        (const char *) view->db,
-                        (const char *) view->table_name);
+                        view->db.str,
+                        view->table_name.str);
   }
 
   return ctx;
@@ -253,8 +256,7 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
     return TABLE_CATEGORY_INFORMATION;
   }
 #endif /* WITH_WSREP */
-
-  if (is_infoschema_db(db->str, db->length))
+  if (is_infoschema_db(db))
     return TABLE_CATEGORY_INFORMATION;
 
   if (lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, db) == 0)
@@ -307,7 +309,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
 
   path_length= build_table_filename(path, sizeof(path) - 1,
                                     db, table_name, "", 0);
-  init_sql_alloc(&mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&mem_root, "table_share", TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
   if (multi_alloc_root(&mem_root,
                        &share, sizeof(*share),
                        &key_buff, key_length,
@@ -333,7 +335,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                      (const uchar*) "mysql", 6) == 0)
       share->not_usable_by_query_cache= 1;
 
-    init_sql_alloc(&share->stats_cb.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+    init_sql_alloc(&share->stats_cb.mem_root, "share_stats",
+                   TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
     memcpy((char*) &share->mem_root, (char*) &mem_root, sizeof(mem_root));
     mysql_mutex_init(key_TABLE_SHARE_LOCK_share,
@@ -390,8 +393,8 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
     This can't be MY_THREAD_SPECIFIC for slaves as they are freed
     during cleanup() from Relay_log_info::close_temporary_tables()
   */
-  init_sql_alloc(&share->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, 
-                 MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
+  init_sql_alloc(&share->mem_root, "tmp_table_share", TABLE_ALLOC_BLOCK_SIZE,
+                 0, MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
   share->table_category=         TABLE_CATEGORY_TEMPORARY;
   share->tmp_table=              INTERNAL_TMP_TABLE;
   share->db.str=                 (char*) key;
@@ -513,7 +516,7 @@ void free_table_share(TABLE_SHARE *share)
   and should not contain user tables.
 */
 
-inline bool is_system_table_name(const char *name, uint length)
+inline bool is_system_table_name(const char *name, size_t length)
 {
   CHARSET_INFO *ci= system_charset_info;
 
@@ -1182,7 +1185,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   char *keynames, *names, *comment_pos;
   const uchar *forminfo, *extra2;
   const uchar *frm_image_end = frm_image + frm_length;
-  uchar *record, *null_flags, *null_pos, *mysql57_vcol_null_pos= 0;
+  uchar *record, *null_flags, *null_pos, *UNINIT_VAR(mysql57_vcol_null_pos);
   const uchar *disk_buff, *strpos;
   ulong pos, record_offset;
   ulong rec_buff_length;
@@ -1194,10 +1197,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   enum legacy_db_type legacy_db_type;
   my_bitmap_map *bitmaps;
   bool null_bits_are_used;
-  uint vcol_screen_length, UNINIT_VAR(options_len);
+  uint vcol_screen_length;
+  size_t UNINIT_VAR(options_len);
   uchar *vcol_screen_pos;
   const uchar *options= 0;
-  uint UNINIT_VAR(gis_options_len);
+  size_t UNINIT_VAR(gis_options_len);
   const uchar *gis_options= 0;
   KEY first_keyinfo;
   uint len;
@@ -1634,9 +1638,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   rec_buff_length= ALIGN_SIZE(share->reclength + 1);
   share->rec_buff_length= rec_buff_length;
-  if (!(record= (uchar *) alloc_root(&share->mem_root,
-                                     rec_buff_length)))
+  if (!(record= (uchar *) alloc_root(&share->mem_root, rec_buff_length)))
     goto err;                          /* purecov: inspected */
+  MEM_NOACCESS(record, rec_buff_length);
+  MEM_UNDEFINED(record, share->reclength);
   share->default_values= record;
   memcpy(record, frm_image + record_offset, share->reclength);
 
@@ -1715,7 +1720,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       for (count= 0; count < interval->count; count++)
       {
         char *val= (char*) interval->type_names[count];
-        interval->type_lengths[count]= strlen(val);
+        interval->type_lengths[count]= (uint)strlen(val);
       }
       interval->type_lengths[count]= 0;
     }
@@ -1855,7 +1860,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           char tmp[10];
           if (!csname || csname[0] =='?')
           {
-            my_snprintf(tmp, sizeof(tmp), "#%d", cs_new);
+            my_snprintf(tmp, sizeof(tmp), "#%u", cs_new);
             csname= tmp;
           }
           my_printf_error(ER_UNKNOWN_COLLATION,
@@ -2042,6 +2047,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             versioned= VERS_TRX_ID;
             break;
           }
+          /* Fallthrough */
         default:
           my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), fieldnames.type_names[i],
             versioned == VERS_TIMESTAMP ? "TIMESTAMP(6)" : "BIGINT(20) UNSIGNED",
@@ -2528,7 +2534,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         reg_field= share->field[field_nr];
       }
       else
-        reg_field= 0;                           // Safety
+      {
+        reg_field= 0;
+        DBUG_ASSERT(name_length);
+      }
 
       vcol_screen_pos+= FRM_VCOL_NEW_HEADER_SIZE;
       vcol_info->set_vcol_type((enum_vcol_info_type) type);
@@ -2746,7 +2755,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   uint unused2;
   handlerton *hton= plugin_hton(db_plugin);
   LEX_CUSTRING frm= {0,0};
-  LEX_STRING db_backup= { thd->db, thd->db_length };
+  LEX_CSTRING db_backup= thd->db;
   DBUG_ENTER("TABLE_SHARE::init_from_sql_statement_string");
 
   /*
@@ -2773,7 +2782,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   else
     thd->set_n_backup_active_arena(arena, &backup);
 
-  thd->reset_db((char*) db.str, db.length);
+  thd->reset_db(&db);
   lex_start(thd);
 
   if ((error= parse_sql(thd, & parser_state, NULL) || 
@@ -2786,7 +2795,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
     thd->lex->create_info.tabledef_version= tabledef_version;
 
   promote_first_timestamp_column(&thd->lex->alter_info.create_list);
-  file= mysql_create_frm_image(thd, db.str, table_name.str,
+  file= mysql_create_frm_image(thd, &db, &table_name,
                                &thd->lex->create_info, &thd->lex->alter_info,
                                C_ORDINARY_CREATE, &unused1, &unused2, &frm);
   error|= file == 0;
@@ -2802,7 +2811,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 ret:
   my_free(const_cast<uchar*>(frm.str));
   lex_end(thd->lex);
-  thd->reset_db(db_backup.str, db_backup.length);
+  thd->reset_db(&db_backup);
   thd->lex= old_lex;
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -2857,12 +2866,12 @@ static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
 {
   DBUG_ENTER("fix_vcol_expr");
 
-  const enum enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
-  thd->mark_used_columns= MARK_COLUMNS_NONE;
+  const enum enum_column_usage saved_column_usage= thd->column_usage;
+  thd->column_usage= COLUMNS_WRITE;
 
   int error= vcol->expr->fix_fields(thd, &vcol->expr);
 
-  thd->mark_used_columns= save_mark_used_columns;
+  thd->column_usage= saved_column_usage;
 
   if (unlikely(error))
   {
@@ -3108,6 +3117,7 @@ static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol)
     prgflag   		READ_ALL etc..
     ha_open_flags	HA_OPEN_ABORT_IF_LOCKED etc..
     outparam       	result table
+    partitions_to_open  open only these partitions.
 
   RETURN VALUES
    0	ok
@@ -3120,9 +3130,9 @@ static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol)
 */
 
 enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
-                       const char *alias, uint db_stat, uint prgflag,
+                       const LEX_CSTRING *alias, uint db_stat, uint prgflag,
                        uint ha_open_flags, TABLE *outparam,
-                       bool is_create_table)
+                       bool is_create_table, List<String> *partitions_to_open)
 {
   enum open_frm_error error;
   uint records, i, bitmap_size, bitmap_count;
@@ -3150,9 +3160,10 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     error= OPEN_FRM_NEEDS_REBUILD;
     goto err;
   }
-  init_sql_alloc(&outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&outparam->mem_root, "table", TABLE_ALLOC_BLOCK_SIZE, 0,
+                 MYF(0));
 
-  if (outparam->alias.copy(alias, strlen(alias), table_alias_charset))
+  if (outparam->alias.copy(alias->str, alias->length, table_alias_charset))
     goto err;
   outparam->quick_keys.init();
   outparam->covering_keys.init();
@@ -3208,6 +3219,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (!(record= (uchar*) alloc_root(&outparam->mem_root,
                                       share->rec_buff_length * records)))
       goto err;                                   /* purecov: inspected */
+    MEM_NOACCESS(record, share->rec_buff_length * records);
   }
 
   for (i= 0; i < 3;)
@@ -3216,6 +3228,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (++i < records)
       record+= share->rec_buff_length;
   }
+  for (i= 0; i < records; i++)
+    MEM_UNDEFINED(outparam->record[i], share->reclength);
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*
@@ -3466,7 +3480,7 @@ partititon_err:
 
     int ha_err= outparam->file->ha_open(outparam, share->normalized_path.str,
                                  (db_stat & HA_READ_ONLY ? O_RDONLY : O_RDWR),
-                                  ha_open_flags);
+                                 ha_open_flags, 0, partitions_to_open);
     if (ha_err)
     {
       share->open_errno= ha_err;
@@ -3802,7 +3816,7 @@ static uint find_field(Field **fields, uchar *record, uint start, uint length)
     May fail with some multibyte charsets though.
 */
 
-void append_unescaped(String *res, const char *pos, uint length)
+void append_unescaped(String *res, const char *pos, size_t length)
 {
   const char *end= pos+length;
   res->append('\'');
@@ -3853,7 +3867,7 @@ void append_unescaped(String *res, const char *pos, uint length)
 void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
                         HA_CREATE_INFO *create_info, uint keys, KEY *key_info)
 {
-  ulong key_comment_total_bytes= 0;
+  size_t key_comment_total_bytes= 0;
   uint i;
   DBUG_ENTER("prepare_frm_header");
 
@@ -3863,7 +3877,7 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   if (create_info->min_rows > UINT_MAX32)
     create_info->min_rows= UINT_MAX32;
 
-  uint key_length, tmp_key_length, tmp, csid;
+  size_t key_length, tmp_key_length, tmp, csid;
   bzero((char*) fileinfo, FRM_HEADER_SIZE);
   /* header */
   fileinfo[0]=(uchar) 254;
@@ -4089,7 +4103,7 @@ bool ok_for_lower_case_names(const char *name)
 bool check_db_name(LEX_STRING *org_name)
 {
   char *name= org_name->str;
-  uint name_length= org_name->length;
+  size_t name_length= org_name->length;
   bool check_for_path_chars;
 
   if ((check_for_path_chars= check_mysql50_prefix(name)))
@@ -4611,10 +4625,10 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   if (thd->lex->need_correct_ident())
     alias_name_used= my_strcasecmp(table_alias_charset,
                                    s->table_name.str,
-                                   tl->alias);
+                                   tl->alias.str);
   /* Fix alias if table name changes. */
-  if (strcmp(alias.c_ptr(), tl->alias))
-    alias.copy(tl->alias, strlen(tl->alias), alias.charset());
+  if (strcmp(alias.c_ptr(), tl->alias.str))
+    alias.copy(tl->alias.str, tl->alias.length, alias.charset());
 
   tablenr= thd->current_tablenr++;
   used_fields= 0;
@@ -4766,7 +4780,7 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   bool res= FALSE;
   DBUG_ENTER("TABLE_LIST::create_field_translation");
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
-                      (alias ? alias : "<NULL>"),
+                      (alias.str ? alias.str : "<NULL>"),
                        get_unit()));
 
   if (thd->stmt_arena->is_conventional() ||
@@ -5015,7 +5029,7 @@ merge_on_conds(THD *thd, TABLE_LIST *table, bool is_cascaded)
   DBUG_ENTER("merge_on_conds");
 
   Item *cond= NULL;
-  DBUG_PRINT("info", ("alias: %s", table->alias));
+  DBUG_PRINT("info", ("alias: %s", table->alias.str));
   if (table->on_expr)
     cond= table->on_expr->copy_andor_structure(thd);
   if (!table->view)
@@ -5243,9 +5257,9 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
     {
       TABLE_LIST *main_view= top_table();
       const char *name_db= (main_view->view ? main_view->view_db.str :
-                            main_view->db);
+                            main_view->db.str);
       const char *name_table= (main_view->view ? main_view->view_name.str :
-                               main_view->table_name);
+                               main_view->table_name.str);
       my_error(ER_VIEW_CHECK_FAILED, MYF(ignore_failure ? ME_JUST_WARNING : 0),
                name_db, name_table);
       return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
@@ -5545,7 +5559,7 @@ void TABLE_LIST::register_want_access(ulong want_access)
 bool TABLE_LIST::prepare_view_security_context(THD *thd)
 {
   DBUG_ENTER("TABLE_LIST::prepare_view_security_context");
-  DBUG_PRINT("enter", ("table: %s", alias));
+  DBUG_PRINT("enter", ("table: %s", alias.str));
 
   DBUG_ASSERT(!prelocking_placeholder && view);
   if (view_suid)
@@ -5553,7 +5567,7 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
     DBUG_PRINT("info", ("This table is suid view => load contest"));
     DBUG_ASSERT(view && view_sctx);
     if (acl_getroot(view_sctx, definer.user.str, definer.host.str,
-                                definer.host.str, thd->db))
+                                definer.host.str, thd->db.str))
     {
       if ((thd->lex->sql_command == SQLCOM_SHOW_CREATE) ||
           (thd->lex->sql_command == SQLCOM_SHOW_FIELDS))
@@ -5618,7 +5632,7 @@ Security_context *TABLE_LIST::find_view_security_context(THD *thd)
   if (upper_view)
   {
     DBUG_PRINT("info", ("Securety context of view %s will be used",
-                        upper_view->alias));
+                        upper_view->alias.str));
     sctx= upper_view->view_sctx;
     DBUG_ASSERT(sctx);
   }
@@ -5667,8 +5681,8 @@ bool TABLE_LIST::prepare_security(THD *thd)
     }
     else
     {
-      local_db= tbl->db;
-      local_table_name= tbl->table_name;
+      local_db= tbl->db.str;
+      local_table_name= tbl->table_name.str;
     }
     fill_effective_table_privileges(thd, &tbl->grant, local_db,
                                     local_table_name);
@@ -5819,30 +5833,29 @@ Field *Natural_join_column::field()
 }
 
 
-const char *Natural_join_column::table_name()
+const char *Natural_join_column::safe_table_name()
 {
   DBUG_ASSERT(table_ref);
-  return table_ref->alias;
+  return table_ref->alias.str ? table_ref->alias.str : "";
 }
 
 
-const char *Natural_join_column::db_name()
+const char *Natural_join_column::safe_db_name()
 {
   if (view_field)
-    return table_ref->view_db.str;
+    return table_ref->view_db.str ? table_ref->view_db.str : "";
 
   /*
     Test that TABLE_LIST::db is the same as TABLE_SHARE::db to
     ensure consistency. An exception are I_S schema tables, which
     are inconsistent in this respect.
   */
-  DBUG_ASSERT(!strcmp(table_ref->db,
-                      table_ref->table->s->db.str) ||
+  DBUG_ASSERT(!cmp(&table_ref->db,
+                   &table_ref->table->s->db) ||
               (table_ref->schema_table &&
-               is_infoschema_db(table_ref->table->s->db.str,
-                                table_ref->table->s->db.length)) ||
-               table_ref->is_materialized_derived());
-  return table_ref->db;
+               is_infoschema_db(&table_ref->table->s->db)) ||
+              table_ref->is_materialized_derived());
+  return table_ref->db.str ? table_ref->db.str : "";
 }
 
 
@@ -5943,7 +5956,7 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   Name_resolution_context *context= view->view ? &view->view->select_lex.context :
                                     &thd->lex->select_lex.context;
   Item *item= (new (thd->mem_root)
-               Item_direct_view_ref(thd, context, field_ref, view->alias,
+               Item_direct_view_ref(thd, context, field_ref, view->alias.str,
                                     name, view));
   /*
     Force creation of nullable item for the result tmp table for outer joined
@@ -6007,7 +6020,7 @@ void Field_iterator_table_ref::set_field_iterator()
                    table_ref->table->s->fields))));
     field_it= &natural_join_it;
     DBUG_PRINT("info",("field_it for '%s' is Field_iterator_natural_join",
-                       table_ref->alias));
+                       table_ref->alias.str));
   }
   /* This is a merge view, so use field_translation. */
   else if (table_ref->field_translation)
@@ -6015,7 +6028,7 @@ void Field_iterator_table_ref::set_field_iterator()
     DBUG_ASSERT(table_ref->is_merged_derived());
     field_it= &view_field_it;
     DBUG_PRINT("info", ("field_it for '%s' is Field_iterator_view",
-                        table_ref->alias));
+                        table_ref->alias.str));
   }
   /* This is a base table or stored view. */
   else
@@ -6023,7 +6036,7 @@ void Field_iterator_table_ref::set_field_iterator()
     DBUG_ASSERT(table_ref->table || table_ref->view);
     field_it= &table_field_it;
     DBUG_PRINT("info", ("field_it for '%s' is Field_iterator_table",
-                        table_ref->alias));
+                        table_ref->alias.str));
   }
   field_it->set(table_ref);
   DBUG_VOID_RETURN;
@@ -6065,11 +6078,11 @@ const char *Field_iterator_table_ref::get_table_name()
   if (table_ref->is_derived())
     return table_ref->table->s->table_name.str;
   else if (table_ref->is_natural_join)
-    return natural_join_it.column_ref()->table_name();
+    return natural_join_it.column_ref()->safe_table_name();
 
-  DBUG_ASSERT(!strcmp(table_ref->table_name,
+  DBUG_ASSERT(!strcmp(table_ref->table_name.str,
                       table_ref->table->s->table_name.str));
-  return table_ref->table_name;
+  return table_ref->table_name.str;
 }
 
 
@@ -6078,19 +6091,18 @@ const char *Field_iterator_table_ref::get_db_name()
   if (table_ref->view)
     return table_ref->view_db.str;
   else if (table_ref->is_natural_join)
-    return natural_join_it.column_ref()->db_name();
+    return natural_join_it.column_ref()->safe_db_name();
 
   /*
     Test that TABLE_LIST::db is the same as TABLE_SHARE::db to
     ensure consistency. An exception are I_S schema tables, which
     are inconsistent in this respect.
   */
-  DBUG_ASSERT(!strcmp(table_ref->db, table_ref->table->s->db.str) ||
+  DBUG_ASSERT(!cmp(&table_ref->db, &table_ref->table->s->db) ||
               (table_ref->schema_table &&
-               is_infoschema_db(table_ref->table->s->db.str,
-                                table_ref->table->s->db.length)));
+               is_infoschema_db(&table_ref->table->s->db)));
 
-  return table_ref->db;
+  return table_ref->db.str;
 }
 
 
@@ -6492,7 +6504,7 @@ void TABLE::mark_columns_needed_for_update()
     for (KEY *k= key_info; k < end; k++)
     {
       KEY_PART_INFO *kpend= k->key_part + k->ext_key_parts;
-      bool any_written= false, all_read= true;
+      int any_written= 0, all_read= 1;
       for (KEY_PART_INFO *kp= k->key_part; kp < kpend; kp++)
       {
         int idx= kp->fieldnr - 1;
@@ -7413,7 +7425,7 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
           (pos= find_type(&tbl->s->keynames, hint->key_name.str,
                           hint->key_name.length, 1)) <= 0)
       {
-        my_error(ER_KEY_DOES_NOT_EXITS, MYF(0), hint->key_name.str, alias);
+        my_error(ER_KEY_DOES_NOT_EXITS, MYF(0), hint->key_name.str, alias.str);
         return 1;
       }
 
@@ -7513,7 +7525,7 @@ void init_mdl_requests(TABLE_LIST *table_list)
 {
   for ( ; table_list ; table_list= table_list->next_global)
     table_list->mdl_request.init(MDL_key::TABLE,
-                                 table_list->db, table_list->table_name,
+                                 table_list->db.str, table_list->table_name.str,
                                  table_list->lock_type >= TL_WRITE_ALLOW_WRITE ?
                                  MDL_SHARED_WRITE : MDL_SHARED_READ,
                                  MDL_TRANSACTION);
@@ -7821,12 +7833,13 @@ bool TABLE_LIST::vers_vtmd_name(String& out) const
 {
   static const char *vtmd_suffix= "_vtmd";
   static const size_t vtmd_suffix_len= strlen(vtmd_suffix);
-  if (table_name_length > NAME_CHAR_LEN - vtmd_suffix_len)
+  if (table_name.length > NAME_CHAR_LEN - vtmd_suffix_len)
   {
-    my_printf_error(ER_VERS_VTMD_ERROR, "Table name is longer than %d characters", MYF(0), int(NAME_CHAR_LEN - vtmd_suffix_len));
+    my_printf_error(ER_VERS_VTMD_ERROR, "Table name is longer than %d characters", MYF(0),
+                    int(NAME_CHAR_LEN - vtmd_suffix_len));
     return true;
   }
-  out.set(table_name, table_name_length, table_alias_charset);
+  out.set(table_name.str, table_name.length, table_alias_charset);
   if (out.append(vtmd_suffix, vtmd_suffix_len + 1))
   {
     my_message(ER_VERS_VTMD_ERROR, "Failed allocate VTMD name", MYF(0));
@@ -8601,9 +8614,8 @@ enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
 TR_table::TR_table(THD* _thd, bool rw) :
   thd(_thd), open_tables_backup(NULL)
 {
-  init_one_table(LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
-                 LEX_STRING_WITH_LEN(TRANSACTION_REG_NAME),
-                 TRANSACTION_REG_NAME.str, rw ? TL_WRITE : TL_READ);
+  init_one_table(&MYSQL_SCHEMA_NAME, &TRANSACTION_REG_NAME,
+                 NULL, rw ? TL_WRITE : TL_READ);
 }
 
 bool TR_table::open()
@@ -8811,12 +8823,14 @@ void TR_table::warn_schema_incorrect(const char *reason)
 {
   if (MYSQL_VERSION_ID == table->s->mysql_version)
   {
-    sql_print_error("%`s.%`s schema is incorrect: %s.", db, table_name, reason);
+    sql_print_error("%`s.%`s schema is incorrect: %s.",
+                    db.str, table_name.str, reason);
   }
   else
   {
     sql_print_error("%`s.%`s schema is incorrect: %s. Created with MariaDB %d, "
-                    "now running %d.", db, table_name, reason, MYSQL_VERSION_ID,
+                    "now running %d.",
+                    db.str, table_name.str, reason, MYSQL_VERSION_ID,
                     static_cast<int>(table->s->mysql_version));
   }
 }
@@ -8825,7 +8839,8 @@ bool TR_table::check(bool error)
 {
   if (error)
   {
-    sql_print_warning("%`s.%`s does not exist (open failed).", db, table_name);
+    sql_print_warning("%`s.%`s does not exist (open failed).", db.str,
+                      table_name.str);
     return true;
   }
 
@@ -8934,12 +8949,21 @@ void vers_select_conds_t::resolve_units(bool timestamps_only)
 
 Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
 {
-  uint length= str->length;
-  for (Field **tmp= field; *tmp; tmp++)
+  Field **tmp;
+  size_t length= str->length;
+  if (s->name_hash.records)
   {
-    if ((*tmp)->field_name.length == length &&
-        !lex_string_cmp(system_charset_info, &(*tmp)->field_name, str))
-      return *tmp;
+    tmp= (Field**) my_hash_search(&s->name_hash, (uchar*) str->str, length);
+    return tmp ? field[tmp - s->field] : NULL;
+  }
+  else
+  {
+    for (tmp= field; *tmp; tmp++)
+    {
+      if ((*tmp)->field_name.length == length &&
+          !lex_string_cmp(system_charset_info, &(*tmp)->field_name, str))
+        return *tmp;
+    }
   }
   return NULL;
 }

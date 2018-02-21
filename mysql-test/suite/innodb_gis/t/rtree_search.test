@@ -38,9 +38,10 @@ select count(*) from t1 where MBRWithin(t1.c2, @g1);
 set @g1 = ST_GeomFromText('Polygon((100 100,100 800,800 800,800 100,100 100))');
 select count(*) from t1 where MBRWithin(t1.c2, @g1);
 
-#SET DEBUG='+d, rtr_pessimistic_position';
+#SET @save_dbug= @@session.debug_dbug;
+#SET debug_dbug = '+d,rtr_pessimistic_position';
 #select count(*) from t1 where MBRWithin(t1.c2, @g1);
-#SET DEBUG='-d, rtr_pessimistic_position';
+#SET debug_dbug = @save_dbug;
 
 # Equality search
 set @g1 =  ST_GeomFromText('Point(1 1)');

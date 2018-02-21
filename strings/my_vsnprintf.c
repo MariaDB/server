@@ -92,10 +92,10 @@ static const char *get_length(const char *fmt, size_t *length, uint *pre_zero)
 */
 
 static const char *get_length_arg(const char *fmt, ARGS_INFO *args_arr,
-                                  uint *arg_count, size_t *length, uint *flags)
+                                  size_t *arg_count, size_t *length, uint *flags)
 {
   fmt= get_length(fmt+1, length, flags);
-  *arg_count= MY_MAX(*arg_count, (uint) *length);
+  *arg_count= MY_MAX(*arg_count, *length);
   (*length)--;    
   DBUG_ASSERT(*fmt == '$' && *length < MAX_ARGS);
   args_arr[*length].arg_type= 'd';
@@ -330,7 +330,7 @@ static char *process_args(CHARSET_INFO *cs, char *to, char *end,
 {
   ARGS_INFO args_arr[MAX_ARGS];
   PRINT_INFO print_arr[MAX_PRINT_INFO];
-  uint idx= 0, arg_count= arg_index;
+  size_t idx= 0, arg_count= arg_index;
 
 start:
   /* Here we are at the beginning of positional argument, right after $ */

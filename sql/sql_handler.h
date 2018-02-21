@@ -31,9 +31,9 @@ public:
   TABLE *table;
   List<Item> fields;                            /* Fields, set on open */
   THD *thd;
-  LEX_STRING handler_name;
-  LEX_STRING db;
-  LEX_STRING table_name;
+  LEX_CSTRING handler_name;
+  LEX_CSTRING db;
+  LEX_CSTRING table_name;
   MEM_ROOT mem_root;
   MYSQL_LOCK *lock;
   MDL_request mdl_request;

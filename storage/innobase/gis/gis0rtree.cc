@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -309,7 +310,7 @@ rtr_update_mbr_field(
 	page_zip = buf_block_get_page_zip(block);
 
 	child = btr_node_ptr_get_child_page_no(rec, offsets);
-	level = btr_page_get_level(buf_block_get_frame(block), mtr);
+	level = btr_page_get_level(buf_block_get_frame(block));
 
 	if (new_rec) {
 		child_rec = new_rec;
@@ -667,9 +668,8 @@ rtr_adjust_upper_level(
 	cursor.thr = sea_cur->thr;
 
 	/* Get the level of the split pages */
-	level = btr_page_get_level(buf_block_get_frame(block), mtr);
-	ut_ad(level
-	      == btr_page_get_level(buf_block_get_frame(new_block), mtr));
+	level = btr_page_get_level(buf_block_get_frame(block));
+	ut_ad(level == btr_page_get_level(buf_block_get_frame(new_block)));
 
 	page = buf_block_get_frame(block);
 	page_no = block->page.id.page_no();
@@ -1047,7 +1047,7 @@ func_start:
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
 	page_zip = buf_block_get_page_zip(block);
-	page_level = btr_page_get_level(page, mtr);
+	page_level = btr_page_get_level(page);
 	current_ssn = page_get_ssn_id(page);
 
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
@@ -1055,7 +1055,7 @@ func_start:
 
 	page_no = block->page.id.page_no();
 
-	if (btr_page_get_prev(page, mtr) == FIL_NULL && !page_is_leaf(page)) {
+	if (!page_has_prev(page) && !page_is_leaf(page)) {
 		first_rec = page_rec_get_next(
 			page_get_infimum_rec(buf_block_get_frame(block)));
 	}

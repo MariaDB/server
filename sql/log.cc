@@ -89,8 +89,8 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all);
 static int binlog_prepare(handlerton *hton, THD *thd, bool all);
 static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
 
-static LEX_STRING const write_error_msg=
-    { C_STRING_WITH_LEN("error writing to the binary log") };
+static const LEX_CSTRING write_error_msg=
+    { STRING_WITH_LEN("error writing to the binary log") };
 
 static my_bool opt_optimize_thread_scheduling= TRUE;
 ulong binlog_checksum_options;
@@ -654,19 +654,19 @@ int check_if_log_table(const TABLE_LIST *table,
                        const char *error_msg)
 {
   int result= 0;
-  if (table->db_length == 5 &&
-      !my_strcasecmp(table_alias_charset, table->db, "mysql"))
+  if (table->db.length == 5 &&
+      !my_strcasecmp(table_alias_charset, table->db.str, "mysql"))
   {
-    const char *table_name= table->table_name;
+    const char *table_name= table->table_name.str;
 
-    if (table->table_name_length == 11 &&
+    if (table->table_name.length == 11 &&
         !my_strcasecmp(table_alias_charset, table_name, "general_log"))
     {
       result= QUERY_LOG_GENERAL;
       goto end;
     }
 
-    if (table->table_name_length == 8 &&
+    if (table->table_name.length == 8 &&
         !my_strcasecmp(table_alias_charset, table_name, "slow_log"))
     {
       result= QUERY_LOG_SLOW;
@@ -734,10 +734,9 @@ void Log_to_csv_event_handler::cleanup()
 */
 
 bool Log_to_csv_event_handler::
-  log_general(THD *thd, my_hrtime_t event_time, const char *user_host,
-              uint user_host_len, my_thread_id thread_id_arg,
-              const char *command_type, uint command_type_len,
-              const char *sql_text, uint sql_text_len,
+  log_general(THD *thd, my_hrtime_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id_arg,
+              const char *command_type, size_t command_type_len,
+              const char *sql_text, size_t sql_text_len,
               CHARSET_INFO *client_cs)
 {
   TABLE_LIST table_list;
@@ -762,9 +761,7 @@ bool Log_to_csv_event_handler::
   save_thd_options= thd->variables.option_bits;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
 
-  table_list.init_one_table(MYSQL_SCHEMA_NAME.str, MYSQL_SCHEMA_NAME.length,
-                            GENERAL_LOG_NAME.str, GENERAL_LOG_NAME.length,
-                            GENERAL_LOG_NAME.str,
+  table_list.init_one_table(&MYSQL_SCHEMA_NAME, &GENERAL_LOG_NAME, 0,
                             TL_WRITE_CONCURRENT_INSERT);
 
   /*
@@ -900,9 +897,9 @@ err:
 
 bool Log_to_csv_event_handler::
   log_slow(THD *thd, my_hrtime_t current_time,
-           const char *user_host, uint user_host_len,
+           const char *user_host, size_t user_host_len,
            ulonglong query_utime, ulonglong lock_utime, bool is_command,
-           const char *sql_text, uint sql_text_len)
+           const char *sql_text, size_t sql_text_len)
 {
   TABLE_LIST table_list;
   TABLE *table;
@@ -927,9 +924,7 @@ bool Log_to_csv_event_handler::
   */
   save_time_zone_used= thd->time_zone_used;
 
-  table_list.init_one_table(MYSQL_SCHEMA_NAME.str, MYSQL_SCHEMA_NAME.length,
-                            SLOW_LOG_NAME.str, SLOW_LOG_NAME.length,
-                            SLOW_LOG_NAME.str,
+  table_list.init_one_table(&MYSQL_SCHEMA_NAME, &SLOW_LOG_NAME, 0,
                             TL_WRITE_CONCURRENT_INSERT);
 
   if (!(table= open_log_table(thd, &table_list, &open_tables_backup)))
@@ -983,9 +978,9 @@ bool Log_to_csv_event_handler::
     goto err;
 
   /* fill database field */
-  if (thd->db)
+  if (thd->db.str)
   {
-    if (table->field[6]->store(thd->db, thd->db_length, client_cs))
+    if (table->field[6]->store(thd->db.str, thd->db.length, client_cs))
       goto err;
     table->field[6]->set_notnull();
   }
@@ -1081,9 +1076,7 @@ int Log_to_csv_event_handler::
 
     log_name= &SLOW_LOG_NAME;
   }
-  table_list.init_one_table(MYSQL_SCHEMA_NAME.str, MYSQL_SCHEMA_NAME.length,
-                            log_name->str, log_name->length, log_name->str,
-                            TL_WRITE_CONCURRENT_INSERT);
+  table_list.init_one_table(&MYSQL_SCHEMA_NAME, log_name, 0, TL_WRITE_CONCURRENT_INSERT);
 
   table= open_log_table(thd, &table_list, &open_tables_backup);
   if (table)
@@ -1123,9 +1116,9 @@ void Log_to_file_event_handler::init_pthread_objects()
 
 bool Log_to_file_event_handler::
   log_slow(THD *thd, my_hrtime_t current_time,
-           const char *user_host, uint user_host_len,
+           const char *user_host, size_t user_host_len,
            ulonglong query_utime, ulonglong lock_utime, bool is_command,
-           const char *sql_text, uint sql_text_len)
+           const char *sql_text, size_t sql_text_len)
 {
   Silence_log_table_errors error_handler;
   thd->push_internal_handler(&error_handler);
@@ -1144,10 +1137,9 @@ bool Log_to_file_event_handler::
 */
 
 bool Log_to_file_event_handler::
-  log_general(THD *thd, my_hrtime_t event_time, const char *user_host,
-              uint user_host_len, my_thread_id thread_id_arg,
-              const char *command_type, uint command_type_len,
-              const char *sql_text, uint sql_text_len,
+  log_general(THD *thd, my_hrtime_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id_arg,
+              const char *command_type, size_t command_type_len,
+              const char *sql_text, size_t sql_text_len,
               CHARSET_INFO *client_cs)
 {
   Silence_log_table_errors error_handler;
@@ -1350,7 +1342,7 @@ bool LOGGER::flush_general_log()
     TRUE    error occurred
 */
 
-bool LOGGER::slow_log_print(THD *thd, const char *query, uint query_length,
+bool LOGGER::slow_log_print(THD *thd, const char *query, size_t query_length,
                             ulonglong current_utime)
 
 {
@@ -1399,7 +1391,7 @@ bool LOGGER::slow_log_print(THD *thd, const char *query, uint query_length,
     {
       is_command= TRUE;
       query= command_name[thd->get_command()].str;
-      query_length= command_name[thd->get_command()].length;
+      query_length= (uint)command_name[thd->get_command()].length;
     }
 
     for (current_handler= slow_log_handler_list; *current_handler ;)
@@ -1414,7 +1406,7 @@ bool LOGGER::slow_log_print(THD *thd, const char *query, uint query_length,
 }
 
 bool LOGGER::general_log_write(THD *thd, enum enum_server_command command,
-                               const char *query, uint query_length)
+                               const char *query, size_t query_length)
 {
   bool error= FALSE;
   Log_event_handler **current_handler= general_log_handler_list;
@@ -1431,8 +1423,8 @@ bool LOGGER::general_log_write(THD *thd, enum enum_server_command command,
   mysql_audit_general_log(thd, hrtime_to_time(current_time),
                           user_host_buff, user_host_len,
                           command_name[(uint) command].str,
-                          command_name[(uint) command].length,
-                          query, query_length);
+                          (uint)command_name[(uint) command].length,
+                          query, (uint)query_length);
                         
   if (opt_log && log_command(thd, command))
   {
@@ -1454,7 +1446,7 @@ bool LOGGER::general_log_write(THD *thd, enum enum_server_command command,
 bool LOGGER::general_log_print(THD *thd, enum enum_server_command command,
                                const char *format, va_list args)
 {
-  uint message_buff_len= 0;
+  size_t message_buff_len= 0;
   char message_buff[MAX_LOG_BUFFER_SIZE];
 
   /* prepare message */
@@ -2310,8 +2302,7 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
 
   String log_query(buf, sizeof(buf), &my_charset_bin);
   if (log_query.copy(STRING_WITH_LEN("SAVEPOINT "), &my_charset_bin) ||
-      append_identifier(thd, &log_query,
-                        thd->lex->ident.str, thd->lex->ident.length))
+      append_identifier(thd, &log_query, &thd->lex->ident))
     DBUG_RETURN(1);
   int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
   Query_log_event qinfo(thd, log_query.c_ptr_safe(), log_query.length(),
@@ -2362,8 +2353,7 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
     char buf[1024];
     String log_query(buf, sizeof(buf), &my_charset_bin);
     if (log_query.copy(STRING_WITH_LEN("ROLLBACK TO "), &my_charset_bin) ||
-        append_identifier(thd, &log_query,
-                          thd->lex->ident.str, thd->lex->ident.length))
+        append_identifier(thd, &log_query, &thd->lex->ident))
       DBUG_RETURN(1);
     int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
     Query_log_event qinfo(thd, log_query.ptr(), log_query.length(),
@@ -2728,7 +2718,7 @@ bool MYSQL_LOG::open(
   if (log_type == LOG_NORMAL)
   {
     char *end;
-    int len=my_snprintf(buff, sizeof(buff), "%s, Version: %s (%s). "
+    size_t len=my_snprintf(buff, sizeof(buff), "%s, Version: %s (%s). "
 #ifdef EMBEDDED_LIBRARY
                         "embedded library\n",
                         my_progname, server_version, MYSQL_COMPILATION_COMMENT
@@ -2935,15 +2925,14 @@ void MYSQL_QUERY_LOG::reopen_file()
     TRUE - error occurred
 */
 
-bool MYSQL_QUERY_LOG::write(time_t event_time, const char *user_host,
-                            uint user_host_len, my_thread_id thread_id_arg,
-                            const char *command_type, uint command_type_len,
-                            const char *sql_text, uint sql_text_len)
+bool MYSQL_QUERY_LOG::write(time_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id_arg,
+                            const char *command_type, size_t command_type_len,
+                            const char *sql_text, size_t sql_text_len)
 {
   char buff[32];
   char local_time_buff[MAX_TIME_SIZE];
   struct tm start;
-  uint time_buff_len= 0;
+  size_t time_buff_len= 0;
 
   mysql_mutex_lock(&LOCK_log);
 
@@ -3037,10 +3026,9 @@ err:
 */
 
 bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
-                            const char *user_host,
-                            uint user_host_len, ulonglong query_utime,
+                            const char *user_host, size_t user_host_len, ulonglong query_utime,
                             ulonglong lock_utime, bool is_command,
-                            const char *sql_text, uint sql_text_len)
+                            const char *sql_text, size_t sql_text_len)
 {
   bool error= 0;
   char llbuff[22];
@@ -3085,7 +3073,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                     "# Thread_id: %lu  Schema: %s  QC_hit: %s\n"
                     "# Query_time: %s  Lock_time: %s  Rows_sent: %lu  Rows_examined: %lu\n"
                     "# Rows_affected: %lu  Bytes_sent: %lu\n",
-                    (ulong) thd->thread_id, (thd->db ? thd->db : ""),
+                    (ulong) thd->thread_id, thd->get_db(),
                     ((thd->query_plan_flags & QPLAN_QC) ? "Yes" : "No"),
                     query_time_buff, lock_time_buff,
                     (ulong) thd->get_sent_row_count(),
@@ -3141,11 +3129,11 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
           goto err;
       thd->free_items();
     }
-    if (thd->db && strcmp(thd->db, db))
+    if (thd->db.str && strcmp(thd->db.str, db))
     {						// Database changed
-      if (my_b_printf(&log_file,"use %s;\n",thd->db))
+      if (my_b_printf(&log_file,"use %s;\n",thd->db.str))
         goto err;
-      strmov(db,thd->db);
+      strmov(db,thd->db.str);
     }
     if (thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt)
     {
@@ -3692,8 +3680,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           Write the current binlog checkpoint into the log, so XA recovery will
           know from where to start recovery.
         */
-        uint off= dirname_length(log_file_name);
-        uint len= strlen(log_file_name) - off;
+        size_t off= dirname_length(log_file_name);
+        size_t len= strlen(log_file_name) - off;
         char *entry_mem, *name_mem;
         if (!(new_xid_list_entry = (xid_count_per_binlog *)
               my_multi_malloc(MYF(MY_WME),
@@ -3703,7 +3691,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           goto err;
         memcpy(name_mem, log_file_name+off, len);
         new_xid_list_entry->binlog_name= name_mem;
-        new_xid_list_entry->binlog_name_len= len;
+        new_xid_list_entry->binlog_name_len= (int)len;
         new_xid_list_entry->xid_count= 0;
         new_xid_list_entry->notify_count= 0;
 
@@ -3723,7 +3711,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         if (!b)
           b= new_xid_list_entry;
         strmake(buf, b->binlog_name, b->binlog_name_len);
-        Binlog_checkpoint_log_event ev(buf, len);
+        Binlog_checkpoint_log_event ev(buf, (uint)len);
         DBUG_EXECUTE_IF("crash_before_write_checkpoint_event",
                         flush_io_cache(&log_file);
                         mysql_file_sync(log_file.file, MYF(MY_WME));
@@ -4015,7 +4003,7 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
 
   for (;;)
   {
-    uint length;
+    size_t length;
     my_off_t offset= my_b_tell(&index_file);
 
     DBUG_EXECUTE_IF("simulate_find_log_pos_error",
@@ -4085,7 +4073,7 @@ end:
 int MYSQL_BIN_LOG::find_next_log(LOG_INFO* linfo, bool need_lock)
 {
   int error= 0;
-  uint length;
+  size_t length;
   char fname[FN_REFLEN];
   char *full_fname= linfo->log_file_name;
 
@@ -4775,7 +4763,7 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *reclaimed_space,
 
   for (;;)
   {
-    uint length;
+    size_t length;
 
     if ((length=my_b_gets(&purge_index_file, log_info.log_file_name,
                           FN_REFLEN)) <= 1)
@@ -5122,7 +5110,7 @@ MYSQL_BIN_LOG::is_gtid_cached(THD *thd)
 
 void MYSQL_BIN_LOG::make_log_name(char* buf, const char* log_ident)
 {
-  uint dir_len = dirname_length(log_file_name); 
+  size_t dir_len = dirname_length(log_file_name); 
   if (dir_len >= FN_REFLEN)
     dir_len=FN_REFLEN-1;
   strnmov(buf, log_file_name, dir_len);
@@ -6382,7 +6370,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       prev_binlog_id= current_binlog_id;
       DBUG_EXECUTE_IF("binlog_force_commit_id",
         {
-          const LEX_STRING commit_name= { C_STRING_WITH_LEN("commit_id") };
+          const LEX_CSTRING commit_name= { STRING_WITH_LEN("commit_id") };
           bool null_value;
           user_var_entry *entry=
             (user_var_entry*) my_hash_search(&thd->user_vars,
@@ -6640,7 +6628,7 @@ bool general_log_print(THD *thd, enum enum_server_command command,
 }
 
 bool general_log_write(THD *thd, enum enum_server_command command,
-                       const char *query, uint query_length)
+                       const char *query, size_t query_length)
 {
   /* Write the message to the log if we want to log this king of commands */
   if (logger.log_command(thd, command) || mysql_audit_general_enabled())
@@ -6987,7 +6975,7 @@ uint MYSQL_BIN_LOG::next_file_id()
 class CacheWriter: public Log_event_writer
 {
 public:
-  ulong remains;
+  size_t remains;
 
   CacheWriter(THD *thd_arg, IO_CACHE *file_arg, bool do_checksum,
               Binlog_crypt_data *cr)
@@ -7040,9 +7028,9 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   mysql_mutex_assert_owner(&LOCK_log);
   if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
-  uint length= my_b_bytes_in_cache(cache), group, carry, hdr_offs;
-  long val;
-  ulong end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t
+  size_t length= my_b_bytes_in_cache(cache), group, carry, hdr_offs;
+  size_t val;
+  size_t end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t
   uchar header[LOG_EVENT_HEADER_LEN];
   CacheWriter writer(thd, &log_file, binlog_checksum_options, &crypto);
 
@@ -7067,7 +7055,7 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
     split.
   */
 
-  group= (uint)my_b_tell(&log_file);
+  group= (size_t)my_b_tell(&log_file);
   hdr_offs= carry= 0;
 
   do
@@ -7079,12 +7067,12 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
     if (unlikely(carry > 0))
     {
       DBUG_ASSERT(carry < LOG_EVENT_HEADER_LEN);
-      uint tail= LOG_EVENT_HEADER_LEN - carry;
+      size_t tail= LOG_EVENT_HEADER_LEN - carry;
 
       /* assemble both halves */
       memcpy(&header[carry], (char *)cache->read_pos, tail);
 
-      ulong len= uint4korr(header + EVENT_LEN_OFFSET);
+      uint32 len= uint4korr(header + EVENT_LEN_OFFSET);
       writer.remains= len;
 
       /* fix end_log_pos */
@@ -7228,7 +7216,7 @@ bool MYSQL_BIN_LOG::write_incident_already_locked(THD *thd)
   uint error= 0;
   DBUG_ENTER("MYSQL_BIN_LOG::write_incident_already_locked");
   Incident incident= INCIDENT_LOST_EVENTS;
-  Incident_log_event ev(thd, incident, write_error_msg);
+  Incident_log_event ev(thd, incident, &write_error_msg);
 
   if (likely(is_open()))
   {
@@ -7396,7 +7384,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   if (cache_mngr->stmt_cache.has_incident() ||
       cache_mngr->trx_cache.has_incident())
   {
-    Incident_log_event inc_ev(thd, INCIDENT_LOST_EVENTS, write_error_msg);
+    Incident_log_event inc_ev(thd, INCIDENT_LOST_EVENTS, &write_error_msg);
     entry.incident_event= &inc_ev;
     DBUG_RETURN(write_transaction_to_binlog_events(&entry));
   }
@@ -7927,7 +7915,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     commit_id= (last_in_queue == leader ? 0 : (uint64)leader->thd->query_id);
     DBUG_EXECUTE_IF("binlog_force_commit_id",
       {
-        const LEX_STRING commit_name= { C_STRING_WITH_LEN("commit_id") };
+        const LEX_CSTRING commit_name= { STRING_WITH_LEN("commit_id") };
         bool null_value;
         user_var_entry *entry=
           (user_var_entry*) my_hash_search(&leader->thd->user_vars,
@@ -8780,7 +8768,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   struct tm tm_tmp;
   struct tm *start;
   THD *thd= 0;
-  int tag_length= 0;
+  size_t tag_length= 0;
   char tag[NAME_LEN];
   DBUG_ENTER("print_buffer_to_file");
   DBUG_PRINT("enter",("buffer: %s", buffer));
@@ -8816,7 +8804,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
           (unsigned long) (thd ? thd->thread_id : 0),
           (level == ERROR_LEVEL ? "ERROR" : level == WARNING_LEVEL ?
            "Warning" : "Note"),
-          tag_length, tag,
+          (int) tag_length, tag,
           (int) length, buffer);
 
   fflush(stderr);
@@ -10138,7 +10126,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     goto err1;
 
   if (do_xa)
-    init_alloc_root(&mem_root, TC_LOG_PAGE_SIZE, TC_LOG_PAGE_SIZE, MYF(0));
+    init_alloc_root(&mem_root, "TC_LOG_BINLOG", TC_LOG_PAGE_SIZE,
+                    TC_LOG_PAGE_SIZE, MYF(0));
 
   fdle->flags&= ~LOG_EVENT_BINLOG_IN_USE_F; // abort on the first error
 
@@ -10176,7 +10165,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       case BINLOG_CHECKPOINT_EVENT:
         if (first_round && do_xa)
         {
-          uint dir_len;
+          size_t dir_len;
           Binlog_checkpoint_log_event *cev= (Binlog_checkpoint_log_event *)ev;
           if (cev->binlog_file_len >= FN_REFLEN)
             sql_print_warning("Incorrect binlog checkpoint event with too "
@@ -10573,7 +10562,7 @@ static struct st_mysql_sys_var *binlog_sys_vars[]=
 static void
 set_binlog_snapshot_file(const char *src)
 {
-  int dir_len = dirname_length(src);
+  size_t dir_len = dirname_length(src);
   strmake_buf(binlog_snapshot_file, src + dir_len);
 }
 

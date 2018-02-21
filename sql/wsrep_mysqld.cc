@@ -1642,7 +1642,7 @@ bool wsrep_prepare_keys_for_isolation(THD*              thd,
     }
     ka->keys[ka->keys_len].key_parts_num= 2;
     ++ka->keys_len;
-    if (!wsrep_prepare_key_for_isolation(table->db, table->table_name,
+    if (!wsrep_prepare_key_for_isolation(table->db.str, table->table_name.str,
                                          (wsrep_buf_t*)ka->keys[ka->keys_len - 1].key_parts,
                                          &ka->keys[ka->keys_len - 1].key_parts_num))
     {
@@ -1879,7 +1879,7 @@ static int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len)
   if (wsrep_alter_query_string(thd, &log_query))
   {
     WSREP_WARN("events alter string failed: schema: %s, query: %s",
-               (thd->db ? thd->db : "(null)"), thd->query());
+               thd->get_db(), thd->query());
     return 1;
   }
   return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);
@@ -1895,10 +1895,10 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     TABLE_LIST *views = first_table;
     LEX_USER *definer;
     String buff;
-    const LEX_STRING command[3]=
-      {{ C_STRING_WITH_LEN("CREATE ") },
-       { C_STRING_WITH_LEN("ALTER ") },
-       { C_STRING_WITH_LEN("CREATE OR REPLACE ") }};
+    const LEX_CSTRING command[3]=
+      {{ STRING_WITH_LEN("CREATE ") },
+       { STRING_WITH_LEN("ALTER ") },
+       { STRING_WITH_LEN("CREATE OR REPLACE ") }};
 
     buff.append(&command[thd->lex->create_view->mode]);
 
@@ -1931,25 +1931,23 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     view_store_options(thd, views, &buff);
     buff.append(STRING_WITH_LEN("VIEW "));
     /* Test if user supplied a db (ie: we did not use thd->db) */
-    if (views->db && views->db[0] &&
-        (thd->db == NULL || strcmp(views->db, thd->db)))
+    if (views->db.str && views->db.str[0] &&
+        (thd->db.str == NULL || cmp(&views->db, &thd->db)))
     {
-      append_identifier(thd, &buff, views->db,
-                        views->db_length);
+      append_identifier(thd, &buff, &views->db);
       buff.append('.');
     }
-    append_identifier(thd, &buff, views->table_name,
-                      views->table_name_length);
+    append_identifier(thd, &buff, &views->table_name);
     if (lex->view_list.elements)
     {
-      List_iterator_fast<LEX_STRING> names(lex->view_list);
-      LEX_STRING *name;
+      List_iterator_fast<LEX_CSTRING> names(lex->view_list);
+      LEX_CSTRING *name;
       int i;
 
       for (i= 0; (name= names++); i++)
       {
         buff.append(i ? ", " : "(");
-        append_identifier(thd, &buff, name->str, name->length);
+        append_identifier(thd, &buff, name);
       }
       buff.append(')');
     }
@@ -1984,7 +1982,7 @@ static int wsrep_drop_table_query(THD* thd, uchar** buf, size_t* buf_len)
   bool found_temp_table= false;
   for (TABLE_LIST* table= first_table; table; table= table->next_global)
   {
-    if (thd->find_temporary_table(table->db, table->table_name))
+    if (thd->find_temporary_table(table->db.str, table->table_name.str))
     {
       found_temp_table= true;
       break;
@@ -1999,11 +1997,11 @@ static int wsrep_drop_table_query(THD* thd, uchar** buf, size_t* buf_len)
 
     for (TABLE_LIST* table= first_table; table; table= table->next_global)
     {
-      if (!thd->find_temporary_table(table->db, table->table_name))
+      if (!thd->find_temporary_table(table->db.str, table->table_name.str))
       {
-        append_identifier(thd, &buff, table->db, strlen(table->db));
+        append_identifier(thd, &buff, table->db.str, table->db.length);
         buff.append(".");
-        append_identifier(thd, &buff, table->table_name, strlen(table->table_name));
+        append_identifier(thd, &buff, table->table_name.str, table->table_name.length);
         buff.append(",");
       }
     }
@@ -2124,7 +2122,7 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     {
       for (TABLE_LIST* table= first_table; table; table= table->next_global)
       {
-        if (!thd->find_temporary_table(table->db, table->table_name))
+        if (!thd->find_temporary_table(table->db.str, table->table_name.str))
         {
           return true;
         }
@@ -2182,7 +2180,7 @@ static void wsrep_TOI_begin_failed(THD* thd, const wsrep_buf_t* const err)
     {
       WSREP_ERROR("Leaving critical section for failed TOI failed: thd: %llu, "
                   "schema: %s, SQL: %s, rcode: %d",
-                  (long long)thd->real_id, (thd->db ? thd->db : "(null)"),
+                  (long long)thd->real_id, (thd->db.str ? thd->db.str : "(null)"),
                   thd->query(), rcode);
       goto fail;
     }
@@ -2326,7 +2324,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
       WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "
                  "Maximum size exceeded.",
                  ret,
-                 (thd->db ? thd->db : "(null)"),
+                 (thd->db.str ? thd->db.str : "(null)"),
                  WSREP_QUERY(thd));
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED);
       break;
@@ -2334,7 +2332,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
       WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "
                  "Check wsrep connection state and retry the query.",
                  ret,
-                 (thd->db ? thd->db : "(null)"),
+                 (thd->db.str ? thd->db.str : "(null)"),
                  WSREP_QUERY(thd));
       if (!thd->is_error())
       {
@@ -2424,7 +2422,7 @@ static void wsrep_TOI_end(THD *thd) {
     else
     {
       WSREP_WARN("TO isolation end failed for: %d, schema: %s, sql: %s",
-                 ret, (thd->db ? thd->db : "(null)"), WSREP_QUERY(thd));
+                 ret, (thd->db.str ? thd->db.str : "(null)"), WSREP_QUERY(thd));
     }
   }
 
@@ -2445,7 +2443,7 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
   if (ret != WSREP_OK)
   {
     WSREP_WARN("RSU desync failed %d for schema: %s, query: %s",
-               ret, (thd->db ? thd->db : "(null)"), WSREP_QUERY(thd));
+               ret, thd->get_db(), thd->query());
     my_error(ER_LOCK_DEADLOCK, MYF(0));
     return(ret);
   }
@@ -2458,7 +2456,7 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
   {
     /* no can do, bail out from DDL */
     WSREP_WARN("RSU failed due to pending transactions, schema: %s, query %s",
-               (thd->db ? thd->db : "(null)"), WSREP_QUERY(thd));
+               thd->get_db(), thd->query());
     mysql_mutex_lock(&LOCK_wsrep_replaying);
     wsrep_replaying--;
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
@@ -2467,7 +2465,7 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
     if (ret != WSREP_OK)
     {
       WSREP_WARN("resync failed %d for schema: %s, query: %s",
-                 ret, (thd->db ? thd->db : "(null)"), WSREP_QUERY(thd));
+                 ret, thd->get_db(), thd->query());
     }
 
     my_error(ER_LOCK_DEADLOCK, MYF(0));
@@ -2478,7 +2476,7 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
   if (seqno == WSREP_SEQNO_UNDEFINED)
   {
     WSREP_WARN("pause failed %lld for schema: %s, query: %s", (long long)seqno,
-               (thd->db ? thd->db : "(null)"), WSREP_QUERY(thd));
+               thd->get_db(), thd->query());
     return(1);
   }
   WSREP_DEBUG("paused at %lld", (long long)seqno);
@@ -2501,15 +2499,14 @@ static void wsrep_RSU_end(THD *thd)
   if (ret != WSREP_OK)
   {
     WSREP_WARN("resume failed %d for schema: %s, query: %s", ret,
-               (thd->db ? thd->db : "(null)"),
-               thd->query());
+               thd->get_db(), thd->query());
   }
 
   ret = wsrep->resync(wsrep);
   if (ret != WSREP_OK)
   {
     WSREP_WARN("resync failed %d for schema: %s, query: %s", ret,
-               (thd->db ? thd->db : "(null)"), thd->query());
+               thd->get_db(), thd->query());
     return;
   }
 
@@ -2529,8 +2526,8 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
 
   if (thd->wsrep_conflict_state() == MUST_ABORT)
   {
-    WSREP_INFO("thread: %lld, schema: %s, query: %s has been aborted due to multi-master conflict",
-               thd->thread_id, (thd->db ? thd->db : "(null)"), WSREP_QUERY(thd));
+    WSREP_INFO("thread: %lld  schema: %s  query: %s has been aborted due to multi-master conflict",
+               (longlong) thd->thread_id, thd->get_db(), thd->query());
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     return WSREP_TRX_FAIL;
   }
@@ -2688,7 +2685,7 @@ void wsrep_end_nbo_lock(THD* thd, const TABLE_LIST *table_list)
     WSREP_ERROR("Failed to acquire total order isolation for non-blocking DDL "
                 "end event, provider returned error code %d: "
                 "(schema: %s, query: %s)",
-                ret, (thd->db ? thd->db : "(null)"),
+                ret, (thd->db.str ? thd->db.str : "(null)"),
                 WSREP_QUERY(thd));
     thd->get_stmt_da()->set_overwrite_status(true);
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), ret);
@@ -2922,7 +2919,7 @@ ignore_error:
   WSREP_WARN("Ignoring error '%s' on query. "
              "Default database: '%s'. Query: '%s', Error_code: %d",
              thd->get_stmt_da()->message(),
-             print_slave_db_safe(thd->db),
+             print_slave_db_safe(thd->db.str),
              thd->query(),
              error);
   return 1;
@@ -3436,7 +3433,7 @@ int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
                      saved_mode))
   {
     WSREP_WARN("SP create string failed: schema: %s, query: %s",
-               (thd->db ? thd->db : "(null)"), thd->query());
+               thd->get_db(), thd->query());
     return 1;
   }
 
@@ -3730,8 +3727,8 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
   }
   else if (!(thd->find_temporary_table(src_table)))
   {
-    /* this is straight CREATE TABLE LIKE... eith no tmp tables */
-    WSREP_TO_ISOLATION_BEGIN(table->db, table->table_name, NULL);
+    /* this is straight CREATE TABLE LIKE... with no tmp tables */
+    WSREP_TO_ISOLATION_BEGIN(table->db.str, table->table_name.str, NULL);
   }
   else
   {
@@ -3754,7 +3751,7 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
     thd->wsrep_TOI_pre_query=     query.ptr();
     thd->wsrep_TOI_pre_query_len= query.length();
 
-    WSREP_TO_ISOLATION_BEGIN(table->db, table->table_name, NULL);
+    WSREP_TO_ISOLATION_BEGIN(table->db.str, table->table_name.str, NULL);
 
     thd->wsrep_TOI_pre_query=      NULL;
     thd->wsrep_TOI_pre_query_len= 0;
@@ -3812,11 +3809,10 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
   append_definer(thd, &stmt_query, &definer_user, &definer_host);
 
   LEX_CSTRING stmt_definition;
-  uint not_used;
   stmt_definition.str= (char*) thd->lex->stmt_definition_begin;
   stmt_definition.length= thd->lex->stmt_definition_end
     - thd->lex->stmt_definition_begin;
-  trim_whitespace(thd->charset(), &stmt_definition, &not_used);
+  trim_whitespace(thd->charset(), &stmt_definition);
 
   stmt_query.append(stmt_definition.str, stmt_definition.length);
 

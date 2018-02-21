@@ -572,7 +572,7 @@ inline_mysql_socket_bind
 #ifdef HAVE_PSI_SOCKET_INTERFACE
   const char *src_file, uint src_line,
 #endif
-  MYSQL_SOCKET mysql_socket, const struct sockaddr *addr, socklen_t len)
+  MYSQL_SOCKET mysql_socket, const struct sockaddr *addr, size_t len)
 {
   int result;
 
@@ -586,11 +586,11 @@ inline_mysql_socket_bind
       (&state, mysql_socket.m_psi, PSI_SOCKET_BIND, (size_t)0, src_file, src_line);
 
     /* Instrumented code */
-    result= bind(mysql_socket.fd, addr, len);
+    result= bind(mysql_socket.fd, addr, (int)len);
 
     /* Instrumentation end */
     if (result == 0)
-      PSI_SOCKET_CALL(set_socket_info)(mysql_socket.m_psi, NULL, addr, len);
+      PSI_SOCKET_CALL(set_socket_info)(mysql_socket.m_psi, NULL, addr, (socklen_t)len);
 
     if (locker != NULL)
       PSI_SOCKET_CALL(end_socket_wait)(locker, (size_t)0);
@@ -600,7 +600,7 @@ inline_mysql_socket_bind
 #endif
 
   /* Non instrumented code */
-  result= bind(mysql_socket.fd, addr, len);
+  result= bind(mysql_socket.fd, addr, (int)len);
   return result;
 }
 

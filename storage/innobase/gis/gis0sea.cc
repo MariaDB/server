@@ -718,7 +718,7 @@ rtr_page_get_father_node_ptr(
 
 	ut_ad(dict_index_get_page(index) != page_no);
 
-	level = btr_page_get_level(btr_cur_get_page(cursor), mtr);
+	level = btr_page_get_level(btr_cur_get_page(cursor));
 
 	user_rec = btr_cur_get_rec(cursor);
 	ut_a(page_rec_is_user_rec(user_rec));
@@ -1680,7 +1680,7 @@ rtr_cur_search_with_match(
 
 	page = buf_block_get_frame(block);
 
-	const ulint level = btr_page_get_level(page, mtr);
+	const ulint level = btr_page_get_level(page);
 	const bool is_leaf = !level;
 
 	if (mode == PAGE_CUR_RTREE_LOCATE) {
@@ -1716,7 +1716,7 @@ rtr_cur_search_with_match(
 		first page as much as possible, as there will be problem
 		when update MIN_REC rec in compress table */
 		if (buf_block_get_page_zip(block)
-		    && mach_read_from_4(page + FIL_PAGE_PREV) == FIL_NULL
+		    && !page_has_prev(page)
 		    && page_get_n_recs(page) >= 2) {
 
 			rec = page_rec_get_next_const(rec);

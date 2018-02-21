@@ -240,7 +240,8 @@ With_element *With_clause::find_table_def(TABLE_LIST *table,
        with_elem= with_elem->next)
   {
     if (my_strcasecmp(system_charset_info, with_elem->query_name->str,
-		      table->table_name) == 0) 
+		      table->table_name.str) == 0 &&
+        !table->is_fqtn)
     {
       table->set_derived();
       return with_elem;
@@ -825,11 +826,11 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
   TABLE_LIST *spec_tables_tail;
   st_select_lex *with_select;
 
-  if (parser_state.init(thd, (char*) unparsed_spec.str, unparsed_spec.length))
+  if (parser_state.init(thd, (char*) unparsed_spec.str, (unsigned int)unparsed_spec.length))
     goto err;
   lex_start(thd);
   with_select= &lex->select_lex;
-  with_select->select_number= ++thd->select_number;
+  with_select->select_number= ++thd->stmt_lex->current_select_number;
   parse_status= parse_sql(thd, &parser_state, 0);
   if (parse_status)
     goto err;
@@ -1005,23 +1006,24 @@ bool With_element::is_anchor(st_select_lex *sel)
 
 With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
 {
-  st_select_lex_unit *master_unit= NULL;
   With_element *found= NULL;
-  for (st_select_lex *sl= this;
-       sl;
-       sl= master_unit->outer_select())
+  st_select_lex_unit *master_unit;
+  st_select_lex *outer_sl;
+  for (st_select_lex *sl= this; sl; sl= outer_sl)
   {
-    With_element *with_elem= sl->get_with_element();
     /* 
       If sl->master_unit() is the spec of a with element then the search for 
       a definition was already done by With_element::check_dependencies_in_spec
       and it was unsuccesful. Yet for units cloned from the spec it has not 
       been done yet.
     */
-    With_clause *attached_with_clause=sl->get_with_clause();
+    With_clause *attached_with_clause= sl->get_with_clause();
     if (attached_with_clause &&
         (found= attached_with_clause->find_table_def(table, NULL)))
       break;
+    master_unit= sl->master_unit();
+    outer_sl= master_unit->outer_select();
+    With_element *with_elem= sl->get_with_element();
     if (with_elem)
     {
       With_clause *containing_with_clause= with_elem->get_owner();
@@ -1029,9 +1031,9 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
                                NULL : with_elem;
       if ((found= containing_with_clause->find_table_def(table, barrier)))
         break;
-      sl= sl->master_unit()->outer_select(); 
+      if (outer_sl && !outer_sl->get_with_element())
+        break;
     }
-    master_unit= sl->master_unit();
     /* Do not look for the table's definition beyond the scope of the view */
     if (master_unit->is_view)
       break; 
@@ -1073,7 +1075,7 @@ bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
   if (!with_elem->is_referenced() || with_elem->is_recursive)
   {
     derived= with_elem->spec;
-    if (derived->get_master() != select_lex &&
+    if (derived != select_lex->master_unit() &&
         !is_with_table_recursive_reference())
     {
        derived->move_as_slave(select_lex);
@@ -1083,7 +1085,6 @@ bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
   {
     if(!(derived= with_elem->clone_parsed_spec(thd, this)))
       return true;
-    derived->with_element= with_elem;
   }
   derived->first_select()->linkage= DERIVED_TABLE_TYPE;
   with_elem->inc_references();

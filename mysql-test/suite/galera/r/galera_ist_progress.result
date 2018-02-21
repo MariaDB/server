@@ -1,6 +1,9 @@
 connection node_2;
+<<<<<<< HEAD
 connection node_1;
 connection node_2;
+=======
+>>>>>>> 10.3
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
 connection node_1;
 connection node_2;
@@ -23,7 +26,7 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
 connection node_1;
 connection node_2;
 connection node_1;
-include/assert_grep.inc [Receiving IST: 1[13] writesets]
+include/assert_grep.inc [Receiving IST: 11 writesets, seqnos]
 include/assert_grep.inc [Receiving IST\.\.\.  0\.0% \( 0/11 events\) complete]
 include/assert_grep.inc [Receiving IST\.\.\.100\.0% \(11/11 events\) complete]
 connection node_1;

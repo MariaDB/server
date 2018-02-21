@@ -949,7 +949,7 @@ uint _ma_get_static_key(MARIA_KEY *key, uint page_flag, uint nod_flag,
                         register uchar **page)
 {
   register MARIA_KEYDEF *keyinfo= key->keyinfo;
-  size_t key_length= keyinfo->keylength;
+  uint key_length= keyinfo->keylength;
 
   key->ref_length=  keyinfo->share->rec_reflength;
   key->data_length= key_length - key->ref_length;

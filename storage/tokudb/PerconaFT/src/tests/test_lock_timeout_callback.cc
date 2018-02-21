@@ -118,7 +118,8 @@ int test_main(int UU(argc), char *const UU(argv[])) {
     acquire_lock(txn2, magic_key + 1);
     toku_pthread_t thread;
     acquire_lock_extra e(txn1, magic_key + 1);
-    r = toku_pthread_create(&thread, NULL, acquire_lock_thread, &e);
+    r = toku_pthread_create(
+        toku_uninstrumented, &thread, nullptr, acquire_lock_thread, &e);
     usleep(100000);
     acquire_lock(txn2, magic_key);
     invariant(callback_calls == 2);

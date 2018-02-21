@@ -27,7 +27,7 @@ typedef struct st_federated_server
 {
   const char *server_name;
   long port;
-  uint server_name_length;
+  size_t server_name_length;
   const char *db, *scheme, *username, *password, *socket, *owner, *host, *sport;
 } FOREIGN_SERVER;
 

@@ -64,19 +64,6 @@ NTService::~NTService()
 
  -------------------------------------------------------------------------- */
 
-BOOL NTService::GetOS()
-{
-  bOsNT = FALSE;
-  memset(&osVer, 0, sizeof(OSVERSIONINFO));
-  osVer.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-  if (GetVersionEx(&osVer))
-  {
-    if (osVer.dwPlatformId == VER_PLATFORM_WIN32_NT)
-      bOsNT = TRUE;
-  }
-  return bOsNT;
-}
-
 
 /**
   Registers the main service thread with the service manager.

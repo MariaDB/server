@@ -36,7 +36,7 @@ static const char *default_dbug_option;
 int main(int argc __attribute__((unused)), char *argv[])
 {
   ulong i;
-  uint pagen;
+  size_t pagen;
   uchar long_tr_id[6];
   PAGECACHE pagecache;
   LSN lsn;

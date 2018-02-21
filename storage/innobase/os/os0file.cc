@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -814,7 +814,8 @@ os_file_get_block_size(
 #ifdef _WIN32
 
 	fblock_size = 0;
-
+	BOOL result = false;
+	size_t len = 0;
 	// Open volume for this file, find out it "physical bytes per sector"
 
 	HANDLE volume_handle = INVALID_HANDLE_VALUE;
@@ -825,7 +826,7 @@ os_file_get_block_size(
 		goto end;
 	}
 
-	size_t len = strlen(volume);
+	len = strlen(volume);
 	if (volume[len - 1] == '\\') {
 		// Trim trailing backslash from volume name.
 		volume[len - 1] = 0;
@@ -849,7 +850,7 @@ os_file_get_block_size(
 	storage_query.PropertyId = StorageAccessAlignmentProperty;
 	storage_query.QueryType  = PropertyStandardQuery;
 
-	BOOL result = os_win32_device_io_control(volume_handle,
+	result = os_win32_device_io_control(volume_handle,
 		IOCTL_STORAGE_QUERY_PROPERTY,
 		&storage_query,
 		sizeof(storage_query),
@@ -4994,7 +4995,7 @@ os_file_write_func(
 	if ((ulint) n_bytes != n && !os_has_said_disk_full) {
 
 		ib::error()
-			<< "Write to file " << name << "failed at offset "
+			<< "Write to file " << name << " failed at offset "
 			<< offset << ", " << n
 			<< " bytes should have been written,"
 			" only " << n_bytes << " were written."

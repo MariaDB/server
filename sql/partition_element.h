@@ -185,13 +185,13 @@ public:
   // mixup
   elem_type type()
   {
-    return (elem_type)(signed_flag << 1 | max_value);
+    return (elem_type)(int(signed_flag) << 1 | int(max_value));
   }
 
   void type(elem_type val)
   {
-    max_value= val & 1;
-    signed_flag= val & 2;
+    max_value= (bool)(val & 1);
+    signed_flag= (bool)(val & 2);
   }
 
   partition_element()

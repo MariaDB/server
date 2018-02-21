@@ -80,11 +80,13 @@ test_main (int UU(argc), char UU(*const argv[])) {
     r=env->close(env, 0);
     assert(r==0);
     {
-	toku_struct_stat statbuf;
-        char filename[TOKU_PATH_MAX+1];
-        r = toku_stat(toku_path_join(filename, 2, TOKU_TEST_FILENAME, "foo.db"), &statbuf);
-        assert(r==-1);
-        assert(errno==ENOENT);
+        toku_struct_stat statbuf;
+        char filename[TOKU_PATH_MAX + 1];
+        r = toku_stat(toku_path_join(filename, 2, TOKU_TEST_FILENAME, "foo.db"),
+                      &statbuf,
+                      toku_uninstrumented);
+        assert(r == -1);
+        assert(errno == ENOENT);
     }
     return 0;
 }

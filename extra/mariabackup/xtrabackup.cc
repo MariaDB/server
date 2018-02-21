@@ -434,6 +434,22 @@ datafiles_iter_free(datafiles_iter_t *it)
 	free(it);
 }
 
+void mdl_lock_all()
+{
+	mdl_lock_init();
+	datafiles_iter_t *it = datafiles_iter_new(fil_system);
+	if (!it)
+		return;
+
+	while (fil_node_t *node = datafiles_iter_next(it)){
+		if (fil_is_user_tablespace_id(node->space->id)
+			&& check_if_skip_table(node->space->name))
+			continue;
+
+		mdl_lock_table(node->space->id);
+	}
+	datafiles_iter_free(it);
+}
 /* ======== Date copying thread context ======== */
 
 typedef struct {
@@ -1208,8 +1224,8 @@ static int prepare_export()
   if (strncmp(orig_argv1,"--defaults-file=",16) == 0)
   {
     sprintf(cmdline, 
-     IF_WIN("\"","") "\"%s\" --mysqld \"%s\" --defaults-group-suffix=%s"
-      " --defaults-extra-file=./backup-my.cnf --datadir=."
+     IF_WIN("\"","") "\"%s\" --mysqld \"%s\" "
+      " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
       " --console  --skip-log-error --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
@@ -1221,11 +1237,12 @@ static int prepare_export()
   {
     sprintf(cmdline,
      IF_WIN("\"","") "\"%s\" --mysqld"
-      " --defaults-file=./backup-my.cnf --datadir=."
+      " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
       " --console  --log-error= --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
+      (my_defaults_group_suffix?my_defaults_group_suffix:""),
       xtrabackup_use_memory);
   }
 
@@ -1248,10 +1265,10 @@ end:
 
 
 static const char *xb_client_default_groups[]=
-	{ "xtrabackup", "client", 0, 0, 0 };
+	{ "xtrabackup", "mariabackup", "client", 0, 0, 0 };
 
 static const char *xb_server_default_groups[]=
-	{ "xtrabackup", "mysqld", 0, 0, 0 };
+	{ "xtrabackup", "mariabackup", "mysqld", 0, 0, 0 };
 
 static void print_version(void)
 {
@@ -1278,7 +1295,7 @@ GNU General Public License for more details.\n\
 \n\
 You can download full text of the license on http://www.gnu.org/licenses/gpl-2.0.txt\n");
 
-  printf("Usage: [%s [--defaults-file=#] --backup | %s [--defaults-file=#] --prepare] [OPTIONS]\n",my_progname,my_progname);
+  printf("Usage: %s [--defaults-file=#] [--backup | --prepare | --copy-back | --move-back] [OPTIONS]\n",my_progname);
   print_defaults("my", xb_server_default_groups);
   my_print_help(xb_client_options);
   my_print_help(xb_server_options);
@@ -1574,7 +1591,7 @@ innodb_init_param(void)
         changes the value so that it becomes the number of database pages. */
 
 	srv_buf_pool_size = (ulint) xtrabackup_use_memory;
-	srv_buf_pool_chunk_unit = srv_buf_pool_size;
+	srv_buf_pool_chunk_unit = (ulong)srv_buf_pool_size;
 	srv_buf_pool_instances = 1;
 
 	srv_n_file_io_threads = (ulint) innobase_file_io_threads;
@@ -2198,10 +2215,6 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n)
 	    && check_if_skip_table(node_name)) {
 		msg("[%02u] Skipping %s.\n", thread_n, node_name);
 		return(FALSE);
-	}
-
-	if (opt_lock_ddl_per_table) {
-		mdl_lock_table(node->space->id);
 	}
 
 	if (!changed_page_bitmap) {
@@ -2896,19 +2909,7 @@ xb_load_tablespaces()
 					   &flush_lsn);
 
 	if (err != DB_SUCCESS) {
-		msg("mariabackup: Could not open or create data files.\n"
-		    "mariabackup: If you tried to add new data files, and it "
-		    "failed here,\n"
-		    "mariabackup: you should now edit innodb_data_file_path in "
-		    "my.cnf back\n"
-		    "mariabackup: to what it was, and remove the new ibdata "
-		    "files InnoDB created\n"
-		    "mariabackup: in this failed attempt. InnoDB only wrote "
-		    "those files full of\n"
-		    "mariabackup: zeros, but did not yet use them in any way. "
-		    "But be careful: do not\n"
-		    "mariabackup: remove old data files which contain your "
-		    "precious data!\n");
+		msg("mariabackup: Could not open data files.\n");
 		return(err);
 	}
 
@@ -3513,7 +3514,13 @@ xtrabackup_backup_low()
 			    "to '%s'.\n", filename);
 			return false;
 		}
-
+		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
+			XTRABACKUP_INFO);
+		if (!write_xtrabackup_info(mysql_connection, filename, false)) {
+			msg("mariabackup: Error: failed to write info "
+			 "to '%s'.\n", filename);
+			return false;
+		}
 	}
 
 	return true;
@@ -3563,15 +3570,15 @@ xtrabackup_backup_func()
 		    "or RENAME TABLE during the backup, inconsistent backup will be "
 		    "produced.\n");
 
-	if (opt_lock_ddl_per_table) {
-		mdl_lock_init();
-	}
+
 
 	/* initialize components */
         if(innodb_init_param()) {
 fail:
 		stop_backup_threads();
-		innodb_shutdown();
+		if (fil_system) {
+			innodb_shutdown();
+		}
 		return(false);
 	}
 
@@ -3849,7 +3856,7 @@ reread_log_header:
 	err = xb_load_tablespaces();
 	if (err != DB_SUCCESS) {
 		msg("mariabackup: error: xb_load_tablespaces() failed with"
-		    "error code %u\n", err);
+		    " error code %u\n", err);
 		goto fail;
 	}
 
@@ -3878,6 +3885,10 @@ reread_log_header:
 	if (xtrabackup_parallel > 1) {
 		msg("mariabackup: Starting %u threads for parallel data "
 		    "files transfer\n", xtrabackup_parallel);
+	}
+
+	if (opt_lock_ddl_per_table) {
+		mdl_lock_all();
 	}
 
 	it = datafiles_iter_new(fil_system);
@@ -4523,7 +4534,7 @@ xb_process_datadir(
 	handle_datadir_entry_func_t	func)	/*!<in: callback */
 {
 	ulint		ret;
-	char		dbpath[OS_FILE_MAX_PATH];
+	char		dbpath[OS_FILE_MAX_PATH+1];
 	os_file_dir_t	dir;
 	os_file_dir_t	dbdir;
 	os_file_stat_t	dbinfo;
@@ -4589,7 +4600,7 @@ next_file_item_1:
 		        goto next_datadir_item;
 		}
 
-		snprintf(dbpath, sizeof(dbpath), "%s/%s", path, dbinfo.name);
+		snprintf(dbpath, sizeof(dbpath)-1, "%s/%s", path, dbinfo.name);
 
 		os_normalize_path(dbpath);
 
@@ -4832,37 +4843,23 @@ xtrabackup_prepare_func(char** argv)
 	}
 
 	if (ok) {
-		mtr_t			mtr;
-		mtr.start();
-		const trx_sysf_t*	sys_header = trx_sysf_get(&mtr);
+		msg("Last binlog file %s, position %lld\n",
+		    trx_sys.recovered_binlog_filename,
+		    longlong(trx_sys.recovered_binlog_offset));
 
-		if (mach_read_from_4(TRX_SYS_MYSQL_LOG_INFO
-				     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
-				     + sys_header)
-		    == TRX_SYS_MYSQL_LOG_MAGIC_N) {
-			ulonglong pos = mach_read_from_8(
-				TRX_SYS_MYSQL_LOG_INFO
-				+ TRX_SYS_MYSQL_LOG_OFFSET
-				+ sys_header);
-			const char* name = reinterpret_cast<const char*>(
-				TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_NAME
-				+ sys_header);
-			msg("Last binlog file %s, position %llu\n", name, pos);
-
-			/* output to xtrabackup_binlog_pos_innodb and
-			(if backup_safe_binlog_info was available on
-			the server) to xtrabackup_binlog_info. In the
-			latter case xtrabackup_binlog_pos_innodb
-			becomes redundant and is created only for
-			compatibility. */
-			ok = store_binlog_info(
-				"xtrabackup_binlog_pos_innodb", name, pos)
-				&& (!recover_binlog_info || store_binlog_info(
-					    XTRABACKUP_BINLOG_INFO,
-					    name, pos));
-		}
-
-		mtr.commit();
+		/* output to xtrabackup_binlog_pos_innodb and
+		   (if backup_safe_binlog_info was available on
+		   the server) to xtrabackup_binlog_info. In the
+		   latter case xtrabackup_binlog_pos_innodb
+		   becomes redundant and is created only for
+		   compatibility. */
+		ok = store_binlog_info("xtrabackup_binlog_pos_innodb",
+				       trx_sys.recovered_binlog_filename,
+				       trx_sys.recovered_binlog_offset)
+		  && (!recover_binlog_info
+		      || store_binlog_info(XTRABACKUP_BINLOG_INFO,
+					   trx_sys.recovered_binlog_filename,
+					   trx_sys.recovered_binlog_offset));
 	}
 
 	/* Check whether the log is applied enough or not. */
@@ -4956,9 +4953,19 @@ xb_init()
 		return(false);
 	}
 
-	if (opt_rsync && xtrabackup_stream_fmt) {
-		msg("Error: --rsync doesn't work with --stream\n");
-		return(false);
+	if (xtrabackup_backup && opt_rsync)
+	{
+		if (xtrabackup_stream_fmt)
+		{
+			msg("Error: --rsync doesn't work with --stream\n");
+			return(false);
+		}
+		bool have_rsync = IF_WIN(false, (system("rsync --version > /dev/null 2>&1") == 0));
+		if (!have_rsync)
+		{
+			msg("Error: rsync executable not found, cannot run backup with --rsync\n");
+			return false;
+		}
 	}
 
 	n_mixed_options = 0;
@@ -5056,7 +5063,7 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	setup_error_messages();
 	sys_var_init();
 	plugin_mutex_init();
-	mysql_rwlock_init(key_rwlock_LOCK_system_variables_hash, &LOCK_system_variables_hash);
+	mysql_prlock_init(key_rwlock_LOCK_system_variables_hash, &LOCK_system_variables_hash);
 	opt_stack_trace = 1;
 	test_flags |=  TEST_SIGINT;
 	init_signals();
@@ -5530,7 +5537,7 @@ static int main_low(char** argv)
 static int get_exepath(char *buf, size_t size, const char *argv0)
 {
 #ifdef _WIN32
-  DWORD ret = GetModuleFileNameA(NULL, buf, size);
+  DWORD ret = GetModuleFileNameA(NULL, buf, (DWORD)size);
   if (ret > 0)
     return 0;
 #elif defined(__linux__)

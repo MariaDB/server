@@ -143,8 +143,8 @@ static void finish_stmt(THD* thd) {
 }
 
 static int open_table(THD* thd,
-               const LEX_STRING& schema_name,
-               const LEX_STRING& table_name,
+               const LEX_CSTRING *schema_name,
+               const LEX_CSTRING *table_name,
                enum thr_lock_type const lock_type,
                TABLE** table) {
   assert(table);
@@ -157,14 +157,18 @@ static int open_table(THD* thd,
                MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY |
                MYSQL_OPEN_IGNORE_FLUSH |
                MYSQL_LOCK_IGNORE_TIMEOUT);
-
+#ifdef OUT
   tables.init_one_table(schema_name.str, schema_name.length,
                         table_name.str, table_name.length,
                         table_name.str, lock_type);
+#endif
+  tables.init_one_table(schema_name,
+                        table_name,
+                        NULL, lock_type);
 
   if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
     close_thread_tables(thd);
-    my_error(ER_NO_SUCH_TABLE, MYF(0), schema_name.str, table_name.str);
+    my_error(ER_NO_SUCH_TABLE, MYF(0), schema_name->str, table_name->str);
     DBUG_RETURN(1);
   }
 
@@ -176,9 +180,9 @@ static int open_table(THD* thd,
 
 
 static int open_for_write(THD* thd, const char* table_name, TABLE** table) {
-  LEX_STRING schema_str= { C_STRING_WITH_LEN(wsrep_schema_str.c_str()) };
-  LEX_STRING table_str= { C_STRING_WITH_LEN(table_name) };
-  if (Wsrep_schema_impl::open_table(thd, schema_str, table_str, TL_WRITE,
+  LEX_CSTRING schema_str= { C_STRING_WITH_LEN(wsrep_schema_str.c_str()) };
+  LEX_CSTRING table_str= { C_STRING_WITH_LEN(table_name) };
+  if (Wsrep_schema_impl::open_table(thd, &schema_str, &table_str, TL_WRITE,
                                     table)) {
     WSREP_ERROR("Failed to open table %s.%s for writing",
                 schema_str.str, table_name);
@@ -328,9 +332,9 @@ static int delete_row(TABLE* table) {
 }
 
 static int open_for_read(THD* thd, const char* table_name, TABLE** table) {
-  LEX_STRING schema_str= { C_STRING_WITH_LEN(wsrep_schema_str.c_str()) };
-  LEX_STRING table_str= { C_STRING_WITH_LEN(table_name) };
-  if (Wsrep_schema_impl::open_table(thd, schema_str, table_str, TL_READ,
+  LEX_CSTRING schema_str= { C_STRING_WITH_LEN(wsrep_schema_str.c_str()) };
+  LEX_CSTRING table_str= { C_STRING_WITH_LEN(table_name) };
+  if (Wsrep_schema_impl::open_table(thd, &schema_str, &table_str, TL_READ,
                                     table)) {
     WSREP_ERROR("Failed to open table %s.%s for reading",
                 schema_str.str, table_name);
@@ -1462,7 +1466,12 @@ int Wsrep_schema::replay_trx(THD* real_thd, const wsrep_trx_meta_t& meta)
 
 void Wsrep_schema::init_SR_table(TABLE_LIST *table)
 {
+#ifdef OUT
   table->init_one_table(wsrep_schema_str.c_str(),
                         wsrep_schema_str.size(),
                         "SR", 2, "SR", TL_WRITE);
+#endif
+  LEX_CSTRING schema_str= { C_STRING_WITH_LEN(wsrep_schema_str.c_str()) };
+  LEX_CSTRING table_str= { C_STRING_WITH_LEN("SR") };
+  table->init_one_table(&schema_str, &table_str, NULL, TL_WRITE);
 }

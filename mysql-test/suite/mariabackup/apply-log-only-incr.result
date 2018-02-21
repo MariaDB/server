@@ -10,9 +10,9 @@ SET GLOBAL innodb_flush_log_at_trx_commit = 1;
 ROLLBACK;
 disconnect flush_log;
 connection default;
-NOT FOUND /Rollback of trx with id/ in current_test
+NOT FOUND /Rolled back recovered transaction/ in current_test
 # expect NOT FOUND
-NOT FOUND /Rollback of trx with id/ in current_test
+NOT FOUND /Rolled back recovered transaction/ in current_test
 # expect NOT FOUND
 commit;
 SELECT count(*) FROM t;

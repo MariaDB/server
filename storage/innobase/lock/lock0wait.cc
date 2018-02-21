@@ -203,7 +203,7 @@ wsrep_is_BF_lock_timeout(
 
 		ut_ad(lock_mutex_own());
 
-		wsrep_trx_print_locking(stderr, trx, 3000);
+		trx_print_latched(stderr, trx, 3000);
 
 		if (!locked) {
 			lock_mutex_exit();

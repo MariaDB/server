@@ -18,8 +18,10 @@ SET GLOBAL innodb_disallow_writes=ON;
 --send INSERT INTO t1 VALUES (1);
 
 --connection node_1a
+SELECT COUNT(*) = 1 FROM t1;
 let $wait_condition = SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'INSERT INTO t1 VALUES (1)' AND State = 'Commit';
 --source include/wait_condition.inc
+SELECT COUNT(*) = 1 FROM t1;
 
 SET GLOBAL innodb_disallow_writes=OFF;
 

@@ -92,6 +92,9 @@ static int uname(struct utsname *buf)
 {
   OSVERSIONINFOEX ver;
   ver.dwOSVersionInfoSize = (DWORD)sizeof(ver);
+#ifdef _MSC_VER
+#pragma warning (disable : 4996)
+#endif
   if (!GetVersionEx((OSVERSIONINFO *)&ver))
     return -1;
 

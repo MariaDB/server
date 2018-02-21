@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1584,8 +1584,6 @@ log_write_checkpoint_info(bool sync, lsn_t end_lsn)
 		rw_lock_s_lock(&log_sys->checkpoint_lock);
 		rw_lock_s_unlock(&log_sys->checkpoint_lock);
 
-		DEBUG_SYNC_C("checkpoint_completed");
-
 		DBUG_EXECUTE_IF(
 			"crash_after_checkpoint",
 			DBUG_SUICIDE(););
@@ -1918,7 +1916,7 @@ loop:
 
 	if (ulint total_trx = srv_was_started && !srv_read_only_mode
 	    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
-	    ? trx_sys_any_active_transactions() : 0) {
+	    ? trx_sys.any_active_transactions() : 0) {
 
 		if (srv_print_verbose_log && count > 600) {
 			ib::info() << "Waiting for " << total_trx << " active"
@@ -1949,7 +1947,7 @@ loop:
 		goto wait_suspend_loop;
 	} else if (btr_defragment_thread_active) {
 		thread_name = "btr_defragment_thread";
-	} else if (srv_fast_shutdown != 2 && trx_rollback_or_clean_is_active) {
+	} else if (srv_fast_shutdown != 2 && trx_rollback_is_active) {
 		thread_name = "rollback of recovered transactions";
 	} else {
 		thread_name = NULL;

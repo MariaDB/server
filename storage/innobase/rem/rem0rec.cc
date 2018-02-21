@@ -240,7 +240,7 @@ rec_get_n_extern_new(
 /** Get the length of added field count in a REC_STATUS_COLUMNS_ADDED record.
 @param[in]	n_add_field	number of added fields, minus one
 @return	storage size of the field count, in bytes */
-static inline unsigned rec_get_n_add_field_len(unsigned n_add_field)
+static inline unsigned rec_get_n_add_field_len(ulint n_add_field)
 {
 	ut_ad(n_add_field < REC_MAX_N_FIELDS);
 	return n_add_field < 0x80 ? 1 : 2;
@@ -268,7 +268,7 @@ static inline unsigned rec_get_n_add_field(const byte*& header)
 @param[in,out]	header	variable header of a REC_STATUS_COLUMNS_ADDED record
 @param[in]	n_add	number of added fields, minus 1
 @return	record header before the number of added fields */
-static inline void rec_set_n_add_field(byte*& header, unsigned n_add)
+static inline void rec_set_n_add_field(byte*& header, ulint n_add)
 {
 	ut_ad(n_add < REC_MAX_N_FIELDS);
 
@@ -1154,21 +1154,18 @@ rec_get_converted_size_comp_prefix_low(
 
 		if (fixed_len) {
 #ifdef UNIV_DEBUG
-			ulint	mbminlen = DATA_MBMINLEN(col->mbminmaxlen);
-			ulint	mbmaxlen = DATA_MBMAXLEN(col->mbminmaxlen);
-
 			ut_ad(len <= fixed_len);
 
 			if (dict_index_is_spatial(index)) {
 				ut_ad(type->mtype == DATA_SYS_CHILD
-				      || !mbmaxlen
-				      || len >= mbminlen * (fixed_len
-							    / mbmaxlen));
+				      || !col->mbmaxlen
+				      || len >= col->mbminlen
+				      * fixed_len / col->mbmaxlen);
 			} else {
 				ut_ad(type->mtype != DATA_SYS_CHILD);
-				ut_ad(!mbmaxlen
-				      || len >= mbminlen * (fixed_len
-							    / mbmaxlen));
+				ut_ad(!col->mbmaxlen
+				      || len >= col->mbminlen
+				      * fixed_len / col->mbmaxlen);
 			}
 
 			/* dict_index_add_col() should guarantee this */
@@ -1567,15 +1564,11 @@ rec_convert_dtuple_to_rec_comp(
 		0..127.  The length will be encoded in two bytes when
 		it is 128 or more, or when the field is stored externally. */
 		if (fixed_len) {
-#ifdef UNIV_DEBUG
-			ulint	mbminlen = DATA_MBMINLEN(col->mbminmaxlen);
-			ulint	mbmaxlen = DATA_MBMAXLEN(col->mbminmaxlen);
-
 			ut_ad(len <= fixed_len);
-			ut_ad(!mbmaxlen || len >= mbminlen
-			      * (fixed_len / mbmaxlen));
+			ut_ad(!col->mbmaxlen
+			      || len >= col->mbminlen
+			      * fixed_len / col->mbmaxlen);
 			ut_ad(!dfield_is_ext(field));
-#endif /* UNIV_DEBUG */
 		} else if (dfield_is_ext(field)) {
 			ut_ad(DATA_BIG_COL(col));
 			ut_ad(len <= REC_ANTELOPE_MAX_INDEX_COL_LEN

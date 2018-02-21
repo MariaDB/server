@@ -16,7 +16,7 @@ SELECT COUNT(*) = 10 FROM t1;
 --exec innobackupex --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 $MYSQL_TMP_DIR/innobackupex_backup --galera-info --port=$NODE_MYPORT_2 --host=127.0.0.1 --no-timestamp > $MYSQL_TMP_DIR/innobackupex-backup.log
 --exec innobackupex --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 $MYSQL_TMP_DIR/innobackupex_backup --apply-log --galera-info --port=$NODE_MYPORT_2 --host=127.0.0.1 --no-timestamp > $MYSQL_TMP_DIR/innobackupex-apply.log
 
---source include/kill_galera.inc
+--source ../galera/include/kill_galera.inc
 --sleep 1
 
 --connection node_1

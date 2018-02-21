@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +29,6 @@ Created 25/08/2016 Jan Lindström
 #include "dict0defrag_bg.h"
 #include "row0mysql.h"
 #include "srv0start.h"
-#include "trx0roll.h"
 #include "ut0new.h"
 
 #include <vector>
@@ -202,18 +201,17 @@ dict_stats_defrag_pool_del(
 	mutex_exit(&defrag_pool_mutex);
 }
 
-/** Get the first index that has been added for updating persistent defrag
-stats and eventually save its stats.
-@param[in,out]	trx	transaction that will be started and committed  */
+/*****************************************************************//**
+Get the first index that has been added for updating persistent defrag
+stats and eventually save its stats. */
 static
 void
-dict_stats_process_entry_from_defrag_pool(trx_t* trx)
+dict_stats_process_entry_from_defrag_pool()
 {
 	table_id_t	table_id;
 	index_id_t	index_id;
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(trx->persistent_stats);
 
 	/* pop the first index from the auto defrag pool */
 	if (!dict_stats_defrag_pool_get(&table_id, &index_id)) {
@@ -243,63 +241,62 @@ dict_stats_process_entry_from_defrag_pool(trx_t* trx)
 	}
 
 	mutex_exit(&dict_sys->mutex);
-	trx->error_state = DB_SUCCESS;
-	++trx->will_lock;
-	dberr_t err = dict_stats_save_defrag_stats(index, trx);
-
-	if (err != DB_SUCCESS) {
-		trx_rollback_to_savepoint(trx, NULL);
-		ib::error() << "Saving defragmentation status for table "
-			    << index->table->name
-			    << " index " << index->name
-			    << " failed " << err;
-	} else if (trx->state != TRX_STATE_NOT_STARTED) {
-		trx_commit_for_mysql(trx);
-	}
-
+	dict_stats_save_defrag_stats(index);
 	dict_table_close(table, FALSE, FALSE);
 }
 
-/** Process indexes that have been scheduled for defragmenting.
-@param[in,out]	trx	transaction that will be started and committed  */
+/*****************************************************************//**
+Get the first index that has been added for updating persistent defrag
+stats and eventually save its stats. */
 void
-dict_defrag_process_entries_from_defrag_pool(trx_t* trx)
+dict_defrag_process_entries_from_defrag_pool()
+/*==========================================*/
 {
 	while (defrag_pool->size() && !dict_stats_start_shutdown) {
-		dict_stats_process_entry_from_defrag_pool(trx);
+		dict_stats_process_entry_from_defrag_pool();
 	}
 }
 
-/** Save defragmentation result.
-@param[in]	index	index that was defragmented
-@param[in,out]	trx	transaction
+/*********************************************************************//**
+Save defragmentation result.
 @return DB_SUCCESS or error code */
 dberr_t
-dict_stats_save_defrag_summary(dict_index_t* index, trx_t* trx)
+dict_stats_save_defrag_summary(
+/*============================*/
+	dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(trx->persistent_stats);
+	dberr_t	ret=DB_SUCCESS;
+	lint	now = (lint) ut_time();
 
 	if (dict_index_is_ibuf(index)) {
 		return DB_SUCCESS;
 	}
 
-	return dict_stats_save_index_stat(index, ut_time(), "n_pages_freed",
-					  index->stat_defrag_n_pages_freed,
-					  NULL,
-					  "Number of pages freed during"
-					  " last defragmentation run.",
-					  trx);
+	rw_lock_x_lock(dict_operation_lock);
+	mutex_enter(&dict_sys->mutex);
+
+	ret = dict_stats_save_index_stat(index, now, "n_pages_freed",
+					 index->stat_defrag_n_pages_freed,
+					 NULL,
+					 "Number of pages freed during"
+					 " last defragmentation run.",
+					 NULL);
+
+	mutex_exit(&dict_sys->mutex);
+	rw_lock_x_unlock(dict_operation_lock);
+
+	return (ret);
 }
 
-/** Save defragmentation stats for a given index.
-@param[in]	index	index that is being defragmented
-@param[in,out]	trx	transaction
+/*********************************************************************//**
+Save defragmentation stats for a given index.
 @return DB_SUCCESS or error code */
 dberr_t
-dict_stats_save_defrag_stats(dict_index_t* index, trx_t* trx)
+dict_stats_save_defrag_stats(
+/*============================*/
+	dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(trx->error_state == DB_SUCCESS);
-	ut_ad(trx->persistent_stats);
+	dberr_t	ret;
 
 	if (dict_index_is_ibuf(index)) {
 		return DB_SUCCESS;
@@ -309,6 +306,7 @@ dict_stats_save_defrag_stats(dict_index_t* index, trx_t* trx)
 		return dict_stats_report_error(index->table, true);
 	}
 
+	lint	now = (lint) ut_time();
 	mtr_t	mtr;
 	ulint	n_leaf_pages;
 	ulint	n_leaf_reserved;
@@ -325,33 +323,40 @@ dict_stats_save_defrag_stats(dict_index_t* index, trx_t* trx)
 		return DB_SUCCESS;
 	}
 
-	ib_time_t now = ut_time();
-	dberr_t err = dict_stats_save_index_stat(
-		index, now, "n_page_split",
-		index->stat_defrag_n_page_split,
+	rw_lock_x_lock(dict_operation_lock);
+
+	mutex_enter(&dict_sys->mutex);
+	ret = dict_stats_save_index_stat(index, now, "n_page_split",
+					 index->stat_defrag_n_page_split,
+					 NULL,
+					 "Number of new page splits on leaves"
+					 " since last defragmentation.",
+					 NULL);
+	if (ret != DB_SUCCESS) {
+		goto end;
+	}
+
+	ret = dict_stats_save_index_stat(
+		index, now, "n_leaf_pages_defrag",
+		n_leaf_pages,
 		NULL,
-		"Number of new page splits on leaves"
-		" since last defragmentation.",
-		trx);
-	if (err == DB_SUCCESS) {
-		err = dict_stats_save_index_stat(
-			index, now, "n_leaf_pages_defrag",
-			n_leaf_pages,
-			NULL,
-			"Number of leaf pages when this stat is saved to disk",
-			trx);
+		"Number of leaf pages when this stat is saved to disk",
+		NULL);
+	if (ret != DB_SUCCESS) {
+		goto end;
 	}
 
-	if (err == DB_SUCCESS) {
-		err = dict_stats_save_index_stat(
-			index, now, "n_leaf_pages_reserved",
-			n_leaf_reserved,
-			NULL,
-			"Number of pages reserved for this "
-			"index leaves when this stat "
-			"is saved to disk",
-			trx);
-	}
+	ret = dict_stats_save_index_stat(
+		index, now, "n_leaf_pages_reserved",
+		n_leaf_reserved,
+		NULL,
+		"Number of pages reserved for this index leaves when this stat "
+		"is saved to disk",
+		NULL);
 
-	return err;
+end:
+	mutex_exit(&dict_sys->mutex);
+	rw_lock_x_unlock(dict_operation_lock);
+
+	return (ret);
 }

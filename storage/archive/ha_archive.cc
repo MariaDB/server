@@ -1361,7 +1361,7 @@ int ha_archive::get_row_version2(azio_stream *file_to_read, uchar *buf)
 
         if ((size_t) read != size)
           DBUG_RETURN(HA_ERR_END_OF_FILE);
-        ((Field_blob*) table->field[*ptr])->set_ptr(size, (uchar*) last);
+        ((Field_blob*) table->field[*ptr])->set_ptr(read, (uchar*) last);
         last += size;
       }
       else

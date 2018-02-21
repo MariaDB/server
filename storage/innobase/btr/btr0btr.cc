@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -307,7 +307,7 @@ btr_height_get(
 	root_block = btr_root_block_get(index, RW_S_LATCH, mtr);
 
 	if (root_block) {
-		height = btr_page_get_level(buf_block_get_frame(root_block), mtr);
+		height = btr_page_get_level(buf_block_get_frame(root_block));
 
 		/* Release the S latch on the root page. */
 		mtr->memo_release(root_block, MTR_MEMO_PAGE_S_FIX);
@@ -872,7 +872,7 @@ btr_page_free(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	const page_t*	page	= buf_block_get_frame(block);
-	ulint		level	= btr_page_get_level(page, mtr);
+	ulint		level	= btr_page_get_level(page);
 
 	ut_ad(fil_page_index_page_check(block->frame));
 	ut_ad(level != ULINT_UNDEFINED);
@@ -976,7 +976,7 @@ btr_page_get_father_node_ptr_func(
 
 	ut_ad(dict_index_get_page(index) != page_no);
 
-	level = btr_page_get_level(btr_cur_get_page(cursor), mtr);
+	level = btr_page_get_level(btr_cur_get_page(cursor));
 
 	user_rec = btr_cur_get_rec(cursor);
 	ut_a(page_rec_is_user_rec(user_rec));
@@ -2018,7 +2018,7 @@ btr_root_raise_and_insert(
 	moving the root records to the new page, emptying the root, putting
 	a node pointer to the new page, and then splitting the new page. */
 
-	level = btr_page_get_level(root, mtr);
+	level = btr_page_get_level(root);
 
 	new_block = btr_page_alloc(index, 0, FSP_NO_DIR, level, mtr, mtr);
 
@@ -2149,7 +2149,7 @@ btr_root_raise_and_insert(
 	they should already have been set.  The previous node field
 	must be FIL_NULL if root_page_zip != NULL, because the
 	REC_INFO_MIN_REC_FLAG (of the first user record) will be
-	set if and only if btr_page_get_prev() == FIL_NULL. */
+	set if and only if !page_has_prev(). */
 	btr_page_set_next(root, root_page_zip, FIL_NULL, mtr);
 	btr_page_set_prev(root, root_page_zip, FIL_NULL, mtr);
 
@@ -2684,9 +2684,8 @@ btr_attach_half_pages(
 	}
 
 	/* Get the level of the split pages */
-	level = btr_page_get_level(buf_block_get_frame(block), mtr);
-	ut_ad(level
-	      == btr_page_get_level(buf_block_get_frame(new_block), mtr));
+	level = btr_page_get_level(buf_block_get_frame(block));
+	ut_ad(level == btr_page_get_level(buf_block_get_frame(new_block)));
 
 	/* Build the node pointer (= node key and page address) for the upper
 	half */
@@ -2870,7 +2869,7 @@ btr_insert_into_right_sibling(
 
 	ibool	compressed;
 	dberr_t	err;
-	ulint	level = btr_page_get_level(next_page, mtr);
+	ulint	level = btr_page_get_level(next_page);
 
 	/* adjust cursor position */
 	*btr_cur_get_page_cur(cursor) = next_page_cursor;
@@ -3056,7 +3055,7 @@ func_start:
 
 	/* 2. Allocate a new page to the index */
 	new_block = btr_page_alloc(cursor->index, hint_page_no, direction,
-				   btr_page_get_level(page, mtr), mtr, mtr);
+				   btr_page_get_level(page), mtr, mtr);
 
 	if (new_block == NULL && os_has_said_disk_full) {
 		return(NULL);
@@ -3065,7 +3064,7 @@ func_start:
 	new_page = buf_block_get_frame(new_block);
 	new_page_zip = buf_block_get_page_zip(new_block);
 	btr_page_create(new_block, new_page_zip, cursor->index,
-			btr_page_get_level(page, mtr), mtr);
+			btr_page_get_level(page), mtr);
 	/* Only record the leaf level page splits. */
 	if (page_is_leaf(page)) {
 		cursor->index->stat_defrag_n_page_split ++;
@@ -3542,11 +3541,10 @@ btr_lift_page_up(
 	bool		lift_father_up;
 	buf_block_t*	block_orig	= block;
 
-	ut_ad(btr_page_get_prev(page, mtr) == FIL_NULL);
-	ut_ad(btr_page_get_next(page, mtr) == FIL_NULL);
+	ut_ad(!page_has_siblings(page));
 	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
 
-	page_level = btr_page_get_level(page, mtr);
+	page_level = btr_page_get_level(page);
 	root_page_no = dict_index_get_page(index);
 
 	{
@@ -3608,10 +3606,9 @@ btr_lift_page_up(
 
 			block = father_block;
 			page = buf_block_get_frame(block);
-			page_level = btr_page_get_level(page, mtr);
+			page_level = btr_page_get_level(page);
 
-			ut_ad(btr_page_get_prev(page, mtr) == FIL_NULL);
-			ut_ad(btr_page_get_next(page, mtr) == FIL_NULL);
+			ut_ad(!page_has_siblings(page));
 			ut_ad(mtr_is_block_fix(
 				mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
 
@@ -3689,7 +3686,7 @@ btr_lift_page_up(
 		page_t*		page	= buf_block_get_frame(blocks[i]);
 		page_zip_des_t*	page_zip= buf_block_get_page_zip(blocks[i]);
 
-		ut_ad(btr_page_get_level(page, mtr) == page_level + 1);
+		ut_ad(btr_page_get_level(page) == page_level + 1);
 
 		btr_page_set_level(page, page_zip, page_level, mtr);
 #ifdef UNIV_ZIP_DEBUG
@@ -4275,9 +4272,8 @@ btr_discard_only_page_on_level(
 		const page_t*	page	= buf_block_get_frame(block);
 
 		ut_a(page_get_n_recs(page) == 1);
-		ut_a(page_level == btr_page_get_level(page, mtr));
-		ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
-		ut_a(btr_page_get_next(page, mtr) == FIL_NULL);
+		ut_a(page_level == btr_page_get_level(page));
+		ut_a(!page_has_siblings(page));
 
 		ut_ad(mtr_is_block_fix(
 			mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
@@ -4324,7 +4320,7 @@ btr_discard_only_page_on_level(
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!page_get_instant(block->frame));
 
-	if (index->is_clust()) {
+	if (index->is_primary()) {
 		/* Concurrent access is prevented by the root_block->lock
 		X-latch, so this should be safe. */
 		index->remove_instant();
@@ -4556,7 +4552,7 @@ btr_print_recursive(
 
 	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_SX_FIX, index->table));
 
-	ib::info() << "NODE ON LEVEL " << btr_page_get_level(page, mtr)
+	ib::info() << "NODE ON LEVEL " << btr_page_get_level(page)
 		<< " page " << block->page.id;
 
 	page_print(block, index, width, width);
@@ -4672,7 +4668,7 @@ btr_check_node_ptr(
 
 	tuple = dict_index_build_node_ptr(
 		index, page_rec_get_next(page_get_infimum_rec(page)), 0, heap,
-		btr_page_get_level(page, mtr));
+		btr_page_get_level(page));
 
 	/* For spatial index, the MBR in the parent rec could be different
 	with that of first rec of child, their relationship should be
@@ -5003,7 +4999,7 @@ btr_validate_level(
 		return(false);
 	}
 
-	while (level != btr_page_get_level(page, &mtr)) {
+	while (level != btr_page_get_level(page)) {
 		const rec_t*	node_ptr;
 
 		if (fseg_page_is_free(space, block->page.id.page_no())) {
@@ -5111,7 +5107,7 @@ loop:
 		ret = false;
 	}
 
-	ut_a(btr_page_get_level(page, &mtr) == level);
+	ut_a(btr_page_get_level(page) == level);
 
 	right_page_no = btr_page_get_next(page, &mtr);
 	left_page_no = btr_page_get_prev(page, &mtr);
@@ -5256,7 +5252,7 @@ loop:
 			node_ptr_tuple = dict_index_build_node_ptr(
 				index,
 				page_rec_get_next(page_get_infimum_rec(page)),
-				0, heap, btr_page_get_level(page, &mtr));
+				0, heap, btr_page_get_level(page));
 
 			if (cmp_dtuple_rec(node_ptr_tuple, node_ptr,
 					   offsets)) {
@@ -5281,13 +5277,13 @@ loop:
 		if (left_page_no == FIL_NULL) {
 			ut_a(node_ptr == page_rec_get_next(
 				     page_get_infimum_rec(father_page)));
-			ut_a(btr_page_get_prev(father_page, &mtr) == FIL_NULL);
+			ut_a(!page_has_prev(father_page));
 		}
 
 		if (right_page_no == FIL_NULL) {
 			ut_a(node_ptr == page_rec_get_prev(
 				     page_get_supremum_rec(father_page)));
-			ut_a(btr_page_get_next(father_page, &mtr) == FIL_NULL);
+			ut_a(!page_has_next(father_page));
 		} else {
 			const rec_t*	right_node_ptr;
 
@@ -5434,7 +5430,7 @@ btr_validate_spatial_index(
 	mtr_x_lock(dict_index_get_lock(index), &mtr);
 
 	page_t*	root = btr_root_get(index, &mtr);
-	ulint	n = btr_page_get_level(root, &mtr);
+	ulint	n = btr_page_get_level(root);
 
 #ifdef UNIV_RTR_DEBUG
 	fprintf(stderr, "R-tree level is %lu\n", n);
@@ -5501,7 +5497,7 @@ btr_validate_index(
 		return err;
 	}
 
-	ulint	n = btr_page_get_level(root, &mtr);
+	ulint	n = btr_page_get_level(root);
 
 	for (ulint i = 0; i <= n; ++i) {
 

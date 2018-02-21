@@ -223,17 +223,17 @@ public:
                         bool old_row_is_record1);
   void empty_lists();
   bool create_lists_needed_for_files(MEM_ROOT *root);
-  bool save_trigger_file(THD *thd, const char *db, const char *table_name);
+  bool save_trigger_file(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name);
 
-  static bool check_n_load(THD *thd, const char *db, const char *table_name,
+  static bool check_n_load(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
                            TABLE *table, bool names_only);
-  static bool drop_all_triggers(THD *thd, const char *db,
-                                const char *table_name);
-  static bool change_table_name(THD *thd, const char *db,
-                                const char *old_alias,
-                                const char *old_table,
-                                const char *new_db,
-                                const char *new_table);
+  static bool drop_all_triggers(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *table_name);
+  static bool change_table_name(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *old_alias,
+                                const LEX_CSTRING *old_table,
+                                const LEX_CSTRING *new_db,
+                                const LEX_CSTRING *new_table);
   void add_trigger(trg_event_type event_type, 
                    trg_action_time_type action_time,
                    trigger_order_type ordering_clause,
@@ -286,15 +286,15 @@ public:
 
 private:
   bool prepare_record_accessors(TABLE *table);
-  Trigger *change_table_name_in_trignames(const char *old_db_name,
-                                          const char *new_db_name,
-                                          LEX_CSTRING *new_table_name,
+  Trigger *change_table_name_in_trignames(const LEX_CSTRING *old_db_name,
+                                          const LEX_CSTRING *new_db_name,
+                                          const LEX_CSTRING *new_table_name,
                                           Trigger *trigger);
   bool change_table_name_in_triggers(THD *thd,
-                                     const char *old_db_name,
-                                     const char *new_db_name,
-                                     LEX_CSTRING *old_table_name,
-                                     LEX_CSTRING *new_table_name);
+                                     const LEX_CSTRING *old_db_name,
+                                     const LEX_CSTRING *new_db_name,
+                                     const LEX_CSTRING *old_table_name,
+                                     const LEX_CSTRING *new_table_name);
 
   bool check_for_broken_triggers() 
   {
@@ -314,7 +314,7 @@ bool add_table_for_trigger(THD *thd,
 
 void build_trn_path(THD *thd, const sp_name *trg_name, LEX_STRING *trn_path);
 
-bool check_trn_exists(const LEX_STRING *trn_path);
+bool check_trn_exists(const LEX_CSTRING *trn_path);
 
 bool load_table_name_for_trigger(THD *thd,
                                  const sp_name *trg_name,

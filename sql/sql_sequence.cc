@@ -54,7 +54,7 @@ static Field_definition sequence_structure[]=
   {"maximum_value", 21, &type_handler_longlong, STRING_WITH_LEN(""), FL},
   {"start_value", 21, &type_handler_longlong, {STRING_WITH_LEN("start value when sequences is created or value if RESTART is used")},  FL},
   {"increment", 21, &type_handler_longlong,
-   {C_STRING_WITH_LEN("increment value")}, FL},
+   {STRING_WITH_LEN("increment value")}, FL},
   {"cache_size", 21, &type_handler_longlong, STRING_WITH_LEN(""),
    FL | UNSIGNED_FLAG},
   {"cycle_option", 1, &type_handler_tiny, {STRING_WITH_LEN("0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed")},
@@ -220,8 +220,8 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
 
 err:
   my_error(ER_SEQUENCE_INVALID_TABLE_STRUCTURE, MYF(0),
-           lex->select_lex.table_list.first->db,
-           lex->select_lex.table_list.first->table_name, reason);
+           lex->select_lex.table_list.first->db.str,
+           lex->select_lex.table_list.first->table_name.str, reason);
   DBUG_RETURN(TRUE);
 }
 
@@ -440,7 +440,7 @@ int SEQUENCE::read_initial_values(TABLE *table)
     DBUG_ASSERT(table->reginfo.lock_type == TL_READ);
     if (!(error= read_stored_values(table)))
       initialized= SEQ_READY_TO_USE;
-    mysql_unlock_tables(thd, lock, 0);
+    mysql_unlock_tables(thd, lock);
     if (mdl_lock_used)
       thd->mdl_context.release_lock(mdl_request.ticket);
 
@@ -843,7 +843,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   No_such_table_error_handler no_such_table_handler;
   DBUG_ENTER("Sql_cmd_alter_sequence::execute");
 
-  if (check_access(thd, ALTER_ACL, first_table->db,
+  if (check_access(thd, ALTER_ACL, first_table->db.str,
                    &first_table->grant.privilege,
                    &first_table->grant.m_internal,
                    0, 0))
@@ -865,9 +865,9 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
     if (trapped_errors)
     {
       StringBuffer<FN_REFLEN> tbl_name;
-      tbl_name.append(first_table->db);
+      tbl_name.append(&first_table->db);
       tbl_name.append('.');
-      tbl_name.append(first_table->table_name);
+      tbl_name.append(&first_table->table_name);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_UNKNOWN_SEQUENCES,
                           ER_THD(thd, ER_UNKNOWN_SEQUENCES),
@@ -909,8 +909,8 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   if (new_seq->check_and_adjust(0))
   {
     my_error(ER_SEQUENCE_INVALID_DATA, MYF(0),
-             first_table->db,
-             first_table->table_name);
+             first_table->db.str,
+             first_table->table_name.str);
     error= 1;
     goto end;
   }

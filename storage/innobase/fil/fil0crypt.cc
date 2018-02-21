@@ -589,7 +589,7 @@ fil_encrypt_buf(
 
 	int rc = encryption_scheme_encrypt(src, srclen, dst, &dstlen,
 					   crypt_data, key_version,
-					   space, offset, lsn);
+					   (uint32)space, (uint32)offset, lsn);
 	ut_a(rc == MY_AES_OK);
 	ut_a(dstlen == srclen);
 
@@ -1715,7 +1715,7 @@ btr_scrub_get_block_and_allocation_status(
 
 	mtr_start(&local_mtr);
 
-	*allocation_status = fseg_page_is_free(space, offset) ?
+	*allocation_status = fseg_page_is_free(space, (uint32_t)offset) ?
 		BTR_SCRUB_PAGE_FREE :
 		BTR_SCRUB_PAGE_ALLOCATED;
 
@@ -1779,7 +1779,7 @@ fil_crypt_rotate_page(
 		return;
 	}
 
-	ut_d(const bool was_free = fseg_page_is_free(space, offset));
+	ut_d(const bool was_free = fseg_page_is_free(space, (uint32_t)offset));
 
 	mtr_t mtr;
 	mtr.start();

@@ -11,8 +11,13 @@ create table t1(a1 int invisible);
 create table t1(a1 blob,invisible(a1));
 --error ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT
 create table t1(a1 int primary key invisible ,a2 int unique invisible , a3 blob,a4 int not null invisible unique);
---error ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT
+--error ER_TABLE_MUST_HAVE_COLUMNS
 create table t1(abc int not null invisible);
+--echo MDEV-14849 CREATE + ALTER with user-invisible columns produce invalid table definition
+create or replace table t1 (pk int auto_increment primary key invisible, i int);
+--error ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT
+alter table t1 modify pk int invisible;
+drop table t1;
 create table t1(a int invisible, b int);
 #should automatically add null
 insert into t1 values(1);
@@ -214,3 +219,22 @@ set @a=2,@b=2, @c=2;
 execute insert_2;
 select a,b,c,d from t1 order by a;
 drop table t1;
+#MDEV-15085 Non constant default getting Null values
+create table t1(a int default 5 invisible, b int);
+create table t2(a int default (b+11) invisible, b int);
+insert into t1 values(1);
+select a,b from t1;
+insert into t2 values(1);
+select a,b from t2;
+drop table t1,t2;
+
+#
+# natural join and using
+#
+create table t1 (a int invisible, b int, c int);
+create table t2 (a int, b int, d int);
+insert t1 (a,b,c) values (0,2,3), (10, 20, 30);
+insert t2 (a,b,d) values (1,2,4), (10, 30, 40);
+select * from t1 join t2 using (a);
+select * from t1 natural join t2;
+drop table t1, t2;

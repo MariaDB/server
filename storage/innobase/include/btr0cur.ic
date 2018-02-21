@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -137,10 +138,9 @@ btr_cur_compress_recommendation(
 	LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page) * 2U,
 				      return(FALSE));
 
-	if ((page_get_data_size(page)
-	     < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index))
-	    || ((btr_page_get_next(page, mtr) == FIL_NULL)
-		&& (btr_page_get_prev(page, mtr) == FIL_NULL))) {
+	if (page_get_data_size(page)
+	    < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index)
+	    || !page_has_siblings(page)) {
 
 		/* The page fillfactor has dropped below a predefined
 		minimum value OR the level in the B-tree contains just
@@ -173,11 +173,9 @@ btr_cur_can_delete_without_compress(
 
 	page = btr_cur_get_page(cursor);
 
-	if ((page_get_data_size(page) - rec_size
-	     < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index))
-	    || ((btr_page_get_next(page, mtr) == FIL_NULL)
-		&& (btr_page_get_prev(page, mtr) == FIL_NULL))
-	    || (page_get_n_recs(page) < 2)) {
+	if (page_get_data_size(page) - rec_size
+	    < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index)
+	    || !page_has_siblings(page) || page_get_n_recs(page) < 2) {
 
 		/* The page fillfactor will drop below a predefined
 		minimum value, OR the level in the B-tree contains just

@@ -137,13 +137,13 @@ static void GCALC_DBUG_PRINT_PI(const Gcalc_heap::Info *pi)
 static void GCALC_DBUG_PRINT_SLICE(const char *header,
                                    const Gcalc_scan_iterator::point *slice)
 {
-  int nbuf;
+  size_t nbuf;
   char buf[1024];
   nbuf= strlen(header);
   strcpy(buf, header);
   for (; slice; slice= slice->get_next())
   {
-    int lnbuf= nbuf;
+    size_t lnbuf= nbuf;
     lnbuf+= sprintf(buf + lnbuf, "%d\t", slice->thread);
     lnbuf+= sprintf(buf + lnbuf, "%s\t", gcalc_ev_name(slice->event));
 
@@ -170,7 +170,7 @@ static void GCALC_DBUG_PRINT_SLICE(const char *header,
 Gcalc_dyn_list::Gcalc_dyn_list(size_t blk_size, size_t sizeof_item):
   m_blk_size(blk_size - ALLOC_ROOT_MIN_BLOCK_SIZE),
   m_sizeof_item(ALIGN_SIZE(sizeof_item)),
-  m_points_per_blk((m_blk_size - PH_DATA_OFFSET) / m_sizeof_item),
+  m_points_per_blk((uint)((m_blk_size - PH_DATA_OFFSET) / m_sizeof_item)),
   m_blk_hook(&m_first_blk),
   m_free(NULL),
   m_keep(NULL)

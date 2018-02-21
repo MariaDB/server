@@ -69,14 +69,14 @@ class federatedx_io_mysql :public federatedx_io
   bool requested_autocommit;
   bool actual_autocommit;
 
-  int actual_query(const char *buffer, uint length);
+  int actual_query(const char *buffer, size_t length);
   bool test_all_restrict() const;
 public:
   federatedx_io_mysql(FEDERATEDX_SERVER *);
   ~federatedx_io_mysql();
 
   int simple_query(const char *fmt, ...);
-  int query(const char *buffer, uint length);
+  int query(const char *buffer, size_t length);
   virtual FEDERATEDX_IO_RESULT *store_result();
 
   virtual size_t max_query_size() const;
@@ -273,7 +273,7 @@ ulong federatedx_io_mysql::savepoint_release(ulong sp)
   if (last)
   {
     char buffer[STRING_BUFFER_USUAL_SIZE];
-  int length= my_snprintf(buffer, sizeof(buffer),
+    size_t length= my_snprintf(buffer, sizeof(buffer),
               "RELEASE SAVEPOINT save%lu", last->level);
     actual_query(buffer, length);
   }
@@ -308,7 +308,7 @@ ulong federatedx_io_mysql::savepoint_rollback(ulong sp)
   if (savept && !(savept->flags & SAVEPOINT_RESTRICT))
   {
     char buffer[STRING_BUFFER_USUAL_SIZE];
-  int length= my_snprintf(buffer, sizeof(buffer),
+    size_t length= my_snprintf(buffer, sizeof(buffer),
               "ROLLBACK TO SAVEPOINT save%lu", savept->level);
     actual_query(buffer, length);
   }
@@ -341,7 +341,8 @@ void federatedx_io_mysql::savepoint_restrict(ulong sp)
 int federatedx_io_mysql::simple_query(const char *fmt, ...)
 {
   char buffer[STRING_BUFFER_USUAL_SIZE];
-  int length, error;
+  size_t length;
+  int error;
   va_list arg;
   DBUG_ENTER("federatedx_io_mysql::simple_query");
 
@@ -377,7 +378,7 @@ bool federatedx_io_mysql::test_all_restrict() const
 }
 
 
-int federatedx_io_mysql::query(const char *buffer, uint length)
+int federatedx_io_mysql::query(const char *buffer, size_t length)
 {
   int error;
   bool wants_autocommit= requested_autocommit | is_readonly();
@@ -402,7 +403,7 @@ int federatedx_io_mysql::query(const char *buffer, uint length)
     if (!(savept->flags & SAVEPOINT_RESTRICT))
   {
       char buf[STRING_BUFFER_USUAL_SIZE];
-    int len= my_snprintf(buf, sizeof(buf),
+      size_t len= my_snprintf(buf, sizeof(buf),
                   "SAVEPOINT save%lu", savept->level);
       if ((error= actual_query(buf, len)))
     DBUG_RETURN(error);                         
@@ -419,7 +420,7 @@ int federatedx_io_mysql::query(const char *buffer, uint length)
 }
 
 
-int federatedx_io_mysql::actual_query(const char *buffer, uint length)
+int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
 {
   int error;
   DBUG_ENTER("federatedx_io_mysql::actual_query");
@@ -452,7 +453,7 @@ int federatedx_io_mysql::actual_query(const char *buffer, uint length)
     mysql.reconnect= 1;
   }
 
-  error= mysql_real_query(&mysql, buffer, length);
+  error= mysql_real_query(&mysql, buffer, (ulong)length);
   
   DBUG_RETURN(error);
 }

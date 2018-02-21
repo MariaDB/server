@@ -318,18 +318,18 @@ inline int TOKUDB_SHARE::use_count() const {
 }
 inline void TOKUDB_SHARE::lock() const {
     TOKUDB_SHARE_DBUG_ENTER("file[%s]:state[%s]:use_count[%d]",
-        _full_table_name.ptr(),
-        get_state_string(_state),
-        _use_count);
-    _mutex.lock();
+                            _full_table_name.ptr(),
+                            get_state_string(_state),
+                            _use_count);
+    mutex_t_lock(_mutex);
     TOKUDB_SHARE_DBUG_VOID_RETURN();
 }
 inline void TOKUDB_SHARE::unlock() const {
     TOKUDB_SHARE_DBUG_ENTER("file[%s]:state[%s]:use_count[%d]",
-        _full_table_name.ptr(),
-        get_state_string(_state),
-        _use_count);
-    _mutex.unlock();
+                            _full_table_name.ptr(),
+                            get_state_string(_state),
+                            _use_count);
+    mutex_t_unlock(_mutex);
     TOKUDB_SHARE_DBUG_VOID_RETURN();
 }
 inline TOKUDB_SHARE::share_state_t TOKUDB_SHARE::state() const {

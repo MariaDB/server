@@ -290,7 +290,7 @@ static int ftb_parse_query_internal(MYSQL_FTPARSER_PARAM *param,
   info.prev= ' ';
   info.quot= 0;
   while (ft_get_word(cs, start, end, &w, &info))
-    param->mysql_add_word(param, (char*) w.pos, w.len, &info);
+    param->mysql_add_word(param, (char*) w.pos, (int)w.len, &info);
   return(0);
 }
 
@@ -579,7 +579,7 @@ FT_INFO * ft_init_boolean_search(MI_INFO *info, uint keynr, uchar *query,
   bzero(& ftb->no_dupes, sizeof(TREE));
   ftb->last_word= 0;
 
-  init_alloc_root(&ftb->mem_root, 1024, 1024, MYF(0));
+  init_alloc_root(&ftb->mem_root, "fulltext", 1024, 1024, MYF(0));
   ftb->queue.max_elements= 0;
   if (!(ftbe=(FTB_EXPR *)alloc_root(&ftb->mem_root, sizeof(FTB_EXPR))))
     goto err;
@@ -675,7 +675,7 @@ static int ftb_check_phrase_internal(MYSQL_FTPARSER_PARAM *param,
   while (ft_simple_get_word(phrase_param->cs, (uchar**) &document, docend,
                             &word, FALSE))
   {
-    param->mysql_add_word(param, (char*) word.pos, word.len, 0);
+    param->mysql_add_word(param, (char*) word.pos, (int)word.len, 0);
     if (phrase_param->match)
       break;
   }
@@ -961,7 +961,7 @@ static int ftb_find_relevance_parse(MYSQL_FTPARSER_PARAM *param,
   uchar *end= (uchar*) doc + len;
   FT_WORD w;
   while (ft_simple_get_word(ftb->charset, (uchar**) &doc, end, &w, TRUE))
-    param->mysql_add_word(param, (char*) w.pos, w.len, 0);
+    param->mysql_add_word(param, (char*) w.pos, (int)w.len, 0);
   return(0);
 }
 

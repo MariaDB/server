@@ -30,15 +30,13 @@ encrypt=0
 nproc=1
 ecode=0
 XTRABACKUP_PID=""
-SST_PORT=""
-REMOTEIP=""
 tcert=""
 tpem=""
 sockopt=""
 progress=""
 ttime=0
 totime=0
-lsn=""
+lsn="${WSREP_SST_OPT_LSN}"
 incremental=0
 ecmd=""
 rlimit=""
@@ -54,7 +52,7 @@ pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p' "
 pvopts="-f  -i 10 -N $WSREP_SST_OPT_ROLE "
 uextra=0
 
-if which pv &>/dev/null && pv --help | grep -q FORMAT;then 
+if pv --help 2>/dev/null | grep -q FORMAT;then
     pvopts+=$pvformat
 fi
 pcmd="pv $pvopts"
@@ -136,17 +134,10 @@ get_keys()
 
 get_transfer()
 {
-    if [[ -z $SST_PORT ]];then 
-        TSST_PORT=4444
-    else 
-        TSST_PORT=$SST_PORT
-    fi
+    TSST_PORT=${WSREP_SST_OPT_PORT:-4444}
 
     if [[ $tfmt == 'nc' ]];then
-        if [[ ! -x `which nc` ]];then 
-            wsrep_log_error "nc(netcat) not found in path: $PATH"
-            exit 2
-        fi
+        wsrep_check_programs nc
         wsrep_log_info "Using netcat as streamer"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             if nc -h 2>&1 | grep -q ncat;then 
@@ -155,15 +146,12 @@ get_transfer()
                 tcmd="nc -dl ${TSST_PORT}"
             fi
         else
-            tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+            tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
         fi
     else
         tfmt='socat'
+        wsrep_check_programs socat
         wsrep_log_info "Using socat as streamer"
-        if [[ ! -x `which socat` ]];then 
-            wsrep_log_error "socat not found in path: $PATH"
-            exit 2
-        fi
 
         if [[ $encrypt -eq 2 ]] && ! socat -V | grep -q OPENSSL;then 
             wsrep_log_info "NOTE: socat is not openssl enabled, falling back to plain transfer"
@@ -181,34 +169,23 @@ get_transfer()
                 tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=$tpem,cafile=${tcert}${sockopt} stdio"
             else
                 wsrep_log_info "Encrypting with PEM $tpem, CA: $tcert"
-                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=$tpem,cafile=${tcert}${sockopt}"
+                tcmd="socat -u stdio openssl-connect:${WSREP_SST_OPT_HOST}:${TSST_PORT},cert=$tpem,cafile=${tcert}${sockopt}"
             fi
         else 
             if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
                 tcmd="socat -u TCP-LISTEN:${TSST_PORT},reuseaddr${sockopt} stdio"
             else
-                tcmd="socat -u stdio TCP:${REMOTEIP}:${TSST_PORT}${sockopt}"
+                tcmd="socat -u stdio TCP:${WSREP_SST_OPT_HOST}:${TSST_PORT}${sockopt}"
             fi
         fi
     fi
 
 }
 
-parse_cnf()
-{
-    local group=$1
-    local var=$2
-    reval=$($MY_PRINT_DEFAULTS $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2-)
-    if [[ -z $reval ]];then 
-        [[ -n $3 ]] && reval=$3
-    fi
-    echo $reval
-}
-
 get_footprint()
 {
     pushd $WSREP_SST_OPT_DATA 1>/dev/null
-    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c | awk 'END { print $1 }')
+    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
     if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--compress";then 
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
@@ -354,17 +331,6 @@ kill_xtrabackup()
     rm -f "$XTRABACKUP_PID"
 }
 
-setup_ports()
-{
-    if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
-        SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
-        REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
-        lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
-    else
-        SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $2 }')
-    fi
-}
-
 # waits ~10 seconds for nc to open the port and then reports ready
 # (regardless of timeout)
 wait_for_listen()
@@ -388,8 +354,8 @@ check_extra()
 {
     local use_socket=1
     if [[ $uextra -eq 1 ]];then 
-        if $MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
-            local eport=$($MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
+        if [ $(parse_cnf --mysqld thread-handling) = 'pool-of-threads'];then
+            local eport=$(parse_cnf --mysqld extra-port)
             if [[ -n $eport ]];then 
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
@@ -409,10 +375,7 @@ check_extra()
     fi
 }
 
-if [[ ! -x `which innobackupex` ]];then 
-    wsrep_log_error "innobackupex not in path: $PATH"
-    exit 2
-fi
+wsrep_check_programs "innobackupex"
 
 rm -f "${MAGIC_FILE}"
 
@@ -466,7 +429,7 @@ then
 
         check_extra
 
-        wsrep_log_info "Streaming the backup to joiner at ${REMOTEIP} ${SST_PORT}"
+        wsrep_log_info "Streaming the backup to joiner at ${WSREP_SST_OPT_HOST} ${WSREP_SST_OPT_PORT}"
 
         if [[ -n $progress ]];then 
             get_footprint
@@ -547,14 +510,9 @@ then
     # May need xtrabackup_checkpoints later on
     rm -f ${DATA}/xtrabackup_binary ${DATA}/xtrabackup_galera_info  ${DATA}/xtrabackup_logfile
 
-    ADDR=${WSREP_SST_OPT_ADDR}
-    if [ -z "${SST_PORT}" ]
-    then
-        SST_PORT=4444
-        ADDR="$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $1 }'):${SST_PORT}"
-    fi
+    ADDR="${WSREP_SST_OPT_HOST}:${WSREP_SST_OPT_PORT:-4444}"
 
-    wait_for_listen ${SST_PORT} ${ADDR} ${MODULE} &
+    wait_for_listen ${WSREP_SST_OPT_PORT:-4444} ${ADDR} ${MODULE} &
 
     trap sig_joiner_cleanup HUP PIPE INT TERM
     trap cleanup_joiner EXIT
@@ -645,7 +603,7 @@ then
 
             wsrep_log_info "Compressed qpress files found"
 
-            if [[ ! -x `which qpress` ]];then 
+            if ! command -v qpress >/dev/null;then
                 wsrep_log_error "qpress not found in path: $PATH"
                 exit 22
             fi

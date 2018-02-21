@@ -389,7 +389,7 @@ static void do_field_varbinary_pre50(Copy_field *copy)
   copy->from_field->val_str(&copy->tmp);
 
   /* Use the same function as in 4.1 to trim trailing spaces */
-  uint length= my_lengthsp_8bit(&my_charset_bin, copy->tmp.c_ptr_quick(),
+  size_t length= my_lengthsp_8bit(&my_charset_bin, copy->tmp.c_ptr_quick(),
                                 copy->from_field->field_length);
 
   copy->to_field->store(copy->tmp.c_ptr_quick(), length,
@@ -481,7 +481,7 @@ static void do_cut_string_complex(Copy_field *copy)
                            (char*) copy->from_ptr,
                            (char*) from_end,
                            copy->to_length / cs->mbmaxlen);
-  uint copy_length= prefix.length();
+  size_t copy_length= prefix.length();
   if (copy->to_length < copy_length)
     copy_length= copy->to_length;
   memcpy(copy->to_ptr, copy->from_ptr, copy_length);
@@ -610,7 +610,7 @@ void Copy_field::set(uchar *to,Field *from)
 {
   from_ptr=from->ptr;
   to_ptr=to;
-  from_length=from->pack_length();
+  from_length=from->pack_length_in_rec();
   if (from->maybe_null())
   {
     from_null_ptr=from->null_ptr;
@@ -658,9 +658,9 @@ void Copy_field::set(Field *to,Field *from,bool save)
   from_field=from;
   to_field=to;
   from_ptr=from->ptr;
-  from_length=from->pack_length();
+  from_length=from->pack_length_in_rec();
   to_ptr=  to->ptr;
-  to_length=to_field->pack_length();
+  to_length=to_field->pack_length_in_rec();
 
   // set up null handling
   from_null_ptr=to_null_ptr=0;

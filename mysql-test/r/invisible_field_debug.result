@@ -1,7 +1,9 @@
 set @old_debug= @@debug_dbug;
+create table t_tmp(a int, b int);
 set debug_dbug= "+d,test_pseudo_invisible";
 create table t1(a int);
 set debug_dbug=@old_debug;
+insert into t1 values(1);
 desc t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -10,14 +12,76 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-insert into t1 values(1);
+select a , invisible from t1;
+a	invisible
+1	9
+insert into t1(a, invisible) values(99,99);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+insert into t1(invisible) values(99);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+insert into t_tmp select a, invisible from t1;
+insert into t1 select * from t_tmp;
+ERROR 21S01: Column count doesn't match value count at row 1
+insert into t1(a,invisible) select * from t_tmp;
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+select a , invisible from t1;
+a	invisible
+1	9
+insert into t1 values (5), (invisible+1);
+select a , invisible from t1;
+a	invisible
+1	9
+5	9
+10	9
+delete from t1 where a > 1;
+update t1 set a = invisible where a=1;
+select a , invisible from t1;
+a	invisible
+9	9
+update t1 set a = (select invisible+100 from t1 limit 1) where a=(select a from t1 limit 1);
+select a , invisible from t1;
+a	invisible
+109	9
+update t1 set invisible = 23 where a=(select a from t1 limit 1);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+update t1 set invisible = 101 where a=(select a from t1 limit 1);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+update t1 set invisible = (select invisible+100 from t1 limit 1) where a=(select invisible from t1 limit 1);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+select a , invisible from t1;
+a	invisible
+109	9
+set @a=12;
+update t1 set invisible = (select @a from dual) where a=(select a from t1 limit 1);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+select a , invisible from t1;
+a	invisible
+109	9
+update t1 set invisible = (select invisible+100 from t1 limit 1) where a=(select a from t1 limit 1);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+select a , invisible from t1;
+a	invisible
+109	9
+set @a=(select invisible from t1 limit 1);
+select @a from dual;
+@a
+9
+alter table t1 add constraint a check (invisible > 2);
+ERROR 42S22: Unknown column 'invisible' in 'CHECK'
+set debug_dbug= "+d,test_pseudo_invisible";
+create table t2(a int, b int as (invisible +2) virtual);
+ERROR 42S22: Unknown column 'invisible' in 'GENERATED ALWAYS AS'
+create table t2(a int , b int);
+insert into t2 values(2,2);
+insert into t2 select a, invisible from t1;
+set debug_dbug=@old_debug;
 select * from t1;
 a
-1
+109
 select invisible ,a from t1;
 invisible	a
-9	1
-drop table t1;
+9	109
+drop table t1,t2,t_tmp;
 set debug_dbug= "+d,test_completely_invisible";
 create table t1(a int);
 set debug_dbug=@old_debug;
@@ -40,7 +104,21 @@ select invisible ,a from t1;
 invisible	a
 9	1
 set debug_dbug=@old_debug;
-drop table t1;
+create table t2 (invisible int);
+select * from t1 join t2 using (invisible);
+ERROR 42S22: Unknown column 'invisible' in 'from clause'
+select * from t2 join t1 using (invisible);
+ERROR 42S22: Unknown column 'invisible' in 'from clause'
+insert t2 values (8),(9);
+select * from t1 natural join t2;
+a	invisible
+1	8
+1	9
+select * from t2 natural join t1;
+invisible	a
+8	1
+9	1
+drop table t1, t2;
 set debug_dbug= "+d,test_pseudo_invisible";
 create table t1(a int);
 set debug_dbug=@old_debug;
@@ -93,9 +171,18 @@ a	invisible2
 select invisible ,a from t1;
 invisible	a
 9	1
+create trigger trg before insert on t1 for each row set new.invisible=1;
+ERROR 42S22: Unknown column 'invisible' in 'NEW'
+create trigger trg before insert on t1 for each row set @a:=new.invisible;
 drop table t1;
 set debug_dbug= "+d,test_completely_invisible";
 create table t1(a int);
+set debug_dbug=@old_debug;
+create trigger trg before insert on t1 for each row set new.invisible=1;
+ERROR 42S22: Unknown column 'invisible' in 'NEW'
+create trigger trg before insert on t1 for each row set @a:=new.invisible;
+ERROR 42S22: Unknown column 'invisible' in 'NEW'
+set debug_dbug= "+d,test_completely_invisible";
 desc t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -138,7 +225,6 @@ select invisible1, invisible ,a from t1;
 invisible1	invisible	a
 9	NULL	1
 ALTER table t1 add hid int default 2;
-set debug_dbug= "+d,test_completely_invisible";
 select * from t1;
 a	invisible	hid
 1	NULL	2

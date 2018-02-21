@@ -291,8 +291,8 @@ int table_value_constr::save_explain_data_intern(THD *thd,
   explain->select_id= select_lex->select_number;
   explain->select_type= select_lex->type;
   explain->linkage= select_lex->linkage;
-  explain->using_temporary= NULL;
-  explain->using_filesort=  NULL;
+  explain->using_temporary= false;
+  explain->using_filesort= false;
   /* Setting explain->message means that all other members are invalid */
   explain->message= message;
 
@@ -479,7 +479,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
 	  return true;
       }
     }
-    else if (tvc_value->push_back(args[i]))
+    else if (tvc_value->push_back(args[i]->real_item()))
       return true;
 
     if (values->push_back(tvc_value, thd->mem_root))

@@ -378,6 +378,8 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool invisible_mode();
   void reset_cache() { cache= NULL; }
+  virtual void print(String *str, enum_query_type query_type);
+  void restore_first_argument();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_in_optimizer>(thd, this); }
 };
@@ -1319,7 +1321,7 @@ public:
   {
     return MY_TEST(compare(collation, base + pos1 * size, base + pos2 * size));
   }
-  virtual Item_result result_type()= 0;
+  virtual const Type_handler *type_handler() const= 0;
 };
 
 class in_string :public in_vector
@@ -1350,7 +1352,7 @@ public:
     Item_string_for_in_vector *to= (Item_string_for_in_vector*) item;
     to->set_value(str);
   }
-  Item_result result_type() { return STRING_RESULT; }
+  const Type_handler *type_handler() const { return &type_handler_varchar; }
 };
 
 class in_longlong :public in_vector
@@ -1377,7 +1379,7 @@ public:
     ((Item_int*) item)->unsigned_flag= (bool)
       ((packed_longlong*) base)[pos].unsigned_flag;
   }
-  Item_result result_type() { return INT_RESULT; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
 
   friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
 };
@@ -1403,9 +1405,11 @@ public:
   void value_to_item(uint pos, Item *item)
   {
     packed_longlong *val= reinterpret_cast<packed_longlong*>(base)+pos;
-    Item_datetime *dt= reinterpret_cast<Item_datetime*>(item);
-    dt->set(val->val);
+    Item_datetime *dt= static_cast<Item_datetime*>(item);
+    dt->set(val->val, type_handler()->mysql_timestamp_type());
   }
+  uchar *get_value(Item *item)
+  { return get_value_internal(item, type_handler()->field_type()); }
   friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
 };
 
@@ -1417,8 +1421,7 @@ public:
    :in_temporal(thd, elements)
   {}
   void set(uint pos,Item *item);
-  uchar *get_value(Item *item)
-  { return get_value_internal(item, MYSQL_TYPE_DATETIME); }
+  const Type_handler *type_handler() const { return &type_handler_datetime2; }
 };
 
 
@@ -1429,8 +1432,7 @@ public:
    :in_temporal(thd, elements)
   {}
   void set(uint pos,Item *item);
-  uchar *get_value(Item *item)
-  { return get_value_internal(item, MYSQL_TYPE_TIME); }
+  const Type_handler *type_handler() const { return &type_handler_time2; }
 };
 
 
@@ -1446,7 +1448,7 @@ public:
   {
     ((Item_float*)item)->value= ((double*) base)[pos];
   }
-  Item_result result_type() { return REAL_RESULT; }
+  const Type_handler *type_handler() const { return &type_handler_double; }
 };
 
 
@@ -1464,7 +1466,7 @@ public:
     Item_decimal *item_dec= (Item_decimal*)item;
     item_dec->set_decimal_value(dec);
   }
-  Item_result result_type() { return DECIMAL_RESULT; }
+  const Type_handler *type_handler() const { return &type_handler_newdecimal; }
 };
 
 
@@ -2437,7 +2439,7 @@ public:
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
   friend class Item_func_in;
-  Item_result result_type() { return ROW_RESULT; }
+  const Type_handler *type_handler() const { return &type_handler_row; }
   cmp_item *get_cmp_item() { return &tmp; }
 };
 
@@ -2486,9 +2488,9 @@ public:
   bool arg_is_datetime_notnull_field()
   {
     Item **args= arguments();
-    if (args[0]->type() == Item::FIELD_ITEM)
+    if (args[0]->real_item()->type() == Item::FIELD_ITEM)
     {
-      Field *field=((Item_field*) args[0])->field;
+      Field *field=((Item_field*) args[0]->real_item())->field;
 
       if (((field->type() == MYSQL_TYPE_DATE) ||
           (field->type() == MYSQL_TYPE_DATETIME)) &&
@@ -2766,7 +2768,7 @@ public:
   {
     return !m_is_const && compile(item, false);
   }
-  bool exec(const char *str, int length, int offset);
+  bool exec(const char *str, size_t length, size_t offset);
   bool exec(String *str, int offset, uint n_result_offsets_to_convert);
   bool exec(Item *item, int offset, uint n_result_offsets_to_convert);
   bool match() const { return m_pcre_exec_rc < 0 ? 0 : 1; }

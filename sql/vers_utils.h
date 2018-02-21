@@ -28,7 +28,7 @@ public:
     if (error)
       return;
 
-    table.mdl_request.init(MDL_key::TABLE, table.db, table.table_name, MDL_EXCLUSIVE, MDL_EXPLICIT);
+    table.mdl_request.init(MDL_key::TABLE, table.db.str, table.table_name.str, MDL_EXCLUSIVE, MDL_EXPLICIT);
     error= thd->mdl_context.acquire_lock(&table.mdl_request, thd->variables.lock_wait_timeout);
     thd->mdl_context.release_lock(protection_request.ticket);
   }

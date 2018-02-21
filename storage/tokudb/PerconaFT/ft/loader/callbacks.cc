@@ -45,6 +45,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "loader/loader-internal.h"
 #include "util/dbt.h"
 
+toku_instr_key *loader_error_mutex_key;
+
 static void error_callback_lock(ft_loader_error_callback loader_error) {
     toku_mutex_lock(&loader_error->mutex);
 }
@@ -57,10 +59,10 @@ void ft_loader_init_error_callback(ft_loader_error_callback loader_error) {
     memset(loader_error, 0, sizeof *loader_error);
     toku_init_dbt(&loader_error->key);
     toku_init_dbt(&loader_error->val);
-    toku_mutex_init(&loader_error->mutex, NULL);
+    toku_mutex_init(*loader_error_mutex_key, &loader_error->mutex, nullptr);
 }
 
-void ft_loader_destroy_error_callback(ft_loader_error_callback loader_error) { 
+void ft_loader_destroy_error_callback(ft_loader_error_callback loader_error) {
     toku_mutex_destroy(&loader_error->mutex);
     toku_destroy_dbt(&loader_error->key);
     toku_destroy_dbt(&loader_error->val);

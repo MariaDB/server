@@ -48,7 +48,7 @@ int test_main(int argc __attribute__((__unused__)), char *const argv[] __attribu
     toku_pthread_rwlock_t rwlock;
     ZERO_STRUCT(rwlock);
 
-    toku_pthread_rwlock_init(&rwlock, NULL);
+    toku_pthread_rwlock_init(toku_uninstrumented, &rwlock, nullptr);
     toku_pthread_rwlock_rdlock(&rwlock);
     toku_pthread_rwlock_rdlock(&rwlock);
     toku_pthread_rwlock_rdunlock(&rwlock);

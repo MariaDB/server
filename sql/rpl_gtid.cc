@@ -28,8 +28,8 @@
 #include "slave.h"
 #include "log_event.h"
 
-const LEX_STRING rpl_gtid_slave_state_table_name=
-  { C_STRING_WITH_LEN("gtid_slave_pos") };
+const LEX_CSTRING rpl_gtid_slave_state_table_name=
+  { STRING_WITH_LEN("gtid_slave_pos") };
 
 
 void
@@ -401,10 +401,7 @@ rpl_slave_state::truncate_state_table(THD *thd)
   int err= 0;
 
   tmp_disable_binlog(thd);
-  tlist.init_one_table(STRING_WITH_LEN("mysql"),
-                       rpl_gtid_slave_state_table_name.str,
-                       rpl_gtid_slave_state_table_name.length,
-                       NULL, TL_WRITE);
+  tlist.init_one_table(&MYSQL_SCHEMA_NAME, &rpl_gtid_slave_state_table_name, NULL, TL_WRITE);
   if (!(err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
   {
     err= tlist.table->file->ha_truncate();
@@ -430,17 +427,17 @@ rpl_slave_state::truncate_state_table(THD *thd)
 
 
 static const TABLE_FIELD_TYPE mysql_rpl_slave_state_coltypes[4]= {
-  { { C_STRING_WITH_LEN("domain_id") },
-    { C_STRING_WITH_LEN("int(10) unsigned") },
+  { { STRING_WITH_LEN("domain_id") },
+    { STRING_WITH_LEN("int(10) unsigned") },
     {NULL, 0} },
-  { { C_STRING_WITH_LEN("sub_id") },
-    { C_STRING_WITH_LEN("bigint(20) unsigned") },
+  { { STRING_WITH_LEN("sub_id") },
+    { STRING_WITH_LEN("bigint(20) unsigned") },
     {NULL, 0} },
-  { { C_STRING_WITH_LEN("server_id") },
-    { C_STRING_WITH_LEN("int(10) unsigned") },
+  { { STRING_WITH_LEN("server_id") },
+    { STRING_WITH_LEN("int(10) unsigned") },
     {NULL, 0} },
-  { { C_STRING_WITH_LEN("seq_no") },
-    { C_STRING_WITH_LEN("bigint(20) unsigned") },
+  { { STRING_WITH_LEN("seq_no") },
+    { STRING_WITH_LEN("bigint(20) unsigned") },
     {NULL, 0} },
 };
 
@@ -655,8 +652,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   */
   suspended_wfc= thd->suspend_subsequent_commits();
   thd->lex->reset_n_backup_query_tables_list(&lex_backup);
-  tlist.init_one_table(STRING_WITH_LEN("mysql"), gtid_pos_table_name.str,
-                       gtid_pos_table_name.length, NULL, TL_WRITE);
+  tlist.init_one_table(&MYSQL_SCHEMA_NAME, &gtid_pos_table_name, NULL, TL_WRITE);
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
   table_opened= true;

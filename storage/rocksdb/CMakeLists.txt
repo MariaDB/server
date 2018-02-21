@@ -208,6 +208,8 @@ TARGET_LINK_LIBRARIES(sst_dump rocksdblib)
 MYSQL_ADD_EXECUTABLE(mysql_ldb tools/mysql_ldb.cc COMPONENT rocksdb-engine)
 TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib)
 
+INSTALL_SCRIPT(myrocks_hotbackup COMPONENT rocksdb-engine)
+
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS -frtti)
 ENDIF()
@@ -216,9 +218,13 @@ IF(MSVC)
   # additional const qualifiers to parameters of the overriden virtual functions
   # This creates a lot of warnings, that we silence here.
   ADD_DEFINITIONS(/wd4373)
-
   # Some checks in C++ runtime that make debug build much slower
   ADD_DEFINITIONS(-D_ITERATOR_DEBUG_LEVEL=0)
+
+    # Temporarily disable "conversion from size_t .." warnings
+  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
+  ENDIF()
 ENDIF()
 
 IF(GIT_EXECUTABLE)

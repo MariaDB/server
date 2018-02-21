@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -62,12 +62,6 @@ float my_log2f(float n)
 #if defined _WIN32
 # define posix_fadvise(fd, offset, len, advice) /* nothing */
 #endif /* _WIN32 */
-
-/** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
-const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN] = {
-	0, 0, 0, 0, 0, 0,
-	0x80, 0, 0, 0, 0, 0, 0
-};
 
 /* Whether to disable file system cache */
 char	srv_disable_sort_file_cache;
@@ -456,8 +450,8 @@ row_merge_buf_redundant_convert(
 	const page_size_t&	page_size,
 	mem_heap_t*		heap)
 {
-	ut_ad(DATA_MBMINLEN(field->type.mbminmaxlen) == 1);
-	ut_ad(DATA_MBMAXLEN(field->type.mbminmaxlen) > 1);
+	ut_ad(field->type.mbminlen == 1);
+	ut_ad(field->type.mbmaxlen > 1);
 
 	byte*		buf = (byte*) mem_heap_alloc(heap, len);
 	ulint		field_len = row_field->len;
@@ -599,7 +593,8 @@ row_merge_buf_add(
 
 			field->type.mtype = ifield->col->mtype;
 			field->type.prtype = ifield->col->prtype;
-			field->type.mbminmaxlen = DATA_MBMINMAXLEN(0, 0);
+			field->type.mbminlen = 0;
+			field->type.mbmaxlen = 0;
 			field->type.len = ifield->col->len;
 		} else {
 			/* Use callback to get the virtual column value */
@@ -750,7 +745,7 @@ row_merge_buf_add(
 		if (ifield->prefix_len) {
 			len = dtype_get_at_most_n_mbchars(
 				col->prtype,
-				col->mbminmaxlen,
+				col->mbminlen, col->mbmaxlen,
 				ifield->prefix_len,
 				len,
 				static_cast<char*>(dfield_get_data(field)));
@@ -762,8 +757,7 @@ row_merge_buf_add(
 
 		fixed_len = ifield->fixed_len;
 		if (fixed_len && !dict_table_is_comp(index->table)
-		    && DATA_MBMINLEN(col->mbminmaxlen)
-		    != DATA_MBMAXLEN(col->mbminmaxlen)) {
+		    && col->mbminlen != col->mbmaxlen) {
 			/* CHAR in ROW_FORMAT=REDUNDANT is always
 			fixed-length, but in the temporary file it is
 			variable-length for variable-length character
@@ -773,14 +767,11 @@ row_merge_buf_add(
 
 		if (fixed_len) {
 #ifdef UNIV_DEBUG
-			ulint	mbminlen = DATA_MBMINLEN(col->mbminmaxlen);
-			ulint	mbmaxlen = DATA_MBMAXLEN(col->mbminmaxlen);
-
 			/* len should be between size calcualted base on
 			mbmaxlen and mbminlen */
 			ut_ad(len <= fixed_len);
-			ut_ad(!mbmaxlen || len >= mbminlen
-			      * (fixed_len / mbmaxlen));
+			ut_ad(!col->mbmaxlen || len >= col->mbminlen
+			      * (fixed_len / col->mbmaxlen));
 
 			ut_ad(!dfield_is_ext(field));
 #endif /* UNIV_DEBUG */
@@ -2101,16 +2092,16 @@ end_of_index:
 			ONLINE_INDEX_COMPLETE state between the time
 			the DML thread has updated the clustered index
 			but has not yet accessed secondary index. */
-			ut_ad(MVCC::is_view_active(trx->read_view));
+			ut_ad(trx->read_view.is_open());
 			ut_ad(rec_trx_id != trx->id);
 
-			if (!trx->read_view->changes_visible(
+			if (!trx->read_view.changes_visible(
 				    rec_trx_id, old_table->name)) {
 				rec_t*	old_vers;
 
 				row_vers_build_for_consistent_read(
 					rec, &mtr, clust_index, &offsets,
-					trx->read_view, &row_heap,
+					&trx->read_view, &row_heap,
 					row_heap, &old_vers, NULL);
 
 				if (!old_vers) {
@@ -2263,7 +2254,7 @@ end_of_index:
 					if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
 						err = DB_UNSUPPORTED;
 						my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),
-							 old_table->name);
+							 old_table->name.m_name);
 						goto func_exit;
 					}
 					dfield_set_null(dfield);
@@ -2881,7 +2872,7 @@ wait_again:
 				.insert(trx_mod_tables_t::value_type(
 					const_cast<dict_table_t*>(new_table), 0))
 				.first->second;
-		time.set_versioned(0, true);
+		time.set_versioned(0);
 	}
 
 	trx->op_info = "";
@@ -4526,8 +4517,8 @@ row_merge_is_index_usable(
 	return(!dict_index_is_corrupted(index)
 	       && (dict_table_is_temporary(index->table)
 		   || index->trx_id == 0
-		   || !MVCC::is_view_active(trx->read_view)
-		   || trx->read_view->changes_visible(
+		   || !trx->read_view.is_open()
+		   || trx->read_view.changes_visible(
 			   index->trx_id,
 			   index->table->name)));
 }
@@ -4669,6 +4660,8 @@ row_merge_build_indexes(
 		DBUG_RETURN(DB_OUT_OF_MEMORY);
 	}
 
+	TRASH_ALLOC(&crypt_pfx, sizeof crypt_pfx);
+
 	if (log_tmp_is_encrypted()) {
 		crypt_block = static_cast<row_merge_block_t*>(
 			alloc.allocate_large(3 * srv_sort_buf_size,
@@ -4771,8 +4764,8 @@ row_merge_build_indexes(
 			"Table %s is encrypted but encryption service or"
 			" used key_id is not available. "
 			" Can't continue reading table.",
-			!old_table->is_readable() ? old_table->name :
-				new_table->name);
+			!old_table->is_readable() ? old_table->name.m_name :
+				new_table->name.m_name);
 		goto func_exit;
 	}
 

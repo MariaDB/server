@@ -53,10 +53,10 @@ int spider_udf_set_copy_tables_param_default(
   if (!copy_tables->database)
   {
     DBUG_PRINT("info",("spider create default database"));
-    copy_tables->database_length = copy_tables->trx->thd->db_length;
+    copy_tables->database_length = copy_tables->trx->thd->db.length;
     if (
       !(copy_tables->database = spider_create_string(
-        copy_tables->trx->thd->db,
+        copy_tables->trx->thd->db.str,
         copy_tables->database_length))
     ) {
       my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
@@ -978,18 +978,19 @@ long long spider_copy_tables_body(
     goto error;
 
   table_list = &copy_tables->spider_table_list;
-  table_list->db = copy_tables->spider_db_name;
-  table_list->db_length = copy_tables->spider_db_name_length;
-  table_list->alias = table_list->table_name =
+  table_list->db.str = copy_tables->spider_db_name;
+  table_list->db.length = copy_tables->spider_db_name_length;
+  table_list->alias.str = table_list->table_name.str =
     copy_tables->spider_real_table_name;
-  table_list->table_name_length = copy_tables->spider_real_table_name_length;
+  table_list->table_name.length = copy_tables->spider_real_table_name_length;
+  table_list->alias.length= table_list->table_name.length;
   table_list->lock_type = TL_READ;
 
-  DBUG_PRINT("info",("spider db=%s", table_list->db));
-  DBUG_PRINT("info",("spider db_length=%zd", table_list->db_length));
-  DBUG_PRINT("info",("spider table_name=%s", table_list->table_name));
+  DBUG_PRINT("info",("spider db=%s", table_list->db.str));
+  DBUG_PRINT("info",("spider db_length=%zd", table_list->db.length));
+  DBUG_PRINT("info",("spider table_name=%s", table_list->table_name.str));
   DBUG_PRINT("info",("spider table_name_length=%zd",
-    table_list->table_name_length));
+    table_list->table_name.length));
   reprepare_observer_backup = thd->m_reprepare_observer;
   thd->m_reprepare_observer = NULL;
   copy_tables->trx->trx_start = TRUE;
@@ -1000,8 +1001,8 @@ long long spider_copy_tables_body(
 #else
   table_list->mdl_request.init(
     MDL_key::TABLE,
-    table_list->db,
-    table_list->table_name,
+    table_list->db.str,
+    table_list->table_name.str,
     MDL_SHARED_READ,
     MDL_TRANSACTION
   );

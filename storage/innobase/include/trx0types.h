@@ -112,8 +112,6 @@ enum trx_dict_op_t {
 struct trx_t;
 /** The locks and state of an active transaction */
 struct trx_lock_t;
-/** Transaction system */
-struct trx_sys_t;
 /** Signal */
 struct trx_sig_t;
 /** Rollback segment */
@@ -144,8 +142,6 @@ struct trx_savept_t{
 
 /** File objects */
 /* @{ */
-/** Transaction system header */
-typedef byte	trx_sysf_t;
 /** Rollback segment header */
 typedef byte	trx_rsegf_t;
 /** Undo segment header */

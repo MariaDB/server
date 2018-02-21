@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -219,21 +219,11 @@ row_lock_table_autoinc_for_mysql(
 					table handle */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*********************************************************************//**
-Sets a table lock on the table mentioned in prebuilt.
+/** Lock a table.
+@param[in,out]	prebuilt	table handle
 @return error code or DB_SUCCESS */
 dberr_t
-row_lock_table_for_mysql(
-/*=====================*/
-	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct in the MySQL
-					table handle */
-	dict_table_t*	table,		/*!< in: table to lock, or NULL
-					if prebuilt->table should be
-					locked as
-					prebuilt->select_lock_type */
-	ulint		mode)		/*!< in: lock mode of table
-					(ignored if table==NULL) */
-	MY_ATTRIBUTE((nonnull(1)));
+row_lock_table(row_prebuilt_t* prebuilt);
 
 /** System Versioning: row_insert_for_mysql() modes */
 enum ins_mode_t {
@@ -320,6 +310,18 @@ row_create_update_node_for_mysql(
 /*=============================*/
 	dict_table_t*	table,	/*!< in: table to update */
 	mem_heap_t*	heap);	/*!< in: mem heap from which allocated */
+
+/**********************************************************************//**
+Does a cascaded delete or set null in a foreign key operation.
+@return error code or DB_SUCCESS */
+dberr_t
+row_update_cascade_for_mysql(
+/*=========================*/
+        que_thr_t*      thr,    /*!< in: query thread */
+        upd_node_t*     node,   /*!< in: update node used in the cascade
+                                or set null operation */
+        dict_table_t*   table)  /*!< in: table where we do the operation */
+        MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Locks the data dictionary exclusively for performing a table create or other
 data dictionary modification operation. */
@@ -519,18 +521,6 @@ row_rename_table_for_mysql(
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
 	bool		commit)		/*!< in: whether to commit trx */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** Renames a partitioned table for MySQL.
-@param[in]	old_name	Old table name.
-@param[in]	new_name	New table name.
-@param[in,out]	trx		Transaction.
-@return error code or DB_SUCCESS */
-dberr_t
-row_rename_partitions_for_mysql(
-	const char*	old_name,
-	const char*	new_name,
-	trx_t*		trx)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**

@@ -243,7 +243,6 @@ private:
   */
   uint32 unsafe_flags;
 
-  uint m_select_number;
 public:
   inline Stored_program_creation_ctx *get_creation_ctx()
   {
@@ -731,7 +730,7 @@ public:
   void set_info(longlong created, longlong modified,
 		const st_sp_chistics &chistics, sql_mode_t sql_mode);
 
-  void set_definer(const char *definer, uint definerlen)
+  void set_definer(const char *definer, size_t definerlen)
   {
     AUTHID tmp;
     tmp.parse(definer, definerlen);
@@ -830,8 +829,6 @@ public:
   }
 
   sp_pcontext *get_parse_context() { return m_pcont; }
-
-  void set_select_number(uint num) { m_select_number= num; }
 
   bool check_execute_access(THD *thd) const;
 
@@ -1940,16 +1937,9 @@ set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx);
 
 TABLE_LIST *
 sp_add_to_query_tables(THD *thd, LEX *lex,
-		       const char *db, const char *name,
+		       const LEX_CSTRING *db, const LEX_CSTRING *name,
                        thr_lock_type locktype,
                        enum_mdl_type mdl_type);
-
-Item *
-sp_prepare_func_item(THD* thd, Item **it_addr, uint cols= 1);
-
-bool
-sp_eval_expr(THD *thd, Item *result_item, Field *result_field,
-             Item **expr_item_ptr);
 
 /**
   @} (end of group Stored_Routines)

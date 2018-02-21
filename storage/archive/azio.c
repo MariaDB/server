@@ -479,7 +479,7 @@ unsigned int ZEXPORT azread ( azio_stream *s, voidp buf, size_t len, int *error)
 
   next_out = (Byte*)buf;
   s->stream.next_out = (Bytef*)buf;
-  s->stream.avail_out = len;
+  s->stream.avail_out = (uInt)len;
 
   if (s->stream.avail_out && s->back != EOF) {
     *next_out++ = s->back;
@@ -521,7 +521,7 @@ unsigned int ZEXPORT azread ( azio_stream *s, voidp buf, size_t len, int *error)
       s->out += len;
       if (len == 0) s->z_eof = 1;
       { 
-        return len;
+        return (uint)len;
       }
     }
     if (s->stream.avail_in == 0 && !s->z_eof) {
@@ -574,7 +574,7 @@ unsigned int ZEXPORT azread ( azio_stream *s, voidp buf, size_t len, int *error)
     return 0;
   }
 
-  return (len - s->stream.avail_out);
+  return (uint)(len - s->stream.avail_out);
 }
 
 
@@ -882,7 +882,7 @@ int azclose (azio_stream *s)
   Though this was added to support MySQL's FRM file, anything can be 
   stored in this location.
 */
-int azwrite_frm(azio_stream *s, const uchar *blob, unsigned int length)
+int azwrite_frm(azio_stream *s, const uchar *blob, size_t length)
 {
   if (s->mode == 'r') 
     return 1;
@@ -891,7 +891,7 @@ int azwrite_frm(azio_stream *s, const uchar *blob, unsigned int length)
     return 1;
 
   s->frm_start_pos= (uint) s->start;
-  s->frm_length= length;
+  s->frm_length= (uint)length;
   s->start+= length;
 
   if (my_pwrite(s->file, blob, s->frm_length,
@@ -913,7 +913,7 @@ int azread_frm(azio_stream *s, uchar *blob)
 /*
   Simple comment field
 */
-int azwrite_comment(azio_stream *s, const char *blob, unsigned int length)
+int azwrite_comment(azio_stream *s, const char *blob, size_t length)
 {
   if (s->mode == 'r') 
     return 1;
@@ -922,7 +922,7 @@ int azwrite_comment(azio_stream *s, const char *blob, unsigned int length)
     return 1;
 
   s->comment_start_pos= (uint) s->start;
-  s->comment_length= length;
+  s->comment_length= (uint)length;
   s->start+= length;
 
   my_pwrite(s->file, (uchar*) blob, s->comment_length, s->comment_start_pos,

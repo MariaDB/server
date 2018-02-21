@@ -745,7 +745,7 @@ public:
 #ifdef WITH_WSREP
 		,lock_t*	c_lock = NULL
 #endif /* WITH_WSREP */
-	);
+	) const;
 
 	/**
 	Check of the lock is on m_rec_id.
@@ -838,7 +838,7 @@ private:
 	@param[in,out] lock	Newly created record lock to add to the
 				rec hash and the transaction lock list
 	@param[in] add_to_hash	If the lock should be added to the hash table */
-	void lock_add(lock_t* lock, bool add_to_hash);
+	void lock_add(lock_t* lock, bool add_to_hash) const;
 
 	/**
 	Check and resolve any deadlocks

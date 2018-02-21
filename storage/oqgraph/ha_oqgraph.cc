@@ -563,7 +563,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   init_tmp_table_share( thd, share, table->s->db.str, table->s->db.length, options->table_name, "");
   // because of that, we need to reinitialize the memroot (to reset MY_THREAD_SPECIFIC flag)
   DBUG_ASSERT(share->mem_root.used == NULL); // it's still empty
-  init_sql_alloc(&share->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&share->mem_root, "share", TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   // What I think this code is doing:
   // * Our OQGRAPH table is `database_blah/name`
@@ -622,7 +622,8 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     DBUG_RETURN(-1);
   }
 
-  if (enum open_frm_error err= open_table_from_share(thd, share, "",
+  if (enum open_frm_error err= open_table_from_share(thd, share,
+                                                     &empty_clex_str,
                             (uint) (HA_OPEN_KEYFILE | HA_TRY_READ_ONLY),
                             EXTRA_RECORD,
                             thd->open_options, edges, FALSE))

@@ -394,7 +394,7 @@ void JOIN_CACHE::create_flag_fields()
     TABLE *table= tab->table;
 
     /* Create a field for the null bitmap from table if needed */
-    if (tab->used_null_fields || tab->used_uneven_bit_fields)			    
+    if (tab->used_null_fields || tab->used_uneven_bit_fields)
       length+= add_flag_field_to_join_cache(table->null_flags,
                                             table->s->null_bytes,
                                             &copy);
@@ -765,7 +765,7 @@ uint JOIN_CACHE::get_record_max_affix_length()
     The minimal possible size of the join buffer of this cache 
 */
 
-ulong JOIN_CACHE::get_min_join_buffer_size()
+size_t JOIN_CACHE::get_min_join_buffer_size()
 {
   if (!min_buff_size)
   {
@@ -824,7 +824,7 @@ ulong JOIN_CACHE::get_min_join_buffer_size()
     The maximum possible size of the join buffer of this cache 
 */
 
-ulong JOIN_CACHE::get_max_join_buffer_size(bool optimize_buff_size)
+size_t JOIN_CACHE::get_max_join_buffer_size(bool optimize_buff_size)
 {
   if (!max_buff_size)
   {
@@ -933,9 +933,9 @@ int JOIN_CACHE::alloc_buffer()
   if (for_explain_only)
     return 0;
                                
-  for (ulong buff_size_decr= (buff_size-min_buff_size)/4 + 1; ; )
+  for (size_t buff_size_decr= (buff_size-min_buff_size)/4 + 1; ; )
   {
-    ulong next_buff_size;
+    size_t next_buff_size;
 
     if ((buff= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))))
       break;
@@ -1701,7 +1701,7 @@ enum JOIN_CACHE::Match_flag JOIN_CACHE::get_match_flag_by_pos(uchar *rec_ptr)
     the number of bytes in the increment 
 */
 
-uint JOIN_CACHE::aux_buffer_incr(ulong recno)
+uint JOIN_CACHE::aux_buffer_incr(size_t recno)
 { 
   return join_tab_scan->aux_buffer_incr(recno);
 }
@@ -2759,22 +2759,22 @@ int JOIN_CACHE_HASHED::init_hash_table()
                       size_of_key_ofs +          // reference to the next key 
                       (use_emb_key ?  get_size_of_rec_offset() : key_length);
 
-    ulong space_per_rec= avg_record_length +
+    size_t space_per_rec= avg_record_length +
                          avg_aux_buffer_incr +
                          key_entry_length+size_of_key_ofs;
-    uint n= buff_size / space_per_rec;
+    size_t n= buff_size / space_per_rec;
 
     /*
       TODO: Make a better estimate for this upper bound of
             the number of records in in the join buffer.
     */
-    uint max_n= buff_size / (pack_length-length+
+    size_t max_n= buff_size / (pack_length-length+
                              key_entry_length+size_of_key_ofs);
 
     hash_entries= (uint) (n / 0.7);
     set_if_bigger(hash_entries, 1);
     
-    if (offset_size(max_n*key_entry_length) <=
+    if (offset_size((uint)(max_n*key_entry_length)) <=
         size_of_key_ofs)
       break;
   }
@@ -3501,7 +3501,7 @@ bool JOIN_CACHE_BNL::prepare_look_for_matches(bool skip_last)
   if (!records)
     return TRUE;
   reset(FALSE);
-  rem_records= records - MY_TEST(skip_last);
+  rem_records= (uint)records - MY_TEST(skip_last);
   return rem_records == 0;
 }
 
@@ -3829,7 +3829,7 @@ int JOIN_CACHE_BNLH::init(bool for_explain)
     the increment of the size of the MRR buffer for the next record
 */
 
-uint JOIN_TAB_SCAN_MRR::aux_buffer_incr(ulong recno)
+uint JOIN_TAB_SCAN_MRR::aux_buffer_incr(size_t recno)
 {
   uint incr= 0;
   TABLE_REF *ref= &join_tab->ref;

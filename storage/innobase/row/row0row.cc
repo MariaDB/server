@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,7 +42,6 @@ Created 4/20/1996 Heikki Tuuri
 #include "row0ext.h"
 #include "row0upd.h"
 #include "rem0cmp.h"
-#include "read0read.h"
 #include "ut0mem.h"
 #include "gis0geo.h"
 #include "row0mysql.h"
@@ -334,7 +334,7 @@ row_build_index_entry_low(
 		/* If a column prefix index, take only the prefix. */
 		if (ind_field->prefix_len) {
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminmaxlen,
+				col->prtype, col->mbminlen, col->mbmaxlen,
 				ind_field->prefix_len, len,
 				static_cast<char*>(dfield_get_data(dfield)));
 			dfield_set_len(dfield, len);
@@ -396,7 +396,7 @@ row_build_low(
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(dict_index_is_clust(index));
-	ut_ad(!trx_sys_mutex_own());
+	ut_ad(!mutex_own(&trx_sys.mutex));
 	ut_ad(!col_map || col_table);
 
 	if (!offsets) {
@@ -415,8 +415,9 @@ row_build_low(
 	times, and the cursor restore can happen multiple times for single
 	insert or update statement.  */
 	ut_a(!rec_offs_any_null_extern(rec, offsets)
-	     || trx_sys->rw_trx_hash.find(row_get_rec_trx_id(rec, index,
-							     offsets)));
+	     || trx_sys.is_registered(current_trx(),
+				      row_get_rec_trx_id(rec, index,
+							 offsets)));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
 	if (type != ROW_COPY_POINTERS) {
@@ -876,7 +877,8 @@ row_build_row_ref(
 				dfield_set_len(dfield,
 					       dtype_get_at_most_n_mbchars(
 						       dtype->prtype,
-						       dtype->mbminmaxlen,
+						       dtype->mbminlen,
+						       dtype->mbmaxlen,
 						       clust_col_prefix_len,
 						       len, (char*) field));
 			}
@@ -977,7 +979,8 @@ row_build_row_ref_in_tuple(
 				dfield_set_len(dfield,
 					       dtype_get_at_most_n_mbchars(
 						       dtype->prtype,
-						       dtype->mbminmaxlen,
+						       dtype->mbminlen,
+						       dtype->mbmaxlen,
 						       clust_col_prefix_len,
 						       len, (char*) field));
 			}

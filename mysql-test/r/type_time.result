@@ -1283,3 +1283,642 @@ a
 10:20:32
 DROP TABLE t1;
 SET timestamp=DEFAULT;
+#
+# MDEV-15176 Storing DATETIME-alike VARCHAR data into TIME produces wrong results
+#
+SET sql_mode='';
+CREATE OR REPLACE TABLE t0 (d VARCHAR(64));
+INSERT INTO t0 VALUES ('0000-00-00 10:20:30');
+INSERT INTO t0 VALUES ('0000-00-01 10:20:30');
+INSERT INTO t0 VALUES ('0000-01-00 10:20:30');
+INSERT INTO t0 VALUES ('0000-01-01 10:20:30');
+INSERT INTO t0 VALUES ('0001-00-00 10:20:30');
+INSERT INTO t0 VALUES ('0001-00-01 10:20:30');
+INSERT INTO t0 VALUES ('0001-01-00 10:20:30');
+INSERT INTO t0 VALUES ('0001-01-01 10:20:30');
+SET @@global.mysql56_temporal_format=false;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT d,d,d FROM t0;
+Warnings:
+Note	1265	Data truncated for column 't0' at row 3
+Note	1265	Data truncated for column 't1' at row 3
+Note	1265	Data truncated for column 't0' at row 4
+Note	1265	Data truncated for column 't1' at row 4
+Note	1265	Data truncated for column 't0' at row 5
+Note	1265	Data truncated for column 't1' at row 5
+Note	1265	Data truncated for column 't0' at row 6
+Note	1265	Data truncated for column 't1' at row 6
+Note	1265	Data truncated for column 't0' at row 7
+Note	1265	Data truncated for column 't1' at row 7
+Note	1265	Data truncated for column 't0' at row 8
+Note	1265	Data truncated for column 't1' at row 8
+SELECT * FROM t1 ORDER BY d;
+d	t0	t1
+0000-00-00 10:20:30	10:20:30	10:20:30.0
+0000-00-01 10:20:30	34:20:30	34:20:30.0
+0000-01-00 10:20:30	10:20:30	10:20:30.0
+0000-01-01 10:20:30	10:20:30	10:20:30.0
+0001-00-00 10:20:30	10:20:30	10:20:30.0
+0001-00-01 10:20:30	10:20:30	10:20:30.0
+0001-01-00 10:20:30	10:20:30	10:20:30.0
+0001-01-01 10:20:30	10:20:30	10:20:30.0
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT CONCAT(d,'x'),CONCAT(d,'x'),CONCAT(d,'x') FROM t0;
+Warnings:
+Warning	1265	Data truncated for column 't0' at row 1
+Warning	1265	Data truncated for column 't1' at row 1
+Warning	1265	Data truncated for column 't0' at row 2
+Warning	1265	Data truncated for column 't1' at row 2
+Warning	1265	Data truncated for column 't0' at row 3
+Warning	1265	Data truncated for column 't1' at row 3
+Warning	1265	Data truncated for column 't0' at row 4
+Warning	1265	Data truncated for column 't1' at row 4
+Warning	1265	Data truncated for column 't0' at row 5
+Warning	1265	Data truncated for column 't1' at row 5
+Warning	1265	Data truncated for column 't0' at row 6
+Warning	1265	Data truncated for column 't1' at row 6
+Warning	1265	Data truncated for column 't0' at row 7
+Warning	1265	Data truncated for column 't1' at row 7
+Warning	1265	Data truncated for column 't0' at row 8
+Warning	1265	Data truncated for column 't1' at row 8
+SELECT * FROM t1;
+d	t0	t1
+0000-00-00 10:20:30x	10:20:30	10:20:30.0
+0000-00-01 10:20:30x	34:20:30	34:20:30.0
+0000-01-00 10:20:30x	10:20:30	10:20:30.0
+0000-01-01 10:20:30x	10:20:30	10:20:30.0
+0001-00-00 10:20:30x	10:20:30	10:20:30.0
+0001-00-01 10:20:30x	10:20:30	10:20:30.0
+0001-01-00 10:20:30x	10:20:30	10:20:30.0
+0001-01-01 10:20:30x	10:20:30	10:20:30.0
+DROP TABLE t1;
+SET @@global.mysql56_temporal_format=true;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT d,d,d FROM t0;
+Warnings:
+Note	1265	Data truncated for column 't0' at row 3
+Note	1265	Data truncated for column 't1' at row 3
+Note	1265	Data truncated for column 't0' at row 4
+Note	1265	Data truncated for column 't1' at row 4
+Note	1265	Data truncated for column 't0' at row 5
+Note	1265	Data truncated for column 't1' at row 5
+Note	1265	Data truncated for column 't0' at row 6
+Note	1265	Data truncated for column 't1' at row 6
+Note	1265	Data truncated for column 't0' at row 7
+Note	1265	Data truncated for column 't1' at row 7
+Note	1265	Data truncated for column 't0' at row 8
+Note	1265	Data truncated for column 't1' at row 8
+SELECT * FROM t1;
+d	t0	t1
+0000-00-00 10:20:30	10:20:30	10:20:30.0
+0000-00-01 10:20:30	34:20:30	34:20:30.0
+0000-01-00 10:20:30	10:20:30	10:20:30.0
+0000-01-01 10:20:30	10:20:30	10:20:30.0
+0001-00-00 10:20:30	10:20:30	10:20:30.0
+0001-00-01 10:20:30	10:20:30	10:20:30.0
+0001-01-00 10:20:30	10:20:30	10:20:30.0
+0001-01-01 10:20:30	10:20:30	10:20:30.0
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT CONCAT(d,'x'),CONCAT(d,'x'),CONCAT(d,'x') FROM t0;
+Warnings:
+Warning	1265	Data truncated for column 't0' at row 1
+Warning	1265	Data truncated for column 't1' at row 1
+Warning	1265	Data truncated for column 't0' at row 2
+Warning	1265	Data truncated for column 't1' at row 2
+Warning	1265	Data truncated for column 't0' at row 3
+Warning	1265	Data truncated for column 't1' at row 3
+Warning	1265	Data truncated for column 't0' at row 4
+Warning	1265	Data truncated for column 't1' at row 4
+Warning	1265	Data truncated for column 't0' at row 5
+Warning	1265	Data truncated for column 't1' at row 5
+Warning	1265	Data truncated for column 't0' at row 6
+Warning	1265	Data truncated for column 't1' at row 6
+Warning	1265	Data truncated for column 't0' at row 7
+Warning	1265	Data truncated for column 't1' at row 7
+Warning	1265	Data truncated for column 't0' at row 8
+Warning	1265	Data truncated for column 't1' at row 8
+SELECT * FROM t1 ORDER BY d;
+d	t0	t1
+0000-00-00 10:20:30x	10:20:30	10:20:30.0
+0000-00-01 10:20:30x	34:20:30	34:20:30.0
+0000-01-00 10:20:30x	10:20:30	10:20:30.0
+0000-01-01 10:20:30x	10:20:30	10:20:30.0
+0001-00-00 10:20:30x	10:20:30	10:20:30.0
+0001-00-01 10:20:30x	10:20:30	10:20:30.0
+0001-01-00 10:20:30x	10:20:30	10:20:30.0
+0001-01-01 10:20:30x	10:20:30	10:20:30.0
+DROP TABLE t1;
+DROP TABLE t0;
+SET sql_mode=DEFAULT;
+#
+# MDEV-15287 Bad result for LEAST/GREATEST(datetime_alike_string, time)
+#
+SELECT
+GREATEST('2010-01-01 10:10:10',TIME('-20:20:20')) AS gt_minus20_implicit,
+GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20')) AS gt_minis20_explicit,
+GREATEST('2010-01-01 10:10:10',TIME('20:20:20')) AS gt_plus20_implicit,
+GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20')) AS gt_plus20_explicit;
+gt_minus20_implicit	10:10:10.000000
+gt_minis20_explicit	10:10:10.000000
+gt_plus20_implicit	20:20:20.000000
+gt_plus20_explicit	20:20:20.000000
+SELECT
+HOUR(GREATEST('2010-01-01 10:10:10',TIME('-20:20:20'))) AS gt_minus20_implicit,
+HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20'))) AS gt_minis20_explicit,
+HOUR(GREATEST('2010-01-01 10:10:10',TIME('20:20:20'))) AS gt_plus20_implicit,
+HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20'))) AS gt_plus20_explicit;
+gt_minus20_implicit	10
+gt_minis20_explicit	10
+gt_plus20_implicit	20
+gt_plus20_explicit	20
+SELECT
+LEAST('2010-01-01 10:10:10',TIME('-20:20:20')) AS lt_minus20_implicit,
+LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20')) AS lt_minus20_explicit,
+LEAST('2010-01-01 10:10:10',TIME('20:20:20')) AS lt_plus20_implicit,
+LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20')) AS lt_plus20_explicit;
+lt_minus20_implicit	-20:20:20.000000
+lt_minus20_explicit	-20:20:20.000000
+lt_plus20_implicit	10:10:10.000000
+lt_plus20_explicit	10:10:10.000000
+SELECT
+HOUR(LEAST('2010-01-01 10:10:10',TIME('-20:20:20'))) AS lt_minus20_implicit,
+HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20'))) AS lt_minus20_explicit,
+HOUR(LEAST('2010-01-01 10:10:10',TIME('20:20:20'))) AS lt_plus20_implicit,
+HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20'))) AS lt_plus20_explicit;
+lt_minus20_implicit	20
+lt_minus20_explicit	20
+lt_plus20_implicit	10
+lt_plus20_explicit	10
+SELECT
+GREATEST('2010-01-01 10:10:10',TIME('-200:20:20')) AS gt_minus200_implicit,
+GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20')) AS gt_minus200_explictit,
+GREATEST('2010-01-01 10:10:10',TIME('200:20:20')) AS gt_plus200_implicit,
+GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20')) AS gt_plus200_explicit;
+gt_minus200_implicit	10:10:10.000000
+gt_minus200_explictit	10:10:10.000000
+gt_plus200_implicit	200:20:20.000000
+gt_plus200_explicit	200:20:20.000000
+SELECT
+HOUR(GREATEST('2010-01-01 10:10:10',TIME('-200:20:20'))) AS gt_minus200_implicit,
+HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20'))) AS gt_minus200_explictit,
+HOUR(GREATEST('2010-01-01 10:10:10',TIME('200:20:20'))) AS gt_plus200_implicit,
+HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20'))) AS gt_plus200_explicit;
+gt_minus200_implicit	10
+gt_minus200_explictit	10
+gt_plus200_implicit	200
+gt_plus200_explicit	200
+SELECT
+LEAST('2010-01-01 10:10:10',TIME('-200:20:20')) AS lt_minus200_implicit,
+LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20')) AS lt_minus200_explictit,
+LEAST('2010-01-01 10:10:10',TIME('200:20:20')) AS lt_plus200_implicit,
+LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20')) AS lt_plus200_explicit;
+lt_minus200_implicit	-200:20:20.000000
+lt_minus200_explictit	-200:20:20.000000
+lt_plus200_implicit	10:10:10.000000
+lt_plus200_explicit	10:10:10.000000
+SELECT
+HOUR(LEAST('2010-01-01 10:10:10',TIME('-200:20:20'))) AS lt_minus200_implicit,
+HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20'))) AS lt_minus200_explictit,
+HOUR(LEAST('2010-01-01 10:10:10',TIME('200:20:20'))) AS lt_plus200_implicit,
+HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20'))) AS lt_plus200_explicit;
+lt_minus200_implicit	200
+lt_minus200_explictit	200
+lt_plus200_implicit	10
+lt_plus200_explicit	10
+#
+# MDEV-15293 CAST(AS TIME) returns bad results for LAST_VALUE(),NAME_CONST(),SP variable
+#
+SELECT CAST(DATE'2001-01-01' AS TIME);
+CAST(DATE'2001-01-01' AS TIME)
+00:00:00
+SELECT CAST(LAST_VALUE(DATE'2001-01-01') AS TIME);
+CAST(LAST_VALUE(DATE'2001-01-01') AS TIME)
+00:00:00
+SELECT CAST(NAME_CONST('name',DATE'2001-01-01') AS TIME);
+CAST(NAME_CONST('name',DATE'2001-01-01') AS TIME)
+00:00:00
+BEGIN NOT ATOMIC
+DECLARE a DATE DEFAULT '2001-01-01';
+SELECT CAST(a AS TIME);
+END;
+$$
+CAST(a AS TIME)
+00:00:00
+CREATE OR REPLACE TABLE t1 (dt DATE,country VARCHAR(10), amount INT);
+INSERT INTO t1 VALUES ('2000-01-01','DE',102);
+SELECT
+dt, country, amount,
+FIRST_VALUE(dt) OVER () AS first,
+MINUTE(FIRST_VALUE(dt) OVER ()) AS m_first,
+LAST_VALUE(dt) OVER () AS last,
+MINUTE(LAST_VALUE(dt) OVER ()) AS m_last
+FROM t1
+ORDER BY country, dt;
+dt	country	amount	first	m_first	last	m_last
+2000-01-01	DE	102	2000-01-01	0	2000-01-01	0
+SELECT
+dt, country, amount,
+FIRST_VALUE(dt) OVER () AS first,
+CAST(FIRST_VALUE(dt) OVER () AS TIME) AS t_first,
+LAST_VALUE(dt) OVER () AS last,
+CAST(LAST_VALUE(dt) OVER () AS TIME) AS t_last
+FROM t1
+ORDER BY country, dt;
+dt	country	amount	first	t_first	last	t_last
+2000-01-01	DE	102	2000-01-01	00:00:00	2000-01-01	00:00:00
+DROP TABLE t1;
+#
+#  MDEV-15310 Range optimizer does not work well for "WHERE temporal_column NOT IN (const_list)"
+#
+#
+# TIME(0), positive within 24 hour
+#
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:02', 'no');
+INSERT INTO t1 VALUES ('23:00:03', 'yes');
+INSERT INTO t1 VALUES ('23:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
+SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
+a	filler
+23:00:03	yes
+23:00:04	yes
+DROP TABLE t1;
+#
+# TIME(0), negative
+#
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:02', 'no');
+INSERT INTO t1 VALUES ('-23:00:03', 'yes');
+INSERT INTO t1 VALUES ('-23:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-23:00:01','-23:00:02');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
+SELECT * FROM t1 WHERE a NOT IN ('-23:00:01','-23:00:02');
+a	filler
+-23:00:04	yes
+-23:00:03	yes
+DROP TABLE t1;
+#
+# TIME(0), positive ouside 24 hours
+#
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:02', 'no');
+INSERT INTO t1 VALUES ('24:00:03', 'yes');
+INSERT INTO t1 VALUES ('24:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
+SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
+a	filler
+24:00:03	yes
+24:00:04	yes
+DROP TABLE t1;
+#
+# TIME(0), negative, ouside 24 hours
+#
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:02', 'no');
+INSERT INTO t1 VALUES ('-24:00:03', 'yes');
+INSERT INTO t1 VALUES ('-24:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-24:00:01','-24:00:02');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
+SELECT * FROM t1 WHERE a NOT IN ('-24:00:01','-24:00:02');
+a	filler
+-24:00:04	yes
+-24:00:03	yes
+DROP TABLE t1;
+#
+# TIME(0), positive, huge
+#
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:02', 'no');
+INSERT INTO t1 VALUES ('838:00:03', 'yes');
+INSERT INTO t1 VALUES ('838:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
+SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
+a	filler
+838:00:03	yes
+838:00:04	yes
+DROP TABLE t1;
+#
+# TIME(0), negative, huge
+#
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:02', 'no');
+INSERT INTO t1 VALUES ('-838:00:03', 'yes');
+INSERT INTO t1 VALUES ('-838:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-838:00:01','-838:00:02');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
+SELECT * FROM t1 WHERE a NOT IN ('-838:00:01','-838:00:02');
+a	filler
+-838:00:04	yes
+-838:00:03	yes
+DROP TABLE t1;
+#
+# TIME(1), positive within 24 hours
+#
+CREATE TABLE t1 (a TIME(1), filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:02.1', 'no');
+INSERT INTO t1 VALUES ('23:00:03.1', 'yes');
+INSERT INTO t1 VALUES ('23:00:04.1', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	5	Using index condition
+SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
+a	filler
+23:00:03.1	yes
+23:00:04.1	yes
+DROP TABLE t1;
+#
+# TIME(1), negative within 24 hours
+#
+CREATE TABLE t1 (a TIME(1), filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:02.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:03.1', 'yes');
+INSERT INTO t1 VALUES ('-23:00:04.1', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-23:00:01.1','-23:00:02.1');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	4	Using index condition
+SELECT * FROM t1 WHERE a NOT IN ('-23:00:01.1','-23:00:02.1');
+a	filler
+-23:00:04.1	yes
+-23:00:03.1	yes
+DROP TABLE t1;
+#
+# TIME(1), positive, huge
+#
+CREATE TABLE t1 (a TIME(1), filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:02.1', 'no');
+INSERT INTO t1 VALUES ('838:00:03.1', 'yes');
+INSERT INTO t1 VALUES ('838:00:04.1', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	5	Using index condition
+SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
+a	filler
+838:00:03.1	yes
+838:00:04.1	yes
+DROP TABLE t1;
+#
+# TIME(1), negative, huge
+#
+CREATE TABLE t1 (a TIME(1), filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:02.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:03.1', 'yes');
+INSERT INTO t1 VALUES ('-838:00:04.1', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-838:00:01.1','-838:00:02.1');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	4	Using index condition
+SELECT * FROM t1 WHERE a NOT IN ('-838:00:01.1','-838:00:02.1');
+a	filler
+-838:00:04.1	yes
+-838:00:03.1	yes
+DROP TABLE t1;

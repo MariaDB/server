@@ -1,6 +1,3 @@
-SET SESSION debug="+d,row_print_geometry_data";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 CREATE TABLE t_wl6455 ( i INT, g GEOMETRY NOT NULL) ENGINE=InnoDB;
 SHOW CREATE TABLE t_wl6455;
 Table	Create Table

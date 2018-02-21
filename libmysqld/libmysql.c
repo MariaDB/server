@@ -1533,8 +1533,9 @@ mysql_stmt_init(MYSQL *mysql)
     DBUG_RETURN(NULL);
   }
 
-  init_alloc_root(&stmt->mem_root, 2048,2048, MYF(MY_THREAD_SPECIFIC));
-  init_alloc_root(&stmt->result.alloc, 4096, 4096, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&stmt->mem_root, "stmt", 2048,2048, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&stmt->result.alloc, "result", 4096, 4096,
+                  MYF(MY_THREAD_SPECIFIC));
   stmt->result.alloc.min_malloc= sizeof(MYSQL_ROWS);
   mysql->stmts= list_add(mysql->stmts, &stmt->list);
   stmt->list.data= stmt;
@@ -1545,7 +1546,7 @@ mysql_stmt_init(MYSQL *mysql)
   strmov(stmt->sqlstate, not_error_sqlstate);
   /* The rest of statement members was bzeroed inside malloc */
 
-  init_alloc_root(&stmt->extension->fields_mem_root, 2048, 0,
+  init_alloc_root(&stmt->extension->fields_mem_root, "extension", 2048, 0,
                   MYF(MY_THREAD_SPECIFIC));
 
   DBUG_RETURN(stmt);
@@ -3150,8 +3151,7 @@ static void read_binary_date(MYSQL_TIME *tm, uchar **pos)
     length  data length
 */
 
-static void fetch_string_with_conversion(MYSQL_BIND *param, char *value,
-                                         uint length)
+static void fetch_string_with_conversion(MYSQL_BIND *param, char *value, size_t length)
 {
   char *buffer= (char *)param->buffer;
   int err= 0;
@@ -3263,7 +3263,7 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value,
       param->length will always contain length of entire column;
       number of copied bytes may be way different:
     */
-    *param->length= length;
+    *param->length= (ulong)length;
     break;
   }
   }

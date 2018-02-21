@@ -158,7 +158,7 @@ public:
       query_name(name), column_list(list), spec(unit),
       is_recursive(false), with_anchor(false),
       level(0), rec_result(NULL)
-  {}
+  { unit->with_element= this; }
 
   bool check_dependencies_in_spec();
   

@@ -38,8 +38,7 @@ bool time_to_datetime(MYSQL_TIME *ltime);
 void time_to_daytime_interval(MYSQL_TIME *l_time);
 bool get_date_from_daynr(long daynr,uint *year, uint *month, uint *day);
 my_time_t TIME_to_timestamp(THD *thd, const MYSQL_TIME *t, uint *error_code);
-bool str_to_datetime_with_warn(CHARSET_INFO *cs, const char *str,
-                               uint length, MYSQL_TIME *l_time,
+bool str_to_datetime_with_warn(CHARSET_INFO *cs, const char *str, size_t length, MYSQL_TIME *l_time,
                                ulonglong flags);
 bool double_to_datetime_with_warn(double value, MYSQL_TIME *ltime,
                                   ulonglong fuzzydate,
@@ -122,8 +121,7 @@ void make_truncated_value_warning(THD *thd,
                                   const char *field_name);
 
 static inline void make_truncated_value_warning(THD *thd,
-                Sql_condition::enum_warning_level level, const char *str_val,
-                uint str_length, timestamp_type time_type,
+                Sql_condition::enum_warning_level level, const char *str_val, size_t str_length, timestamp_type time_type,
                 const char *field_name)
 {
   const ErrConvString str(str_val, str_length, &my_charset_bin);
@@ -179,12 +177,12 @@ bool parse_date_time_format(timestamp_type format_type,
                             const char *format, uint format_length,
                             DATE_TIME_FORMAT *date_time_format);
 /* Character set-aware version of str_to_time() */
-bool str_to_time(CHARSET_INFO *cs, const char *str,uint length,
+bool str_to_time(CHARSET_INFO *cs, const char *str,size_t length,
                  MYSQL_TIME *l_time, ulonglong fuzzydate,
                  MYSQL_TIME_STATUS *status);
 /* Character set-aware version of str_to_datetime() */
 bool str_to_datetime(CHARSET_INFO *cs,
-                     const char *str, uint length,
+                     const char *str, size_t length,
                      MYSQL_TIME *l_time, ulonglong flags,
                      MYSQL_TIME_STATUS *status);
 
@@ -232,5 +230,9 @@ bool check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
 bool make_date_with_warn(MYSQL_TIME *ltime,
                          ulonglong fuzzy_date, timestamp_type ts_type);
 bool adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec);
+
+longlong pack_time(const MYSQL_TIME *my_time);
+void unpack_time(longlong packed, MYSQL_TIME *my_time,
+                 enum_mysql_timestamp_type ts_type);
 
 #endif /* SQL_TIME_INCLUDED */

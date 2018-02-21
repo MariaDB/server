@@ -51,7 +51,6 @@ Created 12/19/1997 Heikki Tuuri
 #include "pars0sym.h"
 #include "pars0pars.h"
 #include "row0mysql.h"
-#include "read0read.h"
 #include "buf0lru.h"
 #include "srv0srv.h"
 #include "ha_prototypes.h"
@@ -96,8 +95,10 @@ row_sel_sec_rec_is_for_blob(
 /*========================*/
 	ulint		mtype,		/*!< in: main type */
 	ulint		prtype,		/*!< in: precise type */
-	ulint		mbminmaxlen,	/*!< in: minimum and maximum length of
-					a multi-byte character */
+	ulint		mbminlen,	/*!< in: minimum length of
+					a character, in bytes */
+	ulint		mbmaxlen,	/*!< in: maximum length of
+					a character, in bytes */
 	const byte*	clust_field,	/*!< in: the locally stored part of
 					the clustered index column, including
 					the BLOB pointer; the clustered
@@ -145,7 +146,7 @@ row_sel_sec_rec_is_for_blob(
 		return(FALSE);
 	}
 
-	len = dtype_get_at_most_n_mbchars(prtype, mbminmaxlen,
+	len = dtype_get_at_most_n_mbchars(prtype, mbminlen, mbmaxlen,
 					  prefix_len, len, (const char*) buf);
 
 	return(!cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len));
@@ -267,14 +268,14 @@ row_sel_sec_rec_is_for_clust_rec(
 			}
 
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminmaxlen,
+				col->prtype, col->mbminlen, col->mbmaxlen,
 				ifield->prefix_len, len, (char*) clust_field);
 
 			if (rec_offs_nth_extern(clust_offs, clust_pos)
 			    && len < sec_len) {
 				if (!row_sel_sec_rec_is_for_blob(
 					    col->mtype, col->prtype,
-					    col->mbminmaxlen,
+					    col->mbminlen, col->mbmaxlen,
 					    clust_field, clust_len,
 					    sec_field, sec_len,
 					    ifield->prefix_len,
@@ -1035,7 +1036,7 @@ row_sel_get_clust_rec(
 	/* Fetch the columns needed in test conditions.  The clustered
 	index record is protected by a page latch that was acquired
 	when plan->clust_pcur was positioned.  The latch will not be
-	released until mtr_commit(mtr). */
+	released until mtr->commit(). */
 
 	ut_ad(!rec_get_deleted_flag(clust_rec, rec_offs_comp(offsets)));
 	row_sel_fetch_columns(index, clust_rec, offsets,
@@ -1102,14 +1103,14 @@ retry:
 
 	if (err == DB_LOCK_WAIT) {
 re_scan:
-		mtr_commit(mtr);
+		mtr->commit();
 		trx->error_state = err;
 		que_thr_stop_for_mysql(thr);
 		thr->lock_state = QUE_THR_LOCK_ROW;
 		if (row_mysql_handle_errors(
 			&err, trx, thr, NULL)) {
 			thr->lock_state = QUE_THR_LOCK_NOLOCK;
-			mtr_start(mtr);
+			mtr->start();
 
 			mutex_enter(&match->rtr_match_mutex);
 			if (!match->valid && match->matched_recs->empty()) {
@@ -1129,7 +1130,7 @@ re_scan:
 				RW_X_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 		} else {
-			mtr_start(mtr);
+			mtr->start();
 			goto func_end;
 		}
 
@@ -1137,8 +1138,8 @@ re_scan:
 
 		if (!match->valid) {
 			/* Page got deleted */
-			mtr_commit(mtr);
-			mtr_start(mtr);
+			mtr->commit();
+			mtr->start();
 			err = DB_RECORD_NOT_FOUND;
 			goto func_end;
 		}
@@ -1156,8 +1157,8 @@ re_scan:
 			/* Page got splitted and promoted (only for
 			root page it is possible).  Release the
 			page and ask for a re-search */
-			mtr_commit(mtr);
-			mtr_start(mtr);
+			mtr->commit();
+			mtr->start();
 			err = DB_RECORD_NOT_FOUND;
 			goto func_end;
 		}
@@ -1169,8 +1170,8 @@ re_scan:
 
 		/* No match record */
 		if (page_rec_is_supremum(rec) || !match->valid) {
-			mtr_commit(mtr);
-			mtr_start(mtr);
+			mtr->commit();
+			mtr->start();
 			err = DB_RECORD_NOT_FOUND;
 			goto func_end;
 		}
@@ -1526,7 +1527,7 @@ exhausted:
 	/* Fetch the columns needed in test conditions.  The index
 	record is protected by a page latch that was acquired when
 	plan->pcur was positioned.  The latch will not be released
-	until mtr_commit(mtr). */
+	until mtr->commit(). */
 
 	row_sel_fetch_columns(index, rec, offsets,
 			      UT_LIST_GET_FIRST(plan->columns));
@@ -1635,7 +1636,7 @@ table_loop:
 
 	/* Open a cursor to index, or restore an open cursor position */
 
-	mtr_start(&mtr);
+	mtr.start();
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (consistent_read && plan->unique_search && !plan->pcur_is_open
@@ -1654,8 +1655,8 @@ table_loop:
 
 		plan_reset_cursor(plan);
 
-		mtr_commit(&mtr);
-		mtr_start(&mtr);
+		mtr.commit();
+		mtr.start();
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -1919,7 +1920,7 @@ skip_lock:
 					by row_sel_open_pcur() or
 					row_sel_restore_pcur_pos().
 					The latch will not be released
-					until mtr_commit(mtr). */
+					until mtr.commit(). */
 
 					row_sel_fetch_columns(
 						index, rec, offsets,
@@ -1949,7 +1950,7 @@ skip_lock:
 	/* Fetch the columns needed in test conditions.  The record is
 	protected by a page latch that was acquired by
 	row_sel_open_pcur() or row_sel_restore_pcur_pos().  The latch
-	will not be released until mtr_commit(mtr). */
+	will not be released until mtr.commit(). */
 
 	row_sel_fetch_columns(index, rec, offsets,
 			      UT_LIST_GET_FIRST(plan->columns));
@@ -2111,7 +2112,7 @@ next_table:
 		btr_pcur_store_position(&(plan->pcur), &mtr);
 	}
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	mtr_has_extra_clust_latch = FALSE;
 
@@ -2151,7 +2152,7 @@ table_exhausted:
 
 	plan->cursor_at_end = TRUE;
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	mtr_has_extra_clust_latch = FALSE;
 
@@ -2199,7 +2200,7 @@ stop_for_a_while:
 	plan->stored_cursor_rec_processed = FALSE;
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
-	mtr_commit(&mtr);
+	mtr.commit();
 	ut_ad(!sync_check_iterate(sync_check()));
 
 	err = DB_SUCCESS;
@@ -2214,7 +2215,7 @@ commit_mtr_for_a_while:
 
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	mtr_has_extra_clust_latch = FALSE;
 	ut_ad(!sync_check_iterate(dict_sync_check()));
@@ -2229,7 +2230,7 @@ lock_wait_or_error:
 	plan->stored_cursor_rec_processed = FALSE;
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 func_exit:
 	ut_ad(!sync_check_iterate(dict_sync_check()));
@@ -2276,15 +2277,11 @@ row_sel_step(
 		plan_reset_cursor(sel_node_get_nth_plan(node, 0));
 
 		if (node->consistent_read) {
+			trx_t *trx = thr_get_trx(thr);
 			/* Assign a read view for the query */
-			trx_assign_read_view(thr_get_trx(thr));
-
-			if (thr_get_trx(thr)->read_view != NULL) {
-				node->read_view = thr_get_trx(thr)->read_view;
-			} else {
-				node->read_view = NULL;
-			}
-
+			trx->read_view.open(trx);
+			node->read_view = trx->read_view.is_open() ?
+					  &trx->read_view : NULL;
 		} else {
 			sym_node_t*	table_node;
 			lock_mode	i_lock_mode;
@@ -3448,12 +3445,12 @@ row_sel_get_clust_rec_for_mysql(
 		if (trx->isolation_level > TRX_ISO_READ_UNCOMMITTED
 		    && !lock_clust_rec_cons_read_sees(
 			    clust_rec, clust_index, *offsets,
-			    trx_get_read_view(trx))) {
+			    &trx->read_view)) {
 
 			/* The following call returns 'offsets' associated with
 			'old_vers' */
 			err = row_sel_build_prev_vers_for_mysql(
-				trx->read_view, clust_index, prebuilt,
+				&trx->read_view, clust_index, prebuilt,
 				clust_rec, offsets, offset_heap, &old_vers,
 				vrow, mtr);
 
@@ -3872,8 +3869,8 @@ exhausted:
 	*offsets = rec_get_offsets(rec, index, *offsets, true,
 				   ULINT_UNDEFINED, heap);
 
-	if (!lock_clust_rec_cons_read_sees(
-			rec, index, *offsets, trx_get_read_view(trx))) {
+	if (!lock_clust_rec_cons_read_sees(rec, index, *offsets,
+					   &trx->read_view)) {
 		goto retry;
 	}
 
@@ -4253,7 +4250,7 @@ row_search_mvcc(
 		goto func_exit;
 	}
 
-	mtr_start(&mtr);
+	mtr.start();
 
 #ifdef BTR_CUR_HASH_ADAPT
 	/*-------------------------------------------------------------*/
@@ -4277,7 +4274,7 @@ row_search_mvcc(
 
 		if (prebuilt->select_lock_type == LOCK_NONE
 		    && trx->isolation_level > TRX_ISO_READ_UNCOMMITTED
-		    && MVCC::is_view_active(trx->read_view)) {
+		    && trx->read_view.is_open()) {
 
 			/* This is a SELECT query done as a consistent read,
 			and the read view has already been allocated:
@@ -4292,7 +4289,7 @@ row_search_mvcc(
 				a page latch that was acquired by
 				row_sel_try_search_shortcut_for_mysql().
 				The latch will not be released until
-				mtr_commit(&mtr). */
+				mtr.commit(). */
 				ut_ad(!rec_get_deleted_flag(rec, comp));
 
 				if (prebuilt->idx_cond) {
@@ -4329,7 +4326,8 @@ row_search_mvcc(
 				}
 
 			shortcut_match:
-				mtr_commit(&mtr);
+				mtr.commit();
+
 				/* NOTE that we do NOT store the cursor
 				position */
 				err = DB_SUCCESS;
@@ -4337,7 +4335,7 @@ row_search_mvcc(
 
 			case SEL_EXHAUSTED:
 			shortcut_mismatch:
-				mtr_commit(&mtr);
+				mtr.commit();
 				/* NOTE that we do NOT store the cursor
 				position */
 				err = DB_RECORD_NOT_FOUND;
@@ -4350,8 +4348,8 @@ row_search_mvcc(
 				ut_ad(0);
 			}
 
-			mtr_commit(&mtr);
-			mtr_start(&mtr);
+			mtr.commit();
+			mtr.start();
 		}
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -4375,7 +4373,7 @@ row_search_mvcc(
 
 	ut_ad(prebuilt->sql_stat_start
 	      || prebuilt->select_lock_type != LOCK_NONE
-	      || MVCC::is_view_active(trx->read_view)
+	      || trx->read_view.is_open()
 	      || prebuilt->table->no_rollback()
 	      || srv_read_only_mode);
 
@@ -4429,7 +4427,7 @@ row_search_mvcc(
 	} else if (!prebuilt->sql_stat_start) {
 		/* No need to set an intention lock or assign a read view */
 
-		if (!MVCC::is_view_active(trx->read_view)
+		if (!trx->read_view.is_open()
 		    && !srv_read_only_mode
 		    && prebuilt->select_lock_type == LOCK_NONE) {
 
@@ -4445,9 +4443,7 @@ row_search_mvcc(
 		/* Assign a read view for the query */
 		trx_start_if_not_started(trx, false);
 
-		if (!srv_read_only_mode) {
-			trx_assign_read_view(trx);
-		}
+		trx->read_view.open(trx);
 
 		prebuilt->sql_stat_start = FALSE;
 	} else {
@@ -4891,7 +4887,7 @@ wrong_offs:
 				/* In delete-marked records, DB_TRX_ID must
 				always refer to an existing undo log record. */
 				ut_ad(trx_id);
-				if (!trx_sys->rw_trx_hash.find(trx, trx_id)) {
+				if (!trx_sys.is_registered(trx, trx_id)) {
 					/* The clustered index record
 					was delete-marked in a committed
 					transaction. Ignore the record. */
@@ -5051,14 +5047,13 @@ no_gap_lock:
 
 			if (srv_force_recovery < 5
 			    && !lock_clust_rec_cons_read_sees(
-				    rec, index, offsets,
-				    trx_get_read_view(trx))) {
+				    rec, index, offsets, &trx->read_view)) {
 
 				rec_t*	old_vers;
 				/* The following call returns 'offsets'
 				associated with 'old_vers' */
 				err = row_sel_build_prev_vers_for_mysql(
-					trx->read_view, clust_index,
+					&trx->read_view, clust_index,
 					prebuilt, rec, &offsets, &heap,
 					&old_vers, need_vrow ? &vrow : NULL,
 					&mtr);
@@ -5088,7 +5083,7 @@ no_gap_lock:
 
 			if (!srv_read_only_mode
 			    && !lock_sec_rec_cons_read_sees(
-					rec, index, trx->read_view)) {
+					rec, index, &trx->read_view)) {
 				/* We should look at the clustered index.
 				However, as this is a non-locking read,
 				we can skip the clustered index lookup if
@@ -5341,7 +5336,7 @@ requires_clust_rec:
 	/* Decide whether to prefetch extra rows.
 	At this point, the clustered index record is protected
 	by a page latch that was acquired when pcur was positioned.
-	The latch will not be released until mtr_commit(&mtr). */
+	The latch will not be released until mtr.commit(). */
 
 	if ((match_mode == ROW_SEL_EXACT
 	     || prebuilt->n_rows_fetched >= MYSQL_FETCH_CACHE_THRESHOLD)
@@ -5533,10 +5528,10 @@ next_rec:
 			btr_pcur_store_position(pcur, &mtr);
 		}
 
-		mtr_commit(&mtr);
+		mtr.commit();
 		mtr_has_extra_clust_latch = FALSE;
 
-		mtr_start(&mtr);
+		mtr.start();
 
 		if (!spatial_search
 		    && sel_restore_position_for_mysql(&same_user_rec,
@@ -5594,7 +5589,7 @@ lock_wait_or_error:
 	}
 
 lock_table_wait:
-	mtr_commit(&mtr);
+	mtr.commit();
 	mtr_has_extra_clust_latch = FALSE;
 
 	trx->error_state = err;
@@ -5611,7 +5606,7 @@ lock_table_wait:
 		/* It was a lock wait, and it ended */
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
-		mtr_start(&mtr);
+		mtr.start();
 
 		/* Table lock waited, go try to obtain table lock
 		again */
@@ -5670,7 +5665,7 @@ normal_return:
 		trx->lock.n_active_thrs= n_active_thrs - 1;
 	}
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	/* Rollback blocking transactions from hit list for high priority
 	transaction, if any. We should not be holding latches here as
@@ -5892,18 +5887,15 @@ row_search_check_if_query_cache_permitted(
 
 	const bool ret = lock_table_get_n_locks(table) == 0
 		&& ((trx->id != 0 && trx->id >= table->query_cache_inv_id)
-		    || !MVCC::is_view_active(trx->read_view)
-		    || trx->read_view->low_limit_id()
+		    || !trx->read_view.is_open()
+		    || trx->read_view.low_limit_id()
 		    >= table->query_cache_inv_id);
 	if (ret) {
 		/* If the isolation level is high, assign a read view for the
 		transaction if it does not yet have one */
 
-		if (trx->isolation_level >= TRX_ISO_REPEATABLE_READ
-		    && !srv_read_only_mode
-		    && !MVCC::is_view_active(trx->read_view)) {
-
-			trx_sys->mvcc->view_open(trx->read_view, trx);
+		if (trx->isolation_level >= TRX_ISO_REPEATABLE_READ) {
+			trx->read_view.open(trx);
 		}
 	}
 

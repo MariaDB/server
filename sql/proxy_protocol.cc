@@ -13,7 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
-#include <my_global.h>
+#include <mariadb.h>
 #include <mysql.h>
 #include <mysql_com.h>
 #include <mysqld_error.h>
@@ -210,14 +210,19 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
   {
 #define PROXY_V2_HEADER_LEN 16
     /* read off 16 bytes of the header.*/
-    long len= vio_read(vio, hdr + pos, PROXY_V2_HEADER_LEN - pos);
+    ssize_t len= vio_read(vio, hdr + pos, PROXY_V2_HEADER_LEN - pos);
     if (len < 0)
       return -1;
     // 2 last bytes are the length in network byte order of the part following header
     ushort trail_len= ((ushort)hdr[PROXY_V2_HEADER_LEN-2] >> 8) + hdr[PROXY_V2_HEADER_LEN-1];
     if (trail_len > sizeof(hdr) - PROXY_V2_HEADER_LEN)
       return -1;
-    len= vio_read(vio,  hdr + PROXY_V2_HEADER_LEN, trail_len);
+    if (trail_len > 0)
+    {
+      len= vio_read(vio,  hdr + PROXY_V2_HEADER_LEN, trail_len);
+      if (len < 0)
+        return -1;
+    }
     pos= PROXY_V2_HEADER_LEN + trail_len;
     if (parse_v2_header(hdr, pos, peer_info))
       return -1;
@@ -230,11 +235,10 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
       They will be treated as IPv4.
     */
     sockaddr_storage tmp;
-    int dst_len;
     memset(&tmp, 0, sizeof(tmp));
     vio_get_normalized_ip((const struct sockaddr *)&peer_info->peer_addr,
-      sizeof(sockaddr_storage), (struct sockaddr *)&tmp, &dst_len);
-    memcpy(&peer_info->peer_addr, &tmp, (size_t)dst_len);
+      sizeof(sockaddr_storage), (struct sockaddr *)&tmp);
+    memcpy(&peer_info->peer_addr, &tmp, sizeof(tmp));
   }
   return 0;
 }
@@ -464,10 +468,9 @@ bool is_proxy_protocol_allowed(const sockaddr *addr)
     case AF_INET:
     case AF_INET6:
       {
-      int len=
+      size_t len=
         (addr->sa_family == AF_INET)?sizeof(sockaddr_in):sizeof (sockaddr_in6);
-      int dst_len;
-      vio_get_normalized_ip(addr, len,normalized_addr, &dst_len);
+      vio_get_normalized_ip(addr, len,normalized_addr);
       }
       break;
     default:

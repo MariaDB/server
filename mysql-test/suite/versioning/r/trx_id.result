@@ -53,8 +53,8 @@ add column e bigint unsigned as row end,
 add period for system_time(s, e),
 add system versioning,
 algorithm=copy;
-select check_result(count(*) = @tmp) from mysql.transaction_registry;
-check_result(count(*) = @tmp)
+select check_result(count(*) = @tmp + 1) from mysql.transaction_registry;
+check_result(count(*) = @tmp + 1)
 [CORRECT]
 # TRX_ID to TIMESTAMP versioning switch
 create or replace table t1 (
@@ -65,7 +65,7 @@ period for system_time (sys_start, sys_end)
 ) engine innodb with system versioning;
 insert into t1 values (1);
 alter table t1 drop column sys_start, drop column sys_end;
-select sys_end = 18446744073709551615 as transaction_based from t1 for system_time all;
+select row_end = 18446744073709551615 as transaction_based from t1 for system_time all;
 transaction_based
 1
 drop table t1;

@@ -121,9 +121,9 @@ extern void vio_set_wait_callback(void (*before_wait)(void),
 my_bool vio_socket_connect(Vio *vio, struct sockaddr *addr, socklen_t len,
                            int timeout);
 
-void vio_get_normalized_ip(const struct sockaddr *src, int src_length, struct sockaddr *dst, int *dst_length);
+void vio_get_normalized_ip(const struct sockaddr *src, size_t src_length, struct sockaddr *dst);
 
-my_bool vio_get_normalized_ip_string(const struct sockaddr *addr, int addr_length,
+my_bool vio_get_normalized_ip_string(const struct sockaddr *addr, size_t addr_length,
                                      char *ip_string, size_t ip_string_size);
 
 my_bool vio_is_no_name_error(int err_code);
@@ -232,7 +232,6 @@ struct st_vio
   int			fcntl_mode;	/* Buffered fcntl(sd,F_GETFL) */
   struct sockaddr_storage local;	/* Local internet address */
   struct sockaddr_storage remote;	/* Remote internet address */
-  int addrLen;                          /* Length of remote address */
   enum enum_vio_type	type;		/* Type of connection */
   const char		*desc;		/* String description */
   char                  *read_buffer;   /* buffer for vio_read_buff */

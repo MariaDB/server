@@ -740,7 +740,7 @@ void free_old_query(MYSQL *mysql)
   if (mysql->fields)
     free_root(&mysql->field_alloc,MYF(0));
  /* Assume rowlength < 8192 */
-  init_alloc_root(&mysql->field_alloc, 8192, 0,
+  init_alloc_root(&mysql->field_alloc, "fields", 8192, 0,
                   MYF(mysql->options.use_thread_specific_memory ?
                       MY_THREAD_SPECIFIC : 0));
   mysql->fields= 0;
@@ -1464,7 +1464,7 @@ MYSQL_DATA *cli_read_rows(MYSQL *mysql,MYSQL_FIELD *mysql_fields,
     DBUG_RETURN(0);
   }
   /* Assume rowlength < 8192 */
-  init_alloc_root(&result->alloc, 8192, 0,
+  init_alloc_root(&result->alloc, "result", 8192, 0,
                   MYF(mysql->options.use_thread_specific_memory ?
                       MY_THREAD_SPECIFIC : 0));
   result->alloc.min_malloc=sizeof(MYSQL_ROWS);
@@ -2972,7 +2972,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
       /* new "use different plugin" packet */
       uint len;
       auth_plugin_name= (char*)mysql->net.read_pos + 1;
-      len= strlen(auth_plugin_name); /* safe as my_net_read always appends \0 */
+      len= (uint)strlen(auth_plugin_name); /* safe as my_net_read always appends \0 */
       mpvio.cached_server_reply.pkt_len= pkt_length - len - 2;
       mpvio.cached_server_reply.pkt= mysql->net.read_pos + len + 2;
       DBUG_PRINT ("info", ("change plugin packet from server for plugin %s",
@@ -3361,7 +3361,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
       DBUG_PRINT("info", ("Connect socket"));
       status= connect_sync_or_async(mysql, net, sock,
-                                    t_res->ai_addr, t_res->ai_addrlen);
+                                    t_res->ai_addr, (uint)t_res->ai_addrlen);
       /*
         Here we rely on my_connect() to return success only if the
         connect attempt was really successful. Otherwise we would stop

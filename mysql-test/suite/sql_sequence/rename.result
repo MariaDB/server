@@ -1,0 +1,6 @@
+CREATE SEQUENCE seq1;
+RENAME TABLE seq1 TO seq2, seq3 TO seq4;
+ERROR 42S02: Table 'test.seq3' doesn't exist
+LOCK TABLE seq1 READ;
+UNLOCK TABLES;
+drop table seq1;

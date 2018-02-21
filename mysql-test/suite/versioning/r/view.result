@@ -17,7 +17,7 @@ x
 create or replace view vt1 as select * from t1;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `x` from `t1` FOR SYSTEM_TIME ALL where `t1`.`row_end` = MAX_RESULT or `t1`.`row_end` is null	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `x` from `t1`	latin1	latin1_swedish_ci
 drop view vt1;
 drop view vt2;
 create or replace view vt1 as select * from t1 for system_time all;
@@ -69,7 +69,7 @@ create or replace table t1 (x int) with system versioning;
 create or replace view vt1(c) as select x from t1;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `c` from `t1` FOR SYSTEM_TIME ALL where `t1`.`row_end` = MAX_RESULT or `t1`.`row_end` is null	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `c` from `t1`	latin1	latin1_swedish_ci
 # VIEW over JOIN of versioned tables [#153]
 create or replace table t1 (a int) with system versioning;
 create or replace table t2 (b int) with system versioning;
@@ -87,15 +87,15 @@ create or replace table t3 (x int);
 create or replace view vt1 as select * from t1, t2, t3;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`b` AS `b`,`t3`.`x` AS `x` from ((`t1` FOR SYSTEM_TIME ALL join `t2` FOR SYSTEM_TIME ALL) join `t3`) where (`t1`.`row_end` = MAX_RESULT or `t1`.`row_end` is null) and (`t2`.`row_end` = MAX_RESULT or `t2`.`row_end` is null)	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`b` AS `b`,`t3`.`x` AS `x` from ((`t1` join `t2`) join `t3`)	latin1	latin1_swedish_ci
 create or replace view vt1 as select * from t3, t2, t1;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t3`.`x` AS `x`,`t2`.`b` AS `b`,`t1`.`a` AS `a` from ((`t3` join `t2` FOR SYSTEM_TIME ALL) join `t1` FOR SYSTEM_TIME ALL) where (`t2`.`row_end` = MAX_RESULT or `t2`.`row_end` is null) and (`t1`.`row_end` = MAX_RESULT or `t1`.`row_end` is null)	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t3`.`x` AS `x`,`t2`.`b` AS `b`,`t1`.`a` AS `a` from ((`t3` join `t2`) join `t1`)	latin1	latin1_swedish_ci
 create or replace view vt1 as select a, t2.row_end as endo from t3, t1, t2;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
-vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`row_end` AS `endo` from ((`t3` join `t1` FOR SYSTEM_TIME ALL) join `t2` FOR SYSTEM_TIME ALL) where (`t1`.`row_end` = MAX_RESULT or `t1`.`row_end` is null) and (`t2`.`row_end` = MAX_RESULT or `t2`.`row_end` is null)	latin1	latin1_swedish_ci
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`row_end` AS `endo` from ((`t3` join `t1`) join `t2`)	latin1	latin1_swedish_ci
 # VIEW over UNION [#269]
 create or replace view vt1 as select * from t1 union select * from t1;
 select * from vt1;
@@ -118,3 +118,20 @@ execute stmt;
 a
 drop database test;
 create database test;
+use test;
+create table t1 (a int) with system versioning;
+insert t1 values (1),(2);
+set @a=now(6);
+create view v1 as select * from t1;
+delete from t1;
+select * from v1;
+a
+select * from v1 for system_time as of @a;
+a
+1
+2
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
+drop view v1;
+drop table t1;

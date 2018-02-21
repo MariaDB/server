@@ -41,6 +41,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include <toku_list.h>
 #include <toku_pthread.h>
 
+extern toku_instr_key *ws_worker_wait_key;
+
 // The work struct is the base class for work to be done by some threads
 struct work {
     struct toku_list next;
@@ -54,16 +56,14 @@ struct workset {
     toku_cond_t worker_wait;     // a condition variable used to wait for all of the worker to release their reference on the workset
 };
 
-static inline void 
-workset_init(struct workset *ws) {
-    toku_mutex_init(&ws->lock, NULL);
+static inline void workset_init(struct workset *ws) {
+    toku_mutex_init(*workset_lock_mutex_key, &ws->lock, nullptr);
     toku_list_init(&ws->worklist);
-    ws->refs = 1;      // the calling thread gets a reference
-    toku_cond_init(&ws->worker_wait, NULL);
+    ws->refs = 1;  // the calling thread gets a reference
+    toku_cond_init(*ws_worker_wait_key, &ws->worker_wait, nullptr);
 }
 
-static inline void 
-workset_destroy(struct workset *ws) {
+static inline void workset_destroy(struct workset *ws) {
     invariant(toku_list_empty(&ws->worklist));
     toku_cond_destroy(&ws->worker_wait);
     toku_mutex_destroy(&ws->lock);

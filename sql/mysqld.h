@@ -37,7 +37,6 @@ class Time_zone;
 
 struct scheduler_functions;
 
-typedef struct st_mysql_const_lex_string LEX_CSTRING;
 typedef struct st_mysql_show_var SHOW_VAR;
 
 #if MAX_INDEXES <= 64
@@ -266,7 +265,7 @@ extern "C" MYSQL_PLUGIN_IMPORT ulong server_id;
 extern ulong concurrency;
 extern time_t server_start_time, flush_status_time;
 extern char *opt_mysql_tmpdir, mysql_charsets_dir[];
-extern int mysql_unpacked_real_data_home_len;
+extern size_t mysql_unpacked_real_data_home_len;
 extern MYSQL_PLUGIN_IMPORT MY_TMPDIR mysql_tmpdir_list;
 extern const char *first_keyword, *delayed_user, *binary_keyword;
 extern MYSQL_PLUGIN_IMPORT const char  *my_localhost;
@@ -627,7 +626,7 @@ extern mysql_mutex_t LOCK_des_key_file;
 extern mysql_mutex_t LOCK_server_started;
 extern mysql_cond_t COND_server_started;
 extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
-extern mysql_rwlock_t LOCK_system_variables_hash;
+extern mysql_prlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_thread_count, COND_start_thread;
 extern mysql_cond_t COND_manager;
 extern mysql_cond_t COND_slave_background;
@@ -773,15 +772,7 @@ inline query_id_t get_query_id()
 }
 
 /* increment global_thread_id and return it.  */
-inline __attribute__((warn_unused_result)) my_thread_id next_thread_id()
-{
-  return my_atomic_add64_explicit((int64*) &global_thread_id, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-#if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)
-extern "C" my_thread_id next_thread_id_noinline();
-#define next_thread_id() next_thread_id_noinline()
-#endif
+extern __attribute__((warn_unused_result)) my_thread_id next_thread_id(void);
 
 /*
   TODO: Replace this with an inline function.

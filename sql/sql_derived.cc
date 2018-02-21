@@ -174,7 +174,7 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
   DBUG_ENTER("mysql_handle_single_derived");
   DBUG_PRINT("enter", ("phases: 0x%x  allowed: 0x%x  alias: '%s'",
                        phases, allowed_phases,
-                       (derived->alias ? derived->alias : "<NULL>")));
+                       (derived->alias.str ? derived->alias.str : "<NULL>")));
   if (!lex->derived_tables)
     DBUG_RETURN(FALSE);
 
@@ -365,11 +365,15 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   Query_arena *arena, backup;
   DBUG_ENTER("mysql_derived_merge");
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
-                       (derived->alias ? derived->alias : "<NULL>"),
+                       (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
 
   if (derived->merged)
+  {
+
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
     DBUG_RETURN(FALSE);
+  }
 
   if (dt_select->uncacheable & UNCACHEABLE_RAND)
   {
@@ -384,7 +388,6 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
    thd->save_prep_leaf_list= TRUE;
 
   arena= thd->activate_stmt_arena_if_needed(&backup);  // For easier test
-  derived->merged= TRUE;
 
   if (!derived->merged_for_insert || 
       (derived->is_multitable() && 
@@ -448,6 +451,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (parent_lex->join) 
       parent_lex->join->table_count+= dt_select->join->table_count - 1;
   }
+  derived->merged= TRUE;
   if (derived->get_unit()->prepared)
   {
     Item *expr= derived->on_expr;
@@ -514,7 +518,7 @@ bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_merge_for_insert");
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
-                       (derived->alias ? derived->alias : "<NULL>"),
+                       (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
   DBUG_PRINT("info", ("merged_for_insert: %d  is_materialized_derived: %d  "
                       "is_multitable: %d  single_table_updatable: %d  "
@@ -572,7 +576,7 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
   SELECT_LEX_UNIT *unit= derived->get_unit();
   DBUG_ENTER("mysql_derived_init");
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
-                       (derived->alias ? derived->alias : "<NULL>"),
+                       (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
 
   // Skip already prepared views/DT
@@ -647,11 +651,10 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
 bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   SELECT_LEX_UNIT *unit= derived->get_unit();
-  DBUG_ENTER("mysql_derived_prepare");
   bool res= FALSE;
-  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
-                       (derived->alias ? derived->alias : "<NULL>"),
-                       unit));
+  DBUG_ENTER("mysql_derived_prepare");
+  DBUG_PRINT("enter", ("unit: %p  table_list: %p  alias: '%s'",
+                       unit, derived, derived->alias.str));
 
   if (!unit)
     DBUG_RETURN(FALSE);
@@ -692,7 +695,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                   (first_select->options |
                                    thd->variables.option_bits |
                                    TMP_TABLE_ALL_COLUMNS),
-                                  derived->alias, FALSE, FALSE, FALSE, 0);
+                                  &derived->alias, FALSE, FALSE, FALSE, 0);
     thd->create_tmp_table_for_derived= FALSE;
 
     if (!res && !derived->table)
@@ -745,6 +748,17 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
 
   unit->derived= derived;
+
+  /*
+    Above cascade call of prepare is important for PS protocol, but after it
+    is called we can check if we really need prepare for this derived
+  */
+  if (derived->merged)
+  {
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
+    DBUG_RETURN(FALSE);
+  }
+
   derived->fill_me= FALSE;
 
   if (!(derived->derived_result= new (thd->mem_root) select_unit(thd)))
@@ -785,7 +799,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                                    (first_select->options |
                                                    thd->variables.option_bits |
                                                    TMP_TABLE_ALL_COLUMNS),
-                                                   derived->alias,
+                                                   &derived->alias,
                                                    FALSE, FALSE, FALSE,
                                                    0))
   { 
@@ -810,8 +824,8 @@ exit:
         thd->get_stmt_da()->sql_errno() == ER_SP_DOES_NOT_EXIST))
     {
       thd->clear_error();
-      my_error(ER_VIEW_INVALID, MYF(0), derived->db,
-               derived->table_name);
+      my_error(ER_VIEW_INVALID, MYF(0), derived->db.str,
+               derived->table_name.str);
     }
   }
 
@@ -881,12 +895,16 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
   SELECT_LEX_UNIT *unit= derived->get_unit();
   SELECT_LEX *first_select= unit->first_select();
   SELECT_LEX *save_current_select= lex->current_select;
-
   bool res= FALSE;
   DBUG_ENTER("mysql_derived_optimize");
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
-                       (derived->alias ? derived->alias : "<NULL>"),
+                       (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
+  if (derived->merged)
+  {
+    DBUG_PRINT("info", ("Irreversibly merged: exit"));
+    DBUG_RETURN(FALSE);
+  }
 
   lex->current_select= first_select;
 
@@ -966,7 +984,7 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_create");
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
-                       (derived->alias ? derived->alias : "<NULL>"),
+                       (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
   TABLE *table= derived->table;
   SELECT_LEX_UNIT *unit= derived->get_unit();
@@ -1067,7 +1085,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   bool res= FALSE;
   DBUG_ENTER("mysql_derived_fill");
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
-                       (derived->alias ? derived->alias : "<NULL>"),
+                       (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
 
   if (unit->executed && !unit->uncacheable && !unit->describe &&
@@ -1189,7 +1207,7 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_reinit");
   DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
-                       (derived->alias ? derived->alias : "<NULL>"),
+                       (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
   st_select_lex_unit *unit= derived->get_unit();
 

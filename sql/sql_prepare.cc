@@ -167,20 +167,6 @@ public:
   uint param_count;
   uint last_errno;
   uint flags;
-  /*
-    The value of thd->select_number at the end of the PREPARE phase.
-
-    The issue is: each statement execution opens VIEWs, which may cause 
-    select_lex objects to be created, and select_number values to be assigned.
-
-    On the other hand, PREPARE assigns select_number values for triggers and
-    subqueries.
-
-    In order for select_number values from EXECUTE not to conflict with
-    select_number values from PREPARE, we keep the number and set it at each
-    execution.
-  */
-  uint select_number_after_prepare;
   char last_error[MYSQL_ERRMSG_SIZE];
   my_bool iterations;
   my_bool start_param;
@@ -229,7 +215,7 @@ private:
   MEM_ROOT main_mem_root;
   sql_mode_t m_sql_mode;
 private:
-  bool set_db(const char *db, uint db_length);
+  bool set_db(const LEX_CSTRING *db);
   bool set_parameters(String *expanded_query,
                       uchar *packet, uchar *packet_end);
   bool execute(String *expanded_query, bool open_cursor);
@@ -1306,7 +1292,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
     {
       my_error(ER_DELAYED_NOT_SUPPORTED, MYF(0), (table_list->view ?
                                                   table_list->view_name.str :
-                                                  table_list->table_name));
+                                                  table_list->table_name.str));
       goto error;
     }
     while ((values= its++))
@@ -1318,7 +1304,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
         goto error;
       }
       if (setup_fields(thd, Ref_ptr_array(),
-                       *values, MARK_COLUMNS_NONE, 0, NULL, 0))
+                       *values, COLUMNS_READ, 0, NULL, 0))
         goto error;
     }
   }
@@ -1390,7 +1376,7 @@ static int mysql_test_update(Prepared_statement *stmt,
 
   if (!table_list->single_table_updatable())
   {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
     goto error;
   }
 
@@ -1424,7 +1410,7 @@ static int mysql_test_update(Prepared_statement *stmt,
   table_list->register_want_access(SELECT_ACL);
 #endif
   if (setup_fields(thd, Ref_ptr_array(),
-                   stmt->lex->value_list, MARK_COLUMNS_NONE, 0, NULL, 0) ||
+                   stmt->lex->value_list, COLUMNS_READ, 0, NULL, 0) ||
       check_unique_table(thd, table_list))
     goto error;
   /* TODO: here we should send types of placeholders to the client. */
@@ -1468,7 +1454,7 @@ static bool mysql_test_delete(Prepared_statement *stmt,
 
   if (!table_list->single_table_updatable())
   {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "DELETE");
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "DELETE");
     goto error;
   }
   if (!table_list->table || !table_list->table->is_created())
@@ -1597,7 +1583,7 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
                                      DT_PREPARE | DT_CREATE))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
-                           *values, MARK_COLUMNS_NONE, 0, NULL, 0));
+                           *values, COLUMNS_READ, 0, NULL, 0));
 }
 
 
@@ -2769,6 +2755,25 @@ void mysql_sql_stmt_prepare(THD *thd)
     DBUG_VOID_RETURN;
   }
 
+  /*
+    Make sure we call Prepared_statement::prepare() with an empty
+    THD::change_list. It can be non-empty as LEX::get_dynamic_sql_string()
+    calls fix_fields() for the Item containing the PS source,
+    e.g. on character set conversion:
+
+    SET NAMES utf8;
+    DELIMITER $$
+    CREATE PROCEDURE p1()
+    BEGIN
+      PREPARE stmt FROM CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+      EXECUTE stmt;
+    END;
+    $$
+    DELIMITER ;
+    CALL p1();
+  */
+  Item_change_list_savepoint change_list_savepoint(thd);
+
   if (stmt->prepare(query.str, (uint) query.length))
   {
     /* Statement map deletes the statement on erase */
@@ -2779,6 +2784,7 @@ void mysql_sql_stmt_prepare(THD *thd)
     SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
     my_ok(thd, 0L, 0L, "Statement prepared");
   }
+  change_list_savepoint.rollback(thd);
 
   DBUG_VOID_RETURN;
 }
@@ -2810,7 +2816,28 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   // See comments on thd->free_list in mysql_sql_stmt_execute()
   Item *free_list_backup= thd->free_list;
   thd->free_list= NULL;
+  /*
+    Make sure we call Prepared_statement::execute_immediate()
+    with an empty THD::change_list. It can be non empty as the above
+    LEX::prepared_stmt_params_fix_fields() and LEX::get_dynamic_str_string()
+    call fix_fields() for the PS source and PS parameter Items and
+    can do Item tree changes, e.g. on character set conversion:
+
+    - Example #1: Item tree changes in get_dynamic_str_string()
+    SET NAMES utf8;
+    CREATE PROCEDURE p1()
+      EXECUTE IMMEDIATE CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+    CALL p1();
+
+    - Example #2: Item tree changes in prepared_stmt_param_fix_fields():
+    SET NAMES utf8;
+    CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+      EXECUTE IMMEDIATE 'SELECT ?' USING CONCAT(a, CONVERT(RAND() USING latin1));
+    CALL p1('x');
+  */
+  Item_change_list_savepoint change_list_savepoint(thd);
   (void) stmt->execute_immediate(query.str, (uint) query.length);
+  change_list_savepoint.rollback(thd);
   thd->free_items();
   thd->free_list= free_list_backup;
 
@@ -3208,7 +3235,27 @@ void mysql_sql_stmt_execute(THD *thd)
   */
   Item *free_list_backup= thd->free_list;
   thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
+  /*
+    Make sure we call Prepared_statement::execute_loop() with an empty
+    THD::change_list. It can be non-empty because the above
+    LEX::prepared_stmt_params_fix_fields() calls fix_fields() for
+    the PS parameter Items and can do some Item tree changes,
+    e.g. on character set conversion:
+
+    SET NAMES utf8;
+    DELIMITER $$
+    CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+    BEGIN
+      PREPARE stmt FROM 'SELECT ?';
+      EXECUTE stmt USING CONCAT(a, CONVERT(RAND() USING latin1));
+    END;
+    $$
+    DELIMITER ;
+    CALL p1('x');
+  */
+  Item_change_list_savepoint change_list_savepoint(thd);
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
+  change_list_savepoint.rollback(thd);
   thd->free_items();    // Free items created by execute_loop()
   /*
     Now restore the "external" (e.g. "SET STATEMENT") Item list.
@@ -3638,8 +3685,10 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   read_types(0),
   m_sql_mode(thd->variables.sql_mode)
 {
-  init_sql_alloc(&main_mem_root, thd_arg->variables.query_alloc_block_size,
-                 thd_arg->variables.query_prealloc_size, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&main_mem_root, "Prepared_statement",
+                 thd_arg->variables.query_alloc_block_size,
+                 thd_arg->variables.query_prealloc_size,
+                 MYF(MY_THREAD_SPECIFIC));
   *last_error= '\0';
 }
 
@@ -3733,9 +3782,9 @@ void Prepared_statement::cleanup_stmt()
   DBUG_ENTER("Prepared_statement::cleanup_stmt");
   DBUG_PRINT("enter",("stmt: %p", this));
   lex->restore_set_statement_var();
+  thd->rollback_item_tree_changes();
   cleanup_items(free_list);
   thd->cleanup_after_query();
-  thd->rollback_item_tree_changes();
 
   DBUG_VOID_RETURN;
 }
@@ -3756,24 +3805,22 @@ bool Prepared_statement::set_name(LEX_CSTRING *name_arg)
   a prepared statement since it affects execution environment:
   privileges, @@character_set_database, and other.
 
-  @return Returns an error if out of memory.
+  @return 1 if out of memory.
 */
 
 bool
-Prepared_statement::set_db(const char *db_arg, uint db_length_arg)
+Prepared_statement::set_db(const LEX_CSTRING *db_arg)
 {
   /* Remember the current database. */
-  if (db_arg && db_length_arg)
+  if (db_arg->length)
   {
-    db= this->strmake(db_arg, db_length_arg);
-    db_length= db_length_arg;
+    if (!(db.str= this->strmake(db_arg->str, db_arg->length)))
+      return 1;
+    db.length= db_arg->length;
   }
   else
-  {
-    db= NULL;
-    db_length= 0;
-  }
-  return db_arg != NULL && db == NULL;
+    db= null_clex_str;
+  return 0;
 }
 
 /**************************************************************************
@@ -3820,8 +3867,9 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
 
   if (! (lex= new (mem_root) st_lex_local))
     DBUG_RETURN(TRUE);
+  stmt_lex= lex;
 
-  if (set_db(thd->db, thd->db_length))
+  if (set_db(&thd->db))
     DBUG_RETURN(TRUE);
 
   /*
@@ -3925,8 +3973,6 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     trans_rollback_implicit(thd);
     thd->mdl_context.release_transactional_locks();
   }
-  
-  select_number_after_prepare= thd->select_number;
 
   /* Preserve CHANGE MASTER attributes */
   lex_end_stage1(lex);
@@ -4063,7 +4109,6 @@ Prepared_statement::execute_loop(String *expanded_query,
   */
   DBUG_ASSERT(thd->free_list == NULL);
 
-  thd->select_number= select_number_after_prepare;
   /* Check if we got an error when sending long data */
   if (state == Query_arena::STMT_ERROR)
   {
@@ -4206,7 +4251,6 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
 #ifdef DBUG_ASSERT_EXISTS
   Item *free_list_state= thd->free_list;
 #endif
-  thd->select_number= select_number_after_prepare;
   thd->set_bulk_execution((void *)this);
   /* Check if we got an error when sending long data */
   if (state == Query_arena::STMT_ERROR)
@@ -4399,7 +4443,7 @@ Prepared_statement::reprepare()
   char saved_cur_db_name_buf[SAFE_NAME_LEN+1];
   LEX_STRING saved_cur_db_name=
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
-  LEX_CSTRING stmt_db_name= { db, db_length };
+  LEX_CSTRING stmt_db_name= db;
   bool cur_db_changed;
   bool error;
 
@@ -4522,8 +4566,7 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   /* Swap names, the old name is allocated in the wrong memory root */
   swap_variables(LEX_CSTRING, name, copy->name);
   /* Ditto */
-  swap_variables(char *, db, copy->db);
-  swap_variables(size_t, db_length, copy->db_length);
+  swap_variables(LEX_CSTRING, db, copy->db);
 
   DBUG_ASSERT(param_count == copy->param_count);
   DBUG_ASSERT(thd == copy->thd);
@@ -4565,7 +4608,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
   bool cur_db_changed;
 
-  LEX_CSTRING stmt_db_name= { db, db_length };
+  LEX_CSTRING stmt_db_name= db;
 
   status_var_increment(thd->status_var.com_stmt_execute);
 
@@ -4666,7 +4709,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
       PSI_statement_locker *parent_locker;
       MYSQL_QUERY_EXEC_START(thd->query(),
                              thd->thread_id,
-                             (char *) (thd->db ? thd->db : ""),
+                             thd->get_db(),
                              &thd->security_ctx->priv_user[0],
                              (char *) thd->security_ctx->host_or_ip,
                              1);
@@ -5301,7 +5344,8 @@ bool Protocol_local::send_result_set_metadata(List<Item> *columns, uint)
 {
   DBUG_ASSERT(m_rset == 0 && !alloc_root_inited(&m_rset_root));
 
-  init_sql_alloc(&m_rset_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&m_rset_root, "send_result_set_metadata",
+                 MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
 
   if (! (m_rset= new (&m_rset_root) List<Ed_row>))
     return TRUE;

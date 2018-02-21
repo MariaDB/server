@@ -1,3 +1,19 @@
+/*
+   Copyright (c) 2018, MariaDB Corporation.
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+
 #ifndef VERS_STRING_INCLUDED
 #define VERS_STRING_INCLUDED
 
@@ -38,20 +54,20 @@ struct LEX_STRING_u : public Storage
     Storage::str= NULL;
     Storage::length= 0;
   }
-  LEX_STRING_u(const char *_str, uint32 _len, CHARSET_INFO *)
+  LEX_STRING_u(const char *_str, size_t _len, CHARSET_INFO *)
   {
     Storage::str= _str;
     Storage::length= _len;
   }
   uint32 length() const
   {
-    return Storage::length;
+    return (uint32)Storage::length;
   }
   const char *ptr() const
   {
     return Storage::str;
   }
-  void set(const char *_str, uint32 _len, CHARSET_INFO *)
+  void set(const char *_str, size_t _len, CHARSET_INFO *)
   {
     Storage::str= _str;
     Storage::length= _len;
@@ -126,8 +142,7 @@ typedef XString<Compare_t, String> SString_t;
 
 
 #define XSTRING_WITH_LEN(X) (X).ptr(), (X).length()
-#define DB_WITH_LEN(X) (X).db, (X).db_length
-#define TABLE_NAME_WITH_LEN(X) (X).table_name, (X).table_name_length
-
+#define DB_WITH_LEN(X) (X).db.str, (X).db.length
+#define TABLE_NAME_WITH_LEN(X) (X).table_name.str, (X).table_name.length
 
 #endif // VERS_STRING_INCLUDED

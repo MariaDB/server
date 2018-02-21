@@ -1249,7 +1249,7 @@ struct handlerton
    bool (*flush_logs)(handlerton *hton);
    bool (*show_status)(handlerton *hton, THD *thd, stat_print_fn *print, enum ha_stat_type stat);
    uint (*partition_flags)();
-   uint (*alter_table_flags)(uint flags);
+   ulonglong (*alter_table_flags)(ulonglong flags);
    int (*alter_tablespace)(handlerton *hton, THD *thd, st_alter_tablespace *ts_info);
    int (*fill_is_table)(handlerton *hton, THD *thd, TABLE_LIST *tables, 
                         class Item *cond, 
@@ -1678,6 +1678,7 @@ typedef struct {
   ulonglong data_file_length;
   ulonglong max_data_file_length;
   ulonglong index_file_length;
+  ulonglong max_index_file_length;
   ulonglong delete_length;
   ha_rows records;
   ulong mean_rec_length;
@@ -1813,9 +1814,9 @@ struct Table_scope_and_contents_source_st
   LEX_CUSTRING tabledef_version;
   LEX_CSTRING connect_string;
   LEX_CSTRING comment;
+  LEX_CSTRING alias;
   const char *password, *tablespace;
   const char *data_file_name, *index_file_name;
-  const char *alias;
   ulonglong max_rows,min_rows;
   ulonglong auto_increment_value;
   ulong table_options;                  ///< HA_OPTION_ values
@@ -2728,9 +2729,10 @@ public:
 
   ha_statistics():
     data_file_length(0), max_data_file_length(0),
-    index_file_length(0), delete_length(0), auto_increment_value(0),
-    records(0), deleted(0), mean_rec_length(0), create_time(0),
-    check_time(0), update_time(0), block_size(0), mrr_length_per_rec(0)
+    index_file_length(0), max_index_file_length(0), delete_length(0),
+    auto_increment_value(0), records(0), deleted(0), mean_rec_length(0),
+    create_time(0), check_time(0), update_time(0), block_size(0),
+    mrr_length_per_rec(0)
   {}
 };
 
@@ -2990,7 +2992,7 @@ public:
   /* ha_ methods: pubilc wrappers for private virtual API */
   
   int ha_open(TABLE *table, const char *name, int mode, uint test_if_locked,
-              MEM_ROOT *mem_root= 0);
+              MEM_ROOT *mem_root= 0, List<String> *partitions_to_open=NULL);
   int ha_index_init(uint idx, bool sorted)
   {
     DBUG_EXECUTE_IF("ha_index_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);
@@ -3569,6 +3571,9 @@ public:
   virtual int info(uint)=0; // see my_base.h for full description
   virtual void get_dynamic_partition_info(PARTITION_STATS *stat_info,
                                           uint part_id);
+  virtual void set_partitions_to_open(List<String> *partition_names) {}
+  virtual int change_partitions_to_open(List<String> *partition_names)
+  { return 0; }
   virtual int extra(enum ha_extra_function operation)
   { return 0; }
   virtual int extra_opt(enum ha_extra_function operation, ulong cache_size)
@@ -4256,7 +4261,7 @@ public:
     but we don't have a primary key
   */
   virtual void use_hidden_primary_key();
-  virtual uint alter_table_flags(uint flags)
+  virtual ulonglong alter_table_flags(ulonglong flags)
   {
     if (ht->alter_table_flags)
       return ht->alter_table_flags(flags);
@@ -4681,7 +4686,7 @@ int ha_create_table(THD *thd, const char *path,
                     const char *db, const char *table_name,
                     HA_CREATE_INFO *create_info, LEX_CUSTRING *frm);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
-                    const char *db, const char *alias, bool generate_warning);
+                    const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning);
 
 /* statistics and info */
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);
@@ -4719,7 +4724,7 @@ public:
 int ha_discover_table(THD *thd, TABLE_SHARE *share);
 int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
-bool ha_table_exists(THD *thd, const char *db, const char *table_name,
+bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
                      handlerton **hton= 0, bool *is_sequence= 0);
 #endif
 
@@ -4770,9 +4775,9 @@ const char *get_canonical_filename(handler *file, const char *path,
 bool mysql_xa_recover(THD *thd);
 void commit_checkpoint_notify_ha(handlerton *hton, void *cookie);
 
-inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
+inline const LEX_CSTRING *table_case_name(HA_CREATE_INFO *info, const LEX_CSTRING *name)
 {
-  return ((lower_case_table_names == 2 && info->alias) ? info->alias : name);
+  return ((lower_case_table_names == 2 && info->alias.str) ? &info->alias : name);
 }
 
 typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);

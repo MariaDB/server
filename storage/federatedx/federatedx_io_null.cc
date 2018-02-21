@@ -58,7 +58,7 @@ public:
   federatedx_io_null(FEDERATEDX_SERVER *);
   ~federatedx_io_null();
 
-  int query(const char *buffer, uint length);
+  int query(const char *buffer, size_t length);
   virtual FEDERATEDX_IO_RESULT *store_result();
 
   virtual size_t max_query_size() const;
@@ -178,7 +178,7 @@ void federatedx_io_null::savepoint_restrict(ulong sp)
 }
 
 
-int federatedx_io_null::query(const char *buffer, uint length)
+int federatedx_io_null::query(const char *buffer, size_t length)
 {
   return 0;
 }

@@ -402,7 +402,7 @@ my_strnxfrm_8bit_bin(CHARSET_INFO *cs,
   if (dst != src)
     memcpy(dst, src, srclen);
   return my_strxfrm_pad_desc_and_reverse(cs, dst, dst + srclen, dst + dstlen,
-                                         nweights - srclen, flags, 0);
+                                         (uint)(nweights - srclen), flags, 0);
 }
 
 
@@ -416,7 +416,7 @@ my_strnxfrm_8bit_nopad_bin(CHARSET_INFO *cs,
   if (dst != src)
     memcpy(dst, src, srclen);
   return my_strxfrm_pad_desc_and_reverse_nopad(cs, dst, dst + srclen,
-                                               dst + dstlen, nweights - srclen,
+                                               dst + dstlen,(uint)(nweights - srclen),
                                                flags, 0);
 }
 
@@ -464,13 +464,13 @@ skip:
         if (nmatch > 0)
 	{
 	  match[0].beg= 0;
-	  match[0].end= (size_t) (str- (const uchar*)b-1);
+	  match[0].end= (uint) (str- (const uchar*)b-1);
 	  match[0].mb_len= match[0].end;
 
 	  if (nmatch > 1)
 	  {
 	    match[1].beg= match[0].end;
-	    match[1].end= match[0].end+s_length;
+	    match[1].end= (uint)(match[0].end+s_length);
 	    match[1].mb_len= match[1].end-match[1].beg;
 	  }
 	}

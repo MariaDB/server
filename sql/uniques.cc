@@ -312,7 +312,7 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
 {
   size_t max_elements_in_tree;
   size_t last_tree_elems;
-  int   n_full_trees; /* number of trees in unique - 1 */
+  size_t   n_full_trees; /* number of trees in unique - 1 */
   double result;
 
   max_elements_in_tree= ((size_t) max_in_memory_size /
@@ -350,9 +350,9 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
   /* Cost of merge */
   if (intersect_fl)
     key_size+= sizeof(element_count);
-  double merge_cost= get_merge_many_buffs_cost(buffer, n_full_trees,
-                                               max_elements_in_tree,
-                                               last_tree_elems, key_size,
+  double merge_cost= get_merge_many_buffs_cost(buffer, (uint)n_full_trees,
+                                               (uint)max_elements_in_tree,
+                                               (uint)last_tree_elems, key_size,
                                                compare_factor);
   result += merge_cost;
   /*

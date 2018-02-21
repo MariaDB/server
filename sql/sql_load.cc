@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation
+   Copyright (c) 2010, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,6 +41,8 @@
 #include "sql_trigger.h"
 #include "sql_derived.h"
 #include "sql_show.h"
+
+#include "wsrep_mysqld.h"
 
 extern "C" int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t Count);
 
@@ -96,6 +98,52 @@ public:
 
 #define GET (stack_pos != stack ? *--stack_pos : my_b_get(&cache))
 #define PUSH(A) *(stack_pos++)=(A)
+
+#ifdef WITH_WSREP
+/** If requested by wsrep_load_data_splitting, commit and restart
+the transaction after every 10,000 inserted rows. */
+
+static bool wsrep_load_data_split(THD *thd, const TABLE *table,
+				  const COPY_INFO &info)
+{
+  DBUG_ENTER("wsrep_load_data_split");
+
+  if (!wsrep_load_data_splitting || !WSREP(thd)
+      || !info.records || (info.records % 10000)
+      || !thd->transaction.stmt.ha_list
+      || thd->transaction.stmt.ha_list->ht() != binlog_hton
+      || !thd->transaction.stmt.ha_list->next()
+      || thd->transaction.stmt.ha_list->next()->next())
+    DBUG_RETURN(false);
+
+  if (handlerton* hton= thd->transaction.stmt.ha_list->next()->ht())
+  {
+    if (hton->db_type != DB_TYPE_INNODB)
+      DBUG_RETURN(false);
+    WSREP_DEBUG("intermediate transaction commit in LOAD DATA");
+#ifdef OUT /* this is old mariadb implementation... */
+    if (wsrep_run_wsrep_commit(thd, true) != WSREP_TRX_OK) DBUG_RETURN(true);
+    if (binlog_hton->commit(binlog_hton, thd, true)) DBUG_RETURN(true);
+    wsrep_post_commit(thd, true);
+    hton->commit(hton, thd, true);
+#else
+    /* ...which is replaced by this */
+    wsrep_tc_log_commit(thd);
+#endif
+    table->file->extra(HA_EXTRA_FAKE_START_STMT);
+  }
+
+  DBUG_RETURN(false);
+}
+# define WSREP_LOAD_DATA_SPLIT(thd,table,info)		\
+  if (wsrep_load_data_split(thd,table,info))		\
+  {							\
+    table->auto_increment_field_not_null= FALSE;	\
+    DBUG_RETURN(1);					\
+  }
+#else /* WITH_WSREP */
+#define WSREP_LOAD_DATA_SPLIT(thd,table,info) /* empty */
+#endif /* WITH_WSREP */
 
 class READ_INFO {
   File	file;
@@ -283,13 +331,13 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   killed_state killed_status;
   bool is_concurrent;
 #endif
-  const char *db = table_list->db;		// This is never null
+  const char *db= table_list->db.str;		// This is never null
   /*
     If path for file is not defined, we will use the current database.
     If this is not set, we will use the directory where the table to be
     loaded is located
   */
-  const char *tdb= thd->db ? thd->db : db;	// Result is never null
+  const char *tdb= thd->db.str ? thd->db.str : db; // Result is never null
   ulong skip_lines= ex->skip_lines;
   bool transactional_table __attribute__((unused));
   DBUG_ENTER("mysql_load");
@@ -340,7 +388,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
       !table_list->single_table_updatable() || // and derived tables
       check_key_in_view(thd, table_list))
   {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "LOAD");
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "LOAD");
     DBUG_RETURN(TRUE);
   }
   if (table_list->prepare_where(thd, 0, TRUE) ||
@@ -359,7 +407,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   */
   if (unique_table(thd, table_list, table_list->next_global, 0))
   {
-    my_error(ER_UPDATE_TABLE_USED, MYF(0), table_list->table_name,
+    my_error(ER_UPDATE_TABLE_USED, MYF(0), table_list->table_name.str,
              "LOAD DATA");
     DBUG_RETURN(TRUE);
   }
@@ -671,8 +719,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
              writing binary log will be ignored */
 	  if (thd->transaction.stmt.modified_non_trans_table)
             (void) write_execute_load_query_log_event(thd, ex,
-                                                      table_list->db, 
-                                                      table_list->table_name,
+                                                      table_list->db.str,
+                                                      table_list->table_name.str,
                                                       is_concurrent,
                                                       handle_duplicates, ignore,
                                                       transactional_table,
@@ -722,7 +770,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
       {
         int errcode= query_error_code(thd, killed_status == NOT_KILLED);
         error= write_execute_load_query_log_event(thd, ex,
-                                                  table_list->db, table_list->table_name,
+                                                  table_list->db.str,
+                                                  table_list->table_name.str,
                                                   is_concurrent,
                                                   handle_duplicates, ignore,
                                                   transactional_table,
@@ -771,7 +820,7 @@ static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
   List<Item>           fv;
   Item                *item, *val;
   int                  n;
-  const char          *tdb= (thd->db != NULL ? thd->db : db_arg);
+  const char          *tdb= (thd->db.str != NULL ? thd->db.str : db_arg);
   const char          *qualify_db= NULL;
   char                command_buffer[1024];
   String              query_str(command_buffer, sizeof(command_buffer),
@@ -787,7 +836,7 @@ static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
     lle.set_fname_outside_temp_buf(ex->file_name, strlen(ex->file_name));
 
   query_str.length(0);
-  if (!thd->db || strcmp(db_arg, thd->db)) 
+  if (!thd->db.str || strcmp(db_arg, thd->db.str))
   {
     /*
       If used database differs from table's database, 
@@ -814,7 +863,7 @@ static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
       if (n++)
         query_str.append(", ");
       if (item->real_type() == Item::FIELD_ITEM)
-        append_identifier(thd, &query_str, item->name.str, item->name.length);
+        append_identifier(thd, &query_str, &item->name);
       else
       {
         /* Actually Item_user_var_as_out_param despite claiming STRING_ITEM. */
@@ -838,7 +887,7 @@ static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
       val= lv++;
       if (n++)
         query_str.append(STRING_WITH_LEN(", "));
-      append_identifier(thd, &query_str, item->name.str, item->name.length);
+      append_identifier(thd, &query_str, &item->name);
       query_str.append(&val->name);
     }
   }
@@ -927,7 +976,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     */
     while ((sql_field= (Item_field*) it++))
     {
-      Field *field= sql_field->field;                  
+      Field *field= sql_field->field;
       table->auto_increment_field_not_null= auto_increment_field_not_null;
       /*
         No fields specified in fields_vars list can be null in this format.
@@ -989,6 +1038,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
+    WSREP_LOAD_DATA_SPLIT(thd, table, info);
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= FALSE;
     if (err)
@@ -1194,6 +1244,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
+    WSREP_LOAD_DATA_SPLIT(thd, table, info);
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= FALSE;
     if (err)
@@ -1348,6 +1399,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
     
+    WSREP_LOAD_DATA_SPLIT(thd, table, info);
     err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= false;
     if (err)

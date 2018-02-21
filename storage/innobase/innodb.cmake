@@ -233,13 +233,6 @@ IF(CMAKE_CXX_COMPILER_ID MATCHES "SunPro"
     PROPERTIES COMPILE_FLAGS -xO3)
 ENDIF()
 
-# Removing compiler optimizations for innodb/mem/* files on 64-bit Windows
-# due to 64-bit compiler error, See MySQL Bug #19424, #36366, #34297
-IF (MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-	SET_SOURCE_FILES_PROPERTIES(mem/mem0mem.cc mem/mem0pool.cc
-				    PROPERTIES COMPILE_FLAGS -Od)
-ENDIF()
-
 # Avoid generating Hardware Capabilities due to crc32 instructions
 IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
   INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)

@@ -68,7 +68,7 @@ static void unpack_addon_fields(struct st_sort_addon_field *addon_field,
                                 uchar *buff, uchar *buff_end);
 static bool check_if_pq_applicable(Sort_param *param, SORT_INFO *info,
                                    TABLE *table,
-                                   ha_rows records, ulong memory_available);
+                                   ha_rows records, size_t memory_available);
 
 void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
                                    ulong max_length_for_sort_data,
@@ -89,7 +89,10 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
                                   table->field, sort_length, &addon_buf);
   }
   if (addon_field)
-    res_length= addon_buf.length;
+  {
+    DBUG_ASSERT(addon_buf.length < UINT_MAX32);
+    res_length= (uint)addon_buf.length;
+  }
   else
   {
     res_length= ref_length;
@@ -99,7 +102,7 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
     */
     sort_length+= ref_length;
   }
-  rec_length= sort_length + addon_buf.length;
+  rec_length= sort_length + (uint)addon_buf.length;
   max_rows= maxrows;
 }
 
@@ -1026,8 +1029,8 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
 
   if (use_strnxfrm(cs))
   {
-    uint tmp_length __attribute__((unused));
-    tmp_length= cs->coll->strnxfrm(cs, to, sort_field->length,
+    IF_DBUG(size_t tmp_length= ,)
+    cs->coll->strnxfrm(cs, to, sort_field->length,
                                    item->max_char_length() *
                                    cs->strxfrm_multiply,
                                    (uchar*) res->ptr(), res->length(),
@@ -1346,10 +1349,10 @@ static bool save_index(Sort_param *param, uint count,
     false - PQ will be slower than merge-sort, or there is not enough memory.
 */
 
-bool check_if_pq_applicable(Sort_param *param,
+static bool check_if_pq_applicable(Sort_param *param,
                             SORT_INFO *filesort_info,
                             TABLE *table, ha_rows num_rows,
-                            ulong memory_available)
+                            size_t memory_available)
 {
   DBUG_ENTER("check_if_pq_applicable");
 
@@ -1371,7 +1374,7 @@ bool check_if_pq_applicable(Sort_param *param,
     DBUG_RETURN(false);
   }
 
-  ulong num_available_keys=
+  size_t num_available_keys=
     memory_available / (param->rec_length + sizeof(char*));
   // We need 1 extra record in the buffer, when using PQ.
   param->max_keys_per_buffer= (uint) param->max_rows + 1;
@@ -1401,7 +1404,7 @@ bool check_if_pq_applicable(Sort_param *param,
   // Try to strip off addon fields.
   if (param->addon_field)
   {
-    const ulong row_length=
+    const size_t row_length=
       param->sort_length + param->ref_length + sizeof(char*);
     num_available_keys= memory_available / row_length;
 
@@ -1411,7 +1414,7 @@ bool check_if_pq_applicable(Sort_param *param,
       const double sort_merge_cost=
         get_merge_many_buffs_cost_fast(num_rows,
                                        num_available_keys,
-                                       row_length);
+                                       (uint)row_length);
       /*
         PQ has cost:
         (insert + qsort) * log(queue size) / TIME_FOR_COMPARE_ROWID +
@@ -1883,7 +1886,7 @@ Type_handler_string_result::sortlength(THD *thd,
   set_if_smaller(sortorder->length, thd->variables.max_sort_length);
   if (use_strnxfrm((cs= item->collation.collation)))
   {
-    sortorder->length= cs->coll->strnxfrmlen(cs, sortorder->length);
+    sortorder->length= (uint)cs->coll->strnxfrmlen(cs, sortorder->length);
   }
   else if (cs == &my_charset_bin)
   {
@@ -1966,7 +1969,7 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
       if (use_strnxfrm((cs=sortorder->field->sort_charset())))
       {
         *multi_byte_charset= true;
-        sortorder->length= cs->coll->strnxfrmlen(cs, sortorder->length);
+        sortorder->length= (uint)cs->coll->strnxfrmlen(cs, sortorder->length);
       }
       if (sortorder->field->maybe_null())
 	length++;				// Place for NULL marker

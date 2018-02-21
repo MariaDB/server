@@ -1767,8 +1767,6 @@ private:
   void cleanup_item_list(List<Item> &items) const;
   bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
-
-  void vers_check_items();
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
@@ -2033,7 +2031,7 @@ int report_error(TABLE *table, int error);
 int safe_index_read(JOIN_TAB *tab);
 int get_quick_record(SQL_SELECT *select);
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
-		List<Item> &fields, List <Item> &all_fields, ORDER *order,
+                List<Item> &fields, List <Item> &all_fields, ORDER *order,
                 bool from_window_spec= false);
 int setup_group(THD *thd,  Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List<Item> &all_fields, ORDER *order,
@@ -2114,7 +2112,8 @@ public:
     @param thd         - Current thread.
   */
   static void *operator new(size_t size, THD *thd) throw();
-  static void operator delete(void *ptr, size_t size) { TRASH(ptr, size); }
+  static void operator delete(void *ptr, size_t size) { TRASH_FREE(ptr, size); }
+  static void operator delete(void *, THD *) throw(){}
 
   Virtual_tmp_table(THD *thd)
   {
@@ -2161,7 +2160,7 @@ public:
       DBUG_ASSERT(s->blob_fields <= m_alloced_field_count);
       s->blob_field[s->blob_fields - 1]= s->fields;
     }
-    s->fields++;
+    new_field->field_index= s->fields++;
     return false;
   }
 
@@ -2184,6 +2183,48 @@ public:
     @return true  - on error (e.g. could not allocate the record buffer).
   */
   bool open();
+
+  void set_all_fields_to_null()
+  {
+    for (uint i= 0; i < s->fields; i++)
+      field[i]->set_null();
+  }
+  /**
+    Set all fields from a compatible item list.
+    The number of fields in "this" must be equal to the number
+    of elements in "value".
+  */
+  bool sp_set_all_fields_from_item_list(THD *thd, List<Item> &items);
+
+  /**
+    Set all fields from a compatible item.
+    The number of fields in "this" must be the same with the number
+    of elements in "value".
+  */
+  bool sp_set_all_fields_from_item(THD *thd, Item *value);
+
+  /**
+    Find a ROW element index by its name
+    Assumes that "this" is used as a storage for a ROW-type SP variable.
+    @param [OUT] idx        - the index of the found field is returned here
+    @param [IN]  field_name - find a field with this name
+    @return      true       - on error (the field was not found)
+    @return      false      - on success (idx[0] was set to the field index)
+  */
+  bool sp_find_field_by_name(uint *idx, const LEX_CSTRING &name) const;
+
+  /**
+    Find a ROW element index by its name.
+    If the element is not found, and error is issued.
+    @param [OUT] idx        - the index of the found field is returned here
+    @param [IN]  var_name   - the name of the ROW variable (for error reporting)
+    @param [IN]  field_name - find a field with this name
+    @return      true       - on error (the field was not found)
+    @return      false      - on success (idx[0] was set to the field index)
+  */
+  bool sp_find_field_by_name_or_error(uint *idx,
+                                      const LEX_CSTRING &var_name,
+                                      const LEX_CSTRING &field_name) const;
 };
 
 
@@ -2335,7 +2376,7 @@ int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table,
 TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
 			ORDER *group, bool distinct, bool save_sum_fields,
 			ulonglong select_options, ha_rows rows_limit,
-			const char* alias, bool do_not_open=FALSE,
+                        const LEX_CSTRING *alias, bool do_not_open=FALSE,
                         bool keep_row_order= FALSE);
 void free_tmp_table(THD *thd, TABLE *entry);
 bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,

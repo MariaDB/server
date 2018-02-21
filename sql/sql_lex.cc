@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -258,7 +258,7 @@ st_parsing_options::reset()
 
 bool Lex_input_stream::init(THD *thd,
 			    char* buff,
-			    unsigned int length)
+			    size_t length)
 {
   DBUG_EXECUTE_IF("bug42064_simulate_oom",
                   DBUG_SET("+d,simulate_out_of_memory"););
@@ -269,12 +269,12 @@ bool Lex_input_stream::init(THD *thd,
                   DBUG_SET("-d,bug42064_simulate_oom");); 
 
   if (m_cpp_buf == NULL)
-    return TRUE;
+    return true;
 
   m_thd= thd;
   reset(buff, length);
 
-  return FALSE;
+  return false;
 }
 
 
@@ -287,7 +287,7 @@ bool Lex_input_stream::init(THD *thd,
 */
 
 void
-Lex_input_stream::reset(char *buffer, unsigned int length)
+Lex_input_stream::reset(char *buffer, size_t length)
 {
   yylineno= 1;
   yylval= NULL;
@@ -334,7 +334,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
   DBUG_ASSERT(begin_ptr);
   DBUG_ASSERT(m_cpp_buf <= begin_ptr && begin_ptr <= m_cpp_buf + m_buf_length);
 
-  uint body_utf8_length= get_body_utf8_maximum_length(thd);
+  size_t body_utf8_length= get_body_utf8_maximum_length(thd);
 
   m_body_utf8= (char *) thd->alloc(body_utf8_length + 1);
   m_body_utf8_ptr= m_body_utf8;
@@ -344,7 +344,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
 }
 
 
-uint Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
+size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
 {
   /*
     String literals can grow during escaping:
@@ -675,6 +675,8 @@ void lex_start(THD *thd)
 void LEX::start(THD *thd_arg)
 {
   DBUG_ENTER("LEX::start");
+  DBUG_PRINT("info", ("This: %p thd_arg->lex: %p thd_arg->stmt_lex: %p",
+             this, thd_arg->lex, thd_arg->stmt_lex));
 
   thd= unit.thd= thd_arg;
   
@@ -682,6 +684,7 @@ void LEX::start(THD *thd_arg)
 
   context_stack.empty();
   unit.init_query();
+  current_select_number= 1;
   select_lex.linkage= UNSPECIFIED_TYPE;
   /* 'parent_lex' is used in init_query() so it must be before it. */
   select_lex.parent_lex= this;
@@ -2151,7 +2154,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 }
 
 
-void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, uint *prefix_length)
+void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, size_t * prefix_length)
 {
   /*
     TODO:
@@ -2159,14 +2162,15 @@ void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, uint *prefix_length)
     that can be considered white-space.
   */
 
-  *prefix_length= 0;
+  size_t plen= 0;
   while ((str->length > 0) && (my_isspace(cs, str->str[0])))
   {
-    (*prefix_length)++;
+    plen++;
     str->length --;
     str->str ++;
   }
-
+  if (prefix_length)
+    *prefix_length= plen;
   /*
     FIXME:
     Also, parsing backward is not safe with multi bytes characters
@@ -2282,7 +2286,8 @@ void st_select_lex::init_select()
   group_list.empty();
   if (group_list_ptrs)
     group_list_ptrs->clear();
-  type= db= 0;
+  type= 0;
+  db= null_clex_str;
   having= 0;
   table_join_options= 0;
   in_sum_expr= with_wild= 0;
@@ -3288,8 +3293,7 @@ uint8 LEX::get_effective_with_check(TABLE_LIST *view)
   case of success
 */
 
-bool
-LEX::copy_db_to(const char **p_db, size_t *p_db_length) const
+bool LEX::copy_db_to(LEX_CSTRING *to)
 {
   if (sphead && sphead->m_name.str)
   {
@@ -3298,12 +3302,10 @@ LEX::copy_db_to(const char **p_db, size_t *p_db_length) const
       It is safe to assign the string by-pointer, both sphead and
       its statements reside in the same memory root.
     */
-    *p_db= sphead->m_db.str;
-    if (p_db_length)
-      *p_db_length= sphead->m_db.length;
+    *to= sphead->m_db;
     return FALSE;
   }
-  return thd->copy_db_to(p_db, p_db_length);
+  return thd->copy_db_to(to);
 }
 
 /**
@@ -3873,7 +3875,7 @@ void st_select_lex::alloc_index_hints (THD *thd)
   RETURN VALUE
     0 on success, non-zero otherwise
 */
-bool st_select_lex::add_index_hint (THD *thd, const char *str, uint length)
+bool st_select_lex::add_index_hint (THD *thd, const char *str, size_t length)
 {
   return index_hints->push_front(new (thd->mem_root) 
                                  Index_hint(current_index_hint_type,
@@ -4853,8 +4855,8 @@ bool LEX::set_arena_for_set_stmt(Query_arena *backup)
     mem_root_for_set_stmt= new MEM_ROOT();
     if (!(mem_root_for_set_stmt))
       DBUG_RETURN(1);
-    init_sql_alloc(mem_root_for_set_stmt, ALLOC_ROOT_SET, ALLOC_ROOT_SET,
-                   MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(mem_root_for_set_stmt, "set_stmt",
+                   ALLOC_ROOT_SET, ALLOC_ROOT_SET, MYF(MY_THREAD_SPECIFIC));
   }
   if (!(arena_for_set_stmt= new(mem_root_for_set_stmt)
         Query_arena_memroot(mem_root_for_set_stmt,
@@ -6033,7 +6035,7 @@ sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name)
   sp_name *res;
   LEX_CSTRING db;
   if (check_routine_name(name) ||
-      copy_db_to(&db.str, &db.length) ||
+      copy_db_to(&db) ||
       (!(res= new (thd->mem_root) sp_name(&db, name, false))))
     return NULL;
   return res;
@@ -7484,18 +7486,16 @@ bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING 
 {
   DBUG_ASSERT(field_name.str);
   Item_field *fld= new (thd->mem_root) Item_field(thd, &context,
-                                      table->db, table->alias, &field_name);
-  if (!fld)
+                                                  table->db.str, table->alias.str, &field_name);
+  if (!fld || item_list.push_back(fld))
     return true;
-
-  item_list.push_back(fld);
 
   if (thd->lex->view_list.elements)
   {
-    if (LEX_STRING *l= thd->make_lex_string(field_name.str, field_name.length))
-      thd->lex->view_list.push_back(l);
-    else
+    LEX_CSTRING *l;
+    if (!(l= thd->make_clex_string(field_name.str, field_name.length)))
       return true;
+    thd->lex->view_list.push_back(l);
   }
 
   return false;

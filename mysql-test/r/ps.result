@@ -218,11 +218,11 @@ drop table t1;
 create table t1 ( a int primary key, b varchar(30)) engine = MYISAM ;
 prepare stmt1 from ' show table status from test like ''t1%'' ';
 execute stmt1;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Dynamic	0	0	0	4294967295	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Dynamic	0	0	0	4294967295	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			288230376151710720	N
 show table status from test like 't1%' ;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Dynamic	0	0	0	4294967295	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Dynamic	0	0	0	4294967295	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			288230376151710720	N
 deallocate prepare stmt1 ;
 drop table t1;
 create table t1(a varchar(2), b varchar(3));
@@ -1741,7 +1741,7 @@ execute stmt using @a;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `?` decimal(2,1) DEFAULT NULL
+  `?` decimal(2,1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 drop table if exists t1;
@@ -4435,7 +4435,7 @@ EXECUTE stmt USING 10.123;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` decimal(5,3) DEFAULT NULL
+  `c1` decimal(5,3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING 10.123e0;
@@ -4449,49 +4449,49 @@ EXECUTE stmt USING CURRENT_DATE;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` date DEFAULT NULL
+  `c1` date NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime DEFAULT NULL
+  `c1` datetime NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP(3);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime(3) DEFAULT NULL
+  `c1` datetime(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP(6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime(6) DEFAULT NULL
+  `c1` datetime(6) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` time DEFAULT NULL
+  `c1` time NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME(3);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` time(3) DEFAULT NULL
+  `c1` time(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME(6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` time(6) DEFAULT NULL
+  `c1` time(6) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DEALLOCATE PREPARE stmt;
@@ -4636,7 +4636,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) NOT NULL,
-  `b` decimal(3,1) DEFAULT NULL,
+  `b` decimal(3,1) NOT NULL,
   `c` double NOT NULL,
   `d` tinytext NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -4648,7 +4648,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(2) NOT NULL,
-  `b` decimal(3,1) DEFAULT NULL,
+  `b` decimal(3,1) NOT NULL,
   `c` double NOT NULL,
   `d` varchar(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -4663,11 +4663,11 @@ TIMESTAMP'2001-01-01 10:20:30.123';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t1` time DEFAULT NULL,
-  `t2` time(3) DEFAULT NULL,
-  `d1` date DEFAULT NULL,
-  `dt1` datetime DEFAULT NULL,
-  `dt2` datetime(3) DEFAULT NULL
+  `t1` time NOT NULL,
+  `t2` time(3) NOT NULL,
+  `d1` date NOT NULL,
+  `dt1` datetime NOT NULL,
+  `dt2` datetime(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
@@ -5198,3 +5198,45 @@ t1	CREATE TABLE `t1` (
   `b` bigint(10) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-14603 signal 11 with short stacktrace
+#
+SET NAMES utf8;
+CREATE TABLE t1(i INT);
+CREATE PROCEDURE p1(tn VARCHAR(32))
+EXECUTE IMMEDIATE CONCAT('ANALYZE TABLE ',tn);
+CALL p1('t1');
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Table is already up to date
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET NAMES utf8;
+CREATE PROCEDURE p1()
+EXECUTE IMMEDIATE CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+CALL p1();
+DROP PROCEDURE p1;
+SET NAMES utf8;
+CREATE PROCEDURE p1()
+BEGIN
+PREPARE stmt FROM CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+END;
+$$
+CALL p1();
+DROP PROCEDURE p1;
+SET NAMES utf8;
+CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+EXECUTE IMMEDIATE 'SELECT ?' USING CONCAT(a, CONVERT(RAND() USING latin1));
+CALL p1('x');
+DROP PROCEDURE p1;
+SET NAMES utf8;
+CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+BEGIN
+PREPARE stmt FROM 'SELECT ?';
+EXECUTE stmt USING CONCAT(a, CONVERT(RAND() USING latin1));
+DEALLOCATE PREPARE stmt;
+END;
+$$
+CALL p1('x');
+DROP PROCEDURE p1;

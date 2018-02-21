@@ -172,6 +172,8 @@ row_undo_search_clust_to_pcur(
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
+	ut_ad(!node->table->skip_alter_undo);
+
 	mtr_start(&mtr);
 
 	clust_index = dict_table_get_first_index(node->table);

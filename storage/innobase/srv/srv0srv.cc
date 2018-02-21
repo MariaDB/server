@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -70,7 +70,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "sync0sync.h"
 #include "trx0i_s.h"
 #include "trx0purge.h"
-#include "usr0sess.h"
 #include "ut0crc32.h"
 #include "btr0defragment.h"
 #include "ut0mem.h"
@@ -78,10 +77,7 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
 #include "btr0scrub.h"
-#ifdef WITH_WSREP
-extern int wsrep_debug;
-extern int wsrep_trx_is_aborting(void *thd_ptr);
-#endif
+
 /* The following is the maximum allowed duration of a lock wait. */
 UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
 
@@ -1365,9 +1361,8 @@ srv_printf_innodb_monitor(
 		srv_conc_get_active_threads(),
 		srv_conc_get_waiting_threads());
 
-	/* This is a dirty read, without holding trx_sys->mutex. */
 	fprintf(file, ULINTPF " read views open inside InnoDB\n",
-		trx_sys->mvcc->size());
+		trx_sys.view_count());
 
 	n_reserved = fil_space_get_n_reserved_extents(0);
 	if (n_reserved > 0) {
@@ -1631,32 +1626,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_onlineddl_rowlog_rows = onlineddl_rowlog_rows;
 	export_vars.innodb_onlineddl_rowlog_pct_used = onlineddl_rowlog_pct_used;
 	export_vars.innodb_onlineddl_pct_progress = onlineddl_pct_progress;
-
-#ifdef UNIV_DEBUG
-	rw_lock_s_lock(&purge_sys->latch);
-	trx_id_t	up_limit_id	= purge_sys->view.up_limit_id();;
-	trx_id_t	done_trx_no	= purge_sys->done.trx_no;
-	rw_lock_s_unlock(&purge_sys->latch);
-
-	mutex_enter(&trx_sys->mutex);
-	trx_id_t	max_trx_id	= trx_sys->rw_max_trx_id;
-	mutex_exit(&trx_sys->mutex);
-
-	if (!done_trx_no || max_trx_id < done_trx_no - 1) {
-		export_vars.innodb_purge_trx_id_age = 0;
-	} else {
-		export_vars.innodb_purge_trx_id_age =
-			(ulint) (max_trx_id - done_trx_no + 1);
-	}
-
-	if (!up_limit_id
-	    || max_trx_id < up_limit_id) {
-		export_vars.innodb_purge_view_trx_id_age = 0;
-	} else {
-		export_vars.innodb_purge_view_trx_id_age =
-			(ulint) (max_trx_id - up_limit_id);
-	}
-#endif /* UNIV_DEBUG */
 
 	export_vars.innodb_sec_rec_cluster_reads =
 		srv_stats.n_sec_rec_cluster_reads;
@@ -2006,7 +1975,7 @@ srv_wake_purge_thread_if_not_active()
 
 	if (purge_sys->state == PURGE_STATE_RUN
 	    && !my_atomic_loadlint(&srv_sys.n_threads_active[SRV_PURGE])
-	    && my_atomic_loadlint(&trx_sys->rseg_history_len)) {
+	    && trx_sys.history_size()) {
 
 		srv_release_threads(SRV_PURGE, 1);
 	}
@@ -2503,7 +2472,7 @@ srv_purge_should_exit(ulint n_purged)
 		return(false);
 	}
 	/* Exit if there are no active transactions to roll back. */
-	return(trx_sys_any_active_transactions() == 0);
+	return(trx_sys.any_active_transactions() == 0);
 }
 
 /*********************************************************************//**
@@ -2570,8 +2539,8 @@ DECLARE_THREAD(srv_worker_thread)(
 	slot = srv_reserve_slot(SRV_WORKER);
 
 	ut_a(srv_n_purge_threads > 1);
-	ut_a(my_atomic_loadlint(&srv_sys.n_threads_active[SRV_WORKER])
-	     < static_cast<lint>(srv_n_purge_threads));
+	ut_a(ulong(my_atomic_loadlint(&srv_sys.n_threads_active[SRV_WORKER]))
+	     < srv_n_purge_threads);
 
 	/* We need to ensure that the worker threads exit after the
 	purge coordinator thread. Otherwise the purge coordinator can
@@ -2645,7 +2614,7 @@ srv_do_purge(ulint* n_total_purged)
 	}
 
 	do {
-		if (trx_sys->rseg_history_len > rseg_history_len
+		if (trx_sys.history_size() > rseg_history_len
 		    || (srv_max_purge_lag > 0
 			&& rseg_history_len > srv_max_purge_lag)) {
 
@@ -2674,7 +2643,7 @@ srv_do_purge(ulint* n_total_purged)
 		ut_a(n_use_threads <= n_threads);
 
 		/* Take a snapshot of the history list before purge. */
-		if ((rseg_history_len = trx_sys->rseg_history_len) == 0) {
+		if (!(rseg_history_len = trx_sys.history_size())) {
 			break;
 		}
 
@@ -2729,7 +2698,7 @@ srv_purge_coordinator_suspend(
 		/* We don't wait right away on the the non-timed wait because
 		we want to signal the thread that wants to suspend purge. */
 		const bool wait = stop
-			|| rseg_history_len <= trx_sys->rseg_history_len;
+			|| rseg_history_len <= trx_sys.history_size();
 		const bool timeout = srv_resume_thread(
 			slot, sig_count, wait,
 			stop ? 0 : SRV_PURGE_MAX_TIMEOUT);
@@ -2746,8 +2715,8 @@ srv_purge_coordinator_suspend(
 			purge_sys->running = true;
 
 			if (timeout
-			    && rseg_history_len == trx_sys->rseg_history_len
-			    && trx_sys->rseg_history_len < 5000) {
+			    && rseg_history_len < 5000
+			    && rseg_history_len == trx_sys.history_size()) {
 				/* No new records were added since the
 				wait started. Simply wait for new
 				records. The magic number 5000 is an
@@ -2808,7 +2777,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	slot = srv_reserve_slot(SRV_PURGE);
 
-	ulint	rseg_history_len = trx_sys->rseg_history_len;
+	ulint	rseg_history_len = trx_sys.history_size();
 
 	do {
 		/* If there are no records to purge or the last

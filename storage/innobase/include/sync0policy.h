@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -105,7 +105,7 @@ public:
 
 			msg << m_mutex->policy().to_string();
 
-			if (os_thread_pf(m_thread_id) != ULINT_UNDEFINED) {
+			if (m_thread_id != ULINT_UNDEFINED) {
 
 				msg << " addr: " << m_mutex
 				    << " acquired: " << locked_from().c_str();
@@ -454,14 +454,7 @@ public:
 	void destroy()
 		UNIV_NOTHROW
 	{
-		latch_meta_t&	meta = sync_latch_get_meta(m_id);
-
-		ut_ad(meta.get_id() == m_id);
-
-		meta.get_counter()->sum_deregister(m_count);
-
 		m_count = NULL;
-
 		ut_d(MutexDebug<MutexType>::destroy());
 	}
 

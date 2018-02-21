@@ -58,7 +58,7 @@ namespace {
 extern "C" long system_recv(void *ptr, void *buf, size_t count, int flags)
 {
   yaSSL::socket_t *socket = (yaSSL::socket_t *) ptr;
-  return ::recv(*socket, reinterpret_cast<char *>(buf), count, flags);
+  return ::recv(*socket, reinterpret_cast<char *>(buf), (int)count, flags);
 }
 
 
@@ -66,7 +66,7 @@ extern "C" long system_send(void *ptr, const void *buf, size_t count,
                             int flags)
 {
   yaSSL::socket_t *socket = (yaSSL::socket_t *) ptr;
-  return ::send(*socket, reinterpret_cast<const char *>(buf), count, flags);
+  return ::send(*socket, reinterpret_cast<const char *>(buf), (int)count, flags);
 }
 
 

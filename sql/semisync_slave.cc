@@ -148,9 +148,9 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
       mysql_close(kill_mysql);
     return;
   }
-  uint kill_buffer_length = my_snprintf(kill_buffer, 30, "KILL %lu",
+  size_t kill_buffer_length = my_snprintf(kill_buffer, 30, "KILL %lu",
                                         mysql->thread_id);
-  mysql_real_query(kill_mysql, kill_buffer, kill_buffer_length);
+  mysql_real_query(kill_mysql, kill_buffer, (ulong)kill_buffer_length);
   mysql_close(kill_mysql);
 }
 
@@ -165,7 +165,7 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
     return 0;
 
   query= "SHOW VARIABLES LIKE 'rpl_semi_sync_master_enabled'";
-  if (mysql_real_query(mysql, query, strlen(query)) ||
+  if (mysql_real_query(mysql, query, (ulong)strlen(query)) ||
       !(res= mysql_store_result(mysql)))
   {
     sql_print_error("Execution failed on master: %s, error :%s", query, mysql_error(mysql));
@@ -190,7 +190,7 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
    replication
   */
   query= "SET @rpl_semi_sync_slave= 1";
-  if (mysql_real_query(mysql, query, strlen(query)))
+  if (mysql_real_query(mysql, query, (ulong)strlen(query)))
   {
     sql_print_error("Set 'rpl_semi_sync_slave=1' on master failed");
     return 1;
@@ -212,7 +212,7 @@ int Repl_semi_sync_slave::slave_reply(Master_info *mi)
                      + REPLY_BINLOG_POS_LEN
                      + REPLY_BINLOG_NAME_LEN];
   int reply_res = 0;
-  int name_len = strlen(binlog_filename);
+  size_t name_len = strlen(binlog_filename);
 
   DBUG_ENTER("Repl_semi_sync_slave::slave_reply");
 

@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -145,8 +145,7 @@ partition_info *partition_info::get_clone(THD *thd)
     @retval false Partition not found
 */
 
-bool partition_info::add_named_partition(const char *part_name,
-                                         uint length)
+bool partition_info::add_named_partition(const char *part_name, size_t length)
 {
   HASH *part_name_hash;
   PART_NAME_DEF *part_def;
@@ -197,8 +196,7 @@ bool partition_info::add_named_partition(const char *part_name,
   @param part_elem  Partition element that matched.
 */
 
-bool partition_info::set_named_partition_bitmap(const char *part_name,
-                                                uint length)
+bool partition_info::set_named_partition_bitmap(const char *part_name, size_t length)
 {
   DBUG_ENTER("partition_info::set_named_partition_bitmap");
   bitmap_clear_all(&read_partitions);
@@ -256,16 +254,16 @@ bool partition_info::set_read_partitions(List<char> *partition_names)
   Prune away partitions not mentioned in the PARTITION () clause,
   if used.
 
-    @param table_list  Table list pointing to table to prune.
+    @param partition_names  list of names of partitions.
 
   @return Operation status
     @retval true  Failure
     @retval false Success
 */
-bool partition_info::prune_partition_bitmaps(TABLE_LIST *table_list)
+bool partition_info::prune_partition_bitmaps(List<String> *partition_names)
 {
-  List_iterator<String> partition_names_it(*(table_list->partition_names));
-  uint num_names= table_list->partition_names->elements;
+  List_iterator<String> partition_names_it(*(partition_names));
+  uint num_names= partition_names->elements;
   uint i= 0;
   DBUG_ENTER("partition_info::prune_partition_bitmaps");
 
@@ -295,8 +293,7 @@ bool partition_info::prune_partition_bitmaps(TABLE_LIST *table_list)
 /**
   Set read/lock_partitions bitmap over non pruned partitions
 
-  @param table_list   Possible TABLE_LIST which can contain
-                      list of partition names to query
+  @param partition_names   list of partition names to query
 
   @return Operation status
     @retval FALSE  OK
@@ -306,7 +303,7 @@ bool partition_info::prune_partition_bitmaps(TABLE_LIST *table_list)
   @note OK to call multiple times without the need for free_bitmaps.
 */
 
-bool partition_info::set_partition_bitmaps(TABLE_LIST *table_list)
+bool partition_info::set_partition_bitmaps(List<String> *partition_names)
 {
   DBUG_ENTER("partition_info::set_partition_bitmaps");
 
@@ -315,16 +312,15 @@ bool partition_info::set_partition_bitmaps(TABLE_LIST *table_list)
   if (!bitmaps_are_initialized)
     DBUG_RETURN(TRUE);
 
-  if (table_list &&
-      table_list->partition_names &&
-      table_list->partition_names->elements)
+  if (partition_names &&
+      partition_names->elements)
   {
     if (table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)
     {
         my_error(ER_PARTITION_CLAUSE_ON_NONPARTITIONED, MYF(0));
         DBUG_RETURN(true);
     }
-    if (prune_partition_bitmaps(table_list))
+    if (prune_partition_bitmaps(partition_names))
       DBUG_RETURN(TRUE);
   }
   else
@@ -335,6 +331,27 @@ bool partition_info::set_partition_bitmaps(TABLE_LIST *table_list)
   bitmap_copy(&lock_partitions, &read_partitions);
   DBUG_ASSERT(bitmap_get_first_set(&lock_partitions) != MY_BIT_NONE);
   DBUG_RETURN(FALSE);
+}
+
+
+/**
+  Set read/lock_partitions bitmap over non pruned partitions
+
+  @param table_list   Possible TABLE_LIST which can contain
+                      list of partition names to query
+
+  @return Operation status
+    @retval FALSE  OK
+    @retval TRUE   Failed to allocate memory for bitmap or list of partitions
+                   did not match
+
+  @note OK to call multiple times without the need for free_bitmaps.
+*/
+bool partition_info::set_partition_bitmaps_from_table(TABLE_LIST *table_list)
+{
+  List<String> *partition_names= table_list ?
+                                   NULL : table_list->partition_names;
+  return set_partition_bitmaps(partition_names);
 }
 
 
@@ -400,7 +417,7 @@ char *partition_info::create_default_partition_names(THD *thd, uint part_no,
 char *partition_info::create_default_subpartition_name(THD *thd, uint subpart_no,
                                                const char *part_name)
 {
-  uint size_alloc= strlen(part_name) + MAX_PART_NAME_SIZE;
+  size_t size_alloc= strlen(part_name) + MAX_PART_NAME_SIZE;
   char *ptr= (char*) thd->calloc(size_alloc);
   DBUG_ENTER("create_default_subpartition_name");
 
@@ -940,7 +957,8 @@ bool partition_info::vers_set_expression(THD *thd, partition_element *el, MYSQL_
       col_val->fixed= 1;
       continue;
     }
-    Item *item_expression= new (thd->mem_root) Item_datetime_literal(thd, &t);
+    Item *item_expression= new (thd->mem_root)
+      Item_datetime_literal(thd, &t, 0);
     if (!item_expression)
       return true;
     /* We initialize col_val with bogus max value to make fix_partition_func() and check_range_constants() happy.
@@ -1052,7 +1070,7 @@ public:
     saved_lock(_thd->lock),
     saved_mode(_thd->locked_tables_mode),
     saved_query_tables_own_last(_thd->lex->query_tables_own_last),
-    table_list(_table, lock_type),
+    table_list(&_table, lock_type),
     locked(false)
   {
     table.reginfo.lock_type= lock_type;
@@ -1227,7 +1245,7 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
 
   bool error= false;
 
-  TABLE_LIST tl(*table, TL_READ);
+  TABLE_LIST tl(table, TL_READ);
   MDL_auto_lock mdl_lock(thd, tl);
   if (mdl_lock.acquire_error())
     return true;
@@ -2058,8 +2076,8 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
     DBUG_ASSERT(vers_info);
     if (num_parts < 2 || !vers_info->now_part)
     {
-      DBUG_ASSERT(info && info->alias);
-      my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias);
+      DBUG_ASSERT(info && info->alias.str);
+      my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias.str);
       goto end;
     }
     DBUG_ASSERT(vers_info->initialized(false));
@@ -2187,7 +2205,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   }
   if (unlikely(now_parts > 1))
   {
-    my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias);
+    my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias.str);
     goto end;
   }
 
@@ -2240,8 +2258,8 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
   THD *thd= current_thd;
 
   bzero(&table_list, sizeof(table_list));
-  table_list.db= table_arg->s->db.str;
-  table_list.table_name= table_arg->s->table_name.str;
+  table_list.db= table_arg->s->db;
+  table_list.table_name= table_arg->s->table_name;
 
   if (check_single_table_access(thd,
                                 SELECT_ACL, &table_list, TRUE))

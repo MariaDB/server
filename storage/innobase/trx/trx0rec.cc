@@ -31,7 +31,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "mtr0log.h"
 #include "dict0dict.h"
 #include "ut0mem.h"
-#include "read0read.h"
 #include "row0ext.h"
 #include "row0upd.h"
 #include "que0que.h"
@@ -955,6 +954,7 @@ trx_undo_page_report_modify(
 				  dict_index_get_sys_col_pos(
 					  index, DATA_ROLL_PTR), &flen);
 	ut_ad(flen == DATA_ROLL_PTR_LEN);
+	ut_ad(memcmp(field, field_ref_zero, DATA_ROLL_PTR_LEN));
 
 	ptr += mach_u64_write_compressed(ptr, trx_read_roll_ptr(field));
 
@@ -1901,28 +1901,16 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	ut_ad(trx->id);
 	ut_ad(!table->is_temporary());
 
-	trx_rseg_t*	rseg	= trx->rsegs.m_redo.rseg;
-	trx_undo_t**	pundo	= &trx->rsegs.m_redo.undo;
+	mtr_t		mtr;
+	dberr_t		err;
+	mtr.start();
 	mutex_enter(&trx->undo_mutex);
-	dberr_t		err	= *pundo
-		? DB_SUCCESS
-		: trx_undo_assign_undo(trx, rseg, pundo);
-	ut_ad((err == DB_SUCCESS) == (*pundo != NULL));
-	if (trx_undo_t* undo = *pundo) {
-		mtr_t	mtr;
-		mtr.start(trx);
-
-		buf_block_t* block = buf_page_get_gen(
-			page_id_t(undo->space, undo->last_page_no),
-			univ_page_size, RW_X_LATCH,
-			buf_pool_is_obsolete(undo->withdraw_clock)
-			? NULL : undo->guess_block,
-			BUF_GET, __FILE__, __LINE__, &mtr, &err);
-		ut_ad((err == DB_SUCCESS) == !!block);
-
-		for (ut_d(int loop_count = 0); block;) {
+	if (buf_block_t* block = trx_undo_assign(trx, &err, &mtr)) {
+		trx_undo_t*	undo = trx->rsegs.m_redo.undo;
+		ut_ad(err == DB_SUCCESS);
+		ut_ad(undo);
+		for (ut_d(int loop_count = 0);;) {
 			ut_ad(++loop_count < 2);
-			buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 			ut_ad(undo->last_page_no == block->page.id.page_no());
 
 			if (ulint offset = trx_undo_page_report_rename(
@@ -1934,12 +1922,13 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 				undo->top_undo_no = trx->undo_no++;
 				undo->guess_block = block;
 
-				trx->undo_rseg_space = rseg->space;
+				trx->undo_rseg_space
+					= trx->rsegs.m_redo.rseg->space;
 				err = DB_SUCCESS;
 				break;
 			} else {
 				mtr.commit();
-				mtr.start(trx);
+				mtr.start();
 				block = trx_undo_add_page(trx, undo, &mtr);
 				if (!block) {
 					err = DB_OUT_OF_FILE_SPACE;
@@ -1985,8 +1974,6 @@ trx_undo_report_row_operation(
 					undo log record */
 {
 	trx_t*		trx;
-	ulint		page_no;
-	buf_block_t*	undo_block;
 	mtr_t		mtr;
 #ifdef UNIV_DEBUG
 	int		loop_count	= 0;
@@ -2006,7 +1993,7 @@ trx_undo_report_row_operation(
 	mtr.start();
 	trx_undo_t**	pundo;
 	trx_rseg_t*	rseg;
-	const bool	is_temp	= dict_table_is_temporary(index->table);
+	const bool	is_temp	= index->table->is_temporary();
 
 	if (is_temp) {
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
@@ -2021,27 +2008,19 @@ trx_undo_report_row_operation(
 	}
 
 	mutex_enter(&trx->undo_mutex);
-	dberr_t	err = *pundo ? DB_SUCCESS : trx_undo_assign_undo(
-		trx, rseg, pundo);
-	trx_undo_t*	undo = *pundo;
+	dberr_t		err;
+	buf_block_t*	undo_block = trx_undo_assign_low(trx, rseg, pundo,
+							 &err, &mtr);
+	trx_undo_t*	undo	= *pundo;
 
-	ut_ad((err == DB_SUCCESS) == (undo != NULL));
-	if (undo == NULL) {
+	ut_ad((err == DB_SUCCESS) == (undo_block != NULL));
+	if (undo_block == NULL) {
 		goto err_exit;
 	}
 
-	page_no = undo->last_page_no;
-
-	undo_block = buf_page_get_gen(
-		page_id_t(undo->space, page_no), univ_page_size, RW_X_LATCH,
-		buf_pool_is_obsolete(undo->withdraw_clock)
-		? NULL : undo->guess_block, BUF_GET, __FILE__, __LINE__,
-		&mtr, &err);
-
-	buf_block_dbg_add_level(undo_block, SYNC_TRX_UNDO_PAGE);
+	ut_ad(undo != NULL);
 
 	do {
-		ut_ad(page_no == undo_block->page.id.page_no());
 		page_t*	undo_page = buf_block_get_frame(undo_block);
 		ulint	offset = !rec
 			? trx_undo_page_report_insert(
@@ -2051,12 +2030,6 @@ trx_undo_report_row_operation(
 				cmpl_info, clust_entry, &mtr);
 
 		if (UNIV_UNLIKELY(offset == 0)) {
-			/* The record did not fit on the page. We erase the
-			end segment of the undo log page and write a log
-			record of it: this is to ensure that in the debug
-			version the replicate page constructed using the log
-			records stays identical to the original page */
-
 			if (!trx_undo_erase_page_end(undo_page)) {
 				/* The record did not fit on an empty
 				undo page. Discard the freshly allocated
@@ -2071,8 +2044,8 @@ trx_undo_report_row_operation(
 				first, because it may be holding lower-level
 				latches, such as SYNC_FSP and SYNC_FSP_PAGE. */
 
-				mtr_commit(&mtr);
-				mtr.start(trx);
+				mtr.commit();
+				mtr.start();
 				if (is_temp) {
 					mtr.set_log_mode(MTR_LOG_NO_REDO);
 				}
@@ -2092,7 +2065,7 @@ trx_undo_report_row_operation(
 			mtr_commit(&mtr);
 
 			undo->empty = FALSE;
-			undo->top_page_no = page_no;
+			undo->top_page_no = undo_block->page.id.page_no();
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
@@ -2114,35 +2087,31 @@ trx_undo_report_row_operation(
 				ut_ad(time.valid(limit));
 
 				if (!time.is_versioned()
-				    && index->table->versioned()
+				    && index->table->versioned_by_id()
 				    && (!rec /* INSERT */
 					|| !update /* DELETE */
-					|| update->affects_versioned()))
-				{
-					dict_col_t &col = index->table->cols[index->table->vers_start];
-					bool by_trx_id = col.mtype == DATA_INT;
-					time.set_versioned(limit, by_trx_id);
+					|| update->affects_versioned())) {
+					time.set_versioned(limit);
 				}
 			}
 
 			*roll_ptr = trx_undo_build_roll_ptr(
-				!rec, rseg->id, page_no, offset);
+				!rec, rseg->id, undo->top_page_no, offset);
 			return(DB_SUCCESS);
 		}
 
-		ut_ad(page_no == undo->last_page_no);
+		ut_ad(undo_block->page.id.page_no() == undo->last_page_no);
 
 		/* We have to extend the undo log by one page */
 
 		ut_ad(++loop_count < 2);
-		mtr.start(trx);
+		mtr.start();
 
 		if (is_temp) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		}
 
 		undo_block = trx_undo_add_page(trx, undo, &mtr);
-		page_no = undo->last_page_no;
 
 		DBUG_EXECUTE_IF("ib_err_ins_undo_page_add_failure",
 				undo_block = NULL;);
@@ -2191,9 +2160,11 @@ trx_undo_get_undo_rec_low(
 
 	trx_undo_decode_roll_ptr(roll_ptr, &is_insert, &rseg_id, &page_no,
 				 &offset);
+	ut_ad(page_no > FSP_FIRST_INODE_PAGE_NO);
+	ut_ad(offset >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
 	rseg = is_temp
-		? trx_sys->temp_rsegs[rseg_id]
-		: trx_sys->rseg_array[rseg_id];
+		? trx_sys.temp_rsegs[rseg_id]
+		: trx_sys.rseg_array[rseg_id];
 	ut_ad(is_temp == !rseg->is_persistent());
 
 	mtr_start(&mtr);
@@ -2320,6 +2291,8 @@ trx_undo_prev_version_build(
 
 	const bool is_temp = dict_table_is_temporary(index->table);
 	rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
+
+	ut_ad(!index->table->skip_alter_undo);
 
 	if (trx_undo_get_undo_rec(
 		    roll_ptr, is_temp, heap, rec_trx_id, index->table->name,

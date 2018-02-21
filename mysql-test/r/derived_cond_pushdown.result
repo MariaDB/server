@@ -14917,3 +14917,31 @@ EXPLAIN
 }
 DROP VIEW v2;
 DROP TABLE t1,t2;
+#
+# MDEV-15017: splittable table is constant table
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (pk INT, b INT, PRIMARY KEY (pk)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,2),(3,4);
+CREATE VIEW v2 AS SELECT pk, MIN(b) FROM t2 GROUP BY pk;
+SELECT * FROM t1 LEFT JOIN v2 ON (a = pk);
+a	pk	MIN(b)
+DROP VIEW v2;
+DROP TABLE t1,t2;
+#
+# MDEV-14994: splittable table with no rows
+#
+CREATE TABLE t1 (f INT PRIMARY KEY) ENGINE=MyISAM;
+CREATE VIEW v1 AS SELECT a.* FROM t1 AS a STRAIGHT_JOIN t1 AS b;
+CREATE VIEW v2 AS SELECT f FROM v1 GROUP BY f;
+SELECT * FROM v1 JOIN v2 ON v1.f = v2.f;
+f	f
+EXPLAIN EXTENDED
+SELECT * FROM v1 JOIN v2 ON v1.f = v2.f;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+3	LATERAL DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+Warnings:
+Note	1003	/* select#1 */ select NULL AS `f`,`v2`.`f` AS `f` from `test`.`t1` `a` straight_join `test`.`t1` `b` join `test`.`v2` where 0
+DROP VIEW v1,v2;
+DROP TABLE t1;

@@ -450,3 +450,11 @@ create temporary table s (i int);
 --error ER_UNKNOWN_SEQUENCES
 drop temporary sequence s;
 drop table s;
+
+--echo #
+--echo # MDEV-15115 Assertion failure in CREATE SEQUENCE...ROW_FORMAT=REDUNDANT
+--echo #
+CREATE SEQUENCE seq1 ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+DROP SEQUENCE seq1;
+CREATE TEMPORARY SEQUENCE seq1 ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+DROP TEMPORARY SEQUENCE seq1;

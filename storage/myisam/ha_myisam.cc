@@ -938,7 +938,7 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
     {
       uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
       set_if_bigger(new_vreclength, vf_end);
-      indexed_vcols|= (*vf)->flags & PART_KEY_FLAG;
+      indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
     }
     if (!indexed_vcols)
       return;

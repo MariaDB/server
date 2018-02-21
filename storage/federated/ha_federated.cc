@@ -1517,7 +1517,7 @@ static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table)
   */
   query.length(0);
 
-  init_alloc_root(&mem_root, 256, 0, MYF(0));
+  init_alloc_root(&mem_root, "federated_share", 256, 0, MYF(0));
 
   mysql_mutex_lock(&federated_mutex);
 

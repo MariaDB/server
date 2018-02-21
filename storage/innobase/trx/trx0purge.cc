@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,7 +33,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "mtr0log.h"
 #include "os0thread.h"
 #include "que0que.h"
-#include "read0read.h"
 #include "row0purge.h"
 #include "row0upd.h"
 #include "srv0mon.h"
@@ -45,6 +44,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0roll.h"
 #include "trx0rseg.h"
 #include "trx0trx.h"
+#include <mysql/service_wsrep.h>
 
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
 ulong		srv_max_purge_lag = 0;
@@ -165,21 +165,15 @@ TrxUndoRsegsIterator::set_next()
 
 /** Build a purge 'query' graph. The actual purge is performed by executing
 this query graph.
-@param[in,out]	sess	the purge session
 @return own: the query graph */
 static
 que_t*
-trx_purge_graph_build(sess_t* sess)
+purge_graph_build()
 {
 	ut_a(srv_n_purge_threads > 0);
-	/* A purge transaction is not a real transaction, we use a transaction
-	here only because the query threads code requires it. It is otherwise
-	quite unnecessary. We should get rid of it eventually. */
-	trx_t* trx = sess->trx;
 
-	ut_ad(trx->sess == sess);
-
-	trx->id = 0;
+	trx_t* trx = trx_allocate_for_background();
+	ut_ad(!trx->id);
 	trx->start_time = ut_time();
 	trx->state = TRX_STATE_ACTIVE;
 	trx->op_info = "purge trx";
@@ -199,9 +193,9 @@ trx_purge_graph_build(sess_t* sess)
 
 /** Construct the purge system. */
 purge_sys_t::purge_sys_t()
-	: sess(sess_open()), latch(), event(os_event_create(0)),
+	: latch(), event(os_event_create(0)),
 	  n_stop(0), running(false), state(PURGE_STATE_INIT),
-	  query(trx_purge_graph_build(sess)),
+	  query(purge_graph_build()),
 	  view(), n_submitted(0), n_completed(0),
 	  iter(), limit(),
 #ifdef UNIV_DEBUG
@@ -221,11 +215,12 @@ purge_sys_t::~purge_sys_t()
 {
 	ut_ad(this == purge_sys);
 
+	trx_t* trx = query->trx;
 	que_graph_free(query);
-	ut_a(sess->trx->id == 0);
-	sess->trx->state = TRX_STATE_NOT_STARTED;
-	sess_close(sess);
-	view.close();
+	ut_ad(!trx->id);
+	ut_ad(trx->state == TRX_STATE_ACTIVE);
+	trx->state = TRX_STATE_NOT_STARTED;
+	trx_free_for_background(trx);
 	rw_lock_free(&latch);
 	/* rw_lock_free() already called latch.~rw_lock_t(); tame the
 	debug assertions when the destructor will be called once more. */
@@ -245,6 +240,8 @@ Remove the undo log segment from the rseg slot if it is too big for reuse.
 void
 trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 {
+	DBUG_PRINT("trx", ("commit(" TRX_ID_FMT "," TRX_ID_FMT ")",
+			   trx->id, trx->no));
 	ut_ad(undo == trx->rsegs.m_redo.undo
 	      || undo == trx->rsegs.m_redo.old_insert);
 	trx_rseg_t*	rseg		= trx->rsegs.m_redo.rseg;
@@ -257,6 +254,12 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
 	ut_ad(mach_read_from_2(undo_header + TRX_UNDO_NEEDS_PURGE) <= 1);
 
+	if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG_FORMAT + rseg_header))) {
+		/* This database must have been upgraded from
+		before MariaDB 10.3.5. */
+		trx_rseg_format_upgrade(rseg_header, mtr);
+	}
+
 	if (undo->state != TRX_UNDO_CACHED) {
 		ulint		hist_size;
 #ifdef UNIV_DEBUG
@@ -264,11 +267,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 #endif /* UNIV_DEBUG */
 
 		/* The undo log segment will not be reused */
-
-		if (UNIV_UNLIKELY(undo->id >= TRX_RSEG_N_SLOTS)) {
-			ib::fatal() << "undo->id is " << undo->id;
-		}
-
+		ut_a(undo->id < TRX_RSEG_N_SLOTS);
 		trx_rsegf_set_nth_undo(rseg_header, undo->id, FIL_NULL, mtr);
 
 		MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_USED);
@@ -283,6 +282,11 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 			rseg_header + TRX_RSEG_HISTORY_SIZE,
 			hist_size + undo->size, MLOG_4BYTES, mtr);
 	}
+
+	/* This field now also serves as an identifier for the latest
+	binlog and WSREP XID information. */
+	mlog_write_ull(rseg_header + TRX_RSEG_MAX_TRX_ID,
+		       trx_sys.get_max_trx_id(), mtr);
 
 	/* Before any transaction-generating background threads or the
 	purge have been started, recv_recovery_rollback_active() can
@@ -300,19 +304,30 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	continue to execute user transactions. */
 	ut_ad(srv_undo_sources
 	      || ((srv_startup_is_before_trx_rollback_phase
-		   || trx_rollback_or_clean_is_active)
+		   || trx_rollback_is_active)
 		  && purge_sys->state == PURGE_STATE_INIT)
 	      || (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND
 		  && purge_sys->state == PURGE_STATE_DISABLED)
 	      || ((trx->undo_no == 0 || trx->in_mysql_trx_list
-		   || trx->persistent_stats)
+		   || trx->internal)
 		  && srv_fast_shutdown));
+
+#ifdef	WITH_WSREP
+	if (wsrep_is_wsrep_xid(trx->xid)) {
+		trx_rseg_update_wsrep_checkpoint(rseg_header, trx->xid, mtr);
+	}
+#endif
+
+	if (trx->mysql_log_file_name && *trx->mysql_log_file_name) {
+		/* Update the latest MySQL binlog name and offset info
+		in rollback segment header if MySQL binlogging is on
+		or the database server is a MySQL replication save. */
+		trx_rseg_update_binlog_offset(rseg_header, trx, mtr);
+	}
 
 	/* Add the log as the first in the history list */
 	flst_add_first(rseg_header + TRX_RSEG_HISTORY,
 		       undo_header + TRX_UNDO_HISTORY_NODE, mtr);
-
-	my_atomic_addlint(&trx_sys->rseg_history_len, 1);
 
 	mlog_write_ull(undo_header + TRX_UNDO_TRX_NO, trx->no, mtr);
 	/* This is needed for upgrading old undo log pages from
@@ -330,12 +345,14 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		rseg->needs_purge = true;
 	}
 
+	trx_sys.history_insert();
+
 	if (undo->state == TRX_UNDO_CACHED) {
 		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
 		MONITOR_INC(MONITOR_NUM_UNDO_SLOT_CACHED);
 	} else {
 		ut_ad(undo->state == TRX_UNDO_TO_PURGE);
-		trx_undo_mem_free(undo);
+		ut_free(undo);
 	}
 
 	undo = NULL;
@@ -354,7 +371,7 @@ trx_purge_remove_log_hdr(
 {
 	flst_remove(rseg_hdr + TRX_RSEG_HISTORY,
 		    log_hdr + TRX_UNDO_HISTORY_NODE, mtr);
-	my_atomic_addlint(&trx_sys->rseg_history_len, -1);
+	trx_sys.history_remove();
 }
 
 /** Free an undo log segment, and remove the header from the history list.
@@ -847,7 +864,7 @@ trx_purge_mark_undo_for_truncate(
 	/* Step-3: Iterate over all the rsegs of selected UNDO tablespace
 	and mark them temporarily unavailable for allocation.*/
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		if (trx_rseg_t* rseg = trx_sys->rseg_array[i]) {
+		if (trx_rseg_t* rseg = trx_sys.rseg_array[i]) {
 			ut_ad(rseg->is_persistent());
 			if (rseg->space == undo_trunc->get_marked_space_id()) {
 
@@ -1063,23 +1080,21 @@ trx_purge_initiate_truncate(
 			DBUG_SUICIDE(););
 }
 
-/********************************************************************//**
+/**
 Removes unnecessary history data from rollback segments. NOTE that when this
-function is called, the caller must not have any latches on undo log pages! */
-static
-void
-trx_purge_truncate_history(
-/*========================*/
-	purge_iter_t*		limit,		/*!< in: truncate limit */
-	const ReadView*		view)		/*!< in: purge view */
+function is called, the caller must not have any latches on undo log pages!
+
+@param[in] limit  truncate limit
+*/
+static void trx_purge_truncate_history(purge_iter_t *limit)
 {
 	ut_ad(trx_purge_check_limit());
 
 	/* We play safe and set the truncate limit at most to the purge view
 	low_limit number, though this is not necessary */
 
-	if (limit->trx_no >= view->low_limit_no()) {
-		limit->trx_no = view->low_limit_no();
+	if (limit->trx_no >= purge_sys->view.low_limit_no()) {
+		limit->trx_no = purge_sys->view.low_limit_no();
 		limit->undo_no = 0;
 		limit->undo_rseg_space = ULINT_UNDEFINED;
 	}
@@ -1087,7 +1102,7 @@ trx_purge_truncate_history(
 	ut_ad(limit->trx_no <= purge_sys->view.low_limit_no());
 
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		trx_rseg_t*	rseg = trx_sys->rseg_array[i];
+		trx_rseg_t*	rseg = trx_sys.rseg_array[i];
 
 		if (rseg != NULL) {
 			ut_a(rseg->id == i);
@@ -1524,12 +1539,12 @@ trx_purge_dml_delay(void)
 
 	/* If purge lag is set (ie. > 0) then calculate the new DML delay.
 	Note: we do a dirty read of the trx_sys_t data structure here,
-	without holding trx_sys->mutex. */
+	without holding trx_sys.mutex. */
 
 	if (srv_max_purge_lag > 0) {
 		float	ratio;
 
-		ratio = float(trx_sys->rseg_history_len) / srv_max_purge_lag;
+		ratio = float(trx_sys.history_size()) / srv_max_purge_lag;
 
 		if (ratio > 1.0) {
 			/* If the history list length exceeds the
@@ -1600,7 +1615,7 @@ trx_purge(
 	ut_a(purge_sys->n_submitted == purge_sys->n_completed);
 
 	rw_lock_x_lock(&purge_sys->latch);
-	trx_sys->mvcc->clone_oldest_view(&purge_sys->view);
+	trx_sys.clone_oldest_view();
 	rw_lock_x_unlock(&purge_sys->latch);
 
 #ifdef UNIV_DEBUG
@@ -1668,8 +1683,7 @@ run_synchronously:
 		trx_purge_truncate_history(
 			purge_sys->limit.trx_no
 			? &purge_sys->limit
-			: &purge_sys->iter,
-			&purge_sys->view);
+			: &purge_sys->iter);
 	}
 
 	MONITOR_INC_VALUE(MONITOR_PURGE_INVOKED, 1);

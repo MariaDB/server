@@ -50,11 +50,12 @@ extern struct my_print_error_service_st {
 #define my_printv_error(A,B,C,D) my_print_error_service->my_printv_error_func(A,B,C,D)
 
 #else
-
+#ifndef MY_ERROR_DEFINED
 extern void my_error(unsigned int nr, unsigned long MyFlags, ...);
 extern void my_printf_error(unsigned int my_err, const char *format, unsigned long MyFlags, ...);
 extern void my_printv_error(unsigned int error, const char *format, unsigned long MyFlags,va_list ap);
-#endif
+#endif /* MY_ERROR_DEFINED */
+#endif /* MYSQL_DYNAMIC_PLUGIN */
 
 #ifdef __cplusplus
 }

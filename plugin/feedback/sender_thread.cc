@@ -40,7 +40,7 @@ ulong interval= 60*60*24*7;       ///< in seconds (one week)
 */
 static int table_to_string(TABLE *table, String *result)
 {
-  bool res;
+  int res;
   char buff1[MAX_FIELD_WIDTH], buff2[MAX_FIELD_WIDTH];
   String str1(buff1, sizeof(buff1), system_charset_info);
   String str2(buff2, sizeof(buff2), system_charset_info);
@@ -64,7 +64,7 @@ static int table_to_string(TABLE *table, String *result)
     }
   }
 
-  res = res || result->append('\n');
+  res = res || (int)result->append('\n');
 
   /*
     Note, "|=" and not "||" - because we want to call ha_rnd_end()
@@ -105,8 +105,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
   thd->set_time();
   thd->init_for_queries();
   thd->real_id= pthread_self();
-  thd->db= NULL;
-  thd->db_length= 0;
+  thd->db= null_clex_str;
   thd->security_ctx->host_or_ip= "";
   thd->security_ctx->db_access= DB_ACLS;
   thd->security_ctx->master_access= ~NO_ACCESS;
@@ -114,11 +113,9 @@ static int prepare_for_fill(TABLE_LIST *tables)
   lex_start(thd);
   mysql_init_select(thd->lex);
 
-  tables->init_one_table(INFORMATION_SCHEMA_NAME.str,
-                         INFORMATION_SCHEMA_NAME.length,
-                         i_s_feedback->table_name,
-                         strlen(i_s_feedback->table_name),
-                         0, TL_READ);
+  LEX_CSTRING tbl_name= {i_s_feedback->table_name, strlen(i_s_feedback->table_name) };
+
+  tables->init_one_table(&INFORMATION_SCHEMA_NAME, &tbl_name, 0, TL_READ);
   tables->schema_table= i_s_feedback;
   tables->table= create_schema_table(thd, tables);
   if (!tables->table)

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation. All Rights reserved.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1017,17 +1017,14 @@ fts_table_fetch_doc_ids(
 		"CLOSE c;");
 
 	error = fts_eval_sql(trx, graph);
+	fts_sql_commit(trx);
 
 	mutex_enter(&dict_sys->mutex);
 	que_graph_free(graph);
 	mutex_exit(&dict_sys->mutex);
 
 	if (error == DB_SUCCESS) {
-		fts_sql_commit(trx);
-
 		ib_vector_sort(doc_ids->doc_ids, fts_update_doc_id_cmp);
-	} else {
-		fts_sql_rollback(trx);
 	}
 
 	if (alloc_bk_trx) {
@@ -1619,6 +1616,7 @@ fts_optimize_create(
 	optim->table = table;
 
 	optim->trx = trx_allocate_for_background();
+	trx_start_internal(optim->trx);
 
 	optim->fts_common_table.parent = table->name.m_name;
 	optim->fts_common_table.table_id = table->id;
@@ -1741,6 +1739,7 @@ fts_optimize_free(
 {
 	mem_heap_t*	heap = static_cast<mem_heap_t*>(optim->self_heap->arg);
 
+	trx_commit_for_mysql(optim->trx);
 	trx_free_for_background(optim->trx);
 
 	fts_doc_ids_free(optim->to_delete);
@@ -2439,6 +2438,10 @@ fts_optimize_table(
 /*===============*/
 	dict_table_t*	table)	/*!< in: table to optimiza */
 {
+	if (srv_read_only_mode) {
+		return DB_READ_ONLY;
+	}
+
 	dberr_t		error = DB_SUCCESS;
 	fts_optimize_t*	optim = NULL;
 	fts_t*		fts = table->fts;

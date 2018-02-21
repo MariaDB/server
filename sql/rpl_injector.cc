@@ -185,7 +185,8 @@ int injector::record_incident(THD *thd, Incident incident)
   return mysql_bin_log.rotate_and_purge(true);
 }
 
-int injector::record_incident(THD *thd, Incident incident, LEX_STRING const message)
+int injector::record_incident(THD *thd, Incident incident,
+                              const LEX_CSTRING *message)
 {
   Incident_log_event ev(thd, incident, message);
   if (int error= mysql_bin_log.write(&ev))

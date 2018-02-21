@@ -722,13 +722,8 @@ row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 				byte*	ptr = rec_get_nth_field(
 					rec, offsets, trx_id_pos, &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
-				memset(ptr, 0, DATA_TRX_ID_LEN
-				       + DATA_ROLL_PTR_LEN);
-				ptr[DATA_TRX_ID_LEN] = 1U
-					<< (ROLL_PTR_INSERT_FLAG_POS - CHAR_BIT
-					    * (DATA_ROLL_PTR_LEN - 1));
-				mlog_log_string(ptr, DATA_TRX_ID_LEN
-						+ DATA_ROLL_PTR_LEN, mtr);
+				mlog_write_string(ptr, reset_trx_id,
+						  sizeof reset_trx_id, mtr);
 			}
 		}
 	}
@@ -752,6 +747,7 @@ row_purge_upd_exist_or_extern_func(
 	mem_heap_t*	heap;
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S));
+	ut_ad(!node->table->skip_alter_undo);
 
 	if (node->rec_type == TRX_UNDO_UPD_DEL_REC
 	    || (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
@@ -821,7 +817,7 @@ skip_secondaries:
 						 &is_insert, &rseg_id,
 						 &page_no, &offset);
 
-			rseg = trx_sys->rseg_array[rseg_id];
+			rseg = trx_sys.rseg_array[rseg_id];
 
 			ut_a(rseg != NULL);
 			ut_ad(rseg->id == rseg_id);
@@ -1035,6 +1031,7 @@ row_purge_record_func(
 	bool		purged		= true;
 
 	ut_ad(!node->found_clust);
+	ut_ad(!node->table->skip_alter_undo);
 
 	clust_index = dict_table_get_first_index(node->table);
 

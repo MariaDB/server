@@ -99,8 +99,7 @@ Active_tranx::~Active_tranx()
   m_num_entries      = 0;
 }
 
-unsigned int Active_tranx::calc_hash(const unsigned char *key,
-                                     unsigned int length)
+unsigned int Active_tranx::calc_hash(const unsigned char *key, size_t length)
 {
   unsigned int nr = 1, nr2 = 4;
 
@@ -755,10 +754,10 @@ int Repl_semi_sync_master::dump_start(THD* thd,
   add_slave();
   report_reply_binlog(thd->variables.server_id,
                       log_file + dirname_length(log_file), log_pos);
-  sql_print_information("Start semi-sync binlog_dump to slave (server_id: %d), "
-                        "pos(%s, %lu",
-                        thd->variables.server_id, log_file,
-                        (unsigned long)log_pos);
+  sql_print_information("Start semi-sync binlog_dump to slave "
+                        "(server_id: %ld), pos(%s, %lu)",
+                        (long) thd->variables.server_id, log_file,
+                        (ulong) log_pos);
 
   return 0;
 }
@@ -768,7 +767,8 @@ void Repl_semi_sync_master::dump_end(THD* thd)
   if (!thd->semi_sync_slave)
     return;
 
-  sql_print_information("Stop semi-sync binlog_dump to slave (server_id: %d)", thd->variables.server_id);
+  sql_print_information("Stop semi-sync binlog_dump to slave (server_id: %ld)",
+                        (long) thd->variables.server_id);
 
   remove_slave();
   ack_receiver.remove_slave(thd);

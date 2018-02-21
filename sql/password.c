@@ -296,7 +296,7 @@ void make_password_from_salt_323(char *to, const ulong *salt)
     buf+len*2
 */
 
-char *octet2hex(char *to, const char *str, uint len)
+char *octet2hex(char *to, const char *str, size_t len)
 {
   const char *str_end= str + len; 
   for (; str != str_end; ++str)

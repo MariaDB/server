@@ -3079,7 +3079,9 @@ recv_init_crash_recovery_spaces()
 			<< "', but there were no modifications either.";
 	}
 
-	buf_dblwr_process();
+	if (srv_operation == SRV_OPERATION_NORMAL) {
+		buf_dblwr_process();
+	}
 
 	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 		/* Spawn the background thread to flush dirty pages
@@ -3426,8 +3428,8 @@ recv_recovery_rollback_active(void)
 		/* Rollback the uncommitted transactions which have no user
 		session */
 
-		trx_rollback_or_clean_is_active = true;
-		os_thread_create(trx_rollback_or_clean_all_recovered, 0, 0);
+		trx_rollback_is_active = true;
+		os_thread_create(trx_rollback_all_recovered, 0, 0);
 	}
 }
 

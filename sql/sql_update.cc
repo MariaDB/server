@@ -132,25 +132,50 @@ bool compare_record(const TABLE *table)
     FALSE Items are OK
 */
 
-static bool check_fields(THD *thd, List<Item> &items)
+static bool check_fields(THD *thd, List<Item> &items, bool update_view)
 {
-  List_iterator<Item> it(items);
   Item *item;
-  Item_field *field;
-
-  while ((item= it++))
+  if (update_view)
   {
-    if (!(field= item->field_for_view_update()))
+    List_iterator<Item> it(items);
+    Item_field *field;
+    while ((item= it++))
     {
-      /* item has name, because it comes from VIEW SELECT list */
-      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
-      return TRUE;
+      if (!(field= item->field_for_view_update()))
+      {
+        /* item has name, because it comes from VIEW SELECT list */
+        my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
+        return TRUE;
+      }
+      /*
+        we make temporary copy of Item_field, to avoid influence of changing
+        result_field on Item_ref which refer on this field
+      */
+      thd->change_item_tree(it.ref(),
+                            new (thd->mem_root) Item_field(thd, field));
     }
-    /*
-      we make temporary copy of Item_field, to avoid influence of changing
-      result_field on Item_ref which refer on this field
-    */
-    thd->change_item_tree(it.ref(), new (thd->mem_root) Item_field(thd, field));
+  }
+
+  if (thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
+  {
+    // Make sure that a column is updated only once
+    List_iterator_fast<Item> it(items);
+    while ((item= it++))
+    {
+      item->field_for_view_update()->field->clear_has_explicit_value();
+    }
+    it.rewind();
+    while ((item= it++))
+    {
+      Field *f= item->field_for_view_update()->field;
+      if (f->has_explicit_value())
+      {
+        my_error(ER_UPDATED_COLUMN_ONLY_ONCE, MYF(0),
+                 *(f->table_name), f->field_name.str);
+        return TRUE;
+      }
+      f->set_has_explicit_value();
+    }
   }
   return FALSE;
 }
@@ -341,7 +366,7 @@ int mysql_update(THD *thd,
 
   if (!table_list->single_table_updatable())
   {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
     DBUG_RETURN(1);
   }
   query_plan.updating_a_view= MY_TEST(table_list->view);
@@ -373,14 +398,14 @@ int mysql_update(THD *thd,
   if (setup_fields_with_no_wrap(thd, Ref_ptr_array(),
                                 fields, MARK_COLUMNS_WRITE, 0, 0))
     DBUG_RETURN(1);                     /* purecov: inspected */
-  if (table_list->view && check_fields(thd, fields))
+  if (check_fields(thd, fields, table_list->view))
   {
     DBUG_RETURN(1);
   }
   bool has_vers_fields= check_has_vers_fields(table, fields);
   if (check_key_in_view(thd, table_list))
   {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
     DBUG_RETURN(1);
   }
 
@@ -1365,8 +1390,8 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
           {
             // Partitioned key is updated
             my_error(ER_MULTI_UPDATE_KEY_CONFLICT, MYF(0),
-                     tl->top_table()->alias,
-                     tl2->top_table()->alias);
+                     tl->top_table()->alias.str,
+                     tl2->top_table()->alias.str);
             return true;
           }
 
@@ -1384,8 +1409,8 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
               {
                 // Clustered primary key is updated
                 my_error(ER_MULTI_UPDATE_KEY_CONFLICT, MYF(0),
-                         tl->top_table()->alias,
-                         tl2->top_table()->alias);
+                         tl->top_table()->alias.str,
+                         tl2->top_table()->alias.str);
                 return true;
               }
             }
@@ -1534,6 +1559,7 @@ int mysql_multi_update_prepare(THD *thd)
   //We need to merge for insert prior to prepare.
   if (mysql_handle_derived(lex, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE);
+
   if (mysql_handle_derived(lex, DT_PREPARE))
     DBUG_RETURN(TRUE);
 
@@ -1560,7 +1586,7 @@ int mysql_multi_update_prepare(THD *thd)
     }
   }
 
-  if (update_view && check_fields(thd, *fields))
+  if (check_fields(thd, *fields, update_view))
   {
     DBUG_RETURN(TRUE);
   }
@@ -1587,12 +1613,12 @@ int mysql_multi_update_prepare(THD *thd)
       if (!tl->single_table_updatable() || check_key_in_view(thd, tl))
       {
         my_error(ER_NON_UPDATABLE_TABLE, MYF(0),
-                 tl->top_table()->alias, "UPDATE");
+                 tl->top_table()->alias.str, "UPDATE");
         DBUG_RETURN(TRUE);
       }
 
       DBUG_PRINT("info",("setting table `%s` for update",
-                         tl->top_table()->alias));
+                         tl->top_table()->alias.str));
       /*
         If table will be updated we should not downgrade lock for it and
         leave it as is.
@@ -1600,7 +1626,7 @@ int mysql_multi_update_prepare(THD *thd)
     }
     else
     {
-      DBUG_PRINT("info",("setting table `%s` for read-only", tl->alias));
+      DBUG_PRINT("info",("setting table `%s` for read-only", tl->alias.str));
       /*
         If we are using the binary log, we need TL_READ_NO_INSERT to get
         correct order of statements. Otherwise, we use a TL_READ lock to
@@ -1681,7 +1707,7 @@ int mysql_multi_update_prepare(THD *thd)
         (SELECT_ACL & ~tlist->grant.privilege);
       table->grant.want_privilege= (SELECT_ACL & ~table->grant.privilege);
     }
-    DBUG_PRINT("info", ("table: %s  want_privilege: %u", tl->alias,
+    DBUG_PRINT("info", ("table: %s  want_privilege: %u", tl->alias.str,
                         (uint) table->grant.want_privilege));
   }
   /*
@@ -2176,7 +2202,7 @@ loop_end:
     thd->variables.big_tables= FALSE;
     tmp_tables[cnt]=create_tmp_table(thd, tmp_param, temp_fields,
                                      (ORDER*) &group, 0, 0,
-                                     TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR, "");
+                                     TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR, &empty_clex_str);
     thd->variables.big_tables= save_big_tables;
     if (!tmp_tables[cnt])
       DBUG_RETURN(1);

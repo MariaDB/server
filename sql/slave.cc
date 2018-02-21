@@ -310,9 +310,9 @@ build_gtid_pos_create_query(THD *thd, String *query,
 {
   bool err= false;
   err|= query->append(gtid_pos_table_definition1);
-  err|= append_identifier(thd, query, table_name->str, table_name->length);
+  err|= append_identifier(thd, query, table_name);
   err|= query->append(gtid_pos_table_definition2);
-  err|= append_identifier(thd, query, engine_name->str, engine_name->length);
+  err|= append_identifier(thd, query, engine_name);
   return err;
 }
 
@@ -331,7 +331,7 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
     return 1;
   }
 
-  thd->set_db("mysql", 5);
+  thd->set_db(&MYSQL_SCHEMA_NAME);
   thd->clear_error();
   ulonglong thd_saved_option= thd->variables.option_bits;
   /* This query shuold not be binlogged. */
@@ -1590,7 +1590,7 @@ const char *print_slave_db_safe(const char* db)
 int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
                                  const char *default_val)
 {
-  uint length;
+  size_t length;
   DBUG_ENTER("init_strvar_from_file");
 
   if ((length=my_b_gets(f,var, max_size)))
@@ -2200,7 +2200,7 @@ when it try to get the value of TIME_ZONE global variable from master.";
                       if (++dbug_count < 3)
                         goto heartbeat_network_error;
                     });
-    if (mysql_real_query(mysql, query, strlen(query)))
+    if (mysql_real_query(mysql, query, (ulong)strlen(query)))
     {
       if (check_io_slave_killed(mi, NULL))
         goto slave_killed_err;
@@ -2248,7 +2248,7 @@ when it try to get the value of TIME_ZONE global variable from master.";
       Once the first FD will be received its alg descriptor will replace
       the being queried one.
     */
-    rc= mysql_real_query(mysql, query, strlen(query));
+    rc= mysql_real_query(mysql, query,(ulong)strlen(query));
     if (rc != 0)
     {
       if (check_io_slave_killed(mi, NULL))
@@ -2826,7 +2826,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
                              bool *suppress_warnings)
 {
   uchar buf[1024], *pos= buf;
-  uint report_host_len=0, report_user_len=0, report_password_len=0;
+  size_t report_host_len=0, report_user_len=0, report_password_len=0;
   DBUG_ENTER("register_slave_on_master");
 
   *suppress_warnings= FALSE;
@@ -2834,7 +2834,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
     report_host_len= strlen(report_host);
   if (report_host_len > HOSTNAME_LENGTH)
   {
-    sql_print_warning("The length of report_host is %d. "
+    sql_print_warning("The length of report_host is %zu. "
                       "It is larger than the max length(%d), so this "
                       "slave cannot be registered to the master.",
                       report_host_len, HOSTNAME_LENGTH);
@@ -2845,7 +2845,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
     report_user_len= strlen(report_user);
   if (report_user_len > USERNAME_LENGTH)
   {
-    sql_print_warning("The length of report_user is %d. "
+    sql_print_warning("The length of report_user is %zu. "
                       "It is larger than the max length(%d), so this "
                       "slave cannot be registered to the master.",
                       report_user_len, USERNAME_LENGTH);
@@ -2856,7 +2856,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
     report_password_len= strlen(report_password);
   if (report_password_len > MAX_PASSWORD_LENGTH)
   {
-    sql_print_warning("The length of report_password is %d. "
+    sql_print_warning("The length of report_password is %zu. "
                       "It is larger than the max length(%d), so this "
                       "slave cannot be registered to the master.",
                       report_password_len, MAX_PASSWORD_LENGTH);
@@ -2877,7 +2877,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
   /* The master will fill in master_id */
   int4store(pos, 0);                    pos+= 4;
 
-  if (simple_command(mysql, COM_REGISTER_SLAVE, buf, (size_t) (pos- buf), 0))
+  if (simple_command(mysql, COM_REGISTER_SLAVE, buf, (ulong) (pos- buf), 0))
   {
     if (mysql_errno(mysql) == ER_NET_READ_INTERRUPTED)
     {
@@ -3144,7 +3144,7 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                           mem_root);
     field_list->push_back(new (mem_root)
                           Item_empty_string(thd, "Gtid_Slave_Pos",
-                                            gtid_pos_length),
+                                            (uint)gtid_pos_length),
                           mem_root);
   }
   DBUG_VOID_RETURN;
@@ -4990,7 +4990,7 @@ err:
   }
   repl_semisync_slave.slave_stop(mi);
   thd->reset_query();
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&null_clex_str);
   if (mysql)
   {
     /*
@@ -5582,7 +5582,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   */
   thd->catalog= 0;
   thd->reset_query();
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&null_clex_str);
   if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
   {
     ulong domain_count;

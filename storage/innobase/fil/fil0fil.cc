@@ -624,6 +624,7 @@ retry:
 				<< " is only " << size_bytes
 				<< " bytes, should be at least " << min_size;
 			os_file_close(node->handle);
+			node->handle = OS_FILE_CLOSED;
 			return(false);
 		}
 
@@ -661,10 +662,12 @@ retry:
 
 		ut_free(buf2);
 		os_file_close(node->handle);
+		node->handle = OS_FILE_CLOSED;
 
 		if (!fsp_flags_is_valid(flags, space->id)) {
 			ulint cflags = fsp_flags_convert_from_101(flags);
-			if (cflags == ULINT_UNDEFINED) {
+			if (cflags == ULINT_UNDEFINED
+			    || (cflags ^ space->flags) & ~FSP_FLAGS_MEM_MASK) {
 				ib::error()
 					<< "Expected tablespace flags "
 					<< ib::hex(space->flags)
@@ -2109,7 +2112,7 @@ fil_write_flushed_lsn(
 {
 	byte*	buf1;
 	byte*	buf;
-	dberr_t	err;
+	dberr_t	err = DB_TABLESPACE_NOT_FOUND;
 
 	buf1 = static_cast<byte*>(ut_malloc_nokey(2 * UNIV_PAGE_SIZE));
 	buf = static_cast<byte*>(ut_align(buf1, UNIV_PAGE_SIZE));
@@ -4224,7 +4227,8 @@ skip_validate:
 			err = DB_ERROR;
 		}
 
-		if (purpose != FIL_TYPE_IMPORT && !srv_read_only_mode) {
+		if (err == DB_SUCCESS && validate
+		    && purpose != FIL_TYPE_IMPORT && !srv_read_only_mode) {
 			df_remote.close();
 			df_dict.close();
 			df_default.close();
@@ -4638,7 +4642,9 @@ fsp_flags_try_adjust(ulint space_id, ulint flags)
 {
 	ut_ad(!srv_read_only_mode);
 	ut_ad(fsp_flags_is_valid(flags, space_id));
-
+	if (!fil_space_get_size(space_id)) {
+		return;
+	}
 	mtr_t	mtr;
 	mtr.start();
 	if (buf_block_t* b = buf_page_get(
@@ -5977,17 +5983,6 @@ fil_tablespace_iterate(
 	file = os_file_create_simple_no_error_handling(
 		innodb_data_file_key, filepath,
 		OS_FILE_OPEN, OS_FILE_READ_WRITE, srv_read_only_mode, &success);
-
-	DBUG_EXECUTE_IF("fil_tablespace_iterate_failure",
-	{
-		static bool once;
-
-		if (!once || ut_rnd_interval(0, 10) == 5) {
-			once = true;
-			success = false;
-			os_file_close(file);
-		}
-	});
 
 	if (!success) {
 		/* The following call prints an error message */

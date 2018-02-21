@@ -15,6 +15,10 @@
 
 SET(WSREP_SOURCES wsrep_gtid.c wsrep_uuid.c wsrep_loader.c wsrep_dummy.c)
 
+IF(NOT WITH_INNOBASE_STORAGE_ENGINE)
+  MESSAGE(WARNING "WSRep is enabled, but innodb is not. This configuration is not supported")
+ENDIF()
+
 ADD_CONVENIENCE_LIBRARY(wsrep ${WSREP_SOURCES})
 DTRACE_INSTRUMENT(wsrep)
 

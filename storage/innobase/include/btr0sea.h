@@ -285,7 +285,7 @@ struct btr_search_t{
 	ulint	n_bytes;	/*!< recommended prefix: number of bytes in
 				an incomplete field
 				@see BTR_PAGE_MAX_REC_SIZE */
-	ibool	left_side;	/*!< TRUE or FALSE, depending on whether
+	bool	left_side;	/*!< true or false, depending on whether
 				the leftmost record of several records with
 				the same prefix should be indexed in the
 				hash index */

@@ -59,6 +59,10 @@ public:
     DBUG_ASSERT(0); // impossible
     return mark_unsupported_function("proc", arg, VCOL_IMPOSSIBLE);
   }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+  }
   Item* get_copy(THD *thd) { return 0; }
 };
 

@@ -1062,7 +1062,7 @@ TABLE_SHARE *mrn_create_tmp_table_share(TABLE_LIST *table_list, const char *path
   key_length = create_table_def_key(thd, key, table_list, FALSE);
 #endif
 #if MYSQL_VERSION_ID >= 100002 && defined(MRN_MARIADB_P)
-  share = alloc_table_share(table_list->db, table_list->table_name, key,
+  share = alloc_table_share(table_list->db.str, table_list->table_name.str, key,
                             key_length);
 #else
   share = alloc_table_share(table_list, key, key_length);

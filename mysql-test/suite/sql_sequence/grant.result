@@ -1,0 +1,60 @@
+SET @@SQL_MODE = REPLACE(@@SQL_MODE, 'NO_AUTO_CREATE_USER', '');
+create database mysqltest_1;
+use mysqltest_1;
+grant all on mysqltest_1.* to 'normal'@'%';
+grant select on mysqltest_1.* to 'read_only'@'%';
+grant select,insert on mysqltest_1.* to 'read_write'@'%';
+grant select,insert,alter on mysqltest_1.* to 'alter'@'%';
+grant alter on mysqltest_1.* to only_alter@'%';
+connect normal,localhost,normal,,mysqltest_1;
+connect read_only,localhost,read_only,,mysqltest_1;
+connect read_write,localhost,read_write,,mysqltest_1;
+connect alter,localhost,alter,,mysqltest_1;
+connect only_alter, localhost, only_alter,,mysqltest_1;
+connection normal;
+create sequence s1;
+select next value for s1;
+next value for s1
+1
+alter sequence s1 restart= 11;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+11	1	9223372036854775806	1	1	1000	0	0
+connection read_only;
+select next value for s1;
+ERROR 42000: INSERT command denied to user 'read_only'@'localhost' for table 's1'
+alter sequence s1 restart= 11;
+ERROR 42000: ALTER command denied to user 'read_only'@'localhost' for table 's1'
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+11	1	9223372036854775806	1	1	1000	0	0
+connection read_write;
+select next value for s1;
+next value for s1
+11
+alter sequence s1 restart= 11;
+ERROR 42000: ALTER command denied to user 'read_write'@'localhost' for table 's1'
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1011	1	9223372036854775806	1	1	1000	0	0
+connection alter;
+select next value for s1;
+next value for s1
+12
+alter sequence s1 restart= 11;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+11	1	9223372036854775806	1	1	1000	0	0
+connection only_alter;
+select next value for s1;
+ERROR 42000: INSERT command denied to user 'only_alter'@'localhost' for table 's1'
+alter sequence s1 restart= 11;
+select * from s1;
+ERROR 42000: SELECT command denied to user 'only_alter'@'localhost' for table 's1'
+connection default;
+drop database mysqltest_1;
+drop user 'normal'@'%';
+drop user 'read_only'@'%';
+drop user 'read_write'@'%';
+drop user 'alter'@'%';
+drop user 'only_alter'@'%';

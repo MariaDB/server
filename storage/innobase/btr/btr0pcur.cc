@@ -132,8 +132,7 @@ btr_pcur_store_position(
 		we do not store the modify_clock, but always do a search
 		if we restore the cursor position */
 
-		ut_a(btr_page_get_next(page, mtr) == FIL_NULL);
-		ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
+		ut_a(!page_has_siblings(page));
 		ut_ad(page_is_leaf(page));
 		ut_ad(page_get_page_no(page) == index->page);
 

@@ -127,7 +127,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
     share= &share_buff;
     bzero((uchar*) &share_buff,sizeof(share_buff));
     share_buff.key_cache= multi_key_cache_search((uchar*) name_buff,
-                                                 strlen(name_buff),
+                                                 (uint)strlen(name_buff),
                                                  dflt_key_cache);
 
     DBUG_EXECUTE_IF("myisam_pretend_crashed_table_on_open",
@@ -342,7 +342,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
 	   (char*) key_del, (sizeof(my_off_t) *
 			     share->state.header.max_block_size_index));
     strmov(share->unique_file_name, name_buff);
-    share->unique_name_length= strlen(name_buff);
+    share->unique_name_length= (uint)strlen(name_buff);
     strmov(share->index_file_name,  index_name);
     strmov(share->data_file_name,   data_name);
 
@@ -687,7 +687,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
   if (myisam_log_file >= 0)
   {
     intern_filename(name_buff,share->index_file_name);
-    _myisam_log(MI_LOG_OPEN, m_info, (uchar*) name_buff, strlen(name_buff));
+    _myisam_log(MI_LOG_OPEN, m_info, (uchar*) name_buff, (uint)strlen(name_buff));
   }
   DBUG_RETURN(m_info);
 

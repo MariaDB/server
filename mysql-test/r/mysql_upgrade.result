@@ -571,3 +571,22 @@ t1	CREATE TABLE `t1` (
 DROP TABLE test.t1;
 SET GLOBAL enforce_storage_engine=NULL;
 End of 10.1 tests
+Start of 10.3 tests
+#
+# Ensure that mysql_upgrade correctly sets truncate_versioning_priv
+# on upgrade from 10.2
+#
+flush privileges;
+CREATE USER 'user3'@'%';
+GRANT USAGE ON *.* TO 'user3'@'%';
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
+alter table mysql.user drop column Delete_history_priv;
+alter table mysql.db drop column Delete_history_priv;
+Run mysql_upgrade with all privileges on a user
+flush privileges;
+SHOW GRANTS FOR 'user3'@'%';
+Grants for user3@%
+GRANT USAGE ON *.* TO 'user3'@'%'
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%'
+DROP USER 'user3'@'%';
+update mysql.db set Delete_history_priv='Y' where db like 'test%';

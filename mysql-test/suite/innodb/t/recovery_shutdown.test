@@ -44,6 +44,8 @@ INSERT INTO t1(a) SELECT NULL FROM t1;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 CREATE TABLE u(a SERIAL) ENGINE=INNODB;
 
+FLUSH TABLES;
+
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 --let $shutdown_timeout=60

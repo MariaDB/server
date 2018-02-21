@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -184,89 +184,24 @@ trx_undo_page_get_s_latched(const page_id_t& page_id, mtr_t* mtr)
 	return(buf_block_get_frame(block));
 }
 
-/******************************************************************//**
-Returns the start offset of the undo log records of the specified undo
-log on the page.
-@return start offset */
-UNIV_INLINE
-ulint
-trx_undo_page_get_start(
-/*====================*/
-	page_t*	undo_page,/*!< in: undo log page */
-	ulint	page_no,/*!< in: undo log header page number */
-	ulint	offset)	/*!< in: undo log header offset on page */
-{
-	ulint	start;
-
-	if (page_no == page_get_page_no(undo_page)) {
-
-		start = mach_read_from_2(offset + undo_page
-					 + TRX_UNDO_LOG_START);
-	} else {
-		start = TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE;
-	}
-
-	return(start);
-}
-
-/******************************************************************//**
-Returns the end offset of the undo log records of the specified undo
-log on the page.
+/** Determine the end offset of undo log records of an undo log page.
+@param[in]	undo_page	undo log page
+@param[in]	page_no		undo log header page number
+@param[in]	offset		undo log header offset
 @return end offset */
-UNIV_INLINE
-ulint
-trx_undo_page_get_end(
-/*==================*/
-	page_t*	undo_page,/*!< in: undo log page */
-	ulint	page_no,/*!< in: undo log header page number */
-	ulint	offset)	/*!< in: undo log header offset on page */
+inline
+uint16_t
+trx_undo_page_get_end(const page_t* undo_page, ulint page_no, ulint offset)
 {
-	trx_ulogf_t*	log_hdr;
-	ulint		end;
-
 	if (page_no == page_get_page_no(undo_page)) {
-
-		log_hdr = undo_page + offset;
-
-		end = mach_read_from_2(log_hdr + TRX_UNDO_NEXT_LOG);
-
-		if (end == 0) {
-			end = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
-					       + TRX_UNDO_PAGE_FREE);
+		if (uint16_t end = mach_read_from_2(TRX_UNDO_NEXT_LOG
+						    + offset + undo_page)) {
+			return end;
 		}
-	} else {
-		end = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
-				       + TRX_UNDO_PAGE_FREE);
 	}
 
-	return(end);
-}
-
-/******************************************************************//**
-Returns the previous undo record on the page in the specified log, or
-NULL if none exists.
-@return pointer to record, NULL if none */
-UNIV_INLINE
-trx_undo_rec_t*
-trx_undo_page_get_prev_rec(
-/*=======================*/
-	trx_undo_rec_t*	rec,	/*!< in: undo log record */
-	ulint		page_no,/*!< in: undo log header page number */
-	ulint		offset)	/*!< in: undo log header offset on page */
-{
-	page_t*	undo_page;
-	ulint	start;
-
-	undo_page = (page_t*) ut_align_down(rec, UNIV_PAGE_SIZE);
-
-	start = trx_undo_page_get_start(undo_page, page_no, offset);
-
-	if (start + undo_page == rec) {
-
-		return(NULL);
-	}
-
-	return(undo_page + mach_read_from_2(rec - 2));
+	return mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+				+ undo_page);
 }
 
 /******************************************************************//**
@@ -297,56 +232,4 @@ trx_undo_page_get_next_rec(
 	}
 
 	return(undo_page + next);
-}
-
-/******************************************************************//**
-Returns the last undo record on the page in the specified undo log, or
-NULL if none exists.
-@return pointer to record, NULL if none */
-UNIV_INLINE
-trx_undo_rec_t*
-trx_undo_page_get_last_rec(
-/*=======================*/
-	page_t*	undo_page,/*!< in: undo log page */
-	ulint	page_no,/*!< in: undo log header page number */
-	ulint	offset)	/*!< in: undo log header offset on page */
-{
-	ulint	start;
-	ulint	end;
-
-	start = trx_undo_page_get_start(undo_page, page_no, offset);
-	end = trx_undo_page_get_end(undo_page, page_no, offset);
-
-	if (start == end) {
-
-		return(NULL);
-	}
-
-	return(undo_page + mach_read_from_2(undo_page + end - 2));
-}
-
-/******************************************************************//**
-Returns the first undo record on the page in the specified undo log, or
-NULL if none exists.
-@return pointer to record, NULL if none */
-UNIV_INLINE
-trx_undo_rec_t*
-trx_undo_page_get_first_rec(
-/*========================*/
-	page_t*	undo_page,/*!< in: undo log page */
-	ulint	page_no,/*!< in: undo log header page number */
-	ulint	offset)	/*!< in: undo log header offset on page */
-{
-	ulint	start;
-	ulint	end;
-
-	start = trx_undo_page_get_start(undo_page, page_no, offset);
-	end = trx_undo_page_get_end(undo_page, page_no, offset);
-
-	if (start == end) {
-
-		return(NULL);
-	}
-
-	return(undo_page + start);
 }

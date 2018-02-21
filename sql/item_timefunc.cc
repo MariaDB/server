@@ -709,8 +709,7 @@ static bool make_date_time(DATE_TIME_FORMAT *format, MYSQL_TIME *l_time,
                          For example, '1.1' -> '1.100000'
 */
 
-static bool get_interval_info(const char *str,uint length,CHARSET_INFO *cs,
-                              uint count, ulonglong *values,
+static bool get_interval_info(const char *str, size_t length,CHARSET_INFO *cs, size_t count, ulonglong *values,
                               bool transform_msec)
 {
   const char *end=str+length;
@@ -2427,7 +2426,7 @@ void Item_char_typecast::print(String *str, enum_query_type query_type)
 }
 
 
-void Item_char_typecast::check_truncation_with_warn(String *src, uint dstlen)
+void Item_char_typecast::check_truncation_with_warn(String *src, size_t dstlen)
 {
   if (dstlen < src->length())
   {
@@ -2448,7 +2447,7 @@ void Item_char_typecast::check_truncation_with_warn(String *src, uint dstlen)
 }
 
 
-String *Item_char_typecast::reuse(String *src, uint32 length)
+String *Item_char_typecast::reuse(String *src, size_t length)
 {
   DBUG_ASSERT(length <= src->length());
   check_truncation_with_warn(src, length);

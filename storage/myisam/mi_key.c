@@ -74,8 +74,8 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
   for (keyseg=info->s->keyinfo[keynr].seg ; keyseg->type ;keyseg++)
   {
     enum ha_base_keytype type=(enum ha_base_keytype) keyseg->type;
-    uint length=keyseg->length;
-    uint char_length;
+    size_t length=keyseg->length;
+    size_t char_length;
     CHARSET_INFO *cs=keyseg->charset;
 
     if (keyseg->null_bit)
@@ -116,11 +116,11 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
         uchar *end= pos + length;
 	while (pos < end && pos[0] == ' ')
 	  pos++;
-	length=(uint) (end-pos);
+	length=(size_t) (end-pos);
       }
       FIX_LENGTH(cs, pos, length, char_length);
       store_key_length_inc(key,char_length);
-      memcpy((uchar*) key,(uchar*) pos,(size_t) char_length);
+      memcpy(key, pos,char_length);
       key+=char_length;
       continue;
     }
@@ -133,7 +133,7 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
       set_if_smaller(length,tmp_length);
       FIX_LENGTH(cs, pos, length, char_length);
       store_key_length_inc(key,char_length);
-      memcpy((uchar*) key,(uchar*) pos,(size_t) char_length);
+      memcpy(key, pos, char_length);
       key+= char_length;
       continue;
     }
@@ -144,7 +144,7 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
       set_if_smaller(length,tmp_length);
       FIX_LENGTH(cs, pos, length, char_length);
       store_key_length_inc(key,char_length);
-      memcpy((uchar*) key,(uchar*) pos,(size_t) char_length);
+      memcpy(key, pos, char_length);
       key+= char_length;
       continue;
     }
@@ -235,8 +235,8 @@ uint _mi_pack_key(register MI_INFO *info, uint keynr, uchar *key, uchar *old,
        old+= keyseg->length, keyseg++)
   {
     enum ha_base_keytype type= (enum ha_base_keytype) keyseg->type;
-    uint length= keyseg->length;
-    uint char_length;
+    size_t length= keyseg->length;
+    size_t char_length;
     uchar *pos;
     CHARSET_INFO *cs=keyseg->charset;
 
@@ -259,7 +259,7 @@ uint _mi_pack_key(register MI_INFO *info, uint keynr, uchar *key, uchar *old,
         uchar *end= pos + length;
         while (pos < end && pos[0] == ' ')
           pos++;
-        length= (uint) (end - pos);
+        length= (size_t)(end - pos);
       }
       else if (type != HA_KEYTYPE_BINARY)
       {
@@ -267,7 +267,7 @@ uint _mi_pack_key(register MI_INFO *info, uint keynr, uchar *key, uchar *old,
       }
       FIX_LENGTH(cs, pos, length, char_length);
       store_key_length_inc(key,char_length);
-      memcpy((uchar*) key,pos,(size_t) char_length);
+      memcpy(key,pos,char_length);
       key+= char_length;
       continue;
     }
@@ -280,7 +280,7 @@ uint _mi_pack_key(register MI_INFO *info, uint keynr, uchar *key, uchar *old,
       FIX_LENGTH(cs, pos, length, char_length);
       store_key_length_inc(key,char_length);
       old+=2;					/* Skip length */
-      memcpy((uchar*) key, pos,(size_t) char_length);
+      memcpy(key, pos, char_length);
       key+= char_length;
       continue;
     }

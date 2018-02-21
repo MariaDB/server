@@ -917,7 +917,7 @@ typedef struct
 
 void my_string_metadata_get(MY_STRING_METADATA *metadata,
                             CHARSET_INFO *cs, const char *str, size_t len);
-uint my_string_repertoire(CHARSET_INFO *cs, const char *str, ulong len);
+uint my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t len);
 my_bool my_charset_is_ascii_based(CHARSET_INFO *cs);
 uint my_charset_repertoire(CHARSET_INFO *cs);
 
@@ -953,9 +953,9 @@ uint32 my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
   Protocol::store_warning() uses this to escape control
   and non-convertable characters.
 */
-uint32 my_convert_using_func(char *to, uint32 to_length, CHARSET_INFO *to_cs,
+uint32 my_convert_using_func(char *to, size_t to_length, CHARSET_INFO *to_cs,
                              my_charset_conv_wc_mb mb_wc,
-                             const char *from, uint32 from_length,
+                             const char *from, size_t from_length,
                              CHARSET_INFO *from_cs,
                              my_charset_conv_mb_wc wc_mb,
                              uint *errors);

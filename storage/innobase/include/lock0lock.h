@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -296,7 +296,7 @@ lock_rec_insert_check_and_lock(
 	dict_index_t*	index,	/*!< in: index */
 	que_thr_t*	thr,	/*!< in: query thread */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
-	ibool*		inherit)/*!< out: set to TRUE if the new
+	bool*		inherit)/*!< out: set to true if the new
 				inserted record maybe should inherit
 				LOCK_GAP type locks from the successor
 				record */
@@ -511,18 +511,6 @@ void
 lock_trx_release_locks(
 /*===================*/
 	trx_t*	trx);	/*!< in/out: transaction */
-/*********************************************************************//**
-Removes locks on a table to be dropped or truncated.
-If remove_also_table_sx_locks is TRUE then table-level S and X locks are
-also removed in addition to other table-level and record-level locks.
-No lock, that is going to be removed, is allowed to be a wait lock. */
-void
-lock_remove_all_on_table(
-/*=====================*/
-	dict_table_t*	table,			/*!< in: table to be dropped
-						or truncated */
-	ibool		remove_also_table_sx_locks);/*!< in: also removes
-						table S and X locks */
 
 /*********************************************************************//**
 Calculates the fold value of a page file address: used in inserting or
@@ -566,33 +554,9 @@ lock_rec_find_set_bit(
 				bit set */
 
 /*********************************************************************//**
-Gets the source table of an ALTER TABLE transaction.  The table must be
-covered by an IX or IS table lock.
-@return the source table of transaction, if it is covered by an IX or
-IS table lock; dest if there is no source table, and NULL if the
-transaction is locking more than two tables or an inconsistency is
-found */
-dict_table_t*
-lock_get_src_table(
-/*===============*/
-	trx_t*		trx,	/*!< in: transaction */
-	dict_table_t*	dest,	/*!< in: destination of ALTER TABLE */
-	lock_mode*	mode);	/*!< out: lock mode of the source table */
-/*********************************************************************//**
-Determine if the given table is exclusively "owned" by the given
-transaction, i.e., transaction holds LOCK_IX and possibly LOCK_AUTO_INC
-on the table.
-@return TRUE if table is only locked by trx, with LOCK_IX, and
-possibly LOCK_AUTO_INC */
-ibool
-lock_is_table_exclusive(
-/*====================*/
-	const dict_table_t*	table,	/*!< in: table */
-	const trx_t*		trx);	/*!< in: transaction */
-/*********************************************************************//**
 Checks if a lock request lock1 has to wait for request lock2.
-@return TRUE if lock1 has to wait for lock2 to be removed */
-ibool
+@return whether lock1 has to wait for lock2 to be removed */
+bool
 lock_has_to_wait(
 /*=============*/
 	const lock_t*	lock1,	/*!< in: waiting lock */
@@ -609,7 +573,7 @@ lock_report_trx_id_insanity(
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index) */
-	trx_id_t	max_trx_id);	/*!< in: trx_sys_get_max_trx_id() */
+	trx_id_t	max_trx_id);	/*!< in: trx_sys.get_max_trx_id() */
 /*********************************************************************//**
 Prints info of locks for all transactions.
 @return FALSE if not able to obtain lock mutex and exits without
@@ -827,7 +791,6 @@ Set the lock system timeout event. */
 void
 lock_set_timeout_event();
 /*====================*/
-#ifdef UNIV_DEBUG
 /*********************************************************************//**
 Checks that a transaction id is sensible, i.e., not in the future.
 @return true if ok */
@@ -837,8 +800,8 @@ lock_check_trx_id_sanity(
 	trx_id_t	trx_id,		/*!< in: trx id */
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
-	const ulint*	offsets)	/*!< in: rec_get_offsets(rec, index) */
-	MY_ATTRIBUTE((warn_unused_result));
+	const ulint*	offsets);	/*!< in: rec_get_offsets(rec, index) */
+#ifdef UNIV_DEBUG
 /*******************************************************************//**
 Check if the transaction holds any locks on the sys tables
 or its records.

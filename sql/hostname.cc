@@ -180,7 +180,7 @@ void hostname_cache_unlock()
 static void prepare_hostname_cache_key(const char *ip_string,
                                        char *ip_key)
 {
-  int ip_string_length= strlen(ip_string);
+  size_t ip_string_length= strlen(ip_string);
   DBUG_ASSERT(ip_string_length < HOST_ENTRY_KEY_SIZE);
 
   memset(ip_key, 0, HOST_ENTRY_KEY_SIZE);
@@ -229,12 +229,12 @@ static void add_hostname_impl(const char *ip_key, const char *hostname,
   {
     if (hostname != NULL)
     {
-      uint len= strlen(hostname);
+      size_t len= strlen(hostname);
       if (len > sizeof(entry->m_hostname) - 1)
         len= sizeof(entry->m_hostname) - 1;
       memcpy(entry->m_hostname, hostname, len);
       entry->m_hostname[len]= '\0';
-      entry->m_hostname_length= len;
+      entry->m_hostname_length= (uint)len;
 
       DBUG_PRINT("info",
                  ("Adding/Updating '%s' -> '%s' (validated) to the hostname cache...'",
@@ -702,12 +702,12 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
                     /* Simulating ipv4 192.0.2.126 */
                     debug_addr= & debug_sock_addr[0];
                     debug_addr->sin_family= AF_INET;
-                    debug_addr->sin_addr.s_addr= inet_addr("192.0.2.126");
+                    inet_pton(AF_INET,"192.0.2.126", &debug_addr->sin_addr);
 
                     /* Simulating ipv4 192.0.2.127 */
                     debug_addr= & debug_sock_addr[1];
                     debug_addr->sin_family= AF_INET;
-                    debug_addr->sin_addr.s_addr= inet_addr("192.0.2.127");
+                    inet_pton(AF_INET,"192.0.2.127", &debug_addr->sin_addr);
 
                     debug_addr_info[0].ai_addr= (struct sockaddr*) & debug_sock_addr[0];
                     debug_addr_info[0].ai_addrlen= sizeof (struct sockaddr_in);
@@ -734,12 +734,12 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
                     /* Simulating ipv4 192.0.2.5 */
                     debug_addr= & debug_sock_addr[0];
                     debug_addr->sin_family= AF_INET;
-                    debug_addr->sin_addr.s_addr= inet_addr("192.0.2.5");
+                    inet_pton(AF_INET,"192.0.2.5", &debug_addr->sin_addr);
 
                     /* Simulating ipv4 192.0.2.4 */
                     debug_addr= & debug_sock_addr[1];
                     debug_addr->sin_family= AF_INET;
-                    debug_addr->sin_addr.s_addr= inet_addr("192.0.2.4");
+                    inet_pton(AF_INET,"192.0.2.4", &debug_addr->sin_addr);
 
                     debug_addr_info[0].ai_addr= (struct sockaddr*) & debug_sock_addr[0];
                     debug_addr_info[0].ai_addrlen= sizeof (struct sockaddr_in);
@@ -774,44 +774,13 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
                     debug_addr= & debug_sock_addr[0];
                     debug_addr->sin6_family= AF_INET6;
                     ip6= & debug_addr->sin6_addr;
-                    /* inet_pton not available on Windows XP. */
-                    ip6->s6_addr[ 0] = 0x20;
-                    ip6->s6_addr[ 1] = 0x01;
-                    ip6->s6_addr[ 2] = 0x0d;
-                    ip6->s6_addr[ 3] = 0xb8;
-                    ip6->s6_addr[ 4] = 0x00;
-                    ip6->s6_addr[ 5] = 0x00;
-                    ip6->s6_addr[ 6] = 0x00;
-                    ip6->s6_addr[ 7] = 0x00;
-                    ip6->s6_addr[ 8] = 0x00;
-                    ip6->s6_addr[ 9] = 0x00;
-                    ip6->s6_addr[10] = 0x00;
-                    ip6->s6_addr[11] = 0x00;
-                    ip6->s6_addr[12] = 0x00;
-                    ip6->s6_addr[13] = 0x06;
-                    ip6->s6_addr[14] = 0x00;
-                    ip6->s6_addr[15] = 0x7e;
+                    inet_pton(AF_INET6,"2001:DB8::6:7E",ip6);
 
                     /* Simulating ipv6 2001:DB8::6:7F */
                     debug_addr= & debug_sock_addr[1];
                     debug_addr->sin6_family= AF_INET6;
                     ip6= & debug_addr->sin6_addr;
-                    ip6->s6_addr[ 0] = 0x20;
-                    ip6->s6_addr[ 1] = 0x01;
-                    ip6->s6_addr[ 2] = 0x0d;
-                    ip6->s6_addr[ 3] = 0xb8;
-                    ip6->s6_addr[ 4] = 0x00;
-                    ip6->s6_addr[ 5] = 0x00;
-                    ip6->s6_addr[ 6] = 0x00;
-                    ip6->s6_addr[ 7] = 0x00;
-                    ip6->s6_addr[ 8] = 0x00;
-                    ip6->s6_addr[ 9] = 0x00;
-                    ip6->s6_addr[10] = 0x00;
-                    ip6->s6_addr[11] = 0x00;
-                    ip6->s6_addr[12] = 0x00;
-                    ip6->s6_addr[13] = 0x06;
-                    ip6->s6_addr[14] = 0x00;
-                    ip6->s6_addr[15] = 0x7f;
+                    inet_pton(AF_INET6,"2001:DB8::6:7F",ip6);
 
                     debug_addr_info[0].ai_addr= (struct sockaddr*) & debug_sock_addr[0];
                     debug_addr_info[0].ai_addrlen= sizeof (struct sockaddr_in6);
@@ -946,7 +915,7 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
 
     {
       err_status=
-        vio_get_normalized_ip_string(addr_info->ai_addr, addr_info->ai_addrlen,
+        vio_get_normalized_ip_string(addr_info->ai_addr, (int)addr_info->ai_addrlen,
                                      ip_buffer, sizeof (ip_buffer));
       DBUG_ASSERT(!err_status);
     }
@@ -990,7 +959,7 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
       char ip_buffer[HOST_ENTRY_KEY_SIZE];
 
       err_status=
-        vio_get_normalized_ip_string(addr_info->ai_addr, addr_info->ai_addrlen,
+        vio_get_normalized_ip_string(addr_info->ai_addr, (int)addr_info->ai_addrlen,
                                      ip_buffer, sizeof (ip_buffer));
       DBUG_ASSERT(!err_status);
 

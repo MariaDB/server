@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1596,7 +1596,7 @@ srv_mon_get_rseg_size(void)
 	total rollback segment size and to avoid mutex contention we
 	don't acquire the rseg->mutex" */
 	for (i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		const trx_rseg_t*	rseg = trx_sys->rseg_array[i];
+		const trx_rseg_t*	rseg = trx_sys.rseg_array[i];
 
 		if (rseg != NULL) {
 			value += rseg->curr_size;
@@ -1952,7 +1952,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_RSEG_HISTORY_LEN:
-		value = trx_sys->rseg_history_len;
+		value = trx_sys.history_size();
 		break;
 
 	case MONITOR_RSEG_CUR_SIZE:

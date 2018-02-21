@@ -104,7 +104,13 @@ toku_memory_startup(void) {
             size_t lg_chunk; // log2 of the mmap threshold
             size_t lg_chunk_length = sizeof lg_chunk;
             result  = mallctl_f("opt.lg_chunk", &lg_chunk, &lg_chunk_length, NULL, 0);
-            if (result == 0)
+            if (result)
+            {
+                status.mmap_threshold = 1 << 21; // Default value.
+                                                 // Incompatible jemalloc change.
+                result = 0;
+            }
+            else
                 status.mmap_threshold = 1 << lg_chunk;
         }
     }

@@ -445,13 +445,13 @@ uint Explain_union::make_union_table_name(char *buf)
     default:
       DBUG_ASSERT(0);
   }
-  memcpy(buf, type.str, (len= type.length));
+  memcpy(buf, type.str, (len= (uint)type.length));
 
   for (; childno < union_members.elements() && len + lastop + 5 < NAME_LEN;
        childno++)
   {
     len+= lastop;
-    lastop= my_snprintf(buf + len, NAME_LEN - len,
+    lastop= (uint)my_snprintf(buf + len, NAME_LEN - len,
                         "%u,", union_members.at(childno));
   }
 

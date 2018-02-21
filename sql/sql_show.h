@@ -82,8 +82,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);
 
-bool append_identifier(THD *thd, String *packet, const char *name,
-		       uint length);
+bool append_identifier(THD *thd, String *packet, const char *name, size_t length);
+static inline bool append_identifier(THD *thd, String *packet, const LEX_CSTRING *name)
+{
+  return append_identifier(thd, packet, name->str, name->length);
+}
 void mysqld_list_fields(THD *thd,TABLE_LIST *table, const char *wild);
 int mysqld_dump_create_info(THD *thd, TABLE_LIST *table_list, int fd);
 bool mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
@@ -118,8 +121,9 @@ bool schema_table_store_record(THD *thd, TABLE *table);
 void initialize_information_schema_acl();
 COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table);
 
-ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name, bool *in_plugin);
-static inline ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name)
+ST_SCHEMA_TABLE *find_schema_table(THD *thd, const LEX_CSTRING *table_name,
+                                   bool *in_plugin);
+static inline ST_SCHEMA_TABLE *find_schema_table(THD *thd, const LEX_CSTRING *table_name)
 { bool unused; return find_schema_table(thd, table_name, &unused); }
 
 ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx);
@@ -138,7 +142,7 @@ const char* get_one_variable(THD *thd, const SHOW_VAR *variable,
                              size_t *length);
 
 /* These functions were under INNODB_COMPATIBILITY_HOOKS */
-int get_quote_char_for_identifier(THD *thd, const char *name, uint length);
+int get_quote_char_for_identifier(THD *thd, const char *name, size_t length);
 THD *find_thread_by_id(longlong id, bool query_id= false);
 
 class select_result_explain_buffer;

@@ -46,7 +46,6 @@
 #include "sql_servers.h"  // servers_free, servers_init
 #include "init.h"         // unireg_init
 #include "derror.h"       // init_errmessage
-#include "derror.h"       // init_errmessage
 #include "des_key_file.h" // load_des_key_file
 #include "sql_manager.h"  // stop_handle_manager, start_handle_manager
 #include "sql_expression_cache.h" // subquery_cache_miss, subquery_cache_hit
@@ -560,7 +559,7 @@ ulong max_prepared_stmt_count;
   statements.
 */
 ulong prepared_stmt_count=0;
-my_thread_id global_thread_id= 1;
+my_thread_id global_thread_id= 0;
 ulong current_pid;
 ulong slow_launch_threads = 0;
 uint sync_binlog_period= 0, sync_relaylog_period= 0,
@@ -626,7 +625,7 @@ char mysql_real_data_home[FN_REFLEN],
      *opt_init_file, *opt_tc_log_file;
 char *lc_messages_dir_ptr= lc_messages_dir, *log_error_file_ptr;
 char mysql_unpacked_real_data_home[FN_REFLEN];
-int mysql_unpacked_real_data_home_len;
+size_t mysql_unpacked_real_data_home_len;
 uint mysql_real_data_home_len, mysql_data_home_len= 1;
 uint reg_ext_length;
 const key_map key_map_empty(0);
@@ -767,6 +766,9 @@ mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
 /* This protects against changes in master_info_index */
 mysql_mutex_t LOCK_active_mi;
 
+/* This protects connection id.*/
+mysql_mutex_t LOCK_thread_id;
+
 /**
   The below lock protects access to two global server variables:
   max_prepared_stmt_count and prepared_stmt_count. These variables
@@ -779,7 +781,7 @@ mysql_mutex_t LOCK_prepared_stmt_count;
 mysql_mutex_t LOCK_des_key_file;
 #endif
 mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
-mysql_rwlock_t LOCK_system_variables_hash;
+mysql_prlock_t LOCK_system_variables_hash;
 mysql_cond_t COND_thread_count, COND_start_thread;
 pthread_t signal_thread;
 pthread_attr_t connection_attrib;
@@ -935,6 +937,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_PARTITION_LOCK_auto_inc;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
 PSI_mutex_key key_LOCK_relaylog_end_pos;
+PSI_mutex_key key_LOCK_thread_id;
 PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
   key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
 PSI_mutex_key key_LOCK_binlog;
@@ -978,6 +981,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_hash_filo_lock, "hash_filo::lock", 0},
   { &key_LOCK_active_mi, "LOCK_active_mi", PSI_FLAG_GLOBAL},
   { &key_LOCK_connection_count, "LOCK_connection_count", PSI_FLAG_GLOBAL},
+  { &key_LOCK_thread_id, "LOCK_thread_id", PSI_FLAG_GLOBAL},
   { &key_LOCK_crypt, "LOCK_crypt", PSI_FLAG_GLOBAL},
   { &key_LOCK_delayed_create, "LOCK_delayed_create", PSI_FLAG_GLOBAL},
   { &key_LOCK_delayed_insert, "LOCK_delayed_insert", PSI_FLAG_GLOBAL},
@@ -1246,7 +1250,7 @@ void net_after_header_psi(struct st_net *net, void *user_data,
   {
     thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                 stmt_info_new_packet.m_key,
-                                                thd->db, thd->db_length,
+                                                thd->get_db(), thd->db.length,
                                                 thd->charset());
 
     THD_STAGE_INFO(thd, stage_init);
@@ -1375,7 +1379,7 @@ private:
 
 void Buffered_logs::init()
 {
-  init_alloc_root(&m_root, 1024, 0, MYF(0));
+  init_alloc_root(&m_root, "Buffered_logs", 1024, 0, MYF(0));
 }
 
 void Buffered_logs::cleanup()
@@ -2075,8 +2079,8 @@ pthread_handler_t kill_server_thread(void *arg __attribute__((unused)))
 extern "C" sig_handler print_signal_warning(int sig)
 {
   if (global_system_variables.log_warnings)
-    sql_print_warning("Got signal %d from thread %ld", sig,
-                      (ulong) my_thread_id());
+    sql_print_warning("Got signal %d from thread %u", sig,
+                      (uint)my_thread_id());
 #ifdef SIGNAL_HANDLER_RESET_ON_DELIVERY
   my_sigset(sig,print_signal_warning);		/* int. thread system calls */
 #endif
@@ -2373,6 +2377,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_crypt);
   mysql_mutex_destroy(&LOCK_user_conn);
   mysql_mutex_destroy(&LOCK_connection_count);
+  mysql_mutex_destroy(&LOCK_thread_id);
   mysql_mutex_destroy(&LOCK_stats);
   mysql_mutex_destroy(&LOCK_global_user_client_stats);
   mysql_mutex_destroy(&LOCK_global_table_stats);
@@ -2392,7 +2397,7 @@ static void clean_up_mutexes()
   mysql_rwlock_destroy(&LOCK_sys_init_connect);
   mysql_rwlock_destroy(&LOCK_sys_init_slave);
   mysql_mutex_destroy(&LOCK_global_system_variables);
-  mysql_rwlock_destroy(&LOCK_system_variables_hash);
+  mysql_prlock_destroy(&LOCK_system_variables_hash);
   mysql_mutex_destroy(&LOCK_short_uuid_generator);
   mysql_mutex_destroy(&LOCK_prepared_stmt_count);
   mysql_mutex_destroy(&LOCK_error_messages);
@@ -2746,7 +2751,7 @@ static void network_init(void)
 
 #ifdef _WIN32
   /* create named pipe */
-  if (Service.IsNT() && mysqld_unix_port[0] && !opt_bootstrap &&
+  if (mysqld_unix_port[0] && !opt_bootstrap &&
       opt_enable_named_pipe)
   {
 
@@ -4265,7 +4270,7 @@ static int init_common_variables()
   /* TODO: remove this when my_time_t is 64 bit compatible */
   if (!IS_TIME_T_VALID_FOR_TIMESTAMP(server_start_time))
   {
-    sql_print_error("This MySQL server doesn't support dates later then 2038");
+    sql_print_error("This MySQL server doesn't support dates later than 2038");
     exit(1);
   }
 
@@ -4750,7 +4755,7 @@ static int init_thread_environment()
                    &LOCK_global_system_variables, MY_MUTEX_INIT_FAST);
   mysql_mutex_record_order(&LOCK_active_mi, &LOCK_global_system_variables);
   mysql_mutex_record_order(&LOCK_status, &LOCK_thread_count);
-  mysql_rwlock_init(key_rwlock_LOCK_system_variables_hash,
+  mysql_prlock_init(key_rwlock_LOCK_system_variables_hash,
                     &LOCK_system_variables_hash);
   mysql_mutex_init(key_LOCK_prepared_stmt_count,
                    &LOCK_prepared_stmt_count, MY_MUTEX_INIT_FAST);
@@ -4760,6 +4765,8 @@ static int init_thread_environment()
                    &LOCK_short_uuid_generator, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_connection_count,
                    &LOCK_connection_count, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_thread_id,
+                   &LOCK_thread_id, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_stats, &LOCK_stats, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_global_user_client_stats,
                    &LOCK_global_user_client_stats, MY_MUTEX_INIT_FAST);
@@ -5300,10 +5307,7 @@ static int init_server_components()
     {
       unireg_abort(1);
     }
-  }
 
-  if (opt_bin_log)
-  {
     log_bin_basename=
       rpl_make_log_name(opt_bin_logname, pidfile_name,
                         opt_bin_logname ? "" : "-bin");
@@ -5689,8 +5693,8 @@ static void test_lc_time_sz()
   DBUG_ENTER("test_lc_time_sz");
   for (MY_LOCALE **loc= my_locales; *loc; loc++)
   {
-    uint max_month_len= 0;
-    uint max_day_len = 0;
+    size_t max_month_len= 0;
+    size_t max_day_len= 0;
     for (const char **month= (*loc)->month_names->type_names; *month; month++)
     {
       set_if_bigger(max_month_len,
@@ -6167,7 +6171,7 @@ int mysqld_main(int argc, char **argv)
   mysql_mutex_unlock(&LOCK_thread_count);
 
 #if defined(__WIN__) && !defined(EMBEDDED_LIBRARY)
-  if (Service.IsNT() && start_mode)
+  if (start_mode)
     Service.Stop();
   else
   {
@@ -6310,87 +6314,86 @@ int mysqld_main(int argc, char **argv)
     return 1;
   }
 
-  if (Service.GetOS())	/* true NT family */
-  {
-    char file_path[FN_REFLEN];
-    my_path(file_path, argv[0], "");		      /* Find name in path */
-    fn_format(file_path,argv[0],file_path,"",
-	      MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_RESOLVE_SYMLINKS);
 
-    if (argc == 2)
-    {
-      if (!default_service_handling(argv, MYSQL_SERVICENAME, MYSQL_SERVICENAME,
-				   file_path, "", NULL))
-	return 0;
-      if (Service.IsService(argv[1]))        /* Start an optional service */
-      {
-	/*
-	  Only add the service name to the groups read from the config file
-	  if it's not "MySQL". (The default service name should be 'mysqld'
-	  but we started a bad tradition by calling it MySQL from the start
-	  and we are now stuck with it.
-	*/
-	if (my_strcasecmp(system_charset_info, argv[1],"mysql"))
-	  load_default_groups[load_default_groups_sz-2]= argv[1];
-        start_mode= 1;
-        Service.Init(argv[1], mysql_service);
-        return 0;
-      }
-    }
-    else if (argc == 3) /* install or remove any optional service */
-    {
-      if (!default_service_handling(argv, argv[2], argv[2], file_path, "",
-                                    NULL))
-	return 0;
-      if (Service.IsService(argv[2]))
-      {
-	/*
-	  mysqld was started as
-	  mysqld --defaults-file=my_path\my.ini service-name
-	*/
-	use_opt_args=1;
-	opt_argc= 2;				// Skip service-name
-	opt_argv=argv;
-	start_mode= 1;
-	if (my_strcasecmp(system_charset_info, argv[2],"mysql"))
-	  load_default_groups[load_default_groups_sz-2]= argv[2];
-	Service.Init(argv[2], mysql_service);
-	return 0;
-      }
-    }
-    else if (argc == 4 || argc == 5)
+  char file_path[FN_REFLEN];
+  my_path(file_path, argv[0], "");		      /* Find name in path */
+  fn_format(file_path,argv[0],file_path,"",   MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_RESOLVE_SYMLINKS);
+
+  if (argc == 2)
+  {
+    if (!default_service_handling(argv, MYSQL_SERVICENAME, MYSQL_SERVICENAME,
+      file_path, "", NULL))
+      return 0;
+
+    if (Service.IsService(argv[1]))        /* Start an optional service */
     {
       /*
-        This may seem strange, because we handle --local-service while
-        preserving 4.1's behavior of allowing any one other argument that is
-        passed to the service on startup. (The assumption is that this is
-        --defaults-file=file, but that was not enforced in 4.1, so we don't
-        enforce it here.)
+      Only add the service name to the groups read from the config file
+      if it's not "MySQL". (The default service name should be 'mysqld'
+      but we started a bad tradition by calling it MySQL from the start
+      and we are now stuck with it.
       */
-      const char *extra_opt= NullS;
-      const char *account_name = NullS;
-      int index;
-      for (index = 3; index < argc; index++)
-      {
-        if (!strcmp(argv[index], "--local-service"))
-          account_name= "NT AUTHORITY\\LocalService";
-        else
-          extra_opt= argv[index];
-      }
-
-      if (argc == 4 || account_name)
-        if (!default_service_handling(argv, argv[2], argv[2], file_path,
-                                      extra_opt, account_name))
-          return 0;
-    }
-    else if (argc == 1 && Service.IsService(MYSQL_SERVICENAME))
-    {
-      /* start the default service */
+      if (my_strcasecmp(system_charset_info, argv[1],"mysql"))
+        load_default_groups[load_default_groups_sz-2]= argv[1];
       start_mode= 1;
-      Service.Init(MYSQL_SERVICENAME, mysql_service);
+      Service.Init(argv[1], mysql_service);
       return 0;
     }
   }
+  else if (argc == 3) /* install or remove any optional service */
+  {
+    if (!default_service_handling(argv, argv[2], argv[2], file_path, "",
+                                  NULL))
+      return 0;
+    if (Service.IsService(argv[2]))
+    {
+      /*
+       mysqld was started as
+       mysqld --defaults-file=my_path\my.ini service-name
+      */
+      use_opt_args=1;
+      opt_argc= 2;				// Skip service-name
+      opt_argv=argv;
+      start_mode= 1;
+      if (my_strcasecmp(system_charset_info, argv[2],"mysql"))
+        load_default_groups[load_default_groups_sz-2]= argv[2];
+      Service.Init(argv[2], mysql_service);
+      return 0;
+    }
+  }
+  else if (argc == 4 || argc == 5)
+  {
+    /*
+      This may seem strange, because we handle --local-service while
+      preserving 4.1's behavior of allowing any one other argument that is
+      passed to the service on startup. (The assumption is that this is
+      --defaults-file=file, but that was not enforced in 4.1, so we don't
+      enforce it here.)
+    */
+    const char *extra_opt= NullS;
+    const char *account_name = NullS;
+    int index;
+    for (index = 3; index < argc; index++)
+    {
+      if (!strcmp(argv[index], "--local-service"))
+        account_name= "NT AUTHORITY\\LocalService";
+      else
+        extra_opt= argv[index];
+    }
+
+    if (argc == 4 || account_name)
+      if (!default_service_handling(argv, argv[2], argv[2], file_path,
+                                    extra_opt, account_name))
+        return 0;
+  }
+  else if (argc == 1 && Service.IsService(MYSQL_SERVICENAME))
+  {
+    /* start the default service */
+    start_mode= 1;
+    Service.Init(MYSQL_SERVICENAME, mysql_service);
+    return 0;
+  }
+
   /* Start as standalone server */
   Service.my_argc=argc;
   Service.my_argv=argv;
@@ -8531,7 +8534,7 @@ SHOW_VAR status_vars[]= {
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
   {"Handler_delete",           (char*) offsetof(STATUS_VAR, ha_delete_count), SHOW_LONG_STATUS},
   {"Handler_discover",         (char*) offsetof(STATUS_VAR, ha_discover_count), SHOW_LONG_STATUS},
-  {"Handler_external_lock",    (char*) offsetof(STATUS_VAR, ha_external_lock_count), SHOW_LONGLONG_STATUS},
+  {"Handler_external_lock",    (char*) offsetof(STATUS_VAR, ha_external_lock_count), SHOW_LONG_STATUS},
   {"Handler_icp_attempts",     (char*) offsetof(STATUS_VAR, ha_icp_attempts), SHOW_LONG_STATUS},
   {"Handler_icp_match",        (char*) offsetof(STATUS_VAR, ha_icp_match), SHOW_LONG_STATUS},
   {"Handler_mrr_init",         (char*) offsetof(STATUS_VAR, ha_mrr_init_count),  SHOW_LONG_STATUS},
@@ -8772,7 +8775,7 @@ static int option_cmp(my_option *a, my_option *b)
 static void print_help()
 {
   MEM_ROOT mem_root;
-  init_alloc_root(&mem_root, 4096, 4096, MYF(0));
+  init_alloc_root(&mem_root, "help", 4096, 4096, MYF(0));
 
   pop_dynamic(&all_options);
   add_many_options(&all_options, pfs_early_options,
@@ -8926,7 +8929,7 @@ static int mysql_init_variables(void)
   denied_connections= 0;
   executed_events= 0;
   global_query_id= 1;
-  global_thread_id= 1;
+  global_thread_id= 0;
   strnmov(server_version, MYSQL_SERVER_VERSION, sizeof(server_version)-1);
   threads.empty();
   thread_cache.empty();
@@ -10019,7 +10022,7 @@ static int fix_paths(void)
 
   my_realpath(mysql_unpacked_real_data_home, mysql_real_data_home, MYF(0));
   mysql_unpacked_real_data_home_len= 
-    (int) strlen(mysql_unpacked_real_data_home);
+  strlen(mysql_unpacked_real_data_home);
   if (mysql_unpacked_real_data_home[mysql_unpacked_real_data_home_len-1] == FN_LIBCHAR)
     --mysql_unpacked_real_data_home_len;
 
@@ -10612,3 +10615,96 @@ void init_server_psi_keys(void)
 }
 
 #endif /* HAVE_PSI_INTERFACE */
+
+
+/*
+  Connection ID allocation.
+
+  We need to maintain thread_ids in the 32bit range,
+  because this is how it is passed to the client in the protocol.
+
+  The idea is to maintain a id range, initially set to
+ (0,UINT32_MAX). Whenever new id is needed, we increment the
+  lower limit and return its new value.
+
+  On "overflow", if id can not be generated anymore(i.e lower == upper -1),
+  we recalculate the range boundaries.
+  To do that, we first collect thread ids that are in use, by traversing
+  THD list, and find largest region within (0,UINT32_MAX), that is still free.
+
+*/
+
+static my_thread_id thread_id_max= UINT_MAX32;
+
+#include <vector>
+#include <algorithm>
+
+/*
+  Find largest unused thread_id range.
+
+  i.e for every number N within the returned range,
+  there is no existing connection with thread_id equal to N.
+
+  The range is exclusive, lower bound is always >=0 and
+  upper bound <=MAX_UINT32.
+
+  @param[out] low  - lower bound for the range
+  @param[out] high - upper bound for the range
+*/
+static void recalculate_thread_id_range(my_thread_id *low, my_thread_id *high)
+{
+  std::vector<my_thread_id> ids;
+
+  // Add sentinels
+  ids.push_back(0);
+  ids.push_back(UINT_MAX32);
+
+  mysql_mutex_lock(&LOCK_thread_count);
+
+  I_List_iterator<THD> it(threads);
+  THD *thd;
+  while ((thd=it++))
+    ids.push_back(thd->thread_id);
+
+  mysql_mutex_unlock(&LOCK_thread_count);
+
+  std::sort(ids.begin(), ids.end());
+  my_thread_id max_gap= 0;
+  for (size_t i= 0; i < ids.size() - 1; i++)
+  {
+    my_thread_id gap= ids[i+1] - ids[i];
+    if (gap > max_gap)
+    {
+      *low= ids[i];
+      *high= ids[i+1];
+      max_gap= gap;
+    }
+  }
+
+  if (max_gap < 2)
+  {
+    /* Can't find free id. This is not really possible,
+      we'd need 2^32 connections for this to happen.*/
+    sql_print_error("Cannot find free connection id.");
+    abort();
+  }
+}
+
+
+my_thread_id next_thread_id(void)
+{
+  my_thread_id retval;
+  DBUG_EXECUTE_IF("thread_id_overflow", global_thread_id= thread_id_max-2;);
+
+  mysql_mutex_lock(&LOCK_thread_id);
+
+  if (unlikely(global_thread_id == thread_id_max - 1))
+  {
+    recalculate_thread_id_range(&global_thread_id, &thread_id_max);
+  }
+
+  retval= ++global_thread_id;
+
+  mysql_mutex_unlock(&LOCK_thread_id);
+  return retval;
+}

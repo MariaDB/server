@@ -247,7 +247,7 @@ static wsrep_trx_status wsrep_certify(THD *thd)
                "QUERY: %s\n"
                " => Skipping replication",
                thd->thread_id,
-               (thd->db ? thd->db : "(null)"),
+               (thd->db.str ? thd->db.str : "(null)"),
                WSREP_QUERY(thd));
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
@@ -312,7 +312,7 @@ static wsrep_trx_status wsrep_certify(THD *thd)
   {
   case WSREP_TRX_MISSING:
     WSREP_WARN("Transaction missing in provider thd: %lld schema: %s SQL: %s",
-               thd->thread_id, (thd->db ? thd->db : "(null)"),
+               thd->thread_id, (thd->db.str ? thd->db.str : "(null)"),
                WSREP_QUERY(thd));
     my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_TRX_MISSING);
     break;

@@ -469,7 +469,7 @@ static  int read_and_decrypt_key(const char *path, KEY_INFO *info)
     return(ENCRYPTION_KEY_BUFFER_TOO_SMALL);
   }
   memcpy(info->data, plaintext.GetUnderlyingData(), len);
-  info->length= len;
+  info->length= (unsigned int)len;
   return(0);
 }
 
@@ -527,7 +527,7 @@ static int generate_and_save_datakey(uint keyid, uint version)
     my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: Can't create file %s", ME_ERROR_LOG, filename);
     return(-1);
   }
-  size_t len= byteBuffer.GetLength();
+  unsigned int len= (unsigned int)byteBuffer.GetLength();
   if (write(fd, byteBuffer.GetUnderlyingData(), len) != len)
   {
     my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: can't write to %s", ME_ERROR_LOG, filename);
