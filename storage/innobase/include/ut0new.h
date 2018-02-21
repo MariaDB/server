@@ -264,11 +264,8 @@ static void ut_allocate_trace_dontdump(void *		ptr,
 
 static void ut_dodump(void* ptr, size_t m_size)
 {
-	if (ptr == NULL) {
-		return;
-	}
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DODUMP)
-	if (madvise(ptr, m_size, MADV_DODUMP)) {
+	if (ptr && madvise(ptr, m_size, MADV_DODUMP)) {
 		ib::warn() << "Failed to set memory to DODUMP: "
 			   << strerror(errno)
 			   << " ptr " << ptr
