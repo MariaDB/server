@@ -2240,7 +2240,8 @@ public:
   }
 
   void set_sync(bool sync) override {
-    m_rocksdb_tx->GetWriteOptions()->sync = sync;
+    if (m_rocksdb_tx)
+      m_rocksdb_tx->GetWriteOptions()->sync = sync;
   }
 
   void release_lock(rocksdb::ColumnFamilyHandle *const column_family,
