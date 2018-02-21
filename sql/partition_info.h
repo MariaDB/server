@@ -37,40 +37,43 @@ struct st_ddl_log_memory_entry;
 struct Vers_part_info : public Sql_alloc
 {
   Vers_part_info() :
-    interval(0),
     limit(0),
     now_part(NULL),
-    hist_part(NULL),
-    stat_serial(0)
+    hist_part(NULL)
   {
+    interval.type= INTERVAL_LAST;
   }
   Vers_part_info(Vers_part_info &src) :
     interval(src.interval),
     limit(src.limit),
     now_part(NULL),
-    hist_part(NULL),
-    stat_serial(src.stat_serial)
+    hist_part(NULL)
   {
   }
-  bool initialized(bool fully= true)
+  bool initialized()
   {
     if (now_part)
     {
       DBUG_ASSERT(now_part->id != UINT_MAX32);
       DBUG_ASSERT(now_part->type() == partition_element::CURRENT);
-      DBUG_ASSERT(!fully || (bool) hist_part);
-      DBUG_ASSERT(!hist_part || (
-          hist_part->id != UINT_MAX32 &&
-          hist_part->type() == partition_element::HISTORY));
+      if (hist_part)
+      {
+        DBUG_ASSERT(hist_part->id != UINT_MAX32);
+        DBUG_ASSERT(hist_part->type() == partition_element::HISTORY);
+      }
       return true;
     }
     return false;
   }
-  my_time_t interval;
+  struct {
+    my_time_t start;
+    INTERVAL step;
+    enum interval_type type;
+    bool is_set() { return type < INTERVAL_LAST; }
+  } interval;
   ulonglong limit;
   partition_element *now_part;
   partition_element *hist_part;
-  ulonglong stat_serial;
 };
 
 class partition_info : public Sql_alloc
@@ -391,38 +394,25 @@ public:
   bool has_unique_name(partition_element *element);
 
   bool vers_init_info(THD *thd);
-  bool vers_set_interval(const INTERVAL &i);
-  bool vers_set_limit(ulonglong limit);
-  partition_element* vers_part_rotate(THD *thd);
-  bool vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME &t);
-  bool vers_setup_expression(THD *thd, uint32 alter_add= 0); /* Stage 1. */
-  bool vers_setup_stats(THD *thd, bool is_create_table_ind); /* Stage 2. */
-  bool vers_scan_min_max(THD *thd, partition_element *part);
-  void vers_update_col_vals(THD *thd, partition_element *el0, partition_element *el1);
-
-  partition_element *vers_hist_part()
+  bool vers_set_interval(Item *item, interval_type int_type, my_time_t start)
   {
-    DBUG_ASSERT(table && table->s);
-    DBUG_ASSERT(vers_info && vers_info->initialized());
-    DBUG_ASSERT(table->s->hist_part_id != UINT_MAX32);
-    if (table->s->hist_part_id == vers_info->hist_part->id)
-      return vers_info->hist_part;
-
-    List_iterator<partition_element> it(partitions);
-    partition_element *el;
-    while ((el= it++))
-    {
-      DBUG_ASSERT(el->type() != partition_element::CONVENTIONAL);
-      if (el->type() == partition_element::HISTORY &&
-        el->id == table->s->hist_part_id)
-      {
-        vers_info->hist_part= el;
-        return vers_info->hist_part;
-      }
-    }
-    DBUG_ASSERT(0);
-    return NULL;
+    DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+    vers_info->interval.type= int_type;
+    vers_info->interval.start= start;
+    return get_interval_value(item, int_type, &vers_info->interval.step) ||
+           vers_info->interval.step.neg || vers_info->interval.step.second_part ||
+          !(vers_info->interval.step.year || vers_info->interval.step.month ||
+            vers_info->interval.step.day || vers_info->interval.step.hour ||
+            vers_info->interval.step.minute || vers_info->interval.step.second);
   }
+  bool vers_set_limit(ulonglong limit)
+  {
+    DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+    vers_info->limit= limit;
+    return !limit;
+  }
+  void vers_set_hist_part(THD *thd);
+  bool vers_setup_expression(THD *thd, uint32 alter_add= 0); /* Stage 1. */
   partition_element *get_partition(uint part_id)
   {
     List_iterator<partition_element> it(partitions);
@@ -434,120 +424,7 @@ public:
     }
     return NULL;
   }
-  bool vers_limit_exceed(partition_element *part= NULL)
-  {
-    DBUG_ASSERT(vers_info);
-    if (!vers_info->limit)
-      return false;
-    if (!part)
-    {
-      DBUG_ASSERT(vers_info->initialized());
-      part= vers_hist_part();
-    }
-    // TODO: cache thread-shared part_recs and increment on INSERT
-    return table->file->part_records(part) >= vers_info->limit;
-  }
-  Vers_min_max_stats& vers_stat_trx(stat_trx_field fld, uint32 part_element_id)
-  {
-    DBUG_ASSERT(table && table->s && table->s->stat_trx);
-    Vers_min_max_stats* res= table->s->stat_trx[part_element_id * num_columns + fld];
-    DBUG_ASSERT(res);
-    return *res;
-  }
-  Vers_min_max_stats& vers_stat_trx(stat_trx_field fld, partition_element *part)
-  {
-    DBUG_ASSERT(part);
-    return vers_stat_trx(fld, part->id);
-  }
-  bool vers_interval_exceed(my_time_t max_time, partition_element *part= NULL)
-  {
-    DBUG_ASSERT(vers_info);
-    if (!vers_info->interval)
-      return false;
-    if (!part)
-    {
-      DBUG_ASSERT(vers_info->initialized());
-      part= vers_hist_part();
-    }
-    my_time_t min_time= vers_stat_trx(STAT_TRX_END, part).min_time();
-    return max_time - min_time > vers_info->interval;
-  }
-  bool vers_interval_exceed(partition_element *part)
-  {
-    return vers_interval_exceed(vers_stat_trx(STAT_TRX_END, part).max_time(), part);
-  }
-  bool vers_interval_exceed()
-  {
-    return vers_interval_exceed(vers_hist_part());
-  }
   bool vers_trx_id_to_ts(THD *thd, Field *in_trx_id, Field_timestamp &out_ts);
-  void vers_update_stats(THD *thd, partition_element *el)
-  {
-    DBUG_ASSERT(vers_info && vers_info->initialized());
-    DBUG_ASSERT(table && table->s);
-    DBUG_ASSERT(el && el->type() == partition_element::HISTORY);
-    bool updated;
-    mysql_rwlock_wrlock(&table->s->LOCK_stat_serial);
-    el->empty= false;
-    if (table->versioned(VERS_TRX_ID))
-    {
-      // transaction is not yet pushed to VTQ, so we use now-time
-      my_time_t end_ts= my_time_t(0);
-
-      uchar buf[8];
-      Field_timestampf fld(buf, NULL, 0, Field::NONE, &table->vers_end_field()->field_name, NULL, 6);
-      fld.store_TIME(end_ts, 0);
-      updated=
-        vers_stat_trx(STAT_TRX_END, el->id).update(&fld);
-    }
-    else
-    {
-      updated=
-        vers_stat_trx(STAT_TRX_END, el->id).update(table->vers_end_field());
-    }
-    if (updated)
-      table->s->stat_serial++;
-    mysql_rwlock_unlock(&table->s->LOCK_stat_serial);
-    if (updated)
-    {
-      vers_update_col_vals(thd,
-        el->id > 0 ? get_partition(el->id - 1) : NULL,
-        el);
-    }
-  }
-  void vers_update_stats(THD *thd, uint part_id)
-  {
-    DBUG_ASSERT(vers_info && vers_info->initialized());
-    uint lpart_id= num_subparts ? part_id / num_subparts : part_id;
-    if (lpart_id < vers_info->now_part->id)
-      vers_update_stats(thd, get_partition(lpart_id));
-  }
-  bool vers_update_range_constants(THD *thd)
-  {
-    DBUG_ASSERT(vers_info && vers_info->initialized());
-    DBUG_ASSERT(table && table->s);
-
-    mysql_rwlock_rdlock(&table->s->LOCK_stat_serial);
-    if (vers_info->stat_serial == table->s->stat_serial)
-    {
-      mysql_rwlock_unlock(&table->s->LOCK_stat_serial);
-      return false;
-    }
-
-    bool result= false;
-    for (uint i= 0; i < num_columns; ++i)
-    {
-      Field *f= part_field_array[i];
-      bitmap_set_bit(f->table->write_set, f->field_index);
-    }
-    MEM_ROOT *old_root= thd->mem_root;
-    thd->mem_root= &table->mem_root;
-    //result= check_range_constants(thd, false);
-    thd->mem_root= old_root;
-    vers_info->stat_serial= table->s->stat_serial;
-    mysql_rwlock_unlock(&table->s->LOCK_stat_serial);
-    return result;
-  }
 };
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);

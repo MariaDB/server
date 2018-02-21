@@ -139,10 +139,6 @@ prepare select_pn from @str;
 execute select_p0;
 execute select_pn;
 
---echo ## pruning check
---replace_regex /\d/N/ /ALL/system/ /Using where//
-explain partitions select * from t1;
-
 set @str= concat('select row_start from t1 partition (pn) into @ts0');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 
@@ -212,14 +208,14 @@ show create table t1;
 --error ER_DROP_PARTITION_NON_EXISTENT
 alter table t1 drop partition non_existent;
 
-insert into t1 values (1), (2), (3);
+insert into t1 values (1), (2), (3), (4), (5), (6);
 select * from t1 partition (pn);
---echo ### warn about partition switching
+delete from t1 where x < 4;
 delete from t1;
 select * from t1 partition (p0);
 select * from t1 partition (p1);
 
-insert into t1 values (4), (5);
+insert into t1 values (7), (8);
 --echo ### warn about full partition
 delete from t1;
 select * from t1 partition (p1) order by x;
@@ -237,6 +233,14 @@ alter table t1 partition by system_time limit 1 (
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 0 second (
+    partition p0 history,
+    partition p1 history,
+    partition pn current);
+
+--error ER_PARSE_ERROR
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 1 second starts 12345 (
     partition p0 history,
     partition p1 history,
     partition pn current);
@@ -288,7 +292,9 @@ insert into t1 (x) values (1), (2), (3), (4), (5);
 select * from t1 partition (pnsp0);
 select * from t1 partition (pnsp1);
 
---echo ### warn about partition switching and about full partition
+--echo ### warn about full partition
+delete from t1 where x < 3;
+delete from t1;
 delete from t1;
 select * from t1 partition (p0sp0);
 select * from t1 partition (p0sp1);
@@ -383,6 +389,56 @@ lock table t1 write;
 alter table t1 add partition (partition p1 history);
 insert into t1 values (1);
 unlock tables;
+
+--error ER_DATA_OUT_OF_RANGE
+create or replace table t1 (pk int) with system versioning
+partition by system_time interval 10 year (
+  partition p1 history,
+  partition p2 history,
+  partition pn current
+);
+
+# INTERVAL and ALTER TABLE
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 hour (
+    partition p0 history, partition pn current);
+
+set @ts=(select partition_description from information_schema.partitions
+  where table_schema='test' and table_name='t1' and partition_name='p0');
+
+alter table t1 add column b int;
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+alter table t1 add partition (partition p1 history, partition p2 history);
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+alter table t1 drop partition p0;
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+--error ER_VERS_DROP_PARTITION_INTERVAL
+alter table t1 drop partition p2;
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 second
+    subpartition by key (i) subpartitions 2
+    (partition p1 history, partition pn current);
+insert t1 values (1); delete from t1;
+sleep 1;
+insert t1 values (2); delete from t1;
+alter table t1 add partition (partition p0 history, partition p2 history);
+select subpartition_name,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
+
+--echo ## pruning check
+set @ts=(select partition_description from information_schema.partitions
+  where table_schema='test' and table_name='t1' and partition_name='p0' limit 1);
+insert into t1 values (4),(5);
+--sorted_result
+select * from t1;
+explain partitions select * from t1;
+--replace_column 10 #
+explain partitions select * from t1 for system_time as of from_unixtime(@ts);
+set @ts=(select row_end from t1 for system_time all where i=1);
+select * from t1 for system_time all where row_end = @ts;
+--replace_column 5 # 10 # 11 #
+explain partitions select * from t1 for system_time all where row_end = @ts;
 
 --echo # Test cleanup
 drop database test;

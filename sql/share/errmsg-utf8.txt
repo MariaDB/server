@@ -7837,8 +7837,8 @@ WARN_VERS_PART_FULL
 WARN_VERS_PARAMETERS
         eng "Maybe missing parameters: %s"
 
-WARN_VERS_PART_ROTATION
-        eng "Versioned table %`s.%`s: switching from partition %`s to %`s"
+ER_VERS_DROP_PARTITION_INTERVAL
+        eng "Can only drop oldest partitions when rotating by INTERVAL"
 
 WARN_VERS_TRX_MISSING
         eng "VTQ missing transaction ID %lu"

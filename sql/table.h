@@ -575,8 +575,6 @@ struct TABLE_STATISTICS_CB
   bool histograms_are_read;   
 };
 
-class Vers_min_max_stats;
-
 enum vers_sys_type_t
 {
   VERS_UNDEFINED= 0,
@@ -777,27 +775,6 @@ struct TABLE_SHARE
   bool vtmd;
   uint16 row_start_field;
   uint16 row_end_field;
-  uint32 hist_part_id;
-  Vers_min_max_stats** stat_trx;
-  ulonglong stat_serial; // guards check_range_constants() updates
-
-  bool busy_rotation;
-  mysql_mutex_t LOCK_rotation;
-  mysql_cond_t COND_rotation;
-  mysql_rwlock_t LOCK_stat_serial;
-
-  void vers_init()
-  {
-    hist_part_id= UINT_MAX32;
-    busy_rotation= false;
-    stat_trx= NULL;
-    stat_serial= 0;
-    mysql_mutex_init(key_TABLE_SHARE_LOCK_rotation, &LOCK_rotation, MY_MUTEX_INIT_FAST);
-    mysql_cond_init(key_TABLE_SHARE_COND_rotation, &COND_rotation, NULL);
-    mysql_rwlock_init(key_rwlock_LOCK_stat_serial, &LOCK_stat_serial);
-  }
-
-  void vers_destroy();
 
   Field *vers_start_field()
   {
@@ -807,12 +784,6 @@ struct TABLE_SHARE
   Field *vers_end_field()
   {
     return field[row_end_field];
-  }
-
-  void vers_wait_rotation()
-  {
-    while (busy_rotation)
-      mysql_cond_wait(&COND_rotation, &LOCK_rotation);
   }
 
   /**

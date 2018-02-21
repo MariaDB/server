@@ -7295,27 +7295,6 @@ bool Item_temporal_literal::eq(const Item *item, bool binary_cmp) const
                      &((Item_temporal_literal *) item)->cached_time);
 }
 
-bool Item_temporal_literal::operator<(const MYSQL_TIME &ltime) const
-{
-  if (my_time_compare(&cached_time, &ltime) < 0)
-    return true;
-  return false;
-}
-
-bool Item_temporal_literal::operator>(const MYSQL_TIME &ltime) const
-{
-  if (my_time_compare(&cached_time, &ltime) > 0)
-    return true;
-  return false;
-}
-
-bool Item_temporal_literal::operator==(const MYSQL_TIME &ltime) const
-{
-  if (my_time_compare(&cached_time, &ltime) == 0)
-    return true;
-  return false;
-}
-
 void Item_date_literal::print(String *str, enum_query_type query_type)
 {
   str->append("DATE'");

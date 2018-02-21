@@ -1740,7 +1740,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <ulong_num>
         ulong_num real_ulong_num merge_insert_types
-        ws_nweights
+        ws_nweights opt_versioning_interval_start
         ws_level_flag_desc ws_level_flag_reverse ws_level_flags
         opt_ws_levels ws_level_list ws_level_list_item ws_level_number
         ws_level_range ws_level_list_or_range bool
@@ -5157,12 +5157,12 @@ have_partitioning:
 partition_entry:
           PARTITION_SYM
           {
-            LEX *lex= Lex;
-            if (!lex->part_info)
+            if (!Lex->part_info)
             {
               thd->parse_error(ER_PARTITION_ENTRY_ERROR);
               MYSQL_YYABORT;
             }
+            DBUG_ASSERT(Lex->part_info->table);
             /*
               We enter here when opening the frm file to translate
               partition info string into part_info data structure.
@@ -5844,13 +5844,10 @@ opt_part_option:
 
 opt_versioning_interval:
          /* empty */ {}
-       | INTERVAL_SYM expr interval
+       | INTERVAL_SYM expr interval opt_versioning_interval_start
          {
            partition_info *part_info= Lex->part_info;
-           DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
-           INTERVAL interval;
-           if (get_interval_value($2, $3, &interval) ||
-              part_info->vers_set_interval(interval))
+           if (part_info->vers_set_interval($2, $3, $4))
            {
              my_error(ER_PART_WRONG_VALUE, MYF(0),
                       Lex->create_last_non_select_table->table_name.str,
@@ -5860,20 +5857,36 @@ opt_versioning_interval:
          }
        ;
 
+opt_versioning_interval_start:
+         /* empty */
+         {
+           $$= thd->system_time;
+         }
+       | remember_tok_start STARTS_SYM ulong_num
+         {
+           /* only allowed from mysql_unpack_partition() */
+           if (!Lex->part_info->table)
+           {
+             thd->parse_error(ER_SYNTAX_ERROR, $1);
+             MYSQL_YYABORT;
+           }
+           $$= (ulong)$3;
+         }
+       ;
+
 opt_versioning_limit:
          /* empty */ {}
        | LIMIT ulonglong_num
+       {
+         partition_info *part_info= Lex->part_info;
+         if (part_info->vers_set_limit($2))
          {
-           partition_info *part_info= Lex->part_info;
-           DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
-           if (part_info->vers_set_limit($2))
-           {
-             my_error(ER_PART_WRONG_VALUE, MYF(0),
-                      Lex->create_last_non_select_table->table_name.str,
-                      "LIMIT");
-             MYSQL_YYABORT;
-           }
+           my_error(ER_PART_WRONG_VALUE, MYF(0),
+                    Lex->create_last_non_select_table->table_name.str,
+                    "LIMIT");
+           MYSQL_YYABORT;
          }
+       }
        ;
 
 /*

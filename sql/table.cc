@@ -425,9 +425,6 @@ void TABLE_SHARE::destroy()
   DBUG_ENTER("TABLE_SHARE::destroy");
   DBUG_PRINT("info", ("db: %s table: %s", db.str, table_name.str));
 
-  if (versioned)
-    vers_destroy();
-
   if (ha_share)
   {
     delete ha_share;
@@ -1791,7 +1788,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
     versioned= VERS_TIMESTAMP;
     vers_can_native= plugin_hton(se_plugin)->flags & HTON_NATIVE_SYS_VERSIONING;
-    vers_init();
     row_start_field= row_start;
     row_end_field= row_end;
   } // if (system_period == NULL)
@@ -3521,38 +3517,6 @@ partititon_err:
 
   if (share->no_replicate || !binlog_filter->db_ok(share->db.str))
     share->can_do_row_logging= 0;   // No row based replication
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (outparam->part_info &&
-    outparam->part_info->part_type == VERSIONING_PARTITION)
-  {
-    Query_arena *backup_stmt_arena_ptr= thd->stmt_arena;
-    Query_arena backup_arena;
-    Query_arena part_func_arena(&outparam->mem_root,
-                                Query_arena::STMT_INITIALIZED);
-    if (!work_part_info_used)
-    {
-      thd->set_n_backup_active_arena(&part_func_arena, &backup_arena);
-      thd->stmt_arena= &part_func_arena;
-    }
-
-    bool err= outparam->part_info->vers_setup_stats(thd, is_create_table);
-
-    if (!work_part_info_used)
-    {
-      thd->stmt_arena= backup_stmt_arena_ptr;
-      thd->restore_active_arena(&part_func_arena, &backup_arena);
-    }
-
-    if (err)
-    {
-      outparam->file->ha_close();
-      error= OPEN_FRM_OPEN_ERROR;
-      error_reported= true;
-      goto err;
-    }
-  }
-#endif
 
   /* Increment the opened_tables counter, only when open flags set. */
   if (db_stat)
@@ -8588,20 +8552,6 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
     { STRING_WITH_LEN("SET DEFAULT") }
   };
   return names + opt;
-}
-
-void TABLE_SHARE::vers_destroy()
-{
-  mysql_mutex_destroy(&LOCK_rotation);
-  mysql_cond_destroy(&COND_rotation);
-  mysql_rwlock_destroy(&LOCK_stat_serial);
-  if (stat_trx)
-  {
-    for (Vers_min_max_stats** p= stat_trx; *p; ++p)
-    {
-      delete *p;
-    }
-  }
 }
 
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;

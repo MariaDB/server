@@ -2037,6 +2037,11 @@ int ha_partition::copy_partitions(ulonglong * const copied,
     else
       set_linear_hash_mask(m_part_info, m_part_info->num_subparts);
   }
+  else if (m_part_info->part_type == VERSIONING_PARTITION)
+  {
+    if (m_part_info->check_constants(ha_thd(), m_part_info))
+      goto init_error;
+  }
 
   while (reorg_part < m_reorged_parts)
   {
@@ -3909,8 +3914,13 @@ int ha_partition::external_lock(THD *thd, int lock_type)
       (void) (*file)->ha_external_lock(thd, lock_type);
     } while (*(++file));
   }
-  if (lock_type == F_WRLCK && m_part_info->part_expr)
-    m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+  if (lock_type == F_WRLCK)
+  {
+    if (m_part_info->part_expr)
+      m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+    if (m_part_info->part_type == VERSIONING_PARTITION)
+      m_part_info->vers_set_hist_part(thd);
+  }
   DBUG_RETURN(0);
 
 err_handler:
@@ -4270,9 +4280,6 @@ int ha_partition::write_row(uchar * buf)
     set_auto_increment_if_higher(table->next_number_field);
   reenable_binlog(thd);
 
-  if (m_part_info->part_type == VERSIONING_PARTITION)
-    m_part_info->vers_update_stats(thd, part_id);
-
 exit:
   thd->variables.sql_mode= saved_sql_mode;
   table->auto_increment_field_not_null= saved_auto_inc_field_not_null;
@@ -4380,9 +4387,6 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     table->next_number_field= saved_next_number_field;
     if (error)
       goto exit;
-
-    if (m_part_info->part_type == VERSIONING_PARTITION)
-      m_part_info->vers_update_stats(thd, new_part_id);
 
     tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
     error= m_file[old_part_id]->ha_delete_row(old_data);
