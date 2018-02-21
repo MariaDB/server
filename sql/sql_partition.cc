@@ -3464,7 +3464,6 @@ int vers_get_partition_id(partition_info *part_info,
   DBUG_ASSERT(table->versioned());
   DBUG_ASSERT(table->vers_end_field() == row_end);
 
-  // new rows have NULL in row_end
   if (row_end->is_max() || row_end->is_null())
   {
     *part_id= vers_info->now_part->id;

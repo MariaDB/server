@@ -6869,7 +6869,7 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   f->field_name.str= field_name;
   f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;
-  f->flags= flags;
+  f->flags= flags | NOT_NULL_FLAG;
   if (integer)
   {
     f->set_handler(&type_handler_longlong);
