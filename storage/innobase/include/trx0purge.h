@@ -97,10 +97,10 @@ private:
 		trx_rsegs_t;
 public:
 	typedef trx_rsegs_t::iterator iterator;
+	typedef trx_rsegs_t::const_iterator const_iterator;
 
 	/** Default constructor */
-	TrxUndoRsegs(trx_id_t trx_no = 0) : m_trx_no(trx_no) {}
-
+	TrxUndoRsegs() {}
 	/** Constructor */
 	TrxUndoRsegs(trx_rseg_t& rseg)
 		: m_trx_no(rseg.last_trx_no), m_rsegs(1, &rseg) {}
@@ -108,28 +108,15 @@ public:
 	TrxUndoRsegs(trx_id_t trx_no, trx_rseg_t& rseg)
 		: m_trx_no(trx_no), m_rsegs(1, &rseg) {}
 
-	/** Get transaction number
-	@return trx_id_t - get transaction number. */
-	trx_id_t get_trx_no() const
-	{
-		return(m_trx_no);
-	}
+	/** Get the commit number */
+	trx_id_t get_trx_no() const { return m_trx_no; }
 
 	bool empty() const { return m_rsegs.empty(); }
 	void erase(iterator& it) { m_rsegs.erase(it); }
 	iterator begin() { return(m_rsegs.begin()); }
 	iterator end() { return(m_rsegs.end()); }
-
-	/** Append rollback segments from referred instance to current
-	instance. */
-	void append(const TrxUndoRsegs& append_from)
-	{
-		ut_ad(get_trx_no() == append_from.get_trx_no());
-
-		m_rsegs.insert(m_rsegs.end(),
-			       append_from.m_rsegs.begin(),
-			       append_from.m_rsegs.end());
-	}
+	const_iterator begin() const { return m_rsegs.begin(); }
+	const_iterator end() const { return m_rsegs.end(); }
 
 	/** Compare two TrxUndoRsegs based on trx_no.
 	@param elem1 first element to compare
@@ -141,7 +128,7 @@ public:
 	}
 
 private:
-	/** The rollback segments transaction number. */
+	/** Copy trx_rseg_t::last_trx_no */
 	trx_id_t		m_trx_no;
 
 	/** Rollback segments of a transaction, scheduled for purge. */
@@ -153,14 +140,12 @@ typedef std::priority_queue<
 	std::vector<TrxUndoRsegs, ut_allocator<TrxUndoRsegs> >,
 	TrxUndoRsegs>	purge_pq_t;
 
-/**
-Chooses the rollback segment with the smallest trx_no. */
+/** Chooses the rollback segment with the oldest committed transaction */
 struct TrxUndoRsegsIterator {
-
 	/** Constructor */
-	TrxUndoRsegsIterator();
-
+	inline TrxUndoRsegsIterator();
 	/** Sets the next rseg to purge in purge_sys.
+	Executed in the purge coordinator thread.
 	@return whether anything is to be purged */
 	inline bool set_next();
 
@@ -170,13 +155,9 @@ private:
 	TrxUndoRsegsIterator& operator=(const TrxUndoRsegsIterator&);
 
 	/** The current element to process */
-	TrxUndoRsegs			m_trx_undo_rsegs;
-
-	/** Track the current element in m_trx_undo_rseg */
-	TrxUndoRsegs::iterator		m_iter;
-
-	/** Sentinel value */
-	static const TrxUndoRsegs	NullElement;
+	TrxUndoRsegs			m_rsegs;
+	/** Track the current element in m_rsegs */
+	TrxUndoRsegs::const_iterator	m_iter;
 };
 
 /* Namespace to hold all the related functions and variables need for truncate
