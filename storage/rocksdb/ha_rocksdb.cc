@@ -3154,10 +3154,20 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
          - For a COMMIT statement that finishes a multi-statement transaction
          - For a statement that has its own transaction
       */
+
+      //  First, commit without syncing. This establishes the commit order
+      tx->set_sync(false);
       if (tx->commit()) {
         DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
       }
       thd_wakeup_subsequent_commits(thd, 0);
+
+      if (rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC)
+      {
+        rocksdb::Status s= rdb->FlushWAL(true);
+        if (!s.ok())
+          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+      }
     } else {
       /*
         We get here when committing a statement within a transaction.
