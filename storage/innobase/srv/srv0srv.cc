@@ -418,13 +418,10 @@ ulint	srv_truncated_status_writes;
 ulong	srv_available_undo_logs;
 
 UNIV_INTERN ib_uint64_t srv_page_compression_saved;
-UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect512;
-UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect4096;
 UNIV_INTERN ib_uint64_t srv_index_pages_written;
 UNIV_INTERN ib_uint64_t srv_non_index_pages_written;
 UNIV_INTERN ib_uint64_t srv_pages_page_compressed;
 UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op;
-UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op_saved;
 UNIV_INTERN ib_uint64_t srv_index_page_decompressed;
 
 /* Defragmentation */
