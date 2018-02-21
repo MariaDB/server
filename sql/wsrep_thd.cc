@@ -1018,12 +1018,6 @@ THD* wsrep_start_SR_THD(char *thread_stack)
   }
 
   thd->thread_stack= thread_stack;
-  if (thd->store_globals())
-  {
-    WSREP_ERROR("Could not create THD for Streaming Replication");
-    delete thd;
-    goto err;
-  }
 
   thd->real_id=pthread_self(); // Keep purify happy
   mysql_mutex_lock(&LOCK_thread_count);

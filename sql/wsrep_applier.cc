@@ -309,6 +309,8 @@ static wsrep_SR_trx_info* wsrep_prepare_applier_ctx(
     WSREP_DEBUG("WS with begin and not commit flag");
     *thd = wsrep_start_SR_THD(orig_thd->thread_stack);
     SR_trx = sr_pool->add(meta->stid.node, meta->stid.trx, *thd);
+
+    (*thd)->store_globals();
   }
 
   assert(*thd);

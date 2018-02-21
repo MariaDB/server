@@ -390,8 +390,6 @@ void wsrep_prepare_SR_trx_info_for_rollback(THD *thd)
   {
     thd->wsrep_SR_fragments.clear();
   }
-
-  thd->store_globals();
 }
 
 
