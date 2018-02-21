@@ -479,15 +479,11 @@ trx_rseg_mem_restore(
 		ut_ad(purge <= 1);
 		rseg->needs_purge = purge != 0;
 
-		TrxUndoRsegs elem(rseg->last_trx_no);
-		elem.push_back(rseg);
-
 		if (rseg->last_page_no != FIL_NULL) {
 
 			/* There is no need to cover this operation by the purge
 			mutex because we are still bootstrapping. */
-
-			purge_sys->purge_queue.push(elem);
+			purge_sys->purge_queue.push(*rseg);
 		}
 	}
 }

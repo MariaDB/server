@@ -64,7 +64,7 @@ my_bool		srv_purge_view_update_only_debug;
 #endif /* UNIV_DEBUG */
 
 /** Sentinel value */
-const TrxUndoRsegs TrxUndoRsegsIterator::NullElement(UINT64_UNDEFINED);
+const TrxUndoRsegs TrxUndoRsegsIterator::NullElement(TRX_ID_MAX);
 
 /** Constructor */
 TrxUndoRsegsIterator::TrxUndoRsegsIterator()
@@ -110,7 +110,7 @@ TrxUndoRsegsIterator::set_next()
 
 		while (!purge_queue.empty()) {
 
-			if (m_trx_undo_rsegs.get_trx_no() == UINT64_UNDEFINED) {
+			if (m_trx_undo_rsegs.get_trx_no() == TRX_ID_MAX) {
 				m_trx_undo_rsegs = purge_queue.top();
 			} else if (purge_queue.top().get_trx_no() ==
 					m_trx_undo_rsegs.get_trx_no()) {
@@ -903,10 +903,7 @@ trx_purge_cleanse_purge_queue(
 			}
 		}
 
-		if (it->size()) {
-			/* size != 0 suggest that there exist other rsegs that
-			needs processing so add this element to purge queue.
-			Note: Other rseg could be non-redo rsegs. */
+		if (!it->empty()) {
 			purge_sys->purge_queue.push(*it);
 		}
 	}
@@ -1174,9 +1171,6 @@ trx_purge_rseg_get_next_history_log(
 	rseg->last_trx_no = trx_no;
 	rseg->needs_purge = purge != 0;
 
-	TrxUndoRsegs elem(rseg->last_trx_no);
-	elem.push_back(rseg);
-
 	/* Purge can also produce events, however these are already ordered
 	in the rollback segment and any user generated event will be greater
 	than the events that Purge produces. ie. Purge can never produce
@@ -1184,7 +1178,7 @@ trx_purge_rseg_get_next_history_log(
 
 	mutex_enter(&purge_sys->pq_mutex);
 
-	purge_sys->purge_queue.push(elem);
+	purge_sys->purge_queue.push(*rseg);
 
 	mutex_exit(&purge_sys->pq_mutex);
 

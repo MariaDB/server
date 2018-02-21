@@ -27,14 +27,8 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0purge_h
 #define trx0purge_h
 
-#include "univ.i"
-#include "trx0types.h"
-#include "mtr0mtr.h"
-#include "trx0sys.h"
+#include "trx0rseg.h"
 #include "que0types.h"
-#include "page0page.h"
-#include "fil0fil.h"
-#include "read0types.h"
 
 /** A dummy undo record used as a return value when we have a whole undo log
 which needs no purge */
@@ -105,14 +99,14 @@ public:
 	typedef trx_rsegs_t::iterator iterator;
 
 	/** Default constructor */
-	TrxUndoRsegs() : m_trx_no() { }
+	TrxUndoRsegs(trx_id_t trx_no = 0) : m_trx_no(trx_no) {}
 
-	explicit TrxUndoRsegs(trx_id_t trx_no)
-		:
-		m_trx_no(trx_no)
-	{
-		// Do nothing
-	}
+	/** Constructor */
+	TrxUndoRsegs(trx_rseg_t& rseg)
+		: m_trx_no(rseg.last_trx_no), m_rsegs(1, &rseg) {}
+	/** Constructor */
+	TrxUndoRsegs(trx_id_t trx_no, trx_rseg_t& rseg)
+		: m_trx_no(trx_no), m_rsegs(1, &rseg) {}
 
 	/** Get transaction number
 	@return trx_id_t - get transaction number. */
@@ -121,40 +115,10 @@ public:
 		return(m_trx_no);
 	}
 
-	/** Add rollback segment.
-	@param rseg rollback segment to add. */
-	void push_back(trx_rseg_t* rseg)
-	{
-		m_rsegs.push_back(rseg);
-	}
-
-	/** Erase the element pointed by given iterator.
-	@param[in]	iterator	iterator */
-	void erase(iterator& it)
-	{
-		m_rsegs.erase(it);
-	}
-
-	/** Number of registered rsegs.
-	@return size of rseg list. */
-	ulint size() const
-	{
-		return(m_rsegs.size());
-	}
-
-	/**
-	@return an iterator to the first element */
-	iterator begin()
-	{
-		return(m_rsegs.begin());
-	}
-
-	/**
-	@return an iterator to the end */
-	iterator end()
-	{
-		return(m_rsegs.end());
-	}
+	bool empty() const { return m_rsegs.empty(); }
+	void erase(iterator& it) { m_rsegs.erase(it); }
+	iterator begin() { return(m_rsegs.begin()); }
+	iterator end() { return(m_rsegs.end()); }
 
 	/** Append rollback segments from referred instance to current
 	instance. */
@@ -175,10 +139,6 @@ public:
 	{
 		return(lhs.m_trx_no > rhs.m_trx_no);
 	}
-
-	/** Compiler defined copy-constructor/assignment operator
-	should be fine given that there is no reference to a memory
-	object outside scope of class object.*/
 
 private:
 	/** The rollback segments transaction number. */
@@ -202,7 +162,7 @@ struct TrxUndoRsegsIterator {
 
 	/** Sets the next rseg to purge in purge_sys.
 	@return whether anything is to be purged */
-	bool set_next();
+	inline bool set_next();
 
 private:
 	// Disable copying

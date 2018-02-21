@@ -1224,15 +1224,12 @@ trx_serialise(trx_t* trx)
 
 	trx_sys.assign_new_trx_no(trx);
 
-	/* If the rollack segment is not empty then the
+	/* If the rollback segment is not empty then the
 	new trx_t::no can't be less than any trx_t::no
 	already in the rollback segment. User threads only
 	produce events when a rollback segment is empty. */
 	if (rseg->last_page_no == FIL_NULL) {
-		TrxUndoRsegs	elem(trx->no);
-		elem.push_back(rseg);
-
-		purge_sys->purge_queue.push(elem);
+		purge_sys->purge_queue.push(TrxUndoRsegs(trx->no, *rseg));
 		mutex_exit(&purge_sys->pq_mutex);
 	}
 }
