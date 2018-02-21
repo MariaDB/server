@@ -454,6 +454,14 @@ insert into t1 values (1,10), (2,20);
 create or replace view v1 as select * from t1;
 update v1 set f= 30;
 
+--echo #
+--echo # MDEV-15168 Unexpected ER_VERS_ENGINE_UNSUPPORTED upon dropping versioning on a partitioned table
+--echo #
+create or replace table t (a int) with system versioning
+  partition by system_time (partition p1 history, partition pn current);
+--error ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
+alter table t drop system versioning;
+
 --echo # Test cleanup
 drop database test;
 create database test;

@@ -7882,8 +7882,8 @@ ER_VERS_NO_TRX_ID
 ER_VERS_ALTER_SYSTEM_FIELD
         eng "Can not change system versioning field %`s"
 
-ER_UNUSED_24
-        eng "You should never see it"
+ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
+        eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"
 
 ER_NOT_LOG_TABLE
         eng "Table %`s.%`s is not a log table"

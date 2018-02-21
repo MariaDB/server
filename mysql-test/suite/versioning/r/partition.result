@@ -542,6 +542,13 @@ partition by system_time limit 100 (partition p1 history, partition pn current);
 insert into t1 values (1,10), (2,20);
 create or replace view v1 as select * from t1;
 update v1 set f= 30;
+#
+# MDEV-15168 Unexpected ER_VERS_ENGINE_UNSUPPORTED upon dropping versioning on a partitioned table
+#
+create or replace table t (a int) with system versioning
+partition by system_time (partition p1 history, partition pn current);
+alter table t drop system versioning;
+ERROR HY000: Can not DROP SYSTEM VERSIONING for table `t` partitioned BY SYSTEM_TIME
 # Test cleanup
 drop database test;
 create database test;
