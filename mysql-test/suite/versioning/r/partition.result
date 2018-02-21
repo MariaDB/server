@@ -42,13 +42,13 @@ create or replace table t1 (x int)
 partition by system_time (
 partition p0 history,
 partition pn current);
-ERROR HY000: Transaction system versioning for `t1` is not supported
+ERROR HY000: Table `t1` is not system-versioned
 create or replace table t1 (x int);
 alter table t1
 partition by system_time (
 partition p0 history,
 partition pn current);
-Got one of the listed errors
+ERROR HY000: Table `t1` is not system-versioned
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (

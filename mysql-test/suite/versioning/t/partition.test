@@ -33,14 +33,14 @@ eval alter table t1 engine=$non_default_engine;
 
 --echo ## CREATE TABLE
 
---error ER_VERS_ENGINE_UNSUPPORTED
+--error ER_VERS_NOT_VERSIONED
 create or replace table t1 (x int)
 partition by system_time (
     partition p0 history,
     partition pn current);
 
 create or replace table t1 (x int);
---error ER_VERS_ENGINE_UNSUPPORTED,ER_VERS_ENGINE_UNSUPPORTED
+--error ER_VERS_NOT_VERSIONED
 alter table t1
 partition by system_time (
     partition p0 history,

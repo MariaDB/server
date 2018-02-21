@@ -928,7 +928,8 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
 {
   if (!table->versioned())
   {
-    my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->s->table_name.str);
+    // frm must be corrupted, normally CREATE/ALTER TABLE checks for that
+    my_error(ER_FILE_CORRUPT, MYF(0), table->s->path.str);
     return true;
   }
 

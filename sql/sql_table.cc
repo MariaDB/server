@@ -4641,6 +4641,12 @@ handler *mysql_create_frm_image(THD *thd,
       goto err;
     part_info->default_engine_type= engine_type;
 
+    if (part_info->vers_info && !create_info->versioned())
+    {
+      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name->str);
+      goto err;
+    }
+
     /*
       We reverse the partitioning parser and generate a standard format
       for syntax stored in frm file.
