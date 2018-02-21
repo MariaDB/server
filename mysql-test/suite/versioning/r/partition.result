@@ -281,6 +281,11 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 partition p0 history,
 partition p1 history,
 partition pn current)' at line 3
+create table t1 (i int) with system versioning
+partition by system_time interval 6 day limit 98
+(partition p0 history, partition ver_pn current);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'limit 98
+(partition p0 history, partition ver_pn current)' at line 2
 ### ha_partition::update_row() check
 create or replace table t1 (x int)
 with system versioning

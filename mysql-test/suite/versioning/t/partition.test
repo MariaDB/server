@@ -245,6 +245,11 @@ partition by system_time interval 1 second starts 12345 (
     partition p1 history,
     partition pn current);
 
+--error ER_PARSE_ERROR
+create table t1 (i int) with system versioning
+  partition by system_time interval 6 day limit 98
+  (partition p0 history, partition ver_pn current);
+
 --echo ### ha_partition::update_row() check
 create or replace table t1 (x int)
 with system versioning

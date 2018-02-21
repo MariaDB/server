@@ -5205,8 +5205,7 @@ part_type_def:
           { Lex->part_info->part_type= LIST_PARTITION; }
         | SYSTEM_TIME_SYM
           { if (Lex->part_info->vers_init_info(thd)) MYSQL_YYABORT; }
-          opt_versioning_interval
-          opt_versioning_limit
+          opt_versioning_rotation
         ;
 
 opt_linear:
@@ -5842,7 +5841,7 @@ opt_part_option:
           { Lex->part_info->curr_part_elem->part_comment= $3.str; }
         ;
 
-opt_versioning_interval:
+opt_versioning_rotation:
          /* empty */ {}
        | INTERVAL_SYM expr interval opt_versioning_interval_start
          {
@@ -5855,6 +5854,19 @@ opt_versioning_interval:
              MYSQL_YYABORT;
            }
          }
+       | LIMIT ulonglong_num
+       {
+         partition_info *part_info= Lex->part_info;
+         if (part_info->vers_set_limit($2))
+         {
+           my_error(ER_PART_WRONG_VALUE, MYF(0),
+                    Lex->create_last_non_select_table->table_name.str,
+                    "LIMIT");
+           MYSQL_YYABORT;
+         }
+       }
+       ;
+
        ;
 
 opt_versioning_interval_start:
@@ -5872,21 +5884,6 @@ opt_versioning_interval_start:
            }
            $$= (ulong)$3;
          }
-       ;
-
-opt_versioning_limit:
-         /* empty */ {}
-       | LIMIT ulonglong_num
-       {
-         partition_info *part_info= Lex->part_info;
-         if (part_info->vers_set_limit($2))
-         {
-           my_error(ER_PART_WRONG_VALUE, MYF(0),
-                    Lex->create_last_non_select_table->table_name.str,
-                    "LIMIT");
-           MYSQL_YYABORT;
-         }
-       }
        ;
 
 /*
