@@ -445,6 +445,15 @@ select * from t1 for system_time all where row_end = @ts;
 --replace_column 5 # 10 # 11 #
 explain partitions select * from t1 for system_time all where row_end = @ts;
 
+--echo #
+--echo # MDEV-15103 Assertion in ha_partition::part_records() for updating VIEW
+--echo #
+create or replace table t1 (pk int primary key, f int) with system versioning
+partition by system_time limit 100 (partition p1 history, partition pn current);
+insert into t1 values (1,10), (2,20);
+create or replace view v1 as select * from t1;
+update v1 set f= 30;
+
 --echo # Test cleanup
 drop database test;
 create database test;
