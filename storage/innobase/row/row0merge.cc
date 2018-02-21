@@ -4619,6 +4619,7 @@ row_merge_build_indexes(
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
 	ut_new_pfx_t		block_pfx;
+	size_t			block_size;
 	ut_new_pfx_t		crypt_pfx;
 	row_merge_block_t*	crypt_block = NULL;
 	ulint			i;
@@ -4654,7 +4655,8 @@ row_merge_build_indexes(
 
 	/* This will allocate "3 * srv_sort_buf_size" elements of type
 	row_merge_block_t. The latter is defined as byte. */
-	block = alloc.allocate_large(3 * srv_sort_buf_size, &block_pfx);
+	block_size = 3 * srv_sort_buf_size;
+	block = alloc.allocate_large(block_size, &block_pfx);
 
 	if (block == NULL) {
 		DBUG_RETURN(DB_OUT_OF_MEMORY);
@@ -4664,7 +4666,7 @@ row_merge_build_indexes(
 
 	if (log_tmp_is_encrypted()) {
 		crypt_block = static_cast<row_merge_block_t*>(
-			alloc.allocate_large(3 * srv_sort_buf_size,
+			alloc.allocate_large(block_size,
 					     &crypt_pfx));
 
 		if (crypt_block == NULL) {
@@ -5035,10 +5037,10 @@ func_exit:
 
 	ut_free(merge_files);
 
-	alloc.deallocate_large(block, &block_pfx);
+	alloc.deallocate_large(block, &block_pfx, block_size);
 
 	if (crypt_block) {
-		alloc.deallocate_large(crypt_block, &crypt_pfx);
+		alloc.deallocate_large(crypt_block, &crypt_pfx, block_size);
 	}
 
 	DICT_TF2_FLAG_UNSET(new_table, DICT_TF2_FTS_ADD_DOC_ID);
