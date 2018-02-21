@@ -22,33 +22,33 @@ show create table t1;
 create or replace table t1 (
   x2 int unsigned
 ) with system versioning;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 --error ER_VERS_PERIOD_COLUMNS
 eval create or replace table t1 (
   x3 int unsigned,
-  Sys_start $sys_datatype as row start invisible,
-  Sys_end $sys_datatype as row end invisible,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
   period for system_time (x, Sys_end)
 ) with system versioning;
 
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 --error ER_VERS_PERIOD_COLUMNS
 eval create or replace table t1 (
   x4 int unsigned,
-  Sys_start $sys_datatype as row start invisible,
-  Sys_end2 $sys_datatype as row end invisible,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end2 timestamp(6) as row end invisible,
   period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 --error ER_VERS_PERIOD_COLUMNS
 eval create or replace table t1 (
   x5 int unsigned,
-  Sys_start $sys_datatype as row start invisible,
-  Sys_end $sys_datatype as row end invisible,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
   period for system_time (Sys_start, x)
 ) with system versioning;
 
@@ -58,39 +58,39 @@ create or replace table t1 (
   period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 --error ER_MISSING
 eval create or replace table t1 (
   x7 int unsigned,
-  Sys_start $sys_datatype as row start invisible,
-  Sys_end $sys_datatype as row end invisible,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
   period for system_time (Sys_start, Sys_end)
 );
 
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 --error ER_VERS_PERIOD_COLUMNS
 eval create or replace table t1 (
   x8 int unsigned,
-  Sys_start $sys_datatype as row start invisible,
-  Sys_end $sys_datatype as row end invisible,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
   period for system_time (sys_insert, sys_remove)
 ) with system versioning;
 
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 --error ER_MISSING
 eval create or replace table t1 (
   x9 int unsigned,
-  Sys_start $sys_datatype as row start invisible,
-  Sys_end $sys_datatype as row end invisible,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
   period for system_time (Sys_start, Sys_end)
 );
 
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 --error ER_MISSING
 eval create or replace table t1 (
   x10 int unsigned,
-  Sys_start $sys_datatype as row start invisible,
-  Sys_end $sys_datatype as row end invisible,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
   period for system_time (Sys_start, Sys_start)
 );
 
@@ -132,14 +132,14 @@ create or replace table t1 (
   x15 int with system versioning,
   B int
 );
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
 create or replace table t1 (
   x16 int with system versioning,
   B int
 ) with system versioning;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
 create or replace table t1 (
@@ -151,21 +151,21 @@ create or replace table t1 (
   x18 int,
   B int without system versioning
 ) with system versioning;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
 create or replace table t1 (
   x19 int with system versioning,
   B int without system versioning
 );
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
 create or replace table t1 (
   x20 int with system versioning,
   B int without system versioning
 ) with system versioning;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
 create or replace table t1 (
@@ -180,34 +180,34 @@ create or replace table t1 (
 # CREATE TABLE ... LIKE
 create or replace table t1 (a int) with system versioning;
 create table tt1 like t1;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table tt1;
 drop table tt1;
 create temporary table tt1 like t1;
 --echo # Temporary is stripped from versioning
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table tt1;
 
 --echo # CREATE TABLE ... SELECT
 create or replace table t1 (x23 int) with system versioning;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 eval create or replace table t0(
   y int,
-  st $sys_datatype as row start,
-  en $sys_datatype as row end,
+  st timestamp(6) as row start,
+  en timestamp(6) as row end,
   period for system_time (st, en)
 ) with system versioning;
 
 --echo ## For non-versioned table:
 --echo ### 1. invisible fields are not included
 create or replace table t2 as select * from t1;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t2;
 
 --echo ### 2. all visible fields are included
 create or replace table t3 as select * from t0;
 select * from t0;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t3;
 
 --echo ## For versioned table
@@ -217,7 +217,7 @@ insert into t0 (y) values (2);
 select st from t0 into @st;
 
 create or replace table t2 with system versioning as select * from t1;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t2;
 --echo #### invisible fields are not copied
 select * from t2;
@@ -225,26 +225,26 @@ select * from t2 where row_start <= @row_start;
 
 --echo ### 2. source table with visible system fields, target with invisible
 create or replace table t3 with system versioning as select * from t0;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t3;
 select * from t3 where y > 2;
 select y from t3 where st = @st and row_start > @st;
 
 --echo ### 3. source and target table with visible system fields
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 eval create or replace table t3 (
-  st $sys_datatype as row start invisible,
-  en $sys_datatype as row end invisible,
+  st timestamp(6) as row start invisible,
+  en timestamp(6) as row end invisible,
   period for system_time (st, en)
 ) with system versioning as select * from t0;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t3;
 select y from t3;
 select y from t3 where st = @st;
 
 --echo ### 4. system fields not or wrongly selected
 create or replace table t3 with system versioning select x23 from t1;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t3;
 select * from t3;
 --error ER_MISSING
@@ -262,7 +262,7 @@ select en from t0 for system_time all into @en;
 create or replace table t2 (y int);
 insert into t2 values (3);
 create or replace table t3 with system versioning select * from t1 for system_time all, t2;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t3;
 select * from t3 for system_time all;
 select * from t3 for system_time all where row_start = @row_start and row_end = @row_end;
@@ -278,16 +278,16 @@ select st, en from t3 where y = 2 into @st, @en;
 select y from t2 for system_time all where st = @st and en = @en;
 
 --echo ## Default engine detection
---replace_result $non_default_engine NON_DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $non_default_engine NON_DEFAULT_ENGINE
 eval create or replace table t1 (x25 int) with system versioning engine $non_default_engine;
 create or replace table t2
 as select x25, row_start, row_end from t1 for system_time all;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t2;
 
 create or replace table t2 with system versioning
 as select x25, row_start, row_end from t1;
---replace_result $non_default_engine NON_DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $non_default_engine NON_DEFAULT_ENGINE
 show create table t2;
 
 create or replace table t1 (
@@ -305,7 +305,7 @@ eval create or replace table t1 (x27 int, id int) with system versioning engine 
 create or replace table t2 (b int, id int);
 create or replace table t3 with system versioning
 as select t2.b, t1.x27, t1.row_start, t1.row_end from t2 inner join t1 on t2.id=t1.id;
---replace_result $non_default_engine NON_DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE
+--replace_result $non_default_engine NON_DEFAULT_ENGINE
 show create table t3;
 
 --echo ## Errors
@@ -333,28 +333,28 @@ create or replace table t1 (
 
 --echo ## System fields detection
 create or replace table t1 (x30 int) with system versioning;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 eval create or replace table t2 (
     y int,
-    st $sys_datatype as row start invisible,
-    en $sys_datatype as row end invisible,
+    st timestamp(6) as row start invisible,
+    en timestamp(6) as row end invisible,
     period for system_time (st, en)
 ) with system versioning;
 
 create or replace table t3
 as select x30, y, row_start, row_end, st, en from t1, t2;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t3;
 
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 eval create or replace table t3 (
     y int,
-    st $sys_datatype as row start invisible,
-    en $sys_datatype as row end invisible,
+    st timestamp(6) as row start invisible,
+    en timestamp(6) as row end invisible,
     period for system_time (st, en)
 ) with system versioning
 as select x30, y, row_start, row_end, st, en from t1, t2;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t3;
 
 --echo # MDEV-14828 Server crashes in JOIN::prepare / setup_fields on 2nd execution of PS [#437]

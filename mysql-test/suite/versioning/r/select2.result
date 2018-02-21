@@ -22,8 +22,6 @@ delete from t1 where x = 3;
 delete from t1 where x > 7;
 insert into t1(x, y) values(3, 33);
 select sys_start from t1 where x = 3 and y = 33 into @t1;
-set @x1= @t1;
-select vtq_commit_ts(@x1) into @t1;
 select x, y from t1;
 x	y
 0	100
@@ -84,7 +82,7 @@ ALL_x	y
 8	108
 9	109
 3	33
-select x as ASOF2_x, y from t1 for system_time as of @x0;
+select x as ASOF2_x, y from t1 for system_time as of @t0;
 ASOF2_x	y
 0	100
 1	101
@@ -96,7 +94,7 @@ ASOF2_x	y
 7	107
 8	108
 9	109
-select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
+select x as FROMTO2_x, y from t1 for system_time from '0-0-0 0:0:0' to @t1;
 FROMTO2_x	y
 0	100
 1	101
@@ -108,7 +106,7 @@ FROMTO2_x	y
 7	107
 8	108
 9	109
-select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
+select x as BETWAND2_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
 BETWAND2_x	y
 0	100
 1	101

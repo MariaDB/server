@@ -1,17 +1,14 @@
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
 
-let $engine=`select default_engine()`;
-let $sys_type=`select sys_datatype(default_engine())`;
-
-replace_result $engine ENGINE $sys_type SYS_TYPE;
+replace_result $default_engine ENGINE $sys_datatype_expl SYS_TYPE;
 eval create table t1(
   x int unsigned,
   y int unsigned,
-  sys_start $sys_type as row start invisible,
-  sys_end $sys_type as row end invisible,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
   period for system_time (sys_start, sys_end))
-with system versioning engine=$engine;
+with system versioning engine=$default_engine;
 
 insert into t1 (x, y) values
   (0, 100),
@@ -32,7 +29,7 @@ delete from t1 where x > 7;
 
 insert into t1(x, y) values(3, 33);
 select sys_start from t1 where x = 3 and y = 33 into @t1;
-if(`select '$engine' = 'innodb'`) {
+if($MTR_COMBINATION_TRX_ID) {
   set @x1= @t1;
   select vtq_commit_ts(@x1) into @t1;
 }
@@ -43,12 +40,12 @@ select x as FROMTO_x, y from t1 for system_time from '0-0-0 0:0:0' to timestamp 
 select x as BETWAND_x, y from t1 for system_time between '0-0-0 0:0:0' and timestamp @t1;
 select x as ALL_x, y from t1 for system_time all;
 
-if(`select '$engine' = 'innodb'`) {
+if($MTR_COMBINATION_TRX_ID) {
   select x as ASOF2_x, y from t1 for system_time as of @x0;
   select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
   select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
 }
-if(`select '$engine' != 'innodb'`) {
+if(!$MTR_COMBINATION_TRX_ID) {
   select x as ASOF2_x, y from t1 for system_time as of @t0;
   select x as FROMTO2_x, y from t1 for system_time from '0-0-0 0:0:0' to @t1;
   select x as BETWAND2_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
@@ -56,14 +53,14 @@ if(`select '$engine' != 'innodb'`) {
 
 drop table t1;
 
-replace_result $engine ENGINE $sys_type SYS_TYPE;
+replace_result $default_engine ENGINE $sys_datatype_expl SYS_TYPE;
 eval create table t1(
   x int,
   y int,
-  sys_start $sys_type as row start invisible,
-  sys_end $sys_type as row end invisible,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
   period for system_time (sys_start, sys_end))
-with system versioning engine=$engine;
+with system versioning engine=$default_engine;
 
 create table t2 like t1;
 

@@ -85,22 +85,22 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
 x3 int unsigned,
-Sys_start SYS_DATATYPE as row start invisible,
-Sys_end SYS_DATATYPE as row end invisible,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
 period for system_time (x, Sys_end)
 ) with system versioning;
 ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end`
 create or replace table t1 (
 x4 int unsigned,
-Sys_start SYS_DATATYPE as row start invisible,
-Sys_end2 SYS_DATATYPE as row end invisible,
+Sys_start timestamp(6) as row start invisible,
+Sys_end2 timestamp(6) as row end invisible,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
 ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end2`
 create or replace table t1 (
 x5 int unsigned,
-Sys_start SYS_DATATYPE as row start invisible,
-Sys_end SYS_DATATYPE as row end invisible,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
 period for system_time (Sys_start, x)
 ) with system versioning;
 ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end`
@@ -111,29 +111,29 @@ period for system_time (Sys_start, Sys_end)
 ERROR HY000: Wrong parameters for `t1`: missing 'AS ROW START'
 create or replace table t1 (
 x7 int unsigned,
-Sys_start SYS_DATATYPE as row start invisible,
-Sys_end SYS_DATATYPE as row end invisible,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
 period for system_time (Sys_start, Sys_end)
 );
 ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
 create or replace table t1 (
 x8 int unsigned,
-Sys_start SYS_DATATYPE as row start invisible,
-Sys_end SYS_DATATYPE as row end invisible,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
 period for system_time (sys_insert, sys_remove)
 ) with system versioning;
 ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end`
 create or replace table t1 (
 x9 int unsigned,
-Sys_start SYS_DATATYPE as row start invisible,
-Sys_end SYS_DATATYPE as row end invisible,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
 period for system_time (Sys_start, Sys_end)
 );
 ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
 create or replace table t1 (
 x10 int unsigned,
-Sys_start SYS_DATATYPE as row start invisible,
-Sys_end SYS_DATATYPE as row end invisible,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
 period for system_time (Sys_start, Sys_start)
 );
 ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
@@ -247,8 +247,8 @@ tt1	CREATE TEMPORARY TABLE `tt1` (
 create or replace table t1 (x23 int) with system versioning;
 create or replace table t0(
 y int,
-st SYS_DATATYPE as row start,
-en SYS_DATATYPE as row end,
+st timestamp(6) as row start,
+en timestamp(6) as row end,
 period for system_time (st, en)
 ) with system versioning;
 ## For non-versioned table:
@@ -267,8 +267,8 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `y` int(11) DEFAULT NULL,
-  `st` SYS_DATATYPE,
-  `en` SYS_DATATYPE
+  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 ## For versioned table
 insert into t1 values (1);
@@ -293,8 +293,8 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `y` int(11) DEFAULT NULL,
-  `st` SYS_DATATYPE,
-  `en` SYS_DATATYPE
+  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t3 where y > 2;
 y	st	en
@@ -303,16 +303,16 @@ y
 2
 ### 3. source and target table with visible system fields
 create or replace table t3 (
-st SYS_DATATYPE as row start invisible,
-en SYS_DATATYPE as row end invisible,
+st timestamp(6) as row start invisible,
+en timestamp(6) as row end invisible,
 period for system_time (st, en)
 ) with system versioning as select * from t0;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `y` int(11) DEFAULT NULL,
-  `st` SYS_DATATYPE GENERATED ALWAYS AS ROW START INVISIBLE,
-  `en` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE,
+  `st` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `en` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`st`, `en`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select y from t3;
@@ -424,8 +424,8 @@ ERROR HY000: Duplicate ROW END column `Sys_end`
 create or replace table t1 (x30 int) with system versioning;
 create or replace table t2 (
 y int,
-st SYS_DATATYPE as row start invisible,
-en SYS_DATATYPE as row end invisible,
+st timestamp(6) as row start invisible,
+en timestamp(6) as row end invisible,
 period for system_time (st, en)
 ) with system versioning;
 create or replace table t3
@@ -435,13 +435,13 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `x30` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
-  `st` SYS_DATATYPE NOT NULL INVISIBLE DEFAULT '0000-00-00 00:00:00.000000',
-  `en` SYS_DATATYPE NOT NULL INVISIBLE DEFAULT '0000-00-00 00:00:00.000000'
+  `st` timestamp(6) NOT NULL INVISIBLE DEFAULT '0000-00-00 00:00:00.000000',
+  `en` timestamp(6) NOT NULL INVISIBLE DEFAULT '0000-00-00 00:00:00.000000'
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 create or replace table t3 (
 y int,
-st SYS_DATATYPE as row start invisible,
-en SYS_DATATYPE as row end invisible,
+st timestamp(6) as row start invisible,
+en timestamp(6) as row end invisible,
 period for system_time (st, en)
 ) with system versioning
 as select x30, y, row_start, row_end, st, en from t1, t2;
@@ -450,8 +450,8 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `x30` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
-  `st` SYS_DATATYPE GENERATED ALWAYS AS ROW START INVISIBLE,
-  `en` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE,
+  `st` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `en` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`st`, `en`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 # MDEV-14828 Server crashes in JOIN::prepare / setup_fields on 2nd execution of PS [#437]

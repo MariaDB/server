@@ -1,309 +1,150 @@
---source suite/versioning/common.inc
+source suite/versioning/engines.inc;
+source suite/versioning/common.inc;
 
-delimiter ~~;
-create procedure test_01(
-  sys_type varchar(255),
-  engine varchar(255),
-  fields varchar(255))
-begin
-  set @str= concat('
-  create table t1(
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create table t1(
     x int unsigned,
     y int unsigned,
-    sys_trx_start ', sys_type, ' as row start invisible,
-    sys_trx_end ', sys_type, ' as row end invisible,
+    sys_trx_start $sys_datatype_expl as row start invisible,
+    sys_trx_end $sys_datatype_expl as row end invisible,
     period for system_time (sys_trx_start, sys_trx_end))
-  with system versioning
-  engine ', engine);
-  prepare stmt from @str; execute stmt; drop prepare stmt;
-  insert into t1(x, y) values
-    (1, 1000),
-    (2, 2000),
-    (3, 3000),
-    (4, 4000),
-    (5, 5000),
-    (6, 6000),
-    (7, 7000),
-    (8, 8000),
-    (9, 9000);
-  select x, y from t1;
-  update t1 set y = y + 1 where x > 7;
-  select x, y from t1;
-  select x, y from t1 for system_time
-  between timestamp '0000-0-0 0:0:0'
-  and timestamp '2038-01-19 04:14:07';
-  drop table t1;
-end~~
+  with system versioning;
 
-create procedure test_02(
-  sys_type varchar(255),
-  engine varchar(255),
-  fields varchar(255))
-begin
-  set @str= concat('
-  create table t1 (
-    id bigint primary key,
-    x int,
-    y int without system versioning,
-    sys_trx_start ', sys_type, ' as row start invisible,
-    sys_trx_end ', sys_type, ' as row end invisible,
-    period for system_time (sys_trx_start, sys_trx_end))
-  with system versioning
-  engine ', engine);
-  prepare stmt from @str; execute stmt; drop prepare stmt;  
-  insert into t1 values(1, 1, 1);
-  set @ins_t= now(6);
-  select sys_trx_start into @tmp1 from t1;
-  update t1 set x= 11, y= 11 where id = 1;
-  select @tmp1 < sys_trx_start as A1, x, y from t1;
-  
-  select sys_trx_start into @tmp1 from t1;
-  update t1 set y= 1 where id = 1;
-  select @tmp1 = sys_trx_start as A2, x from t1;
+insert into t1(x, y) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000), (6, 6000), (7, 7000), (8, 8000), (9, 9000);
+select x, y from t1;
+update t1 set y = y + 1 where x > 7;
+select x, y from t1;
+select x, y from t1 for system_time all;
+drop table t1;
 
-  drop table t1;
-end~~
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create table t1 (
+  id bigint primary key,
+  x int,
+  y int without system versioning,
+  sys_trx_start $sys_datatype_expl as row start invisible,
+  sys_trx_end $sys_datatype_expl as row end invisible,
+  period for system_time (sys_trx_start, sys_trx_end))
+with system versioning;
+insert into t1 values(1, 1, 1);
+set @ins_t= now(6);
+select sys_trx_start into @tmp1 from t1;
+update t1 set x= 11, y= 11 where id = 1;
+select @tmp1 < sys_trx_start as A1, x, y from t1;
+select sys_trx_start into @tmp1 from t1;
+update t1 set y= 1 where id = 1;
+select @tmp1 = sys_trx_start as A2, x from t1;
+drop table t1;
 
-create procedure test_03(
-  sys_type varchar(255),
-  engine varchar(255),
-  fields varchar(255))
-begin
-  set @str= concat('
-  create table t1 (
-    x int,
-    y int,
-    sys_trx_start bigint unsigned as row start invisible,
-    sys_trx_end bigint unsigned as row end invisible,
-    period for system_time (sys_trx_start, sys_trx_end)
-  ) with system versioning
-  engine ', engine);
-  prepare stmt from @str; execute stmt; drop prepare stmt;
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create table t1 (
+  x int,
+  y int,
+  sys_trx_start $sys_datatype_expl as row start invisible,
+  sys_trx_end $sys_datatype_expl as row end invisible,
+  period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning;
 
-  insert into t1 (x, y) values (1, 1), (2, 1), (3, 1), (4, 1), (5, 1);
+insert into t1 (x, y) values (1, 1), (2, 1), (3, 1), (4, 1), (5, 1);
 
-  start transaction;  
-  update t1 set y= y + 1 where x = 3;
-  update t1 set y= y + 1 where x = 2;
-  update t1 set y= y + 1 where x = 3;
-  update t1 set y= y + 1 where x > 3;
-  update t1 set y= y + 1 where x > 4;
-  commit;
+start transaction;  
+update t1 set y= y + 1 where x = 3;
+update t1 set y= y + 1 where x = 2;
+update t1 set y= y + 1 where x = 3;
+update t1 set y= y + 1 where x > 3;
+update t1 set y= y + 1 where x > 4;
+commit;
 
-  select x, y, sys_trx_end = 18446744073709551615 as current from t1 for system_time all;
+replace_result $sys_datatype_max MAXVAL;
+eval select x, y, sys_trx_end = $sys_datatype_max as current from t1 for system_time all;
 
-  drop table t1;
-end~~
+drop table t1;
 
-create procedure test_04(
-  sys_type varchar(255),
-  engine varchar(255),
-  fields varchar(255))
-begin
-  set @str= concat('
-  create table t1 (
-    id int primary key auto_increment,
-    x int,
-    sys_trx_start ', sys_type, ' as row start invisible,
-    sys_trx_end ', sys_type, ' as row end invisible,
-    period for system_time (sys_trx_start, sys_trx_end))
-  with system versioning
-  engine ', engine);
-  prepare stmt from @str; execute stmt; drop prepare stmt;
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create table t1 (
+  id int primary key auto_increment,
+  x int,
+  sys_trx_start $sys_datatype_expl as row start invisible,
+  sys_trx_end $sys_datatype_expl as row end invisible,
+  period for system_time (sys_trx_start, sys_trx_end))
+with system versioning;
 
-  set @t0= now(6);
-  insert into t1 (x) values (1);
-  set @t1= now(6);
-  update t1 set x= 2 where id = 1;
-  set @t2= now(6);
-  update t1 set x= 3 where id = 1;
+set @t0= now(6);
+insert into t1 (x) values (1);
+set @t1= now(6);
+update t1 set x= 2 where id = 1;
+set @t2= now(6);
+update t1 set x= 3 where id = 1;
 
-  select x from t1 for system_time as of timestamp @t0;
-  select x from t1 for system_time as of timestamp @t1;
-  select x from t1 for system_time as of timestamp @t2;
-  select x from t1 for system_time as of timestamp now(6);
+select x from t1 for system_time as of timestamp @t0;
+select x from t1 for system_time as of timestamp @t1;
+select x from t1 for system_time as of timestamp @t2;
+select x from t1 for system_time as of timestamp now(6);
 
-  drop table t1;
-end~~
+drop table t1;
 
-create procedure test_05(
-  sys_type varchar(255),
-  engine varchar(255),
-  fields varchar(255))
-begin
-  set @str= concat('
-  create table t1(
-    x int unsigned,
-    sys_trx_end ', sys_type, ' as row end invisible,
-    sys_trx_start ', sys_type, ' as row start invisible,
-    y int unsigned,
-    period for system_time (sys_trx_start, sys_trx_end),
-    primary key(x, y))
-  with system versioning
-  engine ', engine);
-  prepare stmt from @str; execute stmt; drop prepare stmt;
-  insert into t1(x, y) values
-    (1, 1000),
-    (3, 3000),
-    (4, 4000),
-    (5, 5000);
-  insert into t1(x, y) values(3, 3000) on duplicate key update y = y+1;
-  insert into t1(x, y) values(4, 4444) on duplicate key update y = y+1;
-  select x, y from t1 for system_time all;
-  select x, y from t1;
-  drop table t1;
-end~~
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create table t1(
+  x int unsigned,
+  sys_trx_end $sys_datatype_expl as row end invisible,
+  sys_trx_start $sys_datatype_expl as row start invisible,
+  y int unsigned,
+  period for system_time (sys_trx_start, sys_trx_end),
+  primary key(x, y))
+with system versioning;
+insert into t1(x, y) values (1, 1000), (3, 3000), (4, 4000), (5, 5000);
+insert into t1(x, y) values(3, 3000) on duplicate key update y = y+1;
+insert into t1(x, y) values(4, 4444) on duplicate key update y = y+1;
+select x, y from t1 for system_time all;
+select x, y from t1;
+drop table t1;
 
-create procedure test_06(
-  sys_type varchar(255),
-  engine varchar(255),
-  fields varchar(255))
-begin
-  set @str= concat('(
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create table t1 (
     x int unsigned,
     y int unsigned,
-    sys_trx_start ', sys_type, ' as row start invisible,
-    sys_trx_end ', sys_type, ' as row end invisible,
+    sys_trx_start $sys_datatype_expl as row start invisible,
+    sys_trx_end $sys_datatype_expl as row end invisible,
     period for system_time (sys_trx_start, sys_trx_end))
-  with system versioning
-  engine ', engine);
-  set @str2= concat('create table t1', @str);
-  prepare stmt from @str2; execute stmt; drop prepare stmt;
-  set @str2= concat('create table t2', @str);
-  prepare stmt from @str2; execute stmt; drop prepare stmt;
-  insert into t1(x, y) values
-    (1, 1000),
-    (2, 2000),
-    (3, 3000),
-    (4, 4000),
-    (5, 5000),
-    (6, 6000),
-    (7, 7000),
-    (8, 8000),
-    (9, 9000);
-  insert into t2(x, y) values
-    (1, 1010),
-    (2, 2010),
-    (3, 3010),
-    (4, 4010),
-    (5, 5010),
-    (6, 6010),
-    (7, 7010),
-    (8, 8010),
-    (9, 9010);
-  update t1, t2 set t1.y = t1.x + t1.y, t2.y = t2.x + t2.y where t1.x > 7 and t2.x < 7;
-  select x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp '9999-1-1 0:0:0';
-  select x, y from t1;
-  select x, y from t2 for system_time between timestamp '0-0-0 0:0:0' and timestamp '9999-1-1 0:0:0';
-  select x, y from t2;
-  drop table t1;
-  drop table t2;
-end~~
+  with system versioning;
+create table t2 like t1;
+insert into t1(x, y) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000), (6, 6000), (7, 7000), (8, 8000), (9, 9000);
+insert into t2(x, y) values (1, 1010), (2, 2010), (3, 3010), (4, 4010), (5, 5010), (6, 6010), (7, 7010), (8, 8010), (9, 9010);
+update t1, t2 set t1.y = t1.x + t1.y, t2.y = t2.x + t2.y where t1.x > 7 and t2.x < 7;
+select x, y from t1 for system_time all;
+select x, y from t1;
+select x, y from t2 for system_time all;
+select x, y from t2;
+drop table t1;
+drop table t2;
 
-create procedure test_07(
-  sys_type varchar(255),
-  engine varchar(255),
-  fields varchar(255))
-begin
-  set @str= concat('(
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create table t1 (
     id bigint primary key without system versioning,
     name varchar(128),
     salary bigint without system versioning,
-    sys_trx_start ', sys_type, ' as row start invisible,
-    sys_trx_end ', sys_type, ' as row end invisible,
+    sys_trx_start $sys_datatype_expl as row start invisible,
+    sys_trx_end $sys_datatype_expl as row end invisible,
     period for system_time (sys_trx_start, sys_trx_end))
-  with system versioning
-  engine ', engine);
+  with system versioning;
+create table t2 like t1;
 
-  set @str2= concat('create table t1', @str);
-  prepare stmt from @str2; execute stmt; drop prepare stmt;
-  set @str2= concat('create table t2', @str);
-  prepare stmt from @str2; execute stmt; drop prepare stmt;
+insert into t1 values (1, "Jeremy", 3000);
+insert into t2 values (1, "Jeremy", 4000);
 
-  insert into t1 values (1, "Jeremy", 3000);
-  insert into t2 values (1, "Jeremy", 4000);
-  
-  select sys_trx_start into @tmp1 from t1;
-  select sys_trx_start into @tmp2 from t2;
-  update t1, t2 set t1.name= "Jerry", t2.name= "Jerry" where t1.id = t2.id and t1.name = "Jeremy";
-  select @tmp1 < sys_trx_start as A1, name from t1;
-  select @tmp2 < sys_trx_start as A2, name from t2;
-  
-  select sys_trx_start into @tmp1 from t1;
-  select sys_trx_start into @tmp2 from t2;
-  update t1, t2 set t1.salary= 2500, t2.salary= 2500 where t1.id = t2.id and t1.name = "Jerry";
-  select @tmp1 = sys_trx_start as B1, salary from t1;
-  select @tmp2 = sys_trx_start as B2, salary from t2;
+select sys_trx_start into @tmp1 from t1;
+select sys_trx_start into @tmp2 from t2;
+update t1, t2 set t1.name= "Jerry", t2.name= "Jerry" where t1.id = t2.id and t1.name = "Jeremy";
+select @tmp1 < sys_trx_start as A1, name from t1;
+select @tmp2 < sys_trx_start as A2, name from t2;
 
-  drop table t1;
-  drop table t2;
-end~~
-delimiter ;~~
+select sys_trx_start into @tmp1 from t1;
+select sys_trx_start into @tmp2 from t2;
+update t1, t2 set t1.salary= 2500, t2.salary= 2500 where t1.id = t2.id and t1.name = "Jerry";
+select @tmp1 = sys_trx_start as B1, salary from t1;
+select @tmp2 = sys_trx_start as B2, salary from t2;
 
-call test_01('timestamp(6)', 'myisam', 'sys_trx_end');
-call test_01('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call verify_vtq;
+drop table t1;
+drop table t2;
 
-call test_02('timestamp(6)', 'myisam', 'sys_trx_end');
-call test_02('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call verify_vtq;
-
---echo # Multiple UPDATE of same rows in single transaction create historical
---echo # rows only once (applicable to transaction-based only).
-call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call verify_vtq;
-
-call test_04('timestamp(6)', 'myisam', 'sys_trx_end');
-call test_04('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call test_04('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call verify_vtq;
-
-call test_05('timestamp(6)', 'myisam', 'sys_trx_end');
-call test_05('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call test_05('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call verify_vtq;
-
-call test_06('timestamp(6)', 'myisam', 'sys_trx_end');
-call test_06('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call test_06('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call verify_vtq;
-
---echo # Optimized fields
-call test_07('timestamp(6)', 'myisam', 'sys_trx_end');
-call test_07('timestamp(6)', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call test_07('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_trx_end)');
-call verify_vtq;
-
---echo ### Issue #365, bug 7 (duplicate of historical row)
-create or replace table t1 (a int primary key, b int)
-with system versioning engine myisam;
-insert into t1 (a) values (1);
-
-replace t1 values (1,2),(1,3),(2,4);
-
-#
-# MDEV-14829 Assertion `0' failed in Protocol::end_statement upon concurrent UPDATE
-#
-
-create or replace table t1 (pk int, a char(3), b char(3), primary key(pk))
-  engine=innodb with system versioning;
-
-insert into t1 (pk) values (1);
-connect (con1,localhost,root,,test);
-start transaction;
-select * from t1 for update;
-connection default;
-send update t1 set b = 'foo';
-connection con1;
-let $wait_condition= select count(*) from information_schema.innodb_lock_waits;
-source include/wait_condition.inc;
-error ER_LOCK_DEADLOCK;
-update t1 set a = 'bar';
-disconnect con1;
-connection default;
-reap;
-
-drop database test;
-create database test;
+source suite/versioning/common_finish.inc;
