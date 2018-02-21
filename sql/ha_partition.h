@@ -1484,7 +1484,7 @@ public:
     return h;
   }
 
-  virtual ha_rows part_records(void *_part_elem)
+  ha_rows part_records(void *_part_elem)
   {
     partition_element *part_elem= reinterpret_cast<partition_element *>(_part_elem);
     DBUG_ASSERT(m_part_info);
@@ -1501,12 +1501,6 @@ public:
       part_recs+= file->stats.records;
     }
     return part_recs;
-  }
-
-  virtual handler* part_handler(uint32 part_id)
-  {
-    DBUG_ASSERT(part_id < m_tot_parts);
-    return m_file[part_id];
   }
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);

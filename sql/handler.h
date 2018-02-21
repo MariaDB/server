@@ -4601,10 +4601,6 @@ public:
 
   bool native_versioned() const
   { DBUG_ASSERT(ht); return partition_ht()->flags & HTON_NATIVE_SYS_VERSIONING; }
-  virtual ha_rows part_records(void *_part_elem)
-  { DBUG_ASSERT(0); return false; }
-  virtual handler* part_handler(uint32 part_id)
-  { DBUG_ASSERT(0); return NULL; }
   virtual void update_partition(uint	part_id)
   {}
 protected:
