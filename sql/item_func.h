@@ -160,17 +160,9 @@ public:
   void print_args(String *str, uint from, enum_query_type query_type);
   inline bool get_arg0_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {
-    return fuzzy_date & TIME_TIME_ONLY ? get_arg0_time(ltime) :
-                                         get_arg0_datetime(ltime, fuzzy_date);
-  }
-  inline bool get_arg0_datetime(MYSQL_TIME *ltime, ulonglong fuzzy_date)
-  {
+    DBUG_ASSERT(!(fuzzy_date & TIME_TIME_ONLY));
     Datetime dt(current_thd, args[0], fuzzy_date);
     return (null_value= dt.copy_to_mysql_time(ltime));
-  }
-  inline bool get_arg0_time(MYSQL_TIME *ltime)
-  {
-    return (null_value= Time(args[0]).copy_to_mysql_time(ltime));
   }
   bool is_null() { 
     update_null_value();

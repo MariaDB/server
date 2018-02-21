@@ -94,6 +94,47 @@ struct SORT_FIELD_ATTR;
 */
 class Time: private MYSQL_TIME
 {
+public:
+  enum datetime_to_time_mode_t
+  {
+    DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS,
+    DATETIME_TO_TIME_YYYYMMDD_TRUNCATE
+  };
+  class Options
+  {
+    sql_mode_t              m_get_date_flags;
+    datetime_to_time_mode_t m_datetime_to_time_mode;
+  public:
+    Options()
+     :m_get_date_flags(flags_for_get_date()),
+      m_datetime_to_time_mode(DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS)
+    { }
+    Options(sql_mode_t flags)
+     :m_get_date_flags(flags),
+      m_datetime_to_time_mode(DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS)
+    { }
+    Options(sql_mode_t flags, datetime_to_time_mode_t dtmode)
+     :m_get_date_flags(flags),
+      m_datetime_to_time_mode(dtmode)
+    { }
+    sql_mode_t get_date_flags() const
+    { return m_get_date_flags; }
+    datetime_to_time_mode_t datetime_to_time_mode() const
+    { return m_datetime_to_time_mode; }
+  };
+  /*
+    CAST(AS TIME) historically does not mix days to hours.
+    This is different comparing to how implicit conversion
+    in Field::store_time_dec() works (e.g. on INSERT).
+  */
+  class Options_for_cast: public Options
+  {
+  public:
+    Options_for_cast()
+     :Options(flags_for_get_date(), DATETIME_TO_TIME_YYYYMMDD_TRUNCATE)
+    { }
+  };
+private:
   bool is_valid_value_slow() const
   {
     return time_type == MYSQL_TIMESTAMP_NONE || is_valid_time_slow();
@@ -113,7 +154,7 @@ class Time: private MYSQL_TIME
     e.g. returned from Item::get_date().
     After this call, "this" is a valid TIME value.
   */
-  void valid_datetime_to_valid_time()
+  void valid_datetime_to_valid_time(const Options opt)
   {
     DBUG_ASSERT(time_type == MYSQL_TIMESTAMP_DATE ||
                 time_type == MYSQL_TIMESTAMP_DATETIME);
@@ -123,7 +164,9 @@ class Time: private MYSQL_TIME
     */
     DBUG_ASSERT(day < 32);
     DBUG_ASSERT(hour < 24);
-    if (year == 0 && month == 0)
+    if (year == 0 && month == 0 &&
+        opt.datetime_to_time_mode() ==
+        DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS)
     {
       /*
         The maximum hour value after mixing days will be 31*24+23=767,
@@ -148,12 +191,12 @@ class Time: private MYSQL_TIME
     - either a valid TIME (within the supported TIME range),
     - or MYSQL_TIMESTAMP_NONE
   */
-  void valid_MYSQL_TIME_to_valid_value()
+  void valid_MYSQL_TIME_to_valid_value(const Options opt)
   {
     switch (time_type) {
     case MYSQL_TIMESTAMP_DATE:
     case MYSQL_TIMESTAMP_DATETIME:
-      valid_datetime_to_valid_time();
+      valid_datetime_to_valid_time(opt);
       break;
     case MYSQL_TIMESTAMP_NONE:
       break;
@@ -165,11 +208,11 @@ class Time: private MYSQL_TIME
       break;
     }
   }
-  void make_from_item(class Item *item, sql_mode_t flags);
+  void make_from_item(class Item *item, const Options opt);
 public:
   Time() { time_type= MYSQL_TIMESTAMP_NONE; }
-  Time(Item *item) { make_from_item(item, flags_for_get_date()); }
-  Time(Item *item, sql_mode_t flags) { make_from_item(item, flags); }
+  Time(Item *item) { make_from_item(item, Options()); }
+  Time(Item *item, const Options opt) { make_from_item(item, opt); }
   static sql_mode_t flags_for_get_date()
   { return TIME_TIME_ONLY | TIME_INVALID_DATES; }
   static sql_mode_t comparison_flags_for_get_date()
@@ -206,6 +249,15 @@ public:
     if (p0 > p1)
       return 1;
     return 0;
+  }
+  longlong to_seconds_abs() const
+  {
+    DBUG_ASSERT(is_valid_time_slow());
+    return hour * 3600L + minute * 60 + second;
+  }
+  longlong to_seconds() const
+  {
+    return neg ? -to_seconds_abs() : to_seconds_abs();
   }
 };
 

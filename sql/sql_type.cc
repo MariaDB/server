@@ -121,12 +121,12 @@ bool Type_handler_data::init()
 Type_handler_data *type_handler_data= NULL;
 
 
-void Time::make_from_item(Item *item, sql_mode_t flags)
+void Time::make_from_item(Item *item, const Options opt)
 {
-  if (item->get_date(this, flags))
+  if (item->get_date(this, opt.get_date_flags()))
     time_type= MYSQL_TIMESTAMP_NONE;
   else
-    valid_MYSQL_TIME_to_valid_value();
+    valid_MYSQL_TIME_to_valid_value(opt);
 }
 
 
