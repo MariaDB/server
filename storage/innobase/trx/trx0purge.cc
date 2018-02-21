@@ -455,10 +455,12 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 
 /** Remove unnecessary history data from a rollback segment.
 @param[in,out]	rseg		rollback segment
-@param[in]	limit		truncate offset */
+@param[in]	limit		truncate anything before this */
 static
 void
-trx_purge_truncate_rseg_history(trx_rseg_t* rseg, const purge_iter_t* limit)
+trx_purge_truncate_rseg_history(
+	trx_rseg_t&			rseg,
+	const purge_sys_t::iterator&	limit)
 {
 	fil_addr_t	hdr_addr;
 	fil_addr_t	prev_hdr_addr;
@@ -469,48 +471,37 @@ trx_purge_truncate_rseg_history(trx_rseg_t* rseg, const purge_iter_t* limit)
 	mtr_t		mtr;
 	trx_id_t	undo_trx_no;
 
-	mtr_start(&mtr);
-	ut_ad(rseg->is_persistent());
-	mutex_enter(&(rseg->mutex));
+	mtr.start();
+	ut_ad(rseg.is_persistent());
+	mutex_enter(&rseg.mutex);
 
-	rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
+	rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
 	hdr_addr = trx_purge_get_log_from_hist(
 		flst_get_last(rseg_hdr + TRX_RSEG_HISTORY, &mtr));
 loop:
 	if (hdr_addr.page == FIL_NULL) {
-
-		mutex_exit(&(rseg->mutex));
-
-		mtr_commit(&mtr);
-
+func_exit:
+		mutex_exit(&rseg.mutex);
+		mtr.commit();
 		return;
 	}
 
-	undo_page = trx_undo_page_get(page_id_t(rseg->space, hdr_addr.page),
+	undo_page = trx_undo_page_get(page_id_t(rseg.space, hdr_addr.page),
 				      &mtr);
 
 	log_hdr = undo_page + hdr_addr.boffset;
 
 	undo_trx_no = mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
 
-	if (undo_trx_no >= limit->trx_no) {
-
-		/* limit space_id should match the rollback segment
-		space id to avoid freeing of the page belongs to
-		different rollback segment for the same trx_no. */
-		if (undo_trx_no == limit->trx_no
-		    && rseg->space == limit->undo_rseg_space) {
-
+	if (undo_trx_no >= limit.trx_no) {
+		if (undo_trx_no == limit.trx_no) {
 			trx_undo_truncate_start(
-				rseg, hdr_addr.page,
-				hdr_addr.boffset, limit->undo_no);
+				&rseg, hdr_addr.page,
+				hdr_addr.boffset, limit.undo_no);
 		}
 
-		mutex_exit(&(rseg->mutex));
-		mtr_commit(&mtr);
-
-		return;
+		goto func_exit;
 	}
 
 	prev_hdr_addr = trx_purge_get_log_from_hist(
@@ -523,24 +514,24 @@ loop:
 
 		/* We can free the whole log segment */
 
-		mutex_exit(&(rseg->mutex));
-		mtr_commit(&mtr);
+		mutex_exit(&rseg.mutex);
+		mtr.commit();
 
 		/* calls the trx_purge_remove_log_hdr()
 		inside trx_purge_free_segment(). */
-		trx_purge_free_segment(rseg, hdr_addr);
+		trx_purge_free_segment(&rseg, hdr_addr);
 	} else {
 		/* Remove the log hdr from the rseg history. */
 		trx_purge_remove_log_hdr(rseg_hdr, log_hdr, &mtr);
 
-		mutex_exit(&(rseg->mutex));
-		mtr_commit(&mtr);
+		mutex_exit(&rseg.mutex);
+		mtr.commit();
 	}
 
-	mtr_start(&mtr);
-	mutex_enter(&(rseg->mutex));
+	mtr.start();
+	mutex_enter(&rseg.mutex);
 
-	rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
+	rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
 	hdr_addr = prev_hdr_addr;
 
@@ -929,7 +920,7 @@ that resides in the tablespace are free.
 static
 void
 trx_purge_initiate_truncate(
-	purge_iter_t*	limit,
+	const purge_sys_t::iterator& limit,
 	undo::Truncate*	undo_trunc)
 {
 	/* Step-1: Early check to findout if any of the the UNDO tablespace
@@ -977,7 +968,7 @@ trx_purge_initiate_truncate(
 			     undo != NULL && all_free;
 			     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
 
-				if (limit->trx_no < undo->trx_id) {
+				if (limit.trx_no < undo->trx_id) {
 					all_free = false;
 				} else {
 					cached_undo_size += undo->size;
@@ -1080,30 +1071,23 @@ trx_purge_initiate_truncate(
 /**
 Removes unnecessary history data from rollback segments. NOTE that when this
 function is called, the caller must not have any latches on undo log pages!
-
-@param[in] limit  truncate limit
 */
-static void trx_purge_truncate_history(purge_iter_t *limit)
+static void trx_purge_truncate_history()
 {
 	ut_ad(purge_sys->head <= purge_sys->tail);
+	purge_sys_t::iterator& head = purge_sys->head.trx_no
+		? purge_sys->head : purge_sys->tail;
 
-	/* We play safe and set the truncate limit at most to the purge view
-	low_limit number, though this is not necessary */
-
-	if (limit->trx_no >= purge_sys->view.low_limit_no()) {
-		limit->trx_no = purge_sys->view.low_limit_no();
-		limit->undo_no = 0;
-		limit->undo_rseg_space = ULINT_UNDEFINED;
+	if (head.trx_no >= purge_sys->view.low_limit_no()) {
+		/* This is sometimes necessary. TODO: find out why. */
+		head.trx_no = purge_sys->view.low_limit_no();
+		head.undo_no = 0;
 	}
 
-	ut_ad(limit->trx_no <= purge_sys->view.low_limit_no());
-
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		trx_rseg_t*	rseg = trx_sys.rseg_array[i];
-
-		if (rseg != NULL) {
-			ut_a(rseg->id == i);
-			trx_purge_truncate_rseg_history(rseg, limit);
+		if (trx_rseg_t* rseg = trx_sys.rseg_array[i]) {
+			ut_ad(rseg->id == i);
+			trx_purge_truncate_rseg_history(*rseg, head);
 		}
 	}
 
@@ -1112,7 +1096,7 @@ static void trx_purge_truncate_history(purge_iter_t *limit)
 	try and truncate all the UNDO tablespaces. */
 	for (ulint i = srv_undo_tablespaces_active; i--; ) {
 		trx_purge_mark_undo_for_truncate(&purge_sys->undo_trunc);
-		trx_purge_initiate_truncate(limit, &purge_sys->undo_trunc);
+		trx_purge_initiate_truncate(head, &purge_sys->undo_trunc);
 	}
 }
 
@@ -1139,7 +1123,6 @@ trx_purge_rseg_get_next_history_log(
 
 	purge_sys->tail.trx_no = rseg->last_trx_no + 1;
 	purge_sys->tail.undo_no = 0;
-	purge_sys->tail.undo_rseg_space = ULINT_UNDEFINED;
 	purge_sys->next_stored = false;
 
 	mtr_start(&mtr);
@@ -1216,7 +1199,6 @@ trx_purge_read_undo_rec()
 	ulint		offset;
 	ulint		page_no;
 	ib_uint64_t	undo_no;
-	ulint		undo_rseg_space;
 
 	purge_sys->hdr_offset = purge_sys->rseg->last_offset;
 	page_no = purge_sys->hdr_page_no = purge_sys->rseg->last_page_no;
@@ -1230,25 +1212,21 @@ trx_purge_read_undo_rec()
 
 			offset = page_offset(undo_rec);
 			undo_no = trx_undo_rec_get_undo_no(undo_rec);
-			undo_rseg_space = purge_sys->rseg->space;
 			page_no = page_get_page_no(page_align(undo_rec));
 		} else {
 			offset = 0;
 			undo_no = 0;
-			undo_rseg_space = ULINT_UNDEFINED;
 		}
 
 		mtr.commit();
 	} else {
 		offset = 0;
 		undo_no = 0;
-		undo_rseg_space = ULINT_UNDEFINED;
 	}
 
 	purge_sys->offset = offset;
 	purge_sys->page_no = page_no;
 	purge_sys->tail.undo_no = undo_no;
-	purge_sys->tail.undo_rseg_space = undo_rseg_space;
 
 	purge_sys->next_stored = true;
 }
@@ -1352,7 +1330,6 @@ trx_purge_get_next_rec(
 		purge_sys->offset = rec2 - page;
 		purge_sys->page_no = page_get_page_no(page);
 		purge_sys->tail.undo_no = trx_undo_rec_get_undo_no(rec2);
-		purge_sys->tail.undo_rseg_space = space;
 
 		if (undo_page != page) {
 			/* We advance to a new page of the undo log: */
@@ -1667,10 +1644,7 @@ run_synchronously:
 	ut_a(purge_sys->n_submitted == purge_sys->n_completed);
 
 	if (truncate) {
-		trx_purge_truncate_history(
-			purge_sys->head.trx_no
-			? &purge_sys->head
-			: &purge_sys->tail);
+		trx_purge_truncate_history();
 	}
 
 	MONITOR_INC_VALUE(MONITOR_PURGE_INVOKED, 1);

@@ -219,36 +219,6 @@ private:
 	static const TrxUndoRsegs	NullElement;
 };
 
-/** This is the purge pointer/iterator. We need both the undo no and the
-transaction no up to which purge has parsed and applied the records. */
-struct purge_iter_t {
-	purge_iter_t()
-		:
-		trx_no(),
-		undo_no(),
-		undo_rseg_space(ULINT_UNDEFINED)
-	{
-		// Do nothing
-	}
-
-	bool operator<=(const purge_iter_t& other) const
-	{
-		if (trx_no < other.trx_no) return true;
-		if (trx_no > other.trx_no) return false;
-		return undo_no <= other.undo_no;
-	}
-
-	trx_id_t	trx_no;		/*!< Purge has advanced past all
-					transactions whose number is less
-					than this */
-	undo_no_t	undo_no;	/*!< Purge has advanced past all records
-					whose undo number is less than this */
-	ulint		undo_rseg_space;
-					/*!< Last undo record resided in this
-					space id. */
-};
-
-
 /* Namespace to hold all the related functions and variables need for truncate
 of undo tablespace. */
 namespace undo {
@@ -522,16 +492,29 @@ public:
 					to the task queue */
 	ulint	n_completed;	/*!< Count of total tasks completed */
 
-	/*------------------------------*/
-	/* The following two fields form the 'purge pointer' which advances
-	during a purge, and which is used in history list truncation */
+	/** Iterator to the undo log records of committed transactions */
+	struct iterator
+	{
+		bool operator<=(const iterator& other) const
+		{
+			if (trx_no < other.trx_no) return true;
+			if (trx_no > other.trx_no) return false;
+			return undo_no <= other.undo_no;
+		}
+
+		/** The trx_t::no of the committed transaction */
+		trx_id_t	trx_no;
+		/** The record number within the committed transaction's undo
+		log, increasing, purged from from 0 onwards */
+		undo_no_t	undo_no;
+	};
 
 	/** The tail of the purge queue; the last parsed undo log of a
 	committed transaction. */
-	purge_iter_t	tail;
+	iterator	tail;
 	/** The head of the purge queue; any older undo logs of committed
 	transactions may be discarded (history list truncation). */
-	purge_iter_t	head;
+	iterator	head;
 	/*-----------------------------*/
 	bool		next_stored;	/*!< whether rseg holds the next record
 					to purge */
