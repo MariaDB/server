@@ -231,6 +231,13 @@ struct purge_iter_t {
 		// Do nothing
 	}
 
+	bool operator<=(const purge_iter_t& other) const
+	{
+		if (trx_no < other.trx_no) return true;
+		if (trx_no > other.trx_no) return false;
+		return undo_no <= other.undo_no;
+	}
+
 	trx_id_t	trx_no;		/*!< Purge has advanced past all
 					transactions whose number is less
 					than this */
@@ -519,19 +526,12 @@ public:
 	/* The following two fields form the 'purge pointer' which advances
 	during a purge, and which is used in history list truncation */
 
-	purge_iter_t	iter;		/* Limit up to which we have read and
-					parsed the UNDO log records.  Not
-					necessarily purged from the indexes.
-					Note that this can never be less than
-					the limit below, we check for this
-					invariant in trx0purge.cc */
-	purge_iter_t	limit;		/* The 'purge pointer' which advances
-					during a purge, and which is used in
-					history list truncation */
-#ifdef UNIV_DEBUG
-	purge_iter_t	done;		/* Indicate 'purge pointer' which have
-					purged already accurately. */
-#endif /* UNIV_DEBUG */
+	/** The tail of the purge queue; the last parsed undo log of a
+	committed transaction. */
+	purge_iter_t	tail;
+	/** The head of the purge queue; any older undo logs of committed
+	transactions may be discarded (history list truncation). */
+	purge_iter_t	head;
 	/*-----------------------------*/
 	bool		next_stored;	/*!< whether rseg holds the next record
 					to purge */
