@@ -164,8 +164,8 @@ struct trx_rseg_t {
 	/** Byte offset of the last not yet purged log header */
 	ulint				last_offset;
 
-	/** Transaction number of the last not yet purged log */
-	trx_id_t			last_trx_no;
+	/** trx_t::no * 2 + old_insert of the last not yet purged log */
+	trx_id_t			last_commit;
 
 	/** Whether the log segment needs purge */
 	bool				needs_purge;
@@ -176,6 +176,14 @@ struct trx_rseg_t {
 	/** If true, then skip allocating this rseg as it reside in
 	UNDO-tablespace marked for truncate. */
 	bool				skip_allocation;
+
+	/** @return the commit ID of the last committed transaction */
+	trx_id_t last_trx_no() const { return last_commit >> 1; }
+
+	void set_last_trx_no(trx_id_t trx_no, bool is_update)
+	{
+		last_commit = trx_no << 1 | trx_id_t(is_update);
+	}
 
 	/** @return whether the rollback segment is persistent */
 	bool is_persistent() const

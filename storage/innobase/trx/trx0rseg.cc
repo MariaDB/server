@@ -470,13 +470,13 @@ trx_rseg_mem_restore(
 			max_trx_id = id;
 		}
 		id = mach_read_from_8(undo_log_hdr + TRX_UNDO_TRX_NO);
-		rseg->last_trx_no = id;
 		if (id > max_trx_id) {
 			max_trx_id = id;
 		}
 		unsigned purge = mach_read_from_2(
 			undo_log_hdr + TRX_UNDO_NEEDS_PURGE);
 		ut_ad(purge <= 1);
+		rseg->set_last_trx_no(id, purge != 0);
 		rseg->needs_purge = purge != 0;
 
 		if (rseg->last_page_no != FIL_NULL) {

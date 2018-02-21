@@ -103,14 +103,16 @@ public:
 	TrxUndoRsegs() {}
 	/** Constructor */
 	TrxUndoRsegs(trx_rseg_t& rseg)
-		: m_trx_no(rseg.last_trx_no), m_rsegs(1, &rseg) {}
+		: m_commit(rseg.last_commit), m_rsegs(1, &rseg) {}
 	/** Constructor */
 	TrxUndoRsegs(trx_id_t trx_no, trx_rseg_t& rseg)
-		: m_trx_no(trx_no), m_rsegs(1, &rseg) {}
+		: m_commit(trx_no << 1), m_rsegs(1, &rseg) {}
 
-	/** Get the commit number */
-	trx_id_t get_trx_no() const { return m_trx_no; }
+	/** @return the transaction commit identifier */
+	trx_id_t trx_no() const { return m_commit >> 1; }
 
+	bool operator!=(const TrxUndoRsegs& other) const
+	{ return m_commit != other.m_commit; }
 	bool empty() const { return m_rsegs.empty(); }
 	void erase(iterator& it) { m_rsegs.erase(it); }
 	iterator begin() { return(m_rsegs.begin()); }
@@ -124,13 +126,12 @@ public:
 	@return true if elem1 > elem2 else false.*/
 	bool operator()(const TrxUndoRsegs& lhs, const TrxUndoRsegs& rhs)
 	{
-		return(lhs.m_trx_no > rhs.m_trx_no);
+		return(lhs.m_commit > rhs.m_commit);
 	}
 
 private:
-	/** Copy trx_rseg_t::last_trx_no */
-	trx_id_t		m_trx_no;
-
+	/** Copy trx_rseg_t::last_commit */
+	trx_id_t		m_commit;
 	/** Rollback segments of a transaction, scheduled for purge. */
 	trx_rsegs_t		m_rsegs;
 };
@@ -438,13 +439,17 @@ public:
 	{
 		bool operator<=(const iterator& other) const
 		{
-			if (trx_no < other.trx_no) return true;
-			if (trx_no > other.trx_no) return false;
+			if (commit < other.commit) return true;
+			if (commit > other.commit) return false;
 			return undo_no <= other.undo_no;
 		}
 
-		/** The trx_t::no of the committed transaction */
-		trx_id_t	trx_no;
+		/** @return the commit number of the transaction */
+		trx_id_t trx_no() const { return commit >> 1; }
+		void reset_trx_no(trx_id_t trx_no) { commit = trx_no << 1; }
+
+		/** 2 * trx_t::no + old_insert of the committed transaction */
+		trx_id_t	commit;
 		/** The record number within the committed transaction's undo
 		log, increasing, purged from from 0 onwards */
 		undo_no_t	undo_no;

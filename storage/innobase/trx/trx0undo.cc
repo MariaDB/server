@@ -1761,7 +1761,7 @@ trx_undo_truncate_tablespace(
 		rseg->trx_ref_count = 0;
 		rseg->last_page_no = FIL_NULL;
 		rseg->last_offset = 0;
-		rseg->last_trx_no = 0;
+		rseg->last_commit = 0;
 		rseg->needs_purge = false;
 	}
 	mtr_commit(&mtr);

@@ -85,19 +85,17 @@ inline bool TrxUndoRsegsIterator::set_next()
 	/* Check if there are more rsegs to process in the
 	current element. */
 	if (m_iter != m_rsegs.end()) {
-
 		/* We are still processing rollback segment from
 		the same transaction and so expected transaction
 		number shouldn't increase. Undo the increment of
-		expected trx_no done by caller assuming rollback
+		expected commit done by caller assuming rollback
 		segments from given transaction are done. */
-		purge_sys->tail.trx_no = (*m_iter)->last_trx_no;
+		purge_sys->tail.commit = (*m_iter)->last_commit;
 	} else if (!purge_sys->purge_queue.empty()) {
 		m_rsegs = purge_sys->purge_queue.top();
 		purge_sys->purge_queue.pop();
 		ut_ad(purge_sys->purge_queue.empty()
-		      || purge_sys->purge_queue.top().get_trx_no()
-		      != m_rsegs.get_trx_no());
+		      || purge_sys->purge_queue.top() != m_rsegs);
 		m_iter = m_rsegs.begin();
 	} else {
 		/* Queue is empty, reset iterator. */
@@ -113,16 +111,16 @@ inline bool TrxUndoRsegsIterator::set_next()
 	mutex_enter(&purge_sys->rseg->mutex);
 
 	ut_a(purge_sys->rseg->last_page_no != FIL_NULL);
-	ut_ad(purge_sys->rseg->last_trx_no == m_rsegs.get_trx_no());
+	ut_ad(purge_sys->rseg->last_trx_no() == m_rsegs.trx_no());
 
 	/* We assume in purge of externally stored fields that space id is
 	in the range of UNDO tablespace space ids */
 	ut_a(purge_sys->rseg->space == TRX_SYS_SPACE
 	     || srv_is_undo_tablespace(purge_sys->rseg->space));
 
-	ut_a(purge_sys->tail.trx_no <= purge_sys->rseg->last_trx_no);
+	ut_a(purge_sys->tail.commit <= purge_sys->rseg->last_commit);
 
-	purge_sys->tail.trx_no = purge_sys->rseg->last_trx_no;
+	purge_sys->tail.commit = purge_sys->rseg->last_commit;
 	purge_sys->hdr_offset = purge_sys->rseg->last_offset;
 	purge_sys->hdr_page_no = purge_sys->rseg->last_page_no;
 
@@ -306,7 +304,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	if (rseg->last_page_no == FIL_NULL) {
 		rseg->last_page_no = undo->hdr_page_no;
 		rseg->last_offset = undo->hdr_offset;
-		rseg->last_trx_no = trx->no;
+		rseg->set_last_trx_no(trx->no, undo == trx->rsegs.m_redo.undo);
 		rseg->needs_purge = true;
 	}
 
@@ -462,8 +460,8 @@ func_exit:
 
 	undo_trx_no = mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
 
-	if (undo_trx_no >= limit.trx_no) {
-		if (undo_trx_no == limit.trx_no) {
+	if (undo_trx_no >= limit.trx_no()) {
+		if (undo_trx_no == limit.trx_no()) {
 			trx_undo_truncate_start(
 				&rseg, hdr_addr.page,
 				hdr_addr.boffset, limit.undo_no);
@@ -933,7 +931,7 @@ trx_purge_initiate_truncate(
 			     undo != NULL && all_free;
 			     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
 
-				if (limit.trx_no < undo->trx_id) {
+				if (limit.trx_no() < undo->trx_id) {
 					all_free = false;
 				} else {
 					cached_undo_size += undo->size;
@@ -1040,12 +1038,12 @@ function is called, the caller must not have any latches on undo log pages!
 static void trx_purge_truncate_history()
 {
 	ut_ad(purge_sys->head <= purge_sys->tail);
-	purge_sys_t::iterator& head = purge_sys->head.trx_no
+	purge_sys_t::iterator& head = purge_sys->head.commit
 		? purge_sys->head : purge_sys->tail;
 
-	if (head.trx_no >= purge_sys->view.low_limit_no()) {
+	if (head.trx_no() >= purge_sys->view.low_limit_no()) {
 		/* This is sometimes necessary. TODO: find out why. */
-		head.trx_no = purge_sys->view.low_limit_no();
+		head.reset_trx_no(purge_sys->view.low_limit_no());
 		head.undo_no = 0;
 	}
 
@@ -1086,7 +1084,7 @@ trx_purge_rseg_get_next_history_log(
 
 	ut_a(rseg->last_page_no != FIL_NULL);
 
-	purge_sys->tail.trx_no = rseg->last_trx_no + 1;
+	purge_sys->tail.commit = rseg->last_commit + 1;
 	purge_sys->tail.undo_no = 0;
 	purge_sys->next_stored = false;
 
@@ -1136,7 +1134,7 @@ trx_purge_rseg_get_next_history_log(
 
 	rseg->last_page_no = prev_log_addr.page;
 	rseg->last_offset = prev_log_addr.boffset;
-	rseg->last_trx_no = trx_no;
+	rseg->set_last_trx_no(trx_no, purge != 0);
 	rseg->needs_purge = purge != 0;
 
 	/* Purge can also produce events, however these are already ordered
@@ -1235,7 +1233,7 @@ trx_purge_get_next_rec(
 	mtr_t		mtr;
 
 	ut_ad(purge_sys->next_stored);
-	ut_ad(purge_sys->tail.trx_no < purge_sys->view.low_limit_no());
+	ut_ad(purge_sys->tail.trx_no() < purge_sys->view.low_limit_no());
 
 	space = purge_sys->rseg->space;
 	page_no = purge_sys->page_no;
@@ -1330,7 +1328,7 @@ trx_purge_fetch_next_rec(
 		}
 	}
 
-	if (purge_sys->tail.trx_no >= purge_sys->view.low_limit_no()) {
+	if (purge_sys->tail.trx_no() >= purge_sys->view.low_limit_no()) {
 
 		return(NULL);
 	}

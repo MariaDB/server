@@ -5258,7 +5258,7 @@ lock_print_info_summary(
 	fprintf(file,
 		"Purge done for trx's n:o < " TRX_ID_FMT
 		" undo n:o < " TRX_ID_FMT " state: ",
-		purge_sys->tail.trx_no,
+		purge_sys->tail.trx_no(),
 		purge_sys->tail.undo_no);
 
 	/* Note: We are reading the state without the latch. One because it
