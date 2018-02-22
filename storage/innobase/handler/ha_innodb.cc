@@ -11265,9 +11265,9 @@ create_table_info_t::create_table_def()
 				vers_row = DATA_VERS_START;
 			} else if (i == m_form->s->row_end_field) {
 				vers_row = DATA_VERS_END;
-			} else if (!(field->flags
-				     & VERS_UPDATE_UNVERSIONED_FLAG)) {
-				vers_row = DATA_VERSIONED;
+			} else if (field->flags
+				   & VERS_UPDATE_UNVERSIONED_FLAG) {
+				vers_row = DATA_UNVERSIONED;
 			}
 		}
 

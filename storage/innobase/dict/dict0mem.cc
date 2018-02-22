@@ -312,14 +312,15 @@ dict_mem_table_add_col(
 
 	dict_mem_fill_column_struct(col, i, mtype, prtype, len);
 
-	switch (prtype & DATA_VERSIONED) {
-	case DATA_VERS_START:
-		ut_ad(!table->vers_start);
-		table->vers_start = i;
-		break;
-	case DATA_VERS_END:
-		ut_ad(!table->vers_end);
-		table->vers_end = i;
+	if ((prtype & DATA_UNVERSIONED) != DATA_UNVERSIONED) {
+		if (prtype & DATA_VERS_START) {
+			ut_ad(!table->vers_start);
+			table->vers_start = i;
+		}
+		if (prtype & DATA_VERS_END) {
+			ut_ad(!table->vers_end);
+			table->vers_end = i;
+		}
 	}
 }
 

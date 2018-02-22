@@ -474,11 +474,16 @@ struct upd_t{
 		return(false);
 	}
 
-	/** Determine if the update affects a system versioned column. */
+	/** Determine if the update affects a system versioned column or row_end. */
 	bool affects_versioned() const
 	{
 		for (ulint i = 0; i < n_fields; i++) {
-			if (fields[i].new_val.type.vers_sys_field()) {
+			dtype_t type = fields[i].new_val.type;
+			if (type.is_versioned()) {
+				return true;
+			}
+			// versioned DELETE is UPDATE SET row_end=NOW
+			if (type.vers_sys_end()) {
 				return true;
 			}
 		}
