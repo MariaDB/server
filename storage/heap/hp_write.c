@@ -54,7 +54,7 @@ int heap_write(HP_INFO *info, const uchar *record)
   }
 
   memcpy(pos,record,(size_t) share->reclength);
-  pos[share->reclength]=1;		/* Mark record as not deleted */
+  pos[share->visible]= 1;                     /* Mark record as not deleted */
   if (++share->records == share->blength)
     share->blength+= share->blength;
   info->s->key_version++;
@@ -92,7 +92,7 @@ err:
   share->deleted++;
   *((uchar**) pos)=share->del_link;
   share->del_link=pos;
-  pos[share->reclength]=0;			/* Record deleted */
+  pos[share->visible]= 0;                                 /* Record deleted */
 
   DBUG_RETURN(my_errno);
 } /* heap_write */

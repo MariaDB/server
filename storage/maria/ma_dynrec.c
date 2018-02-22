@@ -275,7 +275,7 @@ my_bool _ma_update_blob_record(MARIA_HA *info, MARIA_RECORD_POS pos,
 {
   uchar *rec_buff;
   int error;
-  ulong reclength,extra;
+  ulong reclength,reclength2,extra;
 
   extra= (ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER)+MARIA_SPLIT_LENGTH+
 	  MARIA_DYN_DELETE_BLOCK_HEADER);
@@ -293,11 +293,12 @@ my_bool _ma_update_blob_record(MARIA_HA *info, MARIA_RECORD_POS pos,
     my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
     return(1);
   }
-  reclength= _ma_rec_pack(info,rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
+  reclength2= _ma_rec_pack(info,rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
 			 record);
+  DBUG_ASSERT(reclength2 <= reclength);
   error=update_dynamic_record(info,pos,
 			      rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
-			      reclength);
+			      reclength2);
   my_safe_afree(rec_buff, reclength);
   return(error != 0);
 }
