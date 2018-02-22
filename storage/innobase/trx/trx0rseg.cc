@@ -37,7 +37,8 @@ Created 3/26/1996 Heikki Tuuri
 #ifdef WITH_WSREP
 
 #ifdef UNIV_DEBUG
-static long long trx_sys_cur_xid_seqno = -1;
+//static long long trx_sys_cur_xid_seqno = -1;
+static long long trx_sys_cur_xid_seqno = -2;
 static unsigned char trx_sys_cur_xid_uuid[16];
 
 /** Read WSREP XID seqno */

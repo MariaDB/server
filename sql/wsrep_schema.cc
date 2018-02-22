@@ -180,8 +180,9 @@ static int open_table(THD* thd,
 
 
 static int open_for_write(THD* thd, const char* table_name, TABLE** table) {
-  LEX_CSTRING schema_str= { C_STRING_WITH_LEN(wsrep_schema_str.c_str()) };
-  LEX_CSTRING table_str= { C_STRING_WITH_LEN(table_name) };
+  //  LEX_CSTRING schema_str= { C_STRING_WITH_LEN(wsrep_schema_str.c_str()) };
+  LEX_CSTRING schema_str= { wsrep_schema_str.c_str(), wsrep_schema_str.length() };
+  LEX_CSTRING table_str= { table_name, strlen(table_name) };
   if (Wsrep_schema_impl::open_table(thd, &schema_str, &table_str, TL_WRITE,
                                     table)) {
     WSREP_ERROR("Failed to open table %s.%s for writing",
@@ -332,8 +333,10 @@ static int delete_row(TABLE* table) {
 }
 
 static int open_for_read(THD* thd, const char* table_name, TABLE** table) {
-  LEX_CSTRING schema_str= { C_STRING_WITH_LEN(wsrep_schema_str.c_str()) };
-  LEX_CSTRING table_str= { C_STRING_WITH_LEN(table_name) };
+  //  LEX_CSTRING schema_str= { C_STRING_WITH_LEN(wsrep_schema_str.c_str()) };
+
+  LEX_CSTRING schema_str= { wsrep_schema_str.c_str(), wsrep_schema_str.length() };
+  LEX_CSTRING table_str= { table_name, strlen(table_name) };
   if (Wsrep_schema_impl::open_table(thd, &schema_str, &table_str, TL_READ,
                                     table)) {
     WSREP_ERROR("Failed to open table %s.%s for reading",
@@ -1471,7 +1474,8 @@ void Wsrep_schema::init_SR_table(TABLE_LIST *table)
                         wsrep_schema_str.size(),
                         "SR", 2, "SR", TL_WRITE);
 #endif
-  LEX_CSTRING schema_str= { C_STRING_WITH_LEN(wsrep_schema_str.c_str()) };
-  LEX_CSTRING table_str= { C_STRING_WITH_LEN("SR") };
+  //LEX_CSTRING schema_str= { C_STRING_WITH_LEN(wsrep_schema_str.c_str()) };
+  LEX_CSTRING schema_str= { wsrep_schema_str.c_str(), wsrep_schema_str.length() };
+  LEX_CSTRING table_str= { "SR", 2 };
   table->init_one_table(&schema_str, &table_str, NULL, TL_WRITE);
 }
