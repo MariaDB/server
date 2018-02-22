@@ -16,6 +16,15 @@ select * from t1;
 pk	dt
 1	2017-09-28 15:12:00
 drop table t1;
+create table t1 (a int) engine=Aria transactional=1 partition by hash(a) partitions 2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 TRANSACTIONAL=1
+/*!50100 PARTITION BY HASH (a)
+PARTITIONS 2 */
+drop table t1;
 #
 # MDEV-14641 Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine
 #
