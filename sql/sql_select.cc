@@ -12500,7 +12500,8 @@ bool JOIN_TAB::preread_init()
                                     derived, DT_CREATE | DT_FILL))
       return TRUE;
 
-  if (!(derived->get_unit()->uncacheable & UNCACHEABLE_DEPENDENT))
+  if (!(derived->get_unit()->uncacheable & UNCACHEABLE_DEPENDENT) ||
+      derived->is_nonrecursive_derived_with_rec_ref())
     preread_init_done= TRUE;
   if (select && select->quick)
     select->quick->replace_handler(table->file);

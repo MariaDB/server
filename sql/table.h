@@ -2131,7 +2131,9 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
   st_select_lex_unit *derived;		/* SELECT_LEX_UNIT of derived table */
   With_element *with;          /* With element defining this table (if any) */
   /* Bitmap of the defining with element */
-  table_map with_internal_reference_map; 
+  table_map with_internal_reference_map;
+  TABLE_LIST * next_with_rec_ref;
+  bool is_derived_with_recursive_reference;
   bool block_handle_derived;
   ST_SCHEMA_TABLE *schema_table;        /* Information_schema table */
   st_select_lex	*schema_select_lex;
@@ -2508,6 +2510,8 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
   bool is_with_table();
   bool is_recursive_with_table();
   bool is_with_table_recursive_reference();
+  void register_as_derived_with_rec_ref(With_element *rec_elem);
+  bool is_nonrecursive_derived_with_rec_ref();
   bool fill_recursive(THD *thd);
 
   inline void set_view()

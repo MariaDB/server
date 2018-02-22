@@ -1314,32 +1314,29 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
 
 bool st_select_lex::check_subqueries_with_recursive_references()
 {
-  st_select_lex_unit *sl_master= master_unit();
   List_iterator<TABLE_LIST> ti(leaf_tables);
   TABLE_LIST *tbl;
   while ((tbl= ti++))
   {
-    if (!(tbl->is_with_table_recursive_reference() && sl_master->item))
+    if (!(tbl->is_with_table_recursive_reference()))
       continue;
-    With_element *with_elem= tbl->with;
-    bool check_embedding_materialized_derived= true;
+    With_element *rec_elem= tbl->with;
+    st_select_lex_unit *sl_master;
     for (st_select_lex *sl= this; sl; sl= sl_master->outer_select())
-    { 
+    {
       sl_master= sl->master_unit();
-      if (with_elem->get_owner() == sl_master->with_clause)
-         check_embedding_materialized_derived= false;
-      if (check_embedding_materialized_derived && !sl_master->with_element && 
-          sl_master->derived && sl_master->derived->is_materialized_derived())
+      if (sl_master->with_element &&
+          sl_master->with_element->get_owner() == rec_elem->get_owner())
+        break;
+      sl->uncacheable|= UNCACHEABLE_DEPENDENT;
+      sl_master->uncacheable|= UNCACHEABLE_DEPENDENT;
+      if (sl_master->derived)
+        sl_master->derived->register_as_derived_with_rec_ref(rec_elem);
+      if (sl_master->item)
       {
-	my_error(ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED,
-	  	     MYF(0), with_elem->query_name->str);
-	return true;
+        Item_subselect *subq= (Item_subselect *) (sl_master->item);
+        subq->register_as_with_rec_ref(rec_elem);
       }
-      if (!sl_master->item)
-	continue;
-      Item_subselect *subq= (Item_subselect *) sl_master->item;
-      subq->with_recursive_reference= true;
-      subq->register_as_with_rec_ref(tbl->with);
     }
   }
   return false;

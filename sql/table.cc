@@ -8371,7 +8371,6 @@ bool TABLE_LIST::is_with_table()
   return derived && derived->with_element;
 }
 
-
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 {
   return use_ext_keys &&
