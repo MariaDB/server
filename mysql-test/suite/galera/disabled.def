@@ -61,3 +61,6 @@ MW-328B: MDEV-13549 Galera test failures 10.1
 MW-328: MDEV-13549 Galera test failures 10.1
 galera_suspend_slave: MDEV-13549 Galera test failures 10.1
 galera_ist_progress: MDEV-15236 galera_ist_progress fails when trying to read transfer status
+galera_gtid : MDEV-13549 Galera test failures 10.1
+galera_gtid_slave : MDEV-13549 Galera test failures 10.1
+galera_unicode_identifiers : MDEV-13549 Galera test failures 10.1

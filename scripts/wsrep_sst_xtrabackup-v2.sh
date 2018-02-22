@@ -644,7 +644,7 @@ wait_for_listen()
 
     for i in {1..300}
     do
-        LSOF_OUT=$(lsof -sTCP:LISTEN -i TCP:${PORT} -a -c nc -c socat -F c)
+        LSOF_OUT=$(lsof -sTCP:LISTEN -i TCP:${PORT} -a -c nc -c socat -F c 2> /dev/null || :)
         [ -n "${LSOF_OUT}" ] && break
         sleep 0.2
     done
