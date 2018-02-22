@@ -1349,16 +1349,12 @@ trx_purge_fetch_next_rec(
 	return(trx_purge_get_next_rec(n_pages_handled, heap));
 }
 
-/*******************************************************************//**
-This function runs a purge batch.
+/** Run a purge batch.
+@param n_purge_threads	number of purge threads
 @return number of undo log pages handled in the batch */
 static
 ulint
-trx_purge_attach_undo_recs(
-/*=======================*/
-	ulint		n_purge_threads,/*!< in: number of purge threads */
-	purge_sys_t*	purge_sys,	/*!< in/out: purge instance */
-	ulint		batch_size)	/*!< in: no. of pages to purge */
+trx_purge_attach_undo_recs(ulint n_purge_threads)
 {
 	que_thr_t*	thr;
 	ulint		i = 0;
@@ -1398,6 +1394,8 @@ trx_purge_attach_undo_recs(
 	ut_ad(purge_sys->head <= purge_sys->tail);
 
 	i = 0;
+
+	const ulint batch_size = srv_purge_batch_size;
 
 	for (;;) {
 		purge_node_t*		node;
@@ -1498,13 +1496,10 @@ trx_purge_dml_delay(void)
 	return(delay);
 }
 
-/*******************************************************************//**
-Wait for pending purge jobs to complete. */
+/** Wait for pending purge jobs to complete. */
 static
 void
-trx_purge_wait_for_workers_to_complete(
-/*===================================*/
-	purge_sys_t*	purge_sys)	/*!< in: purge instance */
+trx_purge_wait_for_workers_to_complete()
 {
 	ulint		n_submitted = purge_sys->n_submitted;
 
@@ -1534,8 +1529,6 @@ trx_purge(
 /*======*/
 	ulint	n_purge_threads,	/*!< in: number of purge tasks
 					to submit to the work queue */
-	ulint	batch_size,		/*!< in: the maximum number of records
-					to purge in one batch */
 	bool	truncate)		/*!< in: truncate history if true */
 {
 	que_thr_t*	thr = NULL;
@@ -1559,8 +1552,7 @@ trx_purge(
 #endif /* UNIV_DEBUG */
 
 	/* Fetch the UNDO recs that need to be purged. */
-	n_pages_handled = trx_purge_attach_undo_recs(
-		n_purge_threads, purge_sys, batch_size);
+	n_pages_handled = trx_purge_attach_undo_recs(n_purge_threads);
 
 	/* Do we do an asynchronous purge or not ? */
 	if (n_purge_threads > 1) {
@@ -1597,7 +1589,7 @@ run_synchronously:
 			&purge_sys->n_completed, 1);
 
 		if (n_purge_threads > 1) {
-			trx_purge_wait_for_workers_to_complete(purge_sys);
+			trx_purge_wait_for_workers_to_complete();
 		}
 	}
 

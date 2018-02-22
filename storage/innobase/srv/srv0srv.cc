@@ -2655,7 +2655,7 @@ srv_do_purge(ulint* n_total_purged)
 			undo_trunc_freq);
 
 		n_pages_purged = trx_purge(
-			n_use_threads, srv_purge_batch_size,
+			n_use_threads,
 			(++count % rseg_truncate_frequency) == 0);
 
 		*n_total_purged += n_pages_purged;
