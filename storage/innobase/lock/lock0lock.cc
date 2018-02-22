@@ -5339,12 +5339,12 @@ lock_trx_print_wait_and_mvcc_state(
 
 	trx_print_latched(file, trx, 600);
 
-	/* Note: read_view->is_active() check is race condition. But it
+	/* Note: read_view->get_state() check is race condition. But it
 	should "kind of work" because read_view is freed only at shutdown.
 	Worst thing that may happen is that it'll get transferred to
 	another thread and print wrong values. */
 
-	if (trx->read_view.is_open()) {
+	if (trx->read_view.get_state() == READ_VIEW_STATE_OPEN) {
 		trx->read_view.print_limits(file);
 	}
 
