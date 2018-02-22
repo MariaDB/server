@@ -2204,14 +2204,14 @@ trx_undo_get_undo_rec(
 {
 	bool		missing_history;
 
-	rw_lock_s_lock(&purge_sys->latch);
+	rw_lock_s_lock(&purge_sys.latch);
 
-	missing_history = purge_sys->view.changes_visible(trx_id, name);
+	missing_history = purge_sys.view.changes_visible(trx_id, name);
 	if (!missing_history) {
 		*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, is_temp, heap);
 	}
 
-	rw_lock_s_unlock(&purge_sys->latch);
+	rw_lock_s_unlock(&purge_sys.latch);
 
 	return(missing_history);
 }
@@ -2273,7 +2273,7 @@ trx_undo_prev_version_build(
 	bool		dummy_extern;
 	byte*		buf;
 
-	ut_ad(!rw_lock_own(&purge_sys->latch, RW_LOCK_S));
+	ut_ad(!rw_lock_own(&purge_sys.latch, RW_LOCK_S));
 	ut_ad(mtr_memo_contains_page_flagged(index_mtr, index_rec,
 					     MTR_MEMO_PAGE_S_FIX
 					     | MTR_MEMO_PAGE_X_FIX));
@@ -2323,12 +2323,12 @@ trx_undo_prev_version_build(
 					       &info_bits);
 
 	/* (a) If a clustered index record version is such that the
-	trx id stamp in it is bigger than purge_sys->view, then the
+	trx id stamp in it is bigger than purge_sys.view, then the
 	BLOBs in that version are known to exist (the purge has not
 	progressed that far);
 
 	(b) if the version is the first version such that trx id in it
-	is less than purge_sys->view, and it is not delete-marked,
+	is less than purge_sys.view, and it is not delete-marked,
 	then the BLOBs in that version are known to exist (the purge
 	cannot have purged the BLOBs referenced by that version
 	yet).
@@ -2367,19 +2367,19 @@ trx_undo_prev_version_build(
 		the BLOB. */
 
 		/* the row_upd_changes_disowned_external(update) call could be
-		omitted, but the synchronization on purge_sys->latch is likely
+		omitted, but the synchronization on purge_sys.latch is likely
 		more expensive. */
 
 		if ((update->info_bits & REC_INFO_DELETED_FLAG)
 		    && row_upd_changes_disowned_external(update)) {
 			bool	missing_extern;
 
-			rw_lock_s_lock(&purge_sys->latch);
+			rw_lock_s_lock(&purge_sys.latch);
 
-			missing_extern = purge_sys->view.changes_visible(
+			missing_extern = purge_sys.view.changes_visible(
 				trx_id,	index->table->name);
 
-			rw_lock_s_unlock(&purge_sys->latch);
+			rw_lock_s_unlock(&purge_sys.latch);
 
 			if (missing_extern) {
 				/* treat as a fresh insert, not to

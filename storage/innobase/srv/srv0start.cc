@@ -2661,7 +2661,7 @@ files_checked:
 
 		srv_start_state_set(SRV_START_STATE_PURGE);
 	} else {
-		purge_sys->state = PURGE_STATE_DISABLED;
+		purge_sys.state = PURGE_STATE_DISABLED;
 	}
 
 	srv_is_being_started = false;
@@ -2871,8 +2871,7 @@ innodb_shutdown()
 		log_shutdown();
 	}
 	trx_sys.close();
-	UT_DELETE(purge_sys);
-	purge_sys = NULL;
+	purge_sys.close();
 	if (buf_dblwr) {
 		buf_dblwr_free();
 	}

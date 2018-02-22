@@ -142,7 +142,7 @@ typedef std::priority_queue<
 /** Chooses the rollback segment with the oldest committed transaction */
 struct TrxUndoRsegsIterator {
 	/** Constructor */
-	inline TrxUndoRsegsIterator();
+	TrxUndoRsegsIterator();
 	/** Sets the next rseg to purge in purge_sys.
 	Executed in the purge coordinator thread.
 	@return whether anything is to be purged */
@@ -204,17 +204,12 @@ namespace undo {
 	/** Track UNDO tablespace mark for truncate. */
 	class Truncate {
 	public:
-
-		Truncate()
-			:
-			m_undo_for_trunc(ULINT_UNDEFINED),
-			m_rseg_for_trunc(),
-			m_scan_start(1),
-			m_purge_rseg_truncate_frequency(
-				static_cast<ulint>(
-				srv_purge_rseg_truncate_frequency))
+		void create()
 		{
-			/* Do Nothing. */
+			m_undo_for_trunc = ULINT_UNDEFINED;
+			m_scan_start = 1;
+			m_purge_rseg_truncate_frequency =
+				ulint(srv_purge_rseg_truncate_frequency);
 		}
 
 		/** Clear the cached rollback segment. Normally done
@@ -401,12 +396,9 @@ namespace undo {
 /** The control structure used in the purge operation */
 class purge_sys_t
 {
+  bool m_initialised;
 public:
-	/** Construct the purge system. */
-	purge_sys_t();
-	/** Destruct the purge system. */
-	~purge_sys_t();
-
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	rw_lock_t	latch;		/*!< The latch protecting the purge
 					view. A purge operation must acquire an
 					x-latch here for the instant at which
@@ -414,11 +406,14 @@ public:
 					log operation can prevent this by
 					obtaining an s-latch here. It also
 					protects state and running */
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	os_event_t	event;		/*!< State signal event;
 					os_event_set() and os_event_reset()
 					are protected by purge_sys_t::latch
 					X-lock */
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	ulint		n_stop;		/*!< Counter to track number stops */
+
 	volatile bool	running;	/*!< true, if purge is active,
 					we check this without the latch too */
 	volatile purge_state_t	state;	/*!< Purge coordinator thread states,
@@ -426,6 +421,7 @@ public:
 					without holding the latch. */
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	ReadView	view;		/*!< The purge will not remove undo logs
 					which are >= this view (purge view) */
 	ulint	n_submitted;	/*!< Count of total tasks submitted
@@ -486,10 +482,30 @@ public:
 
 	undo::Truncate	undo_trunc;	/*!< Track UNDO tablespace marked
 					for truncate. */
+
+
+  /**
+    Constructor.
+
+    Some members may require late initialisation, thus we just mark object as
+    uninitialised. Real initialisation happens in create().
+  */
+
+  purge_sys_t() : m_initialised(false) {}
+
+
+  bool is_initialised() const { return m_initialised; }
+
+
+  /** Create the instance */
+  void create();
+
+  /** Close the purge system on shutdown */
+  void close();
 };
 
 /** The global data structure coordinating a purge */
-extern purge_sys_t*	purge_sys;
+extern purge_sys_t	purge_sys;
 
 /** Info required to purge a record */
 struct trx_purge_rec_t {

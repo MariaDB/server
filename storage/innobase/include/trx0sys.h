@@ -996,10 +996,10 @@ public:
   bool is_initialised() { return m_initialised; }
 
 
-  /** Create the instance */
+  /** Initialise the purge subsystem. */
   void create();
 
-  /** Close the transaction system on shutdown */
+  /** Close the purge subsystem on shutdown. */
   void close();
 
   /** @return total number of active (non-prepared) transactions */

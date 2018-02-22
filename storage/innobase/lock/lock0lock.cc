@@ -5258,14 +5258,14 @@ lock_print_info_summary(
 	fprintf(file,
 		"Purge done for trx's n:o < " TRX_ID_FMT
 		" undo n:o < " TRX_ID_FMT " state: ",
-		purge_sys->tail.trx_no(),
-		purge_sys->tail.undo_no);
+		purge_sys.tail.trx_no(),
+		purge_sys.tail.undo_no);
 
 	/* Note: We are reading the state without the latch. One because it
 	will violate the latching order and two because we are merely querying
 	the state of the variable for display. */
 
-	switch (purge_sys->state){
+	switch (purge_sys.state){
 	case PURGE_STATE_INIT:
 		/* Should never be in this state while the system is running. */
 		ut_error;
@@ -5281,7 +5281,7 @@ lock_print_info_summary(
 	case PURGE_STATE_RUN:
 		fprintf(file, "running");
 		/* Check if it is waiting for more data to arrive. */
-		if (!purge_sys->running) {
+		if (!purge_sys.running) {
 			fprintf(file, " but idle");
 		}
 		break;

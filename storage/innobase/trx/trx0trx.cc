@@ -883,7 +883,7 @@ trx_lists_init_at_db_start()
 {
 	ut_a(srv_is_being_started);
 	ut_ad(!srv_was_started);
-	ut_ad(!purge_sys);
+	ut_ad(!purge_sys.is_initialised());
 
 	if (srv_operation == SRV_OPERATION_RESTORE) {
 		/* mariabackup --prepare only deals with
@@ -893,12 +893,11 @@ trx_lists_init_at_db_start()
 		return;
 	}
 
-	purge_sys = UT_NEW_NOKEY(purge_sys_t());
-
 	if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 		return;
 	}
 
+	purge_sys.create();
 	trx_rseg_array_init();
 
 	/* Look from the rollback segments if there exist undo logs for
@@ -1219,7 +1218,7 @@ trx_serialise(trx_t* trx)
 	ut_ad(mutex_own(&rseg->mutex));
 
 	if (rseg->last_page_no == FIL_NULL) {
-		mutex_enter(&purge_sys->pq_mutex);
+		mutex_enter(&purge_sys.pq_mutex);
 	}
 
 	trx_sys.assign_new_trx_no(trx);
@@ -1229,8 +1228,8 @@ trx_serialise(trx_t* trx)
 	already in the rollback segment. User threads only
 	produce events when a rollback segment is empty. */
 	if (rseg->last_page_no == FIL_NULL) {
-		purge_sys->purge_queue.push(TrxUndoRsegs(trx->no, *rseg));
-		mutex_exit(&purge_sys->pq_mutex);
+		purge_sys.purge_queue.push(TrxUndoRsegs(trx->no, *rseg));
+		mutex_exit(&purge_sys.pq_mutex);
 	}
 }
 

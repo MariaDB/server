@@ -436,11 +436,11 @@ row_vers_must_preserve_del_marked(
 	const table_name_t&	name,
 	mtr_t*			mtr)
 {
-	ut_ad(!rw_lock_own(&(purge_sys->latch), RW_LOCK_S));
+	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
 
-	mtr_s_lock(&purge_sys->latch, mtr);
+	mtr_s_lock(&purge_sys.latch, mtr);
 
-	return(!purge_sys->view.changes_visible(trx_id,	name));
+	return(!purge_sys.view.changes_visible(trx_id,	name));
 }
 
 /** build virtual column value from current cluster index record data
@@ -866,7 +866,7 @@ row_vers_old_has_index_entry(
 
 	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_S_FIX));
-	ut_ad(!rw_lock_own(&(purge_sys->latch), RW_LOCK_S));
+	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
 
 	clust_index = dict_table_get_first_index(index->table);
 
@@ -889,7 +889,7 @@ row_vers_old_has_index_entry(
 		/* The top of the stack of versions is locked by the
 		mtr holding a latch on the page containing the
 		clustered index record. The bottom of the stack is
-		locked by the fact that the purge_sys->view must
+		locked by the fact that the purge_sys.view must
 		'overtake' any read view of an active transaction.
 		Thus, it is safe to fetch the prefixes for
 		externally stored columns. */
@@ -1121,7 +1121,7 @@ row_vers_build_for_consistent_read(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_S_FIX));
-	ut_ad(!rw_lock_own(&(purge_sys->latch), RW_LOCK_S));
+	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
 
 	ut_ad(rec_offs_validate(rec, index, *offsets));
 
@@ -1234,7 +1234,7 @@ row_vers_build_for_semi_consistent_read(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_S_FIX));
-	ut_ad(!rw_lock_own(&(purge_sys->latch), RW_LOCK_S));
+	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
 
 	ut_ad(rec_offs_validate(rec, index, *offsets));
 

@@ -483,7 +483,7 @@ trx_rseg_mem_restore(
 
 			/* There is no need to cover this operation by the purge
 			mutex because we are still bootstrapping. */
-			purge_sys->purge_queue.push(*rseg);
+			purge_sys.purge_queue.push(*rseg);
 		}
 	}
 }
