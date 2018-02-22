@@ -8910,28 +8910,6 @@ void Vers_history_point::fix_item()
     item->decimals= 6;
 }
 
-void Vers_history_point::add_typecast(THD *thd, enum vers_sys_type_t defunit)
-{
-  if (item)
-  {
-    if (!unit)
-      unit= defunit;
-    switch (unit)
-    {
-    case VERS_TIMESTAMP:
-      item= new (thd->mem_root) Item_datetime_from_unixtime_typecast(
-                                    thd, item, MAX_DATETIME_PRECISION);
-      break;
-    case VERS_TRX_ID:
-      item= new (thd->mem_root) Item_longlong_typecast(thd, item);
-      break;
-    default:
-      DBUG_ASSERT(0);
-      break;
-    }
-  }
-}
-
 void Vers_history_point::print(String *str, enum_query_type query_type,
                                const char *prefix, size_t plen)
 {

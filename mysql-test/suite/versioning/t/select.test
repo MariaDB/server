@@ -226,7 +226,6 @@ select x from t1 for system_time as of transaction @trx_start;
 select x from t1 for system_time as of @ts;
 select x from t1 for system_time as of @trx_start;
 
-
 --echo ### Issue #365, bug 4 (related to #226, optimized fields)
 create or replace table t1 (i int, b int) with system versioning;
 insert into t1 values (0, 0), (0, 0);

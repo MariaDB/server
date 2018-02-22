@@ -1192,20 +1192,6 @@ public:
 };
 
 
-class Item_datetime_from_unixtime_typecast :public Item_datetime_typecast
-{
-  THD *thd;
-public:
-  Item_datetime_from_unixtime_typecast(THD *_thd, Item *a, uint dec_arg):
-    Item_datetime_typecast(_thd, a, dec_arg), thd(_thd) {}
-  const char *func_name() const { return "cast_as_datetime_from_unixtime"; }
-  const char *cast_type() const { return "datetime"; }
-  void fix_length_and_dec();
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_datetime_from_unixtime_typecast>(thd, this); }
-};
-
-
 class Item_func_makedate :public Item_datefunc
 {
   bool check_arguments() const

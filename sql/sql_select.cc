@@ -867,28 +867,14 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     TABLE *t= table->table;
     if (t->versioned(VERS_TIMESTAMP))
     {
-      if (vers_conditions)
-      {
-        vers_conditions.start.add_typecast(thd, t->s->versioned);
-        vers_conditions.end.add_typecast(thd, t->s->versioned);
-      }
+      MYSQL_TIME max_time;
       switch (vers_conditions.type)
       {
       case SYSTEM_TIME_UNSPECIFIED:
-        if (t->vers_start_field()->real_type() != MYSQL_TYPE_LONGLONG)
-        {
-          MYSQL_TIME max_time;
-          thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
-          max_time.second_part= TIME_MAX_SECOND_PART;
-          curr= newx Item_datetime_literal(thd, &max_time,
-                                            TIME_SECOND_PART_DIGITS);
-          cond1= newx Item_func_eq(thd, row_end, curr);
-        }
-        else
-        {
-          curr= newx Item_int(thd, ULONGLONG_MAX);
-          cond1= newx Item_func_eq(thd, row_end, curr);
-        }
+        thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
+        max_time.second_part= TIME_MAX_SECOND_PART;
+        curr= newx Item_datetime_literal(thd, &max_time, TIME_SECOND_PART_DIGITS);
+        cond1= newx Item_func_eq(thd, row_end, curr);
         cond1= or_items(thd, cond1, newx Item_func_isnull(thd, row_end));
         break;
       case SYSTEM_TIME_AS_OF:
