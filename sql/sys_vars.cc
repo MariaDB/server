@@ -396,12 +396,6 @@ static Sys_var_vers_asof Sys_vers_asof_timestamp(
        SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
        Sys_var_vers_asof::asof_keywords, DEFAULT(SYSTEM_TIME_UNSPECIFIED));
 
-static Sys_var_mybool Sys_vers_innodb_algorithm_simple(
-       "system_versioning_innodb_algorithm_simple",
-       "Use simple algorithm of timestamp handling in InnoDB instead of TRX_SEES",
-       SESSION_VAR(vers_innodb_algorithm_simple), CMD_LINE(OPT_ARG),
-       DEFAULT(TRUE));
-
 static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP",/* "SURVIVE", "DROP",*/ NULL};
 static Sys_var_enum Sys_vers_alter_history(
        "system_versioning_alter_history", "Versioning ALTER TABLE mode. "

@@ -216,19 +216,14 @@ select @trx_start < unix_timestamp(@ts) - 100 as trx_start_good;
 
 --echo ## TIMESTAMP specifier
 select x from t1 for system_time as of timestamp @ts;
-select x from t1 for system_time as of timestamp unix_timestamp(@ts);
-select x from t1 for system_time as of timestamp @trx_start;
 
 set @ts= timestamp'1-1-1 0:0:0';
 
 --echo ## TRANSACTION specifier
-select x from t1 for system_time as of transaction @ts;
-select x from t1 for system_time as of transaction unix_timestamp(@ts);
 select x from t1 for system_time as of transaction @trx_start;
 
 --echo ## no specifier (auto-detection)
 select x from t1 for system_time as of @ts;
-select x from t1 for system_time as of unix_timestamp(@ts);
 select x from t1 for system_time as of @trx_start;
 
 

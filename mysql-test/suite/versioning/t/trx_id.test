@@ -108,15 +108,6 @@ select sys_start from t1 where x = 3 into @trx_id3;
 select @trx_id1 < @trx_id2, @trx_id2 < @trx_id3;
 select @ts1 < @ts2, @ts2 < @ts3;
 
---echo # MVCC is not resolved
-select * from t1 for system_time as of transaction @trx_id1;
-select * from t1 for system_time as of timestamp @ts1;
-select * from t1 for system_time as of transaction @trx_id2;
-select * from t1 for system_time as of timestamp @ts2;
-select * from t1 for system_time as of transaction @trx_id3;
-select * from t1 for system_time as of timestamp @ts3;
-
-set system_versioning_innodb_algorithm_simple= off;
 --echo # MVCC is resolved
 select * from t1 for system_time as of transaction @trx_id1;
 select * from t1 for system_time as of timestamp @ts1;

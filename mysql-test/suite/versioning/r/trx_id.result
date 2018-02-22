@@ -103,32 +103,6 @@ select @trx_id1 < @trx_id2, @trx_id2 < @trx_id3;
 select @ts1 < @ts2, @ts2 < @ts3;
 @ts1 < @ts2	@ts2 < @ts3
 1	1
-# MVCC is not resolved
-select * from t1 for system_time as of transaction @trx_id1;
-x
-1
-select * from t1 for system_time as of timestamp @ts1;
-x
-3
-select * from t1 for system_time as of transaction @trx_id2;
-x
-1
-2
-select * from t1 for system_time as of timestamp @ts2;
-x
-2
-3
-select * from t1 for system_time as of transaction @trx_id3;
-x
-1
-2
-3
-select * from t1 for system_time as of timestamp @ts3;
-x
-1
-2
-3
-set system_versioning_innodb_algorithm_simple= off;
 # MVCC is resolved
 select * from t1 for system_time as of transaction @trx_id1;
 x

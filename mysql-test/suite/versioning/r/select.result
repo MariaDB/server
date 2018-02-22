@@ -330,24 +330,13 @@ trx_start_good
 select x from t1 for system_time as of timestamp @ts;
 x
 1
-select x from t1 for system_time as of timestamp unix_timestamp(@ts);
-x
-1
-select x from t1 for system_time as of timestamp @trx_start;
-x
 set @ts= timestamp'1-1-1 0:0:0';
 ## TRANSACTION specifier
-select x from t1 for system_time as of transaction @ts;
-x
-select x from t1 for system_time as of transaction unix_timestamp(@ts);
-x
 select x from t1 for system_time as of transaction @trx_start;
 x
 1
 ## no specifier (auto-detection)
 select x from t1 for system_time as of @ts;
-x
-select x from t1 for system_time as of unix_timestamp(@ts);
 x
 select x from t1 for system_time as of @trx_start;
 x

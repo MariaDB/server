@@ -726,7 +726,6 @@ typedef struct system_variables
   uint in_subquery_conversion_threshold;
 
   vers_asof_timestamp_t vers_asof_timestamp;
-  my_bool vers_innodb_algorithm_simple;
   ulong vers_alter_history;
 } SV;
 

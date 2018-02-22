@@ -865,8 +865,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     // have uint64 type of sys_trx_(start|end) field.
     // They need special handling.
     TABLE *t= table->table;
-    if (t->versioned(VERS_TIMESTAMP) ||
-        thd->variables.vers_innodb_algorithm_simple)
+    if (t->versioned(VERS_TIMESTAMP))
     {
       if (vers_conditions)
       {
