@@ -2583,7 +2583,8 @@ files_checked:
 		srv_start_state |= SRV_START_STATE_LOCK_SYS
 			| SRV_START_STATE_MONITOR;
 
-		ut_a(trx_purge_state() == PURGE_STATE_INIT);
+		ut_ad(srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN
+		      || trx_purge_state() == PURGE_STATE_INIT);
 
 		if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 			srv_undo_sources = true;
