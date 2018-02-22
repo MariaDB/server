@@ -5009,9 +5009,9 @@ new_clustered_failed:
 				} else if (i ==
 					   altered_table->s->row_end_field) {
 					field_type |= DATA_VERS_END;
-				} else if (!(field->flags
-					     & VERS_UPDATE_UNVERSIONED_FLAG)) {
-					field_type |= DATA_VERSIONED;
+				} else if (field->flags
+					   & VERS_UPDATE_UNVERSIONED_FLAG) {
+					field_type |= DATA_UNVERSIONED;
 				}
 			}
 

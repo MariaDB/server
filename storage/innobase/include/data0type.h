@@ -192,8 +192,7 @@ be less than 256 */
 /** System Versioning */
 #define DATA_VERS_START	16384U	/* start system field */
 #define DATA_VERS_END	32768U	/* end system field */
-/** system-versioned user data column */
-#define DATA_VERSIONED (DATA_VERS_START|DATA_VERS_END)
+#define DATA_UNVERSIONED (DATA_VERS_START|DATA_VERS_END) /* unversioned user field */
 
 /** Check whether locking is disabled (never). */
 #define dict_table_is_locking_disabled(table) false
@@ -543,18 +542,21 @@ struct dtype_t{
 					in bytes */
 
 	/** @return whether this is system field */
-	bool vers_sys_field() const { return prtype & DATA_VERSIONED; }
+	bool vers_sys_field() const
+	{
+		return vers_sys_start() || vers_sys_end();
+	}
 	/** @return whether this is system versioned user field */
-	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
+	bool is_versioned() const { return (prtype & DATA_UNVERSIONED) == 0; }
 	/** @return whether this is the system field start */
 	bool vers_sys_start() const
 	{
-		return (prtype & DATA_VERSIONED) == DATA_VERS_START;
+		return (prtype & DATA_UNVERSIONED) == DATA_VERS_START;
 	}
 	/** @return whether this is the system field end */
 	bool vers_sys_end() const
 	{
-		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
+		return (prtype & DATA_UNVERSIONED) == DATA_VERS_END;
 	}
 };
 

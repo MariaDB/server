@@ -653,7 +653,10 @@ struct dict_col_t{
 	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
 
 	/** @return whether this is system field */
-	bool vers_sys_field() const { return prtype & DATA_VERSIONED; }
+	bool vers_sys_field() const
+	{
+		return vers_sys_start() || vers_sys_end();
+	}
 	/** @return whether table of this system field is TRX_ID-based */
 	bool vers_native() const
 	{
@@ -662,16 +665,16 @@ struct dict_col_t{
 		return mtype == DATA_INT;
 	}
 	/** @return whether this is system versioned */
-	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
+	bool is_versioned() const { return (prtype & DATA_UNVERSIONED) == 0; }
 	/** @return whether this is the system version start */
 	bool vers_sys_start() const
 	{
-		return (prtype & DATA_VERSIONED) == DATA_VERS_START;
+		return (prtype & DATA_UNVERSIONED) == DATA_VERS_START;
 	}
 	/** @return whether this is the system version end */
 	bool vers_sys_end() const
 	{
-		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
+		return (prtype & DATA_UNVERSIONED) == DATA_VERS_END;
 	}
 
 	/** @return whether this is an instantly-added column */
