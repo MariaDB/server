@@ -5,6 +5,7 @@
 
 --source include/galera_cluster.inc
 --source include/big_test.inc
+--source include/have_log_bin.inc
 
 SET SESSION wsrep_sync_wait = 0;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 LONGBLOB) ENGINE=InnoDB;
@@ -93,6 +94,8 @@ END|
 
 DELIMITER ;|
 
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
 --connect node_1_insert_simple, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connect node_1_insert_multi, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connect node_1_insert_transaction, 127.0.0.1, root, , test, $NODE_MYPORT_1
@@ -124,6 +127,13 @@ DELIMITER ;|
 
 --connection node_2
 SET SESSION wsrep_sync_wait = 0;
+
+# Make sure that node_2 is not killed while TOIs are applied.
+# Otherwhise we risk that grastate file is marked unsafe, and
+# as a consequence the node cannot rejoin with IST.
+--let $wait_condition = SELECT VARIABLE_VALUE > $wsrep_last_committed_before FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--source include/wait_condition.inc
+
 --source include/kill_galera.inc
 
 --sleep 10
@@ -172,9 +182,8 @@ SET SESSION wsrep_sync_wait = 0;
 --source include/start_mysqld.inc
 
 --connection node_1
---source include/wait_until_connected_again.inc
---source include/galera_wait_ready.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 
 --let $diff_servers = 1 2
 --source include/diff_servers.inc
