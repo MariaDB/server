@@ -3058,7 +3058,7 @@ calc_buf_pool_size:
 
 		/* normalize lock_sys */
 		srv_lock_table_size = 5 * (srv_buf_pool_size / UNIV_PAGE_SIZE);
-		lock_sys_resize(srv_lock_table_size);
+		lock_sys.resize(srv_lock_table_size);
 
 		/* normalize btr_search_sys */
 		btr_search_sys_resize(

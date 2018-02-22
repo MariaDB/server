@@ -1881,7 +1881,7 @@ logs_empty_and_mark_files_at_shutdown(void)
 
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 loop:
-	ut_ad(lock_sys || !srv_was_started);
+	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys || !srv_was_started);
 	ut_ad(fil_system || !srv_was_started);
 	os_event_set(srv_buf_resize_event);
@@ -1890,8 +1890,8 @@ loop:
 		os_event_set(srv_error_event);
 		os_event_set(srv_monitor_event);
 		os_event_set(srv_buf_dump_event);
-		if (lock_sys) {
-			os_event_set(lock_sys->timeout_event);
+		if (lock_sys.timeout_thread_active) {
+			os_event_set(lock_sys.timeout_event);
 		}
 		if (dict_stats_event) {
 			os_event_set(dict_stats_event);
@@ -1940,7 +1940,7 @@ loop:
 		goto wait_suspend_loop;
 	} else if (srv_dict_stats_thread_active) {
 		thread_name = "dict_stats_thread";
-	} else if (lock_sys && lock_sys->timeout_thread_active) {
+	} else if (lock_sys.timeout_thread_active) {
 		thread_name = "lock_wait_timeout_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_name = "buf_dump_thread";

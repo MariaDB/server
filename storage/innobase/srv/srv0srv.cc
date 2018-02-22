@@ -1581,7 +1581,7 @@ srv_export_innodb_status(void)
 	}
 
 	export_vars.innodb_row_lock_time_max =
-		lock_sys->n_lock_max_wait_time / 1000;
+		lock_sys.n_lock_max_wait_time / 1000;
 
 	export_vars.innodb_rows_read = srv_stats.n_rows_read;
 
@@ -1717,7 +1717,7 @@ loop:
 		if (srv_print_innodb_monitor) {
 			/* Reset mutex_skipped counter everytime
 			srv_print_innodb_monitor changes. This is to
-			ensure we will not be blocked by lock_sys->mutex
+			ensure we will not be blocked by lock_sys.mutex
 			for short duration information printing,
 			such as requested by sync_array_print_long_waits() */
 			if (!last_srv_print_monitor) {

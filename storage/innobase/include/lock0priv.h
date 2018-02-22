@@ -111,7 +111,7 @@ operator<<(std::ostream& out, const lock_rec_t& lock)
 	return(lock.print(out));
 }
 
-/** Lock struct; protected by lock_sys->mutex */
+/** Lock struct; protected by lock_sys.mutex */
 struct lock_t {
 	trx_t*		trx;		/*!< transaction owning the
 					lock */

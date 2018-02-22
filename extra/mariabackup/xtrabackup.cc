@@ -3672,8 +3672,6 @@ fail:
 		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0,
 		FIL_TYPE_LOG, NULL);
 
-	lock_sys_create(srv_lock_table_size);
-
 	for (i = 0; i < srv_n_log_files; i++) {
 		err = open_or_create_log_file(space, &log_file_created, i);
 		if (err != DB_SUCCESS) {

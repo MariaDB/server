@@ -2094,7 +2094,7 @@ state_ok:
 
 /**********************************************************************//**
 Prints info about a transaction.
-The caller must hold lock_sys->mutex.
+The caller must hold lock_sys.mutex.
 When possible, use trx_print() instead. */
 void
 trx_print_latched(
@@ -2114,7 +2114,7 @@ trx_print_latched(
 
 /**********************************************************************//**
 Prints info about a transaction.
-Acquires and releases lock_sys->mutex. */
+Acquires and releases lock_sys.mutex. */
 void
 trx_print(
 /*======*/
@@ -2156,7 +2156,7 @@ trx_assert_started(
 	/* trx->state can change from or to NOT_STARTED while we are holding
 	trx_sys.mutex for non-locking autocommit selects but not for other
 	types of transactions. It may change from ACTIVE to PREPARED. Unless
-	we are holding lock_sys->mutex, it may also change to COMMITTED. */
+	we are holding lock_sys.mutex, it may also change to COMMITTED. */
 
 	switch (trx->state) {
 	case TRX_STATE_PREPARED:
@@ -2432,7 +2432,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
 /**
   Finds PREPARED XA transaction by xid.
 
-  trx may have been committed, unless the caller is holding lock_sys->mutex.
+  trx may have been committed, unless the caller is holding lock_sys.mutex.
 
   @param[in]  xid  X/Open XA transaction identifier
 

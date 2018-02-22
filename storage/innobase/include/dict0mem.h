@@ -1908,7 +1908,7 @@ struct dict_table_t {
 	ulong					n_waiting_or_granted_auto_inc_locks;
 
 	/** The transaction that currently holds the the AUTOINC lock on this
-	table. Protected by lock_sys->mutex. */
+	table. Protected by lock_sys.mutex. */
 	const trx_t*				autoinc_trx;
 
 	/* @} */
@@ -1923,7 +1923,7 @@ struct dict_table_t {
 
 	/** Count of the number of record locks on this table. We use this to
 	determine whether we can evict the table from the dictionary cache.
-	It is protected by lock_sys->mutex. */
+	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
 
 #ifndef DBUG_ASSERT_EXISTS
@@ -1935,7 +1935,7 @@ private:
 	ulint					n_ref_count;
 
 public:
-	/** List of locks on the table. Protected by lock_sys->mutex. */
+	/** List of locks on the table. Protected by lock_sys.mutex. */
 	table_lock_list_t			locks;
 
 	/** Timestamp of the last modification of this table. */

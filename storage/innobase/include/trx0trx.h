@@ -266,7 +266,7 @@ This function is used to find one X/Open XA distributed transaction
 which is in the prepared state
 @return trx or NULL; on match, the trx->xid will be invalidated;
 note that the trx may have been committed, unless the caller is
-holding lock_sys->mutex */
+holding lock_sys.mutex */
 trx_t *
 trx_get_trx_by_xid(
 /*===============*/
@@ -327,7 +327,7 @@ trx_print_low(
 
 /**********************************************************************//**
 Prints info about a transaction.
-The caller must hold lock_sys->mutex and trx_sys.mutex.
+The caller must hold lock_sys.mutex and trx_sys.mutex.
 When possible, use trx_print() instead. */
 void
 trx_print_latched(
@@ -339,7 +339,7 @@ trx_print_latched(
 
 /**********************************************************************//**
 Prints info about a transaction.
-Acquires and releases lock_sys->mutex. */
+Acquires and releases lock_sys.mutex. */
 void
 trx_print(
 /*======*/
@@ -612,7 +612,7 @@ To query the state either of the mutexes is sufficient within the locking
 code and no mutex is required when the query thread is no longer waiting. */
 
 /** The locks and state of an active transaction. Protected by
-lock_sys->mutex, trx->mutex or both. */
+lock_sys.mutex, trx->mutex or both. */
 struct trx_lock_t {
 	ulint		n_active_thrs;	/*!< number of active query threads */
 
@@ -624,10 +624,10 @@ struct trx_lock_t {
 					TRX_QUE_LOCK_WAIT, this points to
 					the lock request, otherwise this is
 					NULL; set to non-NULL when holding
-					both trx->mutex and lock_sys->mutex;
+					both trx->mutex and lock_sys.mutex;
 					set to NULL when holding
-					lock_sys->mutex; readers should
-					hold lock_sys->mutex, except when
+					lock_sys.mutex; readers should
+					hold lock_sys.mutex, except when
 					they are holding trx->mutex and
 					wait_lock==NULL */
 	ib_uint64_t	deadlock_mark;	/*!< A mark field that is initialized
@@ -641,13 +641,13 @@ struct trx_lock_t {
 					resolution, it sets this to true.
 					Protected by trx->mutex. */
 	time_t		wait_started;	/*!< lock wait started at this time,
-					protected only by lock_sys->mutex */
+					protected only by lock_sys.mutex */
 
 	que_thr_t*	wait_thr;	/*!< query thread belonging to this
 					trx that is in QUE_THR_LOCK_WAIT
 					state. For threads suspended in a
 					lock wait, this is protected by
-					lock_sys->mutex. Otherwise, this may
+					lock_sys.mutex. Otherwise, this may
 					only be modified by the thread that is
 					serving the running transaction. */
 
@@ -660,12 +660,12 @@ struct trx_lock_t {
 	ulint		table_cached;	/*!< Next free table lock in pool */
 
 	mem_heap_t*	lock_heap;	/*!< memory heap for trx_locks;
-					protected by lock_sys->mutex */
+					protected by lock_sys.mutex */
 
 	trx_lock_list_t trx_locks;	/*!< locks requested by the transaction;
 					insertions are protected by trx->mutex
-					and lock_sys->mutex; removals are
-					protected by lock_sys->mutex */
+					and lock_sys.mutex; removals are
+					protected by lock_sys.mutex */
 
 	lock_pool_t	table_locks;	/*!< All table locks requested by this
 					transaction, including AUTOINC locks */
@@ -788,7 +788,7 @@ transactions. The trx_sys.mutex prevents a race condition between it
 and lock_trx_release_locks() [invoked by trx_commit()].
 
 * trx_print_low() may access transactions not associated with the current
-thread. The caller must be holding lock_sys->mutex.
+thread. The caller must be holding lock_sys.mutex.
 
 * When a transaction handle is in the trx_sys.mysql_trx_list or
 trx_sys.trx_list, some of its fields must not be modified without
@@ -797,7 +797,7 @@ holding trx_sys.mutex exclusively.
 * The locking code (in particular, lock_deadlock_recursive() and
 lock_rec_convert_impl_to_expl()) will access transactions associated
 to other connections. The locks of transactions are protected by
-lock_sys->mutex and sometimes by trx->mutex. */
+lock_sys.mutex and sometimes by trx->mutex. */
 
 typedef enum {
 	TRX_SERVER_ABORT = 0,
@@ -870,7 +870,7 @@ public:
 	TrxMutex	mutex;		/*!< Mutex protecting the fields
 					state and lock (except some fields
 					of lock, which are protected by
-					lock_sys->mutex) */
+					lock_sys.mutex) */
 
 	/* Note: in_depth was split from in_innodb for fixing a RO
 	performance issue. Acquiring the trx_t::mutex for each row
@@ -961,7 +961,7 @@ public:
 	ACTIVE->COMMITTED is possible when the transaction is in
 	rw_trx_hash.
 
-	Transitions to COMMITTED are protected by both lock_sys->mutex
+	Transitions to COMMITTED are protected by both lock_sys.mutex
 	and trx->mutex.
 
 	NOTE: Some of these state change constraints are an overkill,
@@ -974,7 +974,7 @@ public:
 					transaction, or NULL if not yet set */
 	trx_lock_t	lock;		/*!< Information about the transaction
 					locks and state. Protected by
-					trx->mutex or lock_sys->mutex
+					trx->mutex or lock_sys.mutex
 					or both */
 	bool		is_recovered;	/*!< 0=normal transaction,
 					1=recovered, must be rolled back,
@@ -1156,7 +1156,7 @@ public:
 					also in the lock list trx_locks. This
 					vector needs to be freed explicitly
 					when the trx instance is destroyed.
-					Protected by lock_sys->mutex. */
+					Protected by lock_sys.mutex. */
 	/*------------------------------*/
 	bool		read_only;	/*!< true if transaction is flagged
 					as a READ-ONLY transaction.

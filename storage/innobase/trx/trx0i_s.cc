@@ -172,7 +172,7 @@ struct trx_i_s_cache_t {
 	ha_storage_t*	storage;	/*!< storage for external volatile
 					data that may become unavailable
 					when we release
-					lock_sys->mutex or trx_sys.mutex */
+					lock_sys.mutex or trx_sys.mutex */
 	ulint		mem_allocd;	/*!< the amount of memory
 					allocated with mem_alloc*() */
 	bool		is_truncated;	/*!< this is true if the memory
@@ -537,9 +537,9 @@ thd_done:
 
 	row->trx_tables_locked = lock_number_of_tables_locked(&trx->lock);
 
-	/* These are protected by both trx->mutex or lock_sys->mutex,
-	or just lock_sys->mutex. For reading, it suffices to hold
-	lock_sys->mutex. */
+	/* These are protected by both trx->mutex or lock_sys.mutex,
+	or just lock_sys.mutex. For reading, it suffices to hold
+	lock_sys.mutex. */
 
 	row->trx_lock_structs = UT_LIST_GET_LEN(trx->lock.trx_locks);
 
