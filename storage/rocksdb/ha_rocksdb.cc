@@ -6156,7 +6156,7 @@ int ha_rocksdb::create_cfs(
     // Internal consistency check to make sure that data in TABLE and
     // Rdb_tbl_def structures matches. Either both are missing or both are
     // specified. Yes, this is critical enough to make it into SHIP_ASSERT.
-    SHIP_ASSERT(!table_arg->part_info == tbl_def_arg->base_partition().empty());
+    SHIP_ASSERT(IF_PARTITIONING(!table_arg->part_info,true) == tbl_def_arg->base_partition().empty());
 
     // Generate the name for the column family to use.
     bool per_part_match_found = false;
@@ -8395,7 +8395,7 @@ const std::string ha_rocksdb::generate_cf_name(const uint index,
       key_comment, table_arg, tbl_def_arg, per_part_match_found,
       RDB_CF_NAME_QUALIFIER);
 
-  if (table_arg->part_info != nullptr && !*per_part_match_found) {
+  if (IF_PARTITIONING(table_arg->part_info,nullptr) != nullptr && !*per_part_match_found) {
     // At this point we tried to search for a custom CF name for a partition,
     // but none was specified. Therefore default one will be used.
     return "";
