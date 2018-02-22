@@ -2240,7 +2240,8 @@ public:
   }
 
   void set_sync(bool sync) override {
-    m_rocksdb_tx->GetWriteOptions()->sync = sync;
+    if (m_rocksdb_tx)
+      m_rocksdb_tx->GetWriteOptions()->sync = sync;
   }
 
   void release_lock(rocksdb::ColumnFamilyHandle *const column_family,
@@ -3154,10 +3155,20 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
          - For a COMMIT statement that finishes a multi-statement transaction
          - For a statement that has its own transaction
       */
+
+      //  First, commit without syncing. This establishes the commit order
+      tx->set_sync(false);
       if (tx->commit()) {
         DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
       }
       thd_wakeup_subsequent_commits(thd, 0);
+
+      if (rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC)
+      {
+        rocksdb::Status s= rdb->FlushWAL(true);
+        if (!s.ok())
+          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+      }
     } else {
       /*
         We get here when committing a statement within a transaction.
@@ -6145,7 +6156,7 @@ int ha_rocksdb::create_cfs(
     // Internal consistency check to make sure that data in TABLE and
     // Rdb_tbl_def structures matches. Either both are missing or both are
     // specified. Yes, this is critical enough to make it into SHIP_ASSERT.
-    SHIP_ASSERT(!table_arg->part_info == tbl_def_arg->base_partition().empty());
+    SHIP_ASSERT(IF_PARTITIONING(!table_arg->part_info,true) == tbl_def_arg->base_partition().empty());
 
     // Generate the name for the column family to use.
     bool per_part_match_found = false;
@@ -8384,7 +8395,7 @@ const std::string ha_rocksdb::generate_cf_name(const uint index,
       key_comment, table_arg, tbl_def_arg, per_part_match_found,
       RDB_CF_NAME_QUALIFIER);
 
-  if (table_arg->part_info != nullptr && !*per_part_match_found) {
+  if (IF_PARTITIONING(table_arg->part_info,nullptr) != nullptr && !*per_part_match_found) {
     // At this point we tried to search for a custom CF name for a partition,
     // but none was specified. Therefore default one will be used.
     return "";

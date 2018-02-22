@@ -37,7 +37,7 @@ int heap_rrnd(register HP_INFO *info, uchar *record, uchar *pos)
     info->update= 0;
     DBUG_RETURN(my_errno= HA_ERR_END_OF_FILE);
   }
-  if (!info->current_ptr[share->reclength])
+  if (!info->current_ptr[share->visible])
   {
     info->update= HA_STATE_PREV_FOUND | HA_STATE_NEXT_FOUND;
     DBUG_RETURN(my_errno=HA_ERR_RECORD_DELETED);

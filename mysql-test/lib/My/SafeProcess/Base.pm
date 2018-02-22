@@ -186,8 +186,10 @@ sub create_process {
   # it and any childs(that hasn't changed group themself)
   setpgrp(0,0) if $opts{setpgrp};
 
-  if ( $output and !open(STDOUT, $open_mode, $output) ) {
-    croak("can't redirect STDOUT to '$output': $!");
+  if ( $output ) {
+    close STDOUT;
+    open(STDOUT, $open_mode, $output)
+      or croak "can't redirect STDOUT to '$output': $!";
   }
 
   if ( $error ) {
@@ -196,8 +198,10 @@ sub create_process {
 	croak("can't dup STDOUT: $!");
       }
     }
-    elsif ( ! open(STDERR, $open_mode, $error) ) {
-      croak("can't redirect STDERR to '$error': $!");
+    else {
+      close STDERR;
+      open(STDERR, $open_mode, $error)
+        or croak "can't redirect STDERR to '$error': $!";
     }
   }
 

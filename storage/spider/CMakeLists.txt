@@ -34,6 +34,8 @@ IF(EXISTS ${PROJECT_SOURCE_DIR}/storage/mysql_storage_engine.cmake)
     ${CMAKE_SOURCE_DIR}/regex)
 
   MYSQL_STORAGE_ENGINE(SPIDER)
+ELSEIF(PLUGIN_PARTITION MATCHES "^NO$")
+  MESSAGE(STATUS "Spider is skipped because partitioning is disabled")
 ELSE()
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/spider/hs_client)
 

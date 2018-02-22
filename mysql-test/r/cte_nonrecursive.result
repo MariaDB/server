@@ -1398,3 +1398,30 @@ i
 2
 3
 DROP TABLE t1;
+#
+# MDEV-14297: Lost name of a explicitly named CTE column used in
+#             the non-recursive CTE via prepared statement
+#
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+PREPARE stmt FROM "WITH cte(a) AS (SELECT 1) SELECT * FROM cte";
+EXECUTE stmt;
+a
+1
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM "CREATE VIEW v1 AS WITH cte(a) AS (SELECT 1) SELECT * FROM cte";
+EXECUTE stmt;
+SELECT * FROM v1;
+a
+1
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM "CREATE VIEW v2 AS WITH cte(a) AS (SELECT * FROM t1) SELECT * FROM cte";
+EXECUTE stmt;
+SELECT * FROM v2;
+a
+1
+2
+3
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+DROP VIEW v1,v2;

@@ -49,6 +49,13 @@ static const char *strip_path(const char *s)
 static bfd *bfdh= 0;
 static asymbol **symtable= 0;
 
+#if defined(HAVE_LINK_H) && defined(HAVE_DLOPEN)
+#include <link.h>
+static ElfW(Addr) offset= 0;
+#else
+#define offset 0
+#endif
+
 /**
   finds a file name, a line number, and a function name corresponding to addr.
 

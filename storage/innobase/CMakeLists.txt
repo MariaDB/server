@@ -175,7 +175,13 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
       btr/btr0btr.cc
       btr/btr0cur.cc
       buf/buf0buf.cc
+      fts/fts0fts.cc
       gis/gis0sea.cc
+      handler/handler0alter.cc
+      mtr/mtr0mtr.cc
+      row/row0merge.cc
+      row/row0mysql.cc
+      srv/srv0srv.cc
       COMPILE_FLAGS "-O0"
       )
   ENDIF()
@@ -188,4 +194,6 @@ ENDIF()
 
 ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
 
-ADD_DEPENDENCIES(innobase GenError)
+IF(TARGET innobase)
+  ADD_DEPENDENCIES(innobase GenError)
+ENDIF()

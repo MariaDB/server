@@ -964,3 +964,28 @@ WITH RECURSIVE c1 AS (WITH c3 AS (SELECT * FROM c2) SELECT * FROM c3),
 SELECT * FROM c1;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14297: Lost name of a explicitly named CTE column used in
+--echo #             the non-recursive CTE via prepared statement
+--echo #
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+PREPARE stmt FROM "WITH cte(a) AS (SELECT 1) SELECT * FROM cte";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM "CREATE VIEW v1 AS WITH cte(a) AS (SELECT 1) SELECT * FROM cte";
+EXECUTE stmt;
+SELECT * FROM v1;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM "CREATE VIEW v2 AS WITH cte(a) AS (SELECT * FROM t1) SELECT * FROM cte";
+EXECUTE stmt;
+SELECT * FROM v2;
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1;
+DROP VIEW v1,v2;
