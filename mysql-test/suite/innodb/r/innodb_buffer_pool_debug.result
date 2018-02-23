@@ -1,0 +1,5 @@
+SET @old_innodb_buffer_pool_evict = @@innodb_buffer_pool_evict;
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE = InnoDB ROW_FORMAT = COMPRESSED;
+SET GLOBAL innodb_buffer_pool_evict = 'uncompressed';
+DROP TABLE t1;
+SET GLOBAL innodb_buffer_pool_evict = @old_innodb_buffer_pool_evict;
