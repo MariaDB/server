@@ -125,12 +125,38 @@ bool Type_handler_data::init()
 Type_handler_data *type_handler_data= NULL;
 
 
-void Time::make_from_item(Item *item)
+void Time::make_from_item(Item *item, const Options opt)
 {
-  if (item->get_time(this))
+  if (item->get_date(this, opt.get_date_flags()))
     time_type= MYSQL_TIMESTAMP_NONE;
   else
-    valid_MYSQL_TIME_to_valid_value();
+    valid_MYSQL_TIME_to_valid_value(opt);
+}
+
+
+void Temporal_with_date::make_from_item(THD *thd, Item *item, sql_mode_t flags)
+{
+  flags&= ~TIME_TIME_ONLY;
+  /*
+    Some TIME type items return error when trying to do get_date()
+    without TIME_TIME_ONLY set (e.g. Item_field for Field_time).
+    In the SQL standard time->datetime conversion mode we add TIME_TIME_ONLY.
+    In the legacy time->datetime conversion mode we do not add TIME_TIME_ONLY
+    and leave it to get_date() to check date.
+  */
+  ulonglong time_flag= (item->field_type() == MYSQL_TYPE_TIME &&
+           !(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
+           TIME_TIME_ONLY : 0;
+  if (item->get_date(this, flags | time_flag))
+    time_type= MYSQL_TIMESTAMP_NONE;
+  else if (time_type == MYSQL_TIMESTAMP_TIME)
+  {
+    MYSQL_TIME tmp;
+    if (time_to_datetime_with_warn(thd, this, &tmp, flags))
+      time_type= MYSQL_TIMESTAMP_NONE;
+    else
+      *(static_cast<MYSQL_TIME*>(this))= tmp;
+  }
 }
 
 
@@ -3576,7 +3602,55 @@ Type_handler_temporal_result::Item_func_hybrid_field_type_get_date(
                                         MYSQL_TIME *ltime,
                                         ulonglong fuzzydate) const
 {
-  return item->get_date_from_date_op(ltime, fuzzydate);
+  return item->date_op(ltime, fuzzydate);
+}
+
+
+/***************************************************************************/
+
+String *
+Type_handler_time_common::Item_func_hybrid_field_type_val_str(
+                                    Item_func_hybrid_field_type *item,
+                                    String *str) const
+{
+  return item->val_str_from_time_op(str);
+}
+
+
+double
+Type_handler_time_common::Item_func_hybrid_field_type_val_real(
+                                    Item_func_hybrid_field_type *item)
+                                    const
+{
+  return item->val_real_from_time_op();
+}
+
+
+longlong
+Type_handler_time_common::Item_func_hybrid_field_type_val_int(
+                                    Item_func_hybrid_field_type *item)
+                                    const
+{
+  return item->val_int_from_time_op();
+}
+
+
+my_decimal *
+Type_handler_time_common::Item_func_hybrid_field_type_val_decimal(
+                                    Item_func_hybrid_field_type *item,
+                                    my_decimal *dec) const
+{
+  return item->val_decimal_from_time_op(dec);
+}
+
+
+bool
+Type_handler_time_common::Item_func_hybrid_field_type_get_date(
+                                    Item_func_hybrid_field_type *item,
+                                    MYSQL_TIME *ltime,
+                                    ulonglong fuzzydate) const
+{
+  return item->time_op(ltime);
 }
 
 

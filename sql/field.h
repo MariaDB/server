@@ -2457,6 +2457,7 @@ public:
 
 class Field_timestamp :public Field_temporal {
 protected:
+  sql_mode_t sql_mode_for_timestamp(THD *thd) const;
   int store_TIME_with_warning(THD *, MYSQL_TIME *, const ErrConv *,
                               int warnings, bool have_smth_to_conv);
 public:

@@ -929,7 +929,6 @@ String *Item_func_hybrid_field_type::val_str_from_date_op(String *str)
   if (date_op_with_null_check(&ltime) ||
       (null_value= str->alloc(MAX_DATE_STRING_REP_LENGTH)))
     return (String *) 0;
-  ltime.time_type= mysql_timestamp_type();
   str->length(my_TIME_to_str(&ltime, const_cast<char*>(str->ptr()), decimals));
   str->set_charset(&my_charset_bin);
   DBUG_ASSERT(!null_value);
@@ -941,7 +940,6 @@ double Item_func_hybrid_field_type::val_real_from_date_op()
   MYSQL_TIME ltime;
   if (date_op_with_null_check(&ltime))
     return 0;
-  ltime.time_type= mysql_timestamp_type();
   return TIME_to_double(&ltime);
 }
 
@@ -950,7 +948,6 @@ longlong Item_func_hybrid_field_type::val_int_from_date_op()
   MYSQL_TIME ltime;
   if (date_op_with_null_check(&ltime))
     return 0;
-  ltime.time_type= mysql_timestamp_type();
   return TIME_to_ulonglong(&ltime);
 }
 
@@ -963,7 +960,40 @@ Item_func_hybrid_field_type::val_decimal_from_date_op(my_decimal *dec)
     my_decimal_set_zero(dec);
     return 0;
   }
-  ltime.time_type= mysql_timestamp_type();
+  return date2my_decimal(&ltime, dec);
+}
+
+
+String *Item_func_hybrid_field_type::val_str_from_time_op(String *str)
+{
+  MYSQL_TIME ltime;
+  if (time_op_with_null_check(&ltime) ||
+      (null_value= my_TIME_to_str(&ltime, str, decimals)))
+    return NULL;
+  return str;
+}
+
+double Item_func_hybrid_field_type::val_real_from_time_op()
+{
+  MYSQL_TIME ltime;
+  return time_op_with_null_check(&ltime) ? 0 : TIME_to_double(&ltime);
+}
+
+longlong Item_func_hybrid_field_type::val_int_from_time_op()
+{
+  MYSQL_TIME ltime;
+  return time_op_with_null_check(&ltime) ? 0 : TIME_to_ulonglong(&ltime);
+}
+
+my_decimal *
+Item_func_hybrid_field_type::val_decimal_from_time_op(my_decimal *dec)
+{
+  MYSQL_TIME ltime;
+  if (time_op_with_null_check(&ltime))
+  {
+    my_decimal_set_zero(dec);
+    return 0;
+  }
   return date2my_decimal(&ltime, dec);
 }
 

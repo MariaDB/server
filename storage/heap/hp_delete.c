@@ -45,7 +45,7 @@ int heap_delete(HP_INFO *info, const uchar *record)
   info->update=HA_STATE_DELETED;
   *((uchar**) pos)=share->del_link;
   share->del_link=pos;
-  pos[share->reclength]=0;		/* Record deleted */
+  pos[share->visible]=0;		/* Record deleted */
   share->deleted++;
   share->key_version++;
 #if !defined(DBUG_OFF) && defined(EXTRA_HEAP_DEBUG)

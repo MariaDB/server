@@ -5081,6 +5081,13 @@ copy_or_convert_to_datetime(THD *thd, const MYSQL_TIME *from, MYSQL_TIME *to)
 }
 
 
+sql_mode_t Field_timestamp::sql_mode_for_timestamp(THD *thd) const
+{
+  // We don't want to store invalid or fuzzy datetime values in TIMESTAMP
+  return (thd->variables.sql_mode & MODE_NO_ZERO_DATE) | MODE_NO_ZERO_IN_DATE;
+}
+
+
 int Field_timestamp::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
   int unused;
@@ -5089,9 +5096,7 @@ int Field_timestamp::store_time_dec(const MYSQL_TIME *ltime, uint dec)
   MYSQL_TIME l_time;
   bool valid= !copy_or_convert_to_datetime(thd, ltime, &l_time) &&
               !check_date(&l_time, pack_time(&l_time) != 0,
-                          (thd->variables.sql_mode & MODE_NO_ZERO_DATE) |
-                                       MODE_NO_ZERO_IN_DATE, &unused);
-
+                          sql_mode_for_timestamp(thd), &unused);
   return store_TIME_with_warning(thd, &l_time, &str, false, valid);
 }
 
@@ -5104,11 +5109,8 @@ int Field_timestamp::store(const char *from,size_t len,CHARSET_INFO *cs)
   ErrConvString str(from, len, cs);
   THD *thd= get_thd();
 
-  /* We don't want to store invalid or fuzzy datetime values in TIMESTAMP */
   have_smth_to_conv= !str_to_datetime(cs, from, len, &l_time,
-                                      (thd->variables.sql_mode &
-                                       MODE_NO_ZERO_DATE) |
-                                       MODE_NO_ZERO_IN_DATE, &status);
+                                      sql_mode_for_timestamp(thd), &status);
   return store_TIME_with_warning(thd, &l_time, &str,
                                  status.warnings, have_smth_to_conv);
 }
@@ -5121,9 +5123,8 @@ int Field_timestamp::store(double nr)
   ErrConvDouble str(nr);
   THD *thd= get_thd();
 
-  longlong tmp= double_to_datetime(nr, &l_time, (thd->variables.sql_mode &
-                                                 MODE_NO_ZERO_DATE) |
-                                   MODE_NO_ZERO_IN_DATE, &error);
+  longlong tmp= double_to_datetime(nr, &l_time, sql_mode_for_timestamp(thd),
+                                   &error);
   return store_TIME_with_warning(thd, &l_time, &str, error, tmp != -1);
 }
 
@@ -5135,10 +5136,8 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
   ErrConvInteger str(nr, unsigned_val);
   THD *thd= get_thd();
 
-  /* We don't want to store invalid or fuzzy datetime values in TIMESTAMP */
-  longlong tmp= number_to_datetime(nr, 0, &l_time, (thd->variables.sql_mode &
-                                                 MODE_NO_ZERO_DATE) |
-                                   MODE_NO_ZERO_IN_DATE, &error);
+  longlong tmp= number_to_datetime(nr, 0, &l_time, sql_mode_for_timestamp(thd),
+                                   &error);
   return store_TIME_with_warning(thd, &l_time, &str, error, tmp != -1);
 }
 
@@ -5433,10 +5432,8 @@ int Field_timestamp::store_decimal(const my_decimal *d)
     error= 2;
   }
   else
-    tmp= number_to_datetime(nr, sec_part, &ltime, TIME_NO_ZERO_IN_DATE |
-                            (thd->variables.sql_mode &
-                             MODE_NO_ZERO_DATE), &error);
-
+    tmp= number_to_datetime(nr, sec_part, &ltime, sql_mode_for_timestamp(thd),
+                            &error);
   return store_TIME_with_warning(thd, &ltime, &str, error, tmp != -1);
 }
 
@@ -5711,30 +5708,28 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
          const_item->field_type() != MYSQL_TYPE_TIMESTAMP) ||
         const_item->decimals != decimals())
     {
-      MYSQL_TIME ltime;
-      if (const_item->field_type() == MYSQL_TYPE_TIME ?
-          const_item->get_date_with_conversion(&ltime, 0) :
-          const_item->get_date(&ltime, 0))
+      Datetime dt(thd, const_item, 0);
+      if (!dt.is_valid_datetime())
         return NULL;
       /*
         See comments about truncation in the same place in
         Field_time::get_equal_const_item().
       */
-      return new (thd->mem_root) Item_datetime_literal(thd, &ltime,
+      return new (thd->mem_root) Item_datetime_literal(thd,
+                                                       dt.get_mysql_time(),
                                                        decimals());
     }
     break;
   case ANY_SUBST:
     if (!is_temporal_type_with_date(const_item->field_type()))
     {
-      MYSQL_TIME ltime;
-      if (const_item->get_date_with_conversion(&ltime,
-                                               TIME_FUZZY_DATES |
-                                               TIME_INVALID_DATES))
+      Datetime dt(thd, const_item, TIME_FUZZY_DATES | TIME_INVALID_DATES);
+      if (!dt.is_valid_datetime())
         return NULL;
       return new (thd->mem_root)
-        Item_datetime_literal_for_invalid_dates(thd, &ltime,
-                                                ltime.second_part ?
+        Item_datetime_literal_for_invalid_dates(thd, dt.get_mysql_time(),
+                                                dt.get_mysql_time()->
+                                                second_part ?
                                                 TIME_SECOND_PART_DIGITS : 0);
     }
     break;
@@ -6086,10 +6081,8 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
     {
       MYSQL_TIME ltime;
       // Get the value of const_item with conversion from DATETIME to TIME
-      if (const_item->get_time_with_conversion(thd, &ltime,
-                                               TIME_TIME_ONLY |
-                                               TIME_FUZZY_DATES |
-                                               TIME_INVALID_DATES))
+      ulonglong fuzzydate= Time::comparison_flags_for_get_date();
+      if (const_item->get_time_with_conversion(thd, &ltime, fuzzydate))
         return NULL;
       /*
         Replace a DATE/DATETIME constant to a TIME constant:
@@ -6562,10 +6555,9 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
   case ANY_SUBST:
     if (!is_temporal_type_with_date(const_item->field_type()))
     {
-      MYSQL_TIME ltime;
       // Get the value of const_item with conversion from TIME to DATETIME
-      if (const_item->get_date_with_conversion(&ltime,
-                                        TIME_FUZZY_DATES | TIME_INVALID_DATES))
+      Datetime dt(thd, const_item, TIME_FUZZY_DATES | TIME_INVALID_DATES);
+      if (!dt.is_valid_datetime())
         return NULL;
       /*
         Replace the constant to a DATE or DATETIME constant.
@@ -6578,26 +6570,23 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
 
         (assuming CURRENT_DATE is '2015-08-30'
       */
-      if (non_zero_hhmmssuu(&ltime))
+      if (!dt.hhmmssff_is_zero())
         return new (thd->mem_root)
-          Item_datetime_literal_for_invalid_dates(thd, &ltime,
-                                                  ltime.second_part ?
+          Item_datetime_literal_for_invalid_dates(thd, dt.get_mysql_time(),
+                                                  dt.get_mysql_time()->
+                                                    second_part ?
                                                   TIME_SECOND_PART_DIGITS : 0);
-      datetime_to_date(&ltime);
       return new (thd->mem_root)
-        Item_date_literal_for_invalid_dates(thd, &ltime);
+        Item_date_literal_for_invalid_dates(thd, Date(&dt).get_mysql_time());
     }
     break;
   case IDENTITY_SUBST:
     if (const_item->field_type() != MYSQL_TYPE_DATE)
     {
-      MYSQL_TIME ltime;
-      if (const_item->field_type() == MYSQL_TYPE_TIME ?
-          const_item->get_date_with_conversion(&ltime, 0) :
-          const_item->get_date(&ltime, 0))
+      Date d(thd, const_item, 0);
+      if (!d.is_valid_date())
         return NULL;
-      datetime_to_date(&ltime);
-      return new (thd->mem_root) Item_date_literal(thd, &ltime);
+      return new (thd->mem_root) Item_date_literal(thd, d.get_mysql_time());
     }
     break;
   }

@@ -992,15 +992,15 @@ longlong Item_func_quarter::val_int()
 longlong Item_func_hour::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  return get_arg0_time(&ltime) ? 0 : ltime.hour;
+  Time tm(args[0], Time::Options_for_cast());
+  return (null_value= !tm.is_valid_time()) ? 0 : tm.get_mysql_time()->hour;
 }
 
 longlong Item_func_minute::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  return get_arg0_time(&ltime) ? 0 : ltime.minute;
+  Time tm(args[0], Time::Options_for_cast());
+  return (null_value= !tm.is_valid_time()) ? 0 : tm.get_mysql_time()->minute;
 }
 
 /**
@@ -1009,8 +1009,8 @@ longlong Item_func_minute::val_int()
 longlong Item_func_second::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  return get_arg0_time(&ltime) ? 0 : ltime.second;
+  Time tm(args[0], Time::Options_for_cast());
+  return (null_value= !tm.is_valid_time()) ? 0 : tm.get_mysql_time()->second;
 }
 
 
@@ -1266,24 +1266,20 @@ longlong Item_func_unix_timestamp::val_int_endpoint(bool left_endp, bool *incl_e
 longlong Item_func_time_to_sec::int_op()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  if (get_arg0_time(&ltime))
-    return 0;
-
-  longlong seconds=ltime.hour*3600L+ltime.minute*60+ltime.second;
-  return ltime.neg ? -seconds : seconds;
+  Time tm(args[0], Time::Options_for_cast());
+  return ((null_value= !tm.is_valid_time())) ? 0 : tm.to_seconds();
 }
 
 
 my_decimal *Item_func_time_to_sec::decimal_op(my_decimal* buf)
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  if (get_arg0_time(&ltime))
+  Time tm(args[0], Time::Options_for_cast());
+  if ((null_value= !tm.is_valid_time()))
     return 0;
-
-  longlong seconds= ltime.hour*3600L+ltime.minute*60+ltime.second;
-  return seconds2my_decimal(ltime.neg, seconds, ltime.second_part, buf);
+  const MYSQL_TIME *ltime= tm.get_mysql_time();
+  longlong seconds= tm.to_seconds_abs();
+  return seconds2my_decimal(ltime->neg, seconds, ltime->second_part, buf);
 }
 
 
@@ -1990,7 +1986,7 @@ String *Item_func_date_format::val_str(String *str)
   const MY_LOCALE *lc= 0;
   DBUG_ASSERT(fixed == 1);
   
-  if (get_arg0_date(&l_time, is_time_format ? TIME_TIME_ONLY : 0))
+  if ((null_value= args[0]->get_date(&l_time, is_time_format ? TIME_TIME_ONLY : 0)))
     return 0;
   
   if (!(format = args[1]->val_str(str)) || !format->length())
@@ -2606,17 +2602,12 @@ void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
 
 bool Item_time_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
-  if (get_arg0_time(ltime))
-    return 1;
+  Time tm(args[0], Time::Options_for_cast());
+  if ((null_value= !tm.is_valid_time()))
+    return true;
+  tm.copy_to_mysql_time(ltime);
   if (decimals < TIME_SECOND_PART_DIGITS)
     my_time_trunc(ltime, decimals);
-  /*
-    MYSQL_TIMESTAMP_TIME value can have non-zero day part,
-    which we should not lose.
-  */
-  if (ltime->time_type != MYSQL_TIMESTAMP_TIME)
-    ltime->year= ltime->month= ltime->day= 0;
-  ltime->time_type= MYSQL_TIMESTAMP_TIME;
   return (fuzzy_date & TIME_TIME_ONLY) ? 0 :
          (null_value= check_date_with_warn(ltime, fuzzy_date,
                                            MYSQL_TIMESTAMP_ERROR)); 
@@ -2791,7 +2782,7 @@ bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     // ADDTIME function AND the first argument is TIME
     if (args[0]->get_time(&l_time1) || 
         args[1]->get_time(&l_time2) ||
-        l_time2.time_type == MYSQL_TIMESTAMP_DATETIME)
+        l_time2.time_type != MYSQL_TIMESTAMP_TIME)
       return (null_value= 1);
     is_time= (l_time1.time_type == MYSQL_TIMESTAMP_TIME);
   }
@@ -2956,10 +2947,9 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 longlong Item_func_microsecond::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  if (!get_arg0_date(&ltime, TIME_TIME_ONLY))
-    return ltime.second_part;
-  return 0;
+  Time tm(args[0], Time::Options_for_cast());
+  return ((null_value= !tm.is_valid_time())) ?
+         0 : tm.get_mysql_time()->second_part;
 }
 
 
@@ -2970,14 +2960,13 @@ longlong Item_func_timestamp_diff::val_int()
   long microseconds;
   long months= 0;
   int neg= 1;
+  THD *thd= current_thd;
+  ulonglong fuzzydate= TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE;
 
-  null_value= 0;  
-  if (args[0]->get_date_with_conversion(&ltime1,
-                                        TIME_NO_ZERO_DATE |
-                                        TIME_NO_ZERO_IN_DATE) ||
-      args[1]->get_date_with_conversion(&ltime2,
-                                        TIME_NO_ZERO_DATE |
-                                        TIME_NO_ZERO_IN_DATE))
+  null_value= 0;
+
+  if (Datetime(thd, args[0], fuzzydate).copy_to_mysql_time(&ltime1) ||
+      Datetime(thd, args[1], fuzzydate).copy_to_mysql_time(&ltime2))
     goto null_date;
 
   if (calc_time_diff(&ltime2,&ltime1, 1,
@@ -3343,7 +3332,7 @@ bool Item_func_str_to_date::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
 bool Item_func_last_day::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
-  if (get_arg0_date(ltime, fuzzy_date) ||
+  if (get_arg0_date(ltime, fuzzy_date & ~TIME_TIME_ONLY) ||
       (ltime->month == 0))
     return (null_value=1);
   uint month_idx= ltime->month-1;
