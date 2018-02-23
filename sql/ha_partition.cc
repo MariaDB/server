@@ -8383,6 +8383,7 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
       if (error)
         goto err_handler;
       bitmap_set_bit(&m_opened_partitions, n_file);
+      m_last_part= n_file;
     }
     if (!m_file_sample && should_be_open)
       m_file_sample= *file;
