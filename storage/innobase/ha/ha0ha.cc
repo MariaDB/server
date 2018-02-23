@@ -71,7 +71,7 @@ ib_create(
 
 	if (type == MEM_HEAP_FOR_PAGE_HASH) {
 		/* We create a hash table protected by rw_locks for
-		buf_pool->page_hash. */
+		buf_pool.page_hash. */
 		hash_create_sync_obj(
 			table, HASH_TABLE_SYNC_RW_LOCK, id, n_sync_obj);
 	} else {

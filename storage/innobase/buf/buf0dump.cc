@@ -282,14 +282,14 @@ buf_dump(bool obey_shutdown)
 	ulint			j;
 
 	/* obtain buf_pool LRU list mutex before allocate, since
-	UT_LIST_GET_LEN(buf_pool->LRU) could change */
-	mutex_enter(&buf_pool->LRU_list_mutex);
+	UT_LIST_GET_LEN(buf_pool.LRU) could change */
+	mutex_enter(&buf_pool.LRU_list_mutex);
 
-	n_pages = UT_LIST_GET_LEN(buf_pool->LRU);
+	n_pages = UT_LIST_GET_LEN(buf_pool.LRU);
 
 	/* skip empty buffer pools */
 	if (n_pages == 0) {
-		mutex_exit(&buf_pool->LRU_list_mutex);
+		mutex_exit(&buf_pool.LRU_list_mutex);
 		goto done;
 	}
 
@@ -300,7 +300,7 @@ buf_dump(bool obey_shutdown)
 
 		/* limit the number of total pages dumped to X% of the
 		total number of pages */
-		t_pages = buf_pool->curr_size * srv_buf_pool_dump_pct / 100;
+		t_pages = buf_pool.curr_size * srv_buf_pool_dump_pct / 100;
 		if (n_pages > t_pages) {
 			buf_dump_status(STATUS_INFO,
 					"Restricted to " ULINTPF
@@ -319,7 +319,7 @@ buf_dump(bool obey_shutdown)
 						n_pages * sizeof(*dump)));
 
 	if (dump == NULL) {
-		mutex_exit(&buf_pool->LRU_list_mutex);
+		mutex_exit(&buf_pool.LRU_list_mutex);
 		fclose(f);
 		buf_dump_status(STATUS_ERR,
 				"Cannot allocate " ULINTPF " bytes: %s",
@@ -329,7 +329,7 @@ buf_dump(bool obey_shutdown)
 		return;
 	}
 
-	for (bpage = UT_LIST_GET_FIRST(buf_pool->LRU), j = 0;
+	for (bpage = UT_LIST_GET_FIRST(buf_pool.LRU), j = 0;
 	     bpage != NULL && j < n_pages;
 	     bpage = UT_LIST_GET_NEXT(LRU, bpage), j++) {
 
@@ -341,7 +341,7 @@ buf_dump(bool obey_shutdown)
 
 	ut_a(j == n_pages);
 
-	mutex_exit(&buf_pool->LRU_list_mutex);
+	mutex_exit(&buf_pool.LRU_list_mutex);
 
 	for (j = 0; j < n_pages && !(SHUTTING_DOWN() && obey_shutdown); j++) {
 		ret = fprintf(f, ULINTPF "," ULINTPF "\n",

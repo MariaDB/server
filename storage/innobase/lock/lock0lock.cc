@@ -546,9 +546,9 @@ void lock_sys_t::resize(ulint n_cells)
 	hash_table_free(old_hash);
 
 	/* need to update block->lock_hash_val */
-	mutex_enter(&buf_pool->LRU_list_mutex);
+	mutex_enter(&buf_pool.LRU_list_mutex);
 	buf_page_t*	bpage;
-	bpage = UT_LIST_GET_FIRST(buf_pool->LRU);
+	bpage = UT_LIST_GET_FIRST(buf_pool.LRU);
 
 	while (bpage != NULL) {
 		if (buf_page_get_state(bpage)
@@ -564,7 +564,7 @@ void lock_sys_t::resize(ulint n_cells)
 		}
 		bpage = UT_LIST_GET_NEXT(LRU, bpage);
 	}
-	mutex_exit(&buf_pool->LRU_list_mutex);
+	mutex_exit(&buf_pool.LRU_list_mutex);
 	mutex_exit(&mutex);
 }
 

@@ -227,7 +227,7 @@ const ulint	srv_buf_pool_def_size	= 128 * 1024 * 1024;
 of one or more chunks. */
 ulong	srv_buf_pool_chunk_unit;
 /** innodb_page_hash_locks (a debug-only parameter);
-number of locks to protect buf_pool->page_hash */
+number of locks to protect buf_pool.page_hash */
 ulong	srv_n_page_hash_locks = 16;
 /** innodb_lru_scan_depth; number of blocks scanned in LRU flush batch */
 ulong	srv_LRU_scan_depth;
@@ -1296,7 +1296,7 @@ srv_printf_innodb_monitor(
 		const hash_table_t* table = btr_search_sys->hash_tables[i];
 
 		ut_ad(table->magic_n == HASH_TABLE_MAGIC_N);
-		/* this is only used for buf_pool->page_hash */
+		/* this is only used for buf_pool.page_hash */
 		ut_ad(!table->heaps);
 		/* this is used for the adaptive hash index */
 		ut_ad(table->heap);
@@ -1469,7 +1469,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_data_written = srv_stats.data_written;
 
 	export_vars.innodb_buffer_pool_read_requests
-		= buf_pool->stat.n_page_gets;
+		= buf_pool.stat.n_page_gets;
 
 	export_vars.innodb_buffer_pool_write_requests =
 		srv_stats.buf_pool_write_requests;
@@ -1483,29 +1483,29 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_reads = srv_stats.buf_pool_reads;
 
 	export_vars.innodb_buffer_pool_read_ahead_rnd =
-		buf_pool->stat.n_ra_pages_read_rnd;
+		buf_pool.stat.n_ra_pages_read_rnd;
 
 	export_vars.innodb_buffer_pool_read_ahead =
-		buf_pool->stat.n_ra_pages_read;
+		buf_pool.stat.n_ra_pages_read;
 
 	export_vars.innodb_buffer_pool_read_ahead_evicted =
-		buf_pool->stat.n_ra_pages_evicted;
+		buf_pool.stat.n_ra_pages_evicted;
 
 	export_vars.innodb_buffer_pool_pages_data =
-		UT_LIST_GET_LEN(buf_pool->LRU);
+		UT_LIST_GET_LEN(buf_pool.LRU);
 
 	export_vars.innodb_buffer_pool_bytes_data =
-		buf_pool->stat.LRU_bytes
-		+ UT_LIST_GET_LEN(buf_pool->unzip_LRU) * srv_page_size;
+		buf_pool.stat.LRU_bytes
+		+ UT_LIST_GET_LEN(buf_pool.unzip_LRU) * srv_page_size;
 
 	export_vars.innodb_buffer_pool_pages_dirty =
-		UT_LIST_GET_LEN(buf_pool->flush_list);
+		UT_LIST_GET_LEN(buf_pool.flush_list);
 
 	export_vars.innodb_buffer_pool_bytes_dirty =
-		buf_pool->stat.flush_list_bytes;
+		buf_pool.stat.flush_list_bytes;
 
 	export_vars.innodb_buffer_pool_pages_free =
-		UT_LIST_GET_LEN(buf_pool->free);
+		UT_LIST_GET_LEN(buf_pool.free);
 
 #ifdef UNIV_DEBUG
 	export_vars.innodb_buffer_pool_pages_latched =
@@ -1515,8 +1515,8 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_buffer_pool_pages_misc =
 		buf_pool_get_n_pages()
-		- UT_LIST_GET_LEN(buf_pool->LRU)
-		- UT_LIST_GET_LEN(buf_pool->free);
+		- UT_LIST_GET_LEN(buf_pool.LRU)
+		- UT_LIST_GET_LEN(buf_pool.free);
 
 #ifdef HAVE_ATOMIC_BUILTINS
 	export_vars.innodb_have_atomic_builtins = 1;
@@ -1546,12 +1546,12 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_dblwr_writes = srv_stats.dblwr_writes;
 
-	export_vars.innodb_pages_created = buf_pool->stat.n_pages_created;
+	export_vars.innodb_pages_created = buf_pool.stat.n_pages_created;
 
-	export_vars.innodb_pages_read = buf_pool->stat.n_pages_read;
+	export_vars.innodb_pages_read = buf_pool.stat.n_pages_read;
 	export_vars.innodb_page0_read = srv_stats.page0_read;
 
-	export_vars.innodb_pages_written = buf_pool->stat.n_pages_written;
+	export_vars.innodb_pages_written = buf_pool.stat.n_pages_written;
 
 	export_vars.innodb_row_lock_waits = srv_stats.n_lock_wait_count;
 

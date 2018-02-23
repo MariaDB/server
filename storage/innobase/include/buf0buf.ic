@@ -117,10 +117,10 @@ buf_page_peek_if_young(const buf_page_t* bpage)
 	      || buf_page_hash_lock_held_s_or_x(bpage));
 
 	/* FIXME: bpage->freed_page_clock is 31 bits */
-	return((buf_pool->freed_page_clock & ((1UL << 31) - 1))
+	return((buf_pool.freed_page_clock & ((1UL << 31) - 1))
 	       < (bpage->freed_page_clock
-		  + (buf_pool->curr_size
-		     * (BUF_LRU_OLD_RATIO_DIV - buf_pool->LRU_old_ratio)
+		  + (buf_pool.curr_size
+		     * (BUF_LRU_OLD_RATIO_DIV - buf_pool.LRU_old_ratio)
 		     / (BUF_LRU_OLD_RATIO_DIV * 4))));
 }
 
@@ -134,7 +134,7 @@ ibool
 buf_page_peek_if_too_old(
 	const buf_page_t*	bpage)
 {
-	if (buf_pool->freed_page_clock == 0) {
+	if (buf_pool.freed_page_clock == 0) {
 		/* If eviction has not started yet, do not update the
 		statistics or move blocks in the LRU list.  This is
 		either the warm-up phase or an in-memory workload. */
@@ -154,7 +154,7 @@ buf_page_peek_if_too_old(
 			return(TRUE);
 		}
 
-		buf_pool->stat.n_pages_not_made_young++;
+		buf_pool.stat.n_pages_not_made_young++;
 		return(FALSE);
 	} else {
 		return(!buf_page_peek_if_young(bpage));
@@ -219,9 +219,9 @@ buf_page_is_private(const buf_page_t* bpage, bool hold_block_mutex)
 	ut_a(!bpage->in_free_list);
 	ut_a(!bpage->in_LRU_list);
 	ut_a(hold_block_mutex || !mutex_own(buf_page_get_mutex(bpage)));
-	ut_a(!mutex_own(&buf_pool->free_list_mutex));
-	ut_a(!mutex_own(&buf_pool->zip_free_mutex));
-	ut_a(!mutex_own(&buf_pool->zip_hash_mutex));
+	ut_a(!mutex_own(&buf_pool.free_list_mutex));
+	ut_a(!mutex_own(&buf_pool.zip_free_mutex));
+	ut_a(!mutex_own(&buf_pool.zip_hash_mutex));
 	return(true);
 }
 #endif
@@ -248,7 +248,7 @@ buf_page_set_state(
 	case BUF_BLOCK_ZIP_DIRTY:
 		ut_ad(state == BUF_BLOCK_ZIP_PAGE);
 		ut_ad(mutex_own(buf_page_get_mutex(bpage)));
-		ut_ad(mutex_own(&buf_pool->flush_list_mutex));
+		ut_ad(mutex_own(&buf_pool.flush_list_mutex));
 		ut_ad(bpage->in_flush_list);
 		break;
 	case BUF_BLOCK_NOT_USED:
@@ -276,7 +276,7 @@ buf_page_set_state(
 			ut_ad(!bpage->in_LRU_list);
 			ut_ad(!bpage->in_free_list);
 			ut_ad(mutex_own(buf_page_get_mutex(bpage)));
-			ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+			ut_ad(mutex_own(&buf_pool.LRU_list_mutex));
 			ut_ad(buf_page_hash_lock_held_x(bpage));
 		}
 
@@ -358,7 +358,7 @@ buf_page_get_mutex(
 		return(NULL);
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
-		return(&buf_pool->zip_mutex);
+		return(&buf_pool.zip_mutex);
 	default:
 		return(&((buf_block_t*) bpage)->mutex);
 	}
@@ -507,7 +507,7 @@ buf_block_set_io_fix(
 }
 
 /** Makes a block sticky. A sticky block implies that even after we release
-the buf_pool->LRU_list_mutex and the block->mutex:
+the buf_pool.LRU_list_mutex and the block->mutex:
 * it cannot be removed from the flush_list
 * the block descriptor cannot be relocated
 * it cannot be removed from the LRU list
@@ -520,7 +520,7 @@ void
 buf_page_set_sticky(
 	buf_page_t*	bpage)
 {
-	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+	ut_ad(mutex_own(&buf_pool.LRU_list_mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_NONE);
 	ut_ad(bpage->in_LRU_list);
@@ -571,7 +571,7 @@ buf_page_is_old(
 	purposes even if LRU mutex is not being held. Keep the assertion
 	for not since all the callers hold it. */
 	ut_ad(mutex_own(buf_page_get_mutex(bpage))
-	      || mutex_own(&buf_pool->LRU_list_mutex));
+	      || mutex_own(&buf_pool.LRU_list_mutex));
 	ut_ad(buf_page_in_file(bpage));
 
 	return(bpage->old);
@@ -587,13 +587,13 @@ buf_page_set_old(
 	bool		old)	/*!< in: old */
 {
 	ut_a(buf_page_in_file(bpage));
-	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+	ut_ad(mutex_own(&buf_pool.LRU_list_mutex));
 	ut_ad(bpage->in_LRU_list);
 
 #ifdef UNIV_LRU_DEBUG
-	ut_a((buf_pool->LRU_old_len == 0) == (buf_pool->LRU_old == NULL));
+	ut_a((buf_pool.LRU_old_len == 0) == (buf_pool.LRU_old == NULL));
 	/* If a block is flagged "old", the LRU_old list must exist. */
-	ut_a(!old || buf_pool->LRU_old);
+	ut_a(!old || buf_pool.LRU_old);
 
 	if (UT_LIST_GET_PREV(LRU, bpage) && UT_LIST_GET_NEXT(LRU, bpage)) {
 		const buf_page_t*	prev = UT_LIST_GET_PREV(LRU, bpage);
@@ -602,7 +602,7 @@ buf_page_set_old(
 			ut_a(prev->old == old);
 		} else {
 			ut_a(!prev->old);
-			ut_a(buf_pool->LRU_old == (old ? bpage : next));
+			ut_a(buf_pool.LRU_old == (old ? bpage : next));
 		}
 	}
 #endif /* UNIV_LRU_DEBUG */
@@ -656,7 +656,7 @@ buf_page_get_block(
 {
 	if (bpage != NULL) {
 		ut_ad(buf_page_hash_lock_held_s_or_x(bpage)
-		      || mutex_own(&buf_pool->LRU_list_mutex));
+		      || mutex_own(&buf_pool.LRU_list_mutex));
 		ut_ad(buf_page_in_file(bpage));
 
 		if (buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE) {
@@ -997,14 +997,14 @@ buf_page_hash_get_low(const page_id_t& page_id)
 #ifdef UNIV_DEBUG
 	rw_lock_t*	hash_lock;
 
-	hash_lock = hash_get_lock(buf_pool->page_hash, page_id.fold());
+	hash_lock = hash_get_lock(buf_pool.page_hash, page_id.fold());
 	ut_ad(rw_lock_own(hash_lock, RW_LOCK_X)
 	      || rw_lock_own(hash_lock, RW_LOCK_S));
 #endif /* UNIV_DEBUG */
 
 	/* Look for the page in the hash table */
 
-	HASH_SEARCH(hash, buf_pool->page_hash, page_id.fold(), buf_page_t*,
+	HASH_SEARCH(hash, buf_pool.page_hash, page_id.fold(), buf_page_t*,
 		    bpage,
 		    ut_ad(bpage->in_page_hash && !bpage->in_zip_hash
 			  && buf_page_in_file(bpage)),
@@ -1052,7 +1052,7 @@ buf_page_hash_get_locked(
 		mode = lock_mode;
 	}
 
-	hash_lock = hash_get_lock(buf_pool->page_hash, page_id.fold());
+	hash_lock = hash_get_lock(buf_pool.page_hash, page_id.fold());
 
 	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X)
 	      && !rw_lock_own(hash_lock, RW_LOCK_S));
@@ -1061,11 +1061,11 @@ buf_page_hash_get_locked(
 		rw_lock_s_lock(hash_lock);
 
 		hash_lock = hash_lock_s_confirm(
-			hash_lock, buf_pool->page_hash, page_id.fold());
+			hash_lock, buf_pool.page_hash, page_id.fold());
 	} else {
 		rw_lock_x_lock(hash_lock);
 		hash_lock = hash_lock_x_confirm(
-			hash_lock, buf_pool->page_hash, page_id.fold());
+			hash_lock, buf_pool.page_hash, page_id.fold());
 	}
 
 	bpage = buf_page_hash_get_low(page_id);
@@ -1293,13 +1293,13 @@ UNIV_INLINE
 ulint
 buf_get_withdraw_depth()
 {
-	if (buf_pool->curr_size >= buf_pool->old_size) {
+	if (buf_pool.curr_size >= buf_pool.old_size) {
 		return(0);
 	}
 
-	mutex_enter(&buf_pool->free_list_mutex);
-	ulint withdraw_len = UT_LIST_GET_LEN(buf_pool->withdraw);
-	mutex_exit(&buf_pool->free_list_mutex);
-	return(buf_pool->withdraw_target > withdraw_len
-		? buf_pool->withdraw_target - withdraw_len : 0);
+	mutex_enter(&buf_pool.free_list_mutex);
+	ulint withdraw_len = UT_LIST_GET_LEN(buf_pool.withdraw);
+	mutex_exit(&buf_pool.free_list_mutex);
+	return(buf_pool.withdraw_target > withdraw_len
+		? buf_pool.withdraw_target - withdraw_len : 0);
 }

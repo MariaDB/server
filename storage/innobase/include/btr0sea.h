@@ -121,7 +121,7 @@ btr_search_move_or_delete_hash_entries(
 @param[in,out]	block	block containing index page, s- or x-latched, or an
 			index page for which we know that
 			block->buf_fix_count == 0 or it is an index page which
-			has already been removed from the buf_pool->page_hash
+			has already been removed from the buf_pool.page_hash
 			i.e.: it is in state BUF_BLOCK_REMOVE_HASH */
 void
 btr_search_drop_page_hash_index(buf_block_t* block);

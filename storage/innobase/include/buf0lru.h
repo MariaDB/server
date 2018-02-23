@@ -59,7 +59,7 @@ buf_LRU_flush_or_remove_pages(
 	);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-/** Insert a compressed block into buf_pool->zip_clean in the LRU order.
+/** Insert a compressed block into buf_pool.zip_clean in the LRU order.
 @param[in]	bpage	pointer to the block in question */
 void
 buf_LRU_insert_zip_clean(
@@ -90,7 +90,7 @@ buf_LRU_free_page(
 @return true if found and freed */
 bool buf_LRU_scan_and_free_block(bool scan_all);
 
-/** @return a buffer block from the buf_pool->free list
+/** @return a buffer block from the buf_pool.free list
 @retval	NULL	if the free list is empty */
 buf_block_t* buf_LRU_get_free_only();
 
@@ -103,7 +103,7 @@ the free list. Even when we flush a page or find a page in LRU scan
 we put it to free list to be used.
 * iteration 0:
   * get a block from free list, success:done
-  * if buf_pool->try_LRU_scan is set
+  * if buf_pool.try_LRU_scan is set
     * scan LRU up to srv_LRU_scan_depth to find a clean block
     * the above will put the block on free list
     * success:retry the free list
@@ -113,7 +113,7 @@ we put it to free list to be used.
 * iteration 1:
   * same as iteration 0 except:
     * scan whole LRU list
-    * scan LRU list even if buf_pool->try_LRU_scan is not set
+    * scan LRU list even if buf_pool.try_LRU_scan is not set
 * iteration > 1:
   * same as iteration 1 but sleep 10ms
 @return the free control block, in state BUF_BLOCK_READY_FOR_USE */
@@ -158,11 +158,11 @@ void
 buf_LRU_make_block_young(
 	buf_page_t*	bpage);
 
-/** Update buf_pool->LRU_old_ratio.
+/** Update buf_pool.LRU_old_ratio.
 @param[in]	old_pct		Reserve this percentage of
 				the buffer pool for "old" blocks
 @param[in]	adjust		true=adjust the LRU list;
-				false=just assign buf_pool->LRU_old_ratio
+				false=just assign buf_pool.LRU_old_ratio
 				during the initialization of InnoDB
 @return updated old_pct */
 uint
@@ -201,15 +201,15 @@ void buf_LRU_print();
 #endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
 
 /** @name Heuristics for detecting index scan @{ */
-/** The denominator of buf_pool->LRU_old_ratio. */
+/** The denominator of buf_pool.LRU_old_ratio. */
 #define BUF_LRU_OLD_RATIO_DIV	1024
-/** Maximum value of buf_pool->LRU_old_ratio.
+/** Maximum value of buf_pool.LRU_old_ratio.
 @see buf_LRU_old_adjust_len
-@see buf_pool->LRU_old_ratio_update */
+@see buf_pool.LRU_old_ratio_update */
 #define BUF_LRU_OLD_RATIO_MAX	BUF_LRU_OLD_RATIO_DIV
-/** Minimum value of buf_pool->LRU_old_ratio.
+/** Minimum value of buf_pool.LRU_old_ratio.
 @see buf_LRU_old_adjust_len
-@see buf_pool->LRU_old_ratio_update
+@see buf_pool.LRU_old_ratio_update
 The minimum must exceed
 (BUF_LRU_OLD_TOLERANCE + 5) * BUF_LRU_OLD_RATIO_DIV / BUF_LRU_OLD_MIN_LEN. */
 #define BUF_LRU_OLD_RATIO_MIN	51
@@ -230,7 +230,7 @@ extern uint	buf_LRU_old_threshold_ms;
 
 These statistics are not 'of' LRU but 'for' LRU.  We keep count of I/O
 and page_zip_decompress() operations.  Based on the statistics we decide
-if we want to evict from buf_pool->unzip_LRU or buf_pool->LRU. */
+if we want to evict from buf_pool.unzip_LRU or buf_pool.LRU. */
 struct buf_LRU_stat_t
 {
 	ulint	io;	/**< Counter of buffer pool I/O operations. */

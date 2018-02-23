@@ -1643,7 +1643,7 @@ srv_mon_process_existing_counter(
 	/* innodb_buffer_pool_read_requests, the number of logical
 	read requests */
 	case MONITOR_OVLD_BUF_POOL_READ_REQUESTS:
-		value = buf_pool->stat.n_page_gets;
+		value = buf_pool.stat.n_page_gets;
 		break;
 
 	/* innodb_buffer_pool_write_requests, the number of
@@ -1659,12 +1659,12 @@ srv_mon_process_existing_counter(
 
 	/* innodb_buffer_pool_read_ahead */
 	case MONITOR_OVLD_BUF_POOL_READ_AHEAD:
-		value = buf_pool->stat.n_ra_pages_read;
+		value = buf_pool.stat.n_ra_pages_read;
 		break;
 
 	/* innodb_buffer_pool_read_ahead_evicted */
 	case MONITOR_OVLD_BUF_POOL_READ_AHEAD_EVICTED:
-		value = buf_pool->stat.n_ra_pages_evicted;
+		value = buf_pool.stat.n_ra_pages_evicted;
 		break;
 
 	/* innodb_buffer_pool_pages_total */
@@ -1675,44 +1675,44 @@ srv_mon_process_existing_counter(
 	/* innodb_buffer_pool_pages_misc */
 	case MONITOR_OVLD_BUF_POOL_PAGE_MISC:
 		value = buf_pool_get_n_pages()
-			- UT_LIST_GET_LEN(buf_pool->LRU)
-			- UT_LIST_GET_LEN(buf_pool->free);
+			- UT_LIST_GET_LEN(buf_pool.LRU)
+			- UT_LIST_GET_LEN(buf_pool.free);
 		break;
 
 	/* innodb_buffer_pool_pages_data */
 	case MONITOR_OVLD_BUF_POOL_PAGES_DATA:
-		value = UT_LIST_GET_LEN(buf_pool->LRU);
+		value = UT_LIST_GET_LEN(buf_pool.LRU);
 		break;
 
 	/* innodb_buffer_pool_bytes_data */
 	case MONITOR_OVLD_BUF_POOL_BYTES_DATA:
-		value = buf_pool->stat.LRU_bytes
-			+ UT_LIST_GET_LEN(buf_pool->unzip_LRU) * srv_page_size;
+		value = buf_pool.stat.LRU_bytes
+			+ UT_LIST_GET_LEN(buf_pool.unzip_LRU) * srv_page_size;
 		break;
 
 	/* innodb_buffer_pool_pages_dirty */
 	case MONITOR_OVLD_BUF_POOL_PAGES_DIRTY:
-		value = UT_LIST_GET_LEN(buf_pool->flush_list);
+		value = UT_LIST_GET_LEN(buf_pool.flush_list);
 		break;
 
 	/* innodb_buffer_pool_bytes_dirty */
 	case MONITOR_OVLD_BUF_POOL_BYTES_DIRTY:
-		value = buf_pool->stat.flush_list_bytes;
+		value = buf_pool.stat.flush_list_bytes;
 		break;
 
 	/* innodb_buffer_pool_pages_free */
 	case MONITOR_OVLD_BUF_POOL_PAGES_FREE:
-		value = UT_LIST_GET_LEN(buf_pool->free);
+		value = UT_LIST_GET_LEN(buf_pool.free);
 		break;
 
 	/* innodb_pages_created, the number of pages created */
 	case MONITOR_OVLD_PAGE_CREATED:
-		value = buf_pool->stat.n_pages_created;
+		value = buf_pool.stat.n_pages_created;
 		break;
 
 	/* innodb_pages_written, the number of page written */
 	case MONITOR_OVLD_PAGES_WRITTEN:
-		value = buf_pool->stat.n_pages_written;
+		value = buf_pool.stat.n_pages_written;
 		break;
 
 	/* innodb_index_pages_written, the number of index pages written */
@@ -1727,7 +1727,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_pages_read */
 	case MONITOR_OVLD_PAGES_READ:
-		value = buf_pool->stat.n_pages_read;
+		value = buf_pool.stat.n_pages_read;
 		break;
 
 	/* innodb_pages0_read */

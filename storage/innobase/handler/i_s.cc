@@ -131,9 +131,9 @@ struct buf_page_info_t{
 					built on this page */
 #endif /* BTR_CUR_HASH_ADAPT */
 	unsigned	is_old:1;	/*!< TRUE if the block is in the old
-					blocks in buf_pool->LRU_old */
+					blocks in buf_pool.LRU_old */
 	unsigned	freed_page_clock:31; /*!< the value of
-					buf_pool->freed_page_clock */
+					buf_pool.freed_page_clock */
 	unsigned	zip_ssize:PAGE_ZIP_SSIZE_BITS;
 					/*!< Compressed page size */
 	unsigned	page_state:BUF_PAGE_STATE_BITS; /*!< Page state */
@@ -2017,23 +2017,23 @@ i_s_cmpmem_fill_low(
 	ulint			zip_free_len_local[BUF_BUDDY_SIZES_MAX + 1];
 	buf_buddy_stat_t	buddy_stat_local[BUF_BUDDY_SIZES_MAX + 1];
 
-	mutex_enter(&buf_pool->zip_free_mutex);
+	mutex_enter(&buf_pool.zip_free_mutex);
 
 	/* Save buddy stats for buffer pool in local variables. */
 	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
 		zip_free_len_local[x] = (x < BUF_BUDDY_SIZES) ?
-			UT_LIST_GET_LEN(buf_pool->zip_free[x]) : 0;
+			UT_LIST_GET_LEN(buf_pool.zip_free[x]) : 0;
 
-		buddy_stat_local[x] = buf_pool->buddy_stat[x];
+		buddy_stat_local[x] = buf_pool.buddy_stat[x];
 
 		if (reset) {
-			/* This is protected by buf_pool->mutex. */
-			buf_pool->buddy_stat[x].relocated = 0;
-			buf_pool->buddy_stat[x].relocated_usec = 0;
+			/* This is protected by buf_pool.mutex. */
+			buf_pool.buddy_stat[x].relocated = 0;
+			buf_pool.buddy_stat[x].relocated_usec = 0;
 		}
 	}
 
-	mutex_exit(&buf_pool->zip_free_mutex);
+	mutex_exit(&buf_pool.zip_free_mutex);
 
 	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
 		buf_buddy_stat_t*	buddy_stat;
@@ -5092,7 +5092,7 @@ static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 	heap = mem_heap_create(10000);
 
 	for (ulint n = 0;
-	     n < ut_min(buf_pool->n_chunks, buf_pool->n_chunks_new); n++) {
+	     n < ut_min(buf_pool.n_chunks, buf_pool.n_chunks_new); n++) {
 		const buf_block_t*	block;
 		ulint			n_blocks;
 		buf_page_info_t*	info_buffer;
@@ -5103,8 +5103,8 @@ static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 		ulint			block_id = 0;
 
 		/* Get buffer block of the nth chunk */
-		block = buf_pool->chunks[n].blocks;
-		chunk_size = buf_pool->chunks[n].size;
+		block = buf_pool.chunks[n].blocks;
+		chunk_size = buf_pool.chunks[n].size;
 		num_page = 0;
 
 		while (chunk_size > 0) {
@@ -5593,11 +5593,11 @@ i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item*)
 		DBUG_RETURN(0);
 	}
 
-	/* Obtain buf_pool->LRU_list_mutex before allocate info_buffer, since
-	UT_LIST_GET_LEN(buf_pool->LRU) could change */
-	mutex_enter(&buf_pool->LRU_list_mutex);
+	/* Obtain buf_pool.LRU_list_mutex before allocate info_buffer, since
+	UT_LIST_GET_LEN(buf_pool.LRU) could change */
+	mutex_enter(&buf_pool.LRU_list_mutex);
 
-	lru_len = UT_LIST_GET_LEN(buf_pool->LRU);
+	lru_len = UT_LIST_GET_LEN(buf_pool.LRU);
 
 	/* Print error message if malloc fail */
 	info_buffer = (buf_page_info_t*) my_malloc(
@@ -5616,7 +5616,7 @@ i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item*)
 
 	/* Walk through Pool's LRU list and print the buffer page
 	information */
-	bpage = UT_LIST_GET_LAST(buf_pool->LRU);
+	bpage = UT_LIST_GET_LAST(buf_pool.LRU);
 
 	while (bpage != NULL) {
 		/* Use the same function that collect buffer info for
@@ -5630,10 +5630,10 @@ i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item*)
 	}
 
 	ut_ad(lru_pos == lru_len);
-	ut_ad(lru_pos == UT_LIST_GET_LEN(buf_pool->LRU));
+	ut_ad(lru_pos == UT_LIST_GET_LEN(buf_pool.LRU));
 
 exit:
-	mutex_exit(&buf_pool->LRU_list_mutex);
+	mutex_exit(&buf_pool.LRU_list_mutex);
 
 	if (info_buffer) {
 		status = i_s_innodb_buf_page_lru_fill(

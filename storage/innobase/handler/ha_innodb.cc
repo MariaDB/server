@@ -18703,9 +18703,9 @@ innodb_buffer_pool_evict_uncompressed()
 {
 	bool	all_evicted = true;
 
-	mutex_enter(&buf_pool->LRU_list_mutex);
+	mutex_enter(&buf_pool.LRU_list_mutex);
 
-	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool->unzip_LRU);
+	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
 	     block != NULL; ) {
 		buf_block_t*	prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
 		ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
@@ -18718,12 +18718,12 @@ innodb_buffer_pool_evict_uncompressed()
 			all_evicted = false;
 		} else {
 			/* buf_LRU_free_page releases LRU_list_mutex */
-			mutex_enter(&buf_pool->LRU_list_mutex);
+			mutex_enter(&buf_pool.LRU_list_mutex);
 		}
 		block = prev_block;
 	}
 
-	mutex_exit(&buf_pool->LRU_list_mutex);
+	mutex_exit(&buf_pool.LRU_list_mutex);
 
 	return(all_evicted);
 }

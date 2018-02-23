@@ -1358,7 +1358,7 @@ fsp_page_create(
 
 	ut_ad(rw_latch == RW_X_LATCH || rw_latch == RW_SX_LATCH);
 
-	/* Mimic buf_page_get(), but avoid the buf_pool->page_hash lookup. */
+	/* Mimic buf_page_get(), but avoid the buf_pool.page_hash lookup. */
 	if (rw_latch == RW_X_LATCH) {
 		rw_lock_x_lock(&block->lock);
 	} else {

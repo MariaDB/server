@@ -1162,7 +1162,7 @@ btr_cur_search_to_nth_level_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && buf_pool->n_pend_reads
+		    && buf_pool.n_pend_reads
 		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else if (dict_index_is_spatial(index)
@@ -2301,7 +2301,7 @@ btr_cur_open_at_index_side_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && buf_pool->n_pend_reads
+		    && buf_pool.n_pend_reads
 		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else {
@@ -2647,7 +2647,7 @@ btr_cur_open_at_rnd_pos_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && buf_pool->n_pend_reads
+		    && buf_pool.n_pend_reads
 		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else {
@@ -6975,7 +6975,7 @@ btr_blob_free(
 
 	mtr_commit(mtr);
 
-	mutex_enter(&buf_pool->LRU_list_mutex);
+	mutex_enter(&buf_pool.LRU_list_mutex);
 	buf_page_mutex_enter(block);
 
 	/* Only free the block if it is still allocated to
@@ -6998,7 +6998,7 @@ btr_blob_free(
 	}
 
 	if (!freed) {
-		mutex_exit(&buf_pool->LRU_list_mutex);
+		mutex_exit(&buf_pool.LRU_list_mutex);
 		buf_page_mutex_exit(block);
 	}
 }

@@ -2024,7 +2024,7 @@ wait_suspend_loop:
 
 	ut_ad(!log_scrub_thread_active);
 
-	if (!buf_pool) {
+	if (!buf_pool.is_initialised()) {
 		ut_ad(!srv_was_started);
 	} else if (ulint pending_io = buf_pool_check_no_pending_io()) {
 		if (srv_print_verbose_log && count > 600) {

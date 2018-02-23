@@ -1062,7 +1062,7 @@ fail:
 
 	/* Increment the page get statistics though we did not really
 	fix the page: for user info only */
-	++buf_pool->stat.n_page_gets;
+	++buf_pool.stat.n_page_gets;
 
 	return(TRUE);
 }
@@ -1071,7 +1071,7 @@ fail:
 @param[in,out]	block	block containing index page, s- or x-latched, or an
 			index page for which we know that
 			block->buf_fix_count == 0 or it is an index page which
-			has already been removed from the buf_pool->page_hash
+			has already been removed from the buf_pool.page_hash
 			i.e.: it is in state BUF_BLOCK_REMOVE_HASH */
 void
 btr_search_drop_page_hash_index(buf_block_t* block)
@@ -2020,7 +2020,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 
 			/* Prevent BUF_BLOCK_FILE_PAGE -> BUF_BLOCK_REMOVE_HASH
 			transition until we lock the block mutex */
-			mutex_enter(&buf_pool->LRU_list_mutex);
+			mutex_enter(&buf_pool.LRU_list_mutex);
 
 			if (UNIV_LIKELY(buf_block_get_state(block)
 					== BUF_BLOCK_FILE_PAGE)) {
@@ -2042,7 +2042,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 				/* When a block is being freed,
 				buf_LRU_free_page() first
 				removes the block from
-				buf_pool->page_hash by calling
+				buf_pool.page_hash by calling
 				buf_LRU_block_remove_hashed_page().
 				After that, it invokes
 				buf_LRU_block_remove_hashed() to
@@ -2054,7 +2054,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 			}
 
 			mutex_enter(&block->mutex);
-			mutex_exit(&buf_pool->LRU_list_mutex);
+			mutex_exit(&buf_pool.LRU_list_mutex);
 
 			ut_a(!dict_index_is_ibuf(block->index));
 			ut_ad(block->page.id.space() == block->index->space);
