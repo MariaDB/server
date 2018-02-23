@@ -37,7 +37,7 @@ Created December 2006 by Marko Makela
 
 /**
 @param[in]	block size in bytes
-@return index of buf_pool->zip_free[], or BUF_BUDDY_SIZES */
+@return index of buf_pool.zip_free[], or BUF_BUDDY_SIZES */
 inline
 ulint
 buf_buddy_get_slot(ulint size)
@@ -56,16 +56,16 @@ buf_buddy_get_slot(ulint size)
 }
 
 /** Allocate a ROW_FORMAT=COMPRESSED block.
-@param[in]	i	index of buf_pool->zip_free[] or BUF_BUDDY_SIZES
-@param[out]	lru	whether buf_pool->mutex was temporarily released
+@param[in]	i	index of buf_pool.zip_free[] or BUF_BUDDY_SIZES
+@param[out]	lru	whether buf_pool.mutex was temporarily released
 @return allocated block, never NULL */
 byte* buf_buddy_alloc_low(ulint i, bool& lru) MY_ATTRIBUTE((malloc));
 
 /** Allocate a ROW_FORMAT=COMPRESSED block.
-The caller must not hold buf_pool->mutex nor buf_pool->zip_mutex nor any
+The caller must not hold buf_pool.mutex nor buf_pool.zip_mutex nor any
 block->mutex.
 @param[in]	size		compressed page size
-@param[out]	lru	whether buf_pool->mutex was temporarily released
+@param[out]	lru	whether buf_pool.mutex was temporarily released
 @return allocated block, never NULL */
 inline byte* buf_buddy_alloc(ulint size, bool& lru)
 {
@@ -75,7 +75,7 @@ inline byte* buf_buddy_alloc(ulint size, bool& lru)
 /** Deallocate a block.
 @param[in]	buf	block to be freed, must not be pointed to
 			by the buffer pool
-@param[in]	i	index of buf_pool->zip_free[], or BUF_BUDDY_SIZES */
+@param[in]	i	index of buf_pool.zip_free[], or BUF_BUDDY_SIZES */
 void buf_buddy_free_low(void* buf, ulint i);
 
 /** Deallocate a block.

@@ -837,9 +837,9 @@ LatchDebug::check_order(
 
 	case SYNC_BUF_BLOCK:
 
-		/* Either the thread must own the (buffer pool) buf_pool->mutex
+		/* Either the thread must own the (buffer pool) buf_pool.mutex
 		or it is allowed to latch only ONE of (buffer block)
-		block->mutex or buf_pool->zip_mutex. */
+		block->mutex or buf_pool.zip_mutex. */
 
 		if (less(latches, level) != NULL) {
 			basic_check(latches, level, level - 1);

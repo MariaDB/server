@@ -192,9 +192,9 @@ in thrashing. */
 static inline void incr_flush_list_size_in_bytes(const buf_block_t* block)
 {
 	/* FIXME: use atomics! */
-	ut_ad(mutex_own(&buf_pool->flush_list_mutex));
-	buf_pool->stat.flush_list_bytes += block->page.size.physical();
-	ut_ad(buf_pool->stat.flush_list_bytes <= buf_pool->curr_pool_size);
+	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
+	buf_pool.stat.flush_list_bytes += block->page.size.physical();
+	ut_ad(buf_pool.stat.flush_list_bytes <= buf_pool.curr_pool_size);
 }
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
@@ -240,14 +240,14 @@ buf_flush_insert_in_flush_rbt(
 	buf_page_t*		prev = NULL;
 
 	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
-	ut_ad(mutex_own(&buf_pool->flush_list_mutex));
+	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
 
 	/* Insert this buffer into the rbt. */
-	c_node = rbt_insert(buf_pool->flush_rbt, &bpage, &bpage);
+	c_node = rbt_insert(buf_pool.flush_rbt, &bpage, &bpage);
 	ut_a(c_node != NULL);
 
 	/* Get the predecessor. */
-	p_node = rbt_prev(buf_pool->flush_rbt, c_node);
+	p_node = rbt_prev(buf_pool.flush_rbt, c_node);
 
 	if (p_node != NULL) {
 		buf_page_t**	value;
@@ -267,12 +267,12 @@ buf_flush_delete_from_flush_rbt(
 /*============================*/
 	buf_page_t*	bpage)	/*!< in: bpage to be removed. */
 {
-	ut_ad(mutex_own(&buf_pool->flush_list_mutex));
+	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
 
 #ifdef UNIV_DEBUG
 	ibool ret =
 #endif /* UNIV_DEBUG */
-	rbt_delete(buf_pool->flush_rbt, &bpage);
+	rbt_delete(buf_pool.flush_rbt, &bpage);
 
 	ut_ad(ret);
 }
@@ -282,7 +282,7 @@ Compare two modified blocks in the buffer pool. The key for comparison
 is:
 key = <oldest_modification, space, offset>
 This comparison is used to maintian ordering of blocks in the
-buf_pool->flush_rbt.
+buf_pool.flush_rbt.
 Note that for the purpose of flush_rbt, we only need to order blocks
 on the oldest_modification. The other two fields are used to uniquely
 identify the blocks.
@@ -301,7 +301,7 @@ buf_flush_block_cmp(
 	ut_ad(b1 != NULL);
 	ut_ad(b2 != NULL);
 
-	ut_ad(mutex_own(&buf_pool->flush_list_mutex));
+	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
 
 	ut_ad(b1->in_flush_list);
 	ut_ad(b2->in_flush_list);
@@ -327,12 +327,12 @@ void
 buf_flush_init_flush_rbt(void)
 /*==========================*/
 {
-	mutex_enter(&buf_pool->flush_list_mutex);
-	ut_ad(buf_pool->flush_rbt == NULL);
+	mutex_enter(&buf_pool.flush_list_mutex);
+	ut_ad(buf_pool.flush_rbt == NULL);
 	/* Create red black tree for speedy insertions in flush list. */
-	buf_pool->flush_rbt = rbt_create(
+	buf_pool.flush_rbt = rbt_create(
 		sizeof(buf_page_t*), buf_flush_block_cmp);
-	mutex_exit(&buf_pool->flush_list_mutex);
+	mutex_exit(&buf_pool.flush_list_mutex);
 }
 
 /********************************************************************//**
@@ -341,13 +341,13 @@ void
 buf_flush_free_flush_rbt(void)
 /*==========================*/
 {
-	mutex_enter(&buf_pool->flush_list_mutex);
+	mutex_enter(&buf_pool.flush_list_mutex);
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 	buf_flush_validate_low();
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-	rbt_free(buf_pool->flush_rbt);
-	buf_pool->flush_rbt = NULL;
-	mutex_exit(&buf_pool->flush_list_mutex);
+	rbt_free(buf_pool.flush_rbt);
+	buf_pool.flush_rbt = NULL;
+	mutex_exit(&buf_pool.flush_list_mutex);
 }
 
 /** Insert a modified block into the flush list.
@@ -355,21 +355,21 @@ buf_flush_free_flush_rbt(void)
 @param[in]	lsn	oldest modification */
 void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 {
-	ut_ad(!mutex_own(&buf_pool->mutex));
+	ut_ad(!mutex_own(&buf_pool.mutex));
 	ut_ad(log_flush_order_mutex_own());
 	ut_ad(buf_page_mutex_own(block));
 	ut_ad(lsn);
 
-	mutex_enter(&buf_pool->flush_list_mutex);
+	mutex_enter(&buf_pool.flush_list_mutex);
 
-	ut_ad((UT_LIST_GET_FIRST(buf_pool->flush_list) == NULL)
-	      || (UT_LIST_GET_FIRST(buf_pool->flush_list)->oldest_modification
+	ut_ad((UT_LIST_GET_FIRST(buf_pool.flush_list) == NULL)
+	      || (UT_LIST_GET_FIRST(buf_pool.flush_list)->oldest_modification
 		  <= lsn));
 
 	/* If we are in the recovery then we need to update the flush
 	red-black tree as well. */
-	if (buf_pool->flush_rbt != NULL) {
-		mutex_exit(&buf_pool->flush_list_mutex);
+	if (buf_pool.flush_rbt != NULL) {
+		mutex_exit(&buf_pool.flush_list_mutex);
 		buf_flush_insert_sorted_into_flush_list(block, lsn);
 		return;
 	}
@@ -380,7 +380,7 @@ void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 	ut_d(block->page.in_flush_list = TRUE);
 	block->page.oldest_modification = lsn;
 
-	UT_LIST_ADD_FIRST(buf_pool->flush_list, &block->page);
+	UT_LIST_ADD_FIRST(buf_pool.flush_list, &block->page);
 
 	incr_flush_list_size_in_bytes(block);
 
@@ -400,7 +400,7 @@ void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 	buf_flush_validate_skip();
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
-	mutex_exit(&buf_pool->flush_list_mutex);
+	mutex_exit(&buf_pool.flush_list_mutex);
 }
 
 /********************************************************************//**
@@ -417,14 +417,14 @@ buf_flush_insert_sorted_into_flush_list(
 	buf_page_t*	b;
 
 	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
-	ut_ad(!mutex_own(&buf_pool->mutex));
+	ut_ad(!mutex_own(&buf_pool.mutex));
 	ut_ad(log_flush_order_mutex_own());
 	ut_ad(buf_page_mutex_own(block));
 	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 
-	mutex_enter(&buf_pool->flush_list_mutex);
+	mutex_enter(&buf_pool.flush_list_mutex);
 
-	/* The field in_LRU_list is protected by buf_pool->mutex, which
+	/* The field in_LRU_list is protected by buf_pool.mutex, which
 	we are not holding.  However, while a block is in the flush
 	list, it is dirty and cannot be discarded, not from the
 	page_hash or from the LRU list.  At most, the uncompressed
@@ -464,13 +464,13 @@ buf_flush_insert_sorted_into_flush_list(
 	before the last page was hooked up in the flush_list by the
 	io-handler thread. In that case we'll just do a simple
 	linear search in the else block. */
-	if (buf_pool->flush_rbt != NULL) {
+	if (buf_pool.flush_rbt != NULL) {
 
 		prev_b = buf_flush_insert_in_flush_rbt(&block->page);
 
 	} else {
 
-		b = UT_LIST_GET_FIRST(buf_pool->flush_list);
+		b = UT_LIST_GET_FIRST(buf_pool.flush_list);
 
 		while (b != NULL && b->oldest_modification
 		       > block->page.oldest_modification) {
@@ -482,9 +482,9 @@ buf_flush_insert_sorted_into_flush_list(
 	}
 
 	if (prev_b == NULL) {
-		UT_LIST_ADD_FIRST(buf_pool->flush_list, &block->page);
+		UT_LIST_ADD_FIRST(buf_pool.flush_list, &block->page);
 	} else {
-		UT_LIST_INSERT_AFTER(buf_pool->flush_list, prev_b, &block->page);
+		UT_LIST_INSERT_AFTER(buf_pool.flush_list, prev_b, &block->page);
 	}
 
 	incr_flush_list_size_in_bytes(block);
@@ -493,7 +493,7 @@ buf_flush_insert_sorted_into_flush_list(
 	buf_flush_validate_low();
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
-	mutex_exit(&buf_pool->flush_list_mutex);
+	mutex_exit(&buf_pool.flush_list_mutex);
 }
 
 /********************************************************************//**
@@ -506,7 +506,7 @@ buf_flush_ready_for_replace(
 	buf_page_t*	bpage)	/*!< in: buffer control block, must be
 				buf_page_in_file(bpage) and in the LRU list */
 {
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(bpage->in_LRU_list);
 
@@ -533,7 +533,7 @@ buf_flush_ready_for_flush(
 				buf_page_in_file(bpage) */
 	buf_flush_t	flush_type)/*!< in: type of flush */
 {
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 	ut_a(buf_page_in_file(bpage));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(flush_type < BUF_FLUSH_N_TYPES);
@@ -569,18 +569,18 @@ void buf_flush_remove(buf_page_t* bpage)
 			INNODB_EXTEND_TIMEOUT_INTERVAL,
 			"Flush and remove page with tablespace id %u"
 			", flush list length " ULINTPF,
-			bpage->space, UT_LIST_GET_LEN(buf_pool->flush_list));
+			bpage->space, UT_LIST_GET_LEN(buf_pool.flush_list));
 	}
 #endif
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(bpage->in_flush_list);
 
-	mutex_enter(&buf_pool->flush_list_mutex);
+	mutex_enter(&buf_pool.flush_list_mutex);
 
 	/* Important that we adjust the hazard pointer before removing
 	the bpage from flush list. */
-	buf_pool->flush_hp.adjust(bpage);
+	buf_pool.flush_hp.adjust(bpage);
 
 	switch (buf_page_get_state(bpage)) {
 	case BUF_BLOCK_POOL_WATCH:
@@ -594,18 +594,18 @@ void buf_flush_remove(buf_page_t* bpage)
 		return;
 	case BUF_BLOCK_ZIP_DIRTY:
 		buf_page_set_state(bpage, BUF_BLOCK_ZIP_PAGE);
-		UT_LIST_REMOVE(buf_pool->flush_list, bpage);
+		UT_LIST_REMOVE(buf_pool.flush_list, bpage);
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 		buf_LRU_insert_zip_clean(bpage);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 		break;
 	case BUF_BLOCK_FILE_PAGE:
-		UT_LIST_REMOVE(buf_pool->flush_list, bpage);
+		UT_LIST_REMOVE(buf_pool.flush_list, bpage);
 		break;
 	}
 
 	/* If the flush_rbt is active then delete from there as well. */
-	if (buf_pool->flush_rbt != NULL) {
+	if (buf_pool.flush_rbt != NULL) {
 		buf_flush_delete_from_flush_rbt(bpage);
 	}
 
@@ -613,7 +613,7 @@ void buf_flush_remove(buf_page_t* bpage)
 	because we assert on in_flush_list in comparison function. */
 	ut_d(bpage->in_flush_list = FALSE);
 
-	buf_pool->stat.flush_list_bytes -= bpage->size.physical();
+	buf_pool.stat.flush_list_bytes -= bpage->size.physical();
 
 	bpage->oldest_modification = 0;
 
@@ -628,7 +628,7 @@ void buf_flush_remove(buf_page_t* bpage)
 		bpage->flush_observer = NULL;
 	}
 
-	mutex_exit(&buf_pool->flush_list_mutex);
+	mutex_exit(&buf_pool.flush_list_mutex);
 }
 
 /*******************************************************************//**
@@ -651,10 +651,10 @@ buf_flush_relocate_on_flush_list(
 	buf_page_t*	prev;
 	buf_page_t*	prev_b = NULL;
 
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 
-	mutex_enter(&buf_pool->flush_list_mutex);
+	mutex_enter(&buf_pool.flush_list_mutex);
 
 	/* FIXME: At this point we have both buf_pool and flush_list
 	mutexes. Theoretically removal of a block from flush list is
@@ -668,38 +668,38 @@ buf_flush_relocate_on_flush_list(
 
 	/* If recovery is active we must swap the control blocks in
 	the flush_rbt as well. */
-	if (buf_pool->flush_rbt != NULL) {
+	if (buf_pool.flush_rbt != NULL) {
 		buf_flush_delete_from_flush_rbt(bpage);
 		prev_b = buf_flush_insert_in_flush_rbt(dpage);
 	}
 
 	/* Important that we adjust the hazard pointer before removing
 	the bpage from the flush list. */
-	buf_pool->flush_hp.adjust(bpage);
+	buf_pool.flush_hp.adjust(bpage);
 
 	/* Must be done after we have removed it from the flush_rbt
 	because we assert on in_flush_list in comparison function. */
 	ut_d(bpage->in_flush_list = FALSE);
 
 	prev = UT_LIST_GET_PREV(list, bpage);
-	UT_LIST_REMOVE(buf_pool->flush_list, bpage);
+	UT_LIST_REMOVE(buf_pool.flush_list, bpage);
 
 	if (prev) {
 		ut_ad(prev->in_flush_list);
-		UT_LIST_INSERT_AFTER( buf_pool->flush_list, prev, dpage);
+		UT_LIST_INSERT_AFTER( buf_pool.flush_list, prev, dpage);
 	} else {
-		UT_LIST_ADD_FIRST(buf_pool->flush_list, dpage);
+		UT_LIST_ADD_FIRST(buf_pool.flush_list, dpage);
 	}
 
 	/* Just an extra check. Previous in flush_list
 	should be the same control block as in flush_rbt. */
-	ut_a(buf_pool->flush_rbt == NULL || prev_b == prev);
+	ut_a(buf_pool.flush_rbt == NULL || prev_b == prev);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 	buf_flush_validate_low();
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
-	mutex_exit(&buf_pool->flush_list_mutex);
+	mutex_exit(&buf_pool.flush_list_mutex);
 }
 
 /** Update the flush system data structures when a write is completed.
@@ -712,17 +712,17 @@ void buf_flush_write_complete(buf_page_t* bpage, bool dblwr)
 	buf_flush_remove(bpage);
 
 	const buf_flush_t flush_type = buf_page_get_flush_type(bpage);
-	buf_pool->n_flush[flush_type]--;
-	ut_ad(buf_pool->n_flush[flush_type] != ULINT_MAX);
+	buf_pool.n_flush[flush_type]--;
+	ut_ad(buf_pool.n_flush[flush_type] != ULINT_MAX);
 
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 
-	if (buf_pool->n_flush[flush_type] == 0
-	    && buf_pool->init_flush[flush_type] == FALSE) {
+	if (buf_pool.n_flush[flush_type] == 0
+	    && buf_pool.init_flush[flush_type] == FALSE) {
 
 		/* The running flush batch has ended */
 
-		os_event_set(buf_pool->no_flush[flush_type]);
+		os_event_set(buf_pool.no_flush[flush_type]);
 	}
 
 	if (dblwr) {
@@ -941,13 +941,13 @@ buf_flush_write_block_low(
 
 	ut_ad(buf_page_in_file(bpage));
 
-	/* We are not holding buf_pool->mutex or block_mutex here.
+	/* We are not holding buf_pool.mutex or block_mutex here.
 	Nevertheless, it is safe to access bpage, because it is
 	io_fixed and oldest_modification != 0.  Thus, it cannot be
 	relocated in the buffer pool or removed from flush_list or
 	LRU_list. */
-	ut_ad(!mutex_own(&buf_pool->mutex));
-	ut_ad(!mutex_own(&buf_pool->flush_list_mutex));
+	ut_ad(!mutex_own(&buf_pool.mutex));
+	ut_ad(!mutex_own(&buf_pool.flush_list_mutex));
 	ut_ad(!buf_page_get_mutex(bpage)->is_owned());
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_WRITE);
 	ut_ad(bpage->oldest_modification != 0);
@@ -1065,7 +1065,7 @@ bool buf_flush_page(buf_page_t* bpage, buf_flush_t flush_type, bool sync)
 	BPageMutex*	block_mutex;
 
 	ut_ad(flush_type < BUF_FLUSH_N_TYPES);
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 	ut_ad(buf_page_in_file(bpage));
 	ut_ad(!sync || flush_type == BUF_FLUSH_SINGLE_PAGE);
 
@@ -1077,7 +1077,7 @@ bool buf_flush_page(buf_page_t* bpage, buf_flush_t flush_type, bool sync)
 	bool	is_uncompressed;
 
 	is_uncompressed = (buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
-	ut_ad(is_uncompressed == (block_mutex != &buf_pool->zip_mutex));
+	ut_ad(is_uncompressed == (block_mutex != &buf_pool.zip_mutex));
 
 	ibool		flush;
 	rw_lock_t*	rw_lock;
@@ -1113,16 +1113,15 @@ bool buf_flush_page(buf_page_t* bpage, buf_flush_t flush_type, bool sync)
 
 		buf_page_set_flush_type(bpage, flush_type);
 
-		if (buf_pool->n_flush[flush_type] == 0) {
-			os_event_reset(buf_pool->no_flush[flush_type]);
+		if (buf_pool.n_flush[flush_type] == 0) {
+			os_event_reset(buf_pool.no_flush[flush_type]);
 		}
 
-		++buf_pool->n_flush[flush_type];
-		ut_ad(buf_pool->n_flush[flush_type] != 0);
+		++buf_pool.n_flush[flush_type];
+		ut_ad(buf_pool.n_flush[flush_type] != 0);
 
 		mutex_exit(block_mutex);
-
-		mutex_exit(&buf_pool->mutex);
+		mutex_exit(&buf_pool.mutex);
 
 		if (flush_type == BUF_FLUSH_LIST
 		    && is_uncompressed
@@ -1169,7 +1168,7 @@ buf_flush_batch() and buf_flush_page().
 @return whether the page was flushed and the mutex released */
 bool buf_flush_page_try(buf_block_t* block)
 {
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 	ut_ad(buf_page_mutex_own(block));
 
@@ -1198,13 +1197,13 @@ buf_flush_check_neighbor(
 	ut_ad(flush_type == BUF_FLUSH_LRU
 	      || flush_type == BUF_FLUSH_LIST);
 
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool.mutex);
 
 	bpage = buf_page_hash_get(page_id);
 
 	if (!bpage) {
 
-		mutex_exit(&buf_pool->mutex);
+		mutex_exit(&buf_pool.mutex);
 		return(false);
 	}
 
@@ -1223,7 +1222,7 @@ buf_flush_check_neighbor(
 		}
 		mutex_exit(block_mutex);
 	}
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 
 	return(ret);
 }
@@ -1249,7 +1248,7 @@ buf_flush_try_neighbors(
 
 	ut_ad(flush_type == BUF_FLUSH_LRU || flush_type == BUF_FLUSH_LIST);
 
-	if (UT_LIST_GET_LEN(buf_pool->LRU) < BUF_LRU_OLD_MIN_LEN
+	if (UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN
 	    || srv_flush_neighbors == 0) {
 		/* If there is little space or neighbor flushing is
 		not enabled then just flush the victim. */
@@ -1263,8 +1262,8 @@ buf_flush_try_neighbors(
 		ulint	buf_flush_area;
 
 		buf_flush_area	= ut_min(
-			buf_pool->read_ahead_area,
-			buf_pool->curr_size / 16);
+			buf_pool.read_ahead_area,
+			buf_pool.curr_size / 16);
 
 		low = (page_id.page_no() / buf_flush_area) * buf_flush_area;
 		high = (page_id.page_no() / buf_flush_area + 1) * buf_flush_area;
@@ -1334,12 +1333,12 @@ buf_flush_try_neighbors(
 
 		const page_id_t	cur_page_id(page_id.space(), i);
 
-		mutex_enter(&buf_pool->mutex);
+		mutex_enter(&buf_pool.mutex);
 
 		bpage = buf_page_hash_get(cur_page_id);
 
 		if (bpage == NULL) {
-			mutex_exit(&buf_pool->mutex);
+			mutex_exit(&buf_pool.mutex);
 			continue;
 		}
 
@@ -1367,7 +1366,7 @@ buf_flush_try_neighbors(
 					++count;
 				} else {
 					mutex_exit(block_mutex);
-					mutex_exit(&buf_pool->mutex);
+					mutex_exit(&buf_pool.mutex);
 				}
 
 				continue;
@@ -1375,7 +1374,7 @@ buf_flush_try_neighbors(
 				mutex_exit(block_mutex);
 			}
 		}
-		mutex_exit(&buf_pool->mutex);
+		mutex_exit(&buf_pool.mutex);
 	}
 
 	if (count > 1) {
@@ -1408,7 +1407,7 @@ buf_flush_page_and_try_neighbors(
 	ulint			n_to_flush,
 	ulint*			count)
 {
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 
 	bool		flushed;
 	BPageMutex*	block_mutex = buf_page_get_mutex(bpage);
@@ -1421,20 +1420,20 @@ buf_flush_page_and_try_neighbors(
 		const page_id_t	page_id = bpage->id;
 
 		mutex_exit(block_mutex);
-		mutex_exit(&buf_pool->mutex);
+		mutex_exit(&buf_pool.mutex);
 
 		/* Try to flush also all the neighbors */
 		*count += buf_flush_try_neighbors(
 			page_id, flush_type, *count, n_to_flush);
 
-		mutex_enter(&buf_pool->mutex);
+		mutex_enter(&buf_pool.mutex);
 		flushed = true;
 	} else {
 		mutex_exit(block_mutex);
 		flushed = false;
 	}
 
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 
 	return(flushed);
 }
@@ -1453,35 +1452,35 @@ static ulint buf_free_from_unzip_LRU_list_batch(ulint max)
 {
 	ulint		scanned = 0;
 	ulint		count = 0;
-	ulint		free_len = UT_LIST_GET_LEN(buf_pool->free);
-	ulint		lru_len = UT_LIST_GET_LEN(buf_pool->unzip_LRU);
+	ulint		free_len = UT_LIST_GET_LEN(buf_pool.free);
+	ulint		lru_len = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
 
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 
-	buf_block_t*	block = UT_LIST_GET_LAST(buf_pool->unzip_LRU);
+	buf_block_t*	block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
 
 	while (block != NULL
 	       && count < max
 	       && free_len < srv_LRU_scan_depth
-	       && lru_len > UT_LIST_GET_LEN(buf_pool->LRU) / 10) {
+	       && lru_len > UT_LIST_GET_LEN(buf_pool.LRU) / 10) {
 
 		++scanned;
 		if (buf_LRU_free_page(&block->page, false)) {
-			/* Block was freed. buf_pool->mutex potentially
+			/* Block was freed. buf_pool.mutex potentially
 			released and reacquired */
 			++count;
-			block = UT_LIST_GET_LAST(buf_pool->unzip_LRU);
+			block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
 
 		} else {
 
 			block = UT_LIST_GET_PREV(unzip_LRU, block);
 		}
 
-		free_len = UT_LIST_GET_LEN(buf_pool->free);
-		lru_len = UT_LIST_GET_LEN(buf_pool->unzip_LRU);
+		free_len = UT_LIST_GET_LEN(buf_pool.free);
+		lru_len = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
 	}
 
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 
 	if (scanned) {
 		MONITOR_INC_VALUE_CUMULATIVE(
@@ -1504,29 +1503,29 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t* n)
 {
 	buf_page_t*	bpage;
 	ulint		scanned = 0;
-	ulint		free_len = UT_LIST_GET_LEN(buf_pool->free);
-	ulint		lru_len = UT_LIST_GET_LEN(buf_pool->LRU);
+	ulint		free_len = UT_LIST_GET_LEN(buf_pool.free);
+	ulint		lru_len = UT_LIST_GET_LEN(buf_pool.LRU);
 	ulint		withdraw_depth = 0;
 
 	n->flushed = 0;
 	n->evicted = 0;
 	n->unzip_LRU_evicted = 0;
-	ut_ad(mutex_own(&buf_pool->mutex));
-	if (buf_pool->curr_size < buf_pool->old_size
-	    && buf_pool->withdraw_target > 0) {
-		withdraw_depth = buf_pool->withdraw_target
-			- UT_LIST_GET_LEN(buf_pool->withdraw);
+	ut_ad(mutex_own(&buf_pool.mutex));
+	if (buf_pool.curr_size < buf_pool.old_size
+	    && buf_pool.withdraw_target > 0) {
+		withdraw_depth = buf_pool.withdraw_target
+			- UT_LIST_GET_LEN(buf_pool.withdraw);
 	}
 
-	for (bpage = UT_LIST_GET_LAST(buf_pool->LRU);
+	for (bpage = UT_LIST_GET_LAST(buf_pool.LRU);
 	     bpage != NULL && n->flushed + n->evicted < max
 	     && free_len < srv_LRU_scan_depth + withdraw_depth
 	     && lru_len > BUF_LRU_MIN_LEN;
 	     ++scanned,
-	     bpage = buf_pool->lru_hp.get()) {
+	     bpage = buf_pool.lru_hp.get()) {
 
 		buf_page_t* prev = UT_LIST_GET_PREV(LRU, bpage);
-		buf_pool->lru_hp.set(prev);
+		buf_pool.lru_hp.set(prev);
 
 		BPageMutex*	block_mutex = buf_page_get_mutex(bpage);
 
@@ -1549,25 +1548,25 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t* n)
 		} else {
 			/* Can't evict or dispatch this block. Go to
 			previous. */
-			ut_ad(buf_pool->lru_hp.is_hp(prev));
+			ut_ad(buf_pool.lru_hp.is_hp(prev));
 			mutex_exit(block_mutex);
 		}
 
 		ut_ad(!mutex_own(block_mutex));
-		ut_ad(mutex_own(&buf_pool->mutex));
+		ut_ad(mutex_own(&buf_pool.mutex));
 
-		free_len = UT_LIST_GET_LEN(buf_pool->free);
-		lru_len = UT_LIST_GET_LEN(buf_pool->LRU);
+		free_len = UT_LIST_GET_LEN(buf_pool.free);
+		lru_len = UT_LIST_GET_LEN(buf_pool.LRU);
 	}
 
-	buf_pool->lru_hp.set(NULL);
+	buf_pool.lru_hp.set(NULL);
 
 	/* We keep track of all flushes happening as part of LRU
 	flush. When estimating the desired rate at which flush_list
 	should be flushed, we factor in this value. */
 	buf_lru_flush_page_count += n->flushed;
 
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 
 	if (n->evicted) {
 		MONITOR_INC_VALUE_CUMULATIVE(
@@ -1622,22 +1621,22 @@ static ulint buf_do_flush_list_batch(ulint min_n, lsn_t lsn_limit)
 	ulint		count = 0;
 	ulint		scanned = 0;
 
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 
 	/* Start from the end of the list looking for a suitable
 	block to be flushed. */
-	mutex_enter(&buf_pool->flush_list_mutex);
-	ulint len = UT_LIST_GET_LEN(buf_pool->flush_list);
+	mutex_enter(&buf_pool.flush_list_mutex);
+	ulint len = UT_LIST_GET_LEN(buf_pool.flush_list);
 
 	/* In order not to degenerate this scan to O(n*n) we attempt
 	to preserve pointer of previous block in the flush list. To do
 	so we declare it a hazard pointer. Any thread working on the
 	flush list must check the hazard pointer and if it is removing
 	the same block then it must reset it. */
-	for (buf_page_t* bpage = UT_LIST_GET_LAST(buf_pool->flush_list);
+	for (buf_page_t* bpage = UT_LIST_GET_LAST(buf_pool.flush_list);
 	     count < min_n && bpage != NULL && len > 0
 	     && bpage->oldest_modification < lsn_limit;
-	     bpage = buf_pool->flush_hp.get(),
+	     bpage = buf_pool.flush_hp.get(),
 	     ++scanned) {
 
 		buf_page_t*	prev;
@@ -1646,8 +1645,8 @@ static ulint buf_do_flush_list_batch(ulint min_n, lsn_t lsn_limit)
 		ut_ad(bpage->in_flush_list);
 
 		prev = UT_LIST_GET_PREV(list, bpage);
-		buf_pool->flush_hp.set(prev);
-		mutex_exit(&buf_pool->flush_list_mutex);
+		buf_pool.flush_hp.set(prev);
+		mutex_exit(&buf_pool.flush_list_mutex);
 
 #ifdef UNIV_DEBUG
 		bool flushed =
@@ -1655,15 +1654,15 @@ static ulint buf_do_flush_list_batch(ulint min_n, lsn_t lsn_limit)
 		buf_flush_page_and_try_neighbors(
 			bpage, BUF_FLUSH_LIST, min_n, &count);
 
-		mutex_enter(&buf_pool->flush_list_mutex);
+		mutex_enter(&buf_pool.flush_list_mutex);
 
-		ut_ad(flushed || buf_pool->flush_hp.is_hp(prev));
+		ut_ad(flushed || buf_pool.flush_hp.is_hp(prev));
 
 		--len;
 	}
 
-	buf_pool->flush_hp.set(NULL);
-	mutex_exit(&buf_pool->flush_list_mutex);
+	buf_pool.flush_hp.set(NULL);
+	mutex_exit(&buf_pool.flush_list_mutex);
 
 	if (scanned) {
 		MONITOR_INC_VALUE_CUMULATIVE(
@@ -1681,7 +1680,7 @@ static ulint buf_do_flush_list_batch(ulint min_n, lsn_t lsn_limit)
 			count);
 	}
 
-	ut_ad(mutex_own(&buf_pool->mutex));
+	ut_ad(mutex_own(&buf_pool.mutex));
 
 	return(count);
 }
@@ -1712,7 +1711,7 @@ buf_flush_batch(
 	ut_ad(flush_type == BUF_FLUSH_LRU
 	      || !sync_check_iterate(dict_sync_check()));
 
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool.mutex);
 
 	/* Note: The buffer pool mutex is released and reacquired within
 	the flush functions. */
@@ -1728,7 +1727,7 @@ buf_flush_batch(
 		ut_error;
 	}
 
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 
 	DBUG_LOG("ib_buf", "flush " << flush_type << " completed");
 }
@@ -1760,23 +1759,23 @@ bool buf_flush_start(buf_flush_t flush_type)
 {
 	ut_ad(flush_type == BUF_FLUSH_LRU || flush_type == BUF_FLUSH_LIST);
 
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool.mutex);
 
-	if (buf_pool->n_flush[flush_type] > 0
-	   || buf_pool->init_flush[flush_type] == TRUE) {
+	if (buf_pool.n_flush[flush_type] > 0
+	   || buf_pool.init_flush[flush_type] == TRUE) {
 
 		/* There is already a flush batch of the same type running */
 
-		mutex_exit(&buf_pool->mutex);
+		mutex_exit(&buf_pool.mutex);
 
 		return(false);
 	}
 
-	buf_pool->init_flush[flush_type] = TRUE;
+	buf_pool.init_flush[flush_type] = TRUE;
 
-	os_event_reset(buf_pool->no_flush[flush_type]);
+	os_event_reset(buf_pool.no_flush[flush_type]);
 
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 
 	return(true);
 }
@@ -1785,20 +1784,22 @@ bool buf_flush_start(buf_flush_t flush_type)
 @param[in]	flush_type	BUF_FLUSH_LRU or BUF_FLUSH_LIST */
 void buf_flush_end(buf_flush_t flush_type)
 {
-	mutex_enter(&buf_pool->mutex);
+	ut_ad(flush_type == BUF_FLUSH_LRU || flush_type == BUF_FLUSH_LIST);
 
-	buf_pool->init_flush[flush_type] = FALSE;
+	mutex_enter(&buf_pool.mutex);
 
-	buf_pool->try_LRU_scan = TRUE;
+	buf_pool.init_flush[flush_type] = FALSE;
 
-	if (buf_pool->n_flush[flush_type] == 0) {
+	buf_pool.try_LRU_scan = TRUE;
+
+	if (buf_pool.n_flush[flush_type] == 0) {
 
 		/* The running flush batch has ended */
 
-		os_event_set(buf_pool->no_flush[flush_type]);
+		os_event_set(buf_pool.no_flush[flush_type]);
 	}
 
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 
 	if (!srv_read_only_mode) {
 		buf_dblwr_flush_buffered_writes();
@@ -1813,7 +1814,7 @@ void buf_flush_wait_batch_end(buf_flush_t type)
 {
 	ut_ad(type == BUF_FLUSH_LRU || type == BUF_FLUSH_LIST);
 	thd_wait_begin(NULL, THD_WAIT_DISKIO);
-	os_event_wait(buf_pool->no_flush[type]);
+	os_event_wait(buf_pool.no_flush[type]);
 	thd_wait_end(NULL);
 }
 
@@ -1860,7 +1861,7 @@ void buf_flush_wait_flushed(lsn_t new_oldest)
 		blocks, because anyway we need fsync to make chekpoint.
 		So, we don't need to wait for the batch end here. */
 
-		mutex_enter(&buf_pool->flush_list_mutex);
+		mutex_enter(&buf_pool.flush_list_mutex);
 
 		buf_page_t*	bpage;
 
@@ -1868,7 +1869,7 @@ void buf_flush_wait_flushed(lsn_t new_oldest)
 		list. We would only need to write out temporary pages if the
 		page is about to be evicted from the buffer pool, and the page
 		contents is still needed (the page has not been freed). */
-		for (bpage = UT_LIST_GET_LAST(buf_pool->flush_list);
+		for (bpage = UT_LIST_GET_LAST(buf_pool.flush_list);
 		     bpage && fsp_is_system_temporary(bpage->id.space());
 		     bpage = UT_LIST_GET_PREV(list, bpage)) {
 			ut_ad(bpage->in_flush_list);
@@ -1876,7 +1877,7 @@ void buf_flush_wait_flushed(lsn_t new_oldest)
 
 		lsn_t oldest = bpage ? bpage->oldest_modification : 0;
 
-		mutex_exit(&buf_pool->flush_list_mutex);
+		mutex_exit(&buf_pool.flush_list_mutex);
 
 		if (oldest == 0 || oldest >= new_oldest) {
 			break;
@@ -1938,17 +1939,17 @@ bool buf_flush_single_page_from_LRU()
 	buf_page_t*	bpage;
 	ibool		freed;
 
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool.mutex);
 
-	for (bpage = buf_pool->single_scan_itr.start(), scanned = 0,
+	for (bpage = buf_pool.single_scan_itr.start(), scanned = 0,
 	     freed = false;
 	     bpage != NULL;
-	     ++scanned, bpage = buf_pool->single_scan_itr.get()) {
+	     ++scanned, bpage = buf_pool.single_scan_itr.get()) {
 
-		ut_ad(mutex_own(&buf_pool->mutex));
+		ut_ad(mutex_own(&buf_pool.mutex));
 
 		buf_page_t*	prev = UT_LIST_GET_PREV(LRU, bpage);
-		buf_pool->single_scan_itr.set(prev);
+		buf_pool.single_scan_itr.set(prev);
 		BPageMutex*	block_mutex;
 
 		block_mutex = buf_page_get_mutex(bpage);
@@ -1961,7 +1962,7 @@ bool buf_flush_single_page_from_LRU()
 			mutex_exit(block_mutex);
 
 			if (buf_LRU_free_page(bpage, true)) {
-				mutex_exit(&buf_pool->mutex);
+				mutex_exit(&buf_pool.mutex);
 				freed = true;
 				break;
 			}
@@ -1993,7 +1994,7 @@ bool buf_flush_single_page_from_LRU()
 	if (!freed) {
 		/* Can't find a single flushable page. */
 		ut_ad(!bpage);
-		mutex_exit(&buf_pool->mutex);
+		mutex_exit(&buf_pool.mutex);
 	}
 
 	if (scanned) {
@@ -2004,7 +2005,7 @@ bool buf_flush_single_page_from_LRU()
 			scanned);
 	}
 
-	ut_ad(!mutex_own(&buf_pool->mutex));
+	ut_ad(!mutex_own(&buf_pool.mutex));
 	return(freed);
 }
 
@@ -2024,16 +2025,16 @@ static ulint buf_flush_LRU_list()
 
 	/* srv_LRU_scan_depth can be arbitrarily large value.
 	We cap it with current LRU size. */
-	mutex_enter(&buf_pool->mutex);
-	scan_depth = UT_LIST_GET_LEN(buf_pool->LRU);
-	if (buf_pool->curr_size < buf_pool->old_size
-	    && buf_pool->withdraw_target > 0) {
-		withdraw_depth = buf_pool->withdraw_target
-			- UT_LIST_GET_LEN(buf_pool->withdraw);
+	mutex_enter(&buf_pool.mutex);
+	scan_depth = UT_LIST_GET_LEN(buf_pool.LRU);
+	if (buf_pool.curr_size < buf_pool.old_size
+	    && buf_pool.withdraw_target > 0) {
+		withdraw_depth = buf_pool.withdraw_target
+			- UT_LIST_GET_LEN(buf_pool.withdraw);
 	} else {
 		withdraw_depth = 0;
 	}
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 	if (withdraw_depth > srv_LRU_scan_depth) {
 		scan_depth = ut_min(withdraw_depth, scan_depth);
 	} else {
@@ -2052,10 +2053,10 @@ static ulint buf_flush_LRU_list()
 /** Wait for any possible LRU flushes to complete. */
 void buf_flush_wait_LRU_batch_end()
 {
-	mutex_enter(&buf_pool->mutex);
-	bool wait = buf_pool->n_flush[BUF_FLUSH_LRU]
-		|| buf_pool->init_flush[BUF_FLUSH_LRU];
-	mutex_exit(&buf_pool->mutex);
+	mutex_enter(&buf_pool.mutex);
+	bool wait = buf_pool.n_flush[BUF_FLUSH_LRU]
+		|| buf_pool.init_flush[BUF_FLUSH_LRU];
+	mutex_exit(&buf_pool.mutex);
 	if (wait) {
 		buf_flush_wait_batch_end(BUF_FLUSH_LRU);
 	}
@@ -2069,7 +2070,7 @@ static
 ulint
 af_get_pct_for_dirty()
 {
-	const ulint dirty = UT_LIST_GET_LEN(buf_pool->flush_list);
+	const ulint dirty = UT_LIST_GET_LEN(buf_pool.flush_list);
 	if (!dirty) {
 		/* No pages modified */
 		return 0;
@@ -2079,8 +2080,8 @@ af_get_pct_for_dirty()
 	pool (including the flush_list) was emptied while we are
 	looking at it) */
 	double	dirty_pct = double(100 * dirty)
-		/ (1 + UT_LIST_GET_LEN(buf_pool->LRU)
-		   + UT_LIST_GET_LEN(buf_pool->free));
+		/ (1 + UT_LIST_GET_LEN(buf_pool.LRU)
+		   + UT_LIST_GET_LEN(buf_pool.free));
 
 	ut_a(srv_max_dirty_pages_pct_lwm
 	     <= srv_max_buf_pool_modified_pct);
@@ -2299,8 +2300,8 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 		+ lsn_avg_rate * buf_flush_lsn_scan_factor;
 	ulint	pages_for_lsn = 0;
 
-	mutex_enter(&buf_pool->flush_list_mutex);
-	for (buf_page_t* b = UT_LIST_GET_LAST(buf_pool->flush_list);
+	mutex_enter(&buf_pool.flush_list_mutex);
+	for (buf_page_t* b = UT_LIST_GET_LAST(buf_pool.flush_list);
 	     b != NULL;
 	     b = UT_LIST_GET_PREV(list, b)) {
 		if (b->oldest_modification > target_lsn) {
@@ -2308,7 +2309,7 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 		}
 		++pages_for_lsn;
 	}
-	mutex_exit(&buf_pool->flush_list_mutex);
+	mutex_exit(&buf_pool.flush_list_mutex);
 
 	mutex_enter(&page_cleaner.mutex);
 	ut_ad(page_cleaner.slot.state == PAGE_CLEANER_STATE_NONE);
@@ -2676,7 +2677,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 		/* The page_cleaner skips sleep if the server is
 		idle and there are no pending IOs in the buffer pool
 		and there is work to do. */
-		if (!n_flushed || !buf_pool->n_pend_reads
+		if (!n_flushed || !buf_pool.n_pend_reads
 		    || srv_check_activity(last_activity)) {
 
 			ret_sleep = pc_sleep_if_needed(
@@ -2930,7 +2931,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 	/* Some sanity checks */
 	ut_a(srv_get_active_thread_type() == SRV_NONE);
 	ut_a(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE);
-	ut_a(UT_LIST_GET_LEN(buf_pool->flush_list) == 0);
+	ut_a(UT_LIST_GET_LEN(buf_pool.flush_list) == 0);
 
 	/* We have lived our life. Time to die. */
 
@@ -3012,34 +3013,34 @@ static void buf_flush_validate_low()
 	const ib_rbt_node_t*	rnode = NULL;
 	Check			check;
 
-	ut_ad(mutex_own(&buf_pool->flush_list_mutex));
+	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
 
-	ut_list_validate(buf_pool->flush_list, check);
+	ut_list_validate(buf_pool.flush_list, check);
 
-	bpage = UT_LIST_GET_FIRST(buf_pool->flush_list);
+	bpage = UT_LIST_GET_FIRST(buf_pool.flush_list);
 
 	/* If we are in recovery mode i.e.: flush_rbt != NULL
 	then each block in the flush_list must also be present
 	in the flush_rbt. */
-	if (buf_pool->flush_rbt != NULL) {
-		rnode = rbt_first(buf_pool->flush_rbt);
+	if (buf_pool.flush_rbt != NULL) {
+		rnode = rbt_first(buf_pool.flush_rbt);
 	}
 
 	while (bpage != NULL) {
 		const lsn_t	om = bpage->oldest_modification;
 		ut_ad(bpage->in_flush_list);
 
-		/* A page in buf_pool->flush_list can be in
+		/* A page in buf_pool.flush_list can be in
 		BUF_BLOCK_REMOVE_HASH state. This happens when a page
 		is in the middle of being relocated. In that case the
 		original descriptor can have this state and still be
 		in the flush list waiting to acquire the
-		buf_pool->flush_list_mutex to complete the relocation. */
+		buf_pool.flush_list_mutex to complete the relocation. */
 		ut_a(buf_page_in_file(bpage)
 		     || buf_page_get_state(bpage) == BUF_BLOCK_REMOVE_HASH);
 		ut_a(om > 0);
 
-		if (buf_pool->flush_rbt != NULL) {
+		if (buf_pool.flush_rbt != NULL) {
 			buf_page_t**	prpage;
 
 			ut_a(rnode != NULL);
@@ -3047,7 +3048,7 @@ static void buf_flush_validate_low()
 
 			ut_a(*prpage != NULL);
 			ut_a(*prpage == bpage);
-			rnode = rbt_next(buf_pool->flush_rbt, rnode);
+			rnode = rbt_next(buf_pool.flush_rbt, rnode);
 		}
 
 		bpage = UT_LIST_GET_NEXT(list, bpage);
@@ -3063,9 +3064,9 @@ static void buf_flush_validate_low()
 /** Validate the flush list. */
 void buf_flush_validate()
 {
-	mutex_enter(&buf_pool->flush_list_mutex);
+	mutex_enter(&buf_pool.flush_list_mutex);
 	buf_flush_validate_low();
-	mutex_exit(&buf_pool->flush_list_mutex);
+	mutex_exit(&buf_pool.flush_list_mutex);
 }
 
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
@@ -3078,12 +3079,12 @@ ulint buf_pool_get_dirty_pages_count(ulint id, FlushObserver* observer)
 {
 	ulint		count = 0;
 
-	mutex_enter(&buf_pool->mutex);
-	mutex_enter(&buf_pool->flush_list_mutex);
+	mutex_enter(&buf_pool.mutex);
+	mutex_enter(&buf_pool.flush_list_mutex);
 
 	buf_page_t*	bpage;
 
-	for (bpage = UT_LIST_GET_FIRST(buf_pool->flush_list);
+	for (bpage = UT_LIST_GET_FIRST(buf_pool.flush_list);
 	     bpage != 0;
 	     bpage = UT_LIST_GET_NEXT(list, bpage)) {
 
@@ -3099,8 +3100,8 @@ ulint buf_pool_get_dirty_pages_count(ulint id, FlushObserver* observer)
 		}
 	}
 
-	mutex_exit(&buf_pool->flush_list_mutex);
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.flush_list_mutex);
+	mutex_exit(&buf_pool.mutex);
 
 	return(count);
 }

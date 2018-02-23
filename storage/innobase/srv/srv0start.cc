@@ -1608,7 +1608,7 @@ dberr_t srv_start(bool create_new_db)
 		<< srv_buf_pool_size
 		<< ", chunk size = " << srv_buf_pool_chunk_unit;
 
-	if (buf_pool_init()) {
+	if (buf_pool.create()) {
 		ib::error() << "Cannot allocate memory for the buffer pool";
 
 		return(srv_init_abort(DB_ERROR));
@@ -2665,11 +2665,7 @@ void innodb_shutdown()
 
 	pars_lexer_close();
 	recv_sys_close();
-
-	ut_ad(buf_pool || !srv_was_started);
-	if (buf_pool) {
-		buf_pool_free();
-	}
+	buf_pool.close();
 
 	sync_check_close();
 

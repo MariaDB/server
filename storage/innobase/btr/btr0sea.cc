@@ -408,12 +408,12 @@ void btr_search_disable(bool need_mutex)
 /** Enable the adaptive hash search system. */
 void btr_search_enable()
 {
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool.mutex);
 	if (srv_buf_pool_old_size != srv_buf_pool_size) {
-		mutex_exit(&buf_pool->mutex);
+		mutex_exit(&buf_pool.mutex);
 		return;
 	}
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 
 	btr_search_x_lock_all();
 	btr_search_enabled = true;
@@ -1060,7 +1060,7 @@ fail:
 
 	/* Increment the page get statistics though we did not really
 	fix the page: for user info only */
-	++buf_pool->stat.n_page_gets;
+	++buf_pool.stat.n_page_gets;
 
 	return(TRUE);
 }
@@ -1069,7 +1069,7 @@ fail:
 @param[in,out]	block	block containing index page, s- or x-latched, or an
 			index page for which we know that
 			block->buf_fix_count == 0 or it is an index page which
-			has already been removed from the buf_pool->page_hash
+			has already been removed from the buf_pool.page_hash
 			i.e.: it is in state BUF_BLOCK_REMOVE_HASH */
 void btr_search_drop_page_hash_index(buf_block_t* block)
 {
@@ -1974,7 +1974,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 	rec_offs_init(offsets_);
 
 	btr_search_x_lock_all();
-	mutex_enter(&buf_pool->mutex);
+	mutex_enter(&buf_pool.mutex);
 
 	cell_count = hash_get_n_cells(
 		btr_search_sys->hash_tables[hash_table_id]);
@@ -1984,13 +1984,13 @@ btr_search_hash_table_validate(ulint hash_table_id)
 		give other queries a chance to run. */
 		if ((i != 0) && ((i % chunk_size) == 0)) {
 
-			mutex_exit(&buf_pool->mutex);
+			mutex_exit(&buf_pool.mutex);
 			btr_search_x_unlock_all();
 
 			os_thread_yield();
 
 			btr_search_x_lock_all();
-			mutex_enter(&buf_pool->mutex);
+			mutex_enter(&buf_pool.mutex);
 
 			ulint	curr_cell_count = hash_get_n_cells(
 				btr_search_sys->hash_tables[hash_table_id]);
@@ -2034,7 +2034,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 				/* When a block is being freed,
 				buf_LRU_search_and_free_block() first
 				removes the block from
-				buf_pool->page_hash by calling
+				buf_pool.page_hash by calling
 				buf_LRU_block_remove_hashed_page().
 				After that, it invokes
 				btr_search_drop_page_hash_index() to
@@ -2097,13 +2097,13 @@ btr_search_hash_table_validate(ulint hash_table_id)
 		/* We release search latches every once in a while to
 		give other queries a chance to run. */
 		if (i != 0) {
-			mutex_exit(&buf_pool->mutex);
+			mutex_exit(&buf_pool.mutex);
 			btr_search_x_unlock_all();
 
 			os_thread_yield();
 
 			btr_search_x_lock_all();
-			mutex_enter(&buf_pool->mutex);
+			mutex_enter(&buf_pool.mutex);
 
 			ulint	curr_cell_count = hash_get_n_cells(
 				btr_search_sys->hash_tables[hash_table_id]);
@@ -2126,7 +2126,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 		}
 	}
 
-	mutex_exit(&buf_pool->mutex);
+	mutex_exit(&buf_pool.mutex);
 	btr_search_x_unlock_all();
 
 	if (UNIV_LIKELY_NULL(heap)) {
