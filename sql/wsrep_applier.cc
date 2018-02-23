@@ -896,7 +896,17 @@ wsrep_cb_status_t wsrep_commit(void*         const     ctx,
 
   if (WSREP_NBO_START(flags))
   {
-    DBUG_RETURN(WSREP_CB_SUCCESS);
+    wsrep_cb_status_t ret= WSREP_CB_SUCCESS;
+    if (wsrep_before_commit(thd, true) ||
+        wsrep_ordered_commit(thd, true, err))
+    {
+      ret= WSREP_CB_FAILURE;
+    }
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->set_wsrep_query_state(QUERY_EXEC);
+    thd->set_wsrep_query_state(QUERY_IDLE);
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    DBUG_RETURN(ret);
   }
 
   bool const toi(flags & WSREP_FLAG_ISOLATION); // ineffective NBO end
