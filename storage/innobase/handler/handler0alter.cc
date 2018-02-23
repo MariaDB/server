@@ -1383,7 +1383,6 @@ innobase_set_foreign_key_option(
 	ut_ad(!foreign->type);
 
 	switch (fk_key->delete_opt) {
-	// JAN: TODO: ? MySQL 5.7 used enum fk_option directly from sql_lex.h
 	case FK_OPTION_NO_ACTION:
 	case FK_OPTION_RESTRICT:
 	case FK_OPTION_SET_DEFAULT:
@@ -1395,6 +1394,8 @@ innobase_set_foreign_key_option(
 	case FK_OPTION_SET_NULL:
 		foreign->type = DICT_FOREIGN_ON_DELETE_SET_NULL;
 		break;
+	case FK_OPTION_UNDEF:
+		DBUG_ASSERT(0);
 	}
 
 	switch (fk_key->update_opt) {
@@ -1409,6 +1410,8 @@ innobase_set_foreign_key_option(
 	case FK_OPTION_SET_NULL:
 		foreign->type |= DICT_FOREIGN_ON_UPDATE_SET_NULL;
 		break;
+	case FK_OPTION_UNDEF:
+		DBUG_ASSERT(0);
 	}
 
 	return(innobase_check_fk_option(foreign));
