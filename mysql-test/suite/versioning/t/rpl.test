@@ -1,18 +1,6 @@
---source include/master-slave.inc
-
-if ($MTR_COMBINATION_STMT)
-{
-  --source include/have_binlog_format_statement.inc
-}
-if ($MTR_COMBINATION_ROW)
-{
-  --source include/have_binlog_format_row.inc
-}
-if ($MTR_COMBINATION_MIX)
-{
-  --source include/have_binlog_format_mixed.inc
-}
+--source include/have_binlog_format_mixed_or_statement.inc
 --source suite/versioning/engines.inc
+--source include/master-slave.inc
 
 #BUG#12662190 - COM_COMMIT IS NOT INCREMENTED FROM THE BINARY LOGS ON SLAVE, COM_BEGIN IS
 #Testing command counters -BEFORE.

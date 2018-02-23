@@ -6197,6 +6197,9 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         flags_write_some_set |= flags;
         is_write= TRUE;
 
+        if (table->table->versioned())
+          flags_write_all_set &= HA_BINLOG_STMT_CAPABLE;
+
         prev_write_table= table->table;
 
       }
