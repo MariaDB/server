@@ -60,17 +60,31 @@ select * from t for system_time all;
 create or replace table t (i int) with system versioning;
 delete history from t;
 create or replace view v as select * from t;
---error ER_VERS_TRUNCATE_VIEW
+--error ER_IT_IS_A_VIEW
 delete history from v;
 
 create or replace table t (i int);
 --error ER_VERS_NOT_VERSIONED
 delete history from t;
 create or replace view v as select * from t;
---error ER_VERS_TRUNCATE_VIEW
+--error ER_IT_IS_A_VIEW
 delete history from v;
 --error ER_VERS_NOT_VERSIONED
 prepare stmt from 'delete history from t';
 
 drop table t;
 drop view v;
+
+#
+# MDEV-15402 Assertion `table' failed in mysql_delete on attempt to delete history from view
+#
+create or replace table t (i int);
+create or replace view v as select * from t;
+--error ER_IT_IS_A_VIEW
+drop table v;
+lock table v write;
+--error ER_IT_IS_A_VIEW
+delete history from v before system_time now(6);
+unlock tables;
+drop view v;
+drop table t;

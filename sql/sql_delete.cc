@@ -310,7 +310,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   {
     if (table_list->is_view_or_derived())
     {
-      my_error(ER_VERS_TRUNCATE_VIEW, MYF(0));
+      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
       DBUG_RETURN(true);
     }
 
@@ -938,7 +938,7 @@ l
   {
     if (table_list->is_view())
     {
-      my_error(ER_VERS_TRUNCATE_VIEW, MYF(0));
+      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
       DBUG_RETURN(true);
     }
     if (select_lex->vers_setup_conds(thd, table_list, conds))

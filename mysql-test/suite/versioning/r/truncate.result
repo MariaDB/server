@@ -65,14 +65,24 @@ create or replace table t (i int) with system versioning;
 delete history from t;
 create or replace view v as select * from t;
 delete history from v;
-ERROR HY000: DELETE HISTORY from VIEW is prohibited
+ERROR 42S02: 'v' is a view
 create or replace table t (i int);
 delete history from t;
 ERROR HY000: Table `t` is not system-versioned
 create or replace view v as select * from t;
 delete history from v;
-ERROR HY000: DELETE HISTORY from VIEW is prohibited
+ERROR 42S02: 'v' is a view
 prepare stmt from 'delete history from t';
 ERROR HY000: Table `t` is not system-versioned
 drop table t;
 drop view v;
+create or replace table t (i int);
+create or replace view v as select * from t;
+drop table v;
+ERROR 42S02: 'test.v' is a view
+lock table v write;
+delete history from v before system_time now(6);
+ERROR 42S02: 'v' is a view
+unlock tables;
+drop view v;
+drop table t;

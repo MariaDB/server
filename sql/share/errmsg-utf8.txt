@@ -7897,14 +7897,14 @@ ER_VERS_DUPLICATE_ROW_START_END
 ER_VERS_ALREADY_VERSIONED
         eng "Table %`s is already system-versioned"
 
-ER_VERS_TRUNCATE_VIEW
-        eng "DELETE HISTORY from VIEW is prohibited"
+ER_UNUSED_24
+	eng "You should never see it"
 
 ER_VERS_TEMPORARY
 	eng "System versioning prohibited for TEMPORARY tables"
 
-ER_VERS_INPLACE_NOT_IMPLEMENTED
-        eng "Not implemented for system-versioned tables"
+ER_VERS_NOT_SUPPORTED
+        eng "%s is not supported for %s system-versioned tables"
 ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
 ER_UPDATED_COLUMN_ONLY_ONCE

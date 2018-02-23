@@ -699,7 +699,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	if ((table->versioned(VERS_TIMESTAMP) || altered_table->versioned(VERS_TIMESTAMP))
 	    && innobase_need_rebuild(ha_alter_info, table)) {
 		ha_alter_info->unsupported_reason =
-			innobase_get_err_msg(ER_VERS_INPLACE_NOT_IMPLEMENTED);
+			"Not implemented for system-versioned tables";
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -1239,7 +1239,7 @@ cannot_create_many_fulltext_index:
 	if ((table->versioned(VERS_TRX_ID) || altered_table->versioned(VERS_TRX_ID))
 	    && innobase_need_rebuild(ha_alter_info, table)) {
 		ha_alter_info->unsupported_reason =
-			innobase_get_err_msg(ER_VERS_INPLACE_NOT_IMPLEMENTED);
+			"Not implemented for system-versioned tables";
 		online = false;
 	}
 
