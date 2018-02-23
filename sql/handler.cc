@@ -7343,15 +7343,13 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
 }
 
 bool Vers_parse_info::check_sys_fields(const char *table_name,
-                                       Alter_info *alter_info,
-                                       bool native) const
+                                       Alter_info *alter_info, bool native)
 {
   List_iterator<Create_field> it(alter_info->create_list);
-  vers_sys_type_t found= VERS_UNDEFINED;
   uint found_flag= 0;
   while (Create_field *f= it++)
   {
-    vers_sys_type_t check_unit= VERS_UNDEFINED;
+    vers_sys_type_t f_check_unit= VERS_UNDEFINED;
     uint sys_flag= f->flags & VERS_SYSTEM_FIELD;
 
     if (!sys_flag)
@@ -7371,29 +7369,29 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
           f->type_handler() == &type_handler_timestamp2) &&
         f->length == MAX_DATETIME_FULL_WIDTH)
     {
-      check_unit= VERS_TIMESTAMP;
+      f_check_unit= VERS_TIMESTAMP;
     }
     else if (native
       && f->type_handler() == &type_handler_longlong
       && (f->flags & UNSIGNED_FLAG)
       && f->length == (MY_INT64_NUM_DECIMAL_DIGITS - 1))
     {
-      check_unit= VERS_TRX_ID;
+      f_check_unit= VERS_TRX_ID;
     }
     else
     {
-      if (!found)
-        found= VERS_TIMESTAMP;
+      if (!check_unit)
+        check_unit= VERS_TIMESTAMP;
       goto error;
     }
 
-    if (check_unit)
+    if (f_check_unit)
     {
-      if (found)
+      if (check_unit)
       {
-        if (found == check_unit)
+        if (check_unit == f_check_unit)
         {
-          if (found == VERS_TRX_ID && !TR_table::use_transaction_registry)
+          if (check_unit == VERS_TRX_ID && !TR_table::use_transaction_registry)
           {
             my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
             return true;
@@ -7402,13 +7400,13 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
         }
       error:
         my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
-                 found == VERS_TIMESTAMP ?
+                 check_unit == VERS_TIMESTAMP ?
                  "TIMESTAMP(6)" :
                  "BIGINT(20) UNSIGNED",
                  table_name);
         return true;
       }
-      found= check_unit;
+      check_unit= f_check_unit;
     }
   }
 

@@ -2199,14 +2199,6 @@ row_update_cascade_for_mysql(
 				  && (node->is_delete == PLAIN_DELETE
 				      || node->update->affects_versioned());
 
-	if (vers_set_fields && !thr->prebuilt->versioned_write)
-	{
-		// FIXME: timestamp-based update of row_end in run_again
-		trx->error_state = DB_UNSUPPORTED;
-		thr->fk_cascade_depth = 0;
-		return trx->error_state;
-	}
-
 	for (;;) {
 		if (vers_set_fields) {
 			// FIXME: code duplication with row_update_for_mysql()

@@ -575,13 +575,6 @@ struct TABLE_STATISTICS_CB
   bool histograms_are_read;   
 };
 
-enum vers_sys_type_t
-{
-  VERS_UNDEFINED= 0,
-  VERS_TIMESTAMP,
-  VERS_TRX_ID
-};
-
 /**
   This structure is shared between different table objects. There is one
   instance of table share per one table in the database.
