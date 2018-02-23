@@ -246,6 +246,10 @@ ulint	srv_buf_pool_base_size;
 ulint	srv_buf_pool_curr_size;
 /** Dump this % of each buffer pool during BP dump */
 ulong	srv_buf_pool_dump_pct;
+/** Abort load after this amount of pages */
+#ifdef UNIV_DEBUG
+ulong srv_buf_pool_load_pages_abort = LONG_MAX;
+#endif
 /** Lock table size in bytes */
 ulint	srv_lock_table_size	= ULINT_MAX;
 

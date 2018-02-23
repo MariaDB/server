@@ -930,6 +930,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_buffer_pool_load_status,	  SHOW_CHAR},
   {"buffer_pool_resize_status",
   (char*) &export_vars.innodb_buffer_pool_resize_status,  SHOW_CHAR},
+  {"buffer_pool_load_incomplete",
+  &export_vars.innodb_buffer_pool_load_incomplete,        SHOW_BOOL},
   {"buffer_pool_pages_data",
   (char*) &export_vars.innodb_buffer_pool_pages_data,	  SHOW_LONG},
   {"buffer_pool_bytes_data",
@@ -20157,6 +20159,12 @@ static MYSQL_SYSVAR_ULONG(buffer_pool_dump_pct, srv_buf_pool_dump_pct,
   NULL, NULL, 25, 1, 100, 0);
 
 #ifdef UNIV_DEBUG
+/* Added to test the innodb_buffer_pool_load_incomplete status variable. */
+static MYSQL_SYSVAR_ULONG(buffer_pool_load_pages_abort, srv_buf_pool_load_pages_abort,
+  PLUGIN_VAR_RQCMDARG,
+  "Number of pages during a buffer pool load to process before signaling innodb_buffer_pool_load_abort=1",
+  NULL, NULL, LONG_MAX, 1, LONG_MAX, 0);
+
 static MYSQL_SYSVAR_STR(buffer_pool_evict, srv_buffer_pool_evict,
   PLUGIN_VAR_RQCMDARG,
   "Evict pages from the buffer pool",
@@ -20901,6 +20909,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(buffer_pool_load_now),
   MYSQL_SYSVAR(buffer_pool_load_abort),
+#ifdef UNIV_DEBUG
+  MYSQL_SYSVAR(buffer_pool_load_pages_abort),
+#endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(buffer_pool_load_at_startup),
   MYSQL_SYSVAR(defragment),
   MYSQL_SYSVAR(defragment_n_pages),

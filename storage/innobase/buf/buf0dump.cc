@@ -413,6 +413,11 @@ buf_dump(
 
 	buf_dump_status(STATUS_INFO,
 			"Buffer pool(s) dump completed at %s", now);
+
+	/* Though dumping doesn't related to an incomplete load,
+	 we reset this to 0 here to indicate that a shutdown can also perform
+	 a dump */
+	export_vars.innodb_buffer_pool_load_incomplete = 0;
 }
 
 /*****************************************************************//**
@@ -576,6 +581,8 @@ buf_load()
 
 	rewind(f);
 
+	export_vars.innodb_buffer_pool_load_incomplete = 1;
+
 	for (i = 0; i < dump_n && !SHUTTING_DOWN(); i++) {
 		fscanf_ret = fscanf(f, ULINTPF "," ULINTPF,
 				    &space_id, &page_no);
@@ -624,7 +631,7 @@ buf_load()
 		ut_sprintf_timestamp(now);
 		buf_load_status(STATUS_INFO,
 				"Buffer pool(s) load completed at %s"
-				" (%s was empty)", now, full_filename);
+				" (%s was empty or had errors)", now, full_filename);
 		return;
 	}
 
@@ -713,6 +720,12 @@ buf_load()
 
 		buf_load_throttle_if_needed(
 			&last_check_time, &last_activity_cnt, i);
+
+#ifdef UNIV_DEBUG
+		if ((i+1) >= srv_buf_pool_load_pages_abort) {
+			buf_load_abort_flag = 1;
+		}
+#endif
 	}
 
 	if (space != NULL) {
@@ -723,8 +736,23 @@ buf_load()
 
 	ut_sprintf_timestamp(now);
 
-	buf_load_status(STATUS_INFO,
+	if (i == dump_n) {
+		buf_load_status(STATUS_INFO,
 			"Buffer pool(s) load completed at %s", now);
+		export_vars.innodb_buffer_pool_load_incomplete = 0;
+	} else if (!buf_load_abort_flag) {
+		buf_load_status(STATUS_INFO,
+			"Buffer pool(s) load aborted due to user instigated abort at %s",
+			now);
+		/* intentionally don't reset innodb_buffer_pool_load_incomplete
+                   as we don't want a shutdown to save the buffer pool */
+	} else {
+		buf_load_status(STATUS_INFO,
+			"Buffer pool(s) load aborted due to shutdown at %s",
+			now);
+		/* intentionally don't reset innodb_buffer_pool_load_incomplete
+                   as we want to abort without saving the buffer pool */
+	}
 
 	/* Make sure that estimated = completed when we end. */
 	/* mysql_stage_set_work_completed(pfs_stage_progress, dump_n); */
@@ -793,15 +821,16 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 	}
 
 	if (srv_buffer_pool_dump_at_shutdown && srv_fast_shutdown != 2) {
+		if (export_vars.innodb_buffer_pool_load_incomplete) {
+			buf_dump_status(STATUS_INFO,
+				"Dumping of buffer pool not started"
+				" as load was incomplete");
 #ifdef WITH_WSREP
-		if (!wsrep_recovery) {
+		} else if (wsrep_recovery) {
 #endif /* WITH_WSREP */
-
-		buf_dump(FALSE /* ignore shutdown down flag,
-		keep going even if we are in a shutdown state */);
-#ifdef WITH_WSREP
+		} else {
+			buf_dump(FALSE/* do complete dump at shutdown */);
 		}
-#endif /* WITH_WSREP */
 	}
 
 	srv_buf_dump_thread_active = false;
