@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -275,7 +275,6 @@ OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 extern my_bool	srv_use_native_aio;
-extern my_bool	srv_numa_interleave;
 
 /* Use atomic writes i.e disable doublewrite buffer */
 extern my_bool srv_use_atomic_writes;
@@ -372,10 +371,6 @@ extern const ulint	srv_buf_pool_def_size;
 /** Requested buffer pool chunk size. Each buffer pool instance consists
 of one or more chunks. */
 extern ulong		srv_buf_pool_chunk_unit;
-/** Requested number of buffer pool instances */
-extern ulong		srv_buf_pool_instances;
-/** Default number of buffer pool instances */
-extern const ulong	srv_buf_pool_instances_default;
 /** Number of locks to protect buf_pool->page_hash */
 extern ulong	srv_n_page_hash_locks;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
@@ -438,8 +433,6 @@ extern ulong	srv_innodb_stats_method;
 extern char*	srv_file_flush_method_str;
 
 extern ulint	srv_max_n_open_files;
-
-extern ulong	srv_n_page_cleaners;
 
 extern double	srv_max_dirty_pages_pct;
 extern double	srv_max_dirty_pages_pct_lwm;

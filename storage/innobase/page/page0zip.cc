@@ -4763,7 +4763,6 @@ page_zip_reorganize(
 	dict_index_t*	index,	/*!< in: index of the B-tree node */
 	mtr_t*		mtr)	/*!< in: mini-transaction */
 {
-	buf_pool_t*	buf_pool	= buf_pool_from_block(block);
 	page_zip_des_t*	page_zip	= buf_block_get_page_zip(block);
 	page_t*		page		= buf_block_get_frame(block);
 	buf_block_t*	temp_block;
@@ -4780,7 +4779,7 @@ page_zip_reorganize(
 	/* Disable logging */
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 
-	temp_block = buf_block_alloc(buf_pool);
+	temp_block = buf_block_alloc();
 	btr_search_drop_page_hash_index(block);
 	temp_page = temp_block->frame;
 

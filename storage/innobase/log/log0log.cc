@@ -1399,7 +1399,7 @@ log_preflush_pool_modified_pages(
 
 		success = buf_flush_lists(ULINT_MAX, new_oldest, &n_pages);
 
-		buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
+		buf_flush_wait_batch_end(BUF_FLUSH_LIST);
 
 		if (!success) {
 			MONITOR_INC(MONITOR_FLUSH_SYNC_WAITS);
@@ -1696,8 +1696,6 @@ log_checkpoint(
 			DEBUG_SYNC_C("wa_checkpoint_middle");
 
 			const my_bool b = TRUE;
-			buf_flush_page_cleaner_disabled_debug_update(
-				NULL, NULL, NULL, &b);
 			dict_stats_disabled_debug_update(
 				NULL, NULL, NULL, &b);
 			srv_master_thread_disabled_debug_update(
@@ -2026,7 +2024,7 @@ wait_suspend_loop:
 
 	ut_ad(!log_scrub_thread_active);
 
-	if (!buf_pool_ptr) {
+	if (!buf_pool) {
 		ut_ad(!srv_was_started);
 	} else if (ulint pending_io = buf_pool_check_no_pending_io()) {
 		if (srv_print_verbose_log && count > 600) {
@@ -2088,16 +2086,7 @@ wait_suspend_loop:
 		/* The call fil_write_flushed_lsn_to_data_files() will
 		bypass the buffer pool: therefore it is essential that
 		the buffer pool has been completely flushed to disk! */
-
-		if (!buf_all_freed()) {
-			if (srv_print_verbose_log && count > 600) {
-				ib::info() << "Waiting for dirty buffer pages"
-					" to be flushed";
-				count = 0;
-			}
-
-			goto loop;
-		}
+		buf_assert_all_freed();
 	} else {
 		lsn = srv_start_lsn;
 	}
@@ -2107,8 +2096,7 @@ wait_suspend_loop:
 	/* Make some checks that the server really is quiet */
 	ut_a(srv_get_active_thread_type() == SRV_NONE);
 
-	bool	freed = buf_all_freed();
-	ut_a(freed);
+	buf_assert_all_freed();
 
 	ut_a(lsn == log_sys->lsn
 	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
@@ -2134,8 +2122,7 @@ wait_suspend_loop:
 	/* Make some checks that the server really is quiet */
 	ut_a(srv_get_active_thread_type() == SRV_NONE);
 
-	freed = buf_all_freed();
-	ut_a(freed);
+	buf_assert_all_freed();
 
 	ut_a(lsn == log_sys->lsn
 	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);

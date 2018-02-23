@@ -1101,7 +1101,7 @@ buf_dblwr_add_to_batch(
 	buf_page_t*	bpage)
 {
 	ut_a(buf_page_in_file(bpage));
-	ut_ad(!mutex_own(&buf_pool_from_bpage(bpage)->LRU_list_mutex));
+	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
 
 try_again:
 	mutex_enter(&buf_dblwr->mutex);

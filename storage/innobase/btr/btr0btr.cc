@@ -1601,7 +1601,6 @@ btr_page_reorganize_low(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	buf_block_t*	block		= page_cur_get_block(cursor);
-	buf_pool_t*	buf_pool	= buf_pool_from_bpage(&block->page);
 	page_t*		page		= buf_block_get_frame(block);
 	page_zip_des_t*	page_zip	= buf_block_get_page_zip(block);
 	buf_block_t*	temp_block;
@@ -1626,7 +1625,7 @@ btr_page_reorganize_low(
 	/* Turn logging off */
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 
-	temp_block = buf_block_alloc(buf_pool);
+	temp_block = buf_block_alloc();
 	temp_page = temp_block->frame;
 
 	MONITOR_INC(MONITOR_INDEX_REORG_ATTEMPTS);

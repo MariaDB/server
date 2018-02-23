@@ -206,7 +206,7 @@ btr_search_check_free_space_in_heap(const dict_index_t* index)
 	be enough free space in the hash table. */
 
 	if (heap->free_block == NULL) {
-		buf_block_t*	block = buf_block_alloc(NULL);
+		buf_block_t*	block = buf_block_alloc();
 		rw_lock_t*	ahi_latch = btr_get_search_latch(index);
 
 		rw_lock_x_lock(ahi_latch);
@@ -1062,11 +1062,7 @@ fail:
 
 	/* Increment the page get statistics though we did not really
 	fix the page: for user info only */
-	{
-		buf_pool_t*	buf_pool = buf_pool_from_bpage(&block->page);
-
-		++buf_pool->stat.n_page_gets;
-	}
+	++buf_pool->stat.n_page_gets;
 
 	return(TRUE);
 }
@@ -2020,10 +2016,8 @@ btr_search_hash_table_validate(ulint hash_table_id)
 			buf_block_t*	block
 				= buf_block_from_ahi((byte*) node->data);
 			const buf_block_t*	hash_block;
-			buf_pool_t*		buf_pool;
 			index_id_t		page_index_id;
 
-			buf_pool = buf_pool_from_bpage((buf_page_t*) block);
 			/* Prevent BUF_BLOCK_FILE_PAGE -> BUF_BLOCK_REMOVE_HASH
 			transition until we lock the block mutex */
 			mutex_enter(&buf_pool->LRU_list_mutex);
@@ -2037,7 +2031,6 @@ btr_search_hash_table_validate(ulint hash_table_id)
 				(BUF_BLOCK_REMOVE_HASH, see the
 				assertion and the comment below) */
 				hash_block = buf_block_hash_get(
-					buf_pool,
 					block->page.id);
 			} else {
 				hash_block = NULL;

@@ -1162,8 +1162,8 @@ btr_cur_search_to_nth_level_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH
-			&& buf_get_n_pending_read_ios()) {
+		    && buf_pool->n_pend_reads
+		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else if (dict_index_is_spatial(index)
 			   && lock_intention <= BTR_INTENTION_BOTH) {
@@ -2301,8 +2301,8 @@ btr_cur_open_at_index_side_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH
-		    && buf_get_n_pending_read_ios()) {
+		    && buf_pool->n_pend_reads
+		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else {
 			mtr_sx_lock(dict_index_get_lock(index), mtr);
@@ -2647,8 +2647,8 @@ btr_cur_open_at_rnd_pos_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH
-		    && buf_get_n_pending_read_ios()) {
+		    && buf_pool->n_pend_reads
+		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else {
 			mtr_sx_lock(dict_index_get_lock(index), mtr);
@@ -6967,7 +6967,6 @@ btr_blob_free(
 				if there is one */
 	mtr_t*		mtr)	/*!< in: mini-transaction to commit */
 {
-	buf_pool_t*	buf_pool = buf_pool_from_block(block);
 	page_id_t	page_id(block->page.id.space(),
 				block->page.id.page_no());
 	bool		freed = false;

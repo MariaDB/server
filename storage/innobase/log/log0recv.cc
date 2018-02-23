@@ -1883,9 +1883,8 @@ recv_read_in_area(
 
 		recv_addr = recv_get_fil_addr_struct(page_id.space(), page_no);
 
-		const page_id_t	cur_page_id(page_id.space(), page_no);
-
-		if (recv_addr && !buf_page_peek(cur_page_id)) {
+		if (recv_addr && !buf_page_hash_get(page_id_t(page_id.space(),
+							      page_no))) {
 
 			mutex_enter(&(recv_sys->mutex));
 
@@ -1982,7 +1981,7 @@ recv_apply_hashed_log_recs(bool last_batch)
 			if (recv_addr->state == RECV_NOT_PROCESSED) {
 				mutex_exit(&recv_sys->mutex);
 
-				if (buf_page_peek(page_id)) {
+				if (buf_page_hash_get(page_id)) {
 					mtr_t	mtr;
 					mtr.start();
 
@@ -2906,8 +2905,7 @@ recv_group_scan_log_recs(
 	store_t	store_to_hash	= recv_sys->mlog_checkpoint_lsn == 0
 		? STORE_NO : (last_phase ? STORE_IF_EXISTS : STORE_YES);
 	ulint	available_mem	= UNIV_PAGE_SIZE
-		* (buf_pool_get_n_pages()
-		   - (recv_n_pool_free_frames * srv_buf_pool_instances));
+		* (buf_pool_get_n_pages() - recv_n_pool_free_frames);
 
 	group->scanned_lsn = end_lsn = *contiguous_lsn = ut_uint64_align_down(
 		*contiguous_lsn, OS_FILE_LOG_BLOCK_SIZE);

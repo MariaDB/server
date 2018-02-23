@@ -1396,7 +1396,7 @@ srv_prepare_to_delete_redo_log_files(
 
 	do {
 		/* Clean the buffer pool. */
-		buf_flush_sync_all_buf_pools();
+		buf_flush_sync();
 
 		DBUG_EXECUTE_IF("innodb_log_abort_1", DBUG_RETURN(0););
 		DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
@@ -1656,73 +1656,23 @@ innobase_start_or_create_for_mysql()
 			    + 1 /* trx_rollback_all_recovered */
 			    + 128 /* added as margin, for use of
 				  InnoDB Memcached etc. */
+			    + 1/* buf_flush_page_cleaner_coordinator */
 			    + max_connections
 			    + srv_n_read_io_threads
 			    + srv_n_write_io_threads
 			    + srv_n_purge_threads
-			    + srv_n_page_cleaners
 			    /* FTS Parallel Sort */
 			    + fts_sort_pll_degree * FTS_NUM_AUX_INDEX
 			      * max_connections;
 
-	if (srv_buf_pool_size >= BUF_POOL_SIZE_THRESHOLD) {
-
-		if (srv_buf_pool_instances == srv_buf_pool_instances_default) {
-#if defined(_WIN32) && !defined(_WIN64)
-			/* Do not allocate too large of a buffer pool on
-			Windows 32-bit systems, which can have trouble
-			allocating larger single contiguous memory blocks. */
-			srv_buf_pool_size = static_cast<ulint>(ut_uint64_align_up(srv_buf_pool_size, srv_buf_pool_chunk_unit));
-			srv_buf_pool_instances = ut_min(
-				static_cast<ulong>(MAX_BUFFER_POOLS),
-				static_cast<ulong>(srv_buf_pool_size / srv_buf_pool_chunk_unit));
-#else /* defined(_WIN32) && !defined(_WIN64) */
-			/* Default to 8 instances when size > 1GB. */
-			srv_buf_pool_instances = 8;
-#endif /* defined(_WIN32) && !defined(_WIN64) */
-		}
-	} else {
-		/* If buffer pool is less than 1 GiB, assume fewer
-		threads. Also use only one buffer pool instance. */
-		if (srv_buf_pool_instances != srv_buf_pool_instances_default
-		    && srv_buf_pool_instances != 1) {
-			/* We can't distinguish whether the user has explicitly
-			started mysqld with --innodb-buffer-pool-instances=0,
-			(srv_buf_pool_instances_default is 0) or has not
-			specified that option at all. Thus we have the
-			limitation that if the user started with =0, we
-			will not emit a warning here, but we should actually
-			do so. */
-			ib::info()
-				<< "Adjusting innodb_buffer_pool_instances"
-				" from " << srv_buf_pool_instances << " to 1"
-				" since innodb_buffer_pool_size is less than "
-				<< BUF_POOL_SIZE_THRESHOLD / (1024 * 1024)
-				<< " MiB";
-		}
-
-		srv_buf_pool_instances = 1;
-	}
-
-	if (srv_buf_pool_chunk_unit * srv_buf_pool_instances
-	    > srv_buf_pool_size) {
+	if (srv_buf_pool_chunk_unit > srv_buf_pool_size) {
 		/* Size unit of buffer pool is larger than srv_buf_pool_size.
 		adjust srv_buf_pool_chunk_unit for srv_buf_pool_size. */
 		srv_buf_pool_chunk_unit
-			= static_cast<ulong>(srv_buf_pool_size)
-			  / srv_buf_pool_instances;
-		if (srv_buf_pool_size % srv_buf_pool_instances != 0) {
-			++srv_buf_pool_chunk_unit;
-		}
+			= static_cast<ulong>(srv_buf_pool_size);
 	}
 
 	srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
-
-	if (srv_n_page_cleaners > srv_buf_pool_instances) {
-		/* limit of page_cleaner parallelizability
-		is number of buffer pool instances. */
-		srv_n_page_cleaners = srv_buf_pool_instances;
-	}
 
 	srv_boot();
 
@@ -1804,35 +1754,11 @@ innobase_start_or_create_for_mysql()
 
 	fil_init(srv_file_per_table ? 50000 : 5000, srv_max_n_open_files);
 
-	double	size;
-	char	unit;
-
-	if (srv_buf_pool_size >= 1024 * 1024 * 1024) {
-		size = ((double) srv_buf_pool_size) / (1024 * 1024 * 1024);
-		unit = 'G';
-	} else {
-		size = ((double) srv_buf_pool_size) / (1024 * 1024);
-		unit = 'M';
-	}
-
-	double	chunk_size;
-	char	chunk_unit;
-
-	if (srv_buf_pool_chunk_unit >= 1024 * 1024 * 1024) {
-		chunk_size = srv_buf_pool_chunk_unit / 1024.0 / 1024 / 1024;
-		chunk_unit = 'G';
-	} else {
-		chunk_size = srv_buf_pool_chunk_unit / 1024.0 / 1024;
-		chunk_unit = 'M';
-	}
-
 	ib::info() << "Initializing buffer pool, total size = "
-		<< size << unit << ", instances = " << srv_buf_pool_instances
-		<< ", chunk size = " << chunk_size << chunk_unit;
+		<< srv_buf_pool_size
+		<< ", chunk size = " << srv_buf_pool_chunk_unit;
 
-	err = buf_pool_init(srv_buf_pool_size, srv_buf_pool_instances);
-
-	if (err != DB_SUCCESS) {
+	if (buf_pool_init()) {
 		ib::error() << "Cannot allocate memory for the buffer pool";
 
 		return(srv_init_abort(DB_ERROR));
@@ -1875,12 +1801,6 @@ innobase_start_or_create_for_mysql()
 		buf_page_cleaner_is_active = true;
 		os_thread_create(buf_flush_page_cleaner_coordinator,
 				 NULL, NULL);
-
-		/* Create page cleaner workers if needed. For example
-		mariabackup could set srv_n_page_cleaners = 0. */
-		if (srv_n_page_cleaners > 1) {
-			buf_flush_set_page_cleaner_thread_cnt(srv_n_page_cleaners);
-		}
 
 #ifdef UNIV_LINUX
 		/* Wait for the setpriority() call to finish. */
@@ -1961,7 +1881,7 @@ innobase_start_or_create_for_mysql()
 
 	if (create_new_db) {
 
-		buf_flush_sync_all_buf_pools();
+		buf_flush_sync();
 
 		flushed_lsn = log_get_lsn();
 
@@ -2183,7 +2103,7 @@ files_checked:
 			return(srv_init_abort(err));
 		}
 
-		buf_flush_sync_all_buf_pools();
+		buf_flush_sync();
 
 		flushed_lsn = log_get_lsn();
 
@@ -2337,7 +2257,7 @@ files_checked:
 			ut_ad(!srv_force_recovery);
 			ut_ad(srv_n_log_files_found <= 1);
 			ut_ad(recv_no_log_write);
-			buf_flush_sync_all_buf_pools();
+			buf_flush_sync();
 			err = fil_write_flushed_lsn(log_get_lsn());
 			ut_ad(!buf_pool_check_no_pending_io());
 			fil_close_log_files(true);
@@ -2912,9 +2832,9 @@ innodb_shutdown()
 	pars_lexer_close();
 	recv_sys_close();
 
-	ut_ad(buf_pool_ptr || !srv_was_started);
-	if (buf_pool_ptr) {
-		buf_pool_free(srv_buf_pool_instances);
+	ut_ad(buf_pool || !srv_was_started);
+	if (buf_pool) {
+		buf_pool_free();
 	}
 
 	sync_check_close();

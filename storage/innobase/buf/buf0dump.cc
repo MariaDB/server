@@ -253,16 +253,12 @@ SET GLOBAL innodb_buffer_pool_filename='filename';
 @param[in]	obey_shutdown	quit if we are in a shutting down state */
 static
 void
-buf_dump(
-	ibool	obey_shutdown)
+buf_dump(bool obey_shutdown)
 {
-#define SHOULD_QUIT()	(SHUTTING_DOWN() && obey_shutdown)
-
 	char	full_filename[OS_FILE_MAX_PATH];
 	char	tmp_filename[OS_FILE_MAX_PATH];
 	char	now[32];
 	FILE*	f;
-	ulint	i;
 	int	ret;
 
 	buf_dump_generate_path(full_filename, sizeof(full_filename));
@@ -280,101 +276,91 @@ buf_dump(
 				tmp_filename, strerror(errno));
 		return;
 	}
-	/* else */
+	const buf_page_t*	bpage;
+	buf_dump_t*		dump;
+	ulint			n_pages;
+	ulint			j;
 
-	/* walk through each buffer pool */
-	for (i = 0; i < srv_buf_pool_instances && !SHOULD_QUIT(); i++) {
-		buf_pool_t*		buf_pool;
-		const buf_page_t*	bpage;
-		buf_dump_t*		dump;
-		ulint			n_pages;
-		ulint			j;
+	/* obtain buf_pool LRU list mutex before allocate, since
+	UT_LIST_GET_LEN(buf_pool->LRU) could change */
+	mutex_enter(&buf_pool->LRU_list_mutex);
 
-		buf_pool = buf_pool_from_array(i);
+	n_pages = UT_LIST_GET_LEN(buf_pool->LRU);
 
-		/* obtain buf_pool LRU list mutex before allocate, since
-		UT_LIST_GET_LEN(buf_pool->LRU) could change */
-		mutex_enter(&buf_pool->LRU_list_mutex);
+	/* skip empty buffer pools */
+	if (n_pages == 0) {
+		mutex_exit(&buf_pool->LRU_list_mutex);
+		goto done;
+	}
 
-		n_pages = UT_LIST_GET_LEN(buf_pool->LRU);
+	if (srv_buf_pool_dump_pct != 100) {
+		ulint		t_pages;
 
-		/* skip empty buffer pools */
+		ut_ad(srv_buf_pool_dump_pct < 100);
+
+		/* limit the number of total pages dumped to X% of the
+		total number of pages */
+		t_pages = buf_pool->curr_size * srv_buf_pool_dump_pct / 100;
+		if (n_pages > t_pages) {
+			buf_dump_status(STATUS_INFO,
+					"Restricted to " ULINTPF
+					" pages due to "
+					"innodb_buf_pool_dump_pct=%lu",
+					t_pages, srv_buf_pool_dump_pct);
+			n_pages = t_pages;
+		}
+
 		if (n_pages == 0) {
-			mutex_exit(&buf_pool->LRU_list_mutex);
-			continue;
+			n_pages = 1;
 		}
+	}
 
-		if (srv_buf_pool_dump_pct != 100) {
-			ulint		t_pages;
+	dump = static_cast<buf_dump_t*>(ut_malloc_nokey(
+						n_pages * sizeof(*dump)));
 
-			ut_ad(srv_buf_pool_dump_pct < 100);
+	if (dump == NULL) {
+		mutex_exit(&buf_pool->LRU_list_mutex);
+		fclose(f);
+		buf_dump_status(STATUS_ERR,
+				"Cannot allocate " ULINTPF " bytes: %s",
+				(ulint) (n_pages * sizeof(*dump)),
+				strerror(errno));
+		/* leave tmp_filename to exist */
+		return;
+	}
 
-			/* limit the number of total pages dumped to X% of the
-			 * total number of pages */
-			t_pages = buf_pool->curr_size
-					*  srv_buf_pool_dump_pct / 100;
-			if (n_pages > t_pages) {
-				buf_dump_status(STATUS_INFO,
-						"Instance " ULINTPF
-						", restricted to " ULINTPF
-						" pages due to "
-						"innodb_buf_pool_dump_pct=%lu",
-						i, t_pages,
-						srv_buf_pool_dump_pct);
-				n_pages = t_pages;
-			}
+	for (bpage = UT_LIST_GET_FIRST(buf_pool->LRU), j = 0;
+	     bpage != NULL && j < n_pages;
+	     bpage = UT_LIST_GET_NEXT(LRU, bpage), j++) {
 
-			if (n_pages == 0) {
-				n_pages = 1;
-			}
-		}
+		ut_a(buf_page_in_file(bpage));
 
-		dump = static_cast<buf_dump_t*>(ut_malloc_nokey(
-				n_pages * sizeof(*dump)));
+		dump[j] = BUF_DUMP_CREATE(bpage->id.space(),
+					  bpage->id.page_no());
+	}
 
-		if (dump == NULL) {
-			mutex_exit(&buf_pool->LRU_list_mutex);
+	ut_a(j == n_pages);
+
+	mutex_exit(&buf_pool->LRU_list_mutex);
+
+	for (j = 0; j < n_pages && !(SHUTTING_DOWN() && obey_shutdown); j++) {
+		ret = fprintf(f, ULINTPF "," ULINTPF "\n",
+			      BUF_DUMP_SPACE(dump[j]),
+			      BUF_DUMP_PAGE(dump[j]));
+		if (ret < 0) {
+			ut_free(dump);
 			fclose(f);
 			buf_dump_status(STATUS_ERR,
-					"Cannot allocate " ULINTPF " bytes: %s",
-					(ulint) (n_pages * sizeof(*dump)),
-					strerror(errno));
+					"Cannot write to '%s': %s",
+					tmp_filename, strerror(errno));
 			/* leave tmp_filename to exist */
 			return;
 		}
-
-		for (bpage = UT_LIST_GET_FIRST(buf_pool->LRU), j = 0;
-		     bpage != NULL && j < n_pages;
-		     bpage = UT_LIST_GET_NEXT(LRU, bpage), j++) {
-
-			ut_a(buf_page_in_file(bpage));
-
-			dump[j] = BUF_DUMP_CREATE(bpage->id.space(),
-						  bpage->id.page_no());
-		}
-
-		ut_a(j == n_pages);
-
-		mutex_exit(&buf_pool->LRU_list_mutex);
-
-		for (j = 0; j < n_pages && !SHOULD_QUIT(); j++) {
-			ret = fprintf(f, ULINTPF "," ULINTPF "\n",
-				      BUF_DUMP_SPACE(dump[j]),
-				      BUF_DUMP_PAGE(dump[j]));
-			if (ret < 0) {
-				ut_free(dump);
-				fclose(f);
-				buf_dump_status(STATUS_ERR,
-						"Cannot write to '%s': %s",
-						tmp_filename, strerror(errno));
-				/* leave tmp_filename to exist */
-				return;
-			}
-		}
-
-		ut_free(dump);
 	}
 
+	ut_free(dump);
+
+done:
 	ret = fclose(f);
 	if (ret != 0) {
 		buf_dump_status(STATUS_ERR,
@@ -500,7 +486,6 @@ buf_load()
 	FILE*		f;
 	buf_dump_t*	dump;
 	ulint		dump_n;
-	ulint		total_buffer_pools_pages;
 	ulint		i;
 	ulint		space_id;
 	ulint		page_no;
@@ -550,13 +535,9 @@ buf_load()
 	/* If dump is larger than the buffer pool(s), then we ignore the
 	extra trailing. This could happen if a dump is made, then buffer
 	pool is shrunk and then load is attempted. */
-	total_buffer_pools_pages = buf_pool_get_n_pages()
-		* srv_buf_pool_instances;
-	if (dump_n > total_buffer_pools_pages) {
-		dump_n = total_buffer_pools_pages;
-	}
+	dump_n = std::min(dump_n, buf_pool_get_n_pages());
 
-	if(dump_n != 0) {
+	if (dump_n != 0) {
 		dump = static_cast<buf_dump_t*>(ut_malloc_nokey(
 				dump_n * sizeof(*dump)));
 	} else {
@@ -804,7 +785,7 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 
 		if (buf_dump_should_start) {
 			buf_dump_should_start = false;
-			buf_dump(TRUE /* quit on shutdown */);
+			buf_dump(true);
 		}
 
 		if (buf_load_should_start) {
@@ -827,7 +808,7 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 		} else if (wsrep_recovery) {
 #endif /* WITH_WSREP */
 		} else {
-			buf_dump(FALSE/* do complete dump at shutdown */);
+			buf_dump(false/* do complete dump at shutdown */);
 		}
 	}
 

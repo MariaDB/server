@@ -163,7 +163,6 @@ OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 my_bool	srv_use_native_aio;
-my_bool	srv_numa_interleave;
 /** copy of innodb_use_atomic_writes; @see innobase_init() */
 my_bool	srv_use_atomic_writes;
 /** innodb_compression_algorithm; used with page compression */
@@ -227,10 +226,6 @@ const ulint	srv_buf_pool_def_size	= 128 * 1024 * 1024;
 /** Requested buffer pool chunk size. Each buffer pool instance consists
 of one or more chunks. */
 ulong	srv_buf_pool_chunk_unit;
-/** innodb_buffer_pool_instances (0 is interpreted as 1) */
-ulong	srv_buf_pool_instances;
-/** Default value of innodb_buffer_pool_instances */
-const ulong	srv_buf_pool_instances_default = 0;
 /** innodb_page_hash_locks (a debug-only parameter);
 number of locks to protect buf_pool->page_hash */
 ulong	srv_n_page_hash_locks = 16;
@@ -285,9 +280,6 @@ ulint	srv_max_n_open_files;
 ulong	srv_io_capacity;
 /** innodb_io_capacity_max */
 ulong	srv_max_io_capacity;
-
-/** innodb_page_cleaners; the number of page cleaner threads */
-ulong	srv_n_page_cleaners;
 
 /* The InnoDB main thread tries to keep the ratio of modified pages
 in the buffer pool to all database pages in the buffer pool smaller than
@@ -1173,7 +1165,7 @@ srv_refresh_innodb_monitor_stats(void)
 
 	log_refresh_stats();
 
-	buf_refresh_io_stats_all();
+	buf_refresh_io_stats();
 
 	srv_n_rows_inserted_old = srv_stats.n_rows_inserted;
 	srv_n_rows_updated_old = srv_stats.n_rows_updated;
@@ -1446,17 +1438,9 @@ void
 srv_export_innodb_status(void)
 /*==========================*/
 {
-	buf_pool_stat_t		stat;
-	buf_pools_list_size_t	buf_pools_list_size;
-	ulint			LRU_len;
-	ulint			free_len;
-	ulint			flush_list_len;
 	fil_crypt_stat_t	crypt_stat;
 	btr_scrub_stat_t	scrub_stat;
 
-	buf_get_total_stat(&stat);
-	buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
-	buf_get_total_list_size_in_bytes(&buf_pools_list_size);
 	if (!srv_read_only_mode) {
 		fil_crypt_total_stat(&crypt_stat);
 		btr_scrub_total_stat(&scrub_stat);
@@ -1484,7 +1468,8 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_data_written = srv_stats.data_written;
 
-	export_vars.innodb_buffer_pool_read_requests = stat.n_page_gets;
+	export_vars.innodb_buffer_pool_read_requests
+		= buf_pool->stat.n_page_gets;
 
 	export_vars.innodb_buffer_pool_write_requests =
 		srv_stats.buf_pool_write_requests;
@@ -1498,26 +1483,29 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_reads = srv_stats.buf_pool_reads;
 
 	export_vars.innodb_buffer_pool_read_ahead_rnd =
-		stat.n_ra_pages_read_rnd;
+		buf_pool->stat.n_ra_pages_read_rnd;
 
 	export_vars.innodb_buffer_pool_read_ahead =
-		stat.n_ra_pages_read;
+		buf_pool->stat.n_ra_pages_read;
 
 	export_vars.innodb_buffer_pool_read_ahead_evicted =
-		stat.n_ra_pages_evicted;
+		buf_pool->stat.n_ra_pages_evicted;
 
-	export_vars.innodb_buffer_pool_pages_data = LRU_len;
+	export_vars.innodb_buffer_pool_pages_data =
+		UT_LIST_GET_LEN(buf_pool->LRU);
 
 	export_vars.innodb_buffer_pool_bytes_data =
-		buf_pools_list_size.LRU_bytes
-		+ buf_pools_list_size.unzip_LRU_bytes;
+		buf_pool->stat.LRU_bytes
+		+ UT_LIST_GET_LEN(buf_pool->unzip_LRU) * srv_page_size;
 
-	export_vars.innodb_buffer_pool_pages_dirty = flush_list_len;
+	export_vars.innodb_buffer_pool_pages_dirty =
+		UT_LIST_GET_LEN(buf_pool->flush_list);
 
 	export_vars.innodb_buffer_pool_bytes_dirty =
-		buf_pools_list_size.flush_list_bytes;
+		buf_pool->stat.flush_list_bytes;
 
-	export_vars.innodb_buffer_pool_pages_free = free_len;
+	export_vars.innodb_buffer_pool_pages_free =
+		UT_LIST_GET_LEN(buf_pool->free);
 
 #ifdef UNIV_DEBUG
 	export_vars.innodb_buffer_pool_pages_latched =
@@ -1526,7 +1514,9 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_pages_total = buf_pool_get_n_pages();
 
 	export_vars.innodb_buffer_pool_pages_misc =
-		buf_pool_get_n_pages() - LRU_len - free_len;
+		buf_pool_get_n_pages()
+		- UT_LIST_GET_LEN(buf_pool->LRU)
+		- UT_LIST_GET_LEN(buf_pool->free);
 
 #ifdef HAVE_ATOMIC_BUILTINS
 	export_vars.innodb_have_atomic_builtins = 1;
@@ -1556,12 +1546,12 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_dblwr_writes = srv_stats.dblwr_writes;
 
-	export_vars.innodb_pages_created = stat.n_pages_created;
+	export_vars.innodb_pages_created = buf_pool->stat.n_pages_created;
 
-	export_vars.innodb_pages_read = stat.n_pages_read;
+	export_vars.innodb_pages_read = buf_pool->stat.n_pages_read;
 	export_vars.innodb_page0_read = srv_stats.page0_read;
 
-	export_vars.innodb_pages_written = stat.n_pages_written;
+	export_vars.innodb_pages_written = buf_pool->stat.n_pages_written;
 
 	export_vars.innodb_row_lock_waits = srv_stats.n_lock_wait_count;
 

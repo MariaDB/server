@@ -546,30 +546,25 @@ void lock_sys_t::resize(ulint n_cells)
 	hash_table_free(old_hash);
 
 	/* need to update block->lock_hash_val */
-	for (ulint i = 0; i < srv_buf_pool_instances; ++i) {
-		buf_pool_t*	buf_pool = buf_pool_from_array(i);
+	mutex_enter(&buf_pool->LRU_list_mutex);
+	buf_page_t*	bpage;
+	bpage = UT_LIST_GET_FIRST(buf_pool->LRU);
 
-		mutex_enter(&buf_pool->LRU_list_mutex);
-		buf_page_t*	bpage;
-		bpage = UT_LIST_GET_FIRST(buf_pool->LRU);
+	while (bpage != NULL) {
+		if (buf_page_get_state(bpage)
+		    == BUF_BLOCK_FILE_PAGE) {
+			buf_block_t*	block;
+			block = reinterpret_cast<buf_block_t*>(
+				bpage);
 
-		while (bpage != NULL) {
-			if (buf_page_get_state(bpage)
-			    == BUF_BLOCK_FILE_PAGE) {
-				buf_block_t*	block;
-				block = reinterpret_cast<buf_block_t*>(
-					bpage);
-
-				block->lock_hash_val
-					= lock_rec_hash(
-						bpage->id.space(),
-						bpage->id.page_no());
-			}
-			bpage = UT_LIST_GET_NEXT(LRU, bpage);
+			block->lock_hash_val
+				= lock_rec_hash(
+					bpage->id.space(),
+					bpage->id.page_no());
 		}
-		mutex_exit(&buf_pool->LRU_list_mutex);
+		bpage = UT_LIST_GET_NEXT(LRU, bpage);
 	}
-
+	mutex_exit(&buf_pool->LRU_list_mutex);
 	mutex_exit(&mutex);
 }
 
