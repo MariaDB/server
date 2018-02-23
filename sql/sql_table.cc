@@ -3656,9 +3656,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (key->type == Key::FOREIGN_KEY)
     {
       fk_key_count++;
-      if (((Foreign_key *)key)->validate(alter_info->create_list))
-        DBUG_RETURN(TRUE);
       Foreign_key *fk_key= (Foreign_key*) key;
+      if (fk_key->validate(alter_info->create_list))
+        DBUG_RETURN(TRUE);
       if (fk_key->ref_columns.elements &&
 	  fk_key->ref_columns.elements != fk_key->columns.elements)
       {
@@ -4455,12 +4455,8 @@ bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 }
 
 
-static bool
-vers_prepare_keys(THD *thd,
-                         HA_CREATE_INFO *create_info,
-                         Alter_info *alter_info,
-                         KEY **key_info,
-                         uint key_count)
+static bool vers_prepare_keys(THD *thd, HA_CREATE_INFO *create_info,
+                         Alter_info *alter_info, KEY **key_info, uint key_count)
 {
   DBUG_ASSERT(create_info->versioned());
 

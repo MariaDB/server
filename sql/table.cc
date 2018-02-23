@@ -8554,6 +8554,12 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   return names + opt;
 }
 
+bool fk_modifies_child(enum_fk_option opt)
+{
+  static bool can_write[]= { false, false, true, true, false, true };
+  return can_write[opt];
+}
+
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
 
 TR_table::TR_table(THD* _thd, bool rw) :

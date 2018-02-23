@@ -912,14 +912,14 @@ got_error:
     wild_num            - number of wildcards used in optional SELECT clause 
     field_list          - list of items in optional SELECT clause
     conds		- conditions
-l
+
   RETURN VALUE
     FALSE OK
     TRUE  error
 */
-  int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
-                           uint wild_num, List<Item> &field_list, Item **conds,
-                           bool *delete_while_scanning)
+int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
+                         uint wild_num, List<Item> &field_list, Item **conds,
+                         bool *delete_while_scanning)
 {
   Item *fake_conds= 0;
   SELECT_LEX *select_lex= &thd->lex->select_lex;

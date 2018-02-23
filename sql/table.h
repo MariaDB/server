@@ -1620,6 +1620,7 @@ typedef struct st_foreign_key_info
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
+bool fk_modifies_child(enum_fk_option opt);
 
 #define MY_I_S_MAYBE_NULL 1U
 #define MY_I_S_UNSIGNED   2U
@@ -1943,10 +1944,10 @@ struct TABLE_LIST
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
   */
-inline void init_one_table(const LEX_CSTRING *db_arg,
-                           const LEX_CSTRING *table_name_arg,
-                           const LEX_CSTRING *alias_arg,
-                           enum thr_lock_type lock_type_arg)
+  inline void init_one_table(const LEX_CSTRING *db_arg,
+                             const LEX_CSTRING *table_name_arg,
+                             const LEX_CSTRING *alias_arg,
+                             enum thr_lock_type lock_type_arg)
   {
     bzero((char*) this, sizeof(*this));
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
