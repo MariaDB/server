@@ -13571,9 +13571,6 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     // check whether master table is unversioned
     if (row_end->val_int() == 0)
     {
-      // row_start initialized with NULL when came from plain table.
-      // Set it notnull() because record_compare() count NULLs.
-      table->vers_start_field()->set_notnull();
       bitmap_set_bit(table->write_set, row_end->field_index);
       // Plain source table may have a PRIMARY KEY. And row_end is always
       // a part of PRIMARY KEY. Set it to max value for engine to find it in
