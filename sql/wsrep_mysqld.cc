@@ -682,6 +682,13 @@ wsrep_view_handler_cb(void*                    app_ctx,
     unireg_abort(1);
   }
 
+  /*
+    If the recv_ctx is a pointer to thd object we need to store globals
+    here as wsrep_schema->store_view() uses temporary thd object and
+    writes over thread locals.
+   */
+  if (recv_ctx) ((THD*) recv_ctx)->store_globals();
+
   if (wsrep_startup == TRUE) {
     wsrep_init_SR();
   }
