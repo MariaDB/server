@@ -157,4 +157,11 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 connection master;
 drop table t1, t2;
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+connection slave;
+connection master;
+drop table t1;
 include/rpl_end.inc
