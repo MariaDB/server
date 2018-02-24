@@ -103,7 +103,7 @@ mysql_socket_invalid()
   @param socket nstrumented socket
   @param fd socket descriptor
   @param addr unformatted socket address
-  @param adr_len length of socket addres
+  @param adr_len length of socket address
 */
 
 static inline void

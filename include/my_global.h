@@ -460,7 +460,7 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 #define UNINIT_VAR(x) x
 #endif
 
-/* This is only to be used when reseting variables in a class constructor */
+/* This is only to be used when resetting variables in a class constructor */
 #if defined(_lint) || defined(FORCE_INIT_OF_VARS)
 #define LINT_INIT(x) x= 0
 #else
@@ -553,7 +553,7 @@ C_MODE_START
 typedef int	(*qsort_cmp)(const void *,const void *);
 typedef int	(*qsort_cmp2)(void*, const void *,const void *);
 C_MODE_END
-#define qsort_t RETQSORTTYPE	/* Broken GCC cant handle typedef !!!! */
+#define qsort_t RETQSORTTYPE	/* Broken GCC can't handle typedef !!!! */
 #ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif

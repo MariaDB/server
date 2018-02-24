@@ -47,7 +47,7 @@ size_t my_strnxfrmlen_simple(CHARSET_INFO *cs, size_t len)
      is equal to comparing two original strings with my_strnncollsp_xxx().
      
      Not more than 'dstlen' bytes are written into 'dst'.
-     To garantee that the whole string is transformed, 'dstlen' must be
+     To guarantee that the whole string is transformed, 'dstlen' must be
      at least srclen*cs->strnxfrm_multiply bytes long. Otherwise,
      consequent memcmp() may return a non-accurate result.
      
@@ -1537,7 +1537,7 @@ static ulonglong d10[DIGITS_IN_ULONGLONG]=
   Convert a string to unsigned long long integer value
   with rounding.
   
-  SYNOPSYS
+  SYNOPSIS
     my_strntoull10_8bit()
       cs              in      pointer to character set
       str             in      pointer to the string to be converted

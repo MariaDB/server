@@ -22,7 +22,7 @@
 
 
 /*
-   This file is basicly tis620 character sets with some extra functions
+   This file is basically tis620 character sets with some extra functions
    for tis-620 handling
 */
 
@@ -502,7 +502,7 @@ static size_t thai2sortable(uchar *tstr, size_t len)
   string
 
   NOTE:
-    We can't cut strings at end \0 as this would break comparision with
+    We can't cut strings at end \0 as this would break comparison with
     LIKE characters, where the min range is stored as end \0
 
   Arg: 2 Strings and it compare length
@@ -594,7 +594,7 @@ int my_strnncollsp_tis620_nopad(CHARSET_INFO * cs __attribute__((unused)),
   strnxfrm replacment, convert Thai string to sortable string
 
   Arg: Destination buffer, source string, dest length and source length
-  Ret: Conveted string size
+  Ret: Converted string size
 */
 
 static size_t

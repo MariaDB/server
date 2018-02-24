@@ -40,7 +40,7 @@
 /*
   Avoid using my_snprintf
   We cannot use my_snprintf() here, because ctype.o is
-  used to build conf_to_src, which must require minimun
+  used to build conf_to_src, which must require minimum
   dependency.
 */
 

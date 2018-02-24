@@ -1065,7 +1065,7 @@ my_fill_mb2(CHARSET_INFO *cs, char *s, size_t slen, int fill)
   */
   for (last= s + slen - buflen; s <= last; s+= buflen)
   {
-    /* Enough space for the characer */
+    /* Enough space for the character */
     memcpy(s, buf, buflen);
   }
 

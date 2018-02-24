@@ -739,7 +739,7 @@ static void pad_max_char(CHARSET_INFO *cs, char *str, char *end)
   {
     if ((str + buflen) <= end)
     {
-      /* Enough space for the characer */
+      /* Enough space for the character */
       memcpy(str, buf, buflen);
       str+= buflen;
     }

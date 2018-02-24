@@ -35542,7 +35542,7 @@ MY_COLLATION_HANDLER my_collation_any_uca_handler =
 
 /* 
   We consider bytes with code more than 127 as a letter.
-  This garantees that word boundaries work fine with regular
+  This guarantees that word boundaries work fine with regular
   expressions. Note, there is no need to mark byte 255  as a
   letter, it is illegal byte in UTF8.
 */

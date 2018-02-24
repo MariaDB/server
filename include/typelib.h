@@ -33,7 +33,7 @@ extern int find_type_with_warning(const char *x, TYPELIB *typelib,
 #define FIND_TYPE_BASIC           0
 /** makes @c find_type() require the whole name, no prefix */
 #define FIND_TYPE_NO_PREFIX      (1U << 0)
-/** always implicitely on, so unused, but old code may pass it */
+/** always implicitly on, so unused, but old code may pass it */
 #define FIND_TYPE_NO_OVERWRITE   0
 /** makes @c find_type() accept a number. Not used either */
 #define FIND_TYPE_ALLOW_NUMBER   0

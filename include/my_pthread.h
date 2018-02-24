@@ -501,9 +501,9 @@ void safe_mutex_free_deadlock_data(safe_mutex_t *mp);
      MDL subsystem deadlock detector relies on this property for
      its correctness.
   2) They are optimized for uncontended wr-lock/unlock case.
-     This is scenario in which they are most oftenly used
+     This is a scenario in which they are most often used
      within MDL subsystem. Optimizing for it gives significant
-     performance improvements in some of tests involving many
+     performance improvements in some of the tests involving many
      connections.
 
   Another important requirement imposed on this type of rwlock
