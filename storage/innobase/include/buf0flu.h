@@ -293,7 +293,7 @@ public:
 
 	/** Check pages have been flushed and removed from the flush list.
 	@return true if the pages were removed from the flush list */
-	bool is_complete() const
+	bool is_complete()
 	{
 		return is_interrupted() || !my_atomic_load32(&m_pending);
 	}
