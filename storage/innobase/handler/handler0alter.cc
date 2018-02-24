@@ -1395,7 +1395,7 @@ innobase_set_foreign_key_option(
 		foreign->type = DICT_FOREIGN_ON_DELETE_SET_NULL;
 		break;
 	case FK_OPTION_UNDEF:
-		DBUG_ASSERT(0);
+		break;
 	}
 
 	switch (fk_key->update_opt) {
@@ -1411,7 +1411,7 @@ innobase_set_foreign_key_option(
 		foreign->type |= DICT_FOREIGN_ON_UPDATE_SET_NULL;
 		break;
 	case FK_OPTION_UNDEF:
-		DBUG_ASSERT(0);
+		break;
 	}
 
 	return(innobase_check_fk_option(foreign));
