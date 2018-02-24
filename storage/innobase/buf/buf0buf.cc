@@ -4682,7 +4682,7 @@ buf_page_init(
 
 		ut_d(buf_print());
 		ut_d(buf_LRU_print());
-		buf_validate();
+		ut_d(buf_validate());
 		ut_d(buf_LRU_validate());
 		ut_error;
 	}

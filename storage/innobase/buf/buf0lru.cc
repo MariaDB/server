@@ -1970,7 +1970,7 @@ buf_LRU_block_remove_hashed(
 		ut_d(mutex_exit(&buf_pool.LRU_list_mutex));
 		ut_d(buf_print());
 		ut_d(buf_LRU_print());
-		buf_validate();
+		ut_d(buf_validate());
 		ut_d(buf_LRU_validate());
 		ut_ad(0);
 	}
