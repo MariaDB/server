@@ -95,7 +95,7 @@ SET(CPACK_PACKAGE_CONTACT "MariaDB Developers <maria-developers@lists.launchpad.
 SET(CPACK_PACKAGE_VENDOR "MariaDB Foundation")
 SET(CPACK_SOURCE_GENERATOR "TGZ")
 
-# Defintions for windows version resources
+# Definitions for windows version resources
 SET(PRODUCTNAME "MariaDB Server")
 SET(COMPANYNAME ${CPACK_PACKAGE_VENDOR})
 

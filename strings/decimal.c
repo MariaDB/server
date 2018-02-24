@@ -739,7 +739,7 @@ int decimal_shift(decimal_t *dec, int shift)
   /*
     If there are gaps then fill ren with 0.
 
-    Only one of following 'for' loops will work becouse beg <= end
+    Only one of following 'for' loops will work because beg <= end
   */
   beg= ROUND_UP(beg + 1) - 1;
   end= ROUND_UP(end) - 1;
@@ -863,7 +863,7 @@ internal_str2dec(const char *from, decimal_t *to, char **end, my_bool fixed)
         intg=intg1*DIG_PER_DEC1;
     }
   }
-  /* Error is guranteed to be set here */
+  /* Error is guaranteed to be set here */
   to->intg=intg;
   to->frac=frac;
 

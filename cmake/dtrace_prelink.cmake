@@ -34,7 +34,7 @@ ENDMACRO()
 IF(TYPE STREQUAL "MERGE")
   # Rerun dtrace on objects that are already in static libraries.
   # Object paths are stored in text files named 'dtrace_objects'
-  # in the input directores. We have to copy the objects into temp.
+  # in the input directories. We have to copy the objects into temp.
   # directory, as running dtrace -G on original files will change
   # timestamps and cause rebuilds or the libraries / excessive 
   # relink

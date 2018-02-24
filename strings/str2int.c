@@ -191,7 +191,7 @@ char *str2int(register const char *src, register int radix, long int lower,
   return (char*) src;
 }
 
-	/* Theese are so slow compared with ordinary, optimized atoi */
+	/* These are so slow compared with ordinary, optimized atoi */
 
 #ifdef WANT_OUR_ATOI
 

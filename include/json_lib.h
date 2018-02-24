@@ -312,7 +312,7 @@ typedef const int *json_level_t;
 int json_skip_to_level(json_engine_t *j, int level);
 
 /*
-  json_skip_level() works as above with just current structre.
+  json_skip_level() works as above with just current structure.
   So it gets to the end of the current JSON array or object.
 */
 #define json_skip_level(json_engine) \

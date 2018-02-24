@@ -14,8 +14,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-/* There may be prolems include all of theese. Try to test in
-   configure with ones are needed? */
+/* There may be problems included in all of these. Try to test in
+   configure which ones are needed? */
 
 /*  This is needed for the definitions of strchr... on solaris */
 

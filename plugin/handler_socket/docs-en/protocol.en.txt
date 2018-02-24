@@ -46,7 +46,7 @@ Once an 'open_index' request is issued, the HandlerSocket plugin opens the
 specified index and keep it open until the client connection is closed. Each
 open index is identified by <indexid>. If <indexid> is already open, the old
 open index is closed. You can open the same combination of <dbname>
-<tablename> <indexname> multple times, possibly with different <columns>.
+<tablename> <indexname> multiple times, possibly with different <columns>.
 For efficiency, keep <indexid> small as far as possible.
 
 ----------------------------------------------------------------------------
