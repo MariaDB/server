@@ -1,5 +1,5 @@
---source include/have_binlog_format_mixed_or_statement.inc
 --source suite/versioning/engines.inc
+--source include/have_partition.inc
 --source include/master-slave.inc
 
 #BUG#12662190 - COM_COMMIT IS NOT INCREMENTED FROM THE BINARY LOGS ON SLAVE, COM_BEGIN IS
@@ -121,5 +121,16 @@ show create table t1;
 
 connection master;
 drop table t1, t2;
+
+#
+# MDEV-15395 Wrong result or Assertion `old_part_id == m_last_part' failed in ha_partition::update_row on slave
+#
+create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+insert into t1 values (1);
+update t1 set i = 1;
+update t1 set i = 0;
+sync_slave_with_master;
+connection master;
+drop table t1;
 
 --source include/rpl_end.inc

@@ -2,6 +2,7 @@
 # MDEV-15336 Server crashes in handler::print_error / ha_partition::print_error upon query timeout
 #
 --source include/have_innodb.inc
+--source include/not_embedded.inc
 --source include/have_partition.inc
 
 CREATE TABLE t1 (i INT) ENGINE=InnoDB PARTITION BY HASH (i) PARTITIONS 2;
