@@ -2418,8 +2418,6 @@ public:
   // track down slow pthread_create
   ulonglong  prior_thr_create_utime, thr_create_utime;
   ulonglong  utime_after_query;
-  my_time_t  system_time;
-  ulong      system_time_sec_part;
 
   // Process indicator
   struct {
@@ -3430,30 +3428,37 @@ public:
   { query_start_sec_part_used=1; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
 
-private:
-  bool system_time_ge(my_time_t secs, ulong usecs)
-  {
-    return (system_time == secs && system_time_sec_part >= usecs) ||
-        system_time > secs;
-  }
+  struct {
+    my_hrtime_t start;
+    my_time_t sec;
+    ulong sec_part;
+  } system_time;
 
+  ulong systime_sec_part() { return system_time.sec_part; }
+  my_time_t systime() { return system_time.sec; }
+
+private:
   void set_system_time()
   {
     my_hrtime_t hrtime= my_hrtime();
-    my_time_t secs= hrtime_to_my_time(hrtime);
-    ulong usecs= hrtime_sec_part(hrtime);
-    if (system_time_ge(secs, usecs))
+    my_time_t sec= hrtime_to_my_time(hrtime);
+    ulong sec_part= hrtime_sec_part(hrtime);
+    if (sec > system_time.sec ||
+        (sec == system_time.sec && sec_part > system_time.sec_part) ||
+        hrtime.val < system_time.start.val)
     {
-      if (++system_time_sec_part == HRTIME_RESOLUTION)
-      {
-        ++system_time;
-        system_time_sec_part= 0;
-      }
+      system_time.sec= sec;
+      system_time.sec_part= sec_part;
     }
     else
     {
-      system_time= secs;
-      system_time_sec_part= usecs;
+      if (system_time.sec_part < TIME_MAX_SECOND_PART)
+        system_time.sec_part++;
+      else
+      {
+        system_time.sec++;
+        system_time.sec_part= 0;
+      }
     }
   }
 
@@ -3468,8 +3473,8 @@ public:
     }
     else
     {
-      start_time= system_time;
-      start_time_sec_part= system_time_sec_part;
+      start_time= system_time.sec;
+      start_time_sec_part= system_time.sec_part;
     }
     PSI_CALL_set_thread_start_time(start_time);
   }

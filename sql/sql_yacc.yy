@@ -5872,7 +5872,7 @@ opt_versioning_rotation:
 opt_versioning_interval_start:
          /* empty */
          {
-           $$= thd->system_time;
+           $$= thd->systime();
          }
        | remember_tok_start STARTS_SYM ulong_num
          {
